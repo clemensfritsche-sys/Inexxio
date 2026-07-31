@@ -420,32 +420,35 @@ def _actor_names(db: Session, ids: list) -> dict:
             for u in db.query(UserProfile).filter(UserProfile.id.in_(wanted)).all()}
 
 
-def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si: OrderStepInfo) -> None:
-    """Einen blockierten Schritt anreichern – mit dem GRUND seiner Blockade.
+def _fill_order_shortfall(db: Session, order: Order, resp: OrderResponse) -> None:
+    """**Was fehlt diesem Auftrag – und wartet er schon darauf?**
 
-    Zwei Gründe, zwei Felder: **Fehlmenge** (Artikel + Menge + laufende Nachschub-
-    Unteraufträge, für «Nachschub anlegen»/Verlinkung) ODER **noch nicht hier** (das
-    Material existiert, eine Bereitstellung bringt es gerade). Ohne den zweiten Fall stünde
-    ein wegen Standort blockierter Schritt ohne jede Erklärung da."""
-    from .provisioning import open_provisioning
-    si.provisioning_order_object_ids = [
-        o.object_id for o in open_provisioning(db, order, step.id) if o.object_id
-    ]
-    shortfalls = process.step_shortfalls(db, order, step)
-    if not shortfalls:
-        return
+    Die Fehlmenge gehört dem **Auftrag**, nicht einem Schritt: sie ist «Soll − Gesichert»
+    und dieselbe Aussage, egal welcher Schritt gerade dran ist. Vorher hing sie an jedem
+    Subjekt-Schritt: dieselbe Zahl mehrfach berechnet (samt FIFO-Abfrage je Schritt) – und
+    in einem Prozess **ohne** Subjekt-Schritt (reine Beschaffung) war sie gar nicht
+    sichtbar, weshalb ein Auftrag über 4 Stück still mit 3 gelieferten abschloss.
+
+    Zwei Arten, ein Feld: ``subject`` = die Fertigware, die der Auftrag schuldet (dafür gibt
+    es «Ohne Ersatz weiter») · ``component`` = Material eines Ressourcen-Schritts (das kann
+    man nicht wegbestätigen). Beides deckt «Ersetzen» (``recovery.cover_shortfall``)."""
     from .inventory import fifo_candidates
     from .reservation import free_qty
+    from .supply import covering_sub_orders
 
-    arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(shortfalls.keys())).all()}
-    si.shortfall = []
-    for aid, qty in shortfalls.items():
+    subject_short = process.subject_shortfalls(db, order)
+    everything = process.order_shortfalls(db, order)
+    if not everything:
+        return
+    arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(everything.keys())).all()}
+    for aid, qty in everything.items():
         # Freie, freigegebene Instanzen dieses Artikels am Lager – womit sich der Bedarf ohne
-        # Nachschub decken liesse («Aus Lager decken» / «Andere Instanz wählen»).
+        # Nachschub decken liesse («Ersetzen» / «Bestimmte Instanz wählen»).
         free = [c for c in fifo_candidates(db, aid, for_order_id=None) if free_qty(c) > 0]
-        si.shortfall.append(StepShortfall(
+        resp.shortfall.append(StepShortfall(
             article_object_id=(arts[aid].object_id if aid in arts else None),
             article_name=(arts[aid].name if aid in arts else None), quantity=qty,
+            kind="subject" if aid in subject_short else "component",
             available_quantity=sum(free_qty(c) for c in free),
             available_instances=[
                 ShortfallInstance(object_id=c.object_id, quantity=free_qty(c))
@@ -453,18 +456,9 @@ def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si
             ],
         ))
     # **«Wartet» ist ein Zustand, kein Knopf.** Ist die Fehlmenge bereits in einer offenen
-    # **Abweichung** (das Stück ist in Klärung) oder einem laufenden **Nachschub** gebunden,
-    # ist die Entscheidung längst getroffen – dann sagt die Oberfläche nur noch, worauf
-    # gewartet wird, statt dieselbe Frage ein zweites Mal zu stellen.
-    si.waiting_for = [
-        r[0] for r in
-        db.query(Order.object_id).filter(
-            Order.parent_order_id == order.object_id, Order.is_active == True,
-            Order.status.in_(("draft", "released")),
-            or_(Order.reason == "deviation",
-                and_(Order.reason == "supply", Order.article_id.in_(shortfalls.keys()))))
-        .order_by(Order.object_id).all()
-    ]
+    # Abweichung (das Stück ist in Klärung) oder einem laufenden Nachschub gebunden, ist die
+    # Entscheidung längst getroffen – dann sagt die Oberfläche nur noch, worauf gewartet wird.
+    resp.waiting_for = [o.object_id for o in covering_sub_orders(db, order, set(everything.keys()))]
 
 
 def _fill_demand(db: Session, order: Order, resp: OrderResponse) -> None:
@@ -604,6 +598,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()
         resp.replaces_id = pred[0] if pred else None
     _fill_demand(db, order, resp)
+    _fill_order_shortfall(db, order, resp)
     resp.recurrence_due = recurrence_due(order)
 
     instances = order_instances(db, order)
@@ -623,8 +618,6 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
                            label=s["label"], state=s["state"])
         _fill_step_provisioning(db, order, step, si)
         _fill_step_resolutions(db, order, step, si)
-        if s["state"] == "blocked":
-            _fill_step_shortfall(db, order, step, si)
         by_name, at = _attach_step_embed(db, order, s, si, first,
                                          instances=instances, viewer=viewer)
         if s["state"] == "done":

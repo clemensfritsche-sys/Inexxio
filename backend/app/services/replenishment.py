@@ -48,7 +48,7 @@ def _open_replenishment(db: Session, article_id: int) -> Order | None:
         .all()
     )
     for order in candidates:
-        if not any(s["state"] == "failed" for s in process.order_step_infos(db, order)):
+        if not process.is_stalled(db, order):     # dieselbe Regel wie beim Nachschub
             return order
     return None
 

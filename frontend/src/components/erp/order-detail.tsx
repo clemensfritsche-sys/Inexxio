@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search, Play, Building2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderShortfall, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { useAutosave } from '@/lib/use-autosave';
@@ -161,6 +161,11 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     ?? steps.find((s) => s.state === 'blocked')?.id   // wartet auf Material → surface
     ?? steps[steps.length - 1]?.id ?? null;
   const currentStepId = selStep ?? (activeStepId != null ? String(activeStepId) : null);
+  const currentStep = steps.find((s) => String(s.id) === currentStepId) ?? null;
+  // Was dem Auftrag fehlt, steht am Auftrag – nicht an einem Schritt. «Material unterwegs»
+  // bleibt dagegen die Aussage eines konkreten Schritts (die Bereitstellung gehört ihm).
+  const hasShortfall = (record?.shortfall ?? []).length > 0;
+  const waitingOnMaterial = (currentStep?.provisioning_order_object_ids ?? []).length > 0;
 
   // Nur freigegebene Artikel sind referenzierbar
   const releasedArticles = articles.filter((a) => a.status === 'released');
@@ -825,20 +830,25 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}
                 renderPanel={(step) => (
-                  // Es gibt nur noch EINEN Grund, warum ein Schritt nicht läuft: ihm fehlt
-                  // etwas. Eine offene Abweichung hält den Auftrag nicht mehr an – sie nimmt
-                  // ihr Stück heraus, und das erscheint hier als Unterdeckung.
-                  step.state === 'blocked' ? (
-                    <ProcessHoldNotice step={step} isStaff={isStaff} canAct={record.status === 'released'}
-                      busy={supplyBusy} recoverBusy={recoverBusy} error={error}
-                      onConfirmQuantity={confirmQuantity}
-                      onReplace={replaceShortfall} onOpen={(oid) => nav?.(oid)} />
-                  ) : (
+                  // Ein blockierter Schritt zeigt seinen Grund bereits auf der Karte
+                  // («Bestand fehlt» / «Material ist unterwegs») – und was zu tun ist, steht
+                  // EINMAL unter dem Fluss, nicht je Schritt. Darum hier kein Panel.
+                  step.state === 'blocked' ? null : (
                     <StepPanel key={String(step.id)} step={step} order={record as Order}
                       viewerRole={viewerRole} company={company} onSaved={afterStep} />
                   )
                 )}
               />
+              {/* **Die Fehlmenge gehört dem Auftrag** – eine Frage, eine Stelle, drei
+                  Antworten. Sie hindert nicht an der Arbeit (erfassen/aussondern/bewegen
+                  laufen weiter), aber der Auftrag geht nicht «fertig», solange sie offen ist. */}
+              {(hasShortfall || waitingOnMaterial) && (
+                <ProcessHoldNotice record={record} step={currentStep} isStaff={isStaff}
+                  canAct={record.status === 'released'}
+                  busy={supplyBusy} recoverBusy={recoverBusy} error={error}
+                  onConfirmQuantity={confirmQuantity}
+                  onReplace={replaceShortfall} onOpen={(oid) => nav?.(oid)} />
+              )}
             </div>
           </>
         ) : !isStaff && hasPurchase ? (
@@ -922,8 +932,6 @@ function DeviationDialog({ busy, onChoose, onClose }: {
 }
 
 // Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
-const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'block', 'sale'];
-
 // **Unterdeckung: eine Frage, drei Antworten.**
 //
 // Es gibt nur noch EINEN Grund, warum ein Schritt nicht läuft: ihm fehlt etwas. (Eine offene
@@ -938,7 +946,8 @@ const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'block', 'sale'];
 //     Verfügbarkeitsfrage – keine zweite Entscheidung.
 //   • **Menge bestätigen** – der Auftrag wird mit weniger fertig. Fehlte diese Antwort, blieb
 //     nur «warten oder ersetzen»: bei einem schlechten von fünf Stück beides falsch.
-function ProcessHoldNotice({ step, isStaff, canAct, busy, recoverBusy, error, onReplace, onConfirmQuantity, onOpen }: {
+function ProcessHoldNotice({ record, step, isStaff, canAct, busy, recoverBusy, error, onReplace, onConfirmQuantity, onOpen }: {
+  record: { shortfall?: OrderShortfall[] | null; waiting_for?: number[] | null };
   step: OrderStep | null;
   isStaff: boolean;
   canAct: boolean;
@@ -970,9 +979,13 @@ function ProcessHoldNotice({ step, isStaff, canAct, busy, recoverBusy, error, on
   }
 
   // ── Es fehlt etwas ─────────────────────────────────────────────────────────────
-  const waiting = step?.waiting_for ?? [];
-  const shortfall = step?.shortfall ?? [];
-  const isSubjectStep = step ? SUBJECT_STEP_TYPES.includes(step.step_type) : false;
+  // **Die Fehlmenge gehört dem Auftrag**, nicht einem Schritt – darum steht sie hier einmal.
+  const waiting = record.waiting_for ?? [];
+  const shortfall = record.shortfall ?? [];
+  // «Ohne Ersatz weiter» gibt es nur für die **Fertigware**: einen fehlenden Komponenten-
+  // Bedarf kann man nicht wegbestätigen – ohne Material wird nichts gebaut. Welche Art
+  // vorliegt, sagt der Datensatz selbst (``kind``) statt einer Typ-Liste im Frontend.
+  const hasSubject = shortfall.some((sf) => (sf.kind ?? 'subject') === 'subject');
   const availableInstances = shortfall.flatMap((sf) => sf.available_instances ?? []);
   // «Menge bestätigen» gibt es nur für das **Subjekt** (Fertigware): einen fehlenden
   // Komponenten-Bedarf kann man nicht wegbestätigen – ohne Material wird nichts gebaut.
@@ -1013,13 +1026,13 @@ function ProcessHoldNotice({ step, isStaff, canAct, busy, recoverBusy, error, on
             {recoverBusy ? 'Wird ersetzt…' : 'Ersetzen'}
           </PrimaryButton>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {isSubjectStep && availableInstances.length > 0 && (
+            {hasSubject && availableInstances.length > 0 && (
               <SecondaryAction icon={Boxes} label="Bestimmte Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
             )}
             {/* «Menge bestätigen» sagte, was das System tut, nicht was der Mensch
                 entscheidet (Notiz #280). Der Gegensatz zu «Ersetzen» ist: gar nicht
                 ersetzen – der Auftrag wird mit dem fertig, was da ist. */}
-            {isSubjectStep && (
+            {hasSubject && (
               <SecondaryAction icon={CheckCircle2} label={busy ? 'Wird übernommen…' : 'Ohne Ersatz weiter'}
                 onClick={onConfirmQuantity} disabled={busyAny} />
             )}

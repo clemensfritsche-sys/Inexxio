@@ -564,10 +564,11 @@ async def abort_order(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    """Abbruch eines Auftrags. Ein **Entwurf** wird direkt inaktiv. Ein **freigegebener**
-    Auftrag mit im Prozess befindlichen Instanzen erzwingt einen **Folgeauftrag**
-    (Abweichung): dieser übernimmt die Instanzen; das Original wird erst inaktiv, wenn der
-    Folgeauftrag freigegeben ist. Liefert den **Folgeauftrag** (bzw. das Original) zurück."""
+    """Abbruch eines Auftrags – **sofort und endgültig**, kein Antrag (siehe
+    ``deviation.abort_parent``). Ein **Entwurf** oder ein Auftrag ohne aktive Instanzen wird
+    direkt inaktiv. Sind noch Instanzen im Prozess, übernimmt sie ein **Abweichungsauftrag**
+    (dort wird entschieden, was mit ihnen geschieht) – herrenlos wird nichts. Ein
+    **Unter-Auftrag** wird stattdessen verworfen (Bindung zurück an den Eltern)."""
     order = _get_staff_order(db, object_id)
     if order.status in ("inactive", "completed"):
         raise HTTPException(400, detail="Auftrag ist bereits abgeschlossen/inaktiv")
@@ -646,7 +647,8 @@ async def open_deviation(
     (Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).
 
     ``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**
-    (er pausiert bis zur Klärung) oder **abbrechen** (sofort und endgültig inaktiv; nur der
+    (er läuft normal weiter; das betroffene Stück ist nur aus seiner Deckung genommen und
+    erscheint als Fehlmenge) oder **abbrechen** (sofort und endgültig inaktiv; nur der
     Abweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».
     Liefert die neue Abweichung zurück (man definiert dort die Auflösung)."""
     parent = _get_staff_order(db, object_id)

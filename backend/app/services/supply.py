@@ -30,15 +30,35 @@ def _can_supply(db: Session, article: Article) -> bool:
     return article.status == "released" and bool(article_steps(db, article.id))
 
 
-def _existing_open_supply(db: Session, parent: Order, article_id: int) -> Order | None:
-    """Läuft bereits ein Nachschub dieses Eltern für diesen Artikel? (Idempotenz)."""
-    return (
+def covering_sub_orders(db: Session, parent: Order, article_ids: set | None = None) -> list[Order]:
+    """**Wer deckt gerade eine Fehlmenge dieses Auftrags?** – die EINE Antwort.
+
+    Zwei Arten von Unter-Auftrag decken: die **Abweichung** (das Stück ist in Klärung) und
+    der **Nachschub** (die Menge wird beschafft/produziert). Beides bedeutet für den Eltern
+    dasselbe: die Entscheidung ist getroffen, es läuft.
+
+    **Steckengebliebene zählen nicht.** Ein Unter-Auftrag mit fehlgeschlagenem Schritt
+    liefert ohne Klärung nie mehr etwas (``process.is_stalled``) – ihn als «läuft» zu führen
+    war die Sackgasse: der Eltern zeigte «wartet auf …», blendete darum die Deckungs-Wege
+    aus, und ein zweiter Nachschub galt als überflüssig. Kein Weg nach vorn.
+
+    Zwei Leser, eine Definition: die Anzeige «worauf wartet der Auftrag»
+    (``orders._fill_step_shortfall``) und die Idempotenz von ``ensure_supply``."""
+    if not parent.object_id:
+        return []
+    rows = (
         db.query(Order)
-        .filter(Order.parent_order_id == parent.object_id, Order.reason == "supply",
-                Order.article_id == article_id, Order.is_active == True,
+        .filter(Order.parent_order_id == parent.object_id, Order.is_active == True,
+                Order.reason.in_(("deviation", "supply")),
                 Order.status.in_(("draft", "released")))
-        .first()
+        .order_by(Order.object_id)
+        .all()
     )
+    return [
+        o for o in rows
+        if (o.reason == "deviation" or article_ids is None or o.article_id in article_ids)
+        and not process.is_stalled(db, o)
+    ]
 
 
 def ensure_supply(db: Session, order: Order, actor_id: int | None,
@@ -69,8 +89,8 @@ def ensure_supply(db: Session, order: Order, actor_id: int | None,
         art = db.query(Article).filter(Article.id == art_id).first()
         if not art or not _can_supply(db, art):
             continue   # kein freigegebener Prozess → nicht automatisch beschaffbar (bleibt blockiert)
-        if _existing_open_supply(db, order, art_id):
-            continue   # läuft bereits
+        if any(o.reason == "supply" for o in covering_sub_orders(db, order, {art_id})):
+            continue   # läuft bereits (ein steckengebliebener zählt NICHT als «läuft»)
         sup = Order(
             object_id=next_object_id(db, "order"), status="draft",
             article_id=art_id, quantity=qty,

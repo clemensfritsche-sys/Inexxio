@@ -115,6 +115,8 @@ export type ResourceMode = 'consume' | 'tool';
 export type OrderStep = OrderApi['steps'][number];
 // Was an einem Schritt entschieden wurde, als er unterdeckt war (ersetzt / ohne Ersatz weiter).
 export type StepResolution = OrderStep['resolutions'][number];
+/** Was einem Auftrag fehlt (Fertigware oder Komponente) – die Fehlmenge gehört dem Auftrag. */
+export type OrderShortfall = OrderApi['shortfall'][number];
 
 // Dokument: Inhalt (Titel/Untertitel/Abschnitte) + eingebetteter Stand im Auftrag.
 // Der Inhalt wird WÄHREND der Auftragsausführung verfasst und ausgestellt.

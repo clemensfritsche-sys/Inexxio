@@ -3013,7 +3013,7 @@
           "orders"
         ],
         "summary": "Abort Order",
-        "description": "Abbruch eines Auftrags. Ein **Entwurf** wird direkt inaktiv. Ein **freigegebener**\nAuftrag mit im Prozess befindlichen Instanzen erzwingt einen **Folgeauftrag**\n(Abweichung): dieser übernimmt die Instanzen; das Original wird erst inaktiv, wenn der\nFolgeauftrag freigegeben ist. Liefert den **Folgeauftrag** (bzw. das Original) zurück.",
+        "description": "Abbruch eines Auftrags – **sofort und endgültig**, kein Antrag (siehe\n``deviation.abort_parent``). Ein **Entwurf** oder ein Auftrag ohne aktive Instanzen wird\ndirekt inaktiv. Sind noch Instanzen im Prozess, übernimmt sie ein **Abweichungsauftrag**\n(dort wird entschieden, was mit ihnen geschieht) – herrenlos wird nichts. Ein\n**Unter-Auftrag** wird stattdessen verworfen (Bindung zurück an den Eltern).",
         "operationId": "abort_order_api_v1_erp_orders__object_id__abort_post",
         "security": [
           {
@@ -3109,7 +3109,7 @@
           "orders"
         ],
         "summary": "Open Deviation",
-        "description": "**Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN\nKonzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an\n(Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).\n\n``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**\n(er pausiert bis zur Klärung) oder **abbrechen** (sofort und endgültig inaktiv; nur der\nAbweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».\nLiefert die neue Abweichung zurück (man definiert dort die Auflösung).",
+        "description": "**Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN\nKonzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an\n(Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).\n\n``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**\n(er läuft normal weiter; das betroffene Stück ist nur aus seiner Deckung genommen und\nerscheint als Fehlmenge) oder **abbrechen** (sofort und endgültig inaktiv; nur der\nAbweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».\nLiefert die neue Abweichung zurück (man definiert dort die Auflösung).",
         "operationId": "open_deviation_api_v1_erp_orders__object_id__deviation_post",
         "security": [
           {
@@ -12748,6 +12748,22 @@
             "title": "Steps",
             "default": []
           },
+          "shortfall": {
+            "items": {
+              "$ref": "#/components/schemas/StepShortfall"
+            },
+            "type": "array",
+            "title": "Shortfall",
+            "default": []
+          },
+          "waiting_for": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Waiting For",
+            "default": []
+          },
           "replaced_by_id": {
             "anyOf": [
               {
@@ -12918,22 +12934,6 @@
               }
             ],
             "title": "Completed At"
-          },
-          "shortfall": {
-            "items": {
-              "$ref": "#/components/schemas/StepShortfall"
-            },
-            "type": "array",
-            "title": "Shortfall",
-            "default": []
-          },
-          "waiting_for": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Waiting For",
-            "default": []
           },
           "resolutions": {
             "items": {
@@ -15932,6 +15932,11 @@
             "type": "number",
             "title": "Quantity"
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "subject"
+          },
           "available_quantity": {
             "type": "number",
             "title": "Available Quantity",
@@ -15951,7 +15956,7 @@
           "quantity"
         ],
         "title": "StepShortfall",
-        "description": "Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge).\n\n``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**\ndecken liesse (für «Aus Lager decken» / «Andere Instanz wählen»)."
+        "description": "Ein ungedeckter Bedarf des **Auftrags** (Artikel + Fehlmenge).\n\nDie Fehlmenge gehört dem Auftrag, nicht einem Schritt: sie entsteht aus «Soll − Gesichert»\nund ist dieselbe Aussage, egal welcher Schritt gerade dran ist. Früher hing sie an jedem\nSubjekt-Schritt – dieselbe Zahl mehrfach, und in einem Prozess ohne Subjekt-Schritt\n(z. B. reine Beschaffung) war sie **gar nicht** sichtbar.\n\n``kind`` sagt, WAS fehlt: ``subject`` = die Fertigware, die der Auftrag schuldet (dafür\ngibt es «Ohne Ersatz weiter») · ``component`` = Material, das ein Ressourcen-Schritt\nverbraucht (das kann man nicht wegbestätigen – ohne Material wird nichts gebaut).\n\n``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**\ndecken liesse (für «Ersetzen» / «Bestimmte Instanz wählen»)."
       },
       "SuggestedLink": {
         "properties": {

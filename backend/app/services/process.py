@@ -456,7 +456,13 @@ def _component_needs(db: Session, order: Order) -> dict[int, Decimal]:
     return needs
 
 
-SUBJECT_STEP_TYPES = ("movement", "inspection", "scrap", "block", "sale")
+# Schritte, die das **Subjekt** (die Fertigware) des Auftrags anfassen. Sie MELDEN eine
+# Fehlmenge; ob sie daran auch hängenbleiben, entscheidet ``EventType.hands_over`` – siehe
+# ``_step_blocked``. Abgeleitet aus der Registry statt hier gepflegt.
+SUBJECT_STEP_TYPES = tuple(
+    k for k, et in event_types.REGISTRY.items()
+    if et.subject_role in (event_types.STOCK, event_types.INSTANCE)
+)
 
 
 def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict[int, Decimal]:
@@ -515,21 +521,43 @@ def blocked_step_for_article(db: Session, order: Order, article_id: int) -> int 
 
 
 def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
-    """Blockiert, weil ein Bedarf (noch) nicht gedeckt ist?
+    """Hält eine Fehlmenge diesen Schritt auf?
 
-    Zwei Gründe, dieselbe Konsequenz: **Menge** fehlt (``step_shortfalls`` → Nachschub; das
-    gilt je Schritt) oder Material ist **unterwegs** (offene Bereitstellung).
+    **Eine Fehlmenge hindert nicht an der Arbeit – sie hindert am Weitergeben.** Aufgehalten
+    wird nur, wer die fehlende Menge sonst aus der Hand gäbe: der **Verkauf** (hinaus zum
+    Kunden) und die **Ressource** (hinein ins Produkt). Beides ist in der Registry deklariert
+    (``EventType.hands_over``), nicht hier aufgezählt.
 
-    **Eine offene Bereitstellung hält den ganzen Auftrag an – nicht nur „ihren" Schritt.**
-    Sie gehört zu dem Schritt, der sie ausgelöst hat (Beschaffung: die Ware kommt an,
-    NACHDEM die Bestellung geliefert ist) und liegt im Ablauf damit VOR dem nächsten
-    Schritt. Prüfte man nur den eigenen Schritt, liefe der nächste weiter, während das
-    Material noch unterwegs ist: eine Eingangskontrolle liesse sich abschliessen, bevor die
-    Ware überhaupt im Betrieb gebucht ist. Eine Regel, kein Sonderfall je Schritttyp."""
-    if step_shortfalls(db, order, step):
+    Erfassen, Aussondern und Bewegen laufen weiter – sie arbeiten an dem, was **da ist**, und
+    gerade wenn etwas fehlt, will man sie tun. Vorher blockierten alle fünf Subjekt-Schritte:
+    eine Abweichung an EINEM von fünf Teilen legte damit die Prüfung der anderen vier stumm –
+    genau die Pause, die abgeschafft werden sollte, nur unter anderem Namen.
+
+    Dass dabei nichts still unterliefert wird, sichert die andere Hälfte derselben Regel:
+    ein Auftrag mit offener Fehlmenge **schliesst nicht ab** (``recompute_completion``).
+
+    Dazu der zweite, unabhängige Grund: Material ist **unterwegs** (offene Bereitstellung).
+    Sie hält den ganzen Auftrag an – sie gehört zu dem Schritt, der sie ausgelöst hat, und
+    liegt im Ablauf VOR dem nächsten; sonst liefe der weiter, während die Ware noch reist."""
+    et = event_types.REGISTRY.get(step.step_type)
+    if et is not None and et.hands_over and step_shortfalls(db, order, step):
         return True
     from .provisioning import open_provisioning
     return bool(open_provisioning(db, order))
+
+
+def is_stalled(db: Session, order: Order) -> bool:
+    """**Steckt dieser Auftrag fest?** – er hat einen fehlgeschlagenen Schritt.
+
+    Ein fehlgeschlagener Schritt ist nicht wiederholbar; ohne menschliche Klärung
+    (Abweichung, Abbruch) liefert der Auftrag nichts mehr. Wer wissen will, ob eine
+    Fehlmenge «schon unterwegs» ist, muss das berücksichtigen – sonst zeigt ein Auftrag
+    für immer «wartet auf …» und blendet dabei die Wege aus, die ihn befreien würden.
+
+    Die Regel gab es bereits einmal (Auto-Nachbestellung), fehlte aber dort, wo sie
+    genauso zählt: bei der Nachschub-Idempotenz und bei «worauf wartet der Auftrag».
+    Jetzt steht sie an EINER Stelle und alle drei lesen sie."""
+    return any(s["state"] == "failed" for s in order_step_infos(db, order))
 
 
 def order_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
@@ -848,7 +876,13 @@ def recompute_completion(db: Session, order: Order) -> None:
     # Kunden). Sonst schlösse der Auftrag ab, bevor die Lieferung raus ist.
     if open_provisioning(db, order):
         return
-    if order.status != "completed" and all_steps_done(db, order):
+    # **Kein Auftrag geht «fertig», solange ihm etwas fehlt.** Das ist die zweite Hälfte der
+    # Unterdeckungs-Regel und der eigentliche Schutz gegen stilles Unterliefern: vorher hing
+    # er zufällig daran, ob der Prozess einen blockierenden Schritt enthielt – ein Auftrag
+    # über 4 Stück mit reiner Beschaffung schloss mit 3 gelieferten Stück ab, ohne Hinweis.
+    # Der Mensch entscheidet über die drei Wege (Ersetzen · gezielt decken · ohne Ersatz
+    # weiter); erst danach ist der Auftrag durch.
+    if order.status != "completed" and all_steps_done(db, order) and not _subject_shortfalls(db, order):
         order.status = "completed"
         if order.completed_at is None:
             order.completed_at = utcnow()

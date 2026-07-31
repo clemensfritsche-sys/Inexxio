@@ -166,7 +166,8 @@ def confirm_quantity(db: Session, order: Order, actor_id: int) -> dict:
         rest = to_qty(order.quantity or 0) - gap
         if rest <= 0:
             raise HTTPException(
-                409, detail="Nichts gesichert – hier ist der Abweichungsauftrag der Weg, nicht die Mengenbestätigung")
+                409, detail="Der Auftrag hat gar nichts – «ohne Ersatz weiter» ergäbe eine "
+                            "Menge von 0. Hier hilft nur «Ersetzen» oder «Abbrechen».")
         _record_at_step(db, order, order.article_id, "order.quantity_confirmed",
                         {"from": to_qty(order.quantity or 0), "to": rest}, actor_id)
         order.quantity = rest
@@ -179,7 +180,8 @@ def confirm_quantity(db: Session, order: Order, actor_id: int) -> dict:
             rest = to_qty(line.quantity) - gap
             if rest <= 0:
                 raise HTTPException(
-                    409, detail="Nichts gesichert – hier ist der Abweichungsauftrag der Weg, nicht die Mengenbestätigung")
+                    409, detail="Diese Position hat gar nichts – «ohne Ersatz weiter» ergäbe eine "
+                                "Menge von 0. Hier hilft nur «Ersetzen» oder «Abbrechen».")
             _record_at_step(db, order, line.article_id, "order.quantity_confirmed",
                             {"from": to_qty(line.quantity), "to": rest}, actor_id)
             line.quantity = rest

@@ -201,9 +201,14 @@ def test_admin_deactivation_blocked_by_open_signoffs():
 def test_stuck_replenishment_does_not_suppress_future_reorders():
     # Bug: eine Nachbestellung mit fehlgeschlagenem Schritt (abgelehnte Beschaffung) blieb
     # für immer «released» und unterdrückte JEDE künftige Auto-Nachbestellung (Stockout).
+    # Die Regel «ein Auftrag mit fehlgeschlagenem Schritt liefert nichts mehr» steht jetzt
+    # an EINER Stelle (``process.is_stalled``); Auto-Nachbestellung, Nachschub-Idempotenz
+    # und «worauf wartet der Auftrag» lesen alle dieselbe.
+    from app.services import process, supply
     from app.services.replenishment import _open_replenishment
-    src = inspect.getsource(_open_replenishment)
-    assert "failed" in src
+    assert "is_stalled" in inspect.getsource(_open_replenishment)
+    assert "is_stalled" in inspect.getsource(supply.covering_sub_orders)
+    assert callable(process.is_stalled)
 
 
 def test_replenishment_reuses_supply_can_supply():

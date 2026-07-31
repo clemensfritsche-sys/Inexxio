@@ -2191,13 +2191,22 @@ def test_waiting_is_a_state_not_a_button():
     gewartet wird. Die frühere Trennung «Nachschub läuft» ↔ «Abweichung offen» (zwei Felder,
     zwei Sprachen) ist EIN Feld geworden."""
     import inspect as _inspect
-    from app.schemas.order import OrderStepInfo
-    from app.services import orders
+    from app.schemas.order import OrderResponse, OrderStepInfo
+    from app.services import orders, supply
 
-    assert "waiting_for" in OrderStepInfo.model_fields
-    assert "supply_order_object_ids" not in OrderStepInfo.model_fields
-    src = _inspect.getsource(orders._fill_step_shortfall)
-    assert 'Order.reason == "deviation"' in src and 'Order.reason == "supply"' in src
+    # Die Fehlmenge – und damit «worauf wird gewartet» – gehört dem **Auftrag**, nicht
+    # einem Schritt: dieselbe Zahl hing vorher an jedem Subjekt-Schritt und fehlte ganz,
+    # wenn der Prozess keinen hatte.
+    assert "waiting_for" in OrderResponse.model_fields
+    assert "shortfall" in OrderResponse.model_fields
+    assert "waiting_for" not in OrderStepInfo.model_fields
+    assert "shortfall" not in OrderStepInfo.model_fields
+    # «Wer deckt gerade» ist EINE Definition (``supply.covering_sub_orders``) – Abweichung
+    # UND Nachschub, und ein **steckengebliebener** zählt nicht als «läuft». Sonst zeigte
+    # der Eltern für immer «wartet auf …» und blendete genau die Wege aus, die ihn befreien.
+    src = _inspect.getsource(supply.covering_sub_orders)
+    assert '"deviation"' in src and '"supply"' in src and "is_stalled" in src
+    assert "covering_sub_orders" in _inspect.getsource(orders._fill_order_shortfall)
 
 
 def test_what_happened_stays_at_its_step():
@@ -2257,8 +2266,8 @@ def test_subject_shortfall_is_one_formula_for_all_order_kinds():
 
 
 def test_step_shortfall_exposes_stock_availability_for_recovery():
-    """Der blockierte Schritt trägt, womit sich der Bedarf aus vorhandenem Lagerbestand decken
-    liesse (für «Aus Lager decken» / «Andere Instanz wählen»)."""
+    """Der **Auftrag** trägt, womit sich der Bedarf aus vorhandenem Lagerbestand decken
+    liesse (für «Ersetzen» / «Bestimmte Instanz wählen»)."""
     import inspect as _inspect
     from app.schemas.order import ShortfallInstance, StepShortfall
     from app.services import orders
@@ -2266,22 +2275,24 @@ def test_step_shortfall_exposes_stock_availability_for_recovery():
     assert "available_instances" in StepShortfall.model_fields
     assert "available_quantity" in StepShortfall.model_fields
     assert set(ShortfallInstance.model_fields) >= {"object_id", "quantity"}
-    assert "available_instances" in _inspect.getsource(orders._fill_step_shortfall)
+    assert "available_instances" in _inspect.getsource(orders._fill_order_shortfall)
 
 
 def test_a_shortfall_blocks_only_the_step_that_needs_it():
-    """Kein Auftrag wird mehr pauschal angehalten: was fehlt, blockiert den Schritt, der es
-    braucht (``_step_blocked``) – und die Ausführungs-Endpunkte tragen keinen Pause-Wächter
-    mehr. Der Schutz vor Teil-Versand bleibt, weil Verkauf und Bewegung Subjekt-Schritte
-    sind und bei einer Fehlmenge ohnehin blockieren."""
+    """Kein Auftrag wird mehr pauschal angehalten: was fehlt, blockiert **nur den Schritt,
+    der es weitergäbe** (``_step_blocked`` über ``EventType.hands_over``) – und die
+    Ausführungs-Endpunkte tragen keinen Pause-Wächter mehr. Der Schutz vor Teil-Versand
+    bleibt: der Verkauf blockiert bei Unterdeckung, und der Auftrag schliesst nicht ab,
+    solange etwas fehlt."""
     import inspect as _inspect
     from app.routers import orders
     from app.services import process
 
     assert "_assert_not_paused" not in _inspect.getsource(orders)
     blocked = _inspect.getsource(process._step_blocked)
-    assert "step_shortfalls(db, order, step)" in blocked
-    for t in ("movement", "sale"):
+    assert "step_shortfalls(db, order, step)" in blocked and "hands_over" in blocked
+    # Die Subjekt-Liste sagt nur noch, wer eine Fehlmenge MELDET – nicht, wer daran hängt.
+    for t in ("movement", "sale", "inspection", "scrap"):
         assert t in process.SUBJECT_STEP_TYPES
 
 
@@ -3191,3 +3202,76 @@ def test_step_status_semantics_live_in_the_registry():
     # selbst bleibt fehlgeschlagen (Testnotiz #70/#71).
     assert _fact_status("inspection", Fact(result="failed")) == "failed"
     assert _fact_status("inspection", Fact(result="failed", resolved_by_order_id=7)) == "done"
+
+
+def test_a_shortfall_stops_handover_not_work():
+    """**Eine Fehlmenge hindert nicht an der Arbeit – sie hindert am Weitergeben.**
+
+    Vorher blockierte sie fünf Schritttypen (``SUBJECT_STEP_TYPES``): eine Abweichung an
+    EINEM von fünf Teilen legte damit auch die Prüfung der anderen vier still – genau die
+    Pause, die abgeschafft werden sollte, nur unter anderem Namen. Aufgehalten wird jetzt
+    nur, wer die fehlende Menge sonst aus der Hand gäbe: der **Verkauf** (hinaus zum Kunden)
+    und die **Ressource** (hinein ins Produkt). Beides ist **deklariert**
+    (``EventType.hands_over``), nicht aufgezählt."""
+    import ast
+    import inspect as _inspect
+    from app.domain import event_types
+    from app.services.process import _step_blocked
+
+    hands_over = {k for k, et in event_types.REGISTRY.items() if et.hands_over}
+    assert hands_over == {"sale", "resource"}, hands_over
+    for key in ("inspection", "movement", "scrap", "block", "purchase", "document"):
+        assert not event_types.REGISTRY[key].hands_over, key
+
+    src = ast.unparse(ast.parse(_inspect.getsource(_step_blocked)))
+    assert "hands_over" in src
+    for literal in ("'inspection'", "'movement'", "'scrap'", "'sale'"):
+        assert literal not in src, (
+            f"{literal} gehört in die Registry, nicht in die Blockade-Regel – sonst ist die "
+            "Liste wieder da, die den Auftrag stillgelegt hat")
+
+
+def test_no_order_completes_while_something_is_missing():
+    """**Kein Auftrag geht «fertig», solange ihm etwas fehlt** – die zweite Hälfte derselben
+    Regel und der eigentliche Schutz gegen stilles Unterliefern.
+
+    Vorher hing der Schutz zufällig daran, ob der Prozess einen blockierenden Schritt
+    enthielt: ein Auftrag über 4 Stück mit reiner **Beschaffung** schloss mit 3 gelieferten
+    Stück ab – ohne Fehlmeldung, ohne Entscheidung. Jetzt entscheidet der Mensch über die
+    drei Wege (Ersetzen · gezielt decken · ohne Ersatz weiter), und erst danach ist der
+    Auftrag durch."""
+    import ast
+    import inspect as _inspect
+    from app.services.process import recompute_completion
+
+    src = ast.unparse(ast.parse(_inspect.getsource(recompute_completion)))
+    assert "all_steps_done" in src and "_subject_shortfalls" in src, (
+        "Der Abschluss muss BEIDES verlangen: alle Schritte erledigt UND nichts offen")
+
+
+def test_the_shortfall_belongs_to_the_order():
+    """Die Fehlmenge ist eine Aussage über den **Auftrag**, nicht über einen Schritt.
+
+    Sie entsteht aus «Soll − Gesichert» und ist dieselbe Zahl, egal welcher Schritt gerade
+    dran ist. Vorher hing sie an jedem Subjekt-Schritt (dieselbe Zahl mehrfach berechnet,
+    samt FIFO-Abfrage je Schritt) – und in einem Prozess ohne Subjekt-Schritt war sie gar
+    nicht sichtbar. ``kind`` unterscheidet Fertigware und Komponente, damit das Frontend
+    keine eigene Schritttyp-Liste spiegeln muss."""
+    from app.schemas.order import OrderResponse, OrderStepInfo, StepShortfall
+
+    assert {"shortfall", "waiting_for"} <= set(OrderResponse.model_fields)
+    assert "shortfall" not in OrderStepInfo.model_fields
+    assert "waiting_for" not in OrderStepInfo.model_fields
+    assert "kind" in StepShortfall.model_fields
+
+
+def test_a_reported_deviation_holds_its_instance_immediately():
+    """Ab der **Meldung**, nicht erst ab der Freigabe: ein am Lager liegendes Teil, über das
+    eine Abweichung läuft, darf kein anderer Auftrag per FIFO wegnehmen. Zwischen «Verdacht
+    gemeldet» und «Auflösung konfiguriert» war es vorher frei verfügbar."""
+    import inspect as _inspect
+    from app.services.deviation import create_deviation, detach_sub_order
+
+    assert "reserve(" in _inspect.getsource(create_deviation)
+    # Und die EINE Aufräum-Stelle gibt sie wieder her.
+    assert "release_reservation" in _inspect.getsource(detach_sub_order)

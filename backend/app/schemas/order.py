@@ -22,13 +22,23 @@ class ShortfallInstance(BaseModel):
 
 
 class StepShortfall(BaseModel):
-    """Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge).
+    """Ein ungedeckter Bedarf des **Auftrags** (Artikel + Fehlmenge).
+
+    Die Fehlmenge gehört dem Auftrag, nicht einem Schritt: sie entsteht aus «Soll − Gesichert»
+    und ist dieselbe Aussage, egal welcher Schritt gerade dran ist. Früher hing sie an jedem
+    Subjekt-Schritt – dieselbe Zahl mehrfach, und in einem Prozess ohne Subjekt-Schritt
+    (z. B. reine Beschaffung) war sie **gar nicht** sichtbar.
+
+    ``kind`` sagt, WAS fehlt: ``subject`` = die Fertigware, die der Auftrag schuldet (dafür
+    gibt es «Ohne Ersatz weiter») · ``component`` = Material, das ein Ressourcen-Schritt
+    verbraucht (das kann man nicht wegbestätigen – ohne Material wird nichts gebaut).
 
     ``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**
-    decken liesse (für «Aus Lager decken» / «Andere Instanz wählen»)."""
+    decken liesse (für «Ersetzen» / «Bestimmte Instanz wählen»)."""
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     quantity: float   # Bruchmenge möglich (kg/m²/…)
+    kind: str = "subject"          # subject | component
     available_quantity: float = 0
     available_instances: list[ShortfallInstance] = []
 
@@ -74,14 +84,8 @@ class OrderStepInfo(BaseModel):
     state: str   # done | active | blocked | locked | failed
     completed_by: Optional[str] = None   # wer hat den Schritt abgeschlossen
     completed_at: Optional[datetime] = None  # wann
-    # Bei state='blocked': ungedeckte Bedarfe + laufende Nachschub-Unteraufträge (Objektnummern),
-    # die diese Fehlmenge gerade decken.
-    shortfall: list[StepShortfall] = []
-    # Worauf dieser Schritt **wartet**: offene Unter-Aufträge, die seine Fehlmenge bereits
-    # binden – eine **Abweichung** (das Stück ist in Klärung) oder ein laufender **Nachschub**.
-    # Solange etwas hier steht, ist die Entscheidung getroffen: die Oberfläche zeigt nur noch
-    # den Zustand, statt dieselbe Frage ein zweites Mal zu stellen.
-    waiting_for: list[int] = []
+    # (``shortfall``/``waiting_for`` sind an den **Auftrag** gewandert: die Fehlmenge ist
+    # eine Aussage über den Auftrag, nicht über einen Schritt – siehe ``OrderResponse``.)
     # Was an diesem Schritt bereits entschieden wurde (ersetzt / ohne Ersatz weiter) –
     # auch dann noch, wenn er längst wieder läuft.
     resolutions: list[StepResolution] = []
@@ -348,6 +352,18 @@ class OrderResponse(BaseModel):
     disposal: Optional[DisposalEmbed] = None
     document: Optional[DocumentEmbed] = None
     steps: list[OrderStepInfo] = []
+    # **Was diesem Auftrag fehlt** – Fertigware (``kind='subject'``) und/oder Material eines
+    # Ressourcen-Schritts (``kind='component'``). EINE Aussage über den Auftrag, an EINER
+    # Stelle: sie blockiert nur, was die Menge weitergäbe (Verkauf/Ressource), verhindert
+    # aber IMMER den Abschluss – kein Auftrag geht «fertig», solange ihm etwas fehlt.
+    shortfall: list[StepShortfall] = []
+    # Worauf der Auftrag **wartet**: offene Unter-Aufträge, die diese Fehlmenge bereits
+    # binden – eine **Abweichung** (das Stück ist in Klärung) oder ein laufender **Nachschub**.
+    # Solange etwas hier steht, ist die Entscheidung getroffen: die Oberfläche zeigt nur noch
+    # den Zustand, statt dieselbe Frage ein zweites Mal zu stellen. Ein **steckengebliebener**
+    # Unter-Auftrag zählt NICHT (``supply.covering_sub_orders``) – sonst wartete der Auftrag
+    # für immer auf etwas, das nie kommt.
+    waiting_for: list[int] = []
     # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
     replaced_by_id: Optional[int] = None
     replaces_id: Optional[int] = None

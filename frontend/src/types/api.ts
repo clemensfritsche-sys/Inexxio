@@ -1039,10 +1039,11 @@ export interface paths {
         put?: never;
         /**
          * Abort Order
-         * @description Abbruch eines Auftrags. Ein **Entwurf** wird direkt inaktiv. Ein **freigegebener**
-         *     Auftrag mit im Prozess befindlichen Instanzen erzwingt einen **Folgeauftrag**
-         *     (Abweichung): dieser übernimmt die Instanzen; das Original wird erst inaktiv, wenn der
-         *     Folgeauftrag freigegeben ist. Liefert den **Folgeauftrag** (bzw. das Original) zurück.
+         * @description Abbruch eines Auftrags – **sofort und endgültig**, kein Antrag (siehe
+         *     ``deviation.abort_parent``). Ein **Entwurf** oder ein Auftrag ohne aktive Instanzen wird
+         *     direkt inaktiv. Sind noch Instanzen im Prozess, übernimmt sie ein **Abweichungsauftrag**
+         *     (dort wird entschieden, was mit ihnen geschieht) – herrenlos wird nichts. Ein
+         *     **Unter-Auftrag** wird stattdessen verworfen (Bindung zurück an den Eltern).
          */
         post: operations["abort_order_api_v1_erp_orders__object_id__abort_post"];
         delete?: never;
@@ -1090,7 +1091,8 @@ export interface paths {
          *     (Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).
          *
          *     ``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**
-         *     (er pausiert bis zur Klärung) oder **abbrechen** (sofort und endgültig inaktiv; nur der
+         *     (er läuft normal weiter; das betroffene Stück ist nur aus seiner Deckung genommen und
+         *     erscheint als Fehlmenge) oder **abbrechen** (sofort und endgültig inaktiv; nur der
          *     Abweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».
          *     Liefert die neue Abweichung zurück (man definiert dort die Auflösung).
          */
@@ -4416,6 +4418,16 @@ export interface components {
              * @default []
              */
             steps: components["schemas"]["OrderStepInfo"][];
+            /**
+             * Shortfall
+             * @default []
+             */
+            shortfall: components["schemas"]["StepShortfall"][];
+            /**
+             * Waiting For
+             * @default []
+             */
+            waiting_for: number[];
             /** Replaced By Id */
             replaced_by_id?: number | null;
             /** Replaces Id */
@@ -4477,16 +4489,6 @@ export interface components {
             completed_by?: string | null;
             /** Completed At */
             completed_at?: string | null;
-            /**
-             * Shortfall
-             * @default []
-             */
-            shortfall: components["schemas"]["StepShortfall"][];
-            /**
-             * Waiting For
-             * @default []
-             */
-            waiting_for: number[];
             /**
              * Resolutions
              * @default []
@@ -5580,10 +5582,19 @@ export interface components {
         };
         /**
          * StepShortfall
-         * @description Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge).
+         * @description Ein ungedeckter Bedarf des **Auftrags** (Artikel + Fehlmenge).
+         *
+         *     Die Fehlmenge gehört dem Auftrag, nicht einem Schritt: sie entsteht aus «Soll − Gesichert»
+         *     und ist dieselbe Aussage, egal welcher Schritt gerade dran ist. Früher hing sie an jedem
+         *     Subjekt-Schritt – dieselbe Zahl mehrfach, und in einem Prozess ohne Subjekt-Schritt
+         *     (z. B. reine Beschaffung) war sie **gar nicht** sichtbar.
+         *
+         *     ``kind`` sagt, WAS fehlt: ``subject`` = die Fertigware, die der Auftrag schuldet (dafür
+         *     gibt es «Ohne Ersatz weiter») · ``component`` = Material, das ein Ressourcen-Schritt
+         *     verbraucht (das kann man nicht wegbestätigen – ohne Material wird nichts gebaut).
          *
          *     ``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**
-         *     decken liesse (für «Aus Lager decken» / «Andere Instanz wählen»).
+         *     decken liesse (für «Ersetzen» / «Bestimmte Instanz wählen»).
          */
         StepShortfall: {
             /** Article Object Id */
@@ -5592,6 +5603,11 @@ export interface components {
             article_name?: string | null;
             /** Quantity */
             quantity: number;
+            /**
+             * Kind
+             * @default subject
+             */
+            kind: string;
             /**
              * Available Quantity
              * @default 0

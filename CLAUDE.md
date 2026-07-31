@@ -2669,6 +2669,53 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   geschuldet, und ausgerechnet dieses Netz für Kosmetik anzufassen wäre nach der
   Migration-090-Geschichte das falsche Risiko.
 
+- **Unterdeckung ist EINE Regel für alles (Juli 2026)** – tiefe Prüfung der Auftrags-/
+  Unter-Auftrags-/Abweichungs-Logik über ~30 betriebliche Situationen gegen echtes
+  PostgreSQL. Die Zustandsmaschine selbst hielt dicht; die **Wirkung** der Fehlmenge nicht.
+  **Der Konstruktionsfehler:** die Fehlmenge blockierte eine hand-gepflegte Liste von fünf
+  Schritttypen (`SUBJECT_STEP_TYPES`). Damit wirkte sie **zu hart oder gar nicht** – je
+  nachdem, welche Schritte zufällig im Prozess standen: (a) hatte der Prozess einen
+  Subjekt-Schritt, legte eine Abweichung an EINEM von fünf Teilen auch die **Prüfung der
+  anderen vier** still (409 «Datenerfassung ist nicht an der Reihe») – exakt die Pause, die
+  abgeschafft werden sollte, nur unter anderem Namen; (b) hatte er keinen (reine
+  Beschaffung), schloss der Auftrag **still mit 3 von 4** ab, ohne Hinweis und ohne
+  Entscheidung. Die Konsequenz hing an der Prozessform statt an der Sache.
+  **Die eine Regel, zwei Hälften** – beide *deklariert*, keine Liste:
+  1. **Blockieren tut sie nur, wer die Menge WEITERGIBT** – hinaus zum Kunden (`sale`) oder
+     hinein ins Produkt (`resource`). Deklariert als `EventType.hands_over`. Erfassen,
+     Aussondern und Bewegen laufen **immer** – sie arbeiten an dem, was da ist, und gerade
+     wenn etwas fehlt, will man sie tun.
+  2. **Fertig wird kein Auftrag, solange ihm etwas fehlt** (`recompute_completion`). Das ist
+     der eigentliche Schutz gegen stilles Unterliefern – jetzt an EINER Stelle statt als
+     Nebenwirkung eines blockierten Schritts. Der Mensch entscheidet über die drei Wege
+     (Ersetzen · gezielt decken · ohne Ersatz weiter), dann ist der Auftrag durch. *Die
+     guten Stück bleiben bis dahin `in_process` – richtig so: sie sind diesem Auftrag
+     zugesagt und dürfen nicht per FIFO abwandern.*
+  **Die Fehlmenge gehört dem AUFTRAG, nicht einem Schritt** (`OrderResponse.shortfall` +
+  `waiting_for`, aus `OrderStepInfo` entfernt): sie ist «Soll − Gesichert» und dieselbe
+  Zahl, egal welcher Schritt dran ist. Vorher hing sie an jedem Subjekt-Schritt – dieselbe
+  Zahl mehrfach berechnet (samt FIFO-Abfrage **je Schritt**) und in einem Prozess ohne
+  Subjekt-Schritt gar nicht sichtbar. `StepShortfall.kind` (subject|component) ersetzt die
+  hand-gepflegte `SUBJECT_STEP_TYPES`-**Spiegelkonstante im Frontend**; die Notiz mit den
+  drei Wegen steht jetzt **einmal** unter dem Fluss statt je Schritt.
+  **Steckengeblieben ≠ unterwegs** (`process.is_stalled` + `supply.covering_sub_orders`):
+  Ein Nachschub mit fehlgeschlagenem Schritt liefert nie mehr etwas. Er galt trotzdem als
+  «läuft» – der Eltern zeigte für immer «wartet auf …», blendete darum die Deckungs-Wege
+  aus, «Ersetzen» antwortete «der Bedarf ist bereits gedeckt» und ein zweiter Nachschub
+  wurde als überflüssig verworfen: **kein Weg nach vorn**. Die Regel gab es bereits einmal
+  (Auto-Nachbestellung) und fehlte an den zwei Stellen, an denen sie genauso zählt; jetzt
+  liegt sie an EINER und alle drei lesen sie.
+  **Der Verdacht hält das Teil ab der Meldung** (`create_deviation` reserviert sofort,
+  `detach_sub_order` gibt frei): zwischen «Abweichung gemeldet» (Entwurf) und «Auflösung
+  freigegeben» war das verdächtige Teil per FIFO für jeden anderen Auftrag greifbar.
+  Dazu: bei Totalausschuss nennt «ohne Ersatz weiter» jetzt den echten Weg («Ersetzen» oder
+  «Abbrechen») statt auf einen längst erledigten Abweichungsauftrag zu zeigen; drei
+  Docstrings beschrieben noch die vor Migration `086` abgeschaffte «Abbruch ausstehend»-
+  Semantik. Wächter: `test_a_shortfall_stops_handover_not_work`,
+  `test_no_order_completes_while_something_is_missing`,
+  `test_the_shortfall_belongs_to_the_order`,
+  `test_a_reported_deviation_holds_its_instance_immediately`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

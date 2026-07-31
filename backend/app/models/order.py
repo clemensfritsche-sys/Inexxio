@@ -100,7 +100,8 @@ class Order(Base, TimestampMixin):
     # nur für eine Art (Migration 087).
     origin_step_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
 
-    # Abbruch erzwingt einen **Folgeauftrag**: ``abort_into_id`` zeigt auf die Objektnummer
-    # des Folgeauftrags. Solange gesetzt, ist der Auftrag «Abbruch ausstehend»; **inaktiv**
-    # wird er erst, wenn der Folgeauftrag **freigegeben** ist (die Instanzen gehen über).
+    # **Abbrechen ist ein Vollzug, kein Antrag** (seit Migration 086): der Auftrag ist im
+    # selben Moment inaktiv – endgültig, keine Reaktivierung. ``abort_into_id`` ist nur noch
+    # der Zeiger «fortgeführt in …» auf den Abweichungsauftrag, der die Instanzen übernommen
+    # hat; die Anzeige macht daraus «Abgebrochen» statt «Inaktiv» (verworfen ≠ fortgeführt).
     abort_into_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

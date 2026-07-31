@@ -23,9 +23,10 @@ from sqlalchemy.orm import Session
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .events import emit
-from .inventory import is_blocked
+from .inventory import is_blocked, is_in_stock
 from .objects import next_object_id
-from .quantity import qty_sum
+from .quantity import qty_sum, to_qty
+from .reservation import release as release_reservation, reserve, reserved_for
 from .subject import order_active_instances, record_link
 
 
@@ -143,6 +144,14 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
         # die Abweichung erscheint ab Anlage unter «Aufträge» der Instanz, unabhängig von
         # der wandernden ``subject_of_order_id``-Bindung (InstanceOrderLink = Quelle der Wahrheit).
         record_link(db, inst.object_id, devi.id)
+        # **Und ab der MELDUNG greifbar für niemanden sonst.** Ein am Lager liegendes Teil,
+        # über das eine Abweichung läuft, war bis zur Freigabe der Abweichung weiter frei –
+        # zwischen «Verdacht gemeldet» und «Auflösung konfiguriert» konnte ein anderer
+        # Auftrag es per FIFO wegnehmen. Der Verdacht selbst ist der Grund, es festzuhalten.
+        # (Dieselbe Zuweisung wie bei der Freigabe – ``subject._bind_deviation_subjects`` –
+        # und idempotent, weil beide über ``reserved_for`` prüfen.)
+        if is_in_stock(inst) and reserved_for(inst, devi.id) <= 0:
+            reserve(inst, devi.id, to_qty(inst.quantity))
     log_audit(db, "orders", None, f"Abweichung zu {parent.object_id} angelegt", actor_id,
               object_id=devi.object_id)
     emit(db, "order.deviation_opened", object_type="order", object_id=devi.object_id,
@@ -210,13 +219,15 @@ def detach_sub_order(db: Session, sub: Order, actor_id: int | None) -> Order | N
     # Hält der Eltern-Auftrag noch eine Reservierung auf der Instanz (Bestands-Subjekt),
     # wandert die Subjekt-Bindung dorthin ZURÜCK statt auf None – «läuft unverändert weiter»
     # heisst auch: ``chosen_subjects(parent)`` sieht seine Instanzen wieder.
-    from .reservation import reserved_for
     for inst in db.query(Instance).filter(
         Instance.subject_of_order_id == sub.id, Instance.is_active == True
     ).all():
         inst.subject_of_order_id = (
             parent.id if parent is not None and reserved_for(inst, parent.id) > 0 else None
         )
+        # Die Bindung des Unter-Auftrags endet hier – auch die Reservierung, die sie ab der
+        # Meldung gehalten hat. Idempotent: hat er nie eine gehabt, ist das ein No-op.
+        release_reservation(inst, sub.id)
     for link in db.query(InstanceOrderLink).filter(
         InstanceOrderLink.order_id == sub.id, InstanceOrderLink.is_active == True
     ).all():

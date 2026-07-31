@@ -288,8 +288,10 @@ function stepBadge(s: OrderStep): React.ReactNode {
 // Kurzzeile je Modul: WAS gerade Sache ist – nicht die Konfiguration (die steht am Artikel).
 function stepDetail(s: OrderStep): React.ReactNode {
   if (s.state === 'blocked') {
+    // Zwei Gründe, warum ein Schritt hängt – und nur diese beiden: das Material ist noch
+    // unterwegs, oder es fehlt. WAS fehlt, steht einmal am Auftrag (nicht je Schritt).
     if ((s.provisioning_order_object_ids ?? []).length > 0) return 'Material ist unterwegs';
-    return (s.shortfall ?? []).length > 0 ? 'Bestand fehlt' : 'Wartet auf Material';
+    return 'Bestand fehlt';
   }
   if (s.state === 'failed') return 'Nicht bestanden – über die Abweichung klären';
   return undefined;
