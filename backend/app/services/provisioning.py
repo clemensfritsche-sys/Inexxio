@@ -248,23 +248,6 @@ def open_provisioning(db: Session, parent: Order, step_id: int | None = None) ->
     return [o for o in rows if o.origin_step_id == step_id]
 
 
-def sub_orders_for_step(db: Session, parent: Order, step_id: int) -> list[Order]:
-    """ALLE (noch gültigen) Bereitstellungen eines Schritts – offen wie erledigt.
-
-    ``open_provisioning`` beantwortet «hält gerade etwas auf?»; das hier beantwortet «was ist
-    an dieser Stelle im Ablauf passiert?». Abgebrochene bleiben aussen vor: sie sind die
-    ausdrückliche Aussage «das mache ich von Hand» und sollen den Ablauf nicht mehr belasten."""
-    if not parent.object_id:
-        return []
-    return (
-        db.query(Order)
-        .filter(Order.parent_order_id == parent.object_id, Order.reason == REASON,
-                Order.origin_step_id == step_id, Order.is_active == True,
-                Order.status.in_(("draft", "released", "completed")))
-        .order_by(Order.object_id)
-        .all()
-    )
-
 
 def cancelled_for_step(db: Session, parent: Order, step_id: int) -> bool:
     """Wurde die Bereitstellung dieses Schritts **von Hand abgebrochen**?

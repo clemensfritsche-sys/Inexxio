@@ -481,6 +481,39 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
 }
 
 /**
+ * **Ein Weg als Symbol – der Name klappt beim Hover auf** (`.erp-palette`).
+ *
+ * Die etablierte Geste für «wähle etwas aus einer offenen Palette»: die Symbole stehen
+ * sichtbar da, ein Klick führt aus, der Name erscheint beim Hover und die ausführliche
+ * Erklärung im Tooltip. Prozessschritt-Module (Notiz #223), Erfassungsfelder (#229) und die
+ * Antworten auf eine Unterdeckung (#376) benutzen dieselbe Geste – also dieselbe
+ * Implementierung, statt sie ein drittes Mal abzuschreiben.
+ */
+export function PaletteButton({ icon: Icon, label, hint, tone, bg, border, size = 19, disabled, onClick }: {
+  icon: ElementType;
+  /** Kurzer Name – erscheint beim Hover neben dem Symbol. */
+  label: string;
+  /** Ausführliche Erklärung – erscheint als Tooltip (`data-tip`). */
+  hint?: string;
+  tone?: string; bg?: string; border?: string; size?: number;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} data-tip={hint}
+      aria-label={label} className="erp-palette"
+      style={{
+        background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
+        color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
+        cursor: disabled ? 'default' : 'pointer',
+      }}>
+      <Icon size={size} />
+      <span className="erp-palette-label">{label}</span>
+    </button>
+  );
+}
+
+/**
  * Ein Weg im Dialog – **der Klick IST die Ausführung**, keine zweite Bestätigung
  * darunter (Notiz #155). Nichts ist vorausgewählt oder hervorgehoben: die Wege sind
  * gleichwertig, die Entscheidung trifft der Mensch und nicht die Gestaltung (#152).

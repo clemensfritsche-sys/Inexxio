@@ -8,7 +8,7 @@ import { userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
-import { ErrorText, IconSwitch, InfoHint, Label, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { ErrorText, IconSwitch, InfoHint, Label, PaletteButton, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
 
@@ -505,14 +505,10 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
           {adding == null ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
               {chooserTypes.map((t) => {
-                const m = STEP_META[t]; const Icon = m.icon; const kc = kindColor(t);
+                const m = STEP_META[t]; const kc = kindColor(t);
                 return (
-                  <button key={t} onClick={() => setAdding(t)} data-tip={STEP_HINT[t]}
-                    aria-label={m.label} className="erp-palette"
-                    style={{ background: kc.bg, borderColor: kc.border, color: kc.fg }}>
-                    <Icon size={19} />
-                    <span className="erp-palette-label">{m.label}</span>
-                  </button>
+                  <PaletteButton key={t} icon={m.icon} label={m.label} hint={STEP_HINT[t]}
+                    tone={kc.fg} bg={kc.bg} border={kc.border} onClick={() => setAdding(t)} />
                 );
               })}
             </div>
@@ -818,17 +814,10 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
         })}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: fields.length > 0 ? 10 : 0 }}>
-        {CAPTURE_KINDS.map((k) => {
-          const Icon = k.icon;
-          return (
-            <button key={k.value} type="button" onClick={() => add(k.value)} data-tip={k.hint}
-              aria-label={k.label} className="erp-palette"
-              style={{ background: 'var(--bg-2)', borderColor: 'var(--border-1)', color: 'var(--fg-2)' }}>
-              <Icon size={18} />
-              <span className="erp-palette-label">{k.label}</span>
-            </button>
-          );
-        })}
+        {CAPTURE_KINDS.map((k) => (
+          <PaletteButton key={k.value} icon={k.icon} label={k.label} hint={k.hint} size={18}
+            onClick={() => add(k.value)} />
+        ))}
       </div>
     </div>
   );

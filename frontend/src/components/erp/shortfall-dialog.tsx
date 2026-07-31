@@ -8,12 +8,18 @@
  * **laufenden Auftrag** selbst (Ausschuss, Aussteuerung, offene Abweichung). Es ist
  * aber dieselbe Frage, also gibt es sie nur einmal: dieses Fenster.
  *
+ * **Symbole statt Sätze** (Notiz #376): dieselbe Geste wie bei den Prozessschritt-Modulen –
+ * eine offene Palette, der Name klappt beim Hover auf, die Erklärung steht im Tooltip
+ * (`PaletteButton`). Der frühere Erklärabsatz darüber ist entfallen (#375): der Titel sagt,
+ * worum es geht, und WAS fehlt steht bereits im Ablauf – beim Unter-Auftrag, der die Menge
+ * bindet, bzw. in der Notiz unter dem Fluss.
+ *
  * Die drei Antworten heissen so, wie sie sich auswirken – nicht wie das System sie
  * intern nennt (Notiz #352):
  *
- *   Auftrag pausieren       (wait)    – der Auftrag ruht, bis die Menge wieder da ist
- *   Instanz ersetzen        (replace) – freier Bestand (FIFO **oder** gezielt), Rest per Nachschub
- *   Auftragsmenge reduzieren(accept)  – der Auftrag wird mit weniger fertig
+ *   Pausieren       (wait)    – der Auftrag ruht, bis die Menge wieder da ist
+ *   Ersetzen        (replace) – freier Bestand (FIFO **oder** gezielt), Rest per Nachschub
+ *   Menge reduzieren(accept)  – der Auftrag wird mit weniger fertig
  *
  * «Ersetzen» führt dabei auf die gewohnten zwei Wege der Instanz-Herkunft: **älteste
  * zuerst** oder **bestimmte Instanzen**. Das ist keine zweite Entscheidung, nur die
@@ -22,7 +28,7 @@
 
 import { useState } from 'react';
 import { Boxes, CheckCircle2, Clock3, PackageMinus, PackagePlus, PauseCircle } from 'lucide-react';
-import { ChoiceButton, Dialog, PrimaryButton } from '@/components/erp/fields';
+import { Dialog, PaletteButton, PrimaryButton } from '@/components/erp/fields';
 import { formatObjectId } from '@/lib/utils';
 
 export type ShortfallAnswer = 'wait' | 'replace' | 'accept';
@@ -30,14 +36,16 @@ export type ShortfallAnswer = 'wait' | 'replace' | 'accept';
 /** Frei verfügbare Instanz, mit der sich die Fehlmenge ohne Nachschub decken liesse. */
 export type ShortfallCandidate = { object_id: number; quantity: number };
 
+const ROW: React.CSSProperties = {
+  display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center',
+};
+
 export function ShortfallDialog({
-  text, candidates = [], canReduce = true, busy = false, error, onAnswer, onClose,
+  candidates = [], canReduce = true, busy = false, error, onAnswer, onClose,
 }: {
-  /** Worum es geht – beim Auswählen die betroffenen Aufträge, sonst die Fehlmenge. */
-  text: string;
   /** Frei verfügbare Instanzen (nur dann gibt es «bestimmte Instanzen»). */
   candidates?: ShortfallCandidate[];
-  /** «Auftragsmenge reduzieren» gibt es nur für die Fertigware – Material nicht. */
+  /** «Menge reduzieren» gibt es nur für die Fertigware – Material nicht. */
   canReduce?: boolean;
   busy?: boolean;
   error?: string | null;
@@ -52,39 +60,36 @@ export function ShortfallDialog({
   }
 
   return (
-    <Dialog icon={PackageMinus} title="Es fehlt" onClose={onClose} width={480}>
-      <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-2)', lineHeight: 1.55 }}>{text}</span>
-
+    <Dialog icon={PackageMinus} title="Es fehlt" onClose={onClose} width={440}>
       {!picking ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <ChoiceButton
-            icon={PauseCircle} tone="var(--warning)" disabled={busy}
-            title="Auftrag pausieren"
-            text="Der Prozess ruht, bis die Menge wieder da ist"
+        <div style={ROW}>
+          <PaletteButton
+            icon={PauseCircle} label="Pausieren" disabled={busy}
+            tone="var(--warning)" bg="var(--warning-bg)" border="var(--warning)"
+            hint="Auftrag pausieren – der Prozess ruht, bis die Menge wieder da ist."
             onClick={() => onAnswer('wait')} />
-          <ChoiceButton
-            icon={PackagePlus} tone="var(--success)" disabled={busy}
-            title="Instanz ersetzen"
-            text={candidates.length > 0
-              ? 'Aus dem freien Bestand – älteste zuerst oder gezielt'
-              : 'Freier Bestand zuerst, für den Rest ein Nachschub'}
+          <PaletteButton
+            icon={PackagePlus} label="Ersetzen" disabled={busy}
+            tone="var(--success)" bg="var(--success-bg)" border="var(--success)"
+            hint={candidates.length > 0
+              ? 'Aus dem freien Bestand – älteste zuerst oder gezielt gewählt.'
+              : 'Freier Bestand zuerst, für den Rest ein Nachschub.'}
             onClick={() => (candidates.length > 0 ? setPicking(true) : onAnswer('replace'))} />
           {canReduce && (
-            <ChoiceButton
-              icon={PackageMinus} disabled={busy}
-              title="Auftragsmenge reduzieren"
-              text="Der Auftrag wird mit dem fertig, was da ist"
+            <PaletteButton
+              icon={PackageMinus} label="Menge reduzieren" disabled={busy}
+              hint="Auftragsmenge reduzieren – der Auftrag wird mit dem fertig, was da ist."
               onClick={() => onAnswer('accept')} />
           )}
         </div>
       ) : (
         // Woher der Ersatz kommt – die gewohnten zwei Wege, wie bei der Auftragsanlage.
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <ChoiceButton
-            icon={Clock3} disabled={busy}
-            title="Älteste zuerst"
-            text="Automatisch aus dem freien Bestand (FIFO)"
-            onClick={() => onAnswer('replace')} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={ROW}>
+            <PaletteButton icon={Clock3} label="Älteste zuerst" disabled={busy}
+              hint="Automatisch aus dem freien Bestand (FIFO)."
+              onClick={() => onAnswer('replace')} />
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 7, font: '700 11.5px var(--font-body)', letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
               <Boxes size={13} /> Bestimmte Instanzen

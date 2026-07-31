@@ -126,10 +126,18 @@ def _resolve_subjects(db: Session, parent: Order, instance_object_ids: list[int]
     return order_active_instances(db, parent)
 
 
-def _active_step_id(db: Session, parent: Order) -> int | None:
-    """Der Schritt, an dem der Eltern-Auftrag gerade steht – die **Stelle**, an der die
-    Abweichung gemeldet wird. Damit bekommt sie eine Position im Ablauf und erscheint dort,
-    wo sie angesetzt wurde, statt als Karte irgendwo über dem Prozess."""
+def interrupted_step_id(db: Session, parent: Order) -> int | None:
+    """**Welchen Schritt unterbricht ein Unter-Auftrag zu diesem Eltern-Auftrag?**
+
+    Das ist die EINE Antwort auf «wo im Ablauf gehört er hin» (``orders.origin_step_id``) –
+    und darum steht sie hier einmal, statt an jeder Anlagestelle noch einmal. Sie lautet:
+    **der Schritt, an dem der Eltern gerade steht.** Erledigte Schritte sind vorbei, spätere
+    noch nicht dran; unterbrochen wird genau der, der jetzt laufen würde.
+
+    Ohne diese Zuordnung landet ein Unter-Auftrag im Fluss ganz vorne – also **vor** einem
+    Schritt, der längst abgeschlossen ist (Testnotiz #377). Genau das war der Fall, seit die
+    menschliche Anlage über die Instanz-**Auswahl** läuft (Notiz #371): dieser Weg vergab die
+    Position nicht. Es gibt sie jetzt nur noch hier, und beide Wege benutzen sie."""
     from .process import build_order_steps
     try:
         steps = build_order_steps(db, parent)
@@ -173,7 +181,7 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
         article_id=parent.article_id,
         quantity=qty_sum((quantities or {}).get(i.object_id, to_qty(i.quantity)) for i in insts),
         parent_order_id=parent.object_id, reason="deviation",
-        origin_step_id=_active_step_id(db, parent),
+        origin_step_id=interrupted_step_id(db, parent),
         title=f"{title_prefix} {parent.object_id}",
     )
     db.add(devi)

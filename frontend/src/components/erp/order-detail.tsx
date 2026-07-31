@@ -489,7 +489,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       // **Die Frage kommt bei der Freigabe** (Notiz #370): Erst hier steht die Auswahl fest
       // und nimmt einem laufenden Auftrag wirklich etwas weg. Der Server nennt die
       // betroffenen Aufträge – die Frage stellen statt sie wegzuwerfen.
-      if (msg.includes('in Arbeit') && msg.includes('warten')) setPendingRelease({ target, text: msg });
+      if (msg.includes('in Arbeit') && msg.includes('warten')) setPendingRelease({ target });
       else {
         setError(msg);
         if (isVersionConflict(e)) await resyncVersion();
@@ -500,7 +500,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   }
 
   // Offene Unterdeckungs-Frage zur **Freigabe** (nicht mehr zur Auswahl).
-  const [pendingRelease, setPendingRelease] = useState<{ target: string; text: string } | null>(null);
+  const [pendingRelease, setPendingRelease] = useState<{ target: string } | null>(null);
 
   function onStatusAction(target: string) {
     changeStatus(target);
@@ -862,17 +862,22 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             <div style={{ marginBottom: 12 }}>
               <OrderFlow
                 steps={steps}
-                deviations={record.deviations ?? []}
+                // Alles, was kein Schritt für sich beansprucht, gehört dem Auftrag und steht
+                // am Anfang des Flusses – EINE Liste, nicht drei nebeneinander.
+                subOrders={[...(record.deviations ?? []), ...(record.supply_orders ?? []),
+                            ...(record.provisionings ?? [])]}
                 waitingFor={record.waiting_for ?? []}
                 missing={missingText}
+                // **Ruht der Auftrag, ruht der ganze Fluss** (Notiz #378): kein Modul ist
+                // dann «aktiv», keines lässt sich öffnen – farbig bleibt nur der
+                // Unter-Auftrag, der zu klären ist. Dieselbe Regel wie im Backend
+                // (`process.is_paused` → jeder Schritt blockiert, jede Ausführung 409);
+                // sie war bisher nur nicht zu sehen.
+                paused={record.paused === true}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}
                 renderPanel={(step) => (
-                  // **Auch ein blockierter Schritt zeigt sein Panel** (Notiz #353): was
-                  // darin schon erledigt wurde (eine eingeholte Offerte, erfasste Werte),
-                  // darf nicht verschwinden, nur weil der Prozess gerade ruht. Ausführen
-                  // lässt sich trotzdem nichts – das Backend nennt beim Versuch den Grund.
                   <StepPanel key={String(step.id)} step={step} order={record as Order}
                     viewerRole={viewerRole} company={company} onSaved={afterStep} />
                 )}
@@ -909,7 +914,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       {/* **Die Unterdeckungs-Frage zur Freigabe** (Notiz #370) – dasselbe Fenster wie am
           laufenden Auftrag, nur zu dem Zeitpunkt, an dem die Auswahl feststeht. */}
       {pendingRelease && (
-        <ShortfallDialog text={pendingRelease.text} busy={statusBusy}
+        <ShortfallDialog busy={statusBusy}
           onAnswer={(a) => changeStatus(pendingRelease.target, a)}
           onClose={() => setPendingRelease(null)} />
       )}
@@ -962,7 +967,6 @@ function ProcessHoldNotice({ missing, canAct, busy, error, candidates, canReduce
   onAnswer: (answer: ShortfallAnswer, instanceObjectIds?: number[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const text = `Es fehlt ${missing ?? 'etwas'} – der Prozess ruht, bis entschieden ist, wie es weitergeht.`;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', font: '700 13.5px var(--font-body)', color: 'var(--warning)' }}>
@@ -976,7 +980,7 @@ function ProcessHoldNotice({ missing, canAct, busy, error, candidates, canReduce
       )}
       {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
       {open && (
-        <ShortfallDialog text={text} candidates={candidates} canReduce={canReduce} busy={busy} error={error}
+        <ShortfallDialog candidates={candidates} canReduce={canReduce} busy={busy} error={error}
           onAnswer={(a, ids) => { setOpen(false); onAnswer(a, ids); }} onClose={() => setOpen(false)} />
       )}
     </div>
