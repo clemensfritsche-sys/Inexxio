@@ -84,7 +84,7 @@ def test_a_sample_is_drawn_by_quantity_not_by_kind():
     Instanzen), und sie hingen an ``len(insts) == 1 and kind == 'batch'``. Zwei Chargen in
     einem Auftrag fielen damit in den Einzelteil-Zweig und ergaben **eine** Probe je Charge,
     egal wie gross sie war. Eine Regel deckt beides – und den dritten Fall gleich mit."""
-    from app.services.inspection import sample_capacity, sample_targets
+    from app.services.inspection import sample_capacity
 
     assert sample_capacity(1) == 1              # Einzelteil: genau eine Probe
     assert sample_capacity(500) == 500          # Charge: so viele wie Stück
@@ -203,10 +203,12 @@ def test_a_returned_quantity_has_no_floor_of_one():
     import ast
 
     src = (APP / "services" / "process.py").read_text(encoding="utf-8")
-    fn = [n for n in ast.walk(ast.parse(src))
-          if isinstance(n, ast.FunctionDef) and n.name == "return_subjects_to_stock"]
-    assert fn, "return_subjects_to_stock nicht gefunden"
-    body = ast.unparse(fn[0])
+    # Die Rückbuchung sitzt in der Retoure-Schleife UND ihrem Je-Instanz-Helfer – geprüft
+    # wird die Aussage, nicht der Zuschnitt der Funktionen.
+    fns = [n for n in ast.walk(ast.parse(src))
+           if isinstance(n, ast.FunctionDef) and n.name in ("return_subjects_to_stock", "_restock_one")]
+    assert len(fns) == 2, "Retoure-Rückbuchung nicht gefunden"
+    body = "".join(ast.unparse(n) for n in fns)
     assert "max(" not in body, (
         "Die zurückgebuchte Menge darf nicht über ein max(…, ONE) laufen – eine Bruchmenge "
         "käme sonst aufgerundet zurück.")

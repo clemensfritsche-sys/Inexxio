@@ -7,8 +7,8 @@ import { api } from '@/lib/api';
 import type { Instance, LocationType, Order, UserProfile, OrderInstance, ShipmentEmbed, TransportMode } from '@/types';
 import type { ScanCandidate, ScanKind, ScanStep } from '@/lib/scan';
 import { LOCATION_META, locationTypeLabel, instanceLabel } from '@/lib/process';
-import { userDisplayName } from '@/lib/utils';
-import { fmtObjId } from '@/components/erp/user-detail';
+import { formatObjectId, userDisplayName } from '@/lib/utils';
+
 import { ObjId } from '@/components/erp/obj-id';
 import { PrimaryButton, IconSwitch } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
@@ -18,7 +18,6 @@ import { useScan } from '@/components/scan/scan-provider';
 const SRC_SCAN_KIND: Record<string, ScanKind | undefined> = {
   user: 'user', instance: 'instance', company: 'company',
 };
-
 
 export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;
@@ -241,7 +240,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
               </span>
               {t ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#16a34a' }}>
-                  <CheckCircle2 size={13} /> Ziel {fmtObjId(tgtId)}
+                  <CheckCircle2 size={13} /> Ziel {formatObjectId(tgtId)}
                 </span>
               ) : (
                 <CurrentLocation instance={i} />
@@ -560,7 +559,6 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
     </div>
   );
 }
-
 
 const cardStyle: React.CSSProperties = {
   // Das Panel sitzt IN der Modul-Karte des Ablaufs – kein eigener Rahmen, kein eigener

@@ -118,6 +118,6 @@ State of the Art und macht die (optionale) Statistik sauber zustimmungspflichtig
 * Footer-Link + Button in der Datenschutzerklärung („Cookie-Einstellungen") → jederzeit
   widerrufbar/änderbar.
 
-Neue optionale Dienste (Marketing-Pixel etc.) einfach hinter `hasConsent('analytics')`
+Neue optionale Dienste (Marketing-Pixel etc.) einfach hinter `getConsent()?.analytics`
 bzw. eine neue Kategorie in `lib/consent.ts` hängen und `CONSENT_VERSION` erhöhen (löst
 eine erneute Abfrage aus).

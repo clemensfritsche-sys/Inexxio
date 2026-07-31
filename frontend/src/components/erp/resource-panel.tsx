@@ -8,11 +8,12 @@ import type {
 } from '@/types';
 import type { ScanStep } from '@/lib/scan';
 import { ObjId } from '@/components/erp/obj-id';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { PrimaryButton } from '@/components/erp/fields';
 import { instanceLabel } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { useScan } from '@/components/scan/scan-provider';
+import { formatObjectId } from '@/lib/utils';
 
 export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;
@@ -52,10 +53,10 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
       const p = products.find((pp) => !accProducts.includes(pp.instance_id));
       if (p) {
         const steps: ScanStep[] = [
-          { label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, kind: 'instance',
+          { label: `Produkt-Instanz ${formatObjectId(p.instance_id)}`, kind: 'instance',
             expected: p.instance_id, candidates: [{ objectId: p.instance_id, label: instanceLabel() }] },
           ...(p.components ?? []).map((c) => ({
-            label: `Komponente ${fmtObjId(c.instance_id)}`,
+            label: `Komponente ${formatObjectId(c.instance_id)}`,
             kind: 'instance' as const,
             expected: c.instance_id,
             candidates: [{ objectId: c.instance_id, label: c.article_name ?? 'Komponente' }],
@@ -190,7 +191,7 @@ function ConsumeAvailability({ line }: { line: OrderResourceLine }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
       <Package size={13} style={{ color: '#2563eb' }} />
       <span style={{ flex: 1, color: '#475569' }}>
-        {line.article_object_id != null && <span style={{ fontFamily: 'monospace', color: '#0f172a' }}>{fmtObjId(line.article_object_id)} · </span>}
+        {line.article_object_id != null && <span style={{ fontFamily: 'monospace', color: '#0f172a' }}>{formatObjectId(line.article_object_id)} · </span>}
         {line.article_name ?? `#${line.article_id}`}
         <span style={{ color: '#94a3b8' }}> · {line.quantity}{line.unit ? ` ${unitLabel(line.unit)}` : ''}/Stk</span>
       </span>
@@ -240,7 +241,6 @@ function SubTitle({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
-
 
 const cardStyle: React.CSSProperties = {
   // Das Panel sitzt IN der Modul-Karte des Ablaufs – kein eigener Rahmen, kein eigener

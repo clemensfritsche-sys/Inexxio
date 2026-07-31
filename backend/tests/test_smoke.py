@@ -266,9 +266,9 @@ def test_release_delegates_status_flip_to_release_order():
     # Der Status der Freigabe wird aus dem Payload GENOMMEN, nicht vorab gesetzt.
     assert 'payload.pop("status")' in upd_src
     assert 'wants_release = payload.get("status") == "released"' in upd_src
-    assert "release_order(db, order" in upd_src
+    assert "release_order(db, order" in _inspect.getsource(orders_router._do_release)
     # Die generische Setz-Schleife läuft NACH dem Herausnehmen des Freigabe-Status.
-    assert upd_src.index("wants_release =") < upd_src.index("for key, value in payload.items()")
+    assert upd_src.index("wants_release =") < upd_src.index("_apply_fields(")
 
     # release_order ist der EINZIGE Pfad, der den Statuswechsel vollzieht – und schützt sich
     # gegen Nicht-Entwürfe (Idempotenz). Beides zusammen macht die Reihenfolge zwingend.
@@ -806,7 +806,7 @@ def test_a_deviation_pauses_the_order_through_the_shortfall_not_a_second_rule():
     assert "_subject_shortfalls(db, order)" in paused
     assert "deviation" not in paused.split('"""')[-1]
     # Stattdessen: in Klärung gebundene Instanzen zählen nicht als gesichert …
-    short = _inspect.getsource(process._subject_shortfalls)
+    short = _inspect.getsource(process._secured_amounts)
     assert "deviated_quantities" in short and "in_clarification" in short
     dev = _inspect.getsource(process.deviated_quantities)
     # Die Klammer ist die **Instanz**, nicht der Eltern-Zeiger: eine an der Instanz
@@ -1605,7 +1605,7 @@ def test_demand_supply_model_is_one_mechanism():
         __import__("app.services.deviation", fromlist=["x"]).open_deviations)
 
     # Freigabe ist EIN Pfad: Router, Shop-Zahlung und Nachschub nutzen release_order.
-    assert "release_order(" in _inspect.getsource(__import__("app.routers.orders", fromlist=["x"]).update_order)
+    assert "release_order(" in _inspect.getsource(__import__("app.routers.orders", fromlist=["x"]))
     assert "release_order(db, order" in _inspect.getsource(__import__("app.services.sale", fromlist=["x"])._release_on_payment)
 
 
@@ -1712,7 +1712,7 @@ def test_completion_releases_binding_history_survives():
     assert "inst.subject_of_order_id = None" in comp_src
 
     # Die Auftragsliste einer Instanz liest die dauerhafte Verknüpfung (nicht nur Zeiger).
-    ref_src = _inspect.getsource(references.instance_orders)
+    ref_src = _inspect.getsource(references._instance_hits)
     assert "InstanceOrderLink" in ref_src
     # order_instances zeigt die Subjekte auch nach Abschluss (über die Verknüpfung).
     oi_src = _inspect.getsource(subject.order_instances)
@@ -2035,7 +2035,7 @@ def test_subject_shortfalls_aggregate_across_lines():
     import inspect as _inspect
     from app.services import process, supply
 
-    src = _inspect.getsource(process._subject_shortfalls)
+    src = _inspect.getsource(process._subject_targets)
     assert "lines_for(db, order)" in src
     assert "order.article_id and order.quantity" in src
     # ensure_supply iteriert bereits generisch über {article_id: qty} – funktioniert
@@ -2086,7 +2086,7 @@ def test_deviation_release_does_not_require_article_and_quantity():
     # drei Gates) statt inline in ``update_order``.
     src = _inspect.getsource(orders_router._assert_releasable)
     assert 'not is_multiline and not subject.is_fixed_subject(order) and (not order.article_id or not order.quantity)' in src.replace("\n", " ").replace("  ", " ")
-    assert "_assert_releasable(db, order)" in _inspect.getsource(orders_router.update_order)
+    assert "_assert_releasable(db, order)" in _inspect.getsource(orders_router._do_release)
 
 
 def test_subscription_mixing_check_moved_to_sale_step_creation():
@@ -2278,10 +2278,11 @@ def test_subject_shortfall_is_one_formula_for_all_order_kinds():
     from app.services import process
 
     src = _inspect.getsource(process._subject_shortfalls)
+    secured = _inspect.getsource(process._secured_amounts)
     assert 'subject_kind(db, order) != "stock"' not in src   # kein Stock-only-Sonderpfad mehr
     assert "is_fixed_subject(order)" in src                    # Abweichung UND Retoure ausgenommen
-    assert "Instance.order_id == order.id" in src             # zählt selbst erzeugte gute Instanzen
-    assert "reservations.has_key" in src                       # + reservierte Bestands-Subjekte
+    assert "Instance.order_id == order.id" in secured          # zählt selbst erzeugte gute Instanzen
+    assert "reservations.has_key" in secured                   # + reservierte Bestands-Subjekte
     # Nachschub-Pegging kennt das Subjekt eines Erzeugungsauftrags (nicht nur stock):
     peg = _inspect.getsource(process._peg_supply_to_parent)
     assert 'subject_kind(db, parent) == "stock"' not in peg
@@ -2424,7 +2425,7 @@ def test_disposition_flips_at_step_completion():
 
     sell = _inspect.getsource(process.sell_order_subjects)
     assert "is_return(order)" in sell and 'inst.disposition = "sold"' in sell
-    ret = _inspect.getsource(process.return_subjects_to_stock)
+    ret = _inspect.getsource(process.return_subjects_to_stock) + _inspect.getsource(process._restock_one)
     # Rückkehr = die Instanz liegt NICHT mehr beim Kunden (kein Halter-Typ-Vergleich mehr –
     # der hing am entfallenen 'lagerplatz' und hätte nie wieder zugetroffen).
     assert 'inst.disposition = "in_stock"' in ret
@@ -2451,7 +2452,6 @@ def test_return_via_selecting_sold_instances():
     # Die Sold-Auswahl + Retoure-Markierung sitzt im generischen Pin-Pfad:
     src = _inspect.getsource(orders._set_chosen_instances)
     assert 'order.reason = "return"' in src and "original_sale_order" in src
-    val = _inspect.getsource(orders._validate_pins)
     # Welche Art die Auswahl ergibt, entscheidet jetzt EINE Klassifikation – die Prüfung
     # lässt jede aktive Instanz zu, ``classify_pick`` leitet daraus Retoure/Abweichung ab.
     from app.services.subject import classify_pick
@@ -3463,9 +3463,9 @@ def test_the_order_level_deviation_is_the_abort():
     # Es gibt keinen Abbruch-Weg mehr: man legt einen Auftrag an, wählt die Instanzen des
     # laufenden – und bei der Freigabe entscheidet die Antwort, was mit ihm geschieht.
     assert not hasattr(orders, "open_deviation")
-    src = _inspect.getsource(orders.update_order)
-    assert "_enforce_claims(db, order, answer, current_user.id)" in src
-    assert "_apply_shortfall_answer(db, holders, answer, current_user.id, into=order)" in src
+    src = _inspect.getsource(orders._do_release)
+    assert "_enforce_claims(db, order, answer, actor_id)" in src
+    assert "_apply_shortfall_answer(db, holders, answer, actor_id, into=order)" in src
     assert "aborted" in _inspect.getsource(recovery.confirm_quantity)
 
 

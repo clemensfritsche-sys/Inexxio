@@ -23,6 +23,24 @@ export function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
+/** Datum **und** Uhrzeit («31.07.26, 21:52») – die Form der Wer/Wann-Angaben. */
+export function localDateTime(iso: string | null | undefined): string | undefined {
+  return iso ? new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' }) : undefined;
+}
+
+/**
+ * **Wer/Wann als eine Zeile** – «Clemens Fritsche · 31.07.26, 21:52».
+ *
+ * Die ERP-Konvention ist, dass eine erledigte Sache im **Hover** sagt, wer sie wann getan
+ * hat (Notizen #276/#88). Diese eine Zeichenkette entstand an vier Stellen einzeln; hier
+ * steht sie einmal. `undefined`, wenn nichts zu sagen ist – dann gibt es auch keinen Hover.
+ */
+export function actorHint(by: string | null | undefined, at: string | null | undefined): string | undefined {
+  const when = localDateTime(at);
+  const parts = [by, when].filter(Boolean);
+  return parts.length ? parts.join(' · ') : undefined;
+}
+
 // Relative Zeitangabe («gerade eben», «vor 2 Std», «vor 1 Tag») – für Detail-Kacheln.
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return '';

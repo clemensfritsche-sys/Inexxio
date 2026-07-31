@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Link2, Calculator, Building2, ExternalLink, FileText, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
+import { actorHint } from '@/lib/utils';
 import type { CompanySettings, Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
@@ -26,7 +27,6 @@ function seed(p: OrderPurchase): Form {
 
 const moneyOrNull = (v: string): string | null => (v.trim().replace(',', '.') === '' ? null : v.trim().replace(',', '.'));
 const intOrNull = (v: string): number | null => (v.trim() === '' ? null : Math.trunc(Number(v)));
-const fmtDateTime = (iso: string): string => new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' });
 
 // Letzten Audit-Eintrag je Status (für Hover-Tooltip)
 function historyByStatus(history: Hist[] | undefined): Record<string, Hist> {
@@ -350,8 +350,7 @@ const FLOW = [
 ] as const;
 
 function hint(h: Hist | undefined): string | undefined {
-  if (!h) return undefined;
-  return `${h.by ?? 'System'} · ${fmtDateTime(h.at)}`;
+  return h ? actorHint(h.by ?? 'System', h.at) : undefined;
 }
 
 function buildNodes(status: string, isWebshop: boolean, hist: Record<string, Hist>): PNode[] {

@@ -13,7 +13,7 @@ import { PenLine, ShieldCheck, CheckCircle2, Clock, Loader2 } from 'lucide-react
 import { api } from '@/lib/api';
 import type { UserDocumentOverview, CompanySettings } from '@/types';
 import { DocumentView } from '@/components/erp/document-editor';
-import { fmtObjId } from '@/components/erp/user-detail';
+import { formatObjectId } from '@/lib/utils';
 
 type AnyContent = Parameters<typeof DocumentView>[0]['content'];
 
@@ -103,7 +103,7 @@ function Row({ title, objectNumber, status, tone, content, company, icon: Icon }
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ font: '600 13.5px var(--font-body)', color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
-          {objectNumber != null && <div style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>{fmtObjId(objectNumber)}</div>}
+          {objectNumber != null && <div style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>{formatObjectId(objectNumber)}</div>}
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: c.bg, color: c.fg, font: '600 11px var(--font-body)', whiteSpace: 'nowrap' }}>
           {Icon && <Icon size={11} />} {status}
@@ -112,7 +112,7 @@ function Row({ title, objectNumber, status, tone, content, company, icon: Icon }
       </div>
       {open && content && (
         <div style={{ padding: 14, background: 'var(--bg-2)' }}>
-          <DocumentView content={content} objectNr={objectNumber ? fmtObjId(objectNumber) : null} company={company} />
+          <DocumentView content={content} objectNr={objectNumber ? formatObjectId(objectNumber) : null} company={company} />
         </div>
       )}
     </div>

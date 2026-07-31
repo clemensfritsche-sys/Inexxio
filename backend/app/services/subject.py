@@ -26,7 +26,7 @@ from . import inventory
 from .inventory import allocate, fifo_candidates
 from .order_lines import lines_for
 from .processes import order_custom_steps
-from .quantity import ZERO, qty_sum, to_qty
+from .quantity import ZERO, to_qty
 from .reservation import enforce, free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
 

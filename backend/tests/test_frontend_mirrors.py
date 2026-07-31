@@ -128,3 +128,30 @@ def test_both_profile_write_paths_share_one_implementation():
                 inspect.getsource(erp_router.update_erp_record)):
         assert "apply_profile_update" in src
     assert "log_audit" in inspect.getsource(people.apply_profile_update)
+
+
+def test_record_status_is_derived_in_exactly_one_place():
+    """**Feed und Detailfenster zeigen denselben Zustand – weil sie dieselbe Funktion lesen.**
+
+    Ein ERP-Datensatz zeigt überall dasselbe: Name · Objektnummer · Status. Für den *Namen*
+    gibt es die eine Ableitung längst (``lib/record-name.ts``); für den *Zustand* gab es sie
+    nicht – der Feed baute die Badge in einer fünfarmigen Fallunterscheidung selbst, jedes
+    Detailfenster noch einmal. Genau so sind sie auseinandergelaufen (Testnotiz #379): der
+    Feed zeigte an einem Unternehmen hart verdrahtet «Unternehmen» (die Datensatzart!),
+    während das Detail längst «Freigegeben»/«Inaktiv» sagte.
+
+    Der Wächter prüft die **Struktur**, nicht den Text: ein Status-Konfigurations-Literal
+    (``label`` + ``color``/``bg``) darf nur unter ``lib/`` stehen. Wer im Feed oder in einem
+    Detailfenster wieder eine eigene Badge baut, fällt hier auf."""
+    literal = re.compile(r"label:\s*['\"][^'\"]*['\"]\s*,\s*(color|bg|\.\.\.TONE)")
+    surfaces = [FRONTEND / "app" / "(erp)" / "erp" / "page.tsx"]
+    surfaces += sorted((FRONTEND / "components" / "erp").glob("*-detail.tsx"))
+    offenders = [p.name for p in surfaces if literal.search(p.read_text(encoding="utf-8"))]
+    assert not offenders, (
+        "Diese Oberflächen bauen ihre Status-Badge selbst statt sie aus `lib/record-status` "
+        f"zu lesen – so laufen Feed und Detail wieder auseinander: {offenders}"
+    )
+    # … und die eine Ableitung deckt jeden Datensatztyp ab.
+    src = (FRONTEND / "lib" / "record-status.ts").read_text(encoding="utf-8")
+    for fn in ("userStatus", "articleStatus", "orderStatus", "instanceStatus", "organizationStatus"):
+        assert f"export function {fn}" in src, f"{fn} fehlt in lib/record-status.ts"

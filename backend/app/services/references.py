@@ -20,7 +20,16 @@ from .locations import _obj_nr
 
 
 def instance_orders(db: Session, instance: Instance) -> list[dict]:
-    """Aufträge, die diese Instanz angefasst haben (mit gesammelten Rollen)."""
+    """Aufträge, die diese Instanz angefasst haben (mit gesammelten Rollen).
+
+    Zwei Schritte: **sammeln**, welcher Auftrag sie wann in welcher Rolle angefasst hat –
+    und daraus **Zeilen bauen** (Name · Objektnummer · Status, jüngste zuerst)."""
+    return _order_rows(db, _instance_hits(db, instance))
+
+
+def _instance_hits(db: Session, instance: Instance) -> dict[int, dict]:
+    """Welcher Auftrag hat diese Instanz wann und in welcher Rolle angefasst?
+    ``{order_db_id: {"roles": [...], "at": datetime}}``"""
     oid = instance.object_id
     # order_db_id -> {"roles": [...], "at": datetime}
     hits: dict[int, dict] = {}
@@ -83,6 +92,11 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
         if tooled:
             add(u.order_id, "Betriebsmittel", u.updated_at)
 
+    return hits
+
+
+def _order_rows(db: Session, hits: dict[int, dict]) -> list[dict]:
+    """Die gesammelten Treffer als Datensatz-Zeilen – jüngste Aktion zuerst."""
     if not hits:
         return []
     orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(hits.keys())).all()}

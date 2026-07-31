@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .events import emit
-from .inventory import is_blocked, is_in_stock
+from .inventory import is_blocked
 from .objects import next_object_id
 from .quantity import qty_sum, to_qty
 from .reservation import claim, release as release_reservation, reserve, reserved_for

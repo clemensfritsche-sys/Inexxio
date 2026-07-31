@@ -4,7 +4,7 @@ rollenabhängige Sichtbarkeit (Lieferant sieht nur seine Aufträge)."""
 from datetime import date, timedelta
 from typing import Optional
 
-from sqlalchemy import and_, false, or_
+from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
 
 from ..domain import event_types
@@ -46,7 +46,7 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
 
     Eine **Fehlmenge** (Subjekt/Komponente) ist KEIN Fehler mehr – der betroffene Schritt ist
     danach «blockiert» und wird über einen Nachschub-Unter-Auftrag gedeckt (``services/supply``)."""
-    from . import deviation, document as document_svc, process, sale as sale_svc, subject
+    from . import document as document_svc, process, sale as sale_svc, subject
     from .events import emit as _emit
     from .purchase import instantiate_for_order as instantiate_purchase
     from .resource import reserve_resources
@@ -648,7 +648,6 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     # aufgelöste Fachzeile gleich mit (kein erneutes Nachladen je Schritt).
     for s in process.build_order_steps(db, order):
         step = s["step"]
-        fact = s["fact"]
         si = OrderStepInfo(id=s["id"], step_type=s["step_type"], position=s["position"],
                            label=s["label"], state=s["state"])
         _fill_step_sub_orders(db, order, step, si)

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceOrderRef, ObjectDocument, CompanySettings, DocumentContent } from '@/types';
-import { instanceStatusConfig } from '@/lib/process';
+import { instanceStatus } from '@/lib/record-status';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
@@ -17,13 +17,14 @@ import { LocationPathCard } from '@/components/erp/location-path';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { TileShell, TILE, DetailHeader, HeaderSep } from '@/components/erp/fields';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { instanceName } from '@/lib/record-name';
 
 type InstTab = 'spec' | 'orders' | 'verwendung' | 'docs';
 import { useErpNav } from '@/components/erp/obj-id';
 import { printObjectLabel } from '@/components/scan/object-label';
-import { localDate, timeAgo } from '@/lib/utils';
+import { cn, formatObjectId, localDate, timeAgo } from '@/lib/utils';
+import { isPending } from '@/lib/status-flow';
 
 /**
  * Instanz-Detail – bewusst EINE Ansicht (keine Reiter): Eine Instanz ist die
@@ -71,7 +72,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     return () => { alive = false; };
   }, [genDoc]);
 
-  const status = instanceStatusConfig(inst.quality, inst.disposition, (inst.reserved_quantity ?? 0) > 0);
+  const status = instanceStatus(inst);
 
   // Aufträge sortiert nach Zeitpunkt (an), Richtung umschaltbar.
   const sortedOrders = useMemo(() => {
@@ -122,6 +123,9 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   // zweiten Knopf «Abweichung melden» mehr und keine Bedingung ausser der einen, die
   // fachlich zählt: an verschrotteter Ware ist nichts mehr zu tun.
   const canOrderInstance = inst.disposition !== 'scrapped';
+  // Reine **Vorschau** für den Knopf: gelbe Badge → daraus wird eine Abweichung. Gelesen
+  // wird dieselbe Badge, die daneben steht – nicht die Regel nachgebaut (Notiz #380).
+  const willDeviate = canOrderInstance && isPending(status);
 
   async function createOrderShortcut() {
     if (!canOrderInstance || inst.object_id == null || inst.article_id == null || orderBusy) return;
@@ -142,7 +146,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     }
   }
 
-
   return (
     <div className="flex flex-col h-full bg-bg-1" style={{ color: 'var(--fg-1)' }}>
       {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242). */}
@@ -157,11 +160,18 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             onClick={() => inst.object_id != null && printObjectLabel(inst.object_id, inst.article_name, 'Instanz')}>
             <QrCode size={15} />
           </button>
-          {/* Shortcut «Auftrag»: direkt einen Auftrag auf diese Instanz auslösen. */}
-          <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
-            data-tip={canOrderInstance
-              ? 'Auftrag anlegen – diese Instanz ist darin vorgewählt (bewegen, prüfen, aussondern, verkaufen, Abweichung …)'
-              : 'An verschrotteter Ware ist nichts mehr zu tun'}
+          {/* Shortcut «Auftrag»: direkt einen Auftrag auf diese Instanz auslösen.
+              **Der Knopf trägt den Ton des Zustands** (Testnotiz #380): ist die Instanz
+              gebunden (gelbe Badge), wird aus dem Auftrag eine Abweichung – also sieht der
+              Knopf schon vorher so aus. Das ist keine zweite Regel, sondern ein Blick auf
+              dieselbe Badge (`isPending`): die Entscheidung trifft weiterhin allein die
+              Auswahl im Auftrag (`subject.classify_pick`), hier steht nur die Vorschau. */}
+          <button className={cn('erp-idbtn', willDeviate ? 'erp-idbtn-flag' : 'erp-idbtn-act')} data-tip-pos="bottom"
+            data-tip={!canOrderInstance
+              ? 'An verschrotteter Ware ist nichts mehr zu tun'
+              : willDeviate
+                ? 'Abweichungsauftrag anlegen – diese Instanz ist gebunden und darin vorgewählt'
+                : 'Auftrag anlegen – diese Instanz ist darin vorgewählt (bewegen, prüfen, aussondern, verkaufen …)'}
             aria-label="Auftrag anlegen"
             disabled={!canOrderInstance || orderBusy}
             onClick={createOrderShortcut}>
@@ -208,14 +218,14 @@ export function InstanceDetail({ record, onBack, onChanged }: {
           {genDoc && (
             <div style={{ marginBottom: 24 }}>
               <DocumentView content={genDoc.content as unknown as DocumentContent} company={company}
-                objectNr={fmtObjId(inst.object_id)} issuedAt={genDoc.created_at ?? null} signoffs={genDoc.signoffs} />
+                objectNr={formatObjectId(inst.object_id)} issuedAt={genDoc.created_at ?? null} signoffs={genDoc.signoffs} />
             </div>
           )}
           <div style={S.glance}>
             <Tile
               wide icon={FileText} label="Spezifikation"
               value={inst.article_name ?? 'Artikel'}
-              sub={inst.article_object_id != null ? fmtObjId(inst.article_object_id) : undefined} subMono
+              sub={inst.article_object_id != null ? formatObjectId(inst.article_object_id) : undefined} subMono
               onClick={inst.article_object_id != null ? () => nav?.(inst.article_object_id as number) : undefined}
             />
             <Tile
@@ -282,7 +292,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
                       </div>
                       <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                         <div style={S.oT}>{o.name && o.name !== 'Auftrag' ? o.name : 'Auftrag'}</div>
-                        <div style={S.oN}>{fmtObjId(o.object_id)}</div>
+                        <div style={S.oN}>{formatObjectId(o.object_id)}</div>
                       </div>
                       <span style={{ ...S.badge, background: cfg.bg, color: cfg.color }}>
                         {OIcon && <OIcon size={13} strokeWidth={2.5} />}{cfg.label}

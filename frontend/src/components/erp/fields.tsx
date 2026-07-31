@@ -607,20 +607,6 @@ export function TextField({ label, value, onChange, error, placeholder, required
   );
 }
 
-export function SelectField({ label, value, onChange, options, required }: {
-  label: string; value: string; onChange: (v: string) => void;
-  options: { value: string; label: string }[]; required?: boolean;
-}) {
-  return (
-    <div>
-      <Label required={required}>{label}</Label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} style={{ borderColor: '#e2e8f0' }}>
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
-  );
-}
-
 /** Durchsuchbare Referenz-Auswahl (Combobox). Filtert Optionen per Tippen –
  *  z. B. «003» findet die Objektnummer 100000003. */
 /**

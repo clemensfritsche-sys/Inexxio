@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, MapPin, Building2, Shield, Briefcase, Truck, UserCircle,
+  User, MapPin, Building2, Briefcase,
   ShoppingBag, FolderOpen, Link2, Bell, Check, CreditCard, Cog,
 } from 'lucide-react';
 import { userDisplayName, localDate } from '@/lib/utils';
+import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
 import { OrdersList } from '@/components/orders-list';
 import { ObjectDocuments } from '@/components/erp/object-documents';
@@ -25,25 +26,10 @@ import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
 import type { UserProfile, CustomerOrder, UserRole } from '@/types';
-import type { StatusCfg } from '@/lib/status-flow';
 
 type UserTab = 'profil' | 'orders' | 'verwendung' | 'docs';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-// Re-Export der EINEN Regel (``lib/utils.formatObjectId``) – die vielen Aufrufstellen
-// heissen historisch ``fmtObjId``.
-export { formatObjectId as fmtObjId } from '@/lib/utils';
-
-// Eine Rolle ist kein Lebenszyklus-Status, aber ein aktiver Benutzer ist ein **gültiger,
-// aktiver** Datensatz – darum GRÜN (nicht Grau, das nach «aus» aussähe; deaktivierte Nutzer
-// erscheinen ohnehin nicht im Feed). Die Rolle selbst trägt Symbol + Label zur Unterscheidung.
-export const ROLE_CFG: Record<string, StatusCfg> = {
-  admin:    { label: 'Admin',       color: 'var(--success)', bg: 'var(--success-bg)', icon: Shield },
-  employee: { label: 'Mitarbeiter', color: 'var(--success)', bg: 'var(--success-bg)', icon: Briefcase },
-  supplier: { label: 'Lieferant',   color: 'var(--success)', bg: 'var(--success-bg)', icon: Truck },
-  customer: { label: 'Kunde',       color: 'var(--success)', bg: 'var(--success-bg)', icon: UserCircle },
-};
 
 const COUNTRY_NAMES: Record<string, string> = {
   CH: 'Schweiz', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich',
@@ -514,7 +500,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
 }) {
   const [tab, setTab] = useState<UserTab>('profil');
 
-  const rc       = ROLE_CFG[record.role] ?? ROLE_CFG.customer;
+  const rc       = userStatus(record);
   const name     = userDisplayName(record);
   const hasName  = !!name && name !== record.email;
   const initials = userInitials(name, record.email);
@@ -527,7 +513,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
       <DetailHeader
         eyebrow="Benutzer" title={hasName ? name : null} placeholder="Kein Name"
         objectId={record.object_id} onBack={onBack}
-        status={{ label: rc.label, color: rc.color, bg: rc.bg }}
+        status={rc}
         avatar={
           <div style={{
             width: 56, height: 56, borderRadius: '50%', flex: 'none',

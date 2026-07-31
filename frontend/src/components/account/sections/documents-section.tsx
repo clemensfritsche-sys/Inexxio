@@ -14,7 +14,7 @@ import { api } from '@/lib/api';
 import type { MySignoffDocument, MyHistoryDocument, PendingDocument, CompanySettings } from '@/types';
 import { DocumentView } from '@/components/erp/document-editor';
 import { SignaturePad } from '@/components/erp/signature-pad';
-import { fmtObjId } from '@/components/erp/user-detail';
+import { formatObjectId } from '@/lib/utils';
 
 export function DocumentsSection() {
   const [docs, setDocs] = useState<MySignoffDocument[]>([]);
@@ -95,14 +95,14 @@ function HistoryCard({ item, company }: { item: MyHistoryDocument; company: Part
           <div style={{ font: '600 14px var(--font-body)', color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
           <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>
             {item.label}{item.acted_at ? ` · ${new Date(item.acted_at).toLocaleDateString('de-CH')}` : ''}
-            {item.object_number != null ? ` · ${fmtObjId(item.object_number)}` : ''}
+            {item.object_number != null ? ` · ${formatObjectId(item.object_number)}` : ''}
           </div>
         </div>
         {item.content && <button onClick={() => setOpen((v) => !v)} style={ghost}>{open ? 'Schliessen' : 'Ansehen'}</button>}
       </div>
       {open && item.content && (
         <div style={{ padding: 16, background: 'var(--bg-2)' }}>
-          <DocumentView content={item.content} objectNr={item.object_number ? fmtObjId(item.object_number) : null} issuedAt={item.acted_at} company={company} />
+          <DocumentView content={item.content} objectNr={item.object_number ? formatObjectId(item.object_number) : null} issuedAt={item.acted_at} company={company} />
         </div>
       )}
     </div>
@@ -146,14 +146,14 @@ function AckCard({ ack, company, onDone }: {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ font: '700 14.5px var(--font-body)', color: 'var(--fg-1)' }}>{ack.title}</div>
-          <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{ack.object_number != null ? `Version ${fmtObjId(ack.object_number)}` : 'Anerkennung erforderlich'}</div>
+          <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{ack.object_number != null ? `Version ${formatObjectId(ack.object_number)}` : 'Anerkennung erforderlich'}</div>
         </div>
         <button onClick={() => setOpen((v) => !v)} style={ghost}>{open ? 'Schliessen' : 'Öffnen'}</button>
       </div>
       {open && (
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bg-2)' }}>
           {ack.content
-            ? <DocumentView content={ack.content} objectNr={ack.object_number ? fmtObjId(ack.object_number) : null} issuedAt={ack.document_date} company={company} />
+            ? <DocumentView content={ack.content} objectNr={ack.object_number ? formatObjectId(ack.object_number) : null} issuedAt={ack.document_date} company={company} />
             : <p style={{ fontSize: 13.5, color: 'var(--fg-3)' }}>Dokument «{ack.title}» ist zu bestätigen.</p>}
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: 13.5, color: 'var(--fg-2)', cursor: 'pointer' }}>
             <input type="checkbox" checked={read} onChange={(e) => setRead(e.target.checked)} style={{ marginTop: 2 }} />
@@ -203,7 +203,7 @@ function SignoffCard({ doc, company, onDone }: {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ font: '700 14.5px var(--font-body)', color: 'var(--fg-1)' }}>{doc.title}</div>
           <div style={{ fontSize: 12, color: 'var(--fg-4)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {doc.object_number != null && <span>Nr. {fmtObjId(doc.object_number)}</span>}
+            {doc.object_number != null && <span>Nr. {formatObjectId(doc.object_number)}</span>}
             <span>{doc.action === 'sign' ? 'Unterschrift erforderlich' : 'Bestätigung erforderlich'}</span>
             {rejected && <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Von Ihnen abgelehnt</span>}
           </div>
@@ -219,7 +219,7 @@ function SignoffCard({ doc, company, onDone }: {
 
       {mode && (
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--bg-2)' }}>
-          <DocumentView content={doc.content} objectNr={doc.object_number ? fmtObjId(doc.object_number) : null}
+          <DocumentView content={doc.content} objectNr={doc.object_number ? formatObjectId(doc.object_number) : null}
             issuedAt={doc.document_date} company={company} />
 
           {rejected ? (

@@ -9,7 +9,6 @@ Drei Bereiche:
   (Rechnungen sind sensibel – NICHT der öffentliche Foto-Token-Weg) + Soft-Delete.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile

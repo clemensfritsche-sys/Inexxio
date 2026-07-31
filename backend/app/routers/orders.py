@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -31,7 +32,7 @@ from ..services.scrap import record_block, record_scrap
 from ..services.objects import next_object_id
 from ..services.orders import release_order, to_order_response, to_order_summaries, visible_orders
 from ..services.purchase import apply_update_bulk as apply_purchase_update_bulk, instantiate_for_order as instantiate_purchase
-from ..services.quantity import ZERO, qty_sum, to_qty
+from ..services.quantity import qty_sum, to_qty
 from ..services.reservation import claim, free_qty, release as release_reservation, reserved_for
 from ..services.resource import record_resource
 
@@ -637,35 +638,26 @@ def _assert_releasable(db: Session, order: Order) -> None:
                    "(am Beschaffungs-Schritt oder als Artikel-Standard unter Spezifikation → Beschaffung).")
 
 
-@router.patch("/{object_id}", response_model=OrderResponse)
-async def update_order(
-    object_id: int,
-    data: OrderUpdate,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    order = _get_staff_order(db, object_id)
-    was_released = order.status == "released"
+class _PickInputs(NamedTuple):
+    """Was zur **Auswahl** gehört, nicht zum Auftrag – darum keine Modellfelder.
 
-    payload = data.model_dump(exclude_unset=True)
-    ensure_version(order, payload.pop("expected_updated_at", None))
-    # Vorgewählte Subjekt-Instanzen (Mehrfachauswahl) gesondert – kein Modellfeld.
-    new_instances = payload.pop("instance_object_ids", None)
-    # Reine Steuerangabe zur Auswahl – **kein Feld des Auftrags**: immer entfernen, sonst
-    # landete sie in der generischen ``setattr``-Schleife (siehe ``_make_deviation``).
-    answer = payload.pop("shortfall_response", None)
-    # Ebenso die beanspruchten Teilmengen je Instanz – sie gehören zur Auswahl, nicht zum
-    # Auftrag (eine Charge ist eine MENGE: von 500 lässt sich genau eine wählen).
-    pin_quantities = payload.pop("instance_quantities", None)
-    # Inhalte – inklusive der Wiederkehr-Einstellung – sind NUR im Entwurf änderbar.
-    # Nach der Freigabe ist der Auftrag „scharf"; ein einmal freigegebener Auftrag
-    # lässt sich nicht mehr nachträglich auf wiederkehrend umstellen (ensure_mutable
-    # erlaubt dann nur noch status/is_active).
-    ensure_mutable(order.status, payload, "Auftrag")
-    if new_instances is not None:
-        if order.status != "draft":
-            raise HTTPException(409, detail="Instanzen lassen sich nur im Entwurf ändern")
-        _set_chosen_instances(db, order, new_instances, answer, current_user.id, pin_quantities)
+    Alle drei müssen aus dem Payload heraus, bevor die generische ``setattr``-Schleife
+    darüberläuft; sonst landeten sie als Attribute auf dem Auftrag."""
+    instances: list[int] | None      # vorgewählte Subjekt-Instanzen (Mehrfachauswahl)
+    answer: str | None               # Antwort auf eine dadurch ausgelöste Unterdeckung
+    quantities: dict[str, float] | None   # beanspruchte Teilmenge je Instanz (Charge!)
+
+
+def _pop_pick_inputs(payload: dict) -> _PickInputs:
+    return _PickInputs(
+        instances=payload.pop("instance_object_ids", None),
+        answer=payload.pop("shortfall_response", None),
+        quantities=payload.pop("instance_quantities", None),
+    )
+
+
+def _assert_payload(db: Session, order: Order, payload: dict) -> None:
+    """Die Feld-Prüfungen einer Auftrags-Änderung – an EINER Stelle."""
     if ("article_id" in payload or "quantity" in payload) and order.article_id is None \
             and order_lines_svc.lines_for(db, order):
         # Ein Mehrpositionen-Auftrag hat seinen Bedarf auf ``order_lines`` – Artikel/Menge
@@ -679,6 +671,68 @@ async def update_order(
         _assert_quantity_serialization(db, payload.get("article_id", order.article_id), payload["quantity"])
     _assert_status_transition(order.status, payload.get("status"))
 
+
+def _apply_fields(db: Session, order: Order, payload: dict, actor_id: int | None) -> None:
+    """Felder setzen und jede echte Änderung protokollieren."""
+    for key, value in payload.items():
+        old_val = getattr(order, key, None)
+        old_str = str(old_val) if old_val is not None else None
+        new_str = str(value) if value is not None else None
+        if old_str != new_str:
+            log_audit(db, "orders", key, new_str, actor_id,
+                      object_id=order.object_id, old_value=old_str)
+        setattr(order, key, value)
+
+
+def _do_release(db: Session, order: Order, answer: str | None, actor_id: int | None) -> None:
+    """Freigabe (draft → released) – stösst den Prozess an und stellt das Subjekt her.
+    Anker ist immer Artikel + Menge:
+
+      produce – KEIN eigener Ablauf → der **Artikel-Prozess** läuft, neue Instanzen entstehen.
+      stock   – eigener Ablauf → er läuft auf ``quantity`` Instanzen des Artikels
+                (FIFO ab Lager, optional durch fixierte Instanzen ergänzt)."""
+    _assert_releasable(db, order)
+    # **Jetzt – und erst jetzt – wird der Zugriff scharf** (Testnotiz #370). Bis hierhin
+    # war die Instanz-Auswahl eine Vormerkung, die niemandem etwas wegnahm; mit der
+    # Freigabe steht sie fest. Nimmt sie einem LAUFENDEN Auftrag sein Stück weg, will
+    # dessen Unterdeckung im selben Zug beantwortet sein – sonst bliebe er ohne
+    # Entscheidung hängen.
+    holders = _enforce_claims(db, order, answer, actor_id)
+    # Einheitliche Freigabe (setzt draft → released selbst): Subjekt herstellen (Fehlmenge ist
+    # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
+    # Beschaffung/Verkauf instanziieren, Komponenten reservieren.
+    release_order(db, order, actor_id)
+    log_audit(db, "orders", "status", "released", actor_id,
+              object_id=order.object_id, old_value="draft")
+    # Die Antwort NACH der Freigabe anwenden: erst dort ist die Fehlmenge des anderen
+    # Auftrags real, und «ersetzen»/«Menge reduzieren» rechnen mit dem echten Stand.
+    _apply_shortfall_answer(db, holders, answer, actor_id, into=order)
+
+
+@router.patch("/{object_id}", response_model=OrderResponse)
+async def update_order(
+    object_id: int,
+    data: OrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    order = _get_staff_order(db, object_id)
+    was_released = order.status == "released"
+
+    payload = data.model_dump(exclude_unset=True)
+    ensure_version(order, payload.pop("expected_updated_at", None))
+    pick = _pop_pick_inputs(payload)
+    # Inhalte – inklusive der Wiederkehr-Einstellung – sind NUR im Entwurf änderbar.
+    # Nach der Freigabe ist der Auftrag „scharf"; ein einmal freigegebener Auftrag
+    # lässt sich nicht mehr nachträglich auf wiederkehrend umstellen (ensure_mutable
+    # erlaubt dann nur noch status/is_active).
+    ensure_mutable(order.status, payload, "Auftrag")
+    if pick.instances is not None:
+        if order.status != "draft":
+            raise HTTPException(409, detail="Instanzen lassen sich nur im Entwurf ändern")
+        _set_chosen_instances(db, order, pick.instances, pick.answer, current_user.id, pick.quantities)
+    _assert_payload(db, order, payload)
+
     # Freigabe (draft → released) läuft AUSSCHLIESSLICH über ``release_order`` – dieser Pfad setzt
     # den Status selbst. Den Status hier NICHT vorab über die generische Schleife setzen: sonst ist
     # der Auftrag beim Aufruf bereits „released", ``release_order`` kehrt wegen „nicht mehr draft"
@@ -687,39 +741,9 @@ async def update_order(
     wants_release = payload.get("status") == "released" and not was_released
     if wants_release:
         payload.pop("status")
-
-    for key, value in payload.items():
-        old_val = getattr(order, key, None)
-        old_str = str(old_val) if old_val is not None else None
-        new_str = str(value) if value is not None else None
-        if old_str != new_str:
-            log_audit(db, "orders", key, new_str, current_user.id,
-                      object_id=order.object_id, old_value=old_str)
-        setattr(order, key, value)
-
-    # Freigabe (draft → released) stösst den Prozess an und stellt das Subjekt her.
-    # Anker ist immer Artikel + Menge:
-    #   produce – KEIN eigener Ablauf → der **Artikel-Prozess** läuft, neue Instanzen entstehen.
-    #   stock   – eigener Ablauf → er läuft auf ``quantity`` Instanzen des Artikels
-    #             (FIFO ab Lager, optional durch fixierte Instanzen ergänzt).
+    _apply_fields(db, order, payload, current_user.id)
     if wants_release:
-        _assert_releasable(db, order)
-        # **Jetzt – und erst jetzt – wird der Zugriff scharf** (Testnotiz #370). Bis hierhin
-        # war die Instanz-Auswahl eine Vormerkung, die niemandem etwas wegnahm; mit der
-        # Freigabe steht sie fest. Nimmt sie einem LAUFENDEN Auftrag sein Stück weg, will
-        # dessen Unterdeckung im selben Zug beantwortet sein – sonst bliebe er ohne
-        # Entscheidung hängen.
-        holders = _enforce_claims(db, order, answer, current_user.id)
-        # Einheitliche Freigabe (setzt draft → released selbst): Subjekt herstellen (Fehlmenge ist
-        # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
-        # Beschaffung/Verkauf instanziieren, Komponenten reservieren, Abbruch-Folgeauftrag wirksam
-        # machen.
-        release_order(db, order, current_user.id)
-        log_audit(db, "orders", "status", "released", current_user.id,
-                  object_id=order.object_id, old_value="draft")
-        # Die Antwort NACH der Freigabe anwenden: erst dort ist die Fehlmenge des anderen
-        # Auftrags real, und «ersetzen»/«Menge reduzieren» rechnen mit dem echten Stand.
-        _apply_shortfall_answer(db, holders, answer, current_user.id, into=order)
+        _do_release(db, order, pick.answer, current_user.id)
 
     # Ein freigegebener Auftrag wird NICHT direkt inaktiv gesetzt – der Abbruch läuft über
     # «Abbrechen» (POST /abort), das einen Folgeauftrag erzwingt (keine herrenlosen Teile).

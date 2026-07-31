@@ -12,14 +12,14 @@ import { useErpNav } from '@/components/erp/obj-id';
 import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile, OrdersMode } from '@/types';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
-  statusConfig,
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
+import { articleStatus } from '@/lib/record-status';
 import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
@@ -28,7 +28,7 @@ import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { printObjectLabel } from '@/components/scan/object-label';
-import { formatAmount as fmtChf, localDate } from '@/lib/utils';
+import { formatAmount as fmtChf, formatObjectId, localDate } from '@/lib/utils';
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
 // Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
@@ -101,7 +101,6 @@ function seedFrom(record: Article | null): Form {
     default_webshop_url: record.default_webshop_url ?? '',
   };
 }
-
 
 // Normalisierte Änderungs-Signatur des Formulars (Autosave-Erkennung). Grösse/Gewicht sind
 // optional – leer bleibt leer (kein Fehl-Autosave beim Öffnen eines Artikels ohne diese Werte).
@@ -308,7 +307,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
   const flush = useAutosave(sig, canSave, save);
 
-  const statusCfg = statusConfig(isCreate || !record ? 'draft' : record.status);
+  const statusCfg = articleStatus({ status: isCreate || !record ? 'draft' : record.status });
   const actions = isCreate || !record ? [] : articleActions(record.status, (stepsCount ?? 0) > 0);
 
   return (
@@ -467,13 +466,11 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   );
 }
 
-
 // Kopf-/Chrome-Styles (Inexxio Design System, analog Instanz-Detail)
 // Der Kopf kommt aus `fields.DetailHeader` (Notiz #242) – hier bleibt nur die Karte.
 const H: Record<string, React.CSSProperties> = {
   card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: 'clamp(16px, 3vw, 24px)', display: 'flex', flexDirection: 'column', gap: 16, width: '100%' },
 };
-
 
 function fmtWeight(v: string | number): string {
   return Number(v).toLocaleString('de-CH', { maximumFractionDigits: 3 });

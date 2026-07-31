@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { Receipt, CheckCircle2, FileText, Banknote, Ban, Calculator, User as UserIcon, Store, Building2, AlertTriangle, RotateCcw } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderSale, PaymentMethod, UserProfile } from '@/types';
-import { userDisplayName } from '@/lib/utils';
+import { formatObjectId, userDisplayName } from '@/lib/utils';
 import { saleStatusConfig, saleNodes } from '@/lib/sale';
 import { ErrorText, PanelHeader, PrimaryButton, Row, SearchSelect, Segmented, StatusBadge, TextField } from '@/components/erp/fields';
 import { PurchaseProgress } from '@/components/erp/purchase-progress';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { ObjId } from '@/components/erp/obj-id';
 
 // Zahlungsart des manuellen Zahlungseingangs – kein Kartenterminal nötig, der übliche
@@ -200,7 +200,7 @@ export function SalePanel({ order, sales, stepState, stepId, onOrderUpdated }: {
           {/* Kunde ist Pflicht – keine «kein Kunde»-Option */}
           <SearchSelect label="Kunde" value={customerId} onChange={setCustomerId} required
             placeholder="Kunde auswählen …"
-            options={customers.map((c) => ({ value: String(c.id), label: `${fmtObjId(c.object_id)} · ${userDisplayName(c)}` }))} />
+            options={customers.map((c) => ({ value: String(c.id), label: `${formatObjectId(c.object_id)} · ${userDisplayName(c)}` }))} />
           {isSingle && (
             <>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -308,7 +308,6 @@ function Card({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-
 
 const ghost: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
