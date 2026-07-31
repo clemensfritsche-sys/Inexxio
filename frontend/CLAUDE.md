@@ -25,10 +25,11 @@ src/app/
 ├── (auth)/
 │   └── login/      ← Magic Link + Google Sign-In
 └── (erp)/          ← Auth-geschützte ERP-Seiten
-    ├── erp/        ← Universal Feed (Master-Detail)
-    └── admin/
-        ├── einstellungen/  ← Firmeneinstellungen
-        └── benutzer/       ← Benutzerverwaltung
+    └── erp/        ← Universal Feed (Master-Detail) – EINZIGE ERP-Oberfläche.
+                    #   Benutzer, Artikel, Aufträge, Instanzen und Unternehmen werden
+                    #   ausschliesslich hier gepflegt (Detailfenster je Datensatz).
+                    #   Die früheren Admin-Seiten (`einstellungen`, `benutzer`) waren
+                    #   nicht verlinkte Zweitoberflächen und sind aufgelöst.
 ```
 
 ## Design System (VERBINDLICH — Inexxio Design System)

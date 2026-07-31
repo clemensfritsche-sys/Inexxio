@@ -3293,9 +3293,12 @@ def test_a_company_can_be_closed_but_never_reopened():
     assert "others == 0" in src
     # Gebiete fallen zurück – jeder Fleck der Erde gehört weiterhin jemandem.
     assert "CompanyTerritory.company_id == company.id" in src
-    # Die Auflösung sieht geschlossene Gesellschaften nicht mehr.
-    for fn in (sites.find_operator, sites.all_companies):
-        assert "CompanySettings.is_active == True" in _inspect.getsource(fn), fn.__name__
+    # **Auflösung und Auswahl** sehen eine geschlossene Gesellschaft nicht mehr – der
+    # **Feed** dagegen schon: «geschlossen» ist ein Zustand, kein Verschwinden (sonst wäre
+    # ihre Historie über keine Oberfläche mehr erreichbar).
+    assert "CompanySettings.is_active == True" in _inspect.getsource(sites.find_operator)
+    assert "c.is_active" in _inspect.getsource(sites.selectable_companies)
+    assert "CompanySettings.is_active" not in _inspect.getsource(sites.all_companies)
 
 
 def test_a_pick_never_mixes_free_and_bound_instances():

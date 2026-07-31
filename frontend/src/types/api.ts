@@ -536,23 +536,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/users/{user_id}/role": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update User Role */
-        patch: operations["update_user_role_api_v1_admin_users__user_id__role_patch"];
-        trace?: never;
-    };
     "/api/v1/admin/users/{user_id}": {
         parameters: {
             query?: never;
@@ -5924,14 +5907,6 @@ export interface components {
             /** Newsletter Opt In */
             newsletter_opt_in?: boolean | null;
         };
-        /** UserRoleUpdate */
-        UserRoleUpdate: {
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: "admin" | "employee" | "supplier" | "customer";
-        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -6735,41 +6710,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfileResponse"][];
-                };
-            };
-        };
-    };
-    update_user_role_api_v1_admin_users__user_id__role_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UserRoleUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserProfileResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -164,17 +164,30 @@ find_primary = find_operator
 
 
 def all_companies(db: Session) -> list[CompanySettings]:
-    """Alle Unternehmen, **Betreiber (ältestes) zuerst**, dann nach Alter (``id``).
+    """**Alle** Unternehmen – auch geschlossene –, Betreiber (ältestes) zuerst, dann nach
+    Alter (``id``). Für den **Feed**: «geschlossen» ist ein Zustand, kein Verschwinden.
+    Vorher fiel eine geschlossene Gesellschaft ersatzlos aus dem ERP – ihre Historie war
+    danach über keine Oberfläche mehr erreichbar (Runde 25 hatte das Schliessen eingeführt,
+    ohne die Ansicht mitzuziehen).
+
+    Wer eine **Auswahl** braucht (wem lässt sich ein Gebiet zuweisen?), nimmt
+    ``selectable_companies`` – einer geschlossenen Gesellschaft weist man nichts mehr zu.
 
     Ruft ``operator`` vorab, damit auch eine frische DB mindestens eine Gesellschaft
     liefert (und der Betreiber garantiert eine Objektnummer hat)."""
     operator(db)
     return (
         db.query(CompanySettings)
-        .filter(CompanySettings.is_active == True)
         .order_by(CompanySettings.id)
         .all()
     )
+
+
+def selectable_companies(db: Session) -> list[CompanySettings]:
+    """Die **wählbaren** Unternehmen (aktiv) – wem lässt sich ein Gebiet zuweisen, wer kann
+    fakturieren? Einer geschlossenen Gesellschaft weist man nichts mehr zu; sie erscheint
+    weiterhin im Feed (``all_companies``), aber nicht mehr in einer Auswahl."""
+    return [c for c in all_companies(db) if c.is_active]
 
 
 def by_object_id(db: Session, object_id: int | None) -> CompanySettings | None:

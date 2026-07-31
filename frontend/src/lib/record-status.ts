@@ -23,9 +23,9 @@ import { instanceStatusConfig } from '@/lib/process';
  *
  * Die Ableitung je Typ:
  *
- * - **Benutzer** → seine **Rolle**. Ein Benutzer hat keinen Lebenszyklus-Status im Feed
- *   (Deaktivierte erscheinen dort nicht); was ihn unterscheidet, ist wofür er da ist.
- *   Grün, weil ein aktiver Datensatz gültig ist – Grau läse sich als «aus».
+ * - **Benutzer** → deaktiviert ≻ seine **Rolle**. Solange die Person in Betrieb ist, sagt
+ *   die Badge, wofür sie da ist (grün: ein aktiver Datensatz ist gültig – Grau läse sich
+ *   als «aus»); ist sie ausser Betrieb, zählt genau das und nichts anderes.
  * - **Artikel** → Entwurf · Freigegeben · Inaktiv (`lib/article`).
  * - **Auftrag** → wiederkehrend & fällig ≻ Status des Auftrags, «Abgebrochen» als
  *   Projektion über `abort_into_id` (`lib/order`). Ausdrücklich **nicht** der Stand eines
@@ -43,9 +43,13 @@ export const ROLE_CFG: Record<string, StatusCfg> = {
   customer: { label: 'Kunde', ...TONE.done, icon: UserCircle },
 };
 
-export function userStatus(u: Pick<UserProfile, 'role'>): StatusCfg {
+export function userStatus(u: Pick<UserProfile, 'role'> & { is_active?: boolean }): StatusCfg {
+  if (u.is_active === false) return INACTIVE;
   return ROLE_CFG[u.role] ?? ROLE_CFG.customer;
 }
+
+/** «Ausser Betrieb» – dieselben zwei Wörter und derselbe Ton für Person und Gesellschaft. */
+const INACTIVE: StatusCfg = { label: 'Inaktiv', ...TONE.danger, icon: Ban };
 
 export function articleStatus(a: Pick<Article, 'status'>): StatusCfg {
   return articleStatusConfig(a.status);
@@ -66,6 +70,6 @@ export function instanceStatus(i: Pick<Instance, 'quality' | 'disposition' | 're
 
 export function organizationStatus(c: Pick<CompanySettings, 'is_active'>): StatusCfg {
   return c.is_active === false
-    ? { label: 'Inaktiv', ...TONE.danger, icon: Ban }
+    ? INACTIVE
     : { label: 'Freigegeben', ...TONE.done, icon: CheckCircle2 };
 }

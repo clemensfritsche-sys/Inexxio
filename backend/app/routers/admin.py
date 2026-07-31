@@ -15,7 +15,6 @@ from ..schemas.admin import (
     TerritoryMapResponse,
     TerritoryRegion,
     UserProfileResponse,
-    UserRoleUpdate,
 )
 from ..services import sites
 from ..services.admin import get_or_create_settings, log_audit
@@ -203,7 +202,7 @@ def _territory_map_response(db: Session) -> TerritoryMapResponse:
     companies = [
         TerritoryCompany(object_id=c.object_id, company_name=c.company_name,
                          is_operator=sites.is_operator(db, c))
-        for c in sites.all_companies(db) if c.object_id is not None
+        for c in sites.selectable_companies(db) if c.object_id is not None
     ]
     regions = [
         TerritoryRegion(code=r["code"], label=r["label"], pos=r["pos"],
@@ -266,28 +265,6 @@ async def list_users(
 ):
     return [UserProfileResponse.model_validate(u) for u in
             db.query(UserProfile).order_by(UserProfile.email).all()]
-
-
-@router.patch("/users/{user_id}/role", response_model=UserProfileResponse)
-async def update_user_role(
-    user_id: int,
-    data: UserRoleUpdate,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
-):
-    # Rollen-Whitelist erzwingt das Schema (Literal ``Role``) – ungültige Werte enden als 422.
-    user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
-    if not user:
-        raise HTTPException(404, detail="User not found")
-    # Die System-KI (role='ai', ADR 004) ist kein verwaltbarer Mensch: Rolle fix.
-    if user.role == "ai":
-        raise HTTPException(409, detail="Die System-KI-Identität kann keine andere Rolle erhalten")
-    log_audit(db, "user_profiles", "role", data.role, current_user.id,
-              object_id=user_id, old_value=user.role)
-    user.role = data.role
-    db.commit()
-    db.refresh(user)
-    return UserProfileResponse.model_validate(user)
 
 
 @router.delete("/users/{user_id}")

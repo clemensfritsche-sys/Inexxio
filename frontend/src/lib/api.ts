@@ -231,10 +231,6 @@ class ApiClient {
     return this.get('/api/v1/admin/users');
   }
 
-  updateUserRole(userId: number, role: string): Promise<UserProfile> {
-    return this.patch(`/api/v1/admin/users/${userId}/role`, { role });
-  }
-
   deactivateUser(userId: number): Promise<{ deactivated: boolean }> {
     return this.delete(`/api/v1/admin/users/${userId}`);
   }

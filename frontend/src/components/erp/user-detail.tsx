@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, MapPin, Building2, Briefcase,
+  User, MapPin, Building2, Briefcase, Ban, UserCheck,
   ShoppingBag, FolderOpen, Link2, Bell, Check, CreditCard, Cog,
 } from 'lucide-react';
 import { userDisplayName, localDate } from '@/lib/utils';
@@ -13,7 +13,7 @@ import { ObjectDocuments } from '@/components/erp/object-documents';
 import { UserDocumentsOverview } from '@/components/erp/user-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { Card, DetailHeader } from '@/components/erp/fields';
+import { Card, ChoiceButton, DetailHeader, Dialog, HeaderSep } from '@/components/erp/fields';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
 // Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
@@ -505,6 +505,32 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
   const hasName  = !!name && name !== record.email;
   const initials = userInitials(name, record.email);
 
+  // **Der Lebenszyklus einer Person gehört an ihren Datensatz** – wie bei jedem anderen
+  // Typ. Bis hierhin war er nur über eine zweite, nicht verlinkte Seite erreichbar
+  // (`/admin/benutzer`, jetzt entfallen); die Logik selbst (Selbst-Schutz, System-KI,
+  // offene Dokument-Freigaben) bleibt unverändert im Backend, hier ist nur der Knopf.
+  const [lcBusy, setLcBusy] = useState(false);
+  const [lcErr, setLcErr] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+  const inactive = record.is_active === false;
+  // Die System-KI ist kein verwaltbarer Mensch (ADR 004).
+  const manageable = isAdmin && record.role !== 'ai';
+
+  async function setActive(active: boolean) {
+    setLcBusy(true);
+    setLcErr(null);
+    try {
+      if (active) await api.reactivateUser(record.id);
+      else await api.deactivateUser(record.id);
+      setClosing(false);
+      onSave({ ...record, is_active: active });
+    } catch (e) {
+      setLcErr(e instanceof Error ? e.message : 'Aktion fehlgeschlagen');
+    } finally {
+      setLcBusy(false);
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242).
@@ -527,6 +553,24 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
               : initials}
           </div>
         }
+        actions={manageable ? (
+          <>
+            <HeaderSep />
+            {inactive ? (
+              <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
+                data-tip="Reaktivieren – die Person kann sich danach wieder anmelden"
+                aria-label="Reaktivieren" disabled={lcBusy} onClick={() => setActive(true)}>
+                <UserCheck size={15} />
+              </button>
+            ) : (
+              <button className="erp-idbtn erp-idbtn-danger" data-tip-pos="bottom"
+                data-tip="Deaktivieren – die Person kann sich nicht mehr anmelden"
+                aria-label="Deaktivieren" disabled={lcBusy} onClick={() => setClosing(true)}>
+                <Ban size={15} />
+              </button>
+            )}
+          </>
+        ) : undefined}
       >
         <DetailTabs<UserTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'profil', label: 'Profil', icon: User },
@@ -536,8 +580,29 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
         ]} />
       </DetailHeader>
 
+      {/* **Deaktivieren ist umkehrbar – aber es sperrt die Anmeldung.** Darum eine Frage,
+          aber nur eine: der Klick auf den Weg IST die Ausführung (Notiz #152). */}
+      {closing && (
+        <Dialog icon={Ban} title="Benutzer deaktivieren" tone="var(--danger)" width={460}
+          onClose={() => setClosing(false)}>
+          <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-2)', lineHeight: 1.55 }}>
+            «{hasName ? name : record.email}» kann sich danach nicht mehr anmelden. Der
+            Datensatz bleibt im Feed lesbar (er hält Historie und steht auf Belegen) und
+            lässt sich jederzeit wieder reaktivieren.
+          </span>
+          <ChoiceButton icon={Ban} tone="var(--danger)" disabled={lcBusy}
+            title="Deaktivieren"
+            text="Umkehrbar – die Identität (Objektnummer, Historie, Referenzen) bleibt dieselbe."
+            onClick={() => setActive(false)} />
+          {lcErr && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{lcErr}</span>}
+        </Dialog>
+      )}
+
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
+        {lcErr && !closing && (
+          <div style={{ marginBottom: 14, fontSize: 12.5, color: 'var(--danger)' }}>{lcErr}</div>
+        )}
         {tab === 'profil' && <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />}
         {tab === 'orders' && <OrdersSec objectId={record.object_id} />}
         {tab === 'verwendung' && <ObjectReferences objectId={record.object_id} emptyHint="Diese Person hält aktuell keine Instanzen." />}

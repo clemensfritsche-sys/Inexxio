@@ -1132,63 +1132,6 @@
         ]
       }
     },
-    "/api/v1/admin/users/{user_id}/role": {
-      "patch": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Update User Role",
-        "operationId": "update_user_role_api_v1_admin_users__user_id__role_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "User Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserRoleUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserProfileResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/admin/users/{user_id}": {
       "delete": {
         "tags": [
@@ -17233,25 +17176,6 @@
         "type": "object",
         "title": "UserProfileUpdate",
         "description": "Self-service update — only fields a user may edit themselves.\nEmployment/role fields are intentionally excluded; use ErpAdminUpdate for those."
-      },
-      "UserRoleUpdate": {
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": [
-              "admin",
-              "employee",
-              "supplier",
-              "customer"
-            ],
-            "title": "Role"
-          }
-        },
-        "type": "object",
-        "required": [
-          "role"
-        ],
-        "title": "UserRoleUpdate"
       },
       "ValidationError": {
         "properties": {

@@ -3043,13 +3043,38 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Design-System-Exports (eine Design-Sprache prunt man nicht nach heutiger Nutzung) und die
   **Alt-Palette** in den Website-/Shop-Seiten (Big-Bang-Migration ist ausdrücklich nicht der
   Weg – beim Anfassen mitziehen).
-  **Offen und bewusst gemeldet:** `/admin/benutzer` ist eine **zweite, nicht verlinkte**
-  Benutzerverwaltung in der Alt-Palette (mit einer dritten Rollen-Konfiguration). Sie trägt
-  aber als EINZIGE das **Deaktivieren/Reaktivieren** einer Person – der ERP-Feed zeigt nur
-  aktive Benutzer. Sie ersatzlos zu löschen nähme eine Fähigkeit weg; sie sauber aufzulösen
-  heisst: Feed-Filter «inaktiv» + Lebenszyklus-Aktionen am Benutzer-Datensatz, dann Seite
-  weg (genau der Weg, den `/admin/einstellungen` in Runde 21 gegangen ist). Das ist eine
-  Änderung am Benutzer-Lebenszyklus, kein Aufräumen – darum hier nur benannt.
+- **«Inaktiv ist ein Zustand, kein Verschwinden» – die zweite Benutzerverwaltung ist
+  aufgelöst** (Juli 2026, Folgeschritt zum Cleanup): `/admin/benutzer` war eine **zweite,
+  nicht verlinkte** Benutzerverwaltung in der Alt-Palette – mit eigener Tabelle und einer
+  dritten Rollen-Konfiguration. Sie war aber nicht einfach überflüssig: sie trug als
+  **einzige** das Deaktivieren/Reaktivieren einer Person, denn der ERP-Feed zeigte nur
+  **aktive** Benutzer. Genau daraus folgte ihre Existenz.
+  **Die Wurzel war eine Ungleichbehandlung derselben Sache:** ein ausser Betrieb genommener
+  **Artikel** behält `is_active=True` und bekommt `status='inactive'` – er bleibt im Feed
+  und trägt eine rote Badge. Eine **Person** (und eine **Gesellschaft**) haben keine
+  Status-Spalte; dort setzt die Deaktivierung `is_active=False`, und der Datensatz
+  **verschwindet**. Derselbe fachliche Vorgang, zwei Verhalten – und für den einen braucht
+  es dann zwangsläufig eine zweite Oberfläche.
+  Jetzt gilt für **jeden** Datensatztyp dieselbe Regel: er bleibt im Feed und trägt
+  «Inaktiv» (rot). Konkret: `GET /erp/records` (+ Detail, + Bestellungen, + Änderung) filtert
+  `is_active` nicht mehr, `userStatus` projiziert *deaktiviert ≻ Rolle*, und der
+  Benutzer-Datensatz trägt die Aktionen **Deaktivieren/Reaktivieren** im Kopf – dieselbe
+  Anatomie wie das Schliessen am Unternehmen. Die Fachlogik bleibt unangetastet, wo sie
+  steht (Selbst-Schutz, System-KI, Blockade bei offenen Dokument-Freigaben in
+  `admin.deactivate_user`); die Oberfläche ruft sie nur.
+  **Dieselbe Regel für die Gesellschaft – und damit ein stiller Fehler aus Runde 25
+  behoben:** eine geschlossene Gesellschaft fiel ersatzlos aus dem ERP, ihre Historie war
+  über **keine** Oberfläche mehr erreichbar. `all_companies` liefert jetzt wirklich *alle*
+  (Feed); wer eine **Auswahl** braucht (wem lässt sich ein Gebiet zuweisen?), nimmt
+  `selectable_companies` – zwei Fragen, zwei Namen, statt eines Filters, der beides meint.
+  **Und ein zweiter Schreibpfad ist mit entfallen:** `PATCH /admin/users/{id}/role` (+
+  `UserRoleUpdate` + `api.updateUserRole`) – die Rolle wird am ERP-Datensatz gepflegt
+  (`PATCH /erp/records/{object_id}`, inkl. KI-Schutz). Dieselbe fachliche Angabe darf nie an
+  zwei Stellen editierbar sein.
+  Wächter: `tests/test_frontend_mirrors.py: test_a_person_is_managed_in_exactly_one_place`
+  (Seite weg, kein zweiter Rollen-Pfad, Feed/Detail ohne `is_active`-Filter) und
+  `test_a_company_can_be_closed_but_never_reopened` (Feed ja, Auswahl nein, Betreiber
+  geschützt). Gegen echtes PostgreSQL verifiziert (`/var/tmp/ixpg/inactive.py`, 7/7).
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

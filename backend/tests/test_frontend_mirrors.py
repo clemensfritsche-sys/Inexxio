@@ -155,3 +155,34 @@ def test_record_status_is_derived_in_exactly_one_place():
     src = (FRONTEND / "lib" / "record-status.ts").read_text(encoding="utf-8")
     for fn in ("userStatus", "articleStatus", "orderStatus", "instanceStatus", "organizationStatus"):
         assert f"export function {fn}" in src, f"{fn} fehlt in lib/record-status.ts"
+
+
+def test_a_person_is_managed_in_exactly_one_place():
+    """**Eine Benutzerverwaltung, nicht zwei.**
+
+    Neben dem ERP-Datensatz gab es eine zweite, **nicht verlinkte** Seite
+    (``/admin/benutzer``) in der Alt-Palette, mit einer eigenen Rollen-Konfiguration und
+    einer eigenen Tabelle. Sie war der einzige Ort, an dem sich eine Person deaktivieren
+    bzw. reaktivieren liess – der ERP-Feed zeigte nur aktive Personen, also **musste** es
+    sie geben. Jetzt gilt für die Person dieselbe Regel wie für Artikel und Auftrag:
+    «inaktiv» ist ein **Zustand**, kein Verschwinden; der Datensatz bleibt im Feed und
+    trägt seine Aktionen im Kopf.
+
+    Damit ist auch der zweite **Schreibpfad für die Rolle** entfallen: sie wird am
+    ERP-Datensatz gepflegt (``PATCH /erp/records/{object_id}``) – dieselbe fachliche
+    Angabe darf nie an zwei Stellen editierbar sein (Leitbild «ERP ist Master»)."""
+    import inspect
+
+    from app.routers import admin as admin_router, erp as erp_router
+
+    assert not (FRONTEND / "app" / "(erp)" / "admin" / "benutzer").exists(), (
+        "Die zweite Benutzerverwaltung ist wieder da – eine Person wird am ERP-Datensatz "
+        "verwaltet, nicht auf einer eigenen Seite.")
+    assert not hasattr(admin_router, "update_user_role"), (
+        "Zweiter Schreibpfad für die Rolle – sie gehört an den ERP-Datensatz.")
+    # Der Feed zeigt JEDE Person; das Detail lässt sich auch deaktiviert öffnen.
+    for fn in (erp_router.list_erp_records, erp_router.get_erp_record):
+        assert "UserProfile.is_active == True" not in inspect.getsource(fn), fn.__name__
+    # Deaktivieren/Reaktivieren bleiben, wo ihre Fachlogik sitzt (Selbst-Schutz,
+    # System-KI, offene Dokument-Freigaben) – die Oberfläche ruft sie nur.
+    assert hasattr(admin_router, "deactivate_user") and hasattr(admin_router, "reactivate_user")

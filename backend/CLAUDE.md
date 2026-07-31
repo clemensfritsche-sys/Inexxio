@@ -76,7 +76,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/auth/me | user | Eigenes Profil |
 | PATCH | /api/v1/auth/me | user | Eigenes Profil bearbeiten (Self-Service) |
 | POST | /api/v1/auth/terms-accept | user | AGB akzeptieren |
-| GET | /api/v1/erp/records | staff | Benutzer-Feed (Master-Detail) |
+| GET | /api/v1/erp/records | staff | Benutzer-Feed (Master-Detail) – **auch deaktivierte**: «inaktiv» ist ein Zustand, kein Verschwinden |
 | GET/PATCH | /api/v1/erp/records/{object_id} | staff/admin | Datensatz lesen/ändern |
 | GET/POST | /api/v1/erp/articles | staff | Artikel-Feed / Artikel anlegen (Status 'draft') |
 | GET | /api/v1/erp/articles/name-suggestions | staff | Intelligente Namensvorschläge (frei + Fuzzy, ohne KI) |
@@ -107,8 +107,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/PATCH | /api/v1/admin/companies/{object_id} | admin | Ein Unternehmen lesen / Entitäts-Felder ändern (voller Feldsatz inkl. Rechtsidentität + Währung – **derselbe Pfad für jede** Gesellschaft; Plattform-Config bleibt bei `/admin/settings`) |
 | POST | /api/v1/admin/companies/{object_id}/operator | admin | Diese Gesellschaft zum **Betreiber der Website** machen (genau EINE trägt den Titel) |
 | GET | /api/v1/admin/users | staff | Benutzerliste |
-| PATCH | /api/v1/admin/users/{id}/role | admin | Rolle ändern |
-| DELETE | /api/v1/admin/users/{id} | admin | Benutzer deaktivieren |
+| DELETE · POST …/reactivate | /api/v1/admin/users/{id} | admin | Benutzer deaktivieren / reaktivieren (Aktionen am **ERP-Benutzer-Datensatz**; die Rolle wird über `PATCH /erp/records/{object_id}` gepflegt – EIN Schreibpfad) |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
 | POST | /api/v1/contact | – | Kontaktformular |
 | GET | /api/v1/ai/config | user | KI-Verfügbarkeit (Text/Bild) fürs Frontend |

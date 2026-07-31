@@ -60,7 +60,7 @@ async def resolve_object(
 def _assign_object_ids(db: Session) -> None:
     pending = (
         db.query(UserProfile)
-        .filter(UserProfile.object_id.is_(None), UserProfile.is_active == True)
+        .filter(UserProfile.object_id.is_(None))
         .order_by(UserProfile.id)
         .all()
     )
@@ -79,12 +79,12 @@ async def list_erp_records(
     _: UserProfile = Depends(require_employee),
 ):
     _assign_object_ids(db)
-    users = (
-        db.query(UserProfile)
-        .filter(UserProfile.is_active == True)
-        .order_by(UserProfile.object_id)
-        .all()
-    )
+    # **Auch deaktivierte Personen** – «inaktiv» ist ein **Zustand**, kein Verschwinden.
+    # Genau wie ein inaktiver Artikel im Feed stehen bleibt (rote Badge «Inaktiv»), bleibt
+    # eine ausser Betrieb genommene Person sichtbar: sonst liesse sie sich weder ansehen
+    # noch reaktivieren, und genau dafür brauchte es früher eine **zweite**, nicht
+    # verlinkte Benutzerverwaltung (`/admin/benutzer`, jetzt entfallen).
+    users = db.query(UserProfile).order_by(UserProfile.object_id).all()
     counts = _passkey_counts(db, [u.id for u in users])
     return [_record(u, counts.get(u.id, 0)) for u in users]
 
@@ -95,9 +95,7 @@ async def get_erp_record(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    user = db.query(UserProfile).filter(
-        UserProfile.object_id == object_id, UserProfile.is_active == True
-    ).first()
+    user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
     return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
@@ -110,9 +108,7 @@ async def get_erp_record_orders(
     _: UserProfile = Depends(require_employee),
 ):
     """Bestellungen/Abos eines Benutzers (ERP-Reiter «Bestellungen»)."""
-    user = db.query(UserProfile).filter(
-        UserProfile.object_id == object_id, UserProfile.is_active == True
-    ).first()
+    user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
     return [CustomerOrder(**o) for o in selling_svc.list_customer_orders(db, user.id)]
@@ -125,9 +121,7 @@ async def update_erp_record(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_admin),
 ):
-    user = db.query(UserProfile).filter(
-        UserProfile.object_id == object_id, UserProfile.is_active == True
-    ).first()
+    user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
     # System-KI-Identität (ADR 004): Rolle ist fix – der Rest (Anzeige-Daten) bleibt editierbar.

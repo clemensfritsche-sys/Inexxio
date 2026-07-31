@@ -279,10 +279,6 @@ class UserProfileUpdate(BaseModel):
 Role = Literal["admin", "employee", "supplier", "customer"]
 
 
-class UserRoleUpdate(BaseModel):
-    role: Role
-
-
 class ErpAdminUpdate(UserProfileUpdate):
     """Was am **ERP-Benutzer-Datensatz** änderbar ist.
 
