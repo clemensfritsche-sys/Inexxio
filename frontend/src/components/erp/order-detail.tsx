@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search, Play, Building2 } from 'lucide-react';
+import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search, Building2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderShortfall, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -915,16 +915,15 @@ function DeviationDialog({ busy, onChoose, onClose }: {
         style={{ background: '#fff', borderRadius: 'var(--r-lg)', width: 'min(520px, 100%)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
           <AlertTriangle size={18} style={{ color: 'var(--warning)' }} />
-          <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)' }}>Abweichungsauftrag anlegen</span>
+          <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)' }}>Auftrag abbrechen</span>
         </div>
-        {/* Zwei gleichwertige Wege – nichts ist vorausgewählt oder hervorgehoben (#130);
-            die Entscheidung trifft der Mensch, nicht die Gestaltung. Der Erklärtext ist
-            entfallen (#128): was ein Abweichungsauftrag ist, steht im Auftrag selbst. */}
+        {/* **Auf Auftragsebene gibt es nur einen Fall: den Abbruch** (Notiz #351). Die
+            frühere Option «Läuft weiter» war lediglich eine Vorauswahl «alle Instanzen» –
+            und wo genau ein Fehler auftritt, sagt man an der **Instanz**, nicht am Auftrag.
+            Ein Weg weniger, dieselbe Fähigkeit. */}
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <ChoiceButton disabled={busy} onClick={() => onChoose(false)} icon={Play}
-            title="Läuft weiter" text="Nur das betroffene Stück wird herausgenommen." />
           <ChoiceButton disabled={busy} onClick={() => onChoose(true)} icon={Ban} tone="var(--danger)"
-            title="Abbrechen" text="Endgültig – nur die Abweichung läuft weiter." />
+            title="Auftrag abbrechen" text="Endgültig – ein Abweichungsauftrag übernimmt die Teile." />
         </div>
       </div>
     </div>

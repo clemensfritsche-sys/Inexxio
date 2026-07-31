@@ -79,10 +79,28 @@ const COLS = 72;
 const ROWS = MASK.length;
 
 /**
+ * **Wo liegt der Schwerpunkt einer Region?** – in Prozent der Kartenfläche.
+ *
+ * Damit kann die Gebietsansicht ihre Beschriftung und ihre Zuweisung **dort** anbringen,
+ * wo das Gebiet liegt (Testnotiz #342), statt in einer Liste daneben. Der Median statt des
+ * Mittels: bei einer langgezogenen Region (Europa bis Ostrussland) zieht ein Ausreisser den
+ * Mittelwert ins Meer, der Median bleibt auf der Landmasse.
+ */
+export function regionAnchor(region: string): { x: number; y: number } {
+  const cells = CELLS_BY_REGION[region] ?? [];
+  if (!cells.length) return { x: 50, y: 50 };
+  const mid = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)];
+  return {
+    x: ((mid(cells.map((c) => c.x)) + 0.5) / COLS) * 100,
+    y: ((mid(cells.map((c) => c.y)) + 0.5) / ROWS) * 100,
+  };
+}
+
+/**
  * Die Karte. Farbe und Auswahl kommen von aussen (die Gebietsansicht kennt die
  * Gesellschaften) – diese Datei kennt nur Geografie.
  */
-export function WorldMap({ fill, stroke, selected, onSelect, title }: {
+export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
   /** Füllfarbe je Regions-Code. */
   fill: (region: string) => string;
   /** Randfarbe je Region – die Kontur der Landmasse. */
@@ -91,6 +109,8 @@ export function WorldMap({ fill, stroke, selected, onSelect, title }: {
   onSelect?: (region: string) => void;
   /** Hover-Text je Region (z. B. «Europa · Inexxio AG»). */
   title?: (region: string) => string;
+  /** Beschriftung IN der Fläche: Gebiet + wer es fakturiert (Testnotiz #342). */
+  label?: (region: string) => { title: string; sub: string; ink: string } | null;
 }) {
   // Gehören mehrere Regionen derselben Gesellschaft, sind sie gleich eingefärbt – dann ist
   // ohne Hover nicht zu sehen, wo Asien aufhört. Der Hover zeichnet die Region nach; das
@@ -130,6 +150,27 @@ export function WorldMap({ fill, stroke, selected, onSelect, title }: {
                 fill={marked && ring ? ring : fill(region)}
                 stroke="none" strokeWidth={0} />
             ))}
+          </g>
+        );
+      })}
+      {/* **Die Zuordnung steht IN der Fläche**, nicht in einer Liste daneben: welche
+          Gesellschaft ein Gebiet fakturiert, liest man dort, wo das Gebiet liegt.
+          Ausserhalb der Filter-Gruppe, damit die Weichzeichnung die Schrift nicht anfasst. */}
+      {label && Object.keys(CELLS_BY_REGION).map((region) => {
+        const l = label(region);
+        if (!l) return null;
+        const cells = CELLS_BY_REGION[region];
+        const mid = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)];
+        const cx = mid(cells.map((c) => c.x)) + 0.5;
+        const cy = mid(cells.map((c) => c.y)) + 0.5;
+        return (
+          <g key={`l-${region}`} pointerEvents="none" textAnchor="middle">
+            <text x={cx} y={cy - 0.35} fill={l.ink} style={{ font: '700 1.5px var(--font-body)' }}>
+              {l.title}
+            </text>
+            <text x={cx} y={cy + 1.5} fill={l.ink} opacity={0.75} style={{ font: '500 1.35px var(--font-body)' }}>
+              {l.sub}
+            </text>
           </g>
         );
       })}

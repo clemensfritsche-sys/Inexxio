@@ -336,6 +336,27 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[
         bucket = {"supply": supplies, "return": returns,
                   "provisioning": provisionings}.get(c.reason or "", deviations)
         bucket.append(info)
+    # **Auch fremde Abweichungen an EIGENEN Instanzen** (Testnotiz #350): wer an einer Instanz
+    # einen Fehler meldet, meldet ihn für jeden Auftrag, der auf dieses Stück zählt – die
+    # Klammer ist die Instanz, nicht der Eltern-Zeiger. Ohne das blieb eine am Instanz-Detail
+    # gemeldete Abweichung im Prozess dieses Auftrags unsichtbar, obwohl sie ihm sein Stück
+    # entzieht. Auch **geklärte** bleiben stehen: jede Abweichung seit der Freigabe ist Teil
+    # der Geschichte des Auftrags.
+    from .deviation import deviations_touching
+    seen = {d.object_id for d in deviations}
+    for o in deviations_touching(db, order):
+        if o.object_id in seen or o.object_id is None:
+            continue
+        ids = [
+            row[0] for row in
+            db.query(InstanceOrderLink.instance_object_id)
+            .filter(InstanceOrderLink.order_id == o.id, InstanceOrderLink.is_active == True)
+            .all()
+        ]
+        deviations.append(OrderDeviationInfo(
+            object_id=o.object_id, status=o.status, reason=o.reason,
+            instance_count=len(ids), instance_object_ids=ids, title=o.title))
+    deviations.sort(key=lambda d: d.object_id)
     return deviations, supplies, returns, provisionings
 
 

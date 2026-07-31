@@ -341,14 +341,27 @@ def deviated_instance_ids(db: Session, order: Order) -> set[int]:
     **abgeleitet statt deklariert**: Verkauf und Versand sind Subjekt-Schritte und sind bei
     einer Fehlmenge ohnehin blockiert. Er greift damit genau dort, wo er nötig ist, statt
     pauschal über den ganzen Auftrag."""
-    from .deviation import open_deviations
-    subs = [o.id for o in open_deviations(db, order)]
-    if not subs:
+    from .subject import order_instances
+    # **Massgeblich ist die Instanz, nicht der Eltern-Zeiger.** Eine Abweichung kann an der
+    # Instanz gemeldet worden sein und dabei an einem GANZ ANDEREN Auftrag hängen (dem
+    # Herkunftsauftrag). Für diesen Auftrag zählt allein: steckt eines seiner Stücke gerade
+    # in einer offenen Abweichung? Vorher wurden nur die eigenen Kinder gezählt – ein an der
+    # Instanz gemeldeter Fehler liess den Auftrag ungerührt weiterlaufen (Testnotiz #348).
+    mine = [i for i in order_instances(db, order) if i.subject_of_order_id]
+    if not mine:
         return set()
-    return {
-        r[0] for r in db.query(Instance.id).filter(
-            Instance.subject_of_order_id.in_(subs), Instance.is_active == True).all()
+    open_devs = {
+        r[0] for r in db.query(Order.id).filter(
+            Order.id.in_({i.subject_of_order_id for i in mine}),
+            Order.reason == "deviation", Order.is_active == True,
+            Order.status.in_(("draft", "released"))).all()
     }
+    # **Sich selbst zählt eine Abweichung nie.** Fragt die Abweichung nach ihren eigenen
+    # «in Klärung» steckenden Stücken, sind das nicht ihre eigenen – sonst gäbe sie beim
+    # Abschluss nichts frei (die Statusänderung ist zum Zeitpunkt der Abfrage noch nicht
+    # geflusht, die Datenbank sieht sie also weiterhin als offen).
+    open_devs.discard(order.id)
+    return {i.id for i in mine if i.subject_of_order_id in open_devs}
 
 
 def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
@@ -368,6 +381,13 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     (``subject_of_order_id``), kein aus Lager/Produktion zu erfüllendes Soll."""
     from .order_lines import lines_for
     from .subject import TERMINAL_DISPOSITIONS, is_fixed_subject
+    # **Nur ein LAUFENDER Auftrag kann etwas schulden.** Ein Entwurf hat noch nichts zugesagt
+    # (und noch keine Instanzen), ein abgeschlossener/abgebrochener hat abgerechnet – dort
+    # sind Reservierung und Subjekt-Bindung längst gelöst, «Soll − Gesichert» ergäbe die
+    # volle Menge als Phantom-Fehlmenge (Testnotiz #347: «Es fehlt 1×» an einem fertigen
+    # Auftrag). Die Fehlmenge ist eine Aussage über offene Arbeit, nicht über Geschichte.
+    if order.status != "released":
+        return {}
     if is_fixed_subject(order):
         return {}   # Abweichung/Retoure: Subjekt steht fest (gewählte/verkaufte Instanzen)
     # Soll je Artikel

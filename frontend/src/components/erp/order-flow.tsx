@@ -255,7 +255,7 @@ function DeviationPill({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (i
     <button type="button" onClick={() => onOpen?.(info.object_id)}
       title={supply
         ? (open ? 'Nachschub läuft – der Schritt wird von selbst wieder aktiv' : 'Erledigter Nachschub')
-        : (open ? 'Offene Abweichung – der Auftrag pausiert, bis sie geklärt ist' : 'Geklärte Abweichung')}
+        : (open ? 'Offene Abweichung – ihr Stück fehlt dem Auftrag, bis sie geklärt ist' : 'Geklärte Abweichung')}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer',
         padding: '5px 11px', borderRadius: 'var(--r-pill)', font: '600 12px var(--font-body)',

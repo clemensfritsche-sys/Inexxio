@@ -48,6 +48,39 @@ def open_deviations(db: Session, parent: Order) -> list[Order]:
     )
 
 
+def deviations_touching(db: Session, order: Order) -> list[Order]:
+    """**Jede Abweichung, die eine Instanz DIESES Auftrags betrifft** – ganz gleich, an
+    welchem Auftrag sie gemeldet wurde.
+
+    Ein Auftrag referenziert Instanzen; eine Abweichung tut dasselbe. Die Klammer zwischen
+    beiden ist deshalb die **Instanz**, nicht der Eltern-Zeiger: wer an einer Instanz einen
+    Fehler meldet, meldet ihn für jeden Auftrag, der auf dieses Stück zählt. Vorher zeigte
+    der Auftrag nur seine eigenen Kinder – eine am Instanz-Detail gemeldete Abweichung
+    tauchte in seinem Prozess nie auf (Testnotiz #350).
+
+    Massgeblich ist die **dauerhafte** Verarbeitungs-Historie (``instance_order_links``),
+    nicht die wandernde Bindung: so bleibt eine **geklärte** Abweichung sichtbar – jede
+    Abweichung seit der Freigabe ist dokumentarisch festgehalten."""
+    from .subject import order_instances
+    own = {i.object_id for i in order_instances(db, order) if i.object_id}
+    if not own:
+        return []
+    related = {
+        r[0] for r in db.query(InstanceOrderLink.order_id).filter(
+            InstanceOrderLink.instance_object_id.in_(own),
+            InstanceOrderLink.is_active == True).all()
+    }
+    related.discard(order.id)
+    if not related:
+        return []
+    return (
+        db.query(Order)
+        .filter(Order.id.in_(related), Order.reason == "deviation", Order.is_active == True)
+        .order_by(Order.object_id)
+        .all()
+    )
+
+
 def instance_open_deviation(db: Session, instance_object_id: int | None) -> Order | None:
     """Die (eine) noch offene **Abweichung**, die diese Instanz bereits als Subjekt führt –
     sonst ``None``. Grundlage für die Regel «höchstens EINE aktive Abweichung je Instanz»:

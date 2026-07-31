@@ -74,6 +74,51 @@ function legalForms(country: string | undefined): string[] {
   return LEGAL_FORMS_BY_ISO2[toIso2(country)] ?? [];
 }
 
+/**
+ * **Steuerliche Kennungen je Land** (Testnotiz #346) – gefragt wird nur, was es dort gibt.
+ *
+ * Dieselbe Bauart und derselbe Grund wie bei den Rechtsformen: eine Abfrage-API dafür
+ * existiert nicht (die EU führt mit VIES nur eine *Prüfung* bestehender USt-IdNrn, keine
+ * Auskunft darüber, welche Kennungen ein Land überhaupt kennt), und die Angaben sind
+ * träge. Eine kleine, dokumentierte Tabelle ist hier ehrlicher als ein Fremdsystem.
+ *
+ * Der eigentliche Gewinn ist nicht die Beschriftung, sondern das **Weglassen**: die USA
+ * kennen keine Mehrwertsteuer – dort nach einer «MWST-Nummer» zu fragen (und sie als
+ * Pflichtfeld zu markieren) verlangt eine Angabe, die es nicht gibt. Fehlt ein Eintrag,
+ * gilt der neutrale Standard: eine Steuernummer, USt-Nummer optional.
+ */
+type TaxIds = { uid: { label: string; ph: string }; vat: { label: string; ph: string } | null };
+const TAX_IDS_BY_ISO2: Record<string, TaxIds> = {
+  CH: { uid: { label: 'UID', ph: 'CHE-123.456.789' },
+        vat: { label: 'MWST-Nummer', ph: 'CHE-123.456.789 MWST' } },
+  LI: { uid: { label: 'UID', ph: 'FL-0002.123.456-7' },
+        vat: { label: 'MWST-Nummer', ph: '12345' } },
+  DE: { uid: { label: 'Steuernummer', ph: '12/345/67890' },
+        vat: { label: 'USt-IdNr.', ph: 'DE123456789' } },
+  AT: { uid: { label: 'Firmenbuchnummer', ph: 'FN 123456a' },
+        vat: { label: 'UID-Nummer', ph: 'ATU12345678' } },
+  // Keine bundesweite Mehrwertsteuer – Sales Tax wird je Bundesstaat erhoben und hat
+  // keine landesweite Nummer. Darum entfällt das Feld ganz, statt leer zu bleiben.
+  US: { uid: { label: 'EIN', ph: '12-3456789' }, vat: null },
+  GB: { uid: { label: 'Company number', ph: '12345678' },
+        vat: { label: 'VAT number', ph: 'GB123456789' } },
+  FR: { uid: { label: 'SIREN', ph: '123456789' },
+        vat: { label: 'Numéro de TVA', ph: 'FR12345678901' } },
+  IT: { uid: { label: 'Codice fiscale', ph: '12345678901' },
+        vat: { label: 'Partita IVA', ph: 'IT12345678901' } },
+  ES: { uid: { label: 'NIF', ph: 'B12345678' },
+        vat: { label: 'NIF-IVA', ph: 'ESB12345678' } },
+  NL: { uid: { label: 'KvK-nummer', ph: '12345678' },
+        vat: { label: 'Btw-nummer', ph: 'NL123456789B01' } },
+};
+const TAX_IDS_DEFAULT: TaxIds = {
+  uid: { label: 'Steuernummer', ph: '' },
+  vat: { label: 'USt-Nummer (optional)', ph: '' },
+};
+function taxIds(country: string | undefined): TaxIds {
+  return TAX_IDS_BY_ISO2[toIso2(country)] ?? TAX_IDS_DEFAULT;
+}
+
 // EIN QueryClient für den System-Reiter (die Plattform-Konfiguration nutzt React Query,
 // wie zuvor die – jetzt entfallene – Seite Admin → Einstellungen).
 const systemQueryClient = new QueryClient({
@@ -244,6 +289,8 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
     zip: form.zip, city: form.city, country: form.country,
   };
   const forms = legalForms(form.country);
+  // Welche steuerlichen Kennungen dieses Land kennt (#346) – die USA z. B. keine MWST-Nr.
+  const ids = taxIds(form.country);
   const derivedCurrency = suggestCurrency(form.country);
   const saveIndicator = <SaveStatusIndicator status={status} errorMsg={errorMsg} />;
 
@@ -363,16 +410,20 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           </Card>
 
           {/* ── 2. Rechtliche Identifikation ─────────────────────────────────── */}
-          {/* Was die Gesellschaft ausweist: UID und MWST-Nummer stehen auf dem Beleg-
-              Briefkopf und im Impressum. Handelsregister-Nr./-Kanton und Aktienkapital
-              sind entfallen (#307) – in der Schweiz IST die HR-Nummer seit 2016 die UID,
-              der Kanton steht im Register, und Kapital ist nirgends vorgeschrieben. */}
+          {/* Was die Gesellschaft ausweist: die Kennungen stehen auf dem Beleg-Briefkopf und
+              im Impressum. Handelsregister-Nr./-Kanton und Aktienkapital sind entfallen
+              (#307) – in der Schweiz IST die HR-Nummer seit 2016 die UID, der Kanton steht
+              im Register, und Kapital ist nirgends vorgeschrieben.
+              **Gefragt wird, was es im jeweiligen Land gibt** (#346): eine US-Gesellschaft
+              hat eine EIN und keine MWST-Nummer – das Feld erscheint dort gar nicht. */}
           <Card title="Rechtliche Identifikation">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AField label="UID / Steuernummer" value={form.uid} onChange={str('uid')}
-                placeholder="CHE-123.456.789" required onEnter={saveNow} />
-              <AField label="MWST-Nummer" value={form.vat_number} onChange={str('vat_number')}
-                placeholder="CHE-123.456.789 MWST" required onEnter={saveNow} />
+              <AField label={ids.uid.label} value={form.uid} onChange={str('uid')}
+                placeholder={ids.uid.ph} required onEnter={saveNow} />
+              {ids.vat && (
+                <AField label={ids.vat.label} value={form.vat_number} onChange={str('vat_number')}
+                  placeholder={ids.vat.ph} required onEnter={saveNow} />
+              )}
             </div>
           </Card>
 
@@ -399,8 +450,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Card title="Bankverbindung">
             <AField label="IBAN" value={form.iban} onChange={str('iban')}
               placeholder={base.iban_masked ?? 'CH00 0000 0000 0000 0000 0'}
-              required={!base.iban_masked} onEnter={saveNow}
-              hint={base.iban_masked ? `Hinterlegt: ${base.iban_masked} – zum Ersetzen neu eingeben.` : undefined} />
+              required={!base.iban_masked} onEnter={saveNow} />
           </Card>
 
           {/* ── 5. Gebiete (Weltkarte) ───────────────────────────────────────── */}

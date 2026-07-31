@@ -653,8 +653,17 @@ async def open_deviation(
     Liefert die neue Abweichung zurück (man definiert dort die Auflösung)."""
     parent = _get_staff_order(db, object_id)
     if not data.instance_object_ids:
-        # **Auftragsebene** (alle Instanzen): nur an einem LAUFENDEN Auftrag – ist der Prozess
-        # abgeschlossen, gibt es nichts mehr am Auftrag selbst abzuweichen.
+        # **Auftragsebene = Abbruch.** Ohne Instanz-Auswahl gibt es genau EINEN Fall: der
+        # Auftrag wird abgebrochen und ein Abweichungsauftrag übernimmt seine Teile. Die
+        # frühere Variante «läuft weiter, alle Instanzen betroffen» war nur eine Vorauswahl –
+        # WO ein Fehler auftritt, sagt man an der **Instanz** (Testnotiz #351).
+        if not data.abort_parent:
+            raise HTTPException(
+                400,
+                detail="Am Auftrag gibt es nur den Abbruch – einen Fehler an einem einzelnen "
+                       "Stück meldest du an der Instanz.")
+        # nur an einem LAUFENDEN Auftrag – ist der Prozess abgeschlossen, gibt es nichts
+        # mehr am Auftrag selbst abzuweichen.
         if parent.status != "released":
             raise HTTPException(400, detail="Auf Auftragsebene lässt sich eine Abweichung nur an einem laufenden Auftrag melden")
     elif parent.status not in ("released", "completed"):

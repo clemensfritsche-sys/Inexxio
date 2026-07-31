@@ -2716,6 +2716,51 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_shortfall_belongs_to_the_order`,
   `test_a_reported_deviation_holds_its_instance_immediately`.
 
+- **Testnotizen-Runde 23 (die Klammer ist die Instanz, Notizen #341–#351)**: Vier der zehn
+  Notizen betrafen dieselbe Wurzel – **woran ein Auftrag und eine Abweichung einander
+  erkennen**.
+  (1) **«Es fehlt» stand an einem abgeschlossenen Auftrag** (#347, Regression aus der
+  Unterdeckungs-Runde): die Fehlmenge wurde für JEDEN Auftrag gerechnet. Bei einem fertigen
+  sind Reservierung und Subjekt-Bindung längst gelöst – «Soll − Gesichert» ergab die volle
+  Menge als Phantom. Jetzt: **nur ein laufender Auftrag kann etwas schulden**
+  (`order.status != "released"` → keine Fehlmenge). Ein Entwurf hat noch nichts zugesagt,
+  ein abgeschlossener hat abgerechnet.
+  (2) **Die Klammer zwischen Auftrag und Abweichung ist die INSTANZ, nicht der
+  Eltern-Zeiger** (#348/#350). Ein Auftrag referenziert Instanzen; eine Abweichung tut
+  dasselbe. Das Instanz-Detail meldet eine Abweichung am **Herkunfts**-Auftrag – ein
+  anderer Auftrag, der auf dasselbe Stück zählt, lief darum ungerührt weiter und zeigte die
+  Abweichung nie. `deviated_instance_ids` fragt jetzt «steckt eines MEINER Stücke in einer
+  offenen Abweichung?» (über `order_instances`, ohne `parent_order_id`), und
+  `deviation.deviations_touching` bringt jede Abweichung an einer eigenen Instanz in den
+  Prozess – über die **dauerhafte** Verarbeitungs-Historie (`instance_order_links`), damit
+  auch eine **geklärte** dokumentiert bleibt. *Fallstrick, getestet: eine Abweichung darf
+  sich dabei nie selbst zählen – sonst gäbe sie beim Abschluss nichts frei (ihre eigene
+  Statusänderung ist zum Abfragezeitpunkt noch nicht geflusht).*
+  (3) **Am Auftrag gibt es nur den Abbruch** (#351): die Option «Läuft weiter» war lediglich
+  eine Vorauswahl «alle Instanzen» – und WO ein Fehler auftritt, sagt man an der **Instanz**.
+  Ein Weg weniger, dieselbe Fähigkeit; Server (`routers/orders.open_deviation`) und Dialog
+  sagen dasselbe.
+  (4) **Gebietskarte flächig, Zuweisung am Ort** (#342/#343/#344): die Karte füllt den
+  Container, jede Fläche trägt **Gebiet + fakturierende Gesellschaft** als Beschriftung
+  (`WorldMap.label`, Schwerpunkt über `regionAnchor` als Median – bei Europa bis Ostrussland
+  zöge der Mittelwert ins Meer), und ein Klick öffnet die Zuweisung als Kärtchen **über der
+  Fläche**. Die Liste unter der Karte sagte dasselbe ein zweites Mal und ist entfallen,
+  ebenso die eigene Ausnahmen-Sektion – die Ausnahmen eines Gebiets stehen im selben
+  Kärtchen (samt «+ Land»), und steht keine da, steht auch nichts da. Ist eine Gesellschaft
+  geöffnet, treten die Gebiete der anderen zurück (`highlight`).
+  (5) **Steuerliche Kennungen je Land** (#346, `TAX_IDS_BY_ISO2` neben `LEGAL_FORMS_BY_ISO2`):
+  gefragt wird, was es dort gibt. Der Gewinn ist das **Weglassen** – die USA kennen keine
+  Mehrwertsteuer, dort erscheint die «MWST-Nummer» gar nicht (statt als leeres Pflichtfeld).
+  Dieselbe Bauart und derselbe Grund wie bei den Rechtsformen: eine Abfrage-API dafür gibt
+  es nicht (VIES *prüft* bestehende USt-IdNrn, es sagt nicht, welche Kennungen ein Land
+  kennt), und die Angaben sind träge. (6) IBAN-Hinweis entfällt (#345 – der maskierte Wert
+  steht bereits als Platzhalter).
+  *#341 (jede Instanz einzeln statt «2 Stk.») ist bewusst NICHT umgesetzt: eine Instanz ist
+  eine **Menge**, kein Ding – eine Charge darf gebrochen sein (2.5 kg), die Objektnummer ist
+  systemweit eindeutig (QR/Referenzen/Standort-Kette), und N Zeilen mit derselben Nummer
+  bräuchten überall eine neue Antwort auf «welche davon?». Ausführlich am Modell
+  (`models/instance.py`) und in `tests/test_quantity_rules.py`.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

@@ -789,7 +789,10 @@ def test_a_deviation_takes_its_instances_out_instead_of_pausing_the_order():
     short = _inspect.getsource(process._subject_shortfalls)
     assert "deviated_instance_ids" in short and "in_clarification" in short
     dev = _inspect.getsource(process.deviated_instance_ids)
-    assert "open_deviations" in dev and "subject_of_order_id" in dev
+    # Die Klammer ist die **Instanz**, nicht der Eltern-Zeiger: eine an der Instanz
+    # gemeldete Abweichung hängt an einem ganz anderen Auftrag und muss trotzdem zählen.
+    assert "order_instances" in dev and "subject_of_order_id" in dev
+    assert '"deviation"' in dev
     # … und werden vom Eltern-Auftrag auch nicht ans Lager freigegeben (der Auftrag darf
     # jetzt abschliessen, während die Klärung noch läuft).
     assert "deviated_instance_ids" in _inspect.getsource(process.release_instances)
@@ -3275,3 +3278,58 @@ def test_a_reported_deviation_holds_its_instance_immediately():
     assert "reserve(" in _inspect.getsource(create_deviation)
     # Und die EINE Aufräum-Stelle gibt sie wieder her.
     assert "release_reservation" in _inspect.getsource(detach_sub_order)
+
+
+def test_only_a_running_order_can_be_short():
+    """**Eine Fehlmenge hat nur ein laufender Auftrag** (Testnotiz #347).
+
+    Ein Entwurf hat noch nichts zugesagt (und keine Instanzen), ein abgeschlossener oder
+    abgebrochener hat abgerechnet – dort sind Reservierung und Subjekt-Bindung längst
+    gelöst, «Soll − Gesichert» ergäbe die volle Menge als Phantom-Fehlmenge («Es fehlt 1×»
+    an einem fertigen Auftrag). Die Fehlmenge beschreibt offene Arbeit, nicht Geschichte."""
+    import ast
+    import inspect as _inspect
+    from app.services.process import _subject_shortfalls
+
+    src = ast.unparse(ast.parse(_inspect.getsource(_subject_shortfalls)))
+    assert "order.status != 'released'" in src, (
+        "Nur ein laufender Auftrag kann etwas schulden – sonst meldet ein abgeschlossener "
+        "seine volle Menge als Fehlmenge")
+
+
+def test_a_deviation_is_linked_by_the_instance_not_by_the_parent():
+    """**Die Klammer zwischen Auftrag und Abweichung ist die Instanz** (Notizen #348/#350).
+
+    Ein Auftrag referenziert Instanzen; eine Abweichung tut dasselbe. Wer an einer Instanz
+    einen Fehler meldet, meldet ihn für JEDEN Auftrag, der auf dieses Stück zählt – auch
+    wenn die Abweichung formal an einem anderen Auftrag hängt (das Instanz-Detail meldet am
+    Herkunftsauftrag). Vorher zählte nur ``parent_order_id``: der andere Auftrag lief
+    ungerührt weiter und zeigte die Abweichung nie."""
+    import inspect as _inspect
+    from app.services import orders
+    from app.services.deviation import deviations_touching
+    from app.services.process import deviated_instance_ids
+
+    short = _inspect.getsource(deviated_instance_ids)
+    assert "order_instances" in short and "parent_order_id" not in short
+    # Sich selbst zählt eine Abweichung nie – sonst gäbe sie beim Abschluss nichts frei.
+    assert "discard(order.id)" in short
+
+    touch = _inspect.getsource(deviations_touching)
+    assert "InstanceOrderLink" in touch, (
+        "Massgeblich ist die dauerhafte Verarbeitungs-Historie – so bleibt auch eine "
+        "GEKLÄRTE Abweichung im Prozess dokumentiert")
+    assert "deviations_touching" in _inspect.getsource(orders._order_sub_orders)
+
+
+def test_the_order_level_deviation_is_the_abort():
+    """**Am Auftrag gibt es nur den Abbruch** (Testnotiz #351).
+
+    Die frühere Option «läuft weiter» war nur eine Vorauswahl «alle Instanzen» – und WO ein
+    Fehler auftritt, sagt man an der Instanz. Ein Weg weniger, dieselbe Fähigkeit; Server
+    und Oberfläche sagen dasselbe."""
+    import inspect as _inspect
+    from app.routers import orders
+
+    src = _inspect.getsource(orders.open_deviation)
+    assert "not data.abort_parent" in src and "an der Instanz" in src
