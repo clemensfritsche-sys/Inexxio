@@ -161,7 +161,76 @@ def _get_step(db: Session, owner: _Owner, step_id: int) -> ArticleProcessStep:
     return step
 
 
+# ─── Welche Felder ein Schritt-Typ trägt ─────────────────────────────────────────
+# Je Typ EINE Funktion: sie prüft, was zu prüfen ist, und liefert genau die Spalten,
+# die dieser Typ füllt. Alles andere bleibt leer (Modell-Default) – ein Beschaffungs-
+# Schritt hat kein ``sample_percent``, ein Dokument keinen Lieferanten.
+#
+# Vorher stand dieselbe Aussage als ~14 einzelne ``x if is_document else None`` im
+# Konstruktor, dazu drei Flag-Variablen davor. Die Frage «welche Felder hat ein
+# Dokument-Schritt?» liess sich nur durch Absuchen aller Zeilen beantworten, und ein
+# neuer Typ hiess: überall eine Bedingung ergänzen. Jetzt ist es ein Eintrag.
+
+def _purchase_fields(db: Session, d) -> dict:
+    _validate_supplier(db, d.supplier_id)
+    return {
+        # Die Quelle ist entweder ein Lieferant ODER ein Webshop – nie beides.
+        "supplier_id": d.supplier_id if d.mode == "supplier" else None,
+        "webshop_url": d.webshop_url if d.mode == "webshop" else None,
+        "shared_fields": d.shared_fields,
+    }
+
+
+def _inspection_fields(db: Session, d) -> dict:
+    return {"sample_percent": d.sample_percent,
+            "capture_fields": normalize_capture_fields(d.capture_fields)}
+
+
+def _movement_fields(db: Session, d) -> dict:
+    return {"target_location_type": d.target_location_type,
+            "target_location_id": d.target_location_id}
+
+
+def _resource_fields(db: Session, d) -> dict:
+    raw = [l.model_dump() for l in (d.resource_lines or [])]
+    _validate_resource_lines(db, raw)
+    return {"resource_lines": raw}
+
+
+def _document_fields(db: Session, d) -> dict:
+    _validate_doc_signers(db, d.doc_signers)
+    return {
+        "doc_signers": normalize_doc_signers(d.doc_signers),
+        "sign_sequential": bool(d.sign_sequential),
+        "doc_audience": d.doc_audience,
+        "doc_audience_roles": d.doc_audience_roles or None,
+        "doc_audience_person_ids": ([int(x) for x in d.doc_audience_person_ids]
+                                    if d.doc_audience_person_ids else None),
+        "doc_visibility": d.doc_visibility or "internal",
+    }
+
+
+_FIELDS_BY_TYPE = {
+    "purchase": _purchase_fields,
+    "inspection": _inspection_fields,
+    "movement": _movement_fields,
+    "resource": _resource_fields,
+    "document": _document_fields,
+}
+
+
 # ─── CRUD (owner-agnostisch) ─────────────────────────────────────────────────────
+
+def _next_position(db: Session, owner: _Owner, wanted: int | None) -> int:
+    """Position des neuen Schritts: die gewünschte oder ans Ende."""
+    if wanted is not None:
+        return wanted
+    max_pos = (
+        db.query(func.max(ArticleProcessStep.position))
+        .filter(owner.filter(), ArticleProcessStep.is_active == True).scalar()
+    )
+    return (max_pos or 0) + 1
+
 
 def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: UserProfile) -> ArticleProcessStepResponse:
     owner.ensure_editable()
@@ -181,45 +250,14 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         article_ids = {l.article_id for l in lines} if lines else (
             {owner.record.article_id} if owner.record.article_id else set())
         sale_svc.assert_sale_compatible(db, article_ids)
-    is_purchase = data.step_type == "purchase"
-    if is_purchase:
-        _validate_supplier(db, data.supplier_id)
-    if data.position is not None:
-        position = data.position
-    else:
-        max_pos = (
-            db.query(func.max(ArticleProcessStep.position))
-            .filter(owner.filter(), ArticleProcessStep.is_active == True).scalar()
-        )
-        position = (max_pos or 0) + 1
-    is_resource = data.step_type == "resource"
-    is_document = data.step_type == "document"
-    keeps_target = data.step_type == "movement"
-    resource_raw = [l.model_dump() for l in (data.resource_lines or [])] if is_resource else None
-    if is_resource:
-        _validate_resource_lines(db, resource_raw)
-    if is_document:
-        _validate_doc_signers(db, data.doc_signers)
+    # Prüfen + die Felder DIESES Typs holen; alles andere bleibt leer (Modell-Default).
+    fields = _FIELDS_BY_TYPE.get(data.step_type, lambda _db, _d: {})(db, data)
     step = ArticleProcessStep(
         **owner.new_step_kwargs(),
-        position=position,
+        position=_next_position(db, owner, data.position),
         step_type=data.step_type,
         mode=data.mode,
-        supplier_id=data.supplier_id if (is_purchase and data.mode == "supplier") else None,
-        webshop_url=data.webshop_url if (is_purchase and data.mode == "webshop") else None,
-        shared_fields=data.shared_fields if is_purchase else None,
-        sample_percent=data.sample_percent if data.step_type == "inspection" else None,
-        capture_fields=normalize_capture_fields(data.capture_fields) if data.step_type == "inspection" else None,
-        target_location_type=data.target_location_type if keeps_target else None,
-        target_location_id=data.target_location_id if keeps_target else None,
-        resource_lines=resource_raw,
-        doc_signers=normalize_doc_signers(data.doc_signers) if is_document else None,
-        sign_sequential=bool(data.sign_sequential) if is_document else False,
-        doc_audience=data.doc_audience if is_document else None,
-        doc_audience_roles=(data.doc_audience_roles or None) if is_document else None,
-        doc_audience_person_ids=([int(x) for x in data.doc_audience_person_ids]
-                                 if data.doc_audience_person_ids else None) if is_document else None,
-        doc_visibility=(data.doc_visibility or "internal") if is_document else "internal",
+        **fields,
     )
     db.add(step)
     db.flush()

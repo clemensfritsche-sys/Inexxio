@@ -91,40 +91,31 @@ def _facts(db: Session, order: Order, step_type: str) -> list:
 
 
 def _fact_status(step_type: str, fact) -> str:
-    """Roh-Status aus der (bereits aufgelösten) Fachzeile: 'done'|'open'|'failed'. Rein."""
-    if step_type == "purchase":
-        if not fact:
-            return "open"
-        if fact.status == "received":
-            return "done"
-        if fact.status == "rejected":
-            return "failed"
+    """Roh-Status aus der (bereits aufgelösten) Fachzeile: 'done'|'open'|'failed'. Rein.
+
+    **Die Regel ist EINE, die Werte stehen in der Registry** (``domain/event_types.py``):
+    dort deklariert jeder Schritttyp, welches Feld seinen Stand trägt und welche Werte
+    «erledigt» bzw. «fehlgeschlagen» bedeuten. Ohne ``status_field`` ist die blosse
+    EXISTENZ der Fachzeile die Erledigung (Marker-Zeile: Bewegung, Ressource, Aussondern).
+
+    Vorher stand hier eine if/elif-Kette über die Schritttypen – dieselbe Aussage, nur
+    verteilt: ein neuer Typ musste in der Registry UND hier gepflegt werden, und beide
+    konnten still auseinanderlaufen.
+
+    Die eine Ausnahme ist bewusst **generisch** formuliert: ein Fehlschlag, den ein
+    Folgeauftrag geklärt hat (``resolved_by_order_id``), gilt als erledigt – der Befund
+    selbst bleibt fehlgeschlagen. Heute trägt nur die Datenerfassung dieses Feld; die
+    Regel «geklärt ist erledigt» gilt aber für jeden Typ, der es bekommt."""
+    et = event_types.REGISTRY.get(step_type)
+    if not fact or et is None:
         return "open"
-    if step_type == "inspection":
-        if fact and fact.result == "passed":
-            return "done"
-        if fact and fact.result == "failed":
-            # Fehlgeschlagen ist NICHT terminal: hat der Folgeauftrag (Abweichung) den Fall
-            # geklärt, ist der Schritt erledigt – der Befund selbst bleibt fehlgeschlagen.
-            return "done" if getattr(fact, "resolved_by_order_id", None) else "failed"
-        return "open"
-    if step_type == "sale":
-        # Verkauf UND Gutschrift (Kredit-Modus) teilen den kaufmännischen Lebenszyklus
-        # (Sale-Fact): 'paid' = erledigt (bei der Gutschrift = erstattet), 'cancelled' = fehl.
-        if not fact:
-            return "open"
-        if fact.status == "paid":
-            return "done"
-        if fact.status == "cancelled":
-            return "failed"
-        return "open"
-    if step_type in ("movement", "resource", "scrap", "block"):
-        # Marker-Fachzeile: erledigt, sobald sie existiert.
-        return "done" if fact else "open"
-    if step_type == "document":
-        # Das Dokument wird WÄHREND der Ausführung verfasst und mit «Ausstellen»
-        # (``done``) abgeschlossen – nicht schon bei der Freigabe (Fachzeile existiert leer).
-        return "done" if (fact and fact.done) else "open"
+    if et.status_field is None:
+        return "done"
+    value = getattr(fact, et.status_field, None)
+    if value in et.done:
+        return "done"
+    if value in et.failed:
+        return "done" if getattr(fact, "resolved_by_order_id", None) else "failed"
     return "open"
 
 

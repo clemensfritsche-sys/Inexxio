@@ -68,13 +68,25 @@ class EventType:
     subject_role: str   # was der Auftrag mit seinem Subjekt tut: produce | stock | instance
     fact: str           # Name des Fachmodells (Status-/Routing-Ableitung)
     provisioning: str = PROV_NONE  # Bereitstellungsort: wohin das Subjekt/die Inputs physisch müssen
+    # **Woran man dem Fachdatensatz ansieht, dass der Schritt durch ist.** Auch das ist
+    # per-Typ-Wissen und gehört damit hierher: ``status_field`` = das Feld auf der Fachzeile
+    # (``None`` = die blosse EXISTENZ der Zeile ist die Erledigung, z. B. Bewegung), ``done``/
+    # ``failed`` = die Werte, die «erledigt» bzw. «fehlgeschlagen» bedeuten.
+    # Vorher stand dieselbe Aussage als if/elif-Kette in ``process._fact_status`` – ein neuer
+    # Schritttyp musste an ZWEI Stellen gepflegt werden, und die Kette konnte still von der
+    # Registry abweichen.
+    status_field: str | None = None
+    done: tuple = ()
+    failed: tuple = ()
 
 
 # Reihenfolge = natürliche Lese-/Anzeigereihenfolge.
 REGISTRY: dict[str, EventType] = {
-    "purchase":   EventType("purchase",   "Beschaffen",     INCREASE, PRODUCE,  "PurchaseOrder", PROV_RECEIVING),
+    "purchase":   EventType("purchase",   "Beschaffen",     INCREASE, PRODUCE,  "PurchaseOrder", PROV_RECEIVING,
+                            status_field="status", done=("received",), failed=("rejected",)),
     "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT),
-    "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE),
+    "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE,
+                            status_field="result", done=("passed",), failed=("failed",)),
     "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement",      PROV_NONE),
     "scrap":      EventType("scrap",      "Aussondern",     DECREASE, INSTANCE, "Disposal",      PROV_NOWHERE),
     # **Sperren** ist das reversible Gegenstück zum Verschrotten: die Instanz bleibt
@@ -90,13 +102,15 @@ REGISTRY: dict[str, EventType] = {
     # Instanzen, `reason='return'`) schreibt gut (kind='credit', Stripe-Refund) – der Modus wird
     # aus dem Subjekt ABGELEITET, kein eigener Schritttyp. Der physische Rückfluss läuft über die
     # **Bewegung** (verkauft ↔ am Lager, je nach Ziel), die Geld-Seite über diesen Schritt.
-    "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale",          PROV_CUSTOMER),
+    "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale",          PROV_CUSTOMER,
+                            status_field="status", done=("paid",), failed=("cancelled",)),
     # **Dokument**: der Auftrag erzeugt – wie jeder Erzeugungsauftrag – eine Instanz; das
     # Dokument (Fachtabelle ``Document``) hängt daran (Nummer = Instanz-Objektnummer, Datum =
     # Instanz-Freigabe). Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE → der Auftrag
     # wird als „produce" abgeleitet und greift NIE FIFO auf Lager zu. Der Inhalt wird während
     # der Ausführung verfasst und mit «Ausstellen» festgeschrieben.
-    "document":   EventType("document",   "Dokument",       NEUTRAL,  PRODUCE,  "Document"),
+    "document":   EventType("document",   "Dokument",       NEUTRAL,  PRODUCE,  "Document",
+                            status_field="done", done=(True,)),
 }
 
 # Erlaubte Schritttypen (Schema-Whitelist) und die Ressourcen-Gruppe (Verbrauch +

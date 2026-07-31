@@ -2642,6 +2642,33 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`test_every_json_column_survives_a_decimal`, `test_a_returned_quantity_has_no_floor_of_one`)
   und `tests/test_fractional_quantities.py: test_take_releases_the_own_claim_and_trims_the_others`.
 
+- **Vereinfachung: zwei if/else-Ketten sind Tabellen geworden (Juli 2026)** – beide ohne
+  Verhaltensänderung, beide nach demselben Muster: *per-Typ-Wissen gehört in die Registry,
+  nicht in eine Kette.*
+  (1) **«Woran sieht man einem Schritt an, dass er durch ist?»** stand als if/elif über die
+  Schritttypen in `process._fact_status` – dieselbe Aussage wie `domain/event_types.py`, nur
+  an einer zweiten Stelle: ein neuer Typ musste in beiden gepflegt werden, und sie konnten
+  still auseinanderlaufen. Jetzt deklariert jeder Eintrag `status_field` / `done` / `failed`
+  (`None` = die blosse **Existenz** der Fachzeile ist die Erledigung – Bewegung, Ressource,
+  Aussondern), und die Ableitung ist EINE Regel: **19 Zweige → 6**. Die eine Ausnahme ist
+  bewusst generisch formuliert: ein Fehlschlag, den ein Folgeauftrag geklärt hat
+  (`resolved_by_order_id`), gilt als erledigt – heute trägt nur die Datenerfassung dieses
+  Feld, die Regel «geklärt ist erledigt» gilt aber für jeden Typ, der es bekommt.
+  (2) **«Welche Felder trägt ein Schritt-Typ?»** entschied der Konstruktor in
+  `routers/article_process._create` über ~14 einzelne `x if is_document else None` plus drei
+  Flag-Variablen davor. Die Frage war nur durch Absuchen aller Zeilen zu beantworten, und ein
+  neuer Typ hiess «überall eine Bedingung ergänzen». Jetzt liefert je Typ EINE Funktion genau
+  seine Spalten (und prüft, was zu prüfen ist); alles andere bleibt leer (Modell-Default):
+  **30 Zweige → 5, 65 → 34 Zeilen**. Wächter `test_a_step_type_only_fills_its_own_columns`
+  (jeder Typ füllt nur seine eigenen Spalten, Beschaffung nie Lieferant UND Webshop) und
+  `test_step_status_semantics_live_in_the_registry` (kein Statuswert mehr in der Ableitung).
+  Gegen echtes PostgreSQL für **jeden** Schritttyp gegengeprüft: die geschriebene Zeile ist
+  spaltenweise identisch zur vorherigen Fassung.
+  *Bewusst NICHT angefasst:* `main._ensure_columns` – der Lifespan-Schutz ist bereits
+  tabellengetrieben (je Schleife eine Art Schema-Reparatur); seine Zweige sind der Sache
+  geschuldet, und ausgerechnet dieses Netz für Kosmetik anzufassen wäre nach der
+  Migration-090-Geschichte das falsche Risiko.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

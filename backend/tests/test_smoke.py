@@ -3097,3 +3097,97 @@ def test_an_instance_is_not_released_while_another_order_still_works_on_it():
     src = _inspect_source_fn(process.release_instances)
     assert "_worked_on_by_a_running_order" in src, "Die Freigabe muss den Wächter benutzen"
     assert "still_running" in src
+
+
+def test_a_step_type_only_fills_its_own_columns():
+    """**Welche Felder ein Schritt-Typ trägt, steht an EINER Stelle** (Notiz: Vereinfachung).
+
+    Vorher entschied das der Konstruktor über ~14 einzelne ``x if is_document else None``
+    plus drei Flag-Variablen davor: «welche Felder hat ein Dokument-Schritt?» war nur durch
+    Absuchen aller Zeilen zu beantworten, und ein neuer Typ hiess «überall eine Bedingung
+    ergänzen». Jetzt liefert je Typ EINE Funktion genau seine Spalten – alles andere bleibt
+    leer (Modell-Default). Der Test hält fest, dass kein Typ in fremde Felder schreibt."""
+    from types import SimpleNamespace
+
+    from app.domain import event_types
+    from app.routers.article_process import _FIELDS_BY_TYPE
+    from app.schemas.article_process_step import ArticleProcessStepCreate
+
+    # Die Prüfungen fragen nur nach «gibt es das und ist es gültig?» – ein Stub genügt,
+    # der auf jede Abfrage einen freigegebenen Artikel bzw. einen aktiven Lieferanten
+    # zurückgibt. Geprüft wird hier die **Feld-Zuordnung**, nicht die Validierung.
+    class _Db:
+        def query(self, *a, **kw): return self
+        def filter(self, *a, **kw): return self
+        def first(self): return SimpleNamespace(status="released", role="supplier")
+
+    def fields_for(**kw) -> dict:
+        data = ArticleProcessStepCreate(**kw)
+        fn = _FIELDS_BY_TYPE.get(data.step_type)
+        return fn(_Db(), data) if fn else {}
+
+    assert set(fields_for(step_type="purchase")) == {"supplier_id", "webshop_url", "shared_fields"}
+    # Eine Datenerfassung braucht per Schema mindestens ein Erfassungsfeld (Notiz #41).
+    ok_field = {"key": "ok", "label": "OK", "type": "bool"}
+    assert set(fields_for(step_type="inspection", capture_fields=[ok_field])) == {
+        "sample_percent", "capture_fields"}
+    assert set(fields_for(step_type="movement")) == {"target_location_type", "target_location_id"}
+    assert set(fields_for(step_type="resource",
+                          resource_lines=[{"article_id": 1, "quantity": 2, "mode": "consume"}])
+               ) == {"resource_lines"}
+    assert set(fields_for(step_type="document")) == {
+        "doc_signers", "sign_sequential", "doc_audience", "doc_audience_roles",
+        "doc_audience_person_ids", "doc_visibility"}
+    # Reine Marker-Schritte tragen ausser Typ/Position/Modus nichts.
+    for marker in ("scrap", "block", "sale"):
+        assert fields_for(step_type=marker) == {}, marker
+
+    # Die Quelle einer Beschaffung ist Lieferant ODER Webshop – nie beides.
+    both = fields_for(step_type="purchase", mode="webshop", webshop_url="https://x.ch")
+    assert both["supplier_id"] is None and both["webshop_url"] == "https://x.ch"
+
+    # Jeder Eintrag muss ein bekannter Schritttyp sein (kein toter Zweig).
+    assert set(_FIELDS_BY_TYPE) <= set(event_types.REGISTRY)
+
+
+def test_step_status_semantics_live_in_the_registry():
+    """**Woran man einem Schritt ansieht, dass er durch ist, steht in der Registry.**
+
+    ``process._fact_status`` war eine if/elif-Kette über die Schritttypen – dieselbe
+    Aussage wie die Registry, nur an einer zweiten Stelle: ein neuer Typ musste in beiden
+    gepflegt werden, und sie konnten still auseinanderlaufen. Jetzt deklariert jeder Typ
+    ``status_field``/``done``/``failed``, und die Ableitung ist EINE Regel."""
+    import ast
+    import inspect as _inspect
+    from app.domain import event_types
+    from app.services.process import _fact_status
+
+    reg = event_types.REGISTRY
+    assert reg["purchase"].done == ("received",) and reg["purchase"].failed == ("rejected",)
+    assert reg["inspection"].status_field == "result"
+    assert reg["sale"].done == ("paid",)
+    # Marker-Schritte: die blosse Existenz der Fachzeile IST die Erledigung.
+    for marker in ("movement", "resource", "scrap", "block"):
+        assert reg[marker].status_field is None, marker
+
+    src = ast.unparse(ast.parse(_inspect.getsource(_fact_status)))
+    for literal in ("'received'", "'rejected'", "'paid'", "'cancelled'", "'passed'"):
+        assert literal not in src, (
+            f"{literal} gehört in die Registry, nicht in die Ableitung – sonst gibt es die "
+            "Aussage wieder zweimal")
+
+    class Fact:
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    assert _fact_status("purchase", None) == "open"
+    assert _fact_status("purchase", Fact(status="received")) == "done"
+    assert _fact_status("purchase", Fact(status="rejected")) == "failed"
+    assert _fact_status("purchase", Fact(status="ordered")) == "open"
+    assert _fact_status("movement", Fact()) == "done"
+    assert _fact_status("document", Fact(done=False)) == "open"
+    assert _fact_status("document", Fact(done=True)) == "done"
+    # Ein Fehlschlag, den ein Folgeauftrag geklärt hat, gilt als erledigt – der Befund
+    # selbst bleibt fehlgeschlagen (Testnotiz #70/#71).
+    assert _fact_status("inspection", Fact(result="failed")) == "failed"
+    assert _fact_status("inspection", Fact(result="failed", resolved_by_order_id=7)) == "done"
