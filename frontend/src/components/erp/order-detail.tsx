@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
+import type { AffectedOrder, Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
@@ -202,6 +202,14 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // Komponenten-Bedarf kann man nicht wegbestätigen – ohne Material wird nichts gebaut.
   const hasSubjectShortfall = shortfall.some((sf) => (sf.kind ?? 'subject') === 'subject');
   const shortfallCandidates = shortfall.flatMap((sf) => sf.available_instances ?? []);
+  // **Am laufenden Auftrag ist der Betroffene er selbst** – dieselbe Liste, dieselbe Form
+  // wie bei der Freigabe eines Entwurfs (Notiz #387): worüber entscheide ich hier gerade?
+  const selfAffected: AffectedOrder[] = record?.object_id != null
+    ? shortfall.map((sf) => ({
+        object_id: record.object_id as number, name: orderName(record), reason: record.reason,
+        article_name: sf.article_name ?? null, quantity: sf.quantity, needs_decision: true,
+      }))
+    : [];
 
   // Nur freigegebene Artikel sind referenzierbar
   const releasedArticles = articles.filter((a) => a.status === 'released');
@@ -880,7 +888,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               {needsDecision && (
                 <ProcessHoldNotice missing={missingText} canAct={isStaff && record.status === 'released'}
                   busy={supplyBusy || recoverBusy} error={error}
-                  onAnswer={answerShortfall} candidates={shortfallCandidates} canReduce={hasSubjectShortfall} />
+                  onAnswer={answerShortfall} candidates={shortfallCandidates} canReduce={hasSubjectShortfall}
+                  affected={selfAffected} />
               )}
             </div>
           </>
@@ -904,7 +913,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       {/* **Die Unterdeckungs-Frage zur Freigabe** (Notiz #370) – dasselbe Fenster wie am
           laufenden Auftrag, nur zu dem Zeitpunkt, an dem die Auswahl feststeht. */}
       {pendingRelease && (
-        <ShortfallDialog busy={statusBusy}
+        <ShortfallDialog busy={statusBusy} affected={record?.affects ?? []}
           onAnswer={(a) => changeStatus(pendingRelease.target, a)}
           onClose={() => setPendingRelease(null)} />
       )}
@@ -944,13 +953,14 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 //
 // Ist die Menge bereits in einem Unter-Auftrag gebunden, erscheint hier gar nichts: dann ist
 // die Entscheidung getroffen, und die Angabe steht bei diesem Unter-Auftrag im Fluss (#354).
-function ProcessHoldNotice({ missing, canAct, busy, error, candidates, canReduce, onAnswer }: {
+function ProcessHoldNotice({ missing, canAct, busy, error, candidates, canReduce, affected, onAnswer }: {
   missing?: string;
   canAct: boolean;
   busy: boolean;
   error: string | null;
   candidates: { object_id: number; quantity: number }[];
   canReduce: boolean;
+  affected: AffectedOrder[];
   onAnswer: (answer: ShortfallAnswer, instanceObjectIds?: number[]) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -968,6 +978,7 @@ function ProcessHoldNotice({ missing, canAct, busy, error, candidates, canReduce
       {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
       {open && (
         <ShortfallDialog candidates={candidates} canReduce={canReduce} busy={busy} error={error}
+          affected={affected}
           onAnswer={(a, ids) => { setOpen(false); onAnswer(a, ids); }} onClose={() => setOpen(false)} />
       )}
     </div>

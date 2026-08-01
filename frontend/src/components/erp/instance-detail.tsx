@@ -87,14 +87,14 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   // Bestand: zählbar nur, wenn freigegeben UND am Lager.
   const inStock = inst.quality === 'passed' && inst.disposition === 'in_stock';
   const bestand = inStock ? inst.quantity : 0;
-  // Die Unterzeile erklärt die ZAHL – nicht den Zustand. Welcher Zustand vorliegt
-  // (Verkauft · Verschrottet · Verbaut · Fehler · Im Prozess), sagt bereits die Badge im
-  // Kopf; sie hier ein zweites Mal auszuschreiben, war reine Doppelung wenige Zentimeter
-  // daneben. Zusätzlich ist nur die reservierte MENGE – die steht nirgends sonst.
+  // **Die Kachel heisst, was sie misst** (Testnotiz #384): «Am Lager» – die Menge, die
+  // freigegeben und entnehmbar ist. Damit erklärt sich die 0 von selbst (WARUM sagt die
+  // Badge im Kopf: Im Prozess · Gesperrt · Verkauft …), das ⓘ entfällt, und die frühere
+  // Unterzeile «Nicht am Lager» ist weg – sie war eine schiefe Zustandsaussage neben der
+  // Badge: die Instanz IST im Betrieb, sie ist nur noch nicht verfügbar.
+  // Die Unterzeile trägt nur noch, was sonst nirgends steht: die reservierte Menge.
   const reserved = inst.reserved_quantity ?? 0;
-  const bestandSub = !inStock ? 'Nicht am Lager'
-    : reserved > 0 ? `${reserved} reserviert`
-    : 'Am Lager';
+  const bestandSub = reserved > 0 ? `${reserved} reserviert` : undefined;
 
   // Jede Aktion an dieser Instanz läuft über einen **Auftrag** – auch die Abweichung. Den
   // legt der Shortcut unten an, mit dieser Instanz vorgewählt (Notiz #371).
@@ -132,9 +132,13 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     setOrderBusy(true);
     setDevErr(null);
     try {
-      const qty = inst.quantity && inst.quantity > 0 ? inst.quantity : 1;
+      // **Immer EIN Stück vorwählen** (Testnotiz #385): der Shortcut ist eine Eingabehilfe,
+      // kein Vorgriff auf die Menge. Von einer Charge à 500 will man fast nie alle 500
+      // behandeln – und die Menge lässt sich im Entwurf ohnehin frei ändern (auch nach
+      // oben, bis zur vollen Instanz-Menge).
       const order = await api.createOrder({
-        article_id: inst.article_id, quantity: qty, instance_object_ids: [inst.object_id] });
+        article_id: inst.article_id, quantity: 1, instance_object_ids: [inst.object_id],
+        instance_quantities: { [String(inst.object_id)]: 1 } });
       if (order.object_id != null) {
         onChanged?.();
         nav?.(order.object_id);
@@ -229,7 +233,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               onClick={inst.article_object_id != null ? () => nav?.(inst.article_object_id as number) : undefined}
             />
             <Tile
-              icon={Package} label="Bestand" hint="Zählbar nur, wenn freigegeben und am Lager."
+              icon={Package} label="Am Lager"
               value={<>{bestand} <span style={S.unit}>Stk</span></>}
               sub={bestandSub}
             />

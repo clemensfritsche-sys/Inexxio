@@ -159,6 +159,21 @@ def holding_orders(db: Session, inst, exclude_id: int | None = None) -> list[Ord
     return [rows[i] for i in ids if i in rows]
 
 
+def still_holds(db: Session, order: Order) -> bool:
+    """**Hält dieser Auftrag überhaupt noch etwas?** – die Umkehrung von ``holding_orders``.
+
+    «Halten» heisst dasselbe wie dort: ein **Anspruch** auf eine Menge (``reservations``)
+    oder die **Subjekt-Bindung**. Gebraucht wird die Frage für einen Auftrag mit **festem
+    Subjekt** (Abweichung/Retoure/Bereitstellung): der beschafft nichts, er *behandelt*
+    vorhandene Stücke. Nimmt ein anderer Auftrag ihm diese weg, hat er keine Fehlmenge –
+    er hat schlicht **nichts mehr zu tun** (Testnotiz #388)."""
+    from .reservation import reserved_for
+    for inst in order_instances(db, order):
+        if inst.subject_of_order_id == order.id or reserved_for(inst, order.id) > 0:
+            return True
+    return False
+
+
 def holding_order(db: Session, inst) -> Order | None:
     """Der **erste** laufende Auftrag, der dieses Stück hält – oder ``None``.
 

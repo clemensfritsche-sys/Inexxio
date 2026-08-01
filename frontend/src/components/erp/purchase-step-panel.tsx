@@ -244,20 +244,13 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
               </>
             ) : (po.order_total != null || s !== 'requested') && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Row k="Bestellsumme netto" v={`CHF ${fmtMoney(po.order_total)}`} />
+                {/* **Der Stückpreis ist eine Ableitung dieser Zahl** (Summe ÷ Menge) – also
+                    steht er im Hover an ihr, nicht als eigener hervorgehobener Kasten
+                    darunter (Testnotiz #383). Weniger Fläche, dieselbe Auskunft. */}
+                <Row k="Bestellsumme netto" v={`CHF ${fmtMoney(po.order_total)}`}
+                  hint={perUnit != null ? `CHF ${fmtMoney(perUnit)} pro Stück (netto) – Summe ÷ Menge` : undefined} />
                 <Row k="Lieferzeit" v={po.lead_time_days != null ? `${po.lead_time_days} Tage` : '—'} />
                 {!isWebshop && <Row k="Zahlungsziel" v={po.payment_terms_days != null ? `${po.payment_terms_days} Tage` : 'sofort'} />}
-              </div>
-            )}
-
-            {/* Preis pro Stück (berechnet) */}
-            {perUnit != null && (
-              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Calculator size={13} style={{ color: 'var(--fg-3)' }} />
-                  <span style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)' }}>Preis pro Stück (netto)</span>
-                </div>
-                <div style={{ font: '800 18px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>CHF {fmtMoney(perUnit)}</div>
               </div>
             )}
 

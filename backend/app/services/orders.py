@@ -2,6 +2,7 @@
 rollenabhängige Sichtbarkeit (Lieferant sieht nur seine Aufträge)."""
 
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import false
@@ -19,8 +20,8 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo, OrderSummary,
-    ShortfallInstance, StepResolution, StepShortfall,
+    AffectedOrder, OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo,
+    OrderSummary, ShortfallInstance, StepResolution, StepShortfall,
 )
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..models.base import utcnow
@@ -453,6 +454,47 @@ def _actor_names(db: Session, ids: list) -> dict:
             for u in db.query(UserProfile).filter(UserProfile.id.in_(wanted)).all()}
 
 
+def _fill_affected(db: Session, order: Order, resp: OrderResponse) -> None:
+    """**Wem nimmt die Auswahl dieses Entwurfs etwas weg?** (Testnotiz #387)
+
+    Ein Entwurf, der **gebundene** Instanzen wählt, greift auf laufende Aufträge zu. Bisher
+    erfuhr man das erst als Fehlertext bei der Freigabe – eine Aufzählung von Objektnummern.
+    Hier steht es als Datensatz-Liste am Entwurf: Name, Nummer, Artikel, gehaltene Menge –
+    und ob dieser Betroffene überhaupt eine Entscheidung braucht.
+
+    Nur am Entwurf: danach ist die Frage beantwortet und der Zugriff vollzogen."""
+    from .quantity import ZERO, to_qty
+    from .reservation import reserved_for
+    from .subject import chosen_subjects, holding_orders, is_fixed_subject
+    if order.status != "draft" or not order.id:
+        return
+    picked = chosen_subjects(db, order)
+    if not picked:
+        return
+    held: dict[int, Decimal] = {}
+    rows: dict[int, Order] = {}
+    for inst in picked:
+        for h in holding_orders(db, inst, exclude_id=order.id):
+            rows.setdefault(h.id, h)
+            share = reserved_for(inst, h.id)
+            # Der ERZEUGER hält ohne Reservierung – für ihn zählt die ganze Instanz.
+            if share <= 0 and inst.order_id == h.id:
+                share = to_qty(inst.quantity)
+            held[h.id] = held.get(h.id, ZERO) + share
+    arts = {a.id: a.name for a in db.query(Article).filter(
+        Article.id.in_({o.article_id for o in rows.values() if o.article_id})).all()} if rows else {}
+    resp.affects = [
+        AffectedOrder(
+            object_id=h.object_id, name=order_display_name(h, arts.get(h.article_id)),
+            reason=h.reason, article_name=arts.get(h.article_id),
+            quantity=float(held.get(h.id, ZERO)),
+            needs_decision=not is_fixed_subject(h),
+        )
+        for h in rows.values() if h.object_id
+    ]
+    resp.affects.sort(key=lambda a: a.object_id)
+
+
 def _fill_order_shortfall(db: Session, order: Order, resp: OrderResponse) -> None:
     """**Was fehlt diesem Auftrag – und wartet er schon darauf?**
 
@@ -634,6 +676,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
         resp.replaces_id = pred[0] if pred else None
     _fill_demand(db, order, resp)
     _fill_order_shortfall(db, order, resp)
+    _fill_affected(db, order, resp)
     resp.recurrence_due = recurrence_due(order)
 
     instances = order_instances(db, order)

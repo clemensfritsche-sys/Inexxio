@@ -2270,6 +2270,40 @@ export interface components {
             /** Object Number */
             object_number?: number | null;
         };
+        /**
+         * AffectedOrder
+         * @description **Wem nimmt die Auswahl dieses Entwurfs etwas weg?**
+         *
+         *     Steht am **Entwurf**, nicht erst im Fehlerfall: wer gebundene Instanzen wählt, greift auf
+         *     laufende Aufträge zu – und soll **vor** der Freigabe sehen, auf welche. Die Frage «was
+         *     geschieht dort weiter?» (pausieren · ersetzen · Menge reduzieren) fällt sonst über
+         *     Objektnummern, die niemand einordnen kann (Testnotiz #387).
+         *
+         *     ``needs_decision`` unterscheidet die beiden Sorten Betroffener: ein Auftrag mit einem
+         *     **Soll** braucht eine Antwort; ein Auftrag mit **festem Subjekt** (Abweichung, Retoure,
+         *     Bereitstellung) beschafft nichts – er schrumpft lautlos mit und wird gegenstandslos,
+         *     wenn nichts bleibt.
+         */
+        AffectedOrder: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Article Name */
+            article_name?: string | null;
+            /**
+             * Quantity
+             * @default 0
+             */
+            quantity: number;
+            /**
+             * Needs Decision
+             * @default true
+             */
+            needs_decision: boolean;
+        };
         /** AiChatMessage */
         AiChatMessage: {
             /**
@@ -4189,6 +4223,10 @@ export interface components {
             quantity: number;
             /** Instance Object Ids */
             instance_object_ids?: number[] | null;
+            /** Instance Quantities */
+            instance_quantities?: {
+                [key: string]: number;
+            } | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */
@@ -4383,6 +4421,11 @@ export interface components {
              * @default []
              */
             shortfall: components["schemas"]["StepShortfall"][];
+            /**
+             * Affects
+             * @default []
+             */
+            affects: components["schemas"]["AffectedOrder"][];
             /**
              * Paused
              * @default false

@@ -6500,6 +6500,63 @@
         ],
         "title": "AcknowledgeRequest"
       },
+      "AffectedOrder": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity",
+            "default": 0
+          },
+          "needs_decision": {
+            "type": "boolean",
+            "title": "Needs Decision",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "AffectedOrder",
+        "description": "**Wem nimmt die Auswahl dieses Entwurfs etwas weg?**\n\nSteht am **Entwurf**, nicht erst im Fehlerfall: wer gebundene Instanzen wählt, greift auf\nlaufende Aufträge zu – und soll **vor** der Freigabe sehen, auf welche. Die Frage «was\ngeschieht dort weiter?» (pausieren · ersetzen · Menge reduzieren) fällt sonst über\nObjektnummern, die niemand einordnen kann (Testnotiz #387).\n\n``needs_decision`` unterscheidet die beiden Sorten Betroffener: ein Auftrag mit einem\n**Soll** braucht eine Antwort; ein Auftrag mit **festem Subjekt** (Abweichung, Retoure,\nBereitstellung) beschafft nichts – er schrumpft lautlos mit und wird gegenstandslos,\nwenn nichts bleibt."
+      },
       "AiChatMessage": {
         "properties": {
           "role": {
@@ -12141,6 +12198,20 @@
             ],
             "title": "Instance Object Ids"
           },
+          "instance_quantities": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Quantities"
+          },
           "desired_delivery_date": {
             "anyOf": [
               {
@@ -12697,6 +12768,14 @@
             },
             "type": "array",
             "title": "Shortfall",
+            "default": []
+          },
+          "affects": {
+            "items": {
+              "$ref": "#/components/schemas/AffectedOrder"
+            },
+            "type": "array",
+            "title": "Affects",
             "default": []
           },
           "paused": {

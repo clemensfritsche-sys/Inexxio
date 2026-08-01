@@ -117,6 +117,8 @@ export type OrderStep = OrderApi['steps'][number];
 export type StepResolution = OrderStep['resolutions'][number];
 /** Was einem Auftrag fehlt (Fertigware oder Komponente) – die Fehlmenge gehört dem Auftrag. */
 export type OrderShortfall = OrderApi['shortfall'][number];
+/** Ein laufender Auftrag, dem die Auswahl dieses Entwurfs etwas wegnimmt (#387). */
+export type AffectedOrder = OrderApi['affects'][number];
 
 // Dokument: Inhalt (Titel/Untertitel/Abschnitte) + eingebetteter Stand im Auftrag.
 // Der Inhalt wird WÄHREND der Auftragsausführung verfasst und ausgestellt.
@@ -288,6 +290,8 @@ export interface OrderInput extends OrderRecurrenceInput {
   /** **Vorauswahl**, keine Fixierung: der Abkürzungs-Knopf an einer Instanz trägt sie gleich
    *  ein – danach frei änderbar wie jede andere Auswahl (Notiz #371). */
   instance_object_ids?: number[] | null;
+  /** Beanspruchte Teilmenge je Instanz – der Shortcut wählt immer EIN Stück vor (#385). */
+  instance_quantities?: Record<string, number> | null;
   desired_delivery_date?: string | null;
 }
 

@@ -37,7 +37,7 @@ from ..models import (
 from ..models.base import utcnow
 from .events import emit
 from .inventory import available, in_stock_clauses, is_blocked, unblocked_clauses
-from .quantity import ONE, ZERO, to_qty
+from .quantity import ONE, ZERO, qty_sum, to_qty
 from .reservation import free_qty, release, reserve, reserved_for, take as take_qty
 
 # Label & Fachtabelle je Schritt-Typ kommen aus der **deklarativen Registry**
@@ -354,7 +354,14 @@ def deviated_quantities(db: Session, order: Order) -> dict[int, Decimal]:
     Geliefert wird **je Instanz die betroffene MENGE**, nicht bloss die Instanz: eine
     Abweichung an EINER Schraube einer 500er-Charge nimmt dem Auftrag genau eine, nicht
     fünfhundert. Die Menge steht dort, wo sie hingehört – im Anspruch der Abweichung
-    (``instances.reservations``); fehlt er (Altbestand), gilt die ganze Instanz."""
+    (``instances.reservations``); fehlt er (Altbestand), gilt die ganze Instanz.
+
+    **Und es können MEHRERE sein.** Eine Charge kann gleichzeitig von zwei Abweichungen
+    mengenweise beansprucht sein (je ein Stück von zweien) – ein realer Fall, sobald man
+    eine Abweichung nicht abbricht, sondern eine zweite danebenstellt. Massgeblich ist
+    darum die **Anspruchs-Map**, nicht der Zeiger ``subject_of_order_id``: der trägt immer
+    nur die zuletzt gesetzte Bindung, weshalb die erste Abweichung still aus der Rechnung
+    fiel und der Eltern-Auftrag zu viel als «gesichert» führte (Testnotiz #388)."""
     from .subject import order_instances
     # **Massgeblich ist die Instanz, nicht der Eltern-Zeiger.** Eine Abweichung kann an der
     # Instanz gemeldet worden sein und dabei an einem GANZ ANDEREN Auftrag hängen (dem
@@ -362,8 +369,21 @@ def deviated_quantities(db: Session, order: Order) -> dict[int, Decimal]:
     # in einer offenen Abweichung? Vorher wurden nur die eigenen Kinder gezählt – ein an der
     # Instanz gemeldeter Fehler liess den Auftrag ungerührt weiterlaufen (Testnotiz #348).
     from .reservation import reserved_for
-    mine = [i for i in order_instances(db, order) if i.subject_of_order_id]
+    mine = order_instances(db, order)
     if not mine:
+        return {}
+    # Wer greift an diesen Instanzen zu? Jeder Anspruch in der Map – plus die Bindung, für
+    # Altbestand ohne Anspruch. **Sich selbst zählt ein Auftrag nie**: fragt die Abweichung
+    # nach ihren eigenen «in Klärung» steckenden Stücken, sind das nicht ihre eigenen –
+    # sonst gäbe sie beim Abschluss nichts frei (ihre Statusänderung ist zum Abfragezeitpunkt
+    # noch nicht geflusht, die Datenbank sähe sie also weiterhin als offen).
+    claimants: set[int] = set()
+    for i in mine:
+        claimants.update(int(k) for k in (i.reservations or {}))
+        if i.subject_of_order_id:
+            claimants.add(i.subject_of_order_id)
+    claimants.discard(order.id)
+    if not claimants:
         return {}
     # **Nur eine FREIGEGEBENE Abweichung nimmt etwas heraus** (Testnotiz #370): ein Entwurf
     # ist noch im Entstehen – Artikel, Menge und Instanzen können sich ändern. Er merkt vor
@@ -372,21 +392,20 @@ def deviated_quantities(db: Session, order: Order) -> dict[int, Decimal]:
     # auch gefragt, wie es beim anderen weitergeht.
     open_devs = {
         r[0] for r in db.query(Order.id).filter(
-            Order.id.in_({i.subject_of_order_id for i in mine}),
-            Order.reason == "deviation", Order.is_active == True,
-            Order.status == "released").all()
+            Order.id.in_(claimants), Order.reason == "deviation",
+            Order.is_active == True, Order.status == "released").all()
     }
-    # **Sich selbst zählt eine Abweichung nie.** Fragt die Abweichung nach ihren eigenen
-    # «in Klärung» steckenden Stücken, sind das nicht ihre eigenen – sonst gäbe sie beim
-    # Abschluss nichts frei (die Statusänderung ist zum Zeitpunkt der Abfrage noch nicht
-    # geflusht, die Datenbank sieht sie also weiterhin als offen).
-    open_devs.discard(order.id)
+    if not open_devs:
+        return {}
     out: dict[int, Decimal] = {}
     for i in mine:
-        if i.subject_of_order_id not in open_devs:
-            continue
-        share = reserved_for(i, i.subject_of_order_id)
-        out[i.id] = share if share > 0 else to_qty(i.quantity)
+        share = qty_sum(reserved_for(i, d) for d in open_devs)
+        if share <= 0 and i.subject_of_order_id in open_devs:
+            share = to_qty(i.quantity)       # Altbestand: Bindung ohne Anspruch
+        # Mehr als es gibt kann nicht in Klärung sein (zwei Ansprüche auf dieselbe Menge).
+        share = min(share, to_qty(i.quantity))
+        if share > 0:
+            out[i.id] = share
     return out
 
 

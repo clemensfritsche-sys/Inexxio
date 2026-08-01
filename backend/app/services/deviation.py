@@ -61,8 +61,14 @@ def deviations_touching(db: Session, order: Order) -> list[Order]:
     tauchte in seinem Prozess nie auf (Testnotiz #350).
 
     Massgeblich ist die **dauerhafte** Verarbeitungs-Historie (``instance_order_links``),
-    nicht die wandernde Bindung: so bleibt eine **geklärte** Abweichung sichtbar – jede
-    Abweichung seit der Freigabe ist dokumentarisch festgehalten."""
+    nicht die wandernde Bindung.
+
+    **Nur OFFENE** (Testnotiz #382): Der Grund, eine fremde Abweichung im Prozess dieses
+    Auftrags zu zeigen, ist, dass sie ihm **gerade sein Stück entzieht** – sie ist ein
+    Hindernis. Eine geklärte entzieht nichts mehr; sie als Knoten stehen zu lassen,
+    behauptet einen Halt, den es nicht gibt. Wo sie hingehört, ist die **Instanz**: dort
+    steht unter «Aufträge» lückenlos, wer sie wann angefasst hat. Die eigenen Kinder eines
+    Auftrags bleiben dagegen sichtbar – sie sind seine Geschichte, nicht die eines anderen."""
     from .subject import order_instances
     own = {i.object_id for i in order_instances(db, order) if i.object_id}
     if not own:
@@ -77,7 +83,8 @@ def deviations_touching(db: Session, order: Order) -> list[Order]:
         return []
     return (
         db.query(Order)
-        .filter(Order.id.in_(related), Order.reason == "deviation", Order.is_active == True)
+        .filter(Order.id.in_(related), Order.reason == "deviation", Order.is_active == True,
+                Order.status.in_(("draft", "released")))
         .order_by(Order.object_id)
         .all()
     )

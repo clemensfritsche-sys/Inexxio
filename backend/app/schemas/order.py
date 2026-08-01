@@ -21,6 +21,26 @@ class ShortfallInstance(BaseModel):
     quantity: float = 1   # Bruchmenge möglich (kg/m²/…)
 
 
+class AffectedOrder(BaseModel):
+    """**Wem nimmt die Auswahl dieses Entwurfs etwas weg?**
+
+    Steht am **Entwurf**, nicht erst im Fehlerfall: wer gebundene Instanzen wählt, greift auf
+    laufende Aufträge zu – und soll **vor** der Freigabe sehen, auf welche. Die Frage «was
+    geschieht dort weiter?» (pausieren · ersetzen · Menge reduzieren) fällt sonst über
+    Objektnummern, die niemand einordnen kann (Testnotiz #387).
+
+    ``needs_decision`` unterscheidet die beiden Sorten Betroffener: ein Auftrag mit einem
+    **Soll** braucht eine Antwort; ein Auftrag mit **festem Subjekt** (Abweichung, Retoure,
+    Bereitstellung) beschafft nichts – er schrumpft lautlos mit und wird gegenstandslos,
+    wenn nichts bleibt."""
+    object_id: int
+    name: Optional[str] = None
+    reason: Optional[str] = None      # deviation | supply | return | provisioning | None
+    article_name: Optional[str] = None
+    quantity: float = 0               # was er an den gewählten Instanzen hält
+    needs_decision: bool = True
+
+
 class StepShortfall(BaseModel):
     """Ein ungedeckter Bedarf des **Auftrags** (Artikel + Fehlmenge).
 
@@ -172,6 +192,10 @@ class OrderCreate(BaseModel):
     # Eingabehilfe. Änderbar wie jede andere Auswahl; was daraus folgt (Abweichung/Retoure/
     # gewöhnlicher Bedarf), leitet ``subject.classify_pick`` ab.
     instance_object_ids: Optional[list[int]] = None
+    # Beanspruchte **Teilmenge** je Instanz-Objektnummer (Schlüssel als String). Ohne Angabe
+    # die GANZE Instanz. Eine Instanz ist eine Menge, kein Ding: von einer Charge à 500 lässt
+    # sich genau eine wählen – und der Abkürzungs-Knopf tut ab jetzt genau das (Notiz #385).
+    instance_quantities: Optional[dict[str, float]] = None
     desired_delivery_date: Optional[date] = None
     # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
     recurrence_active: Optional[bool] = None
@@ -373,6 +397,9 @@ class OrderResponse(BaseModel):
     # Ressourcen-Schritts (``kind='component'``). EINE Aussage über den Auftrag, an EINER
     # Stelle – und kein Auftrag geht «fertig», solange etwas offen ist.
     shortfall: list[StepShortfall] = []
+    # **Wem nimmt dieser ENTWURF etwas weg?** Nur am Entwurf gefüllt – dort steht die Frage,
+    # bevor sie gestellt wird (Notiz #387). Leer, sobald er freigegeben ist.
+    affects: list[AffectedOrder] = []
     # **Ruht der Prozess?** – abgeleitet aus derselben Fehlmenge (``process.is_paused``),
     # kein zweiter Zustand daneben. Fehlt dem Auftrag sein Subjekt (z. B. weil eine offene
     # Abweichung ein Stück in Klärung hält) oder ist Material noch unterwegs, läuft KEIN

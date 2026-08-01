@@ -3076,6 +3076,61 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_a_company_can_be_closed_but_never_reopened` (Feed ja, Auswahl nein, Betreiber
   geschützt). Gegen echtes PostgreSQL verifiziert (`/var/tmp/ixpg/inactive.py`, 7/7).
 
+- **Testnotizen-Runde 29 (wer keine Frage beantworten kann, wird nicht gefragt; Notizen
+  #382–#388)**: Kern ist die **Abweichung auf eine Abweichung** – ein realer Fall, sobald
+  man mit einer Klärung unzufrieden ist und eine zweite danebenstellt.
+  (1) **Ein Auftrag mit festem Subjekt hat kein Soll – also auch keine Fehlmenge** (#388).
+  «Menge reduzieren» lief bei ihm auf «Keine Fehlmenge – es gibt nichts zu reduzieren» auf,
+  weil die Antwort auf **alle** Halter angewandt wurde. Eine Abweichung (ebenso Retoure/
+  Bereitstellung) beschafft aber nichts – sie **behandelt** vorhandene Stücke. Nimmt ihr
+  jemand eines weg, entsteht keine Unterdeckung: sie hat weniger zu tun. Bleibt ihr
+  **nichts**, ist sie **gegenstandslos** und wird abgebrochen, mit Zeiger auf den Auftrag,
+  der übernommen hat (`recovery.retire_if_subjectless` + `subject.still_holds`) – exakt die
+  Mechanik, die es für den Eltern längst gibt (#366). Und weil sie nichts zu entscheiden
+  hat, wird sie auch nicht gefragt: `_enforce_claims` stellt die Frage nur, wenn ein Halter
+  mit **Soll** betroffen ist. Das ist eine Regel weniger, nicht mehr.
+  (2) **In Klärung zählt jede offene Abweichung, nicht nur der letzte Zeiger** (#388, die
+  tiefere Wurzel): `deviated_quantities` las `instances.subject_of_order_id` – und der trägt
+  immer nur die **zuletzt** gesetzte Bindung. Bei zwei Abweichungen an derselben Charge fiel
+  die erste still aus der Rechnung, und der Eltern-Auftrag führte zu viel als «gesichert».
+  Massgeblich ist jetzt die **Anspruchs-Map** (`instances.reservations`) – dort steht je
+  Auftrag die beanspruchte Menge; der Zeiger bleibt nur Rückfall für Altbestand ohne
+  Anspruch. Damit geht auch «2 statt 1 Stück» ohne jede Fallunterscheidung auf: greift die
+  zweite Abweichung mehr, als frei ist, verliert die erste – und ist bei 0 gegenstandslos.
+  (3) **Die Unterdeckungs-Frage nennt, wen sie trifft** (#387, `OrderResponse.affects`):
+  Der Entwurf weiss **vor** der Freigabe, welchen laufenden Aufträgen seine Auswahl etwas
+  wegnimmt – Name · Objektnummer · Artikel · Menge, und ob dieser Betroffene überhaupt eine
+  Entscheidung braucht. Vorher erfuhr man es erst als Fehlertext mit blossen Objektnummern.
+  Am **laufenden** Auftrag ist der Betroffene er selbst – dieselbe Liste, dieselbe Form.
+  Mehrere Betroffene sind ausdrücklich vorgesehen (ein Auftrag darf Instanzen aus
+  verschiedenen laufenden Aufträgen greifen).
+  (4) **Eine fremde Abweichung erscheint nur, solange sie offen ist** (#382): der Grund, sie
+  im Prozess eines anderen Auftrags zu zeigen, ist, dass sie ihm **gerade** sein Stück
+  entzieht. Eine geklärte entzieht nichts mehr – als Knoten stehen zu bleiben behauptete
+  einen Halt, den es nicht gibt. Ihre Geschichte steht an der **Instanz** («Aufträge»); die
+  **eigenen** Kinder eines Auftrags bleiben unverändert sichtbar. (Präzisiert #350.)
+  (5) **Der Instanz-Shortcut wählt immer EIN Stück vor** (#385): er ist eine Eingabehilfe,
+  kein Vorgriff auf die Menge – von einer Charge à 500 will man selten alle 500 behandeln.
+  `OrderCreate.instance_quantities` trägt die Teilmenge gleich bei der Anlage mit; ändern
+  lässt sie sich im Entwurf wie gehabt (bis zur vollen Instanz-Menge).
+  (6) **Die Kachel heisst, was sie misst** (#384): «Am Lager» statt «Bestand» mit der
+  Unterzeile «Nicht am Lager» – letztere war eine schiefe Zustandsaussage neben der Badge
+  (die Instanz IST im Betrieb, sie ist nur nicht verfügbar) und dazu eine Doppelung. Jetzt
+  erklärt sich die 0 von selbst, das ⓘ entfällt, und die Unterzeile trägt nur noch die
+  reservierte Menge – die steht sonst nirgends.
+  (7) **Der Stückpreis steht im Hover an der Zahl, aus der er kommt** (#383): Summe ÷ Menge
+  – also ein `data-tip` an «Bestellsumme netto» statt eines eigenen hervorgehobenen Kastens
+  darunter (`fields.Row` kann jetzt einen Hinweis tragen).
+  Wächter: `test_a_fixed_subject_order_is_never_asked_for_a_shortfall_answer`,
+  `test_clarification_counts_every_open_deviation_not_just_the_last_pointer`,
+  `test_a_cleared_foreign_deviation_is_no_longer_shown_as_an_obstacle`.
+  *Offen (#386, Objektnummer erst bei Freigabe): bewusst nur evaluiert – siehe Antwort im
+  Verlauf. Kurz: das ERP adressiert **über** die Objektnummer (Deep-Link `?open=`, Scan,
+  `resolve_object_type`, Eltern-/Abbruch-Zeiger, Audit); ein Entwurf ohne Nummer wäre nicht
+  ansprechbar. Der Nummernkreis ist mit 900 Mio. Nummern kein knappes Gut – das eigentliche
+  Anliegen ist **Systemmüll**, und der wird besser mit «Entwurf verwerfen = wirklich weg»
+  gelöst.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

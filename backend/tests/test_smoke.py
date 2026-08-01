@@ -3540,3 +3540,71 @@ def test_the_shortfall_question_comes_at_release_not_at_the_pick():
     assert "over" in _inspect.getsource(reservation.enforce)
     assert "recovery.cover_shortfall" in _inspect.getsource(orders._apply_shortfall_answer)
     assert "recovery.confirm_quantity" in _inspect.getsource(orders._apply_shortfall_answer)
+
+
+def test_a_fixed_subject_order_is_never_asked_for_a_shortfall_answer():
+    """**Gefragt wird nur, wer ein Soll hat** (Testnotiz #388).
+
+    Eine Abweichung (ebenso Retoure/Bereitstellung) beschafft nichts – sie **behandelt**
+    vorhandene Stücke. Nimmt ein anderer Auftrag ihr diese weg, entsteht keine Fehlmenge:
+    es gibt schlicht nichts mehr zu behandeln. Trotzdem wurde die Antwort auch auf sie
+    angewandt, und «Menge reduzieren» lief bei ihr auf «Keine Fehlmenge – es gibt nichts zu
+    reduzieren» auf. Jetzt schrumpft sie lautlos mit; bleibt ihr nichts, ist sie
+    gegenstandslos und wird abgebrochen (fortgeführt in dem Auftrag, der übernommen hat).
+
+    Und weil sie nichts zu entscheiden hat, wird sie auch nicht gefragt: die Frage stellt
+    sich nur, wenn ein Halter mit einem **Soll** betroffen ist."""
+    import inspect as _inspect
+
+    from app.routers import orders
+    from app.services import recovery, subject
+
+    assert callable(subject.still_holds)
+    apply_src = _inspect.getsource(orders._apply_shortfall_answer)
+    assert "subject.is_fixed_subject(h)" in apply_src
+    assert "retire_if_subjectless" in apply_src
+    # Die Frage nur, wenn jemand mit Soll betroffen ist.
+    assert "any(not subject.is_fixed_subject(h) for h in holders)" in \
+        _inspect.getsource(orders._enforce_claims)
+    # Gegenstandslos = hält nichts mehr → abgebrochen, mit Zeiger auf den Nachfolger.
+    retire = _inspect.getsource(recovery.retire_if_subjectless)
+    assert "still_holds(db, order)" in retire and "abort_parent(db, order, into, actor_id)" in retire
+
+
+def test_clarification_counts_every_open_deviation_not_just_the_last_pointer():
+    """**Mehrere Abweichungen können dieselbe Charge mengenweise binden** (Testnotiz #388).
+
+    Wer eine Abweichung nicht abbricht, sondern eine zweite danebenstellt, hat zwei offene
+    Vorgänge an derselben Instanz. Gezählt wurde aber nur, worauf ``subject_of_order_id``
+    zeigt – und das ist immer nur die **zuletzt** gesetzte Bindung. Die erste Abweichung
+    fiel damit still aus der Rechnung, und der Eltern-Auftrag führte zu viel als
+    «gesichert».
+
+    Massgeblich ist die **Anspruchs-Map** (``instances.reservations``): dort steht je
+    Auftrag die beanspruchte Menge, und die Summe über alle offenen Abweichungen ist, was
+    in Klärung steckt. Der Zeiger bleibt nur der Rückfall für Altbestand ohne Anspruch."""
+    import inspect as _inspect
+
+    from app.services import process
+
+    src = _inspect.getsource(process.deviated_quantities)
+    assert "claimants" in src and "i.reservations" in src
+    assert "qty_sum(reserved_for(i, d) for d in open_devs)" in src
+    # Nicht mehr «nur die Instanzen mit Bindung» – die Map ist die Quelle.
+    assert "mine = order_instances(db, order)" in src
+    # Mehr als es gibt kann nicht in Klärung sein.
+    assert "min(share, to_qty(i.quantity))" in src
+
+
+def test_a_cleared_foreign_deviation_is_no_longer_shown_as_an_obstacle():
+    """**Eine fremde Abweichung erscheint nur, solange sie offen ist** (Testnotiz #382).
+
+    Der Grund, sie im Prozess eines anderen Auftrags zu zeigen, ist, dass sie ihm **gerade
+    sein Stück entzieht**. Eine geklärte entzieht nichts mehr – als Knoten stehen zu bleiben
+    behauptet einen Halt, den es nicht gibt. Ihre Geschichte steht an der **Instanz** (Reiter
+    «Aufträge»); die eigenen Kinder eines Auftrags bleiben dagegen sichtbar."""
+    import inspect as _inspect
+
+    from app.services import deviation
+
+    assert 'Order.status.in_(("draft", "released"))' in _inspect.getsource(deviation.deviations_touching)

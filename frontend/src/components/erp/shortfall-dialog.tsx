@@ -27,9 +27,12 @@
  */
 
 import { useState } from 'react';
-import { Boxes, CheckCircle2, Clock3, PackageMinus, PackagePlus, PauseCircle } from 'lucide-react';
+import { Boxes, CheckCircle2, ClipboardList, Clock3, PackageMinus, PackagePlus, PauseCircle, TriangleAlert } from 'lucide-react';
 import { Dialog, PaletteButton, PrimaryButton } from '@/components/erp/fields';
+import { ObjId } from '@/components/erp/obj-id';
+import { formatQty } from '@/lib/process';
 import { formatObjectId } from '@/lib/utils';
+import type { AffectedOrder } from '@/types';
 
 export type ShortfallAnswer = 'wait' | 'replace' | 'accept';
 
@@ -40,9 +43,51 @@ const ROW: React.CSSProperties = {
   display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center',
 };
 
+/**
+ * **Wen trifft die Entscheidung?** – eine Zeile je betroffenem Auftrag (Notiz #387).
+ *
+ * Ohne sie stand über den drei Symbolen nur «Es fehlt»: man entschied über Aufträge, die
+ * man nicht sah. Die Liste ist dieselbe Datensatz-Zeile wie überall (Symbol · Name ·
+ * Objektnummer) und nennt die Menge, um die es geht – auch bei mehreren Betroffenen, denn
+ * ein Auftrag kann Instanzen aus verschiedenen laufenden Aufträgen greifen.
+ *
+ * Wer **keine** Entscheidung braucht (Abweichung/Retoure/Bereitstellung: festes Subjekt,
+ * kein Soll), steht mit seiner Konsequenz da statt mit einer Frage.
+ */
+function AffectedList({ affected }: { affected: AffectedOrder[] }) {
+  if (affected.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {affected.map((a) => {
+        const dev = a.reason === 'deviation';
+        return (
+          <div key={a.object_id} style={{
+            display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap',
+            padding: '8px 11px', borderRadius: 'var(--r-md)',
+            border: '1px solid var(--border-1)', background: 'var(--bg-2)',
+          }}>
+            <span style={{ color: 'var(--fg-3)', display: 'inline-flex', flexShrink: 0 }}>
+              {dev ? <TriangleAlert size={14} /> : <ClipboardList size={14} />}
+            </span>
+            <span style={{ font: '700 13px var(--font-body)', color: 'var(--fg-1)' }}>{a.name ?? 'Auftrag'}</span>
+            <ObjId value={a.object_id} />
+            <span style={{ marginLeft: 'auto', font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', textAlign: 'right' }}>
+              {a.needs_decision
+                ? <>verliert <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{formatQty(a.quantity)}</b>{a.article_name ? ` ${a.article_name}` : ''}</>
+                : 'läuft mit weniger weiter'}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ShortfallDialog({
-  candidates = [], canReduce = true, busy = false, error, onAnswer, onClose,
+  affected = [], candidates = [], canReduce = true, busy = false, error, onAnswer, onClose,
 }: {
+  /** Die betroffenen laufenden Aufträge – worüber hier entschieden wird (#387). */
+  affected?: AffectedOrder[];
   /** Frei verfügbare Instanzen (nur dann gibt es «bestimmte Instanzen»). */
   candidates?: ShortfallCandidate[];
   /** «Menge reduzieren» gibt es nur für die Fertigware – Material nicht. */
@@ -60,7 +105,8 @@ export function ShortfallDialog({
   }
 
   return (
-    <Dialog icon={PackageMinus} title="Es fehlt" onClose={onClose} width={440}>
+    <Dialog icon={PackageMinus} title="Es fehlt" onClose={onClose} width={480}>
+      <AffectedList affected={affected} />
       {!picking ? (
         <div style={ROW}>
           <PaletteButton

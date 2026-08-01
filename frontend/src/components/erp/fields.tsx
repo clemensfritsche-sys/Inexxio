@@ -822,11 +822,15 @@ export function SaveIndicator({ saving, flash }: { saving: boolean; flash: boole
  * Symbol. Jetzt eine Stelle – und dabei von hart kodierten Farben auf die
  * Design-Tokens gezogen.
  */
-export function Row({ k, v, icon: Icon }: { k: string; v: string; icon?: React.ElementType }) {
+export function Row({ k, v, icon: Icon, hint }: {
+  k: string; v: string; icon?: React.ElementType;
+  /** Abgeleitetes Detail zur Zeile – gehört in den **Hover**, nicht in die Fläche. */
+  hint?: string;
+}) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{
-        color: 'var(--fg-4)', flexShrink: 0,
+      <span data-tip={hint} style={{
+        color: 'var(--fg-4)', flexShrink: 0, cursor: hint ? 'help' : undefined,
         display: 'inline-flex', alignItems: 'center', gap: 5,
       }}>
         {Icon && <Icon size={12} />}{k}

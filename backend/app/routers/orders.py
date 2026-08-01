@@ -229,7 +229,10 @@ def _enforce_claims(db: Session, order: Order, response: str | None,
     if not picked:
         return []
     holders = _holders_of(db, picked, order)
-    if holders:
+    # Gefragt wird nur, wer die Frage auch beantworten kann: ein Auftrag mit einem **Soll**.
+    # Ein festes Subjekt (Abweichung/Retoure/Bereitstellung) schrumpft lautlos mit und wird
+    # gegenstandslos, wenn nichts bleibt – siehe ``_apply_shortfall_answer`` (Notiz #388).
+    if any(not subject.is_fixed_subject(h) for h in holders):
         _assert_answered(response, holders)
     return holders
 
@@ -244,10 +247,19 @@ def _apply_shortfall_answer(db: Session, holders: list[Order], response: str | N
 
     ``accept`` («Auftragsmenge reduzieren») ist zugleich der **Abbruch**, wenn dem Eltern
     ALLES entzogen wurde: ``into`` ist dann der Auftrag, der ihn fortführt. Damit braucht der
-    reale Fall «Auftrag verwerfen und neu aufsetzen» keinen eigenen Knopf mehr (Notiz #366)."""
+    reale Fall «Auftrag verwerfen und neu aufsetzen» keinen eigenen Knopf mehr (Notiz #366).
+
+    **Gefragt wird nur, wer ein Soll hat.** Ein Auftrag mit **festem Subjekt** (Abweichung,
+    Retoure, Bereitstellung) beschafft nichts – er behandelt vorhandene Stücke. Nimmt man
+    ihm eines weg, hat er keine Fehlmenge, sondern weniger zu tun; bleibt ihm nichts, ist er
+    gegenstandslos und wird abgebrochen (``recovery.retire_if_subjectless``). Beides braucht
+    keine Entscheidung – und genau deshalb lief die Antwort früher bei ihm auf «Keine
+    Fehlmenge – es gibt nichts zu reduzieren» auf (Testnotiz #388)."""
     from ..services import recovery
     for h in holders:
-        if response == "replace":
+        if subject.is_fixed_subject(h):
+            recovery.retire_if_subjectless(db, h, into, actor_id)
+        elif response == "replace":
             recovery.cover_shortfall(db, h, actor_id)
         elif response == "accept":
             recovery.confirm_quantity(db, h, actor_id, into=into)
@@ -414,7 +426,8 @@ async def create_order(
     # änderbar. Es gibt damit EINEN Weg, einen Auftrag anzulegen; ob daraus eine Abweichung
     # wird, sagt die Auswahl (``subject.classify_pick``), nicht der Einstieg.
     if data.instance_object_ids:
-        _set_chosen_instances(db, order, data.instance_object_ids, None, current_user.id)
+        _set_chosen_instances(db, order, data.instance_object_ids, None, current_user.id,
+                              data.instance_quantities)
     log_audit(db, "orders", None, "Auftrag angelegt",
               current_user.id, object_id=order.object_id)
     db.commit()
