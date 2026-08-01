@@ -305,7 +305,11 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   const demandValid = isMultiPosition || (!!form.article_id && qtyNum != null && qtyNum > 0);
   const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
   const sig = demandSig(form.article_id, form.quantity, effectiveDate);
-  const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
+  // **Im Entwurf gibt es nichts zu speichern** – das Formular IST der Auftrag (#386).
+  // Darum kein Auto-Save (der ist der Weg zum Server), sondern ein Übernehmen ohne
+  // Verzögerung: sonst wäre «Freigeben» nach dem letzten Tastendruck noch Sekunden lang
+  // gesperrt, und die Instanz-Auswahl kennte den Artikel noch nicht.
+  const canSave = !isCreate && demandEditable && demandValid && sig !== savedSig && !saving;
   // Bestands-Operation? – NICHT die blosse Schrittzahl, sondern die **deklarierte Subjekt-Rolle**
   // der Schritte (Beschaffung/Ressource bringen Bestand herein = Herstellung; Verkauf/Bewegung
   // wirken auf vorhandenen Bestand). Live über ProcessSteps (`isStockOp`, Spiegel der Backend-
@@ -484,7 +488,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     ? (subOrderReady ? undefined : (isSupply ? 'Erst einen Prozessschritt für den Nachschub hinzufügen' : isReturn ? 'Erst einen Prozessschritt für die Retoure hinzufügen' : 'Erst einen Prozessschritt für die Abweichung hinzufügen'))
     : (!specificComplete
       ? (isMultiPosition ? 'Erst für jede Position die passenden Instanzen wählen' : `Erst genau ${reqQty} Instanz(en) wählen`)
-      : 'Erst Artikel und Menge speichern');
+      : 'Erst Artikel und Menge angeben');
 
   // **Die Auswahl fragt nichts mehr** (Notiz #370): ein Entwurf nimmt niemandem etwas weg –
   // er merkt nur vor. Die Frage «was geschieht mit dem laufenden Auftrag?» steht bei der
@@ -630,6 +634,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   }
 
   const flush = useAutosave(sig, canSave, save);
+
+  // Der Entwurfs-Gegenpart: jede vollständige Eingabe wandert sofort in den Entwurf.
+  useEffect(() => {
+    if (isCreate && demandValid && sig !== savedSig) save();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCreate, demandValid, sig, savedSig]);
 
   // Nach Abschluss eines Prozessschritts automatisch zum nächsten aktiven springen
   function afterStep(o: Order) {
@@ -787,7 +797,8 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         }
         status={orderStatus(isCreate ? { status: 'draft' } : record)}
         right={<>
-          {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
+          {/* Nur beim gespeicherten Auftrag: im Entwurf wird nichts gespeichert (#386). */}
+          {demandEditable && !isCreate && <SaveIndicator saving={saving} flash={flash} />}
           {/* Anlage abbrechen – eine Aktion, also bei den Aktionen (früher im Footer). */}
           {isCreate && (
             <button type="button" onClick={onCancel} className="erp-actbtn erp-actbtn-neutral"
