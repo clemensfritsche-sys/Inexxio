@@ -13,7 +13,7 @@ from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.shipment import ShipmentBuyRequest, ShipmentQuoteRequest, ShipmentUpdate
 from ..schemas.order import (
-    OrderCoverStock, OrderCreate, OrderLineCreate, OrderLinePins,
+    AffectedOrder, OrderCoverStock, OrderCreate, OrderLineCreate, OrderLinePins,
     OrderResponse, OrderSummary, OrderUpdate,
 )
 from ..schemas.purchase_order import PurchaseOrderUpdate
@@ -29,7 +29,6 @@ from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services import logistics
 from ..services.movement import record_movement
 from ..services.scrap import record_block, record_scrap
-from ..services.objects import next_object_id
 from ..services.orders import release_order, to_order_response, to_order_summaries, visible_orders
 from ..services.purchase import apply_update_bulk as apply_purchase_update_bulk, instantiate_for_order as instantiate_purchase
 from ..services.quantity import qty_sum, to_qty
@@ -189,7 +188,7 @@ def _holders_of(db: Session, insts: list[Instance], order: Order | None) -> list
     return out
 
 
-def _assert_answered(response: str | None, holders: list[Order]) -> None:
+def _assert_answered(db: Session, response: str | None, holders: list[Order]) -> None:
     """Ohne Entscheid geht es nicht weiter – gefragt wird bei der **Freigabe**.
 
     Vorher stand die Frage schon beim Auswählen. Das war zu früh (Testnotiz #370): danach
@@ -201,11 +200,34 @@ def _assert_answered(response: str | None, holders: list[Order]) -> None:
         return
     raise HTTPException(
         409,
-        detail="Diese Instanzen sind in Arbeit – der laufende Auftrag "
-               + ", ".join(str(h.object_id) for h in holders)
-               + " verliert sie dadurch. Bitte entscheiden, wie es dort weitergeht: "
-                 "warten · ersetzen · ohne Ersatz weiter.",
+        detail={
+            "code": "shortfall_decision_required",
+            # Der Text bleibt lesbar (Log, ältere Clients); die Liste ist das, womit die
+            # Oberfläche die Frage stellt – sie kennt den Entwurf nicht mehr als Datensatz
+            # (Notiz #386), also muss der Fehler selbst sagen, wen es trifft.
+            "message": "Diese Instanzen sind in Arbeit – der laufende Auftrag "
+                       + ", ".join(str(h.object_id) for h in holders)
+                       + " verliert sie dadurch. Bitte entscheiden, wie es dort weitergeht: "
+                         "warten · ersetzen · ohne Ersatz weiter.",
+            "affects": [a.model_dump() for a in _affected_of(db, holders)],
+        },
     )
+
+
+def _affected_of(db: Session, holders: list[Order]) -> list[AffectedOrder]:
+    """Die betroffenen Aufträge als Datensatz-Zeilen für die Frage (Notiz #387)."""
+    from ..services.orders import order_display_name
+    arts = {a.id: a.name for a in db.query(Article).filter(
+        Article.id.in_({h.article_id for h in holders if h.article_id})).all()} if holders else {}
+    return [
+        AffectedOrder(
+            object_id=h.object_id, name=order_display_name(h, arts.get(h.article_id)),
+            reason=h.reason, article_name=arts.get(h.article_id),
+            quantity=float(to_qty(h.quantity or 0)),
+            needs_decision=not subject.is_fixed_subject(h),
+        )
+        for h in holders if h.object_id
+    ]
 
 
 def _enforce_claims(db: Session, order: Order, response: str | None,
@@ -233,7 +255,7 @@ def _enforce_claims(db: Session, order: Order, response: str | None,
     # Ein festes Subjekt (Abweichung/Retoure/Bereitstellung) schrumpft lautlos mit und wird
     # gegenstandslos, wenn nichts bleibt – siehe ``_apply_shortfall_answer`` (Notiz #388).
     if any(not subject.is_fixed_subject(h) for h in holders):
-        _assert_answered(response, holders)
+        _assert_answered(db, response, holders)
     return holders
 
 
@@ -402,8 +424,17 @@ async def create_order(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
+    """**Auftrag erteilen** – anlegen und freigeben in EINEM Aufruf (Testnotiz #386).
+
+    Alles, was der Entwurf im Browser gesammelt hat, kommt hier zusammen an: Artikel +
+    Menge, weitere Positionen, der auftragseigene Ablauf, die Instanz-Auswahl und – falls
+    die Auswahl einem laufenden Auftrag etwas wegnimmt – die Antwort darauf. Erst danach
+    bekommt der Auftrag seine **Objektnummer** (in ``release_order``).
+
+    Scheitert irgendetwas, wird die Transaktion verworfen: kein halber Auftrag, keine
+    verbrauchte Nummer. Ein Entwurf existiert damit **nie** in der Datenbank – «freigegeben
+    oder es hat ihn nie gegeben»."""
     order = Order(
-        object_id=next_object_id(db, "order"),
         status="draft",
         desired_delivery_date=data.desired_delivery_date,
         recurrence_active=bool(data.recurrence_active),
@@ -412,9 +443,8 @@ async def create_order(
         recurrence_anchor=data.recurrence_anchor,
     )
     # Anker ist IMMER der Artikel + Menge. Was damit geschieht (Erzeugung vs. Operation
-    # am Bestand, FIFO/fixiert) ergibt sich aus dem Ablauf, der danach im Entwurf
-    # definiert wird – nicht aus der Anlage. Weitere Artikel lassen sich jederzeit über
-    # POST .../lines ergänzen (Mehrpositionen – siehe unten).
+    # am Bestand, FIFO/fixiert) ergibt sich aus dem **Ablauf**, der mitgeliefert wird –
+    # nicht aus der Anlage.
     _validate_article(db, data.article_id)             # nur freigegebene Artikel
     _assert_quantity_serialization(db, data.article_id, data.quantity)  # unit → ganze Zahl
     order.article_id = data.article_id
@@ -422,13 +452,26 @@ async def create_order(
     db.add(order)
     db.flush()
     # **Vorauswahl statt Fixierung** (Testnotiz #371): kommt der Auftrag über den Abkürzungs-
-    # Knopf einer Instanz, ist sie hier schon eingetragen – wie von Hand gewählt, danach frei
-    # änderbar. Es gibt damit EINEN Weg, einen Auftrag anzulegen; ob daraus eine Abweichung
-    # wird, sagt die Auswahl (``subject.classify_pick``), nicht der Einstieg.
+    # Knopf einer Instanz, ist sie hier schon eingetragen – wie von Hand gewählt. Ob daraus
+    # eine Abweichung wird, sagt die Auswahl (``subject.classify_pick``), nicht der Einstieg.
+    # Sie wird gesetzt, solange der Artikel noch der **Anker** ist: die erste zusätzliche
+    # Position wandelt ihn gleich in Position 0 um (Bindung/Anspruch bleiben unberührt).
     if data.instance_object_ids:
-        _set_chosen_instances(db, order, data.instance_object_ids, None, current_user.id,
-                              data.instance_quantities)
-    log_audit(db, "orders", None, "Auftrag angelegt",
+        _set_chosen_instances(db, order, data.instance_object_ids, data.shortfall_response,
+                              current_user.id, data.instance_quantities)
+    # Weitere Positionen (Mehrpositionen-Auftrag) – derselbe Dienst wie der Einzel-Endpunkt,
+    # jede Position mitsamt ihrer eigenen Instanz-Auswahl.
+    for line in data.lines or []:
+        _add_line(db, order, line, current_user.id)
+    # Der auftragseigene Ablauf – über denselben EINEN Weg wie der Schritt-Editor
+    # (``article_process._create``): gleiche Prüfungen, gleiche Normalisierung.
+    if data.steps:
+        from .article_process import _create as create_step, _order_owner_for
+        owner = _order_owner_for(order)
+        for step in data.steps:
+            create_step(db, owner, step, current_user)
+    _do_release(db, order, data.shortfall_response, current_user.id)
+    log_audit(db, "orders", None, "Auftrag erteilt",
               current_user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)
@@ -450,6 +493,15 @@ async def add_order_line(
     order = _get_staff_order(db, object_id)
     if order.status != "draft":
         raise HTTPException(400, detail="Weitere Positionen sind nur im Entwurf möglich")
+    _add_line(db, order, data, current_user.id)
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+def _add_line(db: Session, order: Order, data: OrderLineCreate, actor_id: int | None) -> None:
+    """**Eine weitere Position** – die EINE Implementierung, geteilt von der Auftrags-Anlage
+    (alle Positionen auf einmal) und dem Einzel-Endpunkt. Committet NICHT."""
     _validate_article(db, data.article_id)
     _assert_quantity_serialization(db, data.article_id, data.quantity)  # unit → ganze Zahl
     existing_lines = order_lines_svc.lines_for(db, order)
@@ -491,10 +543,12 @@ async def add_order_line(
     new_art = db.query(Article).filter(Article.id == data.article_id).first()
     log_audit(db, "orders", None,
               f"Position hinzugefügt ({data.quantity}× Artikel {new_art.object_id if new_art else data.article_id})",
-              current_user.id, object_id=order.object_id)
-    db.commit()
-    db.refresh(order)
-    return to_order_response(db, order)
+              actor_id, object_id=order.object_id)
+    # Bringt die Position ihre Auswahl mit («Instanz wählen» statt FIFO), gilt derselbe
+    # Weg wie beim nachträglichen ``PATCH .../lines/{id}`` – eine Implementierung.
+    if data.instance_object_ids:
+        _pin_line_instances(db, order, data.article_id, data.quantity,
+                            data.instance_object_ids, data.instance_quantities)
 
 
 @router.delete("/{object_id}/lines/{line_id}", response_model=OrderResponse)

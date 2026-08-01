@@ -8,6 +8,7 @@ import { formatObjectId, userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
+import { apiStepStore, type StepStore } from '@/lib/step-store';
 import { ErrorText, IconSwitch, InfoHint, Label, PaletteButton, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
 
 import { ObjId } from '@/components/erp/obj-id';
@@ -51,14 +52,25 @@ const STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement'
 // «Sperren» ist kein eigener Palette-Eintrag mehr: es ist die zweite Wirkung desselben
 // Moduls «Aussondern» und wird IM Editor gewählt (Notiz #277).
 
-export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = false, onStepsCount, selfArticleObjectId = null }: {
+export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], readOnly = false, onStepsCount, selfArticleObjectId = null }: {
   owner: 'articles' | 'orders';          // Prozess am Artikel (Entstehung) oder am Auftrag (CUSTOM)
   ownerObjectId: number | null;          // Objektnummer des Trägers
+  /** **Woher die Schritte kommen** – ohne Angabe die API des Trägers. Ein Auftrags-Entwurf
+   *  reicht hier seinen Browser-Speicher herein: ihn gibt es in der Datenbank noch nicht
+   *  (Testnotiz #386), der Editor ist trotzdem derselbe. */
+  store?: StepStore;
   suppliers?: UserProfile[];             // Auswahl der Bezugsquelle direkt im Beschaffungs-Schritt
   readOnly?: boolean;
   onStepsCount?: (n: number, isStockOp: boolean) => void;
   selfArticleObjectId?: number | null;   // Artikel des Trägers (Ressource-Selbst-Ausschluss)
 }) {
+  // **Der Speicher, nicht die Komponente, weiss wohin geschrieben wird.** Ohne `store`
+  // (der Normalfall) ist es die API des Trägers; ein Auftrags-Entwurf reicht seinen
+  // Browser-Speicher herein. `null` = noch kein Träger → der Editor ruht.
+  const repo = useMemo<StepStore | null>(
+    () => store ?? (ownerObjectId != null ? apiStepStore(owner, ownerObjectId) : null),
+    [store, owner, ownerObjectId],
+  );
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState<StepType | null>(null);   // null = Palette offen
@@ -83,14 +95,15 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   const [over, setOver] = useState<number | null>(null);
 
   useEffect(() => {
-    if (ownerObjectId == null) return;
+    if (!repo) return;
     setLoading(true);
-    api.getSteps(owner, ownerObjectId!).then(setSteps).catch(() => {}).finally(() => setLoading(false));
+    repo.list().then(setSteps).catch(() => {}).finally(() => setLoading(false));
     // Das Unternehmen («im Betrieb») für den editierbaren Wareneingang-Zielselektor
     api.getPublicSettings()
       .then((c) => { if (c.object_id != null) setCompany({ objectId: c.object_id, name: c.company_name || 'Im Betrieb' }); })
       .catch(() => {});
-  }, [owner, ownerObjectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner, ownerObjectId, store]);
 
   // Schrittanzahl + abgeleitete Auftragsart (Bestands-Operation vs. Herstellung) an das
   // Elternfenster melden – Letzteres über die deklarierte Subjekt-Rolle der Schritte
@@ -151,7 +164,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     api.getInstances().then(setAllInstances).catch(() => {});
   }, [adding]);
 
-  if (ownerObjectId == null) {
+  if (!repo) {
     return (
       <div style={noticeStyle}>
         <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -169,7 +182,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   // Nach Strukturänderungen die kanonische Liste neu laden (inkl. einer beim Anlegen
   // gesäten Begleit-Bewegung + serverseitiger Positionen).
   async function reload() {
-    try { setSteps(await api.getSteps(owner, ownerObjectId!)); } catch { /* ignore */ }
+    try { setSteps(await repo!.list()); } catch { /* ignore */ }
   }
 
   // Rolle einer gesäten Begleit-Bewegung: Versand zum Kunden (mode=customer) oder
@@ -183,7 +196,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   async function setLockedTarget(stepId: number, value: string) {
     const tgt = value ? value.split(':') : null;
     try {
-      const updated = await api.updateStep(owner, ownerObjectId!, stepId, {
+      const updated = await repo!.update(stepId, {
         target_location_type: tgt ? (tgt[0] as LocationType) : null,
         target_location_id: tgt ? Number(tgt[1]) : null,
       });
@@ -239,7 +252,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
-      await api.createStep(owner, ownerObjectId!, {
+      await repo!.create({
         step_type: type,
         // Bezugsquelle direkt am Schritt.
         mode: type === 'purchase' ? mode : undefined,
@@ -271,7 +284,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
 
   async function removeStep(stepId: number) {
     try {
-      await api.deleteStep(owner, ownerObjectId!, stepId);
+      await repo!.remove(stepId);
       // Entfernt eine Beschaffung evtl. zugehörige Pflicht-Bewegungen → neu laden.
       await reload();
     } catch { /* ignore */ }
@@ -286,7 +299,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     // ALLE Schritte sind frei sortierbar – auch die gesäten Begleit-Bewegungen. Früher
     // wurden sie hier ausgefiltert und vom Server automatisch neu positioniert.
     const ids = orderedFull.map((s) => s.id);
-    try { setSteps(await api.reorderSteps(owner, ownerObjectId!, ids)); }
+    try { setSteps(await repo!.reorder(ids)); }
     catch { reload(); }
   }
 

@@ -21,6 +21,21 @@ import type {
   AuthenticationResponseJSON,
 } from '@simplewebauthn/browser';
 
+/**
+ * Ein Fehler der API – mit **Status** und dem rohen `detail`. `message` bleibt der lesbare
+ * Text (jede bestehende Aufrufstelle liest ihn unverändert weiter).
+ */
+export class ApiError extends Error {
+  status: number;
+  detail?: unknown;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 class ApiClient {
@@ -103,9 +118,22 @@ class ApiClient {
         await this.backoff(attempt);
         continue;
       }
-      throw new Error(await this.errorMessage(response));
+      throw await this.apiError(response);
     }
     throw lastError;
+  }
+
+  /**
+   * Fehler mit **Struktur**: die Meldung bleibt der `Error.message` (jede Aufrufstelle liest
+   * ihn unverändert), das JSON-`detail` hängt zusätzlich daran. Gebraucht dort, wo die
+   * Oberfläche mit dem Fehler weiterarbeitet statt ihn nur anzuzeigen – etwa bei der
+   * Unterdeckungs-Frage, die die betroffenen Aufträge benennt (Notizen #386/#387).
+   */
+  private async apiError(response: Response): Promise<ApiError> {
+    const body = (await response.clone().json().catch(() => null)) as { detail?: unknown } | null;
+    const err = new ApiError(await this.errorMessage(response), response.status) ;
+    err.detail = body?.detail;
+    return err;
   }
 
   private backoff(attempt: number): Promise<void> {
@@ -115,10 +143,14 @@ class ApiClient {
   // Fehlermeldung aufbereiten: bevorzugt das JSON-`detail` der API, sonst der
   // echte HTTP-Status (statt eines undurchsichtigen «Netzwerkfehler»).
   private async errorMessage(response: Response): Promise<string> {
-    const body = (await response.json().catch(() => null)) as
+    const body = (await response.clone().json().catch(() => null)) as
       { detail?: unknown; error?: string } | null;
     const detail = body?.detail;
     if (typeof detail === 'string') return detail;
+    // Strukturiertes Detail: die lesbare Meldung steckt unter `message`.
+    if (detail && typeof detail === 'object' && typeof (detail as { message?: unknown }).message === 'string') {
+      return (detail as { message: string }).message;
+    }
     if (Array.isArray(detail)) {
       return detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ');
     }
@@ -395,7 +427,7 @@ class ApiClient {
     const headers: Record<string, string> = {};
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const res = await fetch(`${API_BASE}${path}`, { headers });
-    if (!res.ok) throw new Error(await this.errorMessage(res));
+    if (!res.ok) throw await this.apiError(res);
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement('a');
     a.href = url;
@@ -429,7 +461,7 @@ class ApiClient {
     form.append('file', file);
     if (contextObjectId != null) form.append('context_object_id', String(contextObjectId));
     const res = await fetch(`${API_BASE}/api/v1/ai/documents/analyze`, { method: 'POST', headers, body: form });
-    if (!res.ok) throw new Error(await this.errorMessage(res));
+    if (!res.ok) throw await this.apiError(res);
     return res.json();
   }
 
@@ -455,7 +487,7 @@ class ApiClient {
     const headers: Record<string, string> = {};
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const res = await fetch(`${API_BASE}${downloadPath}`, { headers });
-    if (!res.ok) throw new Error(await this.errorMessage(res));
+    if (!res.ok) throw await this.apiError(res);
     const blob = await res.blob();
     return { url: URL.createObjectURL(blob), mime: blob.type || 'application/octet-stream' };
   }
@@ -472,7 +504,7 @@ class ApiClient {
     const form = new FormData();
     form.append('file', file);
     const res = await fetch(`${API_BASE}/api/v1/erp/attachments`, { method: 'POST', headers, body: form });
-    if (!res.ok) throw new Error(await this.errorMessage(res));
+    if (!res.ok) throw await this.apiError(res);
     return res.json();
   }
 

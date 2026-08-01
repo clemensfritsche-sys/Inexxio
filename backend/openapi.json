@@ -2626,6 +2626,7 @@
           "orders"
         ],
         "summary": "Create Order",
+        "description": "**Auftrag erteilen** – anlegen und freigeben in EINEM Aufruf (Testnotiz #386).\n\nAlles, was der Entwurf im Browser gesammelt hat, kommt hier zusammen an: Artikel +\nMenge, weitere Positionen, der auftragseigene Ablauf, die Instanz-Auswahl und – falls\ndie Auswahl einem laufenden Auftrag etwas wegnimmt – die Antwort darauf. Erst danach\nbekommt der Auftrag seine **Objektnummer** (in ``release_order``).\n\nScheitert irgendetwas, wird die Transaktion verworfen: kein halber Auftrag, keine\nverbrauchte Nummer. Ein Entwurf existiert damit **nie** in der Datenbank – «freigegeben\noder es hat ihn nie gegeben».",
         "operationId": "create_order_api_v1_erp_orders_post",
         "security": [
           {
@@ -12212,6 +12213,45 @@
             ],
             "title": "Instance Quantities"
           },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OrderLineCreate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lines"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ArticleProcessStepCreate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "shortfall_response": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortfall Response"
+          },
           "desired_delivery_date": {
             "anyOf": [
               {
@@ -12276,7 +12316,7 @@
           "quantity"
         ],
         "title": "OrderCreate",
-        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\n\nAnker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,\nder danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);\neigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,\noptional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.\n\nWeitere Artikel lassen sich danach jederzeit über ``POST .../lines`` ergänzen (Mehr-\npositionen-Auftrag – „Aus Lager\"/„Instanz wählen\" über mehrere Artikel; „Herstellen\"\nist dann nicht mehr möglich, siehe ``services/order_lines.py``)."
+        "description": "**Auftrag erteilen** – Anlage UND Freigabe in EINEM Aufruf.\n\nEin Auftrag entsteht **als Ganzes oder gar nicht**: Artikel, Menge, Positionen, der\nAblauf und die Instanz-Auswahl kommen zusammen an, und erst hier bekommt er seine\n**Objektnummer**. Vorher entstand er beim Tippen (Auto-Save) und wartete als Entwurf –\nwer es sich anders überlegte, hinterliess einen nummernlosen Datensatz im System\n(Testnotiz #386). Jetzt gilt: freigegeben oder es hat ihn nie gegeben. Der Entwurf lebt\nbis dahin im Browser; er wird **nicht** zwischengespeichert.\n\nScheitert irgendeine Prüfung (fehlende Bezugsquelle, Unterdeckung ohne Antwort, …),\nwird NICHTS angelegt – auch keine Objektnummer verbraucht.\n\nAnker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,\nder danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);\neigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,\noptional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.\n\nWeitere Artikel lassen sich danach jederzeit über ``POST .../lines`` ergänzen (Mehr-\npositionen-Auftrag – „Aus Lager\"/„Instanz wählen\" über mehrere Artikel; „Herstellen\"\nist dann nicht mehr möglich, siehe ``services/order_lines.py``)."
       },
       "OrderDeviationInfo": {
         "properties": {
@@ -12346,6 +12386,34 @@
           "quantity": {
             "type": "number",
             "title": "Quantity"
+          },
+          "instance_object_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Object Ids"
+          },
+          "instance_quantities": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Quantities"
           }
         },
         "type": "object",
@@ -12354,7 +12422,7 @@
           "quantity"
         ],
         "title": "OrderLineCreate",
-        "description": "Eine weitere Position zu einem **bestehenden** Auftrag hinzufügen (``POST\n.../lines``) – macht ihn (falls noch nicht) zu einem Mehrpositionen-Auftrag. Nur im\nEntwurf möglich; „Herstellen\" scheidet dann aus (siehe ``services/order_lines.py``)."
+        "description": "Eine weitere Position – beim Erteilen (``POST /orders``) oder an einem bestehenden\nAuftrag (``POST .../lines``). Macht ihn (falls noch nicht) zu einem Mehrpositionen-\nAuftrag; nur im Entwurf möglich, „Herstellen\" scheidet dann aus (siehe\n``services/order_lines.py``)."
       },
       "OrderLineInfo": {
         "properties": {

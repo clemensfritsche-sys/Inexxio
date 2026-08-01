@@ -1858,19 +1858,32 @@ def test_company_object_id_assigned_at_startup_and_exposed_public():
 
 # ─── Mehrpositionen-Aufträge (order_lines) + Verkaufs-Herkunft/Zahlungsart ─────────
 
-def test_order_create_is_single_article_unchanged():
-    """Die Auftragsanlage (``POST /erp/orders``) bleibt GENAU wie zuvor: Artikel + Menge,
-    beide Pflicht – keine Mehrpositionen-Sonderfelder. Weitere Artikel kommen ausschliesslich
-    über den EIGENEN Endpunkt ``POST .../lines`` dazu (auch nach dem ersten Speichern), damit
-    das normale Anlegen (inkl. Autosave) nicht verändert/blockiert wird."""
+def test_an_order_is_created_as_a_whole_or_not_at_all():
+    """**Ein Auftrag entsteht als Ganzes – oder gar nicht** (Testnotiz #386).
+
+    ``POST /erp/orders`` nimmt alles entgegen, was der Entwurf im Browser gesammelt hat:
+    Artikel + Menge (Pflicht wie eh und je), weitere **Positionen**, den auftragseigenen
+    **Ablauf**, die **Instanz-Auswahl** und die Antwort auf eine ausgelöste Unterdeckung –
+    und gibt ihn im selben Aufruf frei. Erst dort bekommt er seine **Objektnummer**.
+
+    Vorher entstand er beim Tippen (Auto-Save) und wartete als Entwurf; wer es sich anders
+    überlegte, hinterliess eine nummernlose Leiche im System."""
     import pytest as _pytest
     from pydantic import ValidationError
     from app.schemas.order import OrderCreate
 
     with _pytest.raises(ValidationError):
         OrderCreate()   # Artikel + Menge sind Pflicht wie eh und je
-    assert OrderCreate(article_id=1, quantity=2).quantity == 2
-    assert not hasattr(OrderCreate(article_id=1, quantity=2), "lines")
+    order = OrderCreate(article_id=1, quantity=2)
+    assert order.quantity == 2
+    for field in ("lines", "steps", "instance_object_ids", "instance_quantities",
+                  "shortfall_response"):
+        assert field in OrderCreate.model_fields, field
+    # Auch eine **Position** bringt ihre Auswahl mit – sonst ginge sie beim Erteilen
+    # verloren (der zweite Aufruf, den es hier nicht mehr gibt).
+    from app.schemas.order import OrderLineCreate
+    for field in ("instance_object_ids", "instance_quantities"):
+        assert field in OrderLineCreate.model_fields, field
 
 
 def test_add_order_line_endpoint_exists_and_converts_anchor():
@@ -1882,8 +1895,10 @@ def test_add_order_line_endpoint_exists_and_converts_anchor():
     import inspect as _inspect
     from app.routers import orders as orders_router
 
-    src = _inspect.getsource(orders_router.add_order_line)
-    assert 'order.status != "draft"' in src   # nur im Entwurf, aber KEIN "nur beim Anlegen"
+    # Der Entwurfs-Schutz sitzt am Endpunkt; die Auftrags-Anlage teilt sich mit ihm die
+    # EINE Implementierung ``_add_line`` (sie kommt ohnehin nur aus dem Entwurf).
+    assert 'order.status != "draft"' in _inspect.getsource(orders_router.add_order_line)
+    src = _inspect.getsource(orders_router._add_line)
     assert "OrderLine(order_id=order.id, article_id=order.article_id" in src   # Anker -> Position 0
     assert "order.article_id = None" in src and "order.quantity = None" in src
     assert "next_pos" in src   # neue Position wird angehängt, nicht überschrieben
@@ -1896,7 +1911,7 @@ def test_pooled_orders_reuse_generic_step_editor():
     import inspect as _inspect
     from app.routers import orders as orders_router
 
-    add_src = _inspect.getsource(orders_router.add_order_line)
+    add_src = _inspect.getsource(orders_router._add_line)
     assert "ArticleProcessStep(" not in add_src   # legt KEINE Schritte automatisch an
 
 
@@ -2097,7 +2112,7 @@ def test_subscription_mixing_check_moved_to_sale_step_creation():
     import inspect as _inspect
     from app.routers import article_process, orders as orders_router
 
-    add_src = _inspect.getsource(orders_router.add_order_line)
+    add_src = _inspect.getsource(orders_router._add_line)
     assert "assert_sale_compatible" in add_src
     assert 'process.has_step(db, order, "sale")' in add_src   # nur relevant, wenn Sales existiert
 
@@ -3528,7 +3543,7 @@ def test_the_shortfall_question_comes_at_release_not_at_the_pick():
     # Die Auswahl fragt NICHT mehr …
     assert "_assert_answered" not in _inspect.getsource(orders._make_deviation)
     # … die Freigabe schon.
-    assert "_assert_answered(response, holders)" in _inspect.getsource(orders._enforce_claims)
+    assert "_assert_answered(db, response, holders)" in _inspect.getsource(orders._enforce_claims)
     # Scharf wird der Anspruch in der Freigabe selbst – damit auch die systemseitig
     # angelegte Abweichung (Datenerfassung/Deaktivierung) ihn durchsetzt, nicht nur der
     # Weg über den Router.

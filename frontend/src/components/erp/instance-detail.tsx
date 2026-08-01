@@ -14,6 +14,7 @@ import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { LocationPathCard } from '@/components/erp/location-path';
+import type { OrderSeed } from '@/components/erp/order-detail';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { TileShell, TILE, DetailHeader, HeaderSep } from '@/components/erp/fields';
@@ -36,17 +37,19 @@ import { isPending } from '@/lib/status-flow';
  * gibt es daher nur die «Abweichung melden»-Abkürzung (ein Unter-Auftrag).
  * Design: Inexxio Design System (Instanz-Detail-Redesign).
  */
-export function InstanceDetail({ record, onBack, onChanged }: {
+export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
   record: Instance;
   onBack: () => void;
-  onChanged?: () => void;   // Feed/Listen aktualisieren (z. B. nach Anlage einer Abweichung)
+  onChanged?: () => void;   // Feed/Listen aktualisieren (z. B. nach Aufheben einer Sperre)
+  /** Anlage-Fenster mit dieser Instanz vorgewählt öffnen (der Auftrag entsteht erst mit
+   *  der Freigabe, #386). */
+  onCreateOrder?: (seed: OrderSeed) => void;
 }) {
   const inst = record;
   const nav = useErpNav();
   const [orders, setOrders] = useState<InstanceOrderRef[] | null>(null);
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');   // Aufträge: neueste ↔ älteste zuerst
   const [devErr, setDevErr] = useState<string | null>(null);
-  const [orderBusy, setOrderBusy] = useState(false);
   const [tab, setTab] = useState<InstTab>('spec');
   // Ist diese Instanz ein erstelltes Dokument, IST sie dieses Dokument – wir zeigen den
   // Inhalt direkt in der Spezifikation (die «Essenz» dieser digitalen Instanz).
@@ -127,27 +130,18 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   // wird dieselbe Badge, die daneben steht – nicht die Regel nachgebaut (Notiz #380).
   const willDeviate = canOrderInstance && isPending(status);
 
-  async function createOrderShortcut() {
-    if (!canOrderInstance || inst.object_id == null || inst.article_id == null || orderBusy) return;
-    setOrderBusy(true);
-    setDevErr(null);
-    try {
-      // **Immer EIN Stück vorwählen** (Testnotiz #385): der Shortcut ist eine Eingabehilfe,
-      // kein Vorgriff auf die Menge. Von einer Charge à 500 will man fast nie alle 500
-      // behandeln – und die Menge lässt sich im Entwurf ohnehin frei ändern (auch nach
-      // oben, bis zur vollen Instanz-Menge).
-      const order = await api.createOrder({
-        article_id: inst.article_id, quantity: 1, instance_object_ids: [inst.object_id],
-        instance_quantities: { [String(inst.object_id)]: 1 } });
-      if (order.object_id != null) {
-        onChanged?.();
-        nav?.(order.object_id);
-      }
-    } catch (e) {
-      setDevErr(e instanceof Error ? e.message : 'Auftrag konnte nicht angelegt werden');
-    } finally {
-      setOrderBusy(false);
-    }
+  // **Der Knopf legt nichts an – er öffnet das Anlage-Fenster mit dieser Instanz vorgewählt**
+  // (Testnotiz #386): einen Auftrag gibt es erst mit der Freigabe. Wer es sich anders
+  // überlegt, klickt weg und es bleibt nichts zurück.
+  //
+  // **Immer EIN Stück vorwählen** (Testnotiz #385): der Shortcut ist eine Eingabehilfe,
+  // kein Vorgriff auf die Menge. Von einer Charge à 500 will man fast nie alle 500
+  // behandeln – und die Menge lässt sich im Entwurf ohnehin frei ändern (auch nach oben,
+  // bis zur vollen Instanz-Menge).
+  function createOrderShortcut() {
+    if (!canOrderInstance || inst.object_id == null || inst.article_id == null) return;
+    onCreateOrder?.({ articleId: inst.article_id, quantity: 1,
+                      instance: { objectId: inst.object_id, quantity: 1 } });
   }
 
   return (
@@ -177,9 +171,9 @@ export function InstanceDetail({ record, onBack, onChanged }: {
                 ? 'Abweichungsauftrag anlegen – diese Instanz ist gebunden und darin vorgewählt'
                 : 'Auftrag anlegen – diese Instanz ist darin vorgewählt (bewegen, prüfen, aussondern, verkaufen …)'}
             aria-label="Auftrag anlegen"
-            disabled={!canOrderInstance || orderBusy}
+            disabled={!canOrderInstance}
             onClick={createOrderShortcut}>
-            {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
+            <ClipboardPlus size={15} />
           </button>
           {/* Sperre aufheben – nur wenn gesperrt. Bewusst eine Aktion an der Instanz
               (kein Prozessschritt): eine Maschine kommt aus der Wartung zurück, ohne

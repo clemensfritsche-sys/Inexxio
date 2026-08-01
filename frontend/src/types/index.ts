@@ -276,6 +276,9 @@ export type OrderDeviationInfo = components['schemas']['OrderDeviationInfo'];
 export interface OrderLineCreateInput {
   article_id: number;
   quantity: number;
+  /** «Instanz wählen» statt FIFO – die Position bringt ihre Auswahl gleich mit (#386). */
+  instance_object_ids?: number[] | null;
+  instance_quantities?: Record<string, number> | null;
 }
 // Fixierte Instanzen EINER Position statt FIFO (PATCH .../lines/{line_id}).
 export interface OrderLinePinsInput {
@@ -284,6 +287,11 @@ export interface OrderLinePinsInput {
   instance_quantities?: Record<string, number>;
 }
 
+/**
+ * **Ein Auftrag entsteht als Ganzes** (Testnotiz #386): der Entwurf lebt im Browser, und
+ * beim Erteilen kommt alles auf einmal – Bedarf, Positionen, Ablauf und Auswahl. Erst
+ * dann bekommt er seine Objektnummer.
+ */
 export interface OrderInput extends OrderRecurrenceInput {
   article_id?: number | null;
   quantity?: number | null;
@@ -293,6 +301,12 @@ export interface OrderInput extends OrderRecurrenceInput {
   /** Beanspruchte Teilmenge je Instanz – der Shortcut wählt immer EIN Stück vor (#385). */
   instance_quantities?: Record<string, number> | null;
   desired_delivery_date?: string | null;
+  /** Weitere Positionen (der Anker oben ist Position 0) – je mit eigener Auswahl. */
+  lines?: OrderLineCreateInput[] | null;
+  /** Der auftragseigene Ablauf – derselbe Editor, nur noch nicht gespeichert. */
+  steps?: ArticleProcessStepInput[] | null;
+  /** Antwort auf eine Unterdeckung, die die Auswahl bei einem laufenden Auftrag auslöst. */
+  shortfall_response?: 'wait' | 'replace' | 'accept' | null;
 }
 
 export type OrderUpdateInput = OrderRecurrenceInput & {

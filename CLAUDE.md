@@ -3124,12 +3124,41 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Wächter: `test_a_fixed_subject_order_is_never_asked_for_a_shortfall_answer`,
   `test_clarification_counts_every_open_deviation_not_just_the_last_pointer`,
   `test_a_cleared_foreign_deviation_is_no_longer_shown_as_an_obstacle`.
-  *Offen (#386, Objektnummer erst bei Freigabe): bewusst nur evaluiert – siehe Antwort im
-  Verlauf. Kurz: das ERP adressiert **über** die Objektnummer (Deep-Link `?open=`, Scan,
-  `resolve_object_type`, Eltern-/Abbruch-Zeiger, Audit); ein Entwurf ohne Nummer wäre nicht
-  ansprechbar. Der Nummernkreis ist mit 900 Mio. Nummern kein knappes Gut – das eigentliche
-  Anliegen ist **Systemmüll**, und der wird besser mit «Entwurf verwerfen = wirklich weg»
-  gelöst.*
+
+- **Ein Auftrag entsteht als Ganzes – oder es hat ihn nie gegeben** (Testnotiz #386):
+  Bisher entstand ein Auftrag beim **Tippen**: das Anlage-Fenster speicherte per Auto-Save,
+  sobald Artikel und Menge dastanden, vergab dabei eine Objektnummer und liess einen Entwurf
+  zurück, wenn man es sich anders überlegte. Jetzt gilt: **der Entwurf lebt im Browser**,
+  und die **Freigabe IST die Anlage** – erst dort bekommt er seine Nummer. Wer wegklickt,
+  hat verworfen; es bleibt nichts zurück, schon gar nichts ohne Nummer.
+  **Ein Endpunkt, ein Moment** (`POST /erp/orders`): Bedarf, weitere **Positionen**, der
+  auftragseigene **Ablauf**, die **Instanz-Auswahl** und die Antwort auf eine dadurch
+  ausgelöste Unterdeckung kommen in EINEM Aufruf an; intern laufen sie durch **dieselben**
+  Dienste wie bisher (`_add_line`, `article_process._create`, `_set_chosen_instances`,
+  `_do_release`) – kein zweiter Weg, nur ein anderer Zeitpunkt. Scheitert etwas, wird die
+  Transaktion verworfen: kein halber Auftrag, keine verbrauchte Nummer.
+  **Die Oberfläche merkt davon fast nichts**, weil der Entwurf **dieselbe Form** hat wie ein
+  gespeicherter Auftrag: `record = saved ?? draft`, und alles Weitere liest `record`, ohne
+  zu wissen, woher es kommt. Geschrieben wird je nach Herkunft – in die API oder in den
+  State. Wo bisher ein Formular direkt die API rief, ist der **Speicher** zur Wahl geworden
+  statt der Code verdoppelt: `lib/step-store.ts` (`apiStepStore` ↔ `draftStepStore`, negative
+  Pseudo-ids) hinter EINEM Schritt-Editor, und `RecurrenceCard` bekommt sein `persist` vom
+  Aufrufer. Die Position bringt ihre Auswahl **mit** (`OrderLineCreate.instance_object_ids`)
+  – sonst ginge sie beim Erteilen verloren, weil es den zweiten Aufruf nicht mehr gibt.
+  **Die Abkürzungs-Knöpfe legen nichts mehr an** (Artikel- und Instanz-Detail): sie öffnen
+  dasselbe Fenster **vorbelegt** (`OrderSeed` – Artikel, ein Stück, ggf. die Instanz) und
+  schreiben nichts. Genau sie waren die zweite Anlage-Stelle: sie mussten einen Datensatz
+  erzeugen, um hinspringen zu können.
+  **Die Unterdeckungs-Frage kommt als Code, nicht als Satz:** die 409-Antwort trägt
+  `code: shortfall_decision_required` + `affects` (`ApiError.detail`) – der Entwurf kann sie
+  nicht vorher lesen, es gibt ja keinen Datensatz. Die Oberfläche erkennt sie daran und
+  stellt dieselbe Frage wie am laufenden Auftrag (vorher wurde im Meldungstext nach Wörtern
+  gesucht – eine umformulierte Meldung hätte sie still verschluckt).
+  Wächter: `test_an_order_is_created_as_a_whole_or_not_at_all`,
+  `test_frontend_mirrors.py: test_an_order_is_created_at_exactly_one_place`; gegen echtes
+  PostgreSQL verifiziert (12 Prüfungen: Ablauf/Positionen/FIFO je Position, Anker-Auswahl
+  überlebt die Umwandlung in Position 0, Position bringt ihre eigene mit, 409 nennt die
+  Betroffenen **und es bleibt kein Auftrag zurück**, mit Antwort entsteht die Abweichung).
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

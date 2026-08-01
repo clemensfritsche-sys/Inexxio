@@ -17,7 +17,7 @@ import { DATA_CHANGED_EVENT } from '@/components/ai/assistant';
 import { setOpenRecord } from '@/lib/feedback';
 import { DocumentIngestDialog } from '@/components/erp/object-documents';
 import { ArticleDetail } from '@/components/erp/article-detail';
-import { OrderDetail } from '@/components/erp/order-detail';
+import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
 
@@ -154,6 +154,9 @@ export default function ErpPage() {
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
   const [creating, setCreating] = useState<'article' | 'order' | null>(null);
+  // Vorbelegung des Anlage-Fensters aus einem Abkürzungs-Knopf (Artikel/Instanz). Der
+  // Auftrag entsteht erst mit der Freigabe (#386) – hier steht nur, was schon feststeht.
+  const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
@@ -393,9 +396,10 @@ export default function ErpPage() {
     } catch { /* Objekt nicht gefunden – ignorieren */ }
   }
 
-  function startCreate(type: 'article' | 'order') {
+  function startCreate(type: 'article' | 'order', seed: OrderSeed | null = null) {
     setPlusOpen(false);
     setSel(null);
+    setOrderSeed(seed);
     setCreating(type);
     setMobileView('detail');
   }
@@ -609,13 +613,13 @@ export default function ErpPage() {
             <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {creating === 'order' && (
-            <OrderDetail key="new-order" record={null} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+            <OrderDetail key="new-order" record={null} seed={orderSeed} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {!creating && activeRow?.type === 'user' && (
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'article' && (
-            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCreateOrder={(s) => startCreate('order', s)} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (
@@ -628,6 +632,7 @@ export default function ErpPage() {
           )}
           {!creating && sel?.type === 'instance' && instanceDetail && (
             <InstanceDetail key={`i-${sel.objectId}`} record={instanceDetail} onBack={() => setMobileView('list')}
+              onCreateOrder={(s) => startCreate('order', s)}
               onChanged={() => { api.getOrders().then(setOrders).catch(() => {}); reloadInstances(); }} />
           )}
           {!creating && activeRow?.type === 'organization' && (

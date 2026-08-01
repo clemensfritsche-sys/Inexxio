@@ -76,6 +76,13 @@ def _order_owner(db: Session, object_id: int) -> _Owner:
     return _Owner("order", o)
 
 
+def _order_owner_for(order: Order) -> _Owner:
+    """Owner für einen bereits geladenen Auftrag – gebraucht bei der **Anlage**, wo der
+    Auftrag noch keine Objektnummer hat (die kommt erst mit der Freigabe, Notiz #386).
+    Damit legt die Anlage ihre Schritte über denselben EINEN Weg an wie der Editor."""
+    return _Owner("order", order)
+
+
 # ─── Gemeinsame Helfer ───────────────────────────────────────────────────────────
 
 def _resource_line_views(db: Session, raw_lines: list | None) -> list[ResourceLineView]:

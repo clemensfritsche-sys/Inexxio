@@ -64,6 +64,14 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
         db.expire(order, ["status"])   # Spiegel: nächster Zugriff liest den echten Stand
         return
     order.status = "released"
+    # **Hier – und nur hier – entsteht die Objektnummer** (Testnotiz #386). Ein Auftrag ist
+    # erst mit der Freigabe ein Geschäftsvorfall; vorher lebt der Entwurf im Browser und
+    # verbraucht keine Nummer. Systemseitig angelegte Aufträge (Wiederkehr, Nachschub,
+    # Kunden-Retoure) bringen ihre Nummer schon mit – dann ist das hier ein No-op.
+    if order.object_id is None:
+        from .objects import next_object_id
+        order.object_id = next_object_id(db, "order")
+        db.flush()
     if order.released_at is None:
         order.released_at = utcnow()   # Start der Durchlaufzeit
     subject.materialize_subject(db, order, actor_id)

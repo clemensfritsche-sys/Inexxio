@@ -186,3 +186,25 @@ def test_a_person_is_managed_in_exactly_one_place():
     # Deaktivieren/Reaktivieren bleiben, wo ihre Fachlogik sitzt (Selbst-Schutz,
     # System-KI, offene Dokument-Freigaben) – die Oberfläche ruft sie nur.
     assert hasattr(admin_router, "deactivate_user") and hasattr(admin_router, "reactivate_user")
+
+
+def test_an_order_is_created_at_exactly_one_place():
+    """**Ein Auftrag entsteht mit der Freigabe – nirgends sonst** (Testnotiz #386).
+
+    Der Entwurf lebt im Browser: Bedarf, Positionen, Ablauf und Instanz-Auswahl sammelt
+    das Anlage-Fenster lokal und schickt sie in EINEM Aufruf hinaus. Erst dort bekommt der
+    Auftrag seine Objektnummer.
+
+    Die Abkürzungs-Knöpfe an Artikel und Instanz waren die zweite Stelle: sie legten sofort
+    einen Auftrag an, damit man hinspringen konnte – und wer sich anders entschied,
+    hinterliess eine nummernlose Leiche. Sie öffnen jetzt dasselbe Fenster vorbelegt
+    (``OrderSeed``) und schreiben nichts."""
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
+    assert "api.createOrder(" in detail, "Das Anlage-Fenster erteilt den Auftrag."
+
+    for name in ("article-detail.tsx", "instance-detail.tsx"):
+        src = (FRONTEND / "components" / "erp" / name).read_text()
+        assert "api.createOrder(" not in src, (
+            f"{name} legt wieder selbst einen Auftrag an – ein Abkürzungs-Knopf belegt nur "
+            "das Anlage-Fenster vor (OrderSeed).")
+        assert "onCreateOrder" in src, f"{name} braucht den Weg ins Anlage-Fenster."

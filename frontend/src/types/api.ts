@@ -924,7 +924,19 @@ export interface paths {
          */
         get: operations["list_orders_api_v1_erp_orders_get"];
         put?: never;
-        /** Create Order */
+        /**
+         * Create Order
+         * @description **Auftrag erteilen** – anlegen und freigeben in EINEM Aufruf (Testnotiz #386).
+         *
+         *     Alles, was der Entwurf im Browser gesammelt hat, kommt hier zusammen an: Artikel +
+         *     Menge, weitere Positionen, der auftragseigene Ablauf, die Instanz-Auswahl und – falls
+         *     die Auswahl einem laufenden Auftrag etwas wegnimmt – die Antwort darauf. Erst danach
+         *     bekommt der Auftrag seine **Objektnummer** (in ``release_order``).
+         *
+         *     Scheitert irgendetwas, wird die Transaktion verworfen: kein halber Auftrag, keine
+         *     verbrauchte Nummer. Ein Entwurf existiert damit **nie** in der Datenbank – «freigegeben
+         *     oder es hat ihn nie gegeben».
+         */
         post: operations["create_order_api_v1_erp_orders_post"];
         delete?: never;
         options?: never;
@@ -4205,7 +4217,17 @@ export interface components {
         };
         /**
          * OrderCreate
-         * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
+         * @description **Auftrag erteilen** – Anlage UND Freigabe in EINEM Aufruf.
+         *
+         *     Ein Auftrag entsteht **als Ganzes oder gar nicht**: Artikel, Menge, Positionen, der
+         *     Ablauf und die Instanz-Auswahl kommen zusammen an, und erst hier bekommt er seine
+         *     **Objektnummer**. Vorher entstand er beim Tippen (Auto-Save) und wartete als Entwurf –
+         *     wer es sich anders überlegte, hinterliess einen nummernlosen Datensatz im System
+         *     (Testnotiz #386). Jetzt gilt: freigegeben oder es hat ihn nie gegeben. Der Entwurf lebt
+         *     bis dahin im Browser; er wird **nicht** zwischengespeichert.
+         *
+         *     Scheitert irgendeine Prüfung (fehlende Bezugsquelle, Unterdeckung ohne Antwort, …),
+         *     wird NICHTS angelegt – auch keine Objektnummer verbraucht.
          *
          *     Anker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,
          *     der danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);
@@ -4227,6 +4249,12 @@ export interface components {
             instance_quantities?: {
                 [key: string]: number;
             } | null;
+            /** Lines */
+            lines?: components["schemas"]["OrderLineCreate"][] | null;
+            /** Steps */
+            steps?: components["schemas"]["ArticleProcessStepCreate"][] | null;
+            /** Shortfall Response */
+            shortfall_response?: string | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */
@@ -4270,15 +4298,22 @@ export interface components {
         };
         /**
          * OrderLineCreate
-         * @description Eine weitere Position zu einem **bestehenden** Auftrag hinzufügen (``POST
-         *     .../lines``) – macht ihn (falls noch nicht) zu einem Mehrpositionen-Auftrag. Nur im
-         *     Entwurf möglich; „Herstellen" scheidet dann aus (siehe ``services/order_lines.py``).
+         * @description Eine weitere Position – beim Erteilen (``POST /orders``) oder an einem bestehenden
+         *     Auftrag (``POST .../lines``). Macht ihn (falls noch nicht) zu einem Mehrpositionen-
+         *     Auftrag; nur im Entwurf möglich, „Herstellen" scheidet dann aus (siehe
+         *     ``services/order_lines.py``).
          */
         OrderLineCreate: {
             /** Article Id */
             article_id: number;
             /** Quantity */
             quantity: number;
+            /** Instance Object Ids */
+            instance_object_ids?: number[] | null;
+            /** Instance Quantities */
+            instance_quantities?: {
+                [key: string]: number;
+            } | null;
         };
         /**
          * OrderLineInfo

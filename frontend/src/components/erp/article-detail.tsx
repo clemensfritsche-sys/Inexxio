@@ -5,10 +5,9 @@ import {
   Package, ArrowLeft, FileText, Workflow, Boxes, Trash2, Tag, QrCode, AlertTriangle,
   Ruler, TrendingUp, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
   Scaling, Hash, Truck, Banknote, Link2, Weight, Sparkles, Plus, Shield, Ban, FolderOpen,
-  MapPin, ClipboardPlus, Loader2,
+  MapPin, ClipboardPlus,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useErpNav } from '@/components/erp/obj-id';
 import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile, OrdersMode } from '@/types';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
@@ -22,6 +21,7 @@ import { isVersionConflict } from '@/lib/optimistic';
 
 import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
+import type { OrderSeed } from '@/components/erp/order-detail';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
 import { ObjectDocuments } from '@/components/erp/object-documents';
@@ -125,34 +125,27 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh }: {
+export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh, onCreateOrder }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
   onSaved: (a: Article) => void;
   onCancel: () => void;
   onBack: () => void;
   onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
+  /** Anlage-Fenster mit diesem Artikel vorgewählt öffnen (der Auftrag entsteht erst mit
+   *  der Freigabe, #386). */
+  onCreateOrder?: (seed: OrderSeed) => void;
 }) {
   const isCreate = record === null;
-  const nav = useErpNav();   // Sprung zum neu angelegten Auftrag (Shortcut-Knopf)
   const [tab, setTab] = useState<TabKey>('spezifikation');
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
-  const [orderBusy, setOrderBusy] = useState(false);
 
-  // Shortcut «Auftrag»: aus einem freigegebenen Artikel direkt einen Auftrags-ENTWURF
-  // auslösen und dorthin springen (Menge/Prozess füllt der Nutzer im Auftrag).
-  async function createOrderShortcut() {
-    if (isCreate || record == null || record.status !== 'released' || orderBusy) return;
-    setOrderBusy(true);
-    try {
-      const order = await api.createOrder({ article_id: record.id, quantity: 1 });
-      onRefresh?.();
-      if (order.object_id != null) nav?.(order.object_id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Auftrag konnte nicht angelegt werden');
-    } finally {
-      setOrderBusy(false);
-    }
+  // Shortcut «Auftrag»: das Anlage-Fenster mit diesem Artikel vorgewählt öffnen. Es
+  // entsteht dabei **kein** Datensatz – einen Auftrag gibt es erst mit der Freigabe
+  // (Testnotiz #386); Menge, Auswahl und Ablauf füllt der Nutzer dort.
+  function createOrderShortcut() {
+    if (isCreate || record == null || record.status !== 'released') return;
+    onCreateOrder?.({ articleId: record.id, quantity: 1 });
   }
   // Optimistic Locking: zuletzt bekannter Stand; wird nach jedem Speichern aktualisiert.
   const verRef = useRef<string | null>(record?.updated_at ?? null);
@@ -332,9 +325,9 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                 auslösen (nur freigegebene Artikel sind auftragsfähig). */}
             {record.status === 'released' && (
               <button className="erp-idbtn erp-idbtn-act" data-tip="Auftrag anlegen" data-tip-pos="bottom"
-                aria-label="Auftrag zu diesem Artikel anlegen" disabled={orderBusy}
+                aria-label="Auftrag zu diesem Artikel anlegen"
                 onClick={createOrderShortcut}>
-                {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
+                <ClipboardPlus size={15} />
               </button>
             )}
             {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer. */}

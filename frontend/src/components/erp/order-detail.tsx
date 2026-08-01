@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2 } from 'lucide-react';
-import { api } from '@/lib/api';
-import type { AffectedOrder, Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
+import { ApiError, api } from '@/lib/api';
+import { draftStepStore, toStepInputs } from '@/lib/step-store';
+import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
@@ -77,6 +78,42 @@ const PIN_KIND: Record<PinKind, { tone: string; bg: string; hint: string; mix: s
     mix: 'Es sind bereits verkaufte Instanzen gewählt (Retoure)' },
 };
 
+/**
+ * **Was ein Abkürzungs-Knopf in den neuen Auftrag hineinlegt** – eine Eingabehilfe, keine
+ * Fixierung (Notizen #371/#385): Artikel bzw. Instanz sind vorgewählt, alles bleibt im
+ * Entwurf frei änderbar. Der Auftrag selbst entsteht erst mit der Freigabe (#386) – ein
+ * Klick auf «Auftrag anlegen» erzeugt also noch keinen Datensatz.
+ */
+export type OrderSeed = {
+  articleId: number;
+  quantity?: number;
+  /** Vorgewählte Instanz – immer EIN Stück (von einer Charge à 500 selten alle 500). */
+  instance?: { objectId: number; quantity: number };
+};
+
+/** Ein leerer Auftrag in der Form, die auch der Server liefert – der Entwurf im Browser. */
+function emptyDraft(): Order {
+  return {
+    id: 0, object_id: null, status: 'draft', article_id: null, quantity: null,
+    desired_delivery_date: null, order_lines: [], instances: [], steps: [],
+    shortfall: [], affects: [], waiting_for: [], deviations: [], supply_orders: [],
+    returns: [], provisionings: [], created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  } as unknown as Order;
+}
+
+/** Der Entwurf, wie ihn ein Abkürzungs-Knopf vorbelegt – sonst der leere. */
+function seededDraft(seed: OrderSeed | null | undefined, articles: Article[]): Order {
+  const d = emptyDraft();
+  if (!seed) return d;
+  const art = articles.find((a) => a.id === seed.articleId);
+  return {
+    ...d, article_id: seed.articleId, quantity: seed.quantity ?? 1,
+    article_object_id: art?.object_id ?? null, article_name: art?.name ?? null,
+    article_unit: art?.unit ?? null,
+  } as Order;
+}
+
 function seedFrom(record: Order | null): Form {
   if (!record) return { article_id: '', quantity: '', desired_delivery_date: '' };
   return {
@@ -108,6 +145,21 @@ function todayIso(): string {
 // physische Notwendigkeit) und wird durchgezogen, nicht weggeworfen. Die einzige Ausnahme ist
 // die **Bereitstellung** – sie legt das System selbst an, also braucht sie einen Ausstieg; der
 // heisst «Bereitstellung übergehen» und sagt damit, was man entscheidet.
+/**
+ * **Die Unterdeckungs-Frage kommt als Code, nicht als Satz.** Der Server antwortet auf eine
+ * Freigabe, die einem laufenden Auftrag sein Stück wegnimmt, mit 409 + strukturiertem
+ * `detail` (`code` + `affects`) – die Oberfläche erkennt sie daran und stellt die Frage,
+ * statt den Fehler anzuzeigen. Vorher wurde im Meldungstext nach Wörtern gesucht; eine
+ * umformulierte Meldung hätte die Frage still verschluckt.
+ */
+type ShortfallDetail = { code?: string; affects?: AffectedOrder[] };
+function shortfallDetail(e: unknown): ShortfallDetail | null {
+  const d = e instanceof ApiError ? (e.detail as ShortfallDetail | undefined) : undefined;
+  return d?.code === 'shortfall_decision_required' ? d : null;
+}
+const isShortfallQuestion = (e: unknown) => shortfallDetail(e) !== null;
+const shortfallAffects = (e: unknown) => shortfallDetail(e)?.affects ?? [];
+
 function orderActions(status: string, canRelease: boolean, releaseHint?: string): StatusAction[] {
   if (status === 'draft')
     return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
@@ -115,8 +167,10 @@ function orderActions(status: string, canRelease: boolean, releaseHint?: string)
   return [];
 }
 
-export function OrderDetail({ record, articles, viewerRole, company, suppliers = [], onSaved, onCancel, onBack }: {
+export function OrderDetail({ record: saved, seed, articles, viewerRole, company, suppliers = [], onSaved, onCancel, onBack }: {
   record: Order | null;            // null ⇒ Anlage-Modus (nur Mitarbeiter)
+  /** Vorbelegung aus einem Abkürzungs-Knopf (Artikel-/Instanz-Detail) – nur beim Anlegen. */
+  seed?: OrderSeed | null;
   articles: Article[];
   viewerRole: ViewerRole;
   company: Partial<CompanySettings> | null;
@@ -125,10 +179,34 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   onCancel: () => void;
   onBack: () => void;
 }) {
-  const isCreate = record === null;
+  const isCreate = saved === null;
   const isStaff = viewerRole === 'staff';
   const nav = useErpNav();   // Navigation per Objektnummer (Unteraufträge anklickbar)
-  const [form, setForm] = useState<Form>(() => seedFrom(record));
+  // **Der Entwurf lebt im Browser** (Testnotiz #386): ein Auftrag entsteht erst mit der
+  // Freigabe – vorher gibt es ihn in der Datenbank nicht, er verbraucht keine Objektnummer,
+  // und wer wegklickt, hat ihn verworfen. Damit die Oberfläche davon nichts merkt, hat der
+  // Entwurf **dieselbe Form** wie ein gespeicherter Auftrag: alles Weitere liest `record`
+  // und weiss gar nicht, woher es kommt. Geschrieben wird je nach Herkunft – in die API
+  // oder in den State (`patchDraft`).
+  const [draft, setDraft] = useState<Order>(() => seededDraft(seed, articles));
+  const [draftSteps, setDraftSteps] = useState<ArticleProcessStep[]>([]);
+  // Der Schritt-Editor ist derselbe – nur der **Speicher** ist ein anderer. Die Liste
+  // liegt zusätzlich in einem Ref, weil der Editor nach jeder Änderung sofort neu liest
+  // (`reload()`): React-State wäre dann noch der alte.
+  const draftStepsRef = useRef<ArticleProcessStep[]>([]);
+  const draftStore = useMemo(() => draftStepStore(
+    () => draftStepsRef.current,
+    (next) => { draftStepsRef.current = next; setDraftSteps(next); },
+    suppliers,
+  ), [suppliers]);
+  // Vorgemerkte Instanzen je Position (Schlüssel wie `PinLine.key`) – im Entwurf.
+  type DraftPins = Record<string, { ids: number[]; quantities: Record<string, number> }>;
+  const [draftPins, setDraftPins] = useState<DraftPins>((): DraftPins => (seed?.instance
+    ? { anchor: { ids: [seed.instance.objectId], quantities: { [String(seed.instance.objectId)]: seed.instance.quantity } } }
+    : {}));
+  const record: Order = saved ?? draft;
+  function patchDraft(patch: Partial<Order>) { setDraft((d) => ({ ...d, ...patch })); }
+  const [form, setForm] = useState<Form>(() => seedFrom(saved ?? draft));
   const [dateOpen, setDateOpen] = useState<boolean>(!!record?.desired_delivery_date);
   const [savedSig, setSavedSig] = useState<string>(() => {
     if (record === null) return '';
@@ -238,7 +316,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     setOrderStepCount(n);
     setOrderIsStockOp(stockOp);
   }, []);
-  const isDraftStaff = isStaff && !isCreate && record?.status === 'draft';
+  // Der Entwurf – gespeichert oder noch im Browser (#386): beide brauchen den Instanz-Pool
+  // für die Auswahl.
+  const isDraftStaff = isStaff && record.status === 'draft';
   const hasCustomSteps = orderIsStockOp != null ? orderIsStockOp : record?.subject_role === 'stock';
   // «Herstellen» ist bei einem Mehrpositionen-Auftrag NIE möglich (mehrere Artikel – kein
   // EINER Artikel-Prozess, den er fahren könnte; Backend erzwingt dort immer `stock`).
@@ -292,9 +372,21 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     // daran ist nichts mehr zu tun.
     const pool = pinPool.filter((i) =>
       i.object_id != null && i.article_id === articleId && i.disposition !== 'scrapped');
-    const pinned = pinnedByArticle.get(articleId) ?? { ids: [], qty: 0, wanted: {} };
+    const key = lineId != null ? `line-${lineId}` : 'anchor';
+    // Im Entwurf steht die Auswahl im State (nichts ist gespeichert), sonst kommt sie – wie
+    // bisher – aus den Instanz-Embeds des Auftrags.
+    const local = draftPins[key];
+    const pinned = local
+      ? {
+          ids: local.ids,
+          qty: local.ids.reduce((sum, id) => sum + (local.quantities[String(id)]
+            ?? pool.find((i) => i.object_id === id)?.quantity ?? 0), 0),
+          wanted: Object.fromEntries(local.ids.map((id) => [id, local.quantities[String(id)]
+            ?? pool.find((i) => i.object_id === id)?.quantity ?? 0])) as Record<number, number>,
+        }
+      : (pinnedByArticle.get(articleId) ?? { ids: [], qty: 0, wanted: {} });
     return {
-      key: lineId != null ? `line-${lineId}` : 'anchor', lineId, articleId, unit, reqQty,
+      key, lineId, articleId, unit, reqQty,
       pinnedIds: pinned.ids, pinnedQty: pinned.qty, pool, kind: kindOf, wanted: pinned.wanted,
       // «Genug Bestand?» meint das FREI Verfügbare – gebundene Stück zählen dafür nicht.
       availableQty: pool.filter(isFree).reduce((s, i) => s + (i.quantity ?? 0), 0), free: isFree,
@@ -386,7 +478,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // Artikel-Prozess) – braucht KEIN eigenes Artikel/Menge-Paar zur Freigabe (schliesst
   // sonst eine Abweichung eines Mehrpositionen-Auftrags dauerhaft aus der Freigabe aus).
   const hasDemand = isSubOrder || isMultiPosition || (!!record?.article_id && !!record?.quantity);
-  const canRelease = !isCreate && hasDemand
+  const canRelease = hasDemand
     && sig === savedSig && (isSubOrder ? subOrderReady : specificComplete);
   const releaseHint = isSubOrder
     ? (subOrderReady ? undefined : (isSupply ? 'Erst einen Prozessschritt für den Nachschub hinzufügen' : isReturn ? 'Erst einen Prozessschritt für die Retoure hinzufügen' : 'Erst einen Prozessschritt für die Abweichung hinzufügen'))
@@ -399,7 +491,12 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // **Freigabe** (siehe ``changeStatus``), wo die Auswahl feststeht.
   async function setLinePins(line: PinLine, ids: number[], answer?: ShortfallAnswer,
                              quantities?: Record<string, number>) {
-    if (!record) return;
+    if (isCreate) {
+      // Im Entwurf ist die Auswahl eine reine Notiz – niemandem wird etwas weggenommen,
+      // und gefragt wird erst beim Erteilen (dieselbe Regel wie bisher, nur ohne Server).
+      setDraftPins((prev) => ({ ...prev, [line.key]: { ids, quantities: quantities ?? {} } }));
+      return;
+    }
     try {
       const saved = line.lineId != null
         ? await api.setOrderLinePins(record.object_id as number, line.lineId,
@@ -415,14 +512,49 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   }
 
   async function addPosition(articleId: number, quantity: number) {
-    if (!record) return;
+    if (isCreate) {
+      // Erste zusätzliche Position: der bisherige Anker wird Position 0 – genau wie im
+      // Backend (``_add_line``), nur eben noch im Entwurf.
+      const art = articles.find((a) => a.id === articleId);
+      setDraft((d) => {
+        const lines = [...(d.order_lines ?? [])];
+        if (d.article_id != null && lines.length === 0) {
+          const anchor = articles.find((a) => a.id === d.article_id);
+          lines.push({ id: -1, article_id: d.article_id, quantity: d.quantity ?? 0, position: 0,
+            article_object_id: anchor?.object_id ?? null, article_name: anchor?.name ?? null,
+            article_unit: anchor?.unit ?? null } as unknown as Order['order_lines'][number]);
+        }
+        lines.push({ id: -(lines.length + 2), article_id: articleId, quantity, position: lines.length,
+          article_object_id: art?.object_id ?? null, article_name: art?.name ?? null,
+          article_unit: art?.unit ?? null } as unknown as Order['order_lines'][number]);
+        return { ...d, article_id: null, quantity: null, order_lines: lines };
+      });
+      return;
+    }
     const saved = await api.addOrderLine(record.object_id as number, { article_id: articleId, quantity });
     verRef.current = saved.updated_at;
     onSaved(saved);
   }
 
   async function removePosition(lineId: number) {
-    if (!record) return;
+    if (isCreate) {
+      const left = (draft.order_lines ?? []).filter((l) => l.id !== lineId);
+      // Bleibt EINE Position, wird der Auftrag wieder ein Einzel-Artikel-Auftrag –
+      // symmetrisch zur ersten Zusatz-Position und identisch zum Backend
+      // (``remove_order_line``), damit «Erzeugen» wieder möglich ist.
+      if (left.length !== 1) { patchDraft({ order_lines: left }); return; }
+      const art = articles.find((a) => a.id === left[0].article_id);
+      patchDraft({ order_lines: [], article_id: left[0].article_id, quantity: left[0].quantity,
+                   article_object_id: art?.object_id ?? null, article_name: art?.name ?? null,
+                   article_unit: art?.unit ?? null });
+      // Das Formular ist ab jetzt wieder die Bedarfs-Eingabe – es muss denselben Stand
+      // zeigen wie der Entwurf, sonst holte der nächste Autosave den alten Anker zurück.
+      const next: Form = { article_id: String(left[0].article_id), quantity: String(left[0].quantity),
+                           desired_delivery_date: form.desired_delivery_date };
+      setForm(next);
+      setSavedSig(demandSig(next.article_id, next.quantity, effectiveDate));
+      return;
+    }
     try {
       const saved = await api.removeOrderLine(record.object_id as number, lineId);
       verRef.current = saved.updated_at;
@@ -437,7 +569,23 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     setError(null);
     try {
       if (isCreate) {
-        onSaved(await api.createOrder({ article_id: Number(form.article_id), quantity: qtyNum, desired_delivery_date: effectiveDate }));
+        // Der Entwurf wird NICHT gespeichert – er lebt im Browser, bis er erteilt wird.
+        // Die Anzeige-Felder des Artikels wandern gleich mit, damit Titel, Positionen und
+        // der gespiegelte Artikel-Prozess dieselbe Quelle lesen wie bei einem gespeicherten
+        // Auftrag (`record`) und nichts einen Sonderweg braucht.
+        // Bei mehreren Positionen steht der Bedarf auf den Positionen – dort nur den
+        // Termin übernehmen (sonst holte das Formular den Anker-Artikel zurück und der
+        // Auftrag wäre wieder ein Einzel-Artikel-Auftrag). Dieselbe Fallunterscheidung
+        // wie im API-Zweig darunter.
+        if (isMultiPosition) patchDraft({ desired_delivery_date: effectiveDate });
+        else {
+          const aid = form.article_id ? Number(form.article_id) : null;
+          const art = aid != null ? articles.find((a) => a.id === aid) : undefined;
+          patchDraft({ article_id: aid, quantity: qtyNum, desired_delivery_date: effectiveDate,
+                       article_object_id: art?.object_id ?? null, article_name: art?.name ?? null,
+                       article_unit: art?.unit ?? null });
+        }
+        setSavedSig(current);
       } else {
         // Bei einem Mehrpositionen-Auftrag sind Artikel/Menge am Auftrag nicht mehr das
         // Feld für den Bedarf (der steht auf den Positionen) – nur der Termin wird hier
@@ -462,6 +610,16 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     }
   }
 
+  // Wiederkehr: dieselben drei Werte, zwei Ziele – Entwurf im Browser oder bestehender
+  // Auftrag über die API (mit Optimistic Locking, sonst liefe der nächste Autosave in 409).
+  const persistRecurrence = useCallback(async (v: Recurrence) => {
+    if (isCreate) { setDraft((d) => ({ ...d, ...v })); return; }
+    const o = await api.updateOrder(record.object_id as number, { ...v, expected_updated_at: verRef.current });
+    verRef.current = o.updated_at;
+    onSaved(o);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCreate, record?.object_id, onSaved]);
+
   async function resyncVersion() {
     if (!record) return;
     try {
@@ -480,6 +638,60 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     if (next) setSelStep(String(next.id));
   }
 
+  // ── Den Entwurf erteilen ──────────────────────────────────────────────────────────
+  // **Ein Auftrag entsteht als Ganzes oder gar nicht** (Testnotiz #386): alles, was der
+  // Entwurf im Browser gesammelt hat, geht in EINEM Aufruf hinaus – Bedarf, Positionen,
+  // Ablauf und Auswahl. Erst dort bekommt er seine Objektnummer. Scheitert etwas, bleibt
+  // nichts zurück; wer wegklickt, hat verworfen.
+  async function submitDraft(answer?: ShortfallAnswer) {
+    // Anker + weitere Positionen: der Server kennt genau diese Form (die erste zusätzliche
+    // Position wandelt den Anker in Position 0 um) – hier wird sie nur bedient.
+    const lines = draft.order_lines ?? [];
+    const pinsOf = (key: string) => draftPins[key] ?? { ids: [], quantities: {} };
+    const anchorKey = lines.length > 0 ? `line-${lines[0].id}` : 'anchor';
+    const anchorPins = pinsOf(anchorKey);
+    setStatusBusy(true);
+    setError(null);
+    try {
+      const created = await api.createOrder({
+        article_id: lines.length > 0 ? lines[0].article_id : draft.article_id,
+        quantity: lines.length > 0 ? lines[0].quantity : draft.quantity,
+        instance_object_ids: anchorPins.ids.length > 0 ? anchorPins.ids : null,
+        instance_quantities: anchorPins.ids.length > 0 ? anchorPins.quantities : null,
+        desired_delivery_date: draft.desired_delivery_date ?? null,
+        lines: lines.slice(1).map((l) => {
+          const p = pinsOf(`line-${l.id}`);
+          return {
+            article_id: l.article_id, quantity: l.quantity,
+            instance_object_ids: p.ids.length > 0 ? p.ids : null,
+            instance_quantities: p.ids.length > 0 ? p.quantities : null,
+          };
+        }),
+        steps: toStepInputs(draftSteps),
+        recurrence_active: draft.recurrence_active ?? false,
+        recurrence_interval_days: draft.recurrence_interval_days ?? null,
+        recurrence_lead_time_days: draft.recurrence_lead_time_days ?? null,
+        recurrence_anchor: draft.recurrence_anchor ?? null,
+        shortfall_response: answer ?? null,
+      });
+      setPendingRelease(null);
+      onSaved(created);
+    } catch (e) {
+      // Nimmt die Auswahl einem laufenden Auftrag sein Stück weg, nennt der Server die
+      // Betroffenen – dann wird gefragt statt abgebrochen (Notizen #370/#387). Beim
+      // Entwurf erfährt man sie erst hier: es gibt ja noch keinen Datensatz zu lesen.
+      if (isShortfallQuestion(e)) {
+        setDraftAffects(shortfallAffects(e));
+        setPendingRelease({ target: 'released' });
+      } else setError(e instanceof Error ? e.message : 'Auftrag konnte nicht erteilt werden');
+    } finally {
+      setStatusBusy(false);
+    }
+  }
+  // Die betroffenen Aufträge zur offenen Frage – beim Entwurf nennt sie der Server erst mit
+  // dem Fehlschlag (es gibt ja noch keinen Datensatz, den man vorher lesen könnte).
+  const [draftAffects, setDraftAffects] = useState<AffectedOrder[]>([]);
+
   async function changeStatus(target: string, answer?: ShortfallAnswer) {
     if (!record) return;
     setStatusBusy(true);
@@ -492,13 +704,12 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       setPendingRelease(null);
       onSaved(saved);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen';
       // **Die Frage kommt bei der Freigabe** (Notiz #370): Erst hier steht die Auswahl fest
-      // und nimmt einem laufenden Auftrag wirklich etwas weg. Der Server nennt die
-      // betroffenen Aufträge – die Frage stellen statt sie wegzuwerfen.
-      if (msg.includes('in Arbeit') && msg.includes('warten')) setPendingRelease({ target });
+      // und nimmt einem laufenden Auftrag wirklich etwas weg. Der Server sagt das mit einem
+      // Code (und nennt die Betroffenen) – die Frage stellen statt sie wegzuwerfen.
+      if (isShortfallQuestion(e)) setPendingRelease({ target });
       else {
-        setError(msg);
+        setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
         if (isVersionConflict(e)) await resyncVersion();
       }
     } finally {
@@ -509,8 +720,11 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // Offene Unterdeckungs-Frage zur **Freigabe** (nicht mehr zur Auswahl).
   const [pendingRelease, setPendingRelease] = useState<{ target: string } | null>(null);
 
+  // Freigeben heisst beim Entwurf **erteilen** (er entsteht erst dabei), beim bestehenden
+  // Auftrag den Status wechseln – dieselbe Aktion, derselbe Knopf.
   function onStatusAction(target: string) {
-    changeStatus(target);
+    if (isCreate) submitDraft();
+    else changeStatus(target);
   }
 
   // «Bereitstellung übergehen»: die einzige Unter-Auftragsart, die das System selbst anlegt,
@@ -548,7 +762,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     { value: '', label: '— Artikel wählen —' },
     ...releasedArticles.map((a) => ({ value: String(a.id), label: `${formatObjectId(a.object_id)} · ${a.name}` })),
   ];
-  const statusActions = isCreate || !record ? [] : orderActions(record.status, canRelease, releaseHint);
+  const statusActions = orderActions(record.status, canRelease, releaseHint);
   const companyAddr = company ? [company.street, company.street_number].filter(Boolean).join(' ') : '';
 
   return (
@@ -559,7 +773,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         eyebrow={!isCreate && record.reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag'}
         title={isCreate ? null : orderName(record)} placeholder={isCreate ? 'Neuer Auftrag' : 'Auftrag'}
         objectId={isCreate ? null : record.object_id}
-        objectIdText={isCreate ? 'wird vergeben' : undefined}
+        objectIdText={isCreate ? 'Nummer wird bei Freigabe vergeben' : undefined}
         onBack={onBack}
         avatar={
           <div style={{ ...DH.ico, background: '#EAF0F4', color: '#4A6572', position: 'relative' }}>
@@ -582,15 +796,20 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             </button>
           )}
         </>}
-        actions={!isCreate && record.object_id != null ? (
+        actions={(
           <>
-            <HeaderSep />
-            <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
-              onClick={() => printObjectLabel(record.object_id as number, record.article_name ?? 'Auftrag', 'Auftrag')}>
-              <QrCode size={15} />
-            </button>
+            {!isCreate && record.object_id != null && (
+              <>
+                <HeaderSep />
+                <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
+                  onClick={() => printObjectLabel(record.object_id as number, record.article_name ?? 'Auftrag', 'Auftrag')}>
+                  <QrCode size={15} />
+                </button>
+              </>
+            )}
             {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen statt rechts
-                am Status: eine Aktion gehört zu den Aktionen, der Status zeigt nur an. */}
+                am Status: eine Aktion gehört zu den Aktionen, der Status zeigt nur an.
+                Beim Entwurf ist sie zugleich die Anlage – er entsteht erst dabei (#386). */}
             {isStaff && !isCompleted && statusActions.length > 0 && (
               <>
                 <HeaderSep />
@@ -611,7 +830,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               </button>
             )}
           </>
-        ) : undefined}
+        )}
       >
         {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
@@ -694,8 +913,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                 </div>
               )}
 
-              {/* Weitere Position: erst möglich, sobald der Auftrag existiert. */}
-              {!isCreate && record?.status === 'draft' && (
+              {/* Weitere Position – im Entwurf jederzeit, ob schon gespeichert oder nicht. */}
+              {record?.status === 'draft' && (
                 <AddPositionRow articles={releasedArticles}
                   excludeArticleIds={isMultiPosition ? orderLines.map((l) => l.article_id) : (record?.article_id != null ? [record.article_id] : [])}
                   onAdd={addPosition} />
@@ -721,10 +940,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 
               {/* Der frühere Footer-Satz – jetzt eine leise Zeile in der Karte, auf die er
                   sich bezieht (und nur beim Anlegen, wo er etwas erklärt). */}
-              {isCreate && (
-                <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>
-                  {demandValid ? 'Wird automatisch angelegt, sobald vollständig' : 'Pflichtfelder: Artikel und Menge'}
-                </div>
+              {isCreate && !demandValid && (
+                <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Pflichtfelder: Artikel und Menge</div>
               )}
           </div>
         ) : (
@@ -793,7 +1010,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {/* Wiederkehrend – nur im Entwurf einstellbar (ein freigegebener Auftrag
             ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). Bei einem
             Unter-Auftrag (Abweichung/Nachschub) nicht sinnvoll. */}
-        {isStaff && record?.status === 'draft' && !isSubOrder && <RecurrenceCard order={record} onSaved={onSaved} version={verRef} />}
+        {isStaff && record?.status === 'draft' && !isSubOrder && <RecurrenceCard order={record} persist={persistRecurrence} />}
 
         {/* Lieferung an (für Lieferant) */}
         {!isStaff && (
@@ -832,7 +1049,10 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {isStaff && record?.status === 'draft' && !isSubOrder && (isMultiPosition || goal !== 'produce') && (
           <>
             <div style={{ marginBottom: 12 }}>
+              {/* Im Entwurf schreibt derselbe Editor in den Browser-Speicher statt in die
+                  API – den Auftrag gibt es ja noch nicht (#386). */}
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
+                store={isCreate ? draftStore : undefined}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
             </div>
           </>
@@ -913,8 +1133,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       {/* **Die Unterdeckungs-Frage zur Freigabe** (Notiz #370) – dasselbe Fenster wie am
           laufenden Auftrag, nur zu dem Zeitpunkt, an dem die Auswahl feststeht. */}
       {pendingRelease && (
-        <ShortfallDialog busy={statusBusy} affected={record?.affects ?? []}
-          onAnswer={(a) => changeStatus(pendingRelease.target, a)}
+        <ShortfallDialog busy={statusBusy} affected={isCreate ? draftAffects : (record?.affects ?? [])}
+          onAnswer={(a) => (isCreate ? submitDraft(a) : changeStatus(pendingRelease.target, a))}
           onClose={() => setPendingRelease(null)} />
       )}
 
@@ -1429,8 +1649,14 @@ const recInput = "w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outlin
  * wird per Auto-Save wie überall sonst; der aktuelle Stand steht als **Satz** darunter,
  * nicht als Schalterstellung, die man interpretieren muss.
  */
-function RecurrenceCard({ order, onSaved, version }: {
-  order: Order; onSaved: (o: Order) => void; version: MutableRefObject<string | null>;
+/** Die drei Werte, die «wiederkehrend» ausmachen – leer/0 = einmalig. */
+type Recurrence = Pick<Order, 'recurrence_active' | 'recurrence_interval_days'
+  | 'recurrence_lead_time_days' | 'recurrence_anchor'>;
+
+function RecurrenceCard({ order, persist }: {
+  // **Wohin** die Wiederkehr geschrieben wird, ist Sache des Aufrufers – in die API oder
+  // in den Entwurf im Browser (#386). Dieselbe Trennung wie beim Schritt-Editor.
+  order: Order; persist: (v: Recurrence) => Promise<void>;
 }) {
   // Leer = nicht wiederkehrend. Darum KEIN Default-Wert, wenn nichts eingestellt ist.
   const [interval, setIntervalDays] = useState(
@@ -1451,21 +1677,16 @@ function RecurrenceCard({ order, onSaved, version }: {
   const save = useCallback(async () => {
     setErr(null);
     try {
-      // Optimistic Locking: ohne expected_updated_at lief der nächste Autosave (z. B.
-      // Liefertermin) in einen unerklärlichen 409.
-      const o = await api.updateOrder(order.object_id as number, {
+      await persist({
         recurrence_active: active,
         recurrence_interval_days: active ? days : null,
         recurrence_lead_time_days: active ? Math.max(0, Math.trunc(Number(lead) || 0)) : 0,
         recurrence_anchor: active && anchor ? anchor : null,
-        expected_updated_at: version.current,
       });
-      version.current = o.updated_at;
-      onSaved(o);
       setSavedSig(sig);
       setFlash(true); setTimeout(() => setFlash(false), 700);
     } catch (e) { setErr(e instanceof Error ? e.message : 'Fehler beim Speichern'); }
-  }, [order.object_id, active, days, lead, anchor, sig, onSaved, version]);
+  }, [active, days, lead, anchor, sig, persist]);
 
   const flush = useAutosave(sig, sig !== savedSig, save);
 

@@ -4,6 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from .article_process_step import ArticleProcessStepCreate
 from .disposal import DisposalEmbed
 from .document import DocumentEmbed
 from .inspection import InspectionEmbed
@@ -173,54 +174,20 @@ def _validate_future_date(v: Optional[date]) -> Optional[date]:
     return v
 
 
-class OrderCreate(BaseModel):
-    """Anlage eines Auftrags über '+'. Status startet als 'draft'.
-
-    Anker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,
-    der danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);
-    eigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,
-    optional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.
-
-    Weitere Artikel lassen sich danach jederzeit über ``POST .../lines`` ergänzen (Mehr-
-    positionen-Auftrag – „Aus Lager"/„Instanz wählen" über mehrere Artikel; „Herstellen"
-    ist dann nicht mehr möglich, siehe ``services/order_lines.py``)."""
-
-    article_id: int
-    quantity: float   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
-    # **Vorauswahl**, keine Fixierung (Testnotiz #371): der Abkürzungs-Knopf an einer Instanz
-    # legt einen ganz gewöhnlichen Auftrag an und trägt die Instanz gleich ein – als
-    # Eingabehilfe. Änderbar wie jede andere Auswahl; was daraus folgt (Abweichung/Retoure/
-    # gewöhnlicher Bedarf), leitet ``subject.classify_pick`` ab.
-    instance_object_ids: Optional[list[int]] = None
-    # Beanspruchte **Teilmenge** je Instanz-Objektnummer (Schlüssel als String). Ohne Angabe
-    # die GANZE Instanz. Eine Instanz ist eine Menge, kein Ding: von einer Charge à 500 lässt
-    # sich genau eine wählen – und der Abkürzungs-Knopf tut ab jetzt genau das (Notiz #385).
-    instance_quantities: Optional[dict[str, float]] = None
-    desired_delivery_date: Optional[date] = None
-    # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
-    recurrence_active: Optional[bool] = None
-    recurrence_interval_days: Optional[int] = None
-    recurrence_lead_time_days: Optional[int] = None
-    recurrence_anchor: Optional[date] = None
-
-    @field_validator("quantity")
-    @classmethod
-    def _qty_positive(cls, v: float) -> float:
-        return _validate_qty(v)
-
-    @field_validator("desired_delivery_date")
-    @classmethod
-    def _date_future(cls, v: Optional[date]) -> Optional[date]:
-        return _validate_future_date(v)
-
-
 class OrderLineCreate(BaseModel):
-    """Eine weitere Position zu einem **bestehenden** Auftrag hinzufügen (``POST
-    .../lines``) – macht ihn (falls noch nicht) zu einem Mehrpositionen-Auftrag. Nur im
-    Entwurf möglich; „Herstellen" scheidet dann aus (siehe ``services/order_lines.py``)."""
+    """Eine weitere Position – beim Erteilen (``POST /orders``) oder an einem bestehenden
+    Auftrag (``POST .../lines``). Macht ihn (falls noch nicht) zu einem Mehrpositionen-
+    Auftrag; nur im Entwurf möglich, „Herstellen" scheidet dann aus (siehe
+    ``services/order_lines.py``)."""
 
     article_id: int
     quantity: float   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
+    # **Die Position bringt ihre Auswahl mit.** Ein Auftrag entsteht als Ganzes (Testnotiz
+    # #386) – also auch mit dem, was je Position gewählt wurde, statt in einem zweiten
+    # Aufruf nachgereicht zu werden. Leer = FIFO. Dieselben Felder wie ``OrderLinePins``,
+    # dieselbe Anwendung (``_pin_line_instances``) – nur ein anderer Zeitpunkt.
+    instance_object_ids: Optional[list[int]] = None
+    instance_quantities: Optional[dict[str, float]] = None
 
     @field_validator("quantity")
     @classmethod
@@ -287,6 +254,65 @@ class OrderUpdate(BaseModel):
     @field_validator("quantity")
     @classmethod
     def _qty_positive(cls, v: Optional[int]) -> Optional[int]:
+        return _validate_qty(v)
+
+    @field_validator("desired_delivery_date")
+    @classmethod
+    def _date_future(cls, v: Optional[date]) -> Optional[date]:
+        return _validate_future_date(v)
+
+
+class OrderCreate(BaseModel):
+    """**Auftrag erteilen** – Anlage UND Freigabe in EINEM Aufruf.
+
+    Ein Auftrag entsteht **als Ganzes oder gar nicht**: Artikel, Menge, Positionen, der
+    Ablauf und die Instanz-Auswahl kommen zusammen an, und erst hier bekommt er seine
+    **Objektnummer**. Vorher entstand er beim Tippen (Auto-Save) und wartete als Entwurf –
+    wer es sich anders überlegte, hinterliess einen nummernlosen Datensatz im System
+    (Testnotiz #386). Jetzt gilt: freigegeben oder es hat ihn nie gegeben. Der Entwurf lebt
+    bis dahin im Browser; er wird **nicht** zwischengespeichert.
+
+    Scheitert irgendeine Prüfung (fehlende Bezugsquelle, Unterdeckung ohne Antwort, …),
+    wird NICHTS angelegt – auch keine Objektnummer verbraucht.
+
+    Anker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,
+    der danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);
+    eigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,
+    optional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.
+
+    Weitere Artikel lassen sich danach jederzeit über ``POST .../lines`` ergänzen (Mehr-
+    positionen-Auftrag – „Aus Lager"/„Instanz wählen" über mehrere Artikel; „Herstellen"
+    ist dann nicht mehr möglich, siehe ``services/order_lines.py``)."""
+
+    article_id: int
+    quantity: float   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
+    # **Vorauswahl**, keine Fixierung (Testnotiz #371): der Abkürzungs-Knopf an einer Instanz
+    # legt einen ganz gewöhnlichen Auftrag an und trägt die Instanz gleich ein – als
+    # Eingabehilfe. Änderbar wie jede andere Auswahl; was daraus folgt (Abweichung/Retoure/
+    # gewöhnlicher Bedarf), leitet ``subject.classify_pick`` ab.
+    instance_object_ids: Optional[list[int]] = None
+    # Beanspruchte **Teilmenge** je Instanz-Objektnummer (Schlüssel als String). Ohne Angabe
+    # die GANZE Instanz. Eine Instanz ist eine Menge, kein Ding: von einer Charge à 500 lässt
+    # sich genau eine wählen – und der Abkürzungs-Knopf tut ab jetzt genau das (Notiz #385).
+    instance_quantities: Optional[dict[str, float]] = None
+    # Weitere Positionen (Mehrpositionen-Auftrag) – im Entwurf gesammelt, hier mitgeliefert.
+    lines: Optional[list[OrderLineCreate]] = None
+    # Der **auftragseigene Ablauf**. Ohne eigene Schritte fährt der Auftrag den
+    # Artikel-Prozess (Erzeugung) – das bleibt unverändert.
+    steps: Optional[list[ArticleProcessStepCreate]] = None
+    # Antwort auf eine Unterdeckung, die die Auswahl bei laufenden Aufträgen auslöst
+    # (wait | replace | accept) – dieselben drei wie am laufenden Auftrag.
+    shortfall_response: Optional[str] = None
+    desired_delivery_date: Optional[date] = None
+    # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
+    recurrence_active: Optional[bool] = None
+    recurrence_interval_days: Optional[int] = None
+    recurrence_lead_time_days: Optional[int] = None
+    recurrence_anchor: Optional[date] = None
+
+    @field_validator("quantity")
+    @classmethod
+    def _qty_positive(cls, v: float) -> float:
         return _validate_qty(v)
 
     @field_validator("desired_delivery_date")
