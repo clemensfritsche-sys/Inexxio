@@ -3482,6 +3482,39 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Aufträgen, wo eine Geschichte hingehört. Erst danach ist das Big Picture vollständig: Auftrag
   → Abzweig (Stufe 1+2) und Instanz → alle Aufträge (Stufe 3).
 
+- **Testnotizen #410/#411 (der Abzweig IST ein Prozess – und die Entscheidung steht am
+  Rückfluss)**: Der Schritt-Teaser aus #409 war zu wenig – «hier habe ich mir schon viel mehr
+  erwartet». Richtig gesehen: eine Reihe kleiner Symbole zeigt, DASS es den Abzweig gibt, aber
+  nicht, dass der Hauptprozess an dieser Stelle **anhält und über ihn läuft**.
+  (1) **Die Hauptlinie wird gekappt** (`order-flow.tsx: SubOrderBranch`): an der Stelle des
+  Unter-Auftrags führt sie in einen eigenen kleinen Fluss – **Startknoten mit dem Verweis auf
+  den Abzweig**, darunter **seine Prozessschritte als Karten** (`SubStepCard`), am Schluss der
+  **Endknoten mit der Ablenkung zurück**. Keine neue Bildsprache, sondern dieselbe eine Nummer
+  kleiner: dieselben Terminal-Knoten (`FlowTerm size`), dieselben Verbinder (`Connector
+  height`), dieselben Modulfarben, dieselbe Zustands-Regel (nur was JETZT dran ist, trägt
+  Farbe). Gestrichelter Rahmen = «gehört nicht zu dieser Linie», wie beim Herkunfts-Teaser.
+  Der ganze Kasten öffnet den Unter-Auftrag; seine Schritte sind bewusst **nicht** einzeln
+  anwählbar – ein Schritt wird in SEINEM Auftrag bearbeitet.
+  (2) **Die Entscheidung steht am Rückfluss** – die Antwort auf die offene Frage der Notiz
+  («beim Herabsetzen der Menge weiss ich noch nicht ganz»). Eine Unterdeckungs-Entscheidung
+  beantwortet genau eine Frage: *und was ist, wenn der Abzweig zurückkommt?* Also steht sie
+  dort, wo er zurückkommt, statt in der Karte des Schritts:
+  **ohne Entscheidung** → «zurück in den Prozess» (Nachschub: «deckt den Bedarf») und der
+  ganze Rest des Flusses tritt zurück – *warten, bis das hier durch ist*;
+  **Menge reduziert** → «Menge angepasst 5 → 4» – das Stück bleibt beim Abzweig, der Auftrag
+  läuft **mit weniger** weiter;
+  **ersetzt** → «1 ab Lager ersetzt» – an dieser Stelle ist etwas anderes eingemündet.
+  Datenseitig ist das **kein neues Feld**: es sind die `StepResolution`s des Schritts, nur an
+  ihrem richtigen Ort. Hat ein Schritt einen Abzweig, wandern sie an dessen Rückfluss – sonst
+  bleiben sie am Schritt (`resolutions={atBranch ? [] : res}`; dieselbe Aussage nie zweimal).
+  (3) **«Angelegt» am Auftrag ist entfallen** (#411): der Auftrag war der **einzige**
+  Datensatztyp mit einem Anlage-Zeitstempel als Feld – Artikel, Instanz, Person und
+  Unternehmen führen keinen. Er sagte auch nichts Neues: die **Objektnummer** ist aufsteigend
+  vergeben (Reihenfolge), der **Prozess** nennt je Schritt Wer/Wann im Hover, und seit ein
+  Auftrag als Ganzes entsteht (#386) ist «angelegt» derselbe Moment wie «freigegeben»; bei
+  einem Abzweig steht die Entstehung ohnehin am Ursprungsschritt des Eltern-Auftrags.
+  Wächter: `test_a_sub_order_is_drawn_as_a_process_inside_the_process`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

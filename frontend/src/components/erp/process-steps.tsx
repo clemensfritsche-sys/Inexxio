@@ -1114,29 +1114,37 @@ export function kindColor(type: StepType) {
  * der eigene Ablauf und es geht in einen anderen Auftrag über. Eine Variante desselben
  * Bausteins, keine zweite Linie.
  */
-export function Connector({ dashed = false }: { dashed?: boolean } = {}) {
+export function Connector({ dashed = false, height }: { dashed?: boolean; height?: number } = {}) {
   if (dashed) {
     return (
       <div style={{
-        width: 2, height: 22, flex: 'none',
+        width: 2, height: height ?? 22, flex: 'none',
         backgroundImage: 'linear-gradient(var(--border-2) 55%, transparent 55%)',
         backgroundSize: '2px 7px',
       }} />
     );
   }
-  return <div style={{ width: 2, height: 28, background: 'var(--border-2)', flex: 'none' }} />;
+  return <div style={{ width: 2, height: height ?? 28, background: 'var(--border-2)', flex: 'none' }} />;
 }
 
 // Start-/Endknoten als runder Terminal-Knoten (grün «Start» / dunkel «Ende»).
-export function FlowTerm({ kind }: { kind: 'start' | 'end' }) {
+/**
+ * Start-/Endknoten des Flusses.
+ *
+ * ``size`` verkleinert ihn für den **Abzweig** (Notiz #410): ein Unter-Auftrag ist ein
+ * eigener Prozess und bekommt darum eigene Terminal-Knoten – aber eine Nummer kleiner, damit
+ * er sich dem Hauptfluss unterordnet. Dieselben Farben und Symbole: was «Start» bedeutet,
+ * darf nicht davon abhängen, in welcher Ebene man gerade liest.
+ */
+export function FlowTerm({ kind, size = 52 }: { kind: 'start' | 'end'; size?: number }) {
   const start = kind === 'start';
   return (
     <div style={{
-      width: 52, height: 52, borderRadius: '50%', flex: 'none', boxShadow: 'var(--shadow-sm)',
+      width: size, height: size, borderRadius: '50%', flex: 'none', boxShadow: 'var(--shadow-sm)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: start ? 'var(--success)' : 'var(--fg-1)', color: '#fff',
     }} title={start ? 'Start' : 'Ende'}>
-      {start ? <Play size={22} /> : <Flag size={20} />}
+      {start ? <Play size={Math.round(size * 0.42)} /> : <Flag size={Math.round(size * 0.38)} />}
     </div>
   );
 }

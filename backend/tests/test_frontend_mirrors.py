@@ -341,10 +341,45 @@ def test_the_step_teaser_names_the_module_from_one_place():
         "Das Zustandswort eines Schritts gehört neben STEP_META, nicht in eine Ansicht."
     )
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "stepStateLabel(st.state)" in flow and "STEP_META[type]" in flow, (
-        "Der Teaser liest Symbol und Worte aus der einen Quelle."
+    # Die **Tatsache** prüfen, nicht die Schreibweise: der Abzweig liest Symbol und Worte aus
+    # der einen Quelle. (Ein zeilengenauer Vergleich bräche bei jeder Umbenennung einer
+    # lokalen Variablen, ohne dass sich fachlich etwas geändert hätte.)
+    assert "stepStateLabel(" in flow and "STEP_META[type]" in flow, (
+        "Der Abzweig liest Symbol und Worte aus der einen Quelle."
     )
     # Und die Herkunft/der Rückweg werden gezeigt, nicht behauptet: EIN Baustein, zwei
     # Richtungen – wer daraus zwei Komponenten macht, lässt sie auseinanderlaufen.
     assert "export function OrderBranchTeaser" in flow
     assert flow.count("kind === 'from'") >= 1 and "'zurück an'" in flow
+
+
+def test_a_sub_order_is_drawn_as_a_process_inside_the_process():
+    """**Die Hauptlinie wird gekappt und läuft über den Abzweig** (Testnotiz #410).
+
+    Ein Unter-Auftrag war eine flache Zeile mit einer Reihe Symbolen: man sah, DASS es ihn
+    gibt, aber nicht, dass der Hauptprozess an dieser Stelle tatsächlich anhält und über ihn
+    läuft. Jetzt ist er, was er ist – ein Prozess im Prozess: **eigener Startknoten** (mit dem
+    Verweis auf ihn), darunter **seine Prozessschritte**, am Schluss der **Endknoten mit der
+    Ablenkung zurück** in den Hauptprozess.
+
+    Der Wächter prüft die zwei Aussagen, die dieses Bild tragen:
+
+    * es ist **dieselbe** Bildsprache, eine Nummer kleiner – die Terminal-Knoten kommen aus
+      ``FlowTerm`` (mit ``size``), nicht aus einem zweiten, nachgebauten Kreis;
+    * die **Entscheidung steht am Rückfluss**: hat ein Schritt einen Abzweig, wandern seine
+      Auflösungen dorthin und nicht zusätzlich in die Karte – «Menge angepasst 5 → 4»
+      beantwortet die Frage «und was passiert, wenn er zurückkommt?», und die stellt sich
+      genau dort.
+    """
+    src = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    assert "export function FlowTerm({ kind, size = 52 }" in src, (
+        "Der Abzweig bekommt kleinere Terminal-Knoten – aber DIESELBEN."
+    )
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    for node in ('<FlowTerm kind="start" size=', '<FlowTerm kind="end" size='):
+        assert node in flow, f"Dem Abzweig fehlt sein {node}"
+    assert "function SubStepCard" in flow, "Die Schritte des Abzweigs sind Karten, keine Punktreihe."
+    assert "resolutions={atBranch ? [] : res}" in flow, (
+        "Mit Abzweig steht die Entscheidung an seinem Rückfluss – sonst am Schritt. "
+        "Beides gleichzeitig wäre dieselbe Aussage an zwei Stellen."
+    )

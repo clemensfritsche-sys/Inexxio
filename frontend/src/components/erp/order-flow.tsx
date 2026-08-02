@@ -82,18 +82,31 @@ export function OrderFlow({ steps, subOrders = [], origin, paused = false, selec
   if (steps.length === 0 && !origin) return null;
 
   const rows: React.ReactNode[] = [];
-  const subCard = (info: OrderDeviationInfo) => (
-    <SubOrderCard key={`sub-${info.object_id}`} info={info} onOpen={onOpenOrder} />
+  const branch = (info: OrderDeviationInfo, res: StepResolution[] = []) => (
+    <SubOrderBranch key={`sub-${info.object_id}`} info={info} resolutions={res} onOpen={onOpenOrder} />
   );
 
   // Was kein Schritt für sich beansprucht, gehört dem Auftrag – und steht am Anfang.
   const claimed = new Set(steps.flatMap((s) => (s.sub_orders ?? []).map((d) => d.object_id)));
-  rows.push(...subOrders.filter((x) => !claimed.has(x.object_id)).map(subCard));
+  rows.push(...subOrders.filter((x) => !claimed.has(x.object_id)).map((x) => branch(x)));
 
   for (const s of steps) {
     const meta = STEP_META[s.step_type as StepType] ?? STEP_META.purchase;
     const selected = selectedId === String(s.id) && !paused;
-    const card = (
+    // **Jeder Unter-Auftrag trägt seine Position selbst** (``stage``, im Backend abgeleitet):
+    // «vorher» = er hält den Schritt auf (erst das hier, dann dieser Schritt), «nachher» = er
+    // folgt aus ihm. Hier wird nur einsortiert – ohne Fallunterscheidung, weil es dieselbe
+    // Sache ist: ein Unter-Auftrag an seiner Stelle im Ablauf.
+    const subs = s.sub_orders ?? [];
+    const before = subs.filter((x) => x.stage === 'before');
+    const after = subs.filter((x) => x.stage === 'after');
+    // **Die Entscheidung steht am Rückfluss des Abzweigs, nicht in der Karte** (Notiz #410):
+    // «Menge angepasst 5 → 4» beantwortet die Frage «und was passiert, wenn er zurückkommt?» –
+    // die stellt sich genau dort. Ohne Abzweig bleibt sie am Schritt, wo sie gefallen ist.
+    const res = s.resolutions ?? [];
+    const atBranch = before.length > 0;
+    rows.push(
+      ...before.map((x, i) => branch(x, i === before.length - 1 ? res : [])),
       <FlowCard
         key={`step-${s.id}`}
         type={s.step_type as StepType}
@@ -101,7 +114,7 @@ export function OrderFlow({ steps, subOrders = [], origin, paused = false, selec
         icon={meta.icon}
         detail={stepDetail(s)}
         badge={stepBadge(s)}
-        resolutions={s.resolutions ?? []}
+        resolutions={atBranch ? [] : res}
         state={s.state}
         hint={completionHint(s)}
         selected={selected}
@@ -109,17 +122,8 @@ export function OrderFlow({ steps, subOrders = [], origin, paused = false, selec
         onClick={paused ? undefined : () => onSelectStep(String(s.id))}
       >
         {selected && renderPanel?.(s)}
-      </FlowCard>
-    );
-    // **Jeder Unter-Auftrag trägt seine Position selbst** (``stage``, im Backend abgeleitet):
-    // «vorher» = er hält den Schritt auf (erst das hier, dann dieser Schritt), «nachher» = er
-    // folgt aus ihm. Hier wird nur einsortiert – ohne Fallunterscheidung, weil es dieselbe
-    // Sache ist: ein Unter-Auftrag an seiner Stelle im Ablauf.
-    const subs = s.sub_orders ?? [];
-    rows.push(
-      ...subs.filter((x) => x.stage === 'before').map(subCard),
-      card,
-      ...subs.filter((x) => x.stage === 'after').map(subCard),
+      </FlowCard>,
+      ...after.map((x) => branch(x)),
     );
   }
 
@@ -294,14 +298,14 @@ const RESOLUTION_META: Record<string, { icon: React.ElementType; tone: string }>
   share_taken: { icon: PackageMinus, tone: 'var(--warning)' },
 };
 
-function ResolutionLine({ r }: { r: StepResolution }) {
+function ResolutionLine({ r, first = false }: { r: StepResolution; first?: boolean }) {
   const who = actorHint(r.by, r.at);
   const meta = RESOLUTION_META[r.kind] ?? RESOLUTION_META.covered_from_stock;
   const Icon = meta.icon;
   const qty = <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{r.quantity}</b>;
   return (
     <div title={who}
-      style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+      style={{ marginTop: first ? 0 : 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
         font: '500 12px var(--font-body)', color: 'var(--fg-3)', cursor: who ? 'help' : 'default' }}>
       <Icon size={13} style={{ color: meta.tone, flexShrink: 0 }} />
       {r.kind === 'quantity_confirmed' && (
@@ -326,32 +330,60 @@ function ResolutionLine({ r }: { r: StepResolution }) {
 
 // Die drei Arten von Unter-Auftrag – EIN Muster, drei Beschriftungen. Alle drei sind
 // eigenständige Aufträge, die aus einem Schritt hervorgegangen sind; sie unterscheiden sich
-// nur darin, WARUM (siehe ``orders.reason``).
-const SUB_META: Record<string, { label: string; icon: React.ElementType; open: string }> = {
+// nur darin, WARUM (siehe ``orders.reason``) – und darum auch darin, was ihre Rückkehr in
+// den Hauptprozess bedeutet (``rejoin``).
+const SUB_META: Record<string, {
+  label: string; icon: React.ElementType; open: string; rejoin: string;
+}> = {
   deviation: {
     label: 'Abweichung', icon: TriangleAlert,
     open: 'Offene Abweichung – ihr Stück fehlt dem Auftrag, bis sie geklärt ist',
+    rejoin: 'zurück in den Prozess',
   },
   supply: {
     label: 'Nachschub', icon: PackagePlus,
     open: 'Nachschub läuft – der Schritt wird von selbst wieder aktiv',
+    rejoin: 'deckt den Bedarf',
   },
   provisioning: {
     label: 'Bereitstellung', icon: Truck,
     open: 'Material wird an seinen Ort gebracht',
+    rejoin: 'Material ist am Ort',
   },
 };
 
 /**
- * **Ein Unter-Auftrag als Knoten im Fluss** – zwischen den Modulen, an der Stelle, an der er
- * entstanden ist (Notiz #353). Eingerückt, weil er kein Modul DIESES Prozesses ist, sondern
- * ein eigener Auftrag, der hier hineinragt; ein Klick öffnet ihn.
+ * **Der Abzweig ist ein Prozess im Prozess** (Testnotiz #410).
  *
- * Was er bindet, steht in IHM – nicht hier noch einmal (Notiz #381): dass der Prozess seinet-
- * wegen ruht, sagt bereits die Pause am Knoten und der zurückgetretene Rest des Flusses.
+ * Die Hauptlinie wird an der Stelle **gekappt**, an der der Unter-Auftrag entstanden ist; von
+ * dort führt sie in einen eigenen kleinen Fluss – **Startknoten mit dem Verweis auf den
+ * Abzweig, darunter seine Prozessschritte, am Schluss der Endknoten mit der Ablenkung zurück
+ * in den Hauptprozess**. Das ist keine neue Bildsprache, sondern dieselbe eine Nummer
+ * kleiner: dieselben Terminal-Knoten (`FlowTerm size`), dieselben Verbinder, dieselben
+ * Modulfarben und dieselbe Zustands-Regel (nur was JETZT dran ist, trägt Farbe).
+ *
+ * Vorher war der Abzweig eine flache Zeile mit einer Reihe Symbolen – man sah, DASS es ihn
+ * gibt, aber nicht, dass der Hauptprozess hier tatsächlich anhält und über ihn läuft.
+ *
+ * **Und was am Ende entschieden wurde, steht am Rückfluss** – dort, wo die Linie in den
+ * Hauptprozess zurückkehrt, denn genau das ist die Frage, die eine Entscheidung beantwortet:
+ *
+ *   ohne Entscheidung  → «zurück in den Prozess» (bzw. «deckt den Bedarf») – der Hauptfluss
+ *                        ruht, bis der Abzweig durch ist; dass er ruht, sagt der
+ *                        zurückgetretene Rest (Notiz #378).
+ *   Menge reduziert    → «Menge angepasst 5 → 4» – der Auftrag läuft **mit weniger** weiter,
+ *                        das Stück bleibt beim Abzweig.
+ *   ersetzt            → «1 ab Lager ersetzt» – etwas anderes ist an dieser Stelle in den
+ *                        Hauptprozess **eingemündet**, das Stück bleibt beim Abzweig.
+ *
+ * Der ganze Kasten öffnet den Unter-Auftrag; die Schritte darin sind bewusst nicht einzeln
+ * anwählbar – ein Schritt wird in SEINEM Auftrag bearbeitet, und der ist einen Klick entfernt.
  */
-function SubOrderCard({ info, onOpen }: {
-  info: OrderDeviationInfo; onOpen?: (id: number) => void;
+function SubOrderBranch({ info, resolutions = [], onOpen }: {
+  info: OrderDeviationInfo;
+  /** Was an dieser Stelle entschieden wurde – steht am Rückfluss, wo es hingehört. */
+  resolutions?: StepResolution[];
+  onOpen?: (id: number) => void;
 }) {
   const open = info.status === 'draft' || info.status === 'released';
   const meta = SUB_META[info.reason ?? 'deviation'] ?? SUB_META.deviation;
@@ -359,81 +391,105 @@ function SubOrderCard({ info, onOpen }: {
   const tone = open ? 'var(--warning)' : 'var(--border-1)';
   // **Sein Zustand gehört hierher** (Notiz #404): dass es diesen Unter-Auftrag gibt, steht
   // ohnehin da – ohne seinen Status muss man ihn öffnen, um zu wissen, ob noch etwas zu tun
-  // ist. Dieselbe Badge wie überall (``orderStatus``), kein zweites Vokabular; die frühere
-  // Pause/Haken-Andeutung sagte nur «offen/zu» und log bei «Abgebrochen».
+  // ist. Dieselbe Badge wie überall (``orderStatus``), kein zweites Vokabular.
   const cfg = orderStatus({ status: info.status as Order['status'], abort_into_id: info.abort_into_id });
+  const steps = info.steps ?? [];
   return (
-    <div style={{ width: '100%', maxWidth: STEP_MAXW, display: 'flex', paddingLeft: 30 }}>
-      {/* Der Hover sagt den **Zustand**, nicht ein festes «Geklärt» (Notiz #408): ein
-          abgebrochener Unter-Auftrag ist nicht geklärt – er wurde abgelöst. */}
-      <button type="button" onClick={() => onOpen?.(info.object_id)}
-        title={open ? meta.open : `${meta.label}: ${cfg.label}`}
-        style={{
-          flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left',
-          padding: '11px 14px', borderRadius: 'var(--r-lg)', cursor: 'pointer',
-          border: `1px solid ${tone}`, background: open ? 'var(--warning-bg)' : '#fff',
-          opacity: open ? 1 : 0.6,
-        }}>
-        <span style={{
-          width: 30, height: 30, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
-          border: `1px solid ${tone}`, color: open ? 'var(--warning)' : 'var(--fg-4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Icon size={15} />
-        </span>
-        <span style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+    <div style={{ width: '100%', maxWidth: STEP_MAXW, paddingLeft: 26 }}>
+      <div style={{
+        border: `1.5px dashed ${tone}`, borderRadius: 'var(--r-lg)',
+        background: open ? 'var(--warning-bg)' : 'var(--bg-2)',
+        opacity: open ? 1 : 0.62, overflow: 'hidden',
+      }}>
+        {/* ── Startknoten des Abzweigs, mit dem Verweis auf ihn ─────────────────── */}
+        <button type="button" onClick={() => onOpen?.(info.object_id)}
+          title={open ? meta.open : `${meta.label}: ${cfg.label}`}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
+            padding: '10px 13px', border: 'none', background: 'none', cursor: 'pointer',
+          }}>
+          <FlowTerm kind="start" size={26} />
+          <Icon size={15} style={{ color: open ? 'var(--warning)' : 'var(--fg-4)', flexShrink: 0 }} />
+          <span style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{meta.label}</span>
             <ObjId value={info.object_id} />
           </span>
-          <SubSteps steps={info.steps ?? []} />
-        </span>
-        <StatusBadge cfg={cfg} />
-      </button>
+          <StatusBadge cfg={cfg} />
+        </button>
+
+        {/* ── Seine Prozessschritte – derselbe Fluss, eine Nummer kleiner ───────── */}
+        {steps.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 13px' }}>
+            {steps.map((st) => (
+              <div key={st.id} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <Connector height={12} />
+                <SubStepCard step={st} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Endknoten mit der Ablenkung zurück – und der Entscheidung ─────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 13px 11px' }}>
+          <Connector height={12} />
+          <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, paddingTop: 9 }}>
+            <FlowTerm kind="end" size={26} />
+            <span style={{ minWidth: 0, flex: 1 }}>
+              {resolutions.length > 0
+                ? resolutions.map((r, i) => <ResolutionLine key={i} r={r} first={i === 0} />)
+                : (
+                  // Ohne Entscheidung kehrt der Abzweig schlicht in den Hauptprozess zurück –
+                  // dieselbe Geste wie am Herkunfts-Teaser (#409), nur andersherum gelesen.
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6,
+                    font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' }}>
+                    <CornerLeftDown size={13} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
+                    {meta.rejoin}
+                  </span>
+                )}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 /**
- * **Der Prozess des Abzweigs, angeteasert** (Notiz #409) – derselbe Fluss, eine Nummer
- * kleiner: ein Symbol je Modul, in der Farbe des Moduls, durch dieselben Verbinder gereiht.
+ * Ein Prozessschritt **des Abzweigs** – eine kleine, nicht anwählbare Karte.
  *
- * Damit beantwortet der Knoten die Frage, für die man ihn sonst öffnen müsste: **wie weit
- * ist das da drüben?** Erledigte und noch nicht erreichte Module treten zurück (gedämpft),
- * nur das laufende trägt seine Farbe – exakt die Regel des grossen Flusses, damit man beim
- * Wechsel nichts umlernen muss. Ein Problem (angehalten/fehlgeschlagen) meldet sich über den
- * Rand in der Ampelfarbe; der Hover nennt Modul und Zustand in Worten.
- *
- * Bewusst ohne Klick auf das einzelne Symbol: ein Schritt wird in SEINEM Auftrag bearbeitet –
- * der Knoten öffnet ihn, das ist der eine Weg hinüber.
+ * Bewusst nicht `FlowCard`: die ist die operable Karte DIESES Prozesses (öffnet ihr Panel,
+ * trägt Badge, Auflösungen, Wer/Wann). Hier geht es um eine Projektion eines **fremden**
+ * Schritts – er wird in seinem eigenen Auftrag bearbeitet. Gemeinsam bleibt, was gemeinsam
+ * sein muss: Modulfarbe, Symbol, Zustands-Regel (erledigt/noch nicht erreicht treten zurück)
+ * und das Zustands-Symbol.
  */
-function SubSteps({ steps }: { steps: SubOrderStep[] }) {
-  if (steps.length === 0) return null;
+function SubStepCard({ step }: { step: SubOrderStep }) {
+  const type = step.step_type as StepType;
+  const sm = STEP_META[type] ?? STEP_META.purchase;
+  const kc = kindColor(type);
+  const Icon = sm.icon;
+  const quiet = step.state === 'done' || step.state === 'locked';
+  const mark = STATE_MARK[step.state];
+  const MarkIcon = mark?.icon;
   return (
-    <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 4 }}>
-      {steps.map((st, i) => {
-        const type = st.step_type as StepType;
-        const sm = STEP_META[type] ?? STEP_META.purchase;
-        const kc = kindColor(type);
-        const Icon = sm.icon;
-        const quiet = st.state === 'done' || st.state === 'locked';
-        const mark = STATE_MARK[st.state];
-        return (
-          <span key={st.id} style={{ display: 'flex', alignItems: 'center' }}>
-            {i > 0 && <span style={{ width: 7, height: 1, background: 'var(--border-2)', flex: 'none' }} />}
-            <span title={`${sm.label}: ${stepStateLabel(st.state)}`}
-              style={{
-                width: 22, height: 22, borderRadius: 5, flex: 'none', background: '#fff',
-                border: `1px solid ${!quiet && mark ? mark.color : kc.border}`,
-                color: quiet ? 'var(--fg-4)' : kc.fg, opacity: quiet ? 0.55 : 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'help',
-              }}>
-              <Icon size={12} />
-            </span>
-          </span>
-        );
-      })}
-    </span>
+    <div title={`${sm.label}: ${stepStateLabel(step.state)}`}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px',
+        border: `1px solid ${kc.border}`, borderRadius: 'var(--r-sm)', background: kc.bg,
+        opacity: quiet ? 0.5 : 1, cursor: 'help',
+      }}>
+      <span style={{
+        width: 26, height: 26, borderRadius: 5, flexShrink: 0, background: '#fff',
+        border: `1px solid ${kc.border}`, color: kc.fg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Icon size={13} />
+      </span>
+      <span style={{ minWidth: 0, flex: 1, font: '700 12.5px var(--font-body)', color: 'var(--fg-1)' }}>
+        {sm.label}
+      </span>
+      {MarkIcon && <MarkIcon size={14} style={{ color: mark.color, flexShrink: 0 }} />}
+    </div>
   );
 }
 

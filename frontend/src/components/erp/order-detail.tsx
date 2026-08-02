@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert } from 'lucide-react';
+import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
 import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
@@ -1078,9 +1078,14 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                     {record.seller_company_name}<ObjId value={record.seller_company_object_id} />
                   </span>} />
               )}
-              {/* Erstellt/Geändert: früher ein Fussleisten-Streifen am Fensterrand – jetzt
-                  eine Angabe unter den übrigen, wo sie hingehört (kein Footer mehr). */}
-              {record && <ReadField icon={HistoryIcon} label="Angelegt" value={localDate(record.created_at)} />}
+              {/* «Angelegt» ist entfallen (Notiz #411): der Auftrag war der EINZIGE
+                  Datensatztyp, der seinen Anlage-Zeitstempel als Feld führte – Artikel,
+                  Instanz, Person und Unternehmen tun es nicht. Er sagte auch nichts, was
+                  nicht schon dasteht: die **Objektnummer** ist aufsteigend vergeben (Reihen-
+                  folge), der **Prozess** nennt je Schritt Wer/Wann im Hover, und seit ein
+                  Auftrag als Ganzes entsteht (#386) ist «angelegt» derselbe Moment wie
+                  «freigegeben». Bei einem Abzweig steht die Entstehung ohnehin am
+                  Ursprungsschritt des Eltern-Auftrags. */}
             </div>
           </div>
         )}
