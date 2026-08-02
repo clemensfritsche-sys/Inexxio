@@ -22,7 +22,6 @@ from ..models import Article, Instance, Order
 from ..schemas.instance import InstanceShare
 from ..schemas.order import AffectedOrder, AffectedShare
 from .quantity import ZERO, to_qty
-from .subject import is_fixed_subject
 
 
 def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceShare]]:
@@ -215,7 +214,6 @@ def affected_rows(db: Session, hits: list[Affected]) -> list[AffectedOrder]:
             unit=art.unit if art else None, quantity=float(h.quantity),
             sources=[AffectedShare(instance_object_id=oid, quantity=float(q))
                      for oid, q in sorted(h.sources.items())],
-            needs_decision=not is_fixed_subject(h.order),
         ))
     return out
 

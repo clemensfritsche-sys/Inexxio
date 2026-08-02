@@ -3309,6 +3309,47 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (Harness `note394.py` 11/11 – die gemeldete Abfolge Schritt für Schritt, plus alle 13
   Szenario-Harnesses grün).
 
+- **Testnotizen #395/#396/#397 (immer und immer dieselbe Logik – die letzte Ausnahme ist
+  weg)**: Der Nutzer hat den Soll-Ablauf noch einmal in einem Satz formuliert: *ein Auftrag
+  wird freigegeben, dabei wird die Unterdeckung des Auftrags abgefragt, an dem die Instanzen
+  hingen, die Antwort wirkt auf genau diesen – und der neue Auftrag steht in dessen Prozess
+  an der Stelle, an der es passiert ist.* Genau daran scheiterte die **Abweichung von der
+  Abweichung**, weil zwei Ausnahmen im Weg standen.
+  (1) **Ein festes Subjekt wurde nicht gefragt** (#397). Abweichung/Retoure/Bereitstellung
+  galten als «hat kein Soll, also keine Fehlmenge» (#388): sie schrumpften lautlos mit und
+  wurden **automatisch abgebrochen**, wenn nichts blieb – im gemeldeten Fall «Abgebrochen –
+  fortgeführt im Abweichungsauftrag …563», ohne dass jemand gefragt wurde. Das war eine
+  zweite Logik für dieselbe Lage. Jetzt hat auch ein festes Subjekt eine Fehlmenge; sein
+  «Gesichert» ist nur ein anderes: es beschafft nichts, sondern **hält bestimmte Stücke**,
+  also ist seine Fehlmenge schlicht, **was ihm weggenommen wurde** (`process._held_amounts`).
+  Damit fällt es unter dieselbe Formel, bekommt dieselben drei Antworten – und «Menge
+  reduzieren» IST sein Abbruch, wenn nichts bleibt (dieselbe Mechanik wie beim Eltern, #366),
+  nur eben **entschieden** statt automatisch. `recovery.retire_if_subjectless` und
+  `AffectedOrder.needs_decision` sind ersatzlos entfallen: **zwei Regeln weniger**.
+  *Ein echter Fund dabei:* bei einer **Retoure** liegt die Menge beim Kunden – eine ganz
+  verkaufte Instanz trägt keine Restmenge und kann keinen Anspruch führen. «Gebunden» heisst
+  dort «vollständig gehalten», sonst hätte jede Retoure sofort eine Phantom-Fehlmenge
+  gemeldet und sich selbst angehalten (gegen echtes PostgreSQL gefunden, `harness.py` S14).
+  (2) **Ein Unter-Auftrag gehört genau EINEM Auftrag – seinem Eltern** (#397). Zusätzlich
+  wurden *fremde* Abweichungen an denselben Instanzen hereingezogen (die Klammer sei die
+  Instanz, nicht der Eltern-Zeiger, #350); in der Kette Auftrag → Abweichung → Abweichung
+  stand die zweite damit auch im **Hauptauftrag**, obwohl sie dort nichts zu suchen hat – sie
+  hat der ERSTEN etwas genommen. `deviations_touching` ist entfallen. Dass ein anderer
+  Auftrag betroffen ist, sagt ihm heute die Unterdeckungs-Frage bei der Freigabe; dafür
+  braucht es keinen Fremd-Knoten. *Für die **Rechnung** bleibt die Instanz die Klammer
+  (`deviated_quantities`) – nur für die **Anzeige** gilt der Eltern-Zeiger.*
+  (3) **Instanz XY im Auftrag ZZ** (#396): die Anteils-Zeile schrieb den Halter-Namen aus –
+  der IST aber der Artikelname und damit in jeder Zeile derselbe; er sagte nichts und las
+  sich wie ein Artikel. Jetzt zwei Objektnummern mit je einem Symbol davor (Instanz ·
+  Auftrag/Abweichung), der Name steht im Hover.
+  (4) **Die Auftragsspezifikation nennt Artikel und Instanz – sonst nichts** (#395): die
+  Zeile «2 Stk → Auftrag …559» (`ForeignShares`) ist dort entfallen. Wohin ein Anteil ging,
+  gehört in den Prozess bzw. an die Instanz.
+  Wächter: `test_every_affected_order_is_asked_the_same_question`,
+  `test_a_deviation_is_linked_by_the_instance_not_by_the_parent` (neu formuliert),
+  `test_a_sub_order_is_shown_only_at_its_parent`; gegen echtes PostgreSQL verifiziert
+  (`note397.py` 17/17 – die gemeldete Kette Schritt für Schritt, plus alle 14 Harnesses).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

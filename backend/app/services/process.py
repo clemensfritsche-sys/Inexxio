@@ -423,9 +423,12 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
 
     So reagiert ein **Erzeugungsauftrag auf Ausschuss** identisch wie ein **Bestands-Auftrag**
     auf eine ausgesteuerte Reservierung – dieselbe Unterdeckung, dieselben Deckungs-Wege, kein
-    Sonderfall. Ausgenommen ist nur die **Abweichung**: ihr Subjekt sind fixierte Instanzen
-    (``subject_of_order_id``), kein aus Lager/Produktion zu erfüllendes Soll."""
-    from .subject import is_fixed_subject
+    Sonderfall. **Auch ein festes Subjekt** (Abweichung/Retoure/Bereitstellung) hat eine
+    Fehlmenge – nur ist sein «Gesichert» ein anderes: es beschafft nichts, sondern hält
+    bestimmte Stücke, also ist seine Fehlmenge schlicht, **was ihm weggenommen wurde**
+    (``_held_amounts``). Vorher war es ganz ausgenommen; die Folge war, dass eine Abweichung
+    an einer Abweichung nie gefragt wurde und die erste stillschweigend abgebrochen wurde
+    (Testnotiz #397). Jetzt gilt für ALLE dieselbe Frage mit denselben drei Antworten."""
     # **Nur ein LAUFENDER Auftrag kann etwas schulden.** Ein Entwurf hat noch nichts zugesagt
     # (und noch keine Instanzen), ein abgeschlossener/abgebrochener hat abgerechnet – dort
     # sind Reservierung und Subjekt-Bindung längst gelöst, «Soll − Gesichert» ergäbe die
@@ -433,13 +436,43 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     # Auftrag). Die Fehlmenge ist eine Aussage über offene Arbeit, nicht über Geschichte.
     if order.status != "released":
         return {}
-    if is_fixed_subject(order):
-        return {}   # Abweichung/Retoure: Subjekt steht fest (gewählte/verkaufte Instanzen)
     targets = _subject_targets(db, order)
     if not targets:
         return {}
-    secured = _secured_amounts(db, order)
+    from .subject import is_fixed_subject
+    secured = _held_amounts(db, order) if is_fixed_subject(order) else _secured_amounts(db, order)
     return {a: t - secured.get(a, ZERO) for a, t in targets.items() if t - secured.get(a, ZERO) > 0}
+
+
+def _held_amounts(db: Session, order: Order) -> dict[int, Decimal]:
+    """**Was ein Auftrag mit festem Subjekt noch in der Hand hat** – je Artikel.
+
+    Abweichung, Retoure und Bereitstellung beschaffen nichts; ihr Subjekt sind bestimmte,
+    bereits vorhandene Stücke. «Gesichert» heisst für sie darum nicht «am Lager reserviert
+    oder selbst erzeugt», sondern schlicht: **hält er es noch?** Der Anspruch
+    (``instances.reservations``) sagt es mengengenau; fehlt er, weil sich an dem Stück nichts
+    reservieren lässt (verkaufte Ware bei einer Retoure), zählt die Bindung als ganze Instanz.
+
+    Damit fällt die Unterdeckung eines festen Subjekts aus derselben Formel wie jede andere:
+    Soll − Gehalten. Nimmt eine zweite Abweichung der ersten ihr einziges Stück weg, fehlt
+    dieser genau eines – und sie wird gefragt wie jeder andere Auftrag auch."""
+    from .subject import order_instances
+    targets = _subject_targets(db, order)
+    held: dict[int, Decimal] = {}
+    for inst in order_instances(db, order):
+        qty = reserved_for(inst, order.id)
+        if qty <= 0:
+            if inst.subject_of_order_id != order.id:
+                continue                       # nicht mehr seins → genau das fehlt ihm
+            # Gebunden, aber ohne Anspruch. Zwei Gründe, beide harmlos: an einer Instanz
+            # ohne Restmenge lässt sich nichts reservieren (**Retoure**: die Ware liegt
+            # beim Kunden, nicht bei einem anderen Auftrag) – dann gilt sie als vollständig
+            # gehalten; sonst zählt, was noch da ist.
+            rest = to_qty(inst.quantity)
+            qty = rest if rest > 0 else targets.get(inst.article_id, ZERO)
+        if qty > 0:
+            held[inst.article_id] = held.get(inst.article_id, ZERO) + qty
+    return held
 
 
 def _subject_targets(db: Session, order: Order) -> dict[int, Decimal]:

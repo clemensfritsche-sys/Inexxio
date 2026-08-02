@@ -2296,10 +2296,10 @@ export interface components {
          *     dabei), **wie viel** (in der Einheit des Artikels, nicht in seinem Namen) und **woher**
          *     (``sources``: aus welcher Instanz).
          *
-         *     ``needs_decision`` unterscheidet die beiden Sorten Betroffener: ein Auftrag mit einem
-         *     **Soll** braucht eine Antwort; ein Auftrag mit **festem Subjekt** (Abweichung, Retoure,
-         *     Bereitstellung) beschafft nichts – er schrumpft lautlos mit und wird gegenstandslos,
-         *     wenn nichts bleibt.
+         *     **Jeder Betroffene braucht eine Antwort** (Testnotiz #397). Früher unterschied ein Feld
+         *     ``needs_decision`` zwei Sorten – ein festes Subjekt (Abweichung/Retoure/Bereitstellung)
+         *     galt als «schrumpft lautlos mit». Das war eine zweite Logik für dieselbe Lage; sie ist
+         *     entfallen, und mit ihr das Feld.
          */
         AffectedOrder: {
             /** Object Id */
@@ -2322,11 +2322,6 @@ export interface components {
              * @default []
              */
             sources: components["schemas"]["AffectedShare"][];
-            /**
-             * Needs Decision
-             * @default true
-             */
-            needs_decision: boolean;
         };
         /**
          * AffectedShare

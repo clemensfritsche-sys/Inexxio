@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2 } from 'lucide-react';
+import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
 import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
@@ -347,7 +347,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     ? shortfall.map((sf) => ({
         object_id: record.object_id as number, name: orderName(record), reason: record.reason,
         article_name: sf.article_name ?? null, unit: record.article_unit ?? null,
-        quantity: sf.quantity, sources: [], needs_decision: true,
+        quantity: sf.quantity, sources: [],
       }))
     : [];
 
@@ -1649,13 +1649,27 @@ function PinPicker({ line, onToggle, bare }: {
                     padding: 0, textAlign: 'left', cursor: off ? 'not-allowed' : 'pointer' }}>
                   {sel ? <CheckCircle2 size={13} style={{ color: cfg.tone, flexShrink: 0 }} />
                        : <span style={{ width: 7, height: 7, borderRadius: 999, background: cfg.tone, flexShrink: 0 }} />}
-                  <span style={{ font: 'var(--mono-sm)', color: 'var(--fg-2)' }}>{formatObjectId(sh.instanceObjectId)}</span>
-                  {/* WEM der Anteil gehört – die eigentliche Aussage dieser Zeile. */}
-                  <span style={{ flex: 1, minWidth: 0, color: sh.holderObjectId != null ? cfg.tone : 'var(--fg-4)',
-                                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {sh.holderObjectId != null
-                      ? `${sh.holderName || 'Auftrag'} · ${formatObjectId(sh.holderObjectId)}`
-                      : 'frei'}
+                  {/* **Instanz XY im Auftrag ZZ** (Notiz #396) – zwei Objektnummern, und
+                      welche welche ist, sagt das Symbol davor. Der Name des Halters stand
+                      hier früher ausgeschrieben; er IST aber der Artikelname und damit in
+                      jeder Zeile derselbe – er sagte also nichts und las sich wie ein Artikel. */}
+                  <Boxes size={12} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
+                  <span title={`Instanz ${formatObjectId(sh.instanceObjectId)}`}
+                        style={{ font: 'var(--mono-sm)', color: 'var(--fg-2)' }}>
+                    {formatObjectId(sh.instanceObjectId)}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5,
+                                 color: sh.holderObjectId != null ? cfg.tone : 'var(--fg-4)',
+                                 overflow: 'hidden', whiteSpace: 'nowrap' }}
+                        title={sh.holderObjectId != null
+                          ? `Gehört ${sh.holderName || 'Auftrag'} ${formatObjectId(sh.holderObjectId)}`
+                          : 'Gehört niemandem – frei am Lager'}>
+                    {sh.holderObjectId != null ? (
+                      <>
+                        {sh.kind === 'bound' ? <TriangleAlert size={12} /> : <ClipboardList size={12} />}
+                        <span style={{ font: 'var(--mono-sm)' }}>{formatObjectId(sh.holderObjectId)}</span>
+                      </>
+                    ) : 'frei'}
                   </span>
                 </button>
                 {/* Die Menge steht rechts – gewählt als Feld, sonst als blosse Angabe. */}

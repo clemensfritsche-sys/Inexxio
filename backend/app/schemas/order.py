@@ -42,10 +42,10 @@ class AffectedOrder(BaseModel):
     dabei), **wie viel** (in der Einheit des Artikels, nicht in seinem Namen) und **woher**
     (``sources``: aus welcher Instanz).
 
-    ``needs_decision`` unterscheidet die beiden Sorten Betroffener: ein Auftrag mit einem
-    **Soll** braucht eine Antwort; ein Auftrag mit **festem Subjekt** (Abweichung, Retoure,
-    Bereitstellung) beschafft nichts – er schrumpft lautlos mit und wird gegenstandslos,
-    wenn nichts bleibt."""
+    **Jeder Betroffene braucht eine Antwort** (Testnotiz #397). Früher unterschied ein Feld
+    ``needs_decision`` zwei Sorten – ein festes Subjekt (Abweichung/Retoure/Bereitstellung)
+    galt als «schrumpft lautlos mit». Das war eine zweite Logik für dieselbe Lage; sie ist
+    entfallen, und mit ihr das Feld."""
     object_id: int
     name: Optional[str] = None
     reason: Optional[str] = None      # deviation | supply | return | provisioning | None
@@ -53,7 +53,6 @@ class AffectedOrder(BaseModel):
     unit: Optional[str] = None        # Einheit der Menge (stk | kg | …)
     quantity: float = 0               # was er an den gewählten Instanzen VERLIERT
     sources: list[AffectedShare] = []
-    needs_decision: bool = True
 
 
 class StepShortfall(BaseModel):

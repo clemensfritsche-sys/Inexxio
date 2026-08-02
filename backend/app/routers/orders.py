@@ -244,10 +244,13 @@ def _enforce_claims(db: Session, order: Order, response: str | None,
     if not picked:
         return []
     holders = shares.affected(db, order, picked)
-    # Gefragt wird nur, wer die Frage auch beantworten kann: ein Auftrag mit einem **Soll**.
-    # Ein festes Subjekt (Abweichung/Retoure/Bereitstellung) schrumpft lautlos mit und wird
-    # gegenstandslos, wenn nichts bleibt – siehe ``_apply_shortfall_answer`` (Notiz #388).
-    if any(not subject.is_fixed_subject(h.order) for h in holders):
+    # **Gefragt wird JEDER, dem etwas weggenommen wird** – auch eine Abweichung (Notiz #397).
+    # Vorher war ein festes Subjekt ausgenommen: es schrumpfte lautlos mit und wurde
+    # abgebrochen, wenn nichts blieb. Damit gab es zwei Logiken für dieselbe Lage, und die
+    # Abweichung an einer Abweichung endete ohne jede Rückfrage im Abbruch der ersten. Jetzt
+    # ist es EINE Frage mit denselben drei Antworten – wer keine Fehlmenge hat, taucht in
+    # ``holders`` ohnehin nicht auf.
+    if holders:
         _assert_answered(db, response, holders)
     return holders
 
@@ -264,17 +267,15 @@ def _apply_shortfall_answer(db: Session, holders: list[shares.Affected], respons
     ALLES entzogen wurde: ``into`` ist dann der Auftrag, der ihn fortführt. Damit braucht der
     reale Fall «Auftrag verwerfen und neu aufsetzen» keinen eigenen Knopf mehr (Notiz #366).
 
-    **Gefragt wird nur, wer ein Soll hat.** Ein Auftrag mit **festem Subjekt** (Abweichung,
-    Retoure, Bereitstellung) beschafft nichts – er behandelt vorhandene Stücke. Nimmt man
-    ihm eines weg, hat er keine Fehlmenge, sondern weniger zu tun; bleibt ihm nichts, ist er
-    gegenstandslos und wird abgebrochen (``recovery.retire_if_subjectless``). Beides braucht
-    keine Entscheidung – und genau deshalb lief die Antwort früher bei ihm auf «Keine
-    Fehlmenge – es gibt nichts zu reduzieren» auf (Testnotiz #388)."""
+    **Und sie gilt für JEDEN Betroffenen** (Notiz #397) – auch für ein festes Subjekt
+    (Abweichung/Retoure/Bereitstellung). Dessen «Soll» sind die Stücke, die es behandeln
+    sollte; nimmt man ihm eines weg, fehlt ihm genau das (``process._held_amounts``). Bleibt
+    ihm gar nichts, IST «Menge reduzieren» sein Abbruch – dieselbe Mechanik wie beim Eltern
+    (Notiz #366), nur eben **entschieden** statt automatisch. Der frühere Sonderweg
+    (``recovery.retire_if_subjectless``) ist damit entfallen: eine Regel weniger."""
     from ..services import recovery
     for a in holders:
-        if subject.is_fixed_subject(a.order):
-            recovery.retire_if_subjectless(db, a.order, into, actor_id)
-        elif response == "replace":
+        if response == "replace":
             recovery.cover_shortfall(db, a.order, actor_id)
         elif response == "accept":
             recovery.confirm_quantity(db, a.order, actor_id, into=into)

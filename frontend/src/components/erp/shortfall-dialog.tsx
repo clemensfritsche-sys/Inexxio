@@ -59,8 +59,9 @@ const ROW: React.CSSProperties = {
  *   **woher**  – aus welcher Instanz. Bei mehreren Anteilen ist genau das die Information,
  *               die man zum Entscheiden braucht.
  *
- * Wer **keine** Entscheidung braucht (Abweichung/Retoure/Bereitstellung: festes Subjekt,
- * kein Soll), steht mit seiner Konsequenz da statt mit einer Frage.
+ * **Jeder Betroffene steht hier** (Notiz #397) – auch eine Abweichung. Früher galt ein
+ * festes Subjekt als «schrumpft lautlos mit»; das war eine zweite Logik für dieselbe Lage,
+ * und in der Praxis wurde eine Abweichung ohne Rückfrage abgebrochen.
  */
 function AffectedList({ affected }: { affected: AffectedOrder[] }) {
   if (affected.length === 0) return null;
@@ -87,10 +88,8 @@ function AffectedList({ affected }: { affected: AffectedOrder[] }) {
               <ObjId value={a.object_id} />
             </div>
             <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' }}>
-              {a.needs_decision
-                ? <>verliert <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>
-                    {formatQty(a.quantity)}{a.unit ? ` ${unitLabel(a.unit)}` : ''}</b></>
-                : 'läuft mit weniger weiter'}
+              verliert <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>
+                {formatQty(a.quantity)}{a.unit ? ` ${unitLabel(a.unit)}` : ''}</b>
               {/* EINE Herkunft steht einfach dahinter; bei mehreren je Instanz die Teilmenge. */}
               {sources.length === 1
                 ? <> von <ObjId value={sources[0].instance_object_id} /></>

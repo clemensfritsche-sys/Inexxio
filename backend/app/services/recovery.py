@@ -189,29 +189,6 @@ def _remaining_quantities(db: Session, order: Order, short: dict) -> dict[int, D
     return {l.article_id: to_qty(l.quantity) - short.get(l.article_id, ZERO) for l in lines_for(db, order)}
 
 
-def retire_if_subjectless(db: Session, order: Order, into: Order | None, actor_id: int | None) -> bool:
-    """**Ein Auftrag auf feste Instanzen, dem nichts mehr bleibt, ist gegenstandslos.**
-
-    Abweichung, Retoure und Bereitstellung beschaffen nichts – sie **behandeln** vorhandene
-    Stücke. Nimmt ein anderer Auftrag ihnen diese weg, entsteht keine «Fehlmenge»: es gibt
-    schlicht nichts mehr zu behandeln. Darum wird hier auch nichts gefragt – die drei
-    Antworten (warten · ersetzen · Menge reduzieren) setzen ein **Soll** voraus, und genau
-    das hat ein fixiertes Subjekt nicht (Testnotiz #388: «Keine Fehlmenge – es gibt nichts
-    zu reduzieren» kam daher, dass die Antwort trotzdem auf ihn angewandt wurde).
-
-    Bleibt ihm noch eine Teilmenge, läuft er mit weniger weiter – auch das braucht keine
-    Frage. Bleibt nichts, wird er **abgebrochen** und zeigt auf den Auftrag, der übernommen
-    hat (``into``) – dieselbe Mechanik wie beim Eltern (Testnotiz #366). Committet NICHT."""
-    from .deviation import abort_parent
-    from .subject import is_fixed_subject, still_holds
-    if not is_fixed_subject(order) or order.status != "released":
-        return False
-    if still_holds(db, order):
-        return False
-    abort_parent(db, order, into, actor_id)
-    return True
-
-
 def confirm_quantity(db: Session, order: Order, actor_id: int, into: Order | None = None) -> dict:
     """**«Auftragsmenge reduzieren»** – der Auftrag wird mit weniger fertig.
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Boxes, MapPin } from 'lucide-react';
+import { Boxes, MapPin } from 'lucide-react';
 import type { LocationType, Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
@@ -59,7 +59,7 @@ export function OrderPositions({ order }: { order: Order }) {
               {g.instances.length > 0 && (
                 <div style={g.name ? nestStyle : undefined}>
                   {g.instances.map((i) => (
-                    <InstanceLine key={i.id} instance={i} unit={g.unit} orderObjectId={order.object_id ?? null} />
+                    <InstanceLine key={i.id} instance={i} unit={g.unit} />
                   ))}
                 </div>
               )}
@@ -78,16 +78,13 @@ export function OrderPositions({ order }: { order: Order }) {
  * Das Wort «Instanz» steht nicht in jeder Zeile (Notiz #171): unter einer Position IST jede
  * Zeile eine Instanz. Übrig bleibt, was unterscheidet – bei einer Charge ihre Menge.
  */
-function InstanceLine({ instance: i, unit, orderObjectId }: {
-  instance: OrderInstance; unit: string; orderObjectId: number | null;
-}) {
+function InstanceLine({ instance: i, unit }: { instance: OrderInstance; unit: string }) {
   const Icon = LOCATION_META[(i.location_type as LocationType)]?.icon ?? MapPin;
   // Die Menge steht bei JEDER Instanz (Notiz #265): bei einer Charge trägt sie die
   // eigentliche Information, beim Einzelstück schafft sie Einheitlichkeit – man sucht
   // die Angabe nicht mal hier, mal dort.
   const qty = i.quantity != null ? `${i.quantity} ${unit}`.trim() : null;
   return (
-    <>
     <div style={rowGrid}>
       <ObjId value={i.object_id} />
       <span style={instMid}>
@@ -102,36 +99,6 @@ function InstanceLine({ instance: i, unit, orderObjectId }: {
         )}
       </span>
       <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} />
-    </div>
-    <ForeignShares instance={i} unit={unit} orderObjectId={orderObjectId} />
-    </>
-  );
-}
-
-/**
- * **Wo der Rest liegt** – die Anteile dieser Instanz, die einem ANDEREN Auftrag gehören.
- *
- * Eine Instanz ist eine Menge, und ihre Menge ist immer vollständig aufgeteilt. Nimmt eine
- * Abweichung 2 von 4 Stück, sieht man hier «2 Stk → Auftrag …456» – und im Abweichungs-
- * auftrag spiegelbildlich, woher sie kamen. Genau das macht die Logik ohne ein Wort
- * Erklärung sichtbar: das Stück ist nicht weg, es liegt jetzt dort.
- */
-function ForeignShares({ instance: i, unit, orderObjectId }: {
-  instance: OrderInstance; unit: string; orderObjectId: number | null;
-}) {
-  const rows = (i.shares ?? []).filter(
-    (sh) => sh.order_object_id != null && sh.order_object_id !== orderObjectId);
-  if (rows.length === 0) return null;
-  return (
-    <div style={shareWrap}>
-      {rows.map((sh) => (
-        <div key={sh.order_object_id} style={shareRow}>
-          <ArrowRight size={11} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{sh.quantity} {unit}</span>
-          <span style={{ color: 'var(--fg-4)' }}>{sh.order_name || 'Auftrag'}</span>
-          <ObjId value={sh.order_object_id as number} />
-        </div>
-      ))}
     </div>
   );
 }
@@ -225,15 +192,6 @@ const instMid: React.CSSProperties = {
 // Zugehörigkeit als Einrückung an einer Haarlinie – ohne Kästen, ohne zweite Karte.
 const nestStyle: React.CSSProperties = {
   marginLeft: 3, paddingLeft: 13, borderLeft: '1px solid var(--border-1)',
-};
-// Fremde Anteile hängen an der Instanz-Zeile – eine Stufe tiefer, leiser.
-const shareWrap: React.CSSProperties = {
-  marginLeft: 3, paddingLeft: 13, borderLeft: '1px dashed var(--border-1)',
-  display: 'flex', flexDirection: 'column', gap: 2, padding: '2px 0 4px 13px',
-};
-const shareRow: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--fg-3)',
-  flexWrap: 'wrap',
 };
 // Positionen trennt eine Haarlinie, nicht ein grosser Abstand.
 const groupSep: React.CSSProperties = {

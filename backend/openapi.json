@@ -6563,11 +6563,6 @@
             "type": "array",
             "title": "Sources",
             "default": []
-          },
-          "needs_decision": {
-            "type": "boolean",
-            "title": "Needs Decision",
-            "default": true
           }
         },
         "type": "object",
@@ -6575,7 +6570,7 @@
           "object_id"
         ],
         "title": "AffectedOrder",
-        "description": "**Wem nimmt die Auswahl dieses Entwurfs etwas weg?**\n\nSteht am **Entwurf**, nicht erst im Fehlerfall: wer gebundene Instanzen wählt, greift auf\nlaufende Aufträge zu – und soll **vor** der Freigabe sehen, auf welche. Die Frage «was\ngeschieht dort weiter?» (pausieren · ersetzen · Menge reduzieren) fällt sonst über\nObjektnummern, die niemand einordnen kann (Testnotiz #387).\n\nDie Zeile beantwortet drei Dinge, sonst beantwortet sie keines (Testnotiz #393): **wer**\nverliert (ein Auftrag – sein Name ist der Artikelname, darum steht die Datensatzart\ndabei), **wie viel** (in der Einheit des Artikels, nicht in seinem Namen) und **woher**\n(``sources``: aus welcher Instanz).\n\n``needs_decision`` unterscheidet die beiden Sorten Betroffener: ein Auftrag mit einem\n**Soll** braucht eine Antwort; ein Auftrag mit **festem Subjekt** (Abweichung, Retoure,\nBereitstellung) beschafft nichts – er schrumpft lautlos mit und wird gegenstandslos,\nwenn nichts bleibt."
+        "description": "**Wem nimmt die Auswahl dieses Entwurfs etwas weg?**\n\nSteht am **Entwurf**, nicht erst im Fehlerfall: wer gebundene Instanzen wählt, greift auf\nlaufende Aufträge zu – und soll **vor** der Freigabe sehen, auf welche. Die Frage «was\ngeschieht dort weiter?» (pausieren · ersetzen · Menge reduzieren) fällt sonst über\nObjektnummern, die niemand einordnen kann (Testnotiz #387).\n\nDie Zeile beantwortet drei Dinge, sonst beantwortet sie keines (Testnotiz #393): **wer**\nverliert (ein Auftrag – sein Name ist der Artikelname, darum steht die Datensatzart\ndabei), **wie viel** (in der Einheit des Artikels, nicht in seinem Namen) und **woher**\n(``sources``: aus welcher Instanz).\n\n**Jeder Betroffene braucht eine Antwort** (Testnotiz #397). Früher unterschied ein Feld\n``needs_decision`` zwei Sorten – ein festes Subjekt (Abweichung/Retoure/Bereitstellung)\ngalt als «schrumpft lautlos mit». Das war eine zweite Logik für dieselbe Lage; sie ist\nentfallen, und mit ihr das Feld."
       },
       "AffectedShare": {
         "properties": {

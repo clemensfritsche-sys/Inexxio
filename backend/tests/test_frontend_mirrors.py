@@ -227,8 +227,10 @@ def test_the_picker_offers_shares_not_instances():
     # **Lese**-Feld der Unter-Auftrags-Kurzinfo bestehen).
     assert "instance_object_ids:" not in detail and "instance_quantities" not in detail
 
-    pos = (FRONTEND / "components" / "erp" / "order-positions.tsx").read_text()
-    assert "ForeignShares" in pos, "Der Auftrag zeigt, wo der Rest liegt."
+    # (Wohin der Rest ging, stand kurzzeitig auch in der Auftragsspezifikation – dort ist
+    #  es entfallen (#395); die Aufteilung zeigt das Instanz-Detail.)
+    inst = (FRONTEND / "components" / "erp" / "instance-detail.tsx").read_text()
+    assert "shares" in inst, "Das Instanz-Detail zeigt die Aufteilung."
     inst = (FRONTEND / "components" / "erp" / "instance-detail.tsx").read_text()
     assert "Aufteilung" in inst, "Die Instanz zeigt dieselbe Aufteilung."
 
@@ -247,3 +249,26 @@ def test_the_new_order_header_looks_like_every_other_one():
     assert "erp-actbtn-neutral" not in detail, "Kein «Abbrechen» mehr im Kopf."
     # Die Reiter stehen auch beim Anlegen – «Dokumente» gesperrt, mit Grund im Hover.
     assert "disabled: isCreate" in detail
+
+
+def test_a_sub_order_is_shown_only_at_its_parent():
+    """**Ein Unter-Auftrag gehört genau EINEM Auftrag** (Testnotiz #397).
+
+    Er ist dem Auftrag entstanden, dem er etwas weggenommen hat – und steht dort an dem
+    Schritt, an dem es passiert ist. In der Kette Auftrag → Abweichung → Abweichung stand
+    die zweite bisher auch im Hauptauftrag (die Klammer sei die Instanz, #350). Das ist
+    falsch: sie hat der ERSTEN etwas genommen, nicht ihm. Dass ein anderer Auftrag betroffen
+    ist, sagt ihm die Unterdeckungs-Frage bei der Freigabe – jeder Betroffene wird gefragt.
+
+    Die Auswahl-Zeile nennt dazu **Instanz XY im Auftrag ZZ** mit Symbolen statt des
+    Halter-Namens (#396): der Name eines Auftrags IST der Artikelname und damit in jeder
+    Zeile derselbe – er sagte nichts und las sich wie ein Artikel."""
+    from pathlib import Path
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
+    detail = (fe / "order-detail.tsx").read_text()
+    assert "`${sh.holderName || 'Auftrag'} · ${formatObjectId(sh.holderObjectId)}`" not in detail
+    assert "Gehört ${sh.holderName || 'Auftrag'}" in detail, "Der Name gehört in den Hover."
+    # Die Anteile gehören nicht in die Auftragsspezifikation (#395) – der Prozess sagt es.
+    pos = (fe / "order-positions.tsx").read_text()
+    assert "ForeignShares" not in pos, (
+        "Die Spezifikation nennt Artikel und Instanz; wohin der Rest ging, steht im Prozess.")

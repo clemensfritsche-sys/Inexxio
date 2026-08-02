@@ -3450,16 +3450,20 @@ def test_only_a_running_order_can_be_short():
 
 
 def test_a_deviation_is_linked_by_the_instance_not_by_the_parent():
-    """**Die Klammer zwischen Auftrag und Abweichung ist die Instanz** (Notizen #348/#350).
+    """**Die RECHNUNG folgt der Instanz, die ANZEIGE dem Eltern** (Notizen #348/#350/#397).
 
-    Ein Auftrag referenziert Instanzen; eine Abweichung tut dasselbe. Wer an einer Instanz
-    einen Fehler meldet, meldet ihn für JEDEN Auftrag, der auf dieses Stück zählt – auch
-    wenn die Abweichung formal an einem anderen Auftrag hängt (das Instanz-Detail meldet am
-    Herkunftsauftrag). Vorher zählte nur ``parent_order_id``: der andere Auftrag lief
-    ungerührt weiter und zeigte die Abweichung nie."""
+    Ein Auftrag referenziert Instanzen; eine Abweichung tut dasselbe. Für die Frage «was
+    fehlt mir?» zählt darum die Instanz und nicht der Eltern-Zeiger: steckt eines meiner
+    Stücke in einer offenen Abweichung, fehlt es mir – ganz gleich, an welchem Auftrag sie
+    formal hängt (``deviated_quantities``).
+
+    Für die **Darstellung** gilt das ausdrücklich NICHT (#397): ein Unter-Auftrag steht bei
+    dem Auftrag, dem er etwas weggenommen hat – bei seinem Eltern. Sonst stünde in der Kette
+    Auftrag → Abweichung → Abweichung die zweite auch im Hauptauftrag, obwohl sie dort nichts
+    zu suchen hat. Dass ein anderer Auftrag betroffen ist, sagt ihm die Unterdeckungs-Frage
+    bei der Freigabe."""
     import inspect as _inspect
-    from app.services import orders
-    from app.services.deviation import deviations_touching
+    from app.services import deviation, orders
     from app.services.process import deviated_quantities
 
     short = _inspect.getsource(deviated_quantities)
@@ -3467,11 +3471,10 @@ def test_a_deviation_is_linked_by_the_instance_not_by_the_parent():
     # Sich selbst zählt eine Abweichung nie – sonst gäbe sie beim Abschluss nichts frei.
     assert "discard(order.id)" in short
 
-    touch = _inspect.getsource(deviations_touching)
-    assert "InstanceOrderLink" in touch, (
-        "Massgeblich ist die dauerhafte Verarbeitungs-Historie – so bleibt auch eine "
-        "GEKLÄRTE Abweichung im Prozess dokumentiert")
-    assert "deviations_touching" in _inspect.getsource(orders._order_sub_orders)
+    assert not hasattr(deviation, "deviations_touching"), (
+        "Der Fremd-Knoten ist entfallen – ein Unter-Auftrag gehört genau einem Auftrag.")
+    subs = _inspect.getsource(orders._order_sub_orders)
+    assert "Order.parent_order_id == order.object_id" in subs and "InstanceOrderLink.order_id == c.id" in subs
 
 
 def test_the_order_level_deviation_is_the_abort():
@@ -3563,33 +3566,40 @@ def test_the_shortfall_question_comes_at_release_not_at_the_pick():
     assert "recovery.confirm_quantity" in _inspect.getsource(orders._apply_shortfall_answer)
 
 
-def test_a_fixed_subject_order_is_never_asked_for_a_shortfall_answer():
-    """**Gefragt wird nur, wer ein Soll hat** (Testnotiz #388).
+def test_every_affected_order_is_asked_the_same_question():
+    """**Eine Unterdeckung, eine Frage – für JEDEN Betroffenen** (Testnotiz #397).
 
-    Eine Abweichung (ebenso Retoure/Bereitstellung) beschafft nichts – sie **behandelt**
-    vorhandene Stücke. Nimmt ein anderer Auftrag ihr diese weg, entsteht keine Fehlmenge:
-    es gibt schlicht nichts mehr zu behandeln. Trotzdem wurde die Antwort auch auf sie
-    angewandt, und «Menge reduzieren» lief bei ihr auf «Keine Fehlmenge – es gibt nichts zu
-    reduzieren» auf. Jetzt schrumpft sie lautlos mit; bleibt ihr nichts, ist sie
-    gegenstandslos und wird abgebrochen (fortgeführt in dem Auftrag, der übernommen hat).
+    Eine Abweichung (ebenso Retoure/Bereitstellung) beschafft nichts, sie **behandelt**
+    bestimmte Stücke. Daraus wurde der Schluss gezogen, sie habe kein Soll und brauche
+    deshalb keine Frage: sie schrumpfte lautlos mit und wurde abgebrochen, wenn nichts
+    blieb. Das waren zwei Logiken für dieselbe Lage – und in der Praxis endete eine
+    Abweichung an einer Abweichung ohne jede Rückfrage im Abbruch der ersten.
 
-    Und weil sie nichts zu entscheiden hat, wird sie auch nicht gefragt: die Frage stellt
-    sich nur, wenn ein Halter mit einem **Soll** betroffen ist."""
+    Ihr Soll sind schlicht die Stücke, die sie behandeln sollte; was ihr davon weggenommen
+    wird, fehlt ihr (``process._held_amounts``). Damit fällt sie unter dieselbe Formel wie
+    jeder andere Auftrag, bekommt dieselben drei Antworten – und «Menge reduzieren» IST ihr
+    Abbruch, wenn nichts bleibt (dieselbe Mechanik wie beim Eltern, Notiz #366)."""
     import inspect as _inspect
 
     from app.routers import orders
-    from app.services import recovery, subject
+    from app.services import process, recovery
 
-    assert callable(subject.still_holds)
     apply_src = _inspect.getsource(orders._apply_shortfall_answer)
-    assert "subject.is_fixed_subject(a.order)" in apply_src
-    assert "retire_if_subjectless" in apply_src
-    # Die Frage nur, wenn jemand mit Soll betroffen ist.
-    assert "any(not subject.is_fixed_subject(h.order) for h in holders)" in \
-        _inspect.getsource(orders._enforce_claims)
-    # Gegenstandslos = hält nichts mehr → abgebrochen, mit Zeiger auf den Nachfolger.
-    retire = _inspect.getsource(recovery.retire_if_subjectless)
-    assert "still_holds(db, order)" in retire and "abort_parent(db, order, into, actor_id)" in retire
+    assert "is_fixed_subject" not in apply_src, "kein Sonderweg mehr für feste Subjekte"
+    assert "recovery.cover_shortfall" in apply_src and "recovery.confirm_quantity" in apply_src
+    assert not hasattr(recovery, "retire_if_subjectless"), (
+        "Der automatische Abbruch ist in «Menge reduzieren» aufgegangen – eine Regel weniger.")
+    # Gefragt wird, sobald überhaupt jemand betroffen ist.
+    ask = _inspect.getsource(orders._enforce_claims)
+    assert "if holders:" in ask and "is_fixed_subject" not in ask
+    # Und das feste Subjekt hat eine Fehlmenge: Soll − was es noch hält.
+    short = _inspect.getsource(process._subject_shortfalls)
+    assert "_held_amounts(db, order) if is_fixed_subject(order)" in short
+    held = _inspect.getsource(process._held_amounts)
+    assert "reserved_for(inst, order.id)" in held and "subject_of_order_id != order.id" in held
+    assert "targets.get(inst.article_id" in held, (
+        "Bei einer Retoure liegt die Menge beim KUNDEN – eine verkaufte Instanz trägt keine "
+        "Restmenge und kann keinen Anspruch führen; gebunden heisst dort «vollständig gehalten».")
 
 
 def test_clarification_counts_every_open_deviation_not_just_the_last_pointer():
@@ -3615,20 +3625,6 @@ def test_clarification_counts_every_open_deviation_not_just_the_last_pointer():
     assert "mine = order_instances(db, order)" in src
     # Mehr als es gibt kann nicht in Klärung sein.
     assert "min(share, to_qty(i.quantity))" in src
-
-
-def test_a_cleared_foreign_deviation_is_no_longer_shown_as_an_obstacle():
-    """**Eine fremde Abweichung erscheint nur, solange sie offen ist** (Testnotiz #382).
-
-    Der Grund, sie im Prozess eines anderen Auftrags zu zeigen, ist, dass sie ihm **gerade
-    sein Stück entzieht**. Eine geklärte entzieht nichts mehr – als Knoten stehen zu bleiben
-    behauptet einen Halt, den es nicht gibt. Ihre Geschichte steht an der **Instanz** (Reiter
-    «Aufträge»); die eigenen Kinder eines Auftrags bleiben dagegen sichtbar."""
-    import inspect as _inspect
-
-    from app.services import deviation
-
-    assert 'Order.status.in_(("draft", "released"))' in _inspect.getsource(deviation.deviations_touching)
 
 
 def test_a_pick_names_the_share_it_takes():
@@ -3815,8 +3811,10 @@ def test_the_shortfall_question_names_order_quantity_and_source():
     from app.schemas.order import AffectedOrder
     from app.services import shares
 
-    for field in ("unit", "sources", "quantity", "needs_decision"):
+    for field in ("unit", "sources", "quantity"):
         assert field in AffectedOrder.model_fields, field
+    assert "needs_decision" not in AffectedOrder.model_fields, (
+        "Jeder Betroffene braucht eine Antwort – es gibt keine zwei Sorten mehr (#397).")
     rows = _inspect.getsource(shares.affected_rows)
     assert "unit=art.unit" in rows and "AffectedShare(instance_object_id=oid" in rows
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
