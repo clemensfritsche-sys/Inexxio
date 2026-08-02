@@ -980,13 +980,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           </div>
         )}
 
-        {/* Abgebrochen: der Auftrag ist im Moment des Abbruchs inaktiv – nicht «ausstehend»,
-            nicht rücknehmbar. Der Abweichungsauftrag führt ihn fort. */}
-        {!isCreate && record.abort_into_id != null && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 10, fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>
-            <Ban size={16} /> Abgebrochen – fortgeführt im Abweichungsauftrag <ObjId value={record.abort_into_id} />.
-          </div>
-        )}
+        {/* Kein Abbruch-Banner mehr (Notiz #404): dass der Auftrag abgebrochen ist, sagt die
+            Status-Badge im Kopf, und WO es weitergeht steht im Ablauf – der fortführende
+            Auftrag ist sein Unter-Auftrag und hat dort seinen Knoten samt eigenem Zustand.
+            Ein Banner wiederholte beides und drängte sich vor die Sache selbst. */}
 
         {/* ── Auftragsspezifikation ─────────────────────────────────────────────────
             **Was** dieser Auftrag betrifft – und damit das Erste, was man sehen will: sie
@@ -1206,7 +1203,11 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // Unter-Auftrag, der zu klären ist. Dieselbe Regel wie im Backend
                 // (`process.is_paused` → jeder Schritt blockiert, jede Ausführung 409);
                 // sie war bisher nur nicht zu sehen.
-                paused={record.paused === true}
+                // **Ein abgebrochener Auftrag ist ebenso still** (Notiz #404): an ihm ist
+                // nichts mehr zu tun, also darf sich auch kein Schritt mehr öffnen. Das ist
+                // dieselbe Regel, nicht eine zweite – «ruht» heisst hier wie dort: hier
+                // geschieht nichts mehr.
+                paused={record.paused === true || record.status === 'inactive'}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}

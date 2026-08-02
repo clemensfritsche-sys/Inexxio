@@ -111,6 +111,11 @@ class OrderDeviationInfo(BaseModel):
     instance_count: int = 0
     instance_object_ids: list[int] = []
     title: Optional[str] = None
+    # Sein **Zustand** gehört an den Knoten im Ablauf (Notiz #404): dort steht ohnehin, dass
+    # es diesen Unter-Auftrag gibt – ohne seinen Status muss man ihn öffnen, um zu wissen,
+    # ob noch etwas zu tun ist. ``abort_into_id`` unterscheidet dabei «Abgebrochen»
+    # (fortgeführt) von «Inaktiv» (verworfen) – dieselbe Projektion wie überall.
+    abort_into_id: Optional[int] = None
     # **Wo er relativ zu seinem Schritt steht** – die eine Deklaration für die Darstellung
     # (Notiz #372/#377): «vorher» = er hält den Schritt auf (erst das hier, dann dieser
     # Schritt – Abweichung, Nachschub, herbeigeschafftes Material); «nachher» = er folgt aus

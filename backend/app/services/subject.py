@@ -128,20 +128,56 @@ def return_borrowed(db: Session, sub: Order) -> None:
     nichts zurück: er hält über ``Instance.order_id`` und war nie reserviert (seine
     Fehlmenge schliesst sich von selbst, sobald die Abweichung nicht mehr offen ist).
 
+    **Zurück geht es an den nächsten LAUFENDEN Verleiher der Kette** (``lender_of``, Notiz
+    #404): Auftrag → Abweichung → Abweichung. Wurde die mittlere abgebrochen (ihr blieb
+    nichts, also ist sie gegenstandslos), darf das Stück nicht dort hängenbleiben – es kehrt
+    dorthin zurück, wo es ursprünglich herkam, und der Hauptauftrag läuft weiter.
+
+    **Und nur so viel, wie dort noch fehlt.** Hat der Verleiher inzwischen «Ersetzen»
+    gewählt, ist sein Bedarf gedeckt; das zurückkommende Stück wäre dann Überschuss und
+    bliebe für ihn reserviert liegen, ohne dass er es braucht (Notiz #403). Was er nicht
+    mehr braucht, geht in den freien Bestand.
+
     Dieselbe Rückgabe vollzieht ``deviation.detach_sub_order`` beim Verwerfen – zwei Türen,
     eine Regel. Committet NICHT."""
+    from . import process
     from .reservation import reserve
-    if not is_fixed_subject(sub) or not sub.parent_order_id:
+    parent = lender_of(db, sub)
+    if parent is None:
         return
-    parent = db.query(Order).filter(Order.object_id == sub.parent_order_id).first()
-    if parent is None or parent.status != "released":
-        return
+    need = process.subject_shortfalls(db, parent)
     for inst in order_instances(db, sub):
         if (inst.disposition or "") in TERMINAL_DISPOSITIONS or inst.order_id == parent.id:
             continue
-        qty = reserved_for(inst, sub.id)
+        gap = need.get(inst.article_id, ZERO)
+        qty = min(reserved_for(inst, sub.id), gap)
         if qty > 0:
             reserve(inst, parent.id, qty)
+            need[inst.article_id] = gap - qty
+
+
+def lender_of(db: Session, sub: Order) -> Order | None:
+    """**Wem gehört das Geliehene?** – der nächste noch LAUFENDE Auftrag der Eltern-Kette.
+
+    Ein Unter-Auftrag mit festem Subjekt hat sein Material von seinem Eltern. Ist der selbst
+    ein Unter-Auftrag und inzwischen **abgebrochen** (ihm blieb nichts, also ist er
+    gegenstandslos), gehört das Stück dem nächsten darüber. Ohne diesen Durchgriff blieb es
+    beim Toten hängen und wurde schlicht frei – der Hauptauftrag ruhte weiter, obwohl seine
+    Ware längst zurück war (Notiz #404).
+
+    Zyklensicher; ``None``, wenn niemand mehr läuft. Rein (schreibt nicht)."""
+    if not is_fixed_subject(sub):
+        return None
+    seen: set[int] = {sub.id}
+    cur = sub
+    while cur is not None and cur.parent_order_id:
+        cur = db.query(Order).filter(Order.object_id == cur.parent_order_id).first()
+        if cur is None or cur.id in seen:
+            return None
+        seen.add(cur.id)
+        if cur.status == "released":
+            return cur
+    return None
 
 
 def chosen_subjects(db: Session, order: Order, article_id: int | None = None) -> list[Instance]:

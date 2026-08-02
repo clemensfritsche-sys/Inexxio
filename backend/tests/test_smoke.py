@@ -817,7 +817,7 @@ def test_a_deviation_pauses_the_order_through_the_shortfall_not_a_second_rule():
     assert "deviated_quantities" in _inspect.getsource(process.release_instances)
     # Abweichungs-Abschluss bewertet den Eltern-Auftrag neu
     rc = _inspect.getsource(process.recompute_completion)
-    assert "parent_order_id" in rc and "recompute_completion(db, parent)" in rc
+    assert "parent_order_id" in rc and "recompute_completion(db, lender)" in rc
 
 
 def test_article_deactivate_cancel_creates_followup():
@@ -2841,7 +2841,7 @@ def test_failed_inspection_is_not_terminal():
     # Die Klärung: nur ein abgeschlossener Abweichungs-Unterauftrag setzt sie.
     assert "def resolve_failed_by(" in src
     proc_src = _inspect.getsource(proc_mod)
-    assert 'if (order.reason or "") == "deviation":' in proc_src
+    assert '(order.reason or "") == "deviation"' in proc_src
     assert "resolve_failed_by(db, parent, order)" in proc_src
     # … und ein so geklärter Befund macht den Schritt erledigt.
     assert 'return "done" if getattr(fact, "resolved_by_order_id", None) else "failed"' in proc_src
@@ -3874,7 +3874,10 @@ def test_a_deviation_borrows_and_gives_back():
     assert "TERMINAL_DISPOSITIONS" in ret, "Verschrottetes kehrt nicht zurück."
     assert "inst.order_id == parent.id" in ret, (
         "Ein Erzeuger als Verleiher hält ohne Reservierung – er braucht nichts zurück.")
-    assert 'parent.status != "released"' in ret
+    assert "lender_of(db, sub)" in ret, (
+        "Zurück an den nächsten LAUFENDEN Verleiher der Kette (#404).")
+    assert "subject_shortfalls(db, parent)" in ret, (
+        "Nur so viel, wie dort noch fehlt – sonst bliebe Überschuss reserviert (#403).")
     done = _inspect.getsource(process.recompute_completion)
     assert done.index("return_borrowed(db, order)") < done.index("release(inst, order.id)"), (
         "Zurückgeben, BEVOR die eigene Reservierung gelöst wird – sonst wird es frei.")
@@ -3897,3 +3900,45 @@ def test_a_quantity_belongs_to_an_order_not_to_an_instance():
     assert "reserved_for(inst, order.id)" in src and "to_qty(inst.quantity)" in src
     for fn in (inspection.inspected_quantity, inspection.sample_targets, process._held_amounts):
         assert "held_quantity" in _inspect.getsource(fn), fn.__name__
+
+
+def test_the_loan_returns_along_the_chain_and_only_what_is_needed():
+    """**Zurück geht es an den nächsten LAUFENDEN Verleiher – und nur, was dort fehlt**
+    (Testnotizen #403/#404).
+
+    Kette Auftrag → Abweichung → Abweichung: nimmt die zweite der ersten alles, wird die
+    erste gegenstandslos und abgebrochen. Schliesst die zweite ab, darf das Stück nicht bei
+    der toten hängenbleiben – es kehrt dorthin zurück, wo es herkam, und der Hauptauftrag
+    läuft weiter. Vorher endete die Rückgabe am abgebrochenen Eltern; das Stück wurde
+    schlicht frei und der Hauptauftrag ruhte für immer.
+
+    Und zurück geht nur, was der Verleiher **noch braucht**: hat er inzwischen «Ersetzen»
+    gewählt, ist sein Bedarf gedeckt – das zurückkommende Stück bliebe sonst als Überschuss
+    für ihn reserviert liegen, obwohl er es nicht braucht."""
+    import inspect as _inspect
+    from app.services import recovery, subject
+
+    ret = _inspect.getsource(subject.return_borrowed)
+    assert "lender_of(db, sub)" in ret and "subject_shortfalls(db, parent)" in ret
+    chain = _inspect.getsource(subject.lender_of)
+    assert 'cur.status == "released"' in chain and "seen" in chain, "Kette, zyklensicher."
+    # Und ein Stück, das der Auftrag ohnehin hielt, ist kein «Ersatz» (#403).
+    cov = _inspect.getsource(recovery._fifo_cover)
+    assert "was_mine = reserved_for(cand, order.id) > 0" in cov
+    assert "not used.get(aid)" in _inspect.getsource(recovery.cover_shortfall)
+
+
+def test_a_finished_inspection_keeps_the_samples_it_captured():
+    """**Erfasst ist erfasst** (Testnotiz #402).
+
+    Die Proben wurden bei jedem Aufruf aus dem *Plan* neu gerechnet («wie viel gehört dem
+    Auftrag?»). Nach seinem Abschluss ist die Reservierung gelöst – der Plan lieferte dann
+    wieder die ganze Charge, und aus 2 erfassten Proben wurden 4 angezeigte. Eine
+    abgeschlossene Prüfung ist eine Tatsache; solange sie läuft, bleibt der Plan
+    massgeblich (nach einer Hochstufung auf 100 % sind ja zusätzliche Proben zu erfassen)."""
+    import inspect as _inspect
+    from app.services import orders
+
+    src = _inspect.getsource(orders._inspection_embed)
+    assert 'insp.result in ("passed", "failed")' in src
+    assert src.index("ie.required_count = len(ie.samples)") < src.index("sample_targets(db, order, step)")

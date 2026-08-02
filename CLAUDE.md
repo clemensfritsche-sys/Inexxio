@@ -3383,6 +3383,38 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   verifiziert (`note401.py` 12/12 – Ausleihe zurück, Verschrottetes bleibt fehlend, 2 von 4
   ergibt 2 Proben; plus alle 15 Harnesses).
 
+- **Testnotizen #402–#404 (die Ausleihe reicht durch die Kette – und nur, was gebraucht
+  wird)**: Die Rückgabe aus #401 war richtig gedacht, aber zu kurz gebaut.
+  (1) **Zurück geht es an den nächsten LAUFENDEN Verleiher** (#404, `subject.lender_of`).
+  Kette Auftrag → Abweichung → Abweichung: nimmt die zweite der ersten alles, wird die erste
+  gegenstandslos und abgebrochen. Schloss die zweite danach ab, endete die Rückgabe an der
+  toten – das Stück wurde schlicht **frei**, und der Hauptauftrag ruhte für immer. Jetzt
+  reicht sie durch bis zu dem, der noch läuft; die Pause dort löst sich von selbst.
+  (2) **Und nur so viel, wie dort noch fehlt** (#403). Wer «Ersetzen» gewählt hat, ist
+  gedeckt – das zurückkommende Stück bliebe sonst als Überschuss für ihn reserviert liegen
+  (2 gebraucht, 3 gehalten). Was er nicht mehr braucht, geht in den freien Bestand.
+  (3) **Ein Stück, das der Auftrag ohnehin hielt, ist kein Ersatz** (#403): deckt FIFO aus
+  der freien Restmenge DERSELBEN Charge, ändert sich physisch nichts – dieselbe Instanz,
+  dieselbe Nummer. Die Zeile «N ab Lager ersetzt» erschien trotzdem. Sie steht jetzt nur
+  noch für wirklich **neue** Instanzen; kam alles aus dem eigenen Stück, steht gar nichts da.
+  (4) **Erfasst ist erfasst** (#402): die Proben einer Datenerfassung wurden bei jedem Aufruf
+  aus dem *Plan* neu gerechnet («wie viel gehört dem Auftrag?»). Nach dessen Abschluss ist
+  die Reservierung gelöst – der Plan lieferte wieder die ganze Charge, und aus 2 erfassten
+  Proben wurden 4 angezeigte. Eine **abgeschlossene** Prüfung ist eine Tatsache und rendert
+  ihre gespeicherten Proben; solange sie läuft, bleibt der Plan massgeblich (nach einer
+  Hochstufung auf 100 % sind ja zusätzliche Proben zu erfassen).
+  (5) **Der Zustand gehört an den Knoten, nicht in ein Banner** (#404): der Unter-Auftrag im
+  Ablauf trägt jetzt dieselbe Status-Badge wie überall (`OrderDeviationInfo.abort_into_id`
+  unterscheidet «Abgebrochen» von «Inaktiv»). Damit ist der Abbruch-Banner überflüssig – die
+  Badge im Kopf sagt es, und WO es weitergeht steht als Unter-Auftrag im Ablauf. Ein
+  **abgebrochener** Auftrag ist zudem ebenso still wie ein ruhender: kein Schritt lässt sich
+  mehr öffnen (dieselbe `paused`-Regel, keine zweite).
+  Wächter: `test_the_loan_returns_along_the_chain_and_only_what_is_needed`,
+  `test_a_finished_inspection_keeps_the_samples_it_captured`,
+  `test_a_sub_order_carries_its_own_state_in_the_flow`; gegen echtes PostgreSQL verifiziert
+  (`note404.py` 10/10 – die Kette über den abgebrochenen Auftrag hinweg, kein Überschuss,
+  keine falsche Ersatz-Zeile, 2 Proben bleiben 2; plus alle 16 Harnesses).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

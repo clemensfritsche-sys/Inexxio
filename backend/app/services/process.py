@@ -1052,14 +1052,19 @@ def recompute_completion(db: Session, order: Order) -> None:
         # weiterläuft bzw. abschliesst.
         if order.parent_order_id is not None:
             parent = db.query(Order).filter(Order.object_id == order.parent_order_id).first()
-            if parent and parent.status == "released":
+            if parent and parent.status == "released" and (order.reason or "") == "deviation":
                 # Die Abweichung IST die Klärung: ein fehlgeschlagener Befund am Eltern gilt
                 # damit als erledigt (sonst hinge der Eltern-Auftrag für immer an einem
                 # Schritt, den nichts mehr weiterbringen kann).
-                if (order.reason or "") == "deviation":
-                    from .inspection import resolve_failed_by
-                    resolve_failed_by(db, parent, order)
-                recompute_completion(db, parent)
+                from .inspection import resolve_failed_by
+                resolve_failed_by(db, parent, order)
+            # Neu bewerten wird der, der das Stück zurückbekommen hat – das ist NICHT immer
+            # der direkte Eltern: ist der abgebrochen, reicht die Kette weiter nach oben
+            # (Notiz #404). Seine Fehlmenge kann sich soeben geschlossen haben.
+            from .subject import lender_of
+            lender = lender_of(db, order) or (parent if parent and parent.status == "released" else None)
+            if lender is not None:
+                recompute_completion(db, lender)
 
 
 def _peg_supply_to_parent(db: Session, order: Order) -> None:

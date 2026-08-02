@@ -4367,6 +4367,8 @@ export interface components {
             instance_object_ids: number[];
             /** Title */
             title?: string | null;
+            /** Abort Into Id */
+            abort_into_id?: number | null;
             /**
              * Stage
              * @default before

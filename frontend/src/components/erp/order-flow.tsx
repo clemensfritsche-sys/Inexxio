@@ -1,10 +1,11 @@
 'use client';
 
 import { Truck, Check, X, PauseCircle, TriangleAlert, PackagePlus, CheckCircle2 } from 'lucide-react';
-import type { OrderDeviationInfo, OrderStep, StepResolution, StepType } from '@/types';
+import type { Order, OrderDeviationInfo, OrderStep, StepResolution, StepType } from '@/types';
 import { STEP_META } from '@/lib/process';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
+import { orderStatus } from '@/lib/record-status';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { saleStatusConfig } from '@/lib/sale';
 import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/process-steps';
@@ -261,6 +262,11 @@ function SubOrderCard({ info, onOpen }: {
   const meta = SUB_META[info.reason ?? 'deviation'] ?? SUB_META.deviation;
   const Icon = meta.icon;
   const tone = open ? 'var(--warning)' : 'var(--border-1)';
+  // **Sein Zustand gehört hierher** (Notiz #404): dass es diesen Unter-Auftrag gibt, steht
+  // ohnehin da – ohne seinen Status muss man ihn öffnen, um zu wissen, ob noch etwas zu tun
+  // ist. Dieselbe Badge wie überall (``orderStatus``), kein zweites Vokabular; die frühere
+  // Pause/Haken-Andeutung sagte nur «offen/zu» und log bei «Abgebrochen».
+  const cfg = orderStatus({ status: info.status as Order['status'], abort_into_id: info.abort_into_id });
   return (
     <div style={{ width: '100%', maxWidth: STEP_MAXW, display: 'flex', paddingLeft: 30 }}>
       <button type="button" onClick={() => onOpen?.(info.object_id)} title={open ? meta.open : meta.done}
@@ -281,8 +287,7 @@ function SubOrderCard({ info, onOpen }: {
           <span style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{meta.label}</span>
           <ObjId value={info.object_id} />
         </span>
-        {open && <PauseCircle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />}
-        {!open && <Check size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />}
+        <StatusBadge cfg={cfg} />
       </button>
     </div>
   );

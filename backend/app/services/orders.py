@@ -206,15 +206,32 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
     ie = (InspectionEmbed.model_validate(insp) if insp
           else InspectionEmbed(id=0, result="pending", checked_count=None, note=None))
     ie.sample_percent = step.sample_percent
-    ie.required_count = required_count(db, order, step)
     ie.fields = [CaptureField(**f) for f in eval_fields(step)]
-    stored = {(s.get("instance_id"), s.get("slot", 1)): (s.get("values") or {})
-              for s in (insp.samples or [])} if insp else {}
-    ie.samples = [
-        InspectionSample(instance_id=t["instance_id"], slot=t["slot"],
-                         values=stored.get((t["instance_id"], t["slot"]), {}))
-        for t in sample_targets(db, order, step)
-    ]
+    # **Erfasst ist erfasst** (Testnotiz #402): eine abgeschlossene Prüfung ist eine
+    # Tatsache – ihre Proben stehen in ``insp.samples`` und werden NICHT aus einer
+    # beweglichen Grundlage neu gerechnet. Der Plan («wie viele Proben brauche ich?») hängt
+    # daran, wie viel der Auftrag gerade hält; nach seinem Abschluss ist die Reservierung
+    # gelöst, und aus 2 erfassten Proben wurden wieder 4 angezeigte.
+    #
+    # Solange die Prüfung LÄUFT ist umgekehrt der Plan massgeblich: nach einer Hochstufung
+    # auf 100 % müssen die zusätzlichen Proben ja erst noch erfasst werden.
+    finished = bool(insp and insp.result in ("passed", "failed") and insp.samples)
+    if finished:
+        ie.samples = [
+            InspectionSample(instance_id=s["instance_id"], slot=s.get("slot", 1),
+                             values=s.get("values") or {})
+            for s in insp.samples
+        ]
+        ie.required_count = len(ie.samples)
+    else:
+        stored = {(s.get("instance_id"), s.get("slot", 1)): (s.get("values") or {})
+                  for s in (insp.samples or [])} if insp else {}
+        ie.samples = [
+            InspectionSample(instance_id=t["instance_id"], slot=t["slot"],
+                             values=stored.get((t["instance_id"], t["slot"]), {}))
+            for t in sample_targets(db, order, step)
+        ]
+        ie.required_count = required_count(db, order, step)
     if insp and insp.inspector_id:
         ie.inspector_name = people.name_by_id(db, insp.inspector_id)
     return ie
@@ -345,7 +362,7 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[
         ]
         info = OrderDeviationInfo(
             object_id=c.object_id, status=c.status, reason=c.reason, instance_count=len(ids),
-            instance_object_ids=ids, title=c.title)
+            instance_object_ids=ids, title=c.title, abort_into_id=c.abort_into_id)
         # **Explizit je Grund**, kein Sammel-Else: sonst landet jeder neue Unter-Auftrags-Grund
         # stillschweigend im Abweichungs-Topf und erscheint dem Nutzer als «Abweichung».
         bucket = {"supply": supplies, "return": returns,
@@ -404,6 +421,7 @@ def _fill_step_sub_orders(db: Session, order: Order, step: ArticleProcessStep,
     si.sub_orders = [
         OrderDeviationInfo(object_id=o.object_id, status=o.status, reason=o.reason,
                            instance_count=0, instance_object_ids=[], title=o.title,
+                           abort_into_id=o.abort_into_id,
                            stage=_sub_order_stage(o.reason, step.step_type))
         for o in subs if o.object_id
     ]

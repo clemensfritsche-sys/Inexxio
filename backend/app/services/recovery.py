@@ -37,7 +37,7 @@ from .events import emit
 from . import inventory
 from .inventory import allocate, fifo_candidates
 from .quantity import ZERO, qty_sum, to_qty
-from .reservation import free_qty, reserve
+from .reservation import free_qty, reserve, reserved_for
 from .subject import record_link
 
 
@@ -85,16 +85,23 @@ def _fifo_cover(db: Session, order: Order, article_id: int, need,
                 used: list[int] | None = None) -> Decimal:
     """``need`` (Menge) des Artikels aus **freiem** Lagerbestand FIFO für den Auftrag
     reservieren (+ als Subjekt markieren). Liefert die tatsächlich gedeckte Menge und
-    sammelt in ``used``, WELCHE Instanzen eingesprungen sind (für die Spur im Ablauf)."""
+    sammelt in ``used``, WELCHE Instanzen eingesprungen sind (für die Spur im Ablauf).
+
+    **Ein Stück, das der Auftrag ohnehin schon hält, ist kein Ersatz** (Notiz #403): deckt
+    FIFO aus der freien Restmenge DERSELBEN Charge, ändert sich für den Auftrag physisch
+    nichts – dieselbe Instanz, dieselbe Nummer. Nur wirklich **neue** Instanzen kommen in
+    die Spur; die Zeile «N ab Lager ersetzt» erschien sonst, obwohl gar nichts getauscht
+    wurde."""
     covered = ZERO
     cands = fifo_candidates(db, article_id, for_order_id=None, lock=True)   # nur freie Restmengen
     for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
         if take <= 0:
             continue
+        was_mine = reserved_for(cand, order.id) > 0
         reserve(cand, order.id, take)
         cand.subject_of_order_id = order.id
         record_link(db, cand.object_id, order.id)
-        if used is not None and cand.object_id:
+        if used is not None and cand.object_id and not was_mine:
             used.append(cand.object_id)
         covered += take
     return covered
@@ -168,8 +175,12 @@ def cover_shortfall(db: Session, order: Order, actor_id: int,
     # blockiert und liesse sich nicht mehr zuordnen. Sie nennt **welche** Instanzen
     # eingesprungen sind – sonst stünde später nur «gedeckt», ohne womit.
     for aid, qty in covered.items():
+        # Kam alles aus Instanzen, die der Auftrag ohnehin hielt, war es kein Ersatz –
+        # dann steht auch keine Ersatz-Zeile im Ablauf (Notiz #403).
+        if not used.get(aid):
+            continue
         _record_at_step(db, order, aid, "order.covered_from_stock",
-                        {"quantity": qty, "instances": used.get(aid, [])}, actor_id)
+                        {"quantity": qty, "instances": used[aid]}, actor_id)
     created = ensure_supply(db, order, actor_id)
     total = qty_sum(covered.values())
     if total <= 0 and not created:

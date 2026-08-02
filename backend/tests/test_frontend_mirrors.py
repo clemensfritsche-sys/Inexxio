@@ -295,3 +295,27 @@ def test_the_share_icon_comes_from_the_holder_not_from_the_sort():
     inst = (fe / "instance-detail.tsx").read_text()
     assert "rows.length === 1 ? { fromOrderObjectId:" in inst, (
         "Die Instanz kommt immer mit; nur der Anteil bleibt offen, wenn es mehrere gibt.")
+
+
+def test_a_sub_order_carries_its_own_state_in_the_flow():
+    """**Der Zustand gehört an den Knoten, nicht in ein Banner** (Testnotiz #404).
+
+    Dass es einen Unter-Auftrag gibt, stand im Ablauf – sein **Status** nicht: man musste
+    ihn öffnen, um zu wissen, ob noch etwas zu tun ist. Jetzt trägt der Knoten dieselbe
+    Badge wie überall (``orderStatus``). Damit ist auch der Abbruch-Banner überflüssig: dass
+    der Auftrag abgebrochen ist, sagt die Badge im Kopf, und WO es weitergeht steht als
+    Unter-Auftrag im Ablauf.
+
+    Und ein abgebrochener Auftrag ist ebenso still wie ein ruhender – an ihm ist nichts mehr
+    zu tun, also lässt sich auch kein Schritt mehr öffnen."""
+    from pathlib import Path
+    from app.schemas.order import OrderDeviationInfo
+    assert "abort_into_id" in OrderDeviationInfo.model_fields, (
+        "«Abgebrochen» (fortgeführt) vs. «Inaktiv» (verworfen) – dieselbe Projektion wie überall.")
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
+    flow = (fe / "order-flow.tsx").read_text()
+    assert "orderStatus({ status: info.status" in flow and "<StatusBadge cfg={cfg} />" in flow
+    detail = (fe / "order-detail.tsx").read_text()
+    assert "Abgebrochen – fortgeführt im Abweichungsauftrag" not in detail, (
+        "Kein Banner – Kopf-Badge und Ablauf sagen es bereits.")
+    assert "record.paused === true || record.status === 'inactive'" in detail
