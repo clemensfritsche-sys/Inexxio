@@ -3230,6 +3230,34 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   verworfen wird, indem man woanders hinklickt – ein Knopf dafür wäre ein zweiter Weg für
   etwas, das ohnehin von selbst passiert (#386).
 
+- **Testnotizen #390/#391 (Teilmenge einer Charge – die Auswahl folgt den Zeilen, und die
+  Frage nennt die richtige Zahl)**: Zwei Befunde aus demselben Vorgang «1 von 4 Stück einer
+  Charge in eine Abweichung nehmen».
+  (1) **1 von 4 ging nicht, 2 von 4 schon** (#390). Der Abkürzungs-Knopf an der Instanz
+  merkte «1 Stk, **frei**» vor – aber eine Charge, die noch in ihrem Erzeugungsauftrag
+  steckt, hat gar keinen freien Anteil (`shares._creator`: der Erzeuger hält den Rest). Die
+  Vormerkung zeigte damit auf eine Zeile, die es in der Auswahl nicht gibt: unsichtbar, aber
+  **zur Menge gezählt** – bei Auftragsmenge 1 galt die Zeile als «schon beisammen» und liess
+  sich nicht mehr anklicken; bei Menge 2 war das Limit nicht erreicht, also ging es. Zwei
+  strukturelle Korrekturen: die Vorauswahl **nennt** ihren Halter (`OrderSeed.instance.
+  fromOrderObjectId`, gelesen aus `inst.shares`), und die Auswahl **folgt** dem aktuellen
+  Stand (`reconcilePicks`) – ein Anteil ist eine Aussage über EINEN Moment, die Zeilen sind
+  die Gegenwart; weichen sie ab, wandert die Auswahl auf die Zeile derselben Instanz, und
+  ein Anteil, den es nicht mehr gibt, fällt weg. Dazu trägt jede Zeile ihre **Kapazität**:
+  was der Auftrag selbst schon hält, ist im Entwurf noch nicht scharf und darf mitgezählt
+  werden (sonst liesse sich eine bestehende Auswahl nicht mehr erhöhen).
+  (2) **«verliert 4», obwohl nur 2 genommen wurden** (#391). `AffectedOrder.quantity` trug
+  die **Sollmenge des Betroffenen** statt seines Verlusts – das las sich wie ein
+  Totalverlust und machte die Entscheidung unmöglich. Jetzt rechnet dieselbe Stelle, die
+  sagt WER verliert, auch WIE VIEL: `shares.losses` liefert `{auftrag: menge}` (genannter
+  Anteil ≻ Erzeuger ≻ übrige, und nur so weit, wie wirklich etwas fehlt), `shares.losers`
+  ist die zweite Form derselben Regel. Nicht laufende Halter zählen für die Arithmetik mit
+  (`enforce` kürzt auch sie), erscheinen aber nicht in der Frage.
+  *Das Backend war in beiden Fällen korrekt* – gegen echtes PostgreSQL nachgewiesen: 1, 2
+  und 4 von 4 erzeugen jeweils genau die passende Abweichung und Fehlmenge. Wächter:
+  `test_a_holder_loses_the_taken_quantity_not_its_own_order_quantity`,
+  `test_the_picker_selection_follows_the_current_rows`; Harness `shares.py` 21/21.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

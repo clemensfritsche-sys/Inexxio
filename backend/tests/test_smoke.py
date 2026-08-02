@@ -3582,7 +3582,7 @@ def test_a_fixed_subject_order_is_never_asked_for_a_shortfall_answer():
     assert "subject.is_fixed_subject(h)" in apply_src
     assert "retire_if_subjectless" in apply_src
     # Die Frage nur, wenn jemand mit Soll betroffen ist.
-    assert "any(not subject.is_fixed_subject(h) for h in holders)" in \
+    assert "any(not subject.is_fixed_subject(h) for h, _ in holders)" in \
         _inspect.getsource(orders._enforce_claims)
     # Gegenstandslos = hält nichts mehr → abgebrochen, mit Zeiger auf den Nachfolger.
     retire = _inspect.getsource(recovery.retire_if_subjectless)
@@ -3666,8 +3666,10 @@ def test_a_pick_names_the_share_it_takes():
     enf = _inspect.getsource(reservation.enforce)
     assert "from_order_id" in enf and "ranked" in enf
     # Wer gefragt wird, steht an EINER Stelle – dieselbe Rangfolge.
-    los = _inspect.getsource(shares.losers)
+    los = _inspect.getsource(shares.losses)
     assert "pick_sources" in los and "inst.order_id" in los
+    # Und die **Menge** gehört zur Antwort, nicht nur der Auftrag (Notiz #391).
+    assert "-> dict[int, Decimal]" in los
 
 
 def test_the_creator_holds_the_rest_until_it_reaches_stock():
@@ -3714,3 +3716,49 @@ def test_an_order_is_created_as_a_whole_even_with_steps():
 
     assert "commit: bool = True" in _inspect.getsource(article_process._create)
     assert "commit=False" in _inspect.getsource(orders.create_order)
+
+
+def test_a_holder_loses_the_taken_quantity_not_its_own_order_quantity():
+    """**«verliert 2» heisst 2 – nicht 4, nur weil der Auftrag über 4 lautet** (Notiz #391).
+
+    Die Frage «was geschieht mit dem laufenden Auftrag?» stand mit der **Sollmenge des
+    Betroffenen** da: wer 2 Stück aus einer 4er-Charge in eine Abweichung nimmt, las
+    «verliert 4». Das ist keine Rundung, sondern eine andere Aussage – sie liest sich wie
+    ein Totalverlust und macht die Entscheidung unmöglich.
+
+    Was ein Halter verliert, rechnet dieselbe Stelle aus, die auch sagt, WER verliert
+    (``shares.losses``): genannter Anteil ≻ Erzeuger ≻ übrige, und nur so weit, wie
+    wirklich etwas fehlt. ``losers`` ist die zweite Form derselben Regel."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.services import shares
+
+    assert "-> dict[int, Decimal]" in _inspect.getsource(shares.losses)
+    assert "losses(db, inst, order, want)" in _inspect.getsource(shares.losers), (
+        "«wer verliert» und «wie viel» sind zwei Formen EINER Regel")
+    # Die Menge wandert bis in die Frage – nicht die Sollmenge des Betroffenen.
+    aff = _inspect.getsource(orders._affected_of)
+    assert "quantity=float(qty)" in aff and "h.quantity" not in aff
+
+
+def test_the_picker_selection_follows_the_current_rows():
+    """**Eine Auswahl ist eine Aussage über EINEN Moment; die Zeilen sind der Stand** (#390).
+
+    Der Abkürzungs-Knopf an der Instanz kannte den Halter nicht und merkte «1 Stk, frei»
+    vor – eine Zeile, die es in der Auswahl gar nicht gibt (die Charge gehört ihrem
+    Erzeuger). Die Vormerkung war damit unsichtbar UND zählte zur Menge: bei Auftragsmenge
+    1 galt die Zeile als «schon beisammen» und liess sich nicht mehr anklicken. 1 von 4
+    ging nicht, 2 von 4 schon – genau der gemeldete Widerspruch.
+
+    Zwei Korrekturen, beide strukturell: die Vorauswahl **nennt** ihren Halter, und die
+    Auswahl **folgt** den aktuellen Zeilen (``reconcilePicks``), statt auf einen Anteil zu
+    zeigen, den es nicht gibt."""
+    from pathlib import Path
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
+    detail = (fe / "order-detail.tsx").read_text()
+    assert "function reconcilePicks" in detail
+    assert "capacity" in detail, (
+        "Ein gewählter Anteil darf zusätzlich das umfassen, was der Auftrag selbst hält – "
+        "sein Anspruch ist im Entwurf noch nicht scharf.")
+    inst = (fe / "instance-detail.tsx").read_text()
+    assert "fromOrderObjectId" in inst, "Die Vorauswahl nennt ihren Halter."

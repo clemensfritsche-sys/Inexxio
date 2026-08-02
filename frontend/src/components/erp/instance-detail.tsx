@@ -139,10 +139,17 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
   // kein Vorgriff auf die Menge. Von einer Charge à 500 will man fast nie alle 500
   // behandeln – und die Menge lässt sich im Entwurf ohnehin frei ändern (auch nach oben,
   // bis zur vollen Instanz-Menge).
+  // **Die Vorauswahl nennt ihren Halter** (Testnotiz #390): ohne ihn zeigte sie auf eine
+  // Zeile, die es in der Auswahl gar nicht gibt – sie zählte zur Menge, war aber nirgends
+  // markiert, und bei Auftragsmenge 1 liess sich die Instanz dadurch nicht mehr anklicken.
+  // Genommen wird der grösste Anteil; im Entwurf lässt sich jede Zeile frei umwählen.
   function createOrderShortcut() {
     if (!canOrderInstance || inst.object_id == null || inst.article_id == null) return;
+    const biggest = (inst.shares ?? []).reduce<{ order_object_id?: number | null; quantity: number } | null>(
+      (best, sh) => (best == null || sh.quantity > best.quantity ? sh : best), null);
     onCreateOrder?.({ articleId: inst.article_id, quantity: 1,
-                      instance: { objectId: inst.object_id, quantity: 1 } });
+                      instance: { objectId: inst.object_id, quantity: 1,
+                                  fromOrderObjectId: biggest?.order_object_id ?? null } });
   }
 
   return (

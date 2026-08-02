@@ -61,6 +61,10 @@ type Share = {
   instanceObjectId: number;
   instanceQty: number;            // Gesamtmenge der Instanz (für die Anzeige)
   quantity: number;               // Menge DIESES Anteils
+  /** Wie viel diese Position von hier nehmen darf: die Menge des Anteils **plus** das,
+   *  was sie selbst schon hält – ihr eigener Anspruch ist im Entwurf noch nicht scharf
+   *  und flösse bei einer Änderung dorthin zurück. */
+  capacity: number;
   holderObjectId: number | null;  // null = frei
   holderName: string | null;
   kind: PinKind;
@@ -84,6 +88,35 @@ type PinKind = 'free' | 'bound' | 'sold';
 /** Schlüssel einer Anteils-Zeile – dieselbe Bildung auf beiden Seiten der Auswahl. */
 function shareKey(instanceObjectId: number, holder: number | null): string {
   return `${instanceObjectId}:${holder ?? 'free'}`;
+}
+
+/**
+ * **Die Auswahl folgt den Zeilen, nicht umgekehrt** (Testnotiz #390).
+ *
+ * Ein Anteil ist eine Aussage über EINEN Moment: «1 Stk aus Auftrag …456». Die Zeilen
+ * daneben sind der **aktuelle** Stand. Beides kann auseinandergehen – der Abkürzungs-Knopf
+ * an der Instanz kannte den Halter nicht, ein Halter hat inzwischen gewechselt, oder ein
+ * gespeicherter Entwurf stammt aus einer Zeit ohne Halter-Angabe. Dann gewinnt der aktuelle
+ * Stand: die Auswahl wandert auf die Zeile **derselben Instanz**.
+ *
+ * Ohne das war eine so entstandene Auswahl unsichtbar (kein Treffer) und zählte trotzdem
+ * zur Menge – bei Auftragsmenge 1 galt die Zeile damit als «schon beisammen» und liess sich
+ * nicht mehr anklicken. Genau der gemeldete Fall: 1 von 4 ging nicht, 2 von 4 schon.
+ *
+ * Ein Anteil, den es gar nicht mehr gibt, fällt weg – man kann nichts beanspruchen, was
+ * nicht da ist.
+ */
+function reconcilePicks(picks: InstancePickInput[], shares: Share[]): InstancePickInput[] {
+  const out: InstancePickInput[] = [];
+  for (const p of picks) {
+    const rows = shares.filter((sh) => sh.instanceObjectId === p.instance_object_id);
+    if (rows.length === 0) continue;
+    const hit = rows.find((sh) => sh.holderObjectId === (p.from_order_object_id ?? null))
+      ?? rows.reduce((a, b) => (b.quantity > a.quantity ? b : a));
+    out.push({ ...p, from_order_object_id: hit.holderObjectId,
+               quantity: Math.min(p.quantity ?? hit.quantity, hit.quantity) });
+  }
+  return out;
 }
 
 // Farbe + Erklärung je Sorte: EINE Tabelle statt verstreuter Bedingungen im Chip.
@@ -379,12 +412,15 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // ``move_quantity`` ist die für ihn reservierte Teilmenge, ``pick_source_object_id`` der
   // Anteil, aus dem sie stammt: so trifft eine erneute Bearbeitung wieder dieselbe Zeile.
   const savedPicksByArticle = new Map<number, InstancePickInput[]>();
+  const ownByInstance = new Map<number, number>();
   for (const i of record?.instances ?? []) {
     if (i.object_id == null) continue;
     const list = savedPicksByArticle.get(i.article_id) ?? [];
-    list.push({ instance_object_id: i.object_id, quantity: i.move_quantity ?? i.quantity ?? 0,
+    const qty = i.move_quantity ?? i.quantity ?? 0;
+    list.push({ instance_object_id: i.object_id, quantity: qty,
                 from_order_object_id: i.pick_source_object_id ?? null });
     savedPicksByArticle.set(i.article_id, list);
+    ownByInstance.set(i.object_id, qty);
   }
 
   function buildPinLine(lineId: number | null, articleId: number, unit: string, reqQty: number): PinLine {
@@ -408,7 +444,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         shares.push({
           key: shareKey(i.object_id, sh.order_object_id ?? null),
           instanceObjectId: i.object_id, instanceQty: i.quantity ?? 0,
-          quantity: sh.quantity ?? 0,
+          quantity: sh.quantity ?? 0, capacity: sh.quantity ?? 0,
           holderObjectId: sh.order_object_id ?? null, holderName: sh.order_name ?? null,
           kind: shareKind(i, sh.order_object_id ?? null),
         });
@@ -417,7 +453,16 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     const key = lineId != null ? `line-${lineId}` : 'anchor';
     // Im Entwurf steht die Auswahl im State (nichts ist gespeichert), sonst kommt sie aus
     // den Instanz-Embeds des Auftrags.
-    const picked = isCreate ? (draftPins[key] ?? []) : (savedPicksByArticle.get(articleId) ?? []);
+    const raw = isCreate ? (draftPins[key] ?? []) : (savedPicksByArticle.get(articleId) ?? []);
+    const picked = reconcilePicks(raw, shares);
+    // Was diese Position selbst schon von einer Instanz hält – im Entwurf noch nicht
+    // scharf, also für sie weiterhin verfügbar.
+    for (const sh of shares) {
+      const own = ownByInstance.get(sh.instanceObjectId) ?? 0;
+      sh.capacity = sh.quantity + (picked.some((p) => p.instance_object_id === sh.instanceObjectId
+                                                   && (p.from_order_object_id ?? null) === sh.holderObjectId)
+                                   ? own : 0);
+    }
     return {
       key, lineId, articleId, unit, reqQty, shares, picked,
       pickedQty: picked.reduce((s, p) => s + (p.quantity ?? 0), 0),
@@ -1566,8 +1611,8 @@ function PinPicker({ line, onToggle, bare }: {
             const cur = pickOf(line, sh);
             const sel = cur != null;
             // Voreingestellt ist, was noch fehlt – höchstens aber, was der Anteil hergibt.
-            const want = sel ? (cur.quantity ?? sh.quantity)
-                             : Math.min(sh.quantity, Math.max(line.reqQty - line.pickedQty, 0)) || sh.quantity;
+            const want = sel ? (cur.quantity ?? sh.capacity)
+                             : Math.min(sh.capacity, Math.max(line.reqQty - line.pickedQty, 0)) || sh.capacity;
             const atLimit = !sel && line.pickedQty >= line.reqQty && line.reqQty > 0;
             // **Kein Mischmasch** (Notiz #355): sobald der erste Anteil gewählt ist, steht die
             // Art des Auftrags fest. Die anderen Sorten sind dann gesperrt (das Backend weist
@@ -1598,8 +1643,8 @@ function PinPicker({ line, onToggle, bare }: {
                   </span>
                 </button>
                 {/* Die Menge steht rechts – gewählt als Feld, sonst als blosse Angabe. */}
-                {sel && sh.quantity > 1 ? (
-                  <QtyChip value={cur.quantity ?? sh.quantity} max={sh.quantity} tone={cfg.tone}
+                {sel && sh.capacity > 1 ? (
+                  <QtyChip value={cur.quantity ?? sh.capacity} max={sh.capacity} tone={cfg.tone}
                     label={`Menge aus ${formatObjectId(sh.instanceObjectId)}`}
                     onCommit={(v) => onToggle(line, sh, v, true)} />
                 ) : (
