@@ -102,6 +102,22 @@ class StepResolution(BaseModel):
     by: Optional[str] = None
 
 
+class SubOrderStep(BaseModel):
+    """**Ein Schritt eines Unter-Auftrags – angeteasert, nicht ausgeführt** (Notiz #409).
+
+    Am Ende ist alles ein Prozess: der abgezweigte Auftrag hat selbst einen Ablauf, und wer
+    im Eltern-Auftrag steht, will auf einen Blick sehen, wie weit der Abzweig ist – ohne ihn
+    zu öffnen. Darum nur das Minimum, aus dem sich das Miniatur-Flussbild bauen lässt: WELCHES
+    Modul und in WELCHEM Zustand. Alles Weitere steht im Unter-Auftrag selbst (ein Klick).
+
+    Das Label steht bewusst NICHT hier: die Schrittnamen sind Registry-Wissen und liegen im
+    Frontend an EINER Stelle (``lib/process.STEP_META``, gegen ``domain/event_types.py``
+    getestet) – ein zweites Mal mitgeschickt, könnten sie auseinanderlaufen."""
+    id: int
+    step_type: str
+    state: str   # done | active | blocked | locked | failed
+
+
 class OrderDeviationInfo(BaseModel):
     """Kurzinfo eines Unter-Auftrags (Abweichung · Nachschub · Retoure · Bereitstellung) –
     für die Sichtbarkeit im Eltern-Auftrag."""
@@ -123,6 +139,33 @@ class OrderDeviationInfo(BaseModel):
     # entscheidet nicht – darum trägt jeder Unter-Auftrag seine Position selbst, statt dass
     # drei getrennte Listen im Fluss wieder zusammengesetzt werden müssten.
     stage: str = "before"          # before | after
+    # **Sein eigener Ablauf, angeteasert** (Notiz #409): der Knoten zeigt die Module des
+    # Abzweigs als Miniatur-Fluss – wie weit er ist, sieht man damit ohne ihn zu öffnen.
+    steps: list[SubOrderStep] = []
+
+
+class OrderOrigin(BaseModel):
+    """**Woher dieser Unter-Auftrag kam – und wohin er zurückgibt** (Notiz #409).
+
+    Der Abzweig ist im Eltern längst sichtbar (``OrderStepInfo.sub_orders``); die Gegen-
+    richtung fehlte: wer in einer Abweichung steht, sah nicht, aus welchem Auftrag und aus
+    welchem **Schritt** sie hervorgegangen ist – und schon gar nicht, wohin ihre Stücke beim
+    Abschluss zurückkehren. Beides ist keine neue Wahrheit, sondern dieselbe von der anderen
+    Seite gelesen: ``parent_order_id`` + ``origin_step_id`` für das Woher, und für das Wohin
+    genau die Ableitung, die es auch TUT (``subject.lender_of`` bzw. das Nachschub-Pegging) –
+    keine zweite Behauptung daneben.
+
+    Wichtig: das Rückgabe-Ziel ist **nicht** zwingend der Eltern. Wurde der Eltern
+    abgebrochen, reicht die Ausleihe durch bis zum nächsten laufenden Auftrag (Notiz #404) –
+    genau den nennt ``returns_to_object_id``."""
+    order_object_id: int
+    order_name: Optional[str] = None
+    order_status: Optional[str] = None
+    # Der Schritt des Eltern, aus dem dieser Unter-Auftrag hervorgegangen ist.
+    step_type: Optional[str] = None
+    # Wohin die Stücke beim Abschluss zurückgehen (leer = niemand wartet mehr darauf).
+    returns_to_object_id: Optional[int] = None
+    returns_to_name: Optional[str] = None
 
 
 class OrderStepInfo(BaseModel):
@@ -473,6 +516,8 @@ class OrderResponse(BaseModel):
     parent_order_id: Optional[int] = None
     reason: Optional[str] = None   # deviation | supply | return | provisioning (gesetzt → Unter-Auftrag)
     abort_into_id: Optional[int] = None
+    # **Woher er kam und wohin er zurückgibt** – nur an einem Unter-Auftrag gesetzt (#409).
+    origin: Optional[OrderOrigin] = None
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)

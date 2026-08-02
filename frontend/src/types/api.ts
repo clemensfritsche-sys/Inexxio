@@ -4374,6 +4374,11 @@ export interface components {
              * @default before
              */
             stage: string;
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["SubOrderStep"][];
         };
         /**
          * OrderLineCreate
@@ -4421,6 +4426,36 @@ export interface components {
              * @default []
              */
             picks: components["schemas"]["InstancePick"][];
+        };
+        /**
+         * OrderOrigin
+         * @description **Woher dieser Unter-Auftrag kam – und wohin er zurückgibt** (Notiz #409).
+         *
+         *     Der Abzweig ist im Eltern längst sichtbar (``OrderStepInfo.sub_orders``); die Gegen-
+         *     richtung fehlte: wer in einer Abweichung steht, sah nicht, aus welchem Auftrag und aus
+         *     welchem **Schritt** sie hervorgegangen ist – und schon gar nicht, wohin ihre Stücke beim
+         *     Abschluss zurückkehren. Beides ist keine neue Wahrheit, sondern dieselbe von der anderen
+         *     Seite gelesen: ``parent_order_id`` + ``origin_step_id`` für das Woher, und für das Wohin
+         *     genau die Ableitung, die es auch TUT (``subject.lender_of`` bzw. das Nachschub-Pegging) –
+         *     keine zweite Behauptung daneben.
+         *
+         *     Wichtig: das Rückgabe-Ziel ist **nicht** zwingend der Eltern. Wurde der Eltern
+         *     abgebrochen, reicht die Ausleihe durch bis zum nächsten laufenden Auftrag (Notiz #404) –
+         *     genau den nennt ``returns_to_object_id``.
+         */
+        OrderOrigin: {
+            /** Order Object Id */
+            order_object_id: number;
+            /** Order Name */
+            order_name?: string | null;
+            /** Order Status */
+            order_status?: string | null;
+            /** Step Type */
+            step_type?: string | null;
+            /** Returns To Object Id */
+            returns_to_object_id?: number | null;
+            /** Returns To Name */
+            returns_to_name?: string | null;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -4552,6 +4587,7 @@ export interface components {
             reason?: string | null;
             /** Abort Into Id */
             abort_into_id?: number | null;
+            origin?: components["schemas"]["OrderOrigin"] | null;
             /**
              * Deviations
              * @default []
@@ -5731,6 +5767,27 @@ export interface components {
              * @default []
              */
             available_instances: components["schemas"]["ShortfallInstance"][];
+        };
+        /**
+         * SubOrderStep
+         * @description **Ein Schritt eines Unter-Auftrags – angeteasert, nicht ausgeführt** (Notiz #409).
+         *
+         *     Am Ende ist alles ein Prozess: der abgezweigte Auftrag hat selbst einen Ablauf, und wer
+         *     im Eltern-Auftrag steht, will auf einen Blick sehen, wie weit der Abzweig ist – ohne ihn
+         *     zu öffnen. Darum nur das Minimum, aus dem sich das Miniatur-Flussbild bauen lässt: WELCHES
+         *     Modul und in WELCHEM Zustand. Alles Weitere steht im Unter-Auftrag selbst (ein Klick).
+         *
+         *     Das Label steht bewusst NICHT hier: die Schrittnamen sind Registry-Wissen und liegen im
+         *     Frontend an EINER Stelle (``lib/process.STEP_META``, gegen ``domain/event_types.py``
+         *     getestet) – ein zweites Mal mitgeschickt, könnten sie auseinanderlaufen.
+         */
+        SubOrderStep: {
+            /** Id */
+            id: number;
+            /** Step Type */
+            step_type: string;
+            /** State */
+            state: string;
         };
         /** SuggestedLink */
         SuggestedLink: {

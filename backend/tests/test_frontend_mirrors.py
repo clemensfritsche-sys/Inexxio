@@ -319,3 +319,32 @@ def test_a_sub_order_carries_its_own_state_in_the_flow():
     assert "Abgebrochen – fortgeführt im Abweichungsauftrag" not in detail, (
         "Kein Banner – Kopf-Badge und Ablauf sagen es bereits.")
     assert "record.paused === true || record.status === 'inactive'" in detail
+
+
+def test_the_step_teaser_names_the_module_from_one_place():
+    """**Der Teaser leiht sich das Vokabular, er erfindet keins** (Testnotiz #409).
+
+    Der Miniatur-Fluss im Unter-Auftrags-Knoten zeigt je Modul ein Symbol und nennt im Hover
+    Modul und Zustand. Beides ist längst da: die Schrittnamen/-symbole in
+    ``lib/process.STEP_META`` (gegen ``domain/event_types.py`` getestet) und – neu, aber
+    ebenfalls dort – das Zustandswort. Darum trägt ``SubOrderStep`` **kein** Label: würde der
+    Name mitgeschickt, gäbe es ihn an zwei Stellen, und «Aussondern» hiesse irgendwann im
+    Teaser noch «Ausschleusen».
+    """
+    from app.schemas.order import SubOrderStep
+
+    assert set(SubOrderStep.model_fields) == {"id", "step_type", "state"}, (
+        "Der Teaser braucht Modul + Zustand – den Namen dazu holt das Frontend aus STEP_META."
+    )
+    lib = (FRONTEND / "lib" / "process.ts").read_text(encoding="utf-8")
+    assert "export const STEP_STATE_LABEL" in lib and "export function stepStateLabel" in lib, (
+        "Das Zustandswort eines Schritts gehört neben STEP_META, nicht in eine Ansicht."
+    )
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "stepStateLabel(st.state)" in flow and "STEP_META[type]" in flow, (
+        "Der Teaser liest Symbol und Worte aus der einen Quelle."
+    )
+    # Und die Herkunft/der Rückweg werden gezeigt, nicht behauptet: EIN Baustein, zwei
+    # Richtungen – wer daraus zwei Komponenten macht, lässt sie auseinanderlaufen.
+    assert "export function OrderBranchTeaser" in flow
+    assert flow.count("kind === 'from'") >= 1 and "'zurück an'" in flow

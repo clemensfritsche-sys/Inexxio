@@ -3977,3 +3977,37 @@ def test_waiting_follows_the_chain_so_there_is_no_dead_decision():
     assert "frontier" in src and 'o.status == "inactive"' in src, (
         "Ein abgebrochener Unter-Auftrag hält nichts mehr – aber SEIN Nachfolger tut es.")
     assert "range(10)" in src, "Tiefen-Schranke statt Endlosschleife."
+
+
+def test_the_flow_shows_the_branch_in_both_directions():
+    """**Am Ende ist alles ein Prozess – und der geht in beide Richtungen** (Testnotiz #409).
+
+    Der Eltern-Auftrag zeigte den Abzweig längst an seiner Stelle im Ablauf; die
+    Gegenrichtung fehlte. Wer in einer Abweichung stand, sah nicht, aus welchem Auftrag und
+    aus welchem **Schritt** sie hervorgegangen ist – und schon gar nicht, wohin ihre Stücke
+    beim Abschluss zurückkehren.
+
+    Der Wächter hält fest, dass beide Teaser **lesen**, was ohnehin gilt, statt es ein
+    zweites Mal zu behaupten:
+
+    * das Rückgabe-Ziel kommt aus derselben Ableitung, die es auch TUT
+      (``subject.lender_of`` für die Ausleihe, das Pegging für den Nachschub) – ein fest
+      verdrahteter «der Eltern» wäre falsch, sobald der Eltern abgebrochen wurde (#404);
+    * der angeteaserte Ablauf des Abzweigs kommt aus derselben Schritt-Ableitung wie der
+      grosse Fluss (``process.build_order_steps``) – ein eigener «ist wohl erledigt»-Zweig
+      im Teaser würde neben dem echten Zustand herlaufen.
+    """
+    import inspect as _inspect
+    from app.services import orders
+
+    back = _inspect.getsource(orders._return_target)
+    assert "lender_of(db, order)" in back, (
+        "Wohin zurückgegeben wird, weiss die Mechanik der Ausleihe – nicht der Teaser.")
+    assert 'order.reason == "supply"' in back and 'parent.status == "released"' in back
+
+    teaser = _inspect.getsource(orders._sub_order_steps)
+    assert "process.build_order_steps(db, sub)" in teaser, (
+        "Der Teaser ist eine Verkleinerung desselben Flusses, keine zweite Rechnung.")
+    assert "cache" in teaser, (
+        "Derselbe Unter-Auftrag steht in der Auftrags-Liste UND an seinem Schritt – "
+        "seine Ableitung darf je Antwort nur einmal laufen.")

@@ -17,7 +17,7 @@ import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, PrimaryButton, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
-import { OrderFlow } from '@/components/erp/order-flow';
+import { OrderBranchTeaser, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
 import { orderName } from '@/lib/record-name';
@@ -1144,6 +1144,16 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           <>
             {/* Gleiche Darstellung wie am Artikel: der Editor steht frei, ohne zweite Karte. */}
             <div style={{ marginBottom: 12 }}>
+              {/* **Woher komme ich?** (Notiz #409) – genau hier, während man entscheidet, was
+                  mit den Stücken geschehen soll, ist die Herkunft die wichtigste Angabe:
+                  aus welchem Auftrag und aus welchem Schritt. Derselbe Teaser wie im Fluss
+                  eines laufenden Unter-Auftrags, nur ohne Rückweg – ein Entwurf hat noch
+                  kein Ende. */}
+              {record.origin && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+                  <OrderBranchTeaser origin={record.origin} kind="from" onOpen={(oid) => nav?.(oid)} />
+                </div>
+              )}
               {/* FIX: suppliers war hier (und an den zwei weiteren Stellen) als [] hartkodiert –
                   ein Beschaffungs-Schritt am Auftrag konnte NIE einen Lieferanten wählen
                   («Keine Lieferanten vorhanden»), obwohl welche existieren. */}
@@ -1198,6 +1208,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // am Anfang des Flusses – EINE Liste, nicht drei nebeneinander.
                 subOrders={[...(record.deviations ?? []), ...(record.supply_orders ?? []),
                             ...(record.provisionings ?? [])]}
+                // **Und die Gegenrichtung** (Notiz #409): woher dieser Auftrag kam (Auftrag +
+                // Schritt) und wohin seine Stücke beim Abschluss zurückgehen – als Teaser
+                // ober- und unterhalb der Terminal-Knoten. Nur an einem Unter-Auftrag gesetzt.
+                origin={record.origin}
                 // **Ruht der Auftrag, ruht der ganze Fluss** (Notiz #378): kein Modul ist
                 // dann «aktiv», keines lässt sich öffnen – farbig bleibt nur der
                 // Unter-Auftrag, der zu klären ist. Dieselbe Regel wie im Backend

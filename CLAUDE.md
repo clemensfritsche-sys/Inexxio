@@ -3437,6 +3437,51 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_waiting_follows_the_chain_so_there_is_no_dead_decision`; gegen echtes PostgreSQL
   verifiziert (`note404.py` 13/13).
 
+- **Das Big Picture geht in BEIDE Richtungen (Testnotiz #409, Stufen 1+2)**: «am schluss ist ja
+  alles ein prozess» – also zeigt der Fluss nicht nur, was in DIESEM Auftrag passiert, sondern
+  auch, wie er mit den abgezweigten zusammenhängt. Die Richtung Eltern → Abzweig gab es längst
+  (der Unter-Auftrags-Knoten steht seit Runde 27 an seiner Stelle im Ablauf); es fehlten die
+  **Tiefe** und die **Gegenrichtung**.
+  **(1) Woher kam ich – und wohin gebe ich zurück?** (`OrderResponse.origin`,
+  `components/erp/order-flow.tsx: OrderBranchTeaser`). Ein abgezweigter Auftrag hing in der
+  Luft: nirgends stand, aus welchem Auftrag und – vor allem – aus welchem **Schritt** er
+  hervorgegangen ist, also die Antwort auf «warum gibt es mich?». Jetzt steht **über** dem
+  Startknoten «aus Zange 100000576 · Datenerfassung» und **unter** dem Endknoten «zurück an
+  100000576», beide gestrichelt angebunden (dort endet der eigene Ablauf und geht in einen
+  anderen Auftrag über – `Connector dashed`, eine Variante desselben Bausteins). Ein Klick
+  wechselt hinüber; im **Entwurf** eines Unter-Auftrags steht der Herkunfts-Teaser über dem
+  Schritt-Editor, wo man gerade entscheidet, was mit den Stücken geschehen soll.
+  **Gelesen wird die Mechanik, nicht eine zweite Behauptung** (`orders._return_target`): das
+  Rückgabe-Ziel kommt aus derselben Ableitung, die es auch TUT – `subject.lender_of` für die
+  Ausleihe (folgt der Kette über abgebrochene Zwischenstufen hinweg, #404) bzw. der Eltern für
+  das Nachschub-Pegging, und nur solange dieser noch läuft. Ein fest verdrahtetes «der Eltern»
+  wäre genau in dem Fall falsch, der am meisten verwirrt: Eltern abgebrochen, Kette läuft
+  weiter. Der Name kommt aus `to_order_summaries` – dieselbe Ableitung wie im Feed, damit ein
+  Datensatz nicht an zwei Stellen zwei Namen trägt.
+  **(2) Der Prozess des Abzweigs, angeteasert** (`OrderDeviationInfo.steps` = `SubOrderStep`,
+  `SubSteps`): der Knoten trägt den Ablauf des Unter-Auftrags als **Miniatur-Fluss** – ein
+  Symbol je Modul in Modulfarbe, durch dieselben Verbinder gereiht, erledigte/noch nicht
+  erreichte gedämpft, ein Problem über den Rand in der Ampelfarbe; der Hover nennt Modul und
+  Zustand. Damit beantwortet er ohne Öffnen die Frage «wie weit ist das da drüben?».
+  Abgeleitet wird er aus **derselben** Schritt-Ableitung wie der grosse Fluss
+  (`process.build_order_steps`) – ein eigener «ist wohl erledigt»-Zweig liefe neben dem echten
+  Zustand her. `SubOrderStep` trägt bewusst **kein Label**: Schrittnamen sind Registry-Wissen
+  und stehen im Frontend an EINER Stelle (`lib/process.STEP_META`, gegen `domain/event_types.py`
+  getestet); das Zustandswort ist dorthin gewandert (`STEP_STATE_LABEL`, «Im Prozess» wie
+  überall). Derselbe Unter-Auftrag erscheint in der Auftrags-Liste UND an seinem Schritt –
+  sein Teaser wird darum je Antwort nur einmal abgeleitet (Merker in `to_order_response`).
+  Wächter: `test_the_flow_shows_the_branch_in_both_directions`,
+  `test_frontend_mirrors.py: test_the_step_teaser_names_the_module_from_one_place`; gegen
+  echtes PostgreSQL verifiziert (`note409.py` 14/14 – Herkunft samt Schritt, Rückweg über
+  einen abgebrochenen Eltern hinweg, Teaser == echter Ablauf, Nachschub-Pegging).
+  **Stufe 3 im Backlog (bewusst NOCH NICHT gebaut): die Instanz als roter Faden.** Die dritte
+  Frage – «wo war Stück X wann, und was wurde dort mit ihm gemacht?» – ist keine Sicht auf
+  einen Auftrag, sondern auf die **Instanz**: eine Kette aus dem Event-Strom (`order.share_taken`,
+  Freigabe, Schritt-Fachzeilen) über alle Aufträge hinweg, die es angefasst haben. Sie **ersetzt
+  dann den Reiter «Aufträge» im Instanz-Detailfenster** – der zeigt heute eine Liste von
+  Aufträgen, wo eine Geschichte hingehört. Erst danach ist das Big Picture vollständig: Auftrag
+  → Abzweig (Stufe 1+2) und Instanz → alle Aufträge (Stufe 3).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

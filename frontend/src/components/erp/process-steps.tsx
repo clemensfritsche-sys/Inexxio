@@ -1106,7 +1106,24 @@ export function kindColor(type: StepType) {
   return KIND_COLORS[type] ?? KIND_COLORS.purchase;
 }
 
-export function Connector() {
+/**
+ * Die Verbindung zwischen zwei Knoten des Flusses.
+ *
+ * ``dashed`` für alles, was **nicht** zu diesem Prozess gehört, aber an ihn anschliesst –
+ * der Weg zum Eltern-Auftrag und wieder zurück (Notiz #409). Gestrichelt heisst: hier endet
+ * der eigene Ablauf und es geht in einen anderen Auftrag über. Eine Variante desselben
+ * Bausteins, keine zweite Linie.
+ */
+export function Connector({ dashed = false }: { dashed?: boolean } = {}) {
+  if (dashed) {
+    return (
+      <div style={{
+        width: 2, height: 22, flex: 'none',
+        backgroundImage: 'linear-gradient(var(--border-2) 55%, transparent 55%)',
+        backgroundSize: '2px 7px',
+      }} />
+    );
+  }
   return <div style={{ width: 2, height: 28, background: 'var(--border-2)', flex: 'none' }} />;
 }
 

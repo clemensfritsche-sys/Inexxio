@@ -25,6 +25,28 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
   document:   { label: 'Dokument',       icon: FileText },  // erzeugt ein nummeriertes Dokument (Vertrag/AGB/Zertifikat)
 };
 
+/**
+ * **Der Zustand eines Prozessschritts in Worten** – EINE Stelle für das ganze Frontend.
+ *
+ * Im Fluss selbst steht der Zustand als Symbol (Haken · Pause · Kreuz) und über die Farbe;
+ * ausgeschrieben wird er nur dort, wo kein Platz für ein Symbol ist – im Hover. Damit dieses
+ * Wort nicht in jeder Ansicht neu erfunden wird, steht es hier neben ``STEP_META``.
+ *
+ * «Im Prozess» ist dabei der EINE Name für «läuft gerade» (Notizen #89/#90) – derselbe wie
+ * am Auftrag und an der Instanz.
+ */
+export const STEP_STATE_LABEL: Record<string, string> = {
+  done: 'Erledigt',
+  active: 'Im Prozess',
+  blocked: 'Angehalten',
+  locked: 'Wartet',
+  failed: 'Fehlgeschlagen',
+};
+
+export function stepStateLabel(state: string): string {
+  return STEP_STATE_LABEL[state] ?? state;
+}
+
 // Standort-Typen (Bewegung): Label + Icon
 export const LOCATION_META: Record<LocationType, { label: string; icon: React.ElementType }> = {
   user:       { label: 'Person',     icon: UserIcon },

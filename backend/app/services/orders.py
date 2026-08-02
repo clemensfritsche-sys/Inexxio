@@ -20,8 +20,8 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo,
-    OrderSummary, ShortfallInstance, StepResolution, StepShortfall,
+    OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderResponse, OrderStepInfo,
+    OrderSummary, ShortfallInstance, StepResolution, SubOrderStep, StepShortfall,
 )
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..models.base import utcnow
@@ -332,7 +332,25 @@ def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     return None, None
 
 
-def _order_sub_orders(db: Session, order: Order) -> tuple[
+def _sub_order_steps(db: Session, sub: Order,
+                     cache: dict[int, list[SubOrderStep]]) -> list[SubOrderStep]:
+    """**Der Ablauf eines Unter-Auftrags, angeteasert** (Notiz #409) – dieselbe Ableitung wie
+    für den Auftrag selbst (``process.build_order_steps``), nur auf Modul + Zustand
+    eingedampft. Kein zweites Regelwerk: ein Schritt ist im Teaser genau so weit wie im
+    Unter-Auftrag, weil es dieselbe Rechnung ist.
+
+    ``cache``: derselbe Unter-Auftrag erscheint sowohl in der Auftrags-Liste als auch am
+    Schritt, aus dem er hervorging – ohne Merker liefe die Ableitung zweimal."""
+    if sub.id not in cache:
+        cache[sub.id] = [
+            SubOrderStep(id=s["id"], step_type=s["step_type"], state=s["state"])
+            for s in process.build_order_steps(db, sub)
+        ]
+    return cache[sub.id]
+
+
+def _order_sub_orders(db: Session, order: Order,
+                      steps_cache: dict[int, list[SubOrderStep]] | None = None) -> tuple[
         list[OrderDeviationInfo], list[OrderDeviationInfo], list[OrderDeviationInfo],
         list[OrderDeviationInfo]]:
     """Unter-Aufträge eines Auftrags, getrennt nach Grund: **Abweichung** (nimmt ihr Stück
@@ -343,6 +361,7 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[
     braucht – EIN Mechanismus (Unterdeckung) statt Pause + Unterdeckung."""
     if not order.object_id:
         return [], [], [], []
+    cache = steps_cache if steps_cache is not None else {}
     children = (
         db.query(Order)
         .filter(Order.parent_order_id == order.object_id, Order.is_active == True)
@@ -362,7 +381,8 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[
         ]
         info = OrderDeviationInfo(
             object_id=c.object_id, status=c.status, reason=c.reason, instance_count=len(ids),
-            instance_object_ids=ids, title=c.title, abort_into_id=c.abort_into_id)
+            instance_object_ids=ids, title=c.title, abort_into_id=c.abort_into_id,
+            steps=_sub_order_steps(db, c, cache))
         # **Explizit je Grund**, kein Sammel-Else: sonst landet jeder neue Unter-Auftrags-Grund
         # stillschweigend im Abweichungs-Topf und erscheint dem Nutzer als «Abweichung».
         bucket = {"supply": supplies, "return": returns,
@@ -396,7 +416,8 @@ def _sub_order_stage(reason: str | None, step_type: str) -> str:
 
 
 def _fill_step_sub_orders(db: Session, order: Order, step: ArticleProcessStep,
-                          si: OrderStepInfo) -> None:
+                          si: OrderStepInfo,
+                          steps_cache: dict[int, list[SubOrderStep]] | None = None) -> None:
     """**Die Unter-Aufträge dieses Schritts als Knoten im Ablauf** – alle drei Arten in EINER
     Liste, jede mit ihrer eigenen Position.
 
@@ -418,11 +439,13 @@ def _fill_step_sub_orders(db: Session, order: Order, step: ArticleProcessStep,
             Order.status != "inactive",
         ).order_by(Order.object_id).all()
     )
+    cache = steps_cache if steps_cache is not None else {}
     si.sub_orders = [
         OrderDeviationInfo(object_id=o.object_id, status=o.status, reason=o.reason,
                            instance_count=0, instance_object_ids=[], title=o.title,
                            abort_into_id=o.abort_into_id,
-                           stage=_sub_order_stage(o.reason, step.step_type))
+                           stage=_sub_order_stage(o.reason, step.step_type),
+                           steps=_sub_order_steps(db, o, cache))
         for o in subs if o.object_id
     ]
 
@@ -477,6 +500,62 @@ def _actor_names(db: Session, ids: list) -> dict:
         return {}
     return {u.id: u.display_name
             for u in db.query(UserProfile).filter(UserProfile.id.in_(wanted)).all()}
+
+
+def _return_target(db: Session, order: Order) -> Order | None:
+    """**Wohin gibt dieser Unter-Auftrag beim Abschluss zurück?**
+
+    Gelesen wird genau die Ableitung, die es auch TUT – keine zweite Behauptung daneben:
+    ein Auftrag mit **festem Subjekt** (Abweichung/Retoure/Bereitstellung) leiht seine Stücke
+    und gibt sie an den nächsten **laufenden** Verleiher zurück (``subject.lender_of``, folgt
+    der Kette über abgebrochene Zwischenstufen hinweg, Notiz #404); ein **Nachschub** pinnt
+    seine Stück an den Eltern (``process._peg_supply_to_parent``). Alles andere gibt nichts
+    zurück – ein gewöhnlicher Auftrag schuldet niemandem etwas."""
+    from .subject import is_fixed_subject, lender_of
+    if is_fixed_subject(order):
+        return lender_of(db, order)
+    if order.reason == "supply" and order.parent_order_id:
+        parent = db.query(Order).filter(Order.object_id == order.parent_order_id).first()
+        return parent if parent is not None and parent.status == "released" else None
+    return None
+
+
+def _order_ref_name(db: Session, o: Order) -> str:
+    """Der Name eines referenzierten Auftrags – **dieselbe** Ableitung wie im Feed
+    (``order_display_name`` über ``to_order_summaries``), damit derselbe Datensatz nicht
+    an zwei Stellen zwei Namen trägt."""
+    rows = to_order_summaries(db, [o])
+    return rows[0].name if rows else (o.title or "Auftrag")
+
+
+def _fill_origin(db: Session, order: Order, resp: OrderResponse) -> None:
+    """**Woher dieser Unter-Auftrag kam – und wohin er zurückgibt** (Notiz #409).
+
+    Der Eltern zeigt den Abzweig längst an seiner Stelle im Ablauf; hier steht die
+    Gegenrichtung, damit man in beide Richtungen sieht, ohne zu suchen: aus welchem
+    Auftrag und aus welchem **Schritt** dieser Vorgang hervorgegangen ist – und an wen
+    seine Stücke beim Abschluss zurückgehen.
+
+    Beides ist vorhandenes Wissen von der anderen Seite gelesen (``parent_order_id`` +
+    ``origin_step_id`` bzw. ``_return_target``), kein neues Feld."""
+    if not order.parent_order_id:
+        return
+    parent = db.query(Order).filter(Order.object_id == order.parent_order_id).first()
+    if parent is None or not parent.object_id:
+        return
+    origin = OrderOrigin(order_object_id=parent.object_id, order_status=parent.status,
+                         order_name=_order_ref_name(db, parent))
+    if order.origin_step_id:
+        step = (db.query(ArticleProcessStep)
+                .filter(ArticleProcessStep.id == order.origin_step_id).first())
+        if step is not None:
+            origin.step_type = step.step_type
+    back = _return_target(db, order)
+    if back is not None and back.object_id:
+        origin.returns_to_object_id = back.object_id
+        origin.returns_to_name = (origin.order_name if back.id == parent.id
+                                  else _order_ref_name(db, back))
+    resp.origin = origin
 
 
 def _fill_affected(db: Session, order: Order, resp: OrderResponse) -> None:
@@ -690,8 +769,12 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     (Lieferant/Kunde) – filtert dann den Dokument-Inhalt nach ``doc_visibility``.
     ``None`` = interner/Personal-Aufruf (ungefiltert)."""
     resp = OrderResponse.model_validate(order)
+    # Derselbe Unter-Auftrag erscheint in der Auftrags-Liste UND am Schritt, aus dem er
+    # hervorging – sein Teaser-Ablauf wird darum je Antwort nur einmal abgeleitet.
+    sub_steps: dict[int, list[SubOrderStep]] = {}
     (resp.deviations, resp.supply_orders, resp.returns,
-     resp.provisionings) = _order_sub_orders(db, order)
+     resp.provisionings) = _order_sub_orders(db, order, sub_steps)
+    _fill_origin(db, order, resp)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
     if order.object_id:
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()
@@ -715,7 +798,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
         step = s["step"]
         si = OrderStepInfo(id=s["id"], step_type=s["step_type"], position=s["position"],
                            label=s["label"], state=s["state"])
-        _fill_step_sub_orders(db, order, step, si)
+        _fill_step_sub_orders(db, order, step, si, sub_steps)
         _fill_step_resolutions(db, order, step, si)
         by_name, at = _attach_step_embed(db, order, s, si, first,
                                          instances=instances, viewer=viewer)

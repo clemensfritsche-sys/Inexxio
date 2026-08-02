@@ -12507,6 +12507,14 @@
             "type": "string",
             "title": "Stage",
             "default": "before"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/SubOrderStep"
+            },
+            "type": "array",
+            "title": "Steps",
+            "default": []
           }
         },
         "type": "object",
@@ -12626,6 +12634,75 @@
         "type": "object",
         "title": "OrderLinePins",
         "description": "Gewählte **Anteile** EINER Position statt FIFO (analog ``OrderUpdate.picks`` am\nEinzel-Artikel-Auftrag). Leere Liste = zurück auf FIFO."
+      },
+      "OrderOrigin": {
+        "properties": {
+          "order_object_id": {
+            "type": "integer",
+            "title": "Order Object Id"
+          },
+          "order_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Name"
+          },
+          "order_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Status"
+          },
+          "step_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Type"
+          },
+          "returns_to_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returns To Object Id"
+          },
+          "returns_to_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returns To Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_object_id"
+        ],
+        "title": "OrderOrigin",
+        "description": "**Woher dieser Unter-Auftrag kam – und wohin er zurückgibt** (Notiz #409).\n\nDer Abzweig ist im Eltern längst sichtbar (``OrderStepInfo.sub_orders``); die Gegen-\nrichtung fehlte: wer in einer Abweichung steht, sah nicht, aus welchem Auftrag und aus\nwelchem **Schritt** sie hervorgegangen ist – und schon gar nicht, wohin ihre Stücke beim\nAbschluss zurückkehren. Beides ist keine neue Wahrheit, sondern dieselbe von der anderen\nSeite gelesen: ``parent_order_id`` + ``origin_step_id`` für das Woher, und für das Wohin\ngenau die Ableitung, die es auch TUT (``subject.lender_of`` bzw. das Nachschub-Pegging) –\nkeine zweite Behauptung daneben.\n\nWichtig: das Rückgabe-Ziel ist **nicht** zwingend der Eltern. Wurde der Eltern\nabgebrochen, reicht die Ausleihe durch bis zum nächsten laufenden Auftrag (Notiz #404) –\ngenau den nennt ``returns_to_object_id``."
       },
       "OrderResponse": {
         "properties": {
@@ -13025,6 +13102,16 @@
               }
             ],
             "title": "Abort Into Id"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "deviations": {
             "items": {
@@ -16178,6 +16265,30 @@
         ],
         "title": "StepShortfall",
         "description": "Ein ungedeckter Bedarf des **Auftrags** (Artikel + Fehlmenge).\n\nDie Fehlmenge gehört dem Auftrag, nicht einem Schritt: sie entsteht aus «Soll − Gesichert»\nund ist dieselbe Aussage, egal welcher Schritt gerade dran ist. Früher hing sie an jedem\nSubjekt-Schritt – dieselbe Zahl mehrfach, und in einem Prozess ohne Subjekt-Schritt\n(z. B. reine Beschaffung) war sie **gar nicht** sichtbar.\n\n``kind`` sagt, WAS fehlt: ``subject`` = die Fertigware, die der Auftrag schuldet (dafür\ngibt es «Ohne Ersatz weiter») · ``component`` = Material, das ein Ressourcen-Schritt\nverbraucht (das kann man nicht wegbestätigen – ohne Material wird nichts gebaut).\n\n``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**\ndecken liesse (für «Ersetzen» / «Bestimmte Instanz wählen»)."
+      },
+      "SubOrderStep": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "step_type": {
+            "type": "string",
+            "title": "Step Type"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "step_type",
+          "state"
+        ],
+        "title": "SubOrderStep",
+        "description": "**Ein Schritt eines Unter-Auftrags – angeteasert, nicht ausgeführt** (Notiz #409).\n\nAm Ende ist alles ein Prozess: der abgezweigte Auftrag hat selbst einen Ablauf, und wer\nim Eltern-Auftrag steht, will auf einen Blick sehen, wie weit der Abzweig ist – ohne ihn\nzu öffnen. Darum nur das Minimum, aus dem sich das Miniatur-Flussbild bauen lässt: WELCHES\nModul und in WELCHEM Zustand. Alles Weitere steht im Unter-Auftrag selbst (ein Klick).\n\nDas Label steht bewusst NICHT hier: die Schrittnamen sind Registry-Wissen und liegen im\nFrontend an EINER Stelle (``lib/process.STEP_META``, gegen ``domain/event_types.py``\ngetestet) – ein zweites Mal mitgeschickt, könnten sie auseinanderlaufen."
       },
       "SuggestedLink": {
         "properties": {

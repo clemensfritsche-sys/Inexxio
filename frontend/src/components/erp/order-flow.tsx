@@ -1,15 +1,17 @@
 'use client';
 
-import { Truck, Check, X, PauseCircle, TriangleAlert, PackageMinus, PackagePlus, CheckCircle2 } from 'lucide-react';
-import type { Order, OrderDeviationInfo, OrderStep, StepResolution, StepType } from '@/types';
-import { STEP_META } from '@/lib/process';
+import { Truck, Check, X, PauseCircle, TriangleAlert, PackageMinus, PackagePlus, CheckCircle2,
+  CornerLeftDown, CornerRightUp } from 'lucide-react';
+import type { Order, OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution, StepType,
+  SubOrderStep } from '@/types';
+import { STEP_META, stepStateLabel } from '@/lib/process';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
 import { orderStatus } from '@/lib/record-status';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { saleStatusConfig } from '@/lib/sale';
 import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/process-steps';
-import { actorHint } from '@/lib/utils';
+import { actorHint, formatObjectId } from '@/lib/utils';
 
 // ─── Der Ablauf eines laufenden Auftrags – dieselbe Darstellung wie die Definition ─
 //
@@ -45,16 +47,31 @@ import { actorHint } from '@/lib/utils';
 // keines lässt sich öffnen – der einzige farbige Knoten ist der Unter-Auftrag, der zu klären
 // ist. Das ist keine zweite Regel, sondern dieselbe wie im Backend (``process.is_paused`` →
 // jeder Schritt ist ``blocked``, jede Ausführung 409); sie war bisher nur nicht zu sehen.
+//
+// **Das Big Picture geht in BEIDE Richtungen** (Notiz #409). Am Ende ist alles ein Prozess –
+// also zeigt der Fluss nicht nur, was in DIESEM Auftrag passiert, sondern auch, wie er mit
+// den abgezweigten zusammenhängt:
+//
+//   Eltern → Abzweig : der Unter-Auftrags-Knoten steht an seiner Stelle im Ablauf und trägt
+//                      seinen eigenen Prozess **angeteasert** (Miniatur-Fluss, ``SubSteps``) –
+//                      wie weit er ist, sieht man ohne ihn zu öffnen; ein Klick wechselt hin.
+//   Abzweig → Eltern : oberhalb des Startknotens steht, woher der Auftrag kam (Auftrag **und**
+//                      Schritt), unterhalb des Endknotens, wohin seine Stücke zurückgehen –
+//                      gestrichelt angebunden, weil dort der eigene Ablauf endet (``BranchNode``).
+//
+// Beides sind Teaser, kein zweites Detailfenster: sie nennen die Sache und öffnen sie.
 
 function completionHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
   return actorHint(s.completed_by ?? 'System', s.completed_at);
 }
 
-export function OrderFlow({ steps, subOrders = [], paused = false, selectedId, onSelectStep, onOpenOrder, renderPanel }: {
+export function OrderFlow({ steps, subOrders = [], origin, paused = false, selectedId, onSelectStep, onOpenOrder, renderPanel }: {
   steps: OrderStep[];
   /** Alle Unter-Aufträge des Auftrags – die ohne Ursprungsschritt stehen vor dem Fluss. */
   subOrders?: OrderDeviationInfo[];
+  /** Woher dieser Auftrag kam und wohin er zurückgibt – nur an einem Unter-Auftrag (#409). */
+  origin?: OrderOrigin | null;
   /** Ruht der Auftrag? Dann tritt der ganze Fluss zurück und nichts lässt sich öffnen (#378). */
   paused?: boolean;
   selectedId?: string | null;
@@ -62,7 +79,7 @@ export function OrderFlow({ steps, subOrders = [], paused = false, selectedId, o
   onOpenOrder: (objectId: number) => void;
   renderPanel?: (step: OrderStep) => React.ReactNode;
 }) {
-  if (steps.length === 0) return null;
+  if (steps.length === 0 && !origin) return null;
 
   const rows: React.ReactNode[] = [];
   const subCard = (info: OrderDeviationInfo) => (
@@ -108,6 +125,12 @@ export function OrderFlow({ steps, subOrders = [], paused = false, selectedId, o
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {origin && (
+        <>
+          <OrderBranchTeaser origin={origin} kind="from" onOpen={onOpenOrder} />
+          <Connector dashed />
+        </>
+      )}
       <FlowTerm kind="start" />
       {rows.map((r, i) => (
         <div key={i} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -117,7 +140,64 @@ export function OrderFlow({ steps, subOrders = [], paused = false, selectedId, o
       ))}
       <Connector />
       <FlowTerm kind="end" />
+      {origin?.returns_to_object_id != null && (
+        <>
+          <Connector dashed />
+          <OrderBranchTeaser origin={origin} kind="back" onOpen={onOpenOrder} />
+        </>
+      )}
     </div>
+  );
+}
+
+/**
+ * **Woher der Auftrag kam – und wohin er zurückgibt** (Notiz #409).
+ *
+ * Ein abgezweigter Auftrag hing bisher in der Luft: im Eltern sah man den Abzweig, aber im
+ * Abzweig selbst stand nirgends, aus welchem Auftrag und – vor allem – aus welchem **Schritt**
+ * er hervorgegangen ist. Genau diese Stelle ist die Antwort auf «warum gibt es mich?».
+ *
+ * Bewusst ein **Teaser**, kein zweites Detailfenster: Auftrag, Nummer und der Schritt, mehr
+ * nicht; ein Klick wechselt hinüber. Gestrichelt angebunden, weil hier der eigene Ablauf
+ * aufhört und ein anderer Auftrag beginnt – der Knoten ist kein Modul dieses Prozesses.
+ *
+ * **Der Rückweg ist nicht zwingend der Eltern**: wurde der Eltern abgebrochen, reicht die
+ * Ausleihe durch bis zum nächsten laufenden Auftrag (Notiz #404). Welcher das ist, leitet das
+ * Backend aus derselben Mechanik ab, die es auch tut – hier wird nur angezeigt.
+ */
+export function OrderBranchTeaser({ origin, kind, onOpen }: {
+  origin: OrderOrigin;
+  kind: 'from' | 'back';
+  onOpen?: (objectId: number) => void;
+}) {
+  const from = kind === 'from';
+  const objectId = from ? origin.order_object_id : origin.returns_to_object_id;
+  if (objectId == null) return null;
+  const name = (from ? origin.order_name : origin.returns_to_name) ?? null;
+  const stepLabel = from && origin.step_type
+    ? (STEP_META[origin.step_type as StepType]?.label ?? null) : null;
+  const Icon = from ? CornerLeftDown : CornerRightUp;
+  return (
+    <button type="button" onClick={() => onOpen?.(objectId)}
+      title={from
+        ? `Hervorgegangen aus ${name ?? 'Auftrag'}${stepLabel ? ` · ${stepLabel}` : ''} – öffnen`
+        : `Gibt beim Abschluss zurück an ${name ?? 'Auftrag'} – öffnen`}
+      style={{
+        width: '100%', maxWidth: STEP_MAXW, display: 'flex', alignItems: 'center', gap: 8,
+        padding: '8px 13px', textAlign: 'left', cursor: 'pointer',
+        border: '1px dashed var(--border-2)', borderRadius: 'var(--r-lg)', background: 'transparent',
+        font: '500 12.5px var(--font-body)', color: 'var(--fg-3)',
+      }}>
+      <Icon size={14} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
+      <span style={{ flexShrink: 0 }}>{from ? 'aus' : 'zurück an'}</span>
+      {name && <span style={{ fontWeight: 700, color: 'var(--fg-2)', minWidth: 0,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>}
+      <span style={{ fontFamily: 'var(--font-mono), monospace', fontSize: 12,
+        fontVariantNumeric: 'tabular-nums', color: 'var(--accent)', flexShrink: 0 }}>
+        {formatObjectId(objectId)}
+      </span>
+      {stepLabel && <span style={{ color: 'var(--fg-4)', flexShrink: 0 }}>· {stepLabel}</span>}
+    </button>
   );
 }
 
@@ -301,13 +381,59 @@ function SubOrderCard({ info, onOpen }: {
         }}>
           <Icon size={15} />
         </span>
-        <span style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{meta.label}</span>
-          <ObjId value={info.object_id} />
+        <span style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{meta.label}</span>
+            <ObjId value={info.object_id} />
+          </span>
+          <SubSteps steps={info.steps ?? []} />
         </span>
         <StatusBadge cfg={cfg} />
       </button>
     </div>
+  );
+}
+
+/**
+ * **Der Prozess des Abzweigs, angeteasert** (Notiz #409) – derselbe Fluss, eine Nummer
+ * kleiner: ein Symbol je Modul, in der Farbe des Moduls, durch dieselben Verbinder gereiht.
+ *
+ * Damit beantwortet der Knoten die Frage, für die man ihn sonst öffnen müsste: **wie weit
+ * ist das da drüben?** Erledigte und noch nicht erreichte Module treten zurück (gedämpft),
+ * nur das laufende trägt seine Farbe – exakt die Regel des grossen Flusses, damit man beim
+ * Wechsel nichts umlernen muss. Ein Problem (angehalten/fehlgeschlagen) meldet sich über den
+ * Rand in der Ampelfarbe; der Hover nennt Modul und Zustand in Worten.
+ *
+ * Bewusst ohne Klick auf das einzelne Symbol: ein Schritt wird in SEINEM Auftrag bearbeitet –
+ * der Knoten öffnet ihn, das ist der eine Weg hinüber.
+ */
+function SubSteps({ steps }: { steps: SubOrderStep[] }) {
+  if (steps.length === 0) return null;
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 4 }}>
+      {steps.map((st, i) => {
+        const type = st.step_type as StepType;
+        const sm = STEP_META[type] ?? STEP_META.purchase;
+        const kc = kindColor(type);
+        const Icon = sm.icon;
+        const quiet = st.state === 'done' || st.state === 'locked';
+        const mark = STATE_MARK[st.state];
+        return (
+          <span key={st.id} style={{ display: 'flex', alignItems: 'center' }}>
+            {i > 0 && <span style={{ width: 7, height: 1, background: 'var(--border-2)', flex: 'none' }} />}
+            <span title={`${sm.label}: ${stepStateLabel(st.state)}`}
+              style={{
+                width: 22, height: 22, borderRadius: 5, flex: 'none', background: '#fff',
+                border: `1px solid ${!quiet && mark ? mark.color : kc.border}`,
+                color: quiet ? 'var(--fg-4)' : kc.fg, opacity: quiet ? 0.55 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'help',
+              }}>
+              <Icon size={12} />
+            </span>
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
