@@ -988,7 +988,7 @@ export interface paths {
         /**
          * Set Order Line Pins
          * @description Fixierte Instanzen EINER Position setzen (statt FIFO) – «Instanz wählen» je Artikel
-         *     eines Mehrpositionen-Auftrags, analog ``instance_object_ids`` am Einzel-Artikel-Auftrag.
+         *     eines Mehrpositionen-Auftrags, analog ``picks`` am Einzel-Artikel-Auftrag.
          */
         patch: operations["set_order_line_pins_api_v1_erp_orders__object_id__lines__line_id__patch"];
         trace?: never;
@@ -3847,6 +3847,13 @@ export interface components {
             physical_location_label?: string | null;
             /** Move Quantity */
             move_quantity?: number | null;
+            /**
+             * Shares
+             * @default []
+             */
+            shares: components["schemas"]["InstanceShare"][];
+            /** Pick Source Object Id */
+            pick_source_object_id?: number | null;
         };
         /**
          * InstanceLocation
@@ -3888,6 +3895,31 @@ export interface components {
              * Format: date-time
              */
             at: string;
+        };
+        /**
+         * InstancePick
+         * @description **Ein Anteil, kein Ding** – die eine Form, in der eine Instanz-Auswahl daherkommt.
+         *
+         *     Eine Instanz ist eine **Menge**, und ihre Menge ist immer vollständig aufgeteilt: jeder
+         *     Anteil gehört genau einem Auftrag oder ist frei (``instances.reservations``). Wer
+         *     auswählt, wählt darum drei Dinge zugleich – **welche** Instanz, **wie viel** davon und
+         *     **wem** er es wegnimmt.
+         *
+         *     Der dritte Punkt ist der entscheidende: hält eine Charge à 4 Stück zwei Ansprüche
+         *     (Hauptauftrag 2, Abweichung 2) und ein dritter Auftrag greift 1 Stück, wäre ohne ihn
+         *     nicht entscheidbar, wer verliert. Mit ihm ist es keine Regel mehr, sondern ein Klick –
+         *     die Auswahl zeigt die Anteile als Zeilen, und man klickt die Zeile an.
+         *
+         *     ``from_order_object_id`` leer = **freier Anteil**: es verliert niemand etwas, es wird
+         *     niemand gefragt. ``quantity`` leer = die ganze Instanz.
+         */
+        InstancePick: {
+            /** Instance Object Id */
+            instance_object_id: number;
+            /** Quantity */
+            quantity?: number | null;
+            /** From Order Object Id */
+            from_order_object_id?: number | null;
         };
         /** InstanceResponse */
         InstanceResponse: {
@@ -3937,6 +3969,11 @@ export interface components {
              * @default 0
              */
             reserved_quantity: number;
+            /**
+             * Shares
+             * @default []
+             */
+            shares: components["schemas"]["InstanceShare"][];
             /** Order Object Id */
             order_object_id?: number | null;
             /** Article Object Id */
@@ -3954,6 +3991,29 @@ export interface components {
              * @default []
              */
             location_path: components["schemas"]["LocationHop"][];
+        };
+        /**
+         * InstanceShare
+         * @description **Ein Anteil einer Instanz** – eine Menge mit einem Namen darauf.
+         *
+         *     Eine Instanz ist eine Menge, kein Ding, und ihre Menge ist **immer vollständig
+         *     aufgeteilt**: jeder Anteil gehört genau einem Auftrag, oder er ist frei. Genau so steht
+         *     es in ``instances.reservations``; hier wird es nur sichtbar gemacht, statt es zu
+         *     verstecken.
+         *
+         *     Das ist die Zeile, die man in der Auswahl anklickt – und damit ist beantwortet, WEM man
+         *     etwas wegnimmt (die Frage, die vorher niemand stellen konnte). ``order_object_id`` leer
+         *     = **frei**: es gehört niemandem, es verliert niemand etwas.
+         */
+        InstanceShare: {
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /** Order Name */
+            order_name?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Quantity */
+            quantity: number;
         };
         /** LegalDocument */
         LegalDocument: {
@@ -4243,12 +4303,8 @@ export interface components {
             article_id: number;
             /** Quantity */
             quantity: number;
-            /** Instance Object Ids */
-            instance_object_ids?: number[] | null;
-            /** Instance Quantities */
-            instance_quantities?: {
-                [key: string]: number;
-            } | null;
+            /** Picks */
+            picks?: components["schemas"]["InstancePick"][] | null;
             /** Lines */
             lines?: components["schemas"]["OrderLineCreate"][] | null;
             /** Steps */
@@ -4308,12 +4364,8 @@ export interface components {
             article_id: number;
             /** Quantity */
             quantity: number;
-            /** Instance Object Ids */
-            instance_object_ids?: number[] | null;
-            /** Instance Quantities */
-            instance_quantities?: {
-                [key: string]: number;
-            } | null;
+            /** Picks */
+            picks?: components["schemas"]["InstancePick"][] | null;
         };
         /**
          * OrderLineInfo
@@ -4337,19 +4389,15 @@ export interface components {
         };
         /**
          * OrderLinePins
-         * @description Fixierte Instanzen EINER Position statt FIFO (analog ``OrderUpdate.instance_object_ids``
-         *     am Einzel-Artikel-Auftrag).
+         * @description Gewählte **Anteile** EINER Position statt FIFO (analog ``OrderUpdate.picks`` am
+         *     Einzel-Artikel-Auftrag). Leere Liste = zurück auf FIFO.
          */
         OrderLinePins: {
             /**
-             * Instance Object Ids
+             * Picks
              * @default []
              */
-            instance_object_ids: number[];
-            /** Instance Quantities */
-            instance_quantities?: {
-                [key: string]: number;
-            } | null;
+            picks: components["schemas"]["InstancePick"][];
         };
         /** OrderResponse */
         OrderResponse: {
@@ -4632,12 +4680,8 @@ export interface components {
             article_id?: number | null;
             /** Quantity */
             quantity?: number | null;
-            /** Instance Object Ids */
-            instance_object_ids?: number[] | null;
-            /** Instance Quantities */
-            instance_quantities?: {
-                [key: string]: number;
-            } | null;
+            /** Picks */
+            picks?: components["schemas"]["InstancePick"][] | null;
             /** Shortfall Response */
             shortfall_response?: string | null;
             /** Desired Delivery Date */
@@ -5609,6 +5653,13 @@ export interface components {
             quantity_from?: number | null;
             /** Quantity To */
             quantity_to?: number | null;
+            /**
+             * Instance Object Ids
+             * @default []
+             */
+            instance_object_ids: number[];
+            /** Other Order Object Id */
+            other_order_object_id?: number | null;
             /** At */
             at?: string | null;
             /** By */
@@ -5642,6 +5693,11 @@ export interface components {
              * @default subject
              */
             kind: string;
+            /**
+             * Replaceable
+             * @default true
+             */
+            replaceable: boolean;
             /**
              * Available Quantity
              * @default 0

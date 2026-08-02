@@ -26,7 +26,7 @@ from ..schemas.order import (
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..models.base import utcnow
 from ..schemas.sale import SaleEmbed
-from . import people, process
+from . import people, process, recovery
 from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label, location_labels, physical_location_labels
@@ -417,7 +417,10 @@ def _fill_step_sub_orders(db: Session, order: Order, step: ArticleProcessStep,
 
 
 # Entscheidungen, die eine Unterdeckung an diesem Schritt aufgelöst haben (Notiz #281).
-_RESOLUTION_EVENTS = ("order.covered_from_stock", "order.quantity_confirmed")
+# **Was an einem Schritt entschieden wurde bzw. ihm widerfahren ist** – drei Ereignisse,
+# eine Spur: gedeckt · Menge reduziert · **Anteil entzogen** (ein anderer Auftrag hat sich
+# ein Stück geholt; genau das erklärt später, warum hier plötzlich etwas fehlt).
+_RESOLUTION_EVENTS = ("order.covered_from_stock", "order.quantity_confirmed", "order.share_taken")
 
 
 def _fill_step_resolutions(db: Session, order: Order, step: ArticleProcessStep,
@@ -449,6 +452,9 @@ def _fill_step_resolutions(db: Session, order: Order, step: ArticleProcessStep,
             article_object_id=(art.object_id if art else None),
             article_name=(art.name if art else None),
             quantity=p.get("quantity"), quantity_from=p.get("from"), quantity_to=p.get("to"),
+            instance_object_ids=[i for i in (p.get("instances") or []) if i]
+                                or ([p["instance"]] if p.get("instance") else []),
+            other_order_object_id=p.get("to_order"),
             at=e.created_at, by=actors.get(e.actor_id),
         ))
 
@@ -534,6 +540,7 @@ def _fill_order_shortfall(db: Session, order: Order, resp: OrderResponse) -> Non
             article_object_id=(arts[aid].object_id if aid in arts else None),
             article_name=(arts[aid].name if aid in arts else None), quantity=qty,
             kind="subject" if aid in subject_short else "component",
+            replaceable=recovery.is_replaceable(db, order, aid in subject_short),
             available_quantity=sum(free_qty(c) for c in free),
             available_instances=[
                 ShortfallInstance(object_id=c.object_id, quantity=free_qty(c))
@@ -582,12 +589,26 @@ def _instance_embeds(db: Session, order: Order, instances: list) -> list[Instanc
     from .quantity import to_qty
     from .reservation import reserved_for
 
+    from .shares import shares_for
+
     loc_keys = [(i.location_type, i.location_id) for i in instances]
     loc_labels = location_labels(db, loc_keys)
     phys_labels = physical_location_labels(db, [k for k in loc_keys if k[0] == "instance"])
+    # **Wo liegt der Rest?** Ist ein Anteil dieser Instanz gerade bei einem anderen Auftrag
+    # (Abweichung, Nachschub), soll man das hier sehen – und dort spiegelbildlich, woher er
+    # kam. Dieselbe Ableitung wie im Instanz-Detail, EINE Batch-Abfrage.
+    share_map = shares_for(db, instances)
+    src_ids = {
+        o.id: o.object_id
+        for o in db.query(Order).filter(
+            Order.id.in_({int(v) for v in (order.pick_sources or {}).values() if v})).all()
+    } if order.pick_sources else {}
     out: list[InstanceEmbed] = []
     for i in instances:
         emb = InstanceEmbed.model_validate(i)
+        emb.shares = share_map.get(i.id, [])
+        src = (order.pick_sources or {}).get(str(i.object_id))
+        emb.pick_source_object_id = src_ids.get(int(src)) if src is not None else None
         emb.location_label = loc_labels.get((i.location_type, i.location_id))
         if i.location_type == "instance":
             emb.physical_location_label = phys_labels.get((i.location_type, i.location_id))

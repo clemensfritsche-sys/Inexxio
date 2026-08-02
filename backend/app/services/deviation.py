@@ -193,6 +193,7 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
     )
     db.add(devi)
     db.flush()
+    sources: dict[str, int] = {}
     for inst in insts:                       # betroffene Instanzen an die Abweichung binden
         inst.subject_of_order_id = devi.id
         # Sofort dauerhaft in der Instanz-Historie festhalten (nicht erst bei Freigabe):
@@ -211,6 +212,12 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
         want = (quantities or {}).get(inst.object_id, to_qty(inst.quantity))
         if reserved_for(inst, devi.id) <= 0:
             claim(inst, devi.id, want)
+        # **Wessen Anteil wird gegriffen?** Beim menschlichen Weg klickt man die Zeile an;
+        # hier ist es der Eltern-Auftrag, aus dem heraus gemeldet wird. Dieselbe Notiz,
+        # dieselbe Auswertung bei der Freigabe (``reservation.enforce``) – kein zweiter Weg.
+        if reserved_for(inst, parent.id) > 0:
+            sources[str(inst.object_id)] = parent.id
+    devi.pick_sources = sources or None
     log_audit(db, "orders", None, f"Abweichung zu {parent.object_id} angelegt", actor_id,
               object_id=devi.object_id)
     emit(db, "order.deviation_opened", object_type="order", object_id=devi.object_id,

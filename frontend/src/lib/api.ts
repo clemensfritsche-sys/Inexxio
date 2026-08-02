@@ -549,25 +549,6 @@ class ApiClient {
     return this.post(`/api/v1/erp/orders/${objectId}/abort`, {});
   }
 
-  // **Abweichungsauftrag** – die Abkürzung auf denselben Weg, den auch die Instanz-Auswahl
-  // im Auftrag nimmt (dort ergibt sich das Tag aus der Wahl gebundener Instanzen).
-  // `shortfallResponse` beantwortet die Unterdeckung, die dabei beim laufenden Auftrag
-  // entsteht – ohne sie antwortet der Server mit 409 und nennt die betroffenen Aufträge.
-  // Bleibt dem Eltern nichts übrig, IST «Auftragsmenge reduzieren» sein Abbruch.
-  createDeviation(objectId: number, opts?: {
-    instanceObjectIds?: number[];
-    /** Beanspruchte Teilmenge je Instanz – fehlt sie, gilt die ganze Instanz (#361). */
-    instanceQuantities?: Record<string, number>;
-    shortfallResponse?: 'wait' | 'replace' | 'accept';
-  }): Promise<Order> {
-    const ids = opts?.instanceObjectIds;
-    return this.post(`/api/v1/erp/orders/${objectId}/deviation`, {
-      ...(ids && ids.length ? { instance_object_ids: ids } : {}),
-      ...(opts?.instanceQuantities ? { instance_quantities: opts.instanceQuantities } : {}),
-      ...(opts?.shortfallResponse ? { shortfall_response: opts.shortfallResponse } : {}),
-    });
-  }
-
   // «Ersetzen»: deckt die Fehlmenge eines blockierten Schritts – erst aus freiem
   // Lagerbestand (FIFO bzw. gezielt gewählte Instanzen), den Rest per Nachschub-Unterauftrag.
   // EIN Weg statt zweier Knöpfe: woher der Ersatz kommt, ist eine Verfügbarkeitsfrage.

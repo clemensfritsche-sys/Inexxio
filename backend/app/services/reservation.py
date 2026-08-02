@@ -88,28 +88,49 @@ def claim(inst: Instance, order_id: int, qty) -> Decimal:
     return want
 
 
-def enforce(inst: Instance, order_id: int) -> Decimal:
-    """**Scharf werden**: den vorgemerkten Anspruch durchsetzen – fremde Ansprüche werden so
-    weit gekürzt, dass die Summe die Instanz-Menge nicht mehr übersteigt. Liefert die
-    entzogene Menge.
+def enforce(inst: Instance, order_id: int, from_order_id: int | None = None) -> Decimal:
+    """**Scharf werden**: den vorgemerkten Anspruch durchsetzen – und zwar zulasten des
+    **genannten** Anteils. Liefert die entzogene Menge.
 
     Das ist der Moment der **Freigabe**, und genau hier entsteht die Unterdeckung: nimmt
     eine Abweichung ein Stück aus einer Charge, die ein laufender Auftrag gedeckt hatte,
     schrumpft **dessen** Reservierung – und damit meldet er die Fehlmenge von selbst. Es
     braucht dafür keine zweite Buchführung, nur diesen einen Schnitt zum richtigen
-    Zeitpunkt."""
+    Zeitpunkt.
+
+    **Wer verliert, wird nicht mehr geraten.** Früher lief eine Schleife über alle übrigen
+    Ansprüche und kürzte den erstbesten. Bei EINEM anderen Halter war das zufällig richtig;
+    ab zwei war es Willkür – eine Charge à 4, an der Hauptauftrag (2) und Abweichung (2)
+    hängen, konnte bei einem Zugriff auf 1 Stück beliebig den einen oder anderen treffen.
+    Jetzt sagt die **Auswahl**, wessen Anteil gemeint ist (``orders.pick_sources``), und hier
+    wird genau der gekürzt.
+
+    Der genannte Anteil ist eine **Rangfolge, keine Ausschliesslichkeit**: reicht er nicht,
+    folgen die übrigen Ansprüche (wer 2 aus einer 2er-Charge nimmt, an der zwei Aufträge
+    hängen, trifft zwangsläufig beide). Bleibt danach immer noch etwas offen, schrumpft der
+    **eigene** Anspruch – wer nimmt, was nicht mehr da ist, bekommt eben weniger, statt es
+    jemandem stillschweigend wegzunehmen. Dieselbe Rangfolge beantwortet auch, **wer gefragt
+    wird** (``shares.losers``)."""
     m = _load(inst)
+    mine_key = str(order_id)
     over = qty_sum(m.values()) - to_qty(inst.quantity)
     if over <= 0:
         return ZERO
     taken = ZERO
-    for key in [k for k in m if k != str(order_id)]:
+    ranked = ([str(from_order_id)] if from_order_id is not None else []) + [
+        k for k in m if k not in (mine_key, str(from_order_id))]
+    for key in ranked:
         if over <= 0:
             break
-        cut = min(over, m[key])
+        cut = min(over, m.get(key, ZERO))
+        if cut <= 0:
+            continue
         m[key] -= cut
         over -= cut
         taken += cut
+    if over > 0:                       # so viel war schlicht nicht mehr da
+        mine = m.get(mine_key, ZERO) - over
+        m[mine_key] = mine if mine > 0 else ZERO
     _write(inst, m)
     return taken
 

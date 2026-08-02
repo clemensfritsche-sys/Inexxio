@@ -2786,7 +2786,7 @@
           "orders"
         ],
         "summary": "Set Order Line Pins",
-        "description": "Fixierte Instanzen EINER Position setzen (statt FIFO) – «Instanz wählen» je Artikel\neines Mehrpositionen-Auftrags, analog ``instance_object_ids`` am Einzel-Artikel-Auftrag.",
+        "description": "Fixierte Instanzen EINER Position setzen (statt FIFO) – «Instanz wählen» je Artikel\neines Mehrpositionen-Auftrags, analog ``picks`` am Einzel-Artikel-Auftrag.",
         "operationId": "set_order_line_pins_api_v1_erp_orders__object_id__lines__line_id__patch",
         "security": [
           {
@@ -11166,6 +11166,25 @@
               }
             ],
             "title": "Move Quantity"
+          },
+          "shares": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceShare"
+            },
+            "type": "array",
+            "title": "Shares",
+            "default": []
+          },
+          "pick_source_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pick Source Object Id"
           }
         },
         "type": "object",
@@ -11264,6 +11283,42 @@
         ],
         "title": "InstanceOrderRef",
         "description": "Ein Auftrag, der diese Instanz angefasst hat – eine Instanz ist die Summe\naller Prozesse, und Prozesse werden ausschliesslich durch Aufträge angestossen."
+      },
+      "InstancePick": {
+        "properties": {
+          "instance_object_id": {
+            "type": "integer",
+            "title": "Instance Object Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "from_order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Order Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_object_id"
+        ],
+        "title": "InstancePick",
+        "description": "**Ein Anteil, kein Ding** – die eine Form, in der eine Instanz-Auswahl daherkommt.\n\nEine Instanz ist eine **Menge**, und ihre Menge ist immer vollständig aufgeteilt: jeder\nAnteil gehört genau einem Auftrag oder ist frei (``instances.reservations``). Wer\nauswählt, wählt darum drei Dinge zugleich – **welche** Instanz, **wie viel** davon und\n**wem** er es wegnimmt.\n\nDer dritte Punkt ist der entscheidende: hält eine Charge à 4 Stück zwei Ansprüche\n(Hauptauftrag 2, Abweichung 2) und ein dritter Auftrag greift 1 Stück, wäre ohne ihn\nnicht entscheidbar, wer verliert. Mit ihm ist es keine Regel mehr, sondern ein Klick –\ndie Auswahl zeigt die Anteile als Zeilen, und man klickt die Zeile an.\n\n``from_order_object_id`` leer = **freier Anteil**: es verliert niemand etwas, es wird\nniemand gefragt. ``quantity`` leer = die ganze Instanz."
       },
       "InstanceResponse": {
         "properties": {
@@ -11377,6 +11432,14 @@
             "title": "Reserved Quantity",
             "default": 0
           },
+          "shares": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceShare"
+            },
+            "type": "array",
+            "title": "Shares",
+            "default": []
+          },
           "order_object_id": {
             "anyOf": [
               {
@@ -11468,6 +11531,53 @@
           "updated_at"
         ],
         "title": "InstanceResponse"
+      },
+      "InstanceShare": {
+        "properties": {
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "order_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Name"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quantity"
+        ],
+        "title": "InstanceShare",
+        "description": "**Ein Anteil einer Instanz** – eine Menge mit einem Namen darauf.\n\nEine Instanz ist eine Menge, kein Ding, und ihre Menge ist **immer vollständig\naufgeteilt**: jeder Anteil gehört genau einem Auftrag, oder er ist frei. Genau so steht\nes in ``instances.reservations``; hier wird es nur sichtbar gemacht, statt es zu\nverstecken.\n\nDas ist die Zeile, die man in der Auswahl anklickt – und damit ist beantwortet, WEM man\netwas wegnimmt (die Frage, die vorher niemand stellen konnte). ``order_object_id`` leer\n= **frei**: es gehört niemandem, es verliert niemand etwas."
       },
       "LegalDocument": {
         "properties": {
@@ -12185,11 +12295,11 @@
             "type": "number",
             "title": "Quantity"
           },
-          "instance_object_ids": {
+          "picks": {
             "anyOf": [
               {
                 "items": {
-                  "type": "integer"
+                  "$ref": "#/components/schemas/InstancePick"
                 },
                 "type": "array"
               },
@@ -12197,21 +12307,7 @@
                 "type": "null"
               }
             ],
-            "title": "Instance Object Ids"
-          },
-          "instance_quantities": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "number"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Quantities"
+            "title": "Picks"
           },
           "lines": {
             "anyOf": [
@@ -12387,11 +12483,11 @@
             "type": "number",
             "title": "Quantity"
           },
-          "instance_object_ids": {
+          "picks": {
             "anyOf": [
               {
                 "items": {
-                  "type": "integer"
+                  "$ref": "#/components/schemas/InstancePick"
                 },
                 "type": "array"
               },
@@ -12399,21 +12495,7 @@
                 "type": "null"
               }
             ],
-            "title": "Instance Object Ids"
-          },
-          "instance_quantities": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "number"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Quantities"
+            "title": "Picks"
           }
         },
         "type": "object",
@@ -12488,32 +12570,18 @@
       },
       "OrderLinePins": {
         "properties": {
-          "instance_object_ids": {
+          "picks": {
             "items": {
-              "type": "integer"
+              "$ref": "#/components/schemas/InstancePick"
             },
             "type": "array",
-            "title": "Instance Object Ids",
+            "title": "Picks",
             "default": []
-          },
-          "instance_quantities": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "number"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Quantities"
           }
         },
         "type": "object",
         "title": "OrderLinePins",
-        "description": "Fixierte Instanzen EINER Position statt FIFO (analog ``OrderUpdate.instance_object_ids``\nam Einzel-Artikel-Auftrag)."
+        "description": "Gewählte **Anteile** EINER Position statt FIFO (analog ``OrderUpdate.picks`` am\nEinzel-Artikel-Auftrag). Leere Liste = zurück auf FIFO."
       },
       "OrderResponse": {
         "properties": {
@@ -13366,11 +13434,11 @@
             ],
             "title": "Quantity"
           },
-          "instance_object_ids": {
+          "picks": {
             "anyOf": [
               {
                 "items": {
-                  "type": "integer"
+                  "$ref": "#/components/schemas/InstancePick"
                 },
                 "type": "array"
               },
@@ -13378,21 +13446,7 @@
                 "type": "null"
               }
             ],
-            "title": "Instance Object Ids"
-          },
-          "instance_quantities": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "number"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Quantities"
+            "title": "Picks"
           },
           "shortfall_response": {
             "anyOf": [
@@ -15972,6 +16026,25 @@
             ],
             "title": "Quantity To"
           },
+          "instance_object_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Instance Object Ids",
+            "default": []
+          },
+          "other_order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other Order Object Id"
+          },
           "at": {
             "anyOf": [
               {
@@ -16035,6 +16108,11 @@
             "type": "string",
             "title": "Kind",
             "default": "subject"
+          },
+          "replaceable": {
+            "type": "boolean",
+            "title": "Replaceable",
+            "default": true
           },
           "available_quantity": {
             "type": "number",

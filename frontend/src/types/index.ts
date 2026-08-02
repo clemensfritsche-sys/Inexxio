@@ -273,18 +273,27 @@ export type OrderDeviationInfo = components['schemas']['OrderDeviationInfo'];
 // Eine weitere Position zu einem bestehenden Auftrag hinzufügen (POST .../lines) –
 // jederzeit möglich, auch nachdem der Auftrag schon gespeichert wurde. Macht den
 // Auftrag (falls noch nicht) zu einem Mehrpositionen-Auftrag (kein «Herstellen» mehr).
+/**
+ * **Ein Anteil, kein Ding.** Eine Instanz ist eine Menge, und ihre Menge ist immer
+ * vollständig aufgeteilt: jeder Anteil gehört genau einem Auftrag oder ist frei. Wer
+ * auswählt, klickt eine **Zeile** an – Instanz · Menge · Halter – und beantwortet damit
+ * zugleich, WEM er etwas wegnimmt. `from_order_object_id` leer = freier Anteil.
+ */
+export type InstancePickInput = {
+  instance_object_id: number;
+  quantity?: number | null;
+  from_order_object_id?: number | null;
+};
+
 export interface OrderLineCreateInput {
   article_id: number;
   quantity: number;
-  /** «Instanz wählen» statt FIFO – die Position bringt ihre Auswahl gleich mit (#386). */
-  instance_object_ids?: number[] | null;
-  instance_quantities?: Record<string, number> | null;
+  /** «Auswählen» statt FIFO – die Position bringt ihre Anteile gleich mit (#386). */
+  picks?: InstancePickInput[] | null;
 }
-// Fixierte Instanzen EINER Position statt FIFO (PATCH .../lines/{line_id}).
+// Gewählte Anteile EINER Position statt FIFO (PATCH .../lines/{line_id}).
 export interface OrderLinePinsInput {
-  instance_object_ids: number[];
-  /** Beanspruchte Teilmenge je Instanz-Objektnummer – fehlt sie, gilt die ganze Instanz. */
-  instance_quantities?: Record<string, number>;
+  picks: InstancePickInput[];
 }
 
 /**
@@ -297,9 +306,7 @@ export interface OrderInput extends OrderRecurrenceInput {
   quantity?: number | null;
   /** **Vorauswahl**, keine Fixierung: der Abkürzungs-Knopf an einer Instanz trägt sie gleich
    *  ein – danach frei änderbar wie jede andere Auswahl (Notiz #371). */
-  instance_object_ids?: number[] | null;
-  /** Beanspruchte Teilmenge je Instanz – der Shortcut wählt immer EIN Stück vor (#385). */
-  instance_quantities?: Record<string, number> | null;
+  picks?: InstancePickInput[] | null;
   desired_delivery_date?: string | null;
   /** Weitere Positionen (der Anker oben ist Position 0) – je mit eigener Auswahl. */
   lines?: OrderLineCreateInput[] | null;
@@ -313,14 +320,10 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   status?: OrderStatus;
   article_id?: number | null;
   quantity?: number | null;
-  // Vorgewählte Subjekt-Instanzen im Entwurf anpassen (Mehrfachauswahl). **Die Auswahl
-  // bestimmt die Art des Auftrags**: verkauft → Retoure · gebunden (in Arbeit/reserviert/
-  // gesperrt) → Abweichung · frei → gewöhnlicher Auftrag.
-  instance_object_ids?: number[] | null;
-  // **Wie viel** von einer gewählten Instanz beansprucht wird ({objektnr: menge}) – eine
-  // Charge ist eine MENGE: von 500 Schrauben lässt sich genau eine wählen. Fehlt der
-  // Eintrag, gilt die ganze Instanz.
-  instance_quantities?: Record<string, number>;
+  // Gewählte **Anteile** im Entwurf anpassen. **Die Auswahl bestimmt die Art des
+  // Auftrags**: verkauft → Retoure · gebunden (in Arbeit/reserviert/gesperrt) →
+  // Abweichung · frei → gewöhnlicher Auftrag.
+  picks?: InstancePickInput[] | null;
   // Antwort auf die Unterdeckung, die eine solche Auswahl beim laufenden Auftrag auslöst:
   // warten · ersetzen · ohne Ersatz weiter. Ohne sie antwortet der Server mit 409.
   shortfall_response?: 'wait' | 'replace' | 'accept';

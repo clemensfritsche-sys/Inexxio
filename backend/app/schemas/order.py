@@ -60,6 +60,11 @@ class StepShortfall(BaseModel):
     article_name: Optional[str] = None
     quantity: float   # Bruchmenge möglich (kg/m²/…)
     kind: str = "subject"          # subject | component
+    # **Ist dem Auftrag egal, WELCHES Stück es ist?** Nur dann ist «Ersetzen» eine ehrliche
+    # Antwort. Trägt das Fehlende bereits die Geschichte dieses Auftrags – er hat es selbst
+    # erzeugt oder schon daran gearbeitet –, wäre ein frisches Stück kein Ersatz: es hat die
+    # bisherigen Schritte nie durchlaufen. Abgeleitet, kein Schalter (``recovery.is_replaceable``).
+    replaceable: bool = True
     available_quantity: float = 0
     available_instances: list[ShortfallInstance] = []
 
@@ -70,12 +75,16 @@ class StepResolution(BaseModel):
     Ohne diese Spur sieht man später nur das Ergebnis (der Auftrag lief weiter), nicht den
     Weg dorthin – dabei ist gerade die Entscheidung die Geschichte des Auftrags. Quelle ist
     der **Event-Strom**, kein neues Feld; die Formulierung macht das Frontend."""
-    kind: str                              # covered_from_stock | quantity_confirmed
+    kind: str                              # covered_from_stock | quantity_confirmed | share_taken
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
-    quantity: Optional[float] = None       # gedeckte Menge (covered_from_stock)
+    quantity: Optional[float] = None       # gedeckte/entzogene Menge
     quantity_from: Optional[float] = None  # vorherige Sollmenge (quantity_confirmed)
     quantity_to: Optional[float] = None    # neue Sollmenge
+    # **Welche Instanz** – damit später nachvollziehbar ist, dass ursprünglich Stück X
+    # zugeteilt war und nun Stück Y gilt. Gleich geführt für FIFO wie für Hand-Auswahl.
+    instance_object_ids: list[int] = []
+    other_order_object_id: Optional[int] = None   # wer den Anteil geholt hat (share_taken)
     at: Optional[datetime] = None
     by: Optional[str] = None
 
@@ -174,6 +183,27 @@ def _validate_future_date(v: Optional[date]) -> Optional[date]:
     return v
 
 
+class InstancePick(BaseModel):
+    """**Ein Anteil, kein Ding** – die eine Form, in der eine Instanz-Auswahl daherkommt.
+
+    Eine Instanz ist eine **Menge**, und ihre Menge ist immer vollständig aufgeteilt: jeder
+    Anteil gehört genau einem Auftrag oder ist frei (``instances.reservations``). Wer
+    auswählt, wählt darum drei Dinge zugleich – **welche** Instanz, **wie viel** davon und
+    **wem** er es wegnimmt.
+
+    Der dritte Punkt ist der entscheidende: hält eine Charge à 4 Stück zwei Ansprüche
+    (Hauptauftrag 2, Abweichung 2) und ein dritter Auftrag greift 1 Stück, wäre ohne ihn
+    nicht entscheidbar, wer verliert. Mit ihm ist es keine Regel mehr, sondern ein Klick –
+    die Auswahl zeigt die Anteile als Zeilen, und man klickt die Zeile an.
+
+    ``from_order_object_id`` leer = **freier Anteil**: es verliert niemand etwas, es wird
+    niemand gefragt. ``quantity`` leer = die ganze Instanz."""
+
+    instance_object_id: int
+    quantity: Optional[float] = None
+    from_order_object_id: Optional[int] = None
+
+
 class OrderLineCreate(BaseModel):
     """Eine weitere Position – beim Erteilen (``POST /orders``) oder an einem bestehenden
     Auftrag (``POST .../lines``). Macht ihn (falls noch nicht) zu einem Mehrpositionen-
@@ -184,10 +214,8 @@ class OrderLineCreate(BaseModel):
     quantity: float   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
     # **Die Position bringt ihre Auswahl mit.** Ein Auftrag entsteht als Ganzes (Testnotiz
     # #386) – also auch mit dem, was je Position gewählt wurde, statt in einem zweiten
-    # Aufruf nachgereicht zu werden. Leer = FIFO. Dieselben Felder wie ``OrderLinePins``,
-    # dieselbe Anwendung (``_pin_line_instances``) – nur ein anderer Zeitpunkt.
-    instance_object_ids: Optional[list[int]] = None
-    instance_quantities: Optional[dict[str, float]] = None
+    # Aufruf nachgereicht zu werden. Leer = FIFO.
+    picks: Optional[list[InstancePick]] = None
 
     @field_validator("quantity")
     @classmethod
@@ -196,17 +224,10 @@ class OrderLineCreate(BaseModel):
 
 
 class OrderLinePins(BaseModel):
-    """Fixierte Instanzen EINER Position statt FIFO (analog ``OrderUpdate.instance_object_ids``
-    am Einzel-Artikel-Auftrag)."""
+    """Gewählte **Anteile** EINER Position statt FIFO (analog ``OrderUpdate.picks`` am
+    Einzel-Artikel-Auftrag). Leere Liste = zurück auf FIFO."""
 
-    instance_object_ids: list[int] = []
-    # **Wie viel** von einer gewählten Instanz beansprucht wird ({objektnr: menge}) – eine
-    # Charge ist eine MENGE, kein Ding: von 500 Schrauben will eine Abweichung oft genau
-    # EINE. Fehlt ein Eintrag, gilt die ganze Instanz (unverändertes Verhalten). Das
-    # Gegenstück zur FIFO-Allokation, die längst mengengenau reserviert – hier bestimmt der
-    # Mensch die Instanz, dort der Bestand; die Menge wandert in beiden Fällen in dieselbe
-    # Reservierungs-Map (``instances.reservations``).
-    instance_quantities: Optional[dict[str, float]] = None
+    picks: list[InstancePick] = []
 
 
 class OrderUpdate(BaseModel):
@@ -217,14 +238,7 @@ class OrderUpdate(BaseModel):
     # **Die Auswahl bestimmt die Art des Auftrags** (``subject.classify_pick``): verkaufte
     # Instanzen → Retoure · gebundene (in Arbeit/reserviert/gesperrt) → **Abweichung** ·
     # freie → gewöhnlicher Auftrag. Ein Tag, kein zweiter Weg.
-    instance_object_ids: Optional[list[int]] = None
-    # **Wie viel** von einer gewählten Instanz beansprucht wird ({objektnr: menge}) – eine
-    # Charge ist eine MENGE, kein Ding: von 500 Schrauben will eine Abweichung oft genau
-    # EINE. Fehlt ein Eintrag, gilt die ganze Instanz (unverändertes Verhalten). Das
-    # Gegenstück zur FIFO-Allokation, die längst mengengenau reserviert – hier bestimmt der
-    # Mensch die Instanz, dort der Bestand; die Menge wandert in beiden Fällen in dieselbe
-    # Reservierungs-Map (``instances.reservations``).
-    instance_quantities: Optional[dict[str, float]] = None
+    picks: Optional[list[InstancePick]] = None
     # Nimmt die Auswahl einem LAUFENDEN Auftrag sein Stück weg, entsteht dort sofort eine
     # Unterdeckung – und die will beantwortet sein, bevor die Abweichung steht:
     # ``wait`` (offen lassen) · ``replace`` (ersetzen) · ``accept`` (ohne Ersatz weiter).
@@ -290,11 +304,7 @@ class OrderCreate(BaseModel):
     # legt einen ganz gewöhnlichen Auftrag an und trägt die Instanz gleich ein – als
     # Eingabehilfe. Änderbar wie jede andere Auswahl; was daraus folgt (Abweichung/Retoure/
     # gewöhnlicher Bedarf), leitet ``subject.classify_pick`` ab.
-    instance_object_ids: Optional[list[int]] = None
-    # Beanspruchte **Teilmenge** je Instanz-Objektnummer (Schlüssel als String). Ohne Angabe
-    # die GANZE Instanz. Eine Instanz ist eine Menge, kein Ding: von einer Charge à 500 lässt
-    # sich genau eine wählen – und der Abkürzungs-Knopf tut ab jetzt genau das (Notiz #385).
-    instance_quantities: Optional[dict[str, float]] = None
+    picks: Optional[list[InstancePick]] = None
     # Weitere Positionen (Mehrpositionen-Auftrag) – im Entwurf gesammelt, hier mitgeliefert.
     lines: Optional[list[OrderLineCreate]] = None
     # Der **auftragseigene Ablauf**. Ohne eigene Schritte fährt der Auftrag den

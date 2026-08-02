@@ -332,7 +332,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
  */
 export function DetailHeader({
   icon: Icon, iconBg, iconFg, avatar, eyebrow, title, placeholder = 'Ohne Bezeichnung',
-  objectId, objectIdText, actions, status, right, onBack, children,
+  objectId, objectIdText, objectIdHint, actions, status, right, onBack, children,
 }: {
   icon?: ElementType;
   iconBg?: string;
@@ -344,8 +344,10 @@ export function DetailHeader({
   title: string | null;
   placeholder?: string;
   objectId?: number | null;
-  /** Ersetzt die formatierte Objektnummer (z. B. «wird vergeben» beim Anlegen). */
+  /** Ersetzt die formatierte Objektnummer (z. B. «—» beim Anlegen, solange es sie nicht gibt). */
   objectIdText?: string;
+  /** Erklärung dazu – im **Hover**, nicht in der Fläche (Notiz #389). */
+  objectIdHint?: string;
   /** Symbol-/Status-Aktionen – stehen bei der Objektnummer. */
   actions?: ReactNode;
   /** Der Zustand – **immer** als `StatusBadge` gerendert, damit er überall gleich gross
@@ -374,7 +376,9 @@ export function DetailHeader({
           <div style={DH.eyebrow}>{eyebrow}</div>
           <h1 style={{ ...DH.title, ...(title ? null : DH.titleEmpty) }}>{title ?? placeholder}</h1>
           <div style={DH.sub}>
-            <span style={DH.subN}>{objectIdText ?? formatObjectId(objectId)}</span>
+            <span style={DH.subN} data-tip={objectIdHint} data-tip-pos="bottom">
+              {objectIdText ?? formatObjectId(objectId)}
+            </span>
             {actions}
           </div>
         </div>

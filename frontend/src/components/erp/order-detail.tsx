@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2 } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
-import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
+import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
@@ -50,21 +50,41 @@ type Form = { article_id: string; quantity: string; desired_delivery_date: strin
 // Eine Position der Ziel-Karten («Instanz wählen»/FIFO): entweder der Auftrags-Anker
 // (lineId=null, Einzel-Artikel-Auftrag) oder eine Position eines Mehrpositionen-Auftrags.
 // Dieselbe Struktur bedient beide Fälle, damit die Ziel-Karten nicht zweimal gebaut werden.
-type PinLine = {
-  key: string; lineId: number | null; articleId: number; unit: string; reqQty: number;
-  pinnedIds: number[]; pinnedQty: number; pool: Instance[]; availableQty: number;
-  /** Menge über den GANZEN wählbaren Pool (frei + gebunden) – Grundlage für «Auswählen». */
-  poolQty: number;
-  // Frei verfügbar? Eine **gebundene** Instanz ist wählbar – daraus wird ein Abweichungsauftrag.
-  free: (i: Instance) => boolean;
-  /** Sorte je Instanz: frei · gebunden (→ Abweichung) · verkauft (→ Retoure). */
-  kind: (i: Instance) => PinKind;
-  /** Beanspruchte Menge je gewählter Instanz-Objektnummer (Teilmenge einer Charge, #361). */
-  wanted: Record<number, number>;
+/**
+ * **Ein Anteil – die Zeile, die man anklickt.** Eine Instanz ist eine MENGE, und ihre
+ * Menge ist immer vollständig aufgeteilt: jeder Anteil gehört genau einem Auftrag oder ist
+ * frei. Weil man die Zeile wählt, ist zugleich beantwortet, WEM man etwas wegnimmt – die
+ * Frage, die bei einer Charge mit mehreren Ansprüchen sonst nicht entscheidbar wäre.
+ */
+type Share = {
+  key: string;                    // instanz:halter – eindeutig je Zeile
+  instanceObjectId: number;
+  instanceQty: number;            // Gesamtmenge der Instanz (für die Anzeige)
+  quantity: number;               // Menge DIESES Anteils
+  holderObjectId: number | null;  // null = frei
+  holderName: string | null;
+  kind: PinKind;
 };
 
-/** Die drei Sorten, die eine Instanz-Auswahl haben kann – sie bestimmen die Art des Auftrags. */
+type PinLine = {
+  key: string; lineId: number | null; articleId: number; unit: string; reqQty: number;
+  /** Die wählbaren Anteile dieses Artikels (frei · gebunden · verkauft). */
+  shares: Share[];
+  /** Was gewählt ist – genau die Form, die auch zum Server geht. */
+  picked: InstancePickInput[];
+  pickedQty: number;
+  availableQty: number;
+  /** Menge über ALLE Anteile (frei + gebunden) – Grundlage für «Auswählen». */
+  poolQty: number;
+};
+
+/** Die drei Sorten, die ein Anteil haben kann – sie bestimmen die Art des Auftrags. */
 type PinKind = 'free' | 'bound' | 'sold';
+
+/** Schlüssel einer Anteils-Zeile – dieselbe Bildung auf beiden Seiten der Auswahl. */
+function shareKey(instanceObjectId: number, holder: number | null): string {
+  return `${instanceObjectId}:${holder ?? 'free'}`;
+}
 
 // Farbe + Erklärung je Sorte: EINE Tabelle statt verstreuter Bedingungen im Chip.
 const PIN_KIND: Record<PinKind, { tone: string; bg: string; hint: string; mix: string }> = {
@@ -87,8 +107,9 @@ const PIN_KIND: Record<PinKind, { tone: string; bg: string; hint: string; mix: s
 export type OrderSeed = {
   articleId: number;
   quantity?: number;
-  /** Vorgewählte Instanz – immer EIN Stück (von einer Charge à 500 selten alle 500). */
-  instance?: { objectId: number; quantity: number };
+  /** Vorgewählter **Anteil** – immer EIN Stück (von einer Charge à 500 selten alle 500),
+   *  mitsamt dem Halter, aus dessen Anteil er kommt. */
+  instance?: { objectId: number; quantity: number; fromOrderObjectId?: number | null };
 };
 
 /** Ein leerer Auftrag in der Form, die auch der Server liefert – der Entwurf im Browser. */
@@ -167,7 +188,7 @@ function orderActions(status: string, canRelease: boolean, releaseHint?: string)
   return [];
 }
 
-export function OrderDetail({ record: saved, seed, articles, viewerRole, company, suppliers = [], onSaved, onCancel, onBack }: {
+export function OrderDetail({ record: saved, seed, articles, viewerRole, company, suppliers = [], onSaved, onBack }: {
   record: Order | null;            // null ⇒ Anlage-Modus (nur Mitarbeiter)
   /** Vorbelegung aus einem Abkürzungs-Knopf (Artikel-/Instanz-Detail) – nur beim Anlegen. */
   seed?: OrderSeed | null;
@@ -176,7 +197,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   company: Partial<CompanySettings> | null;
   suppliers?: UserProfile[];
   onSaved: (o: Order) => void;
-  onCancel: () => void;
+  /** Zurück – im Anlage-Modus zugleich das Verwerfen: der Entwurf lebt nur hier (#386). */
   onBack: () => void;
 }) {
   const isCreate = saved === null;
@@ -200,9 +221,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     suppliers,
   ), [suppliers]);
   // Vorgemerkte Instanzen je Position (Schlüssel wie `PinLine.key`) – im Entwurf.
-  type DraftPins = Record<string, { ids: number[]; quantities: Record<string, number> }>;
+  type DraftPins = Record<string, InstancePickInput[]>;
   const [draftPins, setDraftPins] = useState<DraftPins>((): DraftPins => (seed?.instance
-    ? { anchor: { ids: [seed.instance.objectId], quantities: { [String(seed.instance.objectId)]: seed.instance.quantity } } }
+    ? { anchor: [{ instance_object_id: seed.instance.objectId, quantity: seed.instance.quantity,
+                   from_order_object_id: seed.instance.fromOrderObjectId ?? null }] }
     : {}));
   const record: Order = saved ?? draft;
   function patchDraft(patch: Partial<Order>) { setDraft((d) => ({ ...d, ...patch })); }
@@ -339,65 +361,71 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   }, [isDraftStaff]);
 
   // Frei verfügbar = freigegeben, am Lager und nicht für einen FREMDEN Auftrag reserviert.
-  // Alles andere ist «gebunden» – wählbar, aber nur als Abweichung (siehe ``buildPinLine``).
   const isFree = (i: Instance) =>
     i.quality === 'passed' && i.disposition === 'in_stock' &&
     (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id);
+
   // **Drei Sorten, eine Auswahl** (Notiz #360) – und die Sorte bestimmt die Art des
   // Auftrags (`classify_pick`): frei → gewöhnlicher Bedarf · gebunden → Abweichung ·
   // verkauft → Retoure. Gemischt wird nie: das Backend weist es ab, die Oberfläche sperrt
   // die jeweils andere Sorte, sobald die erste gewählt ist.
-  const kindOf = (i: Instance): PinKind =>
-    i.disposition === 'sold' ? 'sold' : isFree(i) ? 'free' : 'bound';
+  function shareKind(i: Instance, holder: number | null): PinKind {
+    if (i.disposition === 'sold') return 'sold';
+    if (holder != null && holder !== record?.object_id) return 'bound';
+    return isFree(i) ? 'free' : 'bound';
+  }
 
-  // Was der Auftrag beansprucht – je Artikel die Instanzen UND die **beanspruchte Menge**.
-  // Bei einer Teilmenge einer Charge liefert der Server sie als ``move_quantity`` (die für
-  // diesen Auftrag reservierte Menge); sonst ist es die ganze Instanz (#361).
-  const pinnedByArticle = new Map<number, { ids: number[]; qty: number; wanted: Record<number, number> }>();
+  // Was der Auftrag schon beansprucht – aus den Instanz-Embeds (gespeicherter Entwurf).
+  // ``move_quantity`` ist die für ihn reservierte Teilmenge, ``pick_source_object_id`` der
+  // Anteil, aus dem sie stammt: so trifft eine erneute Bearbeitung wieder dieselbe Zeile.
+  const savedPicksByArticle = new Map<number, InstancePickInput[]>();
   for (const i of record?.instances ?? []) {
     if (i.object_id == null) continue;
-    const cur = pinnedByArticle.get(i.article_id) ?? { ids: [], qty: 0, wanted: {} };
-    const share = i.move_quantity ?? i.quantity ?? 0;
-    cur.ids.push(i.object_id);
-    cur.qty += share;
-    cur.wanted[i.object_id] = share;
-    pinnedByArticle.set(i.article_id, cur);
+    const list = savedPicksByArticle.get(i.article_id) ?? [];
+    list.push({ instance_object_id: i.object_id, quantity: i.move_quantity ?? i.quantity ?? 0,
+                from_order_object_id: i.pick_source_object_id ?? null });
+    savedPicksByArticle.set(i.article_id, list);
   }
+
   function buildPinLine(lineId: number | null, articleId: number, unit: string, reqQty: number): PinLine {
-    // **Jede noch existierende Instanz ist wählbar** – frei ODER gebunden (in Arbeit,
-    // reserviert, gesperrt). Wer eine gebundene wählt, legt damit einen **Abweichungs-
-    // auftrag** an: das Tag ist die Folge der Auswahl, kein zweiter Schalter (das Backend
-    // leitet es über ``subject.classify_pick`` ab).
     // **Verschrottet ist raus, alles andere ist drin** (Notiz #360): frei (grün), gebunden
     // (gelb: in Arbeit / reserviert / gesperrt) UND **verkauft**. Für eine Rücksendung muss
-    // man ebenso genau sagen, WELCHES Stück zurückkommt – FIFO ergäbe dort keinen Sinn. Die
-    // Art des Auftrags folgt daraus (``classify_pick``): verkauft → Retoure · gebunden →
-    // Abweichung · frei → gewöhnlicher Bedarf. Verschrottet ist die eine rote Ausnahme:
-    // daran ist nichts mehr zu tun.
-    const pool = pinPool.filter((i) =>
-      i.object_id != null && i.article_id === articleId && i.disposition !== 'scrapped');
+    // man ebenso genau sagen, WELCHES Stück zurückkommt – FIFO ergäbe dort keinen Sinn.
+    //
+    // Gewählt wird nicht die Instanz, sondern der **Anteil**: eine Charge à 4, an der zwei
+    // Aufträge hängen, erscheint als zwei Zeilen. Damit ist mit dem Klick beantwortet, wem
+    // die Menge weggenommen wird – das Backend muss nicht mehr raten (``pick_sources``).
+    const shares: Share[] = [];
+    for (const i of pinPool) {
+      if (i.object_id == null || i.article_id !== articleId || i.disposition === 'scrapped') continue;
+      const rows = i.shares && i.shares.length > 0
+        ? i.shares
+        : [{ order_object_id: null, order_name: null, reason: null, quantity: i.quantity ?? 0 }];
+      for (const sh of rows) {
+        // Der eigene Anteil ist keine fremde Zeile – er IST die Auswahl (steht unten).
+        if (sh.order_object_id != null && sh.order_object_id === record?.object_id) continue;
+        if ((sh.quantity ?? 0) <= 0) continue;
+        shares.push({
+          key: shareKey(i.object_id, sh.order_object_id ?? null),
+          instanceObjectId: i.object_id, instanceQty: i.quantity ?? 0,
+          quantity: sh.quantity ?? 0,
+          holderObjectId: sh.order_object_id ?? null, holderName: sh.order_name ?? null,
+          kind: shareKind(i, sh.order_object_id ?? null),
+        });
+      }
+    }
     const key = lineId != null ? `line-${lineId}` : 'anchor';
-    // Im Entwurf steht die Auswahl im State (nichts ist gespeichert), sonst kommt sie – wie
-    // bisher – aus den Instanz-Embeds des Auftrags.
-    const local = draftPins[key];
-    const pinned = local
-      ? {
-          ids: local.ids,
-          qty: local.ids.reduce((sum, id) => sum + (local.quantities[String(id)]
-            ?? pool.find((i) => i.object_id === id)?.quantity ?? 0), 0),
-          wanted: Object.fromEntries(local.ids.map((id) => [id, local.quantities[String(id)]
-            ?? pool.find((i) => i.object_id === id)?.quantity ?? 0])) as Record<number, number>,
-        }
-      : (pinnedByArticle.get(articleId) ?? { ids: [], qty: 0, wanted: {} });
+    // Im Entwurf steht die Auswahl im State (nichts ist gespeichert), sonst kommt sie aus
+    // den Instanz-Embeds des Auftrags.
+    const picked = isCreate ? (draftPins[key] ?? []) : (savedPicksByArticle.get(articleId) ?? []);
     return {
-      key, lineId, articleId, unit, reqQty,
-      pinnedIds: pinned.ids, pinnedQty: pinned.qty, pool, kind: kindOf, wanted: pinned.wanted,
-      // «Genug Bestand?» meint das FREI Verfügbare – gebundene Stück zählen dafür nicht.
-      availableQty: pool.filter(isFree).reduce((s, i) => s + (i.quantity ?? 0), 0), free: isFree,
-      // Was sich überhaupt auswählen liesse – frei UND gebunden. Reicht das nicht für die
-      // Menge, ist «Auswählen» eine Sackgasse: die Auswahl liesse sich nie vervollständigen
-      // und die Freigabe bliebe gesperrt (Notiz #356).
-      poolQty: pool.reduce((s, i) => s + (i.quantity ?? 0), 0),
+      key, lineId, articleId, unit, reqQty, shares, picked,
+      pickedQty: picked.reduce((s, p) => s + (p.quantity ?? 0), 0),
+      // «Genug Bestand?» meint das FREI Verfügbare – gebundene Anteile zählen dafür nicht.
+      availableQty: shares.filter((sh) => sh.kind === 'free').reduce((s, sh) => s + sh.quantity, 0),
+      // Was sich überhaupt auswählen liesse. Reicht das nicht für die Menge, ist «Auswählen»
+      // eine Sackgasse: die Auswahl liesse sich nie vervollständigen (Notiz #356).
+      poolQty: shares.reduce((s, sh) => s + sh.quantity, 0),
     };
   }
   const pinLines: PinLine[] = isMultiPosition
@@ -413,7 +441,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // Ziel der Auftragsanlage (Ziel-Karten). Pins ⇒ «Instanz wählen»; eigene Schritte ⇒
   // «Aus Lager»; sonst «Herstellen». Über die Karten wechselbar (pickGoal räumt Pins beim
   // Verlassen von «Instanz wählen» auf, damit «Aus Lager» wirklich reines FIFO ist).
-  const pins = pinLines.flatMap((l) => l.pinnedIds);
+  const pins = pinLines.flatMap((l) => l.picked);
   const [goalSel, setGoalSel] = useState<OrderGoal | null>(null);
   const goal: OrderGoal = pins.length > 0
     ? 'specific'
@@ -425,19 +453,24 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
 
   async function pickGoal(g: OrderGoal) {
     setGoalSel(g);
-    if (g !== 'specific') {   // «Aus Lager»/«Herstellen» = ohne Pins
+    if (g !== 'specific') {   // «Aus Lager»/«Herstellen» = ohne Auswahl
       for (const l of pinLines) {
-        if (l.pinnedIds.length > 0) await setLinePins(l, []);
+        if (l.picked.length > 0) await setLinePins(l, []);
       }
     }
   }
-  function togglePin(line: PinLine, oid: number, qty: number, qtyOnly?: boolean) {
-    const has = line.pinnedIds.includes(oid);
-    const ids = qtyOnly ? line.pinnedIds : has ? line.pinnedIds.filter((x) => x !== oid) : [...line.pinnedIds, oid];
-    // Die beanspruchten Mengen wandern mit: was abgewählt wird, verliert seine Menge.
-    const wanted: Record<string, number> = {};
-    for (const id of ids) wanted[String(id)] = id === oid ? qty : (line.wanted[id] ?? 0);
-    setLinePins(line, ids, undefined, wanted);
+
+  /** Einen **Anteil** an-/abwählen bzw. seine Menge ändern – die eine Schreibstelle. */
+  function togglePin(line: PinLine, share: Share, qty: number, qtyOnly?: boolean) {
+    const same = (p: InstancePickInput) =>
+      shareKey(p.instance_object_id, p.from_order_object_id ?? null) === share.key;
+    const has = line.picked.some(same);
+    const next = qtyOnly || !has
+      ? [...line.picked.filter((p) => !same(p)),
+         { instance_object_id: share.instanceObjectId, quantity: qty,
+           from_order_object_id: share.holderObjectId }]
+      : line.picked.filter((p) => !same(p));
+    setLinePins(line, next);
   }
 
   // Mehrpositionen-Auftrag: JEDE Position entscheidet SELBST «Aus Lager (FIFO)» oder «Instanz
@@ -445,12 +478,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // specific) mit einem UI-Override, solange noch keine Instanz gewählt ist.
   const [lineModes, setLineModes] = useState<Record<string, 'fifo' | 'specific'>>({});
   function lineMode(l: PinLine): 'fifo' | 'specific' {
-    if (l.pinnedIds.length > 0) return 'specific';
+    if (l.picked.length > 0) return 'specific';
     return lineModes[l.key] ?? 'fifo';
   }
   async function setLineMode(l: PinLine, m: 'fifo' | 'specific') {
     setLineModes((prev) => ({ ...prev, [l.key]: m }));
-    if (m === 'fifo' && l.pinnedIds.length > 0) await setLinePins(l, []);
+    if (m === 'fifo' && l.picked.length > 0) await setLinePins(l, []);
   }
 
   // ── EINE Quellen-Wahl je Position ────────────────────────────────────────────────
@@ -470,8 +503,8 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // Mehrpositionen-Auftrag gilt das je Position, die auf «Instanz» steht (FIFO-Positionen sind
   // immer ok – eine Fehlmenge deckt später der Nachschub).
   const specificComplete = isMultiPosition
-    ? pinLines.every((l) => lineMode(l) === 'fifo' || l.pinnedQty === l.reqQty)
-    : (goal !== 'specific' || (pinLines.length > 0 && pinLines.every((l) => l.pinnedQty === l.reqQty)));
+    ? pinLines.every((l) => lineMode(l) === 'fifo' || l.pickedQty === l.reqQty)
+    : (goal !== 'specific' || (pinLines.length > 0 && pinLines.every((l) => l.pickedQty === l.reqQty)));
   // Unter-Auftrag (Abweichung/Nachschub): Subjekt steht schon fest – Freigabe braucht nur einen
   // definierten Ablauf (mind. einen Schritt, der festlegt, was geschieht / wie nachgeschoben wird).
   const stepCount = orderStepCount ?? (record?.steps?.length ?? 0);
@@ -493,21 +526,18 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // **Die Auswahl fragt nichts mehr** (Notiz #370): ein Entwurf nimmt niemandem etwas weg –
   // er merkt nur vor. Die Frage «was geschieht mit dem laufenden Auftrag?» steht bei der
   // **Freigabe** (siehe ``changeStatus``), wo die Auswahl feststeht.
-  async function setLinePins(line: PinLine, ids: number[], answer?: ShortfallAnswer,
-                             quantities?: Record<string, number>) {
+  async function setLinePins(line: PinLine, picks: InstancePickInput[], answer?: ShortfallAnswer) {
     if (isCreate) {
       // Im Entwurf ist die Auswahl eine reine Notiz – niemandem wird etwas weggenommen,
       // und gefragt wird erst beim Erteilen (dieselbe Regel wie bisher, nur ohne Server).
-      setDraftPins((prev) => ({ ...prev, [line.key]: { ids, quantities: quantities ?? {} } }));
+      setDraftPins((prev) => ({ ...prev, [line.key]: picks }));
       return;
     }
     try {
       const saved = line.lineId != null
-        ? await api.setOrderLinePins(record.object_id as number, line.lineId,
-            { instance_object_ids: ids, instance_quantities: quantities })
+        ? await api.setOrderLinePins(record.object_id as number, line.lineId, { picks })
         : await api.updateOrder(record.object_id as number, {
-            instance_object_ids: ids, instance_quantities: quantities,
-            shortfall_response: answer, expected_updated_at: verRef.current });
+            picks, shortfall_response: answer, expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
       onSaved(saved);
     } catch (e) {
@@ -657,25 +687,21 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     // Anker + weitere Positionen: der Server kennt genau diese Form (die erste zusätzliche
     // Position wandelt den Anker in Position 0 um) – hier wird sie nur bedient.
     const lines = draft.order_lines ?? [];
-    const pinsOf = (key: string) => draftPins[key] ?? { ids: [], quantities: {} };
+    const pinsOf = (key: string) => draftPins[key] ?? [];
     const anchorKey = lines.length > 0 ? `line-${lines[0].id}` : 'anchor';
-    const anchorPins = pinsOf(anchorKey);
+    const anchorPicks = pinsOf(anchorKey);
     setStatusBusy(true);
     setError(null);
     try {
       const created = await api.createOrder({
         article_id: lines.length > 0 ? lines[0].article_id : draft.article_id,
         quantity: lines.length > 0 ? lines[0].quantity : draft.quantity,
-        instance_object_ids: anchorPins.ids.length > 0 ? anchorPins.ids : null,
-        instance_quantities: anchorPins.ids.length > 0 ? anchorPins.quantities : null,
+        picks: anchorPicks.length > 0 ? anchorPicks : null,
         desired_delivery_date: draft.desired_delivery_date ?? null,
         lines: lines.slice(1).map((l) => {
           const p = pinsOf(`line-${l.id}`);
-          return {
-            article_id: l.article_id, quantity: l.quantity,
-            instance_object_ids: p.ids.length > 0 ? p.ids : null,
-            instance_quantities: p.ids.length > 0 ? p.quantities : null,
-          };
+          return { article_id: l.article_id, quantity: l.quantity,
+                   picks: p.length > 0 ? p : null };
         }),
         steps: toStepInputs(draftSteps),
         recurrence_active: draft.recurrence_active ?? false,
@@ -781,9 +807,13 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
       <DetailHeader
         icon={ClipboardList} iconBg="#EAF0F4" iconFg="#4A6572"
         eyebrow={!isCreate && record.reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag'}
-        title={isCreate ? null : orderName(record)} placeholder={isCreate ? 'Neuer Auftrag' : 'Auftrag'}
-        objectId={isCreate ? null : record.object_id}
-        objectIdText={isCreate ? 'Nummer wird bei Freigabe vergeben' : undefined}
+        title={orderName(record)} placeholder="Auftrag"
+        objectId={record.object_id}
+        // Der Auftrag existiert noch nicht – die Nummer entsteht mit der Freigabe (#386).
+        // Prägnant statt erklärend: ein Platzhalter in der Nummern-Zeile, die Erklärung im
+        // Hover (Notiz #389). So sieht der Kopf aus wie jeder andere Auftragskopf.
+        objectIdText={isCreate ? '—' : undefined}
+        objectIdHint={isCreate ? 'Die Objektnummer wird bei der Freigabe vergeben' : undefined}
         onBack={onBack}
         avatar={
           <div style={{ ...DH.ico, background: '#EAF0F4', color: '#4A6572', position: 'relative' }}>
@@ -796,17 +826,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           </div>
         }
         status={orderStatus(isCreate ? { status: 'draft' } : record)}
-        right={<>
-          {/* Nur beim gespeicherten Auftrag: im Entwurf wird nichts gespeichert (#386). */}
-          {demandEditable && !isCreate && <SaveIndicator saving={saving} flash={flash} />}
-          {/* Anlage abbrechen – eine Aktion, also bei den Aktionen (früher im Footer). */}
-          {isCreate && (
-            <button type="button" onClick={onCancel} className="erp-actbtn erp-actbtn-neutral"
-              style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}>
-              Abbrechen
-            </button>
-          )}
-        </>}
+        // **Kein «Abbrechen»** (Notiz #389): verworfen wird, indem man woanders hinklickt –
+        // der Entwurf lebt nur im Browser und hinterlässt nichts. Ein Knopf dafür wäre ein
+        // zweiter Weg für etwas, das ohnehin von selbst passiert.
+        right={demandEditable && !isCreate ? <SaveIndicator saving={saving} flash={flash} /> : undefined}
         actions={(
           <>
             {!isCreate && record.object_id != null && (
@@ -847,10 +870,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
         )}
         {/* Reiter (nur Personal, nur bei bestehendem Auftrag): Dokumente-Reiter dazu. */}
-        {isStaff && !isCreate && (
+        {isStaff && (
           <DetailTabs<OrderTab> style={{ marginTop: 10 }} active={tab} onChange={setTab} tabs={[
             { key: 'auftrag', label: 'Auftrag', icon: ClipboardList },
-            { key: 'docs', label: 'Dokumente', icon: FolderOpen },
+            // Dokumente hängen an der Objektnummer – die gibt es erst mit der Freigabe.
+            { key: 'docs', label: 'Dokumente', icon: FolderOpen, disabled: isCreate,
+              hint: isCreate ? 'Verfügbar, sobald der Auftrag erteilt ist' : undefined },
           ]} />
         )}
       </DetailHeader>
@@ -1330,7 +1355,7 @@ function PositionRow({
   qty: string;
   source: OrderGoal;
   onSource: (s: OrderGoal) => void;
-  onToggle: (line: PinLine, oid: number, qty: number, qtyOnly?: boolean) => void;
+  onToggle: (line: PinLine, share: Share, qty: number, qtyOnly?: boolean) => void;
   onRemove?: () => void;
   canProduce: boolean;
   produceHint?: string;
@@ -1341,7 +1366,7 @@ function PositionRow({
   const avail = line?.availableQty ?? 0;
   const req = line?.reqQty ?? (Number(qty) || 0);
   const enough = avail >= req && req > 0;
-  const pinned = line?.pinnedQty ?? 0;
+  const picked = line?.pickedQty ?? 0;
   // «Auswählen» braucht genug **wählbaren** Bestand (frei + gebunden): sonst liesse sich die
   // Auswahl nie vervollständigen und die Freigabe bliebe für immer gesperrt (Notiz #356).
   const poolQty = line?.poolQty ?? 0;
@@ -1353,8 +1378,8 @@ function PositionRow({
     : source === 'stock'
       ? { text: `${req || ''} ${unit} ab Lager, älteste zuerst`.trim(),
           warn: req > avail ? `nur ${avail} ${unit} da – Rest per Nachschub` : null }
-      : { text: `${pinned}/${req} ${unit} gewählt`,
-          warn: pinned < req ? 'Auswahl unvollständig' : null };
+      : { text: `${picked}/${req} ${unit} gewählt`,
+          warn: picked < req ? 'Auswahl unvollständig' : null };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 4 }}>
@@ -1494,26 +1519,26 @@ function QtyChip({ value, max, tone, label, onCommit }: {
 
 function PinPicker({ line, onToggle, bare }: {
   line: PinLine;
-  /** Auswahl umschalten bzw. – mit ``qtyOnly`` – nur die beanspruchte Menge ändern. */
-  onToggle: (line: PinLine, oid: number, qty: number, qtyOnly?: boolean) => void;
+  /** Anteil an-/abwählen bzw. – mit ``qtyOnly`` – nur die beanspruchte Menge ändern. */
+  onToggle: (line: PinLine, share: Share, qty: number, qtyOnly?: boolean) => void;
   bare?: boolean;
 }) {
-  // Suche nach Instanznummer: bei ein paar Instanzen sucht das Auge, bei ein paar hundert
+  // Suche nach Instanznummer: bei ein paar Anteilen sucht das Auge, bei ein paar hundert
   // nicht mehr. Das Feld erscheint darum erst, wenn die Liste es rechtfertigt.
   const [q, setQ] = useState('');
   const SEARCH_FROM = 8;
   const needle = q.trim().replace(/\D/g, '');
-  const pool = needle
-    ? line.pool.filter((i) => String(i.object_id ?? '').includes(needle))
-    : line.pool;
+  const rows = needle
+    ? line.shares.filter((sh) => String(sh.instanceObjectId).includes(needle))
+    : line.shares;
   // Welche Sorte wird gerade gewählt? Aus der Auswahl abgeleitet, kein Schalter.
-  const chosen = line.pool.filter((i) => line.pinnedIds.includes(i.object_id!));
-  const picking: PinKind | null = chosen.length === 0 ? null : line.kind(chosen[0]);
+  const chosen = line.shares.filter((sh) => isPicked(line, sh));
+  const picking: PinKind | null = chosen.length === 0 ? null : chosen[0].kind;
 
   const body = (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {line.pool.length >= SEARCH_FROM && (
+        {line.shares.length >= SEARCH_FROM && (
           <div style={{ position: 'relative', flex: 1, minWidth: 150 }}>
             <input value={q} onChange={(e) => setQ(numericOnly(e.target.value, { decimals: false }))}
               placeholder="Instanznummer suchen…" {...numericInputProps}
@@ -1522,62 +1547,67 @@ function PinPicker({ line, onToggle, bare }: {
             <Search size={13} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-4)', pointerEvents: 'none' }} />
           </div>
         )}
-        <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: line.pinnedQty === line.reqQty ? 'var(--success)' : 'var(--warning)' }}>
-          {line.pinnedQty} / {line.reqQty} {line.unit} gewählt
+        <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: line.pickedQty === line.reqQty ? 'var(--success)' : 'var(--warning)' }}>
+          {line.pickedQty} / {line.reqQty} {line.unit} gewählt
         </span>
       </div>
-      {line.pool.length === 0 ? (
+      {line.shares.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Keine verfügbaren Instanzen.</div>
-      ) : pool.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Keine Instanz mit «{q}».</div>
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-          {pool.map((i) => {
-            const oid = i.object_id!;
-            const kind = line.kind(i);
-            const cfg = PIN_KIND[kind];
-            const sel = line.pinnedIds.includes(oid);
-            const have = i.quantity ?? 1;
-            // **Wie viel von dieser Instanz?** (Notiz #361) Eine Charge ist eine MENGE, kein
-            // Ding: von 500 Schrauben will man oft genau EINE. Voreingestellt ist, was noch
-            // fehlt – höchstens aber, was die Instanz hergibt.
-            const want = sel ? (line.wanted[oid] ?? have) : Math.min(have, Math.max(line.reqQty - line.pinnedQty, 0));
-            // Sperren nur noch, wenn schon die volle Menge beisammen ist – eine zu grosse
-            // Charge ist kein Hindernis mehr, man nimmt eben eine Teilmenge daraus.
-            const atLimit = !sel && line.pinnedQty >= line.reqQty && line.reqQty > 0;
-            // **Kein Mischmasch** (Notiz #355): sobald die erste Instanz gewählt ist, steht die
+        // **Eine Zeile je Anteil** (nicht je Instanz): eine Charge, an der zwei Aufträge
+        // hängen, steht zweimal da – einmal je Halter. Damit sagt der Klick zugleich, WEM
+        // die Menge weggenommen wird; das Backend muss nicht mehr raten.
+        <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 240, overflowY: 'auto',
+                      border: '1px solid var(--border-1)', borderRadius: 8, background: '#fff' }}>
+          {rows.map((sh, idx) => {
+            const cfg = PIN_KIND[sh.kind];
+            const cur = pickOf(line, sh);
+            const sel = cur != null;
+            // Voreingestellt ist, was noch fehlt – höchstens aber, was der Anteil hergibt.
+            const want = sel ? (cur.quantity ?? sh.quantity)
+                             : Math.min(sh.quantity, Math.max(line.reqQty - line.pickedQty, 0)) || sh.quantity;
+            const atLimit = !sel && line.pickedQty >= line.reqQty && line.reqQty > 0;
+            // **Kein Mischmasch** (Notiz #355): sobald der erste Anteil gewählt ist, steht die
             // Art des Auftrags fest. Die anderen Sorten sind dann gesperrt (das Backend weist
             // sie ohnehin ab); der Hover sagt, warum.
-            const wrongKind = !sel && picking != null && picking !== kind;
+            const wrongKind = !sel && picking != null && picking !== sh.kind;
             const off = atLimit || wrongKind;
             return (
-              <span key={oid} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12,
-                fontFamily: 'var(--font-mono)', padding: '3px 4px 3px 10px', borderRadius: 999,
-                border: `1px solid ${sel ? cfg.tone : 'var(--border-1)'}`,
-                background: sel ? cfg.bg : '#fff', color: sel ? cfg.tone : 'var(--fg-3)',
-                opacity: off ? 0.4 : 1,
+              <div key={sh.key} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: 12.5,
+                borderTop: idx === 0 ? 'none' : '1px solid var(--border-1)',
+                background: sel ? cfg.bg : 'transparent', opacity: off ? 0.4 : 1,
               }}>
-                <button type="button" disabled={off} onClick={() => onToggle(line, oid, want)}
+                <button type="button" disabled={off} onClick={() => onToggle(line, sh, want)}
                   title={wrongKind ? `${picking ? PIN_KIND[picking].mix : ''} – nicht mit anderen Sorten mischbar`
                     : atLimit ? 'Die Menge ist bereits beisammen' : cfg.hint}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none',
-                    background: 'none', font: 'inherit', color: 'inherit', padding: 0,
-                    cursor: off ? 'not-allowed' : 'pointer' }}>
-                  {sel ? <CheckCircle2 size={12} />
-                       : <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.tone }} />}
-                  {formatObjectId(oid)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0,
+                    border: 'none', background: 'none', font: 'inherit', color: 'inherit',
+                    padding: 0, textAlign: 'left', cursor: off ? 'not-allowed' : 'pointer' }}>
+                  {sel ? <CheckCircle2 size={13} style={{ color: cfg.tone, flexShrink: 0 }} />
+                       : <span style={{ width: 7, height: 7, borderRadius: 999, background: cfg.tone, flexShrink: 0 }} />}
+                  <span style={{ font: 'var(--mono-sm)', color: 'var(--fg-2)' }}>{formatObjectId(sh.instanceObjectId)}</span>
+                  {/* WEM der Anteil gehört – die eigentliche Aussage dieser Zeile. */}
+                  <span style={{ flex: 1, minWidth: 0, color: sh.holderObjectId != null ? cfg.tone : 'var(--fg-4)',
+                                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {sh.holderObjectId != null
+                      ? `${sh.holderName || 'Auftrag'} · ${formatObjectId(sh.holderObjectId)}`
+                      : 'frei'}
+                  </span>
                 </button>
-                {/* Die Menge steht IM Chip – gewählt als Feld, sonst als blosse Angabe.
-                    Bei einer Instanz mit Menge 1 gibt es nichts zu entscheiden. */}
-                {sel && have > 1 ? (
-                  <QtyChip value={line.wanted[oid] ?? have} max={have} tone={cfg.tone}
-                    label={`Menge von ${formatObjectId(oid)}`}
-                    onCommit={(v) => onToggle(line, oid, v, true)} />
+                {/* Die Menge steht rechts – gewählt als Feld, sonst als blosse Angabe. */}
+                {sel && sh.quantity > 1 ? (
+                  <QtyChip value={cur.quantity ?? sh.quantity} max={sh.quantity} tone={cfg.tone}
+                    label={`Menge aus ${formatObjectId(sh.instanceObjectId)}`}
+                    onCommit={(v) => onToggle(line, sh, v, true)} />
                 ) : (
-                  <span style={{ paddingRight: 6, opacity: 0.75 }}>·{have}</span>
+                  <span style={{ color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                    {sh.quantity} {line.unit}
+                  </span>
                 )}
-              </span>
+              </div>
             );
           })}
         </div>
@@ -1587,6 +1617,13 @@ function PinPicker({ line, onToggle, bare }: {
   if (bare) return <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{body}</div>;
   return <div style={cardStyle}>{body}</div>;
 }
+
+/** Der gewählte Anteil (oder ``null``) – EINE Stelle, an der Auswahl und Zeile zueinanderfinden. */
+function pickOf(line: PinLine, share: Share): InstancePickInput | null {
+  return line.picked.find(
+    (p) => shareKey(p.instance_object_id, p.from_order_object_id ?? null) === share.key) ?? null;
+}
+const isPicked = (line: PinLine, share: Share) => pickOf(line, share) != null;
 
 // (``PositionsList`` ist entfallen: die Lese-Ansicht der Positionen führt jetzt
 //  ``OrderPositions`` – dort trägt jede Position ihre eigenen Instanzen, Notiz #141.)

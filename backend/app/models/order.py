@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import BigInteger, Boolean, Date, DateTime, Integer, Numeric, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -99,6 +100,20 @@ class Order(Base, TimestampMixin):
     # Stelle gemeldet. Früher hiess die Spalte ``provisioning_step_id`` – dieselbe Frage,
     # nur für eine Art (Migration 087).
     origin_step_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+
+    # **Woher der Entwurf seine Anteile nimmt** – ``{instanz_objektnr: quell_auftrag_db_id}``.
+    #
+    # Eine Instanz ist eine MENGE, und ihre Menge ist immer vollständig aufgeteilt: jeder
+    # Anteil gehört genau einem Auftrag oder ist frei (``instances.reservations``). Wer einen
+    # Anteil auswählt, wählt damit auch, WEM er ihn wegnimmt – und genau das steht hier.
+    #
+    # Ohne diese Notiz wäre die Frage bei der Freigabe nicht beantwortbar: hält eine Charge
+    # à 4 Stück zwei Ansprüche (Hauptauftrag 2, Abweichung 2) und ein dritter Auftrag greift
+    # 1 Stück, müsste das System raten, wer verliert. Es rät nicht mehr – es liest hier nach.
+    # Ein leerer Eintrag heisst «freier Anteil»: dann verliert niemand etwas.
+    #
+    # Bis zur Freigabe ist es eine Vormerkung; danach ist sie erledigt und wird geleert.
+    pick_sources: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # **Abbrechen ist ein Vollzug, kein Antrag** (seit Migration 086): der Auftrag ist im
     # selben Moment inaktiv – endgültig, keine Reaktivierung. ``abort_into_id`` ist nur noch

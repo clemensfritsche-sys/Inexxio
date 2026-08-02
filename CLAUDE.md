@@ -3160,6 +3160,76 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   überlebt die Umwandlung in Position 0, Position bringt ihre eigene mit, 409 nennt die
   Betroffenen **und es bleibt kein Auftrag zurück**, mit Antwort entsteht die Abweichung).
 
+- **Anteile statt Instanzen: du wählst keinen Gegenstand, sondern eine MENGE MIT EINEM NAMEN**
+  (August 2026, Migration `096`): Eine Instanz ist eine Menge, kein Ding – und ihre Menge ist
+  **immer vollständig aufgeteilt**: jeder Anteil gehört genau einem Auftrag oder ist frei.
+  Genau so stand es seit den Bruchmengen in `instances.reservations`; sichtbar war es nie.
+  Jetzt zeigt die **Auswahl diese Zeilen**: `Charge X · 2 Stk · Auftrag …456` statt
+  `Charge X`. Damit ist mit dem Klick beantwortet, **wem** man etwas wegnimmt.
+  **Das war die Lücke im Datenmodell.** Hält eine Charge à 4 zwei Ansprüche (Hauptauftrag 2,
+  Abweichung 2) und ein dritter Auftrag greift 1 Stück, musste die Freigabe **raten**, wer
+  verliert – bei EINEM anderen Halter zufällig richtig, ab zwei Willkür (`enforce` kürzte
+  den erstbesten). Der gewählte Halter steht jetzt in `orders.pick_sources`
+  (`{instanz_objektnr: quell_auftrag}`, `None` = frei); `reservation.enforce` kürzt genau
+  den. Der genannte Anteil ist dabei eine **Rangfolge, keine Ausschliesslichkeit**: wer 2 aus
+  einer 2er-Charge nimmt, an der zwei Aufträge hängen, trifft zwangsläufig beide.
+  **Eine Eingabeform statt zweier Maps:** `InstancePick{instance_object_id, quantity,
+  from_order_object_id}` ersetzt `instance_object_ids` + `instance_quantities` in
+  `OrderCreate`/`OrderUpdate`/`OrderLineCreate`/`OrderLinePins` – dieselbe Struktur an allen
+  vier Stellen.
+  **Was daraus von selbst folgt** (jeweils ohne eigene Regel):
+  (1) **Wer gefragt wird = wem der Anteil gehörte.** Ein **freier** Anteil gehört niemandem →
+  niemand wird gefragt, keine Unterdeckung. Die Rangfolge steht an EINER Stelle
+  (`shares.losers`): genannter Anteil ≻ **Erzeuger** ≻ übrige Ansprüche, und nur so weit,
+  wie wirklich etwas fehlt.
+  (2) **Abweichung von der Abweichung braucht keinen Sonderfall.** Man klickt die Zeile des
+  Abweichungsauftrags an – fertig. Gefragt wird er trotzdem nicht: eine Abweichung hat
+  **kein Soll**, sondern eine Arbeitsmenge; nimmt man ihr etwas weg, hat sie weniger zu tun,
+  und bleibt nichts, ist sie gegenstandslos (war schon so, gilt jetzt sichtbar).
+  (3) **Der unbeanspruchte Rest ist nur AM LAGER frei** (`shares._creator`): steckt die
+  Instanz noch in ihrem Erzeugungsauftrag, gehört der Rest IHM. Sonst zeigte die Auswahl
+  «frei» an einem Stück mitten im Prozess, und der Erzeuger würde nicht gefragt.
+  (4) **«Ersetzen» nur, wenn dem Auftrag egal ist, WELCHES Stück es ist**
+  (`recovery.is_replaceable`, `StepShortfall.replaceable`): ein frisches Stück ist kein
+  Ersatz, wenn das Fehlende die Geschichte dieses Auftrags trägt – er hat es **selbst
+  erzeugt** oder ein Schritt hat **schon daran gearbeitet** (steht der Ablauf bei Schritt 3,
+  hat ein neues Teil die Schritte 1–2 nie durchlaufen). **Material** ist immer austauschbar:
+  der Auftrag braucht *fünf Schrauben*, nicht *diese fünf*. EINE Ableitung statt einer
+  Fallunterscheidung je Auftragsart – und breiter als «nur Ressourcenmodul»: auch ein
+  Verkauf ab Lager darf ersetzen, solange niemand daran gearbeitet hat.
+  (5) **Der Wechsel ist dokumentiert – für FIFO wie für Hand-Auswahl gleich**
+  (`subject.enforce_pick` → Event `order.share_taken`, gerendert als `StepResolution` am
+  Schritt des **verlierenden** Auftrags): «1 Stk Instanz …123 → Auftrag …456». Und
+  «Ersetzen» hält fest, **welche** Instanzen eingesprungen sind. Kein neues Feld, der
+  Event-Strom trägt es.
+  **Sichtbar auf beiden Seiten** (die Frage aus der Analyse): der Ursprungsauftrag zeigt
+  unter seiner Instanz-Zeile «2 Stk → Auftrag …456» (`order-positions.tsx: ForeignShares`),
+  das Instanz-Detail dieselbe Aufteilung aus der anderen Richtung. Kommt der Anteil zurück,
+  verschwindet die Zeile.
+  **Ein echter Fehler nebenbei gefunden** (gegen echtes PostgreSQL): `article_process._create`
+  committete für sich – schlug bei der Auftrags-Anlage danach etwas fehl (z. B. die offene
+  Unterdeckungs-Frage), blieb ein Auftrag **ohne Objektnummer** zurück. Genau das, was
+  Testnotiz #386 abschaffen sollte; der Fall war nur in einem Test ohne Prozessschritte
+  geprüft worden. `commit=False` bringt den Schritt in die Transaktion des Aufrufers.
+  Wächter: `test_a_pick_names_the_share_it_takes`,
+  `test_the_creator_holds_the_rest_until_it_reaches_stock`,
+  `test_replacement_is_only_offered_when_the_piece_is_interchangeable`,
+  `test_an_order_is_created_as_a_whole_even_with_steps`,
+  `test_frontend_mirrors.py: test_the_picker_offers_shares_not_instances`.
+  *Bewusst NICHT gebaut: die Restmenge nach «Menge reduzieren» automatisch nachbestellen –
+  das ist ein ganz normaler neuer Auftrag, und der ist seit #386 ein Klick. Eine Kopplung
+  brächte lauter Sonderfälle (welche Schritte? welche Instanzen? gepinnt?) zurück.*
+
+- **Testnotiz #389 (der Kopf des Anlage-Fensters ist derselbe wie überall)**: Beim Anlegen
+  fehlten die Reiter, der Titel war ein Platzhalter statt des abgeleiteten Namens, und ein
+  «Abbrechen»-Knopf stand im Kopf – drei Abweichungen von der EINEN Anatomie (`DetailHeader`,
+  Notiz #242). Jetzt: **Name** wie überall (sobald ein Artikel gewählt ist, heisst der Entwurf
+  danach), **Reiter** stehen da (mit «Dokumente» gesperrt – die hängen an der Objektnummer,
+  Grund im Hover), und die Nummer ist ein schlichtes **«—»** mit der Erklärung im Hover
+  (`DetailHeader.objectIdHint`) statt eines Satzes in der Fläche. **Kein «Abbrechen»**:
+  verworfen wird, indem man woanders hinklickt – ein Knopf dafür wäre ein zweiter Weg für
+  etwas, das ohnehin von selbst passiert (#386).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

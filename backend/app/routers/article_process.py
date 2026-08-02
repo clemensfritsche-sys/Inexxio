@@ -239,7 +239,12 @@ def _next_position(db: Session, owner: _Owner, wanted: int | None) -> int:
     return (max_pos or 0) + 1
 
 
-def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: UserProfile) -> ArticleProcessStepResponse:
+def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: UserProfile,
+            commit: bool = True) -> ArticleProcessStepResponse:
+    """Einen Prozessschritt anlegen. ``commit=False`` für Aufrufer, die **eine** Transaktion
+    über mehreres spannen – die Auftrags-Anlage (Testnotiz #386) muss als Ganzes gelingen
+    oder gar nicht: committete der Schritt hier für sich, bliebe bei einem späteren
+    Fehlschlag ein Auftrag ohne Objektnummer zurück (gegen echtes PostgreSQL gefunden)."""
     owner.ensure_editable()
     # Jedes Modul ist universell einsetzbar (Testnotiz #246) – die Liste ist für Artikel
     # und Auftrag dieselbe; die Prüfung bleibt als Schutz gegen unbekannte Typen.
@@ -270,8 +275,9 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
     db.flush()
     log_audit(db, "article_process_steps", None, f"Prozessschritt '{data.step_type}' hinzugefügt",
               user.id, object_id=owner.object_id)
-    db.commit()
-    db.refresh(step)
+    if commit:
+        db.commit()
+        db.refresh(step)
     return _to_response(db, step)
 
 

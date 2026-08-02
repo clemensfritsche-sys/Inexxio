@@ -18,6 +18,7 @@ import type { OrderSeed } from '@/components/erp/order-detail';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { TileShell, TILE, DetailHeader, HeaderSep } from '@/components/erp/fields';
+import { ObjId as ObjIdLink } from '@/components/erp/obj-id';
 
 import { instanceName } from '@/lib/record-name';
 
@@ -245,6 +246,29 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
               path={inst.location_path ?? []}
               slices={inst.locations ?? []}
             />
+
+            {/* **Wem gehört diese Menge?** – die Aufteilung, dieselbe Aussage wie im
+                Auftrag, nur aus der anderen Richtung. Sie steht nur da, wenn sie etwas
+                sagt: eine unberührte Instanz hat genau EINEN freien Anteil. */}
+            {(inst.shares ?? []).length > 1 && (
+              <TileShell style={TILE.wide} icon={Boxes} label="Aufteilung">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
+                  {(inst.shares ?? []).map((sh, i) => (
+                    <div key={`${sh.order_object_id ?? 'free'}-${i}`} style={S.shareRow}>
+                      <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{sh.quantity}</span>
+                      {sh.order_object_id != null ? (
+                        <>
+                          <span style={{ color: 'var(--fg-3)' }}>{sh.order_name || 'Auftrag'}</span>
+                          <ObjIdLink value={sh.order_object_id} />
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--fg-4)' }}>frei</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </TileShell>
+            )}
           </div>
           </>
           )}
@@ -325,6 +349,7 @@ function Tile({ icon, label, hint, value, sub, subMono, wide, onClick }: {
 
 // ── Styles (Inexxio Design System Tokens via CSS-Vars) ─────────────────────────
 const S: Record<string, React.CSSProperties> = {
+  shareRow: { display: 'flex', alignItems: 'center', gap: 6, font: '500 12.5px var(--font-body)', flexWrap: 'wrap' },
   devErr: { marginTop: 12, padding: '8px 12px', borderRadius: 'var(--r-sm)', background: 'var(--danger-bg)', color: 'var(--danger)', font: '500 12.5px var(--font-body)' },
   // Zentriert (nicht linksbündig): auf einem breiten Schirm klebte der Inhalt sonst am
   // linken Rand. Gilt für ALLE Reiter – der Rumpf ist EIN Container.

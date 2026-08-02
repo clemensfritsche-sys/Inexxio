@@ -613,7 +613,7 @@ export default function ErpPage() {
             <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {creating === 'order' && (
-            <OrderDetail key="new-order" record={null} seed={orderSeed} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+            <OrderDetail key="new-order" record={null} seed={orderSeed} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onBack={cancelCreate} />
           )}
           {!creating && activeRow?.type === 'user' && (
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
@@ -623,7 +623,7 @@ export default function ErpPage() {
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (
-              <OrderDetail key={`order-${sel.objectId}`} record={orderDetail} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+              <OrderDetail key={`order-${sel.objectId}`} record={orderDetail} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onBack={() => setMobileView('list')} />
             ) : (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#94a3b8' }}>
                 Auftrag wird geladen…

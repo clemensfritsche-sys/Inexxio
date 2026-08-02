@@ -671,8 +671,8 @@ def test_there_is_exactly_one_way_to_create_an_order():
     assert not hasattr(orders, "open_deviation")
     assert not hasattr(order_schemas, "OrderDeviationCreate")
     # Die Anlage nimmt die Vorauswahl entgegen – über denselben Pfad wie jede Auswahl.
-    assert "instance_object_ids" in OrderCreate.model_fields
-    assert "_set_chosen_instances(db, order, data.instance_object_ids" in _inspect.getsource(orders.create_order)
+    assert "picks" in OrderCreate.model_fields
+    assert "_set_chosen_instances(db, order, data.picks" in _inspect.getsource(orders.create_order)
     # Der Service bleibt für die systemseitigen Auslöser.
     create = _inspect.getsource(deviation.create_deviation)
     assert "parent_order_id=parent.object_id" in create and "record_link" in create
@@ -1262,11 +1262,16 @@ def test_webshop_url_is_validated():
 
 
 def test_order_update_accepts_instance_selection():
-    """Die vorgewählten Subjekt-Instanzen lassen sich im Entwurf anpassen (Mehrfachauswahl)."""
-    from app.schemas.order import OrderUpdate
+    """Die gewählten **Anteile** lassen sich im Entwurf anpassen (Mehrfachauswahl)."""
+    from app.schemas.order import InstancePick, OrderUpdate
 
-    assert "instance_object_ids" in OrderUpdate.model_fields
-    assert OrderUpdate(instance_object_ids=[100_000_010, 100_000_011]).instance_object_ids == [100_000_010, 100_000_011]
+    assert "picks" in OrderUpdate.model_fields
+    upd = OrderUpdate(picks=[InstancePick(instance_object_id=100_000_010),
+                             InstancePick(instance_object_id=100_000_011, quantity=2,
+                                          from_order_object_id=100_000_099)])
+    assert [p.instance_object_id for p in upd.picks] == [100_000_010, 100_000_011]
+    assert upd.picks[0].from_order_object_id is None      # freier Anteil
+    assert upd.picks[1].from_order_object_id == 100_000_099
 
 
 def test_sale_step_mirrors_purchase():
@@ -1876,14 +1881,12 @@ def test_an_order_is_created_as_a_whole_or_not_at_all():
         OrderCreate()   # Artikel + Menge sind Pflicht wie eh und je
     order = OrderCreate(article_id=1, quantity=2)
     assert order.quantity == 2
-    for field in ("lines", "steps", "instance_object_ids", "instance_quantities",
-                  "shortfall_response"):
+    for field in ("lines", "steps", "picks", "shortfall_response"):
         assert field in OrderCreate.model_fields, field
     # Auch eine **Position** bringt ihre Auswahl mit – sonst ginge sie beim Erteilen
     # verloren (der zweite Aufruf, den es hier nicht mehr gibt).
     from app.schemas.order import OrderLineCreate
-    for field in ("instance_object_ids", "instance_quantities"):
-        assert field in OrderLineCreate.model_fields, field
+    assert "picks" in OrderLineCreate.model_fields
 
 
 def test_add_order_line_endpoint_exists_and_converts_anchor():
@@ -3273,7 +3276,7 @@ def test_a_pick_claims_a_quantity_not_a_thing():
     from app.services import process, reservation, subject
 
     for schema in (OrderUpdate, OrderLinePins):
-        assert "instance_quantities" in schema.model_fields, schema.__name__
+        assert "picks" in schema.model_fields, schema.__name__
     # ``claim`` SETZT (statt zu addieren) – und tastet dabei niemanden an (Notiz #370).
     cl = _inspect.getsource(reservation.claim)
     assert "m[str(order_id)] = want" in cl
@@ -3514,7 +3517,7 @@ def test_an_order_and_a_deviation_order_are_the_same_thing():
     # Die Prüfung der Auswahl kennt kein Vorab-Flag mehr – sie lässt jede aktive Instanz zu.
     # Über den AST geprüft, damit ein Kommentar über die FRÜHERE Regel nicht mitzählt.
     import ast
-    val = ast.unparse(ast.parse(_inspect.getsource(orders._validate_pins)))
+    val = ast.unparse(ast.parse(_inspect.getsource(orders._resolve_picks)))
     assert "is_deviation" not in val, (
         "Die Art des Auftrags darf keine VORAUSSETZUNG der Auswahl sein, sondern ihre FOLGE")
 
@@ -3548,8 +3551,8 @@ def test_the_shortfall_question_comes_at_release_not_at_the_pick():
     # angelegte Abweichung (Datenerfassung/Deaktivierung) ihn durchsetzt, nicht nur der
     # Weg über den Router.
     from app.services import subject
-    assert "enforce(inst, order.id)" in _inspect.getsource(subject._bind_deviation_subjects)
-    assert "enforce(inst, order.id)" in _inspect.getsource(subject._allocate_stock_for)
+    assert "enforce_pick(db, order, inst)" in _inspect.getsource(subject._bind_deviation_subjects)
+    assert "enforce_pick(db, order, inst)" in _inspect.getsource(subject._allocate_stock_for)
     # Vormerken tastet fremde Ansprüche nicht an, Durchsetzen schon.
     assert "over" not in _inspect.getsource(reservation.claim)
     assert "over" in _inspect.getsource(reservation.enforce)
@@ -3623,3 +3626,91 @@ def test_a_cleared_foreign_deviation_is_no_longer_shown_as_an_obstacle():
     from app.services import deviation
 
     assert 'Order.status.in_(("draft", "released"))' in _inspect.getsource(deviation.deviations_touching)
+
+
+def test_a_pick_names_the_share_it_takes():
+    """**Du wählst keinen Gegenstand, sondern einen Anteil.**
+
+    Eine Instanz ist eine MENGE, und ihre Menge ist immer vollständig aufgeteilt: jeder
+    Anteil gehört genau einem Auftrag oder ist frei (``instances.reservations``). Wer
+    auswählt, wählt darum drei Dinge zugleich – **welche** Instanz, **wie viel** davon und
+    **wem** er es wegnimmt (``InstancePick``).
+
+    Der dritte Punkt war die Lücke. Hält eine Charge à 4 zwei Ansprüche (Hauptauftrag 2,
+    Abweichung 2) und ein dritter Auftrag greift 1 Stück, musste die Freigabe **raten**, wer
+    verliert – bei EINEM anderen Halter zufällig richtig, ab zwei Willkür. Jetzt steht es in
+    ``orders.pick_sources``, und ``reservation.enforce`` kürzt genau den.
+
+    Der genannte Anteil ist dabei eine **Rangfolge, keine Ausschliesslichkeit**: wer 2 aus
+    einer 2er-Charge nimmt, an der zwei Aufträge hängen, trifft zwangsläufig beide."""
+    import inspect as _inspect
+    from app.models import Order
+    from app.routers import orders
+    from app.schemas.order import InstancePick, OrderCreate, OrderLineCreate, OrderLinePins, OrderUpdate
+    from app.services import reservation, shares
+
+    for field in ("instance_object_id", "quantity", "from_order_object_id"):
+        assert field in InstancePick.model_fields, field
+    for schema in (OrderCreate, OrderUpdate, OrderLineCreate, OrderLinePins):
+        assert "picks" in schema.model_fields, schema.__name__
+        assert "instance_object_ids" not in schema.model_fields, schema.__name__
+    assert hasattr(Order, "pick_sources")
+
+    # Die Auswahl schreibt den Halter mit – IMMER, mit ``None`` für «frei».
+    pick = _inspect.getsource(orders._resolve_picks)
+    assert "sources[oid] = holder_id" in pick
+    assert "subject.is_bound(order, i, want)" in pick, (
+        "«frei oder gehalten» ist EINE Definition (``subject.is_bound``) – nicht zwei")
+
+    # Und die Freigabe kürzt den GENANNTEN zuerst.
+    enf = _inspect.getsource(reservation.enforce)
+    assert "from_order_id" in enf and "ranked" in enf
+    # Wer gefragt wird, steht an EINER Stelle – dieselbe Rangfolge.
+    los = _inspect.getsource(shares.losers)
+    assert "pick_sources" in los and "inst.order_id" in los
+
+
+def test_the_creator_holds_the_rest_until_it_reaches_stock():
+    """**Der unbeanspruchte Rest ist nur am Lager wirklich frei.**
+
+    Steckt eine Instanz noch in ihrem Erzeugungsauftrag (in Arbeit, gesperrt), gehört der
+    nicht beanspruchte Teil IHM – er hat ihn hervorgebracht. Ohne diese Regel zeigte die
+    Auswahl «frei» an einem Stück, das mitten in einem Prozess hängt, und der Erzeuger
+    würde bei einem Zugriff nicht gefragt."""
+    import inspect as _inspect
+    from app.services import shares
+
+    src = _inspect.getsource(shares)
+    assert "def _creator" in src and "is_in_stock" in src
+
+
+def test_replacement_is_only_offered_when_the_piece_is_interchangeable():
+    """**Ersatz gibt es nur, wenn dem Auftrag egal ist, WELCHES Stück es ist.**
+
+    Ein frisches Stück ist kein Ersatz, wenn das Fehlende die Geschichte dieses Auftrags
+    trägt: er hat es **selbst erzeugt** oder ein Schritt hat **schon daran gearbeitet**
+    (steht der Ablauf bei Schritt 3, hat ein neues Teil die Schritte 1–2 nie durchlaufen).
+    **Material** ist immer austauschbar – der Auftrag braucht *fünf Schrauben*, nicht
+    *diese fünf*. EINE Ableitung statt einer Fallunterscheidung je Auftragsart."""
+    import inspect as _inspect
+    from app.schemas.order import StepShortfall
+    from app.services import recovery
+
+    assert "replaceable" in StepShortfall.model_fields
+    src = _inspect.getsource(recovery.is_replaceable)
+    assert 'subject_kind(db, order) != "produce"' in src
+    assert 'state"] == "done"' in src
+
+
+def test_an_order_is_created_as_a_whole_even_with_steps():
+    """**Alles oder nichts – auch mit Ablauf.**
+
+    Die Auftrags-Anlage spannt EINE Transaktion über Bedarf, Positionen, Ablauf und Auswahl
+    (Testnotiz #386). Der Schritt-Editor committete aber für sich; schlug danach etwas fehl
+    (z. B. die offene Unterdeckungs-Frage), blieb ein Auftrag **ohne Objektnummer** zurück –
+    genau das, was #386 abschaffen sollte. Gegen echtes PostgreSQL gefunden."""
+    import inspect as _inspect
+    from app.routers import article_process, orders
+
+    assert "commit: bool = True" in _inspect.getsource(article_process._create)
+    assert "commit=False" in _inspect.getsource(orders.create_order)

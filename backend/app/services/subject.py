@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from ..domain import event_types
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
+from .events import emit
 from . import inventory
 from .inventory import allocate, fifo_candidates
 from .order_lines import lines_for
@@ -29,6 +30,45 @@ from .processes import order_custom_steps
 from .quantity import ZERO, to_qty
 from .reservation import enforce, free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
+
+
+def pick_source(order: Order, inst) -> int | None:
+    """**Wessen Anteil greift dieser Auftrag an dieser Instanz?** – die eine Nachschlagestelle.
+
+    Die Auswahl hat es beim Klick festgehalten (``orders.pick_sources``); ohne Eintrag war
+    der Anteil **frei** und es verliert niemand etwas. Damit muss die Freigabe nicht mehr
+    raten, wen sie kürzt (siehe ``reservation.enforce``)."""
+    src = (order.pick_sources or {}).get(str(inst.object_id))
+    return int(src) if src is not None else None
+
+
+def enforce_pick(db: Session, order: Order, inst) -> None:
+    """Den Anspruch dieses Auftrags an dieser Instanz **scharf machen** – und den Vorgang
+    festhalten, falls dabei jemand etwas verliert.
+
+    **Der Wechsel ist die Geschichte.** Dass Instanz X ursprünglich Auftrag A zugeteilt war
+    und nun Auftrag B gehört, sieht man später sonst nirgends – am Ende steht nur das
+    Ergebnis. Die Spur ist kein neues Feld, sondern der **Event-Strom**, und sie hängt am
+    **verlierenden** Auftrag: dort will man wissen, warum plötzlich etwas fehlt. Für den
+    FIFO-Fall gilt exakt dasselbe wie für die Hand-Auswahl – eine Regel, nicht zwei."""
+    src = pick_source(order, inst)
+    taken = enforce(inst, order.id, src)
+    if taken <= 0 or src is None:
+        return
+    holder = db.query(Order).filter(Order.id == src).first()
+    if holder is None:
+        return
+    emit(db, "order.share_taken", object_type="order", object_id=holder.object_id,
+         payload={"instance": inst.object_id, "quantity": float(taken),
+                  "to_order": order.object_id, "article_id": inst.article_id,
+                  "step_id": _blocked_step(db, holder, inst.article_id)})
+
+
+def _blocked_step(db: Session, order: Order, article_id: int | None) -> int | None:
+    """Der Schritt des verlierenden Auftrags, an dem der Verlust auffällt (für die Anzeige
+    im Ablauf). Ohne passenden Schritt gehört die Spur dem Auftrag selbst."""
+    from . import process
+    return process.blocked_step_for_article(db, order, article_id) if article_id else None
 
 
 def record_link(db: Session, instance_object_id: int | None, order_id: int) -> None:
@@ -349,7 +389,7 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
         # zu viel hätte, verliert entsprechend und meldet damit seine Unterdeckung.
         # Die Stelle gilt für BEIDE Wege: die Auswahl im Auftrag ebenso wie die
         # systemseitige Abweichung (fehlgeschlagene Datenerfassung, Artikel-Deaktivierung).
-        enforce(inst, order.id)
+        enforce_pick(db, order, inst)
     log_audit(db, "instances", None, "Unter-Auftrag übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
@@ -379,9 +419,10 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) ->
                 raise HTTPException(
                     409, detail=f"Instanz {inst.object_id} ist bereits für einen anderen Auftrag reserviert")
             reserve(inst, order.id, want)
-        # Der Anspruch wird mit der Freigabe scharf – haben zwei Entwürfe dieselbe Instanz
+        # Der Anspruch wird mit der Freigabe scharf – und zwar zulasten des **genannten**
+        # Anteils (``orders.pick_sources``). Haben zwei Entwürfe dieselbe freie Menge
         # vorgemerkt, gewinnt der, der zuerst freigibt (``reservation.enforce``).
-        enforce(inst, order.id)
+        enforce_pick(db, order, inst)
         claimed += want
         record_link(db, inst.object_id, order.id)
     remaining = to_qty(quantity) - claimed

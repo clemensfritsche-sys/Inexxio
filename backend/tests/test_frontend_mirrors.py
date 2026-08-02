@@ -208,3 +208,42 @@ def test_an_order_is_created_at_exactly_one_place():
             f"{name} legt wieder selbst einen Auftrag an – ein Abkürzungs-Knopf belegt nur "
             "das Anlage-Fenster vor (OrderSeed).")
         assert "onCreateOrder" in src, f"{name} braucht den Weg ins Anlage-Fenster."
+
+
+def test_the_picker_offers_shares_not_instances():
+    """**Die Auswahl zeigt Anteile, nicht Instanzen.**
+
+    Eine Charge, an der zwei Aufträge hängen, erscheint als **zwei Zeilen** – eine je
+    Halter. Damit sagt der Klick zugleich, wem die Menge weggenommen wird; das Backend
+    muss nicht mehr raten (``orders.pick_sources``). Der frühere Chip trug nur die
+    Objektnummer und liess genau diese Frage offen.
+
+    Und die Aufteilung ist **auf beiden Seiten** sichtbar: der Auftrag zeigt, wohin ein
+    Anteil gewandert ist, die Instanz zeigt dieselbe Aussage aus der anderen Richtung."""
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
+    assert "type Share = {" in detail and "shareKey(" in detail
+    assert "from_order_object_id" in detail, "Der Klick muss den Halter mitschicken."
+    # Die alte Ding-Auswahl ist abgelöst (``instance_object_ids`` bleibt nur als
+    # **Lese**-Feld der Unter-Auftrags-Kurzinfo bestehen).
+    assert "instance_object_ids:" not in detail and "instance_quantities" not in detail
+
+    pos = (FRONTEND / "components" / "erp" / "order-positions.tsx").read_text()
+    assert "ForeignShares" in pos, "Der Auftrag zeigt, wo der Rest liegt."
+    inst = (FRONTEND / "components" / "erp" / "instance-detail.tsx").read_text()
+    assert "Aufteilung" in inst, "Die Instanz zeigt dieselbe Aufteilung."
+
+
+def test_the_new_order_header_looks_like_every_other_one():
+    """**Der Kopf des Anlage-Fensters ist derselbe wie überall** (Testnotiz #389).
+
+    Symbol · Eyebrow · Name · Objektnummer + Aktionen · Zustand, dazu die Reiter. Fehlt
+    etwas, dann nur die **Nummer** – die entsteht mit der Freigabe (#386); sie steht als
+    Platzhalter da, die Erklärung im Hover.
+
+    Und es gibt **kein «Abbrechen»**: verworfen wird, indem man woanders hinklickt."""
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
+    assert "objectIdHint" in detail and "'—'" in detail
+    assert "Nummer wird bei Freigabe vergeben" not in detail
+    assert "erp-actbtn-neutral" not in detail, "Kein «Abbrechen» mehr im Kopf."
+    # Die Reiter stehen auch beim Anlegen – «Dokumente» gesperrt, mit Grund im Hover.
+    assert "disabled: isCreate" in detail

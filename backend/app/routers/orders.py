@@ -76,20 +76,28 @@ def _assert_quantity_serialization(db: Session, article_id: int | None, quantity
                    "(Bruchmengen nur bei Chargen-Artikeln, z. B. kg/m²/l).")
 
 
-def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Instance]:
-    """Zu fixierende (gepinnte) Instanzen prüfen: Artikel des Auftrags, am Lager verfügbar
-    und nicht bereits **fest reserviert** von einem anderen Auftrag. Die Festlegung im
-    Entwurf ist nur eine **Vormerkung** – sie sperrt die Instanz NICHT; **scharf
-    reserviert** wird erst bei der Freigabe. Mehrere Entwürfe dürfen dieselbe Instanz
-    vormerken; wer zuerst freigibt, reserviert, der zweite scheitert dann an der Prüfung."""
-    # **Jede aktive Instanz ist wählbar** – was daraus folgt, sagt ``subject.classify_pick``:
-    # frei am Lager → normaler Auftrag · verkauft → Retoure · gebunden (in Arbeit/reserviert/
-    # gesperrt) → **Abweichung**. Vorher entschied ein Vorab-Flag (``is_deviation``), ob die
-    # Bestands-Prüfungen greifen; damit war die Art des Auftrags eine *Voraussetzung* der
-    # Auswahl statt ihre *Folge*, und ein Abweichungsauftrag brauchte einen eigenen Endpunkt.
-    # Jetzt gibt es EINEN Weg: Instanzen wählen – das Tag ergibt sich.
+def _resolve_picks(db: Session, order: Order, picks: list) -> tuple[list[Instance], dict[int, Decimal], dict[int, int]]:
+    """Die gewählten **Anteile** auflösen: Instanzen, beanspruchte Menge je Instanz und –
+    das Neue – **wem** der Anteil weggenommen wird.
+
+    Eine Instanz ist eine Menge, und ihre Menge ist immer vollständig aufgeteilt: jeder
+    Anteil gehört genau einem Auftrag oder ist frei. Wer auswählt, klickt darum eine
+    **Zeile** an (Instanz · Menge · Halter) – und damit ist auch beantwortet, wer verliert.
+    Ohne diese Angabe müsste die Freigabe raten, sobald eine Charge mehrere Ansprüche trägt.
+
+    **Jede aktive Instanz ist wählbar** – was daraus folgt, sagt ``subject.classify_pick``:
+    frei am Lager → normaler Auftrag · verkauft → Retoure · gebunden → **Abweichung**.
+
+    Liefert ``(instanzen, {objektnr: menge}, {objektnr: quell_auftrag_db_id})``; ein Anteil
+    ohne Quelle war frei und taucht in der dritten Map nicht auf."""
+    # Kein Vorab-Flag mehr, das entscheidet, ob die Bestands-Prüfungen greifen: damit wäre
+    # die Art des Auftrags eine *Voraussetzung* der Auswahl statt ihre *Folge*. EIN Weg:
+    # Anteile wählen – das Tag ergibt sich.
     insts: list[Instance] = []
-    for oid in object_ids:
+    wanted: dict[int, Decimal] = {}
+    sources: dict[int, int] = {}
+    for pick in picks:
+        oid = pick.instance_object_id
         i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
         if not i:
             raise HTTPException(400, detail=f"Instanz {oid} nicht gefunden")
@@ -97,27 +105,46 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wählbar")
         if (i.disposition or "") == "scrapped":
             raise HTTPException(400, detail=f"Instanz {oid} ist verschrottet – daran ist nichts mehr zu tun")
-        insts.append(i)
-    return insts
-
-
-def _wanted_quantities(insts: list[Instance], raw: dict[str, float] | None) -> dict[int, Decimal]:
-    """Die beanspruchte Teilmenge je Instanz-Objektnummer – ohne Angabe die GANZE Instanz.
-
-    Eine Instanz ist eine **Menge**, kein Ding: von einer Charge à 500 will eine Abweichung
-    oft genau EINE. Was hier herauskommt, ist derselbe Wert, den die FIFO-Allokation längst
-    mengengenau reserviert – nur bestimmt ihn hier der Mensch."""
-    out: dict[int, Decimal] = {}
-    for inst in insts:
-        raw_qty = (raw or {}).get(str(inst.object_id))
-        want = to_qty(inst.quantity) if raw_qty is None else to_qty(raw_qty)
+        want = to_qty(i.quantity) if pick.quantity is None else to_qty(pick.quantity)
         if want <= 0:
-            raise HTTPException(400, detail=f"Menge für Instanz {inst.object_id} muss grösser als 0 sein")
-        if want > to_qty(inst.quantity):
+            raise HTTPException(400, detail=f"Menge für Instanz {oid} muss grösser als 0 sein")
+        if want > to_qty(i.quantity):
             raise HTTPException(
-                400, detail=f"Instanz {inst.object_id} hat nur {inst.quantity} – mehr lässt sich nicht wählen")
-        out[inst.object_id] = want
-    return out
+                400, detail=f"Instanz {oid} hat nur {i.quantity} – mehr lässt sich nicht wählen")
+        # **Jeder Anteil bekommt seinen Halter – auch der freie** (``None``). Der Eintrag
+        # steht darum IMMER; genannt hat Vorrang, sonst wird er abgeleitet:
+        #
+        #   der Anteil ist **frei** (``subject.is_bound`` sagt nein) → niemand verliert etwas
+        #   sonst                                                    → der erste Halter
+        #
+        # Die Ableitung ist der Rückfall für alles, was (noch) keine Zeile anklickt – die
+        # systemseitige Abweichung ebenso wie ein Aufruf ohne Angabe. Genannt wird es dort,
+        # wo es mehrdeutig ist: bei einer Charge, an der mehrere Aufträge hängen.
+        src = pick.from_order_object_id
+        if src is not None:
+            holder = db.query(Order).filter(Order.object_id == src, Order.is_active == True).first()
+            if not holder:
+                raise HTTPException(400, detail=f"Auftrag {src} nicht gefunden")
+            # «Halten» heisst dasselbe wie überall (``subject.holding_orders``): einen
+            # **Anspruch** haben, es als Subjekt gebunden haben ODER es selbst **erzeugt**
+            # haben. Der dritte Weg ist der eines Erzeugungsauftrags – dort steht nichts in
+            # der Reservierungs-Map, das Stück gehört ihm trotzdem.
+            if holder.id not in {h.id for h in subject.holding_orders(db, i)}:
+                raise HTTPException(
+                    409, detail=f"Auftrag {src} hält an Instanz {oid} nichts (mehr) – bitte neu auswählen")
+            holder_id = holder.id
+        elif not subject.is_bound(order, i, want):
+            holder_id = None                                    # freier Anteil
+        else:
+            # Ohne Angabe trifft es den **gewöhnlichen** Auftrag, nicht eine laufende
+            # Abweichung: deren Anteil ist genau das, worauf man ausdrücklich zeigen muss.
+            others = subject.holding_orders(db, i, exclude_id=order.id)
+            plain = [h for h in others if not subject.is_fixed_subject(h)]
+            holder_id = (plain or others)[0].id if others else None
+        sources[oid] = holder_id
+        insts.append(i)
+        wanted[oid] = want
+    return insts, wanted, sources
 
 
 def _clear_derived_marker(order: Order) -> None:
@@ -166,7 +193,7 @@ def _make_deviation(db: Session, order: Order, insts: list[Instance],
     # Teilmengen) – bei einem Stück aus einer 500er-Charge also 1, nicht 500.
     if order.article_id:
         order.quantity = qty_sum(wanted.values())
-    holders = _holders_of(db, insts, order)
+    holders = _holders_of(db, insts, order, wanted)
     # Eltern = wer das Stück hält. Mehrere Halter → der erste (die übrigen stehen über die
     # Instanz-Klammer ohnehin im Bild, ``deviation.deviations_touching``).
     parent = holders[0] if holders else None
@@ -174,14 +201,19 @@ def _make_deviation(db: Session, order: Order, insts: list[Instance],
     order.origin_step_id = deviation.interrupted_step_id(db, parent) if parent else None
 
 
-def _holders_of(db: Session, insts: list[Instance], order: Order | None) -> list[Order]:
-    """Die LAUFENDEN Aufträge, die diese Instanzen gerade in der Hand haben – **alle**,
-    nicht nur der erste je Instanz: eine Charge kann mehrere Auftraggeber haben, und jeder
-    von ihnen verliert bei der Freigabe etwas."""
+def _holders_of(db: Session, insts: list[Instance], order: Order | None,
+                wanted: dict | None = None) -> list[Order]:
+    """**Wem nimmt diese Auswahl etwas weg?** – über alle gewählten Instanzen hinweg.
+
+    Die Regel je Instanz steht an EINER Stelle (``shares.losers``): genannter Anteil ≻
+    Erzeuger ≻ übrige Ansprüche, und nur so weit, wie wirklich etwas fehlt. Ein **freier**
+    Anteil gehört niemandem – dann verliert auch niemand etwas."""
+    from ..services.shares import losers
     out: list[Order] = []
     seen: set[int] = set()
     for i in insts:
-        for h in subject.holding_orders(db, i, exclude_id=order.id if order else None):
+        for h in (losers(db, i, order, (wanted or {}).get(i.object_id)) if order else
+                  subject.holding_orders(db, i)):
             if h.id not in seen:
                 seen.add(h.id)
                 out.append(h)
@@ -287,22 +319,22 @@ def _apply_shortfall_answer(db: Session, holders: list[Order], response: str | N
             recovery.confirm_quantity(db, h, actor_id, into=into)
 
 
-def _set_chosen_instances(db: Session, order: Order, object_ids: list[int],
-                          response: str | None = None, actor_id: int | None = None,
-                          quantities: dict[str, float] | None = None) -> None:
-    """Die **fixierten** (gepinnten) Subjekt-Instanzen eines Entwurfs neu setzen: bisherige
-    lösen, neue prüfen und beanspruchen.
+def _set_chosen_instances(db: Session, order: Order, picks: list,
+                          response: str | None = None, actor_id: int | None = None) -> None:
+    """Die gewählten **Anteile** eines Entwurfs neu setzen: bisherige lösen, neue prüfen und
+    beanspruchen.
 
-    **Ein Pin ist ein Anspruch auf eine MENGE** (``instances.reservations``), nicht auf ein
-    Ding: von einer Charge à 500 lässt sich genau eine Schraube wählen. Ohne Mengenangabe
-    ist es die ganze Instanz – das bisherige Verhalten. Damit tut die Hand-Auswahl exakt
-    das, was die FIFO-Allokation längst tut (mengengenau reservieren); der Unterschied ist
-    nur, wer die Instanz bestimmt.
+    **Ein Anteil ist eine Menge mit einem Namen darauf**: WELCHE Instanz, WIE VIEL davon und
+    WEM sie gerade gehört. Von einer Charge à 500 lässt sich genau eine Schraube wählen –
+    und ab jetzt auch, aus wessen Anteil. Damit tut die Hand-Auswahl exakt das, was die
+    FIFO-Allokation längst tut (mengengenau reservieren); der Unterschied ist nur, wer die
+    Instanz bestimmt.
 
     **Die Auswahl bestimmt die ART des Auftrags** (``subject.classify_pick``) – ein Tag, kein
-    zweiter Weg: verkaufte Instanzen → **Retoure/Erstattung** · gebundene (in Arbeit,
-    reserviert, gesperrt) → **Abweichung** · freie → gewöhnlicher Auftrag. Lager- und
-    verkaufte Instanzen lassen sich nicht mischen (gegensätzliche Geldrichtungen).
+    zweiter Weg: verkaufte Anteile → **Retoure/Erstattung** · gebundene (in Arbeit,
+    reserviert, gesperrt) → **Abweichung** · freie → gewöhnlicher Auftrag. Frei, gebunden und
+    verkauft lassen sich nicht mischen: ein Auftrag beantwortet EINE Frage – *woher kommt das
+    Material?*
 
     ``response`` beantwortet – falls die Auswahl einem LAUFENDEN Auftrag sein Stück
     wegnimmt – gleich mit, wie dessen Unterdeckung zu behandeln ist (siehe
@@ -316,11 +348,12 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int],
     ):
         prev.subject_of_order_id = None
         release_reservation(prev, order.id)
-    if not object_ids:
+    order.pick_sources = None
+    if not picks:
         _clear_derived_marker(order)
         return
-    insts = _validate_pins(db, order, object_ids)
-    wanted = _wanted_quantities(insts, quantities)
+    insts, wanted, sources = _resolve_picks(db, order, picks)
+    order.pick_sources = {str(k): v for k, v in sources.items()} or None   # v=None ⇒ freier Anteil
     kind = subject.classify_pick(order, insts, wanted)
 
     if kind == subject.PICK_RETURN:
@@ -380,39 +413,33 @@ async def list_orders(
     return to_order_summaries(db, q.all())
 
 
-def _pin_line_instances(db: Session, order: Order, article_id: int, quantity: int,
-                        object_ids: list[int], quantities: dict[str, float] | None = None) -> None:
-    """Fixierte Instanzen EINER Position eines Mehrpositionen-Auftrags vormerken – wie
+def _pin_line_instances(db: Session, order: Order, article_id: int, quantity, picks: list) -> None:
+    """Gewählte **Anteile** EINER Position eines Mehrpositionen-Auftrags vormerken – wie
     ``_set_chosen_instances`` für den Einzel-Artikel-Auftrag, nur gegen die Menge/den
     Artikel DIESER Position statt des ganzen Auftrags geprüft (mehrere Artikel können
-    unter demselben Sammel-Auftrag je eigene Fixierungen tragen). Löst zuerst die
-    bisherige Fixierung dieser Position (idempotent, wie beim Einzel-Artikel-Auftrag)."""
+    unter demselben Sammel-Auftrag je eigene Anteile tragen). Löst zuerst die bisherige
+    Auswahl dieser Position (idempotent, wie beim Einzel-Artikel-Auftrag)."""
     for prev in db.query(Instance).filter(
         Instance.subject_of_order_id == order.id, Instance.article_id == article_id,
         Instance.is_active == True,
     ).all():
         prev.subject_of_order_id = None
         release_reservation(prev, order.id)
-    if not object_ids:
+    if not picks:
         return
-    insts: list[Instance] = []
-    for oid in object_ids:
-        i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
-        if not i:
-            raise HTTPException(400, detail=f"Instanz {oid} nicht gefunden")
+    insts, wanted, sources = _resolve_picks(db, order, picks)
+    for i in insts:
         if i.article_id != article_id:
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wie die Position wählbar")
         if not inventory.is_in_stock(i):
-            raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
-        insts.append(i)
-    wanted = _wanted_quantities(insts, quantities)
-    for i in insts:
+            raise HTTPException(400, detail=f"Instanz {i.object_id} ist nicht am Lager verfügbar")
         if free_qty(i) + reserved_for(i, order.id) < wanted[i.object_id]:
             raise HTTPException(409, detail=f"Instanz {i.object_id} ist bereits für einen anderen Auftrag reserviert")
     pinned_qty = qty_sum(wanted.values())
     if pinned_qty > to_qty(quantity):
         raise HTTPException(
             400, detail=f"Es sind mehr Instanzen fixiert ({pinned_qty}) als die Positionsmenge ({quantity})")
+    order.pick_sources = {**(order.pick_sources or {}), **{str(k): v for k, v in sources.items()}} or None
     for i in insts:
         i.subject_of_order_id = order.id
         claim(i, order.id, wanted[i.object_id])
@@ -456,9 +483,8 @@ async def create_order(
     # eine Abweichung wird, sagt die Auswahl (``subject.classify_pick``), nicht der Einstieg.
     # Sie wird gesetzt, solange der Artikel noch der **Anker** ist: die erste zusätzliche
     # Position wandelt ihn gleich in Position 0 um (Bindung/Anspruch bleiben unberührt).
-    if data.instance_object_ids:
-        _set_chosen_instances(db, order, data.instance_object_ids, data.shortfall_response,
-                              current_user.id, data.instance_quantities)
+    if data.picks:
+        _set_chosen_instances(db, order, data.picks, data.shortfall_response, current_user.id)
     # Weitere Positionen (Mehrpositionen-Auftrag) – derselbe Dienst wie der Einzel-Endpunkt,
     # jede Position mitsamt ihrer eigenen Instanz-Auswahl.
     for line in data.lines or []:
@@ -469,7 +495,7 @@ async def create_order(
         from .article_process import _create as create_step, _order_owner_for
         owner = _order_owner_for(order)
         for step in data.steps:
-            create_step(db, owner, step, current_user)
+            create_step(db, owner, step, current_user, commit=False)
     _do_release(db, order, data.shortfall_response, current_user.id)
     log_audit(db, "orders", None, "Auftrag erteilt",
               current_user.id, object_id=order.object_id)
@@ -546,9 +572,8 @@ def _add_line(db: Session, order: Order, data: OrderLineCreate, actor_id: int | 
               actor_id, object_id=order.object_id)
     # Bringt die Position ihre Auswahl mit («Instanz wählen» statt FIFO), gilt derselbe
     # Weg wie beim nachträglichen ``PATCH .../lines/{id}`` – eine Implementierung.
-    if data.instance_object_ids:
-        _pin_line_instances(db, order, data.article_id, data.quantity,
-                            data.instance_object_ids, data.instance_quantities)
+    if data.picks:
+        _pin_line_instances(db, order, data.article_id, data.quantity, data.picks)
 
 
 @router.delete("/{object_id}/lines/{line_id}", response_model=OrderResponse)
@@ -601,7 +626,7 @@ async def set_order_line_pins(
     current_user: UserProfile = Depends(require_employee),
 ):
     """Fixierte Instanzen EINER Position setzen (statt FIFO) – «Instanz wählen» je Artikel
-    eines Mehrpositionen-Auftrags, analog ``instance_object_ids`` am Einzel-Artikel-Auftrag."""
+    eines Mehrpositionen-Auftrags, analog ``picks`` am Einzel-Artikel-Auftrag."""
     order = _get_staff_order(db, object_id)
     if order.status != "draft":
         raise HTTPException(400, detail="Instanzen lassen sich nur im Entwurf fixieren")
@@ -609,8 +634,7 @@ async def set_order_line_pins(
         OrderLine.id == line_id, OrderLine.order_id == order.id, OrderLine.is_active == True).first()
     if not line:
         raise HTTPException(404, detail="Position nicht gefunden")
-    _pin_line_instances(db, order, line.article_id, line.quantity, data.instance_object_ids,
-                        data.instance_quantities)
+    _pin_line_instances(db, order, line.article_id, line.quantity, data.picks)
     db.commit()
     db.refresh(order)
     return to_order_response(db, order)
@@ -708,18 +732,17 @@ def _assert_releasable(db: Session, order: Order) -> None:
 class _PickInputs(NamedTuple):
     """Was zur **Auswahl** gehört, nicht zum Auftrag – darum keine Modellfelder.
 
-    Alle drei müssen aus dem Payload heraus, bevor die generische ``setattr``-Schleife
+    Beide müssen aus dem Payload heraus, bevor die generische ``setattr``-Schleife
     darüberläuft; sonst landeten sie als Attribute auf dem Auftrag."""
-    instances: list[int] | None      # vorgewählte Subjekt-Instanzen (Mehrfachauswahl)
+    picks: list | None               # gewählte Anteile (Instanz · Menge · Halter)
     answer: str | None               # Antwort auf eine dadurch ausgelöste Unterdeckung
-    quantities: dict[str, float] | None   # beanspruchte Teilmenge je Instanz (Charge!)
 
 
-def _pop_pick_inputs(payload: dict) -> _PickInputs:
+def _pop_pick_inputs(data: OrderUpdate, payload: dict) -> _PickInputs:
+    payload.pop("picks", None)
     return _PickInputs(
-        instances=payload.pop("instance_object_ids", None),
+        picks=data.picks if "picks" in data.model_fields_set else None,
         answer=payload.pop("shortfall_response", None),
-        quantities=payload.pop("instance_quantities", None),
     )
 
 
@@ -788,16 +811,16 @@ async def update_order(
 
     payload = data.model_dump(exclude_unset=True)
     ensure_version(order, payload.pop("expected_updated_at", None))
-    pick = _pop_pick_inputs(payload)
+    pick = _pop_pick_inputs(data, payload)
     # Inhalte – inklusive der Wiederkehr-Einstellung – sind NUR im Entwurf änderbar.
     # Nach der Freigabe ist der Auftrag „scharf"; ein einmal freigegebener Auftrag
     # lässt sich nicht mehr nachträglich auf wiederkehrend umstellen (ensure_mutable
     # erlaubt dann nur noch status/is_active).
     ensure_mutable(order.status, payload, "Auftrag")
-    if pick.instances is not None:
+    if pick.picks is not None:
         if order.status != "draft":
             raise HTTPException(409, detail="Instanzen lassen sich nur im Entwurf ändern")
-        _set_chosen_instances(db, order, pick.instances, pick.answer, current_user.id, pick.quantities)
+        _set_chosen_instances(db, order, pick.picks, pick.answer, current_user.id)
     _assert_payload(db, order, payload)
 
     # Freigabe (draft → released) läuft AUSSCHLIESSLICH über ``release_order`` – dieser Pfad setzt

@@ -26,6 +26,24 @@ class LocationHop(BaseModel):
     label: Optional[str] = None
 
 
+class InstanceShare(BaseModel):
+    """**Ein Anteil einer Instanz** – eine Menge mit einem Namen darauf.
+
+    Eine Instanz ist eine Menge, kein Ding, und ihre Menge ist **immer vollständig
+    aufgeteilt**: jeder Anteil gehört genau einem Auftrag, oder er ist frei. Genau so steht
+    es in ``instances.reservations``; hier wird es nur sichtbar gemacht, statt es zu
+    verstecken.
+
+    Das ist die Zeile, die man in der Auswahl anklickt – und damit ist beantwortet, WEM man
+    etwas wegnimmt (die Frage, die vorher niemand stellen konnte). ``order_object_id`` leer
+    = **frei**: es gehört niemandem, es verliert niemand etwas."""
+
+    order_object_id: Optional[int] = None
+    order_name: Optional[str] = None
+    reason: Optional[str] = None    # deviation | supply | return | provisioning | None
+    quantity: float
+
+
 class InstanceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,6 +68,10 @@ class InstanceResponse(BaseModel):
 
     reserved_for_order_id: Optional[int] = None
     reserved_quantity: float = 0   # mengengenau reservierte Menge (0 = frei)
+    # **Die Aufteilung dieser Menge** – wer hält wie viel, und was ist frei. Vom Router
+    # denormalisiert (``services/shares.py``); die Auswahl rendert daraus ihre Zeilen und
+    # das Auftrags-/Instanz-Detail zeigt, wohin ein Anteil gewandert ist.
+    shares: list[InstanceShare] = []
 
     # Das Modell-Attribut ``locations`` ist die rohe JSONB-Map (dict) – die Antwort trägt
     # aber die denormalisierte Liste. Beim ``model_validate`` die rohe dict/None auf ``[]``
@@ -118,3 +140,10 @@ class InstanceEmbed(BaseModel):
     # Teilmenge, wenn er nur EINEN Teil der Charge betrifft (z. B. 10 von 1000); sonst NULL
     # (= ganze Instanz). Nur zur Anzeige im Bewegungs-Panel (vom Router denormalisiert).
     move_quantity: Optional[float] = None
+    # Wie sich die Menge dieser Instanz auf die Aufträge verteilt – damit der Auftrag zeigen
+    # kann, dass ein Teil gerade woanders liegt («2 Stk → Auftrag 100000456»). Dieselbe
+    # Aussage wie im Instanz-Detail, nur gespiegelt.
+    shares: list[InstanceShare] = []
+    # **Aus wessen Anteil dieser Auftrag sein Stück genommen hat** – damit die Auswahl im
+    # Entwurf beim erneuten Bearbeiten dieselbe Zeile wieder trifft, statt sie neu zu raten.
+    pick_source_object_id: Optional[int] = None

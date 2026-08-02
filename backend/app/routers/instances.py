@@ -15,6 +15,7 @@ from ..schemas.instance import (
     LocationHop,
 )
 from ..services import location_split, scrap as scrap_svc
+from ..services import shares
 from ..services.locations import location_chain, location_labels, physical_location_labels
 from ..services.references import instance_orders
 
@@ -62,9 +63,13 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
     loc_labels = location_labels(db, loc_keys)
     phys_labels = physical_location_labels(
         db, [k for k in loc_keys if k[0] == "instance"])
+    # **Die Aufteilung der Menge** (wer hält wie viel, was ist frei) – EINE Batch-Abfrage
+    # für alle Instanzen, damit die Auswahl ihre Zeilen zeigen kann (``services/shares.py``).
+    share_map = shares.shares_for(db, rows)
     out: list[InstanceResponse] = []
     for r in rows:
         resp = InstanceResponse.model_validate(r)
+        resp.shares = share_map.get(r.id, [])
         resp.article_name = arts_name.get(r.article_id)
         resp.article_object_id = arts_oid.get(r.article_id)
         resp.order_object_id = ords.get(r.order_id)

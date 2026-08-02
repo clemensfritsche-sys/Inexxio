@@ -56,9 +56,36 @@ def _record_at_step(db: Session, order: Order, article_id: int, event_type: str,
          actor_id=actor_id)
 
 
-def _fifo_cover(db: Session, order: Order, article_id: int, need) -> Decimal:
+def is_replaceable(db: Session, order: Order, is_subject: bool) -> bool:
+    """**Ist dem Auftrag egal, WELCHES Stück es ist?** – die eine Frage hinter «Ersetzen».
+
+    Ein frisches Stück ist nur dann ein Ersatz, wenn das Fehlende **keine Geschichte** in
+    diesem Auftrag hat. Zwei Wege, wie es eine bekommt, und beide zählen:
+
+    * der Auftrag hat es **selbst hervorgebracht** (Erzeugung) – man ersetzt nicht, was man
+      gerade herstellt; man stellt weniger her oder wartet;
+    * ein Schritt hat **schon daran gearbeitet** – steht der Ablauf bei Schritt 3, hat ein
+      frisches Stück die Schritte 1–2 nie durchlaufen und ist damit kein gleichwertiger
+      Ersatz, sondern ein anderes Teil.
+
+    **Material** (Ressourcen-Zeile) ist immer austauschbar: der Auftrag braucht *fünf
+    Schrauben*, nicht *diese fünf*. Ebenso ein reiner Lager-Zugriff, an dem noch nichts
+    getan wurde (Verkauf ab Lager, Bewegung) – dem Kunden sind fünf Schrauben egal, solange
+    es fünf sind.
+
+    EINE Ableitung statt einer Fallunterscheidung je Auftragsart. Rein (schreibt nicht)."""
+    from .subject import subject_kind
+    if not is_subject:
+        return True                                   # Material – austauschbar
+    return (subject_kind(db, order) != "produce"
+            and not any(s["state"] == "done" for s in process.build_order_steps(db, order)))
+
+
+def _fifo_cover(db: Session, order: Order, article_id: int, need,
+                used: list[int] | None = None) -> Decimal:
     """``need`` (Menge) des Artikels aus **freiem** Lagerbestand FIFO für den Auftrag
-    reservieren (+ als Subjekt markieren). Liefert die tatsächlich gedeckte Menge."""
+    reservieren (+ als Subjekt markieren). Liefert die tatsächlich gedeckte Menge und
+    sammelt in ``used``, WELCHE Instanzen eingesprungen sind (für die Spur im Ablauf)."""
     covered = ZERO
     cands = fifo_candidates(db, article_id, for_order_id=None, lock=True)   # nur freie Restmengen
     for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
@@ -67,12 +94,14 @@ def _fifo_cover(db: Session, order: Order, article_id: int, need) -> Decimal:
         reserve(cand, order.id, take)
         cand.subject_of_order_id = order.id
         record_link(db, cand.object_id, order.id)
+        if used is not None and cand.object_id:
+            used.append(cand.object_id)
         covered += take
     return covered
 
 
-def _cover_from_stock(db: Session, order: Order,
-                      instance_object_ids: list[int] | None) -> dict[int, Decimal]:
+def _cover_from_stock(db: Session, order: Order, instance_object_ids: list[int] | None,
+                      used: dict[int, list[int]] | None = None) -> dict[int, Decimal]:
     """Soviel der offenen **Subjekt**-Fehlmenge wie möglich aus vorhandenem Lagerbestand
     decken. Ohne ``instance_object_ids`` → FIFO über den freien Bestand; mit Auswahl → genau
     diese freigegebenen & freien Instanzen. Liefert die gedeckte Menge je Artikel."""
@@ -108,11 +137,16 @@ def _cover_from_stock(db: Session, order: Order,
             record_link(db, inst.object_id, order.id)
             short[inst.article_id] = rem - take
             covered[inst.article_id] = covered.get(inst.article_id, ZERO) + take
+            if used is not None:
+                used.setdefault(inst.article_id, []).append(oid)
     else:
         for aid, need in short.items():
-            got = _fifo_cover(db, order, aid, need)
+            picked: list[int] = []
+            got = _fifo_cover(db, order, aid, need, picked)
             if got > 0:
                 covered[aid] = covered.get(aid, ZERO) + got
+                if used is not None:
+                    used.setdefault(aid, []).extend(picked)
     return covered
 
 
@@ -128,12 +162,14 @@ def cover_shortfall(db: Session, order: Order, actor_id: int,
     Deckt auch den reinen **Komponenten**-Bedarf ab (Ressource): dort gibt es keinen
     Subjekt-Lagerweg, ``ensure_supply`` übernimmt ihn vollständig. Committet NICHT."""
     from .supply import ensure_supply
-    covered = _cover_from_stock(db, order, instance_object_ids)
+    used: dict[int, list[int]] = {}
+    covered = _cover_from_stock(db, order, instance_object_ids, used)
     # Die Spur entsteht VOR dem Nachschub: danach ist der Schritt womöglich nicht mehr
-    # blockiert und liesse sich nicht mehr zuordnen.
+    # blockiert und liesse sich nicht mehr zuordnen. Sie nennt **welche** Instanzen
+    # eingesprungen sind – sonst stünde später nur «gedeckt», ohne womit.
     for aid, qty in covered.items():
         _record_at_step(db, order, aid, "order.covered_from_stock",
-                        {"quantity": qty}, actor_id)
+                        {"quantity": qty, "instances": used.get(aid, [])}, actor_id)
     created = ensure_supply(db, order, actor_id)
     total = qty_sum(covered.values())
     if total <= 0 and not created:
