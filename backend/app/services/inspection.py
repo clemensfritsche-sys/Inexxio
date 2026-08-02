@@ -71,15 +71,20 @@ def inspected_quantity(db: Session, order: Order):
     Nicht ``order.quantity`` – das ist die *deklarierte* Menge und sagt bei einem Auftrag
     auf vorhandenen Instanzen etwas anderes aus. Eine Abweichung auf EINE Charge à 5 Stk
     trägt ``quantity=1`` (ein Subjekt), zu prüfen sind aber 5 Stück: bei «jede» kamen so
-    statt fünf Proben nur eine. Die Stichprobe wird jetzt aus derselben Quelle bemessen,
-    aus der auch die Proben gezogen und die Instanzen bewertet werden
-    (``order_active_instances``) – Zahl und Ziele können nicht mehr auseinanderlaufen.
-    Ohne Instanzen (Entwurf/Vorschau) bleibt die deklarierte Menge."""
+    statt fünf Proben nur eine.
+
+    Aber auch nicht die **ganze** Instanz: von einer Charge à 4 gehören diesem Auftrag
+    vielleicht nur 2 – dann sind 2 zu prüfen, nicht 4 («Prüfumfang: 4 von 2 Stück»,
+    Testnotiz #399). Massgeblich ist, **was dem Auftrag gehört** (``subject.held_quantity``,
+    die EINE Antwort darauf) – über dieselben Instanzen, aus denen auch die Proben gezogen
+    und die Urteile gefällt werden. Ohne Instanzen (Entwurf/Vorschau) bleibt die deklarierte
+    Menge."""
     from .order_lines import effective_quantity
     from .quantity import qty_sum
+    from .subject import held_quantity
     insts = order_active_instances(db, order)
     if insts:
-        return qty_sum(i.quantity for i in insts)
+        return qty_sum(held_quantity(order, i) for i in insts)
     return effective_quantity(db, order)
 
 
@@ -190,9 +195,11 @@ def _shuffle_key(object_id: int, seed: int) -> int:
 def sample_capacity(quantity) -> int:
     """Wie viele Proben eine Instanz hergeben kann: ihre **Menge**, aufgerundet, min. 1.
 
-    Ein Einzelteil (Menge 1) liefert genau eine Probe, eine Charge à 500 bis zu 500, eine
-    Charge à 2.5 kg deren drei (aufgerundet – man kann keine halbe Probe ziehen, und der
-    Prüfumfang rundet aus demselben Grund auf)."""
+    Gemeint ist die Menge, die dem prüfenden Auftrag **gehört** (``subject.held_quantity``) –
+    nicht die der ganzen Instanz: von einer Charge à 4, an der ihm 2 gehören, lassen sich
+    zwei Proben ziehen. Ein Einzelteil (Menge 1) liefert genau eine, eine Charge à 500 bis zu
+    500, eine Charge à 2.5 kg deren drei (aufgerundet – man kann keine halbe Probe ziehen,
+    und der Prüfumfang rundet aus demselben Grund auf)."""
     from .quantity import to_qty
     return max(1, math.ceil(to_qty(quantity)))
 
@@ -212,6 +219,7 @@ def sample_targets(db: Session, order: Order, step: ArticleProcessStep | None) -
 
     Die Auswahl bleibt stabil pseudo-zufällig (gleiche Stichprobe über alle Requests, je
     Auftrag anders); ausgegeben wird nach Objektnummer sortiert, damit die Liste lesbar ist."""
+    from .subject import held_quantity
     insts = [i for i in order_active_instances(db, order) if i.object_id is not None]
     need = required_count(db, order, step)
     if not insts or need <= 0:
@@ -225,7 +233,7 @@ def sample_targets(db: Session, order: Order, step: ArticleProcessStep | None) -
             if remaining <= 0:
                 break
             oid = inst.object_id
-            if taken.get(oid, 0) >= sample_capacity(inst.quantity):
+            if taken.get(oid, 0) >= sample_capacity(held_quantity(order, inst)):
                 continue
             taken[oid] = taken.get(oid, 0) + 1
             remaining -= 1

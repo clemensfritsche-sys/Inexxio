@@ -3350,6 +3350,39 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_a_sub_order_is_shown_only_at_its_parent`; gegen echtes PostgreSQL verifiziert
   (`note397.py` 17/17 – die gemeldete Kette Schritt für Schritt, plus alle 14 Harnesses).
 
+- **Testnotizen #398–#401 (eine Abweichung LEIHT – und gibt zurück)**: Vier Befunde, zwei
+  davon in der Rechnung.
+  (1) **Was ein Unter-Auftrag mit festem Subjekt hält, kehrt beim Abschluss zurück** (#401,
+  `subject.return_borrowed`). Eine Abweichung nimmt dem Auftrag, an dem das Stück hing,
+  etwas ab – **die Unterdeckung IST die Ausleihe**. Beim Abschluss wurde aber nur die eigene
+  Reservierung gelöst: das Stück wurde damit **frei** statt zurückgegeben, und der Verleiher
+  verlangte weiterhin eine Entscheidung über etwas, das längst wieder da war. Jetzt geht es
+  an ihn zurück – **vor** dem Lösen der Reservierung, sonst greift die Rückgabe ins Leere.
+  Verschrottetes/Verkauftes/Verbautes kehrt NICHT zurück (dort ist die Fehlmenge ehrlich),
+  und ein **Erzeuger** als Verleiher braucht nichts zurück: er hält über `Instance.order_id`
+  und war nie reserviert. Das Verwerfen (`deviation.detach_sub_order`) gab schon immer
+  zurück – jetzt tun es beide Türen.
+  (2) **«Wie viel dieser Instanz gehört diesem Auftrag?» hat genau EINE Antwort** (#399,
+  `subject.held_quantity`). Der Prüfumfang las die **ganze** Instanz: ein Auftrag über 2 Stk
+  einer 4er-Charge zeigte «Prüfumfang: 4 von 2 Stück (100 % Stichprobe)». Das ist die
+  wiederkehrende Fehlerklasse rund um Chargen – wer `inst.quantity` nimmt, rechnet mit
+  fremdem Bestand. Die Antwort (Anspruch ≻ ganze Instanz) steht jetzt an einer Stelle, und
+  ihre drei Nutzer lesen sie: Stichprobenzahl, Stichproben-**Kapazität** je Instanz und
+  `process._held_amounts`.
+  (3) **Das Symbol sagt, WAS der Halter ist** (#398): die Anteils-Zeile zeigte ein
+  Warndreieck, sobald der Anteil «gebunden» war – gebunden ist aber eine Aussage über die
+  **Instanz**, ihr Halter kann ein ganz regulärer Auftrag sein. Es liest jetzt den Grund des
+  Halters (`InstanceShare.reason`), nicht die Sorte des Anteils.
+  (4) **Der Shortcut an der Instanz öffnet die Auswahl** (#400): trägt die Instanz mehrere
+  Anteile, wird die Zeile nicht geraten (#394) – die **Instanz** kommt aber trotzdem mit,
+  und der Bedarf steht auf «Auswählen». Vorher fiel er auf «Ab Lager» zurück und die Instanz
+  war plötzlich gar nicht mehr im Spiel.
+  Wächter: `test_a_deviation_borrows_and_gives_back`,
+  `test_a_quantity_belongs_to_an_order_not_to_an_instance`,
+  `test_the_share_icon_comes_from_the_holder_not_from_the_sort`; gegen echtes PostgreSQL
+  verifiziert (`note401.py` 12/12 – Ausleihe zurück, Verschrottetes bleibt fehlend, 2 von 4
+  ergibt 2 Proben; plus alle 15 Harnesses).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

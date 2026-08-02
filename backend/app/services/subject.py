@@ -15,6 +15,8 @@ Enthält der Ablauf einen Verkauf, verlassen die Subjekte bei Abschluss den Best
 (``sold``, siehe ``process._finalize_subjects``); sonst bleibt der Verbleib unverändert.
 """
 
+from decimal import Decimal
+
 from fastapi import HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -93,6 +95,53 @@ def record_link(db: Session, instance_object_id: int | None, order_id: int) -> N
     )
     if not exists:
         db.add(InstanceOrderLink(instance_object_id=instance_object_id, order_id=order_id))
+
+
+def held_quantity(order: Order, inst) -> Decimal:
+    """**Wie viel dieser Instanz gehört diesem Auftrag?** – die EINE Antwort.
+
+    Eine Instanz ist eine **Menge**, und ein Auftrag hat fast nie die ganze: von einer
+    Charge à 4 gehören ihm vielleicht 2 (``instances.reservations``). Wer stattdessen
+    ``inst.quantity`` nimmt, rechnet mit fremdem Bestand – daraus entstand «Prüfumfang:
+    4 von 2 Stück» (Testnotiz #399), und dieselbe Verwechslung ist die wiederkehrende
+    Fehlerklasse rund um Chargen.
+
+    Ohne Anspruch gilt die ganze Instanz: dann gehört sie ihm als **Erzeuger**
+    (``Instance.order_id``) oder als **fixiertes Subjekt**, und dort gibt es keine
+    Teilmenge. Rein (schreibt nicht)."""
+    qty = reserved_for(inst, order.id)
+    return qty if qty > 0 else to_qty(inst.quantity)
+
+
+def return_borrowed(db: Session, sub: Order) -> None:
+    """**Ein Unter-Auftrag mit festem Subjekt LEIHT – am Ende gibt er zurück** (Notiz #401).
+
+    Abweichung, Retoure und Bereitstellung beschaffen nichts; sie nehmen dem Auftrag, an dem
+    die Stücke hingen, etwas ab und geben es hinterher wieder. Solange sie laufen, fehlt es
+    dort – **die Unterdeckung IST die Ausleihe**. Sind sie durch, kehrt es zurück; sonst
+    behielte der Verleiher seine Fehlmenge für immer, obwohl nichts verloren ging: eine
+    erfolgreich abgeschlossene Abweichung verlangte am Eltern eine Entscheidung über ein
+    Stück, das längst wieder da war.
+
+    Was den Bestand **verlassen** hat (verschrottet/verkauft/verbaut), kehrt nicht zurück –
+    dort ist die Fehlmenge des Verleihers ehrlich. Ein **Erzeuger** als Verleiher braucht
+    nichts zurück: er hält über ``Instance.order_id`` und war nie reserviert (seine
+    Fehlmenge schliesst sich von selbst, sobald die Abweichung nicht mehr offen ist).
+
+    Dieselbe Rückgabe vollzieht ``deviation.detach_sub_order`` beim Verwerfen – zwei Türen,
+    eine Regel. Committet NICHT."""
+    from .reservation import reserve
+    if not is_fixed_subject(sub) or not sub.parent_order_id:
+        return
+    parent = db.query(Order).filter(Order.object_id == sub.parent_order_id).first()
+    if parent is None or parent.status != "released":
+        return
+    for inst in order_instances(db, sub):
+        if (inst.disposition or "") in TERMINAL_DISPOSITIONS or inst.order_id == parent.id:
+            continue
+        qty = reserved_for(inst, sub.id)
+        if qty > 0:
+            reserve(inst, parent.id, qty)
 
 
 def chosen_subjects(db: Session, order: Order, article_id: int | None = None) -> list[Instance]:

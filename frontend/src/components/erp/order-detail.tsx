@@ -67,6 +67,11 @@ type Share = {
   capacity: number;
   holderObjectId: number | null;  // null = frei
   holderName: string | null;
+  /** Warum der Halter existiert (``deviation`` | ``supply`` | … | null = gewöhnlicher
+   *  Auftrag). Das Symbol der Zeile liest DAS – nicht ``kind``: eine in Arbeit befindliche
+   *  Instanz ist «gebunden», ihr Halter kann trotzdem ein ganz regulärer Auftrag sein
+   *  (Testnotiz #398). */
+  holderReason: string | null;
   kind: PinKind;
 };
 
@@ -144,8 +149,14 @@ const PIN_KIND: Record<PinKind, { tone: string; bg: string; hint: string; mix: s
 export type OrderSeed = {
   articleId: number;
   quantity?: number;
-  /** Vorgewählter **Anteil** – immer EIN Stück (von einer Charge à 500 selten alle 500),
-   *  mitsamt dem Halter, aus dessen Anteil er kommt. */
+  /** Die Instanz, um die es geht – immer EIN Stück (von einer Charge à 500 selten alle 500).
+   *
+   *  ``fromOrderObjectId`` ist der Anteil, aus dem es kommt: eine Objektnummer (bzw. ``null``
+   *  für «frei»), wenn es nur EINE Zeile gibt – dann ist die Zeile bereits angeklickt.
+   *  Trägt die Instanz **mehrere** Anteile, bleibt das Feld ``undefined``: die Zeile ist eine
+   *  Entscheidung und wird nicht geraten (#394). Die **Auswahl steht trotzdem offen**, sonst
+   *  fiele der Bedarf auf «Ab Lager» zurück und die Instanz wäre plötzlich gar nicht mehr im
+   *  Spiel (#400). */
   instance?: { objectId: number; quantity: number; fromOrderObjectId?: number | null };
 };
 
@@ -259,9 +270,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   ), [suppliers]);
   // Vorgemerkte Instanzen je Position (Schlüssel wie `PinLine.key`) – im Entwurf.
   type DraftPins = Record<string, InstancePickInput[]>;
-  const [draftPins, setDraftPins] = useState<DraftPins>((): DraftPins => (seed?.instance
+  const [draftPins, setDraftPins] = useState<DraftPins>((): DraftPins => (
+    seed?.instance && seed.instance.fromOrderObjectId !== undefined
     ? { anchor: [{ instance_object_id: seed.instance.objectId, quantity: seed.instance.quantity,
-                   from_order_object_id: seed.instance.fromOrderObjectId ?? null }] }
+                   from_order_object_id: seed.instance.fromOrderObjectId }] }
     : {}));
   const record: Order = saved ?? draft;
   function patchDraft(patch: Partial<Order>) { setDraft((d) => ({ ...d, ...patch })); }
@@ -453,6 +465,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           instanceObjectId: i.object_id, instanceQty: i.quantity ?? 0,
           quantity: sh.quantity ?? 0, capacity: sh.quantity ?? 0,
           holderObjectId: sh.order_object_id ?? null, holderName: sh.order_name ?? null,
+          holderReason: sh.reason ?? null,
           kind: shareKind(i, sh.order_object_id ?? null),
         });
       }
@@ -494,7 +507,11 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // «Aus Lager»; sonst «Herstellen». Über die Karten wechselbar (pickGoal räumt Pins beim
   // Verlassen von «Instanz wählen» auf, damit «Aus Lager» wirklich reines FIFO ist).
   const pins = pinLines.flatMap((l) => l.picked);
-  const [goalSel, setGoalSel] = useState<OrderGoal | null>(null);
+  // **Der Shortcut öffnet die Auswahl** (Testnotiz #400): er wurde an EINER Instanz
+  // gedrückt, also ist «Auswählen» gemeint – auch dann, wenn die Zeile noch offen ist,
+  // weil die Instanz mehrere Anteile trägt. Ohne das fiel der Bedarf auf «Ab Lager»
+  // zurück und die Instanz war plötzlich gar nicht mehr im Spiel.
+  const [goalSel, setGoalSel] = useState<OrderGoal | null>(seed?.instance ? 'specific' : null);
   const goal: OrderGoal = pins.length > 0
     ? 'specific'
     : !canProduce
@@ -1666,7 +1683,7 @@ function PinPicker({ line, onToggle, bare }: {
                           : 'Gehört niemandem – frei am Lager'}>
                     {sh.holderObjectId != null ? (
                       <>
-                        {sh.kind === 'bound' ? <TriangleAlert size={12} /> : <ClipboardList size={12} />}
+                        {sh.holderReason === 'deviation' ? <TriangleAlert size={12} /> : <ClipboardList size={12} />}
                         <span style={{ font: 'var(--mono-sm)' }}>{formatObjectId(sh.holderObjectId)}</span>
                       </>
                     ) : 'frei'}

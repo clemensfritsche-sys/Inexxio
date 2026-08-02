@@ -272,3 +272,26 @@ def test_a_sub_order_is_shown_only_at_its_parent():
     pos = (fe / "order-positions.tsx").read_text()
     assert "ForeignShares" not in pos, (
         "Die Spezifikation nennt Artikel und Instanz; wohin der Rest ging, steht im Prozess.")
+
+
+def test_the_share_icon_comes_from_the_holder_not_from_the_sort():
+    """**Das Symbol sagt, WAS der Halter ist – nicht, wie sein Anteil aussieht** (#398).
+
+    Die Zeile zeigte ein Warndreieck, sobald der Anteil «gebunden» war (in Arbeit,
+    reserviert, gesperrt). Gebunden ist aber eine Aussage über die **Instanz**; ihr Halter
+    kann ein ganz regulärer Auftrag sein – und stand dann fälschlich als Abweichung da.
+
+    Dazu (#400): der Abkürzungs-Knopf an einer Instanz öffnet die **Auswahl** – auch wenn
+    die Zeile noch offen ist, weil die Instanz mehrere Anteile trägt. Ohne das fiel der
+    Bedarf auf «Ab Lager» zurück und die Instanz war gar nicht mehr im Spiel."""
+    from pathlib import Path
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
+    detail = (fe / "order-detail.tsx").read_text()
+    assert "holderReason: string | null;" in detail
+    assert "sh.holderReason === 'deviation' ? <TriangleAlert" in detail, (
+        "Das Symbol liest den Grund des Halters, nicht die Sorte des Anteils.")
+    assert "useState<OrderGoal | null>(seed?.instance ? 'specific' : null)" in detail, (
+        "Wer an einer Instanz startet, meint «Auswählen».")
+    inst = (fe / "instance-detail.tsx").read_text()
+    assert "rows.length === 1 ? { fromOrderObjectId:" in inst, (
+        "Die Instanz kommt immer mit; nur der Anteil bleibt offen, wenn es mehrere gibt.")

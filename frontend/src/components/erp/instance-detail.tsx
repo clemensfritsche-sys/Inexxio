@@ -151,12 +151,16 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
   // steht offen und der Mensch klickt die Zeile an, die er meint.
   function createOrderShortcut() {
     if (!canOrderInstance || inst.object_id == null || inst.article_id == null) return;
+    // **Die Instanz kommt immer mit** – sie ist der Grund, warum hier geklickt wurde
+    // (#400). Nur der **Anteil** bleibt offen, wenn es mehrere gibt: welche Zeile gemeint
+    // ist, ist dann eine Entscheidung und wird nicht geraten (#394).
     const rows = inst.shares ?? [];
-    const only = rows.length === 1 ? rows[0] : null;
     onCreateOrder?.({
       articleId: inst.article_id, quantity: 1,
-      instance: rows.length > 1 ? undefined
-        : { objectId: inst.object_id, quantity: 1, fromOrderObjectId: only?.order_object_id ?? null },
+      instance: {
+        objectId: inst.object_id, quantity: 1,
+        ...(rows.length === 1 ? { fromOrderObjectId: rows[0].order_object_id ?? null } : {}),
+      },
     });
   }
 

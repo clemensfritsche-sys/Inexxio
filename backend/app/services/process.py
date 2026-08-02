@@ -459,17 +459,16 @@ def _held_amounts(db: Session, order: Order) -> dict[int, Decimal]:
     from .subject import order_instances
     targets = _subject_targets(db, order)
     held: dict[int, Decimal] = {}
+    from .subject import held_quantity
     for inst in order_instances(db, order):
-        qty = reserved_for(inst, order.id)
+        if reserved_for(inst, order.id) <= 0 and inst.subject_of_order_id != order.id:
+            continue                           # nicht mehr seins → genau das fehlt ihm
+        # Was ihm gehört, sagt die EINE Stelle (Anspruch ≻ ganze Instanz). Bleibt sie bei
+        # null, trägt die Instanz gar keine Menge mehr: **Retoure** – die Ware liegt beim
+        # Kunden, nicht bei einem anderen Auftrag. Gebunden heisst dann «vollständig gehalten».
+        qty = held_quantity(order, inst)
         if qty <= 0:
-            if inst.subject_of_order_id != order.id:
-                continue                       # nicht mehr seins → genau das fehlt ihm
-            # Gebunden, aber ohne Anspruch. Zwei Gründe, beide harmlos: an einer Instanz
-            # ohne Restmenge lässt sich nichts reservieren (**Retoure**: die Ware liegt
-            # beim Kunden, nicht bei einem anderen Auftrag) – dann gilt sie als vollständig
-            # gehalten; sonst zählt, was noch da ist.
-            rest = to_qty(inst.quantity)
-            qty = rest if rest > 0 else targets.get(inst.article_id, ZERO)
+            qty = targets.get(inst.article_id, ZERO)
         if qty > 0:
             held[inst.article_id] = held.get(inst.article_id, ZERO) + qty
     return held
@@ -1029,6 +1028,12 @@ def recompute_completion(db: Session, order: Order) -> None:
         )
         release_instances(db, order)        # produzierte Instanzen freigeben (verbrauchbar)
         _finalize_subjects(db, order)        # Verkauf: reservierte Menge mengengenau abbuchen
+        # **Geliehenes zurückgeben** (Testnotiz #401): eine Abweichung nimmt dem Auftrag, an
+        # dem das Stück hing, etwas ab – ist sie durch, kehrt es dorthin zurück. Muss VOR dem
+        # Lösen der eigenen Reservierung geschehen, sonst wird das Stück schlicht frei und
+        # der Verleiher behält seine Fehlmenge, obwohl gar nichts verloren ging.
+        from .subject import return_borrowed
+        return_borrowed(db, order)
         # Restliche Reservierungen dieses Auftrags lösen (Auftrag fertig): ein neutral
         # gebliebenes Subjekt (Bewegung/Kontrolle) wird so wieder frei verfügbar; die
         # Subjekt-Markierung wird entfernt. Historie bleibt über ``instance_order_links``.

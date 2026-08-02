@@ -3029,14 +3029,23 @@ def test_sample_size_comes_from_the_inspected_instances():
     Eine Abweichung auf EINE Charge à 5 Stk trug ``order.quantity = 1`` (ein Subjekt) – bei
     «jede» kam so statt fünf Proben nur eine. Stichprobenzahl und Stichprobenziele stammen
     jetzt aus derselben Quelle (``order_active_instances``) und können nicht mehr
-    auseinanderlaufen."""
+    auseinanderlaufen.
+
+    **Und es ist die Menge, die dem Auftrag GEHÖRT** (Testnotiz #399): von einer Charge à 4,
+    an der ihm 2 gehören, sind 2 zu prüfen – nicht 4 («Prüfumfang: 4 von 2 Stück»). Die
+    Antwort darauf gibt es genau einmal (``subject.held_quantity``), und die Kapazität je
+    Instanz liest dieselbe."""
     import inspect as _inspect
 
     from app.services import deviation, inspection
 
     src = _inspect.getsource(inspection.inspected_quantity)
     assert "order_active_instances(db, order)" in src
-    assert "qty_sum(i.quantity for i in insts)" in src
+    assert "qty_sum(held_quantity(order, i) for i in insts)" in src, (
+        "Nicht die ganze Instanz – was dem Auftrag gehört.")
+    tgt = _inspect.getsource(inspection.sample_targets)
+    assert "sample_capacity(held_quantity(order, inst))" in tgt, (
+        "Zahl und Ziele lesen dieselbe Menge – sonst laufen sie auseinander.")
     assert "inspected_quantity(db, order)" in _inspect.getsource(inspection.required_count)
     # Auch die Abweichung selbst deklariert die Menge, nicht die Zahl der Instanzen.
     # Die Menge einer Abweichung ist die Summe der **beanspruchten Teilmengen** (ohne
@@ -3836,10 +3845,55 @@ def test_a_pick_is_not_guessed_when_it_is_a_decision():
     from pathlib import Path
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
     inst = (fe / "instance-detail.tsx").read_text()
-    assert "rows.length > 1 ? undefined" in inst, (
-        "Mehrere Anteile ⇒ keine Vorauswahl – die Zeile ist eine Entscheidung.")
+    assert "rows.length === 1 ? { fromOrderObjectId:" in inst, (
+        "Mehrere Anteile ⇒ kein vorgewählter Anteil – die Zeile ist eine Entscheidung. "
+        "Die INSTANZ kommt trotzdem mit, sonst fiele der Bedarf auf «Ab Lager» (#400).")
     assert "reduce<" not in inst.split("function createOrderShortcut")[1].split("}")[0], (
         "Kein «grösster Anteil gewinnt» mehr.")
     detail = (fe / "order-detail.tsx").read_text()
     assert "rows.length === 1 ? rows[0] : null" in detail, (
         "reconcilePicks rät nicht – es folgt nur einer eindeutigen Zeile.")
+
+
+def test_a_deviation_borrows_and_gives_back():
+    """**Ein Unter-Auftrag mit festem Subjekt LEIHT – am Ende gibt er zurück** (Notiz #401).
+
+    Eine Abweichung nimmt dem Auftrag, an dem das Stück hing, etwas ab; solange sie läuft,
+    fehlt es dort – **die Unterdeckung IST die Ausleihe**. Ist sie erfolgreich durch (nichts
+    verschrottet), kehrt das Stück dorthin zurück. Vorher wurde beim Abschluss nur die eigene
+    Reservierung gelöst: das Stück wurde damit **frei** statt zurückgegeben, und der Verleiher
+    verlangte eine Entscheidung über etwas, das längst wieder da war.
+
+    Was den Bestand verlassen hat (verschrottet/verkauft/verbaut), kehrt NICHT zurück – dort
+    ist die Fehlmenge ehrlich. Dieselbe Rückgabe vollzieht das Verwerfen
+    (``deviation.detach_sub_order``) – zwei Türen, eine Regel."""
+    import inspect as _inspect
+    from app.services import deviation, process, subject
+
+    ret = _inspect.getsource(subject.return_borrowed)
+    assert "TERMINAL_DISPOSITIONS" in ret, "Verschrottetes kehrt nicht zurück."
+    assert "inst.order_id == parent.id" in ret, (
+        "Ein Erzeuger als Verleiher hält ohne Reservierung – er braucht nichts zurück.")
+    assert 'parent.status != "released"' in ret
+    done = _inspect.getsource(process.recompute_completion)
+    assert done.index("return_borrowed(db, order)") < done.index("release(inst, order.id)"), (
+        "Zurückgeben, BEVOR die eigene Reservierung gelöst wird – sonst wird es frei.")
+    # Die zweite Tür (verwerfen) gibt seit jeher zurück.
+    assert "reserve(inst, parent.id, freed)" in _inspect.getsource(deviation.detach_sub_order)
+
+
+def test_a_quantity_belongs_to_an_order_not_to_an_instance():
+    """**Wie viel dieser Instanz gehört diesem Auftrag?** – EINE Antwort (Notiz #399).
+
+    Eine Instanz ist eine Menge, und ein Auftrag hat fast nie die ganze: von einer Charge à 4
+    gehören ihm vielleicht 2. Wer stattdessen ``inst.quantity`` nimmt, rechnet mit fremdem
+    Bestand – daraus wurde «Prüfumfang: 4 von 2 Stück». Das ist die wiederkehrende
+    Fehlerklasse rund um Chargen; sie hat jetzt genau eine Stelle
+    (``subject.held_quantity``), und wer eine Menge braucht, fragt dort."""
+    import inspect as _inspect
+    from app.services import inspection, process, subject
+
+    src = _inspect.getsource(subject.held_quantity)
+    assert "reserved_for(inst, order.id)" in src and "to_qty(inst.quantity)" in src
+    for fn in (inspection.inspected_quantity, inspection.sample_targets, process._held_amounts):
+        assert "held_quantity" in _inspect.getsource(fn), fn.__name__
