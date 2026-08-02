@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert } from 'lucide-react';
+import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
 import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
+import { heldOf } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
@@ -15,7 +16,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, PrimaryButton, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { OrderBranchTeaser, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -428,14 +429,14 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   }
 
   // Was der Auftrag schon beansprucht – aus den Instanz-Embeds (gespeicherter Entwurf).
-  // ``move_quantity`` ist die für ihn reservierte Teilmenge, ``pick_source_object_id`` der
-  // Anteil, aus dem sie stammt: so trifft eine erneute Bearbeitung wieder dieselbe Zeile.
+  // ``held_quantity`` ist sein Anteil an der Instanz, ``pick_source_object_id`` der
+  // Anteil, aus dem er stammt: so trifft eine erneute Bearbeitung wieder dieselbe Zeile.
   const savedPicksByArticle = new Map<number, InstancePickInput[]>();
   const ownByInstance = new Map<number, number>();
   for (const i of record?.instances ?? []) {
     if (i.object_id == null) continue;
     const list = savedPicksByArticle.get(i.article_id) ?? [];
-    const qty = i.move_quantity ?? i.quantity ?? 0;
+    const qty = heldOf(i);
     list.push({ instance_object_id: i.object_id, quantity: qty,
                 from_order_object_id: i.pick_source_object_id ?? null });
     savedPicksByArticle.set(i.article_id, list);
@@ -833,6 +834,8 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
 
   // Offene Unterdeckungs-Frage zur **Freigabe** (nicht mehr zur Auswahl).
   const [pendingRelease, setPendingRelease] = useState<{ target: string } | null>(null);
+  // Die Unterdeckungs-Frage wird vom **Gate** im Fluss geöffnet (Notiz #413).
+  const [decideOpen, setDecideOpen] = useState(false);
 
   // Freigeben heisst beim Entwurf **erteilen** (er entsteht erst dabei), beim bestehenden
   // Auftrag den Status wechseln – dieselbe Aktion, derselbe Knopf.
@@ -1227,6 +1230,15 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // dieselbe Regel, nicht eine zweite – «ruht» heisst hier wie dort: hier
                 // geschieht nichts mehr.
                 paused={record.paused === true || record.status === 'inactive'}
+                // **Die Entscheidung ist ein Gate im Fluss** (Notiz #413), keine Notiz
+                // darunter: eine Raute an der Stelle, an der der Prozess stillsteht – sie
+                // stellt die Frage und trägt danach die Antwort. Die Fehlmenge gehört dem
+                // Auftrag, also gibt es genau ein Gate (#354).
+                decision={needsDecision ? {
+                  missing: missingText ?? '',
+                  canAct: isStaff && record.status === 'released' && !(supplyBusy || recoverBusy),
+                  onDecide: () => setDecideOpen(true),
+                } : undefined}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}
@@ -1235,16 +1247,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                     viewerRole={viewerRole} company={company} onSaved={afterStep} />
                 )}
               />
-              {/* **Die Fehlmenge gehört dem Auftrag** – eine Frage, eine Stelle, drei
-                  Antworten. Solange sie offen ist, ruht der Prozess. Wartet er bereits auf
-                  einen Unter-Auftrag, ist die Entscheidung getroffen: dann steht die Angabe
-                  bei diesem Unter-Auftrag im Fluss und hier gar nichts (Notiz #354). */}
-              {needsDecision && (
-                <ProcessHoldNotice missing={missingText} canAct={isStaff && record.status === 'released'}
-                  busy={supplyBusy || recoverBusy} error={error}
-                  onAnswer={answerShortfall} candidates={shortfallCandidates} canReduce={hasSubjectShortfall}
-                  affected={selfAffected} />
-              )}
             </div>
           </>
         ) : !isStaff && hasPurchase ? (
@@ -1266,6 +1268,13 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
 
       {/* **Die Unterdeckungs-Frage zur Freigabe** (Notiz #370) – dasselbe Fenster wie am
           laufenden Auftrag, nur zu dem Zeitpunkt, an dem die Auswahl feststeht. */}
+      {/* Dasselbe Fenster, aufgerufen vom **Gate** im Fluss (Notiz #413). */}
+      {decideOpen && (
+        <ShortfallDialog candidates={shortfallCandidates} canReduce={hasSubjectShortfall}
+          busy={supplyBusy || recoverBusy} error={error} affected={selfAffected}
+          onAnswer={(a, ids) => { setDecideOpen(false); answerShortfall(a, ids); }}
+          onClose={() => setDecideOpen(false)} />
+      )}
       {pendingRelease && (
         <ShortfallDialog busy={statusBusy} affected={isCreate ? draftAffects : (record?.affects ?? [])}
           onAnswer={(a) => (isCreate ? submitDraft(a) : changeStatus(pendingRelease.target, a))}
@@ -1301,44 +1310,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
 // Reservierung ebenso – für den Auftrag ist das derselbe Sachverhalt und darum dieselbe
 // Frage: *was soll mit der Fehlmenge geschehen?*
 //
-// Hier steht nur der Anlass; die Antworten stehen in einer kleinen Lightbox (Notiz #352,
-// ``ShortfallDialog``) – demselben Fenster, das auch beim Auswählen gebundener Instanzen
-// erscheint. Eine Frage, ein Fenster, egal von wo.
-//
-// Ist die Menge bereits in einem Unter-Auftrag gebunden, erscheint hier gar nichts: dann ist
-// die Entscheidung getroffen, und die Angabe steht bei diesem Unter-Auftrag im Fluss (#354).
-function ProcessHoldNotice({ missing, canAct, busy, error, candidates, canReduce, affected, onAnswer }: {
-  missing?: string;
-  canAct: boolean;
-  busy: boolean;
-  error: string | null;
-  candidates: { object_id: number; quantity: number }[];
-  canReduce: boolean;
-  affected: AffectedOrder[];
-  onAnswer: (answer: ShortfallAnswer, instanceObjectIds?: number[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', font: '700 13.5px var(--font-body)', color: 'var(--warning)' }}>
-        <PauseCircle size={16} /> Es fehlt
-        {missing && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-1)' }}>{missing}</span>}
-      </div>
-      {canAct && (
-        <PrimaryButton icon={PackagePlus} onClick={() => setOpen(true)} disabled={busy}>
-          {busy ? 'Wird übernommen…' : 'Entscheiden'}
-        </PrimaryButton>
-      )}
-      {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
-      {open && (
-        <ShortfallDialog candidates={candidates} canReduce={canReduce} busy={busy} error={error}
-          affected={affected}
-          onAnswer={(a, ids) => { setOpen(false); onAnswer(a, ids); }} onClose={() => setOpen(false)} />
-      )}
-    </div>
-  );
-}
-
 // Rendert das Panel des gewählten Prozessschritts. Der jeweilige Ausführungs-Embed
 // des konkreten Schritts wird auf die Top-Level-Felder gelegt, damit die Panels
 // unverändert lesen können; die Schritt-id wird für das Routing weitergereicht.

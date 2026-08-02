@@ -11189,16 +11189,10 @@
             ],
             "title": "Physical Location Label"
           },
-          "move_quantity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Move Quantity"
+          "held_quantity": {
+            "type": "number",
+            "title": "Held Quantity",
+            "default": 0
           },
           "shares": {
             "items": {

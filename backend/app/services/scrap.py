@@ -29,7 +29,7 @@ from .admin import log_audit
 from .events import emit
 from .quantity import to_qty
 from .reservation import release_all, take
-from .subject import order_instances
+from .subject import held_quantity, order_instances
 
 
 def _chosen_quantities(data) -> dict[int, Decimal | None]:
@@ -47,8 +47,16 @@ def _chosen_quantities(data) -> dict[int, Decimal | None]:
     return chosen
 
 
-def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order_id: int) -> Decimal:
-    """EINE Instanz verschrotten – ganz oder als Teilmenge. Gibt die abgehende Menge zurück.
+def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order: Order) -> Decimal:
+    """**Den ANTEIL dieses Auftrags an einer Instanz verschrotten** – ganz oder als Teilmenge.
+    Gibt die abgehende Menge zurück.
+
+    Der Anteil ist der Massstab, nicht die Instanz (Testnotizen #412/#414): eine
+    4er-Charge kann zu 2 diesem Auftrag und zu 2 einer Abweichung gehören. «Alles»
+    heisst dann **die eigenen 2**, nicht die ganze Charge – sonst zerstört eine
+    Abweichung aus dem Nichts fremdes Material, und der Eltern-Auftrag steht mit einer
+    Fehlmenge da, die niemand verursacht hat. Dieselbe Regel wie beim Prüfumfang
+    (``subject.held_quantity``, Notiz #399): wie viel dieser Instanz gehört DIESEM Auftrag?
 
     **Ganz:** Endzustand ``scrapped``; ALLE Reservierungen werden gelöst (nicht nur die des
     auslösenden Auftrags) – ein verschrottetes Teil verlässt den Bestand endgültig und kann
@@ -63,12 +71,22 @@ def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order_id: 
     dieselbe Entnahme-Regel wie Verbrauch und Verkauf (``reservation.take``): der eigene
     Anspruch des verschrottenden Auftrags ist damit erfüllt und wird gelöst, fremde
     Ansprüche werden auf die Restmenge gedeckelt; eine verteilte Charge wird nachgezogen."""
-    whole = qty is None or qty >= to_qty(inst.quantity)
-    if not whole and qty <= 0:
+    held = held_quantity(order, inst)
+    if qty is not None and qty > held:
+        raise HTTPException(
+            400,
+            detail=f"Instanz {inst.object_id}: der Auftrag hält nur {held} – mehr kann er "
+                   "nicht aussondern.")
+    # «Ganz» heisst: der Auftrag hält die ganze Instanz UND gibt sie ganz ab. Hält er nur
+    # einen Anteil, ist auch «alles» eine Teilmenge der Instanz – die Restmenge gehört
+    # jemand anderem und bleibt unberührt.
+    whole = (qty is None or qty >= held) and held >= to_qty(inst.quantity)
+    cut_qty = held if qty is None else qty
+    if not whole and cut_qty <= 0:
         raise HTTPException(400, detail=f"Ungültige Menge für Instanz {inst.object_id}")
 
     if not whole:
-        cut = take(inst, qty, by_order_id=order_id)
+        cut = take(inst, cut_qty, by_order_id=order.id)
         location_split.reconcile(inst)
         log_audit(db, "instances", "quantity", str(inst.quantity), actor_id,
                   object_id=inst.object_id,
@@ -108,7 +126,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
             raise HTTPException(400, detail=f"Instanz {oid} gehört nicht zu diesem Auftrag")
         if inst.disposition == "scrapped":
             continue                                # idempotent: schon verschrottet
-        cut = _scrap_one(db, inst, qty, actor_id, order.id)
+        cut = _scrap_one(db, inst, qty, actor_id, order)
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": cut, "delta": -cut,
                       "polarity": event_types.DECREASE, "reason": "scrapped",

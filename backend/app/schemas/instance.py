@@ -136,10 +136,19 @@ class InstanceEmbed(BaseModel):
     location_id: Optional[int] = None
     location_label: Optional[str] = None   # vom Router denormalisiert
     physical_location_label: Optional[str] = None  # physischer Ort bei Einbau (instance-Kette)
-    # Wie viel dieser (Chargen-)Instanz der Auftrag bewegt: die vom Auftrag reservierte
-    # Teilmenge, wenn er nur EINEN Teil der Charge betrifft (z. B. 10 von 1000); sonst NULL
-    # (= ganze Instanz). Nur zur Anzeige im Bewegungs-Panel (vom Router denormalisiert).
-    move_quantity: Optional[float] = None
+    # **Wie viel dieser Instanz gehört DIESEM Auftrag?** – die eine Antwort
+    # (``subject.held_quantity``), im Auftrags-Kontext immer gesetzt.
+    #
+    # Eine Instanz ist eine Menge, und ihre Menge ist auf Aufträge aufgeteilt: von einer
+    # 4er-Charge können 2 diesem Auftrag gehören und 2 einer Abweichung. JEDE Aussage eines
+    # Auftrags über «diese Instanz» meint darum seinen **Anteil**, nie die ganze Instanz –
+    # wie viele Stück er bewegt, wie viele er verschrottet, wie viele er zeigt.
+    #
+    # Vorher hiess das Feld ``move_quantity`` und war NULL, sobald der Auftrag die ganze
+    # Instanz hielt – also für genau einen Zweck (Bewegungs-Panel) gedacht. Das Verschrotten
+    # rechnete deshalb mit ``quantity`` weiter und zerstörte aus einer Abweichung heraus die
+    # GANZE Charge (Testnotizen #412/#414).
+    held_quantity: float = 0
     # Wie sich die Menge dieser Instanz auf die Aufträge verteilt – damit der Auftrag zeigen
     # kann, dass ein Teil gerade woanders liegt («2 Stk → Auftrag 100000456»). Dieselbe
     # Aussage wie im Instanz-Detail, nur gespiegelt.

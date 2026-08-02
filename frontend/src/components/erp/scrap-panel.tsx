@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Trash2, Lock, CheckCircle2, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderInstance } from '@/types';
-import { instanceStatusConfig, instanceLabel } from '@/lib/process';
+import { instanceStatusConfig, instanceLabel, heldOf } from '@/lib/process';
 import { StatusBadge, PrimaryButton, Label } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 
@@ -81,7 +81,9 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
       }],
       onComplete: () => {
         const next = new Set(acc); next.add(oid); setScanned(next);
-        setQtys((q) => (q[oid] != null ? q : { ...q, [oid]: inst.quantity ?? 1 }));   // Default = ganze Menge
+        // Default = der **Anteil dieses Auftrags**, nicht die ganze Instanz (#412/#414):
+        // von einer 4er-Charge, an der eine Abweichung 2 hält, sind «alle» eben 2.
+        setQtys((q) => (q[oid] != null ? q : { ...q, [oid]: heldOf(inst) }));
         runSequence(queue.slice(1), next);
       },
     });
@@ -166,19 +168,19 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
               background: sel ? '#fef2f2' : '#fff',
             }}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
-              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.quantity, order.article_unit ?? undefined)}</span>
-              {mode === 'scrap' && sel && (i.quantity ?? 1) > 1 && (
+              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(heldOf(i), order.article_unit ?? undefined)}</span>
+              {mode === 'scrap' && sel && heldOf(i) > 1 && (
                 // Charge: Teilmenge zum Verschrotten wählen (Bruchmenge möglich, z. B. 0.75 … volle Menge).
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#64748b' }}>
-                  <input type="number" min={0} step="any" max={i.quantity ?? 1}
-                    value={qtys[oid] ?? i.quantity ?? 1}
+                  <input type="number" min={0} step="any" max={heldOf(i)}
+                    value={qtys[oid] ?? heldOf(i)}
                     onChange={(e) => {
                       const raw = Math.round((Number(e.target.value) || 0) * 1000) / 1000;
-                      const v = Math.min(i.quantity ?? 1, Math.max(0, raw)) || 0;
+                      const v = Math.min(heldOf(i), Math.max(0, raw)) || 0;
                       setQtys((q) => ({ ...q, [oid]: v }));
                     }}
                     style={{ width: 60, padding: '3px 6px', fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, textAlign: 'right' }} />
-                  <span>/ {i.quantity}</span>
+                  <span>/ {heldOf(i)}</span>
                 </span>
               )}
               {sel ? (

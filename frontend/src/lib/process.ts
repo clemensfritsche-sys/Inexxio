@@ -26,6 +26,22 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
 };
 
 /**
+ * **Wie viel dieser Instanz gehört DIESEM Auftrag?** – die eine Antwort im Frontend
+ * (Testnotizen #412/#414), Spiegel von ``subject.held_quantity``.
+ *
+ * Eine Instanz ist eine Menge, und ihre Menge ist auf Aufträge aufgeteilt. Jede Aussage
+ * eines Auftrags über «diese Instanz» meint seinen **Anteil** – wie viele Stück er bewegt,
+ * aussondert oder anzeigt. Wer stattdessen ``quantity`` liest, rechnet mit fremdem Material:
+ * genau so verschrottete eine Abweichung, die 2 von 4 hielt, die ganze Charge.
+ *
+ * Der Rückfall auf ``quantity`` gilt für Zusammenhänge ohne Auftrag (Instanz-Detail,
+ * Bestandsliste) – dort ist die ganze Instanz die richtige Antwort.
+ */
+export function heldOf(i: { held_quantity?: number | null; quantity?: number | null }): number {
+  return i.held_quantity ?? i.quantity ?? 0;
+}
+
+/**
  * **Der Zustand eines Prozessschritts in Worten** – EINE Stelle für das ganze Frontend.
  *
  * Im Fluss selbst steht der Zustand als Symbol (Haken · Pause · Kreuz) und über die Farbe;

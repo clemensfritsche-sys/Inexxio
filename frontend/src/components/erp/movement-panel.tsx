@@ -6,7 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, LocationType, Order, UserProfile, OrderInstance, ShipmentEmbed, TransportMode } from '@/types';
 import type { ScanCandidate, ScanKind, ScanStep } from '@/lib/scan';
-import { LOCATION_META, locationTypeLabel, instanceLabel } from '@/lib/process';
+import { LOCATION_META, locationTypeLabel, instanceLabel, heldOf } from '@/lib/process';
 import { formatObjectId, userDisplayName } from '@/lib/utils';
 
 import { ObjId } from '@/components/erp/obj-id';
@@ -234,8 +234,8 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
                 {instanceLabel()}
-                {i.move_quantity != null && (
-                  <span style={{ marginLeft: 6, fontWeight: 700, color: '#0f172a' }}>· bewegt {i.move_quantity} Stk</span>
+                {heldOf(i) < (i.quantity ?? 0) && (
+                  <span style={{ marginLeft: 6, fontWeight: 700, color: '#0f172a' }}>· bewegt {heldOf(i)} Stk</span>
                 )}
               </span>
               {t ? (

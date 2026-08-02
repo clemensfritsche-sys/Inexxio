@@ -3866,8 +3866,11 @@ export interface components {
             location_label?: string | null;
             /** Physical Location Label */
             physical_location_label?: string | null;
-            /** Move Quantity */
-            move_quantity?: number | null;
+            /**
+             * Held Quantity
+             * @default 0
+             */
+            held_quantity: number;
             /**
              * Shares
              * @default []

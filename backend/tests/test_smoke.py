@@ -4011,3 +4011,61 @@ def test_the_flow_shows_the_branch_in_both_directions():
     assert "cache" in teaser, (
         "Derselbe Unter-Auftrag steht in der Auftrags-Liste UND an seinem Schritt – "
         "seine Ableitung darf je Antwort nur einmal laufen.")
+
+
+def test_an_order_only_scraps_the_share_it_holds():
+    """**Aussondern wirkt auf den ANTEIL, nicht auf die Instanz** (Testnotizen #412/#414).
+
+    Eine Instanz ist eine Menge, und ihre Menge ist auf Aufträge aufgeteilt: von einer
+    4er-Charge können 2 diesem Auftrag und 2 einer Abweichung gehören. ``_scrap_one`` mass
+    «ganz» aber an ``inst.quantity`` – eine Abweichung, die 2 hielt, verschrottete damit
+    **alle 4**: fremdes Material weg, und der Eltern-Auftrag stand mit einer Fehlmenge da,
+    die niemand verursacht hatte.
+
+    Dieselbe Frage hat längst eine Antwort (``subject.held_quantity``, Notiz #399) – sie
+    wird hier nur endlich gestellt. Und die Oberfläche liest sie ebenso, statt eine zweite
+    Rechnung aufzumachen (``lib/process.heldOf``)."""
+    import inspect as _inspect
+    from pathlib import Path
+
+    from app.services import scrap
+
+    src = _inspect.getsource(scrap._scrap_one)
+    assert "held = held_quantity(order, inst)" in src, (
+        "Der Massstab ist der Anteil des Auftrags, nicht die ganze Instanz.")
+    assert "held >= to_qty(inst.quantity)" in src, (
+        "«Ganz» heisst nur dann ganz, wenn der Auftrag die ganze Instanz hält.")
+    assert "der Auftrag hält nur" in src, "Mehr als den eigenen Anteil kann niemand aussondern."
+
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src"
+    assert "export function heldOf" in (fe / "lib" / "process.ts").read_text(encoding="utf-8")
+    for name in ("scrap-panel.tsx", "order-positions.tsx", "movement-panel.tsx"):
+        assert "heldOf(" in (fe / "components" / "erp" / name).read_text(encoding="utf-8"), (
+            f"{name} rechnet noch mit der ganzen Instanz statt mit dem Anteil des Auftrags")
+
+
+def test_the_decision_is_a_gate_in_the_flow():
+    """**Entscheidungen sind Gates, keine Notizen darunter** (Testnotiz #413).
+
+    Ein Abzweig ist ein **paralleler Pfad** im selben Prozess, kein eingerückter Kasten
+    daneben: die Linie teilt sich (``Fork``), die Hauptspur läuft weiter bzw. **wartet**
+    (``MainLane``, gestrichelt), und unten führen die Pfade zusammen (``Merge``). Am
+    Zusammenfluss steht das **Gate** – die Raute, an der die Unterdeckung entschieden wird
+    und an der danach die Antwort steht.
+
+    Damit ist die Entscheidung ein Knoten im Fluss statt einer Notiz unter ihm: man sieht,
+    wo sie hingehört und was aus ihr wurde. Die frühere ``ProcessHoldNotice`` ist entfallen –
+    zwei Orte für dieselbe Frage gibt es nicht mehr."""
+    from pathlib import Path
+
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
+    flow = (fe / "order-flow.tsx").read_text(encoding="utf-8")
+    for part in ("function Fork", "function Merge", "function MainLane",
+                 "function Gateway", "function BranchGroup", "function gateState"):
+        assert part in flow, f"Dem Fluss fehlt {part}"
+    assert "waiting={open && gate !== 'resolved'}" in flow, (
+        "Die Hauptspur ist gestrichelt, solange sie wartet – das IST die Aussage.")
+    detail = (fe / "order-detail.tsx").read_text(encoding="utf-8")
+    assert "ProcessHoldNotice" not in detail, (
+        "Die Fehlmenge-Notiz unter dem Fluss ist im Gate aufgegangen – eine Frage, ein Ort.")
+    assert "decision={needsDecision ?" in detail

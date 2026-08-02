@@ -2,7 +2,7 @@
 
 import { Boxes, MapPin } from 'lucide-react';
 import type { LocationType, Order, OrderInstance } from '@/types';
-import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
+import { instanceStatusConfig, LOCATION_META, heldOf } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { ObjId } from '@/components/erp/obj-id';
 import { ReadField, StatusBadge } from '@/components/erp/fields';
@@ -83,7 +83,9 @@ function InstanceLine({ instance: i, unit }: { instance: OrderInstance; unit: st
   // Die Menge steht bei JEDER Instanz (Notiz #265): bei einer Charge trägt sie die
   // eigentliche Information, beim Einzelstück schafft sie Einheitlichkeit – man sucht
   // die Angabe nicht mal hier, mal dort.
-  const qty = i.quantity != null ? `${i.quantity} ${unit}`.trim() : null;
+  // **Der Anteil dieses Auftrags**, nicht die ganze Instanz (#414): eine 4er-Charge,
+  // von der dem Auftrag 2 gehören, ist hier «2 Stk» – die anderen 2 sind fremd.
+  const qty = `${heldOf(i)} ${unit}`.trim() || null;
   return (
     <div style={rowGrid}>
       <ObjId value={i.object_id} />

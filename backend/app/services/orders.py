@@ -31,7 +31,7 @@ from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label, location_labels, physical_location_labels
 from .resource import build_resource_embed
-from .subject import order_instances, subject_kind
+from .subject import held_quantity, order_instances, subject_kind
 
 _STAFF_ROLES = ("admin", "employee")
 
@@ -684,11 +684,10 @@ def _instance_embeds(db: Session, order: Order, instances: list) -> list[Instanc
         emb.location_label = loc_labels.get((i.location_type, i.location_id))
         if i.location_type == "instance":
             emb.physical_location_label = phys_labels.get((i.location_type, i.location_id))
-        # Betrifft der Auftrag nur eine Teilmenge dieser Charge (z. B. 10 von 1000), die
-        # reservierte Menge fürs Bewegungs-Panel mitgeben (sonst NULL = ganze Instanz).
-        share = reserved_for(i, order.id)
-        if to_qty(0) < share < to_qty(i.quantity):
-            emb.move_quantity = float(share)
+        # **Der Anteil DIESES Auftrags an dieser Instanz** – immer gesetzt, nicht nur bei
+        # einer Teilmenge: jede Aussage eines Auftrags über «diese Instanz» meint seinen
+        # Anteil (bewegen, verschrotten, anzeigen). Eine Stelle, alle Leser.
+        emb.held_quantity = float(held_quantity(order, i))
         out.append(emb)
     return out
 

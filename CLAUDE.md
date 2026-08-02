@@ -3515,6 +3515,52 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   einem Abzweig steht die Entstehung ohnehin am Ursprungsschritt des Eltern-Auftrags.
   Wächter: `test_a_sub_order_is_drawn_as_a_process_inside_the_process`.
 
+- **Testnotizen #412–#415 (der Anteil ist der Massstab; Entscheidungen sind Gates)**:
+  (1) **Aussondern wirkt auf den ANTEIL des Auftrags, nicht auf die Instanz** (#412/#414,
+  `scrap._scrap_one`): Eine 4er-Charge kann zu 2 einem Auftrag und zu 2 einer Abweichung
+  gehören. «Ganz» wurde aber an `inst.quantity` gemessen – eine Abweichung, die 2 hielt,
+  verschrottete damit **alle 4**: fremdes Material weg, `disposition='scrapped'`, und der
+  Eltern-Auftrag stand mit einer Fehlmenge da, die niemand verursacht hatte. Genau das
+  meldeten beide Notizen («nur ein Stück verschrottet» → «Verschrottet»; «nur 2 von 4» →
+  «4 Stk. Verschrottet»). Die Frage hat längst eine Antwort – `subject.held_quantity`
+  (Notiz #399, dort für den Prüfumfang) –, sie wurde hier nur nie gestellt. Jetzt gilt:
+  «ganz» heisst nur dann ganz, wenn der Auftrag die **ganze** Instanz hält; sonst ist auch
+  «alles» eine Teilmenge (Menge sinkt, Rest bleibt fremd), und mehr als den eigenen Anteil
+  weist der Server ab (400).
+  **Im gleichen Zug ist die Anzeige entdoppelt:** `InstanceEmbed.move_quantity` war in
+  Wahrheit schon «der Anteil dieses Auftrags», hiess aber nach seinem einzigen Zweck und
+  war NULL, sobald der Auftrag die ganze Instanz hielt. Es heisst jetzt `held_quantity`,
+  ist im Auftrags-Kontext **immer** gesetzt, und alle Leser teilen es sich (Bewegungs-Panel,
+  Aussondern-Panel, Positionsliste, Entwurfs-Auswahl) – im Frontend über die eine Stelle
+  `lib/process.heldOf`.
+  **Zur Idee «Charge in xxx_1, xxx_2 … zerlegen» (#412): bewusst NICHT gebaut.** Das
+  Anteils-Modell beantwortet «wie viel gehört wem» bereits vollständig (`instances.
+  reservations`); der Fehler war, dass das Aussondern es ignoriert hat. Eine Zerlegung
+  brächte dagegen genau die Probleme zurück, wegen derer eine Instanz eine **Menge** ist:
+  Bruchmengen (2.5 kg lassen sich nicht in Stücke schneiden), die systemweit eindeutige
+  Objektnummer (QR-Scan, Referenzen, Standort-Kette) und 1000 Zeilen je Reservierung.
+  (2) **#415 war eine Folge davon** – gegen echtes PostgreSQL nachgewiesen: mit korrekter
+  Teilmenge (2 von 4) reduziert «Menge reduzieren» den Auftrag sauber auf 2, die Fehlmenge
+  ist weg und der Schritt wieder aktiv. Mit der ganzen Charge verschrottet blieb nichts
+  übrig, und «Menge reduzieren» wurde folgerichtig zum Abbruch.
+  (3) **Der Abzweig ist ein paralleler Pfad mit Gates** (#413, `order-flow.tsx`): klassische
+  Flowchart-Grammatik statt eingerücktem Kasten – die Linie **teilt sich** (`Fork`, ⊓), links
+  läuft die **Hauptspur** (`MainLane`), rechts der Abzweig mit seinem eigenen Prozess, unten
+  führen die Pfade **zusammen** (`Merge`, ⊔). Der Zustand der Hauptspur IST die Aussage:
+  **gestrichelt** = hier fliesst nichts, bis der Abzweig durch ist · **durchgezogen** = der
+  Hauptprozess läuft weiter, während der Abzweig daneben arbeitet.
+  **Am Zusammenfluss steht das Gate** (`Gateway`, Raute) – und damit ist die
+  Unterdeckungs-Entscheidung ein **Knoten im Prozess** statt einer Notiz darunter: offen →
+  anklickbar («Es fehlt 2 Stk · entscheiden»), wartend → Uhr, entschieden → die Auflösung
+  («Menge angepasst 4 → 2»). Alle drei Zustände sind **abgeleitet** (`gateState`) aus
+  Auflösungen, Abzweig-Status und Fehlmenge – kein neues Feld. Steht der Prozess ohne
+  Abzweig still (Ausschuss in der Erzeugung), bekommt die Entscheidung dieselbe Raute vor
+  dem Schritt, der nicht weiterkommt – EIN Baustein, zwei Plätze. `ProcessHoldNotice` ist
+  entfallen: es gibt keine zweite Stelle mehr für dieselbe Frage.
+  Wächter: `test_an_order_only_scraps_the_share_it_holds`,
+  `test_the_decision_is_a_gate_in_the_flow`; gegen echtes PostgreSQL verifiziert
+  (`note412.py`/`note415.py`), alle 17 Harnesses grün.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
