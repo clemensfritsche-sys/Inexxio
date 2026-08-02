@@ -42,23 +42,43 @@ def covering_sub_orders(db: Session, parent: Order, article_ids: set | None = No
     war die Sackgasse: der Eltern zeigte «wartet auf …», blendete darum die Deckungs-Wege
     aus, und ein zweiter Nachschub galt als überflüssig. Kein Weg nach vorn.
 
+    **Die Kette zählt, nicht nur das direkte Kind** (Testnotiz #406). Nimmt eine Abweichung
+    der Abweichung alles, wird die mittlere gegenstandslos und **abgebrochen** – gehalten
+    wird die Menge dann von der untersten. Wer nur die direkten Kinder ansieht, findet
+    niemanden mehr und stellt die Frage erneut: eine **tote Entscheidung**, obwohl längst
+    entschieden ist und es läuft. Gesucht ist der Auftrag, der die Menge **wirklich** hält –
+    darum wird die Kette nach unten verfolgt (zyklensicher, begrenzt).
+
     Zwei Leser, eine Definition: die Anzeige «worauf wartet der Auftrag»
     (``orders._fill_step_shortfall``) und die Idempotenz von ``ensure_supply``."""
     if not parent.object_id:
         return []
-    rows = (
-        db.query(Order)
-        .filter(Order.parent_order_id == parent.object_id, Order.is_active == True,
-                Order.reason.in_(("deviation", "supply")),
-                Order.status.in_(("draft", "released")))
-        .order_by(Order.object_id)
-        .all()
-    )
-    return [
-        o for o in rows
-        if (o.reason == "deviation" or article_ids is None or o.article_id in article_ids)
-        and not process.is_stalled(db, o)
-    ]
+    out: list[Order] = []
+    seen: set[int] = {parent.id}
+    frontier = [parent.object_id]
+    for _ in range(10):                              # Tiefen-Schranke statt Endlosschleife
+        if not frontier:
+            break
+        rows = (
+            db.query(Order)
+            .filter(Order.parent_order_id.in_(frontier), Order.is_active == True,
+                    Order.reason.in_(("deviation", "supply")))
+            .order_by(Order.object_id)
+            .all()
+        )
+        frontier = []
+        for o in rows:
+            if o.id in seen:
+                continue
+            seen.add(o.id)
+            if o.status in ("draft", "released"):
+                if ((o.reason == "deviation" or article_ids is None or o.article_id in article_ids)
+                        and not process.is_stalled(db, o)):
+                    out.append(o)
+            elif o.status == "inactive" and o.object_id:
+                # Abgebrochen: er hält nichts mehr, aber SEIN Nachfolger tut es.
+                frontier.append(o.object_id)
+    return sorted(out, key=lambda o: o.object_id or 0)
 
 
 def ensure_supply(db: Session, order: Order, actor_id: int | None,

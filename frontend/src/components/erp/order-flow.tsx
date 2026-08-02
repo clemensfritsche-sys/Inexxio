@@ -1,6 +1,6 @@
 'use client';
 
-import { Truck, Check, X, PauseCircle, TriangleAlert, PackagePlus, CheckCircle2 } from 'lucide-react';
+import { Truck, Check, X, PauseCircle, TriangleAlert, PackageMinus, PackagePlus, CheckCircle2 } from 'lucide-react';
 import type { Order, OrderDeviationInfo, OrderStep, StepResolution, StepType } from '@/types';
 import { STEP_META } from '@/lib/process';
 import { ObjId } from '@/components/erp/obj-id';
@@ -198,27 +198,45 @@ function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], st
 }
 
 /**
- * «Ersetzt» / «Ohne Ersatz weiter» – die Entscheidung, die eine Unterdeckung hier aufgelöst
- * hat. Sie steht dort, wo sie gefallen ist: am Schritt, der blockiert war. Wer/wann im Hover.
+ * **Was diesem Schritt widerfahren ist** – drei Ereignisse, drei Sätze (Testnotiz #405).
+ *
+ * Vorher gab es nur zwei Zweige: «Menge angepasst» und ein **Sammel-Else** «N ab Lager
+ * ersetzt». Damit las sich auch ein **entzogener Anteil** (`share_taken` – ein anderer
+ * Auftrag hat sich hier ein Stück geholt) als Ersatz aus dem Lager. Genau umgekehrt: dort
+ * ist etwas **weggegangen**, nicht dazugekommen – wer «Auftrag pausieren» gewählt hatte,
+ * las trotzdem «1 ab Lager ersetzt».
+ *
+ * Sie steht dort, wo sie gefallen ist: am Schritt, der blockiert war. Wer/wann im Hover.
  */
+const RESOLUTION_META: Record<string, { icon: React.ElementType; tone: string }> = {
+  quantity_confirmed: { icon: CheckCircle2, tone: 'var(--success)' },
+  covered_from_stock: { icon: PackagePlus, tone: 'var(--success)' },
+  share_taken: { icon: PackageMinus, tone: 'var(--warning)' },
+};
+
 function ResolutionLine({ r }: { r: StepResolution }) {
   const who = actorHint(r.by, r.at);
-  const Icon = r.kind === 'quantity_confirmed' ? CheckCircle2 : PackagePlus;
+  const meta = RESOLUTION_META[r.kind] ?? RESOLUTION_META.covered_from_stock;
+  const Icon = meta.icon;
+  const qty = <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{r.quantity}</b>;
   return (
     <div title={who}
       style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
         font: '500 12px var(--font-body)', color: 'var(--fg-3)', cursor: who ? 'help' : 'default' }}>
-      <Icon size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
-      {r.kind === 'quantity_confirmed' ? (
+      <Icon size={13} style={{ color: meta.tone, flexShrink: 0 }} />
+      {r.kind === 'quantity_confirmed' && (
         <span>
           Menge angepasst
           <b style={{ marginLeft: 5, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>
             {r.quantity_from} → {r.quantity_to}
           </b>
         </span>
-      ) : (
+      )}
+      {r.kind === 'covered_from_stock' && <span>{qty} ab Lager ersetzt</span>}
+      {r.kind === 'share_taken' && (
         <span>
-          <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{r.quantity}</b> ab Lager ersetzt
+          {qty} abgegeben
+          {r.other_order_object_id != null && <> an <ObjId value={r.other_order_object_id} /></>}
         </span>
       )}
       {r.article_name && <span style={{ color: 'var(--fg-4)' }}>· {r.article_name}</span>}
@@ -229,21 +247,18 @@ function ResolutionLine({ r }: { r: StepResolution }) {
 // Die drei Arten von Unter-Auftrag – EIN Muster, drei Beschriftungen. Alle drei sind
 // eigenständige Aufträge, die aus einem Schritt hervorgegangen sind; sie unterscheiden sich
 // nur darin, WARUM (siehe ``orders.reason``).
-const SUB_META: Record<string, { label: string; icon: React.ElementType; open: string; done: string }> = {
+const SUB_META: Record<string, { label: string; icon: React.ElementType; open: string }> = {
   deviation: {
     label: 'Abweichung', icon: TriangleAlert,
     open: 'Offene Abweichung – ihr Stück fehlt dem Auftrag, bis sie geklärt ist',
-    done: 'Geklärte Abweichung',
   },
   supply: {
     label: 'Nachschub', icon: PackagePlus,
     open: 'Nachschub läuft – der Schritt wird von selbst wieder aktiv',
-    done: 'Erledigter Nachschub',
   },
   provisioning: {
     label: 'Bereitstellung', icon: Truck,
     open: 'Material wird an seinen Ort gebracht',
-    done: 'Material ist an seinem Ort',
   },
 };
 
@@ -269,7 +284,10 @@ function SubOrderCard({ info, onOpen }: {
   const cfg = orderStatus({ status: info.status as Order['status'], abort_into_id: info.abort_into_id });
   return (
     <div style={{ width: '100%', maxWidth: STEP_MAXW, display: 'flex', paddingLeft: 30 }}>
-      <button type="button" onClick={() => onOpen?.(info.object_id)} title={open ? meta.open : meta.done}
+      {/* Der Hover sagt den **Zustand**, nicht ein festes «Geklärt» (Notiz #408): ein
+          abgebrochener Unter-Auftrag ist nicht geklärt – er wurde abgelöst. */}
+      <button type="button" onClick={() => onOpen?.(info.object_id)}
+        title={open ? meta.open : `${meta.label}: ${cfg.label}`}
         style={{
           flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left',
           padding: '11px 14px', borderRadius: 'var(--r-lg)', cursor: 'pointer',

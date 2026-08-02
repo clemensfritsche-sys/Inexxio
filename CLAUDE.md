@@ -3415,6 +3415,28 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`note404.py` 10/10 – die Kette über den abgebrochenen Auftrag hinweg, kein Überschuss,
   keine falsche Ersatz-Zeile, 2 Proben bleiben 2; plus alle 16 Harnesses).
 
+- **Testnotizen #405/#406/#408 (kein Sammel-Else, keine tote Entscheidung)**:
+  (1) **Ein entzogener Anteil ist kein Ersatz** (#405). Die Auflösungs-Zeile im Ablauf
+  kannte zwei Zweige – «Menge angepasst» und ein **Sammel-Else** «N ab Lager ersetzt». Es
+  gibt aber DREI Ereignisse; das dritte (`share_taken`, ein anderer Auftrag hat sich hier
+  ein Stück geholt) fiel ins Else und las sich als Ersatz aus dem Lager. Wer «Auftrag
+  pausieren» gewählt hatte, sah trotzdem «1 ab Lager ersetzt» – genau umgekehrt, dort ist
+  etwas **weggegangen**. Jetzt drei Zweige, drei Sätze («… abgegeben an Auftrag …»).
+  (2) **Wer die Menge wirklich hält, macht das Warten aus** (#406/#408). Nimmt eine
+  Abweichung der Abweichung alles, wird die mittlere gegenstandslos und **abgebrochen** –
+  gehalten wird die Menge dann von der untersten. `supply.covering_sub_orders` sah nur die
+  **direkten** Kinder, fand niemanden mehr und der Eltern stellte die Unterdeckungs-Frage
+  erneut: eine **tote Entscheidung**, obwohl längst entschieden ist und es läuft. Sie folgt
+  jetzt der Kette nach unten (zyklensicher, Tiefen-Schranke) – der Auftrag zeigt «wartet auf
+  …» und nennt den, der die Menge hält. Gegenstück zu `subject.lender_of`, das beim
+  Zurückgeben nach oben läuft.
+  (3) **Der Hover sagt den Zustand** (#408): ein abgebrochener Unter-Auftrag stand als
+  «Geklärte Abweichung» da – er ist aber nicht geklärt, er wurde abgelöst. Der Knoten liest
+  jetzt seine eigene Status-Badge; die feste `done`-Beschriftung ist entfallen.
+  Wächter: `test_a_taken_share_is_not_a_replacement`,
+  `test_waiting_follows_the_chain_so_there_is_no_dead_decision`; gegen echtes PostgreSQL
+  verifiziert (`note404.py` 13/13).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

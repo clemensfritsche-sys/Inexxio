@@ -3942,3 +3942,38 @@ def test_a_finished_inspection_keeps_the_samples_it_captured():
     src = _inspect.getsource(orders._inspection_embed)
     assert 'insp.result in ("passed", "failed")' in src
     assert src.index("ie.required_count = len(ie.samples)") < src.index("sample_targets(db, order, step)")
+
+
+def test_a_taken_share_is_not_a_replacement():
+    """**Drei Ereignisse, drei Sätze – kein Sammel-Else** (Testnotiz #405).
+
+    Die Auflösungs-Zeile kannte nur «Menge angepasst» und *alles andere* = «N ab Lager
+    ersetzt». Damit las sich auch ein **entzogener** Anteil (``share_taken`` – ein anderer
+    Auftrag hat sich hier ein Stück geholt) als Ersatz aus dem Lager: wer «Auftrag
+    pausieren» gewählt hatte, sah trotzdem «1 ab Lager ersetzt». Genau umgekehrt – dort ist
+    etwas weggegangen."""
+    from pathlib import Path
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
+    flow = (fe / "order-flow.tsx").read_text()
+    for kind in ("quantity_confirmed", "covered_from_stock", "share_taken"):
+        assert f"r.kind === '{kind}'" in flow, kind
+    assert "abgegeben" in flow, "Ein entzogener Anteil ging WEG – er kam nicht dazu."
+
+
+def test_waiting_follows_the_chain_so_there_is_no_dead_decision():
+    """**Wer die Menge wirklich hält, macht das Warten aus** (Testnotiz #406).
+
+    Nimmt eine Abweichung der Abweichung alles, wird die mittlere gegenstandslos und
+    abgebrochen – gehalten wird die Menge dann von der untersten. Wer nur die direkten
+    Kinder ansah, fand niemanden mehr und stellte die Frage erneut: eine **tote
+    Entscheidung**, obwohl längst entschieden ist und es läuft.
+
+    «Wartet» ist ein Zustand, kein Knopf (#354) – also muss die Antwort denjenigen finden,
+    der die Menge hält, und nicht bloss den direkten Nachbarn."""
+    import inspect as _inspect
+    from app.services import supply
+
+    src = _inspect.getsource(supply.covering_sub_orders)
+    assert "frontier" in src and 'o.status == "inactive"' in src, (
+        "Ein abgebrochener Unter-Auftrag hält nichts mehr – aber SEIN Nachfolger tut es.")
+    assert "range(10)" in src, "Tiefen-Schranke statt Endlosschleife."
