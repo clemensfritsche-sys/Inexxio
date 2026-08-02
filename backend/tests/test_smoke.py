@@ -1082,7 +1082,9 @@ def test_provisioning_keeps_parent_subject_binding():
     for fn in (provisioning._create, provisioning._settle):
         src = _inspect_source_fn(fn)
         assert "subject_of_order_id =" not in src, f"{fn.__name__} hängt die Bindung um"
-    assert "record_link(db, inst.object_id, sub.id)" in _inspect_source_fn(provisioning._create)
+    # Die **Tatsache** prüfen, nicht die Schreibweise: die Bereitstellung hält die Instanz
+    # nur über den Historien-Link fest (seit #413 mitsamt der übernommenen Menge).
+    assert "record_link(db, inst.object_id, sub.id" in _inspect_source_fn(provisioning._create)
 
 
 def test_provisioning_has_fixed_subject_and_cannot_recurse():
@@ -4047,24 +4049,22 @@ def test_an_order_only_scraps_the_share_it_holds():
 def test_the_decision_is_a_gate_in_the_flow():
     """**Entscheidungen sind Gates, keine Notizen darunter** (Testnotiz #413).
 
-    Ein Abzweig ist ein **paralleler Pfad** im selben Prozess, kein eingerückter Kasten
-    daneben: die Linie teilt sich (``Fork``), die Hauptspur läuft weiter bzw. **wartet**
-    (``MainLane``, gestrichelt), und unten führen die Pfade zusammen (``Merge``). Am
-    Zusammenfluss steht das **Gate** – die Raute, an der die Unterdeckung entschieden wird
-    und an der danach die Antwort steht.
+    Eine Raute ist im Flowchart das Zeichen für «hier wird entschieden» – und genau das
+    passiert an einer Unterdeckung. Offen ist das Gate **anklickbar** und stellt die eine
+    Frage; ist entschieden, trägt dieselbe Raute die Antwort («Menge angepasst 4 → 2»).
+    Damit ist die Entscheidung ein Knoten im Fluss statt einer Notiz unter ihm.
 
-    Damit ist die Entscheidung ein Knoten im Fluss statt einer Notiz unter ihm: man sieht,
-    wo sie hingehört und was aus ihr wurde. Die frühere ``ProcessHoldNotice`` ist entfallen –
-    zwei Orte für dieselbe Frage gibt es nicht mehr."""
+    Die frühere ``ProcessHoldNotice`` ist entfallen – zwei Orte für dieselbe Frage gibt es
+    nicht mehr."""
     from pathlib import Path
 
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
     flow = (fe / "order-flow.tsx").read_text(encoding="utf-8")
-    for part in ("function Fork", "function Merge", "function MainLane",
-                 "function Gateway", "function BranchGroup", "function gateState"):
+    for part in ("function Gateway", "function gateFor", "function ResolutionLine"):
         assert part in flow, f"Dem Fluss fehlt {part}"
-    assert "waiting={open && gate !== 'resolved'}" in flow, (
-        "Die Hauptspur ist gestrichelt, solange sie wartet – das IST die Aussage.")
+    assert "transform: 'rotate(45deg)'" in flow, "Ein Gate ist eine Raute."
+    for kind in ("quantity_confirmed", "covered_from_stock", "share_taken"):
+        assert f"r.kind === '{kind}'" in flow, kind
     detail = (fe / "order-detail.tsx").read_text(encoding="utf-8")
     assert "ProcessHoldNotice" not in detail, (
         "Die Fehlmenge-Notiz unter dem Fluss ist im Gate aufgegangen – eine Frage, ein Ort.")

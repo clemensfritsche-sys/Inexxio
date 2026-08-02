@@ -76,6 +76,9 @@ _COLUMN_SAFETY_NET = (
     ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("orders", "article_id", "BIGINT"),
     ("orders", "quantity", "NUMERIC(14,3)"),
+    # Materialfluss (Migration 097): wie viel eine Instanz an diesen Auftrag ging.
+    # Neue Spalte auf einer BESTEHENDEN Tabelle → gehört ins Netz (Lehre aus 090).
+    ("instance_order_links", "quantity", "NUMERIC(14,3)"),
     ("orders", "desired_delivery_date", "DATE"),
     # Woher ein Entwurf seine **Anteile** nimmt (Migration 096): ohne die Spalte müsste die
     # Freigabe raten, welchem Auftrag sie ein Stück wegnimmt.

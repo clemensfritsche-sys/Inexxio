@@ -82,19 +82,28 @@ def _blocked_step(db: Session, order: Order, article_id: int | None) -> int | No
     return process.blocked_step_for_article(db, order, article_id) if article_id else None
 
 
-def record_link(db: Session, instance_object_id: int | None, order_id: int) -> None:
+def record_link(db: Session, instance_object_id: int | None, order_id: int,
+                quantity: Decimal | None = None) -> None:
     """Verarbeitung einer Instanz durch einen Auftrag **dauerhaft** festhalten (idempotent) –
-    unabhängig von späteren Bindungen/Reservierungen (siehe ``InstanceOrderLink``)."""
+    unabhängig von späteren Bindungen/Reservierungen (siehe ``InstanceOrderLink``).
+
+    ``quantity``: **wie viel** der Auftrag übernommen hat. Die Reservierung wird bei
+    Abschluss gelöst; ohne diese Zahl wäre danach nicht mehr beantwortbar, wie viel je
+    hineinging – und genau das zeigt der Fluss an seinen Kanten (Notiz #413). Wird die
+    Menge nachgereicht (zweiter Aufruf mit Wert), füllt sie eine noch leere Zeile."""
     if not instance_object_id:
         return
-    exists = (
-        db.query(InstanceOrderLink.id)
+    row = (
+        db.query(InstanceOrderLink)
         .filter(InstanceOrderLink.instance_object_id == instance_object_id,
                 InstanceOrderLink.order_id == order_id)
         .first()
     )
-    if not exists:
-        db.add(InstanceOrderLink(instance_object_id=instance_object_id, order_id=order_id))
+    if row is None:
+        db.add(InstanceOrderLink(instance_object_id=instance_object_id, order_id=order_id,
+                                 quantity=quantity))
+    elif quantity is not None and row.quantity is None:
+        row.quantity = quantity
 
 
 def held_quantity(order: Order, inst) -> Decimal:
@@ -477,7 +486,6 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
     if not bound:
         raise HTTPException(409, detail="Für diesen Unter-Auftrag sind keine Instanzen gewählt")
     for inst in bound:
-        record_link(db, inst.object_id, order.id)
         # Steht der Anspruch schon (beim Auswählen/Melden gesetzt, ggf. als Teilmenge),
         # bleibt er wie er ist – sonst gilt die ganze Instanz.
         if is_in_stock(inst) and reserved_for(inst, order.id) <= 0:
@@ -488,6 +496,9 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
         # Die Stelle gilt für BEIDE Wege: die Auswahl im Auftrag ebenso wie die
         # systemseitige Abweichung (fehlgeschlagene Datenerfassung, Artikel-Deaktivierung).
         enforce_pick(db, order, inst)
+        # Die übernommene MENGE dauerhaft festhalten – die Reservierung wird bei Abschluss
+        # gelöst, der Materialfluss braucht sie danach noch (Notiz #413).
+        record_link(db, inst.object_id, order.id, held_quantity(order, inst))
     log_audit(db, "instances", None, "Unter-Auftrag übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
@@ -522,7 +533,7 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) ->
         # vorgemerkt, gewinnt der, der zuerst freigibt (``reservation.enforce``).
         enforce_pick(db, order, inst)
         claimed += want
-        record_link(db, inst.object_id, order.id)
+        record_link(db, inst.object_id, order.id, want)
     remaining = to_qty(quantity) - claimed
     if remaining <= 0:
         return                                             # vollständig durch fixierte gedeckt

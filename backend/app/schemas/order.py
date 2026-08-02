@@ -102,6 +102,29 @@ class StepResolution(BaseModel):
     by: Optional[str] = None
 
 
+class OrderRef(BaseModel):
+    """Ein Auftrag, kurz benannt – für die Kette über einem Unter-Auftrag."""
+    object_id: int
+    name: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class FlowLot(BaseModel):
+    """**Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).
+
+    Der Prozess zeigt nicht nur, WAS getan wird, sondern **womit**: welche Instanz, wie viel
+    davon, und – am Abzweig – wie viel wieder zurückkommt. Genau daran sieht man, dass 2
+    Stück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.
+
+    Mehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist
+    es eine **Liste** und jede Zeile nennt ihren Artikel."""
+    instance_object_id: int
+    article_id: Optional[int] = None
+    article_name: Optional[str] = None
+    quantity: float
+    unit: Optional[str] = None
+
+
 class SubOrderStep(BaseModel):
     """**Ein Schritt eines Unter-Auftrags – angeteasert, nicht ausgeführt** (Notiz #409).
 
@@ -142,6 +165,14 @@ class OrderDeviationInfo(BaseModel):
     # **Sein eigener Ablauf, angeteasert** (Notiz #409): der Knoten zeigt die Module des
     # Abzweigs als Miniatur-Fluss – wie weit er ist, sieht man damit ohne ihn zu öffnen.
     steps: list[SubOrderStep] = []
+    # **Der Materialfluss durch den Abzweig** (Notiz #413): was hineinging und was
+    # zurückkommt. Sind sie verschieden, ist unterwegs etwas verloren gegangen – und genau
+    # das ist die Information, für die man sonst drei Datensätze öffnen müsste.
+    flow_in: list[FlowLot] = []
+    flow_out: list[FlowLot] = []
+    # Der Name des Abzweigs (dieselbe Ableitung wie im Feed) – der Teaser nennt die Sache,
+    # nicht nur seinen Grund.
+    name: Optional[str] = None
 
 
 class OrderOrigin(BaseModel):
@@ -161,6 +192,12 @@ class OrderOrigin(BaseModel):
     order_object_id: int
     order_name: Optional[str] = None
     order_status: Optional[str] = None
+    order_reason: Optional[str] = None
+    # **Die ganze Kette bis hier herauf** – Wurzel zuerst (Notiz #413): ein Abzweig kann
+    # selbst einen Abzweig haben, und dann will man mit einem Blick wissen, wo man steht.
+    chain: list[OrderRef] = []
+    # Die Schritte des Eltern-Prozesses (angeteasert) – man sieht, woher man kommt.
+    parent_steps: list[SubOrderStep] = []
     # Der Schritt des Eltern, aus dem dieser Unter-Auftrag hervorgegangen ist.
     step_type: Optional[str] = None
     # Wohin die Stücke beim Abschluss zurückgehen (leer = niemand wartet mehr darauf).

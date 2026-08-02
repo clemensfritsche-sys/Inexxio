@@ -3733,6 +3733,29 @@ export interface components {
             /** Resolution */
             resolution?: string | null;
         };
+        /**
+         * FlowLot
+         * @description **Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).
+         *
+         *     Der Prozess zeigt nicht nur, WAS getan wird, sondern **womit**: welche Instanz, wie viel
+         *     davon, und – am Abzweig – wie viel wieder zurückkommt. Genau daran sieht man, dass 2
+         *     Stück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.
+         *
+         *     Mehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist
+         *     es eine **Liste** und jede Zeile nennt ihren Artikel.
+         */
+        FlowLot: {
+            /** Instance Object Id */
+            instance_object_id: number;
+            /** Article Id */
+            article_id?: number | null;
+            /** Article Name */
+            article_name?: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Unit */
+            unit?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -4382,6 +4405,18 @@ export interface components {
              * @default []
              */
             steps: components["schemas"]["SubOrderStep"][];
+            /**
+             * Flow In
+             * @default []
+             */
+            flow_in: components["schemas"]["FlowLot"][];
+            /**
+             * Flow Out
+             * @default []
+             */
+            flow_out: components["schemas"]["FlowLot"][];
+            /** Name */
+            name?: string | null;
         };
         /**
          * OrderLineCreate
@@ -4453,12 +4488,36 @@ export interface components {
             order_name?: string | null;
             /** Order Status */
             order_status?: string | null;
+            /** Order Reason */
+            order_reason?: string | null;
+            /**
+             * Chain
+             * @default []
+             */
+            chain: components["schemas"]["OrderRef"][];
+            /**
+             * Parent Steps
+             * @default []
+             */
+            parent_steps: components["schemas"]["SubOrderStep"][];
             /** Step Type */
             step_type?: string | null;
             /** Returns To Object Id */
             returns_to_object_id?: number | null;
             /** Returns To Name */
             returns_to_name?: string | null;
+        };
+        /**
+         * OrderRef
+         * @description Ein Auftrag, kurz benannt – für die Kette über einem Unter-Auftrag.
+         */
+        OrderRef: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name?: string | null;
+            /** Reason */
+            reason?: string | null;
         };
         /** OrderResponse */
         OrderResponse: {

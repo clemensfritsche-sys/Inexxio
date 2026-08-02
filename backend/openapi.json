@@ -10835,6 +10835,58 @@
         "title": "FeedbackUpdate",
         "description": "Rückkopplung: erledigt/verworfen setzen (oder wieder öffnen) + Begründung."
       },
+      "FlowLot": {
+        "properties": {
+          "instance_object_id": {
+            "type": "integer",
+            "title": "Instance Object Id"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_object_id",
+          "quantity"
+        ],
+        "title": "FlowLot",
+        "description": "**Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).\n\nDer Prozess zeigt nicht nur, WAS getan wird, sondern **womit**: welche Instanz, wie viel\ndavon, und – am Abzweig – wie viel wieder zurückkommt. Genau daran sieht man, dass 2\nStück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.\n\nMehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist\nes eine **Liste** und jede Zeile nennt ihren Artikel."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -12509,6 +12561,33 @@
             "type": "array",
             "title": "Steps",
             "default": []
+          },
+          "flow_in": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLot"
+            },
+            "type": "array",
+            "title": "Flow In",
+            "default": []
+          },
+          "flow_out": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLot"
+            },
+            "type": "array",
+            "title": "Flow Out",
+            "default": []
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
           }
         },
         "type": "object",
@@ -12657,6 +12736,33 @@
             ],
             "title": "Order Status"
           },
+          "order_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Reason"
+          },
+          "chain": {
+            "items": {
+              "$ref": "#/components/schemas/OrderRef"
+            },
+            "type": "array",
+            "title": "Chain",
+            "default": []
+          },
+          "parent_steps": {
+            "items": {
+              "$ref": "#/components/schemas/SubOrderStep"
+            },
+            "type": "array",
+            "title": "Parent Steps",
+            "default": []
+          },
           "step_type": {
             "anyOf": [
               {
@@ -12697,6 +12803,42 @@
         ],
         "title": "OrderOrigin",
         "description": "**Woher dieser Unter-Auftrag kam – und wohin er zurückgibt** (Notiz #409).\n\nDer Abzweig ist im Eltern längst sichtbar (``OrderStepInfo.sub_orders``); die Gegen-\nrichtung fehlte: wer in einer Abweichung steht, sah nicht, aus welchem Auftrag und aus\nwelchem **Schritt** sie hervorgegangen ist – und schon gar nicht, wohin ihre Stücke beim\nAbschluss zurückkehren. Beides ist keine neue Wahrheit, sondern dieselbe von der anderen\nSeite gelesen: ``parent_order_id`` + ``origin_step_id`` für das Woher, und für das Wohin\ngenau die Ableitung, die es auch TUT (``subject.lender_of`` bzw. das Nachschub-Pegging) –\nkeine zweite Behauptung daneben.\n\nWichtig: das Rückgabe-Ziel ist **nicht** zwingend der Eltern. Wurde der Eltern\nabgebrochen, reicht die Ausleihe durch bis zum nächsten laufenden Auftrag (Notiz #404) –\ngenau den nennt ``returns_to_object_id``."
+      },
+      "OrderRef": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "OrderRef",
+        "description": "Ein Auftrag, kurz benannt – für die Kette über einem Unter-Auftrag."
       },
       "OrderResponse": {
         "properties": {

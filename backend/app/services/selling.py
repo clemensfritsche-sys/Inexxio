@@ -662,7 +662,7 @@ def _materialize_multiline(db: Session, order: Order, lines: list, customer: Use
                 continue
             cand.subject_of_order_id = order.id
             reserve(cand, order.id, take)
-            record_link(db, cand.object_id, order.id)
+            record_link(db, cand.object_id, order.id, take)
     log_audit(db, "instances", None, "Bestand für Verkaufsauftrag reserviert",
               customer.id, object_id=order.object_id)
 

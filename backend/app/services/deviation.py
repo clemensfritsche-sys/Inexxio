@@ -159,7 +159,6 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
         # Sofort dauerhaft in der Instanz-Historie festhalten (nicht erst bei Freigabe):
         # die Abweichung erscheint ab Anlage unter «Aufträge» der Instanz, unabhängig von
         # der wandernden ``subject_of_order_id``-Bindung (InstanceOrderLink = Quelle der Wahrheit).
-        record_link(db, inst.object_id, devi.id)
         # **Und ab der MELDUNG greifbar für niemanden sonst.** Ein am Lager liegendes Teil,
         # über das eine Abweichung läuft, war bis zur Freigabe der Abweichung weiter frei –
         # zwischen «Verdacht gemeldet» und «Auflösung konfiguriert» konnte ein anderer
@@ -170,6 +169,7 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
         # Anspruch des Auftrags, dem das Stück entzogen wird – genau daraus entsteht dort
         # die Unterdeckung (keine zweite Buchführung).
         want = (quantities or {}).get(inst.object_id, to_qty(inst.quantity))
+        record_link(db, inst.object_id, devi.id, want)
         if reserved_for(inst, devi.id) <= 0:
             claim(inst, devi.id, want)
         # **Wessen Anteil wird gegriffen?** Beim menschlichen Weg klickt man die Zeile an;

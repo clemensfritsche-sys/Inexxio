@@ -276,6 +276,12 @@ export type SubOrderStep = components['schemas']['SubOrderStep'];
 // Woher ein Unter-Auftrag kam und wohin er beim Abschluss zurückgibt – Notiz #409.
 export type OrderOrigin = components['schemas']['OrderOrigin'];
 
+// Eine Materialmenge auf einer Kante des Flusses («4 × 100000590») – Notiz #413.
+export type FlowLot = components['schemas']['FlowLot'];
+
+// Ein kurz benannter Auftrag – für die Kette über einem Unter-Auftrag.
+export type OrderRef = components['schemas']['OrderRef'];
+
 // Eine weitere Position zu einem bestehenden Auftrag hinzufügen (POST .../lines) –
 // jederzeit möglich, auch nachdem der Auftrag schon gespeichert wurde. Macht den
 // Auftrag (falls noch nicht) zu einem Mehrpositionen-Auftrag (kein «Herstellen» mehr).

@@ -18,7 +18,7 @@ import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
-import { OrderBranchTeaser, OrderFlow } from '@/components/erp/order-flow';
+import { OrderChain, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
 import { orderName } from '@/lib/record-name';
@@ -1158,9 +1158,8 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                   eines laufenden Unter-Auftrags, nur ohne Rückweg – ein Entwurf hat noch
                   kein Ende. */}
               {record.origin && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
-                  <OrderBranchTeaser origin={record.origin} kind="from" onOpen={(oid) => nav?.(oid)} />
-                </div>
+                <OrderChain origin={record.origin} currentObjectId={record.object_id}
+                  onOpen={(oid: number) => nav?.(oid)} />
               )}
               {/* FIX: suppliers war hier (und an den zwei weiteren Stellen) als [] hartkodiert –
                   ein Beschaffungs-Schritt am Auftrag konnte NIE einen Lieferanten wählen
@@ -1206,6 +1205,13 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         {/* Prozess */}
         {showProcess ? (
           <>
+            {/* **Wo stehe ich?** – die Kette vom Hauptauftrag bis hierher (#413). Ein
+                Abzweig kann selbst einen Abzweig haben; ohne sie weiss man nach zwei
+                Sprüngen nicht mehr, in welchem Vorgang man gelandet ist. */}
+            {record.origin && (
+              <OrderChain origin={record.origin} currentObjectId={record.object_id}
+                onOpen={(oid: number) => nav?.(oid)} />
+            )}
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             {/* Frei im Weissraum, wie der Editor am Artikel – kein zweiter Karten-Hintergrund
                 um einen Fluss, der schon aus Karten besteht. */}
@@ -1239,6 +1245,11 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                   canAct: isStaff && record.status === 'released' && !(supplyBusy || recoverBusy),
                   onDecide: () => setDecideOpen(true),
                 } : undefined}
+                // **Der Materialfluss auf den Kanten** (#413): welche Instanz, wie viel –
+                // und am Abzweig, wie viel zurückkam. Grundlage ist der Anteil, den der
+                // Auftrag hält; die Mengen weiter oben rechnet der Fluss daraus zurück.
+                instances={record.instances ?? []}
+                orderObjectId={record.object_id}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}

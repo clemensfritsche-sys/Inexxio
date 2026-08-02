@@ -3561,6 +3561,47 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_decision_is_a_gate_in_the_flow`; gegen echtes PostgreSQL verifiziert
   (`note412.py`/`note415.py`), alle 17 Harnesses grün.
 
+- **Der Fluss zeigt das MATERIAL, nicht nur die Module (#413 Layout, Migration `097`)**:
+  Der Nutzer hat das Ziel-Layout in Claude Design entworfen; umgesetzt ist das **Konzept**,
+  nicht die Pixel.
+  (1) **Die Achse wird nie gekappt** (`components/erp/order-flow.tsx`): der Hauptprozess
+  läuft in EINER senkrechten Achse (Breite `MAIN`), ein Unter-Auftrag hängt als **Ast**
+  rechts daran (`BranchArm`). Die Zwischenstufe – ihn im Fluss auszuklappen (Fork/Merge,
+  eigene Terminal-Knoten) – ist zurückgenommen: ein Unter-Auftrag ist ein **eigener
+  Datensatz** mit eigenem Fenster; ihn hier auszubreiten baut dasselbe zweimal.
+  (2) **Der Abzweig ist bewusst ANGESCHNITTEN** (`BranchTeaser`): Objektnummer als Reiter
+  auf dem Rand, Name, Status und seine Module – dann läuft er rechts über eine
+  CSS-Maske aus. Das ist die Einladung, ihn zu öffnen (ein Klick lädt den Datensatz),
+  statt einer harten Kante.
+  (3) **Auf jeder Kante steht, WAS fliesst** (`EdgePill`): «4 × 100000590». Die eigentliche
+  Geschichte eines Auftrags ist nicht die Reihe seiner Module, sondern das Material – welche
+  Instanz, wie viel, und was unterwegs damit passiert. Am Abzweig steht die **Bilanz**:
+  2 rein, **0 zurück** (rote Pille), weil verschrottet. Mehrere Artikel/Instanzen sind der
+  Normalfall: je Instanz eine Zeile, ab der vierten «+N» mit vollständigem Hover.
+  **Gerechnet wird von unten nach oben** – unten steht, was der Auftrag heute hält, und jeder
+  Ast gibt seine Bilanz (rein − zurück) an die Kante über sich weiter. Keine zweite
+  Buchführung, keine Event-Rekonstruktion.
+  (4) **Die Menge steht dauerhaft am Verarbeitungs-Link** (`instance_order_links.quantity`,
+  Migration `097` + Lifespan-Netz): Reservierungen werden bei Abschluss gelöst – ohne diese
+  Zahl wäre «wie viel ging da rein?» danach nicht mehr beantwortbar. `record_link` nimmt sie
+  an allen zehn Aufrufstellen entgegen; `NULL` = Altbestand, dort fällt es auf den
+  abgeleiteten Anteil zurück (tolerant lesen, streng schreiben). Was den Bestand endgültig
+  verlassen hat, kommt aus dem **Event-Strom** (`_terminal_amounts`, `inventory.decreased`) –
+  ebenso dauerhaft. Das ist zugleich das Fundament für die Instanz-Historie (Stufe 3).
+  (5) **Im Unter-Auftrag geht der Blick zurück**: `OrderChain` (wo stehe ich? – die ganze
+  Kette bis zur Wurzel, `OrderOrigin.chain`), darüber der **Eltern-Prozess als
+  angeschnittener Teaser** mit dem Ast, der hierher führte (`OriginArm`,
+  `OrderOrigin.parent_steps`), und am Ende die Rückweg-Pille (`ReturnArm`). Dieselbe
+  Bildsprache in beide Richtungen.
+  (6) **Die Modul-Karte trägt Nummer und Kurzzeile**: «Beschaffen 100000589–01 · 4 Stk ·
+  Lieferant Weber AG». Die Nummer verankert den Schritt im Auftrag, die Kurzzeile kommt aus
+  dem Embed, den der Schritt ohnehin trägt (Lieferant/Menge · Ziel · Proben) – nichts wird
+  dafür zusätzlich geladen.
+  Wächter: `test_a_sub_order_is_teased_beside_the_axis_not_unfolded_in_it`,
+  `test_the_flow_shows_what_material_moves`; gegen echtes PostgreSQL verifiziert
+  (`note413.py` 10/10 – 4 rein/4 zurück, 2 rein/**0 zurück**, Menge am Link, Kette +
+  Eltern-Teaser), alle 18 Harnesses grün.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

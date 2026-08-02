@@ -320,7 +320,7 @@ def _create(db: Session, parent: Order, step: ArticleProcessStep, insts: list[In
             t_type: str, t_id: int, actor_id: int | None) -> Order:
     """Bereitstellungs-Unter-Auftrag anlegen: Subjekt = genau diese Instanzen, Inhalt =
     EIN Bewegungs-Schritt mit dem Soll-Ort als Ziel."""
-    from .subject import record_link
+    from .subject import held_quantity, record_link
 
     # Menge = **Summe der Mengen**, nicht die Zahl der Zeilen: eine Charge à 500 ist eine
     # Instanz, aber 500 Stück. ``len(insts)`` hätte «1 Stk» in die Auftragsspezifikation
@@ -346,7 +346,7 @@ def _create(db: Session, parent: Order, step: ArticleProcessStep, insts: list[In
     # wo der Übergang gewollt ist). ``order_instances`` löst den Unter-Auftrag über die
     # Links auf, das genügt für Bewegung und Anzeige.
     for inst in insts:
-        record_link(db, inst.object_id, sub.id)
+        record_link(db, inst.object_id, sub.id, held_quantity(parent, inst))
 
     mv = ArticleProcessStep(order_id=sub.id, step_type="movement", position=1,
                             target_location_type=t_type, target_location_id=t_id)

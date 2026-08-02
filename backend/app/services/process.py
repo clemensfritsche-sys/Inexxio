@@ -1120,7 +1120,7 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
         reserve(inst, parent.id, take)
         if is_subject:
             inst.subject_of_order_id = parent.id
-            record_link(db, inst.object_id, parent.id)
+            record_link(db, inst.object_id, parent.id, take)
         remaining -= take
         pegged += take
     # FIX: Das Event nur ausgeben, wenn tatsächlich etwas gepinnt wurde – sonst meldete der

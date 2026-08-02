@@ -100,7 +100,7 @@ def _fifo_cover(db: Session, order: Order, article_id: int, need,
         was_mine = reserved_for(cand, order.id) > 0
         reserve(cand, order.id, take)
         cand.subject_of_order_id = order.id
-        record_link(db, cand.object_id, order.id)
+        record_link(db, cand.object_id, order.id, take)
         if used is not None and cand.object_id and not was_mine:
             used.append(cand.object_id)
         covered += take
@@ -141,7 +141,7 @@ def _cover_from_stock(db: Session, order: Order, instance_object_ids: list[int] 
                 raise HTTPException(409, detail=f"Instanz {oid} ist bereits reserviert")
             reserve(inst, order.id, take)
             inst.subject_of_order_id = order.id
-            record_link(db, inst.object_id, order.id)
+            record_link(db, inst.object_id, order.id, take)
             short[inst.article_id] = rem - take
             covered[inst.article_id] = covered.get(inst.article_id, ZERO) + take
             if used is not None:

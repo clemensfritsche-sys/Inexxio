@@ -17,7 +17,7 @@ from ..models import ArticleProcessStep, Order, Sale
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
-from .quantity import qty_sum
+from .quantity import qty_sum, to_qty
 from .subject import order_instances, record_link
 
 # Rückgabefenster (Tage ab Abschluss der Bestellung). Bewusst grosszügig (Online-Shop-üblich).
@@ -136,7 +136,7 @@ def request_return(db: Session, order_object_id: int, customer_id: int, reason: 
     db.flush()
     for inst in subjects:
         inst.subject_of_order_id = ret.id
-        record_link(db, inst.object_id, ret.id)
+        record_link(db, inst.object_id, ret.id, to_qty(inst.quantity))
     # Üblichen Ablauf gleich anlegen, damit das Personal nur noch ausführen muss:
     #   Bewegung (Ware zurück ins Lager) + Verkauf im Kredit-Modus (Gutschrift).
     # Der «Verkauf» ist hier eine **Gutschrift**: die Ware kommt herein statt hinaus. Der

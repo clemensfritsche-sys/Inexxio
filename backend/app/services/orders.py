@@ -20,8 +20,9 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderResponse, OrderStepInfo,
-    OrderSummary, ShortfallInstance, StepResolution, SubOrderStep, StepShortfall,
+    FlowLot, OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderRef, OrderResponse,
+    OrderStepInfo, OrderSummary, ShortfallInstance, StepResolution, SubOrderStep,
+    StepShortfall,
 )
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..models.base import utcnow
@@ -332,6 +333,86 @@ def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     return None, None
 
 
+def _terminal_amounts(db: Session, sub: Order) -> dict[int, Decimal]:
+    """**Was dieser Auftrag dem Bestand endgültig entzogen hat**, je Instanz-Objektnummer.
+
+    Aus dem Event-Strom (``inventory.decreased``) – dauerhaft und exakt, auch lange nachdem
+    Reservierungen gelöst sind. Verschrottet, verkauft oder verbaut kehrt nicht zurück; genau
+    diese Differenz macht am Abzweig den Unterschied zwischen «4 rein» und «0 zurück»."""
+    from ..models import Event
+    from .quantity import ZERO, to_qty
+    if not sub.object_id:
+        return {}
+    out: dict[int, Decimal] = {}
+    for e in (db.query(Event)
+              .filter(Event.event_type == "inventory.decreased", Event.object_type == "instance")
+              .order_by(Event.id).all()):
+        p = e.payload or {}
+        if p.get("order") != sub.object_id or e.object_id is None:
+            continue
+        out[e.object_id] = out.get(e.object_id, ZERO) + to_qty(p.get("quantity") or 0)
+    return out
+
+
+def _sub_order_flow(db: Session, sub: Order) -> tuple[list[FlowLot], list[FlowLot]]:
+    """**Der Materialfluss durch einen Abzweig** – was hineinging und was zurückkommt (#413).
+
+    *Hinein* ist die Menge, die der Auftrag übernommen hat: dauerhaft auf dem Verarbeitungs-
+    Link (``instance_order_links.quantity``, Migration 097). Für Altbestand ohne Zahl fällt
+    es auf den aktuellen Anteil zurück – tolerant lesen, streng schreiben.
+
+    *Zurück* ist dasselbe minus dem, was den Bestand endgültig verlassen hat. Damit steht am
+    Rückweg «0 ×», wenn alles verschrottet wurde – die eine Aussage, für die man sonst drei
+    Datensätze öffnen müsste."""
+    from ..models import InstanceOrderLink
+    from .quantity import ZERO, to_qty
+    insts = order_instances(db, sub)
+    if not insts:
+        return [], []
+    taken = {
+        row.instance_object_id: row.quantity
+        for row in db.query(InstanceOrderLink)
+        .filter(InstanceOrderLink.order_id == sub.id, InstanceOrderLink.is_active == True).all()
+        if row.quantity is not None
+    }
+    lost = _terminal_amounts(db, sub)
+    arts = {a.id: a for a in db.query(Article)
+            .filter(Article.id.in_({i.article_id for i in insts})).all()}
+    into: list[FlowLot] = []
+    back: list[FlowLot] = []
+    for i in insts:
+        if not i.object_id:
+            continue
+        art = arts.get(i.article_id)
+        qty = to_qty(taken.get(i.object_id) if taken.get(i.object_id) is not None
+                     else held_quantity(sub, i))
+        rest = qty - lost.get(i.object_id, ZERO)
+        base = dict(instance_object_id=i.object_id, article_id=i.article_id,
+                    article_name=(art.name if art else None), unit=(art.unit if art else None))
+        into.append(FlowLot(quantity=float(qty), **base))
+        back.append(FlowLot(quantity=float(max(rest, ZERO)), **base))
+    return into, back
+
+
+def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
+              instance_object_ids: list[int] | None = None,
+              stage: str = "before") -> OrderDeviationInfo:
+    """**Die Kurzinfo eines Unter-Auftrags – an EINER Stelle gebaut.**
+
+    Denselben Abzweig gibt es in zwei Listen (am Auftrag und an seinem Schritt); wurden sie
+    getrennt zusammengesetzt, konnte der eine Teaser mehr wissen als der andere. Jetzt eine
+    Quelle: Name, Zustand, sein Ablauf **und** der Materialfluss durch ihn (#413)."""
+    into, back = _sub_order_flow(db, sub)
+    return OrderDeviationInfo(
+        object_id=sub.object_id, status=sub.status, reason=sub.reason,
+        instance_count=len(instance_object_ids or []),
+        instance_object_ids=instance_object_ids or [],
+        title=sub.title, abort_into_id=sub.abort_into_id, stage=stage,
+        name=_order_ref_name(db, sub),
+        steps=_sub_order_steps(db, sub, cache),
+        flow_in=into, flow_out=back)
+
+
 def _sub_order_steps(db: Session, sub: Order,
                      cache: dict[int, list[SubOrderStep]]) -> list[SubOrderStep]:
     """**Der Ablauf eines Unter-Auftrags, angeteasert** (Notiz #409) – dieselbe Ableitung wie
@@ -379,10 +460,7 @@ def _order_sub_orders(db: Session, order: Order,
             .filter(InstanceOrderLink.order_id == c.id, InstanceOrderLink.is_active == True)
             .all()
         ]
-        info = OrderDeviationInfo(
-            object_id=c.object_id, status=c.status, reason=c.reason, instance_count=len(ids),
-            instance_object_ids=ids, title=c.title, abort_into_id=c.abort_into_id,
-            steps=_sub_order_steps(db, c, cache))
+        info = _sub_info(db, c, cache, instance_object_ids=ids)
         # **Explizit je Grund**, kein Sammel-Else: sonst landet jeder neue Unter-Auftrags-Grund
         # stillschweigend im Abweichungs-Topf und erscheint dem Nutzer als «Abweichung».
         bucket = {"supply": supplies, "return": returns,
@@ -441,11 +519,7 @@ def _fill_step_sub_orders(db: Session, order: Order, step: ArticleProcessStep,
     )
     cache = steps_cache if steps_cache is not None else {}
     si.sub_orders = [
-        OrderDeviationInfo(object_id=o.object_id, status=o.status, reason=o.reason,
-                           instance_count=0, instance_object_ids=[], title=o.title,
-                           abort_into_id=o.abort_into_id,
-                           stage=_sub_order_stage(o.reason, step.step_type),
-                           steps=_sub_order_steps(db, o, cache))
+        _sub_info(db, o, cache, stage=_sub_order_stage(o.reason, step.step_type))
         for o in subs if o.object_id
     ]
 
@@ -544,7 +618,25 @@ def _fill_origin(db: Session, order: Order, resp: OrderResponse) -> None:
     if parent is None or not parent.object_id:
         return
     origin = OrderOrigin(order_object_id=parent.object_id, order_status=parent.status,
-                         order_name=_order_ref_name(db, parent))
+                         order_reason=parent.reason,
+                         order_name=_order_ref_name(db, parent),
+                         parent_steps=_sub_order_steps(db, parent, {}))
+    # **Die ganze Kette bis hier herauf** (Notiz #413): ein Abzweig kann selbst einen Abzweig
+    # haben. Wurzel zuerst, zyklensicher und begrenzt – wer tiefer verschachtelt, hat ein
+    # anderes Problem als eine unvollständige Brotkrume.
+    chain: list[OrderRef] = []
+    seen: set[int] = {order.id}
+    cur: Order | None = parent
+    while cur is not None and len(chain) < 8:
+        chain.insert(0, OrderRef(object_id=cur.object_id or 0, name=_order_ref_name(db, cur),
+                                 reason=cur.reason))
+        if not cur.parent_order_id or cur.id in seen:
+            break
+        seen.add(cur.id)
+        cur = db.query(Order).filter(Order.object_id == cur.parent_order_id).first()
+    chain.append(OrderRef(object_id=order.object_id or 0,
+                          name=_order_ref_name(db, order), reason=order.reason))
+    origin.chain = chain
     if order.origin_step_id:
         step = (db.query(ArticleProcessStep)
                 .filter(ArticleProcessStep.id == order.origin_step_id).first())

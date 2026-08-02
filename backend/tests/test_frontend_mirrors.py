@@ -314,7 +314,7 @@ def test_a_sub_order_carries_its_own_state_in_the_flow():
         "«Abgebrochen» (fortgeführt) vs. «Inaktiv» (verworfen) – dieselbe Projektion wie überall.")
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
     flow = (fe / "order-flow.tsx").read_text()
-    assert "orderStatus({ status: info.status" in flow and "<StatusBadge cfg={cfg} />" in flow
+    assert "orderStatus({ status: info.status" in flow and "StatusBadge cfg={cfg}" in flow
     detail = (fe / "order-detail.tsx").read_text()
     assert "Abgebrochen – fortgeführt im Abweichungsauftrag" not in detail, (
         "Kein Banner – Kopf-Badge und Ablauf sagen es bereits.")
@@ -349,37 +349,64 @@ def test_the_step_teaser_names_the_module_from_one_place():
     )
     # Und die Herkunft/der Rückweg werden gezeigt, nicht behauptet: EIN Baustein, zwei
     # Richtungen – wer daraus zwei Komponenten macht, lässt sie auseinanderlaufen.
-    assert "export function OrderBranchTeaser" in flow
-    assert flow.count("kind === 'from'") >= 1 and "'zurück an'" in flow
+    # Herkunft und Rückweg gehen in **beide** Richtungen – seit dem Layout-Umbau (#413)
+    # als Kette oben (wo stehe ich?), Eltern-Teaser davor und Rückweg-Pille am Ende.
+    assert "export function OrderChain" in flow
+    assert "function OriginArm" in flow and "function ReturnArm" in flow
+    assert "'zurück an'" in flow or "zurück an" in flow
 
 
-def test_a_sub_order_is_drawn_as_a_process_inside_the_process():
-    """**Die Hauptlinie wird gekappt und läuft über den Abzweig** (Testnotiz #410).
+def test_a_sub_order_is_teased_beside_the_axis_not_unfolded_in_it():
+    """**Der Abzweig hängt an der Achse – angeschnitten** (Testnotizen #410/#413).
 
-    Ein Unter-Auftrag war eine flache Zeile mit einer Reihe Symbolen: man sah, DASS es ihn
-    gibt, aber nicht, dass der Hauptprozess an dieser Stelle tatsächlich anhält und über ihn
-    läuft. Jetzt ist er, was er ist – ein Prozess im Prozess: **eigener Startknoten** (mit dem
-    Verweis auf ihn), darunter **seine Prozessschritte**, am Schluss der **Endknoten mit der
-    Ablenkung zurück** in den Hauptprozess.
+    Zwischenstufe war, ihn im Hauptfluss auszuklappen (eigener Start-/Endknoten, alle
+    Schritte). Das war zu viel: ein Unter-Auftrag ist ein **eigener Datensatz** mit eigenem
+    Fenster; ihn hier auszubreiten baut dasselbe zweimal und zieht den Blick vom
+    Hauptprozess weg.
 
-    Der Wächter prüft die zwei Aussagen, die dieses Bild tragen:
-
-    * es ist **dieselbe** Bildsprache, eine Nummer kleiner – die Terminal-Knoten kommen aus
-      ``FlowTerm`` (mit ``size``), nicht aus einem zweiten, nachgebauten Kreis;
-    * die **Entscheidung steht am Rückfluss**: hat ein Schritt einen Abzweig, wandern seine
-      Auflösungen dorthin und nicht zusätzlich in die Karte – «Menge angepasst 5 → 4»
-      beantwortet die Frage «und was passiert, wenn er zurückkommt?», und die stellt sich
-      genau dort.
-    """
-    src = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
-    assert "export function FlowTerm({ kind, size = 52 }" in src, (
-        "Der Abzweig bekommt kleinere Terminal-Knoten – aber DIESELBEN."
-    )
+    Jetzt läuft die Achse ununterbrochen weiter und der Abzweig sitzt als **Ast** daneben:
+    man sieht, dass es ihn gibt, welche Module er hat und wie weit er ist – und dass es
+    mehr zu sehen gibt, weil er rechts **ausläuft** (Maske statt harter Kante). Wer mehr
+    will, klickt ihn an und ist im Datensatz."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    for node in ('<FlowTerm kind="start" size=', '<FlowTerm kind="end" size='):
-        assert node in flow, f"Dem Abzweig fehlt sein {node}"
-    assert "function SubStepCard" in flow, "Die Schritte des Abzweigs sind Karten, keine Punktreihe."
-    assert "resolutions={atBranch ? [] : res}" in flow, (
-        "Mit Abzweig steht die Entscheidung an seinem Rückfluss – sonst am Schritt. "
-        "Beides gleichzeitig wäre dieselbe Aussage an zwei Stellen."
+    for part in ("function BranchArm", "function BranchTeaser", "function TeaserStep"):
+        assert part in flow, f"Dem Fluss fehlt {part}"
+    assert "WebkitMaskImage" in flow, (
+        "Der Teaser läuft rechts aus – die Einladung, ihn zu öffnen, statt einer harten Kante."
     )
+    assert "onOpen?.(info.object_id)" in flow, "Der Teaser öffnet den Datensatz."
+    # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt.
+    assert '<FlowTerm kind="start" />' in flow and '<FlowTerm kind="end" />' in flow
+
+
+def test_the_flow_shows_what_material_moves():
+    """**Auf jeder Kante steht, WAS fliesst** (Testnotiz #413).
+
+    Die eigentliche Geschichte eines Auftrags ist nicht die Reihe seiner Module, sondern das
+    **Material**: welche Instanz, wie viel davon, und was unterwegs damit passiert. Genau
+    daran sieht man, dass 2 Stück in eine Abweichung gingen und **0 zurückkamen**, weil sie
+    verschrottet wurden.
+
+    Damit die Zahl auch nach Abschluss noch stimmt, steht die übernommene Menge dauerhaft am
+    Verarbeitungs-Link (``instance_order_links.quantity``, Migration 097) – Reservierungen
+    werden gelöst, der Fluss braucht sie danach noch. Gerechnet wird **von unten nach oben**:
+    unten steht, was der Auftrag heute hält, und jeder Ast gibt seine Bilanz nach oben weiter –
+    keine zweite Buchführung."""
+    from app.models import InstanceOrderLink
+    from app.schemas.order import FlowLot, OrderDeviationInfo
+    from app.services import orders as ord_svc
+
+    assert "quantity" in InstanceOrderLink.__table__.columns, (
+        "Ohne die Menge am Link ist «wie viel ging da rein?» nach Abschluss verloren.")
+    for f in ("flow_in", "flow_out"):
+        assert f in OrderDeviationInfo.model_fields, f
+    assert set(FlowLot.model_fields) >= {"instance_object_id", "quantity", "article_name"}
+
+    import inspect as _inspect
+    src = _inspect.getsource(ord_svc._sub_order_flow)
+    assert "_terminal_amounts" in src, (
+        "Was den Bestand endgültig verlassen hat, kommt aus dem Event-Strom – dauerhaft.")
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "function EdgePill" in flow and "function plusBalance" in flow
+    assert "for (let i = nodes.length - 1; i >= 0; i--)" in flow, (
+        "Die Mengen werden von unten nach oben zurückgerechnet.")
