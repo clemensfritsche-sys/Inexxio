@@ -2291,6 +2291,11 @@ export interface components {
          *     geschieht dort weiter?» (pausieren · ersetzen · Menge reduzieren) fällt sonst über
          *     Objektnummern, die niemand einordnen kann (Testnotiz #387).
          *
+         *     Die Zeile beantwortet drei Dinge, sonst beantwortet sie keines (Testnotiz #393): **wer**
+         *     verliert (ein Auftrag – sein Name ist der Artikelname, darum steht die Datensatzart
+         *     dabei), **wie viel** (in der Einheit des Artikels, nicht in seinem Namen) und **woher**
+         *     (``sources``: aus welcher Instanz).
+         *
          *     ``needs_decision`` unterscheidet die beiden Sorten Betroffener: ein Auftrag mit einem
          *     **Soll** braucht eine Antwort; ein Auftrag mit **festem Subjekt** (Abweichung, Retoure,
          *     Bereitstellung) beschafft nichts – er schrumpft lautlos mit und wird gegenstandslos,
@@ -2305,16 +2310,37 @@ export interface components {
             reason?: string | null;
             /** Article Name */
             article_name?: string | null;
+            /** Unit */
+            unit?: string | null;
             /**
              * Quantity
              * @default 0
              */
             quantity: number;
             /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["AffectedShare"][];
+            /**
              * Needs Decision
              * @default true
              */
             needs_decision: boolean;
+        };
+        /**
+         * AffectedShare
+         * @description **Woher** der Verlust kommt – Instanz + Menge. Ohne diese Angabe nennt die Frage nur
+         *     eine Zahl, und die Zahl allein beantwortet nicht, welches Stück gemeint ist (#393).
+         */
+        AffectedShare: {
+            /** Instance Object Id */
+            instance_object_id: number;
+            /**
+             * Quantity
+             * @default 0
+             */
+            quantity: number;
         };
         /** AiChatMessage */
         AiChatMessage: {

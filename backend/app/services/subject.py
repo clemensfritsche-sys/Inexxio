@@ -50,9 +50,18 @@ def enforce_pick(db: Session, order: Order, inst) -> None:
     und nun Auftrag B gehört, sieht man später sonst nirgends – am Ende steht nur das
     Ergebnis. Die Spur ist kein neues Feld, sondern der **Event-Strom**, und sie hängt am
     **verlierenden** Auftrag: dort will man wissen, warum plötzlich etwas fehlt. Für den
-    FIFO-Fall gilt exakt dasselbe wie für die Hand-Auswahl – eine Regel, nicht zwei."""
+    FIFO-Fall gilt exakt dasselbe wie für die Hand-Auswahl – eine Regel, nicht zwei.
+
+    **Der genannte Anteil wird dabei verbraucht.** ``orders.pick_sources`` ist eine Angabe
+    des **Entwurfs** («welche Zeile wurde geklickt»); mit der Freigabe hat sie ihre Wirkung
+    getan. Sie danach stehen zu lassen wäre eine geladene Waffe: seit der genannte Anteil
+    unbedingt verliert (#394), würde ein zweiter Durchlauf ihn ein zweites Mal kürzen. So
+    ist die Einmaligkeit **konstruktiv** statt erhofft – die Spur bleibt im Event-Strom."""
     src = pick_source(order, inst)
     taken = enforce(inst, order.id, src)
+    if src is not None:
+        rest = {k: v for k, v in (order.pick_sources or {}).items() if k != str(inst.object_id)}
+        order.pick_sources = rest or None
     if taken <= 0 or src is None:
         return
     holder = db.query(Order).filter(Order.id == src).first()
@@ -120,7 +129,8 @@ def is_return(order: Order) -> bool:
 PICK_NORMAL, PICK_RETURN, PICK_DEVIATION = None, "return", "deviation"
 
 
-def classify_pick(order: Order, insts: list, wanted: dict | None = None) -> str | None:
+def classify_pick(order: Order, insts: list, wanted: dict | None = None,
+                  sources: dict | None = None) -> str | None:
     """**Die Auswahl bestimmt die Art des Auftrags** – EINE Regel, drei Ausgänge.
 
     Ein Auftrag und ein Abweichungsauftrag sind dasselbe; der Unterschied ist ein **Tag**,
@@ -137,22 +147,29 @@ def classify_pick(order: Order, insts: list, wanted: dict | None = None) -> str 
     die Folge.
 
     ``wanted`` = beanspruchte Teilmenge je Instanz-Objektnummer (fehlt sie, die ganze
-    Instanz). Rein (schreibt nicht)."""
+    Instanz); ``sources`` = der jeweils **genannte** Halter. Rein (schreibt nicht)."""
     if not insts:
         return PICK_NORMAL
     if any((i.disposition or "") == "sold" for i in insts):
         return PICK_RETURN
-    if any(is_bound(order, i, (wanted or {}).get(i.object_id)) for i in insts):
+    if any(is_bound(order, i, (wanted or {}).get(i.object_id),
+                    (sources or {}).get(i.object_id)) for i in insts):
         return PICK_DEVIATION
     return PICK_NORMAL
 
 
-def is_bound(order: Order, inst, want=None) -> bool:
+def is_bound(order: Order, inst, want=None, source_id: int | None = None) -> bool:
     """Ist dieses Stück **gebunden** – also für diesen Auftrag nicht frei verfügbar?
 
     Gebunden heisst: nicht (mehr) frei am Lager (in Arbeit, verbaut, gesperrt) ODER die
     freie Menge deckt **die gewünschte Menge** nicht. Was dieser Auftrag selbst reserviert
     hat, zählt als frei – er greift ja auf sein eigenes zu.
+
+    **Wer den Anteil eines anderen Auftrags nennt, greift Gebundenes an** – unabhängig
+    davon, ob daneben noch etwas frei liegt (``source_id``, Testnotiz #394). Das ist die
+    Kehrseite davon, dass der genannte Anteil bei der Freigabe unbedingt verliert
+    (``reservation.enforce``): wer einem laufenden Auftrag etwas wegnimmt, macht damit eine
+    Abweichung, auch wenn er das freie Stück daneben hätte haben können.
 
     ``want`` ist die beanspruchte Teilmenge; ohne Angabe die GANZE Instanz (unverändertes
     Verhalten). Die Menge gehört in die Frage, seit eine Auswahl Teilmengen tragen darf:
@@ -165,6 +182,8 @@ def is_bound(order: Order, inst, want=None) -> bool:
     from .inventory import is_in_stock
     from .quantity import to_qty
     from .reservation import free_qty, reserved_for
+    if source_id is not None and source_id != order.id:
+        return True
     if not is_in_stock(inst):
         return True
     need = to_qty(inst.quantity) if want is None else to_qty(want)
@@ -259,8 +278,15 @@ def subject_kind(db: Session, order: Order) -> str:
     ``event_types.derive_subject_mode`` mit ``SUBJECT_PRECEDENCE``) – NICHT die blosse
     Anwesenheit eines Schritts. So kippt ein Schritt, der Bestand HEREINBRINGT (Beschaffung),
     den Auftrag nicht fälschlich in eine Bestands-Operation, die dann still an „kein Bestand"
-    scheitert (kein Subjekt, keine Instanz, keine Fehlermeldung). Eine reine (Entwurfs-)Pin-
-    Auswahl ohne Schritte kippt den Auftrag ebenfalls NICHT (sonst scheitert die Herstellung).
+    scheitert (kein Subjekt, keine Instanz, keine Fehlermeldung).
+
+    **Wer vorhandene Instanzen auswählt, erzeugt keine** (Testnotiz #392). Eine Auswahl ist
+    die Aussage «das Material gibt es schon» – also ist der Auftrag eine Operation auf
+    Bestand, nie eine Erzeugung. Vorher galt das Gegenteil («eine Pin-Auswahl ohne Schritte
+    kippt den Auftrag NICHT»), und die Folge war ein stiller Widerspruch: der Auftrag lief
+    den **Artikel**-Prozess, erzeugte NEUE Instanzen – und hielt die ausgewählten daneben
+    fest. Weil ein Bestands-Auftrag einen **eigenen** Ablauf braucht, weist die Freigabe
+    einen Auftrag ohne jeden Prozessschritt jetzt ab, statt ihn zur Erzeugung umzudeuten.
 
     Ein **Mehrpositionen**-Auftrag (mehrere Artikel über ``order_lines``, ``article_id``
     fehlt) ist IMMER ``stock`` – es gibt keinen EINEN Artikel-Prozess, den er sonst fahren
@@ -272,6 +298,8 @@ def subject_kind(db: Session, order: Order) -> str:
         return "return"      # wirkt auf verkaufte Instanzen des Eltern (kein Lager-Zugriff)
     if order.article_id is None and lines_for(db, order):
         return "stock"
+    if chosen_subjects(db, order):
+        return "stock"       # ausgewählte Instanzen → das Material existiert bereits
     steps = order_custom_steps(db, order.id)
     if not steps:
         return "produce"     # keine eigenen Schritte → Artikel-Prozess, erzeugt Instanzen
@@ -341,9 +369,9 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
       Instanzen, den Rest **FIFO ab Lager** auffüllen – alle für diesen Auftrag reserviert.
     produce → neue Bestands-Instanzen erzeugen (Serialisierung aus dem Artikel).
 
-    Entscheidend ist die **deklarierte Subjekt-Rolle** der Schritte (siehe ``subject_kind``);
-    eine Pin-Auswahl ohne Schritte erzeugt trotzdem (statt an fehlendem Bestand zu scheitern),
-    und ein Schritt, der Bestand hereinbringt (Beschaffung), erzeugt ebenfalls.
+    Entscheidend ist die **deklarierte Subjekt-Rolle** der Schritte (siehe ``subject_kind``):
+    ein Schritt, der Bestand hereinbringt (Beschaffung), erzeugt ebenfalls – wer dagegen
+    vorhandene Instanzen ausgewählt hat, erzeugt nie (#392).
 
     deviation → die (bereits vorhandenen) Subjekt-Instanzen werden nur übernommen, ohne
       Lager-Allokation/-Reservierung (sie sind schon in Arbeit/im Besitz)."""

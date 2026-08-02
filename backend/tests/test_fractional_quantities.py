@@ -110,3 +110,41 @@ def test_required_sample_supports_fractional_batches():
     assert required_sample(5, 100) == 5
     assert required_sample(5, 50) == 3          # ceil(2.5)
     assert required_sample(0, 100) == 0
+
+
+def test_a_named_share_always_loses_even_when_something_is_free():
+    """**Der geklickte Anteil verliert – auch wenn woanders noch Luft ist** (Notiz #394).
+
+    Eine Zeile anzuklicken ist eine Aussage über die **Herkunft**, nicht bloss über die
+    Menge: «1 Stk · Auftrag 557» heisst *dieses* Stück. Vorher war der Name nur eine
+    Rangfolge für den Fehlbetrag – gab es sonst noch freie Menge, blieb der genannte Anteil
+    unangetastet und die Menge kam still von jemand anderem. Der Klick war damit folgenlos:
+    die Abweichung trug den richtigen Eltern-Namen, das Material nahm sie einem Dritten weg,
+    und dessen Unterdeckung tauchte nirgends auf."""
+    from app.models import Instance
+    from app.services.reservation import claim, enforce, reserve, reserved_for
+
+    # Charge à 4: Auftrag 557 hält 1, 3 sind unbeansprucht. Auftrag 558 nimmt 1 – von 557.
+    inst = Instance(quantity=Decimal("4"), reservations=None, reserved_quantity=Decimal("0"))
+    reserve(inst, 557, Decimal("1"))
+    claim(inst, 558, Decimal("1"))
+    taken = enforce(inst, 558, from_order_id=557)
+    assert taken == Decimal("1.000"), "der genannte Anteil muss abgeben"
+    assert reserved_for(inst, 557) == Decimal("0")
+    assert reserved_for(inst, 558) == Decimal("1.000")
+
+    # Ohne Namen bleibt es beim alten Verhalten: es fehlt nichts, also verliert niemand.
+    inst = Instance(quantity=Decimal("4"), reservations=None, reserved_quantity=Decimal("0"))
+    reserve(inst, 557, Decimal("1"))
+    claim(inst, 558, Decimal("1"))
+    assert enforce(inst, 558) == Decimal("0")
+    assert reserved_for(inst, 557) == Decimal("1.000")
+
+    # Reicht der genannte Anteil nicht, folgen die übrigen – Rangfolge, nicht
+    # Ausschliesslichkeit (2 aus einer 2er-Charge treffen zwangsläufig beide Halter).
+    inst = Instance(quantity=Decimal("2"), reservations=None, reserved_quantity=Decimal("0"))
+    reserve(inst, 1, Decimal("1"))
+    reserve(inst, 2, Decimal("1"))
+    claim(inst, 3, Decimal("2"))
+    assert enforce(inst, 3, from_order_id=1) == Decimal("2.000")
+    assert reserved_for(inst, 1) == Decimal("0") and reserved_for(inst, 2) == Decimal("0")

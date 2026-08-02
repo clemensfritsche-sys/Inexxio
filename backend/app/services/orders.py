@@ -20,7 +20,7 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    AffectedOrder, OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo,
+    OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo,
     OrderSummary, ShortfallInstance, StepResolution, StepShortfall,
 )
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
@@ -53,6 +53,12 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     from .resource import reserve_resources
     if order.status != "draft":
         return
+    # **Erst schreiben lassen, dann lesen.** Die Session läuft mit ``autoflush=False``; wer
+    # Auswahl und Freigabe in EINEM Aufruf erledigt (der Normalfall seit Notiz #386, ebenso
+    # Nachschub/Bereitstellung/Wiederkehr), hätte die eben gesetzte Subjekt-Bindung sonst
+    # noch nicht in der Datenbank – ``chosen_subjects`` fände nichts und die Freigabe liefe
+    # ins Leere. Einmal hier, weil dies der EINE Freigabe-Pfad ist.
+    db.flush()
     # Nebenläufigkeits-Schutz (Doppelklick/Request-Retry): den Auftrag sperren und den
     # Status unter der Sperre FRISCH lesen (nur die Spalte – KEIN ``refresh``, das bei
     # autoflush=False ungeflushte Feld-Änderungen des Aufrufers verwerfen würde). Ohne
@@ -473,40 +479,22 @@ def _fill_affected(db: Session, order: Order, resp: OrderResponse) -> None:
 
     Ein Entwurf, der **gebundene** Instanzen wählt, greift auf laufende Aufträge zu. Bisher
     erfuhr man das erst als Fehlertext bei der Freigabe – eine Aufzählung von Objektnummern.
-    Hier steht es als Datensatz-Liste am Entwurf: Name, Nummer, Artikel, gehaltene Menge –
-    und ob dieser Betroffene überhaupt eine Entscheidung braucht.
+    Hier steht es als Datensatz-Liste am Entwurf: Name, Nummer, Artikel, **Verlust** – und ob
+    dieser Betroffene überhaupt eine Entscheidung braucht.
+
+    **Gerechnet wird an EINER Stelle** (``shares.affected``). Vorher stand hier eine zweite
+    Fassung, die meldete, was der Halter überhaupt **hält** statt was er **verliert** – bei
+    2 Stück aus einer 4er-Charge also «verliert 4» (Testnotiz #391).
 
     Nur am Entwurf: danach ist die Frage beantwortet und der Zugriff vollzogen."""
-    from .quantity import ZERO, to_qty
-    from .reservation import reserved_for
-    from .subject import chosen_subjects, holding_orders, is_fixed_subject
+    from .shares import affected, affected_rows
+    from .subject import chosen_subjects
     if order.status != "draft" or not order.id:
         return
     picked = chosen_subjects(db, order)
     if not picked:
         return
-    held: dict[int, Decimal] = {}
-    rows: dict[int, Order] = {}
-    for inst in picked:
-        for h in holding_orders(db, inst, exclude_id=order.id):
-            rows.setdefault(h.id, h)
-            share = reserved_for(inst, h.id)
-            # Der ERZEUGER hält ohne Reservierung – für ihn zählt die ganze Instanz.
-            if share <= 0 and inst.order_id == h.id:
-                share = to_qty(inst.quantity)
-            held[h.id] = held.get(h.id, ZERO) + share
-    arts = {a.id: a.name for a in db.query(Article).filter(
-        Article.id.in_({o.article_id for o in rows.values() if o.article_id})).all()} if rows else {}
-    resp.affects = [
-        AffectedOrder(
-            object_id=h.object_id, name=order_display_name(h, arts.get(h.article_id)),
-            reason=h.reason, article_name=arts.get(h.article_id),
-            quantity=float(held.get(h.id, ZERO)),
-            needs_decision=not is_fixed_subject(h),
-        )
-        for h in rows.values() if h.object_id
-    ]
-    resp.affects.sort(key=lambda a: a.object_id)
+    resp.affects = affected_rows(db, affected(db, order, picked))
 
 
 def _fill_order_shortfall(db: Session, order: Order, resp: OrderResponse) -> None:

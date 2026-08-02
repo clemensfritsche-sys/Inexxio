@@ -63,9 +63,10 @@ def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
     • trägt der Auftrag **eigene** Schritte → diese (individueller Ablauf, Bestands-Operation);
     • sonst → der **Prozess des Artikels** (Herstellung/Beschaffung, erzeugt Instanzen).
 
-    Massgeblich ist allein, ob **eigene** Schritte vorliegen (konsistent zu
-    ``subject.subject_kind``). Eine blosse Pin-Auswahl ohne Schritte kippt den Auftrag
-    NICHT – er bleibt eine Herstellung über den Artikel-Prozess."""
+    Massgeblich ist allein, ob **eigene** Schritte vorliegen. Ohne sie bleibt der
+    Artikel-Prozess die Antwort – bei einem Auftrag mit **ausgewählten** Instanzen kommt
+    diese Konstellation aber nicht mehr vor: die Freigabe weist ihn ab, weil er einen
+    eigenen Ablauf braucht (``subject.subject_kind``, Testnotiz #392)."""
     from .processes import article_steps, order_custom_steps
     from .subject import is_fixed_subject
     custom = order_custom_steps(db, order.id)

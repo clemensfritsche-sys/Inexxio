@@ -30,6 +30,7 @@ import { useState } from 'react';
 import { Boxes, CheckCircle2, ClipboardList, Clock3, PackageMinus, PackagePlus, PauseCircle, TriangleAlert } from 'lucide-react';
 import { Dialog, PaletteButton, PrimaryButton } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
+import { unitLabel } from '@/lib/article';
 import { formatQty } from '@/lib/process';
 import { formatObjectId } from '@/lib/utils';
 import type { AffectedOrder } from '@/types';
@@ -47,9 +48,16 @@ const ROW: React.CSSProperties = {
  * **Wen trifft die Entscheidung?** – eine Zeile je betroffenem Auftrag (Notiz #387).
  *
  * Ohne sie stand über den drei Symbolen nur «Es fehlt»: man entschied über Aufträge, die
- * man nicht sah. Die Liste ist dieselbe Datensatz-Zeile wie überall (Symbol · Name ·
- * Objektnummer) und nennt die Menge, um die es geht – auch bei mehreren Betroffenen, denn
- * ein Auftrag kann Instanzen aus verschiedenen laufenden Aufträgen greifen.
+ * man nicht sah. Die Zeile beantwortet drei Dinge, sonst beantwortet sie keines
+ * (Notiz #393):
+ *
+ *   **wer**   – ein Auftrag. Sein Name IST der Artikelname («Schraubendreher»), darum steht
+ *               die Datensatzart als Eyebrow davor: ohne sie las sich die Zeile wie ein
+ *               Artikel und man wusste nicht, welchen Auftrag es trifft.
+ *   **wie viel** – in der **Einheit** des Artikels («1 Stk»), nicht in seinem Namen: das
+ *               frühere «verliert 1 Schraubendreher» wiederholte nur den Namen von links.
+ *   **woher**  – aus welcher Instanz. Bei mehreren Anteilen ist genau das die Information,
+ *               die man zum Entscheiden braucht.
  *
  * Wer **keine** Entscheidung braucht (Abweichung/Retoure/Bereitstellung: festes Subjekt,
  * kein Soll), steht mit seiner Konsequenz da statt mit einer Frage.
@@ -60,21 +68,37 @@ function AffectedList({ affected }: { affected: AffectedOrder[] }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {affected.map((a) => {
         const dev = a.reason === 'deviation';
+        const sources = a.sources ?? [];
         return (
           <div key={a.object_id} style={{
-            display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap',
+            display: 'flex', flexDirection: 'column', gap: 3,
             padding: '8px 11px', borderRadius: 'var(--r-md)',
             border: '1px solid var(--border-1)', background: 'var(--bg-2)',
           }}>
-            <span style={{ color: 'var(--fg-3)', display: 'inline-flex', flexShrink: 0 }}>
-              {dev ? <TriangleAlert size={14} /> : <ClipboardList size={14} />}
-            </span>
-            <span style={{ font: '700 13px var(--font-body)', color: 'var(--fg-1)' }}>{a.name ?? 'Auftrag'}</span>
-            <ObjId value={a.object_id} />
-            <span style={{ marginLeft: 'auto', font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', textAlign: 'right' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ color: 'var(--fg-3)', display: 'inline-flex', flexShrink: 0 }}>
+                {dev ? <TriangleAlert size={14} /> : <ClipboardList size={14} />}
+              </span>
+              <span style={{
+                font: '700 10.5px var(--font-body)', letterSpacing: '.06em',
+                textTransform: 'uppercase', color: 'var(--fg-4)',
+              }}>{dev ? 'Abweichung' : 'Auftrag'}</span>
+              <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)' }}>{a.name ?? '—'}</span>
+              <ObjId value={a.object_id} />
+            </div>
+            <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' }}>
               {a.needs_decision
-                ? <>verliert <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{formatQty(a.quantity)}</b>{a.article_name ? ` ${a.article_name}` : ''}</>
+                ? <>verliert <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatQty(a.quantity)}{a.unit ? ` ${unitLabel(a.unit)}` : ''}</b></>
                 : 'läuft mit weniger weiter'}
+              {/* EINE Herkunft steht einfach dahinter; bei mehreren je Instanz die Teilmenge. */}
+              {sources.length === 1
+                ? <> von <ObjId value={sources[0].instance_object_id} /></>
+                : sources.map((s) => (
+                    <span key={s.instance_object_id}>
+                      {' · '}{formatQty(s.quantity)} von <ObjId value={s.instance_object_id} />
+                    </span>
+                  ))}
             </span>
           </div>
         );

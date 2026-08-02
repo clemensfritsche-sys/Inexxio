@@ -3258,6 +3258,57 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_a_holder_loses_the_taken_quantity_not_its_own_order_quantity`,
   `test_the_picker_selection_follows_the_current_rows`; Harness `shares.py` 21/21.
 
+- **Testnotizen #392/#393/#394 (der geklickte Anteil verliert wirklich – und wer nichts
+  vorhat, gibt nichts frei)**: Drei Befunde aus dem Versuch «Abweichung von der Abweichung».
+  (1) **Der genannte Anteil war folgenlos** (#394, `reservation.enforce` + `shares.losses`).
+  Er war nur eine **Rangfolge für den Fehlbetrag**: lag daneben noch etwas Unbeanspruchtes,
+  blieb er unangetastet und die Menge kam still von jemand anderem. Im gemeldeten Fall trug
+  der neue Auftrag also den richtigen Eltern-Namen (die Abweichung), nahm das Material aber
+  dem **Erzeugungsauftrag** weg – und weil ein festes Subjekt keine Unterdeckungs-Frage
+  bekommt, wurde auch nichts gefragt. Jetzt gilt: **der geklickte Anteil gibt her, was
+  dieser Auftrag beansprucht – unbedingt.** Ein Klick auf «1 Stk · Auftrag …557» ist eine
+  Aussage über die **Herkunft**, nicht bloss über die Menge. Erst der Rest läuft wie bisher
+  (freier Rest ≻ Erzeuger ≻ übrige Ansprüche); reicht dann immer noch nichts, schrumpft der
+  eigene Anspruch. Die Kehrseite steht in `subject.is_bound`: **wer einen fremden Anteil
+  nennt, greift Gebundenes an** → Abweichung, auch wenn daneben freier Bestand liegt.
+  `subject.enforce_pick` **verbraucht** den Eintrag danach (`orders.pick_sources` ist eine
+  Angabe des Entwurfs) – so ist die Einmaligkeit konstruktiv statt erhofft.
+  Frontend-Hälfte: **wo es mehrdeutig ist, wird nicht geraten.** Der Abkürzungs-Knopf an der
+  Instanz wählt nur noch vor, wenn die Instanz **genau EINEN** Anteil trägt; `reconcilePicks`
+  folgt einer verwaisten Angabe ebenso nur bei einer einzigen Zeile. (Das «grösster Anteil
+  gewinnt» aus #390 war unter der alten, folgenlosen Semantik harmlos – jetzt hiesse es, dem
+  falschen Auftrag etwas wegzunehmen.)
+  (2) **Ein Auftrag ohne jeden Prozessschritt liess sich freigeben** (#392). Ohne eigene
+  Schritte fährt ein Auftrag den **Artikel**-Prozess – der beschreibt aber, wie etwas
+  ENTSTEHT. Wer Instanzen **auswählt**, sagt «das Material gibt es schon»; trotzdem galt
+  ausdrücklich «eine Pin-Auswahl kippt den Auftrag NICHT», und die Folge war ein stiller
+  Widerspruch: der Auftrag lief den Artikel-Prozess, **erzeugte neue Instanzen** und hielt
+  die ausgewählten daneben fest. Zwei Sätze, eine Regel: `subject.subject_kind` liefert bei
+  gewählten Instanzen **`stock`**, und alles ausser einer Erzeugung braucht einen **eigenen**
+  Ablauf (`_assert_releasable` prüft `order_custom_steps`, nicht irgendeinen auflösbaren
+  Schritt). Das Frontend sperrt die Freigabe mit dem Grund im Hover. *`order_step_defs`
+  bleibt bewusst unverändert («eigene Schritte, sonst Artikel-Prozess») – zöge die Auswahl
+  dort mit, verlöre ein abgeschlossener Auftrag rückwirkend seinen Ablauf, sobald die
+  Bindung gelöst ist.* Dazu ein Timing-Fund: die Freigabe liest Zustand, den **dieselbe
+  Anfrage** eben geschrieben hat (`autoflush=False`) – ohne `db.flush()` sah das Gate die
+  Auswahl gar nicht. Der Flush sitzt jetzt am Anfang von `_do_release` **und** in
+  `orders.release_order` (dem EINEN Freigabe-Pfad, für Nachschub/Bereitstellung/Wiederkehr).
+  (3) **«Schraubendreher 100000555 verliert 1 Schraubendreher»** (#393). Drei Fehler in
+  einer Zeile: der Name eines Auftrags IST der Artikelname (die Zeile las sich wie ein
+  Artikel), die Menge trug den Artikelnamen als Einheit (er stand schon links), und woher
+  das Stück kommt, stand nirgends. Jetzt: Datensatzart + Name + Objektnummer · Menge in der
+  **Einheit** · **Herkunftsinstanz** (`AffectedOrder.unit`/`sources`).
+  Im gleichen Zug ist die Rechnung **entdoppelt**: `services/orders._fill_affected` hatte
+  eine zweite Fassung, die meldete, was ein Halter überhaupt **hält** statt was er
+  **verliert** – derselbe Fehler wie #391, nur an der anderen Oberfläche. Beide Stellen
+  fragen jetzt `shares.affected`/`affected_rows`.
+  Wächter: `test_a_named_share_always_loses_even_when_something_is_free`,
+  `test_a_pick_is_never_a_production`,
+  `test_the_shortfall_question_names_order_quantity_and_source`,
+  `test_a_pick_is_not_guessed_when_it_is_a_decision`; gegen echtes PostgreSQL verifiziert
+  (Harness `note394.py` 11/11 – die gemeldete Abfolge Schritt für Schritt, plus alle 13
+  Szenario-Harnesses grün).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

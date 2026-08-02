@@ -14,12 +14,15 @@ Die Namen der haltenden Aufträge kommen über **eine** Abfrage je Aufruf (kein 
 """
 
 from decimal import Decimal
+from typing import NamedTuple
 
 from sqlalchemy.orm import Session
 
 from ..models import Article, Instance, Order
 from ..schemas.instance import InstanceShare
+from ..schemas.order import AffectedOrder, AffectedShare
 from .quantity import ZERO, to_qty
+from .subject import is_fixed_subject
 
 
 def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceShare]]:
@@ -96,12 +99,15 @@ def losses(db: Session, inst: Instance, order: Order, want=None) -> dict[int, De
     Die Reihenfolge ist die Antwort auf «wer verliert zuerst»:
 
     1. der **genannte** Anteil (die Zeile, die angeklickt wurde) – ``orders.pick_sources``;
-    2. der **Erzeuger**, solange die Instanz nicht am Lager liegt (ihm gehört der Rest);
-    3. die übrigen Ansprüche, grösster zuerst.
+       er verliert **unbedingt**, auch wenn woanders noch etwas frei wäre (#394): der Klick
+       sagt, WOHER das Stück kommt, nicht bloss WIE VIEL;
+    2. der **freie Rest** deckt, was danach noch offen ist – ohne Verlierer;
+    3. der **Erzeuger**, solange die Instanz nicht am Lager liegt (ihm gehört der Rest);
+    4. die übrigen Ansprüche, grösster zuerst.
 
-    Verloren geht immer nur, was **fehlt**: reicht der freie Rest für den Anspruch, verliert
-    niemand – dann ist die Antwort leer. Das ist derselbe Satz wie «ein freier Anteil gehört
-    niemandem», nur in Zahlen.
+    Ohne genannten Anteil geht darum nur verloren, was **fehlt**: reicht der freie Rest,
+    verliert niemand – dann ist die Antwort leer. Das ist derselbe Satz wie «ein freier
+    Anteil gehört niemandem», nur in Zahlen.
 
     **Die Menge zählt, nicht der Auftrag** (Testnotiz #391): wer 2 Stück aus einer 4er-Charge
     nimmt, entzieht 2 – nicht 4, nur weil der Eltern-Auftrag über 4 lautet. Vorher stand in
@@ -119,9 +125,6 @@ def losses(db: Session, inst: Instance, order: Order, want=None) -> dict[int, De
         return {}
     claims = {int(k): to_qty(v) for k, v in (inst.reservations or {}).items() if int(k) != order.id}
     rest = to_qty(inst.quantity) - sum(claims.values(), ZERO)      # unbeansprucht
-    over = mine - (rest if is_in_stock(inst) and rest > ZERO else ZERO)
-    if over <= 0:
-        return {}                                  # freier Anteil – es verliert niemand
 
     def share_of(oid: int) -> Decimal:
         if oid in claims:
@@ -129,32 +132,91 @@ def losses(db: Session, inst: Instance, order: Order, want=None) -> dict[int, De
         # Der Erzeuger hält den unbeanspruchten Rest, solange die Instanz nicht am Lager ist.
         return rest if (inst.order_id == oid and not is_in_stock(inst) and rest > ZERO) else ZERO
 
+    out: dict[int, Decimal] = {}
     named = (order.pick_sources or {}).get(str(inst.object_id))
+    need = mine
+    if named is not None and int(named) != order.id:
+        take = min(need, share_of(int(named)))      # **unbedingt** – siehe Docstring
+        if take > 0:
+            out[int(named)] = take
+            need -= take
+    # Der freie Rest deckt ohne Verlierer, was danach noch offen ist.
+    need -= rest if is_in_stock(inst) and rest > ZERO else ZERO
     ranked: list[int] = []
-    if named is not None:
-        ranked.append(int(named))
     if inst.order_id and not is_in_stock(inst):
         ranked.append(inst.order_id)
     ranked += sorted(claims, key=lambda k: -claims[k])
-    running = {
-        o.id for o in db.query(Order.id).filter(
-            Order.id.in_({k for k in ranked if k != order.id}),
-            Order.is_active == True, Order.status == "released").all()
-    }
-    out: dict[int, Decimal] = {}
-    seen: set[int] = set()
     for oid in ranked:
-        if over <= 0:
+        if need <= 0:
             break
-        if oid == order.id or oid in seen:
+        if oid == order.id:
             continue
-        seen.add(oid)
-        take = min(over, share_of(oid))
+        take = min(need, share_of(oid) - out.get(oid, ZERO))
         if take <= 0:
             continue
-        over -= take
-        if oid in running:
-            out[oid] = take
+        need -= take
+        out[oid] = out.get(oid, ZERO) + take
+    # Gefragt wird nur, wer noch läuft – für die Arithmetik zählen die anderen mit.
+    running = {
+        o.id for o in db.query(Order.id).filter(
+            Order.id.in_(set(out)), Order.is_active == True, Order.status == "released").all()
+    }
+    return {k: v for k, v in out.items() if k in running}
+
+
+class Affected(NamedTuple):
+    """Ein betroffener Auftrag: **wer**, **wie viel** und **woher** (Instanz → Menge)."""
+    order: Order
+    quantity: Decimal
+    sources: dict[int, Decimal]
+
+
+def affected(db: Session, order: Order, insts: list[Instance],
+             wanted: dict | None = None) -> list[Affected]:
+    """**Wem nimmt diese Auswahl wie viel weg?** – über alle gewählten Instanzen hinweg.
+
+    Die Regel je Instanz steht in ``losses``; hier wird nur zusammengezählt. Die Frage stellt
+    sich an ZWEI Stellen – beim Erteilen eines Auftrags (Router) und am gespeicherten Entwurf
+    (``orders.to_order_response``) – und wurde dort zweimal verschieden beantwortet: die eine
+    Fassung meldete den **Verlust**, die andere, was der Halter überhaupt **hält**. Genau
+    dieser Unterschied war Testnotiz #391 («verliert 4», obwohl 2 genommen wurden). Jetzt
+    gibt es die Antwort einmal."""
+    totals: dict[int, Decimal] = {}
+    sources: dict[int, dict[int, Decimal]] = {}
+    for i in insts:
+        for oid, qty in losses(db, i, order, (wanted or {}).get(i.object_id)).items():
+            totals[oid] = totals.get(oid, ZERO) + qty
+            sources.setdefault(oid, {})[i.object_id] = qty
+    if not totals:
+        return []
+    rows = {o.id: o for o in db.query(Order).filter(Order.id.in_(totals)).all()}
+    out = [Affected(rows[i], q, sources.get(i, {})) for i, q in totals.items() if i in rows]
+    return sorted(out, key=lambda a: a.order.object_id or 0)
+
+
+def affected_rows(db: Session, hits: list[Affected]) -> list[AffectedOrder]:
+    """Die betroffenen Aufträge als Datensatz-Zeilen für die Frage (Notizen #387/#391/#393).
+
+    Eine Zeile beantwortet drei Dinge: **wer** verliert (Auftrag – der Name ist der
+    Artikelname, darum trägt die Zeile die Datensatzart), **wie viel** (in der Einheit des
+    Artikels) und **woher** (aus welcher Instanz)."""
+    from .orders import order_display_name
+    arts = {a.id: a for a in db.query(Article).filter(
+        Article.id.in_({h.order.article_id for h in hits if h.order.article_id})).all()} if hits else {}
+    out: list[AffectedOrder] = []
+    for h in hits:
+        if not h.order.object_id:
+            continue
+        art = arts.get(h.order.article_id)
+        out.append(AffectedOrder(
+            object_id=h.order.object_id,
+            name=order_display_name(h.order, art.name if art else None),
+            reason=h.order.reason, article_name=art.name if art else None,
+            unit=art.unit if art else None, quantity=float(h.quantity),
+            sources=[AffectedShare(instance_object_id=oid, quantity=float(q))
+                     for oid, q in sorted(h.sources.items())],
+            needs_decision=not is_fixed_subject(h.order),
+        ))
     return out
 
 

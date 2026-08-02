@@ -13,13 +13,13 @@ from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.shipment import ShipmentBuyRequest, ShipmentQuoteRequest, ShipmentUpdate
 from ..schemas.order import (
-    AffectedOrder, OrderCoverStock, OrderCreate, OrderLineCreate, OrderLinePins,
-    OrderResponse, OrderSummary, OrderUpdate,
+    OrderCoverStock, OrderCreate, OrderLineCreate, OrderLinePins, OrderResponse,
+    OrderSummary, OrderUpdate,
 )
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, deviation, inventory, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject
+from ..services import deactivation, deviation, inventory, order_lines as order_lines_svc, process, processes as processes_svc, recovery, refund as refund_svc, sale as sale_svc, shares, subject
 from ..services.admin import log_audit
 from ..services.document import (
     act_on_signoff, get_signoff, record_document, substitute_signer, withdraw_issuance,
@@ -193,44 +193,15 @@ def _make_deviation(db: Session, order: Order, insts: list[Instance],
     # Teilmengen) – bei einem Stück aus einer 500er-Charge also 1, nicht 500.
     if order.article_id:
         order.quantity = qty_sum(wanted.values())
-    holders = _holders_of(db, insts, order, wanted)
+    holders = shares.affected(db, order, insts, wanted)
     # Eltern = wer das Stück hält. Mehrere Halter → der erste (die übrigen stehen über die
     # Instanz-Klammer ohnehin im Bild, ``deviation.deviations_touching``).
-    parent = holders[0][0] if holders else None
+    parent = holders[0].order if holders else None
     order.parent_order_id = parent.object_id if parent else None
     order.origin_step_id = deviation.interrupted_step_id(db, parent) if parent else None
 
 
-def _holders_of(db: Session, insts: list[Instance], order: Order | None,
-                wanted: dict | None = None) -> list[tuple[Order, Decimal]]:
-    """**Wem nimmt diese Auswahl wie viel weg?** – über alle gewählten Instanzen hinweg.
-
-    Die Regel je Instanz steht an EINER Stelle (``shares.losses``): genannter Anteil ≻
-    Erzeuger ≻ übrige Ansprüche, und nur so weit, wie wirklich etwas fehlt. Ein **freier**
-    Anteil gehört niemandem – dann verliert auch niemand etwas.
-
-    Die **Menge** gehört dazu, nicht nur der Auftrag (Testnotiz #391): «verliert 2» ist die
-    Aussage, die man zum Entscheiden braucht – nicht die Sollmenge des Betroffenen."""
-    from ..services.shares import losses
-    totals: dict[int, Decimal] = {}
-    order_of: dict[int, Order] = {}
-    for i in insts:
-        if order is None:
-            for h in subject.holding_orders(db, i):
-                totals.setdefault(h.id, to_qty(0))
-                order_of[h.id] = h
-            continue
-        for oid, qty in losses(db, i, order, (wanted or {}).get(i.object_id)).items():
-            totals[oid] = totals.get(oid, to_qty(0)) + qty
-    missing = [i for i in totals if i not in order_of]
-    if missing:
-        for o in db.query(Order).filter(Order.id.in_(missing)).all():
-            order_of[o.id] = o
-    return [(order_of[i], q) for i, q in totals.items() if i in order_of]
-
-
-def _assert_answered(db: Session, response: str | None,
-                     holders: list[tuple[Order, Decimal]]) -> None:
+def _assert_answered(db: Session, response: str | None, holders: list[shares.Affected]) -> None:
     """Ohne Entscheid geht es nicht weiter – gefragt wird bei der **Freigabe**.
 
     Vorher stand die Frage schon beim Auswählen. Das war zu früh (Testnotiz #370): danach
@@ -248,34 +219,16 @@ def _assert_answered(db: Session, response: str | None,
             # Oberfläche die Frage stellt – sie kennt den Entwurf nicht mehr als Datensatz
             # (Notiz #386), also muss der Fehler selbst sagen, wen es trifft.
             "message": "Diese Instanzen sind in Arbeit – der laufende Auftrag "
-                       + ", ".join(str(h.object_id) for h, _ in holders)
+                       + ", ".join(str(h.order.object_id) for h in holders)
                        + " verliert sie dadurch. Bitte entscheiden, wie es dort weitergeht: "
                          "warten · ersetzen · ohne Ersatz weiter.",
-            "affects": [a.model_dump() for a in _affected_of(db, holders)],
+            "affects": [a.model_dump() for a in shares.affected_rows(db, holders)],
         },
     )
 
 
-def _affected_of(db: Session, holders: list[tuple[Order, Decimal]]) -> list[AffectedOrder]:
-    """Die betroffenen Aufträge als Datensatz-Zeilen für die Frage (Notiz #387).
-
-    ``quantity`` ist, was der Auftrag **verliert** – nicht, worüber er lautet (Notiz #391)."""
-    from ..services.orders import order_display_name
-    arts = {a.id: a.name for a in db.query(Article).filter(
-        Article.id.in_({h.article_id for h, _ in holders if h.article_id})).all()} if holders else {}
-    return [
-        AffectedOrder(
-            object_id=h.object_id, name=order_display_name(h, arts.get(h.article_id)),
-            reason=h.reason, article_name=arts.get(h.article_id),
-            quantity=float(qty),
-            needs_decision=not subject.is_fixed_subject(h),
-        )
-        for h, qty in holders if h.object_id
-    ]
-
-
 def _enforce_claims(db: Session, order: Order, response: str | None,
-                    actor_id: int | None) -> list[tuple[Order, Decimal]]:
+                    actor_id: int | None) -> list[shares.Affected]:
     """Die vorgemerkte Auswahl **scharf machen** – der Moment der Freigabe.
 
     Bis hierhin hat der Entwurf nur beansprucht (``reservation.claim``), ohne jemandem etwas
@@ -287,23 +240,19 @@ def _enforce_claims(db: Session, order: Order, response: str | None,
     Vorher stand die Frage schon beim Auswählen; das war zu früh, weil sich Artikel, Menge
     und Instanzen danach noch ändern konnten (Testnotiz #370). Liefert die betroffenen
     laufenden Aufträge, damit die gewählte Antwort nach der Freigabe auf sie wirken kann."""
-    # **Erst schreiben lassen, dann lesen.** Die Session läuft mit ``autoflush=False``; kommen
-    # Auswahl und Freigabe in EINEM Aufruf, stünde die eben gesetzte Bindung sonst noch nicht
-    # in der Datenbank – die Abfrage fände nichts und die Frage bliebe still aus.
-    db.flush()
     picked = subject.chosen_subjects(db, order)
     if not picked:
         return []
-    holders = _holders_of(db, picked, order)
+    holders = shares.affected(db, order, picked)
     # Gefragt wird nur, wer die Frage auch beantworten kann: ein Auftrag mit einem **Soll**.
     # Ein festes Subjekt (Abweichung/Retoure/Bereitstellung) schrumpft lautlos mit und wird
     # gegenstandslos, wenn nichts bleibt – siehe ``_apply_shortfall_answer`` (Notiz #388).
-    if any(not subject.is_fixed_subject(h) for h, _ in holders):
+    if any(not subject.is_fixed_subject(h.order) for h in holders):
         _assert_answered(db, response, holders)
     return holders
 
 
-def _apply_shortfall_answer(db: Session, holders: list[tuple[Order, Decimal]], response: str | None,
+def _apply_shortfall_answer(db: Session, holders: list[shares.Affected], response: str | None,
                             actor_id: int | None, into: Order | None = None) -> None:
     """Die gewählte Antwort auf die Unterdeckung der Eltern anwenden – dieselben drei Wege
     wie am laufenden Auftrag (``recovery``), nur früher gestellt.
@@ -322,13 +271,13 @@ def _apply_shortfall_answer(db: Session, holders: list[tuple[Order, Decimal]], r
     keine Entscheidung – und genau deshalb lief die Antwort früher bei ihm auf «Keine
     Fehlmenge – es gibt nichts zu reduzieren» auf (Testnotiz #388)."""
     from ..services import recovery
-    for h, _ in holders:
-        if subject.is_fixed_subject(h):
-            recovery.retire_if_subjectless(db, h, into, actor_id)
+    for a in holders:
+        if subject.is_fixed_subject(a.order):
+            recovery.retire_if_subjectless(db, a.order, into, actor_id)
         elif response == "replace":
-            recovery.cover_shortfall(db, h, actor_id)
+            recovery.cover_shortfall(db, a.order, actor_id)
         elif response == "accept":
-            recovery.confirm_quantity(db, h, actor_id, into=into)
+            recovery.confirm_quantity(db, a.order, actor_id, into=into)
 
 
 def _set_chosen_instances(db: Session, order: Order, picks: list,
@@ -366,7 +315,7 @@ def _set_chosen_instances(db: Session, order: Order, picks: list,
         return
     insts, wanted, sources = _resolve_picks(db, order, picks)
     order.pick_sources = {str(k): v for k, v in sources.items()} or None   # v=None ⇒ freier Anteil
-    kind = subject.classify_pick(order, insts, wanted)
+    kind = subject.classify_pick(order, insts, wanted, sources)
 
     if kind == subject.PICK_RETURN:
         if any((i.disposition or "") != "sold" for i in insts):
@@ -389,7 +338,8 @@ def _set_chosen_instances(db: Session, order: Order, picks: list,
         # gebundene nimmt einem laufenden Auftrag etwas weg. Dieselbe Regel und dieselbe
         # Form wie beim Verkauft/Lager-Mix darüber; das Frontend blendet die jeweils andere
         # Sorte aus, sobald die erste gewählt ist.
-        if any(not subject.is_bound(order, i, wanted[i.object_id]) for i in insts):
+        if any(not subject.is_bound(order, i, wanted[i.object_id], sources.get(i.object_id))
+               for i in insts):
             raise HTTPException(
                 400, detail="Bitte entweder gebundene Instanzen (Abweichung) ODER freie Lager-Instanzen "
                             "wählen – nicht gemischt")
@@ -714,13 +664,19 @@ def _assert_releasable(db: Session, order: Order) -> None:
     if not is_multiline and not subject.is_fixed_subject(order) and (not order.article_id or not order.quantity):
         raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
 
+    # **Jeder Auftrag braucht einen Ablauf** – die Frage ist nur, welchen. Eine **Erzeugung**
+    # hat ihn am Artikel (der beschreibt ja, wie das Ding entsteht); alles andere braucht
+    # einen **eigenen**. Vorher genügte hier irgendein auflösbarer Schritt, und weil ein
+    # Auftrag ohne eigene Schritte auf den Artikel-Prozess zurückfiel, liess sich ein Auftrag
+    # mit ausgewählten Instanzen und leerem Ablauf freigeben – er fuhr dann den Artikel-
+    # Prozess über fremdes Material (Testnotiz #392).
     if subject.subject_kind(db, order) == "produce":
         # Vorbedingung: der Artikel (Spezifikation + Prozess) muss freigegeben sein.
         art = db.query(Article).filter(Article.id == order.article_id).first()
         if not art or art.status != "released":
             raise HTTPException(
                 400, detail="Der Artikel muss freigegeben sein, bevor der Prozess gestartet werden kann")
-    elif not process.order_step_infos(db, order):
+    elif not processes_svc.order_custom_steps(db, order.id):
         raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
 
     # Hat der Auftrag Beschaffungs-Schritte, muss je Schritt × betroffenem Artikel eine
@@ -792,7 +748,14 @@ def _do_release(db: Session, order: Order, answer: str | None, actor_id: int | N
 
       produce – KEIN eigener Ablauf → der **Artikel-Prozess** läuft, neue Instanzen entstehen.
       stock   – eigener Ablauf → er läuft auf ``quantity`` Instanzen des Artikels
-                (FIFO ab Lager, optional durch fixierte Instanzen ergänzt)."""
+                (FIFO ab Lager, optional durch fixierte Instanzen ergänzt).
+
+    **Erst schreiben lassen, dann lesen** (wie in ``orders.release_order``): das Gate fragt
+    den Bestand nach etwas, das dieselbe Anfrage eben erst geschrieben hat – «welche
+    Instanzen sind gewählt?» entscheidet über Subjektart UND darüber, ob ein eigener Ablauf
+    nötig ist. Ohne den Flush fände es nichts und liesse einen Auftrag mit ausgewählten
+    Instanzen und leerem Ablauf durch (Testnotiz #392)."""
+    db.flush()
     _assert_releasable(db, order)
     # **Jetzt – und erst jetzt – wird der Zugriff scharf** (Testnotiz #370). Bis hierhin
     # war die Instanz-Auswahl eine Vormerkung, die niemandem etwas wegnahm; mit der

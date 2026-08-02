@@ -142,14 +142,22 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
   // **Die Vorauswahl nennt ihren Halter** (Testnotiz #390): ohne ihn zeigte sie auf eine
   // Zeile, die es in der Auswahl gar nicht gibt – sie zählte zur Menge, war aber nirgends
   // markiert, und bei Auftragsmenge 1 liess sich die Instanz dadurch nicht mehr anklicken.
-  // Genommen wird der grösste Anteil; im Entwurf lässt sich jede Zeile frei umwählen.
+  //
+  // **Aber nur, wenn es nichts zu entscheiden gibt** (Testnotiz #394): trägt die Instanz
+  // mehrere Anteile (etwa Erzeugungsauftrag *und* eine laufende Abweichung), sind das zwei
+  // verschiedene Vorgänge – und seit der genannte Anteil bei der Freigabe wirklich verliert,
+  // ist die Wahl der Zeile keine Formsache mehr. Raten (früher: der grösste) hiesse, dem
+  // falschen Auftrag etwas wegzunehmen. Also wird dann gar nichts vorgewählt: die Auswahl
+  // steht offen und der Mensch klickt die Zeile an, die er meint.
   function createOrderShortcut() {
     if (!canOrderInstance || inst.object_id == null || inst.article_id == null) return;
-    const biggest = (inst.shares ?? []).reduce<{ order_object_id?: number | null; quantity: number } | null>(
-      (best, sh) => (best == null || sh.quantity > best.quantity ? sh : best), null);
-    onCreateOrder?.({ articleId: inst.article_id, quantity: 1,
-                      instance: { objectId: inst.object_id, quantity: 1,
-                                  fromOrderObjectId: biggest?.order_object_id ?? null } });
+    const rows = inst.shares ?? [];
+    const only = rows.length === 1 ? rows[0] : null;
+    onCreateOrder?.({
+      articleId: inst.article_id, quantity: 1,
+      instance: rows.length > 1 ? undefined
+        : { objectId: inst.object_id, quantity: 1, fromOrderObjectId: only?.order_object_id ?? null },
+    });
   }
 
   return (

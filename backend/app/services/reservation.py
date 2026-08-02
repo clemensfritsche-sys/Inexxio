@@ -105,20 +105,34 @@ def enforce(inst: Instance, order_id: int, from_order_id: int | None = None) -> 
     Jetzt sagt die **Auswahl**, wessen Anteil gemeint ist (``orders.pick_sources``), und hier
     wird genau der gekürzt.
 
-    Der genannte Anteil ist eine **Rangfolge, keine Ausschliesslichkeit**: reicht er nicht,
-    folgen die übrigen Ansprüche (wer 2 aus einer 2er-Charge nimmt, an der zwei Aufträge
-    hängen, trifft zwangsläufig beide). Bleibt danach immer noch etwas offen, schrumpft der
-    **eigene** Anspruch – wer nimmt, was nicht mehr da ist, bekommt eben weniger, statt es
-    jemandem stillschweigend wegzunehmen. Dieselbe Rangfolge beantwortet auch, **wer gefragt
-    wird** (``shares.losers``)."""
+    **Der genannte Anteil verliert IMMER – auch wenn woanders noch etwas frei wäre**
+    (Testnotiz #394). Ein Klick auf die Zeile «1 Stk · Auftrag …557» ist eine Aussage über
+    die **Herkunft**, nicht bloss über die Menge: gemeint ist *dieses* Stück. Vorher war der
+    Name nur eine Rangfolge für den Fehlbetrag – gab es irgendwo sonst noch Luft, blieb der
+    genannte Anteil unangetastet und die Menge kam still von jemand anderem. Damit war der
+    Klick folgenlos: die Abweichung trug zwar den richtigen Eltern-Namen, das Material nahm
+    sie aber einem Dritten weg, und dessen Unterdeckung tauchte nirgends auf.
+
+    Danach gilt weiter, was immer galt: was **darüber hinaus** zu viel ist, geht zulasten
+    der übrigen Ansprüche (wer 2 aus einer 2er-Charge nimmt, an der zwei Aufträge hängen,
+    trifft zwangsläufig beide); bleibt dann immer noch etwas offen, schrumpft der **eigene**
+    Anspruch – wer nimmt, was nicht mehr da ist, bekommt eben weniger, statt es jemandem
+    stillschweigend wegzunehmen. Dieselbe Rangfolge beantwortet auch, **wer gefragt wird**
+    (``shares.losses`` – zwei Formen, eine Regel)."""
     m = _load(inst)
     mine_key = str(order_id)
-    over = qty_sum(m.values()) - to_qty(inst.quantity)
-    if over <= 0:
-        return ZERO
+    src_key = str(from_order_id) if from_order_id is not None and str(from_order_id) != mine_key else None
     taken = ZERO
-    ranked = ([str(from_order_id)] if from_order_id is not None else []) + [
-        k for k in m if k not in (mine_key, str(from_order_id))]
+    # 1. Der genannte Anteil gibt her, was dieser Auftrag beansprucht – unbedingt.
+    if src_key is not None:
+        cut = min(m.get(mine_key, ZERO), m.get(src_key, ZERO))
+        if cut > 0:
+            m[src_key] -= cut
+            taken += cut
+    # 2. Was jetzt noch über die Instanz-Menge hinausgeht, tragen die übrigen Ansprüche
+    #    (der genannte zuerst, falls er noch etwas hat).
+    over = qty_sum(m.values()) - to_qty(inst.quantity)
+    ranked = ([src_key] if src_key else []) + [k for k in m if k not in (mine_key, src_key)]
     for key in ranked:
         if over <= 0:
             break

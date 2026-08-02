@@ -104,7 +104,10 @@ function shareKey(instanceObjectId: number, holder: number | null): string {
  * nicht mehr anklicken. Genau der gemeldete Fall: 1 von 4 ging nicht, 2 von 4 schon.
  *
  * Ein Anteil, den es gar nicht mehr gibt, fällt weg – man kann nichts beanspruchen, was
- * nicht da ist.
+ * nicht da ist. **Und es wird nicht geraten** (Testnotiz #394): passt die Angabe auf keine
+ * Zeile, wandert sie nur dann auf eine andere, wenn es genau EINE gibt. Bei mehreren
+ * Anteilen ist die Zeile eine Entscheidung – seit der genannte Anteil bei der Freigabe
+ * wirklich verliert, würde ein Zufallstreffer dem falschen Auftrag etwas wegnehmen.
  */
 function reconcilePicks(picks: InstancePickInput[], shares: Share[]): InstancePickInput[] {
   const out: InstancePickInput[] = [];
@@ -112,7 +115,8 @@ function reconcilePicks(picks: InstancePickInput[], shares: Share[]): InstancePi
     const rows = shares.filter((sh) => sh.instanceObjectId === p.instance_object_id);
     if (rows.length === 0) continue;
     const hit = rows.find((sh) => sh.holderObjectId === (p.from_order_object_id ?? null))
-      ?? rows.reduce((a, b) => (b.quantity > a.quantity ? b : a));
+      ?? (rows.length === 1 ? rows[0] : null);
+    if (!hit) continue;
     out.push({ ...p, from_order_object_id: hit.holderObjectId,
                quantity: Math.min(p.quantity ?? hit.quantity, hit.quantity) });
   }
@@ -337,10 +341,13 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   const shortfallCandidates = shortfall.flatMap((sf) => sf.available_instances ?? []);
   // **Am laufenden Auftrag ist der Betroffene er selbst** – dieselbe Liste, dieselbe Form
   // wie bei der Freigabe eines Entwurfs (Notiz #387): worüber entscheide ich hier gerade?
+  // Herkunft (`sources`) gibt es hier nicht: am laufenden Auftrag fehlt eine **Menge** –
+  // sie wurde nicht gerade einer bestimmten Instanz entnommen (das ist der Freigabe-Fall).
   const selfAffected: AffectedOrder[] = record?.object_id != null
     ? shortfall.map((sf) => ({
         object_id: record.object_id as number, name: orderName(record), reason: record.reason,
-        article_name: sf.article_name ?? null, quantity: sf.quantity, needs_decision: true,
+        article_name: sf.article_name ?? null, unit: record.article_unit ?? null,
+        quantity: sf.quantity, sources: [], needs_decision: true,
       }))
     : [];
 
@@ -560,13 +567,22 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // Artikel-Prozess) – braucht KEIN eigenes Artikel/Menge-Paar zur Freigabe (schliesst
   // sonst eine Abweichung eines Mehrpositionen-Auftrags dauerhaft aus der Freigabe aus).
   const hasDemand = isSubOrder || isMultiPosition || (!!record?.article_id && !!record?.quantity);
-  const canRelease = hasDemand
-    && sig === savedSig && (isSubOrder ? subOrderReady : specificComplete);
+  // **Wer vorhandene Instanzen wählt, erzeugt keine** (Testnotiz #392): der Artikel-Prozess
+  // beschreibt, wie etwas ENTSTEHT – er ist der Ablauf einer Erzeugung. Eine Auswahl sagt
+  // «das Material gibt es schon», also braucht der Auftrag einen **eigenen** Ablauf. Vorher
+  // liess sich ein Auftrag mit gewählten Instanzen und leerem Ablauf freigeben; er fuhr dann
+  // den Artikel-Prozess über fremdes Material. Dieselbe Regel prüft das Backend.
+  const needsOwnFlow = !isSubOrder && (isMultiPosition || goal !== 'produce');
+  const flowReady = !needsOwnFlow || stepCount > 0;
+  const canRelease = hasDemand && sig === savedSig
+    && (isSubOrder ? subOrderReady : specificComplete && flowReady);
   const releaseHint = isSubOrder
     ? (subOrderReady ? undefined : (isSupply ? 'Erst einen Prozessschritt für den Nachschub hinzufügen' : isReturn ? 'Erst einen Prozessschritt für die Retoure hinzufügen' : 'Erst einen Prozessschritt für die Abweichung hinzufügen'))
-    : (!specificComplete
+    : !specificComplete
       ? (isMultiPosition ? 'Erst für jede Position die passenden Instanzen wählen' : `Erst genau ${reqQty} Instanz(en) wählen`)
-      : 'Erst Artikel und Menge angeben');
+      : !flowReady
+        ? 'Erst einen Prozessschritt hinzufügen – was soll mit diesen Instanzen geschehen?'
+        : 'Erst Artikel und Menge angeben';
 
   // **Die Auswahl fragt nichts mehr** (Notiz #370): ein Entwurf nimmt niemandem etwas weg –
   // er merkt nur vor. Die Frage «was geschieht mit dem laufenden Auftrag?» steht bei der

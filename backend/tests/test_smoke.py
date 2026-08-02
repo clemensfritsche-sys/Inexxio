@@ -1651,17 +1651,19 @@ def test_subject_kind_follows_declared_step_roles():
 
     kind_src = _inspect.getsource(subject.subject_kind)
     mat_src = _inspect.getsource(subject.materialize_subject)
-    # Ableitung über die Registry – keine „jeder Schritt = stock"-Verkürzung, keine Pin-Disjunktion,
-    # keine Quellen-Übersteuerung.
-    assert "derive_subject_mode" in kind_src and "chosen_subjects" not in kind_src
+    # Ableitung über die Registry – keine „jeder Schritt = stock"-Verkürzung, keine
+    # Quellen-Übersteuerung.
+    assert "derive_subject_mode" in kind_src
     assert "subject_source" not in kind_src
     # Keine eigenen Schritte → Herstellung (produce), ein PRODUCE-Schritt bleibt Herstellung.
     assert 'return "produce"' in kind_src
-    # materialize delegiert an subject_kind – ohne Pin-Disjunktion.
-    assert "subject_kind(db, order)" in mat_src and "chosen_subjects" not in mat_src
-    # order_step_defs ohne Schritte → Artikel-Prozess (Herstellung), unabhängig von Pins.
+    # materialize delegiert an subject_kind – die Fallunterscheidung steht dort, nicht hier.
+    assert "subject_kind(db, order)" in mat_src
+    # order_step_defs bleibt bei «eigene Schritte, sonst Artikel-Prozess» – die Auswahl
+    # entscheidet dort NICHT mit (sonst verlöre ein abgeschlossener Auftrag rückwirkend
+    # seinen Ablauf, sobald die Bindung gelöst ist).
     defs_src = _inspect.getsource(process.order_step_defs)
-    assert "_has_chosen_subjects" not in defs_src
+    assert "chosen_subjects" not in defs_src
     assert "article_steps(db, order.article_id)" in defs_src
 
 
@@ -3330,7 +3332,8 @@ def test_a_pick_never_mixes_free_and_bound_instances():
 
     assert hasattr(subject, "is_bound")
     src = _inspect.getsource(orders._set_chosen_instances)
-    assert "subject.is_bound(order, i, wanted[i.object_id])" in src and "nicht gemischt" in src
+    assert "subject.is_bound(order, i, wanted[i.object_id], sources.get(i.object_id))" in src \
+        and "nicht gemischt" in src
 
 
 def test_a_refused_step_names_the_real_reason():
@@ -3579,10 +3582,10 @@ def test_a_fixed_subject_order_is_never_asked_for_a_shortfall_answer():
 
     assert callable(subject.still_holds)
     apply_src = _inspect.getsource(orders._apply_shortfall_answer)
-    assert "subject.is_fixed_subject(h)" in apply_src
+    assert "subject.is_fixed_subject(a.order)" in apply_src
     assert "retire_if_subjectless" in apply_src
     # Die Frage nur, wenn jemand mit Soll betroffen ist.
-    assert "any(not subject.is_fixed_subject(h) for h, _ in holders)" in \
+    assert "any(not subject.is_fixed_subject(h.order) for h in holders)" in \
         _inspect.getsource(orders._enforce_claims)
     # Gegenstandslos = hält nichts mehr → abgebrochen, mit Zeiger auf den Nachfolger.
     retire = _inspect.getsource(recovery.retire_if_subjectless)
@@ -3727,18 +3730,25 @@ def test_a_holder_loses_the_taken_quantity_not_its_own_order_quantity():
     ein Totalverlust und macht die Entscheidung unmöglich.
 
     Was ein Halter verliert, rechnet dieselbe Stelle aus, die auch sagt, WER verliert
-    (``shares.losses``): genannter Anteil ≻ Erzeuger ≻ übrige, und nur so weit, wie
-    wirklich etwas fehlt. ``losers`` ist die zweite Form derselben Regel."""
+    (``shares.losses``): genannter Anteil ≻ freier Rest ≻ Erzeuger ≻ übrige. ``losers`` ist
+    die zweite Form derselben Regel.
+
+    Und es gibt sie **nur einmal**: die zweite Fassung in ``services/orders._fill_affected``
+    meldete, was ein Halter überhaupt HÄLT statt was er VERLIERT – genau der gemeldete
+    Fehler, nur an der anderen Oberfläche (laufender Auftrag statt Freigabe)."""
     import inspect as _inspect
-    from app.routers import orders
-    from app.services import shares
+    from app.services import orders as ord_svc, shares
 
     assert "-> dict[int, Decimal]" in _inspect.getsource(shares.losses)
     assert "losses(db, inst, order, want)" in _inspect.getsource(shares.losers), (
         "«wer verliert» und «wie viel» sind zwei Formen EINER Regel")
     # Die Menge wandert bis in die Frage – nicht die Sollmenge des Betroffenen.
-    aff = _inspect.getsource(orders._affected_of)
-    assert "quantity=float(qty)" in aff and "h.quantity" not in aff
+    rows = _inspect.getsource(shares.affected_rows)
+    assert "quantity=float(h.quantity)" in rows and "h.order.quantity" not in rows
+    # Beide Oberflächen fragen dieselbe Stelle.
+    fill = _inspect.getsource(ord_svc._fill_affected)
+    assert "affected_rows(db, affected(db, order, picked))" in fill
+    assert "reserved_for" not in fill, "keine zweite Rechnung für dieselbe Frage"
 
 
 def test_the_picker_selection_follows_the_current_rows():
@@ -3762,3 +3772,76 @@ def test_the_picker_selection_follows_the_current_rows():
         "sein Anspruch ist im Entwurf noch nicht scharf.")
     inst = (fe / "instance-detail.tsx").read_text()
     assert "fromOrderObjectId" in inst, "Die Vorauswahl nennt ihren Halter."
+
+
+def test_a_pick_is_never_a_production():
+    """**Wer vorhandene Instanzen auswählt, erzeugt keine** (Testnotiz #392).
+
+    Ein Auftrag ohne eigene Schritte fährt den **Artikel**-Prozess – der beschreibt, wie
+    etwas ENTSTEHT. Wer aber Instanzen auswählt, sagt «das Material gibt es schon». Vorher
+    galt ausdrücklich das Gegenteil («eine Pin-Auswahl kippt den Auftrag NICHT»), und die
+    Folge war ein stiller Widerspruch: der Auftrag lief den Artikel-Prozess, ERZEUGTE neue
+    Instanzen – und hielt die ausgewählten daneben fest. Freigeben liess er sich obendrein
+    mit komplett leerem Ablauf.
+
+    Zwei Sätze, eine Regel: die Auswahl macht den Auftrag zur **Bestands-Operation**, und
+    eine Bestands-Operation braucht einen **eigenen** Ablauf."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.services import subject
+
+    kind = _inspect.getsource(subject.subject_kind)
+    assert "if chosen_subjects(db, order):" in kind and 'return "stock"' in kind, (
+        "Die Auswahl entscheidet über die Subjektart – an der EINEN Stelle, die sie ableitet.")
+    gate = _inspect.getsource(orders._assert_releasable)
+    assert "processes_svc.order_custom_steps(db, order.id)" in gate, (
+        "Alles ausser einer Erzeugung braucht EIGENE Schritte – der Artikel-Prozess zählt "
+        "dafür nicht (sonst genügte er als Ablauf für fremdes Material).")
+    rel = _inspect.getsource(orders._do_release)
+    assert rel.index("db.flush()") < rel.index("_assert_releasable"), (
+        "Das Gate liest, was dieselbe Anfrage eben geschrieben hat (autoflush=False).")
+
+
+def test_the_shortfall_question_names_order_quantity_and_source():
+    """**Wer verliert wie viel wovon** – die Frage beantwortet drei Dinge (Notiz #393).
+
+    Sie las sich als «Schraubendreher 100000555 verliert 1 Schraubendreher»: der Name eines
+    Auftrags IST der Artikelname, also sah die Zeile aus wie ein Artikel; die Menge trug den
+    Artikelnamen als Einheit (er stand schon links); und woher das Stück kommt, stand
+    nirgends. Jetzt: Datensatzart + Name + Objektnummer, Menge in der **Einheit**, und die
+    **Herkunftsinstanz**."""
+    import inspect as _inspect
+    from pathlib import Path
+    from app.schemas.order import AffectedOrder
+    from app.services import shares
+
+    for field in ("unit", "sources", "quantity", "needs_decision"):
+        assert field in AffectedOrder.model_fields, field
+    rows = _inspect.getsource(shares.affected_rows)
+    assert "unit=art.unit" in rows and "AffectedShare(instance_object_id=oid" in rows
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
+    dlg = (fe / "shortfall-dialog.tsx").read_text()
+    assert "unitLabel(a.unit)" in dlg, "Die Menge trägt die Einheit, nicht den Artikelnamen."
+    assert "a.article_name" not in dlg
+    assert "'Abweichung' : 'Auftrag'" in dlg, "Die Zeile sagt, dass sie einen Auftrag meint."
+    assert "instance_object_id" in dlg, "… und woher die Menge kommt."
+
+
+def test_a_pick_is_not_guessed_when_it_is_a_decision():
+    """**Wo es mehrdeutig ist, entscheidet der Mensch** (Testnotiz #394, Frontend-Hälfte).
+
+    Seit der genannte Anteil bei der Freigabe wirklich verliert, ist die Wahl der Zeile
+    keine Formsache mehr: den grössten Anteil zu raten (so kam #390 zustande) hiesse, dem
+    falschen Auftrag etwas wegzunehmen. Trägt eine Instanz mehrere Anteile, wird darum
+    nichts vorgewählt – und eine Auswahl, die auf keine Zeile passt, wandert nur dann auf
+    eine andere, wenn es genau EINE gibt."""
+    from pathlib import Path
+    fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
+    inst = (fe / "instance-detail.tsx").read_text()
+    assert "rows.length > 1 ? undefined" in inst, (
+        "Mehrere Anteile ⇒ keine Vorauswahl – die Zeile ist eine Entscheidung.")
+    assert "reduce<" not in inst.split("function createOrderShortcut")[1].split("}")[0], (
+        "Kein «grösster Anteil gewinnt» mehr.")
+    detail = (fe / "order-detail.tsx").read_text()
+    assert "rows.length === 1 ? rows[0] : null" in detail, (
+        "reconcilePicks rät nicht – es folgt nur einer eindeutigen Zeile.")

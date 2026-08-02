@@ -22,6 +22,13 @@ class ShortfallInstance(BaseModel):
     quantity: float = 1   # Bruchmenge möglich (kg/m²/…)
 
 
+class AffectedShare(BaseModel):
+    """**Woher** der Verlust kommt – Instanz + Menge. Ohne diese Angabe nennt die Frage nur
+    eine Zahl, und die Zahl allein beantwortet nicht, welches Stück gemeint ist (#393)."""
+    instance_object_id: int
+    quantity: float = 0
+
+
 class AffectedOrder(BaseModel):
     """**Wem nimmt die Auswahl dieses Entwurfs etwas weg?**
 
@@ -29,6 +36,11 @@ class AffectedOrder(BaseModel):
     laufende Aufträge zu – und soll **vor** der Freigabe sehen, auf welche. Die Frage «was
     geschieht dort weiter?» (pausieren · ersetzen · Menge reduzieren) fällt sonst über
     Objektnummern, die niemand einordnen kann (Testnotiz #387).
+
+    Die Zeile beantwortet drei Dinge, sonst beantwortet sie keines (Testnotiz #393): **wer**
+    verliert (ein Auftrag – sein Name ist der Artikelname, darum steht die Datensatzart
+    dabei), **wie viel** (in der Einheit des Artikels, nicht in seinem Namen) und **woher**
+    (``sources``: aus welcher Instanz).
 
     ``needs_decision`` unterscheidet die beiden Sorten Betroffener: ein Auftrag mit einem
     **Soll** braucht eine Antwort; ein Auftrag mit **festem Subjekt** (Abweichung, Retoure,
@@ -38,7 +50,9 @@ class AffectedOrder(BaseModel):
     name: Optional[str] = None
     reason: Optional[str] = None      # deviation | supply | return | provisioning | None
     article_name: Optional[str] = None
-    quantity: float = 0               # was er an den gewählten Instanzen hält
+    unit: Optional[str] = None        # Einheit der Menge (stk | kg | …)
+    quantity: float = 0               # was er an den gewählten Instanzen VERLIERT
+    sources: list[AffectedShare] = []
     needs_decision: bool = True
 
 
