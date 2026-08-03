@@ -3776,6 +3776,45 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_order_goal_hangs_at_the_end_of_the_process`; der Ecken-Wächter verlangt jetzt
   einen **Pfad** statt Rahmenkanten.
 
+- **Testnotizen-Runde 34 (die Abzweigung ist eine Gabelung – und ein Auftrag ist einen Klick
+  entfernt, Notizen #449–#456)**:
+  (1) **Auftrag auf das, was gerade dran ist** (#455, NEU – `FlowShortcut`): an der Kante, an
+  der die starke Linie endet, liegt das Material des Augenblicks – und genau darauf will man
+  einen Auftrag ansetzen (in der Praxis meist eine Abweichung). Ein bewusst blasser Knopf
+  (im Hover deutlich, mit Erklärung) nimmt **alle** Instanzen dieser Kante mit: mehrere
+  Artikel werden zu mehreren **Positionen**, jede mit ihren Instanzen und Mengen
+  (`seedFromLots` gruppiert nach Artikel, `OrderSeed.lines`). Angelegt wird dabei nichts –
+  der Entwurf lebt im Browser (#386) –, und **was** daraus wird, entscheidet weiterhin die
+  Auswahl (`subject.classify_pick`): der Knopf ist eine Eingabehilfe, kein zweiter
+  Anlage-Weg (#371).
+  (2) **Die Abzweigung ist eine Gabelung, kein T** (#456): die Linie biegt oben mit demselben
+  Radius aus der Achse ab, mit dem sie unten in den Unterprozess einläuft – und mündet
+  ebenso wieder ein. Möglich, weil die Geometrie seit #445 fest ist: der Pfad beginnt
+  schlicht `BEND` über der Zelle, mitten auf der Achse.
+  (3) **Kein Symbol für etwas, das die Linie schon sagt** (#450/#452): Uhr («in Arbeit») und
+  Pause sind entfallen. Dass der Prozess an diesem Modul steht, sieht man daran, dass es
+  aktiv ist und die starke Linie hier endet; dass er ruht, daran, dass die starke Linie nicht
+  hinführt und kein Modul aktiv ist. Übrig bleiben die zwei Aussagen, die man der Linie
+  **nicht** ansieht: **durch** (Wer/Wann im Hover) und **fehlgeschlagen**.
+  (4) **Ein Nachbar-Prozess blasst zum Rand hin aus** (#453, `fade`): der Abzweig nach
+  rechts, der übergeordnete Auftrag nach links. Er bleibt vollständig lesbar und sagt
+  trotzdem «hier geht es weiter, klick mich an». Das ist **nicht** die Maske aus #420
+  zurück: dort war sie die Entschuldigung für einen angeschnittenen Teaser, hier ist der
+  Nachbar ganz da und blasst nur an der Aussenkante aus. Die Verbindungslinie bleibt voll –
+  sie gehört zu diesem Fluss, nicht zum Nachbarn.
+  (5) **Ein zweiter Klick schliesst wieder** (#449): dafür braucht «zu» einen eigenen Wert –
+  `null` heisst «nichts gewählt» und fällt auf den aktiven Schritt zurück, der leere String
+  heisst «bewusst geschlossen».
+  (6) **Zeigefinger auch dort, wo der Klick am Container hängt** (#454): im Abzweig öffnet
+  die ganze Spalte den Datensatz; die Modul-Karte erbt den Cursor (`inherit`), statt ihn mit
+  `default` zu widerrufen.
+  (7) **Die Überschrift «Auftragsspezifikation» entfällt** (#451) – sie stand über einer
+  Karte, die es beim laufenden Auftrag gar nicht mehr gibt (#447), und im Entwurf ist das
+  Formular sich selbst genug (wie schon #106/#116 im Prozess-Editor).
+  Wächter: `test_the_process_point_offers_a_shortcut_onto_its_material`,
+  `test_the_flow_shows_state_only_where_the_line_does_not`; der Abzweig-Wächter kennt jetzt
+  den Unterschied zwischen «Kasten mit Maske» (verboten) und «Kante blasst aus» (gewollt).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

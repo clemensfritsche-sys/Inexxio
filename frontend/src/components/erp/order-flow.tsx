@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Check, Clock3, MapPin, Package, PauseCircle,
-  X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ClipboardPlus, MapPin, Package, X } from 'lucide-react';
 import type { FlowLot, Order, OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution,
   StepType, SubOrderStep } from '@/types';
 import { STEP_META, stepStateLabel } from '@/lib/process';
@@ -115,19 +114,23 @@ function Axis({ h = 22, strong = false, grow = false }: {
  * sie dort, wo sie beginnt bzw. endet – die Linie biegt also **zweimal** ab (Notizen
  * #430/#431). Weil der Pfad durchgehend ist, gibt es an keiner Ecke eine Naht.
  */
-const ELBOW: Record<string, { d: string; left: number }> = {
-  // aus der Achse nach rechts, dann hinunter in den Unterprozess
-  'fork-right': { left: -(MAIN / 2 + GAP),
-    d: `M0 0 H${RUN - BEND} A${BEND} ${BEND} 0 0 1 ${RUN} ${BEND} V${ARM}` },
-  // aus dem Unterprozess herunter, dann nach links zurück in die Achse
-  'merge-right': { left: -(MAIN / 2 + GAP),
-    d: `M${RUN} 0 V${ARM - BEND} A${BEND} ${BEND} 0 0 1 ${RUN - BEND} ${ARM} H0` },
+const ELBOW: Record<string, { d: string; left: number; h: number; top?: number; bottom?: number }> = {
+  // **Aus der Achse heraus – nicht als T, sondern als Gabelung** (Notiz #456): die Linie
+  // biegt oben mit demselben Radius ab, mit dem sie unten in den Unterprozess einläuft. Sie
+  // beginnt darum BEND über der Zelle, mitten auf der Achse.
+  'fork-right': { left: -(MAIN / 2 + GAP), top: -BEND, h: ARM + BEND,
+    d: `M0 0 A${BEND} ${BEND} 0 0 0 ${BEND} ${BEND} H${RUN - BEND} `
+      + `A${BEND} ${BEND} 0 0 1 ${RUN} ${2 * BEND} V${ARM + BEND}` },
+  // … und wieder hinein: herunter, nach links, dann mit Radius in die Achse einmünden.
+  'merge-right': { left: -(MAIN / 2 + GAP), bottom: 0, h: ARM,
+    d: `M${RUN} 0 V${ARM - 2 * BEND} A${BEND} ${BEND} 0 0 1 ${RUN - BEND} ${ARM - BEND} `
+      + `H${BEND} A${BEND} ${BEND} 0 0 0 0 ${ARM}` },
   // aus dem Eltern-Auftrag herunter, nach rechts – und an der Achse hinunter
-  'in-from-left': { left: SIDE / 2,
+  'in-from-left': { left: SIDE / 2, bottom: 0, h: ARM,
     d: `M0 0 V${ARM - 2 * BEND} A${BEND} ${BEND} 0 0 0 ${BEND} ${ARM - BEND} `
       + `H${RUN - BEND} A${BEND} ${BEND} 0 0 1 ${RUN} ${ARM}` },
   // aus der Achse heraus, nach links – und hinunter auf den Rückweg-Knoten
-  'out-to-left': { left: SIDE / 2,
+  'out-to-left': { left: SIDE / 2, top: 0, h: ARM,
     d: `M${RUN} 0 V${BEND} A${BEND} ${BEND} 0 0 1 ${RUN - BEND} ${2 * BEND} `
       + `H${BEND} A${BEND} ${BEND} 0 0 0 0 ${3 * BEND} V${ARM}` },
 };
@@ -135,18 +138,27 @@ const ELBOW: Record<string, { d: string; left: number }> = {
 function Elbow({ dir, strong }: {
   dir: 'fork-right' | 'merge-right' | 'in-from-left' | 'out-to-left'; strong?: boolean;
 }) {
-  const { d, left } = ELBOW[dir];
-  const atTop = dir === 'fork-right' || dir === 'out-to-left';
+  const { d, left, h, top, bottom } = ELBOW[dir];
   return (
-    <svg width={RUN} height={ARM} viewBox={`0 0 ${RUN} ${ARM}`} aria-hidden
+    <svg width={RUN} height={h} viewBox={`0 0 ${RUN} ${h}`} aria-hidden
       shapeRendering="geometricPrecision"
-      style={{ position: 'absolute', left, [atTop ? 'top' : 'bottom']: 0,
-        overflow: 'visible', pointerEvents: 'none' }}>
+      style={{ position: 'absolute', left, top, bottom, overflow: 'visible', pointerEvents: 'none' }}>
       <path d={d} fill="none" stroke={lineColor(!!strong)} strokeWidth={lineW(!!strong)}
         strokeLinecap="butt" strokeLinejoin="round" />
     </svg>
   );
 }
+
+/**
+ * **Ein Nachbar-Prozess blasst zum Rand hin aus** (Notiz #453) – nach rechts beim Abzweig,
+ * nach links beim übergeordneten Auftrag. Er bleibt klar zu lesen und sagt trotzdem: hier
+ * geht es weiter, klick mich an. Die Verbindungslinie bleibt voll – sie gehört zu diesem
+ * Fluss, nicht zum Nachbarn.
+ */
+const fade = (to: 'left' | 'right'): React.CSSProperties => ({
+  maskImage: `linear-gradient(to ${to}, #000 74%, rgba(0,0,0,0.28) 100%)`,
+  WebkitMaskImage: `linear-gradient(to ${to}, #000 74%, rgba(0,0,0,0.28) 100%)`,
+});
 
 /**
  * Eine Zeile des Flusses: die Achse in der Mitte, links Herkunft, rechts Abzweige.
@@ -285,7 +297,60 @@ function LotFact({ icon: Icon, title, children }: {
   );
 }
 
+/**
+ * **Der Abkürzungs-Knopf dort, wo der Prozess gerade steht** (Notiz #455).
+ *
+ * Genau an der Kante, an der die starke Linie endet, liegt das Material, um das es gerade
+ * geht – und genau dort will man einen Auftrag darauf ansetzen (in der Praxis meist eine
+ * Abweichung). Der Knopf nimmt **alle** Instanzen dieser Kante mit: mehrere Artikel werden
+ * zu mehreren Positionen, jede mit ihren Instanzen und Mengen.
+ *
+ * Was daraus wird, entscheidet weiterhin die Auswahl (``subject.classify_pick``) – der Knopf
+ * legt nichts an, er belegt einen Entwurf vor. Optisch bewusst zurückhaltend: erst im Hover
+ * wird er deutlich, wie die Abkürzungen im Kopf eines Datensatzes.
+ */
+function FlowShortcut({ lots, onCreate }: {
+  lots: Lots; onCreate: (lots: FlowLot[]) => void;
+}) {
+  const [hot, setHot] = useState(false);
+  const list = [...lots.values()].filter((l) => l.quantity > 0);
+  if (list.length === 0) return null;
+  const what = list.length === 1
+    ? `${qtyText(list[0])} ${formatObjectId(list[0].instance_object_id)}`
+    : `${list.length} Instanzen`;
+  return (
+    <button type="button" onClick={() => onCreate(list)}
+      onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      onFocus={() => setHot(true)} onBlur={() => setHot(false)}
+      title={`Auftrag auf ${what} anlegen – Artikel, Instanzen und Mengen sind vorbelegt`}
+      style={{
+        width: 24, height: 24, borderRadius: 999, flex: 'none', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: `1px solid ${hot ? 'var(--border-2)' : 'transparent'}`,
+        background: hot ? '#fff' : 'transparent',
+        color: hot ? 'var(--fg-2)' : 'var(--fg-4)', opacity: hot ? 1 : 0.4,
+        transition: 'opacity .15s, background .15s, border-color .15s, color .15s',
+      }}>
+      <ClipboardPlus size={13} />
+    </button>
+  );
+}
+
 /** Die Materialzeilen einer Kante; ab der vierten fasst «+N» zusammen. */
+/** Das Material einer Kante – und am **Prozess-Punkt** die Abkürzung darauf (#455). */
+function EdgeMaterial({ lots, onCreate }: {
+  lots: Lots; onCreate?: (lots: FlowLot[]) => void;
+}) {
+  if (lots.size === 0) return null;
+  if (!onCreate) return <FlowLots lots={lots} />;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <FlowLots lots={lots} />
+      <FlowShortcut lots={lots} onCreate={onCreate} />
+    </span>
+  );
+}
+
 function FlowLots({ lots, small }: { lots: Lots; small?: boolean }) {
   const list = [...lots.values()];
   if (list.length === 0) return null;
@@ -308,7 +373,8 @@ function FlowLots({ lots, small }: { lots: Lots; small?: boolean }) {
 // ─── Der Fluss ────────────────────────────────────────────────────────────────────
 
 export function OrderFlow({ steps, subOrders = [], origin, decision, paused = false,
-  selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId, goal }: {
+  selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId, goal,
+  onCreateOrder }: {
   steps: OrderStep[];
   subOrders?: OrderDeviationInfo[];
   origin?: OrderOrigin | null;
@@ -324,6 +390,8 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   orderObjectId?: number | null;
   /** Was am Ende des Prozesses steht: Wunsch-Liefertermin und (intern) der Fakturierende. */
   goal?: { due?: string | null; seller?: string | null };
+  /** Abkürzung am Prozess-Punkt: einen Auftrag auf genau dieses Material ansetzen (#455). */
+  onCreateOrder?: (lots: FlowLot[]) => void;
 }) {
   if (steps.length === 0 && !origin) return null;
   const processLabel = orderObjectId != null
@@ -371,7 +439,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     rows.push(
       <Row key={`edge-${i}`}>
         <Axis strong={reached} />
-        {reached && <FlowLots lots={edges[i]} />}
+        {reached && <EdgeMaterial lots={edges[i]} onCreate={i === walked ? onCreateOrder : undefined} />}
         <Axis strong={reached} />
       </Row>,
     );
@@ -455,7 +523,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
         {rows}
         <Row key="edge-last">
           <Axis strong={done} />
-          {done && <FlowLots lots={edges[nodes.length]} />}
+          {done && <EdgeMaterial lots={edges[nodes.length]} onCreate={onCreateOrder} />}
           <Axis strong={done} />
         </Row>
         <Row>
@@ -481,11 +549,18 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
 
 // ─── Modul-Karte (EINE für den ganzen Fluss) ──────────────────────────────────────
 
+/**
+ * **Nur was die Linie NICHT sagt** (Notizen #450/#452). Dass der Prozess gerade an diesem
+ * Modul steht, sieht man daran, dass es aktiv ist und die starke Linie hier endet – ein
+ * Uhr-Symbol daneben wiederholt das nur. Dass er ruht, ebenso: die starke Linie führt nicht
+ * hin, und kein Modul ist aktiv.
+ *
+ * Übrig bleiben die zwei Aussagen, die man der Linie nicht ansieht: **durch** (mit Wer/Wann
+ * im Hover) und **fehlgeschlagen**.
+ */
 const STATE_MARK: Record<string, { icon: React.ElementType; color: string }> = {
   done: { icon: Check, color: 'var(--success)' },
-  blocked: { icon: PauseCircle, color: 'var(--warning)' },
   failed: { icon: X, color: 'var(--danger)' },
-  active: { icon: Clock3, color: 'var(--warning)' },
 };
 
 /**
@@ -521,7 +596,9 @@ function StepCard({ type, state, detail, badge, hint, selected, muted: forced, c
       <div onClick={onClick} title={hint}
         style={{ display: 'flex', alignItems: 'center', gap: compact ? 10 : 12,
           padding: compact ? '10px 13px' : '13px 16px',
-          cursor: onClick ? 'pointer' : 'default' }}>
+          // Hängt der Klick am Container (Abzweig – die ganze Spalte öffnet den Datensatz),
+          // erbt die Karte den Zeigefinger, statt ihn zu widerrufen (Notiz #454).
+          cursor: onClick ? 'pointer' : 'inherit' }}>
         <div style={{ width: box, height: box, borderRadius: 'var(--r-sm)', flexShrink: 0,
           background: '#fff', color: kc.fg, border: `1px solid ${kc.border}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -579,7 +656,7 @@ function BranchCell({ info, reached, onOpen }: {
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
       paddingTop: ARM, paddingBottom: ARM }}>
       <Elbow dir="fork-right" strong={reached} />
-      <SubProcess info={info} onOpen={onOpen} />
+      <div style={fade('right')}><SubProcess info={info} onOpen={onOpen} /></div>
       <Elbow dir="merge-right" strong={reached && closed} />
     </div>
   );
@@ -704,10 +781,12 @@ function OrderRefNode({ caption, objectId, name, icon: Dir, title, onClick }: {
 function OriginArm({ origin, onOpen }: { origin: OrderOrigin; onOpen?: (id: number) => void }) {
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: ARM }}>
-      <OrderRefNode caption="Hervorgegangen aus" objectId={origin.order_object_id}
-        name={origin.order_name} icon={ArrowUp}
-        title={`Hervorgegangen aus ${origin.order_name ?? 'Auftrag'} – öffnen`}
-        onClick={() => onOpen?.(origin.order_object_id)} />
+      <div style={fade('left')}>
+        <OrderRefNode caption="Hervorgegangen aus" objectId={origin.order_object_id}
+          name={origin.order_name} icon={ArrowUp}
+          title={`Hervorgegangen aus ${origin.order_name ?? 'Auftrag'} – öffnen`}
+          onClick={() => onOpen?.(origin.order_object_id)} />
+      </div>
       <Elbow dir="in-from-left" strong />
     </div>
   );
@@ -721,10 +800,12 @@ function ReturnArm({ origin, strong, onOpen }: {
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
       <Elbow dir="out-to-left" strong={strong} />
-      <OrderRefNode caption="Gibt zurück an" objectId={id} name={origin.returns_to_name}
-        icon={ArrowDown}
-        title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}
-        onClick={() => onOpen?.(id)} />
+      <div style={fade('left')}>
+        <OrderRefNode caption="Gibt zurück an" objectId={id} name={origin.returns_to_name}
+          icon={ArrowDown}
+          title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}
+          onClick={() => onOpen?.(id)} />
+      </div>
     </div>
   );
 }

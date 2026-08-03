@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
-import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
+import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
@@ -159,7 +159,60 @@ export type OrderSeed = {
    *  fiele der Bedarf auf «Ab Lager» zurück und die Instanz wäre plötzlich gar nicht mehr im
    *  Spiel (#400). */
   instance?: { objectId: number; quantity: number; fromOrderObjectId?: number | null };
+  /** **Mehrere Positionen** (Notiz #455): der Abkürzungs-Knopf im Fluss nimmt ALLE Instanzen
+   *  mit, die dort stehen – und das können verschiedene Artikel sein. Dann ist jede Gruppe
+   *  eine Position mit ihren Instanzen und Mengen; ``articleId``/``instance`` beschreiben
+   *  weiterhin die erste. */
+  lines?: SeedLine[];
 };
+
+export type SeedLine = {
+  articleId: number; quantity: number;
+  instances: { objectId: number; quantity: number; fromOrderObjectId?: number | null }[];
+};
+
+/** Aus einer Gruppe eine Entwurfs-Position machen – dieselben negativen Ids wie ``addPosition``. */
+function seedLine(l: SeedLine, id: number, position: number, articles: Article[]) {
+  const art = articles.find((a) => a.id === l.articleId);
+  return { id, article_id: l.articleId, quantity: l.quantity, position,
+    article_object_id: art?.object_id ?? null, article_name: art?.name ?? null,
+    article_unit: art?.unit ?? null } as unknown as Order['order_lines'][number];
+}
+
+/** Die Entwurfs-Schlüssel der vorbelegten Positionen: `anchor` bzw. `line-<id>`. */
+function seedPins(seed: OrderSeed | null | undefined): Record<string, InstancePickInput[]> {
+  const pick = (i: SeedLine['instances'][number]) => ({
+    instance_object_id: i.objectId, quantity: i.quantity,
+    from_order_object_id: i.fromOrderObjectId ?? null });
+  if (seed?.lines?.length) {
+    if (seed.lines.length === 1) return { anchor: seed.lines[0].instances.map(pick) };
+    return Object.fromEntries(seed.lines.map((l, i) =>
+      [`line-${i === 0 ? -1 : -(i + 2)}`, l.instances.map(pick)]));
+  }
+  return seed?.instance && seed.instance.fromOrderObjectId !== undefined
+    ? { anchor: [{ instance_object_id: seed.instance.objectId, quantity: seed.instance.quantity,
+                   from_order_object_id: seed.instance.fromOrderObjectId }] }
+    : {};
+}
+
+/**
+ * **Aus dem Material am Prozess-Punkt einen Auftrags-Entwurf** (Notiz #455) – nach Artikel
+ * gruppiert, denn eine Position ist ein Artikel. Mehrere Instanzen desselben Artikels
+ * gehören in dieselbe Position; die Menge der Position ist ihre Summe.
+ */
+export function seedFromLots(lots: FlowLot[]): OrderSeed {
+  const byArticle = new Map<number, SeedLine>();
+  for (const l of lots) {
+    if (l.article_id == null || l.quantity <= 0) continue;
+    const line = byArticle.get(l.article_id)
+      ?? { articleId: l.article_id, quantity: 0, instances: [] };
+    line.quantity += l.quantity;
+    line.instances.push({ objectId: l.instance_object_id, quantity: l.quantity });
+    byArticle.set(l.article_id, line);
+  }
+  const lines = [...byArticle.values()];
+  return { articleId: lines[0]?.articleId ?? 0, quantity: lines[0]?.quantity ?? 1, lines };
+}
 
 /** Ein leerer Auftrag in der Form, die auch der Server liefert – der Entwurf im Browser. */
 function emptyDraft(): Order {
@@ -176,9 +229,18 @@ function emptyDraft(): Order {
 function seededDraft(seed: OrderSeed | null | undefined, articles: Article[]): Order {
   const d = emptyDraft();
   if (!seed) return d;
-  const art = articles.find((a) => a.id === seed.articleId);
+  // Mehrere Artikel ⇒ mehrere Positionen; der Anker bleibt leer, genau wie nach dem
+  // Hinzufügen einer zweiten Position von Hand (``addPosition``).
+  if (seed.lines && seed.lines.length > 1) {
+    return { ...d, article_id: null, quantity: null,
+      order_lines: seed.lines.map((l, i) => seedLine(l, i === 0 ? -1 : -(i + 2), i, articles)),
+    } as Order;
+  }
+  const one = seed.lines?.[0];
+  const articleId = one?.articleId ?? seed.articleId;
+  const art = articles.find((a) => a.id === articleId);
   return {
-    ...d, article_id: seed.articleId, quantity: seed.quantity ?? 1,
+    ...d, article_id: articleId, quantity: one?.quantity ?? seed.quantity ?? 1,
     article_object_id: art?.object_id ?? null, article_name: art?.name ?? null,
     article_unit: art?.unit ?? null,
   } as Order;
@@ -237,7 +299,8 @@ function orderActions(status: string, canRelease: boolean, releaseHint?: string)
   return [];
 }
 
-export function OrderDetail({ record: saved, seed, articles, viewerRole, company, suppliers = [], onSaved, onBack }: {
+export function OrderDetail({ record: saved, seed, articles, viewerRole, company, suppliers = [],
+  onSaved, onBack, onCreateOrder }: {
   record: Order | null;            // null ⇒ Anlage-Modus (nur Mitarbeiter)
   /** Vorbelegung aus einem Abkürzungs-Knopf (Artikel-/Instanz-Detail) – nur beim Anlegen. */
   seed?: OrderSeed | null;
@@ -248,6 +311,8 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   onSaved: (o: Order) => void;
   /** Zurück – im Anlage-Modus zugleich das Verwerfen: der Entwurf lebt nur hier (#386). */
   onBack: () => void;
+  /** Abkürzung aus dem Fluss: einen Auftrag auf das Material am Prozess-Punkt ansetzen (#455). */
+  onCreateOrder?: (seed: OrderSeed) => void;
 }) {
   const isCreate = saved === null;
   const isStaff = viewerRole === 'staff';
@@ -271,11 +336,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   ), [suppliers]);
   // Vorgemerkte Instanzen je Position (Schlüssel wie `PinLine.key`) – im Entwurf.
   type DraftPins = Record<string, InstancePickInput[]>;
-  const [draftPins, setDraftPins] = useState<DraftPins>((): DraftPins => (
-    seed?.instance && seed.instance.fromOrderObjectId !== undefined
-    ? { anchor: [{ instance_object_id: seed.instance.objectId, quantity: seed.instance.quantity,
-                   from_order_object_id: seed.instance.fromOrderObjectId }] }
-    : {}));
+  const [draftPins, setDraftPins] = useState<DraftPins>(() => seedPins(seed));
   const record: Order = saved ?? draft;
   function patchDraft(patch: Partial<Order>) { setDraft((d) => ({ ...d, ...patch })); }
   const [form, setForm] = useState<Form>(() => seedFrom(saved ?? draft));
@@ -336,7 +397,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     ?? steps.find((s) => s.state === 'failed')?.id
     ?? steps.find((s) => s.state === 'blocked')?.id   // wartet auf Material → surface
     ?? steps[steps.length - 1]?.id ?? null;
-  const currentStepId = selStep ?? (activeStepId != null ? String(activeStepId) : null);
+  // **Ein zweiter Klick schliesst wieder** (Notiz #449). Dafür braucht «zu» einen eigenen
+  // Wert: ``null`` heisst «nichts gewählt» und fällt auf den aktiven Schritt zurück, der
+  // leere String heisst «bewusst geschlossen».
+  const currentStepId = selStep === '' ? null
+    : (selStep ?? (activeStepId != null ? String(activeStepId) : null));
+  const toggleStep = (id: string) => setSelStep(currentStepId === id ? '' : id);
   const currentStep = steps.find((s) => String(s.id) === currentStepId) ?? null;
   // ── Was dem Auftrag fehlt ────────────────────────────────────────────────────────
   // Die Fehlmenge gehört dem **Auftrag**, nicht einem Schritt – darum steht sie einmal.
@@ -995,7 +1061,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
             (Artikel · Menge · woher), dieselbe für einen wie für viele Artikel. Die bei der
             Freigabe entstandenen **Instanzen** stehen in derselben Karte statt in einer
             zweiten darunter – sie sind das Ergebnis derselben Aussage, kein neues Thema. */}
-        <SectionTitle>Auftragsspezifikation</SectionTitle>
         {demandEditable ? (
           <div style={cardStyle}>
               {isMultiPosition ? (
@@ -1271,7 +1336,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                     : null,
                 }}
                 selectedId={currentStepId}
-                onSelectStep={setSelStep}
+                onSelectStep={toggleStep}
+                // **Abkürzung am Prozess-Punkt** (Notiz #455): das Material dort wird nach
+                // Artikel gruppiert – eine Position je Artikel, mit ihren Instanzen und
+                // Mengen. Angelegt wird nichts: der Entwurf lebt im Browser (#386), und was
+                // daraus wird (Abweichung? Retoure?), entscheidet weiterhin die Auswahl.
+                onCreateOrder={isStaff ? (picked) => onCreateOrder?.(seedFromLots(picked)) : undefined}
                 onOpenOrder={(oid) => nav?.(oid)}
                 renderPanel={(step) => (
                   <StepPanel key={String(step.id)} step={step} order={record as Order}

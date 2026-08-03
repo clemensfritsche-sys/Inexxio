@@ -391,9 +391,15 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # **Und die Terminal-Knoten nennen ihren Prozess** (Notizen #443/#444): ohne Kopfkarte
     # (#435) ist der Hover die Stelle, an der «welcher Auftrag ist das?» beantwortet wird.
     assert "title={`Start · ${hint}`}" in flow and "title={`Ende · ${hint}`}" in flow
-    for gone in ("function TeaserStep", "WebkitMaskImage"):
-        assert gone not in flow, (
-            f"{gone}: ein Abzweig braucht kein zweites Vokabular und keinen Kasten (#418/#420).")
+    assert "function TeaserStep" not in flow, (
+        "Ein Abzweig braucht kein zweites, kleineres Vokabular (#418).")
+    # **Das Ausblassen zum Rand ist zurück – aber aus dem umgekehrten Grund** (Notiz #453).
+    # Früher war die Maske die Entschuldigung dafür, dass ein angeschnittener Teaser nicht
+    # hinpasste (#420); jetzt ist der Nachbar-Prozess vollständig da und blasst nur zur
+    # Aussenkante hin aus – als Einladung, ihn zu öffnen. EINE Stelle (`fade`), zwei
+    # Richtungen: der Abzweig nach rechts, der übergeordnete Auftrag nach links.
+    assert "const fade = (to: 'left' | 'right')" in flow, "Das Ausblassen gibt es einmal."
+    assert "fade('right')" in flow and flow.count("fade('left')") == 2
     # EINE Modul-Karte für den ganzen Fluss – Hauptachse wie Abzweig.
     assert flow.count("function StepCard") == 1, "Es gibt genau EINE Modul-Karte."
     assert "<StepCard compact" in flow, (
@@ -409,8 +415,11 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # ``border-radius`` gebaut, sah man an der Naht jede halbe Pixelverschiebung und die
     # Strichstärke lief in der Rundung aus. Möglich wurde der SVG-Pfad erst durch **feste**
     # Spurbreiten: seither ist der Weg von der Achse zur Spurmitte eine Konstante (#445).
-    assert "borderRadius" not in flow.split("const ELBOW")[1].split("// ─── Materialfluss")[0], (
+    assert "borderRadius" not in flow.split("const ELBOW")[1].split("function Row")[0], (
         "Ecken werden gezeichnet, nicht aus Rahmenkanten zusammengesetzt.")
+    # **Und die Abzweigung ist eine Gabelung, kein T** (Notiz #456): die Linie biegt oben mit
+    # demselben Radius aus der Achse ab, mit dem sie unten wieder einmündet.
+    assert "top: -BEND" in flow, "Der Fork beginnt über der Zelle, mitten auf der Achse."
     assert "<path d={d}" in flow and "strokeWidth={lineW" in flow, (
         "Ein Strich, eine Strichstärke – ein echter Viertelkreis (#423/#430/#431).")
     assert "const RUN = MAIN / 2 + GAP + SIDE / 2" in flow, (
@@ -528,9 +537,9 @@ def test_no_edge_shows_material_it_has_not_carried_yet():
 
     Material trägt darum nur, was der Fluss schon erreicht hat."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "{reached && <FlowLots lots={edges[i]} />}" in flow, (
+    assert "{reached && <EdgeMaterial lots={edges[i]}" in flow, (
         "Unterhalb des Fortschritts trägt keine Kante eine Menge (#421).")
-    assert "{done && <FlowLots lots={edges[nodes.length]} />}" in flow, (
+    assert "{done && <EdgeMaterial lots={edges[nodes.length]}" in flow, (
         "Auch die letzte Kante erst, wenn der Auftrag durch ist.")
     assert "{closed && outLots.size > 0 && (" in flow, (
         "Was ein Abzweig zurückgibt, steht erst da, wenn es zurück ist.")
@@ -654,3 +663,43 @@ def test_the_order_goal_hangs_at_the_end_of_the_process():
     assert ") : showProcess ? null : (" in detail, (
         "Sobald der Prozess läuft, sagt er alles – die Karte entfällt (#447).")
     assert "goal={{" in detail and "record.desired_delivery_date" in detail
+
+
+def test_the_process_point_offers_a_shortcut_onto_its_material():
+    """**Ein Auftrag auf genau das, was gerade dran ist** (Testnotiz #455).
+
+    An der Kante, an der die starke Linie endet, liegt das Material des Augenblicks – und
+    genau darauf will man einen Auftrag ansetzen (in der Praxis meist eine Abweichung). Der
+    Knopf nimmt **alle** Instanzen dieser Kante mit: mehrere Artikel werden zu mehreren
+    Positionen, jede mit ihren Instanzen und Mengen.
+
+    Angelegt wird dabei nichts – der Entwurf lebt im Browser (#386) –, und **was** daraus
+    wird, entscheidet weiterhin die Auswahl (``subject.classify_pick``). Der Knopf ist eine
+    Eingabehilfe, kein zweiter Weg, einen Auftrag zu erzeugen (#371)."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "function FlowShortcut" in flow and "function EdgeMaterial" in flow
+    assert "onCreate={i === walked ? onCreateOrder : undefined}" in flow, (
+        "Die Abkürzung sitzt dort, wo die starke Linie endet – nicht an jeder Kante.")
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
+    assert "export function seedFromLots" in detail and "byArticle" in detail, (
+        "Eine Position ist ein Artikel – mehrere Instanzen desselben gehören zusammen.")
+    assert "lines?: SeedLine[]" in detail, "Der Entwurf kann mehrere Positionen vorbelegen."
+    page = (FRONTEND / "app" / "(erp)" / "erp" / "page.tsx").read_text(encoding="utf-8")
+    assert "onCreateOrder={(sd) => startCreate('order', sd)}" in page, (
+        "Der Auftrag entsteht über denselben Anlage-Weg wie jeder andere.")
+
+
+def test_the_flow_shows_state_only_where_the_line_does_not():
+    """**Kein Symbol für etwas, das die Linie schon sagt** (Testnotizen #450/#452).
+
+    Dass der Prozess an diesem Modul steht, sieht man daran, dass es aktiv ist und die starke
+    Linie hier endet; dass er ruht, daran, dass die starke Linie nicht hinführt und kein Modul
+    aktiv ist. Ein Uhr- bzw. Pause-Symbol daneben wiederholt das nur.
+
+    Übrig bleiben die zwei Aussagen, die man der Linie **nicht** ansieht: durch und
+    fehlgeschlagen."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    marks = flow.split("const STATE_MARK")[1].split("};")[0]
+    assert "done:" in marks and "failed:" in marks
+    for gone in ("active:", "blocked:", "PauseCircle", "Clock3"):
+        assert gone not in marks, f"{gone}: das sagt die Linie bereits (#450/#452)."
