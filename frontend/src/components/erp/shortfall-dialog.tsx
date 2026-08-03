@@ -33,9 +33,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { unitLabel } from '@/lib/article';
 import { formatQty } from '@/lib/process';
 import { formatObjectId } from '@/lib/utils';
-import type { AffectedOrder } from '@/types';
-
-export type ShortfallAnswer = 'wait' | 'replace' | 'accept';
+import type { AffectedOrder, ShortfallAnswer } from '@/types';
 
 /** Frei verfügbare Instanz, mit der sich die Fehlmenge ohne Nachschub decken liesse. */
 export type ShortfallCandidate = { object_id: number; quantity: number };

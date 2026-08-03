@@ -1885,7 +1885,7 @@ def test_an_order_is_created_as_a_whole_or_not_at_all():
         OrderCreate()   # Artikel + Menge sind Pflicht wie eh und je
     order = OrderCreate(article_id=1, quantity=2)
     assert order.quantity == 2
-    for field in ("lines", "steps", "picks", "shortfall_response"):
+    for field in ("lines", "steps", "picks", "shortfall_responses"):
         assert field in OrderCreate.model_fields, field
     # Auch eine **Position** bringt ihre Auswahl mit – sonst ginge sie beim Erteilen
     # verloren (der zweite Aufruf, den es hier nicht mehr gibt).
@@ -3502,8 +3502,8 @@ def test_the_order_level_deviation_is_the_abort():
     # laufenden – und bei der Freigabe entscheidet die Antwort, was mit ihm geschieht.
     assert not hasattr(orders, "open_deviation")
     src = _inspect.getsource(orders._do_release)
-    assert "_enforce_claims(db, order, answer, actor_id)" in src
-    assert "_apply_shortfall_answer(db, holders, answer, actor_id, into=order)" in src
+    assert "_enforce_claims(db, order, answers, actor_id)" in src
+    assert "_apply_shortfall_answer(db, holders, answers, actor_id, into=order)" in src
     assert "aborted" in _inspect.getsource(recovery.confirm_quantity)
 
 
@@ -3554,16 +3554,17 @@ def test_the_shortfall_question_comes_at_release_not_at_the_pick():
     wirklich etwas verliert, steht auch die Frage."""
     import inspect as _inspect
     from app.routers import orders
-    from app.schemas.order import OrderUpdate
+    from app.schemas.order import SHORTFALL_ANSWERS, OrderUpdate
     from app.services import reservation
 
-    assert orders.SHORTFALL_ANSWERS == ("wait", "replace", "accept")
-    assert "shortfall_response" in OrderUpdate.model_fields
+    assert SHORTFALL_ANSWERS == ("wait", "replace", "accept")
+    assert "shortfall_responses" in OrderUpdate.model_fields
 
-    # Die Auswahl fragt NICHT mehr …
+    # Die Auswahl fragt NICHT mehr – sie nimmt die Antwort auch gar nicht mehr entgegen.
     assert "_assert_answered" not in _inspect.getsource(orders._make_deviation)
+    assert "response" not in _inspect.signature(orders._set_chosen_instances).parameters
     # … die Freigabe schon.
-    assert "_assert_answered(db, response, holders)" in _inspect.getsource(orders._enforce_claims)
+    assert "_assert_answered(db, answers, holders)" in _inspect.getsource(orders._enforce_claims)
     # Scharf wird der Anspruch in der Freigabe selbst – damit auch die systemseitig
     # angelegte Abweichung (Datenerfassung/Deaktivierung) ihn durchsetzt, nicht nur der
     # Weg über den Router.
@@ -3611,6 +3612,67 @@ def test_every_affected_order_is_asked_the_same_question():
     assert "targets.get(inst.article_id" in held, (
         "Bei einer Retoure liegt die Menge beim KUNDEN – eine verkaufte Instanz trägt keine "
         "Restmenge und kann keinen Anspruch führen; gebunden heisst dort «vollständig gehalten».")
+
+
+def test_two_shares_of_one_instance_add_up():
+    """**Mehrere Anteile DERSELBEN Instanz sind EIN Anspruch – und nichts geht still verloren.**
+
+    Eine Charge à 6, an der zwei Aufträge hängen, erscheint in der Auswahl als zwei Zeilen;
+    beide dürfen angeklickt werden. Die zweite überschrieb aber die erste: aus «3 von A und
+    2 von B» wurde **«2 von B»** – der Auftrag war plötzlich kleiner als gewählt, und A wurde
+    nie gefragt. Jetzt zählen die Mengen zusammen.
+
+    Genannt bleibt der **erste** Halter (er hat den Vorrang bei der Durchsetzung); den Rest
+    verteilt ``shares.losses`` nach ihrer Rangfolge weiter – gefragt werden dadurch beide."""
+    import inspect as _inspect
+    from app.routers import orders
+
+    src = _inspect.getsource(orders._resolve_picks)
+    assert "if oid in wanted:" in src and "wanted[oid] += want" in src, (
+        "Zwei Zeilen derselben Instanz zählen zusammen, statt sich zu überschreiben.")
+    assert 'if sources.get(oid) is None:' in src, "Genannt bleibt der erste Halter."
+    # Die Obergrenze wird über die SUMME geprüft, nicht je Zeile – sonst liesse sich eine
+    # Instanz durch mehrere Zeilen überbuchen.
+    assert src.count("mehr lässt sich nicht wählen") == 2 and "for oid, want in wanted.items()" in src
+
+
+def test_every_holder_gets_its_own_answer():
+    """**Je Halter eine Antwort, nicht eine für alle.**
+
+    Wer aus zwei laufenden Aufträgen Stücke nimmt, kann den einen warten lassen und den
+    anderen reduzieren wollen. Eine einzige Antwort über alle wäre eine Entscheidung, die so
+    niemand getroffen hat – und im Fluss ist sie ohnehin je Halter sichtbar: die
+    Rückgabe-Linie führt zu ihm oder eben nicht.
+
+    Fehlt auch nur eine Antwort, wird die Frage für ALLE gestellt (die Oberfläche zeigt sie
+    zusammen) – aber genannt werden im Text nur die noch offenen."""
+    import inspect as _inspect
+
+    from pydantic import ValidationError
+    import pytest as _pytest
+
+    from app.routers import orders
+    from app.schemas.order import OrderCreate, OrderUpdate
+
+    # EINE Form am API-Rand: eine Abbildung {Objektnummer: Antwort}, kein zweiter Skalar
+    # daneben (sonst gäbe es zwei Wege für dieselbe Angabe).
+    for schema in (OrderCreate, OrderUpdate):
+        assert "shortfall_response" not in schema.model_fields
+        ann = schema.model_fields["shortfall_responses"].annotation
+        assert "dict" in str(ann), ann
+    OrderUpdate(shortfall_responses={"100000001": "wait", "100000002": "accept"})
+    with _pytest.raises(ValidationError):
+        OrderUpdate(shortfall_responses={"100000001": "irgendwas"})
+
+    # Die Auflösung «welche Antwort gilt für DIESEN Halter» steht an EINER Stelle …
+    lookup = _inspect.getsource(orders._answer_for)
+    assert "str(holder.object_id)" in lookup
+    # … und beide Nutzer – Prüfung und Anwendung – lesen sie.
+    for fn in (orders._assert_answered, orders._apply_shortfall_answer):
+        assert "_answer_for(answers, " in _inspect.getsource(fn), fn.__name__
+    # Unbeantwortet heisst: für diesen Halter fehlt sie.
+    ask = _inspect.getsource(orders._assert_answered)
+    assert "if not open_:" in ask and "shortfall_decision_required" in ask
 
 
 def test_clarification_counts_every_open_deviation_not_just_the_last_pointer():

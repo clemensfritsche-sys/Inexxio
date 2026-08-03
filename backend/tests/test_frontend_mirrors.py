@@ -235,6 +235,43 @@ def test_the_picker_offers_shares_not_instances():
     assert "Aufteilung" in inst, "Die Instanz zeigt dieselbe Aufteilung."
 
 
+def test_the_draft_is_framed_like_the_order_it_will_become():
+    """**Was man gleich sehen wird, sieht man schon beim Modellieren.**
+
+    Wer gebundene Instanzen wählt, hat eine Abweichung – und die hängt nach der Freigabe als
+    Abzweig am laufenden Auftrag. Das Bild dafür gibt es längst; es kam bisher einen Schritt
+    zu spät. Der Editor sitzt jetzt in der **Mitte** desselben Drei-Spuren-Bildes, links die
+    Halter.
+
+    **Und die Rückgabe-Linie IST die Entscheidung**: Linie da → der Halter wartet (``wait``),
+    gekappt → seine Menge wird reduziert (``accept``). Man klickt also kein Wort in einem
+    Dialog mehr an, sondern zeichnet den Fluss, den man meint – **je Halter einen**.
+
+    «Ersetzen» bleibt bewusst draussen: das ist keine Aussage über diesen Entwurf, sondern
+    eine Beschaffung im anderen Auftrag – sie gehört an den laufenden Auftrag."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text()
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
+
+    # Derselbe Rahmen, dieselben Bausteine – kein zweites Vokabular.
+    assert "export function DraftFlowFrame" in flow
+    for part in ("<Row ", "<Axis ", "<FlowTerm ", "<OrderRefNode", 'dir="in-from-left"',
+                 'dir="out-to-left"'):
+        assert part in flow, f"Der Entwurfs-Rahmen benutzt {part} wie der laufende Auftrag."
+    assert "if (holders.length === 0) return <>{children}</>;" in flow, (
+        "Ohne Halter kein Rahmen – ein gewöhnlicher neuer Auftrag geht aus nichts hervor.")
+    # Die gekappte Linie ist Abwesenheit, kein zweiter Strichstil.
+    assert "returns.has(h.object_id)" in flow and "function DraftCutList" in flow
+
+    # Die Antwort entsteht aus den gezeichneten Linien – je Halter eine.
+    assert "shortfall_responses" in detail and "shortfall_response:" not in detail
+    assert "returnsTo.has(h.object_id) ? 'wait' : 'accept'" in detail, (
+        "Linie da = warten, gekappt = Menge reduzieren.")
+    assert "'replace'" not in detail.split("function allAnswers")[1].split("\n  }")[0], (
+        "«Ersetzen» ist keine Aussage über den Entwurf – es bleibt am laufenden Auftrag.")
+    # Der Dialog ist nur noch das Netz für Halter, die der Fluss nicht zeigen konnte.
+    assert "uncoveredAffects.length > 0 && (" in detail
+
+
 def test_the_new_order_header_looks_like_every_other_one():
     """**Der Kopf des Anlage-Fensters ist derselbe wie überall** (Testnotiz #389).
 
@@ -718,8 +755,11 @@ def test_the_origin_is_a_reference_not_a_preview():
             f"{gone}: die Herkunft ist ein Verweis, keine Vorschau des Eltern-Prozesses.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "MoreSteps" not in flow, "«N Schritte davor» ist entfallen (#437)."
-    assert "function OrderRefNode" in flow and flow.count("<OrderRefNode") == 2, (
-        "Herkunft und Rückweg sind derselbe Verweis, zweimal benutzt (#438).")
+    # **EIN Baustein für jeden Verweis auf einen Auftrag** (#438) – Herkunft wie Rückweg,
+    # am laufenden Auftrag wie am Entwurf. Gezählt wird darum die Definition, nicht die
+    # Verwendung: dass er mehrfach benutzt wird, ist ja genau der Punkt.
+    assert flow.count("function OrderRefNode") == 1 and flow.count("<OrderRefNode") >= 2, (
+        "Herkunft und Rückweg sind derselbe Verweis, mehrfach benutzt (#438).")
     assert "TYPE_META.order" in flow and "from '@/lib/erp-record'" in flow, (
         "Das Aussehen eines Auftrags steht an EINER Stelle – der Verweis leiht es sich (#439).")
     assert 'caption="Hervorgegangen aus"' in flow and 'caption="Gibt zurück an"' in flow

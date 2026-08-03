@@ -141,9 +141,26 @@ def _resolve_picks(db: Session, order: Order, picks: list) -> tuple[list[Instanc
             others = subject.holding_orders(db, i, exclude_id=order.id)
             plain = [h for h in others if not subject.is_fixed_subject(h)]
             holder_id = (plain or others)[0].id if others else None
+        # **Mehrere Anteile DERSELBEN Instanz sind EIN Anspruch.** Eine Charge à 6, an der
+        # zwei Aufträge hängen, erscheint in der Auswahl als zwei Zeilen – beide dürfen
+        # angeklickt werden. Beide Mengen zählen dann zusammen; vorher überschrieb die zweite
+        # Zeile die erste **still** (aus «3 von A und 2 von B» wurde «2 von B»): der Auftrag
+        # war plötzlich kleiner und A wurde nie gefragt.
+        if oid in wanted:
+            wanted[oid] += want
+            # Genannt bleibt der ERSTE Halter – er hat den Vorrang bei der Durchsetzung
+            # (``shares.losses``); den Rest verteilt sie nach ihrer Rangfolge weiter.
+            if sources.get(oid) is None:
+                sources[oid] = holder_id
+            continue
         sources[oid] = holder_id
         insts.append(i)
         wanted[oid] = want
+    for oid, want in wanted.items():
+        i = next(x for x in insts if x.object_id == oid)
+        if want > to_qty(i.quantity):
+            raise HTTPException(
+                400, detail=f"Instanz {oid} hat nur {i.quantity} – mehr lässt sich nicht wählen")
     return insts, wanted, sources
 
 
@@ -160,11 +177,6 @@ def _clear_derived_marker(order: Order) -> None:
         order.reason = None
         order.parent_order_id = None
         order.origin_step_id = None
-
-
-# Die drei Antworten auf eine Unterdeckung – dieselben wie am laufenden Auftrag
-# (``recovery``), nur hier schon **bei der Auswahl** gestellt statt später.
-SHORTFALL_ANSWERS = ("wait", "replace", "accept")
 
 
 def _make_deviation(db: Session, order: Order, insts: list[Instance],
@@ -201,15 +213,28 @@ def _make_deviation(db: Session, order: Order, insts: list[Instance],
     order.origin_step_id = deviation.interrupted_step_id(db, parent) if parent else None
 
 
-def _assert_answered(db: Session, response: str | None, holders: list[shares.Affected]) -> None:
+def _answer_for(answers: dict[str, str] | None, holder: Order) -> str | None:
+    """Die Antwort für GENAU DIESEN Halter – die eine Auflösung, die Prüfung und Anwendung
+    teilen. Der Schlüssel ist seine Objektnummer (JSON-Schlüssel sind Strings)."""
+    return (answers or {}).get(str(holder.object_id))
+
+
+def _assert_answered(db: Session, answers: dict[str, str] | None,
+                     holders: list[shares.Affected]) -> None:
     """Ohne Entscheid geht es nicht weiter – gefragt wird bei der **Freigabe**.
 
     Vorher stand die Frage schon beim Auswählen. Das war zu früh (Testnotiz #370): danach
     definiert man den Auftrag ja erst fertig – Artikel, Menge und Instanzen können sich
     noch ändern, und die Entscheidung über den anderen Auftrag wäre womöglich gleich wieder
     falsch. Mit der Freigabe steht die Auswahl fest, und im selben Moment wird der Zugriff
-    scharf (``reservation.enforce``) – erst dort verliert der andere Auftrag wirklich etwas."""
-    if response in SHORTFALL_ANSWERS:
+    scharf (``reservation.enforce``) – erst dort verliert der andere Auftrag wirklich etwas.
+
+    **JEDER Betroffene braucht seine eigene Antwort.** Wer aus zwei laufenden Aufträgen
+    Stücke nimmt, kann den einen warten lassen und den anderen reduzieren wollen – eine
+    Antwort über alle wäre eine Entscheidung, die so niemand getroffen hat. Fehlt auch nur
+    eine, wird die Frage für ALLE gestellt (die Oberfläche zeigt sie zusammen)."""
+    open_ = [h for h in holders if _answer_for(answers, h.order) is None]
+    if not open_:
         return
     raise HTTPException(
         409,
@@ -219,7 +244,7 @@ def _assert_answered(db: Session, response: str | None, holders: list[shares.Aff
             # Oberfläche die Frage stellt – sie kennt den Entwurf nicht mehr als Datensatz
             # (Notiz #386), also muss der Fehler selbst sagen, wen es trifft.
             "message": "Diese Instanzen sind in Arbeit – der laufende Auftrag "
-                       + ", ".join(str(h.order.object_id) for h in holders)
+                       + ", ".join(str(h.order.object_id) for h in open_)
                        + " verliert sie dadurch. Bitte entscheiden, wie es dort weitergeht: "
                          "warten · ersetzen · ohne Ersatz weiter.",
             "affects": [a.model_dump() for a in shares.affected_rows(db, holders)],
@@ -227,7 +252,7 @@ def _assert_answered(db: Session, response: str | None, holders: list[shares.Aff
     )
 
 
-def _enforce_claims(db: Session, order: Order, response: str | None,
+def _enforce_claims(db: Session, order: Order, answers: dict[str, str] | None,
                     actor_id: int | None) -> list[shares.Affected]:
     """Die vorgemerkte Auswahl **scharf machen** – der Moment der Freigabe.
 
@@ -251,11 +276,12 @@ def _enforce_claims(db: Session, order: Order, response: str | None,
     # ist es EINE Frage mit denselben drei Antworten – wer keine Fehlmenge hat, taucht in
     # ``holders`` ohnehin nicht auf.
     if holders:
-        _assert_answered(db, response, holders)
+        _assert_answered(db, answers, holders)
     return holders
 
 
-def _apply_shortfall_answer(db: Session, holders: list[shares.Affected], response: str | None,
+def _apply_shortfall_answer(db: Session, holders: list[shares.Affected],
+                            answers: dict[str, str] | None,
                             actor_id: int | None, into: Order | None = None) -> None:
     """Die gewählte Antwort auf die Unterdeckung der Eltern anwenden – dieselben drei Wege
     wie am laufenden Auftrag (``recovery``), nur früher gestellt.
@@ -267,6 +293,9 @@ def _apply_shortfall_answer(db: Session, holders: list[shares.Affected], respons
     ALLES entzogen wurde: ``into`` ist dann der Auftrag, der ihn fortführt. Damit braucht der
     reale Fall «Auftrag verwerfen und neu aufsetzen» keinen eigenen Knopf mehr (Notiz #366).
 
+    **Je Halter seine eigene Antwort**: der eine wartet, der andere reduziert – im Fluss ist
+    das schlicht die Rückgabe-Linie, die zu ihm führt oder eben nicht.
+
     **Und sie gilt für JEDEN Betroffenen** (Notiz #397) – auch für ein festes Subjekt
     (Abweichung/Retoure/Bereitstellung). Dessen «Soll» sind die Stücke, die es behandeln
     sollte; nimmt man ihm eines weg, fehlt ihm genau das (``process._held_amounts``). Bleibt
@@ -275,14 +304,14 @@ def _apply_shortfall_answer(db: Session, holders: list[shares.Affected], respons
     (``recovery.retire_if_subjectless``) ist damit entfallen: eine Regel weniger."""
     from ..services import recovery
     for a in holders:
-        if response == "replace":
+        answer = _answer_for(answers, a.order)
+        if answer == "replace":
             recovery.cover_shortfall(db, a.order, actor_id)
-        elif response == "accept":
+        elif answer == "accept":
             recovery.confirm_quantity(db, a.order, actor_id, into=into)
 
 
-def _set_chosen_instances(db: Session, order: Order, picks: list,
-                          response: str | None = None, actor_id: int | None = None) -> None:
+def _set_chosen_instances(db: Session, order: Order, picks: list) -> None:
     """Die gewählten **Anteile** eines Entwurfs neu setzen: bisherige lösen, neue prüfen und
     beanspruchen.
 
@@ -298,9 +327,9 @@ def _set_chosen_instances(db: Session, order: Order, picks: list,
     verkauft lassen sich nicht mischen: ein Auftrag beantwortet EINE Frage – *woher kommt das
     Material?*
 
-    ``response`` beantwortet – falls die Auswahl einem LAUFENDEN Auftrag sein Stück
-    wegnimmt – gleich mit, wie dessen Unterdeckung zu behandeln ist (siehe
-    ``_make_deviation``)."""
+    **Der Eltern merkt hier noch nichts.** Die Auswahl wird nur vorgemerkt; ob und wie ein
+    laufender Auftrag dadurch etwas verliert, entscheidet sich erst bei der **Freigabe**
+    (``_enforce_claims``, Testnotiz #370)."""
     # Die bisherige Auswahl vollständig lösen – Bindung UND Anspruch. Ohne das bliebe ein
     # abgewählter Anspruch als Reservierung stehen und hielte fremden Bestand fest.
     for prev in (
@@ -447,7 +476,7 @@ async def create_order(
     # Sie wird gesetzt, solange der Artikel noch der **Anker** ist: die erste zusätzliche
     # Position wandelt ihn gleich in Position 0 um (Bindung/Anspruch bleiben unberührt).
     if data.picks:
-        _set_chosen_instances(db, order, data.picks, data.shortfall_response, current_user.id)
+        _set_chosen_instances(db, order, data.picks)
     # Weitere Positionen (Mehrpositionen-Auftrag) – derselbe Dienst wie der Einzel-Endpunkt,
     # jede Position mitsamt ihrer eigenen Instanz-Auswahl.
     for line in data.lines or []:
@@ -459,7 +488,7 @@ async def create_order(
         owner = _order_owner_for(order)
         for step in data.steps:
             create_step(db, owner, step, current_user, commit=False)
-    _do_release(db, order, data.shortfall_response, current_user.id)
+    _do_release(db, order, data.shortfall_responses, current_user.id)
     log_audit(db, "orders", None, "Auftrag erteilt",
               current_user.id, object_id=order.object_id)
     db.commit()
@@ -704,14 +733,14 @@ class _PickInputs(NamedTuple):
     Beide müssen aus dem Payload heraus, bevor die generische ``setattr``-Schleife
     darüberläuft; sonst landeten sie als Attribute auf dem Auftrag."""
     picks: list | None               # gewählte Anteile (Instanz · Menge · Halter)
-    answer: str | None               # Antwort auf eine dadurch ausgelöste Unterdeckung
+    answers: dict[str, str] | None   # je Halter die Antwort auf seine Unterdeckung
 
 
 def _pop_pick_inputs(data: OrderUpdate, payload: dict) -> _PickInputs:
     payload.pop("picks", None)
     return _PickInputs(
         picks=data.picks if "picks" in data.model_fields_set else None,
-        answer=payload.pop("shortfall_response", None),
+        answers=payload.pop("shortfall_responses", None),
     )
 
 
@@ -743,7 +772,8 @@ def _apply_fields(db: Session, order: Order, payload: dict, actor_id: int | None
         setattr(order, key, value)
 
 
-def _do_release(db: Session, order: Order, answer: str | None, actor_id: int | None) -> None:
+def _do_release(db: Session, order: Order, answers: dict[str, str] | None,
+                actor_id: int | None) -> None:
     """Freigabe (draft → released) – stösst den Prozess an und stellt das Subjekt her.
     Anker ist immer Artikel + Menge:
 
@@ -763,7 +793,7 @@ def _do_release(db: Session, order: Order, answer: str | None, actor_id: int | N
     # Freigabe steht sie fest. Nimmt sie einem LAUFENDEN Auftrag sein Stück weg, will
     # dessen Unterdeckung im selben Zug beantwortet sein – sonst bliebe er ohne
     # Entscheidung hängen.
-    holders = _enforce_claims(db, order, answer, actor_id)
+    holders = _enforce_claims(db, order, answers, actor_id)
     # Einheitliche Freigabe (setzt draft → released selbst): Subjekt herstellen (Fehlmenge ist
     # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
     # Beschaffung/Verkauf instanziieren, Komponenten reservieren.
@@ -772,7 +802,7 @@ def _do_release(db: Session, order: Order, answer: str | None, actor_id: int | N
               object_id=order.object_id, old_value="draft")
     # Die Antwort NACH der Freigabe anwenden: erst dort ist die Fehlmenge des anderen
     # Auftrags real, und «ersetzen»/«Menge reduzieren» rechnen mit dem echten Stand.
-    _apply_shortfall_answer(db, holders, answer, actor_id, into=order)
+    _apply_shortfall_answer(db, holders, answers, actor_id, into=order)
 
 
 @router.patch("/{object_id}", response_model=OrderResponse)
@@ -796,7 +826,7 @@ async def update_order(
     if pick.picks is not None:
         if order.status != "draft":
             raise HTTPException(409, detail="Instanzen lassen sich nur im Entwurf ändern")
-        _set_chosen_instances(db, order, pick.picks, pick.answer, current_user.id)
+        _set_chosen_instances(db, order, pick.picks)
     _assert_payload(db, order, payload)
 
     # Freigabe (draft → released) läuft AUSSCHLIESSLICH über ``release_order`` – dieser Pfad setzt
@@ -809,7 +839,7 @@ async def update_order(
         payload.pop("status")
     _apply_fields(db, order, payload, current_user.id)
     if wants_release:
-        _do_release(db, order, pick.answer, current_user.id)
+        _do_release(db, order, pick.answers, current_user.id)
 
     # Ein freigegebener Auftrag wird NICHT direkt inaktiv gesetzt – der Abbruch läuft über
     # «Abbrechen» (POST /abort), das einen Folgeauftrag erzwingt (keine herrenlosen Teile).
