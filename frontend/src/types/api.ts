@@ -4075,6 +4075,11 @@ export interface components {
              * @default []
              */
             location_path: components["schemas"]["LocationHop"][];
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["MaterialMoveView"][];
         };
         /**
          * InstanceShare
@@ -4123,6 +4128,35 @@ export interface components {
             location_id?: number | null;
             /** Label */
             label?: string | null;
+        };
+        /**
+         * MaterialMoveView
+         * @description Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.
+         *
+         *     ``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |
+         *     sold | consumed | scrapped | blocked | unblocked); ``order_object_id`` der beteiligte
+         *     Auftrag (Ziel-Halter, sonst Quelle), klickbar.
+         */
+        MaterialMoveView: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Kind */
+            kind: string;
+            /** Quantity */
+            quantity: number;
+            /** Quality */
+            quality?: string | null;
+            /** Disposition */
+            disposition?: string | null;
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /** Order Name */
+            order_name?: string | null;
+            /** Note */
+            note?: string | null;
         };
         /**
          * MaterialOrder

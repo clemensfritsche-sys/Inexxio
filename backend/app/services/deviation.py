@@ -261,6 +261,13 @@ def detach_sub_order(db: Session, sub: Order, actor_id: int | None) -> Order | N
         # ``Instance.order_id`` und hatte nie eine Reservierung.
         if parent is not None and parent.status == "released" and inst.order_id != parent.id:
             reserve(inst, parent.id, freed)
+            # Journal (ADR 007): die Ausleihe kehrt zum Verleiher zurück (Verwerfen-Tür –
+            # dieselbe Regel wie ``subject.return_borrowed`` beim Abschluss).
+            from . import ledger
+            ledger.post(db, inst, freed, kind="returned", holder=parent.id, src_holder=sub.id)
+        elif freed > 0:
+            from . import ledger
+            ledger.post(db, inst, freed, kind="released", holder=None, src_holder=sub.id)
         inst.subject_of_order_id = (
             parent.id if parent is not None and reserved_for(inst, parent.id) > 0 else None
         )
