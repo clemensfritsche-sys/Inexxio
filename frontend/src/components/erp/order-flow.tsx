@@ -150,14 +150,17 @@ function Elbow({ dir, strong }: {
 }
 
 /**
- * **Ein Nachbar-Prozess blasst zum Rand hin aus** (Notiz #453) – nach rechts beim Abzweig,
- * nach links beim übergeordneten Auftrag. Er bleibt klar zu lesen und sagt trotzdem: hier
- * geht es weiter, klick mich an. Die Verbindungslinie bleibt voll – sie gehört zu diesem
- * Fluss, nicht zum Nachbarn.
+ * **Nachbar-Prozesse treten zurück** (Notizen #453/#460): links der übergeordnete Auftrag,
+ * rechts der Abzweig. Beide gehören zum Bild, aber der Fokus liegt auf dem Prozess in der
+ * **Mitte** – sie sind darum als Ganzes gedämpft und blassen zusätzlich zur Aussenkante hin
+ * aus. Beim Hovern kommen sie ganz nach vorn: lesbar, ohne den Datensatz zu wechseln.
+ *
+ * Die Verbindungslinie bleibt davon unberührt – sie gehört zu diesem Fluss, nicht zum
+ * Nachbarn. (Optik in ``globals.css: .ix-flow-aside``, damit der Hover ohne JS auskommt.)
  */
-const fade = (to: 'left' | 'right'): React.CSSProperties => ({
-  maskImage: `linear-gradient(to ${to}, #000 74%, rgba(0,0,0,0.28) 100%)`,
-  WebkitMaskImage: `linear-gradient(to ${to}, #000 74%, rgba(0,0,0,0.28) 100%)`,
+const aside = (to: 'left' | 'right') => ({
+  className: 'ix-flow-aside',
+  style: { ['--ix-fade' as string]: to } as React.CSSProperties,
 });
 
 /**
@@ -338,27 +341,32 @@ function FlowShortcut({ lots, onCreate }: {
 
 /** Die Materialzeilen einer Kante; ab der vierten fasst «+N» zusammen. */
 /** Das Material einer Kante – und am **Prozess-Punkt** die Abkürzung darauf (#455). */
-function EdgeMaterial({ lots, onCreate }: {
-  lots: Lots; onCreate?: (lots: FlowLot[]) => void;
+function EdgeMaterial({ lots, onCreate, past, small }: {
+  lots: Lots; onCreate?: (lots: FlowLot[]) => void; small?: boolean;
+  /** Der Prozess ist hier schon vorbei – die Angabe tritt zurück, wie ein erledigtes Modul. */
+  past?: boolean;
 }) {
   if (lots.size === 0) return null;
-  if (!onCreate) return <FlowLots lots={lots} />;
+  if (!onCreate) return <FlowLots lots={lots} past={past} small={small} />;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <FlowLots lots={lots} />
+      <FlowLots lots={lots} past={past} small={small} />
       <FlowShortcut lots={lots} onCreate={onCreate} />
     </span>
   );
 }
 
-function FlowLots({ lots, small }: { lots: Lots; small?: boolean }) {
+function FlowLots({ lots, small, past }: { lots: Lots; small?: boolean; past?: boolean }) {
   const list = [...lots.values()];
   if (list.length === 0) return null;
   const shown = list.slice(0, 3);
   const rest = list.length - shown.length;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
-      gap: 3, margin: small ? '2px 0' : 0 }}>
+      gap: 3, margin: small ? '2px 0' : 0,
+      // **Vergangenes verblasst** (Notiz #462) – dieselbe Dämpfung wie bei einem erledigten
+      // Modul: was schon durch ist, soll den Blick nicht mehr auf sich ziehen.
+      opacity: past ? 0.55 : 1, transition: 'opacity .16s' }}>
       {shown.map((l) => <FlowLotChip key={l.instance_object_id} lot={l} />)}
       {rest > 0 && (
         <span title={list.slice(3).map((l) => `${qtyText(l)} · ${formatObjectId(l.instance_object_id)}`).join('\n')}
@@ -430,6 +438,12 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     : (n.branches ?? []).every((b) => !isOpen(b)));
   let walked = 0;
   while (walked < nodes.length && nodeDone(nodes[walked])) walked++;
+  // **Wo steht der Prozess wirklich?** (Notiz #459) – an einem offenen Abzweig hat sich das
+  // Material bereits geteilt: ein Teil ging hinein, der Rest blieb auf dem Hauptauftrag. Die
+  // tiefste erreichte Stelle der Achse ist dann der **Bypass** (was geblieben ist), nicht die
+  // Kante darüber (die noch alles zusammenzählt). Genau dort gehört die Abkürzung hin – sonst
+  // legte sie einen Auftrag auf Material an, das längst woanders hängt.
+  const atBypass = walked < nodes.length && !!nodes[walked].branches;
 
   let gateUsed = false;
   const rows: React.ReactNode[] = [];
@@ -439,7 +453,8 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     rows.push(
       <Row key={`edge-${i}`}>
         <Axis strong={reached} />
-        {reached && <EdgeMaterial lots={edges[i]} onCreate={i === walked ? onCreateOrder : undefined} />}
+        {reached && <EdgeMaterial lots={edges[i]} past={i < walked}
+          onCreate={!atBypass && i === walked ? onCreateOrder : undefined} />}
         <Axis strong={reached} />
       </Row>,
     );
@@ -457,7 +472,8 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
         <Row key={`br-${n.branches[0].object_id}`}
           right={<BranchArm branches={n.branches} reached={reached} onOpen={onOpenOrder} />}>
           <Axis grow h={26} strong={reached} />
-          {reached && <FlowLots lots={edges[i + 1]} small />}
+          {reached && <EdgeMaterial lots={edges[i + 1]} small past={passed}
+            onCreate={atBypass && i === walked ? onCreateOrder : undefined} />}
           <Axis grow h={26} strong={passed} />
         </Row>,
       );
@@ -527,14 +543,17 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
           <Axis strong={done} />
         </Row>
         <Row>
-          <FlowTerm kind="end" title={[`Ende · ${processLabel}`, goal?.due, goal?.seller]
-            .filter(Boolean).join(' · ')} />
-          {/* **Das Ziel gehört ans Prozessende** (Notiz #446): wann das Ergebnis da sein soll,
-              ist die Aussage des Endknotens – nicht eine Zeile in einer Karte darüber. */}
-          {goal?.due && (
-            <div style={{ marginTop: 7, font: '500 11.5px var(--font-body)', color: 'var(--fg-4)',
-              textAlign: 'center' }}>{goal.due}</div>
-          )}
+          {/* **Das Ziel gehört ans Prozessende** (Notiz #446) – und **neben** den Knoten,
+              nicht darunter (#457): absolut gesetzt, damit der Kreis auf der Achse bleibt. */}
+          <div style={{ position: 'relative', display: 'flex' }}>
+            <FlowTerm kind="end" title={[`Ende · ${processLabel}`, goal?.due, goal?.seller]
+              .filter(Boolean).join(' · ')} />
+            {goal?.due && (
+              <div style={{ position: 'absolute', left: '100%', top: '50%',
+                transform: 'translateY(-50%)', marginLeft: 12, whiteSpace: 'nowrap',
+                font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>{goal.due}</div>
+            )}
+          </div>
         </Row>
         {origin?.returns_to_object_id != null && (
           <>
@@ -656,7 +675,7 @@ function BranchCell({ info, reached, onOpen }: {
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
       paddingTop: ARM, paddingBottom: ARM }}>
       <Elbow dir="fork-right" strong={reached} />
-      <div style={fade('right')}><SubProcess info={info} onOpen={onOpen} /></div>
+      <div {...aside('right')}><SubProcess info={info} onOpen={onOpen} /></div>
       <Elbow dir="merge-right" strong={reached && closed} />
     </div>
   );
@@ -689,7 +708,7 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
         minWidth: 0, cursor: onOpen ? 'pointer' : 'default' }}>
       {inLots.size > 0 && (
         <>
-          <FlowLots lots={inLots} small />
+          <FlowLots lots={inLots} small past={walked > 0} />
           <Axis h={10} strong={started} />
         </>
       )}
@@ -781,7 +800,7 @@ function OrderRefNode({ caption, objectId, name, icon: Dir, title, onClick }: {
 function OriginArm({ origin, onOpen }: { origin: OrderOrigin; onOpen?: (id: number) => void }) {
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: ARM }}>
-      <div style={fade('left')}>
+      <div {...aside('left')}>
         <OrderRefNode caption="Hervorgegangen aus" objectId={origin.order_object_id}
           name={origin.order_name} icon={ArrowUp}
           title={`Hervorgegangen aus ${origin.order_name ?? 'Auftrag'} – öffnen`}
@@ -800,7 +819,7 @@ function ReturnArm({ origin, strong, onOpen }: {
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
       <Elbow dir="out-to-left" strong={strong} />
-      <div style={fade('left')}>
+      <div {...aside('left')}>
         <OrderRefNode caption="Gibt zurück an" objectId={id} name={origin.returns_to_name}
           icon={ArrowDown}
           title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}

@@ -792,3 +792,17 @@
 @media (prefers-reduced-motion: reduce) {
   .ix-truck, .ix-road { animation: none; }
 }
+
+/* ── Nachbar-Prozesse im Auftrags-Fluss (Testnotizen #453/#460) ───────────────────
+   Links der übergeordnete Auftrag, rechts der Abzweig: beide gehören zum Bild, aber
+   der Fokus liegt auf dem Prozess in der MITTE. Sie treten darum als Ganzes zurück und
+   blassen zusätzlich zur Aussenkante hin aus – die Einladung, sie anzuklicken. Beim
+   Hovern kommen sie ganz nach vorn, damit man sie lesen kann, ohne zu wechseln. */
+.ix-flow-aside {
+  opacity: .55;
+  transition: opacity .18s ease;
+  -webkit-mask-image: linear-gradient(to var(--ix-fade, right), #000 42%, rgba(0, 0, 0, .06) 100%);
+  mask-image: linear-gradient(to var(--ix-fade, right), #000 42%, rgba(0, 0, 0, .06) 100%);
+}
+.ix-flow-aside:hover { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .ix-flow-aside { transition: none; } }

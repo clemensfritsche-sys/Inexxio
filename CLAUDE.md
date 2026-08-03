@@ -3815,6 +3815,45 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_flow_shows_state_only_where_the_line_does_not`; der Abzweig-Wächter kennt jetzt
   den Unterschied zwischen «Kasten mit Maske» (verboten) und «Kante blasst aus» (gewollt).
 
+- **Testnotizen-Runde 35 (wo steht der Prozess wirklich?, Notizen #457–#462)**: Zwei echte
+  Fehler an der Abkürzung aus #455 – beide hatten dieselbe Wurzel: **eine Annahme, die bei
+  genau einem Halter zufällig stimmte.**
+  (1) **An einem offenen Abzweig steht der Prozess eine Kante tiefer** (#459): Die Abkürzung
+  sass an der Kante, an der die starke Linie endet – bei einem Abzweig ist das die Kante
+  **über** dem Fork, und die zählt noch alles zusammen (4 Stk). Tatsächlich hat sich das
+  Material dort längst geteilt: 2 gingen in die Abweichung, 2 blieben auf dem Hauptauftrag.
+  Wer oben ansetzt, legt einen Auftrag auf Stücke an, die woanders hängen. Die tiefste
+  **erreichte** Stelle der Achse ist der **Bypass** – und der IST der Prozess-Punkt
+  (`atBypass = walked < nodes.length && !!nodes[walked].branches`). Keine Sonderregel: die
+  beiden Bedingungen schliessen einander aus, die Abkürzung steht immer an genau einer Kante.
+  (2) **Eine Vorauswahl nennt ihren Halter – «nicht genannt» ist nicht «frei»** (#461): Der
+  neue Auftrag hatte Artikel und Menge, aber die falsche Instanz. Ursache war eine Sorte, die
+  es zweimal gab: `from_order_object_id` kannte `null` = «der freie Anteil», und eine
+  **fehlende** Angabe wurde genauso gelesen. Das Material am Prozess-Punkt gehört aber diesem
+  Auftrag; frei ist daran nichts. `reconcilePicks` suchte also einen freien Anteil, fand bei
+  mehreren Anteilen keinen und liess die Auswahl fallen – bei genau EINER Zeile griff der
+  Rückfall «es gibt ja nur eine», und der konnte die falsche sein. Zwei Hälften, beide nötig:
+  `seedFromLots(lots, holderObjectId)` **nennt** den Halter (die Abkürzung weiss ihn – es ist
+  der Auftrag, dessen Fluss sie zeigt), und wo nichts genannt ist, bleibt es `undefined`
+  statt `null` (`named = p.from_order_object_id !== undefined`). Geraten wird nur noch dort,
+  wo es nichts zu raten gibt.
+  (3) **Ein Nachbar-Prozess tritt deutlich zurück** (#460): «man soll klar erkennen, dass die
+  links und rechts dargestellten Prozesse nicht im Fokus stehen». Die Maske aus #453 blasst
+  nur die Aussenkante aus – die Mitte des Nachbarn blieb genauso laut wie der eigene Prozess.
+  Er ist jetzt **als Ganzes** gedämpft und blasst zusätzlich aus; beim Hovern kommt er ganz
+  nach vorn. Der Hover ist CSS (`.ix-flow-aside` in `globals.css`), kein State – ein
+  `onMouseEnter` je Nachbar wäre React-Arbeit für eine reine Optik-Frage. Die
+  Verbindungslinie bleibt unberührt: sie gehört zu diesem Fluss, nicht zum Nachbarn.
+  (4) **Vergangenes verblasst auf der Kante wie am Modul** (#462): ein erledigter Schritt
+  tritt zurück, die Mengen-Angabe darüber tat es nicht – und war damit lauter als der
+  Schritt, zu dem sie gehört. Dieselbe Dämpfung, dieselbe Regel.
+  (5) **Die Zielangabe steht NEBEN dem Endknoten** (#457): darunter schob sie den Kreis nach
+  oben und drückte die letzte Kante zusammen. Absolut gesetzt bleibt der Kreis auf der Achse,
+  die Beschriftung hängt rechts daneben.
+  Wächter: `test_a_preselected_share_names_its_holder`,
+  `test_what_is_past_steps_back_on_the_edges_too`; die Guards für Abkürzung, Bypass, Ziel
+  und Nachbar-Spuren sind auf die neuen Regeln gezogen.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

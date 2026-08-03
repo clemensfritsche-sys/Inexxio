@@ -120,7 +120,12 @@ function reconcilePicks(picks: InstancePickInput[], shares: Share[]): InstancePi
   for (const p of picks) {
     const rows = shares.filter((sh) => sh.instanceObjectId === p.instance_object_id);
     if (rows.length === 0) continue;
-    const hit = rows.find((sh) => sh.holderObjectId === (p.from_order_object_id ?? null))
+    // **«Nicht genannt» ist nicht dasselbe wie «frei»** (Testnotiz #461): ``undefined`` heisst
+    // «der Halter ist offen», ``null`` heisst ausdrücklich «der freie Anteil». Beides gleich
+    // zu behandeln liess eine Angabe ohne Halter auf der Suche nach einem freien Anteil
+    // scheitern – und bei mehreren Anteilen fiel sie damit ganz weg.
+    const named = p.from_order_object_id !== undefined;
+    const hit = (named ? rows.find((sh) => sh.holderObjectId === p.from_order_object_id) : undefined)
       ?? (rows.length === 1 ? rows[0] : null);
     if (!hit) continue;
     out.push({ ...p, from_order_object_id: hit.holderObjectId,
@@ -181,9 +186,13 @@ function seedLine(l: SeedLine, id: number, position: number, articles: Article[]
 
 /** Die Entwurfs-Schlüssel der vorbelegten Positionen: `anchor` bzw. `line-<id>`. */
 function seedPins(seed: OrderSeed | null | undefined): Record<string, InstancePickInput[]> {
-  const pick = (i: SeedLine['instances'][number]) => ({
-    instance_object_id: i.objectId, quantity: i.quantity,
-    from_order_object_id: i.fromOrderObjectId ?? null });
+  // Ein nicht genannter Halter bleibt **nicht genannt** – ``null`` hiesse «der freie
+  // Anteil», und das wäre eine Behauptung (Testnotizen #394/#461).
+  const pick = (i: SeedLine['instances'][number]) => (
+    i.fromOrderObjectId === undefined
+      ? { instance_object_id: i.objectId, quantity: i.quantity }
+      : { instance_object_id: i.objectId, quantity: i.quantity,
+          from_order_object_id: i.fromOrderObjectId });
   if (seed?.lines?.length) {
     if (seed.lines.length === 1) return { anchor: seed.lines[0].instances.map(pick) };
     return Object.fromEntries(seed.lines.map((l, i) =>
@@ -200,14 +209,19 @@ function seedPins(seed: OrderSeed | null | undefined): Record<string, InstancePi
  * gruppiert, denn eine Position ist ein Artikel. Mehrere Instanzen desselben Artikels
  * gehören in dieselbe Position; die Menge der Position ist ihre Summe.
  */
-export function seedFromLots(lots: FlowLot[]): OrderSeed {
+export function seedFromLots(lots: FlowLot[], holderObjectId: number | null): OrderSeed {
   const byArticle = new Map<number, SeedLine>();
   for (const l of lots) {
     if (l.article_id == null || l.quantity <= 0) continue;
     const line = byArticle.get(l.article_id)
       ?? { articleId: l.article_id, quantity: 0, instances: [] };
     line.quantity += l.quantity;
-    line.instances.push({ objectId: l.instance_object_id, quantity: l.quantity });
+    // **Der Anteil wird GENANNT** (Testnotiz #461): das Material am Prozess-Punkt hält
+    // dieser Auftrag – es ist nicht «frei». Ohne die Angabe las ``reconcilePicks`` sie als
+    // freien Anteil, fand bei mehreren Haltern keine passende Zeile und liess die Auswahl
+    // fallen: der neue Auftrag hatte Artikel und Menge, aber keine Instanz.
+    line.instances.push({ objectId: l.instance_object_id, quantity: l.quantity,
+                          fromOrderObjectId: holderObjectId });
     byArticle.set(l.article_id, line);
   }
   const lines = [...byArticle.values()];
@@ -1341,7 +1355,9 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // Artikel gruppiert – eine Position je Artikel, mit ihren Instanzen und
                 // Mengen. Angelegt wird nichts: der Entwurf lebt im Browser (#386), und was
                 // daraus wird (Abweichung? Retoure?), entscheidet weiterhin die Auswahl.
-                onCreateOrder={isStaff ? (picked) => onCreateOrder?.(seedFromLots(picked)) : undefined}
+                onCreateOrder={isStaff
+                  ? (picked) => onCreateOrder?.(seedFromLots(picked, record.object_id ?? null))
+                  : undefined}
                 onOpenOrder={(oid) => nav?.(oid)}
                 renderPanel={(step) => (
                   <StepPanel key={String(step.id)} step={step} order={record as Order}
