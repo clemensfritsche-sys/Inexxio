@@ -102,6 +102,14 @@ def record_link(db: Session, instance_object_id: int | None, order_id: int,
     if row is None:
         db.add(InstanceOrderLink(instance_object_id=instance_object_id, order_id=order_id,
                                  quantity=quantity))
+        # Journal (ADR 007): «übernommen» – der Auftrag nimmt die Menge in seine Obhut.
+        # Nur beim ERSTEN Mal (die Zeile ist idempotent, die Buchung soll es auch sein);
+        # der Erzeuger übernimmt nicht (er hält seit «created»).
+        from . import ledger
+        inst = db.query(Instance).filter(Instance.object_id == instance_object_id).first()
+        if inst is not None and inst.order_id != order_id:
+            ledger.post(db, inst, quantity if quantity is not None else inst.quantity,
+                        kind="taken", holder=order_id, src_holder="?")
     elif quantity is not None and row.quantity is None:
         row.quantity = quantity
 
@@ -169,6 +177,9 @@ def return_borrowed(db: Session, sub: Order) -> None:
         qty = min(reserved_for(inst, sub.id), gap)
         if qty > 0:
             reserve(inst, parent.id, qty)
+            # Journal (ADR 007): «zurückgegeben» – die Ausleihe kehrt zum Verleiher zurück.
+            from . import ledger
+            ledger.post(db, inst, qty, kind="returned", holder=parent.id, src_holder=sub.id)
             need[inst.article_id] = gap - qty
 
 

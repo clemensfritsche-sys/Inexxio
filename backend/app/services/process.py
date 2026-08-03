@@ -36,6 +36,7 @@ from ..models import (
 )
 from ..models.base import utcnow
 from .events import emit
+from . import ledger
 from .inventory import available, in_stock_clauses, is_blocked, unblocked_clauses
 from .quantity import ONE, ZERO, qty_sum, to_qty
 from .reservation import free_qty, release, reserve, reserved_for, take as take_qty
@@ -773,6 +774,9 @@ def release_instances(db: Session, order: Order) -> None:
         inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
         if inst.released_at is None:
             inst.released_at = now
+        # Journal (ADR 007): «ans Lager freigegeben» – der Halter endet, die Menge ist frei.
+        ledger.post(db, inst, inst.quantity, kind="released", holder=None,
+                    quality="passed", disposition="in_stock", src_holder=order.id)
         total += to_qty(inst.quantity)
     # Bestands-Zugang als Domain-Event mit DEKLARIERTER Polarität festhalten – so wird
     # der Event-Strom zur ökonomischen Wahrheit (Bestand = Projektion über Events).
@@ -813,6 +817,9 @@ def sell_order_subjects(db: Session, order: Order) -> None:
         take_qty(inst, sold, by_order_id=order.id)   # Menge mindern + eigenen Anspruch lösen
         if to_qty(inst.quantity) <= 0:
             inst.disposition = "sold"            # vollständig verkauft
+        # Journal (ADR 007): verkauft ist terminal – aus diesem Topf kommt nichts zurück.
+        ledger.post(db, inst, sold, kind="sold", holder=order.id, disposition="sold",
+                    src_holder=order.id)
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": sold, "delta": -sold, "polarity": event_types.DECREASE,
                       "order": order.object_id})
@@ -827,6 +834,7 @@ def sell_order_subjects(db: Session, order: Order) -> None:
     for inst in produced:
         inst.disposition = "sold"
         qty = to_qty(inst.quantity)
+        ledger.post(db, inst, qty, kind="sold", holder=order.id, disposition="sold")
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": qty, "delta": -qty,
                       "polarity": event_types.DECREASE, "order": order.object_id})
@@ -929,6 +937,10 @@ def _restock_one(db: Session, order: Order, inst, cust_oid: int | None,
     inst.disposition = "in_stock"
     inst.quality = "passed"
     inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager
+    # Journal (ADR 007): die Retoure holt aus dem terminalen «sold»-Topf zurück – der einzige
+    # legitime Weg dorthin zurück, darum ein ausdrücklicher Quell-Zustand.
+    ledger.post(db, inst, back, kind="returned", holder=None,
+                quality="passed", disposition="in_stock", src_disposition="sold")
     emit(db, "inventory.increased", object_type="instance", object_id=inst.object_id,
          payload={"quantity": back, "delta": back, "polarity": event_types.INCREASE,
                   "reason": "return", "order": order.object_id})
@@ -1042,8 +1054,10 @@ def recompute_completion(db: Session, order: Order) -> None:
                 Instance.subject_of_order_id == order.id),
             Instance.is_active == True,
         ).all():
-            release(inst, order.id)
+            freed = release(inst, order.id)
             inst.subject_of_order_id = None
+            # Journal (ADR 007): was der Auftrag am Ende noch hielt, wird frei.
+            ledger.post(db, inst, freed, kind="released", holder=None, src_holder=order.id)
         _spawn_recurrence(db, order, recurring_subjects)   # wiederkehrend: nächsten Auftrag nachziehen
         _peg_supply_to_parent(db, order)     # Nachschub: erzeugte Stück an den Eltern pinnen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)

@@ -3614,6 +3614,55 @@ def test_every_affected_order_is_asked_the_same_question():
         "Restmenge und kann keinen Anspruch führen; gebunden heisst dort «vollständig gehalten».")
 
 
+def test_the_material_journal_answers_the_three_questions():
+    """**ADR 007: drei Fragen, ein Modell.**
+
+    Was muss ich JETZT mit was machen · was kommt als NÄCHSTES · was ist PASSIERT – und das
+    Passierte kann sich unter keinen Umständen mehr ändern. Die Antwort ist ein
+    **append-only Journal** (``material_moves``): jede Menge einer Instanz ist zu jedem
+    Zeitpunkt in genau einem Topf (Halter · Qualität · Verbleib), jedes fachliche Ereignis
+    ist eine Buchung von Topf zu Topf.
+
+    Der Wächter hält die Struktur fest, die das garantiert:
+
+    * **Kein Schreibweg in die Vergangenheit**: ``ledger`` kennt nur ``db.add`` – kein
+      UPDATE, kein DELETE auf ``MaterialMove``.
+    * **Die semantischen Punkte buchen**: entstehen, übernehmen, freigeben, zurückgeben,
+      verkaufen, verbauen, aussondern, sperren/entsperren – jeder Dienst ruft ``ledger``.
+    * **Der Zustand hängt an der MENGE**: der Kontostand ist je Topf, nicht je Instanz –
+      das Chargen-Problem (#483/#485/#495) löst sich im Modell statt in der Anzeige.
+    * **Buchhaltung streng, Zuordnung tolerant**: eine Buchung entnimmt nie mehr, als da
+      ist; was fehlt, wird sichtbar markiert (``!unbalanced``) statt still verschluckt."""
+    import inspect as _inspect
+
+    from app.services import (
+        inspection, ledger, process, resource, scrap, serialization, subject,
+    )
+
+    # Append-only: das Journal-Modul verändert nie eine bestehende Zeile.
+    src = _inspect.getsource(ledger)
+    assert "db.add(MaterialMove(" in src
+    assert ".delete(" not in src and "\n    m.quantity =" not in src, (
+        "Die Vergangenheit hat keinen Schreibweg.")
+    # Der Kontostand ist je Topf (Halter · Qualität · Verbleib).
+    assert "class Bucket(NamedTuple)" in src and "def lots(" in src
+    assert "up_to_id" in src, "Der Stand von damals ist eine Abfrage, keine Rekonstruktion."
+    assert "!unbalanced" in src and "def verify_instance" in src
+
+    # Die semantischen Punkte buchen – jeder Lebenszyklus-Schritt hat seine Zeile.
+    for mod, kind in ((serialization, "created"), (subject, "taken"),
+                      (process, "released"), (process, "sold"), (process, "returned"),
+                      (resource, "consumed"), (scrap, "scrapped"), (scrap, "blocked"),
+                      (scrap, "unblocked"), (inspection, "blocked")):
+        mod_src = _inspect.getsource(mod)
+        assert f'kind="{kind}"' in mod_src, f"{mod.__name__} bucht {kind} nicht"
+        assert "ledger.post(" in mod_src, mod.__name__
+
+    # «Was kam zurück?» liest die Buchungen, keine Vorhersage (Testnotizen #496/#497).
+    from app.services import orders as osvc
+    assert "ledger.departed_of" in _inspect.getsource(osvc._flow_back)
+
+
 def test_two_shares_of_one_instance_add_up():
     """**Mehrere Anteile DERSELBEN Instanz sind EIN Anspruch – und nichts geht still verloren.**
 

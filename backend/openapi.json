@@ -11653,6 +11653,14 @@
             "type": "array",
             "title": "Location Path",
             "default": []
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialMoveView"
+            },
+            "type": "array",
+            "title": "History",
+            "default": []
           }
         },
         "type": "object",
@@ -11799,6 +11807,86 @@
         ],
         "title": "LocationHop",
         "description": "Eine Station der Standort-Kette (von innen nach aussen).\n\n``location_type='address'`` markiert den abschliessenden geografischen Eintrag –\ner trägt keine Objektnummer, sondern die Anschrift."
+      },
+      "MaterialMoveView": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "disposition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposition"
+          },
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "order_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Name"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "kind",
+          "quantity"
+        ],
+        "title": "MaterialMoveView",
+        "description": "Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.\n\n``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |\nsold | consumed | scrapped | blocked | unblocked); ``order_object_id`` der beteiligte\nAuftrag (Ziel-Halter, sonst Quelle), klickbar."
       },
       "MaterialOrder": {
         "properties": {

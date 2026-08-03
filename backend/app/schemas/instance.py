@@ -93,6 +93,27 @@ class InstanceResponse(BaseModel):
     # **Standort-Kette** (nur im Detail gefüllt, nicht im Feed): Instanz → Behälter →
     # Behälter → Anschrift. Beantwortet «wo genau liegt das?» in einem Blick.
     location_path: list[LocationHop] = []
+    # **Was mit diesem Stück passiert ist** – das Material-Journal (ADR 007), chronologisch
+    # und unveränderlich. Nur im Detail gefüllt. Beginnt bei Alt-Instanzen mit der
+    # Eröffnungsbilanz (``opening``); die Geschichte davor steht in den Aufträgen.
+    history: list["MaterialMoveView"] = []
+
+
+class MaterialMoveView(BaseModel):
+    """Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.
+
+    ``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |
+    sold | consumed | scrapped | blocked | unblocked); ``order_object_id`` der beteiligte
+    Auftrag (Ziel-Halter, sonst Quelle), klickbar."""
+
+    at: datetime
+    kind: str
+    quantity: float
+    quality: Optional[str] = None       # Zustand NACH dem Ereignis
+    disposition: Optional[str] = None
+    order_object_id: Optional[int] = None
+    order_name: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ObjectReference(BaseModel):

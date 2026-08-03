@@ -135,6 +135,11 @@ def _relocate(db: Session, inst: Instance, product: Instance, actor_id: int) -> 
     # gleichzeitig als anteilig woanders liegend.
     location_split.set_single(inst, "instance", product.object_id)
     inst.disposition = "consumed"   # Verbleib: verbaut (Qualität bleibt unverändert)
+    # Journal (ADR 007): verbaut ist terminal – zugeschrieben dem verbauenden Auftrag
+    # (dem Auftrag der Produkt-Instanz, in die eingebaut wird).
+    from . import ledger
+    ledger.post(db, inst, inst.quantity, kind="consumed", holder=product.order_id,
+                disposition="consumed", actor_id=actor_id)
 
 
 def _consume_line(db: Session, order: Order, products: list[Instance],
@@ -169,6 +174,11 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
             else:
                 # Teilentnahme aus einer Charge: Menge mindern, KEINE neue Instanz/Nummer.
                 take_qty(cand, take, by_order_id=order.id)
+                # Journal (ADR 007): die Teilmenge ist verbaut – terminal, dem Auftrag
+                # zugeschrieben; die Restmenge bleibt in ihrem Topf.
+                from . import ledger
+                ledger.post(db, cand, take, kind="consumed", holder=order.id,
+                            disposition="consumed", src_holder=order.id, actor_id=actor_id)
                 # War die Charge auf mehrere Standorte verteilt, die Verteilung nachziehen
                 # (Summe wieder = quantity).
                 location_split.reconcile(cand)

@@ -707,10 +707,15 @@ def test_a_split_has_three_places_not_two():
         assert field in OrderDeviationInfo.model_fields, field
     import inspect as _inspect
     from app.services import orders as osvc
-    src = _inspect.getsource(osvc._sub_info)
-    assert 'flow_back=[] if sub.status in ("draft", "released") else back' in src, (
-        "Was zurück IST, gibt es erst, wenn der Abzweig durch ist – vorher wäre es eine "
-        "Vorhersage.")
+    # **Was zurück IST, sagt das Material-Journal** (ADR 007): die tatsächlichen
+    # Rückgabe-Buchungen – ein laufender Abzweig hat schlicht noch keine. Die frühere
+    # Status-Fallunterscheidung war die Simulation eines Journals; sie bleibt nur als
+    # Lesepfad für Alt-Aufträge ohne Buchungen.
+    back_src = _inspect.getsource(osvc._flow_back)
+    assert "ledger.departed_of" in back_src, (
+        "Was zurück IST, kommt aus den Buchungen – keine Vorhersage aus dem Hineingegangenen.")
+    assert 'if sub.status in ("draft", "released")' in back_src, (
+        "Alt-Aufträge ohne Journal: leer solange er läuft, danach die abgeleitete Rückgabe.")
     assert "returning_material" in _inspect.getsource(osvc.returns_material), (
         "«Kommt etwas zurück?» und «was kommt zurück?» sind EINE Ableitung.")
 

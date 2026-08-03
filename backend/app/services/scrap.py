@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from ..domain import event_types
 from ..models import Disposal, Order
-from . import inventory, location_split, process
+from . import inventory, ledger, location_split, process
 from .admin import log_audit
 from .events import emit
 from .quantity import to_qty
@@ -88,6 +88,10 @@ def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order: Ord
     if not whole:
         cut = take(inst, cut_qty, by_order_id=order.id)
         location_split.reconcile(inst)
+        # Journal (ADR 007): die Teilmenge geht in den terminalen «scrapped»-Topf –
+        # zugeschrieben dem Auftrag, der ausgesondert hat.
+        ledger.post(db, inst, cut, kind="scrapped", holder=order.id,
+                    disposition="scrapped", src_holder=order.id, actor_id=actor_id)
         log_audit(db, "instances", "quantity", str(inst.quantity), actor_id,
                   object_id=inst.object_id,
                   old_value=f"{(inst.quantity or 0) + cut} (− {cut} verschrottet)")
@@ -97,6 +101,8 @@ def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order: Ord
     old_loc = f"{inst.location_type}:{inst.location_id}" if inst.location_type else None
     cut = to_qty(inst.quantity)
     inst.disposition = "scrapped"
+    ledger.post(db, inst, cut, kind="scrapped", holder=order.id,
+                disposition="scrapped", src_holder=order.id, actor_id=actor_id)
     release_all(inst)
     if inst.location_type is not None or inst.locations:
         location_split.clear(inst)
@@ -196,6 +202,11 @@ def record_block(db: Session, order: Order, data, actor_id: int) -> Disposal:
             continue                                # idempotent: schon gesperrt
         old = inst.quality
         inst.quality = inventory.BLOCKED
+        # Journal (ADR 007): Sperren ist reversibel – die Menge bleibt lebend, nur ihre
+        # Qualität wechselt. Halter/Verbleib bleiben, wie sie sind.
+        ledger.post(db, inst, held_quantity(order, inst), kind="blocked",
+                    holder=ledger.KEEP, quality=inventory.BLOCKED,
+                    src_holder=order.id, actor_id=actor_id)
         log_audit(db, "instances", "quality", inventory.BLOCKED, actor_id,
                   object_id=inst.object_id, old_value=old)
         emit(db, "instance.blocked", object_type="instance", object_id=inst.object_id,
@@ -224,6 +235,9 @@ def unblock(db: Session, inst, actor_id: int):
     if not inventory.is_blocked(inst):
         raise HTTPException(409, detail="Diese Instanz ist nicht gesperrt")
     inst.quality = _restore_quality(inst)
+    # Journal (ADR 007): Entsperren – dieselbe Menge, derselbe Halter, Qualität abgeleitet.
+    ledger.post(db, inst, inst.quantity, kind="unblocked",
+                holder=ledger.KEEP, quality=inst.quality, actor_id=actor_id)
     log_audit(db, "instances", "quality", inst.quality, actor_id,
               object_id=inst.object_id, old_value=inventory.BLOCKED)
     emit(db, "instance.unblocked", object_type="instance", object_id=inst.object_id,

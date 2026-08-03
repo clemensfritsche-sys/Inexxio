@@ -146,6 +146,8 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
     verdicts = sample_verdicts(fields, stored)
     if not verdicts:
         return
+    from . import ledger
+    from .subject import held_quantity
     reworkable = "in_process"
     for inst in order_active_instances(db, order):
         ok = verdicts.get(inst.object_id)
@@ -153,8 +155,13 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
             continue                      # nicht in der Stichprobe → kein Urteil
         if not ok:
             inst.quality = inventory.BLOCKED
+            # Journal (ADR 007): Durchfaller wird gesperrt – reversibel, Halter bleibt.
+            ledger.post(db, inst, held_quantity(order, inst), kind="blocked",
+                        holder=ledger.KEEP, quality=inventory.BLOCKED, src_holder=order.id)
         elif inventory.is_blocked(inst) and inst.disposition == reworkable:
             inst.quality = "pending"      # Nacharbeit bestanden → Sperre gelöst
+            ledger.post(db, inst, held_quantity(order, inst), kind="unblocked",
+                        holder=ledger.KEEP, quality="pending", src_holder=order.id)
 
 
 def resolve_failed_by(db: Session, parent: Order, resolver: Order) -> int:

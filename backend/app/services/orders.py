@@ -489,7 +489,7 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
     getrennt zusammengesetzt, konnte der eine Teaser mehr wissen als der andere. Jetzt eine
     Quelle: Name, Zustand, sein Ablauf **und** der Materialfluss durch ihn (#413)."""
     material, gone = order_material(db, sub)
-    back = returning_material(material)
+    back = _flow_back(db, sub, material)
     return OrderDeviationInfo(
         object_id=sub.object_id, status=sub.status, reason=sub.reason,
         instance_count=len(instance_object_ids or []),
@@ -498,15 +498,38 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
         name=_order_ref_name(db, sub),
         steps=_sub_order_steps(db, sub, cache),
         flow_in=material, flow_lost=gone,
-        # **Was hineinging, was zurück IST – zwei verschiedene Fragen** (Testnotiz #496).
-        # Solange der Abzweig läuft, ist sein Material bei ihm: es kommt erst zurück, wenn er
-        # durch ist. Vorher stand nur EINE Menge zur Verfügung, und die Achse des Eltern
-        # musste daraus beides erraten – mit dem Ergebnis, dass ein Stück, das nie am
-        # Hauptprozess vorbeikam, dort trotzdem stand.
-        flow_back=[] if sub.status in ("draft", "released") else back,
+        flow_back=back,
         # Dieselbe Frage, dieselbe Antwort wie am Rückweg-Knoten im Unter-Auftrag selbst –
         # der Abzweig darf im Eltern nicht anders aussehen als beim Öffnen (#492).
-        returns_material=sum(x.quantity for x in back) > 0)
+        returns_material=sum(x.quantity for x in back) > 0
+                         or (sub.status not in ("draft", "released")
+                             and sum(x.quantity for x in returning_material(material)) > 0))
+
+
+def _flow_back(db: Session, sub: Order, material: list[FlowLot]) -> list[FlowLot]:
+    """**Was diesen Auftrag tatsächlich verlassen hat** (Testnotizen #496/#497) – aus dem
+    Material-Journal (ADR 007): die Rückgabe-Buchungen (returned/released), keine Vorhersage.
+
+    Solange der Auftrag läuft, gibt es schlicht keine solchen Buchungen – die frühere
+    Fallunterscheidung «leer, solange er läuft» löst sich damit auf: sie war die Simulation
+    eines Journals, das es jetzt gibt. Alt-Aufträge ohne Journal fallen auf die bisherige
+    Ableitung zurück (Übernommenes minus endgültig Verlorenes, erst nach Abschluss)."""
+    from . import ledger
+    departed = ledger.departed_of(db, sub.id)
+    if not departed:
+        return ([] if sub.status in ("draft", "released")
+                else returning_material(material))
+    meta = {m.instance_object_id: m for m in material}
+    out: list[FlowLot] = []
+    for (oid, quality, disposition), qty in sorted(departed.items()):
+        base = meta.get(oid)
+        row = (base.model_copy(update={"quantity": float(qty), "at": None,
+                                       "quality": quality, "disposition": disposition,
+                                       "reserved": False})
+               if base else FlowLot(instance_object_id=oid, quantity=float(qty),
+                                    quality=quality, disposition=disposition))
+        out.append(row)
+    return out
 
 
 def _sub_order_steps(db: Session, sub: Order,

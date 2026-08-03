@@ -4140,6 +4140,67 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   beiden Blickrichtungen; Verschrottetes kommt nicht zurück; der Baum überspringt
   Unter-Aufträge und den eigenen Eltern).
 
+- **Das Material-Journal – der Neuaufbau des Fundaments (ADR 007, Migration `098`)**:
+  Nach den Bug-Runden #341–#499 hat der Nutzer den Reset verlangt: *«Ich muss 3 Sachen
+  wissen – was muss ich mit was im Moment machen, was kommt voraussichtlich als Nächstes,
+  und was ist passiert. Und das, was passiert ist, kann unter keinen Umständen mehr
+  geändert werden.»* Die Analyse (vollständig in `docs/adr/007-material-ledger.md`, VOR
+  jeder Arbeit an Instanz-Zustand/Mengen LESEN): fast alle Bugs hatten dieselben drei
+  Wurzeln – (1) der Zustand ist ein **Skalar an der Instanz**, die Realität ist eine
+  **Menge** (Charge: 3 in Arbeit + 1 verschrottet); (2) «wer hält wie viel» stand an
+  **vier Stellen** (`reservations`/`subject_of_order_id`/`reserved_for_order_id`/
+  `order_id`), die Regeln immer wieder zusammenraten mussten; (3) die **Vergangenheit
+  wurde aus der Gegenwart rekonstruiert** (bewegliche Ziele) – die `asOf`-Mechanik der
+  Oberfläche war Kompensation dafür, dass die Daten keine Geschichte haben.
+  **Das Modell: Bestand ist ein Konto, jede Veränderung eine Buchung, Buchungen sind
+  unveränderlich.** Eine Menge ist zu jedem Zeitpunkt in genau einem **Topf**
+  `(Halter · Qualität · Verbleib)`; jedes fachliche Ereignis ist eine Journalzeile
+  (`material_moves`, append-only – es existiert KEIN Update-/Delete-Pfad):
+  `created | opening | taken | returned | released | sold | consumed | scrapped |
+  blocked | unblocked`. Daraus folgen die drei Antworten ohne weitere Regeln:
+  **Passiert** = die Zeilen (`ledger.history`, as-of per `up_to_id` – eine Abfrage, keine
+  Rekonstruktion) · **Jetzt** = der Kontostand (`ledger.lots`, Zustand JE MENGE – das
+  Chargen-Problem löst sich im Modell statt in der Anzeige) · **Als Nächstes** = der Plan
+  (Schritte, unverändert – er darf sich ändern).
+  **Ein Schreibweg** (`services/ledger.py`): die fachlichen Dienste buchen an ihren
+  semantischen Punkten – `serialization` (created), `subject.record_link` (taken),
+  `process.release_instances` (released), `subject.return_borrowed` +
+  `deviation.detach_sub_order` (returned – beide Türen), `process.sell_order_subjects`
+  (sold), `process._restock_one` (returned aus dem terminalen «sold»-Topf – der EINE
+  legitime Weg dort heraus, `src_disposition='sold'`), `resource` (consumed), `scrap`
+  (scrapped/blocked/unblocked), `inspection` (blocked/unblocked), Abschluss-Release in
+  `recompute_completion`. **Buchhaltung streng, Zuordnung tolerant**: eine Buchung
+  entnimmt nie mehr als da ist (Drain: bevorzugt derselbe Halter, dann grösste lebende
+  Töpfe); was fehlt, wird als `note='!unbalanced'` SICHTBAR gebucht statt still
+  verschluckt – `ledger.verify_instance` findet Drift (Journal ↔ Projektion).
+  **Eröffnungsbilanz statt Migration**: Alt-Instanzen bekommen vor ihrer ersten Buchung
+  ein `opening` mit dem heutigen Stand (aus den Projektionen) – keine gelogene Historie;
+  `created` eröffnet NICHT (Entstehen hat keine Vergangenheit – der erste gefundene
+  Harness-Bug: doppelte 4→8). Aufträge ohne Journal werden weiter aus Links + Event-Strom
+  gelesen (tolerant lesen, streng schreiben).
+  **Bereits umgestellt auf Journal-Lesen**: `_flow_back`/`returns_material` («was kam
+  zurück?» = die tatsächlichen Rückgabe-Buchungen `ledger.departed_of`, je Zustand – die
+  Status-Fallunterscheidung «leer solange er läuft» LÖST SICH AUF: ein laufender Ast hat
+  schlicht noch keine Rückgaben; Legacy-Pfad nur für Alt-Aufträge ohne Buchungen) und der
+  **Instanz-Verlauf** (Big-Picture-Stufe 3: `InstanceResponse.history` +
+  `MoveJournal` im Reiter «Aufträge» – wann · was · wie viel · Zustand danach ·
+  beteiligter Auftrag, chronologisch, klickbar).
+  **Die alten Spalten sind ab jetzt PROJEKTIONEN** (Lesehilfen für Feed-Badges/FIFO-SQL;
+  die Reservierungs-Map bleibt zusätzlich das PLANUNGs-Instrument – Ansprüche sind
+  Absichten, keine physischen Ereignisse, sie gehören nicht ins Journal).
+  **Ausbaustufen (definiert in ADR 007)**: (2) `order_material`/Fluss-Kanten vollständig
+  aufs Journal, `as_of` als Journal-Abfrage statt Stichtags-Arithmetik im Frontend;
+  (3) Skalar-Spalten stilllegen (Folge-Deploy-Muster), FIFO auf Journal-Töpfe, `shares`
+  als reine Journal-Sicht.
+  Wächter: `test_the_material_journal_answers_the_three_questions` (append-only, alle
+  zehn semantischen Punkte buchen, Kontostand je Topf, `!unbalanced` sichtbar); gegen
+  echtes PostgreSQL 16 verifiziert (`journal.py` 24/24 – kompletter Lebenszyklus durch
+  die ECHTEN Service-/Router-Pfade: Erzeugung → Abweichung nimmt 1 von 4 → verschrottet →
+  Eltern reduziert → Datenerfassung → Abschluss → Verkauf → Rückgabe aus «sold»; nach
+  jedem Schritt Kontostand == Projektion und der as-of-Stand von vorher unverändert;
+  plus alle 5 bestehenden Harnesses regressions-frei, Migration 098 von null +
+  idempotent).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

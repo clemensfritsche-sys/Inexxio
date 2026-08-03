@@ -13,6 +13,7 @@ from .purchase_order import PurchaseOrder
 from .sale import Sale
 from .instance import Instance
 from .instance_order_link import InstanceOrderLink
+from .material_move import MaterialMove
 from .inspection import Inspection
 from .movement import Movement
 from .shipment import Shipment
@@ -36,7 +37,7 @@ __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "CheckoutIntent", "FxRate",
     "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
-    "Instance", "InstanceOrderLink", "Inspection", "Movement", "Shipment", "Disposal", "ResourceUsage",
+    "Instance", "InstanceOrderLink", "MaterialMove", "Inspection", "Movement", "Shipment", "Disposal", "ResourceUsage",
     "Document", "DocumentSignoff", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
     "Attachment",
     "WebAuthnCredential", "WebAuthnChallenge",

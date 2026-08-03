@@ -98,6 +98,12 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
         created.append(inst)
     db.flush()
 
+    # Journal (ADR 007): die Entstehung ist die erste Buchung – Halter ist der Erzeuger.
+    from . import ledger
+    for inst in created:
+        ledger.post(db, inst, inst.quantity, kind="created", holder=order.id,
+                    quality="pending", disposition="in_process", actor_id=actor_id)
+
     log_audit(db, "instances", None, f"{len(created)} Instanz(en) bei Freigabe angelegt",
               actor_id, object_id=order.object_id)
     emit(db, "instances.created", object_type="order", object_id=order.object_id,

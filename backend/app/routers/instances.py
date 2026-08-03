@@ -13,8 +13,9 @@ from ..schemas.instance import (
     InstanceOrderRef,
     InstanceResponse,
     LocationHop,
+    MaterialMoveView,
 )
-from ..services import location_split, scrap as scrap_svc
+from ..services import ledger, location_split, scrap as scrap_svc
 from ..services import shares
 from ..services.locations import location_chain, location_labels, physical_location_labels
 from ..services.references import instance_orders
@@ -156,7 +157,34 @@ async def get_instance(
         raise HTTPException(404, detail="Instanz nicht gefunden")
     resp = _denorm(db, [inst])[0]
     resp.location_path = safe_location_path(db, inst)
+    resp.history = _history_views(db, inst)
     return resp
+
+
+def _history_views(db: Session, inst: Instance) -> list[MaterialMoveView]:
+    """**Was mit diesem Stück passiert ist** – die Journalzeilen fürs Detail (ADR 007).
+
+    Chronologisch, unveränderlich; Auftragsnamen aus derselben Ableitung wie überall
+    (batch, kein N+1). Der genannte Auftrag ist der Ziel-Halter (wohin es ging), sonst
+    die Quelle (woher es kam)."""
+    from ..services.orders import order_display_name
+    moves = ledger.history(db, inst)
+    if not moves:
+        return []
+    ids = {m.dst_order_id for m in moves} | {m.src_order_id for m in moves}
+    rows = db.query(Order).filter(Order.id.in_({i for i in ids if i})).all()
+    arts = {a.id: a.name for a in db.query(Article).filter(
+        Article.id.in_({o.article_id for o in rows if o.article_id})).all()}
+    orders = {o.id: (o.object_id, order_display_name(o, arts.get(o.article_id))) for o in rows}
+    out: list[MaterialMoveView] = []
+    for m in moves:
+        ref = orders.get(m.dst_order_id or 0) or orders.get(m.src_order_id or 0)
+        out.append(MaterialMoveView(
+            at=m.at, kind=m.kind, quantity=float(m.quantity),
+            quality=m.dst_quality, disposition=m.dst_disposition,
+            order_object_id=ref[0] if ref else None, order_name=ref[1] if ref else None,
+            note=m.note))
+    return out
 
 
 @router.post("/{object_id}/unblock", response_model=InstanceResponse)
