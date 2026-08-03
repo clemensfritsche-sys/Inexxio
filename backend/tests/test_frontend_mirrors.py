@@ -592,12 +592,17 @@ def test_the_flow_shows_what_material_moves():
     assert {"quality", "disposition"} <= set(FlowLot.model_fields), (
         "Der Zustand gehört an die Materialzeile – sonst kann sie keine Ampelfarbe tragen (#481).")
 
-    # **EINE Quelle für beide Leser.** Achse und Abzweig lesen dieselbe Funktion; sonst
-    # driften sie wieder auseinander (#479/#480/#482).
+    # **EINE Quelle für beide Leser – und sie ist das Journal** (ADR 007, Ausbaustufe 2).
+    # Achse und Abzweig lesen dieselbe Funktion, und die liest die Buchungen: alles, was je
+    # hineingebucht wurde, ist genau einmal da – gehalten, terminal (mit Zeitpunkt) oder
+    # abgegeben (im Zustand des Abgangs). Kein held_quantity, keine Links-Menge, keine
+    # Reservierungs-Map im Lesepfad; Alt-Aufträge ohne Buchungen fallen auf die Legacy-
+    # Ableitung zurück (tolerant lesen, streng schreiben).
     src = _inspect.getsource(ord_svc.order_material)
-    assert "InstanceOrderLink" in src and "_terminal_amounts" in src, (
-        "Menge vom dauerhaften Link, Verlust aus dem Event-Strom – beides unbeweglich.")
-    assert "_lot_meta(db, insts)" in src, "batch, kein N+1"
+    assert "ledger.order_view" in src and "_order_material_legacy" in src, (
+        "Die Achse liest das Journal; Altbestand die alte Ableitung.")
+    legacy = _inspect.getsource(ord_svc._order_material_legacy)
+    assert "InstanceOrderLink" in legacy and "_terminal_amounts" in legacy
     resp = _inspect.getsource(ord_svc.to_order_response)
     assert "resp.flow_lots, resp.flow_lost = order_material(db, order, instances)" in resp, (
         "Die Achse liest dieselbe Quelle wie der Abzweig.")
@@ -618,8 +623,9 @@ def test_the_flow_shows_what_material_moves():
     # zusammengefasst, gäbe es wieder EINEN Zustand für die ganze Menge – genau der Fehler.
     assert "const lotKey = (l: FlowLot) =>" in flow and "l.reserved ? 'r' : ''" in flow, (
         "Der Schlüssel ist Instanz + Zustand, nicht die Instanz.")
-    assert "left -= part" in _inspect.getsource(ord_svc.order_material), (
-        "Die übernommene Menge zerfällt in ausgesteuerte Teile und den lebenden Rest.")
+    view_src = _inspect.getsource(__import__("app.services.ledger", fromlist=["x"]).order_view)
+    assert "TERMINAL" in view_src and "departed" in view_src, (
+        "Die übernommene Menge zerfällt in gehaltene Töpfe, terminale und abgegebene.")
     # **Der Zustand ist eine Aussage über das MATERIAL, nie über den betrachtenden Auftrag**
     # (Testnotiz #495). ``reserved`` hiess «der Auftrag, den ich ansehe, läuft noch» – damit
     # sah dasselbe Stück im selben Moment gelb (vom laufenden Eltern) und grün (vom
@@ -627,9 +633,9 @@ def test_the_flow_shows_what_material_moves():
     mat_src = _inspect.getsource(ord_svc.order_material)
     assert "reserved=running" not in mat_src and "running = order.status" not in mat_src, (
         "Der Zustand darf nicht von der Blickrichtung abhängen (#495).")
-    assert "to_qty(i.reserved_quantity)" in mat_src, (
-        "«Gebunden» heisst: ein Auftrag beansprucht diese Menge – dieselbe Frage wie an der "
-        "Instanz selbst.")
+    assert 'd == "in_stock"' in view_src, (
+        "«Gebunden» heisst: gehalten UND am Lager – eine Eigenschaft des Topfs, nicht des "
+        "Betrachters.")
     assert "b.returns_material" in flow and "back.length > 0" in flow, (
         "Kommt nichts zurück, führt auch keine Linie zurück (#481) – einfacher geht es nicht.")
     # **Und die Antwort kommt aus EINER Quelle** (Testnotiz #492): derselbe Abzweig zeigte im
@@ -800,7 +806,7 @@ def test_a_flow_lot_names_instance_article_location_and_quantity():
     import inspect as _inspect
     meta = _inspect.getsource(ord_svc._lot_meta)
     assert "location_labels(" in meta and "Article.id.in_" in meta, "batch, kein N+1"
-    assert "_lot_meta(db, insts)" in _inspect.getsource(ord_svc.order_material), (
+    assert "_lot_meta(db, meta_insts)" in _inspect.getsource(ord_svc.order_material), (
         "Abzweig und Achse lösen dieselben Angaben an derselben Stelle auf.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowLotChip" in flow and "nav?.(lot.instance_object_id)" in flow

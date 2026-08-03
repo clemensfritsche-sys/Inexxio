@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert, PackageCheck, Lock, BadgeCheck, Pencil } from 'lucide-react';
+import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, History, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert, PackageCheck, Lock, BadgeCheck, Pencil } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
 import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, ShortfallAnswer, UserProfile } from '@/types';
@@ -21,6 +21,7 @@ import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-di
 import { DraftFlowFrame, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
+import { MoveJournal } from '@/components/erp/move-journal';
 import { orderName } from '@/lib/record-name';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
@@ -1462,6 +1463,21 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 )}
               />
             </div>
+
+            {/* **Was ist passiert** (ADR 007): das Material-Journal dieses Auftrags – die
+                dritte der drei Fragen, direkt unter dem Prozess. Der Fluss darüber zeigt
+                JETZT (aktiver Schritt + Material) und ALS NÄCHSTES (der Plan); hier stehen
+                die Buchungen, chronologisch und unveränderlich. Der Chip nennt die Instanz
+                – dieselben Zeilen zeigt sie aus ihrer Richtung. */}
+            {isStaff && (record.history ?? []).length > 0 && (
+              <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%', marginTop: 20 }}>
+                <SectionTitle icon={History}
+                  info="Das Material-Journal: jede Buchung, chronologisch – was passiert ist, ändert sich nie.">
+                  Verlauf
+                </SectionTitle>
+                <MoveJournal rows={record.history ?? []} chip="instance" />
+              </div>
+            )}
           </>
         ) : !isStaff && hasPurchase ? (
           // Die Lieferantensicht ist ein Formular, kein Diagramm – sie bleibt in der

@@ -183,7 +183,7 @@ def _history_views(db: Session, inst: Instance) -> list[MaterialMoveView]:
             at=m.at, kind=m.kind, quantity=float(m.quantity),
             quality=m.dst_quality, disposition=m.dst_disposition,
             order_object_id=ref[0] if ref else None, order_name=ref[1] if ref else None,
-            note=m.note))
+            instance_object_id=m.instance_object_id, note=m.note))
     return out
 
 
