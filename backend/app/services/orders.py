@@ -345,21 +345,26 @@ def _terminal_amounts(db: Session, sub: Order) -> dict[int, dict[str, Decimal]]:
     die Art wüsste die Materialzeile zwar, DASS etwas weg ist, aber nicht, in welchem
     Zustand – und müsste weiterhin den skalaren Instanz-Status für die ganze Menge
     behaupten (Testnotizen #483/#485). Altbestand ohne ``reason`` ist ein Verkauf: nur das
-    Aussondern hat die Angabe je geschrieben."""
+    Aussondern hat die Angabe je geschrieben.
+
+    **Und der Zeitpunkt gehört dazu** (Testnotiz #488): eine Kante des Flusses zeigt den
+    Zustand, den die Menge **damals** hatte – ein Abgang, der später passiert ist, gab es
+    dort noch nicht. Ohne die Uhrzeit liesse sich das nicht unterscheiden, und jede
+    durchlaufene Kante trüge rückwirkend den heutigen Zustand."""
     from ..models import Event
     from .quantity import ZERO, to_qty
     if not sub.object_id:
         return {}
-    out: dict[int, dict[str, Decimal]] = {}
+    out: dict[int, dict[tuple[str, object], Decimal]] = {}
     for e in (db.query(Event)
               .filter(Event.event_type == "inventory.decreased", Event.object_type == "instance")
               .order_by(Event.id).all()):
         p = e.payload or {}
         if p.get("order") != sub.object_id or e.object_id is None:
             continue
-        kind = str(p.get("reason") or "sold")
+        key = (str(p.get("reason") or "sold"), e.created_at)
         row = out.setdefault(e.object_id, {})
-        row[kind] = row.get(kind, ZERO) + to_qty(p.get("quantity") or 0)
+        row[key] = row.get(key, ZERO) + to_qty(p.get("quantity") or 0)
     return out
 
 
@@ -438,14 +443,15 @@ def order_material(db: Session, order: Order,
         # verschrottet sein. Die übernommene Menge zerfällt darum in Teile – was dieser
         # Auftrag ausgesteuert hat (je Art), und der lebende Rest.
         left = qty
-        for kind, amount in sorted((lost.get(i.object_id) or {}).items()):
+        for (kind, at), amount in sorted((lost.get(i.object_id) or {}).items(),
+                                         key=lambda kv: (str(kv[0][1]), kv[0][0])):
             part = min(to_qty(amount), left)
             if part <= ZERO:
                 continue
             left -= part
             material.append(FlowLot(quantity=float(part), disposition=kind,
-                                    quality=i.quality, **base))
-            gone.append(FlowLot(quantity=float(part), disposition=kind, **base))
+                                    quality=i.quality, at=at, **base))
+            gone.append(FlowLot(quantity=float(part), disposition=kind, at=at, **base))
         if left > ZERO:
             # Der lebende Rest trägt den Zustand der Instanz – und ist **gebunden**, solange
             # dieser Auftrag läuft: sonst stünde ein Stück, das gerade bearbeitet wird, als

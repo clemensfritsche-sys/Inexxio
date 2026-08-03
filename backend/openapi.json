@@ -10926,6 +10926,18 @@
             "type": "boolean",
             "title": "Reserved",
             "default": false
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
           }
         },
         "type": "object",

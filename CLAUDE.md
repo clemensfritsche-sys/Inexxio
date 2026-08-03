@@ -4006,6 +4006,27 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   entfällt** (#486) – dass der Prozess mit weniger weiterläuft, sagt der Fluss selbst: der
   Abzweig führt nicht mehr zurück.
 
+- **Eine durchlaufene Kante zeigt den Zustand von DAMALS** (Aug. 2026, Testnotiz #488):
+  Eine Materialzeile las immer den **heutigen** Zustand – wurde ein Stück später
+  verschrottet, stand es rückwirkend auf **jeder** Kante rot, die es passiert hatte, als es
+  noch in Arbeit war. Damit liess sich der Verlauf nicht mehr nachvollziehen, obwohl genau
+  das der Zweck des Flusses ist.
+  **Die Regel (vom Nutzer formuliert): beim Abschluss eines Schritts friert der Zustand
+  ein.** Was danach passiert ist, gab es an dieser Stelle noch nicht; nur dort, wo der
+  Prozess **gerade steht**, gilt der aktuelle Zustand.
+  Umgesetzt ohne neue Speicherung: jede Abgangs-Zeile trägt ihren **Zeitpunkt**
+  (`FlowLot.at`, aus dem Event-Strom – `_terminal_amounts` gruppiert jetzt nach
+  `(Art, Zeitpunkt)`), jede Kante ihren **Stichtag** (`cutoffs[i]` = Abschluss des letzten
+  Schritts darüber, davor `BEGIN`), und `asOf` nimmt Abgänge nach dem Stichtag zurück – die
+  Menge zählt dort wieder zu dem, was der Auftrag **hielt** («Im Prozess», gelb). Der
+  Zustand ist damit **abgeleitet statt gemerkt**: kein Schnappschuss-Feld, das auseinander
+  laufen könnte.
+  **Und der Abzweig zeigt beides**: oben, was hineinging (Zustand von damals), unten
+  dieselbe **Menge** in ihrem heutigen Zustand – aber nur, wenn er ein anderer ist. Das
+  präzisiert #481: die Menge schrumpft nicht, sie wechselt die Farbe, und man sieht **wo**.
+  Wächter `test_what_is_past_steps_back_on_the_edges_too` (erweitert); gegen echtes
+  PostgreSQL 16 verifiziert (19 Prüfungen).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

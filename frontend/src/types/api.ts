@@ -3790,6 +3790,8 @@ export interface components {
              * @default false
              */
             reserved: boolean;
+            /** At */
+            at?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
