@@ -167,6 +167,20 @@ class FlowLot(BaseModel):
     at: Optional[datetime] = None
 
 
+class MaterialOrder(BaseModel):
+    """**Ein regulärer Auftrag, der dasselbe Material vor bzw. nach diesem verarbeitet hat**
+    (Testnotiz #493).
+
+    Vor dem Startknoten: woher die Instanzen kamen. Nach dem Endknoten: wohin sie weitergingen
+    – falls sie das je taten. Bewusst nur **reguläre** Aufträge: eine Abweichung ist eine
+    Episode innerhalb dieses Vorgangs und steht ohnehin als Abzweig im Bild; gesucht ist der
+    Faden, der durch die Vorgänge hindurchführt."""
+
+    object_id: int
+    name: Optional[str] = None
+    quantity: float = 0   # wie viel des Materials DIESES Auftrags von dort kam / dorthin ging
+
+
 class SubOrderStep(BaseModel):
     """**Ein Schritt eines Unter-Auftrags – angeteasert, nicht ausgeführt** (Notiz #409).
 
@@ -220,9 +234,18 @@ class OrderDeviationInfo(BaseModel):
     # überhaupt etwas zurückkommt. Kommt nichts zurück, geht die Prozesslinie gar nicht erst
     # zum Eltern-Auftrag zurück (Testnotiz #481) – einfacher kann man es nicht sagen.
     flow_lost: list[FlowLot] = []
+    # **Was tatsächlich schon zurück IST** – leer, solange der Abzweig läuft (Testnotiz #496).
+    #
+    # Eine Teilung hat DREI Stellen, nicht zwei: **über** ihr das ganze Material, **neben** ihr
+    # das, was NICHT abgezweigt ist, und **unter** ihr das Verbliebene plus das
+    # Zurückgekommene. Die Achse hatte für die letzten beiden nur EINE Menge – also musste sie
+    # den Bypass verfälschen, damit die Rechnung darunter aufging: ein Stück, das komplett in
+    # die Abweichung ging, stand trotzdem neben ihr auf dem Hauptprozess.
+    flow_back: list[FlowLot] = []
     # **Kommt etwas zurück?** – dieselbe Ableitung wie am Rückweg-Knoten des Unter-Auftrags
     # selbst (``orders.returns_material``). Wurden sie getrennt hergeleitet, zeigte derselbe
     # Abzweig im Eltern-Auftrag ein anderes Bild als beim Öffnen (Testnotiz #492).
+    # (Antwort auf «geht die Linie überhaupt zurück?» – ``flow_back`` auf «was ist schon da?».)
     returns_material: bool = True
     # Der Name des Abzweigs (dieselbe Ableitung wie im Feed) – der Teaser nennt die Sache,
     # nicht nur seinen Grund.
@@ -625,6 +648,11 @@ class OrderResponse(BaseModel):
     flow_lots: list[FlowLot] = []
     # Was er dem Bestand endgültig entzogen hat – siehe ``OrderDeviationInfo.flow_lost``.
     flow_lost: list[FlowLot] = []
+    # **Der Prozessbaum** (Testnotiz #493): welche **regulären** Aufträge dasselbe Material
+    # vor bzw. nach diesem verarbeitet haben – vor dem Start- und nach dem Endknoten. Damit
+    # wird aus einer Episode ein Faden, der sich über Auftragsgrenzen hinweg verfolgen lässt.
+    material_from: list[MaterialOrder] = []
+    material_to: list[MaterialOrder] = []
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)

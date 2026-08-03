@@ -4094,6 +4094,52 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   genügt nicht, warten ↔ reduzieren wirken getrennt, freier Anteil fragt niemanden, zwei
   Zeilen derselben Instanz zählen zusammen).
 
+- **Der Zustand gehört zum MATERIAL, und eine Teilung hat DREI Stellen** (August 2026,
+  Testnotizen #493–#499): Zwei Fundamente waren falsch; alles darüber war Kompensation.
+  **(1) `reserved` war eine Aussage über den betrachtenden Auftrag** (#495). Es hiess «der
+  Auftrag, den ich gerade ansehe, läuft noch» (`order.status == 'released'`) – damit sah
+  DASSELBE Stück im selben Moment verschieden aus: gelb («Reserviert») vom laufenden Eltern,
+  grün («Freigegeben», also **frei am Lager**) vom abgeschlossenen Abzweig, obwohl es die
+  ganze Zeit dem Eltern gehörte. Das war nie eine Eigenschaft der Menge, sondern der
+  **Blickrichtung**. Jetzt sagt es, was es behauptet: *beansprucht ein Auftrag diese Menge?*
+  (`instances.reserved_quantity`). Damit ist der Zustand überall derselbe – dieselbe Frage,
+  dieselbe Antwort wie am Instanz-Detail –, und der lebende Rest zerfällt sauber in
+  **gebunden** und **frei** (Zustand pro Menge, wie #483/#485 verlangt).
+  **(2) Der Bypass ist nicht dasselbe wie «unterhalb der Zusammenführung»** (#496). Eine
+  Teilung hat drei Stellen – *über* ihr das ganze Material, **neben** ihr das nicht
+  Abgezweigte, *unter* ihr das Verbliebene **plus** das Zurückgekommene. Gerechnet wurde mit
+  **zwei** Mengen: Bypass und «alles darunter» teilten sich eine. Damit die Zahl unten
+  aufging, musste der Bypass verfälscht werden (bei einem abgeschlossenen Ast wurde nur das
+  Verschrottete abgezogen) – und ein Stück, das VOLLSTÄNDIG in die Abweichung ging, stand
+  trotzdem neben ihr auf dem Hauptprozess, obwohl es dort nie vorbeikam. Jetzt sagt jede
+  Stelle, was sie ist: `minus` nimmt weg, was abzweigt (**immer** `flow_in` – wer abzweigt,
+  ist nicht daneben), `plus` legt an der Zusammenführung dazu, was zurück **ist**. Dafür ist
+  die Frage «was ging hinein» von «was ist zurück» getrennt: **`flow_back`** ist leer,
+  solange der Ast läuft (vorher wäre es eine Vorhersage), und `returns_material` liest
+  dieselbe eine Ableitung (`orders.returning_material`).
+  **(3) Der Prozessbaum** (#493, `orders.material_trace`): Ein Auftrag ist keine Insel – vor
+  dem Startknoten steht jetzt der **reguläre** Auftrag, aus dem sein Material kam, nach dem
+  Endknoten der, an den es weiterging. Quelle ist die **Verarbeitungs-Historie**
+  (`instance_order_links`, dauerhaft und chronologisch – ihr Docstring hatte genau das
+  vorgesehen). Bewusst **nur reguläre** Aufträge: eine Abweichung ist eine Episode INNERHALB
+  dieses Vorgangs und steht ohnehin als Abzweig im Bild; der eigene Eltern fällt heraus, weil
+  er schon in der linken Spur steht. Ohne regulären Vorgänger ist der **Erzeuger** die
+  Herkunft. Dargestellt in der **Material**sprache (Pille auf der Linie, Menge + Objektnummer,
+  klickbar) – ein voller Auftrags-Knoten meint etwas anderes («dieser Auftrag ging aus jenem
+  hervor», nicht «sein Material kam von dort»).
+  **(4) Kleinigkeiten am Entwurfs-Rahmen:** kein zweiter Start-/Endknoten (#498 – der
+  Schritt-Editor zeichnet seinen Fluss samt Terminals selbst); die **Schere sitzt AUF der
+  Rückgabe-Linie** statt als kleines Zeichen im Knoten (#499, «manage dort das Zeugs, wo es
+  auftritt») – gekappt heisst schlicht *keine Linie*, der Knoten bleibt und trägt den Knopf,
+  der sie wiederbringt (die zweite Liste darunter ist entfallen); und der Rückweg eines
+  Unter-Auftrags nennt **was** zurückgeht (#497), statt es nur zu behaupten.
+  Wächter: `test_a_split_has_three_places_not_two`, `test_the_flow_is_a_tree_not_an_episode`,
+  `test_the_draft_is_framed_like_the_order_it_will_become`, `test_the_flow_shows_what_material_moves`;
+  gegen echtes PostgreSQL 16 verifiziert (16 + 16 Prüfungen: der gemeldete Fall Schritt für
+  Schritt – Bypass leer, solange der Ast läuft UND nachdem er durch ist; derselbe Zustand aus
+  beiden Blickrichtungen; Verschrottetes kommt nicht zurück; der Baum überspringt
+  Unter-Aufträge und den eigenen Eltern).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ClipboardPlus, MapPin, Package, Scissors, X } from 'lucide-react';
-import type { AffectedOrder, FlowLot, Order, OrderDeviationInfo, OrderOrigin, OrderStep,
-  StepResolution, StepType, SubOrderStep } from '@/types';
+import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, MapPin, Package, Redo2,
+  Scissors, X } from 'lucide-react';
+import type { AffectedOrder, FlowLot, MaterialOrder, Order, OrderDeviationInfo, OrderOrigin,
+  OrderStep, StepResolution, StepType, SubOrderStep } from '@/types';
 import { STEP_META, instanceStatusConfig, stepStateLabel } from '@/lib/process';
 import { TYPE_META } from '@/lib/erp-record';
 import { unitLabel } from '@/lib/article';
@@ -225,41 +226,58 @@ function lotsOf(list: FlowLot[]): Lots {
 }
 
 /**
- * **Was unterhalb einer Teilung noch auf der Achse läuft** – von oben nach unten gerechnet.
+ * **Eine Teilung hat DREI Stellen, nicht zwei** (Testnotiz #496).
  *
- * Die Mengen wurden früher **von unten nach oben** aus «was hält der Auftrag gerade?»
- * rekonstruiert. Das ist ein bewegliches Ziel (Reservierung gelöst, verschrottet,
- * freigegeben), und darum stimmte die Rechnung nach jeder Zustandsänderung nicht mehr
- * (Testnotizen #479/#480). Jetzt beginnt sie oben mit dem **Material des Auftrags** – einer
- * Tatsache, die sich nie ändert (``instance_order_links.quantity``) – und zieht ab, was
- * abzweigt.
+ *      über der Teilung   das ganze Material des Auftrags
+ *      NEBEN der Teilung  was NICHT abgezweigt ist  ← der Bypass
+ *      UNTER der Teilung  das Verbliebene + was zurückgekommen ist
  *
- * **Läuft** ein Ast noch, ist alles Hineingegangene dort: es geht vollständig ab. Ist er
- * **durch**, hat er zurückgegeben, was er nicht verbraucht hat – ab geht nur, was den
- * Bestand endgültig verlassen hat (``flow_lost``).
+ * Gerechnet wurde mit **zwei** Mengen: der Bypass und alles darunter teilten sich eine. Damit
+ * die Menge unterhalb der Zusammenführung stimmte, musste der Bypass verfälscht werden – bei
+ * einem abgeschlossenen Ast wurde nur das Verschrottete abgezogen, das Zurückgegebene blieb
+ * stehen. Ergebnis: ein Stück, das vollständig in die Abweichung ging, stand trotzdem **neben**
+ * ihr auf dem Hauptprozess, obwohl es dort nie vorbeikam.
+ *
+ * Jetzt sagt jede Stelle, was sie ist: ``minus`` nimmt weg, was abzweigt (**immer**
+ * ``flow_in`` – wer abzweigt, ist nicht daneben), ``plus`` legt an der Zusammenführung
+ * dazu, was zurück IST (``flow_back``, leer solange der Ast läuft).
+ *
+ * Von oben nach unten, beginnend beim **Material des Auftrags** – einer Tatsache, die sich nie
+ * ändert (``instance_order_links.quantity``). Die frühere Rückrechnung aus «was hält der
+ * Auftrag gerade?» stand auf einem beweglichen Ziel (#479/#480).
  */
-function minusBranches(above: Lots, branches: OrderDeviationInfo[]): Lots {
+function minus(above: Lots, rows: FlowLot[]): Lots {
   const out: Lots = new Map(above);
-  for (const b of branches) {
-    for (const lot of (isOpen(b) ? b.flow_in : b.flow_lost) ?? []) {
-      // Abgezogen wird **je Instanz**, lebendes Material zuerst: ein Abzweig nimmt keine
-      // bereits ausgesonderte Menge mit. Der Zustand der Zeilen kann sich unterscheiden
-      // (der Anteil ist dort an SEINEN Auftrag gebunden, hier an diesen).
-      let left = lot.quantity;
-      const rows = [...out.entries()]
-        .filter(([, l]) => l.instance_object_id === lot.instance_object_id)
-        .sort((a, c) => Number(isGone(a[1])) - Number(isGone(c[1])));
-      for (const [k, l] of rows) {
-        if (left <= 0) break;
-        const cut = Math.min(left, l.quantity);
-        left -= cut;
-        if (l.quantity - cut > 0) out.set(k, { ...l, quantity: l.quantity - cut });
-        else out.delete(k);
-      }
+  for (const lot of rows) {
+    // Abgezogen wird **je Instanz**, lebendes Material zuerst: ein Abzweig nimmt keine
+    // bereits ausgesonderte Menge mit.
+    let left = lot.quantity;
+    const hits = [...out.entries()]
+      .filter(([, l]) => l.instance_object_id === lot.instance_object_id)
+      .sort((a, c) => Number(isGone(a[1])) - Number(isGone(c[1])));
+    for (const [k, l] of hits) {
+      if (left <= 0) break;
+      const cut = Math.min(left, l.quantity);
+      left -= cut;
+      if (l.quantity - cut > 0) out.set(k, { ...l, quantity: l.quantity - cut });
+      else out.delete(k);
     }
   }
   return out;
 }
+
+function plus(base: Lots, rows: FlowLot[]): Lots {
+  const out: Lots = new Map(base);
+  for (const lot of rows) {
+    const k = lotKey(lot);
+    const cur = out.get(k);
+    out.set(k, cur ? { ...cur, quantity: cur.quantity + lot.quantity } : { ...lot });
+  }
+  return out;
+}
+
+const flowOf = (branches: OrderDeviationInfo[], pick: (b: OrderDeviationInfo) => FlowLot[] | null | undefined) =>
+  branches.flatMap((b) => pick(b) ?? []);
 
 /**
  * **Eine durchlaufene Kante zeigt den Zustand von DAMALS** (Testnotiz #488).
@@ -300,6 +318,54 @@ function asOf(lots: Lots, cutoff: string | null): Lots {
 
 
 const qtyText = (l: FlowLot) => `${l.quantity}${l.unit ? ` ${unitLabel(l.unit)}` : ''}`;
+
+/**
+ * **Der Prozessbaum: woher das Material kam, wohin es weiterging** (Testnotiz #493).
+ *
+ * Ein Auftrag ist keine Insel – seine Instanzen hatten vorher ein Leben und haben danach
+ * eines. Vor dem Startknoten steht darum, aus welchem **regulären** Auftrag sie kamen, nach
+ * dem Endknoten, wohin sie gingen. Damit lässt sich «wie wo was passiert ist» über
+ * Auftragsgrenzen hinweg verfolgen, statt an der Flagge zu enden.
+ *
+ * Es ist eine Aussage über **Material**, also trägt es die Materialsprache: eine Pille auf
+ * der Linie, Menge zuerst, Objektnummer daneben, ein Klick öffnet den Datensatz. Ein voller
+ * Auftrags-Knoten wäre hier falsch – der steht in der linken Spur und meint etwas anderes
+ * («dieser Auftrag ging aus jenem hervor», nicht «sein Material kam von dort»).
+ */
+function TraceChip({ row, dir, onOpen }: {
+  row: MaterialOrder; dir: 'in' | 'out'; onOpen?: (objectId: number) => void;
+}) {
+  const Icon = dir === 'in' ? ArrowDown : ArrowRight;
+  return (
+    <button type="button" onClick={() => onOpen?.(row.object_id)}
+      title={dir === 'in'
+        ? `${row.quantity} kamen aus ${row.name ?? 'Auftrag'} ${formatObjectId(row.object_id)} – öffnen`
+        : `${row.quantity} gingen weiter an ${row.name ?? 'Auftrag'} ${formatObjectId(row.object_id)} – öffnen`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px',
+        borderRadius: 999, cursor: 'pointer', background: '#fff',
+        border: '1px solid var(--border-1)', color: 'var(--fg-3)',
+        font: '500 11.5px var(--font-body)', whiteSpace: 'nowrap',
+      }}>
+      <Icon size={11} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{row.quantity}</span>
+      <span style={{ font: '500 11px var(--font-mono), monospace', color: 'var(--fg-4)',
+        fontVariantNumeric: 'tabular-nums' }}>{formatObjectId(row.object_id)}</span>
+    </button>
+  );
+}
+
+function TraceRow({ rows, dir, onOpen }: {
+  rows: MaterialOrder[]; dir: 'in' | 'out'; onOpen?: (objectId: number) => void;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center',
+      padding: '2px 0' }}>
+      {rows.map((r) => <TraceChip key={r.object_id} row={r} dir={dir} onOpen={onOpen} />)}
+    </div>
+  );
+}
 
 /**
  * **Was hier fliesst – kurz, und im Hover vollständig** (Notiz #426).
@@ -462,7 +528,7 @@ function FlowLots({ lots, small, past }: { lots: Lots; small?: boolean; past?: b
 
 export function OrderFlow({ steps, subOrders = [], origin, decision, paused = false,
   selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId, goal,
-  running = true, onCreateOrder }: {
+  running = true, onCreateOrder, materialFrom = [], materialTo = [] }: {
   steps: OrderStep[];
   subOrders?: OrderDeviationInfo[];
   origin?: OrderOrigin | null;
@@ -482,6 +548,10 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   running?: boolean;
   /** Abkürzung am Prozess-Punkt: einen Auftrag auf genau dieses Material ansetzen (#455). */
   onCreateOrder?: (lots: FlowLot[]) => void;
+  /** **Der Prozessbaum** (#493): die regulären Aufträge, die dasselbe Material vor bzw. nach
+   *  diesem verarbeitet haben – vor dem Start- und nach dem Endknoten. */
+  materialFrom?: MaterialOrder[];
+  materialTo?: MaterialOrder[];
 }) {
   if (steps.length === 0 && !origin) return null;
   const processLabel = orderObjectId != null
@@ -527,10 +597,16 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   // **Mengen von OBEN nach unten**: oben steht das Material des Auftrags – eine Tatsache, die
   // sich nicht ändert –, und an jeder Teilung geht ab, was abzweigt. Kante i liegt ÜBER
   // Knoten i.
+  // Kante i liegt ÜBER Knoten i; `beside[i]` ist der **Bypass** neben einer Teilung – eine
+  // eigene Menge, nicht dieselbe wie darunter (siehe `minus`/`plus`).
   const edges: Lots[] = new Array(nodes.length + 1);
+  const beside: (Lots | null)[] = new Array(nodes.length).fill(null);
   edges[0] = lotsOf(lots);
   for (let i = 0; i < nodes.length; i++) {
-    edges[i + 1] = nodes[i].branches ? minusBranches(edges[i], nodes[i].branches!) : edges[i];
+    const br = nodes[i].branches;
+    if (!br) { edges[i + 1] = edges[i]; continue; }
+    beside[i] = minus(edges[i], flowOf(br, (b) => b.flow_in));
+    edges[i + 1] = plus(beside[i]!, flowOf(br, (b) => b.flow_back));
   }
   // **Der Stichtag je Kante** (Testnotiz #488): Kante i beschreibt den Zustand, in dem das
   // Material in Knoten i **hineinging** – also den Moment, in dem der letzte Schritt darüber
@@ -576,6 +652,8 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   // Dort, wo der Prozess GERADE steht, gilt der aktuelle Zustand; überall darüber der,
   // den die Menge damals hatte (#488).
   const lotsAt = (i: number, live: boolean) => asOf(edges[i], live ? null : cutoffs[i]);
+  // Der Bypass sitzt auf der Höhe von Knoten i – also gilt dort derselbe Stichtag wie über ihm.
+  const bypassAt = (i: number, live: boolean) => asOf(beside[i] ?? new Map(), live ? null : cutoffs[i]);
 
   let gateUsed = false;
   const rows: React.ReactNode[] = [];
@@ -603,7 +681,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
         <Row key={`br-${n.branches[0].object_id}`}
           right={<BranchArm branches={n.branches} onOpen={onOpenOrder} />}>
           <Axis grow h={26} strong={reached} />
-          {reached && <EdgeMaterial lots={lotsAt(i + 1, liveBypass(i))} small past={!liveBypass(i)}
+          {reached && <EdgeMaterial lots={bypassAt(i, liveBypass(i))} small past={!liveBypass(i)}
             onCreate={liveBypass(i) ? onCreateOrder : undefined} />}
           <Axis grow h={26} strong={passed} />
         </Row>,
@@ -661,6 +739,14 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
             <Row><Axis h={18} strong /></Row>
           </>
         )}
+        {/* **Der Prozessbaum** (Notiz #493): woher das Material kam – VOR dem Startknoten,
+            denn dort beginnt dieser Vorgang und dort endete der vorige. */}
+        {materialFrom.length > 0 && (
+          <>
+            <Row><TraceRow rows={materialFrom} dir="in" onOpen={onOpenOrder} /></Row>
+            <Row><Axis h={12} strong /></Row>
+          </>
+        )}
         <Row><FlowTerm kind="start" title={`Start · ${processLabel}`} /></Row>
         {rows}
         <Row key="edge-last">
@@ -687,10 +773,21 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
             )}
           </div>
         </Row>
+        {/* … und wohin es weiterging – NACH dem Endknoten (#493). Nur, wenn es je
+            weiterging: solange nichts folgt, folgt auch keine Zeile. */}
+        {materialTo.length > 0 && (
+          <>
+            <Row><Axis h={12} strong /></Row>
+            <Row><TraceRow rows={materialTo} dir="out" onOpen={onOpenOrder} /></Row>
+          </>
+        )}
         {origin?.returns_to_object_id != null && (
           <>
             <Row><Axis h={18} strong={done} /></Row>
-            <Row left={<ReturnArm origin={origin} strong={done} onOpen={onOpenOrder} />} />
+            {/* Was zurückgeht, ist das lebende Material des Auftrags – dieselbe Ableitung, die
+                der Eltern für seinen Merge liest (`flow_back`). */}
+            <Row left={<ReturnArm origin={origin} strong={done} onOpen={onOpenOrder}
+              lots={lotsOf(lots.filter((l) => !isGone(l)))} />} />
           </>
         )}
       </div>
@@ -846,16 +943,15 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
   const cfg = orderStatus({ status: info.status as Order['status'], abort_into_id: info.abort_into_id });
   const started = info.status !== 'draft';
   const walked = walkedSteps(steps);
-  // **Oben, was hineinging – unten dieselbe Menge in ihrem neuen Zustand** (#481/#488).
+  // **Oben, was hineinging – unten, was zurückgeht** (#481/#488/#497).
   //
   // Die Menge schrumpft nicht, wenn etwas verschrottet wird – die Instanz und ihre Menge
   // verschwinden ja nicht, nur ihr Zustand ändert sich. Oben steht darum der Zustand von
-  // **damals** (in Arbeit, als es hineinging), unten derselbe Posten in seinem heutigen
-  // Zustand – und die zweite Zeile nur, wenn sie etwas Neues sagt. Dass nichts zurückkommt,
-  // sagt weiterhin die Prozesslinie, indem sie gar nicht erst zurückführt.
-  const nowLots = lotsOf(info.flow_in ?? []);
-  const inLots = asOf(nowLots, BEGIN);
-  const changed = [...nowLots.keys()].some((k) => !inLots.has(k));
+  // **damals** (in Arbeit, als es hineinging), unten das, was tatsächlich **zurück ist**
+  // (`flow_back` – leer, solange der Abzweig läuft; vorher wäre es eine Vorhersage). Kommt
+  // nichts zurück, sagt das weiterhin die Prozesslinie, indem sie gar nicht erst zurückführt.
+  const inLots = asOf(lotsOf(info.flow_in ?? []), BEGIN);
+  const backLots = lotsOf(info.flow_back ?? []);
   const hint = `${label} ${formatObjectId(info.object_id)}`
     + `${info.name ? ` «${info.name}»` : ''} · ${cfg.label} – klicken zum Öffnen`;
   return (
@@ -886,10 +982,10 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
       ))}
       <Axis h={12} strong={started && walked === steps.length} />
       <FlowTerm kind="end" size={30} title={`Ende · ${hint}`} />
-      {changed && (
+      {backLots.size > 0 && (
         <>
           <Axis h={10} strong />
-          <FlowLots lots={nowLots} small />
+          <FlowLots lots={backLots} small />
         </>
       )}
     </div>
@@ -968,9 +1064,15 @@ function OriginArm({ origin, onOpen }: { origin: OrderOrigin; onOpen?: (id: numb
   );
 }
 
-/** Wohin die Stücke beim Abschluss zurückgehen – derselbe Verweis, nur andersherum (#438). */
-function ReturnArm({ origin, strong, onOpen }: {
-  origin: OrderOrigin; strong?: boolean; onOpen?: (id: number) => void;
+/**
+ * Wohin die Stücke beim Abschluss zurückgehen – derselbe Verweis, nur andersherum (#438).
+ *
+ * **Und WAS zurückgeht, steht auf der Linie** (Testnotiz #497): nach dem Endknoten war die
+ * Rückgabe eine blosse Behauptung – man sah, DASS etwas zurückgeht, aber nicht was. Die
+ * Materialzeile gehört genau dorthin, wo sie überall sonst steht: auf die Kante.
+ */
+function ReturnArm({ origin, lots, strong, onOpen }: {
+  origin: OrderOrigin; lots: Lots; strong?: boolean; onOpen?: (id: number) => void;
 }) {
   const id = origin.returns_to_object_id as number;
   return (
@@ -982,6 +1084,15 @@ function ReturnArm({ origin, strong, onOpen }: {
           title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}
           onClick={() => onOpen?.(id)} />
       </div>
+      {lots.size > 0 && (
+        // Auf der Kante, die zum Eltern führt – zwischen Achse und Knoten, wie jede andere
+        // Materialzeile auch.
+        <div style={{ position: 'absolute', left: 0, right: 0, top: ARM / 2,
+          transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center',
+          pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto' }}><FlowLots lots={lots} small /></div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1140,7 +1251,6 @@ export function DraftFlowFrame({ holders, returns, onToggleReturn, onOpenOrder, 
   // Ohne Halter gibt es keinen Rahmen: ein gewöhnlicher neuer Auftrag geht aus nichts hervor
   // und gibt an nichts zurück – leere Spuren wären reine Dekoration.
   if (holders.length === 0) return <>{children}</>;
-  const back = holders.filter((h) => returns.has(h.object_id));
   return (
     <div className="ix-noscrollbar" style={{ width: '100%', overflowX: 'auto' }}>
       <div style={{ width: '100%', minWidth: MAIN + 2 * LANE,
@@ -1148,23 +1258,21 @@ export function DraftFlowFrame({ holders, returns, onToggleReturn, onOpenOrder, 
         ...({ '--flow-lane': `${LANE}px` } as React.CSSProperties) }}>
         <Row left={<DraftOriginArm holders={holders} onOpen={onOpenOrder} />} />
         <Row><Axis h={18} strong /></Row>
-        <Row><FlowTerm kind="start" title="Start · neuer Auftrag" /></Row>
-        <Row><Axis h={18} strong /></Row>
+        {/* **Kein eigener Start-/Endknoten** (Testnotiz #498): der Schritt-Editor zeichnet
+            seinen Fluss samt Terminal-Knoten selbst – ein zweiter davor wäre dasselbe Symbol
+            ein zweites Mal. Der Rahmen liefert die Spuren, nicht den Prozess. */}
         <Row>{children}</Row>
         <Row><Axis h={18} strong /></Row>
-        <Row><FlowTerm kind="end" title="Ende · neuer Auftrag" /></Row>
-        {back.length > 0 && (
-          <>
-            <Row><Axis h={18} strong /></Row>
-            <Row left={<DraftReturnArm holders={back} onToggle={onToggleReturn} />} />
-          </>
-        )}
-        {/* Die gekappten Linien stehen darunter – abgeschaltet, aber greifbar: sonst liesse
-            sich eine einmal gekappte Rückgabe nicht wieder anschalten. */}
-        {holders.length > back.length && (
-          <Row left={<DraftCutList holders={holders.filter((h) => !returns.has(h.object_id))}
-            onToggle={onToggleReturn} />} />
-        )}
+        {/* **Je Halter seine eigene Rückgabe-Linie – mit der Schere DARAUF** (#499): wo
+            entschieden wird, wird auch bedient. Eine gekappte Linie ist schlicht keine Linie;
+            der Knoten bleibt und trägt den Knopf, mit dem sie wiederkommt. */}
+        {holders.map((h, i) => (
+          <Row key={h.object_id}
+            left={<DraftReturnArm holder={h} connected={returns.has(h.object_id)}
+              onToggle={onToggleReturn} />}>
+            {i < holders.length - 1 && <Axis grow h={ARM} strong />}
+          </Row>
+        ))}
       </div>
     </div>
   );
@@ -1200,69 +1308,47 @@ function DraftOriginArm({ holders, onOpen }: {
   );
 }
 
-/** Wohin es zurückgeht – ein Klick kappt die Linie (dann wird dort die Menge reduziert). */
-function DraftReturnArm({ holders, onToggle }: {
-  holders: AffectedOrder[]; onToggle: (objectId: number) => void;
+/**
+ * **Die Rückgabe-Linie und ihre Schere – an EINER Stelle** (Testnotiz #499).
+ *
+ * Entschieden wird hier, ob das Material zurückgeht; also wird hier auch bedient. Die Schere
+ * sitzt **auf** der Linie (auf ihrem waagrechten Stück, mittig), nicht als kleines Zeichen im
+ * Knoten daneben – «manage dort das Zeugs, wo es auftritt».
+ *
+ * Gekappt heisst schlicht: **keine Linie**. Der Knoten bleibt stehen und tritt zurück, und an
+ * derselben Stelle, an der die Schere sass, steht der Knopf, der sie wiederbringt. Damit ist
+ * die Entscheidung an genau einem Ort sichtbar UND umkehrbar – ohne zweite Liste darunter.
+ */
+function DraftReturnArm({ holder, connected, onToggle }: {
+  holder: AffectedOrder; connected: boolean; onToggle: (objectId: number) => void;
 }) {
+  const label = holder.name ?? 'Auftrag';
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
-      <Elbow dir="out-to-left" strong />
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
-        width: '100%', minWidth: 0 }}>
-        {holders.map((h, i) => (
-          <div key={h.object_id} style={{ display: 'flex', flexDirection: 'column',
-            alignItems: 'center', width: '100%', minWidth: 0 }}>
-            {i > 0 && <Axis h={20} strong />}
-            <div {...aside('left', { width: '100%', minWidth: 0 })}>
-              <OrderRefNode caption="Gibt zurück an" objectId={h.object_id} name={h.name}
-                icon={Scissors}
-                title={`${holderLoss(h)} gehen zurück – der Auftrag wartet darauf. `
-                  + 'Klick: Linie kappen, dann wird dort die Menge reduziert.'}
-                onClick={() => onToggle(h.object_id)} />
-            </div>
-          </div>
-        ))}
+      {connected && <Elbow dir="out-to-left" strong />}
+      {/* Auf dem waagrechten Stück der Ecke (`out-to-left`: y = 2·BEND), mittig zwischen
+          Achse und Spurmitte – dort, wo die Linie verläuft. */}
+      <button type="button" onClick={() => onToggle(holder.object_id)}
+        title={connected
+          ? `${holderLoss(holder)} gehen zurück – ${label} wartet darauf. Klick: Linie kappen, `
+            + 'dann wird dort die Menge reduziert.'
+          : `${holderLoss(holder)} bleiben hier – ${label} wird auf die verbleibende Menge `
+            + 'reduziert. Klick: Rückgabe wieder anschalten.'}
+        style={{
+          position: 'absolute', left: SIDE / 2 + RUN / 2, top: 2 * BEND,
+          transform: 'translate(-50%, -50%)', width: 28, height: 28, borderRadius: 999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          border: `1px solid ${connected ? 'var(--fg-2)' : 'var(--border-2)'}`,
+          background: '#fff', color: connected ? 'var(--fg-2)' : 'var(--fg-4)', padding: 0,
+        }}>
+        {connected ? <Scissors size={14} /> : <Redo2 size={14} />}
+      </button>
+      <div {...aside('left', { width: '100%', minWidth: 0, opacity: connected ? 1 : 0.55 })}>
+        <OrderRefNode
+          caption={connected ? 'Gibt zurück an' : 'Keine Rückgabe – wird reduziert'}
+          objectId={holder.object_id} name={holder.name} icon={ArrowDown}
+          title={`${label} ${formatObjectId(holder.object_id)}`} />
       </div>
-    </div>
-  );
-}
-
-/**
- * **Die gekappte Linie** – der Halter bleibt sichtbar, der Weg zu ihm nicht.
- *
- * Ohne diese Zeile wäre die Entscheidung einseitig: einmal gekappt, nie wieder zurück. Sie
- * trägt darum **keine Linie** – das IST die Aussage – und tritt zurück, ist aber anklickbar.
- * Auch nicht als gestrichelte: eine zweite Strichart gibt es im Fluss nicht (#422/#429),
- * Abwesenheit wird durch Abwesenheit gezeigt.
- */
-function DraftCutList({ holders, onToggle }: {
-  holders: AffectedOrder[]; onToggle: (objectId: number) => void;
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch',
-      gap: 6, width: '100%', minWidth: 0, paddingTop: 14 }}>
-      {holders.map((h) => (
-        <button key={h.object_id} type="button" onClick={() => onToggle(h.object_id)}
-          title={`${holderLoss(h)} bleiben hier – ${h.name ?? 'der Auftrag'} `
-            + `${formatObjectId(h.object_id)} wird auf die verbleibende Menge reduziert. `
-            + 'Klick: Rückgabe wieder anschalten.'}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 0,
-            padding: '7px 11px', cursor: 'pointer', textAlign: 'left',
-            border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)',
-            background: 'transparent', color: 'var(--fg-4)',
-          }}>
-          <Scissors size={13} style={{ flexShrink: 0 }} />
-          <span style={{ font: '500 12px var(--font-body)', minWidth: 0, overflow: 'hidden',
-            textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            Keine Rückgabe – {h.name ?? 'Auftrag'} wird reduziert
-          </span>
-          <span style={{ font: '500 11px var(--font-mono), monospace', marginLeft: 'auto',
-            flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-            {formatObjectId(h.object_id)}
-          </span>
-        </button>
-      ))}
     </div>
   );
 }
