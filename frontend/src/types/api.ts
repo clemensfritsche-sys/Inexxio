@@ -3734,6 +3734,34 @@ export interface components {
             resolution?: string | null;
         };
         /**
+         * FlowEdge
+         * @description **Eine Kante der Prozess-Achse – fertig gerechnet** (ADR 007, Stufe «das Frontend
+         *     zeichnet, der Server weiss»).
+         *
+         *     Die Oberfläche hat jahrelang Wahrheit AUSGERECHNET (Material-Arithmetik, Stichtage,
+         *     Zustands-Zeitmaschine als React-Code) – und jede Abweichung von der Server-Sicht war
+         *     eine Testnotiz. Jetzt liefert der Server jede Kante fertig: welches Material hier lag
+         *     (im Zustand von damals, #488), ob der Fluss bis hierhin gekommen ist und ob der Prozess
+         *     GENAU HIER steht (aktuelle Zahlen, Abkürzungs-Knopf). Das Frontend rendert nur noch.
+         */
+        FlowEdge: {
+            /**
+             * Lots
+             * @default []
+             */
+            lots: components["schemas"]["FlowLot"][];
+            /**
+             * Reached
+             * @default false
+             */
+            reached: boolean;
+            /**
+             * Live
+             * @default false
+             */
+            live: boolean;
+        };
+        /**
          * FlowLot
          * @description **Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).
          *
@@ -3792,6 +3820,33 @@ export interface components {
             reserved: boolean;
             /** At */
             at?: string | null;
+        };
+        /**
+         * FlowNode
+         * @description Ein Knoten der Achse: ein Prozessschritt ODER eine Teilung (Abzweige an dieser
+         *     Stelle). Die Reihenfolge der Liste IST die Achse; Kante i liegt über Knoten i.
+         */
+        FlowNode: {
+            /** Kind */
+            kind: string;
+            /** Step Id */
+            step_id?: number | null;
+            /**
+             * Branch Object Ids
+             * @default []
+             */
+            branch_object_ids: number[];
+            /**
+             * Reached
+             * @default false
+             */
+            reached: boolean;
+            /**
+             * Passed
+             * @default false
+             */
+            passed: boolean;
+            bypass?: components["schemas"]["FlowEdge"] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4759,6 +4814,16 @@ export interface components {
              * @default []
              */
             history: components["schemas"]["MaterialMoveView"][];
+            /**
+             * Flow Nodes
+             * @default []
+             */
+            flow_nodes: components["schemas"]["FlowNode"][];
+            /**
+             * Flow Edges
+             * @default []
+             */
+            flow_edges: components["schemas"]["FlowEdge"][];
             /**
              * Deviations
              * @default []

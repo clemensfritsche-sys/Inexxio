@@ -20,7 +20,8 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed, MaterialMoveView
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    FlowLot, MaterialOrder, OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderResponse,
+    FlowEdge, FlowLot, FlowNode, MaterialOrder, OrderDeviationInfo, OrderLineInfo,
+    OrderOrigin, OrderResponse,
     OrderStepInfo, OrderSummary, ShortfallInstance, StepResolution, SubOrderStep,
     StepShortfall,
 )
@@ -417,20 +418,25 @@ def order_material(db: Session, order: Order,
     view = ledger.order_view(db, order.id) if order.id else None
     if view is None:
         return _order_material_legacy(db, order, insts)
-    raw_material, raw_gone = view
-    oids = {r.instance_object_id for r in raw_material}
+    lots = _view_lots(db, view.material)
+    return lots, _view_lots(db, view.terminal)
+
+
+def _view_lots(db: Session, rows: list) -> list[FlowLot]:
+    """Journal-Zeilen (``ledger.ViewRow``) mit Anzeige-Meta anreichern – eine Stelle."""
+    oids = {r.instance_object_id for r in rows}
     meta_insts = (db.query(Instance)
                   .filter(Instance.object_id.in_(oids)).all()) if oids else []
     meta = _lot_meta(db, meta_insts)
 
-    def to_lot(r: "ledger.ViewRow") -> FlowLot:
+    def to_lot(r) -> FlowLot:
         base = meta.get(r.instance_object_id) or dict(instance_object_id=r.instance_object_id)
         return FlowLot(quantity=float(r.quantity), quality=r.quality,
                        disposition=r.disposition, reserved=r.reserved, at=r.at, **{
                            k: v for k, v in base.items() if k != "instance_object_id"},
                        instance_object_id=r.instance_object_id)
 
-    return [to_lot(r) for r in raw_material], [to_lot(r) for r in raw_gone]
+    return [to_lot(r) for r in rows]
 
 
 def _order_material_legacy(db: Session, order: Order,
@@ -1078,6 +1084,155 @@ _EMBED_SLOT = {"inspection": "inspection", "movement": "movement", "scrap": "dis
                "document": "document", "resource": "resource"}
 
 
+def _as_of(lots: list[FlowLot], cutoff) -> list[FlowLot]:
+    """**Der Zustand von damals** (Testnotiz #488) – jetzt SERVER-seitig, als pure Funktion.
+
+    Zeilen mit einem Zeitpunkt NACH dem Stichtag gab es an dieser Stelle noch nicht: ihre
+    Menge fällt in den gehaltenen Zustand zurück («Im Prozess»). ``cutoff=None`` heisst
+    «vor dem ersten Schritt» – dort ist ALLES noch gehalten. Vorher lebte diese
+    Zeitmaschine als React-Code in der Oberfläche; sie ist Fachlogik und gehört hierher."""
+    out: list[FlowLot] = []
+    back: dict[int, float] = {}
+    for l in lots:
+        if l.at is not None and (cutoff is None or l.at > cutoff):
+            back[l.instance_object_id] = back.get(l.instance_object_id, 0.0) + l.quantity
+        else:
+            out.append(l)
+    for oid, qty in back.items():
+        src = next((l for l in lots if l.instance_object_id == oid), None)
+        if src is None:
+            continue
+        out.append(src.model_copy(update={
+            "quantity": qty, "quality": None, "disposition": "in_process",
+            "reserved": False, "at": None}))
+    return out
+
+
+def _minus(above: list[FlowLot], take: list[FlowLot]) -> list[FlowLot]:
+    """Material abziehen, das ein Abzweig übernommen hat – lebende Zeilen zuerst (eine
+    Teilung nimmt keine bereits ausgesonderte Menge mit). Nur noch für die Bypass-Anzeige
+    der Vergangenheit bzw. für Alt-Aufträge ohne Journal."""
+    gone = ("scrapped", "sold", "consumed")
+    rows = [l.model_copy() for l in above]
+    for t in take:
+        left = t.quantity
+        for l in sorted((x for x in rows if x.instance_object_id == t.instance_object_id),
+                        key=lambda x: x.disposition in gone):
+            if left <= 0:
+                break
+            cut = min(left, l.quantity)
+            l.quantity -= cut
+            left -= cut
+    return [l for l in rows if l.quantity > 0]
+
+
+def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
+    """**Die Prozess-Achse fertig rechnen – das Frontend zeichnet nur noch** (ADR 007).
+
+    Baut aus den Schritten und ihren Abzweigen die Knotenliste (dieselbe Ordnung, die die
+    Oberfläche jahrelang selbst konstruierte), bestimmt Fortschritt und Prozess-Punkt und
+    legt an jede Kante ihr Material – im Zustand von damals (#488), an der lebenden Kante
+    die aktuellen Zahlen. Der Bypass einer Teilung ist **gehalten + ausgesteuert** aus dem
+    Journal («was HIER ist»), nicht mehr Subtraktions-Arithmetik im Client."""
+    from . import ledger
+    claimed = {d.object_id for s in resp.steps for d in (s.sub_orders or [])}
+    loose = [x for x in (resp.deviations + resp.supply_orders + resp.provisionings)
+             if x.object_id not in claimed]
+    by_age = lambda l: sorted(l, key=lambda b: b.object_id)          # noqa: E731
+
+    nodes: list[dict] = []
+    if loose:
+        nodes.append(dict(kind="split", branches=by_age(loose), res_step=None))
+    for s in resp.steps:
+        subs = s.sub_orders or []
+        before = [x for x in subs if x.stage == "before"]
+        after = [x for x in subs if x.stage == "after"]
+        if before:
+            nodes.append(dict(kind="split", branches=by_age(before), res_step=s.id))
+        nodes.append(dict(kind="step", step=s, res_step=None if before else s.id))
+        if after:
+            nodes.append(dict(kind="split", branches=by_age(after), res_step=None))
+
+    is_open = lambda b: b.status in ("draft", "released")            # noqa: E731
+    node_done = (lambda n: n["step"].state == "done" if n["kind"] == "step"
+                 else all(not is_open(b) for b in n["branches"]))
+    walked = 0
+    while walked < len(nodes) and node_done(nodes[walked]):
+        walked += 1
+
+    cutoffs: list = [None] * (len(nodes) + 1)
+    last = None
+    for i, n in enumerate(nodes):
+        cutoffs[i] = last
+        if n["kind"] == "step" and n["step"].state == "done" and n["step"].completed_at:
+            last = n["step"].completed_at
+    cutoffs[len(nodes)] = last
+
+    running = order.status == "released"
+    here = (None if not running
+            else (len(nodes), False) if walked == len(nodes)
+            else (walked, nodes[walked]["kind"] == "split"))
+    material = resp.flow_lots
+    view = ledger.order_view(db, order.id) if order.id else None
+
+    # **Was in einen Abzweig ging, liegt unterhalb seiner Teilung nicht mehr auf der
+    # Achse** – es steht in SEINER Spur, und was zurückkam, ist wieder gehalten (die
+    # Rückkehr hat ihre Abgabe-Zeile verzehrt). Die Journal-Zeile weiss, wohin sie ging
+    # (``ViewRow.to_order``); je Kante wird nur gefiltert, nichts subtrahiert.
+    branch_oids = {b.object_id for n in nodes if n["kind"] == "split" for b in n["branches"]}
+    branch_db = (dict(db.query(Order.object_id, Order.id)
+                      .filter(Order.object_id.in_(branch_oids)).all()) if branch_oids else {})
+    gone_above: list[set[int]] = [set()]
+    for n in nodes:
+        nxt = set(gone_above[-1])
+        if n["kind"] == "split":
+            nxt |= {branch_db[b.object_id] for b in n["branches"] if b.object_id in branch_db}
+        gone_above.append(nxt)
+
+    def axis_lots(i: int, current: bool) -> list[FlowLot]:
+        rows = [r for r in view.material
+                if r.to_order is None or r.to_order not in gone_above[i]]
+        lots = _view_lots(db, rows)
+        return lots if current else _as_of(lots, cutoffs[i])
+
+    def edge(i: int) -> FlowEdge:
+        reached = i <= walked
+        live = here is not None and here == (i, False)
+        # Die LETZTE Kante zeigt, womit der Auftrag herausgekommen ist – die eigene
+        # Journal-Sicht ist mit dem Abschluss ohnehin eingefroren (spätere Geschichte
+        # gehört den Buchungen ANDERER Aufträge). Ein Stichtag würde hier ausgerechnet
+        # die Abschluss-Freigabe zurückdrehen, die das Ergebnis IST.
+        final = reached and i == len(nodes)
+        if not reached:
+            lots: list[FlowLot] = []
+        elif view is not None:
+            lots = axis_lots(i, live or final)
+        else:
+            lots = material if live or final else _as_of(material, cutoffs[i])
+        return FlowEdge(lots=lots, reached=reached, live=live)
+
+    resp.flow_edges = [edge(i) for i in range(len(nodes) + 1)]
+    for i, n in enumerate(nodes):
+        node = FlowNode(
+            kind=n["kind"], reached=i <= walked, passed=i < walked,
+            step_id=(n["step"].id if n["kind"] == "step" else n["res_step"]),
+            branch_object_ids=[b.object_id for b in n.get("branches", [])])
+        if n["kind"] == "split" and i <= walked:
+            live_b = here is not None and here == (i, True)
+            if live_b and view is not None:
+                # Journal, live: was HIER ist = gehalten + ausgesteuert (der Abzweig hat
+                # seinen Anteil weggebucht – nichts muss subtrahiert werden).
+                lots = _view_lots(db, view.held + view.terminal)
+            else:
+                # Vergangenheit (und Alt-Auftrag ohne Journal): der Stand von damals,
+                # minus dem, was abzweigte. Die Custody-Sicht taugt hier nicht – ein
+                # abgeschlossener Auftrag hält nichts mehr, sein damaliger Bypass schon.
+                base = material if live_b else _as_of(material, cutoffs[i])
+                lots = _minus(base, [l for b in n["branches"] for l in (b.flow_in or [])])
+            node.bypass = FlowEdge(lots=lots, reached=True, live=live_b)
+        resp.flow_nodes.append(node)
+
+
 def _order_history_views(db: Session, order: Order) -> list[MaterialMoveView]:
     """**Was mit dem Material dieses Auftrags passiert ist** – die Journalzeilen (ADR 007).
 
@@ -1180,6 +1335,9 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
         if seller is not None:
             resp.seller_company_object_id = seller.object_id
             resp.seller_company_name = seller.company_name
+    # **Die fertig gerechnete Achse** – zuletzt, denn sie liest Schritte, Abzweige und
+    # Material aus der Antwort selbst (eine Ableitung, ein Moment).
+    _fill_flow_view(db, order, resp)
     return resp
 
 

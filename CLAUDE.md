@@ -4239,6 +4239,37 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Service-Pfade), wurden dabei vom Journal ENTLARVT und auf die Buchungen nachgezogen:
   genau die Drift-Sichtbarkeit, für die das Journal gebaut ist.
 
+- **Visualisierungs-Stufe: das Frontend ZEICHNET, der Server WEISS** (August 2026,
+  ADR 007 Stufe 3; Antwort auf «Prozesslinien … semiguter codetechnischer Ansatz – mit dem
+  Wissen von heute anders?»): Der Fluss-Renderer (`order-flow.tsx`, 1350 Zeilen) rechnete
+  mitten im React-Code weiterhin WAHRHEIT aus – Material-Subtraktion an Teilungen
+  (`minus`/`plus`), die Stichtags-Zeitmaschine (`asOf`/`cutoffs`), «wo steht der
+  Prozess?». Genau diese Client-Arithmetik war die Quelle der wiederkehrenden
+  Mengen-Notizen (#421/#425/#459/#464/#467/#469/#488/#496). Jetzt liefert das Backend die
+  **fertig gerechnete Achse**: `OrderResponse.flow_nodes`/`flow_edges`
+  (`orders._fill_flow_view`) – Knotenliste (Schritt/Teilung), Fortschritt
+  (`reached`/`passed`), der EINE Prozess-Punkt (`live`; keiner an einem nicht laufenden
+  Auftrag), Material je Kante im **Zustand von damals** (`_as_of` serverseitig; die
+  letzte Kante zeigt das ERGEBNIS – ein Stichtag würde dort die Abschluss-Freigabe
+  zurückdrehen) und der **Bypass** je Teilung (live = Journal-Custody `held+terminal`,
+  Vergangenheit = Stand von damals − Abzweig). **Gefiltert statt subtrahiert:** die
+  Journal-Zeile weiss, wohin sie ging (`ledger.ViewRow.to_order`) – was in einen Abzweig
+  ging, liegt unterhalb seiner Teilung in DESSEN Spur, nicht mehr auf der Achse; was
+  zurückkam, ist wieder gehalten (Rückkehr verzehrt die Abgabe-Zeile). Zweite Hälfte:
+  die **Prozesslinien wohnen in EINEM Modul** (`components/erp/flow-line.tsx` –
+  Spurbreiten `MAIN/SIDE/GAP/ARM/BEND/RUN`, `Axis`, `Elbow`-Pfade, Drei-Spuren-`Row`,
+  `aside`); `order-flow.tsx` importiert sie und zeichnet nur noch (Entwurfs-Rahmen
+  `DraftFlowFrame` inklusive). `running`-Prop entfallen (steckt in der Server-Sicht).
+  Wächter: `test_the_frontend_draws_and_the_server_knows` (FE ohne jede
+  Material-Arithmetik, Server-Funktionen vorhanden, Linien-Modul die eine Quelle);
+  PG16-Harness `flowview.py` (19 Prüfungen: 1 Schritt/2 Kanten mit live-Punkt oben,
+  offene Abweichung → Teilung vor dem Schritt + Bypass 3 als live-Stelle, Kante über dem
+  Fork zeigt 4 im Zustand von davor, abgeschlossen → keine live-Stelle und letzte Kante
+  3, Alt-Auftrag ohne Journal → Legacy-Kanten). **Zwei Fehler dabei gefunden** (vom
+  Harness, nicht vom Ahnen): die letzte Kante eines abgeschlossenen Auftrags drehte per
+  Stichtag ausgerechnet die Abschluss-Freigabe zurück, und der Bypass einer VERGANGENEN
+  Teilung war leer, weil die Custody-Sicht nach Abschluss nichts mehr hält.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

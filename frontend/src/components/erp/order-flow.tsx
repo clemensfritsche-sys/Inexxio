@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, MapPin, Package, Redo2,
   Scissors, X } from 'lucide-react';
-import type { AffectedOrder, FlowLot, MaterialOrder, Order, OrderDeviationInfo, OrderOrigin,
-  OrderStep, StepResolution, StepType, SubOrderStep } from '@/types';
+import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, MaterialOrder, Order,
+  OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution, StepType, SubOrderStep } from '@/types';
 import { STEP_META, instanceStatusConfig, stepStateLabel } from '@/lib/process';
 import { TYPE_META } from '@/lib/erp-record';
 import { unitLabel } from '@/lib/article';
@@ -14,6 +14,8 @@ import { orderStatus } from '@/lib/record-status';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { saleStatusConfig } from '@/lib/sale';
 import { FlowTerm, kindColor } from '@/components/erp/process-steps';
+import { ARM, Axis, BEND, Elbow, LANE, MAIN, RUN, Row, SIDE, aside }
+  from '@/components/erp/flow-line';
 import { actorHint, formatObjectId } from '@/lib/utils';
 
 // ─── Der Ablauf eines laufenden Auftrags ───────────────────────────────────────────
@@ -50,28 +52,16 @@ import { actorHint, formatObjectId } from '@/lib/utils';
 // treten zurück. Eine eigene Strichart braucht es dafür nicht – dass es nicht weitergeht,
 // sagt die Linie schon, indem sie an der offenen Stelle zur Haarlinie wird.
 
-/**
- * **Feste Geometrie – und genau darum saubere Ecken** (Notizen #423/#445).
- *
- * Die Spuren waren elastisch (``flex: 1``), also war die Länge einer Abzweigung erst zur
- * Laufzeit bekannt – gezeichnet wurde sie deshalb aus CSS-Rahmenkanten mit ``border-radius``,
- * und an der Nahtstelle zweier Kästchen sah man jede halbe Pixelverschiebung. Mit **festen**
- * Spurbreiten ist der Weg von der Achse zur Spurmitte eine **Konstante** (``RUN``) – damit
- * lässt sich jede Ecke als EIN SVG-Pfad zeichnen: ein Strich, eine Strichstärke, ein echter
- * Viertelkreis, keine Naht.
- *
- * Zugleich wird das Diagramm dadurch schmaler und ruhiger: die Seitenspuren nehmen nur so
- * viel Platz, wie sie brauchen, statt den ganzen Rest zu füllen.
- */
-const MAIN = 460;          // Hauptspur (Modul-Karten)
-const SIDE = MAIN;         // Seitenspur – **gleich breit wie die Hauptspur** (#491):
-                           // ein Abzweig ist ein regulärer Prozess, also sind auch
-                           // seine Modul-Karten gleich gross (#418).
-const GAP = 26;            // Luft zwischen Haupt- und Seitenspur
-const ARM = 40;            // Höhe einer Abzweigung
-const BEND = 12;           // Eckenradius der Prozesslinie
-const LANE = SIDE + GAP;   // Breite einer Seitenspur inkl. Luft
-const RUN = MAIN / 2 + GAP + SIDE / 2;   // Achse ↔ Mitte der Seitenspur
+// ─── Materialfluss (nur Anzeige – gerechnet wird im Backend) ──────────────────────
+//
+// **Das Frontend zeichnet, der Server weiss** (ADR 007): die Kanten kommen fertig aus
+// `OrderResponse.flow_edges`/`flow_nodes` – Material im Zustand von damals, Fortschritt,
+// Prozess-Punkt. Die frühere Client-Arithmetik (minus/plus/Stichtags-Zeitmaschine) ist
+// ersatzlos entfallen; jede Abweichung von der Server-Sicht war eine Testnotiz.
+
+/** Ist diese Menge endgültig aus dem Bestand? (nur für die Rückweg-Anzeige) */
+const isGone = (l: FlowLot) =>
+  l.disposition === 'scrapped' || l.disposition === 'sold' || l.disposition === 'consumed';
 
 export type FlowDecision = { missing: string; canAct: boolean; onDecide?: () => void };
 
@@ -89,233 +79,24 @@ function walkedSteps(steps: { state: string }[]): number {
 
 const isOpen = (b: OrderDeviationInfo) => b.status === 'draft' || b.status === 'released';
 
-// ─── Linien ───────────────────────────────────────────────────────────────────────
-
 /**
- * **Die eine Linie in zwei Lesarten** (Notizen #422/#429): **stark** = hier ist der Prozess
- * durchgelaufen, **Haarlinie** = hier steht er noch aus. Beide durchgezogen – auch der Weg in
- * einen Abzweig und zurück, denn auch das ist ein gegangener Weg.
+ * **Eintritts-Sicht** einer Abzweig-Kante: oben am Unterprozess steht, was hineinging – im
+ * Zustand von damals (Zeilen mit Zeitstempel fallen in «gehalten» zurück, #488). Reine
+ * Projektion EINER Liste, keine Verrechnung zweier Quellen.
  */
-const lineColor = (strong: boolean) => (strong ? 'var(--fg-2)' : 'var(--border-2)');
-const lineW = (strong: boolean) => (strong ? 3 : 2);
-
-/** Ein senkrechtes Stück Achse. */
-function Axis({ h = 22, strong = false, grow = false }: {
-  h?: number; strong?: boolean; grow?: boolean;
-}) {
-  return (
-    <div style={{
-      width: lineW(strong), flex: grow ? 1 : 'none', background: lineColor(strong),
-      height: grow ? undefined : h, minHeight: grow ? h : undefined,
-    }} />
-  );
-}
-
-/**
- * **Der Weg zwischen Achse und Seitenspur – EIN Pfad, echte Viertelkreise.**
- *
- * Vier Richtungen, vier Pfade über denselben Konstanten. Fork und Merge münden in eine Achse,
- * die darüber und darunter weiterläuft (ein **T**, eine Ecke); Herkunft und Rückweg treffen
- * sie dort, wo sie beginnt bzw. endet – die Linie biegt also **zweimal** ab (Notizen
- * #430/#431). Weil der Pfad durchgehend ist, gibt es an keiner Ecke eine Naht.
- */
-const ELBOW: Record<string, { d: string; left: number; h: number; top?: number; bottom?: number }> = {
-  // **Aus der Achse heraus – nicht als T, sondern als Gabelung** (Notiz #456): die Linie
-  // biegt oben mit demselben Radius ab, mit dem sie unten in den Unterprozess einläuft. Sie
-  // beginnt darum BEND über der Zelle, mitten auf der Achse.
-  'fork-right': { left: -(MAIN / 2 + GAP), top: -BEND, h: ARM + BEND,
-    d: `M0 0 A${BEND} ${BEND} 0 0 0 ${BEND} ${BEND} H${RUN - BEND} `
-      + `A${BEND} ${BEND} 0 0 1 ${RUN} ${2 * BEND} V${ARM + BEND}` },
-  // … und wieder hinein: herunter, nach links, dann mit Radius in die Achse einmünden.
-  'merge-right': { left: -(MAIN / 2 + GAP), bottom: 0, h: ARM,
-    d: `M${RUN} 0 V${ARM - 2 * BEND} A${BEND} ${BEND} 0 0 1 ${RUN - BEND} ${ARM - BEND} `
-      + `H${BEND} A${BEND} ${BEND} 0 0 0 0 ${ARM}` },
-  // aus dem Eltern-Auftrag herunter, nach rechts – und an der Achse hinunter
-  'in-from-left': { left: SIDE / 2, bottom: 0, h: ARM,
-    d: `M0 0 V${ARM - 2 * BEND} A${BEND} ${BEND} 0 0 0 ${BEND} ${ARM - BEND} `
-      + `H${RUN - BEND} A${BEND} ${BEND} 0 0 1 ${RUN} ${ARM}` },
-  // aus der Achse heraus, nach links – und hinunter auf den Rückweg-Knoten
-  'out-to-left': { left: SIDE / 2, top: 0, h: ARM,
-    d: `M${RUN} 0 V${BEND} A${BEND} ${BEND} 0 0 1 ${RUN - BEND} ${2 * BEND} `
-      + `H${BEND} A${BEND} ${BEND} 0 0 0 0 ${3 * BEND} V${ARM}` },
-};
-
-function Elbow({ dir, strong }: {
-  dir: 'fork-right' | 'merge-right' | 'in-from-left' | 'out-to-left'; strong?: boolean;
-}) {
-  const { d, left, h, top, bottom } = ELBOW[dir];
-  return (
-    <svg width={RUN} height={h} viewBox={`0 0 ${RUN} ${h}`} aria-hidden
-      shapeRendering="geometricPrecision"
-      style={{ position: 'absolute', left, top, bottom, overflow: 'visible', pointerEvents: 'none' }}>
-      <path d={d} fill="none" stroke={lineColor(!!strong)} strokeWidth={lineW(!!strong)}
-        strokeLinecap="butt" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/**
- * **Nachbar-Prozesse treten zurück** (Notizen #453/#460): links der übergeordnete Auftrag,
- * rechts der Abzweig. Beide gehören zum Bild, aber der Fokus liegt auf dem Prozess in der
- * **Mitte** – sie sind darum als Ganzes gedämpft und blassen zusätzlich zur Aussenkante hin
- * aus. Beim Hovern kommen sie ganz nach vorn: lesbar, ohne den Datensatz zu wechseln.
- *
- * Die Verbindungslinie bleibt davon unberührt – sie gehört zu diesem Fluss, nicht zum
- * Nachbarn. (Optik in ``globals.css: .ix-flow-aside``, damit der Hover ohne JS auskommt.)
- */
-const aside = (to: 'left' | 'right', style?: React.CSSProperties) => ({
-  className: 'ix-flow-aside',
-  style: { ...style, ['--ix-fade' as string]: to } as React.CSSProperties,
-});
-
-/**
- * Eine Zeile des Flusses: die Achse in der Mitte, links Herkunft, rechts Abzweige.
- *
- * Die Spuren sind **fest** breit (siehe ``ELBOW``) und der Inhalt liegt jeweils an der zur
- * Achse zeigenden Kante – damit ist der Weg dorthin überall gleich lang. Ohne Nachbarn fällt
- * die Spurbreite auf 0 (``--flow-lane``), dann steht der Prozess allein und mittig.
- */
-function Row({ children, left, right }: {
-  children?: React.ReactNode; left?: React.ReactNode; right?: React.ReactNode;
-}) {
-  return (
-    <div style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'stretch' }}>
-      <div style={{ width: 'var(--flow-lane)', flex: 'none', display: 'flex',
-        justifyContent: 'flex-start', alignItems: 'center' }}>
-        {left && <div style={{ width: SIDE, minWidth: 0 }}>{left}</div>}
-      </div>
-      <div style={{ width: MAIN, flex: 'none', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', minWidth: 0 }}>
-        {children}
-      </div>
-      <div style={{ width: 'var(--flow-lane)', flex: 'none', display: 'flex',
-        justifyContent: 'flex-end', alignItems: 'center' }}>
-        {right && <div style={{ width: SIDE, minWidth: 0 }}>{right}</div>}
-      </div>
-    </div>
-  );
-}
-
-// ─── Materialfluss ────────────────────────────────────────────────────────────────
-
-type Lots = Map<string, FlowLot>;
-
-/**
- * **Der Schlüssel ist Instanz + Zustand, nicht die Instanz** (Testnotizen #483/#485).
- *
- * Bei Einzelserialisierung fällt beides zusammen: eine Instanz ist ein Stück und hat einen
- * Zustand. Bei einer **Charge** nicht – von 4 Stück können 3 in Arbeit und 1 verschrottet
- * sein. Würden sie über die Objektnummer zusammengefasst, gäbe es wieder EINEN Zustand für
- * die ganze Menge, und genau das war der Fehler.
- */
-const lotKey = (l: FlowLot) =>
-  `${l.instance_object_id}:${l.quality ?? ''}:${l.disposition ?? ''}:${l.reserved ? 'r' : ''}`;
-
-/** Ist diese Menge endgültig aus dem Bestand? Dann kann sie kein Abzweig mehr mitnehmen. */
-const isGone = (l: FlowLot) =>
-  l.disposition === 'scrapped' || l.disposition === 'sold' || l.disposition === 'consumed';
-
-function lotsOf(list: FlowLot[]): Lots {
-  const m: Lots = new Map();
-  for (const l of list) {
-    const k = lotKey(l);
-    const cur = m.get(k);
-    m.set(k, cur ? { ...cur, quantity: cur.quantity + l.quantity } : { ...l });
+function asEntry(lots: FlowLot[]): FlowLot[] {
+  const out: FlowLot[] = [];
+  const back = new Map<number, FlowLot>();
+  for (const l of lots) {
+    if (l.at) {
+      const cur = back.get(l.instance_object_id);
+      if (cur) cur.quantity += l.quantity;
+      else back.set(l.instance_object_id, { ...l, quality: null, disposition: 'in_process',
+        reserved: false, at: null });
+    } else out.push(l);
   }
-  return m;
+  return [...out, ...back.values()];
 }
-
-/**
- * **Eine Teilung hat DREI Stellen, nicht zwei** (Testnotiz #496).
- *
- *      über der Teilung   das ganze Material des Auftrags
- *      NEBEN der Teilung  was NICHT abgezweigt ist  ← der Bypass
- *      UNTER der Teilung  das Verbliebene + was zurückgekommen ist
- *
- * Gerechnet wurde mit **zwei** Mengen: der Bypass und alles darunter teilten sich eine. Damit
- * die Menge unterhalb der Zusammenführung stimmte, musste der Bypass verfälscht werden – bei
- * einem abgeschlossenen Ast wurde nur das Verschrottete abgezogen, das Zurückgegebene blieb
- * stehen. Ergebnis: ein Stück, das vollständig in die Abweichung ging, stand trotzdem **neben**
- * ihr auf dem Hauptprozess, obwohl es dort nie vorbeikam.
- *
- * Jetzt sagt jede Stelle, was sie ist: ``minus`` nimmt weg, was abzweigt (**immer**
- * ``flow_in`` – wer abzweigt, ist nicht daneben), ``plus`` legt an der Zusammenführung
- * dazu, was zurück IST (``flow_back``, leer solange der Ast läuft).
- *
- * Von oben nach unten, beginnend beim **Material des Auftrags** – einer Tatsache, die sich nie
- * ändert (``instance_order_links.quantity``). Die frühere Rückrechnung aus «was hält der
- * Auftrag gerade?» stand auf einem beweglichen Ziel (#479/#480).
- */
-function minus(above: Lots, rows: FlowLot[]): Lots {
-  const out: Lots = new Map(above);
-  for (const lot of rows) {
-    // Abgezogen wird **je Instanz**, lebendes Material zuerst: ein Abzweig nimmt keine
-    // bereits ausgesonderte Menge mit.
-    let left = lot.quantity;
-    const hits = [...out.entries()]
-      .filter(([, l]) => l.instance_object_id === lot.instance_object_id)
-      .sort((a, c) => Number(isGone(a[1])) - Number(isGone(c[1])));
-    for (const [k, l] of hits) {
-      if (left <= 0) break;
-      const cut = Math.min(left, l.quantity);
-      left -= cut;
-      if (l.quantity - cut > 0) out.set(k, { ...l, quantity: l.quantity - cut });
-      else out.delete(k);
-    }
-  }
-  return out;
-}
-
-function plus(base: Lots, rows: FlowLot[]): Lots {
-  const out: Lots = new Map(base);
-  for (const lot of rows) {
-    const k = lotKey(lot);
-    const cur = out.get(k);
-    out.set(k, cur ? { ...cur, quantity: cur.quantity + lot.quantity } : { ...lot });
-  }
-  return out;
-}
-
-const flowOf = (branches: OrderDeviationInfo[], pick: (b: OrderDeviationInfo) => FlowLot[] | null | undefined) =>
-  branches.flatMap((b) => pick(b) ?? []);
-
-/**
- * **Eine durchlaufene Kante zeigt den Zustand von DAMALS** (Testnotiz #488).
- *
- * Eine Materialzeile las bisher immer den **heutigen** Zustand – wurde ein Stück später
- * verschrottet, stand es rückwirkend auf jeder Kante rot, die es passiert hatte, als es noch
- * in Arbeit war. Damit liess sich der Verlauf nicht mehr nachvollziehen, obwohl genau das
- * der Zweck des Flusses ist.
- *
- * Die Regel: **beim Abschluss eines Schritts friert der Zustand ein.** Was danach passiert
- * ist, gab es an dieser Stelle noch nicht – ein Abgang mit ``at`` nach dem Stichtag wird
- * darum zurückgenommen und zählt wieder zu dem, was der Auftrag damals **hielt** (in
- * Arbeit). Nur dort, wo der Prozess GERADE steht, gilt der aktuelle Zustand.
- */
-const BEGIN = '-';   // sortiert vor jedem ISO-Zeitstempel (Beginn des Auftrags)
-
-function asOf(lots: Lots, cutoff: string | null): Lots {
-  if (cutoff === null) return lots;
-  const out: Lots = new Map();
-  const later = new Map<number, number>();
-  for (const [k, l] of lots) {
-    if (l.at && l.at > cutoff) later.set(l.instance_object_id,
-      (later.get(l.instance_object_id) ?? 0) + l.quantity);
-    else out.set(k, l);
-  }
-  for (const [id, qty] of later) {
-    const src = [...lots.values()].find((l) => l.instance_object_id === id);
-    if (!src) continue;
-    // Damals gehörte die Menge diesem Auftrag – also «Im Prozess», nicht der spätere Abgang.
-    const back: FlowLot = { ...src, quantity: qty, quality: null, disposition: 'in_process',
-      reserved: false, at: null };
-    const k = lotKey(back);
-    const cur = out.get(k);
-    out.set(k, cur ? { ...cur, quantity: cur.quantity + qty } : back);
-  }
-  return out;
-}
-
 
 const qtyText = (l: FlowLot) => `${l.quantity}${l.unit ? ` ${unitLabel(l.unit)}` : ''}`;
 
@@ -459,10 +240,10 @@ function LotFact({ icon: Icon, title, children }: {
  * wird er deutlich, wie die Abkürzungen im Kopf eines Datensatzes.
  */
 function FlowShortcut({ lots, onCreate }: {
-  lots: Lots; onCreate: (lots: FlowLot[]) => void;
+  lots: FlowLot[]; onCreate: (lots: FlowLot[]) => void;
 }) {
   const [hot, setHot] = useState(false);
-  const list = [...lots.values()].filter((l) => l.quantity > 0);
+  const list = lots.filter((l) => l.quantity > 0);
   if (list.length === 0) return null;
   const what = list.length === 1
     ? `${qtyText(list[0])} ${formatObjectId(list[0].instance_object_id)}`
@@ -488,11 +269,11 @@ function FlowShortcut({ lots, onCreate }: {
 /** Die Materialzeilen einer Kante; ab der vierten fasst «+N» zusammen. */
 /** Das Material einer Kante – und am **Prozess-Punkt** die Abkürzung darauf (#455). */
 function EdgeMaterial({ lots, onCreate, past, small }: {
-  lots: Lots; onCreate?: (lots: FlowLot[]) => void; small?: boolean;
+  lots: FlowLot[]; onCreate?: (lots: FlowLot[]) => void; small?: boolean;
   /** Der Prozess ist hier schon vorbei – die Angabe tritt zurück, wie ein erledigtes Modul. */
   past?: boolean;
 }) {
-  if (lots.size === 0) return null;
+  if (lots.length === 0) return null;
   if (!onCreate) return <FlowLots lots={lots} past={past} small={small} />;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -502,8 +283,8 @@ function EdgeMaterial({ lots, onCreate, past, small }: {
   );
 }
 
-function FlowLots({ lots, small, past }: { lots: Lots; small?: boolean; past?: boolean }) {
-  const list = [...lots.values()];
+function FlowLots({ lots, small, past }: { lots: FlowLot[]; small?: boolean; past?: boolean }) {
+  const list = lots;
   if (list.length === 0) return null;
   const shown = list.slice(0, 3);
   const rest = list.length - shown.length;
@@ -513,7 +294,7 @@ function FlowLots({ lots, small, past }: { lots: Lots; small?: boolean; past?: b
       // **Vergangenes verblasst** (Notiz #462) – dieselbe Dämpfung wie bei einem erledigten
       // Modul: was schon durch ist, soll den Blick nicht mehr auf sich ziehen.
       opacity: past ? 0.55 : 1, transition: 'opacity .16s' }}>
-      {shown.map((l) => <FlowLotChip key={lotKey(l)} lot={l} />)}
+      {shown.map((l, i) => <FlowLotChip key={`${l.instance_object_id}-${i}`} lot={l} />)}
       {rest > 0 && (
         <span title={list.slice(3).map((l) => `${qtyText(l)} · ${formatObjectId(l.instance_object_id)}`).join('\n')}
           style={{ font: '600 11px var(--font-body)', color: 'var(--fg-4)', cursor: 'help' }}>
@@ -526,11 +307,17 @@ function FlowLots({ lots, small, past }: { lots: Lots; small?: boolean; past?: b
 
 // ─── Der Fluss ────────────────────────────────────────────────────────────────────
 
-export function OrderFlow({ steps, subOrders = [], origin, decision, paused = false,
+export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [],
+  origin, decision, paused = false,
   selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId, goal,
-  running = true, onCreateOrder, materialFrom = [], materialTo = [] }: {
+  onCreateOrder, materialFrom = [], materialTo = [] }: {
   steps: OrderStep[];
   subOrders?: OrderDeviationInfo[];
+  /** **Die fertig gerechnete Achse aus dem Backend** (`flow_nodes`/`flow_edges`): Knoten,
+   *  Kanten mit Material im Zustand von damals, Fortschritt und Prozess-Punkt. Das
+   *  Frontend zeichnet nur noch – es rechnet nichts mehr aus (ADR 007). */
+  flowNodes?: FlowNode[];
+  flowEdges?: FlowEdge[];
   origin?: OrderOrigin | null;
   decision?: FlowDecision;
   paused?: boolean;
@@ -538,14 +325,12 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   onSelectStep: (stepId: string) => void;
   onOpenOrder: (objectId: number) => void;
   renderPanel?: (step: OrderStep) => React.ReactNode;
-  /** Das Material des Auftrags (`OrderResponse.flow_lots`) – Grundlage der Kanten. */
+  /** Das lebende Material (nur für den Rückweg-Knoten eines Unter-Auftrags). */
   lots?: FlowLot[];
   /** Objektnummer dieses Auftrags – die Terminal-Knoten nennen sie im Hover (#443/#444). */
   orderObjectId?: number | null;
   /** Was am Ende des Prozesses steht: Wunsch-Liefertermin und (intern) der Fakturierende. */
   goal?: { due?: string | null; seller?: string | null };
-  /** Läuft der Auftrag noch? Ist er durch, ist in ihm nirgends mehr etwas aktiv (#467). */
-  running?: boolean;
   /** Abkürzung am Prozess-Punkt: einen Auftrag auf genau dieses Material ansetzen (#455). */
   onCreateOrder?: (lots: FlowLot[]) => void;
   /** **Der Prozessbaum** (#493): die regulären Aufträge, die dasselbe Material vor bzw. nach
@@ -557,152 +342,67 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   const processLabel = orderObjectId != null
     ? `Auftrag ${formatObjectId(orderObjectId)}` : 'Auftrag';
 
-  // **Die Knoten der Achse**, in Reihenfolge: Module und die Äste an ihrer Stelle.
-  //
-  // **Mehrere Abzweige an derselben Stelle sind EINE Teilung in mehrere Richtungen** – nicht
-  // mehrere Teilungen nacheinander. Das Material verlässt die Achse an EINEM Punkt; wie viel
-  // wohin geht, sagt die Menge über jedem Unterprozess. Daraus folgt zweierlei:
-  //
-  //   * es gibt **einen** Fork und **einen** Merge (weniger Linien, keine Überlagerung), und
-  //   * die Achse darunter trägt, was dem Auftrag **wirklich** geblieben ist – nicht einen
-  //     Zwischenstand nach der ersten von zwei Teilungen (Testnotiz #469).
-  //
-  //            ┌──► Abweichung A (2 Stk)
-  //      4 Stk ┤
-  //            └──► Abweichung B (1 Stk)
-  //      1 Stk  ▼  weiter im Prozess
-  //
-  // Die Alternative – je Ast ein eigener Fork mit eigenem Bypass – rechnete zwar auch
-  // korrekt, behauptete aber eine Reihenfolge («erst A, dann B»), die es nicht gibt, und
-  // liess die Achse zwischen zwei Ästen eine Menge tragen, die der Auftrag nie hielt.
-  type Node = { step?: OrderStep; branches?: OrderDeviationInfo[]; res?: StepResolution[] };
-  const nodes: Node[] = [];
-  // Reihenfolge innerhalb einer Teilung = Entstehung (die Objektnummer steigt).
-  const byAge = (l: OrderDeviationInfo[]) => [...l].sort((a, b) => a.object_id - b.object_id);
-  const claimed = new Set(steps.flatMap((s) => (s.sub_orders ?? []).map((d) => d.object_id)));
-  // Wer als Abzweig im Bild steht, braucht daneben keine Zeile mehr (#466, siehe `Resolutions`).
-  const shownSubs = new Set([...claimed, ...subOrders.map((x) => x.object_id)]);
-  const loose = subOrders.filter((x) => !claimed.has(x.object_id));
-  if (loose.length) nodes.push({ branches: byAge(loose) });
-  for (const s of steps) {
-    const subs = s.sub_orders ?? [];
-    const before = subs.filter((x) => x.stage === 'before');
-    const after = subs.filter((x) => x.stage === 'after');
-    const res = s.resolutions ?? [];
-    if (before.length) nodes.push({ branches: byAge(before), res });
-    nodes.push({ step: s, res: before.length ? [] : res });
-    if (after.length) nodes.push({ branches: byAge(after) });
-  }
+  // Nachschlagewerke für die Server-Knoten: Schritte nach id, Abzweige nach Objektnummer.
+  const stepById = new Map(steps.map((s) => [s.id, s]));
+  const branchById = new Map<number, OrderDeviationInfo>();
+  for (const b of subOrders) branchById.set(b.object_id, b);
+  for (const s of steps) for (const b of (s.sub_orders ?? [])) branchById.set(b.object_id, b);
+  // Wer als Abzweig im Bild steht, braucht daneben keine Zeile mehr (#466, `Resolutions`).
+  const shownSubs = new Set(branchById.keys());
+  // Eine Teilung, die die Auflösungen ihres Schritts trägt, nimmt sie ihm ab.
+  const claimedRes = new Set(flowNodes.filter((n) => n.kind === 'split' && n.step_id != null)
+    .map((n) => n.step_id as number));
 
-  // **Mengen von OBEN nach unten**: oben steht das Material des Auftrags – eine Tatsache, die
-  // sich nicht ändert –, und an jeder Teilung geht ab, was abzweigt. Kante i liegt ÜBER
-  // Knoten i.
-  // Kante i liegt ÜBER Knoten i; `beside[i]` ist der **Bypass** neben einer Teilung – eine
-  // eigene Menge, nicht dieselbe wie darunter (siehe `minus`/`plus`).
-  const edges: Lots[] = new Array(nodes.length + 1);
-  const beside: (Lots | null)[] = new Array(nodes.length).fill(null);
-  edges[0] = lotsOf(lots);
-  for (let i = 0; i < nodes.length; i++) {
-    const br = nodes[i].branches;
-    if (!br) { edges[i + 1] = edges[i]; continue; }
-    beside[i] = minus(edges[i], flowOf(br, (b) => b.flow_in));
-    edges[i + 1] = plus(beside[i]!, flowOf(br, (b) => b.flow_back));
-  }
-  // **Der Stichtag je Kante** (Testnotiz #488): Kante i beschreibt den Zustand, in dem das
-  // Material in Knoten i **hineinging** – also den Moment, in dem der letzte Schritt darüber
-  // abgeschlossen wurde. Was später passierte, gab es dort noch nicht.
-  // «Vor dem ersten Schritt» ist ein echter Stichtag, kein fehlender: dort hatte noch KEIN
-  // Abgang stattgefunden. `BEGIN` sortiert vor jedem ISO-Zeitstempel, also fällt dort alles
-  // zurück in den gehaltenen Zustand.
-  const cutoffs: string[] = new Array(nodes.length + 1).fill(BEGIN);
-  let last: string = BEGIN;
-  for (let i = 0; i < nodes.length; i++) {
-    cutoffs[i] = last;
-    const s = nodes[i].step;
-    if (s?.state === 'done' && s.completed_at) last = s.completed_at;
-  }
-  cutoffs[nodes.length] = last;
-
-  // **Wie weit ist der Fluss gegangen?** (#422) – die führenden erledigten Knoten. Knoten i ist
-  // ERREICHT, wenn `i <= walked`, und DURCHLAUFEN, wenn `i < walked`. Genau bis dorthin ist die
-  // Linie stark.
-  const nodeDone = (n: Node) => (n.step
-    ? n.step.state === 'done'
-    : (n.branches ?? []).every((b) => !isOpen(b)));
-  let walked = 0;
-  while (walked < nodes.length && nodeDone(nodes[walked])) walked++;
-
-  // **Wo steht der Prozess GERADE?** – die eine Stelle, an der die Kante ihr Material stark
-  // trägt und die Abkürzung sitzt; überall sonst ist es Vergangenheit (Notizen #462/#464/#467).
-  // Die Regel des Nutzers in einem Satz: *stark ist es dort, wo der Prozessschritt gerade
-  // aktiv ist.* Daraus folgt alles Weitere von selbst:
-  //
-  //   * **läuft der Auftrag nicht mehr** (abgeschlossen, abgebrochen, Entwurf) → gar keine
-  //     Stelle. Sein Material ist längst beim übergeordneten Auftrag, dort ist der aktive
-  //     Schritt – also verblasst hier alles und es gibt auch nichts anzusetzen (#467/#468).
-  //   * **steht er an einem Abzweig** → am **Bypass**, nicht an der Kante darüber: dort hat
-  //     sich das Material bereits geteilt, die Kante darüber zählt noch alles zusammen. Wer
-  //     dort ansetzte, legte einen Auftrag auf Stücke an, die woanders hängen (#459/#464).
-  //   * sonst → an der Kante über dem nächsten offenen Modul.
-  const here: { at: number; bypass: boolean } | null = !running ? null
-    : walked === nodes.length ? { at: nodes.length, bypass: false }
-      : { at: walked, bypass: !!nodes[walked].branches };
-  const liveEdge = (i: number) => here?.at === i && !here.bypass;
-  const liveBypass = (i: number) => here?.at === i && here.bypass;
-  // Dort, wo der Prozess GERADE steht, gilt der aktuelle Zustand; überall darüber der,
-  // den die Menge damals hatte (#488).
-  const lotsAt = (i: number, live: boolean) => asOf(edges[i], live ? null : cutoffs[i]);
-  // Der Bypass sitzt auf der Höhe von Knoten i – also gilt dort derselbe Stichtag wie über ihm.
-  const bypassAt = (i: number, live: boolean) => asOf(beside[i] ?? new Map(), live ? null : cutoffs[i]);
+  const edgeAt = (i: number): FlowEdge => flowEdges[i] ?? { lots: [], reached: false, live: false };
 
   let gateUsed = false;
   const rows: React.ReactNode[] = [];
-  nodes.forEach((n, i) => {
-    const reached = i <= walked;
-    const passed = i < walked;
+  flowNodes.forEach((n, i) => {
+    const edge = edgeAt(i);
     rows.push(
       <Row key={`edge-${i}`}>
-        <Axis strong={reached} />
-        {reached && <EdgeMaterial lots={lotsAt(i, liveEdge(i))} past={!liveEdge(i)}
-          onCreate={liveEdge(i) ? onCreateOrder : undefined} />}
-        <Axis strong={reached} />
+        <Axis strong={edge.reached} />
+        {edge.reached && <EdgeMaterial lots={edge.lots} past={!edge.live}
+          onCreate={edge.live ? onCreateOrder : undefined} />}
+        <Axis strong={edge.reached} />
       </Row>,
     );
-    if (n.branches) {
-      const res = n.res ?? [];
-      // **Nur die offene Entscheidung ist ein Knoten** (Notiz #434). «wartet» und die
-      // getroffene Antwort waren reine Information – und die steht längst im Fluss: ein
-      // offener Abzweig IST das Warten, eine Auflösung steht als Zeile an ihrem Schritt.
-      const decide = res.length === 0 && nodeDone(n) && !gateUsed && !!decision;
+    if (n.kind === 'split') {
+      const branches = n.branch_object_ids
+        .map((id) => branchById.get(id)).filter(Boolean) as OrderDeviationInfo[];
+      if (branches.length === 0) return;
+      const res = (n.step_id != null ? stepById.get(n.step_id)?.resolutions : null) ?? [];
+      // **Nur die offene Entscheidung ist ein Knoten** (Notiz #434) – ein offener Abzweig
+      // IST das Warten, eine Auflösung steht als Zeile an ihrem Schritt.
+      const decide = res.length === 0 && n.passed && !gateUsed && !!decision;
       if (decide) gateUsed = true;
+      const bypass = n.bypass ?? { lots: [], reached: false, live: false };
       rows.push(
         // **Fork · Bypass · Merge**: die Achse läuft neben der Teilung weiter und trägt, was
-        // auf dem Hauptauftrag geblieben ist (Notizen #425/#469).
-        <Row key={`br-${n.branches[0].object_id}`}
-          right={<BranchArm branches={n.branches} onOpen={onOpenOrder} />}>
-          <Axis grow h={26} strong={reached} />
-          {reached && <EdgeMaterial lots={bypassAt(i, liveBypass(i))} small past={!liveBypass(i)}
-            onCreate={liveBypass(i) ? onCreateOrder : undefined} />}
-          <Axis grow h={26} strong={passed} />
+        // auf dem Hauptauftrag geblieben ist (Notizen #425/#469/#496) – vom Server gerechnet.
+        <Row key={`br-${branches[0].object_id}`}
+          right={<BranchArm branches={branches} onOpen={onOpenOrder} />}>
+          <Axis grow h={26} strong={n.reached} />
+          {bypass.reached && <EdgeMaterial lots={bypass.lots} small past={!bypass.live}
+            onCreate={bypass.live ? onCreateOrder : undefined} />}
+          <Axis grow h={26} strong={n.passed} />
         </Row>,
       );
       if (decide || res.length > 0) {
         rows.push(
-          <Row key={`gate-${n.branches[0].object_id}`}>
-            <Axis h={10} strong={passed} />
+          <Row key={`gate-${branches[0].object_id}`}>
+            <Axis h={10} strong={n.passed} />
             {decide ? <Gateway decision={decision} /> : <Resolutions list={res} shown={shownSubs} />}
           </Row>,
         );
       }
       return;
     }
-    const s = n.step!;
+    const s = n.step_id != null ? stepById.get(n.step_id) : undefined;
+    if (!s) return;
     // **Ansehen darf man jeden Schritt** (Notizen #442/#465/#471) – erledigt, laufend oder
-    // künftig. Ein Panel zu öffnen ist Lesen; ob sich darin etwas AUSFÜHREN lässt, entscheidet
-    // ohnehin das Backend (`resolve_exec_step`: nur der aktive Schritt, sonst 409 mit dem
-    // echten Grund). Die frühere Sperre bei ruhendem Auftrag (#378) war eine zweite, rein
-    // visuelle Regel daneben – und sie verbarg ausgerechnet die Daten, die man beim Klären
-    // einer Abweichung braucht.
+    // künftig. Ein Panel zu öffnen ist Lesen; ob sich darin etwas AUSFÜHREN lässt,
+    // entscheidet ohnehin das Backend (`resolve_exec_step`: nur der aktive Schritt).
     const selected = selectedId === String(s.id);
     rows.push(
       <Row key={`step-${s.id}`}>
@@ -714,18 +414,19 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
         </StepCard>
       </Row>,
     );
-    if ((n.res ?? []).length > 0) {
+    const res = !claimedRes.has(s.id) ? (s.resolutions ?? []) : [];
+    if (res.length > 0) {
       rows.push(
         <Row key={`res-${s.id}`}>
-          <Axis h={10} strong={passed} />
-          <Resolutions list={n.res!} shown={shownSubs} />
+          <Axis h={10} strong={n.passed} />
+          <Resolutions list={res} shown={shownSubs} />
         </Row>,
       );
     }
   });
 
-  const done = walked === nodes.length;
-  const hasAside = !!origin || nodes.some((n) => !!n.branches);
+  const lastEdge = edgeAt(flowNodes.length);
+  const hasAside = !!origin || flowNodes.some((n) => n.kind === 'split');
   return (
     // Ein Diagramm darf breiter sein als eine Textspalte – aber es scrollt in seinem eigenen
     // Kasten, statt die Seite waagrecht zu schieben.
@@ -750,14 +451,12 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
         <Row><FlowTerm kind="start" title={`Start · ${processLabel}`} /></Row>
         {rows}
         <Row key="edge-last">
-          <Axis strong={done} />
-          {/* Die letzte Kante zeigt, womit der Auftrag herauskommt – aber **stark nur, solange
-              er läuft** (Notiz #467): ist er durch, hat er sein Material zurückgegeben und der
-              aktive Schritt steht im übergeordneten Auftrag. */}
-          {done && <EdgeMaterial lots={lotsAt(nodes.length, liveEdge(nodes.length))}
-            past={!liveEdge(nodes.length)}
-            onCreate={liveEdge(nodes.length) ? onCreateOrder : undefined} />}
-          <Axis strong={done} />
+          <Axis strong={lastEdge.reached} />
+          {/* Die letzte Kante zeigt, womit der Auftrag herauskommt – stark nur, solange er
+              läuft (Notiz #467): ist er durch, ist sein Material beim übergeordneten. */}
+          {lastEdge.reached && <EdgeMaterial lots={lastEdge.lots} past={!lastEdge.live}
+            onCreate={lastEdge.live ? onCreateOrder : undefined} />}
+          <Axis strong={lastEdge.reached} />
         </Row>
         <Row>
           {/* **Das Ziel gehört ans Prozessende** (Notiz #446) – und **neben** den Knoten,
@@ -783,11 +482,11 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
         )}
         {origin?.returns_to_object_id != null && (
           <>
-            <Row><Axis h={18} strong={done} /></Row>
-            {/* Was zurückgeht, ist das lebende Material des Auftrags – dieselbe Ableitung, die
-                der Eltern für seinen Merge liest (`flow_back`). */}
-            <Row left={<ReturnArm origin={origin} strong={done} onOpen={onOpenOrder}
-              lots={lotsOf(lots.filter((l) => !isGone(l)))} />} />
+            <Row><Axis h={18} strong={lastEdge.reached} /></Row>
+            {/* Was zurückgeht, ist das lebende Material des Auftrags – dieselbe Ableitung,
+                die der Eltern für seinen Merge liest (`flow_back`). */}
+            <Row left={<ReturnArm origin={origin} strong={lastEdge.reached} onOpen={onOpenOrder}
+              lots={lots.filter((l) => !isGone(l))} />} />
           </>
         )}
       </div>
@@ -950,15 +649,15 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
   // **damals** (in Arbeit, als es hineinging), unten das, was tatsächlich **zurück ist**
   // (`flow_back` – leer, solange der Abzweig läuft; vorher wäre es eine Vorhersage). Kommt
   // nichts zurück, sagt das weiterhin die Prozesslinie, indem sie gar nicht erst zurückführt.
-  const inLots = asOf(lotsOf(info.flow_in ?? []), BEGIN);
-  const backLots = lotsOf(info.flow_back ?? []);
+  const inLots = asEntry(info.flow_in ?? []);
+  const backLots = info.flow_back ?? [];
   const hint = `${label} ${formatObjectId(info.object_id)}`
     + `${info.name ? ` «${info.name}»` : ''} · ${cfg.label} – klicken zum Öffnen`;
   return (
     <div title={hint} onClick={() => onOpen?.(info.object_id)}
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%',
         minWidth: 0, cursor: onOpen ? 'pointer' : 'default' }}>
-      {inLots.size > 0 && (
+      {inLots.length > 0 && (
         <>
           <FlowLots lots={inLots} small past={walked > 0} />
           <Axis h={10} strong={started} />
@@ -982,7 +681,7 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
       ))}
       <Axis h={12} strong={started && walked === steps.length} />
       <FlowTerm kind="end" size={30} title={`Ende · ${hint}`} />
-      {backLots.size > 0 && (
+      {backLots.length > 0 && (
         <>
           <Axis h={10} strong />
           <FlowLots lots={backLots} small />
@@ -1072,7 +771,7 @@ function OriginArm({ origin, onOpen }: { origin: OrderOrigin; onOpen?: (id: numb
  * Materialzeile gehört genau dorthin, wo sie überall sonst steht: auf die Kante.
  */
 function ReturnArm({ origin, lots, strong, onOpen }: {
-  origin: OrderOrigin; lots: Lots; strong?: boolean; onOpen?: (id: number) => void;
+  origin: OrderOrigin; lots: FlowLot[]; strong?: boolean; onOpen?: (id: number) => void;
 }) {
   const id = origin.returns_to_object_id as number;
   return (
@@ -1084,7 +783,7 @@ function ReturnArm({ origin, lots, strong, onOpen }: {
           title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}
           onClick={() => onOpen?.(id)} />
       </div>
-      {lots.size > 0 && (
+      {lots.length > 0 && (
         // Auf der Kante, die zum Eltern führt – zwischen Achse und Knoten, wie jede andere
         // Materialzeile auch.
         <div style={{ position: 'absolute', left: 0, right: 0, top: ARM / 2,

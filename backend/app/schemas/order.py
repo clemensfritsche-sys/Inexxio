@@ -167,6 +167,35 @@ class FlowLot(BaseModel):
     at: Optional[datetime] = None
 
 
+class FlowEdge(BaseModel):
+    """**Eine Kante der Prozess-Achse – fertig gerechnet** (ADR 007, Stufe «das Frontend
+    zeichnet, der Server weiss»).
+
+    Die Oberfläche hat jahrelang Wahrheit AUSGERECHNET (Material-Arithmetik, Stichtage,
+    Zustands-Zeitmaschine als React-Code) – und jede Abweichung von der Server-Sicht war
+    eine Testnotiz. Jetzt liefert der Server jede Kante fertig: welches Material hier lag
+    (im Zustand von damals, #488), ob der Fluss bis hierhin gekommen ist und ob der Prozess
+    GENAU HIER steht (aktuelle Zahlen, Abkürzungs-Knopf). Das Frontend rendert nur noch."""
+
+    lots: list[FlowLot] = []
+    reached: bool = False     # bis hierhin ist der Fluss gekommen → Material zeigen
+    live: bool = False        # HIER steht der Prozess – aktuelle Zahlen, Abkürzung ansetzen
+
+
+class FlowNode(BaseModel):
+    """Ein Knoten der Achse: ein Prozessschritt ODER eine Teilung (Abzweige an dieser
+    Stelle). Die Reihenfolge der Liste IST die Achse; Kante i liegt über Knoten i."""
+
+    kind: str                          # 'step' | 'split'
+    step_id: Optional[int] = None      # kind='step': Verweis auf OrderResponse.steps
+    branch_object_ids: list[int] = []  # kind='split': die Abzweige, nach Entstehung sortiert
+    reached: bool = False              # die Linie ist bis hierhin stark
+    passed: bool = False               # ganz durchlaufen
+    # kind='split': das Material NEBEN der Teilung («was blieb hier») – live, solange der
+    # Prozess an ihr steht, sonst der Stand von damals.
+    bypass: Optional[FlowEdge] = None
+
+
 class MaterialOrder(BaseModel):
     """**Ein regulärer Auftrag, der dasselbe Material vor bzw. nach diesem verarbeitet hat**
     (Testnotiz #493).
@@ -657,6 +686,10 @@ class OrderResponse(BaseModel):
     # und unveränderlich. Die dritte der drei Fragen, am Auftrag beantwortet; die Instanz
     # zeigt dieselben Zeilen aus der anderen Richtung. Nur fürs Personal gefüllt.
     history: list[MaterialMoveView] = []
+    # **Die fertig gerechnete Prozess-Achse** (Knoten + Kanten): das Frontend zeichnet sie
+    # nur noch – keine Material-Arithmetik, keine Stichtags-Zeitmaschine im Client mehr.
+    flow_nodes: list[FlowNode] = []
+    flow_edges: list[FlowEdge] = []    # len = flow_nodes + 1; Kante i liegt ÜBER Knoten i
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)

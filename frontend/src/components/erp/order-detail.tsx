@@ -1412,11 +1412,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // dieselbe Regel, nicht eine zweite – «ruht» heisst hier wie dort: hier
                 // geschieht nichts mehr.
                 paused={record.paused === true || record.status === 'inactive'}
-                // **Stark ist es nur dort, wo der Prozessschritt gerade aktiv ist** (Notiz
-                // #467). Ein abgeschlossener (oder abgebrochener) Auftrag hat sein Material
-                // längst zurückgegeben – der aktive Schritt steht dann im übergeordneten
-                // Auftrag, hier ist alles Vergangenheit und es gibt auch nichts anzusetzen.
-                running={record.status === 'released'}
+                // **Die fertig gerechnete Achse aus dem Backend** (ADR 007): Knoten, Kanten
+                // mit Material im Zustand von damals, Fortschritt und Prozess-Punkt. Das
+                // Frontend zeichnet sie nur noch – Stichtage, Teilungen und «wo steht der
+                // Prozess?» rechnet der Server, dieselbe Quelle wie das Journal.
+                flowNodes={record.flow_nodes ?? []}
+                flowEdges={record.flow_edges ?? []}
                 // **Die Entscheidung ist ein Gate im Fluss** (Notiz #413), keine Notiz
                 // darunter: eine Raute an der Stelle, an der der Prozess stillsteht – sie
                 // stellt die Frage und trägt danach die Antwort. Die Fehlmenge gehört dem
