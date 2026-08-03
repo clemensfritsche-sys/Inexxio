@@ -623,7 +623,7 @@ export default function ErpPage() {
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (
-              <OrderDetail key={`order-${sel.objectId}`} record={orderDetail} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onBack={() => setMobileView('list')} />
+              <OrderDetail key={`order-${sel.objectId}`} record={orderDetail} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCreateOrder={(sd) => startCreate('order', sd)} onBack={() => setMobileView('list')} />
             ) : (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#94a3b8' }}>
                 Auftrag wird geladen…
