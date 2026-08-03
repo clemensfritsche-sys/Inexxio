@@ -3970,6 +3970,42 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Endknoten); am Prozessende steht nur noch **wann** (#470) – dass es der Liefertermin ist,
   sagt die Stelle, und das Wort steht im Hover.
 
+- **Ein Zustand gehört zur MENGE, nicht zur Instanz** (Aug. 2026, Testnotizen #483–#485):
+  Der wiederkehrende Fehler war ein **Modellfehler**, kein Anzeigefehler. `instances.quality`/
+  `disposition` sind **Skalare** – bei Einzelserialisierung stimmt das (eine Instanz = 1 Stück
+  = ein Zustand), bei einer **Charge** nicht: von 4 Stück können 3 in Arbeit und 1
+  verschrottet sein. Die Oberfläche behauptete darum EINEN Zustand für die ganze Menge (eine
+  gerade verschrottete Teilmenge blieb grün «Freigegeben»).
+  **Die Lösung folgt dem Muster, das es im Haus schon zweimal gibt** – `instances.reservations`
+  (Anspruch je Menge) und `instances.locations` (Standort je Menge): eine **Materialzeile
+  beschreibt genau eine Menge in genau einem Zustand**, und dieselbe Instanz kann mehrere
+  Zeilen haben. `order_material` zerlegt die übernommene Menge in das, was dieser Auftrag
+  ausgesteuert hat (je Art, aus `_terminal_amounts` – jetzt `{objektnr: {scrapped|sold|
+  consumed: menge}}`), und den **lebenden Rest**. Der Rest ist **gebunden** (`reserved`),
+  solange der Auftrag läuft – sonst stünde ein Stück in Arbeit als «frei am Lager» da (#485).
+  *Der Vorschlag, eine Charge intern in `Nummer_01…_04` zu zerlegen, führt zum selben
+  Ergebnis – aber ohne dessen Kosten: eine Charge darf gebrochen sein (2.5 kg), ihre
+  Objektnummer ist systemweit eindeutig (QR/Referenzen/Standort-Kette), und 1000 Zeilen je
+  Reservierung wären ein hoher Preis für eine Anzeige-Frage.*
+  Frontend: der Lot-Schlüssel ist **Instanz + Zustand** (`lotKey`) statt der Objektnummer –
+  sonst führte das Zusammenfassen genau den einen Zustand wieder ein; `minusBranches` zieht
+  je Instanz ab, **lebendes Material zuerst**.
+  **Am Instanz-Detail dieselbe Frage aus der anderen Richtung** (#484): die Kachel heisst
+  **«Menge & Zustand»** und zeigt jede Teilmenge mit Ampelfarbe und Halter – Quelle ist die
+  Anteils-Aufteilung, die es längst gibt (`services/shares.py`), nicht eine zweite Rechnung.
+  Wächter `test_the_flow_shows_what_material_moves` (erweitert); gegen echtes PostgreSQL 16
+  verifiziert (17 Prüfungen, u. a. «2 Stk zerfallen in 1 verschrottet + 1 lebend, Summe
+  bleibt 2»).
+
+- **Testnotizen #486/#487**: (1) **Ein künftiger Schritt zeigt seine Planung** (#487): «Wird
+  aktiv, sobald der vorherige Schritt erledigt ist» war die einzige Auskunft – vier Panels
+  brachen vorher ab und verbargen damit genau das, was man wissen will (*was soll hier
+  passieren?*). Prüfumfang, Ziel, Ressourcenzeilen und Lieferant standen längst im Panel.
+  Jetzt rendert **jedes** Modul seine Planung, `fields.PlannedNotice` sagt an EINER Stelle,
+  dass sie noch nicht dran ist, und die Aktionen bleiben aus. (2) **«Menge angepasst 4 → 3»
+  entfällt** (#486) – dass der Prozess mit weniger weiterläuft, sagt der Fluss selbst: der
+  Abzweig führt nicht mehr zurück.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

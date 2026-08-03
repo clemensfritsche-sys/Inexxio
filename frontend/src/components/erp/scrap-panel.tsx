@@ -5,7 +5,7 @@ import { Trash2, Lock, CheckCircle2, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, instanceLabel, heldOf } from '@/lib/process';
-import { StatusBadge, PrimaryButton, Label } from '@/components/erp/fields';
+import { StatusBadge, PlannedNotice, PrimaryButton, Label } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 
 import { useScan } from '@/components/scan/scan-provider';
@@ -113,16 +113,6 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
     } finally { setSaving(false); }
   }
 
-  if (stepState === 'locked') {
-    return (
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
-          <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
-        </div>
-      </div>
-    );
-  }
-
   if (instances.length === 0) {
     return (
       <div style={cardStyle}>
@@ -154,8 +144,12 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
 
   const allScanned = scrappable.length > 0 && scrappable.every((i) => scanned.has(i.object_id as number));
 
+  // **Ein künftiger Schritt zeigt seine Planung** (Testnotiz #487) – was hier geschehen
+  // soll, steht längst im Panel; nur ausführen lässt er sich noch nicht.
+  const planned = stepState === 'locked';
   return (
     <div style={cardStyle}>
+      {planned && <PlannedNotice />}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
         {scrappable.map((i) => {
@@ -226,7 +220,7 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
           (Notiz #256). Rot bleibt dem Vollzug oben vorbehalten: das ist die Entscheidung,
           die etwas endgültig aus dem Bestand nimmt. */}
       {!allScanned && (
-        <PrimaryButton icon={ScanLine} onClick={() => startScan()} disabled={saving}>
+        <PrimaryButton icon={ScanLine} onClick={() => startScan()} disabled={planned || saving}>
           {scanned.size > 0 ? 'Weitere scannen' : `Scannen & ${T.verb.toLowerCase()}`}
         </PrimaryButton>
       )}

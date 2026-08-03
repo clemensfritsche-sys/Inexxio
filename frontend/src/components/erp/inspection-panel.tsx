@@ -6,7 +6,7 @@ import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 
 import { ObjId } from '@/components/erp/obj-id';
-import { Label, PrimaryButton, ScrollFade, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { Label, PlannedNotice, PrimaryButton, ScrollFade, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { useScan } from '@/components/scan/scan-provider';
@@ -133,18 +133,13 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
     } finally { setSaving(false); }
   }
 
-  if (stepState === 'locked') {
-    return (
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
-          <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
-        </div>
-      </div>
-    );
-  }
+  // **Ein künftiger Schritt zeigt seine Planung** (Testnotiz #487) – Prüfumfang und
+  // Stichproben stehen schon fest; nur ausführen lässt er sich noch nicht.
+  const planned = stepState === 'locked';
 
   return (
     <div style={cardStyle}>
+      {planned && <PlannedNotice />}
 
       {/* Eine Zeile, kein Kasten: die Angabe ist Beiwerk, nicht ein eigener Bereich. */}
       <div style={{ fontSize: 13, color: 'var(--fg-2)' }}>
@@ -212,7 +207,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
               Hauptaktion wie in Bewegung und Aussondern (Notizen #125/#330): schwarz, volle
               Breite, ≥44 px. Vorher blaue Schrift auf gestricheltem Slate-Rahmen, also die
               einzige Stelle im Fenster in der alten Palette. */}
-          {!done && nextInstance != null && (
+          {!done && !planned && nextInstance != null && (
             <PrimaryButton icon={ScanLine} onClick={scanNext}>
               {unlocked.length === 0 ? 'Erste Instanz scannen' : 'Nächste Instanz scannen'} ({unlocked.length}/{distinctInstances.length})
             </PrimaryButton>
@@ -232,7 +227,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
       {error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</div>}
 
       {/* Abschluss erst, wenn alle Instanzen gescannt & erfasst sind (inkl. Bild-/Unterschrift-Felder) */}
-      {!done && allUnlocked && (
+      {!done && !planned && allUnlocked && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {!mediaComplete && (
             <span style={{ fontSize: 11.5, color: 'var(--warning)' }}>

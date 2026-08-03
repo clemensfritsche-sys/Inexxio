@@ -333,24 +333,33 @@ def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     return None, None
 
 
-def _terminal_amounts(db: Session, sub: Order) -> dict[int, Decimal]:
-    """**Was dieser Auftrag dem Bestand endgültig entzogen hat**, je Instanz-Objektnummer.
+def _terminal_amounts(db: Session, sub: Order) -> dict[int, dict[str, Decimal]]:
+    """**Was dieser Auftrag dem Bestand endgültig entzogen hat** – je Instanz-Objektnummer
+    **und je Art des Abgangs** (``{objektnr: {scrapped|sold|consumed: menge}}``).
 
     Aus dem Event-Strom (``inventory.decreased``) – dauerhaft und exakt, auch lange nachdem
-    Reservierungen gelöst sind. Verschrottet, verkauft oder verbaut kehrt nicht zurück; genau
-    diese Differenz macht am Abzweig den Unterschied zwischen «4 rein» und «0 zurück»."""
+    Reservierungen gelöst sind. Verschrottet, verkauft oder verbaut kehrt nicht zurück.
+
+    **Die Art gehört dazu, nicht nur die Summe.** Eine Charge hat ihren Zustand **pro
+    Menge**, nicht als Ganzes: von 4 Stück können 3 in Arbeit und 1 verschrottet sein. Ohne
+    die Art wüsste die Materialzeile zwar, DASS etwas weg ist, aber nicht, in welchem
+    Zustand – und müsste weiterhin den skalaren Instanz-Status für die ganze Menge
+    behaupten (Testnotizen #483/#485). Altbestand ohne ``reason`` ist ein Verkauf: nur das
+    Aussondern hat die Angabe je geschrieben."""
     from ..models import Event
     from .quantity import ZERO, to_qty
     if not sub.object_id:
         return {}
-    out: dict[int, Decimal] = {}
+    out: dict[int, dict[str, Decimal]] = {}
     for e in (db.query(Event)
               .filter(Event.event_type == "inventory.decreased", Event.object_type == "instance")
               .order_by(Event.id).all()):
         p = e.payload or {}
         if p.get("order") != sub.object_id or e.object_id is None:
             continue
-        out[e.object_id] = out.get(e.object_id, ZERO) + to_qty(p.get("quantity") or 0)
+        kind = str(p.get("reason") or "sold")
+        row = out.setdefault(e.object_id, {})
+        row[kind] = row.get(kind, ZERO) + to_qty(p.get("quantity") or 0)
     return out
 
 
@@ -376,10 +385,7 @@ def _lot_meta(db: Session, insts: list) -> dict[int, dict]:
             instance_object_id=i.object_id, article_id=i.article_id,
             article_object_id=(art.object_id if art else None),
             article_name=(art.name if art else None), unit=(art.unit if art else None),
-            location_label=loc.get((i.location_type, i.location_id)),
-            # Die beiden Instanz-Achsen – die Oberfläche projiziert sie auf die Ampelfarbe
-            # der Zeile (Testnotiz #481), mit derselben Regel wie an der Instanz selbst.
-            quality=i.quality, disposition=i.disposition)
+            location_label=loc.get((i.location_type, i.location_id)))
     return out
 
 
@@ -419,16 +425,33 @@ def order_material(db: Session, order: Order,
     meta = _lot_meta(db, insts)
     material: list[FlowLot] = []
     gone: list[FlowLot] = []
+    running = order.status == "released"
     for i in insts:
         base = meta.get(i.object_id or 0)
         if base is None:
             continue
         qty = to_qty(taken.get(i.object_id) if taken.get(i.object_id) is not None
                      else held_quantity(order, i))
-        material.append(FlowLot(quantity=float(qty), **base))
-        away = min(lost.get(i.object_id, ZERO), qty)
-        if away > ZERO:
-            gone.append(FlowLot(quantity=float(away), **base))
+        # **Der Zustand hängt an der MENGE, nicht an der Instanz** (Testnotizen #483/#485).
+        # Bei Einzelserialisierung fällt beides zusammen (eine Instanz = 1 Stück = ein
+        # Zustand); bei einer Charge nicht: von 4 Stück können 3 in Arbeit und 1
+        # verschrottet sein. Die übernommene Menge zerfällt darum in Teile – was dieser
+        # Auftrag ausgesteuert hat (je Art), und der lebende Rest.
+        left = qty
+        for kind, amount in sorted((lost.get(i.object_id) or {}).items()):
+            part = min(to_qty(amount), left)
+            if part <= ZERO:
+                continue
+            left -= part
+            material.append(FlowLot(quantity=float(part), disposition=kind,
+                                    quality=i.quality, **base))
+            gone.append(FlowLot(quantity=float(part), disposition=kind, **base))
+        if left > ZERO:
+            # Der lebende Rest trägt den Zustand der Instanz – und ist **gebunden**, solange
+            # dieser Auftrag läuft: sonst stünde ein Stück, das gerade bearbeitet wird, als
+            # «frei am Lager» (grün) da, obwohl es einem laufenden Auftrag gehört (#485).
+            material.append(FlowLot(quantity=float(left), quality=i.quality,
+                                    disposition=i.disposition, reserved=running, **base))
     return material, gone
 
 

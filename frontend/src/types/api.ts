@@ -3756,6 +3756,15 @@ export interface components {
          *     anderer. Darum trägt jede Zeile die beiden Instanz-Achsen mit, und die Oberfläche
          *     projiziert sie auf **eine Ampelfarbe** (``lib/process.instanceStatusConfig`` – dieselbe
          *     Projektion wie an der Instanz selbst, kein zweites Regelwerk).
+         *
+         *     **Der Zustand hängt an der MENGE, nicht an der Instanz** (Testnotizen #483/#485). Bei
+         *     Einzelserialisierung fällt beides zusammen – eine Instanz ist 1 Stück und hat einen
+         *     Zustand. Bei einer **Charge** nicht: von 4 Stück können 3 in Arbeit und 1 verschrottet
+         *     sein. Eine Zeile beschreibt darum immer nur **eine Menge in einem Zustand**; dieselbe
+         *     Instanz kann mehrere Zeilen haben. (Der Vorschlag, eine Charge intern in
+         *     ``Nummer_01…_04`` zu zerlegen, führt zum selben Ergebnis – aber ohne dessen Kosten: eine
+         *     Charge darf gebrochen sein (2.5 kg), ihre Objektnummer ist systemweit eindeutig, und
+         *     1000 Zeilen je Reservierung wären ein hoher Preis für eine Anzeige-Frage.)
          */
         FlowLot: {
             /** Instance Object Id */
@@ -3776,6 +3785,11 @@ export interface components {
             quality?: string | null;
             /** Disposition */
             disposition?: string | null;
+            /**
+             * Reserved
+             * @default false
+             */
+            reserved: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
