@@ -3694,6 +3694,48 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_origin_shows_one_step_not_the_whole_parent_process`; die bestehenden Fluss-Wächter
   verbieten jetzt ausdrücklich jede gestrichelte Linie.
 
+- **Testnotizen-Runde 32 (weniger behaupten, mehr zeigen, Notizen #430–#439)**: Ein echter
+  Rechenfehler und neun Vereinfachungen.
+  (1) **Ein Anteil kann nie grösser sein als die Instanz** (#432, `subject.held_quantity`):
+  Die Antwort auf «wie viel dieser Instanz gehört diesem Auftrag» fiel ohne eigenen Anspruch
+  auf die **ganze** Instanz zurück – gedacht für den Erzeuger, der sein Erzeugnis ja komplett
+  hält. Sobald aber eine Abweichung 2 einer 4er-Charge übernahm, hielten Eltern (4, über den
+  Erzeuger-Rückfall) und Abweichung (2, über ihren Anspruch) zusammen **6 von 4**, und genau
+  diese 6 standen auf der Kante des Flusses. Der Rückfall ist jetzt der **Rest**
+  (Instanzmenge − alle Ansprüche) – dieselbe Regel, die `shares.shares_for` seit jeher
+  rendert; sie stand nur an zwei Stellen verschieden. Das korrigiert nebenbei jede weitere
+  Aussage über «den Anteil»: Prüfumfang, Aussondern, Bewegung.
+  (2) **Zwei Ecken, wo zwei Ecken sind** (#430/#431): Fork und Merge münden in eine Achse,
+  die darüber und darunter weiterläuft – das ist ein **T**. Herkunft und Rückweg dagegen
+  treffen die Achse dort, wo sie **beginnt** bzw. **endet**: dort biegt die Linie ab und
+  braucht auch an dieser Stelle einen Radius. Gelöst mit einem zweiten Kästchen von genau
+  `BEND`×`BEND`, dessen Rand damit ein reiner Viertelkreis ist – keine zweite Geometrie.
+  (3) **Der Abzweig zeigt seinen Prozess, keine Kurzinfo über ihn** (#435): die Kopfkarte
+  («Abweichung · Name · Status») ist entfallen; in der Seitenspur steht der Unterprozess so,
+  wie er im Unter-Auftrag steht – eigener Start- und Endknoten, dieselben Modul-Karten. Ein
+  Klick auf irgendetwas davon lädt den Datensatz. Was die Kopfkarte trug, sagt jetzt der
+  Hover; **was** dort passiert, sagen die Module selbst.
+  (4) **Die Herkunft ist ein Verweis, keine Vorschau** (#436/#437): der eine Prozessschritt
+  des Eltern und die Zeile «N Schritte davor» sind zurückgenommen (beide waren aus #427) –
+  der Verweis auf den übergeordneten Auftrag genügt, sein Prozess ist einen Klick entfernt.
+  `OrderOrigin.parent_steps`/`step_id`/`step_type` sind damit entfallen.
+  (5) **Ein Verweis auf einen Auftrag sieht aus wie ein Auftrag** (#438/#439,
+  `OrderRefNode`): Symbol und getönte Fläche kommen aus der EINEN Quelle
+  (`lib/erp-record.TYPE_META.order`), die Anatomie ist die des Detail-Kopfs (Symbol ·
+  Eyebrow · Name · Objektnummer). **Herkunft und Rückweg teilen sich den Baustein** – zwei
+  Richtungen, eine Form; der frühere Rückweg war eine kleine Pille und damit eine zweite
+  Sprache für dieselbe Aussage.
+  (6) **Nur die offene Entscheidung ist ein Knoten** (#434): «wartet» und die bereits
+  getroffene Antwort waren reine Information – und die trägt der Fluss ohnehin: ein offener
+  Abzweig IST das Warten, eine Auflösung steht als Zeile an ihrer Stelle. `gateFor` ist
+  entfallen; übrig bleibt, was man anklicken kann.
+  (7) **Die Hover-Karte arbeitet mit Symbolen** (#433): Artikel · Standort · Menge als drei
+  Zeilen mit je einem Lucide-Symbol, das Wort im Titel – statt Versalien-Beschriftungen. Die
+  Instanz steht bereits in der Pille selbst und wird nicht wiederholt.
+  Wächter: `test_a_share_never_exceeds_the_instance`,
+  `test_the_origin_is_a_reference_not_a_preview`; die Fluss-Wächter verlangen jetzt eigene
+  Terminal-Knoten am Abzweig und verbieten Kopfkarte, `gateFor` und «wartet».
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

@@ -115,11 +115,18 @@ def held_quantity(order: Order, inst) -> Decimal:
     4 von 2 Stück» (Testnotiz #399), und dieselbe Verwechslung ist die wiederkehrende
     Fehlerklasse rund um Chargen.
 
-    Ohne Anspruch gilt die ganze Instanz: dann gehört sie ihm als **Erzeuger**
-    (``Instance.order_id``) oder als **fixiertes Subjekt**, und dort gibt es keine
-    Teilmenge. Rein (schreibt nicht)."""
+    Ohne eigenen Anspruch gehört ihm der **unbeanspruchte Rest** – als Erzeuger
+    (``Instance.order_id``) oder als fixiertes Subjekt. «Rest» heisst dabei wirklich Rest:
+    was gerade ANDERE halten, gehört nicht ihm. Die frühere Antwort «dann eben die ganze
+    Instanz» zählte fremde Anteile mit, und sobald eine Abweichung 2 einer 4er-Charge
+    übernommen hatte, hielten Eltern (4) und Abweichung (2) zusammen **6 von 4**
+    (Testnotiz #432). Dieselbe Regel steht in ``shares.shares_for``: gehaltene Anteile plus
+    Rest, und die Summe ist die Instanz. Rein (schreibt nicht)."""
     qty = reserved_for(inst, order.id)
-    return qty if qty > 0 else to_qty(inst.quantity)
+    if qty > 0:
+        return qty
+    claimed = sum((to_qty(v) for v in (inst.reservations or {}).values()), ZERO)
+    return max(to_qty(inst.quantity) - claimed, ZERO)
 
 
 def return_borrowed(db: Session, sub: Order) -> None:

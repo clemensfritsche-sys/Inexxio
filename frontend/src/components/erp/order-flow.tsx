@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUp, Check, ClipboardList, Clock3, CornerDownRight, MoreHorizontal, PackagePlus,
-  PauseCircle, TriangleAlert, Truck, X } from 'lucide-react';
+import { ArrowUp, Boxes, Check, Clock3, CornerDownLeft, MapPin, Package, PauseCircle,
+  X } from 'lucide-react';
 import type { FlowLot, Order, OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution,
   StepType, SubOrderStep } from '@/types';
 import { STEP_META, stepStateLabel } from '@/lib/process';
+import { TYPE_META } from '@/lib/erp-record';
 import { unitLabel } from '@/lib/article';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
@@ -103,6 +104,12 @@ function Axis({ h = 22, strong = false, grow = false }: {
  * ``border-radius`` und keine zweite Geometrie. Die senkrechte Kante wird um ihre halbe
  * Stärke versetzt, damit sie exakt auf der Mittellinie der Spur sitzt (auf der auch die
  * ``Axis`` des Unterprozesses steht).
+ *
+ * **Wie viele Ecken es sind, sagt die Sache** (Notizen #430/#431): Fork und Merge münden in
+ * eine Achse, die darüber und darunter weiterläuft – das ist ein **T**, keine Ecke. Herkunft
+ * und Rückweg dagegen treffen die Achse dort, wo sie **beginnt** bzw. **endet**: die Linie
+ * biegt ab, also braucht sie auch dort einen Radius. Das zweite Kästchen ist genau
+ * ``BEND``×``BEND`` gross, womit sein Rand ein reiner Viertelkreis ist.
  */
 function Elbow({ dir, strong, height = ARM, span }: {
   /** out: Achse → Spurmitte hinaus · back: Spurmitte → Achse zurück */
@@ -112,31 +119,41 @@ function Elbow({ dir, strong, height = ARM, span }: {
   span: number;
 }) {
   const w = lineW(!!strong);
-  const c = lineColor(!!strong);
+  const line = `${w}px solid ${lineColor(!!strong)}`;
   const half = `calc(50% - ${w / 2}px)`;
-  const common: React.CSSProperties = { position: 'absolute', height, pointerEvents: 'none' };
+  const base: React.CSSProperties = { position: 'absolute', pointerEvents: 'none' };
   if (dir === 'fork-right') {
-    // Aus der Achse nach rechts, dann hinunter in den Unterprozess.
-    return <div style={{ ...common, top: 0, left: -span, right: half,
-      borderTop: `${w}px solid ${c}`, borderRight: `${w}px solid ${c}`,
-      borderTopRightRadius: BEND }} />;
+    // Aus der Achse nach rechts, dann hinunter in den Unterprozess (T an der Achse).
+    return <div style={{ ...base, height, top: 0, left: -span, right: half,
+      borderTop: line, borderRight: line, borderTopRightRadius: BEND }} />;
   }
   if (dir === 'merge-right') {
-    // Aus dem Unterprozess herunter, dann nach links zurück in die Achse.
-    return <div style={{ ...common, bottom: 0, left: -span, right: half,
-      borderBottom: `${w}px solid ${c}`, borderRight: `${w}px solid ${c}`,
-      borderBottomRightRadius: BEND }} />;
+    // Aus dem Unterprozess herunter, dann nach links zurück in die Achse (T an der Achse).
+    return <div style={{ ...base, height, bottom: 0, left: -span, right: half,
+      borderBottom: line, borderRight: line, borderBottomRightRadius: BEND }} />;
   }
   if (dir === 'in-from-left') {
-    // Aus dem Eltern-Prozess herunter, dann nach rechts in die Achse.
-    return <div style={{ ...common, bottom: 0, left: half, right: -span,
-      borderBottom: `${w}px solid ${c}`, borderLeft: `${w}px solid ${c}`,
-      borderBottomLeftRadius: BEND }} />;
+    // Aus dem Eltern-Auftrag herunter, nach rechts – und an der Achse hinunter (#430).
+    return (
+      <>
+        <div style={{ ...base, height: height - BEND, bottom: BEND, left: half,
+          right: -(span - BEND), borderLeft: line, borderBottom: line,
+          borderBottomLeftRadius: BEND }} />
+        <div style={{ ...base, height: BEND, width: BEND, bottom: 0, right: -span,
+          borderTop: line, borderRight: line, borderTopRightRadius: BEND }} />
+      </>
+    );
   }
-  // Aus der Achse nach links, dann hinunter auf den Rückweg-Knoten.
-  return <div style={{ ...common, top: 0, left: half, right: -span,
-    borderTop: `${w}px solid ${c}`, borderLeft: `${w}px solid ${c}`,
-    borderTopLeftRadius: BEND }} />;
+  // Aus der Achse heraus (#431), nach links – und hinunter auf den Rückweg-Knoten.
+  return (
+    <>
+      <div style={{ ...base, height: BEND, width: BEND, top: 0, right: -span,
+        borderBottom: line, borderRight: line, borderBottomRightRadius: BEND }} />
+      <div style={{ ...base, height: height - BEND, top: BEND, left: half,
+        right: -(span - BEND), borderTop: line, borderLeft: line,
+        borderTopLeftRadius: BEND }} />
+    </>
+  );
 }
 
 /** Eine Zeile des Flusses: die Achse in der Mitte, links Herkunft, rechts Abzweige. */
@@ -227,26 +244,24 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
       {open && (
         <span style={{
           position: 'absolute', zIndex: 60, top: '100%', left: '50%', transform: 'translateX(-50%)',
-          marginTop: 6, padding: '9px 11px', borderRadius: 'var(--r-md)', background: '#fff',
+          marginTop: 6, padding: '8px 11px', borderRadius: 'var(--r-md)', background: '#fff',
           border: '1px solid var(--border-1)', boxShadow: 'var(--shadow-md)',
-          display: 'grid', gridTemplateColumns: 'auto auto', gap: '3px 12px',
+          display: 'flex', flexDirection: 'column', gap: 5,
           width: 'max-content', maxWidth: 300, textAlign: 'left',
         }}>
-          <LotFact k="Instanz"><ObjId value={lot.instance_object_id} /></LotFact>
-          <LotFact k="Artikel">
-            {lot.article_object_id != null
-              ? <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
-                  <ObjId value={lot.article_object_id} />
-                  {lot.article_name && <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{lot.article_name}</span>}
-                </span>
-              : <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{lot.article_name ?? '—'}</span>}
+          <LotFact icon={Package} title="Artikel">
+            {lot.article_object_id != null && <ObjId value={lot.article_object_id} />}
+            {lot.article_name && <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.article_name}</span>}
+            {lot.article_object_id == null && !lot.article_name && <Dash />}
           </LotFact>
-          <LotFact k="Standort">
-            <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.location_label ?? 'Nicht festgelegt'}</span>
+          <LotFact icon={MapPin} title="Standort">
+            {lot.location_label
+              ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.location_label}</span>
+              : <Dash />}
           </LotFact>
-          <LotFact k="Menge">
-            <span style={{ fontSize: 12, color: zero ? 'var(--danger)' : 'var(--fg-1)', fontWeight: 600,
-              fontVariantNumeric: 'tabular-nums' }}>{qtyText(lot)}</span>
+          <LotFact icon={Boxes} title="Menge">
+            <span style={{ fontSize: 12, color: zero ? 'var(--danger)' : 'var(--fg-1)',
+              fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{qtyText(lot)}</span>
           </LotFact>
         </span>
       )}
@@ -254,13 +269,19 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
   );
 }
 
-function LotFact({ k, children }: { k: string; children: React.ReactNode }) {
+const Dash = () => <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>—</span>;
+
+/** Eine Zeile der Hover-Karte: Symbol statt Beschriftung (Notiz #433), Wort im Hover. */
+function LotFact({ icon: Icon, title, children }: {
+  icon: React.ElementType; title: string; children: React.ReactNode;
+}) {
   return (
-    <>
-      <span style={{ font: '700 10px var(--font-body)', textTransform: 'uppercase',
-        letterSpacing: '0.06em', color: 'var(--fg-4)', alignSelf: 'center' }}>{k}</span>
-      <span style={{ minWidth: 0 }}>{children}</span>
-    </>
+    <span title={title} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <Icon size={13} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
+      <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+        {children}
+      </span>
+    </span>
   );
 }
 
@@ -352,8 +373,12 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     );
     if (n.branches) {
       const open = n.branches.some(isOpen);
-      const gate = gateFor(n.res ?? [], open, !gateUsed && !!decision);
-      if (gate === 'decide') gateUsed = true;
+      const res = n.res ?? [];
+      // **Nur die offene Entscheidung ist ein Knoten** (Notiz #434). «wartet» und die
+      // getroffene Antwort waren reine Information – und die steht längst im Fluss: ein
+      // offener Abzweig IST das Warten, eine Auflösung steht als Zeile an ihrem Schritt.
+      const decide = res.length === 0 && !open && !gateUsed && !!decision;
+      if (decide) gateUsed = true;
       rows.push(
         // **Fork · Bypass · Merge**: die Achse läuft neben dem Abzweig weiter und trägt, was
         // auf dem Hauptauftrag geblieben ist (Notiz #425).
@@ -364,11 +389,15 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
           <Axis grow h={26} strong={passed} />
         </Row>,
       );
-      if (gate) {
+      if (decide || res.length > 0) {
         rows.push(
           <Row key={`gate-${n.branches[0].object_id}`}>
             <Axis h={10} strong={passed} />
-            <Gateway state={gate} decision={decision} resolutions={n.res ?? []} />
+            {decide ? <Gateway decision={decision} /> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {res.map((r, k) => <ResolutionLine key={k} r={r} first />)}
+              </div>
+            )}
           </Row>,
         );
       }
@@ -504,14 +533,11 @@ function StepCard({ type, state, nr, detail, badge, hint, selected, muted: force
 
 // ─── Abzweig: Fork · Unterprozess · Merge ─────────────────────────────────────────
 
-const SUB_META: Record<string, { label: string; icon: React.ElementType; open: string }> = {
-  deviation: { label: 'Abweichung', icon: TriangleAlert,
-    open: 'Offene Abweichung – ihr Stück fehlt dem Auftrag, bis sie geklärt ist' },
-  supply: { label: 'Nachschub', icon: PackagePlus,
-    open: 'Nachschub läuft – der Schritt wird von selbst wieder aktiv' },
-  provisioning: { label: 'Bereitstellung', icon: Truck,
-    open: 'Material wird an seinen Ort gebracht' },
-  return: { label: 'Retoure', icon: CornerDownRight, open: 'Rücknahme + Gutschrift' },
+/** Wie ein Unter-Auftrag heisst. Symbol und Zustand trägt seither sein eigener Prozess
+ *  (#435) – hier bleibt nur das Wort für den Hover. */
+const SUB_LABEL: Record<string, string> = {
+  deviation: 'Abweichung', supply: 'Nachschub',
+  provisioning: 'Bereitstellung', return: 'Retoure',
 };
 
 /** Die Abzweige an EINER Stelle der Achse – jeder mit seinem eigenen Fork und Merge. */
@@ -560,24 +586,26 @@ function BranchCell({ info, reached, onOpen }: {
  */
 function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: number) => void }) {
   const steps = info.steps ?? [];
-  const meta = SUB_META[info.reason ?? 'deviation'] ?? SUB_META.deviation;
+  const label = SUB_LABEL[info.reason ?? 'deviation'] ?? SUB_LABEL.deviation;
   const cfg = orderStatus({ status: info.status as Order['status'], abort_into_id: info.abort_into_id });
   const started = info.status !== 'draft';
   const closed = !isOpen(info);
   const walked = walkedSteps(steps);
   const inLots = lotsOf(info.flow_in ?? []);
   const outLots = lotsOf(info.flow_out ?? []);
-  const go = () => onOpen?.(info.object_id);
+  const hint = `${label} ${formatObjectId(info.object_id)}`
+    + `${info.name ? ` «${info.name}»` : ''} · ${cfg.label} – klicken zum Öffnen`;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%',
-      minWidth: 0 }}>
+    <div title={hint} onClick={() => onOpen?.(info.object_id)}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%',
+        minWidth: 0, cursor: onOpen ? 'pointer' : 'default' }}>
       {inLots.size > 0 && (
         <>
           <FlowLots lots={inLots} small />
           <Axis h={10} strong={started} />
         </>
       )}
-      <BranchHead info={info} onOpen={onOpen} />
+      <FlowTerm kind="start" size={30} />
       {steps.length === 0 ? (
         <>
           <Axis h={12} />
@@ -590,10 +618,11 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
           <StepCard compact type={st.step_type as StepType} state={st.state}
             nr={stepNr(info.object_id, i)}
             hint={`${STEP_META[st.step_type as StepType]?.label ?? ''}: ${stepStateLabel(st.state)}`
-              + ` · ${meta.label} ${cfg.label} – klicken zum Öffnen`}
-            onClick={go} />
+              + ` · ${hint}`} />
         </div>
       ))}
+      <Axis h={12} strong={started && walked === steps.length} />
+      <FlowTerm kind="end" size={30} />
       {closed && outLots.size > 0 && (
         <>
           <Axis h={10} strong />
@@ -605,54 +634,48 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
 }
 
 /**
- * **Der Kopf des Abzweigs** – welcher Auftrag hier abgeht, und wie es um ihn steht.
- * Dieselbe Anatomie wie ein Modul, aber neutral getönt: es ist ein anderer Datensatz, kein
- * Schritt dieses Auftrags. Damit braucht der Abzweig keinen Container (Notiz #420).
+ * **Der Verweis auf einen anderen Auftrag** – woher dieser kam, wohin er zurückgibt
+ * (Notizen #438/#439).
+ *
+ * Er trägt die **visuelle Identität eines Auftrags** aus der einen Quelle
+ * (``lib/erp-record.TYPE_META.order``): dasselbe Symbol, dieselbe getönte Symbolfläche wie im
+ * Feed und im Detail-Kopf. Ein Verweis auf einen Datensatz soll aussehen wie dieser Datensatz
+ * – sonst muss man erst lesen, um zu erkennen, worauf man klickt. Die Anatomie ist die des
+ * Detail-Kopfs: Symbol · Eyebrow · Name · Objektnummer.
  */
-function BranchHead({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: number) => void }) {
-  const open = isOpen(info);
-  const meta = SUB_META[info.reason ?? 'deviation'] ?? SUB_META.deviation;
-  const cfg = orderStatus({ status: info.status as Order['status'], abort_into_id: info.abort_into_id });
-  return (
-    <OrderNode icon={meta.icon} label={meta.label} objectId={info.object_id} name={info.name}
-      tone={open ? 'var(--warning)' : 'var(--border-2)'}
-      bg={open ? 'var(--warning-bg)' : 'var(--bg-1)'}
-      right={<StatusBadge cfg={cfg} size={10} />}
-      title={`${meta.label} ${info.name ? `«${info.name}» ` : ''}– ${open ? meta.open : cfg.label}. Klicken zum Öffnen.`}
-      onClick={() => onOpen?.(info.object_id)} />
-  );
-}
-
-/** Ein Auftrag als Knoten im Fluss (Abzweig-Kopf, Eltern-Kopf) – EINE Anatomie. */
-function OrderNode({ icon: Icon, label, objectId, name, tone, bg, right, title, onClick }: {
-  icon: React.ElementType; label: string; objectId: number; name?: string | null;
-  tone: string; bg: string; right?: React.ReactNode; title: string; onClick?: () => void;
+function OrderRefNode({ caption, objectId, name, icon: Dir, title, onClick }: {
+  caption: string; objectId: number; name?: string | null;
+  icon: React.ElementType; title: string; onClick?: () => void;
 }) {
+  const meta = TYPE_META.order;
+  const Icon = meta.icon;
   return (
     <button type="button" onClick={onClick} title={title}
       style={{
         width: '100%', minWidth: 0, textAlign: 'left', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-        border: `1.5px solid ${tone}`, borderRadius: 'var(--r-lg)', background: bg,
+        display: 'flex', alignItems: 'center', gap: 11, padding: '10px 13px',
+        border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
+        background: '#fff', boxShadow: 'var(--shadow-sm)',
       }}>
-      <span style={{ width: 28, height: 28, borderRadius: 'var(--r-sm)', flexShrink: 0,
-        background: '#fff', border: `1px solid ${tone}`, color: 'var(--fg-3)',
+      <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', flexShrink: 0,
+        background: meta.bg, color: meta.fg,
         display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={15} />
+        <Icon size={16} />
       </span>
       <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{ display: 'block', font: '700 10px var(--font-body)',
+          textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-4)' }}>
+          {caption}
+        </span>
         <span style={{ display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
           <span style={{ font: '800 13.5px var(--font-display)', letterSpacing: '-.01em',
-            color: 'var(--fg-1)' }}>{label}</span>
+            color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap' }}>{name || meta.label}</span>
           <span style={{ font: '500 11px var(--font-mono), monospace', color: 'var(--fg-4)',
             fontVariantNumeric: 'tabular-nums' }}>{formatObjectId(objectId)}</span>
         </span>
-        {name && (
-          <span style={{ display: 'block', marginTop: 1, fontSize: 12, color: 'var(--fg-3)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-        )}
       </span>
-      {right}
+      <Dir size={14} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
     </button>
   );
 }
@@ -669,53 +692,18 @@ function OrderNode({ icon: Icon, label, objectId, name, tone, bg, right, title, 
  * Ausblick nach oben, ohne ihn auszubreiten.
  */
 function OriginArm({ origin, onOpen }: { origin: OrderOrigin; onOpen?: (id: number) => void }) {
-  const all = origin.parent_steps ?? [];
-  const idx = origin.step_id != null ? all.findIndex((s) => s.id === origin.step_id) : -1;
-  const at = idx >= 0 ? idx : all.length - 1;
-  const one: SubOrderStep | null = at >= 0 ? all[at] : null;
-  const meta = SUB_META[origin.order_reason ?? ''] ?? { label: 'Auftrag', icon: ClipboardList, open: '' };
-  const go = () => onOpen?.(origin.order_object_id);
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: ARM }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-        {at > 0 && <MoreSteps count={at} onClick={go} />}
-        <OrderNode icon={meta.icon} label={meta.label} objectId={origin.order_object_id}
-          name={origin.order_name} tone="var(--border-2)" bg="var(--bg-1)"
-          right={<ArrowUp size={14} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />}
-          title={`Hervorgegangen aus ${origin.order_name ?? 'Auftrag'} – öffnen`} onClick={go} />
-        {one && (
-          <>
-            <Axis h={12} strong />
-            <StepCard compact type={one.step_type as StepType} state={one.state}
-              nr={stepNr(origin.order_object_id, at)}
-              hint={`Abzweig aus «${STEP_META[one.step_type as StepType]?.label ?? ''}»`
-                + ` · ${stepStateLabel(one.state)} – klicken zum Öffnen`}
-              onClick={go} />
-          </>
-        )}
-      </div>
+      <OrderRefNode caption="Hervorgegangen aus" objectId={origin.order_object_id}
+        name={origin.order_name} icon={ArrowUp}
+        title={`Hervorgegangen aus ${origin.order_name ?? 'Auftrag'} – öffnen`}
+        onClick={() => onOpen?.(origin.order_object_id)} />
       <Elbow dir="in-from-left" strong span={MAIN / 2} />
     </div>
   );
 }
 
-/** «Davor liegt noch mehr» – der Ausblick nach oben, ohne den Eltern-Prozess auszubreiten. */
-function MoreSteps({ count, onClick }: { count: number; onClick?: () => void }) {
-  return (
-    <>
-      <button type="button" onClick={onClick}
-        title={`Im übergeordneten Auftrag liegen ${count} weitere Schritte davor – öffnen`}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-          padding: '3px 10px', borderRadius: 999, border: '1px solid var(--border-1)',
-          background: 'var(--bg-1)', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>
-        <MoreHorizontal size={13} /> {count} Schritte davor
-      </button>
-      <Axis h={12} strong />
-    </>
-  );
-}
-
-/** Wohin die Stücke beim Abschluss zurückgehen – der Rückweg, ebenfalls nach links. */
+/** Wohin die Stücke beim Abschluss zurückgehen – derselbe Verweis, nur andersherum (#438). */
 function ReturnArm({ origin, strong, onOpen }: {
   origin: OrderOrigin; strong?: boolean; onOpen?: (id: number) => void;
 }) {
@@ -723,58 +711,36 @@ function ReturnArm({ origin, strong, onOpen }: {
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
       <Elbow dir="out-to-left" strong={strong} span={MAIN / 2} />
-      <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-        <button type="button" onClick={() => onOpen?.(id)}
-          title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}
-          style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer',
-            padding: '6px 12px', border: '1px solid var(--border-1)', borderRadius: 999,
-            background: 'var(--bg-1)', font: '500 12px var(--font-body)', color: 'var(--fg-3)' }}>
-          zurück an
-          <span style={{ font: '600 12px var(--font-mono), monospace', color: 'var(--accent)',
-            fontVariantNumeric: 'tabular-nums' }}>{formatObjectId(id)}</span>
-        </button>
-      </div>
+      <OrderRefNode caption="Gibt zurück an" objectId={id} name={origin.returns_to_name}
+        icon={CornerDownLeft}
+        title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}
+        onClick={() => onOpen?.(id)} />
     </div>
   );
 }
 
 // ─── Gate + Auflösung ─────────────────────────────────────────────────────────────
 
-function gateFor(res: StepResolution[], branchOpen: boolean, decidable: boolean) {
-  if (res.length > 0) return 'resolved' as const;
-  if (branchOpen) return 'waiting' as const;
-  return decidable ? ('decide' as const) : null;
-}
-
-const GATE_TONE = { decide: 'var(--warning)', waiting: 'var(--fg-4)', resolved: 'var(--success)' };
-const GATE_ICON = { decide: X, waiting: Clock3, resolved: Check };
-
 /**
- * **Das Gate – wo die Entscheidung fällt und danach steht.** Eine Raute ist im Flowchart das
- * Zeichen für «hier wird entschieden»; genau das passiert hier. Offen ist sie anklickbar und
- * stellt die eine Frage, danach trägt sie die Antwort.
+ * **Die offene Entscheidung als Knoten im Fluss** – eine Raute ist im Flowchart das Zeichen
+ * für «hier wird entschieden», und genau das ist hier zu tun.
+ *
+ * Die früheren Zustände «wartet» und «erledigt» sind entfallen (Notiz #434): sie waren
+ * Information, die der Fluss ohnehin trägt – ein offener Abzweig IST das Warten, und was
+ * entschieden wurde, steht als Auflösungszeile an seiner Stelle. Übrig bleibt, was man
+ * anklicken kann.
  */
-function Gateway({ state, decision, resolutions = [] }: {
-  state: 'decide' | 'waiting' | 'resolved';
-  decision?: FlowDecision;
-  resolutions?: StepResolution[];
-}) {
-  const tone = GATE_TONE[state];
-  const Icon = GATE_ICON[state];
-  const act = state === 'decide' ? decision : undefined;
+function Gateway({ decision }: { decision?: FlowDecision }) {
+  const tone = 'var(--warning)';
   const body = (
     <>
       <span style={{ width: 26, height: 26, flex: 'none', transform: 'rotate(45deg)',
         borderRadius: 5, border: `1.5px solid ${tone}`, background: '#fff',
         display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={12} style={{ transform: 'rotate(-45deg)', color: tone }} />
+        <X size={12} style={{ transform: 'rotate(-45deg)', color: tone }} />
       </span>
       <span style={{ textAlign: 'center', font: '500 12px var(--font-body)', color: 'var(--fg-3)' }}>
-        {state === 'resolved'
-          ? resolutions.map((r, i) => <ResolutionLine key={i} r={r} first />)
-          : state === 'decide'
-            ? <>Es fehlt <b style={{ color: 'var(--fg-1)' }}>{act?.missing}</b> · entscheiden</>
-            : 'wartet'}
+        Es fehlt <b style={{ color: 'var(--fg-1)' }}>{decision?.missing}</b> · entscheiden
       </span>
     </>
   );
@@ -782,9 +748,9 @@ function Gateway({ state, decision, resolutions = [] }: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
     border: 'none', background: 'none', padding: 0, maxWidth: MAIN,
   };
-  if (!act?.canAct || !act.onDecide) return <div style={layout}>{body}</div>;
+  if (!decision?.canAct || !decision.onDecide) return <div style={layout}>{body}</div>;
   return (
-    <button type="button" onClick={act.onDecide} title="Unterdeckung entscheiden"
+    <button type="button" onClick={decision.onDecide} title="Unterdeckung entscheiden"
       style={{ ...layout, cursor: 'pointer' }}>{body}</button>
   );
 }

@@ -4501,15 +4501,6 @@ export interface components {
             order_status?: string | null;
             /** Order Reason */
             order_reason?: string | null;
-            /**
-             * Parent Steps
-             * @default []
-             */
-            parent_steps: components["schemas"]["SubOrderStep"][];
-            /** Step Type */
-            step_type?: string | null;
-            /** Step Id */
-            step_id?: number | null;
             /** Returns To Object Id */
             returns_to_object_id?: number | null;
             /** Returns To Name */

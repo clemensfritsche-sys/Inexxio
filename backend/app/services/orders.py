@@ -642,16 +642,9 @@ def _fill_origin(db: Session, order: Order, resp: OrderResponse) -> None:
         return
     origin = OrderOrigin(order_object_id=parent.object_id, order_status=parent.status,
                          order_reason=parent.reason,
-                         order_name=_order_ref_name(db, parent),
-                         parent_steps=_sub_order_steps(db, parent, {}))
+                         order_name=_order_ref_name(db, parent))
     # (Die Brotkrumen-Kette ist entfallen, Notiz #428: der aktuelle Auftrag steht im Kopf des
     #  Fensters, der Eltern im Herkunfts-Teaser des Flusses – sie sagte beides ein zweites Mal.)
-    if order.origin_step_id:
-        origin.step_id = order.origin_step_id
-        step = (db.query(ArticleProcessStep)
-                .filter(ArticleProcessStep.id == order.origin_step_id).first())
-        if step is not None:
-            origin.step_type = step.step_type
     back = _return_target(db, order)
     if back is not None and back.object_id:
         origin.returns_to_object_id = back.object_id

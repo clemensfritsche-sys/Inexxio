@@ -314,7 +314,10 @@ def test_a_sub_order_carries_its_own_state_in_the_flow():
         "«Abgebrochen» (fortgeführt) vs. «Inaktiv» (verworfen) – dieselbe Projektion wie überall.")
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
     flow = (fe / "order-flow.tsx").read_text()
-    assert "orderStatus({ status: info.status" in flow and "StatusBadge cfg={cfg}" in flow
+    assert "orderStatus({ status: info.status" in flow, (
+        "Der Zustand des Abzweigs kommt aus derselben Projektion wie überall.")
+    assert "· ${cfg.label} – klicken zum Öffnen" in flow, (
+        "Ohne Kopfkarte (#435) trägt der Hover den Zustand – gerendert wird der Prozess.")
     detail = (fe / "order-detail.tsx").read_text()
     assert "Abgebrochen – fortgeführt im Abweichungsauftrag" not in detail, (
         "Kein Banner – Kopf-Badge und Ablauf sagen es bereits.")
@@ -376,9 +379,15 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     Abzweigung geht dabei **oben mittig** in ihn hinein (#417), und gestrichelt ist nur der
     Übergang zwischen zwei Aufträgen."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    for part in ("function BranchArm", "function BranchCell", "function SubProcess",
-                 "function BranchHead"):
+    for part in ("function BranchArm", "function BranchCell", "function SubProcess"):
         assert part in flow, f"Dem Fluss fehlt {part}"
+    # **Wie im Unter-Auftrag** (Testnotiz #435): eigener Start- und Endknoten, dieselben
+    # Modul-Karten – und keine Kopfkarte davor. Wer einen Schritt anklickt, landet im
+    # Datensatz dieses Auftrags; dafür braucht es keine zweite Zusammenfassung daneben.
+    assert "function BranchHead" not in flow, (
+        "Der Abzweig zeigt seinen Prozess, keine Kurzinfo über ihn (#435).")
+    assert '<FlowTerm kind="start" size={30} />' in flow and '<FlowTerm kind="end" size={30} />' in flow, (
+        "Ein Abzweig ist ein Prozess – mit Anfang und Ende, eine Nummer kleiner.")
     for gone in ("function TeaserStep", "WebkitMaskImage"):
         assert gone not in flow, (
             f"{gone}: ein Abzweig braucht kein zweites Vokabular und keinen Kasten (#418/#420).")
@@ -539,30 +548,37 @@ def test_a_flow_lot_names_instance_article_location_and_quantity():
         "Abzweig und Achse lösen dieselben Angaben an derselben Stelle auf.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowLotChip" in flow and "nav?.(lot.instance_object_id)" in flow
-    for fact in ('k="Instanz"', 'k="Artikel"', 'k="Standort"', 'k="Menge"'):
+    # **Symbole statt Versalien-Beschriftungen** (Testnotiz #433): die Instanz steht schon in
+    # der Pille selbst, im Hover zählen Artikel · Standort · Menge – je ein Symbol, das Wort
+    # im Titel. Weniger ist mehr.
+    for fact in ('icon={Package} title="Artikel"', 'icon={MapPin} title="Standort"',
+                 'icon={Boxes} title="Menge"'):
         assert fact in flow, f"Dem Hover fehlt {fact}"
     assert "<ObjId value={lot.article_object_id} />" in flow, "Auch der Artikel ist klickbar."
 
 
-def test_the_origin_shows_one_step_not_the_whole_parent_process():
-    """**Woher es kommt – aber nicht der ganze Eltern-Prozess** (Testnotiz #427).
+def test_the_origin_is_a_reference_not_a_preview():
+    """**Woher es kommt – ein Verweis, keine Vorschau** (Testnotizen #436/#437/#438/#439).
 
-    Dass man sieht, aus welchem Auftrag und aus welchem Schritt ein Abzweig hervorging, ist
-    notwendig; ihn deshalb ganz auszubreiten ist zu viel – der Eltern-Prozess gehört in den
-    Eltern-Auftrag. Gezeigt wird genau **ein** Schritt: der, aus dem es hervorging. Dass davor
-    mehr liegt, sagt eine dezente Zeile darüber.
+    Zwischenstufe war, im Herkunfts-Bereich einen Prozessschritt des Eltern zu zeigen und
+    darüber, wie viele davor liegen. Beides ist zurückgenommen: der Verweis auf den
+    übergeordneten Auftrag genügt – sein Prozess gehört in seinen Datensatz, einen Klick
+    entfernt.
 
-    Welcher das ist, sagt die **id** (``origin.step_id``), nicht der Typ: ein Prozess darf
-    zwei Datenerfassungen haben, und dann wäre «die erste mit passendem Typ» geraten."""
+    Der Verweis trägt dafür die **visuelle Identität eines Auftrags** aus der einen Quelle
+    (``lib/erp-record.TYPE_META.order``): dasselbe Symbol, dieselbe getönte Fläche wie im Feed
+    und im Detail-Kopf. Ein Verweis auf einen Datensatz soll aussehen wie dieser Datensatz.
+    Und der **Rückweg** ist derselbe Baustein, nur andersherum – nicht eine zweite Form für
+    dieselbe Aussage."""
     from app.schemas.order import OrderOrigin
 
-    assert "step_id" in OrderOrigin.model_fields, "Der Ursprungsschritt wird benannt, nicht geraten."
-    assert "chain" not in OrderOrigin.model_fields, "Die Brotkrumen-Kette ist entfallen (#428)."
+    for gone in ("chain", "parent_steps", "step_id", "step_type"):
+        assert gone not in OrderOrigin.model_fields, (
+            f"{gone}: die Herkunft ist ein Verweis, keine Vorschau des Eltern-Prozesses.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "all.findIndex((s) => s.id === origin.step_id)" in flow, (
-        "Der gezeigte Schritt wird über die id gefunden.")
-    assert "function MoreSteps" in flow and "Schritte davor" in flow, (
-        "Der Ausblick nach oben: dass davor noch mehr liegt (#427).")
-    # Herkunft und Abzweig teilen sich die Anatomie – links so ausführlich wie rechts.
-    assert flow.count("function OrderNode") == 1 and flow.count("<OrderNode") == 2, (
-        "Eltern-Kopf und Abzweig-Kopf sind derselbe Knoten, nicht zwei Nachbauten.")
+    assert "MoreSteps" not in flow, "«N Schritte davor» ist entfallen (#437)."
+    assert "function OrderRefNode" in flow and flow.count("<OrderRefNode") == 2, (
+        "Herkunft und Rückweg sind derselbe Verweis, zweimal benutzt (#438).")
+    assert "TYPE_META.order" in flow and "from '@/lib/erp-record'" in flow, (
+        "Das Aussehen eines Auftrags steht an EINER Stelle – der Verweis leiht es sich (#439).")
+    assert 'caption="Hervorgegangen aus"' in flow and 'caption="Gibt zurück an"' in flow

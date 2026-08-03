@@ -215,3 +215,42 @@ def test_a_returned_quantity_has_no_floor_of_one():
     assert "sold_amounts.get(inst.object_id) or" in body, (
         "Massgeblich ist die beim Verkauf abgebuchte Menge; die Instanz-Menge und die 1 sind "
         "nur Rückfälle für Altdaten.")
+
+
+def test_a_share_never_exceeds_the_instance():
+    """**Was ANDERE halten, gehört nicht mir** (Testnotiz #432).
+
+    ``held_quantity`` beantwortet «wie viel dieser Instanz gehört diesem Auftrag». Ohne
+    eigenen Anspruch fiel die Antwort auf die **ganze** Instanz zurück – gedacht für den
+    Erzeuger, der sein Erzeugnis ja komplett hält. Sobald aber eine Abweichung 2 einer
+    4er-Charge übernahm, hielten Eltern (4, über den Erzeuger-Rückfall) und Abweichung (2,
+    über ihren Anspruch) zusammen **6 von 4** – und genau diese 6 standen auf der Kante des
+    Flusses.
+
+    Der Rückfall ist jetzt der **Rest**: Instanzmenge minus alle Ansprüche. Das ist dieselbe
+    Regel, die ``shares.shares_for`` seit jeher rendert (gehaltene Anteile plus Rest, Summe =
+    Instanz) – sie stand nur an zwei Stellen verschieden."""
+    from decimal import Decimal
+
+    from app.services.subject import held_quantity
+
+    class _Inst:
+        def __init__(self, qty, res):
+            self.quantity, self.reservations = Decimal(qty), res
+
+    class _Order:
+        def __init__(self, oid):
+            self.id = oid
+
+    parent, deviation = _Order(1), _Order(2)
+    # Niemand hält etwas: die ganze Instanz gehört dem Erzeuger (unverändert).
+    assert held_quantity(parent, _Inst(4, {})) == Decimal(4)
+    # Eigener Anspruch schlägt alles (unverändert).
+    assert held_quantity(deviation, _Inst(4, {"2": "2"})) == Decimal(2)
+    # **Der Fall aus der Notiz**: die Abweichung hält 2, der Erzeuger den Rest – nicht alles.
+    inst = _Inst(4, {"2": "2"})
+    assert held_quantity(parent, inst) == Decimal(2)
+    assert held_quantity(parent, inst) + held_quantity(deviation, inst) == inst.quantity, (
+        "Die Summe der Anteile ist die Instanz – nie mehr.")
+    # Vollständig vergeben: für den Erzeuger bleibt nichts (kein negativer Rest).
+    assert held_quantity(parent, _Inst(4, {"2": "4"})) == Decimal(0)

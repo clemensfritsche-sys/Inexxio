@@ -12769,36 +12769,6 @@
             ],
             "title": "Order Reason"
           },
-          "parent_steps": {
-            "items": {
-              "$ref": "#/components/schemas/SubOrderStep"
-            },
-            "type": "array",
-            "title": "Parent Steps",
-            "default": []
-          },
-          "step_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Step Type"
-          },
-          "step_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Step Id"
-          },
           "returns_to_object_id": {
             "anyOf": [
               {
