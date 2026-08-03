@@ -118,13 +118,19 @@ werden weiter aus Links + Event-Strom gelesen (tolerant lesen, streng schreiben)
 
 ## Ausbaustufen
 
-1. **Jetzt (dieses ADR):** Journal + ein Schreibweg + Eröffnung + `verify` + der
+1. **UMGESETZT:** Journal + ein Schreibweg + Eröffnung + `verify` + der
    **Instanz-Verlauf** («was ist mit diesem Stück passiert», Big-Picture-Stufe 3) +
    `flow_back` aus echten Rückgabe-Buchungen.
-2. **Als Nächstes:** die Fluss-Kanten (`order_material`) vollständig aufs Journal ziehen;
-   `as_of` als Journal-Abfrage statt Stichtags-Arithmetik in der Oberfläche.
+2. **UMGESETZT:** die Fluss-Achse (`order_material`) liest das Journal
+   (`ledger.order_view` – die eine Regel: alles je Hineingebuchte ist genau einmal da,
+   als gehaltener Topf, terminaler Topf mit Zeitpunkt oder abgegebene Menge im Zustand
+   des Abgangs; eine **Rückkehr verzehrt ihre Abgabe-Zeile**). Dazu der
+   **Auftrags-Verlauf** (`OrderResponse.history`) – die dritte Frage direkt am Auftrag,
+   dieselben Zeilen wie am Instanz-Detail, aus der anderen Richtung gelesen.
+   Alt-Aufträge ohne Buchungen fallen auf die Legacy-Ableitung zurück.
 3. **Danach:** die Skalar-Spalten schrittweise stilllegen (Folge-Deploy-Muster wie
-   `is_primary`), FIFO auf Journal-Töpfe, `shares` als reine Journal-Sicht.
+   `is_primary`), FIFO auf Journal-Töpfe, `shares` als reine Journal-Sicht,
+   `asOf`-Stichtags-Arithmetik der Oberfläche durch Journal-Snapshots ersetzen.
 
 ## Was dadurch strukturell unmöglich wird
 

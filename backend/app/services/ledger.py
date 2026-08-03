@@ -118,8 +118,13 @@ def _drain(balances: dict[Bucket, Decimal], qty: Decimal, prefer_holder: Optiona
         pool = {b: v for b, v in balances.items() if b.disposition == from_disposition}
     else:
         pool = {b: v for b, v in balances.items() if b.disposition not in TERMINAL}
+    # Rangfolge: der genannte Halter ≻ **freier Bestand** ≻ fremde Halter (grösste zuerst).
+    # Ohne die Mittelstufe griffe eine Buchung ohne Quell-Angabe in den Topf eines fremden
+    # Auftrags, obwohl daneben freier Bestand liegt – niemand verliert etwas, wenn frei
+    # gedeckt werden kann (dieselbe Regel wie ``shares.losses``).
     ranked = sorted(pool.items(),
-                    key=lambda kv: (0 if kv[0].holder == prefer_holder else 1, -kv[1]))
+                    key=lambda kv: (0 if kv[0].holder == prefer_holder
+                                    else 1 if kv[0].holder is None else 2, -kv[1]))
     out: list[tuple[Bucket, Decimal]] = []
     left = qty
     for b, have in ranked:
@@ -159,6 +164,10 @@ def post(db: Session | None, inst: Instance, qty, *, kind: str,
             note=note))
         return
     _ensure_opening(db, inst)
+    # Erst schreiben lassen, dann lesen: der Kontostand ist eine DB-Abfrage – eben erst
+    # ge-`add`-ete Zeilen (Eröffnung, vorherige Buchung derselben Anfrage) muss sie sehen,
+    # sonst bucht der Drain gegen einen leeren Stand (dieselbe Lehre wie Testnotiz #392).
+    db.flush()
     balances = lots(db, inst)
     prefer = src_holder if src_holder != "?" else (holder if holder != KEEP else None)
     sources = _drain(balances, q, prefer, src_disposition)
@@ -213,6 +222,86 @@ def departed_of(db: Session, order_id: int) -> dict[tuple[int, str, str], Decima
                    m.dst_disposition or "in_process")
             out[key] = out.get(key, ZERO) + to_qty(m.quantity)
     return out
+
+
+class ViewRow(NamedTuple):
+    """Eine Materialzeile aus Sicht EINES Auftrags – roh, ohne Anzeige-Meta."""
+    instance_object_id: int
+    quality: str
+    disposition: str
+    quantity: Decimal
+    reserved: bool               # gehalten UND am Lager = gebunden
+    at: object | None            # Zeitpunkt (nur terminal/abgegeben – Vergangenheit)
+
+
+def order_view(db: Session, order_id: int) -> tuple[list[ViewRow], list[ViewRow]] | None:
+    """**Die Achse eines Auftrags aus dem Journal** – (material, gone). ``None`` = der
+    Auftrag hat keine Buchungen (Altbestand → Legacy-Ableitung).
+
+    Die eine Regel: **alles, was je in diesen Auftrag hineingebucht wurde, ist genau einmal
+    da** – als noch gehaltener Topf, als terminaler Topf (ihm zugeschrieben, mit Zeitpunkt)
+    oder als abgegebene Menge (im Zustand, in dem sie ging, mit Zeitpunkt). Kein
+    ``held_quantity``, keine Links-Menge, keine Reservierungs-Map: eine Quelle.
+
+    Damit löst sich die frühere Arithmetik der Oberfläche von selbst auf: der Bypass neben
+    einem Abzweig IST der gehaltene Rest (der Abzweig hat seinen Anteil ja **weggebucht**),
+    und was zurückkam, steht wieder in den Töpfen – nichts wird subtrahiert oder addiert."""
+    moves = moves_of(db, order_id)
+    if not moves:
+        return None
+    bal: dict[tuple[int, str, str], Decimal] = {}
+    term_at: dict[tuple[int, str, str], object] = {}
+    departed: list[ViewRow] = []
+
+    def bucket(oid: int, q: str | None, d: str | None) -> tuple[int, str, str]:
+        return (oid, q or "pending", d or "in_process")
+
+    def consume_departed(oid: int, amt: Decimal) -> None:
+        """Kommt eine Menge ZURÜCK, verzehrt sie ihre Abgabe-Zeile – sonst stünde sie
+        doppelt da (als «abgegeben» UND wieder als gehalten). Älteste zuerst."""
+        for i, r in enumerate(departed):
+            if amt <= 0:
+                break
+            if r.instance_object_id != oid:
+                continue
+            cut = min(amt, r.quantity)
+            amt -= cut
+            departed[i] = r._replace(quantity=r.quantity - cut)
+        departed[:] = [r for r in departed if r.quantity > 0]
+
+    for m in moves:
+        amt = to_qty(m.quantity)
+        if m.src_order_id == order_id and m.src_disposition is not None:
+            k = bucket(m.instance_object_id, m.src_quality, m.src_disposition)
+            bal[k] = bal.get(k, ZERO) - amt
+        if m.dst_order_id == order_id:
+            k = bucket(m.instance_object_id, m.dst_quality, m.dst_disposition)
+            bal[k] = bal.get(k, ZERO) + amt
+            if k[2] in TERMINAL:
+                term_at[k] = m.at
+            if m.src_order_id != order_id:
+                consume_departed(m.instance_object_id, amt)
+        if (m.src_order_id == order_id and m.dst_order_id != order_id
+                and (m.dst_disposition or "") not in TERMINAL):
+            # Der Zustand gehört zum MATERIAL, nicht zum Betrachter (#495): ging es in die
+            # Obhut eines anderen Auftrags, ist es dort gebunden – auch aus dieser Sicht.
+            bound = m.dst_order_id is not None and (m.dst_disposition or "") == "in_stock"
+            departed.append(ViewRow(m.instance_object_id, m.dst_quality or "pending",
+                                    m.dst_disposition or "in_process", amt, bound, m.at))
+
+    material: list[ViewRow] = []
+    gone: list[ViewRow] = []
+    for (oid, q, d), v in sorted(bal.items()):
+        if v <= 0:
+            continue
+        if d in TERMINAL:
+            row = ViewRow(oid, q, d, v, False, term_at.get((oid, q, d)))
+            material.append(row)
+            gone.append(row)
+        else:
+            material.append(ViewRow(oid, q, d, v, d == "in_stock", None))
+    material.extend(departed)
+    return material, gone
 
 
 def verify_instance(db: Session, inst: Instance) -> list[str]:

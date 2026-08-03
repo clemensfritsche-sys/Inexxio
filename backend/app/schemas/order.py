@@ -8,7 +8,7 @@ from .article_process_step import ArticleProcessStepCreate
 from .disposal import DisposalEmbed
 from .document import DocumentEmbed
 from .inspection import InspectionEmbed
-from .instance import InstanceEmbed
+from .instance import InstanceEmbed, MaterialMoveView
 from .movement import MovementEmbed
 from .purchase_order import PurchaseEmbed
 from .resource import ResourceEmbed
@@ -653,6 +653,10 @@ class OrderResponse(BaseModel):
     # wird aus einer Episode ein Faden, der sich über Auftragsgrenzen hinweg verfolgen lässt.
     material_from: list[MaterialOrder] = []
     material_to: list[MaterialOrder] = []
+    # **Was ist passiert** – das Material-Journal dieses Auftrags (ADR 007), chronologisch
+    # und unveränderlich. Die dritte der drei Fragen, am Auftrag beantwortet; die Instanz
+    # zeigt dieselben Zeilen aus der anderen Richtung. Nur fürs Personal gefüllt.
+    history: list[MaterialMoveView] = []
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)

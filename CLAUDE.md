@@ -4201,6 +4201,44 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   plus alle 5 bestehenden Harnesses regressions-frei, Migration 098 von null +
   idempotent).
 
+- **Material-Journal Ausbaustufe 2: die Achse liest das Journal, der Verlauf steht an
+  beiden Enden** (August 2026, Fortsetzung ADR 007 auf ausdrücklichen Nutzer-Wunsch
+  «alles nochmals neu betrachten, freie Hand, nicht rückwärtskompatibel»):
+  **(1) `order_material` ist eine Journal-Sicht** (`ledger.order_view`): alles, was je in
+  einen Auftrag hineingebucht wurde, ist genau EINMAL da – als noch gehaltener Topf, als
+  terminaler Topf (ihm zugeschrieben, mit Zeitpunkt aus der Buchung) oder als abgegebene
+  Menge (im Zustand, in dem sie ging). Kein `held_quantity`, keine Links-Menge, keine
+  Reservierungs-Map mehr im Lesepfad – die Grössen, die sich bewegen, können die
+  Vergangenheit nicht mehr umschreiben. Eine **Rückkehr verzehrt ihre Abgabe-Zeile**
+  (`consume_departed` – sonst stünde Zurückgekehrtes doppelt: abgegeben UND gehalten;
+  im Harness gefunden). «Gebunden» ist eine Eigenschaft des **Topfs** (gehalten UND am
+  Lager), nie des Betrachters (#495) – auch eine Abgabe-Zeile trägt den Zustand des
+  Materials (ging es in fremde Obhut → gebunden). Die Achse eines ABGESCHLOSSENEN
+  Abzweigs zeigt den **eingefrorenen** Abgabe-Zustand mit Zeitstempel (#488) – dass der
+  Eltern es inzwischen freigegeben hat, ist SEINE Gegenwart, kein Widerspruch.
+  Alt-Aufträge ohne Buchungen → `_order_material_legacy` (tolerant lesen).
+  **(2) Drei im Umbau gefundene und behobene Fehler:** (a) `_drain` griff bei fehlender
+  Quell-Angabe in den Topf eines FREMDEN Auftrags, obwohl freier Bestand daneben lag –
+  Rangfolge jetzt: genannter Halter ≻ **freier Bestand** ≻ fremde Halter (dieselbe Regel
+  wie `shares.losses`); (b) `post` las den Kontostand, bevor die eben ge-`add`-ete
+  Eröffnung geflusht war → buchte gegen einen leeren Stand als `!unbalanced` (dieselbe
+  Lehre wie #392: erst schreiben lassen, dann lesen – `db.flush()` vor `lots()`);
+  (c) `returns_material` hatte WIEDER zwei Regeln (Teaser ≠ eigene Ansicht – exakt was
+  #492 verbietet) → EINE Regel: lebendes Material vorhanden ⇒ der Weg führt zurück
+  (läuft er noch, WIRD es kommen; ist er durch, IST es gegangen).
+  **(3) Der Verlauf steht an BEIDEN Enden derselben Geschichte:** `OrderResponse.history`
+  (nur Personal) + gemeinsame Komponente `components/erp/move-journal.tsx` – am
+  **Instanz**-Detail nennt der Chip den Auftrag, am **Auftrags**-Detail die Instanz.
+  Im Auftrag steht er als «Verlauf» direkt unter dem Fluss: oben JETZT (aktiver Schritt +
+  Material) und ALS NÄCHSTES (der Plan), darunter PASSIERT (die Buchungen) – die drei
+  Fragen sind damit wörtlich die Seite.
+  Wächter: `test_the_material_journal_answers_the_three_questions` (erweitert um
+  Ausbaustufe 2: order_view, consume_departed, Drain-Rangfolge, history an beiden Enden);
+  gegen echtes PostgreSQL 16: **alle 6 Harnesses grün (99 Prüfungen)** – die zwei
+  Alt-Harnesses, die Mutationen von Hand simulierten (direkte Zuweisungen statt
+  Service-Pfade), wurden dabei vom Journal ENTLARVT und auf die Buchungen nachgezogen:
+  genau die Drift-Sichtbarkeit, für die das Journal gebaut ist.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

@@ -4134,8 +4134,10 @@ export interface components {
          * @description Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.
          *
          *     ``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |
-         *     sold | consumed | scrapped | blocked | unblocked); ``order_object_id`` der beteiligte
-         *     Auftrag (Ziel-Halter, sonst Quelle), klickbar.
+         *     sold | consumed | scrapped | blocked | unblocked). Dieselbe Zeile dient BEIDEN
+         *     Verläufen: am **Instanz**-Detail ist der Chip der beteiligte Auftrag, am
+         *     **Auftrags**-Detail die betroffene Instanz – dieselbe Geschichte, aus zwei Richtungen
+         *     gelesen (die drei Fragen, ADR 007).
          */
         MaterialMoveView: {
             /**
@@ -4155,6 +4157,8 @@ export interface components {
             order_object_id?: number | null;
             /** Order Name */
             order_name?: string | null;
+            /** Instance Object Id */
+            instance_object_id?: number | null;
             /** Note */
             note?: string | null;
         };
@@ -4750,6 +4754,11 @@ export interface components {
              * @default []
              */
             material_to: components["schemas"]["MaterialOrder"][];
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["MaterialMoveView"][];
             /**
              * Deviations
              * @default []

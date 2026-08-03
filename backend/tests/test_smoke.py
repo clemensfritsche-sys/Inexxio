@@ -3662,6 +3662,22 @@ def test_the_material_journal_answers_the_three_questions():
     from app.services import orders as osvc
     assert "ledger.departed_of" in _inspect.getsource(osvc._flow_back)
 
+    # **Die Achse liest das Journal** (Ausbaustufe 2): alles je Hineingebuchte ist genau
+    # einmal da – gehalten, terminal (mit Zeitpunkt) oder abgegeben (im Zustand des
+    # Abgangs); eine Rückkehr verzehrt ihre Abgabe-Zeile (sonst stünde sie doppelt).
+    assert "ledger.order_view" in _inspect.getsource(osvc.order_material)
+    view = _inspect.getsource(ledger.order_view)
+    assert "consume_departed" in view, "Zurückgekehrtes steht nicht doppelt da."
+    # Und der Drain greift NIE in fremde Töpfe, solange freier Bestand da ist.
+    drain = _inspect.getsource(ledger._drain)
+    assert "1 if kv[0].holder is None else 2" in drain, (
+        "Genannter Halter ≻ freier Bestand ≻ fremde Halter – niemand verliert etwas, "
+        "wenn frei gedeckt werden kann.")
+    # Der Verlauf steht an BEIDEN Enden derselben Geschichte: Instanz und Auftrag.
+    from app.schemas.order import OrderResponse
+    assert "history" in OrderResponse.model_fields
+    assert "moves_of" in _inspect.getsource(osvc._order_history_views)
+
 
 def test_two_shares_of_one_instance_add_up():
     """**Mehrere Anteile DERSELBEN Instanz sind EIN Anspruch – und nichts geht still verloren.**

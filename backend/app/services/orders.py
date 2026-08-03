@@ -17,7 +17,7 @@ from ..schemas.article_process_step import CaptureField
 from ..schemas.disposal import DisposalEmbed
 from ..schemas.document import DocumentEmbed
 from ..schemas.inspection import InspectionEmbed, InspectionSample
-from ..schemas.instance import InstanceEmbed
+from ..schemas.instance import InstanceEmbed, MaterialMoveView
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
     FlowLot, MaterialOrder, OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderResponse,
@@ -398,23 +398,45 @@ def order_material(db: Session, order: Order,
                    insts: list | None = None) -> tuple[list[FlowLot], list[FlowLot]]:
     """**Das Material eines Auftrags – und was davon endgültig weg ist.** EINE Stelle.
 
-    Die Mengen im Fluss waren zweimal verschieden hergeleitet: die Achse eines Auftrags aus
-    ``held_quantity`` (was er **gerade** hält), der Abzweig aus dem Verarbeitungs-Link (was er
-    **übernommen** hat). Damit zeigte derselbe Vorgang je nach Blickrichtung zwei Zahlen –
-    und weil «gerade gehalten» ein bewegliches Ziel ist (Reservierung gelöst, verschrottet,
-    freigegeben), war die eine davon nach jeder Zustandsänderung falsch (Testnotizen
-    #479/#480/#482).
+    **Quelle ist das Material-Journal** (ADR 007, Ausbaustufe 2): alles, was je in diesen
+    Auftrag hineingebucht wurde, ist genau einmal da – als noch gehaltener Topf, als
+    terminaler Topf (ihm zugeschrieben, mit Zeitpunkt) oder als abgegebene Menge (im
+    Zustand, in dem sie ging). Kein ``held_quantity``, keine Links-Menge, keine
+    Reservierungs-Map mehr im Lesepfad – die Grössen, die sich bewegen, können die
+    Vergangenheit nicht mehr umschreiben.
 
-    Jetzt gilt für beide Leser dieselbe Regel: **Menge = was dieser Auftrag übernommen hat**
-    (``instance_order_links.quantity``, Migration 097 – geschrieben und nie wieder geändert;
-    für Altbestand ohne Zahl der aktuelle Anteil). Sie **schrumpft nicht**, wenn etwas
-    verschrottet wird – die Instanz und ihre Menge verschwinden ja nicht, nur ihr Zustand
-    ändert sich (Testnotiz #481); den trägt die **Ampelfarbe** der Zeile.
+    **Die Menge schrumpft nicht, der Zustand ändert sich** (Testnotiz #481): nach dem
+    Verschrotten steht dort weiterhin «1 Stk» – nur rot, mit dem Zeitpunkt aus der Buchung.
+    **Der Zustand hängt an der MENGE** (#483/#485): eine Charge zerfällt in ihre Töpfe.
+    **Und er ist eine Aussage über das Material, nie über den Betrachter** (#495):
+    gebunden = gehalten UND am Lager – dieselbe Antwort aus jeder Blickrichtung.
 
-    Zweiter Rückgabewert: was der Auftrag dem Bestand **endgültig** entzogen hat
-    (verschrottet/verkauft/verbaut). Daraus leitet der Fluss zweierlei ab – wie viel nach
-    einem Abzweig auf der Achse weiterläuft, und **ob überhaupt etwas zurückkommt**: kommt
-    nichts zurück, geht die Prozesslinie gar nicht erst zum Eltern-Auftrag zurück (#481)."""
+    Alt-Aufträge ohne Buchungen fallen auf die bisherige Ableitung zurück (tolerant lesen,
+    streng schreiben)."""
+    from . import ledger
+    view = ledger.order_view(db, order.id) if order.id else None
+    if view is None:
+        return _order_material_legacy(db, order, insts)
+    raw_material, raw_gone = view
+    oids = {r.instance_object_id for r in raw_material}
+    meta_insts = (db.query(Instance)
+                  .filter(Instance.object_id.in_(oids)).all()) if oids else []
+    meta = _lot_meta(db, meta_insts)
+
+    def to_lot(r: "ledger.ViewRow") -> FlowLot:
+        base = meta.get(r.instance_object_id) or dict(instance_object_id=r.instance_object_id)
+        return FlowLot(quantity=float(r.quantity), quality=r.quality,
+                       disposition=r.disposition, reserved=r.reserved, at=r.at, **{
+                           k: v for k, v in base.items() if k != "instance_object_id"},
+                       instance_object_id=r.instance_object_id)
+
+    return [to_lot(r) for r in raw_material], [to_lot(r) for r in raw_gone]
+
+
+def _order_material_legacy(db: Session, order: Order,
+                           insts: list | None = None) -> tuple[list[FlowLot], list[FlowLot]]:
+    """Die Ableitung VOR dem Journal (Links + Event-Strom + Reservierungs-Map) – nur noch
+    Lesepfad für Alt-Aufträge ohne Buchungen."""
     from ..models import InstanceOrderLink
     from .quantity import ZERO, to_qty
     insts = order_instances(db, order) if insts is None else insts
@@ -500,10 +522,11 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
         flow_in=material, flow_lost=gone,
         flow_back=back,
         # Dieselbe Frage, dieselbe Antwort wie am Rückweg-Knoten im Unter-Auftrag selbst –
-        # der Abzweig darf im Eltern nicht anders aussehen als beim Öffnen (#492).
-        returns_material=sum(x.quantity for x in back) > 0
-                         or (sub.status not in ("draft", "released")
-                             and sum(x.quantity for x in returning_material(material)) > 0))
+        # der Abzweig darf im Eltern nicht anders aussehen als beim Öffnen (#492). EINE
+        # Regel: gibt es lebendes Material, führt der Weg zurück (läuft er noch, WIRD es
+        # zurückkommen; ist er durch, IST es gegangen – beides sind die nicht-terminalen
+        # Zeilen). ``flow_back`` daneben sagt, was tatsächlich schon zurück ist.
+        returns_material=sum(x.quantity for x in returning_material(material)) > 0)
 
 
 def _flow_back(db: Session, sub: Order, material: list[FlowLot]) -> list[FlowLot]:
@@ -1055,6 +1078,24 @@ _EMBED_SLOT = {"inspection": "inspection", "movement": "movement", "scrap": "dis
                "document": "document", "resource": "resource"}
 
 
+def _order_history_views(db: Session, order: Order) -> list[MaterialMoveView]:
+    """**Was mit dem Material dieses Auftrags passiert ist** – die Journalzeilen (ADR 007).
+
+    Dieselbe Zeile wie am Instanz-Detail, nur aus der anderen Richtung gelesen: hier ist
+    der Chip die **Instanz** (welche Menge), dort der Auftrag. Chronologisch, unveränderlich
+    – die dritte der drei Fragen, direkt am Auftrag."""
+    from . import ledger
+    if not order.id:
+        return []
+    return [
+        MaterialMoveView(
+            at=m.at, kind=m.kind, quantity=float(m.quantity),
+            quality=m.dst_quality, disposition=m.dst_disposition,
+            instance_object_id=m.instance_object_id, note=m.note)
+        for m in ledger.moves_of(db, order.id)
+    ]
+
+
 def to_order_response(db: Session, order: Order, viewer: UserProfile | None = None) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
     dem passenden Ausführungs-Embed (Mehr-Operationen-Routing).
@@ -1086,6 +1127,10 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     resp.flow_lots, resp.flow_lost = order_material(db, order, instances)
     # **Der Prozessbaum** (Notiz #493): woher dasselbe Material kam, wohin es weiterging.
     resp.material_from, resp.material_to = material_trace(db, order, instances)
+    # **Was ist passiert** (ADR 007): das Journal dieses Auftrags – nur fürs Personal (die
+    # Lieferanten-/Kunden-Sicht ist auf ihren Ausschnitt beschränkt).
+    if viewer is None or (viewer.role or "") in _STAFF_ROLES:
+        resp.history = _order_history_views(db, order)
 
     # Auftrag-Stepper: je Schritt der passende Ausführungs-Embed + Abschluss-Info.
     # Das oberste Embed je Typ bleibt für Rückwärtskompatibilität (Lieferanten-Sicht)

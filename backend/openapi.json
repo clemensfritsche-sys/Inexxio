@@ -11867,6 +11867,17 @@
             ],
             "title": "Order Name"
           },
+          "instance_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Object Id"
+          },
           "note": {
             "anyOf": [
               {
@@ -11886,7 +11897,7 @@
           "quantity"
         ],
         "title": "MaterialMoveView",
-        "description": "Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.\n\n``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |\nsold | consumed | scrapped | blocked | unblocked); ``order_object_id`` der beteiligte\nAuftrag (Ziel-Halter, sonst Quelle), klickbar."
+        "description": "Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.\n\n``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |\nsold | consumed | scrapped | blocked | unblocked). Dieselbe Zeile dient BEIDEN\nVerläufen: am **Instanz**-Detail ist der Chip der beteiligte Auftrag, am\n**Auftrags**-Detail die betroffene Instanz – dieselbe Geschichte, aus zwei Richtungen\ngelesen (die drei Fragen, ADR 007)."
       },
       "MaterialOrder": {
         "properties": {
@@ -13411,6 +13422,14 @@
             },
             "type": "array",
             "title": "Material To",
+            "default": []
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialMoveView"
+            },
+            "type": "array",
+            "title": "History",
             "default": []
           },
           "deviations": {

@@ -20,6 +20,7 @@ import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { TileShell, TILE, DetailHeader, HeaderSep } from '@/components/erp/fields';
 import { ObjId as ObjIdLink } from '@/components/erp/obj-id';
+import { MoveJournal } from '@/components/erp/move-journal';
 
 import { instanceName } from '@/lib/record-name';
 
@@ -310,7 +311,9 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
                 Zustand danach und dem beteiligten Auftrag. Die Liste darunter bleibt der
                 kompakte Index «welche Aufträge»; das Journal erzählt die Geschichte. */}
             {(inst.history ?? []).length > 0 && (
-              <MoveJournal rows={inst.history ?? []} />
+              <div style={{ marginBottom: 16 }}>
+                <MoveJournal rows={inst.history ?? []} chip="order" />
+              </div>
             )}
             {orders && orders.length > 1 && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -380,71 +383,6 @@ function Tile({ icon, label, hint, value, sub, subMono, wide, onClick }: {
       <div style={TILE.v}>{value}</div>
       {sub && <div style={{ ...TILE.sub, ...(subMono ? S.mono : null) }}>{sub}</div>}
     </TileShell>
-  );
-}
-
-// ── Das Material-Journal (ADR 007): was mit diesem Stück passiert ist ──────────
-//
-// Jede Zeile ist eine **Buchung** – wann, was, wie viel, Zustand danach, beteiligter
-// Auftrag (klickbar). Chronologisch von neu nach alt (das Jüngste interessiert zuerst);
-// der Zustand trägt die Ampelfarbe aus derselben Projektion wie überall.
-const MOVE_LABEL: Record<string, string> = {
-  created: 'Entstanden', opening: 'Eröffnungsbilanz', taken: 'Übernommen',
-  returned: 'Zurückgegeben', released: 'Ans Lager freigegeben', sold: 'Verkauft',
-  consumed: 'Verbaut', scrapped: 'Verschrottet', blocked: 'Gesperrt',
-  unblocked: 'Entsperrt',
-};
-
-function MoveJournal({ rows }: { rows: NonNullable<Instance['history']> }) {
-  const nav = useErpNav();
-  return (
-    <div style={{ border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
-      background: '#fff', marginBottom: 16, overflow: 'hidden' }}>
-      {[...rows].reverse().map((m, i) => {
-        const cfg = instStatusCfg(m.quality, m.disposition, false);
-        const Icon = cfg.icon;
-        return (
-          <div key={`${m.at}-${i}`} style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px',
-            borderBottom: i < rows.length - 1 ? '1px solid var(--border-1)' : 'none',
-            font: '500 13px var(--font-body)', color: 'var(--fg-2)', flexWrap: 'wrap',
-          }}>
-            <span style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)',
-              width: 118, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-              {localDateTime(m.at)}
-            </span>
-            <span style={{ fontWeight: 600, color: 'var(--fg-1)' }}>
-              {MOVE_LABEL[m.kind] ?? m.kind}
-            </span>
-            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{m.quantity}</span>
-            <span title={cfg.label} style={{ display: 'inline-flex', alignItems: 'center',
-              gap: 4, color: cfg.color, font: '500 12px var(--font-body)' }}>
-              {Icon && <Icon size={12} />}{cfg.label}
-            </span>
-            {m.order_object_id != null && (
-              <button type="button" className="erp-chip"
-                onClick={() => nav?.(m.order_object_id as number)}
-                title={`${m.order_name ?? 'Auftrag'} öffnen`}
-                style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center',
-                  gap: 6, font: '500 12px var(--font-body)', cursor: 'pointer' }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap', maxWidth: 160 }}>{m.order_name ?? 'Auftrag'}</span>
-                <span style={{ font: '500 11px var(--font-mono), monospace',
-                  fontVariantNumeric: 'tabular-nums', color: 'var(--fg-4)' }}>
-                  {formatObjectId(m.order_object_id)}
-                </span>
-              </button>
-            )}
-            {m.note === '!unbalanced' && (
-              <span title="Buchung ohne ausreichenden Quell-Topf – bitte melden"
-                style={{ color: 'var(--danger)', display: 'inline-flex' }}>
-                <TriangleAlert size={13} />
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
   );
 }
 
