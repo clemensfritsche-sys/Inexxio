@@ -336,8 +336,9 @@ def test_the_branch_names_the_module_from_one_place():
     """
     from app.schemas.order import SubOrderStep
 
-    assert set(SubOrderStep.model_fields) == {"id", "step_type", "state"}, (
-        "Der Teaser braucht Modul + Zustand – den Namen dazu holt das Frontend aus STEP_META."
+    assert set(SubOrderStep.model_fields) == {"id", "step_type", "state", "status"}, (
+        "Modul, Zustand und der fachliche Zwischenstand – mehr braucht der Teaser nicht, und "
+        "weniger darf er nicht haben (#492). Den Namen holt das Frontend aus STEP_META."
     )
     lib = (FRONTEND / "lib" / "process.ts").read_text(encoding="utf-8")
     assert "export const STEP_STATE_LABEL" in lib and "export function stepStateLabel" in lib, (
@@ -419,8 +420,14 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
         "Gedämpft und beim Hovern wieder ganz da – beides an EINER Stelle.")
     # EINE Modul-Karte für den ganzen Fluss – Hauptachse wie Abzweig.
     assert flow.count("function StepCard") == 1, "Es gibt genau EINE Modul-Karte."
-    assert "<StepCard compact" in flow, (
-        "Der Abzweig nutzt dieselbe Karte, nur eine Nummer kleiner – kein eigenes Bauteil.")
+    # **Der Abzweig sieht aus wie der geöffnete Unter-Auftrag – zu 100 %** (Testnotiz #492):
+    # dieselbe Karte, dieselbe GRÖSSE (#491), derselbe Zwischenstand. Ein `compact`-Modus war
+    # genau der Interpretationsspielraum, den es nicht geben darf.
+    assert "compact" not in flow, "Eine Karte, eine Grösse (#491)."
+    assert "const SIDE = MAIN;" in flow, (
+        "Die Seitenspur ist so breit wie die Hauptspur – sonst sind die Karten nicht gleich.")
+    assert "badge={stepBadge(st.step_type, st.status)}" in flow, (
+        "Auch der fachliche Zwischenstand steht im Abzweig (#492).")
     # Die Abzweigung: waagrecht aus der Achse, dann senkrecht oben mittig hinein (#417) –
     # und **zurück in die Achse** (#424). Beide Ecken aus EINEM Baustein, leicht gerundet (#423).
     assert "function Elbow" in flow, "Eine Ecke der Prozesslinie gibt es genau einmal."
@@ -464,7 +471,7 @@ def test_the_main_process_runs_down_the_middle():
     assert "right={<BranchArm" in flow, "Abzweige hängen rechts."
     assert "overflowX: 'auto'" in flow, "Ein breites Diagramm scrollt in seinem eigenen Kasten."
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
-    assert "maxWidth: 1340" in detail, "Der Fluss bekommt eine eigene, breitere Spur."
+    assert "maxWidth: 1460" in detail, "Der Fluss bekommt eine eigene, breitere Spur."
 
 
 def test_what_has_been_walked_is_a_strong_solid_line():
@@ -566,8 +573,14 @@ def test_the_flow_shows_what_material_moves():
         "Die übernommene Menge zerfällt in ausgesteuerte Teile und den lebenden Rest.")
     assert "reserved=running" in _inspect.getsource(ord_svc.order_material), (
         "Was ein laufender Auftrag hält, ist nicht «frei am Lager» (#485).")
-    assert "function returnsMaterial" in flow and "back.length > 0 && (" in flow, (
+    assert "b.returns_material" in flow and "back.length > 0 && (" in flow, (
         "Kommt nichts zurück, führt auch keine Linie zurück (#481) – einfacher geht es nicht.")
+    # **Und die Antwort kommt aus EINER Quelle** (Testnotiz #492): derselbe Abzweig zeigte im
+    # Eltern-Auftrag keinen Rückweg (dort wurde aus dem Material gerechnet) und in seiner
+    # EIGENEN Ansicht doch einen – weil die nur fragte, WEM er zurückgäbe, nicht OB.
+    assert "returns_material" in OrderDeviationInfo.model_fields
+    assert "if not returns_material(db, order):" in _inspect.getsource(ord_svc._return_target), (
+        "Der Rückweg-Knoten liest dieselbe Regel wie der Abzweig im Eltern-Auftrag.")
 
 
 def test_the_bypass_carries_what_stayed_on_the_order():

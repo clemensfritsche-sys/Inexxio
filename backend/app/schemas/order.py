@@ -166,6 +166,10 @@ class SubOrderStep(BaseModel):
     id: int
     step_type: str
     state: str   # done | active | blocked | locked | failed
+    # **Der fachliche Zwischenstand** (Beschaffung/Verkauf) – dieselbe Angabe, die die
+    # Modul-Karte auf der Hauptachse trägt. Ohne sie sähe derselbe Schritt im Abzweig anders
+    # aus als beim Öffnen des Unter-Auftrags, und genau das darf nicht sein (Testnotiz #492).
+    status: Optional[str] = None
 
 
 class OrderDeviationInfo(BaseModel):
@@ -201,6 +205,10 @@ class OrderDeviationInfo(BaseModel):
     # überhaupt etwas zurückkommt. Kommt nichts zurück, geht die Prozesslinie gar nicht erst
     # zum Eltern-Auftrag zurück (Testnotiz #481) – einfacher kann man es nicht sagen.
     flow_lost: list[FlowLot] = []
+    # **Kommt etwas zurück?** – dieselbe Ableitung wie am Rückweg-Knoten des Unter-Auftrags
+    # selbst (``orders.returns_material``). Wurden sie getrennt hergeleitet, zeigte derselbe
+    # Abzweig im Eltern-Auftrag ein anderes Bild als beim Öffnen (Testnotiz #492).
+    returns_material: bool = True
     # Der Name des Abzweigs (dieselbe Ableitung wie im Feed) – der Teaser nennt die Sache,
     # nicht nur seinen Grund.
     name: Optional[str] = None

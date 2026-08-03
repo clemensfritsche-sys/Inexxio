@@ -1289,7 +1289,9 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
             Modul-Karten (#418) – in einer 880-px-Satzbreite wäre für sie kein Platz. Der
             Fluss bleibt zentriert, also bleibt er auch mit der Spezifikation darüber in
             einer Flucht; er scrollt notfalls in seinem eigenen Kasten, nie die Seite. */}
-        <div style={{ maxWidth: 1340, marginInline: 'auto', width: '100%' }}>
+        {/* Drei gleich breite Spuren (#491) brauchen mehr Raum als vorher – das Diagramm
+            bleibt zentriert und scrollt notfalls in seinem eigenen Kasten, nie die Seite. */}
+        <div style={{ maxWidth: 1460, marginInline: 'auto', width: '100%' }}>
         {showProcess ? (
           <>
             {/* **Wo stehe ich?** – die Kette vom Hauptauftrag bis hierher (#413). Ein

@@ -4027,6 +4027,28 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Wächter `test_what_is_past_steps_back_on_the_edges_too` (erweitert); gegen echtes
   PostgreSQL 16 verifiziert (19 Prüfungen).
 
+- **Der Abzweig im Eltern-Auftrag IST der Unter-Auftrag – kein Interpretationsspielraum**
+  (Aug. 2026, Testnotizen #489–#492): Derselbe Abzweig zeigte zwei verschiedene Bilder – im
+  Eltern-Auftrag **ohne** Rückweg (dort wurde aus dem Material gerechnet), beim **Öffnen**
+  mit. Ursache waren **zwei Ableitungen** derselben Frage: die eine fragte, ob überhaupt
+  etwas zurückkommt, die andere nur, **wem** es zurückginge.
+  (1) **EINE Regel** (`orders.returns_material`): was übernommen wurde, minus dem, was den
+  Bestand endgültig verlassen hat. Sie speist beides – `OrderDeviationInfo.returns_material`
+  (Abzweig im Eltern) und `_return_target` (Rückweg-Knoten im Unter-Auftrag). Getrennt
+  hergeleitet konnten sie auseinanderlaufen; jetzt können sie es nicht mehr.
+  (2) **Dieselbe Karte, dieselbe Grösse** (#491): der `compact`-Modus der Modul-Karte ist
+  ersatzlos entfallen und die **Seitenspur ist so breit wie die Hauptspur** (`SIDE = MAIN`) –
+  ein Abzweig ist ein regulärer Prozess (#418), also sehen seine Module aus wie alle anderen.
+  Damit auch der fachliche Zwischenstand stimmt, trägt `SubOrderStep` jetzt `status`
+  (Beschaffung/Verkauf); `stepBadge(typ, status)` ist die EINE Stelle, die ihn rendert.
+  (3) **Keine Untertitel am Modul** (#490): «ganz oder gar nicht» – wer die Details sehen
+  will, öffnet den Schritt und sieht dort ALLES. Eine halbe Zeile daneben war eine zweite,
+  unvollständige Wahrheit; `stepDetail` ist entfallen.
+  (4) **Kein Scrollbalken am Diagramm** (#489, `.ix-noscrollbar`) – gescrollt wird weiterhin.
+  Wächter: `test_a_sub_order_is_a_regular_process_beside_the_axis` (verbietet `compact`),
+  `test_the_branch_names_the_module_from_one_place`; gegen echtes PostgreSQL 16 verifiziert
+  (21 Prüfungen – u. a. «Teaser und eigene Ansicht sagen dasselbe» für beide Abzweige).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
