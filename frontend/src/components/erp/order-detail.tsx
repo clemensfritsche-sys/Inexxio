@@ -1217,11 +1217,15 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
             {/* **Wo stehe ich?** – die Kette vom Hauptauftrag bis hierher (#413). Ein
                 Abzweig kann selbst einen Abzweig haben; ohne sie weiss man nach zwei
                 Sprüngen nicht mehr, in welchem Vorgang man gelandet ist. */}
-            {record.origin && (
-              <OrderChain origin={record.origin} currentObjectId={record.object_id}
-                onOpen={(oid: number) => nav?.(oid)} />
-            )}
-            <SectionTitle icon={Workflow}>Prozess</SectionTitle>
+            {/* Alles ausser dem Diagramm bleibt in der Satzbreite des Fensters – sonst
+                stünde die Überschrift 230 px weiter links als die Spezifikation darüber. */}
+            <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
+              {record.origin && (
+                <OrderChain origin={record.origin} currentObjectId={record.object_id}
+                  onOpen={(oid: number) => nav?.(oid)} />
+              )}
+              <SectionTitle icon={Workflow}>Prozess</SectionTitle>
+            </div>
             {/* Frei im Weissraum, wie der Editor am Artikel – kein zweiter Karten-Hintergrund
                 um einen Fluss, der schon aus Karten besteht. */}
             <div style={{ marginBottom: 12 }}>
@@ -1270,11 +1274,13 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
             </div>
           </>
         ) : !isStaff && hasPurchase ? (
-          <>
+          // Die Lieferantensicht ist ein Formular, kein Diagramm – sie bleibt in der
+          // Satzbreite des übrigen Fensters.
+          <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             <PurchaseStepPanel order={record as Order} purchases={record?.purchase ? [record.purchase] : []}
               viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
-          </>
+          </div>
         ) : null}
         </div>
         </>)}
