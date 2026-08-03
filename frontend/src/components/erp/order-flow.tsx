@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUp, Boxes, Check, Clock3, CornerDownLeft, MapPin, Package, PauseCircle,
+import { ArrowDown, ArrowUp, Check, Clock3, MapPin, Package, PauseCircle,
   X } from 'lucide-react';
 import type { FlowLot, Order, OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution,
   StepType, SubOrderStep } from '@/types';
@@ -48,14 +48,26 @@ import { actorHint, formatObjectId } from '@/lib/utils';
 // treten zurück. Eine eigene Strichart braucht es dafür nicht – dass es nicht weitergeht,
 // sagt die Linie schon, indem sie an der offenen Stelle zur Haarlinie wird.
 
-/** Breite der Hauptspur; die Modul-Karten füllen sie, die Seitenspuren teilen sich den Rest. */
-const MAIN = 460;
-/** Mindestbreite einer Seitenspur – darunter scrollt das Diagramm lieber, als zu zerdrücken. */
-const LANE_MIN = 280;
-/** Länge des senkrechten Einlaufs: von der Abzweigung oben mittig in den Unterprozess. */
-const ARM = 34;
-/** Eckenradius der Prozesslinie (Notiz #423). */
-const BEND = 12;
+/**
+ * **Feste Geometrie – und genau darum saubere Ecken** (Notizen #423/#445).
+ *
+ * Die Spuren waren elastisch (``flex: 1``), also war die Länge einer Abzweigung erst zur
+ * Laufzeit bekannt – gezeichnet wurde sie deshalb aus CSS-Rahmenkanten mit ``border-radius``,
+ * und an der Nahtstelle zweier Kästchen sah man jede halbe Pixelverschiebung. Mit **festen**
+ * Spurbreiten ist der Weg von der Achse zur Spurmitte eine **Konstante** (``RUN``) – damit
+ * lässt sich jede Ecke als EIN SVG-Pfad zeichnen: ein Strich, eine Strichstärke, ein echter
+ * Viertelkreis, keine Naht.
+ *
+ * Zugleich wird das Diagramm dadurch schmaler und ruhiger: die Seitenspuren nehmen nur so
+ * viel Platz, wie sie brauchen, statt den ganzen Rest zu füllen.
+ */
+const MAIN = 460;          // Hauptspur (Modul-Karten)
+const SIDE = 336;          // Seitenspur (Abzweig bzw. Herkunft/Rückweg)
+const GAP = 26;            // Luft zwischen Haupt- und Seitenspur
+const ARM = 40;            // Höhe einer Abzweigung
+const BEND = 12;           // Eckenradius der Prozesslinie
+const LANE = SIDE + GAP;   // Breite einer Seitenspur inkl. Luft
+const RUN = MAIN / 2 + GAP + SIDE / 2;   // Achse ↔ Mitte der Seitenspur
 
 export type FlowDecision = { missing: string; canAct: boolean; onDecide?: () => void };
 
@@ -96,78 +108,70 @@ function Axis({ h = 22, strong = false, grow = false }: {
 }
 
 /**
- * **Eine Ecke der Prozesslinie** – waagrecht und senkrecht mit leicht gerundetem Übergang
- * (Notiz #423). Vier Richtungen, EIN Baustein: der Fork aus der Achse in einen Abzweig, der
- * Merge zurück, und dieselben zwei gespiegelt für Herkunft und Rückweg.
+ * **Der Weg zwischen Achse und Seitenspur – EIN Pfad, echte Viertelkreise.**
  *
- * Gezeichnet als zwei Rahmenkanten eines Kastens – dadurch ist die Rundung genau eine
- * ``border-radius`` und keine zweite Geometrie. Die senkrechte Kante wird um ihre halbe
- * Stärke versetzt, damit sie exakt auf der Mittellinie der Spur sitzt (auf der auch die
- * ``Axis`` des Unterprozesses steht).
- *
- * **Wie viele Ecken es sind, sagt die Sache** (Notizen #430/#431): Fork und Merge münden in
- * eine Achse, die darüber und darunter weiterläuft – das ist ein **T**, keine Ecke. Herkunft
- * und Rückweg dagegen treffen die Achse dort, wo sie **beginnt** bzw. **endet**: die Linie
- * biegt ab, also braucht sie auch dort einen Radius. Das zweite Kästchen ist genau
- * ``BEND``×``BEND`` gross, womit sein Rand ein reiner Viertelkreis ist.
+ * Vier Richtungen, vier Pfade über denselben Konstanten. Fork und Merge münden in eine Achse,
+ * die darüber und darunter weiterläuft (ein **T**, eine Ecke); Herkunft und Rückweg treffen
+ * sie dort, wo sie beginnt bzw. endet – die Linie biegt also **zweimal** ab (Notizen
+ * #430/#431). Weil der Pfad durchgehend ist, gibt es an keiner Ecke eine Naht.
  */
-function Elbow({ dir, strong, height = ARM, span }: {
-  /** out: Achse → Spurmitte hinaus · back: Spurmitte → Achse zurück */
-  dir: 'fork-right' | 'merge-right' | 'in-from-left' | 'out-to-left';
-  strong?: boolean; height?: number;
-  /** Wie weit die waagrechte Kante über die Spur hinaus zur Achse reicht. */
-  span: number;
+const ELBOW: Record<string, { d: string; left: number }> = {
+  // aus der Achse nach rechts, dann hinunter in den Unterprozess
+  'fork-right': { left: -(MAIN / 2 + GAP),
+    d: `M0 0 H${RUN - BEND} A${BEND} ${BEND} 0 0 1 ${RUN} ${BEND} V${ARM}` },
+  // aus dem Unterprozess herunter, dann nach links zurück in die Achse
+  'merge-right': { left: -(MAIN / 2 + GAP),
+    d: `M${RUN} 0 V${ARM - BEND} A${BEND} ${BEND} 0 0 1 ${RUN - BEND} ${ARM} H0` },
+  // aus dem Eltern-Auftrag herunter, nach rechts – und an der Achse hinunter
+  'in-from-left': { left: SIDE / 2,
+    d: `M0 0 V${ARM - 2 * BEND} A${BEND} ${BEND} 0 0 0 ${BEND} ${ARM - BEND} `
+      + `H${RUN - BEND} A${BEND} ${BEND} 0 0 1 ${RUN} ${ARM}` },
+  // aus der Achse heraus, nach links – und hinunter auf den Rückweg-Knoten
+  'out-to-left': { left: SIDE / 2,
+    d: `M${RUN} 0 V${BEND} A${BEND} ${BEND} 0 0 1 ${RUN - BEND} ${2 * BEND} `
+      + `H${BEND} A${BEND} ${BEND} 0 0 0 0 ${3 * BEND} V${ARM}` },
+};
+
+function Elbow({ dir, strong }: {
+  dir: 'fork-right' | 'merge-right' | 'in-from-left' | 'out-to-left'; strong?: boolean;
 }) {
-  const w = lineW(!!strong);
-  const line = `${w}px solid ${lineColor(!!strong)}`;
-  const half = `calc(50% - ${w / 2}px)`;
-  const base: React.CSSProperties = { position: 'absolute', pointerEvents: 'none' };
-  if (dir === 'fork-right') {
-    // Aus der Achse nach rechts, dann hinunter in den Unterprozess (T an der Achse).
-    return <div style={{ ...base, height, top: 0, left: -span, right: half,
-      borderTop: line, borderRight: line, borderTopRightRadius: BEND }} />;
-  }
-  if (dir === 'merge-right') {
-    // Aus dem Unterprozess herunter, dann nach links zurück in die Achse (T an der Achse).
-    return <div style={{ ...base, height, bottom: 0, left: -span, right: half,
-      borderBottom: line, borderRight: line, borderBottomRightRadius: BEND }} />;
-  }
-  if (dir === 'in-from-left') {
-    // Aus dem Eltern-Auftrag herunter, nach rechts – und an der Achse hinunter (#430).
-    return (
-      <>
-        <div style={{ ...base, height: height - BEND, bottom: BEND, left: half,
-          right: -(span - BEND), borderLeft: line, borderBottom: line,
-          borderBottomLeftRadius: BEND }} />
-        <div style={{ ...base, height: BEND, width: BEND, bottom: 0, right: -span,
-          borderTop: line, borderRight: line, borderTopRightRadius: BEND }} />
-      </>
-    );
-  }
-  // Aus der Achse heraus (#431), nach links – und hinunter auf den Rückweg-Knoten.
+  const { d, left } = ELBOW[dir];
+  const atTop = dir === 'fork-right' || dir === 'out-to-left';
   return (
-    <>
-      <div style={{ ...base, height: BEND, width: BEND, top: 0, right: -span,
-        borderBottom: line, borderRight: line, borderBottomRightRadius: BEND }} />
-      <div style={{ ...base, height: height - BEND, top: BEND, left: half,
-        right: -(span - BEND), borderTop: line, borderLeft: line,
-        borderTopLeftRadius: BEND }} />
-    </>
+    <svg width={RUN} height={ARM} viewBox={`0 0 ${RUN} ${ARM}`} aria-hidden
+      shapeRendering="geometricPrecision"
+      style={{ position: 'absolute', left, [atTop ? 'top' : 'bottom']: 0,
+        overflow: 'visible', pointerEvents: 'none' }}>
+      <path d={d} fill="none" stroke={lineColor(!!strong)} strokeWidth={lineW(!!strong)}
+        strokeLinecap="butt" strokeLinejoin="round" />
+    </svg>
   );
 }
 
-/** Eine Zeile des Flusses: die Achse in der Mitte, links Herkunft, rechts Abzweige. */
+/**
+ * Eine Zeile des Flusses: die Achse in der Mitte, links Herkunft, rechts Abzweige.
+ *
+ * Die Spuren sind **fest** breit (siehe ``ELBOW``) und der Inhalt liegt jeweils an der zur
+ * Achse zeigenden Kante – damit ist der Weg dorthin überall gleich lang. Ohne Nachbarn fällt
+ * die Spurbreite auf 0 (``--flow-lane``), dann steht der Prozess allein und mittig.
+ */
 function Row({ children, left, right }: {
   children?: React.ReactNode; left?: React.ReactNode; right?: React.ReactNode;
 }) {
   return (
-    <div style={{ display: 'flex', width: '100%', alignItems: 'stretch' }}>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>{left}</div>
+    <div style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'stretch' }}>
+      <div style={{ width: 'var(--flow-lane)', flex: 'none', display: 'flex',
+        justifyContent: 'flex-start', alignItems: 'center' }}>
+        {left && <div style={{ width: SIDE, minWidth: 0 }}>{left}</div>}
+      </div>
       <div style={{ width: MAIN, flex: 'none', display: 'flex', flexDirection: 'column',
         alignItems: 'center', minWidth: 0 }}>
         {children}
       </div>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>{right}</div>
+      <div style={{ width: 'var(--flow-lane)', flex: 'none', display: 'flex',
+        justifyContent: 'flex-end', alignItems: 'center' }}>
+        {right && <div style={{ width: SIDE, minWidth: 0 }}>{right}</div>}
+      </div>
     </div>
   );
 }
@@ -239,7 +243,7 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
           font: '600 11.5px var(--font-mono), monospace', fontVariantNumeric: 'tabular-nums',
           color: tone, whiteSpace: 'nowrap',
         }}>
-        {lot.quantity} × {formatObjectId(lot.instance_object_id)}
+        {qtyText(lot)} × {formatObjectId(lot.instance_object_id)}
       </button>
       {open && (
         <span style={{
@@ -258,10 +262,6 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
             {lot.location_label
               ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.location_label}</span>
               : <Dash />}
-          </LotFact>
-          <LotFact icon={Boxes} title="Menge">
-            <span style={{ fontSize: 12, color: zero ? 'var(--danger)' : 'var(--fg-1)',
-              fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{qtyText(lot)}</span>
           </LotFact>
         </span>
       )}
@@ -308,7 +308,7 @@ function FlowLots({ lots, small }: { lots: Lots; small?: boolean }) {
 // ─── Der Fluss ────────────────────────────────────────────────────────────────────
 
 export function OrderFlow({ steps, subOrders = [], origin, decision, paused = false,
-  selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId }: {
+  selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId, goal }: {
   steps: OrderStep[];
   subOrders?: OrderDeviationInfo[];
   origin?: OrderOrigin | null;
@@ -320,10 +320,14 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   renderPanel?: (step: OrderStep) => React.ReactNode;
   /** Das Material des Auftrags (`OrderResponse.flow_lots`) – Grundlage der Kanten. */
   lots?: FlowLot[];
-  /** Für die Schritt-Nummer «100000589-01». */
+  /** Objektnummer dieses Auftrags – die Terminal-Knoten nennen sie im Hover (#443/#444). */
   orderObjectId?: number | null;
+  /** Was am Ende des Prozesses steht: Wunsch-Liefertermin und (intern) der Fakturierende. */
+  goal?: { due?: string | null; seller?: string | null };
 }) {
   if (steps.length === 0 && !origin) return null;
+  const processLabel = orderObjectId != null
+    ? `Auftrag ${formatObjectId(orderObjectId)}` : 'Auftrag';
 
   // Die Knoten der Achse, in Reihenfolge: Module und die Äste an ihrer Stelle.
   type Node = { step?: OrderStep; branches?: OrderDeviationInfo[]; res?: StepResolution[] };
@@ -404,13 +408,18 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
       return;
     }
     const s = n.step!;
-    const selected = selectedId === String(s.id) && !paused;
+    // **Ruhen heisst: nicht weiterarbeiten – nicht: nichts mehr ansehen** (Notiz #442).
+    // Ein **erledigter** Schritt trägt ein Protokoll, keine Aktion; ihn zu öffnen kann nichts
+    // auslösen. Zu bleibt nur, was noch zu tun wäre – dort lehnt das Backend ohnehin mit 409
+    // ab, und genau davor sollte #378 bewahren.
+    const readable = !paused || s.state === 'done';
+    const selected = selectedId === String(s.id) && readable;
     rows.push(
       <Row key={`step-${s.id}`}>
-        <StepCard type={s.step_type as StepType} state={s.state} selected={selected} muted={paused}
-          nr={stepNr(orderObjectId, i)} detail={stepDetail(s)} badge={stepBadge(s)}
+        <StepCard type={s.step_type as StepType} state={s.state} selected={selected}
+          muted={paused} detail={stepDetail(s)} badge={stepBadge(s)}
           hint={completionHint(s)}
-          onClick={paused ? undefined : () => onSelectStep(String(s.id))}>
+          onClick={readable ? () => onSelectStep(String(s.id)) : undefined}>
           {selected && renderPanel?.(s)}
         </StepCard>
       </Row>,
@@ -433,22 +442,32 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     // Ein Diagramm darf breiter sein als eine Textspalte – aber es scrollt in seinem eigenen
     // Kasten, statt die Seite waagrecht zu schieben.
     <div style={{ width: '100%', overflowX: 'auto' }}>
-      <div style={{ width: '100%', minWidth: hasAside ? MAIN + 2 * LANE_MIN : MAIN,
-        display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+      <div style={{ width: '100%', minWidth: hasAside ? MAIN + 2 * LANE : MAIN,
+        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+        ...({ '--flow-lane': hasAside ? `${LANE}px` : '0px' } as React.CSSProperties) }}>
         {origin && (
           <>
             <Row left={<OriginArm origin={origin} onOpen={onOpenOrder} />} />
             <Row><Axis h={18} strong /></Row>
           </>
         )}
-        <Row><FlowTerm kind="start" /></Row>
+        <Row><FlowTerm kind="start" title={`Start · ${processLabel}`} /></Row>
         {rows}
         <Row key="edge-last">
           <Axis strong={done} />
           {done && <FlowLots lots={edges[nodes.length]} />}
           <Axis strong={done} />
         </Row>
-        <Row><FlowTerm kind="end" /></Row>
+        <Row>
+          <FlowTerm kind="end" title={[`Ende · ${processLabel}`, goal?.due, goal?.seller]
+            .filter(Boolean).join(' · ')} />
+          {/* **Das Ziel gehört ans Prozessende** (Notiz #446): wann das Ergebnis da sein soll,
+              ist die Aussage des Endknotens – nicht eine Zeile in einer Karte darüber. */}
+          {goal?.due && (
+            <div style={{ marginTop: 7, font: '500 11.5px var(--font-body)', color: 'var(--fg-4)',
+              textAlign: 'center' }}>{goal.due}</div>
+          )}
+        </Row>
         {origin?.returns_to_object_id != null && (
           <>
             <Row><Axis h={18} strong={done} /></Row>
@@ -459,10 +478,6 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     </div>
   );
 }
-
-const stepNr = (orderObjectId: number | null | undefined, index: number) =>
-  (orderObjectId != null
-    ? `${formatObjectId(orderObjectId)}–${String(index + 1).padStart(2, '0')}` : null);
 
 // ─── Modul-Karte (EINE für den ganzen Fluss) ──────────────────────────────────────
 
@@ -481,9 +496,9 @@ const STATE_MARK: Record<string, { icon: React.ElementType; color: string }> = {
  * gleiche Zustands-Symbole. Was ein Abzweig nicht mitliefert (Kurzzeile, Beleg-Status), bleibt
  * schlicht leer – das ist ein fehlendes Detail, kein anderes Bauteil.
  */
-function StepCard({ type, state, nr, detail, badge, hint, selected, muted: forced, compact,
+function StepCard({ type, state, detail, badge, hint, selected, muted: forced, compact,
   onClick, children }: {
-  type: StepType; state: string; nr?: string | null;
+  type: StepType; state: string;
   detail?: React.ReactNode; badge?: React.ReactNode; hint?: string;
   selected?: boolean; muted?: boolean; compact?: boolean;
   onClick?: () => void; children?: React.ReactNode;
@@ -513,12 +528,8 @@ function StepCard({ type, state, nr, detail, badge, hint, selected, muted: force
           <Icon size={compact ? 15 : 17} />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ font: `800 ${compact ? 13.5 : 15}px var(--font-display)`,
-              letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{meta.label}</span>
-            {nr && <span style={{ font: '500 11px var(--font-mono), monospace',
-              color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>{nr}</span>}
-          </div>
+          <span style={{ display: 'block', font: `800 ${compact ? 13.5 : 15}px var(--font-display)`,
+            letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{meta.label}</span>
           {detail && <div style={{ marginTop: 2, fontSize: 12, color: 'var(--fg-3)' }}>{detail}</div>}
         </div>
         {badge}
@@ -567,9 +578,9 @@ function BranchCell({ info, reached, onOpen }: {
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
       paddingTop: ARM, paddingBottom: ARM }}>
-      <Elbow dir="fork-right" strong={reached} span={MAIN / 2} />
+      <Elbow dir="fork-right" strong={reached} />
       <SubProcess info={info} onOpen={onOpen} />
-      <Elbow dir="merge-right" strong={reached && closed} span={MAIN / 2} />
+      <Elbow dir="merge-right" strong={reached && closed} />
     </div>
   );
 }
@@ -605,7 +616,7 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
           <Axis h={10} strong={started} />
         </>
       )}
-      <FlowTerm kind="start" size={30} />
+      <FlowTerm kind="start" size={30} title={`Start · ${hint}`} />
       {steps.length === 0 ? (
         <>
           <Axis h={12} />
@@ -616,13 +627,12 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
           alignItems: 'center' }}>
           <Axis h={12} strong={started && i <= walked} />
           <StepCard compact type={st.step_type as StepType} state={st.state}
-            nr={stepNr(info.object_id, i)}
             hint={`${STEP_META[st.step_type as StepType]?.label ?? ''}: ${stepStateLabel(st.state)}`
               + ` · ${hint}`} />
         </div>
       ))}
       <Axis h={12} strong={started && walked === steps.length} />
-      <FlowTerm kind="end" size={30} />
+      <FlowTerm kind="end" size={30} title={`Ende · ${hint}`} />
       {closed && outLots.size > 0 && (
         <>
           <Axis h={10} strong />
@@ -698,7 +708,7 @@ function OriginArm({ origin, onOpen }: { origin: OrderOrigin; onOpen?: (id: numb
         name={origin.order_name} icon={ArrowUp}
         title={`Hervorgegangen aus ${origin.order_name ?? 'Auftrag'} – öffnen`}
         onClick={() => onOpen?.(origin.order_object_id)} />
-      <Elbow dir="in-from-left" strong span={MAIN / 2} />
+      <Elbow dir="in-from-left" strong />
     </div>
   );
 }
@@ -710,9 +720,9 @@ function ReturnArm({ origin, strong, onOpen }: {
   const id = origin.returns_to_object_id as number;
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
-      <Elbow dir="out-to-left" strong={strong} span={MAIN / 2} />
+      <Elbow dir="out-to-left" strong={strong} />
       <OrderRefNode caption="Gibt zurück an" objectId={id} name={origin.returns_to_name}
-        icon={CornerDownLeft}
+        icon={ArrowDown}
         title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}
         onClick={() => onOpen?.(id)} />
     </div>

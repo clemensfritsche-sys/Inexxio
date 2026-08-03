@@ -386,8 +386,11 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # Datensatz dieses Auftrags; dafür braucht es keine zweite Zusammenfassung daneben.
     assert "function BranchHead" not in flow, (
         "Der Abzweig zeigt seinen Prozess, keine Kurzinfo über ihn (#435).")
-    assert '<FlowTerm kind="start" size={30} />' in flow and '<FlowTerm kind="end" size={30} />' in flow, (
+    assert '<FlowTerm kind="start" size={30}' in flow and '<FlowTerm kind="end" size={30}' in flow, (
         "Ein Abzweig ist ein Prozess – mit Anfang und Ende, eine Nummer kleiner.")
+    # **Und die Terminal-Knoten nennen ihren Prozess** (Notizen #443/#444): ohne Kopfkarte
+    # (#435) ist der Hover die Stelle, an der «welcher Auftrag ist das?» beantwortet wird.
+    assert "title={`Start · ${hint}`}" in flow and "title={`Ende · ${hint}`}" in flow
     for gone in ("function TeaserStep", "WebkitMaskImage"):
         assert gone not in flow, (
             f"{gone}: ein Abzweig braucht kein zweites Vokabular und keinen Kasten (#418/#420).")
@@ -402,11 +405,20 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
         assert f"'{d}'" in flow, f"Dem Fluss fehlt die Ecke {d}"
     assert '<Elbow dir="fork-right"' in flow and '<Elbow dir="merge-right"' in flow, (
         "Ein Abzweig geht hinaus UND wieder zurück – sonst endet der Prozess im Nichts (#424).")
-    assert "borderTopRightRadius: BEND" in flow and "const BEND" in flow, (
-        "Die Ecken der Prozesslinie sind leicht gerundet (#423).")
+    # **Eine Ecke ist EIN Pfad, keine zusammengesetzten Rahmenkanten.** Aus CSS-Kästchen mit
+    # ``border-radius`` gebaut, sah man an der Naht jede halbe Pixelverschiebung und die
+    # Strichstärke lief in der Rundung aus. Möglich wurde der SVG-Pfad erst durch **feste**
+    # Spurbreiten: seither ist der Weg von der Achse zur Spurmitte eine Konstante (#445).
+    assert "borderRadius" not in flow.split("const ELBOW")[1].split("// ─── Materialfluss")[0], (
+        "Ecken werden gezeichnet, nicht aus Rahmenkanten zusammengesetzt.")
+    assert "<path d={d}" in flow and "strokeWidth={lineW" in flow, (
+        "Ein Strich, eine Strichstärke – ein echter Viertelkreis (#423/#430/#431).")
+    assert "const RUN = MAIN / 2 + GAP + SIDE / 2" in flow, (
+        "Feste Spurbreiten machen die Länge einer Abzweigung berechenbar.")
     assert "onOpen?.(info.object_id)" in flow, "Der Abzweig öffnet den Datensatz."
-    # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt.
-    assert '<FlowTerm kind="start" />' in flow and '<FlowTerm kind="end" />' in flow
+    # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt. Auch
+    # sie nennen ihren Prozess im Hover (#443/#444).
+    assert 'title={`Start · ${processLabel}`}' in flow and '`Ende · ${processLabel}`' in flow
 
 
 def test_the_main_process_runs_down_the_middle():
@@ -548,12 +560,15 @@ def test_a_flow_lot_names_instance_article_location_and_quantity():
         "Abzweig und Achse lösen dieselben Angaben an derselben Stelle auf.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowLotChip" in flow and "nav?.(lot.instance_object_id)" in flow
-    # **Symbole statt Versalien-Beschriftungen** (Testnotiz #433): die Instanz steht schon in
-    # der Pille selbst, im Hover zählen Artikel · Standort · Menge – je ein Symbol, das Wort
-    # im Titel. Weniger ist mehr.
-    for fact in ('icon={Package} title="Artikel"', 'icon={MapPin} title="Standort"',
-                 'icon={Boxes} title="Menge"'):
+    # **Symbole statt Versalien-Beschriftungen** (Testnotiz #433) – und **keine doppelte
+    # Angabe** (#441): Menge und Instanz stehen bereits in der Pille selbst, im Hover bleiben
+    # Artikel und Standort. Je ein Symbol, das Wort im Titel; weniger ist mehr.
+    for fact in ('icon={Package} title="Artikel"', 'icon={MapPin} title="Standort"'):
         assert fact in flow, f"Dem Hover fehlt {fact}"
+    assert 'title="Menge"' not in flow, (
+        "Die Menge steht in der Pille – ein zweites Mal im Hover wäre eine zweite Wahrheit.")
+    assert "{qtyText(lot)} × {formatObjectId(lot.instance_object_id)}" in flow, (
+        "Dafür trägt die Pille die Einheit – sonst ginge «kg» verloren.")
     assert "<ObjId value={lot.article_object_id} />" in flow, "Auch der Artikel ist klickbar."
 
 
@@ -582,3 +597,60 @@ def test_the_origin_is_a_reference_not_a_preview():
     assert "TYPE_META.order" in flow and "from '@/lib/erp-record'" in flow, (
         "Das Aussehen eines Auftrags steht an EINER Stelle – der Verweis leiht es sich (#439).")
     assert 'caption="Hervorgegangen aus"' in flow and 'caption="Gibt zurück an"' in flow
+
+
+def test_a_finished_step_stays_readable_while_the_order_rests():
+    """**Ruhen heisst: nicht weiterarbeiten – nicht: nichts mehr ansehen** (Testnotiz #442).
+
+    Seit ein ruhender Auftrag den ganzen Fluss stilllegt (#378), liess sich **kein** Modul
+    mehr öffnen – auch keines, das längst erledigt ist. Damit war das Protokoll eines fertigen
+    Schritts (was gemessen wurde, wer quittiert hat) unerreichbar, solange irgendwo eine
+    Abweichung offen war.
+
+    Ein **erledigter** Schritt trägt aber keine Aktion, sondern eine Aufzeichnung; ihn zu
+    öffnen kann nichts auslösen. Zu bleibt darum nur, was noch zu tun wäre – dort lehnt das
+    Backend ohnehin mit 409 ab, und genau davor sollte #378 bewahren."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "const readable = !paused || s.state === 'done'" in flow, (
+        "Ein erledigter Schritt bleibt lesbar, auch wenn der Auftrag ruht.")
+    assert "onClick={readable ? () => onSelectStep(String(s.id)) : undefined}" in flow
+    assert "const selected = selectedId === String(s.id) && readable" in flow
+
+
+def test_the_process_is_narrow_and_its_step_numbers_are_gone():
+    """**Feste Spuren statt elastischer** (Testnotiz #445) – und **keine internen Nummern**
+    an der Oberfläche (#440).
+
+    Die Seitenspuren füllten den ganzen verfügbaren Rest; das Diagramm wurde dadurch so breit
+    wie das Fenster, ohne dass die zusätzliche Fläche etwas trug. Feste Breiten machen es
+    schmaler **und** berechenbar – erst dadurch lässt sich eine Ecke als ein Pfad zeichnen.
+
+    Die Schritt-Nummer («100000596–01») war eine Hilfskonstruktion für die Entwicklung. Sie
+    beantwortet keine Frage, die ein Mensch am Auftrag hat – der Schritt heisst nach seinem
+    Modul, und wo er steht, sagt seine Position im Fluss."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "flex: 1" not in flow.split("function Row")[1].split("// ─── Materialfluss")[0], (
+        "Die Spuren sind fest breit – sonst ist die Länge einer Abzweigung nicht berechenbar.")
+    assert "'--flow-lane'" in flow, "Ohne Nachbarn fällt die Spurbreite auf 0."
+    assert "stepNr" not in flow and "–${String(index + 1)" not in flow, (
+        "Die Schritt-Nummer war intern – sie gehört nicht an die Oberfläche (#440).")
+
+
+def test_the_order_goal_hangs_at_the_end_of_the_process():
+    """**Das Ziel gehört ans Prozessende** (Testnotiz #446) – und die Spezifikations-Karte
+    entfällt damit (#447).
+
+    Wann der Auftrag fertig sein soll, ist die Aussage des **Endknotens**, nicht eine Zeile in
+    einer Karte darüber. Und wenn der Prozess läuft, steht auch alles andere schon in ihm:
+    welche Instanz mit welcher Menge unterwegs ist, trägt die Kante (samt Artikel und Standort
+    im Hover). Eine Karte, die dasselbe noch einmal aufzählt, wäre eine zweite Wahrheit über
+    demselben Auftrag.
+
+    Im **Entwurf** bleibt sie – dort ist sie das Formular, nicht eine Wiederholung."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "goal?: { due?: string | null; seller?: string | null }" in flow
+    assert "{goal.due}" in flow, "Der Liefertermin steht sichtbar am Endknoten."
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
+    assert ") : showProcess ? null : (" in detail, (
+        "Sobald der Prozess läuft, sagt er alles – die Karte entfällt (#447).")
+    assert "goal={{" in detail and "record.desired_delivery_date" in detail
