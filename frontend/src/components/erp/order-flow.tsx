@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ClipboardPlus, MapPin, Package, X } from 'lucide-react';
-import type { FlowLot, Order, OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution,
-  StepType, SubOrderStep } from '@/types';
+import { ArrowDown, ArrowUp, Check, ClipboardPlus, MapPin, Package, Scissors, X } from 'lucide-react';
+import type { AffectedOrder, FlowLot, Order, OrderDeviationInfo, OrderOrigin, OrderStep,
+  StepResolution, StepType, SubOrderStep } from '@/types';
 import { STEP_META, instanceStatusConfig, stepStateLabel } from '@/lib/process';
 import { TYPE_META } from '@/lib/erp-record';
 import { unitLabel } from '@/lib/article';
@@ -1100,3 +1100,169 @@ function stepStatus(s: OrderStep): string | null {
 
 // (`SubOrderStep` trägt bewusst kein Label – Modul-Name und Zustandswort kommen aus der EINEN
 //  Quelle `lib/process.ts`, die gegen `domain/event_types.py` getestet ist.)
+
+
+// ─── Der Entwurf: derselbe Rahmen, schon beim Modellieren ─────────────────────────
+
+/**
+ * **Was man gleich sehen wird, sieht man schon beim Modellieren.**
+ *
+ * Wer gebundene Instanzen wählt, nimmt sie einem laufenden Auftrag weg – der Entwurf ist damit
+ * eine **Abweichung**, und nach der Freigabe hängt er als Abzweig an genau diesem Auftrag. Das
+ * Bild dafür gibt es längst (drei Spuren, Herkunft links); es kam bisher nur einen Schritt zu
+ * spät. Jetzt steht der Rahmen schon da, während man den Ablauf modelliert – dieselben
+ * Bausteine, dieselbe Geometrie, kein zweites Vokabular.
+ *
+ * **Und die Rückgabe-Linie IST die Entscheidung.** Die Unterdeckung des Halters hat drei
+ * Antworten; zwei davon sind schlicht die Frage, ob das Material zurückkommt:
+ *
+ *     Linie da    → **warten** (`wait`)   – der Auftrag ruht, bis die Menge wieder da ist
+ *     Linie weg   → **reduzieren** (`accept`) – er wird mit dem fertig, was ihm bleibt
+ *
+ * Man klickt also nicht mehr in einem Dialog auf ein Wort, sondern zeichnet den Fluss, den man
+ * meint. **«Ersetzen» bleibt bewusst draussen**: das ist keine Aussage über diesen Entwurf,
+ * sondern eine Beschaffung im anderen Auftrag – sie gehört dorthin, wo sie wirkt (an den
+ * laufenden Auftrag, `ShortfallDialog`).
+ *
+ * **Je Halter eine Linie**: greift die Auswahl auf zwei laufende Aufträge zu, darf der eine
+ * warten und der andere reduzieren. Ein Schalter für alle wäre eine Entscheidung, die so
+ * niemand getroffen hat.
+ */
+export function DraftFlowFrame({ holders, returns, onToggleReturn, onOpenOrder, children }: {
+  /** Die laufenden Aufträge, denen diese Auswahl etwas wegnimmt (`AffectedOrder`-Zeilen). */
+  holders: AffectedOrder[];
+  /** Objektnummern der Halter, an die zurückgegeben wird – der Rest wird reduziert. */
+  returns: Set<number>;
+  onToggleReturn: (objectId: number) => void;
+  onOpenOrder?: (objectId: number) => void;
+  children: React.ReactNode;
+}) {
+  // Ohne Halter gibt es keinen Rahmen: ein gewöhnlicher neuer Auftrag geht aus nichts hervor
+  // und gibt an nichts zurück – leere Spuren wären reine Dekoration.
+  if (holders.length === 0) return <>{children}</>;
+  const back = holders.filter((h) => returns.has(h.object_id));
+  return (
+    <div className="ix-noscrollbar" style={{ width: '100%', overflowX: 'auto' }}>
+      <div style={{ width: '100%', minWidth: MAIN + 2 * LANE,
+        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+        ...({ '--flow-lane': `${LANE}px` } as React.CSSProperties) }}>
+        <Row left={<DraftOriginArm holders={holders} onOpen={onOpenOrder} />} />
+        <Row><Axis h={18} strong /></Row>
+        <Row><FlowTerm kind="start" title="Start · neuer Auftrag" /></Row>
+        <Row><Axis h={18} strong /></Row>
+        <Row>{children}</Row>
+        <Row><Axis h={18} strong /></Row>
+        <Row><FlowTerm kind="end" title="Ende · neuer Auftrag" /></Row>
+        {back.length > 0 && (
+          <>
+            <Row><Axis h={18} strong /></Row>
+            <Row left={<DraftReturnArm holders={back} onToggle={onToggleReturn} />} />
+          </>
+        )}
+        {/* Die gekappten Linien stehen darunter – abgeschaltet, aber greifbar: sonst liesse
+            sich eine einmal gekappte Rückgabe nicht wieder anschalten. */}
+        {holders.length > back.length && (
+          <Row left={<DraftCutList holders={holders.filter((h) => !returns.has(h.object_id))}
+            onToggle={onToggleReturn} />} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Die Menge, die ein Halter durch die Auswahl verliert – «2 Stk von 100000595». */
+const holderLoss = (h: AffectedOrder) =>
+  `${h.quantity}${h.unit ? ` ${unitLabel(h.unit)}` : ''}`;
+
+/** Woher der Entwurf sein Material nimmt – ein Knoten je Halter, EINE Einmündung. */
+function DraftOriginArm({ holders, onOpen }: {
+  holders: AffectedOrder[]; onOpen?: (objectId: number) => void;
+}) {
+  return (
+    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: ARM }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+        width: '100%', minWidth: 0 }}>
+        {holders.map((h, i) => (
+          <div key={h.object_id} style={{ display: 'flex', flexDirection: 'column',
+            alignItems: 'center', width: '100%', minWidth: 0 }}>
+            {i > 0 && <Axis h={20} strong />}
+            <div {...aside('left', { width: '100%', minWidth: 0 })}>
+              <OrderRefNode caption="Nimmt aus" objectId={h.object_id} name={h.name}
+                icon={ArrowDown}
+                title={`${holderLoss(h)} aus ${h.name ?? 'Auftrag'} ${formatObjectId(h.object_id)} – öffnen`}
+                onClick={onOpen ? () => onOpen(h.object_id) : undefined} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <Elbow dir="in-from-left" strong />
+    </div>
+  );
+}
+
+/** Wohin es zurückgeht – ein Klick kappt die Linie (dann wird dort die Menge reduziert). */
+function DraftReturnArm({ holders, onToggle }: {
+  holders: AffectedOrder[]; onToggle: (objectId: number) => void;
+}) {
+  return (
+    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
+      <Elbow dir="out-to-left" strong />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+        width: '100%', minWidth: 0 }}>
+        {holders.map((h, i) => (
+          <div key={h.object_id} style={{ display: 'flex', flexDirection: 'column',
+            alignItems: 'center', width: '100%', minWidth: 0 }}>
+            {i > 0 && <Axis h={20} strong />}
+            <div {...aside('left', { width: '100%', minWidth: 0 })}>
+              <OrderRefNode caption="Gibt zurück an" objectId={h.object_id} name={h.name}
+                icon={Scissors}
+                title={`${holderLoss(h)} gehen zurück – der Auftrag wartet darauf. `
+                  + 'Klick: Linie kappen, dann wird dort die Menge reduziert.'}
+                onClick={() => onToggle(h.object_id)} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * **Die gekappte Linie** – der Halter bleibt sichtbar, der Weg zu ihm nicht.
+ *
+ * Ohne diese Zeile wäre die Entscheidung einseitig: einmal gekappt, nie wieder zurück. Sie
+ * trägt darum **keine Linie** – das IST die Aussage – und tritt zurück, ist aber anklickbar.
+ * Auch nicht als gestrichelte: eine zweite Strichart gibt es im Fluss nicht (#422/#429),
+ * Abwesenheit wird durch Abwesenheit gezeigt.
+ */
+function DraftCutList({ holders, onToggle }: {
+  holders: AffectedOrder[]; onToggle: (objectId: number) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+      gap: 6, width: '100%', minWidth: 0, paddingTop: 14 }}>
+      {holders.map((h) => (
+        <button key={h.object_id} type="button" onClick={() => onToggle(h.object_id)}
+          title={`${holderLoss(h)} bleiben hier – ${h.name ?? 'der Auftrag'} `
+            + `${formatObjectId(h.object_id)} wird auf die verbleibende Menge reduziert. `
+            + 'Klick: Rückgabe wieder anschalten.'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 0,
+            padding: '7px 11px', cursor: 'pointer', textAlign: 'left',
+            border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)',
+            background: 'transparent', color: 'var(--fg-4)',
+          }}>
+          <Scissors size={13} style={{ flexShrink: 0 }} />
+          <span style={{ font: '500 12px var(--font-body)', minWidth: 0, overflow: 'hidden',
+            textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            Keine Rückgabe – {h.name ?? 'Auftrag'} wird reduziert
+          </span>
+          <span style={{ font: '500 11px var(--font-mono), monospace', marginLeft: 'auto',
+            flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+            {formatObjectId(h.object_id)}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}

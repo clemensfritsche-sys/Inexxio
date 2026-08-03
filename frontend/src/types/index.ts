@@ -119,6 +119,13 @@ export type StepResolution = OrderStep['resolutions'][number];
 export type OrderShortfall = OrderApi['shortfall'][number];
 /** Ein laufender Auftrag, dem die Auswahl dieses Entwurfs etwas wegnimmt (#387). */
 export type AffectedOrder = OrderApi['affects'][number];
+/**
+ * Die drei Antworten auf eine Unterdeckung – dieselben am laufenden Auftrag wie schon beim
+ * Erteilen eines Entwurfs (Backend `schemas/order.SHORTFALL_ANSWERS`). Sie gelten **je
+ * Halter**: wer aus zwei Aufträgen Stücke nimmt, darf den einen warten lassen und den
+ * anderen reduzieren.
+ */
+export type ShortfallAnswer = 'wait' | 'replace' | 'accept';
 
 // Dokument: Inhalt (Titel/Untertitel/Abschnitte) + eingebetteter Stand im Auftrag.
 // Der Inhalt wird WÄHREND der Auftragsausführung verfasst und ausgestellt.
@@ -323,8 +330,10 @@ export interface OrderInput extends OrderRecurrenceInput {
   lines?: OrderLineCreateInput[] | null;
   /** Der auftragseigene Ablauf – derselbe Editor, nur noch nicht gespeichert. */
   steps?: ArticleProcessStepInput[] | null;
-  /** Antwort auf eine Unterdeckung, die die Auswahl bei einem laufenden Auftrag auslöst. */
-  shortfall_response?: 'wait' | 'replace' | 'accept' | null;
+  /** Antwort auf eine Unterdeckung, die die Auswahl bei laufenden Aufträgen auslöst –
+   *  **je Halter eine** ({Objektnummer: Antwort}). Im Entwurf ist sie die Rückgabe-Linie:
+   *  führt sie zu ihm, wartet er; ist sie gekappt, wird seine Menge reduziert. */
+  shortfall_responses?: Record<string, ShortfallAnswer> | null;
 }
 
 export type OrderUpdateInput = OrderRecurrenceInput & {
@@ -336,8 +345,9 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   // Abweichung · frei → gewöhnlicher Auftrag.
   picks?: InstancePickInput[] | null;
   // Antwort auf die Unterdeckung, die eine solche Auswahl beim laufenden Auftrag auslöst:
-  // warten · ersetzen · ohne Ersatz weiter. Ohne sie antwortet der Server mit 409.
-  shortfall_response?: 'wait' | 'replace' | 'accept';
+  // warten · ersetzen · ohne Ersatz weiter – **je Halter eine**. Fehlt eine, antwortet der
+  // Server mit 409 und nennt die Betroffenen.
+  shortfall_responses?: Record<string, ShortfallAnswer>;
   desired_delivery_date?: string | null;
   is_active?: boolean;
   expected_updated_at?: string | null;   // Optimistic Locking

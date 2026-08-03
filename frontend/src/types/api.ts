@@ -4393,8 +4393,10 @@ export interface components {
             lines?: components["schemas"]["OrderLineCreate"][] | null;
             /** Steps */
             steps?: components["schemas"]["ArticleProcessStepCreate"][] | null;
-            /** Shortfall Response */
-            shortfall_response?: string | null;
+            /** Shortfall Responses */
+            shortfall_responses?: {
+                [key: string]: string;
+            } | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */
@@ -4831,8 +4833,10 @@ export interface components {
             quantity?: number | null;
             /** Picks */
             picks?: components["schemas"]["InstancePick"][] | null;
-            /** Shortfall Response */
-            shortfall_response?: string | null;
+            /** Shortfall Responses */
+            shortfall_responses?: {
+                [key: string]: string;
+            } | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */

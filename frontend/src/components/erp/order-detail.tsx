@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert, PackageCheck, Lock, BadgeCheck, Pencil } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
-import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
+import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, ShortfallAnswer, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
@@ -18,7 +18,7 @@ import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
-import { OrderFlow } from '@/components/erp/order-flow';
+import { DraftFlowFrame, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
 import { orderName } from '@/lib/record-name';
@@ -29,7 +29,7 @@ import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { DocumentPanel } from '@/components/erp/document-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
-import { ShortfallDialog, type ShortfallAnswer } from '@/components/erp/shortfall-dialog';
+import { ShortfallDialog } from '@/components/erp/shortfall-dialog';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { formatObjectId, localDate } from '@/lib/utils';
@@ -687,6 +687,77 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         ? 'Erst einen Prozessschritt hinzufügen – was soll mit diesen Instanzen geschehen?'
         : 'Erst Artikel und Menge angeben';
 
+  // ── Wem nimmt dieser Entwurf etwas weg – und kommt es zurück? ─────────────────────
+  //
+  // **Eine Liste, zwei Herkünfte, EIN Zeilen-Typ.** Am gespeicherten Auftrag sagt es der
+  // Server (``affects`` – dort ist auch schon gefiltert, wer noch läuft); im Browser-Entwurf
+  // gibt es keinen Datensatz zu fragen, also wird es aus der Auswahl abgeleitet: ein genannter
+  // Anteil (``from_order_object_id``) IST der Halter, und was hier gewählt wird, verliert er.
+  // Ein **freier** Anteil gehört niemandem – er taucht darum gar nicht auf.
+  const draftHolders: AffectedOrder[] = ((): AffectedOrder[] => {
+    if (!isCreate) return record?.affects ?? [];
+    const by = new Map<number, AffectedOrder>();
+    for (const l of pinLines) {
+      const unit = articles.find((a) => a.id === l.articleId)?.unit ?? null;
+      for (const p of l.picked) {
+        const oid = p.from_order_object_id;
+        if (oid == null) continue;
+        const sh = l.shares.find((s) => s.instanceObjectId === p.instance_object_id
+          && s.holderObjectId === oid);
+        const row = by.get(oid) ?? {
+          object_id: oid, name: sh?.holderName ?? null, reason: sh?.holderReason ?? null,
+          article_name: null, unit, quantity: 0, sources: [],
+        };
+        by.set(oid, {
+          ...row, quantity: row.quantity + (p.quantity ?? 0),
+          sources: [...row.sources,
+            { instance_object_id: p.instance_object_id, quantity: p.quantity ?? 0 }],
+        });
+      }
+    }
+    return [...by.values()].sort((a, b) => a.object_id - b.object_id);
+  })();
+
+  // **Wen der Server GERADE gefragt hat** – die 409-Antwort nennt sie. Sie ist die
+  // verlässlichste Auskunft, die es gibt: beim Browser-Entwurf existiert kein Datensatz, den
+  // man vorher lesen könnte, und an einem gespeicherten Entwurf kann `affects` veraltet sein.
+  const [serverAffects, setServerAffects] = useState<AffectedOrder[]>([]);
+
+  // **Gekappt wird bewusst, zurückgegeben ist der Normalfall.** Gemerkt wird darum die
+  // Ausnahme: ein neu hinzukommender Halter gibt automatisch zurück, ohne dass irgendein
+  // Effekt Listen abgleichen müsste.
+  const [cutReturns, setCutReturns] = useState<Set<number>>(new Set());
+  const returnsTo = new Set(
+    draftHolders.map((h) => h.object_id).filter((id) => !cutReturns.has(id)));
+  function toggleReturn(objectId: number) {
+    setCutReturns((prev) => {
+      const next = new Set(prev);
+      if (next.has(objectId)) next.delete(objectId); else next.add(objectId);
+      return next;
+    });
+  }
+  // Was der Fluss nicht zeigt, fragt weiterhin der Dialog. Hat der Server gefragt, gilt SEINE
+  // Liste – sonst die des Datensatzes.
+  const uncoveredAffects = (serverAffects.length > 0 ? serverAffects : (record?.affects ?? []))
+    .filter((a) => !draftHolders.some((h) => h.object_id === a.object_id));
+
+  /**
+   * **Die Rückgabe-Linien SIND die Antwort** – je Halter eine (`wait` ↔ `accept`).
+   *
+   * `fallback` deckt die Halter ab, die der Entwurf nicht zeigen konnte: eine Auswahl kann
+   * über den genannten Anteil hinaus auf weitere Ansprüche durchgreifen (``shares.losses``),
+   * und für die fragt weiterhin der Dialog. Seine Antwort gilt für die Unbekannten – die
+   * gezeichneten Linien behalten Vorrang.
+   */
+  function allAnswers(fallback?: ShortfallAnswer): Record<string, ShortfallAnswer> {
+    const out: Record<string, ShortfallAnswer> = {};
+    if (fallback) for (const a of uncoveredAffects) out[String(a.object_id)] = fallback;
+    for (const h of draftHolders) {
+      out[String(h.object_id)] = returnsTo.has(h.object_id) ? 'wait' : 'accept';
+    }
+    return out;
+  }
+
   // **Die Auswahl fragt nichts mehr** (Notiz #370): ein Entwurf nimmt niemandem etwas weg –
   // er merkt nur vor. Die Frage «was geschieht mit dem laufenden Auftrag?» steht bei der
   // **Freigabe** (siehe ``changeStatus``), wo die Auswahl feststeht.
@@ -701,7 +772,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
       const saved = line.lineId != null
         ? await api.setOrderLinePins(record.object_id as number, line.lineId, { picks })
         : await api.updateOrder(record.object_id as number, {
-            picks, shortfall_response: answer, expected_updated_at: verRef.current });
+            picks, expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
       onSaved(saved);
     } catch (e) {
@@ -847,7 +918,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // Entwurf im Browser gesammelt hat, geht in EINEM Aufruf hinaus – Bedarf, Positionen,
   // Ablauf und Auswahl. Erst dort bekommt er seine Objektnummer. Scheitert etwas, bleibt
   // nichts zurück; wer wegklickt, hat verworfen.
-  async function submitDraft(answer?: ShortfallAnswer) {
+  async function submitDraft(fallback?: ShortfallAnswer) {
     // Anker + weitere Positionen: der Server kennt genau diese Form (die erste zusätzliche
     // Position wandelt den Anker in Position 0 um) – hier wird sie nur bedient.
     const lines = draft.order_lines ?? [];
@@ -872,7 +943,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         recurrence_interval_days: draft.recurrence_interval_days ?? null,
         recurrence_lead_time_days: draft.recurrence_lead_time_days ?? null,
         recurrence_anchor: draft.recurrence_anchor ?? null,
-        shortfall_response: answer ?? null,
+        // **Die Rückgabe-Linien sind die Antwort** – je Halter eine. Der Dialog kommt nur
+        // noch für Halter zum Zug, die der Entwurf nicht kennen konnte (`fallback`): eine
+        // Auswahl kann über den genannten Anteil hinaus auf weitere Ansprüche durchgreifen.
+        shortfall_responses: allAnswers(fallback),
       });
       setPendingRelease(null);
       onSaved(created);
@@ -881,24 +955,21 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
       // Betroffenen – dann wird gefragt statt abgebrochen (Notizen #370/#387). Beim
       // Entwurf erfährt man sie erst hier: es gibt ja noch keinen Datensatz zu lesen.
       if (isShortfallQuestion(e)) {
-        setDraftAffects(shortfallAffects(e));
+        setServerAffects(shortfallAffects(e));
         setPendingRelease({ target: 'released' });
       } else setError(e instanceof Error ? e.message : 'Auftrag konnte nicht erteilt werden');
     } finally {
       setStatusBusy(false);
     }
   }
-  // Die betroffenen Aufträge zur offenen Frage – beim Entwurf nennt sie der Server erst mit
-  // dem Fehlschlag (es gibt ja noch keinen Datensatz, den man vorher lesen könnte).
-  const [draftAffects, setDraftAffects] = useState<AffectedOrder[]>([]);
 
-  async function changeStatus(target: string, answer?: ShortfallAnswer) {
+  async function changeStatus(target: string, fallback?: ShortfallAnswer) {
     if (!record) return;
     setStatusBusy(true);
     setError(null);
     try {
       const saved = await api.updateOrder(record.object_id as number,
-        { status: target as Order['status'], shortfall_response: answer,
+        { status: target as Order['status'], shortfall_responses: allAnswers(fallback),
           expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
       setPendingRelease(null);
@@ -907,8 +978,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
       // **Die Frage kommt bei der Freigabe** (Notiz #370): Erst hier steht die Auswahl fest
       // und nimmt einem laufenden Auftrag wirklich etwas weg. Der Server sagt das mit einem
       // Code (und nennt die Betroffenen) – die Frage stellen statt sie wegzuwerfen.
-      if (isShortfallQuestion(e)) setPendingRelease({ target });
-      else {
+      if (isShortfallQuestion(e)) {
+        // Der Server nennt, wen es trifft – auch hier, statt sich auf `affects` am (womöglich
+        // veralteten) Datensatz zu verlassen. Sonst stünde die Frage über eine leere Liste.
+        setServerAffects(shortfallAffects(e));
+        setPendingRelease({ target });
+      } else {
         setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
         if (isVersionConflict(e)) await resyncVersion();
       }
@@ -966,6 +1041,25 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   ];
   const statusActions = orderActions(record.status, canRelease, releaseHint);
   const companyAddr = company ? [company.street, company.street_number].filter(Boolean).join(' ') : '';
+
+  // **Der Ablauf des Entwurfs – EIN Editor, egal welche Auftragsart** (Unter-Auftrag wie
+  // gewöhnlicher Auftrag mit eigenem Ablauf). Er wird hier als Knoten gebaut, weil er
+  // gleich IN den Rahmen des Flusses gesetzt wird; ohne Halter steht er weiterhin frei im
+  // Weissraum, genau wie der Prozess-Reiter am Artikel.
+  //
+  // Kein Editor bei «Erzeugen»: dort läuft der Prozess des ARTIKELS – der wird darüber
+  // gespiegelt (lesend), nicht hier definiert.
+  const draftEditor = isStaff && record?.status === 'draft'
+    && (isSubOrder || isMultiPosition || goal !== 'produce')
+    ? (
+      // FIX (historisch): `suppliers` war hier als [] hartkodiert – ein Beschaffungs-Schritt
+      // am Auftrag konnte NIE einen Lieferanten wählen, obwohl welche existieren.
+      <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
+        // Im Browser-Entwurf schreibt derselbe Editor in den lokalen Speicher statt in die
+        // API – den Auftrag gibt es ja noch nicht (#386).
+        store={isCreate ? draftStore : undefined}
+        selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
+    ) : null;
 
   return (
     <div className="flex flex-col h-full">
@@ -1233,38 +1327,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         {/* «Abweichung melden» sitzt jetzt als kleiner Flag-Knopf im Kopf (analog Instanz) –
             keine eigene Karte mehr im Detailfenster. */}
 
-        {/* Unter-Auftrag (Entwurf): der Bedarf steht oben (und ist erweiterbar, #355) – hier
-            wird der Ablauf definiert, dann freigegeben. Abweichung = was mit den Instanzen
-            geschieht; Nachschub = wie die Fehlmenge entsteht/beschafft wird. */}
-        {isStaff && record?.status === 'draft' && isSubOrder && (
-          <>
-            {/* Gleiche Darstellung wie am Artikel: der Editor steht frei, ohne zweite Karte. */}
-            <div style={{ marginBottom: 12 }}>
-              {/* FIX: suppliers war hier (und an den zwei weiteren Stellen) als [] hartkodiert –
-                  ein Beschaffungs-Schritt am Auftrag konnte NIE einen Lieferanten wählen
-                  («Keine Lieferanten vorhanden»), obwohl welche existieren. */}
-              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
-                selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
-            </div>
-          </>
-        )}
-
-        {/* ── Ablauf ──────────────────────────────────────────────────────────────
-            Gleiche Darstellung wie der Prozess-Reiter am Artikel: `ProcessSteps` steht
-            frei im Weissraum statt in einer zusätzlichen Karte – es ist derselbe Editor,
-            also soll er auch gleich aussehen. */}
-        {isStaff && record?.status === 'draft' && !isSubOrder && (isMultiPosition || goal !== 'produce') && (
-          <>
-            <div style={{ marginBottom: 12 }}>
-              {/* Im Entwurf schreibt derselbe Editor in den Browser-Speicher statt in die
-                  API – den Auftrag gibt es ja noch nicht (#386). */}
-              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
-                store={isCreate ? draftStore : undefined}
-                selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
-            </div>
-          </>
-        )}
-
         {/* «Erzeugen» hat keinen eigenen Ablauf – es läuft der Prozess des Artikels. Statt
             das nur zu behaupten, wird er hier **gezeigt**: dieselbe Komponente, dieselben
             Daten, nur lesend (`owner="articles"`). Eine 1:1-Spiegelung, keine Kopie – wer
@@ -1292,6 +1354,25 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         {/* Drei gleich breite Spuren (#491) brauchen mehr Raum als vorher – das Diagramm
             bleibt zentriert und scrollt notfalls in seinem eigenen Kasten, nie die Seite. */}
         <div style={{ maxWidth: 1460, marginInline: 'auto', width: '100%' }}>
+
+        {/* ── Der Entwurf: derselbe Rahmen, schon beim Modellieren ────────────────
+            Der Editor sitzt in der **Mitte** desselben Drei-Spuren-Bildes, das der Auftrag
+            gleich nach der Freigabe hat: links die laufenden Aufträge, denen die Auswahl
+            ihr Material wegnimmt, unten die Rückgabe-Linie zu ihnen – und die IST die
+            Entscheidung (Linie da = warten, gekappt = Menge dort reduzieren).
+
+            Ohne Halter ändert sich nichts: `DraftFlowFrame` rendert dann nur den Editor,
+            frei im Weissraum wie am Artikel – ein gewöhnlicher neuer Auftrag geht aus
+            nichts hervor und gibt an nichts zurück. */}
+        {draftEditor && (
+          <div style={{ marginBottom: 12 }}>
+            <DraftFlowFrame holders={draftHolders} returns={returnsTo}
+              onToggleReturn={toggleReturn} onOpenOrder={nav ?? undefined}>
+              {draftEditor}
+            </DraftFlowFrame>
+          </div>
+        )}
+
         {showProcess ? (
           <>
             {/* **Wo stehe ich?** – die Kette vom Hauptauftrag bis hierher (#413). Ein
@@ -1406,8 +1487,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           onAnswer={(a, ids) => { setDecideOpen(false); answerShortfall(a, ids); }}
           onClose={() => setDecideOpen(false)} />
       )}
-      {pendingRelease && (
-        <ShortfallDialog busy={statusBusy} affected={isCreate ? draftAffects : (record?.affects ?? [])}
+      {/* **Der Dialog ist nur noch das Netz.** Über die Halter, die im Fluss stehen, ist
+          bereits entschieden – die Rückgabe-Linie IST die Antwort. Er kommt darum nur für
+          das, was der Entwurf nicht zeigen konnte: eine Auswahl kann über den genannten
+          Anteil hinaus auf weitere Ansprüche durchgreifen (``shares.losses``). */}
+      {pendingRelease && uncoveredAffects.length > 0 && (
+        <ShortfallDialog busy={statusBusy} affected={uncoveredAffects}
           onAnswer={(a) => (isCreate ? submitDraft(a) : changeStatus(pendingRelease.target, a))}
           onClose={() => setPendingRelease(null)} />
       )}

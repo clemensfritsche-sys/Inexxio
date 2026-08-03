@@ -12477,16 +12477,19 @@
             ],
             "title": "Steps"
           },
-          "shortfall_response": {
+          "shortfall_responses": {
             "anyOf": [
               {
-                "type": "string"
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Shortfall Response"
+            "title": "Shortfall Responses"
           },
           "desired_delivery_date": {
             "anyOf": [
@@ -13734,16 +13737,19 @@
             ],
             "title": "Picks"
           },
-          "shortfall_response": {
+          "shortfall_responses": {
             "anyOf": [
               {
-                "type": "string"
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Shortfall Response"
+            "title": "Shortfall Responses"
           },
           "desired_delivery_date": {
             "anyOf": [

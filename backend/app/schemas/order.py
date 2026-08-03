@@ -15,6 +15,21 @@ from .resource import ResourceEmbed
 from .sale import SaleEmbed
 
 
+# Die drei Antworten auf eine Unterdeckung – dieselben am laufenden Auftrag
+# (``services/recovery.py``) wie schon bei der Freigabe eines Entwurfs. EINE Stelle, weil
+# sowohl die Feld-Validierung als auch der Router sie braucht.
+SHORTFALL_ANSWERS = ("wait", "replace", "accept")
+
+
+def _validate_shortfall(v: Optional[dict]) -> Optional[dict]:
+    """Je Halter genau eine der drei Antworten – sonst ist es keine Antwort."""
+    for key, answer in (v or {}).items():
+        if answer not in SHORTFALL_ANSWERS:
+            raise ValueError(
+                f"Antwort für Auftrag {key} muss eine von {', '.join(SHORTFALL_ANSWERS)} sein")
+    return v
+
+
 class ShortfallInstance(BaseModel):
     """Eine freie, freigegebene Instanz am Lager, mit der sich eine Fehlmenge decken liesse
     («Andere Instanz wählen»)."""
@@ -376,9 +391,11 @@ class OrderUpdate(BaseModel):
     # Nimmt die Auswahl einem LAUFENDEN Auftrag sein Stück weg, entsteht dort sofort eine
     # Unterdeckung – und die will beantwortet sein, bevor die Abweichung steht:
     # ``wait`` (offen lassen) · ``replace`` (ersetzen) · ``accept`` (ohne Ersatz weiter).
-    # Fehlt die Antwort in so einem Fall, antwortet der Server mit 409 und nennt die
-    # betroffenen Aufträge.
-    shortfall_response: Optional[str] = None
+    # **Je Halter eine Antwort** ({Objektnummer: Antwort}) – wer aus zwei laufenden Aufträgen
+    # Stücke nimmt, darf den einen warten lassen und den anderen reduzieren; eine Antwort für
+    # alle wäre eine Entscheidung, die niemand so getroffen hat. Fehlt die Antwort für einen
+    # Betroffenen, antwortet der Server mit 409 und nennt sie alle.
+    shortfall_responses: Optional[dict[str, str]] = None
     desired_delivery_date: Optional[date] = None
     recurrence_active: Optional[bool] = None
     recurrence_interval_days: Optional[int] = None
@@ -403,6 +420,11 @@ class OrderUpdate(BaseModel):
     @classmethod
     def _qty_positive(cls, v: Optional[int]) -> Optional[int]:
         return _validate_qty(v)
+
+    @field_validator("shortfall_responses")
+    @classmethod
+    def _answers_allowed(cls, v: Optional[dict]) -> Optional[dict]:
+        return _validate_shortfall(v)
 
     @field_validator("desired_delivery_date")
     @classmethod
@@ -445,8 +467,8 @@ class OrderCreate(BaseModel):
     # Artikel-Prozess (Erzeugung) – das bleibt unverändert.
     steps: Optional[list[ArticleProcessStepCreate]] = None
     # Antwort auf eine Unterdeckung, die die Auswahl bei laufenden Aufträgen auslöst
-    # (wait | replace | accept) – dieselben drei wie am laufenden Auftrag.
-    shortfall_response: Optional[str] = None
+    # (wait | replace | accept) – **je Halter eine**, {Objektnummer: Antwort}.
+    shortfall_responses: Optional[dict[str, str]] = None
     desired_delivery_date: Optional[date] = None
     # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
     recurrence_active: Optional[bool] = None
@@ -458,6 +480,11 @@ class OrderCreate(BaseModel):
     @classmethod
     def _qty_positive(cls, v: float) -> float:
         return _validate_qty(v)
+
+    @field_validator("shortfall_responses")
+    @classmethod
+    def _answers_allowed(cls, v: Optional[dict]) -> Optional[dict]:
+        return _validate_shortfall(v)
 
     @field_validator("desired_delivery_date")
     @classmethod

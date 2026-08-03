@@ -4049,6 +4049,51 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_branch_names_the_module_from_one_place`; gegen echtes PostgreSQL 16 verifiziert
   (21 Prüfungen – u. a. «Teaser und eigene Ansicht sagen dasselbe» für beide Abzweige).
 
+- **Der Entwurf trägt schon den Rahmen – und die Rückgabe-Linie IST die Entscheidung**
+  (August 2026, `components/erp/order-flow.tsx: DraftFlowFrame`): Wer gebundene Instanzen
+  wählt, hat eine **Abweichung** – und die hängt nach der Freigabe als Abzweig am laufenden
+  Auftrag. Das Bild dafür gab es längst (drei Spuren, Herkunft links, Rückweg unten); es kam
+  nur einen Schritt zu spät. Jetzt steht es schon beim **Modellieren** da: der Schritt-Editor
+  sitzt in der **Mitte** desselben Rahmens, links die Aufträge, denen die Auswahl ihr Material
+  wegnimmt. Dieselben Bausteine (`Row`/`Axis`/`Elbow`/`FlowTerm`/`OrderRefNode`), dieselbe
+  Geometrie, kein zweites Vokabular – und ohne Halter ändert sich gar nichts: der Editor steht
+  frei im Weissraum wie am Artikel (ein gewöhnlicher neuer Auftrag geht aus nichts hervor).
+  **Die Unterdeckungs-Frage wird dadurch gezeichnet statt angeklickt.** Von ihren drei
+  Antworten sind zwei schlicht die Frage, ob das Material zurückkommt:
+      Linie da    → **warten** (`wait`)     – der Halter ruht, bis die Menge wieder da ist
+      Linie weg   → **reduzieren** (`accept`) – er wird mit dem fertig, was ihm bleibt
+  Geklickt wird die Linie selbst (Rückgabe-Knoten kappt, Zeile darunter schaltet wieder an);
+  gemerkt wird die **Ausnahme** (`cutReturns`), damit ein neu hinzukommender Halter
+  automatisch zurückgibt, ohne dass ein Effekt Listen abgleichen müsste. **«Ersetzen» bleibt
+  bewusst draussen**: das ist keine Aussage über diesen Entwurf, sondern eine Beschaffung im
+  anderen Auftrag – sie gehört dorthin, wo sie wirkt (`ShortfallDialog` am laufenden Auftrag).
+  **Je Halter eine Antwort – am API-Rand wie in der Oberfläche.** `shortfall_response` (ein
+  Skalar, per Schleife auf ALLE Betroffenen angewandt) ist zu `shortfall_responses`
+  `{Objektnummer: Antwort}` geworden: wer aus zwei laufenden Aufträgen Stücke nimmt, darf den
+  einen warten lassen und den anderen reduzieren – eine Antwort über alle wäre eine
+  Entscheidung, die so niemand getroffen hat. `_answer_for(answers, holder)` ist die EINE
+  Auflösung, die Prüfung und Anwendung teilen; fehlt auch nur eine Antwort, wird die Frage
+  für alle gestellt, genannt werden aber nur die **offenen**. Der Dialog ist damit nur noch
+  das **Netz** für Halter, die der Fluss nicht zeigen konnte (eine Auswahl kann über den
+  genannten Anteil hinaus auf weitere Ansprüche durchgreifen, `shares.losses`) – und weil die
+  409-Antwort selbst sagt, wen es trifft, liest die Oberfläche jetzt in **beiden** Pfaden
+  diese Liste statt eines womöglich veralteten `affects` am Datensatz.
+  **Ein echter Fehler dabei gefunden** (gegen echtes PostgreSQL 16): `_resolve_picks` ist
+  nach `{instanz: menge}` geschlüsselt – zwei angeklickte Zeilen **derselben** Instanz
+  überschrieben einander **still**. Aus «3 von A und 2 von B» wurde «2 von B»: der Auftrag war
+  plötzlich kleiner als gewählt, und A wurde nie gefragt. Die Mengen zählen jetzt zusammen
+  (Obergrenze über die Summe geprüft), genannt bleibt der **erste** Halter, den Rest verteilt
+  `shares.losses` nach ihrer Rangfolge – gefragt werden dadurch beide. *Offen und bewusst
+  nicht gebaut:* auf EINER Instanz verliert der zweite genannte Halter erst nach dem freien
+  Rest, weil `orders.pick_sources` je Instanz nur EINEN Halter trägt; per-Anteil-Exaktheit
+  bräuchte dort eine Liste mit Mengen und ist eine eigene Runde wert. Der Normalfall –
+  mehrere Instanzen in verschiedenen Aufträgen – ist exakt.
+  Wächter: `test_every_holder_gets_its_own_answer`, `test_two_shares_of_one_instance_add_up`,
+  `test_frontend_mirrors.py: test_the_draft_is_framed_like_the_order_it_will_become`; gegen
+  echtes PostgreSQL 16 verifiziert (14 + 8 Prüfungen: beide Halter genannt, halbe Antwort
+  genügt nicht, warten ↔ reduzieren wirken getrennt, freier Anteil fragt niemanden, zwei
+  Zeilen derselben Instanz zählen zusammen).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
