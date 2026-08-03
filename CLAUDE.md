@@ -3597,10 +3597,55 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Lieferant Weber AG». Die Nummer verankert den Schritt im Auftrag, die Kurzzeile kommt aus
   dem Embed, den der Schritt ohnehin trägt (Lieferant/Menge · Ziel · Proben) – nichts wird
   dafür zusätzlich geladen.
-  Wächter: `test_a_sub_order_is_teased_beside_the_axis_not_unfolded_in_it`,
+  Wächter: `test_a_sub_order_is_a_regular_process_beside_the_axis`,
   `test_the_flow_shows_what_material_moves`; gegen echtes PostgreSQL verifiziert
   (`note413.py` 10/10 – 4 rein/4 zurück, 2 rein/**0 zurück**, Menge am Link, Kette +
   Eltern-Teaser), alle 18 Harnesses grün.
+
+- **Testnotizen-Runde 30 (ein Prozess, drei Spuren, Notizen #416–#420)**: Fünf Notizen,
+  EIN Thema – der Abzweig war ein Fremdkörper im eigenen Fluss.
+  (1) **Ein Unter-Auftrag wird ganz regulär dargestellt** (#418, «keine Sonderbehandlung.
+  ein design / ein system für alles»): seine Module sind dieselben `StepCard`s wie auf der
+  Hauptachse – gleiche Anatomie, gleiche Modulfarbe, gleiche Zustands-Symbole, gleiche
+  Nummerierung («100000591–01»). Der Miniatur-`TeaserStep` (Symbol + Name, halb so gross,
+  kein Detail) war eine **zweite Bildsprache für dieselbe Sache**: «Datenerfassung» sah
+  nebenan anders aus als auf der Achse. Es gibt jetzt genau EINE Modul-Karte im Fluss, mit
+  `compact` als einzigem Unterschied; was ein Abzweig nicht mitliefert (Kurzzeile,
+  Beleg-Status), bleibt leer – ein fehlendes Detail, kein anderes Bauteil.
+  (2) **Die Abzweigung geht oben mittig in den Unterprozess** (#417): waagrecht aus der
+  Achse bis zur **Mitte** der Seitenspur, dann senkrecht in seinen Kopf hinein – und dort
+  läuft die Linie **durch** ihn hindurch, vom Kopf über seine Module bis zu dem, was
+  zurückkommt. Vorher stiess der Ast seitlich an einen Kasten, in dem gar keine Linie war;
+  ein «Prozess» ohne Prozesslinie ist keiner. Gestrichelt ist ab jetzt **ausschliesslich**
+  der Übergang zwischen zwei Aufträgen (Abzweigung · Herkunft · Rückweg) – aus EINER Stelle
+  (`LINK_H`/`LINK_V`); der Prozess selbst ist hier wie dort durchgezogen.
+  (3) **Kein Container um den Abzweig** (#420): was ihn zusammenhält, ist der Prozess selbst
+  – sein **Kopf** (dieselbe Anatomie wie ein Modul, aber gestrichelt umrandet: die im Fluss
+  längst etablierte Bedeutung für «gehört nicht zu dieser Linie»), seine Linie, seine
+  Module, und oben/unten die Mengen (`flow_in`/`flow_out`). Damit ist er zugleich **besser
+  sichtbar** (volle Modulfarben statt 0.7-Opazität hinter einer Maske) **und dezenter**
+  (kein zweiter Rahmen um etwas, das schon aus Karten besteht). Die weggeblendete Kante
+  (`WebkitMaskImage`) ist mit entfallen – sie war die Entschuldigung dafür, dass der Abzweig
+  nicht hinpasste.
+  (4) **Der Hauptprozess läuft durch die MITTE** (#419): eine Zeile des Flusses ist jetzt
+  **drei Spuren** – links der Auftrag, aus dem dieser hervorging (und wohin er zurückgibt),
+  in der Mitte die eigene Achse, rechts die Abzweige. Vorher lag die Achse links, weil
+  rechts die Äste hingen; die **Herkunft** musste sich darum nach oben zwängen, obwohl sie
+  fachlich dasselbe ist wie ein Abzweig, nur aus der Gegenrichtung. Jetzt sind `OriginArm`
+  und `ReturnArm` exakte Spiegelbilder von `BranchCell` (gleiche Elbow-Geometrie, gleiche
+  Bausteine) und stehen auf **derselben** Seite. Weil beide Seitenspuren echte Modul-Karten
+  tragen, bekommt das Diagramm im Detailfenster eine eigene, breitere Spur (`maxWidth: 1340`
+  statt der 880-px-Satzbreite) – es bleibt zentriert, also in einer Flucht mit der
+  Spezifikation darüber, und scrollt notfalls in **seinem eigenen** Kasten, nie die Seite.
+  (5) **Was gegangen ist, ist eine starke Volllinie** (#416): die Achse trägt den
+  Fortschritt selbst – der durchlaufene Teil kräftig (`--fg-2`, 3 px), der Rest Haarlinie.
+  Gerechnet wird der **führende** erledigte Lauf, damit eine durchgehende Linie entsteht
+  («wie weit ist er?») statt verstreuter starker Stücke; ein offener Abzweig hält sie an,
+  genau dort, wo auch der Prozess anhält. Dieselbe Regel im Unterprozess.
+  Wächter: `test_a_sub_order_is_a_regular_process_beside_the_axis`,
+  `test_the_main_process_runs_down_the_middle`,
+  `test_what_has_been_walked_is_a_strong_solid_line`,
+  `test_the_branch_names_the_module_from_one_place`.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
