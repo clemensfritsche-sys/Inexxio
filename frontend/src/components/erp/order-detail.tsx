@@ -974,6 +974,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         // auf einem 3440er-Schirm lief die Auftragsspezifikation sonst über die ganze
         // Breite, während der Prozess-Fluss darunter zentriert bei 600 px blieb – zwei
         // Massstäbe in einem Fenster.
+        <>
         <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
         {/* Fehler stehen zuoberst im Inhalt – direkt unter der Aktion, die sie ausgelöst
             hat (Freigeben/Speichern sitzen im Kopf). Kein Fussleisten-Streifen mehr. */}
@@ -1202,7 +1203,15 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           </>
         )}
 
-        {/* Prozess */}
+        </div>
+        {/* ── Prozess ─────────────────────────────────────────────────────────────
+            **Ein Diagramm braucht mehr Raum als eine Textspalte** (Notiz #419): die Achse
+            dieses Auftrags läuft durch die MITTE, links liegt der Auftrag, aus dem er
+            hervorging, rechts die, die er abgezweigt hat. Beide Spuren tragen echte
+            Modul-Karten (#418) – in einer 880-px-Satzbreite wäre für sie kein Platz. Der
+            Fluss bleibt zentriert, also bleibt er auch mit der Spezifikation darüber in
+            einer Flucht; er scrollt notfalls in seinem eigenen Kasten, nie die Seite. */}
+        <div style={{ maxWidth: 1340, marginInline: 'auto', width: '100%' }}>
         {showProcess ? (
           <>
             {/* **Wo stehe ich?** – die Kette vom Hauptauftrag bis hierher (#413). Ein
@@ -1267,8 +1276,8 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
               viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
           </>
         ) : null}
-
-        </div>)}
+        </div>
+        </>)}
       </div>
 
       {/* Kein Footer mehr (Notiz #140). Die drei Dinge, die er trug, stehen jetzt dort,

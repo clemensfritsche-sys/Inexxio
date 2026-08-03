@@ -321,15 +321,15 @@ def test_a_sub_order_carries_its_own_state_in_the_flow():
     assert "record.paused === true || record.status === 'inactive'" in detail
 
 
-def test_the_step_teaser_names_the_module_from_one_place():
-    """**Der Teaser leiht sich das Vokabular, er erfindet keins** (Testnotiz #409).
+def test_the_branch_names_the_module_from_one_place():
+    """**Der Abzweig leiht sich das Vokabular, er erfindet keins** (Testnotizen #409/#418).
 
-    Der Miniatur-Fluss im Unter-Auftrags-Knoten zeigt je Modul ein Symbol und nennt im Hover
-    Modul und Zustand. Beides ist längst da: die Schrittnamen/-symbole in
-    ``lib/process.STEP_META`` (gegen ``domain/event_types.py`` getestet) und – neu, aber
-    ebenfalls dort – das Zustandswort. Darum trägt ``SubOrderStep`` **kein** Label: würde der
-    Name mitgeschickt, gäbe es ihn an zwei Stellen, und «Aussondern» hiesse irgendwann im
-    Teaser noch «Ausschleusen».
+    Der Prozess eines Unter-Auftrags zeigt je Modul Symbol und Namen und nennt im Hover
+    seinen Zustand. Beides ist längst da: die Schrittnamen/-symbole in
+    ``lib/process.STEP_META`` (gegen ``domain/event_types.py`` getestet) und – ebenfalls dort –
+    das Zustandswort. Darum trägt ``SubOrderStep`` **kein** Label: würde der Name
+    mitgeschickt, gäbe es ihn an zwei Stellen, und «Aussondern» hiesse irgendwann im Abzweig
+    noch «Ausschleusen».
     """
     from app.schemas.order import SubOrderStep
 
@@ -356,27 +356,75 @@ def test_the_step_teaser_names_the_module_from_one_place():
     assert "'zurück an'" in flow or "zurück an" in flow
 
 
-def test_a_sub_order_is_teased_beside_the_axis_not_unfolded_in_it():
-    """**Der Abzweig hängt an der Achse – angeschnitten** (Testnotizen #410/#413).
+def test_a_sub_order_is_a_regular_process_beside_the_axis():
+    """**Ein Abzweig ist ein ganz regulärer Prozess – keine Sonderbehandlung**
+    (Testnotizen #417/#418/#420).
 
-    Zwischenstufe war, ihn im Hauptfluss auszuklappen (eigener Start-/Endknoten, alle
-    Schritte). Das war zu viel: ein Unter-Auftrag ist ein **eigener Datensatz** mit eigenem
-    Fenster; ihn hier auszubreiten baut dasselbe zweimal und zieht den Blick vom
-    Hauptprozess weg.
+    Zwei Zwischenstufen sind damit überholt: ihn im Hauptfluss **auszuklappen** (eigene
+    Terminal-Knoten mitten in der Achse) war zu viel; ihn als **angeschnittenen Teaser** mit
+    eigenem, kleinerem Vokabular zu zeigen (``TeaserStep`` + Maske) war eine zweite
+    Bildsprache für dieselbe Sache – «Datenerfassung» sah nebenan anders aus als auf der
+    Achse, und der Kasten drumherum war ein zweiter Rahmen um etwas, das schon aus Karten
+    besteht.
 
-    Jetzt läuft die Achse ununterbrochen weiter und der Abzweig sitzt als **Ast** daneben:
-    man sieht, dass es ihn gibt, welche Module er hat und wie weit er ist – und dass es
-    mehr zu sehen gibt, weil er rechts **ausläuft** (Maske statt harter Kante). Wer mehr
-    will, klickt ihn an und ist im Datensatz."""
+    Jetzt gilt: **ein Design, ein System.** Die Achse läuft ununterbrochen weiter; der
+    Abzweig hängt daneben und ist dort ein normaler Prozess – dieselbe ``StepCard``, dieselbe
+    Modulfarbe, dieselbe Nummerierung, seine Linie läuft **durch** ihn hindurch. Die
+    Abzweigung geht dabei **oben mittig** in ihn hinein (#417), und gestrichelt ist nur der
+    Übergang zwischen zwei Aufträgen."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    for part in ("function BranchArm", "function BranchTeaser", "function TeaserStep"):
+    for part in ("function BranchArm", "function BranchCell", "function SubProcess",
+                 "function BranchHead"):
         assert part in flow, f"Dem Fluss fehlt {part}"
-    assert "WebkitMaskImage" in flow, (
-        "Der Teaser läuft rechts aus – die Einladung, ihn zu öffnen, statt einer harten Kante."
-    )
-    assert "onOpen?.(info.object_id)" in flow, "Der Teaser öffnet den Datensatz."
+    for gone in ("function TeaserStep", "WebkitMaskImage"):
+        assert gone not in flow, (
+            f"{gone}: ein Abzweig braucht kein zweites Vokabular und keinen Kasten (#418/#420).")
+    # EINE Modul-Karte für den ganzen Fluss – Hauptachse wie Abzweig.
+    assert flow.count("function StepCard") == 1, "Es gibt genau EINE Modul-Karte."
+    assert "<StepCard compact" in flow, (
+        "Der Abzweig nutzt dieselbe Karte, nur eine Nummer kleiner – kein eigenes Bauteil.")
+    # Die Abzweigung: waagrecht aus der Achse, dann senkrecht oben mittig hinein (#417).
+    assert "left: -MAIN / 2" in flow and "right: '50%'" in flow, "waagrecht bis zur Spurmitte"
+    assert "height: ARM" in flow, "senkrecht oben mittig in den Unterprozess"
+    assert "onOpen?.(info.object_id)" in flow, "Der Abzweig öffnet den Datensatz."
     # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt.
     assert '<FlowTerm kind="start" />' in flow and '<FlowTerm kind="end" />' in flow
+
+
+def test_the_main_process_runs_down_the_middle():
+    """**Der eigene Prozess läuft durch die Mitte** (Testnotiz #419).
+
+    Er lag links, weil rechts die Abzweige hingen – die Herkunft musste sich darum nach oben
+    zwängen. Mit einer mittigen Achse hat beides seinen festen Platz: **links** der Auftrag,
+    aus dem dieser hervorging (und wohin er zurückgibt), **rechts** die, die er abgezweigt
+    hat. Eine Zeile des Flusses ist damit drei Spuren – und weil beide Seitenspuren echte
+    Modul-Karten tragen (#418), bekommt das Diagramm mehr Raum als die 880-px-Satzbreite des
+    übrigen Fensters; waagrecht scrollt es notfalls in seinem eigenen Kasten, nie die Seite."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "left?: React.ReactNode; right?: React.ReactNode" in flow, (
+        "Eine Zeile hat zwei Seitenspuren – links Herkunft, rechts Abzweige.")
+    assert "left={<OriginArm" in flow and "left={<ReturnArm" in flow, (
+        "Woher der Auftrag kam und wohin er zurückgibt, gehört auf DIESELBE Seite.")
+    assert "right={<BranchArm" in flow, "Abzweige hängen rechts."
+    assert "overflowX: 'auto'" in flow, "Ein breites Diagramm scrollt in seinem eigenen Kasten."
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
+    assert "maxWidth: 1340" in detail, "Der Fluss bekommt eine eigene, breitere Spur."
+
+
+def test_what_has_been_walked_is_a_strong_solid_line():
+    """**Was gegangen ist, ist eine starke Volllinie** (Testnotiz #416).
+
+    Die Achse trug den Fortschritt nicht mit: erledigte und noch nicht erreichte Abschnitte
+    sahen gleich aus, obwohl die Linie selbst die einfachste Stelle ist, um «so weit ist er»
+    zu sagen – ganz ohne Wort. Jetzt ist der durchlaufene Teil kräftig, der Rest bleibt
+    Haarlinie; **gestrichelt** bleibt reserviert für den Übergang in einen anderen Auftrag
+    (Herkunft, Abzweig, Rückweg) und für den ruhenden Auftrag."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "function walkedSteps" in flow and "function lineFill" in flow, (
+        "Der Fortschritt und die Linie, die ihn zeigt, gehören je an EINE Stelle.")
+    assert "strong ? 'var(--fg-2)' : 'var(--border-2)'" in flow, "stark ↔ Haarlinie"
+    assert "strong={i <= walked}" in flow, (
+        "Kante i liegt über Knoten i – sie ist gegangen, wenn alles darüber erledigt ist.")
 
 
 def test_the_flow_shows_what_material_moves():
