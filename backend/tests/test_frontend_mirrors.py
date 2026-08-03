@@ -405,8 +405,14 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # laut wie der eigene Prozess. Darum ist der Nachbar **als Ganzes** gedämpft und blasst
     # zusätzlich aus; beim Hovern kommt er ganz nach vorn. Der Hover ist CSS, kein State:
     # ein `onMouseEnter` je Nachbar wäre React-Arbeit für eine reine Optik-Frage.
-    assert "const aside = (to: 'left' | 'right')" in flow, "Das Zurücktreten gibt es einmal."
-    assert "aside('right')" in flow and flow.count("aside('left')") == 2
+    assert "const aside = (to: 'left' | 'right', style?: React.CSSProperties)" in flow, (
+        "Das Zurücktreten gibt es einmal.")
+    assert "aside('right'" in flow and flow.count("aside('left')") == 2
+    # **Und der Hover gilt genau EINEM Ast** (Praxis-Rückmeldung): lagen alle Abzweige einer
+    # Teilung in demselben `aside`-Kasten, hellten sie beim Hovern gemeinsam auf – man sah
+    # also nicht, welchen man gleich öffnet. Der Kasten sitzt darum je Ast, nicht je Spur.
+    assert "{...aside('right', { width: '100%', minWidth: 0 })}" in flow, (
+        "Jeder Abzweig tritt für sich zurück – und kommt für sich nach vorn.")
     assert "'ix-flow-aside'" in flow, "Die Optik steht im Stylesheet, nicht als Inline-Hover."
     css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
     assert ".ix-flow-aside" in css and ".ix-flow-aside:hover" in css, (
@@ -493,36 +499,66 @@ def test_what_has_been_walked_is_a_strong_solid_line():
 
 
 def test_the_flow_shows_what_material_moves():
-    """**Auf jeder Kante steht, WAS fliesst** (Testnotiz #413).
+    """**Auf jeder Kante steht, WAS fliesst – aus EINER Quelle** (Notizen #413/#479–#482).
 
     Die eigentliche Geschichte eines Auftrags ist nicht die Reihe seiner Module, sondern das
-    **Material**: welche Instanz, wie viel davon, und was unterwegs damit passiert. Genau
-    daran sieht man, dass 2 Stück in eine Abweichung gingen und **0 zurückkamen**, weil sie
-    verschrottet wurden.
+    **Material**: welche Instanz, wie viel davon, in welchem Zustand.
 
-    Damit die Zahl auch nach Abschluss noch stimmt, steht die übernommene Menge dauerhaft am
-    Verarbeitungs-Link (``instance_order_links.quantity``, Migration 097) – Reservierungen
-    werden gelöst, der Fluss braucht sie danach noch. Gerechnet wird **von unten nach oben**:
-    unten steht, was der Auftrag heute hält, und jeder Ast gibt seine Bilanz nach oben weiter –
-    keine zweite Buchführung."""
+    Die Mengen waren zweimal verschieden hergeleitet: die Achse eines Auftrags aus
+    ``held_quantity`` (was er **gerade** hält), der Abzweig aus dem Verarbeitungs-Link (was er
+    **übernommen** hat). Damit zeigte derselbe Vorgang je nach Blickrichtung zwei Zahlen – und
+    weil «gerade gehalten» ein bewegliches Ziel ist (Reservierung gelöst, verschrottet,
+    freigegeben), war die eine davon nach jeder Zustandsänderung falsch.
+
+    Jetzt gibt es **eine** Ableitung (``orders.order_material``) für beide Leser, und sie
+    steht auf einer Tatsache, die sich nie ändert: ``instance_order_links.quantity``
+    (Migration 097). Daraus folgt alles Weitere:
+
+    * **Die Menge schrumpft nicht, der Zustand ändert sich** (#481): nach dem Verschrotten
+      steht dort weiterhin «1 Stk» – nur rot. Die Instanz und ihre Menge verschwinden ja
+      nicht. Darum trägt jede Zeile die beiden Instanz-Achsen und die Oberfläche projiziert
+      sie auf die Ampelfarbe.
+    * **Der Teaser zeigt, was der Unter-Auftrag selbst zeigt** (#482) – dieselbe Funktion,
+      dieselben Zahlen, per Konstruktion.
+    * **Gerechnet wird von OBEN nach unten**: oben das Material, an jeder Teilung geht ab,
+      was abzweigt. Die frühere Rückrechnung von unten stand auf dem beweglichen Ziel."""
     from app.models import InstanceOrderLink
-    from app.schemas.order import FlowLot, OrderDeviationInfo
+    from app.schemas.order import FlowLot, OrderDeviationInfo, OrderResponse
     from app.services import orders as ord_svc
+    import inspect as _inspect
 
     assert "quantity" in InstanceOrderLink.__table__.columns, (
         "Ohne die Menge am Link ist «wie viel ging da rein?» nach Abschluss verloren.")
-    for f in ("flow_in", "flow_out"):
+    for f in ("flow_in", "flow_lost"):
         assert f in OrderDeviationInfo.model_fields, f
-    assert set(FlowLot.model_fields) >= {"instance_object_id", "quantity", "article_name"}
+    assert "flow_out" not in OrderDeviationInfo.model_fields, (
+        "Es gibt keine zweite Mengenliste mehr – was zurückkommt, sagt die Linie (#481).")
+    assert {"quality", "disposition"} <= set(FlowLot.model_fields), (
+        "Der Zustand gehört an die Materialzeile – sonst kann sie keine Ampelfarbe tragen (#481).")
 
-    import inspect as _inspect
-    src = _inspect.getsource(ord_svc._sub_order_flow)
-    assert "_terminal_amounts" in src, (
-        "Was den Bestand endgültig verlassen hat, kommt aus dem Event-Strom – dauerhaft.")
+    # **EINE Quelle für beide Leser.** Achse und Abzweig lesen dieselbe Funktion; sonst
+    # driften sie wieder auseinander (#479/#480/#482).
+    src = _inspect.getsource(ord_svc.order_material)
+    assert "InstanceOrderLink" in src and "_terminal_amounts" in src, (
+        "Menge vom dauerhaften Link, Verlust aus dem Event-Strom – beides unbeweglich.")
+    assert "_lot_meta(db, insts)" in src, "batch, kein N+1"
+    resp = _inspect.getsource(ord_svc.to_order_response)
+    assert "resp.flow_lots, resp.flow_lost = order_material(db, order, instances)" in resp, (
+        "Die Achse liest dieselbe Quelle wie der Abzweig.")
+    assert "material, gone = order_material(db, sub)" in _inspect.getsource(ord_svc._sub_info)
+    assert "held_quantity(order, i)" not in resp, (
+        "«Was hält er gerade» ist ein bewegliches Ziel und darf die Kante nicht speisen.")
+    assert "flow_lost" in OrderResponse.model_fields
+
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "function FlowLotChip" in flow and "function plusBalance" in flow
-    assert "for (let i = nodes.length - 1; i >= 0; i--)" in flow, (
-        "Die Mengen werden von unten nach oben zurückgerechnet.")
+    assert "function FlowLotChip" in flow and "function minusBranches" in flow
+    assert "for (let i = 0; i < nodes.length; i++)" in flow and "edges[0] = lotsOf(lots)" in flow, (
+        "Gerechnet wird von oben nach unten – von der Tatsache aus, nicht vom beweglichen Ziel.")
+    assert "function plusBalance" not in flow, "Die Rückrechnung von unten ist entfallen."
+    assert "instanceStatusConfig(lot.quality, lot.disposition)" in flow, (
+        "Die Ampelfarbe kommt aus derselben Projektion wie an der Instanz selbst (#481).")
+    assert "function returnsMaterial" in flow and "back.length > 0 && (" in flow, (
+        "Kommt nichts zurück, führt auch keine Linie zurück (#481) – einfacher geht es nicht.")
 
 
 def test_the_bypass_carries_what_stayed_on_the_order():
@@ -537,7 +573,7 @@ def test_the_bypass_carries_what_stayed_on_the_order():
     noch, ist alles Hineingegangene weiterhin dort (oben waren 4); ist er durch, fehlt nur,
     was unterwegs verloren ging."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "isOpen(b) ? lot.quantity : lot.quantity - (back.get(id)?.quantity ?? 0)" in flow, (
+    assert "lotsOf((isOpen(b) ? b.flow_in : b.flow_lost) ?? [])" in flow, (
         "Ein laufender Abzweig hält sein Material noch – ein abgeschlossener hat es "
         "zurückgegeben, bis auf das Verlorene.")
     assert "<EdgeMaterial lots={edges[i + 1]} small" in flow, (
@@ -599,8 +635,9 @@ def test_no_edge_shows_material_it_has_not_carried_yet():
         "Unterhalb des Fortschritts trägt keine Kante eine Menge (#421).")
     assert "{done && <EdgeMaterial lots={edges[nodes.length]}" in flow, (
         "Auch die letzte Kante erst, wenn der Auftrag durch ist.")
-    assert "{closed && outLots.size > 0 && (" in flow, (
-        "Was ein Abzweig zurückgibt, steht erst da, wenn es zurück ist.")
+    assert "outLots" not in flow, (
+        "Ein Abzweig zeigt sein Material EINMAL – die Menge schrumpft nicht, der Zustand "
+        "ändert sich (#481).")
 
 
 def test_a_flow_lot_names_instance_article_location_and_quantity():
@@ -623,7 +660,7 @@ def test_a_flow_lot_names_instance_article_location_and_quantity():
     import inspect as _inspect
     meta = _inspect.getsource(ord_svc._lot_meta)
     assert "location_labels(" in meta and "Article.id.in_" in meta, "batch, kein N+1"
-    assert "_lot_meta(db, insts)" in _inspect.getsource(ord_svc._sub_order_flow), (
+    assert "_lot_meta(db, insts)" in _inspect.getsource(ord_svc.order_material), (
         "Abzweig und Achse lösen dieselben Angaben an derselben Stelle auf.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowLotChip" in flow and "nav?.(lot.instance_object_id)" in flow
@@ -675,14 +712,17 @@ def test_a_finished_step_stays_readable_while_the_order_rests():
     Abweichung offen war. Dasselbe galt für einen **künftigen** Schritt: seine Planung liess
     sich nicht ansehen, obwohl genau das in einem laufenden Auftrag jederzeit geht (#465).
 
-    Zu bleibt darum genau **ein** Schritt: der, an dem der Auftrag gerade hängt – dort lehnt
-    das Backend die Ausführung mit 409 ab, und davor sollte #378 bewahren. Alles andere ist
-    Lesen und kann nichts auslösen."""
+    **Ansehen darf man darum jeden Schritt** (#471). Ein Panel zu öffnen ist Lesen; ob sich
+    darin etwas AUSFÜHREN lässt, entscheidet ohnehin das Backend (``resolve_exec_step``: nur
+    der aktive Schritt, sonst 409 mit dem echten Grund). Die Sperre bei ruhendem Auftrag war
+    eine zweite, rein visuelle Regel daneben – und sie verbarg ausgerechnet die Daten, die
+    man beim Klären einer Abweichung braucht."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "const readable = !paused || (s.state !== 'blocked' && s.state !== 'active')" in flow, (
-        "Erledigte UND künftige Schritte bleiben lesbar – zu ist nur der, an dem es hängt.")
-    assert "onClick={readable ? () => onSelectStep(String(s.id)) : undefined}" in flow
-    assert "const selected = selectedId === String(s.id) && readable" in flow
+    assert "const readable" not in flow, (
+        "Es gibt keine zweite, rein visuelle Sperre neben der des Backends mehr.")
+    assert "onClick={() => onSelectStep(String(s.id))}" in flow, (
+        "Jeder Schritt lässt sich öffnen – erledigt, laufend oder künftig.")
+    assert "const selected = selectedId === String(s.id);" in flow
 
 
 def test_the_process_is_narrow_and_its_step_numbers_are_gone():
@@ -846,8 +886,7 @@ def test_what_is_past_steps_back_on_the_edges_too():
         "Auch die letzte Kante – ein abgeschlossener Auftrag hat sein Material zurückgegeben.")
     assert "<FlowLots lots={inLots} small past={walked > 0} />" in flow, (
         "Auch im Abzweig: was hineinging, ist Vergangenheit, sobald er losgelaufen ist.")
-    assert "<FlowLots lots={outLots} small past />" in flow, (
-        "Was zurückkam, steht am Ende eines durchgelaufenen Abzweigs – also Vergangenheit.")
+    assert "opacity: past ? 0.55 : 1" in flow
 
 
 def test_the_flow_shows_state_only_where_the_line_does_not():

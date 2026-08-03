@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert } from 'lucide-react';
+import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert, PackageCheck, Lock, BadgeCheck, Pencil } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
 import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
@@ -134,14 +134,19 @@ function reconcilePicks(picks: InstancePickInput[], shares: Share[]): InstancePi
   return out;
 }
 
-// Farbe + Erklärung je Sorte: EINE Tabelle statt verstreuter Bedingungen im Chip.
-const PIN_KIND: Record<PinKind, { tone: string; bg: string; hint: string; mix: string }> = {
-  free: { tone: 'var(--success)', bg: 'var(--success-bg)',
+// Farbe, **Symbol** und Erklärung je Sorte: EINE Tabelle statt verstreuter Bedingungen im
+// Chip. Das Symbol steht dort, wo vorher ein blosser Ampelpunkt war (Testnotiz #475) – ein
+// Punkt trägt nur die Farbe, ein Symbol trägt die Aussage; und die Zeile sieht dann gewählt
+// wie ungewählt gleich aus, nur mit anderem Zeichen.
+const PIN_KIND: Record<PinKind, {
+  tone: string; bg: string; icon: React.ElementType; hint: string; mix: string;
+}> = {
+  free: { tone: 'var(--success)', bg: 'var(--success-bg)', icon: PackageCheck,
     hint: 'Frei am Lager', mix: 'Es ist bereits eine freie Instanz gewählt' },
-  bound: { tone: 'var(--warning)', bg: 'var(--warning-bg)',
+  bound: { tone: 'var(--warning)', bg: 'var(--warning-bg)', icon: Lock,
     hint: 'In Arbeit, reserviert oder gesperrt – daraus wird ein Abweichungsauftrag',
     mix: 'Es ist bereits eine gebundene Instanz gewählt (Abweichung)' },
-  sold: { tone: 'var(--accent)', bg: 'var(--accent-soft)',
+  sold: { tone: 'var(--accent)', bg: 'var(--accent-soft)', icon: BadgeCheck,
     hint: 'Verkauft – daraus wird eine Retoure/Erstattung',
     mix: 'Es sind bereits verkaufte Instanzen gewählt (Retoure)' },
 };
@@ -1345,8 +1350,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // die fakturierende Gesellschaft (interne Buchungs-Angabe, nur fürs Personal).
                 goal={{
                   due: record.desired_delivery_date
-                    ? `Liefertermin · ${localDate(record.desired_delivery_date)}`
-                    : 'Liefertermin · schnellstmöglich',
+                    // Nur WANN – dass es der Liefertermin ist, sagt die Stelle: das Ende des
+                    // Prozesses (Testnotiz #470). Das Wort steht im Hover des Endknotens.
+                    ? localDate(record.desired_delivery_date)
+                    : 'schnellstmöglich',
                   seller: isStaff && record.seller_company_object_id != null
                     ? `Fakturiert durch ${record.seller_company_name ?? ''} `
                       + `${formatObjectId(record.seller_company_object_id)}`.trim()
@@ -1698,13 +1705,20 @@ function QtyChip({ value, max, tone, label, onCommit }: {
     setDraft(null);
     if (v > 0 && v !== value) onCommit(v);
   }
+  // **Dass man hier tippen kann, muss man sehen** (Testnotiz #476): eine getönte Fläche und
+  // ein Stift daneben sagen es, ohne ein Wort. Ein blosser Rahmen las sich wie eine Pille.
   return (
-    <input value={shown} onChange={(e) => setDraft(numericOnly(e.target.value))}
-      onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-      {...numericInputProps} aria-label={label}
-      style={{ width: 46, textAlign: 'center', border: `1px solid ${tone}`,
-        borderRadius: 999, background: '#fff', color: tone, font: 'inherit',
-        padding: '1px 4px', outline: 'none' }} />
+    <label title={`${label} ändern`}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
+        border: `1px solid ${tone}`, borderRadius: 999, background: 'var(--bg-2)',
+        padding: '1px 7px 1px 4px', cursor: 'text' }}>
+      <input value={shown} onChange={(e) => setDraft(numericOnly(e.target.value))}
+        onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        {...numericInputProps} aria-label={label}
+        style={{ width: 34, textAlign: 'center', border: 'none', background: 'transparent',
+          color: tone, font: 'inherit', padding: 0, outline: 'none' }} />
+      <Pencil size={10} style={{ color: tone, opacity: 0.7, flexShrink: 0 }} />
+    </label>
   );
 }
 
@@ -1777,8 +1791,10 @@ function PinPicker({ line, onToggle, bare }: {
                   style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0,
                     border: 'none', background: 'none', font: 'inherit', color: 'inherit',
                     padding: 0, textAlign: 'left', cursor: off ? 'not-allowed' : 'pointer' }}>
-                  {sel ? <CheckCircle2 size={13} style={{ color: cfg.tone, flexShrink: 0 }} />
-                       : <span style={{ width: 7, height: 7, borderRadius: 999, background: cfg.tone, flexShrink: 0 }} />}
+                  {/* Symbol statt Punkt (#475): dieselbe Stelle, dieselbe Grösse – gewählt
+                      der Haken, sonst das Zeichen der Sorte. */}
+                  {(() => { const KindIcon = sel ? CheckCircle2 : cfg.icon;
+                    return <KindIcon size={13} style={{ color: cfg.tone, flexShrink: 0 }} />; })()}
                   {/* **Instanz XY im Auftrag ZZ** (Notiz #396) – zwei Objektnummern, und
                       welche welche ist, sagt das Symbol davor. Der Name des Halters stand
                       hier früher ausgeschrieben; er IST aber der Artikelname und damit in

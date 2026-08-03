@@ -3749,7 +3749,13 @@ export interface components {
          *     steht Menge × Instanz; Artikel und Standort erscheinen im Hover, und beide Objektnummern
          *     öffnen ihren Datensatz. Sie werden hier **einmal** aufgelöst (batch, kein N+1) statt in
          *     jeder Ansicht neu zusammengesucht – dieselbe Zeile speist die Hauptachse (was der Auftrag
-         *     hält) und die Abzweige (was hineinging/zurückkam).
+         *     hält) und die Abzweige (was hineinging).
+         *
+         *     **Die Menge schrumpft nicht, der Zustand ändert sich** (Testnotiz #481): wird ein Stück
+         *     verschrottet, verschwinden weder die Instanz noch ihre Menge – nur ihr Zustand ist ein
+         *     anderer. Darum trägt jede Zeile die beiden Instanz-Achsen mit, und die Oberfläche
+         *     projiziert sie auf **eine Ampelfarbe** (``lib/process.instanceStatusConfig`` – dieselbe
+         *     Projektion wie an der Instanz selbst, kein zweites Regelwerk).
          */
         FlowLot: {
             /** Instance Object Id */
@@ -3766,6 +3772,10 @@ export interface components {
             unit?: string | null;
             /** Location Label */
             location_label?: string | null;
+            /** Quality */
+            quality?: string | null;
+            /** Disposition */
+            disposition?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4422,10 +4432,10 @@ export interface components {
              */
             flow_in: components["schemas"]["FlowLot"][];
             /**
-             * Flow Out
+             * Flow Lost
              * @default []
              */
-            flow_out: components["schemas"]["FlowLot"][];
+            flow_lost: components["schemas"]["FlowLot"][];
             /** Name */
             name?: string | null;
         };
@@ -4642,6 +4652,11 @@ export interface components {
              * @default []
              */
             flow_lots: components["schemas"]["FlowLot"][];
+            /**
+             * Flow Lost
+             * @default []
+             */
+            flow_lost: components["schemas"]["FlowLot"][];
             /**
              * Deviations
              * @default []

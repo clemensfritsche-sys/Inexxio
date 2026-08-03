@@ -10899,6 +10899,28 @@
               }
             ],
             "title": "Location Label"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "disposition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposition"
           }
         },
         "type": "object",
@@ -10907,7 +10929,7 @@
           "quantity"
         ],
         "title": "FlowLot",
-        "description": "**Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).\n\nDer Prozess zeigt nicht nur, WAS getan wird, sondern **womit**: welche Instanz, wie viel\ndavon, und – am Abzweig – wie viel wieder zurückkommt. Genau daran sieht man, dass 2\nStück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.\n\nMehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist\nes eine **Liste** und jede Zeile nennt ihren Artikel.\n\n**Die Kante trägt die vier Angaben, die den Verlauf nachvollziehbar machen** (Notiz\n#426): welche **Instanz**, welcher **Artikel**, **wo** sie liegt und **wie viel**. Kurz\nsteht Menge × Instanz; Artikel und Standort erscheinen im Hover, und beide Objektnummern\nöffnen ihren Datensatz. Sie werden hier **einmal** aufgelöst (batch, kein N+1) statt in\njeder Ansicht neu zusammengesucht – dieselbe Zeile speist die Hauptachse (was der Auftrag\nhält) und die Abzweige (was hineinging/zurückkam)."
+        "description": "**Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).\n\nDer Prozess zeigt nicht nur, WAS getan wird, sondern **womit**: welche Instanz, wie viel\ndavon, und – am Abzweig – wie viel wieder zurückkommt. Genau daran sieht man, dass 2\nStück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.\n\nMehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist\nes eine **Liste** und jede Zeile nennt ihren Artikel.\n\n**Die Kante trägt die vier Angaben, die den Verlauf nachvollziehbar machen** (Notiz\n#426): welche **Instanz**, welcher **Artikel**, **wo** sie liegt und **wie viel**. Kurz\nsteht Menge × Instanz; Artikel und Standort erscheinen im Hover, und beide Objektnummern\nöffnen ihren Datensatz. Sie werden hier **einmal** aufgelöst (batch, kein N+1) statt in\njeder Ansicht neu zusammengesucht – dieselbe Zeile speist die Hauptachse (was der Auftrag\nhält) und die Abzweige (was hineinging).\n\n**Die Menge schrumpft nicht, der Zustand ändert sich** (Testnotiz #481): wird ein Stück\nverschrottet, verschwinden weder die Instanz noch ihre Menge – nur ihr Zustand ist ein\nanderer. Darum trägt jede Zeile die beiden Instanz-Achsen mit, und die Oberfläche\nprojiziert sie auf **eine Ampelfarbe** (``lib/process.instanceStatusConfig`` – dieselbe\nProjektion wie an der Instanz selbst, kein zweites Regelwerk)."
       },
       "HTTPValidationError": {
         "properties": {
@@ -12592,12 +12614,12 @@
             "title": "Flow In",
             "default": []
           },
-          "flow_out": {
+          "flow_lost": {
             "items": {
               "$ref": "#/components/schemas/FlowLot"
             },
             "type": "array",
-            "title": "Flow Out",
+            "title": "Flow Lost",
             "default": []
           },
           "name": {
@@ -13214,6 +13236,14 @@
             },
             "type": "array",
             "title": "Flow Lots",
+            "default": []
+          },
+          "flow_lost": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLot"
+            },
+            "type": "array",
+            "title": "Flow Lost",
             "default": []
           },
           "deviations": {

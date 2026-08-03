@@ -149,6 +149,9 @@ def move(inst: Instance, to_type: str, to_id: int, qty, from_id: int | None = No
                    "Bestand einlagern; danach lassen sich Teilmengen verlagern.",
         )
 
+    # **Schon am Ziel ist kein Fehler, sondern erledigt** (Testnotizen #477/#478). Wer keinen
+    # Quellstandort nennt, sagt «bring es dorthin» – liegt es bereits dort, ist genau das
+    # erreicht. Dieselbe Haltung wie beim Bereitstellen: no-op, wenn schon da.
     if from_id is not None:
         src = int(from_id)
         if src not in dist:
@@ -156,10 +159,10 @@ def move(inst: Instance, to_type: str, to_id: int, qty, from_id: int | None = No
     else:
         candidates = {k: v for k, v in dist.items() if k != to_id}
         if not candidates:
-            raise HTTPException(400, detail="Die Instanz liegt bereits vollständig an diesem Standort.")
+            return
         src = max(candidates, key=lambda k: candidates[k][1])
     if src == to_id:
-        raise HTTPException(400, detail="Quell- und Zielstandort sind identisch.")
+        return
 
     src_type, src_qty = dist[src]
     if q > src_qty:

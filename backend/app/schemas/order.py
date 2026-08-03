@@ -117,7 +117,13 @@ class FlowLot(BaseModel):
     steht Menge × Instanz; Artikel und Standort erscheinen im Hover, und beide Objektnummern
     öffnen ihren Datensatz. Sie werden hier **einmal** aufgelöst (batch, kein N+1) statt in
     jeder Ansicht neu zusammengesucht – dieselbe Zeile speist die Hauptachse (was der Auftrag
-    hält) und die Abzweige (was hineinging/zurückkam)."""
+    hält) und die Abzweige (was hineinging).
+
+    **Die Menge schrumpft nicht, der Zustand ändert sich** (Testnotiz #481): wird ein Stück
+    verschrottet, verschwinden weder die Instanz noch ihre Menge – nur ihr Zustand ist ein
+    anderer. Darum trägt jede Zeile die beiden Instanz-Achsen mit, und die Oberfläche
+    projiziert sie auf **eine Ampelfarbe** (``lib/process.instanceStatusConfig`` – dieselbe
+    Projektion wie an der Instanz selbst, kein zweites Regelwerk)."""
     instance_object_id: int
     article_id: Optional[int] = None
     article_object_id: Optional[int] = None
@@ -125,6 +131,8 @@ class FlowLot(BaseModel):
     quantity: float
     unit: Optional[str] = None
     location_label: Optional[str] = None
+    quality: Optional[str] = None        # pending | passed | blocked
+    disposition: Optional[str] = None    # in_process | in_stock | consumed | sold | scrapped
 
 
 class SubOrderStep(BaseModel):
@@ -167,11 +175,15 @@ class OrderDeviationInfo(BaseModel):
     # **Sein eigener Ablauf, angeteasert** (Notiz #409): der Knoten zeigt die Module des
     # Abzweigs als Miniatur-Fluss – wie weit er ist, sieht man damit ohne ihn zu öffnen.
     steps: list[SubOrderStep] = []
-    # **Der Materialfluss durch den Abzweig** (Notiz #413): was hineinging und was
-    # zurückkommt. Sind sie verschieden, ist unterwegs etwas verloren gegangen – und genau
-    # das ist die Information, für die man sonst drei Datensätze öffnen müsste.
+    # **Das Material des Abzweigs** (Notiz #413) – dieselbe Zeile, die er auf seiner eigenen
+    # Achse trägt (``order_material``), damit der Teaser und der geöffnete Unter-Auftrag nicht
+    # zwei Zahlen für denselben Vorgang zeigen (Testnotiz #482).
     flow_in: list[FlowLot] = []
-    flow_out: list[FlowLot] = []
+    # Was er dem Bestand **endgültig** entzogen hat (verschrottet/verkauft/verbaut). Der Fluss
+    # leitet daraus zweierlei ab: wie viel nach dem Abzweig auf der Achse weiterläuft – und ob
+    # überhaupt etwas zurückkommt. Kommt nichts zurück, geht die Prozesslinie gar nicht erst
+    # zum Eltern-Auftrag zurück (Testnotiz #481) – einfacher kann man es nicht sagen.
+    flow_lost: list[FlowLot] = []
     # Der Name des Abzweigs (dieselbe Ableitung wie im Feed) – der Teaser nennt die Sache,
     # nicht nur seinen Grund.
     name: Optional[str] = None
@@ -554,10 +566,13 @@ class OrderResponse(BaseModel):
     abort_into_id: Optional[int] = None
     # **Woher er kam und wohin er zurückgibt** – nur an einem Unter-Auftrag gesetzt (#409).
     origin: Optional[OrderOrigin] = None
-    # **Das Material, das dieser Auftrag hält** – die Kanten seiner Achse (Notiz #426).
-    # Dieselbe angereicherte Zeile wie ``OrderDeviationInfo.flow_in/out`` (Instanz · Artikel ·
-    # Standort · Menge), damit Achse und Abzweig nicht zwei Formen derselben Aussage sind.
+    # **Das Material dieses Auftrags** – die Kanten seiner Achse (Notiz #426). Aus **derselben**
+    # Quelle wie ``OrderDeviationInfo.flow_in`` (``services/orders.order_material``): dieselbe
+    # Zeile, dieselbe Menge, damit derselbe Vorgang nicht je nach Blickrichtung zwei Zahlen
+    # trägt (Testnotizen #479/#480/#482).
     flow_lots: list[FlowLot] = []
+    # Was er dem Bestand endgültig entzogen hat – siehe ``OrderDeviationInfo.flow_lost``.
+    flow_lost: list[FlowLot] = []
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)

@@ -843,3 +843,38 @@ export function Row({ k, v, icon: Icon, hint }: {
     </div>
   );
 }
+
+/**
+ * **Eine lange Liste, die scrollt – ohne Balken, aber sichtbar** (Testnotiz #473).
+ *
+ * Ein Scrollbalken ist ein Fremdkörper in einer Oberfläche aus Haarlinien und Weissraum;
+ * ihn wegzulassen darf aber nicht heissen, dass niemand merkt, dass es weitergeht. Die
+ * Kante, an der noch etwas liegt, **blasst darum aus** – oben wie unten, und jede nur
+ * dann, wenn dort wirklich noch etwas ist. Das ist dieselbe Sprache, in der auch die
+ * Nachbar-Prozesse im Fluss zurücktreten (``.ix-flow-aside``).
+ */
+export function ScrollFade({ max, children }: { max: number; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ top: false, bottom: false });
+  function measure() {
+    const el = ref.current;
+    if (!el) return;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight > 2;
+    const top = el.scrollTop > 2;
+    setEdge((e) => (e.top === top && e.bottom === bottom ? e : { top, bottom }));
+  }
+  useEffect(measure);
+  const FADE = 26;
+  const stops = [
+    edge.top ? `transparent 0, #000 ${FADE}px` : '#000 0',
+    edge.bottom ? `#000 calc(100% - ${FADE}px), transparent 100%` : '#000 100%',
+  ].join(', ');
+  const mask = `linear-gradient(to bottom, ${stops})`;
+  return (
+    <div ref={ref} onScroll={measure} className="ix-noscrollbar"
+      style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: max,
+        overflowY: 'auto', WebkitMaskImage: mask, maskImage: mask }}>
+      {children}
+    </div>
+  );
+}
