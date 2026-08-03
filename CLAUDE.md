@@ -3736,6 +3736,46 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_origin_is_a_reference_not_a_preview`; die Fluss-Wächter verlangen jetzt eigene
   Terminal-Knoten am Abzweig und verbieten Kopfkarte, `gateFor` und «wartet».
 
+- **Testnotizen-Runde 33 (eine Ecke ist EIN Pfad, Notizen #440–#448)**: Der Auslöser war
+  die Optik der Ecken – und die Ursache lag eine Ebene tiefer, in der Geometrie.
+  (1) **Feste Spuren statt elastischer** (#445, `MAIN`/`SIDE`/`GAP`/`RUN`): Die Seitenspuren
+  waren `flex: 1` und füllten den ganzen verfügbaren Rest – das Diagramm wurde so breit wie
+  das Fenster, ohne dass die Fläche etwas trug, **und** die Länge einer Abzweigung war erst
+  zur Laufzeit bekannt. Gezeichnet wurde sie deshalb aus CSS-Rahmenkanten mit
+  `border-radius`: an der Naht zweier Kästchen sah man jede halbe Pixelverschiebung, und die
+  Strichstärke lief in der Rundung aus. Mit festen Breiten ist der Weg von der Achse zur
+  Spurmitte eine **Konstante** – und damit lässt sich jede Ecke als **EIN SVG-Pfad** zeichnen
+  (ein Strich, eine Strichstärke, ein echter Viertelkreis, keine Naht). Nebenbei ist das
+  Diagramm ~150 px schmaler und ruhiger.
+  (2) **Ein erledigter Schritt bleibt lesbar, auch wenn der Auftrag ruht** (#442,
+  Regression aus #378): Seit ein ruhender Auftrag den ganzen Fluss stilllegt, liess sich
+  **kein** Modul mehr öffnen – auch keines, das längst durch ist. Damit war das Protokoll
+  eines fertigen Schritts unerreichbar, solange irgendwo eine Abweichung offen war. Ein
+  erledigter Schritt trägt aber keine Aktion, sondern eine Aufzeichnung; ihn zu öffnen kann
+  nichts auslösen. Zu bleibt nur, was noch zu tun wäre – dort lehnt das Backend ohnehin mit
+  409 ab, und genau davor sollte #378 bewahren.
+  (3) **Das Ziel hängt am Prozessende** (#446) – und die **Spezifikations-Karte entfällt**
+  (#447): Wann der Auftrag fertig sein soll, ist die Aussage des Endknotens, nicht eine Zeile
+  in einer Karte darüber; im Hover steht zusätzlich die fakturierende Gesellschaft. Und läuft
+  der Prozess, steht auch alles andere schon in ihm (Instanz · Menge auf der Kante, Artikel
+  und Standort im Hover) – eine Karte, die dasselbe aufzählt, wäre eine zweite Wahrheit. Im
+  **Entwurf** bleibt sie: dort ist sie das Formular, keine Wiederholung.
+  (4) **Die Terminal-Knoten nennen ihren Prozess** (#443/#444): «Start · Auftrag 100000594»
+  im Hover, am Abzweig entsprechend seiner – seit die Kopfkarte weg ist (#435), ist das die
+  Stelle, an der «welcher Auftrag ist das?» beantwortet wird.
+  (5) **Keine internen Nummern an der Oberfläche** (#440): die Schritt-Nummer
+  («100000596–01») war eine Hilfskonstruktion für die Entwicklung und beantwortet keine
+  Frage, die ein Mensch am Auftrag hat – der Schritt heisst nach seinem Modul, und wo er
+  steht, sagt seine Position im Fluss. Ersatzlos entfernt.
+  (6) **Keine doppelte Angabe im Hover** (#441): Menge und Instanz stehen bereits in der
+  Pille; im Hover bleiben Artikel und Standort. Dafür trägt die Pille jetzt die **Einheit**
+  («4 Stk. × 100000595») – sonst ginge «kg» verloren.
+  (7) **Der Rückweg zeigt nach unten** (#448, `ArrowDown` statt `CornerDownLeft`).
+  Wächter: `test_a_finished_step_stays_readable_while_the_order_rests`,
+  `test_the_process_is_narrow_and_its_step_numbers_are_gone`,
+  `test_the_order_goal_hangs_at_the_end_of_the_process`; der Ecken-Wächter verlangt jetzt
+  einen **Pfad** statt Rahmenkanten.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

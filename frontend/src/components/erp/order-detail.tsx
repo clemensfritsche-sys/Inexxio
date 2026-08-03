@@ -1059,12 +1059,15 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Pflichtfelder: Artikel und Menge</div>
               )}
           </div>
-        ) : (
-          // Lese-Ansicht als **EINE Spezifikations-Karte** – dieselbe Anatomie wie die
-          // Artikel-Spezifikation (Notiz #267): ein Blatt, darin ein Werteraster aus
-          // Lesefeldern. Vorher standen dieselben Angaben als lose Kacheln nebeneinander,
-          // also drei Kästen für eine Aussage; die Karte fasst sie zusammen, ohne dass die
-          // Auftragsspezifikation eine eigene Formensprache bräuchte.
+        ) : showProcess ? null : (
+          // **Sobald der Prozess läuft, sagt er alles** (Notiz #447) – die Karte entfällt:
+          // welche Instanz mit welcher Menge unterwegs ist, steht auf den Kanten des Flusses
+          // (samt Artikel und Standort im Hover, #426), und das **Ziel** – Wunsch-Liefertermin
+          // und der fakturierende Auftraggeber – hängt am Endknoten (#446). Eine Karte, die
+          // dasselbe noch einmal aufzählt, wäre eine zweite Wahrheit über demselben Auftrag.
+          //
+          // Im **Entwurf** (oben) und für Rollen ohne Prozess-Sicht bleibt sie: dort ist sie
+          // das Formular bzw. die einzige Aussage über den Auftrag.
           <div style={{ ...SPEC.card, marginBottom: 12 }}>
             <div style={SPEC.grid}>
               {/* Artikel → Menge → die dazugehörigen Instanzen: EINE Aufstellung statt
@@ -1255,6 +1258,18 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // daraus zurück.
                 lots={record.flow_lots ?? []}
                 orderObjectId={record.object_id}
+                // **Das Ziel des Prozesses** (Notiz #446): der Wunsch-Liefertermin steht am
+                // Endknoten – dort, wo der Auftrag fertig sein soll –, und im Hover zusätzlich
+                // die fakturierende Gesellschaft (interne Buchungs-Angabe, nur fürs Personal).
+                goal={{
+                  due: record.desired_delivery_date
+                    ? `Liefertermin · ${localDate(record.desired_delivery_date)}`
+                    : 'Liefertermin · schnellstmöglich',
+                  seller: isStaff && record.seller_company_object_id != null
+                    ? `Fakturiert durch ${record.seller_company_name ?? ''} `
+                      + `${formatObjectId(record.seller_company_object_id)}`.trim()
+                    : null,
+                }}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}

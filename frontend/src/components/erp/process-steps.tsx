@@ -1136,14 +1136,18 @@ export function Connector({ dashed = false, height }: { dashed?: boolean; height
  * er sich dem Hauptfluss unterordnet. Dieselben Farben und Symbole: was «Start» bedeutet,
  * darf nicht davon abhängen, in welcher Ebene man gerade liest.
  */
-export function FlowTerm({ kind, size = 52 }: { kind: 'start' | 'end'; size?: number }) {
+export function FlowTerm({ kind, size = 52, title }: {
+  kind: 'start' | 'end'; size?: number;
+  /** Welcher Prozess hier anfängt bzw. endet – die Objektnummer im Hover (Notizen #443/#444). */
+  title?: string;
+}) {
   const start = kind === 'start';
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', flex: 'none', boxShadow: 'var(--shadow-sm)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: start ? 'var(--success)' : 'var(--fg-1)', color: '#fff',
-    }} title={start ? 'Start' : 'Ende'}>
+    }} title={title ?? (start ? 'Start' : 'Ende')}>
       {start ? <Play size={Math.round(size * 0.42)} /> : <Flag size={Math.round(size * 0.38)} />}
     </div>
   );
