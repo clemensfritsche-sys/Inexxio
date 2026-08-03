@@ -1295,11 +1295,9 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 Die frühere Brotkrumen-Kette ist entfallen (Notiz #428): der aktuelle Auftrag
                 steht im Kopf des Fensters, der übergeordnete im Herkunfts-Knoten des Flusses –
                 sie sagte beides ein zweites Mal. */}
-            <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
-              <SectionTitle icon={Workflow}>Prozess</SectionTitle>
-            </div>
             {/* Frei im Weissraum, wie der Editor am Artikel – kein zweiter Karten-Hintergrund
-                um einen Fluss, der schon aus Karten besteht. */}
+                um einen Fluss, der schon aus Karten besteht. Und ohne Überschrift (Notiz
+                #463): ein Diagramm mit Start-, End- und Modulknoten sagt selbst, was es ist. */}
             <div style={{ marginBottom: 12 }}>
               <OrderFlow
                 steps={steps}
@@ -1321,6 +1319,11 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // dieselbe Regel, nicht eine zweite – «ruht» heisst hier wie dort: hier
                 // geschieht nichts mehr.
                 paused={record.paused === true || record.status === 'inactive'}
+                // **Stark ist es nur dort, wo der Prozessschritt gerade aktiv ist** (Notiz
+                // #467). Ein abgeschlossener (oder abgebrochener) Auftrag hat sein Material
+                // längst zurückgegeben – der aktive Schritt steht dann im übergeordneten
+                // Auftrag, hier ist alles Vergangenheit und es gibt auch nichts anzusetzen.
+                running={record.status === 'released'}
                 // **Die Entscheidung ist ein Gate im Fluss** (Notiz #413), keine Notiz
                 // darunter: eine Raute an der Stelle, an der der Prozess stillsteht – sie
                 // stellt die Frage und trägt danach die Antwort. Die Fehlmenge gehört dem
