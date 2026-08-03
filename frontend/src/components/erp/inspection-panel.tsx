@@ -6,7 +6,7 @@ import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 
 import { ObjId } from '@/components/erp/obj-id';
-import { Label, PrimaryButton, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { Label, PrimaryButton, ScrollFade, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { useScan } from '@/components/scan/scan-provider';
@@ -159,24 +159,13 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
         </div>
       )}
 
-      {/* Ergebnis-Banner. «Nicht bestanden» ist NICHT das Ende, aber auch nichts, was man
-          hier wegklickt: die **Abweichung** klärt den Fall (nacharbeiten / ersetzen /
-          aussortieren), und ihr Abschluss erledigt diesen Schritt. Der Befund selbst bleibt
-          stehen – was gemessen wurde, wird nicht überschrieben. */}
-      {done && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 8,
-          background: result === 'passed' ? 'var(--success-bg)' : 'var(--danger-bg)',
-          color: result === 'passed' ? 'var(--success)' : 'var(--danger)' }}>
-          {result === 'passed' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{result === 'passed' ? 'Bestanden' : 'Nicht bestanden'}</span>
-          {insp?.checked_count != null && <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>· {insp.checked_count} geprüft</span>}
-          {insp?.inspector_name && <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>{insp.inspector_name}</span>}
-          {resolvedBy != null && (
-            <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--fg-3)' }}
-              title="Der Folgeauftrag hat den Befund geklärt – damit ist dieser Schritt erledigt.">
-              <RotateCcw size={13} /> Geklärt durch <ObjId value={resolvedBy} />
-            </span>
-          )}
+      {/* **Das Ergebnis steht in der Liste darunter** (Testnotiz #472) – jede Probe trägt ihre
+          Farbe. Ein Banner, das dasselbe noch einmal behauptet, ist eine zweite Erzählung.
+          Was die Liste NICHT sagen kann, bleibt: dass ein Folgeauftrag den Befund geklärt hat. */}
+      {done && resolvedBy != null && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--fg-3)' }}
+          title="Der Folgeauftrag hat den Befund geklärt – damit ist dieser Schritt erledigt.">
+          <RotateCcw size={13} /> Geklärt durch <ObjId value={resolvedBy} />
         </div>
       )}
 
@@ -198,13 +187,13 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
           <Info size={14} /> Noch keine Instanzen vorhanden.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 420, overflowY: 'auto' }}>
+        <ScrollFade max={300}>
           {/* Nur freigeschaltete (gescannte) Instanzen erfassen – eine nach der anderen */}
           {samples.filter((s) => done || unlocked.includes(s.instance_id)).map((s) => {
             const key = sKey(s.instance_id, s.slot);
             const ok = sampleOk(key);
             return (
-              <div key={key} style={{ border: `1px solid ${done ? (ok ? '#bbf7d0' : '#fecaca') : '#e2e8f0'}`, borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div key={key} style={{ border: `1px solid ${done ? (ok ? 'var(--success)' : 'var(--danger)') : 'var(--border-1)'}`, borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--fg-2)', flex: 1 }}>{sampleLabel(s.instance_id, s.slot)}</span>
                 </div>
@@ -228,6 +217,15 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
               {unlocked.length === 0 ? 'Erste Instanz scannen' : 'Nächste Instanz scannen'} ({unlocked.length}/{distinctInstances.length})
             </PrimaryButton>
           )}
+        </ScrollFade>
+      )}
+
+      {/* **Wer erfasst hat, gehört zum Ergebnis** (Testnotiz #472) – das Banner darüber ist
+          entfallen, die Angabe nicht. */}
+      {done && insp?.inspector_name && (
+        <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>
+          Erfasst von {insp.inspector_name}
+          {insp.checked_count != null && ` · ${insp.checked_count} geprüft`}
         </div>
       )}
 

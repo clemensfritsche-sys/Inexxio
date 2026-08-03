@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ArrowDown, ArrowUp, Check, ClipboardPlus, MapPin, Package, X } from 'lucide-react';
 import type { FlowLot, Order, OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution,
   StepType, SubOrderStep } from '@/types';
-import { STEP_META, stepStateLabel } from '@/lib/process';
+import { STEP_META, instanceStatusConfig, stepStateLabel } from '@/lib/process';
 import { TYPE_META } from '@/lib/erp-record';
 import { unitLabel } from '@/lib/article';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
@@ -39,11 +39,11 @@ import { actorHint, formatObjectId } from '@/lib/utils';
 // sind dieselben ``StepCard``s wie auf der Hauptachse.
 //
 // **Auf einer Kante steht, WAS fliesst** (``FlowLotChip``, Notizen #413/#426): kurz «4 ×
-// 100000595», im Hover Artikel, Standort und Menge – beide Objektnummern öffnen ihren
-// Datensatz. Die Mengen werden **von unten nach oben** gerechnet: unten steht, was der Auftrag
-// heute hält, und jeder Ast gibt seine Bilanz (rein − zurück) an die Kante über sich weiter.
-// **Nur bis zum Fortschritt** (Notiz #421): was ein Modul später einmal führen wird, ist nicht
-// vorhersehbar – darum trägt keine Kante unterhalb des aktuellen Punktes eine Menge.
+// 100000595» mit der **Ampelfarbe der Instanz** (#481), im Hover Zustand, Artikel und
+// Standort – beide Objektnummern öffnen ihren Datensatz. Die Mengen werden **von oben nach
+// unten** gerechnet: oben steht das Material des Auftrags – eine Tatsache, die sich nicht
+// ändert –, und an jeder Teilung geht ab, was abzweigt. **Nur bis zum Fortschritt** (Notiz
+// #421): was ein Modul später einmal führen wird, ist nicht vorhersehbar.
 //
 // **Ruht der Auftrag, ruht der Fluss** (Notiz #378): kein Modul lässt sich öffnen und alle
 // treten zurück. Eine eigene Strichart braucht es dafür nicht – dass es nicht weitergeht,
@@ -160,9 +160,9 @@ function Elbow({ dir, strong }: {
  * Die Verbindungslinie bleibt davon unberührt – sie gehört zu diesem Fluss, nicht zum
  * Nachbarn. (Optik in ``globals.css: .ix-flow-aside``, damit der Hover ohne JS auskommt.)
  */
-const aside = (to: 'left' | 'right') => ({
+const aside = (to: 'left' | 'right', style?: React.CSSProperties) => ({
   className: 'ix-flow-aside',
-  style: { ['--ix-fade' as string]: to } as React.CSSProperties,
+  style: { ...style, ['--ix-fade' as string]: to } as React.CSSProperties,
 });
 
 /**
@@ -208,28 +208,38 @@ function lotsOf(list: FlowLot[]): Lots {
 }
 
 /**
- * **Was oberhalb eines Astes noch dabei war** – die Kante darüber ist die Kante darunter plus
- * das, was gerade NICHT beim Auftrag ist.
+ * **Was unterhalb einer Teilung noch auf der Achse läuft** – von oben nach unten gerechnet.
  *
- * Der Unterschied hängt am Zustand des Astes, und genau daran hing Notiz #425: **läuft** er
- * noch, ist alles Hineingegangene weiterhin dort – oben waren also 4, wovon 2 in die
- * Abweichung gingen und 2 auf dem Hauptauftrag blieben. Ist er **durch**, sind die
- * zurückgekehrten Stücke längst im unteren Wert enthalten; fehlt nur noch, was unterwegs
- * verloren ging (verschrottet/verkauft/verbaut).
+ * Die Mengen wurden früher **von unten nach oben** aus «was hält der Auftrag gerade?»
+ * rekonstruiert. Das ist ein bewegliches Ziel (Reservierung gelöst, verschrottet,
+ * freigegeben), und darum stimmte die Rechnung nach jeder Zustandsänderung nicht mehr
+ * (Testnotizen #479/#480). Jetzt beginnt sie oben mit dem **Material des Auftrags** – einer
+ * Tatsache, die sich nie ändert (``instance_order_links.quantity``) – und zieht ab, was
+ * abzweigt.
+ *
+ * **Läuft** ein Ast noch, ist alles Hineingegangene dort: es geht vollständig ab. Ist er
+ * **durch**, hat er zurückgegeben, was er nicht verbraucht hat – ab geht nur, was den
+ * Bestand endgültig verlassen hat (``flow_lost``).
  */
-function plusBalance(below: Lots, branches: OrderDeviationInfo[]): Lots {
-  const out: Lots = new Map(below);
+function minusBranches(above: Lots, branches: OrderDeviationInfo[]): Lots {
+  const out: Lots = new Map(above);
   for (const b of branches) {
-    const into = lotsOf(b.flow_in ?? []);
-    const back = lotsOf(b.flow_out ?? []);
-    for (const [id, lot] of into) {
-      const away = isOpen(b) ? lot.quantity : lot.quantity - (back.get(id)?.quantity ?? 0);
-      if (away <= 0) continue;
+    const away = lotsOf((isOpen(b) ? b.flow_in : b.flow_lost) ?? []);
+    for (const [id, lot] of away) {
       const cur = out.get(id);
-      out.set(id, cur ? { ...cur, quantity: cur.quantity + away } : { ...lot, quantity: away });
+      if (!cur) continue;
+      const rest = cur.quantity - lot.quantity;
+      if (rest > 0) out.set(id, { ...cur, quantity: rest });
+      else out.delete(id);
     }
   }
   return out;
+}
+
+/** Gibt dieser Abzweig überhaupt etwas zurück? Wenn nicht, führt gar keine Linie zurück (#481). */
+function returnsMaterial(b: OrderDeviationInfo): boolean {
+  const sum = (l?: FlowLot[]) => (l ?? []).reduce((n, x) => n + x.quantity, 0);
+  return sum(b.flow_in) - sum(b.flow_lost) > 0;
 }
 
 const qtyText = (l: FlowLot) => `${l.quantity}${l.unit ? ` ${unitLabel(l.unit)}` : ''}`;
@@ -246,30 +256,41 @@ const qtyText = (l: FlowLot) => `${l.quantity}${l.unit ? ` ${unitLabel(l.unit)}`
 function FlowLotChip({ lot }: { lot: FlowLot }) {
   const nav = useErpNav();
   const [open, setOpen] = useState(false);
-  const zero = lot.quantity <= 0;
-  const tone = zero ? 'var(--danger)' : 'var(--fg-2)';
+  // **Jede Materialzeile trägt die Ampelfarbe ihrer Instanz** (Testnotiz #481): damit steht
+  // an JEDER Stelle des Prozesses, in welchem Zustand das Stück gerade ist – verschrottet
+  // ist rot, gesperrt gelb, frei am Lager grün. Dieselbe Projektion wie an der Instanz
+  // selbst (`instanceStatusConfig`), kein zweites Regelwerk.
+  const cfg = instanceStatusConfig(lot.quality, lot.disposition);
+  const Icon = cfg.icon;
   return (
     <span style={{ position: 'relative', display: 'inline-flex' }}
       onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
       onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
-      <button type="button" onClick={(e) => { e.stopPropagation(); nav?.(lot.instance_object_id); }}
+      <button type="button" title={cfg.label}
+        onClick={(e) => { e.stopPropagation(); nav?.(lot.instance_object_id); }}
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px',
+          display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px 2px 7px',
           borderRadius: 999, background: '#fff', cursor: nav ? 'pointer' : 'default',
-          border: `1px solid ${zero ? 'var(--danger)' : 'var(--border-1)'}`,
+          border: `1px solid ${cfg.color}`,
           font: '600 11.5px var(--font-mono), monospace', fontVariantNumeric: 'tabular-nums',
-          color: tone, whiteSpace: 'nowrap',
+          color: cfg.color, whiteSpace: 'nowrap',
         }}>
+        {Icon && <Icon size={11} style={{ flexShrink: 0 }} />}
         {qtyText(lot)} × {formatObjectId(lot.instance_object_id)}
       </button>
       {open && (
         <span style={{
-          position: 'absolute', zIndex: 60, top: '100%', left: '50%', transform: 'translateX(-50%)',
+          // Über allem, was im Fluss darunter liegt – der Hinweis stand sonst hinter dem
+          // Endknoten des Prozesses (Testnotiz #474).
+          position: 'absolute', zIndex: 200, top: '100%', left: '50%', transform: 'translateX(-50%)',
           marginTop: 6, padding: '8px 11px', borderRadius: 'var(--r-md)', background: '#fff',
           border: '1px solid var(--border-1)', boxShadow: 'var(--shadow-md)',
           display: 'flex', flexDirection: 'column', gap: 5,
           width: 'max-content', maxWidth: 300, textAlign: 'left',
         }}>
+          <LotFact icon={cfg.icon ?? Package} title="Zustand">
+            <span style={{ fontSize: 12, color: cfg.color }}>{cfg.label}</span>
+          </LotFact>
           <LotFact icon={Package} title="Artikel">
             {lot.article_object_id != null && <ObjId value={lot.article_object_id} />}
             {lot.article_name && <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.article_name}</span>}
@@ -446,13 +467,13 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     if (after.length) nodes.push({ branches: byAge(after) });
   }
 
-  // **Mengen von unten nach oben**: unten steht, was der Auftrag heute hält; jeder Ast gibt
-  // seine Bilanz an die Kante über sich weiter. Kante i liegt ÜBER Knoten i.
-  const base: Lots = lotsOf(lots);
+  // **Mengen von OBEN nach unten**: oben steht das Material des Auftrags – eine Tatsache, die
+  // sich nicht ändert –, und an jeder Teilung geht ab, was abzweigt. Kante i liegt ÜBER
+  // Knoten i.
   const edges: Lots[] = new Array(nodes.length + 1);
-  edges[nodes.length] = base;
-  for (let i = nodes.length - 1; i >= 0; i--) {
-    edges[i] = nodes[i].branches ? plusBalance(edges[i + 1], nodes[i].branches!) : edges[i + 1];
+  edges[0] = lotsOf(lots);
+  for (let i = 0; i < nodes.length; i++) {
+    edges[i + 1] = nodes[i].branches ? minusBranches(edges[i], nodes[i].branches!) : edges[i];
   }
 
   // **Wie weit ist der Fluss gegangen?** (#422) – die führenden erledigten Knoten. Knoten i ist
@@ -524,19 +545,19 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
       return;
     }
     const s = n.step!;
-    // **Ruhen heisst: nicht weiterarbeiten – nicht: nichts mehr ansehen** (Notizen #442/#465).
-    // Zu bleibt genau EIN Schritt: der, an dem der Auftrag gerade hängt – dort lehnt das
-    // Backend die Ausführung mit 409 ab, und davor sollte #378 bewahren. Alles andere ist
-    // Lesen: ein **erledigter** Schritt trägt sein Protokoll, ein **künftiger** seine Planung.
-    // Beide zu öffnen kann nichts auslösen, und in einem laufenden Auftrag geht es ohnehin.
-    const readable = !paused || (s.state !== 'blocked' && s.state !== 'active');
-    const selected = selectedId === String(s.id) && readable;
+    // **Ansehen darf man jeden Schritt** (Notizen #442/#465/#471) – erledigt, laufend oder
+    // künftig. Ein Panel zu öffnen ist Lesen; ob sich darin etwas AUSFÜHREN lässt, entscheidet
+    // ohnehin das Backend (`resolve_exec_step`: nur der aktive Schritt, sonst 409 mit dem
+    // echten Grund). Die frühere Sperre bei ruhendem Auftrag (#378) war eine zweite, rein
+    // visuelle Regel daneben – und sie verbarg ausgerechnet die Daten, die man beim Klären
+    // einer Abweichung braucht.
+    const selected = selectedId === String(s.id);
     rows.push(
       <Row key={`step-${s.id}`}>
         <StepCard type={s.step_type as StepType} state={s.state} selected={selected}
           muted={paused} detail={stepDetail(s)} badge={stepBadge(s)}
           hint={completionHint(s)}
-          onClick={readable ? () => onSelectStep(String(s.id)) : undefined}>
+          onClick={() => onSelectStep(String(s.id))}>
           {selected && renderPanel?.(s)}
         </StepCard>
       </Row>,
@@ -581,7 +602,8 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
           {/* **Das Ziel gehört ans Prozessende** (Notiz #446) – und **neben** den Knoten,
               nicht darunter (#457): absolut gesetzt, damit der Kreis auf der Achse bleibt. */}
           <div style={{ position: 'relative', display: 'flex' }}>
-            <FlowTerm kind="end" title={[`Ende · ${processLabel}`, goal?.due, goal?.seller]
+            <FlowTerm kind="end" title={[`Ende · ${processLabel}`,
+              goal?.due && `Liefertermin ${goal.due}`, goal?.seller]
               .filter(Boolean).join(' · ')} />
             {goal?.due && (
               <div style={{ position: 'absolute', left: '100%', top: '50%',
@@ -702,23 +724,31 @@ const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';
 function BranchArm({ branches, onOpen }: {
   branches: OrderDeviationInfo[]; onOpen?: (id: number) => void;
 }) {
+  // **Kommt nichts zurück, führt auch keine Linie zurück** (Testnotiz #481): wurde alles
+  // verschrottet oder die Menge des Eltern-Auftrags reduziert, endet der Abzweig hier – und
+  // genau das sagt das Bild dann auch. Solange er läuft, wissen wir es noch nicht.
+  const back = branches.filter((b) => isOpen(b) || returnsMaterial(b));
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
-      paddingTop: ARM, paddingBottom: ARM }}>
+      paddingTop: ARM, paddingBottom: back.length ? ARM : 0 }}>
       <Elbow dir="fork-right" strong={branches.some(branchStarted)} />
-      <div {...aside('right')}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
-          width: '100%', minWidth: 0 }}>
-          {branches.map((b, i) => (
-            <div key={b.object_id} style={{ display: 'flex', flexDirection: 'column',
-              alignItems: 'center', width: '100%', minWidth: 0 }}>
-              {i > 0 && <Axis h={20} strong={branchStarted(b)} />}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+        width: '100%', minWidth: 0 }}>
+        {branches.map((b, i) => (
+          <div key={b.object_id} style={{ display: 'flex', flexDirection: 'column',
+            alignItems: 'center', width: '100%', minWidth: 0 }}>
+            {i > 0 && <Axis h={20} strong={branchStarted(b)} />}
+            {/* **Der Hover gilt genau dem Ast, auf dem der Cursor steht** – nicht der ganzen
+                Spur: lagen alle Abzweige in EINEM `aside`-Kasten, hellten sie gemeinsam auf. */}
+            <div {...aside('right', { width: '100%', minWidth: 0 })}>
               <SubProcess info={b} onOpen={onOpen} />
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
-      <Elbow dir="merge-right" strong={branches.every((b) => !isOpen(b))} />
+      {back.length > 0 && (
+        <Elbow dir="merge-right" strong={branches.every((b) => !isOpen(b))} />
+      )}
     </div>
   );
 }
@@ -738,10 +768,13 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
   const label = SUB_LABEL[info.reason ?? 'deviation'] ?? SUB_LABEL.deviation;
   const cfg = orderStatus({ status: info.status as Order['status'], abort_into_id: info.abort_into_id });
   const started = info.status !== 'draft';
-  const closed = !isOpen(info);
   const walked = walkedSteps(steps);
+  // **Das Material des Abzweigs steht EINMAL** – oben, wo es hineingeht (Testnotiz #481).
+  // Eine zweite Zeile unten («0 zurück») gibt es nicht mehr: die Menge schrumpft nicht, wenn
+  // etwas verschrottet wird – die Instanz und ihre Menge verschwinden ja nicht, nur ihr
+  // Zustand ändert sich, und den trägt die Ampelfarbe der Zeile. Dass nichts zurückkommt,
+  // sagt die Prozesslinie, indem sie gar nicht erst zurückführt (#481).
   const inLots = lotsOf(info.flow_in ?? []);
-  const outLots = lotsOf(info.flow_out ?? []);
   const hint = `${label} ${formatObjectId(info.object_id)}`
     + `${info.name ? ` «${info.name}»` : ''} · ${cfg.label} – klicken zum Öffnen`;
   return (
@@ -771,14 +804,6 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
       ))}
       <Axis h={12} strong={started && walked === steps.length} />
       <FlowTerm kind="end" size={30} title={`Ende · ${hint}`} />
-      {/* Was zurückkommt, steht erst da, wenn es zurück ist – und dann ist dieser Prozess
-          vorbei, also tritt die Angabe zurück wie jede andere Vergangenheit (#467). */}
-      {closed && outLots.size > 0 && (
-        <>
-          <Axis h={10} strong />
-          <FlowLots lots={outLots} small past />
-        </>
-      )}
     </div>
   );
 }

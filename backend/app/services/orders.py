@@ -376,45 +376,60 @@ def _lot_meta(db: Session, insts: list) -> dict[int, dict]:
             instance_object_id=i.object_id, article_id=i.article_id,
             article_object_id=(art.object_id if art else None),
             article_name=(art.name if art else None), unit=(art.unit if art else None),
-            location_label=loc.get((i.location_type, i.location_id)))
+            location_label=loc.get((i.location_type, i.location_id)),
+            # Die beiden Instanz-Achsen – die Oberfläche projiziert sie auf die Ampelfarbe
+            # der Zeile (Testnotiz #481), mit derselben Regel wie an der Instanz selbst.
+            quality=i.quality, disposition=i.disposition)
     return out
 
 
-def _sub_order_flow(db: Session, sub: Order) -> tuple[list[FlowLot], list[FlowLot]]:
-    """**Der Materialfluss durch einen Abzweig** – was hineinging und was zurückkommt (#413).
+def order_material(db: Session, order: Order,
+                   insts: list | None = None) -> tuple[list[FlowLot], list[FlowLot]]:
+    """**Das Material eines Auftrags – und was davon endgültig weg ist.** EINE Stelle.
 
-    *Hinein* ist die Menge, die der Auftrag übernommen hat: dauerhaft auf dem Verarbeitungs-
-    Link (``instance_order_links.quantity``, Migration 097). Für Altbestand ohne Zahl fällt
-    es auf den aktuellen Anteil zurück – tolerant lesen, streng schreiben.
+    Die Mengen im Fluss waren zweimal verschieden hergeleitet: die Achse eines Auftrags aus
+    ``held_quantity`` (was er **gerade** hält), der Abzweig aus dem Verarbeitungs-Link (was er
+    **übernommen** hat). Damit zeigte derselbe Vorgang je nach Blickrichtung zwei Zahlen –
+    und weil «gerade gehalten» ein bewegliches Ziel ist (Reservierung gelöst, verschrottet,
+    freigegeben), war die eine davon nach jeder Zustandsänderung falsch (Testnotizen
+    #479/#480/#482).
 
-    *Zurück* ist dasselbe minus dem, was den Bestand endgültig verlassen hat. Damit steht am
-    Rückweg «0 ×», wenn alles verschrottet wurde – die eine Aussage, für die man sonst drei
-    Datensätze öffnen müsste."""
+    Jetzt gilt für beide Leser dieselbe Regel: **Menge = was dieser Auftrag übernommen hat**
+    (``instance_order_links.quantity``, Migration 097 – geschrieben und nie wieder geändert;
+    für Altbestand ohne Zahl der aktuelle Anteil). Sie **schrumpft nicht**, wenn etwas
+    verschrottet wird – die Instanz und ihre Menge verschwinden ja nicht, nur ihr Zustand
+    ändert sich (Testnotiz #481); den trägt die **Ampelfarbe** der Zeile.
+
+    Zweiter Rückgabewert: was der Auftrag dem Bestand **endgültig** entzogen hat
+    (verschrottet/verkauft/verbaut). Daraus leitet der Fluss zweierlei ab – wie viel nach
+    einem Abzweig auf der Achse weiterläuft, und **ob überhaupt etwas zurückkommt**: kommt
+    nichts zurück, geht die Prozesslinie gar nicht erst zum Eltern-Auftrag zurück (#481)."""
     from ..models import InstanceOrderLink
     from .quantity import ZERO, to_qty
-    insts = order_instances(db, sub)
+    insts = order_instances(db, order) if insts is None else insts
     if not insts:
         return [], []
     taken = {
         row.instance_object_id: row.quantity
         for row in db.query(InstanceOrderLink)
-        .filter(InstanceOrderLink.order_id == sub.id, InstanceOrderLink.is_active == True).all()
+        .filter(InstanceOrderLink.order_id == order.id, InstanceOrderLink.is_active == True).all()
         if row.quantity is not None
     }
-    lost = _terminal_amounts(db, sub)
+    lost = _terminal_amounts(db, order)
     meta = _lot_meta(db, insts)
-    into: list[FlowLot] = []
-    back: list[FlowLot] = []
+    material: list[FlowLot] = []
+    gone: list[FlowLot] = []
     for i in insts:
         base = meta.get(i.object_id or 0)
         if base is None:
             continue
         qty = to_qty(taken.get(i.object_id) if taken.get(i.object_id) is not None
-                     else held_quantity(sub, i))
-        rest = qty - lost.get(i.object_id, ZERO)
-        into.append(FlowLot(quantity=float(qty), **base))
-        back.append(FlowLot(quantity=float(max(rest, ZERO)), **base))
-    return into, back
+                     else held_quantity(order, i))
+        material.append(FlowLot(quantity=float(qty), **base))
+        away = min(lost.get(i.object_id, ZERO), qty)
+        if away > ZERO:
+            gone.append(FlowLot(quantity=float(away), **base))
+    return material, gone
 
 
 def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
@@ -425,7 +440,7 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
     Denselben Abzweig gibt es in zwei Listen (am Auftrag und an seinem Schritt); wurden sie
     getrennt zusammengesetzt, konnte der eine Teaser mehr wissen als der andere. Jetzt eine
     Quelle: Name, Zustand, sein Ablauf **und** der Materialfluss durch ihn (#413)."""
-    into, back = _sub_order_flow(db, sub)
+    material, gone = order_material(db, sub)
     return OrderDeviationInfo(
         object_id=sub.object_id, status=sub.status, reason=sub.reason,
         instance_count=len(instance_object_ids or []),
@@ -433,7 +448,7 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
         title=sub.title, abort_into_id=sub.abort_into_id, stage=stage,
         name=_order_ref_name(db, sub),
         steps=_sub_order_steps(db, sub, cache),
-        flow_in=into, flow_out=back)
+        flow_in=material, flow_lost=gone)
 
 
 def _sub_order_steps(db: Session, sub: Order,
@@ -880,11 +895,10 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
 
     instances = order_instances(db, order)
     resp.instances = _instance_embeds(db, order, instances)
-    # **Das Material auf den Kanten seiner Achse** (Notiz #426) – dieselbe angereicherte
-    # Zeile wie am Abzweig, damit der Fluss überall dieselbe Aussage in derselben Form trägt.
-    _lots = _lot_meta(db, instances)
-    resp.flow_lots = [FlowLot(quantity=float(held_quantity(order, i)), **_lots[i.object_id])
-                      for i in instances if i.object_id in _lots]
+    # **Das Material auf den Kanten seiner Achse** (Notiz #426) – aus **derselben** Quelle wie
+    # am Abzweig (``order_material``), damit derselbe Vorgang nicht je nach Blickrichtung zwei
+    # Zahlen trägt (#479/#480/#482).
+    resp.flow_lots, resp.flow_lost = order_material(db, order, instances)
 
     # Auftrag-Stepper: je Schritt der passende Ausführungs-Embed + Abschluss-Info.
     # Das oberste Embed je Typ bleibt für Rückwärtskompatibilität (Lieferanten-Sicht)

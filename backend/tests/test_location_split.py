@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from app.models import Instance
 from app.services import location_split as ls
+from app.services.quantity import to_qty
 
 
 def _inst(qty, lid=100000001, ltype="instance", locations=None, kind="batch"):
@@ -86,12 +87,23 @@ def test_order_driven_partial_move_uses_reserved_quantity():
 def test_guards_reject_invalid_moves():
     with pytest.raises(HTTPException):
         ls.move(_inst(1000), "instance", 100000002, 0)          # Menge 0
-    with pytest.raises(HTTPException):
-        ls.move(_inst(1000), "instance", 100000001, 300)        # Ziel = einziger Standort
     i = _inst(1000)
     ls.move(i, "instance", 100000002, 400)
     with pytest.raises(HTTPException):
         ls.move(i, "instance", 100000003, 700, from_id=100000002)  # mehr als am Quellslice
+
+
+def test_moving_to_where_it_already_is_is_done_not_an_error():
+    """**Schon am Ziel ist kein Fehler, sondern erledigt** (Testnotizen #477/#478).
+
+    Wer keinen Quellstandort nennt, sagt «bring es dorthin» – liegt es bereits vollständig
+    dort, ist genau das erreicht. Eine Fehlermeldung dafür verlangt vom Lagerist, einen
+    Zustand zu erklären, den er gar nicht herbeigeführt hat. Dieselbe Haltung wie beim
+    Bereitstellen: **no-op, wenn schon da.**"""
+    i = _inst(1000)
+    ls.move(i, "instance", 100000001, 300)      # Ziel = einziger Standort → nichts zu tun
+    assert i.locations is None and i.location_id == 100000001
+    assert to_qty(i.quantity) == to_qty(1000)
 
 
 # ─── Adressen: EINE Darstellung für Person und Unternehmen ──────────────────────

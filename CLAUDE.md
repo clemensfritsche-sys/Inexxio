@@ -3913,6 +3913,63 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Wächter: `test_parallel_sub_orders_are_one_split_in_several_directions`,
   `test_what_has_been_walked_is_a_strong_solid_line` (Fork/Merge-Regel).
 
+- **Das Material eines Auftrags: EINE Quelle, unbewegliche Menge, Ampelfarbe** (Aug. 2026,
+  Testnotizen #479–#482, `services/orders.order_material`): Die Mengen im Fluss waren
+  **zweimal verschieden hergeleitet** – die Achse eines Auftrags aus `held_quantity` (was er
+  **gerade** hält), der Abzweig aus dem Verarbeitungs-Link (was er **übernommen** hat).
+  Damit zeigte derselbe Vorgang je nach Blickrichtung zwei Zahlen; und weil «gerade gehalten»
+  ein **bewegliches Ziel** ist (Reservierung gelöst, verschrottet, freigegeben), war die eine
+  davon nach jeder Zustandsänderung falsch. Genau daher kamen die wiederkehrenden
+  Mengen-Fehler.
+  **Die Regel, die alles auflöst** (vom Nutzer formuliert): *die Menge verschwindet nicht,
+  nur der Zustand ändert sich.* Daraus folgt:
+  (1) **EINE Ableitung für beide Leser** – `order_material(db, order)` liefert das Material
+  (Menge = `instance_order_links.quantity`, geschrieben und **nie wieder geändert**) und
+  daneben, was der Auftrag dem Bestand **endgültig** entzogen hat. `OrderResponse.flow_lots`
+  und `OrderDeviationInfo.flow_in` lesen dieselbe Funktion – der Teaser im Eltern-Auftrag
+  kann darum gar nicht mehr von dem abweichen, was der geöffnete Unter-Auftrag zeigt (#482).
+  (2) **Nach dem Verschrotten steht dort weiterhin «1 Stk»** – nur **rot** (#481): jede
+  Materialzeile trägt die beiden Instanz-Achsen (`quality`/`disposition`) und die Oberfläche
+  projiziert sie mit derselben Regel wie an der Instanz selbst (`instanceStatusConfig`) auf
+  eine **Ampelfarbe + Symbol**. Die zweite Mengenliste `flow_out` («0 zurück») ist ersatzlos
+  entfallen.
+  (3) **Kommt nichts zurück, führt gar keine Linie zurück** (#481.3) – die einfachste
+  denkbare Darstellung für «die Menge des Hauptauftrags wurde reduziert» bzw. «alles
+  verschrottet». Abgeleitet aus `flow_in − flow_lost`, kein Feld.
+  (4) **Gerechnet wird von OBEN nach unten**: oben das Material (eine Tatsache), an jeder
+  Teilung geht ab, was abzweigt. Die frühere Rückrechnung von unten (`plusBalance`) stand auf
+  dem beweglichen Ziel und ist entfallen.
+  Wächter `test_the_flow_shows_what_material_moves`; gegen echtes PostgreSQL 16 verifiziert
+  (13 Prüfungen: 4 → 2 + 1 + 1, Verschrotten lässt die Zahl stehen, Teaser == eigene Achse,
+  0 zurück ⇒ keine Rücklinie).
+
+- **Testnotizen-Runde 38 (ansehen darf man alles, Notizen #470–#478)**:
+  (1) **Jeder Prozessschritt lässt sich öffnen** (#471, revidiert #378/#442/#465): ein Panel
+  zu öffnen ist **Lesen**; ob sich darin etwas ausführen lässt, entscheidet ohnehin das
+  Backend (`resolve_exec_step` – nur der aktive Schritt, sonst 409 mit dem echten Grund). Die
+  Sperre am ruhenden Auftrag war eine zweite, rein visuelle Regel daneben – und sie verbarg
+  ausgerechnet die Daten, die man beim Klären einer Abweichung braucht.
+  (2) **Schon am Ziel ist kein Fehler, sondern erledigt** (#477/#478, `location_split.move`):
+  wer keinen Quellstandort nennt, sagt «bring es dorthin» – liegt es bereits dort, ist genau
+  das erreicht. **No-op statt 400**, dieselbe Haltung wie beim Bereitstellen.
+  (3) **Die Liste der Datenerfassung scrollt ohne Balken** (#473, `fields.ScrollFade`): die
+  Kante, an der noch etwas liegt, **blasst aus** – oben wie unten, und jede nur dann, wenn
+  dort wirklich etwas ist. Dazu kompakter (300 px statt 420), damit man früher merkt, dass es
+  weitergeht. Dieselbe Sprache, in der die Nachbar-Prozesse im Fluss zurücktreten.
+  (4) **Das Ergebnis-Banner der Datenerfassung entfällt** (#472) – jede Probe trägt ihre
+  Farbe, das Banner erzählte dasselbe ein zweites Mal. Geblieben ist, was die Liste **nicht**
+  sagen kann: wer erfasst hat, und ob ein Folgeauftrag den Befund geklärt hat.
+  (5) **Symbol statt Ampelpunkt** in der Anteils-Auswahl (#475): ein Punkt trägt nur die
+  Farbe, ein Symbol die Aussage – frei am Lager · gebunden · verkauft; gewählt der Haken.
+  (6) **Dass man die Menge tippen kann, muss man sehen** (#476): getönte Fläche + Stift statt
+  einer blossen Pille.
+  (7) **Der Hover gilt genau EINEM Abzweig** (Praxis-Rückmeldung): lagen alle Äste einer
+  Teilung in demselben `aside`-Kasten, hellten sie gemeinsam auf – man sah also nicht, welchen
+  man gleich öffnet.
+  (8) Hover-Karte einer Materialzeile über allem (#474, `zIndex 200` – sie stand hinter dem
+  Endknoten); am Prozessende steht nur noch **wann** (#470) – dass es der Liefertermin ist,
+  sagt die Stelle, und das Wort steht im Hover.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
