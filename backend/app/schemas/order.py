@@ -123,7 +123,16 @@ class FlowLot(BaseModel):
     verschrottet, verschwinden weder die Instanz noch ihre Menge – nur ihr Zustand ist ein
     anderer. Darum trägt jede Zeile die beiden Instanz-Achsen mit, und die Oberfläche
     projiziert sie auf **eine Ampelfarbe** (``lib/process.instanceStatusConfig`` – dieselbe
-    Projektion wie an der Instanz selbst, kein zweites Regelwerk)."""
+    Projektion wie an der Instanz selbst, kein zweites Regelwerk).
+
+    **Der Zustand hängt an der MENGE, nicht an der Instanz** (Testnotizen #483/#485). Bei
+    Einzelserialisierung fällt beides zusammen – eine Instanz ist 1 Stück und hat einen
+    Zustand. Bei einer **Charge** nicht: von 4 Stück können 3 in Arbeit und 1 verschrottet
+    sein. Eine Zeile beschreibt darum immer nur **eine Menge in einem Zustand**; dieselbe
+    Instanz kann mehrere Zeilen haben. (Der Vorschlag, eine Charge intern in
+    ``Nummer_01…_04`` zu zerlegen, führt zum selben Ergebnis – aber ohne dessen Kosten: eine
+    Charge darf gebrochen sein (2.5 kg), ihre Objektnummer ist systemweit eindeutig, und
+    1000 Zeilen je Reservierung wären ein hoher Preis für eine Anzeige-Frage.)"""
     instance_object_id: int
     article_id: Optional[int] = None
     article_object_id: Optional[int] = None
@@ -133,6 +142,9 @@ class FlowLot(BaseModel):
     location_label: Optional[str] = None
     quality: Optional[str] = None        # pending | passed | blocked
     disposition: Optional[str] = None    # in_process | in_stock | consumed | sold | scrapped
+    # Gehört diese Menge gerade einem **laufenden** Auftrag? Dann ist sie nicht «frei am
+    # Lager», auch wenn die Instanz das für ihren Rest sagt (Testnotiz #485).
+    reserved: bool = False
 
 
 class SubOrderStep(BaseModel):

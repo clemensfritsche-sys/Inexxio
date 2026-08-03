@@ -195,14 +195,29 @@ function Row({ children, left, right }: {
 
 // ─── Materialfluss ────────────────────────────────────────────────────────────────
 
-type Lots = Map<number, FlowLot>;
+type Lots = Map<string, FlowLot>;
+
+/**
+ * **Der Schlüssel ist Instanz + Zustand, nicht die Instanz** (Testnotizen #483/#485).
+ *
+ * Bei Einzelserialisierung fällt beides zusammen: eine Instanz ist ein Stück und hat einen
+ * Zustand. Bei einer **Charge** nicht – von 4 Stück können 3 in Arbeit und 1 verschrottet
+ * sein. Würden sie über die Objektnummer zusammengefasst, gäbe es wieder EINEN Zustand für
+ * die ganze Menge, und genau das war der Fehler.
+ */
+const lotKey = (l: FlowLot) =>
+  `${l.instance_object_id}:${l.quality ?? ''}:${l.disposition ?? ''}:${l.reserved ? 'r' : ''}`;
+
+/** Ist diese Menge endgültig aus dem Bestand? Dann kann sie kein Abzweig mehr mitnehmen. */
+const isGone = (l: FlowLot) =>
+  l.disposition === 'scrapped' || l.disposition === 'sold' || l.disposition === 'consumed';
 
 function lotsOf(list: FlowLot[]): Lots {
   const m: Lots = new Map();
   for (const l of list) {
-    const cur = m.get(l.instance_object_id);
-    m.set(l.instance_object_id, cur
-      ? { ...cur, quantity: cur.quantity + l.quantity } : { ...l });
+    const k = lotKey(l);
+    const cur = m.get(k);
+    m.set(k, cur ? { ...cur, quantity: cur.quantity + l.quantity } : { ...l });
   }
   return m;
 }
@@ -224,13 +239,21 @@ function lotsOf(list: FlowLot[]): Lots {
 function minusBranches(above: Lots, branches: OrderDeviationInfo[]): Lots {
   const out: Lots = new Map(above);
   for (const b of branches) {
-    const away = lotsOf((isOpen(b) ? b.flow_in : b.flow_lost) ?? []);
-    for (const [id, lot] of away) {
-      const cur = out.get(id);
-      if (!cur) continue;
-      const rest = cur.quantity - lot.quantity;
-      if (rest > 0) out.set(id, { ...cur, quantity: rest });
-      else out.delete(id);
+    for (const lot of (isOpen(b) ? b.flow_in : b.flow_lost) ?? []) {
+      // Abgezogen wird **je Instanz**, lebendes Material zuerst: ein Abzweig nimmt keine
+      // bereits ausgesonderte Menge mit. Der Zustand der Zeilen kann sich unterscheiden
+      // (der Anteil ist dort an SEINEN Auftrag gebunden, hier an diesen).
+      let left = lot.quantity;
+      const rows = [...out.entries()]
+        .filter(([, l]) => l.instance_object_id === lot.instance_object_id)
+        .sort((a, c) => Number(isGone(a[1])) - Number(isGone(c[1])));
+      for (const [k, l] of rows) {
+        if (left <= 0) break;
+        const cut = Math.min(left, l.quantity);
+        left -= cut;
+        if (l.quantity - cut > 0) out.set(k, { ...l, quantity: l.quantity - cut });
+        else out.delete(k);
+      }
     }
   }
   return out;
@@ -260,7 +283,7 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
   // an JEDER Stelle des Prozesses, in welchem Zustand das Stück gerade ist – verschrottet
   // ist rot, gesperrt gelb, frei am Lager grün. Dieselbe Projektion wie an der Instanz
   // selbst (`instanceStatusConfig`), kein zweites Regelwerk.
-  const cfg = instanceStatusConfig(lot.quality, lot.disposition);
+  const cfg = instanceStatusConfig(lot.quality, lot.disposition, lot.reserved);
   const Icon = cfg.icon;
   return (
     <span style={{ position: 'relative', display: 'inline-flex' }}
@@ -390,7 +413,7 @@ function FlowLots({ lots, small, past }: { lots: Lots; small?: boolean; past?: b
       // **Vergangenes verblasst** (Notiz #462) – dieselbe Dämpfung wie bei einem erledigten
       // Modul: was schon durch ist, soll den Blick nicht mehr auf sich ziehen.
       opacity: past ? 0.55 : 1, transition: 'opacity .16s' }}>
-      {shown.map((l) => <FlowLotChip key={l.instance_object_id} lot={l} />)}
+      {shown.map((l) => <FlowLotChip key={lotKey(l)} lot={l} />)}
       {rest > 0 && (
         <span title={list.slice(3).map((l) => `${qtyText(l)} · ${formatObjectId(l.instance_object_id)}`).join('\n')}
           style={{ font: '600 11px var(--font-body)', color: 'var(--fg-4)', cursor: 'help' }}>
@@ -952,7 +975,11 @@ const RESOLUTION_TONE: Record<string, string> = {
  */
 function Resolutions({ list, shown }: { list: StepResolution[]; shown: Set<number> }) {
   const rows = list.filter((r) => !(r.kind === 'share_taken'
-    && r.other_order_object_id != null && shown.has(r.other_order_object_id)));
+    && r.other_order_object_id != null && shown.has(r.other_order_object_id))
+    // **«Menge angepasst» sagt der Fluss selbst** (Testnotiz #486): der Abzweig führt nicht
+    // mehr zurück, also läuft der Prozess mit weniger weiter. Die Zeile daneben erzählte
+    // dasselbe ein zweites Mal – und zwar in Zahlen statt im Bild.
+    && r.kind !== 'quantity_confirmed');
   if (rows.length === 0) return null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

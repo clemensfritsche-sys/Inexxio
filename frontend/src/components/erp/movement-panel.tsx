@@ -10,7 +10,7 @@ import { LOCATION_META, locationTypeLabel, instanceLabel, heldOf } from '@/lib/p
 import { formatObjectId, userDisplayName } from '@/lib/utils';
 
 import { ObjId } from '@/components/erp/obj-id';
-import { PrimaryButton, IconSwitch } from '@/components/erp/fields';
+import { PlannedNotice, PrimaryButton, IconSwitch } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
 // Standort-Typ → gültiger ScanKind (Symbol/Icon im Scanner). Unbekannte/veraltete Typen
@@ -179,16 +179,6 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     } finally { setSaving(false); }
   }
 
-  if (stepState === 'locked') {
-    return (
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
-          <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
-        </div>
-      </div>
-    );
-  }
-
   if (instances.length === 0) {
     return (
       <div style={cardStyle}>
@@ -218,8 +208,12 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   const moveInfo = fixedType
     ? `Ziel ist fest: ${locationTypeLabel(fixedType)}${mv?.target_location_label ? ` (${mv.target_location_label})` : ''}. Pro Instanz aktuellen Standort + Instanz scannen.`
     : 'Pro Instanz scannen: aktueller Standort → Instanz → Zielstandort (wird zugewiesen).';
+  // **Ein künftiger Schritt zeigt seine Planung** (Testnotiz #487) – was hier geschehen
+  // soll, steht längst im Panel; nur ausführen lässt er sich noch nicht.
+  const planned = stepState === 'locked';
   return (
     <div style={cardStyle}>
+      {planned && <PlannedNotice />}
 
       {/* Versand (ADR 005): abgeleitet aus Ziel/Geofence – Tarifvergleich + Label VOR dem Vollzug */}
       {mv?.shipment && <ShipmentBox order={order} stepId={stepId} shipment={mv.shipment} onOrderUpdated={onOrderUpdated} />}
@@ -260,11 +254,11 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
       {allScanned ? (
-        <PrimaryButton icon={CheckCircle2} tone="success" onClick={() => submitWith(targets)} disabled={saving}>
+        <PrimaryButton icon={CheckCircle2} tone="success" onClick={() => submitWith(targets)} disabled={planned || saving}>
           {saving ? 'Speichert…' : 'Bewegung buchen'}
         </PrimaryButton>
       ) : (
-        <PrimaryButton icon={ScanLine} onClick={() => startScan()} disabled={saving || !scanReady}>
+        <PrimaryButton icon={ScanLine} onClick={() => startScan()} disabled={planned || saving || !scanReady}>
           {scanReady ? 'Scannen & bewegen' : 'Lädt Zielorte…'}
         </PrimaryButton>
       )}

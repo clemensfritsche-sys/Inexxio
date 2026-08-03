@@ -555,8 +555,17 @@ def test_the_flow_shows_what_material_moves():
     assert "for (let i = 0; i < nodes.length; i++)" in flow and "edges[0] = lotsOf(lots)" in flow, (
         "Gerechnet wird von oben nach unten – von der Tatsache aus, nicht vom beweglichen Ziel.")
     assert "function plusBalance" not in flow, "Die Rückrechnung von unten ist entfallen."
-    assert "instanceStatusConfig(lot.quality, lot.disposition)" in flow, (
+    assert "instanceStatusConfig(lot.quality, lot.disposition, lot.reserved)" in flow, (
         "Die Ampelfarbe kommt aus derselben Projektion wie an der Instanz selbst (#481).")
+    # **Der Zustand hängt an der MENGE** (Testnotizen #483/#485): eine Charge kann zu 3 in
+    # Arbeit und zu 1 verschrottet sein. Würden die Zeilen über die Objektnummer
+    # zusammengefasst, gäbe es wieder EINEN Zustand für die ganze Menge – genau der Fehler.
+    assert "const lotKey = (l: FlowLot) =>" in flow and "l.reserved ? 'r' : ''" in flow, (
+        "Der Schlüssel ist Instanz + Zustand, nicht die Instanz.")
+    assert "left -= part" in _inspect.getsource(ord_svc.order_material), (
+        "Die übernommene Menge zerfällt in ausgesteuerte Teile und den lebenden Rest.")
+    assert "reserved=running" in _inspect.getsource(ord_svc.order_material), (
+        "Was ein laufender Auftrag hält, ist nicht «frei am Lager» (#485).")
     assert "function returnsMaterial" in flow and "back.length > 0 && (" in flow, (
         "Kommt nichts zurück, führt auch keine Linie zurück (#481) – einfacher geht es nicht.")
 
@@ -573,7 +582,7 @@ def test_the_bypass_carries_what_stayed_on_the_order():
     noch, ist alles Hineingegangene weiterhin dort (oben waren 4); ist er durch, fehlt nur,
     was unterwegs verloren ging."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "lotsOf((isOpen(b) ? b.flow_in : b.flow_lost) ?? [])" in flow, (
+    assert "for (const lot of (isOpen(b) ? b.flow_in : b.flow_lost) ?? [])" in flow, (
         "Ein laufender Abzweig hält sein Material noch – ein abgeschlossener hat es "
         "zurückgegeben, bis auf das Verlorene.")
     assert "<EdgeMaterial lots={edges[i + 1]} small" in flow, (
@@ -843,6 +852,29 @@ def test_a_preselected_share_names_its_holder():
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "onCreateOrder?: (lots: FlowLot[]) => void" in flow, (
         "Der Fluss reicht nur das Material weiter – wem es gehört, weiss sein Auftrag.")
+
+
+def test_a_future_step_shows_what_is_planned():
+    """**Ein künftiger Schritt zeigt seine Planung** (Testnotiz #487).
+
+    «Wird aktiv, sobald der vorherige Schritt erledigt ist» war die einzige Auskunft – nett,
+    aber sie beantwortet nicht die Frage, die man an dieser Stelle hat: *was soll hier
+    eigentlich passieren?* Prüfumfang, Ziel, Ressourcenzeilen und Lieferant stehen längst im
+    Panel; es wurde nur nicht gerendert, weil der Schritt vorher abgebrochen hat.
+
+    Jetzt rendert **jedes** Modul seine Planung, eine Zeile sagt, dass sie noch nicht dran
+    ist – und die **Aktionen bleiben aus**. Die Regel steht an EINER Stelle (`PlannedNotice`),
+    damit sie nicht in vier Panels auseinanderläuft."""
+    fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
+    assert "export function PlannedNotice()" in fields, "Die Zeile gibt es einmal."
+    for name in ("inspection-panel", "movement-panel", "scrap-panel", "resource-panel"):
+        src = (FRONTEND / "components" / "erp" / f"{name}.tsx").read_text(encoding="utf-8")
+        assert "Wird aktiv, sobald" not in src, (
+            f"{name}: der frühere Abbruch verbarg die Planung des Schritts.")
+        assert "const planned = stepState === 'locked';" in src, f"{name}: kein Planungs-Zustand"
+        assert "{planned && <PlannedNotice />}" in src, f"{name}: keine Notiz"
+        assert "planned || saving" in src or "!planned &&" in src, (
+            f"{name}: ein geplanter Schritt führt nichts aus.")
 
 
 def test_a_taken_share_is_not_told_twice():

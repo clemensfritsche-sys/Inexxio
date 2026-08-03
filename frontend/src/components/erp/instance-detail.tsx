@@ -10,6 +10,7 @@ import {
 import { api } from '@/lib/api';
 import type { Instance, InstanceOrderRef, ObjectDocument, CompanySettings, DocumentContent } from '@/types';
 import { instanceStatus } from '@/lib/record-status';
+import { instanceStatusConfig as instStatusCfg } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
@@ -266,25 +267,33 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
               slices={inst.locations ?? []}
             />
 
-            {/* **Wem gehört diese Menge?** – die Aufteilung, dieselbe Aussage wie im
-                Auftrag, nur aus der anderen Richtung. Sie steht nur da, wenn sie etwas
-                sagt: eine unberührte Instanz hat genau EINEN freien Anteil. */}
-            {(inst.shares ?? []).length > 1 && (
-              <TileShell style={TILE.wide} icon={Boxes} label="Aufteilung">
+            {/* **Was ist mit diesen N Stück los?** (Testnotiz #484) – nicht nur wie viele es
+                sind, sondern **welche Menge in welchem Zustand**. Bei Einzelserialisierung
+                fällt das zusammen (ein Stück, ein Zustand); eine **Charge** hat ihren Zustand
+                **pro Menge**: 2 Stk gebunden an einen laufenden Auftrag, 2 Stk frei am Lager.
+                Quelle ist die Anteils-Aufteilung, die es längst gibt (`services/shares.py`) –
+                dieselbe Aussage wie im Auftrag, nur aus der anderen Richtung; die Ampelfarbe
+                kommt aus derselben Projektion wie überall (`instanceStatusConfig`). */}
+            {(inst.shares ?? []).length > 0 && (
+              <TileShell style={TILE.wide} icon={Boxes} label="Menge & Zustand">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
-                  {(inst.shares ?? []).map((sh, i) => (
-                    <div key={`${sh.order_object_id ?? 'free'}-${i}`} style={S.shareRow}>
-                      <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{sh.quantity}</span>
-                      {sh.order_object_id != null ? (
-                        <>
-                          <span style={{ color: 'var(--fg-3)' }}>{sh.order_name || 'Auftrag'}</span>
-                          <ObjIdLink value={sh.order_object_id} />
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--fg-4)' }}>frei</span>
-                      )}
-                    </div>
-                  ))}
+                  {(inst.shares ?? []).map((sh, i) => {
+                    const held = sh.order_object_id != null;
+                    const cfg = instStatusCfg(inst.quality, inst.disposition, held);
+                    const Icon = cfg.icon;
+                    return (
+                      <div key={`${sh.order_object_id ?? 'free'}-${i}`} style={S.shareRow}>
+                        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                          {sh.quantity}
+                        </span>
+                        <span title={cfg.label} style={{ display: 'inline-flex', alignItems: 'center',
+                          gap: 4, color: cfg.color }}>
+                          {Icon && <Icon size={12} />}{cfg.label}
+                        </span>
+                        {held && <ObjIdLink value={sh.order_object_id as number} />}
+                      </div>
+                    );
+                  })}
                 </div>
               </TileShell>
             )}
