@@ -585,7 +585,7 @@ def test_the_bypass_carries_what_stayed_on_the_order():
     assert "for (const lot of (isOpen(b) ? b.flow_in : b.flow_lost) ?? [])" in flow, (
         "Ein laufender Abzweig hält sein Material noch – ein abgeschlossener hat es "
         "zurückgegeben, bis auf das Verlorene.")
-    assert "<EdgeMaterial lots={edges[i + 1]} small" in flow, (
+    assert "<EdgeMaterial lots={lotsAt(i + 1, liveBypass(i))} small" in flow, (
         "Der Bypass nennt, was auf dem Hauptauftrag geblieben ist (#425).")
 
 
@@ -640,13 +640,13 @@ def test_no_edge_shows_material_it_has_not_carried_yet():
 
     Material trägt darum nur, was der Fluss schon erreicht hat."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "{reached && <EdgeMaterial lots={edges[i]}" in flow, (
+    assert "{reached && <EdgeMaterial lots={lotsAt(i, liveEdge(i))}" in flow, (
         "Unterhalb des Fortschritts trägt keine Kante eine Menge (#421).")
-    assert "{done && <EdgeMaterial lots={edges[nodes.length]}" in flow, (
+    assert "{done && <EdgeMaterial lots={lotsAt(nodes.length," in flow, (
         "Auch die letzte Kante erst, wenn der Auftrag durch ist.")
-    assert "outLots" not in flow, (
-        "Ein Abzweig zeigt sein Material EINMAL – die Menge schrumpft nicht, der Zustand "
-        "ändert sich (#481).")
+    assert "<FlowLots lots={nowLots} small />" in flow and "const changed =" in flow, (
+        "Unten steht dieselbe MENGE in ihrem neuen Zustand – und nur, wenn er ein anderer "
+        "ist (#481/#488).")
 
 
 def test_a_flow_lot_names_instance_article_location_and_quantity():
@@ -912,12 +912,22 @@ def test_what_is_past_steps_back_on_the_edges_too():
     assert "opacity: past ? 0.55 : 1" in flow, "Vergangene Kanten sind gedämpft (#462)."
     assert "const here: { at: number; bypass: boolean } | null = !running ? null" in flow, (
         "Wo der Prozess steht, ist EINE Ableitung – und ohne laufenden Auftrag gibt es sie nicht.")
-    assert "<EdgeMaterial lots={edges[i]} past={!liveEdge(i)}" in flow, (
+    assert "past={!liveEdge(i)}" in flow, (
         "Eine Kante ist Vergangenheit, sobald der Prozess nicht mehr an ihr steht.")
     assert "past={!liveEdge(nodes.length)}" in flow, (
         "Auch die letzte Kante – ein abgeschlossener Auftrag hat sein Material zurückgegeben.")
     assert "<FlowLots lots={inLots} small past={walked > 0} />" in flow, (
         "Auch im Abzweig: was hineinging, ist Vergangenheit, sobald er losgelaufen ist.")
+    # **Und eine durchlaufene Kante zeigt den Zustand von DAMALS** (Testnotiz #488): wird ein
+    # Stück später verschrottet, stand es sonst rückwirkend auf jeder Kante rot, die es
+    # passiert hatte, als es noch in Arbeit war. Beim Abschluss eines Schritts friert der
+    # Zustand ein; nur dort, wo der Prozess GERADE steht, gilt der aktuelle.
+    assert "function asOf(lots: Lots, cutoff: string | null)" in flow, (
+        "Der Rückblick gibt es einmal.")
+    assert "const lotsAt = (i: number, live: boolean) => asOf(edges[i], live ? null : cutoffs[i]);" in flow, (
+        "Live am Prozess-Punkt, eingefroren überall darüber.")
+    assert "if (s?.state === 'done' && s.completed_at) last = s.completed_at;" in flow, (
+        "Der Stichtag ist der Abschluss des Schritts darüber.")
     assert "opacity: past ? 0.55 : 1" in flow
 
 

@@ -145,6 +145,11 @@ class FlowLot(BaseModel):
     # Gehört diese Menge gerade einem **laufenden** Auftrag? Dann ist sie nicht «frei am
     # Lager», auch wenn die Instanz das für ihren Rest sagt (Testnotiz #485).
     reserved: bool = False
+    # **Wann** diese Menge in diesen Zustand kam – nur bei einem Abgang gesetzt. Eine Kante
+    # des Flusses zeigt den Zustand, den die Menge **damals** hatte: was später passiert ist,
+    # gab es dort noch nicht (Testnotiz #488). Ohne den Zeitpunkt trüge jede durchlaufene
+    # Kante rückwirkend den heutigen Zustand.
+    at: Optional[datetime] = None
 
 
 class SubOrderStep(BaseModel):

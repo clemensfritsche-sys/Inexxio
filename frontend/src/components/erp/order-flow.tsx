@@ -259,6 +259,43 @@ function minusBranches(above: Lots, branches: OrderDeviationInfo[]): Lots {
   return out;
 }
 
+/**
+ * **Eine durchlaufene Kante zeigt den Zustand von DAMALS** (Testnotiz #488).
+ *
+ * Eine Materialzeile las bisher immer den **heutigen** Zustand – wurde ein Stück später
+ * verschrottet, stand es rückwirkend auf jeder Kante rot, die es passiert hatte, als es noch
+ * in Arbeit war. Damit liess sich der Verlauf nicht mehr nachvollziehen, obwohl genau das
+ * der Zweck des Flusses ist.
+ *
+ * Die Regel: **beim Abschluss eines Schritts friert der Zustand ein.** Was danach passiert
+ * ist, gab es an dieser Stelle noch nicht – ein Abgang mit ``at`` nach dem Stichtag wird
+ * darum zurückgenommen und zählt wieder zu dem, was der Auftrag damals **hielt** (in
+ * Arbeit). Nur dort, wo der Prozess GERADE steht, gilt der aktuelle Zustand.
+ */
+const BEGIN = '-';   // sortiert vor jedem ISO-Zeitstempel (Beginn des Auftrags)
+
+function asOf(lots: Lots, cutoff: string | null): Lots {
+  if (cutoff === null) return lots;
+  const out: Lots = new Map();
+  const later = new Map<number, number>();
+  for (const [k, l] of lots) {
+    if (l.at && l.at > cutoff) later.set(l.instance_object_id,
+      (later.get(l.instance_object_id) ?? 0) + l.quantity);
+    else out.set(k, l);
+  }
+  for (const [id, qty] of later) {
+    const src = [...lots.values()].find((l) => l.instance_object_id === id);
+    if (!src) continue;
+    // Damals gehörte die Menge diesem Auftrag – also «Im Prozess», nicht der spätere Abgang.
+    const back: FlowLot = { ...src, quantity: qty, quality: null, disposition: 'in_process',
+      reserved: false, at: null };
+    const k = lotKey(back);
+    const cur = out.get(k);
+    out.set(k, cur ? { ...cur, quantity: cur.quantity + qty } : back);
+  }
+  return out;
+}
+
 /** Gibt dieser Abzweig überhaupt etwas zurück? Wenn nicht, führt gar keine Linie zurück (#481). */
 function returnsMaterial(b: OrderDeviationInfo): boolean {
   const sum = (l?: FlowLot[]) => (l ?? []).reduce((n, x) => n + x.quantity, 0);
@@ -498,6 +535,20 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   for (let i = 0; i < nodes.length; i++) {
     edges[i + 1] = nodes[i].branches ? minusBranches(edges[i], nodes[i].branches!) : edges[i];
   }
+  // **Der Stichtag je Kante** (Testnotiz #488): Kante i beschreibt den Zustand, in dem das
+  // Material in Knoten i **hineinging** – also den Moment, in dem der letzte Schritt darüber
+  // abgeschlossen wurde. Was später passierte, gab es dort noch nicht.
+  // «Vor dem ersten Schritt» ist ein echter Stichtag, kein fehlender: dort hatte noch KEIN
+  // Abgang stattgefunden. `BEGIN` sortiert vor jedem ISO-Zeitstempel, also fällt dort alles
+  // zurück in den gehaltenen Zustand.
+  const cutoffs: string[] = new Array(nodes.length + 1).fill(BEGIN);
+  let last: string = BEGIN;
+  for (let i = 0; i < nodes.length; i++) {
+    cutoffs[i] = last;
+    const s = nodes[i].step;
+    if (s?.state === 'done' && s.completed_at) last = s.completed_at;
+  }
+  cutoffs[nodes.length] = last;
 
   // **Wie weit ist der Fluss gegangen?** (#422) – die führenden erledigten Knoten. Knoten i ist
   // ERREICHT, wenn `i <= walked`, und DURCHLAUFEN, wenn `i < walked`. Genau bis dorthin ist die
@@ -525,6 +576,9 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
       : { at: walked, bypass: !!nodes[walked].branches };
   const liveEdge = (i: number) => here?.at === i && !here.bypass;
   const liveBypass = (i: number) => here?.at === i && here.bypass;
+  // Dort, wo der Prozess GERADE steht, gilt der aktuelle Zustand; überall darüber der,
+  // den die Menge damals hatte (#488).
+  const lotsAt = (i: number, live: boolean) => asOf(edges[i], live ? null : cutoffs[i]);
 
   let gateUsed = false;
   const rows: React.ReactNode[] = [];
@@ -534,7 +588,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     rows.push(
       <Row key={`edge-${i}`}>
         <Axis strong={reached} />
-        {reached && <EdgeMaterial lots={edges[i]} past={!liveEdge(i)}
+        {reached && <EdgeMaterial lots={lotsAt(i, liveEdge(i))} past={!liveEdge(i)}
           onCreate={liveEdge(i) ? onCreateOrder : undefined} />}
         <Axis strong={reached} />
       </Row>,
@@ -552,7 +606,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
         <Row key={`br-${n.branches[0].object_id}`}
           right={<BranchArm branches={n.branches} onOpen={onOpenOrder} />}>
           <Axis grow h={26} strong={reached} />
-          {reached && <EdgeMaterial lots={edges[i + 1]} small past={!liveBypass(i)}
+          {reached && <EdgeMaterial lots={lotsAt(i + 1, liveBypass(i))} small past={!liveBypass(i)}
             onCreate={liveBypass(i) ? onCreateOrder : undefined} />}
           <Axis grow h={26} strong={passed} />
         </Row>,
@@ -617,7 +671,8 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
           {/* Die letzte Kante zeigt, womit der Auftrag herauskommt – aber **stark nur, solange
               er läuft** (Notiz #467): ist er durch, hat er sein Material zurückgegeben und der
               aktive Schritt steht im übergeordneten Auftrag. */}
-          {done && <EdgeMaterial lots={edges[nodes.length]} past={!liveEdge(nodes.length)}
+          {done && <EdgeMaterial lots={lotsAt(nodes.length, liveEdge(nodes.length))}
+            past={!liveEdge(nodes.length)}
             onCreate={liveEdge(nodes.length) ? onCreateOrder : undefined} />}
           <Axis strong={done} />
         </Row>
@@ -792,12 +847,16 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
   const cfg = orderStatus({ status: info.status as Order['status'], abort_into_id: info.abort_into_id });
   const started = info.status !== 'draft';
   const walked = walkedSteps(steps);
-  // **Das Material des Abzweigs steht EINMAL** – oben, wo es hineingeht (Testnotiz #481).
-  // Eine zweite Zeile unten («0 zurück») gibt es nicht mehr: die Menge schrumpft nicht, wenn
-  // etwas verschrottet wird – die Instanz und ihre Menge verschwinden ja nicht, nur ihr
-  // Zustand ändert sich, und den trägt die Ampelfarbe der Zeile. Dass nichts zurückkommt,
-  // sagt die Prozesslinie, indem sie gar nicht erst zurückführt (#481).
-  const inLots = lotsOf(info.flow_in ?? []);
+  // **Oben, was hineinging – unten dieselbe Menge in ihrem neuen Zustand** (#481/#488).
+  //
+  // Die Menge schrumpft nicht, wenn etwas verschrottet wird – die Instanz und ihre Menge
+  // verschwinden ja nicht, nur ihr Zustand ändert sich. Oben steht darum der Zustand von
+  // **damals** (in Arbeit, als es hineinging), unten derselbe Posten in seinem heutigen
+  // Zustand – und die zweite Zeile nur, wenn sie etwas Neues sagt. Dass nichts zurückkommt,
+  // sagt weiterhin die Prozesslinie, indem sie gar nicht erst zurückführt.
+  const nowLots = lotsOf(info.flow_in ?? []);
+  const inLots = asOf(nowLots, BEGIN);
+  const changed = [...nowLots.keys()].some((k) => !inLots.has(k));
   const hint = `${label} ${formatObjectId(info.object_id)}`
     + `${info.name ? ` «${info.name}»` : ''} · ${cfg.label} – klicken zum Öffnen`;
   return (
@@ -827,6 +886,12 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
       ))}
       <Axis h={12} strong={started && walked === steps.length} />
       <FlowTerm kind="end" size={30} title={`Ende · ${hint}`} />
+      {changed && (
+        <>
+          <Axis h={10} strong />
+          <FlowLots lots={nowLots} small />
+        </>
+      )}
     </div>
   );
 }
