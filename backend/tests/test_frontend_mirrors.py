@@ -351,7 +351,10 @@ def test_the_branch_names_the_module_from_one_place():
     # Richtungen – wer daraus zwei Komponenten macht, lässt sie auseinanderlaufen.
     # Herkunft und Rückweg gehen in **beide** Richtungen – seit dem Layout-Umbau (#413)
     # als Kette oben (wo stehe ich?), Eltern-Teaser davor und Rückweg-Pille am Ende.
-    assert "export function OrderChain" in flow
+    # Die Brotkrumen-Kette ist entfallen (Notiz #428): der aktuelle Auftrag steht im Kopf des
+    # Fensters, der übergeordnete im Herkunfts-Knoten des Flusses – sie sagte beides ein
+    # zweites Mal. Herkunft und Rückweg bleiben, als Spiegelbild des Abzweigs.
+    assert "OrderChain" not in flow, "Kein zweiter Ort für dieselbe Aussage (#428)."
     assert "function OriginArm" in flow and "function ReturnArm" in flow
     assert "'zurück an'" in flow or "zurück an" in flow
 
@@ -383,9 +386,15 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     assert flow.count("function StepCard") == 1, "Es gibt genau EINE Modul-Karte."
     assert "<StepCard compact" in flow, (
         "Der Abzweig nutzt dieselbe Karte, nur eine Nummer kleiner – kein eigenes Bauteil.")
-    # Die Abzweigung: waagrecht aus der Achse, dann senkrecht oben mittig hinein (#417).
-    assert "left: -MAIN / 2" in flow and "right: '50%'" in flow, "waagrecht bis zur Spurmitte"
-    assert "height: ARM" in flow, "senkrecht oben mittig in den Unterprozess"
+    # Die Abzweigung: waagrecht aus der Achse, dann senkrecht oben mittig hinein (#417) –
+    # und **zurück in die Achse** (#424). Beide Ecken aus EINEM Baustein, leicht gerundet (#423).
+    assert "function Elbow" in flow, "Eine Ecke der Prozesslinie gibt es genau einmal."
+    for d in ("fork-right", "merge-right", "in-from-left", "out-to-left"):
+        assert f"'{d}'" in flow, f"Dem Fluss fehlt die Ecke {d}"
+    assert '<Elbow dir="fork-right"' in flow and '<Elbow dir="merge-right"' in flow, (
+        "Ein Abzweig geht hinaus UND wieder zurück – sonst endet der Prozess im Nichts (#424).")
+    assert "borderTopRightRadius: BEND" in flow and "const BEND" in flow, (
+        "Die Ecken der Prozesslinie sind leicht gerundet (#423).")
     assert "onOpen?.(info.object_id)" in flow, "Der Abzweig öffnet den Datensatz."
     # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt.
     assert '<FlowTerm kind="start" />' in flow and '<FlowTerm kind="end" />' in flow
@@ -420,11 +429,20 @@ def test_what_has_been_walked_is_a_strong_solid_line():
     Haarlinie; **gestrichelt** bleibt reserviert für den Übergang in einen anderen Auftrag
     (Herkunft, Abzweig, Rückweg) und für den ruhenden Auftrag."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "function walkedSteps" in flow and "function lineFill" in flow, (
+    assert "function walkedSteps" in flow and "const lineColor" in flow, (
         "Der Fortschritt und die Linie, die ihn zeigt, gehören je an EINE Stelle.")
     assert "strong ? 'var(--fg-2)' : 'var(--border-2)'" in flow, "stark ↔ Haarlinie"
-    assert "strong={i <= walked}" in flow, (
+    assert "const reached = i <= walked" in flow, (
         "Kante i liegt über Knoten i – sie ist gegangen, wenn alles darüber erledigt ist.")
+    # **Und die Regel gilt überall gleich** (Notiz #429): auch der Weg in einen Abzweig und
+    # zurück ist ein gegangener Weg. Gestrichelte Linien gibt es im Fluss nicht mehr – sie
+    # waren eine zweite Aussage neben «stark ↔ Haarlinie» und haben sie überschrieben, sobald
+    # eine Abweichung offen war (#422).
+    assert "dashed" not in flow, (
+        "Ein Abzweig ist kein Sonderfall mit eigener Strichart – die Linie sagt nur, wie weit "
+        "der Prozess gegangen ist (#422/#429).")
+    assert '<Elbow dir="fork-right" strong={reached}' in flow, "Der Weg in den Abzweig ist gegangen."
+    assert "strong={reached && closed}" in flow, "Der Rückweg wird stark, wenn der Abzweig durch ist."
 
 
 def test_the_flow_shows_what_material_moves():
@@ -455,6 +473,96 @@ def test_the_flow_shows_what_material_moves():
     assert "_terminal_amounts" in src, (
         "Was den Bestand endgültig verlassen hat, kommt aus dem Event-Strom – dauerhaft.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "function EdgePill" in flow and "function plusBalance" in flow
+    assert "function FlowLotChip" in flow and "function plusBalance" in flow
     assert "for (let i = nodes.length - 1; i >= 0; i--)" in flow, (
         "Die Mengen werden von unten nach oben zurückgerechnet.")
+
+
+def test_the_bypass_carries_what_stayed_on_the_order():
+    """**Am Abzweig steht auch, was NICHT abgezweigt ist** (Testnotiz #425).
+
+    Eine Abweichung nimmt fast nie alles: von 4 Stück gehen 2 hinein, 2 bleiben auf dem
+    Hauptauftrag. Sichtbar war nur die eine Hälfte – die Menge, die in den Abzweig ging.
+    Jetzt läuft die Achse als **Bypass** neben ihm weiter und trägt genau das, was auf ihr
+    geblieben ist.
+
+    Damit die Zahl darüber stimmt, hängt die Rückrechnung am **Zustand** des Astes: läuft er
+    noch, ist alles Hineingegangene weiterhin dort (oben waren 4); ist er durch, fehlt nur,
+    was unterwegs verloren ging."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "isOpen(b) ? lot.quantity : lot.quantity - (back.get(id)?.quantity ?? 0)" in flow, (
+        "Ein laufender Abzweig hält sein Material noch – ein abgeschlossener hat es "
+        "zurückgegeben, bis auf das Verlorene.")
+    assert "<FlowLots lots={edges[i + 1]} small />" in flow, (
+        "Der Bypass nennt, was auf dem Hauptauftrag geblieben ist (#425).")
+
+
+def test_no_edge_shows_material_it_has_not_carried_yet():
+    """**Was später einmal hier sein wird, ist nicht vorhersehbar** (Testnotiz #421).
+
+    Die Kanten wurden von unten nach oben aus dem heutigen Bestand gerechnet – und damit
+    stand auch an Modulen, die noch gar nicht dran sind, schon eine Menge. Das ist eine
+    Behauptung über die Zukunft: welche Instanz ein Verkauf am Ende führt, entscheidet sich
+    erst, wenn er dran ist.
+
+    Material trägt darum nur, was der Fluss schon erreicht hat."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "{reached && <FlowLots lots={edges[i]} />}" in flow, (
+        "Unterhalb des Fortschritts trägt keine Kante eine Menge (#421).")
+    assert "{done && <FlowLots lots={edges[nodes.length]} />}" in flow, (
+        "Auch die letzte Kante erst, wenn der Auftrag durch ist.")
+    assert "{closed && outLots.size > 0 && (" in flow, (
+        "Was ein Abzweig zurückgibt, steht erst da, wenn es zurück ist.")
+
+
+def test_a_flow_lot_names_instance_article_location_and_quantity():
+    """**Eine Kante trägt die vier Angaben, die den Verlauf nachvollziehbar machen**
+    (Testnotiz #426): welche **Instanz**, welcher **Artikel**, **wo** sie liegt, **wie viel**.
+
+    Kurz steht Menge × Instanz – alles Weitere im Hover, damit eine Kante eine Kante bleibt
+    und keine Tabelle wird. Beide Objektnummern öffnen ihren Datensatz.
+
+    Aufgelöst wird das **einmal im Backend** (batch, kein N+1) und in EINER Form: dieselbe
+    Zeile speist die Hauptachse (``OrderResponse.flow_lots``) und die Abzweige
+    (``flow_in``/``flow_out``). Zwei Formen für dieselbe Aussage wären zwei Wahrheiten."""
+    from app.schemas.order import FlowLot, OrderResponse
+    from app.services import orders as ord_svc
+
+    assert {"instance_object_id", "article_object_id", "location_label", "quantity"} <= set(
+        FlowLot.model_fields), "Instanz · Artikel · Standort · Menge"
+    assert OrderResponse.model_fields["flow_lots"].annotation == list[FlowLot], (
+        "Die Achse trägt dieselbe Zeile wie der Abzweig – eine Form, ein Leser.")
+    import inspect as _inspect
+    meta = _inspect.getsource(ord_svc._lot_meta)
+    assert "location_labels(" in meta and "Article.id.in_" in meta, "batch, kein N+1"
+    assert "_lot_meta(db, insts)" in _inspect.getsource(ord_svc._sub_order_flow), (
+        "Abzweig und Achse lösen dieselben Angaben an derselben Stelle auf.")
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "function FlowLotChip" in flow and "nav?.(lot.instance_object_id)" in flow
+    for fact in ('k="Instanz"', 'k="Artikel"', 'k="Standort"', 'k="Menge"'):
+        assert fact in flow, f"Dem Hover fehlt {fact}"
+    assert "<ObjId value={lot.article_object_id} />" in flow, "Auch der Artikel ist klickbar."
+
+
+def test_the_origin_shows_one_step_not_the_whole_parent_process():
+    """**Woher es kommt – aber nicht der ganze Eltern-Prozess** (Testnotiz #427).
+
+    Dass man sieht, aus welchem Auftrag und aus welchem Schritt ein Abzweig hervorging, ist
+    notwendig; ihn deshalb ganz auszubreiten ist zu viel – der Eltern-Prozess gehört in den
+    Eltern-Auftrag. Gezeigt wird genau **ein** Schritt: der, aus dem es hervorging. Dass davor
+    mehr liegt, sagt eine dezente Zeile darüber.
+
+    Welcher das ist, sagt die **id** (``origin.step_id``), nicht der Typ: ein Prozess darf
+    zwei Datenerfassungen haben, und dann wäre «die erste mit passendem Typ» geraten."""
+    from app.schemas.order import OrderOrigin
+
+    assert "step_id" in OrderOrigin.model_fields, "Der Ursprungsschritt wird benannt, nicht geraten."
+    assert "chain" not in OrderOrigin.model_fields, "Die Brotkrumen-Kette ist entfallen (#428)."
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "all.findIndex((s) => s.id === origin.step_id)" in flow, (
+        "Der gezeigte Schritt wird über die id gefunden.")
+    assert "function MoreSteps" in flow and "Schritte davor" in flow, (
+        "Der Ausblick nach oben: dass davor noch mehr liegt (#427).")
+    # Herkunft und Abzweig teilen sich die Anatomie – links so ausführlich wie rechts.
+    assert flow.count("function OrderNode") == 1 and flow.count("<OrderNode") == 2, (
+        "Eltern-Kopf und Abzweig-Kopf sind derselbe Knoten, nicht zwei Nachbauten.")
