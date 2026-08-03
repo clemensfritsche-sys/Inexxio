@@ -4060,9 +4060,14 @@ def test_the_decision_is_a_gate_in_the_flow():
 
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
     flow = (fe / "order-flow.tsx").read_text(encoding="utf-8")
-    for part in ("function Gateway", "function gateFor", "function ResolutionLine"):
+    for part in ("function Gateway", "function ResolutionLine"):
         assert part in flow, f"Dem Fluss fehlt {part}"
     assert "transform: 'rotate(45deg)'" in flow, "Ein Gate ist eine Raute."
+    # **Nur die offene Entscheidung ist ein Knoten** (Testnotiz #434). «wartet» und die
+    # bereits getroffene Antwort waren reine Information – und die trägt der Fluss ohnehin:
+    # ein offener Abzweig IST das Warten, eine Auflösung steht als Zeile an ihrer Stelle.
+    assert "function gateFor" not in flow and "'waiting'" not in flow, (
+        "Ein Zustand, den das Flussbild schon zeigt, braucht kein zweites Symbol (#434).")
     for kind in ("quantity_confirmed", "covered_from_stock", "share_taken"):
         assert f"r.kind === '{kind}'" in flow, kind
     detail = (fe / "order-detail.tsx").read_text(encoding="utf-8")

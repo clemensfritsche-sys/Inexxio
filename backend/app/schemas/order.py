@@ -195,18 +195,10 @@ class OrderOrigin(BaseModel):
     order_name: Optional[str] = None
     order_status: Optional[str] = None
     order_reason: Optional[str] = None
-    # (Die frühere Brotkrumen-``chain`` ist entfallen, Notiz #428: der aktuelle Auftrag steht
-    #  im Kopf des Fensters, der Eltern im Herkunfts-Teaser des Flusses – die Kette sagte
-    #  beides ein zweites Mal.)
-    # Die Schritte des Eltern-Prozesses (angeteasert) – man sieht, woher man kommt. Gezeigt
-    # wird davon genau EINER (der Ursprungsschritt, Notiz #427); die Zahl der übrigen sagt
-    # nur noch, dass davor mehr liegt.
-    parent_steps: list[SubOrderStep] = []
-    # Der Schritt des Eltern, aus dem dieser Unter-Auftrag hervorgegangen ist – als Typ (für
-    # das Wort) und als **id**, damit die Ansicht genau diesen einen Schritt zeigen kann und
-    # nicht den nach Typ erstbesten (ein Prozess darf zwei Datenerfassungen haben).
-    step_type: Optional[str] = None
-    step_id: Optional[int] = None
+    # (Entfallen sind die Brotkrumen-``chain`` (Notiz #428) **und** der angeteaserte
+    #  Eltern-Prozess (#436/#437): der aktuelle Auftrag steht im Kopf des Fensters, der
+    #  übergeordnete als Verweis im Fluss – der reicht. Ein Prozessschritt des Eltern gehört
+    #  in den Eltern-Auftrag, nicht als Vorschau daneben.)
     # Wohin die Stücke beim Abschluss zurückgehen (leer = niemand wartet mehr darauf).
     returns_to_object_id: Optional[int] = None
     returns_to_name: Optional[str] = None
