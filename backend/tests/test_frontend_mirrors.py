@@ -395,11 +395,22 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
         "Ein Abzweig braucht kein zweites, kleineres Vokabular (#418).")
     # **Das Ausblassen zum Rand ist zurück – aber aus dem umgekehrten Grund** (Notiz #453).
     # Früher war die Maske die Entschuldigung dafür, dass ein angeschnittener Teaser nicht
-    # hinpasste (#420); jetzt ist der Nachbar-Prozess vollständig da und blasst nur zur
-    # Aussenkante hin aus – als Einladung, ihn zu öffnen. EINE Stelle (`fade`), zwei
-    # Richtungen: der Abzweig nach rechts, der übergeordnete Auftrag nach links.
-    assert "const fade = (to: 'left' | 'right')" in flow, "Das Ausblassen gibt es einmal."
-    assert "fade('right')" in flow and flow.count("fade('left')") == 2
+    # hinpasste (#420); jetzt ist der Nachbar-Prozess vollständig da und tritt nur zurück –
+    # als Einladung, ihn zu öffnen. EINE Stelle (`aside`), zwei Richtungen: der Abzweig nach
+    # rechts, der übergeordnete Auftrag nach links.
+    #
+    # **Und er tritt deutlich zurück** (Notiz #460): «man soll klar erkennen, dass die links
+    # und rechts dargestellten Prozesse nicht im Fokus stehen». Eine Maske allein reichte
+    # dafür nicht – sie blasst nur die Aussenkante aus, die Mitte des Nachbarn blieb genauso
+    # laut wie der eigene Prozess. Darum ist der Nachbar **als Ganzes** gedämpft und blasst
+    # zusätzlich aus; beim Hovern kommt er ganz nach vorn. Der Hover ist CSS, kein State:
+    # ein `onMouseEnter` je Nachbar wäre React-Arbeit für eine reine Optik-Frage.
+    assert "const aside = (to: 'left' | 'right')" in flow, "Das Zurücktreten gibt es einmal."
+    assert "aside('right')" in flow and flow.count("aside('left')") == 2
+    assert "'ix-flow-aside'" in flow, "Die Optik steht im Stylesheet, nicht als Inline-Hover."
+    css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
+    assert ".ix-flow-aside" in css and ".ix-flow-aside:hover" in css, (
+        "Gedämpft und beim Hovern wieder ganz da – beides an EINER Stelle.")
     # EINE Modul-Karte für den ganzen Fluss – Hauptachse wie Abzweig.
     assert flow.count("function StepCard") == 1, "Es gibt genau EINE Modul-Karte."
     assert "<StepCard compact" in flow, (
@@ -523,7 +534,7 @@ def test_the_bypass_carries_what_stayed_on_the_order():
     assert "isOpen(b) ? lot.quantity : lot.quantity - (back.get(id)?.quantity ?? 0)" in flow, (
         "Ein laufender Abzweig hält sein Material noch – ein abgeschlossener hat es "
         "zurückgegeben, bis auf das Verlorene.")
-    assert "<FlowLots lots={edges[i + 1]} small />" in flow, (
+    assert "<EdgeMaterial lots={edges[i + 1]} small" in flow, (
         "Der Bypass nennt, was auf dem Hauptauftrag geblieben ist (#425).")
 
 
@@ -655,10 +666,16 @@ def test_the_order_goal_hangs_at_the_end_of_the_process():
     im Hover). Eine Karte, die dasselbe noch einmal aufzählt, wäre eine zweite Wahrheit über
     demselben Auftrag.
 
-    Im **Entwurf** bleibt sie – dort ist sie das Formular, nicht eine Wiederholung."""
+    Im **Entwurf** bleibt sie – dort ist sie das Formular, nicht eine Wiederholung.
+
+    **Und die Angabe steht NEBEN dem Knoten, nicht darunter** (Notiz #457): unter ihm
+    schob sie den Endkreis nach oben und die letzte Kante zusammen. Absolut gesetzt bleibt
+    der Kreis auf der Achse, wo er hingehört – die Beschriftung hängt daneben."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "goal?: { due?: string | null; seller?: string | null }" in flow
     assert "{goal.due}" in flow, "Der Liefertermin steht sichtbar am Endknoten."
+    assert "position: 'absolute', left: '100%', top: '50%'," in flow, (
+        "Die Zielangabe hängt rechts am Endknoten, ohne die Achse zu verschieben (#457).")
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
     assert ") : showProcess ? null : (" in detail, (
         "Sobald der Prozess läuft, sagt er alles – die Karte entfällt (#447).")
@@ -675,11 +692,24 @@ def test_the_process_point_offers_a_shortcut_onto_its_material():
 
     Angelegt wird dabei nichts – der Entwurf lebt im Browser (#386) –, und **was** daraus
     wird, entscheidet weiterhin die Auswahl (``subject.classify_pick``). Der Knopf ist eine
-    Eingabehilfe, kein zweiter Weg, einen Auftrag zu erzeugen (#371)."""
+    Eingabehilfe, kein zweiter Weg, einen Auftrag zu erzeugen (#371).
+
+    **An einem offenen Abzweig steht der Prozess eine Kante tiefer** (Notiz #459): dort hat
+    sich das Material bereits geteilt – ein Teil ging in den Abzweig, der Rest blieb auf dem
+    Hauptauftrag. Die Kante über dem Fork zählt beides zusammen; wer dort ansetzt, legt einen
+    Auftrag auf Stücke an, die längst woanders hängen. Der Bypass ist die tiefste erreichte
+    Stelle der Achse – und damit der Prozess-Punkt."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowShortcut" in flow and "function EdgeMaterial" in flow
-    assert "onCreate={i === walked ? onCreateOrder : undefined}" in flow, (
+    assert "const atBypass = walked < nodes.length && !!nodes[walked].branches;" in flow, (
+        "Wo der Prozess steht, wird abgeleitet – ein offener Abzweig schiebt ihn auf den Bypass.")
+    assert "onCreate={!atBypass && i === walked ? onCreateOrder : undefined}" in flow, (
         "Die Abkürzung sitzt dort, wo die starke Linie endet – nicht an jeder Kante.")
+    assert "onCreate={atBypass && i === walked ? onCreateOrder : undefined}" in flow, (
+        "Am Abzweig gehört sie an den Bypass, also an das, was geblieben ist (#459).")
+    # Die beiden Bedingungen schliessen einander aus (`atBypass` ↔ `!atBypass`), und der
+    # abgeschlossene Auftrag trägt sie an seiner letzten Kante – nie zwei gleichzeitig.
+    assert "{done && <EdgeMaterial lots={edges[nodes.length]} onCreate={onCreateOrder} />}" in flow
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
     assert "export function seedFromLots" in detail and "byArticle" in detail, (
         "Eine Position ist ein Artikel – mehrere Instanzen desselben gehören zusammen.")
@@ -687,6 +717,51 @@ def test_the_process_point_offers_a_shortcut_onto_its_material():
     page = (FRONTEND / "app" / "(erp)" / "erp" / "page.tsx").read_text(encoding="utf-8")
     assert "onCreateOrder={(sd) => startCreate('order', sd)}" in page, (
         "Der Auftrag entsteht über denselben Anlage-Weg wie jeder andere.")
+
+
+def test_a_preselected_share_names_its_holder():
+    """**Eine Vorauswahl nennt ihren Halter – «nicht genannt» ist nicht «frei»** (Notiz #461).
+
+    Die Abkürzung übernahm Artikel und Menge korrekt, wählte aber die falsche Instanz vor.
+    Ursache war eine Sorte, die es zweimal gab: ``from_order_object_id`` kannte
+    ``null`` = «der freie Anteil» – und eine **fehlende** Angabe wurde genauso gelesen.
+
+    Das Material am Prozess-Punkt gehört aber diesem Auftrag; frei ist daran nichts. Ohne
+    Halter suchte ``reconcilePicks`` nach einem freien Anteil, fand bei mehreren Anteilen
+    keinen und liess die Auswahl fallen – bei genau einer Zeile griff der Rückfall «es gibt
+    ja nur eine», und der konnte die falsche sein.
+
+    Zwei Hälften, beide nötig: die Abkürzung **nennt** den Halter (sie weiss ihn – es ist der
+    Auftrag, dessen Fluss sie zeigt), und wo nichts genannt ist, bleibt es ``undefined``
+    statt ``null``. Geraten wird nur noch dort, wo es nichts zu raten gibt (eine Zeile)."""
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
+    assert "export function seedFromLots(lots: FlowLot[], holderObjectId: number | null)" in detail, (
+        "Die Abkürzung weiss, wem das Material gehört – also sagt sie es (#461).")
+    assert "fromOrderObjectId: holderObjectId" in detail, (
+        "Der Anteil am Prozess-Punkt hängt an diesem Auftrag, er ist nicht frei.")
+    assert "const named = p.from_order_object_id !== undefined;" in detail, (
+        "«nicht genannt» und «frei» sind zwei verschiedene Aussagen.")
+    assert "i.fromOrderObjectId === undefined" in detail, (
+        "Ein nicht genannter Halter bleibt nicht genannt – `null` wäre eine Behauptung.")
+    assert "seedFromLots(picked, record.object_id ?? null)" in detail, (
+        "Den Halter kennt der Auftrag, dessen Fluss die Abkürzung zeigt.")
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "onCreateOrder?: (lots: FlowLot[]) => void" in flow, (
+        "Der Fluss reicht nur das Material weiter – wem es gehört, weiss sein Auftrag.")
+
+
+def test_what_is_past_steps_back_on_the_edges_too():
+    """**Vergangenes verblasst – auf der Kante wie am Modul** (Testnotiz #462).
+
+    Ein erledigter Prozessschritt tritt zurück; die Mengen-Angabe darüber tat es nicht und
+    war damit lauter als der Schritt, zu dem sie gehört. Dieselbe Dämpfung, dieselbe Regel:
+    was der Fluss hinter sich hat, zieht den Blick nicht mehr auf sich."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "opacity: past ? 0.55 : 1" in flow, "Vergangene Kanten sind gedämpft (#462)."
+    assert "<EdgeMaterial lots={edges[i]} past={i < walked}" in flow, (
+        "Eine Kante ist vergangen, wenn der Fluss über sie hinaus ist.")
+    assert "<FlowLots lots={inLots} small past={walked > 0} />" in flow, (
+        "Auch im Abzweig: was hineinging, ist Vergangenheit, sobald er losgelaufen ist.")
 
 
 def test_the_flow_shows_state_only_where_the_line_does_not():
