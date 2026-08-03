@@ -23,14 +23,16 @@ import { actorHint, formatObjectId } from '@/lib/utils';
 //
 // **EINE Linie, EINE Regel** (Notizen #422/#429): die volle schwarze Linie läuft durch alles,
 // was passiert und abgeschlossen ist – bis zu dem Modul, das aussteht; ab dort Haarlinie.
-// Das gilt **überall gleich**: auf der Achse, auf dem Weg in einen Abzweig hinein, in ihm
-// drin und auf dem Weg zurück. Gestrichelte Linien gibt es nicht mehr – ein Abzweig ist ein
-// gegangener Weg wie jeder andere, kein Sonderfall mit eigener Strichart.
+// Gestrichelte Linien gibt es nicht – ein Abzweig ist ein gegangener Weg wie jeder andere.
+// **Die Achse ist dabei ein Präfix, ein Abzweig nicht:** «bis zur offenen Stelle» setzt eine
+// Reihenfolge voraus, und zwischen gleichzeitig laufenden Ästen gibt es keine. Zu **jedem**
+// gestarteten Ast ist ein Weg gegangen worden, also ist zu jedem die Linie voll.
 //
 // **Fork und Merge** (Notizen #417/#424): die Abzweigung verlässt die Achse waagrecht und geht
-// **oben mittig** in den Unterprozess; unten führt sie wieder **zurück in die Achse**. Dazwischen
-// läuft die Achse als **Bypass** weiter – und trägt genau das, was auf dem Hauptauftrag
-// geblieben ist (Notiz #425): «2 gingen in die Abweichung, 2 blieben hier». Alle Ecken sind
+// **oben mittig** in die Abzweig-Spur; unten führt sie wieder **zurück in die Achse**. Dazwischen
+// läuft die Achse als **Bypass** weiter – und trägt genau das, was dem Auftrag geblieben ist
+// (Notizen #425/#469). Mehrere Äste an derselben Stelle sind **EINE Teilung in mehrere
+// Richtungen**: ein Fork, ein Merge, und sie hängen untereinander in der Spur. Alle Ecken sind
 // leicht gerundet (#423), aus EINEM Baustein (``Elbow``).
 //
 // **Keine Sonderbehandlung, ein System für alles** (Notiz #418): die Module eines Abzweigs
@@ -215,15 +217,17 @@ function lotsOf(list: FlowLot[]): Lots {
  * zurückgekehrten Stücke längst im unteren Wert enthalten; fehlt nur noch, was unterwegs
  * verloren ging (verschrottet/verkauft/verbaut).
  */
-function plusBalance(below: Lots, b: OrderDeviationInfo): Lots {
+function plusBalance(below: Lots, branches: OrderDeviationInfo[]): Lots {
   const out: Lots = new Map(below);
-  const into = lotsOf(b.flow_in ?? []);
-  const back = lotsOf(b.flow_out ?? []);
-  for (const [id, lot] of into) {
-    const away = isOpen(b) ? lot.quantity : lot.quantity - (back.get(id)?.quantity ?? 0);
-    if (away <= 0) continue;
-    const cur = out.get(id);
-    out.set(id, cur ? { ...cur, quantity: cur.quantity + away } : { ...lot, quantity: away });
+  for (const b of branches) {
+    const into = lotsOf(b.flow_in ?? []);
+    const back = lotsOf(b.flow_out ?? []);
+    for (const [id, lot] of into) {
+      const away = isOpen(b) ? lot.quantity : lot.quantity - (back.get(id)?.quantity ?? 0);
+      if (away <= 0) continue;
+      const cur = out.get(id);
+      out.set(id, cur ? { ...cur, quantity: cur.quantity + away } : { ...lot, quantity: away });
+    }
   }
   return out;
 }
@@ -407,37 +411,39 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
 
   // **Die Knoten der Achse**, in Reihenfolge: Module und die Äste an ihrer Stelle.
   //
-  // **Ein Ast, ein Knoten** (mehrere gleichzeitig laufende Unter-Aufträge): Zwei Abweichungen
-  // am selben Schritt sind keine zwei Spuren nebeneinander, sondern **zwei aufeinander
-  // folgende Teilungen desselben Loses** – die zweite nimmt von dem, was die erste übrig
-  // gelassen hat. Genau so entstehen sie auch («2 von 4 abgezweigt, dann 1 von den übrigen
-  // 2»). Darum bekommt jeder Ast seinen **eigenen** Fork, seinen **eigenen** Bypass und
-  // seinen **eigenen** Merge; die Achse dazwischen sagt, was jeweils geblieben ist:
+  // **Mehrere Abzweige an derselben Stelle sind EINE Teilung in mehrere Richtungen** – nicht
+  // mehrere Teilungen nacheinander. Das Material verlässt die Achse an EINEM Punkt; wie viel
+  // wohin geht, sagt die Menge über jedem Unterprozess. Daraus folgt zweierlei:
   //
-  //      4 Stk ─┬──► Abweichung A (2)
-  //      2 Stk ─┼──► Abweichung B (1)
+  //   * es gibt **einen** Fork und **einen** Merge (weniger Linien, keine Überlagerung), und
+  //   * die Achse darunter trägt, was dem Auftrag **wirklich** geblieben ist – nicht einen
+  //     Zwischenstand nach der ersten von zwei Teilungen (Testnotiz #469).
+  //
+  //            ┌──► Abweichung A (2 Stk)
+  //      4 Stk ┤
+  //            └──► Abweichung B (1 Stk)
   //      1 Stk  ▼  weiter im Prozess
   //
-  // Das braucht **keine vierte Spur und keinen Scrollbalken**: es ist dasselbe Vokabular,
-  // eine Stufe feiner angewandt. Und es rechnet die Zwischenmenge erstmals richtig – vorher
-  // teilten sich alle Äste EINEN Bypass, der schon die Summe aller Abgänge zeigte.
-  type Node = { step?: OrderStep; branch?: OrderDeviationInfo; res?: StepResolution[] };
+  // Die Alternative – je Ast ein eigener Fork mit eigenem Bypass – rechnete zwar auch
+  // korrekt, behauptete aber eine Reihenfolge («erst A, dann B»), die es nicht gibt, und
+  // liess die Achse zwischen zwei Ästen eine Menge tragen, die der Auftrag nie hielt.
+  type Node = { step?: OrderStep; branches?: OrderDeviationInfo[]; res?: StepResolution[] };
   const nodes: Node[] = [];
-  // Reihenfolge = Entstehung: die Objektnummer steigt, also steht die spätere Teilung unten.
-  const push = (list: OrderDeviationInfo[], res?: StepResolution[]) =>
-    [...list].sort((a, b) => a.object_id - b.object_id).forEach((b, k, all) =>
-      nodes.push({ branch: b, res: k === all.length - 1 ? res : [] }));
+  // Reihenfolge innerhalb einer Teilung = Entstehung (die Objektnummer steigt).
+  const byAge = (l: OrderDeviationInfo[]) => [...l].sort((a, b) => a.object_id - b.object_id);
   const claimed = new Set(steps.flatMap((s) => (s.sub_orders ?? []).map((d) => d.object_id)));
   // Wer als Abzweig im Bild steht, braucht daneben keine Zeile mehr (#466, siehe `Resolutions`).
   const shownSubs = new Set([...claimed, ...subOrders.map((x) => x.object_id)]);
-  push(subOrders.filter((x) => !claimed.has(x.object_id)));
+  const loose = subOrders.filter((x) => !claimed.has(x.object_id));
+  if (loose.length) nodes.push({ branches: byAge(loose) });
   for (const s of steps) {
     const subs = s.sub_orders ?? [];
     const before = subs.filter((x) => x.stage === 'before');
+    const after = subs.filter((x) => x.stage === 'after');
     const res = s.resolutions ?? [];
-    push(before, res);
+    if (before.length) nodes.push({ branches: byAge(before), res });
     nodes.push({ step: s, res: before.length ? [] : res });
-    push(subs.filter((x) => x.stage === 'after'));
+    if (after.length) nodes.push({ branches: byAge(after) });
   }
 
   // **Mengen von unten nach oben**: unten steht, was der Auftrag heute hält; jeder Ast gibt
@@ -446,13 +452,15 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   const edges: Lots[] = new Array(nodes.length + 1);
   edges[nodes.length] = base;
   for (let i = nodes.length - 1; i >= 0; i--) {
-    edges[i] = nodes[i].branch ? plusBalance(edges[i + 1], nodes[i].branch!) : edges[i + 1];
+    edges[i] = nodes[i].branches ? plusBalance(edges[i + 1], nodes[i].branches!) : edges[i + 1];
   }
 
   // **Wie weit ist der Fluss gegangen?** (#422) – die führenden erledigten Knoten. Knoten i ist
   // ERREICHT, wenn `i <= walked`, und DURCHLAUFEN, wenn `i < walked`. Genau bis dorthin ist die
   // Linie stark.
-  const nodeDone = (n: Node) => (n.step ? n.step.state === 'done' : !isOpen(n.branch!));
+  const nodeDone = (n: Node) => (n.step
+    ? n.step.state === 'done'
+    : (n.branches ?? []).every((b) => !isOpen(b)));
   let walked = 0;
   while (walked < nodes.length && nodeDone(nodes[walked])) walked++;
 
@@ -470,7 +478,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   //   * sonst → an der Kante über dem nächsten offenen Modul.
   const here: { at: number; bypass: boolean } | null = !running ? null
     : walked === nodes.length ? { at: nodes.length, bypass: false }
-      : { at: walked, bypass: !!nodes[walked].branch };
+      : { at: walked, bypass: !!nodes[walked].branches };
   const liveEdge = (i: number) => here?.at === i && !here.bypass;
   const liveBypass = (i: number) => here?.at === i && here.bypass;
 
@@ -487,18 +495,18 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
         <Axis strong={reached} />
       </Row>,
     );
-    if (n.branch) {
+    if (n.branches) {
       const res = n.res ?? [];
       // **Nur die offene Entscheidung ist ein Knoten** (Notiz #434). «wartet» und die
       // getroffene Antwort waren reine Information – und die steht längst im Fluss: ein
       // offener Abzweig IST das Warten, eine Auflösung steht als Zeile an ihrem Schritt.
-      const decide = res.length === 0 && !isOpen(n.branch) && !gateUsed && !!decision;
+      const decide = res.length === 0 && nodeDone(n) && !gateUsed && !!decision;
       if (decide) gateUsed = true;
       rows.push(
-        // **Fork · Bypass · Merge**: die Achse läuft neben dem Abzweig weiter und trägt, was
-        // auf dem Hauptauftrag geblieben ist (Notiz #425).
-        <Row key={`br-${n.branch.object_id}`}
-          right={<BranchCell info={n.branch} reached={reached} onOpen={onOpenOrder} />}>
+        // **Fork · Bypass · Merge**: die Achse läuft neben der Teilung weiter und trägt, was
+        // auf dem Hauptauftrag geblieben ist (Notizen #425/#469).
+        <Row key={`br-${n.branches[0].object_id}`}
+          right={<BranchArm branches={n.branches} onOpen={onOpenOrder} />}>
           <Axis grow h={26} strong={reached} />
           {reached && <EdgeMaterial lots={edges[i + 1]} small past={!liveBypass(i)}
             onCreate={liveBypass(i) ? onCreateOrder : undefined} />}
@@ -507,7 +515,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
       );
       if (decide || res.length > 0) {
         rows.push(
-          <Row key={`gate-${n.branch.object_id}`}>
+          <Row key={`gate-${n.branches[0].object_id}`}>
             <Axis h={10} strong={passed} />
             {decide ? <Gateway decision={decision} /> : <Resolutions list={res} shown={shownSubs} />}
           </Row>,
@@ -544,7 +552,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   });
 
   const done = walked === nodes.length;
-  const hasAside = !!origin || nodes.some((n) => !!n.branch);
+  const hasAside = !!origin || nodes.some((n) => !!n.branches);
   return (
     // Ein Diagramm darf breiter sein als eine Textspalte – aber es scrollt in seinem eigenen
     // Kasten, statt die Seite waagrecht zu schieben.
@@ -675,21 +683,42 @@ const SUB_LABEL: Record<string, string> = {
 };
 
 /**
- * **Fork und Merge** (Notizen #417/#424): die Linie verlässt die Achse waagrecht, geht **oben
- * mittig** in den Unterprozess – und unten wieder **zurück in die Achse**. Beide Ecken sind
- * gerundet (#423) und tragen dieselbe Regel wie jede andere Linie: stark, wenn dieser Weg
- * schon gegangen wurde (#429). Der Rückweg wird erst stark, wenn der Abzweig durch ist.
+ * **Die Teilung an EINER Stelle der Achse: ein Fork, ein Merge** (Notizen #417/#424).
+ *
+ * Die Linie verlässt die Achse waagrecht, geht **oben mittig** in die Abzweig-Spur – und
+ * unten wieder **zurück in die Achse**. Beide Ecken sind gerundet (#423). Laufen mehrere
+ * Unter-Aufträge von hier aus, hängen sie **an derselben Abzweigung** untereinander in der
+ * Spur; wie viel wohin geht, sagt die Menge über jedem von ihnen.
+ *
+ * **Und die Linie ist hier kein Präfix.** Auf der Achse gilt «stark bis zur offenen Stelle»
+ * (#422) – das setzt eine Reihenfolge voraus, die es zwischen gleichzeitig laufenden Ästen
+ * nicht gibt. Zu **jedem** gestarteten Ast ist ein Weg gegangen worden, also ist zu jedem die
+ * Linie voll; sie hängt am Zustand des Astes, nicht daran, wie weit die Achse gekommen ist.
+ * Der Rückweg wird erst stark, wenn die **ganze** Teilung durch ist – vorher geht es auf der
+ * Achse ja auch nicht weiter.
  */
-function BranchCell({ info, reached, onOpen }: {
-  info: OrderDeviationInfo; reached: boolean; onOpen?: (id: number) => void;
+const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';
+
+function BranchArm({ branches, onOpen }: {
+  branches: OrderDeviationInfo[]; onOpen?: (id: number) => void;
 }) {
-  const closed = !isOpen(info);
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
       paddingTop: ARM, paddingBottom: ARM }}>
-      <Elbow dir="fork-right" strong={reached} />
-      <div {...aside('right')}><SubProcess info={info} onOpen={onOpen} /></div>
-      <Elbow dir="merge-right" strong={reached && closed} />
+      <Elbow dir="fork-right" strong={branches.some(branchStarted)} />
+      <div {...aside('right')}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+          width: '100%', minWidth: 0 }}>
+          {branches.map((b, i) => (
+            <div key={b.object_id} style={{ display: 'flex', flexDirection: 'column',
+              alignItems: 'center', width: '100%', minWidth: 0 }}>
+              {i > 0 && <Axis h={20} strong={branchStarted(b)} />}
+              <SubProcess info={b} onOpen={onOpen} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <Elbow dir="merge-right" strong={branches.every((b) => !isOpen(b))} />
     </div>
   );
 }

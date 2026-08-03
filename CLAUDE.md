@@ -3859,17 +3859,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **(1) Mehrere Unter-Aufträge an derselben Stelle** – die offene Gestaltungsfrage: im
   Drei-Spuren-Bild (links Herkunft · Mitte eigener Prozess · rechts Abzweige) ist für zwei
   Abzweige **nebeneinander** kein Platz, und eine vierte Spur oder ein Scrollbalken sind
-  ausgeschlossen. Die Antwort ist kein neues Bauteil, sondern eine **Umdeutung**: zwei
-  Abweichungen am selben Schritt sind keine zwei Spuren, sondern **zwei aufeinander folgende
-  Teilungen desselben Loses** – die zweite nimmt von dem, was die erste übrig gelassen hat.
-  Genau so entstehen sie auch («2 von 4 abgezweigt, dann 1 von den übrigen 2»). Darum bekommt
-  **jeder Ast seinen eigenen Fork, Bypass und Merge**, und die Achse dazwischen sagt, was
-  jeweils geblieben ist (4 → 2 → 1). Dasselbe Vokabular, eine Stufe feiner angewandt – und es
-  rechnet die Zwischenmenge **erstmals richtig**: vorher teilten sich alle Äste EINEN Bypass,
-  der bereits die Summe aller Abgänge zeigte (im gemeldeten Fall stand zwischen den beiden
-  Teilungen «1 Stk» statt «2 Stk»). `BranchArm` ist entfallen, `Node.branches` → `branch`,
-  `plusBalance` gilt je Ast; die Reihenfolge ist die Entstehung (Objektnummer aufsteigend),
-  sonst behauptete die Zwischenmenge eine Teilung, die es nie gab.
+  ausgeschlossen. *(Die erste Antwort – je Ast ein eigener Fork mit eigenem Bypass, also
+  «zwei aufeinander folgende Teilungen» – ist in Runde 37 zurückgenommen; sie behauptete eine
+  Reihenfolge, die es zwischen gleichzeitig laufenden Ästen nicht gibt. Siehe unten.)*
   **(2) «Stark ist es dort, wo der Prozessschritt gerade aktiv ist»** (#464/#467/#468) – die
   Regel des Nutzers, jetzt als **eine** Ableitung (`here`) statt dreier Zähler. Daraus folgt
   alles: *läuft der Auftrag nicht mehr* (abgeschlossen/abgebrochen/Entwurf) → **gar keine**
@@ -3894,9 +3886,32 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   fehlt (`Resolutions` filtert, EINE Stelle für alle Auflösungszeilen).
   **(5) Keine Überschrift «Prozess»** (#463) – ein Diagramm mit Start-, End- und Modulknoten
   sagt selbst, was es ist (wie #106/#116/#451).
-  Wächter: `test_parallel_sub_orders_are_successive_splits_of_one_lot`,
-  `test_a_taken_share_is_not_told_twice`; die Guards für Abkürzung, verblasste Kanten,
-  Lesbarkeit und Seitenspur sind auf die neuen Regeln gezogen.
+  Wächter: `test_a_taken_share_is_not_told_twice`; die Guards für Abkürzung, verblasste
+  Kanten, Lesbarkeit und Seitenspur sind auf die neuen Regeln gezogen.
+
+- **Mehrere Abzweige an derselben Stelle sind EINE Teilung in mehrere Richtungen**
+  (Juli 2026, Praxis-Rückmeldung + Testnotiz #469): Die Zwischenstufe aus der Runde davor –
+  je Ast ein eigener Fork mit eigenem Bypass, gelesen als «zwei aufeinander folgende
+  Teilungen» – ist zurückgenommen. Sie rechnete zwar korrekt, hatte aber drei Folgen, die
+  alle dieselbe Wurzel hatten: **sie unterstellte eine Reihenfolge, die es zwischen
+  gleichzeitig laufenden Ästen nicht gibt.**
+  (1) **Zum zweiten Ast führte nur eine Haarlinie.** Die Achse ist ein **Präfix** («stark bis
+  zur offenen Stelle», #422) – und ein Präfix setzt eine Reihenfolge voraus. Zwei Abweichungen
+  laufen aber nebeneinander; zu **beiden** ist ein Weg gegangen worden. Die Stärke eines
+  Abzweig-Wegs hängt darum jetzt an **seinem** Zustand (`branchStarted`), nicht am Fortschritt
+  der Achse: der Fork ist stark, sobald irgendein Ast gestartet ist, der Rückweg erst, wenn
+  die **ganze** Teilung durch ist. Die Achse selbst bleibt ein Präfix – sie ist ja sequenziell.
+  (2) **Überlagerung der Linien.** Zwei Äste hiessen zwei Fork/Merge-Paare mit einer S-Kurve
+  dazwischen (einmünden, sofort wieder abbiegen). Jetzt gibt es **einen** Fork und **einen**
+  Merge; die Unterprozesse hängen untereinander in der Spur, verbunden durch ein Stück Achse.
+  (3) **Die Achse trug einen Zwischenstand statt der Wahrheit** (#469): «2 Stk», obwohl von
+  4 Stück bereits 2 und 1 abgezweigt waren und der Auftrag nur noch **1** hielt. Mit EINEM
+  Fork ist der Bypass wieder das, was der Auftrag wirklich hat.
+  **Wie viel wohin geht, sagt die Menge über jedem Unterprozess** – dafür braucht es keine
+  zweite Teilung. Das Drei-Spuren-Bild bleibt unangetastet, und es ist ein Bauteil weniger
+  (`BranchCell` ist in `BranchArm` aufgegangen).
+  Wächter: `test_parallel_sub_orders_are_one_split_in_several_directions`,
+  `test_what_has_been_walked_is_a_strong_solid_line` (Fork/Merge-Regel).
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
