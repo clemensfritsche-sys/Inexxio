@@ -119,6 +119,8 @@ export type StepResolution = OrderStep['resolutions'][number];
 export type OrderShortfall = OrderApi['shortfall'][number];
 /** Ein laufender Auftrag, dem die Auswahl dieses Entwurfs etwas wegnimmt (#387). */
 export type AffectedOrder = OrderApi['affects'][number];
+/** Ein **regulärer** Auftrag, der dasselbe Material vor/nach diesem verarbeitet hat (#493). */
+export type MaterialOrder = OrderApi['material_from'][number];
 /**
  * Die drei Antworten auf eine Unterdeckung – dieselben am laufenden Auftrag wie schon beim
  * Erteilen eines Entwurfs (Backend `schemas/order.SHORTFALL_ANSWERS`). Sie gelten **je

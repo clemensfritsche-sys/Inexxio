@@ -20,7 +20,7 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    FlowLot, OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderResponse,
+    FlowLot, MaterialOrder, OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderResponse,
     OrderStepInfo, OrderSummary, ShortfallInstance, StepResolution, SubOrderStep,
     StepShortfall,
 )
@@ -32,7 +32,7 @@ from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label, location_labels, physical_location_labels
 from .resource import build_resource_embed
-from .subject import held_quantity, order_instances, subject_kind
+from .subject import TERMINAL_DISPOSITIONS, held_quantity, order_instances, subject_kind
 
 _STAFF_ROLES = ("admin", "employee")
 
@@ -430,7 +430,6 @@ def order_material(db: Session, order: Order,
     meta = _lot_meta(db, insts)
     material: list[FlowLot] = []
     gone: list[FlowLot] = []
-    running = order.status == "released"
     for i in insts:
         base = meta.get(i.object_id or 0)
         if base is None:
@@ -452,13 +451,33 @@ def order_material(db: Session, order: Order,
             material.append(FlowLot(quantity=float(part), disposition=kind,
                                     quality=i.quality, at=at, **base))
             gone.append(FlowLot(quantity=float(part), disposition=kind, at=at, **base))
+        # **Der Zustand ist eine Aussage über das MATERIAL, nie über den betrachtenden
+        # Auftrag** (Testnotiz #495). ``reserved`` hiess «der Auftrag, den ich gerade ansehe,
+        # läuft noch» – damit sah dasselbe Stück im selben Moment verschieden aus: gelb
+        # («Reserviert») vom laufenden Eltern aus, grün («Freigegeben», also frei am Lager)
+        # vom abgeschlossenen Abzweig aus, obwohl es die ganze Zeit dem Eltern gehörte. Das
+        # war nie eine Eigenschaft der Menge, sondern der Blickrichtung.
+        #
+        # Jetzt sagt es, was es behauptet: **beansprucht ein Auftrag diese Menge?**
+        # (``instances.reserved_quantity``, die Summe der Ansprüche). Damit ist der Zustand
+        # überall derselbe – dieselbe Frage, dieselbe Antwort wie am Instanz-Detail.
         if left > ZERO:
-            # Der lebende Rest trägt den Zustand der Instanz – und ist **gebunden**, solange
-            # dieser Auftrag läuft: sonst stünde ein Stück, das gerade bearbeitet wird, als
-            # «frei am Lager» (grün) da, obwohl es einem laufenden Auftrag gehört (#485).
-            material.append(FlowLot(quantity=float(left), quality=i.quality,
-                                    disposition=i.disposition, reserved=running, **base))
+            bound = min(left, to_qty(i.reserved_quantity))
+            for amount, is_bound in ((bound, True), (left - bound, False)):
+                if amount > ZERO:
+                    material.append(FlowLot(quantity=float(amount), quality=i.quality,
+                                            disposition=i.disposition, reserved=is_bound, **base))
     return material, gone
+
+
+def returning_material(material: list[FlowLot]) -> list[FlowLot]:
+    """**Was aus einem Auftrag zurückkommt** – die EINE Ableitung dafür.
+
+    Was er übernommen hat, minus dem, was den Bestand endgültig verlassen hat: übrig bleiben
+    genau die Zeilen, die **nicht** terminal sind. ``order_material`` zerlegt die übernommene
+    Menge ohnehin schon in Abgänge und den lebenden Rest – hier wird nur der Rest gelesen,
+    statt die Differenz ein zweites Mal zu rechnen."""
+    return [l for l in material if l.disposition not in TERMINAL_DISPOSITIONS]
 
 
 def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
@@ -470,6 +489,7 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
     getrennt zusammengesetzt, konnte der eine Teaser mehr wissen als der andere. Jetzt eine
     Quelle: Name, Zustand, sein Ablauf **und** der Materialfluss durch ihn (#413)."""
     material, gone = order_material(db, sub)
+    back = returning_material(material)
     return OrderDeviationInfo(
         object_id=sub.object_id, status=sub.status, reason=sub.reason,
         instance_count=len(instance_object_ids or []),
@@ -478,9 +498,15 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
         name=_order_ref_name(db, sub),
         steps=_sub_order_steps(db, sub, cache),
         flow_in=material, flow_lost=gone,
+        # **Was hineinging, was zurück IST – zwei verschiedene Fragen** (Testnotiz #496).
+        # Solange der Abzweig läuft, ist sein Material bei ihm: es kommt erst zurück, wenn er
+        # durch ist. Vorher stand nur EINE Menge zur Verfügung, und die Achse des Eltern
+        # musste daraus beides erraten – mit dem Ergebnis, dass ein Stück, das nie am
+        # Hauptprozess vorbeikam, dort trotzdem stand.
+        flow_back=[] if sub.status in ("draft", "released") else back,
         # Dieselbe Frage, dieselbe Antwort wie am Rückweg-Knoten im Unter-Auftrag selbst –
         # der Abzweig darf im Eltern nicht anders aussehen als beim Öffnen (#492).
-        returns_material=sum(x.quantity for x in material) - sum(x.quantity for x in gone) > 0)
+        returns_material=sum(x.quantity for x in back) > 0)
 
 
 def _sub_order_steps(db: Session, sub: Order,
@@ -694,8 +720,8 @@ def returns_material(db: Session, order: Order) -> bool:
     Sie steht hier, weil sie an **zwei** Oberflächen gebraucht wird: am Abzweig im
     Eltern-Auftrag und am Rückweg-Knoten im Unter-Auftrag selbst. Wurden sie getrennt
     hergeleitet, zeigte derselbe Vorgang zwei verschiedene Bilder."""
-    material, gone = order_material(db, order)
-    return sum(x.quantity for x in material) - sum(x.quantity for x in gone) > 0
+    material, _ = order_material(db, order)
+    return sum(x.quantity for x in returning_material(material)) > 0
 
 
 def _order_ref_name(db: Session, o: Order) -> str:
@@ -704,6 +730,76 @@ def _order_ref_name(db: Session, o: Order) -> str:
     an zwei Stellen zwei Namen trägt."""
     rows = to_order_summaries(db, [o])
     return rows[0].name if rows else (o.title or "Auftrag")
+
+
+def material_trace(db: Session, order: Order,
+                   insts: list | None = None) -> tuple[list[MaterialOrder], list[MaterialOrder]]:
+    """**Woher das Material kam und wohin es weiterging** – der Prozessbaum (Testnotiz #493).
+
+    Ein Auftrag ist keine Insel: seine Instanzen hatten vorher ein Leben und haben danach
+    eines. Genau das macht den Fluss zu einem **Baum** statt zu einer Episode – «wie wo was
+    passiert ist» lässt sich damit über Auftragsgrenzen hinweg verfolgen, ohne zu suchen.
+
+    Gelesen wird die **Verarbeitungs-Historie** (``instance_order_links``) – dauerhaft und
+    unveränderlich, also auch dann noch vollständig, wenn Reservierungen längst gelöst sind.
+    Sie ist chronologisch (aufsteigende id), also ist «davor/danach» schlicht die Position.
+
+    **Nur reguläre Aufträge**, ausdrücklich keine Unter-Aufträge: eine Abweichung ist eine
+    Episode INNERHALB dieses Vorgangs und steht ohnehin als Abzweig im Bild. Interessant ist
+    der Faden, der durch die Vorgänge hindurchführt. Aus demselben Grund fällt der eigene
+    Eltern-Auftrag heraus – er steht schon in der linken Spur.
+
+    Hat eine Instanz keinen regulären Vorgänger, ist ihr **Erzeuger** die Herkunft: er hat sie
+    hervorgebracht, und genau danach fragt man vor dem Startknoten.
+
+    Rein lesend, zwei Abfragen (Historie + Aufträge), kein N+1."""
+    from .quantity import to_qty
+    insts = order_instances(db, order) if insts is None else insts
+    oids = [i.object_id for i in insts if i.object_id]
+    if not oids or not order.id:
+        return [], []
+    rows = (db.query(InstanceOrderLink)
+            .filter(InstanceOrderLink.instance_object_id.in_(oids),
+                    InstanceOrderLink.is_active == True)
+            .order_by(InstanceOrderLink.id).all())
+    by_inst: dict[int, list[InstanceOrderLink]] = {}
+    for r in rows:
+        by_inst.setdefault(r.instance_object_id, []).append(r)
+    wanted = {r.order_id for r in rows} | {i.order_id for i in insts if i.order_id}
+    orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(wanted)).all()}
+
+    def regular(oid: int | None) -> Order | None:
+        """Ein **regulärer** Auftrag, der nicht dieser und nicht sein Eltern ist."""
+        o = orders.get(oid or 0)
+        if not o or o.id == order.id or o.reason or not o.object_id:
+            return None
+        return None if o.object_id == order.parent_order_id else o
+
+    before: dict[int, Decimal] = {}
+    after: dict[int, Decimal] = {}
+    names: dict[int, Order] = {}
+    for inst in insts:
+        seq = by_inst.get(inst.object_id or 0, [])
+        here = next((n for n, r in enumerate(seq) if r.order_id == order.id), None)
+        if here is None:
+            continue
+        mine = to_qty(seq[here].quantity) if seq[here].quantity is not None \
+            else held_quantity(order, inst)
+        # Der nächste reguläre Auftrag in jede Richtung – nicht alle, nur der Nachbar.
+        prev = next((o for r in reversed(seq[:here]) if (o := regular(r.order_id))), None) \
+            or regular(inst.order_id)
+        nxt = next((o for r in seq[here + 1:] if (o := regular(r.order_id))), None)
+        for hit, bucket in ((prev, before), (nxt, after)):
+            if hit and hit.object_id:
+                bucket[hit.object_id] = bucket.get(hit.object_id, Decimal(0)) + mine
+                names[hit.object_id] = hit
+
+    def rows_of(bucket: dict[int, Decimal]) -> list[MaterialOrder]:
+        return [MaterialOrder(object_id=oid, name=_order_ref_name(db, names[oid]),
+                              quantity=float(qty))
+                for oid, qty in sorted(bucket.items())]
+
+    return rows_of(before), rows_of(after)
 
 
 def _fill_origin(db: Session, order: Order, resp: OrderResponse) -> None:
@@ -965,6 +1061,8 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     # am Abzweig (``order_material``), damit derselbe Vorgang nicht je nach Blickrichtung zwei
     # Zahlen trägt (#479/#480/#482).
     resp.flow_lots, resp.flow_lost = order_material(db, order, instances)
+    # **Der Prozessbaum** (Notiz #493): woher dasselbe Material kam, wohin es weiterging.
+    resp.material_from, resp.material_to = material_trace(db, order, instances)
 
     # Auftrag-Stepper: je Schritt der passende Ausführungs-Embed + Abschluss-Info.
     # Das oberste Embed je Typ bleibt für Rückwärtskompatibilität (Lieferanten-Sicht)

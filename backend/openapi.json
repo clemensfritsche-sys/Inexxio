@@ -11800,6 +11800,36 @@
         "title": "LocationHop",
         "description": "Eine Station der Standort-Kette (von innen nach aussen).\n\n``location_type='address'`` markiert den abschliessenden geografischen Eintrag –\ner trägt keine Objektnummer, sondern die Anschrift."
       },
+      "MaterialOrder": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "MaterialOrder",
+        "description": "**Ein regulärer Auftrag, der dasselbe Material vor bzw. nach diesem verarbeitet hat**\n(Testnotiz #493).\n\nVor dem Startknoten: woher die Instanzen kamen. Nach dem Endknoten: wohin sie weitergingen\n– falls sie das je taten. Bewusst nur **reguläre** Aufträge: eine Abweichung ist eine\nEpisode innerhalb dieses Vorgangs und steht ohnehin als Abzweig im Bild; gesucht ist der\nFaden, der durch die Vorgänge hindurchführt."
+      },
       "MovementEmbed": {
         "properties": {
           "id": {
@@ -12642,6 +12672,14 @@
             "title": "Flow Lost",
             "default": []
           },
+          "flow_back": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLot"
+            },
+            "type": "array",
+            "title": "Flow Back",
+            "default": []
+          },
           "returns_material": {
             "type": "boolean",
             "title": "Returns Material",
@@ -13269,6 +13307,22 @@
             },
             "type": "array",
             "title": "Flow Lost",
+            "default": []
+          },
+          "material_from": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialOrder"
+            },
+            "type": "array",
+            "title": "Material From",
+            "default": []
+          },
+          "material_to": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialOrder"
+            },
+            "type": "array",
+            "title": "Material To",
             "default": []
           },
           "deviations": {

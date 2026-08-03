@@ -248,19 +248,31 @@ def test_the_draft_is_framed_like_the_order_it_will_become():
     Dialog mehr an, sondern zeichnet den Fluss, den man meint – **je Halter einen**.
 
     «Ersetzen» bleibt bewusst draussen: das ist keine Aussage über diesen Entwurf, sondern
-    eine Beschaffung im anderen Auftrag – sie gehört an den laufenden Auftrag."""
+    eine Beschaffung im anderen Auftrag – sie gehört an den laufenden Auftrag.
+
+    **Und die Schere sitzt AUF der Linie** (Testnotiz #499) – dort, wo entschieden wird, wird
+    auch bedient. Gekappt heisst schlicht: keine Linie; der Knoten bleibt und trägt den Knopf,
+    der sie wiederbringt. Keine zweite Liste darunter, kein zweiter Strichstil."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text()
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
 
     # Derselbe Rahmen, dieselben Bausteine – kein zweites Vokabular.
     assert "export function DraftFlowFrame" in flow
-    for part in ("<Row ", "<Axis ", "<FlowTerm ", "<OrderRefNode", 'dir="in-from-left"',
-                 'dir="out-to-left"'):
+    for part in ("<Row ", "<Axis ", "<OrderRefNode", 'dir="in-from-left"', 'dir="out-to-left"'):
         assert part in flow, f"Der Entwurfs-Rahmen benutzt {part} wie der laufende Auftrag."
     assert "if (holders.length === 0) return <>{children}</>;" in flow, (
         "Ohne Halter kein Rahmen – ein gewöhnlicher neuer Auftrag geht aus nichts hervor.")
-    # Die gekappte Linie ist Abwesenheit, kein zweiter Strichstil.
-    assert "returns.has(h.object_id)" in flow and "function DraftCutList" in flow
+    # **Kein zweiter Start-/Endknoten** (#498): der Schritt-Editor zeichnet seinen Fluss
+    # samt Terminal-Knoten selbst.
+    assert 'title="Start · neuer Auftrag"' not in flow and 'title="Ende · neuer Auftrag"' not in flow, (
+        "Der Editor bringt seine eigenen Terminal-Knoten mit – ein zweiter ist einer zu viel.")
+    # Die Schere sitzt auf der Linie, nicht im Knoten; die gekappte Linie ist Abwesenheit.
+    assert "function DraftCutList" not in flow, (
+        "Es gibt keine zweite Liste für gekappte Linien – der Knoten selbst trägt den Schalter.")
+    assert "{connected && <Elbow dir=\"out-to-left\" strong />}" in flow, (
+        "Gekappt = keine Linie (kein zweiter Strichstil, #422/#429).")
+    assert "left: SIDE / 2 + RUN / 2, top: 2 * BEND," in flow, (
+        "Der Schalter sitzt auf dem waagrechten Stück der Rückgabe-Linie (#499).")
 
     # Die Antwort entsteht aus den gezeichneten Linien – je Halter eine.
     assert "shortfall_responses" in detail and "shortfall_response:" not in detail
@@ -595,7 +607,7 @@ def test_the_flow_shows_what_material_moves():
     assert "flow_lost" in OrderResponse.model_fields
 
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "function FlowLotChip" in flow and "function minusBranches" in flow
+    assert "function FlowLotChip" in flow and "function minus(" in flow
     assert "for (let i = 0; i < nodes.length; i++)" in flow and "edges[0] = lotsOf(lots)" in flow, (
         "Gerechnet wird von oben nach unten – von der Tatsache aus, nicht vom beweglichen Ziel.")
     assert "function plusBalance" not in flow, "Die Rückrechnung von unten ist entfallen."
@@ -608,9 +620,17 @@ def test_the_flow_shows_what_material_moves():
         "Der Schlüssel ist Instanz + Zustand, nicht die Instanz.")
     assert "left -= part" in _inspect.getsource(ord_svc.order_material), (
         "Die übernommene Menge zerfällt in ausgesteuerte Teile und den lebenden Rest.")
-    assert "reserved=running" in _inspect.getsource(ord_svc.order_material), (
-        "Was ein laufender Auftrag hält, ist nicht «frei am Lager» (#485).")
-    assert "b.returns_material" in flow and "back.length > 0 && (" in flow, (
+    # **Der Zustand ist eine Aussage über das MATERIAL, nie über den betrachtenden Auftrag**
+    # (Testnotiz #495). ``reserved`` hiess «der Auftrag, den ich ansehe, läuft noch» – damit
+    # sah dasselbe Stück im selben Moment gelb (vom laufenden Eltern) und grün (vom
+    # abgeschlossenen Abzweig) aus. Jetzt sagt es, was es behauptet: beansprucht es jemand?
+    mat_src = _inspect.getsource(ord_svc.order_material)
+    assert "reserved=running" not in mat_src and "running = order.status" not in mat_src, (
+        "Der Zustand darf nicht von der Blickrichtung abhängen (#495).")
+    assert "to_qty(i.reserved_quantity)" in mat_src, (
+        "«Gebunden» heisst: ein Auftrag beansprucht diese Menge – dieselbe Frage wie an der "
+        "Instanz selbst.")
+    assert "b.returns_material" in flow and "back.length > 0" in flow, (
         "Kommt nichts zurück, führt auch keine Linie zurück (#481) – einfacher geht es nicht.")
     # **Und die Antwort kommt aus EINER Quelle** (Testnotiz #492): derselbe Abzweig zeigte im
     # Eltern-Auftrag keinen Rückweg (dort wurde aus dem Material gerechnet) und in seiner
@@ -620,23 +640,79 @@ def test_the_flow_shows_what_material_moves():
         "Der Rückweg-Knoten liest dieselbe Regel wie der Abzweig im Eltern-Auftrag.")
 
 
-def test_the_bypass_carries_what_stayed_on_the_order():
-    """**Am Abzweig steht auch, was NICHT abgezweigt ist** (Testnotiz #425).
+def test_the_flow_is_a_tree_not_an_episode():
+    """**Woher das Material kam, wohin es weiterging** (Testnotiz #493).
+
+    Ein Auftrag ist keine Insel: seine Instanzen hatten vorher ein Leben und haben danach
+    eines. Vor dem Startknoten steht darum der **reguläre** Auftrag, aus dem sie kamen, nach
+    dem Endknoten der, an den sie weitergingen – damit wird aus einer Episode ein Faden, dem
+    man über Auftragsgrenzen hinweg folgen kann.
+
+    **Nur reguläre Aufträge**: eine Abweichung ist eine Episode INNERHALB dieses Vorgangs und
+    steht ohnehin als Abzweig im Bild. Und der eigene Eltern-Auftrag fällt heraus – er steht
+    schon in der linken Spur; zweimal dasselbe zu sagen macht es nicht klarer.
+
+    Gelesen wird die **Verarbeitungs-Historie** (``instance_order_links``): dauerhaft und
+    chronologisch, also auch dann noch vollständig, wenn Reservierungen längst gelöst sind."""
+    import inspect as _inspect
+
+    from app.schemas.order import MaterialOrder, OrderResponse
+    from app.services import orders as osvc
+
+    for f in ("material_from", "material_to"):
+        assert f in OrderResponse.model_fields, f
+    assert {"object_id", "name", "quantity"} <= set(MaterialOrder.model_fields)
+
+    src = _inspect.getsource(osvc.material_trace)
+    assert "InstanceOrderLink" in src and "order_by(InstanceOrderLink.id)" in src, (
+        "Die Historie ist die Quelle – sie ist dauerhaft und chronologisch.")
+    assert "o.reason" in src and "o.object_id == order.parent_order_id" in src, (
+        "Unter-Aufträge und der eigene Eltern gehören nicht in den Baum.")
+    assert "or regular(inst.order_id)" in src, (
+        "Ohne regulären Vorgänger ist der Erzeuger die Herkunft.")
+
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text()
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
+    assert "function TraceChip" in flow and "<TraceRow rows={materialFrom} dir=\"in\"" in flow
+    assert "<TraceRow rows={materialTo} dir=\"out\"" in flow
+    assert "materialFrom={record.material_from ?? []}" in detail
+
+
+def test_a_split_has_three_places_not_two():
+    """**Über der Teilung · NEBEN ihr · UNTER ihr** (Testnotizen #425/#496).
 
     Eine Abweichung nimmt fast nie alles: von 4 Stück gehen 2 hinein, 2 bleiben auf dem
-    Hauptauftrag. Sichtbar war nur die eine Hälfte – die Menge, die in den Abzweig ging.
-    Jetzt läuft die Achse als **Bypass** neben ihm weiter und trägt genau das, was auf ihr
-    geblieben ist.
+    Hauptauftrag – die Achse läuft als **Bypass** neben ihr weiter und trägt genau die 2.
+    Unter der Zusammenführung kommt dazu, was der Ast zurückgegeben hat.
 
-    Damit die Zahl darüber stimmt, hängt die Rückrechnung am **Zustand** des Astes: läuft er
-    noch, ist alles Hineingegangene weiterhin dort (oben waren 4); ist er durch, fehlt nur,
-    was unterwegs verloren ging."""
+    Gerechnet wurde mit **zwei** Mengen: Bypass und «alles darunter» teilten sich eine. Damit
+    die Zahl unten aufging, musste der Bypass verfälscht werden – bei einem abgeschlossenen
+    Ast wurde nur das Verschrottete abgezogen, das Zurückgegebene blieb stehen. Ein Stück,
+    das VOLLSTÄNDIG in die Abweichung ging, stand damit trotzdem neben ihr auf dem
+    Hauptprozess, obwohl es dort nie vorbeikam.
+
+    Jetzt sagt jede Stelle, was sie ist – und die Frage «was ging hinein» ist von «was ist
+    zurück» getrennt (``flow_in`` ↔ ``flow_back``, letzteres leer solange der Ast läuft."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "for (const lot of (isOpen(b) ? b.flow_in : b.flow_lost) ?? [])" in flow, (
-        "Ein laufender Abzweig hält sein Material noch – ein abgeschlossener hat es "
-        "zurückgegeben, bis auf das Verlorene.")
-    assert "<EdgeMaterial lots={lotsAt(i + 1, liveBypass(i))} small" in flow, (
-        "Der Bypass nennt, was auf dem Hauptauftrag geblieben ist (#425).")
+    assert "isOpen(b) ? b.flow_in : b.flow_lost" not in flow, (
+        "Wer abzweigt, ist nicht daneben – der Bypass zieht IMMER das Hineingegangene ab.")
+    assert "beside[i] = minus(edges[i], flowOf(br, (b) => b.flow_in));" in flow
+    assert "edges[i + 1] = plus(beside[i]!, flowOf(br, (b) => b.flow_back));" in flow
+    assert "<EdgeMaterial lots={bypassAt(i, liveBypass(i))} small" in flow, (
+        "Der Bypass hat seine eigene Menge – nicht die von unterhalb der Zusammenführung.")
+
+    # Und die Trennung steht auch im Backend: was hineinging ≠ was zurück ist.
+    from app.schemas.order import OrderDeviationInfo
+    for field in ("flow_in", "flow_back", "flow_lost"):
+        assert field in OrderDeviationInfo.model_fields, field
+    import inspect as _inspect
+    from app.services import orders as osvc
+    src = _inspect.getsource(osvc._sub_info)
+    assert 'flow_back=[] if sub.status in ("draft", "released") else back' in src, (
+        "Was zurück IST, gibt es erst, wenn der Abzweig durch ist – vorher wäre es eine "
+        "Vorhersage.")
+    assert "returning_material" in _inspect.getsource(osvc.returns_material), (
+        "«Kommt etwas zurück?» und «was kommt zurück?» sind EINE Ableitung.")
 
 
 def test_parallel_sub_orders_are_one_split_in_several_directions():
@@ -694,9 +770,9 @@ def test_no_edge_shows_material_it_has_not_carried_yet():
         "Unterhalb des Fortschritts trägt keine Kante eine Menge (#421).")
     assert "{done && <EdgeMaterial lots={lotsAt(nodes.length," in flow, (
         "Auch die letzte Kante erst, wenn der Auftrag durch ist.")
-    assert "<FlowLots lots={nowLots} small />" in flow and "const changed =" in flow, (
-        "Unten steht dieselbe MENGE in ihrem neuen Zustand – und nur, wenn er ein anderer "
-        "ist (#481/#488).")
+    assert "<FlowLots lots={backLots} small />" in flow and "info.flow_back" in flow, (
+        "Unter dem Abzweig steht, was tatsächlich zurück IST – nicht eine Vorhersage aus "
+        "dem, was hineinging (#481/#488/#496).")
 
 
 def test_a_flow_lot_names_instance_article_location_and_quantity():
