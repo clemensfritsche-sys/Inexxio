@@ -429,6 +429,11 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     Abzweigung geht dabei **oben mittig** in ihn hinein (#417), und gestrichelt ist nur der
     Übergang zwischen zwei Aufträgen."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    # **Die Prozesslinien wohnen in EINEM Modul** (`flow-line.tsx`): Spurbreiten, Achse,
+    # Ecken, Drei-Spuren-Zeile, Zurücktreten. Der Fluss setzt daraus nur noch zusammen.
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    assert "from '@/components/erp/flow-line'" in flow, (
+        "Der Fluss leiht sich die Linien – er definiert sie nicht selbst.")
     for part in ("function BranchArm", "function SubProcess"):
         assert part in flow, f"Dem Fluss fehlt {part}"
     # **Wie im Unter-Auftrag** (Testnotiz #435): eigener Start- und Endknoten, dieselben
@@ -455,7 +460,7 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # laut wie der eigene Prozess. Darum ist der Nachbar **als Ganzes** gedämpft und blasst
     # zusätzlich aus; beim Hovern kommt er ganz nach vorn. Der Hover ist CSS, kein State:
     # ein `onMouseEnter` je Nachbar wäre React-Arbeit für eine reine Optik-Frage.
-    assert "const aside = (to: 'left' | 'right', style?: React.CSSProperties)" in flow, (
+    assert "const aside = (to: 'left' | 'right', style?: React.CSSProperties)" in line, (
         "Das Zurücktreten gibt es einmal.")
     assert "aside('right'" in flow and flow.count("aside('left')") == 2
     # **Und der Hover gilt genau EINEM Ast** (Praxis-Rückmeldung): lagen alle Abzweige einer
@@ -463,7 +468,7 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # also nicht, welchen man gleich öffnet. Der Kasten sitzt darum je Ast, nicht je Spur.
     assert "{...aside('right', { width: '100%', minWidth: 0 })}" in flow, (
         "Jeder Abzweig tritt für sich zurück – und kommt für sich nach vorn.")
-    assert "'ix-flow-aside'" in flow, "Die Optik steht im Stylesheet, nicht als Inline-Hover."
+    assert "'ix-flow-aside'" in line, "Die Optik steht im Stylesheet, nicht als Inline-Hover."
     css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
     assert ".ix-flow-aside" in css and ".ix-flow-aside:hover" in css, (
         "Gedämpft und beim Hovern wieder ganz da – beides an EINER Stelle.")
@@ -472,30 +477,30 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # **Der Abzweig sieht aus wie der geöffnete Unter-Auftrag – zu 100 %** (Testnotiz #492):
     # dieselbe Karte, dieselbe GRÖSSE (#491), derselbe Zwischenstand. Ein `compact`-Modus war
     # genau der Interpretationsspielraum, den es nicht geben darf.
-    assert "compact" not in flow, "Eine Karte, eine Grösse (#491)."
-    assert "const SIDE = MAIN;" in flow, (
+    assert "compact" not in flow and "compact" not in line, "Eine Karte, eine Grösse (#491)."
+    assert "const SIDE = MAIN;" in line, (
         "Die Seitenspur ist so breit wie die Hauptspur – sonst sind die Karten nicht gleich.")
     assert "badge={stepBadge(st.step_type, st.status)}" in flow, (
         "Auch der fachliche Zwischenstand steht im Abzweig (#492).")
     # Die Abzweigung: waagrecht aus der Achse, dann senkrecht oben mittig hinein (#417) –
     # und **zurück in die Achse** (#424). Beide Ecken aus EINEM Baustein, leicht gerundet (#423).
-    assert "function Elbow" in flow, "Eine Ecke der Prozesslinie gibt es genau einmal."
+    assert "function Elbow" in line, "Eine Ecke der Prozesslinie gibt es genau einmal."
     for d in ("fork-right", "merge-right", "in-from-left", "out-to-left"):
-        assert f"'{d}'" in flow, f"Dem Fluss fehlt die Ecke {d}"
+        assert f"'{d}'" in line, f"Dem Fluss fehlt die Ecke {d}"
     assert '<Elbow dir="fork-right"' in flow and '<Elbow dir="merge-right"' in flow, (
         "Ein Abzweig geht hinaus UND wieder zurück – sonst endet der Prozess im Nichts (#424).")
     # **Eine Ecke ist EIN Pfad, keine zusammengesetzten Rahmenkanten.** Aus CSS-Kästchen mit
     # ``border-radius`` gebaut, sah man an der Naht jede halbe Pixelverschiebung und die
     # Strichstärke lief in der Rundung aus. Möglich wurde der SVG-Pfad erst durch **feste**
     # Spurbreiten: seither ist der Weg von der Achse zur Spurmitte eine Konstante (#445).
-    assert "borderRadius" not in flow.split("const ELBOW")[1].split("function Row")[0], (
+    assert "borderRadius" not in line.split("const ELBOW")[1].split("function Row")[0], (
         "Ecken werden gezeichnet, nicht aus Rahmenkanten zusammengesetzt.")
     # **Und die Abzweigung ist eine Gabelung, kein T** (Notiz #456): die Linie biegt oben mit
     # demselben Radius aus der Achse ab, mit dem sie unten wieder einmündet.
-    assert "top: -BEND" in flow, "Der Fork beginnt über der Zelle, mitten auf der Achse."
-    assert "<path d={d}" in flow and "strokeWidth={lineW" in flow, (
+    assert "top: -BEND" in line, "Der Fork beginnt über der Zelle, mitten auf der Achse."
+    assert "<path d={d}" in line and "strokeWidth={lineW" in line, (
         "Ein Strich, eine Strichstärke – ein echter Viertelkreis (#423/#430/#431).")
-    assert "const RUN = MAIN / 2 + GAP + SIDE / 2" in flow, (
+    assert "const RUN = MAIN / 2 + GAP + SIDE / 2" in line, (
         "Feste Spurbreiten machen die Länge einer Abzweigung berechenbar.")
     assert "onOpen?.(info.object_id)" in flow, "Der Abzweig öffnet den Datensatz."
     # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt. Auch
@@ -513,7 +518,8 @@ def test_the_main_process_runs_down_the_middle():
     Modul-Karten tragen (#418), bekommt das Diagramm mehr Raum als die 880-px-Satzbreite des
     übrigen Fensters; waagrecht scrollt es notfalls in seinem eigenen Kasten, nie die Seite."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "left?: React.ReactNode; right?: React.ReactNode" in flow, (
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    assert "left?: React.ReactNode; right?: React.ReactNode" in line, (
         "Eine Zeile hat zwei Seitenspuren – links Herkunft, rechts Abzweige.")
     assert "left={<OriginArm" in flow and "left={<ReturnArm" in flow, (
         "Woher der Auftrag kam und wohin er zurückgibt, gehört auf DIESELBE Seite.")
@@ -532,16 +538,24 @@ def test_what_has_been_walked_is_a_strong_solid_line():
     Haarlinie; **gestrichelt** bleibt reserviert für den Übergang in einen anderen Auftrag
     (Herkunft, Abzweig, Rückweg) und für den ruhenden Auftrag."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "function walkedSteps" in flow and "const lineColor" in flow, (
-        "Der Fortschritt und die Linie, die ihn zeigt, gehören je an EINE Stelle.")
-    assert "strong ? 'var(--fg-2)' : 'var(--border-2)'" in flow, "stark ↔ Haarlinie"
-    assert "const reached = i <= walked" in flow, (
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    assert "const lineColor" in line, (
+        "Die Linie, die den Fortschritt zeigt, gehört an EINE Stelle.")
+    assert "strong ? 'var(--fg-2)' : 'var(--border-2)'" in line, "stark ↔ Haarlinie"
+    # **Wie weit der Prozess ist, weiss der SERVER** (ADR 007): Kante i liegt über Knoten i –
+    # sie ist gegangen, wenn alles darüber erledigt ist. Das Frontend liest `edge.reached`.
+    import inspect as _inspect
+    from app.services import orders as _osvc
+    fill = _inspect.getsource(_osvc._fill_flow_view)
+    assert "reached = i <= walked" in fill, (
         "Kante i liegt über Knoten i – sie ist gegangen, wenn alles darüber erledigt ist.")
+    assert "<Axis strong={edge.reached} />" in flow, (
+        "Die Achse liest den Fortschritt vom Server – sie rechnet ihn nicht selbst.")
     # **Und die Regel gilt überall gleich** (Notiz #429): auch der Weg in einen Abzweig und
     # zurück ist ein gegangener Weg. Gestrichelte Linien gibt es im Fluss nicht mehr – sie
     # waren eine zweite Aussage neben «stark ↔ Haarlinie» und haben sie überschrieben, sobald
     # eine Abweichung offen war (#422).
-    assert "dashed" not in flow, (
+    assert "dashed" not in flow and "dashed" not in line, (
         "Ein Abzweig ist kein Sonderfall mit eigener Strichart – die Linie sagt nur, wie weit "
         "der Prozess gegangen ist (#422/#429).")
     # **Die Achse ist ein Präfix, ein Abzweig nicht.** «Stark bis zur offenen Stelle» setzt
@@ -612,18 +626,25 @@ def test_the_flow_shows_what_material_moves():
     assert "flow_lost" in OrderResponse.model_fields
 
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "function FlowLotChip" in flow and "function minus(" in flow
-    assert "for (let i = 0; i < nodes.length; i++)" in flow and "edges[0] = lotsOf(lots)" in flow, (
-        "Gerechnet wird von oben nach unten – von der Tatsache aus, nicht vom beweglichen Ziel.")
-    assert "function plusBalance" not in flow, "Die Rückrechnung von unten ist entfallen."
+    assert "function FlowLotChip" in flow
+    # **Das Frontend zeichnet, der Server weiss** (ADR 007): die Kanten kommen fertig aus
+    # `flow_edges`/`flow_nodes` – im Client gibt es KEINE Material-Arithmetik mehr. Jede
+    # Abweichung zwischen Client-Rechnung und Server-Wahrheit war eine Testnotiz.
+    for arithmetic in ("function minus(", "function plus(", "function plusBalance",
+                       "function lotsOf(", "const lotKey"):
+        assert arithmetic not in flow, f"{arithmetic}: gerechnet wird im Backend (ADR 007)."
+    fill = _inspect.getsource(ord_svc._fill_flow_view)
+    assert "resp.flow_edges = [edge(i) for i in range(len(nodes) + 1)]" in fill, (
+        "Gerechnet wird von oben nach unten – vom Server, von der Tatsache aus.")
     assert "instanceStatusConfig(lot.quality, lot.disposition, lot.reserved)" in flow, (
         "Die Ampelfarbe kommt aus derselben Projektion wie an der Instanz selbst (#481).")
     # **Der Zustand hängt an der MENGE** (Testnotizen #483/#485): eine Charge kann zu 3 in
-    # Arbeit und zu 1 verschrottet sein. Würden die Zeilen über die Objektnummer
-    # zusammengefasst, gäbe es wieder EINEN Zustand für die ganze Menge – genau der Fehler.
-    assert "const lotKey = (l: FlowLot) =>" in flow and "l.reserved ? 'r' : ''" in flow, (
-        "Der Schlüssel ist Instanz + Zustand, nicht die Instanz.")
-    view_src = _inspect.getsource(__import__("app.services.ledger", fromlist=["x"]).order_view)
+    # Arbeit und zu 1 verschrottet sein. Der Topf (Halter · Qualität · Verbleib) trägt ihn je
+    # Menge – im Journal-Fold, nicht mehr als Schlüssel-Arithmetik in der Oberfläche.
+    ledger_mod = __import__("app.services.ledger", fromlist=["x"])
+    assert "class Bucket(NamedTuple)" in _inspect.getsource(ledger_mod), (
+        "Der Zustand hängt am Topf – je Menge, nicht je Instanz (#483/#485).")
+    view_src = _inspect.getsource(ledger_mod.order_view)
     assert "TERMINAL" in view_src and "departed" in view_src, (
         "Die übernommene Menge zerfällt in gehaltene Töpfe, terminale und abgegebene.")
     # **Der Zustand ist eine Aussage über das MATERIAL, nie über den betrachtenden Auftrag**
@@ -702,10 +723,20 @@ def test_a_split_has_three_places_not_two():
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "isOpen(b) ? b.flow_in : b.flow_lost" not in flow, (
         "Wer abzweigt, ist nicht daneben – der Bypass zieht IMMER das Hineingegangene ab.")
-    assert "beside[i] = minus(edges[i], flowOf(br, (b) => b.flow_in));" in flow
-    assert "edges[i + 1] = plus(beside[i]!, flowOf(br, (b) => b.flow_back));" in flow
-    assert "<EdgeMaterial lots={bypassAt(i, liveBypass(i))} small" in flow, (
-        "Der Bypass hat seine eigene Menge – nicht die von unterhalb der Zusammenführung.")
+    # **Die drei Stellen rechnet der SERVER** (ADR 007): der Bypass eines Journal-Auftrags
+    # ist «was HIER ist» (gehalten + ausgesteuert – der Abzweig hat seinen Anteil ja
+    # weggebucht); nur Alt-Aufträge ohne Buchungen subtrahieren noch das Hineingegangene.
+    import inspect as _i2
+    from app.services import orders as _o2
+    fill = _i2.getsource(_o2._fill_flow_view)
+    assert "lots = _view_lots(db, view.held + view.terminal)" in fill, (
+        "Der Bypass kommt aus dem Journal – nichts muss subtrahiert werden.")
+    assert 'lots = _minus(base, [l for b in n["branches"] for l in (b.flow_in or [])])' in fill, (
+        "Nur der Alt-Auftrag ohne Journal zieht das Hineingegangene ab (tolerant lesen).")
+    assert "node.bypass = FlowEdge(lots=lots, reached=True, live=live_b)" in fill, (
+        "Der Bypass ist eine eigene Kante – nicht die von unterhalb der Zusammenführung.")
+    assert "<EdgeMaterial lots={bypass.lots} small" in flow, (
+        "Das Frontend zeichnet die Server-Kante – es rechnet keine eigene.")
 
     # Und die Trennung steht auch im Backend: was hineinging ≠ was zurück ist.
     from app.schemas.order import OrderDeviationInfo
@@ -747,14 +778,20 @@ def test_parallel_sub_orders_are_one_split_in_several_directions():
     gleichzeitig laufenden Ästen gibt es keine. Ohne diese Trennung bekam der zweite,
     ebenfalls laufende Unter-Auftrag nur eine Haarlinie."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "branches?: OrderDeviationInfo[]" in flow, (
+    assert "branch_object_ids" in flow, (
         "Ein Knoten trägt die Äste EINER Teilung – daraus folgt ein Fork und ein Merge.")
     assert flow.count('<Elbow dir="fork-right"') == 1, (
         "Eine Teilung hat genau eine Abzweigung (#469).")
     assert flow.count('<Elbow dir="merge-right"') == 1, (
         "… und genau eine Einmündung.")
-    assert "const byAge = (l: OrderDeviationInfo[]) => [...l].sort((a, b) => a.object_id - b.object_id)" in flow, (
+    # Die Knotenliste (inkl. Reihenfolge = Entstehung) baut der SERVER (ADR 007).
+    import inspect as _i3
+    from app.services import orders as _o3
+    fill = _i3.getsource(_o3._fill_flow_view)
+    assert "by_age = lambda l: sorted(l, key=lambda b: b.object_id)" in fill, (
         "Innerhalb einer Teilung ist die Reihenfolge die Entstehung.")
+    assert 'nodes.append(dict(kind="split", branches=by_age(loose), res_step=None))' in fill, (
+        "Was kein Schritt für sich beansprucht, gehört dem Auftrag – EINE Teilung vor dem Prozess.")
     assert "const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';" in flow, (
         "Ob zu einem Ast ein Weg gegangen wurde, sagt SEIN Zustand.")
     assert "strong={branches.some(branchStarted)}" in flow, (
@@ -777,9 +814,16 @@ def test_no_edge_shows_material_it_has_not_carried_yet():
 
     Material trägt darum nur, was der Fluss schon erreicht hat."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "{reached && <EdgeMaterial lots={lotsAt(i, liveEdge(i))}" in flow, (
+    # Ob eine Kante schon Material trägt, entscheidet der SERVER: unterhalb des Fortschritts
+    # ist `reached=False` und die Zeile leer – das Frontend blendet sie nur aus.
+    import inspect as _i4
+    from app.services import orders as _o4
+    fill = _i4.getsource(_o4._fill_flow_view)
+    assert "if not reached:\n            lots: list[FlowLot] = []" in fill, (
         "Unterhalb des Fortschritts trägt keine Kante eine Menge (#421).")
-    assert "{done && <EdgeMaterial lots={lotsAt(nodes.length," in flow, (
+    assert "{edge.reached && <EdgeMaterial lots={edge.lots}" in flow, (
+        "Die Kante zeigt nur, was der Server ihr gibt.")
+    assert "{lastEdge.reached && <EdgeMaterial lots={lastEdge.lots}" in flow, (
         "Auch die letzte Kante erst, wenn der Auftrag durch ist.")
     assert "<FlowLots lots={backLots} small />" in flow and "info.flow_back" in flow, (
         "Unter dem Abzweig steht, was tatsächlich zurück IST – nicht eine Vorhersage aus "
@@ -806,7 +850,7 @@ def test_a_flow_lot_names_instance_article_location_and_quantity():
     import inspect as _inspect
     meta = _inspect.getsource(ord_svc._lot_meta)
     assert "location_labels(" in meta and "Article.id.in_" in meta, "batch, kein N+1"
-    assert "_lot_meta(db, meta_insts)" in _inspect.getsource(ord_svc.order_material), (
+    assert "_lot_meta(db, meta_insts)" in _inspect.getsource(ord_svc._view_lots), (
         "Abzweig und Achse lösen dieselben Angaben an derselben Stelle auf.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowLotChip" in flow and "nav?.(lot.instance_object_id)" in flow
@@ -886,9 +930,11 @@ def test_the_process_is_narrow_and_its_step_numbers_are_gone():
     beantwortet keine Frage, die ein Mensch am Auftrag hat – der Schritt heisst nach seinem
     Modul, und wo er steht, sagt seine Position im Fluss."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "flex: 1" not in flow.split("function Row")[1].split("// ─── Materialfluss")[0], (
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    assert "flex: 1" not in line.split("function Row")[1], (
         "Die Spuren sind fest breit – sonst ist die Länge einer Abzweigung nicht berechenbar.")
-    assert "'--flow-lane'" in flow, "Ohne Nachbarn fällt die Spurbreite auf 0."
+    assert "'--flow-lane'" in flow and "var(--flow-lane)" in line, (
+        "Ohne Nachbarn fällt die Spurbreite auf 0.")
     assert "stepNr" not in flow and "–${String(index + 1)" not in flow, (
         "Die Schritt-Nummer war intern – sie gehört nicht an die Oberfläche (#440).")
 
@@ -942,18 +988,23 @@ def test_the_process_point_offers_a_shortcut_onto_its_material():
     Auftrag auf zurückgegebene Stücke ansetzt, zeigt ins Leere."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowShortcut" in flow and "function EdgeMaterial" in flow
-    assert "const liveEdge = (i: number) => here?.at === i && !here.bypass;" in flow, (
+    # **Wo der Prozess steht, weiss der SERVER** (`here` in `_fill_flow_view`): genau eine
+    # Kante (oder ein Bypass, #459) trägt `live=True` – Material live, Abkürzung an. Läuft
+    # der Auftrag nicht mehr, gibt es gar keine Stelle (#468).
+    import inspect as _i5
+    from app.services import orders as _o5
+    fill = _i5.getsource(_o5._fill_flow_view)
+    assert "here = (None if not running" in fill, (
         "Es gibt EINE Stelle, an der der Prozess steht – Kante und Abkürzung lesen sie.")
-    assert "const liveBypass = (i: number) => here?.at === i && here.bypass;" in flow, (
+    assert "here == (i, True)" in fill, (
         "Am Abzweig gehört sie an den Bypass, also an das, was geblieben ist (#459).")
-    assert "onCreate={liveEdge(i) ? onCreateOrder : undefined}" in flow, (
-        "Die Abkürzung sitzt dort, wo der Prozess steht – nicht an jeder Kante.")
-    assert "onCreate={liveBypass(i) ? onCreateOrder : undefined}" in flow
-    assert "onCreate={liveEdge(nodes.length) ? onCreateOrder : undefined}" in flow, (
-        "Auch die letzte Kante trägt sie nur, solange der Auftrag läuft (#468).")
-    assert "running = true" in flow and "running={record.status === 'released'}" in (
-        FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8"), (
+    assert 'running = order.status == "released"' in fill, (
         "Ob der Prozess noch läuft, sagt der Auftrags-Status – nicht eine Vermutung im Fluss.")
+    assert "onCreate={edge.live ? onCreateOrder : undefined}" in flow, (
+        "Die Abkürzung sitzt dort, wo der Prozess steht – nicht an jeder Kante.")
+    assert "onCreate={bypass.live ? onCreateOrder : undefined}" in flow
+    assert "onCreate={lastEdge.live ? onCreateOrder : undefined}" in flow, (
+        "Auch die letzte Kante trägt sie nur, solange der Auftrag läuft (#468).")
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
     assert "export function seedFromLots" in detail and "byArticle" in detail, (
         "Eine Position ist ein Artikel – mehrere Instanzen desselben gehören zusammen.")
@@ -1032,7 +1083,8 @@ def test_a_taken_share_is_not_told_twice():
     assert "function Resolutions(" in flow, "Die Auflösungen einer Stelle kommen aus EINER Hand."
     assert "r.kind === 'share_taken'" in flow and "shown.has(r.other_order_object_id)" in flow, (
         "Ein Anteil, dessen Nehmer als Abzweig dasteht, wird nicht zweimal erzählt (#466).")
-    assert "const shownSubs = new Set([...claimed, ...subOrders.map((x) => x.object_id)]);" in flow
+    assert "const shownSubs = new Set(branchById.keys());" in flow, (
+        "Wer als Abzweig im Bild steht (am Schritt ODER am Auftrag), braucht keine Zeile.")
     assert "<ResolutionLine" not in flow.split("function Resolutions(")[0], (
         "Auflösungen werden nirgends an `Resolutions` vorbei gerendert.")
 
@@ -1050,25 +1102,31 @@ def test_what_is_past_steps_back_on_the_edges_too():
     Jetzt gibt es genau EINE Stelle (``here``), und alles andere ist Vergangenheit."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "opacity: past ? 0.55 : 1" in flow, "Vergangene Kanten sind gedämpft (#462)."
-    assert "const here: { at: number; bypass: boolean } | null = !running ? null" in flow, (
+    import inspect as _i6
+    from app.services import orders as _o6
+    fill = _i6.getsource(_o6._fill_flow_view)
+    assert "here = (None if not running" in fill, (
         "Wo der Prozess steht, ist EINE Ableitung – und ohne laufenden Auftrag gibt es sie nicht.")
-    assert "past={!liveEdge(i)}" in flow, (
+    assert "past={!edge.live}" in flow, (
         "Eine Kante ist Vergangenheit, sobald der Prozess nicht mehr an ihr steht.")
-    assert "past={!liveEdge(nodes.length)}" in flow, (
+    assert "past={!lastEdge.live}" in flow, (
         "Auch die letzte Kante – ein abgeschlossener Auftrag hat sein Material zurückgegeben.")
     assert "<FlowLots lots={inLots} small past={walked > 0} />" in flow, (
         "Auch im Abzweig: was hineinging, ist Vergangenheit, sobald er losgelaufen ist.")
     # **Und eine durchlaufene Kante zeigt den Zustand von DAMALS** (Testnotiz #488): wird ein
     # Stück später verschrottet, stand es sonst rückwirkend auf jeder Kante rot, die es
     # passiert hatte, als es noch in Arbeit war. Beim Abschluss eines Schritts friert der
-    # Zustand ein; nur dort, wo der Prozess GERADE steht, gilt der aktuelle.
-    assert "function asOf(lots: Lots, cutoff: string | null)" in flow, (
-        "Der Rückblick gibt es einmal.")
-    assert "const lotsAt = (i: number, live: boolean) => asOf(edges[i], live ? null : cutoffs[i]);" in flow, (
-        "Live am Prozess-Punkt, eingefroren überall darüber.")
-    assert "if (s?.state === 'done' && s.completed_at) last = s.completed_at;" in flow, (
+    # Zustand ein; nur dort, wo der Prozess GERADE steht, gilt der aktuelle. Die Zeitmaschine
+    # ist Fachlogik und lebt darum im SERVER (`_as_of`), nicht mehr als React-Code.
+    assert "def _as_of(lots: list[FlowLot], cutoff)" in _i6.getsource(_o6), (
+        "Der Rückblick gibt es einmal – serverseitig.")
+    assert "material if live or final" in fill and "final = reached and i == len(nodes)" in fill, (
+        "Live am Prozess-Punkt, eingefroren überall darüber – und die letzte Kante zeigt "
+        "das Ergebnis, nicht den Stand vor der Abschluss-Freigabe.")
+    assert 'last = n["step"].completed_at' in fill, (
         "Der Stichtag ist der Abschluss des Schritts darüber.")
-    assert "opacity: past ? 0.55 : 1" in flow
+    for gone in ("function asOf(", "const lotsAt", "cutoffs["):
+        assert gone not in flow, f"{gone}: die Zeitmaschine wohnt im Server (ADR 007)."
 
 
 def test_the_flow_shows_state_only_where_the_line_does_not():
@@ -1085,3 +1143,57 @@ def test_the_flow_shows_state_only_where_the_line_does_not():
     assert "done:" in marks and "failed:" in marks
     for gone in ("active:", "blocked:", "PauseCircle", "Clock3"):
         assert gone not in marks, f"{gone}: das sagt die Linie bereits (#450/#452)."
+
+
+def test_the_frontend_draws_and_the_server_knows():
+    """**Das Frontend zeichnet, der Server weiss** (ADR 007, Visualisierungs-Stufe).
+
+    Die Fluss-Achse war zuletzt der eine Ort, an dem die Oberfläche noch WAHRHEIT ausrechnete:
+    Material-Subtraktion an Teilungen, Stichtags-Zeitmaschine, «wo steht der Prozess?». Jede
+    Abweichung zwischen dieser Client-Arithmetik und dem, was der Server wusste, war eine
+    Testnotiz (#421/#425/#459/#464/#467/#469/#488/#496 …). Jetzt liefert das Backend die
+    fertig gerechnete Sicht (``OrderResponse.flow_nodes``/``flow_edges``), und der Client tut
+    das Einzige, was ein Client verlässlich kann: zeichnen.
+
+    Zweite Hälfte derselben Aufräumung: **die Prozesslinien wohnen in EINEM Modul**
+    (``flow-line.tsx`` – Spurbreiten, Achse, Ecken, Drei-Spuren-Zeile, Zurücktreten). Der
+    Fluss und der Entwurfs-Rahmen setzen daraus nur noch zusammen; eine zweite
+    Linien-Definition kann nicht mehr entstehen."""
+    import inspect as _inspect
+
+    from app.schemas.order import FlowEdge, FlowNode, OrderResponse
+    from app.services import orders as osvc
+
+    # Der Server rechnet: Knoten, Kanten, Fortschritt, Prozess-Punkt, Zeitmaschine.
+    for f in ("flow_nodes", "flow_edges"):
+        assert f in OrderResponse.model_fields, f
+    assert {"lots", "reached", "live"} <= set(FlowEdge.model_fields)
+    assert {"kind", "step_id", "branch_object_ids", "reached", "passed", "bypass"} <= set(
+        FlowNode.model_fields)
+    src = _inspect.getsource(osvc)
+    for fn in ("def _fill_flow_view", "def _as_of", "def _minus"):
+        assert fn in src, f"{fn} fehlt – die Fluss-Sicht ist Fachlogik und gehört in den Server."
+    assert "_fill_flow_view(db, order, resp)" in _inspect.getsource(osvc.to_order_response), (
+        "Jede Auftrags-Antwort trägt die fertig gerechnete Achse.")
+
+    # Der Client zeichnet: keine Material-Arithmetik, keine Zeitmaschine, kein Zähler.
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    for gone in ("function minus(", "function plus(", "function asOf(", "function lotsOf(",
+                 "const lotKey", "cutoffs[", "const BEGIN", "plusBalance"):
+        assert gone not in flow, f"{gone}: gerechnet wird im Backend (ADR 007)."
+    assert "flowNodes?: FlowNode[]" in flow and "flowEdges?: FlowEdge[]" in flow
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
+    assert "flowNodes={record.flow_nodes ?? []}" in detail
+    assert "flowEdges={record.flow_edges ?? []}" in detail
+    assert "running={" not in detail, (
+        "Ob der Prozess läuft, steckt in der Server-Sicht – kein zweites Bit daneben.")
+
+    # Die Linien wohnen in EINEM Modul; der Fluss definiert keine eigene Geometrie mehr.
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    for owns in ("export const MAIN", "export const RUN", "export function Axis",
+                 "export function Elbow", "export function Row", "export const aside"):
+        assert owns in line, f"flow-line.tsx fehlt {owns}"
+    for gone in ("const MAIN =", "const ELBOW", "function Axis(", "function Elbow(",
+                 "function Row("):
+        assert gone not in flow, f"{gone}: die Prozesslinien wohnen in flow-line.tsx."
+    assert "from '@/components/erp/flow-line'" in flow

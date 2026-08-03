@@ -232,11 +232,27 @@ class ViewRow(NamedTuple):
     quantity: Decimal
     reserved: bool               # gehalten UND am Lager = gebunden
     at: object | None            # Zeitpunkt (nur terminal/abgegeben – Vergangenheit)
+    # Wohin eine ABGEGEBENE Menge ging (DB-id des Auftrags; ``None`` = ans Lager bzw. die
+    # Zeile ist gehalten/terminal). Die Fluss-Achse filtert damit: was in einen Abzweig
+    # ging, liegt unterhalb seiner Teilung in DESSEN Spur – nicht mehr auf der Achse.
+    to_order: int | None = None
 
 
-def order_view(db: Session, order_id: int) -> tuple[list[ViewRow], list[ViewRow]] | None:
-    """**Die Achse eines Auftrags aus dem Journal** – (material, gone). ``None`` = der
-    Auftrag hat keine Buchungen (Altbestand → Legacy-Ableitung).
+class OrderView(NamedTuple):
+    """Die drei Zeilenarten der Auftrags-Achse – getrennt, damit jede Sicht die richtigen
+    nimmt: die volle Achse alle drei, der Bypass nur gehalten+terminal (was HIER ist)."""
+    held: list[ViewRow]          # noch in der Obhut dieses Auftrags
+    terminal: list[ViewRow]      # von ihm ausgesteuert (verschrottet/verkauft/verbaut)
+    departed: list[ViewRow]      # abgegeben (ans Lager oder einen anderen Auftrag)
+
+    @property
+    def material(self) -> list[ViewRow]:
+        return self.held + self.terminal + self.departed
+
+
+def order_view(db: Session, order_id: int) -> OrderView | None:
+    """**Die Achse eines Auftrags aus dem Journal.** ``None`` = der Auftrag hat keine
+    Buchungen (Altbestand → Legacy-Ableitung).
 
     Die eine Regel: **alles, was je in diesen Auftrag hineingebucht wurde, ist genau einmal
     da** – als noch gehaltener Topf, als terminaler Topf (ihm zugeschrieben, mit Zeitpunkt)
@@ -244,7 +260,7 @@ def order_view(db: Session, order_id: int) -> tuple[list[ViewRow], list[ViewRow]
     ``held_quantity``, keine Links-Menge, keine Reservierungs-Map: eine Quelle.
 
     Damit löst sich die frühere Arithmetik der Oberfläche von selbst auf: der Bypass neben
-    einem Abzweig IST der gehaltene Rest (der Abzweig hat seinen Anteil ja **weggebucht**),
+    einem Abzweig IST gehalten+terminal (der Abzweig hat seinen Anteil ja **weggebucht**),
     und was zurückkam, steht wieder in den Töpfen – nichts wird subtrahiert oder addiert."""
     moves = moves_of(db, order_id)
     if not moves:
@@ -287,21 +303,19 @@ def order_view(db: Session, order_id: int) -> tuple[list[ViewRow], list[ViewRow]
             # Obhut eines anderen Auftrags, ist es dort gebunden – auch aus dieser Sicht.
             bound = m.dst_order_id is not None and (m.dst_disposition or "") == "in_stock"
             departed.append(ViewRow(m.instance_object_id, m.dst_quality or "pending",
-                                    m.dst_disposition or "in_process", amt, bound, m.at))
+                                    m.dst_disposition or "in_process", amt, bound, m.at,
+                                    m.dst_order_id))
 
-    material: list[ViewRow] = []
-    gone: list[ViewRow] = []
+    held: list[ViewRow] = []
+    terminal: list[ViewRow] = []
     for (oid, q, d), v in sorted(bal.items()):
         if v <= 0:
             continue
         if d in TERMINAL:
-            row = ViewRow(oid, q, d, v, False, term_at.get((oid, q, d)))
-            material.append(row)
-            gone.append(row)
+            terminal.append(ViewRow(oid, q, d, v, False, term_at.get((oid, q, d))))
         else:
-            material.append(ViewRow(oid, q, d, v, d == "in_stock", None))
-    material.extend(departed)
-    return material, gone
+            held.append(ViewRow(oid, q, d, v, d == "in_stock", None))
+    return OrderView(held, terminal, departed)
 
 
 def verify_instance(db: Session, inst: Instance) -> list[str]:

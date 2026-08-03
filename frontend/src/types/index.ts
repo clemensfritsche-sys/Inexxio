@@ -122,6 +122,13 @@ export type AffectedOrder = OrderApi['affects'][number];
 /** Ein **regulärer** Auftrag, der dasselbe Material vor/nach diesem verarbeitet hat (#493). */
 export type MaterialOrder = OrderApi['material_from'][number];
 /**
+ * **Die fertig gerechnete Fluss-Achse aus dem Backend** (ADR 007): Knoten (Schritt oder
+ * Teilung) und Kanten (Material im Zustand von damals, Fortschritt, Prozess-Punkt). Das
+ * Frontend zeichnet sie nur – jede Client-Arithmetik darüber war eine Testnotiz.
+ */
+export type FlowNode = OrderApi['flow_nodes'][number];
+export type FlowEdge = OrderApi['flow_edges'][number];
+/**
  * Die drei Antworten auf eine Unterdeckung – dieselben am laufenden Auftrag wie schon beim
  * Erteilen eines Entwurfs (Backend `schemas/order.SHORTFALL_ANSWERS`). Sie gelten **je
  * Halter**: wer aus zwei Aufträgen Stücke nimmt, darf den einen warten lassen und den

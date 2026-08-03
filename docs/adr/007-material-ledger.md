@@ -128,9 +128,28 @@ werden weiter aus Links + Event-Strom gelesen (tolerant lesen, streng schreiben)
    **Auftrags-Verlauf** (`OrderResponse.history`) – die dritte Frage direkt am Auftrag,
    dieselben Zeilen wie am Instanz-Detail, aus der anderen Richtung gelesen.
    Alt-Aufträge ohne Buchungen fallen auf die Legacy-Ableitung zurück.
-3. **Danach:** die Skalar-Spalten schrittweise stilllegen (Folge-Deploy-Muster wie
-   `is_primary`), FIFO auf Journal-Töpfe, `shares` als reine Journal-Sicht,
-   `asOf`-Stichtags-Arithmetik der Oberfläche durch Journal-Snapshots ersetzen.
+3. **UMGESETZT – die Visualisierungs-Stufe: das Frontend zeichnet, der Server weiss.**
+   Die Fluss-Achse kommt fertig gerechnet aus dem Backend
+   (`OrderResponse.flow_nodes`/`flow_edges`, `orders._fill_flow_view`): Knotenliste
+   (Schritt oder Teilung, Reihenfolge = Entstehung), Fortschritt (`reached`/`passed`),
+   der EINE Prozess-Punkt (`live` – Kante oder Bypass, keiner an einem nicht laufenden
+   Auftrag), das Material jeder Kante **im Zustand von damals** (`_as_of`, Stichtag =
+   Abschluss des Schritts darüber; die letzte Kante zeigt das ERGEBNIS – ein Stichtag
+   würde dort die Abschluss-Freigabe zurückdrehen) und der **Bypass** einer Teilung
+   (live = Custody `held+terminal`, Vergangenheit = Stand von damals minus Abzweig).
+   **Was in einen Abzweig ging, liegt unterhalb seiner Teilung nicht mehr auf der
+   Achse**: die Journal-Zeile weiss, wohin sie ging (`ViewRow.to_order`) – je Kante wird
+   **gefiltert, nicht subtrahiert**; was zurückkam, ist wieder gehalten (die Rückkehr hat
+   ihre Abgabe-Zeile verzehrt). Die frühere Client-Arithmetik (minus/plus/Stichtags-
+   Zeitmaschine als React-Code) ist ersatzlos entfallen – jede Abweichung zwischen ihr
+   und der Server-Wahrheit war eine Testnotiz. Zweite Hälfte derselben Aufräumung: die
+   **Prozesslinien wohnen in EINEM Modul** (`frontend/src/components/erp/flow-line.tsx` –
+   Spurbreiten, Achse, Ecken-Pfade, Drei-Spuren-Zeile, Zurücktreten); `order-flow.tsx`
+   setzt nur noch zusammen. Wächter:
+   `test_frontend_mirrors.test_the_frontend_draws_and_the_server_knows`;
+   PG16-Harness `flowview.py` (19 Prüfungen über die echten Service-/Router-Pfade).
+4. **Danach:** die Skalar-Spalten schrittweise stilllegen (Folge-Deploy-Muster wie
+   `is_primary`), FIFO auf Journal-Töpfe, `shares` als reine Journal-Sicht.
 
 ## Was dadurch strukturell unmöglich wird
 

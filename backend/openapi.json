@@ -10835,6 +10835,31 @@
         "title": "FeedbackUpdate",
         "description": "Rückkopplung: erledigt/verworfen setzen (oder wieder öffnen) + Begründung."
       },
+      "FlowEdge": {
+        "properties": {
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLot"
+            },
+            "type": "array",
+            "title": "Lots",
+            "default": []
+          },
+          "reached": {
+            "type": "boolean",
+            "title": "Reached",
+            "default": false
+          },
+          "live": {
+            "type": "boolean",
+            "title": "Live",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "FlowEdge",
+        "description": "**Eine Kante der Prozess-Achse – fertig gerechnet** (ADR 007, Stufe «das Frontend\nzeichnet, der Server weiss»).\n\nDie Oberfläche hat jahrelang Wahrheit AUSGERECHNET (Material-Arithmetik, Stichtage,\nZustands-Zeitmaschine als React-Code) – und jede Abweichung von der Server-Sicht war\neine Testnotiz. Jetzt liefert der Server jede Kante fertig: welches Material hier lag\n(im Zustand von damals, #488), ob der Fluss bis hierhin gekommen ist und ob der Prozess\nGENAU HIER steht (aktuelle Zahlen, Abkürzungs-Knopf). Das Frontend rendert nur noch."
+      },
       "FlowLot": {
         "properties": {
           "instance_object_id": {
@@ -10947,6 +10972,59 @@
         ],
         "title": "FlowLot",
         "description": "**Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).\n\nDer Prozess zeigt nicht nur, WAS getan wird, sondern **womit**: welche Instanz, wie viel\ndavon, und – am Abzweig – wie viel wieder zurückkommt. Genau daran sieht man, dass 2\nStück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.\n\nMehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist\nes eine **Liste** und jede Zeile nennt ihren Artikel.\n\n**Die Kante trägt die vier Angaben, die den Verlauf nachvollziehbar machen** (Notiz\n#426): welche **Instanz**, welcher **Artikel**, **wo** sie liegt und **wie viel**. Kurz\nsteht Menge × Instanz; Artikel und Standort erscheinen im Hover, und beide Objektnummern\nöffnen ihren Datensatz. Sie werden hier **einmal** aufgelöst (batch, kein N+1) statt in\njeder Ansicht neu zusammengesucht – dieselbe Zeile speist die Hauptachse (was der Auftrag\nhält) und die Abzweige (was hineinging).\n\n**Die Menge schrumpft nicht, der Zustand ändert sich** (Testnotiz #481): wird ein Stück\nverschrottet, verschwinden weder die Instanz noch ihre Menge – nur ihr Zustand ist ein\nanderer. Darum trägt jede Zeile die beiden Instanz-Achsen mit, und die Oberfläche\nprojiziert sie auf **eine Ampelfarbe** (``lib/process.instanceStatusConfig`` – dieselbe\nProjektion wie an der Instanz selbst, kein zweites Regelwerk).\n\n**Der Zustand hängt an der MENGE, nicht an der Instanz** (Testnotizen #483/#485). Bei\nEinzelserialisierung fällt beides zusammen – eine Instanz ist 1 Stück und hat einen\nZustand. Bei einer **Charge** nicht: von 4 Stück können 3 in Arbeit und 1 verschrottet\nsein. Eine Zeile beschreibt darum immer nur **eine Menge in einem Zustand**; dieselbe\nInstanz kann mehrere Zeilen haben. (Der Vorschlag, eine Charge intern in\n``Nummer_01…_04`` zu zerlegen, führt zum selben Ergebnis – aber ohne dessen Kosten: eine\nCharge darf gebrochen sein (2.5 kg), ihre Objektnummer ist systemweit eindeutig, und\n1000 Zeilen je Reservierung wären ein hoher Preis für eine Anzeige-Frage.)"
+      },
+      "FlowNode": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "branch_object_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Branch Object Ids",
+            "default": []
+          },
+          "reached": {
+            "type": "boolean",
+            "title": "Reached",
+            "default": false
+          },
+          "passed": {
+            "type": "boolean",
+            "title": "Passed",
+            "default": false
+          },
+          "bypass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlowEdge"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "FlowNode",
+        "description": "Ein Knoten der Achse: ein Prozessschritt ODER eine Teilung (Abzweige an dieser\nStelle). Die Reihenfolge der Liste IST die Achse; Kante i liegt über Knoten i."
       },
       "HTTPValidationError": {
         "properties": {
@@ -13430,6 +13508,22 @@
             },
             "type": "array",
             "title": "History",
+            "default": []
+          },
+          "flow_nodes": {
+            "items": {
+              "$ref": "#/components/schemas/FlowNode"
+            },
+            "type": "array",
+            "title": "Flow Nodes",
+            "default": []
+          },
+          "flow_edges": {
+            "items": {
+              "$ref": "#/components/schemas/FlowEdge"
+            },
+            "type": "array",
+            "title": "Flow Edges",
             "default": []
           },
           "deviations": {
