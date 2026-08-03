@@ -379,7 +379,7 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     Abzweigung geht dabei **oben mittig** in ihn hinein (#417), und gestrichelt ist nur der
     Übergang zwischen zwei Aufträgen."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    for part in ("function BranchArm", "function BranchCell", "function SubProcess"):
+    for part in ("function BranchCell", "function SubProcess"):
         assert part in flow, f"Dem Fluss fehlt {part}"
     # **Wie im Unter-Auftrag** (Testnotiz #435): eigener Start- und Endknoten, dieselben
     # Modul-Karten – und keine Kopfkarte davor. Wer einen Schritt anklickt, landet im
@@ -455,7 +455,7 @@ def test_the_main_process_runs_down_the_middle():
         "Eine Zeile hat zwei Seitenspuren – links Herkunft, rechts Abzweige.")
     assert "left={<OriginArm" in flow and "left={<ReturnArm" in flow, (
         "Woher der Auftrag kam und wohin er zurückgibt, gehört auf DIESELBE Seite.")
-    assert "right={<BranchArm" in flow, "Abzweige hängen rechts."
+    assert "right={<BranchCell" in flow, "Abzweige hängen rechts."
     assert "overflowX: 'auto'" in flow, "Ein breites Diagramm scrollt in seinem eigenen Kasten."
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
     assert "maxWidth: 1340" in detail, "Der Fluss bekommt eine eigene, breitere Spur."
@@ -536,6 +536,34 @@ def test_the_bypass_carries_what_stayed_on_the_order():
         "zurückgegeben, bis auf das Verlorene.")
     assert "<EdgeMaterial lots={edges[i + 1]} small" in flow, (
         "Der Bypass nennt, was auf dem Hauptauftrag geblieben ist (#425).")
+
+
+def test_parallel_sub_orders_are_successive_splits_of_one_lot():
+    """**Zwei gleichzeitig laufende Unter-Aufträge – ohne vierte Spur und ohne Scrollbalken.**
+
+    Zwei Abweichungen am selben Schritt sind keine zwei Spuren nebeneinander (dafür ist im
+    Drei-Spuren-Bild kein Platz, und es soll auch keiner geschaffen werden), sondern **zwei
+    aufeinander folgende Teilungen desselben Loses**: die zweite nimmt von dem, was die erste
+    übrig gelassen hat. Genau so entstehen sie auch – «2 von 4 abgezweigt, dann 1 von den
+    übrigen 2».
+
+    Darum bekommt **jeder Ast seinen eigenen Fork, Bypass und Merge**; die Achse dazwischen
+    sagt, was jeweils geblieben ist (4 → 2 → 1). Das ist dasselbe Vokabular, eine Stufe feiner
+    angewandt – und es rechnet die Zwischenmenge erstmals richtig: vorher teilten sich alle
+    Äste EINEN Bypass, der bereits die Summe aller Abgänge zeigte.
+
+    Reihenfolge = Entstehung (die Objektnummer steigt), sonst behauptete die Zwischenmenge
+    eine Teilung, die so nie stattgefunden hat."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "branch?: OrderDeviationInfo" in flow and "branches?: OrderDeviationInfo[]" not in flow, (
+        "Ein Knoten trägt genau EINEN Ast – daraus folgt sein eigener Bypass.")
+    assert "[...list].sort((a, b) => a.object_id - b.object_id).forEach" in flow, (
+        "Die spätere Teilung steht unten – sonst stimmt die Zwischenmenge nicht.")
+    assert "function plusBalance(below: Lots, b: OrderDeviationInfo)" in flow, (
+        "Die Rückrechnung gilt je Ast, nicht je Gruppe.")
+    assert "edges[i] = nodes[i].branch ? plusBalance(edges[i + 1], nodes[i].branch!)" in flow
+    assert "function BranchArm" not in flow, (
+        "Es gibt keine Gruppe von Ästen an einer Stelle mehr – jeder hat seine eigene.")
 
 
 def test_no_edge_shows_material_it_has_not_carried_yet():
@@ -620,19 +648,20 @@ def test_the_origin_is_a_reference_not_a_preview():
 
 
 def test_a_finished_step_stays_readable_while_the_order_rests():
-    """**Ruhen heisst: nicht weiterarbeiten – nicht: nichts mehr ansehen** (Testnotiz #442).
+    """**Ruhen heisst: nicht weiterarbeiten – nicht: nichts mehr ansehen** (Notizen #442/#465).
 
     Seit ein ruhender Auftrag den ganzen Fluss stilllegt (#378), liess sich **kein** Modul
     mehr öffnen – auch keines, das längst erledigt ist. Damit war das Protokoll eines fertigen
     Schritts (was gemessen wurde, wer quittiert hat) unerreichbar, solange irgendwo eine
-    Abweichung offen war.
+    Abweichung offen war. Dasselbe galt für einen **künftigen** Schritt: seine Planung liess
+    sich nicht ansehen, obwohl genau das in einem laufenden Auftrag jederzeit geht (#465).
 
-    Ein **erledigter** Schritt trägt aber keine Aktion, sondern eine Aufzeichnung; ihn zu
-    öffnen kann nichts auslösen. Zu bleibt darum nur, was noch zu tun wäre – dort lehnt das
-    Backend ohnehin mit 409 ab, und genau davor sollte #378 bewahren."""
+    Zu bleibt darum genau **ein** Schritt: der, an dem der Auftrag gerade hängt – dort lehnt
+    das Backend die Ausführung mit 409 ab, und davor sollte #378 bewahren. Alles andere ist
+    Lesen und kann nichts auslösen."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "const readable = !paused || s.state === 'done'" in flow, (
-        "Ein erledigter Schritt bleibt lesbar, auch wenn der Auftrag ruht.")
+    assert "const readable = !paused || (s.state !== 'blocked' && s.state !== 'active')" in flow, (
+        "Erledigte UND künftige Schritte bleiben lesbar – zu ist nur der, an dem es hängt.")
     assert "onClick={readable ? () => onSelectStep(String(s.id)) : undefined}" in flow
     assert "const selected = selectedId === String(s.id) && readable" in flow
 
@@ -698,18 +727,25 @@ def test_the_process_point_offers_a_shortcut_onto_its_material():
     sich das Material bereits geteilt – ein Teil ging in den Abzweig, der Rest blieb auf dem
     Hauptauftrag. Die Kante über dem Fork zählt beides zusammen; wer dort ansetzt, legt einen
     Auftrag auf Stücke an, die längst woanders hängen. Der Bypass ist die tiefste erreichte
-    Stelle der Achse – und damit der Prozess-Punkt."""
+    Stelle der Achse – und damit der Prozess-Punkt.
+
+    **Und läuft der Auftrag nicht mehr, gibt es gar keine Stelle** (Notiz #468): sein Material
+    ist beim übergeordneten Auftrag, der aktive Schritt steht dort. Ein Knopf, der hier einen
+    Auftrag auf zurückgegebene Stücke ansetzt, zeigt ins Leere."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowShortcut" in flow and "function EdgeMaterial" in flow
-    assert "const atBypass = walked < nodes.length && !!nodes[walked].branches;" in flow, (
-        "Wo der Prozess steht, wird abgeleitet – ein offener Abzweig schiebt ihn auf den Bypass.")
-    assert "onCreate={!atBypass && i === walked ? onCreateOrder : undefined}" in flow, (
-        "Die Abkürzung sitzt dort, wo die starke Linie endet – nicht an jeder Kante.")
-    assert "onCreate={atBypass && i === walked ? onCreateOrder : undefined}" in flow, (
+    assert "const liveEdge = (i: number) => here?.at === i && !here.bypass;" in flow, (
+        "Es gibt EINE Stelle, an der der Prozess steht – Kante und Abkürzung lesen sie.")
+    assert "const liveBypass = (i: number) => here?.at === i && here.bypass;" in flow, (
         "Am Abzweig gehört sie an den Bypass, also an das, was geblieben ist (#459).")
-    # Die beiden Bedingungen schliessen einander aus (`atBypass` ↔ `!atBypass`), und der
-    # abgeschlossene Auftrag trägt sie an seiner letzten Kante – nie zwei gleichzeitig.
-    assert "{done && <EdgeMaterial lots={edges[nodes.length]} onCreate={onCreateOrder} />}" in flow
+    assert "onCreate={liveEdge(i) ? onCreateOrder : undefined}" in flow, (
+        "Die Abkürzung sitzt dort, wo der Prozess steht – nicht an jeder Kante.")
+    assert "onCreate={liveBypass(i) ? onCreateOrder : undefined}" in flow
+    assert "onCreate={liveEdge(nodes.length) ? onCreateOrder : undefined}" in flow, (
+        "Auch die letzte Kante trägt sie nur, solange der Auftrag läuft (#468).")
+    assert "running = true" in flow and "running={record.status === 'released'}" in (
+        FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8"), (
+        "Ob der Prozess noch läuft, sagt der Auftrags-Status – nicht eine Vermutung im Fluss.")
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
     assert "export function seedFromLots" in detail and "byArticle" in detail, (
         "Eine Position ist ein Artikel – mehrere Instanzen desselben gehören zusammen.")
@@ -750,18 +786,49 @@ def test_a_preselected_share_names_its_holder():
         "Der Fluss reicht nur das Material weiter – wem es gehört, weiss sein Auftrag.")
 
 
-def test_what_is_past_steps_back_on_the_edges_too():
-    """**Vergangenes verblasst – auf der Kante wie am Modul** (Testnotiz #462).
+def test_a_taken_share_is_not_told_twice():
+    """**Wer als Abzweig im Bild steht, braucht daneben keine Zeile mehr** (Testnotiz #466).
 
-    Ein erledigter Prozessschritt tritt zurück; die Mengen-Angabe darüber tat es nicht und
-    war damit lauter als der Schritt, zu dem sie gehört. Dieselbe Dämpfung, dieselbe Regel:
-    was der Fluss hinter sich hat, zieht den Blick nicht mehr auf sich."""
+    «1 abgegeben an 100000597» war in aller Regel eine **zweite Erzählung desselben
+    Vorgangs**: wer sich hier einen Anteil geholt hat, wird dadurch zur Abweichung DIESES
+    Auftrags (``routers/orders._make_deviation``: Eltern = wer das Stück hielt) – steht also
+    ohnehin als Abzweig im Fluss, mit der Menge auf seiner Kante.
+
+    Ganz löschen wäre trotzdem falsch: greift eine Auswahl über **mehrere** Halter, wird nur
+    der erste sein Eltern-Auftrag. Die übrigen erfahren sonst nirgends, warum ihnen plötzlich
+    etwas fehlt – für sie bleibt die Zeile die einzige Spur."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "function Resolutions(" in flow, "Die Auflösungen einer Stelle kommen aus EINER Hand."
+    assert "r.kind === 'share_taken'" in flow and "shown.has(r.other_order_object_id)" in flow, (
+        "Ein Anteil, dessen Nehmer als Abzweig dasteht, wird nicht zweimal erzählt (#466).")
+    assert "const shownSubs = new Set([...claimed, ...subOrders.map((x) => x.object_id)]);" in flow
+    assert "<ResolutionLine" not in flow.split("function Resolutions(")[0], (
+        "Auflösungen werden nirgends an `Resolutions` vorbei gerendert.")
+
+
+def test_what_is_past_steps_back_on_the_edges_too():
+    """**Stark ist es dort, wo der Prozessschritt gerade aktiv ist** (Notizen #462/#464/#467).
+
+    Ein erledigter Prozessschritt tritt zurück; die Mengen-Angabe darüber tat es nicht und war
+    damit lauter als der Schritt, zu dem sie gehört (#462). Zwei Stellen kamen dazu, beide mit
+    derselben Wurzel – «vergangen» hing an einem Zähler statt an der einen Frage *wo steht der
+    Prozess?*: die Kante **über einem offenen Abzweig** (dort hat sich das Material längst
+    geteilt, #464) und die **letzte Kante eines abgeschlossenen Auftrags** (dessen Stücke sind
+    zurückgegeben, der aktive Schritt steht im übergeordneten Auftrag, #467).
+
+    Jetzt gibt es genau EINE Stelle (``here``), und alles andere ist Vergangenheit."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "opacity: past ? 0.55 : 1" in flow, "Vergangene Kanten sind gedämpft (#462)."
-    assert "<EdgeMaterial lots={edges[i]} past={i < walked}" in flow, (
-        "Eine Kante ist vergangen, wenn der Fluss über sie hinaus ist.")
+    assert "const here: { at: number; bypass: boolean } | null = !running ? null" in flow, (
+        "Wo der Prozess steht, ist EINE Ableitung – und ohne laufenden Auftrag gibt es sie nicht.")
+    assert "<EdgeMaterial lots={edges[i]} past={!liveEdge(i)}" in flow, (
+        "Eine Kante ist Vergangenheit, sobald der Prozess nicht mehr an ihr steht.")
+    assert "past={!liveEdge(nodes.length)}" in flow, (
+        "Auch die letzte Kante – ein abgeschlossener Auftrag hat sein Material zurückgegeben.")
     assert "<FlowLots lots={inLots} small past={walked > 0} />" in flow, (
         "Auch im Abzweig: was hineinging, ist Vergangenheit, sobald er losgelaufen ist.")
+    assert "<FlowLots lots={outLots} small past />" in flow, (
+        "Was zurückkam, steht am Ende eines durchgelaufenen Abzweigs – also Vergangenheit.")
 
 
 def test_the_flow_shows_state_only_where_the_line_does_not():

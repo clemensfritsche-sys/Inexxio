@@ -3854,6 +3854,50 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_what_is_past_steps_back_on_the_edges_too`; die Guards für Abkürzung, Bypass, Ziel
   und Nachbar-Spuren sind auf die neuen Regeln gezogen.
 
+- **Zwei gleichzeitig laufende Abzweige – und EINE Stelle, an der der Prozess steht**
+  (Juli 2026, Testnotizen #463–#468):
+  **(1) Mehrere Unter-Aufträge an derselben Stelle** – die offene Gestaltungsfrage: im
+  Drei-Spuren-Bild (links Herkunft · Mitte eigener Prozess · rechts Abzweige) ist für zwei
+  Abzweige **nebeneinander** kein Platz, und eine vierte Spur oder ein Scrollbalken sind
+  ausgeschlossen. Die Antwort ist kein neues Bauteil, sondern eine **Umdeutung**: zwei
+  Abweichungen am selben Schritt sind keine zwei Spuren, sondern **zwei aufeinander folgende
+  Teilungen desselben Loses** – die zweite nimmt von dem, was die erste übrig gelassen hat.
+  Genau so entstehen sie auch («2 von 4 abgezweigt, dann 1 von den übrigen 2»). Darum bekommt
+  **jeder Ast seinen eigenen Fork, Bypass und Merge**, und die Achse dazwischen sagt, was
+  jeweils geblieben ist (4 → 2 → 1). Dasselbe Vokabular, eine Stufe feiner angewandt – und es
+  rechnet die Zwischenmenge **erstmals richtig**: vorher teilten sich alle Äste EINEN Bypass,
+  der bereits die Summe aller Abgänge zeigte (im gemeldeten Fall stand zwischen den beiden
+  Teilungen «1 Stk» statt «2 Stk»). `BranchArm` ist entfallen, `Node.branches` → `branch`,
+  `plusBalance` gilt je Ast; die Reihenfolge ist die Entstehung (Objektnummer aufsteigend),
+  sonst behauptete die Zwischenmenge eine Teilung, die es nie gab.
+  **(2) «Stark ist es dort, wo der Prozessschritt gerade aktiv ist»** (#464/#467/#468) – die
+  Regel des Nutzers, jetzt als **eine** Ableitung (`here`) statt dreier Zähler. Daraus folgt
+  alles: *läuft der Auftrag nicht mehr* (abgeschlossen/abgebrochen/Entwurf) → **gar keine**
+  Stelle, denn sein Material ist längst beim übergeordneten Auftrag, dort steht der aktive
+  Schritt: alles verblasst, und die Abkürzung verschwindet (#467/#468 – sie sass an der
+  letzten Kante eines fertigen Unter-Auftrags und hätte einen Auftrag auf zurückgegebene
+  Stücke angesetzt). *Steht er an einem Abzweig* → am **Bypass**; die Kante darüber zählt noch
+  alles zusammen und ist damit Vergangenheit (#464). Sonst → an der Kante über dem nächsten
+  offenen Modul. `OrderFlow` bekommt dafür ein Bit (`running = status === 'released'`) statt
+  einer Vermutung.
+  **(3) Ein künftiger Schritt lässt sich ansehen** (#465): #378 hatte am ruhenden Auftrag
+  **alles** verschlossen, #442 die erledigten wieder geöffnet – die künftigen blieben zu,
+  obwohl sie in einem laufenden Auftrag jederzeit zu öffnen sind. Zu bleibt jetzt genau
+  **einer**: der, an dem es hängt (`state === 'blocked'|'active'`) – dort lehnt das Backend
+  mit 409 ab, und davor sollte #378 bewahren. Alles andere ist Lesen und kann nichts auslösen.
+  **(4) «1 abgegeben an …» nur, wo es nicht schon dasteht** (#466): wer sich hier einen Anteil
+  geholt hat, wird dadurch zur **Abweichung dieses Auftrags** (`_make_deviation`: Eltern = wer
+  das Stück hielt) – steht also ohnehin als Abzweig im Fluss, mit der Menge auf seiner Kante.
+  Die Zeile war damit eine zweite Erzählung desselben Vorgangs. Sie bleibt nur für den Fall,
+  in dem der Nehmer **nicht** als Abzweig erscheint: greift eine Auswahl über mehrere Halter,
+  wird nur der erste sein Eltern – die übrigen erfahren sonst nirgends, warum ihnen etwas
+  fehlt (`Resolutions` filtert, EINE Stelle für alle Auflösungszeilen).
+  **(5) Keine Überschrift «Prozess»** (#463) – ein Diagramm mit Start-, End- und Modulknoten
+  sagt selbst, was es ist (wie #106/#116/#451).
+  Wächter: `test_parallel_sub_orders_are_successive_splits_of_one_lot`,
+  `test_a_taken_share_is_not_told_twice`; die Guards für Abkürzung, verblasste Kanten,
+  Lesbarkeit und Seitenspur sind auf die neuen Regeln gezogen.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
