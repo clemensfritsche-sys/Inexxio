@@ -10852,6 +10852,17 @@
             ],
             "title": "Article Id"
           },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
           "article_name": {
             "anyOf": [
               {
@@ -10877,6 +10888,17 @@
               }
             ],
             "title": "Unit"
+          },
+          "location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Label"
           }
         },
         "type": "object",
@@ -10885,7 +10907,7 @@
           "quantity"
         ],
         "title": "FlowLot",
-        "description": "**Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).\n\nDer Prozess zeigt nicht nur, WAS getan wird, sondern **womit**: welche Instanz, wie viel\ndavon, und – am Abzweig – wie viel wieder zurückkommt. Genau daran sieht man, dass 2\nStück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.\n\nMehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist\nes eine **Liste** und jede Zeile nennt ihren Artikel."
+        "description": "**Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).\n\nDer Prozess zeigt nicht nur, WAS getan wird, sondern **womit**: welche Instanz, wie viel\ndavon, und – am Abzweig – wie viel wieder zurückkommt. Genau daran sieht man, dass 2\nStück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.\n\nMehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist\nes eine **Liste** und jede Zeile nennt ihren Artikel.\n\n**Die Kante trägt die vier Angaben, die den Verlauf nachvollziehbar machen** (Notiz\n#426): welche **Instanz**, welcher **Artikel**, **wo** sie liegt und **wie viel**. Kurz\nsteht Menge × Instanz; Artikel und Standort erscheinen im Hover, und beide Objektnummern\nöffnen ihren Datensatz. Sie werden hier **einmal** aufgelöst (batch, kein N+1) statt in\njeder Ansicht neu zusammengesucht – dieselbe Zeile speist die Hauptachse (was der Auftrag\nhält) und die Abzweige (was hineinging/zurückkam)."
       },
       "HTTPValidationError": {
         "properties": {
@@ -12747,14 +12769,6 @@
             ],
             "title": "Order Reason"
           },
-          "chain": {
-            "items": {
-              "$ref": "#/components/schemas/OrderRef"
-            },
-            "type": "array",
-            "title": "Chain",
-            "default": []
-          },
           "parent_steps": {
             "items": {
               "$ref": "#/components/schemas/SubOrderStep"
@@ -12773,6 +12787,17 @@
               }
             ],
             "title": "Step Type"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
           },
           "returns_to_object_id": {
             "anyOf": [
@@ -12803,42 +12828,6 @@
         ],
         "title": "OrderOrigin",
         "description": "**Woher dieser Unter-Auftrag kam – und wohin er zurückgibt** (Notiz #409).\n\nDer Abzweig ist im Eltern längst sichtbar (``OrderStepInfo.sub_orders``); die Gegen-\nrichtung fehlte: wer in einer Abweichung steht, sah nicht, aus welchem Auftrag und aus\nwelchem **Schritt** sie hervorgegangen ist – und schon gar nicht, wohin ihre Stücke beim\nAbschluss zurückkehren. Beides ist keine neue Wahrheit, sondern dieselbe von der anderen\nSeite gelesen: ``parent_order_id`` + ``origin_step_id`` für das Woher, und für das Wohin\ngenau die Ableitung, die es auch TUT (``subject.lender_of`` bzw. das Nachschub-Pegging) –\nkeine zweite Behauptung daneben.\n\nWichtig: das Rückgabe-Ziel ist **nicht** zwingend der Eltern. Wurde der Eltern\nabgebrochen, reicht die Ausleihe durch bis zum nächsten laufenden Auftrag (Notiz #404) –\ngenau den nennt ``returns_to_object_id``."
-      },
-      "OrderRef": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id"
-        ],
-        "title": "OrderRef",
-        "description": "Ein Auftrag, kurz benannt – für die Kette über einem Unter-Auftrag."
       },
       "OrderResponse": {
         "properties": {
@@ -13248,6 +13237,14 @@
                 "type": "null"
               }
             ]
+          },
+          "flow_lots": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLot"
+            },
+            "type": "array",
+            "title": "Flow Lots",
+            "default": []
           },
           "deviations": {
             "items": {

@@ -20,7 +20,7 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    FlowLot, OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderRef, OrderResponse,
+    FlowLot, OrderDeviationInfo, OrderLineInfo, OrderOrigin, OrderResponse,
     OrderStepInfo, OrderSummary, ShortfallInstance, StepResolution, SubOrderStep,
     StepShortfall,
 )
@@ -354,6 +354,32 @@ def _terminal_amounts(db: Session, sub: Order) -> dict[int, Decimal]:
     return out
 
 
+def _lot_meta(db: Session, insts: list) -> dict[int, dict]:
+    """**Die Angaben, die eine Materialzeile nachvollziehbar machen** (Notiz #426) – je
+    Instanz-Objektnummer, batch aufgelöst.
+
+    Instanz, **Artikel** (Nummer + Name + Einheit) und **Standort**: damit beantwortet eine
+    Kante des Flusses «welches Stück, wovon, wo, wie viel», ohne dass man drei Datensätze
+    öffnen muss. Eine Stelle für beide Leser – die Hauptachse (was der Auftrag hält) und die
+    Abzweige (was hineinging/zurückkam)."""
+    if not insts:
+        return {}
+    arts = {a.id: a for a in db.query(Article)
+            .filter(Article.id.in_({i.article_id for i in insts})).all()}
+    loc = location_labels(db, [(i.location_type, i.location_id) for i in insts])
+    out: dict[int, dict] = {}
+    for i in insts:
+        if not i.object_id:
+            continue
+        art = arts.get(i.article_id)
+        out[i.object_id] = dict(
+            instance_object_id=i.object_id, article_id=i.article_id,
+            article_object_id=(art.object_id if art else None),
+            article_name=(art.name if art else None), unit=(art.unit if art else None),
+            location_label=loc.get((i.location_type, i.location_id)))
+    return out
+
+
 def _sub_order_flow(db: Session, sub: Order) -> tuple[list[FlowLot], list[FlowLot]]:
     """**Der Materialfluss durch einen Abzweig** – was hineinging und was zurückkommt (#413).
 
@@ -376,19 +402,16 @@ def _sub_order_flow(db: Session, sub: Order) -> tuple[list[FlowLot], list[FlowLo
         if row.quantity is not None
     }
     lost = _terminal_amounts(db, sub)
-    arts = {a.id: a for a in db.query(Article)
-            .filter(Article.id.in_({i.article_id for i in insts})).all()}
+    meta = _lot_meta(db, insts)
     into: list[FlowLot] = []
     back: list[FlowLot] = []
     for i in insts:
-        if not i.object_id:
+        base = meta.get(i.object_id or 0)
+        if base is None:
             continue
-        art = arts.get(i.article_id)
         qty = to_qty(taken.get(i.object_id) if taken.get(i.object_id) is not None
                      else held_quantity(sub, i))
         rest = qty - lost.get(i.object_id, ZERO)
-        base = dict(instance_object_id=i.object_id, article_id=i.article_id,
-                    article_name=(art.name if art else None), unit=(art.unit if art else None))
         into.append(FlowLot(quantity=float(qty), **base))
         back.append(FlowLot(quantity=float(max(rest, ZERO)), **base))
     return into, back
@@ -621,23 +644,10 @@ def _fill_origin(db: Session, order: Order, resp: OrderResponse) -> None:
                          order_reason=parent.reason,
                          order_name=_order_ref_name(db, parent),
                          parent_steps=_sub_order_steps(db, parent, {}))
-    # **Die ganze Kette bis hier herauf** (Notiz #413): ein Abzweig kann selbst einen Abzweig
-    # haben. Wurzel zuerst, zyklensicher und begrenzt – wer tiefer verschachtelt, hat ein
-    # anderes Problem als eine unvollständige Brotkrume.
-    chain: list[OrderRef] = []
-    seen: set[int] = {order.id}
-    cur: Order | None = parent
-    while cur is not None and len(chain) < 8:
-        chain.insert(0, OrderRef(object_id=cur.object_id or 0, name=_order_ref_name(db, cur),
-                                 reason=cur.reason))
-        if not cur.parent_order_id or cur.id in seen:
-            break
-        seen.add(cur.id)
-        cur = db.query(Order).filter(Order.object_id == cur.parent_order_id).first()
-    chain.append(OrderRef(object_id=order.object_id or 0,
-                          name=_order_ref_name(db, order), reason=order.reason))
-    origin.chain = chain
+    # (Die Brotkrumen-Kette ist entfallen, Notiz #428: der aktuelle Auftrag steht im Kopf des
+    #  Fensters, der Eltern im Herkunfts-Teaser des Flusses – sie sagte beides ein zweites Mal.)
     if order.origin_step_id:
+        origin.step_id = order.origin_step_id
         step = (db.query(ArticleProcessStep)
                 .filter(ArticleProcessStep.id == order.origin_step_id).first())
         if step is not None:
@@ -877,6 +887,11 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
 
     instances = order_instances(db, order)
     resp.instances = _instance_embeds(db, order, instances)
+    # **Das Material auf den Kanten seiner Achse** (Notiz #426) – dieselbe angereicherte
+    # Zeile wie am Abzweig, damit der Fluss überall dieselbe Aussage in derselben Form trägt.
+    _lots = _lot_meta(db, instances)
+    resp.flow_lots = [FlowLot(quantity=float(held_quantity(order, i)), **_lots[i.object_id])
+                      for i in instances if i.object_id in _lots]
 
     # Auftrag-Stepper: je Schritt der passende Ausführungs-Embed + Abschluss-Info.
     # Das oberste Embed je Typ bleibt für Rückwärtskompatibilität (Lieferanten-Sicht)

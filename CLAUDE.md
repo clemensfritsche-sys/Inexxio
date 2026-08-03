@@ -3647,6 +3647,53 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_what_has_been_walked_is_a_strong_solid_line`,
   `test_the_branch_names_the_module_from_one_place`.
 
+- **Testnotizen-Runde 31 (die Linie, und was sie trägt, Notizen #421–#429)**: Neun Notizen,
+  zwei Themen – die **Linie** und das **Material** auf ihr.
+  (1) **EINE Linie, EINE Regel** (#422/#429): die volle schwarze Linie läuft durch alles, was
+  passiert und abgeschlossen ist, bis zu dem Modul, das aussteht; ab dort Haarlinie. Das gilt
+  **überall gleich** – auch auf dem Weg in einen Abzweig hinein, in ihm drin und zurück.
+  **Gestrichelte Linien gibt es im Fluss nicht mehr**: sie waren eine zweite Aussage neben
+  «stark ↔ Haarlinie» und haben sie überschrieben, sobald eine Abweichung offen war (genau der
+  gemeldete Bug: eine ausgelöste Abweichung machte aus Volllinien Strichlinien). Ein Abzweig
+  ist kein Sonderfall mit eigener Strichart, sondern ein gegangener Weg wie jeder andere.
+  (2) **Fork und Merge** (#424/#423): die Abzweigung verlässt die Achse waagrecht, geht oben
+  mittig in den Unterprozess – und **unten wieder zurück in die Achse** (die Rücklinie fehlte
+  ganz). Alle vier Ecken (Fork · Merge · Herkunft · Rückweg) kommen aus EINEM Baustein
+  `Elbow` und sind leicht gerundet; gezeichnet als zwei Rahmenkanten eines Kastens, damit die
+  Rundung genau eine `border-radius` ist und keine zweite Geometrie.
+  (3) **Der Bypass trägt, was geblieben ist** (#425): zwischen Fork und Merge läuft die Achse
+  weiter und nennt die Menge, die NICHT abgezweigt ist – «4 kamen an, 2 gingen in die
+  Abweichung, 2 blieben hier». Damit die Zahl darüber stimmt, hängt die Rückrechnung am
+  **Zustand** des Astes: läuft er noch, ist alles Hineingegangene weiterhin dort; ist er
+  durch, fehlt nur, was unterwegs verloren ging. Vorher wurde nur der Verlust zurückgerechnet
+  – bei einer offenen Abweichung meldete die Kante über dem Fork darum zu wenig.
+  (4) **Keine Menge unterhalb des Fortschritts** (#421): die Kanten wurden von unten nach oben
+  aus dem heutigen Bestand gerechnet – und behaupteten damit an Modulen, die noch gar nicht
+  dran sind, welche Instanzen sie einmal führen werden. Das ist nicht vorhersehbar; Material
+  trägt nur, was der Fluss erreicht hat. Ebenso am Abzweig: **was zurückkommt, steht erst da,
+  wenn es zurück ist.**
+  (5) **Eine Kante trägt vier Angaben** (#426, `FlowLot` + `OrderResponse.flow_lots`): welche
+  **Instanz**, welcher **Artikel**, **wo** sie liegt und **wie viel**. Kurz steht «4 ×
+  100000595», im Hover eine kleine Karte mit Artikel · Standort · Menge – und **beide**
+  Objektnummern öffnen ihren Datensatz. Aufgelöst wird das **einmal im Backend**
+  (`orders._lot_meta`, batch, kein N+1) und in EINER Form: dieselbe Zeile speist die
+  Hauptachse und die Abzweige (`flow_in`/`flow_out`), statt dass die Achse ihre Angaben aus
+  `InstanceEmbed` + Positionsliste zusammensucht.
+  (6) **Die Herkunft zeigt EINEN Schritt** (#427): der Eltern-Prozess gehört in den
+  Eltern-Auftrag; hier zählt die Stelle, aus der es hervorging – gefunden über
+  `OrderOrigin.step_id` (nicht über den Typ: ein Prozess darf zwei Datenerfassungen haben).
+  Dass davor mehr liegt, sagt eine dezente Zeile darüber («⋯ 2 Schritte davor»). Links ist
+  damit so ausführlich wie rechts, und Eltern-Kopf und Abzweig-Kopf sind **derselbe** Knoten
+  (`OrderNode`), kein Nachbau.
+  (7) **Die Brotkrumen-Kette ist entfallen** (#428, `OrderChain` + `OrderOrigin.chain` +
+  `OrderRef`): der aktuelle Auftrag steht im Kopf des Fensters, der übergeordnete im
+  Herkunfts-Knoten des Flusses – sie sagte beides ein zweites Mal.
+  Wächter: `test_the_bypass_carries_what_stayed_on_the_order`,
+  `test_no_edge_shows_material_it_has_not_carried_yet`,
+  `test_a_flow_lot_names_instance_article_location_and_quantity`,
+  `test_the_origin_shows_one_step_not_the_whole_parent_process`; die bestehenden Fluss-Wächter
+  verbieten jetzt ausdrücklich jede gestrichelte Linie.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

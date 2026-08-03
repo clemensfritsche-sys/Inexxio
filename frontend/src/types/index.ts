@@ -280,7 +280,6 @@ export type OrderOrigin = components['schemas']['OrderOrigin'];
 export type FlowLot = components['schemas']['FlowLot'];
 
 // Ein kurz benannter Auftrag – für die Kette über einem Unter-Auftrag.
-export type OrderRef = components['schemas']['OrderRef'];
 
 // Eine weitere Position zu einem bestehenden Auftrag hinzufügen (POST .../lines) –
 // jederzeit möglich, auch nachdem der Auftrag schon gespeichert wurde. Macht den

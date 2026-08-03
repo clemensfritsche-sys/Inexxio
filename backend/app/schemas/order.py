@@ -102,13 +102,6 @@ class StepResolution(BaseModel):
     by: Optional[str] = None
 
 
-class OrderRef(BaseModel):
-    """Ein Auftrag, kurz benannt – für die Kette über einem Unter-Auftrag."""
-    object_id: int
-    name: Optional[str] = None
-    reason: Optional[str] = None
-
-
 class FlowLot(BaseModel):
     """**Eine Materialmenge auf einer Kante des Flusses** – «4 × 100000590» (Notiz #413).
 
@@ -117,12 +110,21 @@ class FlowLot(BaseModel):
     Stück hineingingen und 0 zurückkamen, weil sie verschrottet wurden.
 
     Mehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist
-    es eine **Liste** und jede Zeile nennt ihren Artikel."""
+    es eine **Liste** und jede Zeile nennt ihren Artikel.
+
+    **Die Kante trägt die vier Angaben, die den Verlauf nachvollziehbar machen** (Notiz
+    #426): welche **Instanz**, welcher **Artikel**, **wo** sie liegt und **wie viel**. Kurz
+    steht Menge × Instanz; Artikel und Standort erscheinen im Hover, und beide Objektnummern
+    öffnen ihren Datensatz. Sie werden hier **einmal** aufgelöst (batch, kein N+1) statt in
+    jeder Ansicht neu zusammengesucht – dieselbe Zeile speist die Hauptachse (was der Auftrag
+    hält) und die Abzweige (was hineinging/zurückkam)."""
     instance_object_id: int
     article_id: Optional[int] = None
+    article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     quantity: float
     unit: Optional[str] = None
+    location_label: Optional[str] = None
 
 
 class SubOrderStep(BaseModel):
@@ -193,13 +195,18 @@ class OrderOrigin(BaseModel):
     order_name: Optional[str] = None
     order_status: Optional[str] = None
     order_reason: Optional[str] = None
-    # **Die ganze Kette bis hier herauf** – Wurzel zuerst (Notiz #413): ein Abzweig kann
-    # selbst einen Abzweig haben, und dann will man mit einem Blick wissen, wo man steht.
-    chain: list[OrderRef] = []
-    # Die Schritte des Eltern-Prozesses (angeteasert) – man sieht, woher man kommt.
+    # (Die frühere Brotkrumen-``chain`` ist entfallen, Notiz #428: der aktuelle Auftrag steht
+    #  im Kopf des Fensters, der Eltern im Herkunfts-Teaser des Flusses – die Kette sagte
+    #  beides ein zweites Mal.)
+    # Die Schritte des Eltern-Prozesses (angeteasert) – man sieht, woher man kommt. Gezeigt
+    # wird davon genau EINER (der Ursprungsschritt, Notiz #427); die Zahl der übrigen sagt
+    # nur noch, dass davor mehr liegt.
     parent_steps: list[SubOrderStep] = []
-    # Der Schritt des Eltern, aus dem dieser Unter-Auftrag hervorgegangen ist.
+    # Der Schritt des Eltern, aus dem dieser Unter-Auftrag hervorgegangen ist – als Typ (für
+    # das Wort) und als **id**, damit die Ansicht genau diesen einen Schritt zeigen kann und
+    # nicht den nach Typ erstbesten (ein Prozess darf zwei Datenerfassungen haben).
     step_type: Optional[str] = None
+    step_id: Optional[int] = None
     # Wohin die Stücke beim Abschluss zurückgehen (leer = niemand wartet mehr darauf).
     returns_to_object_id: Optional[int] = None
     returns_to_name: Optional[str] = None
@@ -555,6 +562,10 @@ class OrderResponse(BaseModel):
     abort_into_id: Optional[int] = None
     # **Woher er kam und wohin er zurückgibt** – nur an einem Unter-Auftrag gesetzt (#409).
     origin: Optional[OrderOrigin] = None
+    # **Das Material, das dieser Auftrag hält** – die Kanten seiner Achse (Notiz #426).
+    # Dieselbe angereicherte Zeile wie ``OrderDeviationInfo.flow_in/out`` (Instanz · Artikel ·
+    # Standort · Menge), damit Achse und Abzweig nicht zwei Formen derselben Aussage sind.
+    flow_lots: list[FlowLot] = []
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)

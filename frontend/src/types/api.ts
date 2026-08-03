@@ -3743,18 +3743,29 @@ export interface components {
          *
          *     Mehrere Artikel und mehrere Instanzen sind der Normalfall, nicht die Ausnahme: darum ist
          *     es eine **Liste** und jede Zeile nennt ihren Artikel.
+         *
+         *     **Die Kante trägt die vier Angaben, die den Verlauf nachvollziehbar machen** (Notiz
+         *     #426): welche **Instanz**, welcher **Artikel**, **wo** sie liegt und **wie viel**. Kurz
+         *     steht Menge × Instanz; Artikel und Standort erscheinen im Hover, und beide Objektnummern
+         *     öffnen ihren Datensatz. Sie werden hier **einmal** aufgelöst (batch, kein N+1) statt in
+         *     jeder Ansicht neu zusammengesucht – dieselbe Zeile speist die Hauptachse (was der Auftrag
+         *     hält) und die Abzweige (was hineinging/zurückkam).
          */
         FlowLot: {
             /** Instance Object Id */
             instance_object_id: number;
             /** Article Id */
             article_id?: number | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
             /** Article Name */
             article_name?: string | null;
             /** Quantity */
             quantity: number;
             /** Unit */
             unit?: string | null;
+            /** Location Label */
+            location_label?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4491,33 +4502,18 @@ export interface components {
             /** Order Reason */
             order_reason?: string | null;
             /**
-             * Chain
-             * @default []
-             */
-            chain: components["schemas"]["OrderRef"][];
-            /**
              * Parent Steps
              * @default []
              */
             parent_steps: components["schemas"]["SubOrderStep"][];
             /** Step Type */
             step_type?: string | null;
+            /** Step Id */
+            step_id?: number | null;
             /** Returns To Object Id */
             returns_to_object_id?: number | null;
             /** Returns To Name */
             returns_to_name?: string | null;
-        };
-        /**
-         * OrderRef
-         * @description Ein Auftrag, kurz benannt – für die Kette über einem Unter-Auftrag.
-         */
-        OrderRef: {
-            /** Object Id */
-            object_id: number;
-            /** Name */
-            name?: string | null;
-            /** Reason */
-            reason?: string | null;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -4650,6 +4646,11 @@ export interface components {
             /** Abort Into Id */
             abort_into_id?: number | null;
             origin?: components["schemas"]["OrderOrigin"] | null;
+            /**
+             * Flow Lots
+             * @default []
+             */
+            flow_lots: components["schemas"]["FlowLot"][];
             /**
              * Deviations
              * @default []

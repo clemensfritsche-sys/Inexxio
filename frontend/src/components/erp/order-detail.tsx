@@ -18,7 +18,7 @@ import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
-import { OrderChain, OrderFlow } from '@/components/erp/order-flow';
+import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
 import { orderName } from '@/lib/record-name';
@@ -1153,15 +1153,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           <>
             {/* Gleiche Darstellung wie am Artikel: der Editor steht frei, ohne zweite Karte. */}
             <div style={{ marginBottom: 12 }}>
-              {/* **Woher komme ich?** (Notiz #409) – genau hier, während man entscheidet, was
-                  mit den Stücken geschehen soll, ist die Herkunft die wichtigste Angabe:
-                  aus welchem Auftrag und aus welchem Schritt. Derselbe Teaser wie im Fluss
-                  eines laufenden Unter-Auftrags, nur ohne Rückweg – ein Entwurf hat noch
-                  kein Ende. */}
-              {record.origin && (
-                <OrderChain origin={record.origin} currentObjectId={record.object_id}
-                  onOpen={(oid: number) => nav?.(oid)} />
-              )}
               {/* FIX: suppliers war hier (und an den zwei weiteren Stellen) als [] hartkodiert –
                   ein Beschaffungs-Schritt am Auftrag konnte NIE einen Lieferanten wählen
                   («Keine Lieferanten vorhanden»), obwohl welche existieren. */}
@@ -1218,12 +1209,11 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 Abzweig kann selbst einen Abzweig haben; ohne sie weiss man nach zwei
                 Sprüngen nicht mehr, in welchem Vorgang man gelandet ist. */}
             {/* Alles ausser dem Diagramm bleibt in der Satzbreite des Fensters – sonst
-                stünde die Überschrift 230 px weiter links als die Spezifikation darüber. */}
+                stünde die Überschrift 230 px weiter links als die Spezifikation darüber.
+                Die frühere Brotkrumen-Kette ist entfallen (Notiz #428): der aktuelle Auftrag
+                steht im Kopf des Fensters, der übergeordnete im Herkunfts-Knoten des Flusses –
+                sie sagte beides ein zweites Mal. */}
             <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
-              {record.origin && (
-                <OrderChain origin={record.origin} currentObjectId={record.object_id}
-                  onOpen={(oid: number) => nav?.(oid)} />
-              )}
               <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             </div>
             {/* Frei im Weissraum, wie der Editor am Artikel – kein zweiter Karten-Hintergrund
@@ -1258,10 +1248,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                   canAct: isStaff && record.status === 'released' && !(supplyBusy || recoverBusy),
                   onDecide: () => setDecideOpen(true),
                 } : undefined}
-                // **Der Materialfluss auf den Kanten** (#413): welche Instanz, wie viel –
-                // und am Abzweig, wie viel zurückkam. Grundlage ist der Anteil, den der
-                // Auftrag hält; die Mengen weiter oben rechnet der Fluss daraus zurück.
-                instances={record.instances ?? []}
+                // **Der Materialfluss auf den Kanten** (#413/#426): welche Instanz, welcher
+                // Artikel, wo sie liegt und wie viel – EINE angereicherte Zeile aus dem
+                // Backend (`flow_lots`), dieselbe Form wie am Abzweig. Grundlage ist der
+                // Anteil, den der Auftrag hält; die Mengen weiter oben rechnet der Fluss
+                // daraus zurück.
+                lots={record.flow_lots ?? []}
                 orderObjectId={record.object_id}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
