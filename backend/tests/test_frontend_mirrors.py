@@ -379,7 +379,7 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     Abzweigung geht dabei **oben mittig** in ihn hinein (#417), und gestrichelt ist nur der
     Übergang zwischen zwei Aufträgen."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    for part in ("function BranchCell", "function SubProcess"):
+    for part in ("function BranchArm", "function SubProcess"):
         assert part in flow, f"Dem Fluss fehlt {part}"
     # **Wie im Unter-Auftrag** (Testnotiz #435): eigener Start- und Endknoten, dieselben
     # Modul-Karten – und keine Kopfkarte davor. Wer einen Schritt anklickt, landet im
@@ -455,7 +455,7 @@ def test_the_main_process_runs_down_the_middle():
         "Eine Zeile hat zwei Seitenspuren – links Herkunft, rechts Abzweige.")
     assert "left={<OriginArm" in flow and "left={<ReturnArm" in flow, (
         "Woher der Auftrag kam und wohin er zurückgibt, gehört auf DIESELBE Seite.")
-    assert "right={<BranchCell" in flow, "Abzweige hängen rechts."
+    assert "right={<BranchArm" in flow, "Abzweige hängen rechts."
     assert "overflowX: 'auto'" in flow, "Ein breites Diagramm scrollt in seinem eigenen Kasten."
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
     assert "maxWidth: 1340" in detail, "Der Fluss bekommt eine eigene, breitere Spur."
@@ -482,8 +482,14 @@ def test_what_has_been_walked_is_a_strong_solid_line():
     assert "dashed" not in flow, (
         "Ein Abzweig ist kein Sonderfall mit eigener Strichart – die Linie sagt nur, wie weit "
         "der Prozess gegangen ist (#422/#429).")
-    assert '<Elbow dir="fork-right" strong={reached}' in flow, "Der Weg in den Abzweig ist gegangen."
-    assert "strong={reached && closed}" in flow, "Der Rückweg wird stark, wenn der Abzweig durch ist."
+    # **Die Achse ist ein Präfix, ein Abzweig nicht.** «Stark bis zur offenen Stelle» setzt
+    # eine Reihenfolge voraus – und zwischen gleichzeitig laufenden Ästen gibt es keine. Zu
+    # jedem gestarteten Ast ist ein Weg gegangen worden, also hängt die Stärke dort an SEINEM
+    # Zustand; sonst bekam der zweite, ebenfalls laufende Unter-Auftrag nur eine Haarlinie.
+    assert '<Elbow dir="fork-right" strong={branches.some(branchStarted)}' in flow, (
+        "Der Weg in eine Teilung ist gegangen, sobald irgendein Ast gestartet ist.")
+    assert '<Elbow dir="merge-right" strong={branches.every((b) => !isOpen(b))}' in flow, (
+        "Der Rückweg wird stark, wenn die GANZE Teilung durch ist.")
 
 
 def test_the_flow_shows_what_material_moves():
@@ -538,32 +544,45 @@ def test_the_bypass_carries_what_stayed_on_the_order():
         "Der Bypass nennt, was auf dem Hauptauftrag geblieben ist (#425).")
 
 
-def test_parallel_sub_orders_are_successive_splits_of_one_lot():
+def test_parallel_sub_orders_are_one_split_in_several_directions():
     """**Zwei gleichzeitig laufende Unter-Aufträge – ohne vierte Spur und ohne Scrollbalken.**
 
-    Zwei Abweichungen am selben Schritt sind keine zwei Spuren nebeneinander (dafür ist im
-    Drei-Spuren-Bild kein Platz, und es soll auch keiner geschaffen werden), sondern **zwei
-    aufeinander folgende Teilungen desselben Loses**: die zweite nimmt von dem, was die erste
-    übrig gelassen hat. Genau so entstehen sie auch – «2 von 4 abgezweigt, dann 1 von den
-    übrigen 2».
+    Mehrere Abweichungen am selben Schritt sind **EINE Teilung in mehrere Richtungen**, nicht
+    mehrere Teilungen nacheinander: das Material verlässt die Achse an EINEM Punkt, und wie
+    viel wohin geht, sagt die Menge über jedem Unterprozess. Daraus folgt zweierlei:
 
-    Darum bekommt **jeder Ast seinen eigenen Fork, Bypass und Merge**; die Achse dazwischen
-    sagt, was jeweils geblieben ist (4 → 2 → 1). Das ist dasselbe Vokabular, eine Stufe feiner
-    angewandt – und es rechnet die Zwischenmenge erstmals richtig: vorher teilten sich alle
-    Äste EINEN Bypass, der bereits die Summe aller Abgänge zeigte.
+    * es gibt **einen** Fork und **einen** Merge – weniger Linien, keine Überlagerung, und
+    * die Achse darunter trägt, was dem Auftrag **wirklich** geblieben ist (Testnotiz #469):
+      wurden von 4 Stück 2 und 1 abgezweigt, steht dort 1 – nicht ein Zwischenstand nach der
+      ersten von zwei Teilungen.
 
-    Reihenfolge = Entstehung (die Objektnummer steigt), sonst behauptete die Zwischenmenge
-    eine Teilung, die so nie stattgefunden hat."""
+    Die Zwischenstufe – je Ast ein eigener Fork mit eigenem Bypass – rechnete zwar auch
+    korrekt, behauptete aber eine Reihenfolge («erst A, dann B»), die es nicht gibt, und liess
+    die Achse eine Menge tragen, die der Auftrag nie hielt.
+
+    **Und die Linie zu einem Ast hängt an SEINEM Zustand, nicht am Fortschritt der Achse.**
+    «Stark bis zur offenen Stelle» ist ein Präfix und setzt eine Reihenfolge voraus; zwischen
+    gleichzeitig laufenden Ästen gibt es keine. Ohne diese Trennung bekam der zweite,
+    ebenfalls laufende Unter-Auftrag nur eine Haarlinie."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    assert "branch?: OrderDeviationInfo" in flow and "branches?: OrderDeviationInfo[]" not in flow, (
-        "Ein Knoten trägt genau EINEN Ast – daraus folgt sein eigener Bypass.")
-    assert "[...list].sort((a, b) => a.object_id - b.object_id).forEach" in flow, (
-        "Die spätere Teilung steht unten – sonst stimmt die Zwischenmenge nicht.")
-    assert "function plusBalance(below: Lots, b: OrderDeviationInfo)" in flow, (
-        "Die Rückrechnung gilt je Ast, nicht je Gruppe.")
-    assert "edges[i] = nodes[i].branch ? plusBalance(edges[i + 1], nodes[i].branch!)" in flow
-    assert "function BranchArm" not in flow, (
-        "Es gibt keine Gruppe von Ästen an einer Stelle mehr – jeder hat seine eigene.")
+    assert "branches?: OrderDeviationInfo[]" in flow, (
+        "Ein Knoten trägt die Äste EINER Teilung – daraus folgt ein Fork und ein Merge.")
+    assert flow.count('<Elbow dir="fork-right"') == 1, (
+        "Eine Teilung hat genau eine Abzweigung (#469).")
+    assert flow.count('<Elbow dir="merge-right"') == 1, (
+        "… und genau eine Einmündung.")
+    assert "const byAge = (l: OrderDeviationInfo[]) => [...l].sort((a, b) => a.object_id - b.object_id)" in flow, (
+        "Innerhalb einer Teilung ist die Reihenfolge die Entstehung.")
+    assert "const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';" in flow, (
+        "Ob zu einem Ast ein Weg gegangen wurde, sagt SEIN Zustand.")
+    assert "strong={branches.some(branchStarted)}" in flow, (
+        "Der Fork ist stark, sobald irgendein Ast gestartet ist.")
+    assert "{i > 0 && <Axis h={20} strong={branchStarted(b)} />}" in flow, (
+        "Auch der zweite, gleichzeitig laufende Ast bekommt eine volle Linie.")
+    assert "strong={branches.every((b) => !isOpen(b))}" in flow, (
+        "Zurück auf die Achse geht es erst, wenn die GANZE Teilung durch ist.")
+    assert "function BranchCell" not in flow, (
+        "Fork und Merge gehören der Teilung, nicht dem einzelnen Ast.")
 
 
 def test_no_edge_shows_material_it_has_not_carried_yet():
