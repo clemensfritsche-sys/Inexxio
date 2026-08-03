@@ -4452,6 +4452,11 @@ export interface components {
              * @default []
              */
             flow_lost: components["schemas"]["FlowLot"][];
+            /**
+             * Returns Material
+             * @default true
+             */
+            returns_material: boolean;
             /** Name */
             name?: string | null;
         };
@@ -5873,6 +5878,8 @@ export interface components {
             step_type: string;
             /** State */
             state: string;
+            /** Status */
+            status?: string | null;
         };
         /** SuggestedLink */
         SuggestedLink: {

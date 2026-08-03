@@ -12639,6 +12639,11 @@
             "title": "Flow Lost",
             "default": []
           },
+          "returns_material": {
+            "type": "boolean",
+            "title": "Returns Material",
+            "default": true
+          },
           "name": {
             "anyOf": [
               {
@@ -16429,6 +16434,17 @@
           "state": {
             "type": "string",
             "title": "State"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
           }
         },
         "type": "object",

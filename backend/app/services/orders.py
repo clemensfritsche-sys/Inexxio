@@ -477,7 +477,10 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
         title=sub.title, abort_into_id=sub.abort_into_id, stage=stage,
         name=_order_ref_name(db, sub),
         steps=_sub_order_steps(db, sub, cache),
-        flow_in=material, flow_lost=gone)
+        flow_in=material, flow_lost=gone,
+        # Dieselbe Frage, dieselbe Antwort wie am Rückweg-Knoten im Unter-Auftrag selbst –
+        # der Abzweig darf im Eltern nicht anders aussehen als beim Öffnen (#492).
+        returns_material=sum(x.quantity for x in material) - sum(x.quantity for x in gone) > 0)
 
 
 def _sub_order_steps(db: Session, sub: Order,
@@ -491,10 +494,24 @@ def _sub_order_steps(db: Session, sub: Order,
     Schritt, aus dem er hervorging – ohne Merker liefe die Ableitung zweimal."""
     if sub.id not in cache:
         cache[sub.id] = [
-            SubOrderStep(id=s["id"], step_type=s["step_type"], state=s["state"])
+            SubOrderStep(id=s["id"], step_type=s["step_type"], state=s["state"],
+                         status=_fact_status_label(s))
             for s in process.build_order_steps(db, sub)
         ]
     return cache[sub.id]
+
+
+def _fact_status_label(step: dict) -> str | None:
+    """Der fachliche Zwischenstand eines Schritts (Beschaffung/Verkauf) – für die Modul-Karte.
+
+    Nur diese beiden Typen haben einen; alles andere trägt seinen Zustand ohnehin im Symbol.
+    Ein **erledigter** Schritt zeigt ihn nicht (Notiz #279): dass er durch ist, sagt der Haken."""
+    if step.get("state") == "done":
+        return None
+    facts = step.get("facts") or ([step["fact"]] if step.get("fact") else [])
+    if step.get("step_type") not in ("purchase", "sale") or not facts:
+        return None
+    return getattr(facts[0], "status", None)
 
 
 def _order_sub_orders(db: Session, order: Order,
@@ -653,12 +670,32 @@ def _return_target(db: Session, order: Order) -> Order | None:
     seine Stück an den Eltern (``process._peg_supply_to_parent``). Alles andere gibt nichts
     zurück – ein gewöhnlicher Auftrag schuldet niemandem etwas."""
     from .subject import is_fixed_subject, lender_of
+    # **Was gar nicht mehr da ist, kommt auch nicht zurück** (Testnotiz #492). Sonst zeigte
+    # derselbe Abzweig zwei verschiedene Bilder: im Eltern-Auftrag ohne Rückweg (dort wurde
+    # aus dem Material gerechnet), in seiner EIGENEN Ansicht mit – weil sie nur fragte, WEM
+    # er zurückgäbe, nicht OB. Jetzt fragen beide dasselbe.
+    if not returns_material(db, order):
+        return None
     if is_fixed_subject(order):
         return lender_of(db, order)
     if order.reason == "supply" and order.parent_order_id:
         parent = db.query(Order).filter(Order.object_id == order.parent_order_id).first()
         return parent if parent is not None and parent.status == "released" else None
     return None
+
+
+def returns_material(db: Session, order: Order) -> bool:
+    """**Kommt aus diesem Auftrag überhaupt etwas zurück?** – EINE Stelle (Testnotiz #492).
+
+    Die Antwort ist einfach: was er übernommen hat, minus dem, was den Bestand endgültig
+    verlassen hat. Bleibt nichts, führt die Prozesslinie gar nicht erst zurück – die
+    einfachste denkbare Darstellung für «alles verschrottet» bzw. «Menge reduziert» (#481).
+
+    Sie steht hier, weil sie an **zwei** Oberflächen gebraucht wird: am Abzweig im
+    Eltern-Auftrag und am Rückweg-Knoten im Unter-Auftrag selbst. Wurden sie getrennt
+    hergeleitet, zeigte derselbe Vorgang zwei verschiedene Bilder."""
+    material, gone = order_material(db, order)
+    return sum(x.quantity for x in material) - sum(x.quantity for x in gone) > 0
 
 
 def _order_ref_name(db: Session, o: Order) -> str:

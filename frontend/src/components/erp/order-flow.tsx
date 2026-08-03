@@ -63,7 +63,9 @@ import { actorHint, formatObjectId } from '@/lib/utils';
  * viel Platz, wie sie brauchen, statt den ganzen Rest zu füllen.
  */
 const MAIN = 460;          // Hauptspur (Modul-Karten)
-const SIDE = 336;          // Seitenspur (Abzweig bzw. Herkunft/Rückweg)
+const SIDE = MAIN;         // Seitenspur – **gleich breit wie die Hauptspur** (#491):
+                           // ein Abzweig ist ein regulärer Prozess, also sind auch
+                           // seine Modul-Karten gleich gross (#418).
 const GAP = 26;            // Luft zwischen Haupt- und Seitenspur
 const ARM = 40;            // Höhe einer Abzweigung
 const BEND = 12;           // Eckenradius der Prozesslinie
@@ -296,11 +298,6 @@ function asOf(lots: Lots, cutoff: string | null): Lots {
   return out;
 }
 
-/** Gibt dieser Abzweig überhaupt etwas zurück? Wenn nicht, führt gar keine Linie zurück (#481). */
-function returnsMaterial(b: OrderDeviationInfo): boolean {
-  const sum = (l?: FlowLot[]) => (l ?? []).reduce((n, x) => n + x.quantity, 0);
-  return sum(b.flow_in) - sum(b.flow_lost) > 0;
-}
 
 const qtyText = (l: FlowLot) => `${l.quantity}${l.unit ? ` ${unitLabel(l.unit)}` : ''}`;
 
@@ -632,7 +629,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
     rows.push(
       <Row key={`step-${s.id}`}>
         <StepCard type={s.step_type as StepType} state={s.state} selected={selected}
-          muted={paused} detail={stepDetail(s)} badge={stepBadge(s)}
+          muted={paused} badge={stepBadge(s.step_type, stepStatus(s))}
           hint={completionHint(s)}
           onClick={() => onSelectStep(String(s.id))}>
           {selected && renderPanel?.(s)}
@@ -654,7 +651,7 @@ export function OrderFlow({ steps, subOrders = [], origin, decision, paused = fa
   return (
     // Ein Diagramm darf breiter sein als eine Textspalte – aber es scrollt in seinem eigenen
     // Kasten, statt die Seite waagrecht zu schieben.
-    <div style={{ width: '100%', overflowX: 'auto' }}>
+    <div className="ix-noscrollbar" style={{ width: '100%', overflowX: 'auto' }}>
       <div style={{ width: '100%', minWidth: hasAside ? MAIN + 2 * LANE : MAIN,
         display: 'flex', flexDirection: 'column', alignItems: 'stretch',
         ...({ '--flow-lane': hasAside ? `${LANE}px` : '0px' } as React.CSSProperties) }}>
@@ -725,11 +722,11 @@ const STATE_MARK: Record<string, { icon: React.ElementType; color: string }> = {
  * gleiche Zustands-Symbole. Was ein Abzweig nicht mitliefert (Kurzzeile, Beleg-Status), bleibt
  * schlicht leer – das ist ein fehlendes Detail, kein anderes Bauteil.
  */
-function StepCard({ type, state, detail, badge, hint, selected, muted: forced, compact,
+function StepCard({ type, state, badge, hint, selected, muted: forced,
   onClick, children }: {
   type: StepType; state: string;
-  detail?: React.ReactNode; badge?: React.ReactNode; hint?: string;
-  selected?: boolean; muted?: boolean; compact?: boolean;
+  badge?: React.ReactNode; hint?: string;
+  selected?: boolean; muted?: boolean;
   onClick?: () => void; children?: React.ReactNode;
 }) {
   const meta = STEP_META[type] ?? STEP_META.purchase;
@@ -738,7 +735,7 @@ function StepCard({ type, state, detail, badge, hint, selected, muted: forced, c
   const muted = forced || state === 'done' || state === 'locked';
   const mark = STATE_MARK[state];
   const MarkIcon = mark?.icon;
-  const box = compact ? 28 : 34;
+  const box = 34;
   return (
     <div style={{
       position: 'relative', width: '100%',
@@ -748,23 +745,25 @@ function StepCard({ type, state, detail, badge, hint, selected, muted: forced, c
       opacity: muted ? 0.55 : 1, transition: 'box-shadow .16s, border-color .16s, opacity .16s',
     }}>
       <div onClick={onClick} title={hint}
-        style={{ display: 'flex', alignItems: 'center', gap: compact ? 10 : 12,
-          padding: compact ? '10px 13px' : '13px 16px',
+        style={{ display: 'flex', alignItems: 'center', gap: 12,
+          padding: '13px 16px',
           // Hängt der Klick am Container (Abzweig – die ganze Spalte öffnet den Datensatz),
           // erbt die Karte den Zeigefinger, statt ihn zu widerrufen (Notiz #454).
           cursor: onClick ? 'pointer' : 'inherit' }}>
         <div style={{ width: box, height: box, borderRadius: 'var(--r-sm)', flexShrink: 0,
           background: '#fff', color: kc.fg, border: `1px solid ${kc.border}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={compact ? 15 : 17} />
+          <Icon size={17} />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ display: 'block', font: `800 ${compact ? 13.5 : 15}px var(--font-display)`,
+          {/* **Keine Untertitel am Modul** (Testnotiz #490): ganz oder gar nicht – wer die
+              Details sehen will, öffnet den Schritt und sieht dort ALLES. Eine halbe Zeile
+              daneben ist eine zweite, unvollständige Wahrheit. */}
+          <span style={{ display: 'block', font: '800 15px var(--font-display)',
             letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{meta.label}</span>
-          {detail && <div style={{ marginTop: 2, fontSize: 12, color: 'var(--fg-3)' }}>{detail}</div>}
         </div>
         {badge}
-        {MarkIcon && <MarkIcon size={compact ? 15 : 17} style={{ color: mark.color, flexShrink: 0 }} />}
+        {MarkIcon && <MarkIcon size={17} style={{ color: mark.color, flexShrink: 0 }} />}
       </div>
       {children && (
         <div style={{ borderTop: `1px solid ${kc.border}`, padding: '14px 16px 16px' }}>{children}</div>
@@ -805,7 +804,7 @@ function BranchArm({ branches, onOpen }: {
   // **Kommt nichts zurück, führt auch keine Linie zurück** (Testnotiz #481): wurde alles
   // verschrottet oder die Menge des Eltern-Auftrags reduziert, endet der Abzweig hier – und
   // genau das sagt das Bild dann auch. Solange er läuft, wissen wir es noch nicht.
-  const back = branches.filter((b) => isOpen(b) || returnsMaterial(b));
+  const back = branches.filter((b) => b.returns_material);
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
       paddingTop: ARM, paddingBottom: back.length ? ARM : 0 }}>
@@ -879,7 +878,8 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
         <div key={st.id} style={{ width: '100%', display: 'flex', flexDirection: 'column',
           alignItems: 'center' }}>
           <Axis h={12} strong={started && i <= walked} />
-          <StepCard compact type={st.step_type as StepType} state={st.state}
+          <StepCard type={st.step_type as StepType} state={st.state}
+            badge={stepBadge(st.step_type, st.status)}
             hint={`${STEP_META[st.step_type as StepType]?.label ?? ''}: ${stepStateLabel(st.state)}`
               + ` · ${hint}`} />
         </div>
@@ -1077,42 +1077,26 @@ function ResolutionLine({ r, first = false }: { r: StepResolution; first?: boole
 
 // ─── Kurzangaben am Modul ─────────────────────────────────────────────────────────
 
-/** Fachlicher Zwischenstand (Beschaffung/Verkauf) – aber nur, solange der Schritt läuft. */
-function stepBadge(s: OrderStep): React.ReactNode {
-  if (s.state === 'done') return null;
-  const po = (s.purchases ?? [])[0];
-  if (po?.status) return <StatusBadge cfg={purchaseStatusConfig(po.status)} size={10} />;
-  const sale = (s.sales ?? [])[0];
-  if (sale?.status) return <StatusBadge cfg={saleStatusConfig(sale.status)} size={10} />;
+/**
+ * **Fachlicher Zwischenstand** (Beschaffung/Verkauf) – aus Typ + Status, EINE Stelle.
+ *
+ * Die Hauptachse liest ihn aus dem Embed, der Abzweig aus ``SubOrderStep.status`` – gerendert
+ * wird er hier, damit derselbe Schritt im Abzweig nicht anders aussieht als beim Öffnen des
+ * Unter-Auftrags (Testnotiz #492).
+ */
+function stepBadge(type: string, status?: string | null): React.ReactNode {
+  if (!status) return null;
+  if (type === 'purchase') return <StatusBadge cfg={purchaseStatusConfig(status)} size={10} />;
+  if (type === 'sale') return <StatusBadge cfg={saleStatusConfig(status)} size={10} />;
   return null;
 }
 
-/**
- * **Was hier konkret Sache ist** – eine Zeile, ohne das Panel zu öffnen.
- *
- * Sie kommt aus dem Embed, das der Schritt ohnehin trägt: Lieferant und Menge bei der
- * Beschaffung, Ziel bei der Bewegung, Prüfumfang bei der Datenerfassung. Nichts wird
- * dafür zusätzlich geladen.
- */
-function stepDetail(s: OrderStep): React.ReactNode {
-  if (s.state === 'failed') return 'Nicht bestanden – über die Abweichung klären';
-  const po = (s.purchases ?? [])[0];
-  if (po) {
-    const bits = [po.quantity != null ? `${po.quantity} ${po.article_unit ?? ''}`.trim() : null,
-      po.supplier_name ?? null].filter(Boolean);
-    return bits.length ? bits.join(' · ') : undefined;
-  }
-  const mv = s.movement;
-  if (mv?.target_location_label) return mv.target_location_label;
-  const insp = s.inspection;
-  if (insp?.required_count) {
-    const done = (insp.samples ?? []).length;
-    return `${done}/${insp.required_count} Proben`;
-  }
-  const disp = s.disposal;
-  if (disp?.note) return disp.note;
-  return undefined;
+/** Der Zwischenstand eines Schritts auf der Hauptachse – nur, solange er läuft (#279). */
+function stepStatus(s: OrderStep): string | null {
+  if (s.state === 'done') return null;
+  return (s.purchases ?? [])[0]?.status ?? (s.sales ?? [])[0]?.status ?? null;
 }
+
 
 // (`SubOrderStep` trägt bewusst kein Label – Modul-Name und Zustandswort kommen aus der EINEN
 //  Quelle `lib/process.ts`, die gegen `domain/event_types.py` getestet ist.)
