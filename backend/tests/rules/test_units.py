@@ -136,3 +136,42 @@ def test_the_numbers_reach_the_surface(db, kinds, world):
     on_edges = {u.number for e in resp.flow_edges for l in e.lots for u in l.units}
     assert on_edges == {u.number for u in resp.instances[0].units}, (
         f"Die Kante trägt dieselben Nummern wie das Embed: {on_edges}")
+
+
+def test_a_lot_always_names_its_pieces(db, kinds, world):
+    """**Eine Instanzanzeige ist überall dieselbe** (Testnotizen #536/#537/#539/#540).
+
+    Über einem Split liegt das Material noch **ganz** beim Auftrag – es zweigt ja erst
+    darunter ab. Vorher standen dort zwei Pillen: «3 Stk» (gehalten, mit Nummern) und
+    «1 Stk» (abgegeben, OHNE Nummern). Zwei Zeilen für eine Sache, und eine davon konnte
+    ihre Stücke nicht benennen.
+
+    Jetzt gilt eine Regel: was an dieser Stelle noch auf der Achse liegt, liegt hier noch –
+    und die Nummern kommen von dem, der die Menge jetzt hält (der Auftrag selbst oder der
+    Abzweig, in den sie ging)."""
+    from app.services.orders import to_order_response
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    dev = _make_deviation(db, main, inst, user, 1, steps=("scrap",))
+    db.refresh(inst)
+
+    resp = to_order_response(db, main)
+    above = next(e for e in resp.flow_edges if e.reached)
+    assert len(above.lots) == 1, (
+        f"Über dem Split ist es EINE Menge in EINEM Zustand, nicht zwei Pillen: "
+        f"{[(l.quantity, len(l.units)) for l in above.lots]}")
+    lot = above.lots[0]
+    assert lot.quantity == 4, f"Alle vier waren hier, bevor eines abzweigte: {lot.quantity}"
+    assert [u.number for u in lot.units] == [f"{inst.object_id}-{n}" for n in (1, 2, 3, 4)], (
+        f"…und die Kante benennt sie alle, aufsteigend: {[u.number for u in lot.units]}")
+
+    # Jede Materialzeile, die lebendes Material trägt, kennt ihre Stücke – überall.
+    for e in resp.flow_edges:
+        for l in e.lots:
+            if l.disposition not in ("scrapped", "sold", "consumed"):
+                assert l.units, f"Zeile ohne Nummern: {l}"
+    for d in (resp.deviations or []):
+        for l in (d.flow_in or []):
+            assert l.units, f"Der Abzweig-Teaser nennt seine Stücke nicht: {l}"
+    assert dev.object_id

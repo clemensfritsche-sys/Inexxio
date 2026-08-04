@@ -328,10 +328,16 @@ function EdgeMaterial({ lots, onCreate, past, small }: {
 }) {
   if (lots.length === 0) return null;
   if (!onCreate) return <FlowLots lots={lots} past={past} small={small} />;
+  // **Die Pillen stehen mittig auf der Achse** (Testnotiz #533): der Knopf hängt absolut
+  // daneben, statt die Gruppe nach links zu schieben. Vorher war «Container + Button» ein
+  // gemeinsamer Block – zentriert war damit die Gruppe, nicht das Material.
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
       <FlowLots lots={lots} past={past} small={small} />
-      <FlowShortcut lots={lots} onCreate={onCreate} />
+      <span style={{ position: 'absolute', left: '100%', marginLeft: 6, top: '50%',
+                     transform: 'translateY(-50%)' }}>
+        <FlowShortcut lots={lots} onCreate={onCreate} />
+      </span>
     </span>
   );
 }

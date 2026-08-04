@@ -1,5 +1,7 @@
 'use client';
 
+import { MAIN } from '@/components/erp/flow-line';
+
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -516,7 +518,11 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
           die verfügbaren Module liegen sichtbar am Ende des Flusses, ein Klick legt an.
           Der frühere Zwischenschritt («Prozessschritt hinzufügen» → Auswahl) ist entfallen. */}
       {!readOnly && (
-        <div style={{ width: '100%', maxWidth: STEP_MAXW, marginTop: 16 }}>
+        // **Symmetrisch im Fluss** (Testnotiz #535): oben führt der Konnektor heran,
+        // unten geht er weiter – ein zusätzlicher Aussenabstand nur oben liess die Auswahl
+        // unten andocken und oben eine Lücke lassen. Die Linie taktet den Abstand, nicht
+        // ein Rand.
+        <div style={{ width: '100%', maxWidth: STEP_MAXW }}>
           {adding == null ? (
             <Palette>
               {chooserTypes.map((t) => {
@@ -1202,7 +1208,11 @@ function Chip({ label, on, locked, onClick }: { label: string; on?: boolean; loc
   );
 }
 
-export const STEP_MAXW = 600;   // Kartenbreite im zentrierten Fluss
+// **EINE Breite für den Prozess – überall** (Testnotiz #534): egal ob Entwurf oder
+// freigegeben, Haupt- oder Unter-Auftrag, Artikel-Prozess oder laufender Ablauf. Vorher
+// war der Editor 600 px breit und der laufende Fluss 460 – dieselbe Sache in zwei Massen.
+// Die Breite gehört zum Linien-Layout, darum steht sie dort (`flow-line.MAIN`).
+export const STEP_MAXW = MAIN;
 // Karten-Unterbereich (unter dem Kopf): Haarlinie oben, gleiche horizontale Polsterung.
 const cardBody: React.CSSProperties = {
   borderTop: '1px solid var(--border-1)', padding: '12px 18px 15px',

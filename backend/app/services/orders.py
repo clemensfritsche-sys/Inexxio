@@ -428,12 +428,20 @@ def order_material(db: Session, order: Order,
 
 
 def _view_lots(db: Session, rows: list, holder: int | None = None) -> list[FlowLot]:
-    """Journal-Zeilen (``ledger.ViewRow``) mit Anzeige-Meta anreichern – eine Stelle.
+    """Journal-Zeilen (``ledger.ViewRow``) zu Materialzeilen – **eine Stelle, eine Regel**.
 
-    ``holder`` = der Auftrag, dessen Achse gezeichnet wird: dann trägt jede Kante die
-    **Nummern** der Stücke, die er hält, nicht nur ihre Anzahl. Für Mengen, die ihn längst
-    verlassen haben (verschrottet, abgegeben), bleibt die Liste leer – ihre Nummern sind
-    entwertet, und eine geratene Zuordnung wäre schlimmer als keine."""
+    **Die Nummern kommen von dem, der die Menge JETZT hält** (Testnotizen #536/#537/#539/
+    #540): das ist der Auftrag selbst, oder – wenn die Menge in einen Abzweig gegangen ist –
+    genau dieser Abzweig (``ViewRow.to_order``). Damit trägt jede Zeile ihre Stücke, egal
+    aus welcher Richtung man sie ansieht; vorher blieben abgegebene Mengen ohne Zusatz, und
+    dieselbe Kante zeigte eine Pille mit und eine ohne Nummern.
+
+    **Eine Menge in einem Zustand ist EINE Zeile** – Zeilen derselben Instanz im selben
+    Zustand werden verschmolzen (Mengen summiert, Nummern vereinigt). Zwei Pillen für
+    dieselbe Sache sind keine zwei Informationen (#539).
+
+    Was den Bestand endgültig verlassen hat (verschrottet), trägt keine Nummern mehr – sie
+    sind entwertet. Eine geratene Zuordnung wäre schlimmer als keine."""
     from . import units as U
     from .shares import UNIT_PREVIEW
     oids = {r.instance_object_id for r in rows}
@@ -449,16 +457,56 @@ def _view_lots(db: Session, rows: list, holder: int | None = None) -> list[FlowL
                           k: v for k, v in base.items() if k != "instance_object_id"},
                       instance_object_id=r.instance_object_id)
         inst = by_oid.get(r.instance_object_id)
-        if inst is not None and holder is not None and r.at is None:
+        # Wer hält die Menge jetzt? Der Abzweig, in den sie ging – sonst dieser Auftrag.
+        owner = r.to_order if getattr(r, "to_order", None) is not None else holder
+        if inst is not None and owner is not None and (r.disposition or "") not in TERMINAL_OUT:
             U.ensure(inst)
-            lot.units = U.rows(inst, holder=holder, limit=UNIT_PREVIEW)
-            lot.unit_count = U.count(inst, holder=holder)
+            lot.units = U.rows(inst, holder=owner, limit=UNIT_PREVIEW)
+            lot.unit_count = U.count(inst, holder=owner)
             if not lot.units:
                 lot.units = U.rows(inst, holder=None, limit=UNIT_PREVIEW)
                 lot.unit_count = U.count(inst, holder=None)
         return lot
 
-    return [to_lot(r) for r in rows]
+    return _merge_lots([to_lot(r) for r in rows])
+
+
+#: Verbleibe, aus denen nichts mehr herauskommt – ihre Nummern sind entwertet.
+TERMINAL_OUT = ("scrapped", "sold", "consumed")
+
+
+def _by_number(units: list) -> list:
+    """Stücke aufsteigend nach ihrer laufenden Nummer – überall dieselbe Ordnung."""
+    def key(u):
+        part = u.number.split("-")
+        return int(part[1]) if len(part) > 1 and part[1].isdigit() else 0
+    return sorted(units, key=key)
+
+
+def _merge_lots(lots: list[FlowLot]) -> list[FlowLot]:
+    """**Eine Menge, ein Zustand, EINE Zeile** (Testnotiz #539/#520).
+
+    Zwei Zeilen derselben Instanz im selben Zustand sind keine zwei Informationen – sie
+    lesen sich als zwei verschiedene Dinge. Mengen werden summiert, Nummern vereinigt (ohne
+    Dubletten), der Zeitpunkt bleibt der früheste."""
+    out: list[FlowLot] = []
+    seen: dict[tuple, FlowLot] = {}
+    for l in lots:
+        key = (l.instance_object_id, l.quality, l.disposition)
+        cur = seen.get(key)
+        if cur is None:
+            seen[key] = l
+            out.append(l)
+            continue
+        cur.quantity += l.quantity
+        have = {u.number for u in cur.units}
+        # Aufsteigend nach Nummer – dieselbe Ordnung wie im Instanz-Detail (#531).
+        cur.units = _by_number(cur.units + [u for u in l.units if u.number not in have])
+        cur.unit_count = max(cur.unit_count, len(cur.units))
+        cur.reserved = cur.reserved or l.reserved
+        if l.at is not None and (cur.at is None or l.at < cur.at):
+            cur.at = l.at
+    return out
 
 
 def _order_material_legacy(db: Session, order: Order,
@@ -1253,8 +1301,17 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
     current_from = here[0] if here is not None else len(nodes)
 
     def axis_lots(i: int, current: bool) -> list[FlowLot]:
-        rows = [r for r in view.material
-                if r.to_order is None or r.to_order not in gone_above[i]]
+        # **Was hier noch auf der Achse liegt, liegt hier NOCH** (Testnotiz #537). Eine
+        # Menge, die erst weiter unten abzweigt, war an dieser Stelle unverändert beim
+        # Auftrag – sie darf oberhalb ihres Splits nicht schon als abgegeben erscheinen.
+        # Genau das war der gemeldete Fall: über dem Split standen zwei Pillen (3 gehalten
+        # + 1 abgegeben) statt der einen Wahrheit «4, alle hier». Die Nummern kommen
+        # trotzdem vom künftigen Halter – es sind ja dieselben Stücke.
+        rows = []
+        for r in view.material:
+            if r.to_order is not None and r.to_order in gone_above[i]:
+                continue
+            rows.append(r if r.to_order is None else r._replace(at=None, reserved=True))
         lots = _view_lots(db, rows, order.id)
         return lots if current else _as_of(lots, cutoffs[i])
 
@@ -1295,7 +1352,12 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
             else:
                 base = material if below >= current_from else _as_of(material, cutoffs[below])
                 lots = _minus(base, [l for b in n["branches"] for l in (b.flow_in or [])])
-            node.bypass = FlowEdge(lots=lots, reached=i <= walked, live=live_b)
+            # **Keine Prognosen – auch nicht neben einer Teilung** (Testnotizen #521/#538):
+            # eine Teilung, die der Prozess noch nicht erreicht hat, weiss nicht, was
+            # neben ihr liegen wird. Die Kanten halten sich längst daran; der Bypass tat
+            # es nicht und behauptete Material an einer Stelle, an der noch nichts war.
+            node.bypass = FlowEdge(lots=(lots if i <= walked else []),
+                                   reached=i <= walked, live=live_b)
         resp.flow_nodes.append(node)
 
 

@@ -769,8 +769,11 @@ def test_a_split_has_three_places_not_two():
         "Zurückgekehrtes lief durch den Ast, nicht daran vorbei (#505).")
     assert 'lots = _minus(base, [l for b in n["branches"] for l in (b.flow_in or [])])' in fill, (
         "Nur der Alt-Auftrag ohne Journal zieht das Hineingegangene ab (tolerant lesen).")
-    assert "node.bypass = FlowEdge(lots=lots, reached=i <= walked, live=live_b)" in fill, (
+    assert "node.bypass = FlowEdge(" in fill and "live=live_b" in fill, (
         "Der Bypass ist eine eigene Kante – nicht die von unterhalb der Zusammenführung.")
+    assert "lots if i <= walked else []" in fill, (
+        "Und er sagt nichts über eine Teilung, die der Prozess noch nicht erreicht hat – "
+        "keine Prognosen, auch nicht neben der Achse (#521/#538).")
     assert "<EdgeMaterial lots={bypass.lots} small" in flow, (
         "Das Frontend zeichnet die Server-Kante – es rechnet keine eigene.")
 

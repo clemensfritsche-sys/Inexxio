@@ -4532,6 +4532,37 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   verschwindet nicht, nur der Zustand ändert sich», #481). Dafür müssten `quality`/`disposition`
   Projektionen der Läufe werden.*
 
+- **Testnotizen-Runde 36 (eine Instanzanzeige ist überall dieselbe, Notizen #533–#540)**:
+  Sechs der acht Notizen hatten **eine** Wurzel – auf der Kante über einer Teilung standen
+  **zwei** Pillen für dieselbe Sache: «3 Stk» (gehalten, mit Nummern) und «1 Stk» (abgegeben,
+  **ohne** Nummern, weil die Zuordnung nur für gehaltenes Material gefüllt wurde).
+  (1) **Was hier noch auf der Achse liegt, liegt hier NOCH** (#537 – der Nutzer hatte die
+  Ursache selbst benannt: «du gibst den Unterauftrag frei, entziehst die Instanzen dem
+  Hauptauftrag und erst dann frierst du die Vergangenheit ein»). Eine Menge, die erst weiter
+  unten abzweigt, war an dieser Stelle unverändert beim Auftrag – `axis_lots` präsentiert sie
+  darum oberhalb ihres Splits als **gehalten**. Die Kante zeigt jetzt «4 Stk × …-1…-4», der
+  Bypass die drei, die blieben, der Abzweig das eine, das ging.
+  (2) **Die Nummern kommen von dem, der die Menge JETZT hält** – der Auftrag selbst oder der
+  Abzweig, in den sie ging (`ViewRow.to_order`). Damit trägt **jede** Zeile ihre Stücke, egal
+  aus welcher Richtung man sie ansieht (#536/#539/#540). Nur endgültig Ausgesondertes trägt
+  keine mehr: seine Nummern sind entwertet, und eine geratene Zuordnung wäre schlimmer als
+  keine.
+  (3) **Eine Menge, ein Zustand, EINE Zeile** (`orders._merge_lots`): Zeilen derselben Instanz
+  im selben Zustand werden verschmolzen (Mengen summiert, Nummern vereinigt und **aufsteigend**
+  sortiert – dieselbe Ordnung wie im Instanz-Detail). Zwei Pillen für dieselbe Sache sind keine
+  zwei Informationen.
+  (4) **Keine Prognosen – auch nicht neben der Achse** (#538): eine Teilung, die der Prozess
+  noch nicht erreicht hat, weiss nicht, was neben ihr liegen wird. Die Kanten hielten sich
+  längst an #521, der **Bypass** tat es nicht.
+  (5) **EINE Breite für den Prozess – überall** (#534): der Schritt-Editor war 600 px breit,
+  der laufende Fluss 460 – dieselbe Sache in zwei Massen. `STEP_MAXW` ist jetzt `flow-line.MAIN`;
+  die Breite gehört zum Linien-Layout, also steht sie dort.
+  (6) **Mittig auf der Achse** (#533/#535): die Material-Pillen stehen zentriert, der
+  Abkürzungs-Knopf hängt absolut daneben (vorher war «Container + Knopf» ein gemeinsamer Block –
+  zentriert war die Gruppe, nicht das Material); und die Palette hat ihren Aussenabstand
+  verloren, damit die Konnektoren oben wie unten den Takt geben.
+  Wächter: `tests/rules/test_units.py: test_a_lot_always_names_its_pieces`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
