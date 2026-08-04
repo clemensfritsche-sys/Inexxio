@@ -442,8 +442,12 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # Datensatz dieses Auftrags; dafür braucht es keine zweite Zusammenfassung daneben.
     assert "function BranchHead" not in flow, (
         "Der Abzweig zeigt seinen Prozess, keine Kurzinfo über ihn (#435).")
-    assert '<FlowTerm kind="start" size={30}' in flow and '<FlowTerm kind="end" size={30}' in flow, (
-        "Ein Abzweig ist ein Prozess – mit Anfang und Ende, eine Nummer kleiner.")
+    assert '<FlowTerm kind="start" title={`Start · ${hint}`} />' in flow, (
+        "Ein Abzweig ist ein Prozess – mit Anfang und Ende, und in **derselben Grösse** wie "
+        "jeder andere (#546): «eine Nummer kleiner» war eine zweite Massstab-Regel, die man "
+        "der Sache ansah.")
+    assert '<FlowTerm kind="end" title={`Ende · ${hint}`} />' in flow
+    assert "size={30}" not in flow, "Kein eigenes Mass für den Unterprozess (#546)."
     # **Und die Terminal-Knoten nennen ihren Prozess** (Notizen #443/#444): ohne Kopfkarte
     # (#435) ist der Hover die Stelle, an der «welcher Auftrag ist das?» beantwortet wird.
     assert "title={`Start · ${hint}`}" in flow and "title={`Ende · ${hint}`}" in flow
@@ -827,10 +831,16 @@ def test_parallel_sub_orders_are_one_split_in_several_directions():
     import inspect as _i3
     from app.services import orders as _o3
     fill = _i3.getsource(_o3._fill_flow_view)
-    assert "by_age = lambda l: sorted(l, key=lambda b: b.object_id)" in fill, (
+    waves = _i3.getsource(_o3._waves)
+    assert "sorted(branches, key=lambda x: x.object_id)" in waves, (
         "Innerhalb einer Teilung ist die Reihenfolge die Entstehung.")
-    assert 'nodes.append(dict(kind="split", branches=by_age(loose), res_step=None))' in fill, (
-        "Was kein Schritt für sich beansprucht, gehört dem Auftrag – EINE Teilung vor dem Prozess.")
+    assert "def overlaps(" in waves, (
+        "**Parallel ist nur, was gleichzeitig läuft** (#548): war ein Abzweig längst "
+        "abgeschlossen, als der nächste entstand, ist das eine Abfolge – zwei Teilungen "
+        "nacheinander, nicht zwei Äste nebeneinander.")
+    assert "for wave in _waves(db, loose)" in fill, (
+        "Was kein Schritt für sich beansprucht, gehört dem Auftrag – seine Teilungen "
+        "stehen vor dem Prozess.")
     assert "const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';" in flow, (
         "Ob zu einem Ast ein Weg gegangen wurde, sagt SEIN Zustand.")
     assert "{i > 0 && <Axis h={20} strong={branchStarted(b)} />}" in flow, (

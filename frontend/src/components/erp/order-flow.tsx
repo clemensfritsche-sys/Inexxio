@@ -222,14 +222,16 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
       onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
       <button type="button" title={cfg.label}
         onClick={(e) => { e.stopPropagation(); nav?.(lot.instance_object_id); }}
+        // **Der ganze Container trägt den Zustand** (Testnotiz #545): Fläche in der
+        // Ampelfarbe, Schrift darauf gut lesbar. Vorher trugen Rahmen, Symbol UND Schrift
+        // dieselbe Aussage dreimal – das wirkte überladen. Eine Fläche, eine Farbe, ein Satz.
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px 2px 7px',
-          borderRadius: 999, background: '#fff', cursor: nav ? 'pointer' : 'default',
-          border: `1px solid ${cfg.color}`,
+          display: 'inline-flex', alignItems: 'center', padding: '3px 10px',
+          borderRadius: 999, background: cfg.bg, cursor: nav ? 'pointer' : 'default',
+          border: `1px solid ${cfg.color}22`,
           font: '600 11.5px var(--font-mono), monospace', fontVariantNumeric: 'tabular-nums',
           color: cfg.color, whiteSpace: 'nowrap',
         }}>
-        {Icon && <Icon size={11} style={{ flexShrink: 0 }} />}
         {qtyText(lot)} × {lotNumbers(lot)}
       </button>
       {open && typeof document !== 'undefined' && createPortal(
@@ -736,7 +738,7 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
       {/* **Das Material steht UNTER dem Startknoten** (Testnotiz #513) – wie im geöffneten
           Auftrag: der Startknoten markiert den Anfang, das Material fliesst danach.
           Vorher stand es oben drüber, und derselbe Vorgang sah je nach Ansicht anders aus. */}
-      <FlowTerm kind="start" size={30} title={`Start · ${hint}`} />
+      <FlowTerm kind="start" title={`Start · ${hint}`} />
       {inLots.length > 0 && (
         <>
           <Axis h={10} strong={started} />
@@ -769,7 +771,7 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
           <Axis h={10} strong={backLots.length > 0} />
         </>
       )}
-      <FlowTerm kind="end" size={30} title={`Ende · ${hint}`} />
+      <FlowTerm kind="end" title={`Ende · ${hint}`} />
     </div>
   );
 }

@@ -4594,6 +4594,29 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   was durch den Abzweig ging). Gegen echtes PostgreSQL 16 verifiziert (Harness `note537.py`:
   laufender UND abgeschlossener Abzweig).
 
+- **Parallel ist nur, was gleichzeitig läuft** (August 2026, Testnotizen #545–#548):
+  (1) **#548 – der eigentliche Fehler war die Zeichnung, nicht die Daten.** Zwei
+  Abweichungen aus demselben Schritt landeten in EINER Teilung – auch dann, wenn die erste
+  längst abgeschlossen war, als die zweite entstand. Der Bypass rechnete beide ab (auch die
+  zurückgegebene Menge), und Mengen und Nummern passten nicht mehr zusammen. Das Journal war
+  dabei die ganze Zeit korrekt (`drift: []`, 3+1=4). Jetzt gruppiert `orders._waves` nach
+  **Lebenszeit**: ein Abzweig kommt in die laufende Welle, wenn er sich mit JEDEM darin
+  überschneidet (`completed_at` vs. `released_at`) – sonst beginnt eine neue. Zwei
+  aufeinanderfolgende Abweichungen sind damit zwei Teilungen **nacheinander**, und jeder
+  Bypass rechnet nur seinen eigenen Ast ab. Ohne Zeitstempel (Altbestand) gilt
+  «überschneidet sich», damit nichts auseinanderfällt.
+  (2) **#545 – die Materialpille trägt den Zustand als FLÄCHE**: Ampelfarbe als Hintergrund,
+  Schrift darauf. Vorher sagten Rahmen, Symbol UND Schriftfarbe dasselbe dreimal – das
+  wirkte überladen.
+  (3) **#546/#547 – ein Mass für alles**: der Unterprozess hatte eigene Terminal-Knoten
+  (30 px statt 52) – «eine Nummer kleiner» war eine zweite Massstab-Regel, die man der Sache
+  ansah. Ebenso trägt der Schritt-Editor jetzt das Symbol-Mass der Karte, die er anlegt
+  (38 px). Zusammen mit `STEP_MAXW = MAIN` (#534) ist damit jede Prozess-Darstellung –
+  Entwurf, laufender Auftrag, Haupt- oder Unter-Auftrag – dieselbe Grösse.
+  Wächter: `tests/rules/test_units.py: test_parallel_only_means_at_the_same_time` (zwei
+  Teilungen nacheinander; und überall passen Menge und Nummern zusammen). Gegen echtes
+  PostgreSQL 16 verifiziert (Harness `note548.py`, 6/6 – genau die gemeldete Abfolge).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

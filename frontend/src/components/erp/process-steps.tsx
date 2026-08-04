@@ -544,8 +544,11 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
               {/* Kopf = Anatomie der Modul-Karte, die gleich im Fluss stehen wird (#222).
                   Kein Zurück-Knopf mehr (#226/#232): «Abbrechen» ist der Weg heraus. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {/* **Ein Mass für alles** (Testnotiz #547): der Editor legt die Karte an,
+                    die gleich im Fluss stehen wird – also trägt er ihr Symbol-Mass (38 px),
+                    nicht ein eigenes. */}
                 <span style={{
-                  width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
+                  width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
                   color: kc.fg, border: `1px solid ${kc.border}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>

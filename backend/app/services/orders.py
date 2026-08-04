@@ -1262,6 +1262,42 @@ def _returned_from(db: Session, order: Order, branch_object_ids: list[int]) -> l
             for oid, q in out.items()]
 
 
+def _waves(db: Session, branches: list) -> list[list]:
+    """**Parallel ist nur, was gleichzeitig läuft** (Testnotiz #548).
+
+    Zwei Abzweige aus demselben Schritt sind eine Teilung in zwei Richtungen, solange beide
+    offen sind. War der erste aber längst **abgeschlossen**, als der zweite entstand, ist das
+    keine Parallelität, sondern eine **Abfolge**: erst der eine, dann der andere. Vorher
+    landeten alle Abzweige eines Schritts in EINER Teilung – zwei Äste nebeneinander, obwohl
+    der erste sein Material längst zurückgegeben hatte, und der Bypass rechnete beide ab.
+
+    Gruppiert wird darum nach **Lebenszeit**: ein Abzweig kommt in die laufende Welle, wenn
+    er sich mit JEDEM darin überschneidet – sonst beginnt eine neue. Ohne Zeitstempel
+    (Altbestand) gilt «überschneidet sich», damit nichts auseinanderfällt."""
+    if not branches:
+        return []
+    rows = {o.object_id: o for o in db.query(Order).filter(
+        Order.object_id.in_([b.object_id for b in branches])).all()}
+
+    def overlaps(a, b) -> bool:
+        oa, ob = rows.get(a.object_id), rows.get(b.object_id)
+        if oa is None or ob is None:
+            return True
+        first, second = (oa, ob) if (oa.object_id or 0) <= (ob.object_id or 0) else (ob, oa)
+        done, born = first.completed_at, second.released_at
+        return done is None or born is None or done > born
+
+    out: list[list] = []
+    for b in sorted(branches, key=lambda x: x.object_id):
+        for wave in out:
+            if all(overlaps(b, other) for other in wave):
+                wave.append(b)
+                break
+        else:
+            out.append([b])
+    return out
+
+
 def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
     """**Die Prozess-Achse fertig rechnen – das Frontend zeichnet nur noch** (ADR 007).
 
@@ -1274,20 +1310,18 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
     claimed = {d.object_id for s in resp.steps for d in (s.sub_orders or [])}
     loose = [x for x in (resp.deviations + resp.supply_orders + resp.provisionings)
              if x.object_id not in claimed]
-    by_age = lambda l: sorted(l, key=lambda b: b.object_id)          # noqa: E731
-
     nodes: list[dict] = []
-    if loose:
-        nodes.append(dict(kind="split", branches=by_age(loose), res_step=None))
+    for wave in _waves(db, loose):
+        nodes.append(dict(kind="split", branches=wave, res_step=None))
     for s in resp.steps:
         subs = s.sub_orders or []
         before = [x for x in subs if x.stage == "before"]
         after = [x for x in subs if x.stage == "after"]
-        if before:
-            nodes.append(dict(kind="split", branches=by_age(before), res_step=s.id))
+        for wave in _waves(db, before):
+            nodes.append(dict(kind="split", branches=wave, res_step=s.id))
         nodes.append(dict(kind="step", step=s, res_step=None if before else s.id))
-        if after:
-            nodes.append(dict(kind="split", branches=by_age(after), res_step=None))
+        for wave in _waves(db, after):
+            nodes.append(dict(kind="split", branches=wave, res_step=None))
 
     is_open = lambda b: b.status in ("draft", "released")            # noqa: E731
     node_done = (lambda n: n["step"].state == "done" if n["kind"] == "step"

@@ -221,3 +221,47 @@ def test_the_past_keeps_its_numbers(db, kinds, world):
                 f"{[u.number for u in l.units]}")
             assert not (set(u.number for u in l.units) & set(mine)), (
                 "Was durch den Abzweig ging, kam nicht am Bypass vorbei.")
+
+
+def test_parallel_only_means_at_the_same_time(db, kinds, world):
+    """**Parallel ist nur, was gleichzeitig läuft** (Testnotiz #548).
+
+    Zwei Abweichungen aus demselben Schritt sind eine Teilung in zwei Richtungen, solange
+    beide offen sind. War die erste längst abgeschlossen, als die zweite entstand, ist das
+    eine **Abfolge** – zwei Teilungen nacheinander. Vorher landeten beide in EINER Teilung,
+    und der Bypass rechnete auch die zurückgegebene Menge ab: Mengen und Nummern passten
+    nicht mehr zusammen."""
+    from app.models import ArticleProcessStep
+    from app.schemas.inspection import InspectionSample, InspectionUpdate
+    from app.services import inspection as insp_svc
+    from app.services.orders import to_order_response
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    first = _make_deviation(db, main, inst, user, 2)
+    step = (db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.order_id == first.id).first())
+    insp_svc.record_inspection(db, first, InspectionUpdate(
+        samples=[InspectionSample(instance_id=inst.object_id, slot=i + 1, values={"_ok": True})
+                 for i in range(2)], step_id=step.id), user)
+    db.commit()
+    db.refresh(first)
+    assert first.status == "completed"
+    second = _make_deviation(db, main, inst, user, 1)
+
+    resp = to_order_response(db, main)
+    splits = [n for n in resp.flow_nodes if n.kind == "split"]
+    assert len(splits) == 2, (
+        f"Erst die eine, dann die andere – zwei Teilungen, nicht eine parallele: "
+        f"{[n.branch_object_ids for n in splits]}")
+    assert [n.branch_object_ids for n in splits] == [[first.object_id], [second.object_id]]
+
+    # Und überall passen Menge und Nummern zusammen.
+    for n in splits:
+        for l in (n.bypass.lots if n.bypass else []):
+            assert len(l.units) == int(l.quantity), (
+                f"Bypass: {l.quantity} Stk, aber {len(l.units)} Nummern")
+    for e in resp.flow_edges:
+        for l in e.lots:
+            assert len(l.units) == int(l.quantity), (
+                f"Kante: {l.quantity} Stk, aber {len(l.units)} Nummern")
