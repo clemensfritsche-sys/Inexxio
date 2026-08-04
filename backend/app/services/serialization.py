@@ -105,10 +105,15 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
     db.flush()
 
     # Journal (ADR 007): die Entstehung ist die erste Buchung – Halter ist der Erzeuger.
+    # **Sie nennt die Stücke, die dabei entstanden sind** (Testnotiz #567): die Entstehung ist
+    # der Moment, in dem es die Nummern zum ersten Mal gibt. Ohne sie beginnt der Kontostand
+    # des Erzeugers ohne Nummern, und was er später abgibt, lässt sich von seinem Rest nicht
+    # mehr unterscheiden – seine Achse nannte dann weniger Nummern, als sie Menge zeigt.
     from . import ledger
     for inst in created:
         ledger.post(db, inst, inst.quantity, kind="created", holder=order.id,
-                    quality="pending", disposition="in_process", actor_id=actor_id)
+                    quality="pending", disposition="in_process", actor_id=actor_id,
+                    units=[u.index for u in units.of(inst)])
 
     log_audit(db, "instances", None, f"{len(created)} Instanz(en) bei Freigabe angelegt",
               actor_id, object_id=order.object_id)

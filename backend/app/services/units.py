@@ -191,6 +191,20 @@ def owned_by(inst: Instance, order_id: int) -> list[Unit]:
             if (u.holder if u.holder is not None else rest) == order_id]
 
 
+def covers(inst: Instance, indices, quantity) -> bool:
+    """**Trägt diese Nummernliste die ganze Menge?** – der Ehrlichkeits-Test für Altbestand.
+
+    Aufgezeichnete Nummern sind die Wahrheit über die Vergangenheit (#543/#544) – aber nur,
+    wenn sie **vollständig** sind. Buchungen von vor Migration `100` tragen gar keine, und die
+    Entstehung nannte ihre Stücke erst ab Testnotiz #567; ein Kontostand, der aus solchen
+    Buchungen aufgebaut wird, kennt einen Teil der Menge nicht. Eine halbe Liste ist schlimmer
+    als keine – sie sieht vollständig aus («4 Stk × …-2, -3, -4»). Passt die Summe nicht, fällt
+    die Anzeige auf die heutige Karte zurück, also auf das Verhalten von vorher."""
+    known = {u.index: u.quantity for u in of(inst, include_gone=True)}
+    have = qty_sum(known.get(int(i), to_qty(1)) for i in indices)
+    return have == to_qty(quantity)
+
+
 def rows_for(inst: Instance, indices, *, limit: int | None = None) -> list:
     """**Genau diese Stücke als Zeilen** – für aufgezeichnete Nummern aus dem Journal.
 

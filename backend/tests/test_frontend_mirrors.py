@@ -723,42 +723,32 @@ def test_the_flow_shows_what_material_moves():
         "Gekappt heisst: es kommt nichts zurück – und zwar an BEIDEN Oberflächen (#563).")
 
 
-def test_the_flow_is_a_tree_not_an_episode():
-    """**Woher das Material kam, wohin es weiterging** (Testnotiz #493).
+def test_the_material_trace_is_gone():
+    """**Der Prozessbaum ist entfernt** (Testnotiz #565, revidiert #493).
 
-    Ein Auftrag ist keine Insel: seine Instanzen hatten vorher ein Leben und haben danach
-    eines. Vor dem Startknoten steht darum der **reguläre** Auftrag, aus dem sie kamen, nach
-    dem Endknoten der, an den sie weitergingen – damit wird aus einer Episode ein Faden, dem
-    man über Auftragsgrenzen hinweg folgen kann.
+    Vor dem Startknoten stand eine Pille «1 kamen aus Auftrag …650», nach dem Endknoten die
+    Gegenrichtung – die regulären Aufträge, die dasselbe Material vor bzw. nach diesem
+    verarbeitet haben. Gemeldet wurde sie an einem **Unter-Auftrag**, und dort sagt die linke
+    Spur längst «hervorgegangen aus …» und die rechte «gibt zurück an …». Die Pille erzählte
+    dieselbe Beziehung ein zweites Mal, nur in einer anderen Sprache – und der Nutzer hat sie
+    genau deshalb gestrichen («die Info braucht es nicht»).
 
-    **Nur reguläre Aufträge**: eine Abweichung ist eine Episode INNERHALB dieses Vorgangs und
-    steht ohnehin als Abzweig im Bild. Und der eigene Eltern-Auftrag fällt heraus – er steht
-    schon in der linken Spur; zweimal dasselbe zu sagen macht es nicht klarer.
-
-    Gelesen wird die **Verarbeitungs-Historie** (``instance_order_links``): dauerhaft und
-    chronologisch, also auch dann noch vollständig, wenn Reservierungen längst gelöst sind."""
-    import inspect as _inspect
-
-    from app.schemas.order import MaterialOrder, OrderResponse
+    Der Wächter steht als **Negativ** da, damit sie nicht versehentlich zurückkehrt: was
+    entfernt wurde, muss entfernt bleiben, sonst wächst dieselbe Doppelung wieder nach."""
+    from app.schemas.order import OrderResponse
     from app.services import orders as osvc
 
     for f in ("material_from", "material_to"):
-        assert f in OrderResponse.model_fields, f
-    assert {"object_id", "name", "quantity"} <= set(MaterialOrder.model_fields)
-
-    src = _inspect.getsource(osvc.material_trace)
-    assert "InstanceOrderLink" in src and "order_by(InstanceOrderLink.id)" in src, (
-        "Die Historie ist die Quelle – sie ist dauerhaft und chronologisch.")
-    assert "o.reason" in src and "o.object_id == order.parent_order_id" in src, (
-        "Unter-Aufträge und der eigene Eltern gehören nicht in den Baum.")
-    assert "or regular(inst.order_id)" in src, (
-        "Ohne regulären Vorgänger ist der Erzeuger die Herkunft.")
+        assert f not in OrderResponse.model_fields, f"{f} ist entfernt (#565)"
+    assert not hasattr(osvc, "material_trace"), "material_trace ist entfernt (#565)"
 
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text()
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
-    assert "function TraceChip" in flow and "<TraceRow rows={materialFrom} dir=\"in\"" in flow
-    assert "<TraceRow rows={materialTo} dir=\"out\"" in flow
-    assert "materialFrom={record.material_from ?? []}" in detail
+    for gone in ("TraceChip", "TraceRow", "materialFrom", "materialTo"):
+        assert gone not in flow and gone not in detail, f"{gone} ist entfernt (#565)"
+    # Die Beziehung selbst bleibt – nur eben an EINER Stelle: den Knoten der Seitenspur.
+    assert "HERVORGEGANGEN AUS" in flow.upper() or "caption=\"Hervorgegangen aus\"" in flow, (
+        "Woher ein Unter-Auftrag kam, sagt weiterhin der Knoten in der linken Spur.")
 
 
 def test_a_split_has_three_places_not_two():

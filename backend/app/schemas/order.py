@@ -185,20 +185,6 @@ class FlowNode(BaseModel):
     bypass: Optional[FlowEdge] = None
 
 
-class MaterialOrder(BaseModel):
-    """**Ein regulärer Auftrag, der dasselbe Material vor bzw. nach diesem verarbeitet hat**
-    (Testnotiz #493).
-
-    Vor dem Startknoten: woher die Instanzen kamen. Nach dem Endknoten: wohin sie weitergingen
-    – falls sie das je taten. Bewusst nur **reguläre** Aufträge: eine Abweichung ist eine
-    Episode innerhalb dieses Vorgangs und steht ohnehin als Abzweig im Bild; gesucht ist der
-    Faden, der durch die Vorgänge hindurchführt."""
-
-    object_id: int
-    name: Optional[str] = None
-    quantity: float = 0   # wie viel des Materials DIESES Auftrags von dort kam / dorthin ging
-
-
 class SubOrderStep(BaseModel):
     """**Ein Schritt eines Unter-Auftrags – angeteasert, nicht ausgeführt** (Notiz #409).
 
@@ -657,11 +643,6 @@ class OrderResponse(BaseModel):
     flow_lots: list[FlowLot] = []
     # Was er dem Bestand endgültig entzogen hat – siehe ``OrderDeviationInfo.flow_lost``.
     flow_lost: list[FlowLot] = []
-    # **Der Prozessbaum** (Testnotiz #493): welche **regulären** Aufträge dasselbe Material
-    # vor bzw. nach diesem verarbeitet haben – vor dem Start- und nach dem Endknoten. Damit
-    # wird aus einer Episode ein Faden, der sich über Auftragsgrenzen hinweg verfolgen lässt.
-    material_from: list[MaterialOrder] = []
-    material_to: list[MaterialOrder] = []
     # **Was ist passiert** – das Material-Journal dieses Auftrags (ADR 007), chronologisch
     # und unveränderlich. Die dritte der drei Fragen, am Auftrag beantwortet; die Instanz
     # zeigt dieselben Zeilen aus der anderen Richtung. Nur fürs Personal gefüllt.

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { UnitList } from '@/components/erp/unit-numbers';
 import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, Hash, MapPin, Package,
   Redo2, Scissors, X } from 'lucide-react';
-import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, MaterialOrder, Order,
+import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, Order,
   OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution, StepType, SubOrderStep } from '@/types';
 import { STEP_META, instanceStatusConfig, stepStateLabel } from '@/lib/process';
 import { TYPE_META } from '@/lib/erp-record';
@@ -133,53 +133,6 @@ function lotNumbers(l: FlowLot): string {
   return `${head}-${idx[0]}…`;
 }
 
-/**
- * **Der Prozessbaum: woher das Material kam, wohin es weiterging** (Testnotiz #493).
- *
- * Ein Auftrag ist keine Insel – seine Instanzen hatten vorher ein Leben und haben danach
- * eines. Vor dem Startknoten steht darum, aus welchem **regulären** Auftrag sie kamen, nach
- * dem Endknoten, wohin sie gingen. Damit lässt sich «wie wo was passiert ist» über
- * Auftragsgrenzen hinweg verfolgen, statt an der Flagge zu enden.
- *
- * Es ist eine Aussage über **Material**, also trägt es die Materialsprache: eine Pille auf
- * der Linie, Menge zuerst, Objektnummer daneben, ein Klick öffnet den Datensatz. Ein voller
- * Auftrags-Knoten wäre hier falsch – der steht in der linken Spur und meint etwas anderes
- * («dieser Auftrag ging aus jenem hervor», nicht «sein Material kam von dort»).
- */
-function TraceChip({ row, dir, onOpen }: {
-  row: MaterialOrder; dir: 'in' | 'out'; onOpen?: (objectId: number) => void;
-}) {
-  const Icon = dir === 'in' ? ArrowDown : ArrowRight;
-  return (
-    <button type="button" onClick={() => onOpen?.(row.object_id)}
-      title={dir === 'in'
-        ? `${row.quantity} kamen aus ${row.name ?? 'Auftrag'} ${formatObjectId(row.object_id)} – öffnen`
-        : `${row.quantity} gingen weiter an ${row.name ?? 'Auftrag'} ${formatObjectId(row.object_id)} – öffnen`}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px',
-        borderRadius: 999, cursor: 'pointer', background: '#fff',
-        border: '1px solid var(--border-1)', color: 'var(--fg-3)',
-        font: '500 11.5px var(--font-body)', whiteSpace: 'nowrap',
-      }}>
-      <Icon size={11} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
-      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{row.quantity}</span>
-      <span style={{ font: '500 11px var(--font-mono), monospace', color: 'var(--fg-4)',
-        fontVariantNumeric: 'tabular-nums' }}>{formatObjectId(row.object_id)}</span>
-    </button>
-  );
-}
-
-function TraceRow({ rows, dir, onOpen }: {
-  rows: MaterialOrder[]; dir: 'in' | 'out'; onOpen?: (objectId: number) => void;
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center',
-      padding: '2px 0' }}>
-      {rows.map((r) => <TraceChip key={r.object_id} row={r} dir={dir} onOpen={onOpen} />)}
-    </div>
-  );
-}
 
 /**
  * **Was hier fliesst – kurz, und im Hover vollständig** (Notiz #426).
@@ -365,7 +318,7 @@ function FlowLots({ lots, small, past }: { lots: FlowLot[]; small?: boolean; pas
 export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [],
   origin, paused = false,
   selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId, goal,
-  onCreateOrder, materialFrom = [], materialTo = [] }: {
+  onCreateOrder }: {
   steps: OrderStep[];
   subOrders?: OrderDeviationInfo[];
   /** **Die fertig gerechnete Achse aus dem Backend** (`flow_nodes`/`flow_edges`): Knoten,
@@ -387,10 +340,6 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
   goal?: { due?: string | null; seller?: string | null };
   /** Abkürzung am Prozess-Punkt: einen Auftrag auf genau dieses Material ansetzen (#455). */
   onCreateOrder?: (lots: FlowLot[]) => void;
-  /** **Der Prozessbaum** (#493): die regulären Aufträge, die dasselbe Material vor bzw. nach
-   *  diesem verarbeitet haben – vor dem Start- und nach dem Endknoten. */
-  materialFrom?: MaterialOrder[];
-  materialTo?: MaterialOrder[];
 }) {
   if (steps.length === 0 && !origin) return null;
   const processLabel = orderObjectId != null
@@ -498,14 +447,6 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
             <Row><Axis h={18} strong /></Row>
           </>
         )}
-        {/* **Der Prozessbaum** (Notiz #493): woher das Material kam – VOR dem Startknoten,
-            denn dort beginnt dieser Vorgang und dort endete der vorige. */}
-        {materialFrom.length > 0 && (
-          <>
-            <Row><TraceRow rows={materialFrom} dir="in" onOpen={onOpenOrder} /></Row>
-            <Row><Axis h={12} strong /></Row>
-          </>
-        )}
         <Row><FlowTerm kind="start" title={`Start · ${processLabel}`} /></Row>
         {rows}
         <Row key="edge-last">
@@ -530,14 +471,6 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
             )}
           </div>
         </Row>
-        {/* … und wohin es weiterging – NACH dem Endknoten (#493). Nur, wenn es je
-            weiterging: solange nichts folgt, folgt auch keine Zeile. */}
-        {materialTo.length > 0 && (
-          <>
-            <Row><Axis h={12} strong /></Row>
-            <Row><TraceRow rows={materialTo} dir="out" onOpen={onOpenOrder} /></Row>
-          </>
-        )}
         {origin?.returns_to_object_id != null && (
           <>
             <Row><Axis h={18} strong={lastEdge.reached} /></Row>
@@ -1066,14 +999,16 @@ function DraftReturnArm({ holder, connected, onToggle }: {
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
       {connected && <Elbow dir="out-to-left" strong />}
       {/* Auf dem waagrechten Stück der Ecke (`out-to-left`: y = 2·BEND), mittig zwischen
-          Achse und Spurmitte – dort, wo die Linie verläuft. */}
+          Achse und Spurmitte – dort, wo die Linie verläuft.
+
+          **Ohne Hover-Erklärung** (Testnotiz #564): was der Knopf bewirkt, sagt der Knoten
+          darunter im Klartext («Gibt zurück an» ↔ «Keine Rückgabe – wird abgebrochen») – und
+          ob die Linie da ist, sieht man. Ein Satz im Hover erzählte dasselbe ein drittes Mal.
+          Der Name bleibt als ``aria-label``: er benennt den Knopf für Screenreader, ohne eine
+          Blase zu öffnen. */}
       {onToggle && (
         <button type="button" onClick={onToggle}
-          title={connected
-            ? `${holderLoss(holder)} gehen zurück – ${label} wartet darauf. Klick: Rückführung `
-              + 'kappen; dann endet dieser Auftrag hier und wird abgebrochen.'
-            : `${holderLoss(holder)} bleiben hier – ${label} endet an dieser Stelle und wird `
-              + 'abgebrochen. Klick: Rückführung wieder anschalten.'}
+          aria-label={connected ? 'Rückführung kappen' : 'Rückführung wieder anschalten'}
           style={{
             position: 'absolute', left: SIDE / 2 + RUN / 2, top: 2 * BEND,
             transform: 'translate(-50%, -50%)', width: 28, height: 28, borderRadius: 999,

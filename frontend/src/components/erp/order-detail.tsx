@@ -1291,8 +1291,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 origin={record.origin}
                 // **Der Prozessbaum** (Notiz #493): woher das Material kam, wohin es
                 // weiterging – die regulären Aufträge davor und danach.
-                materialFrom={record.material_from ?? []}
-                materialTo={record.material_to ?? []}
                 // **Ruht der Auftrag, ruht der ganze Fluss** (Notiz #378): kein Modul ist
                 // dann «aktiv», keines lässt sich öffnen – farbig bleibt nur der
                 // Unter-Auftrag, der zu klären ist. Dieselbe Regel wie im Backend

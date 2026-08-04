@@ -120,7 +120,6 @@ export type OrderShortfall = OrderApi['shortfall'][number];
 /** Ein laufender Auftrag, dem die Auswahl dieses Entwurfs etwas wegnimmt (#387). */
 export type AffectedOrder = OrderApi['affects'][number];
 /** Ein **regulärer** Auftrag, der dasselbe Material vor/nach diesem verarbeitet hat (#493). */
-export type MaterialOrder = OrderApi['material_from'][number];
 /**
  * **Die fertig gerechnete Fluss-Achse aus dem Backend** (ADR 007): Knoten (Schritt oder
  * Teilung) und Kanten (Material im Zustand von damals, Fortschritt, Prozess-Punkt). Das

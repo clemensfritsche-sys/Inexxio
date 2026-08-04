@@ -401,3 +401,48 @@ def test_a_cut_return_ends_the_chain(db, kinds, world):
     assert main.status == "inactive", (
         "Und der Hauptauftrag ebenso – die Kaskade ist dieselbe Regel, keine zweite "
         f"(ist {main.status}).")
+
+
+def test_a_finished_order_still_names_its_pieces(db, kinds, world):
+    """**Testnotizen #567–#570** – die Nummern überleben den Abschluss.
+
+    Ein abgeschlossener Auftrag löst seine Reservierung; die Karte kennt ihn danach nicht
+    mehr. Wurden die Nummern seiner Achse aus dieser Karte abgeleitet, stand dort plötzlich
+    eine Menge **ohne eine einzige Nummer** («1 Stk × 100000651» statt «…-1») – und bei einem
+    teilweise zurückgegebenen Auftrag eine halbe Liste, was schlimmer ist, weil sie
+    vollständig aussieht.
+
+    Die Regel ist dieselbe wie für die Vergangenheit einer Kante (#543/#544), nur konsequent
+    zu Ende geführt: **die Nummern gehören in die Buchung** – auch die der Entstehung und die
+    der Freigabe. Geprüft wird die Aussage, die ein Mensch am Bildschirm liest: *jede
+    Materialzeile nennt so viele Stücke, wie sie Menge trägt.*"""
+    from app.models import ArticleProcessStep
+    from app.schemas.inspection import InspectionSample, InspectionUpdate
+    from app.services import inspection as insp_svc
+    from app.services.orders import to_order_response
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    branch = _make_deviation(db, main, inst, user, 1, cut=True)
+    step = (db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.order_id == branch.id,
+                    ArticleProcessStep.step_type == "inspection").first())
+    insp_svc.record_inspection(db, branch, InspectionUpdate(
+        samples=[InspectionSample(instance_id=inst.object_id, slot=1, values={"_ok": True})],
+        step_id=step.id), user)
+    db.commit()
+    db.refresh(branch)
+    assert branch.status == "completed", branch.status
+
+    for order, tag in ((main, "Hauptauftrag"), (branch, "gekappter Abzweig")):
+        resp = to_order_response(db, order)
+        for edge in resp.flow_edges:
+            for lot in edge.lots:
+                assert lot.unit_count == int(lot.quantity), (
+                    f"{tag}: «{lot.quantity} Stk» nennt {lot.unit_count} Nummern "
+                    f"({[u.number for u in lot.units]}) – beides muss zusammenpassen.")
+    # Und zwar GENAU die, die er hielt – nicht irgendwelche.
+    got = [u.number for e in to_order_response(db, branch).flow_edges
+           for l in e.lots for u in l.units]
+    assert got and set(got) == {f"{inst.object_id}-1"}, (
+        f"Der gekappte Abzweig hielt …-1, zeigt aber {got}")

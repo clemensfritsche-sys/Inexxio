@@ -12230,36 +12230,6 @@
         "title": "MaterialMoveView",
         "description": "Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.\n\n``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |\nsold | consumed | scrapped | blocked | unblocked). Dieselbe Zeile dient BEIDEN\nVerläufen: am **Instanz**-Detail ist der Chip der beteiligte Auftrag, am\n**Auftrags**-Detail die betroffene Instanz – dieselbe Geschichte, aus zwei Richtungen\ngelesen (die drei Fragen, ADR 007)."
       },
-      "MaterialOrder": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "quantity": {
-            "type": "number",
-            "title": "Quantity",
-            "default": 0
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id"
-        ],
-        "title": "MaterialOrder",
-        "description": "**Ein regulärer Auftrag, der dasselbe Material vor bzw. nach diesem verarbeitet hat**\n(Testnotiz #493).\n\nVor dem Startknoten: woher die Instanzen kamen. Nach dem Endknoten: wohin sie weitergingen\n– falls sie das je taten. Bewusst nur **reguläre** Aufträge: eine Abweichung ist eine\nEpisode innerhalb dieses Vorgangs und steht ohnehin als Abzweig im Bild; gesucht ist der\nFaden, der durch die Vorgänge hindurchführt."
-      },
       "MovementEmbed": {
         "properties": {
           "id": {
@@ -13796,22 +13766,6 @@
             },
             "type": "array",
             "title": "Flow Lost",
-            "default": []
-          },
-          "material_from": {
-            "items": {
-              "$ref": "#/components/schemas/MaterialOrder"
-            },
-            "type": "array",
-            "title": "Material From",
-            "default": []
-          },
-          "material_to": {
-            "items": {
-              "$ref": "#/components/schemas/MaterialOrder"
-            },
-            "type": "array",
-            "title": "Material To",
             "default": []
           },
           "history": {

@@ -326,6 +326,14 @@ def order_view(db: Session, order_id: int) -> OrderView | None:
     if not moves:
         return None
     bal: dict[tuple[int, str, str], Decimal] = {}
+    #: **Die Nummern eines gehaltenen Topfs – ebenfalls aus dem Journal** (Testnotiz #567).
+    #: Was hereinkam, minus was wieder hinausging. Vorher trugen nur terminale und abgegebene
+    #: Zeilen ihre Nummern; die gehaltenen liessen sie offen und die Oberfläche leitete sie aus
+    #: der **heutigen Karte** ab. Das hielt genau so lange, wie der Auftrag lief: bei Abschluss
+    #: löst er seine Reservierung, die Karte kennt ihn nicht mehr – und die fertige Achse zeigte
+    #: eine Menge ohne eine einzige Nummer («1 Stk × 100000651» statt «…-1»). Eine abgeleitete
+    #: Antwort kann die Vergangenheit nicht tragen; das gilt für gehaltenes Material genauso.
+    bal_units: dict[tuple[int, str, str], set[int]] = {}
     term_at: dict[tuple[int, str, str], object] = {}
     departed: list[ViewRow] = []
 
@@ -362,12 +370,17 @@ def order_view(db: Session, order_id: int) -> OrderView | None:
 
     for m in moves:
         amt = to_qty(m.quantity)
+        mine = set(m.units or ())
         if m.src_order_id == order_id and m.src_disposition is not None:
             k = bucket(m.instance_object_id, m.src_quality, m.src_disposition)
             bal[k] = bal.get(k, ZERO) - amt
+            if mine and k in bal_units:
+                bal_units[k] -= mine
         if m.dst_order_id == order_id:
             k = bucket(m.instance_object_id, m.dst_quality, m.dst_disposition)
             bal[k] = bal.get(k, ZERO) + amt
+            if mine:
+                bal_units.setdefault(k, set()).update(mine)
             if k[2] in TERMINAL:
                 term_at[k] = m.at
             if m.src_order_id != order_id:
@@ -400,7 +413,8 @@ def order_view(db: Session, order_id: int) -> OrderView | None:
             terminal.append(ViewRow(oid, q, d, v, False, term_at.get((oid, q, d)),
                                     None, term_units.get((oid, q, d), ())))
         else:
-            held.append(ViewRow(oid, q, d, v, d == "in_stock", None))
+            held.append(ViewRow(oid, q, d, v, d == "in_stock", None, None,
+                                tuple(sorted(bal_units.get((oid, q, d)) or ()))))
     return OrderView(held, terminal, departed)
 
 

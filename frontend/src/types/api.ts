@@ -4346,27 +4346,6 @@ export interface components {
             note?: string | null;
         };
         /**
-         * MaterialOrder
-         * @description **Ein regulärer Auftrag, der dasselbe Material vor bzw. nach diesem verarbeitet hat**
-         *     (Testnotiz #493).
-         *
-         *     Vor dem Startknoten: woher die Instanzen kamen. Nach dem Endknoten: wohin sie weitergingen
-         *     – falls sie das je taten. Bewusst nur **reguläre** Aufträge: eine Abweichung ist eine
-         *     Episode innerhalb dieses Vorgangs und steht ohnehin als Abzweig im Bild; gesucht ist der
-         *     Faden, der durch die Vorgänge hindurchführt.
-         */
-        MaterialOrder: {
-            /** Object Id */
-            object_id: number;
-            /** Name */
-            name?: string | null;
-            /**
-             * Quantity
-             * @default 0
-             */
-            quantity: number;
-        };
-        /**
          * MovementEmbed
          * @description Eingebetteter Stand der Bewegung (im Auftrag).
          *
@@ -4975,16 +4954,6 @@ export interface components {
              * @default []
              */
             flow_lost: components["schemas"]["FlowLot"][];
-            /**
-             * Material From
-             * @default []
-             */
-            material_from: components["schemas"]["MaterialOrder"][];
-            /**
-             * Material To
-             * @default []
-             */
-            material_to: components["schemas"]["MaterialOrder"][];
             /**
              * History
              * @default []

@@ -823,6 +823,7 @@ def release_instances(db: Session, order: Order) -> None:
         .all()
     )
     still_running = _worked_on_by_a_running_order(db, order, rows)
+    from . import units as units_svc
     total = ZERO
     for inst in rows:
         if inst.id in in_clarification or inst.id in still_running:
@@ -832,8 +833,12 @@ def release_instances(db: Session, order: Order) -> None:
         if inst.released_at is None:
             inst.released_at = now
         # Journal (ADR 007): «ans Lager freigegeben» – der Halter endet, die Menge ist frei.
+        # **Mit ihren Nummern** (Testnotiz #567): freigegeben wird die ganze Instanz, also
+        # alle lebenden Stücke. Ohne sie zeigte die fertige Achse eine Menge ohne eine
+        # einzige Nummer – die Karte kennt den abgeschlossenen Auftrag ja nicht mehr.
         ledger.post(db, inst, inst.quantity, kind="released", holder=None,
-                    quality="passed", disposition="in_stock", src_holder=order.id)
+                    quality="passed", disposition="in_stock", src_holder=order.id,
+                    units=[u.index for u in units_svc.of(inst)])
         total += to_qty(inst.quantity)
     # Bestands-Zugang als Domain-Event mit DEKLARIERTER Polarität festhalten – so wird
     # der Event-Strom zur ökonomischen Wahrheit (Bestand = Projektion über Events).
@@ -1121,15 +1126,22 @@ def recompute_completion(db: Session, order: Order) -> None:
         # Restliche Reservierungen dieses Auftrags lösen (Auftrag fertig): ein neutral
         # gebliebenes Subjekt (Bewegung/Kontrolle) wird so wieder frei verfügbar; die
         # Subjekt-Markierung wird entfernt. Historie bleibt über ``instance_order_links``.
+        from . import units as units_svc
         for inst in db.query(Instance).filter(
             or_(Instance.reservations.has_key(str(order.id)),  # noqa: W601
                 Instance.subject_of_order_id == order.id),
             Instance.is_active == True,
         ).all():
+            # **Die Nummern JETZT festhalten** (Testnotiz #567, dieselbe Lehre wie #543/#544):
+            # gleich gibt der Auftrag seinen Anspruch ab, dann weiss die Karte nicht mehr,
+            # welche Stücke er hielt – und seine fertige Achse nennte eine Menge ohne eine
+            # einzige Nummer. Was die Vergangenheit trägt, gehört in die Buchung.
+            mine = [u.index for u in units_svc.of(inst, holder=order.id)]
             freed = release(inst, order.id)
             inst.subject_of_order_id = None
             # Journal (ADR 007): was der Auftrag am Ende noch hielt, wird frei.
-            ledger.post(db, inst, freed, kind="released", holder=None, src_holder=order.id)
+            ledger.post(db, inst, freed, kind="released", holder=None, src_holder=order.id,
+                        units=mine)
         _spawn_recurrence(db, order, recurring_subjects)   # wiederkehrend: nächsten Auftrag nachziehen
         _peg_supply_to_parent(db, order)     # Nachschub: erzeugte Stück an den Eltern pinnen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)

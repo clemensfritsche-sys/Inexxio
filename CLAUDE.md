@@ -4808,6 +4808,53 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   inkl. der Kaskade; Migration 101 von null · idempotent · downgrade · **über das
   Lifespan-Netz** 16/16; alle 14 Harnesses und die Regel-Tabelle grün).
 
+- **Testnotizen-Runde 40 (die Nummern überleben den Abschluss, Notizen #564–#570)**: Vier
+  der sieben Notizen («hier fehlt die 1./2. Instanz», «die Instanz hat keinen Suffix»,
+  «schon wieder Instanzen zerschossen») waren **ein** Fehler mit einer Wurzel.
+  (1) **Eine abgeleitete Antwort kann die Vergangenheit nicht tragen – auch nicht für
+  gehaltenes Material** (#567–#570). Seit #543/#544 stehen die Stück-Nummern in der
+  **Buchung**; das galt aber nur für terminale und abgegebene Zeilen. Eine **gehaltene**
+  Zeile liess sie offen, und die Oberfläche leitete sie aus der **heutigen Karte** ab
+  (`units.owned_by`). Das hielt genau so lange, wie der Auftrag lief: beim Abschluss löst er
+  seine Reservierung, die Karte kennt ihn nicht mehr – und seine fertige Achse zeigte «1 Stk
+  × 100000651» **ohne eine einzige Nummer**. Beim teil-zurückgegebenen Auftrag war es
+  schlimmer: eine **halbe** Liste, die vollständig aussieht («4 Stk × …-2, -3, -4»). Jetzt
+  führt `ledger.order_view` den Nummernstand je Topf mit (was hereinkam minus was hinausging),
+  und die zwei Buchungen, denen die Nummern fehlten, nennen sie: die **Entstehung**
+  (`serialization` – der Moment, in dem es die Nummern zum ersten Mal gibt) und die
+  **Freigabe** (`process.release_instances` + der Abschluss-Loop, dort **vor** dem Lösen des
+  Anspruchs festgehalten – dieselbe Lehre wie bei `give_back`). Für Altbestand ohne
+  aufgezeichnete Nummern bleibt der Rückfall auf die Karte, aber nur **ganz oder gar nicht**
+  (`units.covers`): eine halbe Liste ist schlimmer als keine.
+  (2) **Der Prozessbaum ist entfernt** (#565, revidiert #493): die Pille «1 kamen aus Auftrag
+  …650» vor dem Startknoten. An einem Unter-Auftrag sagt die linke Spur längst «hervorgegangen
+  aus …» und die rechte «gibt zurück an …» – dieselbe Beziehung ein zweites Mal, in einer
+  anderen Sprache. `material_trace`/`MaterialOrder`/`material_from`/`material_to` und die
+  `TraceChip`/`TraceRow` sind ersatzlos weg; der Wächter steht als **Negativ**, damit die
+  Doppelung nicht nachwächst.
+  (3) **Die Schere erklärt sich nicht mehr im Hover** (#564): was sie bewirkt, steht als
+  Klartext im Knoten darunter («Gibt zurück an» ↔ «Keine Rückgabe – wird abgebrochen»), und
+  ob die Linie da ist, sieht man. Der Name bleibt als `aria-label` – benannt für
+  Screenreader, ohne Blase.
+  Wächter: `tests/rules/test_units.py: test_a_finished_order_still_names_its_pieces` (gegen
+  die Bug-Form gegengeprüft: ohne die Nummern in der Freigabe-Buchung meldet er «1.0 Stk nennt
+  0 Nummern»), `test_frontend_mirrors.py: test_the_material_trace_is_gone`. Gegen echtes
+  PostgreSQL 16 verifiziert (Harness `note567.py` 9/9 – die gemeldete Kette Schritt für
+  Schritt, inkl. Altbestands-Rückfall; alle 16 Harnesses und die Regel-Tabelle grün).
+  - **OFFEN und bewusst nicht in dieser Runde: #566 – «Ziel erreicht ⇒ grün Freigegeben».**
+    Gemessen: hält ein gekappter Abzweig die **ganze** Instanz, wird sie beim Abschluss
+    korrekt `passed`/`in_stock`. Hält er **ein Stück einer Charge**, bleibt die Instanz
+    `pending`/`in_process` – und das ist bei EINEM Zustandsfeld auch richtig: die anderen
+    drei Stücke sind noch in laufenden Aufträgen. Die Notiz verlangt damit den Schritt, der
+    in diesem Dokument seit den Stück-Nummern als «nächster» vorgemerkt ist: **Zustand je
+    Stück** statt je Instanz (`quality`/`disposition` als Projektion der Läufe). Der Preis
+    ist nicht die Anzeige, sondern `inventory.in_stock_clauses()` – die SQL-Bedingung, aus
+    der FIFO, Bestandszählung und Verfügbarkeit lesen; sie kann eine teil-freigegebene Charge
+    aus den Skalaren nicht mehr beantworten und bräuchte eine mitgeführte Menge (dasselbe
+    Denormalisierungs-Muster wie `reserved_for_order_id`/`location_*`). Das ist eine eigene
+    Runde mit eigener Messung wert – ein Halbschritt (nur im Journal freigeben) würde die
+    Instanz-Ansicht und die Achse widersprüchlich machen, also genau das, was #492 verbietet.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
