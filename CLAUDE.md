@@ -4456,6 +4456,30 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   der Nutzer; **Optik**-Notizen werden direkt umgesetzt. Neue Fälle kommen als **Zeile** dazu,
   nicht als Sonderfall im Code.
 
+- **«Wie viel bearbeitet dieser Auftrag?» – die zweite Regel neben der Unterdeckung**
+  (August 2026, `services/order_lines.py`, erste Arbeit **gegen** die Regel-Tabelle): Sie hängt
+  an derselben Unterscheidung wie ADR 008 und war genau dort falsch, wo die Unterscheidung
+  fehlte. Ein **regulärer** Auftrag bearbeitet seine **Zusage** – gespeichert, weil sie eine
+  Entscheidung ist, und sie schrumpft nicht, nur weil gerade ein Stück in Klärung ist (sonst
+  gäbe er seine Komponenten frei und müsste sie neu anfordern, sobald die Ausleihe zurückkommt).
+  Ein Auftrag mit **festem Subjekt** bearbeitet seine **Arbeitsmenge**: was ihm von seinen
+  Instanzen noch gehört (`subject.held_quantity` – dieselbe eine Antwort, aus der schon der
+  Prüfumfang kommt, #399). Beides beantwortet jetzt **eine** Funktion (`effective_quantity`);
+  die reine Anlage-Aussage heisst `declared_quantity` («auf 4 Stück eröffnet» – gilt auch nach
+  dem Abschluss noch).
+  **Der Befund war gemessen, nicht vermutet:** eine Abweichung, auf 4 Stück eröffnet, die eines
+  an ihre eigene Abweichung verloren hatte, verlangte weiter Komponenten für 4 – **8 statt 6
+  Schrauben**. Keine Anzeigefrage: der Überschuss war für jeden anderen Auftrag gesperrt und
+  erzeugte dort eine Fehlmenge, die es nicht gab. Betroffen waren alle Leser derselben Frage
+  (`resource.reserve_resources`, `process._component_needs`/`_component_shortfall`,
+  `provisioning._component_candidates`) – die Datenerfassung hatte sich die Antwort längst
+  selbst gebaut, weil die gemeinsame Stelle sie nicht gab.
+  *Bewusst NICHT geändert:* die bei der **Freigabe** gebuchte Reservierung (damals hielt der
+  Auftrag die volle Menge – sie war richtig; der Überschuss löst sich mit seinem Abschluss) und
+  die **gespeicherte** Menge selbst. Sie lässt sich nicht ableiten: ein abgeschlossener
+  Unter-Auftrag hält nichts mehr, eine abgeleitete Menge stünde dort auf 0.
+  Neue Zeile im Netz: `tests/rules/test_working_quantity.py` (gegen die Bug-Form gegengeprüft).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

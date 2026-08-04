@@ -90,7 +90,8 @@ def _make_order(db, art, user, qty: int):
     return order, inst
 
 
-def _make_deviation(db, parent, inst, user, qty: int, *, steps=("inspection",)):
+def _make_deviation(db, parent, inst, user, qty: int, *, steps=("inspection",),
+                    step_kwargs: dict | None = None):
     """Eine Abweichung auf einen Anteil – über den echten Router-Pfad (Auswahl + Freigabe)."""
     from app.models import ArticleProcessStep, Order
     from app.routers import orders as R
@@ -105,6 +106,7 @@ def _make_deviation(db, parent, inst, user, qty: int, *, steps=("inspection",)):
         from_order_object_id=parent.object_id)])
     for pos, kind in enumerate(steps):
         db.add(ArticleProcessStep(order_id=dev.id, step_type=kind, position=pos,
+                                  **(step_kwargs or {}),
                                   **({"mode": "scrap"} if kind == "scrap" else
                                      {"sample_percent": 100} if kind == "inspection" else {})))
     db.flush()
