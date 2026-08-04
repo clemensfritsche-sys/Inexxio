@@ -525,7 +525,10 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # Menge in ihrer Ampelfarbe – ohne Linie, denn es fliesst ja nichts zurück.
     assert "const lostLots = backLots.length === 0 ? (info.flow_lost ?? []) : []" in flow, (
         "«Keine Rücklinie» sagt DASS, nicht WARUM – die rote Menge sagt es (#514).")
-    assert "{lostLots.length > 0 && <FlowLots lots={lostLots} small />}" in flow
+    # **Und sie steht VOR der Zielflagge** (#516) – Material gehört zwischen letztes Modul
+    # und Endknoten, auf der Hauptachse wie im Abzweig; nie dahinter.
+    assert body.index("lots={backLots.length > 0 ? backLots : lostLots}") \
+        < body.index('<FlowTerm kind="end"'), "Material steht nie nach der Zielflagge (#516)."
     # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt. Auch
     # sie nennen ihren Prozess im Hover (#443/#444).
     assert 'title={`Start · ${processLabel}`}' in flow and '`Ende · ${processLabel}`' in flow
@@ -837,36 +840,38 @@ def test_parallel_sub_orders_are_one_split_in_several_directions():
         "Fork und Merge gehören der Teilung, nicht dem einzelnen Ast.")
 
 
-def test_the_material_is_on_the_whole_axis_and_only_predictions_are_left_out():
-    """**Vor UND nach jedem Modul steht, was fliesst** (Testnotiz #505) – und trotzdem
-    behauptet keine Kante etwas über die Zukunft (#421).
+def test_no_edge_shows_material_it_has_not_carried_yet():
+    """**Keine Prognosen** (Testnotizen #421/#521).
 
-    Beides gehört zusammen, denn es sind zwei verschiedene Dinge:
+    Eine Kante **unterhalb** des Prozess-Punktes trägt kein Material. Was ein Modul einmal
+    führen wird, ist nicht vorhersehbar: bis dorthin kann verschrottet, abgezweigt oder
+    ersetzt werden. Material zeigt darum nur, wo der Prozess **war** – und die
+    Linienstärke sagt, wie weit das ist.
 
-    * Das **Material eines Auftrags** ist eine Tatsache. Es liegt auf seiner ganzen Achse,
-      auch unterhalb des aktiven Moduls. Die frühere Regel «erst ab ``reached``» liess dort
-      eine Lücke, die sich las wie «hier ist nichts mehr» – genau der gemeldete Eindruck,
-      die Instanz hänge noch im Abzweig. Wie weit der Prozess ist, sagt die **Linienstärke**;
-      dafür braucht es kein zweites Signal.
-    * Eine **Vorhersage** wäre dagegen, was ein Abzweig einmal zurückgeben WIRD
-      (``flow_back`` bleibt leer, solange er läuft) – oder eine Menge, die von unten nach
-      oben aus dem heutigen Bestand hochgerechnet ist. Genau das war die Sorge von #421, und
-      sie ist mit der Server-Sicht erledigt: gerechnet wird aus dem Journal, von oben nach
-      unten."""
+    (#505 wollte «vor und nach jedem Modul» etwas sehen; die dort gemeldete Lücke war aber
+    keine Anzeige-, sondern eine **Buchungs**-Frage – eine fehlende Rückgabe des Abzweigs.
+    Die ist behoben; die Anzeige-Regel bleibt bei der ehrlichen Variante.)
+
+    Eine Vorhersage wäre ebenso, was ein Abzweig einmal zurückgeben WIRD: ``flow_back``
+    bleibt leer, solange er läuft."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     import inspect as _i4
     from app.services import orders as _o4
     fill = _i4.getsource(_o4._fill_flow_view)
     assert "current = i >= current_from" in fill, (
         "Der Stichtag gilt oberhalb des Prozess-Punktes; darunter gilt der aktuelle Stand.")
-    assert "return FlowEdge(lots=lots, reached=i <= walked," in fill, (
-        "Jede Kante trägt Material – `reached` steuert nur noch die Linienstärke (#505).")
-    assert "<EdgeMaterial lots={edge.lots}" in flow and "{edge.reached &&" not in flow, (
-        "Auch das Frontend blendet unterhalb des Fortschritts nichts mehr aus.")
+    assert "lots: list[FlowLot] = []\n        if reached:" in fill, (
+        "Unterhalb des Fortschritts trägt keine Kante eine Menge (#521).")
+    assert "<EdgeMaterial lots={edge.lots}" in flow
     assert "<EdgeMaterial lots={lastEdge.lots}" in flow
-    assert "<FlowLots lots={backLots} small />" in flow and "info.flow_back" in flow, (
-        "Unter dem Abzweig steht, was tatsächlich zurück IST – nicht eine Vorhersage aus "
-        "dem, was hineinging (#481/#488/#496).")
+    assert "lots={backLots.length > 0 ? backLots : lostLots}" in flow and "info.flow_back" in flow, (
+        "Am Abzweig steht, was tatsächlich zurück IST – nicht eine Vorhersage aus dem, was "
+        "hineinging (#481/#488/#496).")
+    # **Eine Menge, ein Zustand, EINE Zeile** (#520): was der Rückblick zurückdreht, gehört
+    # zu dem, was ohnehin in Arbeit ist – sonst stand dieselbe Instanz zweimal auf der
+    # Kante («3 Stk × 613» + «1 Stk × 613» statt «4 Stk × 613»).
+    assert "same.quantity += qty" in fill or "same.quantity += qty" in _i4.getsource(_o4._as_of)
+    assert "if (same) same.quantity += row.quantity;" in flow
 
 
 def test_a_flow_lot_names_instance_article_location_and_quantity():
@@ -1107,9 +1112,8 @@ def test_a_future_step_shows_what_is_planned():
             f"{name}: ein geplanter Schritt führt nichts aus.")
 
 
-def test_the_palette_name_has_its_own_line():
-    """**Der Name der Palette steht in einer reservierten Zeile darunter**
-    (Testnotizen #502/#503/#509/#510).
+def test_the_palette_shows_its_name_in_the_hover():
+    """**Ein Symbol, und im Hover sein Name** (Testnotizen #502/#503/#509/#510/#518).
 
     Zwei Wege sind daran gescheitert, und beide hatten dieselbe Wurzel – der Name braucht
     Platz, den die Reihe nicht hat:
@@ -1118,25 +1122,30 @@ def test_the_palette_name_has_its_own_line():
       (Hover an → aus → an: das gemeldete «Springen und Hüpfen», #502/#503);
     * wuchs eine **Pille aus ihm heraus**, überdeckte sie die Nachbarn (#509/#510).
 
-    Also bekommt der Name seinen eigenen Platz: eine Zeile unter der Palette, mit fester
-    Höhe (kein Umbruch beim Erscheinen), zentriert. Die Symbole stehen still, nichts
-    überdeckt etwas – und solange niemand zeigt, steht dort, was zu tun ist."""
+    * eine **Zeile darunter** löste beides – schrieb den Namen dann aber zweimal hin (#518).
+
+    Übrig bleibt das Einfachste: der Knopf bewegt sich nie, und der Hover sagt, was er ist –
+    der **Name**, nicht eine Erklärung."""
     css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
     block = css.split(".erp-palette {")[1].split("@media")[0]
     assert "width: 44px; height: 44px" in block, (
         "Der Knopf hat eine feste Grösse – daran darf ein Hover nichts ändern.")
-    assert ".erp-palette-caption" in css and "min-height" in block.join([css]), (
-        "Die Namenszeile ist immer da – sonst springt das Layout beim Erscheinen.")
-    for gone in ("max-width: 180px", "max-width: 280px", ".erp-palette-body"):
-        assert gone not in css, f"{gone}: weder der Knopf noch eine Pille wächst (#509/#510)."
+    for gone in ("max-width: 180px", "max-width: 280px", ".erp-palette-body",
+                 ".erp-palette-caption"):
+        assert gone not in css, (
+            f"{gone}: weder der Knopf noch eine Pille noch eine Zeile darunter (#518).")
     fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
-    assert "export function Palette(" in fields and "PaletteCtx" in fields, (
-        "Die Namenszeile gehört der Palette, nicht dem einzelnen Knopf.")
+    assert "export function Palette(" in fields, (
+        "Die Reihe gibt es als EINEN Baustein – damit die Geste überall gleich aussieht.")
+    assert "data-tip={label}" in fields and "hint?: string;" not in fields.split(
+        "export function PaletteButton")[1][:400], (
+        "Im Hover steht der NAME – die lange Erklärung ist entfallen (#518).")
     # Alle drei Paletten teilen sich denselben Baustein – sonst sieht dieselbe Geste
     # an drei Stellen verschieden aus.
     steps = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
     short = (FRONTEND / "components" / "erp" / "shortfall-dialog.tsx").read_text(encoding="utf-8")
-    assert steps.count("<Palette ") == 2 and "<Palette " in short
+    assert steps.count("<Palette>") + steps.count("<Palette\n") == 2 and "<Palette>" in short, (
+        "Alle drei Paletten teilen sich denselben Baustein.")
 
 
 def test_a_hover_explanation_is_never_dimmed():
@@ -1239,12 +1248,19 @@ def test_the_system_log_is_readable_without_prior_knowledge():
     res = _inspect.getsource(__import__("app.services.resource", fromlist=["x"]).reserve_resources)
     assert "if done:" in res and "Komponenten reserviert:" in res, (
         "Protokolliert wird, was tatsächlich passiert ist – mit Menge und Instanz.")
-    # **Ein Vorgang, EIN Eintrag** (#507): «draft → released» war der Fussabdruck einer
-    # internen Zwischenstufe – ein Auftrag entsteht als Ganzes und war nie ein Entwurf.
+    # **Ein Vorgang, EIN Eintrag – und zwar zuerst** (#507/#517): «draft → released» war der
+    # Fussabdruck einer internen Zwischenstufe (ein Auftrag entsteht als Ganzes und war nie
+    # ein Entwurf), und «Bestellung angefragt» stand VOR «Auftrag freigegeben», obwohl die
+    # Bestellung erst aus der Freigabe entsteht. Jetzt schreibt die Freigabe ihren Eintrag
+    # selbst – als erstes, vor allem, was daraus folgt.
     router = (BACKEND / "app" / "routers" / "orders.py").read_text(encoding="utf-8")
-    assert 'log_audit(db, "orders", "status", "released"' not in router, (
-        "Kein zweiter Eintrag für denselben Augenblick (#507).")
-    assert '"Auftrag erteilt und freigegeben"' in router
+    for gone in ('log_audit(db, "orders", "status", "released"',
+                 '"Auftrag erteilt und freigegeben"'):
+        assert gone not in router, f"{gone}: kein zweiter Eintrag für denselben Augenblick."
+    rel = _inspect.getsource(__import__("app.services.orders", fromlist=["x"]).release_order)
+    assert rel.index('_emit(db, "order.released"') < rel.index(
+        "instantiate_purchase(db, order, actor_id)"), (
+        "Zuerst die Freigabe, dann ihre Folgen (#517).")
 
 
 def test_a_taken_share_is_not_told_twice():

@@ -96,7 +96,15 @@ function asEntry(lots: FlowLot[]): FlowLot[] {
         reserved: false, at: null });
     } else out.push(l);
   }
-  return [...out, ...back.values()];
+  // **Eine Menge, ein Zustand, EINE Zeile** (Notiz #520): was zurückgedreht wird, gehört zu
+  // dem, was ohnehin in Arbeit ist – sonst steht dieselbe Instanz zweimal auf der Kante.
+  for (const [oid, row] of back) {
+    const same = out.find((l) => l.instance_object_id === oid
+      && (l.disposition ?? 'in_process') === 'in_process');
+    if (same) same.quantity += row.quantity;
+    else out.push(row);
+  }
+  return out;
 }
 
 const qtyText = (l: FlowLot) => `${l.quantity}${l.unit ? ` ${unitLabel(l.unit)}` : ''}`;
@@ -204,9 +212,6 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
           display: 'flex', flexDirection: 'column', gap: 5, pointerEvents: 'none',
           width: 'max-content', maxWidth: 300, textAlign: 'left',
         }}>
-          <LotFact icon={cfg.icon ?? Package} title="Zustand">
-            <span style={{ fontSize: 12, color: cfg.color }}>{cfg.label}</span>
-          </LotFact>
           <LotFact icon={Package} title="Artikel">
             {lot.article_object_id != null && <ObjId value={lot.article_object_id} />}
             {lot.article_name && <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.article_name}</span>}
@@ -376,6 +381,8 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
       // gekommen ist, sagt die **Linienstärke** – dafür braucht es kein zweites Signal.
       <Row key={`edge-${i}`}>
         <Axis strong={edge.reached} />
+        {/* Material trägt nur, wo der Prozess war – unterhalb wäre es eine Prognose
+            (Notiz #521). Der Server liefert die Kante dort schlicht leer. */}
         <EdgeMaterial lots={edge.lots} past={!edge.live}
           onCreate={edge.live ? onCreateOrder : undefined} />
         <Axis strong={edge.reached} />
@@ -709,17 +716,17 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
         </div>
       ))}
       <Axis h={12} strong={started && walked === steps.length} />
-      <FlowTerm kind="end" size={30} title={`Ende · ${hint}`} />
-      {backLots.length > 0 && (
+      {/* **Material steht NIE nach der Zielflagge** (Testnotiz #516): es gehört zwischen
+          das letzte Modul und den Endknoten – auf der Hauptachse wie hier. Was zurückgeht
+          (`backLots`), und wenn nichts zurückgeht, was daraus geworden ist (`lostLots`,
+          #514: in seiner Ampelfarbe, damit man sieht, dass die Menge entfällt). */}
+      {(backLots.length > 0 || lostLots.length > 0) && (
         <>
-          <Axis h={10} strong />
-          <FlowLots lots={backLots} small />
+          <FlowLots lots={backLots.length > 0 ? backLots : lostLots} small />
+          <Axis h={10} strong={backLots.length > 0} />
         </>
       )}
-      {/* **Kommt nichts zurück, steht hier, was daraus geworden ist** (#514) – in seiner
-          Ampelfarbe (verschrottet = rot). Ohne Linie: es fliesst ja nichts zurück, aber
-          man sieht, dass die Menge entfällt, statt nur ihr Fehlen zu bemerken. */}
-      {lostLots.length > 0 && <FlowLots lots={lostLots} small />}
+      <FlowTerm kind="end" size={30} title={`Ende · ${hint}`} />
     </div>
   );
 }

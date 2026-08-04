@@ -505,8 +505,10 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
         );
       })}
 
+      {/* **Die Palette steht IM Prozess, nicht dahinter** (Testnotiz #519): ein Modul wird
+          in den Ablauf eingefügt – also liegt die Auswahl vor der Zielflagge, dort wo das
+          nächste Modul hinkommt. Der Endknoten schliesst den Fluss danach ab. */}
       {steps.length > 0 && !adding && <Connector />}
-      {steps.length > 0 && !adding && <FlowTerm kind="end" />}
       {/* Leerer Prozess: der Konnektor führt vom Start-Knoten zur Palette. */}
       {steps.length === 0 && !readOnly && !adding && <Connector />}
 
@@ -516,11 +518,11 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
       {!readOnly && (
         <div style={{ width: '100%', maxWidth: STEP_MAXW, marginTop: 16 }}>
           {adding == null ? (
-            <Palette hint="Modul wählen">
+            <Palette>
               {chooserTypes.map((t) => {
                 const m = STEP_META[t]; const kc = kindColor(t);
                 return (
-                  <PaletteButton key={t} icon={m.icon} label={m.label} hint={STEP_HINT[t]}
+                  <PaletteButton key={t} icon={m.icon} label={m.label}
                     tone={kc.fg} bg={kc.bg} border={kc.border} onClick={() => setAdding(t)} />
                 );
               })}
@@ -641,6 +643,13 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
             );
           })()}
         </div>
+      )}
+      {/* Der Endknoten schliesst den Fluss ab – NACH der Auswahl (#519). */}
+      {(steps.length > 0 || !readOnly) && (
+        <>
+          <Connector />
+          <FlowTerm kind="end" />
+        </>
       )}
     </div>
   );
@@ -826,10 +835,10 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
           );
         })}
       </div>
-      <Palette hint="Erfassungsfeld hinzufügen"
+      <Palette
         style={{ marginTop: fields.length > 0 ? 10 : 0 }}>
         {CAPTURE_KINDS.map((k) => (
-          <PaletteButton key={k.value} icon={k.icon} label={k.label} hint={k.hint} size={18}
+          <PaletteButton key={k.value} icon={k.icon} label={k.label} size={18}
             onClick={() => add(k.value)} />
         ))}
       </Palette>

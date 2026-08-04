@@ -441,8 +441,33 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     if not targets:
         return {}
     from .subject import is_fixed_subject
-    secured = _held_amounts(db, order) if is_fixed_subject(order) else _secured_amounts(db, order)
+    if is_fixed_subject(order):
+        return _fixed_subject_shortfall(db, order, targets)
+    secured = _secured_amounts(db, order)
     return {a: t - secured.get(a, ZERO) for a, t in targets.items() if t - secured.get(a, ZERO) > 0}
+
+
+def _fixed_subject_shortfall(db: Session, order: Order,
+                             targets: dict[int, Decimal]) -> dict[int, Decimal]:
+    """**Ein festes Subjekt arbeitet an dem, was es hat – bis nichts mehr da ist**
+    (Testnotizen #522/#523).
+
+    Abweichung, Retoure und Bereitstellung **beschaffen nichts**: ihre Menge ist keine
+    Zusage, sondern die Arbeitsmenge, mit der sie angetreten sind. Verliert eine Abweichung
+    über 4 Stück eines davon (ihre eigene Abweichung hat es verschrottet), sind nicht «1
+    fehlend» – sie hat schlicht **weniger zu tun**, und die Verschrottung WAR die Klärung.
+    Sie danach noch einmal zu fragen, was mit dem Stück geschehen soll, ist eine Schleife
+    ohne Erkenntnisgewinn; der Auftrag, der die Menge wirklich schuldet, ist der reguläre
+    Eltern-Auftrag weiter oben, und der wird gefragt.
+
+    **Bleibt ihr NICHTS, wird sie sehr wohl gefragt** – dann ist sie gegenstandslos, und die
+    Antwort «Menge reduzieren» ist ihr Abbruch. Genau das war der Befund von #397 (sie wurde
+    lautlos abgebrochen, ohne dass jemand gefragt wurde); die Frage bleibt also erhalten, sie
+    kommt nur nicht mehr bei **jedem** verlorenen Stück, sondern wenn es um alles geht."""
+    held = _held_amounts(db, order)
+    if any(held.get(a, ZERO) > 0 for a in targets):
+        return {}
+    return {a: t for a, t in targets.items() if t > 0}
 
 
 def _held_amounts(db: Session, order: Order) -> dict[int, Decimal]:

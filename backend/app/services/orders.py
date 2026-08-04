@@ -82,13 +82,18 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
         db.flush()
     if order.released_at is None:
         order.released_at = utcnow()   # Start der Durchlaufzeit
+    # **Zuerst die Freigabe, dann ihre Folgen** (Testnotiz #517): das Protokoll las sich
+    # verkehrt herum – «Bestellung angefragt» stand VOR «Auftrag freigegeben», obwohl die
+    # Bestellung erst aus der Freigabe entsteht. Der Zeitstempel entscheidet die Reihenfolge,
+    # also wird der Auslöser zuerst festgehalten; fachlich ändert sich nichts (alles liegt
+    # in derselben Transaktion).
+    _emit(db, "order.released", object_type="order", object_id=order.object_id,
+          payload={"article_id": order.article_id, "quantity": order.quantity}, actor_id=actor_id)
     subject.materialize_subject(db, order, actor_id)
     instantiate_purchase(db, order, actor_id)        # Beschaffungs-Schritte → Bestellungen
     sale_svc.instantiate_for_order(db, order, actor_id)  # Verkaufs-Schritte → Belege
     document_svc.instantiate_for_order(db, order, actor_id)  # Dokument-Schritte → leere Fachzeile (wird ausgeführt)
     reserve_resources(db, order, actor_id)           # Komponenten mengengenau reservieren
-    _emit(db, "order.released", object_type="order", object_id=order.object_id,
-          payload={"article_id": order.article_id, "quantity": order.quantity}, actor_id=actor_id)
     # Abschluss neu bewerten: Schritte, die schon bei der Freigabe «done» sind (das eingefrorene
     # Dokument), schliessen den Auftrag sofort ab. No-op für Aufträge mit noch offenen Schritten
     # (Beschaffung/Verkauf starten in 'requested', also nicht «done»).
@@ -1099,6 +1104,15 @@ def _as_of(lots: list[FlowLot], cutoff) -> list[FlowLot]:
         else:
             out.append(l)
     for oid, qty in back.items():
+        # **Zurückgedrehtes verschmilzt mit dem, was ohnehin gehalten wird** (Notiz #520).
+        # Ohne das stand dieselbe Instanz im selben Zustand ZWEIMAL auf einer Kante –
+        # «3 Stk × 613» und «1 Stk × 613» statt «4 Stk × 613». Eine Zeile beschreibt EINE
+        # Menge in EINEM Zustand; zwei Zeilen mit demselben Zustand sind keine.
+        same = next((l for l in out if l.instance_object_id == oid
+                     and (l.disposition or "in_process") == "in_process"), None)
+        if same is not None:
+            same.quantity += qty
+            continue
         src = next((l for l in lots if l.instance_object_id == oid), None)
         if src is None:
             continue
@@ -1219,17 +1233,18 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
         return lots if current else _as_of(lots, cutoffs[i])
 
     def edge(i: int) -> FlowEdge:
-        # **Vor UND nach jedem Modul steht, was fliesst** (Testnotiz #505). Das Material
-        # eines Auftrags ist eine Tatsache – es liegt auf seiner ganzen Achse, nicht erst
-        # ab dem Fortschritt. Die frühere Regel «erst ab `reached`» liess ausgerechnet
-        # unterhalb des aktiven Moduls eine Lücke, die sich las wie «hier ist nichts mehr».
-        # (Die Sorge aus #421 – eine Behauptung über die Zukunft – ist mit der Server-Sicht
-        # erledigt: gerechnet wird von oben nach unten aus dem Journal, nicht aus dem
-        # heutigen Bestand hochgerechnet.) `reached` steuert weiterhin die Linienstärke.
+        # **Keine Prognosen** (Testnotiz #521): eine Kante unterhalb des Prozess-Punktes
+        # trägt kein Material. Was ein Modul einmal führen WIRD, ist nicht vorhersehbar –
+        # es kann verschrottet, abgezweigt oder ersetzt werden, bevor es dort ankommt.
+        # (#505 wollte «vor und nach jedem Modul» sehen; die eigentliche Lücke dort war
+        # eine fehlende Rückgabe-Buchung, nicht die Regel – die ist behoben.)
+        reached = i <= walked
         current = i >= current_from
-        lots = (axis_lots(i, current) if view is not None
-                else (material if current else _as_of(material, cutoffs[i])))
-        return FlowEdge(lots=lots, reached=i <= walked,
+        lots: list[FlowLot] = []
+        if reached:
+            lots = (axis_lots(i, current) if view is not None
+                    else (material if current else _as_of(material, cutoffs[i])))
+        return FlowEdge(lots=lots, reached=reached,
                         live=here is not None and here == (i, False))
 
     resp.flow_edges = [edge(i) for i in range(len(nodes) + 1)]

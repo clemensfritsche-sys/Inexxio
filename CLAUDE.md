@@ -4389,6 +4389,46 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_palette_name_has_its_own_line`, `test_a_sub_order_is_a_regular_process_beside_
   the_axis` (erweitert um #513/#514).
 
+- **Testnotizen-Runde 32 (ein festes Subjekt arbeitet mit dem, was es hat, Notizen
+  #515–#523)**: Das Systemprotokoll hat den Kern selbst gezeigt – die Kette
+  Auftrag → Abweichung → Abweichung stellte **dieselbe Frage auf jeder Ebene**.
+  (1) **Ein Auftrag mit festem Subjekt hat kein Soll – bis ihm NICHTS mehr bleibt**
+  (#522/#523, `process._fixed_subject_shortfall`): Verliert eine Abweichung über 4 Stück
+  eines davon (ihre eigene Abweichung hat es verschrottet), fehlt ihr nichts – sie hat
+  **weniger zu tun**, und die Verschrottung WAR die Klärung. Sie danach erneut zu fragen
+  war eine Schleife ohne Erkenntnisgewinn, die zudem ihren ganzen Prozess anhielt
+  («Warum ist dieser Prozessschritt nicht aktiv?»). Gefragt wird jetzt der Auftrag, der
+  die Menge wirklich **schuldet** – der reguläre Eltern – und die Abweichung nur dann,
+  wenn ihr **nichts** mehr bleibt: dann ist sie gegenstandslos, und «Menge reduzieren» ist
+  ihr Abbruch (genau der Befund von #397, der damit erhalten bleibt).
+  (2) **Eine Menge, ein Zustand, EINE Zeile** (#520): der Rückblick (`_as_of`) drehte
+  ausgesteuerte Mengen in «in Arbeit» zurück, **ohne sie mit der ohnehin gehaltenen Zeile
+  zu verschmelzen** – auf der Kante stand «3 Stk × 613» UND «1 Stk × 613» statt «4 Stk ×
+  613». Behoben in Backend und Frontend (dieselbe Regel, beide Seiten).
+  (3) **Keine Prognosen** (#521, revidiert die zweite Hälfte von #505): eine Kante
+  unterhalb des Prozess-Punktes trägt kein Material – was ein Modul einmal führen wird,
+  ist nicht vorhersehbar. Die in #505 gemeldete Lücke war ohnehin keine Anzeige-, sondern
+  eine **Buchungs**frage (die fehlende Rückgabe), und die ist behoben.
+  (4) **Zuerst die Freigabe, dann ihre Folgen** (#517): «Bestellung angefragt» stand im
+  Protokoll VOR «Auftrag freigegeben», obwohl die Bestellung erst aus der Freigabe
+  entsteht – `release_order` schreibt sein Ereignis jetzt als erstes; der doppelte
+  Audit-Eintrag am Router ist entfallen.
+  (5) **Die Palette: ein Symbol, im Hover sein Name** (#518, dritter Anlauf nach
+  #502/#503 und #509/#510). Der wachsende Knopf brach die Zeile um, die herauswachsende
+  Pille überdeckte die Nachbarn, die Namenszeile darunter schrieb den Namen zweimal hin.
+  Übrig bleibt das Einfachste: fester Knopf, Hover = **Name** (die lange Erklärung ist
+  entfallen). Dazu steht die Palette jetzt **vor** der Zielflagge (#519) – ein Modul wird
+  in den Prozess eingefügt, nicht dahinter.
+  (6) **Material steht NIE nach der Zielflagge** (#516): im Abzweig gehört es – wie auf der
+  Hauptachse – zwischen das letzte Modul und den Endknoten. Kommt nichts zurück, steht dort
+  die ausgesonderte Menge in Rot (#514).
+  (7) **Der Zustand entfällt im Hover** (#515) – die Ampelfarbe der Pille sagt ihn bereits;
+  im Hover bleiben Artikel und Standort.
+  Wächter: `test_every_affected_order_is_asked_the_same_question` (präzisiert),
+  `test_no_edge_shows_material_it_has_not_carried_yet`,
+  `test_the_palette_shows_its_name_in_the_hover`,
+  `test_the_system_log_is_readable_without_prior_knowledge` (erweitert um #517).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

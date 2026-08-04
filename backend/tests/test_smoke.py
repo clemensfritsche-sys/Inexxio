@@ -3590,7 +3590,15 @@ def test_every_affected_order_is_asked_the_same_question():
     Ihr Soll sind schlicht die Stücke, die sie behandeln sollte; was ihr davon weggenommen
     wird, fehlt ihr (``process._held_amounts``). Damit fällt sie unter dieselbe Formel wie
     jeder andere Auftrag, bekommt dieselben drei Antworten – und «Menge reduzieren» IST ihr
-    Abbruch, wenn nichts bleibt (dieselbe Mechanik wie beim Eltern, Notiz #366)."""
+    Abbruch, wenn nichts bleibt (dieselbe Mechanik wie beim Eltern, Notiz #366).
+
+    **Präzisiert (Testnotizen #522/#523): gefragt wird, wenn es um ALLES geht.** Ein festes
+    Subjekt arbeitet an dem, was es hat – verliert es eines von vier Stücken (seine eigene
+    Abweichung hat es verschrottet), hat es weniger zu tun, und die Verschrottung WAR die
+    Klärung. Es dort erneut zu fragen war eine Schleife ohne Erkenntnisgewinn, während der
+    reguläre Eltern-Auftrag – der die Menge wirklich schuldet – ohnehin gefragt wird.
+    Bleibt ihm **nichts**, ist es gegenstandslos: dann kommt die Frage, und «Menge
+    reduzieren» ist sein Abbruch. Genau das war der Befund von #397 (lautloser Abbruch)."""
     import inspect as _inspect
 
     from app.routers import orders
@@ -3604,9 +3612,15 @@ def test_every_affected_order_is_asked_the_same_question():
     # Gefragt wird, sobald überhaupt jemand betroffen ist.
     ask = _inspect.getsource(orders._enforce_claims)
     assert "if holders:" in ask and "is_fixed_subject" not in ask
-    # Und das feste Subjekt hat eine Fehlmenge: Soll − was es noch hält.
+    # Und das feste Subjekt wird gefragt – wenn ihm NICHTS mehr bleibt (#522/#523).
     short = _inspect.getsource(process._subject_shortfalls)
-    assert "_held_amounts(db, order) if is_fixed_subject(order)" in short
+    assert "_fixed_subject_shortfall(db, order, targets)" in short
+    fixed = _inspect.getsource(process._fixed_subject_shortfall)
+    assert "if any(held.get(a, ZERO) > 0 for a in targets):\n        return {}" in fixed, (
+        "Solange es noch etwas hält, arbeitet es damit weiter (#522).")
+    assert "return {a: t for a, t in targets.items() if t > 0}" in fixed, (
+        "Bleibt nichts, ist es gegenstandslos – und wird gefragt statt lautlos abgebrochen "
+        "(#397).")
     held = _inspect.getsource(process._held_amounts)
     assert "reserved_for(inst, order.id)" in held and "subject_of_order_id != order.id" in held
     assert "targets.get(inst.article_id" in held, (

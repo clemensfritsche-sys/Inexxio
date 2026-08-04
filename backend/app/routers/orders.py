@@ -490,12 +490,10 @@ async def create_order(
         for step in data.steps:
             create_step(db, owner, step, current_user, commit=False)
     _do_release(db, order, data.shortfall_responses, current_user.id)
-    # **Ein Vorgang, EIN Protokoll-Eintrag** (Testnotiz #507). «draft → released» war der
-    # Fussabdruck einer INTERNEN Zwischenstufe: ein Auftrag entsteht als Ganzes (#386), er
-    # war nie ein gespeicherter Entwurf. Zwei Zeilen für denselben Augenblick liessen die
-    # Frage «warum war er vorher Entwurf?» entstehen – die Antwort ist: war er nicht.
-    log_audit(db, "orders", None, "Auftrag erteilt und freigegeben",
-              current_user.id, object_id=order.object_id)
+    # **Ein Vorgang, EIN Protokoll-Eintrag** (Testnotizen #507/#517): «Auftrag freigegeben»
+    # schreibt ``release_order`` selbst – und zwar als ERSTES, vor allem, was daraus folgt.
+    # «draft → released» war zusätzlich der Fussabdruck einer INTERNEN Zwischenstufe: ein
+    # Auftrag entsteht als Ganzes (#386), er war nie ein gespeicherter Entwurf.
     db.commit()
     db.refresh(order)
     return to_order_response(db, order)

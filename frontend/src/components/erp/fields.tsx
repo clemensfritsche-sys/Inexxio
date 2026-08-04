@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
 import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, Lock } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
@@ -493,25 +493,22 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
  * Antworten auf eine Unterdeckung (#376) benutzen dieselbe Geste – also dieselbe
  * Implementierung, statt sie ein drittes Mal abzuschreiben.
  */
-export function PaletteButton({ icon: Icon, label, hint, tone, bg, border, size = 19, disabled, onClick }: {
+export function PaletteButton({ icon: Icon, label, tone, bg, border, size = 19, disabled, onClick }: {
   icon: ElementType;
-  /** Kurzer Name – erscheint beim Hover neben dem Symbol. */
+  /** Der Name – er erscheint im Hover (#518); eine längere Erklärung gibt es nicht mehr. */
   label: string;
-  /** Ausführliche Erklärung – erscheint als Tooltip (`data-tip`). */
-  hint?: string;
   tone?: string; bg?: string; border?: string; size?: number;
   disabled?: boolean;
   onClick: () => void;
 }) {
-  // **Der Knopf ist ein Symbol, fertig.** Der Name steht in der reservierten Zeile
-  // darunter (`Palette`) – weder wächst der Knopf (#502/#503: die Zeile brach um und er
-  // wanderte unter dem Cursor weg) noch überdeckt eine Pille die Nachbarn (#509/#510).
-  const ctx = useContext(PaletteCtx);
+  // **Ein Symbol, und im Hover sein Name** (Testnotiz #518). Drei Wege sind gescheitert:
+  // der wachsende Knopf (brach die Zeile um und wanderte unter dem Cursor weg, #502/#503),
+  // die herauswachsende Pille (überdeckte die Nachbarn, #509/#510) und die Namenszeile
+  // darunter (stand dann zweimal da). Übrig bleibt das Einfachste: der Knopf bewegt sich
+  // nie, und der Hover sagt, was er ist – der **Name**, nicht eine Erklärung.
   return (
-    <button type="button" onClick={onClick} disabled={disabled} data-tip={hint}
+    <button type="button" onClick={onClick} disabled={disabled} data-tip={label}
       aria-label={label} className="erp-palette"
-      onMouseEnter={() => !disabled && ctx?.(label)} onMouseLeave={() => ctx?.(null)}
-      onFocus={() => !disabled && ctx?.(label)} onBlur={() => ctx?.(null)}
       style={{
         background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
         color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
@@ -523,31 +520,18 @@ export function PaletteButton({ icon: Icon, label, hint, tone, bg, border, size 
   );
 }
 
-/** Welcher Name gerade in der Bildunterschrift steht – die Palette meldet ihn hier an. */
-const PaletteCtx = createContext<((label: string | null) => void) | null>(null);
-
 /**
- * **Eine Palette: Symbole in einer Reihe, der Name in EINER Zeile darunter.**
- *
- * Die Zeile ist immer da (feste Höhe) – deshalb bewegt sich beim Hovern nichts, und es
- * überdeckt auch nichts. `hint` steht in der Zeile, solange niemand auf ein Symbol zeigt;
- * so ist der Platz nicht leer, sondern erklärt, was zu tun ist.
+ * **Eine Palette: Symbole in einer Reihe.** Mehr nicht – der Name steht im Hover des
+ * einzelnen Symbols (#518). Der Baustein bleibt, damit dieselbe Geste an allen drei
+ * Stellen (Module · Erfassungsfelder · Unterdeckung) gleich aussieht.
  */
-export function Palette({ hint, children, style }: {
-  hint?: string; children: React.ReactNode; style?: React.CSSProperties;
+export function Palette({ children, style }: {
+  children: React.ReactNode; style?: React.CSSProperties;
 }) {
-  const [label, setLabel] = useState<string | null>(null);
   return (
-    <PaletteCtx.Provider value={setLabel}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, ...style }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-          {children}
-        </div>
-        <div className="erp-palette-caption" aria-live="polite">
-          {label ?? (hint ? <span style={{ color: 'var(--fg-4)', fontWeight: 500 }}>{hint}</span> : null)}
-        </div>
-      </div>
-    </PaletteCtx.Provider>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', ...style }}>
+      {children}
+    </div>
   );
 }
 

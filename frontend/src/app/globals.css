@@ -751,13 +751,12 @@
 /* ── Prozessschritt-Palette: Symbol, das beim Hover seinen Namen freigibt ──────
    Symbol statt Text (Design-Leitsatz), Modulfarbe statt Neutral – und der Name
    erscheint erst, wenn man hinzeigt. */
-/* ── Palette: der Name steht in EINER Zeile darunter (Notizen #502/#503/#509/#510) ────
-   Zwei Wege sind daran gescheitert: wuchs der Knopf SELBST, brach die Zeile um und er
-   wanderte unter dem Cursor weg (Hover an → aus → an: das «Springen und Hüpfen», #502).
-   Wuchs die Pille aus ihm HERAUS, überdeckte sie die Nachbarn (#509/#510).
-   Beides hat dieselbe Wurzel: der Name braucht Platz, den die Reihe nicht hat. Also
-   bekommt er seinen eigenen – eine **reservierte Zeile unter der Palette**. Sie ist immer
-   da (feste Höhe, kein Umbruch), die Symbole stehen still, und nichts überdeckt etwas. */
+/* ── Palette: ein Symbol, im Hover sein Name (Notizen #502/#503/#509/#510/#518) ─────
+   Drei Wege sind daran gescheitert: wuchs der Knopf SELBST, brach die Zeile um und er
+   wanderte unter dem Cursor weg (Hover an → aus → an: das «Springen und Hüpfen», #502);
+   wuchs die Pille aus ihm HERAUS, überdeckte sie die Nachbarn (#509/#510); eine Zeile
+   darunter schrieb den Namen zweimal hin (#518). Übrig bleibt das Einfachste: der Knopf
+   bewegt sich nie, und der Hover sagt seinen Namen. */
 .erp-palette {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
   flex: none; width: 44px; height: 44px; padding: 0; border: 1px solid;
@@ -767,14 +766,10 @@
 .erp-palette:hover, .erp-palette:focus-visible {
   box-shadow: var(--shadow-sm); transform: translateY(-1px);
 }
-/* Der Name lebt in der Bildunterschrift – im Knopf ist er nur für Screenreader da. */
+/* Der Name steht im Hover (`data-tip`); im Knopf ist er nur für Screenreader da. */
 .erp-palette .erp-palette-label {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip-path: inset(50%); white-space: nowrap;
-}
-.erp-palette-caption {
-  min-height: 20px; display: flex; align-items: center; justify-content: center;
-  font: 700 12.5px var(--font-body); color: var(--fg-2); text-align: center;
 }
 @media (prefers-reduced-motion: reduce) { .erp-palette { transition: none; } }
 

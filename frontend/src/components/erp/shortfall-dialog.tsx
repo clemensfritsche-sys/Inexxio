@@ -125,32 +125,26 @@ export function ShortfallDialog({
     <Dialog icon={PackageMinus} title="Es fehlt" onClose={onClose} width={480}>
       <AffectedList affected={affected} />
       {!picking ? (
-        <Palette hint="Was soll mit der Fehlmenge geschehen?">
+        <Palette>
           <PaletteButton
             icon={PauseCircle} label="Pausieren" disabled={busy}
             tone="var(--warning)" bg="var(--warning-bg)" border="var(--warning)"
-            hint="Auftrag pausieren – der Prozess ruht, bis die Menge wieder da ist."
             onClick={() => onAnswer('wait')} />
           <PaletteButton
             icon={PackagePlus} label="Ersetzen" disabled={busy}
             tone="var(--success)" bg="var(--success-bg)" border="var(--success)"
-            hint={candidates.length > 0
-              ? 'Aus dem freien Bestand – älteste zuerst oder gezielt gewählt.'
-              : 'Freier Bestand zuerst, für den Rest ein Nachschub.'}
             onClick={() => (candidates.length > 0 ? setPicking(true) : onAnswer('replace'))} />
           {canReduce && (
             <PaletteButton
               icon={PackageMinus} label="Menge reduzieren" disabled={busy}
-              hint="Auftragsmenge reduzieren – der Auftrag wird mit dem fertig, was da ist."
               onClick={() => onAnswer('accept')} />
           )}
         </Palette>
       ) : (
         // Woher der Ersatz kommt – die gewohnten zwei Wege, wie bei der Auftragsanlage.
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Palette hint="Woher kommt der Ersatz?">
+          <Palette>
             <PaletteButton icon={Clock3} label="Älteste zuerst" disabled={busy}
-              hint="Automatisch aus dem freien Bestand (FIFO)."
               onClick={() => onAnswer('replace')} />
           </Palette>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
