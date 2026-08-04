@@ -9779,6 +9779,17 @@
             ],
             "title": "Object Id"
           },
+          "context": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
           "detail": {
             "anyOf": [
               {

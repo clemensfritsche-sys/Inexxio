@@ -18,9 +18,13 @@ class DiagnosticEntry(BaseModel):
     at: Optional[datetime] = None
     source: str                      # audit | event | journal
     kind: str                        # Feld, Ereignistyp oder Buchungsart
-    summary: str
+    summary: str                     # **ein Satz** – Objektnummern statt interner Schlüssel
     actor: Optional[str] = None
     object_id: Optional[int] = None
+    # Zu welchem Auftrag der Eintrag gehört. Der Umfang ist die **Nachbarschaft** (der
+    # Auftrag, seine Unter-Aufträge, ihre Instanzen) – ohne diese Angabe stehen im
+    # Protokoll eines Unter-Auftrags Zeilen, die dem Nachbarn gehören, ohne Kennzeichnung.
+    context: Optional[int] = None
     detail: Optional[dict[str, Any]] = None
 
 

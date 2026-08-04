@@ -9,7 +9,7 @@ import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { apiStepStore, type StepStore } from '@/lib/step-store';
-import { ErrorText, IconSwitch, InfoHint, Label, PaletteButton, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { ErrorText, IconSwitch, InfoHint, Label, Palette, PaletteButton, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
 
 import { ObjId } from '@/components/erp/obj-id';
 
@@ -516,7 +516,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
       {!readOnly && (
         <div style={{ width: '100%', maxWidth: STEP_MAXW, marginTop: 16 }}>
           {adding == null ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+            <Palette hint="Modul wählen">
               {chooserTypes.map((t) => {
                 const m = STEP_META[t]; const kc = kindColor(t);
                 return (
@@ -524,7 +524,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
                     tone={kc.fg} bg={kc.bg} border={kc.border} onClick={() => setAdding(t)} />
                 );
               })}
-            </div>
+            </Palette>
           ) : (() => {
             // **Der Editor trägt die Farbe seines Moduls** (Notiz #222): man konfiguriert
             // die Karte, die gleich im Fluss stehen wird – also sieht sie schon so aus.
@@ -826,12 +826,13 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
           );
         })}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: fields.length > 0 ? 10 : 0 }}>
+      <Palette hint="Erfassungsfeld hinzufügen"
+        style={{ marginTop: fields.length > 0 ? 10 : 0 }}>
         {CAPTURE_KINDS.map((k) => (
           <PaletteButton key={k.value} icon={k.icon} label={k.label} hint={k.hint} size={18}
             onClick={() => add(k.value)} />
         ))}
-      </div>
+      </Palette>
     </div>
   );
 }

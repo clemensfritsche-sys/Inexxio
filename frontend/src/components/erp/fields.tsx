@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
 import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, Lock } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
@@ -503,22 +503,51 @@ export function PaletteButton({ icon: Icon, label, hint, tone, bg, border, size 
   disabled?: boolean;
   onClick: () => void;
 }) {
-  // **Der Knopf hat eine feste Grösse; die Pille wächst aus ihm HERAUS** (Notizen
-  // #502/#503). Wuchs der Knopf selbst, brach die Zeile beim Hovern um – und weil er
-  // dabei unter dem Cursor wegwanderte, geriet das Aufklappen ins Flackern.
+  // **Der Knopf ist ein Symbol, fertig.** Der Name steht in der reservierten Zeile
+  // darunter (`Palette`) – weder wächst der Knopf (#502/#503: die Zeile brach um und er
+  // wanderte unter dem Cursor weg) noch überdeckt eine Pille die Nachbarn (#509/#510).
+  const ctx = useContext(PaletteCtx);
   return (
     <button type="button" onClick={onClick} disabled={disabled} data-tip={hint}
       aria-label={label} className="erp-palette"
-      style={{ opacity: disabled ? .5 : 1, cursor: disabled ? 'default' : 'pointer' }}>
-      <span className="erp-palette-body"
-        style={{
-          background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
-          color: tone ?? 'var(--fg-2)',
-        }}>
-        <Icon size={size} style={{ flexShrink: 0 }} />
-        <span className="erp-palette-label">{label}</span>
-      </span>
+      onMouseEnter={() => !disabled && ctx?.(label)} onMouseLeave={() => ctx?.(null)}
+      onFocus={() => !disabled && ctx?.(label)} onBlur={() => ctx?.(null)}
+      style={{
+        background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
+        color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
+        cursor: disabled ? 'default' : 'pointer',
+      }}>
+      <Icon size={size} style={{ flexShrink: 0 }} />
+      <span className="erp-palette-label">{label}</span>
     </button>
+  );
+}
+
+/** Welcher Name gerade in der Bildunterschrift steht – die Palette meldet ihn hier an. */
+const PaletteCtx = createContext<((label: string | null) => void) | null>(null);
+
+/**
+ * **Eine Palette: Symbole in einer Reihe, der Name in EINER Zeile darunter.**
+ *
+ * Die Zeile ist immer da (feste Höhe) – deshalb bewegt sich beim Hovern nichts, und es
+ * überdeckt auch nichts. `hint` steht in der Zeile, solange niemand auf ein Symbol zeigt;
+ * so ist der Platz nicht leer, sondern erklärt, was zu tun ist.
+ */
+export function Palette({ hint, children, style }: {
+  hint?: string; children: React.ReactNode; style?: React.CSSProperties;
+}) {
+  const [label, setLabel] = useState<string | null>(null);
+  return (
+    <PaletteCtx.Provider value={setLabel}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, ...style }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+          {children}
+        </div>
+        <div className="erp-palette-caption" aria-live="polite">
+          {label ?? (hint ? <span style={{ color: 'var(--fg-4)', fontWeight: 500 }}>{hint}</span> : null)}
+        </div>
+      </div>
+    </PaletteCtx.Provider>
   );
 }
 

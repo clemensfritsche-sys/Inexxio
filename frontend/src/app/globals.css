@@ -751,38 +751,32 @@
 /* ── Prozessschritt-Palette: Symbol, das beim Hover seinen Namen freigibt ──────
    Symbol statt Text (Design-Leitsatz), Modulfarbe statt Neutral – und der Name
    erscheint erst, wenn man hinzeigt. */
-/* ── Palette: der Name klappt auf, OHNE das Layout zu bewegen (Notizen #502/#503) ─────
-   Vorher wuchs der Knopf selbst – in einer umbrechenden Zeile schob das den nächsten
-   Eintrag in die nächste Reihe («das Dokumenten-Modul springt eine Ebene tiefer»), und
-   schlimmer: der Knopf wanderte unter dem Cursor weg, der Hover endete, er schrumpfte,
-   der Hover begann erneut … das sichtbare «Springen und Hüpfen».
-   Jetzt hat der Knopf eine FESTE Grösse, und die Pille wächst als absolut positionierte
-   Fläche aus ihm heraus. Optisch dasselbe Aufklappen, nur bewegt sich nichts mehr. */
+/* ── Palette: der Name steht in EINER Zeile darunter (Notizen #502/#503/#509/#510) ────
+   Zwei Wege sind daran gescheitert: wuchs der Knopf SELBST, brach die Zeile um und er
+   wanderte unter dem Cursor weg (Hover an → aus → an: das «Springen und Hüpfen», #502).
+   Wuchs die Pille aus ihm HERAUS, überdeckte sie die Nachbarn (#509/#510).
+   Beides hat dieselbe Wurzel: der Name braucht Platz, den die Reihe nicht hat. Also
+   bekommt er seinen eigenen – eine **reservierte Zeile unter der Palette**. Sie ist immer
+   da (feste Höhe, kein Umbruch), die Symbole stehen still, und nichts überdeckt etwas. */
 .erp-palette {
-  position: relative; display: inline-block; flex: none;
-  width: 44px; height: 44px; padding: 0; border: none; background: none;
-  cursor: pointer;
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 44px; height: 44px; padding: 0; border: 1px solid;
+  border-radius: var(--r-md); cursor: pointer;
+  transition: box-shadow .15s, transform .12s ease;
 }
-.erp-palette:hover, .erp-palette:focus-visible { z-index: 3; }
-.erp-palette .erp-palette-body {
-  position: absolute; inset: 0 auto 0 0; width: max-content; max-width: 44px;
-  display: flex; align-items: center; gap: 9px; overflow: hidden;
-  padding: 0 12px; border: 1px solid; border-radius: var(--r-md);
-  transition: max-width .18s ease, box-shadow .15s;
+.erp-palette:hover, .erp-palette:focus-visible {
+  box-shadow: var(--shadow-sm); transform: translateY(-1px);
 }
+/* Der Name lebt in der Bildunterschrift – im Knopf ist er nur für Screenreader da. */
 .erp-palette .erp-palette-label {
-  white-space: nowrap; font: 700 13px var(--font-body); opacity: 0;
-  transition: opacity .14s ease;
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
 }
-.erp-palette:hover .erp-palette-body, .erp-palette:focus-visible .erp-palette-body {
-  max-width: 280px; box-shadow: var(--shadow-sm);
+.erp-palette-caption {
+  min-height: 20px; display: flex; align-items: center; justify-content: center;
+  font: 700 12.5px var(--font-body); color: var(--fg-2); text-align: center;
 }
-.erp-palette:hover .erp-palette-label, .erp-palette:focus-visible .erp-palette-label {
-  opacity: 1;
-}
-@media (prefers-reduced-motion: reduce) {
-  .erp-palette .erp-palette-body, .erp-palette .erp-palette-label { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .erp-palette { transition: none; } }
 
 /* ── Feed: ruhige Fläche ohne Scrollbalken ────────────────────────────────────
    Gescrollt wird weiterhin (Rad, Trackpad, Touch, Tastatur) – nur der Balken

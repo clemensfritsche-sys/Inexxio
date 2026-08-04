@@ -28,7 +28,7 @@
 
 import { useState } from 'react';
 import { Boxes, CheckCircle2, ClipboardList, Clock3, PackageMinus, PackagePlus, PauseCircle, TriangleAlert } from 'lucide-react';
-import { Dialog, PaletteButton, PrimaryButton } from '@/components/erp/fields';
+import { Dialog, Palette, PaletteButton, PrimaryButton } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { unitLabel } from '@/lib/article';
 import { formatQty } from '@/lib/process';
@@ -37,10 +37,6 @@ import type { AffectedOrder, ShortfallAnswer } from '@/types';
 
 /** Frei verfügbare Instanz, mit der sich die Fehlmenge ohne Nachschub decken liesse. */
 export type ShortfallCandidate = { object_id: number; quantity: number };
-
-const ROW: React.CSSProperties = {
-  display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center',
-};
 
 /**
  * **Wen trifft die Entscheidung?** – eine Zeile je betroffenem Auftrag (Notiz #387).
@@ -129,7 +125,7 @@ export function ShortfallDialog({
     <Dialog icon={PackageMinus} title="Es fehlt" onClose={onClose} width={480}>
       <AffectedList affected={affected} />
       {!picking ? (
-        <div style={ROW}>
+        <Palette hint="Was soll mit der Fehlmenge geschehen?">
           <PaletteButton
             icon={PauseCircle} label="Pausieren" disabled={busy}
             tone="var(--warning)" bg="var(--warning-bg)" border="var(--warning)"
@@ -148,15 +144,15 @@ export function ShortfallDialog({
               hint="Auftragsmenge reduzieren – der Auftrag wird mit dem fertig, was da ist."
               onClick={() => onAnswer('accept')} />
           )}
-        </div>
+        </Palette>
       ) : (
         // Woher der Ersatz kommt – die gewohnten zwei Wege, wie bei der Auftragsanlage.
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={ROW}>
+          <Palette hint="Woher kommt der Ersatz?">
             <PaletteButton icon={Clock3} label="Älteste zuerst" disabled={busy}
               hint="Automatisch aus dem freien Bestand (FIFO)."
               onClick={() => onAnswer('replace')} />
-          </div>
+          </Palette>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 7, font: '700 11.5px var(--font-body)', letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
               <Boxes size={13} /> Bestimmte Instanzen

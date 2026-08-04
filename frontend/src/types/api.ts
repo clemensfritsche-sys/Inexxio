@@ -3339,6 +3339,8 @@ export interface components {
             actor?: string | null;
             /** Object Id */
             object_id?: number | null;
+            /** Context */
+            context?: number | null;
             /** Detail */
             detail?: Record<string, never> | null;
         };

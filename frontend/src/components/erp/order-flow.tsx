@@ -671,20 +671,28 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
   // (`flow_back` – leer, solange der Abzweig läuft; vorher wäre es eine Vorhersage). Kommt
   // nichts zurück, sagt das weiterhin die Prozesslinie, indem sie gar nicht erst zurückführt.
   const inLots = asEntry(info.flow_in ?? []);
+  // **Was zurückgeht – und wenn nichts zurückgeht, was daraus geworden ist** (#514).
+  // «Keine Rücklinie» sagt zwar, DASS nichts zurückkommt, aber nicht warum. Die
+  // ausgesonderte Menge in ihrer Ampelfarbe (rot) beantwortet genau das – dieselbe
+  // Zeile wie überall, nur im Endzustand.
   const backLots = info.flow_back ?? [];
+  const lostLots = backLots.length === 0 ? (info.flow_lost ?? []) : [];
   const hint = `${label} ${formatObjectId(info.object_id)}`
     + `${info.name ? ` «${info.name}»` : ''} · ${cfg.label} – klicken zum Öffnen`;
   return (
     <div title={hint} onClick={() => onOpen?.(info.object_id)}
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%',
         minWidth: 0, cursor: onOpen ? 'pointer' : 'default' }}>
+      {/* **Das Material steht UNTER dem Startknoten** (Testnotiz #513) – wie im geöffneten
+          Auftrag: der Startknoten markiert den Anfang, das Material fliesst danach.
+          Vorher stand es oben drüber, und derselbe Vorgang sah je nach Ansicht anders aus. */}
+      <FlowTerm kind="start" size={30} title={`Start · ${hint}`} />
       {inLots.length > 0 && (
         <>
-          <FlowLots lots={inLots} small past={walked > 0} />
           <Axis h={10} strong={started} />
+          <FlowLots lots={inLots} small past={walked > 0} />
         </>
       )}
-      <FlowTerm kind="start" size={30} title={`Start · ${hint}`} />
       {steps.length === 0 ? (
         <>
           <Axis h={12} />
@@ -708,6 +716,10 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
           <FlowLots lots={backLots} small />
         </>
       )}
+      {/* **Kommt nichts zurück, steht hier, was daraus geworden ist** (#514) – in seiner
+          Ampelfarbe (verschrottet = rot). Ohne Linie: es fliesst ja nichts zurück, aber
+          man sieht, dass die Menge entfällt, statt nur ihr Fehlen zu bemerken. */}
+      {lostLots.length > 0 && <FlowLots lots={lostLots} small />}
     </div>
   );
 }

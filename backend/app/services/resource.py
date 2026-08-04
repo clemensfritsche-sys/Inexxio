@@ -76,6 +76,11 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
                 continue
             aid = line["article_id"]
             needs[aid] = needs.get(aid, ZERO) + to_qty(line.get("quantity", 1)) * qty
+    # **Protokolliert wird, was TATSÄCHLICH reserviert wurde** (Testnotizen #506/#512).
+    # Vorher stand «Ressourcen reserviert» unbedingt im Protokoll – auch bei einem Auftrag
+    # ganz ohne Verbrauchs-Schritt, wo nichts zu reservieren war. Eine Meldung, die immer
+    # kommt, sagt nichts; eine, die die Menge nennt, beantwortet die Frage «was denn?».
+    done: list[str] = []
     for art_id, need in needs.items():
         if art_id == order.article_id:
             continue
@@ -83,7 +88,10 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
         for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
             if take > 0:
                 reserve(cand, order.id, take)   # mengengenau, OHNE Teilung
-    log_audit(db, "instances", None, "Ressourcen reserviert", actor_id, object_id=order.object_id)
+                done.append(f"{take:g} × {cand.object_id}")
+    if done:
+        log_audit(db, "instances", None, f"Komponenten reserviert: {', '.join(done)}",
+                  actor_id, object_id=order.object_id)
 
 
 def _tool_candidates(db: Session, article_db_id: int) -> list[Instance]:

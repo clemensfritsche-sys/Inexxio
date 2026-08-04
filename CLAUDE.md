@@ -4348,6 +4348,47 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   echtes PostgreSQL über den Router-Pfad verifiziert (JSON-fähig inkl. `Decimal`, alle drei
   Quellen, 404 bei unbekanntem Auftrag).
 
+- **Testnotizen-Runde 31 (das Protokoll spricht Deutsch, die Palette hat eine Namenszeile,
+  Notizen #506–#514)**: Zwei echte Befunde im Protokoll selbst und eine dritte Antwort auf
+  die Palette.
+  (1) **Das Systemprotokoll war ein Tabellen-Abzug** – jetzt spricht es (#506–#512).
+  `2.0 · 296/in_process → 297/in_process`: 296/297 sind **interne Schlüssel**
+  (`orders.id`), die niemand in Objektnummern übersetzen kann; die Zeile war damit
+  wertlos. Drei Regeln lösen das: **Objektnummern statt interner Schlüssel**
+  (`_Names.order` → «Abweichung 100000610»), **ein Satz statt Rohwerten** («1 übernommen:
+  Auftrag … → Abweichung …», Rohwerte bleiben im Hover/Bericht), und **der Befund zuerst
+  in Klartext** (`zusammenfassung` – worum es geht, was passiert ist, warum es nicht
+  weitergeht, vor der ersten Tabellenzeile). Dazu Zustände in Worten («noch nicht bewertet
+  · in Arbeit (zählt nicht zum Lagerbestand)» statt «pending · in_process») – das
+  beantwortet nebenbei #508: Bestand VOR dem Wareneingang ist kein Fehler, denn «in
+  Arbeit» zählt nicht zum Lager (gezählt wird `passed`+`in_stock`).
+  (2) **Zwei Meldungen waren schlicht falsch bzw. doppelt** – an der Quelle behoben:
+  «Ressourcen reserviert» stand **unbedingt** im Protokoll, auch bei einem Auftrag ganz
+  ohne Verbrauchs-Schritt, wo nichts zu reservieren war (#506/#512) → protokolliert wird
+  jetzt nur, was **tatsächlich** reserviert wurde, mit Menge und Instanz. Und «Status
+  draft → released» war der Fussabdruck einer **internen** Zwischenstufe: ein Auftrag
+  entsteht als Ganzes (#386), er war nie ein gespeicherter Entwurf – die Zeile ist weg,
+  «Auftrag erteilt und freigegeben» bleibt (#507). Schlanker wurde es zusätzlich durch
+  `MIRRORED_BY_JOURNAL`: ein Ereignis, das dasselbe sagt wie eine Buchung im selben
+  Augenblick, ist keine zweite Information.
+  (3) **Die Palette bekommt eine Namenszeile** (#509/#510, revidiert #502/#503): zwei Wege
+  sind gescheitert, beide an derselben Wurzel – der Name braucht Platz, den die Reihe
+  nicht hat. Wuchs der **Knopf**, brach die Zeile um und er wanderte unter dem Cursor weg
+  (Flackern); wuchs eine **Pille** aus ihm heraus, überdeckte sie die Nachbarn. Jetzt hat
+  der Name seinen eigenen Platz: **eine reservierte Zeile unter der Palette** (feste Höhe,
+  zentriert; solange niemand zeigt, steht dort, was zu tun ist). EIN Baustein
+  (`fields.Palette`) für alle drei Paletten – Module, Erfassungsfelder, Unterdeckung.
+  (4) **Das Material steht UNTER dem Startknoten** (#513) – im Abzweig wie im geöffneten
+  Auftrag: der Startknoten markiert den Anfang, das Material fliesst danach. Vorher stand
+  es darüber, und derselbe Vorgang sah je nach Ansicht anders aus.
+  (5) **Kommt nichts zurück, steht da, was daraus geworden ist** (#514): am Ende eines
+  Abzweigs die ausgesonderte Menge in ihrer Ampelfarbe (rot) – ohne Linie, denn es fliesst
+  nichts zurück. «Keine Rücklinie» sagte DASS, nicht WARUM. *(Der Entscheidungs-Knoten am
+  Eltern bleibt: er ist der einzige Weg, die Unterdeckung zu beantworten.)*
+  Wächter: `test_the_system_log_is_readable_without_prior_knowledge`,
+  `test_the_palette_name_has_its_own_line`, `test_a_sub_order_is_a_regular_process_beside_
+  the_axis` (erweitert um #513/#514).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

@@ -63,7 +63,7 @@ export function OrderDiagnosticsPanel({ objectId }: { objectId: number }) {
     setTimeout(() => setCopied(false), 1600);
   };
 
-  const drift = (data?.snapshot?.instances as InstanceRow[] | undefined)
+  const drift = (data?.snapshot?.instanzen as InstanceRow[] | undefined)
     ?.flatMap((i) => i.drift ?? []) ?? [];
 
   return (
@@ -109,49 +109,59 @@ export function OrderDiagnosticsPanel({ objectId }: { objectId: number }) {
 // ─── Befund ───────────────────────────────────────────────────────────────────
 
 type InstanceRow = {
-  instance: number; quality: string; disposition: string; quantity: number;
-  creator_order?: number | null; subject_of_order?: number | null;
-  reservations?: Record<string, number>; held_by_this_order?: number;
-  ledger_lots?: Record<string, number>; drift?: string[];
+  instanz: number; artikel?: string; menge: number; zustand: string;
+  erzeugt_von?: string; festes_subjekt_von?: string | null;
+  'ansprüche'?: Record<string, number>; 'gehört_diesem_auftrag'?: number;
+  journal_kontostand?: Record<string, number>; drift?: string[];
 };
-type StepRow = { step_id: number; type: string; state: string; fact_status?: string | null };
-type SubRow = { object_id: number; reason?: string | null; status: string };
+type StepRow = { nr: number; modul: string; zustand: string; beleg?: string | null };
+type SubRow = { objektnummer: number; art?: string | null; status: string };
 
-/** Der abgeleitete Zustand – kompakt, aber vollständig genug für einen Bericht. */
+/**
+ * **Der Befund – Klartext zuerst.** Oben die drei, vier Sätze, die die Frage «warum geht es
+ * nicht weiter?» beantworten; darunter die Belege dafür. Wer nur wissen will, was los ist,
+ * liest die ersten Zeilen und ist fertig.
+ */
 function Findings({ data }: { data: OrderDiagnostics }) {
   const s = (data.snapshot ?? {}) as {
-    order?: Record<string, unknown>; steps?: StepRow[]; shortfall?: Record<string, number>;
-    sub_orders?: SubRow[]; instances?: InstanceRow[]; paused?: boolean;
+    zusammenfassung?: string[]; auftrag?: Record<string, unknown>; schritte?: StepRow[];
+    fehlmenge?: Record<string, number>; unter_aufträge?: SubRow[];
+    instanzen?: InstanceRow[]; ruht?: boolean;
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-      <Line label="Auftrag">
-        {String(s.order?.status ?? '—')}
-        {s.order?.reason ? ` · ${String(s.order.reason)}` : ''}
-        {s.paused ? ' · ruht (Fehlmenge)' : ''}
-      </Line>
+      {(s.zusammenfassung ?? []).length > 0 && (
+        <div style={{ padding: '10px 12px', borderRadius: 'var(--r-md)',
+          background: 'var(--bg-2)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {(s.zusammenfassung ?? []).map((t, i) => (
+            <span key={i} style={{ font: `${i === 0 ? '700' : '500'} 12.5px var(--font-body)`,
+              color: t.startsWith('⚠') ? 'var(--danger)' : 'var(--fg-2)' }}>{t}</span>
+          ))}
+        </div>
+      )}
       <Line label="Schritte">
-        {(s.steps ?? []).map((st) => `${st.type}:${st.state}`).join(' → ') || '—'}
-      </Line>
-      <Line label="Fehlmenge">
-        {Object.keys(s.shortfall ?? {}).length
-          ? Object.entries(s.shortfall ?? {}).map(([a, q]) => `Artikel ${a}: ${q}`).join(' · ')
-          : 'keine'}
+        {(s.schritte ?? []).map((st) => `${st.modul}: ${st.zustand}`).join(' → ') || '—'}
       </Line>
       <Line label="Unter-Aufträge">
-        {(s.sub_orders ?? []).map((o) =>
-          `${o.reason ?? '—'} ${formatObjectId(o.object_id)} (${o.status})`).join(' · ') || 'keine'}
+        {(s.unter_aufträge ?? []).map((o) =>
+          `${o.art ?? '—'} ${formatObjectId(o.objektnummer)} (${o.status})`).join(' · ') || 'keine'}
       </Line>
-      {(s.instances ?? []).map((i) => (
-        <Line key={i.instance} label={`Instanz ${formatObjectId(i.instance)}`}>
+      {(s.instanzen ?? []).map((i) => (
+        <Line key={i.instanz} label={`Instanz ${formatObjectId(i.instanz)}`}>
           <span style={{ display: 'block' }}>
-            {i.quantity} · {i.quality}/{i.disposition}
-            {i.held_by_this_order != null && ` · hier ${i.held_by_this_order}`}
+            {i.menge} · {i.zustand}
+            {i['gehört_diesem_auftrag'] != null && ` · hier ${i['gehört_diesem_auftrag']}`}
           </span>
           <span style={{ display: 'block', color: 'var(--fg-4)' }}>
-            Ansprüche: {JSON.stringify(i.reservations ?? {})} · Journal:{' '}
-            {JSON.stringify(i.ledger_lots ?? {})}
+            Journal: {Object.entries(i.journal_kontostand ?? {})
+              .map(([k, v]) => `${v} × ${k}`).join(' · ') || '—'}
           </span>
+          {Object.keys(i['ansprüche'] ?? {}).length > 0 && (
+            <span style={{ display: 'block', color: 'var(--fg-4)' }}>
+              Ansprüche: {Object.entries(i['ansprüche'] ?? {})
+                .map(([k, v]) => `${v} × ${k}`).join(' · ')}
+            </span>
+          )}
           {(i.drift ?? []).length > 0 && (
             <span style={{ display: 'block', color: 'var(--danger)' }}>
               ⚠ {(i.drift ?? []).join(' · ')}
@@ -202,7 +212,7 @@ function Entries({ rows, truncated }: { rows: DiagnosticEntry[]; truncated: bool
             <span style={{ width: 170, flexShrink: 0, font: '600 11.5px var(--font-mono), monospace',
               color: 'var(--fg-2)', overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap' }}>{e.kind}</span>
-            <span style={{ flex: 1, minWidth: 0, color: 'var(--fg-3)', wordBreak: 'break-word' }}>
+            <span style={{ flex: 1, minWidth: 0, color: 'var(--fg-2)', wordBreak: 'break-word' }}>
               {e.summary}
               {e.object_id != null && (
                 <span style={{ marginLeft: 6, font: '500 11px var(--font-mono), monospace',
@@ -224,37 +234,41 @@ function Entries({ rows, truncated }: { rows: DiagnosticEntry[]; truncated: bool
 
 // ─── Bericht ──────────────────────────────────────────────────────────────────
 
-/** Vollständiger Bericht: Befund + Chronologie. Was hier steht, muss niemand nachfragen. */
+/**
+ * **Der Bericht: erst der Klartext, dann die Belege.** Wer ihn liest (Mensch oder
+ * Entwicklungs-Sitzung), soll in den ersten Zeilen wissen, worum es geht – die Rohwerte
+ * stehen darunter für den, der nachrechnen will.
+ */
 function asMarkdown(d: OrderDiagnostics): string {
-  const s = (d.snapshot ?? {}) as Record<string, unknown>;
+  const s = (d.snapshot ?? {}) as { zusammenfassung?: string[] } & Record<string, unknown>;
   const lines: string[] = [
-    `## Systemprotokoll Auftrag ${formatObjectId(d.order_object_id)}`,
+    `## Systemprotokoll ${formatObjectId(d.order_object_id)}`,
     '',
-    `- **Erzeugt:** ${d.generated_at}`,
-    `- **Build:** ${process.env.NEXT_PUBLIC_COMMIT_SHA ?? 'unbekannt'}`,
+    ...(s.zusammenfassung ?? []).map((t) => `- ${t}`),
     '',
-    '### Befund',
-    '',
-    '```json',
-    JSON.stringify(s, null, 2),
-    '```',
-    '',
-    '### Anteile',
-    '',
-    '```json',
-    JSON.stringify(d.share_map ?? {}, null, 2),
-    '```',
+    `_Erzeugt ${d.generated_at} · Build ${process.env.NEXT_PUBLIC_COMMIT_SHA ?? 'unbekannt'}_`,
     '',
     '### Chronologie',
     '',
-    '| Zeit | Quelle | Was | Detail | Objekt | Wer |',
-    '|---|---|---|---|---|---|',
+    '| Zeit | Quelle | Was ist passiert | Objekt | Wer |',
+    '|---|---|---|---|---|',
   ];
   for (const e of d.entries ?? []) {
-    const detail = e.detail ? JSON.stringify(e.detail).replace(/\|/g, '\\|') : '';
-    lines.push(`| ${e.at ?? ''} | ${e.source} | \`${e.kind}\` | ${e.summary} ${detail} `
+    lines.push(`| ${e.at ?? ''} | ${e.source} | ${e.summary.replace(/\|/g, '\\|')} `
       + `| ${e.object_id ?? ''} | ${e.actor ?? ''} |`);
   }
   if (d.truncated) lines.push('', '> Gekappt – ältere Einträge fehlen.');
+  lines.push(
+    '',
+    '<details><summary>Rohdaten (Befund · Anteile · Detailwerte)</summary>',
+    '',
+    '```json',
+    JSON.stringify({ befund: s, anteile: d.share_map ?? {},
+      details: (d.entries ?? []).map((e) => ({ at: e.at, kind: e.kind, detail: e.detail })) },
+      null, 2),
+    '```',
+    '',
+    '</details>',
+  );
   return lines.join('\n');
 }

@@ -490,7 +490,11 @@ async def create_order(
         for step in data.steps:
             create_step(db, owner, step, current_user, commit=False)
     _do_release(db, order, data.shortfall_responses, current_user.id)
-    log_audit(db, "orders", None, "Auftrag erteilt",
+    # **Ein Vorgang, EIN Protokoll-Eintrag** (Testnotiz #507). «draft → released» war der
+    # Fussabdruck einer INTERNEN Zwischenstufe: ein Auftrag entsteht als Ganzes (#386), er
+    # war nie ein gespeicherter Entwurf. Zwei Zeilen für denselben Augenblick liessen die
+    # Frage «warum war er vorher Entwurf?» entstehen – die Antwort ist: war er nicht.
+    log_audit(db, "orders", None, "Auftrag erteilt und freigegeben",
               current_user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)
@@ -817,8 +821,6 @@ def _do_release(db: Session, order: Order, answers: dict[str, str] | None,
     # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
     # Beschaffung/Verkauf instanziieren, Komponenten reservieren.
     release_order(db, order, actor_id)
-    log_audit(db, "orders", "status", "released", actor_id,
-              object_id=order.object_id, old_value="draft")
     # Die Antwort NACH der Freigabe anwenden: erst dort ist die Fehlmenge des anderen
     # Auftrags real, und «ersetzen»/«Menge reduzieren» rechnen mit dem echten Stand.
     _apply_shortfall_answer(db, holders, answers, actor_id, into=order)

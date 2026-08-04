@@ -515,6 +515,17 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     assert "const RUN = MAIN / 2 + GAP + SIDE / 2" in line, (
         "Feste Spurbreiten machen die Länge einer Abzweigung berechenbar.")
     assert "onOpen?.(info.object_id)" in flow, "Der Abzweig öffnet den Datensatz."
+    # **Das Material steht UNTER dem Startknoten** (Testnotiz #513) – wie im geöffneten
+    # Auftrag. Der Startknoten markiert den Anfang, das Material fliesst danach; stand es
+    # darüber, sah derselbe Vorgang je nach Ansicht anders aus.
+    body = flow.split("function SubProcess")[1].split("function OrderRefNode")[0]
+    assert body.index('<FlowTerm kind="start"') < body.index("<FlowLots lots={inLots}"), (
+        "Erst der Startknoten, dann das Material (#513).")
+    # **Kommt nichts zurück, steht da, was daraus geworden ist** (#514): die ausgesonderte
+    # Menge in ihrer Ampelfarbe – ohne Linie, denn es fliesst ja nichts zurück.
+    assert "const lostLots = backLots.length === 0 ? (info.flow_lost ?? []) : []" in flow, (
+        "«Keine Rücklinie» sagt DASS, nicht WARUM – die rote Menge sagt es (#514).")
+    assert "{lostLots.length > 0 && <FlowLots lots={lostLots} small />}" in flow
     # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt. Auch
     # sie nennen ihren Prozess im Hover (#443/#444).
     assert 'title={`Start · ${processLabel}`}' in flow and '`Ende · ${processLabel}`' in flow
@@ -1096,28 +1107,36 @@ def test_a_future_step_shows_what_is_planned():
             f"{name}: ein geplanter Schritt führt nichts aus.")
 
 
-def test_the_palette_unfolds_without_moving_anything():
-    """**Der Name klappt auf – das Layout bewegt sich nicht** (Testnotizen #502/#503).
+def test_the_palette_name_has_its_own_line():
+    """**Der Name der Palette steht in einer reservierten Zeile darunter**
+    (Testnotizen #502/#503/#509/#510).
 
-    Vorher wuchs der Knopf selbst. In einer umbrechenden Zeile schob das den nächsten
-    Eintrag in die nächste Reihe («das Dokumenten-Modul springt eine Ebene tiefer»), und
-    schlimmer: der Knopf wanderte unter dem Cursor weg → der Hover endete → er schrumpfte →
-    der Hover begann erneut. Diese Rückkopplung war das gemeldete «Springen und Hüpfen».
+    Zwei Wege sind daran gescheitert, und beide hatten dieselbe Wurzel – der Name braucht
+    Platz, den die Reihe nicht hat:
 
-    Jetzt hat der Knopf eine **feste Grösse**, und die Pille wächst als absolut
-    positionierte Fläche aus ihm heraus: optisch dasselbe Aufklappen, aber der Cursor
-    verliert seinen Knopf nie."""
+    * wuchs der **Knopf selbst**, brach die Zeile um und er wanderte unter dem Cursor weg
+      (Hover an → aus → an: das gemeldete «Springen und Hüpfen», #502/#503);
+    * wuchs eine **Pille aus ihm heraus**, überdeckte sie die Nachbarn (#509/#510).
+
+    Also bekommt der Name seinen eigenen Platz: eine Zeile unter der Palette, mit fester
+    Höhe (kein Umbruch beim Erscheinen), zentriert. Die Symbole stehen still, nichts
+    überdeckt etwas – und solange niemand zeigt, steht dort, was zu tun ist."""
     css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
     block = css.split(".erp-palette {")[1].split("@media")[0]
     assert "width: 44px; height: 44px" in block, (
         "Der Knopf hat eine feste Grösse – daran darf ein Hover nichts ändern.")
-    assert "position: absolute" in block and "max-width: 44px" in block, (
-        "Die Pille wächst ausserhalb des Flusses, nicht im Layout.")
-    for gone in ("gap: 9px; padding-right: 16px", "max-width: 180px"):
-        assert gone not in css, f"{gone}: der Knopf selbst wächst nicht mehr (#503)."
+    assert ".erp-palette-caption" in css and "min-height" in block.join([css]), (
+        "Die Namenszeile ist immer da – sonst springt das Layout beim Erscheinen.")
+    for gone in ("max-width: 180px", "max-width: 280px", ".erp-palette-body"):
+        assert gone not in css, f"{gone}: weder der Knopf noch eine Pille wächst (#509/#510)."
     fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
-    assert '<span className="erp-palette-body"' in fields, (
-        "Die farbige Fläche ist ein Kind – der Knopf bleibt das feste Mass.")
+    assert "export function Palette(" in fields and "PaletteCtx" in fields, (
+        "Die Namenszeile gehört der Palette, nicht dem einzelnen Knopf.")
+    # Alle drei Paletten teilen sich denselben Baustein – sonst sieht dieselbe Geste
+    # an drei Stellen verschieden aus.
+    steps = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    short = (FRONTEND / "components" / "erp" / "shortfall-dialog.tsx").read_text(encoding="utf-8")
+    assert steps.count("<Palette ") == 2 and "<Palette " in short
 
 
 def test_a_hover_explanation_is_never_dimmed():
@@ -1181,6 +1200,51 @@ def test_the_order_carries_a_system_log_for_bug_reports():
         "Auf Klick geladen, in einem Klick berichtbar.")
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
     assert "<OrderDiagnosticsPanel objectId={record.object_id} />" in detail
+
+
+def test_the_system_log_is_readable_without_prior_knowledge():
+    """**Ein Protokoll, das niemand entziffern muss** (Testnotizen #506–#512).
+
+    Die erste Fassung war ein Tabellen-Abzug: ``2.0 · 296/in_process → 297/in_process``.
+    296 und 297 sind **interne Schlüssel** (`orders.id`) – niemand kann sie in
+    Objektnummern übersetzen, also war die Zeile wertlos. Dazu Meldungen ohne Feld, die
+    als «— → Ressourcen reserviert» erschienen und wie ein Fehler aussahen.
+
+    Drei Regeln, die das lösen:
+
+    * **Objektnummern statt interner Schlüssel** (``_Names.order``) – «Auftrag 100000608»
+      bzw. «Abweichung 100000610», nie eine nackte DB-id.
+    * **Ein Satz statt Rohwerten**: «2 übernommen: Auftrag … → Abweichung …». Die Rohwerte
+      bleiben im Detail (Hover/Bericht), wo sie nicht stören.
+    * **Der Befund zuerst, in Klartext** (``zusammenfassung``): worum es geht, was passiert
+      ist, warum es gerade nicht weitergeht – vor der ersten Tabellenzeile.
+
+    Und **weniger Zeilen**: ein Ereignis, das dasselbe sagt wie eine Journal-Buchung im
+    selben Augenblick, ist keine zweite Information (``MIRRORED_BY_JOURNAL``)."""
+    import inspect as _inspect
+
+    from app.services import diagnostics as diag
+
+    src = _inspect.getsource(diag)
+    assert "class _Names" in src and "def order(self" in src, (
+        "Interne Schlüssel werden EINMAL in Objektnummern übersetzt.")
+    assert "MOVE_LABEL" in src and "EVENT_LABEL" in src, "Jede Zeile ist ein Satz."
+    assert "MIRRORED_BY_JOURNAL" in src, (
+        "Zwei Zeilen für denselben Vorgang sind Rauschen, keine zweite Information.")
+    assert '"zusammenfassung": _summary(' in src, "Der Klartext steht zuoberst."
+    assert "context" in src, (
+        "Im Protokoll eines Unter-Auftrags muss stehen, wem eine Zeile gehört.")
+    # **Die Quelle ist ehrlich, nicht nur die Anzeige** (#506/#512): «Ressourcen reserviert»
+    # stand auch dann im Protokoll, wenn gar nichts zu reservieren war.
+    res = _inspect.getsource(__import__("app.services.resource", fromlist=["x"]).reserve_resources)
+    assert "if done:" in res and "Komponenten reserviert:" in res, (
+        "Protokolliert wird, was tatsächlich passiert ist – mit Menge und Instanz.")
+    # **Ein Vorgang, EIN Eintrag** (#507): «draft → released» war der Fussabdruck einer
+    # internen Zwischenstufe – ein Auftrag entsteht als Ganzes und war nie ein Entwurf.
+    router = (BACKEND / "app" / "routers" / "orders.py").read_text(encoding="utf-8")
+    assert 'log_audit(db, "orders", "status", "released"' not in router, (
+        "Kein zweiter Eintrag für denselben Augenblick (#507).")
+    assert '"Auftrag erteilt und freigegeben"' in router
 
 
 def test_a_taken_share_is_not_told_twice():
