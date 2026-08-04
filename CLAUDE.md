@@ -4429,6 +4429,33 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_the_palette_shows_its_name_in_the_hover`,
   `test_the_system_log_is_readable_without_prior_knowledge` (erweitert um #517).
 
+- **Die Regel steht im Code, nicht in der Prosa** (ADR 008, `docs/adr/008-unterdeckung.md`;
+  August 2026, **ohne Funktionsänderung**): Unterdeckung/Ausleihe/Pause hat die meisten
+  echten Logikfehler erzeugt (#354 · #366 · #388 · #397 · #401 · #404 · #505 · #522/#523) –
+  **nicht** wegen des Datenmodells (das Journal meldet überall `drift: []`), sondern weil es
+  **keine geschriebene Regel** gab: sie lebte als gewachsene Prosa hier in dieser Datei,
+  verteilt über zwanzig Absätze aus zwanzig Runden. Prosa kann sich widersprechen, ohne dass
+  es jemand merkt; zweimal wurde dieselbe Frage (*hat ein festes Subjekt ein Soll?*) in
+  entgegengesetzte Richtungen entschieden.
+  **Jetzt ist die Regel eine ausführbare Tabelle** (`backend/tests/rules/table.py`): sechs
+  Zeilen, jede mit Lage, erwarteter Antwort (Fehlmenge · Pause) und **Begründung**.
+  `test_shortfall_rules.py` baut jede Zeile über die **echten** Dienste auf (Freigabe,
+  Router-Pfad, Verschrottung – kein Nachstellen von Zuständen) und prüft, was die Oberfläche
+  daraus liest. Bricht eine Zeile, steht ihre Begründung im Fehlertext: wer die Regel ändert,
+  ändert zwangsläufig auch den Satz, der sie erklärt.
+  Dazu das **Szenario-Netz** (`test_scenario_chain.py`): die Kette, die im Praxistest wirklich
+  gefahren wird (Auftrag → Abweichung → Abweichung → Verschrottung → Klärung) in sechs
+  Stationen – bisher lief sie nur von Hand, weshalb Regressionen erst Tage später am
+  Bildschirm auffielen. Beides läuft in der **CI bei jedem Push** gegen echtes PostgreSQL
+  (Schritt «Regel-Tabelle + Szenario-Netz»); ohne Datenbank überspringen sie **mit Grund**
+  (gegen SQLite wäre die geprüfte Wahrheit eine andere: JSONB-Ansprüche, Zeilensperren).
+  Wächter `test_the_rule_table_runs_on_every_push` – ein Netz, das stillschweigend
+  abgeschaltet ist, ist von einem kaputten nicht zu unterscheiden.
+  **Arbeitsweise daraus** (die eigentliche Lehre): eine **Regel**-Notiz wird nicht sofort
+  umgesetzt – erst wird gesagt, welche Zeile sie kippt und was daraus folgt, dann entscheidet
+  der Nutzer; **Optik**-Notizen werden direkt umgesetzt. Neue Fälle kommen als **Zeile** dazu,
+  nicht als Sonderfall im Code.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

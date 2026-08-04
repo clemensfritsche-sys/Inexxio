@@ -4229,3 +4229,26 @@ def test_the_decision_is_a_gate_in_the_flow():
     assert "ProcessHoldNotice" not in detail, (
         "Die Fehlmenge-Notiz unter dem Fluss ist im Gate aufgegangen – eine Frage, ein Ort.")
     assert "decision={needsDecision ?" in detail
+
+
+def test_the_rule_table_runs_on_every_push():
+    """**Die Regel-Tabelle ist nur dann eine Regel, wenn sie läuft** (ADR 008).
+
+    Sie prüft gegen echtes PostgreSQL (JSONB-Ansprüche, Zeilensperren) und überspringt
+    lokal mit Grund – deshalb hängt ihr Wert daran, dass die CI sie tatsächlich ausführt.
+    Ein Netz, das stillschweigend abgeschaltet ist, ist von einem kaputten nicht zu
+    unterscheiden."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    wf = (root / ".github" / "workflows" / "deploy-dev.yml").read_text(encoding="utf-8")
+    assert "python -m pytest tests/rules" in wf, (
+        "Die Regel-Tabelle muss in der CI laufen – sonst ist sie Dekoration.")
+    assert "RULES_DATABASE_URL" in wf, "…und zwar gegen eine echte Datenbank."
+    table = (root / "backend" / "tests" / "rules" / "table.py").read_text(encoding="utf-8")
+    assert "RULES: tuple[Rule, ...]" in table and "warum:" in table, (
+        "Die Tabelle trägt zu jeder Zeile ihre Begründung – wer die Regel ändert, ändert sie.")
+    adr = (root / "docs" / "adr" / "008-unterdeckung.md").read_text(encoding="utf-8")
+    assert "backend/tests/rules/table.py" in adr, (
+        "Das ADR zeigt auf die Tabelle, statt sie zu wiederholen – zwei Fassungen desselben "
+        "Satzes waren genau der Fehler.")
