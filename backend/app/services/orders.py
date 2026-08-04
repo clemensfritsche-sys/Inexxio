@@ -851,6 +851,12 @@ def _return_target(db: Session, order: Order) -> Order | None:
     seine Stück an den Eltern (``process._peg_supply_to_parent``). Alles andere gibt nichts
     zurück – ein gewöhnlicher Auftrag schuldet niemandem etwas."""
     from .subject import is_fixed_subject, lender_of
+    # **Ein abgebrochener Auftrag gibt nichts zurück** (Testnotiz #578). Er läuft nicht mehr;
+    # was er hielt, ist entweder ausgesteuert oder in dem Auftrag, der ihn fortführt. Eine
+    # Rückgabe-Linie behauptete einen Weg, den es nicht mehr gibt – im gemeldeten Fall genau
+    # dort, wo der Abzweig alles verschrottet hatte und die Kette korrekt gekappt worden war.
+    if (order.status or "") == "inactive":
+        return None
     # **Kommt überhaupt etwas zurück?** – EINE Frage, EINE Antwort (Testnotizen #492/#563):
     # gekappt oder nichts mehr da. Sonst zeigte derselbe Abzweig zwei verschiedene Bilder,
     # weil diese Stelle nur fragte, WEM er zurückgäbe, nicht OB.
@@ -1242,12 +1248,23 @@ def _waves(db: Session, branches: list) -> list[list]:
     rows = {o.object_id: o for o in db.query(Order).filter(
         Order.object_id.in_([b.object_id for b in branches])).all()}
 
+    def ended(o):
+        """**Wann ging dieser Abzweig zu Ende?** – abgeschlossen ODER abgebrochen.
+
+        Ein **abgebrochener** Auftrag trägt kein ``completed_at`` (er ist nie fertig
+        geworden), ist aber sehr wohl vorbei. Nur auf ``completed_at`` zu schauen liess ihn
+        als «läuft noch» gelten – ein danach entstandener Abzweig wurde deshalb **parallel**
+        zu ihm gezeichnet, obwohl er ihn abgelöst hatte (Testnotiz #575)."""
+        if o.completed_at:
+            return o.completed_at
+        return o.updated_at if (o.status or "") == "inactive" else None
+
     def overlaps(a, b) -> bool:
         oa, ob = rows.get(a.object_id), rows.get(b.object_id)
         if oa is None or ob is None:
             return True
         first, second = (oa, ob) if (oa.object_id or 0) <= (ob.object_id or 0) else (ob, oa)
-        done, born = first.completed_at, second.released_at
+        done, born = ended(first), second.released_at
         return done is None or born is None or done > born
 
     out: list[list] = []

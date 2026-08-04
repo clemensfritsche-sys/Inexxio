@@ -4892,6 +4892,38 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   verifiziert (`note571.py` 14/14 – die gemeldete Kette samt #332/#262-Gegenprobe; alle 16
   Harnesses und die Regel-Tabelle (34) grün).
 
+- **Testnotizen-Runde 42 (freigegeben heisst frei, Notizen #573–#578)**: Vier der sechs
+  Notizen hatten **eine** Wurzel – und die stammte aus der Runde davor.
+  (1) **Ein freigegebenes Stück gehört niemandem mehr** (#573/#577). Der «unbeanspruchte
+  Rest gehört dem Erzeuger» (`inventory.rest_owner`) gilt für das, was noch im Prozess ist.
+  Als die Freigabe je Stück kam, fielen fertige Stücke – die ja keinen Halter mehr tragen –
+  unter dieselbe Regel und wurden dem Erzeuger **erneut zugeschlagen**. Zwei sichtbare
+  Folgen: das Instanz-Detail zeigte sie als «Reserviert» (gelb) statt «Freigegeben» (grün),
+  und auf den Kanten des Erzeugers tauchten längst fertige Nummern wieder auf und
+  verdrängten die, die er wirklich hält («…-1 war schon lange freigegeben, …-3 nicht mehr
+  auffindbar»). `units.owned_by`/`rows` nehmen ein freigegebenes Stück jetzt aus dem Rest.
+  (2) **Der Hover sagt dasselbe wie die Pille** (#574): `rows_for` las den Instanz-Skalar,
+  und der bleibt bei einer teil-freigegebenen Charge bewusst «Im Prozess» – die Kante zeigte
+  grün, ihre Hover-Karte gelb.
+  (3) **Parallel ist nur, was gleichzeitig läuft – auch beim Abbruch** (#575): ein
+  **abgebrochener** Auftrag trägt kein `completed_at` (er ist nie fertig geworden), ist aber
+  sehr wohl zu Ende. `_waves` schaute nur auf `completed_at`, hielt ihn darum für laufend und
+  zeichnete einen später entstandenen Abzweig **neben** ihn – obwohl der ihn abgelöst hatte.
+  Jetzt endet ein Abzweig «abgeschlossen ODER abgebrochen».
+  (4) **Ein abgebrochener Auftrag gibt nichts zurück** (#578): was er hielt, ist ausgesteuert
+  oder im Auftrag, der ihn fortführt. Die Kappungs-Kaskade selbst lief korrekt (gemessen) –
+  falsch war nur die Rückgabe-Linie, die einen Weg behauptete, den es nicht mehr gibt.
+  (5) **Der Bypass steht mittig zwischen den beiden waagrechten Linien** (#576): die
+  Abzweigung verlässt die Achse bei y = 0, die Einmündung trifft sie `BEND` über dem unteren
+  Rand – die Zeilenmitte lag also einen halben Bogen zu tief. Ein `BEND`-hoher Abschnitt
+  unter dem Material rückt es um genau diesen Betrag hoch (nur mit Einmündung: ohne sie gibt
+  es keine zweite Linie).
+  Wächter: `tests/rules/test_units.py: test_a_released_piece_belongs_to_nobody`,
+  `test_smoke.py: test_a_finished_branch_is_not_drawn_as_parallel_and_shows_no_return`
+  (gegengeprüft: ohne den `ended`-Fix landen beide Abzweige wieder in EINER Teilung). Gegen
+  echtes PostgreSQL 16 verifiziert (`note573.py` 9/9; alle 17 Harnesses und die Regel-Tabelle
+  (35) grün).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

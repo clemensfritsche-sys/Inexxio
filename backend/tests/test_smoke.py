@@ -4283,3 +4283,28 @@ def test_every_piece_is_numbered_at_exactly_one_place():
     main = (svc.parent / "main.py").read_text(encoding="utf-8")
     assert '("instances", "units", "JSONB")' in main, (
         "``instances`` wird von jedem Feed gelesen – fehlt die Spalte, ist das ERP dunkel.")
+
+
+def test_a_finished_branch_is_not_drawn_as_parallel_and_shows_no_return():
+    """**Zwei Aussagen über einen Abzweig, der vorbei ist** (Testnotizen #575/#578).
+
+    * **Parallel ist nur, was gleichzeitig läuft.** Ein **abgebrochener** Auftrag trägt kein
+      ``completed_at`` – er ist nie fertig geworden –, ist aber sehr wohl zu Ende. Nur darauf
+      zu schauen liess ihn als «läuft noch» gelten, und ein später entstandener Abzweig wurde
+      **neben** ihn gezeichnet, obwohl er ihn abgelöst hatte.
+    * **Ein abgebrochener Auftrag gibt nichts zurück.** Was er hielt, ist ausgesteuert oder
+      im Auftrag, der ihn fortführt. Eine Rückgabe-Linie behauptete einen Weg, den es nicht
+      mehr gibt – gemeldet dort, wo ein Abzweig alles verschrottet hatte und die Kette
+      korrekt gekappt worden war."""
+    import inspect as _inspect
+
+    from app.services import orders as osvc
+
+    waves = _inspect.getsource(osvc._waves)
+    assert "def ended(" in waves and 'o.status or ""' in waves, (
+        "Das Ende eines Abzweigs ist «abgeschlossen ODER abgebrochen» (#575).")
+    assert "ended(first)" in waves, "…und die Überschneidung liest genau das."
+
+    ret = _inspect.getsource(osvc._return_target)
+    assert 'if (order.status or "") == "inactive":' in ret, (
+        "Ein abgebrochener Auftrag zeigt keinen Rückweg (#578).")

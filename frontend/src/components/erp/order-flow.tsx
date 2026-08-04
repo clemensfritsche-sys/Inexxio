@@ -392,6 +392,15 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
           <Axis grow h={26} strong={n.reached} />
           <EdgeMaterial lots={bypass.lots} small past={!bypass.live}
             onCreate={bypass.live ? onCreateOrder : undefined} />
+          {/* **Mittig zwischen den beiden waagrechten Linien** (Testnotiz #576). Die
+              Abzweigung verlässt die Achse ganz oben (y = 0), die Einmündung trifft sie
+              ``BEND`` über dem unteren Rand – die Mitte der Zeile liegt also ``BEND``/2 zu
+              tief. Ein Abschnitt dieser Höhe UNTER dem Material verschiebt es um genau
+              diesen halben Bogen nach oben. Nur mit Einmündung: ohne sie gibt es keine
+              zweite Linie, zwischen der etwas mittig stehen könnte. */}
+          {branches.some((b) => b.returns_material) && (
+            <Axis h={BEND} strong={n.passed} />
+          )}
           <Axis grow h={26} strong={n.passed} />
         </Row>,
       );

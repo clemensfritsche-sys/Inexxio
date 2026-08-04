@@ -172,7 +172,9 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
             out.append(InstanceUnit(number=u.number, quantity=float(u.quantity),
                                     quality=q, disposition=u.state))
             continue
-        owner = u.holder if u.holder is not None else rest
+        # **Freigegeben heisst frei** (#573): ein Stück am Lager trägt keinen Halter mehr –
+        # sonst projiziert die Oberfläche «Reserviert» (gelb) auf etwas, das grün ist.
+        owner = None if u.released else (u.holder if u.holder is not None else rest)
         o = look.get(owner) if owner is not None else None
         # **Ein freigegebenes Stück sagt es auch dann, wenn seine Geschwister es noch nicht
         # sind** (Notiz #572): der Zustand gehört zur Menge, und eine Charge kann geteilter
@@ -193,8 +195,13 @@ def owned_by(inst: Instance, order_id: int) -> list[Unit]:
     Erzeugungsauftrag «nichts», sobald ein Abzweig seine Ansprüche zurückgegeben hat."""
     from .inventory import rest_owner
     rest = rest_owner(inst)
+    # **Ein freigegebenes Stück gehört niemandem mehr** (Testnotizen #573/#577). Es hat sein
+    # Ziel erreicht und liegt am Lager – der «unbeanspruchte Rest gehört dem Erzeuger» gilt
+    # nur für das, was noch im Prozess ist. Ohne diese Zeile zog ein Erzeugungsauftrag
+    # längst fertige Stücke wieder an sich: sie tauchten auf seinen Kanten erneut auf
+    # («…-1 war schon lange freigegeben») und verdrängten dort die, die er wirklich hält.
     return [u for u in of(inst)
-            if (u.holder if u.holder is not None else rest) == order_id]
+            if not u.released and (u.holder if u.holder is not None else rest) == order_id]
 
 
 def mark_released(inst: Instance, indices) -> Decimal:
@@ -277,10 +284,19 @@ def rows_for(inst: Instance, indices, *, limit: int | None = None) -> list:
     out = []
     for i in sorted(int(n) for n in indices):
         u = known.get(i)
+        # **Der Hover sagt dasselbe wie die Pille** (Testnotiz #574): ein freigegebenes
+        # Stück ist freigegeben – auch hier. Vorher kam der Zustand aus dem Instanz-Skalar,
+        # und der bleibt bei einer teilweise freigegebenen Charge bewusst «Im Prozess»;
+        # die Kante zeigte also grün und ihre Hover-Karte gelb.
+        if u and u.gone:
+            pq, pd = q, u.state
+        elif u and u.released:
+            pq, pd = "passed", "in_stock"
+        else:
+            pq, pd = q, d
         out.append(InstanceUnit(number=label(inst, i),
                                 quantity=float(u.quantity if u else 1),
-                                quality=q,
-                                disposition=(u.state if u and u.gone else d)))
+                                quality=pq, disposition=pd))
         if limit is not None and len(out) >= limit:
             break
     return out

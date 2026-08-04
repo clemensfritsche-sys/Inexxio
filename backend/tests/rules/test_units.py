@@ -499,3 +499,44 @@ def _run_inspection(db, order, inst, user, n):
         step_id=step.id), user)
     db.commit()
     db.refresh(order)
+
+
+def test_a_released_piece_belongs_to_nobody(db, kinds, world):
+    """**Testnotizen #573/#577** – freigegeben heisst frei.
+
+    Der «unbeanspruchte Rest gehört dem Erzeuger» (``inventory.rest_owner``) gilt für das,
+    was noch im Prozess ist. Als die Freigabe je Stück kam, fielen fertige Stücke ohne
+    Halter unter dieselbe Regel und wurden dem Erzeuger erneut zugeschlagen – mit zwei
+    sichtbaren Folgen: das Instanz-Detail zeigte sie als «Reserviert» (gelb) statt
+    «Freigegeben» (grün), und auf den Kanten des Erzeugers tauchten längst fertige Nummern
+    wieder auf und verdrängten die, die er wirklich hält.
+
+    Und der **Hover** muss dasselbe sagen wie die Pille: er las den Instanz-Skalar, und der
+    bleibt bei einer teilweise freigegebenen Charge bewusst «Im Prozess» (#574)."""
+    from app.services import units
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    cut = _make_deviation(db, main, inst, user, 1, cut=True)
+    _run_inspection(db, cut, inst, user, 1)
+    db.refresh(inst)
+
+    free = [u for u in units.of(inst) if u.released]
+    assert len(free) == 1, f"Genau ein Stück ist durch: {[u.number for u in free]}"
+
+    # (a) Es gehört niemandem mehr – sonst «Reserviert» statt «Freigegeben» (#573).
+    row = next(r for r in units.rows(inst) if r.number == free[0].number)
+    assert row.order_object_id is None, (
+        f"Ein freigegebenes Stück trägt keinen Halter (ist {row.order_object_id}).")
+    assert (row.quality, row.disposition) == ("passed", "in_stock"), (row.quality, row.disposition)
+
+    # (b) Der Erzeuger zieht es nicht wieder an sich (#577).
+    mine = [u.number for u in units.owned_by(inst, main.id)]
+    assert free[0].number not in mine, (
+        f"Der Erzeuger hält fertige Stücke nicht erneut: {mine}")
+    assert len(mine) == 3, f"Er hält genau die drei, die noch laufen: {mine}"
+
+    # (c) Der Hover nennt denselben Zustand wie die Pille (#574).
+    hover = units.rows_for(inst, [free[0].index])
+    assert (hover[0].quality, hover[0].disposition) == ("passed", "in_stock"), (
+        f"Hover und Pille müssen dasselbe sagen (ist {hover[0].quality}/{hover[0].disposition}).")
