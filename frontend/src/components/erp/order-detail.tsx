@@ -22,6 +22,7 @@ import { DraftFlowFrame, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
 import { MoveJournal } from '@/components/erp/move-journal';
+import { OrderDiagnosticsPanel } from '@/components/erp/order-diagnostics';
 import { orderName } from '@/lib/record-name';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
@@ -1470,13 +1471,23 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 JETZT (aktiver Schritt + Material) und ALS NÄCHSTES (der Plan); hier stehen
                 die Buchungen, chronologisch und unveränderlich. Der Chip nennt die Instanz
                 – dieselben Zeilen zeigt sie aus ihrer Richtung. */}
-            {isStaff && (record.history ?? []).length > 0 && (
+            {isStaff && record.object_id != null && (
               <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%', marginTop: 20 }}>
-                <SectionTitle icon={History}
-                  info="Das Material-Journal: jede Buchung, chronologisch – was passiert ist, ändert sich nie.">
-                  Verlauf
-                </SectionTitle>
-                <MoveJournal rows={record.history ?? []} chip="instance" />
+                {(record.history ?? []).length > 0 && (
+                  <>
+                    <SectionTitle icon={History}
+                      info="Das Material-Journal: jede Buchung, chronologisch – was passiert ist, ändert sich nie.">
+                      Verlauf
+                    </SectionTitle>
+                    <MoveJournal rows={record.history ?? []} chip="instance" />
+                  </>
+                )}
+                {/* **Eine Ebene tiefer: das Systemprotokoll** – Audit, Ereignisse und
+                    Journal nebeneinander plus der abgeleitete Zustand. Der Verlauf sagt,
+                    WAS mit dem Material passiert ist; hier steht, welcher Mechanismus es
+                    getan hat und ob die abgeleiteten Grössen zueinander passen. Zu ist es
+                    unsichtbar, geladen wird erst auf Klick. */}
+                <OrderDiagnosticsPanel objectId={record.object_id} />
               </div>
             )}
           </>

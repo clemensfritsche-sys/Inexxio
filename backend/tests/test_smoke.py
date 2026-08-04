@@ -3995,14 +3995,28 @@ def test_a_deviation_borrows_and_gives_back():
 
     Was den Bestand verlassen hat (verschrottet/verkauft/verbaut), kehrt NICHT zurück – dort
     ist die Fehlmenge ehrlich. Dieselbe Rückgabe vollzieht das Verwerfen
-    (``deviation.detach_sub_order``) – zwei Türen, eine Regel."""
+    (``deviation.detach_sub_order``) – zwei Türen, eine Regel.
+
+    **Und die Rückgabe sind ZWEI Fragen, nicht eine** (Testnotiz #505): die **Buchung**
+    («wo ist das Material?») gilt immer – auch an einen Erzeuger; die **Reservierung**
+    («wer beansprucht es?») nur, soweit der Verleiher noch etwas braucht. Solange beides in
+    EINER Bedingung steckte (``inst.order_id == parent.id`` → gar nichts tun), unterblieb
+    mit der planerischen Antwort auch die Buchung: das Journal liess die Menge für immer in
+    der Obhut des Unter-Auftrags, und die Achse des Eltern zeigte sie unterhalb der Teilung
+    nicht mehr."""
     import inspect as _inspect
     from app.services import deviation, process, subject
 
+    give = _inspect.getsource(subject.give_back)
+    assert "TERMINAL_DISPOSITIONS" in give, "Verschrottetes kehrt nicht zurück."
+    assert 'kind="returned", holder=parent.id' in give, (
+        "Die BUCHUNG gilt immer – sonst hängt die Menge für immer im Unter-Auftrag (#505).")
+    assert give.index("release_reservation(inst, sub.id)") < give.index("ledger.post"), (
+        "Die Bindung des Unter-Auftrags endet an EINER Stelle, vor der Rückgabe-Buchung.")
+    assert "if inst.order_id != parent.id:" in give and "reserve(inst, parent.id, take)" in give, (
+        "Reserviert wird nur, wer beansprucht – ein Erzeuger hält über `Instance.order_id`.")
     ret = _inspect.getsource(subject.return_borrowed)
-    assert "TERMINAL_DISPOSITIONS" in ret, "Verschrottetes kehrt nicht zurück."
-    assert "inst.order_id == parent.id" in ret, (
-        "Ein Erzeuger als Verleiher hält ohne Reservierung – er braucht nichts zurück.")
+    assert "give_back(db, sub, parent, inst, need)" in ret, "EINE Regel, zwei Türen."
     assert "lender_of(db, sub)" in ret, (
         "Zurück an den nächsten LAUFENDEN Verleiher der Kette (#404).")
     assert "subject_shortfalls(db, parent)" in ret, (
@@ -4010,8 +4024,8 @@ def test_a_deviation_borrows_and_gives_back():
     done = _inspect.getsource(process.recompute_completion)
     assert done.index("return_borrowed(db, order)") < done.index("release(inst, order.id)"), (
         "Zurückgeben, BEVOR die eigene Reservierung gelöst wird – sonst wird es frei.")
-    # Die zweite Tür (verwerfen) gibt seit jeher zurück.
-    assert "reserve(inst, parent.id, freed)" in _inspect.getsource(deviation.detach_sub_order)
+    # Die zweite Tür (verwerfen) geht durch DIESELBE Stelle.
+    assert "give_back(db, sub, parent, inst)" in _inspect.getsource(deviation.detach_sub_order)
 
 
 def test_a_quantity_belongs_to_an_order_not_to_an_instance():

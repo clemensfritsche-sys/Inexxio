@@ -503,16 +503,21 @@ export function PaletteButton({ icon: Icon, label, hint, tone, bg, border, size 
   disabled?: boolean;
   onClick: () => void;
 }) {
+  // **Der Knopf hat eine feste Grösse; die Pille wächst aus ihm HERAUS** (Notizen
+  // #502/#503). Wuchs der Knopf selbst, brach die Zeile beim Hovern um – und weil er
+  // dabei unter dem Cursor wegwanderte, geriet das Aufklappen ins Flackern.
   return (
     <button type="button" onClick={onClick} disabled={disabled} data-tip={hint}
       aria-label={label} className="erp-palette"
-      style={{
-        background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
-        color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
-        cursor: disabled ? 'default' : 'pointer',
-      }}>
-      <Icon size={size} />
-      <span className="erp-palette-label">{label}</span>
+      style={{ opacity: disabled ? .5 : 1, cursor: disabled ? 'default' : 'pointer' }}>
+      <span className="erp-palette-body"
+        style={{
+          background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
+          color: tone ?? 'var(--fg-2)',
+        }}>
+        <Icon size={size} style={{ flexShrink: 0 }} />
+        <span className="erp-palette-label">{label}</span>
+      </span>
     </button>
   );
 }

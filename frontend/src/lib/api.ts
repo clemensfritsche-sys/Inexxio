@@ -1,7 +1,7 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput, ArticleNameSuggestion,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
-  Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
+  Order, OrderDiagnostics, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ShipmentUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   PendingDocument, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
@@ -517,6 +517,12 @@ class ApiClient {
 
   getOrder(objectId: number): Promise<Order> {
     return this.get(`/api/v1/erp/orders/${objectId}`);
+  }
+
+  /** **Systemprotokoll** eines Auftrags (Befund + Chronologie) – nur auf Anfrage geladen:
+   *  eine Diagnose ist um Grössenordnungen umfangreicher als der Auftrag selbst. */
+  getOrderDiagnostics(objectId: number): Promise<OrderDiagnostics> {
+    return this.get(`/api/v1/erp/orders/${objectId}/diagnostics`);
   }
 
   createOrder(data: OrderInput): Promise<Order> {

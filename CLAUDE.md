@@ -4270,6 +4270,84 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Stichtag ausgerechnet die Abschluss-Freigabe zurück, und der Bypass einer VERGANGENEN
   Teilung war leer, weil die Custody-Sicht nach Abschluss nichts mehr hält.
 
+- **Testnotizen-Runde 30 (die Ausleihe kommt zurück, das Layout steht still, Notizen
+  #502–#505)**: Ein echter Datenfehler und drei Ursachen von Unruhe.
+  (1) **Die Rückgabe sind ZWEI Fragen, nicht eine** (#505, `subject.give_back`). Gemeldet:
+  «der Abweichungsauftrag wurde abgeschlossen, die Instanz sollte zum Hauptauftrag
+  zurückkehren – wird aber nicht angezeigt, es scheint, als hänge sie noch im Abzweig».
+  Genau so war es: `return_borrowed` übersprang eine Instanz, deren Verleiher ihr
+  **Erzeuger** ist (`inst.order_id == parent.id`) – richtig gedacht für die
+  **Reservierung** (ein Erzeuger hält über `Instance.order_id` und braucht keine), aber in
+  derselben Bedingung hing auch die **Buchung**. Das Journal kennt nur Buchungen: ohne
+  Rückgabe blieb die Menge für immer in der Obhut des Unter-Auftrags, und die Achse des
+  Eltern zeigte sie unterhalb der Teilung nicht mehr (gegen echtes PostgreSQL
+  reproduziert: `created → taken(main→dev) → released(dev→frei)`, **keine** Rückgabe).
+  Jetzt trennt EINE Stelle die beiden Fragen – *wo ist das Material?* (immer zurück an den
+  Verleiher) und *wer beansprucht es?* (nur, soweit er noch etwas braucht) –, und **beide
+  Türen** (Abschluss und Verwerfen) gehen hindurch.
+  (2) **Vor UND nach jedem Modul steht, was fliesst** (#505): das Material eines Auftrags
+  ist eine Tatsache und liegt auf seiner **ganzen** Achse. Die frühere Regel «erst ab
+  `reached`» liess ausgerechnet unterhalb des aktiven Moduls eine Lücke, die sich las wie
+  «hier ist nichts mehr». Das revidiert #421 ausdrücklich – dessen Sorge (eine Behauptung
+  über die Zukunft) ist mit der Server-Sicht erledigt: gerechnet wird aus dem Journal von
+  oben nach unten, nicht aus dem heutigen Bestand hochgerechnet. Wie weit der Prozess ist,
+  sagt allein die **Linienstärke**. Dazu präzisiert: **neben** einer Teilung liegt nur, was
+  NICHT abgezweigt ist – auch nachdem der Ast zurückgegeben hat (es lief durch ihn hindurch,
+  nicht an ihm vorbei, `_returned_from`).
+  (3) **Die Palette klappt auf, ohne etwas zu bewegen** (#502/#503). Der Knopf wuchs beim
+  Hovern selbst; in einer umbrechenden Zeile schob das den nächsten Eintrag eine Reihe
+  tiefer – und weil er dabei **unter dem Cursor wegwanderte**, endete der Hover, er
+  schrumpfte, der Hover begann erneut: die Rückkopplung war das gemeldete «Springen und
+  Hüpfen». Jetzt hat der Knopf eine feste Grösse (44 px) und die Pille wächst als absolut
+  positionierte Fläche aus ihm heraus – dieselbe Bewegung, aber das Layout steht still.
+  (4) **Eine Hover-Erklärung blasst nie aus** (#504): sie steckte in gedämpften Behältern
+  (vergangene Kante, zurückgetretene Nachbar-Spur) und erbte deren Deckkraft – gegen eine
+  geerbte `opacity` kann ein Kind sich nicht wehren. Sie hängt jetzt im **Portal am `body`**
+  (ausserhalb jeder Dämpfung, jeder Überlauf-Kante, jeder Stapel-Ordnung); gedämpft bleibt
+  allein die Pille.
+  (5) **Prozesslinien, codetechnisch nachgezogen** (Rückmeldung «gefühlter optischer Versatz
+  beim Radius»): die vier handgeschriebenen Ecken-Pfade (je eigene Bogen-Mathematik und
+  Sweep-Flags – vier Stellen, an denen ein Radius auseinanderlaufen konnte) sind zu **einem
+  Polygonzug je Ecke** geworden; wie eine Ecke aussieht, entscheidet die eine Funktion
+  `roundedPath` (Drehrichtung aus dem Kreuzprodukt, nicht von Hand). Der sichtbare Versatz
+  hatte zwei Ursachen, beide behoben: an einer Ecke trafen **zwei verschiedene Bits**
+  aufeinander (3 px Achse ↔ 2 px Ecke – jetzt liest die Ecke dasselbe Bit wie ihr
+  Achsenstück, `reached` oben, `passed` unten), und zwei getrennt gezeichnete Elemente
+  treffen sich nie pixelgenau (jetzt **überlappen** sie um 1 px, `OVERLAP` – so kann an
+  keiner Naht ein Spalt entstehen).
+  Wächter: `test_a_deviation_borrows_and_gives_back` (erweitert),
+  `test_the_material_is_on_the_whole_axis_and_only_predictions_are_left_out`,
+  `test_the_palette_unfolds_without_moving_anything`,
+  `test_a_hover_explanation_is_never_dimmed`; PG16-Harness `note505.py` (11 Prüfungen:
+  die gemeldete Abfolge Schritt für Schritt).
+
+- **Systemprotokoll am Auftrag – ein Audit-Log für die Fehlersuche** (August 2026,
+  `services/diagnostics.py`, `GET /api/v1/erp/orders/{id}/diagnostics`): Auf Wunsch
+  «damit ich verstehe, was das System macht und warum es scheitert – und darüber
+  rapportieren kann». Der Abschnitt «Verlauf» beantwortet die **fachliche** Frage (was ist
+  mit dem Material passiert); eine Ebene tiefer zählt, **welcher Mechanismus** eine Zahl
+  erzeugt hat und ob die abgeleiteten Grössen noch zueinander passen.
+  **Keine vierte Wahrheit:** das Protokoll stellt die drei Ströme nebeneinander, die es
+  ohnehin gibt – `audit_log` (**Absicht**: wer hat welches Feld geändert) · `events`
+  (**Wirkung**: welches fachliche Ereignis lief los) · `material_moves` (**Bestand**, ADR
+  007) – und daneben den **Befund**: den abgeleiteten Zustand zum Abfragezeitpunkt
+  (Schritte samt `state`, Fehlmenge, Unter-Aufträge, je Instanz Projektion **und**
+  Journal-Kontostand, Anteils-Aufteilung) inklusive **Drift-Prüfung**
+  (`ledger.verify_instance`). Ein Bug ist fast immer ein Widerspruch zwischen zwei dieser
+  Angaben – nebeneinander gestellt sieht man ihn sofort statt nach einer Stunde
+  Rekonstruktion. Der **Umfang ist die Nachbarschaft** des Auftrags (seine Unter-Aufträge
+  und alle beteiligten Instanzen), denn dort passieren die Fehler, die man am Auftrag
+  bemerkt.
+  **Kein Datensatz, sondern eine Sicht:** keine Objektnummer, kein Feed, rein lesend,
+  Personal-only, **auf Klick** geladen (sie ist um Grössenordnungen umfangreicher als der
+  Auftrag). «Als Markdown kopieren» erzeugt den vollständigen Bericht (Befund + Anteile +
+  Chronologie + Build-Commit) zum Einfügen in eine Entwicklungs-Sitzung – dieselbe Brücke
+  wie bei den Testnotizen, nur für den Maschinenzustand statt für das Pixel. Ein Deckel je
+  Strom verhindert Riesen-Antworten und sagt es (`truncated`) – ein stiller Deckel läse sich
+  wie Vollständigkeit. Wächter `test_the_order_carries_a_system_log_for_bug_reports`; gegen
+  echtes PostgreSQL über den Router-Pfad verifiziert (JSON-fähig inkl. `Decimal`, alle drei
+  Quellen, 404 bei unbekanntem Auftrag).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

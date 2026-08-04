@@ -1011,6 +1011,31 @@ export interface paths {
         patch: operations["update_order_api_v1_erp_orders__object_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Order Diagnostics
+         * @description **Systemprotokoll eines Auftrags** – Befund + Chronologie für die Fehlersuche.
+         *
+         *     Personal-only und **on demand**: eine Diagnose gehört nicht in jede Auftrags-Antwort
+         *     (sie ist um Grössenordnungen umfangreicher und interessiert nur, wenn etwas nicht
+         *     stimmt). Sie erfindet keine Wahrheit, sondern stellt die drei bestehenden Ströme
+         *     (Audit · Ereignisse · Material-Journal) neben den abgeleiteten Zustand.
+         */
+        get: operations["get_order_diagnostics_api_v1_erp_orders__object_id__diagnostics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/replace": {
         parameters: {
             query?: never;
@@ -3292,6 +3317,32 @@ export interface components {
             stock: number;
         };
         /**
+         * DiagnosticEntry
+         * @description **Eine Zeile des Systemprotokolls** – aus einem der drei bestehenden Ströme.
+         *
+         *     ``source`` sagt, WELCHER Mechanismus gesprochen hat, und das ist bei der Fehlersuche
+         *     die halbe Antwort: ``audit`` = jemand hat ein Feld geändert (Absicht) · ``event`` = ein
+         *     fachliches Ereignis wurde ausgelöst (Wirkung) · ``journal`` = Material hat den Topf
+         *     gewechselt (Bestand). ``detail`` trägt die Rohwerte, damit ein Bericht nichts
+         *     nachschlagen muss.
+         */
+        DiagnosticEntry: {
+            /** At */
+            at?: string | null;
+            /** Source */
+            source: string;
+            /** Kind */
+            kind: string;
+            /** Summary */
+            summary: string;
+            /** Actor */
+            actor?: string | null;
+            /** Object Id */
+            object_id?: number | null;
+            /** Detail */
+            detail?: Record<string, never> | null;
+        };
+        /**
          * DisposalEmbed
          * @description Eingebetteter Stand der Verschrottung (im Auftrag).
          *
@@ -4580,6 +4631,46 @@ export interface components {
             returns_material: boolean;
             /** Name */
             name?: string | null;
+        };
+        /**
+         * OrderDiagnostics
+         * @description **Befund + Protokoll** eines Auftrags – die Grundlage eines Fehlerberichts.
+         *
+         *     ``snapshot`` ist der abgeleitete Zustand zum Abfragezeitpunkt (Schritte, Fehlmenge,
+         *     Unter-Aufträge, Instanzen samt Kontostand und **Drift-Prüfung**), ``entries`` die
+         *     Chronologie. Ein Bug zeigt sich fast immer als Widerspruch zwischen beidem.
+         *
+         *     Bewusst frei typisiert (`dict`): eine Diagnose ist eine **Sicht** für Menschen und
+         *     ändert sich mit den Fragen, die man gerade stellt – ein starrer Vertrag würde hier
+         *     Aussagekraft gegen Formtreue tauschen.
+         */
+        OrderDiagnostics: {
+            /** Order Object Id */
+            order_object_id: number;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Snapshot */
+            snapshot: Record<string, never>;
+            /**
+             * Share Map
+             * @default {}
+             */
+            share_map: {
+                [key: string]: Record<string, never>[];
+            };
+            /**
+             * Entries
+             * @default []
+             */
+            entries: components["schemas"]["DiagnosticEntry"][];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
         };
         /**
          * OrderLineCreate
@@ -8254,6 +8345,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_order_diagnostics_api_v1_erp_orders__object_id__diagnostics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDiagnostics"];
                 };
             };
             /** @description Validation Error */

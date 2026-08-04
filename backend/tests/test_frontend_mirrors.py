@@ -24,6 +24,7 @@ import re
 import pytest
 
 FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "src"
+BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
 
 def _ts_union(path: pathlib.Path, type_name: str) -> set[str]:
@@ -498,8 +499,19 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # **Und die Abzweigung ist eine Gabelung, kein T** (Notiz #456): die Linie biegt oben mit
     # demselben Radius aus der Achse ab, mit dem sie unten wieder einmündet.
     assert "top: -BEND" in line, "Der Fork beginnt über der Zelle, mitten auf der Achse."
-    assert "<path d={d}" in line and "strokeWidth={lineW" in line, (
+    assert "<path d={roundedPath(overlapped(pts), BEND)}" in line and "strokeWidth={lineW" in line, (
         "Ein Strich, eine Strichstärke – ein echter Viertelkreis (#423/#430/#431).")
+    # **Die Bogen-Mathematik steht EINMAL da.** Vier handgeschriebene Pfade mit je eigenen
+    # Sweep-Flags waren vier Stellen, an denen ein Radius auseinanderlaufen konnte; jetzt
+    # beschreibt jede Ecke nur noch ihren Polygonzug, und wie eine Ecke aussieht (Radius,
+    # Drehrichtung), entscheidet genau eine Funktion.
+    assert "function roundedPath(points: Pt[], r: number)" in line, (
+        "Die Rundung einer Ecke gibt es einmal.")
+    assert "cross > 0 ? 1 : 0" in line, (
+        "Die Drehrichtung folgt aus der Geometrie – kein Sweep-Flag von Hand.")
+    assert "const OVERLAP = 1;" in line and "function overlapped" in line, (
+        "Ecken greifen in die Achse: zwei getrennt gezeichnete Elemente treffen sich nie "
+        "pixelgenau – ein Überlappen macht die Naht gegenstandslos.")
     assert "const RUN = MAIN / 2 + GAP + SIDE / 2" in line, (
         "Feste Spurbreiten machen die Länge einer Abzweigung berechenbar.")
     assert "onOpen?.(info.object_id)" in flow, "Der Abzweig öffnet den Datensatz."
@@ -547,7 +559,7 @@ def test_what_has_been_walked_is_a_strong_solid_line():
     import inspect as _inspect
     from app.services import orders as _osvc
     fill = _inspect.getsource(_osvc._fill_flow_view)
-    assert "reached = i <= walked" in fill, (
+    assert "reached=i <= walked" in fill, (
         "Kante i liegt über Knoten i – sie ist gegangen, wenn alles darüber erledigt ist.")
     assert "<Axis strong={edge.reached} />" in flow, (
         "Die Achse liest den Fortschritt vom Server – sie rechnet ihn nicht selbst.")
@@ -562,10 +574,16 @@ def test_what_has_been_walked_is_a_strong_solid_line():
     # eine Reihenfolge voraus – und zwischen gleichzeitig laufenden Ästen gibt es keine. Zu
     # jedem gestarteten Ast ist ein Weg gegangen worden, also hängt die Stärke dort an SEINEM
     # Zustand; sonst bekam der zweite, ebenfalls laufende Unter-Auftrag nur eine Haarlinie.
-    assert '<Elbow dir="fork-right" strong={branches.some(branchStarted)}' in flow, (
-        "Der Weg in eine Teilung ist gegangen, sobald irgendein Ast gestartet ist.")
-    assert '<Elbow dir="merge-right" strong={branches.every((b) => !isOpen(b))}' in flow, (
-        "Der Rückweg wird stark, wenn die GANZE Teilung durch ist.")
+    # **Eine Ecke trägt die Strichstärke IHRER Achse.** Trafen dort zwei verschiedene Bits
+    # aufeinander (3 px Achse ↔ 2 px Ecke), stand an der Ecke ein sichtbarer Versatz – ein
+    # halbes Pixel auf jeder Seite. Beide lesen jetzt DASSELBE Bit der Server-Sicht:
+    # oben `reached` (der Weg in die Teilung), unten `passed` (der Rückweg auf die Achse).
+    assert '<Elbow dir="fork-right" strong={reached} />' in flow, (
+        "Fork und das Achsenstück darüber lesen dasselbe Bit.")
+    assert '<Elbow dir="merge-right" strong={passed} />' in flow, (
+        "Merge und das Achsenstück darunter ebenso – erst wenn die Teilung durch ist.")
+    assert "reached={n.reached} passed={n.passed}" in flow, (
+        "Beide Bits kommen aus der Server-Sicht, nicht aus einer zweiten FE-Regel.")
 
 
 def test_the_flow_shows_what_material_moves():
@@ -729,11 +747,15 @@ def test_a_split_has_three_places_not_two():
     import inspect as _i2
     from app.services import orders as _o2
     fill = _i2.getsource(_o2._fill_flow_view)
-    assert "lots = _view_lots(db, view.held + view.terminal)" in fill, (
-        "Der Bypass kommt aus dem Journal – nichts muss subtrahiert werden.")
+    # **Neben der Teilung liegt, was NICHT abgezweigt ist** – auch dann noch, wenn der Ast
+    # längst zurückgegeben hat: was DURCH den Abzweig lief, kam hier nicht vorbei. Gelesen
+    # wird darum die Achse unterhalb der Teilung (dort ist das Abgezweigte herausgefiltert)
+    # minus dem, was aus genau diesen Ästen zurückkam.
+    assert "back = _returned_from(db, order, [b.object_id for b in n[\"branches\"]])" in fill, (
+        "Zurückgekehrtes lief durch den Ast, nicht daran vorbei (#505).")
     assert 'lots = _minus(base, [l for b in n["branches"] for l in (b.flow_in or [])])' in fill, (
         "Nur der Alt-Auftrag ohne Journal zieht das Hineingegangene ab (tolerant lesen).")
-    assert "node.bypass = FlowEdge(lots=lots, reached=True, live=live_b)" in fill, (
+    assert "node.bypass = FlowEdge(lots=lots, reached=i <= walked, live=live_b)" in fill, (
         "Der Bypass ist eine eigene Kante – nicht die von unterhalb der Zusammenführung.")
     assert "<EdgeMaterial lots={bypass.lots} small" in flow, (
         "Das Frontend zeichnet die Server-Kante – es rechnet keine eigene.")
@@ -794,37 +816,43 @@ def test_parallel_sub_orders_are_one_split_in_several_directions():
         "Was kein Schritt für sich beansprucht, gehört dem Auftrag – EINE Teilung vor dem Prozess.")
     assert "const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';" in flow, (
         "Ob zu einem Ast ein Weg gegangen wurde, sagt SEIN Zustand.")
-    assert "strong={branches.some(branchStarted)}" in flow, (
-        "Der Fork ist stark, sobald irgendein Ast gestartet ist.")
     assert "{i > 0 && <Axis h={20} strong={branchStarted(b)} />}" in flow, (
-        "Auch der zweite, gleichzeitig laufende Ast bekommt eine volle Linie.")
-    assert "strong={branches.every((b) => !isOpen(b))}" in flow, (
-        "Zurück auf die Achse geht es erst, wenn die GANZE Teilung durch ist.")
+        "Auch der zweite, gleichzeitig laufende Ast bekommt eine volle Linie – das Stück "
+        "ZWISCHEN zwei Ästen ist keine Ecke an der Achse, es hängt an seinem Ast.")
+    assert '<Elbow dir="merge-right" strong={passed} />' in flow, (
+        "Zurück auf die Achse geht es erst, wenn die GANZE Teilung durch ist – dasselbe "
+        "Bit, das auch das Achsenstück darunter trägt.")
     assert "function BranchCell" not in flow, (
         "Fork und Merge gehören der Teilung, nicht dem einzelnen Ast.")
 
 
-def test_no_edge_shows_material_it_has_not_carried_yet():
-    """**Was später einmal hier sein wird, ist nicht vorhersehbar** (Testnotiz #421).
+def test_the_material_is_on_the_whole_axis_and_only_predictions_are_left_out():
+    """**Vor UND nach jedem Modul steht, was fliesst** (Testnotiz #505) – und trotzdem
+    behauptet keine Kante etwas über die Zukunft (#421).
 
-    Die Kanten wurden von unten nach oben aus dem heutigen Bestand gerechnet – und damit
-    stand auch an Modulen, die noch gar nicht dran sind, schon eine Menge. Das ist eine
-    Behauptung über die Zukunft: welche Instanz ein Verkauf am Ende führt, entscheidet sich
-    erst, wenn er dran ist.
+    Beides gehört zusammen, denn es sind zwei verschiedene Dinge:
 
-    Material trägt darum nur, was der Fluss schon erreicht hat."""
+    * Das **Material eines Auftrags** ist eine Tatsache. Es liegt auf seiner ganzen Achse,
+      auch unterhalb des aktiven Moduls. Die frühere Regel «erst ab ``reached``» liess dort
+      eine Lücke, die sich las wie «hier ist nichts mehr» – genau der gemeldete Eindruck,
+      die Instanz hänge noch im Abzweig. Wie weit der Prozess ist, sagt die **Linienstärke**;
+      dafür braucht es kein zweites Signal.
+    * Eine **Vorhersage** wäre dagegen, was ein Abzweig einmal zurückgeben WIRD
+      (``flow_back`` bleibt leer, solange er läuft) – oder eine Menge, die von unten nach
+      oben aus dem heutigen Bestand hochgerechnet ist. Genau das war die Sorge von #421, und
+      sie ist mit der Server-Sicht erledigt: gerechnet wird aus dem Journal, von oben nach
+      unten."""
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
-    # Ob eine Kante schon Material trägt, entscheidet der SERVER: unterhalb des Fortschritts
-    # ist `reached=False` und die Zeile leer – das Frontend blendet sie nur aus.
     import inspect as _i4
     from app.services import orders as _o4
     fill = _i4.getsource(_o4._fill_flow_view)
-    assert "if not reached:\n            lots: list[FlowLot] = []" in fill, (
-        "Unterhalb des Fortschritts trägt keine Kante eine Menge (#421).")
-    assert "{edge.reached && <EdgeMaterial lots={edge.lots}" in flow, (
-        "Die Kante zeigt nur, was der Server ihr gibt.")
-    assert "{lastEdge.reached && <EdgeMaterial lots={lastEdge.lots}" in flow, (
-        "Auch die letzte Kante erst, wenn der Auftrag durch ist.")
+    assert "current = i >= current_from" in fill, (
+        "Der Stichtag gilt oberhalb des Prozess-Punktes; darunter gilt der aktuelle Stand.")
+    assert "return FlowEdge(lots=lots, reached=i <= walked," in fill, (
+        "Jede Kante trägt Material – `reached` steuert nur noch die Linienstärke (#505).")
+    assert "<EdgeMaterial lots={edge.lots}" in flow and "{edge.reached &&" not in flow, (
+        "Auch das Frontend blendet unterhalb des Fortschritts nichts mehr aus.")
+    assert "<EdgeMaterial lots={lastEdge.lots}" in flow
     assert "<FlowLots lots={backLots} small />" in flow and "info.flow_back" in flow, (
         "Unter dem Abzweig steht, was tatsächlich zurück IST – nicht eine Vorhersage aus "
         "dem, was hineinging (#481/#488/#496).")
@@ -1068,6 +1096,93 @@ def test_a_future_step_shows_what_is_planned():
             f"{name}: ein geplanter Schritt führt nichts aus.")
 
 
+def test_the_palette_unfolds_without_moving_anything():
+    """**Der Name klappt auf – das Layout bewegt sich nicht** (Testnotizen #502/#503).
+
+    Vorher wuchs der Knopf selbst. In einer umbrechenden Zeile schob das den nächsten
+    Eintrag in die nächste Reihe («das Dokumenten-Modul springt eine Ebene tiefer»), und
+    schlimmer: der Knopf wanderte unter dem Cursor weg → der Hover endete → er schrumpfte →
+    der Hover begann erneut. Diese Rückkopplung war das gemeldete «Springen und Hüpfen».
+
+    Jetzt hat der Knopf eine **feste Grösse**, und die Pille wächst als absolut
+    positionierte Fläche aus ihm heraus: optisch dasselbe Aufklappen, aber der Cursor
+    verliert seinen Knopf nie."""
+    css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
+    block = css.split(".erp-palette {")[1].split("@media")[0]
+    assert "width: 44px; height: 44px" in block, (
+        "Der Knopf hat eine feste Grösse – daran darf ein Hover nichts ändern.")
+    assert "position: absolute" in block and "max-width: 44px" in block, (
+        "Die Pille wächst ausserhalb des Flusses, nicht im Layout.")
+    for gone in ("gap: 9px; padding-right: 16px", "max-width: 180px"):
+        assert gone not in css, f"{gone}: der Knopf selbst wächst nicht mehr (#503)."
+    fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
+    assert '<span className="erp-palette-body"' in fields, (
+        "Die farbige Fläche ist ein Kind – der Knopf bleibt das feste Mass.")
+
+
+def test_a_hover_explanation_is_never_dimmed():
+    """**Hover-Informationen sind immer klar lesbar** (Testnotiz #504).
+
+    Die Erklärkarte einer Materialzeile steckte in gedämpften Behältern – einer vergangenen
+    Kante (``opacity: .55``) oder einer zurückgetretenen Nachbar-Spur. Gegen eine geerbte
+    ``opacity`` kann sich ein Kind nicht wehren: die Erklärung war genau dort blass, wo man
+    sie liest.
+
+    Sie hängt darum im **Portal am `body`** – ausserhalb jeder Dämpfung, jeder Überlauf-Kante
+    und jeder Stapel-Ordnung. Gedämpft bleibt allein die Pille selbst; das Zurücktreten
+    vergangener Kanten (#462) ist damit unberührt."""
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    assert "createPortal(" in flow and "document.body)}" in flow, (
+        "Die Hover-Karte hängt am body – sonst erbt sie die Dämpfung ihres Behälters.")
+    assert "position: 'fixed', zIndex: 2000" in flow, (
+        "Am body wird die Position gemessen, nicht vererbt.")
+    assert "opacity: past ? 0.55 : 1" in flow, (
+        "Die Pille selbst tritt weiterhin zurück – gedämpft wird die Angabe, nicht die "
+        "Erklärung dazu (#462/#504).")
+
+
+def test_the_order_carries_a_system_log_for_bug_reports():
+    """**Systemprotokoll: was hat das System getan, und warum?**
+
+    Der «Verlauf» beantwortet die fachliche Frage (Material-Buchungen). Für die Fehlersuche
+    zählt eine Ebene tiefer: **welcher Mechanismus** hat eine Zahl erzeugt, in welcher
+    Reihenfolge, und passen die abgeleiteten Grössen noch zueinander?
+
+    Darum stellt das Protokoll die **drei bestehenden Ströme** nebeneinander (Audit =
+    Absicht · Ereignis = Wirkung · Journal = Bestand) und daneben den **Befund**: den
+    abgeleiteten Zustand samt Drift-Prüfung (``ledger.verify_instance``). Es erfindet keine
+    vierte Wahrheit und legt keinen Datensatz an – eine Diagnose ist eine **Sicht**.
+
+    Geladen wird sie **auf Klick** (Personal): sie ist um Grössenordnungen umfangreicher als
+    der Auftrag und interessiert nur, wenn etwas nicht stimmt. «Als Markdown kopieren» macht
+    daraus in einem Klick einen vollständigen Bericht."""
+    import inspect as _inspect
+
+    from app.schemas.diagnostics import DiagnosticEntry, OrderDiagnostics
+    from app.services import diagnostics as diag
+
+    assert {"snapshot", "entries", "share_map", "truncated"} <= set(
+        OrderDiagnostics.model_fields)
+    assert {"at", "source", "kind", "summary", "actor", "object_id", "detail"} <= set(
+        DiagnosticEntry.model_fields)
+    src = _inspect.getsource(diag)
+    for stream in ("AuditLog", "Event", "MaterialMove"):
+        assert stream in src, f"{stream}: alle drei Ströme gehören nebeneinander."
+    assert "verify_instance" in src, (
+        "Die Drift-Prüfung ist der eigentliche Fund: Journal ≠ Projektion = der Bug.")
+    assert "shares.shares_for" in src, "Wem welche Menge gehört, ist die häufigste Frage."
+    assert "truncated" in src, "Ein stiller Deckel läse sich wie Vollständigkeit."
+    router = (BACKEND / "app" / "routers" / "orders.py").read_text(encoding="utf-8")
+    assert '@router.get("/{object_id}/diagnostics"' in router, "Eigener Endpunkt, on demand."
+    assert "Depends(require_employee)" in router.split("/diagnostics")[1][:400], (
+        "Ein Systemprotokoll ist Personal-Sache.")
+    panel = (FRONTEND / "components" / "erp" / "order-diagnostics.tsx").read_text(encoding="utf-8")
+    assert "api.getOrderDiagnostics" in panel and "asMarkdown" in panel, (
+        "Auf Klick geladen, in einem Klick berichtbar.")
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
+    assert "<OrderDiagnosticsPanel objectId={record.object_id} />" in detail
+
+
 def test_a_taken_share_is_not_told_twice():
     """**Wer als Abzweig im Bild steht, braucht daneben keine Zeile mehr** (Testnotiz #466).
 
@@ -1120,8 +1235,9 @@ def test_what_is_past_steps_back_on_the_edges_too():
     # ist Fachlogik und lebt darum im SERVER (`_as_of`), nicht mehr als React-Code.
     assert "def _as_of(lots: list[FlowLot], cutoff)" in _i6.getsource(_o6), (
         "Der Rückblick gibt es einmal – serverseitig.")
-    assert "material if live or final" in fill and "final = reached and i == len(nodes)" in fill, (
-        "Live am Prozess-Punkt, eingefroren überall darüber – und die letzte Kante zeigt "
+    assert "current_from = here[0] if here is not None else len(nodes)" in fill, (
+        "Eingefroren ist, was OBERHALB des Prozess-Punktes liegt; am Punkt und darunter "
+        "gilt der aktuelle Stand – und bei einem fertigen Auftrag zeigt die letzte Kante "
         "das Ergebnis, nicht den Stand vor der Abschluss-Freigabe.")
     assert 'last = n["step"].completed_at' in fill, (
         "Der Stichtag ist der Abschluss des Schritts darüber.")

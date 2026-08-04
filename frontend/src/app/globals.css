@@ -751,22 +751,38 @@
 /* ── Prozessschritt-Palette: Symbol, das beim Hover seinen Namen freigibt ──────
    Symbol statt Text (Design-Leitsatz), Modulfarbe statt Neutral – und der Name
    erscheint erst, wenn man hinzeigt. */
+/* ── Palette: der Name klappt auf, OHNE das Layout zu bewegen (Notizen #502/#503) ─────
+   Vorher wuchs der Knopf selbst – in einer umbrechenden Zeile schob das den nächsten
+   Eintrag in die nächste Reihe («das Dokumenten-Modul springt eine Ebene tiefer»), und
+   schlimmer: der Knopf wanderte unter dem Cursor weg, der Hover endete, er schrumpfte,
+   der Hover begann erneut … das sichtbare «Springen und Hüpfen».
+   Jetzt hat der Knopf eine FESTE Grösse, und die Pille wächst als absolut positionierte
+   Fläche aus ihm heraus. Optisch dasselbe Aufklappen, nur bewegt sich nichts mehr. */
 .erp-palette {
-  display: inline-flex; align-items: center; gap: 0; overflow: hidden;
-  height: 44px; padding: 0 12px; border: 1px solid; border-radius: var(--r-md);
-  cursor: pointer; transition: gap .18s ease, padding .18s ease, box-shadow .15s;
+  position: relative; display: inline-block; flex: none;
+  width: 44px; height: 44px; padding: 0; border: none; background: none;
+  cursor: pointer;
+}
+.erp-palette:hover, .erp-palette:focus-visible { z-index: 3; }
+.erp-palette .erp-palette-body {
+  position: absolute; inset: 0 auto 0 0; width: max-content; max-width: 44px;
+  display: flex; align-items: center; gap: 9px; overflow: hidden;
+  padding: 0 12px; border: 1px solid; border-radius: var(--r-md);
+  transition: max-width .18s ease, box-shadow .15s;
 }
 .erp-palette .erp-palette-label {
-  max-width: 0; opacity: 0; white-space: nowrap; font: 700 13px var(--font-body);
-  transition: max-width .18s ease, opacity .14s ease;
+  white-space: nowrap; font: 700 13px var(--font-body); opacity: 0;
+  transition: opacity .14s ease;
 }
-.erp-palette:hover, .erp-palette:focus-visible {
-  gap: 9px; padding-right: 16px; box-shadow: var(--shadow-sm);
+.erp-palette:hover .erp-palette-body, .erp-palette:focus-visible .erp-palette-body {
+  max-width: 280px; box-shadow: var(--shadow-sm);
 }
 .erp-palette:hover .erp-palette-label, .erp-palette:focus-visible .erp-palette-label {
-  max-width: 180px; opacity: 1;
+  opacity: 1;
 }
-@media (prefers-reduced-motion: reduce) { .erp-palette { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .erp-palette .erp-palette-body, .erp-palette .erp-palette-label { transition: none; }
+}
 
 /* ── Feed: ruhige Fläche ohne Scrollbalken ────────────────────────────────────
    Gescrollt wird weiterhin (Rad, Trackpad, Touch, Tastatur) – nur der Balken

@@ -676,3 +676,12 @@ export interface FeedbackUpdateInput {
   status?: FeedbackStatus;
   resolution?: string | null;
 }
+
+/**
+ * **Das Systemprotokoll eines Auftrags** (Befund + Chronologie) – die Grundlage eines
+ * Fehlerberichts. Kein Domänen-Objekt, sondern eine **Sicht**: `snapshot` ist der
+ * abgeleitete Zustand zum Abfragezeitpunkt, `entries` sind die drei Ströme
+ * (Audit · Ereignisse · Material-Journal) chronologisch nebeneinander.
+ */
+export type OrderDiagnostics = components['schemas']['OrderDiagnostics'];
+export type DiagnosticEntry = components['schemas']['DiagnosticEntry'];

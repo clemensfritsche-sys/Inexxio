@@ -137,6 +137,45 @@ def held_quantity(order: Order, inst) -> Decimal:
     return max(to_qty(inst.quantity) - claimed, ZERO)
 
 
+def give_back(db: Session, sub: Order, parent: Order, inst: Instance,
+              need: dict | None = None) -> Decimal:
+    """**Die Ausleihe endet – und das sind ZWEI Fragen, nicht eine** (Testnotiz #505).
+
+    * **Buchung** («wo ist das Material?»): was der Unter-Auftrag noch hält, geht **immer**
+      an den Verleiher zurück – auch an einen **Erzeuger**. Der hält seine Instanz zwar über
+      ``Instance.order_id`` und braucht dafür keine Reservierung; das Journal aber kennt nur
+      Buchungen. Ohne Rückgabe bliebe die Menge für immer in der Obhut des Unter-Auftrags,
+      und die Achse des Eltern zeigte sie unterhalb der Teilung nicht mehr – exakt der
+      gemeldete Befund («die Instanz hängt noch im Abweichungsauftrag»).
+    * **Plan** («wer beansprucht es?»): reserviert wird nur, was der Verleiher noch braucht.
+      Ein **Erzeuger** braucht nichts (sein Bestand ist über ``order_id`` gesichert), und wer
+      inzwischen «Ersetzen» gewählt hat, ebenso wenig – der Rest bleibt unreserviert und wird
+      beim Abschluss frei (Notiz #403).
+
+    Genau diese zwei Fragen waren in EINER Bedingung verschmolzen (``inst.order_id ==
+    parent.id`` → gar nichts tun), und weil die planerische Antwort dort «nichts» lautet,
+    unterblieb auch die Buchung.
+
+    ``need`` = die offene Fehlmenge je Artikel (wird fortgeschrieben); ``None`` = «gib den
+    Anspruch vollständig zurück» (Verwerfen-Tür: die Auswahl wird zurückgenommen).
+    Liefert die zurückgegebene Menge. Committet NICHT."""
+    from . import ledger
+    from .reservation import release as release_reservation, reserve
+    held = reserved_for(inst, sub.id)
+    if held <= 0 or (inst.disposition or "") in TERMINAL_DISPOSITIONS:
+        return ZERO
+    release_reservation(inst, sub.id)      # die Bindung des Unter-Auftrags endet hier
+    if inst.order_id != parent.id:
+        gap = held if need is None else need.get(inst.article_id, ZERO)
+        take = min(held, gap)
+        if take > 0:
+            reserve(inst, parent.id, take)
+            if need is not None:
+                need[inst.article_id] = gap - take
+    ledger.post(db, inst, held, kind="returned", holder=parent.id, src_holder=sub.id)
+    return held
+
+
 def return_borrowed(db: Session, sub: Order) -> None:
     """**Ein Unter-Auftrag mit festem Subjekt LEIHT – am Ende gibt er zurück** (Notiz #401).
 
@@ -148,9 +187,9 @@ def return_borrowed(db: Session, sub: Order) -> None:
     Stück, das längst wieder da war.
 
     Was den Bestand **verlassen** hat (verschrottet/verkauft/verbaut), kehrt nicht zurück –
-    dort ist die Fehlmenge des Verleihers ehrlich. Ein **Erzeuger** als Verleiher braucht
-    nichts zurück: er hält über ``Instance.order_id`` und war nie reserviert (seine
-    Fehlmenge schliesst sich von selbst, sobald die Abweichung nicht mehr offen ist).
+    dort ist die Fehlmenge des Verleihers ehrlich. Ein **Erzeuger** als Verleiher bekommt die
+    Menge sehr wohl zurück (die BUCHUNG gilt immer), braucht dafür aber keine Reservierung –
+    er hält über ``Instance.order_id``; die Trennung steht in ``give_back`` (#505).
 
     **Zurück geht es an den nächsten LAUFENDEN Verleiher der Kette** (``lender_of``, Notiz
     #404): Auftrag → Abweichung → Abweichung. Wurde die mittlere abgebrochen (ihr blieb
@@ -163,24 +202,14 @@ def return_borrowed(db: Session, sub: Order) -> None:
     mehr braucht, geht in den freien Bestand.
 
     Dieselbe Rückgabe vollzieht ``deviation.detach_sub_order`` beim Verwerfen – zwei Türen,
-    eine Regel. Committet NICHT."""
+    EINE Regel (``give_back``). Committet NICHT."""
     from . import process
-    from .reservation import reserve
     parent = lender_of(db, sub)
     if parent is None:
         return
     need = process.subject_shortfalls(db, parent)
     for inst in order_instances(db, sub):
-        if (inst.disposition or "") in TERMINAL_DISPOSITIONS or inst.order_id == parent.id:
-            continue
-        gap = need.get(inst.article_id, ZERO)
-        qty = min(reserved_for(inst, sub.id), gap)
-        if qty > 0:
-            reserve(inst, parent.id, qty)
-            # Journal (ADR 007): «zurückgegeben» – die Ausleihe kehrt zum Verleiher zurück.
-            from . import ledger
-            ledger.post(db, inst, qty, kind="returned", holder=parent.id, src_holder=sub.id)
-            need[inst.article_id] = gap - qty
+        give_back(db, sub, parent, inst, need)
 
 
 def lender_of(db: Session, sub: Order) -> Order | None:

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, OrderLine, UserProfile
+from ..schemas.diagnostics import OrderDiagnostics
 from ..schemas.disposal import ScrapUpdate
 from ..schemas.document import DocumentUpdate, SignerSubstitution, SignoffAction
 from ..schemas.inspection import InspectionUpdate
@@ -19,7 +20,7 @@ from ..schemas.order import (
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, deviation, inventory, order_lines as order_lines_svc, process, processes as processes_svc, recovery, refund as refund_svc, sale as sale_svc, shares, subject
+from ..services import deactivation, deviation, diagnostics, inventory, order_lines as order_lines_svc, process, processes as processes_svc, recovery, refund as refund_svc, sale as sale_svc, shares, subject
 from ..services.admin import log_audit
 from ..services.document import (
     act_on_signoff, get_signoff, record_document, substitute_signer, withdraw_issuance,
@@ -657,6 +658,24 @@ async def get_order(
         raise HTTPException(404, detail="Auftrag nicht gefunden")
     _ensure_step_facts(db, order, user)   # fehlende Beschaffungs-/Verkaufsbelege nachziehen
     return to_order_response(db, order, viewer=user)
+
+
+@router.get("/{object_id}/diagnostics", response_model=OrderDiagnostics)
+async def get_order_diagnostics(
+    object_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """**Systemprotokoll eines Auftrags** – Befund + Chronologie für die Fehlersuche.
+
+    Personal-only und **on demand**: eine Diagnose gehört nicht in jede Auftrags-Antwort
+    (sie ist um Grössenordnungen umfangreicher und interessiert nur, wenn etwas nicht
+    stimmt). Sie erfindet keine Wahrheit, sondern stellt die drei bestehenden Ströme
+    (Audit · Ereignisse · Material-Journal) neben den abgeleiteten Zustand."""
+    order = db.query(Order).filter(Order.object_id == object_id).first()
+    if not order:
+        raise HTTPException(404, detail="Auftrag nicht gefunden")
+    return diagnostics.order_diagnostics(db, order)
 
 
 def _assert_status_transition(current: str, new: str | None) -> None:

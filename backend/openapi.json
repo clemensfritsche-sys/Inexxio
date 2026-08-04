@@ -2949,6 +2949,54 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/diagnostics": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Get Order Diagnostics",
+        "description": "**Systemprotokoll eines Auftrags** – Befund + Chronologie für die Fehlersuche.\n\nPersonal-only und **on demand**: eine Diagnose gehört nicht in jede Auftrags-Antwort\n(sie ist um Grössenordnungen umfangreicher und interessiert nur, wenn etwas nicht\nstimmt). Sie erfindet keine Wahrheit, sondern stellt die drei bestehenden Ströme\n(Audit · Ereignisse · Material-Journal) neben den abgeleiteten Zustand.",
+        "operationId": "get_order_diagnostics_api_v1_erp_orders__object_id__diagnostics_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDiagnostics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/replace": {
       "post": {
         "tags": [
@@ -9683,6 +9731,75 @@
         "title": "DeactivationImpact",
         "description": "Wirkungsanalyse (Dry-Run) vor dem Inaktiv-Setzen/Ersetzen eines Artikels."
       },
+      "DiagnosticEntry": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "kind",
+          "summary"
+        ],
+        "title": "DiagnosticEntry",
+        "description": "**Eine Zeile des Systemprotokolls** – aus einem der drei bestehenden Ströme.\n\n``source`` sagt, WELCHER Mechanismus gesprochen hat, und das ist bei der Fehlersuche\ndie halbe Antwort: ``audit`` = jemand hat ein Feld geändert (Absicht) · ``event`` = ein\nfachliches Ereignis wurde ausgelöst (Wirkung) · ``journal`` = Material hat den Topf\ngewechselt (Bestand). ``detail`` trägt die Rohwerte, damit ein Bericht nichts\nnachschlagen muss."
+      },
       "DisposalEmbed": {
         "properties": {
           "id": {
@@ -12881,6 +12998,55 @@
         ],
         "title": "OrderDeviationInfo",
         "description": "Kurzinfo eines Unter-Auftrags (Abweichung · Nachschub · Retoure · Bereitstellung) –\nfür die Sichtbarkeit im Eltern-Auftrag."
+      },
+      "OrderDiagnostics": {
+        "properties": {
+          "order_object_id": {
+            "type": "integer",
+            "title": "Order Object Id"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "snapshot": {
+            "type": "object",
+            "title": "Snapshot"
+          },
+          "share_map": {
+            "additionalProperties": {
+              "items": {
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Share Map",
+            "default": {}
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticEntry"
+            },
+            "type": "array",
+            "title": "Entries",
+            "default": []
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_object_id",
+          "generated_at",
+          "snapshot"
+        ],
+        "title": "OrderDiagnostics",
+        "description": "**Befund + Protokoll** eines Auftrags – die Grundlage eines Fehlerberichts.\n\n``snapshot`` ist der abgeleitete Zustand zum Abfragezeitpunkt (Schritte, Fehlmenge,\nUnter-Aufträge, Instanzen samt Kontostand und **Drift-Prüfung**), ``entries`` die\nChronologie. Ein Bug zeigt sich fast immer als Widerspruch zwischen beidem.\n\nBewusst frei typisiert (`dict`): eine Diagnose ist eine **Sicht** für Menschen und\nändert sich mit den Fragen, die man gerade stellt – ein starrer Vertrag würde hier\nAussagekraft gegen Formtreue tauschen."
       },
       "OrderLineCreate": {
         "properties": {

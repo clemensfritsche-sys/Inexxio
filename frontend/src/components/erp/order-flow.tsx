@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, MapPin, Package, Redo2,
   Scissors, X } from 'lucide-react';
 import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, MaterialOrder, Order,
@@ -159,7 +160,19 @@ function TraceRow({ rows, dir, onOpen }: {
  */
 function FlowLotChip({ lot }: { lot: FlowLot }) {
   const nav = useErpNav();
-  const [open, setOpen] = useState(false);
+  // **Die Hover-Karte blasst NIE aus** (Testnotiz #504): Erklärungen müssen immer klar
+  // lesbar sein. Sie steckte in gedämpften Behältern (vergangene Kante, Nachbar-Spur) und
+  // erbte deren Deckkraft – gegen eine geerbte `opacity` kann ein Kind sich nicht wehren.
+  // Darum hängt sie im Portal am `body`: ausserhalb jeder Dämpfung, jeder Überlauf-Kante
+  // und jeder Stapel-Ordnung. Gedämpft bleibt allein die Pille selbst.
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const show = () => {
+    const r = anchor.current?.getBoundingClientRect();
+    if (r) setAt({ x: r.left + r.width / 2, y: r.bottom + 6 });
+  };
+  const hide = () => setAt(null);
+  const open = at !== null;
   // **Jede Materialzeile trägt die Ampelfarbe ihrer Instanz** (Testnotiz #481): damit steht
   // an JEDER Stelle des Prozesses, in welchem Zustand das Stück gerade ist – verschrottet
   // ist rot, gesperrt gelb, frei am Lager grün. Dieselbe Projektion wie an der Instanz
@@ -167,9 +180,8 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
   const cfg = instanceStatusConfig(lot.quality, lot.disposition, lot.reserved);
   const Icon = cfg.icon;
   return (
-    <span style={{ position: 'relative', display: 'inline-flex' }}
-      onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
+    <span ref={anchor} style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
       <button type="button" title={cfg.label}
         onClick={(e) => { e.stopPropagation(); nav?.(lot.instance_object_id); }}
         style={{
@@ -182,14 +194,14 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
         {Icon && <Icon size={11} style={{ flexShrink: 0 }} />}
         {qtyText(lot)} × {formatObjectId(lot.instance_object_id)}
       </button>
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <span style={{
-          // Über allem, was im Fluss darunter liegt – der Hinweis stand sonst hinter dem
-          // Endknoten des Prozesses (Testnotiz #474).
-          position: 'absolute', zIndex: 200, top: '100%', left: '50%', transform: 'translateX(-50%)',
-          marginTop: 6, padding: '8px 11px', borderRadius: 'var(--r-md)', background: '#fff',
+          // Am `body`, nicht im Fluss: keine geerbte Dämpfung (#504), kein Beschnitt an
+          // einer Überlauf-Kante, und über allem, was darunter liegt (#474).
+          position: 'fixed', zIndex: 2000, top: at.y, left: at.x, transform: 'translateX(-50%)',
+          padding: '8px 11px', borderRadius: 'var(--r-md)', background: '#fff',
           border: '1px solid var(--border-1)', boxShadow: 'var(--shadow-md)',
-          display: 'flex', flexDirection: 'column', gap: 5,
+          display: 'flex', flexDirection: 'column', gap: 5, pointerEvents: 'none',
           width: 'max-content', maxWidth: 300, textAlign: 'left',
         }}>
           <LotFact icon={cfg.icon ?? Package} title="Zustand">
@@ -205,8 +217,7 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
               ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.location_label}</span>
               : <Dash />}
           </LotFact>
-        </span>
-      )}
+        </span>, document.body)}
     </span>
   );
 }
@@ -360,10 +371,13 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
   flowNodes.forEach((n, i) => {
     const edge = edgeAt(i);
     rows.push(
+      // **Vor UND nach jedem Modul steht, was fliesst** (Testnotiz #505): das Material
+      // liegt auf der ganzen Achse, nicht erst ab dem Fortschritt. Wie weit der Prozess
+      // gekommen ist, sagt die **Linienstärke** – dafür braucht es kein zweites Signal.
       <Row key={`edge-${i}`}>
         <Axis strong={edge.reached} />
-        {edge.reached && <EdgeMaterial lots={edge.lots} past={!edge.live}
-          onCreate={edge.live ? onCreateOrder : undefined} />}
+        <EdgeMaterial lots={edge.lots} past={!edge.live}
+          onCreate={edge.live ? onCreateOrder : undefined} />
         <Axis strong={edge.reached} />
       </Row>,
     );
@@ -380,11 +394,15 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
       rows.push(
         // **Fork · Bypass · Merge**: die Achse läuft neben der Teilung weiter und trägt, was
         // auf dem Hauptauftrag geblieben ist (Notizen #425/#469/#496) – vom Server gerechnet.
+        // **Die Ecke trägt die Strichstärke IHRER Achse** – Fork wie das Stück darüber
+        // (`reached`), Merge wie das darunter (`passed`). Wo zwei Bits aufeinandertrafen,
+        // stand an der Ecke ein sichtbarer Versatz (3 px ↔ 2 px).
         <Row key={`br-${branches[0].object_id}`}
-          right={<BranchArm branches={branches} onOpen={onOpenOrder} />}>
+          right={<BranchArm branches={branches} reached={n.reached} passed={n.passed}
+            onOpen={onOpenOrder} />}>
           <Axis grow h={26} strong={n.reached} />
-          {bypass.reached && <EdgeMaterial lots={bypass.lots} small past={!bypass.live}
-            onCreate={bypass.live ? onCreateOrder : undefined} />}
+          <EdgeMaterial lots={bypass.lots} small past={!bypass.live}
+            onCreate={bypass.live ? onCreateOrder : undefined} />
           <Axis grow h={26} strong={n.passed} />
         </Row>,
       );
@@ -594,8 +612,13 @@ const SUB_LABEL: Record<string, string> = {
  */
 const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';
 
-function BranchArm({ branches, onOpen }: {
-  branches: OrderDeviationInfo[]; onOpen?: (id: number) => void;
+function BranchArm({ branches, reached, passed, onOpen }: {
+  branches: OrderDeviationInfo[];
+  /** **Die Ecke trägt die Strichstärke IHRER Achse** – dasselbe Bit wie das Achsenstück,
+   *  an dem sie hängt (`reached` oben, `passed` unten). Zwei verschiedene Bits an einer
+   *  Ecke bedeuteten 3 px gegen 2 px – und genau das sah man als Versatz. */
+  reached?: boolean; passed?: boolean;
+  onOpen?: (id: number) => void;
 }) {
   // **Kommt nichts zurück, führt auch keine Linie zurück** (Testnotiz #481): wurde alles
   // verschrottet oder die Menge des Eltern-Auftrags reduziert, endet der Abzweig hier – und
@@ -604,7 +627,7 @@ function BranchArm({ branches, onOpen }: {
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
       paddingTop: ARM, paddingBottom: back.length ? ARM : 0 }}>
-      <Elbow dir="fork-right" strong={branches.some(branchStarted)} />
+      <Elbow dir="fork-right" strong={reached} />
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
         width: '100%', minWidth: 0 }}>
         {branches.map((b, i) => (
@@ -619,9 +642,7 @@ function BranchArm({ branches, onOpen }: {
           </div>
         ))}
       </div>
-      {back.length > 0 && (
-        <Elbow dir="merge-right" strong={branches.every((b) => !isOpen(b))} />
-      )}
+      {back.length > 0 && <Elbow dir="merge-right" strong={passed} />}
     </div>
   );
 }

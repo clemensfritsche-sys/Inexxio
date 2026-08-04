@@ -250,24 +250,22 @@ def detach_sub_order(db: Session, sub: Order, actor_id: int | None) -> Order | N
     for inst in db.query(Instance).filter(
         Instance.subject_of_order_id == sub.id, Instance.is_active == True
     ).all():
-        # Die Bindung des Unter-Auftrags endet hier – auch der Anspruch, den sie ab der
-        # Meldung gehalten hat. Idempotent: hatte er nie einen, ist das ein No-op.
-        freed = release_reservation(inst, sub.id)
-        # **Und was er dem Eltern entzogen hat, bekommt der zurück.** Beim Melden kürzt
-        # ``reservation.claim`` dessen Anspruch um genau diese Menge (so entsteht die
-        # Unterdeckung); ohne die Rückgabe gäbe «Zurücknehmen» die Ware zwar frei, aber
-        # nicht an den, dem sie gehörte – der Eltern behielte seine Fehlmenge für immer.
-        # Ein **Erzeugungs**-Auftrag ist ausgenommen: er hält seine Instanzen über
-        # ``Instance.order_id`` und hatte nie eine Reservierung.
-        if parent is not None and parent.status == "released" and inst.order_id != parent.id:
-            reserve(inst, parent.id, freed)
-            # Journal (ADR 007): die Ausleihe kehrt zum Verleiher zurück (Verwerfen-Tür –
-            # dieselbe Regel wie ``subject.return_borrowed`` beim Abschluss).
-            from . import ledger
-            ledger.post(db, inst, freed, kind="returned", holder=parent.id, src_holder=sub.id)
-        elif freed > 0:
-            from . import ledger
-            ledger.post(db, inst, freed, kind="released", holder=None, src_holder=sub.id)
+        # **Was er dem Eltern entzogen hat, bekommt der zurück** – über die EINE Regel
+        # (``subject.give_back``, Testnotiz #505): die Bindung des Unter-Auftrags endet, die
+        # Menge wird ihm zurück**gebucht**, und reserviert wird sie nur, wenn der Verleiher
+        # sie auch beansprucht (ein Erzeuger hält über ``Instance.order_id``). Beim Melden
+        # kürzt ``reservation.claim`` den Anspruch des Eltern um genau diese Menge (so
+        # entsteht die Unterdeckung); ohne die Rückgabe gäbe «Zurücknehmen» die Ware zwar
+        # frei, aber nicht an den, dem sie gehörte.
+        if parent is not None and parent.status == "released":
+            from .subject import give_back
+            freed = give_back(db, sub, parent, inst)      # `need=None` = voller Anspruch
+        else:
+            # Kein lebender Verleiher: die Menge wird schlicht frei.
+            freed = release_reservation(inst, sub.id)
+            if freed > 0:
+                from . import ledger
+                ledger.post(db, inst, freed, kind="released", holder=None, src_holder=sub.id)
         inst.subject_of_order_id = (
             parent.id if parent is not None and reserved_for(inst, parent.id) > 0 else None
         )

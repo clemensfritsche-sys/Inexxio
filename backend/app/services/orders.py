@@ -1126,6 +1126,22 @@ def _minus(above: list[FlowLot], take: list[FlowLot]) -> list[FlowLot]:
     return [l for l in rows if l.quantity > 0]
 
 
+def _returned_from(db: Session, order: Order, branch_object_ids: list[int]) -> list[FlowLot]:
+    """Was aus **diesen** Ästen an den Auftrag zurückgebucht wurde (Journal). Es liegt
+    wieder auf seiner Achse – aber es ist nicht am Abzweig **vorbei**gekommen, sondern
+    durch ihn hindurch; der Bypass darf es darum nicht mitzählen."""
+    from . import ledger
+    if not branch_object_ids or not order.id:
+        return []
+    ids = {row[0] for row in db.query(Order.id)
+           .filter(Order.object_id.in_(branch_object_ids)).all()}
+    out: dict[int, float] = {}
+    for m in ledger.moves_of(db, order.id):
+        if m.kind == "returned" and m.src_order_id in ids and m.dst_order_id == order.id:
+            out[m.instance_object_id] = out.get(m.instance_object_id, 0.0) + float(m.quantity)
+    return [FlowLot(instance_object_id=oid, quantity=q) for oid, q in out.items()]
+
+
 def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
     """**Die Prozess-Achse fertig rechnen – das Frontend zeichnet nur noch** (ADR 007).
 
@@ -1189,6 +1205,13 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
             nxt |= {branch_db[b.object_id] for b in n["branches"] if b.object_id in branch_db}
         gone_above.append(nxt)
 
+    # **Der Stichtag gilt für das, was OBERHALB des Prozess-Punktes liegt** (#488): dort ist
+    # der Zustand eingefroren. Am Prozess-Punkt und darunter gilt der aktuelle – nach ihm ist
+    # ja noch nichts passiert. Bei einem nicht mehr laufenden Auftrag ist nur das ENDE
+    # aktuell: seine letzte Kante zeigt das Ergebnis, nicht den Stand vor der
+    # Abschluss-Freigabe.
+    current_from = here[0] if here is not None else len(nodes)
+
     def axis_lots(i: int, current: bool) -> list[FlowLot]:
         rows = [r for r in view.material
                 if r.to_order is None or r.to_order not in gone_above[i]]
@@ -1196,20 +1219,18 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
         return lots if current else _as_of(lots, cutoffs[i])
 
     def edge(i: int) -> FlowEdge:
-        reached = i <= walked
-        live = here is not None and here == (i, False)
-        # Die LETZTE Kante zeigt, womit der Auftrag herausgekommen ist – die eigene
-        # Journal-Sicht ist mit dem Abschluss ohnehin eingefroren (spätere Geschichte
-        # gehört den Buchungen ANDERER Aufträge). Ein Stichtag würde hier ausgerechnet
-        # die Abschluss-Freigabe zurückdrehen, die das Ergebnis IST.
-        final = reached and i == len(nodes)
-        if not reached:
-            lots: list[FlowLot] = []
-        elif view is not None:
-            lots = axis_lots(i, live or final)
-        else:
-            lots = material if live or final else _as_of(material, cutoffs[i])
-        return FlowEdge(lots=lots, reached=reached, live=live)
+        # **Vor UND nach jedem Modul steht, was fliesst** (Testnotiz #505). Das Material
+        # eines Auftrags ist eine Tatsache – es liegt auf seiner ganzen Achse, nicht erst
+        # ab dem Fortschritt. Die frühere Regel «erst ab `reached`» liess ausgerechnet
+        # unterhalb des aktiven Moduls eine Lücke, die sich las wie «hier ist nichts mehr».
+        # (Die Sorge aus #421 – eine Behauptung über die Zukunft – ist mit der Server-Sicht
+        # erledigt: gerechnet wird von oben nach unten aus dem Journal, nicht aus dem
+        # heutigen Bestand hochgerechnet.) `reached` steuert weiterhin die Linienstärke.
+        current = i >= current_from
+        lots = (axis_lots(i, current) if view is not None
+                else (material if current else _as_of(material, cutoffs[i])))
+        return FlowEdge(lots=lots, reached=i <= walked,
+                        live=here is not None and here == (i, False))
 
     resp.flow_edges = [edge(i) for i in range(len(nodes) + 1)]
     for i, n in enumerate(nodes):
@@ -1217,19 +1238,23 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
             kind=n["kind"], reached=i <= walked, passed=i < walked,
             step_id=(n["step"].id if n["kind"] == "step" else n["res_step"]),
             branch_object_ids=[b.object_id for b in n.get("branches", [])])
-        if n["kind"] == "split" and i <= walked:
+        if n["kind"] == "split":
             live_b = here is not None and here == (i, True)
-            if live_b and view is not None:
-                # Journal, live: was HIER ist = gehalten + ausgesteuert (der Abzweig hat
-                # seinen Anteil weggebucht – nichts muss subtrahiert werden).
-                lots = _view_lots(db, view.held + view.terminal)
+            # **Neben der Teilung liegt, was NICHT abgezweigt ist** – auch dann noch, wenn
+            # der Ast längst zurückgegeben hat: was durch den Abzweig gelaufen ist, kam
+            # nicht hier vorbei. Darum die Achse UNTERHALB der Teilung (dort ist das
+            # Abgezweigte schon herausgefiltert) minus dem, was aus GENAU diesen Ästen
+            # zurückkam.
+            below = i + 1
+            if view is not None:
+                lots = axis_lots(below, below >= current_from or live_b)
+                back = _returned_from(db, order, [b.object_id for b in n["branches"]])
+                if back:
+                    lots = _minus(lots, back)
             else:
-                # Vergangenheit (und Alt-Auftrag ohne Journal): der Stand von damals,
-                # minus dem, was abzweigte. Die Custody-Sicht taugt hier nicht – ein
-                # abgeschlossener Auftrag hält nichts mehr, sein damaliger Bypass schon.
-                base = material if live_b else _as_of(material, cutoffs[i])
+                base = material if below >= current_from else _as_of(material, cutoffs[below])
                 lots = _minus(base, [l for b in n["branches"] for l in (b.flow_in or [])])
-            node.bypass = FlowEdge(lots=lots, reached=True, live=live_b)
+            node.bypass = FlowEdge(lots=lots, reached=i <= walked, live=live_b)
         resp.flow_nodes.append(node)
 
 
