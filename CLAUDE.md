@@ -4924,6 +4924,45 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   echtes PostgreSQL 16 verifiziert (`note573.py` 9/9; alle 17 Harnesses und die Regel-Tabelle
   (35) grün).
 
+- **Testnotizen-Runde 43 (nicht an der Reihe heisst nicht bedienbar, Notizen #579–#585)**:
+  (1) **Die Regel gehört ins Backend, nicht in jedes Panel** (#581/#582). «Ein Prozessschritt,
+  der nicht dran ist, lässt sich nicht ausfüllen» war mehrfach gefordert und stand als
+  `stepState !== 'active'` in **vier** Panels einzeln – Beschaffung, Verkauf und Dokument
+  hatten nie eines. Vor allem aber blieb bei einem **abgebrochenen** Auftrag ein Schritt
+  «aktiv», also griff die Sperre dort gar nicht: das Modul sah zurückgetreten aus, liess sich
+  aber vollständig ausfüllen und nannte sogar Instanzen, die es längst nicht mehr gibt. Jetzt
+  eine Regel an der Quelle (`process.build_order_steps`): **läuft der Auftrag nicht
+  (Entwurf/abgebrochen/abgeschlossen), ist NICHTS an der Reihe** – jeder Schritt bleibt
+  `locked` und damit überall nur lesbar. Die **zu bearbeitenden Instanzen** erscheinen erst,
+  wenn das Modul aktiv ist (bis dahin kann sich alles ändern); die **Konfiguration** bleibt
+  jederzeit sichtbar (#487).
+  (2) **Gekappt heisst gar keine Linie** (#579): über dem Rückgabe-Knoten des Entwurfs wurde
+  ein 18-px-Stück **unbedingt** gezeichnet und blieb als Strich ins Nichts stehen.
+  (3) **Stark ist die Linie nur, wo etwas darüber geht** (#580/#584): zweigt an einer Stelle
+  ALLES ab, bleibt auf dem Bypass nichts – eine volle Linie behauptete das Gegenteil. Die
+  Abzweigung daneben bleibt stark: dort ist etwas gegangen.
+  (4) **#583 gemessen statt geraten**: nach zwei Fehlversuchen die Geometrie in Chromium
+  nachgebaut (`Row`/`Axis`/`Elbow` mit den echten Konstanten) und die Pixel ausgelesen –
+  Abzweigung bei y = 0, Einmündung bei y = H − `BEND`, Pille exakt dazwischen: **0,0 px**.
+  Mit vorhandener Einmündung stimmt es also; der gemeldete Restfall liess sich nicht
+  reproduzieren. *Lehre: bei einer Optik-Frage, die zweimal zurückkommt, ist der Browser das
+  billigere Werkzeug als das dritte Nachdenken.*
+  (5) **#585 nur halb**: der Anzeige-Teil fällt unter die Linien-Regeln; der **Nummern**-Teil
+  liess sich nicht reproduzieren (Harness `note585.py`: ein fremder Auftrag wird freigegeben
+  und greift ein Stück – die Anzeige des alten Auftrags bleibt unverändert, auch bei
+  Altbestand ohne Buchungs-Nummern).
+  Wächter: `test_smoke.py`-Suite unverändert grün; gegen echtes PostgreSQL 16 verifiziert
+  (`note573.py` 12/12 inkl. der neuen Schritt-Gate-Prüfung, alle 18 Harnesses, Regel-Tabelle
+  (35) grün).
+  - **Offen und vom Nutzer freigegeben: die «Halter»-Mechanik aushebeln.** Gemessen hat
+    `inventory.rest_owner` genau **drei** Nutzstellen (`units.rows`, `units.owned_by`,
+    `shares`). Sie ist der Rest der Rate-Logik («der unbeanspruchte Rest gehört dem
+    Erzeuger») und hat #573/#577 direkt erzeugt. Ersatzlos streichen geht nicht: der
+    Erzeuger hält seine Instanz **ohne** Anspruch, nur über `Instance.order_id`. Der saubere
+    Weg ist, das explizit zu machen – der Erzeuger beansprucht seine Stücke bei der
+    Entstehung –, dann fällt die Mechanik weg. Das ist derselbe Schritt wie «wer hält wie
+    viel → EINE Antwort».
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
