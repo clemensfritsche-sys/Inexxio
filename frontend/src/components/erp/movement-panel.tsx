@@ -221,8 +221,13 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
       {/* Versand (ADR 005): abgeleitet aus Ziel/Geofence – Tarifvergleich + Label VOR dem Vollzug */}
       {mv?.shipment && <ShipmentBox order={order} stepId={stepId} shipment={mv.shipment} onOrderUpdated={onOrderUpdated} />}
 
+      {/* **Die zu bearbeitenden Instanzen erst, wenn das Modul dran ist** (Notiz #582).
+          Bis dahin kann sich noch alles ändern – eine Abweichung nimmt ein Stück heraus,
+          ein Nachschub bringt eines dazu. Eine Liste, die dann noch stimmen müsste, wäre
+          eine Behauptung über die Zukunft. Die **Konfiguration** des Schritts bleibt
+          sichtbar (#487): was geplant ist, darf man jederzeit nachlesen. */}
       {/* Pro Instanz: Status (gescannt/offen) + Einzel-Scan */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+      {!planned && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
         {instances.map((i) => {
           const t = i.object_id != null ? targets[i.object_id as number] : undefined;
           const tgtId = t ? Number(t.slice(t.indexOf(':') + 1)) : null;
@@ -252,7 +257,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
             </div>
           );
         })}
-      </div>
+      </div>}
 
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 

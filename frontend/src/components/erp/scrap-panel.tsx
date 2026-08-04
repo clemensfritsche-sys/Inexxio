@@ -155,7 +155,7 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
     <div style={cardStyle}>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
-        {scrappable.map((i) => {
+        {!planned && scrappable.map((i) => {
           const oid = i.object_id as number;
           const sel = scanned.has(oid);
           return (

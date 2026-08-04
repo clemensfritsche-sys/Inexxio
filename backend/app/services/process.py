@@ -178,6 +178,15 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
     defs = order_step_defs(db, order)
     if not defs:
         return []
+    # **Ein Schritt eines Auftrags, der nicht läuft, ist nie «an der Reihe»** (Notiz #581).
+    # «Aktiv» ist die EINE Aussage, an der alles hängt: die Oberfläche gibt daraufhin ihre
+    # Eingaben frei, und die Ausführung (``resolve_exec_step``) lässt genau diesen Schritt
+    # zu. Ein **abgebrochener** oder abgeschlossener Auftrag hatte trotzdem einen aktiven
+    # Schritt – sein Modul sah zwar zurückgetreten aus, liess sich aber vollständig
+    # ausfüllen, und es nannte sogar Instanzen, die es längst nicht mehr gibt. Die Regel
+    # gehört hierher und nicht in jedes Panel einzeln: so gilt sie auch für Beschaffung,
+    # Verkauf und Dokument, die nie ein eigenes Gate hatten.
+    running = (order.status or "") == "released"
     counts: dict[str, int] = {}
     for d in defs:
         counts[d.step_type] = counts.get(d.step_type, 0) + 1
@@ -204,7 +213,10 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
         elif not active_assigned:
             # An der Reihe – aber „blockiert", wenn der Schritt einen (noch) nicht gedeckten
             # Bedarf hat (Subjekt/Komponente fehlt). Abgeleitet aus dem Bestand, kein Status.
-            state = "blocked" if _step_blocked(db, order, d) else "active"
+            # Läuft der Auftrag nicht (Entwurf/abgebrochen/abgeschlossen), ist NICHTS an der
+            # Reihe: der Schritt bleibt «wartet» und lässt sich nur ansehen (#581).
+            state = ("blocked" if _step_blocked(db, order, d) else "active") if running \
+                else "locked"
             active_assigned = True
         else:
             state = "locked"

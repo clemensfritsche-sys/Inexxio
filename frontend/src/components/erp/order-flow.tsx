@@ -389,7 +389,11 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
         <Row key={`br-${branches[0].object_id}`}
           right={<BranchArm branches={branches} reached={n.reached} passed={n.passed}
             onOpen={onOpenOrder} />}>
-          <Axis grow h={26} strong={n.reached} />
+          {/* **Stark ist die Linie nur, wo etwas darüber geht** (Testnotizen #580/#584).
+              Zweigt an dieser Stelle ALLES ab, bleibt auf der Achse nichts – dann ist der
+              Bypass ein Weg, den nichts genommen hat, und eine volle Linie behauptete das
+              Gegenteil. Die Abzweigung daneben bleibt stark: dort ist etwas gegangen. */}
+          <Axis grow h={26} strong={n.reached && bypass.lots.length > 0} />
           <EdgeMaterial lots={bypass.lots} small past={!bypass.live}
             onCreate={bypass.live ? onCreateOrder : undefined} />
           {/* **Mittig zwischen den beiden waagrechten Linien** (Testnotiz #576). Die
@@ -399,9 +403,9 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
               diesen halben Bogen nach oben. Nur mit Einmündung: ohne sie gibt es keine
               zweite Linie, zwischen der etwas mittig stehen könnte. */}
           {branches.some((b) => b.returns_material) && (
-            <Axis h={BEND} strong={n.passed} />
+            <Axis h={BEND} strong={n.passed && bypass.lots.length > 0} />
           )}
-          <Axis grow h={26} strong={n.passed} />
+          <Axis grow h={26} strong={n.passed && bypass.lots.length > 0} />
         </Row>,
       );
       if (res.length > 0) {
@@ -944,7 +948,10 @@ export function DraftFlowFrame({ holders, cut = false, onToggleCut, onOpenOrder,
             seinen Fluss samt Terminal-Knoten selbst – ein zweiter davor wäre dasselbe Symbol
             ein zweites Mal. Der Rahmen liefert die Spuren, nicht den Prozess. */}
         <Row>{children}</Row>
-        <Row><Axis h={18} strong /></Row>
+        {/* **Gekappt heisst: gar keine Linie** (Testnotiz #579). Dieses Stück wurde
+            unbedingt gezeichnet und blieb als kurzer Strich stehen, obwohl darunter nichts
+            mehr folgt – ein Weg, der ins Nichts führt. */}
+        {!cut && <Row><Axis h={18} strong /></Row>}
         {/* Je Halter seine eigene Rückgabe-Linie: was hier geholt wurde, geht dorthin
             zurück, und so lange wartet er darauf. Die Schere sitzt AUF der Linie – wo
             entschieden wird, wird auch bedient (#499); gekappt ist schlicht keine Linie. */}
