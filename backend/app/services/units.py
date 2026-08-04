@@ -69,13 +69,14 @@ def _runs(inst: Instance) -> list[dict]:
     return list(data.get("r") or [])
 
 
-def label(inst: Instance, index: int, *, single: bool = False) -> str:
+def label(inst: Instance, index: int) -> str:
     """Die Nummer EINES Stücks – die eine Stelle, die das Format kennt.
 
-    **Der Zusatz erscheint nur, wenn es etwas zu unterscheiden gibt.** Eine Instanz mit
-    genau einem Stück (Einzelteil, oder eine Charge, die sich nicht zählen lässt) IST
-    schon eindeutig; ihr ``-1`` wäre Lärm und stünde auch nicht auf dem Etikett."""
-    return str(inst.object_id) if single else f"{inst.object_id}-{index}"
+    **Ohne Ausnahme.** Ein Einzelteil trägt ``-1`` genauso wie das erste Stück einer
+    Charge, und eine nicht zählbare Charge (2.5 kg) ebenso. Eine Sonderregel «bei genau
+    einem Stück ohne Zusatz» wäre eine zweite Schreibweise für dieselbe Sache – und jede
+    Ansicht müsste sie kennen. Eine Regel, ein Format, überall gleich."""
+    return f"{inst.object_id}-{index}"
 
 
 def of(inst: Instance, *, holder: int | None = ..., limit: int | None = None) -> list[Unit]:
@@ -84,14 +85,13 @@ def of(inst: Instance, *, holder: int | None = ..., limit: int | None = None) ->
     ``holder`` filtert auf einen Auftrag (``None`` = nur die freien); ohne Angabe kommen
     alle. ``limit`` deckelt die Ausgabe – eine 1000er-Charge soll keine Liste mit 1000
     Chips erzeugen; wie viele es insgesamt sind, sagt ``count``."""
-    single = count(inst) <= 1
     out: list[Unit] = []
     for run in _runs(inst):
         if holder is not ... and run.get("o") != holder:
             continue
         q = to_qty(run.get("q", 1))
         for i in range(int(run["a"]), int(run["b"]) + 1):
-            out.append(Unit(label(inst, i, single=single), i, q, run.get("o")))
+            out.append(Unit(label(inst, i), i, q, run.get("o")))
             if limit is not None and len(out) >= limit:
                 return out
     return out
@@ -104,8 +104,36 @@ def count(inst: Instance, *, holder: int | None = ...) -> int:
 
 
 def numbers(inst: Instance, *, holder: int | None = ..., limit: int | None = None) -> list[str]:
-    """Nur die Nummern – die häufigste Frage der Oberfläche."""
+    """Nur die Nummern – für Wächter und Protokolle."""
     return [u.number for u in of(inst, holder=holder, limit=limit)]
+
+
+def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
+         names: dict | None = None) -> list:
+    """**Die Stücke als Zeilen** – Nummer · Menge · Zustand · Halter, die EINE Form, in der
+    ein Teil überall genannt wird (Testnotizen #531/#532).
+
+    Der Zustand kommt aus den beiden Instanz-Achsen; ob ein Stück **gebunden** ist, sagt
+    sein Halter. ``names`` ist die bereits aufgelöste Auftrags-Tabelle
+    (``{db_id: (objektnr, name, grund)}`` aus ``shares._orders``) – so bleibt es EINE
+    Abfrage je Aufruf statt einer je Stück."""
+    from ..schemas.instance import InstanceUnit
+    from .inventory import rest_owner
+    q, d = inst.quality or "pending", inst.disposition or "in_process"
+    look = names or {}
+    # **Der unbeanspruchte Rest gehört dem Erzeuger, solange er nicht am Lager liegt** –
+    # dieselbe eine Regel wie bei den Anteilen (``inventory.rest_owner``). Ohne sie hiesse
+    # dasselbe Stück im Detail «frei» und in der Aufteilung «Auftrag …003».
+    rest = rest_owner(inst)
+    out = []
+    for u in of(inst, holder=holder, limit=limit):
+        owner = u.holder if u.holder is not None else rest
+        o = look.get(owner) if owner is not None else None
+        out.append(InstanceUnit(
+            number=u.number, quantity=float(u.quantity), quality=q, disposition=d,
+            order_object_id=(o[0] if o else None), order_name=(o[1] if o else None),
+            reason=(o[2] if o else None)))
+    return out
 
 
 def total(inst: Instance) -> Decimal:
@@ -297,7 +325,6 @@ def drop(inst: Instance, qty, *, by_order_id: int | None = None) -> list[str]:
     Genommen wird bevorzugt bei dem, der sie beansprucht hat: wer verschrottet, verschrottet
     sein eigenes Stück, nicht das des Nachbarn."""
     ensure(inst)
-    single = count(inst) <= 1
     runs = _runs(inst)
     gone: list[str] = []
     remaining = to_qty(qty)
@@ -314,7 +341,7 @@ def drop(inst: Instance, qty, *, by_order_id: int | None = None) -> list[str]:
             keep = []
             for r in runs:
                 if int(r["a"]) >= a and int(r["b"]) < a + take:
-                    gone.extend(label(inst, i, single=single)
+                    gone.extend(label(inst, i)
                                 for i in range(int(r["a"]), int(r["b"]) + 1))
                     remaining -= to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1)
                 else:

@@ -907,8 +907,11 @@ def test_a_flow_lot_names_instance_article_location_and_quantity():
         assert fact in flow, f"Dem Hover fehlt {fact}"
     assert 'title="Menge"' not in flow, (
         "Die Menge steht in der Pille – ein zweites Mal im Hover wäre eine zweite Wahrheit.")
-    assert "{qtyText(lot)} × {formatObjectId(lot.instance_object_id)}" in flow, (
-        "Dafür trägt die Pille die Einheit – sonst ginge «kg» verloren.")
+    assert "{qtyText(lot)} × {lotNumbers(lot)}" in flow, (
+        "Die Pille trägt die Einheit (sonst ginge «kg» verloren) UND die Objektnummer "
+        "**inklusive Zusatz** – welche Stücke die Menge ausmachen, nicht nur aus welcher "
+        "Instanz sie stammt (Testnotiz #532).")
+    assert "def lotNumbers" in flow or "function lotNumbers" in flow
     assert "<ObjId value={lot.article_object_id} />" in flow, "Auch der Artikel ist klickbar."
 
 

@@ -4493,9 +4493,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Ebene genauer: hier steht **welches Stück**.
   **Die Nummer ist eine Identität, keine Position** – einmal vergeben, nie neu verteilt. Wird
   ein Stück verschrottet, ist seine Nummer **entwertet** und kommt nie wieder (`next` merkt sich
-  die höchste je vergebene); die übrigen behalten ihre. **Der Zusatz erscheint nur, wenn es etwas
-  zu unterscheiden gibt:** ein Einzelteil und eine nicht zählbare Charge (2.5 kg – Kilogramm
-  bekommen keine laufenden Nummern) zeigen ihre blosse Objektnummer.
+  die höchste je vergebene); die übrigen behalten ihre. **Der Zusatz gilt ohne Ausnahme:** auch
+  ein Einzelteil trägt `-1`, ebenso eine nicht zählbare Charge (2.5 kg = EIN Stück mit 2.5 –
+  Kilogramm lassen sich nicht durchnummerieren, aber die Schreibweise bleibt dieselbe). Eine
+  Sonderregel «bei genau einem Stück ohne Zusatz» wäre eine zweite Schreibweise für dieselbe
+  Sache, und jede Ansicht müsste sie kennen.
   **Sie hängen an derselben Engstelle wie die Reservierung** (`reservation._write` →
   `units.sync`, `take` → `units.drop`): weil das die einzige Stelle ist, an der sich «wer
   beansprucht wie viel» ändert, ist es auch die einzige, an der sich «welche Stücke» ändern muss.
@@ -4504,12 +4506,23 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (dieselbe Rolle wie `ledger.verify_instance`). Altbestand bekommt seine Nummern beim ersten
   Zugriff aus dem heutigen Stand (`ensure` – Eröffnungsbilanz wie im Material-Journal, keine
   erfundene Historie).
-  **Sichtbar überall**: Instanz-Detail («Menge & Zustand» je Anteil), **Auswahl** (mit dem Klick
-  ist damit nicht nur beantwortet, WEM man etwas wegnimmt, sondern auch WELCHES Teil),
-  Auftrags-Positionen, und auf den **Kanten des Flusses** (Hover «Stücke») – dort nur für
-  Material, das der Auftrag noch hält: für Mengen, die ihn verlassen haben, wäre eine geratene
-  Zuordnung schlimmer als keine. Alle Listen sind gekappt (`shares.UNIT_PREVIEW`), `unit_count`
-  nennt die Gesamtzahl; EIN Frontend-Baustein (`components/erp/unit-numbers.tsx`).
+  **Drei Angaben, immer und überall** (Testnotizen #531/#532): **Nummer inkl. Zusatz · Menge ·
+  Zustand**. Sie stehen in EINER Form (`InstanceUnit`), damit keine Ansicht sich eine eigene
+  baut – und der Zustand als die beiden Instanz-Achsen, damit ihn jede mit **derselben**
+  Projektion einfärbt (`instanceStatusConfig`). Zwei Dichten derselben Zeile aus EINER Quelle
+  (`components/erp/unit-numbers.tsx`): `UnitList` ausgeschrieben (Instanz-Detail, Hover der
+  Fluss-Kante), `UnitChips` kompakt als Zusatz zu einer Zeile, die Menge und Zustand schon nennt
+  (Auswahl, Positionen). Das **Instanz-Detail listet jedes Stück einzeln** (#531, Kachel
+  «Stücke», aufsteigend) statt nach Anteilen zusammengefasst – die Zusammenfassung sagte, wie
+  VIEL in welchem Zustand ist, aber nicht WELCHES Teil. Die **Pille im Fluss** nennt die
+  Objektnummer inkl. Zusatz (#532, zusammenhängende Nummern als Spanne `…-1…-4`); die
+  vollständige Liste steht im Hover. Auf den Kanten nur für Material, das der Auftrag noch hält:
+  für Mengen, die ihn verlassen haben, wäre eine geratene Zuordnung schlimmer als keine.
+  **Wem der unbeanspruchte Rest gehört, ist EINE Regel** (`inventory.rest_owner`: der Erzeuger,
+  solange die Instanz nicht am Lager liegt) – vorher stand sie nur bei den Anteilen, und dasselbe
+  Stück hiess im Detail «frei» und in der Aufteilung «Auftrag …003».
+  Listen sind ausserhalb des Instanz-Details gekappt (`shares.UNIT_PREVIEW`), `unit_count` nennt
+  die Gesamtzahl.
   Wächter `tests/rules/test_units.py` (Nummern, Einzelteil ohne Zusatz, kg ohne Nummern,
   disjunkte Halter, entwertete Nummer, Sichtbarkeit) + `test_smoke.py:
   test_every_piece_is_numbered_at_exactly_one_place`. Gegen echtes PostgreSQL 16 verifiziert

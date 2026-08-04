@@ -260,6 +260,8 @@ export interface InspectionUpdateInput {
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
+/** **Ein einzelnes Stück** – Nummer · Menge · Zustand, die EINE Form überall (#531/#532). */
+export type InstanceUnit = components['schemas']['InstanceUnit'];
 // Eine Teilmenge einer Charge an einem Standort (Standort-Verteilung ohne Instanz-Teilung)
 export type InstanceLocation = components['schemas']['InstanceLocation'];
 // qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):

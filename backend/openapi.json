@@ -10996,7 +10996,7 @@
           },
           "units": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/InstanceUnit"
             },
             "type": "array",
             "title": "Units",
@@ -11528,7 +11528,7 @@
           },
           "units": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/InstanceUnit"
             },
             "type": "array",
             "title": "Units",
@@ -11806,7 +11806,7 @@
           },
           "units": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/InstanceUnit"
             },
             "type": "array",
             "title": "Units",
@@ -11857,6 +11857,17 @@
               }
             ],
             "title": "Article Name"
+          },
+          "article_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Unit"
           },
           "location_label": {
             "anyOf": [
@@ -11966,7 +11977,7 @@
           },
           "units": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/InstanceUnit"
             },
             "type": "array",
             "title": "Units",
@@ -11984,6 +11995,68 @@
         ],
         "title": "InstanceShare",
         "description": "**Ein Anteil einer Instanz** – eine Menge mit einem Namen darauf.\n\nEine Instanz ist eine Menge, kein Ding, und ihre Menge ist **immer vollständig\naufgeteilt**: jeder Anteil gehört genau einem Auftrag, oder er ist frei. Genau so steht\nes in ``instances.reservations``; hier wird es nur sichtbar gemacht, statt es zu\nverstecken.\n\nDas ist die Zeile, die man in der Auswahl anklickt – und damit ist beantwortet, WEM man\netwas wegnimmt (die Frage, die vorher niemand stellen konnte). ``order_object_id`` leer\n= **frei**: es gehört niemandem, es verliert niemand etwas."
+      },
+      "InstanceUnit": {
+        "properties": {
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "quality": {
+            "type": "string",
+            "title": "Quality"
+          },
+          "disposition": {
+            "type": "string",
+            "title": "Disposition"
+          },
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "order_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Name"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "quantity",
+          "quality",
+          "disposition"
+        ],
+        "title": "InstanceUnit",
+        "description": "**Ein einzelnes Stück** – die EINE Form, in der ein Teil überall genannt wird.\n\nDrei Angaben, immer und überall dieselben (Testnotizen #531/#532):\n\n    number      die Objektnummer **inklusive Zusatz** – ``100000623-1``\n    quantity    seine Menge (fast immer 1; eine nicht zählbare Charge trägt hier 2.5)\n    Zustand     ``quality`` + ``disposition`` + ob es gerade jemand hält\n\nDer Zustand steht als die beiden Instanz-Achsen da (nicht als fertiges Wort), damit ihn\njede Ansicht mit **derselben** Projektion auf eine Ampelfarbe bringt wie überall sonst\n(``lib/process.instanceStatusConfig``) – kein zweites Regelwerk, keine zweite Wahrheit.\n\nDer **Halter** ist der Auftrag, der das Stück beansprucht (leer = frei): er entscheidet,\nob der Zustand «gebunden» ist, und macht die Zeile anklickbar."
       },
       "LegalDocument": {
         "properties": {

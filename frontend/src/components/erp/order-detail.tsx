@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, History, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert, PackageCheck, Lock, BadgeCheck, Pencil } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
-import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, ShortfallAnswer, UserProfile } from '@/types';
+import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, InstanceUnit, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, ShortfallAnswer, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
@@ -21,7 +21,7 @@ import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-di
 import { DraftFlowFrame, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
-import { UnitNumbers } from '@/components/erp/unit-numbers';
+import { UnitChips } from '@/components/erp/unit-numbers';
 import { MoveJournal } from '@/components/erp/move-journal';
 import { OrderDiagnosticsPanel } from '@/components/erp/order-diagnostics';
 import { orderName } from '@/lib/record-name';
@@ -77,7 +77,7 @@ type Share = {
    *  (Testnotiz #398). */
   holderReason: string | null;
   /** **Welche Stücke** dieser Anteil umfasst – jedes Teil hat eine eigene Nummer. */
-  units: string[];
+  units: InstanceUnit[];
   unitCount: number;
   kind: PinKind;
 };
@@ -1931,7 +1931,7 @@ function PinPicker({ line, onToggle, bare }: {
                   </span>
                   {/* **Welche Stücke** die Zeile meint – mit dem Klick ist damit nicht nur
                       beantwortet, WEM man etwas wegnimmt, sondern auch WELCHES Teil. */}
-                  <UnitNumbers units={sh.units} count={sh.unitCount} max={4} hideSingle />
+                  <UnitChips units={sh.units} count={sh.unitCount} max={4} unit={line.unit} />
                   <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5,
                                  color: sh.holderObjectId != null ? cfg.tone : 'var(--fg-4)',
                                  overflow: 'hidden', whiteSpace: 'nowrap' }}

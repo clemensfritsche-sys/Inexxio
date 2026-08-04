@@ -26,6 +26,31 @@ class LocationHop(BaseModel):
     label: Optional[str] = None
 
 
+class InstanceUnit(BaseModel):
+    """**Ein einzelnes Stück** – die EINE Form, in der ein Teil überall genannt wird.
+
+    Drei Angaben, immer und überall dieselben (Testnotizen #531/#532):
+
+        number      die Objektnummer **inklusive Zusatz** – ``100000623-1``
+        quantity    seine Menge (fast immer 1; eine nicht zählbare Charge trägt hier 2.5)
+        Zustand     ``quality`` + ``disposition`` + ob es gerade jemand hält
+
+    Der Zustand steht als die beiden Instanz-Achsen da (nicht als fertiges Wort), damit ihn
+    jede Ansicht mit **derselben** Projektion auf eine Ampelfarbe bringt wie überall sonst
+    (``lib/process.instanceStatusConfig``) – kein zweites Regelwerk, keine zweite Wahrheit.
+
+    Der **Halter** ist der Auftrag, der das Stück beansprucht (leer = frei): er entscheidet,
+    ob der Zustand «gebunden» ist, und macht die Zeile anklickbar."""
+
+    number: str
+    quantity: float
+    quality: str          # pending | passed | blocked
+    disposition: str      # in_process | in_stock | consumed | sold | scrapped
+    order_object_id: Optional[int] = None
+    order_name: Optional[str] = None
+    reason: Optional[str] = None   # deviation | supply | return | provisioning | None
+
+
 class InstanceShare(BaseModel):
     """**Ein Anteil einer Instanz** – eine Menge mit einem Namen darauf.
 
@@ -45,7 +70,7 @@ class InstanceShare(BaseModel):
     # **Welche Stücke** das sind – nicht nur wie viele (``services/units.py``).
     # Gekappt (``unit_count`` sagt, wie viele es insgesamt sind): eine 1000er-Charge soll
     # keine Liste mit 1000 Chips erzeugen.
-    units: list[str] = []
+    units: list[InstanceUnit] = []
     unit_count: int = 0
 
 
@@ -75,7 +100,7 @@ class InstanceResponse(BaseModel):
     reserved_quantity: float = 0   # mengengenau reservierte Menge (0 = frei)
     # **Die Stücke dieser Instanz mit ihren eigenen Nummern** (``services/units.py``):
     # eine Charge über 4 trägt 100000101-1 … -4. Gekappt, ``unit_count`` nennt die Zahl.
-    units: list[str] = []
+    units: list[InstanceUnit] = []
     unit_count: int = 0
     # **Die Aufteilung dieser Menge** – wer hält wie viel, und was ist frei. Vom Router
     # denormalisiert (``services/shares.py``); die Auswahl rendert daraus ihre Zeilen und
@@ -102,6 +127,9 @@ class InstanceResponse(BaseModel):
     order_object_id: Optional[int] = None
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
+    # Die Mengeneinheit des Artikels – eine Menge ohne Einheit ist eine halbe Auskunft
+    # («2.5» wovon?). Denormalisiert vom Router aus derselben Batch-Abfrage.
+    article_unit: Optional[str] = None
     location_label: Optional[str] = None
     # Physischer Standort bei Einbau (location_type == 'instance'): wo die Host-
     # Instanz tatsächlich liegt – die Komponente «wandert» mit ihr mit.
@@ -191,7 +219,7 @@ class InstanceEmbed(BaseModel):
     # GANZE Charge (Testnotizen #412/#414).
     held_quantity: float = 0
     # **Welche Stücke DIESER Auftrag hält** – die Nummern, nicht nur die Anzahl.
-    units: list[str] = []
+    units: list[InstanceUnit] = []
     unit_count: int = 0
     # Wie sich die Menge dieser Instanz auf die Aufträge verteilt – damit der Auftrag zeigen
     # kann, dass ein Teil gerade woanders liegt («2 Stk → Auftrag 100000456»). Dieselbe

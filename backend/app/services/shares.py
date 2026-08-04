@@ -53,7 +53,7 @@ def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceSha
             rows.append(InstanceShare(
                 order_object_id=(o[0] if o else None), order_name=(o[1] if o else None),
                 reason=(o[2] if o else None), quantity=float(q),
-                units=U.numbers(inst, holder=int(key), limit=UNIT_PREVIEW),
+                units=U.rows(inst, holder=int(key), limit=UNIT_PREVIEW, names=orders),
                 unit_count=U.count(inst, holder=int(key))))
         rest = to_qty(inst.quantity) - held
         if rest > 0:
@@ -66,7 +66,7 @@ def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceSha
                 order_object_id=(owner[0] if owner else None),
                 order_name=(owner[1] if owner else None),
                 reason=(owner[2] if owner else None), quantity=float(rest),
-                units=U.numbers(inst, holder=None, limit=UNIT_PREVIEW),
+                units=U.rows(inst, holder=None, limit=UNIT_PREVIEW, names=orders),
                 unit_count=U.count(inst, holder=None)))
         out[inst.id] = rows
     return out
@@ -75,12 +75,23 @@ def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceSha
 def _creator(db: Session, inst: Instance, cache: dict) -> tuple | None:
     """Der Auftrag, dem der **unbeanspruchte Rest** gehört – der Erzeuger, solange die
     Instanz nicht am Lager liegt. Am Lager gehört der Rest niemandem (= frei)."""
-    from .inventory import is_in_stock
-    if is_in_stock(inst) or not inst.order_id:
+    from .inventory import rest_owner
+    owner = rest_owner(inst)
+    if owner is None:
         return None
-    if inst.order_id not in cache:
-        cache.update(_orders(db, {inst.order_id}))
-    return cache.get(inst.order_id)
+    if owner not in cache:
+        cache.update(_orders(db, {owner}))
+    return cache.get(owner)
+
+
+def order_names(db: Session, insts: list[Instance]) -> dict[int, tuple]:
+    """Die Halter-Tabelle für eine Menge Instanzen – ``{db_id: (objektnr, name, grund)}``.
+
+    Öffentlich, weil auch die **Stücke** sie brauchen (``units.rows``): ein Auftrag heisst
+    an jeder Stelle gleich, und er wird EINMAL aufgelöst, nicht je Zeile."""
+    ids = {int(k) for i in insts for k in (i.reservations or {})}
+    ids |= {i.order_id for i in insts if i.order_id}
+    return _orders(db, ids)
 
 
 def _orders(db: Session, ids: set[int]) -> dict[int, tuple[int | None, str | None, str | None]]:

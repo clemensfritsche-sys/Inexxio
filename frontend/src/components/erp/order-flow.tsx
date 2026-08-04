@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { UnitNumbers } from '@/components/erp/unit-numbers';
+import { UnitList } from '@/components/erp/unit-numbers';
 import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, Hash, MapPin, Package, Redo2,
   Scissors, X } from 'lucide-react';
 import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, MaterialOrder, Order,
@@ -119,6 +119,27 @@ function asEntry(lots: FlowLot[]): FlowLot[] {
 const qtyText = (l: FlowLot) => `${l.quantity}${l.unit ? ` ${unitLabel(l.unit)}` : ''}`;
 
 /**
+ * **Die Objektnummer inklusive Zusatz** (Testnotiz #532) – welche Stücke die Menge
+ * ausmacht, nicht nur aus welcher Instanz sie stammt.
+ *
+ * Zusammenhängende Nummern werden zu einer Spanne (`…-1…-4`), damit die Kante eine Kante
+ * bleibt; die vollständige Liste steht im Hover. Kennt die Zeile ihre Stücke nicht
+ * (abgegangene Mengen – ihre Nummern sind entwertet, eine geratene Zuordnung wäre
+ * schlimmer als keine), bleibt es bei der blossen Objektnummer.
+ */
+function lotNumbers(l: FlowLot): string {
+  const us = l.units ?? [];
+  if (!us.length) return formatObjectId(l.instance_object_id);
+  const idx = us.map((u) => Number(u.number.split('-')[1] ?? 0)).sort((a, b) => a - b);
+  const head = formatObjectId(l.instance_object_id);
+  const contiguous = idx.every((n, i) => i === 0 || n === idx[i - 1] + 1);
+  const complete = (l.unit_count ?? us.length) === us.length;
+  if (idx.length === 1) return `${head}-${idx[0]}`;
+  if (contiguous && complete) return `${head}-${idx[0]}…-${idx[idx.length - 1]}`;
+  return `${head}-${idx[0]}…`;
+}
+
+/**
  * **Der Prozessbaum: woher das Material kam, wohin es weiterging** (Testnotiz #493).
  *
  * Ein Auftrag ist keine Insel – seine Instanzen hatten vorher ein Leben und haben danach
@@ -209,7 +230,7 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
           color: cfg.color, whiteSpace: 'nowrap',
         }}>
         {Icon && <Icon size={11} style={{ flexShrink: 0 }} />}
-        {qtyText(lot)} × {formatObjectId(lot.instance_object_id)}
+        {qtyText(lot)} × {lotNumbers(lot)}
       </button>
       {open && typeof document !== 'undefined' && createPortal(
         <span style={{
@@ -234,7 +255,8 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
           {/* **Welche Stücke** die Menge ausmachen – jedes Teil hat eine eigene Nummer. */}
           {(lot.units?.length ?? 0) > 0 && (
             <LotFact icon={Hash} title="Stücke">
-              <UnitNumbers units={lot.units} count={lot.unit_count} max={8} hideSingle />
+              <UnitList units={lot.units} unit={lot.unit ? unitLabel(lot.unit) : undefined}
+                max={12} />
             </LotFact>
           )}
         </span>, document.body)}

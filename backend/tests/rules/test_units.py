@@ -49,13 +49,16 @@ def test_a_batch_numbers_every_piece(db, kinds, world):
         "Die Nummern sind KEINE neuen Datensätze – sie wohnen in der Instanz.")
 
 
-def test_a_single_piece_keeps_its_plain_number(db, kinds, world):
-    """Ein Einzelteil ist schon eindeutig – ``-1`` wäre Lärm und stünde auf keinem Etikett."""
+def test_the_suffix_has_no_exception(db, kinds, world):
+    """**Eine Regel für alles**: auch ein Einzelteil trägt ``-1``.
+
+    Eine Sonderregel «bei genau einem Stück ohne Zusatz» wäre eine zweite Schreibweise für
+    dieselbe Sache, und jede Ansicht müsste sie kennen. Ein Format, überall gleich."""
     from app.services import units
 
     user, _ = world
     _, inst = _make_order(db, kinds["unit"], user, 1)
-    assert units.numbers(inst) == [str(inst.object_id)]
+    assert units.numbers(inst) == [f"{inst.object_id}-1"]
 
 
 def test_kilograms_get_no_running_numbers(db, kinds, world):
@@ -66,7 +69,7 @@ def test_kilograms_get_no_running_numbers(db, kinds, world):
     _, inst = _make_order(db, kinds["kg"], user, Decimal("2.5"))
     assert units.count(inst) == 1
     assert units.of(inst)[0].quantity == Decimal("2.5")
-    assert units.numbers(inst) == [str(inst.object_id)]
+    assert units.numbers(inst) == [f"{inst.object_id}-1"], "auch hier kein Sonderfall"
 
 
 def test_a_deviation_takes_named_pieces_and_the_parent_keeps_the_rest(db, kinds, world):
@@ -121,11 +124,15 @@ def test_the_numbers_reach_the_surface(db, kinds, world):
     assert any(r.units and r.unit_count == 1 for r in rows), (
         f"Die Auswahl muss zeigen, WELCHES Stück eine Zeile meint: {rows}")
     assert sum(r.unit_count for r in rows) == 4, rows
+    # **Drei Angaben, immer** (Testnotizen #531/#532): Nummer · Menge · Zustand.
+    for r in rows:
+        for u in r.units:
+            assert u.number and u.quantity > 0 and u.quality and u.disposition, u
 
     resp = to_order_response(db, dev)
     assert resp.instances and resp.instances[0].units, (
         "Der Auftrag zeigt die Nummern der Stücke, die er hält.")
     assert resp.instances[0].unit_count == 1
-    on_edges = {u for e in resp.flow_edges for l in e.lots for u in l.units}
-    assert on_edges == set(resp.instances[0].units), (
+    on_edges = {u.number for e in resp.flow_edges for l in e.lots for u in l.units}
+    assert on_edges == {u.number for u in resp.instances[0].units}, (
         f"Die Kante trägt dieselben Nummern wie das Embed: {on_edges}")

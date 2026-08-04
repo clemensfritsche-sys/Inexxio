@@ -4280,10 +4280,33 @@ def test_every_piece_is_numbered_at_exactly_one_place():
     assert not others, f"Nur services/units.py darf die Stücke schreiben – auch: {others}"
 
     src = (svc / "units.py").read_text(encoding="utf-8")
-    assert 'f"{inst.object_id}-{index}"' in src, (
-        "Das Format der Nummer steht an EINER Stelle (``label``).")
+    assert 'return f"{inst.object_id}-{index}"' in src, (
+        "Das Format der Nummer steht an EINER Stelle (``label``) – und **ohne Ausnahme**: "
+        "auch ein Einzelteil trägt ``-1``. Eine Sonderregel «bei genau einem Stück ohne "
+        "Zusatz» wäre eine zweite Schreibweise, die jede Ansicht kennen müsste.")
+    assert "single" not in src, "Kein Sonderfall im Format – eine Regel für alles."
     for fn in ("def create(", "def ensure(", "def sync(", "def drop(", "def verify("):
         assert fn in src, fn
+    # **Drei Angaben, immer und überall** (Testnotizen #531/#532): Nummer · Menge ·
+    # Zustand. Sie stehen in EINER Form (``InstanceUnit``), damit keine Ansicht eine
+    # eigene bauen muss – und der Zustand als die beiden Instanz-Achsen, damit ihn jede
+    # mit derselben Projektion einfärbt.
+    schema = (svc.parent / "schemas" / "instance.py").read_text(encoding="utf-8")
+    assert "class InstanceUnit(BaseModel):" in schema
+    for field in ("number: str", "quantity: float", "quality: str", "disposition: str"):
+        assert field in schema.split("class InstanceUnit")[1].split("class ")[0], field
+    fe = svc.parents[1].parent / "frontend" / "src" / "components" / "erp"
+    units_tsx = (fe / "unit-numbers.tsx").read_text(encoding="utf-8")
+    assert "export function UnitList" in units_tsx and "export function UnitChips" in units_tsx, (
+        "Zwei Dichten derselben Zeile, EINE Quelle – nicht je Ansicht ein Nachbau.")
+    assert "instanceStatusConfig" in units_tsx, (
+        "Der Zustand kommt aus derselben Projektion wie überall – kein zweites Regelwerk.")
+    inst_tsx = (fe / "instance-detail.tsx").read_text(encoding="utf-8")
+    assert "<UnitList units={inst.units}" in inst_tsx, (
+        "Das Instanz-Detail listet die Stücke EINZELN (Testnotiz #531) – nicht mehr nach "
+        "Anteilen zusammengefasst; das sagte, wie VIEL in welchem Zustand ist, aber nicht "
+        "WELCHES Teil.")
+
     res = (svc / "reservation.py").read_text(encoding="utf-8")
     assert "units.sync(inst)" in res and "units.drop(inst" in res, (
         "Die Stücke folgen der Reservierung an ihrer Engstelle – sonst driften sie.")

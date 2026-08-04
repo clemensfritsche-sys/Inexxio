@@ -50,6 +50,7 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
     art_rows = db.query(Article).filter(Article.id.in_(art_ids)).all() if art_ids else []
     arts_name = {a.id: a.name for a in art_rows}
     arts_oid = {a.id: a.object_id for a in art_rows}
+    arts_unit = {a.id: a.unit for a in art_rows}
     resv_ids = {r.reserved_for_order_id for r in rows if r.reserved_for_order_id}
     all_ord_ids = ord_ids | resv_ids
     ords = {o.id: o.object_id for o in db.query(Order).filter(Order.id.in_(all_ord_ids)).all()} if all_ord_ids else {}
@@ -67,16 +68,22 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
     # **Die Aufteilung der Menge** (wer hält wie viel, was ist frei) – EINE Batch-Abfrage
     # für alle Instanzen, damit die Auswahl ihre Zeilen zeigen kann (``services/shares.py``).
     share_map = shares.shares_for(db, rows)
+    # Die Halter-Namen einmal auflösen (kein N+1) – dieselbe Tabelle, die auch die
+    # Anteile benutzen, damit ein Auftrag überall gleich heisst.
+    share_orders = shares.order_names(db, rows)
     out: list[InstanceResponse] = []
     for r in rows:
         resp = InstanceResponse.model_validate(r)
         resp.shares = share_map.get(r.id, [])
         # **Die Stücke mit ihren eigenen Nummern** – 100000101-1 … -4 (``services/units.py``).
         # ``shares_for`` hat sie oben bereits eröffnet, falls es Altbestand war.
-        resp.units = units.numbers(r, limit=shares.UNIT_PREVIEW)
+        # **Alle** Stücke, einzeln und aufsteigend (Testnotiz #531) – hier ist EIN
+        # Datensatz offen, also gibt es nichts zu deckeln; die Liste IST die Aussage.
+        resp.units = units.rows(r, names=share_orders)
         resp.unit_count = units.count(r)
         resp.article_name = arts_name.get(r.article_id)
         resp.article_object_id = arts_oid.get(r.article_id)
+        resp.article_unit = arts_unit.get(r.article_id)
         resp.order_object_id = ords.get(r.order_id)
         resp.reserved_for_order_object_id = ords.get(r.reserved_for_order_id) if r.reserved_for_order_id else None
         resp.location_label = loc_labels.get((r.location_type, r.location_id))

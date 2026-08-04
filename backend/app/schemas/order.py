@@ -8,7 +8,7 @@ from .article_process_step import ArticleProcessStepCreate
 from .disposal import DisposalEmbed
 from .document import DocumentEmbed
 from .inspection import InspectionEmbed
-from .instance import InstanceEmbed, MaterialMoveView
+from .instance import InstanceUnit, InstanceEmbed, MaterialMoveView
 from .movement import MovementEmbed
 from .purchase_order import PurchaseEmbed
 from .resource import ResourceEmbed
@@ -151,7 +151,7 @@ class FlowLot(BaseModel):
     instance_object_id: int
     # **Welche Stücke** – die Kante nennt die Nummern, nicht nur die Anzahl
     # (``services/units.py``). Gekappt; ``unit_count`` sagt, wie viele es insgesamt sind.
-    units: list[str] = []
+    units: list[InstanceUnit] = []
     unit_count: int = 0
     article_id: Optional[int] = None
     article_object_id: Optional[int] = None

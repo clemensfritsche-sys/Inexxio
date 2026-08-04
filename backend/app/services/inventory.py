@@ -107,6 +107,21 @@ def unblocked_clauses() -> tuple:
     return (Instance.quality.notin_(_BLOCKED_VALUES),)
 
 
+def rest_owner(inst) -> int | None:
+    """**Wem gehört der unbeanspruchte Rest einer Instanz?** – die EINE Antwort.
+
+    Am Lager: niemandem, er ist frei. Solange die Instanz aber noch in ihrem Erzeugungs-
+    auftrag steckt (in Arbeit, gesperrt), gehört der Rest IHM – er hat ihn hervorgebracht.
+    Sonst stünde an einem Stück mitten im Prozess «frei», und niemand würde gefragt, wenn
+    es jemand nimmt.
+
+    Zwei Leser teilen sich die Regel: die **Anteile** (``shares``, Menge je Halter) und die
+    **Stücke** (``units.rows``, welche Nummer wem gehört). Vorher stand sie nur bei den
+    Anteilen – das Instanz-Detail meldete dieselben drei Stück einmal als «Auftrag …003»
+    und einmal als «frei»."""
+    return None if is_in_stock(inst) or not inst.order_id else inst.order_id
+
+
 def is_in_stock(inst) -> bool:
     """Dieselbe Regel wie ``in_stock_clauses`` – nur auf einem **geladenen** Objekt
     statt als Query-Bedingung.

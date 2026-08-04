@@ -3854,7 +3854,7 @@ export interface components {
              * Units
              * @default []
              */
-            units: string[];
+            units: components["schemas"]["InstanceUnit"][];
             /**
              * Unit Count
              * @default 0
@@ -4053,7 +4053,7 @@ export interface components {
              * Units
              * @default []
              */
-            units: string[];
+            units: components["schemas"]["InstanceUnit"][];
             /**
              * Unit Count
              * @default 0
@@ -4185,7 +4185,7 @@ export interface components {
              * Units
              * @default []
              */
-            units: string[];
+            units: components["schemas"]["InstanceUnit"][];
             /**
              * Unit Count
              * @default 0
@@ -4202,6 +4202,8 @@ export interface components {
             article_object_id?: number | null;
             /** Article Name */
             article_name?: string | null;
+            /** Article Unit */
+            article_unit?: string | null;
             /** Location Label */
             location_label?: string | null;
             /** Physical Location Label */
@@ -4245,12 +4247,45 @@ export interface components {
              * Units
              * @default []
              */
-            units: string[];
+            units: components["schemas"]["InstanceUnit"][];
             /**
              * Unit Count
              * @default 0
              */
             unit_count: number;
+        };
+        /**
+         * InstanceUnit
+         * @description **Ein einzelnes Stück** – die EINE Form, in der ein Teil überall genannt wird.
+         *
+         *     Drei Angaben, immer und überall dieselben (Testnotizen #531/#532):
+         *
+         *         number      die Objektnummer **inklusive Zusatz** – ``100000623-1``
+         *         quantity    seine Menge (fast immer 1; eine nicht zählbare Charge trägt hier 2.5)
+         *         Zustand     ``quality`` + ``disposition`` + ob es gerade jemand hält
+         *
+         *     Der Zustand steht als die beiden Instanz-Achsen da (nicht als fertiges Wort), damit ihn
+         *     jede Ansicht mit **derselben** Projektion auf eine Ampelfarbe bringt wie überall sonst
+         *     (``lib/process.instanceStatusConfig``) – kein zweites Regelwerk, keine zweite Wahrheit.
+         *
+         *     Der **Halter** ist der Auftrag, der das Stück beansprucht (leer = frei): er entscheidet,
+         *     ob der Zustand «gebunden» ist, und macht die Zeile anklickbar.
+         */
+        InstanceUnit: {
+            /** Number */
+            number: string;
+            /** Quantity */
+            quantity: number;
+            /** Quality */
+            quality: string;
+            /** Disposition */
+            disposition: string;
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /** Order Name */
+            order_name?: string | null;
+            /** Reason */
+            reason?: string | null;
         };
         /** LegalDocument */
         LegalDocument: {
