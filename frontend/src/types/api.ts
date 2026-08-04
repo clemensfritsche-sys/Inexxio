@@ -4635,6 +4635,8 @@ export interface components {
             lines?: components["schemas"]["OrderLineCreate"][] | null;
             /** Steps */
             steps?: components["schemas"]["ArticleProcessStepCreate"][] | null;
+            /** Returns Nothing */
+            returns_nothing?: boolean | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */
@@ -4957,6 +4959,11 @@ export interface components {
             reason?: string | null;
             /** Abort Into Id */
             abort_into_id?: number | null;
+            /**
+             * Returns Nothing
+             * @default false
+             */
+            returns_nothing: boolean;
             origin?: components["schemas"]["OrderOrigin"] | null;
             /**
              * Flow Lots

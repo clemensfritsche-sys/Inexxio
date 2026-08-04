@@ -83,14 +83,21 @@ def _blocked_step(db: Session, order: Order, article_id: int | None) -> int | No
 
 
 def record_link(db: Session, instance_object_id: int | None, order_id: int,
-                quantity: Decimal | None = None) -> None:
+                quantity: Decimal | None = None, src_holder: int | None = None) -> None:
     """Verarbeitung einer Instanz durch einen Auftrag **dauerhaft** festhalten (idempotent) –
     unabhängig von späteren Bindungen/Reservierungen (siehe ``InstanceOrderLink``).
 
     ``quantity``: **wie viel** der Auftrag übernommen hat. Die Reservierung wird bei
     Abschluss gelöst; ohne diese Zahl wäre danach nicht mehr beantwortbar, wie viel je
     hineinging – und genau das zeigt der Fluss an seinen Kanten (Notiz #413). Wird die
-    Menge nachgereicht (zweiter Aufruf mit Wert), füllt sie eine noch leere Zeile."""
+    Menge nachgereicht (zweiter Aufruf mit Wert), füllt sie eine noch leere Zeile.
+
+    ``src_holder``: **aus wessen Anteil** die Menge kommt. Die Auswahl weiss es
+    (``orders.pick_sources``) – ohne die Angabe rät die Buchung, und zwar nach Topfgrösse:
+    nimmt eine Abweichung ihrem Abzweig ein Stück weg und hält der Hauptauftrag gleich viel,
+    wurde die Übernahme dem **Hauptauftrag** zugeschrieben. Auf dessen Achse stand dieselbe
+    Nummer danach zweimal (Testnotizen #559–#562). Geraten wird nur noch, wo es nichts zu
+    wissen gibt (FIFO ab freiem Lager)."""
     if not instance_object_id:
         return
     row = (
@@ -109,7 +116,8 @@ def record_link(db: Session, instance_object_id: int | None, order_id: int,
         inst = db.query(Instance).filter(Instance.object_id == instance_object_id).first()
         if inst is not None and inst.order_id != order_id:
             ledger.post(db, inst, quantity if quantity is not None else inst.quantity,
-                        kind="taken", holder=order_id, src_holder="?")
+                        kind="taken", holder=order_id,
+                        src_holder=src_holder if src_holder is not None else "?")
     elif quantity is not None and row.quantity is None:
         row.quantity = quantity
 
@@ -163,6 +171,11 @@ def give_back(db: Session, sub: Order, parent: Order, inst: Instance,
     from .reservation import release as release_reservation, reserve
     held = reserved_for(inst, sub.id)
     if held <= 0 or (inst.disposition or "") in TERMINAL_DISPOSITIONS:
+        return ZERO
+    if sub.returns_nothing:
+        # **Die Rückführung ist gekappt** (Testnotiz #563): der Verleiher ist längst
+        # abgebrochen und bekommt nichts mehr. Das Material bleibt hier und wird beim
+        # Abschluss frei – zurückzubuchen hiesse, den Abbruch zu widerrufen.
         return ZERO
     # **Welche Stücke zurückgehen – JETZT festhalten** (Testnotizen #543/#544): gleich hat
     # der Unter-Auftrag seinen Anspruch abgegeben, dann weiss es niemand mehr. Die Nummern
@@ -548,10 +561,13 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
         # zu viel hätte, verliert entsprechend und meldet damit seine Unterdeckung.
         # Die Stelle gilt für BEIDE Wege: die Auswahl im Auftrag ebenso wie die
         # systemseitige Abweichung (fehlgeschlagene Datenerfassung, Artikel-Deaktivierung).
+        # **Wessen Anteil das ist, weiss die Auswahl** – VOR ``enforce_pick``, denn das
+        # verbraucht die Angabe (sie ist eine Vormerkung des Entwurfs).
+        src = pick_source(order, inst)
         enforce_pick(db, order, inst)
         # Die übernommene MENGE dauerhaft festhalten – die Reservierung wird bei Abschluss
         # gelöst, der Materialfluss braucht sie danach noch (Notiz #413).
-        record_link(db, inst.object_id, order.id, held_quantity(order, inst))
+        record_link(db, inst.object_id, order.id, held_quantity(order, inst), src_holder=src)
     log_audit(db, "instances", None, "Unter-Auftrag übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
@@ -584,9 +600,10 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) ->
         # Der Anspruch wird mit der Freigabe scharf – und zwar zulasten des **genannten**
         # Anteils (``orders.pick_sources``). Haben zwei Entwürfe dieselbe freie Menge
         # vorgemerkt, gewinnt der, der zuerst freigibt (``reservation.enforce``).
+        src = pick_source(order, inst)
         enforce_pick(db, order, inst)
         claimed += want
-        record_link(db, inst.object_id, order.id, want)
+        record_link(db, inst.object_id, order.id, want, src_holder=src)
     remaining = to_qty(quantity) - claimed
     if remaining <= 0:
         return                                             # vollständig durch fixierte gedeckt

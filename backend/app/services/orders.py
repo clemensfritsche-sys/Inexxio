@@ -631,15 +631,27 @@ def _flow_back(db: Session, sub: Order, material: list[FlowLot]) -> list[FlowLot
     if not departed:
         return ([] if sub.status in ("draft", "released")
                 else returning_material(material))
+    from . import units as U
     meta = {m.instance_object_id: m for m in material}
+    insts = {i.object_id: i for i in db.query(Instance).filter(
+        Instance.object_id.in_({k[0] for k in departed}))} if departed else {}
     out: list[FlowLot] = []
-    for (oid, quality, disposition), qty in sorted(departed.items()):
+    for (oid, quality, disposition), back in sorted(departed.items()):
         base = meta.get(oid)
-        row = (base.model_copy(update={"quantity": float(qty), "at": None,
+        row = (base.model_copy(update={"quantity": float(back.quantity), "at": None,
                                        "quality": quality, "disposition": disposition,
                                        "reserved": False})
-               if base else FlowLot(instance_object_id=oid, quantity=float(qty),
+               if base else FlowLot(instance_object_id=oid, quantity=float(back.quantity),
                                     quality=quality, disposition=disposition))
+        # **Die zurückgegebenen Stücke sind die der BUCHUNG** – nicht die, die einmal
+        # hineingingen (Testnotiz #559): wer 2 übernimmt, 1 weiterreicht und 1 zurückgibt,
+        # nennt sonst beide Nummern zu einer Menge von 1.
+        inst = insts.get(oid)
+        if inst is not None and back.units:
+            row.units = U.rows_for(inst, back.units)
+            row.unit_count = len(back.units)
+        elif inst is not None:
+            row.units, row.unit_count = [], 0
         out.append(row)
     return out
 
@@ -831,6 +843,10 @@ def _return_target(db: Session, order: Order) -> Order | None:
     seine Stück an den Eltern (``process._peg_supply_to_parent``). Alles andere gibt nichts
     zurück – ein gewöhnlicher Auftrag schuldet niemandem etwas."""
     from .subject import is_fixed_subject, lender_of
+    # **Gekappt heisst gekappt** (Testnotiz #563): dieser Auftrag führt sein Material zu
+    # Ende, es geht an niemanden zurück – also gibt es auch keine Rückgabe-Linie.
+    if order.returns_nothing:
+        return None
     # **Was gar nicht mehr da ist, kommt auch nicht zurück** (Testnotiz #492). Sonst zeigte
     # derselbe Abzweig zwei verschiedene Bilder: im Eltern-Auftrag ohne Rückweg (dort wurde
     # aus dem Material gerechnet), in seiner EIGENEN Ansicht mit – weil sie nur fragte, WEM

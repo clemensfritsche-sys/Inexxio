@@ -510,9 +510,11 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
       {/* **Die Palette steht IM Prozess, nicht dahinter** (Testnotiz #519): ein Modul wird
           in den Ablauf eingefügt – also liegt die Auswahl vor der Zielflagge, dort wo das
           nächste Modul hinkommt. Der Endknoten schliesst den Fluss danach ab. */}
-      {steps.length > 0 && !adding && <Connector />}
-      {/* Leerer Prozess: der Konnektor führt vom Start-Knoten zur Palette. */}
-      {steps.length === 0 && !readOnly && !adding && <Connector />}
+      {/* **Die Linie führt IMMER heran** (Testnotiz #557) – auch während man ein Modul
+          konfiguriert. Sie hing an ``!adding``, also fehlte sie genau dann, wenn man gerade
+          einen Schritt anlegt: der Editor stand ohne Anschluss unter dem grünen Startpunkt.
+          Dieselbe Bedingung wie der Start- und der Endknoten – eine Regel, drei Stellen. */}
+      {(steps.length > 0 || !readOnly) && <Connector />}
 
       {/* **Die Palette steht offen** (Notiz #223): «jeder Klick ist ein Klick zu viel» –
           die verfügbaren Module liegen sichtbar am Ende des Flusses, ein Klick legt an.

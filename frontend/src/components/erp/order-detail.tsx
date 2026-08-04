@@ -693,6 +693,12 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     return [...by.values()].sort((a, b) => a.object_id - b.object_id);
   })();
 
+  // **«Was ich übernehme, kommt nicht zurück»** (Testnotiz #563) – EINE Aussage über diesen
+  // Auftrag, gemacht durch das Kappen der Rückgabe-Linie. Der Halter endet damit an dieser
+  // Stelle: abgebrochen, fortgeführt hier. Ohne sie wartet er, bis der Abzweig endet, und
+  // das System entscheidet dann (#556).
+  const [returnsNothing, setReturnsNothing] = useState(false);
+
   // **Die Auswahl fragt nichts mehr** (Notiz #370): ein Entwurf nimmt niemandem etwas weg –
   // er merkt nur vor. Die Frage «was geschieht mit dem laufenden Auftrag?» steht bei der
   // **Freigabe** (siehe ``changeStatus``), wo die Auswahl feststeht.
@@ -878,6 +884,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         recurrence_interval_days: draft.recurrence_interval_days ?? null,
         recurrence_lead_time_days: draft.recurrence_lead_time_days ?? null,
         recurrence_anchor: draft.recurrence_anchor ?? null,
+        returns_nothing: returnsNothing,
       });
       onSaved(created);
     } catch (e) {
@@ -1251,7 +1258,8 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
             nichts hervor und gibt an nichts zurück. */}
         {draftEditor && (
           <div style={{ marginBottom: 12 }}>
-            <DraftFlowFrame holders={draftHolders} onOpenOrder={nav ?? undefined}>
+            <DraftFlowFrame holders={draftHolders} cut={returnsNothing}
+              onToggleCut={() => setReturnsNothing((v) => !v)} onOpenOrder={nav ?? undefined}>
               {draftEditor}
             </DraftFlowFrame>
           </div>

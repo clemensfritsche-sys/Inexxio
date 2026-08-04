@@ -333,9 +333,10 @@ export interface OrderInput extends OrderRecurrenceInput {
   lines?: OrderLineCreateInput[] | null;
   /** Der auftragseigene Ablauf – derselbe Editor, nur noch nicht gespeichert. */
   steps?: ArticleProcessStepInput[] | null;
-  /** Antwort auf eine Unterdeckung, die die Auswahl bei laufenden Aufträgen auslöst –
-   *  **je Halter eine** ({Objektnummer: Antwort}). Im Entwurf ist sie die Rückgabe-Linie:
-   *  führt sie zu ihm, wartet er; ist sie gekappt, wird seine Menge reduziert. */
+  /** **Die Rückführung ist gekappt** (Testnotiz #563): was dieser Auftrag übernimmt, kommt
+   *  nicht zurück – der Halter endet an dieser Stelle, abgebrochen und hier fortgeführt.
+   *  Im Entwurf ist das die gekappte Rückgabe-Linie. */
+  returns_nothing?: boolean | null;
 }
 
 export type OrderUpdateInput = OrderRecurrenceInput & {
@@ -346,9 +347,6 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   // Auftrags**: verkauft → Retoure · gebunden (in Arbeit/reserviert/gesperrt) →
   // Abweichung · frei → gewöhnlicher Auftrag.
   picks?: InstancePickInput[] | null;
-  // Antwort auf die Unterdeckung, die eine solche Auswahl beim laufenden Auftrag auslöst:
-  // warten · ersetzen · ohne Ersatz weiter – **je Halter eine**. Fehlt eine, antwortet der
-  // Server mit 409 und nennt die Betroffenen.
   desired_delivery_date?: string | null;
   is_active?: boolean;
   expected_updated_at?: string | null;   // Optimistic Locking

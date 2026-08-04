@@ -3,7 +3,8 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { UnitList } from '@/components/erp/unit-numbers';
-import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, Hash, MapPin, Package, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, Hash, MapPin, Package,
+  Redo2, Scissors, X } from 'lucide-react';
 import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, MaterialOrder, Order,
   OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution, StepType, SubOrderStep } from '@/types';
 import { STEP_META, instanceStatusConfig, stepStateLabel } from '@/lib/process';
@@ -15,7 +16,7 @@ import { orderStatus } from '@/lib/record-status';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { saleStatusConfig } from '@/lib/sale';
 import { FlowTerm, kindColor } from '@/components/erp/process-steps';
-import { ARM, Axis, Elbow, LANE, MAIN, Row, SIDE, aside }
+import { ARM, Axis, BEND, Elbow, LANE, MAIN, RUN, Row, SIDE, aside }
   from '@/components/erp/flow-line';
 import { actorHint, formatObjectId } from '@/lib/utils';
 
@@ -967,15 +968,23 @@ function stepStatus(s: OrderStep): string | null {
  * **Und die Rückgabe-Linie IST die Entscheidung.** Die Unterdeckung des Halters hat drei
  * Antworten; zwei davon sind schlicht die Frage, ob das Material zurückkommt:
  *
- * **Entschieden wird dabei nichts mehr** (Testnotiz #556). Die Rückgabe-Linie war einmal die
- * Antwort auf die Unterdeckungs-Frage (Schere = «Menge reduzieren»); seit die Entscheidung
- * automatisch fällt, ist sie schlicht eine **Aussage**: dieses Material geht dorthin zurück,
- * und solange es unterwegs ist, wartet der Halter. Ob es zurückkommt, zeigt sich erst, wenn
- * dieser Auftrag endet – dann entscheidet das System.
+ * **Die Rückgabe-Linie ist eine Aussage – und man kann sie kappen** (Testnotizen #556/#563).
+ *
+ * Normalerweise geht das Material zurück, und solange es unterwegs ist, wartet der Halter;
+ * ob es wirklich zurückkommt, entscheidet das System, wenn dieser Auftrag endet (#556).
+ * Manchmal weiss man es aber **jetzt schon**: der neue Auftrag nimmt alles und führt es zu
+ * Ende. Dann ist die Kappung eine Aussage über die Zukunft, die das System nicht selbst
+ * treffen kann – der Halter endet an dieser Stelle, abgebrochen und hier fortgeführt.
+ *
+ * **Eine Aussage, ein Schalter**: gekappt wird nicht je Halter, sondern für diesen Auftrag –
+ * er gibt zurück oder eben nicht. Darum verschwinden alle Linien zusammen.
  */
-export function DraftFlowFrame({ holders, onOpenOrder, children }: {
+export function DraftFlowFrame({ holders, cut = false, onToggleCut, onOpenOrder, children }: {
   /** Die laufenden Aufträge, denen diese Auswahl etwas wegnimmt (`AffectedOrder`-Zeilen). */
   holders: AffectedOrder[];
+  /** «Was ich übernehme, kommt nicht zurück» – EINE Aussage über diesen Auftrag. */
+  cut?: boolean;
+  onToggleCut?: () => void;
   onOpenOrder?: (objectId: number) => void;
   children: React.ReactNode;
 }) {
@@ -995,9 +1004,11 @@ export function DraftFlowFrame({ holders, onOpenOrder, children }: {
         <Row>{children}</Row>
         <Row><Axis h={18} strong /></Row>
         {/* Je Halter seine eigene Rückgabe-Linie: was hier geholt wurde, geht dorthin
-            zurück, und so lange wartet er darauf. */}
+            zurück, und so lange wartet er darauf. Die Schere sitzt AUF der Linie – wo
+            entschieden wird, wird auch bedient (#499); gekappt ist schlicht keine Linie. */}
         {holders.map((h, i) => (
-          <Row key={h.object_id} left={<DraftReturnArm holder={h} />}>
+          <Row key={h.object_id}
+            left={<DraftReturnArm holder={h} connected={!cut} onToggle={onToggleCut} />}>
             {i < holders.length - 1 && <Axis grow h={ARM} strong />}
           </Row>
         ))}
@@ -1047,15 +1058,37 @@ function DraftOriginArm({ holders, onOpen }: {
  * derselben Stelle, an der die Schere sass, steht der Knopf, der sie wiederbringt. Damit ist
  * die Entscheidung an genau einem Ort sichtbar UND umkehrbar – ohne zweite Liste darunter.
  */
-function DraftReturnArm({ holder }: { holder: AffectedOrder }) {
+function DraftReturnArm({ holder, connected, onToggle }: {
+  holder: AffectedOrder; connected: boolean; onToggle?: () => void;
+}) {
   const label = holder.name ?? 'Auftrag';
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
-      <Elbow dir="out-to-left" strong />
-      <div {...aside('left', { width: '100%', minWidth: 0 })}>
-        <OrderRefNode caption="Gibt zurück an" objectId={holder.object_id} name={holder.name}
-          icon={ArrowDown}
-          title={`${holderLoss(holder)} gehen an ${label} ${formatObjectId(holder.object_id)} zurück`} />
+      {connected && <Elbow dir="out-to-left" strong />}
+      {/* Auf dem waagrechten Stück der Ecke (`out-to-left`: y = 2·BEND), mittig zwischen
+          Achse und Spurmitte – dort, wo die Linie verläuft. */}
+      {onToggle && (
+        <button type="button" onClick={onToggle}
+          title={connected
+            ? `${holderLoss(holder)} gehen zurück – ${label} wartet darauf. Klick: Rückführung `
+              + 'kappen; dann endet dieser Auftrag hier und wird abgebrochen.'
+            : `${holderLoss(holder)} bleiben hier – ${label} endet an dieser Stelle und wird `
+              + 'abgebrochen. Klick: Rückführung wieder anschalten.'}
+          style={{
+            position: 'absolute', left: SIDE / 2 + RUN / 2, top: 2 * BEND,
+            transform: 'translate(-50%, -50%)', width: 28, height: 28, borderRadius: 999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            border: `1px solid ${connected ? 'var(--fg-2)' : 'var(--border-2)'}`,
+            background: '#fff', color: connected ? 'var(--fg-2)' : 'var(--fg-4)', padding: 0,
+          }}>
+          {connected ? <Scissors size={14} /> : <Redo2 size={14} />}
+        </button>
+      )}
+      <div {...aside('left', { width: '100%', minWidth: 0, opacity: connected ? 1 : 0.55 })}>
+        <OrderRefNode
+          caption={connected ? 'Gibt zurück an' : 'Keine Rückgabe – wird abgebrochen'}
+          objectId={holder.object_id} name={holder.name} icon={ArrowDown}
+          title={`${holderLoss(holder)} · ${label} ${formatObjectId(holder.object_id)}`} />
       </div>
     </div>
   );

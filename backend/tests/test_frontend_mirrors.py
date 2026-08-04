@@ -267,15 +267,20 @@ def test_the_draft_is_framed_like_the_order_it_will_become():
     # samt Terminal-Knoten selbst.
     assert 'title="Start · neuer Auftrag"' not in flow and 'title="Ende · neuer Auftrag"' not in flow, (
         "Der Editor bringt seine eigenen Terminal-Knoten mit – ein zweiter ist einer zu viel.")
-    # **Der Rahmen zeigt, er entscheidet nicht** (Testnotiz #556). Die Rückgabe-Linie war
-    # einmal die Antwort auf die Unterdeckungs-Frage (Schere = «Menge reduzieren»); seit die
-    # Entscheidung automatisch fällt, ist sie eine Aussage: das Material geht dorthin zurück,
-    # und so lange wartet der Halter. Kein Schalter, keine Antwort, kein Dialog.
-    for gone in ("function DraftCutList", "Scissors", "onToggleReturn", "cutReturns"):
+    # **Der Rahmen entscheidet keine Unterdeckung mehr** (Testnotiz #556) – darüber
+    # entscheidet das System. Was bleibt, ist eine **Aussage über die Zukunft**, die es
+    # nicht selbst treffen kann: «was ich übernehme, kommt nicht zurück» (#563). Die
+    # gekappte Linie IST diese Aussage, und der Halter endet damit an dieser Stelle.
+    for gone in ("function DraftCutList", "shortfall_responses"):
         assert gone not in flow and gone not in detail, f"{gone} entscheidet nichts mehr (#556)"
-    assert "shortfall_responses" not in detail
-    assert '<Elbow dir="out-to-left" strong />' in flow, (
-        "Die Rückgabe-Linie ist immer da – sie sagt, wohin das Material zurückgeht.")
+    assert "{connected && <Elbow dir=\"out-to-left\" strong />}" in flow, (
+        "Gekappt = keine Linie (kein zweiter Strichstil, #422/#429).")
+    assert "left: SIDE / 2 + RUN / 2, top: 2 * BEND," in flow, (
+        "Die Schere sitzt auf dem waagrechten Stück der Rückgabe-Linie (#499).")
+    # **EINE Aussage, EIN Schalter** – gekappt wird für diesen Auftrag, nicht je Halter.
+    assert "cut?: boolean;" in flow and "connected={!cut}" in flow, (
+        "Er gibt zurück oder eben nicht – darum verschwinden alle Linien zusammen.")
+    assert "returns_nothing: returnsNothing" in detail
 
 
 def test_the_new_order_header_looks_like_every_other_one():

@@ -91,6 +91,7 @@ _COLUMN_SAFETY_NET = (
     # Woher ein Entwurf seine **Anteile** nimmt (Migration 096): ohne die Spalte müsste die
     # Freigabe raten, welchem Auftrag sie ein Stück wegnimmt.
     ("orders", "pick_sources", "JSONB"),
+    ("orders", "returns_nothing", "BOOLEAN NOT NULL DEFAULT false"),
     ("purchase_orders", "order_total", "NUMERIC(12,2)"),
     ("purchase_orders", "ordered_at", "TIMESTAMP WITH TIME ZONE"),
     ("article_process_steps", "shared_fields", "JSONB"),

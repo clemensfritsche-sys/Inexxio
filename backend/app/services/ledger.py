@@ -241,18 +241,41 @@ def moves_of(db: Session, order_id: int) -> list[MaterialMove]:
             .order_by(MaterialMove.id).all())
 
 
-def departed_of(db: Session, order_id: int) -> dict[tuple[int, str, str], Decimal]:
-    """**Was diesen Auftrag lebend verlassen hat** – je (Instanz, Qualität, Verbleib). Das
-    ist die faktische Antwort auf «was kam zurück?»: nicht eine Vorhersage aus dem
-    Hineingegangenen, sondern die tatsächlichen Rückgabe-Buchungen (returned/released an
-    Lager oder Eltern), im Zustand, in dem sie gingen."""
-    out: dict[tuple[int, str, str], Decimal] = {}
+#: Buchungen, die eine Menge **zurückgeben** – nach oben an den Verleiher oder ans Lager.
+#: Ein ``taken`` gehört NICHT dazu: das reicht nach unten weiter (Testnotiz #559).
+RETURNING = ("returned", "released")
+
+
+class Departed(NamedTuple):
+    """Eine zurückgegebene Menge – **mit ihren Nummern** (Testnotiz #559)."""
+    quantity: Decimal
+    units: tuple[int, ...] = ()
+
+
+def departed_of(db: Session, order_id: int) -> dict[tuple[int, str, str], Departed]:
+    """**Was diesen Auftrag ZURÜCKGEGEBEN hat** – je (Instanz, Qualität, Verbleib).
+
+    Die faktische Antwort auf «was kam zurück?»: nicht eine Vorhersage aus dem
+    Hineingegangenen, sondern die tatsächlichen Rückgabe-Buchungen, im Zustand, in dem sie
+    gingen.
+
+    **Nur echte Rückgaben** (Testnotiz #559). Gezählt wurde jede lebende Abgabe – auch die an
+    einen **weiteren** Unter-Auftrag. Ein Abzweig, der 2 Stück übernahm, davon 1 an seine
+    eigene Abweichung weitergab (die es verschrottete) und 1 zurückgab, meldete darum «2
+    zurück»: die Weitergabe nach unten wurde als Rückgabe nach oben gelesen. Was ein Abzweig
+    weiterreicht, hat den Eltern nie wieder erreicht."""
+    out: dict[tuple[int, str, str], Departed] = {}
     for m in moves_of(db, order_id):
         if (m.src_order_id == order_id and m.dst_order_id != order_id
+                and m.kind in RETURNING
                 and (m.dst_disposition or "") not in TERMINAL):
             key = (m.instance_object_id, m.dst_quality or "pending",
                    m.dst_disposition or "in_process")
-            out[key] = out.get(key, ZERO) + to_qty(m.quantity)
+            cur = out.get(key) or Departed(ZERO)
+            # **Die Nummern stehen in der Buchung** – nicht in dem, was der Auftrag einmal
+            # übernommen hat: er gibt ja womöglich weniger zurück, als er bekommen hat.
+            out[key] = Departed(cur.quantity + to_qty(m.quantity),
+                                cur.units + tuple(m.units or ()))
     return out
 
 

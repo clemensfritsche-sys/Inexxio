@@ -327,3 +327,77 @@ def test_a_named_share_hands_over_its_own_pieces(db, kinds, world):
     assert after_d1 | after_d2 == before_d1, (
         "Was die erste Abweichung hielt, teilen sich jetzt beide – nichts kommt dazu.")
     assert units.verify(inst) == []
+
+
+def test_a_lot_never_names_pieces_it_did_not_carry(db, kinds, world):
+    """**Testnotizen #559–#562** – zwei Fehler, ein Bild: Menge und Nummern gehören zusammen.
+
+    (1) Eine **Weitergabe nach unten ist keine Rückgabe**: ein Abzweig, der 2 Stück übernimmt,
+    davon 1 an seine eigene Abweichung weiterreicht und 1 zurückgibt, meldete «2 zurück» –
+    gezählt wurde jede lebende Abgabe, nicht nur die echten Rückgaben.
+
+    (2) Und die zurückgegebenen Stücke sind die der **Buchung**, nicht die, die einmal
+    hineingingen – sonst nennt eine Menge von 1 beide Nummern."""
+    from app.models import ArticleProcessStep
+    from app.schemas.movement import MovementTarget, MovementUpdate
+    from app.services import ledger, movement as mv_svc, sites
+    from app.services.orders import to_order_response
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    branch = _make_deviation(db, main, inst, user, 2, steps=("movement",))
+    inner = _make_deviation(db, branch, inst, user, 1, steps=("scrap",))
+    _scrap(db, inner, inst, user, 1)
+    db.commit()
+
+    step = (db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.order_id == branch.id).first())
+    company = sites.operator(db)
+    mv_svc.record_movement(db, branch, MovementUpdate(targets=[MovementTarget(
+        instance_id=inst.object_id, location_type="company",
+        location_id=company.object_id)], step_id=step.id), user.id)
+    db.commit()
+
+    back = ledger.departed_of(db, branch.id)
+    assert sum(b.quantity for b in back.values()) == 1, (
+        f"Weitergereicht ist nicht zurückgegeben (#559): {dict(back)}")
+
+    resp = to_order_response(db, main)
+    lots = [l for n in resp.flow_nodes if n.kind == "split"
+            for d in (resp.deviations or []) if d.object_id in n.branch_object_ids
+            for l in (d.flow_back or [])]
+    for l in lots:
+        assert len(l.units) == int(l.quantity), (
+            f"Rückgabe: {l.quantity} Stk, aber {len(l.units)} Nummern")
+    # Und auf der ganzen Achse: Menge und Nummern sind dieselbe Aussage (#560/#561/#562).
+    for e in resp.flow_edges:
+        for l in e.lots:
+            assert len(l.units) == int(l.quantity), (
+                f"Kante: {l.quantity} Stk, aber {len(l.units)} Nummern – "
+                f"der geladene JSONB-Wert darf nie an Ort und Stelle verändert werden.")
+
+
+def test_a_cut_return_ends_the_chain(db, kinds, world):
+    """**Testnotiz #563** – «die Rückführung kappen»: der Halter endet an dieser Stelle.
+
+    Nimmt ein Unter-Auftrag ALLES und steht fest, dass nichts zurückkommt, wartet der
+    Verleiher nicht bis zum Ende des Abzweigs – er ist im selben Moment abgebrochen,
+    fortgeführt in diesem Auftrag. Und weil ein gekappter Auftrag niemanden deckt, greift
+    dieselbe Regel eine Ebene höher: ein Unter-Unter-Auftrag kappt die ganze Kette."""
+    from app.services import process
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 2)
+    branch = _make_deviation(db, main, inst, user, 2)
+    db.refresh(main)
+    assert main.status == "released" and process.subject_shortfalls(db, main), (
+        "Ohne Kappen wartet er – die Menge kann ja zurückkommen (#556).")
+
+    inner = _make_deviation(db, branch, inst, user, 2, cut=True)
+    db.refresh(branch)
+    db.refresh(main)
+    assert branch.status == "inactive" and branch.abort_into_id == inner.object_id, (
+        f"Der Abzweig endet hier: {branch.status}/{branch.abort_into_id}")
+    assert main.status == "inactive", (
+        "Und der Hauptauftrag ebenso – die Kaskade ist dieselbe Regel, keine zweite "
+        f"(ist {main.status}).")

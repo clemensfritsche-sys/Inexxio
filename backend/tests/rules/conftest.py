@@ -91,14 +91,16 @@ def _make_order(db, art, user, qty: int):
 
 
 def _make_deviation(db, parent, inst, user, qty: int, *, steps=("inspection",),
-                    step_kwargs: dict | None = None):
-    """Eine Abweichung auf einen Anteil – über den echten Router-Pfad (Auswahl + Freigabe)."""
+                    step_kwargs: dict | None = None, cut: bool = False):
+    """Eine Abweichung auf einen Anteil – über den echten Router-Pfad (Auswahl + Freigabe).
+
+    ``cut`` = «die Rückführung ist gekappt» (Testnotiz #563)."""
     from app.models import ArticleProcessStep, Order
     from app.routers import orders as R
     from app.schemas.order import InstancePick
 
     dev = Order(object_id=None, article_id=parent.article_id, quantity=Decimal(qty),
-                status="draft")
+                status="draft", returns_nothing=cut)
     db.add(dev)
     db.flush()
     R._set_chosen_instances(db, dev, [InstancePick(
@@ -146,6 +148,14 @@ def _situation(db, world, r: Rule):
             _scrap(db, dev, inst, user, 1)
         elif r.rest == "nichts":
             _make_deviation(db, order, inst, user, 4)      # läuft weiter, hält alles
+        elif r.rest == "gekappt":
+            # Alles weg UND die Rückführung gekappt – er endet hier (#563).
+            _make_deviation(db, order, inst, user, 4, cut=True)
+        elif r.rest == "kaskade":
+            # Die Abweichung gäbe noch zurück; erst IHRE Abweichung kappt – und das
+            # schlägt über sie hinweg bis nach oben durch.
+            dev = _make_deviation(db, order, inst, user, 4)
+            _make_deviation(db, dev, inst, user, 4, cut=True)
         return order, 4
     # festes Subjekt: eine Abweichung, die selbst etwas verliert
     parent, inst = _make_order(db, art, user, 4)

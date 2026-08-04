@@ -395,6 +395,10 @@ async def create_order(
     _assert_quantity_serialization(db, data.article_id, data.quantity)  # unit → ganze Zahl
     order.article_id = data.article_id
     order.quantity = data.quantity
+    # **Die gekappte Rückführung ist eine Aussage über diesen Auftrag** (Testnotiz #563) –
+    # sie muss VOR der Freigabe stehen: dort entscheidet sie darüber, ob der Verleiher noch
+    # wartet oder an dieser Stelle endet.
+    order.returns_nothing = bool(data.returns_nothing)
     db.add(order)
     db.flush()
     # **Vorauswahl statt Fixierung** (Testnotiz #371): kommt der Auftrag über den Abkürzungs-

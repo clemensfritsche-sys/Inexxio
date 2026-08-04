@@ -70,3 +70,9 @@ def test_the_table_is_the_written_rule():
     assert rule("regular-teil-verloren").soll == "gekürzt"
     assert rule("regular-alles-verliehen").soll == "unverändert"
     assert {r.soll for r in RULES} <= {"unverändert", "gekürzt", "abgebrochen"}
+    # **Gekappt heisst: es kommt nichts zurück** (#563) – der einzige Unterschied zu
+    # ``regular-alles-verliehen``, und er kippt «warten» in «abgebrochen».
+    assert rule("regular-rueckfuehrung-gekappt").soll == "abgebrochen"
+    assert rule("regular-alles-verliehen").pause is True
+    # Und über beliebig viele Stufen – ohne zweite Regel.
+    assert rule("regular-kaskade-gekappt").soll == "abgebrochen"

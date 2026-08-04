@@ -12937,6 +12937,17 @@
             ],
             "title": "Steps"
           },
+          "returns_nothing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returns Nothing"
+          },
           "desired_delivery_date": {
             "anyOf": [
               {
@@ -13755,6 +13766,11 @@
               }
             ],
             "title": "Abort Into Id"
+          },
+          "returns_nothing": {
+            "type": "boolean",
+            "title": "Returns Nothing",
+            "default": false
           },
           "origin": {
             "anyOf": [

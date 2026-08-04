@@ -500,6 +500,10 @@ class OrderCreate(BaseModel):
     # Der **auftragseigene Ablauf**. Ohne eigene Schritte fährt der Auftrag den
     # Artikel-Prozess (Erzeugung) – das bleibt unverändert.
     steps: Optional[list[ArticleProcessStepCreate]] = None
+    # **Die Rückführung ist gekappt** (Testnotiz #563): was dieser Auftrag übernimmt, kommt
+    # nicht zurück. Der Verleiher endet damit an dieser Stelle – abgebrochen, fortgeführt
+    # hier. Eine Aussage über die Zukunft, die das System nicht selbst treffen kann.
+    returns_nothing: Optional[bool] = None
     desired_delivery_date: Optional[date] = None
     # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
     recurrence_active: Optional[bool] = None
@@ -642,6 +646,8 @@ class OrderResponse(BaseModel):
     parent_order_id: Optional[int] = None
     reason: Optional[str] = None   # deviation | supply | return | provisioning (gesetzt → Unter-Auftrag)
     abort_into_id: Optional[int] = None
+    # **Die Rückführung ist gekappt** (Testnotiz #563): dieser Auftrag gibt nichts zurück.
+    returns_nothing: bool = False
     # **Woher er kam und wohin er zurückgibt** – nur an einem Unter-Auftrag gesetzt (#409).
     origin: Optional[OrderOrigin] = None
     # **Das Material dieses Auftrags** – die Kanten seiner Achse (Notiz #426). Aus **derselben**

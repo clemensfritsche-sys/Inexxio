@@ -120,3 +120,17 @@ class Order(Base, TimestampMixin):
     # der Zeiger «fortgeführt in …» auf den Abweichungsauftrag, der die Instanzen übernommen
     # hat; die Anzeige macht daraus «Abgebrochen» statt «Inaktiv» (verworfen ≠ fortgeführt).
     abort_into_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+
+    # **«Die Rückführung ist gekappt»** (Testnotiz #563): was dieser Auftrag übernommen hat,
+    # kommt NICHT zurück – er führt es zu Ende, der Verleiher bekommt nichts mehr.
+    #
+    # Das ist eine **Aussage über die Zukunft**, keine Wahl zwischen zwei Antworten: sie sagt
+    # etwas, das das System noch nicht wissen kann. Ohne sie wartet ein Verleiher, dem alles
+    # entzogen wurde, bis der Abzweig endet – obwohl längst feststeht, dass nichts
+    # zurückkommt. Mit ihr ist er im selben Moment abgebrochen, fortgeführt in diesem Auftrag.
+    #
+    # **Die Kaskade fällt daraus heraus, sie ist keine zweite Regel:** ein gekappter Auftrag
+    # deckt niemanden (``supply.covering_sub_orders``), also entscheidet ``recovery.
+    # auto_resolve`` beim Verleiher sofort – und geht, wenn der dadurch abgebrochen wird, eine
+    # Ebene höher. So kappt ein Unter-Unter-Auftrag die ganze Kette bis zum Hauptauftrag.
+    returns_nothing: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")

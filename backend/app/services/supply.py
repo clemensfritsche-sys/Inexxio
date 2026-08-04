@@ -72,7 +72,13 @@ def covering_sub_orders(db: Session, parent: Order, article_ids: set | None = No
                 continue
             seen.add(o.id)
             if o.status in ("draft", "released"):
-                if ((o.reason == "deviation" or article_ids is None or o.article_id in article_ids)
+                # **Wer gekappt hat, deckt niemanden** (Testnotiz #563): er hat ausdrücklich
+                # gesagt, dass nichts zurückkommt. Ihn als «läuft daran» zu führen hiesse,
+                # den Verleiher auf etwas warten zu lassen, das nie eintrifft – und genau
+                # daran hing die Kette, die der Nutzer kappen wollte.
+                if o.returns_nothing:
+                    frontier.append(o.object_id)     # aber SEINE Abzweige können decken
+                elif ((o.reason == "deviation" or article_ids is None or o.article_id in article_ids)
                         and not process.is_stalled(db, o)):
                     out.append(o)
             elif o.status == "inactive" and o.object_id:

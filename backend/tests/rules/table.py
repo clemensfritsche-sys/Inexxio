@@ -47,7 +47,8 @@ class Rule:
     art: str
     """``regular`` (hat ein Soll) | ``fixed`` (Abweichung & Co., hat eine Arbeitsmenge)."""
     rest: str
-    """Was dem Auftrag bleibt: ``alles`` | ``teil`` | ``nichts``."""
+    """Was dem Auftrag bleibt: ``alles`` | ``teil`` | ``nichts`` | ``erledigt`` |
+    ``gekappt`` | ``kaskade``."""
     fehlmenge: bool
     """Meldet ``subject_shortfalls`` etwas?"""
     pause: bool
@@ -90,6 +91,38 @@ RULES: tuple[Rule, ...] = (
             "Die Ausleihe IST die Unterdeckung: solange die Abweichung sie hält, hat er "
             "sie nicht – und **wartet**, statt gekürzt zu werden. Sein Soll bleibt, weil "
             "die Menge zurückkommen kann; der Prozess ruht so lange (``waiting_for``)."
+        ),
+    ),
+    Rule(
+        id="regular-rueckfuehrung-gekappt",
+        lage=(
+            "Regulärer Auftrag; eine Abweichung nimmt ALLE seine Stücke – und die "
+            "Rückführung ist gekappt."
+        ),
+        art="regular", rest="gekappt", fehlmenge=False, pause=False, soll="abgebrochen",
+        warum=(
+            "«Gekappt» ist eine Aussage über die Zukunft, die das System nicht selbst "
+            "treffen kann: solange der Abzweig läuft, KÖNNTE das Material zurückkommen "
+            "(darum wartet ``regular-alles-verliehen``). Sagt der Mensch, dass es das "
+            "nicht wird, ist die Menge endgültig weg – und ein Auftrag, dem nichts mehr "
+            "bleibt, endet an dieser Stelle: abgebrochen, fortgeführt im Abzweig "
+            "(Testnotiz #563). Es ist dieselbe automatische Auflösung wie überall, nur "
+            "mit einem Halter weniger."
+        ),
+    ),
+    Rule(
+        id="regular-kaskade-gekappt",
+        lage=(
+            "Auftrag → Abweichung (gäbe noch zurück) → deren Abweichung nimmt alles und "
+            "kappt: geprüft wird der OBERSTE."
+        ),
+        art="regular", rest="kaskade", fehlmenge=False, pause=False, soll="abgebrochen",
+        warum=(
+            "Die Kaskade braucht keine zweite Regel. Ein gekappter Auftrag deckt niemanden "
+            "mehr, also fällt beim Verleiher sofort dieselbe Entscheidung – und weil der "
+            "dadurch selbst abgebrochen wird, deckt auch er niemanden mehr, also geht es "
+            "eine Ebene höher. «Es ist immer die gleiche Logik: kommt keine Instanz mehr "
+            "zurück, wird der Auftrag abgebrochen» – über beliebig viele Stufen."
         ),
     ),
     Rule(

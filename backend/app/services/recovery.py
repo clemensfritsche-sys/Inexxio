@@ -301,7 +301,8 @@ def _continued_in(db: Session, order: Order) -> Order | None:
             .order_by(Order.object_id.desc()).first()) if order.object_id else None
 
 
-def auto_resolve(db: Session, order: Order, actor_id: int | None = None) -> bool:
+def auto_resolve(db: Session, order: Order, actor_id: int | None = None,
+                 _seen: set | None = None) -> bool:
     """**Was nicht mehr zurückkommt, reduziert die Menge – von selbst** (Testnotiz #556).
 
     Die EINE Stelle, an der über eine Fehlmenge entschieden wird. Vorher stand hier eine
@@ -334,4 +335,13 @@ def auto_resolve(db: Session, order: Order, actor_id: int | None = None) -> bool
         confirm_quantity(db, order, actor_id, into=_continued_in(db, order))
     except HTTPException:
         return False                       # bezahlt: Gutschrift statt Kürzung (Backlog)
+    # **Und eine Ebene höher** (Testnotiz #563): wurde dieser Auftrag dadurch abgebrochen,
+    # hält ER die Menge seines eigenen Verleihers auch nicht mehr – die Entscheidung fällt
+    # dort im selben Moment. So kappt ein Unter-Unter-Auftrag die ganze Kette bis zum
+    # Hauptauftrag, ohne dass es dafür eine zweite Regel bräuchte. Zyklensicher.
+    seen = _seen or {order.id}
+    from .subject import lender_of
+    up = lender_of(db, order)
+    if up is not None and up.id not in seen:
+        auto_resolve(db, up, actor_id, seen | {up.id})
     return True

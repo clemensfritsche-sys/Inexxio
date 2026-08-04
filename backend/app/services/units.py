@@ -79,9 +79,23 @@ class Unit(NamedTuple):
 # ─── Lesen ────────────────────────────────────────────────────────────────────
 
 def _runs(inst: Instance) -> list[dict]:
-    """Die Läufe der Instanz (roh). Leer, wenn noch keine vergeben wurden."""
+    """Die Läufe der Instanz – als **Kopien**. Leer, wenn noch keine vergeben wurden.
+
+    **Der geladene Wert darf nie verändert werden** (Testnotizen #560/#561/#562). SQLAlchemy
+    entscheidet beim Speichern über einen **Vergleich** mit dem geladenen Wert, ob eine
+    JSONB-Spalte überhaupt in das UPDATE kommt. Wer die geladenen Dicts an Ort und Stelle
+    ändert, ändert damit auch den Vergleichswert – neu und alt sind gleich, die Spalte fällt
+    aus dem UPDATE, und die Änderung ist nach dem Commit **spurlos weg**.
+
+    Genau so kam der gemeldete Fall zustande: ``sync`` gab die Stücke eines abgeschlossenen
+    Unter-Auftrags frei (``r.pop("o")`` auf den geladenen Läufen), im Speicher stimmte alles –
+    und in der Datenbank hielt der Abzweig sein Stück weiter. Die Kante des Eltern-Auftrags
+    fand darum kein einziges Stück mehr und zeigte «1 Stk» ohne Nummer.
+
+    Kopien machen die Frage gegenstandslos: der geladene Wert bleibt unberührt, jede Änderung
+    ist eine echte Änderung."""
     data = inst.units or {}
-    return list(data.get("r") or [])
+    return [dict(r) for r in (data.get("r") or [])]
 
 
 def label(inst: Instance, index: int) -> str:
@@ -334,19 +348,21 @@ def _assign(inst: Instance, order_id: int, qty, *, source: int | None = None) ->
     Tausch – eine Abweichung der Abweichung nahm dem **Hauptauftrag** sein Stück, und
     beim Nachziehen der Mengen bekam er dafür irgendein anderes zurück.
 
-    Vom genannten Anteil kommen die **höchsten** Nummern (wie bei ``_release``): der
-    Ursprung behält seine ersten Stücke, der Zugriff nimmt die letzten."""
+    **Genommen wird von unten** – die niedrigsten Nummern zuerst (Testnotiz #558). Das ist
+    die Ordnung, in der Stücke überall vergeben werden (``create`` zählt ab 1, ``drop``
+    greift am Anfang der Läufe); eine Ausnahme nur für den genannten Anteil hätte dieselbe
+    Geste an zwei Stellen verschieden aussehen lassen."""
     want = to_qty(qty) - held_quantity(inst, order_id)
     if want <= 0:
         return ZERO
     runs, moved = _runs(inst), ZERO
-    ranks = ([(lambda r: r.get("o") == source, True)] if source is not None else []) + [
-        (lambda r: r.get("o") is None, False),
-        (lambda r: r.get("o") not in (None, order_id), False)]
-    for accept, newest in ranks:
+    ranks = ([lambda r: r.get("o") == source] if source is not None else []) + [
+        lambda r: r.get("o") is None,
+        lambda r: r.get("o") not in (None, order_id)]
+    for accept in ranks:
         if moved >= want:
             break
-        hit, got = _pick(runs, want - moved, accept, newest=newest)
+        hit, got = _pick(runs, want - moved, accept)
         runs = _apply(runs, hit, lambda r: r.update(o=order_id))
         moved += got
     _write(inst, runs, _next(inst))

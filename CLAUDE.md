@@ -4727,6 +4727,68 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Schritt für Schritt: A wird fertig, B gibt zurück, der Hauptauftrag kürzt sich selbst auf
   2 und die Datenerfassung wird aktiv; alle 13 Harnesses grün).
 
+- **Die gekappte Rückführung – und der Lauf, der beim Speichern verschwand** (August 2026,
+  Testnotizen #557–#563, Migration `101`): Ein echter Speicherfehler, eine neue Aussage
+  über die Zukunft, und drei Kleinigkeiten.
+  (1) **Der geladene JSONB-Wert darf nie verändert werden** (#560/#561/#562, `units._runs`).
+  Gemeldet als «hier wird nicht die richtige Suffix bzw. kein Suffix angezeigt» – mal
+  richtig, mal nicht, ohne erkennbares Muster. Die Ursache ist eine klassische Falle:
+  `units.py` las die Läufe aus `instances.units` und **veränderte die geladenen dicts an
+  Ort und Stelle**. SQLAlchemy vergleicht beim Flush den geladenen mit dem aktuellen Wert –
+  ist beides **dasselbe Objekt**, sind sie gleich, die Spalte fällt aus dem `UPDATE`, und
+  die Änderung ist weg. Ob sie ankam, hing damit daran, ob im selben Vorgang zufällig noch
+  jemand die Spalte neu zuwies: genau die scheinbare Willkür. `_runs` gibt jetzt **Kopien**
+  zurück – die Frage ist damit gegenstandslos statt an jeder Schreibstelle einzeln zu
+  beantworten.
+  (2) **Was ein Abzweig weiterreicht, hat den Eltern nie erreicht** (#559,
+  `ledger.RETURNING`). `departed_of` zählte **jede** lebende Abgabe als Rückgabe – auch die
+  an eine *weitere* Abweichung eine Ebene tiefer. Ein Abzweig, der 2 Stück übernahm, davon
+  1 an seine eigene Abweichung weitergab (die es verschrottete) und 1 zurückgab, meldete
+  darum «2 zurück». Gezählt wird jetzt nur, was tatsächlich nach oben ging
+  (`kind in ("returned", "released")`) – eine Weitergabe nach unten ist keine Rückgabe.
+  Und die Rückgabe trägt **ihre eigenen Nummern** (`Departed.units`), nicht die, die der
+  Auftrag einmal übernommen hat: er gibt ja womöglich weniger zurück, als er bekam.
+  (3) **Wessen Anteil das ist, weiss die Auswahl – die Buchung soll es nicht raten**
+  (`record_link(..., src_holder=…)`). Sie riet nach Topfgrösse: nahm eine Abweichung ihrem
+  Abzweig ein Stück weg und hielt der Hauptauftrag gerade gleich viel, wurde die Übernahme
+  **ihm** zugeschrieben, und dieselbe Nummer stand auf seiner Achse zweimal. Der Halter
+  steht in `orders.pick_sources` und wird **vor** `enforce_pick` gelesen (das verbraucht die
+  Angabe). Geraten wird nur noch, wo es nichts zu wissen gibt (FIFO ab freiem Lager).
+  (4) **«Die Rückführung kappen» – EINE Aussage, die Kaskade folgt von selbst** (#563,
+  `orders.returns_nothing`). Nimmt ein Unter-Auftrag ALLE Stücke seines Verleihers, kann
+  das System nicht entscheiden, ob sie zurückkommen: **solange der Abzweig läuft, könnte
+  es sein** – darum wartet der Verleiher (Regel-Zeile `regular-alles-verliehen`). Sagt der
+  Mensch beim Anlegen, dass nichts zurückkommt, ist die Menge endgültig weg, und der
+  Verleiher endet an dieser Stelle: **abgebrochen, fortgeführt im Abzweig**. Das ist keine
+  neue Entscheidungslogik, sondern **dieselbe** automatische Auflösung (#556) mit einem
+  Halter weniger: ein gekappter Auftrag deckt niemanden (`supply.covering_sub_orders`
+  überspringt ihn, folgt aber SEINEN Abzweigen), gibt beim Abschluss nichts zurück
+  (`subject.give_back`) und zeigt keinen Rückweg (`orders._return_target`). **Die Kaskade
+  über beliebig viele Stufen braucht darum keine zweite Regel**: wird ein Verleiher dadurch
+  selbst abgebrochen, deckt auch er niemanden mehr – `recovery.auto_resolve` ruft sich über
+  `subject.lender_of` eine Ebene höher auf (zyklensicher). Genau der vom Nutzer genannte
+  Fall: «im Unterauftrag wäre noch geplant gewesen, dass sie zurückkommen, aber im
+  Unter-Unter-Auftrag wurden alle Instanzen genommen und die Rückführung gekappt → dann wird
+  der Hauptauftrag und der erste Unterauftrag gekappt». Im Entwurf ist es die **Schere auf
+  der Rückgabe-Linie** (#499): gekappt = **keine Linie** – kein zweiter Strichstil, wie
+  #422/#429 es verlangen.
+  (5) **Genommen wird von unten** (#558): `units._assign` gab die **höchsten** Nummern zuerst
+  – ein Unterauftrag über die Anteile `-3`/`-4` bekam `-4`, während sonst überall von unten
+  gezählt wird. Jetzt niedrigste zuerst in allen drei Rängen (genannter Anteil ≻ frei ≻ fremd).
+  (6) **Die Linie führt IMMER heran** (#557): der Konnektor vom Startknoten zum Modul hing
+  an `!adding` und fehlte damit genau dann, wenn man einen Schritt anlegt – der Editor stand
+  ohne Anschluss unter dem grünen Punkt. Dieselbe Bedingung wie Start- und Endknoten.
+  **Die Regel-Tabelle (ADR 008) trägt den neuen Fall als ZEILE, nicht als Sonderfall im
+  Code**: `regular-rueckfuehrung-gekappt` (alles verliehen **und** gekappt → abgebrochen –
+  der einzige Unterschied zu `regular-alles-verliehen`, und er kippt «warten» in «Ende») und
+  `regular-kaskade-gekappt` (geprüft wird der OBERSTE einer dreistufigen Kette). Beide gegen
+  die Bug-Form gegengeprüft: ohne `cut` meldet die Zeile wieder eine Fehlmenge von 4.
+  Wächter: `tests/rules/table.py` + `test_shortfall_rules.py`, `tests/rules/test_units.py`,
+  `test_frontend_mirrors.py: test_the_draft_is_framed_like_the_order_it_will_become`.
+  Gegen echtes PostgreSQL 16 verifiziert (Harnesses `note559.py` 11/11, `note563.py` 13/13
+  inkl. der Kaskade; Migration 101 von null · idempotent · downgrade · **über das
+  Lifespan-Netz** 16/16; alle 14 Harnesses und die Regel-Tabelle grün).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
