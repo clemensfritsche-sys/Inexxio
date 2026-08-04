@@ -53,7 +53,7 @@ def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceSha
             rows.append(InstanceShare(
                 order_object_id=(o[0] if o else None), order_name=(o[1] if o else None),
                 reason=(o[2] if o else None), quantity=float(q),
-                units=U.rows(inst, holder=int(key), limit=UNIT_PREVIEW, names=orders),
+                units=U.rows(inst, holder=int(key), limit=UNIT_PREVIEW, names=orders, db=db),
                 unit_count=U.count(inst, holder=int(key))))
         rest = to_qty(inst.quantity) - held
         if rest > 0:
@@ -66,7 +66,7 @@ def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceSha
                 order_object_id=(owner[0] if owner else None),
                 order_name=(owner[1] if owner else None),
                 reason=(owner[2] if owner else None), quantity=float(rest),
-                units=U.rows(inst, holder=None, limit=UNIT_PREVIEW, names=orders),
+                units=U.rows(inst, holder=None, limit=UNIT_PREVIEW, names=orders, db=db),
                 unit_count=U.count(inst, holder=None)))
         out[inst.id] = rows
     return out
@@ -76,7 +76,7 @@ def _creator(db: Session, inst: Instance, cache: dict) -> tuple | None:
     """Der Auftrag, dem der **unbeanspruchte Rest** gehört – der Erzeuger, solange die
     Instanz nicht am Lager liegt. Am Lager gehört der Rest niemandem (= frei)."""
     from .inventory import rest_owner
-    owner = rest_owner(inst)
+    owner = rest_owner(db, inst)
     if owner is None:
         return None
     if owner not in cache:

@@ -148,7 +148,7 @@ def numbers(inst: Instance, *, holder: int | None = ..., limit: int | None = Non
 
 
 def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
-         names: dict | None = None, include_gone: bool = False) -> list:
+         names: dict | None = None, include_gone: bool = False, db=None) -> list:
     """**Die Stücke als Zeilen** – Nummer · Menge · Zustand · Halter, die EINE Form, in der
     ein Teil überall genannt wird (Testnotizen #531/#532).
 
@@ -160,10 +160,12 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
     from .inventory import rest_owner
     q, d = inst.quality or "pending", inst.disposition or "in_process"
     look = names or {}
-    # **Der unbeanspruchte Rest gehört dem Erzeuger, solange er nicht am Lager liegt** –
-    # dieselbe eine Regel wie bei den Anteilen (``inventory.rest_owner``). Ohne sie hiesse
-    # dasselbe Stück im Detail «frei» und in der Aufteilung «Auftrag …003».
-    rest = rest_owner(inst)
+    # **Der unbeanspruchte Rest gehört dem Erzeuger, solange er nicht am Lager liegt UND
+    # sein Erzeuger noch läuft** – dieselbe eine Regel wie bei den Anteilen
+    # (``inventory.rest_owner``). Ohne sie hiesse dasselbe Stück im Detail «frei» und in der
+    # Aufteilung «Auftrag …003». Ohne Session (reine Anzeige-Aufrufe) bleibt der Rest frei –
+    # tolerant lesen, nie raten.
+    rest = rest_owner(db, inst) if db is not None else None
     out = []
     for u in of(inst, holder=holder, limit=limit, include_gone=include_gone):
         # **Ein ausgeschiedenes Stück trägt seinen eigenen Endzustand** (#549) – nicht den
@@ -187,14 +189,14 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
     return out
 
 
-def owned_by(inst: Instance, order_id: int) -> list[Unit]:
+def owned_by(inst: Instance, order_id: int, db=None) -> list[Unit]:
     """**Die Stücke, die diesem Auftrag gehören** – Anspruch ODER unbeanspruchter Rest.
 
     Dieselbe eine Regel wie bei den Anteilen (``inventory.rest_owner``): solange die Instanz
     nicht am Lager liegt, gehört der unbeanspruchte Rest ihrem Erzeuger. Ohne das hielte ein
     Erzeugungsauftrag «nichts», sobald ein Abzweig seine Ansprüche zurückgegeben hat."""
     from .inventory import rest_owner
-    rest = rest_owner(inst)
+    rest = rest_owner(db, inst) if db is not None else None
     # **Ein freigegebenes Stück gehört niemandem mehr** (Testnotizen #573/#577). Es hat sein
     # Ziel erreicht und liegt am Lager – der «unbeanspruchte Rest gehört dem Erzeuger» gilt
     # nur für das, was noch im Prozess ist. Ohne diese Zeile zog ein Erzeugungsauftrag

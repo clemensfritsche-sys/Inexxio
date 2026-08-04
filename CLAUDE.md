@@ -4954,14 +4954,21 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Wächter: `test_smoke.py`-Suite unverändert grün; gegen echtes PostgreSQL 16 verifiziert
   (`note573.py` 12/12 inkl. der neuen Schritt-Gate-Prüfung, alle 18 Harnesses, Regel-Tabelle
   (35) grün).
-  - **Offen und vom Nutzer freigegeben: die «Halter»-Mechanik aushebeln.** Gemessen hat
-    `inventory.rest_owner` genau **drei** Nutzstellen (`units.rows`, `units.owned_by`,
-    `shares`). Sie ist der Rest der Rate-Logik («der unbeanspruchte Rest gehört dem
-    Erzeuger») und hat #573/#577 direkt erzeugt. Ersatzlos streichen geht nicht: der
-    Erzeuger hält seine Instanz **ohne** Anspruch, nur über `Instance.order_id`. Der saubere
-    Weg ist, das explizit zu machen – der Erzeuger beansprucht seine Stücke bei der
-    Entstehung –, dann fällt die Mechanik weg. Das ist derselbe Schritt wie «wer hält wie
-    viel → EINE Antwort».
+- **Die «Halter»-Mechanik rät nur noch dort, wo es etwas zu wissen gibt** (Notiz #585,
+  belegt am Systemprotokoll): `inventory.rest_owner` schrieb den **freien, freigegebenen**
+  Anteil einer Charge dem **abgebrochenen** Erzeuger zu («Auftrag 100000669»), während das
+  Journal ihn als «freier Bestand» führte – zwei Antworten auf dieselbe Frage, und die
+  geratene gewann. Jetzt nennt sie nur noch einen Auftrag, der **wirklich läuft**
+  (`status='released'`), und ohne Session rät sie gar nicht (`db=None` → frei). Damit ist
+  die letzte Stelle entschärft, an der die Zuordnung geraten statt gelesen wurde; die drei
+  Leser (`units.rows`, `units.owned_by`, `shares`) reichen die Session durch.
+  *Vollständig ersatzlos wird sie erst, wenn der Erzeuger seine Stücke bei der Entstehung
+  **beansprucht** – dann ist die Anspruchs-Map die einzige Wahrheit. Das ist derselbe
+  Schritt wie «wer hält wie viel → EINE Antwort».*
+  Dazu ein Widerspruch im Systemprotokoll behoben: «0 von 2 Schritten erledigt · **alle
+  Schritte durch**». Er entstand mit dem Gate aus #581 – ein nicht laufender Auftrag hat
+  keinen aktiven Schritt mehr, und «kein aktiver Schritt» hiess dort «alles durch». Jetzt
+  sagt es, was zutrifft: «nichts an der Reihe (Auftrag «inactive»)».
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

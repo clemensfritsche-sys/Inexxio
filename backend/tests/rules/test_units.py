@@ -531,7 +531,7 @@ def test_a_released_piece_belongs_to_nobody(db, kinds, world):
     assert (row.quality, row.disposition) == ("passed", "in_stock"), (row.quality, row.disposition)
 
     # (b) Der Erzeuger zieht es nicht wieder an sich (#577).
-    mine = [u.number for u in units.owned_by(inst, main.id)]
+    mine = [u.number for u in units.owned_by(inst, main.id, db)]
     assert free[0].number not in mine, (
         f"Der Erzeuger hält fertige Stücke nicht erneut: {mine}")
     assert len(mine) == 3, f"Er hält genau die drei, die noch laufen: {mine}"

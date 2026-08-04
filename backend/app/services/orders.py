@@ -476,7 +476,7 @@ def _view_lots(db: Session, rows: list, holder: int | None = None) -> list[FlowL
         owner = r.to_order if getattr(r, "to_order", None) is not None else holder
         if owner is not None and (r.disposition or "") not in TERMINAL_OUT:
             U.ensure(inst)
-            mine = U.owned_by(inst, owner)
+            mine = U.owned_by(inst, owner, db)
             lot.units = U.rows_for(inst, [u.index for u in mine], limit=UNIT_PREVIEW)
             lot.unit_count = len(mine)
         return lot
@@ -1067,10 +1067,10 @@ def _instance_embeds(db: Session, order: Order, instances: list) -> list[Instanc
         emb.held_quantity = float(held_quantity(order, i))
         # **Welche Stücke** das sind – die Nummern, nicht nur die Menge. Hält der Auftrag
         # den unbeanspruchten Rest (Erzeuger), sind es die freien.
-        held_units = U.rows(i, holder=order.id, limit=UNIT_PREVIEW)
+        held_units = U.rows(i, holder=order.id, limit=UNIT_PREVIEW, db=db)
         emb.unit_count = U.count(i, holder=order.id)
         if not held_units and emb.held_quantity > 0:
-            held_units = U.rows(i, holder=None, limit=UNIT_PREVIEW)
+            held_units = U.rows(i, holder=None, limit=UNIT_PREVIEW, db=db)
             emb.unit_count = U.count(i, holder=None)
         emb.units = held_units
         out.append(emb)

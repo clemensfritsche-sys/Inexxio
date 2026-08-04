@@ -213,7 +213,8 @@ def _summary(db: Session, order: Order, subs: list[Order], insts: list[Instance]
         out.append(
             f"Prozess: {len(done)} von {len(steps)} Schritten erledigt"
             + (f" · steht bei «{active['modul']}» ({active['zustand']})" if active
-               else " · alle Schritte durch"))
+               else " · alle Schritte durch" if len(done) == len(steps)
+               else f" · nichts an der Reihe (Auftrag «{order.status}»)"))
     if shortfall:
         fehlt = " · ".join(f"{_qty(q)} × {names.article.get(a, a)}" for a, q in shortfall.items())
         out.append(f"Es fehlt: {fehlt} → der Prozess ruht, bis darüber entschieden ist "

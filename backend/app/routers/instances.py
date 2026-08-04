@@ -82,7 +82,7 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
         # **Auch die ausgeschiedenen** (Testnotiz #549): ein verschrottetes Stück
         # verschwindet nicht aus der Liste, es steht dort rot. Wer wissen will, was noch
         # da ist, liest die Menge – wer die Stücke liest, will die ganze Geschichte.
-        resp.units = units.rows(r, names=share_orders, include_gone=True)
+        resp.units = units.rows(r, names=share_orders, include_gone=True, db=db)
         resp.unit_count = units.count(r, include_gone=True)
         resp.article_name = arts_name.get(r.article_id)
         resp.article_object_id = arts_oid.get(r.article_id)

@@ -107,7 +107,7 @@ def unblocked_clauses() -> tuple:
     return (Instance.quality.notin_(_BLOCKED_VALUES),)
 
 
-def rest_owner(inst) -> int | None:
+def rest_owner(db, inst) -> int | None:
     """**Wem gehört der unbeanspruchte Rest einer Instanz?** – die EINE Antwort.
 
     Am Lager: niemandem, er ist frei. Solange die Instanz aber noch in ihrem Erzeugungs-
@@ -115,11 +115,22 @@ def rest_owner(inst) -> int | None:
     Sonst stünde an einem Stück mitten im Prozess «frei», und niemand würde gefragt, wenn
     es jemand nimmt.
 
+    **Und nur, solange dieser Auftrag wirklich läuft** (Testnotiz #585). Ein abgebrochener
+    oder abgeschlossener Erzeuger hält nichts mehr – er hat sein Material längst abgegeben
+    oder freigegeben. Ihn trotzdem zu nennen war die letzte Stelle, an der die Zuordnung
+    **geraten** statt gelesen wurde: im gemeldeten Fall stand der freie, freigegebene Anteil
+    einer Charge als «Auftrag 100000669» da, während das Journal ihn als «freier Bestand»
+    führte – zwei Antworten auf dieselbe Frage.
+
     Zwei Leser teilen sich die Regel: die **Anteile** (``shares``, Menge je Halter) und die
-    **Stücke** (``units.rows``, welche Nummer wem gehört). Vorher stand sie nur bei den
-    Anteilen – das Instanz-Detail meldete dieselben drei Stück einmal als «Auftrag …003»
-    und einmal als «frei»."""
-    return None if is_in_stock(inst) or not inst.order_id else inst.order_id
+    **Stücke** (``units.rows``, welche Nummer wem gehört)."""
+    if is_in_stock(inst) or not inst.order_id:
+        return None
+    from ..models import Order
+    running = db.query(Order.id).filter(
+        Order.id == inst.order_id, Order.status == "released",
+        Order.is_active == True).first()                      # noqa: E712
+    return inst.order_id if running else None
 
 
 def is_in_stock(inst) -> bool:

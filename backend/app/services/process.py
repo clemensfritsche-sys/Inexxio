@@ -810,7 +810,7 @@ def release_instances(db: Session, order: Order) -> None:
         # noch etwas in der Hand hat, ist damit fertig. Ein gekappter Abzweig behält sein
         # Stück und gibt es frei, eine gewöhnliche Abweichung hält nichts mehr und gibt
         # nichts frei – ohne dass es dafür eine zweite Regel bräuchte.
-        mine = [u.index for u in units_svc.owned_by(inst, order.id) if not u.released]
+        mine = [u.index for u in units_svc.owned_by(inst, order.id, db) if not u.released]
         if not mine:
             continue
         freed = units_svc.mark_released(inst, mine)
