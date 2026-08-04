@@ -136,10 +136,37 @@ def _drain(balances: dict[Bucket, Decimal], qty: Decimal, prefer_holder: Optiona
     return out
 
 
+def _moved_units(inst: Instance, qty, holder, given) -> list[int] | None:
+    """**Welche Stücke diese Buchung bewegt** – die Nummern, die in die Zeile kommen.
+
+    ``given`` = der Aufrufer nennt sie ausdrücklich. Das ist der Weg für alles, was Stücke
+    **entwertet** (verschrottet/verkauft/verbaut): dort sind sie zum Buchungszeitpunkt schon
+    aus der Karte verschwunden, nur der Aufrufer weiss noch, welche es waren.
+
+    Sonst wird geschnappt, was der Ziel-Halter gerade **beansprucht** – der Aufrufer hat die
+    Stücke unmittelbar davor umgehängt (``reservation._write`` → ``units.sync``), also ist
+    das die Antwort für genau diesen Moment. Bewusst nur der Anspruch, nicht der geerbte
+    Rest: wer über ``Instance.order_id`` hält, hält *alles*, und das wäre für eine einzelne
+    Buchung viel zu breit. Findet sich kein Anspruch, bleibt die Zeile leer statt zu raten."""
+    if given is not None:
+        return [int(n) for n in given] or None
+    if holder is None or holder == KEEP or not inst.object_id:
+        return None
+    from . import units as U
+    from .quantity import to_qty
+    rows, want, out = U.of(inst, holder=holder), to_qty(qty), []
+    for u in rows:
+        if want <= 0:
+            break
+        out.append(u.index)
+        want -= u.quantity
+    return out or None
+
+
 def post(db: Session | None, inst: Instance, qty, *, kind: str,
          holder: Optional[int] = None, quality: str | None = None,
          disposition: str | None = None, src_holder: Optional[int] = "?",
-         src_disposition: str | None = None,
+         src_disposition: str | None = None, units: list | None = None,
          actor_id: int | None = None, note: str | None = None) -> None:
     """**Eine Buchung** – Menge ``qty`` der Instanz wandert in den Ziel-Topf.
 
@@ -161,7 +188,7 @@ def post(db: Session | None, inst: Instance, qty, *, kind: str,
             instance_object_id=inst.object_id, article_id=inst.article_id, actor_id=actor_id,
             kind=kind, quantity=q, dst_order_id=holder,
             dst_quality=quality or "pending", dst_disposition=disposition or "in_process",
-            note=note))
+            units=_moved_units(inst, q, holder, units), note=note))
         return
     _ensure_opening(db, inst)
     # Erst schreiben lassen, dann lesen: der Kontostand ist eine DB-Abfrage – eben erst
@@ -171,6 +198,9 @@ def post(db: Session | None, inst: Instance, qty, *, kind: str,
     balances = lots(db, inst)
     prefer = src_holder if src_holder != "?" else (holder if holder != KEEP else None)
     sources = _drain(balances, q, prefer, src_disposition)
+    # **Die Nummern EINMAL bestimmen** – sie gelten für diese Buchung als Ganzes und werden
+    # auf die (ggf. mehreren) Quell-Töpfe der Reihe nach verteilt.
+    moved = list(_moved_units(inst, q, (None if holder == KEEP else holder), units) or ())
     covered = ZERO
     for b, amt in sources:
         db.add(MaterialMove(
@@ -179,7 +209,9 @@ def post(db: Session | None, inst: Instance, qty, *, kind: str,
             src_order_id=b.holder, src_quality=b.quality, src_disposition=b.disposition,
             dst_order_id=(b.holder if holder == KEEP else holder),
             dst_quality=quality or b.quality,
-            dst_disposition=disposition or b.disposition, note=note))
+            dst_disposition=disposition or b.disposition,
+            units=(moved[:int(amt)] or None), note=note))
+        del moved[:int(amt)]
         covered += amt
     if covered < q:
         # Mehr bewegt, als die Instanz hielt – sichtbar markieren statt still verschlucken.
@@ -236,6 +268,11 @@ class ViewRow(NamedTuple):
     # Zeile ist gehalten/terminal). Die Fluss-Achse filtert damit: was in einen Abzweig
     # ging, liegt unterhalb seiner Teilung in DESSEN Spur – nicht mehr auf der Achse.
     to_order: int | None = None
+    # **Welche Stücke** – die Nummern DIESER Buchung (``[1, 2]`` = ``…-1``/``…-2``). Sie
+    # stehen im Journal, nicht in der heutigen Karte: darum bleibt eine durchlaufene Kante
+    # richtig, auch wenn ein Abzweig später alles zurückgibt (#543/#544). Leer = Altbestand
+    # ohne aufgezeichnete Nummern → der Leser fällt auf die Ableitung zurück.
+    units: tuple[int, ...] = ()
 
 
 class OrderView(NamedTuple):
@@ -304,7 +341,16 @@ def order_view(db: Session, order_id: int) -> OrderView | None:
             bound = m.dst_order_id is not None and (m.dst_disposition or "") == "in_stock"
             departed.append(ViewRow(m.instance_object_id, m.dst_quality or "pending",
                                     m.dst_disposition or "in_process", amt, bound, m.at,
-                                    m.dst_order_id))
+                                    m.dst_order_id, tuple(m.units or ())))
+
+    # Die Nummern der terminalen Buchungen: sie sind aus der Karte entwertet und stehen
+    # **nur noch im Journal** – ohne sie könnte eine verschrottete Menge ihre Stücke nie
+    # mehr benennen.
+    term_units: dict[tuple, tuple] = {}
+    for m in moves:
+        if m.dst_order_id == order_id and (m.dst_disposition or "") in TERMINAL and m.units:
+            k = bucket(m.instance_object_id, m.dst_quality, m.dst_disposition)
+            term_units[k] = term_units.get(k, ()) + tuple(m.units)
 
     held: list[ViewRow] = []
     terminal: list[ViewRow] = []
@@ -312,7 +358,8 @@ def order_view(db: Session, order_id: int) -> OrderView | None:
         if v <= 0:
             continue
         if d in TERMINAL:
-            terminal.append(ViewRow(oid, q, d, v, False, term_at.get((oid, q, d))))
+            terminal.append(ViewRow(oid, q, d, v, False, term_at.get((oid, q, d)),
+                                    None, term_units.get((oid, q, d), ())))
         else:
             held.append(ViewRow(oid, q, d, v, d == "in_stock", None))
     return OrderView(held, terminal, departed)

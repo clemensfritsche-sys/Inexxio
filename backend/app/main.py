@@ -84,6 +84,9 @@ _COLUMN_SAFETY_NET = (
     # und jedem Auftrags-Detail gelesen; fehlt sie, während das Modell sie kennt, ist das
     # ERP dunkel (die Ausfallklasse von 090).
     ("instances", "units", "JSONB"),
+    # Welche Stücke eine Buchung bewegt hat (Migration 100) – neue Spalte auf einer
+    # bestehenden Tabelle, also auch ins Netz (Lehre aus 090).
+    ("material_moves", "units", "JSONB"),
     ("orders", "desired_delivery_date", "DATE"),
     # Woher ein Entwurf seine **Anteile** nimmt (Migration 096): ohne die Spalte müsste die
     # Freigabe raten, welchem Auftrag sie ein Stück wegnimmt.

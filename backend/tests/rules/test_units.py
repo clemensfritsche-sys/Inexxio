@@ -175,3 +175,49 @@ def test_a_lot_always_names_its_pieces(db, kinds, world):
         for l in (d.flow_in or []):
             assert l.units, f"Der Abzweig-Teaser nennt seine Stücke nicht: {l}"
     assert dev.object_id
+
+
+def test_the_past_keeps_its_numbers(db, kinds, world):
+    """**Ein Abschluss ändert die Vergangenheit nicht** (Testnotizen #543/#544).
+
+    Die Nummern wurden aus dem HEUTIGEN Halter abgeleitet. Gab ein Abzweig beim Abschluss
+    seine Stücke zurück, hielt er nichts mehr – und die Vergangenheit zeigte plötzlich ALLE
+    Nummern statt der richtigen. Eine abgeleitete Antwort kann keine Vergangenheit sein;
+    sie steht jetzt in der **Buchung** (ADR 007)."""
+    from app.models import ArticleProcessStep
+    from app.schemas.inspection import InspectionSample, InspectionUpdate
+    from app.services import inspection as insp_svc
+    from app.services.orders import to_order_response
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    dev = _make_deviation(db, main, inst, user, 1)          # inspection-Schritt
+    db.refresh(inst)
+    mine = [u.number for u in to_order_response(db, dev).flow_edges[0].lots[0].units]
+    assert len(mine) == 1, mine
+
+    step = (db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.order_id == dev.id,
+                    ArticleProcessStep.step_type == "inspection").first())
+    insp_svc.record_inspection(db, dev, InspectionUpdate(
+        samples=[InspectionSample(instance_id=inst.object_id, slot=1, values={"_ok": True})],
+        step_id=step.id), user)
+    db.commit()
+    db.refresh(dev)
+    db.refresh(inst)
+    assert dev.status == "completed"
+
+    after = to_order_response(db, dev)
+    for e in after.flow_edges:
+        for l in e.lots:
+            assert [u.number for u in l.units] == mine, (
+                f"Der Abschluss hat die Vergangenheit umgeschrieben: {[u.number for u in l.units]}")
+    parent = to_order_response(db, main)
+    bypass = [n.bypass for n in parent.flow_nodes if n.bypass and n.bypass.lots]
+    for edge in bypass:
+        for l in edge.lots:
+            assert len(l.units) == int(l.quantity), (
+                f"Menge und Nummern müssen zusammenpassen: {l.quantity} vs "
+                f"{[u.number for u in l.units]}")
+            assert not (set(u.number for u in l.units) & set(mine)), (
+                "Was durch den Abzweig ging, kam nicht am Bypass vorbei.")

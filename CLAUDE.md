@@ -4563,6 +4563,37 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   verloren, damit die Konnektoren oben wie unten den Takt geben.
   Wächter: `tests/rules/test_units.py: test_a_lot_always_names_its_pieces`.
 
+- **Die Nummern gehören zur BUCHUNG, nicht zur heutigen Karte** (August 2026, Migration
+  `100`, Testnotizen #541–#544): Der Nutzer hatte die Ursache exakt benannt – «sobald der
+  Unterprozess abgeschlossen wurde, wurde die Vergangenheit angepasst». Gemessen: nach dem
+  Abschluss zeigte die Abweichung «1 Stk × …-1, -2, -3, -4» statt «1 Stk × …-1». Die
+  Nummern wurden aus dem **heutigen Halter** abgeleitet; gab der Abzweig beim Abschluss
+  seine Stücke zurück, hielt er nichts mehr, und der Fallback lieferte **alle**.
+  **Eine abgeleitete Antwort kann keine Vergangenheit sein** – genau die Prämisse von
+  ADR 007. `material_moves.units` trägt jetzt die Nummern **dieser** Buchung; die Fluss-
+  Zeile liest sie von dort (`ViewRow.units` → `units.rows_for`). Ein Abschluss ändert oben
+  nichts mehr, und eine **verschrottete** Nummer bleibt in der Geschichte benennbar (die
+  offene Grenze der Vorrunde ist damit geschlossen).
+  **Wer die Nummern liefert, ist EINE Regel mit einer benannten Ausnahme**
+  (`ledger._moved_units`): normalerweise schnappt die Buchung, was der Ziel-Halter gerade
+  **beansprucht** (der Aufrufer hat unmittelbar davor umgehängt) – bewusst nur der Anspruch,
+  nicht der über `Instance.order_id` geerbte Rest, der für eine einzelne Buchung viel zu
+  breit wäre. Wer Stücke **entwertet** oder abgibt, nennt sie ausdrücklich: `scrap` über
+  `reservation.take(gone=[…])`, `subject.give_back` hält sie **vor** dem Lösen fest.
+  Dazu: **die Nummern gehen mit der Menge** – `_minus` zieht am Bypass genau die Stücke ab,
+  die durch den Abzweig gingen (`_returned_from` nennt sie aus der Buchung), statt irgendwelche
+  (#544). Und `units.owned_by` ist die eine Ableitung für gehaltene Zeilen (Anspruch ODER
+  unbeanspruchter Rest – dieselbe Regel wie bei den Anteilen).
+  **#542: nur der Schritt, der DRAN ist, lässt sich bedienen.** Ansehen darf man jeden
+  (#471) – aber ein Schritt, der noch nicht an der Reihe ist oder gerade ruht, bietet keine
+  Eingabe an (`planned = stepState !== 'active'` in allen vier Panels). Das Backend lehnte
+  sie ohnehin mit 409 ab; ein Knopf, der nicht tut, was er verspricht, ist schlimmer als
+  keiner.
+  Wächter `tests/rules/test_units.py: test_the_past_keeps_its_numbers` (Abschluss ändert
+  die Vergangenheit nicht; am Bypass passen Menge und Nummern zusammen und enthalten nicht,
+  was durch den Abzweig ging). Gegen echtes PostgreSQL 16 verifiziert (Harness `note537.py`:
+  laufender UND abgeschlossener Abzweig).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

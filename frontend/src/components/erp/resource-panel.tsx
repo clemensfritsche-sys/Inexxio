@@ -102,7 +102,11 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
 
   // **Ein künftiger Schritt zeigt seine Planung** (Testnotiz #487) – was hier geschehen
   // soll, steht längst im Panel; nur ausführen lässt er sich noch nicht.
-  const planned = stepState === 'locked';
+  // **Nur der Schritt, der DRAN ist, lässt sich bedienen** (Testnotiz #542). Ansehen darf
+  // man jeden (#471) – aber ein Schritt, der noch nicht an der Reihe ist oder gerade ruht,
+  // bietet keine Eingabe an: das Backend lehnt sie ohnehin mit 409 ab, und ein Knopf, der
+  // nicht tut, was er verspricht, ist schlimmer als keiner.
+  const planned = stepState !== 'active';
 
   return (
     <div style={cardStyle}>

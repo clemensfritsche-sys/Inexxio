@@ -1114,7 +1114,10 @@ def test_a_future_step_shows_what_is_planned():
         src = (FRONTEND / "components" / "erp" / f"{name}.tsx").read_text(encoding="utf-8")
         assert "Wird aktiv, sobald" not in src, (
             f"{name}: der frühere Abbruch verbarg die Planung des Schritts.")
-        assert "const planned = stepState === 'locked';" in src, f"{name}: kein Planungs-Zustand"
+        assert "const planned = stepState !== 'active';" in src, (
+            f"{name}: **nur der Schritt, der DRAN ist, lässt sich bedienen** (#542). Ansehen "
+            f"darf man jeden (#471) – aber ein Schritt, der noch nicht an der Reihe ist oder "
+            f"gerade ruht, bietet keine Eingabe an; das Backend lehnt sie ohnehin ab.")
         assert "{planned && <PlannedNotice />}" in src, f"{name}: keine Notiz"
         assert "planned || saving" in src or "!planned &&" in src, (
             f"{name}: ein geplanter Schritt führt nichts aus.")

@@ -136,6 +136,38 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
     return out
 
 
+def owned_by(inst: Instance, order_id: int) -> list[Unit]:
+    """**Die Stücke, die diesem Auftrag gehören** – Anspruch ODER unbeanspruchter Rest.
+
+    Dieselbe eine Regel wie bei den Anteilen (``inventory.rest_owner``): solange die Instanz
+    nicht am Lager liegt, gehört der unbeanspruchte Rest ihrem Erzeuger. Ohne das hielte ein
+    Erzeugungsauftrag «nichts», sobald ein Abzweig seine Ansprüche zurückgegeben hat."""
+    from .inventory import rest_owner
+    rest = rest_owner(inst)
+    return [u for u in of(inst)
+            if (u.holder if u.holder is not None else rest) == order_id]
+
+
+def rows_for(inst: Instance, indices, *, limit: int | None = None) -> list:
+    """**Genau diese Stücke als Zeilen** – für aufgezeichnete Nummern aus dem Journal.
+
+    Die Stücke müssen dafür nicht (mehr) existieren: eine verschrottete ``…-1`` behält ihre
+    Nummer in der Geschichte, auch wenn sie aus der Karte entwertet ist. Menge und Zustand
+    kommen aus der Instanz, soweit sie das Stück noch kennt – sonst aus ihrem Skalar."""
+    from ..schemas.instance import InstanceUnit
+    known = {u.index: u for u in of(inst)}
+    q, d = inst.quality or "pending", inst.disposition or "in_process"
+    out = []
+    for i in sorted(int(n) for n in indices):
+        u = known.get(i)
+        out.append(InstanceUnit(number=label(inst, i),
+                                quantity=float(u.quantity if u else 1),
+                                quality=q, disposition=d))
+        if limit is not None and len(out) >= limit:
+            break
+    return out
+
+
 def total(inst: Instance) -> Decimal:
     """Die Summe der Einheiten-Mengen – muss ``instance.quantity`` entsprechen."""
     return qty_sum(to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1) for r in _runs(inst))

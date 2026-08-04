@@ -457,15 +457,28 @@ def _view_lots(db: Session, rows: list, holder: int | None = None) -> list[FlowL
                           k: v for k, v in base.items() if k != "instance_object_id"},
                       instance_object_id=r.instance_object_id)
         inst = by_oid.get(r.instance_object_id)
-        # Wer hält die Menge jetzt? Der Abzweig, in den sie ging – sonst dieser Auftrag.
+        if inst is None:
+            return lot
+        # **Die Nummern stehen in der BUCHUNG** (Testnotizen #543/#544). Vorher wurden sie
+        # aus dem heutigen Halter abgeleitet – gab ein Abzweig beim Abschluss alles zurück,
+        # hielt er nichts mehr, und die Vergangenheit zeigte plötzlich ALLE Nummern statt
+        # der richtigen. Eine abgeleitete Antwort kann keine Vergangenheit sein.
+        recorded = getattr(r, "units", ()) or ()
+        if recorded:
+            lot.units = U.rows_for(inst, recorded, limit=UNIT_PREVIEW)
+            lot.unit_count = len(recorded)
+            return lot
+        # Altbestand ohne aufgezeichnete Nummern (Buchungen vor Migration 100) und
+        # **gehaltene** Zeilen (die sind die Gegenwart): aus der Karte ableiten – über
+        # ``owned_by``, also Anspruch ODER unbeanspruchter Rest (dieselbe Regel wie bei den
+        # Anteilen). Ein blosser Anspruchs-Filter hielte «nichts», sobald ein Abzweig
+        # zurückgegeben hat.
         owner = r.to_order if getattr(r, "to_order", None) is not None else holder
-        if inst is not None and owner is not None and (r.disposition or "") not in TERMINAL_OUT:
+        if owner is not None and (r.disposition or "") not in TERMINAL_OUT:
             U.ensure(inst)
-            lot.units = U.rows(inst, holder=owner, limit=UNIT_PREVIEW)
-            lot.unit_count = U.count(inst, holder=owner)
-            if not lot.units:
-                lot.units = U.rows(inst, holder=None, limit=UNIT_PREVIEW)
-                lot.unit_count = U.count(inst, holder=None)
+            mine = U.owned_by(inst, owner)
+            lot.units = U.rows_for(inst, [u.index for u in mine], limit=UNIT_PREVIEW)
+            lot.unit_count = len(mine)
         return lot
 
     return _merge_lots([to_lot(r) for r in rows])
@@ -1201,9 +1214,13 @@ def _minus(above: list[FlowLot], take: list[FlowLot]) -> list[FlowLot]:
     Teilung nimmt keine bereits ausgesonderte Menge mit). Nur noch für die Bypass-Anzeige
     der Vergangenheit bzw. für Alt-Aufträge ohne Journal."""
     gone = ("scrapped", "sold", "consumed")
-    rows = [l.model_copy() for l in above]
+    rows = [l.model_copy(update={"units": list(l.units)}) for l in above]
     for t in take:
         left = t.quantity
+        # **Die Nummern gehen mit der Menge** (Testnotiz #544): wird eine Menge abgezogen,
+        # verschwinden genau ihre Stücke – sonst zeigte der Bypass «3 Stk» und dazu alle
+        # vier Nummern.
+        drop = {u.number for u in t.units}
         for l in sorted((x for x in rows if x.instance_object_id == t.instance_object_id),
                         key=lambda x: x.disposition in gone):
             if left <= 0:
@@ -1211,6 +1228,11 @@ def _minus(above: list[FlowLot], take: list[FlowLot]) -> list[FlowLot]:
             cut = min(left, l.quantity)
             l.quantity -= cut
             left -= cut
+            keep = [u for u in l.units if u.number not in drop]
+            # Nennt der Abzweig seine Stücke nicht (Altbestand), fallen die letzten weg –
+            # die Anzahl stimmt dann, die Auswahl ist eine Näherung.
+            l.units = keep if drop else l.units[:max(0, len(l.units) - int(cut))]
+            l.unit_count = len(l.units)
     return [l for l in rows if l.quantity > 0]
 
 
@@ -1224,10 +1246,20 @@ def _returned_from(db: Session, order: Order, branch_object_ids: list[int]) -> l
     ids = {row[0] for row in db.query(Order.id)
            .filter(Order.object_id.in_(branch_object_ids)).all()}
     out: dict[int, float] = {}
+    nums: dict[int, list[int]] = {}
     for m in ledger.moves_of(db, order.id):
         if m.kind == "returned" and m.src_order_id in ids and m.dst_order_id == order.id:
             out[m.instance_object_id] = out.get(m.instance_object_id, 0.0) + float(m.quantity)
-    return [FlowLot(instance_object_id=oid, quantity=q) for oid, q in out.items()]
+            # **Welche** Stücke zurückkamen – aus der Buchung, damit der Bypass genau sie
+            # abzieht statt irgendwelche (#544).
+            nums.setdefault(m.instance_object_id, []).extend(m.units or ())
+    insts = {i.object_id: i for i in db.query(Instance).filter(
+        Instance.object_id.in_(out.keys())).all()} if out else {}
+    from . import units as U
+    return [FlowLot(instance_object_id=oid, quantity=q,
+                    units=(U.rows_for(insts[oid], nums[oid])
+                           if oid in insts and nums.get(oid) else []))
+            for oid, q in out.items()]
 
 
 def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:

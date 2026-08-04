@@ -172,7 +172,8 @@ def release_all(inst: Instance) -> None:
     _write(inst, {})
 
 
-def take(inst: Instance, qty, *, by_order_id: int | None = None) -> Decimal:
+def take(inst: Instance, qty, *, by_order_id: int | None = None,
+         gone: list | None = None) -> Decimal:
     """``qty`` aus der Instanz **herausnehmen** – die EINE Regel für jeden Mengen-Abgang
     (verbaut, verkauft, teilverschrottet). Die Objektnummer bleibt, es entsteht KEINE neue
     Instanz. Liefert die tatsächlich entnommene Menge.
@@ -203,7 +204,11 @@ def take(inst: Instance, qty, *, by_order_id: int | None = None) -> Decimal:
     # **Welche Stücke gehen weg**, nicht nur wie viel: die Nummern werden endgültig
     # entwertet (sie kommen nie wieder), bevorzugt beim Entnehmer selbst.
     from . import units
-    units.drop(inst, cut, by_order_id=by_order_id)
+    # ``gone`` sammelt die Nummern der entwerteten Stücke – der Aufrufer gibt sie an die
+    # Buchung weiter (``ledger.post(units=…)``), denn danach kennt sie niemand mehr.
+    dropped = units.drop(inst, cut, by_order_id=by_order_id)
+    if gone is not None:
+        gone.extend(int(n.split("-")[1]) for n in dropped if "-" in n)
     inst.quantity = to_qty(inst.quantity) - cut
     m = _load(inst)
     if by_order_id is not None:

@@ -159,11 +159,16 @@ def give_back(db: Session, sub: Order, parent: Order, inst: Instance,
     ``need`` = die offene Fehlmenge je Artikel (wird fortgeschrieben); ``None`` = «gib den
     Anspruch vollständig zurück» (Verwerfen-Tür: die Auswahl wird zurückgenommen).
     Liefert die zurückgegebene Menge. Committet NICHT."""
-    from . import ledger
+    from . import ledger, units as U
     from .reservation import release as release_reservation, reserve
     held = reserved_for(inst, sub.id)
     if held <= 0 or (inst.disposition or "") in TERMINAL_DISPOSITIONS:
         return ZERO
+    # **Welche Stücke zurückgehen – JETZT festhalten** (Testnotizen #543/#544): gleich hat
+    # der Unter-Auftrag seinen Anspruch abgegeben, dann weiss es niemand mehr. Die Nummern
+    # gehören in die Buchung, sonst zeigt die Vergangenheit später alles, was der Empfänger
+    # gerade hält.
+    moved = [u.index for u in U.of(inst, holder=sub.id)]
     release_reservation(inst, sub.id)      # die Bindung des Unter-Auftrags endet hier
     if inst.order_id != parent.id:
         gap = held if need is None else need.get(inst.article_id, ZERO)
@@ -172,7 +177,8 @@ def give_back(db: Session, sub: Order, parent: Order, inst: Instance,
             reserve(inst, parent.id, take)
             if need is not None:
                 need[inst.article_id] = gap - take
-    ledger.post(db, inst, held, kind="returned", holder=parent.id, src_holder=sub.id)
+    ledger.post(db, inst, held, kind="returned", holder=parent.id, src_holder=sub.id,
+                units=moved)
     return held
 
 

@@ -28,6 +28,7 @@ from . import inventory, ledger, location_split, process
 from .admin import log_audit
 from .events import emit
 from .quantity import to_qty
+from . import units as units_svc
 from .reservation import release_all, take
 from .subject import held_quantity, order_instances
 
@@ -86,12 +87,14 @@ def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order: Ord
         raise HTTPException(400, detail=f"Ungültige Menge für Instanz {inst.object_id}")
 
     if not whole:
-        cut = take(inst, cut_qty, by_order_id=order.id)
+        gone: list[int] = []
+        cut = take(inst, cut_qty, by_order_id=order.id, gone=gone)
         location_split.reconcile(inst)
         # Journal (ADR 007): die Teilmenge geht in den terminalen «scrapped»-Topf –
         # zugeschrieben dem Auftrag, der ausgesondert hat.
         ledger.post(db, inst, cut, kind="scrapped", holder=order.id,
-                    disposition="scrapped", src_holder=order.id, actor_id=actor_id)
+                    disposition="scrapped", src_holder=order.id, units=gone,
+                    actor_id=actor_id)
         log_audit(db, "instances", "quantity", str(inst.quantity), actor_id,
                   object_id=inst.object_id,
                   old_value=f"{(inst.quantity or 0) + cut} (− {cut} verschrottet)")
@@ -100,9 +103,12 @@ def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order: Ord
     old = inst.disposition
     old_loc = f"{inst.location_type}:{inst.location_id}" if inst.location_type else None
     cut = to_qty(inst.quantity)
+    # Die Nummern VOR dem Lösen festhalten – danach kennt sie niemand mehr.
+    gone_all = [u.index for u in units_svc.of(inst)]
     inst.disposition = "scrapped"
     ledger.post(db, inst, cut, kind="scrapped", holder=order.id,
-                disposition="scrapped", src_holder=order.id, actor_id=actor_id)
+                disposition="scrapped", src_holder=order.id, units=gone_all,
+                actor_id=actor_id)
     release_all(inst)
     if inst.location_type is not None or inst.locations:
         location_split.clear(inst)

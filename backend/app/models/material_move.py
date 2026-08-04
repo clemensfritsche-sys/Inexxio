@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import BigInteger, DateTime, Numeric, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -56,6 +57,14 @@ class MaterialMove(Base):
     dst_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     dst_quality: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     dst_disposition: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
+
+    # **Welche Stücke bewegt wurden** – die laufenden Nummern (``[1, 2]`` = ``…-1``/``…-2``).
+    # Sie gehören zur Buchung, nicht zur Instanz: was passiert ist, darf sich nicht mehr
+    # ändern (ADR 007). Vorher wurden sie aus dem HEUTIGEN Halter abgeleitet – schloss ein
+    # Abzweig ab und gab seine Stücke zurück, hielt er nichts mehr, und die Vergangenheit
+    # zeigte plötzlich alle Nummern statt der richtigen (Testnotizen #543/#544).
+    # ``NULL`` = Altbestand vor dieser Spalte (dort bleibt es bei der Ableitung).
+    units: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
     # '!unbalanced' = der Aufrufer wollte mehr bewegen, als die Instanz hielt – sichtbar
     # markiert statt still verschluckt; ``ledger.verify`` findet es.
