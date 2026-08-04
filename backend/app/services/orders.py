@@ -611,11 +611,11 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
         flow_in=material, flow_lost=gone,
         flow_back=back,
         # Dieselbe Frage, dieselbe Antwort wie am Rückweg-Knoten im Unter-Auftrag selbst –
-        # der Abzweig darf im Eltern nicht anders aussehen als beim Öffnen (#492). EINE
-        # Regel: gibt es lebendes Material, führt der Weg zurück (läuft er noch, WIRD es
-        # zurückkommen; ist er durch, IST es gegangen – beides sind die nicht-terminalen
-        # Zeilen). ``flow_back`` daneben sagt, was tatsächlich schon zurück ist.
-        returns_material=sum(x.quantity for x in returning_material(material)) > 0)
+        # der Abzweig darf im Eltern nicht anders aussehen als beim Öffnen (#492). Darum
+        # liest diese Stelle die EINE Ableitung (``returns_material``) statt selbst zu
+        # rechnen: sie kannte das Kappen nicht und zeichnete eine Rückgabe-Linie, die es
+        # nicht gibt. ``flow_back`` daneben sagt, was tatsächlich schon zurück ist.
+        returns_material=returns_material(db, sub, material))
 
 
 def _flow_back(db: Session, sub: Order, material: list[FlowLot]) -> list[FlowLot]:
@@ -843,14 +843,9 @@ def _return_target(db: Session, order: Order) -> Order | None:
     seine Stück an den Eltern (``process._peg_supply_to_parent``). Alles andere gibt nichts
     zurück – ein gewöhnlicher Auftrag schuldet niemandem etwas."""
     from .subject import is_fixed_subject, lender_of
-    # **Gekappt heisst gekappt** (Testnotiz #563): dieser Auftrag führt sein Material zu
-    # Ende, es geht an niemanden zurück – also gibt es auch keine Rückgabe-Linie.
-    if order.returns_nothing:
-        return None
-    # **Was gar nicht mehr da ist, kommt auch nicht zurück** (Testnotiz #492). Sonst zeigte
-    # derselbe Abzweig zwei verschiedene Bilder: im Eltern-Auftrag ohne Rückweg (dort wurde
-    # aus dem Material gerechnet), in seiner EIGENEN Ansicht mit – weil sie nur fragte, WEM
-    # er zurückgäbe, nicht OB. Jetzt fragen beide dasselbe.
+    # **Kommt überhaupt etwas zurück?** – EINE Frage, EINE Antwort (Testnotizen #492/#563):
+    # gekappt oder nichts mehr da. Sonst zeigte derselbe Abzweig zwei verschiedene Bilder,
+    # weil diese Stelle nur fragte, WEM er zurückgäbe, nicht OB.
     if not returns_material(db, order):
         return None
     if is_fixed_subject(order):
@@ -861,17 +856,28 @@ def _return_target(db: Session, order: Order) -> Order | None:
     return None
 
 
-def returns_material(db: Session, order: Order) -> bool:
+def returns_material(db: Session, order: Order,
+                     material: list[FlowLot] | None = None) -> bool:
     """**Kommt aus diesem Auftrag überhaupt etwas zurück?** – EINE Stelle (Testnotiz #492).
 
-    Die Antwort ist einfach: was er übernommen hat, minus dem, was den Bestand endgültig
-    verlassen hat. Bleibt nichts, führt die Prozesslinie gar nicht erst zurück – die
-    einfachste denkbare Darstellung für «alles verschrottet» bzw. «Menge reduziert» (#481).
+    Zwei Gründe, warum nichts zurückkommt, und beide gehören hierher:
+
+    - **gekappt** (``returns_nothing``, Testnotiz #563): der Mensch hat gesagt, dass dieser
+      Auftrag sein Material zu Ende führt. Der Verleiher ist dadurch abgebrochen; eine
+      Rückgabe-Linie würde einen Weg zeigen, den es nicht mehr gibt.
+    - **nichts mehr da**: was er übernommen hat, minus dem, was den Bestand endgültig
+      verlassen hat. Bleibt nichts, führt die Linie gar nicht erst zurück – die einfachste
+      denkbare Darstellung für «alles verschrottet» bzw. «Menge reduziert» (#481).
 
     Sie steht hier, weil sie an **zwei** Oberflächen gebraucht wird: am Abzweig im
     Eltern-Auftrag und am Rückweg-Knoten im Unter-Auftrag selbst. Wurden sie getrennt
-    hergeleitet, zeigte derselbe Vorgang zwei verschiedene Bilder."""
-    material, _ = order_material(db, order)
+    hergeleitet, zeigte derselbe Vorgang zwei verschiedene Bilder – genau so ist das Kappen
+    zuerst nur an EINER der beiden angekommen. ``material`` reicht eine bereits berechnete
+    Materialliste durch (der Abzweig hat sie ohnehin), spart also die zweite Abfrage."""
+    if order.returns_nothing:
+        return False
+    if material is None:
+        material, _ = order_material(db, order)
     return sum(x.quantity for x in returning_material(material)) > 0
 
 

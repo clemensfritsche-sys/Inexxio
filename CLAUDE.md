@@ -4774,7 +4774,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   #422/#429 es verlangen.
   (5) **Genommen wird von unten** (#558): `units._assign` gab die **höchsten** Nummern zuerst
   – ein Unterauftrag über die Anteile `-3`/`-4` bekam `-4`, während sonst überall von unten
-  gezählt wird. Jetzt niedrigste zuerst in allen drei Rängen (genannter Anteil ≻ frei ≻ fremd).
+  gezählt wird. Jetzt niedrigste zuerst in allen drei Rängen (genannter Anteil ≻ frei ≻
+  fremd) – das Zurückgeben nimmt weiterhin die höchsten («was zuletzt kam, geht zuerst»),
+  sodass der behaltene Satz von unten zusammenhängend bleibt.
   (6) **Die Linie führt IMMER heran** (#557): der Konnektor vom Startknoten zum Modul hing
   an `!adding` und fehlte damit genau dann, wenn man einen Schritt anlegt – der Editor stand
   ohne Anschluss unter dem grünen Punkt. Dieselbe Bedingung wie Start- und Endknoten.
@@ -4785,12 +4787,21 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   das Soll – der Abbruch hängt daran, dass NICHTS mehr bleibt) und `regular-kaskade-gekappt`
   (geprüft wird der OBERSTE einer dreistufigen Kette). Gegen die Bug-Form gegengeprüft: ohne
   `cut` meldet die Zeile wieder eine Fehlmenge von 4.
+  **Beim Nachmessen ein Folgefehler gefunden – genau die Klasse, die #492 verbietet:** das
+  Kappen war nur an EINER der beiden Oberflächen angekommen. Die eigene Ansicht des Abzweigs
+  zeigte korrekt keinen Rückweg (`_return_target` prüfte die Flagge), der **Teaser im
+  Eltern-Auftrag** zeichnete aber weiter eine Rückgabe-Linie – weil er die Frage «kommt etwas
+  zurück?» ein zweites Mal selbst rechnete, aus dem Material. Jetzt lesen beide dieselbe
+  Ableitung (`orders.returns_material`, um die Flagge erweitert und mit durchgereichter
+  Materialliste, also ohne zweite Abfrage); die Sonderprüfung in `_return_target` ist damit
+  entfallen. Wächter erweitert: der Abzweig muss die Ableitung **aufrufen**, nicht nachbauen.
   **Die vom Nutzer erbetenen «Fälle, die ich nicht auf dem Schirm habe»** sind gemessen
-  (Harness `note563b.py` 18/18): Teil-Kappung kürzt statt abzubrechen · der gekappte Abzweig
+  (Harness `note563b.py` 21/21): Teil-Kappung kürzt statt abzubrechen · der gekappte Abzweig
   behält sein Stück und gibt beim Abschluss nichts zurück (der Abbruch wird nicht widerrufen)
   · bei zwei Verleihern trifft es nur den eigenen · eine **dreistufige** Kette bricht auf
   allen Ebenen ab, jede mit Zeiger auf ihre direkte Fortführung · `covering_sub_orders` ist
-  danach leer (niemand wartet auf etwas, das nie eintrifft).
+  danach leer (niemand wartet auf etwas, das nie eintrifft) · und beide Oberflächen sagen
+  dasselbe.
   Wächter: `tests/rules/table.py` + `test_shortfall_rules.py`, `tests/rules/test_units.py`,
   `test_frontend_mirrors.py: test_the_draft_is_framed_like_the_order_it_will_become`.
   Gegen echtes PostgreSQL 16 verifiziert (Harnesses `note559.py` 11/11, `note563.py` 13/13

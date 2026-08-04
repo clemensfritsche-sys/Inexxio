@@ -712,6 +712,15 @@ def test_the_flow_shows_what_material_moves():
     assert "returns_material" in OrderDeviationInfo.model_fields
     assert "if not returns_material(db, order):" in _inspect.getsource(ord_svc._return_target), (
         "Der Rückweg-Knoten liest dieselbe Regel wie der Abzweig im Eltern-Auftrag.")
+    # **Auch der Abzweig im Eltern liest sie – er rechnet NICHT selbst** (#492/#563). Genau
+    # daran ist das Kappen zuerst nur an EINER der beiden Oberflächen angekommen: die eigene
+    # Ansicht zeigte keinen Rückweg, der Teaser im Eltern zeichnete trotzdem eine Linie.
+    embed_src = _inspect.getsource(ord_svc._sub_info)
+    assert "returns_material=returns_material(db, sub, material)" in embed_src, (
+        "Der Abzweig fragt dieselbe Ableitung, statt sie ein zweites Mal zu rechnen.")
+    ret_src = _inspect.getsource(ord_svc.returns_material)
+    assert "if order.returns_nothing:" in ret_src and "return False" in ret_src, (
+        "Gekappt heisst: es kommt nichts zurück – und zwar an BEIDEN Oberflächen (#563).")
 
 
 def test_the_flow_is_a_tree_not_an_episode():
