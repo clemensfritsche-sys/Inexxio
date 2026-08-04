@@ -471,7 +471,7 @@ def _fixed_subject_shortfall(db: Session, order: Order,
 
 
 def _held_amounts(db: Session, order: Order) -> dict[int, Decimal]:
-    """**Was ein Auftrag mit festem Subjekt noch in der Hand hat** – je Artikel.
+    """**Was ein Auftrag mit festem Subjekt noch in der Hand hat – oder selbst erledigt hat.**
 
     Abweichung, Retoure und Bereitstellung beschaffen nichts; ihr Subjekt sind bestimmte,
     bereits vorhandene Stücke. «Gesichert» heisst für sie darum nicht «am Lager reserviert
@@ -479,8 +479,17 @@ def _held_amounts(db: Session, order: Order) -> dict[int, Decimal]:
     (``instances.reservations``) sagt es mengengenau; fehlt er, weil sich an dem Stück nichts
     reservieren lässt (verkaufte Ware bei einer Retoure), zählt die Bindung als ganze Instanz.
 
+    **Und was er selbst ausgesondert hat, fehlt ihm nicht** (Testnotiz #555). Genau das war
+    der gemeldete Steckenbleiber: eine Abweichung, deren Auftrag es WAR, ihr Stück zu
+    verschrotten, hielt danach nichts mehr – und meldete darum eine Fehlmenge über ihre volle
+    Menge. Sie wurde nie fertig, der Eltern-Auftrag wartete für immer auf sie, und der ganze
+    Prozess stand. Der Unterschied ist nicht die Menge, sondern **warum** sie weg ist: hat ein
+    anderer sie genommen, fehlt sie; hat dieser Auftrag sie durch seinen eigenen Schritt
+    ausgesteuert (verschrottet · verkauft · verbaut), IST das seine Erledigung. Das Journal
+    (ADR 007) weiss es genau – terminale Buchungen, die IHM zugeschrieben sind.
+
     Damit fällt die Unterdeckung eines festen Subjekts aus derselben Formel wie jede andere:
-    Soll − Gehalten. Nimmt eine zweite Abweichung der ersten ihr einziges Stück weg, fehlt
+    Soll − Gesichert. Nimmt eine zweite Abweichung der ersten ihr einziges Stück weg, fehlt
     dieser genau eines – und sie wird gefragt wie jeder andere Auftrag auch."""
     from .subject import order_instances
     targets = _subject_targets(db, order)
@@ -497,7 +506,30 @@ def _held_amounts(db: Session, order: Order) -> dict[int, Decimal]:
             qty = targets.get(inst.article_id, ZERO)
         if qty > 0:
             held[inst.article_id] = held.get(inst.article_id, ZERO) + qty
+    for article_id, qty in _disposed_amounts(db, order).items():
+        held[article_id] = held.get(article_id, ZERO) + qty
     return held
+
+
+def _disposed_amounts(db: Session, order: Order) -> dict[int, Decimal]:
+    """**Was dieser Auftrag selbst ausgesteuert hat** – je Artikel, aus dem Journal.
+
+    Terminale Buchungen (verschrottet · verkauft · verbaut), die IHM zugeschrieben sind: sie
+    sind das Ergebnis seiner Arbeit, nicht ein Verlust. Der Zustand einer Instanz sagt das
+    nicht – dort steht nur, dass die Menge weg ist, nicht wer sie ausgesteuert hat."""
+    from . import ledger
+    if not order.id:
+        return {}
+    view = ledger.order_view(db, order.id)
+    if view is None or not view.terminal:
+        return {}
+    by_oid: dict[int, Decimal] = {}
+    for row in view.terminal:
+        by_oid[row.instance_object_id] = by_oid.get(row.instance_object_id, ZERO) + row.quantity
+    out: dict[int, Decimal] = {}
+    for inst in db.query(Instance).filter(Instance.object_id.in_(by_oid)).all():
+        out[inst.article_id] = out.get(inst.article_id, ZERO) + by_oid[inst.object_id]
+    return out
 
 
 def _subject_targets(db: Session, order: Order) -> dict[int, Decimal]:
@@ -1039,6 +1071,14 @@ def recompute_completion(db: Session, order: Order) -> None:
     Eine offene **Abweichung** hält den Auftrag NICHT mehr an (``deviated_quantities``):
     ihr Stück ist aus dem Auftrag herausgenommen und erscheint als Unterdeckung. Was noch
     in Klärung ist, gibt dieser Auftrag darum auch nicht frei."""
+    # **Über eine Fehlmenge wird hier entschieden – automatisch** (Testnotiz #556): hält sie
+    # niemand mehr, kommt sie nicht mehr zurück, und das Soll sinkt auf das Gesicherte. Diese
+    # Stelle ist die richtige, weil sie nach JEDEM Schritt-Abschluss läuft und über die
+    # Rekursion am Ende auch den Verleiher erreicht, sobald ein Abzweig endet.
+    from .recovery import auto_resolve
+    auto_resolve(db, order, None)
+    if order.status != "released":
+        return                               # gekürzt auf null = abgebrochen (``abort_parent``)
     # Bereitstellung ableiten: Jeder Schritt, der dran ist oder gerade war, bekommt sein
     # Material an den Ort, den er verlangt – als Unter-Auftrag, falls es woanders liegt.
     # Hier, weil ``recompute_completion`` nach JEDEM Schritt-Abschluss läuft: sobald der

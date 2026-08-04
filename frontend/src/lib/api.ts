@@ -555,19 +555,10 @@ class ApiClient {
     return this.post(`/api/v1/erp/orders/${objectId}/abort`, {});
   }
 
-  // «Ersetzen»: deckt die Fehlmenge eines blockierten Schritts – erst aus freiem
-  // Lagerbestand (FIFO bzw. gezielt gewählte Instanzen), den Rest per Nachschub-Unterauftrag.
-  // EIN Weg statt zweier Knöpfe: woher der Ersatz kommt, ist eine Verfügbarkeitsfrage.
-  coverShortfall(objectId: number, instanceObjectIds?: number[]): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/cover`,
-      instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
-  }
-
-  // «Menge bestätigen»: das Soll sinkt auf das Gesicherte – der Auftrag wird mit weniger
-  // fertig. Bezahlte Verkaufspositionen lehnt das Backend ab (dafür: Retoure/Gutschrift).
-  confirmQuantity(objectId: number): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/confirm-quantity`, {});
-  }
+  // (Über eine Fehlmenge entscheidet seit Testnotiz #556 das System selbst
+  //  (``recovery.auto_resolve``): hält sie noch jemand, wird gewartet; hält sie niemand
+  //  mehr, sinkt das Soll darauf. «Ersetzen» ist bewusst zurückgestellt – der Weg existiert
+  //  im Backend weiter (`POST …/cover`), es fragt nur niemand mehr danach.)
 
   // «Abbruch zurücknehmen»: verwirft einen noch im Entwurf befindlichen Folgeauftrag
   // (objectId = Folgeauftrag); das Original läuft danach unverändert weiter. Liefert das

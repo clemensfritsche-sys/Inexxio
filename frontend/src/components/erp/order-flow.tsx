@@ -3,8 +3,7 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { UnitList } from '@/components/erp/unit-numbers';
-import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, Hash, MapPin, Package, Redo2,
-  Scissors, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, Hash, MapPin, Package, X } from 'lucide-react';
 import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, MaterialOrder, Order,
   OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution, StepType, SubOrderStep } from '@/types';
 import { STEP_META, instanceStatusConfig, stepStateLabel } from '@/lib/process';
@@ -16,7 +15,7 @@ import { orderStatus } from '@/lib/record-status';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { saleStatusConfig } from '@/lib/sale';
 import { FlowTerm, kindColor } from '@/components/erp/process-steps';
-import { ARM, Axis, BEND, Elbow, LANE, MAIN, RUN, Row, SIDE, aside }
+import { ARM, Axis, Elbow, LANE, MAIN, Row, SIDE, aside }
   from '@/components/erp/flow-line';
 import { actorHint, formatObjectId } from '@/lib/utils';
 
@@ -60,12 +59,6 @@ import { actorHint, formatObjectId } from '@/lib/utils';
 // `OrderResponse.flow_edges`/`flow_nodes` – Material im Zustand von damals, Fortschritt,
 // Prozess-Punkt. Die frühere Client-Arithmetik (minus/plus/Stichtags-Zeitmaschine) ist
 // ersatzlos entfallen; jede Abweichung von der Server-Sicht war eine Testnotiz.
-
-/** Ist diese Menge endgültig aus dem Bestand? (nur für die Rückweg-Anzeige) */
-const isGone = (l: FlowLot) =>
-  l.disposition === 'scrapped' || l.disposition === 'sold' || l.disposition === 'consumed';
-
-export type FlowDecision = { missing: string; canAct: boolean; onDecide?: () => void };
 
 function completionHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
@@ -369,7 +362,7 @@ function FlowLots({ lots, small, past }: { lots: FlowLot[]; small?: boolean; pas
 // ─── Der Fluss ────────────────────────────────────────────────────────────────────
 
 export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [],
-  origin, decision, paused = false,
+  origin, paused = false,
   selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId, goal,
   onCreateOrder, materialFrom = [], materialTo = [] }: {
   steps: OrderStep[];
@@ -380,7 +373,6 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
   flowNodes?: FlowNode[];
   flowEdges?: FlowEdge[];
   origin?: OrderOrigin | null;
-  decision?: FlowDecision;
   paused?: boolean;
   selectedId?: string | null;
   onSelectStep: (stepId: string) => void;
@@ -416,7 +408,6 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
 
   const edgeAt = (i: number): FlowEdge => flowEdges[i] ?? { lots: [], reached: false, live: false };
 
-  let gateUsed = false;
   const rows: React.ReactNode[] = [];
   flowNodes.forEach((n, i) => {
     const edge = edgeAt(i);
@@ -438,10 +429,6 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
         .map((id) => branchById.get(id)).filter(Boolean) as OrderDeviationInfo[];
       if (branches.length === 0) return;
       const res = (n.step_id != null ? stepById.get(n.step_id)?.resolutions : null) ?? [];
-      // **Nur die offene Entscheidung ist ein Knoten** (Notiz #434) – ein offener Abzweig
-      // IST das Warten, eine Auflösung steht als Zeile an ihrem Schritt.
-      const decide = res.length === 0 && n.passed && !gateUsed && !!decision;
-      if (decide) gateUsed = true;
       const bypass = n.bypass ?? { lots: [], reached: false, live: false };
       rows.push(
         // **Fork · Bypass · Merge**: die Achse läuft neben der Teilung weiter und trägt, was
@@ -458,11 +445,11 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
           <Axis grow h={26} strong={n.passed} />
         </Row>,
       );
-      if (decide || res.length > 0) {
+      if (res.length > 0) {
         rows.push(
           <Row key={`res-${branches[0].object_id}`}>
             <Axis h={10} strong={n.passed} />
-            {decide ? <DecisionLine decision={decision} /> : <Resolutions list={res} shown={shownSubs} />}
+            <Resolutions list={res} shown={shownSubs} />
           </Row>,
         );
       }
@@ -553,10 +540,13 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
         {origin?.returns_to_object_id != null && (
           <>
             <Row><Axis h={18} strong={lastEdge.reached} /></Row>
-            {/* Was zurückgeht, ist das lebende Material des Auftrags – dieselbe Ableitung,
-                die der Eltern für seinen Merge liest (`flow_back`). */}
+            {/* **Was zurück IST, nicht was zurückgehen wird** (Testnotiz #554): die Kante
+                zeigte das lebende Material des Auftrags – also eine Vorhersage, und dazu
+                eine andere als die, die derselbe Abzweig im Eltern zeigt. Jetzt lesen beide
+                dieselben Buchungen (`origin.returned_lots` ← `_flow_back`); solange nichts
+                zurück ist, steht dort nichts. */}
             <Row left={<ReturnArm origin={origin} strong={lastEdge.reached} onOpen={onOpenOrder}
-              lots={lots.filter((l) => !isGone(l))} />} />
+              lots={origin.returned_lots ?? []} />} />
           </>
         )}
       </div>
@@ -883,36 +873,6 @@ function ReturnArm({ origin, lots, strong, onOpen }: {
 
 // ─── Gate + Auflösung ─────────────────────────────────────────────────────────────
 
-/**
- * **Die offene Entscheidung ist eine Zeile, kein Gateway** (Testnotiz #551).
- *
- * Vorher stand hier eine Raute – das Flowchart-Zeichen für «hier wird entschieden». Sie war
- * ein eigenes Bauteil mit eigener Form für etwas, das der Fluss an dieser Stelle ohnehin
- * schon sagt: es geht nicht weiter. Übrig bleibt die Aussage, in **derselben** Form wie
- * jede andere Auflösung an dieser Stelle (Punkt · Satz · Hover) – nur eben noch offen und
- * darum anklickbar. Ein Bauteil weniger, dieselbe Handlung.
- */
-function DecisionLine({ decision }: { decision?: FlowDecision }) {
-  const body = (
-    <>
-      <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--warning)',
-        flexShrink: 0 }} />
-      <span>Es fehlt <b style={{ color: 'var(--fg-1)' }}>{decision?.missing}</b> · entscheiden</span>
-    </>
-  );
-  const layout: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap',
-    justifyContent: 'center', maxWidth: MAIN, border: 'none', background: 'none', padding: 0,
-    font: '500 12px var(--font-body)', color: 'var(--fg-3)',
-  };
-  if (!decision?.canAct || !decision.onDecide) return <div style={layout}>{body}</div>;
-  return (
-    <button type="button" onClick={decision.onDecide} style={{ ...layout, cursor: 'pointer' }}>
-      {body}
-    </button>
-  );
-}
-
 const RESOLUTION_TONE: Record<string, string> = {
   quantity_confirmed: 'var(--success)',
   covered_from_stock: 'var(--success)',
@@ -1007,24 +967,15 @@ function stepStatus(s: OrderStep): string | null {
  * **Und die Rückgabe-Linie IST die Entscheidung.** Die Unterdeckung des Halters hat drei
  * Antworten; zwei davon sind schlicht die Frage, ob das Material zurückkommt:
  *
- *     Linie da    → **warten** (`wait`)   – der Auftrag ruht, bis die Menge wieder da ist
- *     Linie weg   → **reduzieren** (`accept`) – er wird mit dem fertig, was ihm bleibt
- *
- * Man klickt also nicht mehr in einem Dialog auf ein Wort, sondern zeichnet den Fluss, den man
- * meint. **«Ersetzen» bleibt bewusst draussen**: das ist keine Aussage über diesen Entwurf,
- * sondern eine Beschaffung im anderen Auftrag – sie gehört dorthin, wo sie wirkt (an den
- * laufenden Auftrag, `ShortfallDialog`).
- *
- * **Je Halter eine Linie**: greift die Auswahl auf zwei laufende Aufträge zu, darf der eine
- * warten und der andere reduzieren. Ein Schalter für alle wäre eine Entscheidung, die so
- * niemand getroffen hat.
+ * **Entschieden wird dabei nichts mehr** (Testnotiz #556). Die Rückgabe-Linie war einmal die
+ * Antwort auf die Unterdeckungs-Frage (Schere = «Menge reduzieren»); seit die Entscheidung
+ * automatisch fällt, ist sie schlicht eine **Aussage**: dieses Material geht dorthin zurück,
+ * und solange es unterwegs ist, wartet der Halter. Ob es zurückkommt, zeigt sich erst, wenn
+ * dieser Auftrag endet – dann entscheidet das System.
  */
-export function DraftFlowFrame({ holders, returns, onToggleReturn, onOpenOrder, children }: {
+export function DraftFlowFrame({ holders, onOpenOrder, children }: {
   /** Die laufenden Aufträge, denen diese Auswahl etwas wegnimmt (`AffectedOrder`-Zeilen). */
   holders: AffectedOrder[];
-  /** Objektnummern der Halter, an die zurückgegeben wird – der Rest wird reduziert. */
-  returns: Set<number>;
-  onToggleReturn: (objectId: number) => void;
   onOpenOrder?: (objectId: number) => void;
   children: React.ReactNode;
 }) {
@@ -1043,13 +994,10 @@ export function DraftFlowFrame({ holders, returns, onToggleReturn, onOpenOrder, 
             ein zweites Mal. Der Rahmen liefert die Spuren, nicht den Prozess. */}
         <Row>{children}</Row>
         <Row><Axis h={18} strong /></Row>
-        {/* **Je Halter seine eigene Rückgabe-Linie – mit der Schere DARAUF** (#499): wo
-            entschieden wird, wird auch bedient. Eine gekappte Linie ist schlicht keine Linie;
-            der Knoten bleibt und trägt den Knopf, mit dem sie wiederkommt. */}
+        {/* Je Halter seine eigene Rückgabe-Linie: was hier geholt wurde, geht dorthin
+            zurück, und so lange wartet er darauf. */}
         {holders.map((h, i) => (
-          <Row key={h.object_id}
-            left={<DraftReturnArm holder={h} connected={returns.has(h.object_id)}
-              onToggle={onToggleReturn} />}>
+          <Row key={h.object_id} left={<DraftReturnArm holder={h} />}>
             {i < holders.length - 1 && <Axis grow h={ARM} strong />}
           </Row>
         ))}
@@ -1099,35 +1047,15 @@ function DraftOriginArm({ holders, onOpen }: {
  * derselben Stelle, an der die Schere sass, steht der Knopf, der sie wiederbringt. Damit ist
  * die Entscheidung an genau einem Ort sichtbar UND umkehrbar – ohne zweite Liste darunter.
  */
-function DraftReturnArm({ holder, connected, onToggle }: {
-  holder: AffectedOrder; connected: boolean; onToggle: (objectId: number) => void;
-}) {
+function DraftReturnArm({ holder }: { holder: AffectedOrder }) {
   const label = holder.name ?? 'Auftrag';
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
-      {connected && <Elbow dir="out-to-left" strong />}
-      {/* Auf dem waagrechten Stück der Ecke (`out-to-left`: y = 2·BEND), mittig zwischen
-          Achse und Spurmitte – dort, wo die Linie verläuft. */}
-      <button type="button" onClick={() => onToggle(holder.object_id)}
-        title={connected
-          ? `${holderLoss(holder)} gehen zurück – ${label} wartet darauf. Klick: Linie kappen, `
-            + 'dann wird dort die Menge reduziert.'
-          : `${holderLoss(holder)} bleiben hier – ${label} wird auf die verbleibende Menge `
-            + 'reduziert. Klick: Rückgabe wieder anschalten.'}
-        style={{
-          position: 'absolute', left: SIDE / 2 + RUN / 2, top: 2 * BEND,
-          transform: 'translate(-50%, -50%)', width: 28, height: 28, borderRadius: 999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-          border: `1px solid ${connected ? 'var(--fg-2)' : 'var(--border-2)'}`,
-          background: '#fff', color: connected ? 'var(--fg-2)' : 'var(--fg-4)', padding: 0,
-        }}>
-        {connected ? <Scissors size={14} /> : <Redo2 size={14} />}
-      </button>
-      <div {...aside('left', { width: '100%', minWidth: 0, opacity: connected ? 1 : 0.55 })}>
-        <OrderRefNode
-          caption={connected ? 'Gibt zurück an' : 'Keine Rückgabe – wird reduziert'}
-          objectId={holder.object_id} name={holder.name} icon={ArrowDown}
-          title={`${label} ${formatObjectId(holder.object_id)}`} />
+      <Elbow dir="out-to-left" strong />
+      <div {...aside('left', { width: '100%', minWidth: 0 })}>
+        <OrderRefNode caption="Gibt zurück an" objectId={holder.object_id} name={holder.name}
+          icon={ArrowDown}
+          title={`${holderLoss(holder)} gehen an ${label} ${formatObjectId(holder.object_id)} zurück`} />
       </div>
     </div>
   );

@@ -128,14 +128,6 @@ export type MaterialOrder = OrderApi['material_from'][number];
  */
 export type FlowNode = OrderApi['flow_nodes'][number];
 export type FlowEdge = OrderApi['flow_edges'][number];
-/**
- * Die drei Antworten auf eine Unterdeckung – dieselben am laufenden Auftrag wie schon beim
- * Erteilen eines Entwurfs (Backend `schemas/order.SHORTFALL_ANSWERS`). Sie gelten **je
- * Halter**: wer aus zwei Aufträgen Stücke nimmt, darf den einen warten lassen und den
- * anderen reduzieren.
- */
-export type ShortfallAnswer = 'wait' | 'replace' | 'accept';
-
 // Dokument: Inhalt (Titel/Untertitel/Abschnitte) + eingebetteter Stand im Auftrag.
 // Der Inhalt wird WÄHREND der Auftragsausführung verfasst und ausgestellt.
 export type DocumentContent = components['schemas']['DocumentContent'];
@@ -344,7 +336,6 @@ export interface OrderInput extends OrderRecurrenceInput {
   /** Antwort auf eine Unterdeckung, die die Auswahl bei laufenden Aufträgen auslöst –
    *  **je Halter eine** ({Objektnummer: Antwort}). Im Entwurf ist sie die Rückgabe-Linie:
    *  führt sie zu ihm, wartet er; ist sie gekappt, wird seine Menge reduziert. */
-  shortfall_responses?: Record<string, ShortfallAnswer> | null;
 }
 
 export type OrderUpdateInput = OrderRecurrenceInput & {
@@ -358,7 +349,6 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   // Antwort auf die Unterdeckung, die eine solche Auswahl beim laufenden Auftrag auslöst:
   // warten · ersetzen · ohne Ersatz weiter – **je Halter eine**. Fehlt eine, antwortet der
   // Server mit 409 und nennt die Betroffenen.
-  shortfall_responses?: Record<string, ShortfallAnswer>;
   desired_delivery_date?: string | null;
   is_active?: boolean;
   expected_updated_at?: string | null;   // Optimistic Locking

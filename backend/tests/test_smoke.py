@@ -1876,8 +1876,7 @@ def test_an_order_is_created_as_a_whole_or_not_at_all():
 
     ``POST /erp/orders`` nimmt alles entgegen, was der Entwurf im Browser gesammelt hat:
     Artikel + Menge (Pflicht wie eh und je), weitere **Positionen**, den auftragseigenen
-    **Ablauf**, die **Instanz-Auswahl** und die Antwort auf eine ausgelöste Unterdeckung –
-    und gibt ihn im selben Aufruf frei. Erst dort bekommt er seine **Objektnummer**.
+    **Ablauf** und die **Instanz-Auswahl** – und gibt ihn im selben Aufruf frei. Erst dort bekommt er seine **Objektnummer**.
 
     Vorher entstand er beim Tippen (Auto-Save) und wartete als Entwurf; wer es sich anders
     überlegte, hinterliess eine nummernlose Leiche im System."""
@@ -1889,7 +1888,7 @@ def test_an_order_is_created_as_a_whole_or_not_at_all():
         OrderCreate()   # Artikel + Menge sind Pflicht wie eh und je
     order = OrderCreate(article_id=1, quantity=2)
     assert order.quantity == 2
-    for field in ("lines", "steps", "picks", "shortfall_responses"):
+    for field in ("lines", "steps", "picks"):
         assert field in OrderCreate.model_fields, field
     # Auch eine **Position** bringt ihre Auswahl mit – sonst ginge sie beim Erteilen
     # verloren (der zweite Aufruf, den es hier nicht mehr gibt).
@@ -3507,8 +3506,9 @@ def test_the_order_level_deviation_is_the_abort():
     # laufenden – und bei der Freigabe entscheidet die Antwort, was mit ihm geschieht.
     assert not hasattr(orders, "open_deviation")
     src = _inspect.getsource(orders._do_release)
-    assert "_enforce_claims(db, order, answers, actor_id)" in src
-    assert "_apply_shortfall_answer(db, holders, answers, actor_id, into=order)" in src
+    assert "_enforce_claims(db, order)" in src
+    assert "recovery.auto_resolve(db, h.order, actor_id)" in src, (
+        "Nach der Freigabe entscheidet das System – gefragt wird niemand (#556).")
     assert "aborted" in _inspect.getsource(recovery.confirm_quantity)
 
 
@@ -3548,89 +3548,106 @@ def test_an_order_and_a_deviation_order_are_the_same_thing():
     assert "holding_order" in make and "parent_order_id" in make
 
 
-def test_the_shortfall_question_comes_at_release_not_at_the_pick():
-    """**Ein Entwurf nimmt niemandem etwas weg** (Testnotiz #370).
+def test_the_shortfall_decides_itself():
+    """**Über eine Fehlmenge entscheidet das System, nicht der Mensch** (Testnotiz #556).
 
-    Die Frage «was geschieht mit dem laufenden Auftrag?» stand früher schon beim Auswählen.
-    Das war zu früh: danach definiert man den Auftrag ja erst fertig – Artikel, Menge und
-    Instanzen können sich noch ändern, und die Entscheidung wäre womöglich gleich wieder
-    falsch. Jetzt merkt die Auswahl nur vor (``claim``, ohne fremde Ansprüche anzutasten),
-    und erst die **Freigabe** macht sie scharf (``enforce``) – dort, wo der andere Auftrag
-    wirklich etwas verliert, steht auch die Frage."""
+    Die Frage war nie eine: sie hat genau dann zwei mögliche Antworten, wenn man sie zu
+    früh stellt.
+
+        Die Menge kommt zurück   → der Auftrag **wartet** und ruht dabei ohnehin.
+        Sie kommt nicht zurück   → sie ist weg, das Soll sinkt darauf (``confirm_quantity``).
+
+    Welcher Fall vorliegt, weiss das System besser als der Mensch – es sieht, ob noch ein
+    Unter-Auftrag die Menge hält. Darum gibt es weder ein Antwort-Feld am API-Rand noch
+    einen 409, der eine Entscheidung erzwingt.
+
+    **Was bleibt** (Testnotiz #370): ein Entwurf nimmt niemandem etwas weg. Vorgemerkt wird
+    beim Auswählen (``claim``, ohne fremde Ansprüche anzutasten), scharf wird es erst bei
+    der **Freigabe** (``enforce``) – dort, wo der andere Auftrag wirklich etwas verliert."""
     import inspect as _inspect
     from app.routers import orders
-    from app.schemas.order import SHORTFALL_ANSWERS, OrderUpdate
-    from app.services import reservation
+    from app.schemas import order as order_schema
+    from app.schemas.order import OrderCreate, OrderUpdate
+    from app.services import recovery, reservation
 
-    assert SHORTFALL_ANSWERS == ("wait", "replace", "accept")
-    assert "shortfall_responses" in OrderUpdate.model_fields
+    # Kein Antwort-Vokabular mehr – weder im Schema noch im Router.
+    assert not hasattr(order_schema, "SHORTFALL_ANSWERS")
+    for schema in (OrderCreate, OrderUpdate):
+        assert "shortfall_responses" not in schema.model_fields, schema.__name__
+    for gone in ("_assert_answered", "_answer_for", "_apply_shortfall_answer"):
+        assert not hasattr(orders, gone), f"{gone} fragt niemanden mehr"
+    assert "shortfall_decision_required" not in _inspect.getsource(orders), (
+        "Es gibt keinen 409 mehr, der eine Entscheidung erzwingt.")
 
-    # Die Auswahl fragt NICHT mehr – sie nimmt die Antwort auch gar nicht mehr entgegen.
-    assert "_assert_answered" not in _inspect.getsource(orders._make_deviation)
+    # Entschieden wird an EINER Stelle, aus zwei Bedingungen.
+    auto = _inspect.getsource(recovery.auto_resolve)
+    assert "covering_sub_orders(db, order)" in auto, (
+        "Hält es noch jemand, ist «warten» die Antwort – es gibt nichts zu entscheiden.")
+    assert "_lost_amounts(db, order)" in auto, (
+        "Nur was DA WAR und weg ist, senkt das Soll – ein offener Bedarf wird beschafft, "
+        "nicht weggekürzt.")
+    assert "confirm_quantity(db, order, actor_id" in auto
+    assert "auto_resolve(db, order, None)" in _inspect.getsource(
+        __import__("app.services.process", fromlist=["x"]).recompute_completion), (
+        "Der Auslöser ist der Schritt-Abschluss – die eine Stelle, an der sich der Zustand "
+        "ändert, den die Antwort liest.")
+
+    # Die Auswahl fragt NICHT – und die Freigabe auch nicht mehr.
     assert "response" not in _inspect.signature(orders._set_chosen_instances).parameters
-    # … die Freigabe schon.
-    assert "_assert_answered(db, answers, holders)" in _inspect.getsource(orders._enforce_claims)
+    assert "answers" not in _inspect.signature(orders._enforce_claims).parameters
     # Scharf wird der Anspruch in der Freigabe selbst – damit auch die systemseitig
-    # angelegte Abweichung (Datenerfassung/Deaktivierung) ihn durchsetzt, nicht nur der
-    # Weg über den Router.
+    # angelegte Abweichung (Datenerfassung/Deaktivierung) ihn durchsetzt.
     from app.services import subject
     assert "enforce_pick(db, order, inst)" in _inspect.getsource(subject._bind_deviation_subjects)
     assert "enforce_pick(db, order, inst)" in _inspect.getsource(subject._allocate_stock_for)
     # Vormerken tastet fremde Ansprüche nicht an, Durchsetzen schon.
     assert "over" not in _inspect.getsource(reservation.claim)
     assert "over" in _inspect.getsource(reservation.enforce)
-    assert "recovery.cover_shortfall" in _inspect.getsource(orders._apply_shortfall_answer)
-    assert "recovery.confirm_quantity" in _inspect.getsource(orders._apply_shortfall_answer)
 
 
-def test_every_affected_order_is_asked_the_same_question():
-    """**Eine Unterdeckung, eine Frage – für JEDEN Betroffenen** (Testnotiz #397).
+def test_every_affected_order_follows_the_same_rule():
+    """**Eine Unterdeckung, eine Regel – für JEDEN Betroffenen** (Testnotizen #397/#522/#556).
 
     Eine Abweichung (ebenso Retoure/Bereitstellung) beschafft nichts, sie **behandelt**
-    bestimmte Stücke. Daraus wurde der Schluss gezogen, sie habe kein Soll und brauche
-    deshalb keine Frage: sie schrumpfte lautlos mit und wurde abgebrochen, wenn nichts
-    blieb. Das waren zwei Logiken für dieselbe Lage – und in der Praxis endete eine
-    Abweichung an einer Abweichung ohne jede Rückfrage im Abbruch der ersten.
+    bestimmte Stücke. Daraus wurde einmal geschlossen, sie brauche einen eigenen Weg: sie
+    schrumpfte lautlos mit und wurde abgebrochen, wenn nichts blieb. Das waren zwei Logiken
+    für dieselbe Lage. Jetzt gilt für sie dieselbe Formel wie für jeden anderen Auftrag –
+    Soll − Gesichert –, und «Menge reduzieren» IST ihr Abbruch, wenn nichts bleibt (#366).
 
-    Ihr Soll sind schlicht die Stücke, die sie behandeln sollte; was ihr davon weggenommen
-    wird, fehlt ihr (``process._held_amounts``). Damit fällt sie unter dieselbe Formel wie
-    jeder andere Auftrag, bekommt dieselben drei Antworten – und «Menge reduzieren» IST ihr
-    Abbruch, wenn nichts bleibt (dieselbe Mechanik wie beim Eltern, Notiz #366).
+    **Ein festes Subjekt arbeitet an dem, was es hat** (#522/#523): verliert es eines von
+    vier Stücken, hat es weniger zu tun, nicht «zu wenig». Erst wenn ihm NICHTS mehr bleibt,
+    ist es gegenstandslos.
 
-    **Präzisiert (Testnotizen #522/#523): gefragt wird, wenn es um ALLES geht.** Ein festes
-    Subjekt arbeitet an dem, was es hat – verliert es eines von vier Stücken (seine eigene
-    Abweichung hat es verschrottet), hat es weniger zu tun, und die Verschrottung WAR die
-    Klärung. Es dort erneut zu fragen war eine Schleife ohne Erkenntnisgewinn, während der
-    reguläre Eltern-Auftrag – der die Menge wirklich schuldet – ohnehin gefragt wird.
-    Bleibt ihm **nichts**, ist es gegenstandslos: dann kommt die Frage, und «Menge
-    reduzieren» ist sein Abbruch. Genau das war der Befund von #397 (lautloser Abbruch)."""
+    **Und was es selbst ausgesteuert hat, fehlt ihm nicht** (Testnotiz #555). Genau daran
+    blieb der Prozess hängen: eine Abweichung, deren Auftrag es WAR, ihr Stück zu
+    verschrotten, hielt danach nichts mehr – meldete eine Fehlmenge über ihre volle Menge,
+    wurde nie fertig, und der Eltern wartete für immer auf sie. Der Unterschied ist nicht
+    die Menge, sondern **warum** sie weg ist; das Journal weiss es."""
     import inspect as _inspect
 
-    from app.routers import orders
     from app.services import process, recovery
 
-    apply_src = _inspect.getsource(orders._apply_shortfall_answer)
-    assert "is_fixed_subject" not in apply_src, "kein Sonderweg mehr für feste Subjekte"
-    assert "recovery.cover_shortfall" in apply_src and "recovery.confirm_quantity" in apply_src
     assert not hasattr(recovery, "retire_if_subjectless"), (
         "Der automatische Abbruch ist in «Menge reduzieren» aufgegangen – eine Regel weniger.")
-    # Gefragt wird, sobald überhaupt jemand betroffen ist.
-    ask = _inspect.getsource(orders._enforce_claims)
-    assert "if holders:" in ask and "is_fixed_subject" not in ask
-    # Und das feste Subjekt wird gefragt – wenn ihm NICHTS mehr bleibt (#522/#523).
+    # Das feste Subjekt fällt unter dieselbe Formel – gefragt wird, wenn ihm nichts bleibt.
     short = _inspect.getsource(process._subject_shortfalls)
     assert "_fixed_subject_shortfall(db, order, targets)" in short
     fixed = _inspect.getsource(process._fixed_subject_shortfall)
     assert "if any(held.get(a, ZERO) > 0 for a in targets):\n        return {}" in fixed, (
         "Solange es noch etwas hält, arbeitet es damit weiter (#522).")
     assert "return {a: t for a, t in targets.items() if t > 0}" in fixed, (
-        "Bleibt nichts, ist es gegenstandslos – und wird gefragt statt lautlos abgebrochen "
-        "(#397).")
+        "Bleibt nichts, ist es gegenstandslos (#397).")
     held = _inspect.getsource(process._held_amounts)
     assert "reserved_for(inst, order.id)" in held and "subject_of_order_id != order.id" in held
     assert "targets.get(inst.article_id" in held, (
         "Bei einer Retoure liegt die Menge beim KUNDEN – eine verkaufte Instanz trägt keine "
         "Restmenge und kann keinen Anspruch führen; gebunden heisst dort «vollständig gehalten».")
+    assert "_disposed_amounts(db, order)" in held, (
+        "**Selbst ausgesteuert ist nicht fehlend** (#555) – sonst wird eine Abweichung, deren "
+        "Auftrag das Verschrotten WAR, nie fertig und der Eltern wartet ewig auf sie.")
+    disposed = _inspect.getsource(process._disposed_amounts)
+    assert "ledger.order_view(db, order.id)" in disposed and "view.terminal" in disposed, (
+        "Wer die Menge ausgesteuert hat, steht im Journal – nicht im Zustand der Instanz.")
 
 
 def test_the_material_journal_answers_the_three_questions():
@@ -3718,45 +3735,6 @@ def test_two_shares_of_one_instance_add_up():
     # Die Obergrenze wird über die SUMME geprüft, nicht je Zeile – sonst liesse sich eine
     # Instanz durch mehrere Zeilen überbuchen.
     assert src.count("mehr lässt sich nicht wählen") == 2 and "for oid, want in wanted.items()" in src
-
-
-def test_every_holder_gets_its_own_answer():
-    """**Je Halter eine Antwort, nicht eine für alle.**
-
-    Wer aus zwei laufenden Aufträgen Stücke nimmt, kann den einen warten lassen und den
-    anderen reduzieren wollen. Eine einzige Antwort über alle wäre eine Entscheidung, die so
-    niemand getroffen hat – und im Fluss ist sie ohnehin je Halter sichtbar: die
-    Rückgabe-Linie führt zu ihm oder eben nicht.
-
-    Fehlt auch nur eine Antwort, wird die Frage für ALLE gestellt (die Oberfläche zeigt sie
-    zusammen) – aber genannt werden im Text nur die noch offenen."""
-    import inspect as _inspect
-
-    from pydantic import ValidationError
-    import pytest as _pytest
-
-    from app.routers import orders
-    from app.schemas.order import OrderCreate, OrderUpdate
-
-    # EINE Form am API-Rand: eine Abbildung {Objektnummer: Antwort}, kein zweiter Skalar
-    # daneben (sonst gäbe es zwei Wege für dieselbe Angabe).
-    for schema in (OrderCreate, OrderUpdate):
-        assert "shortfall_response" not in schema.model_fields
-        ann = schema.model_fields["shortfall_responses"].annotation
-        assert "dict" in str(ann), ann
-    OrderUpdate(shortfall_responses={"100000001": "wait", "100000002": "accept"})
-    with _pytest.raises(ValidationError):
-        OrderUpdate(shortfall_responses={"100000001": "irgendwas"})
-
-    # Die Auflösung «welche Antwort gilt für DIESEN Halter» steht an EINER Stelle …
-    lookup = _inspect.getsource(orders._answer_for)
-    assert "str(holder.object_id)" in lookup
-    # … und beide Nutzer – Prüfung und Anwendung – lesen sie.
-    for fn in (orders._assert_answered, orders._apply_shortfall_answer):
-        assert "_answer_for(answers, " in _inspect.getsource(fn), fn.__name__
-    # Unbeantwortet heisst: für diesen Halter fehlt sie.
-    ask = _inspect.getsource(orders._assert_answered)
-    assert "if not open_:" in ask and "shortfall_decision_required" in ask
 
 
 def test_clarification_counts_every_open_deviation_not_just_the_last_pointer():
@@ -3974,12 +3952,14 @@ def test_the_shortfall_question_names_order_quantity_and_source():
         "Jeder Betroffene braucht eine Antwort – es gibt keine zwei Sorten mehr (#397).")
     rows = _inspect.getsource(shares.affected_rows)
     assert "unit=art.unit" in rows and "AffectedShare(instance_object_id=oid" in rows
+    # Gerendert wird sie im **Entwurfs-Rahmen** – der Dialog ist mit der Frage entfallen
+    # (#556): dort steht je Halter ein Knoten mit Name · Objektnummer · verlorener Menge.
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
-    dlg = (fe / "shortfall-dialog.tsx").read_text()
-    assert "unitLabel(a.unit)" in dlg, "Die Menge trägt die Einheit, nicht den Artikelnamen."
-    assert "a.article_name" not in dlg
-    assert "'Abweichung' : 'Auftrag'" in dlg, "Die Zeile sagt, dass sie einen Auftrag meint."
-    assert "instance_object_id" in dlg, "… und woher die Menge kommt."
+    flow = (fe / "order-flow.tsx").read_text()
+    assert "const holderLoss = (h: AffectedOrder) =>" in flow
+    assert "unitLabel(h.unit)" in flow, "Die Menge trägt die Einheit, nicht den Artikelnamen."
+    assert not (fe / "shortfall-dialog.tsx").exists(), (
+        "Es gibt nichts mehr zu fragen – über eine Fehlmenge entscheidet das System (#556).")
 
 
 def test_a_pick_is_not_guessed_when_it_is_a_decision():
@@ -4206,38 +4186,28 @@ def test_an_order_only_scraps_the_share_it_holds():
             f"{name} rechnet noch mit der ganzen Instanz statt mit dem Anteil des Auftrags")
 
 
-def test_the_decision_stands_at_its_place_in_the_flow():
-    """**Die offene Entscheidung steht an ihrer Stelle – als Zeile, nicht als Gateway**
-    (Testnotizen #413/#434/#551).
+def test_the_flow_shows_what_happened_not_a_question():
+    """**Der Fluss zeigt, was passiert ist – er fragt nichts** (Testnotizen #413/#434/#551/#556).
 
-    Eine Unterdeckung wird dort entschieden, wo der Prozess stillsteht – das war schon immer
-    richtig. Nur die **Form** war ein eigenes Bauteil: eine Raute, das Flowchart-Zeichen für
-    «hier wird entschieden». Sie sagte, was der Fluss an dieser Stelle ohnehin zeigt (es geht
-    nicht weiter), und tat es in einer Sprache, die sonst nirgends vorkommt.
-
-    Übrig bleibt die Aussage in **derselben** Form wie jede andere Auflösung an dieser Stelle
-    (Punkt · Satz · Hover) – nur eben noch offen und darum anklickbar. Ein Bauteil weniger,
-    dieselbe Handlung. Die frühere ``ProcessHoldNotice`` ist ebenfalls entfallen: zwei Orte
-    für dieselbe Frage gibt es nicht."""
+    Die Unterdeckung hatte hier nacheinander drei Formen: eine Notiz unter dem Fluss, dann
+    eine Raute (Gateway) an seiner Stelle, dann eine Zeile wie jede andere Auflösung. Jetzt
+    hat sie **gar keine**: über eine Fehlmenge entscheidet das System (``recovery.auto_resolve``),
+    also gibt es nichts anzuklicken. Was geschehen IST, steht weiterhin an seiner Stelle –
+    «1 ab Lager ersetzt», «Menge angepasst 4 → 2» –, denn das ist die Geschichte des
+    Auftrags (Notiz #281)."""
     from pathlib import Path
 
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
     flow = (fe / "order-flow.tsx").read_text(encoding="utf-8")
-    for part in ("function DecisionLine", "function ResolutionLine"):
-        assert part in flow, f"Dem Fluss fehlt {part}"
-    assert "function Gateway" not in flow and "rotate(45deg)" not in flow, (
-        "Keine Gateway-Darstellung mehr (#551) – die Entscheidung ist eine Zeile.")
-    # **Nur die offene Entscheidung ist überhaupt sichtbar** (Testnotiz #434). «wartet» und
-    # die bereits getroffene Antwort waren reine Information – und die trägt der Fluss
-    # ohnehin: ein offener Abzweig IST das Warten, eine Auflösung steht als Zeile.
-    assert "function gateFor" not in flow and "'waiting'" not in flow, (
-        "Ein Zustand, den das Flussbild schon zeigt, braucht kein zweites Symbol (#434).")
+    assert "function ResolutionLine" in flow, "Was passiert ist, steht an seiner Stelle."
+    for gone in ("function Gateway", "rotate(45deg)", "function DecisionLine",
+                 "FlowDecision", "function gateFor", "'waiting'"):
+        assert gone not in flow, f"{gone}: der Fluss stellt keine Frage mehr (#556)."
     for kind in ("quantity_confirmed", "covered_from_stock", "share_taken"):
         assert f"r.kind === '{kind}'" in flow, kind
     detail = (fe / "order-detail.tsx").read_text(encoding="utf-8")
-    assert "ProcessHoldNotice" not in detail, (
-        "Die Fehlmenge-Notiz unter dem Fluss ist in der Zeile aufgegangen – eine Frage, ein Ort.")
-    assert "decision={needsDecision ?" in detail
+    for gone in ("ProcessHoldNotice", "ShortfallDialog", "needsDecision", "answerShortfall"):
+        assert gone not in detail, f"{gone}: eine Frage, die es nicht mehr gibt."
 
 
 def test_the_rule_table_runs_on_every_push():

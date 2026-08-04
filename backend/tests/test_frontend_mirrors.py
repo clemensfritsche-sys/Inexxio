@@ -267,22 +267,15 @@ def test_the_draft_is_framed_like_the_order_it_will_become():
     # samt Terminal-Knoten selbst.
     assert 'title="Start · neuer Auftrag"' not in flow and 'title="Ende · neuer Auftrag"' not in flow, (
         "Der Editor bringt seine eigenen Terminal-Knoten mit – ein zweiter ist einer zu viel.")
-    # Die Schere sitzt auf der Linie, nicht im Knoten; die gekappte Linie ist Abwesenheit.
-    assert "function DraftCutList" not in flow, (
-        "Es gibt keine zweite Liste für gekappte Linien – der Knoten selbst trägt den Schalter.")
-    assert "{connected && <Elbow dir=\"out-to-left\" strong />}" in flow, (
-        "Gekappt = keine Linie (kein zweiter Strichstil, #422/#429).")
-    assert "left: SIDE / 2 + RUN / 2, top: 2 * BEND," in flow, (
-        "Der Schalter sitzt auf dem waagrechten Stück der Rückgabe-Linie (#499).")
-
-    # Die Antwort entsteht aus den gezeichneten Linien – je Halter eine.
-    assert "shortfall_responses" in detail and "shortfall_response:" not in detail
-    assert "returnsTo.has(h.object_id) ? 'wait' : 'accept'" in detail, (
-        "Linie da = warten, gekappt = Menge reduzieren.")
-    assert "'replace'" not in detail.split("function allAnswers")[1].split("\n  }")[0], (
-        "«Ersetzen» ist keine Aussage über den Entwurf – es bleibt am laufenden Auftrag.")
-    # Der Dialog ist nur noch das Netz für Halter, die der Fluss nicht zeigen konnte.
-    assert "uncoveredAffects.length > 0 && (" in detail
+    # **Der Rahmen zeigt, er entscheidet nicht** (Testnotiz #556). Die Rückgabe-Linie war
+    # einmal die Antwort auf die Unterdeckungs-Frage (Schere = «Menge reduzieren»); seit die
+    # Entscheidung automatisch fällt, ist sie eine Aussage: das Material geht dorthin zurück,
+    # und so lange wartet der Halter. Kein Schalter, keine Antwort, kein Dialog.
+    for gone in ("function DraftCutList", "Scissors", "onToggleReturn", "cutReturns"):
+        assert gone not in flow and gone not in detail, f"{gone} entscheidet nichts mehr (#556)"
+    assert "shortfall_responses" not in detail
+    assert '<Elbow dir="out-to-left" strong />' in flow, (
+        "Die Rückgabe-Linie ist immer da – sie sagt, wohin das Material zurückgeht.")
 
 
 def test_the_new_order_header_looks_like_every_other_one():
@@ -1175,12 +1168,12 @@ def test_the_palette_shows_its_name_in_the_hover():
     assert "data-tip={label}" in fields and "hint?: string;" not in fields.split(
         "export function PaletteButton")[1][:400], (
         "Im Hover steht der NAME – die lange Erklärung ist entfallen (#518).")
-    # Alle drei Paletten teilen sich denselben Baustein – sonst sieht dieselbe Geste
-    # an drei Stellen verschieden aus.
+    # Beide Paletten teilen sich denselben Baustein – sonst sieht dieselbe Geste an zwei
+    # Stellen verschieden aus. (Die dritte, die Unterdeckungs-Frage, ist entfallen: darüber
+    # entscheidet seit #556 das System.)
     steps = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
-    short = (FRONTEND / "components" / "erp" / "shortfall-dialog.tsx").read_text(encoding="utf-8")
-    assert steps.count("<Palette>") + steps.count("<Palette\n") == 2 and "<Palette>" in short, (
-        "Alle drei Paletten teilen sich denselben Baustein.")
+    assert steps.count("<Palette>") + steps.count("<Palette\n") == 2, (
+        "Beide Paletten teilen sich denselben Baustein.")
 
 
 def test_a_hover_explanation_is_never_dimmed():

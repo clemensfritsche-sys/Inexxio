@@ -4635,10 +4635,6 @@ export interface components {
             lines?: components["schemas"]["OrderLineCreate"][] | null;
             /** Steps */
             steps?: components["schemas"]["ArticleProcessStepCreate"][] | null;
-            /** Shortfall Responses */
-            shortfall_responses?: {
-                [key: string]: string;
-            } | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */
@@ -4825,6 +4821,11 @@ export interface components {
             returns_to_object_id?: number | null;
             /** Returns To Name */
             returns_to_name?: string | null;
+            /**
+             * Returned Lots
+             * @default []
+             */
+            returned_lots: components["schemas"]["FlowLot"][];
         };
         /** OrderResponse */
         OrderResponse: {
@@ -5145,10 +5146,6 @@ export interface components {
             quantity?: number | null;
             /** Picks */
             picks?: components["schemas"]["InstancePick"][] | null;
-            /** Shortfall Responses */
-            shortfall_responses?: {
-                [key: string]: string;
-            } | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */

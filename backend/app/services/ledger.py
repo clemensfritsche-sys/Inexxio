@@ -309,18 +309,33 @@ def order_view(db: Session, order_id: int) -> OrderView | None:
     def bucket(oid: int, q: str | None, d: str | None) -> tuple[int, str, str]:
         return (oid, q or "pending", d or "in_process")
 
-    def consume_departed(oid: int, amt: Decimal) -> None:
+    def consume_departed(oid: int, amt: Decimal, src: int | None,
+                         units: tuple = ()) -> None:
         """Kommt eine Menge ZURÜCK, verzehrt sie ihre Abgabe-Zeile – sonst stünde sie
-        doppelt da (als «abgegeben» UND wieder als gehalten). Älteste zuerst."""
-        for i, r in enumerate(departed):
-            if amt <= 0:
-                break
-            if r.instance_object_id != oid:
-                continue
-            cut = min(amt, r.quantity)
-            amt -= cut
-            departed[i] = r._replace(quantity=r.quantity - cut)
-        departed[:] = [r for r in departed if r.quantity > 0]
+        doppelt da (als «abgegeben» UND wieder als gehalten).
+
+        **Und zwar IHRE** (Testnotiz #555): verzehrt wurde bisher die älteste Abgabe
+        derselben Instanz, egal an wen. Bei zwei parallelen Abweichungen an derselben Charge
+        frass die Rückgabe der einen die Abgabe der anderen – die Achse behauptete danach,
+        das Stück liege noch beim falschen Abzweig, und zwei Zeilen trugen dieselbe Nummer.
+        Wer zurückgibt, steht in der Buchung; nur wenn es dazu keine Abgabe gibt (Altbestand),
+        wird der Reihe nach verzehrt."""
+        gone = set(units)
+        for match_src in (True, False):
+            for i, r in enumerate(departed):
+                if amt <= 0:
+                    return
+                if r.instance_object_id != oid:
+                    continue
+                if match_src and (src is None or r.to_order != src):
+                    continue
+                cut = min(amt, r.quantity)
+                amt -= cut
+                # **Die Nummern gehen mit der Menge** – sonst nennt eine halb verzehrte
+                # Abgabe-Zeile weiterhin Stücke, die längst wieder da sind.
+                keep = tuple(u for u in r.units if u not in gone) if gone else r.units
+                departed[i] = r._replace(quantity=r.quantity - cut, units=keep)
+            departed[:] = [r for r in departed if r.quantity > 0]
 
     for m in moves:
         amt = to_qty(m.quantity)
@@ -333,7 +348,8 @@ def order_view(db: Session, order_id: int) -> OrderView | None:
             if k[2] in TERMINAL:
                 term_at[k] = m.at
             if m.src_order_id != order_id:
-                consume_departed(m.instance_object_id, amt)
+                consume_departed(m.instance_object_id, amt, m.src_order_id,
+                                 tuple(m.units or ()))
         if (m.src_order_id == order_id and m.dst_order_id != order_id
                 and (m.dst_disposition or "") not in TERMINAL):
             # Der Zustand gehört zum MATERIAL, nicht zum Betrachter (#495): ging es in die

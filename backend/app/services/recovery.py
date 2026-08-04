@@ -1,28 +1,27 @@
-"""Unterdeckung: **eine Frage, drei Antworten.**
+"""Unterdeckung: **eine Frage, die sich selbst beantwortet.**
 
 Ein Auftrag ist unterdeckt, wenn sein Soll nicht (mehr) gesichert ist – weil eine
 reservierte Instanz ausgesteuert wurde, weil ein Erzeugungsauftrag Ausschuss hatte oder
-weil ein Stück gerade in einer offenen **Abweichung** in Klärung ist. Der betroffene
-Subjekt-Schritt ist dann «blockiert» (abgeleitet aus dem Bestand, kein stilles
-Unterliefern).
+weil ein Stück gerade in einer offenen **Abweichung** in Klärung ist.
 
-Der Mensch beantwortet genau EINE Frage – *was soll mit der Fehlmenge geschehen?* – und es
-gibt drei ehrliche Antworten:
+**Entschieden wird automatisch** (Testnotiz #556). Die Frage hat nämlich nur dann zwei
+mögliche Antworten, wenn man sie zu früh stellt – und genau das tat sie:
 
-1. **Wartet** – kein Knopf, sondern ein **Zustand**: ist die Fehlmenge bereits in einer
-   offenen Abweichung oder einem laufenden Nachschub gebunden, ist die Entscheidung längst
-   getroffen. Das System sagt nur, worauf gewartet wird (``orders._fill_step_shortfall``).
-2. **Ersetzen** (``cover_shortfall``) – EIN Weg statt zweier: was am Lager frei ist, wird
-   FIFO reserviert (oder gezielt gewählte Instanzen), und was danach offen bleibt, deckt ein
-   **Nachschub**-Unter-Auftrag. Ob produziert oder ab Lager genommen wird, ist eine
-   Verfügbarkeitsfrage – keine zweite Entscheidung für den Menschen.
-3. **Menge bestätigen** (``confirm_quantity``) – der Auftrag wird mit weniger fertig. Das
-   Soll sinkt auf das Gesicherte, der Schritt ist frei, der Auftrag läuft normal zu Ende.
-   Fehlte diese Antwort, blieb nur «warten oder ersetzen» – bei einem Erzeugungsauftrag mit
-   einem schlechten von fünf Stück beides falsch.
+    Die Menge kommt zurück   → der Auftrag **wartet**, und dabei ruht er ohnehin.
+                               Es gibt nichts zu entscheiden, es läuft ja jemand daran.
+    Sie kommt NICHT zurück   → sie ist endgültig weg. Dann **sinkt das Soll** auf das
+                               Gesicherte (``confirm_quantity``), und der Auftrag läuft
+                               mit weniger normal zu Ende.
 
-**Geld bleibt ehrlich:** eine bereits **bezahlte** Verkaufsposition lässt sich hier NICHT
-kürzen – dafür gibt es die Retoure/Gutschrift (``sale``-Kredit-Modus mit Stripe-Refund).
+Welcher der beiden Fälle vorliegt, weiss das System besser als der Mensch: es sieht, ob
+noch ein Unter-Auftrag die Menge hält (``supply.covering_sub_orders``). Darum entscheidet
+``auto_resolve`` – aufgerufen an der einen Stelle, an der sich das ändern kann.
+
+**Bewusst zurückgestellt (Backlog):** «Ersetzen» (``cover_shortfall`` – der Weg existiert
+weiter, es fragt nur niemand mehr danach) und der **Verkauf**: eine bereits bezahlte
+Position darf nicht stillschweigend schrumpfen, dafür gibt es die Retoure/Gutschrift
+(``sale``-Kredit-Modus mit Stripe-Refund). Bis das gebaut ist, bleibt ein bezahlter Verkauf
+mit Fehlmenge stehen, statt automatisch gekürzt zu werden.
 """
 
 from decimal import Decimal
@@ -269,3 +268,70 @@ def _assert_not_paid(db: Session, order: Order) -> None:
         raise HTTPException(
             409,
             detail="Bezahlte Position – die Menge wird über eine Retoure/Gutschrift korrigiert, nicht hier.")
+
+
+def _lost_amounts(db: Session, order: Order) -> dict[int, Decimal]:
+    """**Was diesen Auftrag verlassen hat** – je Artikel, aus dem Journal (ADR 007).
+
+    Abgegeben (an einen Abzweig) plus selbst ausgesteuert. Der Unterschied zu einer blossen
+    Fehlmenge ist entscheidend: eine Menge, die **nie da war**, ist ein offener Bedarf und
+    wird beschafft – eine Menge, die da **war** und weg ist, kommt nicht wieder. Nur die
+    zweite darf das Soll senken; sonst kürzte sich ein Auftrag, dessen Nachschub noch gar
+    nicht angelegt ist, selbst auf den vorhandenen Bestand."""
+    from . import ledger
+    if not order.id:
+        return {}
+    view = ledger.order_view(db, order.id)
+    if view is None:
+        return {}
+    by_oid: dict[int, Decimal] = {}
+    for row in list(view.terminal) + list(view.departed):
+        by_oid[row.instance_object_id] = by_oid.get(row.instance_object_id, ZERO) + row.quantity
+    out: dict[int, Decimal] = {}
+    for inst in db.query(Instance).filter(Instance.object_id.in_(by_oid)).all():
+        out[inst.article_id] = out.get(inst.article_id, ZERO) + by_oid[inst.object_id]
+    return out
+
+
+def _continued_in(db: Session, order: Order) -> Order | None:
+    """Wer hat das Material übernommen? – der jüngste Abzweig dieses Auftrags. Sinkt sein
+    Soll auf null, IST das sein Abbruch, und dann will man wissen, wo es weitergeht."""
+    return (db.query(Order)
+            .filter(Order.parent_order_id == order.object_id, Order.reason == "deviation")
+            .order_by(Order.object_id.desc()).first()) if order.object_id else None
+
+
+def auto_resolve(db: Session, order: Order, actor_id: int | None = None) -> bool:
+    """**Was nicht mehr zurückkommt, reduziert die Menge – von selbst** (Testnotiz #556).
+
+    Die EINE Stelle, an der über eine Fehlmenge entschieden wird. Vorher stand hier eine
+    Frage an den Menschen; sie war aber gar keine, sondern eine Ableitung aus etwas, das das
+    System ohnehin weiss:
+
+        hält noch jemand die Menge  → nichts tun; der Auftrag wartet und ruht dabei
+        hält sie niemand mehr       → sie ist endgültig weg → das Soll sinkt darauf
+
+    Aufgerufen aus ``process.recompute_completion`` – dort, wo sich der Zustand ändert, den
+    die Antwort liest: nach jedem Schritt-Abschluss des Auftrags selbst, und über dessen
+    Rekursion auch beim Verleiher, sobald ein Abzweig endet. Ein zusätzlicher Auslöser wäre
+    eine zweite Wahrheit darüber, wann entschieden wird.
+
+    Liefert ``True``, wenn tatsächlich gekürzt wurde. **Ein bezahlter Verkauf wird nicht
+    angetastet** – dort ist die Korrektur eine Gutschrift, keine stille Kürzung; er bleibt
+    mit seiner Fehlmenge stehen, bis das gebaut ist (Backlog)."""
+    from .supply import covering_sub_orders
+    if order.status != "released":
+        return False
+    short = process.subject_shortfalls(db, order)
+    if not short:
+        return False
+    if covering_sub_orders(db, order):
+        return False                       # es kommt noch etwas – warten ist die Antwort
+    lost = _lost_amounts(db, order)
+    if not any(lost.get(a, ZERO) > 0 for a in short):
+        return False                       # war nie da → offener Bedarf, kein Verlust
+    try:
+        confirm_quantity(db, order, actor_id, into=_continued_in(db, order))
+    except HTTPException:
+        return False                       # bezahlt: Gutschrift statt Kürzung (Backlog)
+    return True

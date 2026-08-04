@@ -4676,6 +4676,57 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   PostgreSQL 16 verifiziert (Harness `note553.py`, 10/10 – die gemeldete Kette Schritt für
   Schritt; alle 12 Harnesses und die Regel-Tabelle unverändert grün).
 
+- **Über eine Fehlmenge entscheidet das System (Testnotizen #554–#556)**: Drei Notizen,
+  ein Thema – der Prozess blieb stehen und fragte statt weiterzulaufen.
+  (1) **Ein Auftrag, der selbst ausgesteuert hat, ist FERTIG** (#555, der gemeldete
+  Steckenbleiber). Zwei parallele Abweichungen: die eine verschrottet ihr Stück, die andere
+  bewegt es nur und gibt es zurück – der Hauptprozess kam trotzdem nicht weiter. Ursache
+  war die **Abweichung mit dem Verschrotten**: sie hielt danach nichts mehr und meldete
+  darum eine Fehlmenge über ihre volle Menge, wurde nie `completed`, und der Eltern wartete
+  für immer auf sie (`waiting_for`). Der Unterschied ist nicht die Menge, sondern **warum**
+  sie weg ist: hat ein anderer sie genommen, fehlt sie; hat dieser Auftrag sie durch seinen
+  eigenen Schritt ausgesteuert, IST das seine Erledigung. Das Journal weiss es genau
+  (`process._disposed_amounts` liest die terminalen Buchungen, die IHM zugeschrieben sind).
+  **Zweiter Fehler im selben Vorgang:** eine Rückgabe verzehrte die **älteste** Abgabe
+  derselben Instanz statt ihre eigene (`ledger.order_view.consume_departed`) – bei zwei
+  parallelen Abweichungen frass die Rückgabe der einen die Abgabe der anderen; die Achse
+  behauptete danach, das Stück liege noch beim falschen Abzweig, und die Kante meldete
+  «3 Stk» mit nur zwei Nummern. Wer zurückgibt, steht in der Buchung.
+  (2) **Gefragt wird niemand mehr** (#556, ausdrückliche Entscheidung des Nutzers). Die
+  Unterdeckungs-Frage hatte nie zwei sinnvolle Antworten – sie hing nur davon ab, wann man
+  sie stellt: *hält noch jemand die Menge* → **warten** (und der Auftrag ruht dabei ohnehin);
+  *hält sie niemand mehr* → sie ist endgültig weg, **das Soll sinkt darauf**. Beides weiss
+  das System besser als der Mensch, also entscheidet `recovery.auto_resolve` – aufgerufen
+  aus `process.recompute_completion`, der einen Stelle, an der sich der gelesene Zustand
+  ändert (nach jedem Schritt-Abschluss, und über deren Rekursion beim Verleiher, sobald ein
+  Abzweig endet). **Ein Verlust ist nicht dasselbe wie ein offener Bedarf**
+  (`recovery._lost_amounts`): gekürzt wird nur, was **da war** und weg ist – eine Menge, die
+  nie da war, wird beschafft, nicht weggekürzt (sonst kürzte sich ein Auftrag, dessen
+  Nachschub noch nicht angelegt ist, selbst auf den Lagerbestand). Entfallen sind damit:
+  `shortfall_responses` am API-Rand, der 409 `shortfall_decision_required`, `_assert_answered`/
+  `_answer_for`/`_apply_shortfall_answer`, der `ShortfallDialog`, die `DecisionLine` im Fluss
+  und die Schere auf der Entwurfs-Rückgabelinie (#499 – die Linie bleibt, sie ist jetzt eine
+  **Aussage** statt einer Antwort). *Bewusst zurückgestellt (Backlog): «Ersetzen»
+  (`recovery.cover_shortfall` + `POST …/cover` existieren weiter, es fragt nur niemand mehr
+  danach) und der **Verkauf** – eine bezahlte Position darf nicht stillschweigend schrumpfen,
+  dafür ist die Gutschrift da; sie bleibt mit ihrer Fehlmenge stehen.*
+  (3) **Keine Prognose auf der Rückgabe-Kante** (#554): die eigene Ansicht eines
+  Unter-Auftrags zeigte dort sein **lebendes Material** – also eine Vorhersage, und dazu eine
+  andere als die, die derselbe Abzweig im Eltern zeigt (dort werden die Buchungen gelesen).
+  Jetzt lesen beide dieselbe Quelle (`OrderOrigin.returned_lots` ← `_flow_back`): solange
+  nichts zurück ist, steht dort nichts.
+  **Die Regel-Tabelle (ADR 008) trägt die Änderung** – sie hat sie prompt gemeldet: Zeile
+  `regular-teil-verloren` kippt von «Fehlmenge, Pause, ein Mensch entscheidet» auf «das Soll
+  ist gekürzt, der Auftrag läuft». Neu ist die Spalte **`soll`** (unverändert · gekürzt ·
+  abgebrochen) – ohne sie sähe «keine Fehlmenge, keine Pause» genauso aus wie ein Auftrag,
+  bei dem gar nichts passiert ist – und die Zeile `fixed-selbst-ausgesteuert` (#555).
+  Wächter: `tests/rules/table.py` + `test_shortfall_rules.py`,
+  `test_scenario_chain.py: station_6`, `test_smoke.py: test_the_shortfall_decides_itself`,
+  `…_every_affected_order_follows_the_same_rule`, `…_the_flow_shows_what_happened_not_a_question`.
+  Gegen echtes PostgreSQL 16 verifiziert (Harness `note555.py` – die gemeldete Abfolge
+  Schritt für Schritt: A wird fertig, B gibt zurück, der Hauptauftrag kürzt sich selbst auf
+  2 und die Datenerfassung wird aktiv; alle 13 Harnesses grün).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

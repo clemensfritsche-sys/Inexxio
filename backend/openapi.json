@@ -12937,20 +12937,6 @@
             ],
             "title": "Steps"
           },
-          "shortfall_responses": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shortfall Responses"
-          },
           "desired_delivery_date": {
             "anyOf": [
               {
@@ -13354,6 +13340,14 @@
               }
             ],
             "title": "Returns To Name"
+          },
+          "returned_lots": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLot"
+            },
+            "type": "array",
+            "title": "Returned Lots",
+            "default": []
           }
         },
         "type": "object",
@@ -14293,20 +14287,6 @@
               }
             ],
             "title": "Picks"
-          },
-          "shortfall_responses": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shortfall Responses"
           },
           "desired_delivery_date": {
             "anyOf": [

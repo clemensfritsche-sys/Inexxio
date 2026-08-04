@@ -962,6 +962,9 @@ def _fill_origin(db: Session, order: Order, resp: OrderResponse) -> None:
         origin.returns_to_object_id = back.object_id
         origin.returns_to_name = (origin.order_name if back.id == parent.id
                                   else _order_ref_name(db, back))
+        # **Was zurück IST, nicht was zurückgehen wird** (Testnotiz #554) – dieselbe eine
+        # Ableitung, die der Eltern für seinen Abzweig liest.
+        origin.returned_lots = _flow_back(db, order, order_material(db, order)[0])
     resp.origin = origin
 
 

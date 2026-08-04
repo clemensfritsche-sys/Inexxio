@@ -110,7 +110,7 @@ def _make_deviation(db, parent, inst, user, qty: int, *, steps=("inspection",),
                                   **({"mode": "scrap"} if kind == "scrap" else
                                      {"sample_percent": 100} if kind == "inspection" else {})))
     db.flush()
-    R._do_release(db, dev, {str(parent.object_id): "wait"}, user.id)
+    R._do_release(db, dev, user.id)
     db.commit()
     db.refresh(dev)
     return dev
@@ -132,7 +132,11 @@ def _scrap(db, order, inst, user, qty: int):
 
 
 def _situation(db, world, r: Rule):
-    """Baut die Lage EINER Regel-Zeile und liefert den Auftrag, der geprüft wird."""
+    """Baut die Lage EINER Regel-Zeile.
+
+    Liefert den geprüften Auftrag **und die Menge, auf die er eröffnet wurde** – ohne sie
+    liesse sich «gekürzt» nicht von «war schon immer so» unterscheiden, und genau das ist
+    seit der automatischen Entscheidung die eigentliche Konsequenz (#556)."""
     user, art = world
     if r.art == "regular":
         order, inst = _make_order(db, art, user, 4)
@@ -142,17 +146,22 @@ def _situation(db, world, r: Rule):
             _scrap(db, dev, inst, user, 1)
         elif r.rest == "nichts":
             _make_deviation(db, order, inst, user, 4)      # läuft weiter, hält alles
-        return order
+        return order, 4
     # festes Subjekt: eine Abweichung, die selbst etwas verliert
     parent, inst = _make_order(db, art, user, 4)
+    if r.rest == "erledigt":
+        # Sie steuert ihr Stück SELBST aus – das ist ihre Erledigung, kein Verlust (#555).
+        dev = _make_deviation(db, parent, inst, user, 1, steps=("scrap",))
+        _scrap(db, dev, inst, user, 1)
+        return dev, 1
     if r.rest == "nichts":
         dev = _make_deviation(db, parent, inst, user, 1)
         _make_deviation(db, dev, inst, user, 1)            # nimmt ihr das einzige Stück
-        return dev
+        return dev, 1
     dev = _make_deviation(db, parent, inst, user, 4)
     if r.rest == "teil":
         sub = _make_deviation(db, dev, inst, user, 1, steps=("scrap",))
         _scrap(db, sub, inst, user, 1)
-    return dev
+    return dev, 4
 
 

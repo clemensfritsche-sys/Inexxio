@@ -89,9 +89,13 @@ def test_station_5_die_kante_zeigt_EINE_zeile_je_zustand(db, chain):
                 f"Kante {i} ist noch nicht erreicht – sie darf nichts behaupten (#521).")
 
 
-def test_station_6_der_hauptauftrag_wird_genau_einmal_gefragt(db, chain):
-    """Nach dem Abschluss der Abweichung: EINE Entscheidung, oben, wo die Menge geschuldet
-    wird – nicht auf jeder Ebene der Kette."""
+def test_station_6_der_hauptauftrag_entscheidet_sich_selbst(db, chain):
+    """Nach dem Abschluss der Abweichung: die Entscheidung fällt **automatisch** (#556).
+
+    Niemand hält die fehlende Menge mehr – sie ist verschrottet und kommt nicht zurück.
+    Damit gibt es nichts zu entscheiden: das Soll des Hauptauftrags sinkt darauf, und er
+    läuft mit weniger normal weiter. Vorher stand hier eine Frage, die nur eine sinnvolle
+    Antwort hatte – und bis sie beantwortet war, ruhte der ganze Auftrag."""
     from app.models import ArticleProcessStep
     from app.schemas.inspection import InspectionSample, InspectionUpdate
     from app.services import inspection as insp_svc, process, supply
@@ -108,8 +112,10 @@ def test_station_6_der_hauptauftrag_wird_genau_einmal_gefragt(db, chain):
     db.refresh(dev)
     assert dev.status == "completed", "Die Abweichung ist mit ihrer Prüfung durch."
     db.refresh(main)
-    short = process.subject_shortfalls(db, main)
-    assert short and sum(short.values()) == Decimal(1), (
-        f"Jetzt fehlt dem Hauptauftrag genau das verschrottete Stück: {dict(short)}")
     assert not supply.covering_sub_orders(db, main), (
-        "Niemand arbeitet mehr daran – JETZT ist die Frage fällig (und nur hier).")
+        "Niemand arbeitet mehr daran – die Menge kommt nicht zurück.")
+    assert not process.subject_shortfalls(db, main), (
+        "Und genau darum ist sie schon gekürzt – es gibt nichts mehr zu entscheiden (#556).")
+    assert main.quantity == Decimal(3), (
+        f"Das Soll ist auf das Gesicherte gesunken (4 → 3), ist {main.quantity}.")
+    assert not process.is_paused(db, main), "Der Prozess läuft weiter."

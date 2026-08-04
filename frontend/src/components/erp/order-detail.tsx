@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, History, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert, PackageCheck, Lock, BadgeCheck, Pencil } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
-import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, InstanceUnit, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, ShortfallAnswer, UserProfile } from '@/types';
+import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, InstanceUnit, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
@@ -32,7 +32,6 @@ import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { DocumentPanel } from '@/components/erp/document-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
-import { ShortfallDialog } from '@/components/erp/shortfall-dialog';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { formatObjectId, localDate } from '@/lib/utils';
@@ -302,21 +301,6 @@ function todayIso(): string {
 // physische Notwendigkeit) und wird durchgezogen, nicht weggeworfen. Die einzige Ausnahme ist
 // die **Bereitstellung** – sie legt das System selbst an, also braucht sie einen Ausstieg; der
 // heisst «Bereitstellung übergehen» und sagt damit, was man entscheidet.
-/**
- * **Die Unterdeckungs-Frage kommt als Code, nicht als Satz.** Der Server antwortet auf eine
- * Freigabe, die einem laufenden Auftrag sein Stück wegnimmt, mit 409 + strukturiertem
- * `detail` (`code` + `affects`) – die Oberfläche erkennt sie daran und stellt die Frage,
- * statt den Fehler anzuzeigen. Vorher wurde im Meldungstext nach Wörtern gesucht; eine
- * umformulierte Meldung hätte die Frage still verschluckt.
- */
-type ShortfallDetail = { code?: string; affects?: AffectedOrder[] };
-function shortfallDetail(e: unknown): ShortfallDetail | null {
-  const d = e instanceof ApiError ? (e.detail as ShortfallDetail | undefined) : undefined;
-  return d?.code === 'shortfall_decision_required' ? d : null;
-}
-const isShortfallQuestion = (e: unknown) => shortfallDetail(e) !== null;
-const shortfallAffects = (e: unknown) => shortfallDetail(e)?.affects ?? [];
-
 function orderActions(status: string, canRelease: boolean, releaseHint?: string): StatusAction[] {
   if (status === 'draft')
     return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
@@ -438,23 +422,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   const waitingFor = record?.waiting_for ?? [];
   const missingText = shortfall
     .map((sf) => `${sf.quantity}× ${sf.article_name ?? 'Artikel'}`).join(' · ') || undefined;
-  const needsDecision = shortfall.length > 0 && waitingFor.length === 0;
-  // «Auftragsmenge reduzieren» gibt es nur für die **Fertigware**: einen fehlenden
-  // Komponenten-Bedarf kann man nicht wegbestätigen – ohne Material wird nichts gebaut.
-  const hasSubjectShortfall = shortfall.some((sf) => (sf.kind ?? 'subject') === 'subject');
-  const shortfallCandidates = shortfall.flatMap((sf) => sf.available_instances ?? []);
-  // **Am laufenden Auftrag ist der Betroffene er selbst** – dieselbe Liste, dieselbe Form
-  // wie bei der Freigabe eines Entwurfs (Notiz #387): worüber entscheide ich hier gerade?
-  // Herkunft (`sources`) gibt es hier nicht: am laufenden Auftrag fehlt eine **Menge** –
-  // sie wurde nicht gerade einer bestimmten Instanz entnommen (das ist der Freigabe-Fall).
-  const selfAffected: AffectedOrder[] = record?.object_id != null
-    ? shortfall.map((sf) => ({
-        object_id: record.object_id as number, name: orderName(record), reason: record.reason,
-        article_name: sf.article_name ?? null, unit: record.article_unit ?? null,
-        quantity: sf.quantity, sources: [],
-      }))
-    : [];
-
   // Nur freigegebene Artikel sind referenzierbar
   const releasedArticles = articles.filter((a) => a.status === 'released');
   const selectedArticle = releasedArticles.find((a) => String(a.id) === form.article_id) ?? null;
@@ -726,50 +693,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     return [...by.values()].sort((a, b) => a.object_id - b.object_id);
   })();
 
-  // **Wen der Server GERADE gefragt hat** – die 409-Antwort nennt sie. Sie ist die
-  // verlässlichste Auskunft, die es gibt: beim Browser-Entwurf existiert kein Datensatz, den
-  // man vorher lesen könnte, und an einem gespeicherten Entwurf kann `affects` veraltet sein.
-  const [serverAffects, setServerAffects] = useState<AffectedOrder[]>([]);
-
-  // **Gekappt wird bewusst, zurückgegeben ist der Normalfall.** Gemerkt wird darum die
-  // Ausnahme: ein neu hinzukommender Halter gibt automatisch zurück, ohne dass irgendein
-  // Effekt Listen abgleichen müsste.
-  const [cutReturns, setCutReturns] = useState<Set<number>>(new Set());
-  const returnsTo = new Set(
-    draftHolders.map((h) => h.object_id).filter((id) => !cutReturns.has(id)));
-  function toggleReturn(objectId: number) {
-    setCutReturns((prev) => {
-      const next = new Set(prev);
-      if (next.has(objectId)) next.delete(objectId); else next.add(objectId);
-      return next;
-    });
-  }
-  // Was der Fluss nicht zeigt, fragt weiterhin der Dialog. Hat der Server gefragt, gilt SEINE
-  // Liste – sonst die des Datensatzes.
-  const uncoveredAffects = (serverAffects.length > 0 ? serverAffects : (record?.affects ?? []))
-    .filter((a) => !draftHolders.some((h) => h.object_id === a.object_id));
-
-  /**
-   * **Die Rückgabe-Linien SIND die Antwort** – je Halter eine (`wait` ↔ `accept`).
-   *
-   * `fallback` deckt die Halter ab, die der Entwurf nicht zeigen konnte: eine Auswahl kann
-   * über den genannten Anteil hinaus auf weitere Ansprüche durchgreifen (``shares.losses``),
-   * und für die fragt weiterhin der Dialog. Seine Antwort gilt für die Unbekannten – die
-   * gezeichneten Linien behalten Vorrang.
-   */
-  function allAnswers(fallback?: ShortfallAnswer): Record<string, ShortfallAnswer> {
-    const out: Record<string, ShortfallAnswer> = {};
-    if (fallback) for (const a of uncoveredAffects) out[String(a.object_id)] = fallback;
-    for (const h of draftHolders) {
-      out[String(h.object_id)] = returnsTo.has(h.object_id) ? 'wait' : 'accept';
-    }
-    return out;
-  }
-
   // **Die Auswahl fragt nichts mehr** (Notiz #370): ein Entwurf nimmt niemandem etwas weg –
   // er merkt nur vor. Die Frage «was geschieht mit dem laufenden Auftrag?» steht bei der
   // **Freigabe** (siehe ``changeStatus``), wo die Auswahl feststeht.
-  async function setLinePins(line: PinLine, picks: InstancePickInput[], answer?: ShortfallAnswer) {
+  async function setLinePins(line: PinLine, picks: InstancePickInput[]) {
     if (isCreate) {
       // Im Entwurf ist die Auswahl eine reine Notiz – niemandem wird etwas weggenommen,
       // und gefragt wird erst beim Erteilen (dieselbe Regel wie bisher, nur ohne Server).
@@ -926,7 +853,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // Entwurf im Browser gesammelt hat, geht in EINEM Aufruf hinaus – Bedarf, Positionen,
   // Ablauf und Auswahl. Erst dort bekommt er seine Objektnummer. Scheitert etwas, bleibt
   // nichts zurück; wer wegklickt, hat verworfen.
-  async function submitDraft(fallback?: ShortfallAnswer) {
+  async function submitDraft() {
     // Anker + weitere Positionen: der Server kennt genau diese Form (die erste zusätzliche
     // Position wandelt den Anker in Position 0 um) – hier wird sie nur bedient.
     const lines = draft.order_lines ?? [];
@@ -951,59 +878,31 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         recurrence_interval_days: draft.recurrence_interval_days ?? null,
         recurrence_lead_time_days: draft.recurrence_lead_time_days ?? null,
         recurrence_anchor: draft.recurrence_anchor ?? null,
-        // **Die Rückgabe-Linien sind die Antwort** – je Halter eine. Der Dialog kommt nur
-        // noch für Halter zum Zug, die der Entwurf nicht kennen konnte (`fallback`): eine
-        // Auswahl kann über den genannten Anteil hinaus auf weitere Ansprüche durchgreifen.
-        shortfall_responses: allAnswers(fallback),
       });
-      setPendingRelease(null);
       onSaved(created);
     } catch (e) {
-      // Nimmt die Auswahl einem laufenden Auftrag sein Stück weg, nennt der Server die
-      // Betroffenen – dann wird gefragt statt abgebrochen (Notizen #370/#387). Beim
-      // Entwurf erfährt man sie erst hier: es gibt ja noch keinen Datensatz zu lesen.
-      if (isShortfallQuestion(e)) {
-        setServerAffects(shortfallAffects(e));
-        setPendingRelease({ target: 'released' });
-      } else setError(e instanceof Error ? e.message : 'Auftrag konnte nicht erteilt werden');
+      setError(e instanceof Error ? e.message : 'Auftrag konnte nicht erteilt werden');
     } finally {
       setStatusBusy(false);
     }
   }
 
-  async function changeStatus(target: string, fallback?: ShortfallAnswer) {
+  async function changeStatus(target: string) {
     if (!record) return;
     setStatusBusy(true);
     setError(null);
     try {
       const saved = await api.updateOrder(record.object_id as number,
-        { status: target as Order['status'], shortfall_responses: allAnswers(fallback),
-          expected_updated_at: verRef.current });
+        { status: target as Order['status'], expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
-      setPendingRelease(null);
       onSaved(saved);
     } catch (e) {
-      // **Die Frage kommt bei der Freigabe** (Notiz #370): Erst hier steht die Auswahl fest
-      // und nimmt einem laufenden Auftrag wirklich etwas weg. Der Server sagt das mit einem
-      // Code (und nennt die Betroffenen) – die Frage stellen statt sie wegzuwerfen.
-      if (isShortfallQuestion(e)) {
-        // Der Server nennt, wen es trifft – auch hier, statt sich auf `affects` am (womöglich
-        // veralteten) Datensatz zu verlassen. Sonst stünde die Frage über eine leere Liste.
-        setServerAffects(shortfallAffects(e));
-        setPendingRelease({ target });
-      } else {
-        setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
-        if (isVersionConflict(e)) await resyncVersion();
-      }
+      setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
+      if (isVersionConflict(e)) await resyncVersion();
     } finally {
       setStatusBusy(false);
     }
   }
-
-  // Offene Unterdeckungs-Frage zur **Freigabe** (nicht mehr zur Auswahl).
-  const [pendingRelease, setPendingRelease] = useState<{ target: string } | null>(null);
-  // Die Unterdeckungs-Frage wird vom **Gate** im Fluss geöffnet (Notiz #413).
-  const [decideOpen, setDecideOpen] = useState(false);
 
   // Freigeben heisst beim Entwurf **erteilen** (er entsteht erst dabei), beim bestehenden
   // Auftrag den Status wechseln – dieselbe Aktion, derselbe Knopf.
@@ -1019,28 +918,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     if (!record) return;
     onSaved(await api.abortOrder(record.object_id as number));
     setDialog(null);
-  }
-
-  // **Unterdeckung am laufenden Auftrag: EINE Frage, drei Antworten** – dieselben, die auch
-  // beim Auswählen gebundener Instanzen gestellt werden (``ShortfallDialog``).
-  //
-  //   pausieren  – nichts tun: der Prozess ruht, bis die Menge wieder da ist
-  //   ersetzen   – freier Lagerbestand (FIFO oder gezielt), Rest per Nachschub
-  //   reduzieren – der Auftrag wird mit dem fertig, was gesichert ist
-  async function answerShortfall(answer: ShortfallAnswer, instanceObjectIds?: number[]) {
-    if (!record || answer === 'wait') return;   // «pausieren» = nichts tun, das IST die Pause
-    const replace = answer === 'replace';
-    (replace ? setRecoverBusy : setSupplyBusy)(true);
-    setError(null);
-    try {
-      onSaved(replace
-        ? await api.coverShortfall(record.object_id as number, instanceObjectIds)
-        : await api.confirmQuantity(record.object_id as number));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : (replace ? 'Ersetzen fehlgeschlagen' : 'Menge konnte nicht angepasst werden'));
-    } finally {
-      (replace ? setRecoverBusy : setSupplyBusy)(false);
-    }
   }
 
   const articleOptions = [
@@ -1374,8 +1251,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
             nichts hervor und gibt an nichts zurück. */}
         {draftEditor && (
           <div style={{ marginBottom: 12 }}>
-            <DraftFlowFrame holders={draftHolders} returns={returnsTo}
-              onToggleReturn={toggleReturn} onOpenOrder={nav ?? undefined}>
+            <DraftFlowFrame holders={draftHolders} onOpenOrder={nav ?? undefined}>
               {draftEditor}
             </DraftFlowFrame>
           </div>
@@ -1425,14 +1301,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // Prozess?» rechnet der Server, dieselbe Quelle wie das Journal.
                 flowNodes={record.flow_nodes ?? []}
                 flowEdges={record.flow_edges ?? []}
-                // **Die offene Entscheidung steht an ihrer Stelle im Fluss** – als Zeile
-                // wie jede andere Auflösung, nicht als eigenes Gateway-Bauteil (Notiz #551).
-                // Die Fehlmenge gehört dem Auftrag, also wird sie genau einmal gestellt (#354).
-                decision={needsDecision ? {
-                  missing: missingText ?? '',
-                  canAct: isStaff && record.status === 'released' && !(supplyBusy || recoverBusy),
-                  onDecide: () => setDecideOpen(true),
-                } : undefined}
                 // **Der Materialfluss auf den Kanten** (#413/#426): welche Instanz, welcher
                 // Artikel, wo sie liegt und wie viel – EINE angereicherte Zeile aus dem
                 // Backend (`flow_lots`), dieselbe Form wie am Abzweig. Grundlage ist der
@@ -1514,25 +1382,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           ausgelöst hat («Freigeben» steht im Kopf); der **Auto-Save-Status** als grüner
           Flash im Kopf (SaveIndicator, war schon immer dort); das **Abbrechen** der Anlage
           als Aktion neben dem Status. */}
-
-      {/* **Die Unterdeckungs-Frage zur Freigabe** (Notiz #370) – dasselbe Fenster wie am
-          laufenden Auftrag, nur zu dem Zeitpunkt, an dem die Auswahl feststeht. */}
-      {/* Dasselbe Fenster, aufgerufen vom **Gate** im Fluss (Notiz #413). */}
-      {decideOpen && (
-        <ShortfallDialog candidates={shortfallCandidates} canReduce={hasSubjectShortfall}
-          busy={supplyBusy || recoverBusy} error={error} affected={selfAffected}
-          onAnswer={(a, ids) => { setDecideOpen(false); answerShortfall(a, ids); }}
-          onClose={() => setDecideOpen(false)} />
-      )}
-      {/* **Der Dialog ist nur noch das Netz.** Über die Halter, die im Fluss stehen, ist
-          bereits entschieden – die Rückgabe-Linie IST die Antwort. Er kommt darum nur für
-          das, was der Entwurf nicht zeigen konnte: eine Auswahl kann über den genannten
-          Anteil hinaus auf weitere Ansprüche durchgreifen (``shares.losses``). */}
-      {pendingRelease && uncoveredAffects.length > 0 && (
-        <ShortfallDialog busy={statusBusy} affected={uncoveredAffects}
-          onAnswer={(a) => (isCreate ? submitDraft(a) : changeStatus(pendingRelease.target, a))}
-          onClose={() => setPendingRelease(null)} />
-      )}
 
       {dialog === 'skip-provisioning' && record && (
         <DeactivateDialog
