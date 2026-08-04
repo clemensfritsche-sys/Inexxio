@@ -423,23 +423,40 @@ def order_material(db: Session, order: Order,
     view = ledger.order_view(db, order.id) if order.id else None
     if view is None:
         return _order_material_legacy(db, order, insts)
-    lots = _view_lots(db, view.material)
+    lots = _view_lots(db, view.material, order.id)
     return lots, _view_lots(db, view.terminal)
 
 
-def _view_lots(db: Session, rows: list) -> list[FlowLot]:
-    """Journal-Zeilen (``ledger.ViewRow``) mit Anzeige-Meta anreichern – eine Stelle."""
+def _view_lots(db: Session, rows: list, holder: int | None = None) -> list[FlowLot]:
+    """Journal-Zeilen (``ledger.ViewRow``) mit Anzeige-Meta anreichern – eine Stelle.
+
+    ``holder`` = der Auftrag, dessen Achse gezeichnet wird: dann trägt jede Kante die
+    **Nummern** der Stücke, die er hält, nicht nur ihre Anzahl. Für Mengen, die ihn längst
+    verlassen haben (verschrottet, abgegeben), bleibt die Liste leer – ihre Nummern sind
+    entwertet, und eine geratene Zuordnung wäre schlimmer als keine."""
+    from . import units as U
+    from .shares import UNIT_PREVIEW
     oids = {r.instance_object_id for r in rows}
     meta_insts = (db.query(Instance)
                   .filter(Instance.object_id.in_(oids)).all()) if oids else []
     meta = _lot_meta(db, meta_insts)
+    by_oid = {i.object_id: i for i in meta_insts}
 
     def to_lot(r) -> FlowLot:
         base = meta.get(r.instance_object_id) or dict(instance_object_id=r.instance_object_id)
-        return FlowLot(quantity=float(r.quantity), quality=r.quality,
-                       disposition=r.disposition, reserved=r.reserved, at=r.at, **{
-                           k: v for k, v in base.items() if k != "instance_object_id"},
-                       instance_object_id=r.instance_object_id)
+        lot = FlowLot(quantity=float(r.quantity), quality=r.quality,
+                      disposition=r.disposition, reserved=r.reserved, at=r.at, **{
+                          k: v for k, v in base.items() if k != "instance_object_id"},
+                      instance_object_id=r.instance_object_id)
+        inst = by_oid.get(r.instance_object_id)
+        if inst is not None and holder is not None and r.at is None:
+            U.ensure(inst)
+            lot.units = U.numbers(inst, holder=holder, limit=UNIT_PREVIEW)
+            lot.unit_count = U.count(inst, holder=holder)
+            if not lot.units:
+                lot.units = U.numbers(inst, holder=None, limit=UNIT_PREVIEW)
+                lot.unit_count = U.count(inst, holder=None)
+        return lot
 
     return [to_lot(r) for r in rows]
 
@@ -987,10 +1004,11 @@ def _fill_demand(db: Session, order: Order, resp: OrderResponse) -> None:
 def _instance_embeds(db: Session, order: Order, instances: list) -> list[InstanceEmbed]:
     """Subjekt-Instanzen als Embeds – Standort-Labels **batch** aufgelöst (statt einem
     Query je Instanz, N+1)."""
+    from . import units as U
     from .quantity import to_qty
     from .reservation import reserved_for
 
-    from .shares import shares_for
+    from .shares import UNIT_PREVIEW, shares_for
 
     loc_keys = [(i.location_type, i.location_id) for i in instances]
     loc_labels = location_labels(db, loc_keys)
@@ -1017,6 +1035,14 @@ def _instance_embeds(db: Session, order: Order, instances: list) -> list[Instanc
         # einer Teilmenge: jede Aussage eines Auftrags über «diese Instanz» meint seinen
         # Anteil (bewegen, verschrotten, anzeigen). Eine Stelle, alle Leser.
         emb.held_quantity = float(held_quantity(order, i))
+        # **Welche Stücke** das sind – die Nummern, nicht nur die Menge. Hält der Auftrag
+        # den unbeanspruchten Rest (Erzeuger), sind es die freien.
+        held_units = U.numbers(i, holder=order.id, limit=UNIT_PREVIEW)
+        emb.unit_count = U.count(i, holder=order.id)
+        if not held_units and emb.held_quantity > 0:
+            held_units = U.numbers(i, holder=None, limit=UNIT_PREVIEW)
+            emb.unit_count = U.count(i, holder=None)
+        emb.units = held_units
         out.append(emb)
     return out
 
@@ -1229,7 +1255,7 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
     def axis_lots(i: int, current: bool) -> list[FlowLot]:
         rows = [r for r in view.material
                 if r.to_order is None or r.to_order not in gone_above[i]]
-        lots = _view_lots(db, rows)
+        lots = _view_lots(db, rows, order.id)
         return lots if current else _as_of(lots, cutoffs[i])
 
     def edge(i: int) -> FlowEdge:

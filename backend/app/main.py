@@ -79,6 +79,11 @@ _COLUMN_SAFETY_NET = (
     # Materialfluss (Migration 097): wie viel eine Instanz an diesen Auftrag ging.
     # Neue Spalte auf einer BESTEHENDEN Tabelle → gehört ins Netz (Lehre aus 090).
     ("instance_order_links", "quantity", "NUMERIC(14,3)"),
+    # Die Stücke einer Charge mit ihren eigenen Nummern (Migration 099). Ebenfalls eine
+    # neue Spalte auf einer bestehenden Tabelle – und ``instances`` wird von JEDEM Feed
+    # und jedem Auftrags-Detail gelesen; fehlt sie, während das Modell sie kennt, ist das
+    # ERP dunkel (die Ausfallklasse von 090).
+    ("instances", "units", "JSONB"),
     ("orders", "desired_delivery_date", "DATE"),
     # Woher ein Entwurf seine **Anteile** nimmt (Migration 096): ohne die Spalte müsste die
     # Freigabe raten, welchem Auftrag sie ein Stück wegnimmt.

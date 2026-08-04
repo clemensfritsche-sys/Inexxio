@@ -4480,6 +4480,45 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Unter-Auftrag hält nichts mehr, eine abgeleitete Menge stünde dort auf 0.
   Neue Zeile im Netz: `tests/rules/test_working_quantity.py` (gegen die Bug-Form gegengeprüft).
 
+- **Jedes Stück hat eine eigene Nummer** (August 2026, `services/units.py`, Migration `099`):
+  Eine Instanz war eine **Menge** unter EINER Nummer – «100000101 · 4 Stk». Welches der vier
+  Stück gerade in einer Abweichung steckt, liess sich nicht sagen; es gab die Frage gar nicht,
+  nur Summen. Genau daraus kam die wiederkehrende Fehlerklasse (zwei Halter, eine Zahl, kein
+  Weg zu sagen *welches*). Jetzt trägt jedes Stück **`100000101-1` … `-4`**.
+  **Ohne neue Datensätze – und ohne Zeilen-Explosion.** Die Stücke wohnen IN der Instanz
+  (`instances.units`), gespeichert als **Läufe**: eine Charge über 1000 Schrauben ist EIN Lauf
+  (`{"r":[{"a":1,"b":1000,"q":"1"}],"next":1001}` – **56 Zeichen**), nimmt eine Abweichung drei
+  Stück, sind es zwei Läufe. Die Nummern gibt es trotzdem alle. Dasselbe Muster wie
+  `reservations` («wer beansprucht wie viel») und `locations` («wo liegt wie viel»), nur eine
+  Ebene genauer: hier steht **welches Stück**.
+  **Die Nummer ist eine Identität, keine Position** – einmal vergeben, nie neu verteilt. Wird
+  ein Stück verschrottet, ist seine Nummer **entwertet** und kommt nie wieder (`next` merkt sich
+  die höchste je vergebene); die übrigen behalten ihre. **Der Zusatz erscheint nur, wenn es etwas
+  zu unterscheiden gibt:** ein Einzelteil und eine nicht zählbare Charge (2.5 kg – Kilogramm
+  bekommen keine laufenden Nummern) zeigen ihre blosse Objektnummer.
+  **Sie hängen an derselben Engstelle wie die Reservierung** (`reservation._write` →
+  `units.sync`, `take` → `units.drop`): weil das die einzige Stelle ist, an der sich «wer
+  beansprucht wie viel» ändert, ist es auch die einzige, an der sich «welche Stücke» ändern muss.
+  Mengen und Nummern können damit nicht auseinanderlaufen – es gibt keinen zweiten Weg, an dem
+  man es vergessen könnte; `units.verify` zeigt einen Drift, statt ihn still zu korrigieren
+  (dieselbe Rolle wie `ledger.verify_instance`). Altbestand bekommt seine Nummern beim ersten
+  Zugriff aus dem heutigen Stand (`ensure` – Eröffnungsbilanz wie im Material-Journal, keine
+  erfundene Historie).
+  **Sichtbar überall**: Instanz-Detail («Menge & Zustand» je Anteil), **Auswahl** (mit dem Klick
+  ist damit nicht nur beantwortet, WEM man etwas wegnimmt, sondern auch WELCHES Teil),
+  Auftrags-Positionen, und auf den **Kanten des Flusses** (Hover «Stücke») – dort nur für
+  Material, das der Auftrag noch hält: für Mengen, die ihn verlassen haben, wäre eine geratene
+  Zuordnung schlimmer als keine. Alle Listen sind gekappt (`shares.UNIT_PREVIEW`), `unit_count`
+  nennt die Gesamtzahl; EIN Frontend-Baustein (`components/erp/unit-numbers.tsx`).
+  Wächter `tests/rules/test_units.py` (Nummern, Einzelteil ohne Zusatz, kg ohne Nummern,
+  disjunkte Halter, entwertete Nummer, Sichtbarkeit) + `test_smoke.py:
+  test_every_piece_is_numbered_at_exactly_one_place`. Gegen echtes PostgreSQL 16 verifiziert
+  (19 Prüfungen; Migration von null, idempotent, downgrade; Lifespan-Netz mit gezogener Spalte).
+  *Nächster Schritt (bewusst noch nicht): Zustand **je Stück** statt je Instanz – dann würde
+  eine verschrottete Nummer stehen bleiben und rot werden, statt zu verschwinden («die Menge
+  verschwindet nicht, nur der Zustand ändert sich», #481). Dafür müssten `quality`/`disposition`
+  Projektionen der Läufe werden.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

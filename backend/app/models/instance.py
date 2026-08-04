@@ -85,6 +85,16 @@ class Instance(Base, TimestampMixin):
     # Einzige Schreibstelle: ``services/location_split.py``.
     locations: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
+    # **Die Stücke und ihre Nummern** (``services/units.py`` – einzige Schreibstelle).
+    # Jedes Stück einer Charge trägt eine eigene, etikettierbare Nummer ``<objektnr>-<n>``;
+    # gespeichert werden **Läufe**, damit der Normalfall (alles gleich) EINE Zeile bleibt:
+    #   units = {"r": [{"a":1,"b":970,"q":"1"}, {"a":971,"b":1000,"q":"1","o":123}], "next":1001}
+    #     a,b  Nummernbereich (einschliesslich) · q  Menge JE Stück · o  haltender Auftrag
+    # Die Nummer ist eine Identität, keine Position: einmal vergeben, nie neu verteilt
+    # (``next`` merkt sich die höchste je vergebene). ``NULL`` = Altbestand, den ``units.ensure``
+    # beim ersten Zugriff aus dem heutigen Stand eröffnet.
+    units: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
     # Reservierung – **mengengenau, ohne Teilung der Instanz** (die Objektnummer bleibt
     # IMMER erhalten – physisch sind die Teile mit dieser Nummer beschriftet):
     #   reservations      = {auftrag_db_id: menge}  – wer wie viel dieser Instanz beansprucht

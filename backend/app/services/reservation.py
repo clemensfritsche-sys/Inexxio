@@ -45,11 +45,18 @@ def free_qty(inst: Instance) -> Decimal:
 def _write(inst: Instance, m: dict) -> None:
     """Reservierungs-Map zurückschreiben + Denormalisierungen (Summe, Einzel-Zeiger)
     konsistent nachziehen – die EINE Stelle, an der die drei Felder gesetzt werden.
-    Nicht-positive Einträge werden verworfen; Mengen JSON-sicher als String abgelegt."""
+    Nicht-positive Einträge werden verworfen; Mengen JSON-sicher als String abgelegt.
+
+    **Und hier hängen die Stücke dran.** Weil dies die einzige Stelle ist, an der sich
+    «wer beansprucht wie viel» ändert, ist es auch die einzige, an der sich «welche Stücke»
+    ändern muss (``units.sync``). So können Mengen und Nummern gar nicht auseinanderlaufen –
+    es gibt keinen zweiten Weg, an dem man es vergessen könnte."""
+    from . import units
     clean = {k: qty_key(v) for k, v in m.items() if to_qty(v) > 0}
     inst.reservations = clean or None
     inst.reserved_quantity = qty_sum(clean.values())
     inst.reserved_for_order_id = int(next(iter(clean))) if len(clean) == 1 else None
+    units.sync(inst)
 
 
 def reserve(inst: Instance, order_id: int, qty) -> None:
@@ -193,6 +200,10 @@ def take(inst: Instance, qty, *, by_order_id: int | None = None) -> Decimal:
     # trotzdem erledigt (was fehlt, kann ihn nicht mehr beliefern; seine Fehlmenge wird
     # über die Unterdeckung sichtbar, nicht über eine stehengebliebene Reservierung).
     cut = min(want, to_qty(inst.quantity))
+    # **Welche Stücke gehen weg**, nicht nur wie viel: die Nummern werden endgültig
+    # entwertet (sie kommen nie wieder), bevorzugt beim Entnehmer selbst.
+    from . import units
+    units.drop(inst, cut, by_order_id=by_order_id)
     inst.quantity = to_qty(inst.quantity) - cut
     m = _load(inst)
     if by_order_id is not None:

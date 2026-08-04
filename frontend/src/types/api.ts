@@ -3850,6 +3850,16 @@ export interface components {
         FlowLot: {
             /** Instance Object Id */
             instance_object_id: number;
+            /**
+             * Units
+             * @default []
+             */
+            units: string[];
+            /**
+             * Unit Count
+             * @default 0
+             */
+            unit_count: number;
             /** Article Id */
             article_id?: number | null;
             /** Article Object Id */
@@ -4040,6 +4050,16 @@ export interface components {
              */
             held_quantity: number;
             /**
+             * Units
+             * @default []
+             */
+            units: string[];
+            /**
+             * Unit Count
+             * @default 0
+             */
+            unit_count: number;
+            /**
              * Shares
              * @default []
              */
@@ -4162,6 +4182,16 @@ export interface components {
              */
             reserved_quantity: number;
             /**
+             * Units
+             * @default []
+             */
+            units: string[];
+            /**
+             * Unit Count
+             * @default 0
+             */
+            unit_count: number;
+            /**
              * Shares
              * @default []
              */
@@ -4211,6 +4241,16 @@ export interface components {
             reason?: string | null;
             /** Quantity */
             quantity: number;
+            /**
+             * Units
+             * @default []
+             */
+            units: string[];
+            /**
+             * Unit Count
+             * @default 0
+             */
+            unit_count: number;
         };
         /** LegalDocument */
         LegalDocument: {

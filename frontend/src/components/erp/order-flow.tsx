@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, MapPin, Package, Redo2,
+import { UnitNumbers } from '@/components/erp/unit-numbers';
+import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, Hash, MapPin, Package, Redo2,
   Scissors, X } from 'lucide-react';
 import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, MaterialOrder, Order,
   OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution, StepType, SubOrderStep } from '@/types';
@@ -91,7 +92,11 @@ function asEntry(lots: FlowLot[]): FlowLot[] {
   for (const l of lots) {
     if (l.at) {
       const cur = back.get(l.instance_object_id);
-      if (cur) cur.quantity += l.quantity;
+      if (cur) {
+        cur.quantity += l.quantity;
+        cur.units = [...(cur.units ?? []), ...(l.units ?? [])];
+        cur.unit_count = (cur.unit_count ?? 0) + (l.unit_count ?? 0);
+      }
       else back.set(l.instance_object_id, { ...l, quality: null, disposition: 'in_process',
         reserved: false, at: null });
     } else out.push(l);
@@ -101,7 +106,11 @@ function asEntry(lots: FlowLot[]): FlowLot[] {
   for (const [oid, row] of back) {
     const same = out.find((l) => l.instance_object_id === oid
       && (l.disposition ?? 'in_process') === 'in_process');
-    if (same) same.quantity += row.quantity;
+    if (same) {
+      same.quantity += row.quantity;
+      same.units = [...(same.units ?? []), ...(row.units ?? [])];
+      same.unit_count = (same.unit_count ?? 0) + (row.unit_count ?? 0);
+    }
     else out.push(row);
   }
   return out;
@@ -222,6 +231,12 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
               ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.location_label}</span>
               : <Dash />}
           </LotFact>
+          {/* **Welche Stücke** die Menge ausmachen – jedes Teil hat eine eigene Nummer. */}
+          {(lot.units?.length ?? 0) > 0 && (
+            <LotFact icon={Hash} title="Stücke">
+              <UnitNumbers units={lot.units} count={lot.unit_count} max={8} hideSingle />
+            </LotFact>
+          )}
         </span>, document.body)}
     </span>
   );

@@ -10994,6 +10994,19 @@
             "type": "integer",
             "title": "Instance Object Id"
           },
+          "units": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Units",
+            "default": []
+          },
+          "unit_count": {
+            "type": "integer",
+            "title": "Unit Count",
+            "default": 0
+          },
           "article_id": {
             "anyOf": [
               {
@@ -11513,6 +11526,19 @@
             "title": "Held Quantity",
             "default": 0
           },
+          "units": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Units",
+            "default": []
+          },
+          "unit_count": {
+            "type": "integer",
+            "title": "Unit Count",
+            "default": 0
+          },
           "shares": {
             "items": {
               "$ref": "#/components/schemas/InstanceShare"
@@ -11778,6 +11804,19 @@
             "title": "Reserved Quantity",
             "default": 0
           },
+          "units": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Units",
+            "default": []
+          },
+          "unit_count": {
+            "type": "integer",
+            "title": "Unit Count",
+            "default": 0
+          },
           "shares": {
             "items": {
               "$ref": "#/components/schemas/InstanceShare"
@@ -11924,6 +11963,19 @@
           "quantity": {
             "type": "number",
             "title": "Quantity"
+          },
+          "units": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Units",
+            "default": []
+          },
+          "unit_count": {
+            "type": "integer",
+            "title": "Unit Count",
+            "default": 0
           }
         },
         "type": "object",

@@ -149,6 +149,10 @@ class FlowLot(BaseModel):
     Charge darf gebrochen sein (2.5 kg), ihre Objektnummer ist systemweit eindeutig, und
     1000 Zeilen je Reservierung wären ein hoher Preis für eine Anzeige-Frage.)"""
     instance_object_id: int
+    # **Welche Stücke** – die Kante nennt die Nummern, nicht nur die Anzahl
+    # (``services/units.py``). Gekappt; ``unit_count`` sagt, wie viele es insgesamt sind.
+    units: list[str] = []
+    unit_count: int = 0
     article_id: Optional[int] = None
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None

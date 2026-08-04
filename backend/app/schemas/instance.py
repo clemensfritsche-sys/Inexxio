@@ -42,6 +42,11 @@ class InstanceShare(BaseModel):
     order_name: Optional[str] = None
     reason: Optional[str] = None    # deviation | supply | return | provisioning | None
     quantity: float
+    # **Welche Stücke** das sind – nicht nur wie viele (``services/units.py``).
+    # Gekappt (``unit_count`` sagt, wie viele es insgesamt sind): eine 1000er-Charge soll
+    # keine Liste mit 1000 Chips erzeugen.
+    units: list[str] = []
+    unit_count: int = 0
 
 
 class InstanceResponse(BaseModel):
@@ -68,6 +73,10 @@ class InstanceResponse(BaseModel):
 
     reserved_for_order_id: Optional[int] = None
     reserved_quantity: float = 0   # mengengenau reservierte Menge (0 = frei)
+    # **Die Stücke dieser Instanz mit ihren eigenen Nummern** (``services/units.py``):
+    # eine Charge über 4 trägt 100000101-1 … -4. Gekappt, ``unit_count`` nennt die Zahl.
+    units: list[str] = []
+    unit_count: int = 0
     # **Die Aufteilung dieser Menge** – wer hält wie viel, und was ist frei. Vom Router
     # denormalisiert (``services/shares.py``); die Auswahl rendert daraus ihre Zeilen und
     # das Auftrags-/Instanz-Detail zeigt, wohin ein Anteil gewandert ist.
@@ -79,6 +88,14 @@ class InstanceResponse(BaseModel):
     @field_validator("locations", mode="before")
     @classmethod
     def _loc_list(cls, v):
+        return v if isinstance(v, list) else []
+
+    # Das Modell-Attribut ``units`` ist die rohe Lauf-Map (dict) – die Antwort trägt die
+    # ausgeschriebenen Nummern. Beim ``model_validate`` die rohe dict/None auf ``[]``
+    # normalisieren; der Router füllt danach die Nummern ein (wie bei ``locations``).
+    @field_validator("units", mode="before")
+    @classmethod
+    def _unit_list(cls, v):
         return v if isinstance(v, list) else []
 
     # Denormalisiert vom Router
@@ -173,6 +190,9 @@ class InstanceEmbed(BaseModel):
     # rechnete deshalb mit ``quantity`` weiter und zerstörte aus einer Abweichung heraus die
     # GANZE Charge (Testnotizen #412/#414).
     held_quantity: float = 0
+    # **Welche Stücke DIESER Auftrag hält** – die Nummern, nicht nur die Anzahl.
+    units: list[str] = []
+    unit_count: int = 0
     # Wie sich die Menge dieser Instanz auf die Aufträge verteilt – damit der Auftrag zeigen
     # kann, dass ein Teil gerade woanders liegt («2 Stk → Auftrag 100000456»). Dieselbe
     # Aussage wie im Instanz-Detail, nur gespiegelt.
@@ -180,3 +200,12 @@ class InstanceEmbed(BaseModel):
     # **Aus wessen Anteil dieser Auftrag sein Stück genommen hat** – damit die Auswahl im
     # Entwurf beim erneuten Bearbeiten dieselbe Zeile wieder trifft, statt sie neu zu raten.
     pick_source_object_id: Optional[int] = None
+
+    # Das Modell-Attribut ``units`` ist die rohe Lauf-Map (dict) – die Antwort trägt die
+    # ausgeschriebenen Nummern. Beim ``model_validate`` die rohe dict/None auf ``[]``
+    # normalisieren; der Router füllt danach die Nummern ein (wie bei ``locations``).
+    @field_validator("units", mode="before")
+    @classmethod
+    def _unit_list(cls, v):
+        return v if isinstance(v, list) else []
+

@@ -23,6 +23,10 @@ from ..schemas.instance import InstanceShare
 from ..schemas.order import AffectedOrder, AffectedShare
 from .quantity import ZERO, to_qty
 
+#: So viele Nummern nennt eine Zeile höchstens beim Namen. Eine 1000er-Charge soll keine
+#: Liste mit 1000 Chips erzeugen – wie viele es sind, sagt ``unit_count``.
+UNIT_PREVIEW = 24
+
 
 def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceShare]]:
     """Die Anteile mehrerer Instanzen auf einmal – ``{instanz_db_id: [Anteil, …]}``.
@@ -32,10 +36,12 @@ def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceSha
     Anteile mit Menge 0 tauchen nicht auf."""
     if not insts:
         return {}
+    from . import units as U
     order_ids = {int(k) for i in insts for k in (i.reservations or {})}
     orders = _orders(db, order_ids)
     out: dict[int, list[InstanceShare]] = {}
     for inst in insts:
+        U.ensure(inst)
         rows: list[InstanceShare] = []
         held = ZERO
         for key, qty in (inst.reservations or {}).items():
@@ -46,7 +52,9 @@ def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceSha
             o = orders.get(int(key))
             rows.append(InstanceShare(
                 order_object_id=(o[0] if o else None), order_name=(o[1] if o else None),
-                reason=(o[2] if o else None), quantity=float(q)))
+                reason=(o[2] if o else None), quantity=float(q),
+                units=U.numbers(inst, holder=int(key), limit=UNIT_PREVIEW),
+                unit_count=U.count(inst, holder=int(key))))
         rest = to_qty(inst.quantity) - held
         if rest > 0:
             # **Der Rest ist nur dann frei, wenn die Instanz am Lager liegt.** Steckt sie
@@ -57,7 +65,9 @@ def shares_for(db: Session, insts: list[Instance]) -> dict[int, list[InstanceSha
             rows.append(InstanceShare(
                 order_object_id=(owner[0] if owner else None),
                 order_name=(owner[1] if owner else None),
-                reason=(owner[2] if owner else None), quantity=float(rest)))
+                reason=(owner[2] if owner else None), quantity=float(rest),
+                units=U.numbers(inst, holder=None, limit=UNIT_PREVIEW),
+                unit_count=U.count(inst, holder=None)))
         out[inst.id] = rows
     return out
 

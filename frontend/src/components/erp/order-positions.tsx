@@ -3,6 +3,7 @@
 import { Boxes, MapPin } from 'lucide-react';
 import type { LocationType, Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, LOCATION_META, heldOf } from '@/lib/process';
+import { UnitNumbers } from '@/components/erp/unit-numbers';
 import { unitLabel } from '@/lib/article';
 import { ObjId } from '@/components/erp/obj-id';
 import { ReadField, StatusBadge } from '@/components/erp/fields';
@@ -91,6 +92,8 @@ function InstanceLine({ instance: i, unit }: { instance: OrderInstance; unit: st
       <ObjId value={i.object_id} />
       <span style={instMid}>
         {qty && <span style={{ fontVariantNumeric: 'tabular-nums' }}>{qty}</span>}
+        {/* **Welche Stücke** dieser Auftrag hält – jedes Teil hat eine eigene Nummer. */}
+        <UnitNumbers units={i.units} count={i.unit_count} hideSingle />
         {i.location_label && (
           <span style={locStyle}>
             <Icon size={11} /> {i.location_label}

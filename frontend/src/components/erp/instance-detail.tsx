@@ -21,6 +21,7 @@ import { DetailTabs } from '@/components/erp/detail-tabs';
 import { TileShell, TILE, DetailHeader, HeaderSep } from '@/components/erp/fields';
 import { ObjId as ObjIdLink } from '@/components/erp/obj-id';
 import { MoveJournal } from '@/components/erp/move-journal';
+import { UnitNumbers } from '@/components/erp/unit-numbers';
 
 import { instanceName } from '@/lib/record-name';
 
@@ -292,6 +293,9 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
                           {Icon && <Icon size={12} />}{cfg.label}
                         </span>
                         {held && <ObjIdLink value={sh.order_object_id as number} />}
+                        {/* **Welche Stücke** das sind – nicht nur wie viele (Notiz: jedes
+                            Teil hat eine eigene Nummer). */}
+                        <UnitNumbers units={sh.units} count={sh.unit_count} hideSingle />
                       </div>
                     );
                   })}

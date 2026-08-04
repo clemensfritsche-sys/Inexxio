@@ -871,7 +871,9 @@ def test_no_edge_shows_material_it_has_not_carried_yet():
     # zu dem, was ohnehin in Arbeit ist – sonst stand dieselbe Instanz zweimal auf der
     # Kante («3 Stk × 613» + «1 Stk × 613» statt «4 Stk × 613»).
     assert "same.quantity += qty" in fill or "same.quantity += qty" in _i4.getsource(_o4._as_of)
-    assert "if (same) same.quantity += row.quantity;" in flow
+    # Modul statt Zeile prüfen (Haus-Regel): die Aussage ist «zurückgedrehtes verschmilzt
+    # mit dem, was ohnehin gehalten wird» – nicht ihre genaue Schreibweise.
+    assert "same.quantity += row.quantity" in flow
 
 
 def test_a_flow_lot_names_instance_article_location_and_quantity():

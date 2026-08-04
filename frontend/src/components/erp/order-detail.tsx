@@ -21,6 +21,7 @@ import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-di
 import { DraftFlowFrame, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
+import { UnitNumbers } from '@/components/erp/unit-numbers';
 import { MoveJournal } from '@/components/erp/move-journal';
 import { OrderDiagnosticsPanel } from '@/components/erp/order-diagnostics';
 import { orderName } from '@/lib/record-name';
@@ -75,6 +76,9 @@ type Share = {
    *  Instanz ist «gebunden», ihr Halter kann trotzdem ein ganz regulärer Auftrag sein
    *  (Testnotiz #398). */
   holderReason: string | null;
+  /** **Welche Stücke** dieser Anteil umfasst – jedes Teil hat eine eigene Nummer. */
+  units: string[];
+  unitCount: number;
   kind: PinKind;
 };
 
@@ -543,7 +547,8 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
       if (i.object_id == null || i.article_id !== articleId || i.disposition === 'scrapped') continue;
       const rows = i.shares && i.shares.length > 0
         ? i.shares
-        : [{ order_object_id: null, order_name: null, reason: null, quantity: i.quantity ?? 0 }];
+        : [{ order_object_id: null, order_name: null, reason: null, quantity: i.quantity ?? 0,
+             units: i.units ?? [], unit_count: i.unit_count ?? 0 }];
       for (const sh of rows) {
         // Der eigene Anteil ist keine fremde Zeile – er IST die Auswahl (steht unten).
         if (sh.order_object_id != null && sh.order_object_id === record?.object_id) continue;
@@ -554,6 +559,7 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
           quantity: sh.quantity ?? 0, capacity: sh.quantity ?? 0,
           holderObjectId: sh.order_object_id ?? null, holderName: sh.order_name ?? null,
           holderReason: sh.reason ?? null,
+          units: sh.units ?? [], unitCount: sh.unit_count ?? 0,
           kind: shareKind(i, sh.order_object_id ?? null),
         });
       }
@@ -1923,6 +1929,9 @@ function PinPicker({ line, onToggle, bare }: {
                         style={{ font: 'var(--mono-sm)', color: 'var(--fg-2)' }}>
                     {formatObjectId(sh.instanceObjectId)}
                   </span>
+                  {/* **Welche Stücke** die Zeile meint – mit dem Klick ist damit nicht nur
+                      beantwortet, WEM man etwas wegnimmt, sondern auch WELCHES Teil. */}
+                  <UnitNumbers units={sh.units} count={sh.unitCount} max={4} hideSingle />
                   <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 5,
                                  color: sh.holderObjectId != null ? cfg.tone : 'var(--fg-4)',
                                  overflow: 'hidden', whiteSpace: 'nowrap' }}

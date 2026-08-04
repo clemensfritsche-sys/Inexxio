@@ -552,6 +552,10 @@ def test_reservation_no_split_keeps_object_number():
             self.quantity = q
             self.reservations = None
             self.reserved_quantity = 0
+            # Die Stücke mit ihren eigenen Nummern (``services/units.py``) hängen an
+            # derselben Engstelle wie die Reservierung – ein Instanz-Ersatz braucht sie.
+            self.object_id = 100000000 + id(self) % 1000
+            self.units = None
 
     batch = C(100)
     reserve(batch, 7, 30)
@@ -4252,3 +4256,40 @@ def test_the_rule_table_runs_on_every_push():
     assert "backend/tests/rules/table.py" in adr, (
         "Das ADR zeigt auf die Tabelle, statt sie zu wiederholen – zwei Fassungen desselben "
         "Satzes waren genau der Fehler.")
+
+
+def test_every_piece_is_numbered_at_exactly_one_place():
+    """**Jedes Stück hat eine eigene Nummer – und genau EINE Stelle vergibt sie.**
+
+    Die Nummern (``100000101-1`` …) wohnen in der Instanz, nicht in eigenen Datensätzen:
+    eine 1000er-Charge bleibt EINE Zeile mit EINEM Lauf. Damit Nummern und Mengen nie
+    auseinanderlaufen können, hängen sie an derselben Engstelle wie die Reservierung
+    (``reservation._write`` → ``units.sync``) – es gibt keinen zweiten Weg, an dem man es
+    vergessen könnte. Wer ``instances.units`` woanders schreibt, umgeht das."""
+    import pathlib
+
+    svc = pathlib.Path(__file__).resolve().parents[1] / "app" / "services"
+    # Gesucht ist die **Spalte** der Instanz, nicht das gleichnamige Antwortfeld eines
+    # Schemas (``lot.units``/``emb.units`` sind Anzeige, kein Bestand).
+    written = ("inst.units =", "instance.units =", "i.units =")
+    others = [
+        p.name for p in svc.glob("*.py")
+        if p.name != "units.py"
+        and any(w in p.read_text(encoding="utf-8") for w in written)
+    ]
+    assert not others, f"Nur services/units.py darf die Stücke schreiben – auch: {others}"
+
+    src = (svc / "units.py").read_text(encoding="utf-8")
+    assert 'f"{inst.object_id}-{index}"' in src, (
+        "Das Format der Nummer steht an EINER Stelle (``label``).")
+    for fn in ("def create(", "def ensure(", "def sync(", "def drop(", "def verify("):
+        assert fn in src, fn
+    res = (svc / "reservation.py").read_text(encoding="utf-8")
+    assert "units.sync(inst)" in res and "units.drop(inst" in res, (
+        "Die Stücke folgen der Reservierung an ihrer Engstelle – sonst driften sie.")
+
+    # Und die Spalte muss im Lifespan-Netz stehen: eine neue Spalte auf einer BESTEHENDEN
+    # Tabelle ist erst fertig, wenn Migration UND Netz sie kennen (Lehre aus Migration 090).
+    main = (svc.parent / "main.py").read_text(encoding="utf-8")
+    assert '("instances", "units", "JSONB")' in main, (
+        "``instances`` wird von jedem Feed gelesen – fehlt die Spalte, ist das ERP dunkel.")

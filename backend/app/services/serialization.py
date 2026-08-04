@@ -96,6 +96,12 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
         )
         db.add(inst)
         created.append(inst)
+    # **Jedes Stück bekommt seine Nummer** (``services/units.py``): eine Charge über 4 Stück
+    # trägt ab jetzt 100000101-1 … -4. Bei einer Einzelteil-Instanz gibt es nur ein Stück –
+    # dort bleibt die Objektnummer für sich (der Zusatz hätte nichts zu unterscheiden).
+    from . import units
+    for inst in created:
+        units.create(inst, inst.quantity)
     db.flush()
 
     # Journal (ADR 007): die Entstehung ist die erste Buchung – Halter ist der Erzeuger.

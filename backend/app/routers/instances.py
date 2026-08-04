@@ -16,7 +16,7 @@ from ..schemas.instance import (
     MaterialMoveView,
 )
 from ..services import ledger, location_split, scrap as scrap_svc
-from ..services import shares
+from ..services import shares, units
 from ..services.locations import location_chain, location_labels, physical_location_labels
 from ..services.references import instance_orders
 
@@ -71,6 +71,10 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
     for r in rows:
         resp = InstanceResponse.model_validate(r)
         resp.shares = share_map.get(r.id, [])
+        # **Die Stücke mit ihren eigenen Nummern** – 100000101-1 … -4 (``services/units.py``).
+        # ``shares_for`` hat sie oben bereits eröffnet, falls es Altbestand war.
+        resp.units = units.numbers(r, limit=shares.UNIT_PREVIEW)
+        resp.unit_count = units.count(r)
         resp.article_name = arts_name.get(r.article_id)
         resp.article_object_id = arts_oid.get(r.article_id)
         resp.order_object_id = ords.get(r.order_id)
