@@ -750,96 +750,77 @@ def order_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     return agg
 
 
-def _worked_on_by_a_running_order(db: Session, order: Order, rows: list[Instance]) -> set[int]:
-    """Instanzen, an denen noch ein **anderer laufender** Auftrag arbeitet (Testnotiz #332).
-
-    An einer Instanz hängen höchstens zwei Aufträge: der **erzeugende** (``order_id``) und
-    der, der sie gerade als **festes Subjekt** führt (``subject_of_order_id`` – Abweichung,
-    Retoure). Ist einer davon noch ``released``, ist das Teil **nicht fertig**, ganz gleich
-    welcher der beiden gerade abschliesst:
-
-    * Abweichung fertig, Erzeugung läuft weiter → das Teil ist geklärt, nicht produziert.
-      (Vorher wurde es hier freigegeben und erschien am Lager, während sein Auftrag noch
-      lief – der gemeldete Fall.)
-    * Erzeugung abgebrochen (``inactive``), Abweichung führt sie fort → niemand läuft mehr,
-      die Abweichung gibt frei. Genau das war der Fix aus Notiz #262, und er bleibt gültig,
-      weil ein abgebrochener Auftrag nicht ``released`` ist.
-
-    Eine Abfrage für alle Zeilen (kein N+1)."""
-    others = {
-        oid for inst in rows for oid in (inst.order_id, inst.subject_of_order_id)
-        if oid is not None and oid != order.id
-    }
-    if not others:
-        return set()
-    running = {
-        r[0] for r in db.query(Order.id).filter(
-            Order.id.in_(others), Order.is_active == True, Order.status == "released").all()
-    }
-    if not running:
-        return set()
-    return {
-        inst.id for inst in rows
-        if inst.order_id in running or inst.subject_of_order_id in running
-    }
-
-
 def release_instances(db: Session, order: Order) -> None:
-    """Bestands-Instanzen eines abgeschlossenen Auftrags freigeben (pending → passed).
+    """**Was dieser Auftrag jetzt noch hält, hat sein Ziel erreicht** – und wird freigegeben.
 
-    Erst ein abgeschlossener Auftrag bedeutet «fertig & ab Lager verfügbar»: die
-    Instanzen werden zu «Freigegeben» und damit für den Ressource-Verbrauch (FIFO)
-    nutzbar. ``released_at`` ist die FIFO-Basis. Bereits bewertete Instanzen
-    (failed/consumed/passed) bleiben unverändert. **Terminale Teile** (verschrottet/verkauft/
-    verbaut) werden NICHT ans Lager freigegeben – nur noch «im Prozess» befindliche.
+    Das ist die ganze Regel (Testnotizen #566/#572). Sie steht **nach** der Rückgabe des
+    Geliehenen (``return_borrowed``), und genau diese Reihenfolge macht jede Fallunter-
+    scheidung überflüssig:
 
-    **Freigegeben wird von dem Auftrag, der zuletzt an der Instanz gearbeitet hat** – nicht
-    nur vom erzeugenden (Testnotiz #262). Wird ein Auftrag abgebrochen und ein
-    **Abweichungsauftrag** führt seine Instanzen fort (``subject_of_order_id``), bleibt deren
-    ``order_id`` beim abgebrochenen Original: Nur auf den Erzeuger zu schauen hiess, dass
-    diese Instanzen **nie** freigegeben werden – für immer «Im Prozess», unsichtbar für FIFO
-    und Bestandszählung. Darum zählt hier BEIDES: erzeugt von diesem Auftrag **oder** von ihm
-    als Subjekt verarbeitet.
+    * Eine gewöhnliche **Abweichung** hat ihr Stück eben zurückgegeben – sie hält nichts
+      mehr und gibt nichts frei. Es ist geklärt, nicht produziert (Notiz #332).
+    * Ein **gekappter** Abzweig behält sein Stück (es kommt nicht zurück) – also ist er
+      damit fertig, und es geht ans Lager.
+    * Ein **Erzeugungsauftrag** hält seine Instanz über ``Instance.order_id`` und gibt sie
+      am Ende komplett frei – wie bisher.
+    * Läuft daneben noch ein anderer Auftrag mit einem Anteil derselben Charge, bleibt
+      dessen Anteil unberührt: er gehört ihm, nicht diesem hier (Notiz #262).
 
-    **Was in einer offenen Abweichung steckt, gibt dieser Auftrag NICHT frei.** Seit die
-    Abweichung ihr Stück herausnimmt statt den Auftrag anzuhalten, kann der Eltern-Auftrag
-    abschliessen, während die Klärung noch läuft – ein Teil in Klärung würde dabei sonst mit
-    ans Lager freigegeben. Freigegeben wird es von dem Auftrag, der zuletzt daran arbeitet:
-    der Abweichung.
+    Vorher stand die Freigabe **vor** der Rückgabe und musste über einen zweiten Wächter
+    («arbeitet noch ein laufender Auftrag an dieser Instanz?») nachträglich einschränken,
+    was sie sonst zu früh freigegeben hätte – und weil dieser Wächter die **ganze Instanz**
+    ausschloss, blieb ein fertiges Stück einer geteilten Charge für immer «Im Prozess».
 
-    **Und umgekehrt genauso** (Testnotiz #332): schliesst die **Abweichung** ab, während der
-    Erzeugungsauftrag noch läuft, ist das Teil nicht fertig – es ist bloss geklärt und geht
-    zurück in den laufenden Prozess. «Zuletzt daran gearbeitet» heisst darum präzise: *es
-    arbeitet kein anderer Auftrag mehr daran* (``_worked_on_by_a_running_order``)."""
+    **Freigegeben wird je Stück** (``units.mark_released``); der Instanz-Skalar ist die
+    **Projektion** darüber und wechselt erst, wenn alle lebenden Stücke frei sind. Das ist
+    bewusst konservativ: ``inventory.in_stock_clauses`` (FIFO/Bestand/Verfügbarkeit) liest
+    weiterhin den Skalar und wird dadurch nicht ungenauer als vorher.
+
+    ``released_at`` ist die FIFO-Basis. Was den Bestand verlassen hat (verschrottet/verkauft/
+    verbaut), wird nicht freigegeben – dort gibt es nichts mehr freizugeben."""
     now = utcnow()
-    in_clarification = deviated_quantities(db, order)
+    from . import units as units_svc
     rows = (
         db.query(Instance)
         .filter(
             or_(Instance.order_id == order.id, Instance.subject_of_order_id == order.id),
             Instance.is_active == True,
-            Instance.quality == "pending", Instance.disposition == "in_process",
         )
         .all()
     )
-    still_running = _worked_on_by_a_running_order(db, order, rows)
-    from . import units as units_svc
     total = ZERO
     for inst in rows:
-        if inst.id in in_clarification or inst.id in still_running:
+        if (inst.disposition or "") in ("consumed", "sold", "scrapped"):
+            continue                     # den Bestand verlassen – da gibt es nichts freizugeben
+        units_svc.ensure(inst)
+        # **Was dieser Auftrag jetzt noch hält, hat sein Ziel erreicht** – und nur das.
+        # Geliehenes ist einen Schritt vorher zurückgegeben (``return_borrowed``); wer also
+        # noch etwas in der Hand hat, ist damit fertig. Ein gekappter Abzweig behält sein
+        # Stück und gibt es frei, eine gewöhnliche Abweichung hält nichts mehr und gibt
+        # nichts frei – ohne dass es dafür eine zweite Regel bräuchte.
+        mine = [u.index for u in units_svc.owned_by(inst, order.id) if not u.released]
+        if not mine:
             continue
-        inst.quality = "passed"          # QC-Verdikt: freigegeben
-        inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
+        freed = units_svc.mark_released(inst, mine)
+        if freed <= 0:
+            continue
+        # **Der Instanz-Skalar ist die Projektion** (Notiz #572): er wechselt erst, wenn ALLE
+        # lebenden Stücke frei sind. Bewusst konservativ – ``inventory.in_stock_clauses``
+        # liest ihn, und eine teilweise freigegebene Charge soll nicht plötzlich als ganze
+        # am Lager gelten.
+        if units_svc.all_released(inst):
+            inst.quality = "passed"          # QC-Verdikt: freigegeben
+            inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
         if inst.released_at is None:
             inst.released_at = now
         # Journal (ADR 007): «ans Lager freigegeben» – der Halter endet, die Menge ist frei.
-        # **Mit ihren Nummern** (Testnotiz #567): freigegeben wird die ganze Instanz, also
-        # alle lebenden Stücke. Ohne sie zeigte die fertige Achse eine Menge ohne eine
-        # einzige Nummer – die Karte kennt den abgeschlossenen Auftrag ja nicht mehr.
-        ledger.post(db, inst, inst.quantity, kind="released", holder=None,
+        # **Mit ihren Nummern** (Testnotiz #567): ohne sie zeigte die fertige Achse eine
+        # Menge ohne eine einzige Nummer – die Karte kennt den abgeschlossenen Auftrag ja
+        # nicht mehr.
+        ledger.post(db, inst, freed, kind="released", holder=None,
                     quality="passed", disposition="in_stock", src_holder=order.id,
-                    units=[u.index for u in units_svc.of(inst)])
-        total += to_qty(inst.quantity)
+                    units=mine)
+        total += freed
     # Bestands-Zugang als Domain-Event mit DEKLARIERTER Polarität festhalten – so wird
     # der Event-Strom zur ökonomischen Wahrheit (Bestand = Projektion über Events).
     if total:
@@ -1115,14 +1096,22 @@ def recompute_completion(db: Session, order: Order) -> None:
              if i.object_id]
             if getattr(order, "recurrence_active", False) else []
         )
-        release_instances(db, order)        # produzierte Instanzen freigeben (verbrauchbar)
-        _finalize_subjects(db, order)        # Verkauf: reservierte Menge mengengenau abbuchen
+        # **Erst zurückgeben, dann freigeben** (Testnotiz #572). Die Reihenfolge IST die
+        # Regel: was ein Auftrag nach der Rückgabe noch in der Hand hält, hat sein Ziel
+        # erreicht – und nur das gibt er frei. Eine gewöhnliche Abweichung hält danach
+        # nichts mehr (ihr Stück ist geklärt, nicht produziert – Notiz #332), ein gekappter
+        # Abzweig sein Stück. Vorher stand die Freigabe davor und musste über einen zweiten
+        # Wächter («arbeitet noch ein laufender Auftrag daran?») nachträglich einschränken,
+        # was sie sonst zu früh freigegeben hätte.
+        #
         # **Geliehenes zurückgeben** (Testnotiz #401): eine Abweichung nimmt dem Auftrag, an
         # dem das Stück hing, etwas ab – ist sie durch, kehrt es dorthin zurück. Muss VOR dem
         # Lösen der eigenen Reservierung geschehen, sonst wird das Stück schlicht frei und
         # der Verleiher behält seine Fehlmenge, obwohl gar nichts verloren ging.
         from .subject import return_borrowed
         return_borrowed(db, order)
+        release_instances(db, order)        # was er noch hält, ist fertig (verbrauchbar)
+        _finalize_subjects(db, order)        # Verkauf: reservierte Menge mengengenau abbuchen
         # Restliche Reservierungen dieses Auftrags lösen (Auftrag fertig): ein neutral
         # gebliebenes Subjekt (Bewegung/Kontrolle) wird so wieder frei verfügbar; die
         # Subjekt-Markierung wird entfernt. Historie bleibt über ``instance_order_links``.

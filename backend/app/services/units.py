@@ -66,6 +66,7 @@ class Unit(NamedTuple):
     quantity: Decimal
     holder: int | None          # Order.id | None = frei
     state: str | None = None    # scrapped|sold|consumed = hat den Bestand verlassen
+    released: bool = False      # hat sein Prozessziel erreicht → passed/in_stock
 
     @property
     def free(self) -> bool:
@@ -127,7 +128,8 @@ def of(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
             continue
         q = to_qty(run.get("q", 1))
         for i in range(int(run["a"]), int(run["b"]) + 1):
-            out.append(Unit(label(inst, i), i, q, run.get("o"), run.get("x")))
+            out.append(Unit(label(inst, i), i, q, run.get("o"), run.get("x"),
+                            bool(run.get("s"))))
             if limit is not None and len(out) >= limit:
                 return out
     return sorted(out, key=lambda u: u.index)
@@ -172,8 +174,12 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
             continue
         owner = u.holder if u.holder is not None else rest
         o = look.get(owner) if owner is not None else None
+        # **Ein freigegebenes Stück sagt es auch dann, wenn seine Geschwister es noch nicht
+        # sind** (Notiz #572): der Zustand gehört zur Menge, und eine Charge kann geteilter
+        # Meinung sein. Der Instanz-Skalar bleibt die Projektion darüber.
+        pq, pd = ("passed", "in_stock") if u.released else (q, d)
         out.append(InstanceUnit(
-            number=u.number, quantity=float(u.quantity), quality=q, disposition=d,
+            number=u.number, quantity=float(u.quantity), quality=pq, disposition=pd,
             order_object_id=(o[0] if o else None), order_name=(o[1] if o else None),
             reason=(o[2] if o else None)))
     return out
@@ -189,6 +195,60 @@ def owned_by(inst: Instance, order_id: int) -> list[Unit]:
     rest = rest_owner(inst)
     return [u for u in of(inst)
             if (u.holder if u.holder is not None else rest) == order_id]
+
+
+def mark_released(inst: Instance, indices) -> Decimal:
+    """**Diese Stücke haben ihr Prozessziel erreicht** – sie sind freigegeben (Notiz #572).
+
+    Der Zustand einer Instanz war bisher genau EIN Paar Skalare für die ganze Menge. Bei
+    einer Charge ist das zu grob: hat ein Abzweig sein Stück fertig durch den Prozess
+    gebracht, während die drei anderen noch in laufenden Aufträgen stecken, ist «Im Prozess»
+    für dieses eine Stück schlicht falsch – und für die anderen drei richtig. Beides ist
+    wahr, nur eben nicht über dieselbe Menge.
+
+    Darum steht die Freigabe dort, wo auch der Endzustand steht: **am Stück** (``s``). Die
+    Instanz-Skalare bleiben die **Projektion** darüber (``all_released``) und wechseln erst,
+    wenn alle lebenden Stücke frei sind. Das ist bewusst konservativ: ``in_stock_clauses``
+    (FIFO, Bestand, Verfügbarkeit) liest weiterhin die Skalare und wird damit **nicht**
+    ungenauer als vorher – eine teilweise freigegebene Charge ist wie bisher noch nicht
+    entnehmbar, sie sagt es jetzt bloss ehrlich.
+
+    Liefert die freigegebene Menge."""
+    want = {int(i) for i in indices}
+    if not want:
+        return ZERO
+    runs, freed = _runs(inst), ZERO
+    out: list[dict] = []
+    for run in runs:
+        if run.get("x") or run.get("s"):
+            out.append(run)
+            continue
+        q = to_qty(run.get("q", 1))
+        for a, b, hit in _slice(int(run["a"]), int(run["b"]), want):
+            piece = {**run, "a": a, "b": b}
+            if hit:
+                piece["s"] = 1
+                freed = qty_sum([freed, q * (b - a + 1)])
+            out.append(piece)
+    _write(inst, out, _next(inst))
+    return freed
+
+
+def _slice(a: int, b: int, want: set[int]):
+    """Einen Lauf in Abschnitte zerlegen: getroffen / nicht getroffen, in Nummernfolge."""
+    start, cur = a, (a in want)
+    for i in range(a + 1, b + 2):
+        hit = i in want if i <= b else not cur
+        if hit != cur or i > b:
+            yield start, i - 1, cur
+            start, cur = i, hit
+    return
+
+
+def all_released(inst: Instance) -> bool:
+    """Sind ALLE lebenden Stücke freigegeben? – dann darf der Instanz-Skalar nachziehen."""
+    live = [r for r in _runs(inst) if not r.get("x")]
+    return bool(live) and all(r.get("s") for r in live)
 
 
 def covers(inst: Instance, indices, quantity) -> bool:
@@ -244,6 +304,7 @@ def _write(inst: Instance, runs: list[dict], nxt: int) -> None:
 def _same(a: dict, b: dict) -> bool:
     """Zwei Läufe beschreiben dasselbe – dann dürfen sie einer werden."""
     return (a.get("o") == b.get("o") and a.get("x") == b.get("x")
+            and bool(a.get("s")) == bool(b.get("s"))
             and qty_key(a.get("q", 1)) == qty_key(b.get("q", 1)))
 
 

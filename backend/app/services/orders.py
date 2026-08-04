@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import false
+from sqlalchemy import false, or_
 from sqlalchemy.orm import Query, Session
 
 from ..domain import event_types
@@ -771,7 +771,15 @@ def _fill_step_sub_orders(db: Session, order: Order, step: ArticleProcessStep,
             Order.origin_step_id == step.id, Order.is_active == True,
             # Ein **zurückgenommener** Unter-Auftrag belastet den Ablauf nicht mehr: er ist
             # die ausdrückliche Aussage «das erledige ich anders». Erledigte bleiben.
-            Order.status != "inactive",
+            #
+            # **«Inaktiv» sind aber ZWEI verschiedene Dinge** (Testnotiz #571): verworfen
+            # (nichts folgt) und **abgebrochen, fortgeführt in …** (``abort_into_id``, seit
+            # Migration 086). Das zweite ist Teil der Geschichte dieses Schritts – dort ist
+            # der Vorgang ja weitergegangen. Beide über denselben Status auszuschliessen
+            # riss den abgebrochenen Abzweig aus seiner Position, und weil er in der
+            # Auftrags-Liste stehen blieb, rutschte er im Fluss nach ganz vorne – vor einen
+            # Schritt, der längst erledigt war. Genau der gemeldete Sprung.
+            or_(Order.status != "inactive", Order.abort_into_id.isnot(None)),
         ).order_by(Order.object_id).all()
     )
     cache = steps_cache if steps_cache is not None else {}

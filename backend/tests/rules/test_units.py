@@ -446,3 +446,56 @@ def test_a_finished_order_still_names_its_pieces(db, kinds, world):
            for l in e.lots for u in l.units]
     assert got and set(got) == {f"{inst.object_id}-1"}, (
         f"Der gekappte Abzweig hielt …-1, zeigt aber {got}")
+
+
+def test_an_order_releases_the_pieces_it_still_holds(db, kinds, world):
+    """**Testnotizen #566/#572** – «hat es das Ziel erreicht, wird es freigegeben».
+
+    Die Regel gilt für Auftrag und Unter-Auftrag gleich, und sie ist **eine Reihenfolge**,
+    keine Fallunterscheidung: erst Geliehenes zurückgeben, dann freigeben, was übrig ist.
+
+    Der Zustand gehört dabei zur **Menge**, nicht zur Instanz. Eine Charge kann geteilter
+    Meinung sein: ein Stück durch den Prozess, drei noch in Arbeit – beides wahr, nur nicht
+    über dieselbe Menge. Der Instanz-Skalar bleibt die Projektion darüber und wechselt
+    konservativ erst, wenn alle lebenden Stücke frei sind (``in_stock_clauses`` liest ihn)."""
+    from app.models import ArticleProcessStep
+    from app.schemas.inspection import InspectionSample, InspectionUpdate
+    from app.services import inspection as insp_svc, units
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+
+    # (a) Gewöhnliche Abweichung: gibt zurück → hält nichts → gibt nichts frei (#332).
+    plain = _make_deviation(db, main, inst, user, 1)
+    _run_inspection(db, plain, inst, user, 1)
+    db.refresh(inst)
+    assert not [u for u in units.of(inst) if u.released], (
+        "Ein zurückgegebenes Stück ist geklärt, nicht produziert – es bleibt im Prozess.")
+
+    # (b) Gekappter Abzweig: behält sein Stück → gibt es frei, obwohl der Eltern läuft.
+    cut = _make_deviation(db, main, inst, user, 1, cut=True)
+    _run_inspection(db, cut, inst, user, 1)
+    db.refresh(inst)
+    freed = [u.number for u in units.of(inst) if u.released]
+    assert len(freed) == 1, f"Genau sein Stück ist frei, nicht mehr und nicht weniger: {freed}"
+    assert inst.quality == "pending", (
+        "…und die Instanz bleibt konservativ «Im Prozess», solange drei Stücke laufen – "
+        f"sonst wäre eine halb fertige Charge plötzlich FIFO-verfügbar (ist {inst.quality}).")
+    assert not units.verify(inst), units.verify(inst)
+
+
+def _run_inspection(db, order, inst, user, n):
+    """Den Datenerfassungs-Schritt eines Auftrags durchlaufen – bis zum Abschluss."""
+    from app.models import ArticleProcessStep
+    from app.schemas.inspection import InspectionSample, InspectionUpdate
+    from app.services import inspection as insp_svc
+
+    step = (db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.order_id == order.id,
+                    ArticleProcessStep.step_type == "inspection").first())
+    insp_svc.record_inspection(db, order, InspectionUpdate(
+        samples=[InspectionSample(instance_id=inst.object_id, slot=i + 1,
+                                  values={"_ok": True}) for i in range(n)],
+        step_id=step.id), user)
+    db.commit()
+    db.refresh(order)

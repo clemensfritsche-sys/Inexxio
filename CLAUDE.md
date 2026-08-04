@@ -4855,6 +4855,43 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Runde mit eigener Messung wert – ein Halbschritt (nur im Journal freigeben) würde die
     Instanz-Ansicht und die Achse widersprüchlich machen, also genau das, was #492 verbietet.
 
+- **Der Zustand gehört zur MENGE – «Ziel erreicht ⇒ freigegeben» (Notizen #571/#572)**:
+  Die in Runde 40 offen gelassene Frage ist umgesetzt, und sie hat das System **einfacher**
+  gemacht statt komplizierter – zwei Regeln sind zu einer geworden.
+  (1) **Freigegeben wird, was ein Auftrag nach der Rückgabe noch HÄLT** (#572). Vorher gab
+  `release_instances` erst die ganze Instanz frei, und ein zweiter Wächter
+  (`_worked_on_by_a_running_order`) nahm nachträglich zurück, was ein anderer laufender
+  Auftrag noch bearbeitete. Weil dieser Wächter die **ganze Instanz** ausschloss, blieb ein
+  fertiges Stück einer geteilten Charge für immer «Im Prozess» – der gemeldete Fall. Jetzt
+  entscheidet die **Reihenfolge**: erst `return_borrowed`, dann freigeben, was übrig ist.
+  Daraus fällt alles Frühere von selbst heraus – eine gewöhnliche Abweichung hat eben
+  zurückgegeben und gibt nichts frei (#332), ein **gekappter** Abzweig behält sein Stück und
+  gibt es frei, der Erzeuger gibt am Ende alles frei (#262). Der Wächter ist **ersatzlos
+  entfallen**.
+  (2) **Der Zustand steht am Stück, der Instanz-Skalar ist die Projektion**
+  (`units.mark_released`/`all_released`, Marker `s` im Lauf – kein Schema-Wechsel, JSONB).
+  Eine Charge kann geteilter Meinung sein: ein Stück durch den Prozess, drei in Arbeit –
+  beides wahr, nur nicht über dieselbe Menge. `instances.quality`/`disposition` wechseln
+  **konservativ** erst, wenn alle lebenden Stücke frei sind; damit liest
+  `inventory.in_stock_clauses` (FIFO · Bestand · Verfügbarkeit) unverändert die Skalare und
+  wird **nicht ungenauer als vorher** – eine teil-freigegebene Charge ist wie bisher noch
+  nicht entnehmbar, sie sagt es jetzt bloss ehrlich. *(Der verbleibende Schritt wäre, die
+  Verfügbarkeit ebenfalls je Stück zu führen – eine mitgeführte Menge neben den Skalaren,
+  dasselbe Denormalisierungs-Muster wie `reserved_quantity`. Erst dann ist ein einzelnes
+  Stück einer geteilten Charge auch FIFO-entnehmbar.)*
+  (3) **«Inaktiv» sind ZWEI verschiedene Dinge** (#571): verworfen (nichts folgt) und
+  **abgebrochen, fortgeführt in …** (`abort_into_id`, seit Migration 086). `_fill_step_
+  sub_orders` schloss beide über denselben Status aus – der abgebrochene Abzweig verlor
+  damit seine Position am Schritt, blieb aber in der Auftrags-Liste und rutschte im Fluss
+  nach **ganz vorne**, vor einen längst erledigten Schritt. Genau der gemeldete Sprung. Ein
+  abgebrochener Vorgang ist Teil der Geschichte seines Schritts; ein verworfener nicht.
+  Wächter: `test_smoke.py: test_an_order_releases_what_it_still_holds` (prüft die
+  **Reihenfolge** – `return_borrowed` vor `release_instances`), `tests/rules/test_units.py:
+  test_an_order_releases_the_pieces_it_still_holds` (Verhalten: zurückgegeben ⇒ nichts frei ·
+  gekappt ⇒ sein Stück frei · Skalar bleibt konservativ). Gegen echtes PostgreSQL 16
+  verifiziert (`note571.py` 14/14 – die gemeldete Kette samt #332/#262-Gegenprobe; alle 16
+  Harnesses und die Regel-Tabelle (34) grün).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

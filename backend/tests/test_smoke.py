@@ -779,7 +779,8 @@ def test_scrapped_instances_excluded_from_processing_and_completion():
     # Abschluss: nur «im Prozess» befindliche Instanzen kommen ans Lager (kein Wieder-
     # beleben eines verschrotteten, noch nicht bewerteten Teils)
     rel = _inspect.getsource(process.release_instances)
-    assert 'disposition == "in_process"' in rel
+    assert '("consumed", "sold", "scrapped")' in rel, (
+        "Was den Bestand verlassen hat, wird nicht freigegeben.")
     # Anzeige bleibt vollständig (to_order_response nutzt weiter die volle Liste)
     from app.services import orders as orders_svc
     assert "order_instances(db, order)" in _inspect.getsource(orders_svc.to_order_response)
@@ -818,7 +819,9 @@ def test_a_deviation_pauses_the_order_through_the_shortfall_not_a_second_rule():
     assert "order_instances" in dev and "subject_of_order_id" in dev
     assert '"deviation"' in dev
     # … und werden vom Eltern-Auftrag auch nicht ans Lager freigegeben.
-    assert "deviated_quantities" in _inspect.getsource(process.release_instances)
+    # Was in einer offenen Abweichung steckt, HÄLT diese – ``owned_by`` schliesst es damit
+    # von selbst aus; dafür braucht die Freigabe keine zweite Abfrage mehr (#572).
+    assert "owned_by" in _inspect.getsource(process.release_instances)
     # Abweichungs-Abschluss bewertet den Eltern-Auftrag neu
     rc = _inspect.getsource(process.recompute_completion)
     assert "parent_order_id" in rc and "recompute_completion(db, lender)" in rc
@@ -3137,50 +3140,38 @@ def test_auto_provisioning_is_switched_off_at_exactly_one_place():
     assert callable(provisioning.target_for) and callable(provisioning.misplaced)
 
 
-def test_the_order_that_finishes_an_instance_releases_it():
-    """**Freigegeben wird von dem Auftrag, der zuletzt an der Instanz gearbeitet hat.**
+def test_an_order_releases_what_it_still_holds():
+    """**Was ein Auftrag nach der Rückgabe noch hält, hat sein Ziel erreicht** (#566/#572).
 
-    Wird ein Auftrag abgebrochen und ein Abweichungsauftrag führt seine Instanzen fort, bleibt
-    deren ``order_id`` beim abgebrochenen Original. Sah die Freigabe nur auf den **Erzeuger**,
-    wurden diese Instanzen NIE freigegeben – für immer «Im Prozess», unsichtbar für FIFO und
-    Bestandszählung (Testnotiz #262). Massgeblich ist darum erzeugt-von ODER Subjekt-von.
-    """
-    from app.services import process
+    Das ersetzt ZWEI frühere Regeln durch EINE. Vorher gab die Freigabe erst alles frei und
+    ein zweiter Wächter (``_worked_on_by_a_running_order``) nahm nachträglich zurück, was
+    ein anderer laufender Auftrag noch bearbeitete – und weil er die **ganze Instanz**
+    ausschloss, blieb ein fertiges Stück einer geteilten Charge für immer «Im Prozess»
+    (der gemeldete Fall). Jetzt entscheidet die **Reihenfolge**: erst zurückgeben, dann
+    freigeben, was übrig ist.
 
-    src = _inspect_source_fn(process.release_instances)
-    assert "Instance.order_id == order.id" in src
-    assert "Instance.subject_of_order_id == order.id" in src
-    # Terminale/bereits bewertete Teile bleiben ausgenommen – nur «im Prozess» wird frei.
-    assert 'Instance.quality == "pending"' in src
-    assert 'Instance.disposition == "in_process"' in src
+    Daraus fällt alles Frühere von selbst heraus – geprüft wird darum das VERHALTEN:
 
-
-def test_an_instance_is_not_released_while_another_order_still_works_on_it():
-    """**«Zuletzt daran gearbeitet» heisst: es arbeitet kein anderer Auftrag mehr daran.**
-
-    Gemeldeter Fall (Testnotiz #332): eine Abweichung auf eine Instanz eines **laufenden**
-    Erzeugungsauftrags wird abgeschlossen – und gab die Instanz frei, obwohl ihr Auftrag noch
-    im Prozess war. Sie erschien damit am Lager (FIFO-verfügbar), während sie tatsächlich
-    noch in Produktion steckte.
-
-    Die Regel muss in BEIDE Richtungen gelten: weder gibt der Eltern frei, was in einer
-    offenen Abweichung steckt (Notiz #262-Folge), noch gibt die Abweichung frei, was der
-    Eltern noch bearbeitet. Massstab ist der **Status** des anderen Auftrags – ein
-    abgebrochener (``inactive``) hält nichts fest, sonst wäre der #262-Fix wieder kaputt."""
-    from app.services import process
-
-    guard = _inspect_source_fn(process._worked_on_by_a_running_order)
-    # Beide Bindungen zählen (Erzeuger UND festes Subjekt) …
-    assert "inst.order_id" in guard and "inst.subject_of_order_id" in guard
-    # … aber nur ein WIRKLICH laufender Auftrag hält fest (nicht abgebrochen/abgeschlossen).
-    assert 'Order.status == "released"' in guard
-    assert "Order.is_active == True" in guard
-    # … und der abschliessende Auftrag hält sich nicht selbst fest.
-    assert "oid != order.id" in guard
+    * Eine gewöhnliche Abweichung gibt zurück → hält nichts → gibt nichts frei (#332).
+    * Ein gekappter Abzweig behält sein Stück → gibt es frei, obwohl der Eltern läuft (#572).
+    * Der Erzeuger gibt am Ende alles frei (#262).
+    * Der Instanz-Skalar ist die **Projektion**: er wechselt erst, wenn alle lebenden Stücke
+      frei sind – ``in_stock_clauses`` bleibt damit so streng wie zuvor."""
+    from app.services import process, units
 
     src = _inspect_source_fn(process.release_instances)
-    assert "_worked_on_by_a_running_order" in src, "Die Freigabe muss den Wächter benutzen"
-    assert "still_running" in src
+    assert "owned_by" in src, "Freigegeben wird, was der Auftrag HÄLT – nicht die Instanz."
+    assert "mark_released" in src and "all_released" in src, (
+        "Je Stück freigeben, den Skalar nur als Projektion nachziehen.")
+    assert not hasattr(process, "_worked_on_by_a_running_order"), (
+        "Der zweite Wächter ist entfallen – die Reihenfolge ist die Regel.")
+
+    rc = _inspect_source_fn(process.recompute_completion)
+    assert rc.index("return_borrowed(db, order)") < rc.index("release_instances(db, order)"), (
+        "Erst zurückgeben, DANN freigeben – sonst gäbe eine Abweichung frei, was sie gleich "
+        "zurückgibt, und #332 wäre wieder kaputt.")
+
+    assert hasattr(units, "mark_released") and hasattr(units, "all_released")
 
 
 def test_a_step_type_only_fills_its_own_columns():
