@@ -111,6 +111,22 @@ RULES: tuple[Rule, ...] = (
         ),
     ),
     Rule(
+        id="regular-teil-gekappt",
+        lage=(
+            "Regulärer Auftrag über 4 Stück; eine Abweichung nimmt 1 Stück und kappt die "
+            "Rückführung – 3 bleiben ihm."
+        ),
+        art="regular", rest="teil-gekappt", fehlmenge=False, pause=False, soll="gekürzt",
+        warum=(
+            "«Gekappt» heisst nicht «abgebrochen» – es heisst nur, dass DIESE Menge nicht "
+            "zurückkommt. Wer noch etwas hat, arbeitet damit weiter: sein Soll sinkt auf 3, "
+            "genau wie bei einem verschrotteten Stück (``regular-teil-verloren``). Der "
+            "Abbruch ist keine Folge des Kappens, sondern davon, dass **nichts** mehr bleibt "
+            "– dieselbe Regel, nur am anderen Ende. Die Zeile steht hier, damit niemand das "
+            "Kappen später zu einem unbedingten Abbruch macht."
+        ),
+    ),
+    Rule(
         id="regular-kaskade-gekappt",
         lage=(
             "Auftrag → Abweichung (gäbe noch zurück) → deren Abweichung nimmt alles und "

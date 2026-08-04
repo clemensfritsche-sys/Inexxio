@@ -4780,9 +4780,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   ohne Anschluss unter dem grünen Punkt. Dieselbe Bedingung wie Start- und Endknoten.
   **Die Regel-Tabelle (ADR 008) trägt den neuen Fall als ZEILE, nicht als Sonderfall im
   Code**: `regular-rueckfuehrung-gekappt` (alles verliehen **und** gekappt → abgebrochen –
-  der einzige Unterschied zu `regular-alles-verliehen`, und er kippt «warten» in «Ende») und
-  `regular-kaskade-gekappt` (geprüft wird der OBERSTE einer dreistufigen Kette). Beide gegen
-  die Bug-Form gegengeprüft: ohne `cut` meldet die Zeile wieder eine Fehlmenge von 4.
+  der einzige Unterschied zu `regular-alles-verliehen`, und er kippt «warten» in «Ende»),
+  `regular-teil-gekappt` (**gekappt heisst nicht abgebrochen**: bleiben 3 von 4, sinkt nur
+  das Soll – der Abbruch hängt daran, dass NICHTS mehr bleibt) und `regular-kaskade-gekappt`
+  (geprüft wird der OBERSTE einer dreistufigen Kette). Gegen die Bug-Form gegengeprüft: ohne
+  `cut` meldet die Zeile wieder eine Fehlmenge von 4.
+  **Die vom Nutzer erbetenen «Fälle, die ich nicht auf dem Schirm habe»** sind gemessen
+  (Harness `note563b.py` 18/18): Teil-Kappung kürzt statt abzubrechen · der gekappte Abzweig
+  behält sein Stück und gibt beim Abschluss nichts zurück (der Abbruch wird nicht widerrufen)
+  · bei zwei Verleihern trifft es nur den eigenen · eine **dreistufige** Kette bricht auf
+  allen Ebenen ab, jede mit Zeiger auf ihre direkte Fortführung · `covering_sub_orders` ist
+  danach leer (niemand wartet auf etwas, das nie eintrifft).
   Wächter: `tests/rules/table.py` + `test_shortfall_rules.py`, `tests/rules/test_units.py`,
   `test_frontend_mirrors.py: test_the_draft_is_framed_like_the_order_it_will_become`.
   Gegen echtes PostgreSQL 16 verifiziert (Harnesses `note559.py` 11/11, `note563.py` 13/13

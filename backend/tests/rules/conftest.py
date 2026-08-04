@@ -151,6 +151,9 @@ def _situation(db, world, r: Rule):
         elif r.rest == "gekappt":
             # Alles weg UND die Rückführung gekappt – er endet hier (#563).
             _make_deviation(db, order, inst, user, 4, cut=True)
+        elif r.rest == "teil-gekappt":
+            # Nur 1 Stück gekappt: er behält 3 und läuft damit weiter.
+            _make_deviation(db, order, inst, user, 1, cut=True)
         elif r.rest == "kaskade":
             # Die Abweichung gäbe noch zurück; erst IHRE Abweichung kappt – und das
             # schlägt über sie hinweg bis nach oben durch.

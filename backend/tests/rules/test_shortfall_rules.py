@@ -74,5 +74,8 @@ def test_the_table_is_the_written_rule():
     # ``regular-alles-verliehen``, und er kippt «warten» in «abgebrochen».
     assert rule("regular-rueckfuehrung-gekappt").soll == "abgebrochen"
     assert rule("regular-alles-verliehen").pause is True
+    # …aber gekappt heisst NICHT «abgebrochen»: wer noch etwas hat, läuft mit weniger
+    # weiter. Der Abbruch hängt daran, dass nichts mehr bleibt – nicht am Kappen.
+    assert rule("regular-teil-gekappt").soll == "gekürzt"
     # Und über beliebig viele Stufen – ohne zweite Regel.
     assert rule("regular-kaskade-gekappt").soll == "abgebrochen"
