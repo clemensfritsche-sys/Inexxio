@@ -387,8 +387,9 @@ def _set_chosen_instances(db: Session, order: Order, picks: list) -> None:
         # davon – dieselbe Map, in die auch die FIFO-Allokation schreibt. Beansprucht die
         # Auswahl mehr, als noch frei ist, kürzt ``claim`` den fremden Anspruch: genau so
         # entsteht die Unterdeckung beim Auftrag, dem das Stück entzogen wird.
+        # Der **genannte** Anteil bestimmt dabei auch, WELCHE Stücke gemeint sind (#553).
         i.subject_of_order_id = order.id
-        claim(i, order.id, wanted[i.object_id])
+        claim(i, order.id, wanted[i.object_id], sources.get(i.object_id))
 
 
 @router.get("", response_model=list[OrderSummary])
@@ -435,7 +436,7 @@ def _pin_line_instances(db: Session, order: Order, article_id: int, quantity, pi
     order.pick_sources = {**(order.pick_sources or {}), **{str(k): v for k, v in sources.items()}} or None
     for i in insts:
         i.subject_of_order_id = order.id
-        claim(i, order.id, wanted[i.object_id])
+        claim(i, order.id, wanted[i.object_id], sources.get(i.object_id))
 
 
 @router.post("", response_model=OrderResponse, status_code=201)

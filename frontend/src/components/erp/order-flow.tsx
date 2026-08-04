@@ -460,9 +460,9 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
       );
       if (decide || res.length > 0) {
         rows.push(
-          <Row key={`gate-${branches[0].object_id}`}>
+          <Row key={`res-${branches[0].object_id}`}>
             <Axis h={10} strong={n.passed} />
-            {decide ? <Gateway decision={decision} /> : <Resolutions list={res} shown={shownSubs} />}
+            {decide ? <DecisionLine decision={decision} /> : <Resolutions list={res} shown={shownSubs} />}
           </Row>,
         );
       }
@@ -884,36 +884,32 @@ function ReturnArm({ origin, lots, strong, onOpen }: {
 // ─── Gate + Auflösung ─────────────────────────────────────────────────────────────
 
 /**
- * **Die offene Entscheidung als Knoten im Fluss** – eine Raute ist im Flowchart das Zeichen
- * für «hier wird entschieden», und genau das ist hier zu tun.
+ * **Die offene Entscheidung ist eine Zeile, kein Gateway** (Testnotiz #551).
  *
- * Die früheren Zustände «wartet» und «erledigt» sind entfallen (Notiz #434): sie waren
- * Information, die der Fluss ohnehin trägt – ein offener Abzweig IST das Warten, und was
- * entschieden wurde, steht als Auflösungszeile an seiner Stelle. Übrig bleibt, was man
- * anklicken kann.
+ * Vorher stand hier eine Raute – das Flowchart-Zeichen für «hier wird entschieden». Sie war
+ * ein eigenes Bauteil mit eigener Form für etwas, das der Fluss an dieser Stelle ohnehin
+ * schon sagt: es geht nicht weiter. Übrig bleibt die Aussage, in **derselben** Form wie
+ * jede andere Auflösung an dieser Stelle (Punkt · Satz · Hover) – nur eben noch offen und
+ * darum anklickbar. Ein Bauteil weniger, dieselbe Handlung.
  */
-function Gateway({ decision }: { decision?: FlowDecision }) {
-  const tone = 'var(--warning)';
+function DecisionLine({ decision }: { decision?: FlowDecision }) {
   const body = (
     <>
-      <span style={{ width: 26, height: 26, flex: 'none', transform: 'rotate(45deg)',
-        borderRadius: 5, border: `1.5px solid ${tone}`, background: '#fff',
-        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <X size={12} style={{ transform: 'rotate(-45deg)', color: tone }} />
-      </span>
-      <span style={{ textAlign: 'center', font: '500 12px var(--font-body)', color: 'var(--fg-3)' }}>
-        Es fehlt <b style={{ color: 'var(--fg-1)' }}>{decision?.missing}</b> · entscheiden
-      </span>
+      <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--warning)',
+        flexShrink: 0 }} />
+      <span>Es fehlt <b style={{ color: 'var(--fg-1)' }}>{decision?.missing}</b> · entscheiden</span>
     </>
   );
   const layout: React.CSSProperties = {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-    border: 'none', background: 'none', padding: 0, maxWidth: MAIN,
+    display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap',
+    justifyContent: 'center', maxWidth: MAIN, border: 'none', background: 'none', padding: 0,
+    font: '500 12px var(--font-body)', color: 'var(--fg-3)',
   };
   if (!decision?.canAct || !decision.onDecide) return <div style={layout}>{body}</div>;
   return (
-    <button type="button" onClick={decision.onDecide} title="Unterdeckung entscheiden"
-      style={{ ...layout, cursor: 'pointer' }}>{body}</button>
+    <button type="button" onClick={decision.onDecide} style={{ ...layout, cursor: 'pointer' }}>
+      {body}
+    </button>
   );
 }
 

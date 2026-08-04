@@ -518,6 +518,19 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
         "pixelgenau – ein Überlappen macht die Naht gegenstandslos.")
     assert "const RUN = MAIN / 2 + GAP + SIDE / 2" in line, (
         "Feste Spurbreiten machen die Länge einer Abzweigung berechenbar.")
+    # **Gerade Strichstärken – sonst passt die Ecke nie zur Geraden** (Testnotiz #550).
+    # Die Achse ist ein rasterndes ``div``, die Ecke ein analytisch gezeichneter Pfad. Bei
+    # ungerader Breite liegt der Kasten der Achse auf einer halben Pixelgrenze und wird
+    # gerundet, der Strich nicht – die Rundung ragt eine halbe Pixelbreite über die Gerade
+    # hinaus, an JEDER Gabelung und Einmündung. Gerade Breiten machen die Frage
+    # gegenstandslos, unabhängig von der Pixeldichte.
+    widths = line.split("export const lineW")[1].split("\n")[0]
+    assert all(int(n) % 2 == 0 for n in re.findall(r"\b(\d+)\b", widths)), (
+        f"Die Strichstärke der Prozesslinie muss gerade sein: {widths.strip()}")
+    assert "export const SIDE = MAIN;" in line, "Beide Spuren sind gleich breit (#491)."
+    for const in ("MAIN", "GAP", "ARM"):
+        val = int(re.search(rf"export const {const} = (\d+)", line).group(1))
+        assert val % 2 == 0, f"{const} = {val} – eine Spur ungerader Breite kippt die Mitte."
     assert "onOpen?.(info.object_id)" in flow, "Der Abzweig öffnet den Datensatz."
     # **Das Material steht UNTER dem Startknoten** (Testnotiz #513) – wie im geöffneten
     # Auftrag. Der Startknoten markiert den Anfang, das Material fliesst danach; stand es
@@ -1108,27 +1121,28 @@ def test_a_preselected_share_names_its_holder():
 
 
 def test_a_future_step_shows_what_is_planned():
-    """**Ein künftiger Schritt zeigt seine Planung** (Testnotiz #487).
+    """**Ein künftiger Schritt zeigt seine Planung** (Testnotizen #487/#542/#552).
 
     «Wird aktiv, sobald der vorherige Schritt erledigt ist» war die einzige Auskunft – nett,
     aber sie beantwortet nicht die Frage, die man an dieser Stelle hat: *was soll hier
     eigentlich passieren?* Prüfumfang, Ziel, Ressourcenzeilen und Lieferant stehen längst im
     Panel; es wurde nur nicht gerendert, weil der Schritt vorher abgebrochen hat.
 
-    Jetzt rendert **jedes** Modul seine Planung, eine Zeile sagt, dass sie noch nicht dran
-    ist – und die **Aktionen bleiben aus**. Die Regel steht an EINER Stelle (`PlannedNotice`),
-    damit sie nicht in vier Panels auseinanderläuft."""
+    Jetzt rendert **jedes** Modul seine Planung – und die **Aktionen bleiben aus**. Die Zeile
+    «Geplant – wird aktiv, sobald …» ist mit ihr entfallen (#552): dass der Schritt noch nicht
+    dran ist, sagt der Fluss (die starke Linie führt nicht hierher) und sagen die
+    ausgegrauten Aktionen. Sie zu wiederholen war eine dritte Stimme für dieselbe Aussage."""
     fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
-    assert "export function PlannedNotice()" in fields, "Die Zeile gibt es einmal."
+    assert "PlannedNotice" not in fields, (
+        "Die Notiz ist entfallen (#552) – der Fluss und die gesperrten Aktionen sagen es.")
     for name in ("inspection-panel", "movement-panel", "scrap-panel", "resource-panel"):
         src = (FRONTEND / "components" / "erp" / f"{name}.tsx").read_text(encoding="utf-8")
-        assert "Wird aktiv, sobald" not in src, (
+        assert "Wird aktiv, sobald" not in src and "PlannedNotice" not in src, (
             f"{name}: der frühere Abbruch verbarg die Planung des Schritts.")
         assert "const planned = stepState !== 'active';" in src, (
             f"{name}: **nur der Schritt, der DRAN ist, lässt sich bedienen** (#542). Ansehen "
             f"darf man jeden (#471) – aber ein Schritt, der noch nicht an der Reihe ist oder "
             f"gerade ruht, bietet keine Eingabe an; das Backend lehnt sie ohnehin ab.")
-        assert "{planned && <PlannedNotice />}" in src, f"{name}: keine Notiz"
         assert "planned || saving" in src or "!planned &&" in src, (
             f"{name}: ein geplanter Schritt führt nichts aus.")
 

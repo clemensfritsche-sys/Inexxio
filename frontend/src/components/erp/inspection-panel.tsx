@@ -6,7 +6,7 @@ import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 
 import { ObjId } from '@/components/erp/obj-id';
-import { Label, PlannedNotice, PrimaryButton, ScrollFade, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { Label, PrimaryButton, ScrollFade, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { useScan } from '@/components/scan/scan-provider';
@@ -143,7 +143,6 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      {planned && <PlannedNotice />}
 
       {/* Eine Zeile, kein Kasten: die Angabe ist Beiwerk, nicht ein eigener Bereich. */}
       <div style={{ fontSize: 13, color: 'var(--fg-2)' }}>

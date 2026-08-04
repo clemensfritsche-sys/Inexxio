@@ -5,7 +5,7 @@ import { Trash2, Lock, CheckCircle2, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, instanceLabel, heldOf } from '@/lib/process';
-import { StatusBadge, PlannedNotice, PrimaryButton, Label } from '@/components/erp/fields';
+import { StatusBadge, PrimaryButton, Label } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 
 import { useScan } from '@/components/scan/scan-provider';
@@ -153,7 +153,6 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
   const planned = stepState !== 'active';
   return (
     <div style={cardStyle}>
-      {planned && <PlannedNotice />}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
         {scrappable.map((i) => {

@@ -563,7 +563,7 @@ def test_reservation_no_split_keeps_object_number():
     assert free_qty(batch) == 70                  # 70 bleiben frei verfügbar (keine Teilung)
     reserve(batch, 9, 20)                          # zweiter Auftrag teilt sich dieselbe Charge
     assert batch.reserved_quantity == 50 and free_qty(batch) == 50
-    take(batch, 30, by_order_id=7)                 # Auftrag 7 verbraucht seine 30
+    take(batch, 30, state="consumed", by_order_id=7)                 # Auftrag 7 verbraucht seine 30
     assert batch.quantity == 70                    # selbe Instanz, nur weniger Menge
     assert reserved_for(batch, 7) == 0 and reserved_for(batch, 9) == 20
 
@@ -3297,9 +3297,10 @@ def test_a_pick_claims_a_quantity_not_a_thing():
     # ``claim`` SETZT (statt zu addieren) – und tastet dabei niemanden an (Notiz #370).
     cl = _inspect.getsource(reservation.claim)
     assert "m[str(order_id)] = want" in cl
-    # Der Pin schreibt Bindung UND Anspruch.
+    # Der Pin schreibt Bindung UND Anspruch – und nennt dabei den **Halter**, aus dessen
+    # Anteil er nimmt (Testnotiz #553): sonst folgen die Stücke der Menge nicht.
     pick = _inspect.getsource(orders._set_chosen_instances)
-    assert "claim(i, order.id, wanted[i.object_id])" in pick
+    assert "claim(i, order.id, wanted[i.object_id], sources.get(i.object_id))" in pick
     assert "release_reservation(prev, order.id)" in pick
     # Die Menge steckt in der Frage «ist das gebunden?» – 3 von 5 freien ist kein Sonderfall.
     assert "want" in _inspect.getsource(subject.is_bound)
@@ -4205,33 +4206,37 @@ def test_an_order_only_scraps_the_share_it_holds():
             f"{name} rechnet noch mit der ganzen Instanz statt mit dem Anteil des Auftrags")
 
 
-def test_the_decision_is_a_gate_in_the_flow():
-    """**Entscheidungen sind Gates, keine Notizen darunter** (Testnotiz #413).
+def test_the_decision_stands_at_its_place_in_the_flow():
+    """**Die offene Entscheidung steht an ihrer Stelle – als Zeile, nicht als Gateway**
+    (Testnotizen #413/#434/#551).
 
-    Eine Raute ist im Flowchart das Zeichen für «hier wird entschieden» – und genau das
-    passiert an einer Unterdeckung. Offen ist das Gate **anklickbar** und stellt die eine
-    Frage; ist entschieden, trägt dieselbe Raute die Antwort («Menge angepasst 4 → 2»).
-    Damit ist die Entscheidung ein Knoten im Fluss statt einer Notiz unter ihm.
+    Eine Unterdeckung wird dort entschieden, wo der Prozess stillsteht – das war schon immer
+    richtig. Nur die **Form** war ein eigenes Bauteil: eine Raute, das Flowchart-Zeichen für
+    «hier wird entschieden». Sie sagte, was der Fluss an dieser Stelle ohnehin zeigt (es geht
+    nicht weiter), und tat es in einer Sprache, die sonst nirgends vorkommt.
 
-    Die frühere ``ProcessHoldNotice`` ist entfallen – zwei Orte für dieselbe Frage gibt es
-    nicht mehr."""
+    Übrig bleibt die Aussage in **derselben** Form wie jede andere Auflösung an dieser Stelle
+    (Punkt · Satz · Hover) – nur eben noch offen und darum anklickbar. Ein Bauteil weniger,
+    dieselbe Handlung. Die frühere ``ProcessHoldNotice`` ist ebenfalls entfallen: zwei Orte
+    für dieselbe Frage gibt es nicht."""
     from pathlib import Path
 
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
     flow = (fe / "order-flow.tsx").read_text(encoding="utf-8")
-    for part in ("function Gateway", "function ResolutionLine"):
+    for part in ("function DecisionLine", "function ResolutionLine"):
         assert part in flow, f"Dem Fluss fehlt {part}"
-    assert "transform: 'rotate(45deg)'" in flow, "Ein Gate ist eine Raute."
-    # **Nur die offene Entscheidung ist ein Knoten** (Testnotiz #434). «wartet» und die
-    # bereits getroffene Antwort waren reine Information – und die trägt der Fluss ohnehin:
-    # ein offener Abzweig IST das Warten, eine Auflösung steht als Zeile an ihrer Stelle.
+    assert "function Gateway" not in flow and "rotate(45deg)" not in flow, (
+        "Keine Gateway-Darstellung mehr (#551) – die Entscheidung ist eine Zeile.")
+    # **Nur die offene Entscheidung ist überhaupt sichtbar** (Testnotiz #434). «wartet» und
+    # die bereits getroffene Antwort waren reine Information – und die trägt der Fluss
+    # ohnehin: ein offener Abzweig IST das Warten, eine Auflösung steht als Zeile.
     assert "function gateFor" not in flow and "'waiting'" not in flow, (
         "Ein Zustand, den das Flussbild schon zeigt, braucht kein zweites Symbol (#434).")
     for kind in ("quantity_confirmed", "covered_from_stock", "share_taken"):
         assert f"r.kind === '{kind}'" in flow, kind
     detail = (fe / "order-detail.tsx").read_text(encoding="utf-8")
     assert "ProcessHoldNotice" not in detail, (
-        "Die Fehlmenge-Notiz unter dem Fluss ist im Gate aufgegangen – eine Frage, ein Ort.")
+        "Die Fehlmenge-Notiz unter dem Fluss ist in der Zeile aufgegangen – eine Frage, ein Ort.")
     assert "decision={needsDecision ?" in detail
 
 
@@ -4308,8 +4313,9 @@ def test_every_piece_is_numbered_at_exactly_one_place():
         "WELCHES Teil.")
 
     res = (svc / "reservation.py").read_text(encoding="utf-8")
-    assert "units.sync(inst)" in res and "units.drop(inst" in res, (
-        "Die Stücke folgen der Reservierung an ihrer Engstelle – sonst driften sie.")
+    assert "units.sync(inst, taker=taker, source=source)" in res and "units.drop(inst" in res, (
+        "Die Stücke folgen der Reservierung an ihrer Engstelle – sonst driften sie; und sie "
+        "folgen dabei DEMSELBEN genannten Anteil wie die Menge (Testnotiz #553).")
 
     # Und die Spalte muss im Lifespan-Netz stehen: eine neue Spalte auf einer BESTEHENDEN
     # Tabelle ist erst fertig, wenn Migration UND Netz sie kennen (Lehre aus Migration 090).

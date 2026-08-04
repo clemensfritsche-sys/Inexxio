@@ -4617,6 +4617,65 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Teilungen nacheinander; und überall passen Menge und Nummern zusammen). Gegen echtes
   PostgreSQL 16 verifiziert (Harness `note548.py`, 6/6 – genau die gemeldete Abfolge).
 
+- **Die Stücke folgen der Menge – und keines verschwindet** (August 2026, Testnotizen
+  #549–#553): Zwei Befunde, eine gemeinsame Wurzel – die Stücke wurden **abgeleitet**
+  statt geführt.
+  (1) **Der genannte Anteil bestimmt, WELCHE Stücke gemeint sind** (#553). Gemeldet:
+  «-2 und -3 sind in die Abweichung geflossen, -4 blieb im Hauptprozess … dann hat es die
+  Logik zerschossen – auf einmal ist -3 im Hauptprozess und -4 im Unter-Unterprozess».
+  Genau so war es, und es war kein Zufall: die Mengen-Seite hält sich längst an den
+  angeklickten Anteil (`reservation.enforce` – «der genannte Anteil verliert IMMER», #394),
+  die **Stücke** taten es nicht. `units.sync` griff zuerst in den *freien* Topf – der aber
+  ist nicht herrenlos: solange die Instanz nicht am Lager liegt, gehört er ihrem **Erzeuger**
+  (`inventory.rest_owner`). Also nahm die Abweichung der Abweichung dem **Hauptauftrag** sein
+  Stück, und beim anschliessenden Geradeziehen der Mengen bekam er dafür irgendein anderes
+  zurück – zwei Aufträge hatten getauscht, ohne dass jemand etwas getan hätte. Jetzt reicht
+  `reservation._write` dieselbe Angabe durch, mit der die Menge arbeitet (`taker`/`source`
+  aus `orders.pick_sources`), und `units._assign` bedient sich in dieser Rangfolge:
+  **genannter Anteil ≻ frei ≻ fremd** – vom genannten die **höchsten** Nummern, wie
+  `_release` sie zurückgibt. Der Halter ist damit keine Vermutung mehr.
+  (2) **Ein Stück verschwindet nicht, es ändert seinen Zustand** (#549) – dieselbe Regel,
+  die für die Menge seit #481 gilt, eine Ebene genauer. `units.drop` strich die Nummer aus
+  der Karte; das Instanz-Detail zeigte danach `-2, -3, -4` und niemand konnte sagen, wo
+  `-1` geblieben war. Jetzt bleibt der Lauf stehen und trägt seinen **Endzustand**
+  (`{"x": "scrapped"|"sold"|"consumed"}`); gelesen wird er nur auf Nachfrage
+  (`include_gone`), für alles Rechnende (`of`/`count`/`total`/`held_quantity`/`verify`)
+  zählt er nicht mehr mit. Das Instanz-Detail listet ihn rot – über dieselbe Projektion wie
+  jeden anderen Zustand. **Und es gibt einen Weg zurück**: `units.restore` holt aus dem
+  «verkauft»-Topf, wenn eine **Retoure** kommt (die eine Ausnahme, die das Material-Journal
+  als `src_disposition='sold'` längst kennt) – vorher trug eine zurückgenommene Instanz
+  wieder eine Menge, aber **kein einziges Stück**.
+  *Beides zusammen behob nebenbei einen dritten Befund, den der Harness zeigte:* eine Kante
+  des Flusses meldete «4 Stk» und nannte nur 3 Nummern – die vierte war die verschrottete,
+  deren Nummer es nicht mehr gab. Im gleichen Zug buchen Verkauf und Verbrauch ihre Nummern
+  jetzt ebenfalls ins Journal (`ledger.post(units=…)`), wie das Verschrotten es schon tat.
+  (3) **Die offene Entscheidung ist eine Zeile, kein Gateway** (#551): die Raute war ein
+  eigenes Bauteil mit eigener Formsprache für etwas, das der Fluss an dieser Stelle ohnehin
+  sagt. Übrig bleibt dieselbe Form wie bei jeder anderen Auflösung (Punkt · Satz · Hover) –
+  nur eben noch offen und darum anklickbar.
+  (4) **«Geplant – wird aktiv, sobald …» entfällt** (#552): dass ein Schritt noch nicht dran
+  ist, sagen die Linie (sie führt nicht hierher) und die gesperrten Aktionen. Die Regel
+  «nur der aktive Schritt lässt sich bedienen» bleibt unverändert (#542).
+  (5) **Gerade Strichstärken – sonst passt die Ecke nie zur Geraden** (#550, gemessen statt
+  vermutet): die Achse ist ein `div`, die Ecke ein SVG-Pfad. Der Browser **rastert** die
+  Fläche eines div auf ganze Gerätepixel, einen Pfad zeichnet er analytisch. Bei
+  **ungerader** Breite fällt beides auseinander – die Achse liegt mittig in einer Spur
+  gerader Breite, ihr Kasten beginnt auf einer halben Pixelgrenze (bei 3 px: 748.5) und wird
+  auf 749 gerundet, der Strich bleibt bei 748.5 und ragt eine halbe Pixelbreite heraus.
+  Genau das sah aus, «als ob der Radius über die gerade Linie hinausgeht», und zwar
+  systematisch an jeder Gabelung. Nachgewiesen durch Auslesen der gezeichneten Pixelspalten
+  (Chromium, `deviceScaleFactor` 1): Achse 749·750·751, Ecke zusätzlich 748. Mit **gerader**
+  Breite (`lineW = strong ? 4 : 2`) liegen Kasten und Strich exakt gleich – unabhängig von
+  der Pixeldichte; ein Ausrichten auf halbe Pixel hätte auf Retina genau den Fehler erzeugt,
+  den es auf einfachen Bildschirmen behebt.
+  Wächter: `tests/rules/test_units.py: test_a_named_share_hands_over_its_own_pieces`
+  (gegen die Bug-Form gegengeprüft) und `…_a_piece_changes_its_state_it_does_not_vanish`,
+  `test_smoke.py: test_the_decision_stands_at_its_place_in_the_flow`,
+  `test_frontend_mirrors.py: test_a_future_step_shows_what_is_planned` +
+  `…_a_sub_order_is_a_regular_process_beside_the_axis` (gerade Strichstärken). Gegen echtes
+  PostgreSQL 16 verifiziert (Harness `note553.py`, 10/10 – die gemeldete Kette Schritt für
+  Schritt; alle 12 Harnesses und die Regel-Tabelle unverändert grün).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

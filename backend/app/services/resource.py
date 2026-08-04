@@ -181,12 +181,15 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
                 _relocate(db, cand, product, actor_id)
             else:
                 # Teilentnahme aus einer Charge: Menge mindern, KEINE neue Instanz/Nummer.
-                take_qty(cand, take, by_order_id=order.id)
+                gone: list[int] = []
+                take_qty(cand, take, state="consumed", by_order_id=order.id, gone=gone)
                 # Journal (ADR 007): die Teilmenge ist verbaut – terminal, dem Auftrag
-                # zugeschrieben; die Restmenge bleibt in ihrem Topf.
+                # zugeschrieben; die Restmenge bleibt in ihrem Topf. Die **Nummern** der
+                # verbauten Stücke gehören in die Buchung, nicht in die heutige Karte.
                 from . import ledger
                 ledger.post(db, cand, take, kind="consumed", holder=order.id,
-                            disposition="consumed", src_holder=order.id, actor_id=actor_id)
+                            disposition="consumed", src_holder=order.id, units=gone,
+                            actor_id=actor_id)
                 # War die Charge auf mehrere Standorte verteilt, die Verteilung nachziehen
                 # (Summe wieder = quantity).
                 location_split.reconcile(cand)

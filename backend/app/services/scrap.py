@@ -88,7 +88,7 @@ def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order: Ord
 
     if not whole:
         gone: list[int] = []
-        cut = take(inst, cut_qty, by_order_id=order.id, gone=gone)
+        cut = take(inst, cut_qty, state="scrapped", by_order_id=order.id, gone=gone)
         location_split.reconcile(inst)
         # Journal (ADR 007): die Teilmenge geht in den terminalen «scrapped»-Topf –
         # zugeschrieben dem Auftrag, der ausgesondert hat.

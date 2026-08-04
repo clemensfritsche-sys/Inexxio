@@ -24,11 +24,21 @@ gleich) eine einzige kurze Zeile, und die Nummern gibt es trotzdem alle::
     q     Menge **je Stück** – fast immer "1". Eine Charge, die sich nicht zählen lässt
           (2.5 kg), ist EIN Stück mit q = "2.5": Kilogramm bekommen keine Nummern.
     o     der Auftrag, der diese Stücke hält (fehlt = frei).
+    x     der **Endzustand**, wenn diese Stücke den Bestand verlassen haben
+          (``scrapped`` · ``sold`` · ``consumed``); fehlt = lebendig.
 
 **Die Nummer ist eine Identität, keine Position.** Sie wird bei der Entstehung vergeben
 und danach **nie** neu verteilt – ein Stück, das einmal ``-3`` war, bleibt ``-3``, auch
 wenn ``-1`` und ``-2`` längst verschrottet sind. Darum wird auch nichts nachgezählt: die
 höchste je vergebene Nummer steht in ``next``.
+
+**Ein Stück verschwindet nicht, es ändert seinen Zustand** (Testnotiz #549 – dieselbe
+Regel, die für die Menge längst gilt, #481). Wer verschrottet, streicht die Nummer nicht
+aus der Karte: sie bleibt stehen und trägt ihren Endzustand (``x``). Ein verschrottetes
+``…-1`` ist damit weiterhin benennbar – im Instanz-Detail (rot) wie in der Geschichte –
+statt aus der Liste zu fallen, als hätte es das Stück nie gegeben. Für **alles Rechnende**
+zählt es nicht mehr mit: ``of``/``count``/``total``/``held_quantity`` übergehen es, es sei
+denn, man fragt ausdrücklich danach.
 
 **Zuordnung ist tolerant, Buchhaltung ist streng** – dieselbe Haltung wie im Material-
 Journal (ADR 007). Alt-Instanzen ohne Einheiten bekommen sie beim ersten Zugriff aus dem
@@ -49,16 +59,21 @@ _MAX_RUNS = 400
 
 
 class Unit(NamedTuple):
-    """Ein Stück: seine Nummer, seine Menge und wem es gehört."""
+    """Ein Stück: seine Nummer, seine Menge, wem es gehört – und ob es noch da ist."""
 
     number: str                 # "100000101-3"
     index: int                  # 3
     quantity: Decimal
     holder: int | None          # Order.id | None = frei
+    state: str | None = None    # scrapped|sold|consumed = hat den Bestand verlassen
 
     @property
     def free(self) -> bool:
         return self.holder is None
+
+    @property
+    def gone(self) -> bool:
+        return self.state is not None
 
 
 # ─── Lesen ────────────────────────────────────────────────────────────────────
@@ -79,28 +94,36 @@ def label(inst: Instance, index: int) -> str:
     return f"{inst.object_id}-{index}"
 
 
-def of(inst: Instance, *, holder: int | None = ..., limit: int | None = None) -> list[Unit]:
+def of(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
+       include_gone: bool = False) -> list[Unit]:
     """Die Einheiten einer Instanz, aufsteigend nach Nummer.
 
     ``holder`` filtert auf einen Auftrag (``None`` = nur die freien); ohne Angabe kommen
     alle. ``limit`` deckelt die Ausgabe – eine 1000er-Charge soll keine Liste mit 1000
-    Chips erzeugen; wie viele es insgesamt sind, sagt ``count``."""
+    Chips erzeugen; wie viele es insgesamt sind, sagt ``count``.
+
+    **Ausgeschiedene Stücke kommen nur auf Nachfrage** (``include_gone``): sie tragen ihre
+    Nummer weiter, zählen aber zu keiner Menge mehr. Wer rechnet, will sie nicht; wer die
+    Geschichte zeigt, schon."""
     out: list[Unit] = []
     for run in _runs(inst):
+        if run.get("x") and not include_gone:
+            continue
         if holder is not ... and run.get("o") != holder:
             continue
         q = to_qty(run.get("q", 1))
         for i in range(int(run["a"]), int(run["b"]) + 1):
-            out.append(Unit(label(inst, i), i, q, run.get("o")))
+            out.append(Unit(label(inst, i), i, q, run.get("o"), run.get("x")))
             if limit is not None and len(out) >= limit:
                 return out
-    return out
+    return sorted(out, key=lambda u: u.index)
 
 
-def count(inst: Instance, *, holder: int | None = ...) -> int:
+def count(inst: Instance, *, holder: int | None = ..., include_gone: bool = False) -> int:
     """Wie viele Stück – ohne die Liste zu bauen (für «+N weitere»)."""
     return sum(int(r["b"]) - int(r["a"]) + 1 for r in _runs(inst)
-               if holder is ... or r.get("o") == holder)
+               if (include_gone or not r.get("x"))
+               and (holder is ... or r.get("o") == holder))
 
 
 def numbers(inst: Instance, *, holder: int | None = ..., limit: int | None = None) -> list[str]:
@@ -109,7 +132,7 @@ def numbers(inst: Instance, *, holder: int | None = ..., limit: int | None = Non
 
 
 def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
-         names: dict | None = None) -> list:
+         names: dict | None = None, include_gone: bool = False) -> list:
     """**Die Stücke als Zeilen** – Nummer · Menge · Zustand · Halter, die EINE Form, in der
     ein Teil überall genannt wird (Testnotizen #531/#532).
 
@@ -126,7 +149,13 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
     # dasselbe Stück im Detail «frei» und in der Aufteilung «Auftrag …003».
     rest = rest_owner(inst)
     out = []
-    for u in of(inst, holder=holder, limit=limit):
+    for u in of(inst, holder=holder, limit=limit, include_gone=include_gone):
+        # **Ein ausgeschiedenes Stück trägt seinen eigenen Endzustand** (#549) – nicht den
+        # Skalar der Instanz: die lebt weiter, es nicht. Und es gehört niemandem mehr.
+        if u.gone:
+            out.append(InstanceUnit(number=u.number, quantity=float(u.quantity),
+                                    quality=q, disposition=u.state))
+            continue
         owner = u.holder if u.holder is not None else rest
         o = look.get(owner) if owner is not None else None
         out.append(InstanceUnit(
@@ -155,22 +184,24 @@ def rows_for(inst: Instance, indices, *, limit: int | None = None) -> list:
     Nummer in der Geschichte, auch wenn sie aus der Karte entwertet ist. Menge und Zustand
     kommen aus der Instanz, soweit sie das Stück noch kennt – sonst aus ihrem Skalar."""
     from ..schemas.instance import InstanceUnit
-    known = {u.index: u for u in of(inst)}
+    known = {u.index: u for u in of(inst, include_gone=True)}
     q, d = inst.quality or "pending", inst.disposition or "in_process"
     out = []
     for i in sorted(int(n) for n in indices):
         u = known.get(i)
         out.append(InstanceUnit(number=label(inst, i),
                                 quantity=float(u.quantity if u else 1),
-                                quality=q, disposition=d))
+                                quality=q,
+                                disposition=(u.state if u and u.gone else d)))
         if limit is not None and len(out) >= limit:
             break
     return out
 
 
 def total(inst: Instance) -> Decimal:
-    """Die Summe der Einheiten-Mengen – muss ``instance.quantity`` entsprechen."""
-    return qty_sum(to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1) for r in _runs(inst))
+    """Die Summe der **lebenden** Einheiten – muss ``instance.quantity`` entsprechen."""
+    return qty_sum(to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1)
+                   for r in _runs(inst) if not r.get("x"))
 
 
 # ─── Schreiben – EINE Stelle ──────────────────────────────────────────────────
@@ -184,7 +215,8 @@ def _write(inst: Instance, runs: list[dict], nxt: int) -> None:
 
 def _same(a: dict, b: dict) -> bool:
     """Zwei Läufe beschreiben dasselbe – dann dürfen sie einer werden."""
-    return a.get("o") == b.get("o") and qty_key(a.get("q", 1)) == qty_key(b.get("q", 1))
+    return (a.get("o") == b.get("o") and a.get("x") == b.get("x")
+            and qty_key(a.get("q", 1)) == qty_key(b.get("q", 1)))
 
 
 def _pack(runs: list[dict]) -> list[dict]:
@@ -255,12 +287,17 @@ def _split(runs: list[dict], at: int) -> list[dict]:
     return out
 
 
-def _take_units(runs: list[dict], want: Decimal, pick) -> tuple[list[dict], Decimal]:
-    """``want`` (Menge) aus den Läufen nehmen, die ``pick`` akzeptiert – ergibt die
-    Nummern, die wechseln. Liefert die betroffenen Läufe und die tatsächliche Menge."""
+def _pick(runs: list[dict], want: Decimal, accept, *, newest: bool = False,
+          gone: bool = False) -> tuple[list, Decimal]:
+    """**Welche Stücke** ``want`` (Menge) aus den akzeptierten Läufen ausmachen – die EINE
+    Traversierung für jeden Wechsel (zuordnen · freigeben · ausscheiden · zurückholen).
+
+    ``newest`` nimmt am **oberen** Ende: was zuletzt kam, geht zuerst. ``gone`` wählt die
+    Seite: lebende Stücke (Standard) oder ausgeschiedene (nur die Retoure holt von dort
+    zurück). Liefert ``[(erste_nummer, anzahl)]`` und die tatsächlich erreichte Menge."""
     got, hit = ZERO, []
-    for r in runs:
-        if got >= want or not pick(r):
+    for r in (reversed(runs) if newest else runs):
+        if got >= want or bool(r.get("x")) is not gone or not accept(r):
             continue
         q = to_qty(r.get("q", 1))
         if q <= 0:
@@ -269,33 +306,49 @@ def _take_units(runs: list[dict], want: Decimal, pick) -> tuple[list[dict], Deci
         take = min(need, int(r["b"]) - int(r["a"]) + 1)
         if take <= 0:
             continue
-        hit.append((r, take))
+        hit.append((int(r["b"]) - take + 1 if newest else int(r["a"]), take))
         got += q * take
     return hit, got
 
 
-def _assign(inst: Instance, order_id: int, qty) -> Decimal:
-    """``qty`` an Stücken diesem Auftrag zuordnen – **freie zuerst**, dann fremde.
+def _apply(runs: list[dict], hit: list, change) -> list[dict]:
+    """Die gewählten Nummernbereiche herausschneiden und ändern (Halter setzen/lösen,
+    Endzustand vermerken). Die Nummern selbst bleiben dabei immer, wo sie sind."""
+    for start, take in hit:
+        runs = _split(_split(runs, start), start + take)
+        for r in runs:
+            if int(r["a"]) >= start and int(r["b"]) < start + take:
+                change(r)
+    return runs
 
-    Fremde nur, soweit nötig: wer sich einen Anteil nimmt, den ein anderer hielt, nimmt
-    genau so viele Stücke, wie ihm fehlen (dieselbe Rangfolge wie ``shares.losses``)."""
+
+def _assign(inst: Instance, order_id: int, qty, *, source: int | None = None) -> Decimal:
+    """``qty`` an Stücken diesem Auftrag zuordnen – **der genannte Anteil zuerst**, dann
+    freie, dann fremde.
+
+    **Die Stücke folgen der Menge** (Testnotiz #553). Wer einen Anteil anklickt, sagt: *aus
+    diesem Auftrag*. Die Mengen-Seite hält sich längst daran (``reservation.enforce`` – der
+    genannte Anteil verliert immer); die Stücke taten es nicht, sie griffen zuerst in den
+    freien Topf. Der ist aber nicht herrenlos: solange die Instanz nicht am Lager liegt,
+    gehört er ihrem Erzeuger (``inventory.rest_owner``). Genau daraus entstand der
+    Tausch – eine Abweichung der Abweichung nahm dem **Hauptauftrag** sein Stück, und
+    beim Nachziehen der Mengen bekam er dafür irgendein anderes zurück.
+
+    Vom genannten Anteil kommen die **höchsten** Nummern (wie bei ``_release``): der
+    Ursprung behält seine ersten Stücke, der Zugriff nimmt die letzten."""
     want = to_qty(qty) - held_quantity(inst, order_id)
     if want <= 0:
         return ZERO
-    runs = _runs(inst)
-    moved = ZERO
-    for accept in (lambda r: r.get("o") is None,
-                   lambda r: r.get("o") not in (None, order_id)):
+    runs, moved = _runs(inst), ZERO
+    ranks = ([(lambda r: r.get("o") == source, True)] if source is not None else []) + [
+        (lambda r: r.get("o") is None, False),
+        (lambda r: r.get("o") not in (None, order_id), False)]
+    for accept, newest in ranks:
         if moved >= want:
             break
-        hit, _ = _take_units(runs, want - moved, accept)
-        for run, take in hit:
-            a = int(run["a"])
-            runs = _split(runs, a + take)
-            for r in runs:
-                if int(r["a"]) >= a and int(r["b"]) < a + take:
-                    r["o"] = order_id
-            moved += to_qty(run.get("q", 1)) * take
+        hit, got = _pick(runs, want - moved, accept, newest=newest)
+        runs = _apply(runs, hit, lambda r: r.update(o=order_id))
+        moved += got
     _write(inst, runs, _next(inst))
     return moved
 
@@ -307,16 +360,21 @@ def _next(inst: Instance) -> int:
 def held_quantity(inst: Instance, order_id: int) -> Decimal:
     """Wie viel Menge dieser Auftrag an Stücken hält (Gegenstück zur Reservierung)."""
     return qty_sum(to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1)
-                   for r in _runs(inst) if r.get("o") == order_id)
+                   for r in _runs(inst) if r.get("o") == order_id and not r.get("x"))
 
 
-def sync(inst: Instance) -> None:
+def sync(inst: Instance, *, taker: int | None = None, source: int | None = None) -> None:
     """**Die Zuordnung der Ansprüche nachziehen** – der eine Aufruf nach jeder Änderung an
     ``instances.reservations``.
 
-    Die Ansprüche sagen, *wie viel* wem gehört; hier wird daraus, *welche Stücke*. Freie
-    werden bevorzugt vergeben, und wem etwas genommen wurde, verliert genau so viele
-    Stücke. So bleiben Menge und Nummern zwangsläufig dieselbe Aussage."""
+    Die Ansprüche sagen, *wie viel* wem gehört; hier wird daraus, *welche Stücke*. Wer zu
+    viel hält, gibt seine höchsten Nummern ab; wer zu wenig hält, bekommt dazu. So bleiben
+    Menge und Nummern zwangsläufig dieselbe Aussage.
+
+    ``taker``/``source`` sagen, **wer** sich gerade etwas nimmt und **von wem** – dieselbe
+    Angabe, mit der die Mengen-Seite arbeitet (``orders.pick_sources`` →
+    ``reservation.enforce``). Ohne sie müssten die Stücke raten, und geraten wurde bisher
+    zugunsten des freien Topfes – der aber dem Erzeuger gehört (Testnotiz #553)."""
     ensure(inst)
     claims = {int(k): to_qty(v) for k, v in (inst.reservations or {}).items()}
     runs = _runs(inst)
@@ -332,55 +390,59 @@ def sync(inst: Instance) -> None:
             _release(inst, oid, have - want)
     for oid, want in sorted(claims.items(), key=lambda kv: -kv[1]):
         if held_quantity(inst, oid) < want:
-            _assign(inst, oid, want)
+            _assign(inst, oid, want, source=source if oid == taker else None)
 
 
 def _release(inst: Instance, order_id: int, qty) -> None:
     """``qty`` an Stücken dieses Auftrags wieder freigeben (die höchsten Nummern zuerst –
     was zuletzt kam, geht zuerst zurück)."""
-    runs = list(reversed(_runs(inst)))
-    hit, _ = _take_units(runs, to_qty(qty), lambda r: r.get("o") == order_id)
     runs = _runs(inst)
-    for run, take in hit:
-        b = int(run["b"])
-        runs = _split(runs, b - take + 1)
-        for r in runs:
-            if int(r["a"]) > b - take and int(r["b"]) <= b:
-                r.pop("o", None)
-    _write(inst, runs, _next(inst))
+    hit, _ = _pick(runs, to_qty(qty), lambda r: r.get("o") == order_id, newest=True)
+    _write(inst, _apply(runs, hit, lambda r: r.pop("o", None)), _next(inst))
 
 
-def drop(inst: Instance, qty, *, by_order_id: int | None = None) -> list[str]:
-    """Stücke **verlassen** die Instanz (verbaut · verkauft · verschrottet) – ihre Nummern
+def drop(inst: Instance, qty, *, state: str, by_order_id: int | None = None) -> list[int]:
+    """Stücke **verlassen** den Bestand (verbaut · verkauft · verschrottet) – ihre Nummern
     werden nie wieder vergeben. Liefert die betroffenen Nummern.
 
     Genommen wird bevorzugt bei dem, der sie beansprucht hat: wer verschrottet, verschrottet
-    sein eigenes Stück, nicht das des Nachbarn."""
+    sein eigenes Stück, nicht das des Nachbarn.
+
+    **Die Nummer bleibt stehen** und trägt ab jetzt ihren Endzustand (Testnotiz #549). Sie
+    aus der Karte zu streichen hiess, dass ein Stück aus dem Nichts verschwindet – im
+    Instanz-Detail wie auf jeder vergangenen Kante des Flusses, die es noch getragen hat."""
     ensure(inst)
-    runs = _runs(inst)
-    gone: list[str] = []
-    remaining = to_qty(qty)
+    runs, gone, remaining = _runs(inst), [], to_qty(qty)
     # Rangfolge: eigenes Stück ≻ freies ≻ fremdes.
-    order = ([lambda r: r.get("o") == by_order_id] if by_order_id else []) + [
+    ranks = ([lambda r: r.get("o") == by_order_id] if by_order_id else []) + [
         lambda r: r.get("o") is None, lambda r: True]
-    for accept in order:
+    for accept in ranks:
         if remaining <= 0:
             break
-        hit, _ = _take_units(runs, remaining, accept)
-        for run, take in hit:
-            a = int(run["a"])
-            runs = _split(runs, a + take)
-            keep = []
-            for r in runs:
-                if int(r["a"]) >= a and int(r["b"]) < a + take:
-                    gone.extend(label(inst, i)
-                                for i in range(int(r["a"]), int(r["b"]) + 1))
-                    remaining -= to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1)
-                else:
-                    keep.append(r)
-            runs = keep
+        hit, got = _pick(runs, remaining, accept)
+        for start, take in hit:
+            gone.extend(range(start, start + take))
+        runs = _apply(runs, hit, lambda r: (r.pop("o", None), r.update(x=state)))
+        remaining -= got
     _write(inst, runs, _next(inst))
-    return gone
+    return sorted(gone)
+
+
+def restore(inst: Instance, qty, *, state: str) -> list[int]:
+    """Ausgeschiedene Stücke **kehren zurück** – die Gegenrichtung von ``drop``.
+
+    Es gibt genau einen legitimen Weg aus einem Endzustand heraus: die **Retoure** holt aus
+    dem «verkauft»-Topf zurück (dieselbe Ausnahme, die das Material-Journal als
+    ``src_disposition='sold'`` kennt). Verschrottet und verbaut kommen nie zurück.
+
+    Zurück kommen die **niedrigsten** Nummern zuerst – dieselbe Reihenfolge, in der sie
+    gegangen sind. Liefert die zurückgeholten Nummern für die Buchung."""
+    ensure(inst)
+    runs = _runs(inst)
+    hit, _ = _pick(runs, to_qty(qty), lambda r: r.get("x") == state, gone=True)
+    back = [i for start, take in hit for i in range(start, start + take)]
+    _write(inst, _apply(runs, hit, lambda r: r.pop("x", None)), _next(inst))
+    return sorted(back)
 
 
 def verify(inst: Instance) -> list[str]:

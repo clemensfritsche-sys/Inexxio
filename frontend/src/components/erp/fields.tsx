@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink, Lock } from 'lucide-react';
+import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
 import { formatObjectId } from '@/lib/utils';
 
@@ -897,21 +897,3 @@ export function ScrollFade({ max, children }: { max: number; children: ReactNode
   );
 }
 
-/**
- * **Ein künftiger Schritt zeigt, was GEPLANT ist** (Testnotiz #487).
- *
- * «Wird aktiv, sobald der vorherige Schritt erledigt ist» war die einzige Auskunft – nett,
- * aber sie beantwortet nicht die Frage, die man an dieser Stelle hat: *was soll hier
- * eigentlich passieren?* Das steht längst im Panel (Prüfumfang, Ziel, Ressourcenzeilen,
- * Lieferant); es wurde nur nicht gerendert. Jetzt zeigt der Schritt seine Planung, und
- * diese Zeile sagt, dass sie noch nicht dran ist – die Aktionen bleiben aus.
- */
-export function PlannedNotice() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5,
-      color: 'var(--fg-4)' }}>
-      <Lock size={13} style={{ flexShrink: 0 }} />
-      Geplant – wird aktiv, sobald der vorherige Schritt erledigt ist.
-    </div>
-  );
-}

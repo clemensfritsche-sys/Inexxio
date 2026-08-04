@@ -61,7 +61,7 @@ def test_reservation_roundtrip_is_decimal_and_json_safe():
     assert inst.reserved_for_order_id is None   # mehr als ein Auftrag → kein Einzel-Zeiger
 
     # Verbrauch mindert Menge UND Reservierung mengengenau
-    take(inst, Decimal("1.5"), by_order_id=42)
+    take(inst, Decimal("1.5"), state="consumed", by_order_id=42)
     assert inst.quantity == Decimal("8.500")
     assert reserved_for(inst, 42) == Decimal("1.000")
 
@@ -85,7 +85,7 @@ def test_take_releases_the_own_claim_and_trims_the_others():
     # (1) fremder Anspruch: 5 Stück, 4 für Auftrag 1 reserviert, 2.5 verschwinden
     inst = Instance(quantity=Decimal("5"), reservations=None, reserved_quantity=Decimal("0"))
     reserve(inst, 1, Decimal("4"))
-    cut = take(inst, Decimal("2.5"))
+    cut = take(inst, Decimal("2.5"), state="consumed")
     assert cut == Decimal("2.500")
     assert inst.quantity == Decimal("2.500")
     assert reserved_for(inst, 1) == Decimal("2.500")
@@ -94,7 +94,7 @@ def test_take_releases_the_own_claim_and_trims_the_others():
     #     der Rest ist danach FREI, nicht von einer erledigten Reservierung blockiert.
     inst = Instance(quantity=Decimal("10"), reservations=None, reserved_quantity=Decimal("0"))
     reserve(inst, 1, Decimal("5"))
-    take(inst, Decimal("5"), by_order_id=1)
+    take(inst, Decimal("5"), state="consumed", by_order_id=1)
     assert inst.quantity == Decimal("5.000")
     assert reserved_for(inst, 1) == Decimal("0")
     assert free_qty(inst) == Decimal("5.000")

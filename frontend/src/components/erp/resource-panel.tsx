@@ -9,7 +9,7 @@ import type {
 import type { ScanStep } from '@/lib/scan';
 import { ObjId } from '@/components/erp/obj-id';
 
-import { PlannedNotice, PrimaryButton } from '@/components/erp/fields';
+import { PrimaryButton } from '@/components/erp/fields';
 import { instanceLabel } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { useScan } from '@/components/scan/scan-provider';
@@ -110,7 +110,6 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      {planned && <PlannedNotice />}
 
       {/* Keine Erfolgsmeldung (Notiz #266) – der Haken im Modul-Kopf sagt es, Wer/Wann im Hover. */}
       {!done && toolLines.map((l, i) => <ToolNeed key={`t${i}`} line={l} />)}

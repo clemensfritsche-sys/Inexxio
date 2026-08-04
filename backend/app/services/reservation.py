@@ -42,7 +42,8 @@ def free_qty(inst: Instance) -> Decimal:
     return rest if rest > 0 else ZERO
 
 
-def _write(inst: Instance, m: dict) -> None:
+def _write(inst: Instance, m: dict, *, taker: int | None = None,
+           source: int | None = None) -> None:
     """Reservierungs-Map zurückschreiben + Denormalisierungen (Summe, Einzel-Zeiger)
     konsistent nachziehen – die EINE Stelle, an der die drei Felder gesetzt werden.
     Nicht-positive Einträge werden verworfen; Mengen JSON-sicher als String abgelegt.
@@ -50,13 +51,18 @@ def _write(inst: Instance, m: dict) -> None:
     **Und hier hängen die Stücke dran.** Weil dies die einzige Stelle ist, an der sich
     «wer beansprucht wie viel» ändert, ist es auch die einzige, an der sich «welche Stücke»
     ändern muss (``units.sync``). So können Mengen und Nummern gar nicht auseinanderlaufen –
-    es gibt keinen zweiten Weg, an dem man es vergessen könnte."""
+    es gibt keinen zweiten Weg, an dem man es vergessen könnte.
+
+    ``taker``/``source`` reichen dabei die **eine** Angabe durch, die die Mengen-Seite
+    ohnehin hat: wer nimmt sich etwas, und aus wessen Anteil. Die Stücke folgen ihr genauso
+    (Testnotiz #553) – sonst nähme derselbe Klick auf der einen Seite dem genannten Halter
+    etwas weg und auf der anderen einem Dritten."""
     from . import units
     clean = {k: qty_key(v) for k, v in m.items() if to_qty(v) > 0}
     inst.reservations = clean or None
     inst.reserved_quantity = qty_sum(clean.values())
     inst.reserved_for_order_id = int(next(iter(clean))) if len(clean) == 1 else None
-    units.sync(inst)
+    units.sync(inst, taker=taker, source=source)
 
 
 def reserve(inst: Instance, order_id: int, qty) -> None:
@@ -70,7 +76,7 @@ def reserve(inst: Instance, order_id: int, qty) -> None:
     _write(inst, m)
 
 
-def claim(inst: Instance, order_id: int, qty) -> Decimal:
+def claim(inst: Instance, order_id: int, qty, from_order_id: int | None = None) -> Decimal:
     """**Vormerken**: den Anspruch eines Auftrags auf genau ``qty`` setzen – ohne fremde
     Ansprüche anzutasten. Liefert die gesetzte Menge.
 
@@ -84,14 +90,19 @@ def claim(inst: Instance, order_id: int, qty) -> Decimal:
     die Instanz-Menge übersteigen – für FIFO ist das Stück damit gesprochen (``free_qty``
     fällt auf 0), aber der laufende Auftrag, der es gedeckt hat, behält seine Reservierung
     und merkt nichts. Das ist der ganze Punkt: solange man noch am Auswählen ist, soll beim
-    anderen Auftrag nichts passieren (Testnotiz #370)."""
+    anderen Auftrag nichts passieren (Testnotiz #370).
+
+    **Der genannte Anteil bestimmt aber schon jetzt, WELCHE Stücke gemeint sind** – auch
+    wenn mengenmässig noch nichts geschieht. Sonst greift die Vormerkung in den freien Topf
+    (der dem Erzeuger gehört), und wenn die Freigabe die Mengen anschliessend richtig stellt,
+    haben zwei Aufträge die Stücke getauscht (Testnotiz #553)."""
     want = min(to_qty(qty), to_qty(inst.quantity))
     if want <= 0:
         release(inst, order_id)
         return ZERO
     m = _load(inst)
     m[str(order_id)] = want
-    _write(inst, m)
+    _write(inst, m, taker=order_id, source=from_order_id)
     return want
 
 
@@ -152,7 +163,7 @@ def enforce(inst: Instance, order_id: int, from_order_id: int | None = None) -> 
     if over > 0:                       # so viel war schlicht nicht mehr da
         mine = m.get(mine_key, ZERO) - over
         m[mine_key] = mine if mine > 0 else ZERO
-    _write(inst, m)
+    _write(inst, m, taker=order_id, source=from_order_id)
     return taken
 
 
@@ -172,7 +183,7 @@ def release_all(inst: Instance) -> None:
     _write(inst, {})
 
 
-def take(inst: Instance, qty, *, by_order_id: int | None = None,
+def take(inst: Instance, qty, *, state: str, by_order_id: int | None = None,
          gone: list | None = None) -> Decimal:
     """``qty`` aus der Instanz **herausnehmen** – die EINE Regel für jeden Mengen-Abgang
     (verbaut, verkauft, teilverschrottet). Die Objektnummer bleibt, es entsteht KEINE neue
@@ -202,13 +213,16 @@ def take(inst: Instance, qty, *, by_order_id: int | None = None,
     # über die Unterdeckung sichtbar, nicht über eine stehengebliebene Reservierung).
     cut = min(want, to_qty(inst.quantity))
     # **Welche Stücke gehen weg**, nicht nur wie viel: die Nummern werden endgültig
-    # entwertet (sie kommen nie wieder), bevorzugt beim Entnehmer selbst.
+    # entwertet (sie kommen nie wieder), bevorzugt beim Entnehmer selbst. Sie bleiben dabei
+    # in der Karte stehen und tragen ``state`` als Endzustand – ein Stück verschwindet
+    # nicht, es ändert seinen Zustand (Testnotiz #549).
     from . import units
-    # ``gone`` sammelt die Nummern der entwerteten Stücke – der Aufrufer gibt sie an die
-    # Buchung weiter (``ledger.post(units=…)``), denn danach kennt sie niemand mehr.
-    dropped = units.drop(inst, cut, by_order_id=by_order_id)
+    # ``gone`` sammelt die Nummern der ausgeschiedenen Stücke – der Aufrufer gibt sie an die
+    # Buchung weiter (``ledger.post(units=…)``), damit die Vergangenheit sie behält.
     if gone is not None:
-        gone.extend(int(n.split("-")[1]) for n in dropped if "-" in n)
+        gone.extend(units.drop(inst, cut, state=state, by_order_id=by_order_id))
+    else:
+        units.drop(inst, cut, state=state, by_order_id=by_order_id)
     inst.quantity = to_qty(inst.quantity) - cut
     m = _load(inst)
     if by_order_id is not None:

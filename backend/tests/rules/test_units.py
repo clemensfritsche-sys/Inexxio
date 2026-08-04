@@ -265,3 +265,65 @@ def test_parallel_only_means_at_the_same_time(db, kinds, world):
         for l in e.lots:
             assert len(l.units) == int(l.quantity), (
                 f"Kante: {l.quantity} Stk, aber {len(l.units)} Nummern")
+
+
+def test_a_piece_changes_its_state_it_does_not_vanish(db, kinds, world):
+    """**Testnotiz #549** – ein verschrottetes Stück bleibt sichtbar, es wird nur rot.
+
+    Es aus der Karte zu streichen hiess, dass ein Teil aus dem Nichts verschwindet: das
+    Instanz-Detail zeigte plötzlich ``-2, -3, -4`` und niemand konnte sagen, wo ``-1``
+    geblieben war. Dieselbe Regel, die für die Menge längst gilt (#481) – nur eine Ebene
+    genauer. Für alles Rechnende zählt es trotzdem nicht mehr mit."""
+    from app.services import units
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    dev = _make_deviation(db, main, inst, user, 1, steps=("scrap",))
+    db.refresh(inst)
+    doomed = units.numbers(inst, holder=dev.id)[0]
+    _scrap(db, dev, inst, user, 1)
+    db.refresh(inst)
+
+    shown = {u.number: u for u in units.rows(inst, include_gone=True)}
+    assert doomed in shown, (
+        f"Das verschrottete Stück ist aus der Liste gefallen: {sorted(shown)}")
+    assert shown[doomed].disposition == "scrapped", (
+        "Es steht da – aber mit seinem eigenen Endzustand, nicht mit dem der Instanz.")
+    assert doomed not in {u.number for u in units.rows(inst)}, (
+        "Wer rechnet, sieht es NICHT: die Menge ist gesunken.")
+    assert units.count(inst) == 3 and units.count(inst, include_gone=True) == 4
+    assert units.verify(inst) == [], "Nummern und Mengen dürfen nie auseinanderlaufen."
+
+
+def test_a_named_share_hands_over_its_own_pieces(db, kinds, world):
+    """**Testnotiz #553** – die Stücke folgen dem genannten Anteil, nicht dem freien Topf.
+
+    Kette Hauptauftrag → Abweichung → Abweichung: die zweite nimmt der ERSTEN etwas weg.
+    Vorher griff die Vormerkung in den freien Topf – der aber gehört dem Erzeuger; beim
+    anschliessenden Geradeziehen der Mengen tauschten Hauptauftrag und Enkel-Abweichung
+    ihre Stücke, «aus dem Nichts»."""
+    from app.services import units
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    d1 = _make_deviation(db, main, inst, user, 2)
+    db.refresh(inst)
+    before_main = set(units.numbers(inst, holder=main.id)) | set(units.numbers(inst, holder=None))
+    before_d1 = set(units.numbers(inst, holder=d1.id))
+    assert len(before_d1) == 2 and len(before_main) == 2
+
+    d2 = _make_deviation(db, d1, inst, user, 1)     # genannter Anteil: der von D1
+    db.refresh(inst)
+    after_main = set(units.numbers(inst, holder=main.id)) | set(units.numbers(inst, holder=None))
+    after_d1 = set(units.numbers(inst, holder=d1.id))
+    after_d2 = set(units.numbers(inst, holder=d2.id))
+
+    assert after_main == before_main, (
+        f"Der Hauptauftrag war nicht gemeint und behält seine Stücke: "
+        f"{sorted(before_main)} → {sorted(after_main)}")
+    assert after_d2 <= before_d1, (
+        f"Genommen wird beim GENANNTEN Anteil {sorted(before_d1)}, nicht irgendwo: "
+        f"{sorted(after_d2)}")
+    assert after_d1 | after_d2 == before_d1, (
+        "Was die erste Abweichung hielt, teilen sich jetzt beide – nichts kommt dazu.")
+    assert units.verify(inst) == []

@@ -10,7 +10,7 @@ import { LOCATION_META, locationTypeLabel, instanceLabel, heldOf } from '@/lib/p
 import { formatObjectId, userDisplayName } from '@/lib/utils';
 
 import { ObjId } from '@/components/erp/obj-id';
-import { PlannedNotice, PrimaryButton, IconSwitch } from '@/components/erp/fields';
+import { PrimaryButton, IconSwitch } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
 // Standort-Typ → gültiger ScanKind (Symbol/Icon im Scanner). Unbekannte/veraltete Typen
@@ -217,7 +217,6 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   const planned = stepState !== 'active';
   return (
     <div style={cardStyle}>
-      {planned && <PlannedNotice />}
 
       {/* Versand (ADR 005): abgeleitet aus Ziel/Geofence – Tarifvergleich + Label VOR dem Vollzug */}
       {mv?.shipment && <ShipmentBox order={order} stepId={stepId} shipment={mv.shipment} onOrderUpdated={onOrderUpdated} />}

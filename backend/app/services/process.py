@@ -839,12 +839,15 @@ def sell_order_subjects(db: Session, order: Order) -> None:
         if is_blocked(inst):
             continue
         sold = reserved_for(inst, order.id)
-        take_qty(inst, sold, by_order_id=order.id)   # Menge mindern + eigenen Anspruch lösen
+        gone: list[int] = []
+        # Menge mindern + eigenen Anspruch lösen; die verkauften Stücke behalten ihre
+        # Nummer und tragen ab jetzt «verkauft».
+        take_qty(inst, sold, state="sold", by_order_id=order.id, gone=gone)
         if to_qty(inst.quantity) <= 0:
             inst.disposition = "sold"            # vollständig verkauft
         # Journal (ADR 007): verkauft ist terminal – aus diesem Topf kommt nichts zurück.
         ledger.post(db, inst, sold, kind="sold", holder=order.id, disposition="sold",
-                    src_holder=order.id)
+                    src_holder=order.id, units=gone)
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": sold, "delta": -sold, "polarity": event_types.DECREASE,
                       "order": order.object_id})
@@ -962,9 +965,13 @@ def _restock_one(db: Session, order: Order, inst, cust_oid: int | None,
     inst.disposition = "in_stock"
     inst.quality = "passed"
     inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager
+    # **Die verkauften Stücke kehren mit zurück** – dieselben Nummern, die hinausgingen;
+    # ohne das trüge die Instanz wieder eine Menge, aber kein einziges Stück.
+    from . import units as units_svc
+    restored = units_svc.restore(inst, back, state="sold")
     # Journal (ADR 007): die Retoure holt aus dem terminalen «sold»-Topf zurück – der einzige
     # legitime Weg dorthin zurück, darum ein ausdrücklicher Quell-Zustand.
-    ledger.post(db, inst, back, kind="returned", holder=None,
+    ledger.post(db, inst, back, kind="returned", holder=None, units=restored,
                 quality="passed", disposition="in_stock", src_disposition="sold")
     emit(db, "inventory.increased", object_type="instance", object_id=inst.object_id,
          payload={"quantity": back, "delta": back, "polarity": event_types.INCREASE,

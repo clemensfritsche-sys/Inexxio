@@ -1425,10 +1425,9 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // Prozess?» rechnet der Server, dieselbe Quelle wie das Journal.
                 flowNodes={record.flow_nodes ?? []}
                 flowEdges={record.flow_edges ?? []}
-                // **Die Entscheidung ist ein Gate im Fluss** (Notiz #413), keine Notiz
-                // darunter: eine Raute an der Stelle, an der der Prozess stillsteht – sie
-                // stellt die Frage und trägt danach die Antwort. Die Fehlmenge gehört dem
-                // Auftrag, also gibt es genau ein Gate (#354).
+                // **Die offene Entscheidung steht an ihrer Stelle im Fluss** – als Zeile
+                // wie jede andere Auflösung, nicht als eigenes Gateway-Bauteil (Notiz #551).
+                // Die Fehlmenge gehört dem Auftrag, also wird sie genau einmal gestellt (#354).
                 decision={needsDecision ? {
                   missing: missingText ?? '',
                   canAct: isStaff && record.status === 'released' && !(supplyBusy || recoverBusy),

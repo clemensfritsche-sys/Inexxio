@@ -22,7 +22,24 @@ export const LANE = SIDE + GAP;   // Breite einer Seitenspur inkl. Luft
 export const RUN = MAIN / 2 + GAP + SIDE / 2;   // Achse ↔ Mitte der Seitenspur
 
 export const lineColor = (strong: boolean) => (strong ? 'var(--fg-2)' : 'var(--border-2)');
-export const lineW = (strong: boolean) => (strong ? 3 : 2);
+
+/**
+ * **Die Strichstärke ist GERADE – sonst passt die Ecke nie zur Geraden** (Testnotiz #550).
+ *
+ * Die Achse ist ein ``div``, die Ecke ein SVG-Pfad. Ein Browser **rastert** die Fläche eines
+ * div auf ganze Gerätepixel, einen Pfad zeichnet er analytisch (mit Kantenglättung). Bei
+ * **ungerader** Breite fällt beides auseinander: die Achse liegt mittig in einer Spur gerader
+ * Breite, ihr Kasten beginnt damit auf einer halben Pixelgrenze (bei 3 px: 748.5) und wird
+ * auf 749 gerundet – der Strich der Ecke bleibt bei 748.5 und ragt eine halbe Pixelbreite
+ * nach links heraus. Genau das sah aus, «als ob der Radius über die gerade Linie hinausgeht»,
+ * und zwar systematisch an jeder Gabelung und jeder Einmündung.
+ *
+ * Bei **gerader** Breite ist die Frage gegenstandslos: Kasten und Strich liegen exakt gleich
+ * (bei 4 px beide auf 748…752) – und das unabhängig von der Pixeldichte des Bildschirms. Ein
+ * Ausrichten auf halbe Pixel wäre die Alternative gewesen, würde aber auf Retina-Geräten
+ * genau den Fehler erzeugen, den es auf einfachen behebt.
+ */
+export const lineW = (strong: boolean) => (strong ? 4 : 2);
 
 /**
  * **Ecken greifen in die Achse hinein.** Zwei getrennt gezeichnete Elemente treffen sich
