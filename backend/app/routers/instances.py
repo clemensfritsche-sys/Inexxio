@@ -14,8 +14,9 @@ from ..schemas.instance import (
     InstanceResponse,
     LocationHop,
 )
-from ..services import location_split, scrap as scrap_svc
+from ..services import location_split
 from ..services import shares, units
+from ..services.inventory import ready_qty
 from ..services.locations import location_chain, location_labels, physical_location_labels
 from ..services.references import instance_orders
 
@@ -90,6 +91,11 @@ def denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
         # da ist, liest die Menge – wer die Stücke liest, will die ganze Geschichte.
         resp.units = units.rows(r, names=share_orders, include_gone=True, db=db)
         resp.unit_count = units.count(r, include_gone=True)
+        # **Verfügbarkeit ist eine MENGE** (Testnotiz #647) – und sie kommt aus derselben
+        # Ableitung, mit der FIFO zugreift (``inventory.ready_qty``). Ohne sie rechnet die
+        # Oberfläche mit den Skalaren des Datensatzes, und die beantworten eine andere
+        # Frage: «ist hier etwas frei?» statt «wie viel?».
+        resp.available_quantity = float(ready_qty(r))
         resp.article_name = arts_name.get(r.article_id)
         resp.article_object_id = arts_oid.get(r.article_id)
         resp.article_unit = arts_unit.get(r.article_id)

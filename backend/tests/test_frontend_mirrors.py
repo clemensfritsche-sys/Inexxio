@@ -211,6 +211,39 @@ def test_an_order_is_created_at_exactly_one_place():
         assert "onCreateOrder" in src, f"{name} braucht den Weg ins Anlage-Fenster."
 
 
+def test_availability_is_a_quantity_from_one_source():
+    """**Was verfügbar ist, sagt EINE Ableitung – und die Oberfläche baut sie nicht nach**
+    (Testnotiz #647).
+
+    Der gemeldete Fall: ein Auftrag über 4 Stück «Ab Lager» meldete «nur 0 Stk am Lager»,
+    während der Bestand-Reiter desselben Artikels voll war. Zwei Ursachen, dieselbe Art –
+    *über Datensätze geredet, wo Mengen gemeint waren*:
+
+    * Der Pool war **gekappt**: `getInstances(500)` liest den GLOBALEN Feed (neueste zuerst)
+      über alle Artikel. Liegt der Bestand des Artikels weiter hinten, ist er schlicht nicht
+      dabei. Richtig ist derselbe Endpunkt, den der Bestand-Reiter liest – je Artikel.
+    * «Frei» war ein **Zustand des Datensatzes** (`quality`/`disposition` + der
+      denormalisierte Reservierungs-Zeiger). Eine Charge à 500 mit EINEM reservierten Stück
+      galt damit als vollständig belegt.
+
+    Beides ist eine Frage an die MENGE, und die beantwortet `inventory.ready_qty` – dieselbe
+    Zahl, mit der die Allokation zugreift (`InstanceResponse.available_quantity`)."""
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
+    assert "getArticleInstances(" in detail, (
+        "Der Auswahl-Pool kommt je ARTIKEL – nicht aus dem globalen Instanz-Feed.")
+    assert "api.getInstances(" not in detail, (
+        "Kein gekappter Gesamt-Feed als Bestands-Quelle (#647): was weiter hinten liegt, "
+        "wäre unsichtbar, und die Oberfläche meldete «nichts da».")
+    assert "available_quantity" in detail, (
+        "Die Verfügbarkeit kommt aus der EINEN Ableitung des Backends (ready_qty).")
+    # Und sie wird NICHT aus den Skalaren des Datensatzes nachgebaut.
+    for scalar in ("quality === 'passed'", "disposition === 'in_stock'",
+                   "reserved_for_order_object_id"):
+        assert scalar not in detail, (
+            f"«{scalar}» beantwortet «ist hier etwas frei?», nicht «wie viel?» – "
+            "die Menge steht in available_quantity (#647).")
+
+
 def test_the_picker_offers_shares_not_instances():
     """**Die Auswahl zeigt Anteile, nicht Instanzen.**
 

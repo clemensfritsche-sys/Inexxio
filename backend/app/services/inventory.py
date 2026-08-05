@@ -223,3 +223,29 @@ def available(db: Session, article_db_id: int, for_order_id: int | None = None) 
     """Verfügbare (allozierbare) Menge eines Artikels: freie Restmenge plus – mit
     ``for_order_id`` – die für diesen Auftrag bereits reservierte Menge."""
     return available_qty(fifo_candidates(db, article_db_id, for_order_id), for_order_id)
+
+
+def free_by_article(db: Session, article_ids: list[int] | None = None) -> dict[int, Decimal]:
+    """**Freier Bestand je Artikel – dieselbe Regel wie ``available``, nur für viele auf
+    einmal** (Testnotiz #647).
+
+    Gebraucht dort, wo mehrere Artikel nebeneinander stehen (KI-Werkzeug «Bestand»). Vorher
+    stand dafür ein SQL-Aggregat ``sum(quantity − reserved_quantity)`` – dieselbe Frage,
+    andere Antwort: seit der Zustand einer Instanz die **Projektion über ihre Stücke** ist
+    (#604), kann eine Charge «am Lager» stehen und trotzdem Stücke enthalten, die noch im
+    Prozess oder gesperrt sind. Das Aggregat zählte sie als frei, die Allokation nimmt sie
+    nicht – zwei Zahlen für «wie viel ist da».
+
+    EINE Abfrage (kein N+1): die Kandidaten aller Artikel auf einmal, dann je Instanz
+    ``ready_qty``. ``article_ids=None`` = alle."""
+    q = db.query(Instance).filter(Instance.is_active == True, *in_stock_clauses())  # noqa: E712
+    if article_ids is not None:
+        if not article_ids:
+            return {}
+        q = q.filter(Instance.article_id.in_(article_ids))
+    out: dict[int, Decimal] = {}
+    for inst in q.all():
+        got = ready_qty(inst)
+        if got > 0:
+            out[inst.article_id] = out.get(inst.article_id, ZERO) + got
+    return out

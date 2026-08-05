@@ -108,6 +108,13 @@ class InstanceResponse(BaseModel):
 
     reserved_for_order_id: Optional[int] = None
     reserved_quantity: float = 0   # mengengenau reservierte Menge (0 = frei)
+    # **Was hier entnehmbar ist – die EINE Zahl** (``inventory.ready_qty``, Testnotiz #647):
+    # frei UND freigegeben UND nicht gesperrt, **je Stück** gezählt. Genau das, was die
+    # FIFO-Allokation nehmen könnte. Sie steht hier, weil eine Oberfläche sie sonst aus den
+    # Skalaren nachbaut («quality==passed && disposition==in_stock && nicht reserviert») –
+    # und das ist eine Aussage über den **Datensatz**, nicht über die Menge: eine Charge à
+    # 500, von der EIN Stück reserviert ist, galt damit als vollständig belegt.
+    available_quantity: float = 0
     # **Die Stücke dieser Instanz mit ihren eigenen Nummern** (``services/units.py``):
     # eine Charge über 4 trägt 100000101-1 … -4. Gekappt, ``unit_count`` nennt die Zahl.
     units: list[InstanceUnit] = []
