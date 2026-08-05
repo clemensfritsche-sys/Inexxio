@@ -5,7 +5,7 @@ import type { ReactNode, ElementType } from 'react';
 import {
   Boxes, FileText,
   ClipboardList, ChevronRight, QrCode, TriangleAlert, ClipboardPlus,
-  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Hash, FolderOpen, LockOpen,
+  ArrowDownWideNarrow, ArrowUpWideNarrow, Hash, FolderOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceOrderRef, ObjectDocument, CompanySettings, DocumentContent } from '@/types';
@@ -96,19 +96,6 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
   // Jede Aktion an dieser Instanz läuft über einen **Auftrag** – auch die Abweichung. Den
   // legt der Shortcut unten an, mit dieser Instanz vorgewählt (Notiz #371).
 
-  const [unblockBusy, setUnblockBusy] = useState(false);
-  async function unblockInstance() {
-    if (inst.object_id == null || unblockBusy) return;
-    setUnblockBusy(true);
-    setDevErr(null);
-    try {
-      await api.unblockInstance(inst.object_id);
-      onChanged?.();
-    } catch (e) {
-      setDevErr(e instanceof Error ? e.message : 'Sperre konnte nicht aufgehoben werden');
-    } finally { setUnblockBusy(false); }
-  }
-
   // **EIN Shortcut, kein Sonderweg** (Testnotiz #371): der Knopf legt einen ganz
   // gewöhnlichen Auftrag an und trägt diese Instanz **vor** – als Eingabehilfe, nicht als
   // Fixierung. Alles Weitere (Artikel, Menge, weitere Instanzen, Ablauf) definiert man dort
@@ -171,21 +158,11 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
             onClick={createOrderShortcut}>
             <ClipboardPlus size={15} />
           </button>
-          {/* Sperre aufheben – nur wenn gesperrt. Bewusst eine Aktion an der Instanz
-              (kein Prozessschritt): eine Maschine kommt aus der Wartung zurück, ohne
-              dass jemand dafür einen Auftrag anlegen will. */}
-          {inst.quality === 'blocked' && (
-            <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
-              data-tip="Sperre aufheben – die Instanz ist danach wieder verwendbar"
-              aria-label="Sperre aufheben" disabled={unblockBusy}
-              onClick={unblockInstance}>
-              {unblockBusy ? <Loader2 size={15} className="animate-spin" /> : <LockOpen size={15} />}
-            </button>
-          )}
-          {/* **Kein zweiter Knopf «Abweichung melden»** (Notiz #371): eine Abweichung ist ein
-              ganz gewöhnlicher Auftrag auf eine gebundene Instanz – und genau den legt der
-              Knopf darüber an. Was daraus wird, sagt der Zustand der Instanz, nicht der
-              Einstieg. */}
+          {/* **Ein Knopf, kein zweiter daneben.** Weder «Abweichung melden» (Notiz #371)
+              noch «Sperre aufheben» (Notiz #646): beides ist ein ganz gewöhnlicher Auftrag
+              auf diese Instanz – und was daraus wird, sagt ihr Zustand, nicht der Einstieg.
+              Ein gesperrtes Stück wird wieder verwendbar, wenn ein Auftrag es hält und
+              erfolgreich durchläuft; sein Abschluss gibt frei, was er hält. */}
         </>}
         tabs={<DetailTabs<InstTab> active={tab} onChange={setTab} tabs={[
           { key: 'spec', label: 'Spezifikation', icon: FileText },

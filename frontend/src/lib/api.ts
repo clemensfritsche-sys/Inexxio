@@ -628,14 +628,11 @@ class ApiClient {
   }
 
   // Schritt «Verschrotten»: gewählte Instanzen ausschleusen (disposition='scrapped')
-  /** Sperren: gleiche Auswahl-Form wie das Verschrotten, aber umkehrbar. */
+  /** Sperren: gleiche Auswahl-Form wie das Verschrotten, aber umkehrbar – und aufgehoben
+   *  wird sie nirgends ausdrücklich: ein Auftrag hält das Stück, läuft durch und gibt es
+   *  beim Abschluss frei (Testnotiz #646). */
   updateOrderBlock(objectId: number, data: ScrapUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/block`, data);
-  }
-
-  /** Sperre einer Instanz aufheben (Aktion an der Instanz, kein Prozessschritt). */
-  unblockInstance(objectId: number): Promise<Instance> {
-    return this.post(`/api/v1/erp/instances/${objectId}/unblock`, {});
   }
 
   updateOrderScrap(objectId: number, data: ScrapUpdateInput): Promise<Order> {

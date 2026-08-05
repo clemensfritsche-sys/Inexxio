@@ -174,7 +174,7 @@ def give_back(db: Session, sub: Order, parent: Order, inst: Instance,
     Anspruch vollständig zurück» (Verwerfen-Tür: die Auswahl wird zurückgenommen).
     Liefert die zurückgegebene Menge. Committet NICHT."""
     from . import ledger, units as U
-    from .reservation import release as release_reservation, reserve
+    from .reservation import claim, release as release_reservation, reserve
     held = reserved_for(inst, sub.id)
     if held <= 0 or (inst.disposition or "") in TERMINAL_DISPOSITIONS:
         return ZERO
@@ -183,22 +183,35 @@ def give_back(db: Session, sub: Order, parent: Order, inst: Instance,
         # abgebrochen und bekommt nichts mehr. Das Material bleibt hier und wird beim
         # Abschluss frei – zurückzubuchen hiesse, den Abbruch zu widerrufen.
         return ZERO
-    # **Welche Stücke zurückgehen – JETZT festhalten** (Testnotizen #543/#544): gleich hat
-    # der Unter-Auftrag seinen Anspruch abgegeben, dann weiss es niemand mehr. Die Nummern
-    # gehören in die Buchung, sonst zeigt die Vergangenheit später alles, was der Empfänger
-    # gerade hält.
-    moved = [u.index for u in U.of(inst, holder=sub.id)]
-    release_reservation(inst, sub.id)      # die Bindung des Unter-Auftrags endet hier
-    if inst.order_id != parent.id:
-        gap = held if need is None else need.get(inst.article_id, ZERO)
-        take = min(held, gap)
-        if take > 0:
-            reserve(inst, parent.id, take)
-            if need is not None:
-                need[inst.article_id] = gap - take
-    ledger.post(db, inst, held, kind="returned", holder=parent.id, src_holder=sub.id,
+    # **Zurück geht, was geliehen war – nicht mehr.** Beim **Erzeuger** ist das alles (er
+    # hält über ``Instance.order_id``, ohne Anspruch); sonst so viel, wie ihm noch fehlt.
+    # Was darüber hinaus in der Hand des Unter-Auftrags liegt, hat er sich selbst geholt
+    # (freier Bestand) – das bleibt bei ihm, bis er abschliesst. Vorher gab er auch diesen
+    # Rest hier ab: er wurde damit frei, BEVOR ``release_instances`` ihn sehen konnte – und
+    # ein **gesperrtes** Stück blieb so gesperrt, obwohl der Auftrag es nachgearbeitet hatte
+    # (Testnotiz #646). Am Ende ist es dasselbe (der Abschluss löst ohnehin jeden Anspruch),
+    # nur eben nach der Freigabe statt davor.
+    to_creator = inst.order_id == parent.id
+    gap = held if need is None else need.get(inst.article_id, ZERO)
+    back = held if to_creator else min(held, gap)
+    if back <= 0:
+        return ZERO
+    # **Welche Stücke zurückgehen** (Testnotizen #543/#544): der Unterschied vorher/nachher.
+    # Die Nummern gehören in die Buchung, sonst zeigt die Vergangenheit später alles, was
+    # der Empfänger gerade hält.
+    before = {u.index for u in U.of(inst, holder=sub.id)}
+    if back >= held:
+        release_reservation(inst, sub.id)  # die Bindung des Unter-Auftrags endet hier
+    else:
+        claim(inst, sub.id, held - back)   # nur das Geliehene abgeben
+    if not to_creator:
+        reserve(inst, parent.id, back)
+        if need is not None:
+            need[inst.article_id] = gap - back
+    moved = sorted(before - {u.index for u in U.of(inst, holder=sub.id)})
+    ledger.post(db, inst, back, kind="returned", holder=parent.id, src_holder=sub.id,
                 units=moved)
-    return held
+    return back
 
 
 def return_borrowed(db: Session, sub: Order) -> None:
@@ -328,7 +341,7 @@ def is_bound(order: Order, inst, want=None, source_id: int | None = None) -> boo
     """Ist dieses Stück **gebunden** – also für diesen Auftrag nicht frei verfügbar?
 
     Gebunden heisst: nicht (mehr) frei am Lager (in Arbeit, verbaut, gesperrt) ODER die
-    freie Menge deckt **die gewünschte Menge** nicht. Was dieser Auftrag selbst reserviert
+    **entnehmbare** Menge deckt die gewünschte nicht. Was dieser Auftrag selbst reserviert
     hat, zählt als frei – er greift ja auf sein eigenes zu.
 
     **Wer den Anteil eines anderen Auftrags nennt, greift Gebundenes an** – unabhängig
@@ -345,15 +358,22 @@ def is_bound(order: Order, inst, want=None, source_id: int | None = None) -> boo
     EINE Stelle, zwei Nutzer: sie entscheidet, ob eine Auswahl eine Abweichung ist
     (``classify_pick``), und sie verhindert, dass freie und gebundene Stücke im selben
     Auftrag landen (``routers/orders``). Rein (schreibt nicht)."""
-    from .inventory import is_in_stock
+    from .inventory import is_in_stock, ready_qty
     from .quantity import to_qty
-    from .reservation import free_qty, reserved_for
+    from .reservation import reserved_for
     if source_id is not None and source_id != order.id:
         return True
     if not is_in_stock(inst):
         return True
     need = to_qty(inst.quantity) if want is None else to_qty(want)
-    return free_qty(inst) + reserved_for(inst, order.id) < need
+    # **Dieselbe Frage, die auch FIFO stellt**: was könnte ein gewöhnlicher Bedarf hier
+    # bekommen? Entnehmbar (``ready_qty``) heisst frei UND freigegeben UND nicht gesperrt –
+    # je Stück gezählt. Vorher stand hier ``free_qty`` («wem gehört nichts»), und das ist
+    # eine Aussage über Eigentum, nicht über Verwendbarkeit: ein **gesperrtes** Stück gehört
+    # niemandem, also galt es als frei, und eine Charge mit einem gesperrten Stück liess
+    # sich als gewöhnlicher Bedarf greifen (Testnotiz #646). Der Skalar fing nur den Fall,
+    # dass die GANZE Instanz gesperrt ist – seit die Sperre am Stück hängt, zu wenig.
+    return ready_qty(inst) + reserved_for(inst, order.id) < need
 
 
 def holding_orders(db: Session, inst, exclude_id: int | None = None) -> list[Order]:
@@ -551,9 +571,11 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
     Unter-Auftrag hat sie in der Hand, also darf sie kein anderer Auftrag per FIFO wegnehmen.
     Ohne das war eine Instanz unter offener Abweichung für jeden anderen Auftrag frei
     verfügbar – und die Badge zeigte «Freigegeben», obwohl sie längst gebunden war. Nicht am
-    Lager (in Arbeit, verkauft, gesperrt) → nichts zu reservieren, dort greift ohnehin kein
-    FIFO. Beim Abschluss/Verwerfen löst ``release`` die Reservierung wieder."""
-    from .inventory import is_in_stock
+    Lager (in Arbeit, verkauft) → nichts zu reservieren, dort greift ohnehin kein FIFO.
+    **Ein gesperrtes Stück liegt sehr wohl am Lager** (Testnotiz #646): wer es zur
+    Nacharbeit hereinholt, hält es – nur so kann sein Abschluss es wieder freigeben.
+    Beim Abschluss/Verwerfen löst ``release`` die Reservierung wieder."""
+    from .inventory import lies_at_stock
     from .reservation import enforce, reserve, reserved_for
     bound = chosen_subjects(db, order)
     if not bound:
@@ -561,7 +583,7 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
     for inst in bound:
         # Steht der Anspruch schon (beim Auswählen/Melden gesetzt, ggf. als Teilmenge),
         # bleibt er wie er ist – sonst gilt die ganze Instanz.
-        if is_in_stock(inst) and reserved_for(inst, order.id) <= 0:
+        if lies_at_stock(inst) and reserved_for(inst, order.id) <= 0:
             reserve(inst, order.id, to_qty(inst.quantity))
         # **Und JETZT wird er scharf** (Testnotiz #370): bis zur Freigabe war es eine
         # Vormerkung, die niemandem etwas wegnahm. Hier setzt sie sich durch – wer dadurch

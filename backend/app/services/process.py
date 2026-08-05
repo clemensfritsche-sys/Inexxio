@@ -569,26 +569,6 @@ def _subject_targets(db: Session, order: Order) -> dict[int, Decimal]:
     return targets
 
 
-def _self_blocked_amounts(db: Session, order: Order) -> dict[int, Decimal]:
-    """**Was dieser Auftrag selbst gesperrt hat** – je Instanz, aus dem Journal (ADR 007).
-
-    Der Unterschied, auf den es ankommt: ein Stück, das die eigene Datenerfassung hat
-    durchfallen lassen, deckt sein Soll nicht – ein Stück, das er zur **Nacharbeit** herein-
-    geholt hat, ist dagegen genau sein Gegenstand. Beide sind «gesperrt und gehalten»; wer
-    die Sperre gesetzt hat, steht nur in der Buchung."""
-    from ..models import MaterialMove
-    if not order.id:
-        return {}
-    out: dict[int, Decimal] = {}
-    for m in (db.query(MaterialMove)
-              .filter(MaterialMove.src_order_id == order.id,
-                      MaterialMove.kind.in_(("blocked", "unblocked"))).all()):
-        sign = ONE if m.kind == "blocked" else -ONE
-        oid = m.instance_object_id
-        out[oid] = out.get(oid, ZERO) + sign * to_qty(m.quantity)
-    return {k: v for k, v in out.items() if v > 0}
-
-
 def _secured_amounts(db: Session, order: Order) -> dict[int, Decimal]:
     """**Gesichert** je Artikel – gute Einheiten, die der Auftrag bereits hat. Drei Quellen:
     für ihn **reservierte** Bestands-Instanzen, **selbst erzeugte** gute Instanzen und was er
@@ -598,7 +578,6 @@ def _secured_amounts(db: Session, order: Order) -> dict[int, Decimal]:
     # **Was in Klärung steckt, zählt mengengenau** – nicht als ganze Instanz: eine
     # Abweichung an EINER Schraube einer 500er-Charge nimmt dem Auftrag genau eine.
     in_clarification = deviated_quantities(db, order)
-    self_blocked = _self_blocked_amounts(db, order)
     for inst in db.query(Instance).filter(
         Instance.reservations.has_key(str(order.id)), Instance.is_active == True  # noqa: W601
     ).all():
@@ -607,17 +586,16 @@ def _secured_amounts(db: Session, order: Order) -> dict[int, Decimal]:
         # scheinbar weiter, der Schritt blockierte nie und der Verkauf hätte still eine
         # durchgefallene Einheit unterschlagen (sell_order_subjects überspringt failed).
         # Der Anspruch selbst ist schon gekürzt, wenn eine Abweichung ihn übernommen hat
-        # (``reservation.claim``) – hier bleibt abzuziehen, was der Auftrag **selbst
-        # gesperrt** hat: ein Durchfaller seiner eigenen Datenerfassung deckt sein Soll
-        # nicht, sonst versendete er still eine schlechte Einheit.
+        # (``reservation.claim``) – hier bleibt abzuziehen, was **gesperrt** ist: es deckt
+        # kein Soll, sonst versendete der Auftrag still eine schlechte Einheit.
         #
-        # **Aber nur, was ER gesperrt hat** (Testnotiz #646): holt ein Auftrag ein bereits
-        # gesperrtes Stück zur Nacharbeit herein, IST es sein Subjekt – zöge man es hier ab,
-        # meldete ausgerechnet der Auftrag, der die Sperre lösen soll, eine Fehlmenge und
-        # käme nie zum ersten Schritt. Wer gesperrt hat, weiss das Journal (ADR 007).
-        own = min(units.blocked_quantity(inst, holder=order.id),
-                  self_blocked.get(inst.object_id, ZERO))
-        usable = reserved_for(inst, order.id) - own
+        # **Ohne Ausnahme, und ohne zu fragen, WER gesperrt hat** (Testnotiz #646): ein
+        # Auftrag, der ein gesperrtes Stück zur **Nacharbeit** hereinholt, ist durch seine
+        # Auswahl ohnehin ein Auftrag mit festem Subjekt (``subject.is_bound`` – gesperrt
+        # ist nicht frei), und für den zählt gar nicht «gesichert», sondern «hält er es
+        # noch?» (``_held_amounts``). Die Fallunterscheidung nach der Herkunft der Sperre
+        # ist damit überflüssig; es bleibt EINE Regel je Auftragsart.
+        usable = reserved_for(inst, order.id) - units.blocked_quantity(inst, holder=order.id)
         if usable <= 0:
             continue
         secured[inst.article_id] = secured.get(inst.article_id, ZERO) + usable
@@ -827,6 +805,11 @@ def release_instances(db: Session, order: Order) -> None:
       damit fertig, und es geht ans Lager.
     * Ein **Erzeugungsauftrag** hält seine Instanz über ``Instance.order_id`` und gibt sie
       am Ende komplett frei – wie bisher.
+    * Ein **gesperrtes** Stück, das dieser Auftrag hält, ist nicht am Ziel – also gibt er es
+      frei, und damit endet die Sperre (Testnotiz #646). Das ist der EINE Weg zurück: einen
+      Auftrag anlegen, das gesperrte Stück auswählen, ihn durchlaufen lassen. Kein Knopf an
+      der Instanz, keine Sonderrolle für die Datenerfassung – dieselbe Regel wie für jedes
+      andere Stück.
     * Läuft daneben noch ein anderer Auftrag mit einem Anteil derselben Charge, bleibt
       dessen Anteil unberührt: er gehört ihm, nicht diesem hier (Notiz #262).
 
@@ -862,7 +845,7 @@ def release_instances(db: Session, order: Order) -> None:
         # noch etwas in der Hand hat, ist damit fertig. Ein gekappter Abzweig behält sein
         # Stück und gibt es frei, eine gewöhnliche Abweichung hält nichts mehr und gibt
         # nichts frei – ohne dass es dafür eine zweite Regel bräuchte.
-        mine = [u.index for u in units_svc.owned_by(inst, order.id, db) if not u.released]
+        mine = [u.index for u in units_svc.owned_by(inst, order.id, db) if not u.done]
         if not mine:
             continue
         freed = units_svc.mark_released(inst, mine)

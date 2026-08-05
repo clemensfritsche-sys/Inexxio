@@ -4330,54 +4330,6 @@
         }
       }
     },
-    "/api/v1/erp/instances/{object_id}/unblock": {
-      "post": {
-        "tags": [
-          "instances"
-        ],
-        "summary": "Unblock Instance",
-        "description": "Sperre aufheben – das Gegenstück zum Schritt «Sperren».\n\nBewusst eine **Aktion an der Instanz**, kein Prozessschritt: eine Maschine kommt aus\nder Wartung zurück, ohne dass jemand dafür einen Auftrag anlegen möchte. Der Zustand\ndanach ist abgeleitet – schon einmal freigegeben → wieder freigegeben, sonst zurück\nin die Prüfung.",
-        "operationId": "unblock_instance_api_v1_erp_instances__object_id__unblock_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InstanceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/instances/{object_id}/orders": {
       "get": {
         "tags": [

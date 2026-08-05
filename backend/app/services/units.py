@@ -111,6 +111,17 @@ class Unit(NamedTuple):
     def gone(self) -> bool:
         return self.state is not None
 
+    @property
+    def done(self) -> bool:
+        """**Ist dieses Stück am Ziel?** – freigegeben UND verwendbar.
+
+        Eine Sperre ist genau die Aussage «noch nicht am Ziel»: das Stück ist da, aber
+        niemand darf es verwenden. Darum ist ein gesperrtes Stück nie fertig – auch wenn
+        es schon einmal freigegeben war. Genau daran hängt der EINE Weg aus einer Sperre
+        heraus: der Auftrag, der es hält, gibt beim Abschluss frei, was **nicht am Ziel**
+        ist (``process.release_instances``)."""
+        return self.released and not self.blocked
+
 
 # ─── Die FIFO-Zeit ────────────────────────────────────────────────────────────
 
@@ -365,6 +376,13 @@ def mark_released(inst: Instance, indices, at: datetime | None = None) -> Decima
     ungenauer als vorher – eine teilweise freigegebene Charge ist wie bisher noch nicht
     entnehmbar, sie sagt es jetzt bloss ehrlich.
 
+    **Und eine Sperre endet hier** (Testnotiz #646): «freigegeben» und «gesperrt» sind
+    dieselbe Frage mit entgegengesetzter Antwort – *darf man das verwenden?*. Wer ein
+    gesperrtes Stück durch einen Auftrag bringt und diesen abschliesst, hat es
+    nachgearbeitet, geprüft, in Ordnung gebracht: es ist am Ziel. Damit gibt es genau EINEN
+    Weg aus einer Sperre heraus, und es ist derselbe, der jedes andere Stück gut macht –
+    kein zweiter Knopf, keine Sonderregel, keine Reihenfolge, die man kennen muss.
+
     Liefert die freigegebene Menge."""
     want = {int(i) for i in indices}
     if not want:
@@ -373,7 +391,10 @@ def mark_released(inst: Instance, indices, at: datetime | None = None) -> Decima
     stamp = _stamp(at)
     out: list[dict] = []
     for run in runs:
-        if run.get("x") or run.get("s"):
+        # Schon am Ziel (freigegeben und nicht gesperrt) → nichts zu tun. Ein **gesperrtes**
+        # Stück ist es nicht, auch wenn es sein ``s`` schon trägt (der Sperr-Schritt legt es
+        # ans Lager) – genau darüber kommt es hier wieder heraus.
+        if run.get("x") or (run.get("s") and not run.get("l")):
             out.append(run)
             continue
         q = to_qty(run.get("q", 1))
@@ -385,6 +406,7 @@ def mark_released(inst: Instance, indices, at: datetime | None = None) -> Decima
                 # angefasst (auch eine Retoure setzt sie nicht zurück).
                 piece["s"] = 1
                 piece.setdefault("t", stamp)
+                piece.pop("l", None)          # am Ziel ⇒ nicht mehr gesperrt
                 freed = qty_sum([freed, q * (b - a + 1)])
             out.append(piece)
     _write(inst, out, _next(inst))
@@ -416,6 +438,9 @@ def mark_blocked(inst: Instance, indices, at: datetime | None = None, *,
       im Prozess, es ist nur nicht mehr verwendbar. Es «am Lager» zu nennen wäre gelogen –
       geklärt wird es über den Folgeauftrag.
 
+    Aufgehoben wird eine Sperre **nirgends ausdrücklich**: ein Auftrag, der das Stück hält
+    und abschliesst, gibt es frei (``mark_released``) – und freigegeben heisst verwendbar.
+
     Liefert die gesperrte Menge."""
     want = {int(i) for i in indices}
     if not want:
@@ -442,36 +467,6 @@ def mark_blocked(inst: Instance, indices, at: datetime | None = None, *,
     _write(inst, out, _next(inst))
     sync_state(inst)
     return hit
-
-
-def clear_block(inst: Instance, indices=None) -> Decimal:
-    """Die Sperre aufheben – für die genannten Stücke, ohne Angabe für **alle**.
-
-    Zwei Wege führen hierher, und beide sind ausdrücklich: die Aktion an der Instanz
-    («Maschine kommt aus der Wartung») und eine bestandene Datenerfassung («Nacharbeit
-    geprüft»). Ein blosser Auftrags-Abschluss hebt eine Sperre NICHT auf – sonst würde ein
-    durchgefallenes Teil still wieder gut, weil irgendein Auftrag fertig wurde."""
-    want = {int(i) for i in indices} if indices is not None else None
-    out: list[dict] = []
-    freed = ZERO
-    for run in _runs(inst):
-        if not run.get("l"):
-            out.append(run)
-            continue
-        q = to_qty(run.get("q", 1))
-        if want is None:
-            out.append({k: v for k, v in run.items() if k != "l"})
-            freed = qty_sum([freed, q * (int(run["b"]) - int(run["a"]) + 1)])
-            continue
-        for a, b, sel in _slice(int(run["a"]), int(run["b"]), want):
-            piece = {**run, "a": a, "b": b}
-            if sel:
-                piece.pop("l", None)
-                freed = qty_sum([freed, q * (b - a + 1)])
-            out.append(piece)
-    _write(inst, out, _next(inst))
-    sync_state(inst)
-    return freed
 
 
 def blocked_units(inst: Instance, *, holder: int | None = ...) -> list[int]:
@@ -809,7 +804,13 @@ def _assign(inst: Instance, order_id: int, qty, *, source: int | None = None) ->
     if want <= 0:
         return ZERO
     runs, moved = _runs(inst), ZERO
+    # **Gesperrtes zuletzt** (Testnotiz #646): wer sich zwei von vier Stück holt, will die
+    # verwendbaren – das gesperrte bekommt er nur, wenn er nach der ganzen Menge greift, und
+    # genau dann ist seine Auswahl ohnehin eine Abweichung (``subject.is_bound``). Ohne die
+    # Reihenfolge entschiede die Nummerierung darüber, ob ein gewöhnlicher Bedarf ein
+    # gesperrtes Stück erwischt.
     ranks = ([lambda r: r.get("o") == source] if source is not None else []) + [
+        lambda r: r.get("o") is None and not r.get("l"),
         lambda r: r.get("o") is None,
         lambda r: r.get("o") not in (None, order_id)]
     for accept in ranks:

@@ -7,8 +7,13 @@ unterscheiden sich aber in der **Achse**, auf der sie wirken – und damit in de
 * **Verschrotten** wirkt auf ``disposition`` → ``scrapped``: endgültig, die Instanz verliert
   ihren Standort (ein Standort ist immer ein realer Halter, den Ausschuss nicht mehr hat).
 * **Sperren** wirkt auf ``quality`` → ``blocked``: vorübergehend, der Standort bleibt. Eine
-  defekte Maschine steht weiter da, wo sie steht – sie darf nur nicht verwendet werden. Die
-  Sperre ist an der Instanz wieder aufhebbar (``unblock``).
+  defekte Maschine steht weiter da, wo sie steht – sie darf nur nicht verwendet werden.
+
+**Aufgehoben wird eine Sperre nicht hier, und nirgends ausdrücklich** (Testnotiz #646): man
+legt einen ganz gewöhnlichen Auftrag an, wählt das gesperrte Stück aus und lässt ihn
+durchlaufen – sein Abschluss gibt frei, was er hält (``process.release_instances``), und
+freigegeben heisst verwendbar. Eine eigene Aktion daneben wäre ein zweiter Weg zu demselben
+Ergebnis; welcher gilt, hinge dann an der Reihenfolge.
 
 Warum die Qualitäts-Achse: sie beantwortet «darf man das verwenden?», genau die Frage einer
 Sperre. ``disposition`` beantwortet «wo ist es» – und daran ändert eine Sperre nichts. Weil
@@ -174,15 +179,6 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
 
 # ─── Sperren (reversibel) ────────────────────────────────────────────────────────
 
-def _restore_quality(inst) -> str:
-    """Zustand nach dem Entsperren: war die Instanz schon einmal freigegeben
-    (``released_at`` gesetzt), ist sie es wieder – sonst zurück in die Prüfung.
-
-    Bewusst **abgeleitet** statt gemerkt: einen «Zustand vor der Sperre» zu speichern
-    wäre ein verstecktes drittes Feld, das mit der Wirklichkeit auseinanderlaufen kann."""
-    return "passed" if getattr(inst, "released_at", None) else "pending"
-
-
 def record_block(db: Session, order: Order, data, actor_id: int) -> Disposal:
     """Die gewählten Stücke **sperren** + den Schritt abschliessen.
 
@@ -251,27 +247,3 @@ def record_block(db: Session, order: Order, data, actor_id: int) -> Disposal:
     db.commit()
     db.refresh(disp)
     return disp
-
-
-def unblock(db: Session, inst, actor_id: int):
-    """Sperre einer Instanz aufheben (z. B. Maschine nach der Wartung wieder freigeben).
-
-    Hebt die Sperre **aller** gesperrten Stücke auf; der Zustand danach ist abgeleitet
-    (``units.project``): schon einmal freigegeben → wieder am Lager, sonst zurück in die
-    Prüfung."""
-    gone = units_svc.blocked_units(inst)
-    if not gone and not inventory.is_blocked(inst):
-        raise HTTPException(409, detail="Diese Instanz ist nicht gesperrt")
-    qty = units_svc.clear_block(inst) or to_qty(inst.quantity)
-    if not gone:                     # Altbestand ohne Stück-Marken: nur der Skalar
-        inst.quality = _restore_quality(inst)
-    # Journal (ADR 007): Entsperren – dieselbe Menge, derselbe Halter, Qualität abgeleitet.
-    ledger.post(db, inst, qty, kind="unblocked",
-                holder=ledger.KEEP, quality=inst.quality, units=gone, actor_id=actor_id)
-    log_audit(db, "instances", "quality", inst.quality, actor_id,
-              object_id=inst.object_id, old_value=inventory.BLOCKED)
-    emit(db, "instance.unblocked", object_type="instance", object_id=inst.object_id,
-         payload={"quality": inst.quality}, actor_id=actor_id)
-    db.commit()
-    db.refresh(inst)
-    return inst

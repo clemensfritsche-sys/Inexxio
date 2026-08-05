@@ -2860,11 +2860,15 @@ def test_failed_inspection_is_not_terminal():
     # Nicht mehr nur beim Nichtbestehen bewerten …
     assert 'if decision != "passed":\n        _apply_per_instance_qc' not in src
     assert "_apply_per_instance_qc(db, order, fields, stored)" in src
-    # … und die Sperre ist rücknehmbar, nie eine vorzeitige Freigabe. Sie steht seit
-    # Testnotiz #646 am **Stück** (``units.clear_block``); der Instanz-Skalar ist die
+    # … und die Sperre steht am **Stück** (Testnotiz #646); der Instanz-Skalar ist die
     # Projektion darüber (``units.project``), niemand setzt ihn hier von Hand.
-    assert "units_svc.clear_block(inst, lifted)" in src
+    assert "units_svc.mark_blocked(inst, fresh)" in src
     assert 'inst.quality = "passed"' not in src
+    # **Aufgehoben wird hier NICHTS.** Ein Durchfaller wird gut, wenn er einen Auftrag
+    # erfolgreich durchläuft – dessen Abschluss gibt frei, was er hält. Ein zweiter Weg an
+    # dieser Stelle hiesse, dass die Reihenfolge der Schritte darüber entscheidet, ob ein
+    # Stück wieder verwendbar ist.
+    assert "clear_block" not in src and "unblocked" not in src
 
     # Die Klärung: nur ein abgeschlossener Abweichungs-Unterauftrag setzt sie.
     assert "def resolve_failed_by(" in src
@@ -2979,14 +2983,16 @@ def test_fixed_subject_sub_order_reserves_its_stock():
     Vorher band eine Abweichung ihre Instanzen nur über ``subject_of_order_id`` und den
     Verarbeitungs-Link: FIFO sah sie weiterhin als frei, ein beliebiger anderer Auftrag konnte
     sie wegnehmen – und die Badge zeigte «Freigegeben», obwohl sie längst gebunden waren.
-    Reserviert wird nur, was am Lager liegt: in Arbeit / verkauft / gesperrt greift ohnehin
-    kein FIFO. Beim Abschluss oder Verwerfen löst ``release`` die Reservierung wieder."""
+    Reserviert wird, was am Lager **liegt** – in Arbeit / verkauft greift ohnehin kein FIFO.
+    Ein **gesperrtes** Stück liegt sehr wohl am Lager (Testnotiz #646): wer es zur Nacharbeit
+    hereinholt, hält es – nur so kann sein Abschluss es wieder freigeben. Beim Abschluss oder
+    Verwerfen löst ``release`` die Reservierung wieder."""
     import inspect as _inspect
 
     from app.services import subject
 
     src = _inspect.getsource(subject._bind_deviation_subjects)
-    assert "is_in_stock(inst)" in src
+    assert "lies_at_stock(inst)" in src
     assert "reserve(inst, order.id, to_qty(inst.quantity))" in src
     # Idempotent: eine zweite Freigabe reserviert nicht doppelt.
     assert "reserved_for(inst, order.id) <= 0" in src
@@ -3113,9 +3119,22 @@ def test_block_is_reversible_scrap_is_not():
 
     src = _inspect.getsource(scrap)
     assert "units_svc.mark_blocked(inst, mine, to_stock=True)" in src   # Sperre am Stück (#646)
-    assert "def unblock(" in src                    # … und wieder aufhebbar
-    # Der Zustand nach dem Entsperren wird ABGELEITET (kein gemerktes drittes Feld).
-    assert "def _restore_quality(" in src
+
+    # **Aufgehoben wird nirgends ausdrücklich** (Testnotiz #646): kein ``unblock`` im
+    # Dienst, kein Knopf an der Instanz, kein Sonderzweig in der Datenerfassung. Der Weg
+    # zurück ist derselbe, der jedes Stück gut macht: ein Auftrag hält es und schliesst ab –
+    # ``mark_released`` nimmt die Sperre weg. Zwei Wege wären zwei Wahrheiten, und welcher
+    # gilt, hinge an der Reihenfolge.
+    from app.routers import instances as R
+    from app.services import inspection, units
+    assert "def unblock(" not in src and "def _restore_quality(" not in src
+    assert "unblock" not in _inspect.getsource(R)
+    assert "clear_block" not in _inspect.getsource(inspection)
+    assert not hasattr(units, "clear_block")
+    rel = _inspect.getsource(units.mark_released)
+    assert 'piece.pop("l", None)' in rel, "Freigeben hebt die Sperre auf – das ist die EINE Regel."
+    assert "def done(" in _inspect.getsource(units.Unit), (
+        "«Am Ziel» heisst freigegeben UND verwendbar – ein gesperrtes Stück ist es nicht.")
 
 
 def test_order_name_never_falls_back_to_the_type_word_when_there_is_a_name():
@@ -3712,10 +3731,19 @@ def test_the_material_journal_answers_the_three_questions():
     for mod, kind in ((serialization, "created"), (subject, "taken"),
                       (process, "released"), (process, "sold"), (process, "returned"),
                       (resource, "consumed"), (scrap, "scrapped"), (scrap, "blocked"),
-                      (scrap, "unblocked"), (inspection, "blocked")):
+                      (inspection, "blocked")):
         mod_src = _inspect.getsource(mod)
         assert f'kind="{kind}"' in mod_src, f"{mod.__name__} bucht {kind} nicht"
         assert "ledger.post(" in mod_src, mod.__name__
+
+    # **«unblocked» wird nicht mehr GESCHRIEBEN** (Testnotiz #646): eine Sperre endet, wo
+    # jedes Stück gut wird – bei der Freigabe, und die bucht ``released``. Die Buchungsart
+    # bleibt trotzdem bestehen: Altbestand trägt sie, und die Vergangenheit wird nicht
+    # umgeschrieben (tolerant lesen, streng schreiben).
+    assert "unblocked" in _inspect.getsource(ledger)
+    for mod in (scrap, inspection):
+        assert 'kind="unblocked"' not in _inspect.getsource(mod), (
+            f"{mod.__name__} hebt keine Sperre mehr auf – das tut der Abschluss.")
 
     # «Was kam zurück?» liest die Buchungen, keine Vorhersage (Testnotizen #496/#497).
     from app.services import orders as osvc
@@ -4047,8 +4075,14 @@ def test_a_deviation_borrows_and_gives_back():
         "Die BUCHUNG gilt immer – sonst hängt die Menge für immer im Unter-Auftrag (#505).")
     assert give.index("release_reservation(inst, sub.id)") < give.index("ledger.post"), (
         "Die Bindung des Unter-Auftrags endet an EINER Stelle, vor der Rückgabe-Buchung.")
-    assert "if inst.order_id != parent.id:" in give and "reserve(inst, parent.id, take)" in give, (
+    assert "to_creator = inst.order_id == parent.id" in give and "reserve(inst, parent.id, back)" in give, (
         "Reserviert wird nur, wer beansprucht – ein Erzeuger hält über `Instance.order_id`.")
+    # **Zurück geht nur das Geliehene** (Testnotiz #646): was der Unter-Auftrag sich selbst
+    # vom freien Bestand geholt hat, bleibt bei ihm, bis er abschliesst – sonst wird es frei,
+    # BEVOR ``release_instances`` es sehen kann, und ein gesperrtes Stück bliebe gesperrt,
+    # obwohl der Auftrag es nachgearbeitet hat.
+    assert "back = held if to_creator else min(held, gap)" in give
+    assert "claim(inst, sub.id, held - back)" in give
     ret = _inspect.getsource(subject.return_borrowed)
     assert "give_back(db, sub, parent, inst, need)" in ret, "EINE Regel, zwei Türen."
     assert "lender_of(db, sub)" in ret, (
