@@ -121,14 +121,19 @@ export function sumQuantity(items: { quantity?: number | null }[]): number {
 // Bedeutungs-Vorrang: Verbleib (scrapped/sold/consumed) ≻ Verdikt (failed) ≻
 // am Lager (passed+in_stock) ≻ sonst «Im Prozess». Das Datenmodell bleibt getrennt;
 // nur die Darstellung fasst beides zu einem Status zusammen.
-// Reine Ampel (TONE): «Im Prozess»/«Reserviert»/«Gesperrt» = GELB (läuft, gebunden oder
-// ausgesetzt – jedenfalls **umkehrbar**), «Freigegeben» = GRÜN (am Lager, frei). Terminal:
-// «Verbaut»/«Verkauft» = GRÜN (positiv erfüllt), «Verschrottet» = ROT – der EINE endgültige
-// Zustand (Notiz #360: gesperrt lässt sich entsperren, verschrottet nie).
+// Reine Ampel (TONE): «Im Prozess»/«Gesperrt» = GELB (läuft oder ausgesetzt – jedenfalls
+// **umkehrbar**), «Freigegeben» = GRÜN (am Lager, frei). Terminal: «Verbaut»/«Verkauft» =
+// GRÜN (positiv erfüllt), «Verschrottet» = ROT – der EINE endgültige Zustand (Notiz #360:
+// gesperrt lässt sich entsperren, verschrottet nie).
+//
+// **«Reserviert» gibt es nicht mehr** (Testnotizen #625/#626): es war ein dritter Zustand
+// für etwas, das «Im Prozess» längst sagt – ein Stück, das ein laufender Auftrag hält, IST
+// in einem Prozess. Der Unterschied («schon im Prozess» ↔ «am Lager und gebunden») war eine
+// Frage des Zeitpunkts, nicht der Sache: verwendbar ist es in beiden Fällen nicht, und wer
+// es hält, steht daneben. Ein Zustand weniger, dieselbe Aussage.
 const INSTANCE_STATUS: Record<string, StatusCfg> = {
   in_process: { label: 'Im Prozess',   ...TONE.pending, icon: Loader },
   in_stock:   { label: 'Freigegeben',  ...TONE.done,    icon: CheckCircle2 },
-  reserved:   { label: 'Reserviert',   ...TONE.pending, icon: Lock },
   // EIN Zustand «vorhanden, aber nicht verwendbar» – gleich ob eine Datenerfassung die
   // Instanz durchfallen liess oder ein «Sperren»-Schritt sie bewusst ausgesetzt hat.
   // Beides verhält sich identisch (fällt aus FIFO/Bestand, ist aufhebbar) und heisst
@@ -140,22 +145,24 @@ const INSTANCE_STATUS: Record<string, StatusCfg> = {
   sold:       { label: 'Verkauft',     ...TONE.done,    icon: Banknote },
 };
 
-// Projektion der zwei Achsen (quality + disposition) PLUS Reservierung auf EINE Badge.
-// Eine **fest reservierte** (für einen freigegebenen Auftrag gebundene) Lagerinstanz
-// wird als «Reserviert» gezeigt. Teil-/Chargen-Reservierung ist nicht nötig: bei der
-// Allokation wird eine Charge **geteilt** (reservierter Teil = eigene Instanz), sodass
-// Reservierung je Instanz immer ganz-oder-gar-nicht ist.
+/**
+ * Projektion der zwei Achsen (quality + disposition) auf EINE Badge.
+ *
+ * `held` = «ein laufender Auftrag hält das» – dann ist es **Im Prozess**, nicht
+ * «Freigegeben»: am Lager zu liegen und trotzdem gebunden zu sein, ist kein eigener
+ * Zustand (#626). Wer es hält, steht daneben (die Stück-Zeile nennt den Auftrag).
+ */
 export function instanceStatusConfig(
   quality: string | null | undefined,
   disposition: string | null | undefined,
-  reserved: boolean = false,
+  held: boolean = false,
 ): StatusCfg {
   if (disposition === 'scrapped') return INSTANCE_STATUS.scrapped;
   if (disposition === 'sold') return INSTANCE_STATUS.sold;
   if (disposition === 'consumed') return INSTANCE_STATUS.consumed;
   // 'failed' ist Altbestand vor Migration 085 und meint dasselbe wie 'blocked'.
   if (quality === 'blocked' || quality === 'failed') return INSTANCE_STATUS.blocked;
-  if (quality === 'passed' && disposition === 'in_stock')
-    return reserved ? INSTANCE_STATUS.reserved : INSTANCE_STATUS.in_stock;
+  if (quality === 'passed' && disposition === 'in_stock' && !held)
+    return INSTANCE_STATUS.in_stock;
   return INSTANCE_STATUS.in_process;
 }

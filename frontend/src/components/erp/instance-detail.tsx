@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode, ElementType } from 'react';
 import {
-  Boxes, FileText, CalendarDays,
+  Boxes, FileText,
   ClipboardList, ChevronRight, QrCode, TriangleAlert, ClipboardPlus,
   ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Hash, FolderOpen, LockOpen,
 } from 'lucide-react';
@@ -28,13 +28,13 @@ import { instanceName } from '@/lib/record-name';
 type InstTab = 'spec' | 'orders' | 'verwendung' | 'docs';
 import { useErpNav } from '@/components/erp/obj-id';
 import { printObjectLabel } from '@/components/scan/object-label';
-import { formatObjectId, localDate, localDateTime, timeAgo } from '@/lib/utils';
+import { formatObjectId, localDateTime } from '@/lib/utils';
 
 /**
  * Instanz-Detail – bewusst EINE Ansicht (keine Reiter): Eine Instanz ist die
  * **Summe aller Prozesse**, und Prozesse werden ausschliesslich durch **Aufträge**
- * angestossen. Kopf mit Status, «Auf einen Blick»-Kacheln (Spezifikation, Standort,
- * Bestand, Erstellt, letzte Bewegung) und die **vollständige Liste der Aufträge**,
+ * angestossen. Kopf mit Status, «Auf einen Blick»-Kacheln (Spezifikation, Einheiten mit
+ * Zustand und Standort) und die **vollständige Liste der Aufträge**,
  * die diese Instanz angefasst haben (sortierbar). Aktionen an einer Instanz
  * (verschrotten, verkaufen, …) laufen ausschliesslich über einen Auftrag – hier
  * gibt es daher nur die «Abweichung melden»-Abkürzung (ein Unter-Auftrag).
@@ -223,7 +223,11 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
               sub={inst.article_object_id != null ? formatObjectId(inst.article_object_id) : undefined} subMono
               onClick={inst.article_object_id != null ? () => nav?.(inst.article_object_id as number) : undefined}
             />
-            <Tile icon={CalendarDays} label="Erstellt" value={localDate(inst.created_at)} sub={timeAgo(inst.created_at)} />
+            {/* **Kein «Erstellt»** (Testnotiz #623): welches Datum wäre es? Die Anlage des
+                Datensatzes, die Freigabe des Stücks – und bei einer Charge womöglich für
+                jedes Stück ein anderes. Eine Zahl, die je nach Lesart etwas anderes meint,
+                sagt weniger als keine. Wann WIRKLICH etwas passiert ist, steht im
+                **Verlauf** (Material-Journal), Buchung für Buchung. */}
             {inst.serial_number && (
               <Tile icon={Hash} label="Seriennummer" value={inst.serial_number} subMono />
             )}

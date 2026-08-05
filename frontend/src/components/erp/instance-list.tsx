@@ -24,6 +24,7 @@ import { Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceUnit } from '@/types';
 import { instanceStatusConfig, formatQty } from '@/lib/process';
+import { instanceStatus } from '@/lib/record-status';
 
 import { useErpNav } from '@/components/erp/obj-id';
 import { Placeholder } from '@/components/erp/fields';
@@ -57,8 +58,7 @@ function group(items: Instance[]): Group[] {
     const units = inst.units ?? [];
     const buckets = new Map<string, InstanceUnit[]>();
     if (units.length === 0) {
-      buckets.set(instanceStatusConfig(inst.quality, inst.disposition,
-        (inst.reserved_quantity ?? 0) > 0).label, []);
+      buckets.set(instanceStatus(inst).label, []);
     } else {
       for (const u of units) {
         const k = unitCfg(u).label;
@@ -66,8 +66,7 @@ function group(items: Instance[]): Group[] {
       }
     }
     for (const [key, us] of buckets) {
-      const cfg = us.length ? unitCfg(us[0])
-        : instanceStatusConfig(inst.quality, inst.disposition, (inst.reserved_quantity ?? 0) > 0);
+      const cfg = us.length ? unitCfg(us[0]) : instanceStatus(inst);
       const qty = us.length ? us.reduce((n, u) => n + Number(u.quantity ?? 0), 0)
         : Number(inst.quantity ?? 0);
       const g = out.find((x) => x.key === key);

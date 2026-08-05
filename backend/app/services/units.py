@@ -174,9 +174,15 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
             out.append(InstanceUnit(number=u.number, quantity=float(u.quantity),
                                     quality=q, disposition=u.state))
             continue
-        # **Freigegeben heisst frei** (#573): ein Stück am Lager trägt keinen Halter mehr –
-        # sonst projiziert die Oberfläche «Reserviert» (gelb) auf etwas, das grün ist.
-        owner = None if u.released else (u.holder if u.holder is not None else rest)
+        # **Ein AUSDRÜCKLICHER Anspruch gilt immer, der geerbte Rest nur im Prozess**
+        # (Testnotiz #625, präzisiert #573/#577). Hier stand «freigegeben heisst frei» für
+        # BEIDE Fälle – damit verschwand auch ein Stück, das ein laufender Auftrag
+        # ausdrücklich beansprucht: es las sich als «Freigegeben», obwohl es längst in
+        # einem Prozess steckt. Der Fehler von #573 war ein anderer: dort zog der
+        # **Erzeuger** über den unbeanspruchten Rest (``rest_owner``) längst fertige Stücke
+        # wieder an sich. Genau dieser Rückfall bleibt an die Bedingung «noch im Prozess»
+        # geknüpft – der Anspruch selbst nicht.
+        owner = u.holder if u.holder is not None else (None if u.released else rest)
         o = look.get(owner) if owner is not None else None
         # **Ein freigegebenes Stück sagt es auch dann, wenn seine Geschwister es noch nicht
         # sind** (Notiz #572): der Zustand gehört zur Menge, und eine Charge kann geteilter
@@ -228,13 +234,13 @@ def owned_by(inst: Instance, order_id: int, db=None) -> list[Unit]:
     Erzeugungsauftrag «nichts», sobald ein Abzweig seine Ansprüche zurückgegeben hat."""
     from .inventory import rest_owner
     rest = rest_owner(db, inst) if db is not None else None
-    # **Ein freigegebenes Stück gehört niemandem mehr** (Testnotizen #573/#577). Es hat sein
-    # Ziel erreicht und liegt am Lager – der «unbeanspruchte Rest gehört dem Erzeuger» gilt
-    # nur für das, was noch im Prozess ist. Ohne diese Zeile zog ein Erzeugungsauftrag
-    # längst fertige Stücke wieder an sich: sie tauchten auf seinen Kanten erneut auf
-    # («…-1 war schon lange freigegeben») und verdrängten dort die, die er wirklich hält.
+    # **Der geerbte Rest gilt nur im Prozess, der ausdrückliche Anspruch immer** (#573/#577
+    # präzisiert durch #625): ohne die erste Hälfte zog ein Erzeugungsauftrag längst fertige
+    # Stücke wieder an sich («…-1 war schon lange freigegeben»); ohne die zweite verlöre ein
+    # Auftrag die Stücke, die er sich ausdrücklich vom Lager geholt hat.
     return [u for u in of(inst)
-            if not u.released and (u.holder if u.holder is not None else rest) == order_id]
+            if (u.holder == order_id if u.holder is not None
+                else (not u.released and rest == order_id))]
 
 
 def mark_released(inst: Instance, indices) -> Decimal:

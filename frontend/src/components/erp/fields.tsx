@@ -299,7 +299,11 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
         const showLabel = !symbolOnly && (!labelActiveOnly || active);
         return (
           <button key={o.value} type="button" role="tab" aria-selected={active} data-ix-idx={i}
-            aria-label={o.label} data-tip={o.hint ?? o.label} data-tip-pos="bottom"
+            aria-label={o.label}
+            // Der **Name** wächst im Hover heraus (siehe unten); die längere **Erklärung**
+            // bleibt der Tooltip – aber nur, wenn sie mehr sagt als der Name.
+            data-tip={o.hint && o.hint !== o.label ? o.hint : undefined} data-tip-pos="bottom"
+            className="ix-seg"
             onClick={o.disabled ? undefined : () => onChange(o.value)} disabled={o.disabled}
             style={{
               position: 'relative', flex: labelActiveOnly ? '0 0 auto' : (symbolOnly ? undefined : 1),
@@ -310,7 +314,14 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
               opacity: o.disabled ? 0.4 : 1, transition: 'color .18s',
               color: active ? 'var(--accent-ink)' : 'var(--fg-3)', whiteSpace: 'nowrap',
             }}>
-            <Icon size={14} />{showLabel && o.label}
+            <Icon size={14} />
+            {/* **Der Buttonname erscheint daneben** (Testnotiz #624) – dieselbe Geste wie an
+                der Palette. Wo das Wort ohnehin steht (aktive Option, voller Modus), gibt es
+                nichts einzublenden; sonst wächst es im Hover heraus. Der gleitende Reiter
+                wird ohnehin gemessen (ResizeObserver), also folgt er der neuen Breite. */}
+            {showLabel ? o.label : (
+              <span className="ix-seg-label"><span>{o.label}</span></span>
+            )}
             {o.mark && !active && <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--accent)', flexShrink: 0 }} />}
           </button>
         );
@@ -518,22 +529,24 @@ export function PaletteButton({ icon: Icon, label, tone, bg, border, size = 19, 
   disabled?: boolean;
   onClick: () => void;
 }) {
-  // **Ein Symbol, und im Hover sein Name** (Testnotiz #518). Drei Wege sind gescheitert:
-  // der wachsende Knopf (brach die Zeile um und wanderte unter dem Cursor weg, #502/#503),
-  // die herauswachsende Pille (überdeckte die Nachbarn, #509/#510) und die Namenszeile
-  // darunter (stand dann zweimal da). Übrig bleibt das Einfachste: der Knopf bewegt sich
-  // nie, und der Hover sagt, was er ist – der **Name**, nicht eine Erklärung.
+  // **Der Name wächst im Hover DANEBEN heraus** (Testnotiz #624). Im Fluss belegt der
+  // Knopf eine feste Zelle – die Zelle bewegt sich nie, also kann der Hover keine Zeile
+  // umbrechen und den Knopf nicht unter dem Cursor wegziehen (#502/#503). Gezeichnet wird
+  // er absolut darin und wächst nach rechts über den Nachbarn; die Mechanik steht in
+  // `globals.css` (`.erp-palette*`), damit sie an allen drei Paletten dieselbe ist.
   return (
-    <button type="button" onClick={onClick} disabled={disabled} data-tip={label}
-      aria-label={label} className="erp-palette"
-      style={{
-        background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
-        color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
-        cursor: disabled ? 'default' : 'pointer',
-      }}>
-      <Icon size={size} style={{ flexShrink: 0 }} />
-      <span className="erp-palette-label">{label}</span>
-    </button>
+    <span className="erp-palette-cell">
+      <button type="button" onClick={onClick} disabled={disabled}
+        aria-label={label} className="erp-palette"
+        style={{
+          background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
+          color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
+          cursor: disabled ? 'default' : 'pointer',
+        }}>
+        <span className="erp-palette-icon"><Icon size={size} /></span>
+        <span className="erp-palette-label"><span>{label}</span></span>
+      </button>
+    </span>
   );
 }
 

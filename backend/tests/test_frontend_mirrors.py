@@ -1202,34 +1202,74 @@ def test_a_future_step_shows_what_is_planned():
             f"{name}: ein geplanter Schritt führt nichts aus.")
 
 
-def test_the_palette_shows_its_name_in_the_hover():
-    """**Ein Symbol, und im Hover sein Name** (Testnotizen #502/#503/#509/#510/#518).
+def test_reserved_is_not_a_state_of_its_own():
+    """**«Reserviert» gibt es nicht mehr** (Testnotizen #625/#626).
 
-    Zwei Wege sind daran gescheitert, und beide hatten dieselbe Wurzel – der Name braucht
-    Platz, den die Reihe nicht hat:
+    Es war ein dritter Zustand für etwas, das «Im Prozess» längst sagt: ein Stück, das ein
+    laufender Auftrag hält, IST in einem Prozess. Der Unterschied («schon im Prozess» ↔ «am
+    Lager und gebunden») war eine Frage des Zeitpunkts, nicht der Sache – verwendbar ist es
+    in beiden Fällen nicht.
 
-    * wuchs der **Knopf selbst**, brach die Zeile um und er wanderte unter dem Cursor weg
+    Dazu kam, dass der Auslöser am **Datensatz** zu grob war: eine Charge à 4, von der EIN
+    Stück in einem Auftrag steckt, stand als Ganzes auf Gelb, während die Stück-Liste
+    darunter drei freie zeigte. Die Frage eines Datensatzes lautet «ist hier noch etwas
+    frei?» – welches Stück wem gehört, sagt die Stück-Liste."""
+    proc = (FRONTEND / "lib" / "process.ts").read_text(encoding="utf-8")
+    assert "label: 'Reserviert'" not in proc, "Der Zustand ist ersatzlos entfallen."
+    assert "held: boolean" in proc, (
+        "Der dritte Parameter heisst, was er ist: «ein laufender Auftrag hält das».")
+    assert "&& !held)" in proc, "Gehalten ⇒ «Im Prozess», nicht «Freigegeben»."
+    rec = (FRONTEND / "lib" / "record-status.ts").read_text(encoding="utf-8")
+    assert "claimed >= (i.quantity ?? 0)" in rec, (
+        "Am Datensatz zählt «ist ALLES vergeben», nicht «irgendetwas ist beansprucht».")
+    # Und niemand baut sich den Zustand eines Datensatzes noch selbst zusammen (#379).
+    for name in ("scrap-panel.tsx", "order-positions.tsx"):
+        src = (FRONTEND / "components" / "erp" / name).read_text(encoding="utf-8")
+        assert "instanceStatusConfig(" not in src, (
+            f"{name}: der Zustand eines Datensatzes kommt aus `record-status`.")
+
+
+def test_the_palette_name_grows_beside_the_symbol_without_moving_anything():
+    """**Der Name wächst im Hover DANEBEN heraus** (Testnotiz #624).
+
+    Drei Anläufe sind an derselben Wurzel gescheitert – der Name braucht Platz, den die
+    Reihe nicht hat:
+
+    * wuchs der **Knopf im Fluss**, brach die Zeile um und er wanderte unter dem Cursor weg
       (Hover an → aus → an: das gemeldete «Springen und Hüpfen», #502/#503);
-    * wuchs eine **Pille aus ihm heraus**, überdeckte sie die Nachbarn (#509/#510).
+    * wuchs eine **Pille aus ihm heraus**, sah sie gelöst aus (#509/#510);
+    * eine **Zeile darunter** schrieb den Namen zweimal hin (#518).
 
-    * eine **Zeile darunter** löste beides – schrieb den Namen dann aber zweimal hin (#518).
+    Die Lösung trennt die beiden Grössen: **im Fluss** belegt der Knopf eine feste Zelle –
+    daran ändert der Hover NICHTS, also kann nichts umbrechen und nichts springen (auch
+    nicht, wenn die Reihe schon zweizeilig ist). **Gezeichnet** wird er absolut in dieser
+    Zelle und wächst nach rechts.
 
-    Übrig bleibt das Einfachste: der Knopf bewegt sich nie, und der Hover sagt, was er ist –
-    der **Name**, nicht eine Erklärung."""
+    In Chromium gemessen: Zellen und Palettenhöhe bleiben bei jedem Hover identisch (auch
+    beim letzten Knopf und bei umgebrochener Reihe), das Label wächst von 0 auf 138 px, und
+    das Symbol bleibt auf seinem x."""
     css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
-    block = css.split(".erp-palette {")[1].split("@media")[0]
-    assert "width: 44px; height: 44px" in block, (
-        "Der Knopf hat eine feste Grösse – daran darf ein Hover nichts ändern.")
-    for gone in ("max-width: 180px", "max-width: 280px", ".erp-palette-body",
-                 ".erp-palette-caption"):
-        assert gone not in css, (
-            f"{gone}: weder der Knopf noch eine Pille noch eine Zeile darunter (#518).")
+    cell = css.split(".erp-palette-cell {")[1].split("}")[0]
+    assert "width: 44px; height: 44px" in cell, (
+        "Die ZELLE hat eine feste Grösse – daran darf ein Hover nichts ändern.")
+    block = css.split(".erp-palette {")[1].split("}")[0]
+    assert "position: absolute" in block, (
+        "Der Knopf wird absolut in seiner Zelle gezeichnet – so wächst er, ohne zu schieben.")
+    assert ".erp-palette-label > span" in css and "max-width: 0" in css, (
+        "Der Name wächst über max-width – die 0fr/1fr-Technik greift hier nicht "
+        "(gemessen: der Knopf blieb bei 44 px stehen).")
+    assert ".erp-palette-caption" not in css, "Keine Zeile darunter (#518)."
     fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
     assert "export function Palette(" in fields, (
         "Die Reihe gibt es als EINEN Baustein – damit die Geste überall gleich aussieht.")
-    assert "data-tip={label}" in fields and "hint?: string;" not in fields.split(
-        "export function PaletteButton")[1][:400], (
+    btn = fields.split("export function PaletteButton")[1][:1400]
+    assert "erp-palette-cell" in btn and "erp-palette-label" in btn, (
+        "Der Knopf sitzt in seiner Zelle und trägt seinen Namen (#624).")
+    assert "hint?: string;" not in btn[:400], (
         "Im Hover steht der NAME – die lange Erklärung ist entfallen (#518).")
+    # Dieselbe Geste am Segment-Umschalter (#624: «auch gleich hier oben beim Prüfumfang»).
+    assert ".ix-seg .ix-seg-label > span" in css and "ix-seg-label" in fields, (
+        "Auch der Umschalter zeigt den Namen neben dem Symbol.")
     # Beide Paletten teilen sich denselben Baustein – sonst sieht dieselbe Geste an zwei
     # Stellen verschieden aus. (Die dritte, die Unterdeckungs-Frage, ist entfallen: darüber
     # entscheidet seit #556 das System.)

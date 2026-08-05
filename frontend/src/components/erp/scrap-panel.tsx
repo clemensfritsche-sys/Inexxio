@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { Trash2, Lock, CheckCircle2, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderInstance } from '@/types';
-import { instanceStatusConfig, instanceLabel, heldOf } from '@/lib/process';
+import { instanceLabel, heldOf } from '@/lib/process';
+import { instanceStatus } from '@/lib/record-status';
 import { StatusBadge, PrimaryButton, Label } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 
@@ -185,7 +186,7 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
                   <CheckCircle2 size={13} /> gescannt
                 </span>
               ) : (
-                <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} />
+                <StatusBadge cfg={instanceStatus(i)} />
               )}
               <button onClick={() => startScan(i)} title="Diese Instanz scannen"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
@@ -236,7 +237,7 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
       <span style={{ fontSize: 12 }}><ObjId value={instance.object_id} /></span>
       <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel()}</span>
-      <StatusBadge cfg={instanceStatusConfig(instance.quality, instance.disposition, (instance.reserved_quantity ?? 0) > 0)} />
+      <StatusBadge cfg={instanceStatus(instance)} />
     </div>
   );
 }
