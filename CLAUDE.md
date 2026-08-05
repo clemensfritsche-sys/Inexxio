@@ -5123,6 +5123,55 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   leeren Anker-Menge. Beides ist «mehrartikel-fähig» – ein Modul, das nichts vom Artikel
   wissen muss, braucht dafür keinen Mechanismus. Wächter `tests/rules/test_multi_article.py`.
 
+- **Testnotizen-Runde 46 (die Menge entscheidet, nicht die Stufe; #594–#598)**:
+  (1) **Ein Beleg steht auf fremder Grundlage, sobald seine MENGE nicht mehr stimmt**
+  (#598, `rebase._off_basis`). Gemeldet: ein Auftrag über 3 Stück, ein Stück wird
+  verschrottet, **bevor** die Beschaffung dran ist – beim Modul kommen 2 an, der Mensch
+  bestellt 2, und danach meldet das System «Bestellt 3 Stk · gebraucht 2 Stk». Ursache war
+  eine Abkürzung: stand der Beleg **schon** auf seiner ersten Stufe («Angefragt»), galt er
+  als in Ordnung – «die Stufe stimmt» wurde mit «es gibt nichts zu tun» verwechselt. Die
+  Anfrage blieb darum bei 3 stehen, und die Abweichung fiel erst beim **Bestellen** auf,
+  also genau dann, wenn das System sie nicht mehr allein beheben darf (Zusage → Klärung).
+  Massgeblich ist jetzt die Menge; die Stufe zählt nur noch dort, wo es keine Menge mehr
+  gibt (der Auftrag ist zu Ende → letzte Stufe). Neue Zeile in der Beleg-Regel-Tabelle
+  (`beleg-noch-angefragt`) plus der gemeldete Ablauf als eigener Wächter, beide gegen die
+  Bug-Form gegengeprüft.
+  (2) **Ein ganz ausgesteuertes Teil ist kein Drift** (aus demselben Systemprotokoll):
+  «⚠ Journal und Projektion weichen ab – lebend 0 ≠ Projektion 1». Eine verschrottete
+  Instanz BEHÄLT ihre Menge (#481) und liegt im Journal vollständig im terminalen Topf –
+  das ist das erwartete Bild, nicht ein Widerspruch. `ledger.verify_instance` überspringt
+  darum Instanzen, deren eigene `disposition` terminal ist. Ein Wächter, der im
+  Normalbetrieb anschlägt, ist von einem kaputten nicht zu unterscheiden.
+  (3) **Der Lieferant sieht den Auftrag durch SEIN Modul** (#594, revidiert #592): der
+  vollständige Prozess war zu viel – was intern mit dem Material geschieht (welche Prüfung,
+  welche Bewegung, welcher Verkauf), geht ihn nichts an. **Und zwar SEINES:** ein Auftrag
+  darf mehrere Beschaffungen mit verschiedenen Lieferanten haben, und der eine sah bisher
+  das Modul des anderen – massgeblich ist der **Beleg**, nicht der Schritttyp
+  (`orders._own_steps`). Mit dem Ausschnitt gehen auch Verlauf, Material auf den Kanten und
+  Unter-Aufträge nicht mehr mit: sie beschreiben den internen Lauf. Die Grenze steht im
+  **Backend**; der Filter in der Oberfläche ist ersatzlos entfallen (er wäre eine Bitte,
+  keine Grenze). Wächter `tests/rules/test_supplier_view.py` (Wirkung über den echten
+  Antwort-Aufbau) + der umbenannte Spiegel-Test.
+  (4) **Der Kopf sieht überall gleich aus – auch ohne Reiter** (#595): `paddingBottom: 0`
+  gibt es nur, damit der rote Aktiv-Balken eines Reiters auf der Kopf-Haarlinie liegt
+  (#290). Wo es keine Reiter gibt – der Lieferant sieht keine –, klebte die
+  Objektnummer-Zeile ohne Abstand auf der Linie. Die Reiter sind darum ein **eigener Slot**
+  der Kopf-Anatomie (`DetailHeader tabs=…`) statt beliebiger Kinder: der Kopf entscheidet
+  seinen Fussabstand selbst, und die fünf Aufrufer können beim Abstand nicht mehr
+  auseinanderlaufen (sie trugen 10 px und 16 px für dieselbe Zeile).
+  (5) **Ein Knopf heisst, was er TUT** (#596): «Bestellen» statt «Bestellt» – der Zustand
+  steht bereits an der Stufe daneben. Beide Wörter kommen aus derselben Stufen-Tabelle
+  (`FLOW.verb`), also können Knopf und Knoten nicht auseinanderlaufen.
+  (6) **Ein Modul hat genau EINE Breite** (#597): beim Hinzufügen, nach dem
+  Zwischenspeichern und nach der Freigabe war dasselbe Modul verschieden breit. Der Grund
+  war, dass die Breite auf zwei Arten entstand – im laufenden Fluss als **feste**
+  Spaltenbreite, im Schritt-Editor als `max-width` je Karte, also «so breit wie der Platz,
+  höchstens …». Eine Obergrenze ist keine Breite; sie schwankt mit ihrer Umgebung. Es gibt
+  darum die Hauptspur als EINEN Baustein (`flow-line.Lane`), in den sich beide stellen –
+  `STEP_MAXW` ist entfallen, keine Karte bringt mehr eine eigene Breite mit. Dazu dieselbe
+  Karten-Anatomie im Editor wie im Fluss (Polsterung 13/16, Symbol-Kasten 34, Titel 15 px):
+  eine Karte mit anderer Innenaufteilung wirkt verschieden breit, auch wenn sie es nicht ist.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

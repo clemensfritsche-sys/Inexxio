@@ -358,15 +358,14 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
             </button>
           )}
         </>}
-      >
-        <DetailTabs<OrgTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
+        tabs={<DetailTabs<OrgTab> active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
           // Der System-Reiter (Plattform-Konfiguration der EINEN Website) erscheint nur am
           // Betreiber – es gibt ihn genau einmal.
           ...(isOperator ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
-        ]} />
-      </DetailHeader>
+        ]} />}
+      />
 
       {/* **Schliessen ist endgültig** – darum eine Frage, aber nur eine: der Klick auf den
           Weg IST die Ausführung (wie im Deaktivieren-Dialog des Artikels, Notiz #152). */}

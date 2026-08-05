@@ -1,6 +1,6 @@
 'use client';
 
-import { MAIN } from '@/components/erp/flow-line';
+import { Lane } from '@/components/erp/flow-line';
 
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine } from 'lucide-react';
@@ -317,7 +317,11 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
   const chooserTypes: StepType[] = STEP_ORDER;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    // **Der Editor steht in derselben Spur wie der laufende Fluss** (Testnotiz #597): eine
+    // feste Breite statt einer Obergrenze je Karte – sonst war ein Modul beim Hinzufügen,
+    // nach dem Zwischenspeichern und nach der Freigabe verschieden breit, je nachdem wie
+    // viel Platz gerade da war.
+    <Lane>
       {loading && <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Laden…</div>}
 
       {/* Start-Knoten (BPMN) – **immer**, auch bei leerem Prozess (Notiz #269): ohne ihn
@@ -342,7 +346,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
               onDragOver={(e) => { if (!readOnly && drag !== null) { e.preventDefault(); setOver(i); } }}
               onDrop={(e) => { e.preventDefault(); onDrop(i); }}
               style={{
-                position: 'relative', width: '100%', maxWidth: STEP_MAXW,
+                position: 'relative', width: '100%',
                 border: `1px solid ${isOver ? 'var(--accent)' : kc.border}`,
                 borderRadius: 'var(--r-lg)', background: kc.bg,
                 boxShadow: isOver ? '0 0 0 3px var(--accent-soft)' : 'var(--shadow-sm)',
@@ -350,14 +354,17 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
               }}
             >
               {/* Kopf: Symbol-Kachel + Titel (+ Pflicht) + Löschen */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px' }}>
+              {/* Dieselbe Anatomie wie die Karte im laufenden Fluss (`order-flow.StepCard`,
+                  Notiz #597): gleiche Polsterung, gleicher Symbol-Kasten, gleiche Titel-
+                  grösse. Sonst wirkt dieselbe Karte vor und nach der Freigabe verschieden. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px' }}>
                 {!readOnly && <GripVertical size={16} style={{ color: 'var(--border-2)', cursor: 'grab', flexShrink: 0 }} />}
-                <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', color: kc.fg, border: `1px solid ${kc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={19} />
+                <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', color: kc.fg, border: `1px solid ${kc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={17} />
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{meta.label}</span>
+                    <span style={{ font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{meta.label}</span>
                   </div>
                   <div style={{ marginTop: 3, fontSize: 12, color: 'var(--fg-3)' }}>
                     {isCompanion && (companionRole(s) === 'versandkunde'
@@ -524,7 +531,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
         // unten geht er weiter – ein zusätzlicher Aussenabstand nur oben liess die Auswahl
         // unten andocken und oben eine Lücke lassen. Die Linie taktet den Abstand, nicht
         // ein Rand.
-        <div style={{ width: '100%', maxWidth: STEP_MAXW }}>
+        <div style={{ width: '100%' }}>
           {adding == null ? (
             <Palette>
               {chooserTypes.map((t) => {
@@ -550,7 +557,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
                     die gleich im Fluss stehen wird – also trägt er ihr Symbol-Mass (38 px),
                     nicht ein eigenes. */}
                 <span style={{
-                  width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
+                  width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
                   color: kc.fg, border: `1px solid ${kc.border}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
@@ -662,7 +669,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
           <FlowTerm kind="end" />
         </>
       )}
-    </div>
+    </Lane>
   );
 }
 
@@ -1213,20 +1220,22 @@ function Chip({ label, on, locked, onClick }: { label: string; on?: boolean; loc
   );
 }
 
-// **EINE Breite für den Prozess – überall** (Testnotiz #534): egal ob Entwurf oder
-// freigegeben, Haupt- oder Unter-Auftrag, Artikel-Prozess oder laufender Ablauf. Vorher
-// war der Editor 600 px breit und der laufende Fluss 460 – dieselbe Sache in zwei Massen.
-// Die Breite gehört zum Linien-Layout, darum steht sie dort (`flow-line.MAIN`).
-export const STEP_MAXW = MAIN;
+// **EINE Breite für den Prozess – überall** (Testnotizen #534/#597): egal ob Entwurf oder
+// freigegeben, Haupt- oder Unter-Auftrag, Artikel-Prozess oder laufender Ablauf. Sie ist
+// **fest**, nicht eine Obergrenze je Karte: eine Obergrenze schwankt mit dem Platz, und
+// genau daher kam die wechselnde Modul-Breite zwischen Hinzufügen, Zwischenspeichern und
+// Freigeben. Die Breite gehört zum Linien-Layout, darum steht sie dort (`flow-line.Lane`).
 // Karten-Unterbereich (unter dem Kopf): Haarlinie oben, gleiche horizontale Polsterung.
 const cardBody: React.CSSProperties = {
-  borderTop: '1px solid var(--border-1)', padding: '12px 18px 15px',
+  // Gleiche horizontale Polsterung wie der Karten-Kopf (16 px, #597) – sonst springt die
+  // Inhalts-Spalte zwischen Kopf und Körper derselben Karte.
+  borderTop: '1px solid var(--border-1)', padding: '12px 16px 14px',
 };
 // Editor-/Palette-Karte (neutral, für «Schritt hinzufügen»).
 const editorCard: React.CSSProperties = {
   width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch',
   background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
-  boxShadow: 'var(--shadow-sm)', padding: '16px 18px',
+  boxShadow: 'var(--shadow-sm)', padding: '13px 16px',
 };
 const delBtn: React.CSSProperties = {
   border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 4, flexShrink: 0,

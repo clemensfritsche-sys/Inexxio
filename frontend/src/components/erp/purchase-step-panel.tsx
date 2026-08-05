@@ -103,20 +103,24 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
     return null;
   })();
 
+  // **Ein Knopf heisst, was er TUT** (Notiz #596): «Bestellen», nicht «Bestellt» – der
+  // Zustand steht bereits an der Stufe. Die Wörter kommen aus derselben Tabelle wie die
+  // Beschriftung der aktiven Stufe (`FLOW.verb`), damit Knopf und Knoten nicht
+  // auseinanderlaufen können.
   const actions: Action[] = [];
   if (s === 'requested' && isOfferEditor) {
     // Mitarbeiter (Besteller) & Webshop → direkt bestellen (Summe selbst erfassen);
     // nur der externe Lieferant offeriert (→ quoted), woraufhin der Besteller bestellt.
     actions.push(isStaff || isWebshop
-      ? { label: 'Bestellt', target: 'ordered', variant: 'primary', needsTotal: true }
-      : { label: 'Offeriert', target: 'quoted', variant: 'primary', needsTotal: true });
+      ? { label: verbOf('ordered'), target: 'ordered', variant: 'primary', needsTotal: true }
+      : { label: verbOf('quoted'), target: 'quoted', variant: 'primary', needsTotal: true });
   }
   if (s === 'quoted' && isBuyer) {
-    actions.push({ label: 'Bestellt', target: 'ordered', variant: 'primary' });
+    actions.push({ label: verbOf('ordered'), target: 'ordered', variant: 'primary' });
     actions.push({ label: 'Ablehnen', target: 'rejected', variant: 'danger' });
   }
   if (s === 'ordered' && isBuyer) {
-    actions.push({ label: 'Geliefert', target: 'received', variant: 'primary' });
+    actions.push({ label: verbOf('received'), target: 'received', variant: 'primary' });
   }
 
   // Mehrpositionen: jede Aktion muss die betroffene Position (Artikel) benennen –
@@ -368,8 +372,11 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
 /**
  * **Die Stufe, auf der man steht, sagt was zu TUN ist; die dahinter, was GESCHEHEN ist**
  * (Notizen #271/#272/#275). Vorher hiess auch die aktive Stufe wie ein Status («Bestellt»),
- * obwohl dort noch nichts bestellt war. Die Knöpfe tragen den erreichten Zustand – man
- * hakt die Stufe ab.
+ * obwohl dort noch nichts bestellt war.
+ *
+ * **Und der Knopf darunter sagt dasselbe** (Notiz #596): er trug den erreichten Zustand
+ * («Bestellt»), stand aber neben einer Stufe, die «Bestellen» heisst – zwei Wörter für
+ * eine Handlung. Beide lesen jetzt `verb` aus dieser einen Tabelle.
  */
 const FLOW = [
   { key: 'requested', verb: 'Anfragen', label: 'Angefragt' },
@@ -377,6 +384,9 @@ const FLOW = [
   { key: 'ordered', verb: 'Bestellen', label: 'Bestellt' },
   { key: 'received', verb: 'Wareneingang', label: 'Geliefert' },
 ] as const;
+
+/** Das Verb einer Stufe – die EINE Stelle, an der ein Knopf seinen Namen holt. */
+const verbOf = (key: string): string => FLOW.find((f) => f.key === key)?.verb ?? key;
 
 function hint(h: Hist | undefined): string | undefined {
   return h ? actorHint(h.by ?? 'System', h.at) : undefined;

@@ -76,16 +76,21 @@ def _off_basis(order: Order, fact, et: event_types.EventType,
     """**Steht dieser Beleg auf einer fremden Grundlage?** – die eine Frage, die beide
     Auslöser stellen (die Automatik und die Bestätigung nach dem Anruf beim Lieferanten).
 
-    Nein, wenn er Vergangenheit ist (erledigt/beendet – eingetroffene Ware ist eingetroffen)
-    oder wenn er läuft und seine Menge noch stimmt. Ist der Auftrag zu Ende, gilt es immer:
-    dann gibt es gar keine Menge mehr."""
+    Nein, wenn er Vergangenheit ist (erledigt/beendet – eingetroffene Ware ist eingetroffen).
+    Sonst entscheidet die **Menge**, nicht die Stufe: ein Beleg, der bereits auf der ersten
+    Stufe steht, aber noch die alte Menge trägt, steht sehr wohl auf fremder Grundlage
+    (Testnotiz #598 – die Anfrage blieb bei 3 Stück stehen, obwohl der Auftrag nur noch 2
+    schuldete, und die Abweichung fiel erst beim Bestellen als «Klärung» auf). Ist der
+    Auftrag zu Ende, gibt es gar keine Menge mehr – dann zählt nur, ob die letzte Stufe
+    schon erreicht ist."""
     value = getattr(fact, et.status_field, None)
-    if value in et.done or value in et.failed or value == stage:
-        return False
+    if value in et.done or value in et.failed:
+        return False                       # Vergangenheit – wird nicht umgeschrieben
+    if stage != et.reset:
+        return value != stage              # gegenstandslos: nur noch die letzte Stufe zählt
     want = targets.get(fact.article_id)
-    if stage == et.reset:
-        return want is not None and want > ZERO and to_qty(getattr(fact, "quantity", 0) or 0) != want
-    return True
+    return (want is not None and want > ZERO
+            and to_qty(getattr(fact, "quantity", 0) or 0) != want)
 
 
 def rebase_documents(db: Session, order: Order, actor_id: int | None = None) -> list[str]:

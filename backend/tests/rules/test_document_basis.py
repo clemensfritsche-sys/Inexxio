@@ -60,6 +60,20 @@ RULES: tuple[DocRule, ...] = (
         ),
     ),
     DocRule(
+        id="beleg-noch-angefragt",
+        lage="Auftrag über 4 Stück, Bestellung erst angefragt; 1 Stück wird verschrottet.",
+        rest="teil", stufe="requested", erwartet="requested", menge="neu",
+        vereinbarung="geräumt",
+        warum=(
+            "Massgeblich ist die **Menge**, nicht die Stufe: ein Beleg, der bereits auf "
+            "seiner ersten Stufe steht, kann trotzdem auf fremder Grundlage stehen. Fiel er "
+            "deshalb durchs Netz, blieb die Anfrage bei 4 Stück stehen, obwohl der Auftrag "
+            "nur noch 3 schuldete – und die Abweichung fiel erst beim Bestellen als "
+            "«Klärung» auf, also genau dann, wenn das System sie nicht mehr allein "
+            "beheben darf (Testnotiz #598)."
+        ),
+    ),
+    DocRule(
         id="beleg-erledigt",
         lage="Auftrag über 4 Stück, Ware bereits eingetroffen; danach sinkt die Menge.",
         rest="teil", stufe="received", erwartet="received", menge="unverändert",
@@ -115,6 +129,8 @@ def _drive(db, po, order, user, target: str):
     """Die Bestellung über den ECHTEN Dienst-Pfad auf eine Stufe bringen."""
     from app.schemas.purchase_order import PurchaseOrderUpdate
     from app.services import purchase as P
+    if po.status == target:
+        return                                  # sie steht schon dort (erste Stufe)
     for step in ("quoted", "ordered", "received"):
         P.apply_update(db, po, PurchaseOrderUpdate(
             status=step, **({"order_total": Decimal("400")} if step == "quoted" else {})), user)
@@ -152,6 +168,41 @@ def test_a_document_is_valid_for_the_quantity_it_was_issued_for(db, world, r: Do
         assert po.order_total is None, "Die Bestellsumme galt für die alte Menge."
     else:
         assert po.order_total == before_total
+
+
+def test_what_never_reached_the_module_is_never_ordered(db, world):
+    """**Testnotiz #598 – der gemeldete Fall, Schritt für Schritt.**
+
+    Ein Stück wird verschrottet, BEVOR die Beschaffung an der Reihe ist; beim Modul kommen
+    also nur 3 an, und genau darauf bestellt der Mensch. Trotzdem meldete das System danach
+    «Bestellt 4 Stk · gebraucht 3 Stk» – weil die Anfrage bei 4 stehen geblieben war und
+    erst die **Zusage** die Abweichung sichtbar machte. Das ist die schlechteste aller
+    Reihenfolgen: die Klärung erscheint genau dann, wenn das System sie nicht mehr allein
+    beheben darf.
+
+    Richtig ist, dass der Beleg der Menge folgt, **solange er darf** – dann gibt es beim
+    Bestellen nichts zu klären."""
+    from app.services import rebase
+
+    user, art = _purchase_world(db, world)
+    order, inst = _make_order(db, art, user, 4)
+    po = _po(db, order)
+
+    dev = _make_deviation(db, order, inst, user, 1, steps=("scrap",))
+    _scrap(db, dev, inst, user, 1)
+    db.refresh(po)
+    db.refresh(order)
+
+    assert order.quantity == Decimal(3), "Der Auftrag kürzt sich selbst (#556)."
+    assert po.quantity == Decimal(3) and po.status == "requested", (
+        "Die Anfrage folgt der Menge, ohne dass jemand etwas tun müsste – sie ist ja noch "
+        "niemandem zugesagt.")
+
+    _drive(db, po, order, user, "ordered")
+    db.refresh(po)
+    assert po.quantity == Decimal(3)
+    assert not rebase.clarifications(db, order, "purchase"), (
+        "Beim Bestellen gibt es nichts zu klären: Beleg und Auftrag sagen dasselbe.")
 
 
 def test_up_to_the_promise_the_system_decides_from_then_on_the_human_does(db, world):

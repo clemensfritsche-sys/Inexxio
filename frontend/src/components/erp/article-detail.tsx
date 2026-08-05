@@ -351,11 +351,11 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
             )}
           </>
         ) : undefined}
+        tabs={<DetailTabs<TabKey> active={tab} onChange={setTab} tabs={TABS} />}
       >
         {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
         )}
-        <DetailTabs<TabKey> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={TABS} />
       </DetailHeader>
 
       {/* Content */}

@@ -1449,7 +1449,7 @@ def test_the_frontend_draws_and_the_server_knows():
     src = _inspect.getsource(osvc)
     for fn in ("def _fill_flow_view", "def _as_of", "def _minus"):
         assert fn in src, f"{fn} fehlt – die Fluss-Sicht ist Fachlogik und gehört in den Server."
-    assert "_fill_flow_view(db, order, resp)" in _inspect.getsource(osvc.to_order_response), (
+    assert "_fill_flow_view(db, order, resp" in _inspect.getsource(osvc.to_order_response), (
         "Jede Auftrags-Antwort trägt die fertig gerechnete Achse.")
 
     # Der Client zeichnet: keine Material-Arithmetik, keine Zeitmaschine, kein Zähler.
@@ -1475,22 +1475,20 @@ def test_the_frontend_draws_and_the_server_knows():
     assert "from '@/components/erp/flow-line'" in flow
 
 
-def test_the_supplier_sees_the_same_process_as_the_staff():
-    """**Ein Design, ein System – auch für den Lieferanten** (Testnotiz #592).
+def test_the_supplier_sees_the_order_through_his_own_module():
+    """**Ein Design, ein System – aber nur SEIN Ausschnitt** (Testnotizen #592/#594).
 
-    Er bekam ein flaches Formular, während das Personal das Prozessdiagramm sieht: zwei
-    Bildsprachen für dieselbe Sache, und er sah nicht, was vor und nach seiner Bestellung
-    passiert. Jetzt dasselbe Diagramm und dieselben Modul-Karten.
+    #592 hat die Bildsprache vereinheitlicht: der Lieferant bekam ein flaches Formular,
+    während das Personal das Prozessdiagramm sieht – zwei Sprachen für dieselbe Sache.
+    Geblieben ist dasselbe Diagramm und dieselbe Modul-Karte.
 
-    **Die Einschränkungen sind inhaltlich, nicht gestalterisch** – und darum stehen sie da,
-    wo sie hingehören:
+    **#594 nimmt die zweite Hälfte zurück**: der ganze Prozess war zu viel. Was intern mit
+    dem Material geschieht (welche Prüfung, welche Bewegung, welcher Verkauf), geht ihn
+    nichts an – er sieht seine Beschaffung, sonst nichts. Und zwar **seine**: ein Auftrag
+    darf mehrere Beschaffungen mit verschiedenen Lieferanten haben.
 
-    * **Verkauf**: Kunde, Betrag und Marge kommen für Nicht-Personal gar nicht erst mit
-      (Backend). Ein Filter in der Oberfläche wäre eine Bitte, keine Grenze.
-    * **Bedienen** darf er nur seinen eigenen Schritt; die übrigen Module bleiben als Karte
-      im Fluss (der Ablauf soll ehrlich sein), klappen aber nichts auf.
-    * **Verlauf/Systemprotokoll** bleiben beim Personal (interne Auswertung).
-    """
+    Die Grenze steht im **Backend**, nicht in der Oberfläche – ein Filter dort wäre eine
+    Bitte, keine Grenze. Darum darf im Frontend gar kein zweiter Filter mehr stehen."""
     import inspect as _inspect
 
     from app.services import orders as osvc
@@ -1500,11 +1498,105 @@ def test_the_supplier_sees_the_same_process_as_the_staff():
         "Der Prozess hängt nicht mehr an der Rolle (#592).")
     assert "SectionTitle icon={Workflow}>Prozess</SectionTitle>" not in detail, (
         "Die frühere Lieferanten-Sonderansicht (flaches Formular) ist entfallen.")
-    assert "if (viewerRole !== 'staff' && step.step_type !== 'purchase') return null;" in detail, (
-        "Sehen ja, bedienen nur den eigenen Schritt – EINE Stelle, kein Panel-Flickwerk.")
+    assert "step.step_type !== 'purchase') return null;" not in detail, (
+        "Kein Filter in der Oberfläche mehr – der Server schickt nur, was er sehen darf (#594).")
     assert "<SectionTitle icon={MapPin}>Lieferung an</SectionTitle>" not in detail, (
         "Keine Karte, die es nur für eine Rolle gibt – die Lieferadresse steht im Modul.")
-    # Und die Vertraulichkeit sitzt im Backend, nicht in der Oberfläche.
+
+    # **Die eine Grenze**: Schritte nach Beteiligung, alles Interne gar nicht erst mit.
+    own = _inspect.getsource(osvc._own_steps)
+    assert '"purchase"' in own and "supplier_id" in own, (
+        "Massgeblich ist der BELEG (sein Lieferant), nicht der blosse Schritttyp (#594).")
+    resp = _inspect.getsource(osvc.to_order_response)
+    assert "_own_steps(db, process.build_order_steps(db, order), viewer)" in resp, (
+        "Gefiltert wird an der Quelle – sonst entstehen Embeds, die niemand sehen darf.")
+    for internal in ("resp.history = _order_history_views(db, order)",
+                     "resp.flow_lots, resp.flow_lost = order_material(db, order, instances)",
+                     "resp.provisionings) = _order_sub_orders(db, order, sub_steps)"):
+        assert internal in resp.split("if internal:", 1)[1] or "if internal:" in resp, internal
+    assert resp.count("if internal:") >= 2, (
+        "Verlauf, Material und Unter-Aufträge beschreiben den internen Lauf – sie gehen nur "
+        "ans Personal (#594).")
+    # Und die Vertraulichkeit sitzt zusätzlich dort, wo die Daten entstehen.
     src = _inspect.getsource(osvc._attach_step_embed)
     assert 'if viewer is not None and (viewer.role or "") not in _STAFF_ROLES:' in src, (
         "Der Verkaufs-Embed (Kunde/Betrag) geht gar nicht erst an Nicht-Personal (#592).")
+
+
+def test_the_detail_header_is_one_anatomy_even_without_tabs():
+    """**Der Kopf sieht überall gleich aus – auch wo es keine Reiter gibt** (Testnotiz #595).
+
+    Der Kopf hat `paddingBottom: 0` aus genau EINEM Grund: der rote Aktiv-Balken eines
+    Reiters soll auf der Kopf-Haarlinie liegen (#290). Wo es keine Reiter gibt – der
+    Lieferant sieht keine –, klebte die Objektnummer-Zeile darum ohne jeden Abstand auf der
+    Linie: derselbe Kopf, aber sichtbar anders gesetzt.
+
+    Die Reiter sind deshalb ein **eigener Slot** und kein beliebiges Kind. Damit entscheidet
+    der Kopf den Fussabstand selbst, und die Aufrufer können beim Abstand nicht mehr
+    auseinanderlaufen (sie trugen 10 px und 16 px für dieselbe Zeile)."""
+    fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
+    assert "tabs?: ReactNode;" in fields, "Die Reiter-Zeile ist Teil der Kopf-Anatomie."
+    assert "...DH.head, paddingBottom: tabs ? 0 : 14" in fields, (
+        "Ohne Reiter setzt der Kopf seinen Fussabstand selbst (#595).")
+
+    for name in ("article-detail", "instance-detail", "order-detail",
+                 "organization-detail", "user-detail"):
+        src = (FRONTEND / "components" / "erp" / f"{name}.tsx").read_text(encoding="utf-8")
+        if "DetailTabs" not in src:
+            continue
+        assert "tabs={" in src, f"{name}: die Reiter gehen in den Slot, nicht in die Kinder."
+        assert "<DetailTabs" in src and "style={{ marginTop" not in src.split(
+            "<DetailTabs")[1][:80], (
+            f"{name}: kein eigener Abstand mehr – den setzt der Kopf (#595).")
+
+
+def test_a_purchase_button_says_what_it_does():
+    """**Ein Knopf heisst, was er TUT** (Testnotiz #596): «Bestellen», nicht «Bestellt».
+
+    Der Zustand steht bereits an der Stufe daneben – der Knopf trug denselben Zustand noch
+    einmal, obwohl dort noch nichts bestellt war. Beide Wörter kommen jetzt aus derselben
+    Tabelle (`FLOW`), also können Knopf und Knoten nicht auseinanderlaufen."""
+    panel = (FRONTEND / "components" / "erp" / "purchase-step-panel.tsx").read_text(
+        encoding="utf-8")
+    assert "const verbOf = (key: string)" in panel, (
+        "Das Verb kommt aus der EINEN Stufen-Tabelle.")
+    for target in ("ordered", "quoted", "received"):
+        assert f"verbOf('{target}')" in panel, f"{target}: der Knopf liest sein Verb (#596)."
+    # Nur der Aktions-Block: in der Stufen-Tabelle darunter IST «Bestellt» richtig – dort
+    # beschreibt es den erreichten Zustand.
+    block = panel.split("const actions: Action[] = [];")[1].split("// Mehrpositionen")[0]
+    for state in ("'Bestellt'", "'Offeriert'", "'Geliefert'"):
+        assert f"label: {state}" not in block, (
+            f"{state} ist ein Zustand, kein Auftrag an den Menschen (#596).")
+
+
+def test_a_process_module_has_exactly_one_width():
+    """**Die Breite eines Moduls ändert sich nie** (Testnotiz #597).
+
+    Beim Hinzufügen, nach dem Zwischenspeichern und nach der Freigabe war dasselbe Modul
+    verschieden breit. Der Grund war, dass die Breite an zwei Arten entstand: im laufenden
+    Fluss als **feste** Spaltenbreite, im Schritt-Editor als `max-width` je Karte – also
+    «so breit wie der Platz, höchstens …». Eine Obergrenze ist keine Breite; sie schwankt
+    mit ihrer Umgebung.
+
+    Es gibt darum die Spur (`Lane`) als EINEN Baustein, in den sich beide stellen – und
+    keine Karte darf mehr eine eigene Breite mitbringen. Dazu dieselbe Karten-Anatomie
+    (Polsterung, Symbol-Kasten, Titelgrösse): eine Karte mit anderer Innenaufteilung wirkt
+    verschieden breit, auch wenn sie es nicht ist."""
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    assert "export function Lane(" in line and "width: MAIN, maxWidth: '100%'" in line, (
+        "Die Hauptspur ist ein Baustein mit fester Breite.")
+    assert "<Lane>{children}</Lane>" in line, "Der Fluss setzt sie in seine Mitte."
+
+    steps = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    assert "<Lane>" in steps and "</Lane>" in steps, (
+        "Der Schritt-Editor stellt sich in dieselbe Spur (#597).")
+    assert "STEP_MAXW" not in steps, (
+        "Keine zweite Breite mehr je Karte – sie füllt ihre Spur.")
+
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+    card = flow.split("function StepCard")[1]
+    for same in ("padding: '13px 16px'", "const box = 34", "font: '800 15px var(--font-display)'"):
+        assert same in card, f"{same} fehlt in der Karte des laufenden Flusses."
+        assert same.replace("const box = 34", "width: 34, height: 34") in steps or same in steps, (
+            f"{same}: der Editor trägt dieselbe Anatomie wie die Karte, die er anlegt (#597).")
