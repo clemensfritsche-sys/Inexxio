@@ -3990,6 +3990,8 @@ export interface components {
             sample_percent?: number | null;
             /** Required Count */
             required_count?: number | null;
+            /** Inspected Quantity */
+            inspected_quantity?: number | null;
             /**
              * Escalated
              * @default false

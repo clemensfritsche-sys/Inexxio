@@ -51,6 +51,13 @@ class InspectionEmbed(BaseModel):
     # Vom Router berechnet/denormalisiert
     sample_percent: Optional[int] = None
     required_count: Optional[int] = None
+    # **Die Bezugsmenge des Prüfumfangs** – «x von N Stück prüfen» (Testnotiz #643).
+    # Sie stand in der Oberfläche als ``order.quantity`` da (die *deklarierte* Menge),
+    # während ``required_count`` aus dem stammt, was der Auftrag tatsächlich HÄLT: nachdem
+    # ein Abzweig ein Stück übernommen hatte, hiess es «1 von 2», obwohl nur noch 1 da war.
+    # Zwei Zahlen aus zwei Quellen in EINEM Satz – jetzt kommen beide aus derselben
+    # (``inspection.inspected_quantity``).
+    inspected_quantity: Optional[float] = None
     escalated: bool = False             # auf 100 % hochgestuft (Stichprobe ungenügend)
     # Fehlgeschlagen, aber durch diesen Folgeauftrag (Abweichung) geklärt → Schritt erledigt.
     resolved_by_order_id: Optional[int] = None

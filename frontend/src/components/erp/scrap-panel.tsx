@@ -8,6 +8,7 @@ import { instanceLabel, heldOf } from '@/lib/process';
 import { instanceStatus } from '@/lib/record-status';
 import { StatusBadge, PrimaryButton, Label } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
+import { InstanceRow, InstanceRows } from '@/components/erp/instance-row';
 
 import { useScan } from '@/components/scan/scan-provider';
 import { formatObjectId } from '@/lib/utils';
@@ -136,9 +137,11 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
             <span style={{ color: 'var(--fg-4)' }}>Grund: </span>{disp.note}
           </div>
         )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
-          {(scrapped.length ? scrapped : instances).map((i) => <InstanceRow key={i.id} instance={i} />)}
-        </div>
+        <InstanceRows>
+          {(scrapped.length ? scrapped : instances).map((i) => (
+            <InstanceRow key={i.id} instance={i} unit={order.article_unit} />
+          ))}
+        </InstanceRows>
       </div>
     );
   }
@@ -228,16 +231,6 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
           {scanned.size > 0 ? 'Weitere scannen' : `Scannen & ${T.verb.toLowerCase()}`}
         </PrimaryButton>
       )}
-    </div>
-  );
-}
-
-function InstanceRow({ instance }: { instance: OrderInstance }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
-      <span style={{ fontSize: 12 }}><ObjId value={instance.object_id} /></span>
-      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel()}</span>
-      <StatusBadge cfg={instanceStatus(instance)} />
     </div>
   );
 }

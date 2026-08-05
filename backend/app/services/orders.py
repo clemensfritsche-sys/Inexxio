@@ -30,7 +30,7 @@ from ..models.base import utcnow
 from ..schemas.sale import SaleEmbed
 from . import people, process, recovery
 from .article_fields import normalize_shared_fields
-from .inspection import eval_fields, required_count, sample_targets
+from .inspection import eval_fields, inspected_quantity, required_count, sample_targets
 from .locations import location_label, location_labels, physical_location_labels
 from .resource import build_resource_embed
 from .subject import TERMINAL_DISPOSITIONS, held_quantity, order_instances, subject_kind
@@ -262,6 +262,8 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
             for t in sample_targets(db, order, step)
         ]
         ie.required_count = required_count(db, order, step)
+    # Die Bezugsmenge – dieselbe Quelle, aus der auch ``required_count`` kommt (#643).
+    ie.inspected_quantity = float(inspected_quantity(db, order))
     if insp and insp.inspector_id:
         ie.inspector_name = people.name_by_id(db, insp.inspector_id)
     return ie

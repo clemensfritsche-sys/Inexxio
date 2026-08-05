@@ -11375,6 +11375,17 @@
             ],
             "title": "Required Count"
           },
+          "inspected_quantity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inspected Quantity"
+          },
           "escalated": {
             "type": "boolean",
             "title": "Escalated",

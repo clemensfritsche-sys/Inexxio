@@ -291,12 +291,9 @@ function defaultsFor(type: StepType, art: Article | null): Partial<ArticleProces
         shared_fields: MANDATORY_FIELD_KEYS,
       };
     case 'inspection':
-      // Ein Feld ist da – sonst stünde eine Datenerfassung ohne alles im Fluss. Es ist
-      // dasselbe, das die Engine ohne Maske ohnehin erfassen würde (Gut/Schlecht);
-      // umbenennen, ergänzen oder ersetzen kostet einen Klick.
-      return { sample_percent: 100,
-               capture_fields: [{ key: '', label: 'Gut/Schlecht', type: 'bool',
-                                  target: null, tolerance: null, unit: null }] };
+      // **Nichts ist vorausgewählt** (Testnotiz #638): was erfasst wird, ist eine
+      // Entscheidung – sie wird aktiv getroffen, nicht stillschweigend geerbt.
+      return { sample_percent: 100, capture_fields: [] };
     case 'resource':
       return { resource_lines: [] };
     case 'document':
@@ -459,7 +456,7 @@ function StepBody({
   if (type === 'movement') {
     return (
       <div style={cardBody}>
-        <SearchSelect label="Zielstandort (optional)"
+        <SearchSelect label="Zielstandort"
           value={step.target_location_id ? `${step.target_location_type}:${step.target_location_id}` : ''}
           onChange={(v) => {
             const tgt = v ? v.split(':') : null;
@@ -701,18 +698,30 @@ const CAPTURE_KINDS: { value: WField['type']; label: string; icon: React.Element
 ];
 
 function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange: (f: WField[]) => void }) {
+  // **Ein Feld ohne Namen ist noch nicht fertig – aber es ist da** (Testnotiz #637).
+  //
+  // Gespeichert werden nur benannte Felder (der Server verlangt eine Bezeichnung). Solange
+  // die Zeilen direkt aus dem Gespeicherten kamen, verschwand darum jedes neu angelegte
+  // Feld sofort wieder: man klickte «Gut/Schlecht», der Filter warf die namenlose Zeile weg,
+  // und ein zweites Feld liess sich nie hinzufügen. Die Liste lebt deshalb hier – der
+  // Speicher bekommt, was fertig ist.
+  const [rows, setRows] = useState<WField[]>(fields);
+  function push(next: WField[]) {
+    setRows(next);
+    onChange(next);
+  }
   // **Die Palette steht offen** (Notiz #229, wie #223): ein Klick auf das Symbol legt das
   // Feld an – der frühere Zwischenschritt «Erfassungsfeld hinzufügen» ist entfallen.
   function add(type: WField['type']) {
-    onChange([...fields, { label: '', type, target: '', tolerance: '', unit: '' }]);
+    push([...rows, { label: '', type, target: '', tolerance: '', unit: '' }]);
   }
-  function upd(i: number, patch: Partial<WField>) { onChange(fields.map((f, idx) => (idx === i ? { ...f, ...patch } : f))); }
-  function del(i: number) { onChange(fields.filter((_, idx) => idx !== i)); }
+  function upd(i: number, patch: Partial<WField>) { push(rows.map((f, idx) => (idx === i ? { ...f, ...patch } : f))); }
+  function del(i: number) { push(rows.filter((_, idx) => idx !== i)); }
   return (
     <div>
       <Label>Erfassungsfelder</Label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {fields.map((f, i) => {
+        {rows.map((f, i) => {
           const kind = CAPTURE_KINDS.find((k) => k.value === f.type) ?? CAPTURE_KINDS[0];
           const KindIcon = kind.icon;
           return (

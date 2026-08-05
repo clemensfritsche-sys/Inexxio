@@ -28,6 +28,14 @@ gleich) eine einzige kurze Zeile, und die Nummern gibt es trotzdem alle::
           (``scrapped`` · ``sold`` · ``consumed``); fehlt = lebendig.
     s     freigegeben – dieses Stück hat sein Prozessziel erreicht.
     t     **seit wann am Lager** – der Zeitpunkt der ERSTEN Freigabe dieses Stücks.
+    l     **gesperrt** («locked») – vorhanden, aber nicht verwendbar (reversibel).
+
+**Auch die Sperre gehört zum Stück** (Testnotiz #646). Sie stand als Skalar an der Instanz
+(``quality='blocked'``) – und damit sperrte, wer EIN Stück einer Charge aussondert, faktisch
+die ganze Charge; umgekehrt überschrieb die Freigabe-Marke eines Stücks die Sperre in der
+Anzeige («Im Prozess» statt «Gesperrt»). Zustand, Menge, Halter, Standort und Zeit hängen
+längst am Stück; die Sperre tut es jetzt auch. Der Instanz-Skalar bleibt die **Projektion**
+darüber (``project``) – er sagt «gesperrt», wenn nichts Verwendbares mehr übrig ist.
 
 **Die FIFO-Zeit gehört zur Menge, nicht zur Instanz.** Sie war die letzte Grösse, die noch
 instanzweit stand (``instances.released_at``) – und damit die letzte, die bei einer Charge
@@ -93,6 +101,7 @@ class Unit(NamedTuple):
     state: str | None = None    # scrapped|sold|consumed = hat den Bestand verlassen
     released: bool = False      # hat sein Prozessziel erreicht → passed/in_stock
     since: datetime | None = None   # seit wann am Lager (FIFO-Basis, erste Freigabe)
+    blocked: bool = False       # vorhanden, aber nicht verwendbar (aufhebbar)
 
     @property
     def free(self) -> bool:
@@ -140,7 +149,7 @@ def fifo_since(inst: Instance) -> datetime | None:
     any_released: list[datetime] = []
     fb = _fallback(inst)
     for run in _runs(inst):
-        if run.get("x") or not run.get("s"):
+        if run.get("x") or not run.get("s") or run.get("l"):
             continue
         when = _time(run.get("t")) or fb
         if when is None:
@@ -218,7 +227,7 @@ def of(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
         when = _time(run.get("t")) or (_fallback(inst) if run.get("s") else None)
         for i in range(int(run["a"]), int(run["b"]) + 1):
             out.append(Unit(label(inst, i), i, q, run.get("o"), run.get("x"),
-                            bool(run.get("s")), when))
+                            bool(run.get("s")), when, bool(run.get("l"))))
             if limit is not None and len(out) >= limit:
                 return out
     return sorted(out, key=lambda u: u.index)
@@ -276,7 +285,12 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
         # **Ein freigegebenes Stück sagt es auch dann, wenn seine Geschwister es noch nicht
         # sind** (Notiz #572): der Zustand gehört zur Menge, und eine Charge kann geteilter
         # Meinung sein. Der Instanz-Skalar bleibt die Projektion darüber.
+        # **Und die Sperre gewinnt über der Freigabe** (#646): ein gesperrtes Stück ist
+        # vorhanden, aber nicht verwendbar – vorher überschrieb die Freigabe-Marke die
+        # Sperre und ein gerade gesperrtes Teil stand als «Im Prozess» da.
         pq, pd = ("passed", "in_stock") if u.released else (q, d)
+        if u.blocked:
+            pq = "blocked"
         out.append(InstanceUnit(
             number=u.number, quantity=float(u.quantity), quality=pq, disposition=pd,
             # **Seit wann am Lager** – die FIFO-Basis dieses Stücks (Testnotiz #631).
@@ -389,6 +403,90 @@ def _slice(a: int, b: int, want: set[int]):
     return
 
 
+def mark_blocked(inst: Instance, indices, at: datetime | None = None, *,
+                 to_stock: bool = False) -> Decimal:
+    """**Diese Stücke sind gesperrt** – vorhanden, aber nicht verwendbar (Testnotiz #646).
+
+    Zwei Anlässe, ein Marker – und genau ein Unterschied:
+
+    * **Der Schritt «Aussondern · Sperren»** (``to_stock=True``): der Auftrag ist mit dem
+      Stück fertig, es liegt danach **am Lager, gesperrt** (``s`` + FIFO-Zeit) – das
+      reversible Gegenstück zum Verschrotten.
+    * **Eine durchgefallene Datenerfassung** (``to_stock=False``): das Stück steckt weiter
+      im Prozess, es ist nur nicht mehr verwendbar. Es «am Lager» zu nennen wäre gelogen –
+      geklärt wird es über den Folgeauftrag.
+
+    Liefert die gesperrte Menge."""
+    want = {int(i) for i in indices}
+    if not want:
+        return ZERO
+    stamp = _stamp(at)
+    out: list[dict] = []
+    hit = ZERO
+    for run in _runs(inst):
+        if run.get("x") or run.get("l"):
+            out.append(run)
+            continue
+        q = to_qty(run.get("q", 1))
+        for a, b, sel in _slice(int(run["a"]), int(run["b"]), want):
+            piece = {**run, "a": a, "b": b}
+            if sel:
+                piece["l"] = 1
+                if to_stock:
+                    # Es liegt ab jetzt am Lager (gesperrt) – mit seiner FIFO-Zeit, falls es
+                    # noch keine hatte. Ohne sie wäre es nach dem Entsperren zeitlos.
+                    piece["s"] = 1
+                    piece.setdefault("t", stamp)
+                hit = qty_sum([hit, q * (b - a + 1)])
+            out.append(piece)
+    _write(inst, out, _next(inst))
+    sync_state(inst)
+    return hit
+
+
+def clear_block(inst: Instance, indices=None) -> Decimal:
+    """Die Sperre aufheben – für die genannten Stücke, ohne Angabe für **alle**.
+
+    Zwei Wege führen hierher, und beide sind ausdrücklich: die Aktion an der Instanz
+    («Maschine kommt aus der Wartung») und eine bestandene Datenerfassung («Nacharbeit
+    geprüft»). Ein blosser Auftrags-Abschluss hebt eine Sperre NICHT auf – sonst würde ein
+    durchgefallenes Teil still wieder gut, weil irgendein Auftrag fertig wurde."""
+    want = {int(i) for i in indices} if indices is not None else None
+    out: list[dict] = []
+    freed = ZERO
+    for run in _runs(inst):
+        if not run.get("l"):
+            out.append(run)
+            continue
+        q = to_qty(run.get("q", 1))
+        if want is None:
+            out.append({k: v for k, v in run.items() if k != "l"})
+            freed = qty_sum([freed, q * (int(run["b"]) - int(run["a"]) + 1)])
+            continue
+        for a, b, sel in _slice(int(run["a"]), int(run["b"]), want):
+            piece = {**run, "a": a, "b": b}
+            if sel:
+                piece.pop("l", None)
+                freed = qty_sum([freed, q * (b - a + 1)])
+            out.append(piece)
+    _write(inst, out, _next(inst))
+    sync_state(inst)
+    return freed
+
+
+def blocked_units(inst: Instance, *, holder: int | None = ...) -> list[int]:
+    """Die Nummern der gesperrten Stücke (optional auf einen Halter gefiltert)."""
+    return [u.index for u in of(inst, holder=holder) if u.blocked]
+
+
+def blocked_quantity(inst: Instance, *, holder: int | None = ...) -> Decimal:
+    """**Wie viel davon ist gesperrt?** – die Menge zu den Nummern.
+
+    Gebraucht überall dort, wo eine Menge «verwendbar» heissen soll: was gesperrt ist,
+    zählt für einen Auftrag nicht als gesichert und wird nicht verkauft."""
+    return qty_sum(u.quantity for u in of(inst, holder=holder) if u.blocked)
+
+
 def all_released(inst: Instance) -> bool:
     """Sind ALLE lebenden Stücke freigegeben?"""
     live = [r for r in _runs(inst) if not r.get("x")]
@@ -438,9 +536,15 @@ def project(inst: Instance) -> tuple[str, str] | None:
             if name in states:
                 return (getattr(inst, "quality", None) or "pending", name)
         return None
-    if (getattr(inst, "quality", None) or "") == "blocked":
+    # **Gesperrt ist ein Zustand der MENGE, nicht des Datensatzes** (Testnotiz #646): sperrt
+    # ein Auftrag EIN Stück einer Charge, bleiben die übrigen verwendbar – der Skalar sagt
+    # «gesperrt» erst, wenn nichts Verwendbares mehr übrig ist. Sonst fiele die ganze Charge
+    # aus FIFO, obwohl gute Stücke darin liegen (dieselbe Rangfolge wie bei der Freigabe:
+    # der Skalar macht auffindbar, die **Menge** trägt die Wahrheit – ``free_quantity``).
+    usable = [r for r in live if not r.get("l")]
+    if not usable:
         return ("blocked", "in_stock" if any(r.get("s") for r in live) else "in_process")
-    if any(r.get("s") for r in live):
+    if any(r.get("s") for r in usable):
         return ("passed", "in_stock")
     return ("pending", "in_process")
 
@@ -474,10 +578,12 @@ def free_quantity(inst: Instance) -> Decimal:
     if live and not any(r.get("s") for r in live) and (
             getattr(inst, "disposition", None) or "") == "in_stock":
         return qty_sum(to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1)
-                       for r in live if r.get("o") is None)
+                       for r in live if r.get("o") is None and not r.get("l"))
+    # **Ein gesperrtes Stück ist nie entnehmbar** – auch dann nicht, wenn der Skalar der
+    # Instanz «freigegeben» sagt, weil daneben gute Stücke liegen (#646).
     return qty_sum(to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1)
                    for r in runs
-                   if not r.get("x") and r.get("s") and r.get("o") is None)
+                   if not r.get("x") and r.get("s") and r.get("o") is None and not r.get("l"))
 
 
 def covers(inst: Instance, indices, quantity) -> bool:
@@ -547,6 +653,7 @@ def _same(a: dict, b: dict) -> bool:
     Datum zu bringen."""
     return (a.get("o") == b.get("o") and a.get("x") == b.get("x")
             and bool(a.get("s")) == bool(b.get("s"))
+            and bool(a.get("l")) == bool(b.get("l"))
             and a.get("t") == b.get("t")
             and qty_key(a.get("q", 1)) == qty_key(b.get("q", 1)))
 

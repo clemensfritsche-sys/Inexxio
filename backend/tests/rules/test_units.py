@@ -924,3 +924,118 @@ def test_stock_without_marks_is_opened_not_downgraded(db, world):
     assert len(live) == 3 and all(u.released for u in live), (
         f"Die übrigen bleiben freigegeben – vorher fielen sie auf «Im Prozess» ({live}).")
     assert (inst.quality, inst.disposition) == ("passed", "in_stock")
+
+
+# ─── Sperren: dasselbe Modul, nur reversibel ──────────────────────────────────
+
+def test_blocking_ends_the_order_like_scrapping_does(db, world):
+    """**Sperren verhält sich im Prozess wie Verschrotten** (Testnotiz #646).
+
+    Es ist dasselbe Modul, und der Ablauf ist derselbe: der Auftrag ist mit dem Stück
+    fertig, gibt es **nicht** zurück und schliesst ab. Vorher blieb die Sperre eine blosse
+    Notiz an der Instanz – das Stück hing weiter im Auftrag, der darum nie fertig wurde,
+    und die Anzeige sagte «Im Prozess» statt «Gesperrt».
+
+    Der Unterschied ist die **Umkehrbarkeit**: die Menge bleibt, der Standort bleibt, die
+    Nummer bleibt gültig. Das Stück liegt danach am Lager, gesperrt (gelb) – für FIFO
+    unsichtbar, im Bestand des Artikels sichtbar."""
+    from app.models import ArticleProcessStep, Order
+    from app.routers import orders as R
+    from app.schemas.disposal import ScrapUpdate
+    from app.schemas.order import InstancePick
+    from app.services import inventory, scrap as scrap_svc, units
+    from app.services.objects import next_object_id
+
+    user, _ = world
+    art = _art(db, "Sperre")
+    main, inst = _make_order(db, art, user, 3)
+    _run_inspection(db, main, inst, user, 3)          # 3 ans Lager
+    db.refresh(inst)
+
+    blk = Order(object_id=next_object_id(db), article_id=art.id, quantity=Decimal(1),
+                status="draft")
+    db.add(blk)
+    db.flush()
+    db.add(ArticleProcessStep(order_id=blk.id, step_type="block", position=0))
+    db.flush()
+    R._set_chosen_instances(db, blk, [InstancePick(instance_object_id=inst.object_id, quantity=1)])
+    R._do_release(db, blk, user.id)
+    db.commit()
+    step = (db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.order_id == blk.id).first())
+    scrap_svc.record_block(db, blk, ScrapUpdate(step_id=step.id, reason="Riss",
+                                                instance_ids=[inst.object_id]), user.id)
+    db.commit()
+    db.refresh(inst)
+    db.refresh(blk)
+
+    assert blk.status == "completed", (
+        f"Der Auftrag ist damit fertig – wie beim Verschrotten (ist «{blk.status}»).")
+    blocked = [u for u in units.of(inst) if u.blocked]
+    assert len(blocked) == 1, f"Genau EIN Stück ist gesperrt: {units.of(inst)}"
+    assert blocked[0].released, "…und es liegt am Lager (physisch da, nur nicht verwendbar)."
+    assert (inst.quality, inst.disposition) == ("passed", "in_stock"), (
+        "Die Charge bleibt auffindbar – gesperrt ist EIN Stück, nicht der Datensatz "
+        f"(ist {inst.quality}/{inst.disposition}).")
+    assert inventory.ready_qty(inst) == Decimal(2), (
+        f"Entnehmbar sind die übrigen 2 – das gesperrte nie ({inventory.ready_qty(inst)}).")
+
+
+def test_a_blocked_piece_comes_back_through_an_order(db, world):
+    """**Zurückholen geht über einen ganz normalen Auftrag** (Testnotiz #646).
+
+    Ein gesperrtes Stück ist gelb, nicht rot: man wählt es wie jede andere Instanz in einen
+    Auftrag, und läuft es sauber durch (bestandene Datenerfassung), ist es wieder frei.
+
+    Der Fallstrick dabei: ein gesperrtes Stück deckt kein Soll – **aber nur, wenn DIESER
+    Auftrag es gesperrt hat**. Sonst meldete ausgerechnet der Nacharbeits-Auftrag eine
+    Fehlmenge über sein eigenes Subjekt und käme nie zum ersten Schritt."""
+    from app.models import ArticleProcessStep, Order
+    from app.routers import orders as R
+    from app.schemas.disposal import ScrapUpdate
+    from app.schemas.order import InstancePick
+    from app.services import inventory, ledger, scrap as scrap_svc, units
+    from app.services.objects import next_object_id
+
+    user, _ = world
+    art = _art(db, "Nacharbeit")
+    main, inst = _make_order(db, art, user, 2)
+    _run_inspection(db, main, inst, user, 2)
+    db.refresh(inst)
+
+    def _order(kind: str) -> Order:
+        o = Order(object_id=next_object_id(db), article_id=art.id, quantity=Decimal(1),
+                  status="draft")
+        db.add(o)
+        db.flush()
+        # Ohne Maske erfasst die Datenerfassung ein synthetisches Gut/Schlecht – genau
+        # das, was ``_run_inspection`` (``values={"_ok": True}``) einträgt.
+        db.add(ArticleProcessStep(
+            order_id=o.id, step_type=kind, position=0,
+            **({"sample_percent": 100} if kind == "inspection" else {})))
+        db.flush()
+        R._set_chosen_instances(db, o, [InstancePick(instance_object_id=inst.object_id, quantity=1)])
+        R._do_release(db, o, user.id)
+        db.commit()
+        return o
+
+    blk = _order("block")
+    step = db.query(ArticleProcessStep).filter(ArticleProcessStep.order_id == blk.id).first()
+    scrap_svc.record_block(db, blk, ScrapUpdate(step_id=step.id, reason="Riss",
+                                                instance_ids=[inst.object_id]), user.id)
+    db.commit()
+    db.refresh(inst)
+    assert units.blocked_units(inst), "gesperrt"
+
+    back = _order("inspection")
+    _run_inspection(db, back, inst, user, 1)
+    db.commit()
+    db.refresh(inst)
+    db.refresh(back)
+
+    assert back.status == "completed", (
+        f"Der Nacharbeits-Auftrag läuft durch (ist «{back.status}») – sein Subjekt IST das "
+        "gesperrte Stück, das ist keine Fehlmenge.")
+    assert not units.blocked_units(inst), "Bestanden → die Sperre ist gelöst."
+    assert inventory.ready_qty(inst) == Decimal(2), inventory.ready_qty(inst)
+    assert ledger.verify_instance(db, inst) == [] and units.verify(inst) == []

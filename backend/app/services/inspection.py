@@ -146,22 +146,36 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
     verdicts = sample_verdicts(fields, stored)
     if not verdicts:
         return
-    from . import ledger
+    from . import ledger, units as units_svc
     from .subject import held_quantity
-    reworkable = "in_process"
     for inst in order_active_instances(db, order):
         ok = verdicts.get(inst.object_id)
         if ok is None:
             continue                      # nicht in der Stichprobe → kein Urteil
+        # **Beurteilt werden die Stücke DIESES Auftrags** (Testnotiz #646) – nicht die
+        # ganze Instanz: von einer Charge, an der ihm 2 von 4 gehören, sagt seine Prüfung
+        # nichts über die anderen 2.
+        mine = [u.index for u in units_svc.owned_by(inst, order.id, db)]
         if not ok:
-            inst.quality = inventory.BLOCKED
-            # Journal (ADR 007): Durchfaller wird gesperrt – reversibel, Halter bleibt.
+            # Der Durchfaller wird gesperrt – reversibel, und er bleibt beim Auftrag: er ist
+            # ja noch nicht geklärt (das tut erst der Folgeauftrag).
+            fresh = [i for i in mine if i not in units_svc.blocked_units(inst)]
+            units_svc.mark_blocked(inst, fresh)      # bleibt im Prozess, nur gesperrt
             ledger.post(db, inst, held_quantity(order, inst), kind="blocked",
-                        holder=ledger.KEEP, quality=inventory.BLOCKED, src_holder=order.id)
-        elif inventory.is_blocked(inst) and inst.disposition == reworkable:
-            inst.quality = "pending"      # Nacharbeit bestanden → Sperre gelöst
+                        holder=ledger.KEEP, quality=inventory.BLOCKED, src_holder=order.id,
+                        units=mine)
+        else:
+            # **Nacharbeit bestanden → Sperre gelöst.** Ohne das wäre ein Durchfaller
+            # endgültig verloren, auch wenn die Abweichung ihn nachweislich in Ordnung
+            # gebracht hat. Das ist neben der Aktion an der Instanz der zweite – und
+            # einzige – Weg aus einer Sperre heraus.
+            lifted = [i for i in units_svc.blocked_units(inst) if i in mine]
+            if not lifted:
+                continue
+            units_svc.clear_block(inst, lifted)
             ledger.post(db, inst, held_quantity(order, inst), kind="unblocked",
-                        holder=ledger.KEEP, quality="pending", src_holder=order.id)
+                        holder=ledger.KEEP, quality=inst.quality, src_holder=order.id,
+                        units=lifted)
 
 
 def resolve_failed_by(db: Session, parent: Order, resolver: Order) -> int:

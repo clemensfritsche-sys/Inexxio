@@ -2223,7 +2223,7 @@ def test_scrap_releases_all_reservations_of_the_instance():
     from app.services import reservation, scrap
 
     assert hasattr(reservation, "release_all")
-    src = _inspect.getsource(scrap)
+    src = _inspect.getsource(scrap._scrap_one)
     assert "release_all(inst)" in src
     assert "release(inst, order.id)" not in src   # alter, undichter Aufruf ist ersetzt
 
@@ -2860,8 +2860,10 @@ def test_failed_inspection_is_not_terminal():
     # Nicht mehr nur beim Nichtbestehen bewerten …
     assert 'if decision != "passed":\n        _apply_per_instance_qc' not in src
     assert "_apply_per_instance_qc(db, order, fields, stored)" in src
-    # … und die Sperre ist rücknehmbar (gesperrt → pending), nie eine vorzeitige Freigabe.
-    assert 'inst.quality = "pending"' in src
+    # … und die Sperre ist rücknehmbar, nie eine vorzeitige Freigabe. Sie steht seit
+    # Testnotiz #646 am **Stück** (``units.clear_block``); der Instanz-Skalar ist die
+    # Projektion darüber (``units.project``), niemand setzt ihn hier von Hand.
+    assert "units_svc.clear_block(inst, lifted)" in src
     assert 'inst.quality = "passed"' not in src
 
     # Die Klärung: nur ein abgeschlossener Abweichungs-Unterauftrag setzt sie.
@@ -2897,7 +2899,8 @@ def test_blocked_is_one_state_with_one_word():
         assert 'quality != "failed"' not in src, mod.__name__
     # Geschrieben wird ausschliesslich der eine Wert.
     assert 'inst.quality = "failed"' not in _inspect.getsource(inspection)
-    assert "inst.quality = inventory.BLOCKED" in _inspect.getsource(inspection)
+    # Gesperrt wird je STÜCK (#646); der Instanz-Skalar folgt als Projektion.
+    assert "units_svc.mark_blocked(inst, fresh)" in _inspect.getsource(inspection)
 
 
 class _Q:
@@ -3109,7 +3112,7 @@ def test_block_is_reversible_scrap_is_not():
     assert "block" in ev.allowed_step_types("order")
 
     src = _inspect.getsource(scrap)
-    assert "inst.quality = inventory.BLOCKED" in src   # Sperre auf der Qualitäts-Achse
+    assert "units_svc.mark_blocked(inst, mine, to_stock=True)" in src   # Sperre am Stück (#646)
     assert "def unblock(" in src                    # … und wieder aufhebbar
     # Der Zustand nach dem Entsperren wird ABGELEITET (kein gemerktes drittes Feld).
     assert "def _restore_quality(" in src

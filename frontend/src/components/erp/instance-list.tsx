@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Boxes } from 'lucide-react';
+import { Boxes, ChevronDown } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceUnit } from '@/types';
 import { instanceStatusConfig, formatQty } from '@/lib/process';
@@ -125,22 +125,56 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
             </span>
           </div>
           {g.rows.map(({ inst, units }, idx) => (
-            <div key={`${inst.id}-${idx}`} style={{ ...S.row, borderTop: idx === 0 ? 'none' : '1px solid var(--border-1)' }}>
-              <button type="button" style={S.obj}
-                onClick={() => inst.object_id != null && nav?.(inst.object_id)}>
-                {formatObjectId(inst.object_id)}
-              </button>
-              {units.length > 0 ? (
-                <UnitList units={units} unit={unit} max={12} onOpen={(id) => nav?.(id)} />
-              ) : (
-                <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>
-                  {formatQty(Number(inst.quantity ?? 0))}{unit ? ` ${unit}` : ''}
-                </span>
-              )}
-            </div>
+            <InstanceLine key={`${inst.id}-${idx}`} inst={inst} units={units} unit={unit}
+              first={idx === 0} onOpen={(id) => nav?.(id)} />
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * **Eine Instanz je Zeile – die Stücke auf Wunsch** (Testnotiz #644).
+ *
+ * Eingeklappt steht da, was man im Bestand sucht: Objektnummer und Menge. Wer die einzelnen
+ * Stücke braucht (welche Nummer, seit wann am Lager, wo sie liegt), klappt sie auf. Damit
+ * bleibt die Liste auf einen Blick lesbar, ohne dass die Auskunft verlorengeht.
+ */
+function InstanceLine({ inst, units, unit, first, onOpen }: {
+  inst: Instance; units: InstanceUnit[]; unit?: string; first: boolean;
+  onOpen: (objectId: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const qty = units.length
+    ? units.reduce((n, u) => n + Number(u.quantity ?? 0), 0)
+    : Number(inst.quantity ?? 0);
+  return (
+    <div style={{ borderTop: first ? 'none' : '1px solid var(--border-1)' }}>
+      <div style={S.row}>
+        <button type="button" style={S.obj}
+          onClick={() => inst.object_id != null && onOpen(inst.object_id)}>
+          {formatObjectId(inst.object_id)}
+        </button>
+        <span className="ix-tnum" style={S.qty}>
+          {formatQty(qty)}{unit ? ` ${unit}` : ''}
+        </span>
+        <span style={{ flex: 1 }} />
+        {units.length > 0 && (
+          <button type="button" onClick={() => setOpen((v) => !v)} style={S.toggle}
+            data-tip={open ? 'Stücke ausblenden' : 'Stücke anzeigen'}
+            aria-label={open ? 'Stücke ausblenden' : 'Stücke anzeigen'}>
+            {units.length} {units.length === 1 ? 'Stück' : 'Stücke'}
+            <ChevronDown size={13} style={{ transform: open ? 'rotate(180deg)' : undefined,
+              transition: 'transform .15s' }} />
+          </button>
+        )}
+      </div>
+      {open && units.length > 0 && (
+        <div style={{ padding: '0 16px 10px 16px' }}>
+          <UnitList units={units} unit={unit} onOpen={onOpen} />
+        </div>
+      )}
     </div>
   );
 }
@@ -157,7 +191,12 @@ const S: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid var(--border-1)', background: 'var(--bg-2)',
   },
   headQty: { marginLeft: 'auto', color: 'var(--fg-3)', fontWeight: 600, textTransform: 'none', letterSpacing: 0 },
-  row: { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '10px 16px' },
+  row: { display: 'flex', alignItems: 'center', gap: 14, padding: '10px 16px' },
+  qty: { font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', whiteSpace: 'nowrap' },
+  toggle: {
+    display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none', background: 'none',
+    padding: 0, cursor: 'pointer', font: '500 12px var(--font-body)', color: 'var(--fg-4)',
+  },
   obj: {
     font: 'var(--mono-sm)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)',
     border: 'none', background: 'none', padding: 0, cursor: 'pointer', flex: 'none',
