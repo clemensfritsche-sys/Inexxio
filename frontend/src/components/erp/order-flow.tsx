@@ -356,7 +356,8 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
   const claimedRes = new Set(flowNodes.filter((n) => n.kind === 'split' && n.step_id != null)
     .map((n) => n.step_id as number));
 
-  const edgeAt = (i: number): FlowEdge => flowEdges[i] ?? { lots: [], reached: false, live: false };
+  const NO_EDGE: FlowEdge = { lots: [], reached: false, live: false, flowed: false };
+  const edgeAt = (i: number): FlowEdge => flowEdges[i] ?? NO_EDGE;
 
   const rows: React.ReactNode[] = [];
   flowNodes.forEach((n, i) => {
@@ -365,13 +366,16 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
       // **Vor UND nach jedem Modul steht, was fliesst** (Testnotiz #505): das Material
       // liegt auf der ganzen Achse, nicht erst ab dem Fortschritt. Wie weit der Prozess
       // gekommen ist, sagt die **Linienstärke** – dafür braucht es kein zweites Signal.
+      // **Stark ist die Linie, wo etwas GEFLOSSEN ist** (`edge.flowed`, Notizen #586/#589):
+      // «erreicht» und «geflossen» sind zwei Aussagen – zweigt an einer Stelle alles ab,
+      // ist der Weg darunter erreicht und trotzdem leer. Die Regel steht im Backend.
       <Row key={`edge-${i}`}>
-        <Axis strong={edge.reached} />
+        <Axis strong={edge.flowed} />
         {/* Material trägt nur, wo der Prozess war – unterhalb wäre es eine Prognose
             (Notiz #521). Der Server liefert die Kante dort schlicht leer. */}
         <EdgeMaterial lots={edge.lots} past={!edge.live}
           onCreate={edge.live ? onCreateOrder : undefined} />
-        <Axis strong={edge.reached} />
+        <Axis strong={edge.flowed} />
       </Row>,
     );
     if (n.kind === 'split') {
@@ -379,39 +383,32 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
         .map((id) => branchById.get(id)).filter(Boolean) as OrderDeviationInfo[];
       if (branches.length === 0) return;
       const res = (n.step_id != null ? stepById.get(n.step_id)?.resolutions : null) ?? [];
-      const bypass = n.bypass ?? { lots: [], reached: false, live: false };
+      const bypass = n.bypass ?? NO_EDGE;
       rows.push(
         // **Fork · Bypass · Merge**: die Achse läuft neben der Teilung weiter und trägt, was
         // auf dem Hauptauftrag geblieben ist (Notizen #425/#469/#496) – vom Server gerechnet.
-        // **Die Ecke trägt die Strichstärke IHRER Achse** – Fork wie das Stück darüber
-        // (`reached`), Merge wie das darunter (`passed`). Wo zwei Bits aufeinandertrafen,
-        // stand an der Ecke ein sichtbarer Versatz (3 px ↔ 2 px).
+        // **Die Abzweigung trägt die Strichstärke IHRER Achse** – der Kante darüber, an der
+        // sie hängt. Der Rückweg dagegen ist stark, wenn wirklich etwas zurück IST (#590):
+        // er ist ein eigener Weg, kein Stück der Achse.
         <Row key={`br-${branches[0].object_id}`}
-          right={<BranchArm branches={branches} reached={n.reached} passed={n.passed}
-            onOpen={onOpenOrder} />}>
-          {/* **Stark ist die Linie nur, wo etwas darüber geht** (Testnotizen #580/#584).
-              Zweigt an dieser Stelle ALLES ab, bleibt auf der Achse nichts – dann ist der
-              Bypass ein Weg, den nichts genommen hat, und eine volle Linie behauptete das
-              Gegenteil. Die Abzweigung daneben bleibt stark: dort ist etwas gegangen. */}
-          <Axis grow h={26} strong={n.reached && bypass.lots.length > 0} />
+          right={<BranchArm branches={branches} flowed={edge.flowed} onOpen={onOpenOrder} />}>
+          {/* **Stark ist die Linie nur, wo etwas darüber geht** (Testnotizen #580/#584):
+              zweigt an dieser Stelle ALLES ab, bleibt auf der Achse nichts – dann ist der
+              Bypass ein Weg, den nichts genommen hat. Der Bypass ist EIN Stück Achse, also
+              trägt er EIN Bit (`bypass.flowed`, vom Server).
+              **Und mittig steht das Material ohne Korrekturglied**: Abzweigung und
+              Einmündung sind seit #586 Spiegelbilder (waagrecht genau auf ihrem
+              Anschlusspunkt), die Mitte der Zeile ist damit die Mitte zwischen ihnen. */}
+          <Axis grow h={26} strong={bypass.flowed} />
           <EdgeMaterial lots={bypass.lots} small past={!bypass.live}
             onCreate={bypass.live ? onCreateOrder : undefined} />
-          {/* **Mittig zwischen den beiden waagrechten Linien** (Testnotiz #576). Die
-              Abzweigung verlässt die Achse ganz oben (y = 0), die Einmündung trifft sie
-              ``BEND`` über dem unteren Rand – die Mitte der Zeile liegt also ``BEND``/2 zu
-              tief. Ein Abschnitt dieser Höhe UNTER dem Material verschiebt es um genau
-              diesen halben Bogen nach oben. Nur mit Einmündung: ohne sie gibt es keine
-              zweite Linie, zwischen der etwas mittig stehen könnte. */}
-          {branches.some((b) => b.returns_material) && (
-            <Axis h={BEND} strong={n.passed && bypass.lots.length > 0} />
-          )}
-          <Axis grow h={26} strong={n.passed && bypass.lots.length > 0} />
+          <Axis grow h={26} strong={bypass.flowed} />
         </Row>,
       );
       if (res.length > 0) {
         rows.push(
           <Row key={`res-${branches[0].object_id}`}>
-            <Axis h={10} strong={n.passed} />
+            <Axis h={10} strong={edgeAt(i + 1).flowed} />
             <Resolutions list={res} shown={shownSubs} />
           </Row>,
         );
@@ -438,7 +435,7 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
     if (res.length > 0) {
       rows.push(
         <Row key={`res-${s.id}`}>
-          <Axis h={10} strong={n.passed} />
+          <Axis h={10} strong={edgeAt(i + 1).flowed} />
           <Resolutions list={res} shown={shownSubs} />
         </Row>,
       );
@@ -463,12 +460,12 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
         <Row><FlowTerm kind="start" title={`Start · ${processLabel}`} /></Row>
         {rows}
         <Row key="edge-last">
-          <Axis strong={lastEdge.reached} />
+          <Axis strong={lastEdge.flowed} />
           {/* Die letzte Kante zeigt, womit der Auftrag herauskommt – stark nur, solange er
               läuft (Notiz #467): ist er durch, ist sein Material beim übergeordneten. */}
           {lastEdge.reached && <EdgeMaterial lots={lastEdge.lots} past={!lastEdge.live}
             onCreate={lastEdge.live ? onCreateOrder : undefined} />}
-          <Axis strong={lastEdge.reached} />
+          <Axis strong={lastEdge.flowed} />
         </Row>
         <Row>
           {/* **Das Ziel gehört ans Prozessende** (Notiz #446) – und **neben** den Knoten,
@@ -486,13 +483,13 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
         </Row>
         {origin?.returns_to_object_id != null && (
           <>
-            <Row><Axis h={18} strong={lastEdge.reached} /></Row>
+            <Row><Axis h={18} strong={lastEdge.flowed} /></Row>
             {/* **Was zurück IST, nicht was zurückgehen wird** (Testnotiz #554): die Kante
                 zeigte das lebende Material des Auftrags – also eine Vorhersage, und dazu
                 eine andere als die, die derselbe Abzweig im Eltern zeigt. Jetzt lesen beide
                 dieselben Buchungen (`origin.returned_lots` ← `_flow_back`); solange nichts
                 zurück ist, steht dort nichts. */}
-            <Row left={<ReturnArm origin={origin} strong={lastEdge.reached} onOpen={onOpenOrder}
+            <Row left={<ReturnArm origin={origin} strong={lastEdge.flowed} onOpen={onOpenOrder}
               lots={origin.returned_lots ?? []} />} />
           </>
         )}
@@ -601,22 +598,26 @@ const SUB_LABEL: Record<string, string> = {
  */
 const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';
 
-function BranchArm({ branches, reached, passed, onOpen }: {
+function BranchArm({ branches, flowed, onOpen }: {
   branches: OrderDeviationInfo[];
-  /** **Die Ecke trägt die Strichstärke IHRER Achse** – dasselbe Bit wie das Achsenstück,
-   *  an dem sie hängt (`reached` oben, `passed` unten). Zwei verschiedene Bits an einer
-   *  Ecke bedeuteten 3 px gegen 2 px – und genau das sah man als Versatz. */
-  reached?: boolean; passed?: boolean;
+  /** Ob über die Kante **oberhalb** der Teilung etwas geflossen ist – dasselbe Bit, das
+   *  auch dieses Achsenstück trägt (die Abzweigung hängt daran). */
+  flowed?: boolean;
   onOpen?: (id: number) => void;
 }) {
   // **Kommt nichts zurück, führt auch keine Linie zurück** (Testnotiz #481): wurde alles
   // verschrottet oder die Menge des Eltern-Auftrags reduziert, endet der Abzweig hier – und
   // genau das sagt das Bild dann auch. Solange er läuft, wissen wir es noch nicht.
   const back = branches.filter((b) => b.returns_material);
+  // **Und die Rückgabe-Linie ist stark, wenn wirklich etwas zurück IST** (Testnotiz #590).
+  // Vorher hing sie am Fortschritt der Achse: ein abgebrochener Abzweig, durch den nie etwas
+  // zurückfloss, bekam eine volle schwarze Linie. Dünn heisst hier genau das Richtige –
+  // geplant, aber nichts gekommen; die Buchungen sagen es (`flow_back`).
+  const returned = back.some((b) => (b.flow_back ?? []).length > 0);
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
       paddingTop: ARM, paddingBottom: back.length ? ARM : 0 }}>
-      <Elbow dir="fork-right" strong={reached} />
+      <Elbow dir="fork-right" strong={flowed} />
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
         width: '100%', minWidth: 0 }}>
         {branches.map((b, i) => (
@@ -631,7 +632,7 @@ function BranchArm({ branches, reached, passed, onOpen }: {
           </div>
         ))}
       </div>
-      {back.length > 0 && <Elbow dir="merge-right" strong={passed} />}
+      {back.length > 0 && <Elbow dir="merge-right" strong={returned} />}
     </div>
   );
 }

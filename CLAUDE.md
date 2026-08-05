@@ -4970,6 +4970,56 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   keinen aktiven Schritt mehr, und «kein aktiver Schritt» hiess dort «alles durch». Jetzt
   sagt es, was zutrifft: «nichts an der Reihe (Auftrag «inactive»)».
 
+- **Testnotizen-Runde 44 (die Linie sagt, was passiert ist, Notizen #586/#589/#590)**: Drei
+  Befunde aus derselben Kette (Auftrag → Abweichung A → Abweichung B → Abweichung C, deren
+  Rückführung gekappt ist) – und alle drei haben **eine** Wurzel: eine Aussage über den
+  **Fortschritt der Achse** wurde als Aussage über **geflossenes Material** gelesen.
+  (1) **Läuft er noch → der Plan; ist er zu Ende → die Tatsache** (#590, `returns_material`).
+  B reicht sein einziges Stück an C weiter und wird dadurch gegenstandslos – abgebrochen.
+  Im Eltern-Auftrag A stand danach trotzdem «1 Stk kam zurück» nach einem Modul, das nie
+  ausgeführt wurde, samt voller schwarzer Rückgabe-Linie. Zwei Ursachen, beide dieselbe
+  Klasse: `_flow_back` fiel bei fehlender Rückgabe-**Buchung** auf die alte Ableitung
+  «Übernommenes minus endgültig Verlorenes» zurück – eine Weitergabe nach unten ist nicht
+  terminal, also las sie sich als Rückgabe nach oben; und `returns_material` fragte immer
+  den Plan. Jetzt gilt: hat der Auftrag ein Journal, ist «keine Rückgabe-Buchung» **die
+  Antwort** (die Ableitung bleibt der Lesepfad für Altbestand **ohne** Buchungen), und ein
+  Auftrag, der **zu Ende** ist (abgeschlossen ODER abgebrochen), gibt zurück, was er
+  zurückGEGEBEN hat. Damit ist der Sonderfall «abgebrochen → nichts» (#578) **eine Regel
+  weniger**: er stand in `_return_target` und galt darum nur für die eigene Ansicht des
+  Abzweigs – im Eltern zeichnete derselbe Vorgang weiter eine Linie (exakt die
+  #492-Klasse). Er wohnt jetzt in `returns_material` und gilt für beide Oberflächen.
+  (2) **Erreicht ≠ geflossen** (#589/#586, `FlowEdge.flowed` = `reached and bool(lots)`).
+  Zweigt an einer Stelle ALLES ab, ist der Weg darunter erreicht **und trotzdem leer** – eine
+  volle Linie behauptete dort, es sei etwas durchgegangen. Der Bypass las die Regel längst
+  aus seinem Material (`lots.length > 0` im Frontend); jetzt gilt sie für die **ganze** Achse
+  und steht **im Backend** statt zweimal in der Oberfläche. Die Rückgabe-Linie ist stark,
+  wenn wirklich etwas zurück **ist** (`flow_back`), statt wenn die Achse weiterläuft – dünn
+  heisst dann genau das Richtige: geplant, aber nichts gekommen.
+  (3) **Der Anschluss MITTEN auf der Achse ist ein T, der an ihrem Ende eine Ecke** (#586).
+  Fork und Merge liefen ein Stück **entlang** der Achse (erst `BEND` hinunter, dann hinaus);
+  dieses Stück ist Achse und Ecke zugleich – trug es eine andere Strichstärke als das
+  Achsenstück daneben, blieb dort ein schwarzer Stummel auf einer Haarlinie stehen
+  (**gemessen: 7.6 px**). Ein T berührt die Achse in **einem Punkt**; die Frage ist damit
+  gegenstandslos statt an jeder Stelle neu zu beantworten. Nebeneffekt: Fork und Merge sind
+  echte **Spiegelbilder** (waagrecht genau auf ihrem Anschlusspunkt), also steht das Material
+  **ohne Korrekturglied** mittig – der `BEND`-Ausgleich aus #576 ist entfallen, und die
+  Materialzeile zwischen zwei aufeinanderfolgenden Unter-Aufträgen sitzt nicht mehr um
+  `BEND`/2 daneben (gemessen: vorher 6 px Versatz, jetzt 0.00 px). Herkunft und Rückweg
+  behalten ihre zwei Bögen: sie treffen die Achse dort, wo sie **beginnt bzw. endet**, und
+  das ist eine Ecke des Weges, kein T (#430/#431).
+  *Die Geometrie ist in Chromium **gemessen**, nicht überlegt (dieselbe Lehre wie #583/#550):
+  Pfad abtasten, waagrechte Linien und Achsen-Stummel in Seiten-Koordinaten auslesen.*
+  Wächter: `tests/rules/test_flow_lines.py` (Wirkung über die echten Dienst-Pfade gegen
+  echtes PostgreSQL 16 – die gemeldete Kette Schritt für Schritt, **gegen die Bug-Form
+  gegengeprüft**: sie meldet die Phantom-Rückgabe und die volle Linie auf der leeren Kante)
+  + die Spiegel-Wächter in `test_frontend_mirrors.py`/`test_smoke.py`.
+  *Offen (Regel-Notizen, warten auf die Entscheidung des Nutzers, ADR-008-Arbeitsweise):*
+  **#587** (ein Beschaffungs-Modul fragt beim Erreichen automatisch an – verliert der Auftrag
+  danach alle Instanzen, bleibt die Bestellung aktiv: braucht ein «storniert» am Beleg) und
+  **#588** (ein Modul soll die Instanzen referenzieren, die von oben hereinkommen – und was
+  mit bereits erfassten Daten geschieht, wenn ihm während der Arbeit Instanzen entzogen
+  werden). Beide sind **dieselbe** Frage und gehören als Zeile in die Regel-Tabelle.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

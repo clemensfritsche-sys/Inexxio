@@ -108,22 +108,32 @@ function overlapped(points: Pt[]): Pt[] {
 /**
  * **Der Weg zwischen Achse und Seitenspur – EIN Pfad, echte Viertelkreise.**
  *
- * Vier Richtungen aus denselben Konstanten und demselben Baustein. Fork und Merge sind eine
- * **Gabelung** (#456): die Linie biegt mit demselben Radius aus der Achse ab, mit dem sie in
- * den Unterprozess einläuft. Herkunft und Rückweg treffen die Achse dort, wo sie beginnt bzw.
- * endet – die Linie biegt zweimal ab (#430/#431).
+ * Vier Richtungen aus denselben Konstanten und demselben Baustein. Und **eine Regel für die
+ * Form**: eine Abzweigung sitzt MITTEN auf der Achse, also ist sie ein **T** mit genau einer
+ * Ecke; Herkunft und Rückweg treffen die Achse dort, wo sie **beginnt bzw. endet** – das ist
+ * eine Ecke des Weges und biegt darum zweimal ab (#430/#431).
+ *
+ * **Warum das T** (Testnotiz #586): Fork und Merge liefen vorher ein Stück **entlang** der
+ * Achse (erst ``BEND`` hinunter, dann waagrecht hinaus). Dieses kurze Stück ist Achse und
+ * Ecke zugleich – trug es eine andere Strichstärke als das Achsenstück daneben, blieb genau
+ * dort ein schwarzer Stummel auf einer Haarlinie stehen. Ein T berührt die Achse nur in
+ * **einem Punkt**; die Frage ist damit gegenstandslos statt an jeder Stelle neu zu
+ * beantworten.
+ *
+ * Und es macht die beiden zu **echten Spiegelbildern**: die waagrechte Linie liegt genau auf
+ * ihrem Anschlusspunkt – oben am Anfang der Zeile, unten an ihrem Ende. Was dazwischen steht,
+ * ist damit ohne Korrekturglied mittig (der frühere ``BEND``-Ausgleich ist entfallen).
  *
  * **Die Strichstärke einer Ecke ist die ihrer Achse.** Trafen an einer Ecke zwei verschiedene
- * Bits aufeinander (3 px Achse ↔ 2 px Ecke), stand dort ein sichtbarer Versatz – ein halbes
- * Pixel auf jeder Seite. Der Aufrufer reicht darum denselben Zustand durch, den auch das
- * angrenzende Achsenstück trägt.
+ * Bits aufeinander (4 px Achse ↔ 2 px Ecke), stand dort ein sichtbarer Versatz. Der Aufrufer
+ * reicht darum denselben Zustand durch, den auch das angrenzende Achsenstück trägt.
  */
 const ELBOW: Record<string, { pts: Pt[]; left: number; h: number; top?: number; bottom?: number }> = {
-  // Achse → Seitenspur (Abzweigung, oben) und zurück (Einmündung, unten).
-  'fork-right': { left: -(MAIN / 2 + GAP), top: -BEND, h: ARM + BEND,
-    pts: [[0, 0], [0, BEND], [RUN, BEND], [RUN, ARM + BEND]] },
+  // Achse → Seitenspur (Abzweigung, oben) und zurück (Einmündung, unten) – je ein T.
+  'fork-right': { left: -(MAIN / 2 + GAP), top: 0, h: ARM,
+    pts: [[0, 0], [RUN, 0], [RUN, ARM]] },
   'merge-right': { left: -(MAIN / 2 + GAP), bottom: 0, h: ARM,
-    pts: [[RUN, 0], [RUN, ARM - BEND], [0, ARM - BEND], [0, ARM]] },
+    pts: [[RUN, 0], [RUN, ARM], [0, ARM]] },
   // Nachbar-Spur links → Achse (Herkunft) und Achse → Nachbar (Rückweg).
   'in-from-left': { left: SIDE / 2, bottom: 0, h: ARM,
     pts: [[0, 0], [0, ARM - BEND], [RUN, ARM - BEND], [RUN, ARM]] },

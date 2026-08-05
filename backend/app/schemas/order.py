@@ -169,6 +169,13 @@ class FlowEdge(BaseModel):
     lots: list[FlowLot] = []
     reached: bool = False     # bis hierhin ist der Fluss gekommen → Material zeigen
     live: bool = False        # HIER steht der Prozess – aktuelle Zahlen, Abkürzung ansetzen
+    # **Ist hier etwas GEFLOSSEN?** – die Strichstärke, an EINER Stelle abgeleitet
+    # (Testnotizen #589/#586). «Erreicht» und «geflossen» sind zwei verschiedene Aussagen:
+    # zweigt an einer Stelle ALLES ab, ist der Weg darunter erreicht, aber leer – eine volle
+    # Linie behauptete dort, es sei etwas durchgegangen. Der Bypass las das längst aus seinem
+    # Material (`lots.length > 0` im Frontend); jetzt gilt dieselbe Regel für die ganze Achse,
+    # und sie steht im Backend statt zweimal in der Oberfläche.
+    flowed: bool = False
 
 
 class FlowNode(BaseModel):

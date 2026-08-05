@@ -3813,6 +3813,11 @@ export interface components {
              * @default false
              */
             live: boolean;
+            /**
+             * Flowed
+             * @default false
+             */
+            flowed: boolean;
         };
         /**
          * FlowLot

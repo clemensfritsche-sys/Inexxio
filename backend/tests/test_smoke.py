@@ -4295,7 +4295,13 @@ def test_a_finished_branch_is_not_drawn_as_parallel_and_shows_no_return():
     * **Ein abgebrochener Auftrag gibt nichts zurück.** Was er hielt, ist ausgesteuert oder
       im Auftrag, der ihn fortführt. Eine Rückgabe-Linie behauptete einen Weg, den es nicht
       mehr gibt – gemeldet dort, wo ein Abzweig alles verschrottet hatte und die Kette
-      korrekt gekappt worden war."""
+      korrekt gekappt worden war.
+
+    Die zweite Aussage stand zuerst in ``_return_target`` – also nur an EINER der beiden
+    Oberflächen: die eigene Ansicht des Abzweigs zeigte korrekt keinen Rückweg, sein Teaser
+    im Eltern-Auftrag zeichnete weiterhin eine volle Linie samt Phantom-Menge (Testnotiz
+    #590). Sie wohnt jetzt in ``returns_material`` und ist dort der allgemeinere Satz:
+    **läuft er noch, gilt der Plan; ist er zu Ende, gilt die Tatsache.**"""
     import inspect as _inspect
 
     from app.services import orders as osvc
@@ -4305,6 +4311,10 @@ def test_a_finished_branch_is_not_drawn_as_parallel_and_shows_no_return():
         "Das Ende eines Abzweigs ist «abgeschlossen ODER abgebrochen» (#575).")
     assert "ended(first)" in waves, "…und die Überschneidung liest genau das."
 
-    ret = _inspect.getsource(osvc._return_target)
-    assert 'if (order.status or "") == "inactive":' in ret, (
-        "Ein abgebrochener Auftrag zeigt keinen Rückweg (#578).")
+    ret = _inspect.getsource(osvc.returns_material)
+    assert '(order.status or "") in ENDED' in ret and "_flow_back" in ret, (
+        "Ein Auftrag, der zu Ende ist, gibt zurück, was er zurückGEGEBEN hat (#578/#590).")
+    assert "inactive" in osvc.ENDED and "completed" in osvc.ENDED, (
+        "«Zu Ende» ist abgeschlossen ODER abgebrochen – dieselbe Lesart wie bei den Wellen.")
+    assert "if not returns_material(db, order):" in _inspect.getsource(osvc._return_target), (
+        "Der Rückweg-Knoten liest dieselbe Regel – er hat keine eigene mehr.")

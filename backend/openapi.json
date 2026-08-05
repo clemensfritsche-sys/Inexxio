@@ -10982,6 +10982,11 @@
             "type": "boolean",
             "title": "Live",
             "default": false
+          },
+          "flowed": {
+            "type": "boolean",
+            "title": "Flowed",
+            "default": false
           }
         },
         "type": "object",
