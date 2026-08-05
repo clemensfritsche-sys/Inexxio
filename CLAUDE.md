@@ -297,7 +297,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `quality` ∈ pending|passed|**blocked** («darf man es verwenden?») und `disposition` ∈ in_process|in_stock|consumed|
   sold|scrapped («wo ist es?»). Neue Instanzen starten `(pending, in_process)`; bei Auftrags-Abschluss
   → `(passed, in_stock)` («Freigegeben, ab Lager verbrauchbar») via `process.recompute_completion` →
-  `release_instances` (`released_at` = FIFO-Basis). Datenerfassung gibt NICHT vorzeitig frei (nur
+  `release_instances`. **FIFO-Basis ist die Freigabe des STÜCKS** (`units` → `t`, siehe unten);
+  `released_at` an der Instanz ist nur noch deren Projektion. Datenerfassung gibt NICHT vorzeitig frei (nur
   Durchfaller → `quality=blocked` = «Gesperrt», Migration `085`). Verbaut → `disposition=consumed`, verkauft → `sold`, verschrottet →
   `scrapped`. **Verbrauchbar/zählbar = `quality=passed` UND `disposition=in_stock`** – die EINE Helper-
   Stelle `inventory.in_stock_clauses()` (von Bestand/FIFO/Betriebsmittel geteilt). Anzeige: eine Badge
@@ -363,7 +364,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     **Modus ist der Schritttyp** (NICHT Artikel-Eigenschaft, NICHT pro Zeile; `article.kind` gibt es
     nicht mehr). Je Schritt eine Liste von Zeilen (`resource_lines` = [{article_id, quantity **pro
     Stück**}]). **consume**: Bauteil wird in die **Produkt-Instanz eingebaut** (Standort → `instance`)
-    = Lagerabgang; Auswahl strikt **FIFO nach Freigabe** (`instances.released_at`),
+    = Lagerabgang; Auswahl strikt **FIFO nach Freigabe des Stücks** (`units.fifo_since`),
     Chargen-**Teilentnahme**. **tool**: Werkzeug/Maschine wird nur **genutzt** (kein Lagerabgang, kein
     FIFO, freie Wahl). Nur **freigegebene** (qc passed) Instanzen verbrauchbar/nutzbar; Verfügbarkeit
     wird geprüft. Beide buchen in `resource_usages` (keine eigene Nummer); Genealogie via Instanz-
@@ -5417,6 +5418,79 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   daneben (die Pille lässt ihm seinen Platz) und der **Liefertermin** am Endknoten (steht
   unter dem Knoten, wenn daneben kein Platz ist). Die Hover-Karte wird ins Fenster gezogen.
   Wächter: `test_frontend_mirrors.py: test_the_process_picture_never_scrolls_sideways`.
+
+- **Die FIFO-Zeit gehört zur MENGE, nicht zur Instanz** (August 2026, `services/units.py`):
+  Sie war die **letzte** Grösse, die noch instanzweit stand (`instances.released_at`) – und
+  damit die letzte, die bei einer Charge lügen konnte: werden drei Stück heute und eines in
+  vier Wochen frei, trugen alle vier das Datum von heute. Zustand (`s`/`x`), Menge (`q`),
+  Halter (`o`) und Standort hängen längst am Stück; die Zeit tut es jetzt auch (Lauf-Feld
+  `t`). Drei Regeln, alle drei aus der einen Einsicht, dass `t` eine **Tatsache über die
+  Vergangenheit** ist und keine abgeleitete Grösse:
+  (1) **Gesetzt beim ERSTEN Freigeben** (`mark_released`) und danach nie überschrieben –
+  «seit wann am Lager» meint den Moment, in dem genau dieses Stück freigegeben wurde, nicht
+  den Abschluss irgendeines Auftrags (das war der fachlich unscharfe Punkt).
+  (2) **Eine Retoure setzt die Uhr nicht zurück** (`process._restock_one` setzt
+  `released_at` nur noch, wenn es gar keines gibt; `units.restore` lässt `t` stehen): sie
+  stand auf «jetzt», womit zurückgenommene Ware schlagartig die *jüngste* im Lager war und
+  als letztes wieder hinausging – bei FIFO als Alterungsschutz genau verkehrt.
+  (3) **Altbestand bekommt seine Eröffnungsbilanz** (`units.ensure`/`_open`) statt einer
+  erfundenen Historie: Stücke ohne `t` erben `released_at`/`created_at` der Instanz.
+  **Gelesen wird an EINER Stelle** – `units.fifo_since` (das älteste *entnehmbare* Stück,
+  sonst das älteste freigegebene, sonst der Stand der Instanz) bzw. `fifo_key` für die
+  Sortierung; `inventory.fifo_candidates` liest sie. Angezeigt am Stück
+  (`InstanceUnit.in_stock_since`, Testnotiz #631) und im Artikel-Bestand als Reihenfolge.
+  **`instances.released_at` bleibt** – als Projektion (erste Freigabe) und als **Dokument-
+  datum** einer Dokument-Instanz. Das ist bewusst keine Doppelung: ein Dokument ist ab
+  seiner Freigabe gültig, und genau ab da zählt es auch in der Reihenfolge (`legal.resolve`).
+  **Derselbe Umbau behebt einen gemeldeten Fehler:** beim Verschrotten EINES Stücks stufte
+  `sync_state` eine Charge, deren Stücke (noch) keine Freigabe-Marke trugen, aus dem Nichts
+  auf «Im Prozess» zurück – jetzt trägt die Eröffnungsbilanz die Marke nach, statt den
+  Zustand wegzuwerfen (tolerant lesen, streng schreiben).
+  Wächter: `tests/rules/test_units.py` (`test_the_fifo_time_belongs_to_the_piece`,
+  `…_fifo_orders_by_the_oldest_ready_piece`, `…_a_return_does_not_reset_the_fifo_clock`,
+  `…_stock_without_marks_is_opened_not_downgraded`) – gegen beide Bug-Formen gegengeprüft,
+  522 Prüfungen gegen echtes PostgreSQL 16.
+
+- **Testnotizen-Runde 36 (eine Karte, ein Layout, Notizen #627–#636)**:
+  (1) **Ein Modul steht sofort im Fluss und wird dort konfiguriert** (#635): Der Klick auf
+  ein Palette-Symbol legt es an – «Abbrechen»/«Hinzufügen» sind entfallen. Damit fallen
+  **drei** Darstellungen desselben Moduls auf **eine** zusammen (Anlage-Formular · Karte im
+  Entwurf · Karte im freigegebenen Prozess); ist der Träger freigegeben, ist dieselbe Karte
+  schlicht **gesperrt** (`fieldset[disabled]` – eine Zeile statt eines zweiten Layouts), und
+  geändert wird per Auto-Save wie überall. Dass ein Modul dadurch **unfertig** beginnen darf,
+  ist keine Lockerung, sondern der richtige Zeitpunkt: geprüft wird an der **Freigabe**
+  (`processes.incomplete_steps`, gefordert nur, was wirklich nicht laufen kann – eine
+  Datenerfassung ohne Maske erfasst ein synthetisches Gut/Schlecht und ist damit
+  ausführbar; das Formular legt sie ohnehin mit einem Feld an). Die **Wirkung** des Moduls
+  «Aussondern» ist seither eine Konfiguration statt eines zweiten Moduls: `step_type` ist
+  im Update erlaubt, aber **nur** innerhalb scrap ↔ block (jeder andere Wechsel wäre ein
+  anderes Modul – dafür gibt es löschen und neu anlegen).
+  (2) **Der Palettenname steht im Hover ÜBER dem Symbol** (#630, vierter Anlauf nach
+  #502/#503, #509/#518, #624): wuchs er aus dem Knopf nach rechts heraus, verdeckte er den
+  Nachbarn. Er kommt jetzt aus der EINEN Tooltip-Mechanik des Hauses (`data-tip`) – sie
+  schwebt über der Zeile, kostet keinen Platz im Layout und bleibt darum auch bei
+  umbrechender Palette richtig.
+  (3) **Ein Anteil bekommt Worte** (#636): «Alle · Jedes 2. · Jedes 4. · Stichprobe» stehen
+  ausgeschrieben da. Das ist keine Ausnahme von «Symbole statt Text», sondern dessen
+  Kehrseite – ein Anteil hat kein Bild, das man ohne Vorwissen liest (#618), und ein Symbol,
+  das man raten muss, ist keines.
+  (4) **Die Achse steht IMMER in der Mitte** (#627): eine Zeile **ohne** Seitenspuren ist nur
+  die Spur – ein Kind fester Breite in einer Spalte –, und mit `alignItems: 'stretch'` klebte
+  sie am linken Rand (in Chromium gemessen: 9…469 statt 279…739 in einer 1000-px-Fläche).
+  Betroffen war jeder Auftrag ohne Abzweig, also der Normalfall. Zentriert wird jetzt im
+  `FlowFrame`, an EINER Stelle.
+  (5) **Der Artikel-Bestand liest dieselbe Aufbereitung wie überall** (#632,
+  `instances.denorm`): er hatte eine zweite, kürzere Fassung **ohne** die Stücke – eine
+  Charge à 4 stand darum als EIN Block mit dem Zustand des *Datensatzes* da, während
+  dieselbe Charge im Instanz-Detail Stück für Stück drei Zustände zeigte.
+  (6) **Kein Journal mehr in der Antwort** (#628/#629): die Buchungsliste am Auftrag und an
+  der Instanz ist entfernt (`OrderResponse.history`/`InstanceResponse.history`,
+  `MoveJournal`, `ledger.history`). Das Material-Journal bleibt die Wahrheit über die
+  Vergangenheit (ADR 007) – es speist Fluss-Kanten, Stück-Zustände und das Systemprotokoll;
+  als ausgeschriebene Liste sagte es nur ein zweites Mal, was der Fluss ohnehin zeigt.
+  (7) Kleineres: die Wirkung im Ausschleusen-Editor als Symbol-Schieber mit Hover-Namen
+  (#633), die Zeile «• Grund (Pflicht bei der Ausführung)» entfällt (#634 – der Grund ist
+  Pflicht, das sagt die Ausführung selbst), die FIFO-Zeit steht an jeder Einheit (#631).
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
