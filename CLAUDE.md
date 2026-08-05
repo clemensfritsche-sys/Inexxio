@@ -5565,6 +5565,46 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `…_a_deviation_borrows_and_gives_back`; gegen echtes PostgreSQL 16 verifiziert (ganz
   gesperrte Instanz **und** teilweise gesperrte Charge, je über die echten Dienst-Pfade).
 
+- **Verfügbarkeit ist eine MENGE – und es gibt genau EINE Antwort darauf** (August 2026,
+  Testnotiz #647): Gemeldet: ein Auftrag über 4 Stück «Ab Lager» meldete «nicht genügend
+  Material», während der Bestand-Reiter desselben Artikels voll war. Zwei Ursachen, beide
+  dieselbe Art – *über Datensätze geredet, wo Mengen gemeint waren*, und beide im
+  **Frontend**:
+  (1) **Der Pool war gekappt.** Die Auswahl lud `getInstances(500)` – den **globalen**
+  Instanz-Feed, neueste Objektnummer zuerst, über alle Artikel. Sobald mehr als 500 jüngere
+  Instanzen existierten, war vom Bestand des gesuchten Artikels **nichts** dabei: die
+  Oberfläche rechnete korrekt, nur über der leeren Menge. Sie liest jetzt denselben
+  Endpunkt wie der Bestand-Reiter (`getArticleInstances`), **je Artikel des Auftrags** –
+  eine Frage, eine Quelle, keine Obergrenze.
+  (2) **«Frei» war ein Zustand des DATENSATZES**: `quality==passed && disposition==in_stock
+  && kein fremder Reservierungs-Zeiger`. Der Zeiger (`reserved_for_order_id`) ist eine
+  **Denormalisierung** für die Anzeige («wer hält das?»), kein Mengenwert – eine Charge à
+  500 mit EINEM reservierten Stück galt damit als vollständig belegt. Und seit der
+  Instanz-Zustand die **Projektion über die Stücke** ist (#604), sagt «am Lager» ohnehin nur
+  «hier liegt etwas Entnehmbares», nicht «alles davon».
+  **Die eine Zahl:** `InstanceResponse.available_quantity` = `inventory.ready_qty` – frei
+  UND freigegeben UND nicht gesperrt, **je Stück** gezählt; exakt das, was die
+  FIFO-Allokation nähme. Die Oberfläche summiert sie (plus den eigenen, noch nicht scharfen
+  Anspruch – dasselbe wie `inventory.avail_amount`), statt sie aus Skalaren nachzubauen.
+  **Systematischer Nachlauf** (der Auftrag lautete: dieselbe Fehllogik im ganzen System
+  suchen). Der Allokations-Kern war sauber – `fifo_candidates`/`ready_qty`/`avail_amount`/
+  `available_qty` rechnen durchgehend mit Mengen, `claim_clauses` filtert
+  `reserved_quantity < quantity` (nicht «hat einen Zeiger»). Zwei AST-Läufe über `app/`
+  (Anzahl→Mengenfeld · Anzahl↔Menge verglichen) fanden **keinen** Treffer; die vier
+  verbliebenen `len(…)` auf Instanz-Listen sind echte Anzahlen (Log-Text, Nummern-Zähler,
+  ID-Prüfung). **Ein weiterer Fund**: die **KI**-Werkzeuge «Artikel lesen»/«Bestand»
+  rechneten mit dem SQL-Aggregat `sum(quantity − reserved_quantity)` – dieselbe Frage,
+  andere Antwort: eine Charge «am Lager» mit gesperrten oder noch im Prozess stehenden
+  Stücken zählte dort voll mit. Die KI hätte einem Menschen eine Zahl genannt, die das ERP
+  nirgends zeigt; beide lesen jetzt `inventory.available` bzw. das neue
+  `inventory.free_by_article` (EINE Abfrage, dieselbe Regel).
+  Wächter `tests/rules/test_availability.py` (Oberfläche == Allokation, auch bei
+  Teil-Reservierung und gesperrtem Stück · Bestand liegt nicht unter den jüngsten
+  Objektnummern · KI nennt dieselbe Zahl) und `test_frontend_mirrors.py:
+  test_availability_is_a_quantity_from_one_source` (kein gekappter Gesamt-Feed, keine
+  Skalar-Ableitung in der Oberfläche) – gegen die Bug-Formen gegengeprüft, gegen echtes
+  PostgreSQL 16.
+
 - **Testnotizen-Runde 37 (eine Zahl, eine Quelle, Notizen #637–#644)**:
   (1) **«x von N Stück prüfen» kommt aus EINER Rechnung** (#643): `required_count` las, was
   der Auftrag tatsächlich hält, das `N` daneben die *deklarierte* Auftragsmenge – nachdem ein

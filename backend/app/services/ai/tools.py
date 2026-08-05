@@ -26,7 +26,6 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from fastapi import HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...domain import event_types
@@ -36,7 +35,7 @@ from ...models import (
 from .. import address
 from ..admin import log_audit
 from ..events import emit
-from ..inventory import in_stock_clauses
+from .. import inventory
 from ..objects import next_object_id
 from ..orders import visible_orders
 from .principal import AiPrincipal
@@ -77,11 +76,11 @@ def _t_get_article(db: Session, p: AiPrincipal, args: dict) -> Any:
     )
     if not a:
         return {"error": "Artikel nicht gefunden"}
-    stock = (
-        db.query(func.coalesce(func.sum(Instance.quantity - Instance.reserved_quantity), 0))
-        .filter(Instance.article_id == a.id, Instance.is_active == True, *in_stock_clauses())
-        .scalar()
-    )
+    # **Freier Bestand = was die Allokation nähme** (Testnotiz #647) – nicht
+    # ``sum(quantity − reserved_quantity)``: seit der Instanz-Zustand eine Projektion über
+    # die Stücke ist, kann eine Charge «am Lager» stehen und trotzdem Stücke enthalten, die
+    # im Prozess oder gesperrt sind. Die KI soll dieselbe Zahl nennen wie das ERP.
+    stock = inventory.available(db, a.id)
     return {
         "object_id": _num(a.object_id), "name": a.name, "status": a.status,
         "unit": a.unit, "serialization": a.serialization, "size": a.size,
@@ -140,18 +139,15 @@ def _t_get_order(db: Session, p: AiPrincipal, args: dict) -> Any:
 
 def _t_inventory(db: Session, p: AiPrincipal, args: dict) -> Any:
     """Freier Bestand je Artikel (verbrauchbar = quality=passed & disposition=in_stock)."""
-    q = (
-        db.query(Article.object_id, Article.name, Article.unit,
-                 func.coalesce(func.sum(Instance.quantity - Instance.reserved_quantity), 0))
-        .join(Instance, Instance.article_id == Article.id)
-        .filter(Article.is_active == True, Instance.is_active == True, *in_stock_clauses())
-        .group_by(Article.object_id, Article.name, Article.unit)
-    )
+    q = db.query(Article).filter(Article.is_active == True)
     if args.get("article_object_id"):
         q = q.filter(Article.object_id == int(args["article_object_id"]))
-    rows = q.order_by(Article.object_id.desc()).limit(_LIMIT).all()
-    return [{"article_object_id": _num(r[0]), "name": r[1], "unit": r[2], "free_stock": _qnum(r[3])}
-            for r in rows]
+    arts = q.order_by(Article.object_id.desc()).limit(_LIMIT).all()
+    # Dieselbe Ableitung wie überall (``inventory.free_by_article``), EINE Abfrage für alle.
+    free = inventory.free_by_article(db, [a.id for a in arts])
+    return [{"article_object_id": _num(a.object_id), "name": a.name, "unit": a.unit,
+             "free_stock": _qnum(free.get(a.id, 0))}
+            for a in arts if free.get(a.id, 0) > 0]
 
 
 def _t_recent_events(db: Session, p: AiPrincipal, args: dict) -> Any:

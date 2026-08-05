@@ -471,16 +471,40 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // einem Mehrpositionen-Auftrag EINE Zeile je Position, sonst eine synthetische Zeile
   // für den Anker – dieselbe Ableitung bedient also Einzel- wie Mehrpositionen-Auftrag.
   const [pinPool, setPinPool] = useState<Instance[]>([]);
+  // **Der Pool ist der Bestand DIESER Artikel – nicht «die 500 neuesten Instanzen»**
+  // (Testnotiz #647). Vorher lud der Entwurf `getInstances(500)`: den Feed über ALLE
+  // Artikel, absteigend nach Objektnummer. Sobald mehr als 500 jüngere Instanzen
+  // existierten, war vom Bestand des gesuchten Artikels **nichts** im Pool – der Bedarf
+  // meldete «Nur 0 Stk am Lager», während der Bestand-Reiter danebenlag und alles zeigte.
+  // Er liest jetzt denselben Endpunkt wie dieser Reiter, je Artikel des Auftrags: eine
+  // Frage, eine Quelle, keine Obergrenze.
+  const poolArticleIds = [
+    record?.article_object_id ?? null,
+    ...orderLines.map((l) => l.article_object_id ?? null),
+  ].filter((v): v is number => v != null);
+  const poolKey = poolArticleIds.join(',');
   useEffect(() => {
     // Auch ein Unter-Auftrag im Entwurf braucht den Pool – seine Auswahl ist erweiterbar (#355).
-    if (!isDraftStaff) { setPinPool([]); return; }
-    api.getInstances(500).then(setPinPool).catch(() => {});
-  }, [isDraftStaff]);
+    const ids = poolKey ? poolKey.split(',').map(Number) : [];
+    if (!isDraftStaff || ids.length === 0) { setPinPool([]); return; }
+    let alive = true;
+    Promise.all(ids.map((oid) => api.getArticleInstances(oid).catch(() => [] as Instance[])))
+      .then((lists) => {
+        if (!alive) return;
+        const seen = new Set<number>();
+        setPinPool(lists.flat().filter((i) => i.id != null && !seen.has(i.id) && seen.add(i.id)));
+      });
+    return () => { alive = false; };
+  }, [isDraftStaff, poolKey]);
 
-  // Frei verfügbar = freigegeben, am Lager und nicht für einen FREMDEN Auftrag reserviert.
-  const isFree = (i: Instance) =>
-    i.quality === 'passed' && i.disposition === 'in_stock' &&
-    (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id);
+  // **Frei verfügbar ist eine MENGE, kein Zustand des Datensatzes** (Testnotiz #647).
+  // Vorher: «Skalar passed + in_stock + kein fremder Reservierungs-Zeiger» – drei Aussagen
+  // über den **Datensatz**. Eine Charge à 500, von der EIN Stück für einen anderen Auftrag
+  // reserviert war, galt damit als vollständig belegt (der Zeiger ist eine
+  // Denormalisierung, kein Mengenwert). Jetzt liest die Oberfläche die eine Zahl, die auch
+  // FIFO nimmt (`inventory.ready_qty` → `available_quantity`).
+  const availOf = (i: Instance) => Number(i.available_quantity ?? 0);
+  const isFree = (i: Instance) => availOf(i) > 0;
 
   // **Drei Sorten, eine Auswahl** (Notiz #360) – und die Sorte bestimmt die Art des
   // Auftrags (`classify_pick`): frei → gewöhnlicher Bedarf · gebunden → Abweichung ·
@@ -516,8 +540,13 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     // Aufträge hängen, erscheint als zwei Zeilen. Damit ist mit dem Klick beantwortet, wem
     // die Menge weggenommen wird – das Backend muss nicht mehr raten (``pick_sources``).
     const shares: Share[] = [];
+    // **Was FIFO hier nehmen könnte** – die Summe der entnehmbaren MENGEN (#647), plus was
+    // dieser Auftrag selbst schon beansprucht (im Entwurf noch nicht scharf). Exakt das,
+    // was `inventory.avail_amount(inst, for_order_id)` im Backend rechnet.
+    let avail = 0;
     for (const i of pinPool) {
       if (i.object_id == null || i.article_id !== articleId || i.disposition === 'scrapped') continue;
+      avail += availOf(i) + (ownByInstance.get(i.object_id) ?? 0);
       const rows = i.shares && i.shares.length > 0
         ? i.shares
         : [{ order_object_id: null, order_name: null, reason: null, quantity: i.quantity ?? 0,
@@ -553,8 +582,9 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
     return {
       key, lineId, articleId, unit, reqQty, shares, picked,
       pickedQty: picked.reduce((s, p) => s + (p.quantity ?? 0), 0),
-      // «Genug Bestand?» meint das FREI Verfügbare – gebundene Anteile zählen dafür nicht.
-      availableQty: shares.filter((sh) => sh.kind === 'free').reduce((s, sh) => s + sh.quantity, 0),
+      // «Genug Bestand?» meint die **entnehmbare Menge** – nicht die Zahl freier Zeilen und
+      // auch nicht die Restmenge gebundener Anteile (#647).
+      availableQty: avail,
       // Was sich überhaupt auswählen liesse. Reicht das nicht für die Menge, ist «Auswählen»
       // eine Sackgasse: die Auswahl liesse sich nie vervollständigen (Notiz #356).
       poolQty: shares.reduce((s, sh) => s + sh.quantity, 0),

@@ -4204,6 +4204,11 @@ export interface components {
              */
             reserved_quantity: number;
             /**
+             * Available Quantity
+             * @default 0
+             */
+            available_quantity: number;
+            /**
              * Units
              * @default []
              */

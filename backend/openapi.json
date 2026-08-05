@@ -11863,6 +11863,11 @@
             "title": "Reserved Quantity",
             "default": 0
           },
+          "available_quantity": {
+            "type": "number",
+            "title": "Available Quantity",
+            "default": 0
+          },
           "units": {
             "items": {
               "$ref": "#/components/schemas/InstanceUnit"
