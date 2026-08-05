@@ -165,15 +165,17 @@ const PIN_KIND: Record<PinKind, {
 export type OrderSeed = {
   articleId: number;
   quantity?: number;
-  /** Die Instanz, um die es geht – immer EIN Stück (von einer Charge à 500 selten alle 500).
+  /** Die Instanz, um die es geht.
    *
-   *  ``fromOrderObjectId`` ist der Anteil, aus dem es kommt: eine Objektnummer (bzw. ``null``
-   *  für «frei»), wenn es nur EINE Zeile gibt – dann ist die Zeile bereits angeklickt.
-   *  Trägt die Instanz **mehrere** Anteile, bleibt das Feld ``undefined``: die Zeile ist eine
-   *  Entscheidung und wird nicht geraten (#394). Die **Auswahl steht trotzdem offen**, sonst
-   *  fiele der Bedarf auf «Ab Lager» zurück und die Instanz wäre plötzlich gar nicht mehr im
-   *  Spiel (#400). */
-  instance?: { objectId: number; quantity: number; fromOrderObjectId?: number | null };
+   *  **Ohne Menge und ohne Anteil** (Testnotiz #608): der Abkürzungs-Knopf an der Instanz
+   *  merkt nur vor, WORUM es geht – wie viel und aus wessen Anteil ist eine Entscheidung,
+   *  und die wird getroffen, nicht vorausgefüllt. Damit gilt EIN Weg für Einzelteil und
+   *  Charge; die Auswahl steht offen, die Zeilen liegen sichtbar da.
+   *
+   *  ``quantity``/``fromOrderObjectId`` bleiben für den Abkürzungs-Knopf im **Fluss**
+   *  (#455/#459/#461): dort ist beides bekannt – die Kante nennt die Menge, und der Halter
+   *  ist der Auftrag, dessen Fluss man gerade ansieht. */
+  instance?: { objectId: number; quantity?: number; fromOrderObjectId?: number | null };
   /** **Mehrere Positionen** (Notiz #455): der Abkürzungs-Knopf im Fluss nimmt ALLE Instanzen
    *  mit, die dort stehen – und das können verschiedene Artikel sein. Dann ist jede Gruppe
    *  eine Position mit ihren Instanzen und Mengen; ``articleId``/``instance`` beschreiben
@@ -264,7 +266,11 @@ function seededDraft(seed: OrderSeed | null | undefined, articles: Article[]): O
   const articleId = one?.articleId ?? seed.articleId;
   const art = articles.find((a) => a.id === articleId);
   return {
-    ...d, article_id: articleId, quantity: one?.quantity ?? seed.quantity ?? 1,
+    // **Die Menge bleibt offen, wenn sie niemand kennt** (Testnotiz #608): der Knopf an der
+    // Instanz merkt nur vor, WORUM es geht. Im Fluss ist sie bekannt (die Kante nennt sie)
+    // und kommt darum mit; hier tippt sie der Mensch – eine geratene 1 wäre nur beim
+    // Einzelteil zufällig richtig.
+    ...d, article_id: articleId, quantity: one?.quantity ?? seed.quantity ?? null,
     article_object_id: art?.object_id ?? null, article_name: art?.name ?? null,
     article_unit: art?.unit ?? null,
   } as Order;

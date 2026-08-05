@@ -5237,6 +5237,24 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Breite hat (#597), richtet sie sich im Block-Fluss links aus – im laufenden Auftrag
   zentriert `Row` sie, beim Anlegen niemand.
 
+- **Der Shortcut merkt vor, er entscheidet nicht** (Testnotiz #608): Der «Auftrag anlegen»-
+  Knopf am Instanz-Detail merkt jetzt **nur noch die Instanz** vor – keine Menge, keinen
+  Anteil. Die Vorauswahl war über drei Runden gewachsen (ein Stück #385, aber nicht bei
+  mehreren Anteilen #394, die Instanz trotzdem #400, und der Halter musste genannt werden
+  #390/#553) und lief auf eine Fallunterscheidung über «wie viele Anteile hat diese
+  Instanz» hinaus – bei einer Charge lautet die Antwort selten «einer». Ein Anteil ist seit
+  #394 eine **Entscheidung** (der genannte verliert unbedingt); Entscheidungen füllt man
+  nicht vor. Damit gilt EIN Weg für Einzelteil und Charge, für einen Anteil und für fünf.
+  Genannt wird ein Halter nur noch dort, wo er wirklich bekannt ist: am Abkürzungs-Knopf im
+  **Fluss** (`seedFromLots`) – dort nennt die Kante die Menge, und der Halter ist der
+  Auftrag, dessen Fluss man ansieht.
+  **Und der Knopf sagt nicht mehr voraus, was daraus wird** (nimmt #380 zurück): er trug die
+  Farbe der Instanz-Badge und hiess bei einer gebundenen Instanz vorab
+  «Abweichungsauftrag». Das kann die Badge gar nicht wissen – eine Charge mit teils freien,
+  teils gebundenen Anteilen wird zum einen ODER zum anderen, je nachdem welche **Zeile** man
+  anklickt (`subject.classify_pick`). EIN Knopf, ein Name, ein Ton; was es wird, zeigt der
+  Entwurf sofort (gebundener Anteil → Halter links, Rückgabe-Linie unten).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

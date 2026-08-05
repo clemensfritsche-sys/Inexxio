@@ -28,8 +28,7 @@ import { instanceName } from '@/lib/record-name';
 type InstTab = 'spec' | 'orders' | 'verwendung' | 'docs';
 import { useErpNav } from '@/components/erp/obj-id';
 import { printObjectLabel } from '@/components/scan/object-label';
-import { cn, formatObjectId, localDate, localDateTime, timeAgo } from '@/lib/utils';
-import { isPending } from '@/lib/status-flow';
+import { formatObjectId, localDate, localDateTime, timeAgo } from '@/lib/utils';
 
 /**
  * Instanz-Detail – bewusst EINE Ansicht (keine Reiter): Eine Instanz ist die
@@ -122,42 +121,26 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
   // zweiten Knopf «Abweichung melden» mehr und keine Bedingung ausser der einen, die
   // fachlich zählt: an verschrotteter Ware ist nichts mehr zu tun.
   const canOrderInstance = inst.disposition !== 'scrapped';
-  // Reine **Vorschau** für den Knopf: gelbe Badge → daraus wird eine Abweichung. Gelesen
-  // wird dieselbe Badge, die daneben steht – nicht die Regel nachgebaut (Notiz #380).
-  const willDeviate = canOrderInstance && isPending(status);
-
   // **Der Knopf legt nichts an – er öffnet das Anlage-Fenster mit dieser Instanz vorgewählt**
   // (Testnotiz #386): einen Auftrag gibt es erst mit der Freigabe. Wer es sich anders
   // überlegt, klickt weg und es bleibt nichts zurück.
   //
-  // **Immer EIN Stück vorwählen** (Testnotiz #385): der Shortcut ist eine Eingabehilfe,
-  // kein Vorgriff auf die Menge. Von einer Charge à 500 will man fast nie alle 500
-  // behandeln – und die Menge lässt sich im Entwurf ohnehin frei ändern (auch nach oben,
-  // bis zur vollen Instanz-Menge).
-  // **Die Vorauswahl nennt ihren Halter** (Testnotiz #390): ohne ihn zeigte sie auf eine
-  // Zeile, die es in der Auswahl gar nicht gibt – sie zählte zur Menge, war aber nirgends
-  // markiert, und bei Auftragsmenge 1 liess sich die Instanz dadurch nicht mehr anklicken.
+  // **Und er merkt NUR die Instanz vor, keinen Anteil und keine Menge** (Testnotiz #608).
+  // Die Vorauswahl des Anteils war über drei Runden gewachsen – ein Stück (#385), aber
+  // nicht bei mehreren Anteilen (#394), die Instanz trotzdem (#400), und der Halter musste
+  // genannt werden (#390/#553). Das ist eine Fallunterscheidung über «wie viele Anteile hat
+  // diese Instanz», und bei einer Charge lautet die Antwort selten «einer».
   //
-  // **Aber nur, wenn es nichts zu entscheiden gibt** (Testnotiz #394): trägt die Instanz
-  // mehrere Anteile (etwa Erzeugungsauftrag *und* eine laufende Abweichung), sind das zwei
-  // verschiedene Vorgänge – und seit der genannte Anteil bei der Freigabe wirklich verliert,
-  // ist die Wahl der Zeile keine Formsache mehr. Raten (früher: der grösste) hiesse, dem
-  // falschen Auftrag etwas wegzunehmen. Also wird dann gar nichts vorgewählt: die Auswahl
-  // steht offen und der Mensch klickt die Zeile an, die er meint.
+  // Ein Anteil ist eine **Entscheidung**: seit der genannte Anteil bei der Freigabe
+  // unbedingt verliert (#394), nimmt eine falsche Vorauswahl dem falschen Auftrag etwas
+  // weg. Entscheidungen füllt man nicht vor, man trifft sie – die Auswahl steht offen, die
+  // Zeilen liegen sichtbar da. Damit gilt EIN Weg für Einzelteil und Charge, für einen
+  // Anteil und für fünf; der Preis ist genau ein Klick im einfachsten Fall.
   function createOrderShortcut() {
     if (!canOrderInstance || inst.object_id == null || inst.article_id == null) return;
-    // **Die Instanz kommt immer mit** – sie ist der Grund, warum hier geklickt wurde
-    // (#400). Nur der **Anteil** bleibt offen, wenn es mehrere gibt: welche Zeile gemeint
-    // ist, ist dann eine Entscheidung und wird nicht geraten (#394).
-    const rows = inst.shares ?? [];
-    onCreateOrder?.({
-      articleId: inst.article_id, quantity: 1,
-      instance: {
-        objectId: inst.object_id, quantity: 1,
-        ...(rows.length === 1 ? { fromOrderObjectId: rows[0].order_object_id ?? null } : {}),
-      },
-    });
+    onCreateOrder?.({ articleId: inst.article_id, instance: { objectId: inst.object_id } });
   }
+
 
   return (
     <div className="flex flex-col h-full bg-bg-1" style={{ color: 'var(--fg-1)' }}>
@@ -173,18 +156,19 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
             onClick={() => inst.object_id != null && printObjectLabel(inst.object_id, inst.article_name, 'Instanz')}>
             <QrCode size={15} />
           </button>
-          {/* Shortcut «Auftrag»: direkt einen Auftrag auf diese Instanz auslösen.
-              **Der Knopf trägt den Ton des Zustands** (Testnotiz #380): ist die Instanz
-              gebunden (gelbe Badge), wird aus dem Auftrag eine Abweichung – also sieht der
-              Knopf schon vorher so aus. Das ist keine zweite Regel, sondern ein Blick auf
-              dieselbe Badge (`isPending`): die Entscheidung trifft weiterhin allein die
-              Auswahl im Auftrag (`subject.classify_pick`), hier steht nur die Vorschau. */}
-          <button className={cn('erp-idbtn', willDeviate ? 'erp-idbtn-flag' : 'erp-idbtn-act')} data-tip-pos="bottom"
-            data-tip={!canOrderInstance
-              ? 'An verschrotteter Ware ist nichts mehr zu tun'
-              : willDeviate
-                ? 'Abweichungsauftrag anlegen – diese Instanz ist gebunden und darin vorgewählt'
-                : 'Auftrag anlegen – diese Instanz ist darin vorgewählt (bewegen, prüfen, aussondern, verkaufen …)'}
+          {/* Shortcut «Auftrag»: einen Auftrag auf diese Instanz auslösen.
+              **EIN Knopf, ein Name, ein Ton** (Testnotiz #608, nimmt #380 zurück). Er trug
+              die Farbe der Instanz-Badge und hiess bei einer gebundenen Instanz vorab
+              «Abweichungsauftrag» – eine Vorhersage über etwas, das erst die **Auswahl**
+              entscheidet (`subject.classify_pick`). Bei einer Charge mit mehreren Anteilen,
+              teils frei, teils gebunden, kann die Badge das gar nicht wissen: was daraus
+              wird, hängt an der Zeile, die man anklickt, nicht am Datensatz.
+              Was es wird, zeigt der Entwurf sofort – wählt man einen gebundenen Anteil,
+              erscheinen links die Halter und unten die Rückgabe-Linie. */}
+          <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
+            data-tip={canOrderInstance
+              ? 'Auftrag anlegen – diese Instanz ist darin vorgewählt (bewegen, prüfen, aussondern, verkaufen …)'
+              : 'An verschrotteter Ware ist nichts mehr zu tun'}
             aria-label="Auftrag anlegen"
             disabled={!canOrderInstance}
             onClick={createOrderShortcut}>

@@ -3903,8 +3903,12 @@ def test_the_picker_selection_follows_the_current_rows():
     assert "capacity" in detail, (
         "Ein gewählter Anteil darf zusätzlich das umfassen, was der Auftrag selbst hält – "
         "sein Anspruch ist im Entwurf noch nicht scharf.")
-    inst = (fe / "instance-detail.tsx").read_text()
-    assert "fromOrderObjectId" in inst, "Die Vorauswahl nennt ihren Halter."
+    # Die zweite Hälfte von damals – «die Vorauswahl nennt ihren Halter» – ist mit #608
+    # gegenstandslos: der Knopf an der Instanz merkt gar keinen Anteil mehr vor. Genannt
+    # wird er nur noch dort, wo er wirklich bekannt ist: am Abkürzungs-Knopf im **Fluss**
+    # (`seedFromLots`, #459/#461).
+    assert "seedFromLots(lots: FlowLot[], holderObjectId: number | null)" in detail, (
+        "Wo der Halter bekannt ist, wird er genannt – im Fluss.")
 
 
 def test_a_pick_is_never_a_production():
@@ -3975,11 +3979,15 @@ def test_a_pick_is_not_guessed_when_it_is_a_decision():
     from pathlib import Path
     fe = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "erp"
     inst = (fe / "instance-detail.tsx").read_text()
-    assert "rows.length === 1 ? { fromOrderObjectId:" in inst, (
-        "Mehrere Anteile ⇒ kein vorgewählter Anteil – die Zeile ist eine Entscheidung. "
-        "Die INSTANZ kommt trotzdem mit, sonst fiele der Bedarf auf «Ab Lager» (#400).")
-    assert "reduce<" not in inst.split("function createOrderShortcut")[1].split("}")[0], (
-        "Kein «grösster Anteil gewinnt» mehr.")
+    # **Nur die Instanz, kein Anteil und keine Menge** (Testnotiz #608): die drei Runden
+    # gewachsene Heuristik («ein Stück, aber nicht bei mehreren Anteilen, die Instanz
+    # trotzdem, und der Halter muss genannt werden») ist EINE Zeile geworden. Ein Anteil ist
+    # eine Entscheidung – die füllt man nicht vor, man trifft sie.
+    short = inst.split("function createOrderShortcut")[1].split("\n  }")[0]
+    assert "fromOrderObjectId" not in short and "quantity" not in short, (
+        "Der Knopf merkt nur vor, WORUM es geht – Anteil und Menge bleiben offen (#608).")
+    assert "instance: { objectId: inst.object_id }" in short, (
+        "Die Instanz kommt mit, sonst fiele der Bedarf auf «Ab Lager» (#400).")
     detail = (fe / "order-detail.tsx").read_text()
     assert "rows.length === 1 ? rows[0] : null" in detail, (
         "reconcilePicks rät nicht – es folgt nur einer eindeutigen Zeile.")

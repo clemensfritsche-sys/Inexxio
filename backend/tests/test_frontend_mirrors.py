@@ -234,8 +234,9 @@ def test_the_picker_offers_shares_not_instances():
     # Stück**: Nummer · Menge · Zustand · Halter · Standort in EINER Zeile. Das ist genauer
     # als die frühere Karte über Anteilen und macht eine zweite Standort-Anzeige überflüssig.
     inst = (FRONTEND / "components" / "erp" / "instance-detail.tsx").read_text()
-    assert "shares" in inst, "Das Instanz-Detail kennt die Aufteilung."
-    assert "<UnitList" in inst, "…und zeigt sie je Stück (#605)."
+    assert "<UnitList" in inst, (
+        "Das Instanz-Detail zeigt die Aufteilung – seit #605 je Stück statt als eigene "
+        "Anteils-Karte.")
     units = (FRONTEND / "components" / "erp" / "unit-numbers.tsx").read_text()
     for part in ("order_object_id", "location_label"):
         assert part in units, f"Die Stück-Zeile nennt {part} – Halter UND Standort (#605)."
@@ -346,8 +347,9 @@ def test_the_share_icon_comes_from_the_holder_not_from_the_sort():
     assert "useState<OrderGoal | null>(seed?.instance ? 'specific' : null)" in detail, (
         "Wer an einer Instanz startet, meint «Auswählen».")
     inst = (fe / "instance-detail.tsx").read_text()
-    assert "rows.length === 1 ? { fromOrderObjectId:" in inst, (
-        "Die Instanz kommt immer mit; nur der Anteil bleibt offen, wenn es mehrere gibt.")
+    assert "instance: { objectId: inst.object_id }" in inst, (
+        "Der Knopf an der Instanz merkt NUR die Instanz vor – Anteil und Menge sind "
+        "Entscheidungen und bleiben offen (#608).")
 
 
 def test_a_sub_order_carries_its_own_state_in_the_flow():
