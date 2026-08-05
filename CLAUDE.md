@@ -5209,6 +5209,34 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `…_fifo_never_hands_out_a_piece_that_is_still_in_process`; gegen echtes PostgreSQL 16
   verifiziert und **gegen beide Bug-Formen gegengeprüft**.
 
+- **Testnotizen-Runde 47 (der Zustand steht am Stück, Notizen #599–#614)**: Die Runde
+  hängt an der Projektion darüber – seit jedes Stück seinen Zustand trägt, kann die
+  Oberfläche ihn auch zeigen.
+  (1) **Jede Einheit sagt, wo sie liegt** (#605, `units.place`): die Standort-Verteilung
+  der Instanz (`instances.locations`, eine Mengen-Map) wird der Reihe nach auf die
+  aufsteigenden Stück-Nummern gelegt – **EINE Logik für Charge und Einzelteil**; liegt
+  alles an einem Ort, bekommt es jedes Stück. Ein ausgeschiedenes Stück bleibt ohne
+  Standort (Ausschuss hat keinen Halter). Damit ist die Standort-Karte darüber entfallen:
+  «wo ist was?» hat genau eine Antwort, und sie steht an den Stücken.
+  (2) **Die Kachel «Am Lager» entfällt** (#606) – die Zahl steht bei jeder Einheit, mit
+  Zustand und Standort dazu. **«Stücke» heisst «Einheiten»** (#607).
+  (3) **Der Bestand am Artikel ist eine Liste von STÜCKEN** (#600, `instance-list.tsx`
+  neu): eine Zeile ist ein Stück, gruppiert nach Zustand (nicht gefiltert – ein Filter
+  versteckt, gefragt war das Gegenteil), FIFO innerhalb der Gruppe, darüber eine
+  Zusammenfassungs-Zeile «Punkt + Wort + Menge». Das ist genau der Grund, warum FIFO an
+  der Instanz-Badge vorbeischaut: eine Charge kann geteilter Meinung sein.
+  (4) **Der Prüfumfang ist ein Symbol-Schieber** (#610, `IconSwitch symbolOnly`) wie
+  überall sonst; ein Prozent-Symbol blendet den Sonderwert ein. **Enter legt den Schritt
+  an** (#611). Erfassungsfelder sind Zeilen mit Haarlinie statt Kacheln (#612).
+  (5) **Die Aufgabe statt der Einstellung** (#614): «1 von 1 Stück prüfen» – der
+  eingestellte Prozentsatz ist die Herkunft und steht im Hover. Die Stichproben-Zeile
+  nennt die Objektnummer, nicht das Wort «Instanz» (#613).
+  (6) **Abstände** (#599): der Konnektor vor der Modul-Palette gehört zu ihr – im
+  freigegebenen Prozess gibt es sie nicht, und dann standen zwei hintereinander (doppelter
+  Abstand zur Zielflagge). **Und die Spur steht mittig** (#609): seit sie eine feste
+  Breite hat (#597), richtet sie sich im Block-Fluss links aus – im laufenden Auftrag
+  zentriert `Row` sie, beim Anlegen niemand.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
