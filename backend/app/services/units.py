@@ -240,6 +240,7 @@ def mark_released(inst: Instance, indices) -> Decimal:
                 freed = qty_sum([freed, q * (b - a + 1)])
             out.append(piece)
     _write(inst, out, _next(inst))
+    sync_state(inst)
     return freed
 
 
@@ -255,9 +256,94 @@ def _slice(a: int, b: int, want: set[int]):
 
 
 def all_released(inst: Instance) -> bool:
-    """Sind ALLE lebenden Stücke freigegeben? – dann darf der Instanz-Skalar nachziehen."""
+    """Sind ALLE lebenden Stücke freigegeben?"""
     live = [r for r in _runs(inst) if not r.get("x")]
     return bool(live) and all(r.get("s") for r in live)
+
+
+#: Welcher Endzustand gewinnt, wenn ALLE Stücke ausgeschieden sind – der endgültigste
+#: zuerst. Eine Charge, von der 3 verkauft und 1 verschrottet wurde, ist als Datensatz
+#: «verschrottet»: das ist die Aussage, die man nicht übersehen darf.
+_TERMINAL_RANK = ("scrapped", "consumed", "sold")
+
+
+def project(inst: Instance) -> tuple[str, str] | None:
+    """**Der Zustand der INSTANZ ist die Projektion über ihre Stücke** (Testnotiz #604).
+
+    Ein Datensatz trägt genau einen Zustand, eine Charge aber viele: von vier Stück kann
+    eines verschrottet, zwei freigegeben und eines noch im Prozess sein. Alle drei Aussagen
+    sind wahr – nur nicht über dieselbe Menge. Die Frage ist also nicht «welcher stimmt»,
+    sondern **welcher gehört auf den Datensatz**.
+
+    Die Rangfolge folgt dem, wonach man sucht:
+
+        1. **≥ 1 Stück freigegeben → «Freigegeben · am Lager».** Sonst fände FIFO die Charge
+           nicht, obwohl entnehmbare Stücke darin liegen – genau der Punkt des Nutzers. Dass
+           nicht alles frei ist, sagt die **Menge**: ``free_quantity`` zählt Stücke, nicht
+           den Skalar, und gibt darum nie ein Stück heraus, das noch im Prozess ist.
+        2. **sonst ≥ 1 Stück lebendig → «Im Prozess».** Es ist da, nur noch nicht verwendbar.
+        3. **sonst → der Endzustand**, der am meisten zählt (``_TERMINAL_RANK``).
+
+    **Gesperrt gewinnt über allem** (solange etwas lebt): eine Sperre ist eine Aussage über
+    die ganze Instanz («darf man das verwenden?»), kein Zustand eines einzelnen Stücks.
+
+    Vorher wurde der Skalar **einmal zugewiesen** – in dem Moment, in dem der letzte lebende
+    Anteil freigegeben wurde (``all_released``). Wurde später ein Geschwister-Stück
+    verschrottet, kippte die Bedingung nachträglich, aber niemand rechnete sie neu: die
+    Instanz blieb für immer «Im Prozess», obwohl im Detail jedes Stück «Freigegeben» zeigte
+    (Testnotizen #601/#602). Als **Projektion** kann das nicht mehr auseinanderlaufen.
+
+    ``None`` = keine Stücke bekannt (Altbestand) → der Skalar bleibt, wie er ist."""
+    runs = _runs(inst)
+    if not runs:
+        return None
+    live = [r for r in runs if not r.get("x")]
+    if not live:
+        states = {r.get("x") for r in runs}
+        for name in _TERMINAL_RANK:
+            if name in states:
+                return (getattr(inst, "quality", None) or "pending", name)
+        return None
+    if (getattr(inst, "quality", None) or "") == "blocked":
+        return ("blocked", "in_stock" if any(r.get("s") for r in live) else "in_process")
+    if any(r.get("s") for r in live):
+        return ("passed", "in_stock")
+    return ("pending", "in_process")
+
+
+def sync_state(inst: Instance) -> None:
+    """Die Projektion auf die Instanz-Skalare anwenden – nach **jeder** Änderung an den
+    Stücken. Das ist die EINE Stelle, an der ``quality``/``disposition`` aus den Stücken
+    entstehen; wer sie sonst noch setzt, setzt eine Absicht (gesperrt, verkauft), die die
+    Projektion beim nächsten Mal respektiert."""
+    got = project(inst)
+    if got is None:
+        return
+    inst.quality, inst.disposition = got
+
+
+def free_quantity(inst: Instance) -> Decimal:
+    """**Wie viel ist an dieser Instanz wirklich entnehmbar?** – freigegeben UND unbeansprucht.
+
+    Seit der Skalar eine Projektion ist (#604), sagt «am Lager» nur noch «hier liegt etwas
+    Entnehmbares», nicht «alles davon». Die Menge muss die Wahrheit tragen, sonst gäbe FIFO
+    Stücke heraus, die noch mitten im Prozess sind. Gezählt wird darum je Stück.
+
+    Ohne Stück-Daten (Altbestand) gibt es nichts zu verfeinern – dann gilt weiter die
+    Mengen-Rechnung des Aufrufers. Ebenso, wenn eine Instanz am Lager liegt, ihre Stücke
+    aber (noch) keine Freigabe-Marke tragen: **tolerant lesen, streng schreiben** – der
+    Skalar ist dann die einzige Aussage, die es gibt."""
+    runs = _runs(inst)
+    if not runs:
+        return to_qty(inst.quantity)
+    live = [r for r in runs if not r.get("x")]
+    if live and not any(r.get("s") for r in live) and (
+            getattr(inst, "disposition", None) or "") == "in_stock":
+        return qty_sum(to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1)
+                       for r in live if r.get("o") is None)
+    return qty_sum(to_qty(r.get("q", 1)) * (int(r["b"]) - int(r["a"]) + 1)
+                   for r in runs
+                   if not r.get("x") and r.get("s") and r.get("o") is None)
 
 
 def covers(inst: Instance, indices, quantity) -> bool:
@@ -370,11 +456,15 @@ def ensure(inst: Instance) -> None:
     """**Eröffnungsbilanz** für eine Instanz ohne Nummern (Altbestand).
 
     Sie bekommt keine erfundene Historie, sondern genau ihren heutigen Stand: so viele
-    Stücke, wie ihre Menge hergibt, verteilt auf die Halter ihrer Ansprüche. Ab dort ist
-    die Zuordnung vollständig. Idempotent."""
+    Stücke, wie ihre Menge hergibt, verteilt auf die Halter ihrer Ansprüche – und **liegt
+    sie am Lager, sind ihre Stücke freigegeben** (sonst wäre eine Alt-Instanz nach der
+    Eröffnung schlagartig nicht mehr entnehmbar, weil ``free_quantity`` je Stück zählt).
+    Ab dort ist die Zuordnung vollständig. Idempotent."""
     if _runs(inst) or (inst.units or {}).get("r") is not None:
         return
     create(inst, inst.quantity)
+    if (getattr(inst, "disposition", None) or "") == "in_stock":
+        _write(inst, [{**r, "s": 1} for r in _runs(inst)], _next(inst))
     for key, val in (inst.reservations or {}).items():
         _assign(inst, int(key), to_qty(val))
 
@@ -534,6 +624,7 @@ def drop(inst: Instance, qty, *, state: str, by_order_id: int | None = None) -> 
         runs = _apply(runs, hit, lambda r: (r.pop("o", None), r.update(x=state)))
         remaining -= got
     _write(inst, runs, _next(inst))
+    sync_state(inst)
     return sorted(gone)
 
 
@@ -551,6 +642,7 @@ def restore(inst: Instance, qty, *, state: str) -> list[int]:
     hit, _ = _pick(runs, to_qty(qty), lambda r: r.get("x") == state, gone=True)
     back = [i for start, take in hit for i in range(start, start + take)]
     _write(inst, _apply(runs, hit, lambda r: r.pop("x", None)), _next(inst))
+    sync_state(inst)
     return sorted(back)
 
 

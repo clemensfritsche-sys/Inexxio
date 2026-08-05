@@ -3155,14 +3155,21 @@ def test_an_order_releases_what_it_still_holds():
     * Eine gewöhnliche Abweichung gibt zurück → hält nichts → gibt nichts frei (#332).
     * Ein gekappter Abzweig behält sein Stück → gibt es frei, obwohl der Eltern läuft (#572).
     * Der Erzeuger gibt am Ende alles frei (#262).
-    * Der Instanz-Skalar ist die **Projektion**: er wechselt erst, wenn alle lebenden Stücke
-      frei sind – ``in_stock_clauses`` bleibt damit so streng wie zuvor."""
+    * Der Instanz-Skalar ist die **Projektion** über die Stücke (``units.project``, #604) –
+      er wird nicht in genau diesem Moment zugewiesen, sondern nach jeder Änderung an den
+      Stücken neu abgeleitet. Sonst kippt die Aussage nachträglich, wenn ein Geschwister-
+      Stück ausscheidet, und niemand rechnet sie neu (#601/#602)."""
     from app.services import process, units
 
     src = _inspect_source_fn(process.release_instances)
     assert "owned_by" in src, "Freigegeben wird, was der Auftrag HÄLT – nicht die Instanz."
-    assert "mark_released" in src and "all_released" in src, (
-        "Je Stück freigeben, den Skalar nur als Projektion nachziehen.")
+    assert "mark_released" in src, "Freigegeben wird je Stück."
+    assert 'inst.quality = "passed"' not in src, (
+        "Der Skalar wird nicht zugewiesen, er wird projiziert (``units.sync_state``, #604).")
+    for hook in ("mark_released", "drop", "restore"):
+        assert "sync_state(inst)" in _inspect_source_fn(getattr(units, hook)), (
+            f"units.{hook} zieht die Projektion nach – sonst gibt es wieder einen Moment, "
+            "in dem der Skalar richtig war und danach nicht mehr.")
     assert not hasattr(process, "_worked_on_by_a_running_order"), (
         "Der zweite Wächter ist entfallen – die Reihenfolge ist die Regel.")
 
@@ -3171,7 +3178,7 @@ def test_an_order_releases_what_it_still_holds():
         "Erst zurückgeben, DANN freigeben – sonst gäbe eine Abweichung frei, was sie gleich "
         "zurückgibt, und #332 wäre wieder kaputt.")
 
-    assert hasattr(units, "mark_released") and hasattr(units, "all_released")
+    assert hasattr(units, "mark_released") and hasattr(units, "project")
 
 
 def test_a_step_type_only_fills_its_own_columns():

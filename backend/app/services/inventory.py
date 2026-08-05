@@ -60,10 +60,27 @@ def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = 
     return rows
 
 
+def ready_qty(inst: Instance) -> Decimal:
+    """**Wie viel ist an dieser Instanz ENTNEHMBAR?** – frei UND freigegeben.
+
+    Seit der Instanz-Zustand eine Projektion über die Stücke ist (Testnotiz #604), sagt
+    «am Lager» nur noch «hier liegt etwas Entnehmbares» – nicht «alles davon». Die Menge
+    muss die Wahrheit tragen, sonst gäbe FIFO Stücke heraus, die noch mitten im Prozess
+    sind. Genau darum ist das eine **eigene** Frage neben ``reservation.free_qty`` («wem
+    gehört nichts»): eine Abweichung darf ein Stück im Prozess auswählen, FIFO nicht.
+
+    Ohne Freigabe-Marken (Altbestand) fällt es tolerant auf die Mengen-Rechnung zurück –
+    ``units.free_quantity`` regelt das."""
+    from . import units
+    free = free_qty(inst)
+    ready = units.free_quantity(inst)
+    return free if ready >= free else ready
+
+
 def avail_amount(inst: Instance, for_order_id: int | None) -> Decimal:
-    """Wie viel dieser Instanz für die Allokation zur Verfügung steht: die **freie**
+    """Wie viel dieser Instanz für die Allokation zur Verfügung steht: die **entnehmbare**
     Restmenge plus die für DIESEN Auftrag bereits reservierte Menge."""
-    amt = free_qty(inst)
+    amt = ready_qty(inst)
     if for_order_id is not None:
         amt += reserved_for(inst, for_order_id)
     return amt
@@ -123,8 +140,14 @@ def rest_owner(db, inst) -> int | None:
     führte – zwei Antworten auf dieselbe Frage.
 
     Zwei Leser teilen sich die Regel: die **Anteile** (``shares``, Menge je Halter) und die
-    **Stücke** (``units.rows``, welche Nummer wem gehört)."""
-    if is_in_stock(inst) or not inst.order_id:
+    **Stücke** (``units.rows``, welche Nummer wem gehört).
+
+    **Gefragt wird je Stück, nicht je Instanz** (Testnotiz #604): seit der Instanz-Zustand
+    eine Projektion ist, sagt «am Lager» nur, dass ETWAS entnehmbar ist – die drei Stücke
+    daneben können weiter im Prozess sein und gehören dann ihrem Erzeuger. Ob ein einzelnes
+    Stück schon frei ist, entscheiden die Leser selbst (``Unit.released``); hier zählt nur
+    noch, ob es überhaupt einen laufenden Erzeuger gibt."""
+    if not inst.order_id:
         return None
     from ..models import Order
     running = db.query(Order.id).filter(

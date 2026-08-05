@@ -456,8 +456,10 @@ def test_an_order_releases_the_pieces_it_still_holds(db, kinds, world):
 
     Der Zustand gehört dabei zur **Menge**, nicht zur Instanz. Eine Charge kann geteilter
     Meinung sein: ein Stück durch den Prozess, drei noch in Arbeit – beides wahr, nur nicht
-    über dieselbe Menge. Der Instanz-Skalar bleibt die Projektion darüber und wechselt
-    konservativ erst, wenn alle lebenden Stücke frei sind (``in_stock_clauses`` liest ihn)."""
+    über dieselbe Menge. Der Instanz-Skalar ist die **Projektion** darüber und sagt «am
+    Lager», sobald ein Stück entnehmbar ist (Testnotiz #604) – sonst fände FIFO die Charge
+    nicht. Dass nicht alles frei ist, trägt die **Menge**: ``inventory.ready_qty`` zählt
+    Stücke und gibt kein einziges heraus, das noch im Prozess ist."""
     from app.models import ArticleProcessStep
     from app.schemas.inspection import InspectionSample, InspectionUpdate
     from app.services import inspection as insp_svc, units
@@ -478,9 +480,15 @@ def test_an_order_releases_the_pieces_it_still_holds(db, kinds, world):
     db.refresh(inst)
     freed = [u.number for u in units.of(inst) if u.released]
     assert len(freed) == 1, f"Genau sein Stück ist frei, nicht mehr und nicht weniger: {freed}"
-    assert inst.quality == "pending", (
-        "…und die Instanz bleibt konservativ «Im Prozess», solange drei Stücke laufen – "
-        f"sonst wäre eine halb fertige Charge plötzlich FIFO-verfügbar (ist {inst.quality}).")
+    # **Der Datensatz sagt «am Lager», die MENGE sagt wie viel** (#604): sonst fände FIFO
+    # die Charge nicht, obwohl ein entnehmbares Stück darin liegt.
+    assert (inst.quality, inst.disposition) == ("passed", "in_stock"), (
+        f"Ein entnehmbares Stück macht die Charge auffindbar (ist {inst.quality}/"
+        f"{inst.disposition}).")
+    from app.services import inventory
+    assert inventory.ready_qty(inst) == Decimal(1), (
+        "…aber entnehmbar ist genau EINES – die drei laufenden gehören ihren Aufträgen "
+        f"(ist {inventory.ready_qty(inst)}).")
     assert not units.verify(inst), units.verify(inst)
 
 
@@ -493,6 +501,9 @@ def _run_inspection(db, order, inst, user, n):
     step = (db.query(ArticleProcessStep)
             .filter(ArticleProcessStep.order_id == order.id,
                     ArticleProcessStep.step_type == "inspection").first())
+    if step is None:                       # Erzeugungsauftrag → der Prozess des Artikels
+        from app.services import process
+        step = process.order_step_defs(db, order)[0]
     insp_svc.record_inspection(db, order, InspectionUpdate(
         samples=[InspectionSample(instance_id=inst.object_id, slot=i + 1,
                                   values={"_ok": True}) for i in range(n)],
@@ -540,3 +551,133 @@ def test_a_released_piece_belongs_to_nobody(db, kinds, world):
     hover = units.rows_for(inst, [free[0].index])
     assert (hover[0].quality, hover[0].disposition) == ("passed", "in_stock"), (
         f"Hover und Pille müssen dasselbe sagen (ist {hover[0].quality}/{hover[0].disposition}).")
+
+
+def test_the_instance_state_is_a_projection_over_its_pieces(db, world, kinds):
+    """**Der Zustand des Datensatzes wird ABGELEITET, nicht zugewiesen** (Testnotiz #604).
+
+    Ein Datensatz trägt genau einen Zustand, eine Charge aber viele. Die Frage ist nicht,
+    welcher stimmt, sondern welcher auf den Datensatz gehört – und die Rangfolge folgt dem,
+    wonach man sucht: **≥ 1 Stück freigegeben → «am Lager»**, sonst «Im Prozess», sonst der
+    Endzustand. Sonst fände FIFO eine Charge nicht, in der entnehmbare Stücke liegen.
+
+    Dass nicht alles frei ist, trägt die **Menge** (``inventory.ready_qty``) – nicht der
+    Skalar. Zwei Fragen, zwei Namen: «wem gehört nichts» (``free_qty``) und «was ist
+    entnehmbar».
+
+    Der gemeldete Hänger (#601/#602) folgt aus der Zuweisung: der Skalar wurde in genau dem
+    Moment gesetzt, in dem das letzte lebende Stück freigegeben wurde. Schied danach ein
+    Geschwister-Stück aus, kippte die Bedingung nachträglich – aber niemand rechnete sie
+    neu, und die Instanz blieb für immer «Im Prozess», obwohl jedes Stück «Freigegeben»
+    zeigte. Als Projektion kann das nicht mehr auseinanderlaufen."""
+    from app.services import inventory, units
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 3)
+
+    # Ein Abzweig nimmt 2 Stück, führt sie durch und behält sie (gekappt) → 2 frei.
+    cut = _make_deviation(db, main, inst, user, 2, cut=True)
+    _run_inspection(db, cut, inst, user, 2)
+    db.refresh(inst)
+    assert (inst.quality, inst.disposition) == ("passed", "in_stock"), (
+        f"Ein entnehmbares Stück macht die Charge auffindbar (ist {inst.quality}/"
+        f"{inst.disposition}) – sonst sucht FIFO daran vorbei.")
+    assert inventory.ready_qty(inst) == Decimal(2), (
+        f"…entnehmbar sind aber genau 2, nicht 3 ({inventory.ready_qty(inst)}).")
+
+    # Jetzt scheidet das letzte laufende Stück aus – genau der gemeldete Hänger.
+    gone = _make_deviation(db, main, inst, user, 1, steps=("scrap",), cut=True)
+    _scrap(db, gone, inst, user, 1)
+    db.refresh(inst)
+    assert (inst.quality, inst.disposition) == ("passed", "in_stock"), (
+        "Der Datensatz bleibt «am Lager» – vorher fiel er zurück auf «Im Prozess» und kam "
+        f"nie wieder heraus (#601/#602; ist {inst.quality}/{inst.disposition}).")
+    assert units.project(inst) == (inst.quality, inst.disposition), (
+        "Skalar und Projektion sind dieselbe Aussage – sonst gibt es wieder zwei.")
+
+
+def test_fifo_never_hands_out_a_piece_that_is_still_in_process(db, world, kinds):
+    """Die Kehrseite von #604: der Datensatz sagt «am Lager», die **Menge** sagt wie viel.
+
+    Ohne sie wäre die Projektion ein Rückschritt – FIFO fände die Charge und nähme Stücke,
+    die noch mitten in einem anderen Auftrag stecken."""
+    from app.models import ArticleProcessStep, Order
+    from app.routers import orders as R
+    from app.services import inventory
+
+    user, _ = world
+    main, inst = _make_order(db, kinds["batch"], user, 4)
+    cut = _make_deviation(db, main, inst, user, 1, cut=True)
+    _run_inspection(db, cut, inst, user, 1)
+    db.refresh(inst)
+    assert inventory.ready_qty(inst) == Decimal(1), inventory.ready_qty(inst)
+
+    taker = Order(object_id=None, article_id=kinds["batch"].id, quantity=Decimal(3),
+                  status="draft")
+    db.add(taker)
+    db.flush()
+    db.add(ArticleProcessStep(order_id=taker.id, step_type="inspection", position=0,
+                              sample_percent=100))
+    db.flush()
+    R._do_release(db, taker, user.id)
+    db.commit()
+    db.refresh(inst)
+
+    held = [r for r in ((inst.units or {}).get("r") or [])
+            if r.get("o") == taker.id and not r.get("s")]
+    assert not held, (
+        f"Kein Stück im Prozess darf per FIFO vergeben werden: {held}")
+
+
+def test_an_order_only_takes_over_the_share_it_reserved(db, world, kinds):
+    """**Übernommen wird, was reserviert wurde – nicht die ganze Instanz** (Testnotiz #615).
+
+    Der FIFO-Zweig der Allokation liess das Mengen-Argument weg; die Buchung fiel auf
+    ``inst.quantity`` zurück. Ein Auftrag über **1 Stück** nahm damit eine 4er-Charge
+    komplett in seine Obhut, gab beim Abschluss nur seinen Anspruch (1) frei – und hielt
+    die restlichen 3 für immer. Im Fluss stand die richtige Instanznummer mit der falschen
+    Menge; im Bestand fehlten drei Stück, die niemand angefasst hatte.
+
+    Der Fix ist ein fehlendes Argument – und dass es keinen Vorgabewert mehr gibt, damit
+    aus «vergessen» kein stilles Falschbuchen werden kann."""
+    from app.models import Article, ArticleProcessStep, Order
+    from app.routers import orders as R
+    from app.services import ledger
+    from app.services.objects import next_object_id
+    from app.services.reservation import reserved_for
+
+    user, _ = world
+    # **Ein eigener Artikel**: sonst deckt FIFO sich aus dem Bestand der Nachbar-Tests,
+    # und der Test prüfte am Ende eine andere Instanz als die, die er aufgebaut hat.
+    art = Article(object_id=next_object_id(db), name=f"Nur hier {next_object_id(db)}",
+                  unit="pcs", serialization="batch", status="released")
+    db.add(art)
+    db.flush()
+    db.add(ArticleProcessStep(article_id=art.id, step_type="inspection", position=0,
+                              sample_percent=100))
+    db.commit()
+    main, inst = _make_order(db, art, user, 4)
+    _run_inspection(db, main, inst, user, 4)          # 4 ans Lager
+    db.refresh(inst)
+
+    taker = Order(object_id=None, article_id=art.id, quantity=Decimal(1), status="draft")
+    db.add(taker)
+    db.flush()
+    db.add(ArticleProcessStep(order_id=taker.id, step_type="inspection", position=0,
+                              sample_percent=100))
+    db.flush()
+    R._do_release(db, taker, user.id)
+    db.commit()
+    db.refresh(inst)
+
+    assert reserved_for(inst, taker.id) == Decimal(1), reserved_for(inst, taker.id)
+    took = [m for m in ledger.moves_of(db, taker.id) if m.kind == "taken"]
+    assert took and took[-1].quantity == Decimal(1), (
+        f"Er übernimmt 1 Stück, nicht die ganze Charge: {[str(m.quantity) for m in took]}")
+
+    _run_inspection(db, taker, inst, user, 1)
+    db.refresh(inst)
+    free = sum(v for b, v in ledger.lots(db, inst).items() if b.holder is None)
+    assert free == Decimal(4), (
+        f"Nach dem Abschluss sind alle 4 wieder frei – vorher hielt er 3 für immer ({free}).")
+    assert ledger.verify_instance(db, inst) == [], ledger.verify_instance(db, inst)

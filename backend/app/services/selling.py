@@ -645,7 +645,7 @@ def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile
 def _materialize_multiline(db: Session, order: Order, lines: list, customer: UserProfile) -> None:
     """Subjekt eines Mehrpositionen-Verkaufsauftrags binden: je Position ``quantity`` Stück
     des Artikels **FIFO ab Lager** auswählen, dem Auftrag zuordnen und reservieren."""
-    from .inventory import allocate, available_qty, fifo_candidates
+    from .inventory import allocate, available_qty, fifo_candidates, ready_qty
     from .reservation import free_qty, reserve
     from .subject import record_link
 
@@ -657,7 +657,7 @@ def _materialize_multiline(db: Session, order: Order, lines: list, customer: Use
             raise HTTPException(
                 409, detail=f"Nicht genügend freigegebener Bestand für {line['article_name']}: "
                             f"benötigt {need}, verfügbar {have}")
-        for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
+        for cand, take in zip(cands, allocate(need, [ready_qty(c) for c in cands])):
             if take <= 0:
                 continue
             cand.subject_of_order_id = order.id

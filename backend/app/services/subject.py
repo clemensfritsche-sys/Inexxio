@@ -83,14 +83,18 @@ def _blocked_step(db: Session, order: Order, article_id: int | None) -> int | No
 
 
 def record_link(db: Session, instance_object_id: int | None, order_id: int,
-                quantity: Decimal | None = None, src_holder: int | None = None) -> None:
+                quantity: Decimal | None, src_holder: int | None = None) -> None:
     """Verarbeitung einer Instanz durch einen Auftrag **dauerhaft** festhalten (idempotent) –
     unabhängig von späteren Bindungen/Reservierungen (siehe ``InstanceOrderLink``).
 
-    ``quantity``: **wie viel** der Auftrag übernommen hat. Die Reservierung wird bei
-    Abschluss gelöst; ohne diese Zahl wäre danach nicht mehr beantwortbar, wie viel je
-    hineinging – und genau das zeigt der Fluss an seinen Kanten (Notiz #413). Wird die
-    Menge nachgereicht (zweiter Aufruf mit Wert), füllt sie eine noch leere Zeile.
+    ``quantity``: **wie viel** der Auftrag übernommen hat – **ohne Vorgabewert**, denn genau
+    ein fehlendes Argument war der Fehler: der FIFO-Zweig der Allokation liess es weg, die
+    Buchung fiel auf ``inst.quantity`` zurück, und ein Auftrag über 1 Stück übernahm die
+    **ganze** 4er-Charge (Testnotiz #615). Ein Vorgabewert macht aus einem vergessenen
+    Argument eine stille Falschbuchung; ohne ihn merkt es der Aufrufer. Die Reservierung
+    wird bei Abschluss gelöst – ohne diese Zahl wäre danach nicht mehr beantwortbar, wie
+    viel je hineinging, und genau das zeigt der Fluss an seinen Kanten (Notiz #413). Wird
+    die Menge nachgereicht (zweiter Aufruf mit Wert), füllt sie eine noch leere Zeile.
 
     ``src_holder``: **aus wessen Anteil** die Menge kommt. Die Auswahl weiss es
     (``orders.pick_sources``) – ohne die Angabe rät die Buchung, und zwar nach Topfgrösse:
@@ -115,7 +119,10 @@ def record_link(db: Session, instance_object_id: int | None, order_id: int,
         from . import ledger
         inst = db.query(Instance).filter(Instance.object_id == instance_object_id).first()
         if inst is not None and inst.order_id != order_id:
-            ledger.post(db, inst, quantity if quantity is not None else inst.quantity,
+            # Ohne Angabe (Altbestand) gilt der **Anspruch** dieses Auftrags – nicht die ganze
+            # Instanz: was er beansprucht, ist was er hält (#615).
+            qty = quantity if quantity is not None else reserved_for(inst, order_id)
+            ledger.post(db, inst, qty or inst.quantity,
                         kind="taken", holder=order_id,
                         src_holder=src_holder if src_holder is not None else "?")
     elif quantity is not None and row.quantity is None:
@@ -612,12 +619,15 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) ->
     # reserviert, was am Lager ist; die **Fehlmenge** deckt ein Nachschub-Unter-Auftrag
     # (``services/supply.py``). Der erste auf das Subjekt zugreifende Schritt (Bewegung/…)
     # bleibt so lange **blockiert** (abgeleitet aus dem Bestand), bis der Nachschub liefert.
-    for cand, take in zip(cands, allocate(remaining, [free_qty(c) for c in cands])):
+    for cand, take in zip(cands, allocate(remaining, [inventory.ready_qty(c) for c in cands])):
         if take <= 0:
             continue
         cand.subject_of_order_id = order.id               # Subjekt-Markierung (ganz/teilweise)
         reserve(cand, order.id, take)                     # mengengenaue Reservierung
-        record_link(db, cand.object_id, order.id)
+        # **Die übernommene Menge ist ``take``, nicht die ganze Instanz** (Testnotiz #615):
+        # ohne sie buchte ein Auftrag über 1 Stück eine 4er-Charge komplett in seine Obhut,
+        # gab beim Abschluss nur seinen Anspruch frei – und hielt die restlichen 3 für immer.
+        record_link(db, cand.object_id, order.id, take)
 
 
 def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:

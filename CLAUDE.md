@@ -5172,6 +5172,43 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Karten-Anatomie im Editor wie im Fluss (Polsterung 13/16, Symbol-Kasten 34, Titel 15 px):
   eine Karte mit anderer Innenaufteilung wirkt verschieden breit, auch wenn sie es nicht ist.
 
+- **Der Zustand einer Instanz ist die PROJEKTION über ihre Stücke** (August 2026,
+  Testnotizen #601/#602/#604/#615): Zwei Fehler mit einer gemeinsamen Wurzel – eine Menge
+  wurde als ein Ding behandelt.
+  (1) **Übernommen wird, was reserviert wurde** (#615). Der FIFO-Zweig der Allokation liess
+  das Mengen-Argument von `subject.record_link` weg; die Buchung fiel auf `inst.quantity`
+  zurück. Ein Auftrag über **1 Stück** nahm damit eine 4er-Charge komplett in seine Obhut,
+  gab beim Abschluss nur seinen Anspruch (1) frei – und hielt die restlichen 3 **für immer**
+  (im Fluss die richtige Instanznummer mit der falschen Menge, im Bestand drei fehlende
+  Stück, die niemand angefasst hatte). Der Parameter hat jetzt **keinen Vorgabewert** mehr:
+  ein Vorgabewert macht aus einem vergessenen Argument eine stille Falschbuchung.
+  (2) **Der Datensatz-Zustand wird ABGELEITET, nicht zugewiesen** (`units.project`/
+  `sync_state`, #604). Ein Datensatz trägt genau einen Zustand, eine Charge aber viele –
+  ein Stück verschrottet, zwei freigegeben, eines im Prozess. Die Frage ist nicht, welcher
+  stimmt, sondern **welcher auf den Datensatz gehört**; die Rangfolge folgt dem, wonach man
+  sucht: **≥ 1 Stück freigegeben → «am Lager»** (sonst fände FIFO die Charge nicht), sonst
+  «Im Prozess», sonst der Endzustand (`_TERMINAL_RANK`). Gesperrt gewinnt, solange etwas
+  lebt. Vorher wurde der Skalar in **einem Moment** zugewiesen (`all_released` beim
+  Freigeben); schied danach ein Geschwister-Stück aus, kippte die Bedingung nachträglich,
+  aber niemand rechnete sie neu – die Instanz blieb für immer «Im Prozess», obwohl im
+  Detail jedes Stück «Freigegeben» zeigte (#601/#602). Als Projektion, nachgezogen in
+  `mark_released`/`drop`/`restore`, kann das nicht mehr auseinanderlaufen.
+  (3) **Die Kehrseite: die MENGE trägt die Wahrheit.** «Am Lager» sagt jetzt nur noch «hier
+  liegt etwas Entnehmbares». Darum gibt es **zwei Fragen mit zwei Namen**:
+  `reservation.free_qty` = «wem gehört nichts» (gesamt − beansprucht) und
+  **`inventory.ready_qty`** = «was ist entnehmbar» (frei UND freigegeben, je Stück gezählt).
+  Alle Allokations-Leser (FIFO, Ressource, Verkauf, Recovery, Verfügbarkeits-Anzeige) lesen
+  die zweite – so kann FIFO kein Stück herausgeben, das noch mitten im Prozess ist; die
+  Auswahl einer gebundenen Instanz (Abweichung) liest weiter die erste. Passend dazu fragt
+  `inventory.rest_owner` nicht mehr nach dem **Instanz**-Skalar («am Lager → niemandem»),
+  sondern nur noch, ob es einen laufenden Erzeuger gibt – ob ein einzelnes Stück frei ist,
+  entscheidet `Unit.released`. Alt-Instanzen ohne Freigabe-Marken werden tolerant gelesen
+  (`ensure` markiert eine Instanz am Lager als freigegeben).
+  Wächter: `tests/rules/test_units.py: test_an_order_only_takes_over_the_share_it_reserved`,
+  `…_the_instance_state_is_a_projection_over_its_pieces`,
+  `…_fifo_never_hands_out_a_piece_that_is_still_in_process`; gegen echtes PostgreSQL 16
+  verifiziert und **gegen beide Bug-Formen gegengeprüft**.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
