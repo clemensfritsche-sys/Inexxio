@@ -762,3 +762,165 @@ def test_an_order_only_takes_over_the_share_it_reserved(db, world, kinds):
     assert free == Decimal(4), (
         f"Nach dem Abschluss sind alle 4 wieder frei – vorher hielt er 3 für immer ({free}).")
     assert ledger.verify_instance(db, inst) == [], ledger.verify_instance(db, inst)
+
+
+# ─── Die FIFO-Zeit gehört zur MENGE ───────────────────────────────────────────
+
+def _art(db, name: str):
+    """Ein eigener Artikel je Test – sonst deckt FIFO sich aus dem Bestand der Nachbarn."""
+    from app.models import Article, ArticleProcessStep
+    from app.services.objects import next_object_id
+
+    art = Article(object_id=next_object_id(db), name=f"{name} {next_object_id(db)}"[:32],
+                  unit="pcs", serialization="batch", status="released")
+    db.add(art)
+    db.flush()
+    db.add(ArticleProcessStep(article_id=art.id, step_type="inspection", position=0,
+                              sample_percent=100))
+    db.commit()
+    return art
+
+
+def test_the_fifo_time_belongs_to_the_piece(db, world, kinds):
+    """**Seit wann liegt es am Lager?** – eine Frage je Stück, nicht je Datensatz.
+
+    Sie war die letzte Grösse, die noch instanzweit stand (``instances.released_at``) – und
+    damit die letzte, die bei einer Charge lügen konnte: werden drei Stück heute und eines
+    in vier Wochen frei, trugen alle vier das Datum von heute. Zustand, Menge, Halter und
+    Standort hängen längst am Stück; die Zeit tut es jetzt auch.
+
+    Und sie ist **persistent**: gesetzt beim ERSTEN Freigeben, danach nie mehr angefasst."""
+    from app.services import units
+
+    user, _ = world
+    art = _art(db, "Zeit")
+    main, inst = _make_order(db, art, user, 3)
+
+    # Ein gekappter Abzweig führt EIN Stück durch und behält es → nur das ist frei.
+    first = _make_deviation(db, main, inst, user, 1, cut=True)
+    _run_inspection(db, first, inst, user, 1)
+    db.refresh(inst)
+    early = [u for u in units.of(inst) if u.released]
+    assert len(early) == 1 and early[0].since is not None, (
+        f"Das freigegebene Stück trägt seine eigene Zeit: {early}")
+    t1 = early[0].since
+
+    # Der Rest kommt später ans Lager – mit SEINER Zeit, nicht mit der des ersten.
+    _run_inspection(db, main, inst, user, 3)
+    db.refresh(inst)
+    times = {u.index: u.since for u in units.of(inst) if u.released}
+    assert len(times) == 3, times
+    assert times[early[0].index] == t1, (
+        "Die Zeit des ersten Stücks bleibt, wie sie war – sie ist eine Tatsache.")
+    later = [v for k, v in times.items() if k != early[0].index]
+    assert all(v > t1 for v in later), (
+        "…und die später freigegebenen tragen ihre EIGENE, spätere Zeit. Fiele die Zeit "
+        f"auf den Instanz-Skalar zurück, stünde überall dieselbe: {times}")
+
+    # Und FIFO liest das älteste ENTNEHMBARE Stück, nicht den Datensatz.
+    assert units.fifo_since(inst) == min(times.values())
+
+
+def test_fifo_orders_by_the_oldest_ready_piece(db, world):
+    """Die Reihenfolge kommt aus derselben Zeit – die des Stücks, das als Nächstes ginge."""
+    from app.services import inventory, units
+
+    user, _ = world
+    art = _art(db, "Reihe")
+    first, old = _make_order(db, art, user, 1)
+    _run_inspection(db, first, old, user, 1)
+    second, young = _make_order(db, art, user, 1)
+    _run_inspection(db, second, young, user, 1)
+    db.refresh(old)
+    db.refresh(young)
+
+    got = inventory.fifo_candidates(db, art.id)
+    assert [i.id for i in got][:2] == [old.id, young.id], (
+        f"Älteste Freigabe zuerst: {[(i.object_id, str(units.fifo_since(i))) for i in got]}")
+
+
+def _order_of(db, inst):
+    from app.models import Order
+    return db.query(Order).filter(Order.id == inst.order_id).first()
+
+
+def test_a_return_does_not_reset_the_fifo_clock(db, world):
+    """**Ein Teil ist so alt, wie es ist** – auch wenn es das Haus verlassen hat.
+
+    Die Rückbuchung stand auf «jetzt»: zurückgenommene Ware war damit schlagartig die
+    *jüngste* im Lager und ginge als letztes wieder hinaus. Bei FIFO als Alterungsschutz
+    ist das genau verkehrt."""
+    from app.services import ledger, units
+
+    user, _ = world
+    art = _art(db, "Retoure")
+    main, inst = _make_order(db, art, user, 2)
+    _run_inspection(db, main, inst, user, 2)
+    db.refresh(inst)
+    before = units.fifo_since(inst)
+
+    # Verkaufen und zurücknehmen – über die Buchungen, wie es die Retoure tut.
+    from app.services import process
+    ledger.post(db, inst, Decimal(1), kind="sold", holder=None,
+                quality="passed", disposition="sold",
+                units=units.drop(inst, Decimal(1), state="sold"))
+    db.commit()
+    db.refresh(inst)
+    back = units.restore(inst, Decimal(1), state="sold")
+    db.commit()
+    db.refresh(inst)
+
+    assert back, "Das verkaufte Stück kommt zurück…"
+    assert units.fifo_since(inst) == before, (
+        f"…und bringt seine alte Zeit mit ({units.fifo_since(inst)} statt {before}).")
+    src = _inspect_source(process._restock_one)
+    assert "if inst.released_at is None" in src, (
+        "Auch der Instanz-Skalar wird nicht mehr auf «jetzt» gesetzt.")
+
+
+def _inspect_source(fn) -> str:
+    import inspect as _i
+    return _i.getsource(fn)
+
+
+def test_stock_without_marks_is_opened_not_downgraded(db, world):
+    """**Was am Lager liegt, IST freigegeben** – auch wenn die Stücke es (noch) nicht sagen.
+
+    Gemeldeter Fall: eine Charge à 4 lag am Lager, ihre Stücke trugen aber keine Freigabe-
+    Marke (Altbestand aus der Zeit vor der Freigabe je Stück). Beim Verschrotten EINES
+    Stücks zog ``sync_state`` die Projektion nach, fand nirgends eine Freigabe – und stufte
+    die drei übrigen Stücke aus dem Nichts auf «Im Prozess» zurück.
+
+    Die Antwort ist die Eröffnungsbilanz, nicht das Wegwerfen des Zustands: die Marke wird
+    nachgetragen, und zwar mit der FIFO-Zeit, die die Instanz mitbringt."""
+    from app.services import units
+
+    user, _ = world
+    art = _art(db, "Alt")
+    main, inst = _make_order(db, art, user, 4)
+    _run_inspection(db, main, inst, user, 4)
+    db.refresh(inst)
+
+    # Altbestand nachstellen: die Marken der Stücke gibt es noch nicht.
+    runs = [{k: v for k, v in r.items() if k not in ("s", "t")}
+            for r in (inst.units or {}).get("r", [])]
+    inst.units = {"r": runs, "next": (inst.units or {}).get("next", 5)}
+    db.commit()
+    db.refresh(inst)
+
+    units.ensure(inst)
+    db.commit()
+    db.refresh(inst)
+    assert all(u.released for u in units.of(inst)), (
+        f"Am Lager heisst freigegeben – für jedes Stück: {units.of(inst)}")
+    assert units.project(inst) == ("passed", "in_stock"), units.project(inst)
+    assert units.fifo_since(inst) is not None, "…und die geerbte Zeit steht am Stück."
+
+    # Und jetzt der gemeldete Vorgang: EIN Stück ausscheiden.
+    units.drop(inst, Decimal(1), state="scrapped")
+    db.commit()
+    db.refresh(inst)
+    live = [u for u in units.of(inst)]
+    assert len(live) == 3 and all(u.released for u in live), (
+        f"Die übrigen bleiben freigegeben – vorher fielen sie auf «Im Prozess» ({live}).")
+    assert (inst.quality, inst.disposition) == ("passed", "in_stock")

@@ -775,35 +775,25 @@
    `grid-template-columns: 0fr → 1fr`-Technik greift hier nicht, weil der Knopf seine
    Breite aus dem Inhalt zieht (absolut positioniert = shrink-to-fit); in Chromium blieb
    er dabei stehen (44 → 44 statt 44 → 169). */
-.erp-palette-cell {
-  position: relative; flex: none; width: 44px; height: 44px;
-}
+/* ── Palette: Symbol jetzt, Name im Hover DARÜBER (Testnotizen #518/#624/#630) ──
+   Vier Anläufe, dieselbe Wurzel: der Name braucht Platz, den die Reihe nicht hat.
+   Wuchs der KNOPF, brach die Zeile um und zog sich unter dem Cursor weg (#502/#503);
+   wuchs er in einer festen Zelle nach rechts heraus, verdeckte er den Nachbarn (#630) –
+   und eine Namenszeile darunter schrieb ihn zweimal hin (#509/#518).
+   Der Name gehört darum dorthin, wo im ganzen Haus jede Erklärung steht: in die
+   Hover-Blase über dem Element (`[data-tip]`). Sie schwebt über der Zeile statt neben
+   dem Nachbarn, kostet KEINEN Platz im Layout – und ist damit auch dann richtig, wenn
+   die Palette wegen der Responsiveness umbricht. */
 .erp-palette {
-  position: absolute; top: 0; left: 0; height: 44px; min-width: 44px;
-  display: inline-flex; align-items: center; padding: 0; border: 1px solid;
-  border-radius: var(--r-md); cursor: pointer;
+  width: 44px; height: 44px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 1px solid; border-radius: var(--r-md); cursor: pointer;
   transition: box-shadow .15s, transform .12s ease;
 }
 .erp-palette:hover, .erp-palette:focus-visible {
-  box-shadow: var(--shadow-sm); transform: translateY(-1px); z-index: 5;
+  box-shadow: var(--shadow-sm); transform: translateY(-1px);
 }
-.erp-palette-icon {
-  width: 42px; flex: none; display: grid; place-items: center;
-}
-.erp-palette .erp-palette-label { display: flex; opacity: 0; transition: opacity .15s ease; }
-.erp-palette:hover .erp-palette-label,
-.erp-palette:focus-visible .erp-palette-label { opacity: 1; }
-.erp-palette .erp-palette-label > span {
-  max-width: 0; overflow: hidden; white-space: nowrap; text-align: left;
-  font: 600 12.5px var(--font-body);
-  transition: max-width .2s cubic-bezier(.4,0,.2,1), padding-right .2s cubic-bezier(.4,0,.2,1);
-}
-.erp-palette:hover .erp-palette-label > span,
-.erp-palette:focus-visible .erp-palette-label > span { max-width: 260px; padding-right: 13px; }
-@media (prefers-reduced-motion: reduce) {
-  .erp-palette, .erp-palette .erp-palette-label,
-  .erp-palette .erp-palette-label > span { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .erp-palette { transition: none; } }
 
 /* ── Segment-Umschalter: derselbe Hover wie an der Palette (Testnotiz #624) ────
    Wo das Wort ohnehin steht (aktive Option), passiert nichts; sonst wächst der

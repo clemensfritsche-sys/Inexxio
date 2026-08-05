@@ -3,9 +3,9 @@
 import { Lane } from '@/components/erp/flow-line';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine, CheckCheck, Rows2, Rows4, FlaskConical, Percent } from 'lucide-react';
+import { Trash2, User as UserIcon, Info, Check, GripVertical, X, Lock, Wrench, PackageMinus, Play, Flag, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine, Percent } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
 import { formatObjectId, userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel } from '@/lib/process';
@@ -75,24 +75,12 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
   );
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
-  const [adding, setAdding] = useState<StepType | null>(null);   // null = Palette offen
-  // Bezugsquelle des Beschaffungs-Schritts (im Prozess definiert, je Schritt eigen):
-  const [mode, setMode] = useState<ProcessStepMode>('supplier');
-  const [supplierId, setSupplierId] = useState('');
-  const [url, setUrl] = useState('');
-  const [shared, setShared] = useState<string[]>(MANDATORY_FIELD_KEYS);
-  const [samplePercent, setSamplePercent] = useState('100');
-  const [wfields, setWfields] = useState<WField[]>([]);
-  // Datenerfassung – Bilderfassung + Freigabe/Unterschrift
-  const [docCfg, setDocCfg] = useState<DocCfg>(emptyDocCfg());   // «Dokument»-Freigabe-Deklaration
-  const [targetSel, setTargetSel] = useState('');   // kombiniertes Ziel "type:objid" ('' = frei)
+  const [error, setError] = useState<string | null>(null);
+  // Nachschlage-Listen, die die Karten brauchen (Ziel-/Ressourcen-/Parteien-Auswahl).
   const [company, setCompany] = useState<{ objectId: number; name: string } | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [resLines, setResLines] = useState<ResLine[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [drag, setDrag] = useState<number | null>(null);
   const [over, setOver] = useState<number | null>(null);
 
@@ -114,14 +102,23 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
     onStepsCount?.(steps.length);
   }, [steps, onStepsCount]);
 
-  // Personen laden, sobald ein «Dokument»-Schritt existiert – auch read-only (freigegebener
-  // Prozess), damit die Freigabe-Parteien mit NAMEN statt nur als Zahl sichtbar sind.
+  // **Nachgeladen wird nach dem, was DA ist** – nicht nach dem, was man gerade anlegt.
+  // Seit ein Modul sofort im Fluss steht und dort konfiguriert wird (Testnotiz #635),
+  // brauchen die Karten ihre Listen, solange es sie gibt: Personen für Bewegung und
+  // Dokument, Instanzen als Bewegungsziel, Artikel für die Ressourcen-Zeilen. Auch
+  // read-only – sonst stünden dort Objektnummern ohne Namen.
+  const kinds = useMemo(() => new Set(steps.map((s) => s.step_type)), [steps]);
   useEffect(() => {
-    if (allUsers.length > 0) return;
-    if (steps.some((s) => s.step_type === 'document')) {
+    if ((kinds.has('movement') || kinds.has('document')) && allUsers.length === 0) {
       api.getUsers().then(setAllUsers).catch(() => {});
     }
-  }, [steps, allUsers.length]);
+    if (kinds.has('movement') && allInstances.length === 0) {
+      api.getInstances().then(setAllInstances).catch(() => {});
+    }
+    if (kinds.has('resource') && articles.length === 0) {
+      api.getArticles().then(setArticles).catch(() => {});
+    }
+  }, [kinds, allUsers.length, allInstances.length, articles.length]);
 
   // Herkunfts-Artikel laden, um beim Beschaffungsschritt nur die **tatsächlich
   // gepflegten** optionalen Stammdatenfelder zur Freigabe anzubieten.
@@ -136,35 +133,6 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
     return out;
   }, [selfArticle]);
 
-  // Beim Öffnen des Beschaffungs-Formulars die Bezugsquelle mit dem **Artikel-Standard**
-  // vorbelegen (Reiter «Spezifikation» → Beschaffung) – je Schritt frei überschreibbar, sodass
-  // ein Prozess mehrere Beschaffungen mit unterschiedlichen Lieferanten abbilden kann.
-  useEffect(() => {
-    if (adding !== 'purchase') return;
-    setMode((selfArticle?.procurement_mode as ProcessStepMode) || 'supplier');
-    setSupplierId(selfArticle?.default_supplier_id != null ? String(selfArticle.default_supplier_id) : '');
-    setUrl(selfArticle?.default_webshop_url ?? '');
-  }, [adding, selfArticle]);
-
-  // Bewegung braucht Personen/Instanzen/Unternehmen als Zielauswahl; Ressource die Artikel.
-  // (Beschaffung: keine Lieferadresse mehr am Schritt – kommt aus der Systemkonfiguration.)
-  useEffect(() => {
-    if (adding === 'resource') { api.getArticles().then(setArticles).catch(() => {}); return; }
-    if (adding === 'inspection') {
-      setWfields([]);   // frisches Formular
-      return;
-    }
-    if (adding === 'document') {
-      // Personen für die Freigabe-Parteien + Publikums-Auswahl (jede Rolle wählbar).
-      api.getUsers().then(setAllUsers).catch(() => {});
-      setDocCfg(emptyDocCfg());
-      return;
-    }
-    if (adding !== 'movement') return;
-    api.getUsers().then(setAllUsers).catch(() => {});
-    api.getInstances().then(setAllInstances).catch(() => {});
-  }, [adding]);
-
   if (!repo) {
     return (
       <div style={noticeStyle}>
@@ -174,131 +142,53 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
     );
   }
 
-  function resetForm() {
-    setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
-    setShared(MANDATORY_FIELD_KEYS); setSamplePercent('100'); setWfields([]);
-    setTargetSel(''); setResLines([]); setDocCfg(emptyDocCfg()); setError(null);
-  }
-
-  // Nach Strukturänderungen die kanonische Liste neu laden (inkl. einer beim Anlegen
-  // gesäten Begleit-Bewegung + serverseitiger Positionen).
+  // Nach Strukturänderungen die kanonische Liste neu laden (serverseitige Positionen).
   async function reload() {
     try { setSteps(await repo!.list()); } catch { /* ignore */ }
   }
 
-  // Rolle einer gesäten Begleit-Bewegung: Versand zum Kunden (mode=customer) oder
-  // Wareneingang. Die Rolle ist ein Hinweis, keine Sperre – der Schritt lässt sich wie
-  // jeder andere verschieben und löschen.
-  function companionRole(s: ArticleProcessStep): 'wareneingang' | 'versandkunde' {
-    return (s.mode as string) === 'customer' ? 'versandkunde' : 'wareneingang';
-  }
-
-  // Wareneingang-Ziel setzen (Behälter/Unternehmen oder offen).
-  async function setLockedTarget(stepId: number, value: string) {
-    const tgt = value ? value.split(':') : null;
-    try {
-      const updated = await repo!.update(stepId, {
-        target_location_type: tgt ? (tgt[0] as LocationType) : null,
-        target_location_id: tgt ? Number(tgt[1]) : null,
-      });
-      setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
-    } catch { /* ignore */ }
-  }
-
-  function buildCaptureFields(): CaptureField[] {
-    return wfields
-      .filter((f) => f.label.trim())
-      .map((f) => ({
-        key: '', label: f.label.trim(), type: f.type,
-        target: f.type === 'measure' && f.target.trim() !== '' ? Number(f.target) : null,
-        tolerance: f.type === 'measure' && f.tolerance.trim() !== '' ? Number(f.tolerance) : null,
-        unit: f.unit.trim() || null,
-      }));
-  }
-
+  /**
+   * **Ein Klick auf das Symbol legt das Modul an – fertig** (Testnotiz #635).
+   *
+   * Vorher führte derselbe Klick in ein Formular mit «Abbrechen» und «Hinzufügen»: zwei
+   * Knöpfe, zwei Zustände (in Arbeit ↔ angelegt) und zwei Darstellungen desselben Moduls
+   * (Formular ↔ Karte). Jetzt gibt es EINE Karte, und sie steht sofort im Fluss – dort,
+   * wo sie auch später steht. Konfiguriert wird sie IN der Karte (Auto-Save wie überall),
+   * weg kommt sie über den Papierkorb.
+   *
+   * Ein Modul startet dabei bewusst **unfertig** (eine Datenerfassung ohne Feld, eine
+   * Beschaffung ohne Quelle). Das ist kein Verlust an Strenge, sondern eine Verschiebung
+   * an die richtige Stelle: geprüft wird bei der **Freigabe** – die ist ohnehin das Gate,
+   * ab dem der Prozess wirklich läuft, und sie nennt beim Namen, was noch fehlt.
+   */
   async function addStep(type: StepType) {
     setError(null);
-    // Beschaffung: die Bezugsquelle wird **hier** festgelegt – Lieferant ODER Webshop-Link,
-    // je Schritt eigen (so bildet EIN Prozess mehrere Beschaffungen mit unterschiedlichen
-    // Quellen ab). Ein «Artikel-Standard erben» gibt es nicht mehr (Notiz #166): der
-    // Artikel-Standard liess sich nirgends mehr pflegen – die Option zeigte auf einen Wert,
-    // den niemand setzen konnte. Ohne Quelle wäre die Bestellung adressatenlos.
-    if (type === 'purchase') {
-      if (mode === 'webshop' && !isValidWebshopUrl(url)) {
-        setError('Bitte einen gültigen Webshop-Link angeben (https://…)'); return;
-      }
-      if (mode === 'supplier' && !supplierId) { setError('Bitte den Lieferanten wählen'); return; }
-    }
-    if (type === 'inspection') {
-      const p = Number(samplePercent);
-      if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
-      // Eine Datenerfassung ohne definierte Information ist ein Schritt ohne Inhalt: das
-      // Panel zeigt dann nichts zu erfassen und der Auftrag käme nicht weiter.
-      if (buildCaptureFields().length === 0) {
-        setError('Mindestens ein Erfassungsfeld nötig'); return;
-      }
-    }
-    let resourcePayload: { article_id: number; quantity: number; mode: ResourceMode }[] | null = null;
-    if (type === 'resource') {
-      // Menge pro Stück Produkt – Bruchmengen erlaubt (0.5 kg Material je Stück), auf 3 NK
-      // gerundet; nie ≤ 0 (mind. 0.001). KEIN Math.trunc mehr (hätte 0.5 auf 0→1 verfälscht).
-      resourcePayload = resLines
-        .filter((l) => l.article_id)
-        .map((l) => {
-          const q = Math.round((Number(l.quantity) || 1) * 1000) / 1000;
-          return { article_id: Number(l.article_id), quantity: q > 0 ? q : 1, mode: l.mode };
-        });
-      if (resourcePayload.length === 0) { setError('Bitte mindestens eine Ressource hinzufügen'); return; }
-    }
-    const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
-    setSaving(true);
     try {
-      await repo!.create({
-        step_type: type,
-        // Bezugsquelle direkt am Schritt.
-        mode: type === 'purchase' ? mode : undefined,
-        supplier_id: type === 'purchase' && mode === 'supplier' && supplierId ? Number(supplierId) : null,
-        webshop_url: type === 'purchase' && mode === 'webshop' && url.trim() ? url.trim() : null,
-        shared_fields: type === 'purchase' ? shared : null,
-        sample_percent: type === 'inspection' ? Math.trunc(Number(samplePercent)) : null,
-        capture_fields: type === 'inspection' ? buildCaptureFields() : null,
-        target_location_type: tgt ? (tgt[0] as LocationType) : null,
-        target_location_id: tgt ? Number(tgt[1]) : null,
-        resource_lines: resourcePayload,
-        // «Dokument»-Freigabe-Deklaration (nur beim Dokument-Schritt gesetzt).
-        doc_signers: type === 'document' && docCfg.signers.length ? docCfg.signers : null,
-        sign_sequential: type === 'document' ? docCfg.sequential : false,
-        doc_audience: type === 'document' && docCfg.audience ? docCfg.audience : null,
-        doc_audience_roles: type === 'document' && docCfg.audience === 'roles' ? (docCfg.roles as DocAudienceRole[]) : null,
-        doc_audience_person_ids: type === 'document' && docCfg.audience === 'persons' ? docCfg.persons : null,
-        doc_visibility: type === 'document' ? docCfg.visibility : undefined,
-      });
-      // Server fügt evtl. Pflicht-Bewegungen hinzu → kanonische Liste neu laden.
+      await repo!.create({ step_type: type, ...defaultsFor(type, selfArticle) });
       await reload();
-      resetForm();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fehler beim Anlegen');
+    }
+  }
+
+  async function patchStep(stepId: number, patch: ArticleProcessStepUpdateInput) {
+    try {
+      const updated = await repo!.update(stepId, patch);
+      setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
-    } finally {
-      setSaving(false);
     }
   }
 
   async function removeStep(stepId: number) {
     try {
       await repo!.remove(stepId);
-      // Entfernt eine Beschaffung evtl. zugehörige Pflicht-Bewegungen → neu laden.
       await reload();
     } catch { /* ignore */ }
   }
 
-  // Ein bestehender Schritt wird NICHT mehr nachträglich umkonfiguriert – wie bei jedem
-  // anderen Modul: löschen und neu anlegen. Das hielt zwei Bearbeitungs-Zustände (Sichtbare
-  // Felder, Dokument-Deklaration) am Leben, die es sonst nirgends gab.
-
   async function persistOrder(orderedFull: ArticleProcessStep[]) {
     setSteps(orderedFull);  // optimistisch
-    // ALLE Schritte sind frei sortierbar – auch die gesäten Begleit-Bewegungen. Früher
-    // wurden sie hier ausgefiltert und vom Server automatisch neu positioniert.
     const ids = orderedFull.map((s) => s.id);
     try { setSteps(await repo!.reorder(ids)); }
     catch { reload(); }
@@ -312,8 +202,6 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
     persistOrder(next);
     setDrag(null); setOver(null);
   }
-
-  const chooserTypes: StepType[] = STEP_ORDER;
 
   return (
     // **Der Editor steht in derselben Spur wie der laufende Fluss** (Testnotiz #597): eine
@@ -332,346 +220,47 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
           einen Ablauf definiert. */}
       {(steps.length > 0 || !readOnly) && <FlowTerm kind="start" />}
 
-      {steps.map((s, i) => {
-        const meta = STEP_META[s.step_type as StepType] ?? STEP_META.purchase;
-        const Icon = meta.icon;
-        const isCompanion = s.companion;
-        const canDrag = !readOnly;
-        const isOver = over === i && drag !== null && drag !== i;
-        const kc = kindColor(s.step_type as StepType);
-        return (
-          <div key={s.id} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Connector />
-            <div
-              draggable={canDrag}
-              onDragStart={() => { if (canDrag) setDrag(i); }}
-              onDragEnd={() => { setDrag(null); setOver(null); }}
-              onDragOver={(e) => { if (!readOnly && drag !== null) { e.preventDefault(); setOver(i); } }}
-              onDrop={(e) => { e.preventDefault(); onDrop(i); }}
-              style={{
-                position: 'relative', width: '100%',
-                border: `1px solid ${isOver ? 'var(--accent)' : kc.border}`,
-                borderRadius: 'var(--r-lg)', background: kc.bg,
-                boxShadow: isOver ? '0 0 0 3px var(--accent-soft)' : 'var(--shadow-sm)',
-                opacity: drag === i ? 0.4 : 1, transition: 'box-shadow .16s,border-color .16s',
-              }}
-            >
-              {/* Kopf: Symbol-Kachel + Titel (+ Pflicht) + Löschen */}
-              {/* Dieselbe Anatomie wie die Karte im laufenden Fluss (`order-flow.StepCard`,
-                  Notiz #597): gleiche Polsterung, gleicher Symbol-Kasten, gleiche Titel-
-                  grösse. Sonst wirkt dieselbe Karte vor und nach der Freigabe verschieden. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px' }}>
-                {!readOnly && <GripVertical size={16} style={{ color: 'var(--border-2)', cursor: 'grab', flexShrink: 0 }} />}
-                <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', color: kc.fg, border: `1px solid ${kc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={17} />
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{meta.label}</span>
-                  </div>
-                  <div style={{ marginTop: 3, fontSize: 12, color: 'var(--fg-3)' }}>
-                    {isCompanion && (companionRole(s) === 'versandkunde'
-                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Kunden · Ziel beim Versand</span>
-                      : (s.target_location_id
-                        ? `Wareneingang → ${formatObjectId(s.target_location_id)}`
-                        : 'Wareneingang · frei beim Einlagern'))}
-                    {!isCompanion && s.step_type === 'purchase' && (() => {
-                      // Bezugsquelle am Schritt (Lieferant/Webshop) – oder geerbt vom Artikel-Standard.
-                      if (s.mode === 'webshop' && s.webshop_url)
-                        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Webshop · {s.webshop_url.replace(/^https?:\/\//, '').slice(0, 40)}</span>;
-                      if (s.mode === 'supplier' && s.supplier_id)
-                        // Symbol statt Wort, und die Objektnummer ist klickbar (öffnet den
-                        // Lieferanten). ``supplier_id`` ist der INTERNE Schlüssel – angezeigt
-                        // wird ausschliesslich ``supplier_object_id``.
-                        return (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Lieferant">
-                            <Building2 size={12} />
-                            {s.supplier_object_id != null && <ObjId value={s.supplier_object_id} />}
-                            {s.supplier_name}
-                          </span>
-                        );
-                      // Ohne Quelle am Schritt (nur bei Altbestand möglich) bleibt der Hinweis.
-                      return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--danger)', fontWeight: 600 }}><ShoppingCart size={12} /> Bezugsquelle fehlt</span>;
-                    })()}
-                    {/* Nur der Prüfumfang – WAS erfasst wird, steht ausformuliert im Schritt
-                        selbst; die blosse Anzahl der Felder sagte nichts, was dort nicht steht. */}
-                    {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%`}
-                    {!isCompanion && s.step_type === 'movement' && (s.target_location_id
-                      // Objektnummer zuerst, danach die Bezeichnung – überall dieselbe
-                      // Lesereihenfolge wie in den Auswahllisten («100000002 · Person»).
-                      ? `Ziel: ${formatObjectId(s.target_location_id)} · ${locationTypeLabel(s.target_location_type)}`
-                      : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
-                    {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
-                    {s.step_type === 'sale' && 'Verkauf / Gutschrift – Betrag & Kunde im Auftrag'}
-                    {/* Aussondern sagt seine Wirkung weiter unten (Wirkung + Grund) –
-                        hier stünde sie ein zweites Mal. */}
-                    {s.step_type === 'document' && (
-                      <span>{(() => {
-                        const n = s.doc_signers?.length ?? 0;
-                        const parts: string[] = [];
-                        parts.push(n > 0 ? `${n} Freigabe-Partei${n === 1 ? '' : 'en'}${s.sign_sequential ? ' · sequenziell' : ''}` : 'ohne Freigabe-Parteien');
-                        if (s.doc_audience) parts.push(`Publikum: ${s.doc_audience === 'all' ? 'alle' : s.doc_audience === 'roles' ? 'Rollen' : 'Personen'}`);
-                        if (s.doc_visibility && s.doc_visibility !== 'internal') parts.push(s.doc_visibility === 'public' ? 'öffentlich' : 'vertraulich');
-                        return parts.join(' · ');
-                      })()}</span>
-                    )}
-                  </div>
-                </div>
-                {!readOnly && (
-                  <button onClick={() => removeStep(s.id)} title="Modul löschen" style={delBtn}><Trash2 size={15} /></button>
-                )}
-              </div>
-
-              {/* Wareneingang: Ziel definierbar wie bei regulärer Bewegung */}
-              {isCompanion && !readOnly && companionRole(s) === 'wareneingang' && (
-                <div style={cardBody}>
-                  <Label>Ziel Wareneingang (optional)</Label>
-                  <SearchSelect
-                    value={s.target_location_id ? `${s.target_location_type}:${s.target_location_id}` : ''}
-                    onChange={(v) => setLockedTarget(s.id, v)}
-                    placeholder="frei – Lagerist wählt beim Einlagern"
-                    options={[
-                      { value: '', label: 'frei – Lagerist wählt beim Einlagern' },
-                      ...(company ? [{ value: `company:${company.objectId}`, label: `Im Betrieb · ${company.name}` }] : []),
-                    ]} />
-                  <div style={{ marginTop: 4, fontSize: 11, color: 'var(--fg-4)' }}>
-                    Vorgabe → beim Scannen erzwungen. Leer → frei einlagerbar (per Scan erfasst).
-                  </div>
-                </div>
-              )}
-
-              {/* Beschaffung: sichtbare Stammdaten */}
-              {s.step_type === 'purchase' && (
-                <div style={cardBody}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' }}>
-                      <Eye size={12} /> Für Lieferant sichtbar
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                    {normalizeSharedFields(s.shared_fields).map((k) => <Chip key={k} label={fieldLabel(k)} on />)}
-                  </div>
-                </div>
-              )}
-
-              {/* Dokument: Freigabe-Deklaration (Parteien/Publikum/Sichtbarkeit) – wie jedes
-                  andere Modul nicht nachträglich änderbar: löschen und neu anlegen. */}
-              {s.step_type === 'document' && (
-                <div style={cardBody}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' }}>
-                      <Lock size={12} /> Dokumentenfreigabe
-                    </span>
-                  </div>
-                  <DocConfigView step={s} users={allUsers} />
-                </div>
-              )}
-
-              {/* Aussondern: WELCHE Wirkung (#277) + die Pflichtangabe (#255). */}
-              {(s.step_type === 'scrap' || s.step_type === 'block') && (
-                <div style={{ ...cardBody, fontSize: 12.5, color: 'var(--fg-2)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span>• {s.step_type === 'scrap' ? 'Verschrotten' : 'Sperren'}
-                    <span style={{ color: 'var(--fg-4)' }}> {s.step_type === 'scrap' ? '(endgültig)' : '(aufhebbar)'}</span>
-                  </span>
-                  <span>• Grund <span style={{ color: 'var(--fg-4)' }}>(Pflicht)</span></span>
-                </div>
-              )}
-
-              {/* Datenerfassung: Maske-Übersicht */}
-              {s.step_type === 'inspection' && (s.capture_fields?.length ?? 0) > 0 && (
-                <div style={{ ...cardBody, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {s.capture_fields!.map((f, idx) => (
-                    <div key={idx} style={{ fontSize: 12.5, color: 'var(--fg-2)' }}>
-                      • {f.label} <span style={{ color: 'var(--fg-4)' }}>
-                        {f.type === 'measure' ? `(Soll ${f.target ?? '—'}${f.tolerance != null ? ` ± ${f.tolerance}` : ''}${f.unit ? ` ${f.unit}` : ''})` : f.type === 'bool' ? '(Gut/Schlecht)' : f.type === 'photo' ? '(Foto)' : f.type === 'signature' ? '(Unterschrift)' : '(Text)'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Ressource: Positionen (Artikel/Werkzeug + Menge) als Zeilen */}
-              {s.step_type === 'resource' && (s.resource_lines?.length ?? 0) > 0 && (
-                <div style={{ borderTop: '1px solid var(--border-1)' }}>
-                  {s.resource_lines!.map((l, idx) => {
-                    const tool = l.mode === 'tool';
-                    return (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderBottom: idx < s.resource_lines!.length - 1 ? '1px solid var(--border-1)' : 'none' }}>
-                        <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', border: `1px solid ${tool ? '#E4D6EA' : '#EADFCB'}`, color: tool ? '#7E5586' : '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {tool ? <Wrench size={16} /> : <PackageMinus size={16} />}
-                        </span>
-                        {l.article_object_id != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)', fontWeight: 600, flexShrink: 0 }}>{formatObjectId(l.article_object_id)}</span>}
-                        <span style={{ flex: 1, minWidth: 0, font: '600 14px var(--font-body)', color: 'var(--fg-1)', display: 'flex', alignItems: 'center', gap: 9 }}>
-                          {/* Kein «Werkzeug»-Etikett (#233): das Symbol links sagt es bereits. */}
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.article_name ?? `#${l.article_id}`}</span>
-                        </span>
-                        <span style={{ font: '700 14px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{l.quantity}<span style={{ font: '500 12px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3 }}>{l.unit ? unitLabel(l.unit) : 'Stk'}</span></span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-            </div>
-          </div>
-        );
-      })}
+      {steps.map((s, i) => (
+        <div key={s.id} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Connector />
+          <StepCard
+            step={s} readOnly={readOnly}
+            over={over === i && drag !== null && drag !== i}
+            dragging={drag === i}
+            onDragStart={() => { if (!readOnly) setDrag(i); }}
+            onDragEnd={() => { setDrag(null); setOver(null); }}
+            onDragOver={(e) => { if (!readOnly && drag !== null) { e.preventDefault(); setOver(i); } }}
+            onDrop={(e) => { e.preventDefault(); onDrop(i); }}
+            onPatch={(patch) => patchStep(s.id, patch)}
+            onDelete={() => removeStep(s.id)}
+            suppliers={suppliers} users={allUsers} instances={allInstances}
+            articles={articles} company={company}
+            optionalShareKeys={optionalShareKeys}
+            selfArticleObjectId={selfArticleObjectId}
+          />
+        </div>
+      ))}
 
       {/* **Die Palette steht IM Prozess, nicht dahinter** (Testnotiz #519): ein Modul wird
           in den Ablauf eingefügt – also liegt die Auswahl vor der Zielflagge, dort wo das
-          nächste Modul hinkommt. Der Endknoten schliesst den Fluss danach ab. */}
-      {/* **Die Linie führt IMMER heran** (Testnotiz #557) – auch während man ein Modul
-          konfiguriert. Sie hing an ``!adding``, also fehlte sie genau dann, wenn man gerade
-          einen Schritt anlegt: der Editor stand ohne Anschluss unter dem grünen Startpunkt.
-          Dieselbe Bedingung wie der Start- und der Endknoten – eine Regel, drei Stellen.
-
-          **Er gehört zur Palette** (Testnotiz #599): im freigegebenen Prozess gibt es sie
-          nicht, und dann standen ZWEI Konnektoren hintereinander – der Abstand zur
-          Zielflagge war doppelt so gross wie der zwischen zwei Modulen. */}
+          nächste Modul hinkommt. Der Endknoten schliesst den Fluss danach ab.
+          **Die Linie führt IMMER heran** (#557); **sie gehört zur Palette** (#599). */}
       {!readOnly && <Connector />}
 
       {/* **Die Palette steht offen** (Notiz #223): «jeder Klick ist ein Klick zu viel» –
-          die verfügbaren Module liegen sichtbar am Ende des Flusses, ein Klick legt an.
-          Der frühere Zwischenschritt («Prozessschritt hinzufügen» → Auswahl) ist entfallen. */}
+          die verfügbaren Module liegen sichtbar am Ende des Flusses, ein Klick legt an. */}
       {!readOnly && (
-        // **Symmetrisch im Fluss** (Testnotiz #535): oben führt der Konnektor heran,
-        // unten geht er weiter – ein zusätzlicher Aussenabstand nur oben liess die Auswahl
-        // unten andocken und oben eine Lücke lassen. Die Linie taktet den Abstand, nicht
-        // ein Rand.
         <div style={{ width: '100%' }}>
-          {adding == null ? (
-            <Palette>
-              {chooserTypes.map((t) => {
-                const m = STEP_META[t]; const kc = kindColor(t);
-                return (
-                  <PaletteButton key={t} icon={m.icon} label={m.label}
-                    tone={kc.fg} bg={kc.bg} border={kc.border} onClick={() => setAdding(t)} />
-                );
-              })}
-            </Palette>
-          ) : (() => {
-            // **Der Editor trägt die Farbe seines Moduls** (Notiz #222): man konfiguriert
-            // die Karte, die gleich im Fluss stehen wird – also sieht sie schon so aus.
-            // Kopf-Anatomie wie die Modul-Karte selbst: getöntes Symbol + Name.
-            const kc = kindColor(adding);
-            const AddIcon = STEP_META[adding].icon;
-            return (
-            // **Kein «Enter legt an»** (Testnotiz #621, nimmt #611 zurück): ein Schritt wird
-            // hier KONFIGURIERT, nicht ausgefüllt – Bezugsquelle, Prüfumfang, Erfassungsfelder,
-            // Parteien. Eine Taste, die mitten in dieser Arbeit anlegt, legt fast immer etwas
-            // Halbfertiges an, und ein Schritt ist danach nicht mehr änderbar (löschen + neu).
-            // Angelegt wird darum bewusst über «Hinzufügen» (#40/#68).
-            <div style={{ ...editorCard, gap: 14, background: kc.bg, borderColor: kc.border }}>
-              {/* Kopf = Anatomie der Modul-Karte, die gleich im Fluss stehen wird (#222).
-                  Kein Zurück-Knopf mehr (#226/#232): «Abbrechen» ist der Weg heraus. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {/* **Ein Mass für alles** (Testnotiz #547): der Editor legt die Karte an,
-                    die gleich im Fluss stehen wird – also trägt er ihr Symbol-Mass (38 px),
-                    nicht ein eigenes. */}
-                <span style={{
-                  width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
-                  color: kc.fg, border: `1px solid ${kc.border}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <AddIcon size={17} />
-                </span>
-                <span style={{ font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>
-                  {STEP_META[adding].label}
-                </span>
-              </div>
-
-              {adding === 'purchase' && (
-                <>
-                  {/* Die Bezugsquelle wird HIER festgelegt (Lieferant ODER Webshop-Link),
-                      je Schritt eigen – kein «erben» mehr (#166). Das Symbol des Lieferanten
-                      ist ein Gebäude, nicht ein Lastwagen (#164): gemeint ist die Firma, bei
-                      der bestellt wird, nicht der Transport. */}
-                  <div>
-                    <Label>Bezugsquelle</Label>
-                    <IconSwitch<ProcessStepMode> symbolOnly value={mode} onChange={setMode}
-                      options={[
-                        { value: 'supplier', icon: Building2, label: 'Lieferant', hint: 'Bestellung bei einem Lieferanten' },
-                        { value: 'webshop', icon: Globe, label: 'Webshop', hint: 'Kauf über einen Webshop-Link' },
-                      ]} />
-                  </div>
-                  {mode === 'supplier' ? (
-                    <SearchSelect label="Lieferant" value={supplierId} onChange={setSupplierId} required
-                      options={suppliers.filter((s) => s.object_id != null).map((s) => ({
-                        value: String(s.id), label: `${formatObjectId(s.object_id)} · ${userDisplayName(s)}` }))} />
-                  ) : (
-                    <TextField label="Webshop-Link" value={url} onChange={setUrl} required
-                      placeholder="https://shop.example.com/artikel" />
-                  )}
-                  <div><Label>Für Lieferant sichtbar</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
-                </>
-              )}
-
-              {/* Aussondern: EINE Entscheidung – endgültig oder vorübergehend (#277). */}
-              {(adding === 'scrap' || adding === 'block') && (
-                <>
-                  {/* Kein Label «Wirkung» (#283): die beiden Optionen sagen selbst, was
-                      sie tun – und der Hover nennt den Unterschied. */}
-                  <div>
-                    <IconSwitch<'scrap' | 'block'> value={adding} onChange={(v) => setAdding(v)}
-                      options={[
-                        { value: 'scrap', icon: Trash2, label: 'Verschrotten', hint: 'Endgültig aus dem Bestand – die Instanz ist danach Ausschuss und standortlos.' },
-                        { value: 'block', icon: Lock, label: 'Sperren', hint: 'Vorübergehend nicht verwendbar – bleibt am Standort, wird an der Instanz wieder freigegeben.' },
-                      ]} />
-                  </div>
-                  <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-2)' }}>
-                    • Grund <span style={{ color: 'var(--fg-4)' }}>(Pflicht bei der Ausführung)</span>
-                  </div>
-                </>
-              )}
-
-              {adding === 'inspection' && (
-                <>
-                  <SampleScope value={samplePercent} onChange={setSamplePercent} />
-                  <CaptureFieldsEditor fields={wfields} onChange={setWfields} />
-                </>
-              )}
-
-              {adding === 'movement' && (
-                <>
-                  <SearchSelect label="Zielstandort (optional)" value={targetSel} onChange={setTargetSel}
-                    placeholder="Nicht definiert – Lagerist wählt beim Einlagern"
-                    options={[
-                      { value: '', label: 'Nicht definiert – Lagerist wählt beim Einlagern' },
-                      ...(company ? [{ value: `company:${company.objectId}`, label: `Im Betrieb · ${company.name}` }] : []),
-                      ...allUsers.filter((u) => u.object_id != null).map((u) => ({
-                        value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${formatObjectId(u.object_id)}` })),
-                      ...allInstances.filter((i) => i.object_id != null).map((i) => ({
-                        value: `instance:${i.object_id}`, label: `${instanceLabel()} ${formatObjectId(i.object_id)}` })),
-                    ]} />
-                </>
-              )}
-
-              {adding === 'resource' && (
-                <ResourceLinesEditor lines={resLines} onChange={setResLines}
-                  articles={articles.filter((a) => a.status === 'released' && a.object_id !== selfArticleObjectId)} />
-              )}
-
-              {adding === 'sale' && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
-                  <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>Kaufmännischer Verkauf (Spiegel der Beschaffung): Kunde, Betrag, Rechnung
-                    und Zahlung werden beim Auftrag erfasst. Der Versand läuft über eine Bewegung
-                    (Ziel = Kunde, mit Sendungsverfolgung).</span>
-                </div>
-              )}
-
-              {adding === 'document' && (
-                <DocConfigEditor cfg={docCfg} onChange={setDocCfg} users={allUsers} />
-              )}
-
-              {error && <ErrorText msg={error} />}
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={resetForm} className="erp-actbtn erp-actbtn-neutral">Abbrechen</button>
-                <button onClick={() => addStep(adding)} disabled={saving} className="erp-actbtn erp-actbtn-primary">{saving ? 'Speichern…' : 'Hinzufügen'}</button>
-              </div>
-            </div>
-            );
-          })()}
+          <Palette>
+            {STEP_ORDER.map((t) => {
+              const m = STEP_META[t]; const kc = kindColor(t);
+              return (
+                <PaletteButton key={t} icon={m.icon} label={m.label}
+                  tone={kc.fg} bg={kc.bg} border={kc.border} onClick={() => addStep(t)} />
+              );
+            })}
+          </Palette>
+          {error && <div style={{ marginTop: 8 }}><ErrorText msg={error} /></div>}
         </div>
       )}
       {/* Der Endknoten schliesst den Fluss ab – NACH der Auswahl (#519). */}
@@ -686,16 +275,305 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
   );
 }
 
-const STEP_HINT: Record<StepType, string> = {
-  purchase: 'Bestellung bei Lieferant oder Webshop',
-  inspection: 'Stichprobe prüfen & Werte erfassen',
-  movement: 'Instanzen an ihren Standort bringen',
-  resource: 'Material verbrauchen oder Betriebsmittel nutzen',
-  scrap: 'Instanzen aus dem Bestand nehmen – endgültig (verschrotten) oder vorübergehend (sperren)',
-  block: 'Instanzen vorübergehend sperren (aufhebbar) – z. B. Maschine bis zur Wartung',
-  sale: 'Verkauf bzw. Gutschrift/Erstattung (bei verkaufter Ware) – Bestätigung → Rechnung → Zahlung',
-  document: 'Dokument (Vertrag, AGB, Zertifikat) – Inhalt im Auftrag verfasst',
-};
+/**
+ * **Womit ein Modul startet.** Nur das, was ohne Nachdenken richtig ist: die Beschaffung
+ * erbt die Quelle des Artikels (falls gepflegt), die Datenerfassung prüft erst einmal
+ * alles, das Dokument bleibt intern. Alles Weitere entscheidet der Mensch in der Karte.
+ */
+function defaultsFor(type: StepType, art: Article | null): Partial<ArticleProcessStepInput> {
+  switch (type) {
+    case 'purchase':
+      return {
+        mode: (art?.procurement_mode as ProcessStepMode) || 'supplier',
+        supplier_id: art?.procurement_mode !== 'webshop' && art?.default_supplier_id != null
+          ? art.default_supplier_id : null,
+        webshop_url: art?.procurement_mode === 'webshop' ? (art?.default_webshop_url ?? null) : null,
+        shared_fields: MANDATORY_FIELD_KEYS,
+      };
+    case 'inspection':
+      // Ein Feld ist da – sonst stünde eine Datenerfassung ohne alles im Fluss. Es ist
+      // dasselbe, das die Engine ohne Maske ohnehin erfassen würde (Gut/Schlecht);
+      // umbenennen, ergänzen oder ersetzen kostet einen Klick.
+      return { sample_percent: 100,
+               capture_fields: [{ key: '', label: 'Gut/Schlecht', type: 'bool',
+                                  target: null, tolerance: null, unit: null }] };
+    case 'resource':
+      return { resource_lines: [] };
+    case 'document':
+      return { doc_visibility: 'internal', sign_sequential: false };
+    default:
+      return {};
+  }
+}
+
+/**
+ * **Eine Karte, ein Layout – egal ob Entwurf oder freigegeben** (Testnotiz #635).
+ *
+ * Vorher gab es je Modul drei Darstellungen: das Anlage-Formular, die Karte im Entwurf
+ * (Zusammenfassung in Stichworten) und die Karte im freigegebenen Prozess. Drei Layouts
+ * für dieselbe Sache – und beim Anfassen liefen sie auseinander.
+ *
+ * Jetzt zeigt die Karte **immer** dieselben Felder; ist der Träger freigegeben, sind sie
+ * schlicht **gesperrt** (`fieldset[disabled]` – eine Zeile statt eines zweiten Layouts).
+ * Geändert wird per **Auto-Save**, wie in jedem anderen Fenster des ERP.
+ */
+function StepCard({
+  step, readOnly, over, dragging, onDragStart, onDragEnd, onDragOver, onDrop, onPatch,
+  onDelete, suppliers, users, instances, articles, company, optionalShareKeys,
+  selfArticleObjectId,
+}: {
+  step: ArticleProcessStep;
+  readOnly: boolean;
+  over: boolean; dragging: boolean;
+  onDragStart: () => void; onDragEnd: () => void;
+  onDragOver: (e: React.DragEvent) => void; onDrop: (e: React.DragEvent) => void;
+  onPatch: (patch: ArticleProcessStepUpdateInput) => void;
+  onDelete: () => void;
+  suppliers: UserProfile[]; users: UserProfile[]; instances: Instance[]; articles: Article[];
+  company: { objectId: number; name: string } | null;
+  optionalShareKeys: string[];
+  selfArticleObjectId: number | null;
+}) {
+  const type = step.step_type as StepType;
+  const meta = STEP_META[type] ?? STEP_META.purchase;
+  const Icon = meta.icon;
+  const kc = kindColor(type);
+  return (
+    <div
+      draggable={!readOnly}
+      onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop}
+      style={{
+        position: 'relative', width: '100%',
+        border: `1px solid ${over ? 'var(--accent)' : kc.border}`,
+        borderRadius: 'var(--r-lg)', background: kc.bg,
+        boxShadow: over ? '0 0 0 3px var(--accent-soft)' : 'var(--shadow-sm)',
+        opacity: dragging ? 0.4 : 1, transition: 'box-shadow .16s,border-color .16s',
+      }}
+    >
+      {/* Kopf: Symbol-Kachel + Titel + Löschen. Dieselbe Anatomie wie die Karte im
+          laufenden Fluss (`order-flow.StepCard`, Notiz #597). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px' }}>
+        {!readOnly && <GripVertical size={16} style={{ color: 'var(--border-2)', cursor: 'grab', flexShrink: 0 }} />}
+        <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', color: kc.fg, border: `1px solid ${kc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={17} />
+        </div>
+        <span style={{ flex: 1, minWidth: 0, font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>
+          {meta.label}
+        </span>
+        {!readOnly && (
+          <button onClick={onDelete} data-tip="Modul entfernen" aria-label="Modul entfernen" style={delBtn}><Trash2 size={15} /></button>
+        )}
+      </div>
+
+      {/* **Der Inhalt ist immer derselbe – gesperrt statt nachgebaut.** `fieldset[disabled]`
+          nimmt jedem Feld darin nativ die Bedienbarkeit; es braucht dafür kein zweites
+          Layout und keine `disabled`-Kette durch jede Komponente. */}
+      <fieldset disabled={readOnly}
+        style={{ border: 'none', margin: 0, padding: 0, minWidth: 0,
+          opacity: readOnly ? 0.85 : 1 }}>
+        <StepBody step={step} type={type} readOnly={readOnly} onPatch={onPatch}
+          suppliers={suppliers} users={users} instances={instances} articles={articles}
+          company={company} optionalShareKeys={optionalShareKeys}
+          selfArticleObjectId={selfArticleObjectId} />
+      </fieldset>
+    </div>
+  );
+}
+
+/** Der Inhalt einer Modul-Karte – je Typ genau seine Felder, sonst nichts. */
+function StepBody({
+  step, type, readOnly, onPatch, suppliers, users, instances, articles, company,
+  optionalShareKeys, selfArticleObjectId,
+}: {
+  step: ArticleProcessStep; type: StepType; readOnly: boolean;
+  onPatch: (patch: ArticleProcessStepUpdateInput) => void;
+  suppliers: UserProfile[]; users: UserProfile[]; instances: Instance[]; articles: Article[];
+  company: { objectId: number; name: string } | null;
+  optionalShareKeys: string[];
+  selfArticleObjectId: number | null;
+}) {
+  if (type === 'purchase') {
+    const mode = (step.mode as ProcessStepMode) || 'supplier';
+    return (
+      <div style={cardBody}>
+        {/* Die Bezugsquelle wird HIER festgelegt (Lieferant ODER Webshop-Link), je Schritt
+            eigen – kein «erben» mehr (#166). Das Symbol des Lieferanten ist ein Gebäude,
+            nicht ein Lastwagen (#164): gemeint ist die Firma, nicht der Transport. */}
+        <div>
+          <Label>Bezugsquelle</Label>
+          <IconSwitch<ProcessStepMode> symbolOnly value={mode}
+            onChange={(v) => onPatch({ mode: v, ...(v === 'supplier' ? { webshop_url: null } : { supplier_id: null }) })}
+            options={[
+              { value: 'supplier', icon: Building2, label: 'Lieferant', hint: 'Bestellung bei einem Lieferanten' },
+              { value: 'webshop', icon: Globe, label: 'Webshop', hint: 'Kauf über einen Webshop-Link' },
+            ]} />
+        </div>
+        {mode === 'supplier' ? (
+          <SearchSelect label="Lieferant" required
+            value={step.supplier_id != null ? String(step.supplier_id) : ''}
+            onChange={(v) => onPatch({ supplier_id: v ? Number(v) : null })}
+            options={suppliers.filter((s) => s.object_id != null).map((s) => ({
+              value: String(s.id), label: `${formatObjectId(s.object_id)} · ${userDisplayName(s)}` }))} />
+        ) : (
+          <AutoText label="Webshop-Link" required value={step.webshop_url ?? ''}
+            placeholder="https://shop.example.com/artikel"
+            onCommit={(v) => onPatch({ webshop_url: v.trim() || null })} />
+        )}
+        <div>
+          <Label>Für Lieferant sichtbar</Label>
+          <FieldChips value={normalizeSharedFields(step.shared_fields)}
+            onChange={(v) => onPatch({ shared_fields: v })}
+            optionalAvailable={optionalShareKeys} />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'scrap' || type === 'block') {
+    // **Aussondern: EINE Entscheidung** – endgültig oder vorübergehend (#277). Symbol-only
+    // wie die Bezugsquelle (#633); der Name steht im Hover, der Grund ist ohnehin Pflicht
+    // und braucht keine Zeile in der Fläche (#634).
+    return (
+      <div style={cardBody}>
+        <IconSwitch<'scrap' | 'block'> symbolOnly value={type}
+          onChange={(v) => onPatch({ step_type: v })}
+          options={[
+            { value: 'scrap', icon: Trash2, label: 'Verschrotten', hint: 'Endgültig aus dem Bestand – die Instanz ist danach Ausschuss und standortlos.' },
+            { value: 'block', icon: Lock, label: 'Sperren', hint: 'Vorübergehend nicht verwendbar – bleibt am Standort, wird an der Instanz wieder freigegeben.' },
+          ]} />
+      </div>
+    );
+  }
+
+  if (type === 'inspection') {
+    return (
+      <div style={cardBody}>
+        <SampleScope value={String(step.sample_percent ?? 100)}
+          onChange={(v) => onPatch({ sample_percent: Math.trunc(Number(v) || 0) || 100 })} />
+        <CaptureFieldsEditor fields={toWFields(step.capture_fields)}
+          onChange={(f) => onPatch({ capture_fields: fromWFields(f) })} />
+      </div>
+    );
+  }
+
+  if (type === 'movement') {
+    return (
+      <div style={cardBody}>
+        <SearchSelect label="Zielstandort (optional)"
+          value={step.target_location_id ? `${step.target_location_type}:${step.target_location_id}` : ''}
+          onChange={(v) => {
+            const tgt = v ? v.split(':') : null;
+            onPatch({ target_location_type: tgt ? (tgt[0] as LocationType) : null,
+                      target_location_id: tgt ? Number(tgt[1]) : null });
+          }}
+          placeholder="Nicht definiert – Lagerist wählt beim Einlagern"
+          options={[
+            { value: '', label: 'Nicht definiert – Lagerist wählt beim Einlagern' },
+            ...(company ? [{ value: `company:${company.objectId}`, label: `Im Betrieb · ${company.name}` }] : []),
+            ...users.filter((u) => u.object_id != null).map((u) => ({
+              value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${formatObjectId(u.object_id)}` })),
+            ...instances.filter((i) => i.object_id != null).map((i) => ({
+              value: `instance:${i.object_id}`, label: `${instanceLabel()} ${formatObjectId(i.object_id)}` })),
+          ]} />
+      </div>
+    );
+  }
+
+  if (type === 'resource') {
+    return (
+      <div style={cardBody}>
+        <ResourceLinesEditor
+          lines={(step.resource_lines ?? []).map((l) => ({
+            article_id: String(l.article_id), quantity: String(l.quantity ?? 1),
+            mode: (l.mode as ResourceMode) || 'consume' }))}
+          onChange={(lines) => onPatch({ resource_lines: lines
+            .filter((l) => l.article_id)
+            .map((l) => {
+              const q = Math.round((Number(l.quantity) || 1) * 1000) / 1000;
+              return { article_id: Number(l.article_id), quantity: q > 0 ? q : 1, mode: l.mode };
+            }) })}
+          articles={articles.filter((a) => a.status === 'released' && a.object_id !== selfArticleObjectId)} />
+      </div>
+    );
+  }
+
+  if (type === 'document') {
+    // Die **Struktur** der Freigabe (Parteien, Reihenfolge, Publikum, Sichtbarkeit) –
+    // read-only als Liste mit Namen, sonst als Editor.
+    return (
+      <div style={cardBody}>
+        {readOnly
+          ? <DocConfigView step={step} users={users} />
+          : <DocConfigEditor cfg={toDocCfg(step)} users={users}
+              onChange={(cfg) => onPatch({
+                doc_signers: cfg.signers.length ? cfg.signers : null,
+                sign_sequential: cfg.sequential,
+                doc_audience: cfg.audience || null,
+                doc_audience_roles: cfg.audience === 'roles' ? (cfg.roles as DocAudienceRole[]) : null,
+                doc_audience_person_ids: cfg.audience === 'persons' ? cfg.persons : null,
+                doc_visibility: cfg.visibility,
+              })} />}
+      </div>
+    );
+  }
+
+  // Verkauf trägt keine Konfiguration: Kunde, Betrag und Zahlung entstehen im Auftrag.
+  return null;
+}
+
+/** Die Erfassungsfelder in die Formular-Form und zurück – eine Stelle, zwei Richtungen. */
+function toWFields(fields: CaptureField[] | null | undefined): WField[] {
+  return (fields ?? []).map((f) => ({
+    label: f.label ?? '', type: (f.type as WField['type']) || 'measure',
+    target: f.target != null ? String(f.target) : '',
+    tolerance: f.tolerance != null ? String(f.tolerance) : '',
+    unit: f.unit ?? '',
+  }));
+}
+
+function fromWFields(fields: WField[]): CaptureField[] {
+  return fields
+    .filter((f) => f.label.trim())
+    .map((f) => ({
+      key: '', label: f.label.trim(), type: f.type,
+      target: f.type === 'measure' && f.target.trim() !== '' ? Number(f.target) : null,
+      tolerance: f.type === 'measure' && f.tolerance.trim() !== '' ? Number(f.tolerance) : null,
+      unit: f.unit.trim() || null,
+    }));
+}
+
+function toDocCfg(step: ArticleProcessStep): DocCfg {
+  return {
+    signers: (step.doc_signers ?? []).map((s) => ({
+      signer_object_id: s.signer_object_id, action: (s.action as 'confirm' | 'sign') || 'sign' })),
+    sequential: !!step.sign_sequential,
+    audience: (step.doc_audience as DocCfg['audience']) || '',
+    roles: (step.doc_audience_roles ?? []) as string[],
+    persons: step.doc_audience_person_ids ?? [],
+    visibility: (step.doc_visibility as DocCfg['visibility']) || 'internal',
+  };
+}
+
+/**
+ * Ein Textfeld, das **beim Verlassen** speichert (und mit Enter).
+ *
+ * Auto-Save wie überall – aber nicht bei jedem Tastendruck: ein halb getippter Link wäre
+ * sonst zwischendurch eine ungültige Bezugsquelle.
+ */
+function AutoText({ label, value, placeholder, required, onCommit }: {
+  label: string; value: string; placeholder?: string; required?: boolean;
+  onCommit: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  return (
+    <TextField label={label} value={draft} onChange={setDraft} required={required}
+      placeholder={placeholder}
+      onBlur={() => { if (draft !== value) onCommit(draft); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+  );
+}
+
 
 // ─── Ressourcen-Zeilen (mini-BOM): Artikel + Menge + Modus-Toggle je Zeile ────
 function ResourceLinesEditor({ lines, onChange, articles }: {
@@ -749,49 +627,52 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
 }
 
 /**
- * **Prüfumfang** als Voreinstellungen statt Prozent-Eingabe: In der Praxis prüft man jedes
- * Stück, jedes zweite, jedes vierte oder eine Handvoll – vier Chips decken das ab und
- * brauchen keinen Erklärsatz. Ein abweichender Wert (z. B. 7 %) bleibt möglich: «…»
- * blendet das Zahlenfeld ein, und ein bereits gespeicherter Sonderwert erscheint als
- * eigener Chip, statt still verlorenzugehen.
+ * **Prüfumfang: ein Anteil bekommt WORTE, keine geratenen Symbole** (Testnotiz #636).
+ *
+ * In der Praxis prüft man jedes Stück, jedes zweite, jedes vierte oder eine Handvoll – vier
+ * Möglichkeiten, die keinen Erklärsatz brauchen. Nur: ein Anteil lässt sich nicht zeichnen
+ * (#618). Zwei Anläufe mit Symbolen (Haken · Zeilen · Kolben) haben genau das bewiesen –
+ * man musste sie raten, und ein Symbol, das man raten muss, ist keines.
+ *
+ * Also stehen die vier Möglichkeiten als Wort da. Das ist keine Ausnahme von «Symbole statt
+ * Text», sondern dessen Kehrseite: das Symbol trägt, wo es die Sache ZEIGEN kann (Modul,
+ * Bezugsquelle, Wirkung) – und wo nicht, ist das Wort die ehrlichere Antwort.
+ *
+ * Ein abweichender Wert (z. B. 7 %) bleibt möglich: «%» blendet das Zahlenfeld ein, und ein
+ * bereits gespeicherter Sonderwert erscheint als eigene Option, statt still verlorenzugehen.
  */
-// **Ein Anteil lässt sich nicht zeichnen** (Testnotiz #618): «jedes zweite Stück» hat kein
-// Symbol, das ohne Vorwissen lesbar wäre – und ein Symbol, das man raten muss, ist keines.
-// Darum trägt hier die AKTIVE Option ihr Wort (``labelActiveOnly``, dieselbe Lösung wie bei
-// der Mengeneinheit, #219/#220); die Symbole sind nur noch Griffe für die Alternativen, und
-// ihr Name kommt im Hover **sofort** (``data-tip`` statt ``title``).
 const SAMPLE_PRESETS = [
-  { pct: '100', label: 'Alle', icon: CheckCheck, hint: 'Jedes Stück wird geprüft (100 %)' },
-  { pct: '50', label: 'Jedes 2.', icon: Rows2, hint: 'Jedes zweite Stück (50 %)' },
-  { pct: '25', label: 'Jedes 4.', icon: Rows4, hint: 'Jedes vierte Stück (25 %)' },
-  { pct: '10', label: 'Stichprobe', icon: FlaskConical, hint: 'Eine Handvoll (10 %)' },
+  { pct: '100', label: 'Alle', hint: 'Jedes Stück wird geprüft (100 %)' },
+  { pct: '50', label: 'Jedes 2.', hint: 'Jedes zweite Stück (50 %)' },
+  { pct: '25', label: 'Jedes 4.', hint: 'Jedes vierte Stück (25 %)' },
+  { pct: '10', label: 'Stichprobe', hint: 'Eine Handvoll (10 %)' },
 ];
 
-/** Zeile hinzufügen: solange die Liste leer ist mit Wort, danach nur noch «+» (Hover erklärt). */
 function SampleScope({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const isPreset = SAMPLE_PRESETS.some((p) => p.pct === value);
   const [custom, setCustom] = useState(!isPreset && value !== '');
+  const chip = (active: boolean): React.CSSProperties => ({
+    padding: '6px 11px', font: '600 12.5px var(--font-body)', borderRadius: 8,
+    cursor: 'pointer', whiteSpace: 'nowrap',
+    border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+    background: active ? 'var(--accent-soft)' : '#fff',
+    color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
+  });
   return (
     <div>
       <Label required>Prüfumfang</Label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        {/* Der Umschalter bleibt (#610) – aber die geltende Option schreibt ihr Wort aus
-            (#618): vier Wörter nebeneinander ringen um Aufmerksamkeit, eines beantwortet
-            die Frage. */}
-        <IconSwitch<string> labelActiveOnly value={custom ? '' : value}
-          onChange={(v) => { setCustom(false); onChange(v); }}
-          options={SAMPLE_PRESETS.map((p) => ({
-            value: p.pct, icon: p.icon, label: p.label, hint: p.hint }))} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+        {SAMPLE_PRESETS.map((p) => (
+          <button key={p.pct} type="button" data-tip={p.hint}
+            onClick={() => { setCustom(false); onChange(p.pct); }}
+            style={chip(!custom && value === p.pct)}>
+            {p.label}
+          </button>
+        ))}
         <button type="button" data-tip="Anderer Prüfumfang in Prozent"
-          aria-label="Anderer Prüfumfang" className="erp-palette"
-          onClick={() => setCustom(true)}
-          style={{
-            width: 34, height: 34,
-            background: custom ? 'var(--accent-soft)' : 'var(--bg-2)',
-            borderColor: custom ? 'var(--accent)' : 'var(--border-1)',
-            color: custom ? 'var(--accent-ink)' : 'var(--fg-3)',
-          }}>
-          <Percent size={15} />
+          aria-label="Anderer Prüfumfang" onClick={() => setCustom(true)}
+          style={{ ...chip(custom), display: 'inline-flex', alignItems: 'center' }}>
+          <Percent size={14} />
         </button>
         {custom && (
           <input value={value} onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
@@ -1248,11 +1129,6 @@ const cardBody: React.CSSProperties = {
   borderTop: '1px solid var(--border-1)', padding: '12px 16px 14px',
 };
 // Editor-/Palette-Karte (neutral, für «Schritt hinzufügen»).
-const editorCard: React.CSSProperties = {
-  width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch',
-  background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
-  boxShadow: 'var(--shadow-sm)', padding: '13px 16px',
-};
 const delBtn: React.CSSProperties = {
   border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 4, flexShrink: 0,
 };

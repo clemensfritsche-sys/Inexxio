@@ -63,7 +63,11 @@ def _order_with_own_steps(db, art, user, qty: int, *steps: str):
             **({"mode": "scrap"} if kind in ("scrap", "block") else
                {"sample_percent": 100} if kind == "inspection" else
                {"mode": "webshop", "webshop_url": "https://example.test"} if kind == "purchase" else
-               {"resource_lines": []} if kind == "resource" else {})))
+               # Ein Ressourcen-Schritt ohne Zeile hat nichts zu holen und lässt sich
+               # seit Testnotiz #635 nicht mehr freigeben – hier zählt der Subjekt-Typ,
+               # also bekommt er eine (als Betriebsmittel, das nichts verbraucht).
+               {"resource_lines": [{"article_id": art.id, "quantity": 1, "mode": "tool"}]}
+               if kind == "resource" else {})))
     db.flush()
     R._do_release(db, order, user.id)
     db.commit()

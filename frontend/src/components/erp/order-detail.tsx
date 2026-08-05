@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, History, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert, PackageCheck, Lock, BadgeCheck, Pencil } from 'lucide-react';
+import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2, Boxes, TriangleAlert, PackageCheck, Lock, BadgeCheck, Pencil } from 'lucide-react';
 import { ApiError, api } from '@/lib/api';
 import { draftStepStore, toStepInputs } from '@/lib/step-store';
 import type { AffectedOrder, Article, ArticleProcessStep, CompanySettings, FlowLot, Instance, InstancePickInput, InstanceUnit, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
@@ -16,13 +16,12 @@ import type { StatusAction } from '@/lib/status-flow';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, ReadField, Row, SPEC, SaveIndicator, SearchSelect, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { DraftFlowFrame, OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
 import { UnitChips } from '@/components/erp/unit-numbers';
-import { MoveJournal } from '@/components/erp/move-journal';
 import { OrderDiagnosticsPanel } from '@/components/erp/order-diagnostics';
 import { orderName } from '@/lib/record-name';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
@@ -1352,22 +1351,13 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
               />
             </div>
 
-            {/* **Was ist passiert** (ADR 007): das Material-Journal dieses Auftrags – die
-                dritte der drei Fragen, direkt unter dem Prozess. Der Fluss darüber zeigt
-                JETZT (aktiver Schritt + Material) und ALS NÄCHSTES (der Plan); hier stehen
-                die Buchungen, chronologisch und unveränderlich. Der Chip nennt die Instanz
-                – dieselben Zeilen zeigt sie aus ihrer Richtung. */}
+            {/* **Kein Journal unter dem Fluss** (Testnotiz #628): die Buchungsliste
+                erzählte, was der Fluss darüber ohnehin zeigt – Material auf den Kanten,
+                Zustand je Stück, Wer/Wann im Hover. Das Journal selbst bleibt die Wahrheit
+                über die Vergangenheit (ADR 007); wer die Mechanik sehen will, öffnet das
+                Systemprotokoll darunter. */}
             {isStaff && record.object_id != null && (
               <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%', marginTop: 20 }}>
-                {(record.history ?? []).length > 0 && (
-                  <>
-                    <SectionTitle icon={History}
-                      info="Das Material-Journal: jede Buchung, chronologisch – was passiert ist, ändert sich nie.">
-                      Verlauf
-                    </SectionTitle>
-                    <MoveJournal rows={record.history ?? []} chip="instance" />
-                  </>
-                )}
                 {/* **Eine Ebene tiefer: das Systemprotokoll** – Audit, Ereignisse und
                     Journal nebeneinander plus der abgeleitete Zustand. Der Verlauf sagt,
                     WAS mit dem Material passiert ist; hier steht, welcher Mechanismus es

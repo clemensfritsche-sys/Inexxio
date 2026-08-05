@@ -1283,54 +1283,37 @@ def test_reserved_is_not_a_state_of_its_own():
             f"{name}: der Zustand eines Datensatzes kommt aus `record-status`.")
 
 
-def test_the_palette_name_grows_beside_the_symbol_without_moving_anything():
-    """**Der Name wächst im Hover DANEBEN heraus** (Testnotiz #624).
+def test_the_palette_name_stands_in_the_hover_above_the_symbol():
+    """**Der Name steht im Hover ÜBER dem Symbol** (Testnotiz #630).
 
-    Drei Anläufe sind an derselben Wurzel gescheitert – der Name braucht Platz, den die
-    Reihe nicht hat:
+    Vier Anläufe, dieselbe Wurzel – der Name braucht Platz, den die Reihe nicht hat:
 
     * wuchs der **Knopf im Fluss**, brach die Zeile um und er wanderte unter dem Cursor weg
       (Hover an → aus → an: das gemeldete «Springen und Hüpfen», #502/#503);
-    * wuchs eine **Pille aus ihm heraus**, sah sie gelöst aus (#509/#510);
-    * eine **Zeile darunter** schrieb den Namen zweimal hin (#518).
+    * eine **Zeile darunter** schrieb den Namen zweimal hin (#509/#518);
+    * wuchs er **aus dem Knopf nach rechts** heraus, verdeckte er den Nachbarn (#630).
 
-    Die Lösung trennt die beiden Grössen: **im Fluss** belegt der Knopf eine feste Zelle –
-    daran ändert der Hover NICHTS, also kann nichts umbrechen und nichts springen (auch
-    nicht, wenn die Reihe schon zweizeilig ist). **Gezeichnet** wird er absolut in dieser
-    Zelle und wächst nach rechts.
-
-    In Chromium gemessen: Zellen und Palettenhöhe bleiben bei jedem Hover identisch (auch
-    beim letzten Knopf und bei umgebrochener Reihe), das Label wächst von 0 auf 138 px, und
-    das Symbol bleibt auf seinem x."""
+    Die Antwort ist keine vierte Sonderlösung, sondern die im Haus übliche: Erklärungen
+    stehen in der Hover-Blase (``[data-tip]``). Sie schwebt ÜBER der Zeile, kostet keinen
+    Platz im Layout – und bleibt damit auch dann richtig, wenn die Palette wegen der
+    Responsiveness umbricht."""
     css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
-    cell = css.split(".erp-palette-cell {")[1].split("}")[0]
-    assert "width: 44px; height: 44px" in cell, (
-        "Die ZELLE hat eine feste Grösse – daran darf ein Hover nichts ändern.")
     block = css.split(".erp-palette {")[1].split("}")[0]
-    assert "position: absolute" in block, (
-        "Der Knopf wird absolut in seiner Zelle gezeichnet – so wächst er, ohne zu schieben.")
-    assert ".erp-palette-label > span" in css and "max-width: 0" in css, (
-        "Der Name wächst über max-width – die 0fr/1fr-Technik greift hier nicht "
-        "(gemessen: der Knopf blieb bei 44 px stehen).")
-    assert ".erp-palette-caption" not in css, "Keine Zeile darunter (#518)."
+    assert "width: 44px; height: 44px" in block, (
+        "Der Knopf hat eine feste Grösse – daran darf ein Hover nichts ändern.")
+    for gone in (".erp-palette-cell", ".erp-palette-label", ".erp-palette-caption"):
+        assert gone not in css, f"{gone}: kein wachsender Name mehr im Layout (#630)."
     fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
     assert "export function Palette(" in fields, (
         "Die Reihe gibt es als EINEN Baustein – damit die Geste überall gleich aussieht.")
     btn = fields.split("export function PaletteButton")[1][:1400]
-    assert "erp-palette-cell" in btn and "erp-palette-label" in btn, (
-        "Der Knopf sitzt in seiner Zelle und trägt seinen Namen (#624).")
+    assert "data-tip={label}" in btn, "Der Name kommt aus der EINEN Tooltip-Mechanik."
+    assert "erp-palette-label" not in btn, "…nicht aus einer eigenen, wachsenden Pille."
     assert "hint?: string;" not in btn[:400], (
         "Im Hover steht der NAME – die lange Erklärung ist entfallen (#518).")
     # Dieselbe Geste am Segment-Umschalter (#624: «auch gleich hier oben beim Prüfumfang»).
     assert ".ix-seg .ix-seg-label > span" in css and "ix-seg-label" in fields, (
         "Auch der Umschalter zeigt den Namen neben dem Symbol.")
-    # Beide Paletten teilen sich denselben Baustein – sonst sieht dieselbe Geste an zwei
-    # Stellen verschieden aus. (Die dritte, die Unterdeckungs-Frage, ist entfallen: darüber
-    # entscheidet seit #556 das System.)
-    steps = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
-    assert steps.count("<Palette>") + steps.count("<Palette\n") == 2, (
-        "Beide Paletten teilen sich denselben Baustein.")
-
 
 def test_a_hover_explanation_is_never_dimmed():
     """**Hover-Informationen sind immer klar lesbar** (Testnotiz #504).
@@ -1704,3 +1687,75 @@ def test_a_process_module_has_exactly_one_width():
         assert same in card, f"{same} fehlt in der Karte des laufenden Flusses."
         assert same.replace("const box = 34", "width: 34, height: 34") in steps or same in steps, (
             f"{same}: der Editor trägt dieselbe Anatomie wie die Karte, die er anlegt (#597).")
+
+
+def test_a_module_is_added_and_configured_in_one_place():
+    """**Ein Klick legt das Modul an – konfiguriert wird es dort, wo es steht** (#635).
+
+    Vorher führte derselbe Klick in ein Anlage-Formular mit «Abbrechen» und «Hinzufügen»:
+    zwei Knöpfe, zwei Zustände (in Arbeit ↔ angelegt) und **drei** Darstellungen desselben
+    Moduls – Formular, Karte im Entwurf (Stichworte) und Karte im freigegebenen Prozess.
+    Drei Layouts für dieselbe Sache; beim Anfassen liefen sie auseinander.
+
+    Jetzt gibt es EINE Karte. Sie steht sofort im Fluss, zeigt immer dieselben Felder und
+    ist gesperrt, sobald der Träger freigegeben ist – ``fieldset[disabled]``, eine Zeile
+    statt eines zweiten Layouts. Geändert wird per Auto-Save wie überall.
+
+    Dass ein Modul dadurch **unfertig** beginnen darf, ist keine Lockerung, sondern der
+    richtige Zeitpunkt: geprüft wird bei der **Freigabe** (``processes.incomplete_steps``),
+    dem Gate, ab dem der Prozess wirklich läuft."""
+    src = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    for gone in ("Hinzufügen</button>", "erp-actbtn-primary", "setAdding", "resetForm",
+                 ">Abbrechen<"):
+        assert gone not in src, f"«{gone}» gehört zum Anlage-Formular – das gibt es nicht mehr."
+    assert "function StepCard(" in src and "fieldset disabled={readOnly}" in src, (
+        "EINE Karte, gesperrt statt nachgebaut.")
+    assert "onClick={() => addStep(t)}" in src, "Der Klick auf das Symbol legt an."
+    # Und die Vollständigkeit steht am Freigabe-Gate, nicht am Formular.
+    from app.services.processes import incomplete_steps
+    assert callable(incomplete_steps)
+
+
+def test_the_sample_scope_is_written_out_because_a_share_cannot_be_drawn():
+    """**Ein Anteil bekommt Worte, keine geratenen Symbole** (Testnotiz #636).
+
+    Zwei Anläufe mit Symbolen (Haken · Zeilen · Kolben) haben bewiesen, was #618 schon
+    festhielt: «jedes zweite Stück» hat kein Bild, das man ohne Vorwissen liest. Das ist
+    keine Ausnahme von «Symbole statt Text», sondern dessen Kehrseite – das Symbol trägt,
+    wo es die Sache ZEIGEN kann, und wo nicht, ist das Wort die ehrlichere Antwort."""
+    src = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    scope = src.split("const SAMPLE_PRESETS")[1].split("function CaptureFieldsEditor")[0]
+    for gone in ("CheckCheck", "Rows2", "Rows4", "FlaskConical", "labelActiveOnly"):
+        assert gone not in scope, f"«{gone}»: kein geratenes Symbol für einen Anteil mehr."
+    for word in ("'Alle'", "'Jedes 2.'", "'Jedes 4.'", "'Stichprobe'"):
+        assert word in scope, f"{word} steht als Wort da."
+
+
+def test_the_axis_is_always_centred():
+    """**Der Hauptprozess steht IMMER in der Mitte** (Testnotiz #627).
+
+    Eine Zeile mit Seitenspuren zentriert sich selbst (volle Breite, ``justifyContent:
+    center``). Eine Zeile OHNE sie ist dagegen nur die Spur – ein Kind fester Breite in
+    einer Spalte –, und mit ``alignItems: 'stretch'`` klebte sie am linken Rand. In
+    Chromium gemessen: 9…469 statt 279…739 in einer 1000-px-Fläche. Betroffen war jeder
+    Auftrag ohne Abzweig, also der Normalfall."""
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    frame = line.split("export function FlowFrame")[1].split("export const lineColor")[0]
+    assert "alignItems: 'center'" in frame and "alignItems: 'stretch'" not in frame, (
+        "Zentriert wird an EINER Stelle – im Rahmen, nicht in jeder Zeile einzeln.")
+
+
+def test_the_stock_list_reads_the_same_preparation_as_everywhere():
+    """**Der Bestand eines Artikels kennt die Stücke** (Testnotiz #632).
+
+    Er hatte eine eigene, kürzere Aufbereitung – ohne ``units``. Eine Charge à 4 stand
+    darum als EIN Block mit dem Zustand des *Datensatzes* da, während dieselbe Charge im
+    Instanz-Detail Stück für Stück drei verschiedene Zustände zeigte. Zwei Aufbereitungen
+    sind zwei Wahrheiten."""
+    import inspect as _i
+
+    from app.routers.articles import list_article_instances
+    from app.routers.instances import denorm
+    assert "denorm" in _i.getsource(list_article_instances), (
+        "Der Bestand liest dieselbe Aufbereitung wie Feed und Detail.")
+    assert "units.rows" in _i.getsource(denorm), "…und die kennt die Stücke."

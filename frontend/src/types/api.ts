@@ -794,6 +794,11 @@ export interface paths {
         /**
          * List Article Instances
          * @description Bestand des Artikels: alle Bestands-Instanzen (Reiter «Bestand»).
+         *
+         *     **Dieselbe Aufbereitung wie überall** (``instances.denorm``, Testnotiz #632): der
+         *     Bestand hatte eine eigene, kürzere Fassung, die die **Stücke** nicht kannte – eine
+         *     Charge à 4 stand darum als EIN Block mit dem Zustand des Datensatzes da, obwohl drei
+         *     Stück freigegeben und eines im Prozess waren. Zwei Aufbereitungen sind zwei Wahrheiten.
          */
         get: operations["list_article_instances_api_v1_erp_articles__object_id__instances_get"];
         put?: never;
@@ -2764,8 +2769,14 @@ export interface components {
         /**
          * ArticleProcessStepUpdate
          * @description Teil-Update eines Prozessschritts.
+         *
+         *     ``step_type`` ist **nur innerhalb des Moduls «Aussondern»** änderbar (scrap ↔ block):
+         *     das ist EIN Modul mit zwei Wirkungen (#277), und die Wirkung ist eine Konfiguration,
+         *     keine andere Sache. Der Router erzwingt das (``_update``).
          */
         ArticleProcessStepUpdate: {
+            /** Step Type */
+            step_type?: string | null;
             /** Position */
             position?: number | null;
             /** Mode */
@@ -4249,11 +4260,6 @@ export interface components {
              * @default []
              */
             location_path: components["schemas"]["LocationHop"][];
-            /**
-             * History
-             * @default []
-             */
-            history: components["schemas"]["MaterialMoveView"][];
         };
         /**
          * InstanceShare
@@ -4318,6 +4324,8 @@ export interface components {
             location_label?: string | null;
             /** Location Object Id */
             location_object_id?: number | null;
+            /** In Stock Since */
+            in_stock_since?: string | null;
             /** Order Object Id */
             order_object_id?: number | null;
             /** Order Name */
@@ -4349,39 +4357,6 @@ export interface components {
             location_id?: number | null;
             /** Label */
             label?: string | null;
-        };
-        /**
-         * MaterialMoveView
-         * @description Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.
-         *
-         *     ``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |
-         *     sold | consumed | scrapped | blocked | unblocked). Dieselbe Zeile dient BEIDEN
-         *     Verläufen: am **Instanz**-Detail ist der Chip der beteiligte Auftrag, am
-         *     **Auftrags**-Detail die betroffene Instanz – dieselbe Geschichte, aus zwei Richtungen
-         *     gelesen (die drei Fragen, ADR 007).
-         */
-        MaterialMoveView: {
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /** Kind */
-            kind: string;
-            /** Quantity */
-            quantity: number;
-            /** Quality */
-            quality?: string | null;
-            /** Disposition */
-            disposition?: string | null;
-            /** Order Object Id */
-            order_object_id?: number | null;
-            /** Order Name */
-            order_name?: string | null;
-            /** Instance Object Id */
-            instance_object_id?: number | null;
-            /** Note */
-            note?: string | null;
         };
         /**
          * MovementEmbed
@@ -4992,11 +4967,6 @@ export interface components {
              * @default []
              */
             flow_lost: components["schemas"]["FlowLot"][];
-            /**
-             * History
-             * @default []
-             */
-            history: components["schemas"]["MaterialMoveView"][];
             /**
              * Flow Nodes
              * @default []

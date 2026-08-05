@@ -255,13 +255,12 @@ class ArticleProcessStepCreate(BaseModel):
         # sie pro Fall überschreiben (``supplier_id`` bzw. ``webshop_url``) – keine Pflicht mehr.
         if self.step_type == "inspection" and self.sample_percent is None:
             self.sample_percent = 100  # Default: ganze Menge prüfen
-        # Eine **Datenerfassung ohne Erfassungsfeld** ist ein Schritt ohne Inhalt: er liesse
-        # sich anlegen, böte im Auftrag aber nichts zu erfassen – der Auftrag käme dort nicht
-        # weiter. Analog zur Ressource-Zeile darum hier abgewiesen, nicht nur im Formular.
-        if self.step_type == "inspection" and not (self.capture_fields or []):
-            raise ValueError("Eine Datenerfassung braucht mindestens ein Erfassungsfeld")
-        if self.step_type == "resource" and not self.resource_lines:
-            raise ValueError("Ein Ressource-Schritt braucht mindestens eine Zeile")
+        # **Ein Modul entsteht leer und wird IM Fluss konfiguriert** (Testnotiz #635): eine
+        # Datenerfassung ohne Feld und eine Ressource ohne Zeile sind darum beim Anlegen
+        # erlaubt. Unvollständig bleiben dürfen sie trotzdem nicht – geprüft wird bei der
+        # **Freigabe** (``processes.incomplete_steps``), also an dem Gate, ab dem der Prozess
+        # wirklich läuft. Das ist keine Lockerung, sondern der richtige Zeitpunkt: vorher
+        # zwang die Prüfung zu einem Anlage-Formular mit «Abbrechen»/«Hinzufügen».
         # Zielstandort – Bewegung: Ziel; Beschaffung: Lieferadresse/Wareneingang.
         # Ohne Zieltyp gibt es kein festes Zielobjekt.
         if self.target_location_type is None:
@@ -277,8 +276,13 @@ class StepReorder(BaseModel):
 
 
 class ArticleProcessStepUpdate(BaseModel):
-    """Teil-Update eines Prozessschritts."""
+    """Teil-Update eines Prozessschritts.
 
+    ``step_type`` ist **nur innerhalb des Moduls «Aussondern»** änderbar (scrap ↔ block):
+    das ist EIN Modul mit zwei Wirkungen (#277), und die Wirkung ist eine Konfiguration,
+    keine andere Sache. Der Router erzwingt das (``_update``)."""
+
+    step_type: Optional[str] = None
     position: Optional[int] = None
     mode: Optional[str] = None
     supplier_id: Optional[int] = None
@@ -296,6 +300,15 @@ class ArticleProcessStepUpdate(BaseModel):
     doc_audience_person_ids: Optional[list[int]] = None
     doc_visibility: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @field_validator("step_type")
+    @classmethod
+    def _type_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if v not in ALLOWED_STEP_TYPES:
+            raise ValueError(f"Schritt-Typ muss eine von {', '.join(ALLOWED_STEP_TYPES)} sein")
+        return v
 
     @field_validator("shared_fields")
     @classmethod

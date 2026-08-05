@@ -996,7 +996,14 @@ def _restock_one(db: Session, order: Order, inst, cust_oid: int | None,
         inst.quantity = to_qty(inst.quantity) + back
     inst.disposition = "in_stock"
     inst.quality = "passed"
-    inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager
+    # **Eine Retoure setzt die FIFO-Uhr NICHT zurück.** Sie stand hier auf «jetzt» – damit
+    # war zurückgenommene Ware schlagartig die *jüngste* im Lager und ginge als letztes
+    # wieder hinaus. Bei FIFO als Alterungsschutz ist das genau verkehrt: ein Teil ist so
+    # alt, wie es ist, egal wie oft es das Haus verlassen hat. Die Zeit steht ohnehin am
+    # **Stück** (``units``) und überlebt dort den ganzen Weg (``restore`` lässt sie stehen);
+    # der Instanz-Skalar wird nur noch nachgezogen, falls es ihn gar nicht gab (Altbestand).
+    if inst.released_at is None:
+        inst.released_at = utcnow()
     # **Die verkauften Stücke kehren mit zurück** – dieselben Nummern, die hinausgingen;
     # ohne das trüge die Instanz wieder eine Menge, aber kein einziges Stück.
     from . import units as units_svc

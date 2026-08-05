@@ -229,10 +229,11 @@ def test_process_step_types_and_optional_config():
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
-    # Eine Datenerfassung OHNE Erfassungsfeld ist ein Schritt ohne Inhalt – im Auftrag
-    # gäbe es nichts zu erfassen, der Auftrag käme dort nicht weiter.
-    with pytest.raises(ValueError):
-        ArticleProcessStepCreate(step_type="inspection")
+    # **Ein Modul entsteht leer und wird im Fluss konfiguriert** (Testnotiz #635): eine
+    # Datenerfassung ohne Maske ist beim Anlegen erlaubt – sie erfasst dann ein
+    # synthetisches Gut/Schlecht, ist also ausführbar. Das Formular legt sie ohnehin mit
+    # einem Feld an.
+    assert ArticleProcessStepCreate(step_type="inspection").sample_percent == 100
     one_field = [{"label": "Oberfläche", "type": "bool"}]
     insp = ArticleProcessStepCreate(step_type="inspection", capture_fields=one_field)
     assert insp.sample_percent == 100                 # Default: ganze Menge
@@ -513,13 +514,22 @@ def test_resource_line_schema_validates():
 
 
 def test_resource_step_requires_lines():
-    """Ein resource-Schritt braucht mindestens eine Zeile."""
-    import pytest
+    """**Ein Ressourcen-Schritt ohne Zeile hat nichts zu holen** – aber die Prüfung steht
+    an der Freigabe, nicht an der Anlage (Testnotiz #635).
 
+    Ein Modul entsteht leer und wird im Fluss konfiguriert; das Gate ist die Freigabe, und
+    es nennt beim Namen, was fehlt (``processes.incomplete_steps``)."""
     from app.schemas.article_process_step import ArticleProcessStepCreate, ResourceLine
+    from app.services.processes import incomplete_steps
 
-    with pytest.raises(ValueError):
-        ArticleProcessStepCreate(step_type="resource")
+    class _Step:
+        step_type = "resource"
+        resource_lines = None
+
+    ArticleProcessStepCreate(step_type="resource")      # anlegen: erlaubt
+    assert incomplete_steps([_Step()]) == ["Ressource: mindestens eine Zeile"]
+    _Step.resource_lines = [{"article_id": 5, "quantity": 1, "mode": "consume"}]
+    assert incomplete_steps([_Step()]) == []
     ok = ArticleProcessStepCreate(
         step_type="resource",
         resource_lines=[ResourceLine(article_id=5, quantity=2, mode="tool")],
@@ -3719,10 +3729,14 @@ def test_the_material_journal_answers_the_three_questions():
     assert "1 if kv[0].holder is None else 2" in drain, (
         "Genannter Halter ≻ freier Bestand ≻ fremde Halter – niemand verliert etwas, "
         "wenn frei gedeckt werden kann.")
-    # Der Verlauf steht an BEIDEN Enden derselben Geschichte: Instanz und Auftrag.
+    # **Das Journal ist die Wahrheit, keine Liste in der Antwort** (Testnotizen #628/#629):
+    # es speist die Kanten des Flusses, den Zustand der Stücke und das Systemprotokoll –
+    # als ausgeschriebene Buchungsliste am Datensatz sagte es nichts, was der Fluss und die
+    # Stücke nicht schon zeigen. Es darf darum an KEINER Antwort mehr hängen.
     from app.schemas.order import OrderResponse
-    assert "history" in OrderResponse.model_fields
-    assert "moves_of" in _inspect.getsource(osvc._order_history_views)
+    from app.schemas.instance import InstanceResponse
+    assert "history" not in OrderResponse.model_fields
+    assert "history" not in InstanceResponse.model_fields
 
 
 def test_two_shares_of_one_instance_add_up():

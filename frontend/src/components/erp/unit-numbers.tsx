@@ -19,9 +19,9 @@
  */
 
 import type { InstanceUnit } from '@/types';
-import { MapPin } from 'lucide-react';
+import { Clock3, MapPin } from 'lucide-react';
 import { instanceStatusConfig } from '@/lib/process';
-import { formatObjectId } from '@/lib/utils';
+import { formatObjectId, localDateTime } from '@/lib/utils';
 
 /** Die Nummer lesbar machen: die Objektnummer 9-stellig, der Zusatz bleibt, wie er ist. */
 export function unitLabel(n: string): string {
@@ -42,7 +42,8 @@ function tip(u: InstanceUnit, unit?: string): string {
   const holder = u.order_object_id != null
     ? ` · Auftrag ${formatObjectId(u.order_object_id)}` : '';
   const where = u.location_label ? ` · ${u.location_label}` : '';
-  return `${unitLabel(u.number)} · ${qty} · ${cfg.label}${holder}${where}`;
+  const since = u.in_stock_since ? ` · am Lager seit ${localDateTime(u.in_stock_since)}` : '';
+  return `${unitLabel(u.number)} · ${qty} · ${cfg.label}${holder}${where}${since}`;
 }
 
 const S: Record<string, React.CSSProperties> = {
@@ -56,8 +57,12 @@ const S: Record<string, React.CSSProperties> = {
   more: { fontSize: 10.5, fontWeight: 600, color: 'var(--fg-4)', whiteSpace: 'nowrap' },
   list: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
   row: {
-    display: 'grid', gridTemplateColumns: 'auto auto 1fr auto', gap: 8, alignItems: 'center',
-    fontSize: 12, lineHeight: 1.5,
+    display: 'grid', gridTemplateColumns: 'auto auto 1fr auto auto', gap: 8,
+    alignItems: 'center', fontSize: 12, lineHeight: 1.5,
+  },
+  since: {
+    display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--fg-4)',
+    fontSize: 11.5, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums',
   },
   where: {
     display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, color: 'var(--fg-4)',
@@ -109,6 +114,19 @@ export function UnitList({
                   {formatObjectId(u.order_object_id)}
                 </button>
               )}
+            </span>
+            {/* **Seit wann es am Lager liegt** (Testnotiz #631) – die FIFO-Zeit dieses
+                Stücks, dort wo sie gilt. Sie steht am Stück, nicht an der Instanz: eine
+                Charge kann drei Teile von heute und eines von vor vier Wochen tragen, und
+                genau danach entscheidet FIFO, welches als Nächstes hinausgeht. */}
+            <span style={S.since}
+              title={u.in_stock_since
+                ? `Am Lager seit ${localDateTime(u.in_stock_since)} – FIFO-Basis dieses Stücks`
+                : undefined}>
+              {u.in_stock_since && <>
+                <Clock3 size={11} style={{ flexShrink: 0 }} />
+                {localDateTime(u.in_stock_since)}
+              </>}
             </span>
             {/* **Wo es liegt** (Testnotiz #605) – je Stück, für eine Charge wie für ein
                 Einzelteil dieselbe Zeile. Damit braucht es keine zweite Standort-Anzeige

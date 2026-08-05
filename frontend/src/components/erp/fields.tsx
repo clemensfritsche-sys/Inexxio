@@ -529,24 +529,22 @@ export function PaletteButton({ icon: Icon, label, tone, bg, border, size = 19, 
   disabled?: boolean;
   onClick: () => void;
 }) {
-  // **Der Name wächst im Hover DANEBEN heraus** (Testnotiz #624). Im Fluss belegt der
-  // Knopf eine feste Zelle – die Zelle bewegt sich nie, also kann der Hover keine Zeile
-  // umbrechen und den Knopf nicht unter dem Cursor wegziehen (#502/#503). Gezeichnet wird
-  // er absolut darin und wächst nach rechts über den Nachbarn; die Mechanik steht in
-  // `globals.css` (`.erp-palette*`), damit sie an allen drei Paletten dieselbe ist.
+  // **Der Name steht im Hover ÜBER dem Symbol** (Testnotiz #630, nach #518/#624). Wuchs er
+  // aus dem Knopf nach rechts heraus, verdeckte er den Nachbarn – und wuchs der Knopf
+  // selbst, brach die Reihe um und zog sich unter dem Cursor weg (#502/#503). Der Name
+  // gehört darum dorthin, wo im ganzen Haus jede Erklärung steht: in die Hover-Blase
+  // (`data-tip`). Sie schwebt über der Zeile, kostet keinen Platz im Layout und bleibt
+  // damit auch dann richtig, wenn die Palette umbricht.
   return (
-    <span className="erp-palette-cell">
-      <button type="button" onClick={onClick} disabled={disabled}
-        aria-label={label} className="erp-palette"
-        style={{
-          background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
-          color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
-          cursor: disabled ? 'default' : 'pointer',
-        }}>
-        <span className="erp-palette-icon"><Icon size={size} /></span>
-        <span className="erp-palette-label"><span>{label}</span></span>
-      </button>
-    </span>
+    <button type="button" onClick={onClick} disabled={disabled}
+      aria-label={label} data-tip={label} className="erp-palette"
+      style={{
+        background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
+        color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
+        cursor: disabled ? 'default' : 'pointer',
+      }}>
+      <Icon size={size} />
+    </button>
   );
 }
 
@@ -638,9 +636,13 @@ export function ErrorText({ msg }: { msg: string }) {
   );
 }
 
-export function TextField({ label, value, onChange, error, placeholder, required, hint }: {
+export function TextField({ label, value, onChange, error, placeholder, required, hint,
+                           onBlur, onKeyDown }: {
   label: string; value: string; onChange: (v: string) => void;
   error?: string | null; placeholder?: string; required?: boolean; hint?: string;
+  /** Auto-Save beim Verlassen: nicht jeder Tastendruck ist eine Entscheidung. */
+  onBlur?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }) {
   return (
     <div>
@@ -649,6 +651,8 @@ export function TextField({ label, value, onChange, error, placeholder, required
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
         className={inputCls}
         style={{ borderColor: error ? '#fca5a5' : '#e2e8f0' }}
       />

@@ -306,6 +306,16 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
     owner.ensure_editable()
     step = _get_step(db, owner, step_id)
     payload = data.model_dump(exclude_unset=True)
+    # **Die Wirkung ist eine Konfiguration, kein anderes Modul.** «Aussondern» ist EIN
+    # Eintrag der Palette mit zwei Wirkungen (#277) – endgültig (scrap) oder aufhebbar
+    # (block) –, und die wählt man in der Karte. Jeder ANDERE Typwechsel wäre dagegen ein
+    # anderes Modul: dafür gibt es löschen und neu anlegen.
+    new_type = payload.get("step_type")
+    if new_type is not None and new_type != step.step_type:
+        if {new_type, step.step_type} - {"scrap", "block"}:
+            raise HTTPException(
+                400, detail="Ein Modul lässt sich nicht in ein anderes verwandeln – "
+                            "bitte löschen und neu anlegen")
     if "supplier_id" in payload:
         _validate_supplier(db, payload["supplier_id"])
     if "capture_fields" in payload:

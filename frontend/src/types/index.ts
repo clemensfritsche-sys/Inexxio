@@ -504,6 +504,9 @@ export interface ArticleProcessStepInput {
 }
 
 export interface ArticleProcessStepUpdateInput {
+  /** Nur innerhalb des Moduls «Aussondern» (scrap ↔ block): EIN Modul, zwei Wirkungen
+   *  (#277) – die Wirkung ist eine Konfiguration, kein anderes Modul. Der Server erzwingt es. */
+  step_type?: StepType;
   position?: number;
   mode?: ProcessStepMode;
   supplier_id?: number | null;

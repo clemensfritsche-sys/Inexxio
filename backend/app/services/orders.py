@@ -17,7 +17,7 @@ from ..schemas.article_process_step import CaptureField
 from ..schemas.disposal import DisposalEmbed
 from ..schemas.document import DocumentEmbed
 from ..schemas.inspection import InspectionEmbed, InspectionSample
-from ..schemas.instance import InstanceEmbed, MaterialMoveView
+from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
     FlowEdge, FlowLot, FlowNode, OrderDeviationInfo, OrderLineInfo,
@@ -1480,24 +1480,6 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse,
         resp.flow_nodes.append(node)
 
 
-def _order_history_views(db: Session, order: Order) -> list[MaterialMoveView]:
-    """**Was mit dem Material dieses Auftrags passiert ist** – die Journalzeilen (ADR 007).
-
-    Dieselbe Zeile wie am Instanz-Detail, nur aus der anderen Richtung gelesen: hier ist
-    der Chip die **Instanz** (welche Menge), dort der Auftrag. Chronologisch, unveränderlich
-    – die dritte der drei Fragen, direkt am Auftrag."""
-    from . import ledger
-    if not order.id:
-        return []
-    return [
-        MaterialMoveView(
-            at=m.at, kind=m.kind, quantity=float(m.quantity),
-            quality=m.dst_quality, disposition=m.dst_disposition,
-            instance_object_id=m.instance_object_id, note=m.note)
-        for m in ledger.moves_of(db, order.id)
-    ]
-
-
 def to_order_response(db: Session, order: Order, viewer: UserProfile | None = None) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
     dem passenden Ausführungs-Embed (Mehr-Operationen-Routing).
@@ -1533,7 +1515,6 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     # sieht seinen Ausschnitt; wie viel er zu liefern hat, steht in seinem Beleg.
     if internal:
         resp.flow_lots, resp.flow_lost = order_material(db, order, instances)
-        resp.history = _order_history_views(db, order)
 
     # Auftrag-Stepper: je Schritt der passende Ausführungs-Embed + Abschluss-Info.
     # Das oberste Embed je Typ bleibt für Rückwärtskompatibilität (Lieferanten-Sicht)

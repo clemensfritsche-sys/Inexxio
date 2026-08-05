@@ -118,8 +118,16 @@ export function FlowFrame({ hasAside = false, children }: {
   return (
     <div ref={ref} style={{ width: '100%', minWidth: 0 }}>
       <FlowCtx.Provider value={metrics}>
+        {/* **Die Achse steht IMMER in der Mitte** (Testnotiz #627). Eine Zeile mit
+            Seitenspuren zentriert sich selbst (sie ist volle Breite mit
+            `justify-content: center`); eine Zeile OHNE sie ist dagegen nur die Spur –
+            also ein Kind fester Breite in einer Spalte. Mit `align-items: stretch` klebte
+            es am linken Rand: in Chromium gemessen 9…469 statt 279…739 in einer 1000er
+            Fläche. Genau das war «alles rückt nach links, sobald nur der Hauptprozess da
+            ist» – und es traf jeden Auftrag ohne Abzweig. Zentriert wird darum hier, an
+            der EINEN Stelle, statt in jeder Zeile einzeln. */}
         <div style={{ width: '100%', minWidth: 0, display: 'flex',
-          flexDirection: 'column', alignItems: 'stretch' }}>
+          flexDirection: 'column', alignItems: 'center' }}>
           {children}
         </div>
       </FlowCtx.Provider>

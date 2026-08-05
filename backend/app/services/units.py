@@ -26,6 +26,29 @@ gleich) eine einzige kurze Zeile, und die Nummern gibt es trotzdem alle::
     o     der Auftrag, der diese Stücke hält (fehlt = frei).
     x     der **Endzustand**, wenn diese Stücke den Bestand verlassen haben
           (``scrapped`` · ``sold`` · ``consumed``); fehlt = lebendig.
+    s     freigegeben – dieses Stück hat sein Prozessziel erreicht.
+    t     **seit wann am Lager** – der Zeitpunkt der ERSTEN Freigabe dieses Stücks.
+
+**Die FIFO-Zeit gehört zur Menge, nicht zur Instanz.** Sie war die letzte Grösse, die noch
+instanzweit stand (``instances.released_at``) – und damit die letzte, die bei einer Charge
+lügen konnte: werden drei Stück heute und eines in vier Wochen frei, trugen alle vier das
+Datum von heute. Zustand (``s``/``x``), Menge (``q``), Halter (``o``) und Standort hängen
+längst am Stück; die Zeit tut es jetzt auch.
+
+Drei Regeln, und alle drei folgen daraus, dass ``t`` eine **Tatsache über die Vergangenheit**
+ist – keine abgeleitete Grösse:
+
+  * **Gesetzt beim ersten Mal** (``mark_released``) und danach **nie** überschrieben. «Seit
+    wann liegt es am Lager» meint den Moment, in dem genau dieses Stück freigegeben wurde –
+    nicht den Abschluss irgendeines Auftrags.
+  * **Eine Retoure setzt die Uhr nicht zurück** (``restore``): ein zurückgenommenes Teil ist
+    so alt wie beim ersten Mal. Sonst wäre es das *jüngste* im Lager und ginge als letztes
+    hinaus – bei FIFO als Alterungsschutz genau verkehrt.
+  * **Altbestand bekommt seine Eröffnungsbilanz** (``ensure``): Stücke ohne ``t`` erben den
+    heutigen Stand der Instanz (``released_at``, ersatzweise ``created_at``) – ab dort ist
+    die Zeit persistent am Stück, ohne erfundene Historie.
+
+``fifo_since`` ist die Antwort für die Sortierung; ``inventory.fifo_candidates`` liest sie.
 
 **Die Nummer ist eine Identität, keine Position.** Sie wird bei der Entstehung vergeben
 und danach **nie** neu verteilt – ein Stück, das einmal ``-3`` war, bleibt ``-3``, auch
@@ -47,10 +70,12 @@ und Mengen/Ansprüche nicht auseinanderlaufen. Ein Widerspruch ist ein Bug im Au
 keine stille Korrektur.
 """
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import NamedTuple
 
 from ..models import Instance
+from ..models.base import utcnow
 from .quantity import ZERO, qty_key, qty_sum, to_qty
 
 #: Ab so vielen Läufen wird zusammengefasst, was ohnehin gleich ist (siehe ``_pack``).
@@ -67,6 +92,7 @@ class Unit(NamedTuple):
     holder: int | None          # Order.id | None = frei
     state: str | None = None    # scrapped|sold|consumed = hat den Bestand verlassen
     released: bool = False      # hat sein Prozessziel erreicht → passed/in_stock
+    since: datetime | None = None   # seit wann am Lager (FIFO-Basis, erste Freigabe)
 
     @property
     def free(self) -> bool:
@@ -75,6 +101,68 @@ class Unit(NamedTuple):
     @property
     def gone(self) -> bool:
         return self.state is not None
+
+
+# ─── Die FIFO-Zeit ────────────────────────────────────────────────────────────
+
+def _stamp(at: datetime | None = None) -> str:
+    """Der Zeitpunkt, wie er im Lauf steht – ISO-8601 in UTC (JSON-sicher, sortierbar)."""
+    return (at or utcnow()).astimezone(timezone.utc).isoformat()
+
+
+def _time(raw) -> datetime | None:
+    """Der Zeitpunkt eines Laufs als ``datetime`` – tolerant gegenüber Altbestand."""
+    if not raw:
+        return None
+    try:
+        val = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+    return val if val.tzinfo else val.replace(tzinfo=timezone.utc)
+
+
+def _fallback(inst: Instance) -> datetime | None:
+    """Was ein Stück ohne eigenen Zeitpunkt erbt – der heutige Stand der Instanz."""
+    got = getattr(inst, "released_at", None) or getattr(inst, "created_at", None)
+    if got is None:
+        return None
+    return got if got.tzinfo else got.replace(tzinfo=timezone.utc)
+
+
+def fifo_since(inst: Instance) -> datetime | None:
+    """**Seit wann liegt hier das älteste entnehmbare Stück?** – der FIFO-Schlüssel.
+
+    Sortiert wird je Instanz (eine Zeile im Kandidatenfeld), gemeint ist aber das Stück,
+    das als Nächstes hinausginge: das **älteste freie und freigegebene**. Gibt es keines,
+    zählt das älteste freigegebene überhaupt; ohne jede Freigabe bleibt es beim Stand der
+    Instanz (Altbestand) – tolerant lesen, streng schreiben."""
+    free: list[datetime] = []
+    any_released: list[datetime] = []
+    fb = _fallback(inst)
+    for run in _runs(inst):
+        if run.get("x") or not run.get("s"):
+            continue
+        when = _time(run.get("t")) or fb
+        if when is None:
+            continue
+        any_released.append(when)
+        if run.get("o") is None:
+            free.append(when)
+    pool = free or any_released
+    return min(pool) if pool else fb
+
+
+#: Ohne jede Zeitangabe (theoretisch: weder Freigabe noch ``created_at``) sortiert die
+#: Instanz nach vorn – sie ist dann die älteste, die wir kennen.
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def fifo_key(inst: Instance) -> datetime:
+    """Derselbe Wert wie ``fifo_since``, aber **immer** vergleichbar (zeitzonen-bewusst).
+
+    Sortierschlüssel müssen total sein: ein naives neben einem bewussten ``datetime``
+    bringt die Sortierung zum Absturz, nicht bloss in die falsche Reihenfolge."""
+    return fifo_since(inst) or _fallback(inst) or _EPOCH
 
 
 # ─── Lesen ────────────────────────────────────────────────────────────────────
@@ -127,9 +215,10 @@ def of(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
         if holder is not ... and run.get("o") != holder:
             continue
         q = to_qty(run.get("q", 1))
+        when = _time(run.get("t")) or (_fallback(inst) if run.get("s") else None)
         for i in range(int(run["a"]), int(run["b"]) + 1):
             out.append(Unit(label(inst, i), i, q, run.get("o"), run.get("x"),
-                            bool(run.get("s"))))
+                            bool(run.get("s")), when))
             if limit is not None and len(out) >= limit:
                 return out
     return sorted(out, key=lambda u: u.index)
@@ -190,6 +279,9 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
         pq, pd = ("passed", "in_stock") if u.released else (q, d)
         out.append(InstanceUnit(
             number=u.number, quantity=float(u.quantity), quality=pq, disposition=pd,
+            # **Seit wann am Lager** – die FIFO-Basis dieses Stücks (Testnotiz #631).
+            # Sie steht dort, wo sie gilt: am Stück, nicht an der Instanz.
+            in_stock_since=u.since if u.released else None,
             order_object_id=(o[0] if o else None), order_name=(o[1] if o else None),
             reason=(o[2] if o else None)))
     return out
@@ -243,7 +335,7 @@ def owned_by(inst: Instance, order_id: int, db=None) -> list[Unit]:
                 else (not u.released and rest == order_id))]
 
 
-def mark_released(inst: Instance, indices) -> Decimal:
+def mark_released(inst: Instance, indices, at: datetime | None = None) -> Decimal:
     """**Diese Stücke haben ihr Prozessziel erreicht** – sie sind freigegeben (Notiz #572).
 
     Der Zustand einer Instanz war bisher genau EIN Paar Skalare für die ganze Menge. Bei
@@ -264,6 +356,7 @@ def mark_released(inst: Instance, indices) -> Decimal:
     if not want:
         return ZERO
     runs, freed = _runs(inst), ZERO
+    stamp = _stamp(at)
     out: list[dict] = []
     for run in runs:
         if run.get("x") or run.get("s"):
@@ -273,7 +366,11 @@ def mark_released(inst: Instance, indices) -> Decimal:
         for a, b, hit in _slice(int(run["a"]), int(run["b"]), want):
             piece = {**run, "a": a, "b": b}
             if hit:
+                # **Hier entsteht die FIFO-Zeit** – und nur hier: ein Stück ist «seit» dem
+                # Moment am Lager, in dem es freigegeben wurde. Danach wird sie nie wieder
+                # angefasst (auch eine Retoure setzt sie nicht zurück).
                 piece["s"] = 1
+                piece.setdefault("t", stamp)
                 freed = qty_sum([freed, q * (b - a + 1)])
             out.append(piece)
     _write(inst, out, _next(inst))
@@ -443,9 +540,14 @@ def _write(inst: Instance, runs: list[dict], nxt: int) -> None:
 
 
 def _same(a: dict, b: dict) -> bool:
-    """Zwei Läufe beschreiben dasselbe – dann dürfen sie einer werden."""
+    """Zwei Läufe beschreiben dasselbe – dann dürfen sie einer werden.
+
+    **Auch die FIFO-Zeit gehört dazu**: zwei Stücke, die an verschiedenen Tagen ans Lager
+    kamen, beschreiben nicht dasselbe – sie zusammenzufassen hiesse, das ältere um sein
+    Datum zu bringen."""
     return (a.get("o") == b.get("o") and a.get("x") == b.get("x")
             and bool(a.get("s")) == bool(b.get("s"))
+            and a.get("t") == b.get("t")
             and qty_key(a.get("q", 1)) == qty_key(b.get("q", 1)))
 
 
@@ -496,14 +598,38 @@ def ensure(inst: Instance) -> None:
     Stücke, wie ihre Menge hergibt, verteilt auf die Halter ihrer Ansprüche – und **liegt
     sie am Lager, sind ihre Stücke freigegeben** (sonst wäre eine Alt-Instanz nach der
     Eröffnung schlagartig nicht mehr entnehmbar, weil ``free_quantity`` je Stück zählt).
-    Ab dort ist die Zuordnung vollständig. Idempotent."""
-    if _runs(inst) or (inst.units or {}).get("r") is not None:
+    Freigegebene Stücke erben dabei die **FIFO-Zeit der Instanz** (``released_at``,
+    ersatzweise ``created_at``) – ab dort steht sie persistent am Stück, ohne dass jemals
+    eine Zeit erfunden würde. Ab dort ist die Zuordnung vollständig. Idempotent.
+
+    **Zwei Eröffnungen, eine Regel.** Auch eine Instanz, die ihre Nummern schon hat, kann
+    aus einer Zeit stammen, in der es die Freigabe je Stück noch nicht gab: sie liegt am
+    Lager, aber kein einziges Stück trägt die Marke. Das ist genau der gemeldete Fall –
+    beim Verschrotten EINES Stücks zog ``sync_state`` die Projektion nach, fand nirgends
+    eine Freigabe und stufte die ganze Charge auf «Im Prozess» zurück; aus dem Nichts
+    standen drei freigegebene Stücke wieder in Arbeit. Die Antwort ist dieselbe wie oben:
+    was am Lager liegt, IST freigegeben – die Marke wird nachgetragen, nicht der Zustand
+    weggeworfen. Tolerant lesen, streng schreiben."""
+    if not _runs(inst) and (inst.units or {}).get("r") is None:
+        create(inst, inst.quantity)
+        _open(inst)
+        for key, val in (inst.reservations or {}).items():
+            _assign(inst, int(key), to_qty(val))
         return
-    create(inst, inst.quantity)
-    if (getattr(inst, "disposition", None) or "") == "in_stock":
-        _write(inst, [{**r, "s": 1} for r in _runs(inst)], _next(inst))
-    for key, val in (inst.reservations or {}).items():
-        _assign(inst, int(key), to_qty(val))
+    _open(inst)
+
+
+def _open(inst: Instance) -> None:
+    """Die Eröffnungsbilanz der **Freigabe**: liegt die Instanz am Lager, trägt aber kein
+    lebendes Stück eine Marke, erben alle die Freigabe und die FIFO-Zeit der Instanz."""
+    if (getattr(inst, "disposition", None) or "") != "in_stock":
+        return
+    live = [r for r in _runs(inst) if not r.get("x")]
+    if not live or any(r.get("s") for r in live):
+        return
+    old = _fallback(inst)
+    seed = {"s": 1, **({"t": _stamp(old)} if old else {})}
+    _write(inst, [r if r.get("x") else {**r, **seed} for r in _runs(inst)], _next(inst))
 
 
 # ─── Zuordnung: welche Stücke gehören wem ─────────────────────────────────────

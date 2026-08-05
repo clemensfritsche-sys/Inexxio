@@ -52,6 +52,10 @@ class InstanceUnit(BaseModel):
     # ausgeschiedenes Stück hat keinen Standort mehr – sein Endzustand IST die Wo-Aussage.
     location_label: Optional[str] = None
     location_object_id: Optional[int] = None
+    # **Seit wann dieses Stück am Lager ist** – die FIFO-Basis, am Stück statt an der
+    # Instanz (``services/units.py``). Gesetzt beim ERSTEN Freigeben und danach nie mehr
+    # angefasst; eine Retoure setzt sie nicht zurück. Leer = noch nicht freigegeben.
+    in_stock_since: Optional[datetime] = None
     order_object_id: Optional[int] = None
     order_name: Optional[str] = None
     reason: Optional[str] = None   # deviation | supply | return | provisioning | None
@@ -144,30 +148,11 @@ class InstanceResponse(BaseModel):
     # **Standort-Kette** (nur im Detail gefüllt, nicht im Feed): Instanz → Behälter →
     # Behälter → Anschrift. Beantwortet «wo genau liegt das?» in einem Blick.
     location_path: list[LocationHop] = []
-    # **Was mit diesem Stück passiert ist** – das Material-Journal (ADR 007), chronologisch
-    # und unveränderlich. Nur im Detail gefüllt. Beginnt bei Alt-Instanzen mit der
-    # Eröffnungsbilanz (``opening``); die Geschichte davor steht in den Aufträgen.
-    history: list["MaterialMoveView"] = []
-
-
-class MaterialMoveView(BaseModel):
-    """Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.
-
-    ``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |
-    sold | consumed | scrapped | blocked | unblocked). Dieselbe Zeile dient BEIDEN
-    Verläufen: am **Instanz**-Detail ist der Chip der beteiligte Auftrag, am
-    **Auftrags**-Detail die betroffene Instanz – dieselbe Geschichte, aus zwei Richtungen
-    gelesen (die drei Fragen, ADR 007)."""
-
-    at: datetime
-    kind: str
-    quantity: float
-    quality: Optional[str] = None       # Zustand NACH dem Ereignis
-    disposition: Optional[str] = None
-    order_object_id: Optional[int] = None
-    order_name: Optional[str] = None
-    instance_object_id: Optional[int] = None
-    note: Optional[str] = None
+    # **Kein Journal in der Antwort** (Testnotizen #628/#629): das Material-Journal bleibt
+    # die Wahrheit über die Vergangenheit (ADR 007) und speist Fluss-Kanten, Stück-Zustände
+    # und das Systemprotokoll – als *Liste von Buchungen* am Datensatz sagte es dagegen
+    # nichts, was der Fluss und die Stücke nicht schon zeigen. Wer die Mechanik sehen will,
+    # öffnet das Systemprotokoll; dort steht sie mit Audit und Ereignissen zusammen.
 
 
 class ObjectReference(BaseModel):

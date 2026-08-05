@@ -1938,7 +1938,7 @@
           "articles"
         ],
         "summary": "List Article Instances",
-        "description": "Bestand des Artikels: alle Bestands-Instanzen (Reiter «Bestand»).",
+        "description": "Bestand des Artikels: alle Bestands-Instanzen (Reiter «Bestand»).\n\n**Dieselbe Aufbereitung wie überall** (``instances.denorm``, Testnotiz #632): der\nBestand hatte eine eigene, kürzere Fassung, die die **Stücke** nicht kannte – eine\nCharge à 4 stand darum als EIN Block mit dem Zustand des Datensatzes da, obwohl drei\nStück freigegeben und eines im Prozess waren. Zwei Aufbereitungen sind zwei Wahrheiten.",
         "operationId": "list_article_instances_api_v1_erp_articles__object_id__instances_get",
         "security": [
           {
@@ -7869,6 +7869,17 @@
       },
       "ArticleProcessStepUpdate": {
         "properties": {
+          "step_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Type"
+          },
           "position": {
             "anyOf": [
               {
@@ -8077,7 +8088,7 @@
         },
         "type": "object",
         "title": "ArticleProcessStepUpdate",
-        "description": "Teil-Update eines Prozessschritts."
+        "description": "Teil-Update eines Prozessschritts.\n\n``step_type`` ist **nur innerhalb des Moduls «Aussondern»** änderbar (scrap ↔ block):\ndas ist EIN Modul mit zwei Wirkungen (#277), und die Wirkung ist eine Konfiguration,\nkeine andere Sache. Der Router erzwingt das (``_update``)."
       },
       "ArticleResponse": {
         "properties": {
@@ -11994,14 +12005,6 @@
             "type": "array",
             "title": "Location Path",
             "default": []
-          },
-          "history": {
-            "items": {
-              "$ref": "#/components/schemas/MaterialMoveView"
-            },
-            "type": "array",
-            "title": "History",
-            "default": []
           }
         },
         "type": "object",
@@ -12120,6 +12123,18 @@
               }
             ],
             "title": "Location Object Id"
+          },
+          "in_stock_since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Stock Since"
           },
           "order_object_id": {
             "anyOf": [
@@ -12245,97 +12260,6 @@
         ],
         "title": "LocationHop",
         "description": "Eine Station der Standort-Kette (von innen nach aussen).\n\n``location_type='address'`` markiert den abschliessenden geografischen Eintrag –\ner trägt keine Objektnummer, sondern die Anschrift."
-      },
-      "MaterialMoveView": {
-        "properties": {
-          "at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "At"
-          },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "quantity": {
-            "type": "number",
-            "title": "Quantity"
-          },
-          "quality": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quality"
-          },
-          "disposition": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Disposition"
-          },
-          "order_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Order Object Id"
-          },
-          "order_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Order Name"
-          },
-          "instance_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Object Id"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          }
-        },
-        "type": "object",
-        "required": [
-          "at",
-          "kind",
-          "quantity"
-        ],
-        "title": "MaterialMoveView",
-        "description": "Eine Journalzeile für die Anzeige: wann, was, wie viel, in welchen Topf – und wer.\n\n``kind`` ist das semantische Ereignis (created | opening | taken | returned | released |\nsold | consumed | scrapped | blocked | unblocked). Dieselbe Zeile dient BEIDEN\nVerläufen: am **Instanz**-Detail ist der Chip der beteiligte Auftrag, am\n**Auftrags**-Detail die betroffene Instanz – dieselbe Geschichte, aus zwei Richtungen\ngelesen (die drei Fragen, ADR 007)."
       },
       "MovementEmbed": {
         "properties": {
@@ -13873,14 +13797,6 @@
             },
             "type": "array",
             "title": "Flow Lost",
-            "default": []
-          },
-          "history": {
-            "items": {
-              "$ref": "#/components/schemas/MaterialMoveView"
-            },
-            "type": "array",
-            "title": "History",
             "default": []
           },
           "flow_nodes": {
