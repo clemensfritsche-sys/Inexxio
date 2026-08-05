@@ -281,7 +281,7 @@ def test_the_draft_is_framed_like_the_order_it_will_become():
         assert gone not in flow and gone not in detail, f"{gone} entscheidet nichts mehr (#556)"
     assert "{connected && <Elbow dir=\"out-to-left\" strong />}" in flow, (
         "Gekappt = keine Linie (kein zweiter Strichstil, #422/#429).")
-    assert "left: SIDE / 2 + RUN / 2, top: 2 * BEND," in flow, (
+    assert "left: m.stacked ? '50%' : m.side / 2 + m.run / 2," in flow, (
         "Die Schere sitzt auf dem waagrechten Stück der Rückgabe-Linie (#499).")
     # **EINE Aussage, EIN Schalter** – gekappt wird für diesen Auftrag, nicht je Halter.
     assert "cut?: boolean;" in flow and "connected={!cut}" in flow, (
@@ -470,13 +470,13 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # laut wie der eigene Prozess. Darum ist der Nachbar **als Ganzes** gedämpft und blasst
     # zusätzlich aus; beim Hovern kommt er ganz nach vorn. Der Hover ist CSS, kein State:
     # ein `onMouseEnter` je Nachbar wäre React-Arbeit für eine reine Optik-Frage.
-    assert "const aside = (to: 'left' | 'right', style?: React.CSSProperties)" in line, (
+    assert "const aside = (to: 'left' | 'right', style?: React.CSSProperties, flat = false)" in line, (
         "Das Zurücktreten gibt es einmal.")
-    assert "aside('right'" in flow and flow.count("aside('left')") == 2
+    assert "aside('right'" in flow and flow.count("aside('left'") == 4
     # **Und der Hover gilt genau EINEM Ast** (Praxis-Rückmeldung): lagen alle Abzweige einer
     # Teilung in demselben `aside`-Kasten, hellten sie beim Hovern gemeinsam auf – man sah
     # also nicht, welchen man gleich öffnet. Der Kasten sitzt darum je Ast, nicht je Spur.
-    assert "{...aside('right', { width: '100%', minWidth: 0 })}" in flow, (
+    assert "{...aside('right', { width: '100%', minWidth: 0 }, m.stacked)}" in flow, (
         "Jeder Abzweig tritt für sich zurück – und kommt für sich nach vorn.")
     assert "'ix-flow-aside'" in line, "Die Optik steht im Stylesheet, nicht als Inline-Hover."
     css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
@@ -488,7 +488,7 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # dieselbe Karte, dieselbe GRÖSSE (#491), derselbe Zwischenstand. Ein `compact`-Modus war
     # genau der Interpretationsspielraum, den es nicht geben darf.
     assert "compact" not in flow and "compact" not in line, "Eine Karte, eine Grösse (#491)."
-    assert "const SIDE = MAIN;" in line, (
+    assert "main: w, side: w," in line, (
         "Die Seitenspur ist so breit wie die Hauptspur – sonst sind die Karten nicht gleich.")
     assert "badge={stepBadge(st.step_type, st.status)}" in flow, (
         "Auch der fachliche Zwischenstand steht im Abzweig (#492).")
@@ -503,7 +503,7 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # ``border-radius`` gebaut, sah man an der Naht jede halbe Pixelverschiebung und die
     # Strichstärke lief in der Rundung aus. Möglich wurde der SVG-Pfad erst durch **feste**
     # Spurbreiten: seither ist der Weg von der Achse zur Spurmitte eine Konstante (#445).
-    assert "borderRadius" not in line.split("const ELBOW")[1].split("function Row")[0], (
+    assert "borderRadius" not in line.split("function elbowShape")[1].split("export function Row")[0], (
         "Ecken werden gezeichnet, nicht aus Rahmenkanten zusammengesetzt.")
     # **Runde Ecken überall – und der Anschluss-Bogen gehört der ACHSE** (#586/#591).
     # Der Bogen liegt ~8 px entlang der Achse; trug er eine andere Strichstärke als sie,
@@ -512,9 +512,9 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # am Anschluss-Bogen geteilt, und der nimmt die STÄRKERE der beiden Linien.
     fork = line.split("'fork-right':")[1].split("'merge-right':")[0]
     merge = line.split("'merge-right':")[1].split("// Nachbar-Spur")[0]
-    assert "[[0, 0], [0, BEND], [RUN, BEND], [RUN, ARM]]" in fork and "joint: 1" in fork, (
+    assert "[[0, 0], [0, BEND], [run, BEND], [run, arm]]" in fork and "joint: 1" in fork, (
         "Die Abzweigung biegt mit BEND aus der Achse ab – und nennt ihren Anschluss-Bogen (#591).")
-    assert "[[RUN, 0], [RUN, ARM - BEND], [0, ARM - BEND], [0, ARM]]" in merge and "joint: 2" in merge, (
+    assert "[[run, 0], [run, arm - BEND], [0, arm - BEND], [0, arm]]" in merge and "joint: 2" in merge, (
         "Die Einmündung ist ihr Spiegelbild.")
     assert "const jointStrong = !!strong || !!axis;" in line, (
         "Der Anschluss-Bogen nimmt die stärkere Linie – sonst schneidet ein dünner Weg "
@@ -541,8 +541,9 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     assert "const OVERLAP = 1;" in line and "function overlapped" in line, (
         "Ecken greifen in die Achse: zwei getrennt gezeichnete Elemente treffen sich nie "
         "pixelgenau – ein Überlappen macht die Naht gegenstandslos.")
-    assert "const RUN = MAIN / 2 + GAP + SIDE / 2" in line, (
-        "Feste Spurbreiten machen die Länge einer Abzweigung berechenbar.")
+    assert "run: w + GAP" in line, (
+        "Die Länge einer Abzweigung folgt der gemessenen Spurbreite (main/2 + gap + side/2, "
+        "bei gleich breiten Spuren also w + gap).")
     # **Gerade Strichstärken – sonst passt die Ecke nie zur Geraden** (Testnotiz #550).
     # Die Achse ist ein rasterndes ``div``, die Ecke ein analytisch gezeichneter Pfad. Bei
     # ungerader Breite liegt der Kasten der Achse auf einer halben Pixelgrenze und wird
@@ -552,10 +553,14 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     widths = line.split("export const lineW")[1].split("\n")[0]
     assert all(int(n) % 2 == 0 for n in re.findall(r"\b(\d+)\b", widths)), (
         f"Die Strichstärke der Prozesslinie muss gerade sein: {widths.strip()}")
-    assert "export const SIDE = MAIN;" in line, "Beide Spuren sind gleich breit (#491)."
-    for const in ("MAIN", "GAP", "ARM"):
+    assert "main: w, side: w," in line, "Beide Spuren sind gleich breit (#491)."
+    for const in ("MAIN_MAX", "LANE_MIN", "GAP", "ARM", "ARM_STACKED"):
         val = int(re.search(rf"export const {const} = (\d+)", line).group(1))
         assert val % 2 == 0, f"{const} = {val} – eine Spur ungerader Breite kippt die Mitte."
+    # Auch die GEMESSENE Spurbreite wird gerade gemacht – sonst begänne die Achse auf einer
+    # halben Pixelgrenze und der SVG-Pfad der Ecke läge daneben (#550).
+    assert "const even = (n: number) => n - (n % 2)" in line and "even(Math.min(MAIN_MAX" in line, (
+        "Die gemessene Spurbreite muss gerade sein – dieselbe Regel wie bei der Strichstärke.")
     assert "onOpen?.(info.object_id)" in flow, "Der Abzweig öffnet den Datensatz."
     # **Das Material steht UNTER dem Startknoten** (Testnotiz #513) – wie im geöffneten
     # Auftrag. Der Startknoten markiert den Anfang, das Material fliesst danach; stand es
@@ -573,7 +578,7 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
         < body.index('<FlowTerm kind="end"'), "Material steht nie nach der Zielflagge (#516)."
     # Und der Hauptfluss behält seine Terminal-Knoten – die Achse wird nicht gekappt. Auch
     # sie nennen ihren Prozess im Hover (#443/#444).
-    assert 'title={`Start · ${processLabel}`}' in flow and '`Ende · ${processLabel}`' in flow
+    assert 'title={`Start · ${processLabel}`}' in flow and '`Ende · ${label}`' in flow
 
 
 def test_the_main_process_runs_down_the_middle():
@@ -592,7 +597,9 @@ def test_the_main_process_runs_down_the_middle():
     assert "left={<OriginArm" in flow and "left={<ReturnArm" in flow, (
         "Woher der Auftrag kam und wohin er zurückgibt, gehört auf DIESELBE Seite.")
     assert "right={<BranchArm" in flow, "Abzweige hängen rechts."
-    assert "overflowX: 'auto'" in flow, "Ein breites Diagramm scrollt in seinem eigenen Kasten."
+    # **Kein waagrechtes Scrollen** – das Diagramm richtet sich nach dem Platz, statt ihn
+    # zu erzwingen (siehe `test_the_process_picture_never_scrolls_sideways`).
+    assert "overflowX" not in flow, "Das Diagramm scrollt nicht waagrecht, es passt sich an."
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
     assert "maxWidth: 1460" in detail, "Der Fluss bekommt eine eigene, breitere Spur."
 
@@ -1060,7 +1067,7 @@ def test_the_process_is_narrow_and_its_step_numbers_are_gone():
     line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
     assert "flex: 1" not in line.split("function Row")[1], (
         "Die Spuren sind fest breit – sonst ist die Länge einer Abzweigung nicht berechenbar.")
-    assert "'--flow-lane'" in flow and "var(--flow-lane)" in line, (
+    assert "width: m.lane" in line and "metricsFor" in line, (
         "Ohne Nachbarn fällt die Spurbreite auf 0.")
     assert "stepNr" not in flow and "–${String(index + 1)" not in flow, (
         "Die Schritt-Nummer war intern – sie gehört nicht an die Oberfläche (#440).")
@@ -1200,6 +1207,53 @@ def test_a_future_step_shows_what_is_planned():
             f"gerade ruht, bietet keine Eingabe an; das Backend lehnt sie ohnehin ab.")
         assert "planned || saving" in src or "!planned &&" in src, (
             f"{name}: ein geplanter Schritt führt nichts aus.")
+
+
+def test_the_process_picture_never_scrolls_sideways():
+    """**Das Prozessbild ist responsiv – waagrecht scrollen gibt es nicht.**
+
+    Bis hierher standen die Spurbreiten als feste Zahlen im Modul: drei Spuren à 460 px plus
+    Luft ergaben **1432 px Mindestbreite**, und was nicht hineinpasste, wurde in einen
+    waagrecht scrollenden Kasten gesteckt. Das traf **jedes** Gerät – schon ein 13″-MacBook
+    hat im Detailfenster nur ~1060 px, ein iPhone ~335. Bei einem Diagramm ist das besonders
+    schlecht: man verliert die Achse aus dem Blick, also genau das, worum es geht.
+
+    Die Geometrie ist darum eine **Funktion der gemessenen Breite** (`metricsFor`, EINMAL
+    gemessen im `FlowFrame`, über einen Context verteilt). Passen drei lesbare Spuren
+    nebeneinander, gibt es das gewohnte Bild – sonst läuft alles in EINER Spur, und ein
+    Abzweig ist ein Unterprozess **auf** der Achse. Kein zweites Vokabular: dieselben Karten,
+    dieselbe Linie, nur ohne Seitwärtsbewegung.
+
+    In Chromium an den echten Gerätebreiten gemessen (Detailfenster = Fenster − Feed − 40 px
+    Polsterung): 1440 → Spuren à 337 · 1280 → 284 · 1200 → 257 · 1024 → gestapelt · 834 →
+    gestapelt · 375 → gestapelt. **Überall 0 px waagrechter Überlauf**, im laufenden Fluss
+    wie im Entwurfs-Rahmen und mit geöffnetem Schritt-Editor."""
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
+
+    # 1. Kein waagrechtes Scrollen – nirgends im Prozessbild.
+    for name, src in (("flow-line.tsx", line), ("order-flow.tsx", flow)):
+        assert "overflowX" not in src, (
+            f"{name}: waagrecht scrollen ist der Zustand, den es hier nicht geben darf.")
+
+    # 2. Die Breiten sind gemessen, nicht gesetzt.
+    assert "export function metricsFor" in line and "ResizeObserver" in line, (
+        "Die Geometrie kommt aus der gemessenen Breite (`metricsFor` im `FlowFrame`).")
+    assert "export const MAIN =" not in line and "export const RUN =" not in line, (
+        "Feste Spurbreiten im Modul sind genau das, was das Bild unbeweglich gemacht hat.")
+    # Die Schwelle steht EINMAL da – nicht als Zahl in einer Komponente.
+    assert "3 * LANE_MIN + 2 * GAP" in line, "Die Umschaltschwelle gehört in die eine Rechnung."
+
+    # 3. Jede Spur ist höchstens so breit wie ihr Platz.
+    lane = line.split("export function Lane(")[1][:400]
+    assert "width: m.main" in lane and "maxWidth: '100%'" in lane, (
+        "Eine Spur nimmt die gemessene Breite – und nie mehr, als da ist.")
+
+    # 4. Gestapelt gibt es keinen Umweg zur Seite: die Ecke wird ein Stück Achse.
+    assert "if (m.stacked)" in line, "Gestapelt zeichnet die Ecke eine gerade Verbindung."
+    # 5. Und keine Komponente rechnet mehr selbst mit Spurbreiten.
+    for gone in ("minWidth: MAIN", "'--flow-lane'", "SIDE / 2 + RUN / 2"):
+        assert gone not in flow, f"{gone}: die Geometrie kommt aus `useFlow()`."
 
 
 def test_reserved_is_not_a_state_of_its_own():
@@ -1516,7 +1570,7 @@ def test_the_frontend_draws_and_the_server_knows():
 
     # Die Linien wohnen in EINEM Modul; der Fluss definiert keine eigene Geometrie mehr.
     line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
-    for owns in ("export const MAIN", "export const RUN", "export function Axis",
+    for owns in ("export const MAIN_MAX", "export function metricsFor", "export function Axis",
                  "export function Elbow", "export function Row", "export const aside"):
         assert owns in line, f"flow-line.tsx fehlt {owns}"
     for gone in ("const MAIN =", "const ELBOW", "function Axis(", "function Elbow(",
@@ -1634,7 +1688,7 @@ def test_a_process_module_has_exactly_one_width():
     (Polsterung, Symbol-Kasten, Titelgrösse): eine Karte mit anderer Innenaufteilung wirkt
     verschieden breit, auch wenn sie es nicht ist."""
     line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
-    assert "export function Lane(" in line and "width: MAIN, maxWidth: '100%'" in line, (
+    assert "export function Lane(" in line and "width: m.main, maxWidth: '100%'" in line, (
         "Die Hauptspur ist ein Baustein mit fester Breite.")
     assert "<Lane>{children}</Lane>" in line, "Der Fluss setzt sie in seine Mitte."
 

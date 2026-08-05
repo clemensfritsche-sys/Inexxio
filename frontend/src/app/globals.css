@@ -860,4 +860,8 @@
   mask-image: linear-gradient(to var(--ix-fade, right), #000 42%, rgba(0, 0, 0, .06) 100%);
 }
 .ix-flow-aside:hover { opacity: 1; }
+/* Gestapelt (schmale Fenster) liegt der Nachbar-Prozess IN der Achse – dann sagt eine
+   Maske zur Seite etwas Falsches: dort geht nichts seitwärts weiter. Das Zurücktreten
+   bleibt, das Ausblenden zur Kante entfällt. */
+.ix-flow-aside[data-flat="1"] { -webkit-mask-image: none; mask-image: none; }
 @media (prefers-reduced-motion: reduce) { .ix-flow-aside { transition: none; } }

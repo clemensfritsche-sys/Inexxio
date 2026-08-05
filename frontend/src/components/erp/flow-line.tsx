@@ -3,23 +3,129 @@
 /**
  * **Die Prozesslinien – EIN Modul für die ganze Geometrie des Flusses.**
  *
- * Alles, was eine Linie ist, wohnt hier: die festen Spurbreiten, die Achse, die vier
- * Ecken (als je EIN SVG-Pfad – ein Strich, eine Strichstärke, echte Viertelkreise, keine
- * Naht; Notizen #423/#445/#456), die Drei-Spuren-Zeile und das Zurücktreten der
- * Nachbar-Prozesse. Der Fluss selbst (`order-flow.tsx`) setzt daraus nur noch zusammen.
+ * Alles, was eine Linie ist, wohnt hier: die Spurbreiten, die Achse, die vier Ecken (als je
+ * EIN SVG-Pfad – ein Strich, eine Strichstärke, echte Viertelkreise, keine Naht; Notizen
+ * #423/#445/#456), die Drei-Spuren-Zeile und das Zurücktreten der Nachbar-Prozesse. Der
+ * Fluss selbst (`order-flow.tsx`) setzt daraus nur noch zusammen.
  *
  * **EINE Linie, EINE Regel** (Notizen #422/#429): stark, wo der Prozess gegangen ist;
  * Haarlinie, wo er noch nicht war. Gestrichelte Linien gibt es nicht – ob ein Weg gegangen
  * wurde, sagt die Stärke, nicht die Strichart.
+ *
+ * ## Die Breiten sind GEMESSEN, nicht gesetzt
+ *
+ * Bis hierher standen `MAIN`/`SIDE`/`GAP`/`RUN` als feste Zahlen im Modul – drei Spuren à
+ * 460 px plus Luft ergaben **1432 px Mindestbreite**, und was nicht hineinpasste, wurde in
+ * einen waagrecht scrollenden Kasten gesteckt. Das war auf **jedem** Gerät ein Kompromiss:
+ * schon ein 13″-MacBook hat im Detailfenster nur ~1060 px, ein iPhone ~335. Waagrecht
+ * scrollen ist aber kein Zustand, den man einem Diagramm zumuten darf – man verliert die
+ * Achse aus dem Blick, genau das, worum es hier geht.
+ *
+ * Die Geometrie ist darum eine **Funktion der verfügbaren Breite**. Sie wird EINMAL gemessen
+ * (`FlowFrame`, ResizeObserver) und über einen Context an alles verteilt, was eine Linie
+ * zeichnet – Achse, Ecke, Spur, Zeile. Damit gibt es weiterhin genau EINE Quelle für jede
+ * Zahl; sie ist nur nicht mehr konstant.
+ *
+ * Zwei Ausprägungen, dieselben Bausteine:
+ *
+ *     Spuren   Drei Spuren nebeneinander (Herkunft · Achse · Abzweige) – das gewohnte Bild.
+ *              Die Spurbreite schrumpft mit dem Platz (460 → 260), das Bild bleibt gleich.
+ *     Gestapelt  Unter ~812 px passen drei lesbare Spuren nicht mehr nebeneinander. Dann
+ *              läuft ALLES in einer Spur: ein Abzweig ist ein Unterprozess **auf** der
+ *              Achse, die Ecken werden zu geraden Verbindungsstücken. Kein zweites
+ *              Vokabular – dieselben Karten, dieselbe Linie, nur ohne Seitwärtsbewegung.
  */
 
-export const MAIN = 460;          // Hauptspur (Modul-Karten)
-export const SIDE = MAIN;         // Seitenspur – gleich breit wie die Hauptspur (#491)
+import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
+
+/** Wunschbreite einer Spur – darüber wird eine Modul-Karte nicht breiter. */
+export const MAIN_MAX = 460;
+/** Darunter ist eine Modul-Karte (Symbolkasten + Name + Zustand) nicht mehr lesbar. */
+export const LANE_MIN = 240;
 export const GAP = 26;            // Luft zwischen Haupt- und Seitenspur
-export const ARM = 40;            // Höhe einer Abzweigung
+export const ARM = 40;            // Höhe einer Abzweigung (drei Spuren)
+/** Gestapelt ist die «Abzweigung» ein gerades Stück Achse – es darf kürzer sein. */
+export const ARM_STACKED = 22;
 export const BEND = 12;           // Eckenradius der Prozesslinie
-export const LANE = SIDE + GAP;   // Breite einer Seitenspur inkl. Luft
-export const RUN = MAIN / 2 + GAP + SIDE / 2;   // Achse ↔ Mitte der Seitenspur
+
+export type FlowMetrics = {
+  /** Breite der Hauptspur (Modul-Karten). */
+  main: number;
+  /** Breite einer Seitenspur – gleich breit wie die Hauptspur (#491). */
+  side: number;
+  gap: number;
+  /** Achse ↔ Mitte der Seitenspur (Länge einer Abzweigung). */
+  run: number;
+  /** Höhe einer Abzweigung – gestapelt kürzer, dort ist es nur ein Stück Achse. */
+  arm: number;
+  /** Breite einer Seitenspur inkl. Luft (0 = keine Seitenspuren). */
+  lane: number;
+  /** Kein Platz für Seitenspuren – Nachbarn laufen IN der Achse mit. */
+  stacked: boolean;
+};
+
+/**
+ * **Die Geometrie aus der verfügbaren Breite** – die eine Rechnung, sonst nirgends.
+ *
+ * Ohne Nachbarn braucht es nur die Hauptspur; sie füllt, was da ist, höchstens `MAIN_MAX`.
+ * Mit Nachbarn wird geprüft, ob drei **lesbare** Spuren nebeneinander passen: erst dann
+ * gibt es das Drei-Spuren-Bild, sonst wird gestapelt.
+ */
+const even = (n: number) => n - (n % 2);
+
+export function metricsFor(available: number, hasAside: boolean): FlowMetrics {
+  const room = Math.max(0, Math.floor(available));
+  const main = even(Math.min(MAIN_MAX, room || MAIN_MAX));
+  const flat = { main, side: 0, gap: 0, run: 0, lane: 0, arm: ARM_STACKED, stacked: true };
+  if (!hasAside) return flat;
+  if (room < 3 * LANE_MIN + 2 * GAP) return flat;
+  // **Gerade Spurbreite** – aus demselben Grund wie die gerade Strichstärke (#550): die
+  // Achse sitzt mittig in ihrer Spur, also muss `(spur − strich) / 2` eine ganze Zahl sein.
+  // Bei ungerader Spur begänne ihr Kasten auf einer halben Pixelgrenze, und der SVG-Pfad
+  // der Ecke läge daneben.
+  const w = even(Math.min(MAIN_MAX, Math.floor((room - 2 * GAP) / 3)));
+  // Bei gleich breiten Spuren ist der Weg von der Achse zur Spurmitte genau w + gap
+  // (main/2 + gap + side/2) – dieselbe Zahl, nur ohne die überflüssige Halbierung.
+  return { main: w, side: w, gap: GAP, run: w + GAP, lane: w + GAP, arm: ARM, stacked: false };
+}
+
+const FlowCtx = createContext<FlowMetrics>(metricsFor(MAIN_MAX, false));
+
+/** Die geltende Geometrie – für jeden, der eine Linie oder eine Spur zeichnet. */
+export const useFlow = () => useContext(FlowCtx);
+
+/**
+ * **Der Rahmen misst und verteilt.**
+ *
+ * Er hat bewusst KEIN `overflow-x`: was nicht passt, wird nicht weggescrollt, sondern
+ * schmaler – waagrecht scrollen ist der Zustand, den es hier nicht geben darf.
+ */
+export function FlowFrame({ hasAside = false, children }: {
+  hasAside?: boolean; children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWidth(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const metrics = useMemo(() => metricsFor(width, hasAside), [width, hasAside]);
+  return (
+    <div ref={ref} style={{ width: '100%', minWidth: 0 }}>
+      <FlowCtx.Provider value={metrics}>
+        <div style={{ width: '100%', minWidth: 0, display: 'flex',
+          flexDirection: 'column', alignItems: 'stretch' }}>
+          {children}
+        </div>
+      </FlowCtx.Provider>
+    </div>
+  );
+}
 
 export const lineColor = (strong: boolean) => (strong ? 'var(--fg-2)' : 'var(--border-2)');
 
@@ -109,10 +215,12 @@ function overlapped(points: Pt[]): Pt[] {
   return out;
 }
 
+export type ElbowDir = 'fork-right' | 'merge-right' | 'in-from-left' | 'out-to-left';
+
 /**
  * **Der Weg zwischen Achse und Seitenspur – EIN Baustein, echte Viertelkreise.**
  *
- * Vier Richtungen aus denselben Konstanten. **Runde Ecken überall – auch am Anschluss an die
+ * Vier Richtungen aus denselben Zahlen. **Runde Ecken überall – auch am Anschluss an die
  * Achse** (Testnotiz #591): ein T mit scharfer 90°-Ecke wäre die einzige harte Ecke im
  * ganzen Bild. Die Abzweigung biegt mit demselben Radius aus der Achse ab, mit dem sie unten
  * wieder einmündet (#456); Herkunft und Rückweg treffen die Achse dort, wo sie **beginnt bzw.
@@ -129,33 +237,52 @@ function overlapped(points: Pt[]): Pt[] {
  * **Und Fork und Merge sind echte Spiegelbilder**: beide Waagrechten liegen ``BEND`` innerhalb
  * der Zeile, ihre Mitte ist also die Mitte der Zeile. Damit steht das Material ohne
  * Korrekturglied mittig – auch zwischen zwei aufeinanderfolgenden Teilungen (#586).
+ *
+ * **Gestapelt** gibt es keine Seitwärtsbewegung: dann ist der Weg ein gerades Stück Achse.
+ * Dieselbe Aussage («hier geht es weiter»), nur ohne den Umweg, den es auf 375 px nicht gibt.
  */
-const ELBOW: Record<string, {
-  pts: Pt[]; left: number; h: number; top?: number; bottom?: number;
-  /** Index des Bogens, der die Achse berührt – sein Stück gehört ihr, nicht dem Weg. */
-  joint?: number;
-}> = {
-  // Achse → Seitenspur (Abzweigung, oben) und zurück (Einmündung, unten) – Spiegelbilder.
-  'fork-right': { left: -(MAIN / 2 + GAP), top: 0, h: ARM, joint: 1,
-    pts: [[0, 0], [0, BEND], [RUN, BEND], [RUN, ARM]] },
-  'merge-right': { left: -(MAIN / 2 + GAP), bottom: 0, h: ARM, joint: 2,
-    pts: [[RUN, 0], [RUN, ARM - BEND], [0, ARM - BEND], [0, ARM]] },
-  // Nachbar-Spur links → Achse (Herkunft) und Achse → Nachbar (Rückweg). Sie treffen die
-  // Achse an ihrem Anfang bzw. Ende – dort liegt kein Achsenstück daneben, also gibt es
-  // auch nichts, was sich beissen könnte.
-  'in-from-left': { left: SIDE / 2, bottom: 0, h: ARM,
-    pts: [[0, 0], [0, ARM - BEND], [RUN, ARM - BEND], [RUN, ARM]] },
-  'out-to-left': { left: SIDE / 2, top: 0, h: ARM,
-    pts: [[RUN, 0], [RUN, 2 * BEND], [0, 2 * BEND], [0, ARM]] },
-};
+function elbowShape(m: FlowMetrics, dir: ElbowDir): {
+  pts: Pt[]; left: number; h: number; top?: number; bottom?: number; joint?: number;
+} {
+  const { main, side, gap, run, arm } = m;
+  switch (dir) {
+    // Achse → Seitenspur (Abzweigung, oben) und zurück (Einmündung, unten) – Spiegelbilder.
+    case 'fork-right':
+      return { left: -(main / 2 + gap), top: 0, h: arm, joint: 1,
+        pts: [[0, 0], [0, BEND], [run, BEND], [run, arm]] };
+    case 'merge-right':
+      return { left: -(main / 2 + gap), bottom: 0, h: arm, joint: 2,
+        pts: [[run, 0], [run, arm - BEND], [0, arm - BEND], [0, arm]] };
+    // Nachbar-Spur links → Achse (Herkunft) und Achse → Nachbar (Rückweg). Sie treffen die
+    // Achse an ihrem Anfang bzw. Ende – dort liegt kein Achsenstück daneben, also gibt es
+    // auch nichts, was sich beissen könnte.
+    case 'in-from-left':
+      return { left: side / 2, bottom: 0, h: arm,
+        pts: [[0, 0], [0, arm - BEND], [run, arm - BEND], [run, arm]] };
+    default:
+      return { left: side / 2, top: 0, h: arm,
+        pts: [[run, 0], [run, 2 * BEND], [0, 2 * BEND], [0, arm]] };
+  }
+}
 
 export function Elbow({ dir, strong, axis }: {
-  dir: 'fork-right' | 'merge-right' | 'in-from-left' | 'out-to-left';
+  dir: ElbowDir;
   strong?: boolean;
   /** Stärke des Achsenstücks, an dem dieser Weg hängt – für den Anschluss-Bogen. */
   axis?: boolean;
 }) {
-  const { pts, left, h, top, bottom, joint } = ELBOW[dir];
+  const m = useFlow();
+  const shape = elbowShape(m, dir);
+  const { pts, left, h, top, bottom, joint } = shape;
+  // Gestapelt: ein gerades Stück Achse statt eines Umwegs zur Seite.
+  if (m.stacked) {
+    return (
+      <div aria-hidden style={{
+        position: 'absolute', left: '50%', transform: 'translateX(-50%)', top, bottom,
+        width: lineW(!!strong), height: h, background: lineColor(!!strong),
+      }} />
+    );
+  }
   const [head, tail] = roundedPath(overlapped(pts), BEND, joint);
   // Der Anschluss-Bogen nimmt die **stärkere** der beiden Linien: eine dünne Kurve quer über
   // eine starke Achse wäre ein heller Schnitt mitten in ihr.
@@ -165,7 +292,7 @@ export function Elbow({ dir, strong, axis }: {
     : joint === 1 ? [[head, jointStrong], [tail, !!strong]]
                   : [[tail, jointStrong], [head, !!strong]];
   return (
-    <svg width={RUN} height={h} viewBox={`0 0 ${RUN} ${h}`} aria-hidden
+    <svg width={m.run} height={h} viewBox={`0 0 ${m.run} ${h}`} aria-hidden
       shapeRendering="geometricPrecision"
       style={{ position: 'absolute', left, top, bottom, overflow: 'visible', pointerEvents: 'none' }}>
       {parts.map(([d, s], i) => (
@@ -180,28 +307,33 @@ export function Elbow({ dir, strong, axis }: {
  * **Nachbar-Prozesse treten zurück** (Notizen #453/#460): links der übergeordnete Auftrag,
  * rechts der Abzweig. Beide gehören zum Bild, aber der Fokus liegt auf der Mitte – beim
  * Hovern kommen sie ganz nach vorn (CSS, ``.ix-flow-aside``).
+ *
+ * **Gestapelt bleibt das Zurücktreten, das Ausblenden zur Kante entfällt** (`flat`): eine
+ * Maske zur Seite sagt «hier geht es seitwärts weiter» – wo nichts seitwärts liegt, wäre
+ * das eine falsche Behauptung.
  */
-export const aside = (to: 'left' | 'right', style?: React.CSSProperties) => ({
+export const aside = (to: 'left' | 'right', style?: React.CSSProperties, flat = false) => ({
   className: 'ix-flow-aside',
+  'data-flat': flat ? '1' : undefined,
   style: { ...style, ['--ix-fade' as string]: to } as React.CSSProperties,
 });
 
 /**
- * **Die Hauptspur – EINE feste Breite für jeden Prozess** (Testnotiz #597).
+ * **Die Hauptspur – EINE Breite für jeden Prozess** (Testnotiz #597).
  *
  * Ein Modul war beim Hinzufügen, nach dem Zwischenspeichern und nach der Freigabe
- * verschieden breit, weil die Breite an drei Stellen entstand: im Fluss als **feste**
+ * verschieden breit, weil die Breite an drei Stellen entstand: im Fluss als feste
  * Spaltenbreite, im Schritt-Editor als `max-width` je Karte (also «so breit wie der Platz,
- * höchstens …»), und der Platz war je nach Fenster ein anderer. Eine Obergrenze ist keine
- * Breite – sie schwankt mit ihrer Umgebung.
+ * höchstens …»), und der Platz war je nach Fenster ein anderer.
  *
  * Darum gibt es die Spur als **einen** Baustein: der laufende Fluss setzt sie in seine
- * Mitte, der Editor stellt sich hinein. Danach kann keine Karte mehr eine zweite Breite
- * haben – sie füllt schlicht ihre Spur.
+ * Mitte, der Editor stellt sich hinein. Ihre Breite kommt aus der gemessenen Geometrie –
+ * ohne Rahmen (Artikel-Prozess) aus dem Standard, und **nie** breiter als der Platz.
  */
 export function Lane({ children }: { children?: React.ReactNode }) {
+  const m = useFlow();
   return (
-    <div style={{ width: MAIN, maxWidth: '100%', flex: 'none', display: 'flex',
+    <div style={{ width: m.main, maxWidth: '100%', flex: 'none', display: 'flex',
       flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
       {children}
     </div>
@@ -210,21 +342,37 @@ export function Lane({ children }: { children?: React.ReactNode }) {
 
 /**
  * Eine Zeile des Flusses: die Achse in der Mitte, links Herkunft, rechts Abzweige.
- * Die Spuren sind fest breit; ohne Nachbarn fällt die Spurbreite auf 0 (`--flow-lane`).
+ *
+ * **Gestapelt** gibt es keine Seiten: der Nachbar läuft dann IN der Achse mit, vor dem
+ * Inhalt der Zeile – zuerst, woher es kommt bzw. was abzweigt, dann, was auf der Achse
+ * weitergeht. Das ist dieselbe Leserichtung wie im Drei-Spuren-Bild, nur untereinander.
  */
 export function Row({ children, left, right }: {
   children?: React.ReactNode; left?: React.ReactNode; right?: React.ReactNode;
 }) {
+  const m = useFlow();
+  if (m.stacked) {
+    if (!left && !right) return <Lane>{children}</Lane>;
+    return (
+      <div style={{ width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column',
+        alignItems: 'center' }}>
+        {left && <Lane>{left}</Lane>}
+        {right && <Lane>{right}</Lane>}
+        {children != null && <Lane>{children}</Lane>}
+      </div>
+    );
+  }
   return (
-    <div style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'stretch' }}>
-      <div style={{ width: 'var(--flow-lane)', flex: 'none', display: 'flex',
+    <div style={{ display: 'flex', width: '100%', minWidth: 0, justifyContent: 'center',
+      alignItems: 'stretch' }}>
+      <div style={{ width: m.lane, flex: 'none', display: 'flex',
         justifyContent: 'flex-start', alignItems: 'center' }}>
-        {left && <div style={{ width: SIDE, minWidth: 0 }}>{left}</div>}
+        {left && <div style={{ width: m.side, minWidth: 0 }}>{left}</div>}
       </div>
       <Lane>{children}</Lane>
-      <div style={{ width: 'var(--flow-lane)', flex: 'none', display: 'flex',
+      <div style={{ width: m.lane, flex: 'none', display: 'flex',
         justifyContent: 'flex-end', alignItems: 'center' }}>
-        {right && <div style={{ width: SIDE, minWidth: 0 }}>{right}</div>}
+        {right && <div style={{ width: m.side, minWidth: 0 }}>{right}</div>}
       </div>
     </div>
   );

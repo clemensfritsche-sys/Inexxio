@@ -16,7 +16,7 @@ import { orderStatus } from '@/lib/record-status';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { saleStatusConfig } from '@/lib/sale';
 import { FlowTerm, kindColor } from '@/components/erp/process-steps';
-import { ARM, Axis, BEND, Elbow, LANE, MAIN, RUN, Row, SIDE, aside }
+import { Axis, BEND, Elbow, FlowFrame, Row, aside, useFlow }
   from '@/components/erp/flow-line';
 import { actorHint, formatObjectId } from '@/lib/utils';
 
@@ -154,7 +154,13 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const show = () => {
     const r = anchor.current?.getBoundingClientRect();
-    if (r) setAt({ x: r.left + r.width / 2, y: r.bottom + 6 });
+    if (!r) return;
+    // **Sie bleibt im Fenster** – auf einem 375-px-Telefon steht eine Pille schnell so weit
+    // am Rand, dass eine mittig gesetzte Karte hinausragt. Die Mitte wird darum in den
+    // sichtbaren Bereich gezogen (die Breite ist durch `maxWidth` gedeckelt, also bekannt).
+    const w = Math.min(300, window.innerWidth - 24);
+    const x = Math.min(Math.max(r.left + r.width / 2, w / 2 + 12), window.innerWidth - w / 2 - 12);
+    setAt({ x, y: r.bottom + 6 });
   };
   const hide = () => setAt(null);
   const open = at !== null;
@@ -173,11 +179,15 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
         // Ampelfarbe, Schrift darauf gut lesbar. Vorher trugen Rahmen, Symbol UND Schrift
         // dieselbe Aussage dreimal – das wirkte überladen. Eine Fläche, eine Farbe, ein Satz.
         style={{
-          display: 'inline-flex', alignItems: 'center', padding: '3px 10px',
+          alignItems: 'center', padding: '3px 10px',
           borderRadius: 999, background: cfg.bg, cursor: nav ? 'pointer' : 'default',
           border: `1px solid ${cfg.color}22`,
           font: '600 11.5px var(--font-mono), monospace', fontVariantNumeric: 'tabular-nums',
           color: cfg.color, whiteSpace: 'nowrap',
+          // Auf schmalen Spuren darf eine lange Nummernkette die Spur nicht sprengen –
+          // gekürzt statt überstehend; vollständig steht sie in der Hover-Karte.
+          maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block',
+          lineHeight: 1.5,
         }}>
         {qtyText(lot)} × {lotNumbers(lot)}
       </button>
@@ -189,7 +199,7 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
           padding: '8px 11px', borderRadius: 'var(--r-md)', background: '#fff',
           border: '1px solid var(--border-1)', boxShadow: 'var(--shadow-md)',
           display: 'flex', flexDirection: 'column', gap: 5, pointerEvents: 'none',
-          width: 'max-content', maxWidth: 300, textAlign: 'left',
+          width: 'max-content', maxWidth: 'min(300px, calc(100vw - 24px))', textAlign: 'left',
         }}>
           <LotFact icon={Package} title="Artikel">
             {lot.article_object_id != null && <ObjId value={lot.article_object_id} />}
@@ -281,8 +291,13 @@ function EdgeMaterial({ lots, onCreate, past, small }: {
   // daneben, statt die Gruppe nach links zu schieben. Vorher war «Container + Button» ein
   // gemeinsamer Block – zentriert war damit die Gruppe, nicht das Material.
   return (
-    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-      <FlowLots lots={lots} past={past} small={small} />
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center',
+      maxWidth: '100%', minWidth: 0 }}>
+      {/* Der Knopf hängt absolut daneben – also lässt die Pille ihm seinen Platz, statt
+          über die Spur hinauszuragen (sonst schöbe sie auf schmalen Fenstern die Seite). */}
+      <span style={{ maxWidth: 'calc(100% - 34px)', minWidth: 0, display: 'flex' }}>
+        <FlowLots lots={lots} past={past} small={small} />
+      </span>
       <span style={{ position: 'absolute', left: '100%', marginLeft: 6, top: '50%',
                      transform: 'translateY(-50%)' }}>
         <FlowShortcut lots={lots} onCreate={onCreate} />
@@ -298,7 +313,7 @@ function FlowLots({ lots, small, past }: { lots: FlowLot[]; small?: boolean; pas
   const rest = list.length - shown.length;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
-      gap: 3, margin: small ? '2px 0' : 0,
+      gap: 3, margin: small ? '2px 0' : 0, maxWidth: '100%', minWidth: 0,
       // **Vergangenes verblasst** (Notiz #462) – dieselbe Dämpfung wie bei einem erledigten
       // Modul: was schon durch ist, soll den Blick nicht mehr auf sich ziehen.
       opacity: past ? 0.55 : 1, transition: 'opacity .16s' }}>
@@ -448,10 +463,11 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
   return (
     // Ein Diagramm darf breiter sein als eine Textspalte – aber es scrollt in seinem eigenen
     // Kasten, statt die Seite waagrecht zu schieben.
-    <div className="ix-noscrollbar" style={{ width: '100%', overflowX: 'auto' }}>
-      <div style={{ width: '100%', minWidth: hasAside ? MAIN + 2 * LANE : MAIN,
-        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
-        ...({ '--flow-lane': hasAside ? `${LANE}px` : '0px' } as React.CSSProperties) }}>
+    // **Der Rahmen misst, was da ist** – und richtet die Geometrie danach (`flow-line.tsx`).
+    // Waagrecht scrollen gibt es nicht: was nicht passt, wird schmaler, und unter ~812 px
+    // laufen die Nachbar-Prozesse IN der Achse mit statt daneben.
+    <FlowFrame hasAside={hasAside}>
+      <>
         {origin && (
           <>
             <Row left={<OriginArm origin={origin} onOpen={onOpenOrder} />} />
@@ -470,17 +486,10 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
         </Row>
         <Row>
           {/* **Das Ziel gehört ans Prozessende** (Notiz #446) – und **neben** den Knoten,
-              nicht darunter (#457): absolut gesetzt, damit der Kreis auf der Achse bleibt. */}
-          <div style={{ position: 'relative', display: 'flex' }}>
-            <FlowTerm kind="end" title={[`Ende · ${processLabel}`,
-              goal?.due && `Liefertermin ${goal.due}`, goal?.seller]
-              .filter(Boolean).join(' · ')} />
-            {goal?.due && (
-              <div style={{ position: 'absolute', left: '100%', top: '50%',
-                transform: 'translateY(-50%)', marginLeft: 12, whiteSpace: 'nowrap',
-                font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>{goal.due}</div>
-            )}
-          </div>
+              nicht darunter (#457): absolut gesetzt, damit der Kreis auf der Achse bleibt.
+              Auf einer schmalen Spur ist daneben aber kein Platz mehr – dort steht es
+              darunter, statt aus der Spur zu ragen und die Seite waagrecht zu schieben. */}
+          <GoalEnd label={processLabel} goal={goal} />
         </Row>
         {origin?.returns_to_object_id != null && (
           <>
@@ -494,7 +503,38 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
               lots={origin.returned_lots ?? []} />} />
           </>
         )}
+      </>
+    </FlowFrame>
+  );
+}
+
+/**
+ * Der Endknoten mit dem Liefertermin. **Daneben, solange daneben Platz ist** – sonst
+ * darunter: eine absolut gesetzte Angabe kennt ihre Spur nicht und schöbe sonst auf
+ * schmalen Fenstern die ganze Seite nach rechts.
+ */
+function GoalEnd({ label, goal }: { label: string; goal?: { due?: string | null; seller?: string | null } | null }) {
+  const { main } = useFlow();
+  const title = [`Ende · ${label}`, goal?.due && `Liefertermin ${goal.due}`, goal?.seller]
+    .filter(Boolean).join(' · ');
+  // Der Kreis ist 52 px breit; daneben braucht ein Datum rund 90 px. Passt das nicht in die
+  // halbe Spur, steht es unter dem Knoten.
+  const beside = main / 2 - 26 >= 100;
+  if (!goal?.due) return <FlowTerm kind="end" title={title} />;
+  if (!beside) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+        <FlowTerm kind="end" title={title} />
+        <div style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>{goal.due}</div>
       </div>
+    );
+  }
+  return (
+    <div style={{ position: 'relative', display: 'flex' }}>
+      <FlowTerm kind="end" title={title} />
+      <div style={{ position: 'absolute', left: '100%', top: '50%',
+        transform: 'translateY(-50%)', marginLeft: 12, whiteSpace: 'nowrap',
+        font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>{goal.due}</div>
     </div>
   );
 }
@@ -618,9 +658,10 @@ function BranchArm({ branches, flowed, bypass, onOpen }: {
   // zurückfloss, bekam eine volle schwarze Linie. Dünn heisst hier genau das Richtige –
   // geplant, aber nichts gekommen; die Buchungen sagen es (`flow_back`).
   const returned = back.some((b) => (b.flow_back ?? []).length > 0);
+  const m = useFlow();
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
-      paddingTop: ARM, paddingBottom: back.length ? ARM : 0 }}>
+      paddingTop: m.arm, paddingBottom: back.length ? m.arm : 0 }}>
       <Elbow dir="fork-right" strong={flowed} axis={bypass} />
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
         width: '100%', minWidth: 0 }}>
@@ -630,7 +671,7 @@ function BranchArm({ branches, flowed, bypass, onOpen }: {
             {i > 0 && <Axis h={20} strong={branchStarted(b)} />}
             {/* **Der Hover gilt genau dem Ast, auf dem der Cursor steht** – nicht der ganzen
                 Spur: lagen alle Abzweige in EINEM `aside`-Kasten, hellten sie gemeinsam auf. */}
-            <div {...aside('right', { width: '100%', minWidth: 0 })}>
+            <div {...aside('right', { width: '100%', minWidth: 0 }, m.stacked)}>
               <SubProcess info={b} onOpen={onOpen} />
             </div>
           </div>
@@ -777,9 +818,10 @@ function OrderRefNode({ caption, objectId, name, icon: Dir, title, onClick }: {
  * Ausblick nach oben, ohne ihn auszubreiten.
  */
 function OriginArm({ origin, onOpen }: { origin: OrderOrigin; onOpen?: (id: number) => void }) {
+  const { stacked, arm } = useFlow();
   return (
-    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: ARM }}>
-      <div {...aside('left')}>
+    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: arm }}>
+      <div {...aside('left', undefined, stacked)}>
         <OrderRefNode caption="Hervorgegangen aus" objectId={origin.order_object_id}
           name={origin.order_name} icon={ArrowUp}
           title={`Hervorgegangen aus ${origin.order_name ?? 'Auftrag'} – öffnen`}
@@ -801,10 +843,11 @@ function ReturnArm({ origin, lots, strong, onOpen }: {
   origin: OrderOrigin; lots: FlowLot[]; strong?: boolean; onOpen?: (id: number) => void;
 }) {
   const id = origin.returns_to_object_id as number;
+  const { stacked, arm } = useFlow();
   return (
-    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
+    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: arm }}>
       <Elbow dir="out-to-left" strong={strong} />
-      <div {...aside('left')}>
+      <div {...aside('left', undefined, stacked)}>
         <OrderRefNode caption="Gibt zurück an" objectId={id} name={origin.returns_to_name}
           icon={ArrowDown}
           title={`Gibt beim Abschluss zurück an ${origin.returns_to_name ?? 'Auftrag'} – öffnen`}
@@ -813,7 +856,7 @@ function ReturnArm({ origin, lots, strong, onOpen }: {
       {lots.length > 0 && (
         // Auf der Kante, die zum Eltern führt – zwischen Achse und Knoten, wie jede andere
         // Materialzeile auch.
-        <div style={{ position: 'absolute', left: 0, right: 0, top: ARM / 2,
+        <div style={{ position: 'absolute', left: 0, right: 0, top: arm / 2,
           transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center',
           pointerEvents: 'none' }}>
           <div style={{ pointerEvents: 'auto' }}><FlowLots lots={lots} small /></div>
@@ -943,10 +986,8 @@ export function DraftFlowFrame({ holders, cut = false, onToggleCut, onOpenOrder,
   // und gibt an nichts zurück – leere Spuren wären reine Dekoration.
   if (holders.length === 0) return <>{children}</>;
   return (
-    <div className="ix-noscrollbar" style={{ width: '100%', overflowX: 'auto' }}>
-      <div style={{ width: '100%', minWidth: MAIN + 2 * LANE,
-        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
-        ...({ '--flow-lane': `${LANE}px` } as React.CSSProperties) }}>
+    <FlowFrame hasAside>
+      <>
         <Row left={<DraftOriginArm holders={holders} onOpen={onOpenOrder} />} />
         <Row><Axis h={18} strong /></Row>
         {/* **Kein eigener Start-/Endknoten** (Testnotiz #498): der Schritt-Editor zeichnet
@@ -963,12 +1004,18 @@ export function DraftFlowFrame({ holders, cut = false, onToggleCut, onOpenOrder,
         {holders.map((h, i) => (
           <Row key={h.object_id}
             left={<DraftReturnArm holder={h} connected={!cut} onToggle={onToggleCut} />}>
-            {i < holders.length - 1 && <Axis grow h={ARM} strong />}
+            {i < holders.length - 1 && <DraftGap />}
           </Row>
         ))}
-      </div>
-    </div>
+      </>
+    </FlowFrame>
   );
+}
+
+/** Abstand zwischen zwei Rückgabe-Linien – die Länge kennt nur die Geometrie im Rahmen. */
+function DraftGap() {
+  const { arm } = useFlow();
+  return <Axis grow h={arm} strong />;
 }
 
 /** Die Menge, die ein Halter durch die Auswahl verliert – «2 Stk von 100000595». */
@@ -979,15 +1026,16 @@ const holderLoss = (h: AffectedOrder) =>
 function DraftOriginArm({ holders, onOpen }: {
   holders: AffectedOrder[]; onOpen?: (objectId: number) => void;
 }) {
+  const m = useFlow();
   return (
-    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: ARM }}>
+    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingBottom: m.arm }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
         width: '100%', minWidth: 0 }}>
         {holders.map((h, i) => (
           <div key={h.object_id} style={{ display: 'flex', flexDirection: 'column',
             alignItems: 'center', width: '100%', minWidth: 0 }}>
             {i > 0 && <Axis h={20} strong />}
-            <div {...aside('left', { width: '100%', minWidth: 0 })}>
+            <div {...aside('left', { width: '100%', minWidth: 0 }, m.stacked)}>
               <OrderRefNode caption="Nimmt aus" objectId={h.object_id} name={h.name}
                 icon={ArrowDown}
                 title={`${holderLoss(h)} aus ${h.name ?? 'Auftrag'} ${formatObjectId(h.object_id)} – öffnen`}
@@ -1016,8 +1064,9 @@ function DraftReturnArm({ holder, connected, onToggle }: {
   holder: AffectedOrder; connected: boolean; onToggle?: () => void;
 }) {
   const label = holder.name ?? 'Auftrag';
+  const m = useFlow();
   return (
-    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: ARM }}>
+    <div style={{ position: 'relative', width: '100%', minWidth: 0, paddingTop: m.arm }}>
       {connected && <Elbow dir="out-to-left" strong />}
       {/* Auf dem waagrechten Stück der Ecke (`out-to-left`: y = 2·BEND), mittig zwischen
           Achse und Spurmitte – dort, wo die Linie verläuft.
@@ -1031,7 +1080,11 @@ function DraftReturnArm({ holder, connected, onToggle }: {
         <button type="button" onClick={onToggle}
           aria-label={connected ? 'Rückführung kappen' : 'Rückführung wieder anschalten'}
           style={{
-            position: 'absolute', left: SIDE / 2 + RUN / 2, top: 2 * BEND,
+            // Auf der Linie: im Drei-Spuren-Bild mittig auf ihrem waagrechten Stück,
+            // gestapelt mittig auf dem geraden Verbindungsstück (dort gibt es kein
+            // waagrechtes Stück – der Weg führt geradeaus).
+            position: 'absolute', top: m.stacked ? m.arm / 2 : 2 * BEND,
+            left: m.stacked ? '50%' : m.side / 2 + m.run / 2,
             transform: 'translate(-50%, -50%)', width: 28, height: 28, borderRadius: 999,
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
             border: `1px solid ${connected ? 'var(--fg-2)' : 'var(--border-2)'}`,
@@ -1040,7 +1093,7 @@ function DraftReturnArm({ holder, connected, onToggle }: {
           {connected ? <Scissors size={14} /> : <Redo2 size={14} />}
         </button>
       )}
-      <div {...aside('left', { width: '100%', minWidth: 0, opacity: connected ? 1 : 0.55 })}>
+      <div {...aside('left', { width: '100%', minWidth: 0, opacity: connected ? 1 : 0.55 }, m.stacked)}>
         <OrderRefNode
           caption={connected ? 'Gibt zurück an' : 'Keine Rückgabe – wird abgebrochen'}
           objectId={holder.object_id} name={holder.name} icon={ArrowDown}
