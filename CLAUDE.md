@@ -5172,6 +5172,89 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Karten-Anatomie im Editor wie im Fluss (Polsterung 13/16, Symbol-Kasten 34, Titel 15 px):
   eine Karte mit anderer Innenaufteilung wirkt verschieden breit, auch wenn sie es nicht ist.
 
+- **Der Zustand einer Instanz ist die PROJEKTION über ihre Stücke** (August 2026,
+  Testnotizen #601/#602/#604/#615): Zwei Fehler mit einer gemeinsamen Wurzel – eine Menge
+  wurde als ein Ding behandelt.
+  (1) **Übernommen wird, was reserviert wurde** (#615). Der FIFO-Zweig der Allokation liess
+  das Mengen-Argument von `subject.record_link` weg; die Buchung fiel auf `inst.quantity`
+  zurück. Ein Auftrag über **1 Stück** nahm damit eine 4er-Charge komplett in seine Obhut,
+  gab beim Abschluss nur seinen Anspruch (1) frei – und hielt die restlichen 3 **für immer**
+  (im Fluss die richtige Instanznummer mit der falschen Menge, im Bestand drei fehlende
+  Stück, die niemand angefasst hatte). Der Parameter hat jetzt **keinen Vorgabewert** mehr:
+  ein Vorgabewert macht aus einem vergessenen Argument eine stille Falschbuchung.
+  (2) **Der Datensatz-Zustand wird ABGELEITET, nicht zugewiesen** (`units.project`/
+  `sync_state`, #604). Ein Datensatz trägt genau einen Zustand, eine Charge aber viele –
+  ein Stück verschrottet, zwei freigegeben, eines im Prozess. Die Frage ist nicht, welcher
+  stimmt, sondern **welcher auf den Datensatz gehört**; die Rangfolge folgt dem, wonach man
+  sucht: **≥ 1 Stück freigegeben → «am Lager»** (sonst fände FIFO die Charge nicht), sonst
+  «Im Prozess», sonst der Endzustand (`_TERMINAL_RANK`). Gesperrt gewinnt, solange etwas
+  lebt. Vorher wurde der Skalar in **einem Moment** zugewiesen (`all_released` beim
+  Freigeben); schied danach ein Geschwister-Stück aus, kippte die Bedingung nachträglich,
+  aber niemand rechnete sie neu – die Instanz blieb für immer «Im Prozess», obwohl im
+  Detail jedes Stück «Freigegeben» zeigte (#601/#602). Als Projektion, nachgezogen in
+  `mark_released`/`drop`/`restore`, kann das nicht mehr auseinanderlaufen.
+  (3) **Die Kehrseite: die MENGE trägt die Wahrheit.** «Am Lager» sagt jetzt nur noch «hier
+  liegt etwas Entnehmbares». Darum gibt es **zwei Fragen mit zwei Namen**:
+  `reservation.free_qty` = «wem gehört nichts» (gesamt − beansprucht) und
+  **`inventory.ready_qty`** = «was ist entnehmbar» (frei UND freigegeben, je Stück gezählt).
+  Alle Allokations-Leser (FIFO, Ressource, Verkauf, Recovery, Verfügbarkeits-Anzeige) lesen
+  die zweite – so kann FIFO kein Stück herausgeben, das noch mitten im Prozess ist; die
+  Auswahl einer gebundenen Instanz (Abweichung) liest weiter die erste. Passend dazu fragt
+  `inventory.rest_owner` nicht mehr nach dem **Instanz**-Skalar («am Lager → niemandem»),
+  sondern nur noch, ob es einen laufenden Erzeuger gibt – ob ein einzelnes Stück frei ist,
+  entscheidet `Unit.released`. Alt-Instanzen ohne Freigabe-Marken werden tolerant gelesen
+  (`ensure` markiert eine Instanz am Lager als freigegeben).
+  Wächter: `tests/rules/test_units.py: test_an_order_only_takes_over_the_share_it_reserved`,
+  `…_the_instance_state_is_a_projection_over_its_pieces`,
+  `…_fifo_never_hands_out_a_piece_that_is_still_in_process`; gegen echtes PostgreSQL 16
+  verifiziert und **gegen beide Bug-Formen gegengeprüft**.
+
+- **Testnotizen-Runde 47 (der Zustand steht am Stück, Notizen #599–#614)**: Die Runde
+  hängt an der Projektion darüber – seit jedes Stück seinen Zustand trägt, kann die
+  Oberfläche ihn auch zeigen.
+  (1) **Jede Einheit sagt, wo sie liegt** (#605, `units.place`): die Standort-Verteilung
+  der Instanz (`instances.locations`, eine Mengen-Map) wird der Reihe nach auf die
+  aufsteigenden Stück-Nummern gelegt – **EINE Logik für Charge und Einzelteil**; liegt
+  alles an einem Ort, bekommt es jedes Stück. Ein ausgeschiedenes Stück bleibt ohne
+  Standort (Ausschuss hat keinen Halter). Damit ist die Standort-Karte darüber entfallen:
+  «wo ist was?» hat genau eine Antwort, und sie steht an den Stücken.
+  (2) **Die Kachel «Am Lager» entfällt** (#606) – die Zahl steht bei jeder Einheit, mit
+  Zustand und Standort dazu. **«Stücke» heisst «Einheiten»** (#607).
+  (3) **Der Bestand am Artikel ist eine Liste von STÜCKEN** (#600, `instance-list.tsx`
+  neu): eine Zeile ist ein Stück, gruppiert nach Zustand (nicht gefiltert – ein Filter
+  versteckt, gefragt war das Gegenteil), FIFO innerhalb der Gruppe, darüber eine
+  Zusammenfassungs-Zeile «Punkt + Wort + Menge». Das ist genau der Grund, warum FIFO an
+  der Instanz-Badge vorbeischaut: eine Charge kann geteilter Meinung sein.
+  (4) **Der Prüfumfang ist ein Symbol-Schieber** (#610, `IconSwitch symbolOnly`) wie
+  überall sonst; ein Prozent-Symbol blendet den Sonderwert ein. **Enter legt den Schritt
+  an** (#611). Erfassungsfelder sind Zeilen mit Haarlinie statt Kacheln (#612).
+  (5) **Die Aufgabe statt der Einstellung** (#614): «1 von 1 Stück prüfen» – der
+  eingestellte Prozentsatz ist die Herkunft und steht im Hover. Die Stichproben-Zeile
+  nennt die Objektnummer, nicht das Wort «Instanz» (#613).
+  (6) **Abstände** (#599): der Konnektor vor der Modul-Palette gehört zu ihr – im
+  freigegebenen Prozess gibt es sie nicht, und dann standen zwei hintereinander (doppelter
+  Abstand zur Zielflagge). **Und die Spur steht mittig** (#609): seit sie eine feste
+  Breite hat (#597), richtet sie sich im Block-Fluss links aus – im laufenden Auftrag
+  zentriert `Row` sie, beim Anlegen niemand.
+
+- **Der Shortcut merkt vor, er entscheidet nicht** (Testnotiz #608): Der «Auftrag anlegen»-
+  Knopf am Instanz-Detail merkt jetzt **nur noch die Instanz** vor – keine Menge, keinen
+  Anteil. Die Vorauswahl war über drei Runden gewachsen (ein Stück #385, aber nicht bei
+  mehreren Anteilen #394, die Instanz trotzdem #400, und der Halter musste genannt werden
+  #390/#553) und lief auf eine Fallunterscheidung über «wie viele Anteile hat diese
+  Instanz» hinaus – bei einer Charge lautet die Antwort selten «einer». Ein Anteil ist seit
+  #394 eine **Entscheidung** (der genannte verliert unbedingt); Entscheidungen füllt man
+  nicht vor. Damit gilt EIN Weg für Einzelteil und Charge, für einen Anteil und für fünf.
+  Genannt wird ein Halter nur noch dort, wo er wirklich bekannt ist: am Abkürzungs-Knopf im
+  **Fluss** (`seedFromLots`) – dort nennt die Kante die Menge, und der Halter ist der
+  Auftrag, dessen Fluss man ansieht.
+  **Und der Knopf sagt nicht mehr voraus, was daraus wird** (nimmt #380 zurück): er trug die
+  Farbe der Instanz-Badge und hiess bei einer gebundenen Instanz vorab
+  «Abweichungsauftrag». Das kann die Badge gar nicht wissen – eine Charge mit teils freien,
+  teils gebundenen Anteilen wird zum einen ODER zum anderen, je nachdem welche **Zeile** man
+  anklickt (`subject.classify_pick`). EIN Knopf, ein Name, ein Ton; was es wird, zeigt der
+  Entwurf sofort (gebundener Anteil → Halter links, Rückgabe-Linie unten).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

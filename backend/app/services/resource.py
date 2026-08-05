@@ -28,7 +28,8 @@ from ..schemas.resource import (
 from . import location_split, people, process, provisioning
 from .admin import log_audit
 from .events import emit
-from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
+from .inventory import (allocate, available, available_qty, avail_amount, fifo_candidates,
+                        in_stock_clauses, ready_qty)
 from .locations import _obj_nr, resolve_physical_location
 from .quantity import ZERO, qty_sum, to_qty
 from .reservation import free_qty, release, reserve, take as take_qty
@@ -85,7 +86,7 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
         if art_id == order.article_id:
             continue
         cands = fifo_candidates(db, art_id, for_order_id=None, lock=True)
-        for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
+        for cand, take in zip(cands, allocate(need, [ready_qty(c) for c in cands])):
             if take > 0:
                 reserve(cand, order.id, take)   # mengengenau, OHNE Teilung
                 done.append(f"{take:g} × {cand.object_id}")

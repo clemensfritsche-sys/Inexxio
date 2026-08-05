@@ -19,6 +19,7 @@
  */
 
 import type { InstanceUnit } from '@/types';
+import { MapPin } from 'lucide-react';
 import { instanceStatusConfig } from '@/lib/process';
 import { formatObjectId } from '@/lib/utils';
 
@@ -40,7 +41,8 @@ function tip(u: InstanceUnit, unit?: string): string {
   const qty = `${u.quantity}${unit ? ` ${unit}` : ''}`;
   const holder = u.order_object_id != null
     ? ` · Auftrag ${formatObjectId(u.order_object_id)}` : '';
-  return `${unitLabel(u.number)} · ${qty} · ${cfg.label}${holder}`;
+  const where = u.location_label ? ` · ${u.location_label}` : '';
+  return `${unitLabel(u.number)} · ${qty} · ${cfg.label}${holder}${where}`;
 }
 
 const S: Record<string, React.CSSProperties> = {
@@ -54,8 +56,12 @@ const S: Record<string, React.CSSProperties> = {
   more: { fontSize: 10.5, fontWeight: 600, color: 'var(--fg-4)', whiteSpace: 'nowrap' },
   list: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
   row: {
-    display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: 8, alignItems: 'center',
+    display: 'grid', gridTemplateColumns: 'auto auto 1fr auto', gap: 8, alignItems: 'center',
     fontSize: 12, lineHeight: 1.5,
+  },
+  where: {
+    display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0, color: 'var(--fg-4)',
+    fontSize: 11.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   num: { font: 'var(--mono-sm)', color: 'var(--fg-2)', whiteSpace: 'nowrap' },
   qty: { fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)', whiteSpace: 'nowrap' },
@@ -104,6 +110,23 @@ export function UnitList({
                 </button>
               )}
             </span>
+            {/* **Wo es liegt** (Testnotiz #605) – je Stück, für eine Charge wie für ein
+                Einzelteil dieselbe Zeile. Damit braucht es keine zweite Standort-Anzeige
+                darüber: die Frage «wo ist was?» hat genau eine Antwort. */}
+            {u.location_label && (
+              <span style={S.where} title={`Standort: ${u.location_label}`}>
+                <MapPin size={11} style={{ flexShrink: 0 }} />
+                {u.location_object_id != null ? (
+                  <button type="button"
+                    onClick={(e) => { e.stopPropagation(); onOpen?.(u.location_object_id as number); }}
+                    style={{ font: 'inherit', color: 'inherit', border: 'none', background: 'none',
+                      padding: 0, cursor: onOpen ? 'pointer' : 'default', whiteSpace: 'nowrap',
+                      overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {u.location_label}
+                  </button>
+                ) : u.location_label}
+              </span>
+            )}
           </div>
         );
       })}

@@ -12099,6 +12099,28 @@
             "type": "string",
             "title": "Disposition"
           },
+          "location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Label"
+          },
+          "location_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Object Id"
+          },
           "order_object_id": {
             "anyOf": [
               {

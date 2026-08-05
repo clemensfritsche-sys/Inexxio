@@ -37,6 +37,7 @@ from ..models import (
 from ..models.base import utcnow
 from .events import emit
 from . import ledger
+from . import inventory
 from .inventory import available, in_stock_clauses, is_blocked, unblocked_clauses
 from .quantity import ONE, ZERO, qty_sum, to_qty
 from .reservation import free_qty, release, reserve, reserved_for, take as take_qty
@@ -820,9 +821,10 @@ def release_instances(db: Session, order: Order) -> None:
         # lebenden Stücke frei sind. Bewusst konservativ – ``inventory.in_stock_clauses``
         # liest ihn, und eine teilweise freigegebene Charge soll nicht plötzlich als ganze
         # am Lager gelten.
-        if units_svc.all_released(inst):
-            inst.quality = "passed"          # QC-Verdikt: freigegeben
-            inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
+        # Der Instanz-Skalar zieht **automatisch** nach (``units.sync_state`` in
+        # ``mark_released``): er ist die Projektion über die Stücke (#604), keine Zuweisung
+        # in genau diesem Moment – sonst kippt die Aussage nachträglich, wenn ein
+        # Geschwister-Stück ausscheidet, und niemand rechnet sie neu (#601/#602).
         if inst.released_at is None:
             inst.released_at = now
         # Journal (ADR 007): «ans Lager freigegeben» – der Halter endet, die Menge ist frei.
@@ -1213,7 +1215,7 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
     for inst in produced:
         if remaining <= 0:
             break
-        take = min(free_qty(inst), remaining)
+        take = min(inventory.ready_qty(inst), remaining)
         if take <= 0:
             continue
         reserve(inst, parent.id, take)

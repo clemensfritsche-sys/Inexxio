@@ -34,7 +34,7 @@ from . import process
 from .admin import log_audit
 from .events import emit
 from . import inventory
-from .inventory import allocate, fifo_candidates
+from .inventory import allocate, fifo_candidates, ready_qty
 from .quantity import ZERO, qty_sum, to_qty
 from .reservation import free_qty, reserve, reserved_for
 from .subject import record_link
@@ -93,7 +93,7 @@ def _fifo_cover(db: Session, order: Order, article_id: int, need,
     wurde."""
     covered = ZERO
     cands = fifo_candidates(db, article_id, for_order_id=None, lock=True)   # nur freie Restmengen
-    for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
+    for cand, take in zip(cands, allocate(need, [ready_qty(c) for c in cands])):
         if take <= 0:
             continue
         was_mine = reserved_for(cand, order.id) > 0
@@ -135,7 +135,7 @@ def _cover_from_stock(db: Session, order: Order, instance_object_ids: list[int] 
                 raise HTTPException(400, detail=f"Instanz {oid} passt zu keinem offenen Bedarf dieses Auftrags")
             if not inventory.is_in_stock(inst):
                 raise HTTPException(409, detail=f"Instanz {oid} ist nicht freigegeben/am Lager")
-            take = min(free_qty(inst), rem)
+            take = min(ready_qty(inst), rem)
             if take <= 0:
                 raise HTTPException(409, detail=f"Instanz {oid} ist bereits reserviert")
             reserve(inst, order.id, take)

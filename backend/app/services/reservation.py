@@ -32,12 +32,17 @@ def reserved_for(inst: Instance, order_id: int) -> Decimal:
 
 
 def free_qty(inst: Instance) -> Decimal:
-    """Frei verfügbare Restmenge (gesamt − beansprucht), **nie negativ**.
+    """**Wem gehört an dieser Instanz nichts?** – gesamt − beansprucht, nie negativ.
 
-    Überbucht ist möglich, solange ein **Entwurf** nur vormerkt (``claim``): dann wollen
-    zwei Aufträge zusammen mehr, als die Instanz hergibt. Für FIFO heisst das schlicht
-    «nichts frei» – nicht «minus eins». Aufgelöst wird die Überbuchung erst bei der
-    Freigabe (``enforce``)."""
+    Das ist eine Frage der **Eigentümerschaft**, nicht der Entnehmbarkeit: ob eine freie
+    Menge auch schon ihr Prozessziel erreicht hat, beantwortet ``inventory.ready_qty``.
+    Zwei Fragen, zwei Namen – die Auswahl einer noch laufenden Instanz (Abweichung) braucht
+    diese hier, FIFO die andere.
+
+    Überbucht ist möglich, solange ein **Entwurf** nur vormerkt (``claim``): dann wollen zwei
+    Aufträge zusammen mehr, als die Instanz hergibt. Für FIFO heisst das schlicht «nichts
+    frei» – nicht «minus eins». Aufgelöst wird die Überbuchung erst bei der Freigabe
+    (``enforce``)."""
     rest = to_qty(inst.quantity) - to_qty(inst.reserved_quantity)
     return rest if rest > 0 else ZERO
 

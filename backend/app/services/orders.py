@@ -1013,7 +1013,7 @@ def _fill_order_shortfall(db: Session, order: Order, resp: OrderResponse) -> Non
     Zwei Arten, ein Feld: ``subject`` = die Fertigware, die der Auftrag schuldet (dafür gibt
     es «Ohne Ersatz weiter») · ``component`` = Material eines Ressourcen-Schritts (das kann
     man nicht wegbestätigen). Beides deckt «Ersetzen» (``recovery.cover_shortfall``)."""
-    from .inventory import fifo_candidates
+    from .inventory import fifo_candidates, ready_qty
     from .reservation import free_qty
     from .supply import covering_sub_orders
 
@@ -1027,15 +1027,15 @@ def _fill_order_shortfall(db: Session, order: Order, resp: OrderResponse) -> Non
     for aid, qty in everything.items():
         # Freie, freigegebene Instanzen dieses Artikels am Lager – womit sich der Bedarf ohne
         # Nachschub decken liesse («Ersetzen» / «Bestimmte Instanz wählen»).
-        free = [c for c in fifo_candidates(db, aid, for_order_id=None) if free_qty(c) > 0]
+        free = [c for c in fifo_candidates(db, aid, for_order_id=None) if ready_qty(c) > 0]
         resp.shortfall.append(StepShortfall(
             article_object_id=(arts[aid].object_id if aid in arts else None),
             article_name=(arts[aid].name if aid in arts else None), quantity=qty,
             kind="subject" if aid in subject_short else "component",
             replaceable=recovery.is_replaceable(db, order, aid in subject_short),
-            available_quantity=sum(free_qty(c) for c in free),
+            available_quantity=sum(ready_qty(c) for c in free),
             available_instances=[
-                ShortfallInstance(object_id=c.object_id, quantity=free_qty(c))
+                ShortfallInstance(object_id=c.object_id, quantity=ready_qty(c))
                 for c in free if c.object_id is not None
             ],
         ))

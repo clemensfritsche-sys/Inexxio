@@ -100,6 +100,14 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
             )
             for d in dist_by_inst.get(r.id, [])
         ]
+        # **Und jedes Stück sagt, wo es liegt** (Testnotiz #605): dieselbe Verteilung, nur
+        # auf die Nummern gelegt. Damit braucht es keine zweite Standort-Anzeige darüber –
+        # die Frage «wo ist was?» hat genau eine Antwort, und sie steht an den Stücken.
+        units.place(resp.units, [
+            {"location_id": l.location_id, "location_label": l.location_label,
+             "quantity": l.quantity}
+            for l in resp.locations
+        ])
         out.append(resp)
     return out
 
