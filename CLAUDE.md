@@ -5381,6 +5381,43 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   test_reserved_is_not_a_state_of_its_own`,
   `…_the_palette_name_grows_beside_the_symbol_without_moving_anything`.
 
+- **Das Prozessbild ist responsiv – waagrecht scrollen gibt es nicht** (August 2026,
+  `components/erp/flow-line.tsx`): Die Spurbreiten standen als **feste Zahlen** im Modul –
+  drei Spuren à 460 px plus Luft ergaben **1432 px Mindestbreite**, und was nicht
+  hineinpasste, wurde in einen waagrecht scrollenden Kasten gesteckt. Das traf **jedes**
+  Gerät: schon ein 13″-MacBook hat im Detailfenster nur ~1060 px (Fenster − Feed − Polsterung),
+  ein iPhone ~335. Bei einem Diagramm ist seitliches Scrollen besonders schlecht – man
+  verliert die Achse aus dem Blick, also genau das, worum es geht.
+  **Die Geometrie ist jetzt eine Funktion der gemessenen Breite** (`metricsFor`, EINMAL
+  gemessen im `FlowFrame` per ResizeObserver, über einen Context an alles verteilt, was eine
+  Linie zeichnet). Damit gibt es weiterhin genau EINE Quelle für jede Zahl – sie ist nur
+  nicht mehr konstant. `MAIN`/`SIDE`/`LANE`/`RUN` als Modul-Konstanten sind entfallen; wer
+  eine Spurbreite braucht, fragt `useFlow()`.
+  **Zwei Ausprägungen, dieselben Bausteine:**
+      Spuren      Drei Spuren nebeneinander (Herkunft · Achse · Abzweige) – das gewohnte
+                  Bild. Die Spurbreite schrumpft mit dem Platz (460 → 240), sonst ändert
+                  sich nichts.
+      Gestapelt   Unter 3·240 + 2·26 = **772 px** passen drei lesbare Spuren nicht mehr
+                  nebeneinander. Dann läuft ALLES in einer Spur: ein Abzweig ist ein
+                  Unterprozess **auf** der Achse (mit seinen eigenen Terminal-Knoten), die
+                  Ecken werden zu geraden Verbindungsstücken, die Abzweigung kürzer
+                  (`ARM_STACKED`). Kein zweites Vokabular – dieselben Karten, dieselbe
+                  Linie, nur ohne Seitwärtsbewegung; die Maske zur Kante entfällt (sie
+                  behauptete «hier geht es seitwärts weiter»).
+  **Die gemessene Spurbreite wird GERADE gemacht** – dieselbe Regel wie bei der Strichstärke
+  (#550): die Achse sitzt mittig in ihrer Spur, also muss `(Spur − Strich)/2` ganzzahlig
+  sein; bei ungerader Spur begänne ihr Kasten auf einer halben Pixelgrenze und der SVG-Pfad
+  der Ecke läge daneben.
+  **In Chromium an den echten Gerätebreiten gemessen** (Detailfenster = Fenster − Feed −
+  40 px Polsterung), im laufenden Fluss, im Entwurfs-Rahmen und mit geöffnetem
+  Schritt-Editor: 1440 → Spuren à 336 · 1280 → 284 · 1200 → 256 · 1024 → gestapelt · 834 →
+  gestapelt · 375 → gestapelt · 320 → gestapelt. **Überall 0 px waagrechter Überlauf.**
+  Nebenbei geschlossen: drei Stellen, die aus ihrer Spur ragen konnten – die Material-Pille
+  (lange Nummernkette, jetzt gekürzt mit voller Angabe im Hover), der Abkürzungs-Knopf
+  daneben (die Pille lässt ihm seinen Platz) und der **Liefertermin** am Endknoten (steht
+  unter dem Knoten, wenn daneben kein Platz ist). Die Hover-Karte wird ins Fenster gezogen.
+  Wächter: `test_frontend_mirrors.py: test_the_process_picture_never_scrolls_sideways`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
