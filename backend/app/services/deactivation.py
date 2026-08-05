@@ -161,7 +161,11 @@ def cancel_order_effects(db: Session, order: Order, actor_id: int,
 
     ``keep_instances`` – beim **Abbruch mit Folgeauftrag**: die im Prozess befindlichen
     Instanzen werden NICHT deaktiviert; sie gehören jetzt dem Folgeauftrag (kein
-    Verschwinden physisch vorhandener Teile)."""
+    Verschwinden physisch vorhandener Teile).
+
+    **Der Aufrufer setzt den Status VORHER** – das ist die Reihenfolge an allen Aufrufstellen
+    und die Voraussetzung dafür, dass ``rebase_documents`` unten ableiten kann, welches Ende
+    gilt (Testnotizen #587/#588)."""
     # Reservierte Komponenten + als Subjekt gewählte Bestands-Instanzen freigeben
     # (mengengenau: nur die Reservierung dieses Auftrags lösen, Instanz bleibt erhalten).
     for inst in db.query(Instance).filter(
@@ -186,6 +190,12 @@ def cancel_order_effects(db: Session, order: Order, actor_id: int,
     # ist bei totem Eltern ein No-op, ihr Output fliesst automatisch in den freien Bestand
     # (kein Sondercode, keine vernichteten Teile). Wer einen laufenden Nachschub stoppen will,
     # bricht ihn mit demselben Mechanismus ab.
+    # **Und die offenen Belege verlieren ihren Gegenstand** (Testnotiz #587): eine Bestellung
+    # blieb bisher «Angefragt» stehen, wenn ihr Auftrag abgebrochen wurde – der Lieferant sah
+    # eine offene Anfrage für etwas, das es nicht mehr gibt. Dieselbe Funktion wie bei der
+    # blossen Mengen-Reduktion; welches Ende gilt, liest sie am Auftrag ab.
+    from .rebase import rebase_documents
+    rebase_documents(db, order, actor_id)
     emit(db, "order.cancelled", object_type="order", object_id=order.object_id, actor_id=actor_id)
 
 

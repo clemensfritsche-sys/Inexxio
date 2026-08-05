@@ -434,9 +434,14 @@ def mark_cancelled(db: Session, sale: Sale) -> Sale:
     emit(db, "sale.cancelled", object_type="order", object_id=oid)
     if order and order.status in ("draft", "released"):
         from .deactivation import cancel_order_effects
-        if order.status == "released":
-            cancel_order_effects(db, order, None)
+        # **Erst den Status, dann die Folgen** – dieselbe Reihenfolge wie an allen anderen
+        # Aufrufstellen von ``cancel_order_effects``. Sie leitet daraus ab, dass der Auftrag
+        # zu Ende ist, und storniert seine offenen Belege (#587); umgekehrt hielte sie ihn
+        # noch für laufend und würde sie bloss zurücksetzen.
+        was_released = order.status == "released"
         order.status = "inactive"
+        if was_released:
+            cancel_order_effects(db, order, None)
     db.commit()
     db.refresh(sale)
     return sale

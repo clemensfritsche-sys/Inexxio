@@ -615,7 +615,7 @@ def _sub_info(db: Session, sub: Order, cache: dict[int, list[SubOrderStep]],
         # liest diese Stelle die EINE Ableitung (``returns_material``) statt selbst zu
         # rechnen: sie kannte das Kappen nicht und zeichnete eine Rückgabe-Linie, die es
         # nicht gibt. ``flow_back`` daneben sagt, was tatsächlich schon zurück ist.
-        returns_material=returns_material(db, sub, material))
+        returns_material=returns_material(db, sub, material, back))
 
 
 def _flow_back(db: Session, sub: Order, material: list[FlowLot]) -> list[FlowLot]:
@@ -624,11 +624,20 @@ def _flow_back(db: Session, sub: Order, material: list[FlowLot]) -> list[FlowLot
 
     Solange der Auftrag läuft, gibt es schlicht keine solchen Buchungen – die frühere
     Fallunterscheidung «leer, solange er läuft» löst sich damit auf: sie war die Simulation
-    eines Journals, das es jetzt gibt. Alt-Aufträge ohne Journal fallen auf die bisherige
-    Ableitung zurück (Übernommenes minus endgültig Verlorenes, erst nach Abschluss)."""
+    eines Journals, das es jetzt gibt.
+
+    **Hat der Auftrag ein Journal, ist «keine Rückgabe-Buchung» die Antwort** (Testnotiz
+    #590) – und nicht der Anlass, doch wieder abzuleiten. Genau daran entstand die gemeldete
+    Phantom-Rückgabe: ein **abgebrochener** Abzweig, der sein Stück an seine eigene Abweichung
+    weitergereicht hatte, fiel auf «Übernommenes minus Verlorenes» zurück – und die
+    Weitergabe nach unten ist nicht terminal, las sich also als «1 Stk kam zurück», obwohl
+    das Modul davor nie ausgeführt wurde. Die Ableitung bleibt der Lesepfad für Alt-Aufträge
+    **ohne** Buchungen (tolerant lesen, streng schreiben)."""
     from . import ledger
     departed = ledger.departed_of(db, sub.id)
     if not departed:
+        if sub.id and ledger.order_view(db, sub.id) is not None:
+            return []
         return ([] if sub.status in ("draft", "released")
                 else returning_material(material))
     from . import units as U
@@ -851,15 +860,12 @@ def _return_target(db: Session, order: Order) -> Order | None:
     seine Stück an den Eltern (``process._peg_supply_to_parent``). Alles andere gibt nichts
     zurück – ein gewöhnlicher Auftrag schuldet niemandem etwas."""
     from .subject import is_fixed_subject, lender_of
-    # **Ein abgebrochener Auftrag gibt nichts zurück** (Testnotiz #578). Er läuft nicht mehr;
-    # was er hielt, ist entweder ausgesteuert oder in dem Auftrag, der ihn fortführt. Eine
-    # Rückgabe-Linie behauptete einen Weg, den es nicht mehr gibt – im gemeldeten Fall genau
-    # dort, wo der Abzweig alles verschrottet hatte und die Kette korrekt gekappt worden war.
-    if (order.status or "") == "inactive":
-        return None
-    # **Kommt überhaupt etwas zurück?** – EINE Frage, EINE Antwort (Testnotizen #492/#563):
-    # gekappt oder nichts mehr da. Sonst zeigte derselbe Abzweig zwei verschiedene Bilder,
-    # weil diese Stelle nur fragte, WEM er zurückgäbe, nicht OB.
+    # **Kommt überhaupt etwas zurück?** – EINE Frage, EINE Antwort (Testnotizen #492/#563/
+    # #590): gekappt, nichts mehr da, oder zu Ende ohne Rückgabe. Sonst zeigte derselbe
+    # Abzweig zwei verschiedene Bilder, weil diese Stelle nur fragte, WEM er zurückgäbe,
+    # nicht OB. Der frühere Sonderfall «abgebrochen → nichts» (#578) stand genau hier – und
+    # damit nur an DIESER Oberfläche: der Teaser im Eltern-Auftrag zeichnete weiterhin eine
+    # Rückgabe-Linie. Er wohnt jetzt in ``returns_material`` und gilt für beide.
     if not returns_material(db, order):
         return None
     if is_fixed_subject(order):
@@ -870,28 +876,43 @@ def _return_target(db: Session, order: Order) -> Order | None:
     return None
 
 
-def returns_material(db: Session, order: Order,
-                     material: list[FlowLot] | None = None) -> bool:
+#: Ein Auftrag, der **zu Ende** ist – abgeschlossen oder abgebrochen. Für ihn ist jede
+#: Aussage über die Zukunft gegenstandslos; es zählt nur noch, was tatsächlich passiert ist.
+ENDED = ("completed", "inactive")
+
+
+def returns_material(db: Session, order: Order, material: list[FlowLot] | None = None,
+                     back: list[FlowLot] | None = None) -> bool:
     """**Kommt aus diesem Auftrag überhaupt etwas zurück?** – EINE Stelle (Testnotiz #492).
 
-    Zwei Gründe, warum nichts zurückkommt, und beide gehören hierher:
+    **Läuft er noch, gilt der Plan; ist er zu Ende, gilt die Tatsache** (Testnotiz #590).
+    Das ist die ganze Regel, und sie ersetzt drei Sonderfälle:
 
+    - **läuft** (draft/released): was er noch **hält**, kommt zurück. Die Linie ist gezeichnet
+      und dünn – geplant, aber noch nichts geflossen.
+    - **zu Ende** (abgeschlossen/abgebrochen): was er **zurückgegeben hat** (``_flow_back``,
+      die Buchungen). Nicht, was er einmal hielt – das kann längst ausgesteuert oder eine
+      Ebene tiefer weitergereicht worden sein. Genau daran führte ein abgebrochener Abzweig
+      im Eltern-Auftrag eine volle Rückgabe-Linie samt «1 Stk kam zurück», während seine
+      **eigene** Ansicht korrekt gar keinen Rückweg zeigte. Der frühere Sonderfall
+      «abgebrochen → nichts» (#578) stand nur an dieser einen Oberfläche; hier gilt er für
+      beide und deckt zugleich den abgeschlossenen Fall mit ab.
     - **gekappt** (``returns_nothing``, Testnotiz #563): der Mensch hat gesagt, dass dieser
       Auftrag sein Material zu Ende führt. Der Verleiher ist dadurch abgebrochen; eine
       Rückgabe-Linie würde einen Weg zeigen, den es nicht mehr gibt.
-    - **nichts mehr da**: was er übernommen hat, minus dem, was den Bestand endgültig
-      verlassen hat. Bleibt nichts, führt die Linie gar nicht erst zurück – die einfachste
-      denkbare Darstellung für «alles verschrottet» bzw. «Menge reduziert» (#481).
 
     Sie steht hier, weil sie an **zwei** Oberflächen gebraucht wird: am Abzweig im
     Eltern-Auftrag und am Rückweg-Knoten im Unter-Auftrag selbst. Wurden sie getrennt
-    hergeleitet, zeigte derselbe Vorgang zwei verschiedene Bilder – genau so ist das Kappen
-    zuerst nur an EINER der beiden angekommen. ``material`` reicht eine bereits berechnete
-    Materialliste durch (der Abzweig hat sie ohnehin), spart also die zweite Abfrage."""
+    hergeleitet, zeigte derselbe Vorgang zwei verschiedene Bilder. ``material``/``back``
+    reichen bereits berechnete Listen durch (der Abzweig hat sie ohnehin)."""
     if order.returns_nothing:
         return False
     if material is None:
         material, _ = order_material(db, order)
+    if (order.status or "") in ENDED:
+        if back is None:
+            back = _flow_back(db, order, material)
+        return sum(x.quantity for x in back) > 0
     return sum(x.quantity for x in returning_material(material)) > 0
 
 
@@ -1278,6 +1299,18 @@ def _waves(db: Session, branches: list) -> list[list]:
     return out
 
 
+def _flow_edge(lots: list[FlowLot], reached: bool, live: bool = False) -> FlowEdge:
+    """**Erreicht ≠ geflossen** – die Strichstärke, an EINER Stelle abgeleitet (#586/#589).
+
+    «Erreicht» heisst: der Prozess war bis hierhin. «Geflossen» heisst: und es ist etwas
+    durchgegangen. Zweigt an einer Stelle ALLES ab, ist der Weg darunter erreicht und
+    trotzdem leer – eine volle Linie behauptete dort, dass etwas durchgekommen sei, und
+    hinterliess an der Einmündung einen schwarzen Stummel auf einer Haarlinie. Der Bypass
+    las die Regel längst aus seinem eigenen Material; jetzt gilt sie für die ganze Achse,
+    und sie steht hier statt zweimal in der Oberfläche."""
+    return FlowEdge(lots=lots, reached=reached, flowed=reached and bool(lots), live=live)
+
+
 def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
     """**Die Prozess-Achse fertig rechnen – das Frontend zeichnet nur noch** (ADR 007).
 
@@ -1373,8 +1406,7 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
         if reached:
             lots = (axis_lots(i, current) if view is not None
                     else (material if current else _as_of(material, cutoffs[i])))
-        return FlowEdge(lots=lots, reached=reached,
-                        live=here is not None and here == (i, False))
+        return _flow_edge(lots, reached, live=here is not None and here == (i, False))
 
     resp.flow_edges = [edge(i) for i in range(len(nodes) + 1)]
     for i, n in enumerate(nodes):
@@ -1402,8 +1434,7 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
             # eine Teilung, die der Prozess noch nicht erreicht hat, weiss nicht, was
             # neben ihr liegen wird. Die Kanten halten sich längst daran; der Bypass tat
             # es nicht und behauptete Material an einer Stelle, an der noch nichts war.
-            node.bypass = FlowEdge(lots=(lots if i <= walked else []),
-                                   reached=i <= walked, live=live_b)
+            node.bypass = _flow_edge(lots if i <= walked else [], i <= walked, live=live_b)
         resp.flow_nodes.append(node)
 
 

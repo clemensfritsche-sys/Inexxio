@@ -251,6 +251,13 @@ def confirm_quantity(db: Session, order: Order, actor_id: int, into: Order | Non
     log_audit(db, "orders", None,
               "Menge bestätigt: " + ", ".join(f"Artikel {a} → {q}" for a, q in changed.items()),
               actor_id, object_id=order.object_id)
+    # **Und die Belege gelten für die neue Menge** (Testnotizen #587/#588): eine Offerte über
+    # 3 Stück ist keine über 2 – der offene Beleg fällt auf seine erste Stufe zurück, damit
+    # die Vereinbarung neu getroffen wird. Der Abbruch-Zweig oben braucht keinen eigenen
+    # Aufruf: er läuft über ``cancel_order_effects``, wo dieselbe Funktion die letzte Stufe
+    # setzt (storniert). Eine Regel, zwei Enden.
+    from .rebase import rebase_documents
+    rebase_documents(db, order, actor_id)
     return {"quantities": {a: q for a, q in changed.items()}}
 
 

@@ -356,6 +356,16 @@ function buildNodes(status: string, isWebshop: boolean, hist: Record<string, His
   }
   // Webshop: nur Bestellt → Wareneingang
   const flow = isWebshop ? FLOW.filter((f) => f.key === 'ordered' || f.key === 'received') : FLOW;
+  if (status === 'cancelled') {
+    // **Storniert kann jede Stufe treffen** – anders als «Abgelehnt», das nur aus «Offeriert»
+    // erreichbar ist. Gezeigt wird darum der Weg, der tatsächlich gegangen wurde (aus dem
+    // Verlauf), und am Ende die Stufe, an der es endete.
+    return [
+      ...flow.filter((f) => hist[f.key]).map((f) => (
+        { key: f.key, label: f.label, state: 'done' as const, hint: hint(hist[f.key]) })),
+      { key: 'cancelled', label: 'Storniert', state: 'rejected', hint: hint(hist.cancelled) },
+    ];
+  }
   const ci = flow.findIndex((f) => f.key === status);
   // Im Webshop ist „requested" der Zustand vor „Bestellt" → erster Knoten aktiv
   const current = isWebshop && status === 'requested' ? 0 : ci;

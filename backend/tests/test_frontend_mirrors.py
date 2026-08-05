@@ -498,9 +498,25 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # Spurbreiten: seither ist der Weg von der Achse zur Spurmitte eine Konstante (#445).
     assert "borderRadius" not in line.split("const ELBOW")[1].split("function Row")[0], (
         "Ecken werden gezeichnet, nicht aus Rahmenkanten zusammengesetzt.")
-    # **Und die Abzweigung ist eine Gabelung, kein T** (Notiz #456): die Linie biegt oben mit
-    # demselben Radius aus der Achse ab, mit dem sie unten wieder einmündet.
-    assert "top: -BEND" in line, "Der Fork beginnt über der Zelle, mitten auf der Achse."
+    # **Eine Form-Regel: der Anschluss MITTEN auf der Achse ist ein T, der an ihrem Ende eine
+    # Ecke** (Testnotiz #586, präzisiert #456). Fork und Merge liefen ein Stück ENTLANG der
+    # Achse (erst ``BEND`` hinunter, dann hinaus) – dieses Stück ist Achse und Ecke zugleich,
+    # und trug es eine andere Strichstärke als das Achsenstück daneben, blieb genau dort ein
+    # schwarzer Stummel auf einer Haarlinie stehen (gemessen: 7.6 px). Ein T berührt die
+    # Achse in einem Punkt; die Frage ist damit gegenstandslos.
+    fork = line.split("'fork-right':")[1].split("'merge-right':")[0]
+    merge = line.split("'merge-right':")[1].split("// Nachbar-Spur")[0]
+    assert "[[0, 0], [RUN, 0], [RUN, ARM]]" in fork, (
+        "Die Abzweigung ist ein T: waagrecht aus der Achse, EINE Ecke in die Spur (#586).")
+    assert "[[RUN, 0], [RUN, ARM], [0, ARM]]" in merge, (
+        "Die Einmündung ist ihr Spiegelbild – kein Stück Weg auf der Achse.")
+    # **Spiegelbilder heisst: die waagrechte Linie liegt auf ihrem Anschlusspunkt** – oben am
+    # Anfang der Zeile, unten an ihrem Ende. Erst dadurch steht das Material ohne
+    # Korrekturglied mittig zwischen ihnen (der frühere ``BEND``-Ausgleich ist entfallen).
+    assert "top: 0" in fork and "bottom: 0" in merge, (
+        "Waagrecht genau auf dem Anschlusspunkt – sonst braucht die Mitte ein Korrekturglied.")
+    assert "<Axis h={BEND}" not in flow, (
+        "Und genau dieses Korrekturglied darf es nicht mehr geben (#586).")
     assert "<path d={roundedPath(overlapped(pts), BEND)}" in line and "strokeWidth={lineW" in line, (
         "Ein Strich, eine Strichstärke – ein echter Viertelkreis (#423/#430/#431).")
     # **Die Bogen-Mathematik steht EINMAL da.** Vier handgeschriebene Pfade mit je eigenen
@@ -590,8 +606,18 @@ def test_what_has_been_walked_is_a_strong_solid_line():
     fill = _inspect.getsource(_osvc._fill_flow_view)
     assert "reached=i <= walked" in fill, (
         "Kante i liegt über Knoten i – sie ist gegangen, wenn alles darüber erledigt ist.")
-    assert "<Axis strong={edge.reached} />" in flow, (
-        "Die Achse liest den Fortschritt vom Server – sie rechnet ihn nicht selbst.")
+    # **Erreicht ≠ geflossen** (Testnotizen #586/#589): zweigt an einer Stelle ALLES ab, ist
+    # der Weg darunter erreicht und trotzdem leer – eine volle Linie behauptete dort, es sei
+    # etwas durchgegangen. Der Bypass las das längst aus seinem Material; jetzt gilt die
+    # Regel für die ganze Achse, und sie steht an EINER Stelle im Backend.
+    assert "def _flow_edge(" in _inspect.getsource(_osvc), (
+        "Die Strichstärke wird an EINER Stelle abgeleitet.")
+    assert "flowed=reached and bool(lots)" in _inspect.getsource(_osvc._flow_edge), (
+        "«Geflossen» heisst: erreicht UND es lag etwas darauf (#589).")
+    assert "<Axis strong={edge.flowed} />" in flow, (
+        "Die Achse liest die Strichstärke vom Server – sie rechnet sie nicht selbst.")
+    assert "bypass.lots.length > 0" not in flow, (
+        "…und der Bypass rechnet sie nicht mehr ein zweites Mal selbst.")
     # **Und die Regel gilt überall gleich** (Notiz #429): auch der Weg in einen Abzweig und
     # zurück ist ein gegangener Weg. Gestrichelte Linien gibt es im Fluss nicht mehr – sie
     # waren eine zweite Aussage neben «stark ↔ Haarlinie» und haben sie überschrieben, sobald
@@ -603,16 +629,19 @@ def test_what_has_been_walked_is_a_strong_solid_line():
     # eine Reihenfolge voraus – und zwischen gleichzeitig laufenden Ästen gibt es keine. Zu
     # jedem gestarteten Ast ist ein Weg gegangen worden, also hängt die Stärke dort an SEINEM
     # Zustand; sonst bekam der zweite, ebenfalls laufende Unter-Auftrag nur eine Haarlinie.
-    # **Eine Ecke trägt die Strichstärke IHRER Achse.** Trafen dort zwei verschiedene Bits
-    # aufeinander (3 px Achse ↔ 2 px Ecke), stand an der Ecke ein sichtbarer Versatz – ein
-    # halbes Pixel auf jeder Seite. Beide lesen jetzt DASSELBE Bit der Server-Sicht:
-    # oben `reached` (der Weg in die Teilung), unten `passed` (der Rückweg auf die Achse).
-    assert '<Elbow dir="fork-right" strong={reached} />' in flow, (
+    # **Eine Ecke trägt die Strichstärke IHRER Achse.** Der Fork hängt an der Kante ÜBER der
+    # Teilung und liest darum genau deren Bit. Der Merge ist der Rückweg – er ist stark, wenn
+    # wirklich etwas zurück IST (die Buchungen, ``flow_back``). Vorher hing er am Fortschritt
+    # der Achse: ein abgebrochener Abzweig, durch den nie etwas zurückfloss, bekam eine volle
+    # schwarze Linie (Testnotiz #590). Dünn heisst hier das Richtige – geplant, nichts gekommen.
+    assert '<Elbow dir="fork-right" strong={flowed} />' in flow, (
         "Fork und das Achsenstück darüber lesen dasselbe Bit.")
-    assert '<Elbow dir="merge-right" strong={passed} />' in flow, (
-        "Merge und das Achsenstück darunter ebenso – erst wenn die Teilung durch ist.")
-    assert "reached={n.reached} passed={n.passed}" in flow, (
-        "Beide Bits kommen aus der Server-Sicht, nicht aus einer zweiten FE-Regel.")
+    assert '<Elbow dir="merge-right" strong={returned} />' in flow, (
+        "Der Rückweg ist stark, wenn etwas zurück IST – nicht wenn die Achse weiterläuft.")
+    assert "const returned = back.some((b) => (b.flow_back ?? []).length > 0);" in flow, (
+        "Und «zurück» sagen die Buchungen, nicht der Fortschritt (#590).")
+    assert "right={<BranchArm branches={branches} flowed={edge.flowed}" in flow, (
+        "Das Bit der Abzweigung kommt aus der Server-Sicht, nicht aus einer zweiten FE-Regel.")
 
 
 def test_the_flow_shows_what_material_moves():
@@ -716,11 +745,20 @@ def test_the_flow_shows_what_material_moves():
     # daran ist das Kappen zuerst nur an EINER der beiden Oberflächen angekommen: die eigene
     # Ansicht zeigte keinen Rückweg, der Teaser im Eltern zeichnete trotzdem eine Linie.
     embed_src = _inspect.getsource(ord_svc._sub_info)
-    assert "returns_material=returns_material(db, sub, material)" in embed_src, (
+    assert "returns_material=returns_material(db, sub, material" in embed_src, (
         "Der Abzweig fragt dieselbe Ableitung, statt sie ein zweites Mal zu rechnen.")
     ret_src = _inspect.getsource(ord_svc.returns_material)
     assert "if order.returns_nothing:" in ret_src and "return False" in ret_src, (
         "Gekappt heisst: es kommt nichts zurück – und zwar an BEIDEN Oberflächen (#563).")
+    # **Läuft er noch → der Plan; ist er zu Ende → die Tatsache** (Testnotiz #590). Der frühere
+    # Sonderfall «abgebrochen → nichts» (#578) stand in ``_return_target`` und galt damit nur
+    # für die eigene Ansicht des Abzweigs; im Eltern-Auftrag zeichnete derselbe Vorgang
+    # weiterhin eine volle Rückgabe-Linie samt Phantom-Menge.
+    assert '(order.status or "") in ENDED' in ret_src, (
+        "Ein Auftrag, der zu Ende ist, gibt zurück, was er zurückGEGEBEN hat (#590).")
+    assert 'if (order.status or "") == "inactive":' not in _inspect.getsource(
+            ord_svc._return_target), (
+        "…und diese Regel steht genau EINMAL – nicht zusätzlich am Rückweg-Knoten.")
 
 
 def test_the_material_trace_is_gone():
@@ -783,7 +821,7 @@ def test_a_split_has_three_places_not_two():
         "Zurückgekehrtes lief durch den Ast, nicht daran vorbei (#505).")
     assert 'lots = _minus(base, [l for b in n["branches"] for l in (b.flow_in or [])])' in fill, (
         "Nur der Alt-Auftrag ohne Journal zieht das Hineingegangene ab (tolerant lesen).")
-    assert "node.bypass = FlowEdge(" in fill and "live=live_b" in fill, (
+    assert "node.bypass = _flow_edge(" in fill and "live=live_b" in fill, (
         "Der Bypass ist eine eigene Kante – nicht die von unterhalb der Zusammenführung.")
     assert "lots if i <= walked else []" in fill, (
         "Und er sagt nichts über eine Teilung, die der Prozess noch nicht erreicht hat – "
@@ -806,6 +844,12 @@ def test_a_split_has_three_places_not_two():
         "Was zurück IST, kommt aus den Buchungen – keine Vorhersage aus dem Hineingegangenen.")
     assert 'if sub.status in ("draft", "released")' in back_src, (
         "Alt-Aufträge ohne Journal: leer solange er läuft, danach die abgeleitete Rückgabe.")
+    # **Und NUR für die** (Testnotiz #590): hat der Auftrag ein Journal, ist «keine
+    # Rückgabe-Buchung» die Antwort – nicht der Anlass, doch wieder abzuleiten. Sonst las
+    # sich die Weitergabe an eine Ebene tiefer als Rückgabe nach oben («1 Stk kam zurück»
+    # nach einem Modul, das nie ausgeführt wurde).
+    assert "ledger.order_view(db, sub.id) is not None" in back_src, (
+        "Mit Journal gilt das Journal – die Ableitung ist der Lesepfad für Altbestand (#590).")
     assert "returning_material" in _inspect.getsource(osvc.returns_material), (
         "«Kommt etwas zurück?» und «was kommt zurück?» sind EINE Ableitung.")
 
@@ -856,9 +900,9 @@ def test_parallel_sub_orders_are_one_split_in_several_directions():
     assert "{i > 0 && <Axis h={20} strong={branchStarted(b)} />}" in flow, (
         "Auch der zweite, gleichzeitig laufende Ast bekommt eine volle Linie – das Stück "
         "ZWISCHEN zwei Ästen ist keine Ecke an der Achse, es hängt an seinem Ast.")
-    assert '<Elbow dir="merge-right" strong={passed} />' in flow, (
-        "Zurück auf die Achse geht es erst, wenn die GANZE Teilung durch ist – dasselbe "
-        "Bit, das auch das Achsenstück darunter trägt.")
+    assert '<Elbow dir="merge-right" strong={returned} />' in flow, (
+        "Zurück auf die Achse führt eine starke Linie erst, wenn wirklich etwas zurück IST "
+        "(#590) – vorher hing sie am Fortschritt der Achse.")
     assert "function BranchCell" not in flow, (
         "Fork und Merge gehören der Teilung, nicht dem einzelnen Ast.")
 

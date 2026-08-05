@@ -78,6 +78,22 @@ class EventType:
     status_field: str | None = None
     done: tuple = ()
     failed: tuple = ()
+    # **Ein Beleg gilt für die Menge, für die er ausgestellt wurde** (Testnotizen #587/#588).
+    # Ändert sie sich, fällt er auf seine **erste Stufe** zurück (``reset``); fällt sie auf
+    # **null**, auf seine **letzte** (``voided`` – storniert). Das ist EINE Regel mit zwei
+    # Enden, kein zweiter Mechanismus: «Menge reduzieren» und «alles entzogen» sind derselbe
+    # Vorgang, nur die Stufe ist eine andere – und die steht hier, nicht als if/else im Code.
+    #
+    # ``reset_fields`` = die Zahlen, die die **Vereinbarung** ausdrücken. Sie gelten für die
+    # alte Menge und werden beim Zurückfallen geleert; sonst stünde beim Lieferanten eine
+    # Bestellsumme für 3 Stück neben einer Menge von 2.
+    #
+    # Ein Typ, der nichts davon deklariert, ist **nicht** ausgenommen – er hat schlicht keine
+    # Stufen: Bewegung, Ressource und Aussondern schreiben ihre Zeile erst, wenn die Handlung
+    # geschehen ist. Sie ist damit Vergangenheit, und die wird nicht umgeschrieben.
+    reset: object = None
+    reset_fields: tuple = ()
+    voided: object = None
     # **Kein Flag dafür, wen eine Fehlmenge aufhält.** Hier stand kurzzeitig ``hands_over``
     # («gibt dieser Schritt die Menge weiter?»), damit nur Verkauf und Ressource blockieren.
     # Das ist zurückgenommen: eine Fehlmenge gehört dem **Auftrag**, nicht einem Schritt –
@@ -88,8 +104,16 @@ class EventType:
 
 # Reihenfolge = natürliche Lese-/Anzeigereihenfolge.
 REGISTRY: dict[str, EventType] = {
+    # **«Storniert» ist ein bestehendes Wort im Haus** (Verkauf, Sendung, Warenkorb tragen es
+    # längst) – die Beschaffung bekommt es dazu, statt ein neues zu erfinden. Es ist NICHT
+    # dasselbe wie «Abgelehnt»: abgelehnt heisst, der Besteller sagt zu einer Offerte nein
+    # (eine Entscheidung); storniert heisst, der Vorgang hat seinen Gegenstand verloren.
     "purchase":   EventType("purchase",   "Beschaffen",     INCREASE, PRODUCE,  "PurchaseOrder", PROV_RECEIVING,
-                            status_field="status", done=("received",), failed=("rejected",)),
+                            status_field="status", done=("received",),
+                            failed=("rejected", "cancelled"),
+                            reset="requested", voided="cancelled",
+                            reset_fields=("order_total", "lead_time_days", "payment_terms_days",
+                                          "landed_unit_cost")),
     "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT),
     "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE,
                             status_field="result", done=("passed",), failed=("failed",)),
@@ -109,7 +133,9 @@ REGISTRY: dict[str, EventType] = {
     # aus dem Subjekt ABGELEITET, kein eigener Schritttyp. Der physische Rückfluss läuft über die
     # **Bewegung** (verkauft ↔ am Lager, je nach Ziel), die Geld-Seite über diesen Schritt.
     "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale",          PROV_CUSTOMER,
-                            status_field="status", done=("paid",), failed=("cancelled",)),
+                            status_field="status", done=("paid",), failed=("cancelled",),
+                            reset="requested", voided="cancelled",
+                            reset_fields=("order_total",)),
     # **Dokument**: der Auftrag erzeugt – wie jeder Erzeugungsauftrag – eine Instanz; das
     # Dokument (Fachtabelle ``Document``) hängt daran (Nummer = Instanz-Objektnummer, Datum =
     # Instanz-Freigabe). Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE → der Auftrag
