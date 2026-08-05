@@ -988,6 +988,18 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
         // der Entwurf lebt nur im Browser und hinterlässt nichts. Ein Knopf dafür wäre ein
         // zweiter Weg für etwas, das ohnehin von selbst passiert.
         right={demandEditable && !isCreate ? <SaveIndicator saving={saving} flash={flash} /> : undefined}
+        // Reiter nur fürs Personal – der Lieferant sieht seinen Ausschnitt. Ohne sie setzt
+        // der Kopf seinen Fussabstand selbst (Notiz #595): vorher klebte die
+        // Objektnummer-Zeile ohne Abstand auf der Kopf-Haarlinie, weil `paddingBottom: 0`
+        // allein den Reitern gilt.
+        tabs={isStaff ? (
+          <DetailTabs<OrderTab> active={tab} onChange={setTab} tabs={[
+            { key: 'auftrag', label: 'Auftrag', icon: ClipboardList },
+            // Dokumente hängen an der Objektnummer – die gibt es erst mit der Freigabe.
+            { key: 'docs', label: 'Dokumente', icon: FolderOpen, disabled: isCreate,
+              hint: isCreate ? 'Verfügbar, sobald der Auftrag erteilt ist' : undefined },
+          ]} />
+        ) : undefined}
         actions={(
           <>
             {!isCreate && record.object_id != null && (
@@ -1026,15 +1038,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
       >
         {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
-        )}
-        {/* Reiter (nur Personal, nur bei bestehendem Auftrag): Dokumente-Reiter dazu. */}
-        {isStaff && (
-          <DetailTabs<OrderTab> style={{ marginTop: 10 }} active={tab} onChange={setTab} tabs={[
-            { key: 'auftrag', label: 'Auftrag', icon: ClipboardList },
-            // Dokumente hängen an der Objektnummer – die gibt es erst mit der Freigabe.
-            { key: 'docs', label: 'Dokumente', icon: FolderOpen, disabled: isCreate,
-              hint: isCreate ? 'Verfügbar, sobald der Auftrag erteilt ist' : undefined },
-          ]} />
         )}
       </DetailHeader>
 
@@ -1135,7 +1138,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Pflichtfelder: Artikel und Menge</div>
               )}
           </div>
-        ) : showProcess ? null : (
+        ) : (showProcess || !isStaff) ? null : (
+          // Für Nicht-Personal gibt es sie gar nicht (Notiz #594): sie zählt Artikel, Menge
+          // und Instanzen des Kunden auf – der Lieferant sieht seinen Beleg.
+          //
           // **Sobald der Prozess läuft, sagt er alles** (Notiz #447) – die Karte entfällt:
           // welche Instanz mit welcher Menge unterwegs ist, steht auf den Kanten des Flusses
           // (samt Artikel und Standort im Hover, #426), und das **Ziel** – Wunsch-Liefertermin
@@ -1421,12 +1427,10 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   onSaved: (o: Order) => void;
 }) {
   if (!step) return null;
-  // **Ein Lieferant sieht den ganzen Prozess, bedient aber nur seinen Schritt** (Notiz #592).
-  // Die Modul-Karte bleibt im Fluss – der Ablauf soll ehrlich sein –, sie klappt für ihn
-  // nur nichts auf. Das ist die Grenze zwischen «sehen» und «tun»; das Backend zieht sie
-  // ohnehin (jeder andere Ausführungs-Endpunkt verlangt Personal), hier wird sie sichtbar,
-  // statt in eine Fehlermeldung zu laufen.
-  if (viewerRole !== 'staff' && step.step_type !== 'purchase') return null;
+  // **Ein Lieferant sieht den Auftrag durch SEIN Modul** (Notiz #594, ersetzt #592): die
+  // übrigen Schritte kommen gar nicht erst mit – der Server schickt ihm nur seine eigene
+  // Beschaffung (`orders._own_steps`). Hier steht darum **kein** zweiter Filter: eine
+  // Grenze im Frontend wäre ohnehin nur eine Bitte.
   const stepOrder: Order = {
     ...order,
     purchase: (step.purchase ?? order.purchase) as Order['purchase'],

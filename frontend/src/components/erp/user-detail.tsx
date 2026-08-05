@@ -571,14 +571,13 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
             )}
           </>
         ) : undefined}
-      >
-        <DetailTabs<UserTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
+        tabs={<DetailTabs<UserTab> active={tab} onChange={setTab} tabs={[
           { key: 'profil', label: 'Profil', icon: User },
           { key: 'orders', label: 'Bestellungen', icon: ShoppingBag },
           { key: 'verwendung', label: 'Verwendung', icon: Link2 },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
-        ]} />
-      </DetailHeader>
+        ]} />}
+      />
 
       {/* **Deaktivieren ist umkehrbar – aber es sperrt die Anmeldung.** Darum eine Frage,
           aber nur eine: der Klick auf den Weg IST die Ausführung (Notiz #152). */}

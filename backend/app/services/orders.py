@@ -38,6 +38,29 @@ from .subject import TERMINAL_DISPOSITIONS, held_quantity, order_instances, subj
 _STAFF_ROLES = ("admin", "employee")
 
 
+def _own_steps(db: Session, steps: list[dict], viewer: UserProfile | None) -> list[dict]:
+    """**Ein Nicht-Personal-Betrachter sieht den Auftrag durch SEIN Modul** (Testnotiz #594).
+
+    Die Runde davor (#592) hatte ihm den vollständigen Prozess gezeigt und nur die Bedienung
+    beschränkt – der Ablauf sei schliesslich ehrlich. Der Nutzer hat das zurückgenommen, und
+    zu Recht: was intern mit dem Material geschieht (welche Prüfung, welche Bewegung, welcher
+    Verkauf), geht den Lieferanten nichts an. Er sieht seine Beschaffung, sonst nichts.
+
+    **Und zwar SEINE:** ein Auftrag darf mehrere Beschaffungs-Schritte mit verschiedenen
+    Lieferanten haben – der eine sah bisher das Modul des anderen. Massgeblich ist der
+    Beleg, nicht der Schritttyp.
+
+    Die Grenze steht **hier**, nicht in der Oberfläche: ein Filter im Frontend wäre eine
+    Bitte, keine Grenze (dieselbe Begründung, mit der schon der Verkaufs-Embed gar nicht
+    erst mitgeht)."""
+    if viewer is None or (viewer.role or "") in _STAFF_ROLES:
+        return steps
+    if (viewer.role or "") != "supplier":
+        return []
+    return [s for s in steps if s["step_type"] == "purchase"
+            and any(getattr(f, "supplier_id", None) == viewer.id for f in s["facts"])]
+
+
 def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     """**Einheitliche Auftrags-Freigabe** (draft → released) – EIN Pfad für ERP-Freigabe,
     Shop-Zahlung und Nachschub (kein Sonderpfad):
@@ -1132,10 +1155,11 @@ def _attach_step_embed(db: Session, order: Order, s: dict, si: OrderStepInfo,
         return _purchase_received(embs[0]) if done else (None, None)
 
     if kind == "sale":
-        # **Der Verkauf gehört nicht zur Lieferantensicht** (Testnotiz #592). Der Lieferant
-        # sieht sonst denselben Prozess wie das Personal – aber Kunde, Betrag und Marge sind
-        # keine Frage der Darstellung, sondern der Vertraulichkeit. Das Modul bleibt als
-        # Karte im Fluss (der Ablauf ist ehrlich), sein Inhalt kommt gar nicht erst mit.
+        # **Der Verkauf gehört nicht zur Lieferantensicht** (Testnotiz #592). Seit #594 kommt
+        # der Schritt für ihn ohnehin nicht mehr mit (``_own_steps``) – diese Prüfung bleibt
+        # trotzdem stehen: Kunde, Betrag und Marge sind Vertraulichkeit, und die sichert man
+        # dort, wo die Daten entstehen. Das ist keine zweite Regel, sondern dieselbe näher
+        # an der Quelle.
         if viewer is not None and (viewer.role or "") not in _STAFF_ROLES:
             return None, None
         # EIN `sale`-Schritt, ZWEI Modi (aus dem Subjekt abgeleitet): Verkauf (kind='sale')
@@ -1326,7 +1350,8 @@ def _flow_edge(lots: list[FlowLot], reached: bool, live: bool = False) -> FlowEd
     return FlowEdge(lots=lots, reached=reached, flowed=reached and bool(lots), live=live)
 
 
-def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
+def _fill_flow_view(db: Session, order: Order, resp: OrderResponse,
+                    material_visible: bool = True) -> None:
     """**Die Prozess-Achse fertig rechnen – das Frontend zeichnet nur noch** (ADR 007).
 
     Baut aus den Schritten und ihren Abzweigen die Knotenliste (dieselbe Ordnung, die die
@@ -1370,8 +1395,10 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse) -> None:
     here = (None if not running
             else (len(nodes), False) if walked == len(nodes)
             else (walked, nodes[walked]["kind"] == "split"))
+    # **Ohne Material bleiben die Kanten leer** (Notiz #594): der Lieferant sieht seinen
+    # Beleg, nicht den Bestand seines Kunden – wie viel er zu liefern hat, steht dort.
     material = resp.flow_lots
-    view = ledger.order_view(db, order.id) if order.id else None
+    view = ledger.order_view(db, order.id) if order.id and material_visible else None
 
     # **Was in einen Abzweig ging, liegt unterhalb seiner Teilung nicht mehr auf der
     # Achse** – es steht in SEINER Spur, und was zurückkam, ist wieder gehalten (die
@@ -1476,14 +1503,17 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     dem passenden Ausführungs-Embed (Mehr-Operationen-Routing).
 
     ``viewer``: der anfragende Nutzer, wenn der Endpoint auch Nicht-Personal bedient
-    (Lieferant/Kunde) – filtert dann den Dokument-Inhalt nach ``doc_visibility``.
-    ``None`` = interner/Personal-Aufruf (ungefiltert)."""
+    (Lieferant/Kunde) – er sieht dann nur **sein** Modul (``_own_steps``, Notiz #594) und
+    Dokument-Inhalte nur nach ``doc_visibility``. ``None`` = interner/Personal-Aufruf
+    (ungefiltert)."""
+    internal = viewer is None or (viewer.role or "") in _STAFF_ROLES
     resp = OrderResponse.model_validate(order)
     # Derselbe Unter-Auftrag erscheint in der Auftrags-Liste UND am Schritt, aus dem er
     # hervorging – sein Teaser-Ablauf wird darum je Antwort nur einmal abgeleitet.
     sub_steps: dict[int, list[SubOrderStep]] = {}
-    (resp.deviations, resp.supply_orders, resp.returns,
-     resp.provisionings) = _order_sub_orders(db, order, sub_steps)
+    if internal:
+        (resp.deviations, resp.supply_orders, resp.returns,
+         resp.provisionings) = _order_sub_orders(db, order, sub_steps)
     _fill_origin(db, order, resp)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
     if order.object_id:
@@ -1496,14 +1526,13 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
 
     instances = order_instances(db, order)
     resp.instances = _instance_embeds(db, order, instances)
-    # **Das Material auf den Kanten seiner Achse** (Notiz #426) – aus **derselben** Quelle wie
-    # am Abzweig (``order_material``), damit derselbe Vorgang nicht je nach Blickrichtung zwei
-    # Zahlen trägt (#479/#480/#482).
-    resp.flow_lots, resp.flow_lost = order_material(db, order, instances)
-    # **Der Prozessbaum** (Notiz #493): woher dasselbe Material kam, wohin es weiterging.
-    # **Was ist passiert** (ADR 007): das Journal dieses Auftrags – nur fürs Personal (die
-    # Lieferanten-/Kunden-Sicht ist auf ihren Ausschnitt beschränkt).
-    if viewer is None or (viewer.role or "") in _STAFF_ROLES:
+    # **Was den internen Lauf des Auftrags beschreibt, geht nur ans Personal** (#594):
+    # das Material auf den Kanten (aus **derselben** Quelle wie am Abzweig,
+    # ``order_material`` – damit derselbe Vorgang nicht je nach Blickrichtung zwei Zahlen
+    # trägt, #479/#480/#482) und der Verlauf aus dem Journal (ADR 007). Der Lieferant
+    # sieht seinen Ausschnitt; wie viel er zu liefern hat, steht in seinem Beleg.
+    if internal:
+        resp.flow_lots, resp.flow_lost = order_material(db, order, instances)
         resp.history = _order_history_views(db, order)
 
     # Auftrag-Stepper: je Schritt der passende Ausführungs-Embed + Abschluss-Info.
@@ -1513,7 +1542,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     first: dict[str, object] = {}
     # build_order_steps lädt Definitionen + Fachzeilen je EINMAL und liefert die
     # aufgelöste Fachzeile gleich mit (kein erneutes Nachladen je Schritt).
-    for s in process.build_order_steps(db, order):
+    for s in _own_steps(db, process.build_order_steps(db, order), viewer):
         step = s["step"]
         si = OrderStepInfo(id=s["id"], step_type=s["step_type"], position=s["position"],
                            label=s["label"], state=s["state"])
@@ -1556,7 +1585,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
             resp.seller_company_name = seller.company_name
     # **Die fertig gerechnete Achse** – zuletzt, denn sie liest Schritte, Abzweige und
     # Material aus der Antwort selbst (eine Ableitung, ein Moment).
-    _fill_flow_view(db, order, resp)
+    _fill_flow_view(db, order, resp, material_visible=internal)
     return resp
 
 

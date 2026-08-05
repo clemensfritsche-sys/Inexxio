@@ -187,6 +187,28 @@ export const aside = (to: 'left' | 'right', style?: React.CSSProperties) => ({
 });
 
 /**
+ * **Die Hauptspur – EINE feste Breite für jeden Prozess** (Testnotiz #597).
+ *
+ * Ein Modul war beim Hinzufügen, nach dem Zwischenspeichern und nach der Freigabe
+ * verschieden breit, weil die Breite an drei Stellen entstand: im Fluss als **feste**
+ * Spaltenbreite, im Schritt-Editor als `max-width` je Karte (also «so breit wie der Platz,
+ * höchstens …»), und der Platz war je nach Fenster ein anderer. Eine Obergrenze ist keine
+ * Breite – sie schwankt mit ihrer Umgebung.
+ *
+ * Darum gibt es die Spur als **einen** Baustein: der laufende Fluss setzt sie in seine
+ * Mitte, der Editor stellt sich hinein. Danach kann keine Karte mehr eine zweite Breite
+ * haben – sie füllt schlicht ihre Spur.
+ */
+export function Lane({ children }: { children?: React.ReactNode }) {
+  return (
+    <div style={{ width: MAIN, maxWidth: '100%', flex: 'none', display: 'flex',
+      flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * Eine Zeile des Flusses: die Achse in der Mitte, links Herkunft, rechts Abzweige.
  * Die Spuren sind fest breit; ohne Nachbarn fällt die Spurbreite auf 0 (`--flow-lane`).
  */
@@ -199,10 +221,7 @@ export function Row({ children, left, right }: {
         justifyContent: 'flex-start', alignItems: 'center' }}>
         {left && <div style={{ width: SIDE, minWidth: 0 }}>{left}</div>}
       </div>
-      <div style={{ width: MAIN, flex: 'none', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', minWidth: 0 }}>
-        {children}
-      </div>
+      <Lane>{children}</Lane>
       <div style={{ width: 'var(--flow-lane)', flex: 'none', display: 'flex',
         justifyContent: 'flex-end', alignItems: 'center' }}>
         {right && <div style={{ width: SIDE, minWidth: 0 }}>{right}</div>}

@@ -74,6 +74,30 @@ def test_station_4_das_journal_bleibt_ausgeglichen(db, chain):
     assert any(b.disposition == "scrapped" and v == 1 for b, v in lots.items()), lots
 
 
+def test_ein_ganz_ausgesteuertes_teil_ist_kein_drift(db, world):
+    """**Die Menge verschwindet nicht, nur der Zustand ändert sich** (#481) – auch im Wächter.
+
+    Eine ganz ausgesteuerte Instanz BEHÄLT ihre Menge; im Journal liegt sie danach
+    vollständig im terminalen Topf. «Lebend 0 ≠ Projektion 1» ist deshalb kein Drift,
+    sondern genau das erwartete Bild – die Projektion sagt es über ihre eigene
+    ``disposition``. Der Wächter meldete es trotzdem, und zwar bei **jedem** Ausschuss
+    (Systemprotokoll zu #598). Ein Wächter, der im Normalbetrieb anschlägt, ist von einem
+    kaputten nicht zu unterscheiden."""
+    from app.services import ledger
+
+    user, art = world
+    order, inst = _make_order(db, art, user, 1)
+    dev = _make_deviation(db, order, inst, user, 1, steps=("scrap",))
+    _scrap(db, dev, inst, user, 1)
+    db.refresh(inst)
+
+    assert inst.disposition == "scrapped" and inst.quantity == Decimal(1), (
+        "Die Instanz behält ihre Menge – ihr Endzustand IST die «Wo»-Aussage (#481).")
+    assert ledger.verify_instance(db, inst) == [], (
+        "Journal und Projektion sagen dasselbe: alles im terminalen Topf. Das ist kein "
+        "Widerspruch, den man melden müsste.")
+
+
 def test_station_5_die_kante_zeigt_EINE_zeile_je_zustand(db, chain):
     """Der Fluss des Hauptauftrags: keine doppelte Zeile derselben Instanz (#520)."""
     from app.services.orders import to_order_response

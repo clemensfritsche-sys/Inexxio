@@ -332,7 +332,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
  */
 export function DetailHeader({
   icon: Icon, iconBg, iconFg, avatar, eyebrow, title, placeholder = 'Ohne Bezeichnung',
-  objectId, objectIdText, objectIdHint, actions, status, right, onBack, children,
+  objectId, objectIdText, objectIdHint, actions, status, right, onBack, children, tabs,
 }: {
   icon?: ElementType;
   iconBg?: string;
@@ -356,11 +356,21 @@ export function DetailHeader({
   /** Rechte Spalte NEBEN dem Status (Speicher-Anzeige, «Abbrechen» beim Anlegen). */
   right?: ReactNode;
   onBack?: () => void;
-  /** Banner und Reiter unter der Kopfzeile. */
+  /** Banner unter der Kopfzeile. */
   children?: ReactNode;
+  /**
+   * Die **Reiter-Zeile** – Teil der Kopf-Anatomie, nicht beliebiges Kind (Notiz #595).
+   *
+   * Nur ihretwegen hat der Kopf `paddingBottom: 0`: der rote Aktiv-Balken eines Reiters
+   * soll genau auf der Kopf-Haarlinie liegen (#290). Wo es **keine** Reiter gibt – der
+   * Lieferant sieht keine –, klebte die Objektnummer-Zeile darum ohne jeden Abstand auf
+   * der Linie. Als eigener Slot entscheidet der Kopf das selbst, und die Aufrufer können
+   * beim Abstand nicht mehr auseinanderlaufen (sie trugen 10 px und 16 px).
+   */
+  tabs?: ReactNode;
 }) {
   return (
-    <div style={DH.head}>
+    <div style={{ ...DH.head, paddingBottom: tabs ? 0 : 14 }}>
       {onBack && (
         <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3 md:hidden" style={{ color: 'var(--accent)' }}>
           <ArrowLeft size={15} /> Zurück
@@ -396,6 +406,7 @@ export function DetailHeader({
         )}
       </div>
       {children}
+      {tabs && <div style={{ marginTop: 14 }}>{tabs}</div>}
     </div>
   );
 }
@@ -429,9 +440,10 @@ export function HeaderSep() {
 
 export const DH: Record<string, React.CSSProperties> = {
   head: {
-    // paddingBottom 0: die Reiter sitzen bündig an der Unterkante des Kopf-Containers, sodass
-    // der rote Aktiv-Balken (2px border-bottom je Reiter) genau auf der Kopf-Haarlinie liegt –
-    // nicht mehr 20px darüber schwebend (Notiz #290, gilt für ALLE Detailköpfe via DH.head).
+    // paddingBottom 0 **mit** Reitern: sie sitzen bündig an der Unterkante, sodass der rote
+    // Aktiv-Balken (2px border-bottom je Reiter) genau auf der Kopf-Haarlinie liegt – nicht
+    // mehr 20px darüber schwebend (Notiz #290). Ohne Reiter setzt `DetailHeader` den
+    // Fussabstand selbst (Notiz #595); der Wert hier ist darum nur der Ausgangspunkt.
     padding: '20px clamp(14px, 4vw, 28px) 0', borderBottom: '1px solid var(--border-1)',
     background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0,
   },

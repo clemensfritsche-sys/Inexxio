@@ -428,9 +428,15 @@ def verify_instance(db: Session, inst: Instance) -> list[str]:
     if not bal and not db.query(MaterialMove.id).filter(
             MaterialMove.instance_object_id == inst.object_id).first():
         return finds   # noch kein Journal – Alt-Instanz, nichts zu prüfen
-    live = sum((v for b, v in bal.items() if b.disposition not in TERMINAL), ZERO)
-    if live != to_qty(inst.quantity):
-        finds.append(f"Instanz {inst.object_id}: Journal lebend {live} ≠ Projektion {inst.quantity}")
+    # Eine ganz ausgesteuerte Instanz BEHÄLT ihre Menge (die Menge verschwindet nicht, nur
+    # der Zustand ändert sich – Testnotiz #481); im Journal liegt sie dann vollständig im
+    # terminalen Topf. «Lebend 0 ≠ Projektion 1» wäre hier kein Drift, sondern genau das
+    # erwartete Bild – die Projektion sagt es über ihre eigene ``disposition``.
+    if (inst.disposition or "") not in TERMINAL:
+        live = sum((v for b, v in bal.items() if b.disposition not in TERMINAL), ZERO)
+        if live != to_qty(inst.quantity):
+            finds.append(
+                f"Instanz {inst.object_id}: Journal lebend {live} ≠ Projektion {inst.quantity}")
     bad = db.query(MaterialMove).filter(
         MaterialMove.instance_object_id == inst.object_id,
         MaterialMove.note == "!unbalanced").count()

@@ -215,14 +215,14 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
               Knopf darüber an. Was daraus wird, sagt der Zustand der Instanz, nicht der
               Einstieg. */}
         </>}
-      >
-        {devErr && <div style={S.devErr}>{devErr}</div>}
-        <DetailTabs<InstTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
+        tabs={<DetailTabs<InstTab> active={tab} onChange={setTab} tabs={[
           { key: 'spec', label: 'Spezifikation', icon: FileText },
           { key: 'orders', label: 'Aufträge', icon: ClipboardList },
           { key: 'verwendung', label: 'Verwendung', icon: Boxes },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
-        ]} />
+        ]} />}
+      >
+        {devErr && <div style={S.devErr}>{devErr}</div>}
       </DetailHeader>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}
