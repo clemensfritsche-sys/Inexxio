@@ -189,6 +189,37 @@ def rows(inst: Instance, *, holder: int | None = ..., limit: int | None = None,
     return out
 
 
+def place(rows: list, slices: list) -> list:
+    """**Jedem Stück seinen Standort geben** (Testnotiz #605) – EINE Logik für Chargen wie
+    für Einzelteile.
+
+    Die Instanz trägt ihre Standorte als **Mengen** (``instances.locations``: 990 @ Eingang,
+    10 @ Band A) – genau wie die Ansprüche. Und genau wie dort wird daraus «welches Stück»,
+    indem die Mengen der Reihe nach auf die aufsteigenden Nummern verteilt werden. Liegt
+    alles an einem Ort, bekommt es jedes Stück; ein Einzelteil ist damit kein Sonderfall,
+    sondern eine Charge mit einem Stück.
+
+    Ein **ausgeschiedenes** Stück bleibt ohne Standort: Ausschuss hat keinen Halter mehr,
+    sein Endzustand IST die Wo-Aussage (Migration 070)."""
+    if not slices:
+        return rows
+    queue = [(d, float(d.get("quantity") or 0)) for d in slices]
+    idx = 0
+    for row in rows:
+        if row.disposition in ("scrapped", "sold", "consumed"):
+            continue
+        need = float(row.quantity or 0)
+        while idx < len(queue) and queue[idx][1] <= 0:
+            idx += 1
+        if idx >= len(queue):
+            break
+        d, left = queue[idx]
+        row.location_label = d.get("location_label")
+        row.location_object_id = d.get("location_id")
+        queue[idx] = (d, left - need)
+    return rows
+
+
 def owned_by(inst: Instance, order_id: int, db=None) -> list[Unit]:
     """**Die Stücke, die diesem Auftrag gehören** – Anspruch ODER unbeanspruchter Rest.
 

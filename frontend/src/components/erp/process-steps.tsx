@@ -3,7 +3,7 @@
 import { Lane } from '@/components/erp/flow-line';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine } from 'lucide-react';
+import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine, CheckCheck, Rows2, Rows4, Focus, Percent } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
 import { formatObjectId, userDisplayName } from '@/lib/utils';
@@ -321,6 +321,10 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
     // feste Breite statt einer Obergrenze je Karte – sonst war ein Modul beim Hinzufügen,
     // nach dem Zwischenspeichern und nach der Freigabe verschieden breit, je nachdem wie
     // viel Platz gerade da war.
+    // **Und sie steht in der Mitte** (Testnotiz #609): eine feste Breite richtet sich im
+    // Block-Fluss links aus. Im laufenden Auftrag zentriert ``Row`` sie, beim Anlegen
+    // eines gewöhnlichen Auftrags (ohne Halter, also ohne Rahmen) niemand.
+    <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
     <Lane>
       {loading && <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Laden…</div>}
 
@@ -520,8 +524,12 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
       {/* **Die Linie führt IMMER heran** (Testnotiz #557) – auch während man ein Modul
           konfiguriert. Sie hing an ``!adding``, also fehlte sie genau dann, wenn man gerade
           einen Schritt anlegt: der Editor stand ohne Anschluss unter dem grünen Startpunkt.
-          Dieselbe Bedingung wie der Start- und der Endknoten – eine Regel, drei Stellen. */}
-      {(steps.length > 0 || !readOnly) && <Connector />}
+          Dieselbe Bedingung wie der Start- und der Endknoten – eine Regel, drei Stellen.
+
+          **Er gehört zur Palette** (Testnotiz #599): im freigegebenen Prozess gibt es sie
+          nicht, und dann standen ZWEI Konnektoren hintereinander – der Abstand zur
+          Zielflagge war doppelt so gross wie der zwischen zwei Modulen. */}
+      {!readOnly && <Connector />}
 
       {/* **Die Palette steht offen** (Notiz #223): «jeder Klick ist ein Klick zu viel» –
           die verfügbaren Module liegen sichtbar am Ende des Flusses, ein Klick legt an.
@@ -549,7 +557,17 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
             const kc = kindColor(adding);
             const AddIcon = STEP_META[adding].icon;
             return (
-            <div style={{ ...editorCard, gap: 14, background: kc.bg, borderColor: kc.border }}>
+            // **Enter legt an** (Testnotiz #611): wer den Namen getippt hat, ist fertig –
+            // ein zusätzlicher Klick auf «Hinzufügen» ist ein Klick zu viel. Textareas
+            // sind ausgenommen (dort ist Enter ein Zeilenumbruch), ebenso ein noch
+            // laufendes Speichern.
+            <div style={{ ...editorCard, gap: 14, background: kc.bg, borderColor: kc.border }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || saving) return;
+                if ((e.target as HTMLElement).tagName === 'TEXTAREA') return;
+                e.preventDefault();
+                addStep(adding);
+              }}>
               {/* Kopf = Anatomie der Modul-Karte, die gleich im Fluss stehen wird (#222).
                   Kein Zurück-Knopf mehr (#226/#232): «Abbrechen» ist der Weg heraus. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -670,6 +688,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
         </>
       )}
     </Lane>
+    </div>
   );
 }
 
@@ -743,10 +762,10 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
  * eigener Chip, statt still verlorenzugehen.
  */
 const SAMPLE_PRESETS = [
-  { pct: '100', label: 'Alle', hint: '100 % – jedes Stück wird geprüft' },
-  { pct: '50', label: 'Jedes 2.', hint: '50 % der Menge' },
-  { pct: '25', label: 'Jedes 4.', hint: '25 % der Menge' },
-  { pct: '10', label: 'Stichprobe', hint: '10 % der Menge' },
+  { pct: '100', label: 'Alle', icon: CheckCheck, hint: 'Jedes Stück wird geprüft (100 %)' },
+  { pct: '50', label: 'Jedes 2.', icon: Rows2, hint: 'Jedes zweite Stück (50 %)' },
+  { pct: '25', label: 'Jedes 4.', icon: Rows4, hint: 'Jedes vierte Stück (25 %)' },
+  { pct: '10', label: 'Stichprobe', icon: Focus, hint: 'Eine Handvoll (10 %)' },
 ];
 
 /** Zeile hinzufügen: solange die Liste leer ist mit Wort, danach nur noch «+» (Hover erklärt). */
@@ -756,41 +775,30 @@ function SampleScope({ value, onChange }: { value: string; onChange: (v: string)
   return (
     <div>
       <Label required>Prüfumfang</Label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-        {SAMPLE_PRESETS.map((p) => {
-          const on = value === p.pct && !custom;
-          return (
-            <button key={p.pct} type="button" title={p.hint}
-              onClick={() => { setCustom(false); onChange(p.pct); }}
-              style={{
-                padding: '6px 12px', borderRadius: 'var(--r-pill)', cursor: 'pointer',
-                font: '600 12.5px var(--font-body)',
-                border: `1px solid ${on ? 'var(--accent)' : 'var(--border-1)'}`,
-                background: on ? 'var(--accent-soft)' : '#fff',
-                color: on ? 'var(--accent-ink)' : 'var(--fg-3)',
-              }}>
-              {p.label}
-            </button>
-          );
-        })}
-        <button type="button" title="Anderer Prüfumfang in Prozent" onClick={() => setCustom(true)}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        {/* **Symbole, der Name im Hover** (Testnotiz #610) – dieselbe Geste wie überall
+            sonst (Bezugsquelle, Sichtbarkeit, Aussondern). Vier Wörter nebeneinander
+            ringen um Aufmerksamkeit, obwohl nur eines gilt. */}
+        <IconSwitch<string> symbolOnly value={custom ? '' : value}
+          onChange={(v) => { setCustom(false); onChange(v); }}
+          options={SAMPLE_PRESETS.map((p) => ({
+            value: p.pct, icon: p.icon, label: p.label, hint: p.hint }))} />
+        <button type="button" data-tip="Anderer Prüfumfang in Prozent"
+          aria-label="Anderer Prüfumfang" className="erp-palette"
+          onClick={() => setCustom(true)}
           style={{
-            padding: '6px 12px', borderRadius: 'var(--r-pill)', cursor: 'pointer',
-            font: '600 12.5px var(--font-body)',
-            border: `1px solid ${custom ? 'var(--accent)' : 'var(--border-1)'}`,
-            background: custom ? 'var(--accent-soft)' : '#fff',
+            width: 34, height: 34,
+            background: custom ? 'var(--accent-soft)' : 'var(--bg-2)',
+            borderColor: custom ? 'var(--accent)' : 'var(--border-1)',
             color: custom ? 'var(--accent-ink)' : 'var(--fg-3)',
           }}>
-          …
+          <Percent size={15} />
         </button>
         {custom && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-            <input value={value} onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
-              {...numericInputProps} placeholder="z. B. 7"
-              className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              style={{ borderColor: 'var(--border-1)', width: 76 }} />
-            <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' }}>%</span>
-          </span>
+          <input value={value} onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
+            {...numericInputProps} placeholder="z. B. 7"
+            className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            style={{ borderColor: 'var(--border-1)', width: 76 }} />
         )}
       </div>
     </div>
@@ -828,7 +836,12 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
           const kind = CAPTURE_KINDS.find((k) => k.value === f.type) ?? CAPTURE_KINDS[0];
           const KindIcon = kind.icon;
           return (
-            <div key={i} style={{ border: '1px solid var(--border-1)', borderRadius: 'var(--r-sm)', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            // **Leichter** (Testnotiz #612): eine Zeile, keine Kachel. Ein Kasten je Feld
+            // in einem Editor, der selbst schon eine Karte ist, sind drei Rahmen um
+            // dieselbe Sache; getrennt wird mit einer Haarlinie.
+            <div key={i} style={{ padding: i === 0 ? '0 0 8px' : '8px 0', display: 'flex',
+              flexDirection: 'column', gap: 8,
+              borderTop: i === 0 ? 'none' : '1px solid var(--border-1)' }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 {/* Die Art steht fest, sobald man sie gewählt hat – sie ist kein Feld mehr,
                     sondern das Symbol der Zeile (umentscheiden = löschen + neu, wie beim Schritt). */}

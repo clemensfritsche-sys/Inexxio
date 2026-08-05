@@ -46,6 +46,12 @@ class InstanceUnit(BaseModel):
     quantity: float
     quality: str          # pending | passed | blocked
     disposition: str      # in_process | in_stock | consumed | sold | scrapped
+    # **Wo dieses Stück liegt** (Testnotiz #605) – dieselbe Angabe für eine Charge wie für
+    # ein Einzelteil, EINE Logik: die Standort-Verteilung der Instanz wird der Reihe nach
+    # auf ihre lebenden Stücke verteilt (bei EINEM Ort bekommt sie jedes Stück). Ein
+    # ausgeschiedenes Stück hat keinen Standort mehr – sein Endzustand IST die Wo-Aussage.
+    location_label: Optional[str] = None
+    location_object_id: Optional[int] = None
     order_object_id: Optional[int] = None
     order_name: Optional[str] = None
     reason: Optional[str] = None   # deviation | supply | return | provisioning | None

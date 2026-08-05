@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode, ElementType } from 'react';
 import {
-  Boxes, FileText, Package, CalendarDays,
+  Boxes, FileText, CalendarDays,
   ClipboardList, ChevronRight, QrCode, TriangleAlert, ClipboardPlus,
   ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Hash, FolderOpen, LockOpen,
 } from 'lucide-react';
@@ -14,7 +14,6 @@ import { instanceStatusConfig as instStatusCfg } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
-import { LocationPathCard } from '@/components/erp/location-path';
 import type { OrderSeed } from '@/components/erp/order-detail';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
@@ -92,17 +91,9 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
     });
     return list;
   }, [orders, sortDir]);
-  // Bestand: zählbar nur, wenn freigegeben UND am Lager.
-  const inStock = inst.quality === 'passed' && inst.disposition === 'in_stock';
-  const bestand = inStock ? inst.quantity : 0;
-  // **Die Kachel heisst, was sie misst** (Testnotiz #384): «Am Lager» – die Menge, die
-  // freigegeben und entnehmbar ist. Damit erklärt sich die 0 von selbst (WARUM sagt die
-  // Badge im Kopf: Im Prozess · Gesperrt · Verkauft …), das ⓘ entfällt, und die frühere
-  // Unterzeile «Nicht am Lager» ist weg – sie war eine schiefe Zustandsaussage neben der
-  // Badge: die Instanz IST im Betrieb, sie ist nur noch nicht verfügbar.
-  // Die Unterzeile trägt nur noch, was sonst nirgends steht: die reservierte Menge.
-  const reserved = inst.reserved_quantity ?? 0;
-  const bestandSub = reserved > 0 ? `${reserved} reserviert` : undefined;
+  // **Die Kachel «Am Lager» ist entfallen** (Testnotiz #606): sie nannte eine Summe, die
+  // jetzt bei jeder Einheit steht – mit Zustand und Standort dazu. Eine Zahl, die man aus
+  // der Liste darunter ablesen kann, ist keine zweite Kachel wert.
 
   // Jede Aktion an dieser Instanz läuft über einen **Auftrag** – auch die Abweichung. Den
   // legt der Shortcut unten an, mit dieser Instanz vorgewählt (Notiz #371).
@@ -250,25 +241,10 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
               sub={inst.article_object_id != null ? formatObjectId(inst.article_object_id) : undefined} subMono
               onClick={inst.article_object_id != null ? () => nav?.(inst.article_object_id as number) : undefined}
             />
-            <Tile
-              icon={Package} label="Am Lager"
-              value={<>{bestand} <span style={S.unit}>Stk</span></>}
-              sub={bestandSub}
-            />
             <Tile icon={CalendarDays} label="Erstellt" value={localDate(inst.created_at)} sub={timeAgo(inst.created_at)} />
             {inst.serial_number && (
               <Tile icon={Hash} label="Seriennummer" value={inst.serial_number} subMono />
             )}
-
-            {/* Standort gehört in dasselbe Raster – er ist eine Kennzahl der Instanz wie
-                jede andere, keine Karte für sich (Notiz #5). */}
-            {/* Verteilte Charge: die Aufteilung steht IM Standort-Container statt als
-                zweite Karte darunter – eine Frage, eine Antwort (Notiz #147). */}
-            <LocationPathCard
-              style={TILE.wide}
-              path={inst.location_path ?? []}
-              slices={inst.locations ?? []}
-            />
 
             {/* **Jedes Stück einzeln** (Testnotiz #531) – Nummer inkl. Zusatz, Menge und
                 Zustand, aufsteigend sortiert. Die frühere Zusammenfassung nach Anteilen
@@ -276,7 +252,7 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
                 genau die Frage, die niemand stellen konnte. Der Zustand kommt aus derselben
                 Projektion wie überall (`instanceStatusConfig`) – kein zweites Regelwerk. */}
             {(inst.units ?? []).length > 0 && (
-              <TileShell style={TILE.wide} icon={Boxes} label="Stücke">
+              <TileShell style={TILE.wide} icon={Boxes} label="Einheiten">
                 <UnitList units={inst.units} unit={inst.article_unit ? unitLabel(inst.article_unit) : undefined} max={40}
                   onOpen={(id) => nav?.(id)} style={{ marginTop: 2 }} />
               </TileShell>

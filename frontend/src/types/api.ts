@@ -4314,6 +4314,10 @@ export interface components {
             quality: string;
             /** Disposition */
             disposition: string;
+            /** Location Label */
+            location_label?: string | null;
+            /** Location Object Id */
+            location_object_id?: number | null;
             /** Order Object Id */
             order_object_id?: number | null;
             /** Order Name */

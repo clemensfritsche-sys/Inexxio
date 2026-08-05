@@ -108,7 +108,9 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   });
 
   function sampleLabel(instanceId: number, slot: number): string {
-    return multiSample ? `Charge ${formatObjectId(instanceId)} · Probe ${slot}` : `Instanz ${formatObjectId(instanceId)}`;
+    // **Minimal** (Testnotiz #613): die Objektnummer ist die Aussage; «Instanz»/«Charge»
+    // steht bereits am Datensatz, und die Proben-Nummer nur, wenn es mehrere gibt.
+    return multiSample ? `${formatObjectId(instanceId)} · ${slot}` : formatObjectId(instanceId);
   }
 
   async function submit() {
@@ -144,10 +146,15 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   return (
     <div style={cardStyle}>
 
-      {/* Eine Zeile, kein Kasten: die Angabe ist Beiwerk, nicht ein eigener Bereich. */}
-      <div style={{ fontSize: 13, color: 'var(--fg-2)' }}>
-        Prüfumfang: <b>{required}</b> von {qty} Stück <span style={{ color: 'var(--fg-4)' }}>({escalated ? '100 % – hochgestuft' : `${pct}% Stichprobe`})</span>
-        {multiSample && <span style={{ color: 'var(--fg-4)' }}> · {required} Proben aus der Charge</span>}
+      {/* **Sagen, was zu TUN ist** (Testnotiz #614): «Prüfumfang: 1 von 1 Stück (100 %
+          Stichprobe)» beschreibt eine Einstellung – hier steht die Aufgabe. Woher die Zahl
+          kommt (der eingestellte Prozentsatz), ist die Herkunft und gehört in den Hover. */}
+      <div style={{ fontSize: 13, color: 'var(--fg-2)' }}
+        data-tip={escalated ? 'Eine Stichprobe war ungenügend – hochgestuft auf 100 %'
+                            : `Eingestellter Prüfumfang: ${pct} %`}>
+        <b>{required}</b> von {qty} Stück prüfen
+        {multiSample && <span style={{ color: 'var(--fg-4)' }}> · Proben aus der Charge</span>}
+        {escalated && <span style={{ color: 'var(--warning)' }}> · hochgestuft</span>}
       </div>
 
       {escalated && !done && (
@@ -192,9 +199,9 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
             const ok = sampleOk(key);
             return (
               <div key={key} style={{ border: `1px solid ${done ? (ok ? 'var(--success)' : 'var(--danger)') : 'var(--border-1)'}`, borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--fg-2)', flex: 1 }}>{sampleLabel(s.instance_id, s.slot)}</span>
-                </div>
+                <span style={{ fontSize: 12.5, fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--fg-3)' }}>
+                  {sampleLabel(s.instance_id, s.slot)}
+                </span>
                 {/* Nur die konfigurierten Erfassungsfelder – Bild UND Unterschrift sind eigene
                     Feldtypen (CaptureRow rendert sie). KEIN unbedingtes Foto-Feld mehr: wer nur
                     eine Unterschrift konfiguriert hat, bekommt auch NUR die Unterschrift. */}
