@@ -5605,6 +5605,43 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Skalar-Ableitung in der Oberfläche) – gegen die Bug-Formen gegengeprüft, gegen echtes
   PostgreSQL 16.
 
+- **Audit «Anzahl statt Menge» – vier Funde nach der Vermutung des Nutzers** (August 2026,
+  Nachlauf zu #647): Die ursprüngliche Vermutung («er zählt Instanznummern statt Mengen»)
+  traf den gemeldeten Fall nicht, war als **Klasse** aber richtig. Ein systematisches Audit
+  über das ganze System hat sie viermal gefunden – nicht als `len(…)`, sondern in ihrer
+  heutigen Form: **ein Skalar der Instanz beantwortet eine Frage, die der Menge gehört.**
+  Seit der Zustand die Projektion über die Stücke ist (#604), sagt «freigegeben» nur noch
+  «hier ist etwas Gutes», nicht «alles davon».
+  (1) **`_secured_amounts` zählte selbst erzeugte Instanzen über den Skalar**
+  (`unblocked_clauses`) und damit eine teilweise gesperrte Charge mit ihrer **vollen** Menge
+  als gesichert: ein Erzeugungsauftrag über 4 Stück, von denen eines gesperrt ist, meldete
+  **keine** Fehlmenge und wäre mit drei guten Stück «vollständig» geworden. Jetzt zieht er
+  die gesperrte Menge ab – und zwar nur, was **noch bei ihm** liegt (was eine offene
+  Abweichung übernommen hat, steckt schon in der Klärungs-Menge; zweimal abgezogen ergäbe
+  eine Fehlmenge, die es nicht gibt). Der Skalar-Filter ist damit überflüssig geworden.
+  (2) **Der Made-to-Order-Verkauf verkaufte Gesperrtes mit.** Der Bestands-Zweig prüft das
+  seit #646 (`reserviert − gesperrt`), der Zweig für selbst erzeugte Instanzen daneben las
+  den Skalar und schob die **ganze** Charge auf `sold`. Jetzt geht nur der gute Teil hinaus;
+  der gesperrte Rest bleibt als Instanz am Lager.
+  (3) **`units.drop` gab beim Verkauf ausgerechnet das gesperrte Stück heraus**: die Auswahl
+  der Stücke lief für jeden Endzustand über dieselbe Reihenfolge (niedrigste Nummer zuerst).
+  Welche Stücke gemeint sind, sagt jetzt der **Endzustand**: wer **aussondert**, nimmt das
+  Untaugliche zuerst (das ist der Sinn des Vorgangs), wer **liefert** (verkauft/verbaut),
+  nimmt das Gute – Eigentum bleibt dabei das erste Kriterium, Tauglichkeit entscheidet
+  innerhalb. Damit trifft eine Teil-Verschrottung das defekte Stück statt das erste.
+  (4) **Der Kunden-Versand hätte eine gesperrte Rest-Charge mitgenommen**: nach dem Verkauf
+  des guten Teils IST die Rest-Instanz das Gesperrte, und ihr Anspruch deckt sie wieder
+  vollständig (`movement.movable_instances`). Eine Zeile schliesst das.
+  Dazu entfernt: **`DisposalEmbed.scrapped_count`** – es zählte die vollständig
+  verschrotteten **Datensätze** (eine Teil-Verschrottung erschien als «0») und wurde nirgends
+  gelesen. Was ausgesondert wurde, steht mengengenau im Journal und an den Stücken.
+  **Was sauber war** (und geprüft ist): der Allokations-Kern, Prüfumfang, Ressourcen-Bedarf,
+  Nachschub, Meldebestand, Retoure und Bereitstellung rechnen durchgehend mit Mengen; zwei
+  AST-Läufe über `app/` (Anzahl→Mengenfeld · Anzahl↔Menge verglichen) melden nichts, und die
+  verbliebenen `len(…)` auf Instanz-Listen sind echte Anzahlen (Proben, Log-Text,
+  ID-Prüfung). Wächter in `tests/rules/test_availability.py` – jeder gegen seine Bug-Form
+  gegengeprüft.
+
 - **Testnotizen-Runde 37 (eine Zahl, eine Quelle, Notizen #637–#644)**:
   (1) **«x von N Stück prüfen» kommt aus EINER Rechnung** (#643): `required_count` las, was
   der Auftrag tatsächlich hält, das `N` daneben die *deklarierte* Auftragsmenge – nachdem ein

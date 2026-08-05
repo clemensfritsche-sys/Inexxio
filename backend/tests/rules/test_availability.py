@@ -136,3 +136,110 @@ def test_every_surface_names_the_same_free_stock(db, world):
     listing = ai._t_inventory(db, p, {"article_object_id": art.object_id})
     assert float(detail["free_stock"]) == truth, detail["free_stock"]
     assert listing and float(listing[0]["free_stock"]) == truth, listing
+
+
+def test_a_partly_blocked_batch_secures_only_its_good_part(db, world):
+    """**«Gesichert» ist eine Menge, kein Datensatz-Zustand** (Testnotiz #647, Audit).
+
+    Die zweite Quelle von ``_secured_amounts`` – selbst **erzeugte** Instanzen – filterte über
+    den Skalar (``unblocked_clauses``). Der ist seit der Projektion (#604) eine Aussage über
+    den DATENSATZ: eine Charge mit drei guten und einem gesperrten Stück steht auf
+    «freigegeben», und ihre **volle** Menge zählte als gesichert. Ein Erzeugungsauftrag über
+    4 Stück meldete damit keine Fehlmenge, obwohl eines nicht verwendbar ist – er wäre mit
+    3 guten Stück «vollständig» geworden.
+
+    Und die Gegenprobe im selben Test: ein Stück, das eine offene Abweichung übernommen hat,
+    darf **nicht doppelt** abgezogen werden (es steckt schon in der Klärungs-Menge)."""
+    from app.services import process, units
+
+    user, _ = world
+    from .test_units import _art
+    art = _art(db, "Teil-gesperrt")
+    inst = _release_stock(db, art, user, 4)
+    order = inst.order_id
+    from app.models import Order
+    o = db.query(Order).filter(Order.id == order).first()
+    o.status = "released"                      # er läuft wieder – nur ein laufender schuldet
+    db.commit()
+    assert process.subject_shortfalls(db, o) == {}, "vier gute Stück: nichts fehlt"
+
+    units.mark_blocked(inst, [1])
+    db.commit()
+    assert process.subject_shortfalls(db, o) == {art.id: Decimal(1)}, (
+        "Ein gesperrtes Stück ist keine gute Einheit – es fehlt genau eines "
+        f"(gemeldet: {process.subject_shortfalls(db, o)})")
+
+    # Eine Abweichung nimmt ein **gutes** Stück (gesperrtes wird zuletzt zugeordnet, #646):
+    # jetzt fehlen zwei – das gesperrte und das in Klärung. Zwei Stücke, zwei Gründe.
+    from .conftest import _make_deviation
+    dev = _make_deviation(db, o, inst, user, 1, steps=("movement",))
+    db.refresh(inst)
+    assert process.subject_shortfalls(db, o) == {art.id: Decimal(2)}, (
+        f"gesperrt + in Klärung = zwei (gemeldet: {process.subject_shortfalls(db, o)})")
+
+    # **Und nie doppelt**: übernimmt die Abweichung ALLES (auch das gesperrte Stück), steckt
+    # es in der Klärungs-Menge – ein zweiter Abzug ergäbe eine Fehlmenge von acht bei vier
+    # Stück. Genau davor schützt der Halter-Filter.
+    from app.routers import orders as R
+    from app.schemas.order import InstancePick
+    R._set_chosen_instances(db, dev, [InstancePick(instance_object_id=inst.object_id, quantity=4)])
+    db.commit()
+    db.refresh(inst)
+    assert process.subject_shortfalls(db, o) == {art.id: Decimal(4)}, (
+        "Alles in Klärung heisst vier – nicht acht "
+        f"(gemeldet: {process.subject_shortfalls(db, o)})")
+
+
+def test_a_blocked_piece_is_never_sold(db, world):
+    """**Verkauft wird nur, was verwendbar ist – auf BEIDEN Verkaufs-Pfaden** (#647).
+
+    Der Bestands-Verkauf prüft das seit #646 (``reserviert − gesperrt``); der
+    **Made-to-Order**-Zweig daneben las den **Skalar** der selbst erzeugten Instanz. Der sagt
+    seit der Projektion (#604) «freigegeben», sobald EIN Stück gut ist – eine Charge mit
+    einem gesperrten Stück wäre damit vollständig an den Kunden gegangen."""
+    from app.services import process, units
+
+    user, _ = world
+    from .test_units import _art
+    art = _art(db, "Verkauf-gesperrt")
+    inst = _release_stock(db, art, user, 4)
+    units.mark_blocked(inst, [1])
+    db.commit()
+
+    from app.models import ArticleProcessStep, Order
+    o = db.query(Order).filter(Order.id == inst.order_id).first()
+    # Verkauft wird nur, wo ein Verkaufs-Schritt steht – der Auftrag bekommt einen.
+    db.add(ArticleProcessStep(order_id=o.id, step_type="sale", position=9))
+    db.flush()
+    process.sell_order_subjects(db, o)
+    db.commit()
+    db.refresh(inst)
+
+    assert float(inst.quantity) == 1.0, (
+        f"Die drei guten Stück sind verkauft, das gesperrte bleibt: {units.of(inst)}")
+    assert inst.disposition != "sold", "Die Rest-Instanz ist das GESPERRTE – nicht verkauft."
+    assert units.blocked_units(inst) == [1], units.of(inst)
+
+
+def test_scrapping_takes_the_unusable_piece_first(db, world):
+    """**Wer aussondert, nimmt das Untaugliche zuerst** (Testnotiz #647).
+
+    Die Gegenrichtung zum Verkauf: dort geht das Gute hinaus, hier bleibt es liegen. Vorher
+    lief beides über dieselbe Reihenfolge (niedrigste Nummer zuerst) – eine Teil-Verschrottung
+    hätte damit die guten Stücke vernichtet und das gesperrte behalten."""
+    from app.services import units
+    from app.services.reservation import take
+
+    user, _ = world
+    from .test_units import _art
+    art = _art(db, "Aussondern")
+    inst = _release_stock(db, art, user, 3)
+    units.mark_blocked(inst, [2])            # das MITTLERE Stück ist untauglich
+    db.commit()
+
+    gone: list[int] = []
+    take(inst, Decimal(1), state="scrapped", gone=gone)
+    db.commit()
+    assert gone == [2], f"Verschrottet wird das gesperrte Stück, nicht das erste: {gone}"
+    assert not units.blocked_units(inst), "…und danach ist nichts mehr gesperrt."
+    assert units.verify(inst) == []

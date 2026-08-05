@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Movement, Order
-from . import location_split, process
+from . import inventory, location_split, process
 from .admin import log_audit
 from .events import emit
 from .locations import validate_location
@@ -45,6 +45,13 @@ def movable_instances(db: Session, order: Order, step) -> list:
         for i in order_instances(db, order):
             d = i.disposition or "in_process"
             if d in ("scrapped", "consumed"):
+                continue
+            # **Gesperrtes geht nicht zum Kunden** (Testnotiz #647): der Verkauf lässt die
+            # gesperrte Teilmenge stehen (#646) – danach IST die Rest-Instanz das Gesperrte,
+            # und ihr Anspruch deckt sie wieder vollständig. Ohne diese Zeile wäre sie
+            # mitgegangen. Der Skalar reicht hier: er sagt «gesperrt» genau dann, wenn nichts
+            # Verwendbares mehr übrig ist (``units.project``).
+            if inventory.is_blocked(i):
                 continue
             if d == "in_stock" and reserved_for(i, order.id) < to_qty(i.quantity):
                 continue   # unverkaufter (Rest-)Bestand – bleibt am Lager

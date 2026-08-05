@@ -298,10 +298,13 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
     return me
 
 
-def _disposal_embed(db: Session, order: Order, disp: Disposal | None,
-                    scrapped_count: int) -> DisposalEmbed:
+def _disposal_embed(db: Session, order: Order, disp: Disposal | None) -> DisposalEmbed:
+    """**Kein ``scrapped_count`` mehr** (Testnotiz #647): das Feld zählte die vollständig
+    verschrotteten **Datensätze** – eine Teil-Verschrottung (die Menge sinkt, die Instanz
+    bleibt am Lager) erschien darin als «0». Gelesen hat es ohnehin niemand; was ausgesondert
+    wurde, steht mengengenau im Material-Journal und an den Stücken."""
     de = DisposalEmbed(id=disp.id if disp else 0, done=disp is not None,
-                       note=disp.note if disp else None, scrapped_count=scrapped_count)
+                       note=disp.note if disp else None)
     if disp and disp.scrapped_by_id:
         de.scrapped_by_name = people.name_by_id(db, disp.scrapped_by_id)
     return de
@@ -1183,8 +1186,7 @@ def _attach_step_embed(db: Session, order: Order, s: dict, si: OrderStepInfo,
         si.movement = emb = _movement_embed(db, order, step, fact)
         who = emb.moved_by_name
     elif kind == "scrap":
-        scrapped = sum(1 for i in instances if i.disposition == "scrapped")
-        si.disposal = emb = _disposal_embed(db, order, fact, scrapped)
+        si.disposal = emb = _disposal_embed(db, order, fact)
         who = emb.scrapped_by_name
     elif kind == "document":
         si.document = emb = _document_embed(db, order, step, fact, viewer=viewer)

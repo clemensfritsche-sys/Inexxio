@@ -23,8 +23,8 @@ def test_open_deviations_filters_reason():
 
 # ─── 2. Kunden-Versand: unverkaufter (Rest-)Bestand bleibt am Lager ──────────────
 
-def _mk_inst(oid, disposition, qty="1", reservations=None):
-    return SimpleNamespace(object_id=oid, disposition=disposition,
+def _mk_inst(oid, disposition, qty="1", reservations=None, quality="passed"):
+    return SimpleNamespace(object_id=oid, disposition=disposition, quality=quality,
                            quantity=Decimal(qty), reservations=reservations or None,
                            reserved_quantity=Decimal("0"))
 
@@ -37,13 +37,18 @@ def test_movable_instances_customer_excludes_unsold_remainder(monkeypatch):
     in_process = _mk_inst(100000002, "in_process", "3")
     remainder = _mk_inst(100000003, "in_stock", "7")                     # unverkaufter Rest
     covered = _mk_inst(100000004, "in_stock", "2", {"55": "2"})          # ganz für Auftrag 55
+    # **Und Gesperrtes geht nie zum Kunden** (Testnotiz #647): der Verkauf lässt die
+    # gesperrte Teilmenge stehen – danach IST die Rest-Instanz das Gesperrte, und ihr
+    # Anspruch deckt sie wieder vollständig. Ohne die Prüfung wäre sie mitgegangen.
+    blocked = _mk_inst(100000005, "in_stock", "1", {"55": "1"}, quality="blocked")
     monkeypatch.setattr(subject, "order_instances",
-                        lambda db, order: [sold, in_process, remainder, covered])
+                        lambda db, order: [sold, in_process, remainder, covered, blocked])
     order = SimpleNamespace(reason=None, id=55, object_id=100000055)
     step = SimpleNamespace(mode="customer")
     out = movement.movable_instances(None, order, step)
     ids = {i.object_id for i in out}
     assert 100000003 not in ids            # Rest-Charge bleibt am Lager
+    assert 100000005 not in ids            # Gesperrtes bleibt am Lager
     assert {100000001, 100000002, 100000004} <= ids
 
 

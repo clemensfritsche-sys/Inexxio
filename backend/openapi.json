@@ -9887,11 +9887,6 @@
               }
             ],
             "title": "Scrapped By Name"
-          },
-          "scrapped_count": {
-            "type": "integer",
-            "title": "Scrapped Count",
-            "default": 0
           }
         },
         "type": "object",

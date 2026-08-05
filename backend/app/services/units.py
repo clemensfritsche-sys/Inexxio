@@ -880,12 +880,25 @@ def drop(inst: Instance, qty, *, state: str, by_order_id: int | None = None) -> 
 
     **Die Nummer bleibt stehen** und trägt ab jetzt ihren Endzustand (Testnotiz #549). Sie
     aus der Karte zu streichen hiess, dass ein Stück aus dem Nichts verschwindet – im
-    Instanz-Detail wie auf jeder vergangenen Kante des Flusses, die es noch getragen hat."""
+    Instanz-Detail wie auf jeder vergangenen Kante des Flusses, die es noch getragen hat.
+
+    **Welche Stücke zuerst, sagt der Endzustand** (Testnotiz #647): wer **aussondert**,
+    nimmt das Untaugliche zuerst – das ist der Sinn des Vorgangs; wer **liefert**
+    (verkauft/verbaut), nimmt das Gute und bekommt Gesperrtes nie. Vorher lief beides über
+    dieselbe Reihenfolge (niedrigste Nummer zuerst), und ein Verkauf konnte damit ausgerechnet
+    das gesperrte Stück an den Kunden geben, obwohl der Aufrufer die Menge korrekt auf den
+    guten Teil begrenzt hatte."""
     ensure(inst)
     runs, gone, remaining = _runs(inst), [], to_qty(qty)
-    # Rangfolge: eigenes Stück ≻ freies ≻ fremdes.
-    ranks = ([lambda r: r.get("o") == by_order_id] if by_order_id else []) + [
-        lambda r: r.get("o") is None, lambda r: True]
+    bad_first = state == "scrapped"
+    # Rangfolge: **Eigentum zuerst** (eigenes ≻ freies ≻ fremdes), **Tauglichkeit innerhalb**
+    # – wer verschrottet, verschrottet sein eigenes untaugliches Stück, nicht das freie des
+    # Nachbarn.
+    ranks = []
+    for a in (([lambda r: r.get("o") == by_order_id] if by_order_id else [])
+              + [lambda r: r.get("o") is None, lambda r: True]):
+        ranks.append(lambda r, a=a: a(r) and bool(r.get("l")) is bad_first)
+        ranks.append(a)
     for accept in ranks:
         if remaining <= 0:
             break
