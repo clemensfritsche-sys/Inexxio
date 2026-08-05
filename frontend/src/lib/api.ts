@@ -572,6 +572,15 @@ class ApiClient {
     return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);
   }
 
+  /** «Lieferant hat zugestimmt» – die bestellte Menge auf die neue Grundlage bringen. */
+  clarifyOrderPurchase(objectId: number, articleId?: number | null, stepId?: number | null): Promise<Order> {
+    const q = new URLSearchParams();
+    if (articleId != null) q.set('article_id', String(articleId));
+    if (stepId != null) q.set('step_id', String(stepId));
+    const qs = q.toString();
+    return this.post(`/api/v1/erp/orders/${objectId}/purchase/clarify${qs ? `?${qs}` : ''}`, {});
+  }
+
   // Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen
   updateOrderInspection(objectId: number, data: InspectionUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/inspection`, data);

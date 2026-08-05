@@ -3305,6 +3305,86 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/purchase/clarify": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Clarify Order Purchase",
+        "description": "**«Lieferant hat zugestimmt»** – die Bestellung auf die neue Grundlage bringen.\n\nAb «Bestellt» ist der Lieferant gebunden; das System fasst den Beleg darum nicht selbst\nan, sondern meldet die Abweichung («bestellt 3 · gebraucht 2»). Wer beim Lieferanten\nangerufen hat, quittiert hier das Ergebnis – und dann läuft **dieselbe** Änderung wie\nsonst automatisch: Menge nachziehen und die Vereinbarung neu treffen (zurück auf\n«Angefragt») bzw. stornieren, wenn der Auftrag gar nichts mehr braucht.\n\nNur Personal: der Anruf ist eine interne Handlung. ``article_id`` wählt bei einem\nMehrpositionen-Auftrag die betroffene Bestellung.",
+        "operationId": "clarify_order_purchase_api_v1_erp_orders__object_id__purchase_clarify_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "article_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Article Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/sale": {
       "patch": {
         "tags": [
@@ -14838,6 +14918,17 @@
             "type": "array",
             "title": "History",
             "default": []
+          },
+          "clarify_needed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clarify Needed"
           }
         },
         "type": "object",

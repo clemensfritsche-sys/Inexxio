@@ -94,6 +94,22 @@ class EventType:
     reset: object = None
     reset_fields: tuple = ()
     voided: object = None
+    # **Bis zur Zusage entscheidet das System, ab der Zusage entscheidet der Mensch.**
+    #
+    # ``binding`` nennt die Stufen, ab denen eine **zweite Partei** gebunden ist. Bis dahin
+    # ist der Beleg nur unsere Absicht, und das System zieht ihn selbst nach. Ab dort ist er
+    # eine Zusage: die Ware ist unterwegs, und man kann sie nicht einseitig zurücknehmen –
+    # so wenig, wie man eine Internet-Bestellung eine Sekunde später widerruft.
+    #
+    # Das System fasst einen solchen Beleg darum NICHT an. Es meldet die Abweichung
+    # («bestellt 3 · gebraucht 2») und wartet auf den Menschen, der beim Lieferanten
+    # anruft – genau die Ausnahme, die es in der Realität gibt. Erst seine Bestätigung
+    # löst dieselbe Änderung aus (``rebase.apply_clarified``): EIN Vorgang, zwei Auslöser.
+    #
+    # Beim **Verkauf** braucht es die Schwelle nicht: dort ist «bezahlt» ohnehin ``done``,
+    # und eine bezahlte Position wird über die Gutschrift korrigiert, nicht über eine
+    # Kürzung (``recovery._assert_not_paid``).
+    binding: tuple = ()
     # **Kein Flag dafür, wen eine Fehlmenge aufhält.** Hier stand kurzzeitig ``hands_over``
     # («gibt dieser Schritt die Menge weiter?»), damit nur Verkauf und Ressource blockieren.
     # Das ist zurückgenommen: eine Fehlmenge gehört dem **Auftrag**, nicht einem Schritt –
@@ -113,7 +129,11 @@ REGISTRY: dict[str, EventType] = {
                             failed=("rejected", "cancelled"),
                             reset="requested", voided="cancelled",
                             reset_fields=("order_total", "lead_time_days", "payment_terms_days",
-                                          "landed_unit_cost")),
+                                          "landed_unit_cost"),
+                            # Ab «Bestellt» ist der Lieferant gebunden und die Ware in aller
+                            # Regel unterwegs. «Offeriert» ist noch keine Zusage von UNS –
+                            # dort greift die Automatik weiter.
+                            binding=("ordered",)),
     "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT),
     "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE,
                             status_field="result", done=("passed",), failed=("failed",)),

@@ -391,7 +391,8 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
         // sie hängt. Der Rückweg dagegen ist stark, wenn wirklich etwas zurück IST (#590):
         // er ist ein eigener Weg, kein Stück der Achse.
         <Row key={`br-${branches[0].object_id}`}
-          right={<BranchArm branches={branches} flowed={edge.flowed} onOpen={onOpenOrder} />}>
+          right={<BranchArm branches={branches} flowed={edge.flowed}
+            bypass={bypass.flowed} onOpen={onOpenOrder} />}>
           {/* **Stark ist die Linie nur, wo etwas darüber geht** (Testnotizen #580/#584):
               zweigt an dieser Stelle ALLES ab, bleibt auf der Achse nichts – dann ist der
               Bypass ein Weg, den nichts genommen hat. Der Bypass ist EIN Stück Achse, also
@@ -598,11 +599,14 @@ const SUB_LABEL: Record<string, string> = {
  */
 const branchStarted = (b: OrderDeviationInfo) => b.status !== 'draft';
 
-function BranchArm({ branches, flowed, onOpen }: {
+function BranchArm({ branches, flowed, bypass, onOpen }: {
   branches: OrderDeviationInfo[];
   /** Ob über die Kante **oberhalb** der Teilung etwas geflossen ist – dasselbe Bit, das
    *  auch dieses Achsenstück trägt (die Abzweigung hängt daran). */
   flowed?: boolean;
+  /** Stärke des Bypass – die Achse, an der Abzweigung und Einmündung hängen. Ihr gehört
+   *  der Anschluss-Bogen (#591); ohne diese Angabe zerschnitte ein dünner Weg sie. */
+  bypass?: boolean;
   onOpen?: (id: number) => void;
 }) {
   // **Kommt nichts zurück, führt auch keine Linie zurück** (Testnotiz #481): wurde alles
@@ -617,7 +621,7 @@ function BranchArm({ branches, flowed, onOpen }: {
   return (
     <div style={{ position: 'relative', width: '100%', minWidth: 0,
       paddingTop: ARM, paddingBottom: back.length ? ARM : 0 }}>
-      <Elbow dir="fork-right" strong={flowed} />
+      <Elbow dir="fork-right" strong={flowed} axis={bypass} />
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
         width: '100%', minWidth: 0 }}>
         {branches.map((b, i) => (
@@ -632,7 +636,7 @@ function BranchArm({ branches, flowed, onOpen }: {
           </div>
         ))}
       </div>
-      {back.length > 0 && <Elbow dir="merge-right" strong={returned} />}
+      {back.length > 0 && <Elbow dir="merge-right" strong={returned} axis={bypass} />}
     </div>
   );
 }

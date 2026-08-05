@@ -154,6 +154,74 @@ def test_a_document_is_valid_for_the_quantity_it_was_issued_for(db, world, r: Do
         assert po.order_total == before_total
 
 
+def test_up_to_the_promise_the_system_decides_from_then_on_the_human_does(db, world):
+    """**Ab «Bestellt» ist der Lieferant gebunden** (Testnotiz #587 / Entscheid des Nutzers).
+
+    Bis dahin ist der Beleg nur unsere Absicht – das System zieht ihn selbst nach. Ab dort
+    ist er eine Zusage: die Ware ist in aller Regel unterwegs, und man widerruft sie nicht
+    einseitig, so wenig wie eine Internet-Bestellung eine Sekunde später. Es gibt aber die
+    Ausnahme, die es in der Realität gibt: man ruft den Lieferanten an. Also fasst das System
+    den Beleg nicht an, **meldet** die Abweichung und wartet auf die Bestätigung – und dann
+    läuft dieselbe Änderung wie sonst automatisch.
+
+    «Bleibt wie bestellt» ist bewusst KEINE Option: eine Überlieferung ist ein Fall, den man
+    klärt, kein Zustand, den man wegklickt."""
+    from app.services import rebase
+
+    user, art = _purchase_world(db, world)
+    order, inst = _make_order(db, art, user, 4)
+    po = _po(db, order)
+    _drive(db, po, order, user, "ordered")
+    assert po.order_total is not None
+
+    dev = _make_deviation(db, order, inst, user, 1, steps=("scrap",))
+    _scrap(db, dev, inst, user, 1)
+    db.refresh(po)
+    db.refresh(order)
+
+    assert order.quantity == Decimal(3), "Der Auftrag selbst kürzt sich wie immer."
+    assert po.status == "ordered" and po.quantity == Decimal(4), (
+        "Die Bestellung bleibt unangetastet – der Lieferant hat zugesagt.")
+    open_points = rebase.clarifications(db, order, "purchase")
+    assert open_points[art.id].ordered == Decimal(4)
+    assert open_points[art.id].needed == Decimal(3), (
+        "Und was zu klären ist, steht da: bestellt 4 · gebraucht 3.")
+
+    # «Lieferant hat zugestimmt» – derselbe ``_apply`` wie die Automatik, anderer Auslöser.
+    rebase.apply_clarified(db, order, "purchase", po, user.id)
+    db.commit()
+    db.refresh(po)
+    assert po.status == "requested" and po.quantity == Decimal(3), (
+        "Jetzt gilt die neue Grundlage – und die Vereinbarung wird neu getroffen.")
+    assert po.order_total is None, "Die Bestellsumme galt für 4 Stück."
+    assert not rebase.clarifications(db, order, "purchase"), (
+        "Die Klärung ist abgeleitet – sie verschwindet, sobald jemand gehandelt hat.")
+
+
+def test_a_binding_document_of_a_dead_order_is_still_only_clarified(db, world):
+    """Auch der Abbruch hebt eine Zusage nicht auf: die Bestellung bleibt «Bestellt» und
+    wird als Klärung gemeldet («gebraucht: nichts mehr»). Erst die Bestätigung storniert
+    sie – dann aber auf die letzte Stufe, nicht auf die erste."""
+    from app.services import rebase
+
+    user, art = _purchase_world(db, world)
+    order, inst = _make_order(db, art, user, 4)
+    po = _po(db, order)
+    _drive(db, po, order, user, "ordered")
+    _make_deviation(db, order, inst, user, 4, steps=("scrap",), cut=True)
+    db.refresh(po)
+    db.refresh(order)
+
+    assert order.status == "inactive", "Der Auftrag ist abgebrochen…"
+    assert po.status == "ordered", "…die Zusage an den Lieferanten bleibt trotzdem stehen."
+    assert rebase.clarifications(db, order, "purchase")[art.id].needed == Decimal(0)
+
+    rebase.apply_clarified(db, order, "purchase", po, user.id)
+    db.commit()
+    db.refresh(po)
+    assert po.status == "cancelled", "Der Auftrag braucht nichts mehr – also storniert."
+
+
 def test_a_module_without_stages_is_untouched(db, world):
     """**Wer keine Stufen hat, ist nicht ausgenommen – er hat schlicht nichts zurückzunehmen.**
 

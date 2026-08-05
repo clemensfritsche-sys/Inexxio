@@ -1118,11 +1118,26 @@ def _attach_step_embed(db: Session, order: Order, s: dict, si: OrderStepInfo,
         embs = [_purchase_embed(db, order, step, f, history=hist) for f in facts]
         if not embs:
             return None, None
+        # **Was mit dem Lieferanten zu klären ist** (#587/#588) – abgeleitet, kein Merker:
+        # der Beleg ist bindend («Bestellt») und steht auf einer Menge, die der Auftrag nicht
+        # mehr braucht. Das System fasst ihn nicht an; hier steht, worüber zu reden ist.
+        from .rebase import clarifications
+        open_points = clarifications(db, order, "purchase")
+        for e in embs:
+            c = open_points.get(e.article_id or 0)
+            if c is not None:
+                e.clarify_needed = float(c.needed)
         si.purchases, si.purchase = embs, embs[0]
         first.setdefault("purchase", embs[0])
         return _purchase_received(embs[0]) if done else (None, None)
 
     if kind == "sale":
+        # **Der Verkauf gehört nicht zur Lieferantensicht** (Testnotiz #592). Der Lieferant
+        # sieht sonst denselben Prozess wie das Personal – aber Kunde, Betrag und Marge sind
+        # keine Frage der Darstellung, sondern der Vertraulichkeit. Das Modul bleibt als
+        # Karte im Fluss (der Ablauf ist ehrlich), sein Inhalt kommt gar nicht erst mit.
+        if viewer is not None and (viewer.role or "") not in _STAFF_ROLES:
+            return None, None
         # EIN `sale`-Schritt, ZWEI Modi (aus dem Subjekt abgeleitet): Verkauf (kind='sale')
         # oder Gutschrift/Erstattung (kind='credit', Retoure). Mehrere Belege je Position
         # teilen sich den Schritt.

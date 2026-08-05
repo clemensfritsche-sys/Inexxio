@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Link2, Calculator, Building2, ExternalLink, FileText, MapPin } from 'lucide-react';
+import { AlertTriangle, Link2, Calculator, Building2, ExternalLink, FileText, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
 import { actorHint } from '@/lib/utils';
 import type { CompanySettings, Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
@@ -171,6 +171,18 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
     }
   }
 
+  async function clarify() {
+    setSaving(true); setError(null);
+    try {
+      onOrderUpdated(await api.clarifyOrderPurchase(
+        order.object_id as number, po.article_id ?? null, stepId ?? null));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const hist = historyByStatus(po.history);
   const nodes = buildNodes(s, isWebshop, hist);
   const delivery: Delivery | undefined = (() => {
@@ -227,6 +239,30 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
             Auftrags-Fluss, nur eine Nummer kleiner (#194). */}
         <PurchaseProgress nodes={nodes} delivery={delivery} renderActive={() => (
           <>
+            {/* **Was mit dem Lieferanten zu klären ist** (Testnotizen #587/#588).
+                Bis zur Zusage zieht das System den Beleg selbst nach; ab «Bestellt» ist der
+                Lieferant gebunden und die Ware in aller Regel unterwegs – dann fasst es ihn
+                nicht an, sondern sagt, worüber zu reden ist. Wer angerufen hat, quittiert
+                hier das Ergebnis; erst das löst dieselbe Änderung aus. */}
+            {po.clarify_needed != null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                padding: '10px 12px', borderRadius: 'var(--r-md)',
+                background: 'color-mix(in srgb, var(--warning) 10%, #fff)',
+                border: '1px solid color-mix(in srgb, var(--warning) 35%, #fff)' }}>
+                <AlertTriangle size={15} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+                <span style={{ flex: 1, minWidth: 160, font: '500 12.5px var(--font-body)', color: 'var(--fg-2)' }}>
+                  Bestellt {qty} {unit ? unitLabel(unit) : ''} · gebraucht{' '}
+                  {po.clarify_needed > 0 ? `${po.clarify_needed} ${unit ? unitLabel(unit) : ''}` : 'nichts mehr'}
+                  {' – '}mit Lieferant klären
+                </span>
+                {isStaff && (
+                  <button onClick={clarify} disabled={saving} className="erp-actbtn erp-actbtn-primary">
+                    {saving ? '…' : 'Lieferant hat zugestimmt'}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Offerte / Bestellsumme */}
             {canEditOffer ? (
               <>

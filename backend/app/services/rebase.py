@@ -29,7 +29,9 @@ beliebig oft laufen, und ein verpasster Aufruf korrigiert sich beim nächsten.
 """
 
 from decimal import Decimal
+from typing import NamedTuple
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..domain import event_types
@@ -69,9 +71,31 @@ def _stage_of(order: Order, et: event_types.EventType):
     return et.reset if (order.status or "") == "released" else et.voided
 
 
+def _off_basis(order: Order, fact, et: event_types.EventType,
+               targets: dict[int, Decimal], stage) -> bool:
+    """**Steht dieser Beleg auf einer fremden Grundlage?** – die eine Frage, die beide
+    Auslöser stellen (die Automatik und die Bestätigung nach dem Anruf beim Lieferanten).
+
+    Nein, wenn er Vergangenheit ist (erledigt/beendet – eingetroffene Ware ist eingetroffen)
+    oder wenn er läuft und seine Menge noch stimmt. Ist der Auftrag zu Ende, gilt es immer:
+    dann gibt es gar keine Menge mehr."""
+    value = getattr(fact, et.status_field, None)
+    if value in et.done or value in et.failed or value == stage:
+        return False
+    want = targets.get(fact.article_id)
+    if stage == et.reset:
+        return want is not None and want > ZERO and to_qty(getattr(fact, "quantity", 0) or 0) != want
+    return True
+
+
 def rebase_documents(db: Session, order: Order, actor_id: int | None = None) -> list[str]:
-    """Die Belege dieses Auftrags auf ihre Grundlage zurücksetzen. Liefert, was sich geändert
-    hat (für Audit/Protokoll). Committet NICHT."""
+    """Die Belege dieses Auftrags auf ihre Grundlage zurücksetzen – **soweit das System das
+    allein darf**. Liefert, was sich geändert hat (für Audit/Protokoll). Committet NICHT.
+
+    Ab einer **bindenden** Stufe (``et.binding``) fasst es den Beleg nicht an: dort hat eine
+    zweite Partei zugesagt, und das lässt sich nicht einseitig zurücknehmen. Die Abweichung
+    bleibt dann als **offene Klärung** stehen (``clarifications``) – sichtbar am Schritt,
+    und erst die Bestätigung des Menschen löst dieselbe Änderung aus."""
     from . import process
     targets = target_quantities(db, order)
     changed: list[str] = []
@@ -80,21 +104,64 @@ def rebase_documents(db: Session, order: Order, actor_id: int | None = None) -> 
         if stage is None:
             continue
         for fact in process._facts(db, order, step_type):
-            value = getattr(fact, et.status_field, None)
-            # **Vergangenheit wird nicht umgeschrieben** (ADR 007): ein erledigter oder
-            # bereits beendeter Beleg bleibt, wie er ist – eingetroffene Ware ist
-            # eingetroffen, eine stornierte Bestellung bleibt storniert.
-            if value in et.done or value in et.failed or value == stage:
+            if getattr(fact, et.status_field, None) in et.binding:
+                continue                       # Zusage – hier entscheidet der Mensch
+            if not _off_basis(order, fact, et, targets, stage):
                 continue
-            want = targets.get(fact.article_id)
-            had = to_qty(getattr(fact, "quantity", 0) or 0)
-            # Läuft der Auftrag, ändert sich nur etwas, wenn die Menge eine andere ist.
-            # Ist er zu Ende, gilt das immer – dann gibt es keine Menge mehr.
-            if stage == et.reset and (want is None or want <= ZERO or had == want):
-                continue
-            _apply(db, order, fact, et, stage, want, actor_id)
-            changed.append(f"{step_type}:{value}→{stage}")
+            changed.append(f"{step_type}:{getattr(fact, et.status_field)}→{stage}")
+            _apply(db, order, fact, et, stage, targets.get(fact.article_id), actor_id)
     return changed
+
+
+class Clarification(NamedTuple):
+    """Eine offene Klärung: der Beleg steht auf einer Menge, die der Auftrag nicht mehr
+    braucht – und er ist bindend, also muss ein Mensch mit der Gegenseite reden."""
+    article_id: int
+    ordered: Decimal      # wofür der Beleg ausgestellt ist
+    needed: Decimal       # was der Auftrag noch braucht (0 = gar nichts mehr)
+
+
+def clarifications(db: Session, order: Order, step_type: str) -> dict[int, Clarification]:
+    """**Was an diesem Schritt mit der Gegenseite zu klären ist** – je Artikel, abgeleitet.
+
+    Kein Feld, kein Merker: die Frage ist «Beleg-Menge ≠ Soll, und der Beleg ist bindend».
+    Sie beantwortet sich damit von selbst und verschwindet in dem Moment, in dem jemand
+    handelt – ein gespeicherter Klärungs-Marker könnte dagegen hängen bleiben."""
+    from . import process
+    et = STAGED.get(step_type)
+    if et is None or not et.binding:
+        return {}
+    stage = _stage_of(order, et)
+    if stage is None:
+        return {}
+    targets = target_quantities(db, order)
+    out: dict[int, Clarification] = {}
+    for fact in process._facts(db, order, step_type):
+        if getattr(fact, et.status_field, None) not in et.binding:
+            continue
+        if not _off_basis(order, fact, et, targets, stage):
+            continue
+        out[fact.article_id] = Clarification(
+            article_id=fact.article_id,
+            ordered=to_qty(getattr(fact, "quantity", 0) or 0),
+            needed=targets.get(fact.article_id, ZERO) if stage == et.reset else ZERO)
+    return out
+
+
+def apply_clarified(db: Session, order: Order, step_type: str, fact,
+                    actor_id: int | None) -> str:
+    """**Der Mensch hat mit der Gegenseite gesprochen** – jetzt gilt dieselbe Änderung.
+
+    Kein zweiter Weg: derselbe ``_apply`` wie die Automatik, nur ein anderer Auslöser. Der
+    Unterschied zwischen «das System darf» und «der Mensch entscheidet» ist damit genau EINE
+    Bedingung im Automatik-Pfad – nicht zwei Implementierungen."""
+    et = STAGED[step_type]
+    stage = _stage_of(order, et)
+    targets = target_quantities(db, order)
+    if stage is None or not _off_basis(order, fact, et, targets, stage):
+        raise HTTPException(409, detail="Hier gibt es nichts zu klären – der Beleg passt zum Auftrag.")
+    _apply(db, order, fact, et, stage, targets.get(fact.article_id), actor_id)
+    return str(stage)
 
 
 def _apply(db: Session, order: Order, fact, et: event_types.EventType, stage,

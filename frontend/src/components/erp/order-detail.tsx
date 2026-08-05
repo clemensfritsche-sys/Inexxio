@@ -401,7 +401,13 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // Auftrag-Prozess (mehrere Schritte, Mehr-Operationen-Routing) – Schlüssel ist die
   // Schritt-id, damit mehrere gleichartige Schritte unabhängig bedienbar sind.
   const steps = (record?.steps ?? []) as OrderStep[];
-  const showProcess = isStaff && !!record && record.status !== 'draft' && steps.length > 0;
+  // **Der Lieferant sieht denselben Prozess wie das Personal** (Testnotiz #592). Er bekam
+  // bisher ein flaches Formular – eine zweite Bildsprache für dieselbe Sache, und er sah
+  // nicht, was vor und nach seiner Bestellung passiert. Jetzt dasselbe Diagramm, dieselben
+  // Modul-Karten; die Einschränkungen sind **inhaltlich**, nicht gestalterisch: der Verkauf
+  // kommt gar nicht erst mit (Kunde/Betrag, Backend), bedienen kann er nur seinen eigenen
+  // Schritt, und die internen Auswertungen (Verlauf, Systemprotokoll) bleiben beim Personal.
+  const showProcess = !!record && record.status !== 'draft' && steps.length > 0;
   const activeStepId = steps.find((s) => s.state === 'active')?.id
     ?? steps.find((s) => s.state === 'failed')?.id
     ?? steps.find((s) => s.state === 'blocked')?.id   // wartet auf Material → surface
@@ -1205,16 +1211,10 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
             Unter-Auftrag (Abweichung/Nachschub) nicht sinnvoll. */}
         {isStaff && record?.status === 'draft' && !isSubOrder && <RecurrenceCard order={record} persist={persistRecurrence} />}
 
-        {/* Lieferung an (für Lieferant) */}
-        {!isStaff && (
-          <>
-            <SectionTitle icon={MapPin}>Lieferung an</SectionTitle>
-            <div style={cardStyle}>
-              <Row k="Besteller" v={company?.company_name ?? 'Inexxio AG'} />
-              {companyAddr && <Row k="Adresse" v={`${companyAddr}, ${company?.zip ?? ''} ${company?.city ?? ''}`.trim()} />}
-            </div>
-          </>
-        )}
+        {/* (Die frühere Lieferanten-Karte «Lieferung an» ist entfallen, Notiz #592: die
+            Lieferadresse steht im Beschaffungs-Modul – für Personal wie Lieferant an
+            derselben Stelle. Eine zusätzliche Karte nur für die eine Rolle wäre genau die
+            Sonderbehandlung, die dieses Fenster nicht mehr haben soll.) */}
 
         {/* «Abweichung melden» sitzt jetzt als kleiner Flag-Knopf im Kopf (analog Instanz) –
             keine eigene Karte mehr im Detailfenster. */}
@@ -1370,14 +1370,6 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
               </div>
             )}
           </>
-        ) : !isStaff && hasPurchase ? (
-          // Die Lieferantensicht ist ein Formular, kein Diagramm – sie bleibt in der
-          // Satzbreite des übrigen Fensters.
-          <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
-            <SectionTitle icon={Workflow}>Prozess</SectionTitle>
-            <PurchaseStepPanel order={record as Order} purchases={record?.purchase ? [record.purchase] : []}
-              viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
-          </div>
         ) : null}
         </div>
         </>)}
@@ -1429,6 +1421,12 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   onSaved: (o: Order) => void;
 }) {
   if (!step) return null;
+  // **Ein Lieferant sieht den ganzen Prozess, bedient aber nur seinen Schritt** (Notiz #592).
+  // Die Modul-Karte bleibt im Fluss – der Ablauf soll ehrlich sein –, sie klappt für ihn
+  // nur nichts auf. Das ist die Grenze zwischen «sehen» und «tun»; das Backend zieht sie
+  // ohnehin (jeder andere Ausführungs-Endpunkt verlangt Personal), hier wird sie sichtbar,
+  // statt in eine Fehlermeldung zu laufen.
+  if (viewerRole !== 'staff' && step.step_type !== 'purchase') return null;
   const stepOrder: Order = {
     ...order,
     purchase: (step.purchase ?? order.purchase) as Order['purchase'],

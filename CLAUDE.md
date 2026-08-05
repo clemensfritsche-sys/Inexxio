@@ -5069,6 +5069,60 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   erwartete Stufe + Menge + Vereinbarung, mit Begründung im Fehlertext), über die echten
   Dienst-Pfade gegen echtes PostgreSQL 16 und **gegen die Bug-Form gegengeprüft**.
 
+- **Bis zur Zusage entscheidet das System, ab der Zusage der Mensch (Testnotizen #587/#588,
+  Entscheid des Nutzers)**: Die Beleg-Regel bekommt ihre **Schwelle**. `EventType.binding`
+  nennt die Stufen, ab denen eine **zweite Partei** gebunden ist – bei der Beschaffung
+  «Bestellt»: die Ware ist in aller Regel unterwegs, und man widerruft sie nicht einseitig
+  (bei «Offeriert» greift die Automatik weiter). Das System fasst einen solchen Beleg nicht
+  an, sondern **meldet** die Abweichung; erst die Bestätigung des Menschen löst dieselbe
+  Änderung aus. Damit bleibt die Ausnahme abbildbar, die es in der Realität gibt: man ruft
+  den Lieferanten an.
+  **Die Klärung ist abgeleitet, kein Merker** (`rebase.clarifications`): «Beleg-Menge ≠ Soll
+  UND der Beleg ist bindend». Sie verschwindet in dem Moment, in dem jemand handelt – ein
+  gespeicherter Marker könnte hängen bleiben. Sichtbar am Beschaffungs-Modul
+  (`PurchaseEmbed.clarify_needed`, «Bestellt 3 Stk · gebraucht 2 Stk – mit Lieferant
+  klären») mit **einer** Antwort: «Lieferant hat zugestimmt» (`POST …/purchase/clarify`,
+  Personal – der Anruf ist eine interne Handlung). *«Bleibt wie bestellt» ist bewusst KEINE
+  Option: eine Überlieferung ist ein Fall, den man klärt, kein Zustand zum Wegklicken.*
+  **Kein zweiter Weg:** `apply_clarified` benutzt denselben `_apply` wie die Automatik – der
+  Unterschied zwischen «das System darf» und «der Mensch entscheidet» ist genau EINE
+  Bedingung im Automatik-Pfad, nicht zwei Implementierungen. Beide fragen dieselbe
+  `_off_basis`. *Die **Lieferanten-Rücksendung** (Beleg im Kredit-Modus, Spiegelbild der
+  Kunden-Retoure) bleibt wie bisher eine bewusste Lücke – ab «Geliefert» geht zurück nur,
+  was man zurückSCHICKT.*
+  Wächter: `tests/rules/test_document_basis.py` (Schwelle greift · Klärung wird gemeldet ·
+  Bestätigung löst Reset bzw. Storno aus – gegen echtes PostgreSQL 16).
+
+- **Testnotizen-Runde 45 (#591–#593)**:
+  (1) **Runde Ecken überall – auch am Anschluss an die Achse** (#591): Das T aus #586 hatte
+  zwar keinen Stummel mehr, war aber die einzige harte 90°-Ecke im ganzen Bild. Die Lösung
+  ist keine Formfrage, sondern eine **Zuordnung**: der Anschluss-Bogen liegt ~8 px *entlang*
+  der Achse, also **gehört er der Achse** – der Pfad wird an genau diesem Bogen geteilt
+  (`roundedPath(…, splitAt)`) und in zwei Stärken gezeichnet; der Bogen nimmt die **stärkere**
+  der beiden Linien, damit ein dünner Weg nie eine starke Achse zerschneidet. Fork und Merge
+  sind dabei echte **Spiegelbilder** (beide Waagrechten `BEND` innerhalb der Zeile), das
+  Material steht also weiterhin ohne Korrekturglied mittig. In Chromium gemessen: Versatz
+  0.00 px an allen drei Stellen; im kritischen Fall (nichts kam zurück, Bypass trägt Material)
+  ist der Bogen 4 px schwarz und der Rückweg 2 px grau.
+  (2) **Der Lieferant sieht denselben Prozess wie das Personal** (#592): Er bekam ein flaches
+  Formular – zwei Bildsprachen für dieselbe Sache, und er sah nicht, was vor und nach seiner
+  Bestellung passiert. Jetzt dasselbe Diagramm, dieselben Modul-Karten. **Die Einschränkungen
+  sind inhaltlich, nicht gestalterisch:** der **Verkaufs-Embed** (Kunde, Betrag, Marge) geht
+  für Nicht-Personal gar nicht erst mit (Backend, `_attach_step_embed` – ein Filter in der
+  Oberfläche wäre eine Bitte, keine Grenze); **bedienen** darf er nur seinen eigenen Schritt
+  (EINE Bedingung in `StepPanel`, die übrigen Module bleiben als Karte sichtbar, klappen aber
+  nichts auf); **Verlauf und Systemprotokoll** bleiben beim Personal. Die Sonder-Karte
+  «Lieferung an» ist entfallen – die Lieferadresse steht im Beschaffungs-Modul, für beide
+  Rollen an derselben Stelle.
+  (3) **Jedes Modul kann mehrere Artikel** (#593, geprüft statt behauptet): Beschaffung und
+  Verkauf tragen **einen Beleg je Position** unter EINEM Schritt (bei der Beschaffung
+  schreitet jede Bestellung eigenständig fort – eigener Lieferant, eigene Lieferzeit; beim
+  Verkauf ist es ein Vorgang mit einem Beleg je Position). Bewegung, Aussondern und
+  Datenerfassung arbeiten auf den **Instanzen** und fragen gar nicht nach dem Artikel; wer
+  eine Menge braucht, liest `order_lines.effective_quantity` statt der bei Mehrpositionen
+  leeren Anker-Menge. Beides ist «mehrartikel-fähig» – ein Modul, das nichts vom Artikel
+  wissen muss, braucht dafür keinen Mechanismus. Wächter `tests/rules/test_multi_article.py`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
