@@ -1080,7 +1080,10 @@ def test_the_order_goal_hangs_at_the_end_of_the_process():
     assert "position: 'absolute', left: '100%', top: '50%'," in flow, (
         "Die Zielangabe hängt rechts am Endknoten, ohne die Achse zu verschieben (#457).")
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
-    assert ") : showProcess ? null : (" in detail, (
+    # Die Fachaussage, nicht die Schreibweise des Ternärs: läuft der Prozess, entfällt die
+    # Karte. (Seit #594 fällt sie zusätzlich für Nicht-Personal weg – der Lieferant sieht
+    # seinen Beleg, nicht Artikel, Menge und Instanzen seines Kunden.)
+    assert "showProcess" in detail and "? null : (" in detail, (
         "Sobald der Prozess läuft, sagt er alles – die Karte entfällt (#447).")
     assert "goal={{" in detail and "record.desired_delivery_date" in detail
 
