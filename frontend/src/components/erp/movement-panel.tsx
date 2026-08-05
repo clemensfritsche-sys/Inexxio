@@ -10,6 +10,7 @@ import { LOCATION_META, locationTypeLabel, instanceLabel, heldOf } from '@/lib/p
 import { formatObjectId, userDisplayName } from '@/lib/utils';
 
 import { ObjId } from '@/components/erp/obj-id';
+import { InstanceRow, InstanceRows } from '@/components/erp/instance-row';
 import { PrimaryButton, IconSwitch } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
@@ -196,9 +197,13 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
             Auftrags-Stepper bereits (grünes Symbol, Wer/Wann im Hover) – hier zählt das
             Ergebnis, also wo die Instanzen jetzt liegen (Notiz #2). */}
         {mv?.shipment && <ShipmentBox order={order} stepId={stepId} shipment={mv.shipment} readOnly onOrderUpdated={onOrderUpdated} />}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
-          {instances.map((i) => <InstanceRow key={i.id} instance={i} />)}
-        </div>
+        <InstanceRows>
+          {instances.map((i) => (
+            <InstanceRow key={i.id} instance={i} unit={order.article_unit}
+              where={i.location_label ?? null}
+              whereIcon={LOCATION_META[(i.location_type as LocationType)]?.icon ?? MapPin} />
+          ))}
+        </InstanceRows>
       </div>
     );
   }
@@ -546,19 +551,6 @@ function CurrentLocation({ instance }: { instance: OrderInstance }) {
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}>
       <Icon size={11} /> {instance.location_label}
     </span>
-  );
-}
-
-function InstanceRow({ instance }: { instance: OrderInstance }) {
-  const Icon = LOCATION_META[(instance.location_type as LocationType)]?.icon ?? MapPin;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
-      <span style={{ fontSize: 12 }}><ObjId value={instance.object_id} /></span>
-      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel()}</span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
-        <Icon size={13} style={{ color: '#2563eb' }} /> {instance.location_label ?? '—'}
-      </span>
-    </div>
   );
 }
 

@@ -5492,6 +5492,100 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (#633), die Zeile «• Grund (Pflicht bei der Ausführung)» entfällt (#634 – der Grund ist
   Pflicht, das sagt die Ausführung selbst), die FIFO-Zeit steht an jeder Einheit (#631).
 
+- **Sperren ist Verschrotten – nur reversibel** (August 2026, Testnotiz #646): Der Schritt
+  «Aussondern · Sperren» setzte bisher nur eine Notiz an der Instanz (`quality='blocked'`).
+  Das Stück hing danach weiter im Auftrag: der wurde nie fertig, seine Rückführung lief
+  weiter, und die Anzeige sagte «Im Prozess» statt «Gesperrt». Jetzt ist der **Ablauf
+  identisch zum Verschrotten** – es ist dasselbe Modul: der Auftrag ist mit dem Stück
+  fertig, gibt es **nicht** zurück und schliesst ab. Der Unterschied ist allein die
+  **Umkehrbarkeit**: Menge, Standort und Nummer bleiben, das Stück liegt danach **am Lager,
+  gesperrt** (gelb) – im Bestand des Artikels sichtbar, für FIFO unsichtbar, und über einen
+  ganz normalen Auftrag jederzeit wieder aufnehmbar.
+  **Die Sperre gehört dabei zum STÜCK, nicht zur Instanz** (`units`-Lauf `l`): wer eines von
+  vier Stück aussondert, sperrte vorher faktisch die ganze Charge, und umgekehrt überschrieb
+  die Freigabe-Marke eines Stücks die Sperre in der Anzeige. Der Instanz-Skalar ist seither
+  die **Projektion** darüber (`units.project`: «gesperrt» erst, wenn nichts Verwendbares mehr
+  übrig ist – sonst fiele die ganze Charge aus FIFO, obwohl gute Stücke darin liegen; die
+  **Menge** trägt die Wahrheit, `free_quantity` gibt nie ein gesperrtes Stück heraus).
+  **Drei Regeln, die daraus folgen:** (1) gesperrt wird, was **dieser** Auftrag hält (wie
+  beim Verschrotten, #412/#414); (2) was er selbst ausgesondert hat, **fehlt ihm nicht** –
+  `_disposed_amounts` zählt neben terminalen Buchungen jetzt auch die Sperr-Abgabe, sonst
+  meldete ein Sperr-Auftrag am Ende eine Fehlmenge über seine ganze Menge und würde
+  **abgebrochen** statt abgeschlossen (die Regel von #555, jetzt auch im regulären Pfad);
+  (3) ein gesperrtes Stück deckt **nie** ein Soll (`_secured_amounts`, ohne Ausnahme und
+  ohne zu fragen, wer gesperrt hat – siehe unten).
+  Wächter `tests/rules/test_units.py: test_blocking_ends_the_order_like_scrapping_does`,
+  `…_a_blocked_piece_comes_back_through_an_order` (beide gegen die Bug-Form gegengeprüft);
+  gegen echtes PostgreSQL 16 verifiziert.
+
+- **Aus einer Sperre führt EIN Weg – derselbe, der jedes Stück gut macht** (August 2026,
+  Nachtrag zu #646): Die erste Fassung kannte **zwei** ausdrückliche Ausgänge – einen Knopf
+  «Sperre aufheben» an der Instanz und eine **bestandene Datenerfassung**. Zwei Wege zu
+  demselben Ergebnis sind zwei Wahrheiten, und welcher gilt, hing an der Reihenfolge der
+  Schritte. Beide sind ersatzlos entfallen (`scrap.unblock`, `POST …/instances/{id}/unblock`,
+  `units.clear_block`, der `else`-Zweig in `inspection._apply_per_instance_qc`, der Knopf im
+  Instanz-Detail).
+  **Die eine Regel:** «freigegeben» und «gesperrt» sind dieselbe Frage mit entgegengesetzter
+  Antwort – *darf man das verwenden?*. Also hebt die **Freigabe** die Sperre auf
+  (`units.mark_released` löscht `l`), und freigegeben wird, was ein Auftrag beim Abschluss
+  noch **hält** (`process.release_instances`, seit #572). Man legt einen ganz gewöhnlichen
+  Auftrag an, wählt das gesperrte Stück, lässt ihn durchlaufen – fertig. **Welcher Schritt
+  darin steht, ist gleichgültig** (im Nachweis eine blosse Bewegung); die Datenerfassung
+  stellt nur noch fest, was schlecht ist.
+  **Vier Stellen mussten dafür ehrlicher werden, jede eine Vereinfachung:**
+  (a) `Unit.done` = «freigegeben UND verwendbar» – ein gesperrtes Stück ist nicht am Ziel,
+  also gibt der Abschluss es frei (vorher `not u.released`, und ein gesperrtes trug sein
+  `s` schon).
+  (b) **`subject.is_bound` fragt dieselbe Frage wie FIFO**: *was wäre entnehmbar?*
+  (`inventory.ready_qty`) statt *wem gehört nichts?* (`reservation.free_qty`). Ein gesperrtes
+  Stück gehört niemandem – es galt darum als frei, und eine Charge mit einem gesperrten Stück
+  liess sich als gewöhnlicher Bedarf greifen. Jetzt ist die Nacharbeit **automatisch** ein
+  Auftrag mit festem Subjekt (Abweichung), und für den zählt nicht «gesichert», sondern «hält
+  er es noch?» – womit die Herkunfts-Frage aus (3) oben (`_self_blocked_amounts`, eine
+  Journal-Abfrage nur für diesen Sonderfall) **ersatzlos** entfällt.
+  (c) `_bind_deviation_subjects` reserviert, was am Lager **liegt** (`inventory.lies_at_stock`
+  – die Ortsfrage) statt nur, was verwendbar ist: sonst hielte der Nacharbeits-Auftrag sein
+  Subjekt gar nicht und könnte es am Ende nicht freigeben.
+  (d) `subject.give_back` gibt **nur das Geliehene** zurück (`min(gehalten, Fehlmenge des
+  Verleihers)`, Rest bleibt bis zum Abschluss). Vorher gab es den ganzen Anspruch ab – was
+  der Unter-Auftrag sich selbst vom freien Bestand geholt hatte, wurde damit frei, **bevor**
+  `release_instances` es sehen konnte; ein nachgearbeitetes Stück blieb gesperrt. Am Ende ist
+  es dasselbe (der Abschluss löst ohnehin jeden Anspruch), nur eben nach der Freigabe.
+  **Die eine Unschärfe, benannt statt versteckt:** ein Anteil benennt *Instanz · Menge ·
+  Halter*, nicht die einzelne Nummer. Aus einer teilweise gesperrten Charge bekommt eine
+  Teilmenge darum die **verwendbaren** Stücke (`units._assign`: genannter Anteil ≻ frei &
+  verwendbar ≻ frei ≻ fremd) – wer das gesperrte will, nimmt die ganze Menge. Ohne diese
+  Reihenfolge entschiede die Nummerierung darüber, ob ein gewöhnlicher Bedarf ein gesperrtes
+  Stück erwischt.
+  *Die Buchungsart `unblocked` bleibt im Journal – Altbestand trägt sie, und die
+  Vergangenheit wird nicht umgeschrieben (tolerant lesen, streng schreiben).*
+  Wächter: `tests/rules/test_units.py: test_a_blocked_piece_comes_back_through_an_order`
+  (gegen **beide** Bug-Formen gegengeprüft), `test_smoke.py: test_block_is_reversible_scrap_is_not`
+  (kein `unblock`, kein `clear_block`, `mark_released` löscht die Sperre),
+  `…_a_deviation_borrows_and_gives_back`; gegen echtes PostgreSQL 16 verifiziert (ganz
+  gesperrte Instanz **und** teilweise gesperrte Charge, je über die echten Dienst-Pfade).
+
+- **Testnotizen-Runde 37 (eine Zahl, eine Quelle, Notizen #637–#644)**:
+  (1) **«x von N Stück prüfen» kommt aus EINER Rechnung** (#643): `required_count` las, was
+  der Auftrag tatsächlich hält, das `N` daneben die *deklarierte* Auftragsmenge – nachdem ein
+  Abzweig ein Stück übernommen hatte, stand da «1 von 2», obwohl nur noch eines da war. Neu
+  trägt der Embed die Bezugsmenge selbst (`InspectionEmbed.inspected_quantity`).
+  (2) **Ein Erfassungsfeld ohne Namen ist noch nicht fertig – aber es ist da** (#637):
+  gespeichert werden nur benannte Felder; solange die Zeilen direkt aus dem Gespeicherten
+  kamen, verschwand jede neu angelegte sofort wieder und ein zweites liess sich nie
+  hinzufügen. Die Liste lebt jetzt im Editor, der Speicher bekommt, was fertig ist.
+  (3) **Nichts ist vorausgewählt** (#638): eine neue Datenerfassung startet ohne Feld – was
+  erfasst wird, ist eine Entscheidung.
+  (4) **EINE Instanz-Zeile für alle Panels** (#642, `components/erp/instance-row.tsx`):
+  Objektnummer · Menge · Zustand (+ Standort, wo er zählt), Haarlinien statt Kästen. Die
+  zwei fast gleichen Nachbauten in Bewegung und Aussondern sind entfallen, ebenso das Wort
+  «Instanz» in jeder Zeile einer Instanz-Liste.
+  (5) **Der Bestand ist eingeklappt** (#644): je Instanz eine Zeile (Nummer · Menge), die
+  Stücke auf Klick – die Auskunft bleibt, die Liste wird wieder lesbar.
+  (6) Kleineres: «Zielstandort» ohne «(optional)» (#641); die Beschriftungszeilen der
+  Entwurfs-Knoten entfallen (#639/#640 – dass ein Auftrag oben hergibt und unten
+  zurückbekommt, sagen seine Stelle im Bild und der Pfeil).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

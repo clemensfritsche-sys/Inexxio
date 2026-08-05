@@ -770,7 +770,9 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
  * Detail-Kopfs: Symbol · Eyebrow · Name · Objektnummer.
  */
 function OrderRefNode({ caption, objectId, name, icon: Dir, title, onClick }: {
-  caption: string; objectId: number; name?: string | null;
+  /** Rolle des Verweises – im Entwurf entfällt sie (#639/#640): dass der Auftrag oben
+   *  hergibt und unten zurückbekommt, sagt seine Stelle im Bild und der Pfeil. */
+  caption?: string; objectId: number; name?: string | null;
   icon: React.ElementType; title: string; onClick?: () => void;
 }) {
   const meta = TYPE_META.order;
@@ -789,10 +791,12 @@ function OrderRefNode({ caption, objectId, name, icon: Dir, title, onClick }: {
         <Icon size={16} />
       </span>
       <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ display: 'block', font: '700 10px var(--font-body)',
-          textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-4)' }}>
-          {caption}
-        </span>
+        {caption && (
+          <span style={{ display: 'block', font: '700 10px var(--font-body)',
+            textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-4)' }}>
+            {caption}
+          </span>
+        )}
         <span style={{ display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
           <span style={{ font: '800 13.5px var(--font-display)', letterSpacing: '-.01em',
             color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -1036,7 +1040,7 @@ function DraftOriginArm({ holders, onOpen }: {
             alignItems: 'center', width: '100%', minWidth: 0 }}>
             {i > 0 && <Axis h={20} strong />}
             <div {...aside('left', { width: '100%', minWidth: 0 }, m.stacked)}>
-              <OrderRefNode caption="Nimmt aus" objectId={h.object_id} name={h.name}
+              <OrderRefNode objectId={h.object_id} name={h.name}
                 icon={ArrowDown}
                 title={`${holderLoss(h)} aus ${h.name ?? 'Auftrag'} ${formatObjectId(h.object_id)} – öffnen`}
                 onClick={onOpen ? () => onOpen(h.object_id) : undefined} />
@@ -1095,7 +1099,6 @@ function DraftReturnArm({ holder, connected, onToggle }: {
       )}
       <div {...aside('left', { width: '100%', minWidth: 0, opacity: connected ? 1 : 0.55 }, m.stacked)}>
         <OrderRefNode
-          caption={connected ? 'Gibt zurück an' : 'Keine Rückgabe – wird abgebrochen'}
           objectId={holder.object_id} name={holder.name} icon={ArrowDown}
           title={`${holderLoss(holder)} · ${label} ${formatObjectId(holder.object_id)}`} />
       </div>

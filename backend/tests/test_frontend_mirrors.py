@@ -1759,3 +1759,45 @@ def test_the_stock_list_reads_the_same_preparation_as_everywhere():
     assert "denorm" in _i.getsource(list_article_instances), (
         "Der Bestand liest dieselbe Aufbereitung wie Feed und Detail.")
     assert "units.rows" in _i.getsource(denorm), "…und die kennt die Stücke."
+
+
+def test_the_sample_scope_names_one_quantity():
+    """**«x von N Stück prüfen» – beide Zahlen aus EINER Quelle** (Testnotiz #643).
+
+    ``required_count`` kam aus dem, was der Auftrag tatsächlich HÄLT; das ``N`` daneben aus
+    ``order.quantity``, der *deklarierten* Menge. Nachdem ein Abzweig ein Stück übernommen
+    hatte, stand da «1 von 2», obwohl nur noch eines da war – zwei Zahlen aus zwei Quellen
+    in einem Satz."""
+    from app.schemas.inspection import InspectionEmbed
+    assert "inspected_quantity" in InspectionEmbed.model_fields
+    src = (FRONTEND / "components" / "erp" / "inspection-panel.tsx").read_text(encoding="utf-8")
+    assert "insp?.inspected_quantity" in src, (
+        "Die Bezugsmenge kommt aus dem Embed – nicht aus der deklarierten Auftragsmenge.")
+
+
+def test_an_instance_row_looks_the_same_in_every_panel():
+    """**Eine Instanz-Zeile, überall dieselbe** (Testnotiz #642).
+
+    Sie stand zweimal fast gleich in den Panels, jedes Mal als eigener Kasten in der
+    Alt-Palette und mit dem Wort «Instanz» in jeder Zeile – obwohl unter einer Instanz-Liste
+    ohnehin jede Zeile eine Instanz ist."""
+    erp = FRONTEND / "components" / "erp"
+    shared = (erp / "instance-row.tsx").read_text(encoding="utf-8")
+    assert "export function InstanceRow" in shared and "export function InstanceRows" in shared
+    for name in ("scrap-panel", "movement-panel"):
+        src = (erp / f"{name}.tsx").read_text(encoding="utf-8")
+        assert "function InstanceRow(" not in src, f"{name}: kein zweiter Nachbau."
+        assert "instance-row" in src, f"{name}: liest die gemeinsame Zeile."
+
+
+def test_nothing_is_preselected_and_a_second_field_can_be_added():
+    """**Erfassungsfelder: nichts vorausgewählt, und das zweite geht auch** (#637/#638).
+
+    Gespeichert werden nur benannte Felder – solange die Zeilen direkt aus dem Gespeicherten
+    kamen, verschwand darum jede neu angelegte sofort wieder, und ein zweites Feld liess sich
+    nie hinzufügen."""
+    src = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    assert "capture_fields: [] };" in src, "Eine neue Datenerfassung startet leer (#638)."
+    editor = src.split("function CaptureFieldsEditor")[1].split("\nfunction ")[0]
+    assert "useState<WField[]>(fields)" in editor, (
+        "Die Liste lebt im Editor – der Speicher bekommt, was fertig ist (#637).")

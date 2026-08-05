@@ -48,9 +48,13 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   // nur einen *aktiven* Schritt ausführt und ein fehlgeschlagener das nicht ist (409).
   const resolvedBy = insp?.resolved_by_order_id ?? null;
   const done = result === 'passed' || result === 'failed';
-  // Bei einem Mehrpositionen-Auftrag ist ``order.quantity`` NULL – die Gesamtmenge ergibt
-  // sich dann aus der Summe der Positionsmengen (Spiegel von ``order_lines.effective_quantity``).
-  const qty = order.quantity ?? (order.order_lines ?? []).reduce((s, l) => s + l.quantity, 0);
+  // **Eine Zahl, eine Quelle** (Testnotiz #643): «x von N Stück prüfen» – beide Zahlen
+  // kommen aus derselben Rechnung wie der Prüfumfang (`inspection.inspected_quantity`:
+  // was der Auftrag TATSÄCHLICH hält). Hier stand vorher `order.quantity`, die *deklarierte*
+  // Menge: nachdem ein Abzweig ein Stück übernommen hatte, hiess es «1 von 2», obwohl nur
+  // noch eines da war. Der Rückfall gilt nur für Altbestand ohne die Angabe.
+  const qty = insp?.inspected_quantity
+    ?? order.quantity ?? (order.order_lines ?? []).reduce((s, l) => s + l.quantity, 0);
   // **Mehrere Proben aus EINER Instanz** – der Chargen-Fall. Abgeleitet aus den Proben
   // selbst (trägt eine Instanz mehr als einen Slot?), nicht aus der Serialisierung des
   // Artikels: die Proben sind die Tatsache, der Artikeltyp nur ihre übliche Ursache. So

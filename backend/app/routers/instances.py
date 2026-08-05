@@ -188,33 +188,13 @@ async def get_instance(
     return resp
 
 
-@router.post("/{object_id}/unblock", response_model=InstanceResponse)
-async def unblock_instance(
-    object_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """Sperre aufheben – das Gegenstück zum Schritt «Sperren».
-
-    Bewusst eine **Aktion an der Instanz**, kein Prozessschritt: eine Maschine kommt aus
-    der Wartung zurück, ohne dass jemand dafür einen Auftrag anlegen möchte. Der Zustand
-    danach ist abgeleitet – schon einmal freigegeben → wieder freigegeben, sonst zurück
-    in die Prüfung."""
-    inst = (
-        db.query(Instance)
-        .filter(Instance.object_id == object_id, Instance.is_active == True)
-        .first()
-    )
-    if not inst:
-        raise HTTPException(404, detail="Instanz nicht gefunden")
-    scrap_svc.unblock(db, inst, current_user.id)
-    resp = denorm(db, [inst])[0]
-    resp.location_path = safe_location_path(db, inst)
-    return resp
-
-
 # Kein eigener Dokumente-Endpunkt je Instanz mehr: der Reiter «Dokumente» läuft für
 # ALLE Objekte über den generischen ``GET /erp/objects/{id}/documents`` (document_files.py).
+#
+# Und kein «Sperre aufheben» mehr (Testnotiz #646): eine Sperre endet dort, wo jedes Stück
+# gut wird – ein Auftrag hält es, läuft durch und gibt es beim Abschluss frei. Ein Knopf
+# daneben wäre ein zweiter Weg zu demselben Ergebnis, mit eigener Reihenfolge und eigenen
+# Sonderfällen; das Aufnehmen eines gesperrten Stücks ist ein ganz gewöhnlicher Auftrag.
 
 @router.get("/{object_id}/orders", response_model=list[InstanceOrderRef])
 async def list_instance_orders(

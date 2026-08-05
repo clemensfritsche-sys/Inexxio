@@ -38,6 +38,7 @@ from ..models.base import utcnow
 from .events import emit
 from . import ledger
 from . import inventory
+from . import units
 from .inventory import available, in_stock_clauses, is_blocked, unblocked_clauses
 from .quantity import ONE, ZERO, qty_sum, to_qty
 from .reservation import free_qty, release, reserve, reserved_for, take as take_qty
@@ -524,20 +525,32 @@ def _held_amounts(db: Session, order: Order) -> dict[int, Decimal]:
     return held
 
 
-def _disposed_amounts(db: Session, order: Order) -> dict[int, Decimal]:
+def _disposed_amounts(db: Session, order: Order, *,
+                      include_sold: bool = True) -> dict[int, Decimal]:
     """**Was dieser Auftrag selbst ausgesteuert hat** – je Artikel, aus dem Journal.
 
     Terminale Buchungen (verschrottet · verkauft · verbaut), die IHM zugeschrieben sind: sie
     sind das Ergebnis seiner Arbeit, nicht ein Verlust. Der Zustand einer Instanz sagt das
-    nicht – dort steht nur, dass die Menge weg ist, nicht wer sie ausgesteuert hat."""
+    nicht – dort steht nur, dass die Menge weg ist, nicht wer sie ausgesteuert hat.
+
+    **Und Sperren zählt genauso** (Testnotiz #646): es ist dasselbe Modul, nur reversibel.
+    Ein gesperrtes Stück ist nicht terminal (es lebt weiter, gesperrt am Lager) – erkennbar
+    ist es an der Buchung, die es aus der Obhut dieses Auftrags **an niemanden** abgibt.
+    Ohne diese Zeile hätte ein Sperr-Auftrag am Ende eine Fehlmenge über seine ganze Menge
+    und würde statt abgeschlossen **abgebrochen**."""
     from . import ledger
     if not order.id:
         return {}
     view = ledger.order_view(db, order.id)
-    if view is None or not view.terminal:
+    if view is None:
+        return {}
+    mine = [r for r in view.terminal if include_sold or r.disposition != "sold"]
+    mine += [r for r in view.departed
+             if r.to_order is None and r.quality == inventory.BLOCKED]
+    if not mine:
         return {}
     by_oid: dict[int, Decimal] = {}
-    for row in view.terminal:
+    for row in mine:
         by_oid[row.instance_object_id] = by_oid.get(row.instance_object_id, ZERO) + row.quantity
     out: dict[int, Decimal] = {}
     for inst in db.query(Instance).filter(Instance.object_id.in_(by_oid)).all():
@@ -572,11 +585,20 @@ def _secured_amounts(db: Session, order: Order) -> dict[int, Decimal]:
         # Filter fehlte aber: eine gesperrte reservierte Instanz deckte das Soll
         # scheinbar weiter, der Schritt blockierte nie und der Verkauf hätte still eine
         # durchgefallene Einheit unterschlagen (sell_order_subjects überspringt failed).
-        if is_blocked(inst):
-            continue
         # Der Anspruch selbst ist schon gekürzt, wenn eine Abweichung ihn übernommen hat
-        # (``reservation.claim``) – hier bleibt nichts weiter abzuziehen.
-        secured[inst.article_id] = secured.get(inst.article_id, ZERO) + reserved_for(inst, order.id)
+        # (``reservation.claim``) – hier bleibt abzuziehen, was **gesperrt** ist: es deckt
+        # kein Soll, sonst versendete der Auftrag still eine schlechte Einheit.
+        #
+        # **Ohne Ausnahme, und ohne zu fragen, WER gesperrt hat** (Testnotiz #646): ein
+        # Auftrag, der ein gesperrtes Stück zur **Nacharbeit** hereinholt, ist durch seine
+        # Auswahl ohnehin ein Auftrag mit festem Subjekt (``subject.is_bound`` – gesperrt
+        # ist nicht frei), und für den zählt gar nicht «gesichert», sondern «hält er es
+        # noch?» (``_held_amounts``). Die Fallunterscheidung nach der Herkunft der Sperre
+        # ist damit überflüssig; es bleibt EINE Regel je Auftragsart.
+        usable = reserved_for(inst, order.id) - units.blocked_quantity(inst, holder=order.id)
+        if usable <= 0:
+            continue
+        secured[inst.article_id] = secured.get(inst.article_id, ZERO) + usable
     for inst in db.query(Instance).filter(
         Instance.order_id == order.id, Instance.is_active == True, *unblocked_clauses()
     ).all():
@@ -589,6 +611,13 @@ def _secured_amounts(db: Session, order: Order) -> dict[int, Decimal]:
         rest = to_qty(inst.quantity) - in_clarification.get(inst.id, ZERO)
         if rest > 0:
             secured[inst.article_id] = secured.get(inst.article_id, ZERO) + rest
+    # **Was dieser Auftrag selbst ausgesondert hat, fehlt ihm nicht** (Testnotiz #555 –
+    # jetzt auch im regulären Pfad, #646): verschrottet oder gesperrt ist das ERGEBNIS
+    # seiner Arbeit. Ohne diese Zeile meldete ein Auftrag, dessen Zweck das Aussondern ist,
+    # am Ende eine Fehlmenge über seine ganze Menge und würde **abgebrochen** statt
+    # abgeschlossen. Verkauftes bleibt draussen – das zählt die Zeile darunter.
+    for article_id, qty in _disposed_amounts(db, order, include_sold=False).items():
+        secured[article_id] = secured.get(article_id, ZERO) + qty
     # FIX: was DIESER Auftrag bereits **verkauft** hat, ist GELIEFERT – nicht «verloren».
     # Ohne diesen Anteil meldete ein bezahlter Verkauf (Reservierung verbraucht, Ware sold)
     # die volle Menge als Fehlmenge: nicht-gesperrte Folgeschritte blockierten dauerhaft und
@@ -776,6 +805,11 @@ def release_instances(db: Session, order: Order) -> None:
       damit fertig, und es geht ans Lager.
     * Ein **Erzeugungsauftrag** hält seine Instanz über ``Instance.order_id`` und gibt sie
       am Ende komplett frei – wie bisher.
+    * Ein **gesperrtes** Stück, das dieser Auftrag hält, ist nicht am Ziel – also gibt er es
+      frei, und damit endet die Sperre (Testnotiz #646). Das ist der EINE Weg zurück: einen
+      Auftrag anlegen, das gesperrte Stück auswählen, ihn durchlaufen lassen. Kein Knopf an
+      der Instanz, keine Sonderrolle für die Datenerfassung – dieselbe Regel wie für jedes
+      andere Stück.
     * Läuft daneben noch ein anderer Auftrag mit einem Anteil derselben Charge, bleibt
       dessen Anteil unberührt: er gehört ihm, nicht diesem hier (Notiz #262).
 
@@ -811,7 +845,7 @@ def release_instances(db: Session, order: Order) -> None:
         # noch etwas in der Hand hat, ist damit fertig. Ein gekappter Abzweig behält sein
         # Stück und gibt es frei, eine gewöhnliche Abweichung hält nichts mehr und gibt
         # nichts frei – ohne dass es dafür eine zweite Regel bräuchte.
-        mine = [u.index for u in units_svc.owned_by(inst, order.id, db) if not u.released]
+        mine = [u.index for u in units_svc.owned_by(inst, order.id, db) if not u.done]
         if not mine:
             continue
         freed = units_svc.mark_released(inst, mine)
@@ -868,9 +902,10 @@ def sell_order_subjects(db: Session, order: Order) -> None:
         .all()
     )
     for inst in subjects:
-        if is_blocked(inst):
+        # Verkauft wird nur, was verwendbar ist – gesperrte Stücke bleiben hier (#646).
+        sold = reserved_for(inst, order.id) - units.blocked_quantity(inst, holder=order.id)
+        if sold <= 0:
             continue
-        sold = reserved_for(inst, order.id)
         gone: list[int] = []
         # Menge mindern + eigenen Anspruch lösen; die verkauften Stücke behalten ihre
         # Nummer und tragen ab jetzt «verkauft».

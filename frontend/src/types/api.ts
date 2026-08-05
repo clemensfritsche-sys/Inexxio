@@ -1547,31 +1547,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/instances/{object_id}/unblock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Unblock Instance
-         * @description Sperre aufheben – das Gegenstück zum Schritt «Sperren».
-         *
-         *     Bewusst eine **Aktion an der Instanz**, kein Prozessschritt: eine Maschine kommt aus
-         *     der Wartung zurück, ohne dass jemand dafür einen Auftrag anlegen möchte. Der Zustand
-         *     danach ist abgeleitet – schon einmal freigegeben → wieder freigegeben, sonst zurück
-         *     in die Prüfung.
-         */
-        post: operations["unblock_instance_api_v1_erp_instances__object_id__unblock_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/instances/{object_id}/orders": {
         parameters: {
             query?: never;
@@ -3990,6 +3965,8 @@ export interface components {
             sample_percent?: number | null;
             /** Required Count */
             required_count?: number | null;
+            /** Inspected Quantity */
+            inspected_quantity?: number | null;
             /**
              * Escalated
              * @default false
@@ -9198,37 +9175,6 @@ export interface operations {
         };
     };
     get_instance_api_v1_erp_instances__object_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstanceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unblock_instance_api_v1_erp_instances__object_id__unblock_post: {
         parameters: {
             query?: never;
             header?: never;

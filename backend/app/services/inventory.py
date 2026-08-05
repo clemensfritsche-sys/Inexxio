@@ -183,6 +183,18 @@ def is_in_stock(inst) -> bool:
     )
 
 
+def lies_at_stock(inst) -> bool:
+    """**Liegt es am Lager?** – die Ortsfrage, ohne die Verwendbarkeit.
+
+    ``is_in_stock`` beantwortet zwei Fragen auf einmal («liegt es da» UND «darf man es
+    verwenden»), und das ist fast überall richtig – FIFO, Bestand, Verfügbarkeit wollen
+    genau die Schnittmenge. Wer aber ein **gesperrtes** Stück in die Hand nimmt, um es
+    wieder in Ordnung zu bringen (Testnotiz #646), fragt nur nach dem Ort: es liegt am
+    Lager, also muss ein Auftrag, der es übernimmt, es auch reservieren – sonst hielte er
+    es nicht und könnte es am Ende nicht freigeben."""
+    return inst.disposition == "in_stock" and to_qty(inst.quantity) > 0
+
+
 def in_stock_clauses() -> tuple:
     """SQLAlchemy-Bedingungen für „physisch am Lager" – qualitativ freigegeben
     (``quality=passed``) UND dispositiv am Lager (``disposition=in_stock``), Menge > 0."""

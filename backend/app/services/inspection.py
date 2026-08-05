@@ -138,30 +138,38 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
     ``escalate_decision`` auf 100 % hoch – DANN ist jede Instanz beprobt und bekommt ihr
     Urteil.
 
-    **Eine Sperre ist rücknehmbar** (Nacharbeit): besteht eine zuvor gesperrte Instanz die
-    Erfassung eines **Folgeauftrags**, geht sie zurück auf ``pending``. Ohne das wäre ein
-    Durchfaller endgültig verloren – auch wenn die Abweichung ihn nachweislich in Ordnung
-    gebracht hat. Terminale Instanzen (verschrottet/verkauft/verbaut) bleiben unangetastet:
-    dort ist nichts mehr zu bewerten."""
+    **Eine Sperre ist rücknehmbar – aber nicht hier** (Testnotiz #646). Ein Durchfaller ist
+    nicht endgültig verloren: er wird gut, wenn er einen Auftrag erfolgreich durchläuft, denn
+    dessen Abschluss gibt frei, was er hält (``process.release_instances``). Diese Auswertung
+    braucht dafür **keinen zweiten Zweig**; sie stellt fest, was schlecht ist, und nichts
+    weiter. Terminale Instanzen (verschrottet/verkauft/verbaut) bleiben unangetastet: dort
+    ist nichts mehr zu bewerten."""
     verdicts = sample_verdicts(fields, stored)
     if not verdicts:
         return
-    from . import ledger
+    from . import ledger, units as units_svc
     from .subject import held_quantity
-    reworkable = "in_process"
     for inst in order_active_instances(db, order):
         ok = verdicts.get(inst.object_id)
-        if ok is None:
-            continue                      # nicht in der Stichprobe → kein Urteil
         if not ok:
-            inst.quality = inventory.BLOCKED
-            # Journal (ADR 007): Durchfaller wird gesperrt – reversibel, Halter bleibt.
+            if ok is None:
+                continue                  # nicht in der Stichprobe → kein Urteil
+            # **Beurteilt werden die Stücke DIESES Auftrags** (Testnotiz #646) – nicht die
+            # ganze Instanz: von einer Charge, an der ihm 2 von 4 gehören, sagt seine
+            # Prüfung nichts über die anderen 2.
+            #
+            # Der Durchfaller wird gesperrt – reversibel, und er bleibt beim Auftrag: er ist
+            # ja noch nicht geklärt (das tut erst der Folgeauftrag). **Bestanden hebt hier
+            # NICHTS auf**: eine Sperre endet dort, wo jedes Stück gut wird – beim Abschluss
+            # des Auftrags, der es hält (``process.release_instances``). Ein zweiter Weg an
+            # dieser Stelle hiesse, dass die Reihenfolge der Schritte darüber entscheidet,
+            # ob ein Stück wieder verwendbar ist.
+            mine = [u.index for u in units_svc.owned_by(inst, order.id, db)]
+            fresh = [i for i in mine if i not in units_svc.blocked_units(inst)]
+            units_svc.mark_blocked(inst, fresh)      # bleibt im Prozess, nur gesperrt
             ledger.post(db, inst, held_quantity(order, inst), kind="blocked",
-                        holder=ledger.KEEP, quality=inventory.BLOCKED, src_holder=order.id)
-        elif inventory.is_blocked(inst) and inst.disposition == reworkable:
-            inst.quality = "pending"      # Nacharbeit bestanden → Sperre gelöst
-            ledger.post(db, inst, held_quantity(order, inst), kind="unblocked",
-                        holder=ledger.KEEP, quality="pending", src_holder=order.id)
+                        holder=ledger.KEEP, quality=inventory.BLOCKED, src_holder=order.id,
+                        units=mine)
 
 
 def resolve_failed_by(db: Session, parent: Order, resolver: Order) -> int:
