@@ -142,10 +142,15 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
   // Shortcut «Auftrag»: das Anlage-Fenster mit diesem Artikel vorgewählt öffnen. Es
   // entsteht dabei **kein** Datensatz – einen Auftrag gibt es erst mit der Freigabe
-  // (Testnotiz #386); Menge, Auswahl und Ablauf füllt der Nutzer dort.
+  // (Testnotiz #386).
+  //
+  // **Vorgemerkt wird nur der Artikel** – wie an der Instanz nur die Instanz (#608): der
+  // Knopf sagt, WORUM es geht; wie viel, woher und mit welchem Ablauf ist die Entscheidung,
+  // und die trifft der Mensch. Eine vorausgefüllte «1» wäre eine Behauptung, die in den
+  // meisten Fällen falsch ist und trotzdem freigebbar aussieht.
   function createOrderShortcut() {
     if (isCreate || record == null || record.status !== 'released') return;
-    onCreateOrder?.({ articleId: record.id, quantity: 1 });
+    onCreateOrder?.({ articleId: record.id });
   }
   // Optimistic Locking: zuletzt bekannter Stand; wird nach jedem Speichern aktualisiert.
   const verRef = useRef<string | null>(record?.updated_at ?? null);
@@ -324,7 +329,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
             {/* Shortcut «Auftrag»: aus dem freigegebenen Artikel direkt einen Auftrag
                 auslösen (nur freigegebene Artikel sind auftragsfähig). */}
             {record.status === 'released' && (
-              <button className="erp-idbtn erp-idbtn-act" data-tip="Auftrag anlegen" data-tip-pos="bottom"
+              <button className="erp-idbtn erp-idbtn-act" data-tip="Auftrag" data-tip-pos="bottom"
                 aria-label="Auftrag zu diesem Artikel anlegen"
                 onClick={createOrderShortcut}>
                 <ClipboardPlus size={15} />

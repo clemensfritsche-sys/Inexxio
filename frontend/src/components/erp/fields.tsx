@@ -242,6 +242,11 @@ export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white
  * `symbolOnly` blendet die Beschriftung aus (nur Symbol, Bedeutung im Hover) – für enge
  * Stellen, an denen das Wort ohnehin nur Platz füllt. Gesperrte Optionen bleiben sichtbar
  * und nennen ihren Grund ebenfalls im Hover.
+ *
+ * **Der Hover kommt sofort** (Testnotiz #618): über `data-tip` wie überall sonst im ERP,
+ * nicht über `title`. Der native Browser-Tooltip wartet rund eine Sekunde – wo das Symbol
+ * die Bedeutung allein nicht trägt, ist das genau die Sekunde, in der man ratlos ist. Weil
+ * es hier an EINER Stelle steht, gilt es für jeden Umschalter im Haus.
  */
 export function IconSwitch<T extends string>({ value, onChange, options, symbolOnly, labelActiveOnly }: {
   value: T; onChange: (v: T) => void;
@@ -294,7 +299,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
         const showLabel = !symbolOnly && (!labelActiveOnly || active);
         return (
           <button key={o.value} type="button" role="tab" aria-selected={active} data-ix-idx={i}
-            aria-label={o.label} title={o.hint ?? o.label}
+            aria-label={o.label} data-tip={o.hint ?? o.label} data-tip-pos="bottom"
             onClick={o.disabled ? undefined : () => onChange(o.value)} disabled={o.disabled}
             style={{
               position: 'relative', flex: labelActiveOnly ? '0 0 auto' : (symbolOnly ? undefined : 1),

@@ -3,12 +3,12 @@
 import { Lane } from '@/components/erp/flow-line';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine, CheckCheck, Rows2, Rows4, Focus, Percent } from 'lucide-react';
+import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine, CheckCheck, Rows2, Rows4, FlaskConical, Percent } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
 import { formatObjectId, userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
-import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
+import { STEP_META, locationTypeLabel, instanceLabel } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { apiStepStore, type StepStore } from '@/lib/step-store';
 import { ErrorText, IconSwitch, InfoHint, Label, Palette, PaletteButton, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
@@ -63,7 +63,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
   store?: StepStore;
   suppliers?: UserProfile[];             // Auswahl der Bezugsquelle direkt im Beschaffungs-Schritt
   readOnly?: boolean;
-  onStepsCount?: (n: number, isStockOp: boolean) => void;
+  onStepsCount?: (n: number) => void;
   selfArticleObjectId?: number | null;   // Artikel des Trägers (Ressource-Selbst-Ausschluss)
 }) {
   // **Der Speicher, nicht die Komponente, weiss wohin geschrieben wird.** Ohne `store`
@@ -107,12 +107,11 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [owner, ownerObjectId, store]);
 
-  // Schrittanzahl + abgeleitete Auftragsart (Bestands-Operation vs. Herstellung) an das
-  // Elternfenster melden – Letzteres über die deklarierte Subjekt-Rolle der Schritte
-  // (Spiegel der Backend-Registry), damit ein Beschaffungs-/Ressourcen-Schritt korrekt
-  // als «Herstellung» und nicht als «Bestands-Operation» erkannt wird.
+  // Schrittanzahl an das Elternfenster melden. Sie IST zugleich die Auftragsart: ein
+  // eigener Ablauf greift auf vorhandenen Bestand zu, keiner fährt den Artikel-Prozess
+  // und nur DER erzeugt (Testnotiz #622). Darum kein zweiter Wert mehr.
   useEffect(() => {
-    onStepsCount?.(steps.length, isStockOperation(steps.map((s) => s.step_type as StepType)));
+    onStepsCount?.(steps.length);
   }, [steps, onStepsCount]);
 
   // Personen laden, sobald ein «Dokument»-Schritt existiert – auch read-only (freigegebener
@@ -236,7 +235,7 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
       // Eine Datenerfassung ohne definierte Information ist ein Schritt ohne Inhalt: das
       // Panel zeigt dann nichts zu erfassen und der Auftrag käme nicht weiter.
       if (buildCaptureFields().length === 0) {
-        setError('Bitte mindestens ein Erfassungsfeld festlegen – ohne definierte Information gibt es nichts zu erfassen'); return;
+        setError('Mindestens ein Erfassungsfeld nötig'); return;
       }
     }
     let resourcePayload: { article_id: number; quantity: number; mode: ResourceMode }[] | null = null;
@@ -557,17 +556,12 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
             const kc = kindColor(adding);
             const AddIcon = STEP_META[adding].icon;
             return (
-            // **Enter legt an** (Testnotiz #611): wer den Namen getippt hat, ist fertig –
-            // ein zusätzlicher Klick auf «Hinzufügen» ist ein Klick zu viel. Textareas
-            // sind ausgenommen (dort ist Enter ein Zeilenumbruch), ebenso ein noch
-            // laufendes Speichern.
-            <div style={{ ...editorCard, gap: 14, background: kc.bg, borderColor: kc.border }}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' || saving) return;
-                if ((e.target as HTMLElement).tagName === 'TEXTAREA') return;
-                e.preventDefault();
-                addStep(adding);
-              }}>
+            // **Kein «Enter legt an»** (Testnotiz #621, nimmt #611 zurück): ein Schritt wird
+            // hier KONFIGURIERT, nicht ausgefüllt – Bezugsquelle, Prüfumfang, Erfassungsfelder,
+            // Parteien. Eine Taste, die mitten in dieser Arbeit anlegt, legt fast immer etwas
+            // Halbfertiges an, und ein Schritt ist danach nicht mehr änderbar (löschen + neu).
+            // Angelegt wird darum bewusst über «Hinzufügen» (#40/#68).
+            <div style={{ ...editorCard, gap: 14, background: kc.bg, borderColor: kc.border }}>
               {/* Kopf = Anatomie der Modul-Karte, die gleich im Fluss stehen wird (#222).
                   Kein Zurück-Knopf mehr (#226/#232): «Abbrechen» ist der Weg heraus. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -761,11 +755,16 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
  * blendet das Zahlenfeld ein, und ein bereits gespeicherter Sonderwert erscheint als
  * eigener Chip, statt still verlorenzugehen.
  */
+// **Ein Anteil lässt sich nicht zeichnen** (Testnotiz #618): «jedes zweite Stück» hat kein
+// Symbol, das ohne Vorwissen lesbar wäre – und ein Symbol, das man raten muss, ist keines.
+// Darum trägt hier die AKTIVE Option ihr Wort (``labelActiveOnly``, dieselbe Lösung wie bei
+// der Mengeneinheit, #219/#220); die Symbole sind nur noch Griffe für die Alternativen, und
+// ihr Name kommt im Hover **sofort** (``data-tip`` statt ``title``).
 const SAMPLE_PRESETS = [
   { pct: '100', label: 'Alle', icon: CheckCheck, hint: 'Jedes Stück wird geprüft (100 %)' },
   { pct: '50', label: 'Jedes 2.', icon: Rows2, hint: 'Jedes zweite Stück (50 %)' },
   { pct: '25', label: 'Jedes 4.', icon: Rows4, hint: 'Jedes vierte Stück (25 %)' },
-  { pct: '10', label: 'Stichprobe', icon: Focus, hint: 'Eine Handvoll (10 %)' },
+  { pct: '10', label: 'Stichprobe', icon: FlaskConical, hint: 'Eine Handvoll (10 %)' },
 ];
 
 /** Zeile hinzufügen: solange die Liste leer ist mit Wort, danach nur noch «+» (Hover erklärt). */
@@ -776,10 +775,10 @@ function SampleScope({ value, onChange }: { value: string; onChange: (v: string)
     <div>
       <Label required>Prüfumfang</Label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        {/* **Symbole, der Name im Hover** (Testnotiz #610) – dieselbe Geste wie überall
-            sonst (Bezugsquelle, Sichtbarkeit, Aussondern). Vier Wörter nebeneinander
-            ringen um Aufmerksamkeit, obwohl nur eines gilt. */}
-        <IconSwitch<string> symbolOnly value={custom ? '' : value}
+        {/* Der Umschalter bleibt (#610) – aber die geltende Option schreibt ihr Wort aus
+            (#618): vier Wörter nebeneinander ringen um Aufmerksamkeit, eines beantwortet
+            die Frage. */}
+        <IconSwitch<string> labelActiveOnly value={custom ? '' : value}
           onChange={(v) => { setCustom(false); onChange(v); }}
           options={SAMPLE_PRESETS.map((p) => ({
             value: p.pct, icon: p.icon, label: p.label, hint: p.hint }))} />
@@ -866,8 +865,12 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
           );
         })}
       </div>
+      {/* **Im Formular wird alles vom linken Rand gelesen** (Testnotiz #619): die Palette
+          steht zentriert, wo sie unter einer zentrierten Achse hängt (Modul-Palette im
+          Fluss, Unterdeckungs-Dialog) – hier steht sie unter einer linksbündigen
+          Beschriftung, also richtet sie sich danach. */}
       <Palette
-        style={{ marginTop: fields.length > 0 ? 10 : 0 }}>
+        style={{ justifyContent: 'flex-start', marginTop: fields.length > 0 ? 10 : 0 }}>
         {CAPTURE_KINDS.map((k) => (
           <PaletteButton key={k.value} icon={k.icon} label={k.label} size={18}
             onClick={() => add(k.value)} />

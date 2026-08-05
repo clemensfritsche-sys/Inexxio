@@ -18,6 +18,7 @@ Startstandort:
       fälschlich dem Wareneingang zugeschlagen, obwohl noch nichts angekommen ist.
 """
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Article, Instance, Order, UserProfile
@@ -56,8 +57,20 @@ def _initial_location(db: Session, order: Order) -> tuple[str | None, int | None
 def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list[Instance]:
     """Bei Auftragsfreigabe die Bestands-Instanzen anlegen (idempotent).
 
+    **Nur der Prozess des ARTIKELS erzeugt Instanzen** (Testnotiz #622) – ein Auftrag mit
+    eigenem Ablauf greift auf vorhandenen Bestand zu. Die Regel steht in ``subject_kind``;
+    hier steht sie ein zweites Mal, weil hier die Instanzen wirklich entstehen. Das ist
+    keine zweite Regel, sondern dieselbe an der Stelle, an der sie wirkt: wer diesen Weg
+    künftig von woanders aufruft, bekommt einen Fehler statt stiller Erzeugung.
+
     Committet NICHT – der Aufrufer (Auftragsfreigabe) schliesst die Transaktion ab.
     """
+    from .processes import order_custom_steps
+    if order_custom_steps(db, order.id):
+        raise HTTPException(
+            500,
+            detail=f"Auftrag {order.object_id or order.id} hat einen eigenen Ablauf – "
+                   "Instanzen entstehen ausschliesslich aus dem Prozess des Artikels.")
     existing = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True)

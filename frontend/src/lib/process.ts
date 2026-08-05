@@ -109,32 +109,12 @@ export function sumQuantity(items: { quantity?: number | null }[]): number {
   return items.reduce((sum, i) => sum + Number(i.quantity ?? 1), 0);
 }
 
-// Deklarierte Subjekt-Rolle je Schritttyp – **Spiegel** der Backend-Registry
-// (`app/domain/event_types.py`). Ein Schritt, der Bestand HEREINBRINGT (Beschaffung/
-// Ressource), ist «produce»; ein Zugriff auf vorhandenen Bestand (Verkauf) «stock»,
-// eine Bearbeitung bestehender Instanzen (Bewegung/Prüfung/Verschrottung) «instance».
-const STEP_SUBJECT_ROLE: Record<StepType, 'produce' | 'stock' | 'instance'> = {
-  purchase:   'produce',
-  resource:   'produce',
-  sale:       'stock',
-  movement:   'instance',
-  inspection: 'instance',
-  block:      'instance',
-  scrap:      'instance',
-  document:   'produce',   // erzeugt einen (nicht-physischen) Liefergegenstand – kein Bestandszugriff
-};
-
-/** Ist der Ablauf eine **Bestands-Operation** (wirkt auf vorhandenen Bestand) statt einer
- *  **Herstellung** (erzeugt neue Instanzen)? Ableitung über die deklarierte Subjekt-Rolle
- *  der Schritte mit Vorrang STOCK ≻ PRODUCE ≻ INSTANCE – identisch zu
- *  `event_types.derive_subject_mode` im Backend. Ohne Schritte = Herstellung (false). */
-export function isStockOperation(stepTypes: StepType[]): boolean {
-  if (stepTypes.length === 0) return false;               // keine Schritte → Herstellung
-  const roles = new Set(stepTypes.map((t) => STEP_SUBJECT_ROLE[t] ?? 'instance'));
-  if (roles.has('stock')) return true;                    // Verkauf ab Lager
-  if (roles.has('produce')) return false;                 // Beschaffung/Ressource → Herstellung
-  return true;                                            // nur Bewegung/Prüfung/Verschrotten
-}
+// **Herstellung vs. Bestands-Operation** ist keine Frage der Schritt-TYPEN mehr
+// (Testnotiz #622): Instanzen entstehen ausschliesslich aus dem Prozess des ARTIKELS,
+// also ist jeder Auftrag mit **eigenem** Ablauf ein Zugriff auf vorhandenen Bestand.
+// Die frühere Rollen-Tabelle (Beschaffung/Ressource = «produce» …) war ein Spiegel einer
+// Backend-Ableitung, die es nicht mehr gibt – und sie überstimmte die ausdrückliche Wahl
+// «Ab Lager» im Bedarf. Die eine Bedingung lautet jetzt schlicht: `steps.length > 0`.
 
 
 // Anzeige-Projektion der ZWEI Achsen (quality + disposition) auf EINE Badge.

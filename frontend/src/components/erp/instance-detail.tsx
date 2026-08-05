@@ -166,9 +166,7 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
               Was es wird, zeigt der Entwurf sofort – wählt man einen gebundenen Anteil,
               erscheinen links die Halter und unten die Rückgabe-Linie. */}
           <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
-            data-tip={canOrderInstance
-              ? 'Auftrag anlegen – diese Instanz ist darin vorgewählt (bewegen, prüfen, aussondern, verkaufen …)'
-              : 'An verschrotteter Ware ist nichts mehr zu tun'}
+            data-tip={canOrderInstance ? 'Auftrag' : 'An verschrotteter Ware ist nichts mehr zu tun'}
             aria-label="Auftrag anlegen"
             disabled={!canOrderInstance}
             onClick={createOrderShortcut}>
