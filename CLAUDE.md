@@ -5020,6 +5020,55 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   mit bereits erfassten Daten geschieht, wenn ihm während der Arbeit Instanzen entzogen
   werden). Beide sind **dieselbe** Frage und gehören als Zeile in die Regel-Tabelle.
 
+- **Ein Beleg gilt für die Menge, für die er ausgestellt wurde (Testnotizen #587/#588)**:
+  Ein Beschaffungs-Modul fragt beim Erreichen automatisch an. Wurden dem Auftrag danach
+  seine Instanzen entzogen (Abweichung) und er dadurch abgebrochen, blieb die Bestellung
+  «Angefragt» stehen – der **Lieferant** sah eine offene Anfrage für etwas, das es nicht
+  mehr gibt. Dieselbe Frage stellte #588 allgemein: was geschieht mit der Arbeit eines
+  Moduls, wenn sich seine Grundlage unter ihm ändert?
+  **Die Regel hat zwei Enden und ist EINE:**
+      Die Menge sinkt   → der Beleg fällt auf seine **erste Stufe** zurück («Angefragt»),
+                          und die Zahlen, die die Vereinbarung ausdrücken, sind geräumt.
+                          Eine Offerte über 3 Stück ist keine über 2.
+      Die Menge ist weg → er fällt auf seine **letzte Stufe**: **storniert**.
+  **Die Stufen stehen in der Registry** (`domain/event_types.py`: `reset`/`reset_fields`/
+  `voided`), nicht als if/else im Code – und damit gilt die Regel **für alle Module**: wer
+  Stufen deklariert, bekommt sie geschenkt (heute Beschaffung + Verkauf). Wer keine hat, ist
+  **nicht ausgenommen, sondern hat nichts zurückzunehmen**: Bewegung, Ressource und
+  Aussondern schreiben ihre Zeile erst, wenn die Handlung geschehen ist – sie ist damit
+  Vergangenheit. Aus demselben Grund bleibt ein **erledigter** Beleg unangetastet:
+  eingetroffene Ware ist eingetroffen (ADR 007).
+  **Vereinheitlicht statt verzweigt** (die Umsetzungsfrage des Nutzers): «Menge reduzieren»
+  und «alles entzogen» sind derselbe Vorgang – `rebase.rebase_documents(db, order)` hat
+  **keinen Modus-Parameter**, sondern liest am Auftrag ab, welches Ende gilt
+  (`_stage_of`: läuft er → `reset`, sonst → `voided`). Zwei Aufrufstellen, beide «die
+  Grundlage hat sich geändert»: `recovery.confirm_quantity` (das Soll sinkt) und
+  `deactivation.cancel_order_effects` (der Auftrag endet – der Abbruch-Zweig läuft ohnehin
+  dort hindurch). **Selbstheilend**: die Funktion vergleicht die Menge des Belegs mit dem
+  heutigen Soll und tut nichts, wenn beides stimmt – ein verpasster Aufruf korrigiert sich
+  beim nächsten. Das **Nachziehen der Menge ist der eigentliche «Rebase»**: ohne es stünde
+  der Beleg beim nächsten Durchlauf wieder auf fremder Grundlage.
+  **Kein neues Wort:** «Storniert» (`cancelled`) trägt der Verkauf längst, ebenso Sendung
+  und Warenkorb – die Beschaffung bekommt es dazu. Es ist **nicht** dasselbe wie
+  «Abgelehnt» (`rejected`): abgelehnt heisst, der Besteller sagt zu einer Offerte nein (eine
+  Entscheidung); storniert heisst, der Vorgang hat seinen Gegenstand verloren. Der
+  Beschaffungs-Ablauf zeigt bei «Storniert» den Weg, der **tatsächlich** gegangen wurde
+  (aus dem Verlauf) – anders als «Abgelehnt», das nur aus «Offeriert» erreichbar ist. Ein
+  Mensch kann `cancelled` nicht setzen (nicht in `ALLOWED_STATUS`): es ist eine Folge, keine
+  Aktion. **Kein Schema-Wechsel** (die Spalte ist ein `VARCHAR`), also keine Migration.
+  **Die Datenerfassung braucht nichts davon** (#588, zweite Hälfte): ihr Prüfumfang wird
+  ohnehin aus den **aktiven Instanzen** abgeleitet (`inspection.inspected_quantity`, #72/
+  #399) – sie passt sich also von selbst an, und bereits erfasste Proben bleiben **Tatsachen
+  über die Stücke, an denen sie erhoben wurden**. *Bewusst NICHT gebaut: das Anlegen einer
+  Abweichung sperren, solange jemand in einem Modul Daten erfasst (vom Nutzer selbst als
+  «schön, aber komplex» erwogen). Eine Abweichung ist genau das, was man anlegt, wenn die
+  Realität abweicht; sie zu sperren, während ein Formular offen ist, blockiert die einzige
+  Handlung, die die Lage verlangt – und das System entscheidet sonst nirgends über Sperren,
+  sondern über die Auswahl.*
+  Wächter: `tests/rules/test_document_basis.py` – eine Tabelle im Stil von ADR 008 (Lage →
+  erwartete Stufe + Menge + Vereinbarung, mit Begründung im Fehlertext), über die echten
+  Dienst-Pfade gegen echtes PostgreSQL 16 und **gegen die Bug-Form gegengeprüft**.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

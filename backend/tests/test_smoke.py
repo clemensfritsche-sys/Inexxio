@@ -3238,7 +3238,10 @@ def test_step_status_semantics_live_in_the_registry():
     from app.services.process import _fact_status
 
     reg = event_types.REGISTRY
-    assert reg["purchase"].done == ("received",) and reg["purchase"].failed == ("rejected",)
+    assert reg["purchase"].done == ("received",)
+    # «Abgelehnt» (der Besteller sagt zu einer Offerte nein) und «Storniert» (der Vorgang hat
+    # seinen Gegenstand verloren) sind zwei Wörter für zwei Sachen – beide sind terminal.
+    assert set(reg["purchase"].failed) == {"rejected", "cancelled"}
     assert reg["inspection"].status_field == "result"
     assert reg["sale"].done == ("paid",)
     # Marker-Schritte: die blosse Existenz der Fachzeile IST die Erledigung.
@@ -3258,6 +3261,7 @@ def test_step_status_semantics_live_in_the_registry():
     assert _fact_status("purchase", None) == "open"
     assert _fact_status("purchase", Fact(status="received")) == "done"
     assert _fact_status("purchase", Fact(status="rejected")) == "failed"
+    assert _fact_status("purchase", Fact(status="cancelled")) == "failed"
     assert _fact_status("purchase", Fact(status="ordered")) == "open"
     assert _fact_status("movement", Fact()) == "done"
     assert _fact_status("document", Fact(done=False)) == "open"

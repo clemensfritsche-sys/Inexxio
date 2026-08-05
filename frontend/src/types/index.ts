@@ -525,8 +525,10 @@ export interface ArticleProcessStepUpdateInput {
 
 // ─── Beschaffungsschritt (läuft unter dem Auftrag, keine eigene Nummer) ────────
 
+// «Storniert» setzt das System, nicht der Mensch: verliert die Bestellung ihren Gegenstand
+// (der Auftrag ist abgebrochen), ist sie gegenstandslos – siehe `services/rebase.py`.
 export type PurchaseOrderStatus =
-  | 'requested' | 'quoted' | 'ordered' | 'received' | 'rejected';
+  | 'requested' | 'quoted' | 'ordered' | 'received' | 'rejected' | 'cancelled';
 
 export interface PurchaseOrderUpdateInput {
   status?: PurchaseOrderStatus;
