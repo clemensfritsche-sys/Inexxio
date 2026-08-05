@@ -967,6 +967,44 @@ async def update_order_purchase(
     return to_order_response(db, order, viewer=user)
 
 
+@router.post("/{object_id}/purchase/clarify", response_model=OrderResponse)
+async def clarify_order_purchase(
+    object_id: int,
+    article_id: int | None = None,
+    step_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """**«Lieferant hat zugestimmt»** – die Bestellung auf die neue Grundlage bringen.
+
+    Ab «Bestellt» ist der Lieferant gebunden; das System fasst den Beleg darum nicht selbst
+    an, sondern meldet die Abweichung («bestellt 3 · gebraucht 2»). Wer beim Lieferanten
+    angerufen hat, quittiert hier das Ergebnis – und dann läuft **dieselbe** Änderung wie
+    sonst automatisch: Menge nachziehen und die Vereinbarung neu treffen (zurück auf
+    «Angefragt») bzw. stornieren, wenn der Auftrag gar nichts mehr braucht.
+
+    Nur Personal: der Anruf ist eine interne Handlung. ``article_id`` wählt bei einem
+    Mehrpositionen-Auftrag die betroffene Bestellung."""
+    from ..services import rebase
+    order = visible_orders(db, user).filter(Order.object_id == object_id).first()
+    if not order:
+        raise HTTPException(404, detail="Auftrag nicht gefunden")
+    # **Nicht über ``resolve_exec_step``**: der Schritt muss hier NICHT «an der Reihe» sein.
+    # Der häufigste Fall ist gerade der abgebrochene Auftrag – dort ist gar nichts mehr
+    # aktiv, und trotzdem (oder genau deshalb) ist die Bestellung zu klären.
+    pos = [p for p in process._facts(db, order, "purchase")
+           if (step_id is None or p.step_id == step_id)
+           and (article_id is None or p.article_id == article_id)]
+    if len(pos) != 1:
+        raise HTTPException(
+            400 if pos else 404,
+            detail="Bitte die betroffene Position angeben" if pos else "Bestellung nicht gefunden")
+    rebase.apply_clarified(db, order, "purchase", pos[0], user.id)
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order, viewer=user)
+
+
 @router.patch("/{object_id}/sale", response_model=OrderResponse)
 async def update_order_sale(
     object_id: int,

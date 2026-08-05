@@ -72,12 +72,13 @@ type Pt = [number, number];
  * Aussage jeder Ecke ein Punkt, und wie eine Ecke aussieht, entscheidet genau diese
  * Funktion (Segmente sind achsenparallel, das genügt für einen Fluss).
  */
-function roundedPath(points: Pt[], r: number): string {
+function roundedPath(points: Pt[], r: number, splitAt?: number): [string, string] {
   const step = (a: Pt, b: Pt, d: number): Pt => {
     const [dx, dy] = [Math.sign(b[0] - a[0]), Math.sign(b[1] - a[1])];
     return [a[0] + dx * d, a[1] + dy * d];
   };
   let d = `M${points[0][0]} ${points[0][1]}`;
+  let head = '';
   for (let i = 1; i < points.length - 1; i++) {
     const [prev, cur, next] = [points[i - 1], points[i], points[i + 1]];
     const inLen = Math.hypot(cur[0] - prev[0], cur[1] - prev[1]);
@@ -88,9 +89,12 @@ function roundedPath(points: Pt[], r: number): string {
     // Drehrichtung aus dem Kreuzprodukt der beiden Richtungen – kein Sweep-Flag von Hand.
     const cross = (cur[0] - prev[0]) * (next[1] - cur[1]) - (cur[1] - prev[1]) * (next[0] - cur[0]);
     d += `L${a[0]} ${a[1]}A${rad} ${rad} 0 0 ${cross > 0 ? 1 : 0} ${b[0]} ${b[1]}`;
+    // Am Anschluss-Bogen wird der Pfad geteilt: sein Stück gehört der **Achse**, der Rest
+    // dem Weg (siehe ``Elbow``). Ohne Teilung ist ``head`` leer und alles ist «Rest».
+    if (i === splitAt) { head = d; d = `M${b[0]} ${b[1]}`; }
   }
   const last = points[points.length - 1];
-  return `${d}L${last[0]} ${last[1]}`;
+  return [head, `${d}L${last[0]} ${last[1]}`];
 }
 
 /** Erste und letzte Station um ``OVERLAP`` verlängern – die Ecke greift in die Achse. */
@@ -106,52 +110,68 @@ function overlapped(points: Pt[]): Pt[] {
 }
 
 /**
- * **Der Weg zwischen Achse und Seitenspur – EIN Pfad, echte Viertelkreise.**
+ * **Der Weg zwischen Achse und Seitenspur – EIN Baustein, echte Viertelkreise.**
  *
- * Vier Richtungen aus denselben Konstanten und demselben Baustein. Und **eine Regel für die
- * Form**: eine Abzweigung sitzt MITTEN auf der Achse, also ist sie ein **T** mit genau einer
- * Ecke; Herkunft und Rückweg treffen die Achse dort, wo sie **beginnt bzw. endet** – das ist
- * eine Ecke des Weges und biegt darum zweimal ab (#430/#431).
+ * Vier Richtungen aus denselben Konstanten. **Runde Ecken überall – auch am Anschluss an die
+ * Achse** (Testnotiz #591): ein T mit scharfer 90°-Ecke wäre die einzige harte Ecke im
+ * ganzen Bild. Die Abzweigung biegt mit demselben Radius aus der Achse ab, mit dem sie unten
+ * wieder einmündet (#456); Herkunft und Rückweg treffen die Achse dort, wo sie **beginnt bzw.
+ * endet** – eine Ecke des Weges, also zwei Bögen (#430/#431).
  *
- * **Warum das T** (Testnotiz #586): Fork und Merge liefen vorher ein Stück **entlang** der
- * Achse (erst ``BEND`` hinunter, dann waagrecht hinaus). Dieses kurze Stück ist Achse und
- * Ecke zugleich – trug es eine andere Strichstärke als das Achsenstück daneben, blieb genau
- * dort ein schwarzer Stummel auf einer Haarlinie stehen. Ein T berührt die Achse nur in
- * **einem Punkt**; die Frage ist damit gegenstandslos statt an jeder Stelle neu zu
- * beantworten.
+ * **Warum dieser Bogen früher einen Stummel hinterliess** (#586): er liegt ein Stück
+ * ENTLANG der Achse (gemessen ~8 px). Trug er eine andere Strichstärke als das Achsenstück
+ * daneben, blieb dort ein schwarzer Rest auf einer Haarlinie stehen. Die Lösung ist keine
+ * Formfrage, sondern eine **Zuordnung**: der Anschluss-Bogen gehört der **Achse**, der Rest
+ * dem **Weg**. Der Pfad wird darum an genau diesem Bogen geteilt (``roundedPath(…, splitAt)``)
+ * und in zwei Stärken gezeichnet – der Bogen so stark wie das Stärkere von beiden, damit er
+ * nie eine dickere Linie zerschneidet.
  *
- * Und es macht die beiden zu **echten Spiegelbildern**: die waagrechte Linie liegt genau auf
- * ihrem Anschlusspunkt – oben am Anfang der Zeile, unten an ihrem Ende. Was dazwischen steht,
- * ist damit ohne Korrekturglied mittig (der frühere ``BEND``-Ausgleich ist entfallen).
- *
- * **Die Strichstärke einer Ecke ist die ihrer Achse.** Trafen an einer Ecke zwei verschiedene
- * Bits aufeinander (4 px Achse ↔ 2 px Ecke), stand dort ein sichtbarer Versatz. Der Aufrufer
- * reicht darum denselben Zustand durch, den auch das angrenzende Achsenstück trägt.
+ * **Und Fork und Merge sind echte Spiegelbilder**: beide Waagrechten liegen ``BEND`` innerhalb
+ * der Zeile, ihre Mitte ist also die Mitte der Zeile. Damit steht das Material ohne
+ * Korrekturglied mittig – auch zwischen zwei aufeinanderfolgenden Teilungen (#586).
  */
-const ELBOW: Record<string, { pts: Pt[]; left: number; h: number; top?: number; bottom?: number }> = {
-  // Achse → Seitenspur (Abzweigung, oben) und zurück (Einmündung, unten) – je ein T.
-  'fork-right': { left: -(MAIN / 2 + GAP), top: 0, h: ARM,
-    pts: [[0, 0], [RUN, 0], [RUN, ARM]] },
-  'merge-right': { left: -(MAIN / 2 + GAP), bottom: 0, h: ARM,
-    pts: [[RUN, 0], [RUN, ARM], [0, ARM]] },
-  // Nachbar-Spur links → Achse (Herkunft) und Achse → Nachbar (Rückweg).
+const ELBOW: Record<string, {
+  pts: Pt[]; left: number; h: number; top?: number; bottom?: number;
+  /** Index des Bogens, der die Achse berührt – sein Stück gehört ihr, nicht dem Weg. */
+  joint?: number;
+}> = {
+  // Achse → Seitenspur (Abzweigung, oben) und zurück (Einmündung, unten) – Spiegelbilder.
+  'fork-right': { left: -(MAIN / 2 + GAP), top: 0, h: ARM, joint: 1,
+    pts: [[0, 0], [0, BEND], [RUN, BEND], [RUN, ARM]] },
+  'merge-right': { left: -(MAIN / 2 + GAP), bottom: 0, h: ARM, joint: 2,
+    pts: [[RUN, 0], [RUN, ARM - BEND], [0, ARM - BEND], [0, ARM]] },
+  // Nachbar-Spur links → Achse (Herkunft) und Achse → Nachbar (Rückweg). Sie treffen die
+  // Achse an ihrem Anfang bzw. Ende – dort liegt kein Achsenstück daneben, also gibt es
+  // auch nichts, was sich beissen könnte.
   'in-from-left': { left: SIDE / 2, bottom: 0, h: ARM,
     pts: [[0, 0], [0, ARM - BEND], [RUN, ARM - BEND], [RUN, ARM]] },
   'out-to-left': { left: SIDE / 2, top: 0, h: ARM,
     pts: [[RUN, 0], [RUN, 2 * BEND], [0, 2 * BEND], [0, ARM]] },
 };
 
-export function Elbow({ dir, strong }: {
-  dir: 'fork-right' | 'merge-right' | 'in-from-left' | 'out-to-left'; strong?: boolean;
+export function Elbow({ dir, strong, axis }: {
+  dir: 'fork-right' | 'merge-right' | 'in-from-left' | 'out-to-left';
+  strong?: boolean;
+  /** Stärke des Achsenstücks, an dem dieser Weg hängt – für den Anschluss-Bogen. */
+  axis?: boolean;
 }) {
-  const { pts, left, h, top, bottom } = ELBOW[dir];
+  const { pts, left, h, top, bottom, joint } = ELBOW[dir];
+  const [head, tail] = roundedPath(overlapped(pts), BEND, joint);
+  // Der Anschluss-Bogen nimmt die **stärkere** der beiden Linien: eine dünne Kurve quer über
+  // eine starke Achse wäre ein heller Schnitt mitten in ihr.
+  const jointStrong = !!strong || !!axis;
+  const parts: [string, boolean][] = joint === undefined
+    ? [[tail, !!strong]]
+    : joint === 1 ? [[head, jointStrong], [tail, !!strong]]
+                  : [[tail, jointStrong], [head, !!strong]];
   return (
     <svg width={RUN} height={h} viewBox={`0 0 ${RUN} ${h}`} aria-hidden
       shapeRendering="geometricPrecision"
       style={{ position: 'absolute', left, top, bottom, overflow: 'visible', pointerEvents: 'none' }}>
-      <path d={roundedPath(overlapped(pts), BEND)} fill="none"
-        stroke={lineColor(!!strong)} strokeWidth={lineW(!!strong)}
-        strokeLinecap="butt" strokeLinejoin="round" />
+      {parts.map(([d, s], i) => (
+        <path key={i} d={d} fill="none" stroke={lineColor(s)} strokeWidth={lineW(s)}
+          strokeLinecap="butt" strokeLinejoin="round" />
+      ))}
     </svg>
   );
 }

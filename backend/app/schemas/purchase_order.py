@@ -118,3 +118,9 @@ class PurchaseEmbed(BaseModel):
     shared_fields: list[str] = []
     # Audit-Verlauf der Statuswechsel (Wer/Wann)
     history: list[PurchaseHistoryEntry] = []
+    # **Offene Klärung** (Testnotizen #587/#588): der Auftrag braucht eine andere Menge, als
+    # bestellt ist – aber ab «Bestellt» ist der Lieferant gebunden, also fasst das System den
+    # Beleg nicht an. Hier steht, WAS zu klären ist; ``None`` = nichts. **Abgeleitet**
+    # (``rebase.clarifications``), kein Merker: die Frage verschwindet in dem Moment, in dem
+    # jemand handelt.
+    clarify_needed: Optional[float] = None

@@ -498,32 +498,36 @@ def test_a_sub_order_is_a_regular_process_beside_the_axis():
     # Spurbreiten: seither ist der Weg von der Achse zur Spurmitte eine Konstante (#445).
     assert "borderRadius" not in line.split("const ELBOW")[1].split("function Row")[0], (
         "Ecken werden gezeichnet, nicht aus Rahmenkanten zusammengesetzt.")
-    # **Eine Form-Regel: der Anschluss MITTEN auf der Achse ist ein T, der an ihrem Ende eine
-    # Ecke** (Testnotiz #586, präzisiert #456). Fork und Merge liefen ein Stück ENTLANG der
-    # Achse (erst ``BEND`` hinunter, dann hinaus) – dieses Stück ist Achse und Ecke zugleich,
-    # und trug es eine andere Strichstärke als das Achsenstück daneben, blieb genau dort ein
-    # schwarzer Stummel auf einer Haarlinie stehen (gemessen: 7.6 px). Ein T berührt die
-    # Achse in einem Punkt; die Frage ist damit gegenstandslos.
+    # **Runde Ecken überall – und der Anschluss-Bogen gehört der ACHSE** (#586/#591).
+    # Der Bogen liegt ~8 px entlang der Achse; trug er eine andere Strichstärke als sie,
+    # blieb dort ein Stummel stehen (#586). Ein T ohne Bogen behob das, war aber die einzige
+    # harte 90°-Ecke im ganzen Bild (#591). Die Lösung ist eine **Zuordnung**: der Pfad wird
+    # am Anschluss-Bogen geteilt, und der nimmt die STÄRKERE der beiden Linien.
     fork = line.split("'fork-right':")[1].split("'merge-right':")[0]
     merge = line.split("'merge-right':")[1].split("// Nachbar-Spur")[0]
-    assert "[[0, 0], [RUN, 0], [RUN, ARM]]" in fork, (
-        "Die Abzweigung ist ein T: waagrecht aus der Achse, EINE Ecke in die Spur (#586).")
-    assert "[[RUN, 0], [RUN, ARM], [0, ARM]]" in merge, (
-        "Die Einmündung ist ihr Spiegelbild – kein Stück Weg auf der Achse.")
+    assert "[[0, 0], [0, BEND], [RUN, BEND], [RUN, ARM]]" in fork and "joint: 1" in fork, (
+        "Die Abzweigung biegt mit BEND aus der Achse ab – und nennt ihren Anschluss-Bogen (#591).")
+    assert "[[RUN, 0], [RUN, ARM - BEND], [0, ARM - BEND], [0, ARM]]" in merge and "joint: 2" in merge, (
+        "Die Einmündung ist ihr Spiegelbild.")
+    assert "const jointStrong = !!strong || !!axis;" in line, (
+        "Der Anschluss-Bogen nimmt die stärkere Linie – sonst schneidet ein dünner Weg "
+        "quer durch eine starke Achse (#586).")
     # **Spiegelbilder heisst: die waagrechte Linie liegt auf ihrem Anschlusspunkt** – oben am
     # Anfang der Zeile, unten an ihrem Ende. Erst dadurch steht das Material ohne
     # Korrekturglied mittig zwischen ihnen (der frühere ``BEND``-Ausgleich ist entfallen).
     assert "top: 0" in fork and "bottom: 0" in merge, (
-        "Waagrecht genau auf dem Anschlusspunkt – sonst braucht die Mitte ein Korrekturglied.")
+        "Beide Waagrechten liegen BEND innerhalb der Zeile – erst dadurch ist ihre Mitte die "
+        "Mitte der Zeile, und das Material steht ohne Korrekturglied mittig (gemessen: 0.00 px).")
     assert "<Axis h={BEND}" not in flow, (
         "Und genau dieses Korrekturglied darf es nicht mehr geben (#586).")
-    assert "<path d={roundedPath(overlapped(pts), BEND)}" in line and "strokeWidth={lineW" in line, (
-        "Ein Strich, eine Strichstärke – ein echter Viertelkreis (#423/#430/#431).")
+    assert "roundedPath(overlapped(pts), BEND, joint)" in line and "strokeWidth={lineW(s)}" in line, (
+        "Echte Viertelkreise aus EINER Geometrie – geteilt nur am Anschluss-Bogen, weil der "
+        "der Achse gehört (#423/#430/#431/#591).")
     # **Die Bogen-Mathematik steht EINMAL da.** Vier handgeschriebene Pfade mit je eigenen
     # Sweep-Flags waren vier Stellen, an denen ein Radius auseinanderlaufen konnte; jetzt
     # beschreibt jede Ecke nur noch ihren Polygonzug, und wie eine Ecke aussieht (Radius,
     # Drehrichtung), entscheidet genau eine Funktion.
-    assert "function roundedPath(points: Pt[], r: number)" in line, (
+    assert "function roundedPath(points: Pt[], r: number, splitAt?: number)" in line, (
         "Die Rundung einer Ecke gibt es einmal.")
     assert "cross > 0 ? 1 : 0" in line, (
         "Die Drehrichtung folgt aus der Geometrie – kein Sweep-Flag von Hand.")
@@ -634,9 +638,9 @@ def test_what_has_been_walked_is_a_strong_solid_line():
     # wirklich etwas zurück IST (die Buchungen, ``flow_back``). Vorher hing er am Fortschritt
     # der Achse: ein abgebrochener Abzweig, durch den nie etwas zurückfloss, bekam eine volle
     # schwarze Linie (Testnotiz #590). Dünn heisst hier das Richtige – geplant, nichts gekommen.
-    assert '<Elbow dir="fork-right" strong={flowed} />' in flow, (
-        "Fork und das Achsenstück darüber lesen dasselbe Bit.")
-    assert '<Elbow dir="merge-right" strong={returned} />' in flow, (
+    assert '<Elbow dir="fork-right" strong={flowed} axis={bypass} />' in flow, (
+        "Fork liest das Bit der Kante darüber – und den Bypass für seinen Anschluss-Bogen.")
+    assert '<Elbow dir="merge-right" strong={returned} axis={bypass} />' in flow, (
         "Der Rückweg ist stark, wenn etwas zurück IST – nicht wenn die Achse weiterläuft.")
     assert "const returned = back.some((b) => (b.flow_back ?? []).length > 0);" in flow, (
         "Und «zurück» sagen die Buchungen, nicht der Fortschritt (#590).")
@@ -900,7 +904,7 @@ def test_parallel_sub_orders_are_one_split_in_several_directions():
     assert "{i > 0 && <Axis h={20} strong={branchStarted(b)} />}" in flow, (
         "Auch der zweite, gleichzeitig laufende Ast bekommt eine volle Linie – das Stück "
         "ZWISCHEN zwei Ästen ist keine Ecke an der Achse, es hängt an seinem Ast.")
-    assert '<Elbow dir="merge-right" strong={returned} />' in flow, (
+    assert '<Elbow dir="merge-right" strong={returned} axis={bypass} />' in flow, (
         "Zurück auf die Achse führt eine starke Linie erst, wenn wirklich etwas zurück IST "
         "(#590) – vorher hing sie am Fortschritt der Achse.")
     assert "function BranchCell" not in flow, (
@@ -1469,3 +1473,38 @@ def test_the_frontend_draws_and_the_server_knows():
                  "function Row("):
         assert gone not in flow, f"{gone}: die Prozesslinien wohnen in flow-line.tsx."
     assert "from '@/components/erp/flow-line'" in flow
+
+
+def test_the_supplier_sees_the_same_process_as_the_staff():
+    """**Ein Design, ein System – auch für den Lieferanten** (Testnotiz #592).
+
+    Er bekam ein flaches Formular, während das Personal das Prozessdiagramm sieht: zwei
+    Bildsprachen für dieselbe Sache, und er sah nicht, was vor und nach seiner Bestellung
+    passiert. Jetzt dasselbe Diagramm und dieselben Modul-Karten.
+
+    **Die Einschränkungen sind inhaltlich, nicht gestalterisch** – und darum stehen sie da,
+    wo sie hingehören:
+
+    * **Verkauf**: Kunde, Betrag und Marge kommen für Nicht-Personal gar nicht erst mit
+      (Backend). Ein Filter in der Oberfläche wäre eine Bitte, keine Grenze.
+    * **Bedienen** darf er nur seinen eigenen Schritt; die übrigen Module bleiben als Karte
+      im Fluss (der Ablauf soll ehrlich sein), klappen aber nichts auf.
+    * **Verlauf/Systemprotokoll** bleiben beim Personal (interne Auswertung).
+    """
+    import inspect as _inspect
+
+    from app.services import orders as osvc
+
+    detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text(encoding="utf-8")
+    assert "const showProcess = !!record && record.status !== 'draft'" in detail, (
+        "Der Prozess hängt nicht mehr an der Rolle (#592).")
+    assert "SectionTitle icon={Workflow}>Prozess</SectionTitle>" not in detail, (
+        "Die frühere Lieferanten-Sonderansicht (flaches Formular) ist entfallen.")
+    assert "if (viewerRole !== 'staff' && step.step_type !== 'purchase') return null;" in detail, (
+        "Sehen ja, bedienen nur den eigenen Schritt – EINE Stelle, kein Panel-Flickwerk.")
+    assert "<SectionTitle icon={MapPin}>Lieferung an</SectionTitle>" not in detail, (
+        "Keine Karte, die es nur für eine Rolle gibt – die Lieferadresse steht im Modul.")
+    # Und die Vertraulichkeit sitzt im Backend, nicht in der Oberfläche.
+    src = _inspect.getsource(osvc._attach_step_embed)
+    assert 'if viewer is not None and (viewer.role or "") not in _STAFF_ROLES:' in src, (
+        "Der Verkaufs-Embed (Kunde/Betrag) geht gar nicht erst an Nicht-Personal (#592).")

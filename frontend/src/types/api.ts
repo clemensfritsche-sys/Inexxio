@@ -1177,6 +1177,35 @@ export interface paths {
         patch: operations["update_order_purchase_api_v1_erp_orders__object_id__purchase_patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/purchase/clarify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clarify Order Purchase
+         * @description **«Lieferant hat zugestimmt»** – die Bestellung auf die neue Grundlage bringen.
+         *
+         *     Ab «Bestellt» ist der Lieferant gebunden; das System fasst den Beleg darum nicht selbst
+         *     an, sondern meldet die Abweichung («bestellt 3 · gebraucht 2»). Wer beim Lieferanten
+         *     angerufen hat, quittiert hier das Ergebnis – und dann läuft **dieselbe** Änderung wie
+         *     sonst automatisch: Menge nachziehen und die Vereinbarung neu treffen (zurück auf
+         *     «Angefragt») bzw. stornieren, wenn der Auftrag gar nichts mehr braucht.
+         *
+         *     Nur Personal: der Anruf ist eine interne Handlung. ``article_id`` wählt bei einem
+         *     Mehrpositionen-Auftrag die betroffene Bestellung.
+         */
+        post: operations["clarify_order_purchase_api_v1_erp_orders__object_id__purchase_clarify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/sale": {
         parameters: {
             query?: never;
@@ -5322,6 +5351,8 @@ export interface components {
              * @default []
              */
             history: components["schemas"]["PurchaseHistoryEntry"][];
+            /** Clarify Needed */
+            clarify_needed?: number | null;
         };
         /**
          * PurchaseHistoryEntry
@@ -8617,6 +8648,40 @@ export interface operations {
                 "application/json": components["schemas"]["PurchaseOrderUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clarify_order_purchase_api_v1_erp_orders__object_id__purchase_clarify_post: {
+        parameters: {
+            query?: {
+                article_id?: number | null;
+                step_id?: number | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
