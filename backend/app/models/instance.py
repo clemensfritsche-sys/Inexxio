@@ -62,8 +62,18 @@ class Instance(Base, TimestampMixin):
     # Verbrauchbar/zählbar ist eine Instanz nur, wenn quality=passed UND disposition=in_stock.
     quality: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     disposition: Mapped[str] = mapped_column(String(20), default="in_process", nullable=False)
-    # Zeitpunkt der Freigabe (disposition → in_stock). Basis für FIFO beim Verbrauch
-    # (Ressource-Schritt): ältester Freigabe-Zeitpunkt zuerst.
+    # Zeitpunkt der **ersten** Freigabe dieser Instanz (disposition → in_stock).
+    #
+    # **Die FIFO-Basis steht am STÜCK** (``units`` → ``t``, ``services/units.fifo_since``):
+    # eine Charge kann drei heute und ein Stück in vier Wochen freigegebene Teile tragen,
+    # und dann ist «seit wann am Lager» keine Aussage über den Datensatz. Dieses Feld ist
+    # seither die **Projektion** darüber (die erste Freigabe) und der Rückfall für
+    # Altbestand ohne Stück-Zeiten – nicht mehr die Wahrheit selbst.
+    #
+    # Es trägt bewusst eine **zweite Fachaussage**: bei einer Dokument-Instanz ist es das
+    # **Dokumentdatum** (``services/document.py``). Das ist keine Doppelung, sondern
+    # dieselbe Sache aus fachlicher Sicht – ein Dokument ist ab seiner Freigabe gültig,
+    # und genau ab da zählt es auch in der Reihenfolge (``services/legal.resolve``).
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Standort – eine Instanz hat IMMER einen Standort (ab Freigabe: Lieferant bzw. Wareneingang).

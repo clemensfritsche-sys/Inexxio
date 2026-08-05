@@ -3719,10 +3719,14 @@ def test_the_material_journal_answers_the_three_questions():
     assert "1 if kv[0].holder is None else 2" in drain, (
         "Genannter Halter ≻ freier Bestand ≻ fremde Halter – niemand verliert etwas, "
         "wenn frei gedeckt werden kann.")
-    # Der Verlauf steht an BEIDEN Enden derselben Geschichte: Instanz und Auftrag.
+    # **Das Journal ist die Wahrheit, keine Liste in der Antwort** (Testnotizen #628/#629):
+    # es speist die Kanten des Flusses, den Zustand der Stücke und das Systemprotokoll –
+    # als ausgeschriebene Buchungsliste am Datensatz sagte es nichts, was der Fluss und die
+    # Stücke nicht schon zeigen. Es darf darum an KEINER Antwort mehr hängen.
     from app.schemas.order import OrderResponse
-    assert "history" in OrderResponse.model_fields
-    assert "moves_of" in _inspect.getsource(osvc._order_history_views)
+    from app.schemas.instance import InstanceResponse
+    assert "history" not in OrderResponse.model_fields
+    assert "history" not in InstanceResponse.model_fields
 
 
 def test_two_shares_of_one_instance_add_up():

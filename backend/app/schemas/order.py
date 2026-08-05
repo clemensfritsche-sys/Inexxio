@@ -8,7 +8,7 @@ from .article_process_step import ArticleProcessStepCreate
 from .disposal import DisposalEmbed
 from .document import DocumentEmbed
 from .inspection import InspectionEmbed
-from .instance import InstanceUnit, InstanceEmbed, MaterialMoveView
+from .instance import InstanceUnit, InstanceEmbed
 from .movement import MovementEmbed
 from .purchase_order import PurchaseEmbed
 from .resource import ResourceEmbed
@@ -650,10 +650,10 @@ class OrderResponse(BaseModel):
     flow_lots: list[FlowLot] = []
     # Was er dem Bestand endgültig entzogen hat – siehe ``OrderDeviationInfo.flow_lost``.
     flow_lost: list[FlowLot] = []
-    # **Was ist passiert** – das Material-Journal dieses Auftrags (ADR 007), chronologisch
-    # und unveränderlich. Die dritte der drei Fragen, am Auftrag beantwortet; die Instanz
-    # zeigt dieselben Zeilen aus der anderen Richtung. Nur fürs Personal gefüllt.
-    history: list[MaterialMoveView] = []
+    # **Kein Journal in der Antwort** (Testnotizen #628/#629): das Material-Journal bleibt
+    # die Wahrheit über die Vergangenheit (ADR 007) – es speist die Kanten des Flusses, den
+    # Zustand der Stücke und das Systemprotokoll. Als *Liste von Buchungen* unter dem Fluss
+    # sagte es dagegen nichts, was der Fluss nicht schon zeigt.
     # **Die fertig gerechnete Prozess-Achse** (Knoten + Kanten): das Frontend zeichnet sie
     # nur noch – keine Material-Arithmetik, keine Stichtags-Zeitmaschine im Client mehr.
     flow_nodes: list[FlowNode] = []

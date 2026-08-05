@@ -102,16 +102,15 @@ def test_a_supplier_only_sees_his_own_procurement(db, world):
 
 
 def test_what_describes_the_internal_course_stays_with_the_staff(db, world):
-    """Der Lauf des Auftrags ist intern: Verlauf, Material auf den Kanten und die
+    """Der Lauf des Auftrags ist intern: das Material auf den Kanten und die
     Unter-Aufträge. Wie viel er zu liefern hat, steht in **seinem** Beleg – dafür braucht
-    es weder das Journal noch den Bestand seines Kunden."""
+    es weder den Bestand seines Kunden noch dessen Prozess."""
     from app.services.orders import to_order_response
 
     order, a = _produced_order(db, world)
     staff, sup = to_order_response(db, order), to_order_response(db, order, viewer=a)
 
-    assert staff.history, "Das Personal sieht den Verlauf…"
-    assert not sup.history, "…der Lieferant nicht (#594)."
+    assert staff.flow_lots, "Das Personal sieht das Material auf den Kanten…"
     assert not sup.flow_lots and not sup.flow_lost, (
         "Kein Material auf den Kanten – das ist der Bestand seines Kunden.")
     assert all(not e.lots for e in sup.flow_edges), (

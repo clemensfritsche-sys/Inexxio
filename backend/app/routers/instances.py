@@ -13,9 +13,8 @@ from ..schemas.instance import (
     InstanceOrderRef,
     InstanceResponse,
     LocationHop,
-    MaterialMoveView,
 )
-from ..services import ledger, location_split, scrap as scrap_svc
+from ..services import location_split, scrap as scrap_svc
 from ..services import shares, units
 from ..services.locations import location_chain, location_labels, physical_location_labels
 from ..services.references import instance_orders
@@ -44,7 +43,14 @@ def _apply_search(q, search: str):
     )
 
 
-def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
+def denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
+    """**Eine Instanz wird an EINER Stelle für die Anzeige aufbereitet.**
+
+    Der Artikel-Bestand hatte dafür eine zweite, kürzere Fassung – und die kannte die
+    Stücke nicht (``units``). Genau daraus kam der gemeldete Widerspruch (Testnotiz #632):
+    im Bestand stand eine Charge à 4 als EIN Block mit dem Zustand des *Datensatzes*, im
+    Instanz-Detail dieselbe Charge Stück für Stück mit drei verschiedenen Zuständen. Zwei
+    Aufbereitungen sind zwei Wahrheiten; es gibt jetzt nur noch diese."""
     art_ids = {r.article_id for r in rows}
     ord_ids = {r.order_id for r in rows}
     art_rows = db.query(Article).filter(Article.id.in_(art_ids)).all() if art_ids else []
@@ -128,7 +134,7 @@ async def list_instances(
     if limit:
         q = q.offset(offset).limit(limit)
     rows = q.all()
-    return _denorm(db, rows)
+    return denorm(db, rows)
 
 
 @router.get("/count", response_model=CountResponse)
@@ -177,36 +183,9 @@ async def get_instance(
     )
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
-    resp = _denorm(db, [inst])[0]
+    resp = denorm(db, [inst])[0]
     resp.location_path = safe_location_path(db, inst)
-    resp.history = _history_views(db, inst)
     return resp
-
-
-def _history_views(db: Session, inst: Instance) -> list[MaterialMoveView]:
-    """**Was mit diesem Stück passiert ist** – die Journalzeilen fürs Detail (ADR 007).
-
-    Chronologisch, unveränderlich; Auftragsnamen aus derselben Ableitung wie überall
-    (batch, kein N+1). Der genannte Auftrag ist der Ziel-Halter (wohin es ging), sonst
-    die Quelle (woher es kam)."""
-    from ..services.orders import order_display_name
-    moves = ledger.history(db, inst)
-    if not moves:
-        return []
-    ids = {m.dst_order_id for m in moves} | {m.src_order_id for m in moves}
-    rows = db.query(Order).filter(Order.id.in_({i for i in ids if i})).all()
-    arts = {a.id: a.name for a in db.query(Article).filter(
-        Article.id.in_({o.article_id for o in rows if o.article_id})).all()}
-    orders = {o.id: (o.object_id, order_display_name(o, arts.get(o.article_id))) for o in rows}
-    out: list[MaterialMoveView] = []
-    for m in moves:
-        ref = orders.get(m.dst_order_id or 0) or orders.get(m.src_order_id or 0)
-        out.append(MaterialMoveView(
-            at=m.at, kind=m.kind, quantity=float(m.quantity),
-            quality=m.dst_quality, disposition=m.dst_disposition,
-            order_object_id=ref[0] if ref else None, order_name=ref[1] if ref else None,
-            instance_object_id=m.instance_object_id, note=m.note))
-    return out
 
 
 @router.post("/{object_id}/unblock", response_model=InstanceResponse)
@@ -229,7 +208,7 @@ async def unblock_instance(
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
     scrap_svc.unblock(db, inst, current_user.id)
-    resp = _denorm(db, [inst])[0]
+    resp = denorm(db, [inst])[0]
     resp.location_path = safe_location_path(db, inst)
     return resp
 

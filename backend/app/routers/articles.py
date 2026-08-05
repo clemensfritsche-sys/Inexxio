@@ -16,7 +16,6 @@ from ..schemas.instance import InstanceResponse
 from ..services import deactivation, metrics
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable, ensure_version
-from ..services.locations import location_labels, physical_location_labels
 from ..services.processes import article_steps
 from ..services.objects import next_object_id
 from ..services.weight import computed_weights
@@ -365,7 +364,13 @@ async def list_article_instances(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Bestand des Artikels: alle Bestands-Instanzen (Reiter «Bestand»)."""
+    """Bestand des Artikels: alle Bestands-Instanzen (Reiter «Bestand»).
+
+    **Dieselbe Aufbereitung wie überall** (``instances.denorm``, Testnotiz #632): der
+    Bestand hatte eine eigene, kürzere Fassung, die die **Stücke** nicht kannte – eine
+    Charge à 4 stand darum als EIN Block mit dem Zustand des Datensatzes da, obwohl drei
+    Stück freigegeben und eines im Prozess waren. Zwei Aufbereitungen sind zwei Wahrheiten."""
+    from .instances import denorm
     article = _get_active(db, object_id)
     rows = (
         db.query(Instance)
@@ -373,22 +378,4 @@ async def list_article_instances(
         .order_by(Instance.object_id)
         .all()
     )
-    order_ids = {r.order_id for r in rows}
-    order_map = {
-        o.id: o.object_id
-        for o in db.query(Order).filter(Order.id.in_(order_ids)).all()
-    } if order_ids else {}
-    # Standort-Labels **batch** auflösen (statt einem Query je Instanz, N+1).
-    loc_keys = [(r.location_type, r.location_id) for r in rows]
-    loc_labels = location_labels(db, loc_keys)
-    phys_labels = physical_location_labels(db, [k for k in loc_keys if k[0] == "instance"])
-    out: list[InstanceResponse] = []
-    for r in rows:
-        resp = InstanceResponse.model_validate(r)
-        resp.order_object_id = order_map.get(r.order_id)
-        resp.article_name = article.name
-        resp.location_label = loc_labels.get((r.location_type, r.location_id))
-        if r.location_type == "instance":
-            resp.physical_location_label = phys_labels.get((r.location_type, r.location_id))
-        out.append(resp)
-    return out
+    return denorm(db, rows)

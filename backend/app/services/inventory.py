@@ -35,8 +35,13 @@ def claim_clauses(for_order_id: int | None) -> tuple:
 def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = None,
                     lock: bool = False) -> list[Instance]:
     """Verbrauchbare/verkäufliche Instanzen eines Artikels: **freigegeben** (qc passed,
-    am Lager), **freie Restmenge** (bzw. für diesen Auftrag reserviert), **FIFO nach
-    Freigabe** (``released_at``, ersatzweise ``created_at``), dann Objektnummer.
+    am Lager), **freie Restmenge** (bzw. für diesen Auftrag reserviert), **FIFO nach der
+    Freigabe des ältesten entnehmbaren STÜCKS** (``units.fifo_since``), dann Objektnummer.
+
+    Die FIFO-Basis hängt am Stück, nicht am Datensatz (``services/units.py``): eine Charge
+    kann drei heute und ein Stück in vier Wochen freigegebene Teile tragen – dann zählt für
+    die Reihenfolge das älteste, das man ihr entnehmen könnte. Ohne Stück-Daten (Altbestand)
+    fällt es tolerant auf ``released_at``/``created_at`` zurück.
 
     Mit ``for_order_id`` werden die für diesen Auftrag reservierten Instanzen **zuerst**
     verbraucht (Reservierung ist „vorgemerkter" Bestand dieses Auftrags).
@@ -54,9 +59,10 @@ def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = 
     if lock:
         q = q.with_for_update()
     rows = q.all()
+    from . import units
     rows.sort(key=lambda i: (
         0 if (for_order_id is not None and reserved_for(i, for_order_id) > 0) else 1,
-        i.released_at or i.created_at, i.object_id or 0))
+        units.fifo_key(i), i.object_id or 0))
     return rows
 
 
