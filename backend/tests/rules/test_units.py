@@ -553,6 +553,87 @@ def test_a_released_piece_belongs_to_nobody(db, kinds, world):
         f"Hover und Pille müssen dasselbe sagen (ist {hover[0].quality}/{hover[0].disposition}).")
 
 
+def _release_to_stock(db, order):
+    """Den Auftrag über den echten Abschluss-Pfad beenden – seine Stücke landen am Lager."""
+    from app.services import process
+    process.release_instances(db, order)
+    order.status = "completed"
+    db.commit()
+
+
+def _stock_order(db, art, user, qty: int):
+    """Ein Auftrag, der sich ``qty`` ab Lager holt (FIFO) – eigener Ablauf, also stock."""
+    from decimal import Decimal
+
+    from app.models import ArticleProcessStep, Order
+    from app.routers import orders as R
+    from .conftest import _num
+
+    o = Order(object_id=_num(db), article_id=art.id, quantity=Decimal(qty), status="draft")
+    db.add(o)
+    db.flush()
+    db.add(ArticleProcessStep(order_id=o.id, step_type="inspection", position=0,
+                              sample_percent=100))
+    db.flush()
+    R._do_release(db, o, user.id)
+    db.commit()
+    db.refresh(o)
+    return o
+
+
+def test_a_claimed_piece_names_the_order_that_holds_it(db, world, kinds):
+    """**Ein ausdrücklicher Anspruch gilt immer** (Testnotiz #625).
+
+    Gemeldeter Fall: eine freigegebene Charge à 4, ein Auftrag holt sich EIN Stück ab Lager
+    – und das Instanz-Detail zeigte weiter **alle vier** als «Freigegeben». Dass eines davon
+    in einem laufenden Auftrag steckt, stand nirgends, während die Anteils-Aufteilung
+    daneben «1 · Auftrag …» sagte: zwei Antworten auf dieselbe Frage.
+
+    Ursache war eine zu breite Fassung von #573/#577 («freigegeben heisst frei»). Richtig
+    ist sie für den **geerbten Rest** (der gehört dem Erzeuger nur, solange etwas im Prozess
+    ist); für den **ausdrücklichen** Anspruch war sie falsch – der bleibt, was er ist.
+
+    Gegenprobe unten: das freigegebene, UNBEANSPRUCHTE Stück nennt weiterhin niemanden."""
+    from app.models import Article, ArticleProcessStep
+    from app.services import shares, units
+
+    from .conftest import _num
+
+    user, _ = world
+    # **Eigener Artikel** – sonst deckt FIFO aus dem Bestand der Nachbartests, und der
+    # Befund hätte nichts mit dieser Zeile zu tun.
+    art = Article(object_id=_num(db), name=f"Charge {_num(db)}", unit="pcs",
+                  serialization="batch", status="released")
+    db.add(art)
+    db.flush()
+    db.add(ArticleProcessStep(article_id=art.id, step_type="inspection", position=0,
+                              sample_percent=100))
+    db.commit()
+
+    mk, inst = _make_order(db, art, user, 4)
+    _release_to_stock(db, mk)
+    db.refresh(inst)
+
+    take = _stock_order(db, art, user, 1)
+    db.refresh(inst)
+
+    names = shares.order_names(db, [inst])
+    rows = units.rows(inst, names=names, db=db)
+    held = [r for r in rows if r.order_object_id == take.object_id]
+    free = [r for r in rows if r.order_object_id is None]
+    assert len(held) == 1, (
+        f"Genau ein Stück nennt den Auftrag, der es hält (ist {[r.number for r in held]}).")
+    assert len(free) == 3, (
+        f"Die übrigen bleiben frei (ist {[r.number for r in free]}).")
+    # Und die Anteils-Aufteilung sagt dasselbe – EIN Rechenweg, nicht zwei.
+    sh = shares.shares_for(db, [inst])[inst.id]
+    by = {(x.order_object_id or "frei"): float(x.quantity) for x in sh}
+    assert by == {take.object_id: 1.0, "frei": 3.0}, by
+    # «Welche Stücke gehören diesem Auftrag» nennt dasselbe Stück.
+    mine = [u.number for u in units.owned_by(inst, take.id, db)]
+    assert mine == [held[0].number], (f"Anspruch und Stücke müssen dasselbe sagen: {mine}")
+
+
 def test_the_instance_state_is_a_projection_over_its_pieces(db, world, kinds):
     """**Der Zustand des Datensatzes wird ABGELEITET, nicht zugewiesen** (Testnotiz #604).
 

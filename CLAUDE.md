@@ -5325,6 +5325,62 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (6) **Keine Zusammenfassung über dem Bestand** (#617): jede Zustands-Gruppe trägt Wort und
   Menge bereits im Kopf – eine Zeile, die dieselben Zahlen vorwegnimmt, sagt nichts Neues.
 
+- **Testnotizen-Runde 49 («Reserviert» ist kein Zustand, der Name wächst daneben; #623–#626)**:
+  Zwei der vier Notizen hingen an derselben Wurzel – **derselbe Zustand wurde an zwei
+  Stellen verschieden beantwortet**.
+  (1) **Ein ausdrücklicher Anspruch gilt immer** (#625, `units.rows`/`owned_by`). Gemeldeter
+  Fall: eine freigegebene Charge à 4, ein Auftrag holt sich EIN Stück ab Lager – und das
+  Instanz-Detail zeigte weiter alle vier als «Freigegeben». Dass eines davon in einem
+  laufenden Auftrag steckt, stand nirgends, während die Anteils-Aufteilung daneben
+  «1 · Auftrag …» sagte. Ursache war eine zu breite Fassung von #573/#577 («freigegeben
+  heisst frei»): sie ist richtig für den **geerbten Rest** (der gehört dem Erzeuger nur,
+  solange etwas im Prozess ist), aber falsch für den **ausdrücklichen** Anspruch. Jetzt
+  sind es zwei Zweige statt eines.
+  (2) **«Reserviert» ist ersatzlos entfallen** (#626, ausdrücklicher Wunsch). Es war ein
+  dritter Zustand für etwas, das «Im Prozess» längst sagt: ein Stück, das ein laufender
+  Auftrag hält, IST in einem Prozess. Der Unterschied («schon im Prozess» ↔ «am Lager und
+  gebunden») war eine Frage des **Zeitpunkts**, nicht der Sache – verwendbar ist es in
+  beiden Fällen nicht, und **wer es hält, steht jetzt daneben** (die Stück-Zeile nennt den
+  Auftrag). Der dritte Parameter von `instanceStatusConfig` heisst darum `held` und bildet
+  auf «Im Prozess» ab; ein Zustand weniger im ganzen System.
+  Dazu war sein Auslöser am **Datensatz** zu grob: «irgendetwas ist beansprucht» stellte
+  eine Charge à 4 mit EINEM gebundenen Stück als Ganzes auf Gelb, während die Liste
+  darunter drei freie zeigte. Die Frage eines Datensatzes lautet **«ist hier noch etwas
+  frei?»** – ist alles vergeben, ist er «Im Prozess», sonst «Freigegeben»
+  (`record-status.instanceStatus`, die EINE Ableitung; `scrap-panel`/`order-positions`
+  bauten sie sich bis dahin selbst zusammen, entgegen #379). Die DB-Skalare bleiben
+  unangetastet: sie sind der Index für FIFO und Bestand, und reservierter Bestand ist
+  weiterhin Bestand.
+  (3) **Der Buttonname wächst im Hover DANEBEN heraus** (#624, vierter Anlauf – und der
+  erste, der gemessen wurde). Die drei gescheiterten hatten alle dieselbe Wurzel: der Name
+  braucht Platz, den die Reihe nicht hat. Wuchs der Knopf **im Fluss**, brach die Zeile um,
+  er wanderte unter dem Cursor weg, der Hover endete, er schrumpfte – die Rückkopplung war
+  das gemeldete «Springen» (#502/#503); eine Pille darüber sah gelöst aus (#509/#510), eine
+  Zeile darunter schrieb den Namen zweimal hin (#518).
+  Die Lösung trennt die beiden Grössen: **im Fluss** belegt der Knopf eine feste Zelle
+  (44×44, `.erp-palette-cell`) – daran ändert der Hover NICHTS, also kann nichts umbrechen
+  und nichts springen; **gezeichnet** wird er absolut darin und wächst nach rechts über den
+  Nachbarn. Das Umbrechen in eine zweite Reihe passiert damit rein statisch. Dieselbe Geste
+  am **Segment-Umschalter** (#624 ausdrücklich: «auch gleich beim Prüfumfang», `.ix-seg`) –
+  dort darf er im Fluss wachsen: die Optionen links vom Cursor bleiben stehen, und der
+  gleitende Reiter wird ohnehin gemessen.
+  **In Chromium nachgemessen statt überlegt** (Lehre aus #583/#550): die sonst übliche
+  `grid-template-columns: 0fr → 1fr`-Technik greift hier **nicht** – bei einem Knopf, der
+  seine Breite aus dem Inhalt zieht, blieb er bei 44 px stehen; mit `max-width` wächst er
+  auf 169 px. Gemessen wurden ausserdem: Zellen und Palettenhöhe bleiben bei jedem Hover
+  identisch (auch beim letzten Knopf und bei bereits **umgebrochener** Reihe), und der
+  Umschalter bleibt mit 193 → 273 px klar in seiner 460-px-Bahn.
+  (4) **Kein «Erstellt» am Instanz-Detail** (#623): welches Datum wäre es – die Anlage des
+  Datensatzes oder die Freigabe des Stücks, und bei einer Charge womöglich für jedes Stück
+  ein anderes? Eine Zahl, die je nach Lesart etwas anderes meint, sagt weniger als keine.
+  Wann wirklich etwas passiert ist, steht im **Verlauf** (Material-Journal), Buchung für
+  Buchung.
+  Wächter: `tests/rules/test_units.py: test_a_claimed_piece_names_the_order_that_holds_it`
+  (gegen die Bug-Form gegengeprüft – ohne den Fix meldet er «Genau ein Stück nennt den
+  Auftrag, der es hält (ist [])»), `test_frontend_mirrors.py:
+  test_reserved_is_not_a_state_of_its_own`,
+  `…_the_palette_name_grows_beside_the_symbol_without_moving_anything`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

@@ -64,8 +64,24 @@ export function orderStatus(o: OrderLike): StatusCfg {
   return orderStatusConfig(o.status, o.abort_into_id != null);
 }
 
-export function instanceStatus(i: Pick<Instance, 'quality' | 'disposition' | 'reserved_quantity'>): StatusCfg {
-  return instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0);
+/**
+ * Der Zustand einer Instanz **als Datensatz**.
+ *
+ * «Reserviert» gibt es nicht mehr (Testnotizen #625/#626) – und der frühere Auslöser
+ * («irgendetwas davon ist beansprucht») war ohnehin zu grob: eine Charge à 4, von der EIN
+ * Stück in einem Auftrag steckt, stand als Ganzes auf Gelb, während die Stück-Liste
+ * darunter drei freie zeigte. Zwei Antworten auf dieselbe Frage.
+ *
+ * Die Frage, die ein Datensatz beantwortet, ist: **ist hier noch etwas frei?** Ist die ganze
+ * Menge vergeben, ist der Datensatz «Im Prozess»; liegt noch etwas frei, ist er
+ * «Freigegeben». Welches Stück wem gehört, sagt die Stück-Liste – dort, wo es hingehört.
+ */
+export function instanceStatus(
+  i: Pick<Instance, 'quality' | 'disposition' | 'reserved_quantity'> & { quantity?: number | null },
+): StatusCfg {
+  const claimed = i.reserved_quantity ?? 0;
+  const whole = claimed > 0 && claimed >= (i.quantity ?? 0);
+  return instanceStatusConfig(i.quality, i.disposition, whole);
 }
 
 export function organizationStatus(c: Pick<CompanySettings, 'is_active'>): StatusCfg {

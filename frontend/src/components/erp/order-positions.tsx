@@ -2,7 +2,8 @@
 
 import { Boxes, MapPin } from 'lucide-react';
 import type { LocationType, Order, OrderInstance } from '@/types';
-import { instanceStatusConfig, LOCATION_META, heldOf } from '@/lib/process';
+import { LOCATION_META, heldOf } from '@/lib/process';
+import { instanceStatus } from '@/lib/record-status';
 import { UnitChips } from '@/components/erp/unit-numbers';
 import { unitLabel } from '@/lib/article';
 import { ObjId } from '@/components/erp/obj-id';
@@ -103,7 +104,7 @@ function InstanceLine({ instance: i, unit }: { instance: OrderInstance; unit: st
           </span>
         )}
       </span>
-      <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} />
+      <StatusBadge cfg={instanceStatus(i)} />
     </div>
   );
 }
