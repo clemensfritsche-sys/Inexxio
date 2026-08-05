@@ -455,20 +455,15 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
   // Verzögerung: sonst wäre «Freigeben» nach dem letzten Tastendruck noch Sekunden lang
   // gesperrt, und die Instanz-Auswahl kennte den Artikel noch nicht.
   const canSave = !isCreate && demandEditable && demandValid && sig !== savedSig && !saving;
-  // Bestands-Operation? – NICHT die blosse Schrittzahl, sondern die **deklarierte Subjekt-Rolle**
-  // der Schritte (Beschaffung/Ressource bringen Bestand herein = Herstellung; Verkauf/Bewegung
-  // wirken auf vorhandenen Bestand). Live über ProcessSteps (`isStockOp`, Spiegel der Backend-
-  // Registry); initial aus der abgeleiteten Subjektart, bis ProcessSteps den echten Stand meldet.
+  // Bestands-Operation? – **ein eigener Ablauf greift zu, er erzeugt nie** (Testnotiz #622).
+  // Die Schrittzahl IST damit die Antwort; live über ProcessSteps, initial aus der vom Server
+  // abgeleiteten Subjektart, bis ProcessSteps den echten Stand meldet.
   const [orderStepCount, setOrderStepCount] = useState<number | null>(null);
-  const [orderIsStockOp, setOrderIsStockOp] = useState<boolean | null>(null);
-  const onStepsCount = useCallback((n: number, stockOp: boolean) => {
-    setOrderStepCount(n);
-    setOrderIsStockOp(stockOp);
-  }, []);
+  const onStepsCount = useCallback((n: number) => setOrderStepCount(n), []);
   // Der Entwurf – gespeichert oder noch im Browser (#386): beide brauchen den Instanz-Pool
   // für die Auswahl.
   const isDraftStaff = isStaff && record.status === 'draft';
-  const hasCustomSteps = orderIsStockOp != null ? orderIsStockOp : record?.subject_role === 'stock';
+  const hasCustomSteps = orderStepCount != null ? orderStepCount > 0 : record?.subject_role === 'stock';
   // «Herstellen» ist bei einem Mehrpositionen-Auftrag NIE möglich (mehrere Artikel – kein
   // EINER Artikel-Prozess, den er fahren könnte; Backend erzwingt dort immer `stock`).
   const canProduce = !isMultiPosition && !hasCustomSteps;

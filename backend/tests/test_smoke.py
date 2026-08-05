@@ -1201,16 +1201,20 @@ def test_order_modes_make_and_custom():
         assert gone not in OrderResponse.model_fields
 
 
-def test_subject_role_and_stock_effect_declared():
-    """Subjektart + Bestandswirkung werden aus den Schritt-Typen ABGELEITET (REA-Registry):
-    Verkauf greift FIFO auf den Bestand zu (stock) und mindert ihn (decrease)."""
+def test_stock_effect_is_declared_and_the_subject_role_is_gone():
+    """Die Bestandswirkung wird aus den Schritt-Typen ABGELEITET (REA-Registry): Verkauf
+    mindert (decrease), Beschaffung erhöht, gemischt bleibt ehrlich ``mixed``.
+
+    Die frühere **Subjekt-Rolle** je Schritttyp (``derive_subject_mode``/
+    ``SUBJECT_PRECEDENCE``) ist ersatzlos entfallen (Testnotiz #622): sie war eine zweite
+    Aussage darüber, ob ein Auftrag erzeugt – und sie überstimmte die ausdrückliche Wahl
+    «Ab Lager». Es gibt heute EINE Bedingung, und sie steht in ``subject.subject_kind``."""
     from app.domain import event_types
 
-    assert event_types.derive_subject_mode({"sale"}) == "stock"
-    assert event_types.derive_subject_mode({"purchase", "resource"}) == "produce"
-    assert event_types.derive_subject_mode({"inspection", "movement"}) == "instance"
-    # gemischter Prozess: Verkauf dominiert die Subjektart (stock ≻ produce ≻ instance)
-    assert event_types.derive_subject_mode({"purchase", "sale"}) == "stock"
+    assert not hasattr(event_types, "derive_subject_mode")
+    assert not hasattr(event_types, "SUBJECT_PRECEDENCE")
+    assert not hasattr(event_types, "subject_role")
+    assert "subject_role" not in event_types.EventType.__dataclass_fields__
 
     assert event_types.aggregate_stock_effect({"sale"}) == "decrease"
     assert event_types.aggregate_stock_effect({"purchase"}) == "increase"
@@ -1409,7 +1413,6 @@ def test_event_type_registry_declares_polarity():
     assert ev.polarity("resource") == ev.INCREASE
     assert ev.polarity("sale") == ev.DECREASE
     assert ev.polarity("scrap") == ev.DECREASE     # Verschrotten mindert den Bestand
-    assert ev.subject_role("scrap") == ev.INSTANCE  # wirkt auf bestehende Instanzen
     assert ev.polarity("movement") == ev.MOVE
     assert ev.polarity("inspection") == ev.NEUTRAL
     # Verkauf UND Gutschrift laufen über EINEN `sale`-Schritt (Modus aus dem Subjekt abgeleitet) –
@@ -1636,38 +1639,44 @@ def test_release_allows_partial_stock_no_hard_fail():
     assert "Partielle Deckung" in src
 
 
-def test_subject_kind_follows_declared_step_roles():
-    """#4b: Herstellung vs. Bestands-Operation wird aus der **deklarierten Subjekt-Rolle** der
-    Schritte abgeleitet (REA-Registry, ``derive_subject_mode``/``SUBJECT_PRECEDENCE``) – NICHT
-    aus der blossen Anwesenheit eines Schritts, NICHT aus einer Pin-Auswahl und NICHT aus einer
-    Quellen-Übersteuerung (subject_source ist entfernt).
+def test_only_the_article_process_creates_instances():
+    """**Instanzen entstehen ausschliesslich aus dem Prozess des Artikels** (Testnotiz #622).
 
-    Kern-Regel: ein Schritt, der Bestand **hereinbringt** (Beschaffung/Ressource → PRODUCE),
-    lässt den Auftrag ERZEUGEN (neue Instanzen); nur ein Zugriff auf **vorhandenen** Bestand
-    (Verkauf → STOCK, Bewegung/Prüfung/Verschrottung → INSTANCE) ist eine Bestands-Operation.
-    Sonst würde ein Beschaffungs-Auftrag fälschlich als Bestands-Operation behandelt und
-    scheiterte still an „kein Bestand" (keine Instanz, keine Objektnummer, keine Fehlermeldung)."""
+    Die Regel hat genau EINE Bedingung: *hat der Auftrag einen eigenen Ablauf?* Wenn ja, greift
+    er auf vorhandenen Bestand zu (``stock``); wenn nein, fährt er den **Artikel**-Prozess und
+    nur DER erzeugt (``produce``).
+
+    Vorher entschied die deklarierte **Rolle** der Schritte (Registry-Vorrang
+    ``stock ≻ produce ≻ instance``). Ein order-eigener **Beschaffungs**-Schritt trägt
+    ``PRODUCE`` – also erzeugte ein Auftrag mit «Beschaffen + Datenerfassung» neue Instanzen,
+    obwohl der Mensch im Bedarf ausdrücklich «Ab Lager» gewählt hatte: zwei Aussagen über
+    dieselbe Sache, und die unsichtbare gewann.
+
+    Der Grund für die alte Regel ist weggefallen – ein Bestands-Auftrag ohne Bestand bindet
+    heute nicht mehr still 0 Instanzen, sondern meldet eine **Unterdeckung** (sichtbar,
+    blockiert den zugreifenden Schritt, Nachschub fährt den Artikel-Prozess, ADR 003).
+
+    Zweite Hälfte der Regel: die Erzeugung selbst prüft es noch einmal
+    (``serialization.create_instances_for_order``) – wer sie an einem Auftrag mit eigenem
+    Ablauf aufruft, bekommt einen Fehler statt neuer Instanzen. Ein Wächter allein an der
+    Ableitung liesse jeden künftigen zweiten Aufrufer durch."""
     import inspect as _inspect
-    from app.domain import event_types
-    from app.services import subject, process
-
-    # Verhalten der reinen Ableitung (ohne DB): PRODUCE-Schritte → produce, sonst stock.
-    assert event_types.derive_subject_mode({"purchase"}) == event_types.PRODUCE
-    assert event_types.derive_subject_mode({"resource"}) == event_types.PRODUCE
-    assert event_types.derive_subject_mode({"sale"}) == event_types.STOCK
-    assert event_types.derive_subject_mode({"movement"}) == event_types.INSTANCE
-    assert event_types.derive_subject_mode({"purchase", "movement"}) == event_types.PRODUCE
+    from app.services import subject, process, serialization
 
     kind_src = _inspect.getsource(subject.subject_kind)
     mat_src = _inspect.getsource(subject.materialize_subject)
-    # Ableitung über die Registry – keine „jeder Schritt = stock"-Verkürzung, keine
-    # Quellen-Übersteuerung.
-    assert "derive_subject_mode" in kind_src
+    # EINE Bedingung: eigener Ablauf → stock, sonst produce. Keine Rollen-Ableitung mehr
+    # (sie war der Weg, auf dem ein Beschaffungs-Schritt still eine Erzeugung machte), und
+    # keine Quellen-Übersteuerung (``subject_source`` ist entfernt).
+    assert "derive_subject_mode" not in kind_src
     assert "subject_source" not in kind_src
-    # Keine eigenen Schritte → Herstellung (produce), ein PRODUCE-Schritt bleibt Herstellung.
-    assert 'return "produce"' in kind_src
+    assert 'return "produce" if not order_custom_steps(db, order.id) else "stock"' in kind_src
     # materialize delegiert an subject_kind – die Fallunterscheidung steht dort, nicht hier.
     assert "subject_kind(db, order)" in mat_src
+    # Die Erzeugung ist zusätzlich selbst abgesichert.
+    ser_src = _inspect.getsource(serialization.create_instances_for_order)
+    assert "order_custom_steps(db, order.id)" in ser_src
+    assert "HTTPException" in ser_src
     # order_step_defs bleibt bei «eigene Schritte, sonst Artikel-Prozess» – die Auswahl
     # entscheidet dort NICHT mit (sonst verlöre ein abgeschlossener Auftrag rückwirkend
     # seinen Ablauf, sobald die Bindung gelöst ist).
@@ -2534,7 +2543,6 @@ def test_document_step_is_wired_end_to_end():
 
     # Registry: keine Bestandswirkung, erzeugt einen Liefergegenstand (die Instanz).
     assert ev.REGISTRY["document"].polarity == ev.NEUTRAL
-    assert ev.REGISTRY["document"].subject_role == ev.PRODUCE
     assert ev.REGISTRY["document"].fact == "Document"
     assert process._FACT_MODEL["document"] is Document
     # Fachtabelle OHNE eigene Objektnummer (Nummer = Instanz); mit ``done``.
@@ -3079,7 +3087,7 @@ def test_block_is_reversible_scrap_is_not():
     # Registry: eigener Schritttyp, wirkt auf bestehende Instanzen, teilt sich die
     # Marker-Fachzeile mit dem Verschrotten – aber ohne Bestandsvernichtung (NEUTRAL).
     block = ev.REGISTRY["block"]
-    assert block.subject_role == ev.INSTANCE and block.fact == "Disposal"
+    assert block.fact == "Disposal"
     assert block.polarity == ev.NEUTRAL and ev.REGISTRY["scrap"].polarity == ev.DECREASE
     # Sperren hat KEINEN Bereitstellungsort (die Instanz bleibt stehen); Verschrotten
     # macht standortlos.

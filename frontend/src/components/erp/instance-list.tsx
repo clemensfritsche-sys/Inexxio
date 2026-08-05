@@ -108,20 +108,9 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
 
   return (
     <div style={S.wrap}>
-      {/* **Was läuft, in einer Zeile** – Punkt + Wort + Menge je Zustand. Kein Filter:
-          er würde verstecken, und gefragt war das Gegenteil (#600). */}
-      <div style={S.summary}>
-        {groups.map((g) => (
-          <span key={g.key} style={S.sum}>
-            <span aria-hidden style={{ ...S.dot, background: g.cfg.color }} />
-            {g.key}
-            <b className="ix-tnum" style={{ color: 'var(--fg-1)' }}>
-              {formatQty(g.qty)}{unit ? ` ${unit}` : ''}
-            </b>
-          </span>
-        ))}
-      </div>
-
+      {/* Keine Zusammenfassung darüber (#617): jede Gruppe trägt ihren Zustand und ihre
+          Menge bereits im Kopf – eine Zeile, die dieselben Zahlen vorwegnimmt, sagt nichts
+          Neues und macht den Bestand nur länger. */}
       {groups.map((g) => (
         <div key={g.key} style={S.group}>
           <div style={{ ...S.head, color: g.cfg.color }}>
@@ -154,9 +143,6 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
 
 const S: Record<string, React.CSSProperties> = {
   wrap: { maxWidth: 980, marginInline: 'auto', display: 'flex', flexDirection: 'column', gap: 14 },
-  summary: { display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12.5, color: 'var(--fg-3)' },
-  sum: { display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 },
-  dot: { width: 7, height: 7, borderRadius: 999, flex: 'none' },
   group: {
     border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', background: '#fff',
     overflow: 'hidden',

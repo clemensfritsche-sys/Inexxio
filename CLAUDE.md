@@ -377,34 +377,42 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `article_process_links` sind entfernt; Feed-Typ «Prozesse» weg. `services/processes.py` liefert nur noch
   `article_steps`/`order_custom_steps`/`has_custom_steps`. Schritt-CRUD generisch über
   `routers/article_process.py` (`/articles/{id}/steps` und `/orders/{id}/steps`).
-- **Auftrags-Subjektart – ABGELEITET aus der DEKLARIERTEN Schritt-Rolle** (kein Modus-Flag): **produce**
-  (Artikel + Menge → fährt den Artikel-Prozess, ERZEUGT Instanzen) | **stock** (wirkt auf vorhandenen
-  Bestand: FIFO ab Lager bzw. via `instances.subject_of_order_id` fixierte Instanzen). `subject.subject_kind`
-  leitet die Art über `event_types.derive_subject_mode`/`SUBJECT_PRECEDENCE` ab: **KEINE eigenen Schritte →
-  produce**, und **eigene Schritte, die Bestand HEREINBRINGEN** (Beschaffung/Ressource haben Subjekt-Rolle
-  `PRODUCE`) → **ebenfalls produce** (erzeugt Instanzen!); nur ein Zugriff auf vorhandenen Bestand
-  (Verkauf → `STOCK`) bzw. eine Bearbeitung bestehender Instanzen (Bewegung/Prüfung/Verschrottung →
-  `INSTANCE`) ergibt **stock**. **Wichtig (Regression-Fix):** früher galt „jeder eigene Schritt = stock" –
-  dadurch wurde ein Auftrag mit einem **order-level `purchase`-Schritt** fälschlich als Bestands-Operation
-  behandelt und band bei leerem Lager still 0 Instanzen (keine Objektnummer, keine Fehlermeldung). Jetzt ist
-  er korrekt `produce`. Frontend spiegelt dieselbe Regel (`lib/process.ts: isStockOperation`,
-  `ProcessSteps.onStepsCount(n, isStockOp)`). `subject_instance_id`/`process_id`/`orders.mode` sind entfernt.
+- **Auftrags-Subjektart – EINE Bedingung: hat der Auftrag einen eigenen Ablauf?** (kein Modus-Flag,
+  Testnotiz #622): **produce** (keine eigenen Schritte → fährt den **Artikel**-Prozess, und NUR der
+  ERZEUGT Instanzen) | **stock** (eigener Ablauf → wirkt auf vorhandenen Bestand: FIFO ab Lager bzw.
+  via `instances.subject_of_order_id` fixierte Instanzen). **Instanzen entstehen ausschliesslich aus
+  dem Prozess des Artikels** – ein Auftrag mit eigenem Ablauf greift zu, er erzeugt nie.
+  **Zurückgenommen (war ein schwerer Fehler):** früher leitete `subject.subject_kind` die Art über die
+  deklarierte **Schritt-Rolle** ab (`derive_subject_mode`/`SUBJECT_PRECEDENCE`, `stock ≻ produce ≻
+  instance`) – ein order-eigener **Beschaffungs**-Schritt trug `produce`, also erzeugte ein Auftrag mit
+  «Beschaffen + Datenerfassung» neue Instanzen, obwohl der Mensch im Bedarf ausdrücklich «Ab Lager»
+  gewählt hatte: zwei Aussagen über dieselbe Sache, und die unsichtbare gewann. Die Begründung der
+  alten Regel (ein solcher Auftrag band bei leerem Lager still 0 Instanzen) ist weggefallen – heute
+  meldet er eine **Unterdeckung** (sichtbar, blockiert den Schritt, Nachschub fährt den Artikel-Prozess,
+  ADR 003). Die Rolle wird darum **gar nicht mehr deklariert** (siehe Registry-Punkt unten). Zweiter
+  Riegel: `serialization.create_instances_for_order` weist einen Auftrag mit eigenem Ablauf selbst ab.
+  Frontend spiegelt dieselbe eine Bedingung (`ProcessSteps.onStepsCount(n)` – die Schrittzahl IST die
+  Antwort; `lib/process.isStockOperation` ist entfallen).
+  `subject_instance_id`/`process_id`/`orders.mode` sind entfernt.
 - **Freigabe auf Artikel-Ebene**: Die Artikel-Freigabe (Reiter «Spezifikation») friert Spezifikation **und**
   Prozess gemeinsam ein – Schritte sind nur im Artikel-Entwurf editierbar. Ein **make-Auftrag startet nur**,
   wenn der **Artikel freigegeben** ist (einzige Vorbedingung, `routers/orders.py`). Bei der Artikelanlage
   entsteht KEIN Auto-Prozess mehr; Schritte werden im Reiter «Prozess» direkt am Artikel gepflegt.
 - **Deklarative Ereignis-Registry (REA-Kern, `app/domain/event_types.py`)**: EINE Quelle der Wahrheit
   für jeden Schritt-/Ereignistyp – Label, **Bestands-Polarität** (increase/decrease/move/neutral),
-  **Subjekt-Rolle** (produce/stock/instance) und Fachtabelle. Die Polarität ist **deklariert**, nicht
-  aus der Prozessform erraten. `process.STEP_LABELS`/`_FACT_MODEL`/`RESOURCE_STEP_TYPES`,
-  `processes.derive_source`/`stock_effect` und die Schema-Whitelist `ALLOWED_STEP_TYPES` lesen alle
-  aus dieser Registry. Die **`consume`/`tool`-Alt-Schritttypen sind entfernt** (nur noch `resource`,
+  **Bereitstellungsort** und Fachtabelle. *Die frühere **Subjekt-Rolle** (produce/stock/instance) samt
+  `derive_subject_mode`/`SUBJECT_PRECEDENCE` ist **entfernt** (#622): sie war eine zweite Aussage
+  darüber, ob ein Auftrag erzeugt, und überstimmte die ausdrückliche Wahl «Ab Lager». Die Regel steht
+  jetzt allein in `subject.subject_kind`.* Die Polarität ist **deklariert**, nicht
+  aus der Prozessform erraten. `process.STEP_LABELS`/`_FACT_MODEL`/`RESOURCE_STEP_TYPES`, die
+  Lager-Richtung eines Auftrags (`aggregate_stock_effect`) und die Schema-Whitelist
+  `ALLOWED_STEP_TYPES` lesen alle aus dieser Registry (`processes.derive_source`/`recompute_source`
+  gibt es seit dem Wegfall des Prozess-Objekts nicht mehr).
+  Die **`consume`/`tool`-Alt-Schritttypen sind entfernt** (nur noch `resource`,
   Modus je Zeile). Bestandswirksame Vorgänge schreiben ihre Polarität in den Event-Strom
   (`inventory.increased`, `resource.recorded` mit `polarity`/`delta`) → Event-Log als ökonomische Wahrheit.
-- **Quelle & Lager-Richtung werden ABGELEITET, nicht gewählt** (Frage 2): KEIN Quellen-/Richtungs-
-  Dropdown mehr. `processes.recompute_source` leitet `source` über die **deklarierte Vorrangordnung**
-  (`stock ≻ produce ≻ instance`, `event_types.SUBJECT_PRECEDENCE`) ab und speichert sie. `stock_effect`
-  ist das **Aggregat der Schritt-Polaritäten**: increase | decrease | **mixed** (Zu- UND Abgang) |
+- **Lager-Richtung wird ABGELEITET, nicht gewählt** (Frage 2): KEIN Richtungs-Dropdown mehr.
+  `stock_effect` ist das **Aggregat der Schritt-Polaritäten**: increase | decrease | **mixed** (Zu- UND Abgang) |
   neutral – ehrlich auch bei gemischten Prozessen statt 1:1-Spiegel der Subjektart. Anzeige als Badge
   (`ProcessResponse.stock_effect`, `OrderResponse.process_stock_effect`).
 - ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
@@ -5254,6 +5262,68 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   teils gebundenen Anteilen wird zum einen ODER zum anderen, je nachdem welche **Zeile** man
   anklickt (`subject.classify_pick`). EIN Knopf, ein Name, ein Ton; was es wird, zeigt der
   Entwurf sofort (gebundener Anteil → Halter links, Rückgabe-Linie unten).
+
+- **Instanzen entstehen ausschliesslich aus dem Prozess des ARTIKELS** (Testnotiz #622, der
+  schwerste Fehler dieser Runde): Ein regulärer Auftrag, im Bedarf ausdrücklich **«Ab Lager»**
+  (FIFO, 2 Stk), mit einem eigenen Ablauf «Datenerfassung + Beschaffen» – die Freigabe legte
+  **zwei neue Instanzen** an. Aus dem Nichts entstand Bestand, den niemand hergestellt hatte.
+  **Die Ursache war eine zweite Aussage über dieselbe Sache.** Jeder Schritttyp deklarierte
+  neben Polarität und Fachtabelle auch eine **Subjekt-Rolle**, und `derive_subject_mode`
+  aggregierte sie über die Vorrangordnung `stock ≻ produce ≻ instance` zur Subjektart des
+  Auftrags. Ein order-eigener **Beschaffungs**-Schritt trug `produce` – also gewann die
+  unsichtbare Ableitung gegen die sichtbare Eingabe des Menschen.
+  **Die Regel hat jetzt genau EINE Bedingung** (`subject.subject_kind`): *hat der Auftrag
+  einen eigenen Ablauf?* Wenn ja → `stock` (er greift zu, er erzeugt nie); wenn nein → er
+  fährt den **Artikel**-Prozess, und nur DER erzeugt. Der Grund für die alte Regel ist
+  weggefallen: sie sollte verhindern, dass ein solcher Auftrag bei leerem Lager still 0
+  Instanzen bindet – genau dafür gibt es heute die **Unterdeckung** (sichtbar, blockiert den
+  zugreifenden Schritt, Nachschub fährt den Artikel-Prozess, ADR 003). Wer beschaffen will,
+  was es noch nicht gibt, modelliert die Beschaffung **am Artikel**.
+  **Und die Rolle wird gar nicht mehr deklariert.** `EventType.subject_role`,
+  `subject_role()`, `derive_subject_mode()`, `SUBJECT_PRECEDENCE` und die Konstanten
+  `PRODUCE`/`STOCK`/`INSTANCE` sind aus der Registry **entfernt**, ebenso der Spiegel
+  `lib/process.isStockOperation` samt `STEP_SUBJECT_ROLE` im Frontend (die Schrittzahl IST
+  die Antwort, also trägt `onStepsCount` nur noch sie). Eine tote Achse stehen zu lassen wäre
+  die Einladung, dieselbe Ableitung wieder zusammenzusetzen – dieselbe Lehre wie bei der
+  toten Unterschrift/Foto-Achse (Migration 081).
+  **Zwei Riegel, nicht einer:** die Erzeugung prüft es zusätzlich selbst
+  (`serialization.create_instances_for_order` weist einen Auftrag mit eigenem Ablauf ab).
+  Ein Wächter allein an der Ableitung liesse jeden künftigen zweiten Aufrufer durch – und
+  genau ein solcher Pfad hat den Schaden angerichtet.
+  Wächter: `tests/rules/test_creation.py` (Wirkung über die echten Dienst-Pfade gegen echtes
+  PostgreSQL 16 – der gemeldete Fall, **jeder** Schritttyp einzeln, die Gegenprobe «ohne
+  eigenen Ablauf entsteht sehr wohl etwas» und der Riegel in der Erzeugung) +
+  `test_smoke.py: test_only_the_article_process_creates_instances`,
+  `…_stock_effect_is_declared_and_the_subject_role_is_gone`. **Gegen die Bug-Form
+  gegengeprüft:** mit der alten Rollen-Ableitung meldet die Datei genau die drei
+  `produce`-Typen (Beschaffung · Ressource · Dokument) und den gemeldeten Fall.
+
+- **Testnotizen-Runde 48 (der Shortcut merkt vor, der Editor konfiguriert; #616–#621)**:
+  (1) **Auch der Artikel-Shortcut merkt nur vor** (Nutzer-Wunsch, dieselbe Logik wie #608):
+  er füllte «1 Stück» vor – eine Behauptung, die selten stimmt und trotzdem freigebbar
+  aussieht. Vorgemerkt wird jetzt nur der **Artikel**; wie viel, woher und mit welchem
+  Ablauf entscheidet der Mensch. Beide Knöpfe heissen im Hover schlicht **«Auftrag»** (#616)
+  – was danach passiert, sieht man im Entwurf.
+  (2) **Kein «Enter legt an»** (#621, nimmt #611 zurück): ein Schritt wird im Editor
+  **konfiguriert**, nicht ausgefüllt – Bezugsquelle, Prüfumfang, Erfassungsfelder, Parteien.
+  Eine Taste, die mitten in dieser Arbeit anlegt, legt fast immer etwas Halbfertiges an, und
+  ein Schritt ist danach nicht mehr änderbar (löschen + neu). Das ist derselbe Grund, aus
+  dem der «Hinzufügen»-Knopf bleibt (#40/#68).
+  (3) **Der Hover kommt sofort – überall** (#618): `IconSwitch` nannte seine Optionen über
+  `title`, also über den nativen Browser-Tooltip mit rund einer Sekunde Verzögerung. Genau
+  da, wo das Symbol allein nicht trägt, ist das die Sekunde, in der man ratlos ist. Jetzt
+  `data-tip` wie überall sonst – und weil es an EINER Stelle steht, gilt es für jeden
+  Umschalter im Haus (Bezugsquelle, Sichtbarkeit, Aussondern, Verkauf, Transport …).
+  **Ein Anteil lässt sich nicht zeichnen:** «jedes zweite Stück» hat kein Symbol, das ohne
+  Vorwissen lesbar wäre. Der Prüfumfang schreibt darum die **geltende** Option aus
+  (`labelActiveOnly`, dieselbe Lösung wie bei der Mengeneinheit #219/#220); die Symbole sind
+  Griffe für die Alternativen (Stichprobe jetzt `FlaskConical` – eine Probe im Laborsinn).
+  (4) **Im Formular wird alles vom linken Rand gelesen** (#619): die Erfassungsfeld-Palette
+  stand zentriert unter einer linksbündigen Beschriftung. Zentriert bleibt sie dort, wo sie
+  unter einer zentrierten Achse hängt (Modul-Palette im Fluss, Unterdeckungs-Dialog).
+  (5) **Prägnanter** (#620): «Mindestens ein Erfassungsfeld nötig».
+  (6) **Keine Zusammenfassung über dem Bestand** (#617): jede Zustands-Gruppe trägt Wort und
+  Menge bereits im Kopf – eine Zeile, die dieselben Zahlen vorwegnimmt, sagt nichts Neues.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

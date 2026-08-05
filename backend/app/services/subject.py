@@ -21,7 +21,6 @@ from fastapi import HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from ..domain import event_types
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .events import emit
@@ -416,21 +415,26 @@ def subject_kind(db: Session, order: Order) -> str:
     """Abgeleitete Subjektart (Artikel ist immer der Anker) – KEIN Modus-Flag, KEINE
     Quellen-Übersteuerung:
 
-    ``produce`` – der Auftrag bringt Bestand **herein** und ERZEUGT neue Instanzen. Das
-      gilt für KEINE eigenen Schritte (der Auftrag fährt den Artikel-Prozess) **ebenso wie
-      für eigene Schritte, die Bestand hereinbringen** – Beschaffung/Ressource haben in der
-      Registry die Subjekt-Rolle ``PRODUCE``. Es wird NIE vorhandener Bestand vorausgesetzt.
-    ``stock``   – eigene Schritte, die auf **vorhandenen** Bestand zugreifen (Verkauf →
-      ``STOCK``) bzw. bestehende Instanzen bearbeiten (Bewegung/Prüfung/Verschrottung →
-      ``INSTANCE``): ``quantity`` Stück, FIFO ab Lager, optional durch fixierte Instanzen
-      ergänzt. Was fehlt, deckt ein **Nachschub-Unter-Auftrag** (``services/supply.py``) –
-      der zugreifende Schritt ist bis dahin blockiert.
+    ``produce`` – der Auftrag hat **keine eigenen Schritte**, fährt also den Prozess des
+      **Artikels** – und NUR der erzeugt Instanzen.
+    ``stock``   – alles andere: der Auftrag hat einen **eigenen** Ablauf und greift damit
+      auf vorhandenen Bestand zu (``quantity`` Stück, FIFO ab Lager, optional durch
+      ausgewählte Anteile ergänzt). Was fehlt, deckt ein **Nachschub-Unter-Auftrag**
+      (``services/supply.py``) – der zugreifende Schritt ist bis dahin blockiert.
 
-    Massgeblich ist die **deklarierte** Subjekt-Rolle der Schritte (REA-Registry,
-    ``event_types.derive_subject_mode`` mit ``SUBJECT_PRECEDENCE``) – NICHT die blosse
-    Anwesenheit eines Schritts. So kippt ein Schritt, der Bestand HEREINBRINGT (Beschaffung),
-    den Auftrag nicht fälschlich in eine Bestands-Operation, die dann still an „kein Bestand"
-    scheitert (kein Subjekt, keine Instanz, keine Fehlermeldung).
+    **Instanzen entstehen ausschliesslich aus dem Prozess des Artikels** (Testnotiz #622).
+    Das ist die ganze Regel, und sie hat genau eine Bedingung: *hat der Auftrag einen eigenen
+    Ablauf?* Vorher entschied die **deklarierte Rolle** der Schritte (Registry-Vorrang
+    ``stock ≻ produce ≻ instance``): ein order-eigener **Beschaffungs**-Schritt trägt
+    ``PRODUCE``, also erzeugte ein Auftrag mit «Beschaffen + Datenerfassung» neue Instanzen –
+    obwohl der Mensch im Bedarf ausdrücklich **«Ab Lager»** gewählt hatte. Zwei Aussagen über
+    dieselbe Sache, und die unsichtbare gewann.
+
+    Der Grund für die alte Regel ist inzwischen weggefallen: sie sollte verhindern, dass ein
+    solcher Auftrag bei leerem Lager still 0 Instanzen bindet. Genau dafür gibt es heute die
+    **Unterdeckung** – sie ist sichtbar, sie blockiert den zugreifenden Schritt, und der
+    Nachschub-Unter-Auftrag fährt den Artikel-Prozess (ADR 003). Wer beschaffen will, was es
+    noch nicht gibt, modelliert die Beschaffung also **am Artikel**; ein Auftrag greift zu.
 
     **Wer vorhandene Instanzen auswählt, erzeugt keine** (Testnotiz #392). Eine Auswahl ist
     die Aussage «das Material gibt es schon» – also ist der Auftrag eine Operation auf
@@ -452,15 +456,11 @@ def subject_kind(db: Session, order: Order) -> str:
         return "stock"
     if chosen_subjects(db, order):
         return "stock"       # ausgewählte Instanzen → das Material existiert bereits
-    steps = order_custom_steps(db, order.id)
-    if not steps:
-        return "produce"     # keine eigenen Schritte → Artikel-Prozess, erzeugt Instanzen
-    # Eigene Schritte: die Subjektart ist die DEKLARIERTE Rolle (Registry), nicht die
-    # Anwesenheit. Bringt der Ablauf Bestand herein (PRODUCE: Beschaffung/Ressource), ERZEUGT
-    # der Auftrag – nur ein Zugriff auf vorhandenen Bestand (STOCK/INSTANCE) ist eine
-    # Bestands-Operation.
-    mode = event_types.derive_subject_mode({s.step_type for s in steps})
-    return "produce" if mode == event_types.PRODUCE else "stock"
+    # **Ein eigener Ablauf erzeugt nie** (#622): Instanzen entstehen aus dem Prozess des
+    # ARTIKELS, sonst aus nichts. Eine Fallunterscheidung nach Schritt-Rollen gibt es hier
+    # nicht mehr – sie war der Weg, auf dem ein Beschaffungs-Schritt am Auftrag still eine
+    # Erzeugung machte.
+    return "produce" if not order_custom_steps(db, order.id) else "stock"
 
 
 def order_instances(db: Session, order: Order) -> list[Instance]:

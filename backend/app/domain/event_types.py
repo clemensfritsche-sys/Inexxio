@@ -1,8 +1,8 @@
 """Deklarativer Katalog der fachlichen Ereignis-/Schritttypen (REA-Kern).
 
 **Eine** Quelle der Wahrheit für jeden Prozessschritt: sein Label, seine **Wirkung
-auf den Bestand** (Polarität), seine **Subjekt-Rolle** (was der Auftrag damit tut)
-und die **Fachtabelle**, aus der sein Ausführungsstand abgeleitet wird.
+auf den Bestand** (Polarität), sein **Bereitstellungsort** und die **Fachtabelle**,
+aus der sein Ausführungsstand abgeleitet wird.
 
 Warum das wichtig ist (Architektur-Review): Bislang wurde die Lager-Richtung eines
 Prozesses aus der Kombination seiner Schritte *erraten* (``derive_source`` mit der
@@ -27,15 +27,19 @@ DECREASE = "decrease"   # mindert Bestand (Verkauf, Entnahme)
 MOVE = "move"           # verschiebt nur den Standort (kein Mengeneffekt)
 NEUTRAL = "neutral"     # keine Bestandswirkung (Datenerfassung)
 
-# ─── Subjekt-Rolle: worauf der Auftrag wirkt (= bisherige ``source``-Werte) ───────
-PRODUCE = "produce"     # erzeugt neue Instanzen
-STOCK = "stock"         # greift FIFO auf vorhandenen Bestand zu
-INSTANCE = "instance"   # bearbeitet eine konkrete, bestehende Instanz
-
-# Vorrang bei der Ableitung der Auftrags-Subjektart aus mehreren Schritten –
-# **deklariert** (statt als if-Kette versteckt): ein mindernder Bestandszugriff
-# dominiert eine Produktion, diese eine reine Instanz-Bearbeitung.
-SUBJECT_PRECEDENCE = (STOCK, PRODUCE, INSTANCE)
+# ─── Es gibt hier KEINE «Subjekt-Rolle» mehr (Testnotiz #622) ────────────────────
+# Bis Juli 2026 deklarierte jeder Schritttyp zusätzlich, WORAUF der Auftrag wirkt
+# (produce | stock | instance), und ``derive_subject_mode`` aggregierte das über eine
+# Vorrangordnung zur Subjektart des Auftrags. Das war eine **zweite Aussage über dieselbe
+# Sache** – und die unsichtbare gewann: ein order-eigener Beschaffungs-Schritt trug
+# ``produce``, also erzeugte ein Auftrag mit «Beschaffen + Datenerfassung» neue Instanzen,
+# obwohl der Mensch im Bedarf ausdrücklich «Ab Lager» gewählt hatte.
+#
+# Die Regel ist heute eine einzige Bedingung und steht dort, wo sie hingehört
+# (``subject.subject_kind``): **Instanzen entstehen ausschliesslich aus dem Prozess des
+# ARTIKELS** – ein Auftrag mit eigenem Ablauf greift zu, er erzeugt nie. Die Rolle wird
+# darum nicht mehr deklariert; sie liesse sich sonst jederzeit wieder zu einer zweiten
+# Ableitung zusammensetzen.
 
 # ─── Bereitstellungsort: wohin die Inputs/das Subjekt eines Schritts physisch müssen ──
 # «Bewegung wird ABGELEITET, nicht orchestriert»: jeder Schritttyp DEKLARIERT hier seinen
@@ -65,7 +69,6 @@ class EventType:
     key: str            # Schlüssel (== ``ArticleProcessStep.step_type``)
     label: str          # Anzeigename (DE)
     polarity: str       # Wirkung auf den Bestand: increase | decrease | move | neutral
-    subject_role: str   # was der Auftrag mit seinem Subjekt tut: produce | stock | instance
     fact: str           # Name des Fachmodells (Status-/Routing-Ableitung)
     provisioning: str = PROV_NONE  # Bereitstellungsort: wohin das Subjekt/die Inputs physisch müssen
     # **Woran man dem Fachdatensatz ansieht, dass der Schritt durch ist.** Auch das ist
@@ -124,7 +127,7 @@ REGISTRY: dict[str, EventType] = {
     # längst) – die Beschaffung bekommt es dazu, statt ein neues zu erfinden. Es ist NICHT
     # dasselbe wie «Abgelehnt»: abgelehnt heisst, der Besteller sagt zu einer Offerte nein
     # (eine Entscheidung); storniert heisst, der Vorgang hat seinen Gegenstand verloren.
-    "purchase":   EventType("purchase",   "Beschaffen",     INCREASE, PRODUCE,  "PurchaseOrder", PROV_RECEIVING,
+    "purchase":   EventType("purchase",   "Beschaffen",     INCREASE, "PurchaseOrder", PROV_RECEIVING,
                             status_field="status", done=("received",),
                             failed=("rejected", "cancelled"),
                             reset="requested", voided="cancelled",
@@ -134,11 +137,11 @@ REGISTRY: dict[str, EventType] = {
                             # Regel unterwegs. «Offeriert» ist noch keine Zusage von UNS –
                             # dort greift die Automatik weiter.
                             binding=("ordered",)),
-    "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT),
-    "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE,
+    "resource":   EventType("resource",   "Ressource",      INCREASE, "ResourceUsage", PROV_PRODUCT),
+    "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  "Inspection",    PROV_NONE,
                             status_field="result", done=("passed",), failed=("failed",)),
-    "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement",      PROV_NONE),
-    "scrap":      EventType("scrap",      "Aussondern",     DECREASE, INSTANCE, "Disposal",      PROV_NOWHERE),
+    "movement":   EventType("movement",   "Bewegung",       MOVE,     "Movement",      PROV_NONE),
+    "scrap":      EventType("scrap",      "Aussondern",     DECREASE, "Disposal",      PROV_NOWHERE),
     # **Sperren** ist das reversible Gegenstück zum Verschrotten: die Instanz bleibt
     # physisch da (Standort unverändert), darf aber vorübergehend nicht verwendet werden –
     # z. B. eine defekte Maschine, die auf Wartung wartet. Umgesetzt auf der **Qualitäts-
@@ -146,13 +149,13 @@ REGISTRY: dict[str, EventType] = {
     # sich nicht, «darf man es verwenden» schon. Darum NEUTRAL wie die Datenerfassung, die
     # eine Instanz ebenfalls über ``quality`` aus dem Bestand nehmen kann – es wird nichts
     # verbraucht oder vernichtet, nur die Verwendbarkeit ausgesetzt.
-    "block":      EventType("block",      "Aussondern",     NEUTRAL,  INSTANCE, "Disposal",      PROV_NONE),
+    "block":      EventType("block",      "Aussondern",     NEUTRAL,  "Disposal",      PROV_NONE),
     # **Verkauf UND Gutschrift** laufen über EINEN Schritttyp `sale` (Fachtabelle `Sale`): ein
     # normaler Auftrag verkauft (kind='sale', Bestands-Abgang), eine Retoure (Subjekt = verkaufte
     # Instanzen, `reason='return'`) schreibt gut (kind='credit', Stripe-Refund) – der Modus wird
     # aus dem Subjekt ABGELEITET, kein eigener Schritttyp. Der physische Rückfluss läuft über die
     # **Bewegung** (verkauft ↔ am Lager, je nach Ziel), die Geld-Seite über diesen Schritt.
-    "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale",          PROV_CUSTOMER,
+    "sale":       EventType("sale",       "Verkauf",        DECREASE, "Sale",          PROV_CUSTOMER,
                             status_field="status", done=("paid",), failed=("cancelled",),
                             reset="requested", voided="cancelled",
                             reset_fields=("order_total",)),
@@ -161,7 +164,7 @@ REGISTRY: dict[str, EventType] = {
     # Instanz-Freigabe). Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE → der Auftrag
     # wird als „produce" abgeleitet und greift NIE FIFO auf Lager zu. Der Inhalt wird während
     # der Ausführung verfasst und mit «Ausstellen» festgeschrieben.
-    "document":   EventType("document",   "Dokument",       NEUTRAL,  PRODUCE,  "Document",
+    "document":   EventType("document",   "Dokument",       NEUTRAL,  "Document",
                             status_field="done", done=(True,)),
 }
 
@@ -207,11 +210,6 @@ def polarity(step_type: str) -> str:
     return et.polarity if et else NEUTRAL
 
 
-def subject_role(step_type: str) -> str:
-    et = REGISTRY.get(step_type)
-    return et.subject_role if et else INSTANCE
-
-
 def provisioning(step_type: str) -> str:
     """Deklarierter Bereitstellungsort eines Schritttyps (wohin sein Subjekt physisch muss)."""
     et = REGISTRY.get(step_type)
@@ -221,18 +219,6 @@ def provisioning(step_type: str) -> str:
 def delta_sign(step_type: str) -> int:
     """+1 / −1 / 0 – Vorzeichen der Bestandswirkung (für Event-Payloads/Ledger)."""
     return _DELTA_SIGN.get(polarity(step_type), 0)
-
-
-def derive_subject_mode(step_types: set[str]) -> str:
-    """Subjektart eines Prozesses aus seinen Schritt-Typen – über die **deklarierte**
-    Vorrangordnung (``SUBJECT_PRECEDENCE``), nicht über eine versteckte if-Kette.
-
-    Ohne Schritte → ``instance`` (neutral, bearbeitet das bestehende Subjekt)."""
-    roles = {subject_role(t) for t in step_types}
-    for role in SUBJECT_PRECEDENCE:
-        if role in roles:
-            return role
-    return INSTANCE
 
 
 def aggregate_stock_effect(step_types: set[str]) -> str:
