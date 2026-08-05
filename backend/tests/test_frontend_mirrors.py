@@ -1687,3 +1687,75 @@ def test_a_process_module_has_exactly_one_width():
         assert same in card, f"{same} fehlt in der Karte des laufenden Flusses."
         assert same.replace("const box = 34", "width: 34, height: 34") in steps or same in steps, (
             f"{same}: der Editor trägt dieselbe Anatomie wie die Karte, die er anlegt (#597).")
+
+
+def test_a_module_is_added_and_configured_in_one_place():
+    """**Ein Klick legt das Modul an – konfiguriert wird es dort, wo es steht** (#635).
+
+    Vorher führte derselbe Klick in ein Anlage-Formular mit «Abbrechen» und «Hinzufügen»:
+    zwei Knöpfe, zwei Zustände (in Arbeit ↔ angelegt) und **drei** Darstellungen desselben
+    Moduls – Formular, Karte im Entwurf (Stichworte) und Karte im freigegebenen Prozess.
+    Drei Layouts für dieselbe Sache; beim Anfassen liefen sie auseinander.
+
+    Jetzt gibt es EINE Karte. Sie steht sofort im Fluss, zeigt immer dieselben Felder und
+    ist gesperrt, sobald der Träger freigegeben ist – ``fieldset[disabled]``, eine Zeile
+    statt eines zweiten Layouts. Geändert wird per Auto-Save wie überall.
+
+    Dass ein Modul dadurch **unfertig** beginnen darf, ist keine Lockerung, sondern der
+    richtige Zeitpunkt: geprüft wird bei der **Freigabe** (``processes.incomplete_steps``),
+    dem Gate, ab dem der Prozess wirklich läuft."""
+    src = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    for gone in ("Hinzufügen</button>", "erp-actbtn-primary", "setAdding", "resetForm",
+                 ">Abbrechen<"):
+        assert gone not in src, f"«{gone}» gehört zum Anlage-Formular – das gibt es nicht mehr."
+    assert "function StepCard(" in src and "fieldset disabled={readOnly}" in src, (
+        "EINE Karte, gesperrt statt nachgebaut.")
+    assert "onClick={() => addStep(t)}" in src, "Der Klick auf das Symbol legt an."
+    # Und die Vollständigkeit steht am Freigabe-Gate, nicht am Formular.
+    from app.services.processes import incomplete_steps
+    assert callable(incomplete_steps)
+
+
+def test_the_sample_scope_is_written_out_because_a_share_cannot_be_drawn():
+    """**Ein Anteil bekommt Worte, keine geratenen Symbole** (Testnotiz #636).
+
+    Zwei Anläufe mit Symbolen (Haken · Zeilen · Kolben) haben bewiesen, was #618 schon
+    festhielt: «jedes zweite Stück» hat kein Bild, das man ohne Vorwissen liest. Das ist
+    keine Ausnahme von «Symbole statt Text», sondern dessen Kehrseite – das Symbol trägt,
+    wo es die Sache ZEIGEN kann, und wo nicht, ist das Wort die ehrlichere Antwort."""
+    src = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    scope = src.split("const SAMPLE_PRESETS")[1].split("function CaptureFieldsEditor")[0]
+    for gone in ("CheckCheck", "Rows2", "Rows4", "FlaskConical", "labelActiveOnly"):
+        assert gone not in scope, f"«{gone}»: kein geratenes Symbol für einen Anteil mehr."
+    for word in ("'Alle'", "'Jedes 2.'", "'Jedes 4.'", "'Stichprobe'"):
+        assert word in scope, f"{word} steht als Wort da."
+
+
+def test_the_axis_is_always_centred():
+    """**Der Hauptprozess steht IMMER in der Mitte** (Testnotiz #627).
+
+    Eine Zeile mit Seitenspuren zentriert sich selbst (volle Breite, ``justifyContent:
+    center``). Eine Zeile OHNE sie ist dagegen nur die Spur – ein Kind fester Breite in
+    einer Spalte –, und mit ``alignItems: 'stretch'`` klebte sie am linken Rand. In
+    Chromium gemessen: 9…469 statt 279…739 in einer 1000-px-Fläche. Betroffen war jeder
+    Auftrag ohne Abzweig, also der Normalfall."""
+    line = (FRONTEND / "components" / "erp" / "flow-line.tsx").read_text(encoding="utf-8")
+    frame = line.split("export function FlowFrame")[1].split("export const lineColor")[0]
+    assert "alignItems: 'center'" in frame and "alignItems: 'stretch'" not in frame, (
+        "Zentriert wird an EINER Stelle – im Rahmen, nicht in jeder Zeile einzeln.")
+
+
+def test_the_stock_list_reads_the_same_preparation_as_everywhere():
+    """**Der Bestand eines Artikels kennt die Stücke** (Testnotiz #632).
+
+    Er hatte eine eigene, kürzere Aufbereitung – ohne ``units``. Eine Charge à 4 stand
+    darum als EIN Block mit dem Zustand des *Datensatzes* da, während dieselbe Charge im
+    Instanz-Detail Stück für Stück drei verschiedene Zustände zeigte. Zwei Aufbereitungen
+    sind zwei Wahrheiten."""
+    import inspect as _i
+
+    from app.routers.articles import list_article_instances
+    from app.routers.instances import denorm
+    assert "denorm" in _i.getsource(list_article_instances), (
+        "Der Bestand liest dieselbe Aufbereitung wie Feed und Detail.")
+    assert "units.rows" in _i.getsource(denorm), "…und die kennt die Stücke."
