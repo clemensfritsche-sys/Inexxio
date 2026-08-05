@@ -36,4 +36,3 @@ class DisposalEmbed(BaseModel):
     done: bool = False
     note: Optional[str] = None
     scrapped_by_name: Optional[str] = None
-    scrapped_count: int = 0

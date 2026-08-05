@@ -600,7 +600,7 @@ def _secured_amounts(db: Session, order: Order) -> dict[int, Decimal]:
             continue
         secured[inst.article_id] = secured.get(inst.article_id, ZERO) + usable
     for inst in db.query(Instance).filter(
-        Instance.order_id == order.id, Instance.is_active == True, *unblocked_clauses()
+        Instance.order_id == order.id, Instance.is_active == True
     ).all():
         if (inst.disposition or "") in TERMINAL_DISPOSITIONS:
             continue
@@ -608,7 +608,23 @@ def _secured_amounts(db: Session, order: Order) -> dict[int, Decimal]:
             continue   # schon über die Reservierung (oben) gezählt – nicht doppelt
         # Selbst erzeugte Stücke tragen keine Reservierung des Auftrags – hier greift die
         # Klärungs-Menge direkt: von 5 erzeugten ist bei einer Abweichung an 1 noch 4 gut.
-        rest = to_qty(inst.quantity) - in_clarification.get(inst.id, ZERO)
+        #
+        # **Und Gesperrtes ist keine gute Einheit – mengengenau** (Testnotiz #647): vorher
+        # filterte diese Abfrage über den **Skalar** (``unblocked_clauses``). Der ist seit
+        # der Projektion (#604) eine Aussage über den DATENSATZ: eine Charge mit drei guten
+        # und einem gesperrten Stück steht auf «freigegeben» – und wurde hier mit ihrer
+        # VOLLEN Menge als gesichert gezählt. Der Auftrag meldete damit keine Fehlmenge,
+        # obwohl ein Stück nicht verwendbar ist. Die Menge trägt die Wahrheit, also wird sie
+        # abgezogen; eine ganz gesperrte Instanz fällt dadurch von selbst heraus (rest ≤ 0),
+        # der Skalar-Filter ist überflüssig geworden. Dieselbe Regel wie in der Schleife
+        # darüber (reservierte Instanzen), nur ohne Halter-Filter: die Instanz gehört ihm.
+        #
+        # Gezählt wird dabei nur, was **noch bei ihm** liegt (frei oder ihm zugeordnet):
+        # ein gesperrtes Stück, das eine offene Abweichung übernommen hat, steckt schon in
+        # ``in_clarification`` – zweimal abgezogen ergäbe eine Fehlmenge, die es nicht gibt.
+        blocked_own = (units.blocked_quantity(inst, holder=None)
+                       + units.blocked_quantity(inst, holder=order.id))
+        rest = to_qty(inst.quantity) - in_clarification.get(inst.id, ZERO) - blocked_own
         if rest > 0:
             secured[inst.article_id] = secured.get(inst.article_id, ZERO) + rest
     # **Was dieser Auftrag selbst ausgesondert hat, fehlt ihm nicht** (Testnotiz #555 –
@@ -927,6 +943,23 @@ def sell_order_subjects(db: Session, order: Order) -> None:
         .all()
     )
     for inst in produced:
+        # **Verkauft wird nur, was verwendbar ist** – auch hier (Testnotiz #647). Der Zweig
+        # darüber prüft das seit #646; dieser las den **Skalar** der Instanz, und der sagt
+        # seit der Projektion (#604) «freigegeben», sobald EIN Stück gut ist. Eine Charge mit
+        # einem gesperrten Stück wäre damit vollständig an den Kunden gegangen.
+        blocked = units.blocked_quantity(inst)
+        if blocked > 0:
+            good = to_qty(inst.quantity) - blocked
+            if good <= 0:
+                continue                       # nichts Verwendbares dabei
+            gone: list[int] = []
+            take_qty(inst, good, state="sold", by_order_id=order.id, gone=gone)
+            ledger.post(db, inst, good, kind="sold", holder=order.id, disposition="sold",
+                        src_holder=order.id, units=gone)
+            emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
+                 payload={"quantity": good, "delta": -good,
+                          "polarity": event_types.DECREASE, "order": order.object_id})
+            continue
         inst.disposition = "sold"
         qty = to_qty(inst.quantity)
         ledger.post(db, inst, qty, kind="sold", holder=order.id, disposition="sold")

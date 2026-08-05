@@ -3381,11 +3381,6 @@ export interface components {
             note?: string | null;
             /** Scrapped By Name */
             scrapped_by_name?: string | null;
-            /**
-             * Scrapped Count
-             * @default 0
-             */
-            scrapped_count: number;
         };
         /**
          * DocSigner
