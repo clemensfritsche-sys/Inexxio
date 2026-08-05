@@ -19,7 +19,6 @@ import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { TileShell, TILE, DetailHeader, HeaderSep } from '@/components/erp/fields';
 import { ObjId as ObjIdLink } from '@/components/erp/obj-id';
-import { MoveJournal } from '@/components/erp/move-journal';
 import { UnitList } from '@/components/erp/unit-numbers';
 import { unitLabel } from '@/lib/article';
 
@@ -250,16 +249,10 @@ export function InstanceDetail({ record, onBack, onChanged, onCreateOrder }: {
           {/* Aufträge – ohne Überschrift (der aktive Reiter benennt es bereits) */}
           {tab === 'orders' && (
           <div>
-            {/* **Was ist mit diesem Stück passiert** (ADR 007, Big-Picture-Stufe 3): das
-                Material-Journal, chronologisch und unveränderlich – jede Zeile eine
-                Buchung (entstanden · übernommen · verkauft · verschrottet · …), mit Menge,
-                Zustand danach und dem beteiligten Auftrag. Die Liste darunter bleibt der
-                kompakte Index «welche Aufträge»; das Journal erzählt die Geschichte. */}
-            {(inst.history ?? []).length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <MoveJournal rows={inst.history ?? []} chip="order" />
-              </div>
-            )}
+            {/* **Kein Journal hier** (Testnotiz #629): die Buchungsliste stand über der
+                Auftragsliste und sagte dasselbe ein zweites Mal – welcher Auftrag was mit
+                diesem Stück gemacht hat, steht in der Liste darunter, und was daraus
+                geworden ist, tragen die Einheiten im Reiter «Spezifikation». */}
             {orders && orders.length > 1 && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                 <button

@@ -7869,6 +7869,17 @@
       },
       "ArticleProcessStepUpdate": {
         "properties": {
+          "step_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Type"
+          },
           "position": {
             "anyOf": [
               {
@@ -8077,7 +8088,7 @@
         },
         "type": "object",
         "title": "ArticleProcessStepUpdate",
-        "description": "Teil-Update eines Prozessschritts."
+        "description": "Teil-Update eines Prozessschritts.\n\n``step_type`` ist **nur innerhalb des Moduls «Aussondern»** änderbar (scrap ↔ block):\ndas ist EIN Modul mit zwei Wirkungen (#277), und die Wirkung ist eine Konfiguration,\nkeine andere Sache. Der Router erzwingt das (``_update``)."
       },
       "ArticleResponse": {
         "properties": {

@@ -2769,8 +2769,14 @@ export interface components {
         /**
          * ArticleProcessStepUpdate
          * @description Teil-Update eines Prozessschritts.
+         *
+         *     ``step_type`` ist **nur innerhalb des Moduls «Aussondern»** änderbar (scrap ↔ block):
+         *     das ist EIN Modul mit zwei Wirkungen (#277), und die Wirkung ist eine Konfiguration,
+         *     keine andere Sache. Der Router erzwingt das (``_update``).
          */
         ArticleProcessStepUpdate: {
+            /** Step Type */
+            step_type?: string | null;
             /** Position */
             position?: number | null;
             /** Mode */

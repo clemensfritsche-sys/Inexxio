@@ -48,11 +48,16 @@ function unitCfg(u: InstanceUnit): Cfg {
  * da: tolerant lesen, nie raten.
  */
 function group(items: Instance[]): Group[] {
-  // FIFO-Basis ist die **Freigabe**; die Antwort trägt sie nicht, also gilt die Entstehung
-  // – dieselbe Ordnung, die der Server als Rückfall benutzt (``fifo_candidates``).
+  // **FIFO-Basis ist die Freigabe des STÜCKS** (`in_stock_since`) – dieselbe Zeit, nach der
+  // der Server sortiert (`units.fifo_since` → `inventory.fifo_candidates`). Eine Charge kann
+  // Teile von heute und von vor vier Wochen tragen; massgeblich ist das älteste, das man
+  // ihr entnehmen könnte. Ohne Freigabe (noch im Prozess) gilt die Entstehung.
+  const since = (i: Instance) => {
+    const t = (i.units ?? []).map((u) => u.in_stock_since).filter(Boolean) as string[];
+    return t.length ? t.sort()[0] : String(i.created_at ?? '');
+  };
   const fifo = [...items].sort((a, b) =>
-    String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''))
-    || (a.object_id ?? 0) - (b.object_id ?? 0));
+    since(a).localeCompare(since(b)) || (a.object_id ?? 0) - (b.object_id ?? 0));
   const out: Group[] = [];
   for (const inst of fifo) {
     const units = inst.units ?? [];

@@ -287,9 +287,18 @@ async def update_article(
     # möglich. Jeder Beschaffungs-Schritt braucht eine auflösbare Bezugsquelle – am Schritt selbst
     # (Lieferant/Webshop) ODER als Artikel-Default –, sonst könnte keine Bestellung entstehen.
     if releasing:
+        from ..services.processes import incomplete_steps
         from ..services.purchase import has_source
+        steps = article_steps(db, article.id)
+        # **Ein Modul entsteht leer und wird im Fluss konfiguriert** (Testnotiz #635) –
+        # unvollständig freigeben lässt es sich trotzdem nicht. Hier steht das Gate, und
+        # es nennt beim Namen, was fehlt.
+        missing = incomplete_steps(steps)
+        if missing:
+            raise HTTPException(
+                400, detail="Prozess unvollständig – " + " · ".join(missing))
         if any(s.step_type == "purchase" and not has_source(s, article)
-               for s in article_steps(db, article.id)):
+               for s in steps):
             raise HTTPException(
                 400,
                 detail="Beschaffung unvollständig: Bitte für jeden Beschaffungs-Schritt eine Bezugsquelle "

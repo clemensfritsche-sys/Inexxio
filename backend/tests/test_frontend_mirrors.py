@@ -1283,54 +1283,37 @@ def test_reserved_is_not_a_state_of_its_own():
             f"{name}: der Zustand eines Datensatzes kommt aus `record-status`.")
 
 
-def test_the_palette_name_grows_beside_the_symbol_without_moving_anything():
-    """**Der Name wächst im Hover DANEBEN heraus** (Testnotiz #624).
+def test_the_palette_name_stands_in_the_hover_above_the_symbol():
+    """**Der Name steht im Hover ÜBER dem Symbol** (Testnotiz #630).
 
-    Drei Anläufe sind an derselben Wurzel gescheitert – der Name braucht Platz, den die
-    Reihe nicht hat:
+    Vier Anläufe, dieselbe Wurzel – der Name braucht Platz, den die Reihe nicht hat:
 
     * wuchs der **Knopf im Fluss**, brach die Zeile um und er wanderte unter dem Cursor weg
       (Hover an → aus → an: das gemeldete «Springen und Hüpfen», #502/#503);
-    * wuchs eine **Pille aus ihm heraus**, sah sie gelöst aus (#509/#510);
-    * eine **Zeile darunter** schrieb den Namen zweimal hin (#518).
+    * eine **Zeile darunter** schrieb den Namen zweimal hin (#509/#518);
+    * wuchs er **aus dem Knopf nach rechts** heraus, verdeckte er den Nachbarn (#630).
 
-    Die Lösung trennt die beiden Grössen: **im Fluss** belegt der Knopf eine feste Zelle –
-    daran ändert der Hover NICHTS, also kann nichts umbrechen und nichts springen (auch
-    nicht, wenn die Reihe schon zweizeilig ist). **Gezeichnet** wird er absolut in dieser
-    Zelle und wächst nach rechts.
-
-    In Chromium gemessen: Zellen und Palettenhöhe bleiben bei jedem Hover identisch (auch
-    beim letzten Knopf und bei umgebrochener Reihe), das Label wächst von 0 auf 138 px, und
-    das Symbol bleibt auf seinem x."""
+    Die Antwort ist keine vierte Sonderlösung, sondern die im Haus übliche: Erklärungen
+    stehen in der Hover-Blase (``[data-tip]``). Sie schwebt ÜBER der Zeile, kostet keinen
+    Platz im Layout – und bleibt damit auch dann richtig, wenn die Palette wegen der
+    Responsiveness umbricht."""
     css = (FRONTEND / "app" / "globals.css").read_text(encoding="utf-8")
-    cell = css.split(".erp-palette-cell {")[1].split("}")[0]
-    assert "width: 44px; height: 44px" in cell, (
-        "Die ZELLE hat eine feste Grösse – daran darf ein Hover nichts ändern.")
     block = css.split(".erp-palette {")[1].split("}")[0]
-    assert "position: absolute" in block, (
-        "Der Knopf wird absolut in seiner Zelle gezeichnet – so wächst er, ohne zu schieben.")
-    assert ".erp-palette-label > span" in css and "max-width: 0" in css, (
-        "Der Name wächst über max-width – die 0fr/1fr-Technik greift hier nicht "
-        "(gemessen: der Knopf blieb bei 44 px stehen).")
-    assert ".erp-palette-caption" not in css, "Keine Zeile darunter (#518)."
+    assert "width: 44px; height: 44px" in block, (
+        "Der Knopf hat eine feste Grösse – daran darf ein Hover nichts ändern.")
+    for gone in (".erp-palette-cell", ".erp-palette-label", ".erp-palette-caption"):
+        assert gone not in css, f"{gone}: kein wachsender Name mehr im Layout (#630)."
     fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
     assert "export function Palette(" in fields, (
         "Die Reihe gibt es als EINEN Baustein – damit die Geste überall gleich aussieht.")
     btn = fields.split("export function PaletteButton")[1][:1400]
-    assert "erp-palette-cell" in btn and "erp-palette-label" in btn, (
-        "Der Knopf sitzt in seiner Zelle und trägt seinen Namen (#624).")
+    assert "data-tip={label}" in btn, "Der Name kommt aus der EINEN Tooltip-Mechanik."
+    assert "erp-palette-label" not in btn, "…nicht aus einer eigenen, wachsenden Pille."
     assert "hint?: string;" not in btn[:400], (
         "Im Hover steht der NAME – die lange Erklärung ist entfallen (#518).")
     # Dieselbe Geste am Segment-Umschalter (#624: «auch gleich hier oben beim Prüfumfang»).
     assert ".ix-seg .ix-seg-label > span" in css and "ix-seg-label" in fields, (
         "Auch der Umschalter zeigt den Namen neben dem Symbol.")
-    # Beide Paletten teilen sich denselben Baustein – sonst sieht dieselbe Geste an zwei
-    # Stellen verschieden aus. (Die dritte, die Unterdeckungs-Frage, ist entfallen: darüber
-    # entscheidet seit #556 das System.)
-    steps = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
-    assert steps.count("<Palette>") + steps.count("<Palette\n") == 2, (
-        "Beide Paletten teilen sich denselben Baustein.")
-
 
 def test_a_hover_explanation_is_never_dimmed():
     """**Hover-Informationen sind immer klar lesbar** (Testnotiz #504).

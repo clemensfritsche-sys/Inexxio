@@ -660,6 +660,13 @@ def _assert_releasable(db: Session, order: Order) -> None:
     elif not processes_svc.order_custom_steps(db, order.id):
         raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
 
+    # **Und jedes Modul muss ausführbar sein** (Testnotiz #635): ein Modul entsteht leer und
+    # wird im Fluss konfiguriert – das Gate dafür ist die Freigabe, und es nennt beim Namen,
+    # was fehlt. Dieselbe eine Regel wie bei der Artikel-Freigabe.
+    missing = processes_svc.incomplete_steps(process.order_step_defs(db, order))
+    if missing:
+        raise HTTPException(400, detail="Prozess unvollständig – " + " · ".join(missing))
+
     # Hat der Auftrag Beschaffungs-Schritte, muss je Schritt × betroffenem Artikel eine
     # auflösbare Bezugsquelle vorliegen (Schritt-Quelle ODER Artikel-Default).
     p_steps = [d for d in process.order_step_defs(db, order) if d.step_type == "purchase"]
