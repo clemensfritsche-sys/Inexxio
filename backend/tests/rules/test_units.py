@@ -1148,7 +1148,16 @@ def test_a_cut_branch_does_not_hold_up_the_parent(db, kinds, world):
     from app.services.objects import next_object_id
 
     user, _ = world
-    art = kinds["unit"]
+    # **Eigener Artikel** – der Prozess braucht hier eine Bewegung, und ein Schritt am
+    # geteilten Fixture-Artikel würde in jeden folgenden Test lecken.
+    from app.services.objects import next_object_id
+    from app.models import Article
+    art = Article(object_id=next_object_id(db), name="Stück cut", unit="pcs",
+                  serialization="unit", status="released")
+    db.add(art)
+    db.flush()
+    db.add(ArticleProcessStep(article_id=art.id, step_type="inspection", position=0,
+                              sample_percent=100))
     db.add(ArticleProcessStep(article_id=art.id, step_type="movement", position=1))
     db.commit()
     order, _ = _make_order(db, art, user, 2)
@@ -1229,3 +1238,88 @@ def test_a_step_without_material_has_nothing_to_do(db, kinds, world):
         == {"inspection", "movement", "scrap", "block", "sale"}
     assert not ev.needs_material("purchase") and not ev.needs_material("resource")
     assert ArticleProcessStep  # noqa: B015
+
+
+def test_an_instance_becomes_terminal_at_exactly_one_place():
+    """**Der Zustand gehört zur MENGE – der Skalar ist die Projektion** (Testnotiz #666).
+
+    Drei Stellen setzten ``inst.disposition`` direkt auf einen Endzustand und liessen die
+    Karte unberührt: Verschrotten (ganze Instanz), Verkauf (Made-to-Order) und Verbrauch.
+    Der Datensatz sagte «verschrottet», das Stück galt weiter als freigegeben – die
+    Instanz-Ansicht und der Artikel-Bestand zeigten es als verfügbar, und
+    ``inventory.ready_qty`` gab es sogar noch an FIFO heraus (die SQL-Bedingung filtert
+    über den Skalar, darum sah es «im Hintergrund» richtig aus).
+
+    Der robuste Riegel ist nicht ein weiterer Einzelfix, sondern die Regel selbst: es gibt
+    genau EINEN Weg terminal zu werden, und er geht über die Stücke (``units.drop`` bzw.
+    ``units.drop_all``). Dieser Wächter liest den Quelltext – eine vierte Stelle kann nicht
+    mehr still dazukommen."""
+    import ast
+    import pathlib
+
+    from app.services import units
+
+    assert hasattr(units, "drop_all"), "Die EINE Stelle für «die ganze Instanz geht weg»."
+    terminal = {"scrapped", "sold", "consumed"}
+    services = pathlib.Path(units.__file__).parent
+    offenders = []
+    for path in sorted(services.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            if not (isinstance(node.value, ast.Constant) and node.value.value in terminal):
+                continue
+            for tgt in node.targets:
+                if isinstance(tgt, ast.Attribute) and tgt.attr == "disposition":
+                    offenders.append(f"{path.name}:{node.lineno}")
+    assert not offenders, (
+        "Terminal wird eine Instanz über ihre STÜCKE (units.drop/drop_all) – der Skalar ist "
+        f"die Projektion darüber, keine Zuweisung (#666): {offenders}")
+
+
+def test_a_scrapped_piece_is_gone_everywhere(db, kinds, world):
+    """**Verschrottet heisst überall verschrottet** (Testnotiz #666) – Skalar, Stück,
+    Verfügbarkeit und Anzeige sagen dasselbe.
+
+    Gegenprobe zur Bug-Form: ohne ``drop_all`` bleibt das Stück «freigegeben» und
+    ``ready_qty`` gibt es weiter an FIFO heraus."""
+    from app.models import ArticleProcessStep, Instance, Order
+    from app.routers import orders as R
+    from app.routers.instances import denorm
+    from app.schemas.disposal import ScrapUpdate
+    from app.schemas.order import InstancePick
+    from app.services import inventory, scrap as scrap_svc, units
+
+    user, _ = world
+    art = kinds["unit"]
+    order, _ = _make_order(db, art, user, 1)
+    inst = db.query(Instance).filter(Instance.order_id == order.id).first()
+    _run_inspection(db, order, inst, user, 1)     # → freigegeben, am Lager
+    db.refresh(inst)
+    assert inst.disposition == "in_stock"
+
+    job = Order(object_id=None, article_id=art.id, quantity=Decimal(1), status="draft")
+    db.add(job)
+    db.flush()
+    R._set_chosen_instances(db, job, [InstancePick(
+        instance_object_id=inst.object_id, quantity=1)])
+    db.add(ArticleProcessStep(order_id=job.id, step_type="scrap", position=0, mode="scrap"))
+    db.flush()
+    R._do_release(db, job, user.id)
+    db.commit()
+    step = (db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.order_id == job.id).first())
+    scrap_svc.record_scrap(db, job, ScrapUpdate(
+        items=[{"instance_id": inst.object_id, "quantity": 1}], note="defekt",
+        step_id=step.id), user.id)
+    db.commit()
+    db.refresh(inst)
+
+    assert inst.disposition == "scrapped"
+    assert units.of(inst) == [], "Kein lebendes Stück mehr."
+    gone = units.of(inst, include_gone=True)
+    assert gone and all(u.gone for u in gone), [(u.number, u.state) for u in gone]
+    assert inventory.ready_qty(inst) == Decimal(0), "Entnehmbar ist nichts mehr."
+    shown = denorm(db, [inst])[0]
+    assert all(u.disposition == "scrapped" for u in (shown.units or [])), shown.units

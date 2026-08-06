@@ -873,11 +873,18 @@ def test_the_material_chain_closes_the_process():
         "Woher es kam, steht VOR dem Startknoten (#650).")
     assert flow.index("materialRows(materialTo", goal) > goal, (
         "Wohin es ging, steht NACH der Zielflagge (#651).")
-    # **Kein neues Vokabular** (#418/#438/#439): ein Verweis auf einen anderen Auftrag ist
-    # der Knoten, den es dafür gibt, und die Menge steht wie überall auf der Kante dazwischen.
+    # **Auftrag und Menge in EINER Zeile** (Testnotiz #665): als voller Auftrags-Knoten war
+    # der Verweis lauter als der Prozess selbst, und dass die Materialpille darunter zu IHM
+    # gehört, musste man erst erschliessen. Zwei gleich leise Pillen nebeneinander – die
+    # Zeile IST die Zuordnung.
     chain = flow[flow.index("function materialRows"):flow.index("function ChainEnd")]
-    assert "<OrderRefNode" in chain and "<FlowLots" in chain and "<Axis" in chain, (
-        "Knoten → Kante mit Material → Knoten – dieselbe Grammatik wie der ganze Fluss.")
+    assert "<OrderChip" in chain and "<FlowLots" in chain, (
+        "Auftrag und Menge stehen in EINER Zeile (#665).")
+    assert "<OrderRefNode" not in chain, "…und nicht mehr als voller Auftrags-Knoten."
+    # **Ein Unter-Auftrag trägt gar keine Kette** (#667/#668): woher sein Material kommt und
+    # wohin es zurückgeht, steht als Herkunfts- und Rückweg-Knoten in der linken Spur.
+    assert "if resp.origin is not None:" in src and "resp.material_from, resp.material_to = [], []" in src, (
+        "Ein Unter-Auftrag zeigt seine Beziehung in der Seitenspur, nicht zweimal (#667/#668).")
     # Die Beziehung eines Unter-Auftrags bleibt, wo sie war: am Knoten der Seitenspur.
     assert "HERVORGEGANGEN AUS" in flow.upper() or "caption=\"Hervorgegangen aus\"" in flow
 
@@ -1060,19 +1067,23 @@ def test_a_flow_lot_names_instance_article_location_and_quantity():
         "Abzweig und Achse lösen dieselben Angaben an derselben Stelle auf.")
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text(encoding="utf-8")
     assert "function FlowLotChip" in flow and "nav?.(lot.instance_object_id)" in flow
-    # **Symbole statt Versalien-Beschriftungen** (Testnotiz #433) – und **keine doppelte
-    # Angabe** (#441): Menge und Instanz stehen bereits in der Pille selbst, im Hover bleiben
-    # Artikel und Standort. Je ein Symbol, das Wort im Titel; weniger ist mehr.
-    for fact in ('icon={Package} title="Artikel"', 'icon={MapPin} title="Standort"'):
-        assert fact in flow, f"Dem Hover fehlt {fact}"
-    assert 'title="Menge"' not in flow, (
-        "Die Menge steht in der Pille – ein zweites Mal im Hover wäre eine zweite Wahrheit.")
+    # **Im Hover steht NUR der Standort** (Testnotiz #664) – und zwar der, den die Menge an
+    # dieser Stelle des Prozesses hatte: der Server dreht ihn auf den Stichtag zurück
+    # (``_location_at``, gelesen aus der Aufzeichnung der Standort-Wechsel). Artikel, Menge
+    # und Stück-Nummern stehen bereits in der Pille bzw. eine Zeile darüber; mit einer
+    # einzigen Angabe braucht es auch keine Karten-Anatomie mehr (``LotFact`` ist entfallen).
+    assert "{lot.location_label ?? 'Kein Standort'}" in flow, "Der Hover nennt den Standort."
+    assert "function LotFact(" not in flow and 'title="Artikel"' not in flow, (
+        "Alles ausser dem Standort ist entfallen (#664).")
+    assert "def _location_at(" in _inspect.getsource(ord_svc), (
+        "Der Standort von damals kommt aus der Aufzeichnung, nicht aus dem heutigen Stand.")
     assert "{qtyText(lot)} × {lotNumbers(lot)}" in flow, (
         "Die Pille trägt die Einheit (sonst ginge «kg» verloren) UND die Objektnummer "
         "**inklusive Zusatz** – welche Stücke die Menge ausmachen, nicht nur aus welcher "
         "Instanz sie stammt (Testnotiz #532).")
     assert "def lotNumbers" in flow or "function lotNumbers" in flow
-    assert "<ObjId value={lot.article_object_id} />" in flow, "Auch der Artikel ist klickbar."
+    # (Der Artikel-Verweis im Hover ist mit #664 entfallen – die Pille selbst öffnet die
+    # Instanz, und der Artikel steht am Datensatz.)
 
 
 def test_the_origin_is_a_reference_not_a_preview():

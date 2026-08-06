@@ -198,46 +198,25 @@ function FlowLotChip({ lot }: { lot: FlowLot }) {
           position: 'fixed', zIndex: 2000, top: at.y, left: at.x, transform: 'translateX(-50%)',
           padding: '8px 11px', borderRadius: 'var(--r-md)', background: '#fff',
           border: '1px solid var(--border-1)', boxShadow: 'var(--shadow-md)',
-          display: 'flex', flexDirection: 'column', gap: 5, pointerEvents: 'none',
+          display: 'flex', alignItems: 'center', pointerEvents: 'none',
           width: 'max-content', maxWidth: 'min(300px, calc(100vw - 24px))', textAlign: 'left',
         }}>
-          <LotFact icon={Package} title="Artikel">
-            {lot.article_object_id != null && <ObjId value={lot.article_object_id} />}
-            {lot.article_name && <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.article_name}</span>}
-            {lot.article_object_id == null && !lot.article_name && <Dash />}
-          </LotFact>
-          <LotFact icon={MapPin} title="Standort">
-            {lot.location_label
-              ? <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{lot.location_label}</span>
-              : <Dash />}
-          </LotFact>
-          {/* **Welche Stücke** die Menge ausmachen – jedes Teil hat eine eigene Nummer. */}
-          {(lot.units?.length ?? 0) > 0 && (
-            <LotFact icon={Hash} title="Stücke">
-              <UnitList units={lot.units} unit={lot.unit ? unitLabel(lot.unit) : undefined}
-                max={12} />
-            </LotFact>
-          )}
+          {/* **Nur noch der Standort** (Testnotiz #664) – und zwar der, den die Menge an
+              DIESER Stelle des Prozesses hatte (der Server dreht ihn auf den Stichtag
+              zurück, `_location_at`). Artikel und Stück-Nummern standen bereits in der
+              Pille bzw. eine Zeile darüber; mit einer einzigen Angabe braucht es auch
+              keine Karten-Anatomie mehr, nur einen Satz. */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+            <MapPin size={13} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: lot.location_label ? 'var(--fg-2)' : 'var(--fg-4)' }}>
+              {lot.location_label ?? 'Kein Standort'}
+            </span>
+          </span>
         </span>, document.body)}
     </span>
   );
 }
 
-const Dash = () => <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>—</span>;
-
-/** Eine Zeile der Hover-Karte: Symbol statt Beschriftung (Notiz #433), Wort im Hover. */
-function LotFact({ icon: Icon, title, children }: {
-  icon: React.ElementType; title: string; children: React.ReactNode;
-}) {
-  return (
-    <span title={title} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-      <Icon size={13} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
-      <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-        {children}
-      </span>
-    </span>
-  );
-}
 
 /**
  * **Der Abkürzungs-Knopf dort, wo der Prozess gerade steht** (Notiz #455).
@@ -810,46 +789,58 @@ function materialRows(hops: MaterialHandover[], dir: 'from' | 'to',
   const rows: React.ReactNode[] = [];
   hops.forEach((h, i) => {
     const key = `${dir}-${h.order_object_id ?? h.kind}-${i}`;
-    // Der Knoten: ein Auftrag, oder – am offenen Ende der Kette – die blosse Tatsache.
-    const node = (
-      <Row key={`${key}-node`}>
-        {h.order_object_id != null
-          ? <MaterialRef hop={h} dir={dir} onOpen={onOpen} />
-          : <ChainEnd label={CHAIN_CAPTION[h.kind] ?? 'Bestand'} />}
+    const edge = <Row key={`${key}-edge`}><Axis h={14} strong /></Row>;
+    const hop = (
+      <Row key={`${key}-hop`}>
+        {/* **Auftrag und Menge in EINER Zeile** (Testnotiz #665): als voller
+            Auftrags-Knoten war der Verweis lauter als der Prozess selbst, und dass die
+            Materialpille darunter zu IHM gehört, musste man erst erschliessen. Jetzt
+            zwei gleich leise Pillen nebeneinander – die Zeile IST die Zuordnung. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: 8, flexWrap: 'wrap', maxWidth: '100%', minWidth: 0 }}>
+          {h.order_object_id != null
+            ? <OrderChip hop={h} dir={dir} onOpen={onOpen} />
+            : <ChainEnd label={CHAIN_CAPTION[h.kind] ?? 'Bestand'} />}
+          <FlowLots lots={h.lots} small past />
+        </div>
       </Row>
     );
-    // Die Kante dazwischen – mit genau der Menge, die diesen Weg genommen hat.
-    const edge = (
-      <Row key={`${key}-edge`}>
-        <Axis h={14} strong />
-        <FlowLots lots={h.lots} small past />
-        <Axis h={14} strong />
-      </Row>
-    );
-    // Von oben herein: erst der Auftrag, dann die Menge. Nach unten hinaus: umgekehrt –
-    // gelesen wird in Flussrichtung.
-    rows.push(...(dir === 'from' ? [node, edge] : [edge, node]));
+    // Gelesen wird in Flussrichtung: von oben herein erst der Auftrag, dann die Linie in
+    // den Startknoten; nach unten hinaus erst die Linie vom Ziel, dann der Auftrag.
+    rows.push(...(dir === 'from' ? [hop, edge] : [edge, hop]));
   });
   return rows;
 }
 
-/** Der Auftrag davor bzw. danach – derselbe Verweis-Knoten wie Herkunft und Rückweg. */
-function MaterialRef({ hop, dir, onOpen }: {
+/** Der Auftrag davor bzw. danach – eine leise Pille, kein Knoten (#665). */
+function OrderChip({ hop, dir, onOpen }: {
   hop: MaterialHandover; dir: 'from' | 'to'; onOpen?: (objectId: number) => void;
 }) {
+  const meta = TYPE_META.order;
+  const Icon = meta.icon;
   const oid = hop.order_object_id as number;
   const name = hop.order_name || 'Auftrag';
-  const caption = dir === 'from' ? 'Material aus' : 'Material weiter an';
-  // Der Zustand des genannten Auftrags – dieselbe Ableitung und Farbe wie überall
-  // (`lib/record-status.ts`, Notiz #379). Er steht im Hover: der Knoten nennt die Sache,
-  // sein Zustand gehört zu IHM, nicht zu diesem Prozess.
+  // Der Zustand des genannten Auftrags – dieselbe Ableitung wie überall
+  // (`lib/record-status.ts`, #379). Er steht im Hover: der Knoten nennt die Sache, sein
+  // Zustand gehört zu IHM, nicht zu diesem Prozess.
   const cfg = hop.order_status
     ? orderStatus({ status: hop.order_status as Order['status'] }) : null;
   const kind = hop.order_reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag';
+  const where = dir === 'from' ? 'Material aus' : 'Material weiter an';
   return (
-    <OrderRefNode caption={caption} objectId={oid} name={name} icon={ArrowDown}
-      title={`${kind} ${name} · ${cfg?.label ?? ''} – öffnen`.replace(' ·  –', ' –')}
-      onClick={() => onOpen?.(oid)} />
+    <button type="button" onClick={() => onOpen?.(oid)}
+      title={`${where} ${kind} ${name}${cfg ? ` · ${cfg.label}` : ''} – öffnen`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0,
+        padding: '3px 10px 3px 5px', borderRadius: 999, cursor: 'pointer',
+        background: meta.bg, border: `1px solid ${meta.fg}22`, color: meta.fg,
+        font: '600 11.5px var(--font-mono), monospace', fontVariantNumeric: 'tabular-nums',
+        whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden',
+      }}>
+      {dir === 'from' ? <ArrowDown size={12} /> : <ArrowRight size={12} />}
+      <Icon size={12} />
+      {formatObjectId(oid)}
+    </button>
   );
 }
 
@@ -860,12 +851,12 @@ function MaterialRef({ hop, dir, onOpen }: {
  */
 function ChainEnd({ label }: { label: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 12px',
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
       borderRadius: 999, background: 'var(--bg-2)', border: '1px solid var(--border-1)',
       font: '700 10px var(--font-body)', textTransform: 'uppercase',
       letterSpacing: '0.06em', color: 'var(--fg-4)', whiteSpace: 'nowrap' }}>
       <Package size={12} />{label}
-    </div>
+    </span>
   );
 }
 

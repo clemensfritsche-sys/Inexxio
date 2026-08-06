@@ -5809,6 +5809,52 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   dünne Linie am aktiven Modul, Auftrag bleibt `released`). Gegen echtes PostgreSQL 16
   verifiziert (7/7 die gemeldete Abfolge Schritt für Schritt).
 
+- **Terminal wird eine Instanz an EINER Stelle – über ihre Stücke** (August 2026,
+  Testnotizen #664–#668):
+  (1) **Verschrottet heisst überall verschrottet** (#666, der eigentliche Fehler). Drei
+  Stellen setzten `inst.disposition` direkt auf einen Endzustand und liessen die Karte
+  unberührt: Verschrotten (ganze Instanz), Verkauf (Made-to-Order) und Verbrauch. Der
+  Datensatz sagte «verschrottet», das Stück galt weiter als freigegeben – die
+  Instanz-Ansicht und der Artikel-Bestand zeigten es als verfügbar. **Und es war keine
+  Anzeigefrage:** `inventory.ready_qty` gab es weiter an FIFO heraus; nur die SQL-Bedingung
+  `in_stock_clauses` filtert über den Skalar, darum sah es «im Hintergrund» richtig aus.
+  Der robuste Riegel ist nicht ein vierter Einzelfix, sondern die Regel selbst: es gibt
+  genau EINEN Weg terminal zu werden, und er geht über die Stücke (`units.drop` bzw. neu
+  `units.drop_all`) – der Instanz-Skalar ist die **Projektion** darüber (#604), nie eine
+  Zuweisung. Ein **AST-Wächter** liest den Quelltext, damit keine vierte Stelle still
+  dazukommt (`test_an_instance_becomes_terminal_at_exactly_one_place`).
+  (2) **Ein Unter-Auftrag trägt gar keine Materialkette** (#667/#668): woher sein Material
+  kommt und wohin es zurückgeht, steht als Herkunfts- und Rückweg-Knoten in der **linken
+  Spur** – zweimal dieselbe Beziehung war schon der Grund, aus dem der Prozessbaum in #565
+  gestrichen wurde. Schlimmer noch: die Kette nannte dort **fremde** Abzweige, durch die
+  die Menge irgendwann einmal gelaufen war, und behauptete deren Zustand von damals falsch.
+  Die Kette ist für den **regulären** Auftrag gebaut, der sonst im Nichts begänne; ein
+  Unter-Auftrag beginnt nie im Nichts. *Nebenbei behoben:* eine **Selbst-Buchung**
+  (verschrottet/verkauft im eigenen Topf) galt als eingehende Übergabe – ein Auftrag nannte
+  damit sich selbst als Herkunft seines Materials.
+  (3) **Auftrag und Menge stehen in EINER Zeile** (#665): als voller `OrderRefNode` war der
+  Verweis lauter als der Prozess selbst, und dass die Materialpille darunter zu IHM gehört,
+  musste man erst erschliessen. Jetzt zwei gleich leise Pillen nebeneinander (`OrderChip` +
+  `FlowLots`) – die Zeile IST die Zuordnung.
+  (4) **Im Hover steht nur noch der Standort – der von DAMALS** (#664). Er ist die einzige
+  Angabe einer Materialzeile, die sich ändert, **ohne** dass eine Buchung entsteht (eine
+  Bewegung verschiebt, sie bucht nicht um) – die Aufzeichnung dieser Wechsel gibt es aber
+  längst: das **Audit-Log** (`instances`/`location`, alt → neu, mit Zeitstempel). Es wird
+  nur **gelesen** (`_location_history`/`_location_at`, EINE Abfrage je Antwort), keine
+  zweite Wahrheit angelegt; damit ist die Standort-Aussage einer Kante so ehrlich wie ihre
+  Zustands-Aussage (#488). Artikel und Stück-Liste sind entfallen – mit einer einzigen
+  Angabe braucht es auch keine Karten-Anatomie mehr (`LotFact` ist weg).
+  (5) **Favicon**: die Marke steht als `src/app/icon.svg` im Browser-Tab (Next.js
+  App-Router-Konvention, kein Link nötig); `public/brand/favicon.svg` war nirgends
+  verdrahtet und trägt jetzt dasselbe Zeichen. Die `theme_color` des Manifests stand noch
+  auf `#2563eb` – der abgelösten blauen Alt-Marke.
+  Wächter: `tests/rules/test_units.py: test_an_instance_becomes_terminal_at_exactly_one_place`,
+  `…_a_scrapped_piece_is_gone_everywhere` (gegen die Bug-Form gegengeprüft),
+  `test_frontend_mirrors.py: test_the_material_chain_closes_the_process` (erweitert),
+  `…_a_flow_lot_names_instance_article_location_and_quantity` (Hover). Gegen echtes
+  PostgreSQL 16 verifiziert (Standort je Kante · Unter-Auftrag ohne Kette · verschrottetes
+  Stück überall weg).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

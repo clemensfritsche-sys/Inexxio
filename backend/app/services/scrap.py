@@ -108,9 +108,11 @@ def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order: Ord
     old = inst.disposition
     old_loc = f"{inst.location_type}:{inst.location_id}" if inst.location_type else None
     cut = to_qty(inst.quantity)
-    # Die Nummern VOR dem Lösen festhalten – danach kennt sie niemand mehr.
-    gone_all = [u.index for u in units_svc.of(inst)]
-    inst.disposition = "scrapped"
+    # **Der Zustand gehört zur MENGE** (#666): die Stücke tragen ihn, der Instanz-Skalar
+    # ist die Projektion darüber. Vorher wurde er hier direkt zugewiesen und die Karte
+    # blieb unberührt – der Datensatz sagte «verschrottet», das Stück galt weiter als
+    # freigegeben, und ``ready_qty`` gab es sogar noch an FIFO heraus.
+    gone_all = units_svc.drop_all(inst, state="scrapped")
     ledger.post(db, inst, cut, kind="scrapped", holder=order.id,
                 disposition="scrapped", src_holder=order.id, units=gone_all,
                 actor_id=actor_id)

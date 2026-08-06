@@ -948,9 +948,9 @@ def sell_order_subjects(db: Session, order: Order) -> None:
         gone: list[int] = []
         # Menge mindern + eigenen Anspruch lösen; die verkauften Stücke behalten ihre
         # Nummer und tragen ab jetzt «verkauft».
+        # ``take_qty`` markiert die Stücke und zieht den Skalar über die Projektion nach –
+        # eine zusätzliche Zuweisung wäre eine zweite Wahrheit (#666).
         take_qty(inst, sold, state="sold", by_order_id=order.id, gone=gone)
-        if to_qty(inst.quantity) <= 0:
-            inst.disposition = "sold"            # vollständig verkauft
         # Journal (ADR 007): verkauft ist terminal – aus diesem Topf kommt nichts zurück.
         ledger.post(db, inst, sold, kind="sold", holder=order.id, disposition="sold",
                     src_holder=order.id, units=gone)
@@ -983,9 +983,10 @@ def sell_order_subjects(db: Session, order: Order) -> None:
                  payload={"quantity": good, "delta": -good,
                           "polarity": event_types.DECREASE, "order": order.object_id})
             continue
-        inst.disposition = "sold"
         qty = to_qty(inst.quantity)
-        ledger.post(db, inst, qty, kind="sold", holder=order.id, disposition="sold")
+        gone = units.drop_all(inst, state="sold")
+        ledger.post(db, inst, qty, kind="sold", holder=order.id, disposition="sold",
+                    units=gone)
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": qty, "delta": -qty,
                       "polarity": event_types.DECREASE, "order": order.object_id})

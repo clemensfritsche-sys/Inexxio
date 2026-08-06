@@ -143,12 +143,15 @@ def _relocate(db: Session, inst: Instance, product: Instance, actor_id: int) -> 
     # verteilten Charge die alte Map stehen – die Instanz galt dann als «verbaut» UND
     # gleichzeitig als anteilig woanders liegend.
     location_split.set_single(inst, "instance", product.object_id)
-    inst.disposition = "consumed"   # Verbleib: verbaut (Qualität bleibt unverändert)
+    # Verbleib: verbaut – über die EINE Stelle, an der eine Instanz terminal wird (#666);
+    # der Skalar ist die Projektion über die Stücke, keine Zuweisung.
+    from . import units as units_svc
+    gone = units_svc.drop_all(inst, state="consumed")
     # Journal (ADR 007): verbaut ist terminal – zugeschrieben dem verbauenden Auftrag
     # (dem Auftrag der Produkt-Instanz, in die eingebaut wird).
     from . import ledger
     ledger.post(db, inst, inst.quantity, kind="consumed", holder=product.order_id,
-                disposition="consumed", actor_id=actor_id)
+                disposition="consumed", actor_id=actor_id, units=gone)
 
 
 def _consume_line(db: Session, order: Order, products: list[Instance],
