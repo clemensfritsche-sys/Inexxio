@@ -1,20 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2 } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
-import {userName, articleName, instanceName, organizationName } from '@/lib/record-name';
-import {articleStatus, instanceStatus, organizationStatus, userStatus } from '@/lib/record-status';
+import {userName, articleName, instanceName, organizationName, orderName } from '@/lib/record-name';
+import {articleStatus, instanceStatus, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
 import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type {Article, CompanySettings, Instance, UserProfile, ErpRecordType, InstanceSummary } from '@/types';
+import type {Article, CompanySettings, Instance, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
 import { setOpenRecord } from '@/lib/feedback';
 import { ArticleDetail } from '@/components/erp/article-detail';
+import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
 
@@ -29,6 +30,7 @@ const STALE_AFTER_MS = 60_000;
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
   | { type: 'article'; key: string; objectId: number | null; data: Article }
+  | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
   | { type: 'instance'; key: string; objectId: number | null; data: InstanceSummary }
   | { type: 'organization'; key: string; objectId: number | null; data: CompanySettings };
 
@@ -36,6 +38,7 @@ type Row =
 // hier der Typ (den sagt das Symbol). `null` = noch ohne Namen (Notiz #177).
 function rowTitle(row: Row): string | null {
   if (row.type === 'user') return userName(row.data);
+  if (row.type === 'order') return orderName();
   if (row.type === 'instance') return row.data.article_name?.trim() || null;
   if (row.type === 'organization') return organizationName(row.data);
   return articleName(row.data);
@@ -45,6 +48,7 @@ function rowTitle(row: Row): string | null {
 // Hier wird nur verteilt, nie gebaut: sonst läuft der Feed vom Detail weg (Notiz #379).
 function rowStatus(row: Row): StatusCfg {
   if (row.type === 'user') return userStatus(row.data);
+  if (row.type === 'order') return orderStatus(row.data);
   if (row.type === 'instance') return instanceStatus(row.data);
   if (row.type === 'organization') return organizationStatus(row.data);
   return articleStatus(row.data);
@@ -68,7 +72,6 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
 
   const meta = TYPE_META[row.type];
   const TypeIcon = meta.icon;
-  const isDeviation = false;
 
   return (
     <button
@@ -94,15 +97,6 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
           {row.type === 'user'
             ? <span className="text-[11px] font-bold">{userInitials(title ?? '', row.data.email)}</span>
             : <TypeIcon size={14} />}
-          {isDeviation && (
-            <span
-              title="Abweichungs-Auftrag"
-              className="absolute -bottom-1 -right-1 flex items-center justify-center rounded-full"
-              style={{ width: 14, height: 14, background: '#fffbeb', border: '1px solid #fbbf24' }}
-            >
-              <AlertTriangle size={9} style={{ color: '#d97706' }} />
-            </span>
-          )}
         </div>
       )}
       <div className="min-w-0 flex-1">
@@ -128,6 +122,7 @@ export default function ErpPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   // Instanzen (höchste Kardinalität): server-paginiert + server-durchsucht.
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [instances, setInstances] = useState<InstanceSummary[]>([]);
   const [instanceLoadingMore, setInstanceLoadingMore] = useState(false);
   const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
@@ -138,7 +133,7 @@ export default function ErpPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
-  const [creating, setCreating] = useState<'article' | null>(null);
+  const [creating, setCreating] = useState<'article' | 'order' | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
@@ -160,10 +155,11 @@ export default function ErpPage() {
     // sofort. Instanzen (höchste Kardinalität) danach nachladen.
     lastLoadRef.current = Date.now();
     Promise.allSettled([
-      api.getErpRecords(), api.getArticles(), api.getMe(),
-    ]).then(([u, a, me]) => {
+      api.getErpRecords(), api.getArticles(), api.getOrders(), api.getMe(),
+    ]).then(([u, a, o, me]) => {
       if (u.status === 'fulfilled') setUsers(u.value);
       if (a.status === 'fulfilled') setArticles(a.value);
+      if (o.status === 'fulfilled') setOrders(o.value);
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         setViewerRole(me.value.role === 'admin' || me.value.role === 'employee' ? 'staff' : 'supplier');
@@ -222,6 +218,7 @@ export default function ErpPage() {
       lastLoadRef.current = Date.now();
       api.getErpRecords().then(setUsers).catch(() => {});
       api.getArticles().then(setArticles).catch(() => {});
+      api.getOrders().then(setOrders).catch(() => {});
       api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
     }
     // **Rückkehr nach Pause**: Der Feed war ein Schnappschuss vom Seitenaufbau – wer das ERP
@@ -268,6 +265,7 @@ export default function ErpPage() {
     })),
     ...users.map((u): Row => ({ type: 'user', key: `u${u.id}`, objectId: u.object_id, data: u })),
     ...articles.map((a): Row => ({ type: 'article', key: `a${a.id}`, objectId: a.object_id, data: a })),
+    ...orders.map((o): Row => ({ type: 'order', key: `o${o.id}`, objectId: o.object_id, data: o })),
     ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
     // FIX: Fallback -Infinity ergab NaN, sobald ZWEI Zeilen ohne Objektnummer verglichen
     // wurden (-Infinity − -Infinity = NaN) – ein NaN-Komparator verletzt die Sortier-Ordnung
@@ -357,7 +355,7 @@ export default function ErpPage() {
     } catch { /* Objekt nicht gefunden – ignorieren */ }
   }
 
-  function startCreate(type: 'article') {
+  function startCreate(type: 'article' | 'order') {
     setPlusOpen(false);
     setSel(null);
     setCreating(type);
@@ -404,6 +402,14 @@ export default function ErpPage() {
 
   function handleUserSaved(u: UserProfile) {
     setUsers((prev) => prev.map((x) => (x.id === u.id ? u : x)));
+  }
+
+  // Erst hier existiert der Auftrag: die Anlage liefert ihn samt frisch vergebener
+  // Objektnummer zurück, und der Feed übernimmt ihn ohne Nachladen.
+  function handleOrderSaved(o: Order) {
+    setCreating(null);
+    setOrders((prev) => (prev.some((x) => x.id === o.id) ? prev.map((x) => (x.id === o.id ? o : x)) : [...prev, o]));
+    setSel({ type: 'order', objectId: o.object_id });
   }
 
   function cancelCreate() {
@@ -520,6 +526,9 @@ export default function ErpPage() {
                   <button onClick={() => startCreate('article')} style={menuItemStyle}>
                     <Package size={15} style={{ color: 'var(--fg-3)' }} /> Artikel
                   </button>
+                  <button onClick={() => startCreate('order')} style={menuItemStyle}>
+                    <ClipboardList size={15} style={{ color: 'var(--fg-3)' }} /> Auftrag
+                  </button>
                   {/* Gesellschaften anlegen ist bewusst Admin-Sache (fix vorgegeben). */}
                   {isAdmin && (
                     <button onClick={createCompany} style={menuItemStyle}>
@@ -555,6 +564,12 @@ export default function ErpPage() {
           >
           {creating === 'article' && (
             <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+          )}
+          {creating === 'order' && (
+            <OrderDetail key="new-order" record={null} onSaved={handleOrderSaved} onBack={cancelCreate} />
+          )}
+          {!creating && activeRow?.type === 'order' && (
+            <OrderDetail key={activeRow.key} record={activeRow.data as Order} onSaved={handleOrderSaved} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'user' && (
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />

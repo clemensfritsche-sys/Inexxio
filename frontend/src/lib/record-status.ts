@@ -70,6 +70,17 @@ export function instanceStatus(
   return { ...NEUTRAL, label: i.status === 'new' ? 'Neu' : i.status };
 }
 
+/**
+ * Der Auftrag hat **kein** Status-Feld: es gibt noch keinen Lebenszyklus, den es
+ * beschreiben könnte. Was es gibt, ist `is_active` – und das ist eine echte Aussage,
+ * keine erfundene. Sobald die Prozesslogik steht, kommt der Zustand hierher.
+ */
+export function orderStatus(o: { is_active?: boolean }): StatusCfg {
+  return o.is_active === false
+    ? INACTIVE
+    : { label: 'Aktiv', ...TONE.done, icon: CheckCircle2 };
+}
+
 export function organizationStatus(c: Pick<CompanySettings, 'is_active'>): StatusCfg {
   return c.is_active === false
     ? INACTIVE

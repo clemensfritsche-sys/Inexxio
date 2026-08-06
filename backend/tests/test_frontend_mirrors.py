@@ -153,30 +153,114 @@ def test_the_instance_kinds_mirror():
 def test_the_process_logic_is_gone_from_both_sides():
     """Der Auftrag und seine Prozesslogik sind ersatzlos entfernt – nicht auskommentiert,
     nicht deaktiviert, nicht als Vorlage aufbewahrt."""
-    for gone in ("process.py", "subject.py", "orders.py", "reservation.py", "ledger.py",
+    # ``services/orders.py`` gibt es wieder – als Anlage des DATENSATZES, nicht als
+    # Prozess-Engine. Der Unterschied wird unten geprüft (der Auftrag trägt nichts
+    # ausser seiner Identität, und die Pflichteingaben stehen an einer Stelle).
+    for gone in ("process.py", "subject.py", "reservation.py", "ledger.py",
                  "units.py", "recovery.py", "supply.py", "deviation.py", "provisioning.py"):
         assert not (BACKEND / "app" / "services" / gone).exists(), (
             f"services/{gone} ist wieder da – die Prozesslogik wird neu gebaut, nicht "
             f"wiederverwendet."
         )
-    for gone in ("order-flow.tsx", "flow-line.tsx", "process-steps.tsx", "order-detail.tsx"):
+    for gone in ("order-flow.tsx", "flow-line.tsx", "process-steps.tsx",
+                 "order-positions.tsx", "purchase-step-panel.tsx"):
         assert not (FRONTEND / "components" / "erp" / gone).exists(), (
             f"components/erp/{gone} ist wieder da."
         )
+    # ``order-detail.tsx`` gibt es wieder – aber als **Datensatz**-Fenster, nicht als
+    # Prozess-Oberfläche. Der Unterschied ist hier festgehalten:
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "OrderFlow" not in detail and "ProcessSteps" not in detail, (
+        "Das Auftrags-Fenster baut wieder Prozesslogik – die kommt neu, nicht zurück."
+    )
     assert not (FRONTEND / "lib" / "process.ts").exists()
     assert not (FRONTEND / "lib" / "order.ts").exists()
 
 
-def test_the_feed_no_longer_knows_an_order():
-    """Der Datensatztyp «Auftrag» ist aus dem Feed verschwunden – er kommt mit der neuen
-    Prozesslogik zurück."""
+def test_the_order_is_a_record_type_like_every_other():
+    """Der «Auftrag» reiht sich in die Datensatz-Systematik ein: Feed-Typ, Symbol, Filter."""
     types = _read(FRONTEND / "types" / "index.ts")
     m = re.search(r"export type ErpRecordType = ([^;]+);", types)
-    assert m, "ErpRecordType fehlt."
-    assert "'order'" not in m.group(1), "Der Feed kennt weiterhin einen Auftrag."
+    assert m and "'order'" in m.group(1), "Der Feed kennt den Auftrag nicht."
 
     meta = _read(FRONTEND / "lib" / "erp-record.ts")
-    assert "order:" not in meta, "TYPE_META trägt weiterhin einen Auftrag."
+    assert "order:" in meta, "TYPE_META kennt den Auftrag nicht (Symbol/Farbe fehlen)."
+    assert "'order'" in meta, "FILTER_TYPES kennt den Auftrag nicht."
+
+
+def test_the_order_carries_nothing_but_its_identity():
+    """Der Auftrag trägt heute **nur** seine Objektnummer und die Systematik-Felder.
+
+    Spalten auf Vorrat wären erfundene Anforderungen – was er führt, entscheidet sich
+    mit der Prozesslogik. Bricht dieser Wächter, hat jemand ein Feld erfunden.
+    """
+    src = _read(BACKEND / "app" / "models" / "order.py")
+    columns = {l.split(":")[0].strip() for l in src.split("\n") if "mapped_column(" in l}
+    assert columns == {"id", "object_id"}, (
+        f"models/order.py trägt {sorted(columns)} – erwartet nur id und object_id "
+        f"(created_at/updated_at/is_active kommen aus dem TimestampMixin)."
+    )
+
+
+def test_the_required_fields_live_at_exactly_one_place():
+    """Die Pflichteingaben des Auftrags stehen an EINER Stelle – heute leer, aber verdrahtet.
+
+    Sie ist absichtlich schon da: sonst landen die Regeln später verteilt in Router,
+    Schema und Oberfläche, und die Oberfläche legt einen anderen Massstab an als der
+    Server.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import orders as orders_svc
+
+    assert orders_svc.validate_draft({}) == [], (
+        "validate_draft meldet Pflichtfelder – die sind noch nicht definiert. Wer welche "
+        "einträgt, passt auch diesen Wächter an."
+    )
+    router = _read(BACKEND / "app" / "routers" / "orders.py")
+    assert "validate_draft" in router or "assert_saveable" in router, (
+        "Der Router prüft nicht über die eine Stelle."
+    )
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "validateOrder" in detail, (
+        "Die Oberfläche fragt die Regel nicht ab, sondern formuliert sie vermutlich nach – "
+        "das wären zwei Massstäbe für dieselbe Frage."
+    )
+
+
+def test_a_draft_never_touches_the_database():
+    """Ein Auftragsentwurf lebt nur im Browser: keine Entwurfs-Zeile, keine vorreservierte
+    Objektnummer, kein Autosave. Die Nummer entsteht ausschliesslich beim Speichern."""
+    svc = _read(BACKEND / "app" / "services" / "orders.py")
+    assert svc.count("next_object_id") == 2, (   # Import + genau EIN Aufruf
+        "Die Objektnummer wird an mehr als einer Stelle gezogen."
+    )
+    assert "next_object_id" in svc.split("def create_order(")[1], (
+        "Die Nummer entsteht nicht in create_order."
+    )
+    router = _read(BACKEND / "app" / "routers" / "orders.py")
+    assert "next_object_id" not in router, "Der Router zieht selbst eine Nummer."
+
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    # Gemeint ist der **Hook**, nicht das Wort: der Docstring erklärt ja gerade, warum
+    # es keinen Autosave gibt.
+    assert "useAutosave" not in detail, (
+        "Das Auftrags-Fenster speichert automatisch – der Entwurf darf nichts anlegen."
+    )
+
+
+def test_the_order_tab_row_has_exactly_one_tab():
+    """Genau EIN Reiter «Auftrag» – keine weiteren, auch keine leeren oder deaktivierten."""
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    m = re.search(r"const TABS = \[(.*?)\];", detail, re.S)
+    assert m, "TABS fehlt im Auftrags-Fenster."
+    assert m.group(1).count("key:") == 1, (
+        f"Das Auftrags-Fenster hat {m.group(1).count('key:')} Reiter – es soll genau einen haben."
+    )
+    tabs = _read(FRONTEND / "components" / "erp" / "detail-tabs.tsx")
+    assert "disabled" not in tabs, (
+        "Die Reiter-Leiste kennt wieder deaktivierte Reiter – die soll es nicht geben."
+    )
 
 
 # ---------------------------------------------------------------------------

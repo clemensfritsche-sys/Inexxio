@@ -28,10 +28,13 @@ from fastapi import APIRouter, HTTPException, Request
 # ---------------------------------------------------------------------------
 MODULES: dict[str, tuple[str, tuple[str, ...]]] = {
     "core": ("Anmeldung, Benutzer, Unternehmen, Feed, Objektnummern", ()),
-    "catalog": ("Artikel, Instanzen, Einzelinstanzen", ()),
+    "catalog": ("Artikel, Aufträge, Instanzen, Einzelinstanzen", ()),
     "capture": ("Datenerfassung", ()),
-    "process": ("Auftrag und Prozesslogik", (
-        "/api/v1/erp/orders",
+    # Der DATENSATZTYP «Auftrag» (/api/v1/erp/orders) ist aktiv und gehört zu ``catalog``.
+    # Abgeschaltet ist die PROZESSLOGIK darin – sie hat heute keinen eigenen Pfad mehr,
+    # also auch keinen Stub. Der Eintrag bleibt, weil der Schalter die Liste der Module
+    # führt, nicht nur die der Prefixe.
+    "process": ("Prozesslogik im Auftrag", (
         "/api/v1/erp/maintenance",
     )),
     "sales": ("Verkauf und Shop", (

@@ -82,14 +82,19 @@ export type TerritoryCountry = components['schemas']['TerritoryCountry'];
 export const ARTICLE_NAME_MAX_LENGTH = 32;
 
 // ─── Order (Auftrag) ──────────────────────────────────────────────────────────
+//
+// Der Auftrag trägt heute nur seine Identität. Was er sonst führt, entscheidet sich mit
+// der Prozesslogik – Felder auf Vorrat wären erfundene Anforderungen.
 
-export type OrderStatus = 'draft' | 'released' | 'inactive' | 'completed';
+export type Order = components['schemas']['OrderResponse'];
+export type OrderSummary = components['schemas']['OrderSummary'];
+export type OrderValidation = components['schemas']['OrderValidation'];
 
-export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'block' | 'sale' | 'document';
-export type ResourceMode = 'consume' | 'tool';
-export type DocSignAction = 'confirm' | 'sign';
-export type DocAudience = 'all' | 'roles' | 'persons';
-export type DocVisibility = 'public' | 'internal' | 'confidential';
+/** Ein Auftragsentwurf. Er lebt NUR im Browser – es gibt dafür keine Zeile in der
+ *  Datenbank, keine vorreservierte Objektnummer und kein Autosave. */
+export type OrderDraft = Record<string, unknown>;
+
+
 export type DocAudienceRole = 'customer' | 'supplier' | 'employee' | 'admin';
 
 export type DocumentFileType = 'invoice' | 'delivery_note' | 'manual' | 'datasheet' | 'certificate' | 'contract' | 'receipt' | 'other';
@@ -191,74 +196,6 @@ export interface CaptureField {
   tolerance?: number | null;   // nur measure
 }
 export type ObjectReference = components['schemas']['ObjectReference'];
-export type OrdersMode = 'phase_out' | 'cancel';
-
-// Wiederkehrend ist eine Eigenschaft des Auftrags (kein eigenes Objekt mehr).
-export interface OrderRecurrenceInput {
-  recurrence_active?: boolean | null;
-  recurrence_interval_days?: number | null;
-  recurrence_lead_time_days?: number | null;
-  recurrence_anchor?: string | null;
-}
-
-export type InstancePickInput = {
-  instance_object_id: number;
-  quantity?: number | null;
-  from_order_object_id?: number | null;
-};
-
-export interface OrderLineCreateInput {
-  article_id: number;
-  quantity: number;
-  /** «Auswählen» statt FIFO – die Position bringt ihre Anteile gleich mit (#386). */
-  picks?: InstancePickInput[] | null;
-}
-// Gewählte Anteile EINER Position statt FIFO (PATCH .../lines/{line_id}).
-export interface OrderLinePinsInput {
-  picks: InstancePickInput[];
-}
-
-export type OrderUpdateInput = OrderRecurrenceInput & {
-  status?: OrderStatus;
-  article_id?: number | null;
-  quantity?: number | null;
-  // Gewählte **Anteile** im Entwurf anpassen. **Die Auswahl bestimmt die Art des
-  // Auftrags**: verkauft → Retoure · gebunden (in Arbeit/reserviert/gesperrt) →
-  // Abweichung · frei → gewöhnlicher Auftrag.
-  picks?: InstancePickInput[] | null;
-  desired_delivery_date?: string | null;
-  is_active?: boolean;
-  expected_updated_at?: string | null;   // Optimistic Locking
-};
-
-// ─── Prozess = Schritte am Artikel (Entstehung) ODER am Auftrag (individuell) ──
-// Es gibt KEIN eigenständiges Prozess-Objekt und KEIN Auftrags-Modus-Flag mehr –
-// die Subjektart (produce | stock | instance) wird im Backend abgeleitet.
-
-// ─── Verkaufsschritt (Spiegel der Beschaffung) ─────────────────────────────────
-
-export type SaleStatus = 'requested' | 'confirmed' | 'invoiced' | 'paid' | 'cancelled';
-// Herkunft: 'shop' (Kunde über die Kasse/Stripe) | 'direct' (Personal im ERP erfasst).
-// Zahlungsart des manuellen Zahlungseingangs – Rechnung ist der übliche B2B-Weg, KEIN
-// Kartenterminal nötig. 'stripe' setzt das System selbst (Shop-Zahlung).
-export type PaymentMethod = 'invoice' | 'cash' | 'twint' | 'other' | 'stripe';
-
-export interface SaleUpdateInput {
-  status?: SaleStatus;
-  order_total?: number | string | null;
-  vat_rate?: number | string | null;
-  currency?: string | null;
-  customer_id?: number | null;
-  invoice_number?: string | null;
-  payment_method?: PaymentMethod | null;
-  payment_reference?: string | null;
-  step_id?: number | null;
-}
-
-
-// ─── Verkauf / Shop ────────────────────────────────────────────────────────────
-// Der Verkauf lebt AM ARTIKEL (dritte, lebende Ebene) – kein eigenes Objekt.
-
 export type SalesVisibility = 'public' | 'private';
 export type SalesFulfillment = 'make' | 'stock';
 export type PriceKind = 'one_time' | 'subscription';
@@ -317,45 +254,9 @@ export interface ShopConfig {
   stripe_publishable_key: string | null;  // öffentlich – für die eingebettete Kasse
 }
 
-export interface PaymentStatus {
-  order_object_id: number | null;
-  order_object_ids?: number[];
-  status: SaleStatus;
-  currency: string;
-  net_total: number | string;
-  vat_rate: number | string;
-  gross_total: number | string;
-  provider: string;
-  paid: boolean;
-}
-
-// ─── Article Process Steps (Prozess-Definition) ───────────────────────────────
-
 export type ProcessStepMode = 'supplier' | 'webshop';
 
-export interface ResourceLineInput {
-  article_id: number;
-  quantity: number;
-  mode?: ResourceMode;   // consume (Default) | tool – pro Zeile
-}
-
-export type PurchaseOrderStatus =
-  | 'requested' | 'quoted' | 'ordered' | 'received' | 'rejected' | 'cancelled';
-
-export interface PurchaseOrderUpdateInput {
-  status?: PurchaseOrderStatus;
-  order_total?: number | string | null;
-  lead_time_days?: number | null;
-  payment_terms_days?: number | null;
-  tracking_number?: string | null;
-  receiving_location_id?: number | null;   // Pflicht beim Wareneingang («received»)
-  step_id?: number | null;                 // Mehr-Operationen-Routing
-  article_id?: number | null;              // Mehrpositionen: welche Position (bei >1 Bestellung)
-}
-
-// Der Auftrag ist mit der Prozesslogik entfallen (Basis-Neuaufbau); er kommt mit der
-// neuen Prozesslogik zurück. Der Feed kennt bis dahin vier Datensatzarten.
-export type ErpRecordType = 'user' | 'article' | 'instance' | 'organization';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization';
 
 export interface CompanySettings {
   object_id?: number | null;   // universelle ERP-Objektnummer des Unternehmens

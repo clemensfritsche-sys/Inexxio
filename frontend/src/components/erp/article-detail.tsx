@@ -8,7 +8,7 @@ import {
   MapPin, ClipboardPlus,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile, OrdersMode } from '@/types';
+import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile } from '@/types';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
@@ -235,13 +235,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   }
 
   // EIN kombinierter Knopf: optional einen Nachfolger anlegen («Ersetzen») oder nur deaktivieren.
-  async function confirmDeactivate(ordersMode: OrdersMode, createSuccessor: boolean) {
-    if (!record) return;
-    const result = createSuccessor
-      ? await api.replaceArticle(record.object_id as number, ordersMode)   // Nachfolger + inaktiv
-      : await api.deactivateArticle(record.object_id as number, ordersMode);
-    setDialog(null); onRefresh?.(); onSaved(result);   // bei Nachfolger: navigiert zum neuen Artikel
-  }
 
   async function save() {
     if (!valid) return;

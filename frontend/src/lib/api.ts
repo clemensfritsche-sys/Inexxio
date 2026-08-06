@@ -1,4 +1,8 @@
 import type {
+  Order,
+  OrderSummary,
+  OrderDraft,
+  OrderValidation,
   InstanceSummary,
   InstanceCreateInput,
   Capture,
@@ -8,28 +12,20 @@ import type {
   ArticleInput,
   ArticleUpdateInput,
   ArticleNameSuggestion,
-  OrderUpdateInput,
-  OrderLineCreateInput,
-  OrderLinePinsInput,
-  PurchaseOrderUpdateInput,
   InspectionUpdateInput,
   MovementUpdateInput,
   ShipmentUpdateInput,
   ResourceUpdateInput,
   ScrapUpdateInput,
-  SaleUpdateInput,
   Instance,
   ObjectReference,
   CompanySettings,
   UserProfile,
-  OrdersMode,
   TerritoryMap,
   ArticleSalesUpdateInput,
   ArticlePriceInput,
   ArticlePriceUpdateInput,
   ShopConfig,
-  PaymentStatus,
-  SaleStatus,
   Passkey,
   FeedbackNote,
   FeedbackCreateInput,
@@ -365,18 +361,8 @@ class ApiClient {
   }
 
 
-  deactivateArticle(objectId: number, ordersMode: OrdersMode): Promise<Article> {
-    return this.post(`/api/v1/erp/articles/${objectId}/deactivate`, { orders_mode: ordersMode });
-  }
 
-  replaceArticle(objectId: number, ordersMode: OrdersMode): Promise<Article> {
-    return this.post(`/api/v1/erp/articles/${objectId}/replace`, { orders_mode: ordersMode });
-  }
 
-  // ─── Prozesse: eigenständige Objekte (Feed «Prozesse») + Stückliste je Artikel ─
-
-  // ─── Prozessschritte – am Artikel (Entstehung) ODER am Auftrag (CUSTOM) ────────
-  // ``owner`` = 'articles' | 'orders'; kein eigenständiges Prozess-Objekt mehr.
 
 
 
@@ -460,6 +446,32 @@ class ApiClient {
   // Bestand (Instanzen) eines Artikels
   getArticleInstances(objectId: number): Promise<Instance[]> {
     return this.get(`/api/v1/erp/articles/${objectId}/instances`);
+  }
+
+  // ─── Auftrag ───────────────────────────────────────────────────────────────
+  // Es gibt KEINEN Entwurfs-Endpunkt: der Entwurf lebt im Browser, bis er speicherbar
+  // ist. Erst `createOrder` legt ihn an – und erst dabei entsteht die Objektnummer.
+
+  getOrders(limit = 0, offset = 0): Promise<OrderSummary[]> {
+    const p = new URLSearchParams();
+    if (limit) p.set('limit', String(limit));
+    if (offset) p.set('offset', String(offset));
+    const qs = p.toString();
+    return this.get(`/api/v1/erp/orders${qs ? `?${qs}` : ''}`);
+  }
+
+  getOrder(objectId: number): Promise<Order> {
+    return this.get(`/api/v1/erp/orders/${objectId}`);
+  }
+
+  /** Wäre dieser Entwurf speicherbar? Legt nichts an und zieht keine Nummer – die
+   *  Oberfläche fragt damit dieselbe Regel ab, die auch das Speichern anlegt. */
+  validateOrder(draft: OrderDraft): Promise<OrderValidation> {
+    return this.post('/api/v1/erp/orders/validate', draft);
+  }
+
+  createOrder(draft: OrderDraft): Promise<Order> {
+    return this.post('/api/v1/erp/orders', draft);
   }
 
   // Instanz-Feed (server-seitig durchsuchbar/paginierbar, neueste Objektnummer zuerst).
@@ -559,14 +571,7 @@ class ApiClient {
   }
 
 
-  // Manueller Provider (Fallback ohne Stripe-Keys)
-  getPaymentStatus(token: string): Promise<PaymentStatus> {
-    return this.get(`/api/v1/shop/payment/${token}`);
-  }
 
-  simulatePayment(token: string, result: 'paid' | 'cancelled'): Promise<{ status: SaleStatus }> {
-    return this.post('/api/v1/shop/payments/simulate', { sale_token: token, result });
-  }
 
   // ─── KI-Layer (ADR 004) ─────────────────────────────────────────────────────
 

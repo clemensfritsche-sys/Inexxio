@@ -5,6 +5,7 @@ from .article import Article
 from .article_price import ArticlePrice
 from .article_sales_audience import ArticleSalesAudience
 from .fx_rate import FxRate
+from .order import Order
 from .instance import Instance
 from .instance_unit import InstanceUnit
 from .capture import Capture
@@ -24,7 +25,7 @@ from .object_ref import ObjectRef
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "FxRate",
-    "Instance", "InstanceUnit", "Capture",
+    "Order", "Instance", "InstanceUnit", "Capture",
     "DocumentSignoff", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
     "Attachment",
     "WebAuthnCredential", "WebAuthnChallenge",
