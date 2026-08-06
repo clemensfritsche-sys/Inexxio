@@ -5771,15 +5771,43 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `…_the_material_chain_closes_the_process` (erweitert). Gegen echtes PostgreSQL 16
   verifiziert (der gemeldete Fall Schritt für Schritt, 7/7).
 
-- **OFFEN – Rule-Notiz #652 (nach dem Aussondern bleibt nichts zum Arbeiten)**: gemessen,
-  aber bewusst **nicht** umgesetzt (ADR-008-Arbeitsweise: eine Regel-Notiz wird vorgelegt,
-  nicht still entschieden). Befund: (a) die Spiegelung stimmt – der Abzweig im Eltern zeigt
-  dieselben Schritte, dasselbe Material und dieselbe Linienstärke wie der geöffnete
-  Unter-Auftrag; die dünne Linie ist die **des Eltern** unterhalb der Teilung und damit
-  richtig (dort fliesst nichts mehr). (b) Der Eltern wird bereits «Abgebrochen –
-  fortgeführt in …», wenn ihm nichts bleibt (#366). (c) **Der echte Fund:** steht NACH dem
-  Aussondern noch ein Modul, ist es `active`, seine Ausführung wirft 409 («Keine Instanzen
-  zum Bewegen vorhanden») – der Auftrag kann weder abschliessen noch enden.
+- **Ein Schritt ohne Material hat nichts zu tun – und der Auftrag arbeitet nur mit dem, was
+  er hält** (August 2026, Testnotizen #652 · #660 · #662 · #663): Vier Notizen, zwei Wurzeln.
+  (1) **«Nichts zu tun» ist nicht dasselbe wie «nicht getan»** (#652, vom Nutzer freigegeben).
+  Nach dem Aussondern bleibt dem Auftrag nichts mehr; ein Modul danach wurde trotzdem
+  «aktiv» und war eine **Sackgasse** – seine Ausführung wirft «Keine Instanzen vorhanden»,
+  also konnte der Auftrag weder abschliessen noch enden (gemessen, nicht vermutet). Das
+  Aussondern IST die Erledigung (#555), und ein Schritt, dessen Material der Auftrag nicht
+  mehr hat, ist damit ebenfalls erledigt. **Nicht «Abgebrochen»:** abgebrochen heisst im
+  System «das Ziel wurde NICHT erreicht, es geht woanders weiter» (`abort_into_id`) – beim
+  Verschrotten wurde das Ziel erreicht, und es geht nirgends weiter.
+  Der Riegel steht in der **Registry** (`EventType.needs_material`), nicht als Liste im
+  Code: nur Schritte, die AN den Instanzen arbeiten (Datenerfassung · Bewegung · Aussondern ·
+  Sperren · Verkauf), sind gemeint – wer Material **hereinbringt** (Beschaffung, Ressource)
+  oder keins braucht (Dokument), bleibt unberührt, sonst wäre ein reiner Beschaffungsauftrag
+  sofort «fertig». Und gefragt wird nur, wenn der Auftrag je Instanzen hatte.
+  *Nicht geändert (und vom Nutzer bestätigt): die dünne Linie unterhalb der Teilung ist
+  ehrlich – dort fliesst nichts mehr; und die Spiegelung Abzweig ↔ Unter-Auftrag stimmt
+  (gemessen: gleiche Schritte, gleiches Material, gleiche Linienstärke).*
+  (2) **Der Auftrag arbeitet nur mit dem, was er HÄLT** (#662/#663): `held_quantity` liess
+  den unbeanspruchten Rest gelten, auch wenn das Stück längst **freigegeben** war – ein
+  Abzweig übernimmt eines von zwei Stück, gibt es ans Lager, und der Eltern zählte es
+  wieder zu sich. Folgen: «2 von 2 Stück prüfen», obwohl nur eines vor der Haustüre stand,
+  und der Bewegungsschritt **bewegte das fremde Stück mit**. Freigegeben heisst frei –
+  dieselbe Regel wie bei den Stücken (`units.owned_by`, #573/#577/#625), hier als Menge;
+  `order_active_instances` liest sie mit, damit «woran arbeitet dieser Auftrag» und «was
+  gehört ihm» dieselbe Antwort haben.
+  (3) **Ein gekappter Abzweig hält die Achse nicht auf** (#660): `node_done` behandelte
+  jeden offenen Ast als Blocker. Ein gekappter kommt aber nie zurück – der Eltern hat sein
+  Soll längst reduziert und läuft weiter, sein nächstes Modul ist «an der Reihe». Linie und
+  Modul-Zustand sagten zwei verschiedene Dinge über dieselbe Stelle; jetzt hält nur auf, wer
+  noch etwas zurückgibt (`returns_material`).
+  (4) #661 war die Bestätigung von (3) aus dem abgeschlossenen Zustand – keine Änderung.
+  Wächter: `tests/rules/test_units.py: test_a_step_without_material_has_nothing_to_do`,
+  `…_a_cut_branch_does_not_hold_up_the_parent` – **jeder gegen seine Bug-Form
+  gegengeprüft** (ohne Fix meldet die Datei genau die gemeldeten Symptome: «2 statt 1»,
+  dünne Linie am aktiven Modul, Auftrag bleibt `released`). Gegen echtes PostgreSQL 16
+  verifiziert (7/7 die gemeldete Abfolge Schritt für Schritt).
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

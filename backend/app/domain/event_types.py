@@ -81,6 +81,16 @@ class EventType:
     status_field: str | None = None
     done: tuple = ()
     failed: tuple = ()
+    # **Arbeitet dieser Schritt AN den Instanzen des Auftrags?** (Testnotiz #652)
+    #
+    # Nur dann hat er nichts mehr zu tun, wenn dem Auftrag nichts mehr bleibt – und dann
+    # ist er **erledigt**: «nichts zu tun» ist nicht dasselbe wie «nicht getan». Ohne die
+    # Unterscheidung wäre ein Modul nach dem Aussondern eine Sackgasse (aktiv, aber jede
+    # Ausführung wirft «Keine Instanzen vorhanden» – der Auftrag könnte weder abschliessen
+    # noch enden). Und ohne die Einschränkung wäre ein reiner Beschaffungsauftrag sofort
+    # «fertig», denn er beginnt ja mit nichts: Schritte, die Material **hereinbringen**
+    # (Beschaffung, Ressource) oder gar keins brauchen (Dokument), tragen es nicht.
+    needs_material: bool = False
     # **Ein Beleg gilt für die Menge, für die er ausgestellt wurde** (Testnotizen #587/#588).
     # Ändert sie sich, fällt er auf seine **erste Stufe** zurück (``reset``); fällt sie auf
     # **null**, auf seine **letzte** (``voided`` – storniert). Das ist EINE Regel mit zwei
@@ -139,9 +149,12 @@ REGISTRY: dict[str, EventType] = {
                             binding=("ordered",)),
     "resource":   EventType("resource",   "Ressource",      INCREASE, "ResourceUsage", PROV_PRODUCT),
     "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  "Inspection",    PROV_NONE,
-                            status_field="result", done=("passed",), failed=("failed",)),
-    "movement":   EventType("movement",   "Bewegung",       MOVE,     "Movement",      PROV_NONE),
-    "scrap":      EventType("scrap",      "Aussondern",     DECREASE, "Disposal",      PROV_NOWHERE),
+                            status_field="result", done=("passed",), failed=("failed",),
+                            needs_material=True),
+    "movement":   EventType("movement",   "Bewegung",       MOVE,     "Movement",      PROV_NONE,
+                            needs_material=True),
+    "scrap":      EventType("scrap",      "Aussondern",     DECREASE, "Disposal",      PROV_NOWHERE,
+                            needs_material=True),
     # **Sperren** ist das reversible Gegenstück zum Verschrotten: die Instanz bleibt
     # physisch da (Standort unverändert), darf aber vorübergehend nicht verwendet werden –
     # z. B. eine defekte Maschine, die auf Wartung wartet. Umgesetzt auf der **Qualitäts-
@@ -149,7 +162,8 @@ REGISTRY: dict[str, EventType] = {
     # sich nicht, «darf man es verwenden» schon. Darum NEUTRAL wie die Datenerfassung, die
     # eine Instanz ebenfalls über ``quality`` aus dem Bestand nehmen kann – es wird nichts
     # verbraucht oder vernichtet, nur die Verwendbarkeit ausgesetzt.
-    "block":      EventType("block",      "Aussondern",     NEUTRAL,  "Disposal",      PROV_NONE),
+    "block":      EventType("block",      "Aussondern",     NEUTRAL,  "Disposal",      PROV_NONE,
+                            needs_material=True),
     # **Verkauf UND Gutschrift** laufen über EINEN Schritttyp `sale` (Fachtabelle `Sale`): ein
     # normaler Auftrag verkauft (kind='sale', Bestands-Abgang), eine Retoure (Subjekt = verkaufte
     # Instanzen, `reason='return'`) schreibt gut (kind='credit', Stripe-Refund) – der Modus wird
@@ -158,7 +172,7 @@ REGISTRY: dict[str, EventType] = {
     "sale":       EventType("sale",       "Verkauf",        DECREASE, "Sale",          PROV_CUSTOMER,
                             status_field="status", done=("paid",), failed=("cancelled",),
                             reset="requested", voided="cancelled",
-                            reset_fields=("order_total",)),
+                            reset_fields=("order_total",), needs_material=True),
     # **Dokument**: der Auftrag erzeugt – wie jeder Erzeugungsauftrag – eine Instanz; das
     # Dokument (Fachtabelle ``Document``) hängt daran (Nummer = Instanz-Objektnummer, Datum =
     # Instanz-Freigabe). Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE → der Auftrag
@@ -208,6 +222,12 @@ def label(step_type: str) -> str:
 def polarity(step_type: str) -> str:
     et = REGISTRY.get(step_type)
     return et.polarity if et else NEUTRAL
+
+
+def needs_material(step_type: str) -> bool:
+    """Arbeitet dieser Schritt AN den Instanzen des Auftrags? (Testnotiz #652)"""
+    et = REGISTRY.get(step_type)
+    return bool(et and et.needs_material)
 
 
 def provisioning(step_type: str) -> str:

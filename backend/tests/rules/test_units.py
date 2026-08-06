@@ -1122,3 +1122,110 @@ def test_two_instances_of_one_order_end_in_the_same_state(db, kinds, world):
     assert all(q == "passed" and d == "in_stock" for _, q, d in got), got
     assert insts[0].disposition == "scrapped"
     assert ArticleProcessStep  # noqa: B015 – Import hält die Abhängigkeit sichtbar
+
+
+def test_a_cut_branch_does_not_hold_up_the_parent(db, kinds, world):
+    """**Der Eltern arbeitet nur mit dem, was er hält** (Testnotizen #660/#662/#663).
+
+    Eine von zwei Instanzmengen wird abgezweigt und die Rückführung **gekappt**: der Eltern
+    reduziert sein Soll auf 1 und läuft weiter. Drei Dinge müssen danach zusammenpassen –
+    sie sagten vorher drei verschiedene Sachen:
+
+    * die **Achse** reicht bis zum Modul, das an der Reihe ist (ein gekappter Ast kommt nie
+      zurück, also hält er nichts auf – #660);
+    * der **Prüfumfang** nennt 1 Stück, nicht 2 (#662);
+    * die **Bewegung** greift nur das eigene Stück (#663) – vorher bewegte sie das fremde
+      mit, obwohl es längst am Lager lag.
+
+    Die Wurzel ist EINE: ``held_quantity`` liess den unbeanspruchten Rest gelten, auch wenn
+    das Stück längst **freigegeben** war. Freigegeben heisst frei – dieselbe Regel wie bei
+    den Stücken (#573/#577/#625), hier als Menge."""
+    from app.models import ArticleProcessStep, Instance, Order
+    from app.routers import orders as R
+    from app.schemas.order import InstancePick
+    from app.services import movement as mv_svc, subject
+    from app.services.orders import to_order_response
+    from app.services.objects import next_object_id
+
+    user, _ = world
+    art = kinds["unit"]
+    db.add(ArticleProcessStep(article_id=art.id, step_type="movement", position=1))
+    db.commit()
+    order, _ = _make_order(db, art, user, 2)
+    insts = (db.query(Instance).filter(Instance.order_id == order.id)
+             .order_by(Instance.id).all())
+
+    dev = Order(object_id=None, article_id=art.id, quantity=Decimal(1), status="draft",
+                returns_nothing=True)
+    db.add(dev)
+    db.flush()
+    R._set_chosen_instances(db, dev, [InstancePick(
+        instance_object_id=insts[0].object_id, quantity=1,
+        from_order_object_id=order.object_id)])
+    db.add(ArticleProcessStep(order_id=dev.id, step_type="inspection", position=0,
+                              sample_percent=100))
+    db.flush()
+    R._do_release(db, dev, user.id)
+    db.commit()
+    db.refresh(order)
+
+    # #660 – der gekappte Ast hält die Achse nicht auf.
+    resp = to_order_response(db, order, viewer=user)
+    step = next(s for s in resp.steps if s.step_type == "inspection")
+    assert step.state == "active", step.state
+    idx = next(i for i, n in enumerate(resp.flow_nodes)
+               if n.kind == "step" and n.step_id == step.id)
+    assert resp.flow_edges[idx].flowed, "Die volle Linie reicht bis zum aktiven Modul (#660)."
+
+    # Der Ast läuft durch – sein Stück geht ans Lager, NICHT zurück.
+    _run_inspection(db, dev, insts[0], user, 1)
+    for i in insts:
+        db.refresh(i)
+    assert insts[0].disposition == "in_stock"
+
+    # #662/#663 – was freigegeben ist, gehört dem Eltern nicht mehr.
+    assert subject.held_quantity(order, insts[0]) == Decimal(0)
+    assert subject.held_quantity(order, insts[1]) == Decimal(1)
+    assert [i.object_id for i in subject.order_active_instances(db, order)] \
+        == [insts[1].object_id]
+    mstep = (db.query(ArticleProcessStep)
+             .filter(ArticleProcessStep.article_id == art.id,
+                     ArticleProcessStep.step_type == "movement").first())
+    assert [i.object_id for i in mv_svc.movable_instances(db, order, mstep)] \
+        == [insts[1].object_id]
+
+
+def test_a_step_without_material_has_nothing_to_do(db, kinds, world):
+    """**Ein Schritt ohne Material ist erledigt** (Testnotiz #652).
+
+    Nach dem Aussondern bleibt dem Auftrag nichts mehr. Ein Modul danach wurde trotzdem
+    «aktiv» – und war eine Sackgasse: seine Ausführung wirft «Keine Instanzen vorhanden»,
+    also konnte der Auftrag weder abschliessen noch enden. «Nichts zu tun» ist aber nicht
+    dasselbe wie «nicht getan»; das Aussondern IST die Erledigung (#555).
+
+    Der Riegel steht in der Registry (``needs_material``), nicht als Liste im Code: nur
+    Schritte, die AN den Instanzen arbeiten, sind gemeint – wer Material hereinbringt
+    (Beschaffung, Ressource) bleibt unberührt, sonst wäre ein reiner Beschaffungsauftrag
+    sofort «fertig»."""
+    from app.domain import event_types as ev
+    from app.models import ArticleProcessStep, Instance
+
+    user, _ = world
+    art = kinds["unit"]
+    order, _ = _make_order(db, art, user, 1)
+    inst = db.query(Instance).filter(Instance.order_id == order.id).first()
+    # Abweichung mit [Aussondern, Bewegung] – das zweite Modul findet nichts mehr vor.
+    dev = _make_deviation(db, order, inst, user, 1, steps=("scrap", "movement"))
+    _scrap(db, dev, inst, user, 1)
+    db.refresh(dev)
+    assert dev.status == "completed", dev.status
+
+    from app.services import process
+    states = {s["step_type"]: s["state"] for s in process.build_order_steps(db, dev)}
+    assert states == {"scrap": "done", "movement": "done"}, states
+
+    # Die Deklaration selbst: nur wer AN den Instanzen arbeitet, trägt sie.
+    assert {k for k, e in ev.REGISTRY.items() if e.needs_material} \
+        == {"inspection", "movement", "scrap", "block", "sale"}
+    assert not ev.needs_material("purchase") and not ev.needs_material("resource")
+    assert ArticleProcessStep  # noqa: B015
