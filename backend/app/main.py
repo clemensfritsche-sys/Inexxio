@@ -85,6 +85,11 @@ _COLUMN_SAFETY_NET = (
     # BESTEHENDEN Tabelle, also gehört sie ins Netz. Das ist die Lehre aus 090: die
     # Migration ist die Wahrheit, das Netz der zweite Weg, und beim Ausfall zählt nur der.
     ("articles", "capture_fields", "JSONB"),
+    # Prozesslogik (Migration 104) – NEUE Spalten auf der BESTEHENDEN Tabelle ``orders``.
+    # ``end_status`` ist der eine Ort des Endzustands (PROCESS_CORE.md §4.2); fehlt er,
+    # scheitert jede Auftrags-Abfrage, weil das Modell ihn kennt.
+    ("orders", "status", "VARCHAR(20) NOT NULL DEFAULT 'released'"),
+    ("orders", "end_status", "VARCHAR(30) NOT NULL DEFAULT 'freigegeben'"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -137,8 +142,16 @@ _INDEX_SAFETY_NET = (
 # Roh-Indizes mit speziellem Typ: GIN auf der Reservierungs-Map – die Hot-Path-Abfragen
 # ``Instance.reservations.has_key(...)`` (Unterdeckung, Verkaufs-Abgang, Abschluss)
 # wären sonst Full-Table-Scans über den gesamten Bestand.
-_RAW_INDEX_SAFETY_NET: tuple[str, ...] = ()
-# Die GIN-Indizes auf ``instances.reservations``/``locations`` sind mit den Spalten entfallen.
+_RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
+    # ►► Die Exklusivitätsregel (PROCESS_CORE.md §3). Sie ist kein Beiwerk: ohne diesen
+    #    Index kann dieselbe Einzelinstanz in zwei Aufträgen aktiv sein, und zwar genau
+    #    dann, wenn zwei Freigaben gleichzeitig laufen – der Fall, den eine Prüfung in
+    #    der Anwendungslogik nicht abdeckt. ``create_all`` legt ihn mit der Tabelle an;
+    #    hier steht er für den Fall, dass die Tabelle schon ohne ihn existiert.
+    "DO $$ BEGIN IF to_regclass('public.order_units') IS NOT NULL THEN "
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_order_units_active "
+    "ON order_units (instance_unit_id) WHERE released_at IS NULL; END IF; END $$;",
+)
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
 # Die Fixes für purchase_orders / documents / article_process_steps / instances sind mit
@@ -216,6 +229,16 @@ def _ensure_columns() -> None:
             if "articles" in tables:
                 for stmt in _ARTICLE_DATA_FIXES:
                     conn.execute(text(stmt))
+            if "instance_units" in tables:
+                # Der Platzhalter-Status ``new`` aus dem Basis-Neuaufbau gibt es mit der
+                # geschlossenen Liste nicht mehr (Migration 104). Ein Stück, das in keinem
+                # Auftrag steckt, ist einsatzbereit – genau das heisst ``freigegeben``.
+                # Bleibt der Altwert stehen, lässt sich das Stück nie starten: das
+                # Start-Objekt erwartet ``freigegeben`` und lehnt sauber ab.
+                conn.execute(text(
+                    "UPDATE instance_units SET status = 'freigegeben' "
+                    "WHERE status IS NULL OR status NOT IN ('freigegeben','im_prozess')"
+                ))
             if "company_settings" in tables:
                 # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt
                 # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht

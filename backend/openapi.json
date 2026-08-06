@@ -1598,6 +1598,7 @@
           "orders"
         ],
         "summary": "Create Order",
+        "description": "Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion (§6.3).",
         "operationId": "create_order_api_v1_erp_orders_post",
         "security": [
           {
@@ -1638,13 +1639,67 @@
         }
       }
     },
+    "/api/v1/erp/orders/unit-options": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Unit Options",
+        "description": "Welche Einzelinstanzen kann ich in die Definition nehmen?\n\nGesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund\nzeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.",
+        "operationId": "unit_options_api_v1_erp_orders_unit_options_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "default": 300,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UnitOption"
+                  },
+                  "title": "Response Unit Options Api V1 Erp Orders Unit Options Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/validate": {
       "post": {
         "tags": [
           "orders"
         ],
         "summary": "Validate Order",
-        "description": "Wäre dieser Entwurf speicherbar? Legt **nichts** an, zieht **keine** Nummer.\n\nDieselbe Regel wie die Anlage (``services/orders.validate_draft``) – die Oberfläche\nformuliert sie nicht nach, sie fragt sie ab.",
+        "description": "Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.",
         "operationId": "validate_order_api_v1_erp_orders_validate_post",
         "requestBody": {
           "content": {
@@ -1705,6 +1760,63 @@
             "schema": {
               "type": "integer",
               "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/confirm": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Confirm Step",
+        "description": "«Schritt bestätigen» – der eine Ausführungs-Endpunkt des Testmoduls.",
+        "operationId": "confirm_step_api_v1_erp_orders__object_id__steps__step_id__confirm_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
             }
           }
         ],
@@ -5250,11 +5362,25 @@
         "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
       },
       "OrderCreate": {
-        "properties": {},
-        "additionalProperties": true,
+        "properties": {
+          "unit_numbers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unit Numbers"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessStepInput"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
         "type": "object",
         "title": "OrderCreate",
-        "description": "Der Entwurf, so wie ihn die Oberfläche schickt.\n\nOffen gehalten, nicht aus Nachlässigkeit: ein festes Feldschema wäre eine Behauptung\ndarüber, was ein Auftrag braucht – und genau das ist noch nicht entschieden. Geprüft\nwird ausschliesslich in ``services/orders.validate_draft``."
+        "description": "Der Entwurf, so wie ihn die Oberfläche schickt."
       },
       "OrderResponse": {
         "properties": {
@@ -5265,6 +5391,14 @@
           "object_id": {
             "type": "integer",
             "title": "Object Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "end_status": {
+            "type": "string",
+            "title": "End Status"
           },
           "created_at": {
             "type": "string",
@@ -5279,12 +5413,46 @@
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessStepResponse"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/OrderUnitResponse"
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessEventResponse"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "active_step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Step Id"
           }
         },
         "type": "object",
         "required": [
           "id",
           "object_id",
+          "status",
+          "end_status",
           "created_at",
           "updated_at",
           "is_active"
@@ -5301,6 +5469,10 @@
             "type": "integer",
             "title": "Object Id"
           },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -5320,12 +5492,53 @@
         "required": [
           "id",
           "object_id",
+          "status",
           "created_at",
           "updated_at",
           "is_active"
         ],
         "title": "OrderSummary",
-        "description": "Feed-Zeile. Identisch zur Detail-Antwort, solange der Auftrag nichts weiter trägt –\ngetrennt gehalten, weil das Detail wächst, sobald die Prozesslogik steht."
+        "description": "Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail."
+      },
+      "OrderUnitResponse": {
+        "properties": {
+          "instance_unit_id": {
+            "type": "integer",
+            "title": "Instance Unit Id"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "current_step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step Id"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_unit_id",
+          "number",
+          "status",
+          "active"
+        ],
+        "title": "OrderUnitResponse",
+        "description": "Ein Stück im Auftrag – wo es steht und wie es steht."
       },
       "OrderValidation": {
         "properties": {
@@ -5339,7 +5552,7 @@
             },
             "type": "array",
             "title": "Missing",
-            "description": "Namen der fehlenden Pflichteingaben – leer heisst speicherbar."
+            "description": "Was noch fehlt – leer heisst freigebbar."
           }
         },
         "type": "object",
@@ -5347,7 +5560,7 @@
           "saveable"
         ],
         "title": "OrderValidation",
-        "description": "Antwort auf «wäre dieser Entwurf speicherbar?».\n\nDamit legt die Oberfläche denselben Massstab an wie der Server, ohne die Regel ein\nzweites Mal zu formulieren."
+        "description": "Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."
       },
       "PasskeyLoginResult": {
         "properties": {
@@ -5464,6 +5677,137 @@
         ],
         "title": "PasskeyResponse",
         "description": "Ein registrierter Passkey (Auflistung/Verwaltung im Konto). Ohne Krypto-Material."
+      },
+      "ProcessEventResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "unit_number": {
+            "type": "string",
+            "title": "Unit Number"
+          },
+          "status_before": {
+            "type": "string",
+            "title": "Status Before"
+          },
+          "status_after": {
+            "type": "string",
+            "title": "Status After"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "unit_number",
+          "status_before",
+          "status_after",
+          "created_at"
+        ],
+        "title": "ProcessEventResponse",
+        "description": "Ein Eintrag im Ereignis-Log. Append-only – es gibt keinen Schreib-Pfad hierauf."
+      },
+      "ProcessStepInput": {
+        "properties": {
+          "module_type": {
+            "type": "string",
+            "title": "Module Type"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "status_before": {
+            "type": "string",
+            "title": "Status Before"
+          },
+          "status_after": {
+            "type": "string",
+            "title": "Status After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "module_type",
+          "name",
+          "status_before",
+          "status_after"
+        ],
+        "title": "ProcessStepInput",
+        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n``status_before``/``status_after`` sind **Pflicht** – ein Modul ohne definierten\nÜbergang ist nicht anlegbar (§4). Geprüft wird der Wert gegen die geschlossene Liste\nin ``domain/statuses.assert_known``, nicht hier: eine zweite Aufzählung im Schema\nwäre eine zweite Wahrheit."
+      },
+      "ProcessStepResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "module_type": {
+            "type": "string",
+            "title": "Module Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status_before": {
+            "type": "string",
+            "title": "Status Before"
+          },
+          "status_after": {
+            "type": "string",
+            "title": "Status After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "position",
+          "module_type",
+          "name",
+          "status_before",
+          "status_after"
+        ],
+        "title": "ProcessStepResponse"
       },
       "TerritoryAssign": {
         "properties": {
@@ -5618,6 +5962,52 @@
         ],
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
+      },
+      "UnitOption": {
+        "properties": {
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "blocked_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "status",
+          "available"
+        ],
+        "title": "UnitOption",
+        "description": "Eine wählbare Einzelinstanz für die Definition.\n\n``blocked_by`` nennt den Auftrag, in dem das Stück gerade aktiv ist – damit die\nOberfläche den Grund zeigen kann, statt eine Zeile stumm auszugrauen."
       },
       "UploadResult": {
         "properties": {

@@ -3,6 +3,7 @@ import type {
   OrderSummary,
   OrderDraft,
   OrderValidation,
+  UnitOption,
   InstanceSummary,
   InstanceCreateInput,
   Capture,
@@ -470,8 +471,21 @@ class ApiClient {
     return this.post('/api/v1/erp/orders/validate', draft);
   }
 
+  /** Anlegen **ist** Freigeben: ein Aufruf, eine Transaktion – der Auftrag entsteht,
+   *  bekommt seine Nummer, die Stücke passieren das Start-Objekt (PROCESS_CORE.md §6.3). */
   createOrder(draft: OrderDraft): Promise<Order> {
     return this.post('/api/v1/erp/orders', draft);
+  }
+
+  /** Welche Einzelinstanzen kann die Definition aufnehmen? Gesperrte kommen MIT –
+   *  die Oberfläche soll den Grund zeigen, statt eine Zeile stumm verschwinden zu lassen. */
+  getUnitOptions(): Promise<UnitOption[]> {
+    return this.get('/api/v1/erp/orders/unit-options');
+  }
+
+  /** «Schritt bestätigen» – der eine Ausführungs-Endpunkt des Testmoduls. */
+  confirmStep(objectId: number, stepId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {});
   }
 
   // Instanz-Feed (server-seitig durchsuchbar/paginierbar, neueste Objektnummer zuerst).

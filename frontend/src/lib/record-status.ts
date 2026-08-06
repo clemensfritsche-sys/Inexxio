@@ -1,4 +1,4 @@
-import { Ban, Briefcase, CheckCircle2, Repeat, Shield, Truck, UserCircle } from 'lucide-react';
+import { Ban, Briefcase, CheckCircle2, Clock, Repeat, Shield, Truck, UserCircle } from 'lucide-react';
 import type { Article, CompanySettings, Instance, UserProfile } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
 import { statusConfig as articleStatusConfig } from '@/lib/article';
@@ -75,10 +75,16 @@ export function instanceStatus(
  * beschreiben könnte. Was es gibt, ist `is_active` – und das ist eine echte Aussage,
  * keine erfundene. Sobald die Prozesslogik steht, kommt der Zustand hierher.
  */
-export function orderStatus(o: { is_active?: boolean }): StatusCfg {
-  return o.is_active === false
-    ? INACTIVE
-    : { label: 'Aktiv', ...TONE.done, icon: CheckCircle2 };
+/**
+ * Ein Auftrag existiert erst ab der Freigabe – es gibt keinen gespeicherten Entwurf
+ * (PROCESS_CORE.md §6.1). Darum genau zwei Lebensphasen: er läuft, oder alle seine
+ * Stücke sind durch. «Inaktiv» sticht wie überall.
+ */
+export function orderStatus(o: { is_active?: boolean; status?: string }): StatusCfg {
+  if (o.is_active === false) return INACTIVE;
+  return o.status === 'completed'
+    ? { label: 'Abgeschlossen', ...TONE.done, icon: CheckCircle2 }
+    : { label: 'Freigegeben', ...TONE.pending, icon: Clock };
 }
 
 export function organizationStatus(c: Pick<CompanySettings, 'is_active'>): StatusCfg {

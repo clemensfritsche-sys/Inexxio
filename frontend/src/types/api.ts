@@ -588,8 +588,34 @@ export interface paths {
         /** List Orders */
         get: operations["list_orders_api_v1_erp_orders_get"];
         put?: never;
-        /** Create Order */
+        /**
+         * Create Order
+         * @description Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion (§6.3).
+         */
         post: operations["create_order_api_v1_erp_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/unit-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unit Options
+         * @description Welche Einzelinstanzen kann ich in die Definition nehmen?
+         *
+         *     Gesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund
+         *     zeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.
+         */
+        get: operations["unit_options_api_v1_erp_orders_unit_options_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -607,10 +633,7 @@ export interface paths {
         put?: never;
         /**
          * Validate Order
-         * @description Wäre dieser Entwurf speicherbar? Legt **nichts** an, zieht **keine** Nummer.
-         *
-         *     Dieselbe Regel wie die Anlage (``services/orders.validate_draft``) – die Oberfläche
-         *     formuliert sie nicht nach, sie fragt sie ab.
+         * @description Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.
          */
         post: operations["validate_order_api_v1_erp_orders_validate_post"];
         delete?: never;
@@ -630,6 +653,26 @@ export interface paths {
         get: operations["get_order_api_v1_erp_orders__object_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Step
+         * @description «Schritt bestätigen» – der eine Ausführungs-Endpunkt des Testmoduls.
+         */
+        post: operations["confirm_step_api_v1_erp_orders__object_id__steps__step_id__confirm_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1683,13 +1726,12 @@ export interface components {
         /**
          * OrderCreate
          * @description Der Entwurf, so wie ihn die Oberfläche schickt.
-         *
-         *     Offen gehalten, nicht aus Nachlässigkeit: ein festes Feldschema wäre eine Behauptung
-         *     darüber, was ein Auftrag braucht – und genau das ist noch nicht entschieden. Geprüft
-         *     wird ausschliesslich in ``services/orders.validate_draft``.
          */
         OrderCreate: {
-            [key: string]: unknown;
+            /** Unit Numbers */
+            unit_numbers?: string[];
+            /** Steps */
+            steps?: components["schemas"]["ProcessStepInput"][];
         };
         /** OrderResponse */
         OrderResponse: {
@@ -1697,6 +1739,10 @@ export interface components {
             id: number;
             /** Object Id */
             object_id: number;
+            /** Status */
+            status: string;
+            /** End Status */
+            end_status: string;
             /**
              * Created At
              * Format: date-time
@@ -1709,17 +1755,26 @@ export interface components {
             updated_at: string;
             /** Is Active */
             is_active: boolean;
+            /** Steps */
+            steps?: components["schemas"]["ProcessStepResponse"][];
+            /** Units */
+            units?: components["schemas"]["OrderUnitResponse"][];
+            /** Events */
+            events?: components["schemas"]["ProcessEventResponse"][];
+            /** Active Step Id */
+            active_step_id?: number | null;
         };
         /**
          * OrderSummary
-         * @description Feed-Zeile. Identisch zur Detail-Antwort, solange der Auftrag nichts weiter trägt –
-         *     getrennt gehalten, weil das Detail wächst, sobald die Prozesslogik steht.
+         * @description Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail.
          */
         OrderSummary: {
             /** Id */
             id: number;
             /** Object Id */
             object_id: number;
+            /** Status */
+            status: string;
             /**
              * Created At
              * Format: date-time
@@ -1734,18 +1789,31 @@ export interface components {
             is_active: boolean;
         };
         /**
+         * OrderUnitResponse
+         * @description Ein Stück im Auftrag – wo es steht und wie es steht.
+         */
+        OrderUnitResponse: {
+            /** Instance Unit Id */
+            instance_unit_id: number;
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+            /** Current Step Id */
+            current_step_id?: number | null;
+            /** Active */
+            active: boolean;
+        };
+        /**
          * OrderValidation
-         * @description Antwort auf «wäre dieser Entwurf speicherbar?».
-         *
-         *     Damit legt die Oberfläche denselben Massstab an wie der Server, ohne die Regel ein
-         *     zweites Mal zu formulieren.
+         * @description Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen.
          */
         OrderValidation: {
             /** Saveable */
             saveable: boolean;
             /**
              * Missing
-             * @description Namen der fehlenden Pflichteingaben – leer heisst speicherbar.
+             * @description Was noch fehlt – leer heisst freigebbar.
              */
             missing?: string[];
         };
@@ -1807,6 +1875,65 @@ export interface components {
             created_at: string;
             /** Last Used At */
             last_used_at?: string | null;
+        };
+        /**
+         * ProcessEventResponse
+         * @description Ein Eintrag im Ereignis-Log. Append-only – es gibt keinen Schreib-Pfad hierauf.
+         */
+        ProcessEventResponse: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Step Id */
+            step_id?: number | null;
+            /** Unit Number */
+            unit_number: string;
+            /** Status Before */
+            status_before: string;
+            /** Status After */
+            status_after: string;
+            /** Actor */
+            actor?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * ProcessStepInput
+         * @description Ein Prozessschrittmodul, wie es der Entwurf schickt.
+         *
+         *     ``status_before``/``status_after`` sind **Pflicht** – ein Modul ohne definierten
+         *     Übergang ist nicht anlegbar (§4). Geprüft wird der Wert gegen die geschlossene Liste
+         *     in ``domain/statuses.assert_known``, nicht hier: eine zweite Aufzählung im Schema
+         *     wäre eine zweite Wahrheit.
+         */
+        ProcessStepInput: {
+            /** Module Type */
+            module_type: string;
+            /** Name */
+            name: string;
+            /** Status Before */
+            status_before: string;
+            /** Status After */
+            status_after: string;
+        };
+        /** ProcessStepResponse */
+        ProcessStepResponse: {
+            /** Id */
+            id: number;
+            /** Position */
+            position: number;
+            /** Module Type */
+            module_type: string;
+            /** Name */
+            name: string;
+            /** Status Before */
+            status_before: string;
+            /** Status After */
+            status_after: string;
         };
         /**
          * TerritoryAssign
@@ -1879,6 +2006,25 @@ export interface components {
             pos: number[];
             /** Company Object Id */
             company_object_id?: number | null;
+        };
+        /**
+         * UnitOption
+         * @description Eine wählbare Einzelinstanz für die Definition.
+         *
+         *     ``blocked_by`` nennt den Auftrag, in dem das Stück gerade aktiv ist – damit die
+         *     Oberfläche den Grund zeigen kann, statt eine Zeile stumm auszugrauen.
+         */
+        UnitOption: {
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+            /** Article Name */
+            article_name?: string | null;
+            /** Available */
+            available: boolean;
+            /** Blocked By */
+            blocked_by?: number | null;
         };
         /** UploadResult */
         UploadResult: {
@@ -3192,6 +3338,37 @@ export interface operations {
             };
         };
     };
+    unit_options_api_v1_erp_orders_unit_options_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitOption"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     validate_order_api_v1_erp_orders_validate_post: {
         parameters: {
             query?: never;
@@ -3231,6 +3408,38 @@ export interface operations {
             header?: never;
             path: {
                 object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_step_api_v1_erp_orders__object_id__steps__step_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
             };
             cookie?: never;
         };

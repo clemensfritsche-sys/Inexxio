@@ -116,8 +116,8 @@ def create_instance(
 
     instance = inst_svc.create_instance(
         db, article=article, kind=data.kind, count=data.count, label=data.label)
-    log_audit(db, user.id, "instances", instance.id, "create",
-              None, f"{data.kind}, {data.count} Einzelinstanzen")
+    log_audit(db, "instances", "create", f"{data.kind}, {data.count} Einzelinstanzen",
+              user_id=user.id, object_id=instance.object_id)
     db.commit()
     db.refresh(instance)
     return _detail(db, instance)
@@ -141,8 +141,9 @@ def add_units(
 ):
     instance = _get(db, object_id)
     created = inst_svc.add_units(db, instance, data.count)
-    log_audit(db, user.id, "instances", instance.id, "add_units", None,
-              f"+{data.count} (Suffix {created[0].suffix}–{created[-1].suffix})")
+    log_audit(db, "instances", "add_units",
+              f"+{data.count} (Suffix {created[0].suffix}–{created[-1].suffix})",
+              user_id=user.id, object_id=instance.object_id)
     db.commit()
     db.refresh(instance)
     return _detail(db, instance)
@@ -170,7 +171,8 @@ def deactivate_unit(
     if not unit.is_active:
         raise HTTPException(status_code=409, detail="Diese Einzelinstanz ist bereits deaktiviert.")
     unit.is_active = False
-    log_audit(db, user.id, "instance_units", unit.id, "deactivate", "aktiv", "inaktiv")
+    log_audit(db, "instance_units", "deactivate", "inaktiv",
+              user_id=user.id, object_id=instance.object_id, old_value="aktiv")
     db.commit()
     db.refresh(instance)
     return _detail(db, instance)

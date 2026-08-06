@@ -2,6 +2,7 @@ from sqlalchemy import BigInteger, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
+from ..domain.statuses import INITIAL_UNIT_STATUS
 from .base import TimestampMixin
 
 
@@ -27,8 +28,13 @@ class InstanceUnit(Base, TimestampMixin):
     nicht zurück.
 
     ``status`` ist der **eigene, individuelle** Zustand dieses einen Stücks – zwei
-    Einzelinstanzen derselben Instanz dürfen verschieden stehen. Werte und Übergänge
-    kommen mit der neuen Prozesslogik; heute trägt das Feld noch keine Logik.
+    Einzelinstanzen derselben Instanz dürfen verschieden stehen. Die Werte stammen aus
+    der **geschlossenen Liste** (``domain/statuses``); wer sie ändert, tut das über
+    ``services/process`` – dort und nur dort entsteht im selben Atemzug der Eintrag im
+    Ereignis-Log. Ein zweiter Schreibweg wäre eine zweite Wahrheit.
+
+    Ein frisch angelegtes Stück ist ``freigegeben``: es ist einsatzbereit und in keinem
+    Auftrag – genau das heisst das Wort.
     """
 
     __tablename__ = "instance_units"
@@ -43,4 +49,6 @@ class InstanceUnit(Base, TimestampMixin):
     suffix: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Noch ohne Bedeutung: das Feld steht, die Logik folgt (siehe Klassen-Docstring).
-    status: Mapped[str] = mapped_column(String(30), default="new", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(30), default=INITIAL_UNIT_STATUS, nullable=False,
+    )
