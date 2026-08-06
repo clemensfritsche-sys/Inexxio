@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { UnitList } from '@/components/erp/unit-numbers';
 import { ArrowDown, ArrowRight, ArrowUp, Check, ClipboardPlus, Hash, MapPin, Package,
   Redo2, Scissors, X } from 'lucide-react';
-import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, Order,
+import type { AffectedOrder, FlowEdge, FlowLot, FlowNode, MaterialHandover, Order,
   OrderDeviationInfo, OrderOrigin, OrderStep, StepResolution, StepType, SubOrderStep } from '@/types';
 import { STEP_META, instanceStatusConfig, stepStateLabel } from '@/lib/process';
 import { TYPE_META } from '@/lib/erp-record';
@@ -333,7 +333,7 @@ function FlowLots({ lots, small, past }: { lots: FlowLot[]; small?: boolean; pas
 export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [],
   origin, paused = false,
   selectedId, onSelectStep, onOpenOrder, renderPanel, lots = [], orderObjectId, goal,
-  onCreateOrder }: {
+  onCreateOrder, materialFrom = [], materialTo = [] }: {
   steps: OrderStep[];
   subOrders?: OrderDeviationInfo[];
   /** **Die fertig gerechnete Achse aus dem Backend** (`flow_nodes`/`flow_edges`): Knoten,
@@ -355,6 +355,10 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
   goal?: { due?: string | null; seller?: string | null };
   /** Abkürzung am Prozess-Punkt: einen Auftrag auf genau dieses Material ansetzen (#455). */
   onCreateOrder?: (lots: FlowLot[]) => void;
+  /** **Woher das Material kam** (Testnotiz #650) – je Übergabe ein Knoten vor dem Start. */
+  materialFrom?: MaterialHandover[];
+  /** **Wohin es weitergegangen ist** (Testnotiz #651) – je Übergabe ein Knoten nach dem Ziel. */
+  materialTo?: MaterialHandover[];
 }) {
   if (steps.length === 0 && !origin) return null;
   const processLabel = orderObjectId != null
@@ -474,6 +478,10 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
             <Row><Axis h={18} strong /></Row>
           </>
         )}
+        {/* **Woher das Material kam** (Testnotiz #650) – der letzte Auftrag, der genau diese
+            Instanzmenge hielt, je Menge einer. Damit beginnt der Fluss nicht mehr im Nichts,
+            und die Kette ist bis zur «Geburt» begehbar. */}
+        {materialRows(materialFrom, 'from', onOpenOrder)}
         <Row><FlowTerm kind="start" title={`Start · ${processLabel}`} /></Row>
         {rows}
         <Row key="edge-last">
@@ -491,6 +499,9 @@ export function OrderFlow({ steps, subOrders = [], flowNodes = [], flowEdges = [
               darunter, statt aus der Spur zu ragen und die Seite waagrecht zu schieben. */}
           <GoalEnd label={processLabel} goal={goal} />
         </Row>
+        {/* **Und nach dem Ziel: wohin es weitergegangen ist** (Testnotiz #651) – je
+            Instanzmenge der nächste Prozess. */}
+        {materialRows(materialTo, 'to', onOpenOrder)}
         {origin?.returns_to_object_id != null && (
           <>
             <Row><Axis h={18} strong={lastEdge.flowed} /></Row>
@@ -769,6 +780,95 @@ function SubProcess({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: 
  * – sonst muss man erst lesen, um zu erkennen, worauf man klickt. Die Anatomie ist die des
  * Detail-Kopfs: Symbol · Eyebrow · Name · Objektnummer.
  */
+/**
+ * **Woher das Material kam – und wohin es ging** (Testnotizen #650/#651).
+ *
+ * «Es ist alles ein Prozess, ein durchgehender Weg – von der Erzeugung bis zum Lebensende.»
+ * Der Fluss zeigte bisher nur das Stück Weg INNERHALB eines Auftrags; wie die Menge
+ * hereinkam und wohin sie danach ging, sah man nur an einem **Unter**-Auftrag (Seitenspur).
+ * Ein regulärer Auftrag begann im Nichts – und damit brach die Kette genau dort, wo sie am
+ * meisten trägt: bei der Frage «was ist mit diesem Stück seit seiner Geburt passiert?».
+ *
+ * **Kein neues Vokabular**: es ist dieselbe Grammatik wie überall im Fluss – ein
+ * ``OrderRefNode`` (der Verweis auf einen anderen Auftrag, #438/#439) und darunter bzw.
+ * darüber die Kante mit seiner Materialzeile (Menge · Instanz · Stück-Nummern, im Zustand
+ * von **damals**). Gestrichelte Linien gibt es im Fluss nicht (#422/#429), also gibt es auch
+ * hier keine: die Linie sagt nur, wie weit der Prozess gegangen ist.
+ *
+ * Bewusst **ein** Schritt in jede Richtung: der genannte Auftrag zeigt seinerseits seinen
+ * Vorgänger, also ist die ganze Kette begehbar, ohne dass eine Ansicht sie auf einmal zeigen
+ * müsste. Ohne Auftrag ist es die **«Geburt»** (hier entstanden) bzw. der freie Bestand –
+ * die beiden offenen Enden der Kette.
+ */
+const CHAIN_CAPTION: Record<string, string> = {
+  created: 'Entstanden', opening: 'Eröffnungsbestand', released: 'Freier Bestand',
+  sold: 'Verkauft', consumed: 'Verbaut', scrapped: 'Verschrottet', blocked: 'Gesperrt',
+};
+
+function materialRows(hops: MaterialHandover[], dir: 'from' | 'to',
+  onOpen?: (objectId: number) => void): React.ReactNode[] {
+  const rows: React.ReactNode[] = [];
+  hops.forEach((h, i) => {
+    const key = `${dir}-${h.order_object_id ?? h.kind}-${i}`;
+    // Der Knoten: ein Auftrag, oder – am offenen Ende der Kette – die blosse Tatsache.
+    const node = (
+      <Row key={`${key}-node`}>
+        {h.order_object_id != null
+          ? <MaterialRef hop={h} dir={dir} onOpen={onOpen} />
+          : <ChainEnd label={CHAIN_CAPTION[h.kind] ?? 'Bestand'} />}
+      </Row>
+    );
+    // Die Kante dazwischen – mit genau der Menge, die diesen Weg genommen hat.
+    const edge = (
+      <Row key={`${key}-edge`}>
+        <Axis h={14} strong />
+        <FlowLots lots={h.lots} small past />
+        <Axis h={14} strong />
+      </Row>
+    );
+    // Von oben herein: erst der Auftrag, dann die Menge. Nach unten hinaus: umgekehrt –
+    // gelesen wird in Flussrichtung.
+    rows.push(...(dir === 'from' ? [node, edge] : [edge, node]));
+  });
+  return rows;
+}
+
+/** Der Auftrag davor bzw. danach – derselbe Verweis-Knoten wie Herkunft und Rückweg. */
+function MaterialRef({ hop, dir, onOpen }: {
+  hop: MaterialHandover; dir: 'from' | 'to'; onOpen?: (objectId: number) => void;
+}) {
+  const oid = hop.order_object_id as number;
+  const name = hop.order_name || 'Auftrag';
+  const caption = dir === 'from' ? 'Material aus' : 'Material weiter an';
+  // Der Zustand des genannten Auftrags – dieselbe Ableitung und Farbe wie überall
+  // (`lib/record-status.ts`, Notiz #379). Er steht im Hover: der Knoten nennt die Sache,
+  // sein Zustand gehört zu IHM, nicht zu diesem Prozess.
+  const cfg = hop.order_status
+    ? orderStatus({ status: hop.order_status as Order['status'] }) : null;
+  const kind = hop.order_reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag';
+  return (
+    <OrderRefNode caption={caption} objectId={oid} name={name} icon={ArrowDown}
+      title={`${kind} ${name} · ${cfg?.label ?? ''} – öffnen`.replace(' ·  –', ' –')}
+      onClick={() => onOpen?.(oid)} />
+  );
+}
+
+/**
+ * **Das offene Ende der Kette**: hier ist die Menge entstanden, oder sie liegt danach im
+ * freien Bestand. Bewusst kein Knopf – es gibt keinen Datensatz zu öffnen; und bewusst
+ * leise, denn die Aussage ist «davor/danach war nichts».
+ */
+function ChainEnd({ label }: { label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 12px',
+      borderRadius: 999, background: 'var(--bg-2)', border: '1px solid var(--border-1)',
+      font: '700 10px var(--font-body)', textTransform: 'uppercase',
+      letterSpacing: '0.06em', color: 'var(--fg-4)', whiteSpace: 'nowrap' }}>
+      <Package size={12} />{label}
+    </div>
+  );
+}
+
 function OrderRefNode({ caption, objectId, name, icon: Dir, title, onClick }: {
   /** Rolle des Verweises – im Entwurf entfällt sie (#639/#640): dass der Auftrag oben
    *  hergibt und unten zurückbekommt, sagt seine Stelle im Bild und der Pfeil. */

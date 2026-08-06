@@ -4336,6 +4336,44 @@ export interface components {
             label?: string | null;
         };
         /**
+         * MaterialHandover
+         * @description **Woher eine Menge kam – und wohin sie ging** (Testnotizen #650/#651).
+         *
+         *     Ein Auftrag ist keine Insel: dieselbe Instanzmenge lief vorher durch einen anderen
+         *     Prozess und läuft nachher durch den nächsten. Sichtbar war davon nur die Seitenspur
+         *     eines **Unter**-Auftrags («hervorgegangen aus …»); ein regulärer Auftrag begann im
+         *     Nichts. Damit brach die Kette genau dort, wo sie am meisten trägt: bei der Frage «was
+         *     ist mit diesem Stück seit seiner Entstehung passiert?».
+         *
+         *     Die Antwort steht längst im Material-Journal (ADR 007) – hier wird sie **um genau einen
+         *     Schritt** gelesen: der letzte Halter vor diesem Auftrag, der nächste danach. Alles
+         *     Weitere ist Navigation (der genannte Auftrag zeigt seinerseits seinen Vorgänger), und
+         *     genau darum bleibt die Ansicht klein und die Kette trotzdem vollständig begehbar.
+         *
+         *     ``order_object_id = None`` heisst: es gab keinen Auftrag – die Menge ist hier
+         *     **entstanden** (``kind='created'``) bzw. liegt danach im **freien Bestand**
+         *     (``kind='released'``). Das ist die «Geburt» bzw. das offene Ende der Kette.
+         */
+        MaterialHandover: {
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /** Order Name */
+            order_name?: string | null;
+            /** Order Status */
+            order_status?: string | null;
+            /** Order Reason */
+            order_reason?: string | null;
+            /** Kind */
+            kind: string;
+            /** At */
+            at?: string | null;
+            /**
+             * Lots
+             * @default []
+             */
+            lots: components["schemas"]["FlowLot"][];
+        };
+        /**
          * MovementEmbed
          * @description Eingebetteter Stand der Bewegung (im Auftrag).
          *
@@ -4954,6 +4992,16 @@ export interface components {
              * @default []
              */
             flow_edges: components["schemas"]["FlowEdge"][];
+            /**
+             * Material From
+             * @default []
+             */
+            material_from: components["schemas"]["MaterialHandover"][];
+            /**
+             * Material To
+             * @default []
+             */
+            material_to: components["schemas"]["MaterialHandover"][];
             /**
              * Deviations
              * @default []

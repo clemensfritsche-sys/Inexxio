@@ -1325,8 +1325,14 @@ export function OrderDetail({ record: saved, seed, articles, viewerRole, company
                 // Schritt) und wohin seine Stücke beim Abschluss zurückgehen – als Teaser
                 // ober- und unterhalb der Terminal-Knoten. Nur an einem Unter-Auftrag gesetzt.
                 origin={record.origin}
-                // **Der Prozessbaum** (Notiz #493): woher das Material kam, wohin es
-                // weiterging – die regulären Aufträge davor und danach.
+                // **Die Materialkette schliesst den Prozess** (Testnotizen #650/#651): vor
+                // dem Startknoten der letzte Auftrag, der genau diese Instanzmenge hielt,
+                // nach der Zielflagge der nächste – **je Menge**, aus dem Material-Journal
+                // um genau EINEN Schritt gelesen. Der genannte Auftrag zeigt seinerseits
+                // seinen Vorgänger, also ist die ganze Kette «seit der Geburt» begehbar,
+                // ohne dass eine Ansicht sie auf einmal zeigen müsste.
+                materialFrom={record.material_from ?? []}
+                materialTo={record.material_to ?? []}
                 // **Ruht der Auftrag, ruht der ganze Fluss** (Notiz #378): kein Modul ist
                 // dann «aktiv», keines lässt sich öffnen – farbig bleibt nur der
                 // Unter-Auftrag, der zu klären ist. Dieselbe Regel wie im Backend

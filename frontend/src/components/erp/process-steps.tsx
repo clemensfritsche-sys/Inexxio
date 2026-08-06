@@ -427,12 +427,16 @@ function StepBody({
   }
 
   if (type === 'scrap' || type === 'block') {
-    // **Aussondern: EINE Entscheidung** – endgültig oder vorübergehend (#277). Symbol-only
-    // wie die Bezugsquelle (#633); der Name steht im Hover, der Grund ist ohnehin Pflicht
-    // und braucht keine Zeile in der Fläche (#634).
+    // **Aussondern: EINE Entscheidung** – endgültig oder vorübergehend (#277). Sie ist die
+    // EINZIGE Konfiguration dieses Moduls, also nimmt sie auch dessen **ganze Breite**
+    // (Testnotiz #648): eine kleine Pille am linken Rand las sich wie eine Nebensache.
+    // Und weil Platz da ist, stehen die Wörter da statt im Hover (nimmt #633 zurück –
+    // dieselbe Begründung wie #636: ein Symbol, das man raten muss, ist keines); die
+    // längere Erklärung bleibt der Tooltip. Der Grund braucht weiterhin keine Zeile in
+    // der Fläche (#634) – er ist bei der Ausführung ohnehin Pflicht.
     return (
       <div style={cardBody}>
-        <IconSwitch<'scrap' | 'block'> symbolOnly value={type}
+        <IconSwitch<'scrap' | 'block'> value={type}
           onChange={(v) => onPatch({ step_type: v })}
           options={[
             { value: 'scrap', icon: Trash2, label: 'Verschrotten', hint: 'Endgültig aus dem Bestand – die Instanz ist danach Ausschuss und standortlos.' },

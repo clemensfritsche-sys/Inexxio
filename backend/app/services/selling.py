@@ -630,7 +630,7 @@ def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile
     if allow_backorder:
         # «auf Bestellung»: einheitliche Freigabe – reserviert, was am Lager ist (ggf. nichts).
         # Der Versand-Schritt bleibt «blockiert», bis der Nachschub liefert.
-        release_order(db, order, customer.id)
+        release_order(db, order, customer.id, backorder=allow_backorder)
     else:
         # ab Lager: streng FIFO binden (Überverkauf vermeiden – schlägt bei Unterdeckung fehl).
         order.status = "released"

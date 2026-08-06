@@ -277,29 +277,6 @@ def _assert_not_paid(db: Session, order: Order) -> None:
             detail="Bezahlte Position – die Menge wird über eine Retoure/Gutschrift korrigiert, nicht hier.")
 
 
-def _lost_amounts(db: Session, order: Order) -> dict[int, Decimal]:
-    """**Was diesen Auftrag verlassen hat** – je Artikel, aus dem Journal (ADR 007).
-
-    Abgegeben (an einen Abzweig) plus selbst ausgesteuert. Der Unterschied zu einer blossen
-    Fehlmenge ist entscheidend: eine Menge, die **nie da war**, ist ein offener Bedarf und
-    wird beschafft – eine Menge, die da **war** und weg ist, kommt nicht wieder. Nur die
-    zweite darf das Soll senken; sonst kürzte sich ein Auftrag, dessen Nachschub noch gar
-    nicht angelegt ist, selbst auf den vorhandenen Bestand."""
-    from . import ledger
-    if not order.id:
-        return {}
-    view = ledger.order_view(db, order.id)
-    if view is None:
-        return {}
-    by_oid: dict[int, Decimal] = {}
-    for row in list(view.terminal) + list(view.departed):
-        by_oid[row.instance_object_id] = by_oid.get(row.instance_object_id, ZERO) + row.quantity
-    out: dict[int, Decimal] = {}
-    for inst in db.query(Instance).filter(Instance.object_id.in_(by_oid)).all():
-        out[inst.article_id] = out.get(inst.article_id, ZERO) + by_oid[inst.object_id]
-    return out
-
-
 def _continued_in(db: Session, order: Order) -> Order | None:
     """Wer hat das Material übernommen? – der jüngste Abzweig dieses Auftrags. Sinkt sein
     Soll auf null, IST das sein Abbruch, und dann will man wissen, wo es weitergeht."""
@@ -317,7 +294,19 @@ def auto_resolve(db: Session, order: Order, actor_id: int | None = None,
     System ohnehin weiss:
 
         hält noch jemand die Menge  → nichts tun; der Auftrag wartet und ruht dabei
-        hält sie niemand mehr       → sie ist endgültig weg → das Soll sinkt darauf
+        hält sie niemand mehr       → es gibt sie nicht → das Soll sinkt auf das Gesicherte
+
+    **Ob sie je da war, ist dabei gleichgültig** (Testnotiz #649). Vorher senkte nur ein
+    *Verlust* das Soll: eine Menge, die nie da war, galt als offener Bedarf und wurde
+    «beschafft». Beschafft hat sie aber niemand – den Knopf «Nachschub anlegen» gibt es seit
+    #556 nicht mehr, und der Shop legt seinen Nachschub selbst an (siehe unten). Ein
+    Auftrag, der ab Lager mehr verlangte, als es gab, ruhte damit **für immer**: kein Halter,
+    kein Nachschub, kein Schritt ausführbar – und die einzige Stelle, die entscheiden könnte,
+    läuft erst nach einem Schritt-Abschluss. Genau diese Sackgasse war der gemeldete Fall.
+
+    Die Zusage wird darum **bei der Freigabe** auf das Machbare festgelegt (``settle``); wer
+    seinen Nachschub selbst dimensioniert – der Shop bei «auf Bestellung» – gibt mit
+    ``backorder=True`` frei und behält seine Fehlmenge.
 
     Aufgerufen aus ``process.recompute_completion`` – dort, wo sich der Zustand ändert, den
     die Antwort liest: nach jedem Schritt-Abschluss des Auftrags selbst, und über dessen
@@ -335,9 +324,6 @@ def auto_resolve(db: Session, order: Order, actor_id: int | None = None,
         return False
     if covering_sub_orders(db, order):
         return False                       # es kommt noch etwas – warten ist die Antwort
-    lost = _lost_amounts(db, order)
-    if not any(lost.get(a, ZERO) > 0 for a in short):
-        return False                       # war nie da → offener Bedarf, kein Verlust
     try:
         confirm_quantity(db, order, actor_id, into=_continued_in(db, order))
     except HTTPException:

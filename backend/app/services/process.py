@@ -1140,18 +1140,25 @@ def _spawn_recurrence(db: Session, order: Order, subject_object_ids: list[int] |
          payload={"parent": order.object_id})
 
 
-def recompute_completion(db: Session, order: Order) -> None:
+def recompute_completion(db: Session, order: Order, *, settle: bool = True) -> None:
     """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind.
 
     Eine offene **Abweichung** hält den Auftrag NICHT mehr an (``deviated_quantities``):
     ihr Stück ist aus dem Auftrag herausgenommen und erscheint als Unterdeckung. Was noch
-    in Klärung ist, gibt dieser Auftrag darum auch nicht frei."""
+    in Klärung ist, gibt dieser Auftrag darum auch nicht frei.
+
+    ``settle=False`` **verschiebt die Entscheidung über eine Fehlmenge** – für den einen
+    Aufrufer, der seinen Nachschub gleich selbst dimensioniert (Shop «auf Bestellung»,
+    ``orders.release_order(backorder=True)``). Ohne das kürzte sich ein bezahlter
+    Made-to-Order-Auftrag in der Sekunde zwischen Freigabe und ``supply.ensure_supply``
+    selbst auf den vorhandenen Bestand – und der Kunde bekäme weniger, als er bezahlt hat."""
     # **Über eine Fehlmenge wird hier entschieden – automatisch** (Testnotiz #556): hält sie
     # niemand mehr, kommt sie nicht mehr zurück, und das Soll sinkt auf das Gesicherte. Diese
     # Stelle ist die richtige, weil sie nach JEDEM Schritt-Abschluss läuft und über die
     # Rekursion am Ende auch den Verleiher erreicht, sobald ein Abzweig endet.
     from .recovery import auto_resolve
-    auto_resolve(db, order, None)
+    if settle:
+        auto_resolve(db, order, None)
     if order.status != "released":
         return                               # gekürzt auf null = abgebrochen (``abort_parent``)
     # Bereitstellung ableiten: Jeder Schritt, der dran ist oder gerade war, bekommt sein

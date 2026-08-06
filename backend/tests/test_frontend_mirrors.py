@@ -812,32 +812,64 @@ def test_the_flow_shows_what_material_moves():
         "…und diese Regel steht genau EINMAL – nicht zusätzlich am Rückweg-Knoten.")
 
 
-def test_the_material_trace_is_gone():
-    """**Der Prozessbaum ist entfernt** (Testnotiz #565, revidiert #493).
+def test_the_material_chain_closes_the_process():
+    """**Der Weg des Materials über den Auftrag hinaus** (Testnotizen #650/#651).
 
-    Vor dem Startknoten stand eine Pille «1 kamen aus Auftrag …650», nach dem Endknoten die
-    Gegenrichtung – die regulären Aufträge, die dasselbe Material vor bzw. nach diesem
-    verarbeitet haben. Gemeldet wurde sie an einem **Unter-Auftrag**, und dort sagt die linke
-    Spur längst «hervorgegangen aus …» und die rechte «gibt zurück an …». Die Pille erzählte
-    dieselbe Beziehung ein zweites Mal, nur in einer anderen Sprache – und der Nutzer hat sie
-    genau deshalb gestrichen («die Info braucht es nicht»).
+    «Es ist alles ein Prozess, ein durchgehender Weg – von der Erzeugung bis zum
+    Lebensende.» Sichtbar war davon nur die Seitenspur eines **Unter**-Auftrags
+    («hervorgegangen aus …»); ein regulärer Auftrag begann im Nichts und endete im Nichts.
+    Jetzt steht vor dem Startknoten, **woher** jede Instanzmenge kam, und nach der
+    Zielflagge, **wohin** sie ging – je Menge, mit Stück-Nummern und dem Zustand von damals.
 
-    Der Wächter steht als **Negativ** da, damit sie nicht versehentlich zurückkehrt: was
-    entfernt wurde, muss entfernt bleiben, sonst wächst dieselbe Doppelung wieder nach."""
-    from app.schemas.order import OrderResponse
+    Das ist die Rückkehr des in #565 gestrichenen Prozessbaums – aber ohne den Grund, aus
+    dem er gestrichen wurde: dort stand er an einem **Unter**-Auftrag und erzählte dieselbe
+    Beziehung wie die Seitenspur ein zweites Mal. Genau diese Übergänge bleiben jetzt
+    draussen (``known``); übrig bleibt, was keine andere Ansicht kennt – der Auftrag, der
+    dieses Stück **davor** bearbeitet hat, und der, der es danach übernimmt.
+
+    Gelesen wird die eine Wahrheit über die Vergangenheit (Material-Journal, ADR 007), und
+    zwar um **genau einen Schritt**: alles Weitere ist Navigation."""
+    from app.schemas.order import MaterialHandover, OrderResponse
     from app.services import orders as osvc
+    import inspect as _inspect
 
     for f in ("material_from", "material_to"):
-        assert f not in OrderResponse.model_fields, f"{f} ist entfernt (#565)"
-    assert not hasattr(osvc, "material_trace"), "material_trace ist entfernt (#565)"
+        assert f in OrderResponse.model_fields, f
+    for f in ("order_object_id", "order_status", "order_reason", "kind", "lots"):
+        assert f in MaterialHandover.model_fields, f
+    src = _inspect.getsource(osvc._fill_material_chain)
+    assert "ledger.moves_of" in src, "Quelle ist das Journal – keine zweite Buchführung."
+    assert "known" in src, (
+        "Am Unter-Auftrag darf die Kette nicht wiederholen, was die Seitenspur sagt (#565).")
+    # Über die Lager-Zeit hinweg: ein Stück, das zwischendurch frei am Lager lag, hat
+    # trotzdem eine Herkunft – sonst begänne die Kette bei jedem Zugriff von vorn.
+    hop = _inspect.getsource(osvc._neighbours)
+    assert "_HOP_SCAN" in hop
+    # **Eine Buchung kann MEHRERE Nachbarn haben** – wer 4 ans Lager freigibt, verliert sie
+    # womöglich an zwei Aufträge. Und die Menge ist die des NEHMERS, nicht die eigene: die
+    # erste Fassung schrieb dem ersten Nehmer die ganze freigegebene Menge zu.
+    assert "-> list[tuple]" in hop and "rest -= take" in hop, (
+        "Je Nachbar die Menge, die wirklich diesen Weg genommen hat.")
+    assert "src_move = move if back else m" in hop, (
+        "Die Stück-Nummern kommen von der nehmenden Seite – sie weiss, welche es sind.")
 
     flow = (FRONTEND / "components" / "erp" / "order-flow.tsx").read_text()
     detail = (FRONTEND / "components" / "erp" / "order-detail.tsx").read_text()
-    for gone in ("TraceChip", "TraceRow", "materialFrom", "materialTo"):
-        assert gone not in flow and gone not in detail, f"{gone} ist entfernt (#565)"
-    # Die Beziehung selbst bleibt – nur eben an EINER Stelle: den Knoten der Seitenspur.
-    assert "HERVORGEGANGEN AUS" in flow.upper() or "caption=\"Hervorgegangen aus\"" in flow, (
-        "Woher ein Unter-Auftrag kam, sagt weiterhin der Knoten in der linken Spur.")
+    assert "material_from" in detail and "material_to" in detail, (
+        "Das Detailfenster reicht die Kette an den Fluss durch.")
+    start = flow.index("kind=\"start\"")
+    goal = flow.index("<GoalEnd")
+    assert 0 < flow.index("materialRows(materialFrom", 0, start), (
+        "Woher es kam, steht VOR dem Startknoten (#650).")
+    assert flow.index("materialRows(materialTo", goal) > goal, (
+        "Wohin es ging, steht NACH der Zielflagge (#651).")
+    # **Kein neues Vokabular** (#418/#438/#439): ein Verweis auf einen anderen Auftrag ist
+    # der Knoten, den es dafür gibt, und die Menge steht wie überall auf der Kante dazwischen.
+    chain = flow[flow.index("function materialRows"):flow.index("function ChainEnd")]
+    assert "<OrderRefNode" in chain and "<FlowLots" in chain and "<Axis" in chain, (
+        "Knoten → Kante mit Material → Knoten – dieselbe Grammatik wie der ganze Fluss.")
+    # Die Beziehung eines Unter-Auftrags bleibt, wo sie war: am Knoten der Seitenspur.
+    assert "HERVORGEGANGEN AUS" in flow.upper() or "caption=\"Hervorgegangen aus\"" in flow
 
 
 def test_a_split_has_three_places_not_two():
@@ -1347,6 +1379,31 @@ def test_the_palette_name_stands_in_the_hover_above_the_symbol():
     # Dieselbe Geste am Segment-Umschalter (#624: «auch gleich hier oben beim Prüfumfang»).
     assert ".ix-seg .ix-seg-label > span" in css and "ix-seg-label" in fields, (
         "Auch der Umschalter zeigt den Namen neben dem Symbol.")
+
+def test_the_only_setting_of_a_module_takes_its_full_width():
+    """**Aussondern: die Wirkung nimmt die ganze Breite des Moduls** (Testnotiz #648).
+
+    «Verschrotten ↔ Sperren» ist die EINZIGE Konfiguration dieses Moduls – als kleine
+    Symbol-Pille am linken Rand las sie sich wie eine Nebensache, obwohl sie die ganze
+    Aussage des Schritts ist. Sie nimmt darum die Breite ihrer Karte.
+
+    Und weil der Platz da ist, stehen die **Wörter** da statt im Hover (das nimmt #633
+    zurück): dieselbe Begründung wie bei #636 – ein Symbol, das man raten muss, ist keines.
+    Die längere Erklärung bleibt der Tooltip.
+
+    Technisch ist das kein neuer Schalter, sondern der **Normalmodus** von ``IconSwitch``:
+    ohne ``symbolOnly``/``labelActiveOnly`` ist er ``display:flex`` und jede Option
+    ``flex: 1``. Ein zweiter «voll»-Modus wäre eine zweite Antwort auf dieselbe Frage."""
+    steps = (FRONTEND / "components" / "erp" / "process-steps.tsx").read_text(encoding="utf-8")
+    block = steps.split("if (type === 'scrap' || type === 'block')")[1][:1200]
+    assert "<IconSwitch<'scrap' | 'block'> value={type}" in block, (
+        "Kein symbolOnly – der Schalter füllt die Karte und zeigt seine Wörter (#648).")
+    assert "symbolOnly" not in block, "…die Pille am linken Rand ist entfallen."
+    fields = (FRONTEND / "components" / "erp" / "fields.tsx").read_text(encoding="utf-8")
+    sw = fields.split("export function IconSwitch")[1][:2600]
+    assert "symbolOnly || labelActiveOnly ? 'inline-flex' : 'flex'" in sw, (
+        "Der Normalmodus spannt – und genau er wird hier benutzt, kein dritter Modus.")
+
 
 def test_a_hover_explanation_is_never_dimmed():
     """**Hover-Informationen sind immer klar lesbar** (Testnotiz #504).

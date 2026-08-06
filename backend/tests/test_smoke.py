@@ -3625,14 +3625,30 @@ def test_the_shortfall_decides_itself():
     auto = _inspect.getsource(recovery.auto_resolve)
     assert "covering_sub_orders(db, order)" in auto, (
         "Hält es noch jemand, ist «warten» die Antwort – es gibt nichts zu entscheiden.")
-    assert "_lost_amounts(db, order)" in auto, (
-        "Nur was DA WAR und weg ist, senkt das Soll – ein offener Bedarf wird beschafft, "
-        "nicht weggekürzt.")
+    # **Ob die Menge je da war, ist gleichgültig** (Testnotiz #649): entscheidend ist, ob
+    # sie noch kommt. Vorher senkte nur ein *Verlust* das Soll – ein Auftrag, der ab Lager
+    # mehr verlangte, als es gab, ruhte damit für immer (niemand hält, niemand liefert, kein
+    # Schritt ausführbar). Die Zusage wird darum bei der **Freigabe** auf das Machbare
+    # festgelegt; wer seinen Nachschub selbst dimensioniert, gibt mit ``backorder=True`` frei.
+    from app.services import recovery as _rec
+    assert not hasattr(_rec, "_lost_amounts"), (
+        "«War es mal da?» ist keine Bedingung mehr – «kommt es noch?» ist die eine Frage.")
     assert "confirm_quantity(db, order, actor_id" in auto
-    assert "auto_resolve(db, order, None)" in _inspect.getsource(
-        __import__("app.services.process", fromlist=["x"]).recompute_completion), (
+    proc = __import__("app.services.process", fromlist=["x"])
+    assert "auto_resolve(db, order, None)" in _inspect.getsource(proc.recompute_completion), (
         "Der Auslöser ist der Schritt-Abschluss – die eine Stelle, an der sich der Zustand "
         "ändert, den die Antwort liest.")
+    # …und die **Freigabe**: sonst gäbe es für einen von Anfang an unterdeckten Auftrag nie
+    # einen Auslöser (kein Schritt ausführbar → kein Abschluss → keine Entscheidung, #649).
+    from app.services import orders as orders_svc
+    rel = _inspect.getsource(orders_svc.release_order)
+    assert "settle=not backorder" in rel and "backorder: bool = False" in rel, (
+        "Die Zusage wird bei der Freigabe auf das Machbare festgelegt – ausser der Aufrufer "
+        "dimensioniert seinen Nachschub selbst (Shop «auf Bestellung»).")
+    from app.services import selling
+    assert "backorder=allow_backorder" in _inspect.getsource(selling), (
+        "Der Shop gibt «auf Bestellung» mit backorder=True frei – sonst kürzte sich ein "
+        "bezahlter Auftrag selbst, bevor sein Nachschub dimensioniert ist.")
 
     # Die Auswahl fragt NICHT – und die Freigabe auch nicht mehr.
     assert "response" not in _inspect.signature(orders._set_chosen_instances).parameters

@@ -5663,6 +5663,66 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Entwurfs-Knoten entfallen (#639/#640 – dass ein Auftrag oben hergibt und unten
   zurückbekommt, sagen seine Stelle im Bild und der Pfeil).
 
+- **Die Materialkette schliesst den Prozess – und die Zusage wird bei der Freigabe
+  festgelegt** (August 2026, Testnotizen #648–#651):
+  (1) **Woher die Menge kam und wohin sie ging** (#650/#651, `orders._fill_material_chain`,
+  `MaterialHandover`): «Es ist alles ein Prozess, ein durchgehender Weg – von der Erzeugung
+  bis zum Lebensende.» Sichtbar war davon nur die Seitenspur eines **Unter**-Auftrags
+  («hervorgegangen aus …»); ein regulärer Auftrag begann im Nichts und endete im Nichts –
+  die Kette brach genau dort, wo sie am meisten trägt. Jetzt steht **vor** dem Startknoten
+  der letzte Auftrag, der genau diese Instanzmenge hielt, **nach** der Zielflagge der
+  nächste – je Menge einer, mit Stück-Nummern und dem Zustand von **damals**.
+  **Kein neues Vokabular:** ein `OrderRefNode` (der Verweis auf einen anderen Auftrag,
+  #438/#439) und dazwischen die Kante mit ihrer Materialzeile – dieselbe Grammatik wie der
+  ganze Fluss, und **ohne** gestrichelte Linie (die gibt es hier nicht, #422/#429).
+  **Gelesen wird um genau EINEN Schritt** aus dem Material-Journal (ADR 007): der genannte
+  Auftrag zeigt seinerseits seinen Vorgänger, also ist die Kette bis zur «Geburt» begehbar,
+  ohne dass eine Ansicht sie auf einmal zeigen müsste. Ohne Auftrag steht das **offene
+  Ende** da (**Entstanden** · **Freier Bestand** · Verkauft/Verbaut/Verschrottet) – das ist
+  die Darstellung der Geburt, ohne einen Datensatz zu erfinden, den es nicht gibt.
+  **Drei Dinge, die dabei falsch waren und es nicht bleiben durften:** (a) *der freie
+  Bestand ist kein Halter, aber eine Station* – lag die Menge zwischendurch am Lager, wird
+  über sie hinweg weitergelesen (`_HOP_SCAN`), sonst begänne die Kette bei jedem Zugriff
+  von vorn; (b) *eine Buchung kann MEHRERE Nachbarn haben* – wer 4 Stück ans Lager freigibt,
+  verliert sie womöglich an zwei Aufträge, also ist es eine **Liste**, und jeder Eintrag
+  trägt die Menge, die **wirklich** diesen Weg genommen hat (die erste Fassung schrieb dem
+  ersten Nehmer die ganze freigegebene Menge zu – im Harness gefunden); (c) *die
+  Stück-Nummern kommen von der **nehmenden** Seite* – sie weiss, welche sie sich geholt
+  hat; die Freigabe ans Lager weiss nur, wie viele sie hinlegte. Deckt eine Buchung den
+  Übergang nicht ganz ab, bleibt die Angabe **leer**: welche Nummern gemeint wären, ist
+  dann offen, und geraten wird hier nicht.
+  **Am Unter-Auftrag bleibt die Kette still** (`known`): Eltern und Rückweg stehen längst
+  in der Seitenspur – genau das war der Grund, aus dem der Prozessbaum in #565 gestrichen
+  wurde, und genau das kommt hier nicht zurück.
+  (2) **Ein Auftrag legt seine Zusage bei der FREIGABE fest** (#649,
+  `orders.release_order(..., backorder=False)` → `process.recompute_completion(settle=…)`):
+  Gemeldet war ein Auftrag mit dem Modul «Aussondern · Sperren», das sich nicht ausführen
+  liess. Ursache war eine **Sackgasse**: er war über mehr Menge eröffnet worden, als es je
+  gab – niemand hielt sie, niemand beschaffte sie, also blieb die Fehlmenge für immer offen
+  und der Prozess ruhte. Die automatische Auflösung (#556) gab es zwar, sie lief aber nur
+  **nach einem abgeschlossenen Schritt** – und kein Schritt konnte abschliessen. Jetzt
+  läuft sie **auch bei der Freigabe**: was nie da war, senkt das Soll auf das Machbare, und
+  der Auftrag läuft. Dafür ist `recovery._lost_amounts` entfallen – die Unterscheidung
+  «war da und ist weg» ↔ «war nie da» war genau die Bedingung, die den Fall aussperrte.
+  **Die eine Ausnahme ist deklariert, nicht geraten**: der Shop-Verkauf «auf Bestellung»
+  gibt frei, *bevor* `ensure_supply` den Nachschub dimensioniert – er sagt das ausdrücklich
+  (`backorder=True`), sonst kürzte er sich selbst auf den Lagerbestand.
+  **Neue Zeile in der Regel-Tabelle** (ADR 008): `regular-nie-gedeckt` – ein Fall, der in
+  ihr fehlte, weil er bis dahin gar nicht auflösbar war.
+  (3) **Die einzige Einstellung eines Moduls nimmt seine ganze Breite** (#648):
+  «Verschrotten ↔ Sperren» ist die einzige Konfiguration des Aussondern-Moduls – als kleine
+  Symbol-Pille am linken Rand las sie sich wie eine Nebensache. Sie nimmt jetzt die Breite
+  ihrer Karte, und weil der Platz da ist, stehen die **Wörter** da statt im Hover (nimmt
+  #633 zurück; dieselbe Begründung wie #636 – ein Symbol, das man raten muss, ist keines).
+  Technisch **kein neuer Schalter**, sondern der Normalmodus von `IconSwitch`: ohne
+  `symbolOnly`/`labelActiveOnly` spannt er und jede Option trägt `flex: 1`.
+  Wächter: `test_frontend_mirrors.py: test_the_material_chain_closes_the_process`,
+  `…_the_only_setting_of_a_module_takes_its_full_width`, `test_smoke.py:
+  test_the_shortfall_decides_itself`, `tests/rules/table.py: regular-nie-gedeckt`. Gegen
+  echtes PostgreSQL 16 verifiziert (Materialkette über zwei reguläre Aufträge + einen
+  Aussonderungs-Auftrag 12/12; der gemeldete #649-Fall 6/6 – und **gegen die Bug-Form
+  gegengeprüft**: ohne `settle` meldet er wieder «Der Prozess ruht …» am gesperrten Modul).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
