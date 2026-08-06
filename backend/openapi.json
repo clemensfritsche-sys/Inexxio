@@ -12224,6 +12224,84 @@
         "title": "LocationHop",
         "description": "Eine Station der Standort-Kette (von innen nach aussen).\n\n``location_type='address'`` markiert den abschliessenden geografischen Eintrag –\ner trägt keine Objektnummer, sondern die Anschrift."
       },
+      "MaterialHandover": {
+        "properties": {
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "order_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Name"
+          },
+          "order_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Status"
+          },
+          "order_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Reason"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLot"
+            },
+            "type": "array",
+            "title": "Lots",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "MaterialHandover",
+        "description": "**Woher eine Menge kam – und wohin sie ging** (Testnotizen #650/#651).\n\nEin Auftrag ist keine Insel: dieselbe Instanzmenge lief vorher durch einen anderen\nProzess und läuft nachher durch den nächsten. Sichtbar war davon nur die Seitenspur\neines **Unter**-Auftrags («hervorgegangen aus …»); ein regulärer Auftrag begann im\nNichts. Damit brach die Kette genau dort, wo sie am meisten trägt: bei der Frage «was\nist mit diesem Stück seit seiner Entstehung passiert?».\n\nDie Antwort steht längst im Material-Journal (ADR 007) – hier wird sie **um genau einen\nSchritt** gelesen: der letzte Halter vor diesem Auftrag, der nächste danach. Alles\nWeitere ist Navigation (der genannte Auftrag zeigt seinerseits seinen Vorgänger), und\ngenau darum bleibt die Ansicht klein und die Kette trotzdem vollständig begehbar.\n\n``order_object_id = None`` heisst: es gab keinen Auftrag – die Menge ist hier\n**entstanden** (``kind='created'``) bzw. liegt danach im **freien Bestand**\n(``kind='released'``). Das ist die «Geburt» bzw. das offene Ende der Kette."
+      },
       "MovementEmbed": {
         "properties": {
           "id": {
@@ -13776,6 +13854,22 @@
             },
             "type": "array",
             "title": "Flow Edges",
+            "default": []
+          },
+          "material_from": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialHandover"
+            },
+            "type": "array",
+            "title": "Material From",
+            "default": []
+          },
+          "material_to": {
+            "items": {
+              "$ref": "#/components/schemas/MaterialHandover"
+            },
+            "type": "array",
+            "title": "Material To",
             "default": []
           },
           "deviations": {

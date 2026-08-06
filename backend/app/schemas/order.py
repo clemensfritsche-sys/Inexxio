@@ -263,6 +263,35 @@ class OrderDeviationInfo(BaseModel):
     name: Optional[str] = None
 
 
+class MaterialHandover(BaseModel):
+    """**Woher eine Menge kam – und wohin sie ging** (Testnotizen #650/#651).
+
+    Ein Auftrag ist keine Insel: dieselbe Instanzmenge lief vorher durch einen anderen
+    Prozess und läuft nachher durch den nächsten. Sichtbar war davon nur die Seitenspur
+    eines **Unter**-Auftrags («hervorgegangen aus …»); ein regulärer Auftrag begann im
+    Nichts. Damit brach die Kette genau dort, wo sie am meisten trägt: bei der Frage «was
+    ist mit diesem Stück seit seiner Entstehung passiert?».
+
+    Die Antwort steht längst im Material-Journal (ADR 007) – hier wird sie **um genau einen
+    Schritt** gelesen: der letzte Halter vor diesem Auftrag, der nächste danach. Alles
+    Weitere ist Navigation (der genannte Auftrag zeigt seinerseits seinen Vorgänger), und
+    genau darum bleibt die Ansicht klein und die Kette trotzdem vollständig begehbar.
+
+    ``order_object_id = None`` heisst: es gab keinen Auftrag – die Menge ist hier
+    **entstanden** (``kind='created'``) bzw. liegt danach im **freien Bestand**
+    (``kind='released'``). Das ist die «Geburt» bzw. das offene Ende der Kette."""
+
+    order_object_id: Optional[int] = None
+    order_name: Optional[str] = None
+    order_status: Optional[str] = None       # trägt Farbe/Badge – derselbe Zustand wie überall
+    order_reason: Optional[str] = None       # deviation | supply | return | provisioning
+    kind: str                                # created | taken | released | returned | …
+    at: Optional[datetime] = None
+    #: Die Mengen dieses Übergangs – je Instanz eine Zeile, mit ihren Stück-Nummern und dem
+    #: Zustand, den sie **damals** hatte (dieselbe Zeile wie auf jeder Kante des Flusses).
+    lots: list[FlowLot] = []
+
+
 class OrderOrigin(BaseModel):
     """**Woher dieser Unter-Auftrag kam – und wohin er zurückgibt** (Notiz #409).
 
@@ -658,6 +687,13 @@ class OrderResponse(BaseModel):
     # nur noch – keine Material-Arithmetik, keine Stichtags-Zeitmaschine im Client mehr.
     flow_nodes: list[FlowNode] = []
     flow_edges: list[FlowEdge] = []    # len = flow_nodes + 1; Kante i liegt ÜBER Knoten i
+    # **Die Kette über den Auftrag hinaus** (Testnotizen #650/#651): woher das Material kam
+    # (vor dem Startknoten) und wohin es ging (nach der Zielflagge) – je Instanzmenge EIN
+    # Schritt zurück bzw. vor. Damit ist der Weg eines Stücks von seiner Entstehung bis zu
+    # seinem Lebensende durchgehend begehbar, ohne dass eine Ansicht die ganze Geschichte
+    # auf einmal zeigen müsste.
+    material_from: list[MaterialHandover] = []
+    material_to: list[MaterialHandover] = []
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)

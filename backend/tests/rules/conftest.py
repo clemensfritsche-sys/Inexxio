@@ -154,6 +154,11 @@ def _situation(db, world, r: Rule):
         elif r.rest == "teil-gekappt":
             # Nur 1 Stück gekappt: er behält 3 und läuft damit weiter.
             _make_deviation(db, order, inst, user, 1, cut=True)
+        elif r.rest == "nie-gedeckt":
+            # **Ab Lager mehr verlangt, als es gibt** (#649): der Bestand des Artikels wird
+            # freigegeben (1 Stück), der Auftrag will 2. Bei der Freigabe wird die Zusage
+            # auf das Machbare festgelegt – sonst ruhte er für immer.
+            return _stock_order(db, art, user, want=2), 2
         elif r.rest == "kaskade":
             # Die Abweichung gäbe noch zurück; erst IHRE Abweichung kappt – und das
             # schlägt über sie hinweg bis nach oben durch.
@@ -178,3 +183,34 @@ def _situation(db, world, r: Rule):
     return dev, 4
 
 
+
+
+def _stock_order(db, art, user, *, want: int):
+    """Ein Auftrag **ab Lager** über ``want`` Stück – mit weniger Bestand, als er verlangt.
+
+    Gebaut wie im Betrieb: ein Erzeugungsauftrag über EIN Stück läuft durch (Datenerfassung
+    → freigegeben, am Lager), danach greift ein Auftrag mit **eigenem Ablauf** über ``want``
+    Stück per FIFO zu (``subject_kind == 'stock'`` – ein eigener Ablauf erzeugt nie)."""
+    from app.models import ArticleProcessStep, Order
+    from app.schemas.inspection import InspectionSample, InspectionUpdate
+    from app.services import inspection as insp_svc, process
+    from app.services.orders import release_order
+
+    made, inst = _make_order(db, art, user, 1)
+    step = process.order_step_defs(db, made)[0]
+    insp_svc.record_inspection(db, made, InspectionUpdate(
+        step_id=step.id,
+        samples=[InspectionSample(instance_id=inst.object_id, slot=1, values={"_ok": True})]),
+        user)
+    db.commit()
+
+    order = Order(object_id=_num(db), article_id=art.id, quantity=Decimal(want),
+                  status="draft")
+    db.add(order)
+    db.flush()
+    db.add(ArticleProcessStep(order_id=order.id, step_type="movement", position=0))
+    db.flush()
+    release_order(db, order, user.id)
+    db.commit()
+    db.refresh(order)
+    return order

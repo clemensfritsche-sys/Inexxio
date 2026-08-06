@@ -288,7 +288,8 @@ export type OrderOrigin = components['schemas']['OrderOrigin'];
 // Eine Materialmenge auf einer Kante des Flusses («4 × 100000590») – Notiz #413.
 export type FlowLot = components['schemas']['FlowLot'];
 
-// Ein kurz benannter Auftrag – für die Kette über einem Unter-Auftrag.
+// Woher eine Menge kam und wohin sie ging – EIN Schritt der Materialkette (#650/#651).
+export type MaterialHandover = components['schemas']['MaterialHandover'];
 
 // Eine weitere Position zu einem bestehenden Auftrag hinzufügen (POST .../lines) –
 // jederzeit möglich, auch nachdem der Auftrag schon gespeichert wurde. Macht den

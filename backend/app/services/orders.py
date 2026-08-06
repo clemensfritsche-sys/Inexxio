@@ -20,7 +20,7 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    FlowEdge, FlowLot, FlowNode, OrderDeviationInfo, OrderLineInfo,
+    FlowEdge, FlowLot, FlowNode, MaterialHandover, OrderDeviationInfo, OrderLineInfo,
     OrderOrigin, OrderResponse,
     OrderStepInfo, OrderSummary, ShortfallInstance, StepResolution, SubOrderStep,
     StepShortfall,
@@ -61,7 +61,8 @@ def _own_steps(db: Session, steps: list[dict], viewer: UserProfile | None) -> li
             and any(getattr(f, "supplier_id", None) == viewer.id for f in s["facts"])]
 
 
-def release_order(db: Session, order: Order, actor_id: int | None) -> None:
+def release_order(db: Session, order: Order, actor_id: int | None, *,
+                  backorder: bool = False) -> None:
     """**Einheitliche Auftrags-Freigabe** (draft → released) – EIN Pfad für ERP-Freigabe,
     Shop-Zahlung und Nachschub (kein Sonderpfad):
 
@@ -71,7 +72,14 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     nicht im Entwurf). Committet NICHT.
 
     Eine **Fehlmenge** (Subjekt/Komponente) ist KEIN Fehler mehr – der betroffene Schritt ist
-    danach «blockiert» und wird über einen Nachschub-Unter-Auftrag gedeckt (``services/supply``)."""
+    danach «blockiert» und wird über einen Nachschub-Unter-Auftrag gedeckt (``services/supply``).
+
+    **Und die Zusage wird hier auf das Machbare festgelegt** (Testnotiz #649): war zu wenig
+    da und legt niemand Nachschub an, sinkt das Soll auf das Gesicherte – sichtbar als
+    Auflösung am Schritt und im Audit-Log. Ohne das ruhte ein solcher Auftrag **für immer**:
+    kein Halter, kein Nachschub, kein ausführbarer Schritt. ``backorder=True`` überspringt
+    das für den einen Aufrufer, der seinen Nachschub gleich selbst dimensioniert (Shop «auf
+    Bestellung»)."""
     from . import document as document_svc, process, sale as sale_svc, subject
     from .events import emit as _emit
     from .purchase import instantiate_for_order as instantiate_purchase
@@ -120,7 +128,7 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     # Abschluss neu bewerten: Schritte, die schon bei der Freigabe «done» sind (das eingefrorene
     # Dokument), schliessen den Auftrag sofort ab. No-op für Aufträge mit noch offenen Schritten
     # (Beschaffung/Verkauf starten in 'requested', also nicht «done»).
-    process.recompute_completion(db, order)
+    process.recompute_completion(db, order, settle=not backorder)
 
 
 def recurrence_due(order: Order) -> bool:
@@ -952,6 +960,155 @@ def _order_ref_name(db: Session, o: Order) -> str:
     return rows[0].name if rows else (o.title or "Auftrag")
 
 
+def _fill_material_chain(db: Session, order: Order, resp: OrderResponse) -> None:
+    """**Der Weg des Materials über diesen Auftrag hinaus** (Testnotizen #650/#651).
+
+    «Es ist alles ein Prozess, ein durchgehender Weg – von der Erzeugung bis zum
+    Lebensende.» Sichtbar war davon nur die Seitenspur eines **Unter**-Auftrags; ein
+    regulärer Auftrag begann im Nichts und endete im Nichts. Hier schliesst sich die Kette:
+    vor dem Startknoten steht, **woher** jede Instanzmenge kam, nach der Zielflagge,
+    **wohin** sie ging.
+
+    Gelesen wird die eine Wahrheit über die Vergangenheit – das Material-Journal (ADR 007) –
+    und zwar **um genau einen Schritt**: der letzte Halter davor, der nächste danach. Wer
+    weiter zurück will, öffnet den genannten Auftrag; dort steht wieder sein Vorgänger. Eine
+    Ansicht, die die ganze Geschichte auf einmal zeigt, bräuchte eine zweite Bildsprache –
+    diese hier ist dieselbe wie überall (Auftrags-Verweis + Materialzeile).
+
+    **Der freie Bestand ist kein Halter, aber eine Station**: eine Menge, die vor diesem
+    Auftrag am Lager lag, kam trotzdem irgendwo her – darum wird über die Lager-Zeit hinweg
+    zurückgelesen, bis ein Auftrag genannt ist. Steht dort keiner, ist die Menge hier
+    **entstanden** (die «Geburt»)."""
+    from . import ledger
+    if not order.id:
+        return
+    moves = ledger.moves_of(db, order.id)
+    incoming = [m for m in moves if m.dst_order_id == order.id]
+    outgoing = [m for m in moves if m.src_order_id == order.id and m.dst_order_id != order.id]
+    resp.material_from = _handovers(
+        db, [(m, _neighbours(db, m, back=True)) for m in incoming], incoming_side=True)
+    resp.material_to = _handovers(
+        db, [(m, _neighbours(db, m, back=False)) for m in outgoing], incoming_side=False)
+    # **Nicht zweimal dieselbe Beziehung** (Testnotiz #565): bei einem Unter-Auftrag sagt die
+    # Seitenspur längst «hervorgegangen aus …» und «gibt zurück an …» – und sein Material kam
+    # genau von dort. Diese Übergänge bleiben deshalb draussen; was die Seitenspur NICHT
+    # kennt (der Auftrag, der das Stück davor bearbeitet hat), steht sehr wohl da.
+    known = {getattr(resp.origin, "order_object_id", None),
+             getattr(resp.origin, "returns_to_object_id", None)} - {None}
+    if known:
+        resp.material_from = [h for h in resp.material_from if h.order_object_id not in known]
+        resp.material_to = [h for h in resp.material_to if h.order_object_id not in known]
+
+
+def _neighbours(db: Session, move, *, back: bool) -> list[tuple]:
+    """Die **benachbarten Halter** einer Buchung: wer die Menge davor hielt bzw. danach hält.
+
+    Die Buchung nennt ihn selbst, wenn die Menge direkt von einem Auftrag zum nächsten ging.
+    Lag sie dazwischen am **Lager**, steht dort ``None`` – dann wird über diese Station
+    hinweg weitergelesen. Ohne das begänne die Kette bei jedem Zugriff aus dem freien
+    Bestand von vorn, obwohl die Menge sehr wohl eine Geschichte hat.
+
+    **Eine Buchung kann MEHRERE Nachbarn haben**: wer 4 Stück ans Lager freigibt, kann sie
+    an zwei Aufträge verlieren. Darum eine Liste, und darum trägt jeder Eintrag die Menge,
+    die **wirklich** diesen Weg genommen hat – die des Nachbarn, nicht die der eigenen
+    Buchung. Genau daran scheiterte die erste Fassung: sie schrieb dem ersten Nehmer die
+    ganze freigegebene Menge zu.
+
+    Bleibt danach etwas übrig, ist das kein Auftrag, sondern ein **offenes Ende** der Kette
+    (freier Bestand bzw. – rückwärts – die Entstehung)."""
+    from ..models import MaterialMove
+    from . import ledger
+    from .quantity import ZERO, to_qty
+    qty = to_qty(move.quantity)
+    near = move.src_order_id if back else move.dst_order_id
+    if near is not None:
+        return [(near, "taken", qty, move.units or [])]
+    # Was hier terminal geworden ist, geht an keinen Auftrag weiter – das IST das Ende.
+    if not back and (move.dst_disposition or "") in ledger.TERMINAL:
+        return [(None, move.kind, qty, move.units or [])]
+    q = db.query(MaterialMove).filter(
+        MaterialMove.instance_object_id == move.instance_object_id)
+    q = (q.filter(MaterialMove.id < move.id).order_by(MaterialMove.id.desc()) if back
+         else q.filter(MaterialMove.id > move.id).order_by(MaterialMove.id))
+    out: list[tuple] = []
+    rest = qty
+    for m in q.limit(_HOP_SCAN).all():
+        got = m.src_order_id if back else m.dst_order_id
+        if got is None or got in (move.src_order_id, move.dst_order_id):
+            continue
+        take = min(rest, to_qty(m.quantity))
+        if take <= ZERO:
+            continue
+        # **Die Stück-Nummern kommen von der NEHMENDEN Seite** – sie weiss, welche Nummern
+        # sie sich geholt hat; die Freigabe ans Lager weiss nur, wie viele sie hinlegte.
+        # Auf dem Weg herein ist das diese Buchung, auf dem Weg hinaus die des Nachbarn.
+        # Deckt sie den Übergang nicht ganz ab, bleibt die Angabe leer: WELCHE Nummern
+        # gemeint wären, ist dann offen, und geraten wird hier nicht (wie an den Kanten).
+        src_move = move if back else m
+        take_all = take == to_qty(src_move.quantity)
+        out.append((got, "taken", take, (src_move.units or []) if take_all else []))
+        rest -= take
+        if rest <= ZERO:
+            break
+    if rest > ZERO:
+        out.append((None, move.kind, rest, [] if out else (move.units or [])))
+    return out
+
+
+#: Wie weit über die Lager-Zeit hinweg nach den Nachbarn gesucht wird. Eine Instanz mit
+#: hunderten Buchungen soll die Antwort nicht aufhalten – der Weg bleibt trotzdem begehbar,
+#: weil jeder genannte Auftrag seinerseits seinen Vorgänger zeigt.
+_HOP_SCAN = 50
+
+
+def _handovers(db: Session, pairs: list, *, incoming_side: bool) -> list[MaterialHandover]:
+    """Buchungen + ihre Nachbar-Halter → **je Auftrag ein Übergang** mit seinen Mengen.
+
+    Gruppiert wird nach dem Nachbarn (nicht je Buchung): «aus Auftrag X kamen 2 Stk dieser
+    und 1 Stk jener Instanz» ist EIN Übergang mit zwei Materialzeilen – dieselbe Form wie
+    eine Kante des Flusses."""
+    from ..models import Instance
+    from . import units as U
+    from .shares import UNIT_PREVIEW
+    if not pairs:
+        return []
+    oids = {m.instance_object_id for m, _ in pairs}
+    insts = {i.object_id: i for i in db.query(Instance)
+             .filter(Instance.object_id.in_(oids)).all()}
+    meta = _lot_meta(db, list(insts.values()))
+    ids = {h for _, hops in pairs for h, *_ in hops if h}
+    orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(ids)).all()} if ids else {}
+    out: dict[tuple, MaterialHandover] = {}
+    for move, hops in pairs:
+        for holder, kind, qty, unit_idx in hops:
+            o = orders.get(holder) if holder else None
+            key = (o.object_id if o else None, kind)
+            row = out.get(key)
+            if row is None:
+                row = MaterialHandover(
+                    order_object_id=(o.object_id if o else None),
+                    order_name=(_order_ref_name(db, o) if o else None),
+                    order_status=(o.status if o else None),
+                    order_reason=(o.reason if o else None),
+                    kind=kind, at=move.at)
+                out[key] = row
+            inst = insts.get(move.instance_object_id)
+            base = meta.get(move.instance_object_id) or {}
+            # **Der Zustand von DAMALS** (Testnotiz #488): auf dem Weg herein zählt der
+            # Ziel-Topf dieser Buchung, auf dem Weg hinaus der Quell-Topf – nicht der
+            # heutige Stand der Instanz. Was später passiert ist, gab es hier noch nicht.
+            q, d = ((move.dst_quality, move.dst_disposition) if incoming_side
+                    else (move.src_quality, move.src_disposition))
+            row.lots.append(FlowLot(
+                quantity=float(qty), quality=q, disposition=d, at=move.at,
+                units=(U.rows_for(inst, unit_idx, limit=UNIT_PREVIEW)
+                       if inst is not None and unit_idx else []),
+                unit_count=len(unit_idx),
+                **{k: v for k, v in base.items() if k != "instance_object_id"},
+                instance_object_id=move.instance_object_id))
+    return list(out.values())
+
+
 def _fill_origin(db: Session, order: Order, resp: OrderResponse) -> None:
     """**Woher dieser Unter-Auftrag kam – und wohin er zurückgibt** (Notiz #409).
 
@@ -1501,6 +1658,10 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
         (resp.deviations, resp.supply_orders, resp.returns,
          resp.provisionings) = _order_sub_orders(db, order, sub_steps)
     _fill_origin(db, order, resp)
+    # **Die Kette über den Auftrag hinaus** (#650/#651) – nur fürs Personal: sie nennt
+    # fremde Aufträge, und ein Lieferant sieht ohnehin nur sein eigenes Modul.
+    if internal:
+        _fill_material_chain(db, order, resp)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
     if order.object_id:
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()

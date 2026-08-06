@@ -127,6 +127,22 @@ RULES: tuple[Rule, ...] = (
         ),
     ),
     Rule(
+        id="regular-nie-gedeckt",
+        lage="Auftrag «ab Lager» über 2 Stück – es liegt aber nur 1 Stück am Lager.",
+        art="regular", rest="nie-gedeckt", fehlmenge=False, pause=False, soll="gekürzt",
+        warum=(
+            "«Kommt es noch?» ist die eine Frage – nicht «war es mal da?». Hier hält "
+            "niemand die fehlende Menge und niemand beschafft sie (den Knopf «Nachschub "
+            "anlegen» gibt es seit #556 nicht mehr; der Shop legt seinen Nachschub selbst "
+            "an und gibt dafür mit ``backorder=True`` frei). Vorher galt eine nie "
+            "dagewesene Menge als offener Bedarf – der Auftrag ruhte damit **für immer**: "
+            "kein Halter, kein Nachschub, kein ausführbarer Schritt, und die einzige "
+            "Stelle, die entscheiden könnte, läuft erst nach einem Schritt-Abschluss "
+            "(Testnotiz #649). Die Zusage wird darum bei der **Freigabe** auf das Machbare "
+            "festgelegt: aus «2 bestellt» wird «1 bestellt», und der Prozess läuft."
+        ),
+    ),
+    Rule(
         id="regular-kaskade-gekappt",
         lage=(
             "Auftrag → Abweichung (gäbe noch zurück) → deren Abweichung nimmt alles und "
