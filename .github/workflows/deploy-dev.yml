@@ -81,22 +81,11 @@ jobs:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
         run: alembic upgrade head
 
-      # Die **Regel-Tabelle** (Unterdeckung/Ausleihe/Pause) und das **Szenario-Netz**
-      # (Auftrag → Abweichung → Abweichung → Verschrottung → Klärung) laufen gegen ein
-      # echtes PostgreSQL über die ECHTEN Dienste. Sie sind der Ersatz für das, was bisher
-      # gefehlt hat: eine geschriebene, überprüfbare Regel. Ohne sie war dieser Bereich
-      # gewachsene Prosa – jede Notiz führte zu einer Punkt-Korrektur, und die nächste
-      # kippte sie wieder (Notizen #354/#388/#397/#505/#522).
-      - name: Regel-Tabelle + Szenario-Netz (echtes PostgreSQL)
-        working-directory: backend
-        env:
-          PGPASSWORD: postgres
-          RULES_DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/rules
-          FIREBASE_PROJECT_ID: test
-        run: |
-          psql -h localhost -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='rules'" postgres \
-            | grep -q 1 || psql -h localhost -U postgres -c 'CREATE DATABASE rules' postgres
-          python -m pytest tests/rules -v --tb=short
+      # Die Regel-Tabelle (Unterdeckung/Ausleihe/Pause) und das Szenario-Netz sind mit
+      # der Prozesslogik entfallen (Basis-Neuaufbau). Sie kommen zurück, wenn die neue
+      # Prozesslogik steht – als geschriebene, überprüfbare Regel, nicht als Prosa.
+      # Der Schema-Aufbau von null darüber bleibt: er hat schon einmal einen Fehler
+      # gefunden, den die laufende Umgebung nicht zeigt.
 
       - name: Check generated types are up to date
         run: |
