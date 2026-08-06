@@ -1530,6 +1530,166 @@
         }
       }
     },
+    "/api/v1/erp/articles/{object_id}/process": {
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Get Process",
+        "operationId": "get_process_api_v1_erp_articles__object_id__process_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleProcess"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/process/steps": {
+      "post": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Add Process Step",
+        "operationId": "add_process_step_api_v1_erp_articles__object_id__process_steps_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleProcessStepInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleProcess"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/process/steps/{step_id}": {
+      "delete": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Delete Process Step",
+        "operationId": "delete_process_step_api_v1_erp_articles__object_id__process_steps__step_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleProcess"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders": {
       "get": {
         "tags": [
@@ -1639,13 +1799,67 @@
         }
       }
     },
+    "/api/v1/erp/orders/article-options": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Article Options",
+        "description": "Welche Artikel kann ich in eine Definitionszeile nehmen?\n\n``template_steps`` fährt mit, damit die Oberfläche «Neu» sperren **und begründen**\nkann. Sie in zwei Aufrufen zu holen hiesse, die Zeile erst leer und dann korrigiert\nzu zeigen.",
+        "operationId": "article_options_api_v1_erp_orders_article_options_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "default": 300,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArticleOption"
+                  },
+                  "title": "Response Article Options Api V1 Erp Orders Article Options Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/unit-options": {
       "get": {
         "tags": [
           "orders"
         ],
         "summary": "Unit Options",
-        "description": "Welche Einzelinstanzen kann ich in die Definition nehmen?\n\nGesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund\nzeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.",
+        "description": "Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?\n\n**FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,\nkein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.\n\nGesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund\nzeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.",
         "operationId": "unit_options_api_v1_erp_orders_unit_options_get",
         "security": [
           {
@@ -1653,6 +1867,24 @@
           }
         ],
         "parameters": [
+          {
+            "name": "article",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Objektnummer des Artikels",
+              "title": "Article"
+            },
+            "description": "Objektnummer des Artikels"
+          },
           {
             "name": "limit",
             "in": "query",
@@ -1770,6 +2002,102 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/units": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "List Units",
+        "description": "Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt.",
+        "operationId": "list_units_api_v1_erp_orders__object_id__units_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Step Id"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Active"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderUnitPage"
                 }
               }
             }
@@ -3058,6 +3386,130 @@
         "title": "ArticleNameSuggestion",
         "description": "Ein Namensvorschlag beim Anlegen eines Artikels (freie Namensgebung, aber das\nSystem schlägt bereits verwendete/ähnliche Namen vor, um Dubletten zu vermeiden)."
       },
+      "ArticleOption": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "serialization": {
+            "type": "string",
+            "title": "Serialization"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "template_steps": {
+            "type": "integer",
+            "title": "Template Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "name",
+          "serialization",
+          "unit",
+          "template_steps"
+        ],
+        "title": "ArticleOption",
+        "description": "Ein wählbarer Artikel für eine Definitionszeile.\n\n``template_steps`` ist die Zahl der Module im Erzeugungsprozess. Sie steht hier,\ndamit die Oberfläche «Neu» sperren **und den Grund nennen** kann – ohne Vorlage kann\nein Erzeugungsauftrag nichts erzeugen."
+      },
+      "ArticleProcess": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ArticleProcessStepResponse"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "ArticleProcess",
+        "description": "Der Erzeugungsprozess eines Artikels samt Versionsstempel.\n\n``version`` ist der Stand, der bei einer Freigabe auf die Kopie geschrieben wird –\ner macht an einem laufenden Auftrag ablesbar, welche Fassung er fährt."
+      },
+      "ArticleProcessStepInput": {
+        "properties": {
+          "module_type": {
+            "type": "string",
+            "title": "Module Type"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "status_before": {
+            "type": "string",
+            "title": "Status Before"
+          },
+          "status_after": {
+            "type": "string",
+            "title": "Status After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "module_type",
+          "name",
+          "status_before",
+          "status_after"
+        ],
+        "title": "ArticleProcessStepInput",
+        "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft."
+      },
+      "ArticleProcessStepResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "module_type": {
+            "type": "string",
+            "title": "Module Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status_before": {
+            "type": "string",
+            "title": "Status Before"
+          },
+          "status_after": {
+            "type": "string",
+            "title": "Status After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "position",
+          "module_type",
+          "name",
+          "status_before",
+          "status_after"
+        ],
+        "title": "ArticleProcessStepResponse"
+      },
       "ArticleResponse": {
         "properties": {
           "id": {
@@ -4282,6 +4734,38 @@
         ],
         "title": "ContactRequest"
       },
+      "DefinitionLine": {
+        "properties": {
+          "article_object_id": {
+            "type": "integer",
+            "title": "Article Object Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Quantity"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "unit_numbers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unit Numbers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_object_id",
+          "quantity",
+          "origin"
+        ],
+        "title": "DefinitionLine",
+        "description": "Eine Definitionszeile: Artikel · Menge · Herkunft.\n\n``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie\neine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``unit_numbers``\ndabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der\nFreigabe entstehen."
+      },
       "ErpAdminUpdate": {
         "properties": {
           "first_name": {
@@ -5363,12 +5847,12 @@
       },
       "OrderCreate": {
         "properties": {
-          "unit_numbers": {
+          "lines": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DefinitionLine"
             },
             "type": "array",
-            "title": "Unit Numbers"
+            "title": "Lines"
           },
           "steps": {
             "items": {
@@ -5381,6 +5865,57 @@
         "type": "object",
         "title": "OrderCreate",
         "description": "Der Entwurf, so wie ihn die Oberfläche schickt."
+      },
+      "OrderLineResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "position",
+          "quantity",
+          "origin"
+        ],
+        "title": "OrderLineResponse",
+        "description": "Eine festgeschriebene Definitionszeile."
       },
       "OrderResponse": {
         "properties": {
@@ -5414,6 +5949,13 @@
             "type": "boolean",
             "title": "Is Active"
           },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/OrderLineResponse"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/ProcessStepResponse"
@@ -5421,12 +5963,12 @@
             "type": "array",
             "title": "Steps"
           },
-          "units": {
+          "unit_groups": {
             "items": {
-              "$ref": "#/components/schemas/OrderUnitResponse"
+              "$ref": "#/components/schemas/UnitGroup"
             },
             "type": "array",
-            "title": "Units"
+            "title": "Unit Groups"
           },
           "events": {
             "items": {
@@ -5434,6 +5976,11 @@
             },
             "type": "array",
             "title": "Events"
+          },
+          "event_count": {
+            "type": "integer",
+            "title": "Event Count",
+            "default": 0
           },
           "active_step_id": {
             "anyOf": [
@@ -5500,6 +6047,27 @@
         "title": "OrderSummary",
         "description": "Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail."
       },
+      "OrderUnitPage": {
+        "properties": {
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/OrderUnitResponse"
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total"
+        ],
+        "title": "OrderUnitPage",
+        "description": "Eine Seite Einzelinstanzen – auf Abruf, wenn eine Gruppe aufgeklappt wird."
+      },
       "OrderUnitResponse": {
         "properties": {
           "instance_unit_id": {
@@ -5538,7 +6106,7 @@
           "active"
         ],
         "title": "OrderUnitResponse",
-        "description": "Ein Stück im Auftrag – wo es steht und wie es steht."
+        "description": "Ein einzelnes Stück im Auftrag – wo es steht und wie es steht."
       },
       "OrderValidation": {
         "properties": {
@@ -5769,7 +6337,7 @@
           "status_after"
         ],
         "title": "ProcessStepInput",
-        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n``status_before``/``status_after`` sind **Pflicht** – ein Modul ohne definierten\nÜbergang ist nicht anlegbar (§4). Geprüft wird der Wert gegen die geschlossene Liste\nin ``domain/statuses.assert_known``, nicht hier: eine zweite Aufzählung im Schema\nwäre eine zweite Wahrheit."
+        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n``status_before``/``status_after`` sind **Pflicht** – ein Modul ohne definierten\nÜbergang ist nicht anlegbar (§4). Geprüft wird der Wert gegen die geschlossene Liste\nin ``domain/statuses.assert_known``, nicht hier: eine zweite Aufzählung im Schema\nwäre eine zweite Wahrheit.\n\nEin Auftrag mit einer ``Neu``-Zeile **ignoriert** diese Liste: sein Prozess ist die\nVorlage des Artikels, als Kopie. Etwas anderes zu schicken änderte daran nichts."
       },
       "ProcessStepResponse": {
         "properties": {
@@ -5796,6 +6364,28 @@
           "status_after": {
             "type": "string",
             "title": "Status After"
+          },
+          "source_article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Article Id"
+          },
+          "source_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Version"
           }
         },
         "type": "object",
@@ -5963,6 +6553,41 @@
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
       },
+      "UnitGroup": {
+        "properties": {
+          "current_step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "active",
+          "count"
+        ],
+        "title": "UnitGroup",
+        "description": "Wie viele Stücke stehen an einer Stelle, in welchem Zustand.\n\nDie Datenhaltung bleibt **pro Einzelinstanz** – dies ist die Darstellungsfrage. Bei\n5000 Stück ist der Unterschied nicht Geschmack, sondern der zwischen einer Zeile und\n5000. Die einzelnen Nummern holt ``GET …/units``, wenn jemand aufklappt."
+      },
       "UnitOption": {
         "properties": {
           "number": {
@@ -5972,6 +6597,17 @@
           "status": {
             "type": "string",
             "title": "Status"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
           },
           "article_name": {
             "anyOf": [
@@ -6007,7 +6643,7 @@
           "available"
         ],
         "title": "UnitOption",
-        "description": "Eine wählbare Einzelinstanz für die Definition.\n\n``blocked_by`` nennt den Auftrag, in dem das Stück gerade aktiv ist – damit die\nOberfläche den Grund zeigen kann, statt eine Zeile stumm auszugrauen."
+        "description": "Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.\n\n``blocked_by`` nennt den Auftrag, in dem das Stück gerade aktiv ist – damit die\nOberfläche den Grund zeigen kann, statt eine Zeile stumm auszugrauen."
       },
       "UploadResult": {
         "properties": {

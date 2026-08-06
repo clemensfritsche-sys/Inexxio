@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # ─── Erlaubte Werte ──────────────────────────────────────────────────────────
 
@@ -355,3 +355,38 @@ class ArticleNameSuggestion(BaseModel):
     name: str
     count: int = 0                       # wie viele aktive Artikel diesen Namen bereits tragen
     score: Optional[float] = None        # Ähnlichkeit zur Eingabe (nur bei Suche gesetzt)
+
+
+# ---------------------------------------------------------------------------
+# Erzeugungsprozess (Vorlage am Artikel)
+# ---------------------------------------------------------------------------
+
+class ArticleProcessStepInput(BaseModel):
+    """Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,
+    nur bevor er läuft."""
+
+    module_type: str
+    name: str = Field(min_length=1, max_length=120)
+    status_before: str
+    status_after: str
+
+
+class ArticleProcessStepResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    position: int
+    module_type: str
+    name: str
+    status_before: str
+    status_after: str
+
+
+class ArticleProcess(BaseModel):
+    """Der Erzeugungsprozess eines Artikels samt Versionsstempel.
+
+    ``version`` ist der Stand, der bei einer Freigabe auf die Kopie geschrieben wird –
+    er macht an einem laufenden Auftrag ablesbar, welche Fassung er fährt."""
+
+    version: int
+    steps: list[ArticleProcessStepResponse] = Field(default_factory=list)

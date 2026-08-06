@@ -12,15 +12,29 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from fastapi import HTTPException
+from sqlalchemy import func, insert, update
 from sqlalchemy.orm import Session
 
 from ..domain import statuses as st
 from ..models import (
-    Instance, InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep,
+    Article, Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent,
+    ProcessStep,
 )
 from ..models.order import COMPLETED, RELEASED
+from ..models.order_line import LAGER, NEU, ORIGINS
 from ..models.process_event import KIND_END, KIND_START, KIND_STEP
+from . import article_process, materialize
 from .instances import unit_number
+
+#: Wie viele Werte höchstens in eine ``IN``-Liste kommen. Bei 5000 Stück wäre eine
+#: einzige Liste ein Abfrage-Text von hunderten Kilobyte; das ist kein Fehler, aber
+#: unnötig – und die Grenze kostet nichts.
+_CHUNK = 1000
+
+
+def _chunks(values: list[int]) -> Iterable[list[int]]:
+    for i in range(0, len(values), _CHUNK):
+        yield values[i:i + _CHUNK]
 
 
 # ---------------------------------------------------------------------------
@@ -31,47 +45,180 @@ def _pass(
     db: Session,
     *,
     order: Order,
-    unit: InstanceUnit,
-    membership: OrderUnit,
+    units: list[InstanceUnit],
+    membership_ids: list[int],
     kind: str,
     step: Optional[ProcessStep],
     status_after: str,
     next_step_id: Optional[int],
     actor_id: Optional[int],
-    payload: Optional[dict[str, Any]] = None,
-) -> ProcessEvent:
-    """Ein Stück passiert ein Prozessobjekt.
+) -> int:
+    """Stücke passieren ein Prozessobjekt.
 
     Log **und** Projektionen in einem Aufruf. Getrennt wären es zwei Schreibwege, und
     der Wächter «Projektion == Replay(Log)» wäre eine Hoffnung statt einer Folge.
-    """
-    event = ProcessEvent(
-        order_id=order.id,
-        step_id=step.id if step else None,
-        instance_unit_id=unit.id,
-        kind=kind,
-        status_before=unit.status,
-        status_after=status_after,
-        payload=payload,
-        actor_id=actor_id,
-    )
-    db.add(event)
 
-    unit.status = status_after
-    membership.current_step_id = next_step_id
-    if next_step_id is None:
-        # Am Ende angekommen: das Stück verlässt den Auftrag und ist wieder frei.
-        # Genau hier fällt die Exklusivität weg – der partielle Unique-Index greift
-        # ab jetzt nicht mehr auf dieses Stück.
-        membership.released_at = datetime.now(timezone.utc)
-    return event
+    Die Funktion arbeitet auf einer **Liste**, nicht auf einem Stück: bei 5000 Stück
+    wären 15 000 einzelne Anweisungen der Grund, warum «flüssig» nicht mehr stimmt. Ein
+    zweiter, schneller Pfad daneben wäre genau der zweite Schreibweg, den es nicht geben
+    darf – also ist die Menge hier der Normalfall und das einzelne Stück ihr Sonderfall.
+    """
+    if not units:
+        return 0
+
+    # Der Vorher-Status wird gelesen, **bevor** geschrieben wird – sonst stünde im Log
+    # zweimal derselbe Wert und der Übergang wäre nicht mehr ablesbar.
+    db.execute(
+        insert(ProcessEvent),
+        [
+            {
+                "order_id": order.id,
+                "step_id": step.id if step else None,
+                "instance_unit_id": u.id,
+                "kind": kind,
+                "status_before": u.status,
+                "status_after": status_after,
+                "payload": None,
+                "actor_id": actor_id,
+            }
+            for u in units
+        ],
+    )
+
+    unit_ids = [u.id for u in units]
+    for part in _chunks(unit_ids):
+        db.execute(
+            update(InstanceUnit)
+            .where(InstanceUnit.id.in_(part))
+            .values(status=status_after)
+            .execution_options(synchronize_session=False)
+        )
+    # Am Ende angekommen: das Stück verlässt den Auftrag und ist wieder frei. Genau hier
+    # fällt die Exklusivität weg – der partielle Unique-Index greift ab jetzt nicht mehr.
+    released = None if next_step_id is not None else datetime.now(timezone.utc)
+    for part in _chunks(membership_ids):
+        db.execute(
+            update(OrderUnit)
+            .where(OrderUnit.id.in_(part))
+            .values(current_step_id=next_step_id, released_at=released)
+            .execution_options(synchronize_session=False)
+        )
+    for u in units:
+        u.status = status_after
+    return len(units)
+
+
+# ---------------------------------------------------------------------------
+# Die Definitionszeilen
+# ---------------------------------------------------------------------------
+
+class _Line:
+    """Eine aufgelöste Definitionszeile – Artikel statt Objektnummer, geprüft."""
+
+    def __init__(self, position: int, article: Article, quantity: int, origin: str,
+                 unit_numbers: list[str]):
+        self.position = position
+        self.article = article
+        self.quantity = quantity
+        self.origin = origin
+        self.unit_numbers = unit_numbers
+        self.units: list[InstanceUnit] = []
+
+    @property
+    def label(self) -> str:
+        return f"Zeile {self.position} ({self.article.name})"
+
+
+def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
+    """Rohe Definitionszeilen prüfen und auflösen. Jeder Verstoss ist ein harter Fehler."""
+    out: list[_Line] = []
+    for position, row in enumerate(raw, start=1):
+        origin = row.get("origin")
+        if origin not in ORIGINS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Zeile {position}: «{origin}» ist keine Herkunft. Erlaubt: {', '.join(ORIGINS)}.",
+            )
+        object_id = row.get("article_object_id")
+        article = (
+            db.query(Article).filter(Article.object_id == object_id).first()
+            if object_id else None
+        )
+        if article is None or not article.is_active:
+            raise HTTPException(
+                status_code=404, detail=f"Zeile {position}: Artikel {object_id} gibt es nicht.",
+            )
+        quantity = int(row.get("quantity") or 0)
+        if quantity < 1:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Zeile {position} ({article.name}): die Menge muss mindestens 1 sein. "
+                    f"Eine Zeile ohne Stück bewegt nichts."
+                ),
+            )
+        out.append(_Line(
+            position=position,
+            article=article,
+            quantity=quantity,
+            origin=origin,
+            unit_numbers=[str(n) for n in (row.get("unit_numbers") or [])],
+        ))
+    return out
+
+
+def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Welcher Prozess gilt für diesen Auftrag?
+
+    - Enthält er eine ``Neu``-Zeile, ist es die **Vorlage des Artikels**, als Kopie mit
+      Versionsstempel. Sie ist nicht verhandelbar: neue Stücke entstehen genau so, wie
+      der Artikel es sagt, sonst wäre der Stempel eine Behauptung.
+    - Sonst (reiner ``Lager``-Auftrag) ist es der im Entwurf modellierte Prozess.
+
+    Bringen zwei ``Neu``-Zeilen **verschiedene** Vorlagen mit, ist das ein harter Fehler:
+    ein Auftrag hat einen Prozess. Welcher der beiden gälte, kann das System nicht
+    entscheiden, und raten wäre hier besonders teuer.
+    """
+    new_lines = [ln for ln in lines if ln.origin == NEU]
+    if not new_lines:
+        return [dict(s) for s in submitted]
+
+    variants: list[tuple[list[dict[str, Any]], _Line]] = []
+    for ln in new_lines:
+        copied = article_process.mirror(db, ln.article)
+        if not copied:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{ln.label}: dieser Artikel hat keinen Erzeugungsprozess. "
+                    f"«Neu» ist erst wählbar, wenn im Artikel-Reiter «Erzeugungsprozess» "
+                    f"mindestens ein Modul steht."
+                ),
+            )
+        shape = [(s["module_type"], s["name"], s["status_before"], s["status_after"])
+                 for s in copied]
+        if variants and shape != [
+            (s["module_type"], s["name"], s["status_before"], s["status_after"])
+            for s in variants[0][0]
+        ]:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{variants[0][1].label} und {ln.label} bringen verschiedene "
+                    f"Erzeugungsprozesse mit – ein Auftrag hat einen Prozess. Lege für "
+                    f"den zweiten Artikel einen eigenen Auftrag an."
+                ),
+            )
+        if not variants:
+            variants.append((copied, ln))
+    return variants[0][0]
 
 
 # ---------------------------------------------------------------------------
 # Freigabe
 # ---------------------------------------------------------------------------
 
-def assert_releasable(units: list[str], steps: list[dict[str, Any]]) -> list[str]:
+def assert_releasable(total_units: int, steps: list[dict[str, Any]]) -> list[str]:
     """Die beiden harten Freigabebedingungen (§6.2) — als Liste dessen, was **fehlt**.
 
     Namen statt True/False, damit die Oberfläche sagen kann *was* fehlt, statt den
@@ -79,18 +226,17 @@ def assert_releasable(units: list[str], steps: list[dict[str, Any]]) -> list[str
     die Anlage: eine deaktivierte Schaltfläche ist keine Absicherung, sondern eine Bitte.
     """
     missing: list[str] = []
-    if not units:
+    if total_units < 1:
         missing.append("mindestens eine Einzelinstanz")
     if not steps:
         missing.append("mindestens ein Prozessschrittmodul")
     return missing
 
 
-def _resolve_units(db: Session, numbers: list[str]) -> list[tuple[InstanceUnit, str]]:
+def _resolve_units(db: Session, numbers: list[str], *, seen: set[str]) -> list[tuple[InstanceUnit, str]]:
     """Nummern → Einzelinstanzen. Unbekannt oder doppelt = harter Fehler, kein Filtern."""
     from .instances import find_unit
 
-    seen: set[str] = set()
     out: list[tuple[InstanceUnit, str]] = []
     for raw in numbers:
         number = (raw or "").strip()
@@ -146,8 +292,13 @@ def _assert_exclusive(db: Session, units: list[tuple[InstanceUnit, str]]) -> Non
     )
 
 
-def _assert_chain(steps: list[dict[str, Any]], end_status: str) -> None:
+def _assert_chain(steps: list[dict[str, Any]]) -> None:
     """Die Kette muss schliessen (§4.3) — geprüft **bei der Freigabe**, nicht zur Laufzeit.
+
+    Geprüft wird gegen den **Vorher**-Status des Ende-Objekts (``END_BEFORE``), nicht
+    gegen den Endzustand: das Ende ist ein Übergang wie jedes Modul, es *erwartet*
+    «Im Prozess» und *setzt* ``order.end_status``. Beides zu verwechseln hiesse, vom
+    letzten Modul zu verlangen, dass es den Endzustand selbst schon setzt.
 
     Das ist der Unterschied zwischen einer Regel und einer Hoffnung: ein Prozess, der
     freigegeben werden konnte, kann nicht mitten drin an einem Statuskonflikt hängen
@@ -180,50 +331,69 @@ def _assert_chain(steps: list[dict[str, Any]], end_status: str) -> None:
 def release(
     db: Session,
     *,
-    unit_numbers: list[str],
+    lines: list[dict[str, Any]],
     steps: list[dict[str, Any]],
     actor_id: Optional[int],
 ) -> Order:
     """Freigeben = den Prozess starten. **Eine Transaktion**, feste Reihenfolge (§6.3).
 
-    Die Reihenfolge weicht in einem Punkt bewusst von der Vorgabe ab: die
-    Exklusivitätsprüfung läuft **vor** der Nummernvergabe. Grund steht in
-    ``_assert_exclusive`` — hinterher geprüft, kostete jeder Verstoss eine Objektnummer.
+    **Jede Prüfung liegt vor der ersten Objektnummer.** Das ist keine Kosmetik: eine
+    Sequence ist absichtlich nicht transaktional, ein Rollback danach liesse eine Lücke.
+    Ein abgebrochener Freigabe-Versuch verbraucht darum keine Nummer – der einzige
+    Ausnahmefall bleibt der echte Parallelzugriff, den erst der Unique-Index abfängt.
     """
     from .objects import next_object_id
 
-    # 1 — Freigabebedingungen
-    missing = assert_releasable(unit_numbers, steps)
+    # ── 1. Alles prüfen, was ohne Nummer prüfbar ist ─────────────────────────
+    resolved = resolve_lines(db, lines)
+    effective = steps_for(db, resolved, steps)
+
+    total = sum(ln.quantity for ln in resolved)
+    missing = assert_releasable(total, effective)
     if missing:
         raise HTTPException(
             status_code=400,
             detail="Der Auftrag ist noch nicht freigebbar – es fehlt: "
                    + ", ".join(missing) + ".",
         )
-    for step in steps:
+    for step in effective:
         st.assert_known(step["status_before"], field="Vorher-Status")
         st.assert_known(step["status_after"], field="Nachher-Status")
 
     end_status = st.DEFAULT_END_STATUS
-    _assert_chain(steps, end_status)
+    _assert_chain(effective)
 
-    units = _resolve_units(db, unit_numbers)
+    # Bestehende Stücke auflösen, Exklusivität und Startzustand prüfen.
+    seen: set[str] = set()
+    for ln in resolved:
+        if ln.origin != LAGER:
+            continue
+        pairs = _resolve_units(db, ln.unit_numbers, seen=seen)
+        _assert_exclusive(db, pairs)
+        for unit, number in pairs:
+            if unit.status != st.START_BEFORE:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Einzelinstanz {number} steht auf «{st.label(unit.status)}» und "
+                        f"kann nicht starten – das Start-Objekt erwartet "
+                        f"«{st.label(st.START_BEFORE)}»."
+                    ),
+                )
+        ln.units = [u for u, _ in pairs]
 
-    # 2 — Exklusivität (siehe Docstring: vor der Nummer)
-    _assert_exclusive(db, units)
+    # Der Plan muss aufgehen, bevor er etwas kostet (§2, harte Invariante).
+    planned: list[tuple[int, int, str]] = []
+    for ln in resolved:
+        if ln.origin == NEU:
+            # Rein arithmetisch – prüft die Serialisierung, ohne eine Nummer zu ziehen.
+            count, each = materialize.plan(ln.article.serialization, ln.quantity)
+            planned.append((ln.quantity, count * each, ln.label))
+        else:
+            planned.append((ln.quantity, len(ln.units), ln.label))
+    materialize.assert_quantity(planned, code=400)
 
-    for unit, number in units:
-        if unit.status != st.START_BEFORE:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f"Einzelinstanz {number} steht auf «{st.label(unit.status)}» und "
-                    f"kann nicht starten – das Start-Objekt erwartet "
-                    f"«{st.label(st.START_BEFORE)}»."
-                ),
-            )
-
-    # 3 — Datensatz anlegen
+    # ── 2. Ab hier werden Nummern vergeben ───────────────────────────────────
     order = Order(
         object_id=next_object_id(db, "order"),
         status=RELEASED,
@@ -232,8 +402,14 @@ def release(
     db.add(order)
     db.flush()
 
+    for ln in resolved:
+        db.add(OrderLine(
+            order_id=order.id, position=ln.position, article_id=ln.article.id,
+            quantity=ln.quantity, origin=ln.origin,
+        ))
+
     rows: list[ProcessStep] = []
-    for position, step in enumerate(steps, start=1):
+    for position, step in enumerate(effective, start=1):
         row = ProcessStep(
             order_id=order.id,
             position=position,
@@ -241,25 +417,42 @@ def release(
             name=step["name"],
             status_before=step["status_before"],
             status_after=step["status_after"],
+            source_article_id=step.get("source_article_id"),
+            source_version=step.get("source_version"),
         )
         db.add(row)
         rows.append(row)
     db.flush()
 
-    first = rows[0]
+    # ── 3. Neue Stücke erzeugen – die EINZIGE Stelle, an der das passiert ────
+    for ln in resolved:
+        if ln.origin == NEU:
+            ln.units = materialize.create_for_line(
+                db, article=ln.article, quantity=ln.quantity,
+            )
 
-    # 4+5 — die Stücke passieren das Start-Objekt, jedes mit eigenem Log-Eintrag
-    for unit, _ in units:
-        membership = OrderUnit(order_id=order.id, instance_unit_id=unit.id)
-        db.add(membership)
-        db.flush()
-        _pass(
-            db, order=order, unit=unit, membership=membership,
-            kind=KIND_START, step=None,
-            status_after=st.START_AFTER, next_step_id=first.id, actor_id=actor_id,
-        )
+    # Und jetzt das Ergebnis gegen dieselbe Invariante halten.
+    materialize.assert_quantity(
+        [(ln.quantity, len(ln.units), ln.label) for ln in resolved], code=500,
+    )
 
-    # 6 — das erste Modul ist damit aktiv (abgeleitet: dort stehen die Stücke)
+    # ── 4./5. Die Stücke passieren das Start-Objekt, jedes mit eigenem Log-Eintrag ──
+    all_units = [u for ln in resolved for u in ln.units]
+    db.execute(
+        insert(OrderUnit),
+        [{"order_id": order.id, "instance_unit_id": u.id} for u in all_units],
+    )
+    db.flush()
+    membership_ids = [
+        int(i) for (i,) in db.query(OrderUnit.id).filter(OrderUnit.order_id == order.id).all()
+    ]
+    _pass(
+        db, order=order, units=all_units, membership_ids=membership_ids,
+        kind=KIND_START, step=None,
+        status_after=st.START_AFTER, next_step_id=rows[0].id, actor_id=actor_id,
+    )
+
+    # ── 6. Das erste Modul ist damit aktiv (abgeleitet: dort stehen die Stücke) ──
     return order
 
 
@@ -314,24 +507,23 @@ def confirm_step(
                 ),
             )
 
-    for membership, unit in waiting:
-        _pass(
-            db, order=order, unit=unit, membership=membership,
-            kind=KIND_STEP, step=step,
-            status_after=step.status_after,
-            next_step_id=following.id if following else None,
-            actor_id=actor_id,
-        )
-        if following is None:
-            # Das Ende-Objekt im selben Zug: es ist kein Schritt, also ein eigener
-            # Eintrag mit ``kind='end'`` – sonst fehlte der Übergang in der Historie.
-            _pass(
-                db, order=order, unit=unit, membership=membership,
-                kind=KIND_END, step=None,
-                status_after=order.end_status, next_step_id=None, actor_id=actor_id,
-            )
-
+    units = [u for _, u in waiting]
+    membership_ids = [m.id for m, _ in waiting]
+    _pass(
+        db, order=order, units=units, membership_ids=membership_ids,
+        kind=KIND_STEP, step=step,
+        status_after=step.status_after,
+        next_step_id=following.id if following else None,
+        actor_id=actor_id,
+    )
     if following is None:
+        # Das Ende-Objekt im selben Zug: es ist kein Schritt, also ein eigener
+        # Eintrag mit ``kind='end'`` – sonst fehlte der Übergang in der Historie.
+        _pass(
+            db, order=order, units=units, membership_ids=membership_ids,
+            kind=KIND_END, step=None,
+            status_after=order.end_status, next_step_id=None, actor_id=actor_id,
+        )
         db.flush()
         if not _open_memberships(db, order):
             order.status = COMPLETED
@@ -383,6 +575,61 @@ def steps_of(db: Session, order: Order) -> list[ProcessStep]:
     )
 
 
+def lines_of(db: Session, order: Order) -> list[OrderLine]:
+    return (
+        db.query(OrderLine)
+        .filter(OrderLine.order_id == order.id)
+        .order_by(OrderLine.position)
+        .all()
+    )
+
+
+def unit_groups(db: Session, order: Order) -> list[dict[str, Any]]:
+    """Wie viele Stücke stehen wo, in welchem Zustand? — **gezählt, nicht aufgelistet**.
+
+    Die Datenhaltung bleibt pro Einzelinstanz; dies ist die Darstellungsfrage. Bei 5000
+    Stück ist der Unterschied nicht Geschmack, sondern der zwischen einer Zeile und 5000:
+    das Diagramm braucht Zahlen, die einzelnen Nummern holt sich, wer eine Gruppe
+    aufklappt (``GET …/units``).
+    """
+    rows = (
+        db.query(
+            OrderUnit.current_step_id,
+            InstanceUnit.status,
+            OrderUnit.released_at.is_(None).label("active"),
+            func.count(OrderUnit.id),
+        )
+        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
+        .filter(OrderUnit.order_id == order.id)
+        .group_by(OrderUnit.current_step_id, InstanceUnit.status, "active")
+        .all()
+    )
+    return [
+        {
+            "current_step_id": step_id,
+            "status": status,
+            "active": bool(active),
+            "count": int(count),
+        }
+        for step_id, status, active, count in rows
+    ]
+
+
+def units_page(db: Session, order: Order, *, step_id: Optional[int], active: bool,
+               limit: int, offset: int) -> tuple[list[tuple[OrderUnit, InstanceUnit]], int]:
+    """Die einzelnen Stücke einer Gruppe – auf Abruf und in Seiten."""
+    q = (
+        db.query(OrderUnit, InstanceUnit)
+        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
+        .filter(OrderUnit.order_id == order.id)
+    )
+    q = q.filter(OrderUnit.released_at.is_(None)) if active else q.filter(OrderUnit.released_at.isnot(None))
+    q = q.filter(OrderUnit.current_step_id.is_(None) if step_id is None
+                 else OrderUnit.current_step_id == step_id)
+    total = q.count()
+    return q.order_by(OrderUnit.id).limit(limit).offset(offset).all(), total
+
+
 def active_step_id(db: Session, order: Order) -> Optional[int]:
     """Welches Modul ist **jetzt** dran? Das erste, vor dem noch ein Stück steht.
 
@@ -399,13 +646,26 @@ def active_step_id(db: Session, order: Order) -> Optional[int]:
     return None
 
 
-def events_of(db: Session, order: Order) -> list[ProcessEvent]:
-    return (
+def events_page(db: Session, order: Order, *, limit: int) -> tuple[list[ProcessEvent], int]:
+    """Die Historie – die **neuesten** ``limit`` Einträge und wie viele es insgesamt sind.
+
+    Der Deckel wird ausgewiesen, nicht verschwiegen: bei 5000 Stück hat der Log 10 000
+    Einträge, und eine Liste, die stumm bei 200 aufhört, sieht aus wie die ganze
+    Wahrheit. Die Zahl daneben sagt, dass es mehr gibt.
+    """
+    total = (
+        db.query(func.count(ProcessEvent.id))
+        .filter(ProcessEvent.order_id == order.id)
+        .scalar() or 0
+    )
+    rows = (
         db.query(ProcessEvent)
         .filter(ProcessEvent.order_id == order.id)
-        .order_by(ProcessEvent.id)
+        .order_by(ProcessEvent.id.desc())
+        .limit(limit)
         .all()
     )
+    return list(reversed(rows)), int(total)
 
 
 def unit_numbers(db: Session, units: Iterable[InstanceUnit]) -> dict[int, str]:

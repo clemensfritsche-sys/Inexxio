@@ -230,7 +230,7 @@ def test_a_draft_never_touches_the_database():
     # Sie wird NACH der Exklusivitätsprüfung gezogen: eine Sequence ist nicht
     # transaktional, ein Rollback danach liesse eine Lücke im Nummernkreis.
     body = svc.split("def release(")[1]
-    assert body.index("_assert_exclusive") < body.index("next_object_id"), (
+    assert body.index("_assert_exclusive") < body.index("next_object_id(db,"), (
         "Die Objektnummer wird vor der Exklusivitätsprüfung gezogen – jeder Verstoss "
         "verbrennt dann eine Nummer."
     )
@@ -445,10 +445,17 @@ def test_a_status_change_always_writes_the_log():
     eine Behauptung.
     """
     svc = _read(BACKEND / "app" / "services" / "process.py")
-    assert svc.count("unit.status =") == 1, (
+    # Die Schreibstelle arbeitet auf einer **Liste** (5000 Stück wären 15 000 einzelne
+    # Anweisungen). Ein schneller Pfad daneben wäre genau der zweite Schreibweg – also
+    # muss alles, was einen Status setzt, in dieser einen Funktion stehen.
+    body = svc.split("def _pass(")[1].split("\ndef ")[0]
+    assert svc.count("update(InstanceUnit)") == 1 and "update(InstanceUnit)" in body, (
         "Der Status wird an mehr als einer Stelle gesetzt."
     )
-    assert "_pass" in svc and "ProcessEvent(" in svc.split("def _pass(")[1], (
+    assert svc.count(".status = status_after") == 1 and ".status = status_after" in body, (
+        "Die Projektion wird ausserhalb der einen Schreibstelle nachgezogen."
+    )
+    assert "insert(ProcessEvent)" in body, (
         "Die eine Schreibstelle schreibt keinen Log-Eintrag."
     )
     # Kein Update-/Delete-Pfad auf die Historie.
@@ -476,11 +483,11 @@ def test_the_release_conditions_live_at_exactly_one_place():
     sys.path.insert(0, str(BACKEND))
     from app.services import orders as orders_svc
 
-    assert orders_svc.validate_draft({}) == [
+    # Ein leerer Entwurf berührt die Datenbank nicht – darum genügt hier ``None``.
+    # Der gefüllte Fall braucht echte Artikel und steht im PostgreSQL-Durchlauf.
+    assert orders_svc.validate_draft(None, {}) == [
         "mindestens eine Einzelinstanz", "mindestens ein Prozessschrittmodul",
     ]
-    assert orders_svc.validate_draft(
-        {"unit_numbers": ["x"], "steps": [{}]}) == []
 
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
     assert "validateOrder" in detail, "Die Oberfläche fragt die Regel nicht ab."
@@ -503,3 +510,168 @@ def test_an_instance_can_be_created_in_the_browser():
     # Typ und Anzahl werden ausdrücklich verlangt, nichts aus dem Artikel erraten –
     # dieselbe Regel wie in ``schemas/instance.InstanceCreate``.
     assert "KIND_LABEL" in detail, "Der Typ wird nicht gewählt, sondern geraten."
+
+
+# ---------------------------------------------------------------------------
+# Definitionsbereich und Erzeugungsprozess
+# ---------------------------------------------------------------------------
+
+def test_new_unit_numbers_come_from_exactly_one_place():
+    """Neue Einzelinstanznummern entstehen **nur** bei der Freigabe eines Auftrags.
+
+    Kein Import, kein Direkteintrag, kein Modul. Gäbe es einen zweiten Weg, wäre die
+    Nummer keine Identität mehr, sondern eine Vereinbarung – und der erste Parallelzugriff
+    hätte zwei Stücke mit derselben.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+
+    svc = _read(BACKEND / "app" / "services" / "instances.py")
+    # Die Suffix-Vergabe steht in genau diesem Modul, in zwei Formen derselben Regel:
+    # bei 1 beginnen (neue Instanz) und weiterzählen (bestehende).
+    assert "def create_instances(" in svc and "def add_units(" in svc
+
+    # Ausserhalb dieses Moduls **vergibt** niemand einen Suffix. Gemeint ist das
+    # Schreiben – eine Einzelinstanz bauen oder ihren Suffix setzen –, nicht das Lesen:
+    # ``object_id, suffix = parsed`` liest eine Nummer und ist genau richtig so.
+    app = BACKEND / "app"
+    writes = re.compile(r"InstanceUnit\(|[\"']suffix[\"']\s*:|\.suffix\s*=(?!=)")
+    offenders = [
+        f.relative_to(ROOT)
+        for f in app.rglob("*.py")
+        if f.name != "instances.py"
+        and "models/instance_unit.py" not in str(f)
+        and writes.search(_read(f))
+    ]
+    assert not offenders, f"Suffixe werden ausserhalb von instances.py vergeben: {offenders}"
+
+    # Und die Erzeugung hat genau einen Aufrufer: die Freigabe.
+    mat = _read(BACKEND / "app" / "services" / "materialize.py")
+    assert "create_instances(" in mat, "materialize erzeugt nicht über die eine Stelle."
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "materialize.create_for_line(" in proc, (
+        "Die Freigabe erzeugt die neuen Stücke nicht über materialize."
+    )
+
+
+def test_the_two_serialization_cases_are_parameters_not_two_code_paths():
+    """Einzelserialisierung und Charge sind ein **Zahlenpaar**, kein zweiter Zweig.
+
+    3 einzeln = (3, 1) · Charge über 3 = (1, 3). In beiden Fällen ist das Produkt die
+    Menge – genau das prüft ``assert_quantity`` danach.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import materialize
+
+    assert materialize.plan("unit", 3) == (3, 1)
+    assert materialize.plan("batch", 3) == (1, 3)
+    assert materialize.plan("unit", 1) == (1, 1)
+    assert materialize.plan("batch", 1) == (1, 1)
+    for serialization in ("unit", "batch"):
+        for qty in (1, 2, 7, 5000):
+            count, each = materialize.plan(serialization, qty)
+            assert count * each == qty, (serialization, qty, count, each)
+
+
+def test_the_quantity_invariant_is_checked_before_and_after():
+    """Menge N heisst N Einzelinstanzen – geprüft **vor** der ersten Nummer und danach.
+
+    Der erste Aufruf fängt eine Eingabe ab, ohne eine Objektnummer zu kosten; der zweite
+    ist der Wächter gegen einen Fehler in diesem Code.
+    """
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert proc.count("materialize.assert_quantity(") == 2, (
+        "Die Mengen-Invariante wird nicht zweimal geprüft (Plan und Ergebnis)."
+    )
+    plan_at = proc.index("materialize.assert_quantity(")
+    number_at = proc.index("next_object_id(db, \"order\")")
+    assert plan_at < number_at, (
+        "Die Mengen-Prüfung läuft erst nach der Nummernvergabe – dann kostet jeder "
+        "Eingabefehler eine Objektnummer."
+    )
+
+
+def test_every_check_runs_before_the_first_object_number():
+    """Ein abgebrochener Freigabe-Versuch verbraucht **keine** Objektnummer (AK8).
+
+    ``nextval`` ist absichtlich nicht transaktional; ein Rollback danach liesse eine
+    Lücke. Darum liegt jede Prüfung davor. Der einzige Rest ist der echte
+    Parallelzugriff, den erst der Unique-Index abfängt – und der ist dokumentiert.
+    """
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    body = proc.split("def release(")[1]
+    number_at = body.index("next_object_id(db,")
+    head = body[:number_at]
+    for guard in ("resolve_lines(", "steps_for(", "assert_releasable(",
+                  "_assert_chain(", "_assert_exclusive(", "assert_quantity("):
+        assert guard in head, f"«{guard}» läuft nach der Nummernvergabe."
+
+
+def test_the_template_is_a_copy_not_a_reference():
+    """Die Vorlage wird **kopiert**, mit Versionsstempel.
+
+    Ein Verweis hiesse, dass eine spätere Artikeländerung laufende Aufträge rückwirkend
+    umschreibt – das widerspricht «eingefroren» (§6.4).
+    """
+    step = _read(BACKEND / "app" / "models" / "process_step.py")
+    assert "source_article_id" in step and "source_version" in step, (
+        "Der kopierte Schritt trägt keinen Herkunftsstempel."
+    )
+    tpl = _read(BACKEND / "app" / "services" / "article_process.py")
+    assert "def mirror(" in tpl and '"source_version": version' in tpl
+    # Die Vorlage ist eine eigene Tabelle: was es nicht gibt, kann nicht ausgeführt werden.
+    model = _read(BACKEND / "app" / "models" / "article_process_step.py")
+    assert "__tablename__ = \"article_process_steps\"" in model
+    router = _read(BACKEND / "app" / "routers" / "articles.py")
+    assert "confirm" not in router, (
+        "Der Artikel-Router bietet eine Ausführung an – die Vorlage führt nichts aus."
+    )
+
+
+def test_the_definition_asks_in_one_order_and_locks_the_rest():
+    """Artikel → Menge → Herkunft. Jedes Feld ist gesperrt, bis das davor beantwortet ist.
+
+    Ohne Artikel ist die Menge nicht deutbar (einzeln oder Charge?), ohne Menge die
+    Herkunft nicht entscheidbar (welche Stücke?).
+    """
+    ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
+    assert "disabled={!hasArticle}" in ui, "Die Menge ist vor der Artikelwahl nicht gesperrt."
+    assert "disabled={!hasArticle || !hasTemplate}" in ui, (
+        "«Neu» ist ohne Erzeugungsprozess nicht gesperrt."
+    )
+    assert "Erzeugungsprozess" in ui, "Der Grund steht nicht im Klartext."
+    # FIFO ist ein Vorschlag, kein Zwang: die Auswahl bleibt sichtbar und abwählbar.
+    assert "fifo" in ui.lower() and "entfernen" in ui
+
+
+def test_large_quantities_are_counted_not_listed():
+    """Bei Menge 5000 zeigt das Diagramm **eine Pille mit Anzahl**, nicht 5000 Zeilen.
+
+    Die Datenhaltung bleibt pro Einzelinstanz – dies ist die Darstellungsfrage. Und der
+    Deckel der Historie wird ausgewiesen: eine stumm gekappte Liste sähe aus wie die
+    ganze Wahrheit.
+    """
+    svc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def unit_groups(" in svc and "func.count(" in svc, (
+        "Die Gruppen werden nicht gezählt, sondern aufgelistet."
+    )
+    schema = _read(BACKEND / "app" / "schemas" / "order.py")
+    assert "class UnitGroup(" in schema and "event_count" in schema
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    assert "DiagramGroup" in diagram and "g.count" in diagram
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "von {total} Einträgen" in detail, "Der Deckel der Historie wird verschwiegen."
+
+
+def test_the_article_carries_a_template_tab_that_cannot_execute():
+    """Der Reiter «Erzeugungsprozess» nutzt **dieselbe** Darstellung wie der Auftrag.
+
+    Kein Nachbau: der Unterschied liegt nicht in der Optik, sondern darin, was fehlt –
+    keine Einzelinstanzen, kein Start, keine Ausführung (§8.2).
+    """
+    detail = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
+    assert "'prozess'" in detail and "Erzeugungsprozess" in detail
+    assert "ProcessDiagram" in detail, "Der Reiter baut die Darstellung nach."
+    assert "confirmStep" not in detail, "Der Artikel führt einen Schritt aus."
+    assert "getArticleProcess" in detail

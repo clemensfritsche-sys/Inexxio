@@ -93,6 +93,14 @@ export type ProcessStepResponse = components['schemas']['ProcessStepResponse'];
 export type OrderUnitResponse = components['schemas']['OrderUnitResponse'];
 export type ProcessEventResponse = components['schemas']['ProcessEventResponse'];
 export type UnitOption = components['schemas']['UnitOption'];
+export type ArticleOption = components['schemas']['ArticleOption'];
+export type OrderLineResponse = components['schemas']['OrderLineResponse'];
+export type UnitGroup = components['schemas']['UnitGroup'];
+export type OrderUnitPage = components['schemas']['OrderUnitPage'];
+
+/** Der Erzeugungsprozess eines Artikels – die Vorlage, die ein Erzeugungsauftrag kopiert. */
+export type ArticleProcess = components['schemas']['ArticleProcess'];
+export type ArticleProcessStep = components['schemas']['ArticleProcessStepResponse'];
 
 /** Ein Auftragsentwurf. Er lebt NUR im Browser – es gibt dafür keine Zeile in der
  *  Datenbank, keine vorreservierte Objektnummer und kein Autosave. */

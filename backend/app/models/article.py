@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Numeric, String
+from sqlalchemy import BigInteger, Boolean, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +29,14 @@ class Article(Base, TimestampMixin):
     )
 
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+
+    # Versionsstempel des **Erzeugungsprozesses** (``article_process_steps``). Er zählt
+    # bei jeder Änderung der Vorlage hoch und wird auf die Kopie im Auftrag geschrieben.
+    # Damit ist an einem laufenden Auftrag ablesbar, welchen Stand er fährt – und eine
+    # spätere Artikeländerung kann ihn nicht rückwirkend umschreiben (PROCESS_CORE.md §6.4).
+    process_version: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False,
+    )
 
     # Stammdaten. Pflicht ist einzig der **Name**; Einheit/Serialisierung tragen einen
     # Default (Stk / unit), Grösse & Gewicht sind optional (physische Attribute, die z. B.

@@ -578,6 +578,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/articles/{object_id}/process": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Process */
+        get: operations["get_process_api_v1_erp_articles__object_id__process_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}/process/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Process Step */
+        post: operations["add_process_step_api_v1_erp_articles__object_id__process_steps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}/process/steps/{step_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Process Step */
+        delete: operations["delete_process_step_api_v1_erp_articles__object_id__process_steps__step_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders": {
         parameters: {
             query?: never;
@@ -599,6 +650,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/article-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Article Options
+         * @description Welche Artikel kann ich in eine Definitionszeile nehmen?
+         *
+         *     ``template_steps`` fährt mit, damit die Oberfläche «Neu» sperren **und begründen**
+         *     kann. Sie in zwei Aufrufen zu holen hiesse, die Zeile erst leer und dann korrigiert
+         *     zu zeigen.
+         */
+        get: operations["article_options_api_v1_erp_orders_article_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/unit-options": {
         parameters: {
             query?: never;
@@ -608,7 +683,10 @@ export interface paths {
         };
         /**
          * Unit Options
-         * @description Welche Einzelinstanzen kann ich in die Definition nehmen?
+         * @description Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?
+         *
+         *     **FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,
+         *     kein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.
          *
          *     Gesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund
          *     zeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.
@@ -651,6 +729,26 @@ export interface paths {
         };
         /** Get Order */
         get: operations["get_order_api_v1_erp_orders__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Units
+         * @description Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt.
+         */
+        get: operations["list_units_api_v1_erp_orders__object_id__units_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -988,6 +1086,69 @@ export interface components {
             count: number;
             /** Score */
             score?: number | null;
+        };
+        /**
+         * ArticleOption
+         * @description Ein wählbarer Artikel für eine Definitionszeile.
+         *
+         *     ``template_steps`` ist die Zahl der Module im Erzeugungsprozess. Sie steht hier,
+         *     damit die Oberfläche «Neu» sperren **und den Grund nennen** kann – ohne Vorlage kann
+         *     ein Erzeugungsauftrag nichts erzeugen.
+         */
+        ArticleOption: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name: string;
+            /** Serialization */
+            serialization: string;
+            /** Unit */
+            unit: string;
+            /** Template Steps */
+            template_steps: number;
+        };
+        /**
+         * ArticleProcess
+         * @description Der Erzeugungsprozess eines Artikels samt Versionsstempel.
+         *
+         *     ``version`` ist der Stand, der bei einer Freigabe auf die Kopie geschrieben wird –
+         *     er macht an einem laufenden Auftrag ablesbar, welche Fassung er fährt.
+         */
+        ArticleProcess: {
+            /** Version */
+            version: number;
+            /** Steps */
+            steps?: components["schemas"]["ArticleProcessStepResponse"][];
+        };
+        /**
+         * ArticleProcessStepInput
+         * @description Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,
+         *     nur bevor er läuft.
+         */
+        ArticleProcessStepInput: {
+            /** Module Type */
+            module_type: string;
+            /** Name */
+            name: string;
+            /** Status Before */
+            status_before: string;
+            /** Status After */
+            status_after: string;
+        };
+        /** ArticleProcessStepResponse */
+        ArticleProcessStepResponse: {
+            /** Id */
+            id: number;
+            /** Position */
+            position: number;
+            /** Module Type */
+            module_type: string;
+            /** Name */
+            name: string;
+            /** Status Before */
+            status_before: string;
+            /** Status After */
+            status_after: string;
         };
         /** ArticleResponse */
         ArticleResponse: {
@@ -1327,6 +1488,25 @@ export interface components {
             subject: string;
             /** Message */
             message: string;
+        };
+        /**
+         * DefinitionLine
+         * @description Eine Definitionszeile: Artikel · Menge · Herkunft.
+         *
+         *     ``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie
+         *     eine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``unit_numbers``
+         *     dabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der
+         *     Freigabe entstehen.
+         */
+        DefinitionLine: {
+            /** Article Object Id */
+            article_object_id: number;
+            /** Quantity */
+            quantity: number;
+            /** Origin */
+            origin: string;
+            /** Unit Numbers */
+            unit_numbers?: string[];
         };
         /**
          * ErpAdminUpdate
@@ -1728,10 +1908,28 @@ export interface components {
          * @description Der Entwurf, so wie ihn die Oberfläche schickt.
          */
         OrderCreate: {
-            /** Unit Numbers */
-            unit_numbers?: string[];
+            /** Lines */
+            lines?: components["schemas"]["DefinitionLine"][];
             /** Steps */
             steps?: components["schemas"]["ProcessStepInput"][];
+        };
+        /**
+         * OrderLineResponse
+         * @description Eine festgeschriebene Definitionszeile.
+         */
+        OrderLineResponse: {
+            /** Id */
+            id: number;
+            /** Position */
+            position: number;
+            /** Quantity */
+            quantity: number;
+            /** Origin */
+            origin: string;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Name */
+            article_name?: string | null;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -1755,12 +1953,19 @@ export interface components {
             updated_at: string;
             /** Is Active */
             is_active: boolean;
+            /** Lines */
+            lines?: components["schemas"]["OrderLineResponse"][];
             /** Steps */
             steps?: components["schemas"]["ProcessStepResponse"][];
-            /** Units */
-            units?: components["schemas"]["OrderUnitResponse"][];
+            /** Unit Groups */
+            unit_groups?: components["schemas"]["UnitGroup"][];
             /** Events */
             events?: components["schemas"]["ProcessEventResponse"][];
+            /**
+             * Event Count
+             * @default 0
+             */
+            event_count: number;
             /** Active Step Id */
             active_step_id?: number | null;
         };
@@ -1789,8 +1994,18 @@ export interface components {
             is_active: boolean;
         };
         /**
+         * OrderUnitPage
+         * @description Eine Seite Einzelinstanzen – auf Abruf, wenn eine Gruppe aufgeklappt wird.
+         */
+        OrderUnitPage: {
+            /** Units */
+            units?: components["schemas"]["OrderUnitResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
          * OrderUnitResponse
-         * @description Ein Stück im Auftrag – wo es steht und wie es steht.
+         * @description Ein einzelnes Stück im Auftrag – wo es steht und wie es steht.
          */
         OrderUnitResponse: {
             /** Instance Unit Id */
@@ -1909,6 +2124,9 @@ export interface components {
          *     Übergang ist nicht anlegbar (§4). Geprüft wird der Wert gegen die geschlossene Liste
          *     in ``domain/statuses.assert_known``, nicht hier: eine zweite Aufzählung im Schema
          *     wäre eine zweite Wahrheit.
+         *
+         *     Ein Auftrag mit einer ``Neu``-Zeile **ignoriert** diese Liste: sein Prozess ist die
+         *     Vorlage des Artikels, als Kopie. Etwas anderes zu schicken änderte daran nichts.
          */
         ProcessStepInput: {
             /** Module Type */
@@ -1934,6 +2152,10 @@ export interface components {
             status_before: string;
             /** Status After */
             status_after: string;
+            /** Source Article Id */
+            source_article_id?: number | null;
+            /** Source Version */
+            source_version?: number | null;
         };
         /**
          * TerritoryAssign
@@ -2008,8 +2230,26 @@ export interface components {
             company_object_id?: number | null;
         };
         /**
+         * UnitGroup
+         * @description Wie viele Stücke stehen an einer Stelle, in welchem Zustand.
+         *
+         *     Die Datenhaltung bleibt **pro Einzelinstanz** – dies ist die Darstellungsfrage. Bei
+         *     5000 Stück ist der Unterschied nicht Geschmack, sondern der zwischen einer Zeile und
+         *     5000. Die einzelnen Nummern holt ``GET …/units``, wenn jemand aufklappt.
+         */
+        UnitGroup: {
+            /** Current Step Id */
+            current_step_id?: number | null;
+            /** Status */
+            status: string;
+            /** Active */
+            active: boolean;
+            /** Count */
+            count: number;
+        };
+        /**
          * UnitOption
-         * @description Eine wählbare Einzelinstanz für die Definition.
+         * @description Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.
          *
          *     ``blocked_by`` nennt den Auftrag, in dem das Stück gerade aktiv ist – damit die
          *     Oberfläche den Grund zeigen kann, statt eine Zeile stumm auszugrauen.
@@ -2019,6 +2259,8 @@ export interface components {
             number: string;
             /** Status */
             status: string;
+            /** Article Object Id */
+            article_object_id?: number | null;
             /** Article Name */
             article_name?: string | null;
             /** Available */
@@ -3273,6 +3515,104 @@ export interface operations {
             };
         };
     };
+    get_process_api_v1_erp_articles__object_id__process_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcess"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_process_step_api_v1_erp_articles__object_id__process_steps_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleProcessStepInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcess"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_process_step_api_v1_erp_articles__object_id__process_steps__step_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcess"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_orders_api_v1_erp_orders_get: {
         parameters: {
             query?: {
@@ -3338,9 +3678,42 @@ export interface operations {
             };
         };
     };
+    article_options_api_v1_erp_orders_article_options_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleOption"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     unit_options_api_v1_erp_orders_unit_options_get: {
         parameters: {
             query?: {
+                /** @description Objektnummer des Artikels */
+                article?: number | null;
                 limit?: number;
             };
             header?: never;
@@ -3420,6 +3793,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_units_api_v1_erp_orders__object_id__units_get: {
+        parameters: {
+            query?: {
+                step_id?: number | null;
+                active?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderUnitPage"];
                 };
             };
             /** @description Validation Error */

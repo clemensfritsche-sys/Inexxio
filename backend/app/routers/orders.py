@@ -18,15 +18,22 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, UserProfile,
 )
 from ..schemas.order import (
-    OrderCreate, OrderResponse, OrderSummary, OrderUnitResponse, OrderValidation,
-    ProcessEventResponse, ProcessStepResponse, UnitOption,
+    ArticleOption, OrderCreate, OrderLineResponse, OrderResponse, OrderSummary,
+    OrderUnitPage, OrderUnitResponse, OrderValidation, ProcessEventResponse,
+    ProcessStepResponse, UnitGroup, UnitOption,
 )
+from ..services import article_process as tpl_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
 from ..services.admin import log_audit
 from ..services.instances import unit_number
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
+
+#: Wie viele Log-Einträge das Detail mitliefert. Bei 5000 Stück hat der Log 10 000
+#: Einträge; alle mitzuschicken machte die Antwort megabytegross, ohne dass jemand sie
+#: liest. Die Gesamtzahl steht daneben (``event_count``) – gekappt, aber nicht verschwiegen.
+EVENT_LIMIT = 200
 
 
 # ---------------------------------------------------------------------------
@@ -35,15 +42,13 @@ router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
 def _to_response(db: Session, order: Order) -> OrderResponse:
     steps = process_svc.steps_of(db, order)
-    rows = (
-        db.query(OrderUnit, InstanceUnit)
-        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
-        .filter(OrderUnit.order_id == order.id)
-        .order_by(OrderUnit.id)
-        .all()
-    )
-    numbers = process_svc.unit_numbers(db, [u for _, u in rows])
-    events = process_svc.events_of(db, order)
+    lines = process_svc.lines_of(db, order)
+    articles = {
+        a.id: a
+        for a in db.query(Article).filter(Article.id.in_([ln.article_id for ln in lines])).all()
+    } if lines else {}
+    events, event_count = process_svc.events_page(db, order, limit=EVENT_LIMIT)
+    numbers = _event_numbers(db, events)
     actors = _actor_names(db, {e.actor_id for e in events if e.actor_id})
 
     return OrderResponse(
@@ -54,17 +59,19 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
         created_at=order.created_at,
         updated_at=order.updated_at,
         is_active=order.is_active,
-        steps=[ProcessStepResponse.model_validate(s) for s in steps],
-        units=[
-            OrderUnitResponse(
-                instance_unit_id=u.id,
-                number=numbers[u.id],
-                status=u.status,
-                current_step_id=m.current_step_id,
-                active=m.released_at is None,
+        lines=[
+            OrderLineResponse(
+                id=ln.id,
+                position=ln.position,
+                quantity=ln.quantity,
+                origin=ln.origin,
+                article_object_id=articles[ln.article_id].object_id if ln.article_id in articles else None,
+                article_name=articles[ln.article_id].name if ln.article_id in articles else None,
             )
-            for m, u in rows
+            for ln in lines
         ],
+        steps=[ProcessStepResponse.model_validate(s) for s in steps],
+        unit_groups=[UnitGroup(**g) for g in process_svc.unit_groups(db, order)],
         events=[
             ProcessEventResponse(
                 id=e.id,
@@ -78,8 +85,18 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
             )
             for e in events
         ],
+        event_count=event_count,
         active_step_id=process_svc.active_step_id(db, order),
     )
+
+
+def _event_numbers(db: Session, events) -> dict[int, str]:
+    """Nummern nur für die Stücke, die in den gezeigten Einträgen vorkommen."""
+    ids = {e.instance_unit_id for e in events}
+    if not ids:
+        return {}
+    units = db.query(InstanceUnit).filter(InstanceUnit.id.in_(ids)).all()
+    return process_svc.unit_numbers(db, units)
 
 
 def _actor_names(db: Session, ids: set[int]) -> dict[int, str]:
@@ -109,26 +126,62 @@ def list_orders(
     )
 
 
-@router.get("/unit-options", response_model=list[UnitOption])
-def unit_options(
+@router.get("/article-options", response_model=list[ArticleOption])
+def article_options(
     limit: int = Query(300, le=1000),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Welche Einzelinstanzen kann ich in die Definition nehmen?
+    """Welche Artikel kann ich in eine Definitionszeile nehmen?
+
+    ``template_steps`` fährt mit, damit die Oberfläche «Neu» sperren **und begründen**
+    kann. Sie in zwei Aufrufen zu holen hiesse, die Zeile erst leer und dann korrigiert
+    zu zeigen.
+    """
+    rows = (
+        db.query(Article)
+        .filter(Article.is_active.is_(True), Article.object_id.isnot(None))
+        .order_by(Article.object_id.desc())
+        .limit(limit)
+        .all()
+    )
+    counts = tpl_svc.step_counts(db, [a.id for a in rows])
+    return [
+        ArticleOption(
+            object_id=a.object_id,
+            name=a.name,
+            serialization=a.serialization,
+            unit=a.unit,
+            template_steps=counts.get(a.id, 0),
+        )
+        for a in rows
+    ]
+
+
+@router.get("/unit-options", response_model=list[UnitOption])
+def unit_options(
+    article: Optional[int] = Query(None, description="Objektnummer des Artikels"),
+    limit: int = Query(300, le=1000),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?
+
+    **FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,
+    kein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.
 
     Gesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund
     zeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.
     """
-    rows = (
+    q = (
         db.query(InstanceUnit, Instance, Article)
         .join(Instance, Instance.id == InstanceUnit.instance_id)
         .outerjoin(Article, Article.id == Instance.article_id)
         .filter(InstanceUnit.is_active.is_(True), Instance.is_active.is_(True))
-        .order_by(InstanceUnit.id.desc())
-        .limit(limit)
-        .all()
     )
+    if article is not None:
+        q = q.filter(Article.object_id == article)
+    rows = q.order_by(InstanceUnit.id).limit(limit).all()
     blocked = {
         m.instance_unit_id: o.object_id
         for m, o in db.query(OrderUnit, Order)
@@ -140,21 +193,23 @@ def unit_options(
         UnitOption(
             number=unit_number(instance, unit),
             status=unit.status,
-            article_name=article.name if article else None,
+            article_object_id=art.object_id if art else None,
+            article_name=art.name if art else None,
             available=unit.id not in blocked and unit.status == st.START_BEFORE,
             blocked_by=blocked.get(unit.id),
         )
-        for unit, instance, article in rows
+        for unit, instance, art in rows
     ]
 
 
 @router.post("/validate", response_model=OrderValidation)
 def validate_order(
     data: OrderCreate,
+    db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
     """Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer."""
-    missing = orders_svc.validate_draft(data.model_dump())
+    missing = orders_svc.validate_draft(db, data.model_dump())
     return OrderValidation(saveable=not missing, missing=missing)
 
 
@@ -180,6 +235,37 @@ def get_order(
     _: UserProfile = Depends(require_employee),
 ):
     return _to_response(db, orders_svc.get(db, object_id))
+
+
+@router.get("/{object_id}/units", response_model=OrderUnitPage)
+def list_units(
+    object_id: int,
+    step_id: Optional[int] = Query(None),
+    active: bool = Query(True),
+    limit: int = Query(100, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt."""
+    order = orders_svc.get(db, object_id)
+    rows, total = process_svc.units_page(
+        db, order, step_id=step_id, active=active, limit=limit, offset=offset,
+    )
+    numbers = process_svc.unit_numbers(db, [u for _, u in rows])
+    return OrderUnitPage(
+        units=[
+            OrderUnitResponse(
+                instance_unit_id=u.id,
+                number=numbers[u.id],
+                status=u.status,
+                current_step_id=m.current_step_id,
+                active=m.released_at is None,
+            )
+            for m, u in rows
+        ],
+        total=total,
+    )
 
 
 @router.post("/{object_id}/steps/{step_id}/confirm", response_model=OrderResponse)

@@ -1,16 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Boxes, ClipboardList, History, Plus, X } from 'lucide-react';
+import { ClipboardList, History, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Order, UnitOption } from '@/types';
+import type { ArticleOption, ArticleProcess, Order } from '@/types';
 import { TYPE_META } from '@/lib/erp-record';
 import { orderName } from '@/lib/record-name';
 import { orderStatus } from '@/lib/record-status';
-import { formatObjectId, localDateTime } from '@/lib/utils';
+import { localDateTime } from '@/lib/utils';
 import { DetailHeader, HeaderAction, Card, inputCls } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { ProcessDiagram, type DiagramStep } from '@/components/erp/process-diagram';
+import {
+  DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
+} from '@/components/erp/definition-lines';
 import {
   END_BEFORE, START_AFTER, STATUS_VALUES, statusCfg, statusLabel,
 } from '@/lib/process-status';
@@ -33,8 +36,9 @@ interface DraftStep extends DiagramStep {}
  *
  * **Anlegen ist Freigeben.** Es gibt keinen «Speichern»-Zwischenschritt: der Klick auf
  * «Freigeben» legt den Auftrag an, vergibt die Objektnummer, prüft die Exklusivität,
- * schickt die Stücke durch das Start-Objekt und loggt – alles in einer Transaktion
- * (PROCESS_CORE.md §6.3). Danach ist die Struktur eingefroren.
+ * **erzeugt die neuen Einzelinstanzen**, schickt die Stücke durch das Start-Objekt und
+ * loggt – alles in einer Transaktion (PROCESS_CORE.md §6.3). Danach ist die Struktur
+ * eingefroren.
  *
  * Ob freigegeben werden darf, entscheidet der Server (`POST /erp/orders/validate` →
  * `services/orders.validate_draft`). Die Oberfläche formuliert die Regel nicht nach,
@@ -48,7 +52,7 @@ export function OrderDetail({ record, onSaved, onBack }: {
   const isDraft = record === null;
   const meta = TYPE_META.order;
 
-  const [units, setUnits] = useState<string[]>([]);
+  const [lines, setLines] = useState<DefinitionLine[]>([emptyLine(1)]);
   const [steps, setSteps] = useState<DraftStep[]>([]);
   const [missing, setMissing] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,12 +62,12 @@ export function OrderDetail({ record, onSaved, onBack }: {
   useEffect(() => { setLive(record); }, [record]);
 
   const draft = useMemo(() => ({
-    unit_numbers: units,
+    lines: toPayload(lines),
     steps: steps.map((s) => ({
       module_type: s.moduleType, name: s.name,
       status_before: s.statusBefore, status_after: s.statusAfter,
     })),
-  }), [units, steps]);
+  }), [lines, steps]);
 
   // Freigebbarkeit beim Server erfragen, nicht selbst behaupten.
   useEffect(() => {
@@ -119,7 +123,7 @@ export function OrderDetail({ record, onSaved, onBack }: {
           <HeaderAction
             label="Freigeben"
             // Kein stummes Nichts-Passiert: der Knopf sagt, was noch fehlt.
-            hint={blocked ? `Es fehlt: ${missing!.join(' und ')}` : 'Legt den Auftrag an und startet den Prozess'}
+            hint={blocked ? `Es fehlt: ${missing!.join(' · ')}` : 'Legt den Auftrag an und startet den Prozess'}
             disabled={busy || blocked || missing == null}
             onClick={release}
           />
@@ -138,10 +142,7 @@ export function OrderDetail({ record, onSaved, onBack }: {
 
         <div className="mx-auto" style={{ maxWidth: 620 }}>
           {isDraft ? (
-            <DraftView
-              units={units} setUnits={setUnits}
-              steps={steps} setSteps={setSteps}
-            />
+            <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps} />
           ) : (
             <RunView order={shown!} busy={busy} onConfirm={confirmStep} />
           )}
@@ -157,106 +158,83 @@ export function OrderDetail({ record, onSaved, onBack }: {
 // Entwurf — Modus «definition»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function DraftView({ units, setUnits, steps, setSteps }: {
-  units: string[]; setUnits: (u: string[]) => void;
+/**
+ * **Der Prozess folgt aus der Herkunft.**
+ *
+ * Sobald eine Zeile «Neu» trägt, ist der Prozess die **Vorlage des Artikels** – als
+ * Kopie, mit Versionsstempel, und hier nur zu sehen, nicht zu ändern. Sie zu bearbeiten
+ * hiesse, einen Stempel auf etwas zu setzen, das danach nicht mehr die Vorlage ist.
+ * Ändern geht am Artikel, im Reiter «Erzeugungsprozess».
+ *
+ * Ein reiner «Lager»-Auftrag greift auf Vorhandenes zu – was damit geschehen soll, weiss
+ * nur dieser eine Auftrag. Dort wird frei modelliert.
+ */
+function DraftView({ lines, setLines, steps, setSteps }: {
+  lines: DefinitionLine[]; setLines: (l: DefinitionLine[]) => void;
   steps: DraftStep[]; setSteps: (s: DraftStep[]) => void;
 }) {
-  const [options, setOptions] = useState<UnitOption[] | null>(null);
+  const [articles, setArticles] = useState<ArticleOption[]>([]);
+  const [template, setTemplate] = useState<ArticleProcess | null>(null);
+
+  // Welcher Artikel bringt den Prozess mit? Der erste mit Herkunft «Neu».
+  const sourceArticle = useMemo(
+    () => lines.find((l) => l.origin === NEU && l.articleObjectId !== null)?.articleObjectId ?? null,
+    [lines],
+  );
+
   useEffect(() => {
-    api.getUnitOptions().then(setOptions).catch(() => setOptions([]));
-  }, []);
+    if (sourceArticle === null) { setTemplate(null); return; }
+    let dead = false;
+    api.getArticleProcess(sourceArticle)
+      .then((p) => { if (!dead) setTemplate(p); })
+      .catch(() => { if (!dead) setTemplate(null); });
+    return () => { dead = true; };
+  }, [sourceArticle]);
+
+  const mirrored: DraftStep[] | null = useMemo(() => {
+    if (!template) return null;
+    return (template.steps ?? []).map((s) => ({
+      id: s.id, name: s.name, moduleType: s.module_type,
+      statusBefore: s.status_before, statusAfter: s.status_after,
+    }));
+  }, [template]);
+
+  const isMake = sourceArticle !== null;
+  const shownSteps = mirrored ?? steps;
+  const articleName = articles.find((a) => a.object_id === sourceArticle)?.name;
 
   return (
     <>
       <ProcessDiagram
         mode="definition"
-        steps={steps}
+        steps={shownSteps}
         endStatus={END_BEFORE}
-        head={<DefinitionCard units={units} setUnits={setUnits} options={options} />}
-        onDelete={(id) => setSteps(steps.filter((s) => s.id !== id))}
+        head={
+          <DefinitionLines lines={lines} setLines={setLines} onArticlesLoaded={setArticles} />
+        }
+        onDelete={isMake ? undefined : (id) => setSteps(steps.filter((s) => s.id !== id))}
       />
-      <div className="mt-3">
-        <AddStep
-          onAdd={(name, before, after) =>
-            setSteps([...steps, {
-              id: (steps[steps.length - 1]?.id ?? 0) + 1,
-              name, moduleType: TESTMODUL, statusBefore: before, statusAfter: after,
-            }])}
-          suggestedBefore={steps.length ? steps[steps.length - 1].statusAfter : START_AFTER}
-        />
-      </div>
-    </>
-  );
-}
 
-/** Die Definition: mit welchen Einzelinstanzen arbeitet dieser Auftrag (§2.1). */
-function DefinitionCard({ units, setUnits, options }: {
-  units: string[]; setUnits: (u: string[]) => void; options: UnitOption[] | null;
-}) {
-  const [open, setOpen] = useState(false);
-  const chosen = new Set(units);
-  return (
-    <div className="rounded-ds-lg" style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 14 }}>
-      <div className="flex items-center gap-2 mb-2">
-        <Boxes size={14} style={{ color: 'var(--fg-3)' }} />
-        <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--fg-3)' }}>
-          Definition
-        </span>
-      </div>
-      <p className="text-xs mb-3" style={{ color: 'var(--fg-3)' }}>
-        Mit welchen Einzelinstanzen arbeitet dieser Auftrag? Ohne Definition kein Start.
-      </p>
-      <div className="flex flex-wrap gap-1.5">
-        {units.map((n) => (
-          <span key={n} className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
-            style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>
-            {n}
-            <button type="button" onClick={() => setUnits(units.filter((u) => u !== n))}
-              style={{ opacity: 0.6 }} aria-label={`${n} entfernen`}>
-              <X size={11} />
-            </button>
-          </span>
-        ))}
-        <button type="button" onClick={() => setOpen(!open)}
-          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
-          style={{ border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}>
-          <Plus size={12} /> Einzelinstanz
-        </button>
-      </div>
-
-      {open && (
-        <div className="mt-3 max-h-64 overflow-auto" style={{ borderTop: '1px solid var(--border-1)' }}>
-          {options === null && <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>Lädt …</p>}
-          {options?.length === 0 && (
-            <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>
-              Es gibt keine Einzelinstanzen. Lege zuerst eine Instanz an.
-            </p>
-          )}
-          {options?.map((o) => {
-            const taken = chosen.has(o.number);
-            // Gesperrte Zeilen werden gezeigt, nicht weggefiltert – mit Grund.
-            const why = o.blocked_by
-              ? `Aktiv in Auftrag ${formatObjectId(o.blocked_by)}`
-              : !o.available ? `Steht auf «${statusLabel(o.status)}»` : undefined;
-            return (
-              <button
-                key={o.number}
-                type="button"
-                disabled={!o.available || taken}
-                onClick={() => setUnits([...units, o.number])}
-                data-tip={why}
-                className="w-full flex items-center gap-2 text-left text-xs py-1.5 px-1 disabled:opacity-45"
-                style={{ borderBottom: '1px solid var(--border-1)' }}
-              >
-                <span className="ix-tnum" style={{ minWidth: 110 }}>{o.number}</span>
-                <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{o.article_name}</span>
-                <span style={{ color: statusCfg(o.status).color }}>{why ?? statusLabel(o.status)}</span>
-              </button>
-            );
-          })}
+      {isMake ? (
+        <p className="mt-3 text-xs text-center" style={{ color: 'var(--fg-3)' }}>
+          {mirrored?.length
+            ? <>Erzeugungsprozess von <strong>{articleName}</strong> (Stand {template?.version}).
+              Er wird bei der Freigabe als Kopie übernommen – geändert wird er am Artikel.</>
+            : 'Lädt den Erzeugungsprozess …'}
+        </p>
+      ) : (
+        <div className="mt-3">
+          <AddStep
+            onAdd={(name, before, after) =>
+              setSteps([...steps, {
+                id: (steps[steps.length - 1]?.id ?? 0) + 1,
+                name, moduleType: TESTMODUL, statusBefore: before, statusAfter: after,
+              }])}
+            suggestedBefore={steps.length ? steps[steps.length - 1].statusAfter : START_AFTER}
+          />
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -267,9 +245,10 @@ function DefinitionCard({ units, setUnits, options }: {
  * Bewusst ein «Hinzufügen»-Knopf statt Auto-Save: ein halb konfiguriertes Modul wäre
  * genau das, was die Pflichtangabe verhindern soll.
  */
-function AddStep({ onAdd, suggestedBefore }: {
+export function AddStep({ onAdd, suggestedBefore, title = 'Testmodul hinzufügen' }: {
   onAdd: (name: string, before: string, after: string) => void;
   suggestedBefore: string;
+  title?: string;
 }) {
   const [name, setName] = useState('');
   const [before, setBefore] = useState(suggestedBefore);
@@ -278,7 +257,7 @@ function AddStep({ onAdd, suggestedBefore }: {
 
   const ready = name.trim().length > 0;
   return (
-    <Card icon={Plus} title="Testmodul hinzufügen">
+    <Card icon={Plus} title={title}>
       <p className="text-xs mb-2.5" style={{ color: 'var(--fg-3)' }}>
         Platzhalter-Modul: es prüft den Vorher-Status, setzt den Nachher-Status und rückt
         die Stücke vor. Keine Felder, keine Fachlogik.
@@ -333,30 +312,60 @@ function RunView({ order, busy, onConfirm }: {
     id: s.id, name: s.name, moduleType: s.module_type,
     statusBefore: s.status_before, statusAfter: s.status_after,
   }));
-  const units = (order.units ?? []).map((u) => ({
-    number: u.number, status: u.status,
-    currentStepId: u.current_step_id ?? null, active: u.active,
+  const groups = (order.unit_groups ?? []).map((g) => ({
+    currentStepId: g.current_step_id ?? null, status: g.status,
+    active: g.active, count: g.count,
   }));
 
+  // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
+  // Unterschied zwischen einer Antwort und einem Megabyte.
+  const expand = useCallback(async (stepId: number | null, active: boolean) => {
+    const page = await api.getOrderUnits(order.object_id, stepId, active, 100, 0);
+    return (page.units ?? []).map((u) => u.number);
+  }, [order.object_id]);
+
   return (
-    <ProcessDiagram
-      mode="ausfuehrung"
-      steps={steps}
-      units={units}
-      activeStepId={order.active_step_id ?? null}
-      endStatus={order.end_status}
-      renderStep={(step, isActive) => (isActive ? (
-        <button
-          type="button"
-          className="erp-actbtn erp-actbtn-primary w-full"
-          style={{ height: 38 }}
-          disabled={busy}
-          onClick={() => onConfirm(step.id)}
-        >
-          Schritt bestätigen
-        </button>
-      ) : null)}
-    />
+    <>
+      <DefinitionSummary order={order} />
+      <ProcessDiagram
+        mode="ausfuehrung"
+        steps={steps}
+        groups={groups}
+        activeStepId={order.active_step_id ?? null}
+        endStatus={order.end_status}
+        onExpand={expand}
+        renderStep={(step, isActive) => (isActive ? (
+          <button
+            type="button"
+            className="erp-actbtn erp-actbtn-primary w-full"
+            style={{ height: 38 }}
+            disabled={busy}
+            onClick={() => onConfirm(step.id)}
+          >
+            Schritt bestätigen
+          </button>
+        ) : null)}
+      />
+    </>
+  );
+}
+
+/** Was dieser Auftrag bearbeitet – festgeschrieben bei der Freigabe. */
+function DefinitionSummary({ order }: { order: Order }) {
+  const lines = order.lines ?? [];
+  if (!lines.length) return null;
+  return (
+    <div className="rounded-ds-lg mb-3" style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 12 }}>
+      {lines.map((ln) => (
+        <div key={ln.id} className="flex flex-wrap items-center gap-x-2 text-xs py-0.5">
+          <span className="ix-tnum" style={{ minWidth: 34 }}>{ln.quantity}×</span>
+          <span className="flex-1 truncate">{ln.article_name}</span>
+          <span style={{ color: 'var(--fg-3)' }}>
+            {ln.origin === NEU ? 'neu erzeugt' : 'ab Lager'}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -369,12 +378,17 @@ function EventLog({ order }: { order: Order }) {
   if (!events.length) return null;
   const KIND: Record<string, string> = { start: 'Start', step: 'Modul', end: 'Ende' };
   const names = new Map((order.steps ?? []).map((s) => [s.id, s.name]));
+  const total = order.event_count ?? events.length;
   return (
     <div className="mx-auto mt-5" style={{ maxWidth: 620 }}>
       <Card icon={History} title="Historie">
         <p className="text-xs mb-2.5" style={{ color: 'var(--fg-3)' }}>
           Eingefroren. Was hier steht, wird nicht mehr geändert – eine Korrektur wäre ein
           neuer Eintrag.
+          {total > events.length && (
+            // Gekappt, aber nicht verschwiegen: eine stumme Liste sähe aus wie alles.
+            <> Gezeigt sind die letzten {events.length} von {total} Einträgen.</>
+          )}
         </p>
         <div className="flex flex-col">
           {events.map((e) => (

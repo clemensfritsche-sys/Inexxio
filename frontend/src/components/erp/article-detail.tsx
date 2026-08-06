@@ -8,7 +8,7 @@ import {
   MapPin, ClipboardPlus,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile } from '@/types';
+import type { ArticleProcess, Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile } from '@/types';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
@@ -17,6 +17,9 @@ import {
 import { articleStatus, KIND_LABEL } from '@/lib/record-status';
 import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
+import { ProcessDiagram, type DiagramStep } from '@/components/erp/process-diagram';
+import { AddStep } from '@/components/erp/order-detail';
+import { END_BEFORE, START_AFTER } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
 import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
@@ -40,10 +43,11 @@ function articleActions(status: string, hasProcess: boolean): StatusAction[] {
   return [];   // inaktiv → keine Aktionen (endgültig)
 }
 
-type TabKey = 'spezifikation' | 'bestand';
+type TabKey = 'spezifikation' | 'prozess' | 'bestand';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'spezifikation', label: 'Spezifikation', icon: FileText },
+  { key: 'prozess', label: 'Erzeugungsprozess', icon: Workflow },
   { key: 'bestand', label: 'Bestand', icon: Boxes },
 ];
 
@@ -399,6 +403,13 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           </div>
         )}
         
+        {tab === 'prozess' && (
+          <ArticleProcessTab
+            articleObjectId={record?.object_id ?? null}
+            frozen={record?.status !== 'draft'}
+          />
+        )}
+
         {tab === 'bestand' && (
           <ArticleStock articleObjectId={record?.object_id ?? null} />
         )}
@@ -841,6 +852,85 @@ function AddInstance({ articleObjectId, onCreated }: {
         </button>
       </div>
       {err && <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>{err}</p>}
+    </div>
+  );
+}
+
+
+/**
+ * Reiter «Erzeugungsprozess» – die **Vorlage**: wie ein Stück dieses Artikels entsteht.
+ *
+ * Es ist **dieselbe** Darstellung wie im Auftrag (`ProcessDiagram`, Modus `definition`)
+ * und **derselbe** Modul-Editor (`AddStep`) – keine zweite Komponente, kein Nachbau. Der
+ * Unterschied liegt nicht in der Optik, sondern darin, was fehlt: es gibt hier keine
+ * Einzelinstanzen, keinen Start-Knopf und keine Ausführung (PROCESS_CORE.md §8.2). Was
+ * hier steht, wird bei der Freigabe eines Erzeugungsauftrags **kopiert**.
+ */
+function ArticleProcessTab({ articleObjectId, frozen }: {
+  articleObjectId: number | null; frozen: boolean;
+}) {
+  const [proc, setProc] = useState<ArticleProcess | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    if (!articleObjectId) { setProc(null); return; }
+    api.getArticleProcess(articleObjectId)
+      .then(setProc)
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+  }, [articleObjectId]);
+  useEffect(() => { load(); }, [load]);
+
+  if (!articleObjectId) {
+    return (
+      <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
+        Der Erzeugungsprozess entsteht mit dem Artikel – zuerst die Spezifikation speichern.
+      </p>
+    );
+  }
+
+  const steps: DiagramStep[] = (proc?.steps ?? []).map((s) => ({
+    id: s.id, name: s.name, moduleType: s.module_type,
+    statusBefore: s.status_before, statusAfter: s.status_after,
+  }));
+
+  async function run(fn: () => Promise<ArticleProcess>) {
+    setBusy(true); setErr(null);
+    try { setProc(await fn()); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="mx-auto" style={{ maxWidth: 620 }}>
+      {err && (
+        <p className="mb-3 text-sm px-3 py-2 rounded-ds-lg"
+          style={{ color: 'var(--danger)', background: 'var(--danger-bg)' }}>{err}</p>
+      )}
+      <ProcessDiagram
+        mode="definition"
+        steps={steps}
+        endStatus={END_BEFORE}
+        onDelete={frozen || busy ? undefined
+          : (id) => run(() => api.deleteArticleProcessStep(articleObjectId, id))}
+      />
+      {frozen ? (
+        <p className="mt-3 text-xs text-center" style={{ color: 'var(--fg-3)' }}>
+          Eingefroren – ein freigegebener Artikel wird nicht mehr umgebaut. Stand {proc?.version ?? 0}.
+        </p>
+      ) : (
+        <div className="mt-3">
+          <AddStep
+            title="Modul hinzufügen"
+            suggestedBefore={steps.length ? steps[steps.length - 1].statusAfter : START_AFTER}
+            onAdd={(name, before, after) => run(() =>
+              api.addArticleProcessStep(articleObjectId, {
+                module_type: 'testmodul', name,
+                status_before: before, status_after: after,
+              }))}
+          />
+        </div>
+      )}
     </div>
   );
 }
