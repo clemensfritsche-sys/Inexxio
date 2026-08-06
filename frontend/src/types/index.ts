@@ -83,12 +83,16 @@ export const ARTICLE_NAME_MAX_LENGTH = 32;
 
 // ─── Order (Auftrag) ──────────────────────────────────────────────────────────
 //
-// Der Auftrag trägt heute nur seine Identität. Was er sonst führt, entscheidet sich mit
-// der Prozesslogik – Felder auf Vorrat wären erfundene Anforderungen.
+// Der Auftrag entsteht erst mit der Freigabe; das Detail trägt seine Schritte, seine
+// Stücke und die eingefrorene Historie (PROCESS_CORE.md §10).
 
 export type Order = components['schemas']['OrderResponse'];
 export type OrderSummary = components['schemas']['OrderSummary'];
 export type OrderValidation = components['schemas']['OrderValidation'];
+export type ProcessStepResponse = components['schemas']['ProcessStepResponse'];
+export type OrderUnitResponse = components['schemas']['OrderUnitResponse'];
+export type ProcessEventResponse = components['schemas']['ProcessEventResponse'];
+export type UnitOption = components['schemas']['UnitOption'];
 
 /** Ein Auftragsentwurf. Er lebt NUR im Browser – es gibt dafür keine Zeile in der
  *  Datenbank, keine vorreservierte Objektnummer und kein Autosave. */

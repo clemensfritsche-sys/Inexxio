@@ -74,7 +74,8 @@ def create_article(
     article = Article(object_id=next_object_id(db, "article"), **payload)
     db.add(article)
     db.flush()
-    log_audit(db, user.id, "articles", article.id, "create", None, article.name)
+    log_audit(db, "articles", "create", article.name,
+              user_id=user.id, object_id=article.object_id)
     db.commit()
     db.refresh(article)
     return _out(article)
@@ -107,7 +108,8 @@ def update_article(
         if before == value:
             continue
         setattr(article, key, value)
-        log_audit(db, user.id, "articles", article.id, key, str(before), str(value))
+        log_audit(db, "articles", key, str(value),
+                  user_id=user.id, object_id=article.object_id, old_value=str(before))
 
     db.commit()
     db.refresh(article)

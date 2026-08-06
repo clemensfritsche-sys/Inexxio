@@ -1,29 +1,41 @@
-from sqlalchemy import BigInteger
+from sqlalchemy import BigInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
+from ..domain.statuses import DEFAULT_END_STATUS
 from .base import TimestampMixin
+
+#: Der Auftrag entsteht **erst bei der Freigabe** – es gibt keinen gespeicherten
+#: Entwurf. Darum beginnt er als ``released`` und endet als ``completed``, sobald jedes
+#: seiner Stücke das Ende-Objekt passiert hat.
+RELEASED = "released"
+COMPLETED = "completed"
+ORDER_STATUSES = (RELEASED, COMPLETED)
 
 
 class Order(Base, TimestampMixin):
     """Auftrag – ein ERP-Datensatz mit eigener Objektnummer.
 
-    **Bewusst leer.** Der Auftrag trägt heute nichts ausser seiner Identität: welche
-    Angaben er führt, hängt an der Prozesslogik, und die wird als Nächstes entworfen.
-    Felder auf Vorrat anzulegen hiesse, sie jetzt zu erfinden – und eine erfundene Spalte
-    ist schwerer wieder loszuwerden als eine fehlende hinzuzufügen.
+    **Der Auftrag ist der Ort, an dem Prozesse ausgeführt werden** (PROCESS_CORE.md §8).
+    Seine Struktur – die Schrittliste – hängt an ``process_steps``, seine Stücke an
+    ``order_units``, seine Historie an ``process_events``.
 
-    Was er hat, hat er aus der bestehenden Datensatz-Systematik (wie Instanz und Artikel):
-    eine 9-stellige Objektnummer aus dem gemeinsamen Kreis, Zeitstempel und ``is_active``
-    für den Soft-Delete. Der Zustand im Feed wird daraus **abgeleitet** (aktiv/inaktiv) –
-    es gibt kein Status-Feld, weil es keinen Lebenszyklus gibt, den es beschreiben könnte.
+    **Er existiert erst ab der Freigabe.** Ein Auftragsentwurf lebt ausschliesslich im
+    Browser: keine Entwurfs-Zeile, keine vorreservierte Nummer, kein Autosave. Wer den
+    Entwurf verwirft, lässt keine Spur. Entsprechend gibt es keinen Zustand «Entwurf» –
+    ein gespeicherter Auftrag ist immer schon freigegeben.
 
-    **Die Objektnummer entsteht erst beim Speichern** (``services/orders.create_order``).
-    Ein Auftragsentwurf lebt ausschliesslich im Browser: keine Entwurfs-Zeile, keine
-    vorreservierte Nummer, kein Autosave. Wer den Entwurf verwirft, lässt keine Spur.
+    ``end_status`` ist der **konfigurierbare Wert des Ende-Objekts** (§4.2). Er steht
+    heute immer auf ``freigegeben``, und genau darum steht er hier: an EINER Stelle.
+    Wäre der Endzustand über die Fachlogik verteilt hart kodiert, kostete die spätere
+    Erweiterung (verkauft · verbaut · ausgesondert) einen Umbau statt einer Änderung.
     """
 
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     object_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default=RELEASED, nullable=False)
+    end_status: Mapped[str] = mapped_column(
+        String(30), default=DEFAULT_END_STATUS, nullable=False,
+    )

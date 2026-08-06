@@ -16,6 +16,7 @@ liegen. Funktions-lokale Importe zählen korrekt als lokal und stören nicht.
 Nebeneffekt mit gleichem Wert: **jedes** Modul unter ``app/`` muss importierbar sein.
 """
 
+import ast
 import builtins
 import importlib
 import pathlib
@@ -117,3 +118,47 @@ def test_the_guard_actually_catches_the_bug_it_was_written_for():
 
     assert "LocationHop" in only_read(bug)      # der Bug wird gemeldet …
     assert only_read(ok) == set()               # … die Comprehension-Variablen nicht
+
+
+# ---------------------------------------------------------------------------
+# Argument-Reihenfolge beim Audit-Log
+# ---------------------------------------------------------------------------
+#
+# ``log_audit`` nimmt sieben Argumente, davon fünf potenziell positionell, und die
+# Reihenfolge ist nicht die, die man erwartet (``user_id`` steht an FÜNFTER Stelle, nicht
+# an zweiter). Vertauscht man sie, ist das kein Typfehler und kein NameError – es fliegt
+# erst in der Datenbank, und zwar erst, wenn genau dieser Endpunkt läuft:
+#
+#     invalid input syntax for type bigint: "release"
+#
+# Genau das ist beim Bau der Prozesslogik passiert und wurde erst im Browser-Durchlauf
+# sichtbar, weil die Service-Tests den Router nicht anfassen. Dieselbe Klasse wie der
+# ``LocationHop``-Fehler oben: statisch unsichtbar, zur Laufzeit fatal.
+
+def test_the_audit_log_is_never_called_with_shuffled_arguments():
+    """Jeder ``log_audit``-Aufruf passt zur Signatur — statisch geprüft.
+
+    Zwei Merkmale genügen, um die Vertauschung zu erwischen: ``table_name`` ist immer ein
+    Text**literal**, und ``user_id`` ist nie eines.
+    """
+    findings: list[str] = []
+    for path in sorted(APP.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), str(path))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id == "log_audit"):
+                continue
+            where = f"{path.relative_to(APP.parent)}:{node.lineno}"
+            args = node.args
+            if len(args) >= 2 and not (
+                isinstance(args[1], ast.Constant) and isinstance(args[1].value, str)
+            ):
+                findings.append(f"{where}: 2. Argument ist nicht der Tabellenname (Text)")
+            if len(args) >= 5 and isinstance(args[4], ast.Constant) and isinstance(args[4].value, str):
+                findings.append(f"{where}: 5. Argument ist Text – dort steht die user_id")
+
+    assert not findings, (
+        "Vertauschte Argumente bei log_audit (fliegt erst in der Datenbank):\n"
+        + "\n".join(findings)
+    )

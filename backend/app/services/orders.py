@@ -1,8 +1,11 @@
-"""Auftrag – Anlage und Lesen.
+"""Auftrag – Anlage (= Freigabe) und Lesen.
 
-**Hier steht die zentrale Stelle für die Pflichteingaben** (``validate_draft``). Sie ist
-heute leer, weil die Pflichtfelder noch nicht definiert sind; sie ist trotzdem schon
-verdrahtet, damit sie später an EINEM Ort eingetragen werden und nicht an dreien.
+**Ein Auftrag entsteht erst bei der Freigabe.** Bis dahin lebt der Entwurf im Browser:
+keine Zeile, keine reservierte Objektnummer, kein Autosave. Es gibt darum keinen
+gespeicherten Zustand «Entwurf» und keinen «Speichern»-Pfad neben der Freigabe.
+
+Die Fachlogik steht in ``services/process.py``; hier stehen die Freigabebedingungen –
+**die eine Stelle**, die Router und Oberfläche gemeinsam lesen.
 """
 
 from typing import Any
@@ -11,71 +14,43 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Order
-from .objects import next_object_id
+from .process import assert_releasable, release
 
 
 # ---------------------------------------------------------------------------
-# ►► PFLICHTEINGABEN DES AUFTRAGS – DIE EINE STELLE ◄◄
+# ►► FREIGABEBEDINGUNGEN DES AUFTRAGS – DIE EINE STELLE ◄◄
 # ---------------------------------------------------------------------------
 #
-# Ein Auftragsentwurf lebt nur im Browser. Gespeichert wird er erst, wenn er hier
-# durchkommt – und erst dann bekommt er seine Objektnummer.
+# Sie gibt die **Namen** der fehlenden Angaben zurück, nicht True/False: nur so kann
+# die Oberfläche sagen, *was* fehlt, statt den Nutzer suchen zu lassen. Das Frontend
+# fragt sie über ``POST /erp/orders/validate`` ab, statt sie nachzuformulieren – sonst
+# gäbe es zwei Massstäbe für dieselbe Frage.
 #
-# Die Regeln sind NOCH NICHT DEFINIERT. Sie kommen mit der Prozesslogik. Bis dahin
-# lässt diese Funktion jeden Entwurf durch; sie ist bewusst schon da, damit die
-# Bedingungen später an genau einer Stelle landen statt verteilt in Router, Schema
-# und Oberfläche.
-#
-# EINTRAGEN NACH DIESEM MUSTER – ein Fehler nennt Feld und Grund, kein Sammel-«ungültig»:
-#
-#     if not draft.get("article_object_id"):
-#         missing.append("Artikel")
-#     if not draft.get("quantity"):
-#         missing.append("Menge")
-#
-# Das Frontend fragt dieselbe Regel über ``POST /erp/orders/validate`` ab, damit der
-# Speichern-Knopf denselben Massstab anlegt wie der Server – EINE Regel, zwei Leser.
+# Weitere Bedingungen kommen hierher, nicht in den Router und nicht ins Formular.
 # ---------------------------------------------------------------------------
 
 def validate_draft(draft: dict[str, Any]) -> list[str]:
-    """Fehlende Pflichteingaben eines Auftragsentwurfs – leere Liste heisst «speicherbar».
+    """Was fehlt diesem Entwurf noch zur Freigabe? Leere Liste heisst «freigebbar»."""
+    return assert_releasable(
+        list(draft.get("unit_numbers") or []),
+        list(draft.get("steps") or []),
+    )
 
-    Gibt die **Namen** der fehlenden Angaben zurück, nicht True/False: nur so kann die
-    Oberfläche sagen, was fehlt, statt den Nutzer suchen zu lassen.
+
+def create_order(db: Session, draft: dict[str, Any], *, actor_id: int | None) -> Order:
+    """Aus einem Entwurf einen freigegebenen Auftrag machen.
+
+    Alles in **einer** Transaktion (der Aufrufer committet): Bedingungen, Anlage,
+    Exklusivität, Start-Übergang, Log. Bricht ein Schritt ab, bleibt nichts
+    Halbfertiges zurück – kein Auftrag ohne Prozess, keine Einzelinstanz im
+    Zwischenzustand.
     """
-    missing: list[str] = []
-
-    # ── Pflichteingaben hier eintragen (siehe Kommentar oben). ──
-    # Heute keine: die Regeln sind noch nicht definiert.
-
-    return missing
-
-
-def assert_saveable(draft: dict[str, Any]) -> None:
-    """Wächter vor dem Speichern. Wirft, statt still einen halben Auftrag anzulegen."""
-    missing = validate_draft(draft)
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Der Auftrag ist unvollständig – es fehlt: {', '.join(missing)}.",
-        )
-
-
-# ---------------------------------------------------------------------------
-# Anlage
-# ---------------------------------------------------------------------------
-
-def create_order(db: Session, draft: dict[str, Any]) -> Order:
-    """Aus einem Entwurf einen Auftrag machen.
-
-    Die Objektnummer wird **hier** gezogen und nirgends sonst – vorher existiert der
-    Auftrag nicht, auch nicht als reservierte Nummer.
-    """
-    assert_saveable(draft)
-    order = Order(object_id=next_object_id(db, "order"))
-    db.add(order)
-    db.flush()
-    return order
+    return release(
+        db,
+        unit_numbers=[str(n) for n in (draft.get("unit_numbers") or [])],
+        steps=[dict(s) for s in (draft.get("steps") or [])],
+        actor_id=actor_id,
+    )
 
 
 def get(db: Session, object_id: int) -> Order:

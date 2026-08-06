@@ -6,6 +6,9 @@ from .article_price import ArticlePrice
 from .article_sales_audience import ArticleSalesAudience
 from .fx_rate import FxRate
 from .order import Order
+from .order_unit import OrderUnit
+from .process_step import ProcessStep
+from .process_event import ProcessEvent
 from .instance import Instance
 from .instance_unit import InstanceUnit
 from .capture import Capture
@@ -25,7 +28,8 @@ from .object_ref import ObjectRef
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "FxRate",
-    "Order", "Instance", "InstanceUnit", "Capture",
+    "Order", "OrderUnit", "ProcessStep", "ProcessEvent",
+    "Instance", "InstanceUnit", "Capture",
     "DocumentSignoff", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
     "Attachment",
     "WebAuthnCredential", "WebAuthnChallenge",
