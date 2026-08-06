@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ClipboardList, ArrowUp, ArrowDown } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderDraft } from '@/types';
 import { TYPE_META } from '@/lib/erp-record';
@@ -9,6 +9,7 @@ import { orderName } from '@/lib/record-name';
 import { orderStatus } from '@/lib/record-status';
 import { DetailHeader, HeaderAction } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
+import { OrderProcessMockup } from '@/components/erp/order-process-mockup';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
 // keine weiteren – auch keine leeren oder deaktivierten.
@@ -97,66 +98,13 @@ export function OrderDetail({ record, onSaved, onBack }: {
           <p className="mb-3 text-sm" style={{ color: 'var(--danger)' }}>{error}</p>
         )}
 
-        {/* Drei Spuren: links woher der Auftrag kommt, in der Mitte was er tut,
-            rechts was aus ihm hervorgeht. Links und rechts sind Platzhalter und sagen
-            das auch – keine Beispieldaten, keine erfundene Logik. */}
-        <div className="grid gap-3 items-stretch"
-          style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr)' }}>
-          <Lane
-            icon={ArrowUp}
-            title="Übergeordnete Aufträge"
-            note="Platzhalter – kommt mit der Prozesslogik."
-          />
-          <ProcessLane />
-          <Lane
-            icon={ArrowDown}
-            title="Untergeordnete Aufträge"
-            note="Platzhalter – kommt mit der Prozesslogik."
-          />
-        </div>
+        {/* Drei Spuren: links woher der Auftrag kommt, in der Mitte was er tut, rechts
+            was aus ihm hervorgeht. Heute ein **Mockup** – statische Beispieldaten, keine
+            Datenbank, als solches gekennzeichnet. Es zeigt die Grundlogik aus
+            PROCESS_CORE.md, damit sie vor dem Bauen der Module überprüfbar ist; die echte
+            Prozesslogik ersetzt es. */}
+        <OrderProcessMockup />
       </div>
-    </div>
-  );
-}
-
-/**
- * Eine Platzhalter-Spur. Sie ist sichtbar als solche gekennzeichnet (gestrichelt,
- * gedämpft, mit Begründung) – damit niemand sie für einen leeren Datenbestand hält.
- */
-function Lane({ icon: Icon, title, note }: {
-  icon: React.ElementType; title: string; note: string;
-}) {
-  return (
-    <div
-      className="rounded-ds-lg p-4 flex flex-col items-center justify-center text-center gap-2 min-h-[320px]"
-      style={{ border: '1px dashed var(--border-2)', background: 'transparent' }}
-    >
-      <Icon size={18} style={{ color: 'var(--fg-4)' }} />
-      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--fg-3)' }}>
-        {title}
-      </span>
-      <span className="text-xs" style={{ color: 'var(--fg-4)' }}>{note}</span>
-    </div>
-  );
-}
-
-/**
- * Die Mitte: hier läuft der Prozess. Heute ein leerer, vorbereiteter Container –
- * die Prozesslogik ist der nächste Schritt und wird bewusst noch nicht angefangen.
- */
-function ProcessLane() {
-  return (
-    <div
-      className="rounded-ds-lg p-4 flex flex-col items-center justify-center text-center gap-2 min-h-[320px]"
-      style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)' }}
-    >
-      <ClipboardList size={20} style={{ color: 'var(--fg-4)' }} />
-      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--fg-3)' }}>
-        Prozess
-      </span>
-      <span className="text-xs" style={{ color: 'var(--fg-4)' }}>
-        Noch nicht definiert.
-      </span>
     </div>
   );
 }

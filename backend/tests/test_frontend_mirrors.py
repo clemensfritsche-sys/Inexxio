@@ -289,3 +289,68 @@ def test_a_capture_without_something_judgeable_has_no_verdict():
         [{"key": "l", "type": "measure", "target": 10, "tolerance": 1}], {"l": 10.5}) == "passed"
     assert capture.evaluate(
         [{"key": "l", "type": "measure", "target": 10, "tolerance": 1}], {"l": 12}) == "failed"
+
+
+# ---------------------------------------------------------------------------
+# Prozess-Darstellung (PROCESS_CORE.md §8)
+# ---------------------------------------------------------------------------
+
+def test_the_process_lines_are_computed_from_measured_anchors():
+    """Knoten bestimmen ihre Position selbst, Linien werden **gemessen** – nie gesetzt.
+
+    Das ist die eine Zusage, die beim vierten Modul bricht, wenn sie jemand aufweicht:
+    eine Position, die im Code steht, ist eine Behauptung über eine Schrittzahl, die
+    niemand kennt. Darum wird hier nicht geprüft, ob es «schön aussieht», sondern ob die
+    Mechanik überhaupt noch die gemessene ist.
+    """
+    frame = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
+    assert "ResizeObserver" in frame and "getBoundingClientRect" in frame, (
+        "Der Fluss misst seine Knoten nicht mehr – dann stehen die Linien irgendwo."
+    )
+    # Genau EINE absolute Positionierung ist erlaubt: das SVG über der Fläche. Jede
+    # weitere wäre ein Knoten, der nicht mehr im Fluss liegt.
+    assert frame.count("'absolute'") == 1, (
+        f"process-flow.tsx positioniert {frame.count(chr(39) + 'absolute' + chr(39))} Dinge "
+        f"absolut – erlaubt ist nur das Linien-Overlay."
+    )
+
+    mock = _read(FRONTEND / "components" / "erp" / "order-process-mockup.tsx")
+    assert "absolute" not in mock, (
+        "Das Mockup positioniert einen Knoten absolut – Knoten liegen im Fluss."
+    )
+    assert "<svg" not in mock, (
+        "Das Mockup zeichnet ein eigenes SVG – es gibt EINEN Rahmen, der das tut."
+    )
+    assert "anchors[" in mock, (
+        "Die Linien lesen keine gemessenen Anker mehr."
+    )
+
+
+def test_the_process_object_is_one_component():
+    """Ein Prozessobjekt = eine Komponente (§8). Der Modultyp ist Konfiguration.
+
+    Kein Copy-Paste je Modulart – sonst wächst mit jedem Modul ein zweites Bauteil, das
+    beim nächsten Design-Wechsel vergessen wird.
+    """
+    mock = _read(FRONTEND / "components" / "erp" / "order-process-mockup.tsx")
+    assert mock.count("function ModuleCard") == 1, (
+        "Es gibt mehr als eine Modul-Komponente."
+    )
+    assert "FlowNode" in mock, "Das Mockup benutzt die gemeinsame Knoten-Hülle nicht."
+
+
+def test_the_mockup_says_that_it_is_one_and_touches_no_data():
+    """Statische Beispieldaten, klar gekennzeichnet, ohne Datenbank.
+
+    Ein Mockup, das man nicht als solches erkennt, ist eine Falschaussage über den
+    Systemzustand – und eines, das Daten liest, ist keines mehr.
+    """
+    mock = _read(FRONTEND / "components" / "erp" / "order-process-mockup.tsx")
+    assert "Mockup" in mock, "Das Mockup weist sich nicht als Mockup aus."
+    assert "@/lib/api" not in mock and "useQuery" not in mock, (
+        "Das Mockup hängt an der API – dann ist es keins."
+    )
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "OrderProcessMockup" in detail, (
+        "Der Auftrag-Reiter zeigt das Mockup nicht."
+    )
