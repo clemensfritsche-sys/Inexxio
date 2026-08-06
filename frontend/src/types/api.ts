@@ -578,6 +578,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Orders */
+        get: operations["list_orders_api_v1_erp_orders_get"];
+        put?: never;
+        /** Create Order */
+        post: operations["create_order_api_v1_erp_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Order
+         * @description Wäre dieser Entwurf speicherbar? Legt **nichts** an, zieht **keine** Nummer.
+         *
+         *     Dieselbe Regel wie die Anlage (``services/orders.validate_draft``) – die Oberfläche
+         *     formuliert sie nicht nach, sie fragt sie ab.
+         */
+        post: operations["validate_order_api_v1_erp_orders_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Order */
+        get: operations["get_order_api_v1_erp_orders__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/instances": {
         parameters: {
             query?: never;
@@ -1621,6 +1679,75 @@ export interface components {
             object_id: number;
             /** Object Type */
             object_type: string;
+        };
+        /**
+         * OrderCreate
+         * @description Der Entwurf, so wie ihn die Oberfläche schickt.
+         *
+         *     Offen gehalten, nicht aus Nachlässigkeit: ein festes Feldschema wäre eine Behauptung
+         *     darüber, was ein Auftrag braucht – und genau das ist noch nicht entschieden. Geprüft
+         *     wird ausschliesslich in ``services/orders.validate_draft``.
+         */
+        OrderCreate: {
+            [key: string]: unknown;
+        };
+        /** OrderResponse */
+        OrderResponse: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /**
+         * OrderSummary
+         * @description Feed-Zeile. Identisch zur Detail-Antwort, solange der Auftrag nichts weiter trägt –
+         *     getrennt gehalten, weil das Detail wächst, sobald die Prozesslogik steht.
+         */
+        OrderSummary: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /**
+         * OrderValidation
+         * @description Antwort auf «wäre dieser Entwurf speicherbar?».
+         *
+         *     Damit legt die Oberfläche denselben Massstab an wie der Server, ohne die Regel ein
+         *     zweites Mal zu formulieren.
+         */
+        OrderValidation: {
+            /** Saveable */
+            saveable: boolean;
+            /**
+             * Missing
+             * @description Namen der fehlenden Pflichteingaben – leer heisst speicherbar.
+             */
+            missing?: string[];
         };
         /**
          * PasskeyLoginResult
@@ -2987,6 +3114,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_orders_api_v1_erp_orders_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_order_api_v1_erp_orders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_order_api_v1_erp_orders_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderValidation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_order_api_v1_erp_orders__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
                 };
             };
             /** @description Validation Error */

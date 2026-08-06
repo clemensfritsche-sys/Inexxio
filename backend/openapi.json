@@ -1530,6 +1530,208 @@
         }
       }
     },
+    "/api/v1/erp/orders": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "List Orders",
+        "operationId": "list_orders_api_v1_erp_orders_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "default": 200,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderSummary"
+                  },
+                  "title": "Response List Orders Api V1 Erp Orders Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Create Order",
+        "operationId": "create_order_api_v1_erp_orders_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/validate": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Validate Order",
+        "description": "Wäre dieser Entwurf speicherbar? Legt **nichts** an, zieht **keine** Nummer.\n\nDieselbe Regel wie die Anlage (``services/orders.validate_draft``) – die Oberfläche\nformuliert sie nicht nach, sie fragt sie ab.",
+        "operationId": "validate_order_api_v1_erp_orders_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderValidation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/orders/{object_id}": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Get Order",
+        "operationId": "get_order_api_v1_erp_orders__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/instances": {
       "get": {
         "tags": [
@@ -5046,6 +5248,106 @@
         ],
         "title": "ObjectResolution",
         "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
+      },
+      "OrderCreate": {
+        "properties": {},
+        "additionalProperties": true,
+        "type": "object",
+        "title": "OrderCreate",
+        "description": "Der Entwurf, so wie ihn die Oberfläche schickt.\n\nOffen gehalten, nicht aus Nachlässigkeit: ein festes Feldschema wäre eine Behauptung\ndarüber, was ein Auftrag braucht – und genau das ist noch nicht entschieden. Geprüft\nwird ausschliesslich in ``services/orders.validate_draft``."
+      },
+      "OrderResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "object_id",
+          "created_at",
+          "updated_at",
+          "is_active"
+        ],
+        "title": "OrderResponse"
+      },
+      "OrderSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "object_id",
+          "created_at",
+          "updated_at",
+          "is_active"
+        ],
+        "title": "OrderSummary",
+        "description": "Feed-Zeile. Identisch zur Detail-Antwort, solange der Auftrag nichts weiter trägt –\ngetrennt gehalten, weil das Detail wächst, sobald die Prozesslogik steht."
+      },
+      "OrderValidation": {
+        "properties": {
+          "saveable": {
+            "type": "boolean",
+            "title": "Saveable"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing",
+            "description": "Namen der fehlenden Pflichteingaben – leer heisst speicherbar."
+          }
+        },
+        "type": "object",
+        "required": [
+          "saveable"
+        ],
+        "title": "OrderValidation",
+        "description": "Antwort auf «wäre dieser Entwurf speicherbar?».\n\nDamit legt die Oberfläche denselben Massstab an wie der Server, ohne die Regel ein\nzweites Mal zu formulieren."
       },
       "PasskeyLoginResult": {
         "properties": {

@@ -10,11 +10,6 @@ import { cn } from '@/lib/utils';
  */
 export type DetailTab<K extends string = string> = {
   key: K; label: string; icon: ElementType;
-  /** Reiter, den es (noch) nicht gibt – etwa «Dokumente» an einem Auftrag, der erst mit
-   *  der Freigabe entsteht. Er bleibt sichtbar (der Kopf soll überall gleich aussehen),
-   *  der Grund steht im Hover. */
-  disabled?: boolean;
-  hint?: string;
 };
 
 export function DetailTabs<K extends string>({ tabs, active, onChange, style }: {
@@ -28,9 +23,7 @@ export function DetailTabs<K extends string>({ tabs, active, onChange, style }: 
       {tabs.map((t) => {
         const Icon = t.icon;
         return (
-          <button key={t.key} onClick={() => !t.disabled && onChange(t.key)}
-            disabled={t.disabled} title={t.hint}
-            style={t.disabled ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+          <button key={t.key} onClick={() => onChange(t.key)}
             // Der aktive Reiter markiert sich für die Testnotizen: eine Notiz weiss
             // dadurch, in welcher Ansicht sie gesetzt wurde (`context.view`).
             data-fb-tab={active === t.key ? t.label : undefined}

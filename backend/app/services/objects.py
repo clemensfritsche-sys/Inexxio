@@ -12,7 +12,7 @@ from sqlalchemy import func, select, text, union_all
 from sqlalchemy.orm import Session
 
 from ..models import (
-    Article, CompanySettings, DocumentFile, Instance, ObjectRef, UserProfile,
+    Article, CompanySettings, DocumentFile, Instance, ObjectRef, Order, UserProfile,
 )
 
 OBJ_ID_START = 100_000_001
@@ -29,6 +29,7 @@ OBJECT_ID_SEQUENCE = "object_id_seq"
 _TYPE_MODELS = {
     "user": UserProfile,
     "article": Article,
+    "order": Order,
     "instance": Instance,
     # Das Prozessschritt-``Document`` trägt KEINE eigene Nummer – seine Nummer ist die
     # Instanz-Objektnummer. Ein hochgeladenes ``DocumentFile`` (Beleg/Anleitung) hingegen

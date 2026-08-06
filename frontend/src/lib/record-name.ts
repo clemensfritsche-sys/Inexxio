@@ -1,4 +1,4 @@
-import type {Article, CompanySettings, Instance, UserProfile } from '@/types';
+import type { Article, CompanySettings, Instance, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 
 /**
@@ -32,7 +32,15 @@ export function articleName(a: Article): string | null {
   return a.name?.trim() || null;
 }
 
-// `orderName` ist mit dem Auftrag entfallen (Basis-Neuaufbau).
+/**
+ * Der Auftrag trägt heute **kein** Namensfeld – also gibt es keinen Namen, und `null`
+ * sagt genau das. Die Oberfläche setzt dafür ihren Platzhalter; ein Rückfall auf das
+ * Typ-Wort «Auftrag» wäre der Fehler, den `record-name` gerade abstellt (Notiz #177):
+ * der Typ steht im Symbol, nie im Namen.
+ */
+export function orderName(): string | null {
+  return null;
+}
 
 export function instanceName(i: Instance): string | null {
   return i.article_name?.trim() || null;
