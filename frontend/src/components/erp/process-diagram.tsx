@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
-import { Blocks, Flag, Play, Trash2 } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Blocks, ChevronDown, ChevronUp, Flag, Play, Trash2 } from 'lucide-react';
 import { FlowFrame, FlowNode, polyPath, type FlowAnchor } from './process-flow';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
 
@@ -37,30 +37,40 @@ export interface DiagramStep {
 
 export type DiagramMode = 'definition' | 'ausfuehrung';
 
-export interface DiagramUnit {
-  number: string;
-  status: string;
+/**
+ * Wie viele Stücke stehen an einer Stelle, in welchem Zustand.
+ *
+ * **Gezählt, nicht aufgelistet.** Die Datenhaltung bleibt pro Einzelinstanz (§4 des
+ * Auftrags); dies ist die Darstellungsfrage. Bei Menge 5000 ist der Unterschied nicht
+ * Geschmack, sondern der zwischen einer Pille und 5000 DOM-Knoten. Wer die Nummern
+ * sehen will, klappt auf – dann holt `onExpand` sie nach.
+ */
+export interface DiagramGroup {
   /** `null` = am Ende angekommen. Nur im Ausführungsmodus gesetzt. */
   currentStepId: number | null;
+  status: string;
   active: boolean;
+  count: number;
 }
 
 export function ProcessDiagram({
-  mode, steps, units = [], activeStepId = null, endStatus,
-  head, onDelete, renderStep,
+  mode, steps, groups = [], activeStepId = null, endStatus,
+  head, onDelete, renderStep, onExpand,
 }: {
   mode: DiagramMode;
   steps: DiagramStep[];
   /** Nur im Ausführungsmodus – im Definitionsmodus gibt es nichts unterwegs (§6.1). */
-  units?: DiagramUnit[];
+  groups?: DiagramGroup[];
   activeStepId?: number | null;
   endStatus: string;
-  /** Slot über dem Start: die Definition der Einzelinstanzen (nur beim Auftrag). */
+  /** Slot über dem Start: die Definition (nur beim Auftrag). */
   head?: ReactNode;
   /** Nur im Definitionsmodus: ein Modul entfernen. */
   onDelete?: (id: number) => void;
   /** Nur im Ausführungsmodus: was in der Karte des aktiven Moduls steht. */
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
+  /** Eine Gruppe aufklappen: die einzelnen Nummern nachladen. */
+  onExpand?: (stepId: number | null, active: boolean) => Promise<string[]>;
 }) {
   const running = mode === 'ausfuehrung';
 
@@ -82,22 +92,22 @@ export function ProcessDiagram({
     > = [];
     if (head) out.push({ id: 'head', kind: 'head' });
     out.push({ id: 'start', kind: 'terminal', which: 'start' });
-    if (running && unitsAt(units, steps[0]?.id ?? null).length) {
+    if (running && groupsAt(groups, steps[0]?.id ?? null, true).length) {
       out.push({ id: 'state-start', kind: 'state', at: steps[0]?.id ?? null });
     }
     steps.forEach((s, i) => {
       out.push({ id: `step-${s.id}`, kind: 'step', step: s });
       const next = steps[i + 1]?.id ?? null;
-      if (running && next !== null && unitsAt(units, next).length) {
+      if (running && next !== null && groupsAt(groups, next, true).length) {
         out.push({ id: `state-${s.id}`, kind: 'state', at: next });
       }
     });
     out.push({ id: 'end', kind: 'terminal', which: 'end' });
-    if (running && units.some((u) => !u.active)) {
+    if (running && groups.some((g) => !g.active)) {
       out.push({ id: 'state-end', kind: 'state', at: null });
     }
     return out;
-  }, [head, steps, units, running]);
+  }, [head, steps, groups, running]);
 
   /** Bis wohin ist die Linie stark? Bis zu der Stelle, an der der Prozess wirklich steht. */
   const walkedEdges = useMemo(() => {
@@ -125,9 +135,15 @@ export function ProcessDiagram({
               );
             }
             if (n.kind === 'state') {
+              const active = n.id !== 'state-end';
               return (
                 <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
-                  <StateRow units={unitsAt(units, n.at)} />
+                  <StateRow
+                    groups={groupsAt(groups, n.at, active)}
+                    stepId={n.at}
+                    active={active}
+                    onExpand={onExpand}
+                  />
                 </FlowNode>
               );
             }
@@ -151,9 +167,8 @@ export function ProcessDiagram({
   );
 }
 
-function unitsAt(units: DiagramUnit[], stepId: number | null): DiagramUnit[] {
-  if (stepId === null) return units.filter((u) => !u.active);
-  return units.filter((u) => u.active && u.currentStepId === stepId);
+function groupsAt(groups: DiagramGroup[], stepId: number | null, active: boolean): DiagramGroup[] {
+  return groups.filter((g) => g.active === active && g.currentStepId === stepId);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -203,23 +218,73 @@ function Terminal({ which, endStatus }: { which: 'start' | 'end'; endStatus: str
   );
 }
 
-function StateRow({ units }: { units: DiagramUnit[] }) {
+/**
+ * Was steht hier gerade? **Eine Pille je Zustand, mit Anzahl** – nicht eine je Stück.
+ *
+ * Bei Menge 5000 wären 5000 Pillen weder darstellbar noch lesbar; und die Frage, die
+ * man an dieser Stelle hat, ist «wie viele stehen wo», nicht «welche». Wer die Nummern
+ * braucht, klappt auf: dann und nur dann werden sie geholt.
+ */
+function StateRow({ groups, stepId, active, onExpand }: {
+  groups: DiagramGroup[];
+  stepId: number | null;
+  active: boolean;
+  onExpand?: (stepId: number | null, active: boolean) => Promise<string[]>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [numbers, setNumbers] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const total = groups.reduce((n, g) => n + g.count, 0);
+
+  async function toggle() {
+    if (!onExpand) return;
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (numbers === null) {
+      setBusy(true);
+      try { setNumbers(await onExpand(stepId, active)); } finally { setBusy(false); }
+    }
+  }
+
   return (
-    <div className="flex flex-wrap gap-1.5 justify-center">
-      {units.map((u) => {
-        const cfg = statusCfg(u.status);
-        return (
-          <span
-            key={u.number}
-            className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
-            style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}22` }}
-            data-tip={cfg.label}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.color }} />
-            {u.number}
-          </span>
-        );
-      })}
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="flex flex-wrap gap-1.5 justify-center">
+        {groups.map((g) => {
+          const cfg = statusCfg(g.status);
+          return (
+            <button
+              key={`${g.status}-${g.active}`}
+              type="button"
+              onClick={toggle}
+              disabled={!onExpand}
+              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
+              style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}22` }}
+              data-tip={onExpand ? 'Nummern anzeigen' : cfg.label}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.color }} />
+              {cfg.label} · {g.count}
+              {onExpand && (open
+                ? <ChevronUp size={11} style={{ opacity: 0.6 }} />
+                : <ChevronDown size={11} style={{ opacity: 0.6 }} />)}
+            </button>
+          );
+        })}
+      </div>
+      {open && (
+        <div className="flex flex-wrap gap-1 justify-center max-w-full">
+          {busy && <span className="text-[11px]" style={{ color: 'var(--fg-4)' }}>Lädt …</span>}
+          {numbers?.map((n) => (
+            <span key={n} className="text-[11px] ix-tnum px-1.5 py-0.5 rounded"
+              style={{ background: 'var(--bg-3)', color: 'var(--fg-3)' }}>{n}</span>
+          ))}
+          {numbers && numbers.length < total && (
+            // Ein stumm gekappte Liste sähe aus wie die ganze Wahrheit.
+            <span className="text-[11px]" style={{ color: 'var(--fg-4)' }}>
+              … {numbers.length} von {total}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

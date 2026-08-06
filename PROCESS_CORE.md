@@ -50,6 +50,65 @@ Summierung, nie eine eigene Datenquelle.
 **Vor** dem Start-Symbol steht die Definition: mit welchen Einzelinstanzen dieser
 Auftrag arbeitet. **Ohne Definition kein Start.**
 
+Eine Definitionszeile beantwortet drei Fragen, **in dieser Reihenfolge**:
+
+| # | Angabe | Regel |
+|---|---|---|
+| 1 | **Artikel** | Pflicht. Sperrt alles Weitere, bis er steht. |
+| 2 | **Menge** | Ganzzahl ≥ 1. Referenziert **immer exakt Einzelinstanzen**. |
+| 3 | **Herkunft** | `Neu` (wird erzeugt) oder `Lager` (bestehende Stücke). Pflicht. |
+
+Die Reihenfolge ist nicht Geschmack: ohne Artikel ist die Menge nicht deutbar
+(Einzelserialisierung oder Charge?), ohne Menge ist die Herkunft nicht entscheidbar
+(welche Stücke denn?). Jedes Feld ist gesperrt, bis das davor beantwortet ist, und
+nennt den Grund im Klartext.
+
+**Harte Mengen-Invariante.** Menge N heisst: danach laufen **exakt N Einzelinstanzen**
+im Prozess — nicht mehr, nicht weniger. Sie steht an einer Stelle
+(`services/materialize.assert_quantity`) und wird bei der Freigabe zweimal gerufen: auf
+dem *Plan* (reine Arithmetik, vor der ersten Objektnummer) und auf dem *Ergebnis*. Eine
+Abweichung bricht die Transaktion ab.
+
+#### Herkunft `Neu` — der Erzeugungsauftrag
+
+- Der Prozess darunter ist die **Vorlage des Artikels** (§8.2), gespiegelt und bei der
+  Freigabe als **Kopie** übernommen. Er ist hier nicht editierbar: ein Versionsstempel
+  auf etwas, das man danach ändert, wäre eine Behauptung.
+- Hat der Artikel keine Vorlage, ist `Neu` **nicht wählbar** — mit Klartext-Grund.
+- Bei der Freigabe entstehen die Einzelinstanzen, Status `Freigegeben`, und passieren
+  im selben Zug das Start-Objekt nach `Im Prozess`.
+
+#### Herkunft `Lager` — bestehende Stücke
+
+- Es werden **konkrete** Einzelinstanzen gewählt. **FIFO ist die Vorauswahl**, sichtbar
+  und einzeln abwählbar — eine unsichtbare Automatik wäre hier das Schlimmste: man sähe
+  erst nach der Freigabe, welche Stücke es getroffen hat.
+- Der Prozess darunter ist **frei modellierbar**: was mit vorhandenem Material geschehen
+  soll, weiss nur dieser eine Auftrag.
+- **Hier entsteht nie eine neue Nummer.**
+- Die Auswahl sperrt noch nichts; die Exklusivitätsprüfung greift bei der Freigabe (§3).
+
+### 2.2 Wo Einzelinstanznummern entstehen
+
+> **Neue Einzelinstanznummern entstehen ausschliesslich beim Freigeben eines Auftrags,
+> und ausschliesslich für Definitionszeilen mit der Herkunft `Neu`.**
+
+Kein Import, kein Direkteintrag, kein Modul. Die eine Erzeugungsstelle ist
+`services/instances.create_instances`; ein Wächter hält fest, dass ausserhalb dieses
+Moduls niemand einen Suffix vergibt.
+
+**Wie die Menge auf Datensätze fällt, entscheidet die Serialisierung des Artikels** —
+und zwar als **Zahlenpaar, nicht als zweiter Codepfad** (`materialize.plan`):
+
+| Serialisierung | Menge 3 | Ergebnis |
+|---|---|---|
+| Einzelserialisierung | `(3, 1)` | 3 Instanzen mit je einer Einzelinstanz `…-1` |
+| Charge | `(1, 3)` | 1 Instanz mit `…-1` `…-2` `…-3` |
+
+In beiden Fällen ist das Produkt die Menge. Objektnummern kommen als Block aus der
+**Sequence** (`object_id_seq`), nie aus `MAX(nummer)+1`; der Suffix läuft **je Instanz**,
+monoton, ohne Wiederverwendung — eine gelöschte Einzelinstanz lässt keine nachrücken.
+
 Nur die definierten Einzelinstanzen dürfen im Auftrag verarbeitet werden.
 
 - Kein Nachschieben zur Laufzeit.
@@ -247,18 +306,25 @@ Freigeben = den Prozess starten. Der Klick ist der Trigger.
 
 | # | Schritt |
 |---|---|
-| 1 | **Freigabebedingungen prüfen** (§6.2) + Statuskette (§4.3). Nicht erfüllt → Abbruch mit klarer Meldung. |
-| 2 | **Exklusivitätsprüfung** (§3). Verletzt → Abbruch, nichts wird angelegt. |
-| 3 | **Datensatz anlegen**, Objektnummer vergeben. |
-| 4 | **Workflow anstossen:** die definierten Einzelinstanzen passieren das Start-Objekt und wechseln `Freigegeben` → `Im Prozess`. |
-| 5 | **Ereignis loggen und einfrieren.** |
-| 6 | Das **nachfolgende Prozessschrittmodul wird aktiv.** |
+| 1 | **Definitionszeilen auflösen** (§2.1), Prozess bestimmen (Vorlage bei `Neu`, sonst der modellierte). |
+| 2 | **Freigabebedingungen prüfen** (§6.2) + Statuskette (§4.3). Nicht erfüllt → Abbruch mit klarer Meldung. |
+| 3 | **Exklusivitätsprüfung** (§3) für die `Lager`-Stücke. Verletzt → Abbruch, nichts wird angelegt. |
+| 4 | **Mengen-Invariante auf dem Plan** (§2.1). Stimmt sie nicht → Abbruch. |
+| 5 | **Datensatz anlegen**, Objektnummer vergeben. Definitionszeilen und Prozessschritte schreiben. |
+| 6 | **Neue Einzelinstanzen erzeugen** (`Neu`-Zeilen) — die einzige Stelle im System, an der das geschieht (§2.2). |
+| 7 | **Mengen-Invariante auf dem Ergebnis.** |
+| 8 | **Workflow anstossen:** alle Stücke passieren das Start-Objekt und wechseln `Freigegeben` → `Im Prozess`. |
+| 9 | **Ereignis loggen und einfrieren.** |
+| 10 | Das **nachfolgende Prozessschrittmodul wird aktiv.** |
+
+**Die Schritte 1–4 liegen alle vor Schritt 5 — mit Grund.** Ein abgebrochener
+Freigabe-Versuch verbraucht damit **keine** Objektnummer, egal woran er scheitert.
 
 Alle Schritte laufen als **eine Transaktion**. Bricht einer ab, bleibt nichts
 Halbfertiges zurück — kein Auftrag ohne Prozess, keine Einzelinstanz in einem
 Zwischenzustand.
 
-**Schritt 2 und 3 sind gegenüber der ursprünglichen Vorgabe getauscht — mit Grund.**
+**Die Prüfungen stehen vor der Nummernvergabe — mit Grund.**
 `nextval` ist absichtlich **nicht** transaktional; sonst wäre es kein
 nebenläufigkeitssicherer Zähler. Läge die Exklusivitätsprüfung hinter der Nummernvergabe,
 verbrennte **jeder** Verstoss eine Objektnummer. So verbrennt keiner eine. Der partielle
@@ -353,20 +419,23 @@ Die **Definitions-Liste der Einzelinstanzen** ist bewusst **nicht** Teil des Dia
 sondern ein Slot darüber: der Artikel hat keine Einzelinstanzen, und ein Diagramm, das
 sie voraussetzt, wäre dort nicht wiederverwendbar.
 
-### 8.2 Artikel-Reiter «Erzeugungsprozess» — Konzept, NICHT bauen
+### 8.2 Artikel-Reiter «Erzeugungsprozess» — die Vorlage
 
-Neben «Spezifikation» bekommt der Artikel einen zweiten Reiter:
+Neben «Spezifikation» trägt der Artikel den Reiter «Erzeugungsprozess»:
 
-- Inhalt: **1:1-Spiegelung** der Prozessdarstellung — Start, Module, Ende.
+- Inhalt: **dieselbe** Darstellung wie im Auftrag (`ProcessDiagram`, Modus `definition`)
+  und **derselbe** Modul-Editor. Kein Nachbau — der Schnitt aus §8.1 hat gehalten.
 - Dort wird **ausschliesslich der Prozess definiert**, sonst nichts.
-- **Kein Anstossen von Prozessen, keine Einzelinstanzen, keine Ausführung.** Das
-  passiert später ausschliesslich im Auftrag.
-- Freigabebedingung Artikel (analog, hart):
-  1. alle Pflichtfelder der Spezifikation ausgefüllt
-  2. mindestens ein Prozessschrittmodul im Erzeugungsprozess definiert
+- **Kein Anstossen von Prozessen, keine Einzelinstanzen, keine Ausführung.** Das ist
+  keine bewachte Regel, sondern eine fehlende Tür: die Vorlage liegt in einer eigenen
+  Tabelle (`article_process_steps`), und es gibt keinen Endpunkt, der sie ausführt.
+- Sie friert mit der Artikel-Freigabe ein (`status != 'draft'` ⇒ read-only).
 
-**Jetzt nur berücksichtigen, nicht bauen.** Konkret: die Komponente aus §8.1 so
-schneiden, dass sie ohne Umbau am Artikel läuft.
+**Kopie, nicht Verweis.** Bei der Freigabe eines Erzeugungsauftrags wird die Liste in
+`process_steps` **kopiert** und mit `Article.process_version` gestempelt
+(`process_steps.source_article_id`/`source_version`). Ein Verweis hiesse, dass eine
+spätere Artikeländerung laufende Aufträge rückwirkend umschreibt — das widerspricht
+«eingefroren» (§6.4).
 
 *Zum Namen: «Erzeugungsprozess» statt «Prozess», weil er sagt, wofür der Prozess da ist
 — wie ein Stück entsteht — und weil damit Platz bleibt, falls ein Artikel später eine
@@ -541,6 +610,7 @@ Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werde
 nachgetragen — nicht beim Bauen erraten.
 
 1. **Die Prozessschrittmodule selbst.** Erstes: Datenerfassung.
+   *Offen daran: was bei «nicht bestanden» passiert (siehe 5).*
 2. **Der Unterauftrag-Mechanismus.** Die Skizze zeigt Abzweigungen nach rechts und
    zurück. Wann zweigt es ab, was nimmt der Unterauftrag mit, wo mündet er, was passiert
    mit dem Status des Stücks währenddessen?
@@ -550,6 +620,11 @@ nachgetragen — nicht beim Bauen erraten.
 5. **Fehlerbehandlung im Modul.** Ein Modul kann scheitern (Prüfung nicht bestanden).
    Ist das ein Status, ein Abzweig, oder beides? Solange das offen ist, gibt es keinen
    roten Statuswert (§5.2).
+6. **Zwei `Neu`-Zeilen mit verschiedenen Vorlagen.** Heute ein harter Fehler: ein Auftrag
+   hat einen Prozess (§13). Ob es dafür je einen Fall gibt, ist nicht entschieden.
+7. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
+   sonst eine Behauptung. Falls es gebraucht wird, ist es ein eigener Vorgang
+   («Prozess dieses Auftrags von der Vorlage lösen»), kein stilles Editieren.
 
 ---
 
@@ -570,6 +645,12 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **Der Auftrag kennt `released` und `completed`** | «Abgeschlossen» ist abgeleitet: alle Stücke sind durch. Kein Feld, das jemand von Hand setzt. |
 | **Ein Modul bewegt alle Stücke, die davor stehen** | Ein Bestätigen je Stück wäre bei 500 Stück unbedienbar; die Historie bleibt trotzdem **je Stück** ein eigener Eintrag. |
 | **Reiter-Name «Erzeugungsprozess»** | Sagt, wofür der Prozess da ist, und lässt Platz für eine zweite Art Vorlage. |
+| **Mehrere Definitionszeilen sind erlaubt** | Artikel A `Neu` + Artikel B `Lager` in einem Auftrag ist ein normaler Fall. |
+| **Ein Auftrag hat EINEN Prozess** | Bringen zwei `Neu`-Zeilen verschiedene Vorlagen mit, ist das ein harter Fehler mit Klartext-Grund. Welcher gälte, kann das System nicht entscheiden — und raten wäre hier besonders teuer. |
+| **Die gespiegelte Vorlage ist im Entwurf NICHT editierbar** | Ein Versionsstempel auf etwas, das man danach ändert, wäre eine Behauptung. Geändert wird am Artikel. Ein reiner `Lager`-Auftrag bleibt frei modellierbar. |
+| **Menge 0 gibt es nicht** | Weder für `Neu` noch für `Lager`. Eine Zeile ohne Stück bewegt nichts, und die Freigabe verlangt ohnehin mindestens eine Einzelinstanz (§6.2). Wer nur modellieren will, tut das am Artikel. |
+| **Grosse Mengen werden GEZÄHLT, nicht aufgelistet** | Das Diagramm zeigt je Zustand eine Pille mit Anzahl (`unit_groups`, eine SQL-Gruppierung); die Nummern holt `GET …/units`, wenn jemand aufklappt. Die Historie ist auf 200 Einträge gedeckelt **und weist das aus** — eine stumm gekappte Liste sähe aus wie die ganze Wahrheit. Die Datenhaltung bleibt pro Einzelinstanz; es gibt kein Aggregat-Feld. |
+| **`order_lines` wird festgeschrieben** | Nicht weil eine Ansicht sie bräuchte, sondern weil die **Herkunft** sonst verloren ginge: dass diese drei Stücke erzeugt und jene zwei geholt wurden, steht hinterher nirgends im Bestand. |
 
 ---
 

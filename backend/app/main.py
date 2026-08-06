@@ -90,6 +90,12 @@ _COLUMN_SAFETY_NET = (
     # scheitert jede Auftrags-Abfrage, weil das Modell ihn kennt.
     ("orders", "status", "VARCHAR(20) NOT NULL DEFAULT 'released'"),
     ("orders", "end_status", "VARCHAR(30) NOT NULL DEFAULT 'freigegeben'"),
+    # Definitionsbereich + Erzeugungsprozess (Migration 105) – ebenfalls NEUE Spalten auf
+    # BESTEHENDEN Tabellen. ``process_version`` liest jede Artikel-Abfrage (das Modell
+    # kennt sie), ``source_*`` jede Auftrags-Abfrage.
+    ("articles", "process_version", "INTEGER NOT NULL DEFAULT 0"),
+    ("process_steps", "source_article_id", "BIGINT"),
+    ("process_steps", "source_version", "INTEGER"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –

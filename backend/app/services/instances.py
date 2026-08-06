@@ -11,12 +11,12 @@ Kreises verbrauchen – genau dafür gibt es die Instanz-Ebene.
 from typing import Iterable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, insert
 from sqlalchemy.orm import Session
 
 from ..models import Article, Instance, InstanceUnit
 from ..models.instance import KINDS
-from .objects import next_object_id, obj_nr
+from .objects import next_object_ids, obj_nr
 
 # Trennzeichen zwischen Instanz-Nummer und Suffix. Eine Stelle, damit Erzeugen und
 # Lesen (``parse_unit_number``) nicht auseinanderlaufen können.
@@ -107,37 +107,80 @@ def create_instance(db: Session, *, article: Article, kind: str, count: int,
     """Neue Instanz mit ``count`` Einzelinstanzen.
 
     ``kind`` und ``count`` werden ausdrücklich verlangt – kein Erraten aus dem Artikel.
+    Der Einzelfall von ``create_instances``: EIN Datensatz mit ``count`` Stück.
+    """
+    return create_instances(
+        db, article=article, kind=kind, instance_count=1, units_each=count, label=label,
+    )[0]
+
+
+def create_instances(db: Session, *, article: Article, kind: str,
+                     instance_count: int, units_each: int,
+                     label: Optional[str] = None) -> list[Instance]:
+    """``instance_count`` Instanzen mit je ``units_each`` Einzelinstanzen.
+
+    **Die eine Erzeugungsstelle.** Einzelserialisierung und Charge sind hier keine zwei
+    Codepfade, sondern zwei Parameterwerte (``services/materialize.plan`` rechnet sie
+    aus): 3 Stück einzeln = 3 × 1, eine Charge über 3 = 1 × 3.
+
+    Drei Anweisungen, unabhängig von der Menge – bei 5000 Stück wären 5000 einzelne
+    ``INSERT`` der Grund, warum «flüssig» nicht mehr stimmt. Die Objektnummern kommen
+    als **Block aus der Sequence** (ein Roundtrip, race-sicher); die Suffixe beginnen bei
+    1, weil diese Instanzen in diesem Augenblick entstehen und noch keine tragen können.
     """
     if kind not in KINDS:
         raise HTTPException(
             status_code=400,
             detail=f"Unbekannter Instanz-Typ «{kind}». Erlaubt: {', '.join(KINDS)}.",
         )
-    if count < 1:
+    if instance_count < 1 or units_each < 1:
         raise HTTPException(
             status_code=400,
             detail="Eine Instanz braucht mindestens eine Einzelinstanz.",
         )
 
-    instance = Instance(
-        object_id=next_object_id(db, "instance"),
-        article_id=article.id,
-        kind=kind,
-        label=label,
+    object_ids = next_object_ids(db, instance_count, "instance")
+    db.execute(
+        insert(Instance),
+        [
+            {"object_id": oid, "article_id": article.id, "kind": kind, "label": label}
+            for oid in object_ids
+        ],
     )
-    db.add(instance)
-    db.flush()  # id für die Einzelinstanzen
-    add_units(db, instance, count)
-    return instance
+    created = (
+        db.query(Instance)
+        .filter(Instance.object_id.in_(object_ids))
+        .order_by(Instance.object_id)
+        .all()
+    )
+    if len(created) != instance_count:
+        raise HTTPException(
+            status_code=500,
+            detail="Instanzen konnten nicht angelegt werden – die Freigabe wird abgebrochen.",
+        )
+    db.execute(
+        insert(InstanceUnit),
+        [
+            {"instance_id": inst.id, "suffix": s}
+            for inst in created
+            for s in range(1, units_each + 1)
+        ],
+    )
+    return created
 
 
 def add_units(db: Session, instance: Instance, count: int) -> list[InstanceUnit]:
-    """``count`` weitere Einzelinstanzen – die EINZIGE Stelle, die Suffixe vergibt.
+    """``count`` weitere Einzelinstanzen an einer **bestehenden** Instanz.
+
+    Die zweite Form derselben Regel – ``create_instances`` beginnt bei 1, weil seine
+    Instanzen gerade erst entstehen; hier gibt es schon welche, also zählt es weiter.
+    Beide stehen in diesem Modul, damit die Suffix-Vergabe eine Stelle bleibt.
 
     Der Suffix ist **kumulierend**: ``MAX(suffix)+1``, ermittelt unter Zeilensperre auf
     der Instanz, damit zwei gleichzeitige Anlagen nicht dieselbe Nummer ziehen. Da nur
     soft gelöscht wird, bleibt eine vergebene Nummer in ``MAX`` sichtbar und kommt nie
     zurück – ein gespeicherter Zähler wäre eine zweite Wahrheit neben den Zeilen.
+    Wird eine Einzelinstanz gelöscht, rückt darum keine nach.
     """
     if count < 1:
         raise HTTPException(status_code=400, detail="Anzahl muss mindestens 1 sein.")

@@ -4,6 +4,9 @@ import type {
   OrderDraft,
   OrderValidation,
   UnitOption,
+  ArticleOption,
+  OrderUnitPage,
+  ArticleProcess,
   InstanceSummary,
   InstanceCreateInput,
   Capture,
@@ -479,8 +482,42 @@ class ApiClient {
 
   /** Welche Einzelinstanzen kann die Definition aufnehmen? Gesperrte kommen MIT –
    *  die Oberfläche soll den Grund zeigen, statt eine Zeile stumm verschwinden zu lassen. */
-  getUnitOptions(): Promise<UnitOption[]> {
-    return this.get('/api/v1/erp/orders/unit-options');
+  getUnitOptions(articleObjectId?: number): Promise<UnitOption[]> {
+    const qs = articleObjectId ? `?article=${articleObjectId}` : '';
+    return this.get(`/api/v1/erp/orders/unit-options${qs}`);
+  }
+
+  /** Welche Artikel kann eine Definitionszeile aufnehmen? `template_steps` fährt mit,
+   *  damit «Neu» gesperrt UND begründet werden kann, ohne einen zweiten Aufruf. */
+  getArticleOptions(): Promise<ArticleOption[]> {
+    return this.get('/api/v1/erp/orders/article-options');
+  }
+
+  /** Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt. Das Diagramm
+   *  selbst rechnet mit Zahlen (`unit_groups`), nicht mit 5000 Zeilen. */
+  getOrderUnits(objectId: number, stepId: number | null, active = true,
+                limit = 100, offset = 0): Promise<OrderUnitPage> {
+    const p = new URLSearchParams({ active: String(active), limit: String(limit),
+                                    offset: String(offset) });
+    if (stepId !== null) p.set('step_id', String(stepId));
+    return this.get(`/api/v1/erp/orders/${objectId}/units?${p.toString()}`);
+  }
+
+  // ─── Erzeugungsprozess des Artikels (Vorlage) ──────────────────────────────
+  // Sie kann nichts ausführen: es gibt hier keinen Aufruf, der ein Stück bewegt.
+
+  getArticleProcess(objectId: number): Promise<ArticleProcess> {
+    return this.get(`/api/v1/erp/articles/${objectId}/process`);
+  }
+
+  addArticleProcessStep(objectId: number, step: {
+    module_type: string; name: string; status_before: string; status_after: string;
+  }): Promise<ArticleProcess> {
+    return this.post(`/api/v1/erp/articles/${objectId}/process/steps`, step);
+  }
+
+  deleteArticleProcessStep(objectId: number, stepId: number): Promise<ArticleProcess> {
+    return this.delete(`/api/v1/erp/articles/${objectId}/process/steps/${stepId}`);
   }
 
   /** «Schritt bestätigen» – der eine Ausführungs-Endpunkt des Testmoduls. */

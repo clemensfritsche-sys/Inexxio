@@ -16,10 +16,12 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, UserProfile
 from ..schemas.article import (
+    ArticleProcess, ArticleProcessStepInput, ArticleProcessStepResponse,
     ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate,
 )
 from ..schemas.instance import InstanceSummary
 from ..services import article_names
+from ..services import article_process as tpl_svc
 from ..services import instances as inst_svc
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_version
@@ -142,3 +144,56 @@ def article_instances(
         )
         for i in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Erzeugungsprozess – die Vorlage. Sie kann nichts ausführen (PROCESS_CORE.md §8.2):
+# es gibt hier keinen Endpunkt, der ein Stück bewegt, und keinen Status zu setzen.
+# ---------------------------------------------------------------------------
+
+@router.get("/{object_id}/process", response_model=ArticleProcess)
+def get_process(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    article = _get(db, object_id)
+    return ArticleProcess(
+        version=int(article.process_version or 0),
+        steps=[
+            ArticleProcessStepResponse.model_validate(s)
+            for s in tpl_svc.steps_of(db, article)
+        ],
+    )
+
+
+@router.post("/{object_id}/process/steps", response_model=ArticleProcess, status_code=201)
+def add_process_step(
+    object_id: int,
+    data: ArticleProcessStepInput,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    article = _get(db, object_id)
+    tpl_svc.add_step(db, article, data.model_dump())
+    log_audit(db, "article_process_steps", "add", data.name,
+              user_id=user.id, object_id=article.object_id)
+    db.commit()
+    db.refresh(article)
+    return get_process(object_id, db, user)
+
+
+@router.delete("/{object_id}/process/steps/{step_id}", response_model=ArticleProcess)
+def delete_process_step(
+    object_id: int,
+    step_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    article = _get(db, object_id)
+    tpl_svc.delete_step(db, article, step_id)
+    log_audit(db, "article_process_steps", "delete", str(step_id),
+              user_id=user.id, object_id=article.object_id)
+    db.commit()
+    db.refresh(article)
+    return get_process(object_id, db, user)
