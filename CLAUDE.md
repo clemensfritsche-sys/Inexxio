@@ -5723,6 +5723,64 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Aussonderungs-Auftrag 12/12; der gemeldete #649-Fall 6/6 – und **gegen die Bug-Form
   gegengeprüft**: ohne `settle` meldet er wieder «Der Prozess ruht …» am gesperrten Modul).
 
+- **Testnotizen-Runde 45 (die Freigabe fragt nicht über sich selbst, Notizen #653–#659)**:
+  (1) **Gleicher Prozess ⇒ gleicher Zustand** (#658, «fataler Fehler» – und das war es).
+  Ein Erzeugungsauftrag über drei Stück, eines per Abweichung verschrottet, die anderen
+  beiden identisch bis ans Ende bewegt: danach stand das eine auf «Freigegeben», das
+  andere auf «Im Prozess». Entschieden hat allein die **Reihenfolge der Schleife**.
+  Die Ursache ist eine Frage über sich selbst: `recompute_completion` setzt
+  `order.status = "completed"` **vor** der Freigabe, `release_instances` fragt über
+  `inventory.rest_owner` die Datenbank «läuft mein Erzeuger noch?», und die erste Buchung
+  ruft `db.flush()` – ab dem zweiten Stück lautete die Antwort «nein», also hielt der
+  Auftrag angeblich nichts mehr. Genau die Klasse aus #392/#390: *der Zustand, der
+  entscheidet, wird vom entscheidenden Vorgang verändert.* Die Freigabe **sagt** ihre
+  Zugehörigkeit jetzt, statt sie zu erfragen (`units.owned_by(..., inherits_rest=…)`):
+  wer erzeugt hat, hält den unbeanspruchten Rest – und er ist gerade hier. Für fremde
+  Instanzen (festes Subjekt) gilt die alte Regel unverändert.
+  (2) **Freigegeben wird an der ZIELFLAGGE, nicht am letzten Modul** (#658, zweite Hälfte –
+  vom Nutzer so formuliert): nach dem letzten Modul hat sich an den Stücken nichts geändert,
+  also stehen dort **beide** noch «Im Prozess» (gelb); dass sie ihr Ziel erreicht haben und
+  freigegeben sind, sagt die Materialkette **unter** der Flagge. Vorher zeigte die letzte
+  Kante eines fertigen Auftrags den Stand NACH dem Abschluss – das Material wurde zwischen
+  letztem Modul und Flagge grün, obwohl der Schritt daran nichts getan hat
+  (`current_from = len(nodes) + 1`, also auch die letzte Kante eingefroren).
+  (3) **Am Ziel steht, was es INS ZIEL geschafft hat** (#657): die Materialkette nannte
+  auch den **eigenen Abzweig** als «Material weiter an …» – der steht aber längst als
+  Teilung mitten im Prozess. Eigene Unter-Aufträge (Abweichung · Nachschub · Retoure ·
+  Bereitstellung) bleiben darum aus der Kette, genau wie die Beziehungen, die schon in der
+  Seitenspur stehen (#565). Im gleichen Zug trägt eine Übergabe **den Zustand NACH der
+  Buchung** – in beide Richtungen derselbe Griff (`dst_*`): herein «so ist es angekommen»,
+  hinaus «ins Ziel geschafft und freigegeben» bzw. «verschrottet»/«verkauft». Mit dem
+  Quell-Topf stand am Ziel «Im Prozess», obwohl die Freigabe genau der Vorgang ist, den
+  dieser Knoten meldet; `incoming_side` ist damit entfallen – **eine Regel weniger**.
+  (4) **In einem Modul zählt WELCHE Instanz, nicht ihr Zustand** (#659): die Zeile eines
+  Prozessschritts nennt Objektnummer · Menge (· Standort, wo er die Aussage des Schritts
+  ist). Der Zustand steht direkt darüber im Fluss, in seiner Ampelfarbe – eine Badge je
+  Zeile wiederholte ihn an der Stelle, an der er am wenigsten zählt.
+  (5) **Kein Footer am Artikel** (#653, wie #140 am Auftrag): der Hinweis, warum noch nicht
+  gespeichert wird, steht leise **in der Karte**, auf die er sich bezieht; ein echter Fehler
+  in der Warnfarbe. Der Speicher-Status ist ohnehin der grüne Flash im Kopf, und verworfen
+  wird durch Wegklicken (#389) – der «Abbrechen»-Knopf ist mit entfallen.
+  (6) **Platzhalter nennen das Beispiel** (#655/#656): «z. B. 3x40x600» · «z. B. 2.5» –
+  die Regel dahinter prüft ohnehin das Feld und meldet sie, wenn sie verletzt ist.
+  (7) **«Zuerst die Spezifikation ausfüllen»** (#654): «Prozess zuerst wählen» stammte aus
+  der Zeit des Prozess-Objekts (Migration 031) und nannte etwas, das es nicht mehr gibt.
+  Wächter: `tests/rules/test_units.py: test_two_instances_of_one_order_end_in_the_same_state`
+  (gegen die Bug-Form gegengeprüft), `test_frontend_mirrors.py:
+  test_the_release_happens_at_the_goal_flag`, `…_a_module_row_shows_which_instance_not_its_state`,
+  `…_the_material_chain_closes_the_process` (erweitert). Gegen echtes PostgreSQL 16
+  verifiziert (der gemeldete Fall Schritt für Schritt, 7/7).
+
+- **OFFEN – Rule-Notiz #652 (nach dem Aussondern bleibt nichts zum Arbeiten)**: gemessen,
+  aber bewusst **nicht** umgesetzt (ADR-008-Arbeitsweise: eine Regel-Notiz wird vorgelegt,
+  nicht still entschieden). Befund: (a) die Spiegelung stimmt – der Abzweig im Eltern zeigt
+  dieselben Schritte, dasselbe Material und dieselbe Linienstärke wie der geöffnete
+  Unter-Auftrag; die dünne Linie ist die **des Eltern** unterhalb der Teilung und damit
+  richtig (dort fliesst nichts mehr). (b) Der Eltern wird bereits «Abgebrochen –
+  fortgeführt in …», wenn ihm nichts bleibt (#366). (c) **Der echte Fund:** steht NACH dem
+  Aussondern noch ein Modul, ist es `active`, seine Ausführung wirft 409 («Keine Instanzen
+  zum Bewegen vorhanden») – der Auftrag kann weder abschliessen noch enden.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

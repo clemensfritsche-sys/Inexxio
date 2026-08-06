@@ -861,7 +861,14 @@ def release_instances(db: Session, order: Order) -> None:
         # noch etwas in der Hand hat, ist damit fertig. Ein gekappter Abzweig behält sein
         # Stück und gibt es frei, eine gewöhnliche Abweichung hält nichts mehr und gibt
         # nichts frei – ohne dass es dafür eine zweite Regel bräuchte.
-        mine = [u.index for u in units_svc.owned_by(inst, order.id, db) if not u.done]
+        # **Wer erzeugt hat, hält den unbeanspruchten Rest – und er ist gerade hier.**
+        # Die Antwort wird gesagt, nicht erfragt: eine SQL-Abfrage «läuft mein Erzeuger
+        # noch?» wäre eine Frage über sich selbst, und der Abschluss setzt den Status
+        # ein paar Zeilen weiter oben. Die erste Freigabe flusht ihn – ab dem zweiten
+        # Stück lautete die Antwort «nein», und von zwei identisch behandelten Instanzen
+        # desselben Auftrags blieb eine für immer «Im Prozess» (Testnotiz #658).
+        mine = [u.index for u in units_svc.owned_by(
+            inst, order.id, db, inherits_rest=(inst.order_id == order.id)) if not u.done]
         if not mine:
             continue
         freed = units_svc.mark_released(inst, mine)

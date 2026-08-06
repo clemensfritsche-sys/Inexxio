@@ -388,11 +388,11 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                     <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
                   </div>
                   <div style={GRID2}>
-                    <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="aufsteigend, mit «x» getrennt – z. B. 3x40x600" error={form.size ? errs.size : null} />
+                    <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" error={form.size ? errs.size : null} />
                     {weightIsComputed ? (
                       <ReadField icon={Weight} label="Gewicht" value={fmtWeight(computedWeight!)} unit="kg" autoHint="Automatisch aus der Stückliste berechnet" mono />
                     ) : (
-                      <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="grösser als 0, max. 3 Nachkommastellen – z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
+                      <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
                     )}
                   </div>
                   {/* Bei Bedarf hinzugefügte optionale Felder + abgeleitete Auto-Werte (nur wenn vorhanden). */}
@@ -412,6 +412,17 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                     </div>
                   )}
                 </div>
+                {/* **Kein Footer** (Testnotiz #653, wie #140 am Auftrag). Der Hinweis, warum
+                    noch nicht gespeichert wird, gehört leise in die Karte, auf die er sich
+                    bezieht – nicht als Leiste an den Fensterrand. Ein echter Fehler steht in
+                    der Warnfarbe; der Speicher-Status ist ohnehin der grüne Flash im Kopf,
+                    und verworfen wird durch Wegklicken (Notiz #389). */}
+                {(error || blockReason) && (
+                  <div style={{ font: '500 12.5px var(--font-body)',
+                    color: error ? 'var(--danger)' : 'var(--fg-4)' }}>
+                    {error ?? blockReason}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -431,23 +442,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Artikel" />
         )}
       </div>
-
-      {/* Kein dekorativer Footer mehr. Die Aktions-/Status-Leiste erscheint nur, wenn sie etwas
-          tut: beim Anlegen (Hinweis + Abbrechen) oder wenn ein Fehler/Blocker anzuzeigen ist –
-          im normalen (gültigen) Bearbeiten bleibt das Fenster ohne Footer. Der Speichern-Status
-          steckt ohnehin als grüner Flash im Kopf (SaveIndicator). */}
-      {!locked && tab === 'spezifikation' && (isCreate || error || blockReason) && (
-        <div style={{ padding: '11px 28px', background: '#fff', borderTop: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ flex: 1, fontSize: 12.5, color: error ? 'var(--danger)' : 'var(--fg-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? blockReason ?? 'Wird automatisch angelegt, sobald vollständig'}
-          </span>
-          {isCreate && (
-            <button onClick={onCancel} className="erp-actbtn erp-actbtn-neutral" style={{ flexShrink: 0 }}>
-              Abbrechen
-            </button>
-          )}
-        </div>
-      )}
 
       {dialog && record && (
         <DeactivateDialog

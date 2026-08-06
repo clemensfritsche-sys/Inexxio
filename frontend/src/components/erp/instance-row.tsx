@@ -12,14 +12,17 @@
  *
  * Getrennt wird mit einer **Haarlinie** statt mit einem Kasten je Zeile – Struktur vor
  * Fläche, wie überall.
+ *
+ * **Ohne Zustand** (Testnotiz #659): in einem Modul ist die Frage, WELCHE Instanzen es
+ * bearbeitet – und wo sie jetzt liegen. In welchem Zustand das Material ist, sagt der
+ * Fluss direkt darüber (die Materialzeile auf der Kante, in ihrer Ampelfarbe). Eine Badge
+ * je Zeile wiederholte das nur, und zwar an der Stelle, an der es am wenigsten zählt.
  */
 
 import type { ElementType } from 'react';
 import type { OrderInstance } from '@/types';
 import { formatQty } from '@/lib/process';
-import { instanceStatus } from '@/lib/record-status';
 import { ObjId } from '@/components/erp/obj-id';
-import { StatusBadge } from '@/components/erp/fields';
 
 export function InstanceRow({ instance, unit, where, whereIcon }: {
   instance: OrderInstance;
@@ -43,7 +46,6 @@ export function InstanceRow({ instance, unit, where, whereIcon }: {
           {where ?? '—'}
         </span>
       )}
-      <StatusBadge cfg={instanceStatus(instance)} />
     </div>
   );
 }

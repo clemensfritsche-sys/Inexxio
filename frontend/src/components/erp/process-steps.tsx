@@ -134,10 +134,14 @@ export function ProcessSteps({ owner, ownerObjectId, store, suppliers = [], read
   }, [selfArticle]);
 
   if (!repo) {
+    // **Der Satz nennt den Weg, nicht ein Objekt, das es nicht mehr gibt** (Testnotiz #654):
+    // «Prozess zuerst wählen» stammt aus der Zeit des Prozess-Objekts (Migration 031). Der
+    // Grund, warum hier nichts geht, ist ein anderer – der Datensatz existiert noch nicht:
+    // erst die Spezifikation, dann der Prozess.
     return (
       <div style={noticeStyle}>
         <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>Prozess zuerst wählen – danach lassen sich Schritte hinterlegen.</span>
+        <span>Zuerst die Spezifikation ausfüllen – danach lässt sich der Prozess anlegen.</span>
       </div>
     );
   }

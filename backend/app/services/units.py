@@ -343,14 +343,27 @@ def place(rows: list, slices: list) -> list:
     return rows
 
 
-def owned_by(inst: Instance, order_id: int, db=None) -> list[Unit]:
+def owned_by(inst: Instance, order_id: int, db=None, *,
+             inherits_rest: bool | None = None) -> list[Unit]:
     """**Die Stücke, die diesem Auftrag gehören** – Anspruch ODER unbeanspruchter Rest.
 
     Dieselbe eine Regel wie bei den Anteilen (``inventory.rest_owner``): solange die Instanz
     nicht am Lager liegt, gehört der unbeanspruchte Rest ihrem Erzeuger. Ohne das hielte ein
-    Erzeugungsauftrag «nichts», sobald ein Abzweig seine Ansprüche zurückgegeben hat."""
-    from .inventory import rest_owner
-    rest = rest_owner(db, inst) if db is not None else None
+    Erzeugungsauftrag «nichts», sobald ein Abzweig seine Ansprüche zurückgegeben hat.
+
+    ``inherits_rest`` **beantwortet** die Frage, statt sie zu stellen – für den Aufrufer, der
+    selbst der Erzeuger ist und **gerade handelt** (``process.release_instances``). Dort wäre
+    die Abfrage «läuft mein Erzeuger noch?» eine Frage über sich selbst, und ihre Antwort
+    hinge davon ab, ob im selben Vorgang schon geflusht wurde. Genau daran hing Testnotiz
+    #658: der Abschluss setzt den Status **vor** der Freigabe, die erste Buchung flusht ihn,
+    und ab dem zweiten Stück lautete die Antwort «dein Erzeuger läuft nicht mehr» – von zwei
+    identisch behandelten Instanzen desselben Auftrags wurde eine freigegeben und die
+    andere nicht. Die Reihenfolge der Schleife entschied über den Zustand."""
+    if inherits_rest is not None:
+        rest = order_id if inherits_rest else None
+    else:
+        from .inventory import rest_owner
+        rest = rest_owner(db, inst) if db is not None else None
     # **Der geerbte Rest gilt nur im Prozess, der ausdrückliche Anspruch immer** (#573/#577
     # präzisiert durch #625): ohne die erste Hälfte zog ein Erzeugungsauftrag längst fertige
     # Stücke wieder an sich («…-1 war schon lange freigegeben»); ohne die zweite verlöre ein
