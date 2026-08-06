@@ -1543,9 +1543,15 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse,
         for wave in _waves(db, after):
             nodes.append(dict(kind="split", branches=wave, res_step=None))
 
+    # **Aufgehalten wird der Prozess nur von einem Abzweig, der noch etwas zurückgibt**
+    # (Testnotiz #660). Ein **gekappter** Ast kommt nie zurück – der Eltern hat seine Menge
+    # längst darauf reduziert und läuft weiter; sein nächstes Modul ist «an der Reihe».
+    # Blieb die Achse trotzdem am Ast stehen, sagten Linie und Modul-Zustand zwei
+    # verschiedene Dinge über dieselbe Stelle.
     is_open = lambda b: b.status in ("draft", "released")            # noqa: E731
+    holds = lambda b: is_open(b) and b.returns_material              # noqa: E731
     node_done = (lambda n: n["step"].state == "done" if n["kind"] == "step"
-                 else all(not is_open(b) for b in n["branches"]))
+                 else not any(holds(b) for b in n["branches"]))
     walked = 0
     while walked < len(nodes) and node_done(nodes[walked]):
         walked += 1

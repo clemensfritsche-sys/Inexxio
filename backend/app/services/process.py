@@ -189,6 +189,21 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
     # gehört hierher und nicht in jedes Panel einzeln: so gilt sie auch für Beschaffung,
     # Verkauf und Dokument, die nie ein eigenes Gate hatten.
     running = (order.status or "") == "released"
+    # **Ein Schritt ohne Material hat nichts zu tun – und ist damit erledigt** (#652).
+    # Nach dem Aussondern bleibt dem Auftrag nichts mehr; ein Modul danach wurde trotzdem
+    # «aktiv» und war eine **Sackgasse**: seine Ausführung wirft «Keine Instanzen
+    # vorhanden», also konnte der Auftrag weder abschliessen noch enden. «Nichts zu tun»
+    # ist aber nicht dasselbe wie «nicht getan».
+    #
+    # Der Riegel steht in der Registry (``needs_material``), nicht als Liste hier: nur
+    # Schritte, die AN den Instanzen arbeiten, sind gemeint – wer Material hereinbringt
+    # (Beschaffung, Ressource) oder keins braucht (Dokument), bleibt unberührt. Und
+    # gefragt wird nur, wenn der Auftrag je Instanzen hatte: ein reiner Beschaffungs-
+    # auftrag beginnt mit nichts und wäre sonst sofort «fertig».
+    empty = False
+    if any(event_types.needs_material(d.step_type) for d in defs):
+        from .subject import order_active_instances, order_instances
+        empty = bool(order_instances(db, order)) and not order_active_instances(db, order)
     counts: dict[str, int] = {}
     for d in defs:
         counts[d.step_type] = counts.get(d.step_type, 0) + 1
@@ -207,7 +222,8 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
             fact = _resolve_fact(d, facts_by_type.get(d.step_type, []), counts[d.step_type] == 1)
             raw = _fact_status(d.step_type, fact)
             facts = [fact] if fact else []
-        if raw == "done":
+        if raw == "done" or (empty and event_types.needs_material(d.step_type)
+                             and raw != "failed"):
             state = "done"
         elif raw == "failed":
             state = "failed"

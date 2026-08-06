@@ -28,7 +28,7 @@ from . import inventory
 from .inventory import allocate, fifo_candidates
 from .order_lines import lines_for
 from .processes import order_custom_steps
-from .quantity import ZERO, to_qty
+from .quantity import ZERO, qty_sum, to_qty
 from .reservation import enforce, free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
 
@@ -143,10 +143,21 @@ def held_quantity(order: Order, inst) -> Decimal:
     Instanz» zählte fremde Anteile mit, und sobald eine Abweichung 2 einer 4er-Charge
     übernommen hatte, hielten Eltern (4) und Abweichung (2) zusammen **6 von 4**
     (Testnotiz #432). Dieselbe Regel steht in ``shares.shares_for``: gehaltene Anteile plus
-    Rest, und die Summe ist die Instanz. Rein (schreibt nicht)."""
+    Rest, und die Summe ist die Instanz. Rein (schreibt nicht).
+
+    **Und «Rest» heisst: noch im Prozess** (Testnotizen #662/#663). Ein Stück, das ein
+    Abzweig ans Lager **freigegeben** hat, trägt keinen Anspruch mehr – es fiel damit in
+    den Rest zurück und galt wieder als das des Erzeugers. Genau daraus kam «2 von 2 Stück
+    prüfen», obwohl nur noch eines vor der Haustüre stand, und der Bewegungsschritt griff
+    ein Stück, das gar nicht mehr zu ihm gehört. Freigegeben heisst frei – dieselbe Regel
+    wie bei den Stücken (``units.owned_by``, #573/#577/#625), hier nur als Menge.
+    Altbestand ohne Nummern wird tolerant gelesen (die frühere Arithmetik)."""
     qty = reserved_for(inst, order.id)
     if qty > 0:
         return qty
+    from . import units as units_svc
+    if (inst.units or {}).get("r"):
+        return qty_sum(u.quantity for u in units_svc.of(inst, holder=None) if not u.released)
     claimed = sum((to_qty(v) for v in (inst.reservations or {}).values()), ZERO)
     return max(to_qty(inst.quantity) - claimed, ZERO)
 
@@ -529,9 +540,16 @@ def order_active_instances(db: Session, order: Order) -> list[Instance]:
     """Wie ``order_instances``, aber OHNE Instanzen mit **terminalem Verbleib** (verschrottet/
     verkauft/verbaut). Für die laufende Verarbeitung UND den Abschluss: ein verschrottetes Teil
     soll nicht mehr bewegt/geprüft/bestückt werden – der Auftrag wird mit seinen GUTEN Teilen
-    fertig (die volle Liste inkl. terminaler Teile bleibt für die Anzeige via ``order_instances``)."""
+    fertig (die volle Liste inkl. terminaler Teile bleibt für die Anzeige via ``order_instances``).
+
+    **Und nur, was der Auftrag noch HÄLT** (Testnotizen #662/#663): hat ein Abzweig ein
+    Stück übernommen und ans Lager freigegeben, gehört es nicht mehr hierher – es stand
+    trotzdem in der Prüf-Stichprobe («2 von 2 Stück prüfen», obwohl nur eines vor der
+    Haustüre stand) und der Bewegungsschritt hat es mitbewegt. Was ein Auftrag bearbeitet,
+    ist genau das, was ihm gehört (``held_quantity``, die EINE Antwort darauf)."""
     return [i for i in order_instances(db, order)
-            if (i.disposition or "") not in TERMINAL_DISPOSITIONS]
+            if (i.disposition or "") not in TERMINAL_DISPOSITIONS
+            and held_quantity(order, i) > ZERO]
 
 
 def materialize_subject(db: Session, order: Order, actor_id: int) -> None:

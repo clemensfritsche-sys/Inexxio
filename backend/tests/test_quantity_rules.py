@@ -235,8 +235,12 @@ def test_a_share_never_exceeds_the_instance():
     from app.services.subject import held_quantity
 
     class _Inst:
+        # ``units`` leer = Altbestand ohne Stück-Nummern → die tolerante Arithmetik
+        # (Anspruch bzw. unbeanspruchter Rest). Mit Nummern zählt die Freigabe je Stück
+        # mit (Testnotiz #662) – das prüft `tests/rules/test_units.py` gegen echtes
+        # PostgreSQL, hier geht es um die reine Mengen-Regel.
         def __init__(self, qty, res):
-            self.quantity, self.reservations = Decimal(qty), res
+            self.quantity, self.reservations, self.units = Decimal(qty), res, {}
 
     class _Order:
         def __init__(self, oid):
