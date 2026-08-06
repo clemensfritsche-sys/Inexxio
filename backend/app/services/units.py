@@ -925,6 +925,32 @@ def drop(inst: Instance, qty, *, state: str, by_order_id: int | None = None) -> 
     return sorted(gone)
 
 
+def drop_all(inst: Instance, *, state: str) -> list[int]:
+    """**Die GANZE Instanz verlässt den Bestand** – verbaut · verkauft · verschrottet.
+
+    Der Zustand gehört zur MENGE, nicht zum Datensatz (Testnotiz #604) – und der
+    Instanz-Skalar ist die **Projektion** darüber, nie eine Zuweisung. Genau daran hing
+    Testnotiz #666: drei Stellen setzten `inst.disposition` direkt und liessen die Stücke
+    unberührt. Der Datensatz sagte «verschrottet», die Karte trug das Stück weiter als
+    freigegeben – die Instanz-Ansicht und der Artikel-Bestand zeigten es als verfügbar,
+    und ``inventory.ready_qty`` gab es sogar an FIFO heraus (die SQL-Bedingung filterte
+    nur über den Skalar, darum sah es «im Hintergrund» richtig aus).
+
+    Es gibt darum genau EINEN Weg terminal zu werden, und er geht über die Stücke.
+    Wächter: ``tests/rules/test_units.py: test_an_instance_becomes_terminal_at_one_place``."""
+    ensure(inst)
+    runs, gone = _runs(inst), []
+    for r in runs:
+        if r.get("x"):
+            continue
+        gone.extend(range(int(r["a"]), int(r["b"]) + 1))
+        r.pop("o", None)
+        r["x"] = state
+    _write(inst, runs, _next(inst))
+    sync_state(inst)
+    return sorted(gone)
+
+
 def restore(inst: Instance, qty, *, state: str) -> list[int]:
     """Ausgeschiedene Stücke **kehren zurück** – die Gegenrichtung von ``drop``.
 

@@ -1472,7 +1472,7 @@ def test_scrap_step_is_wired_end_to_end():
     assert "disposal" in OrderResponse.model_fields
     # Service setzt disposition='scrapped' und schliesst den Schritt ab
     src = _inspect.getsource(scrap)
-    assert 'inst.disposition = "scrapped"' in src
+    assert 'units_svc.drop_all(inst, state="scrapped")' in src
     assert "recompute_completion" in src
     # Mindestens eine Instanz wählen (kein leeres Verschrotten)
     assert ScrapUpdate().instance_ids == []
@@ -2471,7 +2471,7 @@ def test_disposition_flips_at_step_completion():
     from app.services import process, sale as sale_svc, movement
 
     sell = _inspect.getsource(process.sell_order_subjects)
-    assert "is_return(order)" in sell and 'inst.disposition = "sold"' in sell
+    assert "is_return(order)" in sell and 'units.drop_all(inst, state="sold")' in sell
     ret = _inspect.getsource(process.return_subjects_to_stock) + _inspect.getsource(process._restock_one)
     # Rückkehr = die Instanz liegt NICHT mehr beim Kunden (kein Halter-Typ-Vergleich mehr –
     # der hing am entfallenen 'lagerplatz' und hätte nie wieder zugetroffen).

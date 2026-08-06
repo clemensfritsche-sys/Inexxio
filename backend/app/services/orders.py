@@ -436,6 +436,49 @@ def _lot_meta(db: Session, insts: list) -> dict[int, dict]:
     return out
 
 
+def _location_history(db: Session, oids: set[int]) -> dict[int, list]:
+    """**Wo lag eine Instanz zu einem gegebenen Zeitpunkt?** – aus dem Audit-Log.
+
+    Der Standort ist die einzige Angabe einer Materialzeile, die sich ändert, ohne dass eine
+    Buchung entsteht: eine Bewegung verschiebt sie, ohne dass eine Menge den Topf wechselt.
+    Die Aufzeichnung dieser Wechsel gibt es trotzdem längst – das Audit-Log (``instances``/
+    ``location``, alt → neu, mit Zeitstempel). Hier wird sie **nur gelesen**, keine zweite
+    Wahrheit angelegt (Testnotiz #664).
+
+    Ergebnis je Instanz: aufsteigende Liste ``[(zeitpunkt, 'typ:id'|None), …]`` plus – als
+    erster Eintrag mit Zeitpunkt ``None`` – der Stand VOR dem ersten aufgezeichneten
+    Wechsel. EINE Abfrage für die ganze Antwort."""
+    from ..models import AuditLog
+    if not oids:
+        return {}
+    rows = (
+        db.query(AuditLog)
+        .filter(AuditLog.table_name == "instances", AuditLog.field_name == "location",
+                AuditLog.object_id.in_(oids))
+        .order_by(AuditLog.object_id, AuditLog.changed_at_utc, AuditLog.id)
+        .all()
+    )
+    out: dict[int, list] = {}
+    for r in rows:
+        hist = out.setdefault(r.object_id, [])
+        if not hist:
+            hist.append((None, r.old_value))
+        hist.append((r.changed_at_utc, r.new_value))
+    return out
+
+
+def _location_at(hist: list, cutoff) -> str | None:
+    """Der Standort-Schlüssel, der zum Stichtag galt (``None`` = keine Aufzeichnung)."""
+    got, seen = None, False
+    for at, key in hist:
+        if at is not None and cutoff is not None and at > cutoff:
+            break
+        if at is not None and cutoff is None:
+            break
+        got, seen = key, True
+    return got if seen else None
+
+
 def order_material(db: Session, order: Order,
                    insts: list | None = None) -> tuple[list[FlowLot], list[FlowLot]]:
     """**Das Material eines Auftrags – und was davon endgültig weg ist.** EINE Stelle.
@@ -983,22 +1026,30 @@ def _fill_material_chain(db: Session, order: Order, resp: OrderResponse) -> None
     if not order.id:
         return
     moves = ledger.moves_of(db, order.id)
-    incoming = [m for m in moves if m.dst_order_id == order.id]
+    # Eine **Selbst-Buchung** (verschrottet/verkauft im eigenen Topf) ist keine Übergabe –
+    # sonst nennt ein Auftrag sich selbst als Herkunft seines Materials.
+    incoming = [m for m in moves if m.dst_order_id == order.id and m.src_order_id != order.id]
     outgoing = [m for m in moves if m.src_order_id == order.id and m.dst_order_id != order.id]
     resp.material_from = _handovers(
         db, [(m, _neighbours(db, m, back=True)) for m in incoming])
     resp.material_to = _handovers(
         db, [(m, _neighbours(db, m, back=False)) for m in outgoing])
-    # **Nicht zweimal dieselbe Beziehung** (Testnotizen #565/#657): was der Fluss ohnehin
-    # zeigt, ist hier keine Nachricht mehr. Bei einem Unter-Auftrag sagt die Seitenspur
-    # längst «hervorgegangen aus …» und «gibt zurück an …»; und was in einen **eigenen
-    # Abzweig** ging, steht als Teilung mitten im Prozess – am Ziel gehört die Information
-    # hin, was es INS ZIEL geschafft hat, nicht was unterwegs abgebogen ist.
-    known = {getattr(resp.origin, "order_object_id", None),
-             getattr(resp.origin, "returns_to_object_id", None)}
-    known |= {x.object_id for x in (resp.deviations + resp.supply_orders
-                                    + resp.returns + resp.provisionings)}
-    known -= {None}
+    # **Ein Unter-Auftrag trägt gar keine Kette** (Testnotizen #667/#668): woher sein
+    # Material kommt und wohin es zurückgeht, steht als Herkunfts- und Rückweg-Knoten in
+    # der **linken Spur** – zweimal dieselbe Beziehung war schon der Grund, aus dem der
+    # Prozessbaum in #565 gestrichen wurde. Und schlimmer noch: die Kette nannte dort
+    # fremde Abzweige, durch die die Menge irgendwann einmal gelaufen war – eine Auskunft,
+    # die an einem Abweichungsauftrag niemand sucht und die den Zustand von damals falsch
+    # behauptete. Die Kette ist für den **regulären** Auftrag gebaut, der sonst im Nichts
+    # begänne; ein Unter-Auftrag beginnt nie im Nichts.
+    if resp.origin is not None:
+        resp.material_from, resp.material_to = [], []
+        return
+    # Und was in einen **eigenen Abzweig** ging, steht als Teilung mitten im Prozess – am
+    # Ziel gehört die Information hin, was es INS ZIEL geschafft hat, nicht was unterwegs
+    # abgebogen ist (#657).
+    known = {x.object_id for x in (resp.deviations + resp.supply_orders
+                                   + resp.returns + resp.provisionings)} - {None}
     if known:
         resp.material_from = [h for h in resp.material_from if h.order_object_id not in known]
         resp.material_to = [h for h in resp.material_to if h.order_object_id not in known]
@@ -1599,6 +1650,27 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse,
     # Ziel erreicht haben und freigegeben sind, sagt die Materialkette **unter** der Flagge.
     current_from = here[0] if here is not None else len(nodes) + 1
 
+    # **Der Standort von DAMALS** (Testnotiz #664): der Hover einer Materialzeile nennt nur
+    # noch den Standort – und zwar den, den die Menge an dieser Stelle des Prozesses hatte.
+    # Der einzige Weg dahin ist die Aufzeichnung der Standort-Wechsel (Audit-Log); eine
+    # Buchung entsteht dabei ja nicht (eine Bewegung verschiebt, sie bucht nicht um).
+    hist = _location_history(db, {r.instance_object_id for r in (view.material if view else [])}
+                             | {l.instance_object_id for l in material})
+    keys = {k for h in hist.values() for _, k in h if k}
+    hist_labels = location_labels(db, [(k.split(":", 1)[0], int(k.split(":", 1)[1]))
+                                       for k in keys if k.split(":", 1)[-1].isdigit()])
+
+    def _at(lots: list[FlowLot], cutoff) -> list[FlowLot]:
+        """Die Standort-Angabe der Zeilen auf den Stichtag zurückdrehen."""
+        for l in lots:
+            h = hist.get(l.instance_object_id)
+            if not h:
+                continue
+            key = _location_at(h, cutoff)
+            typ, _, lid = (key or "").partition(":")
+            l.location_label = hist_labels.get((typ, int(lid))) if lid.isdigit() else None
+        return lots
+
     def axis_lots(i: int, current: bool) -> list[FlowLot]:
         # **Was hier noch auf der Achse liegt, liegt hier NOCH** (Testnotiz #537). Eine
         # Menge, die erst weiter unten abzweigt, war an dieser Stelle unverändert beim
@@ -1612,7 +1684,7 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse,
                 continue
             rows.append(r if r.to_order is None else r._replace(at=None, reserved=True))
         lots = _view_lots(db, rows, order.id)
-        return lots if current else _as_of(lots, cutoffs[i])
+        return lots if current else _at(_as_of(lots, cutoffs[i]), cutoffs[i])
 
     def edge(i: int) -> FlowEdge:
         # **Keine Prognosen** (Testnotiz #521): eine Kante unterhalb des Prozess-Punktes
@@ -1625,7 +1697,7 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse,
         lots: list[FlowLot] = []
         if reached:
             lots = (axis_lots(i, current) if view is not None
-                    else (material if current else _as_of(material, cutoffs[i])))
+                    else (material if current else _at(_as_of(material, cutoffs[i]), cutoffs[i])))
         return _flow_edge(lots, reached, live=here is not None and here == (i, False))
 
     resp.flow_edges = [edge(i) for i in range(len(nodes) + 1)]
@@ -1648,7 +1720,8 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse,
                 if back:
                     lots = _minus(lots, back)
             else:
-                base = material if below >= current_from else _as_of(material, cutoffs[below])
+                base = (material if below >= current_from
+                        else _at(_as_of(material, cutoffs[below]), cutoffs[below]))
                 lots = _minus(base, [l for b in n["branches"] for l in (b.flow_in or [])])
             # **Keine Prognosen – auch nicht neben einer Teilung** (Testnotizen #521/#538):
             # eine Teilung, die der Prozess noch nicht erreicht hat, weiss nicht, was
