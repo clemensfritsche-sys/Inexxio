@@ -12,7 +12,7 @@ from sqlalchemy import func, select, text, union_all
 from sqlalchemy.orm import Session
 
 from ..models import (
-    Article, CompanySettings, DocumentFile, Instance, ObjectRef, Order, UserProfile,
+    Article, CompanySettings, DocumentFile, Instance, ObjectRef, UserProfile,
 )
 
 OBJ_ID_START = 100_000_001
@@ -29,7 +29,6 @@ OBJECT_ID_SEQUENCE = "object_id_seq"
 _TYPE_MODELS = {
     "user": UserProfile,
     "article": Article,
-    "order": Order,
     "instance": Instance,
     # Das Prozessschritt-``Document`` trägt KEINE eigene Nummer – seine Nummer ist die
     # Instanz-Objektnummer. Ein hochgeladenes ``DocumentFile`` (Beleg/Anleitung) hingegen
@@ -117,8 +116,6 @@ def backfill_registry(db: Session) -> None:
 # ON DELETE SET NULL (wir löschen ohnehin nur soft, Registry bleibt bestehen).
 _FOREIGN_KEYS = (
     ("articles", "fk_articles_replaced_by", "replaced_by_id"),
-    ("orders", "fk_orders_replaced_by", "replaced_by_id"),
-    ("instances", "fk_instances_location", "location_id"),
 )
 
 

@@ -1,5 +1,35 @@
 # INEXXIO – Enterprise Central System
 
+> ## ⚠ BASIS-NEUAUFBAU (August 2026) – ZUERST LESEN
+>
+> **Die Prozesslogik ist ersatzlos entfernt.** Alles weiter unten in dieser Datei, das
+> Auftrag · Prozessschritt · Reservierung · Anteil · Material-Journal · Unterdeckung ·
+> Bereitstellung · Nachschub · Abweichung · Verkauf/Shop beschreibt, ist **Historie** –
+> es beschreibt ein System, das es so nicht mehr gibt. Nicht als Vorlage verwenden.
+>
+> **Das gültige Datenmodell ist:**
+> ```
+> Artikel        reiner Ordner + Spezifikation + Erfassungsmaske. Keine Menge, kein Bestand.
+>   └─ Instanz   reine Gruppe (kind = einzeln|batch), eigene Objektnummer.
+>                KEINE Mengen-Spalte – die Menge IST die Anzahl der Einzelinstanzen.
+>        └─ Einzelinstanz   das EINZIGE Arbeitsobjekt. Menge immer exakt 1 (nicht
+>                           gespeichert). Eigener Status. Nummer = <Instanznr>-<Suffix>,
+>                           kumulierend, NICHT aus object_id_seq.
+> ```
+> **Einzelinstanz-Regel:** im Prozess wird ausschliesslich mit Einzelinstanzen gearbeitet –
+> nie mit der Instanz, nie mit dem Artikel. Jede Ansicht auf höherer Ebene (Instanz,
+> Artikel, Bestand) ist nur Filterung/Summierung, nie eine eigene Datenquelle.
+>
+> **Der zentrale Schalter:** `backend/app/core/features.py` (`ACTIVE`), gespiegelt in
+> `frontend/src/lib/features.ts`. Aktiv: `core`, `catalog`, `capture`. Abgeschaltet:
+> `process`, `sales`, `documents`, `ai` – deren Prefixe beantwortet ein Stub mit 503 und
+> Grund. Die Module dieser Bereiche liegen weiterhin im Repo, sind aber **nicht
+> importierbar** (Liste in `tests/test_no_undefined_names.DISABLED_PREFIXES`).
+>
+> **Nächster Schritt:** neue Prozesslogik. Sie wird neu entworfen, nicht aus der Historie
+> rekonstruiert. Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
+> Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

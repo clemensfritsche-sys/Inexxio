@@ -7,7 +7,6 @@ import { Menu, X, LogIn, LogOut, ChevronDown, Settings, ShoppingCart } from 'luc
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
 import { api } from '@/lib/api';
-import { useCartOptional } from '@/lib/cart-context';
 import type { User } from 'firebase/auth';
 
 // Elegantes Warenkorb-Symbol für den Header: dezenter Icon-Button, Badge nur bei Inhalt.
@@ -58,7 +57,6 @@ export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const cart = useCartOptional();   // nur in Shop-/öffentlichem Kontext vorhanden
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -201,7 +199,6 @@ export function Navbar() {
                 <button style={{ color: 'var(--fg-3)' }}>EN</button>
               </div>
 
-              {cart && <CartButton count={cart.count} />}
 
               {authLoaded && (
                 user ? (
@@ -382,21 +379,6 @@ export function Navbar() {
             )}
 
 
-            {cart && (
-              <Link
-                href="/shop/cart"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  font: '600 19px/1 var(--font-display)', letterSpacing: '-0.02em',
-                  padding: '14px 0', borderBottom: '1px solid var(--border-1)',
-                  color: pathname.startsWith('/shop/cart') ? 'var(--ix-red)' : 'var(--fg-1)',
-                  textDecoration: 'none',
-                }}
-              >
-                <ShoppingCart style={{ width: 20, height: 20 }} strokeWidth={1.8} />
-                Warenkorb{cart.count > 0 ? ` (${cart.count})` : ''}
-              </Link>
-            )}
 
             <div style={{ paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>

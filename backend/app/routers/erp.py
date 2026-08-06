@@ -8,8 +8,7 @@ from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
 from ..models import UserProfile, WebAuthnCredential
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
-from ..schemas.shop import CustomerOrder
-from ..services import people, selling as selling_svc
+from ..services import people
 from ..services.objects import next_object_ids, resolve_object_type
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
@@ -101,18 +100,8 @@ async def get_erp_record(
     return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
 
 
-@router.get("/records/{object_id}/orders", response_model=list[CustomerOrder])
-async def get_erp_record_orders(
-    object_id: int,
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
-):
-    """Bestellungen/Abos eines Benutzers (ERP-Reiter «Bestellungen»)."""
-    user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
-    if not user:
-        raise HTTPException(404, detail="Record not found")
-    return [CustomerOrder(**o) for o in selling_svc.list_customer_orders(db, user.id)]
-
+# Die Karte «Bestellungen» am Benutzer-Datensatz ist entfallen: sie las Verkaufsaufträge,
+# und der Verkauf ist abgeschaltet (core/features.py).
 
 @router.patch("/records/{object_id}", response_model=UserProfileResponse)
 async def update_erp_record(

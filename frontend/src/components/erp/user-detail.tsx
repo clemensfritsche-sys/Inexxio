@@ -8,9 +8,6 @@ import {
 import { userDisplayName, localDate } from '@/lib/utils';
 import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
-import { OrdersList } from '@/components/orders-list';
-import { ObjectDocuments } from '@/components/erp/object-documents';
-import { UserDocumentsOverview } from '@/components/erp/user-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { Card, ChoiceButton, DetailHeader, Dialog, HeaderSep } from '@/components/erp/fields';
@@ -25,7 +22,7 @@ import { AddressField, type Address } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
-import type { UserProfile, CustomerOrder, UserRole } from '@/types';
+import type {UserProfile, UserRole } from '@/types';
 
 type UserTab = 'profil' | 'orders' | 'verwendung' | 'docs';
 
@@ -473,24 +470,7 @@ function passkeyLabel(count: number | null | undefined): string {
 
 // ─── Bestellungen (Reiter) ─────────────────────────────────────────────────────
 
-function OrdersSec({ objectId }: { objectId: number | null | undefined }) {
-  const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
-  useEffect(() => {
-    if (!objectId) return;
-    setOrders(null);
-    api.getRecordOrders(objectId).then(setOrders).catch(() => setOrders([]));
-  }, [objectId]);
-
-  return (
-    <Card icon={ShoppingBag} title="Bestellungen">
-      {orders === null
-        ? <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Lädt…</div>
-        : <OrdersList orders={orders} />}
-    </Card>
-  );
-}
-
-// ─── UserDetail ──────────────────────────────────────────────────────────────
+// Die Karte «Bestellungen» ist entfallen: der Verkauf ist abgeschaltet.
 
 export function UserDetail({ record, onSave, isAdmin, onBack }: {
   record: UserProfile;
@@ -603,7 +583,6 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
           <div style={{ marginBottom: 14, fontSize: 12.5, color: 'var(--danger)' }}>{lcErr}</div>
         )}
         {tab === 'profil' && <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />}
-        {tab === 'orders' && <OrdersSec objectId={record.object_id} />}
         {tab === 'verwendung' && <ObjectReferences objectId={record.object_id} emptyHint="Diese Person hält aktuell keine Instanzen." />}
         {tab === 'docs' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -613,11 +592,9 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
                 Dokumente, die diese Person unterschreibt/bestätigt (als Partei) oder anerkennt (als Publikum).
                 Die Ansicht «Meine Dokumente» im Konto der Person spiegelt genau diese Daten.
               </div>
-              <UserDocumentsOverview objectId={record.object_id} />
             </div>
             <div>
               <div style={{ font: '700 13px var(--font-body)', color: 'var(--fg-1)', marginBottom: 10 }}>Abgelegte Dokumente</div>
-              <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />
             </div>
           </div>
         )}

@@ -131,6 +131,7 @@ class ArticleCreate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
+    capture_fields: Optional[list] = None       # Erfassungsmaske der Datenerfassung
     # Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (alle optional –
     # kann später ergänzt werden; der purchase-Schritt erbt sie als Default).
     procurement_mode: Optional[str] = None   # Default 'supplier'
@@ -224,6 +225,7 @@ class ArticleUpdate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
+    capture_fields: Optional[list] = None       # Erfassungsmaske der Datenerfassung
     # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
     procurement_mode: Optional[str] = None
     default_supplier_id: Optional[int] = None
@@ -333,22 +335,15 @@ class ArticleResponse(BaseModel):
     sales_published: bool = False
     sales_visibility: str = "public"
     sales_fulfillment: str = "make"
-    # Aufsummiertes Gewicht aus den verbauten Ressourcen (read-only, rekursiv über
-    # die Stückliste). Nur gesetzt, wenn der Artikel consume-Ressourcen hat.
-    computed_weight_kg: Optional[Decimal] = None
+    # Die Erfassungsmaske der Datenerfassung: was an einer Einzelinstanz dieses
+    # Artikels erfasst wird (services/capture.py). Leer heisst: hier wird nichts erfasst.
+    capture_fields: Optional[list] = None
     # Ersetzen (Nachvollziehbarkeit): Nachfolger bzw. Vorgänger (Objektnummern).
     replaced_by_id: Optional[int] = None
     replaces_id: Optional[int] = None  # vom Router gesetzt (Vorgänger)
-    # Stückpreis-Spanne netto (Bestellsumme ÷ Menge) über akzeptierte Bestellungen
-    # Abgeleitete Kennzahlen: der MEDIAN trägt die Aussage, die Spanne steht
-    # untergeordnet daneben (services/metrics.py).
-    unit_cost_median: Optional[Decimal] = None
-    unit_cost_low: Optional[Decimal] = None
-    unit_cost_high: Optional[Decimal] = None
-    # Durchlaufzeit-Spanne in Tagen (Freigabe → Abschluss) über erledigte Aufträge
-    lead_time_days_median: Optional[float] = None
-    lead_time_days_low: Optional[float] = None
-    lead_time_days_high: Optional[float] = None
+    # Einstandspreis und Durchlaufzeit sind entfallen: beide wurden aus abgeschlossenen
+    # Aufträgen abgeleitet, und Aufträge gibt es nicht mehr. Eine Zahl ohne Grundlage
+    # wäre schlechter als keine.
     is_active: bool
     created_at: datetime
     updated_at: datetime

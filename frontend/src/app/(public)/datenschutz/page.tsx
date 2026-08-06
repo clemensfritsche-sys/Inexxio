@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LegalDocument } from '@/components/public/legal-document';
 import { CookieSettingsButton } from '@/components/layout/cookie-settings-link';
 
 export const metadata: Metadata = {
@@ -28,7 +27,7 @@ export default function DatenschutzPage() {
         <div className="container max-w-3xl">
           {/* Gültige Datenschutzerklärung – wenn hinterlegt – aus dem Dokument-Modul
               (Zeiger am Unternehmen, D); sonst der eingebaute Text als Fallback. */}
-          <LegalDocument kind="datenschutz" fallback={<>
+          <>
           <div className="mb-8 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
             <p className="text-sm text-blue-800">
               Wir nehmen den Schutz Ihrer persönlichen Daten sehr ernst. Diese Datenschutzerklärung
@@ -353,7 +352,7 @@ export default function DatenschutzPage() {
               Version {VERSION} | Stand {VALID_FROM} | Inexxio AG
             </p>
           </Section>
-          </>} />
+          </>
         </div>
       </section>
     </div>

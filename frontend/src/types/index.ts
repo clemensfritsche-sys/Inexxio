@@ -74,8 +74,6 @@ export type ArticleUpdateInput = Partial<ArticleInput> & {
 
 // Namensvorschlag beim Anlegen (freie Namensgebung + intelligente Dubletten-Vermeidung).
 export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
-// Betriebskosten (Monat-bis-heute) – Admin-Übersicht am Unternehmen.
-export type OperatingCosts = components['schemas']['OperatingCostsResponse'];
 export type TerritoryMap = components['schemas']['TerritoryMapResponse'];
 export type TerritoryRegion = components['schemas']['TerritoryRegion'];
 export type TerritoryCompany = components['schemas']['TerritoryCompany'];
@@ -87,89 +85,16 @@ export const ARTICLE_NAME_MAX_LENGTH = 32;
 
 export type OrderStatus = 'draft' | 'released' | 'inactive' | 'completed';
 
-type OrderApi = components['schemas']['OrderResponse'];
-
-// Eingebetteter Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer).
-export type OrderPurchase = Omit<NonNullable<OrderApi['purchase']>, 'status' | 'mode'> & {
-  status: PurchaseOrderStatus;
-  mode: ProcessStepMode;
-};
-
-// EIN Beschaffungs-Schritt kann bei einem Mehrpositionen-Auftrag mehrere Bestellungen
-// tragen (eine je Artikel/Position, gleicher step_id) – Spiegel von ``OrderSale``/``sales``.
-
-// Aus dem Backend-Schema abgeleitet; Status verengt, Prozess-Embed eingehängt.
-export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
-  status: OrderStatus;
-  purchase: OrderPurchase | null;
-};
-
-// Schlanke Feed-Sicht (ohne Embeds) – Detail kommt on-demand via getOrder(id).
-type OrderSummaryApi = components['schemas']['OrderSummary'];
-export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStatus };
-
-// Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
-// EIN «resource»-Schritt fasst Verbrauch & Betriebsmittel zusammen; pro Zeile ein Modus.
 export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'block' | 'sale' | 'document';
 export type ResourceMode = 'consume' | 'tool';
-export type OrderStep = OrderApi['steps'][number];
-// Was an einem Schritt entschieden wurde, als er unterdeckt war (ersetzt / ohne Ersatz weiter).
-export type StepResolution = OrderStep['resolutions'][number];
-/** Was einem Auftrag fehlt (Fertigware oder Komponente) – die Fehlmenge gehört dem Auftrag. */
-export type OrderShortfall = OrderApi['shortfall'][number];
-/** Ein laufender Auftrag, dem die Auswahl dieses Entwurfs etwas wegnimmt (#387). */
-export type AffectedOrder = OrderApi['affects'][number];
-/** Ein **regulärer** Auftrag, der dasselbe Material vor/nach diesem verarbeitet hat (#493). */
-/**
- * **Die fertig gerechnete Fluss-Achse aus dem Backend** (ADR 007): Knoten (Schritt oder
- * Teilung) und Kanten (Material im Zustand von damals, Fortschritt, Prozess-Punkt). Das
- * Frontend zeichnet sie nur – jede Client-Arithmetik darüber war eine Testnotiz.
- */
-export type FlowNode = OrderApi['flow_nodes'][number];
-export type FlowEdge = OrderApi['flow_edges'][number];
-// Dokument: Inhalt (Titel/Untertitel/Abschnitte) + eingebetteter Stand im Auftrag.
-// Der Inhalt wird WÄHREND der Auftragsausführung verfasst und ausgestellt.
-export type DocumentContent = components['schemas']['DocumentContent'];
-export type OrderDocument = NonNullable<OrderApi['document']>;
-export type DocumentUpdateInput = components['schemas']['DocumentUpdate'];
-
-// Dokument-Freigabe: endliche Freigabe-Parteien (Unterschriften-/Bestätigungs-Layer).
-export type SignoffView = components['schemas']['SignoffView'];
-export type SignoffAction = components['schemas']['SignoffAction'];
-export type MySignoffDocument = components['schemas']['MySignoffDocument'];
-export type MyHistoryDocument = components['schemas']['MyHistoryDocument'];
-export type UserDocumentOverview = components['schemas']['UserDocumentOverview'];
-export type DocSigner = components['schemas']['DocSigner'];
 export type DocSignAction = 'confirm' | 'sign';
 export type DocAudience = 'all' | 'roles' | 'persons';
 export type DocVisibility = 'public' | 'internal' | 'confidential';
 export type DocAudienceRole = 'customer' | 'supplier' | 'employee' | 'admin';
 
-// Hochgeladene Fremd-Dokumente (Belege/Anleitungen) – KI-Aufnahme + Reiter «Dokumente».
-export type ObjectDocument = components['schemas']['ObjectDocument'];
-export type DocumentAnalyzeResponse = components['schemas']['DocumentAnalyzeResponse'];
-export type SuggestedLink = components['schemas']['SuggestedLink'];
-export type DocumentConfirmInput = components['schemas']['DocumentConfirmRequest'];
-export type DocumentLinkInput = components['schemas']['DocumentLinkInput'];
 export type DocumentFileType = 'invoice' | 'delivery_note' | 'manual' | 'datasheet' | 'certificate' | 'contract' | 'receipt' | 'other';
 
-// Öffentliches Rechtsdokument (AGB/Datenschutz/…) – aufgelöster Zeiger (D).
-export interface LegalDocument {
-  kind: string;
-  object_number: number | null;
-  document_date: string | null;
-  content: DocumentContent | null;
-}
-
-// Zu bestätigendes Pflichtdokument (Consent-Gate) – versioniert über die Objektnummer.
-export type PendingDocument = components['schemas']['PendingDocument'];
-
-// Registrierter Passkey (WebAuthn/FIDO2) – Kontoverwaltung (ohne Krypto-Material).
 export type Passkey = components['schemas']['PasskeyResponse'];
-export type OrderInstance = NonNullable<OrderApi['instances']>[number];
-export type OrderResource = NonNullable<OrderApi['resource']>;
-export type OrderResourceLine = OrderResource['lines'][number];
-
 export interface ResourceToolPickInput {
   article_id: number;
   instance_ids: number[];
@@ -181,10 +106,6 @@ export interface ResourceUpdateInput {
   step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }
 
-// Verbrauch je Produkt-Instanz (welche Komponenten-Instanz wird wohin verbaut)
-export type OrderResourceProduct = NonNullable<OrderResource['products']>[number];
-
-// Standort einer Instanz (Bewegung) – immer ein Datensatzobjekt mit Nummer
 export type LocationType = 'user' | 'instance' | 'company';
 
 export interface MovementTargetInput {
@@ -199,10 +120,6 @@ export interface MovementUpdateInput {
   step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }
 
-// Versand (ADR 005): abgeleitete Transportklasse + Versand-Beleg am Bewegungs-Schritt.
-export type ShipmentEmbed = components['schemas']['ShipmentEmbed'];
-export type ShipmentRate = components['schemas']['ShipmentRate'];
-// EINE Transport-Achse: innerbetrieblich | Paket | Fracht (die Sendungsart folgt dem Modus).
 export type TransportMode = 'internal' | 'parcel' | 'freight';
 export interface ShipmentUpdateInput {
   step_id?: number | null;
@@ -232,10 +149,6 @@ export interface ScrapUpdateInput {
 }
 
 
-export type CaptureField = components['schemas']['CaptureField'];
-
-// Konkrete Stichprobe der Datenerfassung (Instanz + erfasste Werte)
-
 export interface InspectionSampleInput {
   instance_id: number;
   slot: number;
@@ -251,18 +164,33 @@ export interface InspectionUpdateInput {
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
-/** **Ein einzelnes Stück** – Nummer · Menge · Zustand, die EINE Form überall (#531/#532). */
-export type InstanceUnit = components['schemas']['InstanceUnit'];
-// Eine Teilmenge einer Charge an einem Standort (Standort-Verteilung ohne Instanz-Teilung)
-export type InstanceLocation = components['schemas']['InstanceLocation'];
-// qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):
-// Generischer Objekt-Verweis («Verwendung» je Objektnummer)
-export type ObjectReference = components['schemas']['ObjectReference'];
-// Auftrag, der eine Instanz angefasst hat (Instanz = Summe aller Prozesse)
-export type InstanceOrderRef = components['schemas']['InstanceOrderRef'];
 
-// Inaktiv setzen / Ersetzen (ohne Versionierung)
-export type DeactivationImpact = components['schemas']['DeactivationImpact'];
+// Feed-Zeile: ohne die Einzelinstanzen, aber mit ihrer Anzahl.
+export type InstanceSummary = components['schemas']['InstanceSummary'];
+// Die Einzelinstanz – das einzige Arbeitsobjekt. Nummer = <Instanznr>-<suffix>.
+export type InstanceUnit = components['schemas']['InstanceUnitResponse'];
+export type InstanceCreateInput = components['schemas']['InstanceCreate'];
+// Datenerfassung an einer Einzelinstanz.
+export type Capture = components['schemas']['CaptureResponse'];
+export type CaptureInput = components['schemas']['CaptureCreate'];
+
+/**
+ * Ein Erfassungsfeld der Maske am Artikel (`articles.capture_fields`).
+ *
+ * Handgepflegter Spiegel: die Maske ist im Backend ein freies JSONB, hat dort also kein
+ * eigenes Schema. Die Feldform ist unverändert die bisherige – `services/capture.py`
+ * beschreibt sie, `EVALUABLE`/`MEDIA` dort entscheiden über die Bewertung.
+ */
+export type CaptureFieldType = 'measure' | 'bool' | 'text' | 'photo' | 'signature';
+
+export interface CaptureField {
+  key: string;
+  label: string;
+  type: CaptureFieldType;
+  target?: number | null;      // nur measure: Sollwert (ohne Soll = reine Ablesung)
+  tolerance?: number | null;   // nur measure
+}
+export type ObjectReference = components['schemas']['ObjectReference'];
 export type OrdersMode = 'phase_out' | 'cancel';
 
 // Wiederkehrend ist eine Eigenschaft des Auftrags (kein eigenes Objekt mehr).
@@ -273,33 +201,6 @@ export interface OrderRecurrenceInput {
   recurrence_anchor?: string | null;
 }
 
-// Eine Position eines Mehrpositionen-Auftrags (``order.article_id`` ist dann NULL).
-export type OrderLineInfo = components['schemas']['OrderLineInfo'];
-
-// Kurzinfo eines Unter-Auftrags (Abweichung/Nachschub) am Eltern-Auftrag.
-export type OrderDeviationInfo = components['schemas']['OrderDeviationInfo'];
-
-// Der Prozess eines Unter-Auftrags, angeteasert (Modul + Zustand) – Notiz #409.
-export type SubOrderStep = components['schemas']['SubOrderStep'];
-
-// Woher ein Unter-Auftrag kam und wohin er beim Abschluss zurückgibt – Notiz #409.
-export type OrderOrigin = components['schemas']['OrderOrigin'];
-
-// Eine Materialmenge auf einer Kante des Flusses («4 × 100000590») – Notiz #413.
-export type FlowLot = components['schemas']['FlowLot'];
-
-// Woher eine Menge kam und wohin sie ging – EIN Schritt der Materialkette (#650/#651).
-export type MaterialHandover = components['schemas']['MaterialHandover'];
-
-// Eine weitere Position zu einem bestehenden Auftrag hinzufügen (POST .../lines) –
-// jederzeit möglich, auch nachdem der Auftrag schon gespeichert wurde. Macht den
-// Auftrag (falls noch nicht) zu einem Mehrpositionen-Auftrag (kein «Herstellen» mehr).
-/**
- * **Ein Anteil, kein Ding.** Eine Instanz ist eine Menge, und ihre Menge ist immer
- * vollständig aufgeteilt: jeder Anteil gehört genau einem Auftrag oder ist frei. Wer
- * auswählt, klickt eine **Zeile** an – Instanz · Menge · Halter – und beantwortet damit
- * zugleich, WEM er etwas wegnimmt. `from_order_object_id` leer = freier Anteil.
- */
 export type InstancePickInput = {
   instance_object_id: number;
   quantity?: number | null;
@@ -315,28 +216,6 @@ export interface OrderLineCreateInput {
 // Gewählte Anteile EINER Position statt FIFO (PATCH .../lines/{line_id}).
 export interface OrderLinePinsInput {
   picks: InstancePickInput[];
-}
-
-/**
- * **Ein Auftrag entsteht als Ganzes** (Testnotiz #386): der Entwurf lebt im Browser, und
- * beim Erteilen kommt alles auf einmal – Bedarf, Positionen, Ablauf und Auswahl. Erst
- * dann bekommt er seine Objektnummer.
- */
-export interface OrderInput extends OrderRecurrenceInput {
-  article_id?: number | null;
-  quantity?: number | null;
-  /** **Vorauswahl**, keine Fixierung: der Abkürzungs-Knopf an einer Instanz trägt sie gleich
-   *  ein – danach frei änderbar wie jede andere Auswahl (Notiz #371). */
-  picks?: InstancePickInput[] | null;
-  desired_delivery_date?: string | null;
-  /** Weitere Positionen (der Anker oben ist Position 0) – je mit eigener Auswahl. */
-  lines?: OrderLineCreateInput[] | null;
-  /** Der auftragseigene Ablauf – derselbe Editor, nur noch nicht gespeichert. */
-  steps?: ArticleProcessStepInput[] | null;
-  /** **Die Rückführung ist gekappt** (Testnotiz #563): was dieser Auftrag übernimmt, kommt
-   *  nicht zurück – der Halter endet an dieser Stelle, abgebrochen und hier fortgeführt.
-   *  Im Entwurf ist das die gekappte Rückgabe-Linie. */
-  returns_nothing?: boolean | null;
 }
 
 export type OrderUpdateInput = OrderRecurrenceInput & {
@@ -358,7 +237,6 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
 
 // ─── Verkaufsschritt (Spiegel der Beschaffung) ─────────────────────────────────
 
-export type OrderSale = NonNullable<OrderApi['sale']>;
 export type SaleStatus = 'requested' | 'confirmed' | 'invoiced' | 'paid' | 'cancelled';
 // Herkunft: 'shop' (Kunde über die Kasse/Stripe) | 'direct' (Personal im ERP erfasst).
 // Zahlungsart des manuellen Zahlungseingangs – Rechnung ist der übliche B2B-Weg, KEIN
@@ -387,14 +265,6 @@ export type PriceKind = 'one_time' | 'subscription';
 export type PriceInterval = 'month' | 'year';
 export type PriceSubType = 'usage' | 'product';   // Nutzungsabo | Produktabo
 
-export type ArticlePrice = components['schemas']['ArticlePriceResponse'];
-export type AudienceMember = components['schemas']['AudienceMember'];
-export type ShopProduct = components['schemas']['ShopProduct'];
-export type ShopPriceOption = components['schemas']['ShopPriceOption'];
-export type ShopCheckoutResult = components['schemas']['ShopCheckoutResult'];
-export type CustomerOrder = components['schemas']['CustomerOrder'];
-
-// Lokalisierter Verkaufs-Inhalt (de/en) – Titel/Untertitel/Beschreibung/Bilder.
 export interface SalesContentBlock {
   title?: string;
   subtitle?: string;
@@ -405,13 +275,6 @@ export interface SalesContent {
   de?: SalesContentBlock;
   en?: SalesContentBlock;
 }
-
-type ArticleSalesProfileApi = components['schemas']['ArticleSalesProfile'];
-export type ArticleSalesProfile = Omit<ArticleSalesProfileApi, 'sales_visibility' | 'sales_fulfillment' | 'sales_content'> & {
-  sales_visibility: SalesVisibility;
-  sales_fulfillment: SalesFulfillment;
-  sales_content: SalesContent | null;
-};
 
 export interface ArticleSalesUpdateInput {
   sales_published?: boolean;
@@ -470,67 +333,12 @@ export interface PaymentStatus {
 
 export type ProcessStepMode = 'supplier' | 'webshop';
 
-type ArticleProcessStepApi = components['schemas']['ArticleProcessStepResponse'];
-
-export type ArticleProcessStep = Omit<ArticleProcessStepApi, 'mode'> & {
-  mode: ProcessStepMode;
-};
-
-// Ressourcen-Zeile (mini-BOM/Betriebsmittel) am Schritt
-
 export interface ResourceLineInput {
   article_id: number;
   quantity: number;
   mode?: ResourceMode;   // consume (Default) | tool – pro Zeile
 }
 
-export interface ArticleProcessStepInput {
-  step_type?: StepType;
-  position?: number | null;
-  mode?: ProcessStepMode;
-  supplier_id?: number | null;
-  webshop_url?: string | null;
-  shared_fields?: string[] | null;
-  sample_percent?: number | null;
-  capture_fields?: CaptureField[] | null;
-  target_location_type?: LocationType | null;
-  target_location_id?: number | null;
-  resource_lines?: ResourceLineInput[] | null;
-  doc_signers?: DocSigner[] | null;
-  sign_sequential?: boolean;
-  doc_audience?: DocAudience | null;
-  doc_audience_roles?: DocAudienceRole[] | null;
-  doc_audience_person_ids?: number[] | null;
-  doc_visibility?: DocVisibility;
-}
-
-export interface ArticleProcessStepUpdateInput {
-  /** Nur innerhalb des Moduls «Aussondern» (scrap ↔ block): EIN Modul, zwei Wirkungen
-   *  (#277) – die Wirkung ist eine Konfiguration, kein anderes Modul. Der Server erzwingt es. */
-  step_type?: StepType;
-  position?: number;
-  mode?: ProcessStepMode;
-  supplier_id?: number | null;
-  webshop_url?: string | null;
-  shared_fields?: string[] | null;
-  sample_percent?: number | null;
-  capture_fields?: CaptureField[] | null;
-  target_location_type?: LocationType | null;
-  target_location_id?: number | null;
-  resource_lines?: ResourceLineInput[] | null;
-  doc_signers?: DocSigner[] | null;
-  sign_sequential?: boolean;
-  doc_audience?: DocAudience | null;
-  doc_audience_roles?: DocAudienceRole[] | null;
-  doc_audience_person_ids?: number[] | null;
-  doc_visibility?: DocVisibility;
-  is_active?: boolean;
-}
-
-// ─── Beschaffungsschritt (läuft unter dem Auftrag, keine eigene Nummer) ────────
-
-// «Storniert» setzt das System, nicht der Mensch: verliert die Bestellung ihren Gegenstand
-// (der Auftrag ist abgebrochen), ist sie gegenstandslos – siehe `services/rebase.py`.
 export type PurchaseOrderStatus =
   | 'requested' | 'quoted' | 'ordered' | 'received' | 'rejected' | 'cancelled';
 
@@ -545,22 +353,9 @@ export interface PurchaseOrderUpdateInput {
   article_id?: number | null;              // Mehrpositionen: welche Position (bei >1 Bestellung)
 }
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization';
-
-// ─── KI-Layer (ADR 004) ───────────────────────────────────────────────────────
-
-export type AiConfig = components['schemas']['AiConfig'];
-export type AiChatMessage = components['schemas']['AiChatMessage'];
-export type AiChatResponse = components['schemas']['AiChatResponse'];
-export type AiProposal = components['schemas']['AiProposal'];
-export type AiDocContent = components['schemas']['AiDocContent'];
-export type AiImageEditResponse = components['schemas']['AiImageEditResponse'];
-
-// ─── Company Settings ─────────────────────────────────────────────────────────
-//
-// Bewusst NICHT aus dem Schema abgeleitet: die API liefert snake_case-Felder mit
-// abweichenden Namen (zip_code, uid_number, street_nr …); api.ts mappt sie auf
-// diese camelCase-nahe Frontend-Sicht (mapSettingsFromBackend/ToBackend).
+// Der Auftrag ist mit der Prozesslogik entfallen (Basis-Neuaufbau); er kommt mit der
+// neuen Prozesslogik zurück. Der Feed kennt bis dahin vier Datensatzarten.
+export type ErpRecordType = 'user' | 'article' | 'instance' | 'organization';
 
 export interface CompanySettings {
   object_id?: number | null;   // universelle ERP-Objektnummer des Unternehmens
@@ -671,12 +466,3 @@ export interface FeedbackUpdateInput {
   status?: FeedbackStatus;
   resolution?: string | null;
 }
-
-/**
- * **Das Systemprotokoll eines Auftrags** (Befund + Chronologie) – die Grundlage eines
- * Fehlerberichts. Kein Domänen-Objekt, sondern eine **Sicht**: `snapshot` ist der
- * abgeleitete Zustand zum Abfragezeitpunkt, `entries` sind die drei Ströme
- * (Audit · Ereignisse · Material-Journal) chronologisch nebeneinander.
- */
-export type OrderDiagnostics = components['schemas']['OrderDiagnostics'];
-export type DiagnosticEntry = components['schemas']['DiagnosticEntry'];

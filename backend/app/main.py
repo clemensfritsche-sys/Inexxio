@@ -12,11 +12,14 @@ from sqlalchemy.exc import IntegrityError
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
+from .core import features
 from .routers import (
-    admin, ai, article_process, articles, attachments, auth, consent, contact, documents,
-    document_files, erp, events, feedback, health, instances, legal, maintenance, object_refs,
-    orders, passkey, sales, shop,
+    admin, articles, attachments, auth, captures, contact, erp, events, feedback, health,
+    instances, object_refs, passkey,
 )
+# Nicht importiert, weil abgeschaltet (siehe core/features.py): ai, consent, documents,
+# document_files, legal, sales, shop. Ihre Module hängen an der entfernten Prozesslogik
+# und sind derzeit nicht importierbar – ihre Prefixe beantwortet ein Stub mit 503.
 
 settings = get_settings()
 
@@ -58,238 +61,64 @@ def _bootstrap_admin() -> None:
 # Spalten, die nach dem Initial-Schema ergänzt wurden (Tabelle, Spalte, DDL-Typ).
 # create_all() legt nur fehlende TABELLEN an – KEINE neuen Spalten auf bestehenden.
 _COLUMN_SAFETY_NET = (
+    # ``company_settings`` wird von JEDER Standort-Anzeige und von den öffentlichen
+    # Endpunkten (Impressum, Shop-Konfiguration) gelesen. Fehlt hier eine Spalte, die das
+    # Modell kennt, endet jede dieser Abfragen in einem 500 – das nimmt ERP **und** Website
+    # mit. Genau das ist mit ``is_primary`` passiert (Migration 090), als sie hier fehlte.
     ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
-    # Gesellschaften (Migrationen 090/091). Diese Zeilen sind **kritischer als sie aussehen**:
-    # ``company_settings`` wird von JEDEM Standort-Label gelesen (Instanz-Feed, Standort-
-    # Kette) und von den öffentlichen Endpunkten (Impressum, Shop-Konfiguration). Fehlt eine
-    # Spalte, während das Modell sie kennt, endet jede dieser Abfragen in einem 500 – das nimmt
-    # ERP **und** Website mit. Genau das ist mit ``is_primary`` passiert, als sie hier fehlte.
     ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false"),
     ("company_settings", "currency", "VARCHAR(3) NOT NULL DEFAULT 'CHF'"),
-    # Zeiger auf die Rechtstext-Artikel (AGB/Datenschutz, Migration 057). Fehlte hier
-    # ebenso – vom Wächter ``test_every_company_settings_column_is_in_the_lifespan_
-    # safety_net`` gefunden, dieselbe Bombe, nur noch nicht gezündet.
     ("company_settings", "legal_documents", "JSONB"),
-    # Soft-Delete der Gesellschaft (Migration 095) – ohne sie liefe JEDE Abfrage auf
-    # ``company_settings`` ins Leere, sobald das Modell die Spalte kennt.
     ("company_settings", "is_active", "BOOLEAN NOT NULL DEFAULT true"),
-    ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
-    ("orders", "article_id", "BIGINT"),
-    ("orders", "quantity", "NUMERIC(14,3)"),
-    # Materialfluss (Migration 097): wie viel eine Instanz an diesen Auftrag ging.
-    # Neue Spalte auf einer BESTEHENDEN Tabelle → gehört ins Netz (Lehre aus 090).
-    ("instance_order_links", "quantity", "NUMERIC(14,3)"),
-    # Die Stücke einer Charge mit ihren eigenen Nummern (Migration 099). Ebenfalls eine
-    # neue Spalte auf einer bestehenden Tabelle – und ``instances`` wird von JEDEM Feed
-    # und jedem Auftrags-Detail gelesen; fehlt sie, während das Modell sie kennt, ist das
-    # ERP dunkel (die Ausfallklasse von 090).
-    ("instances", "units", "JSONB"),
-    # Welche Stücke eine Buchung bewegt hat (Migration 100) – neue Spalte auf einer
-    # bestehenden Tabelle, also auch ins Netz (Lehre aus 090).
-    ("material_moves", "units", "JSONB"),
-    ("orders", "desired_delivery_date", "DATE"),
-    # Woher ein Entwurf seine **Anteile** nimmt (Migration 096): ohne die Spalte müsste die
-    # Freigabe raten, welchem Auftrag sie ein Stück wegnimmt.
-    ("orders", "pick_sources", "JSONB"),
-    ("orders", "returns_nothing", "BOOLEAN NOT NULL DEFAULT false"),
-    ("purchase_orders", "order_total", "NUMERIC(12,2)"),
-    ("purchase_orders", "ordered_at", "TIMESTAMP WITH TIME ZONE"),
-    ("article_process_steps", "shared_fields", "JSONB"),
-    ("article_process_steps", "position", "INTEGER DEFAULT 1"),
-    ("article_process_steps", "sample_percent", "INTEGER"),
-    ("article_process_steps", "capture_fields", "JSONB"),
-    ("article_process_steps", "target_location_type", "VARCHAR(20)"),
-    ("article_process_steps", "target_location_id", "BIGINT"),
-    ("inspections", "samples", "JSONB"),
-    ("instances", "location_type", "VARCHAR(20)"),
-    ("instances", "location_id", "BIGINT"),
-    ("instances", "reserved_for_order_id", "BIGINT"),
-    # Mengengenaue Reservierung ohne Instanz-Teilung
-    ("instances", "reservations", "JSONB"),
-    ("instances", "reserved_quantity", "NUMERIC(14,3) DEFAULT 0 NOT NULL"),
-    # Standort-Verteilung einer Charge ohne Instanz-Teilung (analog reservations)
-    ("instances", "locations", "JSONB"),
-    # Unternehmen als nummerierter ERP-Datensatz (universelle Objektnummer)
     ("company_settings", "object_id", "BIGINT"),
-    ("inspections", "escalated", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    ("instances", "released_at", "TIMESTAMP WITH TIME ZONE"),
-    ("article_process_steps", "resource_lines", "JSONB"),
-    # Optionale Artikel-Stammdaten (dynamische Feldliste)
+    # Artikel-Spezifikation (optionale Felder, nachträglich ergänzt).
+    ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("articles", "material", "VARCHAR(255)"),
     ("articles", "cad_url", "VARCHAR(500)"),
     ("articles", "surface", "VARCHAR(255)"),
     ("articles", "supplier_article_number", "VARCHAR(255)"),
     ("articles", "min_order_qty", "NUMERIC(12,3)"),
     ("articles", "safety_stock", "NUMERIC(12,3)"),
-    # Beschaffungsquelle an der Artikel-Spezifikation (vom purchase-Schritt geerbt)
-    ("articles", "procurement_mode", "VARCHAR(20) DEFAULT 'supplier' NOT NULL"),
-    ("articles", "default_supplier_id", "BIGINT"),
-    ("articles", "default_webshop_url", "VARCHAR(500)"),
-    # Durchlaufzeit (Freigabe → Abschluss)
-    ("orders", "released_at", "TIMESTAMP WITH TIME ZONE"),
-    ("orders", "completed_at", "TIMESTAMP WITH TIME ZONE"),
-    # Mehr-Operationen-Routing: Fachzeilen an ihre Schritt-Definition binden
-    ("purchase_orders", "step_id", "BIGINT"),
-    ("inspections", "step_id", "BIGINT"),
-    ("movements", "step_id", "BIGINT"),
-    ("resource_usages", "step_id", "BIGINT"),
-    # Alt-Bestand: früher automatisch gesäte Begleit-Bewegung (Rolle, keine Sperre).
-    # Neue entstehen nicht mehr – physische Transporte sind Bereitstellungs-Unter-Aufträge
-    # (Migration 080). ``locked`` ist die abgelöste Sperr-Spalte aus der Zeit davor.
-    ("article_process_steps", "companion", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    # Bereitstellung (Unter-Auftrag) → welcher Schritt des Eltern auf sie wartet
-    ("orders", "origin_step_id", "BIGINT"),
-    # Ersetzen statt Versionierung: Nachfolger-Objektnummer (alt → neu)
     ("articles", "replaced_by_id", "BIGINT"),
-    ("orders", "replaced_by_id", "BIGINT"),
-    # Prozess am Artikel ODER am Auftrag (kein Prozess-Objekt mehr)
-    ("article_process_steps", "order_id", "BIGINT"),
-    ("instances", "subject_of_order_id", "BIGINT"),
-    # qc_status in zwei Achsen aufgeteilt: quality (QC-Verdikt) + disposition (Verbleib)
-    ("instances", "quality", "VARCHAR(20) DEFAULT 'pending' NOT NULL"),
-    ("instances", "disposition", "VARCHAR(20) DEFAULT 'in_process' NOT NULL"),
-    ("movements", "tracking_number", "VARCHAR(100)"),
-    ("movements", "carrier", "VARCHAR(60)"),
-    # Wiederkehrende Aufträge: Konfiguration direkt am Auftrag (kein eigenes Objekt mehr)
-    ("orders", "recurrence_active", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    ("orders", "recurrence_interval_days", "INTEGER"),
-    ("orders", "recurrence_lead_time_days", "INTEGER DEFAULT 0 NOT NULL"),
-    ("orders", "recurrence_anchor", "DATE"),
-    ("orders", "recurring_parent_id", "BIGINT"),
-    # Abweichung als Auftrag (Unter-Auftrag) + Abbruch-Folgeauftrag
-    ("orders", "parent_order_id", "BIGINT"),
-    ("orders", "abort_into_id", "BIGINT"),
-    # Verkauf/Shop: Verkaufs-Ebene am Artikel (NICHT von der Freigabe eingefroren)
-    ("articles", "sales_published", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    ("articles", "sales_visibility", "VARCHAR(10) DEFAULT 'public' NOT NULL"),
-    ("articles", "sales_content", "JSONB"),
-    # Preis-Snapshot beim Kauf (Beleg unveränderlich)
-    ("sales", "base_amount_chf", "NUMERIC(12,2)"),
-    ("sales", "fx_rate", "NUMERIC(18,8)"),
-    ("sales", "fx_date", "DATE"),
-    ("sales", "tax_class", "VARCHAR(16)"),
-    # Shop-Konfiguration
-    ("company_settings", "shop_currencies", "JSONB"),
-    ("company_settings", "shop_country_currency", "JSONB"),
-    ("company_settings", "shop_default_currency", "VARCHAR(3) DEFAULT 'CHF' NOT NULL"),
-    ("company_settings", "payments_provider", "VARCHAR(16)"),
-    # Shop-Optimierung: Verfügbarkeits-Achse (Backorder-Policy), Pinning, Zonen-Faktoren
-    ("articles", "sales_fulfillment", "VARCHAR(10) DEFAULT 'make' NOT NULL"),
-    ("article_prices", "pinned", "JSONB"),
-    ("company_settings", "pricing_zone_factors", "JSONB"),
-    # Stripe-Integration: Customer-/Subscription-/PaymentIntent-Bezüge + Snapshot
-    ("user_profiles", "stripe_customer_id", "VARCHAR(64)"),
-    ("user_profiles", "last_sign_in_provider", "VARCHAR(40)"),
-    ("disposals", "mode", "VARCHAR(10) DEFAULT 'scrap' NOT NULL"),
-    ("inspections", "resolved_by_order_id", "BIGINT"),
-    ("orders", "stripe_subscription_id", "VARCHAR(80)"),
-    ("sales", "stripe_payment_intent_id", "VARCHAR(80)"),
-    ("sales", "stripe_snapshot", "JSONB"),
-    # Fakturierende Gesellschaft (Seller of Record, ADR 006, Migration 093). Neue Spalte auf
-    # der bestehenden ``sales``-Tabelle → MUSS im Lifespan-Netz stehen (die 090-Lehre: fehlte
-    # sie, während das Modell sie kennt, endete jede sales-Abfrage in einem 500).
-    ("sales", "seller_company_object_id", "BIGINT"),
-    # Konfigurierbare Infrastruktur-Kosten/Monat (Notiz #293, Migration 094). Neue Spalte auf
-    # company_settings → Lifespan-Netz (090-Lehre; der Wächter erzwingt es ohnehin).
-    ("company_settings", "infra_monthly_chf", "NUMERIC(10,2)"),
-    # Shop-Phase 8: zwei Abo-Typen (Nutzungs-/Produktabo) + Warenkorb-Defer (CheckoutIntent)
-    ("article_prices", "sub_type", "VARCHAR(10)"),
-    ("orders", "recurrence_kind", "VARCHAR(10)"),
-    # Unter-Auftrag-Grund: deviation | supply | return | replenishment – EIN Mechanismus.
-    # VARCHAR(20): 'replenishment' (13 Zeichen) passte nicht in die frühere Breite 12.
-    ("orders", "reason", "VARCHAR(20)"),
-    # Dokument-Modul: der Schritt wird WÄHREND der Ausführung ausgestellt (done-Flag).
-    ("documents", "done", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    # Dokument-Freigabe: 'issued' (Inhalt eingefroren) getrennt von 'done' (alle Parteien signiert).
-    ("documents", "issued", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    # Dokument-Deklaration am Schritt: Freigabe-Parteien + Anerkennungs-Publikum + Sichtbarkeit.
-    ("article_process_steps", "doc_signers", "JSONB"),
-    ("article_process_steps", "sign_sequential", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    ("article_process_steps", "doc_audience", "VARCHAR(16)"),
-    ("article_process_steps", "doc_audience_roles", "JSONB"),
-    ("article_process_steps", "doc_audience_person_ids", "JSONB"),
-    ("article_process_steps", "doc_visibility", "VARCHAR(16) DEFAULT 'internal' NOT NULL"),
-    # Datenerfassung: Freigabe/Unterschrift + Bilderfassung (Konfiguration am Schritt, Werte an der Erfassung).
-    # Logistik/Versand (ADR 005): Gefahrgut-Flag, Betriebs-Geofence, Transport-Modus.
-    # Die shipments-TABELLE legt create_all() an; hier nur nachgezogene Spalten.
     ("articles", "is_hazmat", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    # Phase-0-Fracht: Sendungsart + Last am Versand-Beleg (parcel|freight).
-    ("shipments", "kind", "VARCHAR(12) DEFAULT 'parcel' NOT NULL"),
-    ("shipments", "load", "JSONB"),
-    ("shipments", "incoterm", "VARCHAR(8)"),
-    ("shipments", "pickup_date", "VARCHAR(10)"),
+    # Die Erfassungsmaske der Datenerfassung (Migration 102) – eine NEUE Spalte auf einer
+    # BESTEHENDEN Tabelle, also gehört sie ins Netz. Das ist die Lehre aus 090: die
+    # Migration ist die Wahrheit, das Netz der zweite Weg, und beim Ausfall zählt nur der.
+    ("articles", "capture_fields", "JSONB"),
 )
+# Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
+# neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
+# das Netz darf reparieren, aber nicht auferstehen lassen. Die Einträge für orders /
+# order_lines / purchase_orders / sales / shipments / movements / disposals /
+# resource_usages / documents / inspections / article_process_steps / material_moves /
+# instance_order_links sind mit ihren Tabellen entfallen.
 
-# Bruchmengen (Migration 055): Mengen-Spalten müssen NUMERIC(14,3) sein, nicht INTEGER –
-# sonst würde eine Bruchmenge (2.5 kg) beim Speichern abgeschnitten. ``create_all()`` ändert
-# bestehende Spalten NICHT und die ADD-Safety-Net ergänzt nur fehlende – darum hier explizit
-# per ALTER (idempotent: nur, wenn die Spalte noch ganzzahlig ist). Belt-and-suspenders zur
-# Migration, falls Alembic übersprungen wurde/fehlschlug.
-_NUMERIC_QTY_COLUMNS = (
-    ("instances", "quantity"),
-    ("instances", "reserved_quantity"),
-    ("orders", "quantity"),
-    ("order_lines", "quantity"),
-    ("purchase_orders", "quantity"),
-    ("sales", "quantity"),
-)
+_NUMERIC_QTY_COLUMNS: tuple[tuple[str, str], ...] = ()
+# Leer, seit es keine gespeicherten Mengen mehr gibt: die Menge einer Instanz ist die
+# Anzahl ihrer Einzelinstanzen und wird gezählt. Die Schleife bleibt stehen, weil die
+# nächste Bruchmengen-Spalte hier hinein gehört – nicht in einen neuen Mechanismus.
 
 # VARCHAR-Spalten, die nachträglich verbreitert wurden (Migration 060): idempotentes
 # ALTER, falls Alembic übersprungen wurde. 'replenishment' (13 Zeichen) scheiterte an
 # der ursprünglichen Breite 12 – jede Auto-Nachbestellung endete im Truncation-Fehler.
-_VARCHAR_WIDEN_COLUMNS = (
-    ("orders", "reason", 20),
-)
+_VARCHAR_WIDEN_COLUMNS: tuple[tuple[str, str, int], ...] = ()
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
 # via create_all() (nicht Alembic) erzeugt – diese NOT-NULL/Alt-Spalten würden
 # sonst INSERTs brechen (z. B. purchase_orders.transport_included). Idempotent.
 _DROP_COLUMN_SAFETY_NET = (
-    # Gesellschaften (Migration 091): der «Betreiber» ist jetzt WÄHLBAR (``is_operator`` mit
-    # eigenem Unique-Index) statt das starre «Hauptsitz»-Flag. ``is_primary`` ist damit tot –
-    # auch im Netz gedroppt, falls Alembic 091 nicht durchlief (belt-and-suspenders).
+    # Gesellschaften (Migration 091): der «Betreiber» ist WÄHLBAR (``is_operator`` mit eigenem
+    # Unique-Index) statt das starre «Hauptsitz»-Flag. ``is_primary`` ist tot – auch im Netz
+    # gedroppt, falls Alembic 091 nicht durchlief (belt-and-suspenders).
     ("company_settings", "is_primary"),
-    ("purchase_orders", "transport_cost"),
-    ("purchase_orders", "transport_included"),
-    ("purchase_orders", "other_costs"),
-    ("purchase_orders", "rejection_reason"),
-    ("purchase_orders", "object_id"),
-    ("purchase_orders", "unit_price"),
-    ("purchase_orders", "desired_delivery_date"),
-    # Datenerfassung: Altformat `values` durch `samples` (je Stichprobe) ersetzt.
-    ("inspections", "values"),
-    # Vereinheitlichtes Bedarf-/Nachschub-Modell: Make-to-Order ist kein Sonderfall mehr.
-    # WOHER die Stück kommen, leitet sich aus der Auftragsgestalt ab (kein Quellen-Override);
-    # Nachschub ist ein Unter-Auftrag (reason='supply'), kein verketteter Produktionsauftrag.
-    ("orders", "subject_source"),
-    ("orders", "fulfilled_by_order_id"),
-    # Dokument-Redesign: keine Typ-Trennung physisch/nicht-physisch mehr; das Dokument
-    # wird im Auftrag verfasst (keine eigene Nummer/Version/Vorlage – Nummer = Instanz).
-    ("articles", "physical"),
-    ("article_process_steps", "document_content"),
-    ("documents", "object_id"),
-    ("documents", "version"),
-    ("documents", "issued_at"),
-    ("documents", "title"),
-    ("documents", "replaced_by_id"),
-    # Nie befüllte Stripe-/FX-Spalten (Cleanup 2026-07): der Checkout läuft über
-    # CheckoutIntent.stripe_session_id; der Beleg-Snapshot nutzt base_amount_chf + fx_date.
-    ("orders", "stripe_checkout_session_id"),
-    ("sales", "fx_rate"),
-    # Reste des per Notfall-Revert (#85) zurückgenommenen Konzepts «Standort als
-    # Instanz» (F): die Migration 059_location_as_instance lief auf der Dev-DB, ihr
-    # Rückbau nie.
+    # Reste des per Notfall-Revert (#85) zurückgenommenen Konzepts «Standort als Instanz».
     ("articles", "is_location"),
     ("articles", "max_load_kg"),
-    ("instances", "is_location"),
-    ("instances", "note"),
-    ("instances", "latitude"),
-    ("instances", "longitude"),
-    ("instances", "address_street"),
-    ("instances", "address_zip"),
-    ("instances", "address_city"),
-    ("instances", "address_country"),
+    # Dokument-Redesign: das Dokument wurde im Auftrag verfasst (Nummer = Instanz).
+    ("articles", "physical"),
 )
+# Die Einträge für orders / order_lines / purchase_orders / sales / shipments / documents /
+# inspections / article_process_steps sind mit ihren Tabellen entfallen (Migration 102).
 
 # Indizes, die nach dem Initial-Schema ergänzt wurden. create_all() legt Indizes
 # nur für NEUE Tabellen an – auf bestehenden Tabellen müssen sie idempotent
@@ -297,58 +126,23 @@ _DROP_COLUMN_SAFETY_NET = (
 _INDEX_SAFETY_NET = (
     ("ix_audit_log_object_id", "audit_log", "object_id"),
     ("ix_audit_log_table_name", "audit_log", "table_name"),
-    ("ix_instances_location_id", "instances", "location_id"),
-    # Bestands-Aggregate (Verfügbarkeit/FIFO je Artikel) + Ressourcen-Schritt-Scans
-    ("ix_instances_article_id", "instances", "article_id"),
-    ("ix_aps_step_type", "article_process_steps", "step_type"),
-    # Schritte am Artikel/Auftrag, Bestands-Subjekte je Auftrag
-    ("ix_aps_order_id", "article_process_steps", "order_id"),
-    ("ix_instances_subject_of_order", "instances", "subject_of_order_id"),
     ("ix_company_settings_object_id", "company_settings", "object_id"),
-    # Heisse Filterspalten (Cleanup 2026-07): «Meine Bestellungen», Abo-Ketten,
-    # Lieferanten-Feed – ohne Index Seq-Scans auf wachsenden Tabellen.
-    ("ix_sales_customer_id", "sales", "customer_id"),
-    ("ix_orders_recurring_parent_id", "orders", "recurring_parent_id"),
-    ("ix_purchase_orders_supplier_id", "purchase_orders", "supplier_id"),
+    # Neues Datenmodell: der Feed filtert Instanzen je Artikel, das Detail zählt die
+    # Einzelinstanzen einer Instanz. Beides ohne Index ein Seq-Scan über den Bestand.
+    ("ix_instances_article_id", "instances", "article_id"),
+    ("ix_instance_units_instance_id", "instance_units", "instance_id"),
+    ("ix_captures_instance_unit_id", "captures", "instance_unit_id"),
 )
 
 # Roh-Indizes mit speziellem Typ: GIN auf der Reservierungs-Map – die Hot-Path-Abfragen
 # ``Instance.reservations.has_key(...)`` (Unterdeckung, Verkaufs-Abgang, Abschluss)
 # wären sonst Full-Table-Scans über den gesamten Bestand.
-_RAW_INDEX_SAFETY_NET = (
-    "CREATE INDEX IF NOT EXISTS ix_instances_reservations "
-    "ON instances USING gin (reservations jsonb_path_ops)",
-    # Standort-Verteilung: «wer liegt hier?» (locations ? '<objektnr>') – Default-jsonb_ops
-    # (nicht jsonb_path_ops), damit der has_key-Operator (?) den Index nutzt.
-    "CREATE INDEX IF NOT EXISTS ix_instances_locations "
-    "ON instances USING gin (locations)",
-)
+_RAW_INDEX_SAFETY_NET: tuple[str, ...] = ()
+# Die GIN-Indizes auf ``instances.reservations``/``locations`` sind mit den Spalten entfallen.
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
-_DATA_FIXES = (
-    "UPDATE purchase_orders SET status='ordered' WHERE status IN ('approved','confirmed')",
-)
-
-# Dokument-Freigabe (Migration 066): ein bereits ausgestelltes Alt-Dokument (done) war
-# ohne Freigabe-Parteien sofort freigegeben → issued nachziehen (idempotent).
-_DOCUMENT_DATA_FIXES = (
-    "UPDATE documents SET issued=true WHERE done=true AND issued=false",
-)
-
-# «serialization» ist kein eigener Prozessschritt mehr – die Bestands-Instanzen
-# entstehen bei der Auftragsfreigabe. Bestehende Definitionen soft-löschen.
-_STEP_DATA_FIXES = (
-    "UPDATE article_process_steps SET is_active=false WHERE step_type='serialization'",
-)
-
-# Instanz-Normalisierung (idempotent): «am Lager» (in_stock) darf es nur geben, wenn
-# der zugehörige Auftrag abgeschlossen ist. Altbestände, die bei der Anlage vorzeitig
-# auf in_stock gesetzt wurden, auf «Im Prozess» (in_process/pending) zurücksetzen.
-_INSTANCE_DATA_FIXES = (
-    "UPDATE instances SET quality='pending', disposition='in_process', released_at=NULL "
-    "WHERE quality='passed' AND disposition='in_stock' AND is_active=true "
-    "AND order_id IN (SELECT id FROM orders WHERE status <> 'completed')",
-)
+# Die Fixes für purchase_orders / documents / article_process_steps / instances sind mit
+# ihren Tabellen bzw. Spalten entfallen (Migration 102).
 
 # Verkaufs-Sichtbarkeit 'unlisted' wird nicht mehr unterstützt → auf 'private' normalisieren.
 _ARTICLE_DATA_FIXES = (
@@ -417,26 +211,8 @@ def _ensure_columns() -> None:
                     conn.execute(text(
                         f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} ({col})"
                     ))
-            if "instances" in tables:
-                for stmt in _RAW_INDEX_SAFETY_NET:
-                    conn.execute(text(stmt))
-            if "purchase_orders" in tables:
-                for stmt in _DATA_FIXES:
-                    conn.execute(text(stmt))
-            if "documents" in tables:
-                # Über information_schema auf DERSELBEN Verbindung prüfen (sieht die eben in
-                # dieser Transaktion via ADD COLUMN ergänzte Spalte – anders als der Vor-Loop-``insp``).
-                doc_cols = {r[0] for r in conn.execute(text(
-                    "SELECT column_name FROM information_schema.columns WHERE table_name='documents'"))}
-                if {"issued", "done"}.issubset(doc_cols):
-                    for stmt in _DOCUMENT_DATA_FIXES:
-                        conn.execute(text(stmt))
-            if "article_process_steps" in tables:
-                for stmt in _STEP_DATA_FIXES:
-                    conn.execute(text(stmt))
-            if "instances" in tables and "orders" in tables:
-                for stmt in _INSTANCE_DATA_FIXES:
-                    conn.execute(text(stmt))
+            for stmt in _RAW_INDEX_SAFETY_NET:
+                conn.execute(text(stmt))
             if "articles" in tables:
                 for stmt in _ARTICLE_DATA_FIXES:
                     conn.execute(text(stmt))
@@ -560,38 +336,6 @@ def _ensure_company_object_id() -> None:
         db.close()
 
 
-def _ensure_documents_shape() -> None:
-    """Die ``documents``-Tabelle exakt an das aktuelle Modell angleichen – UNABHÄNGIG von
-    Alembic. ``create_all()`` legt nur fehlende TABELLEN an, nicht fehlende Spalten; ein
-    inkonsistenter Alt-Stand (z. B. ohne ``order_id``) liesse die Tabelle sonst kaputt.
-    Fehlt eine erwartete Spalte, wird die Tabelle idempotent neu aufgebaut (Inhalt =
-    Wegwerf-Testdaten des frisch eingeführten Moduls). Greift auch, wenn eine Migration
-    nicht durchlief (start.sh startet uvicorn dann trotzdem)."""
-    from sqlalchemy import inspect
-    from .models import Document
-    try:
-        insp = inspect(engine)
-        if "documents" not in insp.get_table_names():
-            Document.__table__.create(bind=engine, checkfirst=True)
-            return
-        have = {c["name"] for c in insp.get_columns("documents")}
-        # NUR ein fehlender STRUKTUR-Kern rechtfertigt den (destruktiven) Neuaufbau – rein
-        # additive Flags (``done``/``issued``) ergänzt danach ``_ensure_columns`` non-destruktiv.
-        # Wichtig: ``documents`` trägt die ausgestellten **Rechtsdokumente** (AGB/Datenschutz),
-        # die ``legal.resolve`` referenziert – ein Neuaufbau wegen einer neuen additiven Spalte
-        # (nach einem Modell-Zuwachs, bevor Alembic lief) würde sie unwiederbringlich löschen.
-        structural = {"id", "order_id", "step_id", "article_id", "content",
-                      "created_by", "created_at", "updated_at", "is_active"}
-        if structural.issubset(have):
-            return  # Struktur passt – additive Spalten übernimmt _ensure_columns
-        with engine.begin() as conn:
-            conn.execute(text("DROP TABLE IF EXISTS documents CASCADE"))
-        Document.__table__.create(bind=engine, checkfirst=True)
-        print("INFO: documents-Tabelle neu aufgebaut (Schema an das Modell angeglichen).", flush=True)
-    except Exception as e:
-        print(f"WARNING: _ensure_documents_shape() failed: {e}", flush=True)
-
-
 def _ensure_attachments_shape() -> None:
     """Die ``attachments``-Tabelle exakt ans Modell angleichen (analog documents). Eine früher
     per ``create_all()`` – oder mit übersprungener Migration – angelegte Alt-Tabelle konnte ohne
@@ -637,7 +381,6 @@ def _run_startup_fixups_once() -> None:
         if not acquired:
             print("INFO: Startup-Fixups laufen bereits (anderer Worker/Instanz) – übersprungen.", flush=True)
             return
-        _ensure_documents_shape()     # documents-Tabelle exakt ans Modell angleichen (Reparatur)
         _ensure_attachments_shape()   # attachments-Tabelle reparieren (fehlendes 'token' → Upload-Fehler)
         _ensure_columns()
         _ensure_object_id_sequence()
@@ -678,17 +421,8 @@ async def lifespan(app: FastAPI):
         _bootstrap_admin()
     except Exception as e:
         print(f"WARNING: _bootstrap_admin() failed: {e}", flush=True)
-    # KI-Identität seeden (ADR 004): die KI ist ein echter Principal (role='ai') mit
-    # eigener Objektnummer – Audit/Events zeigen «angelegt von User KI». Idempotent.
-    try:
-        from .services.ai.identity import ensure_ai_user
-        db = SessionLocal()
-        try:
-            ensure_ai_user(db)
-        finally:
-            db.close()
-    except Exception as e:
-        print(f"WARNING: ensure_ai_user() failed: {e}", flush=True)
+    # Die KI-Identität wird NICHT mehr geseedet: das Modul ``ai`` ist abgeschaltet
+    # (core/features.py) und hängt an der entfernten Prozesslogik.
     yield
 
 
@@ -756,25 +490,22 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(passkey.router)
-app.include_router(consent.router)
 app.include_router(contact.router)
 app.include_router(admin.router)
 app.include_router(erp.router)
 app.include_router(articles.router)
-app.include_router(article_process.router)
-app.include_router(orders.router)
 app.include_router(instances.router)
+app.include_router(captures.router)
 app.include_router(object_refs.router)
-app.include_router(sales.router)
-app.include_router(shop.router)
 app.include_router(events.router)
-app.include_router(documents.router)
-app.include_router(document_files.router)
 app.include_router(attachments.router)
-app.include_router(legal.router)
-app.include_router(maintenance.router)
-app.include_router(ai.router)
 app.include_router(feedback.router)
+
+# Abgeschaltete Module antworten unter ihren eigenen Prefixen mit 503 und Grund –
+# «nicht da» und «abgeschaltet» sind verschiedene Aussagen. ZULETZT registriert, damit
+# kein Stub einen aktiven Nachbarn verdeckt.
+for _stub in features.stub_routers():
+    app.include_router(_stub)
 
 
 @app.get("/")

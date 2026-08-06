@@ -20,13 +20,9 @@ import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 
 import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
-import { ProcessSteps } from '@/components/erp/process-steps';
-import type { OrderSeed } from '@/components/erp/order-detail';
+import type { InstanceSummary } from '@/types';
 import { InstanceList } from '@/components/erp/instance-list';
-import { SalesPanel } from '@/components/erp/sales-panel';
-import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { formatAmount as fmtChf, formatObjectId, localDate } from '@/lib/utils';
 
@@ -44,14 +40,11 @@ function articleActions(status: string, hasProcess: boolean): StatusAction[] {
   return [];   // inaktiv → keine Aktionen (endgültig)
 }
 
-type TabKey = 'spezifikation' | 'prozess' | 'bestand' | 'verkauf' | 'dokumente';
+type TabKey = 'spezifikation' | 'bestand';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'spezifikation', label: 'Spezifikation', icon: FileText },
-  { key: 'prozess', label: 'Prozess', icon: Workflow },
   { key: 'bestand', label: 'Bestand', icon: Boxes },
-  { key: 'verkauf', label: 'Verkauf', icon: Tag },
-  { key: 'dokumente', label: 'Dokumente', icon: FolderOpen },
 ];
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'is_hazmat';
@@ -125,16 +118,13 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh, onCreateOrder }: {
+export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
   onSaved: (a: Article) => void;
   onCancel: () => void;
   onBack: () => void;
   onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
-  /** Anlage-Fenster mit diesem Artikel vorgewählt öffnen (der Auftrag entsteht erst mit
-   *  der Freigabe, #386). */
-  onCreateOrder?: (seed: OrderSeed) => void;
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('spezifikation');
@@ -150,8 +140,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   // meisten Fällen falsch ist und trotzdem freigebbar aussieht.
   function createOrderShortcut() {
     if (isCreate || record == null || record.status !== 'released') return;
-    onCreateOrder?.({ articleId: record.id });
-  }
+      }
   // Optimistic Locking: zuletzt bekannter Stand; wird nach jedem Speichern aktualisiert.
   const verRef = useRef<string | null>(record?.updated_at ?? null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
@@ -165,7 +154,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   const [stepsCount, setStepsCount] = useState<number | null>(null);
   useEffect(() => {
     if (isCreate || record?.object_id == null) { setStepsCount(0); return; }
-    api.getSteps('articles', record.object_id).then((s) => setStepsCount(s.length)).catch(() => {});
   }, [isCreate, record?.object_id]);
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<AddKey[]>(() => {
@@ -188,8 +176,9 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
   // Gewicht wird read-only, sobald der Artikel verbaute Ressourcen hat: es ergibt
   // sich dann automatisch aus der Stückliste (über mehrere Ebenen, Backend).
-  const computedWeight = record?.computed_weight_kg ?? null;
-  const weightIsComputed = !isCreate && computedWeight != null;
+  // Das aufsummierte Gewicht kam aus verbauten Ressourcen (Prozesslogik) – entfallen.
+  const computedWeight: number | null = null;
+  const weightIsComputed = false;
 
   // Pflichtfelder: Name, Mengeneinheit, Serialisierung, Grösse und Gewicht (Einheit/
   // Serialisierung tragen einen Default). Format-Fehler nur zeigen, wenn befüllt (nicht
@@ -358,9 +347,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         ) : undefined}
         tabs={<DetailTabs<TabKey> active={tab} onChange={setTab} tabs={TABS} />}
       >
-        {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
-          <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
-        )}
       </DetailHeader>
 
       {/* Content */}
@@ -396,19 +382,11 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                     )}
                   </div>
                   {/* Bei Bedarf hinzugefügte optionale Felder + abgeleitete Auto-Werte (nur wenn vorhanden). */}
-                  {(added.length > 0 || (!isCreate && (record!.lead_time_days_low != null || record!.landed_unit_cost != null))) && (
+                  {added.length > 0 && (
                     <div style={SPEC.grid}>
                       {OPTIONAL_FIELDS.filter((f) => added.includes(f.key)).map((f) => (
                         <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
                       ))}
-                      {!isCreate && record!.lead_time_days_low != null && (
-                        <ReadField icon={Truck} label="Lieferzeit" value={leadValue(record!)} spread={leadSpread(record!)}
-                          autoHint="Median aus erledigten Aufträgen" />
-                      )}
-                      {!isCreate && costValue(record!) != null && (
-                        <ReadField icon={Banknote} label="EK-Preis" value={costValue(record!)} unit="CHF" spread={costSpread(record!)}
-                          autoHint="Median aus bisherigen Bestellungen" mono />
-                      )}
                     </div>
                   )}
                 </div>
@@ -427,33 +405,12 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
             )}
           </div>
         )}
-        {tab === 'prozess' && (
-          <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null} suppliers={suppliers}
-            readOnly={record?.status !== 'draft'} selfArticleObjectId={record?.object_id ?? null}
-            onStepsCount={setStepsCount} />
-        )}
+        
         {tab === 'bestand' && (
-          <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />
+          <ArticleStock articleObjectId={record?.object_id ?? null} />
         )}
-        {tab === 'verkauf' && (
-          <SalesPanel articleObjectId={record?.object_id ?? null} />
-        )}
-        {tab === 'dokumente' && (
-          <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Artikel" />
-        )}
-      </div>
 
-      {dialog && record && (
-        <DeactivateDialog
-          mode="deactivate"
-          articleObjectId={record.object_id}
-          title="Artikel deaktivieren"
-          offerSuccessor
-          confirmLabel="Deaktivieren"
-          onConfirm={confirmDeactivate}
-          onClose={() => setDialog(null)}
-        />
-      )}
+      </div>
     </div>
   );
 }
@@ -689,27 +646,9 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
 // `services/metrics.py`). Die Spanne steht untergeordnet daneben und nur dann, wenn
 // sie etwas Neues sagt (bei einem einzigen Datenpunkt fällt sie mit dem Median zusammen).
 
-function leadValue(r: Article): string {
-  const v = r.lead_time_days_median ?? r.lead_time_days_low;
-  return v == null ? '—' : formatDuration(Number(v));
-}
 
-function leadSpread(r: Article): string | undefined {
-  const lo = r.lead_time_days_low; const hi = r.lead_time_days_high;
-  if (lo == null || hi == null || Number(lo) === Number(hi)) return undefined;
-  return `kürzeste ${formatDuration(Number(lo))} · längste ${formatDuration(Number(hi))}`;
-}
 
-function costValue(r: Article): string | null {
-  const v = r.unit_cost_median ?? r.landed_unit_cost;
-  return v == null ? null : fmtChf(v);
-}
 
-function costSpread(r: Article): string | undefined {
-  const lo = r.unit_cost_low; const hi = r.unit_cost_high;
-  if (lo == null || hi == null || Number(lo) === Number(hi)) return undefined;
-  return `tiefster ${fmtChf(lo)} · höchster ${fmtChf(hi)} CHF`;
-}
 
 // Eingabe-Feld (Entwurf): Overline-Label + `.fin`-Input + Fehler/Hinweis.
 function EditField({ label, value, onChange, placeholder, hint, error, required, full }: {
@@ -760,7 +699,6 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
   // hier las sich, als würde es auch an zwei Stellen gepflegt. Was bleibt, sind zwei
   // ehrlich getrennte Dinge: **abgeleitete Kennzahlen** (aus der Historie gerechnet) und
   // die restlichen optionalen Angaben, die zur Spezifikation selbst gehören.
-  const hasMetrics = record.lead_time_days_low != null || costValue(record) != null;
   return (
     <div style={SPEC.card}>
       {/* Karten-Kopf «Spezifikation» (ohne «+»-Knopf – freigegeben ist read-only). */}
@@ -788,18 +726,6 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
           )}
         </SubSection>
       )}
-      {hasMetrics && (
-        <SubSection icon={TrendingUp} title="Kennzahlen">
-          {record.lead_time_days_low != null && (
-            <ReadField icon={Truck} label="Lieferzeit" value={leadValue(record)} spread={leadSpread(record)}
-              autoHint="Median aus erledigten Aufträgen" />
-          )}
-          {costValue(record) != null && (
-            <ReadField icon={Banknote} label="EK-Preis" value={costValue(record)} unit="CHF" spread={costSpread(record)}
-              autoHint="Median aus bisherigen Bestellungen" mono />
-          )}
-        </SubSection>
-      )}
     </div>
   );
 }
@@ -816,3 +742,31 @@ function formatDuration(days: number): string {
   return `${Math.max(1, Math.round(hours * 60))} Min`;
 }
 
+
+/**
+ * Reiter «Bestand»: die Instanzen dieses Artikels.
+ *
+ * Eine reine **Summierung** – jede Zahl hier ist die Anzahl von Einzelinstanzen, keine
+ * eigene Datenquelle. Das ist die Einzelinstanz-Regel auf der Anzeige-Ebene.
+ */
+function ArticleStock({ articleObjectId }: { articleObjectId: number | null }) {
+  const [rows, setRows] = useState<InstanceSummary[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!articleObjectId) { setRows([]); return; }
+    let dead = false;
+    api.getArticleInstances(articleObjectId)
+      .then((r) => { if (!dead) setRows(r); })
+      .catch((e) => { if (!dead) setErr(e instanceof Error ? e.message : String(e)); });
+    return () => { dead = true; };
+  }, [articleObjectId]);
+
+  if (err) return <div style={{ maxWidth: 880, marginInline: 'auto' }} className="text-sm" >{err}</div>;
+  if (!rows) return null;
+  return (
+    <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
+      <InstanceList rows={rows} />
+    </div>
+  );
+}

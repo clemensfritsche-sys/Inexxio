@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { User, FileSignature, Shield, ShoppingBag, Loader2 } from 'lucide-react';
+import { User, Shield, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { api } from '@/lib/api';
 import { userDisplayName } from '@/lib/utils';
@@ -9,13 +9,11 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { ProfileSection } from './sections/profile-section';
 import { SecuritySection } from './sections/security-section';
-import { OrdersSection } from './sections/orders-section';
-import { DocumentsSection } from './sections/documents-section';
 
 // Konsolidiert auf 4 Reiter: «Mein Profil» bündelt Person + Adressen + Kommunikation in EINER
 // Sektion (ein Formular, ein Auto-Save); «Benachrichtigungen» ist entfallen (die Toggles hatten
 // keinerlei Backend-Wirkung – kein E-Mail-/In-App-System dahinter).
-type SectionId = 'profile' | 'orders' | 'documents' | 'security';
+type SectionId = 'profile' | 'security';
 
 interface Props {
   profile: UserProfile | null;
@@ -47,22 +45,9 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const [activeSection, setActiveSection] = useState<SectionId>('profile');
   const isMobile = useIsMobile(768);
 
-  // Ausstehende Dokument-Pflichten (offene Unterschriften/Bestätigungen + Anerkennungen).
-  // Sie senken die Profil-Vollständigkeit und erscheinen als Badge bei «Meine Dokumente» –
-  // solange etwas aussteht, ist das Profil nicht vollständig (und der Nutzer ohnehin blockiert).
-  const [openDocs, setOpenDocs] = useState(0);
-  useEffect(() => {
-    if (!profile) { setOpenDocs(0); return; }
-    let cancelled = false;
-    const load = () => Promise.all([
-      api.getMyDocuments().then((d) => d.filter((x) => x.status !== 'rejected').length).catch(() => 0),
-      api.getPendingDocuments().then((a) => a.length).catch(() => 0),
-    ]).then(([s, a]) => { if (!cancelled) setOpenDocs(s + a); });
-    load();
-    const onChanged = () => load();
-    window.addEventListener('inexxio:documents-changed', onChanged);
-    return () => { cancelled = true; window.removeEventListener('inexxio:documents-changed', onChanged); };
-  }, [profile?.email]);
+  // Die Dokument-Pflichten sind entfallen: das Dokument-Modul ist abgeschaltet
+  // (backend/app/core/features.py), es gibt derzeit nichts zu unterschreiben.
+  const openDocs = 0;
 
   const completion = useProfileCompletion(profile, openDocs);
 
@@ -72,8 +57,6 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const sections = useMemo(() => {
     const base: { id: SectionId; label: string; icon: React.ElementType }[] = [
       { id: 'profile', label: 'Mein Profil', icon: User },
-      { id: 'orders', label: 'Bestellungen & Abos', icon: ShoppingBag },
-      { id: 'documents', label: 'Meine Dokumente', icon: FileSignature },
       { id: 'security', label: 'Sicherheit', icon: Shield },
     ];
     // Systemkonfiguration ist neu ein ERP-Datensatz («Unternehmen» im ERP-Feed) und
@@ -91,8 +74,6 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
     if (!profile) return null;
     switch (activeSection) {
       case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />;
-      case 'orders': return <OrdersSection />;
-      case 'documents': return <DocumentsSection />;
       case 'security': return <SecuritySection profile={profile} />;
     }
   }

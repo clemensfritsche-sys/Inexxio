@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Building2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star, Pencil, Ban } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { CompanySettings, OperatingCosts } from '@/types';
-import { ObjectDocuments } from '@/components/erp/object-documents';
+import type {CompanySettings } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { Card, ChoiceButton, DetailHeader, Dialog } from '@/components/erp/fields';
 import { organizationStatus } from '@/lib/record-status';
@@ -386,7 +385,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
-        {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
         {tab === 'system' && isOperator && (
           <QueryClientProvider client={systemQueryClient}>
             <SystemConfigSection onSaved={(s) => onSaved({ ...base, ...s })} />
@@ -513,10 +511,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Card title="Gebiete">
             <TerritoryMap highlight={record.object_id} embedded />
           </Card>
-
-          {/* Konzern-Kosten – eine GRUPPEN-Kennzahl (nicht je Gesellschaft), darum am
-              Betreiber, der die Gruppe nach aussen vertritt. */}
-          {isOperator && <CostOverview />}
         </div>
         )}
       </div>
@@ -536,82 +530,5 @@ function chf(v: number): string {
   return v.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function CostOverview() {
-  const [data, setData] = useState<OperatingCosts | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    api.getOperatingCosts().then((d) => { if (!cancelled) setData(d); }).catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; };
-  }, []);
-  if (failed) return null;   // Zusatz-Übersicht – bei Fehler still weglassen (kein Blocker)
-
-  const unit = <span style={{ font: '600 11px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3 }}>CHF</span>;
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ width: 26, height: 26, borderRadius: 'var(--r-sm)', background: 'var(--bg-3)', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-          <Coins size={15} />
-        </span>
-        <span style={{ font: '800 13px var(--font-display)', letterSpacing: '.02em', color: 'var(--fg-1)' }}>
-          Betriebskosten{data ? ` · ${data.period_label}` : ''}
-        </span>
-      </div>
-      <div style={{ background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
-        {/* Kopf: grosse Ist-Summe + Monats-Hochrechnung (Notiz #292: Design-Tokens statt Hex). */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, padding: '16px 18px 14px', background: 'var(--bg-2)', borderBottom: '1px solid var(--border-1)' }}>
-          <div>
-            <div style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-4)' }}>
-              Bisher diesen Monat{data ? ` · Tag ${data.day_of_month}/${data.days_in_month}` : ''}
-            </div>
-            <div style={{ font: '800 26px var(--font-display)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
-              {data ? chf(data.total_mtd_chf) : '—'}{unit}
-            </div>
-          </div>
-          {data && (
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ font: '600 11px var(--font-body)', color: 'var(--fg-4)' }}>Hochrechnung Monat</div>
-              <div style={{ font: '700 15px var(--font-body)', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums' }}>
-                ≈ {chf(data.projected_month_chf)}{unit}
-              </div>
-            </div>
-          )}
-        </div>
-        {/* Gruppen – je eine kompakte Zeile mit Basis-Badge + Betrag + Detail-Hinweis */}
-        {(data?.groups ?? []).map((g) => {
-          const Icon = GROUP_ICON[g.key] ?? Coins;
-          // Harter Wert = gemessen (aus dem Event-Strom) ODER fix (hinterlegter Realbetrag, #293)
-          // → grün; nur der reine Schätzwert ist neutral.
-          const known = g.basis === 'actual' || g.basis === 'fixed';
-          const basisLabel = g.basis === 'actual' ? 'gemessen' : g.basis === 'fixed' ? 'fix' : 'geschätzt';
-          const hints = g.items.map((i) => i.hint).filter(Boolean).join(' · ');
-          return (
-            <div key={g.key} style={{ borderTop: '1px solid var(--border-1)', padding: '10px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Icon size={15} style={{ color: 'var(--fg-3)', flex: 'none' }} />
-                <span style={{ flex: 1, font: '650 13.5px var(--font-body)', color: 'var(--fg-1)', minWidth: 0 }}>{g.label}</span>
-                <span style={{ flex: 'none', font: '600 10px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.04em', padding: '2px 7px', borderRadius: 999,
-                  color: known ? 'var(--success)' : 'var(--fg-3)', background: known ? 'var(--success-bg)' : 'var(--bg-3)' }}>
-                  {basisLabel}
-                </span>
-                <span style={{ flex: 'none', font: '700 14px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', minWidth: 78, textAlign: 'right' }}>
-                  {chf(g.total_chf)}{unit}
-                </span>
-              </div>
-              {hints && (
-                <div style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 3, marginLeft: 25 }}>{hints}</div>
-              )}
-            </div>
-          );
-        })}
-        {!data && !failed && (
-          <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border-1)', font: '500 12.5px var(--font-body)', color: 'var(--fg-4)' }}>
-            Wird geladen …
-          </div>
-        )}
-      </div>
-      {/* Kein Erklärabsatz (Notiz #358): woher eine Zahl stammt, steht bereits an ihrer
-          Zeile – die Badge «gemessen · fix · geschätzt» sagt es je Gruppe. */}
-    </div>
-  );
-}
+// Die Betriebskosten-Karte ist entfallen: sie summierte KI-Ereignisse und
+// Stripe-Gebühren – beide Module sind abgeschaltet (core/features.py).

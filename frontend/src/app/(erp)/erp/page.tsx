@@ -4,20 +4,17 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, AlertTriangle } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
-import { userName, articleName, orderName, instanceName, organizationName } from '@/lib/record-name';
-import { articleStatus, instanceStatus, orderStatus, organizationStatus, userStatus } from '@/lib/record-status';
+import {userName, articleName, instanceName, organizationName } from '@/lib/record-name';
+import {articleStatus, instanceStatus, organizationStatus, userStatus } from '@/lib/record-status';
 import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderSummary, UserProfile, ErpRecordType } from '@/types';
+import type {Article, CompanySettings, Instance, UserProfile, ErpRecordType, InstanceSummary } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
-import { DATA_CHANGED_EVENT } from '@/components/ai/assistant';
 import { setOpenRecord } from '@/lib/feedback';
-import { DocumentIngestDialog } from '@/components/erp/object-documents';
 import { ArticleDetail } from '@/components/erp/article-detail';
-import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
 
@@ -32,16 +29,14 @@ const STALE_AFTER_MS = 60_000;
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
   | { type: 'article'; key: string; objectId: number | null; data: Article }
-  | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
-  | { type: 'instance'; key: string; objectId: number | null; data: Instance }
+  | { type: 'instance'; key: string; objectId: number | null; data: InstanceSummary }
   | { type: 'organization'; key: string; objectId: number | null; data: CompanySettings };
 
 // Der Name eines Datensatzes kommt aus der EINEN Ableitung (`lib/record-name`) – nie steht
 // hier der Typ (den sagt das Symbol). `null` = noch ohne Namen (Notiz #177).
 function rowTitle(row: Row): string | null {
   if (row.type === 'user') return userName(row.data);
-  if (row.type === 'order') return orderName(row.data);
-  if (row.type === 'instance') return instanceName(row.data);
+  if (row.type === 'instance') return row.data.article_name?.trim() || null;
   if (row.type === 'organization') return organizationName(row.data);
   return articleName(row.data);
 }
@@ -50,7 +45,6 @@ function rowTitle(row: Row): string | null {
 // Hier wird nur verteilt, nie gebaut: sonst läuft der Feed vom Detail weg (Notiz #379).
 function rowStatus(row: Row): StatusCfg {
   if (row.type === 'user') return userStatus(row.data);
-  if (row.type === 'order') return orderStatus(row.data);
   if (row.type === 'instance') return instanceStatus(row.data);
   if (row.type === 'organization') return organizationStatus(row.data);
   return articleStatus(row.data);
@@ -74,9 +68,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
 
   const meta = TYPE_META[row.type];
   const TypeIcon = meta.icon;
-  // Abweichungs-Auftrag (Unter-Auftrag reason='deviation'): identisch zu handhaben wie ein
-  // regulärer Auftrag – nur ein dezentes Tag am Symbol (fürs spätere Audit).
-  const isDeviation = row.type === 'order' && row.data.reason === 'deviation';
+  const isDeviation = false;
 
   return (
     <button
@@ -135,16 +127,9 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
 export default function ErpPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
-  // Vollständiger Auftrag wird erst bei Auswahl geladen (Detail-on-Demand)
-  const [orderDetail, setOrderDetail] = useState<Order | null>(null);
   // Instanzen (höchste Kardinalität): server-paginiert + server-durchsucht.
-  const [instances, setInstances] = useState<Instance[]>([]);
-  const [instanceTotal, setInstanceTotal] = useState(0);
+  const [instances, setInstances] = useState<InstanceSummary[]>([]);
   const [instanceLoadingMore, setInstanceLoadingMore] = useState(false);
-  // Instanz-Detail wird – wie der Auftrag – bei Auswahl on-demand geladen
-  // (funktioniert auch für Instanzen, die (noch) nicht im Feed geladen sind).
-  const [instanceDetail, setInstanceDetail] = useState<Instance | null>(null);
   const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
   // Unternehmen (Gesellschaften): ein gleichrangiger ERP-Datensatztyp `organization` –
   // der Betreiber (ältestes) + jede weitere Gesellschaft. Admin-only.
@@ -153,10 +138,7 @@ export default function ErpPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
-  const [creating, setCreating] = useState<'article' | 'order' | null>(null);
-  // Vorbelegung des Anlage-Fensters aus einem Abkürzungs-Knopf (Artikel/Instanz). Der
-  // Auftrag entsteht erst mit der Freigabe (#386) – hier steht nur, was schon feststeht.
-  const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
+  const [creating, setCreating] = useState<'article' | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
@@ -178,11 +160,10 @@ export default function ErpPage() {
     // sofort. Instanzen (höchste Kardinalität) danach nachladen.
     lastLoadRef.current = Date.now();
     Promise.allSettled([
-      api.getErpRecords(), api.getArticles(), api.getOrders(), api.getMe(),
-    ]).then(([u, a, o, me]) => {
+      api.getErpRecords(), api.getArticles(), api.getMe(),
+    ]).then(([u, a, me]) => {
       if (u.status === 'fulfilled') setUsers(u.value);
       if (a.status === 'fulfilled') setArticles(a.value);
-      if (o.status === 'fulfilled') setOrders(o.value);
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         setViewerRole(me.value.role === 'admin' || me.value.role === 'employee' ? 'staff' : 'supplier');
@@ -219,7 +200,6 @@ export default function ErpPage() {
     let stale = false;
     const t = setTimeout(() => {
       api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) setInstances(rows); }).catch(() => {});
-      api.getInstanceCount(q).then((r) => { if (!stale) setInstanceTotal(r.count); }).catch(() => {});
     }, q ? 300 : 0);
     return () => { stale = true; clearTimeout(t); };
   }, [search]);
@@ -233,7 +213,7 @@ export default function ErpPage() {
   }, []);
 
   // KI-Live-Refresh: legt/ändert die KI im Chat einen Artikel/Auftrag/Prozessschritt,
-  // feuert das Widget DATA_CHANGED_EVENT – der Feed lädt sofort nach, ohne dass der
+  // feuert das Widget 'inexxio:data-changed' – der Feed lädt sofort nach, ohne dass der
   // Nutzer manuell aktualisieren muss (Optimierung #2). Re-Abo bei Suchänderung, damit
   // die Instanzen mit der aktuellen Suche neu geladen werden.
   useEffect(() => {
@@ -242,9 +222,7 @@ export default function ErpPage() {
       lastLoadRef.current = Date.now();
       api.getErpRecords().then(setUsers).catch(() => {});
       api.getArticles().then(setArticles).catch(() => {});
-      api.getOrders().then(setOrders).catch(() => {});
       api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
-      api.getInstanceCount(q).then((r) => setInstanceTotal(r.count)).catch(() => {});
     }
     // **Rückkehr nach Pause**: Der Feed war ein Schnappschuss vom Seitenaufbau – wer das ERP
     // ein paar Minuten liegen liess, sah alte Daten (und musste F5 drücken). Jetzt lädt er
@@ -255,31 +233,15 @@ export default function ErpPage() {
       if (Date.now() - lastLoadRef.current < STALE_AFTER_MS) return;
       onDataChanged();
     }
-    window.addEventListener(DATA_CHANGED_EVENT, onDataChanged);
+    window.addEventListener('inexxio:data-changed', onDataChanged);
     document.addEventListener('visibilitychange', onBack);
     window.addEventListener('focus', onBack);
     return () => {
-      window.removeEventListener(DATA_CHANGED_EVENT, onDataChanged);
+      window.removeEventListener('inexxio:data-changed', onDataChanged);
       document.removeEventListener('visibilitychange', onBack);
       window.removeEventListener('focus', onBack);
     };
   }, [search]);
-
-  // Auftrag-Detail (inkl. Prozess-Embeds) erst bei Auswahl laden (Detail-on-Demand)
-  useEffect(() => {
-    if (sel?.type !== 'order') { setOrderDetail(null); return; }
-    let cancelled = false;
-    api.getOrder(sel.objectId).then((o) => { if (!cancelled) setOrderDetail(o); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [sel]);
-
-  // Instanz-Detail on-demand (funktioniert auch für nicht im Feed geladene Instanzen)
-  useEffect(() => {
-    if (sel?.type !== 'instance') { setInstanceDetail(null); return; }
-    let cancelled = false;
-    api.getInstance(sel.objectId).then((i) => { if (!cancelled) setInstanceDetail(i); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [sel]);
 
   // Infinite scroll: Observer per Callback-Ref an den Sentinel hängen (robust, auch
   // wenn der Sentinel erst nach dem Nachladen der Daten erscheint). Ruft den stets
@@ -306,7 +268,6 @@ export default function ErpPage() {
     })),
     ...users.map((u): Row => ({ type: 'user', key: `u${u.id}`, objectId: u.object_id, data: u })),
     ...articles.map((a): Row => ({ type: 'article', key: `a${a.id}`, objectId: a.object_id, data: a })),
-    ...orders.map((o): Row => ({ type: 'order', key: `o${o.id}`, objectId: o.object_id, data: o })),
     ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
     // FIX: Fallback -Infinity ergab NaN, sobald ZWEI Zeilen ohne Objektnummer verglichen
     // wurden (-Infinity − -Infinity = NaN) – ein NaN-Komparator verletzt die Sortier-Ordnung
@@ -334,7 +295,7 @@ export default function ErpPage() {
   // Auftrag/Instanz haben bereits ihren eigenen Fetch-Pfad (orderDetail/instanceDetail).
   const [navRecord, setNavRecord] = useState<Row | null>(null);
   useEffect(() => {
-    if (!sel || selectedRow || sel.type === 'order' || sel.type === 'instance') { setNavRecord(null); return; }
+    if (!sel || selectedRow || sel.type === 'instance') { setNavRecord(null); return; }
     let cancelled = false;
     const load: Promise<Row | null> =
       sel.type === 'article'
@@ -355,8 +316,8 @@ export default function ErpPage() {
 
   // Instanz-Pagination: nur laden, wenn Instanzen sichtbar sind (Feed «alle» oder «Instanzen»).
   const instancesRelevant = typeFilter === null || typeFilter === 'instance';
-  const hasMoreInstances = instancesRelevant && instances.length < instanceTotal;
-  const displayCount = (t: ErpRecordType): number => (t === 'instance' ? instanceTotal : (counts[t] ?? 0));
+  const hasMoreInstances = instancesRelevant && instances.length < instances.length;
+  const displayCount = (t: ErpRecordType): number => (t === 'instance' ? instances.length : (counts[t] ?? 0));
 
   async function loadMoreInstances() {
     if (instanceLoadingMore) return;
@@ -396,10 +357,9 @@ export default function ErpPage() {
     } catch { /* Objekt nicht gefunden – ignorieren */ }
   }
 
-  function startCreate(type: 'article' | 'order', seed: OrderSeed | null = null) {
+  function startCreate(type: 'article') {
     setPlusOpen(false);
     setSel(null);
-    setOrderSeed(seed);
     setCreating(type);
     setMobileView('detail');
   }
@@ -435,24 +395,11 @@ export default function ErpPage() {
     if (a.object_id != null) setSel({ type: 'article', objectId: a.object_id });
   }
 
-  function handleOrderSaved(o: Order) {
-    setCreating(null);
-    setOrderDetail(o);                                   // volles Detail sofort anzeigen
-    if (o.object_id != null) setSel({ type: 'order', objectId: o.object_id });
-    // Schlanken Feed aktualisieren (Status/Badge) + abhängige Daten neu laden:
-    // Prozessschritte beeinflussen Artikel-Preisspanne/Durchlaufzeit, Instanzen &
-    // ggf. Abweichungen (fehlgeschlagene Datenerfassung erzeugt einen Abweichungs-
-    // Unterauftrag – erscheint im Auftrag-Feed).
-    api.getOrders().then(setOrders).catch(() => {});
-    api.getArticles().then(setArticles).catch(() => {});
-    reloadInstances();
-  }
 
   // Instanz-Feed neu laden (Seite 0 + Gesamtzahl, aktuelle Suche)
   function reloadInstances() {
     const q = search.trim();
     api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
-    api.getInstanceCount(q).then((r) => setInstanceTotal(r.count)).catch(() => {});
   }
 
   function handleUserSaved(u: UserProfile) {
@@ -465,7 +412,7 @@ export default function ErpPage() {
   }
 
   const showList = mobileView === 'list';
-  const hasDetail = creating !== null || activeRow !== null || sel?.type === 'order' || sel?.type === 'instance';
+  const hasDetail = creating !== null || activeRow !== null || sel?.type === 'instance';
 
   return (
     <ErpNavContext.Provider value={openByObjectId}>
@@ -573,9 +520,6 @@ export default function ErpPage() {
                   <button onClick={() => startCreate('article')} style={menuItemStyle}>
                     <Package size={15} style={{ color: 'var(--fg-3)' }} /> Artikel
                   </button>
-                  <button onClick={() => startCreate('order')} style={menuItemStyle}>
-                    <ClipboardList size={15} style={{ color: 'var(--fg-3)' }} /> Auftrag
-                  </button>
                   {/* Gesellschaften anlegen ist bewusst Admin-Sache (fix vorgegeben). */}
                   {isAdmin && (
                     <button onClick={createCompany} style={menuItemStyle}>
@@ -612,28 +556,14 @@ export default function ErpPage() {
           {creating === 'article' && (
             <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
-          {creating === 'order' && (
-            <OrderDetail key="new-order" record={null} seed={orderSeed} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onBack={cancelCreate} />
-          )}
           {!creating && activeRow?.type === 'user' && (
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'article' && (
-            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCreateOrder={(s) => startCreate('order', s)} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
-          {!creating && sel?.type === 'order' && (
-            orderDetail && orderDetail.object_id === sel.objectId ? (
-              <OrderDetail key={`order-${sel.objectId}`} record={orderDetail} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCreateOrder={(sd) => startCreate('order', sd)} onBack={() => setMobileView('list')} />
-            ) : (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#94a3b8' }}>
-                Auftrag wird geladen…
-              </div>
-            )
-          )}
-          {!creating && sel?.type === 'instance' && instanceDetail && (
-            <InstanceDetail key={`i-${sel.objectId}`} record={instanceDetail} onBack={() => setMobileView('list')}
-              onCreateOrder={(s) => startCreate('order', s)}
-              onChanged={() => { api.getOrders().then(setOrders).catch(() => {}); reloadInstances(); }} />
+          {!creating && sel?.type === 'instance' && (
+            <InstanceDetail key={`i-${sel.objectId}`} objectId={sel.objectId} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'organization' && (
             <OrganizationDetail key={activeRow.key} record={activeRow.data}
@@ -648,16 +578,6 @@ export default function ErpPage() {
           </ErrorBoundary>
         </div>
       </div>
-      {feedCapture && (
-        <DocumentIngestDialog
-          contextObjectId={null}
-          captureEnabled={viewerRole === 'staff'}
-          title={viewerRole === 'staff' ? 'Scannen oder Dokument erfassen' : 'Datensatz scannen'}
-          onCode={(oid) => { setFeedCapture(false); openByObjectId(oid); }}
-          onClose={() => setFeedCapture(false)}
-          onDone={() => setFeedCapture(false)}
-        />
-      )}
     </div>
     </ErpNavContext.Provider>
   );

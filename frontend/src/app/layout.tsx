@@ -6,8 +6,8 @@ import type { Metadata } from 'next';
 import '@/styles/design-system/colors_and_type.css';
 import './globals.css';
 import { ChunkReloadGuard } from '@/components/chunk-reload-guard';
-import { CookieConsent } from '@/components/consent/cookie-consent';
 import { PlausibleAnalytics } from '@/components/analytics/plausible';
+import { CookieConsent } from '@/components/consent/cookie-consent';
 
 const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 
