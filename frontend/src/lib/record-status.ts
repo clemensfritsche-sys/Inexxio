@@ -1,9 +1,7 @@
 import { Ban, Briefcase, CheckCircle2, Repeat, Shield, Truck, UserCircle } from 'lucide-react';
-import type { Article, CompanySettings, Instance, Order, OrderSummary, UserProfile } from '@/types';
+import type { Article, CompanySettings, Instance, UserProfile } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
 import { statusConfig as articleStatusConfig } from '@/lib/article';
-import { orderStatusConfig } from '@/lib/order';
-import { instanceStatusConfig } from '@/lib/process';
 
 /**
  * **Der Zustand eines ERP-Datensatzes – EINE Regel für alle Typen.**
@@ -55,37 +53,39 @@ export function articleStatus(a: Pick<Article, 'status'>): StatusCfg {
   return articleStatusConfig(a.status);
 }
 
-type OrderLike = Pick<Order | OrderSummary, 'status'> & Partial<Pick<Order, 'abort_into_id' | 'recurrence_due'>>;
-
-export function orderStatus(o: OrderLike): StatusCfg {
-  // «fällig» sagt mehr als «Entwurf»: ein wiederkehrender Auftrag, dessen Termin erreicht
-  // ist, wartet auf einen Menschen. Das gilt im Feed wie im Detail – derselbe Datensatz.
-  if (o.recurrence_due) return { label: 'fällig', ...TONE.danger, icon: Repeat };
-  return orderStatusConfig(o.status, o.abort_into_id != null);
-}
-
 /**
- * Der Zustand einer Instanz **als Datensatz**.
+ * Instanz und Einzelinstanz tragen ein **Status-Feld ohne Logik** (Basis-Neuaufbau):
+ * die Werte und ihre Übergänge kommen mit der neuen Prozesslogik. Bis dahin zeigt die
+ * Badge den gespeicherten Wert – und «inaktiv» sticht ihn, wie überall sonst.
  *
- * «Reserviert» gibt es nicht mehr (Testnotizen #625/#626) – und der frühere Auslöser
- * («irgendetwas davon ist beansprucht») war ohnehin zu grob: eine Charge à 4, von der EIN
- * Stück in einem Auftrag steckt, stand als Ganzes auf Gelb, während die Stück-Liste
- * darunter drei freie zeigte. Zwei Antworten auf dieselbe Frage.
- *
- * Die Frage, die ein Datensatz beantwortet, ist: **ist hier noch etwas frei?** Ist die ganze
- * Menge vergeben, ist der Datensatz «Im Prozess»; liegt noch etwas frei, ist er
- * «Freigegeben». Welches Stück wem gehört, sagt die Stück-Liste – dort, wo es hingehört.
+ * Bewusst KEINE Vorwegnahme: eine erfundene Zustandskarte («neu → in Arbeit → fertig»)
+ * wäre genau die Art Annahme, die dieser Umbau loswerden wollte.
  */
+const NEUTRAL: StatusCfg = { label: 'Neu', ...TONE.pending, icon: CheckCircle2 };
+
 export function instanceStatus(
-  i: Pick<Instance, 'quality' | 'disposition' | 'reserved_quantity'> & { quantity?: number | null },
+  i: Pick<Instance, 'status'> & { is_active?: boolean },
 ): StatusCfg {
-  const claimed = i.reserved_quantity ?? 0;
-  const whole = claimed > 0 && claimed >= (i.quantity ?? 0);
-  return instanceStatusConfig(i.quality, i.disposition, whole);
+  if (i.is_active === false) return INACTIVE;
+  return { ...NEUTRAL, label: i.status === 'new' ? 'Neu' : i.status };
 }
 
 export function organizationStatus(c: Pick<CompanySettings, 'is_active'>): StatusCfg {
   return c.is_active === false
     ? INACTIVE
     : { label: 'Freigegeben', ...TONE.done, icon: CheckCircle2 };
+}
+
+/**
+ * Instanz-Typ → Beschriftung. Die Werte spiegeln `models/instance.KINDS`; der Abgleich
+ * ist getestet (`tests/test_frontend_mirrors.py`), damit die Oberfläche keinen Typ
+ * kennt, den es nicht gibt – und keinen übersieht.
+ */
+export const KIND_LABEL: Record<string, string> = {
+  'einzeln': 'Einzeln',
+  'batch': 'Charge',
+};
+
+export function kindLabel(kind: string): string {
+  return KIND_LABEL[kind] ?? kind;
 }

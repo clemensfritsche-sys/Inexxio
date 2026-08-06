@@ -52,6 +52,9 @@ Thumbs.db
 uploads/
 storage/
 
+# DB-Dumps (Rollback-Punkte) – enthalten Geschäftsdaten, gehören nicht ins Repo
+backups/*.sql
+
 # TypeScript build info
 *.tsbuildinfo
 

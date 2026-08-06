@@ -103,26 +103,6 @@ def test_currency_is_a_per_company_field_derived_from_country():
     assert currency_for_country(None) == "CHF"      # unbekannt → Heimatwährung
 
 
-def test_read_only_callers_never_commit_a_foreign_transaction():
-    """Preis-Pipeline, Shop-Konfig, Provider-Wahl und PDF-Briefkopf lesen den Betreiber –
-    sie dürfen ihn nicht anlegen, weil sie mitten in einer fremden Transaktion laufen.
-
-    (``find_primary`` ist der rückwärts-kompatible Alias von ``find_operator``.)"""
-    for rel in ("services/pricing.py", "services/selling.py", "services/logistics.py",
-                "services/payments/__init__.py", "routers/shop.py", "routers/documents.py"):
-        src = _source(rel)
-        # Lese-Form: entweder direkt der Betreiber (find_operator/-primary) ODER die abgeleitete
-        # fakturierende Gesellschaft (``sale.seller_company_for_order`` – ebenfalls rein lesend,
-        # fällt intern auf find_operator zurück; ADR 006, Absender/Beleg des Sellers).
-        assert ("import find_primary" in src or "import find_operator" in src
-                or "seller_company_for_order" in src), \
-            f"{rel} muss eine Lese-Form nutzen"
-        assert "import primary" not in src and "import operator" not in src, \
-            f"{rel} darf den Betreiber nicht anlegen"
-
-
-# ─── EIN gleichrangiger Typ: jede Gesellschaft ist vollständig ───────────────────
-
 def test_every_company_carries_its_own_legal_identity():
     """Kern der Kehrtwende: die US-Gesellschaft hat ihre EIGENE Rechtsidentität.
 
@@ -229,58 +209,6 @@ def test_response_exposes_derived_role_not_a_stored_flag():
 
 # ─── Der Kern: das Ziel einer Bewegung ist SEIN Standort ─────────────────────────
 
-def test_movement_target_resolves_the_addressed_company_not_the_operator():
-    """``logistics.target_address`` löst das adressierte Unternehmen über seine Objektnummer
-    auf – nähme es den Betreiber, bekäme JEDES Ziel dessen Adresse und ein Transport
-    Werk A → Werk B ginge still als «innerbetrieblich» durch statt als Versand."""
-    from app.services import logistics
-
-    src = inspect.getsource(logistics.target_address)
-    assert "by_object_id(db, lid)" in src
-
-
-def test_company_holder_label_reads_the_addressed_company():
-    """Das Label eines ``company``-Halters ist der Name GENAU dieses Unternehmens (über die
-    Objektnummer)."""
-    from app.services import locations
-
-    for fn in (locations.location_label, locations.location_labels):
-        assert "object_id" in inspect.getsource(fn)
-
-
-# ─── Deploy-Sicherheit: eine neue Spalte darf die Website nicht abschalten ────────
-
-def test_every_company_settings_column_is_in_the_lifespan_safety_net():
-    """Jede nachträglich ergänzte Spalte von ``company_settings`` MUSS im Lifespan-
-    Sicherheitsnetz stehen (``main._COLUMN_SAFETY_NET``).
-
-    ``start.sh`` startet uvicorn auch dann, wenn Alembic scheitert – das Netz ist der
-    vorgesehene zweite Weg. Kennt das Modell eine Spalte, die die DB nicht hat, scheitert
-    JEDE Abfrage auf der Tabelle; und ``company_settings`` liest der ganze Instanz-Feed
-    (Standort-Label) sowie die öffentlichen Endpunkte (Impressum, Shop). Eine fehlende
-    Spalte hier nimmt ERP UND Website mit – genau das ist beim ersten Mehrstandort-Deploy
-    passiert. Die Erwartung wird aus dem MODELL abgeleitet, nicht aus einer Liste."""
-    import re
-    from app.main import _COLUMN_SAFETY_NET, _DROP_COLUMN_SAFETY_NET
-    from app.models import CompanySettings
-
-    initial = (APP.parent / "alembic/versions/001_initial_schema.py").read_text(encoding="utf-8")
-    block = initial.split("'company_settings'", 1)[1].split("op.create_table", 1)[0]
-    from_initial = set(re.findall(r"sa\.Column\(\s*'(\w+)'", block))
-    assert "company_name" in from_initial, "Initial-Schema-Block nicht erkannt"
-
-    net = {c for t, c, _ in _COLUMN_SAFETY_NET if t == "company_settings"}
-    dropped = {c for t, c in _DROP_COLUMN_SAFETY_NET if t == "company_settings"}
-    model = set(CompanySettings.__table__.columns.keys())
-
-    missing = sorted(model - from_initial - net - dropped)
-    assert not missing, (
-        "Diese Spalten kennt das Modell, aber das Lifespan-Sicherheitsnetz nicht – "
-        f"scheitert Alembic, sind ERP UND Website tot: {missing}\n"
-        "→ in main._COLUMN_SAFETY_NET eintragen."
-    )
-
-
 def test_migrations_090_and_091_are_repeatable():
     """Repariert das Lifespan-Netz das Schema, versucht Alembic die Migration beim nächsten
     Deploy erneut – sie muss also wiederholbar sein, sonst bliebe Alembic hängen und
@@ -305,11 +233,3 @@ def test_is_primary_is_dropped_everywhere_not_re_added():
     assert ("company_settings", "is_primary") in drop, "is_primary gehört ins Drop-Netz"
     assert ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false") in _COLUMN_SAFETY_NET
 
-
-def test_no_syntax_errors_in_touched_modules():
-    """Billiger Rundum-Schutz: alle angefassten Module parsen."""
-    for rel in ("services/sites.py", "services/locations.py", "services/logistics.py",
-                "services/orders.py", "services/admin.py", "services/pricing.py",
-                "services/selling.py", "routers/admin.py", "schemas/admin.py",
-                "models/admin.py"):
-        ast.parse(_source(rel))

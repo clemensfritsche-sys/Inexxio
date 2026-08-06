@@ -1,18 +1,39 @@
 import type {
-  Article, ArticleInput, ArticleUpdateInput, ArticleNameSuggestion,
-  ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
-  Order, OrderDiagnostics, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
-  PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
-  MovementUpdateInput, ShipmentUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
-  PendingDocument, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
-  Instance, InstanceOrderRef, ObjectReference,
-  CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts, TerritoryMap,
-  ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
-  AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
-  CustomerOrder,
-  AiConfig, AiChatMessage, AiChatResponse, AiProposal, AiDocContent, AiImageEditResponse,
-  ObjectDocument, DocumentAnalyzeResponse, DocumentConfirmInput, Passkey,
-  FeedbackNote, FeedbackCreateInput, FeedbackUpdateInput,
+  InstanceSummary,
+  InstanceCreateInput,
+  Capture,
+  CaptureInput,
+  CaptureField,
+  Article,
+  ArticleInput,
+  ArticleUpdateInput,
+  ArticleNameSuggestion,
+  OrderUpdateInput,
+  OrderLineCreateInput,
+  OrderLinePinsInput,
+  PurchaseOrderUpdateInput,
+  InspectionUpdateInput,
+  MovementUpdateInput,
+  ShipmentUpdateInput,
+  ResourceUpdateInput,
+  ScrapUpdateInput,
+  SaleUpdateInput,
+  Instance,
+  ObjectReference,
+  CompanySettings,
+  UserProfile,
+  OrdersMode,
+  TerritoryMap,
+  ArticleSalesUpdateInput,
+  ArticlePriceInput,
+  ArticlePriceUpdateInput,
+  ShopConfig,
+  PaymentStatus,
+  SaleStatus,
+  Passkey,
+  FeedbackNote,
+  FeedbackCreateInput,
+  FeedbackUpdateInput,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -223,39 +244,11 @@ class ApiClient {
     return this.post('/api/v1/auth/passkeys/login/verify', { credential });
   }
 
-  // ─── Consent-Gate: zu bestätigende Pflichtdokumente ─────────────────────────
-  getPendingDocuments(): Promise<PendingDocument[]> {
-    return this.get('/api/v1/consent/pending');
-  }
 
-  // Ein Dokument bestätigen; liefert die verbleibenden offenen Bestätigungen zurück.
-  // Bei einem Publikums-Dokument (kind='document') zusätzlich die Objektnummer (Version).
-  acknowledgeDocument(kind: string, objectNumber?: number | null): Promise<PendingDocument[]> {
-    return this.post('/api/v1/consent/acknowledge', { kind, object_number: objectNumber ?? null });
-  }
 
-  // Vollständige Dokument-Beteiligung eines Nutzers – die EINE Sicht am ERP-Benutzer-
-  // Datensatz (offene Freigaben + offene Anerkennungen + Erledigt, je mit Datum und Stand).
-  // Die frühere zweite Abfrage nur für Bestätigungen ist damit entfallen.
-  getUserDocumentOverview(userObjectId: number): Promise<UserDocumentOverview> {
-    return this.get(`/api/v1/consent/user/${userObjectId}/documents`);
-  }
 
-  // ─── «Meine Dokumente»: Freigabe-Parteien (unterschreiben/bestätigen) ───────
-  getMyDocuments(): Promise<MySignoffDocument[]> {
-    return this.get('/api/v1/consent/my-documents');
-  }
 
-  // Erledigte Dokument-Vorgänge (unterschrieben/bestätigt/anerkannt) – für die «Erledigt»-Liste.
-  getMyDocumentHistory(): Promise<MyHistoryDocument[]> {
-    return this.get('/api/v1/consent/my-history');
-  }
 
-  // Als benannte Freigabe-Partei handeln (confirm|sign|reject|withdraw) – liefert die
-  // verbleibenden offenen Dokumente zurück.
-  actSignoff(signoffId: number, data: SignoffAction): Promise<MySignoffDocument[]> {
-    return this.post(`/api/v1/consent/signoffs/${signoffId}`, data);
-  }
 
   // ─── Admin: Users ──────────────────────────────────────────────────────────
 
@@ -283,14 +276,7 @@ class ApiClient {
     return this.get<Record<string, unknown>>('/api/v1/admin/settings/public').then(mapSettingsFromBackend);
   }
 
-  // Öffentliches Rechtsdokument (AGB/Datenschutz/…) – aufgelöster Zeiger (D). 404 → null.
-  getLegalDocument(kind: string): Promise<LegalDocument | null> {
-    return this.get<LegalDocument>(`/api/v1/legal/${kind}`).catch(() => null);
-  }
 
-  getOperatingCosts(): Promise<OperatingCosts> {
-    return this.get<OperatingCosts>('/api/v1/admin/operating-costs');
-  }
 
   // Lagerwartung (E): Meldebestand prüfen (Auto-Nachbestellung).
   runMaintenanceSweep(): Promise<{ reordered: number }> {
@@ -378,10 +364,6 @@ class ApiClient {
     return this.patch(`/api/v1/erp/articles/${objectId}`, data);
   }
 
-  // Inaktiv/Ersetzen: Wirkungsanalyse, Inaktiv-Setzen (mit Auftrags-Wahl), Ersetzen
-  getArticleDeactivationImpact(objectId: number): Promise<DeactivationImpact> {
-    return this.get(`/api/v1/erp/articles/${objectId}/deactivation-impact`);
-  }
 
   deactivateArticle(objectId: number, ordersMode: OrdersMode): Promise<Article> {
     return this.post(`/api/v1/erp/articles/${objectId}/deactivate`, { orders_mode: ordersMode });
@@ -396,89 +378,25 @@ class ApiClient {
   // ─── Prozessschritte – am Artikel (Entstehung) ODER am Auftrag (CUSTOM) ────────
   // ``owner`` = 'articles' | 'orders'; kein eigenständiges Prozess-Objekt mehr.
 
-  getSteps(owner: 'articles' | 'orders', objectId: number): Promise<ArticleProcessStep[]> {
-    return this.get(`/api/v1/erp/${owner}/${objectId}/steps`);
-  }
 
-  createStep(owner: 'articles' | 'orders', objectId: number, data: ArticleProcessStepInput): Promise<ArticleProcessStep> {
-    return this.post(`/api/v1/erp/${owner}/${objectId}/steps`, data);
-  }
 
-  updateStep(owner: 'articles' | 'orders', objectId: number, stepId: number, data: ArticleProcessStepUpdateInput): Promise<ArticleProcessStep> {
-    return this.patch(`/api/v1/erp/${owner}/${objectId}/steps/${stepId}`, data);
-  }
 
   deleteStep(owner: 'articles' | 'orders', objectId: number, stepId: number): Promise<{ deleted: boolean }> {
     return this.delete(`/api/v1/erp/${owner}/${objectId}/steps/${stepId}`);
   }
 
-  // Reihenfolge der frei sortierbaren Schritte; Pflicht-Bewegungen ordnet der Server.
-  reorderSteps(owner: 'articles' | 'orders', objectId: number, orderedIds: number[]): Promise<ArticleProcessStep[]> {
-    return this.patch(`/api/v1/erp/${owner}/${objectId}/steps/reorder`, { ordered_ids: orderedIds });
-  }
 
-  // ─── Dokumente (PDF-Rendering, Web-Ansicht) ─────────────────────────────────
-  // Das PDF ist authentifiziert (Bearer) – ein blosser <a href> würde den Token nicht
-  // mitsenden. Daher als Blob mit Auth-Header laden und über einen programmatischen
-  // Download-Link ausliefern. Bewusst KEIN `window.open`: das läuft nach dem `await`
-  // ausserhalb der Klick-Geste und würde von Safari/Firefox als Popup blockiert – der
-  // Klick eines `<a download>` ist davon nicht betroffen und funktioniert überall.
-  private async fetchPdf(path: string, filename: string): Promise<void> {
-    const headers: Record<string, string> = {};
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-    const res = await fetch(`${API_BASE}${path}`, { headers });
-    if (!res.ok) throw await this.apiError(res);
-    const url = URL.createObjectURL(await res.blob());
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  }
-
-  // Dokument (Fachzeile) als PDF laden – funktioniert für Entwurf & Ausgestelltes
-  // (Layout-Vorschau während des Verfassens). ``docId`` = Embed-id, ``nr`` = Instanznummer.
-  openDocumentPdf(docId: number, nr?: number | null): Promise<void> {
-    const name = nr ? `Dokument-${String(nr).padStart(9, '0')}.pdf` : 'Dokument.pdf';
-    return this.fetchPdf(`/api/v1/erp/documents/${docId}/pdf`, name);
-  }
 
   // ─── Dokumente (hochgeladene Belege/Anleitungen – KI-Aufnahme + Reiter «Dokumente») ─
 
-  // Reiter «Dokumente» eines beliebigen ERP-Objekts (hochgeladene Dateien + erzeugte Dokumente)
-  getObjectDocuments(objectId: number): Promise<ObjectDocument[]> {
-    return this.get(`/api/v1/erp/objects/${objectId}/documents`);
-  }
 
-  // Datei hochladen → KI analysiert & schlägt Name + Objektzuordnung vor (noch nicht gespeichert)
-  async analyzeDocument(file: File, contextObjectId: number | null): Promise<DocumentAnalyzeResponse> {
-    const headers: Record<string, string> = {};
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-    const form = new FormData();
-    form.append('file', file);
-    if (contextObjectId != null) form.append('context_object_id', String(contextObjectId));
-    const res = await fetch(`${API_BASE}/api/v1/ai/documents/analyze`, { method: 'POST', headers, body: form });
-    if (!res.ok) throw await this.apiError(res);
-    return res.json();
-  }
 
-  // Bestätigen: Name + Zuordnung festschreiben → Dokument anlegen (AiAction-Pfad)
-  confirmDocument(actionId: number, data: DocumentConfirmInput): Promise<ObjectDocument> {
-    return this.post(`/api/v1/ai/documents/${actionId}/confirm`, data);
-  }
 
   // Vorschlag ablehnen (Datei wird aus der Ablage entfernt)
   rejectDocument(actionId: number): Promise<{ rejected: boolean }> {
     return this.post(`/api/v1/ai/documents/${actionId}/reject`, {});
   }
 
-  // Eine hochgeladene Datei authentifiziert laden (inline-Vorschau/Download)
-  openDocumentFile(docId: number, filename?: string | null): Promise<void> {
-    return this.fetchPdf(`/api/v1/erp/document-files/${docId}/download`, filename || 'dokument');
-  }
 
   // Datei-Bytes authentifiziert holen und als lokale Object-URL bereitstellen (Inline-Vorschau
   // von PDF/Bild – ein <iframe>/<img> kann den Bearer-Token nicht selbst mitsenden). Der Aufrufer
@@ -510,147 +428,43 @@ class ApiClient {
 
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
 
-  // Schlanker Feed (ohne Embeds); Detail via getOrder(id)
-  getOrders(): Promise<OrderSummary[]> {
-    return this.get('/api/v1/erp/orders');
-  }
 
-  getOrder(objectId: number): Promise<Order> {
-    return this.get(`/api/v1/erp/orders/${objectId}`);
-  }
 
-  /** **Systemprotokoll** eines Auftrags (Befund + Chronologie) – nur auf Anfrage geladen:
-   *  eine Diagnose ist um Grössenordnungen umfangreicher als der Auftrag selbst. */
-  getOrderDiagnostics(objectId: number): Promise<OrderDiagnostics> {
-    return this.get(`/api/v1/erp/orders/${objectId}/diagnostics`);
-  }
 
-  createOrder(data: OrderInput): Promise<Order> {
-    return this.post('/api/v1/erp/orders', data);
-  }
 
-  updateOrder(objectId: number, data: OrderUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}`, data);
-  }
 
-  // Mehrpositionen: weitere Artikel zu einem bestehenden Entwurf hinzufügen/entfernen/
-  // fixieren – jederzeit möglich, auch nach dem ersten Speichern.
-  addOrderLine(objectId: number, data: OrderLineCreateInput): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/lines`, data);
-  }
 
-  removeOrderLine(objectId: number, lineId: number): Promise<Order> {
-    return this.delete(`/api/v1/erp/orders/${objectId}/lines/${lineId}`);
-  }
 
-  setOrderLinePins(objectId: number, lineId: number, data: OrderLinePinsInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/lines/${lineId}`, data);
-  }
 
-  // Verwerfen: setzt einen Unter-Auftrag bzw. einen Auftrag ohne Instanzen direkt inaktiv
-  // (räumt die Bindungen zum Eltern auf). Ein laufender Auftrag MIT Instanzen wird nicht
-  // hierüber abgebrochen – dort ist der Abbruch die Antwort «Auftragsmenge reduzieren» auf
-  // seine Unterdeckung, sobald ihm nichts mehr bleibt (Notiz #366).
-  abortOrder(objectId: number): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/abort`, {});
-  }
 
   // (Über eine Fehlmenge entscheidet seit Testnotiz #556 das System selbst
   //  (``recovery.auto_resolve``): hält sie noch jemand, wird gewartet; hält sie niemand
   //  mehr, sinkt das Soll darauf. «Ersetzen» ist bewusst zurückgestellt – der Weg existiert
   //  im Backend weiter (`POST …/cover`), es fragt nur niemand mehr danach.)
 
-  // «Abbruch zurücknehmen»: verwirft einen noch im Entwurf befindlichen Folgeauftrag
-  // (objectId = Folgeauftrag); das Original läuft danach unverändert weiter. Liefert das
-  // wieder laufende Original zurück.
-  revokeAbort(followupObjectId: number): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${followupObjectId}/revoke`, {});
-  }
 
-  // Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer)
-  updateOrderPurchase(objectId: number, data: PurchaseOrderUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);
-  }
 
-  /** «Lieferant hat zugestimmt» – die bestellte Menge auf die neue Grundlage bringen. */
-  clarifyOrderPurchase(objectId: number, articleId?: number | null, stepId?: number | null): Promise<Order> {
-    const q = new URLSearchParams();
-    if (articleId != null) q.set('article_id', String(articleId));
-    if (stepId != null) q.set('step_id', String(stepId));
-    const qs = q.toString();
-    return this.post(`/api/v1/erp/orders/${objectId}/purchase/clarify${qs ? `?${qs}` : ''}`, {});
-  }
 
-  // Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen
-  updateOrderInspection(objectId: number, data: InspectionUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/inspection`, data);
-  }
 
-  // Schritt «Dokument»: Inhalt verfassen (save) bzw. ausstellen (issue)
-  updateOrderDocument(objectId: number, data: DocumentUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/document`, data);
-  }
 
-  // Freigabe-Partei handelt inline am Auftrag (confirm|sign|reject|withdraw).
-  actOrderDocumentSignoff(objectId: number, signoffId: number, data: SignoffAction): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/document/signoff/${signoffId}`, data);
-  }
 
-  // Ausstellung eines Dokuments zurücknehmen (Personal) – Inhalt wieder editierbar.
-  withdrawOrderDocument(objectId: number, stepId?: number | null): Promise<Order> {
-    const q = stepId != null ? `?step_id=${stepId}` : '';
-    return this.post(`/api/v1/erp/orders/${objectId}/document/withdraw${q}`, {});
-  }
 
-  // Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)
-  updateOrderMovement(objectId: number, data: MovementUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/movement`, data);
-  }
 
-  // Versand (ADR 005): Tarife laden (Rate-Shopping) für den Bewegungs-Schritt
-  quoteOrderShipment(objectId: number, stepId?: number | null): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/shipment/quote`, { step_id: stepId ?? null });
-  }
 
-  // Versand: gewähltes Angebot kaufen → Label (PDF) + Tracking-Nummer
-  buyOrderShipment(objectId: number, rateId: string, stepId?: number | null): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/shipment/buy`, { rate_id: rateId, step_id: stepId ?? null });
-  }
 
-  // Versand: Transport-Modus übersteuern bzw. manuelle Versanddaten erfassen
-  updateOrderShipment(objectId: number, data: ShipmentUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/shipment`, data);
-  }
 
-  // Schritt «Ressource»: Verbrauch (FIFO) + Betriebsmittel erfassen
-  updateOrderResource(objectId: number, data: ResourceUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/resource`, data);
-  }
 
-  // Schritt «Verschrotten»: gewählte Instanzen ausschleusen (disposition='scrapped')
-  /** Sperren: gleiche Auswahl-Form wie das Verschrotten, aber umkehrbar – und aufgehoben
-   *  wird sie nirgends ausdrücklich: ein Auftrag hält das Stück, läuft durch und gibt es
-   *  beim Abschluss frei (Testnotiz #646). */
-  updateOrderBlock(objectId: number, data: ScrapUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/block`, data);
-  }
 
-  updateOrderScrap(objectId: number, data: ScrapUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/scrap`, data);
-  }
 
-  // Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung
-  updateOrderSale(objectId: number, data: SaleUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/sale`, data);
-  }
 
   // Bestand (Instanzen) eines Artikels
   getArticleInstances(objectId: number): Promise<Instance[]> {
     return this.get(`/api/v1/erp/articles/${objectId}/instances`);
   }
 
-  // Instanz-Feed (server-seitig paginierbar + durchsuchbar; limit=0 → alle, neueste zuerst)
-  getInstances(limit = 0, offset = 0, search = ''): Promise<Instance[]> {
+  // Instanz-Feed (server-seitig durchsuchbar/paginierbar, neueste Objektnummer zuerst).
+  // Liefert Zusammenfassungen: die Einzelinstanzen stehen im Detail, nicht in der Liste.
+  getInstances(limit = 0, offset = 0, search = ''): Promise<InstanceSummary[]> {
     const p = new URLSearchParams();
     if (limit) p.set('limit', String(limit));
     if (offset) p.set('offset', String(offset));
@@ -659,9 +473,31 @@ class ApiClient {
     return this.get(`/api/v1/erp/instances${qs ? `?${qs}` : ''}`);
   }
 
-  // Gesamtzahl (matchender) Instanzen für die Feed-Zähler/Pagination
-  getInstanceCount(search = ''): Promise<{ count: number }> {
-    return this.get(`/api/v1/erp/instances/count${search ? `?search=${encodeURIComponent(search)}` : ''}`);
+  createInstance(input: InstanceCreateInput): Promise<Instance> {
+    return this.post('/api/v1/erp/instances', input);
+  }
+
+  // Weitere Einzelinstanzen. Die Suffixe sind kumulierend – eine einmal vergebene
+  // Nummer kommt nie zurück.
+  addInstanceUnits(objectId: number, count: number): Promise<Instance> {
+    return this.post(`/api/v1/erp/instances/${objectId}/units`, { count });
+  }
+
+  deactivateInstanceUnit(objectId: number, suffix: number): Promise<Instance> {
+    return this.delete(`/api/v1/erp/instances/${objectId}/units/${suffix}`);
+  }
+
+  // ─── Datenerfassung (an der Einzelinstanz) ─────────────────────────────────
+  getCaptureFields(number: string): Promise<{ article_object_id: number; fields: CaptureField[] }> {
+    return this.get(`/api/v1/erp/captures/${number}/fields`);
+  }
+
+  getCaptures(number: string): Promise<Capture[]> {
+    return this.get(`/api/v1/erp/captures/${number}`);
+  }
+
+  recordCapture(number: string, input: CaptureInput): Promise<Capture> {
+    return this.post(`/api/v1/erp/captures/${number}`, input);
   }
 
   // Universelle Objektnummer serverseitig auf ihren Typ auflösen (Scan/Navigation)
@@ -673,10 +509,6 @@ class ApiClient {
     return this.get(`/api/v1/erp/instances/${objectId}`);
   }
 
-  // Aufträge, die diese Instanz angefasst haben (Herkunft zuerst)
-  getInstanceOrders(objectId: number): Promise<InstanceOrderRef[]> {
-    return this.get(`/api/v1/erp/instances/${objectId}/orders`);
-  }
 
   // Generischer Rückverweis je Objektnummer («wer zeigt auf mich» – verortet/Ziel).
   getObjectReferences(objectId: number): Promise<ObjectReference[]> {
@@ -686,29 +518,14 @@ class ApiClient {
   // ─── Verkauf (ERP, Reiter «Verkauf» am Artikel) ─────────────────────────────
   // Verkaufs-Daten sind IMMER editierbar (auch bei freigegebenem Artikel).
 
-  getArticleSales(objectId: number): Promise<ArticleSalesProfile> {
-    return this.get(`/api/v1/erp/articles/${objectId}/sales`);
-  }
 
-  updateArticleSales(objectId: number, data: ArticleSalesUpdateInput): Promise<ArticleSalesProfile> {
-    return this.patch(`/api/v1/erp/articles/${objectId}/sales`, data);
-  }
 
-  createArticlePrice(objectId: number, data: ArticlePriceInput): Promise<ArticlePrice> {
-    return this.post(`/api/v1/erp/articles/${objectId}/sales/prices`, data);
-  }
 
-  updateArticlePrice(objectId: number, priceId: number, data: ArticlePriceUpdateInput): Promise<ArticlePrice> {
-    return this.patch(`/api/v1/erp/articles/${objectId}/sales/prices/${priceId}`, data);
-  }
 
   deleteArticlePrice(objectId: number, priceId: number): Promise<{ deleted: boolean }> {
     return this.delete(`/api/v1/erp/articles/${objectId}/sales/prices/${priceId}`);
   }
 
-  addArticleAudience(objectId: number, userId: number): Promise<AudienceMember[]> {
-    return this.post(`/api/v1/erp/articles/${objectId}/sales/audience`, { user_id: userId });
-  }
 
   removeArticleAudience(objectId: number, rowId: number): Promise<{ removed: boolean }> {
     return this.delete(`/api/v1/erp/articles/${objectId}/sales/audience/${rowId}`);
@@ -720,27 +537,8 @@ class ApiClient {
     return this.get('/api/v1/shop/config');
   }
 
-  // Preise immer in CHF (Basis); Stripe Adaptive Pricing zeigt die Lokalwährung an der Kasse.
-  getShopProducts(lang?: string): Promise<ShopProduct[]> {
-    const qs = lang ? `?lang=${lang}` : '';
-    return this.get(`/api/v1/shop/products${qs}`);
-  }
 
-  getShopProduct(objectId: number, lang?: string): Promise<ShopProduct> {
-    const qs = lang ? `?lang=${lang}` : '';
-    return this.get(`/api/v1/shop/products/${objectId}${qs}`);
-  }
 
-  // Warenkorb-Checkout: mehrere Positionen ⇒ eine Zahlungs-Session (Defer-Modell).
-  shopCheckout(
-    items: { article_object_id: number; price_id: number; quantity: number }[],
-    currency?: string,
-    country?: string,
-  ): Promise<ShopCheckoutResult> {
-    // Die angezeigte Präsentationswährung mitgeben – der Server belastet exakt den
-    // angezeigten Betrag in dieser Währung (eine Kursquelle, keine Divergenz Anzeige↔Zahlung).
-    return this.post('/api/v1/shop/checkout', { items, currency, country });
-  }
 
 
   // Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten)
@@ -748,10 +546,6 @@ class ApiClient {
     return this.post('/api/v1/shop/portal', {});
   }
 
-  // Eigene Bestellungen + Abos (Kunde)
-  getMyOrders(): Promise<CustomerOrder[]> {
-    return this.get('/api/v1/shop/orders');
-  }
 
   // Abo on-site kündigen (kündigt zuerst bei Stripe, dann lokal)
   cancelSubscription(orderObjectId: number): Promise<{ cancelled: boolean; subscription_active: boolean }> {
@@ -764,10 +558,6 @@ class ApiClient {
     return this.post(`/api/v1/shop/orders/${orderObjectId}/return`, { reason });
   }
 
-  // Bestellungen eines Benutzers (ERP-Reiter, staff)
-  getRecordOrders(objectId: number): Promise<CustomerOrder[]> {
-    return this.get(`/api/v1/erp/records/${objectId}/orders`);
-  }
 
   // Manueller Provider (Fallback ohne Stripe-Keys)
   getPaymentStatus(token: string): Promise<PaymentStatus> {
@@ -780,29 +570,11 @@ class ApiClient {
 
   // ─── KI-Layer (ADR 004) ─────────────────────────────────────────────────────
 
-  getAiConfig(): Promise<AiConfig> {
-    return this.get('/api/v1/ai/config');
-  }
 
-  aiChat(messages: AiChatMessage[], context?: string): Promise<AiChatResponse> {
-    return this.post('/api/v1/ai/chat', { messages, context: context ?? null });
-  }
 
-  aiWrite(instruction: string, content: AiDocContent | null): Promise<{ content: AiDocContent }> {
-    return this.post('/api/v1/ai/write', { instruction, content });
-  }
 
-  aiImageEdit(imageUrl: string, instruction: string): Promise<AiImageEditResponse> {
-    return this.post('/api/v1/ai/image-edit', { image_url: imageUrl, instruction });
-  }
 
-  aiConfirmAction(actionId: number): Promise<AiProposal> {
-    return this.post(`/api/v1/ai/actions/${actionId}/confirm`, {});
-  }
 
-  aiRejectAction(actionId: number): Promise<AiProposal> {
-    return this.post(`/api/v1/ai/actions/${actionId}/reject`, {});
-  }
 
   // ─── Testnotizen (in-app Feedback, nur Testumgebung) ────────────────────────
 

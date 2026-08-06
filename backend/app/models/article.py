@@ -51,6 +51,11 @@ class Article(Base, TimestampMixin):
     # – ein Paket mit Gefahrgut braucht Spezialbehandlung beim Carrier.
     is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
+    # Erfassungsmaske der Datenerfassung: welche Werte an einer **Einzelinstanz** dieses
+    # Artikels erfasst werden (services/capture.py). Dieselbe Feldform wie zuvor am
+    # Prozessschritt – nur hängt sie jetzt am Artikel, weil es keine Schritte mehr gibt.
+    capture_fields: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+
     # ── Sicherheitsbestand / Auto-Nachbestellung (E) ───────────────────────────────
     # «Nicht die Zeit soll bestellen, sondern der Bestand»: fällt der freie Bestand unter
     # ``safety_stock``, legt das System einen Nachschub-Auftrag an, der **genau auf diese

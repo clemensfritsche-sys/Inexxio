@@ -6,8 +6,6 @@ import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
-import { AiAssistant } from '@/components/ai/assistant';
-import { ConsentGate } from '@/components/consent/consent-gate';
 import { PasskeyNudge } from '@/components/auth/passkey-nudge';
 import { FeedbackPin } from '@/components/feedback/feedback-pin';
 
@@ -48,9 +46,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
         {children}
       </main>
       <Footer />
-      <AiAssistant context="Kundenkonto" />
-      <ConsentGate />
-      <PasskeyNudge />
+
       <FeedbackPin />
     </>
   );

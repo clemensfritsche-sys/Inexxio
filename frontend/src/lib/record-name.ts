@@ -1,4 +1,4 @@
-import type { Article, CompanySettings, Instance, Order, OrderSummary, UserProfile } from '@/types';
+import type {Article, CompanySettings, Instance, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 
 /**
@@ -32,10 +32,7 @@ export function articleName(a: Article): string | null {
   return a.name?.trim() || null;
 }
 
-export function orderName(o: Order | OrderSummary): string | null {
-  const n = (o as { name?: string }).name?.trim();
-  return n && n !== 'Auftrag' ? n : null;
-}
+// `orderName` ist mit dem Auftrag entfallen (Basis-Neuaufbau).
 
 export function instanceName(i: Instance): string | null {
   return i.article_name?.trim() || null;

@@ -18,7 +18,6 @@ from ..schemas.admin import (
 )
 from ..services import sites
 from ..services.admin import get_or_create_settings, log_audit
-from ..services.operating_costs import operating_costs
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -246,17 +245,8 @@ async def assign_territory(
     return _territory_map_response(db)
 
 
-@router.get("/operating-costs", response_model=OperatingCostsResponse)
-async def get_operating_costs(
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_admin),
-):
-    """Betriebskosten des laufenden Monats bis heute – tatsächliche KI-/Zahlungskosten
-    (aus Event-Strom bzw. Stripe-Verkäufen) + Infrastruktur-Schätzung + Hochrechnung."""
-    return operating_costs(db)
-
-
-# ─── Users ────────────────────────────────────────────────────────────────────
+# Die Betriebskosten-Übersicht ist entfallen: sie summierte KI-Ereignisse und
+# Stripe-Gebühren bezahlter Verkäufe – beide Module sind abgeschaltet.
 
 @router.get("/users", response_model=list[UserProfileResponse])
 async def list_users(
