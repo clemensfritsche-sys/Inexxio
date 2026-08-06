@@ -841,6 +841,16 @@ def test_the_material_chain_closes_the_process():
     assert "ledger.moves_of" in src, "Quelle ist das Journal – keine zweite Buchführung."
     assert "known" in src, (
         "Am Unter-Auftrag darf die Kette nicht wiederholen, was die Seitenspur sagt (#565).")
+    # **Und ein eigener Abzweig steht als Teilung mitten im Prozess** (Testnotiz #657): dass
+    # ein Stück dorthin ging, sieht man dort. Am Ziel gehört hin, was es INS ZIEL geschafft
+    # hat – nicht, was unterwegs abgebogen ist.
+    assert "resp.deviations + resp.supply_orders" in src, (
+        "Eigene Unter-Aufträge bleiben aus der Kette – der Fluss zeigt sie bereits (#657).")
+    # **Der Zustand NACH der Buchung** – in beide Richtungen derselbe Griff. Mit dem
+    # Quell-Topf stand am Ziel «Im Prozess», obwohl die Freigabe genau der Vorgang ist,
+    # den dieser Knoten meldet (#658).
+    hand = _inspect.getsource(osvc._handovers)
+    assert "q, d = move.dst_quality, move.dst_disposition" in hand and "incoming_side" not in hand
     # Über die Lager-Zeit hinweg: ein Stück, das zwischendurch frei am Lager lag, hat
     # trotzdem eine Herkunft – sonst begänne die Kette bei jedem Zugriff von vorn.
     hop = _inspect.getsource(osvc._neighbours)
@@ -1891,3 +1901,36 @@ def test_nothing_is_preselected_and_a_second_field_can_be_added():
     editor = src.split("function CaptureFieldsEditor")[1].split("\nfunction ")[0]
     assert "useState<WField[]>(fields)" in editor, (
         "Die Liste lebt im Editor – der Speicher bekommt, was fertig ist (#637).")
+
+
+def test_the_release_happens_at_the_goal_flag():
+    """**Freigegeben wird an der Zielflagge, nicht am letzten Modul** (Testnotiz #658).
+
+    Zwei Instanzen laufen denselben Weg; nach dem letzten Modul hat sich an ihnen nichts
+    geändert – also stehen sie dort **beide** noch «Im Prozess» (gelb). Dass sie ihr Ziel
+    erreicht haben und freigegeben sind, ist die Aussage der Zielflagge; sie steht in der
+    Materialkette **unter** ihr.
+
+    Vorher zeigte die letzte Kante eines nicht mehr laufenden Auftrags den Stand NACH dem
+    Abschluss – das Material wurde also schon zwischen letztem Modul und Flagge grün,
+    obwohl der Schritt daran nichts getan hat."""
+    import inspect as _inspect
+
+    from app.services import orders as osvc
+
+    fill = _inspect.getsource(osvc._fill_flow_view)
+    assert "current_from = here[0] if here is not None else len(nodes) + 1" in fill, (
+        "Bei einem fertigen Auftrag ist auch die letzte Kante eingefroren (#658).")
+
+
+def test_a_module_row_shows_which_instance_not_its_state():
+    """**In einem Modul zählt WELCHE Instanz – nicht ihr Zustand** (Testnotiz #659).
+
+    Die Zeile eines Prozessschritts nennt Objektnummer · Menge (· Standort, wo er die
+    Aussage des Schritts ist). In welchem Zustand das Material ist, sagt der Fluss direkt
+    darüber – in seiner Ampelfarbe, an der Kante, auf der es liegt. Eine Badge je Zeile
+    wiederholte das an der Stelle, an der es am wenigsten zählt."""
+    row = (FRONTEND / "components" / "erp" / "instance-row.tsx").read_text(encoding="utf-8")
+    assert "StatusBadge" not in row and "instanceStatus" not in row, (
+        "Kein Zustand in der Modul-Zeile (#659).")
+    assert "ObjId" in row and "formatQty" in row, "Objektnummer und Menge bleiben."

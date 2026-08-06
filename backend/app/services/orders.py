@@ -986,15 +986,19 @@ def _fill_material_chain(db: Session, order: Order, resp: OrderResponse) -> None
     incoming = [m for m in moves if m.dst_order_id == order.id]
     outgoing = [m for m in moves if m.src_order_id == order.id and m.dst_order_id != order.id]
     resp.material_from = _handovers(
-        db, [(m, _neighbours(db, m, back=True)) for m in incoming], incoming_side=True)
+        db, [(m, _neighbours(db, m, back=True)) for m in incoming])
     resp.material_to = _handovers(
-        db, [(m, _neighbours(db, m, back=False)) for m in outgoing], incoming_side=False)
-    # **Nicht zweimal dieselbe Beziehung** (Testnotiz #565): bei einem Unter-Auftrag sagt die
-    # Seitenspur längst «hervorgegangen aus …» und «gibt zurück an …» – und sein Material kam
-    # genau von dort. Diese Übergänge bleiben deshalb draussen; was die Seitenspur NICHT
-    # kennt (der Auftrag, der das Stück davor bearbeitet hat), steht sehr wohl da.
+        db, [(m, _neighbours(db, m, back=False)) for m in outgoing])
+    # **Nicht zweimal dieselbe Beziehung** (Testnotizen #565/#657): was der Fluss ohnehin
+    # zeigt, ist hier keine Nachricht mehr. Bei einem Unter-Auftrag sagt die Seitenspur
+    # längst «hervorgegangen aus …» und «gibt zurück an …»; und was in einen **eigenen
+    # Abzweig** ging, steht als Teilung mitten im Prozess – am Ziel gehört die Information
+    # hin, was es INS ZIEL geschafft hat, nicht was unterwegs abgebogen ist.
     known = {getattr(resp.origin, "order_object_id", None),
-             getattr(resp.origin, "returns_to_object_id", None)} - {None}
+             getattr(resp.origin, "returns_to_object_id", None)}
+    known |= {x.object_id for x in (resp.deviations + resp.supply_orders
+                                    + resp.returns + resp.provisionings)}
+    known -= {None}
     if known:
         resp.material_from = [h for h in resp.material_from if h.order_object_id not in known]
         resp.material_to = [h for h in resp.material_to if h.order_object_id not in known]
@@ -1061,7 +1065,7 @@ def _neighbours(db: Session, move, *, back: bool) -> list[tuple]:
 _HOP_SCAN = 50
 
 
-def _handovers(db: Session, pairs: list, *, incoming_side: bool) -> list[MaterialHandover]:
+def _handovers(db: Session, pairs: list) -> list[MaterialHandover]:
     """Buchungen + ihre Nachbar-Halter → **je Auftrag ein Übergang** mit seinen Mengen.
 
     Gruppiert wird nach dem Nachbarn (nicht je Buchung): «aus Auftrag X kamen 2 Stk dieser
@@ -1094,11 +1098,13 @@ def _handovers(db: Session, pairs: list, *, incoming_side: bool) -> list[Materia
                 out[key] = row
             inst = insts.get(move.instance_object_id)
             base = meta.get(move.instance_object_id) or {}
-            # **Der Zustand von DAMALS** (Testnotiz #488): auf dem Weg herein zählt der
-            # Ziel-Topf dieser Buchung, auf dem Weg hinaus der Quell-Topf – nicht der
-            # heutige Stand der Instanz. Was später passiert ist, gab es hier noch nicht.
-            q, d = ((move.dst_quality, move.dst_disposition) if incoming_side
-                    else (move.src_quality, move.src_disposition))
+            # **Der Zustand NACH dieser Buchung** – in beide Richtungen derselbe Griff
+            # (der Ziel-Topf), nie der heutige Stand der Instanz (Testnotiz #488). Herein:
+            # so ist die Menge hier angekommen. Hinaus: das IST die Aussage des Knotens –
+            # «ins Ziel geschafft und freigegeben» (#658), «verschrottet», «verkauft». Mit
+            # dem Quell-Topf stand am Ziel «Im Prozess», obwohl die Freigabe genau der
+            # Vorgang ist, den dieser Knoten meldet.
+            q, d = move.dst_quality, move.dst_disposition
             row.lots.append(FlowLot(
                 quantity=float(qty), quality=q, disposition=d, at=move.at,
                 units=(U.rows_for(inst, unit_idx, limit=UNIT_PREVIEW)
@@ -1577,10 +1583,15 @@ def _fill_flow_view(db: Session, order: Order, resp: OrderResponse,
 
     # **Der Stichtag gilt für das, was OBERHALB des Prozess-Punktes liegt** (#488): dort ist
     # der Zustand eingefroren. Am Prozess-Punkt und darunter gilt der aktuelle – nach ihm ist
-    # ja noch nichts passiert. Bei einem nicht mehr laufenden Auftrag ist nur das ENDE
-    # aktuell: seine letzte Kante zeigt das Ergebnis, nicht den Stand vor der
-    # Abschluss-Freigabe.
-    current_from = here[0] if here is not None else len(nodes)
+    # ja noch nichts passiert.
+    #
+    # **Die Freigabe geschieht an der ZIELFLAGGE, nicht am letzten Modul** (Testnotiz #658):
+    # bei einem nicht mehr laufenden Auftrag zeigte die letzte Kante das Ergebnis – also den
+    # Stand NACH dem Abschluss. Damit wurde das Material schon zwischen letztem Modul und
+    # Zielflagge grün, obwohl der Schritt daran nichts geändert hat. Jetzt ist auch sie
+    # eingefroren (Stand des letzten erledigten Schritts: «Im Prozess»); dass die Stücke ihr
+    # Ziel erreicht haben und freigegeben sind, sagt die Materialkette **unter** der Flagge.
+    current_from = here[0] if here is not None else len(nodes) + 1
 
     def axis_lots(i: int, current: bool) -> list[FlowLot]:
         # **Was hier noch auf der Achse liegt, liegt hier NOCH** (Testnotiz #537). Eine

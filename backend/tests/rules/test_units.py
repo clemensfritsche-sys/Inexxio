@@ -1074,3 +1074,51 @@ def test_a_blocked_piece_comes_back_through_an_order(db, world):
     # Entnehmbar ist das nachgearbeitete Stück; das andere hält der Teil-Auftrag noch.
     assert inventory.ready_qty(inst) == Decimal(1), inventory.ready_qty(inst)
     assert ledger.verify_instance(db, inst) == [] and units.verify(inst) == []
+
+
+def test_two_instances_of_one_order_end_in_the_same_state(db, kinds, world):
+    """**Gleicher Prozess ⇒ gleicher Zustand** (Testnotiz #658).
+
+    Ein Erzeugungsauftrag über drei Einzelteile, eines geht per Abweichung weg und wird
+    verschrottet – die beiden anderen laufen den **identischen** Weg zu Ende. Danach stand
+    das eine auf «Freigegeben» und das andere auf «Im Prozess»: zwei Antworten auf dieselbe
+    Frage, entschieden allein von der Reihenfolge der Schleife.
+
+    Die Ursache war eine Abfrage über sich selbst: ``recompute_completion`` setzt den Status
+    **vor** der Freigabe, ``rest_owner`` fragt die Datenbank «läuft mein Erzeuger noch?», und
+    die erste Buchung flusht den neuen Status – ab dem zweiten Stück lautete die Antwort
+    «nein». Die Freigabe **sagt** ihre Zugehörigkeit jetzt (``inherits_rest``), statt sie zu
+    erfragen: wer erzeugt hat, hält den unbeanspruchten Rest, und er ist gerade hier.
+
+    Gegenprobe zur Bug-Form: ohne ``inherits_rest`` bleibt das zweite Stück «Im Prozess»."""
+    from app.models import ArticleProcessStep, Instance
+    from app.services import scrap as scrap_svc
+
+    user, _ = world
+    art = kinds["unit"]
+    # Der Artikel-Prozess besteht aus der Datenerfassung (Fixture) – das genügt.
+    order, _ = _make_order(db, art, user, 3)
+    insts = (db.query(Instance).filter(Instance.order_id == order.id)
+             .order_by(Instance.id).all())
+    assert len(insts) == 3
+
+    dev = _make_deviation(db, order, insts[0], user, 1, steps=("scrap",))
+    _scrap(db, dev, insts[0], user, 1)
+
+    # Datenerfassung über die beiden verbliebenen Stücke – je eine Probe.
+    from app.schemas.inspection import InspectionSample, InspectionUpdate
+    from app.services import inspection as insp_svc, process
+    step = process.order_step_defs(db, order)[0]
+    insp_svc.record_inspection(db, order, InspectionUpdate(
+        samples=[InspectionSample(instance_id=i.object_id, slot=1, values={"_ok": True})
+                 for i in insts[1:]], step_id=step.id), user)
+    db.commit()
+    for i in insts:
+        db.refresh(i)
+    db.refresh(order)
+
+    assert order.status == "completed", order.status
+    got = [(i.object_id, i.quality, i.disposition) for i in insts[1:]]
+    assert all(q == "passed" and d == "in_stock" for _, q, d in got), got
+    assert insts[0].disposition == "scrapped"
+    assert ArticleProcessStep  # noqa: B015 – Import hält die Abhängigkeit sichtbar
