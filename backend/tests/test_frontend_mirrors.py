@@ -485,3 +485,21 @@ def test_the_release_conditions_live_at_exactly_one_place():
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
     assert "validateOrder" in detail, "Die Oberfläche fragt die Regel nicht ab."
     assert "Es fehlt:" in detail, "Der Knopf sagt nicht, was fehlt."
+
+
+def test_an_instance_can_be_created_in_the_browser():
+    """Ohne Instanz gibt es keine Einzelinstanz – und ohne die keinen Prozess.
+
+    ``api.createInstance`` existierte, wurde aber von **keiner** Stelle aufgerufen: der
+    «+»-Knopf im Feed kennt nur Artikel und Auftrag, und der Bestand-Reiter zeigte nur
+    an. Damit war der Ablauf im Browser nicht startbar, obwohl jeder Endpunkt dafür da
+    war – eine Lücke, die kein Backend-Test sehen kann.
+    """
+    detail = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
+    assert "createInstance" in detail, (
+        "Der Bestand-Reiter kann keine Instanz anlegen – dann lässt sich der Prozess "
+        "im Browser gar nicht erst beginnen."
+    )
+    # Typ und Anzahl werden ausdrücklich verlangt, nichts aus dem Artikel erraten –
+    # dieselbe Regel wie in ``schemas/instance.InstanceCreate``.
+    assert "KIND_LABEL" in detail, "Der Typ wird nicht gewählt, sondern geraten."
