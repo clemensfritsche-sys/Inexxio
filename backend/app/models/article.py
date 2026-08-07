@@ -13,8 +13,7 @@ class Article(Base, TimestampMixin):
     """Stammdaten-Datensatz für einen Artikel (Phase 2 – Produktion).
 
     Statuswerte (`status`):
-        draft     → Entwurf (neu angelegt, noch nicht freigegeben)
-        released  → Freigegeben (für Prozesse/Bestellungen nutzbar)
+        released  → Freigegeben (angelegt heisst freigegeben – siehe unten)
         inactive  → inaktiv (auslaufend/gesperrt)
 
     `is_active` bleibt der Soft-Delete-Flag (Datensatz ausgeblendet),
@@ -28,7 +27,10 @@ class Article(Base, TimestampMixin):
         BigInteger, unique=True, nullable=True, index=True
     )
 
-    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    # ``released`` | ``inactive``. **``draft`` kommt nicht mehr vor**: ein Artikel
+    # entsteht erst mit seiner Freigabe (services/articles.py), und bis dahin gibt es
+    # keine Zeile. Der Wert bleibt als Spalte, weil «inaktiv» ein Zustand ist.
+    status: Mapped[str] = mapped_column(String(20), default="released", nullable=False)
 
     # Versionsstempel des **Erzeugungsprozesses** (``article_process_steps``). Er zählt
     # bei jeder Änderung der Vorlage hoch und wird auf die Kopie im Auftrag geschrieben.
@@ -59,10 +61,10 @@ class Article(Base, TimestampMixin):
     # – ein Paket mit Gefahrgut braucht Spezialbehandlung beim Carrier.
     is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
-    # Erfassungsmaske der Datenerfassung: welche Werte an einer **Einzelinstanz** dieses
-    # Artikels erfasst werden (services/capture.py). Dieselbe Feldform wie zuvor am
-    # Prozessschritt – nur hängt sie jetzt am Artikel, weil es keine Schritte mehr gibt.
-    capture_fields: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    # Die frühere Erfassungsmaske am Artikel (``capture_fields``) ist entfallen: was
+    # erfasst wird, sagt das **Modul** im Prozess (``process_steps.config``). Am Artikel
+    # war sie eine zweite Stelle für dieselbe Frage – und sie hing an keinem Prozess, man
+    # konnte also an einem Stück erfassen, ohne dass es irgendwo davorstand.
 
     # ── Sicherheitsbestand / Auto-Nachbestellung (E) ───────────────────────────────
     # «Nicht die Zeit soll bestellen, sondern der Bestand»: fällt der freie Bestand unter

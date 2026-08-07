@@ -26,8 +26,14 @@
 > Grund. Die Module dieser Bereiche liegen weiterhin im Repo, sind aber **nicht
 > importierbar** (Liste in `tests/test_no_undefined_names.DISABLED_PREFIXES`).
 >
-> **Nächster Schritt:** neue Prozesslogik. Sie wird neu entworfen, nicht aus der Historie
-> rekonstruiert. Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
+> **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
+> Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,
+> jeder Statuswechsel schreibt einen Eintrag im append-only Ereignis-Log; Exklusivität als
+> partieller Unique-Index. **Artikel und Auftrag entstehen erst mit ihrer Freigabe** – bis
+> dahin lebt der Entwurf im Browser, ohne Zeile und ohne Objektnummer. Das erste echte
+> Prozessschrittmodul ist die **Datenerfassung** (Erfassungspunkte: Text · Ja/Nein · Bild ·
+> Signatur · Soll-Ist-Vergleich, je Typ eine Datei in `domain/capture_types/`).
+> Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
 > Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.

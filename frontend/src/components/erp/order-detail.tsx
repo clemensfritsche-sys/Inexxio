@@ -1,31 +1,27 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, History, Plus } from 'lucide-react';
+import { ClipboardList, History } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleOption, ArticleProcess, Order } from '@/types';
+import type { ArticleOption, ArticleProcess, CapturePoint, Order } from '@/types';
 import { TYPE_META } from '@/lib/erp-record';
 import { orderName } from '@/lib/record-name';
 import { orderStatus } from '@/lib/record-status';
 import { localDateTime } from '@/lib/utils';
-import { DetailHeader, HeaderAction, Card, inputCls } from '@/components/erp/fields';
+import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { ProcessDiagram, type DiagramStep } from '@/components/erp/process-diagram';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
-import {
-  END_BEFORE, START_AFTER, STATUS_VALUES, statusCfg, statusLabel,
-} from '@/lib/process-status';
+import { END_BEFORE, statusCfg, statusLabel } from '@/lib/process-status';
+import { AddModule } from '@/components/erp/module-editor';
+import { CaptureForm } from '@/components/erp/capture-form';
+import { toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
 // keine weiteren – auch keine leeren oder deaktivierten.
 const TABS = [{ key: 'auftrag' as const, label: 'Auftrag', icon: ClipboardList }];
-
-const TESTMODUL = 'testmodul';
-
-/** Ein Modul im Entwurf. Die `id` ist eine lokale Nummer – der Auftrag existiert ja noch nicht. */
-interface DraftStep extends DiagramStep {}
 
 /**
  * Auftrag – Detailfenster.
@@ -53,7 +49,7 @@ export function OrderDetail({ record, onSaved, onBack }: {
   const meta = TYPE_META.order;
 
   const [lines, setLines] = useState<DefinitionLine[]>([emptyLine(1)]);
-  const [steps, setSteps] = useState<DraftStep[]>([]);
+  const [steps, setSteps] = useState<ModuleDraft[]>([]);
   const [missing, setMissing] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,10 +59,7 @@ export function OrderDetail({ record, onSaved, onBack }: {
 
   const draft = useMemo(() => ({
     lines: toPayload(lines),
-    steps: steps.map((s) => ({
-      module_type: s.moduleType, name: s.name,
-      status_before: s.statusBefore, status_after: s.statusAfter,
-    })),
+    steps: steps.map(toModulePayload),
   }), [lines, steps]);
 
   // Freigebbarkeit beim Server erfragen, nicht selbst behaupten.
@@ -90,11 +83,11 @@ export function OrderDetail({ record, onSaved, onBack }: {
     }
   }
 
-  const confirmStep = useCallback(async (stepId: number) => {
+  const confirmStep = useCallback(async (stepId: number, values: Record<string, unknown>) => {
     if (!live) return;
     setBusy(true); setError(null);
     try {
-      setLive(await api.confirmStep(live.object_id, stepId));
+      setLive(await api.confirmStep(live.object_id, stepId, values));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -171,7 +164,7 @@ export function OrderDetail({ record, onSaved, onBack }: {
  */
 function DraftView({ lines, setLines, steps, setSteps }: {
   lines: DefinitionLine[]; setLines: (l: DefinitionLine[]) => void;
-  steps: DraftStep[]; setSteps: (s: DraftStep[]) => void;
+  steps: ModuleDraft[]; setSteps: (s: ModuleDraft[]) => void;
 }) {
   const [articles, setArticles] = useState<ArticleOption[]>([]);
   const [template, setTemplate] = useState<ArticleProcess | null>(null);
@@ -191,16 +184,16 @@ function DraftView({ lines, setLines, steps, setSteps }: {
     return () => { dead = true; };
   }, [sourceArticle]);
 
-  const mirrored: DraftStep[] | null = useMemo(() => {
+  const mirrored: DiagramStep[] | null = useMemo(() => {
     if (!template) return null;
     return (template.steps ?? []).map((s) => ({
       id: s.id, name: s.name, moduleType: s.module_type,
-      statusBefore: s.status_before, statusAfter: s.status_after,
     }));
   }, [template]);
 
   const isMake = sourceArticle !== null;
-  const shownSteps = mirrored ?? steps;
+  const own: DiagramStep[] = steps.map((m) => ({ id: m.id, name: m.name, moduleType: m.moduleType }));
+  const shownSteps = mirrored ?? own;
   const articleName = articles.find((a) => a.object_id === sourceArticle)?.name;
 
   return (
@@ -224,80 +217,12 @@ function DraftView({ lines, setLines, steps, setSteps }: {
         </p>
       ) : (
         <div className="mt-3">
-          <AddStep
-            onAdd={(name, before, after) =>
-              setSteps([...steps, {
-                id: (steps[steps.length - 1]?.id ?? 0) + 1,
-                name, moduleType: TESTMODUL, statusBefore: before, statusAfter: after,
-              }])}
-            suggestedBefore={steps.length ? steps[steps.length - 1].statusAfter : START_AFTER}
+          <AddModule
+            onAdd={(m) => setSteps([...steps, { ...m, id: (steps[steps.length - 1]?.id ?? 0) + 1 }])}
           />
         </div>
       )}
     </>
-  );
-}
-
-/**
- * Ein Modul anlegen. Vorher- und Nachher-Status sind **Pflicht** – ohne sie ist das Modul
- * nicht anlegbar (§4). Die Werte kommen aus der geschlossenen Liste; erfinden geht nicht.
- *
- * Bewusst ein «Hinzufügen»-Knopf statt Auto-Save: ein halb konfiguriertes Modul wäre
- * genau das, was die Pflichtangabe verhindern soll.
- */
-export function AddStep({ onAdd, suggestedBefore, title = 'Testmodul hinzufügen' }: {
-  onAdd: (name: string, before: string, after: string) => void;
-  suggestedBefore: string;
-  title?: string;
-}) {
-  const [name, setName] = useState('');
-  const [before, setBefore] = useState(suggestedBefore);
-  const [after, setAfter] = useState(END_BEFORE);
-  useEffect(() => { setBefore(suggestedBefore); }, [suggestedBefore]);
-
-  const ready = name.trim().length > 0;
-  return (
-    <Card icon={Plus} title={title}>
-      <p className="text-xs mb-2.5" style={{ color: 'var(--fg-3)' }}>
-        Platzhalter-Modul: es prüft den Vorher-Status, setzt den Nachher-Status und rückt
-        die Stücke vor. Keine Felder, keine Fachlogik.
-      </p>
-      <div className="flex flex-wrap gap-2 items-end">
-        <label className="flex-1 min-w-[160px]">
-          <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Name</span>
-          <input className={inputCls} value={name} maxLength={120}
-            onChange={(e) => setName(e.target.value)} placeholder="z. B. Zuschnitt" />
-        </label>
-        <StatusPick label="Vorher" value={before} onChange={setBefore} />
-        <StatusPick label="Nachher" value={after} onChange={setAfter} />
-        <button
-          type="button"
-          className="erp-actbtn erp-actbtn-primary"
-          style={{ height: 32, padding: '0 14px' }}
-          disabled={!ready}
-          data-tip={ready ? undefined : 'Ein Modul braucht einen Namen.'}
-          onClick={() => { onAdd(name.trim(), before, after); setName(''); }}
-        >
-          Hinzufügen
-        </button>
-      </div>
-    </Card>
-  );
-}
-
-function StatusPick({ label, value, onChange }: {
-  label: string; value: string; onChange: (v: string) => void;
-}) {
-  return (
-    <label>
-      <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>{label}</span>
-      <select className={inputCls} style={{ width: 150 }} value={value}
-        onChange={(e) => onChange(e.target.value)}>
-        {STATUS_VALUES.map((s) => (
-          <option key={s} value={s}>{statusLabel(s)}</option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -306,11 +231,11 @@ function StatusPick({ label, value, onChange }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function RunView({ order, busy, onConfirm }: {
-  order: Order; busy: boolean; onConfirm: (stepId: number) => void;
+  order: Order; busy: boolean;
+  onConfirm: (stepId: number, values: Record<string, unknown>) => void;
 }) {
   const steps: DiagramStep[] = (order.steps ?? []).map((s) => ({
     id: s.id, name: s.name, moduleType: s.module_type,
-    statusBefore: s.status_before, statusAfter: s.status_after,
   }));
   const groups = (order.unit_groups ?? []).map((g) => ({
     currentStepId: g.current_step_id ?? null, status: g.status,
@@ -335,19 +260,32 @@ function RunView({ order, busy, onConfirm }: {
         endStatus={order.end_status}
         onExpand={expand}
         renderStep={(step, isActive) => (isActive ? (
-          <button
-            type="button"
-            className="erp-actbtn erp-actbtn-primary w-full"
-            style={{ height: 38 }}
-            disabled={busy}
-            onClick={() => onConfirm(step.id)}
-          >
-            Schritt bestätigen
-          </button>
+          // Was das aktive Modul verlangt, steht in seiner Definition – die Karte des
+          // Schritts ist der Ort, an dem es ausgefüllt wird.
+          <CaptureForm
+            points={pointsOf(order, step.id)}
+            count={waitingAt(order, step.id)}
+            busy={busy}
+            onConfirm={(values) => onConfirm(step.id, values)}
+          />
         ) : null)}
       />
     </>
   );
+}
+
+/** Die Erfassungspunkte eines Moduls – aus seiner eingefrorenen Definition. */
+function pointsOf(order: Order, stepId: number): CapturePoint[] {
+  const step = (order.steps ?? []).find((s) => s.id === stepId);
+  const cfg = step?.config as { points?: CapturePoint[] } | null | undefined;
+  return cfg?.points ?? [];
+}
+
+/** Wie viele Stücke stehen gerade davor – die Erfassung gilt für sie alle. */
+function waitingAt(order: Order, stepId: number): number {
+  return (order.unit_groups ?? [])
+    .filter((g) => g.active && g.current_step_id === stepId)
+    .reduce((n, g) => n + g.count, 0);
 }
 
 /** Was dieser Auftrag bearbeitet – festgeschrieben bei der Freigabe. */

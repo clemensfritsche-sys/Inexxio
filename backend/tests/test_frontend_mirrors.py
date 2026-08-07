@@ -20,6 +20,19 @@ def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _body(source: str, name: str, *, kind: str = "def") -> str:
+    """Der Rumpf genau einer Funktion/Klasse – ohne die nächste mitzunehmen.
+
+    Ein blosses ``split`` läuft bis ans Dateiende und trifft dann Nachbarn, die gar nicht
+    gemeint waren; der Test schlüge aus einem Grund fehl, der nichts mit ihm zu tun hat.
+    """
+    head = f"{kind} {name}"
+    start = source.index(head)
+    rest = source[start + len(head):]
+    end = re.search(r"\n(?:def |class |@)", rest)
+    return rest[: end.start()] if end else rest
+
+
 # ---------------------------------------------------------------------------
 # Der zentrale Schalter
 # ---------------------------------------------------------------------------
@@ -277,14 +290,20 @@ def test_a_capture_without_something_judgeable_has_no_verdict():
     Aussage, die niemand getroffen hat."""
     import sys
     sys.path.insert(0, str(BACKEND))
-    from app.services import capture
+    from app.domain import capture_types as ct
 
-    assert capture.evaluate([{"key": "n", "type": "text"}], {"n": "x"}) is None
-    assert capture.evaluate([{"key": "l", "type": "measure"}], {"l": 5}) is None
-    assert capture.evaluate(
+    assert ct.verdict([{"key": "n", "type": "text"}], {"n": "x"}) is None
+    assert ct.verdict([{"key": "f", "type": "photo"}], {"f": "x"}) is None
+    assert ct.verdict([{"key": "l", "type": "measure"}], {"l": 5}) is None
+    assert ct.verdict(
         [{"key": "l", "type": "measure", "target": 10, "tolerance": 1}], {"l": 10.5}) == "passed"
-    assert capture.evaluate(
+    assert ct.verdict(
         [{"key": "l", "type": "measure", "target": 10, "tolerance": 1}], {"l": 12}) == "failed"
+    # Ja/Nein trägt ein Urteil, «nicht angetippt» ist aber kein «nein».
+    assert ct.verdict([{"key": "g", "type": "bool"}], {"g": True}) == "passed"
+    assert ct.verdict([{"key": "g", "type": "bool"}], {"g": False}) == "failed"
+    assert ct.get("bool").missing({"key": "g", "type": "bool"}, None) is True
+    assert ct.get("bool").missing({"key": "g", "type": "bool"}, False) is False
 
 
 # ---------------------------------------------------------------------------
@@ -675,3 +694,217 @@ def test_the_article_carries_a_template_tab_that_cannot_execute():
     assert "ProcessDiagram" in detail, "Der Reiter baut die Darstellung nach."
     assert "confirmStep" not in detail, "Der Artikel führt einen Schritt aus."
     assert "getArticleProcess" in detail
+
+
+# ---------------------------------------------------------------------------
+# Bug 1 – der Artikel entsteht erst bei der Freigabe
+# ---------------------------------------------------------------------------
+
+def test_an_article_is_created_at_release_not_while_typing():
+    """**Vor der Freigabe existiert kein Datensatz und keine Objektnummer.**
+
+    Vorher speicherte das Formular per Autosave, sobald die Pflichtfelder der
+    Spezifikation standen – der Artikel bekam eine Nummer, konnte aber nichts erzeugen,
+    weil sein Prozess leer war. Der Wächter hält beide Hälften fest: die Oberfläche legt
+    nicht mehr im Vorbeitippen an, und der Server verlangt beides.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import articles as svc
+
+    detail = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
+    assert "useAutosave" not in detail, (
+        "Das Artikel-Formular speichert wieder automatisch – genau der behobene Fehler."
+    )
+    assert detail.count("api.createArticle") == 1 and "async function release()" in detail, (
+        "Der Artikel darf an GENAU EINER Stelle entstehen: in `release()`."
+    )
+    assert "api.validateArticle" in detail, (
+        "Die Oberfläche muss die Freigabebedingungen abfragen, statt sie nachzuformulieren."
+    )
+
+    # Beide Bedingungen, an EINER Stelle – und beide werden auch verlangt.
+    assert svc.missing_for_release({"name": "X", "size": "1x1", "weight_kg": 1, "steps": []}) == [
+        "mindestens ein Prozessschrittmodul"
+    ]
+    assert svc.missing_for_release({"steps": [{"module_type": "datenerfassung"}]}) == [
+        "Artikelname", "Abmessungen", "Gewicht"
+    ]
+    assert svc.missing_for_release(
+        {"name": "X", "size": "1x1", "weight_kg": 1,
+         "steps": [{"module_type": "datenerfassung"}]}) == []
+
+    # Und es gibt keinen Schreibpfad, der die Vorlage nachträglich ändert.
+    router = _read(BACKEND / "app" / "routers" / "articles.py")
+    assert "/process/steps" not in router, (
+        "Ein «Modul nachträglich hinzufügen» wäre eine Tür in einen eingefrorenen Artikel."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bug 2 – eine Tabelle mit fremder Form wird neu aufgebaut, nicht geflickt
+# ---------------------------------------------------------------------------
+
+def test_a_stale_table_is_rebuilt_not_patched():
+    """``create_all()`` fasst eine vorhandene Tabelle nicht an – genau daran starb der
+    Reiter «Erzeugungsprozess» (``column article_process_steps.module_type does not
+    exist``). Der Wächter prüft, dass das Netz die **Form** vergleicht und alle
+    neu aufgebauten Tabellen abdeckt."""
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.main import _shape_problem
+
+    main = _read(BACKEND / "app" / "main.py")
+    guard = _body(main, "_ensure_rebuilt_tables_shape")
+    for table in ("ArticleProcessStep", "OrderLine", "ProcessStep", "OrderUnit",
+                  "ProcessEvent", "Instance", "InstanceUnit", "Capture", "Order"):
+        assert table in guard, (
+            f"{table} fehlt im Form-Netz – eine veraltete Tabelle bliebe unentdeckt."
+        )
+    assert "_ensure_rebuilt_tables_shape()" in _body(main, "_run_startup_fixups_once"), (
+        "Das Form-Netz muss im Startup laufen, sonst repariert es nie etwas."
+    )
+
+    class _Col:
+        pass
+
+    class _FakeInsp:
+        def __init__(self, cols):
+            self._cols = cols
+
+        def get_columns(self, _table):
+            return self._cols
+
+    class _FakeModel:
+        class __table__:  # noqa: N801
+            columns = {"id": None, "name": None}
+
+    ok = [{"name": "id", "nullable": False, "default": "nextval()"},
+          {"name": "name", "nullable": False, "default": None}]
+    assert _shape_problem(_FakeInsp(ok), "t", _FakeModel) is None
+
+    # Fehlende erwartete Spalte → der gemeldete Fehler.
+    lacking = [{"name": "id", "nullable": False, "default": "nextval()"}]
+    assert "es fehlen name" in _shape_problem(_FakeInsp(lacking), "t", _FakeModel)
+
+    # Fremde Pflichtspalte → jedes INSERT wäre tot, auch wenn nichts fehlt.
+    blocking = ok + [{"name": "order_id", "nullable": False, "default": None}]
+    assert "order_id" in _shape_problem(_FakeInsp(blocking), "t", _FakeModel)
+
+    # Fremde NULLABLE Spalte ist harmlos – reparieren, was nicht kaputt ist, kostet Daten.
+    harmless = ok + [{"name": "notiz", "nullable": True, "default": None}]
+    assert _shape_problem(_FakeInsp(harmless), "t", _FakeModel) is None
+
+
+# ---------------------------------------------------------------------------
+# Das Modul «Datenerfassung»
+# ---------------------------------------------------------------------------
+
+def test_a_sixth_capture_type_is_one_new_file():
+    """Die Typen sind **austauschbare Bausteine**, keine ``if/else``-Kette.
+
+    Der Test hält die Vorgabe wörtlich fest: die Registry findet die Typen selbst, und
+    keine der drei Fragen (Definition prüfen · fehlt der Wert · bewerten) wird irgendwo
+    per Typ-Vergleich beantwortet.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import capture_types as ct
+
+    pkg = BACKEND / "app" / "domain" / "capture_types"
+    files = {p.stem for p in pkg.glob("*.py")} - {"__init__", "base"}
+    assert {t.key for t in ct.ALL} == {"text", "bool", "photo", "signature", "measure"}
+    assert len(files) == len(ct.ALL), (
+        "Jede Datei im Paket ist genau ein Typ – sonst wird die Registry zur Aufzählung."
+    )
+
+    registry = _read(pkg / "__init__.py")
+    assert "iter_modules" in registry, "Ohne Auto-Erkennung gäbe es eine Liste zum Vergessen."
+    for hay in (registry, _read(pkg / "base.py")):
+        assert 'type == "' not in hay and "type == '" not in hay, (
+            "Ein Typ-Vergleich ist der Anfang der Kette, die es nicht geben soll."
+        )
+
+
+def test_the_module_dictates_its_transition():
+    """«Fest verdrahtet, nicht einstellbar»: der Übergang gehört zum Modultyp.
+
+    Damit gibt es beim Anlegen keine Status-Auswahl mehr – die einzige richtige Antwort
+    stand schon fest, und jede andere ergäbe einen Prozess, der nicht läuft.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules, statuses as st
+
+    m = modules.get(modules.DATENERFASSUNG)
+    assert (m.status_before, m.status_after) == (st.IM_PROZESS, st.IM_PROZESS), (
+        "Die Datenerfassung ist ein Durchläufer – sie misst, sie verändert nichts."
+    )
+    schema = _read(BACKEND / "app" / "schemas" / "process.py")
+    assert "status_before" not in _body(schema, "ModuleInput", kind="class"), (
+        "Der Übergang darf nicht mehr eingegeben werden."
+    )
+    editor = _read(FRONTEND / "components" / "erp" / "module-editor.tsx")
+    assert "STATUS_VALUES" not in editor and "statusLabel" not in editor, (
+        "Der Editor bietet wieder eine Status-Auswahl an."
+    )
+    # Das Testmodul ist ersatzlos weg – es war ein Testvehikel, kein Modul.
+    assert "testmodul" not in _read(BACKEND / "app" / "models" / "process_step.py")
+    assert "testmodul" not in _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+
+
+def test_capture_is_written_only_in_the_process():
+    """Eine Erfassung entsteht, wenn ein Stück vor einem Modul steht – sonst nie.
+
+    Der frühere Weg (Formular am Instanz-Detail) legte Werte ohne Anlass an und war eine
+    zweite Tür zu derselben Sache.
+    """
+    router = _read(BACKEND / "app" / "routers" / "captures.py")
+    assert "@router.post" not in router, (
+        "Es gibt wieder einen Schreib-Endpunkt für Erfassungen ausserhalb des Prozesses."
+    )
+    panel = _read(FRONTEND / "components" / "erp" / "capture-panel.tsx")
+    assert "recordCapture" not in panel, "Das Instanz-Detail erfasst wieder selbst."
+
+    model = _read(BACKEND / "app" / "models" / "capture.py")
+    for column in ("order_id", "step_id"):
+        assert f"{column}: Mapped[int]" in model, (
+            f"``captures.{column}`` fehlt – eine Erfassung ohne Anlass wäre wieder möglich."
+        )
+
+
+def test_the_article_process_tab_is_the_order_component():
+    """Der Reiter «Erzeugungsprozess» ist eine **Übernahme**, kein Nachbau.
+
+    Gleiche Darstellung, gleiche Prozesslinien, gleicher Modul-Editor. Der einzige
+    Unterschied ist der fehlende Definitionsbereich darüber – ein Artikel hat keine
+    Einzelinstanzen.
+    """
+    tab = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
+    order = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    for shared in ("ProcessDiagram", "AddModule"):
+        assert shared in tab and shared in order, (
+            f"{shared} wird nicht an beiden Definitionsorten benutzt – zwei Stände driften."
+        )
+    assert "DefinitionLines" not in tab, (
+        "Der Artikel hat keine Einzelinstanzen – ein Definitionsbereich gehört nicht hierhin."
+    )
+    assert 'mode="definition"' in tab
+
+
+def test_module_and_capture_icons_cover_exactly_the_backend_keys():
+    """Symbole sind das Einzige, was die Oberfläche selbst hält – und sie müssen die
+    Backend-Listen **genau** abdecken: ein Typ ohne Symbol wäre eine leere Fläche, ein
+    Symbol ohne Typ eine tote Zeile."""
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import capture_types as ct, modules
+
+    ts = _read(FRONTEND / "lib" / "modules.ts")
+
+    def keys(const: str) -> set[str]:
+        body = ts.split(f"export const {const}")[1].split("};")[0]
+        return set(re.findall(r"^\s{2}(\w+):", body, re.M))
+
+    assert keys("CAPTURE_ICON") == set(ct.KEYS)
+    assert keys("MODULE_ICON") == set(modules.KEYS)

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { Blocks, ChevronDown, ChevronUp, Flag, Play, Trash2 } from 'lucide-react';
+import { MODULE_ICON } from '@/lib/modules';
 import { FlowFrame, FlowNode, polyPath, type FlowAnchor } from './process-flow';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
 
@@ -31,8 +32,6 @@ export interface DiagramStep {
   id: number;
   name: string;
   moduleType: string;
-  statusBefore: string;
-  statusAfter: string;
 }
 
 export type DiagramMode = 'definition' | 'ausfuehrung';
@@ -302,6 +301,11 @@ function StepCard({ step, active, dimmed, onDelete, children }: {
   step: DiagramStep; active: boolean; dimmed: boolean;
   onDelete?: () => void; children?: ReactNode;
 }) {
+  // **Der Übergang steht nicht mehr auf der Karte.** Er gehört zum Modultyp und ist für
+  // jedes Modul derselbe (Durchläufer) – ihn hinzuschreiben wäre eine Zeile, die bei
+  // jeder Karte dasselbe sagt. Was die Karten unterscheidet, ist ihre **Art**, und die
+  // trägt das Symbol.
+  const Icon = MODULE_ICON[step.moduleType] ?? Blocks;
   return (
     <div
       className="rounded-ds-lg"
@@ -317,13 +321,10 @@ function StepCard({ step, active, dimmed, onDelete, children }: {
           className="flex items-center justify-center rounded-md flex-none"
           style={{ width: 32, height: 32, background: 'var(--bg-1)', color: MODULE_TONE.fg }}
         >
-          <Blocks size={17} />
+          <Icon size={17} />
         </span>
         <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: MODULE_TONE.fg }}>
           {step.name}
-        </span>
-        <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--fg-3)' }}>
-          {statusLabel(step.statusBefore)} → {statusLabel(step.statusAfter)}
         </span>
         {onDelete && (
           <button

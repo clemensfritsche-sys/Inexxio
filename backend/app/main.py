@@ -1,5 +1,6 @@
 import re
 import traceback
+from typing import Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -81,10 +82,6 @@ _COLUMN_SAFETY_NET = (
     ("articles", "safety_stock", "NUMERIC(12,3)"),
     ("articles", "replaced_by_id", "BIGINT"),
     ("articles", "is_hazmat", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    # Die Erfassungsmaske der Datenerfassung (Migration 102) – eine NEUE Spalte auf einer
-    # BESTEHENDEN Tabelle, also gehört sie ins Netz. Das ist die Lehre aus 090: die
-    # Migration ist die Wahrheit, das Netz der zweite Weg, und beim Ausfall zählt nur der.
-    ("articles", "capture_fields", "JSONB"),
     # Prozesslogik (Migration 104) – NEUE Spalten auf der BESTEHENDEN Tabelle ``orders``.
     # ``end_status`` ist der eine Ort des Endzustands (PROCESS_CORE.md §4.2); fehlt er,
     # scheitert jede Auftrags-Abfrage, weil das Modell ihn kennt.
@@ -127,6 +124,10 @@ _DROP_COLUMN_SAFETY_NET = (
     ("articles", "max_load_kg"),
     # Dokument-Redesign: das Dokument wurde im Auftrag verfasst (Nummer = Instanz).
     ("articles", "physical"),
+    # Die Erfassungsmaske am Artikel (Migration 106): was erfasst wird, sagt das **Modul**.
+    # Am Artikel war es eine zweite Stelle für dieselbe Frage – und sie hing an keinem
+    # Prozess. Auch im Netz gedroppt, falls Alembic 106 nicht durchlief.
+    ("articles", "capture_fields"),
 )
 # Die Einträge für orders / order_lines / purchase_orders / sales / shipments / documents /
 # inspections / article_process_steps sind mit ihren Tabellen entfallen (Migration 102).
@@ -143,6 +144,8 @@ _INDEX_SAFETY_NET = (
     ("ix_instances_article_id", "instances", "article_id"),
     ("ix_instance_units_instance_id", "instance_units", "instance_id"),
     ("ix_captures_instance_unit_id", "captures", "instance_unit_id"),
+    ("ix_captures_order_id", "captures", "order_id"),
+    ("ix_captures_step_id", "captures", "step_id"),
 )
 
 # Roh-Indizes mit speziellem Typ: GIN auf der Reservierungs-Map – die Hot-Path-Abfragen
@@ -365,29 +368,82 @@ def _ensure_company_object_id() -> None:
         db.close()
 
 
-def _ensure_attachments_shape() -> None:
-    """Die ``attachments``-Tabelle exakt ans Modell angleichen (analog documents). Eine früher
-    per ``create_all()`` – oder mit übersprungener Migration – angelegte Alt-Tabelle konnte ohne
-    ``token`` entstehen; jeder Bild-Upload (Verkauf/Datenerfassung) scheiterte dann mit
-    «column token does not exist». Fehlt eine erwartete Spalte, wird die Tabelle idempotent neu
-    aufgebaut (Inhalt = verworfene Bild-Uploads, keine Rückwärtskompatibilität nötig)."""
+def _shape_problem(insp, table: str, model) -> Optional[str]:
+    """Kann diese Tabelle das Modell bedienen? Nennt den **Grund**, wenn nicht.
+
+    Zwei Befunde, und beide sind fatal – der zweite ist der, den man vergisst:
+
+    * eine **erwartete Spalte fehlt** → jede Abfrage endet in «column … does not exist»;
+    * eine **fremde Pflichtspalte** (NOT NULL ohne Vorgabe) steht da → jedes ``INSERT``
+      scheitert, obwohl alle erwarteten Spalten vorhanden sind.
+
+    Eine fremde *nullable* Spalte bleibt unangetastet: sie stört nichts, und Reparieren,
+    was nicht kaputt ist, wäre hier besonders teuer (der Fix ist ein ``DROP TABLE``).
+    """
+    cols = {c["name"]: c for c in insp.get_columns(table)}
+    expected = set(model.__table__.columns.keys())
+    missing = sorted(expected - set(cols))
+    if missing:
+        return f"es fehlen {', '.join(missing)}"
+    blocking = sorted(
+        name for name, c in cols.items()
+        if name not in expected and not c["nullable"] and c.get("default") is None
+    )
+    if blocking:
+        return f"fremde Pflichtspalten: {', '.join(blocking)}"
+    return None
+
+
+def _ensure_rebuilt_tables_shape() -> None:
+    """Tabellen, die **neu aufgebaut** statt migriert wurden, ans Modell angleichen.
+
+    ``create_all()`` legt nur **fehlende** Tabellen an. Eine vorgefundene Tabelle mit
+    fremder Form fasst es nicht an – und genau das ist der Ausfall, den man erst im
+    Betrieb sieht: nicht ein 500 beim Deploy, sondern ein 500 beim ersten Klick.
+
+    Für diese Tabellen ist eine fremde Form **keine Altdaten-Frage**: der Basis-Neuaufbau
+    (Migration 102 ff.) hat sie ausdrücklich verworfen und neu angelegt, ihr Inhalt aus
+    der Vorgängerwelt ist irrelevant. Was hier steht und nicht passt, ist darum kein
+    Bestand, den man retten müsste, sondern eine Tabelle, die nichts bedienen kann.
+
+    **Der Fall ist real:** in der Testumgebung stand noch das ``article_process_steps``
+    aus dem Vorgängersystem (``step_type``, ``order_id NOT NULL``, kein ``module_type``).
+    Migration 102 hätte sie gedroppt und 105 neu angelegt – lief Alembic aber nicht durch,
+    blieb die alte stehen, ``create_all`` übersprang sie, und **jeder** Aufruf des Reiters
+    «Erzeugungsprozess» endete in «column article_process_steps.module_type does not
+    exist». Ein Netz-Eintrag je fehlender Spalte hätte hier nicht gereicht: es fehlten
+    fünf, und ``order_id NOT NULL`` hätte danach jedes ``INSERT`` gekippt.
+    """
     from sqlalchemy import inspect
-    from .models import Attachment
+    from .models import (
+        ArticleProcessStep, Attachment, Capture, Instance, InstanceUnit, Order,
+        OrderLine, OrderUnit, ProcessEvent, ProcessStep,
+    )
+    models = (
+        # Der Prozess-Kern (PROCESS_CORE.md §11) – von 102/103/104/105 neu aufgebaut.
+        Instance, InstanceUnit, Capture,
+        Order, OrderLine, OrderUnit, ProcessStep, ArticleProcessStep, ProcessEvent,
+        # Bild-Uploads: derselbe Fall, nur älter (fehlendes ``token`` → jeder Upload 500).
+        Attachment,
+    )
     try:
         insp = inspect(engine)
-        if "attachments" not in insp.get_table_names():
-            Attachment.__table__.create(bind=engine, checkfirst=True)
-            return
-        have = {c["name"] for c in insp.get_columns("attachments")}
-        expected = set(Attachment.__table__.columns.keys())
-        if expected.issubset(have):
-            return  # Schema passt – nichts zu tun
-        with engine.begin() as conn:
-            conn.execute(text("DROP TABLE IF EXISTS attachments CASCADE"))
-        Attachment.__table__.create(bind=engine, checkfirst=True)
-        print("INFO: attachments-Tabelle neu aufgebaut (Schema an das Modell angeglichen).", flush=True)
+        present = set(insp.get_table_names())
+        for model in models:
+            table = model.__tablename__
+            if table not in present:
+                model.__table__.create(bind=engine, checkfirst=True)
+                continue
+            problem = _shape_problem(insp, table, model)
+            if problem is None:
+                continue
+            with engine.begin() as conn:
+                conn.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+            model.__table__.create(bind=engine, checkfirst=True)
+            # Laut, nicht still: eine stumme Reparatur sähe aus wie «war schon immer so».
+            print(f"INFO: Tabelle {table} neu aufgebaut – {problem}.", flush=True)
     except Exception as e:
-        print(f"WARNING: _ensure_attachments_shape() failed: {e}", flush=True)
+        print(f"WARNING: _ensure_rebuilt_tables_shape() failed: {e}", flush=True)
 
 
 
@@ -410,7 +466,9 @@ def _run_startup_fixups_once() -> None:
         if not acquired:
             print("INFO: Startup-Fixups laufen bereits (anderer Worker/Instanz) – übersprungen.", flush=True)
             return
-        _ensure_attachments_shape()   # attachments-Tabelle reparieren (fehlendes 'token' → Upload-Fehler)
+        # Zuerst die FORM der Tabellen, dann ihre Spalten: ein Netz-Eintrag auf einer
+        # Tabelle mit fremder Form repariert nichts, was danach benutzbar wäre.
+        _ensure_rebuilt_tables_shape()
         _ensure_columns()
         _ensure_object_id_sequence()
         _backfill_object_registry()

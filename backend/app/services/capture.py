@@ -1,120 +1,84 @@
-"""Datenerfassung – Werte an einer **Einzelinstanz**.
+"""Datenerfassung — die Werte, die ein Modul an Einzelinstanzen festhält.
 
-Was erfasst wird, sagt der Artikel (``articles.capture_fields``); erfasst wird immer am
-Stück. Die Bewertung ist eine Aussage über die Messung, nicht über den Prozess: sie hält
-fest, ob die bewertbaren Felder in Ordnung waren – sie sperrt nichts, stuft nichts hoch
-und löst nichts aus. Das war Prozesslogik und ist entfallen.
+**Erfasst wird immer am Stück.** Die Zeile hängt an der Einzelinstanz, nicht an der
+Instanz und nicht am Artikel; eine Auswertung «wie steht die Charge da?» ist eine
+Summierung darüber, keine eigene Zeile. Das ist die Einzelinstanz-Regel, hier als
+Fremdschlüssel.
 
-Die Feldform ist unverändert die bisherige (das Frontend-Vokabular bleibt gültig):
+**Was erfasst wird, sagt das Modul** (``process_steps.config``), nicht der Artikel. Die
+frühere Maske am Artikel (``articles.capture_fields``) ist entfallen: sie war eine
+zweite Stelle für dieselbe Frage, und sie hing an keinem Prozess – man konnte an einem
+Stück erfassen, ohne dass es irgendwo davorstand.
 
-    {"key": "laenge", "label": "Länge", "type": "measure", "target": 40, "tolerance": 0.5}
-    {"key": "grat",   "label": "Gratfrei", "type": "bool"}
-    {"key": "notiz",  "label": "Bemerkung", "type": "text"}
-    {"key": "foto",   "label": "Foto", "type": "photo"}      # informativ
-    {"key": "sig",    "label": "Unterschrift", "type": "signature"}
+**Erfassen ist ein Vorgang, kein Formular.** Es gibt darum keinen Endpunkt, der eine
+Erfassung ohne Modul schreibt: geschrieben wird ausschliesslich hier, im selben Zug wie
+der Statuswechsel (``process._pass``). Gelesen wird frei – die Historie einer
+Einzelinstanz ist genau das, was hier entstanden ist.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Article, Capture, InstanceUnit
+from ..domain import capture_types, modules
+from ..models import Capture, InstanceUnit, Order, ProcessStep
 
-# Feldtypen, die ein Urteil erzeugen können. Alles andere wird erfasst, aber nicht bewertet.
-EVALUABLE = ("measure", "bool")
-# Feldtypen, die eine Datei tragen – erfasst werden muss trotzdem (Präsenz), bewertet nicht.
+#: Erfassungspunkte, die eine **Datei** tragen. Sie werden wie jeder andere Wert erfasst;
+#: der Unterschied ist nur die Eingabe (Kamera/Zeichenfläche statt Tastatur).
 MEDIA = ("photo", "signature")
 
 
-def fields_of(article: Article) -> list[dict]:
-    """Die Erfassungsmaske des Artikels. Leer heisst: hier wird nichts erfasst."""
-    return list(article.capture_fields or [])
+def points_of(step: ProcessStep) -> list[dict[str, Any]]:
+    """Die Erfassungspunkte dieses Moduls. Leer heisst: hier wird nichts erfasst."""
+    return modules.points_of(step.config)
 
 
-def field_ok(field: dict, value) -> bool:
-    """Bewertet ein einzelnes Feld. Nicht bewertbare Typen sind immer in Ordnung."""
-    ftype = field.get("type")
-    if ftype == "measure":
-        if value is None or value == "":
-            return False
-        try:
-            v = float(value)
-        except (TypeError, ValueError):
-            return False
-        target = field.get("target")
-        if target is None:
-            return True  # nur erfasst, kein Soll → informativ
-        tol = field.get("tolerance") or 0
-        return abs(v - float(target)) <= float(tol)
-    if ftype == "bool":
-        return value is True or value == "true" or value == 1
-    return True  # text/photo/signature → informativ
+def record_for_step(
+    db: Session,
+    *,
+    order: Order,
+    step: ProcessStep,
+    units: list[InstanceUnit],
+    values: dict[str, Any],
+    actor_id: Optional[int],
+) -> dict[int, Capture]:
+    """Eine Erfassung für **alle** Stücke festhalten, die gerade vor dem Modul stehen.
 
+    Geprüft wird **vor** der ersten Zeile: fehlt ein Pflichtpunkt, entsteht gar nichts.
+    Eine halbe Erfassung wäre schlimmer als keine – sie sähe hinterher aus wie eine
+    vollständige.
 
-def evaluate(fields: list[dict], values: dict) -> Optional[str]:
-    """``"passed"`` | ``"failed"`` | ``None``.
-
-    ``None`` heisst «nichts Bewertbares dabei» – eine reine Text-/Foto-Erfassung hat kein
-    Urteil. Ein erfundenes «bestanden» wäre eine Aussage, die niemand getroffen hat.
-    Ein ``measure``-Feld **ohne Soll** ist ebenfalls kein Urteil, nur eine Ablesung.
+    **Ein Wertesatz, eine Zeile je Stück** (Annahme, siehe PROCESS_CORE §13): erfasst
+    wird gemeinsam, gespeichert wird je Einzelinstanz. Die Datenhaltung nimmt damit die
+    andere Variante (je Stück eigene Werte) bereits vorweg – sie wäre eine Änderung an
+    der Eingabe, nicht am Modell.
     """
-    judged = [f for f in (fields or [])
-              if f.get("type") in EVALUABLE
-              and not (f.get("type") == "measure" and f.get("target") is None)]
-    if not judged:
-        return None
-    return "passed" if all(field_ok(f, (values or {}).get(f.get("key"))) for f in judged) else "failed"
+    points = points_of(step)
+    capture_types.check_values(points, values)
+    result = capture_types.verdict(points, values)
 
-
-def record(db: Session, *, unit: InstanceUnit, article: Article, values: dict,
-           actor_id: int, note: Optional[str] = None) -> Capture:
-    """Eine Erfassung an genau einer Einzelinstanz festhalten.
-
-    Fehlt die Maske oder ein Pflichtwert, ist das ein Fehler mit Ursache – kein
-    Platzhalter, kein leerer Wert, keine Teilaufnahme.
-    """
-    fields = fields_of(article)
-    if not fields:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"Für den Artikel «{article.name}» ist keine Erfassungsmaske "
-                    f"hinterlegt. Ohne Felder gibt es nichts zu erfassen."),
+    out: dict[int, Capture] = {}
+    for unit in units:
+        entry = Capture(
+            instance_unit_id=unit.id,
+            order_id=order.id,
+            step_id=step.id,
+            values=dict(values or {}),
+            result=result,
+            captured_by=actor_id,
         )
-
-    values = values or {}
-    missing = [f.get("label") or f.get("key")
-               for f in fields
-               if f.get("type") in EVALUABLE + MEDIA
-               and values.get(f.get("key")) in (None, "")]
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Nicht erfasst: {', '.join(str(m) for m in missing)}.",
-        )
-
-    unknown = [k for k in values if k not in {f.get("key") for f in fields}]
-    if unknown:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"Unbekannte Erfassungsfelder: {', '.join(sorted(unknown))}. "
-                    f"Die Maske des Artikels kennt sie nicht."),
-        )
-
-    entry = Capture(
-        instance_unit_id=unit.id,
-        values=values,
-        result=evaluate(fields, values),
-        captured_by=actor_id,
-        note=note,
-    )
-    db.add(entry)
+        db.add(entry)
+        out[unit.id] = entry
     db.flush()
-    return entry
+    return out
 
 
 def history(db: Session, unit: InstanceUnit) -> list[Capture]:
-    """Alle Erfassungen dieser Einzelinstanz, neueste zuerst."""
+    """Alle Erfassungen dieser Einzelinstanz, neueste zuerst.
+
+    **Eingefroren**: es gibt keinen Änderungs- und keinen Löschpfad, weil es dafür keinen
+    Endpunkt gibt. Eine Korrektur wäre eine neue Erfassung.
+    """
     return (
         db.query(Capture)
         .filter(Capture.instance_unit_id == unit.id, Capture.is_active.is_(True))

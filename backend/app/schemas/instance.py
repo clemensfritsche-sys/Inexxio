@@ -11,6 +11,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..models.instance import KINDS
+from .process import CapturePoint
 
 
 class InstanceUnitResponse(BaseModel):
@@ -85,23 +86,25 @@ class InstanceSummary(BaseModel):
     is_active: bool
 
 
-class CaptureCreate(BaseModel):
-    """Datenerfassung an einer Einzelinstanz."""
-
-    values: dict
-    note: Optional[str] = None
-
-
 class CaptureResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    """Eine Erfassung an einer Einzelinstanz – **nur lesend**.
+
+    Es gibt kein ``CaptureCreate`` mehr: geschrieben wird ausschliesslich im Prozess,
+    wenn ein Stück vor einem Modul steht und jemand bestätigt.
+
+    ``points`` sind die Erfassungspunkte des Moduls, das erfasst hat – sie liegen bei,
+    weil ``values`` ohne sie nur Schlüssel und Rohwerte wären. Sie kommen aus dem Modul
+    und nicht aus einer Kopie an der Erfassung: der Punkt ist Definition, der Wert ist
+    Messung, und die Definition rastet ohnehin ein.
+    """
 
     id: int
-    instance_unit_id: int
     values: dict
     result: Optional[str]      # passed | failed | None (nichts Bewertbares)
-    captured_by: int
-    note: Optional[str]
+    note: Optional[str] = None
     created_at: datetime
+    step_name: Optional[str] = None
+    points: list[CapturePoint] = Field(default_factory=list)
 
 
 class ObjectReference(BaseModel):

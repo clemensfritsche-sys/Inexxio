@@ -7,13 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from ..core.database import Base
 from .base import TimestampMixin
 
-#: Die Modultypen. Heute genau einer: ein **Testmodul**, bewusst ohne Fachlogik – es
-#: prüft den Vorher-Status, setzt den Nachher-Status, loggt, und rückt das Stück vor.
-#: Das erste echte Modul wird die Datenerfassung sein.
-TESTMODUL = "testmodul"
-MODULE_TYPES = (TESTMODUL,)
-
-
 class ProcessStep(Base, TimestampMixin):
     """Ebene 1 – die **Prozessdefinition** (PROCESS_CORE.md §10.1).
 
@@ -27,9 +20,15 @@ class ProcessStep(Base, TimestampMixin):
     ist implizit, und ihre Übergänge gehören zum System (``domain/statuses``), nicht zur
     Modellierung.
 
-    ``status_before``/``status_after`` sind **Pflicht** – ein Modul ohne definierten
-    Übergang ist nicht anlegbar. Beide Werte stammen aus der geschlossenen Liste; der
-    Wächter sitzt in ``domain/statuses.assert_known``.
+    ``status_before``/``status_after`` sind **Pflicht**, werden aber nicht **gefragt**:
+    der Übergang gehört zum Modultyp und steht in ``domain/modules`` (die Datenerfassung
+    ist ein Durchläufer – sie misst, sie verändert den Zustand nicht). Zwei Auswahlen
+    beim Anlegen hätten dem Anwender eine Entscheidung angeboten, deren einzige richtige
+    Antwort schon feststand.
+
+    ``config`` trägt, was der Modultyp braucht – bei der Datenerfassung die
+    Erfassungspunkte. Geprüft wird sie beim Anlegen (``Module.clean_config``), nicht zur
+    Laufzeit: ein Modul, das erst beim Ausführen auffliegt, steht schon im Prozess.
 
     **Eingefroren nach der Freigabe.** Weil der Auftrag erst mit der Freigabe entsteht,
     entstehen auch diese Zeilen erst dort – und danach gibt es keinen Schreibpfad mehr
