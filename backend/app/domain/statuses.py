@@ -1,54 +1,93 @@
-"""**Die geschlossene Statusliste — die eine Stelle.**
+"""**Die geschlossene Statusliste — die eine Stelle, für alles.**
 
-Ein Status ist ein Zustand einer **Einzelinstanz**. Module wählen aus dieser Liste aus;
-sie erfinden nie eigene Werte. Ein Modul mit unbekanntem Status ist nicht anlegbar
-(``assert_known``) — der Fehler kommt beim Anlegen, nicht erst bei der Ausführung.
+Ein Status ist ein Zustand: einer **Einzelinstanz**, eines **Auftrags** oder eines
+**Artikels**. Die Werte stehen hier, einmal, mit Beschriftung und Ampelton — und die drei
+Achsen **teilen sie sich, wo sie dasselbe meinen**. Das ist der Grundsatz: so wenige
+Status wie möglich, so viele gemeinsame wie möglich.
+
+Konkret geteilt wird ``im_prozess``: ein Stück, das gerade durch einen Auftrag läuft, und
+ein Auftrag, der gerade läuft, sind dasselbe Wort, dieselbe Farbe, derselbe Eintrag.
+Vorher stand «Im Prozess» in drei Dateien mit drei Beschriftungen — und beim Auftrag
+sogar als «Freigegeben», was gar kein Zustand ist, sondern eine Aktion.
 
 **Warum geschlossen** (PROCESS_CORE.md §5.1): wäre der Wert Freitext, bedeutete
 «Status X» in zwei Aufträgen womöglich Verschiedenes, und weder Farbe noch Bestand
 liessen sich systemweit ableiten. Die Liste zu erweitern ist darum ein bewusster
-Eingriff an genau dieser Stelle — nicht etwas, das beim Anlegen eines Moduls nebenbei
-passiert.
+Eingriff an genau dieser Stelle.
 
-**Heute gibt es genau zwei Werte.** Alles Weitere wäre erfunden:
-
-- ``gebunden`` wäre der Reservierungsbegriff — Reservierung entfällt ersatzlos (§3).
-- ``gesperrt`` wäre ein Problemzustand — die Fehlerbehandlung im Modul ist nicht
-  entschieden (§11.5). **Der rote Ton hat darum heute keinen Wert**, und das ist
-  ehrlicher als ein erfundener.
-- ``verbraucht`` wäre ein zweiter Endzustand — heute gibt es genau einen (§4.2).
+**Nicht angelegt, weil erfunden:** ``gebunden`` (Reservierung entfällt ersatzlos) und
+``verbraucht`` (wäre ein zweiter Endzustand — heute gibt es genau einen, §4.2).
 """
 
 from fastapi import HTTPException
 
 # ---------------------------------------------------------------------------
-# Die Werte
+# Die Werte — fünf Wörter für drei Achsen
 # ---------------------------------------------------------------------------
 
+#: Einsatzbereit. An der **Einzelinstanz**: sie steckt in keinem Auftrag. Am **Artikel**:
+#: er ist freigegeben und auftragsfähig. Dasselbe Wort, weil es dasselbe meint.
 FREIGEGEBEN = "freigegeben"
+
+#: Läuft gerade. An der **Einzelinstanz** wie am **Auftrag** — der Auftrag ist im Prozess,
+#: solange seine Stücke es sind.
 IM_PROZESS = "im_prozess"
+
+#: Ziel erreicht (**Auftrag**).
+ABGESCHLOSSEN = "abgeschlossen"
+
+#: Das Ziel ist nicht mehr erreichbar (**Auftrag**). Der erste Wert mit dem **roten** Ton –
+#: bis hierher hatte er keinen, und ein erfundener wäre schlimmer gewesen als keiner.
+ABGEBROCHEN = "abgebrochen"
+
+#: Ausser Betrieb (**Artikel**). Endgültig – kein Reaktivieren.
+INAKTIV = "inaktiv"
 
 #: Wert → Beschriftung. Die Reihenfolge ist die Anzeige-Reihenfolge.
 STATUS_LABELS: dict[str, str] = {
     FREIGEGEBEN: "Freigegeben",
     IM_PROZESS: "Im Prozess",
+    ABGESCHLOSSEN: "Abgeschlossen",
+    ABGEBROCHEN: "Abgebrochen",
+    INAKTIV: "Inaktiv",
 }
 
 #: Wert → Ampelton. **Farbe hängt am Status, nie an der Position im Fluss** (§5.3).
 #: Die Töne sind die drei des Design-Systems; das Frontend spiegelt diese Zuordnung
 #: (``lib/process-status.ts``) und wird dagegen getestet.
 STATUS_TONES: dict[str, str] = {
-    FREIGEGEBEN: "done",     # grün — Anfang und Ende
-    IM_PROZESS: "pending",   # orange — unterwegs
+    FREIGEGEBEN: "done",         # grün — einsatzbereit
+    IM_PROZESS: "pending",       # orange — unterwegs
+    ABGESCHLOSSEN: "done",       # grün — angekommen
+    ABGEBROCHEN: "danger",       # rot — kommt nicht mehr an
+    INAKTIV: "danger",           # rot — nicht mehr verwendbar
 }
 
 STATUSES: tuple[str, ...] = tuple(STATUS_LABELS)
+
+# ---------------------------------------------------------------------------
+# Wer welche Werte tragen kann
+# ---------------------------------------------------------------------------
+#
+# Drei Teilmengen einer Liste — nicht drei Listen. Ein Wert, der in zwei Achsen
+# vorkommt, steht genau einmal da und hat überall dieselbe Farbe und dasselbe Wort.
+
+#: Einzelinstanz: einsatzbereit oder unterwegs. Mehr Zustände hat ein Stück heute nicht.
+UNIT_STATUSES: tuple[str, ...] = (FREIGEGEBEN, IM_PROZESS)
+
+#: Auftrag: **genau drei**, und alle drei sind **abgeleitet** (``process.order_status``).
+#: «Freigegeben» ist bewusst nicht dabei — Freigeben ist eine Aktion, kein Zustand.
+ORDER_STATUSES: tuple[str, ...] = (IM_PROZESS, ABGESCHLOSSEN, ABGEBROCHEN)
+
+#: Artikel: freigegeben (er entsteht erst damit) oder ausser Betrieb.
+ARTICLE_STATUSES: tuple[str, ...] = (FREIGEGEBEN, INAKTIV)
 
 # ---------------------------------------------------------------------------
 # Die festen Rand-Übergänge (§4.1)
 # ---------------------------------------------------------------------------
 
 #: Start: das Stück tritt in den Prozess ein. **Nicht je Auftrag einstellbar.**
+#: Dieser Übergang IST die Aktion «Auftrag freigeben».
 START_BEFORE = FREIGEGEBEN
 START_AFTER = IM_PROZESS
 

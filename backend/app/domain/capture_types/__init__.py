@@ -108,7 +108,6 @@ def clean_points(raw: Any) -> list[dict[str, Any]]:
             "key": _slug(label, taken),
             "label": label,
             "type": kind.key,
-            "required": bool(row.get("required")),
         }
         point.update(kind.clean({**row, "label": label}))
         out.append(point)
@@ -120,7 +119,7 @@ def clean_points(raw: Any) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 def check_values(points: list[dict[str, Any]], values: dict[str, Any]) -> None:
-    """Ist erfasst, was Pflicht war? Sonst ein Fehler, der die Punkte **benennt**.
+    """Ist **alles** erfasst? Sonst ein Fehler, der die offenen Punkte **benennt**.
 
     «Bestätigen nicht möglich» ohne zu sagen was fehlt, wäre eine Sackgasse mit
     Ausrufezeichen.
@@ -134,9 +133,12 @@ def check_values(points: list[dict[str, Any]], values: dict[str, Any]) -> None:
             detail=(f"Unbekannte Erfassungspunkte: {', '.join(unknown)}. "
                     f"Dieses Modul kennt sie nicht."),
         )
+    # **Alles, was angelegt ist, ist Pflicht.** Ein Schalter «Pflicht ja/nein» wäre die
+    # Frage, warum man einen Erfassungspunkt anlegt, den niemand ausfüllen muss – und
+    # jeder ausgeschaltete Punkt eine Lücke, die erst später auffällt.
     open_points = [
         p["label"] for p in points
-        if p.get("required") and get(p["type"]).missing(p, values.get(p["key"]))
+        if get(p["type"]).missing(p, values.get(p["key"]))
     ]
     if open_points:
         raise HTTPException(

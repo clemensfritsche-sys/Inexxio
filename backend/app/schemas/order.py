@@ -129,6 +129,10 @@ class OrderResponse(BaseModel):
 
     id: int
     object_id: int
+    #: «Auftrag <Objektnummer>», bei der Freigabe gesetzt.
+    name: str
+    #: **Abgeleitet** aus dem Zustand der Einzelinstanzen (``process.order_status``) –
+    #: es gibt keine Spalte dafür. Drei Werte: Im Prozess · Abgeschlossen · Abgebrochen.
     status: str
     end_status: str
     created_at: datetime
@@ -148,12 +152,18 @@ class OrderResponse(BaseModel):
 
 
 class OrderSummary(BaseModel):
-    """Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail."""
+    """Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail.
+
+    Genau deshalb lädt das Detailfenster seinen Auftrag **selbst** nach: was hier fehlt,
+    kann es nicht anzeigen, und eine Feed-Zeile als Detail zu rendern hiess, einen
+    laufenden Prozess als leer darzustellen.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     object_id: int
+    name: str
     status: str
     created_at: datetime
     updated_at: datetime

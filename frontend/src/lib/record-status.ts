@@ -1,7 +1,7 @@
-import { Ban, Briefcase, CheckCircle2, Clock, Repeat, Shield, Truck, UserCircle } from 'lucide-react';
+import { Briefcase, Shield, Truck, UserCircle } from 'lucide-react';
 import type { Article, CompanySettings, Instance, UserProfile } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
-import { statusConfig as articleStatusConfig } from '@/lib/article';
+import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
 
 /**
  * **Der Zustand eines ERP-Datensatzes – EINE Regel für alle Typen.**
@@ -10,27 +10,30 @@ import { statusConfig as articleStatusConfig } from '@/lib/article';
  * *Namen* gibt es diese eine Ableitung längst (`record-name.ts`, Notiz #177) – für den
  * *Zustand* gab es sie nicht: der Feed baute die Badge selbst in einer fünfarmigen
  * Fallunterscheidung, jedes Detailfenster noch einmal. Zwei Stellen für dieselbe Aussage,
- * und sie sind auseinandergelaufen (Testnotiz #379): der Feed zeigte an einem Unternehmen
- * hart verdrahtet «Unternehmen» – die Datensatzart also, nicht den Zustand –, während das
- * Detail längst «Freigegeben»/«Inaktiv» sagte. Leiser, aber gleicher Fehler: das
- * Benutzer-Detail liess das Symbol der Rollen-Badge weg.
+ * und sie sind auseinandergelaufen (Testnotiz #379).
  *
- * Darum steht die Ableitung jetzt hier, und **Feed wie Detail lesen dieselbe Funktion**.
- * Sie können nicht mehr auseinanderlaufen – nicht, weil jemand daran denkt, sondern weil es
- * keinen zweiten Ort mehr gibt, an dem sie gebaut wird.
+ * Darum steht die Ableitung hier, und **Feed wie Detail lesen dieselbe Funktion**.
+ *
+ * **Die Wörter selbst stehen nicht hier**, sondern in `lib/process-status` – der einen
+ * Statusliste, die das Backend spiegelt (Testnotiz #669). Diese Datei sagt nur, *welchen*
+ * Status ein Datensatztyp zeigt; *wie* er heisst und aussieht, ist überall dasselbe.
+ * Vorher trug jede Achse ihre eigene Karte: derselbe Zustand hiess am Artikel
+ * «Freigegeben», am Auftrag ebenfalls «Freigegeben» (obwohl das gar kein Zustand ist)
+ * und an der Instanz «Neu».
  *
  * Die Ableitung je Typ:
  *
  * - **Benutzer** → deaktiviert ≻ seine **Rolle**. Solange die Person in Betrieb ist, sagt
  *   die Badge, wofür sie da ist (grün: ein aktiver Datensatz ist gültig – Grau läse sich
  *   als «aus»); ist sie ausser Betrieb, zählt genau das und nichts anderes.
- * - **Artikel** → Entwurf · Freigegeben · Inaktiv (`lib/article`).
- * - **Auftrag** → wiederkehrend & fällig ≻ Status des Auftrags, «Abgebrochen» als
- *   Projektion über `abort_into_id` (`lib/order`). Ausdrücklich **nicht** der Stand eines
- *   einzelnen Schritts: der steht im Ablauf, nicht am Datensatz.
- * - **Instanz** → Projektion der zwei Achsen `quality` × `disposition` (`lib/process`).
- * - **Unternehmen** → Freigegeben · Inaktiv. Eine Gesellschaft kennt dieselben zwei
- *   Zustände wie alles andere, also dieselben zwei Wörter (Notiz #364).
+ * - **Artikel** → Freigegeben · Inaktiv. Einen Entwurf gibt es nicht: der Artikel
+ *   entsteht erst mit seiner Freigabe.
+ * - **Auftrag** → Im Prozess · Abgeschlossen · Abgebrochen, **abgeleitet** aus dem
+ *   Zustand seiner Einzelinstanzen (`process.order_status`). Der Server rechnet ihn –
+ *   hier wird er nur angezeigt.
+ * - **Instanz** → ebenso abgeleitet, eine Ebene tiefer: eine Gruppe ist im Prozess,
+ *   solange eines ihrer Stücke es ist.
+ * - **Unternehmen** → Freigegeben · Inaktiv, dieselben zwei Wörter wie überall (#364).
  */
 
 /** Rolle = Identität, nicht Ampel – aber ein aktiver Datensatz ist gültig, also grün. */
@@ -47,50 +50,38 @@ export function userStatus(u: Pick<UserProfile, 'role'> & { is_active?: boolean 
 }
 
 /** «Ausser Betrieb» – dieselben zwei Wörter und derselbe Ton für Person und Gesellschaft. */
-const INACTIVE: StatusCfg = { label: 'Inaktiv', ...TONE.danger, icon: Ban };
+const INACTIVE: StatusCfg = statusCfg(INAKTIV);
 
 export function articleStatus(a: Pick<Article, 'status'>): StatusCfg {
-  return articleStatusConfig(a.status);
+  return statusCfg(a.status);
 }
 
 /**
- * Instanz und Einzelinstanz tragen ein **Status-Feld ohne Logik** (Basis-Neuaufbau):
- * die Werte und ihre Übergänge kommen mit der neuen Prozesslogik. Bis dahin zeigt die
- * Badge den gespeicherten Wert – und «inaktiv» sticht ihn, wie überall sonst.
- *
- * Bewusst KEINE Vorwegnahme: eine erfundene Zustandskarte («neu → in Arbeit → fertig»)
- * wäre genau die Art Annahme, die dieser Umbau loswerden wollte.
+ * Instanz **und** Einzelinstanz tragen denselben Zustand aus derselben Liste: ein Stück
+ * ist einsatzbereit oder unterwegs, und eine Gruppe ist unterwegs, solange eines ihrer
+ * Stücke es ist. «Inaktiv» sticht ihn, wie überall sonst.
  */
-const NEUTRAL: StatusCfg = { label: 'Neu', ...TONE.pending, icon: CheckCircle2 };
-
 export function instanceStatus(
   i: Pick<Instance, 'status'> & { is_active?: boolean },
 ): StatusCfg {
   if (i.is_active === false) return INACTIVE;
-  return { ...NEUTRAL, label: i.status === 'new' ? 'Neu' : i.status };
+  return statusCfg(i.status);
 }
 
 /**
- * Der Auftrag hat **kein** Status-Feld: es gibt noch keinen Lebenszyklus, den es
- * beschreiben könnte. Was es gibt, ist `is_active` – und das ist eine echte Aussage,
- * keine erfundene. Sobald die Prozesslogik steht, kommt der Zustand hierher.
- */
-/**
- * Ein Auftrag existiert erst ab der Freigabe – es gibt keinen gespeicherten Entwurf
- * (PROCESS_CORE.md §6.1). Darum genau zwei Lebensphasen: er läuft, oder alle seine
- * Stücke sind durch. «Inaktiv» sticht wie überall.
+ * Der Auftragsstatus ist **abgeleitet** (`process.order_status`): Im Prozess, solange
+ * Stücke unterwegs sind · Abgeschlossen, sobald eines das Ziel erreicht hat ·
+ * Abgebrochen, wenn keines es mehr erreichen kann. «Freigegeben» ist bewusst nicht
+ * dabei – Freigeben ist die Aktion, mit der der Auftrag entstanden ist, kein Zustand
+ * (Testnotiz #669).
  */
 export function orderStatus(o: { is_active?: boolean; status?: string }): StatusCfg {
   if (o.is_active === false) return INACTIVE;
-  return o.status === 'completed'
-    ? { label: 'Abgeschlossen', ...TONE.done, icon: CheckCircle2 }
-    : { label: 'Freigegeben', ...TONE.pending, icon: Clock };
+  return statusCfg(o.status ?? '');
 }
 
 export function organizationStatus(c: Pick<CompanySettings, 'is_active'>): StatusCfg {
-  return c.is_active === false
-    ? INACTIVE
-    : { label: 'Freigegeben', ...TONE.done, icon: CheckCircle2 };
+  return c.is_active === false ? INACTIVE : statusCfg(FREIGEGEBEN);
 }
 
 /**

@@ -58,7 +58,8 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
     return OrderResponse(
         id=order.id,
         object_id=order.object_id,
-        status=order.status,
+        name=order.name,
+        status=process_svc.order_status(db, order),
         end_status=order.end_status,
         created_at=order.created_at,
         updated_at=order.updated_at,
@@ -123,11 +124,24 @@ def list_orders(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    return (
+    """Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
+
+    Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
+    gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
+    """
+    rows = (
         db.query(Order)
         .order_by(Order.object_id.desc())
         .limit(limit).offset(offset).all()
     )
+    states = process_svc.order_statuses(db, [o.id for o in rows])
+    return [
+        OrderSummary(
+            id=o.id, object_id=o.object_id, name=o.name, status=states[o.id],
+            created_at=o.created_at, updated_at=o.updated_at, is_active=o.is_active,
+        )
+        for o in rows
+    ]
 
 
 @router.get("/article-options", response_model=list[ArticleOption])
@@ -173,7 +187,7 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
     """
     return ModuleCatalog(
         modules=[
-            ModuleTypeInfo(key=m.key, label=m.label,
+            ModuleTypeInfo(key=m.key, label=m.label, tone=m.tone,
                            status_before=m.status_before, status_after=m.status_after)
             for m in modules.MODULES.values()
         ],

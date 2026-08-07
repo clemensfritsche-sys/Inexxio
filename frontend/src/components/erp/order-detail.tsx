@@ -3,19 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, History } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleOption, ArticleProcess, CapturePoint, Order } from '@/types';
+import type { ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary } from '@/types';
 import { TYPE_META } from '@/lib/erp-record';
-import { orderName } from '@/lib/record-name';
 import { orderStatus } from '@/lib/record-status';
 import { localDateTime } from '@/lib/utils';
 import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { ProcessDiagram, type DiagramStep } from '@/components/erp/process-diagram';
+import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
 import { END_BEFORE, statusCfg, statusLabel } from '@/lib/process-status';
-import { AddModule } from '@/components/erp/module-editor';
 import { CaptureForm } from '@/components/erp/capture-form';
 import { toModulePayload, type ModuleDraft } from '@/lib/modules';
 
@@ -41,7 +40,9 @@ const TABS = [{ key: 'auftrag' as const, label: 'Auftrag', icon: ClipboardList }
  * sie fragt sie ab: sonst gäbe es zwei Massstäbe für dieselbe Frage.
  */
 export function OrderDetail({ record, onSaved, onBack }: {
-  record: Order | null;              // null ⇒ Entwurf (existiert nur im Browser)
+  /** ``null`` ⇒ Entwurf (existiert nur im Browser). Sonst genügt die **Feed-Zeile** –
+   *  das Detail lädt sich selbst nach (siehe unten). */
+  record: OrderSummary | Order | null;
   onSaved: (o: Order) => void;
   onBack?: () => void;
 }) {
@@ -53,9 +54,31 @@ export function OrderDetail({ record, onSaved, onBack }: {
   const [missing, setMissing] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [live, setLive] = useState<Order | null>(record);
+  const [live, setLive] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => { setLive(record); }, [record]);
+  /**
+   * **Das Detail lädt seinen Auftrag selbst.**
+   *
+   * Der Feed liefert bewusst nur eine Zusammenfassung (`OrderSummary`) – ohne Schritte,
+   * Stücke und Historie; bei 5000 Stück ist das der Unterschied zwischen einer Liste und
+   * einem Megabyte. Wer die Feed-Zeile als Detail rendert, zeigt darum einen laufenden
+   * Prozess als leer: kein Modul, keine Einzelinstanzen, «nicht gestartet». Genau das
+   * war zu sehen – die Erzeugung lief pünktlich, die Ansicht wusste nur nichts davon.
+   *
+   * Die Zeile aus dem Feed dient nur noch als Adresse (`object_id`).
+   */
+  const objectId = record?.object_id ?? null;
+  useEffect(() => {
+    if (objectId == null) { setLive(null); return; }
+    let dead = false;
+    setLoading(true);
+    api.getOrder(objectId)
+      .then((o) => { if (!dead) setLive(o); })
+      .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { if (!dead) setLoading(false); });
+    return () => { dead = true; };
+  }, [objectId]);
 
   const draft = useMemo(() => ({
     lines: toPayload(lines),
@@ -96,7 +119,7 @@ export function OrderDetail({ record, onSaved, onBack }: {
   }, [live]);
 
   const blocked = missing != null && missing.length > 0;
-  const shown = live ?? record;
+  const shown = live;
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -105,8 +128,9 @@ export function OrderDetail({ record, onSaved, onBack }: {
         iconBg={meta.bg}
         iconFg={meta.fg}
         eyebrow={meta.label}
-        title={orderName()}
-        objectId={shown?.object_id ?? null}
+        title={shown?.name ?? null}
+        placeholder="Neuer Auftrag"
+        objectId={shown?.object_id ?? record?.object_id ?? null}
         objectIdText={isDraft ? '—' : undefined}
         objectIdHint={isDraft
           ? 'Die Objektnummer entsteht erst mit der Freigabe. Bis dahin existiert dieser Auftrag nur in diesem Fenster.'
@@ -136,8 +160,12 @@ export function OrderDetail({ record, onSaved, onBack }: {
         <div className="mx-auto" style={{ maxWidth: 620 }}>
           {isDraft ? (
             <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps} />
+          ) : shown ? (
+            <RunView order={shown} busy={busy} onConfirm={confirmStep} />
           ) : (
-            <RunView order={shown!} busy={busy} onConfirm={confirmStep} />
+            <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
+              {loading ? 'Lädt …' : null}
+            </p>
           )}
         </div>
 
@@ -157,7 +185,7 @@ export function OrderDetail({ record, onSaved, onBack }: {
  * Sobald eine Zeile «Neu» trägt, ist der Prozess die **Vorlage des Artikels** – als
  * Kopie, mit Versionsstempel, und hier nur zu sehen, nicht zu ändern. Sie zu bearbeiten
  * hiesse, einen Stempel auf etwas zu setzen, das danach nicht mehr die Vorlage ist.
- * Ändern geht am Artikel, im Reiter «Erzeugungsprozess».
+ * Ändern geht am Artikel, unter «Spezifikation».
  *
  * Ein reiner «Lager»-Auftrag greift auf Vorhandenes zu – was damit geschehen soll, weiss
  * nur dieser eine Auftrag. Dort wird frei modelliert.
@@ -192,21 +220,26 @@ function DraftView({ lines, setLines, steps, setSteps }: {
   }, [template]);
 
   const isMake = sourceArticle !== null;
-  const own: DiagramStep[] = steps.map((m) => ({ id: m.id, name: m.name, moduleType: m.moduleType }));
-  const shownSteps = mirrored ?? own;
   const articleName = articles.find((a) => a.object_id === sourceArticle)?.name;
 
+  // Bringt eine Zeile «Neu» mit, ist der Prozess die **Vorlage des Artikels** – dann nur
+  // ansehen. Sonst wird hier modelliert, mit demselben Editor wie am Artikel.
   return (
     <>
-      <ProcessDiagram
-        mode="definition"
-        steps={shownSteps}
-        endStatus={END_BEFORE}
-        head={
-          <DefinitionLines lines={lines} setLines={setLines} onArticlesLoaded={setArticles} />
-        }
-        onDelete={isMake ? undefined : (id) => setSteps(steps.filter((s) => s.id !== id))}
-      />
+      {isMake ? (
+        <ProcessDiagram
+          mode="definition"
+          steps={mirrored ?? []}
+          endStatus={END_BEFORE}
+          head={<DefinitionLines lines={lines} setLines={setLines} onArticlesLoaded={setArticles} />}
+        />
+      ) : (
+        <ProcessDesigner
+          modules={steps}
+          onChange={setSteps}
+          head={<DefinitionLines lines={lines} setLines={setLines} onArticlesLoaded={setArticles} />}
+        />
+      )}
 
       {isMake ? (
         <p className="mt-3 text-xs text-center" style={{ color: 'var(--fg-3)' }}>
@@ -215,13 +248,7 @@ function DraftView({ lines, setLines, steps, setSteps }: {
               Er wird bei der Freigabe als Kopie übernommen – geändert wird er am Artikel.</>
             : 'Lädt den Erzeugungsprozess …'}
         </p>
-      ) : (
-        <div className="mt-3">
-          <AddModule
-            onAdd={(m) => setSteps([...steps, { ...m, id: (steps[steps.length - 1]?.id ?? 0) + 1 }])}
-          />
-        </div>
-      )}
+      ) : null}
     </>
   );
 }

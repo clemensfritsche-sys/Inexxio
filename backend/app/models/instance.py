@@ -26,8 +26,10 @@ class Instance(Base, TimestampMixin):
     Es ist ein Etikett für die Anzeige, keine Regel: im Prozess wird ausschliesslich mit
     Einzelinstanzen gearbeitet, nie mit der Instanz und nie mit dem Artikel.
 
-    ``status`` existiert als Feld, trägt aber **noch keine Logik** – Zustandswerte und
-    Übergänge kommen mit der neuen Prozesslogik im nächsten Schritt.
+    **Einen Status trägt sie nicht.** Er wird abgeleitet (``services/instances.status_of``),
+    genau wie die Menge: eine Gruppe ist im Prozess, solange eines ihrer Stücke es ist.
+    Die frühere Spalte stand auf ``new`` und wurde nie geschrieben – ein Feld, das niemand
+    setzt, ist kein Zustand, sondern eine Behauptung, die irgendwann falsch wird.
     """
 
     __tablename__ = "instances"
@@ -40,9 +42,6 @@ class Instance(Base, TimestampMixin):
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
 
     kind: Mapped[str] = mapped_column(String(10), nullable=False)  # einzeln | batch
-
-    # Noch ohne Bedeutung: das Feld steht, die Logik folgt (siehe Klassen-Docstring).
-    status: Mapped[str] = mapped_column(String(30), default="new", nullable=False)
 
     label: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 

@@ -28,11 +28,20 @@ DATENERFASSUNG = "datenerfassung"
 class Module:
     """Ein Modultyp. Was ihn ausmacht: sein Übergang und die Form seiner Konfiguration."""
 
-    def __init__(self, key: str, label: str, status_before: str, status_after: str):
+    def __init__(self, key: str, label: str, status_before: str, status_after: str,
+                 tone: str):
         self.key = key
         self.label = label
         self.status_before = status_before
         self.status_after = status_after
+        #: **Die Farbfamilie dieses Modultyps** – ein Wort, das das Frontend auf seine
+        #: Tokens abbildet (``lib/modules.MODULE_TONE``). Sie steht hier, weil sie zum
+        #: Modul gehört und nicht zu einer Komponente: ein neuer Modultyp ist damit ein
+        #: Eintrag in dieser Liste, kein Eingriff in die Oberfläche.
+        #:
+        #: **Getrennt von der Ampel** (grün/orange/rot): ein Modul ist kein Zustand und
+        #: darf nicht wie einer aussehen (PROCESS_CORE.md §5.3).
+        self.tone = tone
 
     def clean_config(self, raw: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
         """Die Konfiguration prüfen und normalisieren. Ohne Konfiguration: ``None``."""
@@ -60,12 +69,14 @@ MODULES: dict[str, Module] = {
             label="Datenerfassung",
             status_before=st.IM_PROZESS,
             status_after=st.IM_PROZESS,
+            tone="slate",
         ),
     )
 }
 
 KEYS: tuple[str, ...] = tuple(MODULES)
 LABELS: dict[str, str] = {k: m.label for k, m in MODULES.items()}
+TONES: dict[str, str] = {k: m.tone for k, m in MODULES.items()}
 
 
 def get(module_type: Any) -> Module:

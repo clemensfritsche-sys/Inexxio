@@ -38,7 +38,7 @@ type Row =
 // hier der Typ (den sagt das Symbol). `null` = noch ohne Namen (Notiz #177).
 function rowTitle(row: Row): string | null {
   if (row.type === 'user') return userName(row.data);
-  if (row.type === 'order') return orderName();
+  if (row.type === 'order') return orderName(row.data);
   if (row.type === 'instance') return row.data.article_name?.trim() || null;
   if (row.type === 'organization') return organizationName(row.data);
   return articleName(row.data);

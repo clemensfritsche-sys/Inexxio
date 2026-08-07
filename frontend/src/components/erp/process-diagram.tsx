@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { Blocks, ChevronDown, ChevronUp, Flag, Play, Trash2 } from 'lucide-react';
-import { MODULE_ICON } from '@/lib/modules';
+import { Blocks, ChevronDown, ChevronUp, Flag, GripVertical, Play, Trash2 } from 'lucide-react';
+import { MODULE_ICON, moduleTone } from '@/lib/modules';
 import { FlowFrame, FlowNode, polyPath, type FlowAnchor } from './process-flow';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
 
@@ -11,13 +11,13 @@ import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@
  *
  * | Modus | Wo | Was |
  * |---|---|---|
- * | `definition` | Auftragsentwurf, später der Artikel-Reiter «Erzeugungsprozess» | Module anlegen, löschen, sortieren |
+ * | `definition` | Auftragsentwurf und Artikel-Spezifikation | Module anlegen, löschen, sortieren |
  * | `ausfuehrung` | freigegebener Auftrag | Zustand je Objekt, aktuelle Stelle, Ausführung |
  *
  * Zweimal zu bauen wäre an dieser Stelle der teuerste Fehler (PROCESS_CORE.md §8.1) —
  * darum ist der Modus ein Schalter und kein zweites Bauteil. Beide Modi werden **schon
- * im Auftrag** gebraucht (Entwurf ↔ freigegeben); der Artikel benutzt später nur den
- * ersten und ist damit kein neuer Fall.
+ * im Auftrag** gebraucht (Entwurf ↔ freigegeben); der Artikel benutzt nur den ersten
+ * und ist damit kein neuer Fall.
  *
  * Die **Definition der Einzelinstanzen** ist bewusst **nicht** Teil dieses Diagramms,
  * sondern ein Slot darüber (`head`): ein Artikel hat keine Einzelinstanzen, und ein
@@ -54,7 +54,7 @@ export interface DiagramGroup {
 
 export function ProcessDiagram({
   mode, steps, groups = [], activeStepId = null, endStatus,
-  head, onDelete, renderStep, onExpand,
+  head, tail, onDelete, renderStep, onExpand, tone, onReorder, dragging, onDragState,
 }: {
   mode: DiagramMode;
   steps: DiagramStep[];
@@ -64,12 +64,20 @@ export function ProcessDiagram({
   endStatus: string;
   /** Slot über dem Start: die Definition (nur beim Auftrag). */
   head?: ReactNode;
+  /** Slot **vor dem Ende**: die Modulauswahl – genau dort, wo das nächste Modul hinkäme. */
+  tail?: ReactNode;
   /** Nur im Definitionsmodus: ein Modul entfernen. */
   onDelete?: (id: number) => void;
-  /** Nur im Ausführungsmodus: was in der Karte des aktiven Moduls steht. */
+  /** Was in der Karte steht: im Entwurf die Felder des Moduls, zur Laufzeit seine Arbeit. */
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
   /** Eine Gruppe aufklappen: die einzelnen Nummern nachladen. */
   onExpand?: (stepId: number | null, active: boolean) => Promise<string[]>;
+  /** Farbfamilie je Modultyp. Ohne sie der neutrale Grundton – nie eine leere Fläche. */
+  tone?: (moduleType: string) => { bg: string; fg: string; border: string };
+  /** Nur im Definitionsmodus: Reihenfolge per Drag & Drop. Sie IST der Prozess. */
+  onReorder?: (from: number, to: number) => void;
+  dragging?: number | null;
+  onDragState?: (index: number | null) => void;
 }) {
   const running = mode === 'ausfuehrung';
 
@@ -85,9 +93,10 @@ export function ProcessDiagram({
   const nodes = useMemo(() => {
     const out: Array<
       | { id: string; kind: 'head' }
+      | { id: string; kind: 'tail' }
       | { id: string; kind: 'terminal'; which: 'start' | 'end' }
       | { id: string; kind: 'state'; at: number | null }
-      | { id: string; kind: 'step'; step: DiagramStep }
+      | { id: string; kind: 'step'; step: DiagramStep; index: number }
     > = [];
     if (head) out.push({ id: 'head', kind: 'head' });
     out.push({ id: 'start', kind: 'terminal', which: 'start' });
@@ -95,18 +104,19 @@ export function ProcessDiagram({
       out.push({ id: 'state-start', kind: 'state', at: steps[0]?.id ?? null });
     }
     steps.forEach((s, i) => {
-      out.push({ id: `step-${s.id}`, kind: 'step', step: s });
+      out.push({ id: `step-${s.id}`, kind: 'step', step: s, index: i });
       const next = steps[i + 1]?.id ?? null;
       if (running && next !== null && groupsAt(groups, next, true).length) {
         out.push({ id: `state-${s.id}`, kind: 'state', at: next });
       }
     });
+    if (tail) out.push({ id: 'tail', kind: 'tail' });
     out.push({ id: 'end', kind: 'terminal', which: 'end' });
     if (running && groups.some((g) => !g.active)) {
       out.push({ id: 'state-end', kind: 'state', at: null });
     }
     return out;
-  }, [head, steps, groups, running]);
+  }, [head, tail, steps, groups, running]);
 
   /** Bis wohin ist die Linie stark? Bis zu der Stelle, an der der Prozess wirklich steht. */
   const walkedEdges = useMemo(() => {
@@ -125,6 +135,9 @@ export function ProcessDiagram({
           {nodes.map((n) => {
             if (n.kind === 'head') {
               return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{head}</FlowNode>;
+            }
+            if (n.kind === 'tail') {
+              return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{tail}</FlowNode>;
             }
             if (n.kind === 'terminal') {
               return (
@@ -147,13 +160,22 @@ export function ProcessDiagram({
               );
             }
             const isActive = running && n.step.id === activeStepId;
+            const index = n.index;
             return (
               <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
                 <StepCard
                   step={n.step}
                   active={isActive}
                   dimmed={running && !isActive}
+                  tone={tone?.(n.step.moduleType)}
                   onDelete={mode === 'definition' && onDelete ? () => onDelete(n.step.id) : undefined}
+                  drag={onReorder && mode === 'definition' ? {
+                    index,
+                    over: dragging !== null && dragging !== index,
+                    onStart: () => onDragState?.(index),
+                    onEnd: () => onDragState?.(null),
+                    onDrop: (from) => { onReorder(from, index); onDragState?.(null); },
+                  } : undefined}
                 >
                   {renderStep?.(n.step, isActive)}
                 </StepCard>
@@ -290,41 +312,84 @@ function StateRow({ groups, stepId, active, onExpand }: {
 
 /**
  * **Ein Prozessobjekt = eine Komponente.** Der Modultyp ist Konfiguration (Name,
- * Übergang) — es gibt hier bewusst keinen Zweig je Modulart und wird auch keinen geben.
+ * Übergang, Farbe) — es gibt hier bewusst keinen Zweig je Modulart und wird auch keinen
+ * geben. Die Farbe kommt aus `lib/modules.moduleTone`, gefüttert vom Backend: ein neuer
+ * Modultyp ist ein Eintrag in der Registry, kein Eingriff hier.
  *
  * Prozessmodule tragen eine **eigene Farbfamilie**, getrennt von der Ampel (§5.3): sie
  * sind keine Zustände und dürfen nicht wie welche aussehen.
  */
-export const MODULE_TONE = { bg: 'var(--accent-soft)', fg: 'var(--accent-ink)', border: '#BFD6E2' };
 
-function StepCard({ step, active, dimmed, onDelete, children }: {
+interface DragProps {
+  index: number;
+  over: boolean;
+  onStart: () => void;
+  onEnd: () => void;
+  onDrop: (from: number) => void;
+}
+
+function StepCard({ step, active, dimmed, onDelete, tone, drag, children }: {
   step: DiagramStep; active: boolean; dimmed: boolean;
-  onDelete?: () => void; children?: ReactNode;
+  onDelete?: () => void;
+  tone?: { bg: string; fg: string; border: string };
+  drag?: DragProps;
+  children?: ReactNode;
 }) {
   // **Der Übergang steht nicht mehr auf der Karte.** Er gehört zum Modultyp und ist für
   // jedes Modul derselbe (Durchläufer) – ihn hinzuschreiben wäre eine Zeile, die bei
   // jeder Karte dasselbe sagt. Was die Karten unterscheidet, ist ihre **Art**, und die
   // trägt das Symbol.
   const Icon = MODULE_ICON[step.moduleType] ?? Blocks;
+  const c = tone ?? moduleTone(undefined);
   return (
     <div
       className="rounded-ds-lg"
+      // **Gezogen wird am Griff, nicht an der Karte.** Ein `draggable` auf der Karte
+      // macht ihren ganzen Inhalt zum Ziehgriff – und damit lässt sich in ihren
+      // Eingabefeldern kein Text mehr markieren. Das fällt bei einem Modul kaum auf und
+      // bei zwanzig sofort.
+      onDragEnd={drag ? drag.onEnd : undefined}
+      onDragOver={drag ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } : undefined}
+      onDrop={drag ? (e) => {
+        e.preventDefault();
+        const from = Number(e.dataTransfer.getData('text/plain'));
+        if (Number.isInteger(from)) drag.onDrop(from);
+      } : undefined}
       style={{
-        border: `1px solid ${active ? MODULE_TONE.fg : MODULE_TONE.border}`,
-        background: MODULE_TONE.bg,
+        border: `1px solid ${active ? c.fg : c.border}`,
+        background: c.bg,
         opacity: dimmed ? 0.55 : 1,
         padding: '11px 14px',
+        // Die Zielkarte zeigt sich beim Ziehen – ohne das rät man, wo es landet.
+        outline: drag?.over ? `2px dashed ${c.fg}` : undefined,
+        outlineOffset: 2,
       }}
     >
       <div className="flex items-center gap-2.5">
+        {drag && (
+          <span className="flex items-center justify-center flex-none"
+            style={{ width: 16, color: c.fg, opacity: 0.5, cursor: 'grab' }}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', String(drag.index));
+              drag.onStart();
+            }}
+            onDragEnd={drag.onEnd}
+            role="button"
+            aria-label={`${step.name || 'Neues Modul'} verschieben`}
+            data-tip="Ziehen, um die Reihenfolge zu ändern">
+            <GripVertical size={15} />
+          </span>
+        )}
         <span
           className="flex items-center justify-center rounded-md flex-none"
-          style={{ width: 32, height: 32, background: 'var(--bg-1)', color: MODULE_TONE.fg }}
+          style={{ width: 32, height: 32, background: 'var(--bg-1)', color: c.fg }}
         >
           <Icon size={17} />
         </span>
-        <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: MODULE_TONE.fg }}>
-          {step.name}
+        <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: c.fg }}>
+          {step.name || <span style={{ opacity: 0.5, fontWeight: 500 }}>Neues Modul</span>}
         </span>
         {onDelete && (
           <button

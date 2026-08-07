@@ -16,9 +16,10 @@ import { inputCls, numericInputProps, numericOnly } from '@/components/erp/field
  * Frage an den Nutzer). Gespeichert wird trotzdem **je Einzelinstanz**: die Zeile hängt am
  * Stück, damit sie in dessen Historie steht.
  *
- * **Pflichtpunkte blockieren mit Grund.** «Bestätigen nicht möglich» ohne zu sagen, was
- * fehlt, wäre eine Sackgasse mit Ausrufezeichen. Der Server prüft dasselbe noch einmal –
- * ein deaktivierter Knopf ist keine Absicherung.
+ * **Jeder offene Punkt blockiert – mit Grund.** «Bestätigen nicht möglich» ohne zu sagen,
+ * was fehlt, wäre eine Sackgasse mit Ausrufezeichen. Alles, was angelegt ist, ist Pflicht;
+ * einen Schalter dafür gibt es nicht mehr. Der Server prüft dasselbe noch einmal – ein
+ * deaktivierter Knopf ist keine Absicherung.
  */
 export function CaptureForm({ points, count, busy, onConfirm }: {
   points: CapturePoint[];
@@ -29,8 +30,9 @@ export function CaptureForm({ points, count, busy, onConfirm }: {
 }) {
   const [values, setValues] = useState<Record<string, unknown>>({});
 
+  // **Alles, was angelegt ist, ist Pflicht** – es gibt keine optionalen Punkte mehr.
   const open = useMemo(
-    () => points.filter((p) => p.required && isMissing(p, values[p.key])).map((p) => p.label),
+    () => points.filter((p) => isMissing(p, values[p.key])).map((p) => p.label),
     [points, values],
   );
 
@@ -93,7 +95,6 @@ function PointInput({ point, value, disabled, onChange }: {
       <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--fg-2)' }}>
         {Icon && <Icon size={13} style={{ color: 'var(--fg-3)' }} />}
         {point.label}
-        {point.required && <span style={{ color: 'var(--inexxio-red)' }}>*</span>}
         {soll && <span className="font-normal" style={{ color: 'var(--fg-3)' }}>{soll}</span>}
       </span>
 

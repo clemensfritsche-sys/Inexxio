@@ -82,11 +82,12 @@ _COLUMN_SAFETY_NET = (
     ("articles", "safety_stock", "NUMERIC(12,3)"),
     ("articles", "replaced_by_id", "BIGINT"),
     ("articles", "is_hazmat", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    # Prozesslogik (Migration 104) – NEUE Spalten auf der BESTEHENDEN Tabelle ``orders``.
-    # ``end_status`` ist der eine Ort des Endzustands (PROCESS_CORE.md §4.2); fehlt er,
-    # scheitert jede Auftrags-Abfrage, weil das Modell ihn kennt.
-    ("orders", "status", "VARCHAR(20) NOT NULL DEFAULT 'released'"),
+    # Prozesslogik (Migration 104/107) – NEUE Spalten auf der BESTEHENDEN Tabelle
+    # ``orders``. ``end_status`` ist der eine Ort des Endzustands (PROCESS_CORE.md §4.2),
+    # ``name`` entsteht mit der Objektnummer. Fehlt eine, scheitert jede Auftrags-Abfrage,
+    # weil das Modell sie kennt.
     ("orders", "end_status", "VARCHAR(30) NOT NULL DEFAULT 'freigegeben'"),
+    ("orders", "name", "VARCHAR(120) NOT NULL DEFAULT ''"),
     # Definitionsbereich + Erzeugungsprozess (Migration 105) – ebenfalls NEUE Spalten auf
     # BESTEHENDEN Tabellen. ``process_version`` liest jede Artikel-Abfrage (das Modell
     # kennt sie), ``source_*`` jede Auftrags-Abfrage.
@@ -124,6 +125,13 @@ _DROP_COLUMN_SAFETY_NET = (
     ("articles", "max_load_kg"),
     # Dokument-Redesign: das Dokument wurde im Auftrag verfasst (Nummer = Instanz).
     ("articles", "physical"),
+    # Der Auftragsstatus ist ABGELEITET (Migration 107, ``process.order_status``) – eine
+    # Spalte daneben wäre der zweite Ort, an dem er gesetzt wird.
+    ("orders", "status"),
+    # Dasselbe eine Ebene tiefer (Migration 107): eine Instanz ist eine Gruppe – ihren
+    # Zustand leiten ihre Einzelinstanzen ab (``instances.status_of``). Die Spalte stand
+    # auf ``new`` und wurde nie geschrieben.
+    ("instances", "status"),
     # Die Erfassungsmaske am Artikel (Migration 106): was erfasst wird, sagt das **Modul**.
     # Am Artikel war es eine zweite Stelle für dieselbe Frage – und sie hing an keinem
     # Prozess. Auch im Netz gedroppt, falls Alembic 106 nicht durchlief.
@@ -176,6 +184,15 @@ _ARTICLE_DATA_FIXES = (
 # lesend fiele ``sites.find_operator`` zwar auf die kleinste ``id`` zurück, aber der
 # gewählte Betreiber wäre nicht persistent. Wiederholbar; ein bereits gewählter Betreiber
 # bleibt unberührt. Der partielle Unique-Index erzwingt «höchstens einer».
+#: Statuswerte auf die EINE Liste ziehen (Migration 107), falls Alembic nicht durchlief.
+#: Ein Artikel mit ``released`` wäre sonst ein Wert, den die Anzeige nicht kennt – und
+#: der Feed zeigte den rohen Schlüssel statt eines Wortes.
+_ARTICLE_STATUS_FIXES = (
+    "UPDATE articles SET status = 'freigegeben' WHERE status IN ('released', 'draft')",
+    "UPDATE articles SET status = 'inaktiv' WHERE status = 'inactive'",
+    "UPDATE orders SET name = 'Auftrag ' || object_id WHERE name IS NULL OR name = ''",
+)
+
 _COMPANY_DATA_FIXES = (
     "UPDATE company_settings SET is_operator = true "
     "WHERE id = (SELECT min(id) FROM company_settings) "
@@ -191,7 +208,21 @@ def _ensure_columns() -> None:
     bestehende Tabellen NICHT."""
     try:
         with engine.connect() as conn:
-            insp = inspect(engine)
+            # **Der Inspektor sitzt auf DERSELBEN Verbindung wie die DDL.**
+            #
+            # ``inspect(engine)`` zieht eine ZWEITE Verbindung aus dem Pool – und die
+            # blockiert, sobald diese hier eine Tabelle geändert hat: das ``ALTER TABLE``
+            # hält bis zum ``commit`` am Ende der Funktion einen ACCESS-EXCLUSIVE-Lock,
+            # und die nächste Reflexion derselben Tabelle wartet darauf. Sie wartet auf
+            # eine Transaktion, die erst nach ihr fertig wird – der Start bliebe für
+            # immer stehen.
+            #
+            # Der Fehler war latent, solange keine Aufräum-Anweisung eine Tabelle traf,
+            # die danach noch gelesen wird; der erste ``DROP COLUMN`` auf ``instances``
+            # hat ihn ausgelöst. Auf einer Verbindung kann er nicht wieder entstehen –
+            # und nebenbei sieht die Reflexion jetzt, was diese Funktion eben geändert
+            # hat, statt einen Stand von vorher.
+            insp = inspect(conn)
             tables = set(insp.get_table_names())
             for table, col, ddl in _COLUMN_SAFETY_NET:
                 if table not in tables:
@@ -237,6 +268,9 @@ def _ensure_columns() -> None:
                 conn.execute(text(stmt))
             if "articles" in tables:
                 for stmt in _ARTICLE_DATA_FIXES:
+                    conn.execute(text(stmt))
+            for stmt in _ARTICLE_STATUS_FIXES:
+                if stmt.split()[1] in tables:
                     conn.execute(text(stmt))
             if "instance_units" in tables:
                 # Der Platzhalter-Status ``new`` aus dem Basis-Neuaufbau gibt es mit der
@@ -466,10 +500,20 @@ def _run_startup_fixups_once() -> None:
         if not acquired:
             print("INFO: Startup-Fixups laufen bereits (anderer Worker/Instanz) – übersprungen.", flush=True)
             return
-        # Zuerst die FORM der Tabellen, dann ihre Spalten: ein Netz-Eintrag auf einer
-        # Tabelle mit fremder Form repariert nichts, was danach benutzbar wäre.
-        _ensure_rebuilt_tables_shape()
+        # **Erst die Spalten, dann als LETZTES Mittel die Form.**
+        #
+        # Umgekehrt war es datenvernichtend: eine bloss fehlende Spalte ist genau der
+        # Fall, den das Spaltennetz behebt – der Formwächter dagegen kann nur eines,
+        # nämlich DROP TABLE. Lief Alembic 107 nicht durch, warf er die ganze
+        # ``orders``-Tabelle weg («es fehlen name»), obwohl der Eintrag daneben die
+        # Spalte in einer Zeile ergänzt hätte. Gemessen, nicht vermutet: auf einer
+        # 106er-Datenbank war der Alt-Auftrag danach spurlos verschwunden.
+        #
+        # In dieser Reihenfolge ist der Neuaufbau das, was er sein soll: die Antwort auf
+        # eine Form, die auch nach dem Netz noch unbenutzbar ist (fremde Pflichtspalten
+        # aus einer alten Welt) – und nicht die erste Reaktion auf eine fehlende Spalte.
         _ensure_columns()
+        _ensure_rebuilt_tables_shape()
         _ensure_object_id_sequence()
         _backfill_object_registry()
         _ensure_company_object_id()   # Firma = nummerierter ERP-Datensatz

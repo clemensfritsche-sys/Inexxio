@@ -6,13 +6,16 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..domain import statuses as st
 from .process import ModuleInput
 
 # ─── Erlaubte Werte ──────────────────────────────────────────────────────────
 
 ALLOWED_UNITS = ("Stk", "mm", "m2", "m3", "kg", "l")
 ALLOWED_SERIALIZATION = ("unit", "batch")
-ALLOWED_STATUS = ("draft", "released", "inactive")
+#: Aus der EINEN Statusliste (``domain/statuses.ARTICLE_STATUSES``) – hier nicht noch
+#: einmal aufgezählt: eine zweite Liste liefe beim ersten neuen Wert auseinander.
+ALLOWED_STATUS = st.ARTICLE_STATUSES
 # Beschaffungsquelle (Teil der Spezifikation): Lieferant ODER Webshop-Link.
 ALLOWED_PROCUREMENT_MODES = ("supplier", "webshop")
 

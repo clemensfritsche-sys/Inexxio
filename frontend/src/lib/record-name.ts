@@ -1,4 +1,4 @@
-import type { Article, CompanySettings, Instance, UserProfile } from '@/types';
+import type { Article, CompanySettings, Instance, OrderSummary, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 
 /**
@@ -13,9 +13,9 @@ import { userDisplayName } from '@/lib/utils';
  *
  * - **Benutzer** → Anzeigename (Vor-/Nachname, sonst E-Mail).
  * - **Artikel** → sein Name (frei vergeben).
- * - **Auftrag** → kommt fertig vom Backend (`orders.order_display_name`): bewusst vergebener
- *   Titel ≻ Artikel ≻ erster Positions-Artikel «+N» ≻ «Auftrag». Feed und Detail lesen
- *   dasselbe Feld, es kann also nicht auseinanderlaufen.
+ * - **Auftrag** → sein Name aus dem Feld: «Auftrag <Objektnummer>», vergeben bei der
+ *   Freigabe (Notiz #672). Feed und Detail lesen dasselbe Feld, es kann also nicht
+ *   auseinanderlaufen.
  * - **Instanz** → der Artikel, dessen Exemplar sie ist. Eine Instanz trägt keinen eigenen
  *   Namen – ihre Identität ist die Objektnummer.
  * - **Unternehmen** → Firmenname.
@@ -33,13 +33,16 @@ export function articleName(a: Article): string | null {
 }
 
 /**
- * Der Auftrag trägt heute **kein** Namensfeld – also gibt es keinen Namen, und `null`
- * sagt genau das. Die Oberfläche setzt dafür ihren Platzhalter; ein Rückfall auf das
- * Typ-Wort «Auftrag» wäre der Fehler, den `record-name` gerade abstellt (Notiz #177):
- * der Typ steht im Symbol, nie im Namen.
+ * Der Auftrag trägt seinen Namen im Feld: «Auftrag <Objektnummer>», vergeben **im selben
+ * Zug wie die Nummer** (Notiz #672). Vorher gab es keinen, denn vorher gibt es den
+ * Auftrag nicht – ein Entwurf lebt nur im Browser.
+ *
+ * Der Name wird hier nur gelesen, nie zusammengesetzt: würde die Oberfläche ihn selbst
+ * bauen, gäbe es zwei Stellen, an denen er entsteht, und die erste Umbenennung liesse
+ * sie auseinanderlaufen.
  */
-export function orderName(): string | null {
-  return null;
+export function orderName(o: Pick<OrderSummary, 'name'>): string | null {
+  return o.name?.trim() || null;
 }
 
 export function instanceName(i: Instance): string | null {
