@@ -97,6 +97,9 @@ export type ProcessEventResponse = components['schemas']['ProcessEventResponse']
 export type UnitOption = components['schemas']['UnitOption'];
 /** Ein Nachbar-Auftrag in der Journey einer Einzelinstanz – gruppiert, mit Stückzahl. */
 export type JourneyStop = components['schemas']['JourneyNeighbour'];
+/** Ein Nachbar-Auftrag mit seinem **vollständigen** Ablauf – links übergeordnet, rechts
+ *  eine Abweichung. Er wird mit derselben Komponente gerendert wie die Mitte. */
+export type RelatedOrder = components['schemas']['RelatedOrder'];
 export type ArticleOption = components['schemas']['ArticleOption'];
 export type OrderLineResponse = components['schemas']['OrderLineResponse'];
 export type UnitGroup = components['schemas']['UnitGroup'];

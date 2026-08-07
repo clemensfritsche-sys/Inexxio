@@ -19,9 +19,8 @@ from ..models import (
 )
 from ..schemas.order import (
     ArticleOption, JourneyNeighbour, OrderCreate, OrderLineResponse, OrderResponse,
-    OrderSummary,
-    OrderUnitPage, OrderUnitResponse, OrderValidation, ProcessEventResponse,
-    ProcessStepResponse, UnitGroup, UnitOption,
+    OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
+    ProcessEventResponse, ProcessStepResponse, RelatedOrder, UnitGroup, UnitOption,
 )
 from ..schemas.process import (
     CaptureTypeInfo, ModuleCatalog, ModuleTypeInfo, StepConfirm,
@@ -41,6 +40,15 @@ router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 #: liest. Die Gesamtzahl steht daneben (``event_count``) – gekappt, aber nicht verschwiegen.
 EVENT_LIMIT = 200
 
+#: Wie viele Abweichungen die Spalte daneben **vollständig** zeigt.
+#:
+#: Sie zeigen ihren echten Ablauf, nicht ein Symbol – bei zwanzig Abweichungen wären das
+#: zwanzig vollständige Prozesse in einer Antwort und in einer Spalte. Gruppieren wäre
+#: hier falsch: zwei Abweichungen sind zwei **verschiedene** Abläufe, eine Gruppe daraus
+#: sagte nichts. Also ehrlich abschneiden und die wahre Zahl daneben nennen
+#: (``deviation_total``) – wer mehr sehen will, öffnet sie einzeln.
+RELATED_LIMIT = 3
+
 
 # ---------------------------------------------------------------------------
 # Antwort zusammensetzen
@@ -57,6 +65,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
     numbers = _event_numbers(db, events)
     actors = _actor_names(db, {e.actor_id for e in events if e.actor_id})
     came_from, went_to = journey_svc.neighbours(db, order)
+    branches = journey_svc.deviations(db, order)
 
     return OrderResponse(
         id=order.id,
@@ -97,7 +106,53 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
         journey_in=[JourneyNeighbour(**n) for n in came_from],
         journey_out=[JourneyNeighbour(**n) for n in went_to],
         active_step_id=process_svc.active_step_id(db, order),
+        is_deviation=process_svc.deviation_flags(db, [order.id]).get(order.id, False),
+        parents=_related(db, order, journey_svc.parents(db, order), incoming=True),
+        deviations=_related(db, order, branches[:RELATED_LIMIT], incoming=False),
+        deviation_total=len(branches),
+        waiting_for_return=process_svc.waiting_counts(db, [order.id]).get(order.id, 0),
     )
+
+
+def _related(db: Session, order: Order, counts: list[tuple[int, int, Optional[int]]],
+             *, incoming: bool) -> list[RelatedOrder]:
+    """Nachbar-Aufträge mit **ihrem eigenen Ablauf** – dieselben Felder wie die Mitte.
+
+    Sie werden daneben mit derselben Komponente gerendert; darum liefert der Server auch
+    dieselben Angaben. Eine gekürzte Sonderform wäre eine zweite Darstellung derselben
+    Sache, und die läuft irgendwann von der ersten weg.
+    """
+    if not counts:
+        return []
+    rows = {o.id: o for o in db.query(Order).filter(Order.id.in_([i for i, _, _ in counts])).all()}
+    states = process_svc.order_statuses(db, list(rows))
+    # Wer gibt zurück: bei Abweichungen die Verbindung des Nachbarn zu mir, bei einem
+    # übergeordneten Auftrag meine eigene zu ihm.
+    if incoming:
+        mine = {m.return_to_order_id for m in db.query(OrderUnit).filter(
+            OrderUnit.order_id == order.id, OrderUnit.return_to_order_id.isnot(None)).all()}
+        returning = {oid for oid in rows if oid in mine}
+    else:
+        returning = journey_svc.returning_to(db, order, list(rows))
+
+    out: list[RelatedOrder] = []
+    for oid, count, step_id in counts:
+        row = rows.get(oid)
+        if row is None:
+            continue
+        out.append(RelatedOrder(
+            object_id=row.object_id,
+            name=row.name,
+            status=states.get(oid, st.IM_PROZESS),
+            end_status=row.end_status,
+            steps=[ProcessStepResponse.model_validate(s) for s in process_svc.steps_of(db, row)],
+            unit_groups=[UnitGroup(**g) for g in process_svc.unit_groups(db, row)],
+            active_step_id=process_svc.active_step_id(db, row),
+            unit_count=count,
+            returns=oid in returning,
+            origin_step_id=step_id,
+        ))
+    return out
 
 
 def _event_numbers(db: Session, events) -> dict[int, str]:
@@ -140,10 +195,12 @@ def list_orders(
         .limit(limit).offset(offset).all()
     )
     states = process_svc.order_statuses(db, [o.id for o in rows])
+    flags = process_svc.deviation_flags(db, [o.id for o in rows])
     return [
         OrderSummary(
             id=o.id, object_id=o.object_id, name=o.name, status=states[o.id],
             created_at=o.created_at, updated_at=o.updated_at, is_active=o.is_active,
+            is_deviation=flags.get(o.id, False),
         )
         for o in rows
     ]
@@ -212,8 +269,9 @@ def unit_options(
     **FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,
     kein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.
 
-    Gesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund
-    zeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.
+    **Ein Stück im Prozess ist wählbar** (Abweichungsauftrag §3.5): genau daraus entsteht
+    eine Abweichung. ``in_order`` sagt, wo es gerade läuft – damit die Oberfläche nennen
+    kann, was beim Wählen passiert, statt es geschehen zu lassen.
     """
     q = (
         db.query(InstanceUnit, Instance, Article)
@@ -224,7 +282,7 @@ def unit_options(
     if article is not None:
         q = q.filter(Article.object_id == article)
     rows = q.order_by(InstanceUnit.id).limit(limit).all()
-    blocked = {
+    running = {
         m.instance_unit_id: o.object_id
         for m, o in db.query(OrderUnit, Order)
         .join(Order, Order.id == OrderUnit.order_id)
@@ -237,8 +295,11 @@ def unit_options(
             status=unit.status,
             article_object_id=art.object_id if art else None,
             article_name=art.name if art else None,
-            available=unit.id not in blocked and unit.status == st.START_BEFORE,
-            blocked_by=blocked.get(unit.id),
+            # Frei (``Freigegeben``) oder in einem laufenden Auftrag – beides lässt sich
+            # nehmen. Was nicht geht, hat gar keinen Zustand mehr, in dem es arbeiten
+            # könnte.
+            available=unit.status in (st.START_BEFORE, st.IM_PROZESS),
+            in_order=running.get(unit.id),
         )
         for unit, instance, art in rows
     ]

@@ -13,7 +13,23 @@ from ..core.database import Base
 KIND_START = "start"
 KIND_STEP = "step"
 KIND_END = "end"
-EVENT_KINDS = (KIND_START, KIND_STEP, KIND_END)
+
+#: Der **Auftragswechsel** (Abweichungsauftrag §3.2/§3.3). Er passiert an keinem
+#: Prozessobjekt – das Stück verlässt einen Auftrag mitten im Ablauf und tritt in einen
+#: anderen ein. Beide Seiten schreiben, denn ein Ereignis gehört immer zu genau **einem**
+#: Auftrag (``order_id``), und beide Historien müssen vollständig sein: sonst führe in
+#: einer davon die Spur ins Nichts.
+#:
+#:   ``handover``  «das Stück hat diesen Auftrag verlassen» (``payload.to_order``)
+#:   ``return``    «das Stück ist zurückgekehrt»            (``payload.from_order``)
+#:
+#: Der **Eintritt** braucht kein eigenes Wort: das ist ``start`` – und genau daran ist
+#: eine Abweichung erkennbar, ohne dass irgendwo ein Flag steht (§2 des Auftrags): ihr
+#: Start-Eintrag trägt ``status_before = im_prozess`` statt ``freigegeben``.
+KIND_HANDOVER = "handover"
+KIND_RETURN = "return"
+
+EVENT_KINDS = (KIND_START, KIND_STEP, KIND_END, KIND_HANDOVER, KIND_RETURN)
 
 
 class ProcessEvent(Base):

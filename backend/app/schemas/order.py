@@ -29,6 +29,13 @@ class DefinitionLine(BaseModel):
     quantity: int = Field(ge=1)
     origin: str
     unit_numbers: list[str] = Field(default_factory=list)
+    #: **Die Rückführung** – kehren Stücke, die aus einem laufenden Auftrag übernommen
+    #: werden, dorthin zurück (Abweichungsauftrag §3.3/§3.4)? Gespeichert wird sie an der
+    #: **Verbindung** (``order_units.return_to_order_id``), nicht am Auftrag; darum
+    #: funktionieren Schachtelung und Parallelität ohne Zusatzregel.
+    #:
+    #: Für freie Stücke bedeutungslos: sie kommen aus keinem Auftrag.
+    returns: bool = True
 
 
 class OrderCreate(BaseModel):
@@ -152,6 +159,36 @@ class JourneyNeighbour(BaseModel):
     unit_count: int
 
 
+class RelatedOrder(BaseModel):
+    """Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.
+
+    Er bringt seinen **vollständigen Ablauf** mit (``steps`` + ``unit_groups`` +
+    ``active_step_id``), damit die Spalte daneben dieselbe Komponente rendern kann wie
+    die Mitte. Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform
+    für dieselbe Sache – und die läuft irgendwann von der ersten weg.
+
+    ``unit_count`` ist die Zahl der Stücke, die **zwischen den beiden** unterwegs sind;
+    ``returns`` sagt, ob sie zurückkommen. Beides ist die Beschriftung der Verbindung.
+    """
+
+    object_id: int
+    name: str
+    status: str
+    end_status: str
+    steps: list[ProcessStepResponse] = Field(default_factory=list)
+    unit_groups: list[UnitGroup] = Field(default_factory=list)
+    active_step_id: Optional[int] = None
+    #: Wie viele Stücke dieses Auftrags stammen aus bzw. gehen an den gezeigten Auftrag.
+    unit_count: int
+    #: Kehren sie zurück? Bei ``False`` läuft der Quell-Auftrag mit weniger weiter.
+    returns: bool = False
+    #: **An welchem Modul des betrachteten Auftrags** die Abzweigung passiert ist. Das
+    #: Bild zeichnet sie dort – «wo ist die Instanz ausgeschert» ist die Frage, die man
+    #: auf einen Blick beantwortet haben will. ``None`` bei einem übergeordneten Auftrag:
+    #: von dort kommen die Stücke am **Start** herein, und das ist keine Modul-Stelle.
+    origin_step_id: Optional[int] = None
+
+
 class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -186,6 +223,23 @@ class OrderResponse(BaseModel):
     #: Welches Modul ist jetzt dran – **abgeleitet**, nicht gespeichert.
     active_step_id: Optional[int] = None
 
+    # ── Struktur: übergeordnete Aufträge ↔ Abweichungen ──────────────────────
+    #
+    # **«Abweichung» ist eine Auskunft, kein Feld** (§2): sie ergibt sich aus dem Log –
+    # der Start-Eintrag dieses Auftrags trägt ``status_before = im_prozess``, das Stück
+    # kam also aus einem laufenden Auftrag. Es gibt keinen Auftragstyp und keine Spalte.
+    is_deviation: bool = False
+    #: Links: die Aufträge, aus denen dieser hier Stücke übernommen hat.
+    parents: list[RelatedOrder] = Field(default_factory=list)
+    #: Rechts: die Aufträge, die diesem hier Stücke abgenommen haben. **Gekappt bei
+    #: ``RELATED_LIMIT``** – bei vielen Abweichungen wäre die Antwort sonst so gross wie
+    #: die Summe aller Abläufe. ``deviation_total`` nennt die wahre Zahl.
+    deviations: list[RelatedOrder] = Field(default_factory=list)
+    deviation_total: int = 0
+    #: Wie viele Stücke sind gerade ausgeliehen und kommen zurück – **abgeleitet** aus
+    #: den offenen rückführenden Verbindungen. 0 heisst: dieser Auftrag wartet auf nichts.
+    waiting_for_return: int = 0
+
 
 class OrderSummary(BaseModel):
     """Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail.
@@ -204,6 +258,8 @@ class OrderSummary(BaseModel):
     created_at: datetime
     updated_at: datetime
     is_active: bool
+    #: Kleines Label neben dem Zustand – **abgeleitet**, siehe ``OrderResponse``.
+    is_deviation: bool = False
 
 
 class ArticleOption(BaseModel):
@@ -224,8 +280,12 @@ class ArticleOption(BaseModel):
 class UnitOption(BaseModel):
     """Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.
 
-    ``blocked_by`` nennt den Auftrag, in dem das Stück gerade aktiv ist – damit die
-    Oberfläche den Grund zeigen kann, statt eine Zeile stumm auszugrauen.
+    ``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein
+    Hindernis mehr**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine
+    Abweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was
+    beim Wählen passiert – statt es geschehen zu lassen.
+
+    ``available`` heisst darum nur noch: dieses Stück lässt sich überhaupt nehmen.
     """
 
     number: str
@@ -233,4 +293,4 @@ class UnitOption(BaseModel):
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     available: bool
-    blocked_by: Optional[int] = None
+    in_order: Optional[int] = None

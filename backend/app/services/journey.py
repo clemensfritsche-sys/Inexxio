@@ -36,9 +36,11 @@ Datenbestand: er beschleunigt eine Frage, er beantwortet sie nicht.
 from typing import Optional
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
-from ..models import Order, ProcessEvent
+from ..domain import statuses as st
+from ..models import Order, OrderUnit, ProcessEvent
+from ..models.process_event import KIND_HANDOVER, KIND_START
 
 
 def _span(order_id: int):
@@ -101,6 +103,97 @@ def neighbours(db: Session, order: Order) -> tuple[list[dict], list[dict]]:
     """
     return (_resolve(db, _neighbour_counts(db, order.id, before=True)),
             _resolve(db, _neighbour_counts(db, order.id, before=False)))
+
+
+# ---------------------------------------------------------------------------
+# Die Struktur: übergeordneter Auftrag ↔ Abweichungsauftrag
+# ---------------------------------------------------------------------------
+#
+# Die Journey oben beantwortet «wo war das Stück davor/danach» – eine Frage an die
+# **Zeitachse**. Hier geht es um die **Struktur**: welche Aufträge greifen ineinander,
+# weil einer dem anderen ein Stück mitten im Ablauf abgenommen hat.
+#
+# Beides aus derselben Quelle, aber an einem anderen Anker: die Journey misst von der
+# Auftrags-Spanne aus, die Struktur vom **Auftragswechsel** aus. Der Unterschied ist
+# nicht Geschmack — eine Abweichung, die ihr Stück zurückgibt, liegt *innerhalb* der
+# Spanne ihres Eltern-Auftrags, und die Spannen-Rechnung fände sie darum nie.
+
+
+def _adjacent(before: bool):
+    """Das unmittelbar benachbarte Ereignis desselben Stücks — als Unterabfrage.
+
+    Ein Sprung an die Nachbar-Zeile über den Index ``(instance_unit_id, id)``; ohne ihn
+    wäre es ein Sortieren über die ganze Geschichte des Stücks.
+    """
+    ev = aliased(ProcessEvent)
+    q = select(ev.order_id).where(ev.instance_unit_id == ProcessEvent.instance_unit_id)
+    q = q.where(ev.id < ProcessEvent.id) if before else q.where(ev.id > ProcessEvent.id)
+    return q.order_by(ev.id.desc() if before else ev.id).limit(1).scalar_subquery()
+
+
+def _counts_from(db: Session, *, order_id: int, kind: str, status_before: Optional[str],
+                 before: bool) -> list[tuple[int, int, Optional[int]]]:
+    """``[(Auftrag-id, Anzahl Stücke, Modul-id), …]`` zu einem Anker-Ereignis.
+
+    Die **Modul-id ist die Stelle im eigenen Ablauf**, an der der Wechsel passiert ist –
+    das Bild braucht sie, um die Abzweigung dort zu zeichnen, wo sie stattfand. Sie steht
+    im Anker-Ereignis; es gibt nichts nachzuschlagen.
+    """
+    anchor = select(
+        ProcessEvent.instance_unit_id.label("unit_id"),
+        ProcessEvent.step_id.label("step_id"),
+        _adjacent(before).label("oid"),
+    ).where(ProcessEvent.order_id == order_id, ProcessEvent.kind == kind)
+    if status_before is not None:
+        anchor = anchor.where(ProcessEvent.status_before == status_before)
+    sub = anchor.subquery()
+    rows = db.execute(
+        select(sub.c.oid, func.count(), func.min(sub.c.step_id))
+        .where(sub.c.oid.isnot(None), sub.c.oid != order_id)
+        .group_by(sub.c.oid)
+        .order_by(func.count().desc(), sub.c.oid)
+    ).all()
+    return [(int(oid), int(n), int(sid) if sid is not None else None)
+            for oid, n, sid in rows]
+
+
+def parents(db: Session, order: Order) -> list[tuple[int, int, Optional[int]]]:
+    """Aus welchen **laufenden** Aufträgen hat dieser Auftrag Stücke übernommen?
+
+    Anker ist sein eigener Start-Eintrag mit ``status_before = im_prozess`` – dieselbe
+    Bedingung, die den Auftrag zur Abweichung macht (§2). Daneben steht dann der
+    Auftrag, aus dem das Stück kam.
+    """
+    return _counts_from(db, order_id=order.id, kind=KIND_START,
+                        status_before=st.IM_PROZESS, before=True)
+
+
+def deviations(db: Session, order: Order) -> list[tuple[int, int, Optional[int]]]:
+    """Welche Aufträge haben diesem hier Stücke **mitten im Ablauf** abgenommen?
+
+    Anker ist sein eigener ``handover``-Eintrag; daneben steht der Auftrag, der das
+    Stück aufgenommen hat. Gekappte Abweichungen erscheinen dabei genauso wie
+    rückführende – sie sind ja passiert, und dass sie nichts zurückgeben, ist ihre
+    Eigenschaft, nicht ihr Fehlen.
+    """
+    return _counts_from(db, order_id=order.id, kind=KIND_HANDOVER,
+                        status_before=None, before=False)
+
+
+def returning_to(db: Session, order: Order, order_ids: list[int]) -> set[int]:
+    """Welche dieser Aufträge geben ihre Stücke an ``order`` zurück? — die Verbindung."""
+    if not order_ids:
+        return set()
+    return {
+        int(oid)
+        for (oid,) in db.query(OrderUnit.order_id)
+        .filter(
+            OrderUnit.order_id.in_(order_ids),
+            OrderUnit.return_to_order_id == order.id,
+        )
+        .distinct()
+        .all()
+    }
 
 
 def _resolve(db: Session, counts: list[tuple[int, int]]) -> list[dict]:

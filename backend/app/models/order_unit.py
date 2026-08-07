@@ -34,7 +34,35 @@ class OrderUnit(Base, TimestampMixin):
 
     ``current_step_id`` ist die Laufzeit-Projektion «wo steht dieses Stück» und gehört
     hierher, nicht an die Einzelinstanz: es ist eine Aussage über die Zugehörigkeit,
-    nicht über das Stück selbst. ``NULL`` heisst «am Ende angekommen».
+    nicht über das Stück selbst.
+
+    **Damit gibt es zwei Gründe, warum eine Zeile geschlossen ist** – und der Unterschied
+    steckt in ``current_step_id``:
+
+    ==============================  =========================================
+    ``current_step_id IS NULL``     **angekommen** – das Ende-Objekt passiert
+    ``current_step_id IS NOT NULL`` **ausgeschert** – ein anderer Auftrag hat
+                                    das Stück übernommen; hier steht, wohin es
+                                    zurückkehrt
+    ==============================  =========================================
+
+    Das ist keine zweite Bedeutung, sondern dieselbe: ``current_step_id`` sagt immer «wo
+    steht dieses Stück in diesem Auftrag», und beim Ausscheren steht es eben noch dort.
+    Genau deshalb braucht die Rückkehr **kein eigenes Feld** – die Position ist schon da,
+    und ihre Wahrheit steht im Ereignis-Log.
+
+    ``return_to_order_id`` ist **die Verbindung zwischen zwei Aufträgen** (Abweichungs-
+    auftrag §6): kehrt dieses Stück nach dem Durchlauf in den Auftrag zurück, aus dem es
+    kam? Sie hängt an der **Verbindung**, nicht am Auftrag – dadurch funktionieren
+    Schachtelung (ein Abweichungsauftrag hat seine eigene Abweichung) und Parallelität
+    (mehrere Abweichungen gleichzeitig) ohne eine einzige zusätzliche Regel.
+
+    ``NULL`` heisst «kehrt nirgends zurück» – entweder war das Stück frei (ein ganz
+    gewöhnlicher Auftrag) oder die Rückführung wurde bei der Definition gekappt
+    (Aussonderung). Der Quell-Auftrag läuft dann mit reduzierter Menge weiter; er wartet
+    nicht. Auch **«wartet auf Rückführung» ist damit abgeleitet**, nicht gespeichert:
+    es wartet, wer noch mindestens eine offene rückführende Verbindung hat. Kein Zähler,
+    den jemand zu dekrementieren vergessen kann.
     """
 
     __tablename__ = "order_units"
@@ -54,4 +82,9 @@ class OrderUnit(Base, TimestampMixin):
     current_step_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     released_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True,
+    )
+    #: Die Verbindung: in welchen Auftrag kehrt dieses Stück zurück, wenn es hier durch
+    #: ist. ``NULL`` = nirgendwohin (siehe Klassen-Docstring).
+    return_to_order_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, index=True, nullable=True,
     )

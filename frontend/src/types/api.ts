@@ -715,8 +715,9 @@ export interface paths {
          *     **FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,
          *     kein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.
          *
-         *     Gesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund
-         *     zeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.
+         *     **Ein Stück im Prozess ist wählbar** (Abweichungsauftrag §3.5): genau daraus entsteht
+         *     eine Abweichung. ``in_order`` sagt, wo es gerade läuft – damit die Oberfläche nennen
+         *     kann, was beim Wählen passiert, statt es geschehen zu lassen.
          */
         get: operations["unit_options_api_v1_erp_orders_unit_options_get"];
         put?: never;
@@ -1476,6 +1477,11 @@ export interface components {
             origin: string;
             /** Unit Numbers */
             unit_numbers?: string[];
+            /**
+             * Returns
+             * @default true
+             */
+            returns: boolean;
         };
         /**
          * ErpAdminUpdate
@@ -1988,6 +1994,25 @@ export interface components {
             journey_out?: components["schemas"]["JourneyNeighbour"][];
             /** Active Step Id */
             active_step_id?: number | null;
+            /**
+             * Is Deviation
+             * @default false
+             */
+            is_deviation: boolean;
+            /** Parents */
+            parents?: components["schemas"]["RelatedOrder"][];
+            /** Deviations */
+            deviations?: components["schemas"]["RelatedOrder"][];
+            /**
+             * Deviation Total
+             * @default 0
+             */
+            deviation_total: number;
+            /**
+             * Waiting For Return
+             * @default 0
+             */
+            waiting_for_return: number;
         };
         /**
          * OrderSummary
@@ -2018,6 +2043,11 @@ export interface components {
             updated_at: string;
             /** Is Active */
             is_active: boolean;
+            /**
+             * Is Deviation
+             * @default false
+             */
+            is_deviation: boolean;
         };
         /**
          * OrderUnitPage
@@ -2175,6 +2205,43 @@ export interface components {
             readonly label: string;
         };
         /**
+         * RelatedOrder
+         * @description Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.
+         *
+         *     Er bringt seinen **vollständigen Ablauf** mit (``steps`` + ``unit_groups`` +
+         *     ``active_step_id``), damit die Spalte daneben dieselbe Komponente rendern kann wie
+         *     die Mitte. Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform
+         *     für dieselbe Sache – und die läuft irgendwann von der ersten weg.
+         *
+         *     ``unit_count`` ist die Zahl der Stücke, die **zwischen den beiden** unterwegs sind;
+         *     ``returns`` sagt, ob sie zurückkommen. Beides ist die Beschriftung der Verbindung.
+         */
+        RelatedOrder: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** End Status */
+            end_status: string;
+            /** Steps */
+            steps?: components["schemas"]["ProcessStepResponse"][];
+            /** Unit Groups */
+            unit_groups?: components["schemas"]["UnitGroup"][];
+            /** Active Step Id */
+            active_step_id?: number | null;
+            /** Unit Count */
+            unit_count: number;
+            /**
+             * Returns
+             * @default false
+             */
+            returns: boolean;
+            /** Origin Step Id */
+            origin_step_id?: number | null;
+        };
+        /**
          * StepConfirm
          * @description «Bestätigen» an einem Modul: die erfassten Werte, geschlüsselt nach Punkt-``key``.
          *
@@ -2280,8 +2347,12 @@ export interface components {
          * UnitOption
          * @description Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.
          *
-         *     ``blocked_by`` nennt den Auftrag, in dem das Stück gerade aktiv ist – damit die
-         *     Oberfläche den Grund zeigen kann, statt eine Zeile stumm auszugrauen.
+         *     ``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein
+         *     Hindernis mehr**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine
+         *     Abweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was
+         *     beim Wählen passiert – statt es geschehen zu lassen.
+         *
+         *     ``available`` heisst darum nur noch: dieses Stück lässt sich überhaupt nehmen.
          */
         UnitOption: {
             /** Number */
@@ -2294,8 +2365,8 @@ export interface components {
             article_name?: string | null;
             /** Available */
             available: boolean;
-            /** Blocked By */
-            blocked_by?: number | null;
+            /** In Order */
+            in_order?: number | null;
         };
         /** UploadResult */
         UploadResult: {

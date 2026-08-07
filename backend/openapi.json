@@ -1822,7 +1822,7 @@
           "orders"
         ],
         "summary": "Unit Options",
-        "description": "Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?\n\n**FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,\nkein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.\n\nGesperrte werden **mitgeliefert**, nicht weggefiltert: die Oberfläche soll den Grund\nzeigen können («aktiv in Auftrag …»), statt eine Zeile stumm verschwinden zu lassen.",
+        "description": "Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?\n\n**FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,\nkein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.\n\n**Ein Stück im Prozess ist wählbar** (Abweichungsauftrag §3.5): genau daraus entsteht\neine Abweichung. ``in_order`` sagt, wo es gerade läuft – damit die Oberfläche nennen\nkann, was beim Wählen passiert, statt es geschehen zu lassen.",
         "operationId": "unit_options_api_v1_erp_orders_unit_options_get",
         "security": [
           {
@@ -4373,6 +4373,11 @@
             },
             "type": "array",
             "title": "Unit Numbers"
+          },
+          "returns": {
+            "type": "boolean",
+            "title": "Returns",
+            "default": true
           }
         },
         "type": "object",
@@ -5683,6 +5688,35 @@
               }
             ],
             "title": "Active Step Id"
+          },
+          "is_deviation": {
+            "type": "boolean",
+            "title": "Is Deviation",
+            "default": false
+          },
+          "parents": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedOrder"
+            },
+            "type": "array",
+            "title": "Parents"
+          },
+          "deviations": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedOrder"
+            },
+            "type": "array",
+            "title": "Deviations"
+          },
+          "deviation_total": {
+            "type": "integer",
+            "title": "Deviation Total",
+            "default": 0
+          },
+          "waiting_for_return": {
+            "type": "integer",
+            "title": "Waiting For Return",
+            "default": 0
           }
         },
         "type": "object",
@@ -5729,6 +5763,11 @@
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
+          },
+          "is_deviation": {
+            "type": "boolean",
+            "title": "Is Deviation",
+            "default": false
           }
         },
         "type": "object",
@@ -6079,6 +6118,81 @@
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. ``label`` ist nur die Beschriftung und **abgeleitet** aus\n``domain/modules`` – ein gespeicherter Name wäre eine zweite Aussage darüber, was\ndieses Modul ist, und die erste falsche Eingabe liesse beide auseinanderlaufen."
       },
+      "RelatedOrder": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "end_status": {
+            "type": "string",
+            "title": "End Status"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessStepResponse"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "unit_groups": {
+            "items": {
+              "$ref": "#/components/schemas/UnitGroup"
+            },
+            "type": "array",
+            "title": "Unit Groups"
+          },
+          "active_step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Step Id"
+          },
+          "unit_count": {
+            "type": "integer",
+            "title": "Unit Count"
+          },
+          "returns": {
+            "type": "boolean",
+            "title": "Returns",
+            "default": false
+          },
+          "origin_step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Step Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "name",
+          "status",
+          "end_status",
+          "unit_count"
+        ],
+        "title": "RelatedOrder",
+        "description": "Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.\n\nEr bringt seinen **vollständigen Ablauf** mit (``steps`` + ``unit_groups`` +\n``active_step_id``), damit die Spalte daneben dieselbe Komponente rendern kann wie\ndie Mitte. Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform\nfür dieselbe Sache – und die läuft irgendwann von der ersten weg.\n\n``unit_count`` ist die Zahl der Stücke, die **zwischen den beiden** unterwegs sind;\n``returns`` sagt, ob sie zurückkommen. Beides ist die Beschriftung der Verbindung."
+      },
       "StepConfirm": {
         "properties": {
           "values": {
@@ -6315,7 +6429,7 @@
             "type": "boolean",
             "title": "Available"
           },
-          "blocked_by": {
+          "in_order": {
             "anyOf": [
               {
                 "type": "integer"
@@ -6324,7 +6438,7 @@
                 "type": "null"
               }
             ],
-            "title": "Blocked By"
+            "title": "In Order"
           }
         },
         "type": "object",
@@ -6334,7 +6448,7 @@
           "available"
         ],
         "title": "UnitOption",
-        "description": "Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.\n\n``blocked_by`` nennt den Auftrag, in dem das Stück gerade aktiv ist – damit die\nOberfläche den Grund zeigen kann, statt eine Zeile stumm auszugrauen."
+        "description": "Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.\n\n``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein\nHindernis mehr**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine\nAbweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was\nbeim Wählen passiert – statt es geschehen zu lassen.\n\n``available`` heisst darum nur noch: dieses Stück lässt sich überhaupt nehmen."
       },
       "UploadResult": {
         "properties": {

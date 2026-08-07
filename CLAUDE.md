@@ -33,6 +33,11 @@
 > dahin lebt der Entwurf im Browser, ohne Zeile und ohne Objektnummer. Das erste echte
 > Prozessschrittmodul ist die **Datenerfassung** (Erfassungspunkte: Text · Ja/Nein · Bild ·
 > Signatur · Soll-Ist-Vergleich, je Typ eine Datei in `domain/capture_types/`).
+> **Abweichungen sind ganz normale Aufträge** (PROCESS_CORE §12): ein Auftrag, der Stücke
+> mit Status `Im Prozess` greift, entzieht sie dem laufenden Auftrag und trägt dafür ein
+> **abgeleitetes** Label. Ob ein Stück zurückkehrt, ist eine Eigenschaft der **Verbindung**
+> (`order_units.return_to_order_id`), nicht des Auftrags – darum funktionieren Schachtelung
+> und Parallelität ohne zweite Regel. Kein `if abweichung:` im Code.
 > Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
 > Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
 

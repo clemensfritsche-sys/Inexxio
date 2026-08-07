@@ -95,6 +95,10 @@ _COLUMN_SAFETY_NET = (
     ("articles", "process_version", "INTEGER NOT NULL DEFAULT 0"),
     ("process_steps", "source_article_id", "BIGINT"),
     ("process_steps", "source_version", "INTEGER"),
+    # Abweichungsauftrag (Migration 109): die Verbindung zwischen zwei Aufträgen. Das
+    # Modell kennt sie, also scheitert ohne sie **jede** Auftrags- und Bestandsabfrage –
+    # dieselbe Ausfallklasse wie Migration 090.
+    ("order_units", "return_to_order_id", "BIGINT"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -180,6 +184,13 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "DO $$ BEGIN IF to_regclass('public.process_events') IS NOT NULL THEN "
     "CREATE INDEX IF NOT EXISTS ix_process_events_unit_timeline "
     "ON process_events (instance_unit_id, id); END IF; END $$;",
+    # ►► Die **Verbindung** (Migration 109): «wer wartet auf Rückführung» ist eine Frage
+    #    an diese Spalte, und sie wird bei jedem Auftrags-Feed gestellt.
+    "DO $$ BEGIN IF to_regclass('public.order_units') IS NOT NULL "
+    "AND EXISTS (SELECT 1 FROM information_schema.columns "
+    "WHERE table_name='order_units' AND column_name='return_to_order_id') THEN "
+    "CREATE INDEX IF NOT EXISTS ix_order_units_return_to_order_id "
+    "ON order_units (return_to_order_id); END IF; END $$;",
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  Blocks, ChevronDown, ChevronUp, CornerDownRight, CornerRightDown, Flag,
+  Blocks, ChevronDown, ChevronUp, CornerDownRight, CornerRightDown, Flag, GitBranch,
   GripVertical, Play, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
@@ -75,6 +75,69 @@ export interface DiagramGroup {
   count: number;
 }
 
+/** Ein Knoten im Bild. Die Liste entsteht in ``flowNodes`` – **einmal**, für jede Spalte. */
+export type FlowSpec =
+  | { id: string; kind: 'head' }
+  | { id: string; kind: 'tail' }
+  | { id: string; kind: 'terminal'; which: 'start' | 'end' }
+  | { id: string; kind: 'state'; at: number | null }
+  | { id: string; kind: 'step'; step: DiagramStep; index: number }
+  | { id: string; kind: 'journey'; where: 'in' | 'out' };
+
+/**
+ * Die Knotenfolge — **eine reine Funktion**, damit sie nicht nur die Komponente selbst
+ * kennt. Ein Bild aus mehreren Spalten (übergeordneter Auftrag · eigener Ablauf ·
+ * Abweichungen) braucht sie je Spalte, und die Linien dazwischen brauchen die Ids.
+ *
+ * Die **Zustandsanzeige zwischen zwei Modulen ist abgeleitet**: nach Modul *i* steht per
+ * Statusregel genau dessen `Nachher` (§4). Das Bild zeigt damit die Regel, statt sie zu
+ * wiederholen. Unterhalb der aktuellen Stelle entsteht **kein** Zustandsknoten — dort
+ * war noch kein Material (§7.3), und eine leere Anzeige wäre eine Fallback-Anzeige.
+ */
+export function flowNodes({
+  prefix = '', running, steps, groups, hasHead, hasTail, journeyIn = 0, journeyOut = 0,
+}: {
+  prefix?: string;
+  running: boolean;
+  steps: DiagramStep[];
+  groups: DiagramGroup[];
+  hasHead?: boolean;
+  hasTail?: boolean;
+  journeyIn?: number;
+  journeyOut?: number;
+}): FlowSpec[] {
+  const p = (id: string) => `${prefix}${id}`;
+  const out: FlowSpec[] = [];
+  if (hasHead) out.push({ id: p('head'), kind: 'head' });
+  if (journeyIn) out.push({ id: p('journey-in'), kind: 'journey', where: 'in' });
+  out.push({ id: p('start'), kind: 'terminal', which: 'start' });
+  if (running && groupsAt(groups, steps[0]?.id ?? null, true).length) {
+    out.push({ id: p('state-start'), kind: 'state', at: steps[0]?.id ?? null });
+  }
+  steps.forEach((s, i) => {
+    out.push({ id: p(`step-${s.id}`), kind: 'step', step: s, index: i });
+    const next = steps[i + 1]?.id ?? null;
+    if (running && next !== null && groupsAt(groups, next, true).length) {
+      out.push({ id: p(`state-${s.id}`), kind: 'state', at: next });
+    }
+  });
+  if (hasTail) out.push({ id: p('tail'), kind: 'tail' });
+  out.push({ id: p('end'), kind: 'terminal', which: 'end' });
+  if (running && groups.some((g) => !g.active && g.currentStepId === null)) {
+    out.push({ id: p('state-end'), kind: 'state', at: null });
+  }
+  if (journeyOut) out.push({ id: p('journey-out'), kind: 'journey', where: 'out' });
+  return out;
+}
+
+/** Bis wohin ist die Linie stark? Bis zu der Stelle, an der der Prozess wirklich steht. */
+export function walkedEdges(nodes: FlowSpec[], running: boolean): number {
+  if (!running) return 0;
+  let last = -1;
+  nodes.forEach((n, i) => { if (n.kind === 'state') last = i; });
+  return Math.max(0, last);
+}
+
 export function ProcessDiagram({
   mode, steps, groups = [], activeStepId = null, endStatus,
   head, tail, onDelete, renderStep, onExpand, tone, onReorder, dragging, onDragState,
@@ -108,128 +171,149 @@ export function ProcessDiagram({
   onDragState?: (index: number | null) => void;
 }) {
   const running = mode === 'ausfuehrung';
-
-  /**
-   * Die Knotenfolge. Die **Zustandsanzeige zwischen zwei Modulen ist abgeleitet**: nach
-   * Modul *i* steht per Statusregel genau dessen `Nachher` (§4). Das Bild zeigt damit
-   * die Regel, statt sie zu wiederholen.
-   *
-   * Unterhalb der aktuellen Stelle entsteht **kein** Zustandsknoten — dort war noch kein
-   * Material, also gibt es keines anzuzeigen (§7.3). Eine leere Anzeige wäre eine
-   * Fallback-Anzeige.
-   */
-  const nodes = useMemo(() => {
-    const out: Array<
-      | { id: string; kind: 'head' }
-      | { id: string; kind: 'tail' }
-      | { id: string; kind: 'terminal'; which: 'start' | 'end' }
-      | { id: string; kind: 'state'; at: number | null }
-      | { id: string; kind: 'step'; step: DiagramStep; index: number }
-      | { id: string; kind: 'journey'; where: 'in' | 'out' }
-    > = [];
-    if (head) out.push({ id: 'head', kind: 'head' });
-    if (journeyIn.length) out.push({ id: 'journey-in', kind: 'journey', where: 'in' });
-    out.push({ id: 'start', kind: 'terminal', which: 'start' });
-    if (running && groupsAt(groups, steps[0]?.id ?? null, true).length) {
-      out.push({ id: 'state-start', kind: 'state', at: steps[0]?.id ?? null });
-    }
-    steps.forEach((s, i) => {
-      out.push({ id: `step-${s.id}`, kind: 'step', step: s, index: i });
-      const next = steps[i + 1]?.id ?? null;
-      if (running && next !== null && groupsAt(groups, next, true).length) {
-        out.push({ id: `state-${s.id}`, kind: 'state', at: next });
-      }
-    });
-    if (tail) out.push({ id: 'tail', kind: 'tail' });
-    out.push({ id: 'end', kind: 'terminal', which: 'end' });
-    if (running && groups.some((g) => !g.active)) {
-      out.push({ id: 'state-end', kind: 'state', at: null });
-    }
-    if (journeyOut.length) out.push({ id: 'journey-out', kind: 'journey', where: 'out' });
-    return out;
-  }, [head, tail, steps, groups, running, journeyIn.length, journeyOut.length]);
-
-  /** Bis wohin ist die Linie stark? Bis zu der Stelle, an der der Prozess wirklich steht. */
-  const walkedEdges = useMemo(() => {
-    if (!running) return 0;
-    let last = -1;
-    nodes.forEach((n, i) => {
-      if (n.kind === 'state') last = i;
-    });
-    return Math.max(0, last);
-  }, [nodes, running]);
+  const nodes = useMemo(
+    () => flowNodes({
+      running, steps, groups,
+      hasHead: !!head, hasTail: !!tail,
+      journeyIn: journeyIn.length, journeyOut: journeyOut.length,
+    }),
+    [head, tail, steps, groups, running, journeyIn.length, journeyOut.length],
+  );
+  const walked = useMemo(() => walkedEdges(nodes, running), [nodes, running]);
 
   return (
     <div className="mx-auto w-full" style={{ maxWidth: PROCESS_MAXW }}>
-    <FlowFrame lines={(a) => <Lines ids={nodes.map((n) => n.id)} anchors={a} walked={walkedEdges} />}>
-      {() => (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          {nodes.map((n) => {
-            if (n.kind === 'head') {
-              return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{head}</FlowNode>;
-            }
-            if (n.kind === 'tail') {
-              return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{tail}</FlowNode>;
-            }
-            if (n.kind === 'journey') {
-              return (
-                <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
-                  <JourneyRow where={n.where} stops={n.where === 'in' ? journeyIn : journeyOut} />
-                </FlowNode>
-              );
-            }
-            if (n.kind === 'terminal') {
-              return (
-                <FlowNode key={n.id} id={n.id}>
-                  <Terminal which={n.which} endStatus={endStatus} />
-                </FlowNode>
-              );
-            }
-            if (n.kind === 'state') {
-              const active = n.id !== 'state-end';
-              return (
-                <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
-                  <StateRow
-                    groups={groupsAt(groups, n.at, active)}
-                    stepId={n.at}
-                    active={active}
-                    onExpand={onExpand}
-                  />
-                </FlowNode>
-              );
-            }
-            const isActive = running && n.step.id === activeStepId;
-            const index = n.index;
-            return (
-              <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
-                <StepCard
-                  step={n.step}
-                  active={isActive}
-                  dimmed={running && !isActive}
-                  tone={tone?.(n.step.moduleType)}
-                  onDelete={mode === 'definition' && onDelete ? () => onDelete(n.step.id) : undefined}
-                  drag={onReorder && mode === 'definition' ? {
-                    index,
-                    over: dragging !== null && dragging !== index,
-                    onStart: () => onDragState?.(index),
-                    onEnd: () => onDragState?.(null),
-                    onDrop: (from) => { onReorder(from, index); onDragState?.(null); },
-                  } : undefined}
-                >
-                  {renderStep?.(n.step, isActive)}
-                </StepCard>
-              </FlowNode>
-            );
-          })}
-        </div>
-      )}
-    </FlowFrame>
+      <FlowFrame lines={(a) => <Lines ids={nodes.map((n) => n.id)} anchors={a} walked={walked} />}>
+        {() => (
+          <FlowColumn
+            nodes={nodes} mode={mode} groups={groups} activeStepId={activeStepId}
+            endStatus={endStatus} head={head} tail={tail} onDelete={onDelete}
+            renderStep={renderStep} onExpand={onExpand} tone={tone} onReorder={onReorder}
+            dragging={dragging} onDragState={onDragState}
+            journeyIn={journeyIn} journeyOut={journeyOut}
+          />
+        )}
+      </FlowFrame>
+    </div>
+  );
+}
+
+/**
+ * **Eine Spalte des Bildes.** Sie zeichnet ihre Knoten in den Rahmen, in dem sie steht –
+ * eigene Linien hat sie nicht. Genau dadurch lassen sich mehrere Spalten in **einem**
+ * Rahmen zeigen (übergeordneter Auftrag · eigener Ablauf · Abweichungen) und die Linien
+ * dazwischen aus denselben gemessenen Ankern berechnen.
+ */
+export function FlowColumn({
+  nodes, mode, groups = [], activeStepId = null, endStatus, head, tail, onDelete,
+  renderStep, onExpand, tone, onReorder, dragging, onDragState,
+  journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
+}: {
+  nodes: FlowSpec[];
+  mode: DiagramMode;
+  groups?: DiagramGroup[];
+  activeStepId?: number | null;
+  endStatus: string;
+  head?: ReactNode;
+  tail?: ReactNode;
+  onDelete?: (id: number) => void;
+  renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
+  onExpand?: (stepId: number | null, active: boolean) => Promise<string[]>;
+  tone?: (moduleType: string) => { bg: string; fg: string; border: string };
+  onReorder?: (from: number, to: number) => void;
+  dragging?: number | null;
+  onDragState?: (index: number | null) => void;
+  journeyIn?: JourneyStop[];
+  journeyOut?: JourneyStop[];
+  /** Ein **fremder** Auftrag daneben: vollständig sichtbar, aber nicht der Fokus. */
+  faded?: boolean;
+  /** **Abweichung an genau diesem Stück** (Abweichungsauftrag §3.1): der Auslöser sitzt
+   *  dort, wo das Stück gerade im Prozess steht – nicht in einem Menü darüber. */
+  onDeviate?: (unitNumber: string) => void;
+  /** Warum der Auslöser gerade gesperrt ist. Gesetzt = gesperrt, mit Grund im Hover. */
+  deviateBlocked?: string;
+}) {
+  const running = mode === 'ausfuehrung';
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+      opacity: faded ? 0.5 : 1,
+    }}>
+      {nodes.map((n) => {
+        if (n.kind === 'head') {
+          return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{head}</FlowNode>;
+        }
+        if (n.kind === 'tail') {
+          return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{tail}</FlowNode>;
+        }
+        if (n.kind === 'journey') {
+          return (
+            <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
+              <JourneyRow where={n.where} stops={n.where === 'in' ? journeyIn : journeyOut} />
+            </FlowNode>
+          );
+        }
+        if (n.kind === 'terminal') {
+          return (
+            <FlowNode key={n.id} id={n.id}>
+              <Terminal which={n.which} endStatus={endStatus} />
+            </FlowNode>
+          );
+        }
+        if (n.kind === 'state') {
+          const active = n.at !== null;
+          return (
+            <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
+              <StateRow
+                groups={groupsAt(groups, n.at, active)}
+                away={n.at !== null ? groupsAway(groups, n.at) : []}
+                stepId={n.at}
+                active={active}
+                onExpand={onExpand}
+                onDeviate={active ? onDeviate : undefined}
+                deviateBlocked={deviateBlocked}
+              />
+            </FlowNode>
+          );
+        }
+        const isActive = running && n.step.id === activeStepId;
+        const index = n.index;
+        return (
+          <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
+            <StepCard
+              step={n.step}
+              active={isActive}
+              dimmed={running && !isActive}
+              tone={tone?.(n.step.moduleType)}
+              onDelete={mode === 'definition' && onDelete ? () => onDelete(n.step.id) : undefined}
+              drag={onReorder && mode === 'definition' ? {
+                index,
+                over: dragging !== null && dragging !== index,
+                onStart: () => onDragState?.(index),
+                onEnd: () => onDragState?.(null),
+                onDrop: (from) => { onReorder(from, index); onDragState?.(null); },
+              } : undefined}
+            >
+              {renderStep?.(n.step, isActive)}
+            </StepCard>
+          </FlowNode>
+        );
+      })}
     </div>
   );
 }
 
 function groupsAt(groups: DiagramGroup[], stepId: number | null, active: boolean): DiagramGroup[] {
   return groups.filter((g) => g.active === active && g.currentStepId === stepId);
+}
+
+/**
+ * **Ausgescherte Stücke** – sie stehen an dieser Stelle, sind aber gerade in einem
+ * anderen Auftrag. Erkennbar an genau der Kombination, die ``OrderUnit`` beschreibt:
+ * Zugehörigkeit geschlossen (``!active``), Position aber noch gesetzt.
+ */
+function groupsAway(groups: DiagramGroup[], stepId: number): DiagramGroup[] {
+  return groups.filter((g) => !g.active && g.currentStepId === stepId);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -330,16 +414,21 @@ function Terminal({ which, endStatus }: { which: 'start' | 'end'; endStatus: str
  * man an dieser Stelle hat, ist «wie viele stehen wo», nicht «welche». Wer die Nummern
  * braucht, klappt auf: dann und nur dann werden sie geholt.
  */
-function StateRow({ groups, stepId, active, onExpand }: {
+function StateRow({ groups, away = [], stepId, active, onExpand, onDeviate, deviateBlocked }: {
   groups: DiagramGroup[];
+  /** Stücke, die hier stehen, aber gerade in einer Abweichung sind. */
+  away?: DiagramGroup[];
   stepId: number | null;
   active: boolean;
   onExpand?: (stepId: number | null, active: boolean) => Promise<string[]>;
+  onDeviate?: (unitNumber: string) => void;
+  deviateBlocked?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [numbers, setNumbers] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const total = groups.reduce((n, g) => n + g.count, 0);
+  const gone = away.reduce((n, g) => n + g.count, 0);
 
   async function toggle() {
     if (!onExpand) return;
@@ -354,6 +443,18 @@ function StateRow({ groups, stepId, active, onExpand }: {
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className="flex flex-wrap gap-1.5 justify-center">
+        {gone > 0 && (
+          // **Ausgeschert.** Das Stück steht hier – es arbeitet nur gerade woanders.
+          // Es fehlt nicht, und es ist nicht fertig; beides zu behaupten wäre falsch.
+          <span
+            className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
+            style={{ background: 'var(--warning-bg)', color: 'var(--warning)',
+                     border: '1px dashed var(--warning)' }}
+            data-tip="In einer Abweichung – kehrt an diese Stelle zurück"
+          >
+            <GitBranch size={11} /> In Abweichung · {gone}
+          </span>
+        )}
         {groups.map((g) => {
           const cfg = statusCfg(g.status);
           return (
@@ -379,9 +480,25 @@ function StateRow({ groups, stepId, active, onExpand }: {
         <div className="flex flex-wrap gap-1 justify-center max-w-full">
           {busy && <span className="text-[11px]" style={{ color: 'var(--fg-4)' }}>Lädt …</span>}
           {numbers?.map((n) => (
-            <span key={n} className="px-1.5 py-0.5 rounded"
+            <span key={n} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded"
               style={{ background: 'var(--bg-3)', color: 'var(--fg-3)' }}>
               <UnitNumber value={n} size={11} />
+              {onDeviate && (
+                // **Der Auslöser sitzt am Stück, an seiner Stelle im Prozess** (§3.1).
+                // Er legt nichts an – er öffnet einen gewöhnlichen Auftragsentwurf, in
+                // dem dieses Stück schon steht.
+                <button
+                  type="button"
+                  onClick={() => onDeviate(n)}
+                  disabled={!!deviateBlocked}
+                  className="flex items-center disabled:opacity-40"
+                  style={{ color: 'var(--warning)' }}
+                  aria-label={`Abweichung für ${n}`}
+                  data-tip={deviateBlocked ?? 'Abweichung: Auftrag auf genau dieses Stück'}
+                >
+                  <GitBranch size={11} />
+                </button>
+              )}
             </span>
           ))}
           {numbers && numbers.length < total && (
