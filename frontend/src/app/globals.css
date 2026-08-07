@@ -855,3 +855,39 @@
    bleibt, das Ausblenden zur Kante entfällt. */
 .ix-flow-aside[data-flat="1"] { -webkit-mask-image: none; mask-image: none; }
 @media (prefers-reduced-motion: reduce) { .ix-flow-aside { transition: none; } }
+
+/* ── Modulauswahl im Prozess (PROCESS_CORE §9) ──────────────────────────────
+   Ein Symbol je Modultyp, in seiner Farbe; der Name klappt beim Hovern DANEBEN auf.
+   Dieselbe Geste wie die Mengeneinheit am Artikel – und derselbe Grund, warum er
+   daneben und nicht darunter wächst: eine feste Zelle hält das Layout still, der Name
+   legt sich darüber. Ein wachsender Knopf bräche die Zeile um und wanderte unter dem
+   Cursor weg (Testnotizen #502/#503/#624). */
+.ix-palette {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: width 0.16s ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ix-palette-sm { width: 32px; height: 32px; }
+.ix-palette-name {
+  font: 600 12.5px var(--font-body);
+  max-width: 0;
+  opacity: 0;
+  transition: max-width 0.16s ease, opacity 0.12s ease;
+}
+.ix-palette:hover, .ix-palette:focus-visible { width: auto; padding-inline: 11px; }
+.ix-palette:hover .ix-palette-name,
+.ix-palette:focus-visible .ix-palette-name { max-width: 180px; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .ix-palette, .ix-palette-name { transition: none; }
+}

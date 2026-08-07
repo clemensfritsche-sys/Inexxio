@@ -48,7 +48,9 @@ def _detail(db: Session, instance: Instance) -> InstanceResponse:
         article_object_id=article.object_id if article else None,
         article_name=article.name if article else None,
         kind=instance.kind,
-        status=instance.status,
+        # Abgeleitet, nicht gespeichert – eine Gruppe ist im Prozess, solange eines
+        # ihrer Stücke es ist (``services/instances.status_of``).
+        status=inst_svc.status_of(units),
         label=instance.label,
         quantity=len(units),
         units=[_unit_out(instance, u) for u in units],
@@ -88,6 +90,7 @@ def list_instances(
     rows = q.order_by(Instance.object_id.desc()).limit(limit).offset(offset).all()
 
     counts = inst_svc.quantities(db, [i.id for i in rows])
+    states = inst_svc.statuses(db, [i.id for i in rows])
     names = {
         a.id: a.name
         for a in db.query(Article).filter(Article.id.in_([i.article_id for i in rows])).all()
@@ -95,7 +98,8 @@ def list_instances(
     return [
         InstanceSummary(
             id=i.id, object_id=i.object_id, article_id=i.article_id,
-            article_name=names.get(i.article_id), kind=i.kind, status=i.status,
+            article_name=names.get(i.article_id), kind=i.kind,
+            status=states[i.id],
             label=i.label, quantity=counts.get(i.id, 0),
             created_at=i.created_at, updated_at=i.updated_at, is_active=i.is_active,
         )

@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Package, ArrowLeft, FileText, Workflow, Boxes, Trash2, Tag, QrCode, AlertTriangle,
+  Package, ArrowLeft, FileText, Boxes, Trash2, Tag, QrCode, AlertTriangle,
   Ruler, TrendingUp, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
   Scaling, Hash, Truck, Banknote, Link2, Weight, Sparkles, Plus, Shield, Ban, FolderOpen,
   MapPin, ClipboardPlus,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleProcess, Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile } from '@/types';
+import type { ArticleProcess as ArticleProcessType, Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile } from '@/types';
 import type { ModuleDraft } from '@/lib/modules';
 import { toModulePayload } from '@/lib/modules';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
@@ -18,9 +18,9 @@ import {
 } from '@/lib/article';
 import { articleStatus, KIND_LABEL } from '@/lib/record-status';
 import type { StatusAction } from '@/lib/status-flow';
-import { ProcessDiagram, type DiagramStep } from '@/components/erp/process-diagram';
-import { AddModule } from '@/components/erp/module-editor';
-import { END_BEFORE } from '@/lib/process-status';
+import type { DiagramStep } from '@/components/erp/process-diagram';
+import { ProcessDesigner } from '@/components/erp/process-designer';
+import { FREIGEGEBEN, INAKTIV } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
 import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
@@ -36,16 +36,15 @@ import { formatAmount as fmtChf, formatObjectId, localDate } from '@/lib/utils';
 // vorhandene Artikel freigegeben und eingefroren.
 // **Inaktiv ist endgültig** – kein Reaktivieren (Neustart = neuer Artikel).
 function articleActions(status: string): StatusAction[] {
-  if (status === 'released')
-    return [{ label: 'Deaktivieren', target: 'inactive', tone: 'danger' }];
+  if (status === FREIGEGEBEN)
+    return [{ label: 'Deaktivieren', target: INAKTIV, tone: 'danger' }];
   return [];   // inaktiv → keine Aktionen (endgültig)
 }
 
-type TabKey = 'spezifikation' | 'prozess' | 'bestand';
+type TabKey = 'spezifikation' | 'bestand';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'spezifikation', label: 'Spezifikation', icon: FileText },
-  { key: 'prozess', label: 'Erzeugungsprozess', icon: Workflow },
   { key: 'bestand', label: 'Bestand', icon: Boxes },
 ];
 
@@ -125,7 +124,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   // und die trifft der Mensch. Eine vorausgefüllte «1» wäre eine Behauptung, die in den
   // meisten Fällen falsch ist und trotzdem freigebbar aussieht.
   function createOrderShortcut() {
-    if (isCreate || record == null || record.status !== 'released') return;
+    if (isCreate || record == null || record.status !== FREIGEGEBEN) return;
       }
   // Optimistic Locking: zuletzt bekannter Stand (nur für den Statuswechsel).
   const verRef = useRef<string | null>(record?.updated_at ?? null);
@@ -239,7 +238,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
   // Deaktivieren läuft über den Dialog (Wirkungsanalyse + Auftrags-Wahl + optional Nachfolger).
   function onStatusAction(target: string) {
-    if (target === 'inactive') { setDialog('deactivate'); return; }
+    if (target === INAKTIV) { setDialog('deactivate'); return; }
     changeStatus(target);   // Freigeben / Reaktivieren
   }
 
@@ -263,7 +262,10 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
     }
   }
 
-  const statusCfg = articleStatus({ status: isCreate || !record ? 'draft' : record.status });
+  // **Ein Entwurf hat keinen Zustand** – es gibt ihn ja noch nicht. Ein Wort dort wäre
+  // eine Behauptung über einen Datensatz, den die Datenbank nicht kennt; früher stand
+  // dafür «Entwurf», was genau diesen Datensatz voraussetzte.
+  const statusCfg = record ? articleStatus({ status: record.status }) : undefined;
   const actions = isCreate || !record ? [] : articleActions(record.status);
   const blocked = missing != null && missing.length > 0;
 
@@ -300,7 +302,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
             </button>
             {/* Shortcut «Auftrag»: aus dem freigegebenen Artikel direkt einen Auftrag
                 auslösen (nur freigegebene Artikel sind auftragsfähig). */}
-            {record.status === 'released' && (
+            {record.status === FREIGEGEBEN && (
               <button className="erp-idbtn erp-idbtn-act" data-tip="Auftrag" data-tip-pos="bottom"
                 aria-label="Auftrag zu diesem Artikel anlegen"
                 onClick={createOrderShortcut}>
@@ -308,10 +310,10 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
               </button>
             )}
             {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer. */}
-            {record.status === 'released' && (
+            {record.status === FREIGEGEBEN && (
               <button className="erp-idbtn erp-idbtn-danger" data-tip="Deaktivieren / ersetzen" data-tip-pos="bottom"
                 aria-label="Artikel deaktivieren oder ersetzen" disabled={statusBusy}
-                onClick={() => onStatusAction('inactive')}>
+                onClick={() => onStatusAction(INAKTIV)}>
                 <Ban size={15} />
               </button>
             )}
@@ -385,15 +387,21 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                 )}
               </div>
             )}
+
+            {/* **Der Erzeugungsprozess steht direkt unter der Spezifikation** (Notiz #671).
+                Ein eigener Reiter dafür war eine Trennung, die es fachlich nicht gibt:
+                beide Hälften gehören zur selben Anlage, und der Artikel entsteht erst,
+                wenn sie zusammen vollständig sind. Es ist **dieselbe** Komponente wie im
+                Auftrag (`ProcessDesigner`) – nur ohne den Bereich darüber, in dem der
+                Auftrag seine Einzelinstanzen definiert (PROCESS_CORE.md §8.1). */}
+            <div style={{ marginTop: 22 }}>
+              <ArticleProcess
+                articleObjectId={record?.object_id ?? null}
+                draft={steps}
+                setDraft={setSteps}
+              />
+            </div>
           </div>
-        )}
-        
-        {tab === 'prozess' && (
-          <ArticleProcessTab
-            articleObjectId={record?.object_id ?? null}
-            draft={steps}
-            setDraft={setSteps}
-          />
         )}
 
         {tab === 'bestand' && (
@@ -844,25 +852,25 @@ function AddInstance({ articleObjectId, onCreated }: {
 
 
 /**
- * Reiter «Erzeugungsprozess» – die **Vorlage**: wie ein Stück dieses Artikels entsteht.
+ * **Der Erzeugungsprozess eines Artikels** – die Vorlage: wie ein Stück entsteht.
  *
- * Es ist **dieselbe** Darstellung wie im Auftrag (`ProcessDiagram`, Modus `definition`)
- * und **derselbe** Modul-Editor (`AddModule`) – keine zweite Komponente, kein Nachbau.
- * Der einzige Unterschied ist der fehlende Definitionsbereich darüber: welche
+ * Es ist **dieselbe Komponente wie im Auftrag** (`ProcessDesigner`), nicht eine zweite
+ * Implementierung. Der einzige Unterschied ist der fehlende Bereich darüber: welche
  * Einzelinstanzen durchlaufen, entscheidet ausschliesslich der Auftrag. Ein Artikel hat
- * keine, und ein Diagramm, das sie voraussetzt, wäre hier nicht wiederverwendbar
+ * keine, und ein Editor, der sie voraussetzt, wäre hier nicht wiederverwendbar
  * (PROCESS_CORE.md §8.1/§8.2).
  *
- * **Im Entwurf lebt die Liste im Browser** – wie der Auftragsentwurf. Sie wird mit dem
- * Artikel zusammen angelegt und ist danach eingefroren; einen Endpunkt, der sie
- * nachträglich ändert, gibt es nicht.
+ * **Im Entwurf lebt die Liste im Browser** – wie der Auftragsentwurf, und aus demselben
+ * Grund: der Artikel entsteht erst mit der Freigabe. Danach ist sie eingefroren; einen
+ * Endpunkt, der sie nachträglich ändert, gibt es nicht – die Eingefrorenheit ist also
+ * kein bewachtes Verbot, sondern ein fehlendes Bedienelement.
  */
-function ArticleProcessTab({ articleObjectId, draft, setDraft }: {
+function ArticleProcess({ articleObjectId, draft, setDraft }: {
   articleObjectId: number | null;
   draft: ModuleDraft[];
   setDraft: (m: ModuleDraft[]) => void;
 }) {
-  const [proc, setProc] = useState<ArticleProcess | null>(null);
+  const [proc, setProc] = useState<ArticleProcessType | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   // Ein gespeicherter Artikel ist freigegeben – seine Vorlage wird nur noch gelesen.
@@ -875,34 +883,23 @@ function ArticleProcessTab({ articleObjectId, draft, setDraft }: {
     return () => { dead = true; };
   }, [articleObjectId]);
 
-  const isDraft = articleObjectId === null;
-  const steps: DiagramStep[] = isDraft
-    ? draft.map((m) => ({ id: m.id, name: m.name, moduleType: m.moduleType }))
-    : (proc?.steps ?? []).map((s) => ({ id: s.id, name: s.name, moduleType: s.module_type }));
+  const frozen = articleObjectId !== null;
+  const steps: DiagramStep[] | undefined = frozen
+    ? (proc?.steps ?? []).map((s) => ({ id: s.id, name: s.name, moduleType: s.module_type }))
+    : undefined;
 
   return (
-    <div className="mx-auto" style={{ maxWidth: 620 }}>
+    <div>
       {err && (
         <p className="mb-3 text-sm px-3 py-2 rounded-ds-lg"
           style={{ color: 'var(--danger)', background: 'var(--danger-bg)' }}>{err}</p>
       )}
-      <ProcessDiagram
-        mode="definition"
-        steps={steps}
-        endStatus={END_BEFORE}
-        onDelete={isDraft ? (id) => setDraft(draft.filter((m) => m.id !== id)) : undefined}
+      <ProcessDesigner
+        modules={draft}
+        onChange={setDraft}
+        frozen={frozen}
+        readOnlySteps={steps}
       />
-      {isDraft ? (
-        <div className="mt-3">
-          <AddModule
-            onAdd={(m) => setDraft([...draft, { ...m, id: (draft[draft.length - 1]?.id ?? 0) + 1 }])}
-          />
-        </div>
-      ) : (
-        <p className="mt-3 text-xs text-center" style={{ color: 'var(--fg-3)' }}>
-          Eingefroren – ein freigegebener Artikel wird nicht mehr umgebaut. Stand {proc?.version ?? 0}.
-        </p>
-      )}
     </div>
   );
 }

@@ -1631,6 +1631,7 @@
           "orders"
         ],
         "summary": "List Orders",
+        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
         "operationId": "list_orders_api_v1_erp_orders_get",
         "security": [
           {
@@ -3875,11 +3876,6 @@
             "type": "string",
             "title": "Type"
           },
-          "required": {
-            "type": "boolean",
-            "title": "Required",
-            "default": false
-          },
           "target": {
             "anyOf": [
               {
@@ -3910,7 +3906,7 @@
           "type"
         ],
         "title": "CapturePoint",
-        "description": "Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt."
+        "description": "Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt.\n\n**Alle sind Pflicht** – bestätigt wird erst, wenn jeder ausgefüllt ist."
       },
       "CapturePointInput": {
         "properties": {
@@ -3923,11 +3919,6 @@
           "type": {
             "type": "string",
             "title": "Type"
-          },
-          "required": {
-            "type": "boolean",
-            "title": "Required",
-            "default": false
           },
           "target": {
             "anyOf": [
@@ -3958,7 +3949,7 @@
           "type"
         ],
         "title": "CapturePointInput",
-        "description": "Ein Erfassungspunkt, wie ihn die Definition schickt.\n\n``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet\n(``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck\nman erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.\n\n``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche\nZusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);\ndieses Schema ist bewusst die Aussenform und nicht die Regel."
+        "description": "Ein Erfassungspunkt, wie ihn die Definition schickt.\n\n``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet\n(``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck\nman erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.\n\n``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche\nZusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);\ndieses Schema ist bewusst die Aussenform und nicht die Regel.\n\nEin ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht."
       },
       "CaptureResponse": {
         "properties": {
@@ -5814,6 +5805,10 @@
             "type": "string",
             "title": "Label"
           },
+          "tone": {
+            "type": "string",
+            "title": "Tone"
+          },
           "status_before": {
             "type": "string",
             "title": "Status Before"
@@ -5827,11 +5822,12 @@
         "required": [
           "key",
           "label",
+          "tone",
           "status_before",
           "status_after"
         ],
         "title": "ModuleTypeInfo",
-        "description": "Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut."
+        "description": "Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut.\n\n``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,\nweil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und\nkein Eingriff in die Oberfläche."
       },
       "ObjectReference": {
         "properties": {
@@ -5969,6 +5965,10 @@
             "type": "integer",
             "title": "Object Id"
           },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -6040,6 +6040,7 @@
         "required": [
           "id",
           "object_id",
+          "name",
           "status",
           "end_status",
           "created_at",
@@ -6057,6 +6058,10 @@
           "object_id": {
             "type": "integer",
             "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
           },
           "status": {
             "type": "string",
@@ -6081,13 +6086,14 @@
         "required": [
           "id",
           "object_id",
+          "name",
           "status",
           "created_at",
           "updated_at",
           "is_active"
         ],
         "title": "OrderSummary",
-        "description": "Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail."
+        "description": "Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail.\n\nGenau deshalb lädt das Detailfenster seinen Auftrag **selbst** nach: was hier fehlt,\nkann es nicht anzeigen, und eine Feed-Zeile als Detail zu rendern hiess, einen\nlaufenden Prozess als leer darzustellen."
       },
       "OrderUnitPage": {
         "properties": {

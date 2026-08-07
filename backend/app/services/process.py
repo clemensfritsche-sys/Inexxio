@@ -20,7 +20,6 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent,
     ProcessStep,
 )
-from ..models.order import COMPLETED, RELEASED
 from ..models.order_line import LAGER, NEU, ORIGINS
 from ..models.process_event import KIND_END, KIND_START, KIND_STEP
 from . import article_process, capture as capture_svc, materialize
@@ -430,9 +429,12 @@ def release(
     materialize.assert_quantity(planned, code=400)
 
     # ── 2. Ab hier werden Nummern vergeben ───────────────────────────────────
+    object_id = next_object_id(db, "order")
     order = Order(
-        object_id=next_object_id(db, "order"),
-        status=RELEASED,
+        object_id=object_id,
+        # Der Name entsteht im selben Zug wie die Nummer – vorher gibt es keine, und
+        # «Ohne Bezeichnung» im Kopf eines laufenden Auftrags ist keine Auskunft.
+        name=f"Auftrag {object_id}",
         end_status=end_status,
     )
     db.add(order)
@@ -519,10 +521,11 @@ def confirm_step(
     )
     if step is None:
         raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
-    if order.status != RELEASED:
+    if order_status(db, order) != st.IM_PROZESS:
         raise HTTPException(
             status_code=409,
-            detail="Der Auftrag ist abgeschlossen – es gibt nichts mehr zu bestätigen.",
+            detail=(f"Der Auftrag ist «{st.label(order_status(db, order))}» – "
+                    f"es gibt nichts mehr zu bestätigen."),
         )
 
     waiting = _units_at(db, order, step.id)
@@ -577,8 +580,6 @@ def confirm_step(
             status_after=order.end_status, next_step_id=None, actor_id=actor_id,
         )
         db.flush()
-        if not _open_memberships(db, order):
-            order.status = COMPLETED
     return len(waiting)
 
 
@@ -680,6 +681,65 @@ def units_page(db: Session, order: Order, *, step_id: Optional[int], active: boo
                  else OrderUnit.current_step_id == step_id)
     total = q.count()
     return q.order_by(OrderUnit.id).limit(limit).offset(offset).all(), total
+
+
+# ---------------------------------------------------------------------------
+# Der Auftragsstatus — ABGELEITET, an genau einer Stelle
+# ---------------------------------------------------------------------------
+#
+# Ein Auftrag hat genau drei Zustände, und keiner davon wird gesetzt: er ergibt sich aus
+# dem Zustand seiner Einzelinstanzen. Eine Spalte daneben wäre der zweite Ort — und der
+# läuft beim ersten vergessenen Update weg. «Freigegeben» kommt nicht vor: Freigeben ist
+# die Aktion, mit der der Auftrag entsteht, kein Zustand, in dem er verweilt.
+#
+#   Im Prozess      es ist noch etwas unterwegs
+#   Abgeschlossen   mindestens ein Stück hat das Ziel erreicht
+#   Abgebrochen     nichts kann das Ziel mehr erreichen
+#
+# Zwei Formen derselben Regel, nebeneinander im selben Modul: ``order_status`` für einen
+# geladenen Auftrag, ``order_statuses`` für den Feed (EINE Abfrage, kein N+1).
+
+def _derive(arrived: int, alive: int) -> str:
+    """Die Regel selbst — aus zwei Zahlen. Alles andere zählt nur."""
+    if arrived:
+        return st.ABGESCHLOSSEN
+    if alive:
+        return st.IM_PROZESS
+    # Nichts angekommen und nichts mehr unterwegs: das Ziel ist unerreichbar.
+    return st.ABGEBROCHEN
+
+
+def order_status(db: Session, order: Order) -> str:
+    """Der Zustand **eines** Auftrags."""
+    return order_statuses(db, [order.id]).get(order.id, st.IM_PROZESS)
+
+
+def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
+    """Der Zustand **vieler** Aufträge – für den Feed, in einer Abfrage.
+
+    «Unterwegs» heisst: die Zugehörigkeit ist offen **und** das Stück gibt es noch. Ein
+    deaktiviertes Stück kann nirgends mehr ankommen – ohne diese Bedingung hätte
+    «Abgebrochen» keinen Erzeuger und wäre ein Wert, den nie jemand sieht.
+    """
+    if not order_ids:
+        return {}
+    rows = (
+        db.query(
+            OrderUnit.order_id,
+            func.count(OrderUnit.id).filter(OrderUnit.released_at.isnot(None)).label("arrived"),
+            func.count(OrderUnit.id).filter(
+                OrderUnit.released_at.is_(None), InstanceUnit.is_active.is_(True)
+            ).label("alive"),
+        )
+        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
+        .filter(OrderUnit.order_id.in_(order_ids))
+        .group_by(OrderUnit.order_id)
+        .all()
+    )
+    found = {int(oid): _derive(int(a), int(al)) for oid, a, al in rows}
+    # Ein Auftrag ohne jede Zugehörigkeit kann es nicht geben (die Freigabe verlangt
+    # mindestens eine Einzelinstanz). Käme er doch vor, ist er kein «Im Prozess».
+    return {oid: found.get(oid, st.ABGEBROCHEN) for oid in order_ids}
 
 
 def active_step_id(db: Session, order: Order) -> Optional[int]:

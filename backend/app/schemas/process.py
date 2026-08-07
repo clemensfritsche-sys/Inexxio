@@ -24,11 +24,12 @@ class CapturePointInput(BaseModel):
     ``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche
     Zusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);
     dieses Schema ist bewusst die Aussenform und nicht die Regel.
+
+    Ein ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht.
     """
 
     label: str = Field(min_length=1, max_length=120)
     type: str
-    required: bool = False
     target: Optional[float] = None
     tolerance: Optional[float] = None
 
@@ -48,10 +49,16 @@ class ModuleInput(BaseModel):
 
 
 class ModuleTypeInfo(BaseModel):
-    """Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut."""
+    """Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut.
+
+    ``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,
+    weil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und
+    kein Eingriff in die Oberfläche.
+    """
 
     key: str
     label: str
+    tone: str
     status_before: str
     status_after: str
 
@@ -71,12 +78,14 @@ class ModuleCatalog(BaseModel):
 
 
 class CapturePoint(BaseModel):
-    """Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt."""
+    """Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt.
+
+    **Alle sind Pflicht** – bestätigt wird erst, wenn jeder ausgefüllt ist.
+    """
 
     key: str
     label: str
     type: str
-    required: bool = False
     target: Optional[float] = None
     tolerance: Optional[float] = None
 

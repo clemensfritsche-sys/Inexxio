@@ -632,7 +632,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Orders */
+        /**
+         * List Orders
+         * @description Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
+         *
+         *     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
+         *     gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
+         */
         get: operations["list_orders_api_v1_erp_orders_get"];
         put?: never;
         /**
@@ -1305,6 +1311,8 @@ export interface components {
         /**
          * CapturePoint
          * @description Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt.
+         *
+         *     **Alle sind Pflicht** – bestätigt wird erst, wenn jeder ausgefüllt ist.
          */
         CapturePoint: {
             /** Key */
@@ -1313,11 +1321,6 @@ export interface components {
             label: string;
             /** Type */
             type: string;
-            /**
-             * Required
-             * @default false
-             */
-            required: boolean;
             /** Target */
             target?: number | null;
             /** Tolerance */
@@ -1334,17 +1337,14 @@ export interface components {
          *     ``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche
          *     Zusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);
          *     dieses Schema ist bewusst die Aussenform und nicht die Regel.
+         *
+         *     Ein ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht.
          */
         CapturePointInput: {
             /** Label */
             label: string;
             /** Type */
             type: string;
-            /**
-             * Required
-             * @default false
-             */
-            required: boolean;
             /** Target */
             target?: number | null;
             /** Tolerance */
@@ -1981,12 +1981,18 @@ export interface components {
         /**
          * ModuleTypeInfo
          * @description Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut.
+         *
+         *     ``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,
+         *     weil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und
+         *     kein Eingriff in die Oberfläche.
          */
         ModuleTypeInfo: {
             /** Key */
             key: string;
             /** Label */
             label: string;
+            /** Tone */
+            tone: string;
             /** Status Before */
             status_before: string;
             /** Status After */
@@ -2055,6 +2061,8 @@ export interface components {
             id: number;
             /** Object Id */
             object_id: number;
+            /** Name */
+            name: string;
             /** Status */
             status: string;
             /** End Status */
@@ -2090,12 +2098,18 @@ export interface components {
         /**
          * OrderSummary
          * @description Feed-Zeile. Ohne Schritte, Stücke und Historie – die kommen mit dem Detail.
+         *
+         *     Genau deshalb lädt das Detailfenster seinen Auftrag **selbst** nach: was hier fehlt,
+         *     kann es nicht anzeigen, und eine Feed-Zeile als Detail zu rendern hiess, einen
+         *     laufenden Prozess als leer darzustellen.
          */
         OrderSummary: {
             /** Id */
             id: number;
             /** Object Id */
             object_id: number;
+            /** Name */
+            name: string;
             /** Status */
             status: string;
             /**

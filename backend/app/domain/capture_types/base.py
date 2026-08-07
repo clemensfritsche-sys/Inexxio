@@ -37,7 +37,7 @@ class CaptureType:
     def clean(self, point: dict[str, Any]) -> dict[str, Any]:
         """Die **zusätzlichen** Definitionsfelder dieses Typs, geprüft und normalisiert.
 
-        Rückgabe ist das, was über ``key``/``label``/``type``/``required`` hinaus
+        Rückgabe ist das, was über ``key``/``label``/``type`` hinaus
         gespeichert wird. Fehlt etwas Notwendiges, ist das ein Fehler mit Grund – kein
         stiller Default, der später als Messwert durchgeht.
         """
@@ -45,7 +45,8 @@ class CaptureType:
 
     # ── Laufzeit ────────────────────────────────────────────────────────────
     def missing(self, point: dict[str, Any], value: Any) -> bool:
-        """Ist dieser Punkt **nicht** erfasst? Entscheidet, ob ein Pflichtpunkt blockiert."""
+        """Ist dieser Punkt **nicht** erfasst? Jeder offene Punkt blockiert das Bestätigen –
+        es gibt keine optionalen (alles, was angelegt ist, ist Pflicht)."""
         return value is None or value == ""
 
     def verdict(self, point: dict[str, Any], value: Any) -> Optional[bool]:

@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, insert
 from sqlalchemy.orm import Session
 
+from ..domain import statuses as st
 from ..models import Article, Instance, InstanceUnit
 from ..models.instance import KINDS
 from .objects import next_object_ids, obj_nr
@@ -96,6 +97,45 @@ def units_of(db: Session, instance: Instance) -> list[InstanceUnit]:
         .order_by(InstanceUnit.suffix)
         .all()
     )
+
+
+# ---------------------------------------------------------------------------
+# Zustand – abgeleitet, genau wie die Menge
+# ---------------------------------------------------------------------------
+#
+# Eine Instanz ist eine **Gruppe**; einen eigenen Zustand hat sie so wenig wie eine
+# eigene Menge. Gearbeitet wird an den Einzelinstanzen, also sagt ihr Zustand, was mit
+# der Gruppe los ist: steckt eines ihrer Stücke in einem Auftrag, ist die Gruppe im
+# Prozess – sonst ist sie einsatzbereit.
+#
+# Die Spalte ``instances.status`` gab es; sie stand auf ``new`` und wurde **nie**
+# geschrieben. Ein Feld, das niemand setzt, ist kein Zustand, sondern ein Wert, der
+# irgendwann falsch behauptet wird. Zwei Formen derselben Regel (wie bei der Menge):
+# ``status_of`` auf geladenen Stücken, ``statuses`` als Batch für Feed und Listen.
+
+def status_of(units: Iterable[InstanceUnit]) -> str:
+    """Zustand einer Instanz aus ihren Einzelinstanzen."""
+    return (st.IM_PROZESS if any(u.status == st.IM_PROZESS for u in units)
+            else st.FREIGEGEBEN)
+
+
+def statuses(db: Session, instance_ids: Iterable[int]) -> dict[int, str]:
+    """Zustände für viele Instanzen in EINER Abfrage (Feed/Listen, kein N+1)."""
+    ids = list(instance_ids)
+    if not ids:
+        return {}
+    busy = {
+        int(iid)
+        for (iid,) in db.query(InstanceUnit.instance_id)
+        .filter(
+            InstanceUnit.instance_id.in_(ids),
+            InstanceUnit.is_active.is_(True),
+            InstanceUnit.status == st.IM_PROZESS,
+        )
+        .distinct()
+        .all()
+    }
+    return {int(i): (st.IM_PROZESS if int(i) in busy else st.FREIGEGEBEN) for i in ids}
 
 
 # ---------------------------------------------------------------------------

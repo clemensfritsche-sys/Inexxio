@@ -20,13 +20,14 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from ..domain import statuses as st
 from ..models import Article
 from . import article_process
 from .objects import next_object_id
 
-#: Status eines angelegten Artikels. Es gibt nur noch diesen einen Einstieg: **angelegt
-#: heisst freigegeben**. ``draft`` kommt nicht mehr vor – ein Entwurf hat keine Zeile.
-RELEASED = "released"
+#: Status eines angelegten Artikels – aus der EINEN Statusliste (``domain/statuses``).
+#: Es gibt nur diesen einen Einstieg: **angelegt heisst freigegeben**.
+RELEASED = st.FREIGEGEBEN
 
 #: Pflichtfelder der Spezifikation (Feldname → Beschriftung). Sie stehen hier und nicht
 #: im Formular: eine deaktivierte Schaltfläche ist keine Absicherung, sondern eine Bitte.

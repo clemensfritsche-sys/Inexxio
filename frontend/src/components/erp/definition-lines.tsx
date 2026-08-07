@@ -175,7 +175,7 @@ function LineRow({ line, articles, onChange, onRemove }: {
               hint={
                 !hasArticle ? 'Zuerst den Artikel wählen.'
                   : !hasTemplate
-                    ? 'Dieser Artikel hat keinen Erzeugungsprozess. «Neu» ist erst wählbar, wenn im Artikel-Reiter «Erzeugungsprozess» mindestens ein Modul steht.'
+                    ? 'Dieser Artikel hat keinen Erzeugungsprozess. «Neu» ist erst wählbar, wenn am Artikel unter «Spezifikation» mindestens ein Modul steht.'
                     : 'Die Einzelinstanzen entstehen bei der Freigabe.'
               }
               onClick={() => onChange({ origin: NEU, unitNumbers: [] })}

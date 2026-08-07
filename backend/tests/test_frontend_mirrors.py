@@ -29,7 +29,15 @@ def _body(source: str, name: str, *, kind: str = "def") -> str:
     head = f"{kind} {name}"
     start = source.index(head)
     rest = source[start + len(head):]
-    end = re.search(r"\n(?:def |class |@)", rest)
+    # Python endet beim nächsten Top-Level-Konstrukt, TypeScript beim nächsten
+    # ``export``/``function``. Dieselbe Absicht, zwei Sprachen – die Alternative wäre ein
+    # Parser für eine Frage, die eine Zeile beantwortet.
+    # TypeScript endet beim nächsten Konstrukt auf Spalte 0 – oder bei einer
+    # eingerückten ``function``, die eine verschachtelte Hilfsfunktion abgrenzt. Ein
+    # eingerücktes ``const`` bleibt bewusst draussen: das ist ganz normaler Rumpf.
+    stop = (r"\n(?:def |class |@)" if kind in ("def", "class")
+            else r"\n(?:export |function |interface |const |/\*\*)|\n\s+function ")
+    end = re.search(stop, rest)
     return rest[: end.start()] if end else rest
 
 
@@ -218,9 +226,10 @@ def test_the_order_carries_only_what_the_process_needs():
     """
     src = _read(BACKEND / "app" / "models" / "order.py")
     columns = {l.split(":")[0].strip() for l in src.split("\n") if "mapped_column(" in l}
-    assert columns == {"id", "object_id", "status", "end_status"}, (
-        f"models/order.py trägt {sorted(columns)} – erwartet id, object_id, status, "
-        f"end_status (created_at/updated_at/is_active kommen aus dem TimestampMixin)."
+    assert columns == {"id", "object_id", "name", "end_status"}, (
+        f"models/order.py trägt {sorted(columns)} – erwartet id, object_id, name, "
+        f"end_status (created_at/updated_at/is_active kommen aus dem TimestampMixin). "
+        f"Der Status ist ABGELEITET (Notiz #669) und darum keine Spalte."
     )
     # Der Endzustand steht an EINER Stelle: die Fachlogik liest ``order.end_status``,
     # sie schreibt den Wert nicht selbst hin.
@@ -391,8 +400,9 @@ def test_the_status_list_is_closed_and_says_the_same_on_both_sides():
     # Kein erfundener Zusatzwert auf der TS-Seite.
     m = re.search(r"export const STATUS_VALUES = \[(.*?)\]", ts, re.S)
     assert m, "STATUS_VALUES fehlt."
-    assert m.group(1).count(",") + 1 == len(st.STATUSES), (
-        "Die Oberfläche führt mehr oder weniger Statuswerte als das Backend."
+    listed = [v for v in re.split(r"[,\s]+", m.group(1)) if v]
+    assert len(listed) == len(st.STATUSES), (
+        f"Die Oberfläche führt {len(listed)} Statuswerte, das Backend {len(st.STATUSES)}."
     )
 
 
@@ -683,15 +693,26 @@ def test_large_quantities_are_counted_not_listed():
     assert "von {total} Einträgen" in detail, "Der Deckel der Historie wird verschwiegen."
 
 
-def test_the_article_carries_a_template_tab_that_cannot_execute():
-    """Der Reiter «Erzeugungsprozess» nutzt **dieselbe** Darstellung wie der Auftrag.
+def test_the_article_process_stands_under_the_specification():
+    """**Kein eigener Reiter mehr** (Testnotiz #671): der Erzeugungsprozess steht in der
+    Spezifikation, direkt unter dem ersten Container.
 
-    Kein Nachbau: der Unterschied liegt nicht in der Optik, sondern darin, was fehlt –
-    keine Einzelinstanzen, kein Start, keine Ausführung (§8.2).
+    Es war eine Trennung, die es fachlich nicht gibt: beide Hälften gehören zur selben
+    Anlage, und der Artikel entsteht erst, wenn sie zusammen vollständig sind. Wer den
+    Prozess in einem zweiten Reiter versteckt, lässt den Nutzer nach der Hälfte der
+    Freigabebedingung suchen.
     """
     detail = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
-    assert "'prozess'" in detail and "Erzeugungsprozess" in detail
-    assert "ProcessDiagram" in detail, "Der Reiter baut die Darstellung nach."
+    assert "'prozess'" not in detail, "Der Reiter «Erzeugungsprozess» ist wieder da."
+    tabs = detail.split("const TABS")[1].split("];")[0]
+    assert "Erzeugungsprozess" not in tabs, (
+        "Der Prozess steht wieder als eigener Reiter in der Reiterzeile."
+    )
+    # Er steht im Spezifikations-Zweig, nicht in einem eigenen.
+    spec = detail.split("{tab === 'spezifikation' && (")[1].split("{tab === 'bestand'")[0]
+    assert "<ArticleProcess" in spec, (
+        "Der Erzeugungsprozess steht nicht im Reiter «Spezifikation»."
+    )
     assert "confirmStep" not in detail, "Der Artikel führt einen Schritt aus."
     assert "getArticleProcess" in detail
 
@@ -844,7 +865,7 @@ def test_the_module_dictates_its_transition():
     assert "status_before" not in _body(schema, "ModuleInput", kind="class"), (
         "Der Übergang darf nicht mehr eingegeben werden."
     )
-    editor = _read(FRONTEND / "components" / "erp" / "module-editor.tsx")
+    editor = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
     assert "STATUS_VALUES" not in editor and "statusLabel" not in editor, (
         "Der Editor bietet wieder eine Status-Auswahl an."
     )
@@ -873,23 +894,23 @@ def test_capture_is_written_only_in_the_process():
         )
 
 
-def test_the_article_process_tab_is_the_order_component():
-    """Der Reiter «Erzeugungsprozess» ist eine **Übernahme**, kein Nachbau.
+def test_the_article_process_is_the_order_component():
+    """Der Erzeugungsprozess ist eine **Übernahme**, kein Nachbau.
 
-    Gleiche Darstellung, gleiche Prozesslinien, gleicher Modul-Editor. Der einzige
-    Unterschied ist der fehlende Definitionsbereich darüber – ein Artikel hat keine
-    Einzelinstanzen.
+    Beide Definitionsorte – Artikel und Auftrag – benutzen denselben `ProcessDesigner`.
+    Der einzige Unterschied ist der fehlende Bereich darüber, in dem der Auftrag seine
+    Einzelinstanzen definiert: ein Artikel hat keine (§8.1/§8.2).
     """
     tab = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
     order = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    for shared in ("ProcessDiagram", "AddModule"):
-        assert shared in tab and shared in order, (
-            f"{shared} wird nicht an beiden Definitionsorten benutzt – zwei Stände driften."
-        )
+    assert "ProcessDesigner" in tab and "ProcessDesigner" in order, (
+        "Die beiden Definitionsorte teilen sich den Editor nicht – zwei Stände driften."
+    )
     assert "DefinitionLines" not in tab, (
         "Der Artikel hat keine Einzelinstanzen – ein Definitionsbereich gehört nicht hierhin."
     )
-    assert 'mode="definition"' in tab
+    # Der Bereich darüber ist der EINE Unterschied: nur der Auftrag füllt ihn.
+    assert "head=" in order and "head=" not in tab
 
 
 def test_module_and_capture_icons_cover_exactly_the_backend_keys():
@@ -908,3 +929,273 @@ def test_module_and_capture_icons_cover_exactly_the_backend_keys():
 
     assert keys("CAPTURE_ICON") == set(ct.KEYS)
     assert keys("MODULE_ICON") == set(modules.KEYS)
+
+
+# ---------------------------------------------------------------------------
+# #669 – eine Statusliste, drei Achsen
+# ---------------------------------------------------------------------------
+
+def test_there_is_exactly_one_status_list():
+    """**So wenige Status wie möglich, so viele gemeinsame wie möglich.**
+
+    Vorher trug jede Achse ihre eigene Karte: der Artikel in ``lib/article``, der Auftrag
+    hart im ``record-status``, das Stück in ``process-status``. Derselbe Zustand hiess
+    darum an drei Orten drei Mal etwas anderes – und beim Auftrag ausgerechnet
+    «Freigegeben», was gar kein Zustand ist, sondern die Aktion, mit der er entstanden
+    ist.
+
+    Der Wächter hält fest, dass es die zweite Karte nicht mehr gibt: Beschriftung und
+    Farbe eines Status stehen ausschliesslich in ``lib/process-status``.
+    """
+    article = _read(FRONTEND / "lib" / "article.ts")
+    assert "ARTICLE_STATUS" not in article and "statusConfig" not in article, (
+        "lib/article hält wieder eine eigene Statuskarte – das ist die zweite Wahrheit."
+    )
+
+    record = _read(FRONTEND / "lib" / "record-status.ts")
+    for fn in ("articleStatus", "orderStatus", "instanceStatus", "organizationStatus"):
+        assert "statusCfg" in _body(record, fn, kind="function"), (
+            f"{fn} baut seine Badge selbst, statt die eine Liste zu lesen."
+        )
+    assert "'Freigegeben'" not in record and "'Abgeschlossen'" not in record, (
+        "In record-status stehen wieder Statuswörter – sie gehören in process-status."
+    )
+
+
+def test_the_order_has_exactly_three_states_and_none_of_them_is_released():
+    """Ein Auftrag ist **Im Prozess · Abgeschlossen · Abgebrochen** – sonst nichts.
+
+    «Freigegeben» ist die *Aktion*, mit der er entstanden ist (§6.1); als Zustand daneben
+    wäre es die Behauptung, ein Auftrag könne freigegeben sein, ohne zu laufen.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import statuses as st
+
+    assert st.ORDER_STATUSES == (st.IM_PROZESS, st.ABGESCHLOSSEN, st.ABGEBROCHEN)
+    assert st.FREIGEGEBEN not in st.ORDER_STATUSES
+
+    ts = _read(FRONTEND / "lib" / "process-status.ts")
+    m = re.search(r"export const ORDER_STATUSES = \[(.*?)\]", ts, re.S)
+    assert m, "ORDER_STATUSES fehlt im Frontend."
+    assert "FREIGEGEBEN" not in m.group(1), (
+        "Die Oberfläche kennt «Freigegeben» wieder als Auftragszustand."
+    )
+
+
+def test_no_state_is_stored_where_it_can_be_derived():
+    """**Kein zweiter Ort, an dem er gesetzt wird.**
+
+    Auftrag und Instanz leiten ihren Zustand aus ihren Einzelinstanzen ab. Eine Spalte
+    daneben ist genau der zweite Ort – und der lief prompt weg: ``orders.status`` stand
+    auf ``released``, ``instances.status`` auf ``new``, und geschrieben hat sie nie
+    jemand.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.models import Instance, Order
+
+    assert "status" not in Order.__table__.columns, (
+        "Der Auftrag trägt wieder eine Status-Spalte – er leitet ihn ab."
+    )
+    assert "status" not in Instance.__table__.columns, (
+        "Die Instanz trägt wieder eine Status-Spalte – sie ist eine Gruppe und leitet ab."
+    )
+
+    process = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def order_status" in process and "def order_statuses" in process, (
+        "Die Ableitung des Auftragsstatus fehlt (Einzel- und Batch-Form)."
+    )
+    inst = _read(BACKEND / "app" / "services" / "instances.py")
+    assert "def status_of" in inst and "def statuses" in inst
+
+
+# ---------------------------------------------------------------------------
+# #672 – der Auftrag bekommt seinen Namen mit seiner Nummer
+# ---------------------------------------------------------------------------
+
+def test_the_order_is_named_in_the_same_breath_as_its_number():
+    """«Auftrag <Objektnummer>», vergeben **im selben Zug** wie die Nummer.
+
+    Zwei Schritte daraus zu machen hiesse, dass es einen Moment gibt, in dem ein Auftrag
+    existiert und keinen Namen hat – und die Oberfläche müsste einen erfinden.
+    """
+    body = _body(_read(BACKEND / "app" / "services" / "process.py"), "release")
+    assert 'name=f"Auftrag {object_id}"' in body, (
+        "Der Name entsteht nicht zusammen mit der Objektnummer."
+    )
+    assert body.index("next_object_id") < body.index("name=f\"Auftrag"), (
+        "Der Name wird vor der Nummer vergeben – dann steht er auf einer Nummer, die es "
+        "noch nicht gibt."
+    )
+
+    name_ts = _read(FRONTEND / "lib" / "record-name.ts")
+    assert "o.name" in _body(name_ts, "orderName", kind="function"), (
+        "Die Oberfläche baut den Auftragsnamen selbst – dann gibt es zwei Stellen dafür."
+    )
+    assert "'Auftrag '" not in name_ts and '"Auftrag "' not in name_ts
+
+
+# ---------------------------------------------------------------------------
+# #673 / #674 – Palette, Autosave, kein Bearbeiten, Drag & Drop
+# ---------------------------------------------------------------------------
+
+def test_a_module_is_created_by_the_palette_and_never_edited():
+    """**Kein «Hinzufügen», kein «Bearbeiten».**
+
+    Ein Klick auf die Palette legt das Modul an; es steht ab dem ersten Moment im Fluss
+    und füllt sich, während man tippt. Ändern heisst löschen und neu anlegen – der
+    Mülleimer ist der einzige zweite Weg.
+
+    Ein deaktivierter Bearbeiten-Knopf wäre kein Kompromiss, sondern ein toter Pfad: er
+    verspricht etwas, das es nicht gibt.
+    """
+    assert not (FRONTEND / "components" / "erp" / "module-editor.tsx").exists(), (
+        "Der alte Modul-Editor ist wieder da – mit ihm der Hinzufügen-/Bearbeiten-Pfad."
+    )
+    src = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
+    code = re.sub(r"/\*.*?\*/|//.*", "", src, flags=re.S)   # Kommentare erklären, sie tun nichts
+    for gone in ("Bearbeiten", "onEdit", "editing", "Hinzufügen"):
+        assert gone not in code, f"«{gone}» steht wieder im Editor."
+    assert "onPick" in src and "onChange([...modules," in src, (
+        "Die Palette legt das Modul nicht direkt an."
+    )
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    assert "onDelete" in diagram, "Der Mülleimer fehlt – dann gibt es gar keinen Weg zurück."
+
+
+def test_the_palette_stands_where_the_next_module_would_go():
+    """Die Auswahl sitzt **am Ende des letzten Moduls**, nicht in einem eigenen Kasten.
+
+    Ein Symbol je Modultyp in seiner Farbe, Name im Hover – dieselbe Interaktion wie die
+    Mengeneinheit am Artikel (`IconSwitch labelActiveOnly`), nicht etwas Neues.
+    """
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    body = diagram.split("const nodes = useMemo(")[1].split("}, [head,")[0]
+    # Der Palettenknoten steht zwischen letztem Modul und Ende.
+    order = [body.index("kind: 'step', step"), body.index("id: 'tail'"), body.index("id: 'end'")]
+    assert order == sorted(order), (
+        "Die Palette steht nicht zwischen dem letzten Modul und dem Ende."
+    )
+    designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
+    assert "ix-palette" in designer and "ix-palette-name" in designer
+    css = _read(FRONTEND / "app" / "globals.css")
+    assert ".ix-palette-name" in css, "Der Hover-Name der Palette hat keine Darstellung."
+
+
+def test_the_module_colour_comes_from_the_registry():
+    """**Ein neuer Modultyp = ein Eintrag in der Liste, kein Eingriff in die UI.**
+
+    Welche Farbfamilie ein Modul trägt, sagt das Backend (`Module.tone`); die Oberfläche
+    hält nur die konkreten Farbwerte. Stünde die Zuordnung in einer Komponente, wäre der
+    nächste Modultyp eine Änderung an ihr.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules
+
+    assert set(modules.TONES) == set(modules.KEYS)
+    ts = _read(FRONTEND / "lib" / "modules.ts")
+    tones = set(re.findall(r"^  (\w+): \{ bg:", ts.split("MODULE_TONE")[1], re.M))
+    assert set(modules.TONES.values()) <= tones, (
+        "Das Backend nennt eine Farbfamilie, die die Oberfläche nicht kennt."
+    )
+    for name in ("process-diagram.tsx", "process-designer.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        assert "moduleTone" in src, f"{name} liest die Farbe nicht aus der einen Stelle."
+        assert "#" not in re.sub(r"//.*|/\*.*?\*/", "", src, flags=re.S).replace("#'", ""), (
+            f"{name} enthält einen harten Farbwert – Farben stehen in lib/modules."
+        )
+
+
+def test_everything_captured_is_mandatory():
+    """**Das Feld «Pflicht ja/nein» ist gelöscht** – Modell, Migration, UI, Validierung.
+
+    Ein Schalter dafür wäre die Frage, warum man einen Erfassungspunkt anlegt, den
+    niemand ausfüllen muss; und jeder ausgeschaltete Punkt eine Lücke, die erst später
+    auffällt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import capture_types
+    from app.schemas.process import CapturePoint, CapturePointInput
+
+    assert "required" not in CapturePointInput.model_fields
+    assert "required" not in CapturePoint.model_fields
+    # Geprüft wird JEDER Punkt, nicht eine Teilmenge.
+    check = _body(_read(BACKEND / "app" / "domain" / "capture_types" / "__init__.py"),
+                  "check_values")
+    assert "required" not in check, "Die Prüfung fragt wieder nach einem Pflicht-Schalter."
+    # Der Code, nicht die Kommentare: die erklären ja gerade, warum es ihn nicht gibt.
+    for name in ("lib/modules.ts", "components/erp/process-designer.tsx",
+                 "components/erp/capture-form.tsx"):
+        code = re.sub(r"/\*.*?\*/|//.*", "", _read(FRONTEND / name), flags=re.S)
+        assert "required" not in code, f"{name} kennt wieder einen Pflicht-Schalter."
+
+    # Und die Altdaten tragen ihn auch nicht mehr mit sich herum.
+    mig = _read(BACKEND / "alembic" / "versions" / "107_status_und_name.py")
+    assert "p - 'required'" in mig, "Die Migration räumt den Schlüssel nicht aus den Zeilen."
+
+
+def test_modules_are_reordered_by_dragging_not_by_a_second_form():
+    """Die Reihenfolge **ist** der Prozess – also wird sie im Bild geändert.
+
+    Gezogen wird am **Griff**, nicht an der Karte: ein `draggable` auf der ganzen Karte
+    macht ihren Inhalt zum Ziehgriff, und in ihren Eingabefeldern liesse sich kein Text
+    mehr markieren. Das fällt bei einem Modul kaum auf und bei zwanzig sofort.
+    """
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    card = _body(diagram, "StepCard", kind="function")
+    assert "onDragStart" in card and "onDrop" in card
+    grip = card[card.index("GripVertical") - 800:card.index("GripVertical")]
+    assert "draggable" in grip, (
+        "Gezogen wird nicht am Griff – dann lässt sich in den Feldern kein Text markieren."
+    )
+    assert "draggable={!!drag}" not in card, "Die ganze Karte ist wieder ziehbar."
+
+    designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
+    assert "splice" in _body(designer, "move", kind="function"), "Das Umsortieren fehlt."
+
+    # Und die Linien folgen: sie werden nach JEDEM Commit neu gemessen, nicht nur bei
+    # einer Grössenänderung – ein Modul kann wandern, ohne seine Grösse zu ändern.
+    flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
+    assert "useIsoLayout(() => { measure(); });" in flow, (
+        "Die Prozesslinien werden nach einem Umsortieren nicht neu gemessen."
+    )
+
+
+def test_the_net_adds_a_column_before_it_throws_a_table_away():
+    """**Ein Neuaufbau ist das letzte Mittel, nicht die erste Reaktion.**
+
+    ``start.sh`` startet uvicorn auch dann, wenn Alembic scheitert – dann zählt nur noch
+    das Netz (Lehre aus Migration 090). Lief der Formwächter zuerst, warf er bei einer
+    bloss **fehlenden** Spalte die ganze Tabelle weg, obwohl der Eintrag daneben sie in
+    einer Zeile ergänzt hätte: auf einer 106er-Datenbank war der Alt-Auftrag danach
+    spurlos verschwunden.
+
+    Also erst die Spalten, dann die Form – und der Neuaufbau ist die Antwort auf das,
+    was auch danach noch unbenutzbar ist.
+    """
+    body = _body(_read(BACKEND / "app" / "main.py"), "_run_startup_fixups_once")
+    assert body.index("_ensure_columns()") < body.index("_ensure_rebuilt_tables_shape()"), (
+        "Der Formwächter läuft vor dem Spaltennetz – eine fehlende Spalte kostet dann "
+        "die ganze Tabelle."
+    )
+
+
+def test_the_column_net_reflects_on_its_own_connection():
+    """Der Inspektor sitzt auf **derselben** Verbindung wie die DDL.
+
+    ``inspect(engine)`` zieht eine zweite Verbindung aus dem Pool; die blockiert, sobald
+    diese Funktion eine Tabelle geändert hat, denn das ``ALTER TABLE`` hält seinen Lock
+    bis zum ``commit`` ganz am Ende. Sie wartet damit auf eine Transaktion, die erst nach
+    ihr fertig wird – der Start bliebe für immer stehen (gemessen: der erste
+    ``DROP COLUMN`` auf ``instances`` hat es ausgelöst).
+    """
+    body = _body(_read(BACKEND / "app" / "main.py"), "_ensure_columns")
+    assert "inspect(conn)" in body, (
+        "Das Spaltennetz reflektiert auf einer zweiten Verbindung – das verklemmt sich "
+        "mit seiner eigenen offenen Transaktion."
+    )
+    code = re.sub(r"#.*", "", body)   # der Kommentar erklärt ja gerade den Fehler
+    assert "inspect(engine)" not in code

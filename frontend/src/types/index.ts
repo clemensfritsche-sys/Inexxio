@@ -23,7 +23,9 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
 
 // ─── Article ────────────────────────────────────────────────────────────────
 
-export type ArticleStatus = 'draft' | 'released' | 'inactive';
+// Aus der EINEN Statusliste (`domain/statuses.ARTICLE_STATUSES`) – einen Entwurf gibt es
+// nicht: der Artikel entsteht erst mit seiner Freigabe.
+export type ArticleStatus = 'freigegeben' | 'inaktiv';
 export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'm3' | 'kg' | 'l';
 export type ArticleSerialization = 'unit' | 'batch';
 

@@ -1,14 +1,10 @@
-import { FilePen, CheckCircle2, Ban } from 'lucide-react';
-import type { ArticleSerialization, ArticleStatus, ArticleUnit } from '@/types';
-import { TONE, pickCfg, type StatusCfg } from '@/lib/status-flow';
+import type { ArticleSerialization, ArticleUnit } from '@/types';
 
-// ─── Anzeige-Konfiguration (Töne aus den geteilten Design-Tokens) ────────────
+// Der **Status** eines Artikels steht nicht hier: er kommt aus der EINEN Statusliste
+// (`lib/process-status`, Testnotiz #669). Eine eigene Karte je Achse war genau der
+// Grund, warum derselbe Zustand an drei Orten drei Beschriftungen trug.
 
-export const ARTICLE_STATUS: Record<ArticleStatus, StatusCfg> = {
-  draft:    { label: 'Entwurf',     ...TONE.pending, icon: FilePen },
-  released: { label: 'Freigegeben', ...TONE.done,    icon: CheckCircle2 },
-  inactive: { label: 'Inaktiv',     ...TONE.danger,  icon: Ban },
-};
+// ─── Anzeige-Konfiguration ──────────────────────────────────────────────────
 
 export const ARTICLE_UNITS: { value: ArticleUnit; label: string }[] = [
   { value: 'Stk', label: 'Stk.' },
@@ -30,10 +26,6 @@ export function unitLabel(value: string): string {
 
 export function serializationLabel(value: string): string {
   return SERIALIZATION_OPTIONS.find((s) => s.value === value)?.label ?? value;
-}
-
-export function statusConfig(status: string): StatusCfg {
-  return pickCfg(ARTICLE_STATUS, status, 'draft');
 }
 
 // ─── Validierung (Spiegel von backend/app/schemas/article.py) ────────────────
