@@ -400,6 +400,44 @@ Es beantwortet **nicht**: was passieren wird. Keine Vorhersage, keine Simulation
 Hochrechnung. Eine Kante unterhalb der aktuellen Stelle trägt keine Aussage über
 Material, das sie noch nicht geführt hat.
 
+### 7.4 Die Journey — ein Prozess, aufgeteilt in Aufträge
+
+Eine Einzelinstanz läuft nacheinander durch viele Aufträge und ist immer in **genau
+einem** aktiv (§3). Damit ist alles ein einziger langer Prozess; die Aufteilung in
+Aufträge ist eine Sicht darauf, keine Unterbrechung. Die **Journey** setzt sie wieder
+zusammen: über dem Start steht der Auftrag davor, unter dem Ende der danach.
+
+**Abgeleitet, nicht gepflegt.** Es gibt keine Spalten `vorheriger_auftrag` /
+`naechster_auftrag`. Solche Zeiger müssten bei jeder Freigabe mitgeschrieben werden und
+laufen irgendwann auseinander — und dann ist die Journey unbrauchbar für genau das, was
+sie belegen soll. Die Quelle ist der **Ereignis-Log** (§11.3): er hält je Statuswechsel
+fest, welches Stück in welchem Auftrag war, und seine `id` ist die Zeitachse.
+
+```
+Vorgänger  = der Auftrag des letzten Ereignisses VOR dem ersten Ereignis
+             dieses Stücks in diesem Auftrag
+Nachfolger = der Auftrag des ersten Ereignisses NACH dem letzten
+```
+
+Beides ist damit lückenlos: was nicht im Log steht, ist nicht passiert.
+
+Daraus fällt eine Regel heraus, die niemand schreiben muss: ein Nachbar erscheint erst,
+**wenn es ihn wirklich gibt**. Ein Auftrag entsteht mit seiner Freigabe (§6.1) — vorher
+schreibt er nichts in den Log, also kann er auch nicht als Nachbar auftauchen.
+
+**Gruppiert, nicht aufgezählt.** Je Nachbar-Auftrag ein Verweis mit Stückzahl («aus
+100000123 · 5000»). Dieselbe Entscheidung wie bei den Stück-Gruppen im Prozessbild
+(§10.1): bei 5000 Stück lautet die Frage «wie viele kamen woher», nicht «welche». Wer die
+einzelnen Nummern will, öffnet den genannten Auftrag.
+
+**Kein Nachbar heisst: nichts.** Kein Platzhalter, keine Zeile «kein Vorgänger». Ein
+Erzeugungsauftrag hat keinen — seine Stücke sind hier entstanden.
+
+**Ein Index ist kein zweiter Datenbestand.** `process_events (instance_unit_id, id)`
+macht «welcher Auftrag war vor bzw. nach diesem?» zu einem Sprung an die Nachbar-Zeile.
+Er beschleunigt eine Frage; er beantwortet sie nicht. Zwei Abfragen je Auftrag,
+unabhängig von der Stückzahl.
+
 ---
 
 ## 8. Wo der Prozess lebt
@@ -607,6 +645,14 @@ Auswertung müsste danach mit Zyklen und toten Ästen rechnen.
 Start und Ende sind **keine Zeilen**: es gibt genau einen von jedem, ihre Position ist
 implizit, und ihre Übergänge gehören zum System, nicht zur Modellierung (§4.1).
 
+**Die `id` IST die Identität eines Moduls.** Sie entsteht mit der Zeile und ändert sich
+nie; der Ereignis-Log (§11.3) zeigt ausschliesslich auf sie — nie auf einen Namen, nie
+auf die Position. **Ein Namensfeld gibt es nicht**: wie ein Modul heisst, sagt sein Typ
+(`domain/modules`). Es hatte genau eine richtige Antwort und war trotzdem Pflicht — und
+als Identität taugte es nie, denn ein Name lässt sich ändern, doppelt vergeben oder leer
+lassen, und dann zeigt die Historie auf etwas, das es so nie gab. Die `position` taugt
+ebenso wenig: sie beschreibt eine Reihenfolge, keine Sache.
+
 ### 11.2 Ebene 2 — Laufzeit-Zustand (wo steht was)
 
 ```
@@ -650,6 +696,10 @@ process_events
 
 Append-only. Kein Update, kein Delete, kein `is_active`. Die Reihenfolge ist die `id` —
 sie ist die Zeitachse.
+
+Der Log trägt damit **zwei** Fragen, nicht eine: was ist mit diesem Auftrag passiert
+(§7.2) und **wo war dieses Stück vorher bzw. nachher** (§7.4). Für die zweite steht ein
+Index `(instance_unit_id, id)` daneben — dieselbe Tabelle, nur eine zweite Leserichtung.
 
 **Eigene Tabelle, nicht der bestehende `events`-Strom.** Der ist ein Beobachtungs-Outbox
 für KI und Analytik mit freier Payload; hier geht es um die Quelle der Wahrheit für den
@@ -713,6 +763,10 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **Menge 0 gibt es nicht** | Weder für `Neu` noch für `Lager`. Eine Zeile ohne Stück bewegt nichts, und die Freigabe verlangt ohnehin mindestens eine Einzelinstanz (§6.2). Wer nur modellieren will, tut das am Artikel. |
 | **Grosse Mengen werden GEZÄHLT, nicht aufgelistet** | Das Diagramm zeigt je Zustand eine Pille mit Anzahl (`unit_groups`, eine SQL-Gruppierung); die Nummern holt `GET …/units`, wenn jemand aufklappt. Die Historie ist auf 200 Einträge gedeckelt **und weist das aus** — eine stumm gekappte Liste sähe aus wie die ganze Wahrheit. Die Datenhaltung bleibt pro Einzelinstanz; es gibt kein Aggregat-Feld. |
 | **`order_lines` wird festgeschrieben** | Nicht weil eine Ansicht sie bräuchte, sondern weil die **Herkunft** sonst verloren ginge: dass diese drei Stücke erzeugt und jene zwei geholt wurden, steht hinterher nirgends im Bestand. |
+| **Die Journey meint das STÜCK, nicht den Artikel** | Zwei Aufträge sind Nachbarn, wenn sie dieselbe Einzelinstanz nacheinander bearbeitet haben (§7.4). «Derselbe Artikel» wäre eine andere Frage — und eine, die der Bestand beantwortet. |
+| **Mehrere Nachbarn: nach Stückzahl absteigend** | Der Hauptstrom zuerst. Bei Gleichstand die Objektnummer — eine willkürliche, aber stabile Reihenfolge ist besser als eine wechselnde. |
+| **Ein gelöschter Nachbar fällt aus der Liste** | Statt als Zeile mit leerem Namen zu erscheinen. Eine Zeile, die auf nichts zeigt, ist schlimmer als keine Zeile. |
+| **Fehlermeldungen sagen was und wo** | Ein `RequestValidationError`-Handler an EINER Stelle übersetzt jeden Eingabefehler in Klartext und nennt den Feldpfad («Prozessschrittmodule → 1 → Modultyp: fehlt»). Rohe Validator-Texte gehen ins Log. Ein Feld ohne hinterlegte Bezeichnung erscheint mit seinem technischen Namen — unschön, aber ehrlich und auffällig; eine erfundene Übersetzung wäre schlimmer. |
 
 ---
 
