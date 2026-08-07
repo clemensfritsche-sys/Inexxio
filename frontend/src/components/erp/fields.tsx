@@ -539,7 +539,18 @@ export const DH: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6,
   },
   title: {
-    font: '800 26px var(--font-display)', letterSpacing: '-.03em', margin: 0, lineHeight: 1.05,
+    // **Einzelangaben, KEINE `font`-Kurzschreibweise** – und das ist kein Geschmack.
+    //
+    // Der Titel wird konditional überschrieben (`titleEmpty` setzt `fontWeight`/
+    // `fontStyle` für den Platzhalter). Fällt diese Überschreibung später weg – beim
+    // Auftrag passiert genau das, weil er als einziger Datensatztyp ohne Namen startet
+    // und ihn nachlädt –, entfernt React die Longhand, indem es sie auf `''` setzt. Der
+    // Wert aus der Kurzschreibweise kommt dabei **nicht** zurück: sie hat ihn in die
+    // Deklaration geschrieben, und das Löschen der Longhand löscht ihn daraus. Übrig
+    // bleibt der Initialwert – 400 statt 800. Als Einzelangabe steht 800 dagegen in
+    // jedem Zustand im Objekt und wird zurückgeschrieben.
+    fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26,
+    letterSpacing: '-.03em', margin: 0, lineHeight: 1.05,
     color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   titleEmpty: { color: 'var(--fg-4)', fontStyle: 'italic', fontWeight: 700 },

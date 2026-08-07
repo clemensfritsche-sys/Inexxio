@@ -37,11 +37,24 @@ import type { JourneyStop, Order, RelatedOrder } from '@/types';
  * die Linie sagte, sagt dann die Kopfzeile über der Spalte.
  */
 
+/** Abstand zwischen zwei Spuren. */
+const GAP = 20;
 /**
- * Ab dieser gemessenen Breite passen drei Spuren nebeneinander: die feste Mitte, zwei
- * lesbare Nachbarn und die Abstände dazwischen. Darunter stehen sie untereinander.
+ * Wie schmal ein Nachbar werden darf, bevor drei Spuren keinen Sinn mehr ergeben.
+ *
+ * **Gemessen, nicht geschätzt.** Bei 240 px lag die Schwelle bei einem Rahmen von
+ * 1160 px – und der Rahmen ist im Detailfenster rund 380 px schmaler als das Fenster
+ * (Feed + Polsterung). Drei Spuren erschienen damit erst ab **1536 px Fensterbreite**,
+ * also auf keinem Notebook: 1512 → gestapelt, 1440 → gestapelt, 1366 → gestapelt. Der
+ * Nachbar ist eine verblasste Nebenspur, keine Leseansicht; bei 160 px trägt er seine
+ * Modul-Karten noch, und die Schwelle liegt bei 1366 px Fensterbreite.
  */
-const WIDE = PROCESS_MAXW + 2 * 240 + 60;
+const SIDE_MINW = 160;
+/**
+ * Ab dieser gemessenen **Rahmen**breite passen drei Spuren nebeneinander: die feste
+ * Mitte, zwei noch lesbare Nachbarn und die Abstände. Darunter stehen sie untereinander.
+ */
+const WIDE = PROCESS_MAXW + 2 * SIDE_MINW + 2 * GAP;
 /** Wie breit ein Nachbar höchstens wird. Schmaler als die Mitte – sie ist der Fokus. */
 const SIDE_MAXW = 420;
 
@@ -140,7 +153,7 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
         }
         return (
           <div style={{
-            display: 'grid', alignItems: 'start', gap: 26,
+            display: 'grid', alignItems: 'start', gap: GAP,
             // Die Mitte ist **fest**: als `minmax(0, …)` wäre sie eine Obergrenze, und
             // weil ihr Inhalt seine Breite aus der Spur bezieht, fiele sie auf die
             // Mindestbreite zusammen – der Fokus wäre die schmalste Spalte.

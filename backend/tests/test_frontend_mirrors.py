@@ -1936,3 +1936,68 @@ def test_the_start_time_comes_from_the_event_log():
     assert "started_at" not in model, "Es gibt eine zweite Wahrheit als Spalte."
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
     assert "startedAt" in diagram, "Der Hover zeigt den Zeitpunkt nicht."
+
+
+def test_the_header_never_mixes_font_shorthand_with_a_conditional_override():
+    """**Warum der Auftragsname trotz EINER Kopf-Definition anders aussah.**
+
+    Die Standardisierung hatte gegriffen – das Stilobjekt ist für jeden Datensatztyp
+    dasselbe. Der Unterschied kam aus der **Kurzschreibweise**: `DH.title` setzte
+    `font: '800 26px …'`, und `DH.titleEmpty` überschrieb daneben `fontWeight`. Fällt die
+    Überschreibung später weg – beim Auftrag passiert genau das, weil er als einziger
+    Typ ohne Namen startet und ihn nachlädt –, entfernt React die Longhand, indem es sie
+    auf `''` setzt. Der Wert aus der Kurzschreibweise kommt dabei **nicht** zurück: sie
+    hat ihn in die Deklaration geschrieben, und das Löschen der Longhand löscht ihn
+    daraus. Übrig blieb der Initialwert, 400 statt 800.
+
+    Die Regel ist darum allgemein: **ein Stilobjekt, das konditional überschrieben wird,
+    benutzt keine `font`-Kurzschreibweise.** Sonst hängt das Ergebnis davon ab, ob die
+    Überschreibung je aktiv war – und das ist ein Zustand, kein Entwurf.
+    """
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    header = _body(fields, "DetailHeader", kind="function")
+
+    # Welche DH-Stile werden im Kopf konditional zusammengeführt?
+    overridden = set(re.findall(r"\.\.\.DH\.(\w+),\s*\.\.\.\(", header))
+    overridden |= {m for m in re.findall(r"\.\.\.\(\w+ \? null : DH\.(\w+)\)", header)}
+    assert "title" in overridden or "titleEmpty" in " ".join(overridden) or overridden, (
+        "Im Kopf wird kein Stil mehr konditional überschrieben – dann ist dieser "
+        "Wächter blind. Prüfen, ob die Regel noch gebraucht wird."
+    )
+
+    block = fields[fields.index("export const DH"):]
+    for name in overridden | {"title"}:
+        style = re.search(rf"\n  {name}: \{{(.*?)\n  \}},", block, re.S)
+        assert style, f"DH.{name} nicht gefunden."
+        assert not re.search(r"\bfont:", style.group(1)), (
+            f"DH.{name} wird konditional überschrieben und benutzt trotzdem die "
+            f"`font`-Kurzschreibweise. Fällt die Überschreibung weg, kommt der Wert "
+            f"nicht zurück – genau so wurde der Auftragsname 400 statt 800."
+        )
+
+
+def test_three_lanes_fit_on_a_laptop():
+    """**Drei Spuren müssen auf einem Notebook erscheinen, nicht erst auf einem Grossbild.**
+
+    Der Rahmen im Detailfenster ist rund 380 px schmaler als das Fenster (Feed +
+    Polsterung) – gemessen: 1366 → 990, 1440 → 1064, 1512 → 1136, 1536 → 1160. Bei einer
+    Mindestbreite von 240 px je Nachbar lag die Schwelle bei 1160 und damit erst bei
+    **1536 px Fensterbreite**: auf jedem Notebook stand alles untereinander.
+
+    Der Wert ist gemessen, nicht geschätzt – darum steht hier die Zahl und nicht die
+    Formel.
+    """
+    ui = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
+    assert "const WIDE = PROCESS_MAXW + 2 * SIDE_MINW + 2 * GAP" in ui, (
+        "Die Schwelle ist nicht mehr aus den Spurbreiten abgeleitet."
+    )
+    side = int(re.search(r"const SIDE_MINW = (\d+)", ui).group(1))
+    gap = int(re.search(r"const GAP = (\d+)", ui).group(1))
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    mid = int(re.search(r"export const PROCESS_MAXW = (\d+)", diagram).group(1))
+    wide = mid + 2 * side + 2 * gap
+    assert wide <= 990, (
+        f"Drei Spuren brauchen {wide} px Rahmen – bei 1366 px Fensterbreite sind nur "
+        f"990 da. Dann stapelt es auf jedem Notebook."
+    )
+    assert side >= 150, f"Ein Nachbar mit {side} px trägt seine Modul-Karten nicht mehr."
