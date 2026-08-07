@@ -5,7 +5,7 @@ import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2 }
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, instanceName, organizationName, orderName } from '@/lib/record-name';
-import {articleStatus, instanceStatus, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
+import { articleStatus, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
 import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
 import type {Article, CompanySettings, Instance, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order } from '@/types';
@@ -46,10 +46,12 @@ function rowTitle(row: Row): string | null {
 
 // Der Zustand kommt aus der EINEN Ableitung (`lib/record-status`) – genau wie der Name.
 // Hier wird nur verteilt, nie gebaut: sonst läuft der Feed vom Detail weg (Notiz #379).
-function rowStatus(row: Row): StatusCfg {
+function rowStatus(row: Row): StatusCfg | null {
   if (row.type === 'user') return userStatus(row.data);
   if (row.type === 'order') return orderStatus(row.data);
-  if (row.type === 'instance') return instanceStatus(row.data);
+  // Die Instanz ist eine Gruppe und trägt keinen Zustand (Testnotiz #675) – ein Wort
+  // hier wäre bei einer Charge mit gemischten Stücken eine Behauptung.
+  if (row.type === 'instance') return null;
   if (row.type === 'organization') return organizationStatus(row.data);
   return articleStatus(row.data);
 }
@@ -109,7 +111,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
             Polsterung und Zeilenabstand, nicht aus einer zweiten Status-Form. */}
         <div className="flex items-center gap-2.5 mt-1">
           <span className="text-fg-4 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{formatObjectId(row.objectId)}</span>
-          <StatusBadge cfg={badge} size={11} />
+          {badge && <StatusBadge cfg={badge} size={11} />}
         </div>
       </div>
     </button>

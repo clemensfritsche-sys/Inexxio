@@ -16,14 +16,14 @@ import {
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
-import { articleStatus, KIND_LABEL } from '@/lib/record-status';
+import { articleStatus } from '@/lib/record-status';
 import type { StatusAction } from '@/lib/status-flow';
 import type { DiagramStep } from '@/components/erp/process-diagram';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN, INAKTIV } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
-import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
 import type { InstanceSummary } from '@/types';
 import { InstanceList } from '@/components/erp/instance-list';
 import { DetailTabs } from '@/components/erp/detail-tabs';
@@ -764,92 +764,10 @@ function ArticleStock({ articleObjectId }: { articleObjectId: number | null }) {
   if (!rows) return null;
   return (
     <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
-      {articleObjectId && <AddInstance articleObjectId={articleObjectId} onCreated={load} />}
       <InstanceList rows={rows} />
     </div>
   );
 }
-
-/**
- * **Instanz anlegen.** Der Artikel steht fest (wir sind in seinem Bestand), gewählt
- * werden nur Typ und Anzahl.
- *
- * Beides wird **ausdrücklich verlangt**, nichts aus dem Artikel erraten: die
- * Serialisierung am Artikel sagt, wie er üblicherweise geführt wird – sie ist keine
- * Zusage darüber, wie diese eine Lieferung aussieht. Eine stille Vorbelegung wäre eine
- * Behauptung, über die später jemand stolpert (dieselbe Regel wie in
- * ``schemas/instance.InstanceCreate``).
- *
- * Die Anzahl ist die **Menge**: eine Instanz über 4 Stück ist eine Gruppe aus vier
- * Einzelinstanzen mit den Nummern ``<Instanznr>-1`` bis ``-4``. Gespeichert wird sie
- * nirgends – sie ist die Anzahl der Zeilen.
- */
-function AddInstance({ articleObjectId, onCreated }: {
-  articleObjectId: number; onCreated: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<'einzeln' | 'batch'>('einzeln');
-  const [count, setCount] = useState('1');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const n = Number(count);
-  const ready = Number.isInteger(n) && n >= 1;
-
-  async function create() {
-    setBusy(true); setErr(null);
-    try {
-      await api.createInstance({ article_object_id: articleObjectId, kind, count: n });
-      setOpen(false); setCount('1');
-      onCreated();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full mb-3"
-        style={{ border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}>
-        <Plus size={13} /> Instanz anlegen
-      </button>
-    );
-  }
-
-  return (
-    <div className="rounded-ds-lg mb-3" style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 14 }}>
-      <div className="flex flex-wrap gap-2 items-end">
-        <label>
-          <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Typ</span>
-          <select className={inputCls} style={{ width: 150 }} value={kind}
-            onChange={(e) => setKind(e.target.value as 'einzeln' | 'batch')}>
-            {Object.entries(KIND_LABEL).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Einzelinstanzen</span>
-          <input className={inputCls} style={{ width: 120 }} value={count} {...numericInputProps}
-            onChange={(e) => setCount(numericOnly(e.target.value))} />
-        </label>
-        <button type="button" className="erp-actbtn erp-actbtn-primary"
-          style={{ height: 32, padding: '0 14px' }} disabled={!ready || busy} onClick={create}>
-          Anlegen
-        </button>
-        <button type="button" className="erp-actbtn erp-actbtn-neutral"
-          style={{ height: 32, padding: '0 14px' }} onClick={() => { setOpen(false); setErr(null); }}>
-          Abbrechen
-        </button>
-      </div>
-      {err && <p className="text-xs mt-2" style={{ color: 'var(--danger)' }}>{err}</p>}
-    </div>
-  );
-}
-
 
 /**
  * **Der Erzeugungsprozess eines Artikels** – die Vorlage: wie ein Stück entsteht.

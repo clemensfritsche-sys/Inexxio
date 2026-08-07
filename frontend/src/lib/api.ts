@@ -8,9 +8,7 @@ import type {
   OrderUnitPage,
   ArticleProcess,
   InstanceSummary,
-  InstanceCreateInput,
   ArticleValidation,
-  Capture,
   ModuleCatalog,
   Article,
   ArticleInput,
@@ -543,28 +541,6 @@ class ApiClient {
     if (search) p.set('search', search);
     const qs = p.toString();
     return this.get(`/api/v1/erp/instances${qs ? `?${qs}` : ''}`);
-  }
-
-  createInstance(input: InstanceCreateInput): Promise<Instance> {
-    return this.post('/api/v1/erp/instances', input);
-  }
-
-  // Weitere Einzelinstanzen. Die Suffixe sind kumulierend – eine einmal vergebene
-  // Nummer kommt nie zurück.
-  addInstanceUnits(objectId: number, count: number): Promise<Instance> {
-    return this.post(`/api/v1/erp/instances/${objectId}/units`, { count });
-  }
-
-  deactivateInstanceUnit(objectId: number, suffix: number): Promise<Instance> {
-    return this.delete(`/api/v1/erp/instances/${objectId}/units/${suffix}`);
-  }
-
-  // ─── Datenerfassung (an der Einzelinstanz) ─────────────────────────────────
-  /** Was an dieser Einzelinstanz erfasst wurde – **nur lesend**. Geschrieben wird
-   *  ausschliesslich im Prozess (`confirmStep`): eine Erfassung ohne Modul hätte
-   *  keinen Anlass. */
-  getCaptures(number: string): Promise<Capture[]> {
-    return this.get(`/api/v1/erp/captures/${number}`);
   }
 
   // Universelle Objektnummer serverseitig auf ihren Typ auflösen (Scan/Navigation)

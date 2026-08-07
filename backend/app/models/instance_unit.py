@@ -20,12 +20,15 @@ class InstanceUnit(Base, TimestampMixin):
     **Nummer = ``<Objektnummer der Instanz>-<suffix>``.** Die Einzelinstanz zieht bewusst
     KEINE Nummer aus ``object_id_seq``: eine 1000er-Charge würde sonst 1000 Nummern des
     gemeinsamen Kreises verbrauchen, und genau dafür existiert die Instanz-Ebene. Der
-    Suffix ist **kumulierend** – einmal vergeben, nie wieder verwendet. Er wird beim
-    Anlegen als ``MAX(suffix)+1`` unter Zeilensperre auf der Instanz ermittelt
-    (``services/instances.add_units`` – die einzige Schreibstelle). Ein gespeicherter
-    Zähler wäre eine zweite Wahrheit neben den Zeilen; da nur soft gelöscht wird
-    (``is_active=false``), bleibt jede vergebene Nummer in ``MAX`` sichtbar und kommt
-    nicht zurück.
+    Suffix zählt innerhalb seiner Instanz ab 1 und wird an genau EINER Stelle vergeben:
+    ``services/instances.create_instances``, im selben Zug wie die Instanz. Ein
+    Nachträglich-Hinzufügen gibt es nicht mehr (Testnotiz #678) – damit gibt es auch
+    keinen zweiten Ort, an dem eine Nummer entsteht.
+
+    **Vergeben bleibt vergeben.** Eine Einzelinstanz wird nie gelöscht und nie
+    deaktiviert (#679): ihre Nummer ist eine Identität, keine Position. Was einmal
+    existiert hat, taucht in der Historie auf, und ein Verweis darauf darf nicht ins
+    Leere zeigen.
 
     ``status`` ist der **eigene, individuelle** Zustand dieses einen Stücks – zwei
     Einzelinstanzen derselben Instanz dürfen verschieden stehen. Die Werte stammen aus

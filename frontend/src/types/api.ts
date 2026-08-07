@@ -818,8 +818,7 @@ export interface paths {
         /** List Instances */
         get: operations["list_instances_api_v1_erp_instances_get"];
         put?: never;
-        /** Create Instance */
-        post: operations["create_instance_api_v1_erp_instances_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -835,66 +834,6 @@ export interface paths {
         };
         /** Get Instance */
         get: operations["get_instance_api_v1_erp_instances__object_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/instances/{object_id}/units": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add Units */
-        post: operations["add_units_api_v1_erp_instances__object_id__units_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/instances/{object_id}/units/{suffix}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Deactivate Unit
-         * @description Einzelinstanz deaktivieren (soft). Ihre Nummer bleibt vergeben – sie kommt nie zurück.
-         */
-        delete: operations["deactivate_unit_api_v1_erp_instances__object_id__units__suffix__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/captures/{number}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Captures
-         * @description Was an dieser Einzelinstanz erfasst wurde – neueste zuerst.
-         *
-         *     Die **Punkte** kommen aus dem Modul, das sie erfasst hat: ohne sie stünden nur
-         *     Schlüssel und Rohwerte da, und ein Messwert ohne seine Bezeichnung ist eine Zahl.
-         */
-        get: operations["list_captures_api_v1_erp_captures__number__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1309,24 +1248,6 @@ export interface components {
             file: string;
         };
         /**
-         * CapturePoint
-         * @description Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt.
-         *
-         *     **Alle sind Pflicht** – bestätigt wird erst, wenn jeder ausgefüllt ist.
-         */
-        CapturePoint: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /** Type */
-            type: string;
-            /** Target */
-            target?: number | null;
-            /** Tolerance */
-            tolerance?: number | null;
-        };
-        /**
          * CapturePointInput
          * @description Ein Erfassungspunkt, wie ihn die Definition schickt.
          *
@@ -1349,37 +1270,6 @@ export interface components {
             target?: number | null;
             /** Tolerance */
             tolerance?: number | null;
-        };
-        /**
-         * CaptureResponse
-         * @description Eine Erfassung an einer Einzelinstanz – **nur lesend**.
-         *
-         *     Es gibt kein ``CaptureCreate`` mehr: geschrieben wird ausschliesslich im Prozess,
-         *     wenn ein Stück vor einem Modul steht und jemand bestätigt.
-         *
-         *     ``points`` sind die Erfassungspunkte des Moduls, das erfasst hat – sie liegen bei,
-         *     weil ``values`` ohne sie nur Schlüssel und Rohwerte wären. Sie kommen aus dem Modul
-         *     und nicht aus einer Kopie an der Erfassung: der Punkt ist Definition, der Wert ist
-         *     Messung, und die Definition rastet ohnehin ein.
-         */
-        CaptureResponse: {
-            /** Id */
-            id: number;
-            /** Values */
-            values: Record<string, never>;
-            /** Result */
-            result: string | null;
-            /** Note */
-            note?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Step Name */
-            step_name?: string | null;
-            /** Points */
-            points?: components["schemas"]["CapturePoint"][];
         };
         /**
          * CaptureTypeInfo
@@ -1831,28 +1721,13 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
-         * InstanceCreate
-         * @description Neue Instanz. Typ und Anzahl werden ausdrücklich verlangt – nichts wird aus dem
-         *     Artikel erraten, damit niemand später über eine stille Vorbelegung stolpert.
-         */
-        InstanceCreate: {
-            /** Article Object Id */
-            article_object_id: number;
-            /** Kind */
-            kind: string;
-            /**
-             * Count
-             * @description Anzahl Einzelinstanzen, mindestens 1
-             */
-            count: number;
-            /** Label */
-            label?: string | null;
-        };
-        /**
          * InstanceResponse
          * @description Instanz mit ihren Einzelinstanzen.
          *
          *     ``quantity`` ist **gezählt**, nicht gespeichert – die Instanz hat keine Mengen-Spalte.
+         *
+         *     Einen ``status`` trägt sie nicht: eine Gruppe hat keinen Zustand, nur ihre Stücke
+         *     haben einen (Testnotiz #675).
          */
         InstanceResponse: {
             /** Id */
@@ -1867,8 +1742,6 @@ export interface components {
             article_name?: string | null;
             /** Kind */
             kind: string;
-            /** Status */
-            status: string;
             /** Label */
             label?: string | null;
             /** Quantity */
@@ -1903,8 +1776,6 @@ export interface components {
             article_name?: string | null;
             /** Kind */
             kind: string;
-            /** Status */
-            status: string;
             /** Label */
             label?: string | null;
             /** Quantity */
@@ -1940,14 +1811,6 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-        };
-        /**
-         * InstanceUnitsAdd
-         * @description Weitere Einzelinstanzen zu einer bestehenden Instanz.
-         */
-        InstanceUnitsAdd: {
-            /** Count */
-            count: number;
         };
         /**
          * ModuleCatalog
@@ -4022,39 +3885,6 @@ export interface operations {
             };
         };
     };
-    create_instance_api_v1_erp_instances_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InstanceCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstanceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_instance_api_v1_erp_instances__object_id__get: {
         parameters: {
             query?: never;
@@ -4073,104 +3903,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_units_api_v1_erp_instances__object_id__units_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InstanceUnitsAdd"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstanceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    deactivate_unit_api_v1_erp_instances__object_id__units__suffix__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                suffix: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstanceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_captures_api_v1_erp_captures__number__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                number: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CaptureResponse"][];
                 };
             };
             /** @description Validation Error */

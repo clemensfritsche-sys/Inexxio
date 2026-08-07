@@ -188,18 +188,27 @@ export type Instance = InstanceApi;
 export type InstanceSummary = components['schemas']['InstanceSummary'];
 // Die Einzelinstanz – das einzige Arbeitsobjekt. Nummer = <Instanznr>-<suffix>.
 export type InstanceUnit = components['schemas']['InstanceUnitResponse'];
-export type InstanceCreateInput = components['schemas']['InstanceCreate'];
-// Datenerfassung an einer Einzelinstanz – **nur lesend**. Geschrieben wird
-// ausschliesslich im Prozess, wenn ein Stück vor einem Modul steht und jemand bestätigt.
-export type Capture = components['schemas']['CaptureResponse'];
 
 /**
  * Ein Erfassungspunkt aus der Definition eines Moduls (`process_steps.config`).
  *
- * Die Typen selbst sind eine geschlossene Liste im Backend (`domain/capture_types/`) und
- * kommen über den Modul-Katalog; hier steht nur die Form eines gespeicherten Punktes.
+ * **Von Hand gespiegelt**, weil `config` am Prozessschritt ein freies Objekt ist: was
+ * darin steht, entscheidet der Modultyp (`domain/modules.Module.clean_config`), nicht
+ * ein festes Schema. Es fest zu typisieren hiesse, die Konfiguration aller künftigen
+ * Modultypen auf die des heutigen einen festzunageln.
+ *
+ * Der Abgleich mit `schemas/process.CapturePoint` ist getestet
+ * (`tests/test_frontend_mirrors.py`) – ein Spiegel darf existieren, aber nicht
+ * unbemerkt auseinanderlaufen. Die Typen selbst sind eine geschlossene Liste im Backend
+ * (`domain/capture_types/`) und kommen über den Modul-Katalog.
  */
-export type CapturePoint = components['schemas']['CapturePoint'];
+export interface CapturePoint {
+  key: string;
+  label: string;
+  type: string;
+  target?: number | null;
+  tolerance?: number | null;
+}
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
 export type ObjectReference = components['schemas']['ObjectReference'];

@@ -125,10 +125,15 @@ def test_a_piece_number_is_derived_not_drawn_from_the_sequence():
     zigtausend Objektnummern des gemeinsamen Kreises verbrauchen.
     """
     svc = _read(BACKEND / "app" / "services" / "instances.py")
-    body = svc.split("def add_units(")[1]
-    assert "next_object_id" not in body and "next_object_ids" not in body, (
-        "add_units vergibt Objektnummern aus dem gemeinsamen Kreis – die Nummer einer "
-        "Einzelinstanz ist <Instanznummer>-<Suffix>, abgeleitet."
+    body = _body(svc, "create_instances")
+    assert "next_object_ids(db, instance_count" in body, (
+        "Die Objektnummern der INSTANZEN kommen nicht mehr aus der Sequence."
+    )
+    # Die Suffixe daneben – abgeleitet, nicht gezogen.
+    suffixes = body.split("insert(InstanceUnit)")[1]
+    assert "next_object_id" not in suffixes, (
+        "Eine Einzelinstanz zieht eine Objektnummer aus dem gemeinsamen Kreis – ihre "
+        "Nummer ist <Instanznummer>-<Suffix>, abgeleitet."
     )
     objects = _read(BACKEND / "app" / "services" / "objects.py")
     assert '"instance_unit"' not in objects, (
@@ -136,21 +141,49 @@ def test_a_piece_number_is_derived_not_drawn_from_the_sequence():
     )
 
 
-def test_the_suffix_is_cumulative():
-    """Eine einmal vergebene Nummer kommt nie zurück – sie ist eine Identität, keine
-    Position. Ermittelt unter Zeilensperre, damit zwei gleichzeitige Anlagen nicht
-    dieselbe ziehen."""
+def test_the_suffix_counts_within_its_instance():
+    """Der Suffix zählt ab 1 innerhalb seiner Instanz – vergeben an EINER Stelle.
+
+    Er wird nicht mehr aus ``MAX(suffix)+1`` unter Zeilensperre ermittelt: es gibt kein
+    Nachträglich-Hinzufügen mehr, also auch keine zwei gleichzeitigen Vergaben, gegen
+    die eine Sperre schützen müsste. Die Stücke entstehen mit ihrer Instanz, in einem Zug.
+    """
     svc = _read(BACKEND / "app" / "services" / "instances.py")
-    body = svc.split("def add_units(")[1]
-    assert "func.max(InstanceUnit.suffix)" in body, "Der Suffix wird nicht mehr aus MAX abgeleitet."
-    assert "with_for_update()" in body, (
-        "Die Suffix-Vergabe läuft ohne Zeilensperre – zwei gleichzeitige Anlagen könnten "
-        "dieselbe Nummer ziehen."
+    assert "range(1, units_each + 1)" in _body(svc, "create_instances"), (
+        "Die Suffixe zählen nicht mehr ab 1 innerhalb ihrer Instanz."
     )
-    assert "is_active" not in body.split("func.max(InstanceUnit.suffix)")[1].split(")")[0], (
-        "MAX filtert auf aktive Zeilen – dann käme die Nummer einer deaktivierten "
-        "Einzelinstanz zurück."
+    assert svc.count("insert(InstanceUnit)") == 1, (
+        "Es gibt mehr als eine Stelle, an der Einzelinstanzen entstehen."
     )
+
+
+def test_a_piece_is_created_only_with_its_instance_and_never_removed():
+    """**Eine Einzelinstanz entsteht mit ihrer Instanz – und verschwindet nie.**
+
+    Erzeugt wird sie damit ausschliesslich über einen Auftrag (Testnotiz #678): das ist
+    der einzige Weg, auf dem eine Instanz entsteht. Die früheren drei Türen daneben –
+    Instanz von Hand anlegen, Einzelinstanz nachschieben, Einzelinstanz deaktivieren –
+    liessen Material ohne Auftrag, ohne Prozess und ohne Ereignis in die Welt kommen und
+    wieder verschwinden.
+
+    Und gelöscht wird nie (#679): die Nummer ist eine Identität, keine Position. Ein
+    Verweis aus der Historie darf nicht ins Leere zeigen.
+    """
+    svc = _read(BACKEND / "app" / "services" / "instances.py")
+    for gone in ("def add_units", "def create_instance("):
+        assert gone not in svc, f"«{gone}» ist wieder da – ein zweiter Weg ins Dasein."
+
+    router = _read(BACKEND / "app" / "routers" / "instances.py")
+    assert "@router.post" not in router and "@router.delete" not in router, (
+        "Die Instanzen haben wieder einen Schreib-Endpunkt."
+    )
+    schema = _read(BACKEND / "app" / "schemas" / "instance.py")
+    for gone in ("class InstanceCreate", "class InstanceUnitsAdd"):
+        assert gone not in schema, f"«{gone}» ist wieder da."
+
+    api = _read(FRONTEND / "lib" / "api.ts")
+    for gone in ("createInstance", "addInstanceUnits", "deactivateInstanceUnit"):
+        assert gone not in api, f"Die Oberfläche ruft wieder «{gone}»."
 
 
 def test_the_instance_kinds_mirror():
@@ -523,22 +556,22 @@ def test_the_release_conditions_live_at_exactly_one_place():
     assert "Es fehlt:" in detail, "Der Knopf sagt nicht, was fehlt."
 
 
-def test_an_instance_can_be_created_in_the_browser():
-    """Ohne Instanz gibt es keine Einzelinstanz – und ohne die keinen Prozess.
+def test_an_instance_is_never_created_beside_an_order():
+    """**Material entsteht nur über einen Auftrag** (Testnotiz #678).
 
-    ``api.createInstance`` existierte, wurde aber von **keiner** Stelle aufgerufen: der
-    «+»-Knopf im Feed kennt nur Artikel und Auftrag, und der Bestand-Reiter zeigte nur
-    an. Damit war der Ablauf im Browser nicht startbar, obwohl jeder Endpunkt dafür da
-    war – eine Lücke, die kein Backend-Test sehen kann.
+    Der Bestand-Reiter konnte eine Instanz von Hand anlegen – damit gab es Einzelinstanzen
+    ohne Auftrag, ohne Prozess, an dem sie hängen, und ohne Ereignis, das ihre Entstehung
+    festhält. Der Weg über den Auftrag ist nicht der bequemere, sondern der einzige, bei
+    dem die Herkunft eines Stücks beantwortbar bleibt.
     """
     detail = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
-    assert "createInstance" in detail, (
-        "Der Bestand-Reiter kann keine Instanz anlegen – dann lässt sich der Prozess "
-        "im Browser gar nicht erst beginnen."
+    assert "createInstance" not in detail and "AddInstance" not in detail, (
+        "Der Bestand-Reiter legt wieder Instanzen an – dann entsteht Material ohne Auftrag."
     )
-    # Typ und Anzahl werden ausdrücklich verlangt, nichts aus dem Artikel erraten –
-    # dieselbe Regel wie in ``schemas/instance.InstanceCreate``.
-    assert "KIND_LABEL" in detail, "Der Typ wird nicht gewählt, sondern geraten."
+    stock = _read(FRONTEND / "components" / "erp" / "instance-list.tsx")
+    assert "onCreated" not in stock and "api." not in stock, (
+        "Die Bestandsliste schreibt – sie ist eine Summierung, keine Werkbank."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -556,9 +589,9 @@ def test_new_unit_numbers_come_from_exactly_one_place():
     sys.path.insert(0, str(BACKEND))
 
     svc = _read(BACKEND / "app" / "services" / "instances.py")
-    # Die Suffix-Vergabe steht in genau diesem Modul, in zwei Formen derselben Regel:
-    # bei 1 beginnen (neue Instanz) und weiterzählen (bestehende).
-    assert "def create_instances(" in svc and "def add_units(" in svc
+    # Die Suffix-Vergabe steht in genau diesem Modul und in genau EINER Funktion: die
+    # Stücke entstehen mit ihrer Instanz, und ein Nachschieben gibt es nicht (#678).
+    assert "def create_instances(" in svc and "def add_units(" not in svc
 
     # Ausserhalb dieses Moduls **vergibt** niemand einen Suffix. Gemeint ist das
     # Schreiben – eine Einzelinstanz bauen oder ihren Suffix setzen –, nicht das Lesen:
@@ -874,25 +907,29 @@ def test_the_module_dictates_its_transition():
     assert "testmodul" not in _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
 
 
-def test_capture_is_written_only_in_the_process():
+def test_capture_is_written_in_the_process_and_read_there_too():
     """Eine Erfassung entsteht, wenn ein Stück vor einem Modul steht – sonst nie.
 
-    Der frühere Weg (Formular am Instanz-Detail) legte Werte ohne Anlass an und war eine
-    zweite Tür zu derselben Sache.
+    Und **gelesen wird sie am Prozess, nicht am Stück** (Testnotiz #677): die frühere
+    Historie am Instanz-Detail war eine zweite Ansicht auf dieselbe Sache, an einem Ort,
+    an dem man nicht arbeitet. Die Zeilen selbst bleiben – sie sind der Nachweis, nicht
+    die Ansicht.
     """
-    router = _read(BACKEND / "app" / "routers" / "captures.py")
-    assert "@router.post" not in router, (
-        "Es gibt wieder einen Schreib-Endpunkt für Erfassungen ausserhalb des Prozesses."
+    assert not (BACKEND / "app" / "routers" / "captures.py").exists(), (
+        "Der Erfassungs-Endpunkt ist wieder da – eine zweite Tür zu derselben Sache."
     )
-    panel = _read(FRONTEND / "components" / "erp" / "capture-panel.tsx")
-    assert "recordCapture" not in panel, "Das Instanz-Detail erfasst wieder selbst."
+    assert not (FRONTEND / "components" / "erp" / "capture-panel.tsx").exists()
+    assert "captures.router" not in _read(BACKEND / "app" / "main.py")
+
+    svc = _read(BACKEND / "app" / "services" / "capture.py")
+    assert "def record_for_step" in svc, "Erfasst wird nicht mehr im Prozess."
+    assert "def history" not in svc, "Die Historie am Stück ist wieder da."
 
     model = _read(BACKEND / "app" / "models" / "capture.py")
     for column in ("order_id", "step_id"):
-        assert f"{column}: Mapped[int]" in model, (
-            f"``captures.{column}`` fehlt – eine Erfassung ohne Anlass wäre wieder möglich."
+        assert column in model, (
+            f"Die Erfassung trägt kein «{column}» – dann steht sie ohne Anlass da."
         )
-
 
 def test_the_article_process_is_the_order_component():
     """Der Erzeugungsprozess ist eine **Übernahme**, kein Nachbau.
@@ -953,7 +990,7 @@ def test_there_is_exactly_one_status_list():
     )
 
     record = _read(FRONTEND / "lib" / "record-status.ts")
-    for fn in ("articleStatus", "orderStatus", "instanceStatus", "organizationStatus"):
+    for fn in ("articleStatus", "orderStatus", "organizationStatus"):
         assert "statusCfg" in _body(record, fn, kind="function"), (
             f"{fn} baut seine Badge selbst, statt die eine Liste zu lesen."
         )
@@ -1006,8 +1043,20 @@ def test_no_state_is_stored_where_it_can_be_derived():
     assert "def order_status" in process and "def order_statuses" in process, (
         "Die Ableitung des Auftragsstatus fehlt (Einzel- und Batch-Form)."
     )
+    # Die **Instanz** leitet ihn nicht einmal mehr ab: eine Gruppe hat keinen Zustand
+    # (Testnotiz #675). Bei einer Charge mit gemischten Stücken gäbe es keine richtige
+    # Antwort, und jede gewählte wäre eine Behauptung.
     inst = _read(BACKEND / "app" / "services" / "instances.py")
-    assert "def status_of" in inst and "def statuses" in inst
+    assert "def status_of" not in inst and "def statuses" not in inst
+    from app.schemas.instance import InstanceResponse, InstanceSummary, InstanceUnitResponse
+    for cls in (InstanceResponse, InstanceSummary):
+        assert "status" not in cls.model_fields, (
+            f"{cls.__name__} trägt wieder einen Zustand – den hat nur die Einzelinstanz."
+        )
+    assert "status" in InstanceUnitResponse.model_fields, (
+        "Die Einzelinstanz hat ihren Zustand verloren – er ist der einzige, den es gibt."
+    )
+    assert "instanceStatus" not in _read(FRONTEND / "lib" / "record-status.ts")
 
 
 # ---------------------------------------------------------------------------
@@ -1199,3 +1248,83 @@ def test_the_column_net_reflects_on_its_own_connection():
     )
     code = re.sub(r"#.*", "", body)   # der Kommentar erklärt ja gerade den Fehler
     assert "inspect(engine)" not in code
+
+
+def test_the_capture_point_shape_mirrors_the_backend():
+    """``CapturePoint`` steht von Hand im Frontend – und muss dem Backend gleichen.
+
+    Von Hand, weil ``process_steps.config`` ein **freies** Objekt ist: was darin steht,
+    entscheidet der Modultyp. Es fest zu typisieren nagelte die Konfiguration aller
+    künftigen Modultypen auf die des heutigen einen fest. Ein Spiegel darf darum
+    existieren – aber nicht unbemerkt auseinanderlaufen.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.schemas.process import CapturePoint
+
+    ts = _body(_read(FRONTEND / "types" / "index.ts"), "CapturePoint", kind="interface")
+    fields = set(re.findall(r"^  (\w+)\??:", ts, re.M))
+    assert fields == set(CapturePoint.model_fields), (
+        f"Erfassungspunkt läuft auseinander: Backend {sorted(CapturePoint.model_fields)} "
+        f"≠ Frontend {sorted(fields)}"
+    )
+
+
+def test_the_instance_points_at_its_article_instead_of_copying_it():
+    """**Woher stammt diese Gruppe?** Ein Verweis auf den Artikel – mehr nicht (#676).
+
+    Die frühere Merkmale-Karte schrieb Name, Nummer, Typ und Menge ab. Name und Nummer
+    stehen am Artikel, aktuell und an einer Stelle; die Menge eine Zeile weiter unten.
+    Eine Kopie daneben ist zusätzlicher Pflegeaufwand für dieselbe Auskunft – und beim
+    ersten umbenannten Artikel wäre sie falsch.
+    """
+    detail = _read(FRONTEND / "components" / "erp" / "instance-detail.tsx")
+    # Der Code, nicht die Kommentare – die erklären ja gerade, warum es sie nicht gibt.
+    code = re.sub(r"\{/\*.*?\*/\}|/\*.*?\*/|//.*", "", detail, flags=re.S)
+    assert 'title="Merkmale"' not in code, "Die Merkmale-Karte ist wieder da."
+    assert "<ObjId value={rec.article_object_id}" in detail, (
+        "Der Artikel ist nicht verlinkt – dann bleibt die Herkunft eine Behauptung."
+    )
+
+
+def test_there_is_nothing_to_do_at_an_instance():
+    """Am Instanz-Detail wird **gelesen**, nicht gearbeitet.
+
+    Erzeugt wird über einen Auftrag (#678), gelöscht wird nie (#679), und erfasst wird
+    am Modul (#677). Bliebe hier ein Knopf, wäre er entweder eine zweite Tür oder eine
+    Schaltfläche, die nichts tut.
+    """
+    detail = _read(FRONTEND / "components" / "erp" / "instance-detail.tsx")
+    for gone in ("addUnits", "removeUnit", "CapturePanel", "Trash2", "Datenerfassung"):
+        assert gone not in detail, f"«{gone}» steht wieder am Instanz-Detail."
+    assert "<button" not in detail, "Am Instanz-Detail gibt es wieder etwas zu drücken."
+
+
+def test_a_piece_number_is_written_the_same_way_everywhere():
+    """**Der Suffix ist überall leise** (#681) – und überall gleich.
+
+    Die Identität, die ein Mensch kennt, ist die Objektnummer; der Suffix sagt nur,
+    welches Stück davon gemeint ist. Beide gleich laut zu setzen macht aus einer Nummer
+    zwei, und in einer Liste springt dann jede Zeile an, obwohl sich nur die letzte
+    Stelle unterscheidet.
+    """
+    comp = _read(FRONTEND / "components" / "erp" / "unit-number.tsx")
+    assert "lastIndexOf('-')" in comp, "Der Suffix wird nicht mehr abgetrennt."
+    assert "var(--fg-4)" in comp, "Der Suffix ist nicht mehr leiser als die Nummer."
+
+    # Und **niemand** schreibt sie selbst hin: eine roh ausgegebene Stück-Nummer wäre
+    # genau die Stelle, an der der Suffix wieder mitruft.
+    # Gemeint ist die **Ausgabe** als JSX-Kind, nicht die Weitergabe als Attribut:
+    # ``key={o.number}`` und ``value={o.number}`` sind genau richtig so.
+    attr = re.compile(r"\b(?:key|value|number)=\{[^}]*\}")
+    raw = re.compile(r">\s*\{[a-z]\w*\.(?:unit_)?number\}")
+    for f in sorted((FRONTEND / "components").rglob("*.tsx")):
+        hits = raw.findall(attr.sub("", _read(f)))
+        assert not hits, (
+            f"{f.name} gibt eine Stück-Nummer roh aus ({', '.join(hits)}) – "
+            f"sie gehört durch <UnitNumber>."
+        )
+    # Vier Stellen zeigen sie – alle über dasselbe Bauteil.
+    users = [f.name for f in (FRONTEND / "components").rglob("*.tsx")
+             if "<UnitNumber" in _read(f)]
+    assert len(users) >= 4, f"Nur {users} nutzen das gemeinsame Bauteil."

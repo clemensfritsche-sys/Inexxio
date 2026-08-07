@@ -1,5 +1,5 @@
 import { Briefcase, Shield, Truck, UserCircle } from 'lucide-react';
-import type { Article, CompanySettings, Instance, UserProfile } from '@/types';
+import type { Article, CompanySettings, UserProfile } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
 import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
 
@@ -31,8 +31,10 @@ import { FREIGEGEBEN, INAKTIV, statusCfg } from '@/lib/process-status';
  * - **Auftrag** → Im Prozess · Abgeschlossen · Abgebrochen, **abgeleitet** aus dem
  *   Zustand seiner Einzelinstanzen (`process.order_status`). Der Server rechnet ihn –
  *   hier wird er nur angezeigt.
- * - **Instanz** → ebenso abgeleitet, eine Ebene tiefer: eine Gruppe ist im Prozess,
- *   solange eines ihrer Stücke es ist.
+ * - **Instanz** → **keinen**. Eine Gruppe hat keinen Zustand; ihn aus ihren Stücken zu
+ *   projizieren geht nur, solange genau eines darunter liegt, und bei einer Charge mit
+ *   gemischten Zuständen gäbe es keine richtige Antwort (Testnotiz #675). Der Zustand
+ *   steht an der **Einzelinstanz** – dort ist er eindeutig.
  * - **Unternehmen** → Freigegeben · Inaktiv, dieselben zwei Wörter wie überall (#364).
  */
 
@@ -54,18 +56,6 @@ const INACTIVE: StatusCfg = statusCfg(INAKTIV);
 
 export function articleStatus(a: Pick<Article, 'status'>): StatusCfg {
   return statusCfg(a.status);
-}
-
-/**
- * Instanz **und** Einzelinstanz tragen denselben Zustand aus derselben Liste: ein Stück
- * ist einsatzbereit oder unterwegs, und eine Gruppe ist unterwegs, solange eines ihrer
- * Stücke es ist. «Inaktiv» sticht ihn, wie überall sonst.
- */
-export function instanceStatus(
-  i: Pick<Instance, 'status'> & { is_active?: boolean },
-): StatusCfg {
-  if (i.is_active === false) return INACTIVE;
-  return statusCfg(i.status);
 }
 
 /**
