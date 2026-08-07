@@ -867,7 +867,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  /* **Kein Abstand, solange der Name eingeklappt ist** (Testnotiz #691). Der Name ist ein
+     Flex-Kind mit `max-width: 0` – aber ein `gap` gilt auch zu einem nullbreiten Kind,
+     und damit sass das Symbol um die halbe Lücke links der Mitte. Er entsteht erst beim
+     Aufklappen, dort wo er gebraucht wird. Zentral: es gibt genau einen Modul-Knopf. */
+  gap: 0;
   width: 40px;
   height: 40px;
   flex: none;
@@ -885,7 +889,7 @@
   opacity: 0;
   transition: max-width 0.16s ease, opacity 0.12s ease;
 }
-.ix-palette:hover, .ix-palette:focus-visible { width: auto; padding-inline: 11px; }
+.ix-palette:hover, .ix-palette:focus-visible { width: auto; padding-inline: 11px; gap: 7px; }
 .ix-palette:hover .ix-palette-name,
 .ix-palette:focus-visible .ix-palette-name { max-width: 180px; opacity: 1; }
 @media (prefers-reduced-motion: reduce) {

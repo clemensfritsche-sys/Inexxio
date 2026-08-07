@@ -4,8 +4,8 @@ import { useMemo, type ReactNode } from 'react';
 import { GitBranch, MoreHorizontal } from 'lucide-react';
 import { FlowFrame, polyPath, type FlowAnchor } from './process-flow';
 import {
-  FlowColumn, PROCESS_MAXW, flowNodes, walkedEdges,
-  type DiagramGroup, type DiagramStep, type FlowSpec,
+  FlowColumn, PROCESS_MAXW, flowNodes, statePointId, walkedEdges,
+  type DiagramGroup, type DiagramStep, type FlowSpec, type UnitChip,
 } from './process-diagram';
 import { useErpNav } from './obj-id';
 import { formatObjectId } from '@/lib/utils';
@@ -48,7 +48,7 @@ const SIDE_MAXW = 420;
 export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviateBlocked, journeyIn, journeyOut }: {
   order: Order;
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
-  onExpand?: (stepId: number | null, active: boolean) => Promise<string[]>;
+  onExpand?: (stepId: number | null, active: boolean) => Promise<UnitChip[]>;
   /** Abweichung an einem Stück – nur in der **Mitte**, nie in einer fremden Spalte. */
   onDeviate?: (unitNumber: string) => void;
   /** Warum der Auslöser gesperrt ist (§5). Gesetzt = gesperrt, mit Grund im Hover. */
@@ -70,12 +70,21 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
   const outStops = useMemo(
     () => journeyOut.filter((j) => !shownAside.has(j.object_id)), [journeyOut, shownAside]);
 
+  // **Die Zustandspunkte, an denen abgezweigt wurde** – sie müssen im Bild existieren,
+  // auch wenn dort gerade nichts steht (Testnotiz #700). Ohne sie fiele die Linie auf
+  // das Modul zurück, und die Abzweigung sähe aus, als käme sie aus ihm heraus.
+  const branchPoints = useMemo(
+    () => new Set<number | null>(
+      (order.deviations ?? []).flatMap((r) => (r.branches ?? []).map((b) => b.at_step_id ?? null)),
+    ),
+    [order.deviations],
+  );
   const main = useMemo(
     () => flowNodes({
-      running: true, steps, groups,
+      running: true, steps, groups, branchPoints,
       journeyIn: inStops.length, journeyOut: outStops.length,
     }),
-    [steps, groups, inStops.length, outStops.length],
+    [steps, groups, branchPoints, inStops.length, outStops.length],
   );
   const sides = useMemo(
     () => [
@@ -95,7 +104,7 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
           <Lines key={s.prefix} ids={s.nodes.map((n) => n.id)} anchors={a} walked={s.walked} />
         ))}
         {size.w >= WIDE && sides.map((s) => (
-          <Branch key={`b-${s.prefix}`} side={s} main={main} anchors={a} />
+          <Branch key={`b-${s.prefix}`} side={s} anchors={a} />
         ))}
       </>
     )}>
@@ -106,7 +115,10 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
         const column = (
           <FlowColumn
             nodes={main} mode="ausfuehrung" groups={groups}
-            activeStepId={order.active_step_id ?? null} endStatus={order.end_status}
+            activeStepId={order.active_step_id ?? null}
+            // **Eingeklappt, ausser das Modul ist dran** (#696) – eine Regel, eine Stelle.
+            expandedStepId={order.active_step_id ?? null}
+            endStatus={order.end_status}
             renderStep={renderStep} onExpand={onExpand} onDeviate={onDeviate}
             deviateBlocked={deviateBlocked}
             journeyIn={inStops} journeyOut={outStops}
@@ -159,19 +171,26 @@ interface SideFlow {
   groups: DiagramGroup[];
   nodes: FlowSpec[];
   walked: number;
+  /** Die Knoten-Ids **in der Mitte**, an denen dieser Nachbar ansetzt (Zustandspunkte). */
+  points: string[];
 }
 
 function side(rel: RelatedOrder, where: 'p' | 'd'): SideFlow {
   const prefix = `${where}${rel.object_id}:`;
   const steps = (rel.steps ?? []).map((s) => ({
-    id: s.id, moduleType: s.module_type, label: s.label,
+    id: s.id, moduleType: s.module_type, label: s.label, waitingFor: s.waiting_for ?? [],
   }));
   const groups = (rel.unit_groups ?? []).map((g) => ({
     currentStepId: g.current_step_id ?? null, status: g.status,
     active: g.active, count: g.count,
   }));
   const nodes = flowNodes({ prefix, running: true, steps, groups });
-  return { prefix, where, rel, steps, groups, nodes, walked: walkedEdges(nodes, true) };
+  // Aus einem **übergeordneten** Auftrag kommen die Stücke am Start herein – das ist kein
+  // Zustandspunkt im eigenen Ablauf, sondern das Start-Objekt selbst.
+  const points = where === 'p'
+    ? ['start']
+    : (rel.branches ?? []).map((b) => statePointId(b.at_step_id ?? null));
+  return { prefix, where, rel, steps, groups, nodes, walked: walkedEdges(nodes, true), points };
 }
 
 /**
@@ -232,6 +251,8 @@ function Side({ side: s }: { side: SideFlow }) {
   );
 }
 
+/** Beim Nachbarn wird nichts ausgefüllt – er hat darum auch nichts aufzuklappen. */
+
 /** Abgeschnitten, aber nicht verschwiegen: eine stumme Liste sähe aus wie alles. */
 function Rest({ total, shown }: { total: number; shown: number }) {
   if (total <= shown) return null;
@@ -271,68 +292,66 @@ function Lines({ ids, anchors, walked }: {
 }
 
 /**
- * **Die Abzweigung.** Sie geht von der Stelle im eigenen Ablauf zur Spalte daneben und –
- * wenn das Stück zurückkehrt – von deren Ende wieder an dieselbe Stelle.
+ * **Die Abzweigung – sie hängt an einem ZUSTANDSPUNKT, nicht an einem Modul** (#700).
  *
- * Genau das ist die Frage, die man auf einen Blick beantwortet haben will: *wo ist das
- * Stück ausgeschert, und wo kommt es zurück?* Kommt es nicht zurück (Aussonderung), gibt
- * es die zweite Linie nicht – das Fehlen **ist** die Aussage.
+ * Ein Stück kann nur abweichen, solange am Modul noch nichts eingegeben wurde: es hat das
+ * Modul also gar nicht betreten. Folglich geht die Linie **vor** dem Modul von der
+ * Prozesslinie ab – vom Punkt, an dem das Stück wartete – und führt an **denselben Punkt**
+ * zurück, sodass es das Modul danach regulär durchläuft.
+ *
+ * Weil ein Zustandspunkt nach dem Modul heisst, vor dem er liegt, ist sein Anker direkt
+ * berechenbar (`statePointId`) – gesucht oder geraten wird nichts. Kommt das Stück nicht
+ * zurück (Aussonderung), gibt es die zweite Linie nicht: das Fehlen **ist** die Aussage.
+ *
+ * Ein Auftrag kann an **mehreren** Punkten zugegriffen haben – dann gibt es je Punkt ein
+ * Linienpaar. Ein einzelner Anker hätte sich für einen entschieden und die anderen
+ * verschwiegen.
  */
-function Branch({ side: s, main, anchors }: {
-  side: SideFlow; main: FlowSpec[]; anchors: Record<string, FlowAnchor>;
+function Branch({ side: s, anchors }: {
+  side: SideFlow; anchors: Record<string, FlowAnchor>;
 }) {
-  const anchorId = resolveAnchor(s, main);
-  const A = anchors[anchorId];
   const from = anchors[`${s.prefix}start`];
   const to = anchors[`${s.prefix}end`];
-  if (!A || !from || !to) return null;
-  const right = from.cx > A.cx;
-  const edge = right ? A.right : A.left;
-  const mid = right ? from.left : from.right;
-  const back = right ? to.left : to.right;
+  if (!from || !to) return null;
   const stroke = 'var(--warning)';
   return (
     <>
-      <path
-        d={polyPath([[edge, A.cy], [(edge + mid) / 2, A.cy], [(edge + mid) / 2, from.cy], [mid, from.cy]])}
-        fill="none" stroke={stroke} strokeWidth={2}
-      />
-      {s.rel.returns && (
-        <path
-          d={polyPath([[back, to.cy], [(edge + back) / 2, to.cy], [(edge + back) / 2, A.cy], [edge, A.cy]])}
-          fill="none" stroke={stroke} strokeWidth={2} strokeDasharray="5 4"
-        />
-      )}
+      {s.points.map((id) => {
+        const A = anchors[id];
+        if (!A) return null;
+        const right = from.cx > A.cx;
+        const edge = right ? A.right : A.left;
+        const mid = right ? from.left : from.right;
+        const back = right ? to.left : to.right;
+        return (
+          <g key={id}>
+            <path
+              d={polyPath([[edge, A.cy], [(edge + mid) / 2, A.cy], [(edge + mid) / 2, from.cy], [mid, from.cy]])}
+              fill="none" stroke={stroke} strokeWidth={2}
+            />
+            {s.rel.returns && (
+              <path
+                d={polyPath([[back, to.cy], [(edge + back) / 2, to.cy], [(edge + back) / 2, A.cy], [edge, A.cy]])}
+                fill="none" stroke={stroke} strokeWidth={2} strokeDasharray="5 4"
+              />
+            )}
+          </g>
+        );
+      })}
     </>
   );
-}
-
-/**
- * Welcher Knoten der Mitte trägt die Abzweigung? Der Zustandsknoten an der Stelle, an der
- * das Stück steht – und wenn es den nicht gibt (alle Stücke sind weg, also zeigt die
- * Mitte dort nichts an), das Modul selbst. Ein Anker, den es nicht gibt, hiesse **keine
- * Linie**, und dann fehlte genau die Auskunft, für die sie da ist.
- */
-function resolveAnchor(s: SideFlow, main: FlowSpec[]): string {
-  const ids = new Set(main.map((n) => n.id));
-  const step = s.where === 'd' ? s.rel.origin_step_id ?? null : null;
-  if (step != null) {
-    // Das Stück stand **vor** diesem Modul – und der Zustandsknoten davor heisst nach
-    // seinem *Vorgänger* (`state-<vorheriges Modul>`) bzw. `state-start` beim ersten.
-    // Darum wird die Position gesucht, nicht der Name geraten.
-    const at = main.findIndex((n) => n.kind === 'step' && n.step.id === step);
-    if (at > 0 && main[at - 1].kind === 'state') return main[at - 1].id;
-    if (at >= 0) return main[at].id;
-    if (ids.has(`step-${step}`)) return `step-${step}`;
-  }
-  return s.where === 'p' ? 'start' : 'end';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 function useSteps(steps: NonNullable<Order['steps']>): DiagramStep[] {
   return useMemo(
-    () => steps.map((s) => ({ id: s.id, moduleType: s.module_type, label: s.label })),
+    () => steps.map((s) => ({
+      id: s.id, moduleType: s.module_type, label: s.label,
+      // **Worauf das Modul wartet** – die Sperre wird eine Ebene tiefer gerendert
+      // (`StepCard`), damit kein Modul sie selbst kennen muss (#698).
+      waitingFor: s.waiting_for ?? [],
+    })),
     [steps],
   );
 }

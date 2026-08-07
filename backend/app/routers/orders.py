@@ -18,8 +18,8 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, UserProfile,
 )
 from ..schemas.order import (
-    ArticleOption, JourneyNeighbour, OrderCreate, OrderLineResponse, OrderResponse,
-    OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
+    ArticleOption, BranchPoint, JourneyNeighbour, OrderCreate, OrderLineResponse,
+    OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     ProcessEventResponse, ProcessStepResponse, RelatedOrder, UnitGroup, UnitOption,
 )
 from ..schemas.process import (
@@ -54,8 +54,23 @@ RELATED_LIMIT = 3
 # Antwort zusammensetzen
 # ---------------------------------------------------------------------------
 
+def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
+    """Die Module eines Auftrags – **mit ihrer Sperre**.
+
+    Ob ein Modul laufen darf, entscheidet nicht das Modul: es steht hier als Auskunft am
+    Schritt (``waiting_for``), und durchgesetzt wird es serverseitig in
+    ``process.confirm_step``. Ein neuer Modultyp erbt beides, ohne etwas dafür zu tun.
+    """
+    pending = process_svc.pending_returns(db, order)
+    out: list[ProcessStepResponse] = []
+    for s in process_svc.steps_of(db, order):
+        row = ProcessStepResponse.model_validate(s)
+        row.waiting_for = pending.get(s.id, [])
+        out.append(row)
+    return out
+
+
 def _to_response(db: Session, order: Order) -> OrderResponse:
-    steps = process_svc.steps_of(db, order)
     lines = process_svc.lines_of(db, order)
     articles = {
         a.id: a
@@ -87,7 +102,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
             )
             for ln in lines
         ],
-        steps=[ProcessStepResponse.model_validate(s) for s in steps],
+        steps=_steps(db, order),
         unit_groups=[UnitGroup(**g) for g in process_svc.unit_groups(db, order)],
         events=[
             ProcessEventResponse(
@@ -114,7 +129,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
     )
 
 
-def _related(db: Session, order: Order, counts: list[tuple[int, int, Optional[int]]],
+def _related(db: Session, order: Order, counts: list[journey_svc.Related],
              *, incoming: bool) -> list[RelatedOrder]:
     """Nachbar-Aufträge mit **ihrem eigenen Ablauf** – dieselben Felder wie die Mitte.
 
@@ -124,7 +139,7 @@ def _related(db: Session, order: Order, counts: list[tuple[int, int, Optional[in
     """
     if not counts:
         return []
-    rows = {o.id: o for o in db.query(Order).filter(Order.id.in_([i for i, _, _ in counts])).all()}
+    rows = {o.id: o for o in db.query(Order).filter(Order.id.in_([r.order_id for r in counts])).all()}
     states = process_svc.order_statuses(db, list(rows))
     # Wer gibt zurück: bei Abweichungen die Verbindung des Nachbarn zu mir, bei einem
     # übergeordneten Auftrag meine eigene zu ihm.
@@ -136,21 +151,21 @@ def _related(db: Session, order: Order, counts: list[tuple[int, int, Optional[in
         returning = journey_svc.returning_to(db, order, list(rows))
 
     out: list[RelatedOrder] = []
-    for oid, count, step_id in counts:
-        row = rows.get(oid)
+    for rel in counts:
+        row = rows.get(rel.order_id)
         if row is None:
             continue
         out.append(RelatedOrder(
             object_id=row.object_id,
             name=row.name,
-            status=states.get(oid, st.IM_PROZESS),
+            status=states.get(rel.order_id, st.IM_PROZESS),
             end_status=row.end_status,
-            steps=[ProcessStepResponse.model_validate(s) for s in process_svc.steps_of(db, row)],
+            steps=_steps(db, row),
             unit_groups=[UnitGroup(**g) for g in process_svc.unit_groups(db, row)],
             active_step_id=process_svc.active_step_id(db, row),
-            unit_count=count,
-            returns=oid in returning,
-            origin_step_id=step_id,
+            unit_count=rel.unit_count,
+            returns=rel.order_id in returning,
+            branches=[BranchPoint(at_step_id=at, unit_count=n) for at, n in rel.points],
         ))
     return out
 
@@ -356,6 +371,7 @@ def list_units(
         db, order, step_id=step_id, active=active, limit=limit, offset=offset,
     )
     numbers = process_svc.unit_numbers(db, [u for _, u in rows])
+    started = process_svc.started_at(db, order, [u.id for _, u in rows])
     return OrderUnitPage(
         units=[
             OrderUnitResponse(
@@ -364,6 +380,7 @@ def list_units(
                 status=u.status,
                 current_step_id=m.current_step_id,
                 active=m.released_at is None,
+                started_at=started.get(u.id),
             )
             for m, u in rows
         ],

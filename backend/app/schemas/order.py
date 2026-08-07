@@ -79,6 +79,11 @@ class ProcessStepResponse(BaseModel):
     #: Gesetzt, wenn dieser Schritt die **Kopie** eines Artikel-Erzeugungsprozesses ist.
     source_article_id: Optional[int] = None
     source_version: Optional[int] = None
+    #: **Worauf dieses Modul wartet** – Objektnummern der Abweichungen, deren Rückführung
+    #: aussteht. Nicht leer heisst: gesperrt. Die Sperre wird serverseitig durchgesetzt
+    #: (``process.confirm_step``); diese Liste ist die **Begründung** für die Oberfläche,
+    #: nicht ihre Regel. Abgeleitet, nicht gespeichert (``process.pending_returns``).
+    waiting_for: list[int] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -124,6 +129,11 @@ class OrderUnitResponse(BaseModel):
     status: str
     current_step_id: Optional[int] = None
     active: bool
+    #: **Wann dieses Stück das Start-Objekt passiert hat** (Testnotiz #689). Aus dem
+    #: Ereignis-Log, nicht aus einer neuen Spalte: der Start ist ein Ereignis wie jedes
+    #: andere, und sein Zeitstempel steht dort bereits. Ein Feld daneben wäre eine Kopie,
+    #: die beim ersten Nacherfassen auseinanderläuft.
+    started_at: Optional[datetime] = None
 
 
 class OrderUnitPage(BaseModel):
@@ -159,6 +169,21 @@ class JourneyNeighbour(BaseModel):
     unit_count: int
 
 
+class BranchPoint(BaseModel):
+    """**Der Zustandspunkt**, an dem Stücke ausgeschert sind.
+
+    Ein Zustandspunkt ist die Stelle auf der Prozesslinie, an der ein Stück wartet –
+    zwischen zwei Objekten, nicht in einem. Er heisst «**vor** Modul ``at_step_id``»;
+    ``None`` ist der Punkt nach dem Ende. Das Modul benennt den Punkt, es besitzt ihn
+    nicht: die Abzweigung geht **vor** dem Modul von der Linie ab, weil das Stück es zu
+    diesem Zeitpunkt noch gar nicht betreten hatte – und darum durchläuft es das Modul
+    nach der Rückkehr regulär.
+    """
+
+    at_step_id: Optional[int] = None
+    unit_count: int
+
+
 class RelatedOrder(BaseModel):
     """Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.
 
@@ -182,11 +207,12 @@ class RelatedOrder(BaseModel):
     unit_count: int
     #: Kehren sie zurück? Bei ``False`` läuft der Quell-Auftrag mit weniger weiter.
     returns: bool = False
-    #: **An welchem Modul des betrachteten Auftrags** die Abzweigung passiert ist. Das
-    #: Bild zeichnet sie dort – «wo ist die Instanz ausgeschert» ist die Frage, die man
-    #: auf einen Blick beantwortet haben will. ``None`` bei einem übergeordneten Auftrag:
-    #: von dort kommen die Stücke am **Start** herein, und das ist keine Modul-Stelle.
-    origin_step_id: Optional[int] = None
+    #: **An welchen Zustandspunkten** des betrachteten Auftrags die Abzweigung ansetzt.
+    #: Eine Liste, weil derselbe Auftrag an zwei Stellen zugegriffen haben kann; ein
+    #: einzelner Wert hätte sich für eine entschieden und die andere verschwiegen.
+    #: Bei einem übergeordneten Auftrag genau ein Eintrag mit ``at_step_id = None``:
+    #: von dort kommen die Stücke am **Start** herein.
+    branches: list[BranchPoint] = Field(default_factory=list)
 
 
 class OrderResponse(BaseModel):

@@ -517,22 +517,10 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
           Das runde Foto als `avatar`; die Objektnummer trägt der Kopf (darum steht sie –
           anders als im Profil – nicht noch einmal als Kachel im Formular). */}
       <DetailHeader
-        eyebrow="Benutzer" title={hasName ? name : null} placeholder="Kein Name"
+        type="user" title={hasName ? name : null} placeholder="Kein Name"
         objectId={record.object_id} onBack={onBack}
         status={rc}
-        avatar={
-          <div style={{
-            width: 56, height: 56, borderRadius: '50%', flex: 'none',
-            background: record.photo_url ? 'transparent' : rc.bg, color: rc.color, overflow: 'hidden',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            font: '700 19px var(--font-body)',
-          }}>
-            {record.photo_url
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={record.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : initials}
-          </div>
-        }
+        photoUrl={record.photo_url} initials={initials}
         actions={manageable ? (
           <>
             <HeaderSep />

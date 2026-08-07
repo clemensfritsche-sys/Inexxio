@@ -769,22 +769,53 @@ Zwei Fälle, **eine Logik**:
 Die Menge des Hauptauftrags wird dabei nirgends dekrementiert. Sie *ist* die Zahl seiner
 aktiven Zugehörigkeiten; ein entzogenes Stück ist schlicht keine mehr.
 
-### 12.4 Die Rückkehrposition braucht kein eigenes Feld
+### 12.4 Die Abzweigung hängt an einem ZUSTANDSPUNKT, nicht an einem Modul
 
-Beim Ausscheren wird die Zeile des Hauptauftrags geschlossen (`released_at`), aber ihr
-`current_step_id` **nicht angefasst**. Damit steht die Position, an der das Stück
-ausgeschert ist, bereits dort, wo sie hingehört — in der Zeile selbst. Die Rückkehr ist
-das Wiederöffnen genau dieser Zeile.
+Ein **Zustandspunkt** ist die Stelle auf der Prozesslinie, an der ein Stück wartet —
+zwischen zwei Objekten, nicht in einem. Er hat bereits eine Identität in den Daten:
 
-Daraus folgt die Lesart der geschlossenen Zeile, und sie ist eindeutig:
+```
+order_units.current_step_id   „steht VOR diesem Modul“   (NULL = nach dem Ende)
+```
 
-| `current_step_id` | Bedeutung |
+Ein Punkt heisst also «vor Modul X». **Das Modul benennt ihn, es besitzt ihn nicht.**
+
+Daraus folgt, wo die Abzweigung sitzt: Ein Stück kann nur abweichen, solange am Modul
+noch **nichts eingegeben** wurde (§12.7) — es hat das Modul also gar nicht betreten. Die
+Linie geht darum **vor** dem Modul von der Prozesslinie ab und führt an **denselben
+Punkt** zurück; das Stück durchläuft das Modul danach regulär.
+
+```
+        ⋮
+   ● Zustandspunkt  ──────────▶  [ Abweichungsauftrag ]
+        │           ◀╌╌╌╌╌╌╌╌╌╌
+   [ Modul ]
+        ⋮
+```
+
+**Die Rückkehrposition braucht darum kein eigenes Feld.** Beim Ausscheren wird die Zeile
+des Quell-Auftrags geschlossen (`released_at`), ihr `current_step_id` aber **nicht
+angefasst**. Die Stelle steht damit schon dort, wo sie hingehört; die Rückkehr ist das
+Wiederöffnen genau dieser Zeile.
+
+| `current_step_id` einer geschlossenen Zeile | Bedeutung |
 |---|---|
 | `NULL` | angekommen — das Stück hat das Ende passiert |
 | gesetzt | ausgeschert — und das ist die Stelle, an die es zurückkehrt |
 
 Ein gemerkter «Rücksprungpunkt» wäre eine zweite Aussage über dieselbe Sache und könnte
 von der ersten abweichen. Diese hier kann es nicht.
+
+**Im Bild gibt es keinen Rückfall.** Ein Zustandspunkt wird gezeichnet, wenn dort etwas
+steht — anwesend **oder** ausgeschert — **oder** wenn eine Abzweigung an ihm ansetzt. Der
+letzte Fall ist der, an dem es zuerst fehlte: sind alle Stücke ausgeschert oder längst
+zurück und weitergezogen, steht am Punkt nichts mehr, und die Linie fiel auf das
+nächstbeste Element zurück — das Modul. Weil ein Punkt nach dem Modul heisst, vor dem er
+liegt, ist sein Anker **berechenbar** (`statePointId`); gesucht oder geraten wird nichts.
+
+Und weil ein Abweichungsauftrag an **mehreren** Punkten zugreifen kann, ist die Angabe
+eine **Liste** (`RelatedOrder.branches`). Ein Einzelwert hätte sich für einen entschieden
+und die anderen verschwiegen.
 
 ### 12.5 «Wartet auf Rückführung» wird abgeleitet
 
@@ -805,7 +836,36 @@ Die Reihenfolge ist nicht beliebig: «angekommen» darf «noch unterwegs» nicht
 sonst gilt ein Auftrag als fertig, sobald das erste Stück durch ist. Solange alle Stücke
 im Gleichschritt laufen, fällt das nie auf — mit Abweichungen sofort.
 
-### 12.6 Wann darf ein Stück ein Modul verlassen?
+### 12.6 Ein Modul, auf dessen Rückführung gewartet wird, ist GESPERRT
+
+Was gleich zurückkommt, gehört zu dem, was an dieser Stelle bearbeitet wird. Bestätigen
+hiesse, ohne dieses Stück fortzufahren — und hinterher wäre es zurück, aber der Zug
+abgefahren.
+
+- **Der Inhalt bleibt sichtbar.** Man will sehen, was drinsteht.
+- **Keine Eingabe, kein Bestätigen, kein Absenden** — auch nicht über die API.
+- Der Grund steht am Modul und **nennt den Abweichungsauftrag**, in dem das Stück gerade
+  steckt: dort ist etwas zu tun, damit es weitergeht.
+
+**Gekappte Ausleihen sperren nichts** (§12.3): sie kommen nie zurück, der Auftrag läuft
+mit weniger Stücken weiter und wartet ausdrücklich nicht. Ohne diese Unterscheidung
+stünde jedes Modul, aus dem je etwas ausgesondert wurde, für immer still. **Die Kette
+zählt** (§12.5): leiht A an B und B weiter an C, ist auch A gesperrt.
+
+**Die Regel steht an genau zwei Stellen, und keine davon ist ein Modul:**
+
+| | |
+|---|---|
+| Durchsetzung | `process.confirm_step` — der EINE Mechanismus, den jedes Modul auslöst |
+| Darstellung | `StepCard` — die EINE Karte, die jedes Modul rendert (`fieldset[disabled]`) |
+
+> **Ein Modul fragt nicht, ob es darf. Ihm wird gesagt, dass es nicht darf.**
+
+Ein künftiger Einkauf oder Verkauf erbt beides, ohne eine Zeile dafür zu schreiben.
+`fieldset[disabled]` schaltet jede Eingabe und jeden Knopf darin ab, ganz gleich was das
+Modul rendert — die Sperre muss nicht wissen, was sie sperrt.
+
+### 12.7 Wann darf ein Stück ein Modul verlassen?
 
 **Offene Entscheidung** (§13.2). Gebaut ist die restriktivere Variante: solange in einem
 Modul mit der Eingabe **begonnen** wurde, ist der Auslöser gesperrt.
@@ -822,7 +882,7 @@ Nur das Fenster, in dem getippt wird, kennt diesen Zustand. Die Sperre ist desha
 Vorsichtsmassnahme in der Oberfläche; die *Regel* wohnt am Modultyp und wird dort
 beantwortet, sobald ein Modul mit Aussenwirkung existiert.
 
-### 12.7 Darstellung — drei Spalten, eine Komponente
+### 12.8 Darstellung — drei Spalten, eine Komponente
 
 ```
    übergeordneter Auftrag  │   dieser Auftrag   │   Abweichungsaufträge
@@ -856,7 +916,7 @@ nachgetragen — nicht beim Bauen erraten.
    einzeln erfasst wird oder einmal gemeinsam (§14, heute gemeinsam).*
 2. **Darf ein Abweichungsauftrag noch ausgelöst werden, wenn in einem Modul bereits mit
    der Dateneingabe begonnen wurde?** Gebaut ist vorläufig die restriktivere Variante
-   (nein) — als **Eigenschaft des Modultyps**, nicht als globale Regel (§12.6).
+   (nein) — als **Eigenschaft des Modultyps**, nicht als globale Regel (§12.7).
 3. **Abbruch.** §3.1 schlägt vor, was mit den Stücken geschieht; wer abbrechen darf und
    was mit dem Auftrag selbst passiert, ist offen.
 4. **Fehlerbehandlung im Modul.** Ein Modul kann scheitern (Prüfung nicht bestanden).
@@ -894,7 +954,7 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **`articles.status` kennt nur noch `released` und `inactive`** | `draft` hatte keinen Zustand mehr zu beschreiben: vor der Freigabe gibt es keine Zeile. Vorgefundene Entwürfe (Ergebnis des behobenen Fehlers) werden **inaktiv** — nicht gelöscht, denn ihre Objektnummer ist vergeben. |
 | **Der Erzeugungsprozess ist nach der Freigabe nicht mehr änderbar** | Er entsteht mit dem Artikel; es gibt keinen Endpunkt, der ihn danach anfasst. Ein «Modul nachträglich hinzufügen» wäre eine Tür in einen Datensatz, der bereits Aufträge speist — und die Kopien in laufenden Aufträgen trügen einen Stempel, der nicht mehr stimmt. |
 | **Reiter-Name «Erzeugungsprozess»** | Sagt, wofür der Prozess da ist, und lässt Platz für eine zweite Art Vorlage. |
-| **Mehrere Definitionszeilen sind erlaubt** | Artikel A `Neu` + Artikel B `Lager` in einem Auftrag ist ein normaler Fall. |
+| **Mehrere Definitionszeilen sind erlaubt** | Aber nur mit Herkunft `Lager`: «Neu» steht für sich allein (#693, siehe unten). |
 | **Ein Auftrag hat EINEN Prozess** | Bringen zwei `Neu`-Zeilen verschiedene Vorlagen mit, ist das ein harter Fehler mit Klartext-Grund. Welcher gälte, kann das System nicht entscheiden — und raten wäre hier besonders teuer. |
 | **Die gespiegelte Vorlage ist im Entwurf NICHT editierbar** | Ein Versionsstempel auf etwas, das man danach ändert, wäre eine Behauptung. Geändert wird am Artikel. Ein reiner `Lager`-Auftrag bleibt frei modellierbar. |
 | **Menge 0 gibt es nicht** | Weder für `Neu` noch für `Lager`. Eine Zeile ohne Stück bewegt nichts, und die Freigabe verlangt ohnehin mindestens eine Einzelinstanz (§6.2). Wer nur modellieren will, tut das am Artikel. |
@@ -908,7 +968,13 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **Zwei Ereignisarten für den Wechsel: `handover` und `return`** | Ein Stück, das den Auftrag wechselt, ist keines der drei bestehenden Ereignisse. Ohne eigene Art müsste man den Auftragswechsel aus einem `step` erschliessen, das gar keines ist. Der **Eintritt** in den Abweichungsauftrag bleibt dagegen ein gewöhnliches `start` — sein `status_before = Im Prozess` **ist** das Merkmal (§12.2), eine vierte Art wäre dieselbe Aussage doppelt. |
 | **Beim Ausscheren wechselt der Status NICHT** | Das Stück bleibt `Im Prozess` — es ist ja weiterhin in Arbeit, nur woanders. Ein Zwischenstatus («ausgeschert») wäre ein Zustand, den §5.2 nicht kennt, und er müsste beim Zurückkommen wieder zurückgenommen werden. |
 | **Höchstens 3 Nachbarn voll, der Rest als Zähler** | Abschneiden statt gruppieren: eine Gruppe müsste einen gemeinsamen Nenner behaupten, den es bei Abweichungen nicht gibt. Der Zähler nennt die **Gesamtzahl** — eine stumm gekappte Spalte sähe aus wie die ganze Wahrheit. |
-| **Die Sperre bei begonnener Eingabe sitzt in der Oberfläche** | Sie kann nirgends sonst sitzen: eine nicht bestätigte Eingabe existiert weder in der Datenbank noch im Log. Die **Regel** wohnt trotzdem am Modultyp (`Module.units_may_leave`, §12.6) — dort, wo sie beantwortet wird, sobald ein Modul mit Aussenwirkung existiert. |
+| **Die Sperre bei begonnener Eingabe sitzt in der Oberfläche** | Sie kann nirgends sonst sitzen: eine nicht bestätigte Eingabe existiert weder in der Datenbank noch im Log. Die **Regel** wohnt trotzdem am Modultyp (`Module.units_may_leave`, §12.7) — dort, wo sie beantwortet wird, sobald ein Modul mit Aussenwirkung existiert. |
+| **Ein Zustandspunkt heisst nach dem Modul, vor dem er liegt** | Er braucht keine eigene Identität: `current_step_id` beantwortet «wo steht dieses Stück» bereits. Damit ist der Anker der Abzweigung berechenbar statt suchbar — und der Rückfall «gibt es den Punkt nicht, nimm das Modul» entfällt ersatzlos. |
+| **Ein Abweichungsauftrag kann an mehreren Punkten ansetzen** | Darum eine Liste. Zwei rückführende Abweichungen am selben Punkt bleiben dagegen im Gleichschritt — die Sperre (§12.6) sorgt dafür; zwei **verschiedene** Punkte entstehen erst über eine gekappte. |
+| **Die Bezeichnung eines Erfassungspunktes bleibt** | Sie ist nicht der eliminierte Name (das war der **Modul**name, #682/#686), sondern die **Frage, die im Prozess gestellt wird** — ohne sie steht dort ein Daumen hoch/runter ohne Text. Verlangt wird sie bei der **Freigabe**, nicht im Schema: der Entwurf legt den Punkt beim Klick an und füllt ihn beim Tippen. |
+| **«Neu» steht für sich allein** | Ein Erzeugungsauftrag fährt die Vorlage genau dieses Artikels; ihr Versionsstempel gilt nur für seine Stücke. Die Regel liest sich von beiden Enden gleich: mit «Neu» kommt keine zweite Zeile dazu, und zu einer zweiten Zeile lässt sich «Neu» nicht wählen. *(Ersetzt die frühere Annahme «Artikel A `Neu` + Artikel B `Lager` ist ein normaler Fall».)* |
+| **Ein Modul startet eingeklappt, ausser es ist dran** | Im laufenden Auftrag ist das «dran» das aktive Modul, im Entwurf das zuletzt angelegte – dieselbe Aussage, zwei Orte. |
+| **Der Kopf löst die Typ-Identität selbst auf** | Symbol, Farbfamilie und Eyebrow kommen aus `TYPE_META`; die Aufrufer können sie nicht mehr übergeben. Der runde Symbol-Kasten beim Benutzer ist die eine **Form**regel, die vom Typ abhängt – sie steht in derselben Komponente, damit keine Aufrufstelle sie neu erfindet. |
 
 ---
 

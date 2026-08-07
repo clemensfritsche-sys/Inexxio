@@ -3654,13 +3654,38 @@
         ],
         "title": "Body_upload_attachment_api_v1_erp_attachments_post"
       },
+      "BranchPoint": {
+        "properties": {
+          "at_step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Step Id"
+          },
+          "unit_count": {
+            "type": "integer",
+            "title": "Unit Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit_count"
+        ],
+        "title": "BranchPoint",
+        "description": "**Der Zustandspunkt**, an dem Stücke ausgeschert sind.\n\nEin Zustandspunkt ist die Stelle auf der Prozesslinie, an der ein Stück wartet –\nzwischen zwei Objekten, nicht in einem. Er heisst «**vor** Modul ``at_step_id``»;\n``None`` ist der Punkt nach dem Ende. Das Modul benennt den Punkt, es besitzt ihn\nnicht: die Abzweigung geht **vor** dem Modul von der Linie ab, weil das Stück es zu\ndiesem Zeitpunkt noch gar nicht betreten hatte – und darum durchläuft es das Modul\nnach der Rückkehr regulär."
+      },
       "CapturePointInput": {
         "properties": {
           "label": {
             "type": "string",
             "maxLength": 120,
-            "minLength": 1,
-            "title": "Label"
+            "title": "Label",
+            "default": ""
           },
           "type": {
             "type": "string",
@@ -3691,11 +3716,10 @@
         },
         "type": "object",
         "required": [
-          "label",
           "type"
         ],
         "title": "CapturePointInput",
-        "description": "Ein Erfassungspunkt, wie ihn die Definition schickt.\n\n``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet\n(``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck\nman erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.\n\n``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche\nZusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);\ndieses Schema ist bewusst die Aussenform und nicht die Regel.\n\nEin ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht."
+        "description": "Ein Erfassungspunkt, wie ihn die Definition schickt.\n\n``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet\n(``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck\nman erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.\n\n``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche\nZusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);\ndieses Schema ist bewusst die Aussenform und nicht die Regel.\n\nEin ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht.\n\n**Die Bezeichnung ist hier NICHT schema-pflichtig** (Testnotiz #695). Sie ist es\nfachlich sehr wohl – ohne sie steht im Prozess ein Daumen hoch/runter ohne Frage –,\naber ein `min_length=1` an dieser Stelle ist eine Prüfung zur **falschen Zeit**: der\nEntwurf legt den Punkt beim Klick auf die Palette an und füllt ihn, während man tippt.\nJeder Tastendruck ging so durch ``/validate`` und kam als rohe 422 zurück\n(«Erfassungspunkte → 1 → Bezeichnung: darf nicht leer sein»), statt als «das fehlt\nnoch». Es ist derselbe Fehler, den #682/#686 eine Ebene höher am Modulnamen behoben\nhaben – nur war er hier nicht mitgeräumt.\n\nVerlangt wird sie jetzt dort, wo es zählt: bei der **Freigabe**\n(``domain/capture_types.clean_points``), mit einem Satz statt einem Feldpfad."
       },
       "CaptureTypeInfo": {
         "properties": {
@@ -5832,6 +5856,18 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
           }
         },
         "type": "object",
@@ -6099,6 +6135,13 @@
             ],
             "title": "Source Version"
           },
+          "waiting_for": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Waiting For"
+          },
           "label": {
             "type": "string",
             "title": "Label",
@@ -6170,16 +6213,12 @@
             "title": "Returns",
             "default": false
           },
-          "origin_step_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Origin Step Id"
+          "branches": {
+            "items": {
+              "$ref": "#/components/schemas/BranchPoint"
+            },
+            "type": "array",
+            "title": "Branches"
           }
         },
         "type": "object",

@@ -316,8 +316,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242).
           Für jede Gesellschaft gleich; kein «Hauptsitz»-Rang. */}
       <DetailHeader
-        icon={Building2} iconBg="#F3E5DD" iconFg="#A65A3C"
-        eyebrow="Unternehmen" title={form.company_name || null}
+        type="organization" title={form.company_name || null}
         objectId={record.object_id} onBack={onBack}
         // **Der Zustand, nicht der Typ** (Notiz #364): «Unternehmen» stand als Status da –
         // das ist aber die Datensatzart und steht bereits als Eyebrow. Ein Unternehmen kennt

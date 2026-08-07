@@ -20,6 +20,23 @@ def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _code(source: str) -> str:
+    """Nur der Code — Kommentare und Docstrings raus.
+
+    Ein Waechter, der einen Kommentar liest, prueft die Erklaerung statt der Sache: er
+    schlaegt an, weil jemand den Fehler *beschreibt*, den er verhindern soll. Genau das
+    ist beim Schreiben dieser Runde passiert.
+    """
+    # Blockkommentare: /* … */ und JSX {/* … */}, dazu Python-Docstrings.
+    without = re.sub(r"\{?/\*[\s\S]*?\*/\}?", "", source)
+    without = re.sub(r'"""[\s\S]*?"""', "", without)
+    # Zeilenkommentare nur am Zeilenanfang – sonst trifft es «https://».
+    return "\n".join(
+        l for l in without.split("\n")
+        if not l.lstrip().startswith(("//", "#", "*"))
+    )
+
+
 def _body(source: str, name: str, *, kind: str = "def") -> str:
     """Der Rumpf genau einer Funktion/Klasse – ohne die nächste mitzunehmen.
 
@@ -700,9 +717,9 @@ def test_the_definition_asks_in_one_order_and_locks_the_rest():
     """
     ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
     assert "disabled={!hasArticle}" in ui, "Die Menge ist vor der Artikelwahl nicht gesperrt."
-    assert "disabled={!hasArticle || !hasTemplate}" in ui, (
-        "«Neu» ist ohne Erzeugungsprozess nicht gesperrt."
-    )
+    # «Neu» braucht eine Vorlage – geprüft wird die **Bedingung**, nicht ihre Schreibweise:
+    # sie steht seit Notiz #694 als Option des Schiebe-Reglers, nicht mehr als eigener Knopf.
+    assert "!hasTemplate" in ui, "«Neu» ist ohne Erzeugungsprozess nicht gesperrt."
     assert "Erzeugungsprozess" in ui, "Der Grund steht nicht im Klartext."
     # FIFO ist ein Vorschlag, kein Zwang: die Auswahl bleibt sichtbar und abwählbar.
     assert "fifo" in ui.lower() and "entfernen" in ui
@@ -1682,3 +1699,240 @@ def test_the_trigger_sits_where_the_piece_stands():
     assert "api.createOrder" in detail and detail.count("api.createOrder") == 1, (
         "Es gibt mehr als einen Anlage-Weg."
     )
+
+
+# ---------------------------------------------------------------------------
+# Testrunde 7.8.2026 nachmittags (#689–#700)
+# ---------------------------------------------------------------------------
+
+def test_a_branch_hangs_on_a_state_point_not_on_a_module():
+    """**#700 — die Abzweigung sitzt VOR dem Modul, an einem Zustandspunkt.**
+
+    Ein Stück kann nur abweichen, solange am Modul noch nichts eingegeben wurde: es hat
+    das Modul gar nicht betreten. Die Linie geht darum von der **Stelle auf der
+    Prozesslinie** ab, an der es wartete – und führt an denselben Punkt zurück, sodass es
+    das Modul danach regulär durchläuft.
+
+    Ein Zustandspunkt heisst «vor Modul X»; darum ist sein Anker **berechenbar**
+    (``statePointId``) und muss nirgends gesucht werden. Der frühere Rückfall auf das
+    Modul («gibt es den Zustandsknoten nicht, nimm das Modul») war genau der gemeldete
+    Fehler – und er ist ersatzlos weg: den Punkt gibt es immer, wo eine Abzweigung ansetzt.
+    """
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    assert "export function statePointId(" in diagram, "Der Zustandspunkt hat keine Identität."
+    assert "branchPoints" in diagram, (
+        "Ein Punkt entsteht nur, wenn dort etwas steht – dann fehlt er, sobald das Stück "
+        "zurück und weitergezogen ist."
+    )
+
+    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
+    assert "resolveAnchor" not in cols, (
+        "Der Anker wird gesucht statt berechnet – und beim Suchen war das Modul der Rückfall."
+    )
+    assert "statePointId(b.at_step_id ?? null)" in cols, (
+        "Die Abzweigung hängt nicht am Zustandspunkt."
+    )
+    branch = _body(cols, "Branch", kind="function")
+    assert "s.points.map(" in branch, (
+        "Nur EIN Anker je Nachbar – ein Auftrag kann an mehreren Stellen zugegriffen haben."
+    )
+
+    # Serverseitig: je Zustandspunkt eine Zeile, nicht ein geratenes Minimum.
+    svc = _read(BACKEND / "app" / "services" / "journey.py")
+    assert "func.min(sub.c.step_id)" not in svc, (
+        "Die Punkte werden zu einem zusammengefasst – dann zeigt die Linie auf eine "
+        "Stelle, an der nichts passiert ist."
+    )
+    assert "group_by(sub.c.oid, sub.c.step_id)" in svc, "Es wird nicht je Punkt gezählt."
+    schema = _read(BACKEND / "app" / "schemas" / "order.py")
+    assert "class BranchPoint(" in schema and "at_step_id" in schema
+    assert "origin_step_id" not in schema, "Der Einzelwert steht noch da."
+
+
+def test_a_module_is_told_whether_it_may_run():
+    """**#698 — die Sperre steht zentral, nicht im Modul.**
+
+    Ein Modul fragt nicht, ob es darf; ihm wird gesagt, dass es nicht darf. Darum steht
+    die Regel an dem EINEN Mechanismus, den jedes Modul auslöst (``confirm_step``), und
+    in der EINEN Karte, die jedes Modul rendert (``StepCard``). Ein künftiger Einkauf
+    oder Verkauf erbt beides, ohne eine Zeile dafür zu schreiben.
+
+    **Durchgesetzt wird serverseitig** – eine deaktivierte Oberfläche ist keine
+    Absicherung. Der Inhalt bleibt sichtbar, nur bedienen lässt er sich nicht.
+    """
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def pending_returns(" in proc, "Es gibt keine Ableitung, worauf ein Modul wartet."
+    assert "pending_returns(db, order).get(step.id)" in _body(proc, "confirm_step"), (
+        "Die Sperre steht nicht am Ausführungs-Mechanismus – dann muss jedes Modul sie "
+        "selbst kennen."
+    )
+
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    card = _body(diagram, "StepCard", kind="function")
+    assert "<fieldset disabled={locked}" in card, (
+        "Die Sperre schaltet nicht die Eingaben ab – dann müsste jedes Modul sie kennen. "
+        "`fieldset[disabled]` tut es für JEDES Modul, ohne dass es davon weiss."
+    )
+    assert "waitingFor" in diagram, "Die Karte kennt die Sperre nicht."
+
+    # Und die Datenerfassung weiss NICHTS davon – sonst wäre sie die Vorlage, die jedes
+    # künftige Modul abschreiben müsste.
+    capture = _read(FRONTEND / "components" / "erp" / "capture-form.tsx")
+    assert "waiting" not in capture.lower().replace("wartet", ""), (
+        "Das Modul fragt selbst, ob es darf."
+    )
+
+
+def test_the_header_is_defined_once_for_every_record_type():
+    """**#697 — Layout, Raster, Farben, Schriften: global, nicht je Datensatztyp.**
+
+    Was variieren darf, ist der **Inhalt**. Symbol, Farbfamilie und Eyebrow kommen darum
+    aus der einen Quelle (``lib/erp-record.TYPE_META``) und werden **im Kopf** aufgelöst –
+    vorher reichte jede Ansicht sie einzeln herein, drei davon mit hart getippten
+    Hex-Werten und einem zweiten Mal ausgeschriebenem Namen.
+    """
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    assert "type: ErpRecordType;" in fields, "Der Kopf kennt den Datensatztyp nicht."
+    assert "TYPE_META[type]" in fields, "Der Kopf löst die Identität nicht selbst auf."
+
+    for name in ("article-detail", "instance-detail", "order-detail",
+                 "organization-detail", "user-detail"):
+        src = _read(FRONTEND / "components" / "erp" / f"{name}.tsx")
+        head = src[src.index("<DetailHeader"):]
+        head = head[:head.index("/>") if "/>" in head[:4000] else 4000]
+        for forbidden in ("iconBg=", "iconFg=", "eyebrow=", "avatar="):
+            assert forbidden not in head, (
+                f"{name} bringt eine eigene Kopf-Definition mit ({forbidden})."
+            )
+        assert 'type="' in head, f"{name} nennt seinen Datensatztyp nicht."
+
+
+def test_the_deviation_mark_comes_from_one_component():
+    """**#699 — «Abweichung» ist ein Zeichen am Symbol, in Feed UND Kopf dasselbe.**
+
+    Zwei Implementierungen driften garantiert auseinander (das war #688). Also rendert
+    **eine** Komponente das Symbol eines Datensatzes, und beide Orte benutzen sie; nur die
+    Grösse unterscheidet sie.
+    """
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    assert "export function RecordIcon(" in fields
+    assert "deviation" in _body(fields, "RecordIcon", kind="function")
+
+    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    assert "<RecordIcon" in page, "Der Feed baut das Symbol selbst."
+    assert "Abweichung" not in _code(page), "Im Feed steht das Label noch als Text."
+
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "deviation={shown?.is_deviation" in detail, "Der Kopf trägt das Zeichen nicht."
+
+
+def test_modules_are_collapsed_unless_they_are_up_next():
+    """**#696 — eingeklappt, ausser das Modul ist dran. Eine Stelle, nicht je Modultyp.**"""
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    card = _body(diagram, "StepCard", kind="function")
+    assert "useState(!!defaultOpen)" in card, "Die Karte hat keinen Aufklapp-Zustand."
+    assert "setOpen(!open)" in card, "Der Kopf klappt nicht auf."
+    assert "children && open" in card, "Der Inhalt hängt nicht am Zustand."
+    assert "expandedStepId" in diagram, "Niemand sagt, welches Modul offen startet."
+
+
+def test_an_unfinished_capture_point_is_a_missing_entry_not_a_field_error():
+    """**#695 — dieselbe Klasse wie #682/#686, eine Ebene tiefer.**
+
+    Der Entwurf legt einen Erfassungspunkt beim Klick an und füllt ihn beim Tippen. Eine
+    Schema-Pflicht machte daraus bei jedem Tastendruck einen rohen Feldpfad-Fehler
+    («Erfassungspunkte → 1 → Bezeichnung: darf nicht leer sein»). Verlangt wird sie darum
+    bei der **Freigabe** – mit einem Satz statt einem Feldpfad.
+    """
+    schema = _read(BACKEND / "app" / "schemas" / "process.py")
+    point = _code(schema[schema.index("class CapturePointInput"):schema.index("class ModuleConfigInput")])
+    assert "min_length" not in point, (
+        "Die Bezeichnung ist schema-pflichtig – dann scheitert /validate beim Tippen."
+    )
+    types = _read(BACKEND / "app" / "domain" / "capture_types" / "__init__.py")
+    assert "braucht noch eine Bezeichnung" in types, "Bei der Freigabe wird sie nicht verlangt."
+
+
+def test_new_is_an_origin_on_its_own():
+    """**#693 — mit «Neu» kommt keine zweite Zeile dazu, und umgekehrt.**
+
+    Ein Erzeugungsauftrag fährt die Vorlage genau dieses Artikels; ihr Versionsstempel
+    gilt nur für seine Stücke. Die Regel steht **serverseitig** – ein fehlender Knopf ist
+    keine Absicherung.
+    """
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def _assert_single_new(" in proc
+    assert "_assert_single_new(out)" in _body(proc, "resolve_lines"), (
+        "Die Regel greift nicht auf dem gemeinsamen Weg von /validate und Freigabe."
+    )
+    ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
+    assert "hasNew" in ui and "{!hasNew && (" in ui, "Der Knopf «Zeile» bleibt trotz «Neu»."
+    assert "multi" in ui, "«Neu» bleibt wählbar, obwohl es eine zweite Zeile gibt."
+
+
+def test_the_origin_uses_the_shared_switch():
+    """**#694 — Neu/Lager ist derselbe Schiebe-Regler wie die Mengeneinheit.**"""
+    ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
+    assert "IconSwitch, inputCls } from '@/components/erp/fields'" in ui, (
+        "Der Regler wird nicht aus dem gemeinsamen Vokabular geholt."
+    )
+    # Geprüft wird die **Verdrahtung**, nicht das Vorkommen des Wortes: der Regler muss
+    # an der Herkunft hängen, sonst steht er irgendwo und die Knöpfe stehen daneben.
+    assert "value={(line.origin ?? LAGER)" in ui, "Der Regler hängt nicht an der Herkunft."
+    assert "function OriginBtn(" not in ui, "Der nachgebaute Knopf steht noch da."
+
+
+def test_the_release_hint_is_not_repeated_in_the_body():
+    """**#692 — «Zur Freigabe fehlt …» entfällt; der ausgegraute Knopf sagt es.**"""
+    art = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
+    assert "Zur Freigabe fehlt" not in _code(art)
+    assert "Es fehlt:" in art, "Auch der Hover nennt den Grund nicht mehr."
+    order = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "Zur Freigabe fehlt" not in _code(order)
+
+
+def test_the_palette_symbol_is_centred():
+    """**#691 — kein Abstand zum eingeklappten Namen, sonst sitzt das Symbol daneben.**
+
+    Der Name ist ein Flex-Kind mit ``max-width: 0`` – ein ``gap`` gilt aber auch zu einem
+    nullbreiten Kind. Zentral gelöst: es gibt genau einen Modul-Knopf.
+    """
+    css = _read(FRONTEND / "app" / "globals.css")
+    palette = css[css.index(".ix-palette {"):css.index(".ix-palette-sm")]
+    assert "gap: 0;" in palette, "Der Abstand gilt auch eingeklappt – das Symbol sitzt daneben."
+    assert "gap: 7px;" in css[css.index(".ix-palette:hover"):][:200], (
+        "Aufgeklappt fehlt der Abstand zum Namen."
+    )
+
+
+def test_the_article_shortcut_only_preselects_the_article():
+    """**#690 — ein reiner Shortcut, kein zweiter Anlagepfad.**
+
+    Er öffnet denselben Entwurf wie «+», nur mit vorbelegtem Artikel. Menge, Herkunft und
+    Prozess bleiben offen – eine vorausgefüllte «1» wäre eine Behauptung, die meistens
+    falsch ist und trotzdem freigebbar aussieht.
+    """
+    art = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
+    assert "onCreateOrder?.(record.object_id)" in _body(art, "createOrderShortcut", kind="function"), (
+        "Der Shortcut tut nichts."
+    )
+    assert "api.createOrder" not in art, "Der Artikel legt selbst einen Auftrag an."
+    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    assert "startCreate('order', { articleObjectId })" in page
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "unitNumber?: string;" in detail, "Der Seed verlangt weiterhin ein Stück."
+
+
+def test_the_start_time_comes_from_the_event_log():
+    """**#689 — «wann hat das Stück den Start passiert» steht schon im Log.**
+
+    Ein Feld daneben wäre eine Kopie, die beim ersten Nacherfassen von der Wahrheit
+    abweicht – und die Wahrheit ist der Log (§7.2).
+    """
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    body = _body(proc, "started_at")
+    assert "ProcessEvent" in body and "KIND_START" in body, "Der Zeitpunkt kommt nicht aus dem Log."
+    model = _read(BACKEND / "app" / "models" / "order_unit.py")
+    assert "started_at" not in model, "Es gibt eine zweite Wahrheit als Spalte."
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    assert "startedAt" in diagram, "Der Hover zeigt den Zeitpunkt nicht."

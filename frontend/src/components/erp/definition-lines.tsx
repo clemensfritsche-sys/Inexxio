@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Boxes, ChevronDown, GitBranch, Package, PackagePlus, Plus, Trash2, X } from 'lucide-react';
+import { Boxes, ChevronDown, GitBranch, Package, Plus, Sprout, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
-import { inputCls } from '@/components/erp/fields';
+import { IconSwitch, inputCls } from '@/components/erp/fields';
 import { UnitNumber } from '@/components/erp/unit-number';
 import { statusCfg, statusLabel } from '@/lib/process-status';
 
@@ -78,6 +78,8 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded }: {
     setLines(lines.map((l) => (l.key === key ? { ...l, ...next } : l)));
   }, [lines, setLines]);
 
+  const hasNew = lines.some((l) => l.origin === NEU);
+
   return (
     <div className="rounded-ds-lg" style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 14 }}>
       <div className="flex items-center gap-2 mb-2">
@@ -96,20 +98,28 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded }: {
             key={line.key}
             line={line}
             articles={articles}
+            multi={lines.length > 1}
             onChange={(next) => patch(line.key, next)}
             onRemove={() => setLines(lines.filter((l) => l.key !== line.key))}
           />
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setLines([...lines, emptyLine((lines[lines.length - 1]?.key ?? 0) + 1)])}
-        className="mt-2 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
-        style={{ border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}
-      >
-        <Plus size={12} /> Zeile
-      </button>
+      {/* **«Neu» steht für sich allein** (Testnotiz #693): ein Erzeugungsauftrag fährt die
+          Vorlage genau dieses Artikels, und ihr Versionsstempel gilt nur für seine Stücke.
+          Die Regel liest sich von beiden Enden gleich – darum ist hier der Knopf weg, und
+          in der Zeile ist «Neu» gesperrt, sobald es eine zweite gibt. Durchgesetzt wird
+          sie serverseitig (`process._assert_single_new`); dies ist die Anzeige davon. */}
+      {!hasNew && (
+        <button
+          type="button"
+          onClick={() => setLines([...lines, emptyLine((lines[lines.length - 1]?.key ?? 0) + 1)])}
+          className="mt-2 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+          style={{ border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}
+        >
+          <Plus size={12} /> Zeile
+        </button>
+      )}
     </div>
   );
 }
@@ -118,9 +128,11 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded }: {
 // Eine Zeile
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LineRow({ line, articles, onChange, onRemove }: {
+function LineRow({ line, articles, multi, onChange, onRemove }: {
   line: DefinitionLine;
   articles: ArticleOption[] | null;
+  /** Gibt es mehr als eine Zeile? Dann ist «Neu» keine Option mehr (#693). */
+  multi: boolean;
   onChange: (next: Partial<DefinitionLine>) => void;
   onRemove: () => void;
 }) {
@@ -171,34 +183,44 @@ function LineRow({ line, articles, onChange, onRemove }: {
           />
         </label>
 
-        {/* 3 — Herkunft. */}
+        {/* 3 — Herkunft. **Derselbe Schiebe-Regler wie die Mengeneinheit am Artikel**
+            (Testnotiz #694): zwei sich ausschliessende Antworten, und dass sie einander
+            ausschliessen, zeigt die Bewegung des Reiters statt zweier gleich aussehender
+            Knöpfe. Dieselbe Komponente, nicht nachgebaut. */}
         <div>
           <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Herkunft</span>
-          <div className="flex gap-1">
-            <OriginBtn
-              icon={PackagePlus}
-              label="Neu"
-              active={line.origin === NEU}
-              disabled={!hasArticle || !hasTemplate}
-              hint={
-                !hasArticle ? 'Zuerst den Artikel wählen.'
-                  : !hasTemplate
-                    ? 'Dieser Artikel hat keinen Erzeugungsprozess. «Neu» ist erst wählbar, wenn am Artikel unter «Spezifikation» mindestens ein Modul steht.'
-                    : 'Die Einzelinstanzen entstehen bei der Freigabe.'
-              }
-              onClick={() => onChange({ origin: NEU, unitNumbers: [] })}
-            />
-            <OriginBtn
-              icon={Package}
-              label="Lager"
-              active={line.origin === LAGER}
-              disabled={!hasArticle}
-              hint={hasArticle
-                ? 'Bestehende Einzelinstanzen auswählen. Hier entsteht keine neue Nummer.'
-                : 'Zuerst den Artikel wählen.'}
-              onClick={() => onChange({ origin: LAGER })}
-            />
-          </div>
+          <IconSwitch<typeof NEU | typeof LAGER>
+            value={(line.origin ?? LAGER) as typeof NEU | typeof LAGER}
+            onChange={(v) => onChange(v === NEU
+              ? { origin: NEU, unitNumbers: [] }
+              : { origin: LAGER })}
+            options={[
+              {
+                value: NEU,
+                // **Sprossen statt Karton** (#694): «Neu» heisst «entsteht hier», nicht
+                // «wird geliefert». Ein Paket-Symbol sagte dasselbe wie «Lager».
+                icon: Sprout,
+                label: 'Neu',
+                disabled: !hasArticle || !hasTemplate || multi,
+                hint:
+                  !hasArticle ? 'Zuerst den Artikel wählen.'
+                    : multi
+                      ? '«Neu» steht für sich allein – ein Erzeugungsauftrag fährt die Vorlage genau dieses Artikels. Für den zweiten Artikel einen eigenen Auftrag anlegen.'
+                      : !hasTemplate
+                        ? 'Dieser Artikel hat keinen Erzeugungsprozess. «Neu» ist erst wählbar, wenn am Artikel unter «Spezifikation» mindestens ein Modul steht.'
+                        : 'Die Einzelinstanzen entstehen bei der Freigabe.',
+              },
+              {
+                value: LAGER,
+                icon: Package,
+                label: 'Lager',
+                disabled: !hasArticle,
+                hint: hasArticle
+                  ? 'Bestehende Einzelinstanzen auswählen. Hier entsteht keine neue Nummer.'
+                  : 'Zuerst den Artikel wählen.',
+              },
+            ]}
+          />
         </div>
 
         <button
@@ -233,35 +255,6 @@ function LineRow({ line, articles, onChange, onRemove }: {
         />
       )}
     </div>
-  );
-}
-
-function OriginBtn({ icon: Icon, label, active, disabled, hint, onClick }: {
-  icon: React.ElementType; label: string; active: boolean; disabled: boolean;
-  hint: string; onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      data-tip={hint}
-      // Der Tooltip läuft über CSS-generierten Inhalt (`content: attr(data-tip)`), und
-      // den zählt Chromium in den Accessible Name. Ohne diese Zeile hiesse der Knopf für
-      // einen Screenreader «Neu Dieser Artikel hat keinen Erzeugungsprozess …» – die
-      // Erklärung wäre der Name. Sie gehört in die Beschreibung, nicht in den Namen.
-      aria-label={label}
-      className="inline-flex items-center gap-1.5 text-xs rounded-ds-lg disabled:opacity-45"
-      style={{
-        height: 32, padding: '0 10px',
-        border: `1px solid ${active ? 'var(--accent-ink)' : 'var(--border-2)'}`,
-        background: active ? 'var(--accent-soft)' : 'var(--bg-1)',
-        color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
-      }}
-    >
-      <Icon size={13} />
-      {label}
-    </button>
   );
 }
 

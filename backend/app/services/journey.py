@@ -131,13 +131,37 @@ def _adjacent(before: bool):
     return q.order_by(ev.id.desc() if before else ev.id).limit(1).scalar_subquery()
 
 
-def _counts_from(db: Session, *, order_id: int, kind: str, status_before: Optional[str],
-                 before: bool) -> list[tuple[int, int, Optional[int]]]:
-    """``[(Auftrag-id, Anzahl Stücke, Modul-id), …]`` zu einem Anker-Ereignis.
+class Related:
+    """Ein Nachbar-Auftrag **und die Zustandspunkte, an denen er ansetzt**.
 
-    Die **Modul-id ist die Stelle im eigenen Ablauf**, an der der Wechsel passiert ist –
-    das Bild braucht sie, um die Abzweigung dort zu zeichnen, wo sie stattfand. Sie steht
-    im Anker-Ereignis; es gibt nichts nachzuschlagen.
+    Ein **Zustandspunkt** ist die Stelle auf der Prozesslinie, an der ein Stück wartet –
+    zwischen zwei Objekten, nicht in einem. Seine Identität steht in den Daten:
+    ``order_units.current_step_id`` heisst «steht **vor** diesem Modul» (``None`` = nach
+    dem Ende). Ein Punkt ist also «vor Modul X»; das Modul **benennt** ihn, es besitzt
+    ihn nicht.
+
+    Darum eine **Liste**: derselbe Abweichungsauftrag kann Stücke an zwei verschiedenen
+    Stellen abgenommen haben. Ein einzelner Wert (früher ``min(step_id)``) hätte sich für
+    eine davon entschieden und die andere verschwiegen – und die Linie zeigte dann auf
+    einen Punkt, an dem gar nichts passiert ist.
+    """
+
+    def __init__(self, order_id: int):
+        self.order_id = order_id
+        #: ``[(at_step_id, Anzahl Stücke), …]`` – je Zustandspunkt eine Zeile.
+        self.points: list[tuple[Optional[int], int]] = []
+
+    @property
+    def unit_count(self) -> int:
+        return sum(n for _, n in self.points)
+
+
+def _counts_from(db: Session, *, order_id: int, kind: str, status_before: Optional[str],
+                 before: bool) -> list[Related]:
+    """Nachbarn zu einem Anker-Ereignis, **je Zustandspunkt gezählt**.
+
+    Der Punkt steht im Anker-Ereignis (``step_id`` = wo das Stück stand, als es wechselte);
+    es gibt nichts nachzuschlagen und nichts abzuleiten.
     """
     anchor = select(
         ProcessEvent.instance_unit_id.label("unit_id"),
@@ -148,27 +172,40 @@ def _counts_from(db: Session, *, order_id: int, kind: str, status_before: Option
         anchor = anchor.where(ProcessEvent.status_before == status_before)
     sub = anchor.subquery()
     rows = db.execute(
-        select(sub.c.oid, func.count(), func.min(sub.c.step_id))
+        select(sub.c.oid, sub.c.step_id, func.count())
         .where(sub.c.oid.isnot(None), sub.c.oid != order_id)
-        .group_by(sub.c.oid)
-        .order_by(func.count().desc(), sub.c.oid)
+        .group_by(sub.c.oid, sub.c.step_id)
     ).all()
-    return [(int(oid), int(n), int(sid) if sid is not None else None)
-            for oid, n, sid in rows]
+
+    found: dict[int, Related] = {}
+    for oid, step_id, n in rows:
+        rel = found.setdefault(int(oid), Related(int(oid)))
+        rel.points.append((int(step_id) if step_id is not None else None, int(n)))
+    # Der Hauptstrom zuerst; bei Gleichstand die id – willkürlich, aber stabil.
+    return sorted(found.values(), key=lambda r: (-r.unit_count, r.order_id))
 
 
-def parents(db: Session, order: Order) -> list[tuple[int, int, Optional[int]]]:
+def parents(db: Session, order: Order) -> list[Related]:
     """Aus welchen **laufenden** Aufträgen hat dieser Auftrag Stücke übernommen?
 
     Anker ist sein eigener Start-Eintrag mit ``status_before = im_prozess`` – dieselbe
     Bedingung, die den Auftrag zur Abweichung macht (§2). Daneben steht dann der
     Auftrag, aus dem das Stück kam.
+
+    Die Zustandspunkte werden hier **zusammengefasst**: sie liegen im Ablauf des *anderen*
+    Auftrags und haben in diesem hier keine Stelle. Von einem übergeordneten Auftrag kommen
+    die Stücke am **Start** herein, und der Start ist der Punkt.
     """
-    return _counts_from(db, order_id=order.id, kind=KIND_START,
-                        status_before=st.IM_PROZESS, before=True)
+    out: list[Related] = []
+    for rel in _counts_from(db, order_id=order.id, kind=KIND_START,
+                            status_before=st.IM_PROZESS, before=True):
+        merged = Related(rel.order_id)
+        merged.points = [(None, rel.unit_count)]
+        out.append(merged)
+    return out
 
 
-def deviations(db: Session, order: Order) -> list[tuple[int, int, Optional[int]]]:
+def deviations(db: Session, order: Order) -> list[Related]:
     """Welche Aufträge haben diesem hier Stücke **mitten im Ablauf** abgenommen?
 
     Anker ist sein eigener ``handover``-Eintrag; daneben steht der Auftrag, der das
