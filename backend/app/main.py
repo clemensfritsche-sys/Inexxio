@@ -15,7 +15,7 @@ from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .core import features
 from .routers import (
-    admin, articles, attachments, auth, captures, contact, erp, events, feedback, health,
+    admin, articles, attachments, auth, contact, erp, events, feedback, health,
     instances, object_refs, orders, passkey,
 )
 # Nicht importiert, weil abgeschaltet (siehe core/features.py): ai, consent, documents,
@@ -627,7 +627,6 @@ app.include_router(erp.router)
 app.include_router(articles.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
-app.include_router(captures.router)
 app.include_router(object_refs.router)
 app.include_router(events.router)
 app.include_router(attachments.router)

@@ -1,9 +1,8 @@
 'use client';
 
 import type { InstanceSummary } from '@/types';
-import { StatusBadge } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
-import { instanceStatus, kindLabel } from '@/lib/record-status';
+import { kindLabel } from '@/lib/record-status';
 
 /**
  * Der Bestand eines Artikels: seine Instanzen mit ihrer **gezählten** Menge.
@@ -11,6 +10,9 @@ import { instanceStatus, kindLabel } from '@/lib/record-status';
  * Diese Liste ist eine reine Summierung – eine Filterung über Einzelinstanzen, keine
  * eigene Datenquelle. Was hier als Menge steht, ist die Anzahl der Einzelinstanzen der
  * jeweiligen Instanz; sie liegt an keiner Stelle als Feld herum.
+ *
+ * **Kein Zustand je Zeile** (Testnotiz #675): eine Instanz ist eine Gruppe, und die hat
+ * keinen. Wer die Zustände sehen will, öffnet sie – dort steht einer je Stück.
  */
 export function InstanceList({ rows }: { rows: InstanceSummary[] }) {
   if (rows.length === 0) {
@@ -31,7 +33,6 @@ export function InstanceList({ rows }: { rows: InstanceSummary[] }) {
           <ObjId value={r.object_id} />
           <span className="text-sm text-fg-3">{kindLabel(r.kind)}</span>
           <span className="ml-auto text-sm tabular-nums">{r.quantity}</span>
-          <StatusBadge cfg={instanceStatus(r)} />
         </div>
       ))}
     </div>

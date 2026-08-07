@@ -1,36 +1,38 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes, Package, Hash, Plus, Trash2, Layers } from 'lucide-react';
+import { Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Instance, InstanceUnit } from '@/types';
+import type { Instance } from '@/types';
 import { TYPE_META } from '@/lib/erp-record';
 import { instanceName } from '@/lib/record-name';
-import { instanceStatus, kindLabel } from '@/lib/record-status';
-import { formatObjectId } from '@/lib/utils';
-import { Card, DetailHeader, ReadField, SPEC, StatusBadge } from '@/components/erp/fields';
+import { kindLabel } from '@/lib/record-status';
+import { statusCfg } from '@/lib/process-status';
+import { Card, DetailHeader, StatusBadge } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
-import { CapturePanel } from '@/components/erp/capture-panel';
+import { UnitNumber } from '@/components/erp/unit-number';
 
 /**
  * Instanz-Detail – eine **Gruppe** und ihre Einzelinstanzen.
  *
- * Die Menge steht als Zahl da, ist aber nirgends gespeichert: sie ist die Anzahl der
- * Einzelinstanzen darunter. Das ist der ganze Punkt des neuen Modells – wer die Menge
- * ändern will, legt Einzelinstanzen an oder deaktiviert welche.
+ * **Es gibt hier nichts zu tun.** Eine Einzelinstanz entsteht mit ihrer Instanz und die
+ * mit einem Auftrag (Testnotiz #678); gelöscht wird sie nie (#679). Gearbeitet wird am
+ * Prozess, und dort steht auch, was erfasst wurde – die frühere Erfassungs-Historie hier
+ * war eine zweite Ansicht auf dieselbe Sache, an einem Ort, an dem man nicht arbeitet
+ * (#677). Übrig bleibt die Auskunft: **woher** die Gruppe stammt und **welche** Stücke
+ * sie enthält.
  *
- * Gearbeitet wird an der Einzelinstanz: die Datenerfassung hängt an genau einem Stück,
- * darum wählt man es hier aus.
+ * **Die Gruppe trägt keinen Zustand** (#675). Solange genau ein Stück darunter liegt,
+ * liesse er sich spiegeln – bei einer Charge mit gemischten Zuständen gibt es keine
+ * richtige Antwort, und jede gewählte wäre eine Behauptung. Der Zustand steht an den
+ * Stücken, wo er hingehört.
  */
 export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?: () => void }) {
   const [rec, setRec] = useState<Instance | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<InstanceUnit | null>(null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let dead = false;
-    setSelected(null);
     api.getInstance(objectId)
       .then((r) => { if (!dead) { setRec(r); setError(null); } })
       .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
@@ -42,23 +44,6 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
 
   const meta = TYPE_META.instance;
 
-  async function addUnits() {
-    setBusy(true);
-    try { setRec(await api.addInstanceUnits(objectId, 1)); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
-  }
-
-  async function removeUnit(suffix: number) {
-    setBusy(true);
-    try {
-      const next = await api.deactivateInstanceUnit(objectId, suffix);
-      setRec(next);
-      if (selected?.suffix === suffix) setSelected(null);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
-  }
-
   return (
     <div className="flex flex-col h-full overflow-auto">
       <DetailHeader
@@ -68,83 +53,48 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
         eyebrow={meta.label}
         title={instanceName(rec)}
         objectId={rec.object_id}
-        status={instanceStatus(rec)}
         onBack={onBack}
       />
 
       <div className="w-full max-w-[880px] mx-auto px-5 py-5 flex flex-col gap-4">
-        <Card icon={Layers} title="Merkmale">
-          <div style={SPEC.grid}>
-            <ReadField icon={Package} label="Artikel" value={rec.article_name ?? '—'} />
-            <ReadField
-              icon={Hash}
-              label="Artikelnummer"
-              value={rec.article_object_id ? formatObjectId(rec.article_object_id) : '—'}
-              mono
-            />
-            <ReadField icon={Boxes} label="Typ" value={kindLabel(rec.kind)} />
-            <ReadField
-              icon={Hash}
-              label="Menge"
-              value={String(rec.quantity)}
-              autoHint="Gezählt, nicht gespeichert: die Anzahl der Einzelinstanzen unten."
-            />
+        {/* **Woher stammt diese Gruppe?** Ein Verweis auf den Artikel, dessen
+            Erzeugungsprozess sie durchlaufen hat – mehr braucht es nicht (#676). Die
+            Merkmale daneben (Name, Nummer, Typ, Menge) standen entweder schon im Kopf
+            oder eine Zeile weiter unten; sie am Artikel zu lesen ist ein Klick und
+            immer aktuell, statt hier eine Kopie zu pflegen. */}
+        <Card icon={meta.icon} title="Herkunft">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+            {rec.article_object_id ? (
+              <ObjId value={rec.article_object_id} />
+            ) : (
+              <span className="text-fg-4">—</span>
+            )}
+            <span>{rec.article_name ?? 'Unbekannter Artikel'}</span>
+            <span className="text-fg-4">·</span>
+            <span className="text-fg-3">{kindLabel(rec.kind)}</span>
           </div>
         </Card>
 
-        <Card
-          icon={Boxes}
-          title="Einzelinstanzen"
-          right={
-            <button
-              onClick={addUnits}
-              disabled={busy}
-              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-ds-sm border border-border-1 hover:bg-bg-2 disabled:opacity-50"
-              title="Eine weitere Einzelinstanz anlegen. Die Nummer ist kumulierend – eine einmal vergebene kommt nie zurück."
-            >
-              <Plus size={13} /> Einzelinstanz
-            </button>
-          }
-        >
+        {/* Eine Zeile je Stück: Nummer, Zustand. Die Menge steht nicht dabei – eine
+            Einzelinstanz IST genau ein Stück, das ist ihre Definition und keine
+            Angabe, die man wiederholen müsste (#680). */}
+        <Card icon={Boxes} title={`Einzelinstanzen · ${rec.quantity}`}>
           {rec.units.length === 0 ? (
             <p className="text-sm text-fg-3">Keine Einzelinstanzen.</p>
           ) : (
             <div className="flex flex-col">
               {rec.units.map((u) => (
-                <div
-                  key={u.id}
-                  onClick={() => setSelected(u)}
-                  className="flex items-center gap-3 py-2 border-t border-border-1 cursor-pointer hover:bg-bg-2"
-                  style={selected?.id === u.id ? { background: 'var(--bg-2)' } : undefined}
-                >
-                  <span className="font-mono text-[12.5px] font-semibold tabular-nums">{u.number}</span>
-                  <span className="text-sm text-fg-3">1 {'×'}</span>
-                  <div className="ml-auto flex items-center gap-2">
-                    <StatusBadge cfg={instanceStatus({ status: u.status })} />
-                    <button
-                      onClick={(e) => { e.stopPropagation(); void removeUnit(u.suffix); }}
-                      disabled={busy}
-                      title="Einzelinstanz deaktivieren. Ihre Nummer bleibt vergeben."
-                      className="p-1 rounded-ds-sm hover:bg-bg-3 disabled:opacity-40"
-                    >
-                      <Trash2 size={13} style={{ color: 'var(--danger)' }} />
-                    </button>
-                  </div>
+                <div key={u.id}
+                  className="flex items-center gap-3 py-1.5 border-t border-border-1">
+                  <UnitNumber value={u.number} />
+                  <span className="ml-auto">
+                    <StatusBadge cfg={statusCfg(u.status)} />
+                  </span>
                 </div>
               ))}
             </div>
           )}
         </Card>
-
-        {selected ? (
-          <CapturePanel number={selected.number} />
-        ) : (
-          <Card icon={Boxes} title="Datenerfassung">
-            <p className="text-sm text-fg-3">
-              Erfasst wird an einer Einzelinstanz – bitte oben eine auswählen.
-            </p>
-          </Card>
-        )}
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ import {
 } from '@/components/erp/definition-lines';
 import { END_BEFORE, statusCfg, statusLabel } from '@/lib/process-status';
 import { CaptureForm } from '@/components/erp/capture-form';
+import { UnitNumber } from '@/components/erp/unit-number';
 import { toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
@@ -359,7 +360,7 @@ function EventLog({ order }: { order: Order }) {
           {events.map((e) => (
             <div key={e.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs py-1.5"
               style={{ borderTop: '1px solid var(--border-1)' }}>
-              <span className="ix-tnum" style={{ minWidth: 104 }}>{e.unit_number}</span>
+              <span style={{ minWidth: 104 }}><UnitNumber value={e.unit_number} /></span>
               <span style={{ color: 'var(--fg-3)', minWidth: 92 }}>
                 {e.step_id ? names.get(e.step_id) ?? KIND[e.kind] : KIND[e.kind]}
               </span>

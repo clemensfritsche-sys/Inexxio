@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Blocks, ChevronDown, ChevronUp, Flag, GripVertical, Play, Trash2 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
 import { FlowFrame, FlowNode, polyPath, type FlowAnchor } from './process-flow';
+import { UnitNumber } from './unit-number';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
 
 /**
@@ -295,8 +296,10 @@ function StateRow({ groups, stepId, active, onExpand }: {
         <div className="flex flex-wrap gap-1 justify-center max-w-full">
           {busy && <span className="text-[11px]" style={{ color: 'var(--fg-4)' }}>Lädt …</span>}
           {numbers?.map((n) => (
-            <span key={n} className="text-[11px] ix-tnum px-1.5 py-0.5 rounded"
-              style={{ background: 'var(--bg-3)', color: 'var(--fg-3)' }}>{n}</span>
+            <span key={n} className="px-1.5 py-0.5 rounded"
+              style={{ background: 'var(--bg-3)', color: 'var(--fg-3)' }}>
+              <UnitNumber value={n} size={11} />
+            </span>
           ))}
           {numbers && numbers.length < total && (
             // Ein stumm gekappte Liste sähe aus wie die ganze Wahrheit.

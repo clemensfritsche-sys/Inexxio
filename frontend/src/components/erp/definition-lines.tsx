@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import type { ArticleOption, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { inputCls } from '@/components/erp/fields';
+import { UnitNumber } from '@/components/erp/unit-number';
 import { statusCfg, statusLabel } from '@/lib/process-status';
 
 /**
@@ -342,7 +343,7 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange }: {
                 style={{ borderBottom: '1px solid var(--border-1)',
                          background: taken ? 'var(--success-bg)' : undefined }}
               >
-                <span className="ix-tnum" style={{ minWidth: 110 }}>{o.number}</span>
+                <span style={{ minWidth: 110 }}><UnitNumber value={o.number} /></span>
                 <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{o.article_name}</span>
                 <span style={{ color: statusCfg(o.status).color }}>{why ?? statusLabel(o.status)}</span>
               </button>

@@ -3,6 +3,18 @@
 Hier und nur hier entstehen Einzelinstanzen und ihre Nummern. Wer eine Menge wissen
 will, fragt hier; niemand liest sie aus einer Spalte, weil es keine gibt.
 
+**Erzeugt wird ausschliesslich mit der Instanz**, und die entsteht ausschliesslich mit
+einem Auftrag (``services/materialize``). Es gibt darum kein Nachträglich-Hinzufügen und
+kein Einzeln-Anlegen mehr: beides waren zweite Türen, durch die eine Einzelinstanz ohne
+Auftrag in die Welt kam – ohne Prozess, an dem sie hängt, und ohne Ereignis, das ihre
+Entstehung festhält (Testnotiz #678).
+
+**Einen Zustand hat die Instanz nicht.** Sie ist eine Gruppe; gearbeitet wird an der
+Einzelinstanz, und deren Zustand ist der einzige, den es gibt. Ihn auf die Gruppe zu
+projizieren geht nur, solange genau ein Stück darunter liegt – bei einer Charge mit
+gemischten Zuständen gibt es keine richtige Antwort, und jede gewählte wäre eine
+Behauptung (Testnotiz #675).
+
 Die Nummer einer Einzelinstanz ist ``<Objektnummer der Instanz>-<suffix>``. Sie kommt
 NICHT aus ``object_id_seq``: eine 1000er-Charge würde sonst 1000 Nummern des gemeinsamen
 Kreises verbrauchen – genau dafür gibt es die Instanz-Ebene.
@@ -14,7 +26,6 @@ from fastapi import HTTPException
 from sqlalchemy import func, insert
 from sqlalchemy.orm import Session
 
-from ..domain import statuses as st
 from ..models import Article, Instance, InstanceUnit
 from ..models.instance import KINDS
 from .objects import next_object_ids, obj_nr
@@ -100,59 +111,8 @@ def units_of(db: Session, instance: Instance) -> list[InstanceUnit]:
 
 
 # ---------------------------------------------------------------------------
-# Zustand – abgeleitet, genau wie die Menge
-# ---------------------------------------------------------------------------
-#
-# Eine Instanz ist eine **Gruppe**; einen eigenen Zustand hat sie so wenig wie eine
-# eigene Menge. Gearbeitet wird an den Einzelinstanzen, also sagt ihr Zustand, was mit
-# der Gruppe los ist: steckt eines ihrer Stücke in einem Auftrag, ist die Gruppe im
-# Prozess – sonst ist sie einsatzbereit.
-#
-# Die Spalte ``instances.status`` gab es; sie stand auf ``new`` und wurde **nie**
-# geschrieben. Ein Feld, das niemand setzt, ist kein Zustand, sondern ein Wert, der
-# irgendwann falsch behauptet wird. Zwei Formen derselben Regel (wie bei der Menge):
-# ``status_of`` auf geladenen Stücken, ``statuses`` als Batch für Feed und Listen.
-
-def status_of(units: Iterable[InstanceUnit]) -> str:
-    """Zustand einer Instanz aus ihren Einzelinstanzen."""
-    return (st.IM_PROZESS if any(u.status == st.IM_PROZESS for u in units)
-            else st.FREIGEGEBEN)
-
-
-def statuses(db: Session, instance_ids: Iterable[int]) -> dict[int, str]:
-    """Zustände für viele Instanzen in EINER Abfrage (Feed/Listen, kein N+1)."""
-    ids = list(instance_ids)
-    if not ids:
-        return {}
-    busy = {
-        int(iid)
-        for (iid,) in db.query(InstanceUnit.instance_id)
-        .filter(
-            InstanceUnit.instance_id.in_(ids),
-            InstanceUnit.is_active.is_(True),
-            InstanceUnit.status == st.IM_PROZESS,
-        )
-        .distinct()
-        .all()
-    }
-    return {int(i): (st.IM_PROZESS if int(i) in busy else st.FREIGEGEBEN) for i in ids}
-
-
-# ---------------------------------------------------------------------------
 # Anlegen
 # ---------------------------------------------------------------------------
-
-def create_instance(db: Session, *, article: Article, kind: str, count: int,
-                    label: Optional[str] = None) -> Instance:
-    """Neue Instanz mit ``count`` Einzelinstanzen.
-
-    ``kind`` und ``count`` werden ausdrücklich verlangt – kein Erraten aus dem Artikel.
-    Der Einzelfall von ``create_instances``: EIN Datensatz mit ``count`` Stück.
-    """
-    return create_instances(
-        db, article=article, kind=kind, instance_count=1, units_each=count, label=label,
-    )[0]
-
 
 def create_instances(db: Session, *, article: Article, kind: str,
                      instance_count: int, units_each: int,
@@ -206,44 +166,4 @@ def create_instances(db: Session, *, article: Article, kind: str,
             for s in range(1, units_each + 1)
         ],
     )
-    return created
-
-
-def add_units(db: Session, instance: Instance, count: int) -> list[InstanceUnit]:
-    """``count`` weitere Einzelinstanzen an einer **bestehenden** Instanz.
-
-    Die zweite Form derselben Regel – ``create_instances`` beginnt bei 1, weil seine
-    Instanzen gerade erst entstehen; hier gibt es schon welche, also zählt es weiter.
-    Beide stehen in diesem Modul, damit die Suffix-Vergabe eine Stelle bleibt.
-
-    Der Suffix ist **kumulierend**: ``MAX(suffix)+1``, ermittelt unter Zeilensperre auf
-    der Instanz, damit zwei gleichzeitige Anlagen nicht dieselbe Nummer ziehen. Da nur
-    soft gelöscht wird, bleibt eine vergebene Nummer in ``MAX`` sichtbar und kommt nie
-    zurück – ein gespeicherter Zähler wäre eine zweite Wahrheit neben den Zeilen.
-    Wird eine Einzelinstanz gelöscht, rückt darum keine nach.
-    """
-    if count < 1:
-        raise HTTPException(status_code=400, detail="Anzahl muss mindestens 1 sein.")
-
-    # Zeilensperre auf der Instanz: sie serialisiert die Suffix-Vergabe dieser Gruppe.
-    locked = (
-        db.query(Instance)
-        .filter(Instance.id == instance.id)
-        .with_for_update()
-        .first()
-    )
-    if locked is None:
-        raise HTTPException(status_code=404, detail="Instanz nicht gefunden.")
-
-    highest = (
-        db.query(func.max(InstanceUnit.suffix))
-        .filter(InstanceUnit.instance_id == instance.id)
-        .scalar()
-    )
-    start = int(highest or 0) + 1
-
-    created = [InstanceUnit(instance_id=instance.id, suffix=s)
-               for s in range(start, start + count)]
-    db.add_all(created)
-    db.flush()
     return created

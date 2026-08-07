@@ -12,8 +12,12 @@ Stück erfassen, ohne dass es irgendwo davorstand.
 
 **Erfassen ist ein Vorgang, kein Formular.** Es gibt darum keinen Endpunkt, der eine
 Erfassung ohne Modul schreibt: geschrieben wird ausschliesslich hier, im selben Zug wie
-der Statuswechsel (``process._pass``). Gelesen wird frei – die Historie einer
-Einzelinstanz ist genau das, was hier entstanden ist.
+der Statuswechsel (``process._pass``).
+
+**Gelesen wird sie am Prozess, nicht am Stück** (Testnotiz #677). Die frühere Historie
+am Instanz-Detail war eine zweite Ansicht auf dieselbe Sache, an einem Ort, an dem man
+nicht arbeitet: erfasst wird an einem Modul, und dort steht auch, was erfasst wurde.
+Die Zeilen selbst bleiben – sie sind der Nachweis, nicht die Ansicht.
 """
 
 from typing import Any, Optional
@@ -71,17 +75,3 @@ def record_for_step(
         out[unit.id] = entry
     db.flush()
     return out
-
-
-def history(db: Session, unit: InstanceUnit) -> list[Capture]:
-    """Alle Erfassungen dieser Einzelinstanz, neueste zuerst.
-
-    **Eingefroren**: es gibt keinen Änderungs- und keinen Löschpfad, weil es dafür keinen
-    Endpunkt gibt. Eine Korrektur wäre eine neue Erfassung.
-    """
-    return (
-        db.query(Capture)
-        .filter(Capture.instance_unit_id == unit.id, Capture.is_active.is_(True))
-        .order_by(Capture.created_at.desc(), Capture.id.desc())
-        .all()
-    )

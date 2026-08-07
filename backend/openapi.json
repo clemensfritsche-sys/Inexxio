@@ -2239,50 +2239,6 @@
             }
           }
         }
-      },
-      "post": {
-        "tags": [
-          "instances"
-        ],
-        "summary": "Create Instance",
-        "operationId": "create_instance_api_v1_erp_instances_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InstanceCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InstanceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/v1/erp/instances/{object_id}": {
@@ -2315,172 +2271,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InstanceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/instances/{object_id}/units": {
-      "post": {
-        "tags": [
-          "instances"
-        ],
-        "summary": "Add Units",
-        "operationId": "add_units_api_v1_erp_instances__object_id__units_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InstanceUnitsAdd"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InstanceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/instances/{object_id}/units/{suffix}": {
-      "delete": {
-        "tags": [
-          "instances"
-        ],
-        "summary": "Deactivate Unit",
-        "description": "Einzelinstanz deaktivieren (soft). Ihre Nummer bleibt vergeben – sie kommt nie zurück.",
-        "operationId": "deactivate_unit_api_v1_erp_instances__object_id__units__suffix__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          },
-          {
-            "name": "suffix",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Suffix"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InstanceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/captures/{number}": {
-      "get": {
-        "tags": [
-          "captures"
-        ],
-        "summary": "List Captures",
-        "description": "Was an dieser Einzelinstanz erfasst wurde – neueste zuerst.\n\nDie **Punkte** kommen aus dem Modul, das sie erfasst hat: ohne sie stünden nur\nSchlüssel und Rohwerte da, und ein Messwert ohne seine Bezeichnung ist eine Zahl.",
-        "operationId": "list_captures_api_v1_erp_captures__number__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "number",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CaptureResponse"
-                  },
-                  "title": "Response List Captures Api V1 Erp Captures  Number  Get"
                 }
               }
             }
@@ -3862,52 +3652,6 @@
         ],
         "title": "Body_upload_attachment_api_v1_erp_attachments_post"
       },
-      "CapturePoint": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "type": {
-            "type": "string",
-            "title": "Type"
-          },
-          "target": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target"
-          },
-          "tolerance": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tolerance"
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "label",
-          "type"
-        ],
-        "title": "CapturePoint",
-        "description": "Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt.\n\n**Alle sind Pflicht** – bestätigt wird erst, wenn jeder ausgefüllt ist."
-      },
       "CapturePointInput": {
         "properties": {
           "label": {
@@ -3950,72 +3694,6 @@
         ],
         "title": "CapturePointInput",
         "description": "Ein Erfassungspunkt, wie ihn die Definition schickt.\n\n``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet\n(``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck\nman erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.\n\n``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche\nZusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);\ndieses Schema ist bewusst die Aussenform und nicht die Regel.\n\nEin ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht."
-      },
-      "CaptureResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "values": {
-            "type": "object",
-            "title": "Values"
-          },
-          "result": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Result"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "step_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Step Name"
-          },
-          "points": {
-            "items": {
-              "$ref": "#/components/schemas/CapturePoint"
-            },
-            "type": "array",
-            "title": "Points"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "values",
-          "result",
-          "created_at"
-        ],
-        "title": "CaptureResponse",
-        "description": "Eine Erfassung an einer Einzelinstanz – **nur lesend**.\n\nEs gibt kein ``CaptureCreate`` mehr: geschrieben wird ausschliesslich im Prozess,\nwenn ein Stück vor einem Modul steht und jemand bestätigt.\n\n``points`` sind die Erfassungspunkte des Moduls, das erfasst hat – sie liegen bei,\nweil ``values`` ohne sie nur Schlüssel und Rohwerte wären. Sie kommen aus dem Modul\nund nicht aus einer Kopie an der Erfassung: der Punkt ist Definition, der Wert ist\nMessung, und die Definition rastet ohnehin ein."
       },
       "CaptureTypeInfo": {
         "properties": {
@@ -5467,43 +5145,6 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "InstanceCreate": {
-        "properties": {
-          "article_object_id": {
-            "type": "integer",
-            "title": "Article Object Id"
-          },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "count": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Count",
-            "description": "Anzahl Einzelinstanzen, mindestens 1"
-          },
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          }
-        },
-        "type": "object",
-        "required": [
-          "article_object_id",
-          "kind",
-          "count"
-        ],
-        "title": "InstanceCreate",
-        "description": "Neue Instanz. Typ und Anzahl werden ausdrücklich verlangt – nichts wird aus dem\nArtikel erraten, damit niemand später über eine stille Vorbelegung stolpert."
-      },
       "InstanceResponse": {
         "properties": {
           "id": {
@@ -5543,10 +5184,6 @@
           "kind": {
             "type": "string",
             "title": "Kind"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
           },
           "label": {
             "anyOf": [
@@ -5591,7 +5228,6 @@
           "object_id",
           "article_id",
           "kind",
-          "status",
           "quantity",
           "units",
           "created_at",
@@ -5599,7 +5235,7 @@
           "is_active"
         ],
         "title": "InstanceResponse",
-        "description": "Instanz mit ihren Einzelinstanzen.\n\n``quantity`` ist **gezählt**, nicht gespeichert – die Instanz hat keine Mengen-Spalte."
+        "description": "Instanz mit ihren Einzelinstanzen.\n\n``quantity`` ist **gezählt**, nicht gespeichert – die Instanz hat keine Mengen-Spalte.\n\nEinen ``status`` trägt sie nicht: eine Gruppe hat keinen Zustand, nur ihre Stücke\nhaben einen (Testnotiz #675)."
       },
       "InstanceSummary": {
         "properties": {
@@ -5629,10 +5265,6 @@
           "kind": {
             "type": "string",
             "title": "Kind"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
           },
           "label": {
             "anyOf": [
@@ -5670,7 +5302,6 @@
           "object_id",
           "article_id",
           "kind",
-          "status",
           "quantity",
           "created_at",
           "updated_at",
@@ -5713,21 +5344,6 @@
         ],
         "title": "InstanceUnitResponse",
         "description": "Eine Einzelinstanz – das Arbeitsobjekt."
-      },
-      "InstanceUnitsAdd": {
-        "properties": {
-          "count": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "count"
-        ],
-        "title": "InstanceUnitsAdd",
-        "description": "Weitere Einzelinstanzen zu einer bestehenden Instanz."
       },
       "ModuleCatalog": {
         "properties": {
