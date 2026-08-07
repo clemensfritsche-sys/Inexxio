@@ -41,10 +41,19 @@ class ModuleConfigInput(BaseModel):
 
 
 class ModuleInput(BaseModel):
-    """Ein Prozessschrittmodul, wie es der Entwurf schickt."""
+    """Ein Prozessschrittmodul, wie es der Entwurf schickt.
+
+    **Keinen Namen.** Wie ein Modul heisst, sagt sein Typ (``domain/modules``) – ein
+    Eingabefeld daneben hätte genau eine richtige Antwort und war trotzdem Pflicht
+    (Testnotiz #682). Es war zugleich die Quelle der Meldung «String should have at
+    least 1 character»: ein leer gelassenes Feld, das der Anwender gar nicht sehen
+    wollte (#686).
+
+    Die **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie
+    steht hier nicht, weil der Entwurf noch keine hat.
+    """
 
     module_type: str
-    name: str = Field(min_length=1, max_length=120)
     config: Optional[ModuleConfigInput] = None
 
 

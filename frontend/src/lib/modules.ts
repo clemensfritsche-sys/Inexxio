@@ -67,12 +67,19 @@ export interface PointDraft {
   tolerance?: string;
 }
 
-/** Ein Modul im Entwurf — dieselbe Form am Artikel wie im Auftrag. */
+/**
+ * Ein Modul im Entwurf — dieselbe Form am Artikel wie im Auftrag.
+ *
+ * **Keinen Namen** (Testnotiz #682): wie ein Modul heisst, sagt sein Typ. Ein Feld
+ * daneben hatte genau eine richtige Antwort und war trotzdem Pflicht – und war damit
+ * die Quelle der Meldung «String should have at least 1 character» (#686).
+ *
+ * Die **Identität** vergibt der Server beim Anlegen (#687); `id` hier ist nur eine
+ * lokale Nummer, denn den Datensatz gibt es noch nicht.
+ */
 export interface ModuleDraft {
-  /** Lokale Nummer; der Datensatz existiert ja noch nicht. */
   id: number;
   moduleType: string;
-  name: string;
   points: PointDraft[];
 }
 
@@ -80,7 +87,6 @@ export interface ModuleDraft {
 export function toModulePayload(m: ModuleDraft) {
   return {
     module_type: m.moduleType,
-    name: m.name,
     config: {
       points: m.points.map((p) => ({
         label: p.label,
@@ -97,7 +103,6 @@ export function toModulePayload(m: ModuleDraft) {
  * Fluss, aber die Freigabe verlangt es vollständig (der Server prüft dasselbe).
  */
 export function moduleIncomplete(m: ModuleDraft): string | null {
-  if (!m.name.trim()) return 'Name fehlt';
   if (m.points.length === 0) return 'kein Erfassungspunkt';
   if (m.points.some((p) => !p.label.trim())) return 'Erfassungspunkt ohne Bezeichnung';
   if (m.points.some((p) => p.type === NEEDS_TARGET && !String(p.target ?? '').trim())) {

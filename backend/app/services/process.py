@@ -173,14 +173,14 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
 def _shape(steps: list[dict[str, Any]]) -> str:
     """Die vergleichbare Form einer Vorlage – **inklusive Konfiguration**.
 
-    Zwei Vorlagen mit gleichen Namen, aber verschiedenen Erfassungspunkten sind nicht
-    dieselbe Vorlage. Ohne die Konfiguration im Vergleich gälten sie als gleich, und der
-    Auftrag führe stillschweigend die eine von beiden.
+    Zwei Vorlagen mit gleichen Modultypen, aber verschiedenen Erfassungspunkten sind
+    nicht dieselbe Vorlage. Ohne die Konfiguration im Vergleich gälten sie als gleich,
+    und der Auftrag führe stillschweigend die eine von beiden.
     """
     import json as _json
 
     return _json.dumps(
-        [[s["module_type"], s["name"], s["status_before"], s["status_after"], s.get("config")]
+        [[s["module_type"], s["status_before"], s["status_after"], s.get("config")]
          for s in steps],
         sort_keys=True, ensure_ascii=False,
     )
@@ -190,16 +190,12 @@ def _from_module(data: dict[str, Any]) -> dict[str, Any]:
     """Eine Modul-Definition aus dem Entwurf in ihre gespeicherte Form bringen.
 
     **Der Übergang wird abgeleitet, nicht übernommen**: er gehört zum Modultyp
-    (``domain/modules``). Was der Entwurf schickt, ist Name und Konfiguration – und die
+    (``domain/modules``). Was der Entwurf schickt, ist Typ und Konfiguration – und die
     läuft durch die Prüfung des Moduls, nicht durch eine Kopie davon.
     """
     module = modules.get(data.get("module_type"))
-    name = (data.get("name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Ein Modul braucht einen Namen.")
     return {
         "module_type": module.key,
-        "name": name[:120],
         "status_before": module.status_before,
         "status_after": module.status_after,
         "config": module.clean_config(data.get("config")),
@@ -346,7 +342,8 @@ def _assert_chain(steps: list[dict[str, Any]]) -> None:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"Die Statuskette bricht bei Schritt {i} «{step['name']}»: davor "
+                    f"Die Statuskette bricht bei Schritt {i} "
+                    f"«{modules.label(step['module_type'])}»: davor "
                     f"steht «{st.label(current)}», das Modul erwartet "
                     f"«{st.label(before)}»."
                 ),
@@ -452,7 +449,6 @@ def release(
             order_id=order.id,
             position=position,
             module_type=step["module_type"],
-            name=step["name"],
             status_before=step["status_before"],
             status_after=step["status_after"],
             config=step.get("config"),
@@ -532,7 +528,8 @@ def confirm_step(
     if not waiting:
         raise HTTPException(
             status_code=409,
-            detail=f"Vor «{step.name}» steht keine Einzelinstanz – der Schritt ist nicht an der Reihe.",
+            detail=(f"Vor «{modules.label(step.module_type)}» steht keine Einzelinstanz – "
+                    f"der Schritt ist nicht an der Reihe."),
         )
 
     following = (
@@ -548,7 +545,7 @@ def confirm_step(
                 status_code=409,
                 detail=(
                     f"Einzelinstanz {_number(db, unit)} steht auf "
-                    f"«{st.label(unit.status)}», «{step.name}» erwartet "
+                    f"«{st.label(unit.status)}», «{modules.label(step.module_type)}» erwartet "
                     f"«{st.label(step.status_before)}»."
                 ),
             )

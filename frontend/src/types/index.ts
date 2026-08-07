@@ -95,6 +95,8 @@ export type ProcessStepResponse = components['schemas']['ProcessStepResponse'];
 export type OrderUnitResponse = components['schemas']['OrderUnitResponse'];
 export type ProcessEventResponse = components['schemas']['ProcessEventResponse'];
 export type UnitOption = components['schemas']['UnitOption'];
+/** Ein Nachbar-Auftrag in der Journey einer Einzelinstanz – gruppiert, mit Stückzahl. */
+export type JourneyStop = components['schemas']['JourneyNeighbour'];
 export type ArticleOption = components['schemas']['ArticleOption'];
 export type OrderLineResponse = components['schemas']['OrderLineResponse'];
 export type UnitGroup = components['schemas']['UnitGroup'];

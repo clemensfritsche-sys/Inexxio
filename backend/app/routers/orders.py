@@ -18,7 +18,8 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, UserProfile,
 )
 from ..schemas.order import (
-    ArticleOption, OrderCreate, OrderLineResponse, OrderResponse, OrderSummary,
+    ArticleOption, JourneyNeighbour, OrderCreate, OrderLineResponse, OrderResponse,
+    OrderSummary,
     OrderUnitPage, OrderUnitResponse, OrderValidation, ProcessEventResponse,
     ProcessStepResponse, UnitGroup, UnitOption,
 )
@@ -27,6 +28,7 @@ from ..schemas.process import (
 )
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
+from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
 from ..services.admin import log_audit
@@ -54,6 +56,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
     events, event_count = process_svc.events_page(db, order, limit=EVENT_LIMIT)
     numbers = _event_numbers(db, events)
     actors = _actor_names(db, {e.actor_id for e in events if e.actor_id})
+    came_from, went_to = journey_svc.neighbours(db, order)
 
     return OrderResponse(
         id=order.id,
@@ -91,6 +94,8 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
             for e in events
         ],
         event_count=event_count,
+        journey_in=[JourneyNeighbour(**n) for n in came_from],
+        journey_out=[JourneyNeighbour(**n) for n in went_to],
         active_step_id=process_svc.active_step_id(db, order),
     )
 

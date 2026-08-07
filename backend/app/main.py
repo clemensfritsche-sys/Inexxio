@@ -4,6 +4,7 @@ from typing import Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -132,6 +133,11 @@ _DROP_COLUMN_SAFETY_NET = (
     # Zustand leiten ihre Einzelinstanzen ab (``instances.status_of``). Die Spalte stand
     # auf ``new`` und wurde nie geschrieben.
     ("instances", "status"),
+    # Der Modulname (Migration 108): ein Modul heisst nach seinem TYP, und als Identität
+    # taugte ein Name nie – die ``id`` ist es. Das Pflichtfeld war zugleich die Quelle
+    # der Meldung «String should have at least 1 character».
+    ("process_steps", "name"),
+    ("article_process_steps", "name"),
     # Die Erfassungsmaske am Artikel (Migration 106): was erfasst wird, sagt das **Modul**.
     # Am Artikel war es eine zweite Stelle für dieselbe Frage – und sie hing an keinem
     # Prozess. Auch im Netz gedroppt, falls Alembic 106 nicht durchlief.
@@ -168,6 +174,12 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "DO $$ BEGIN IF to_regclass('public.order_units') IS NOT NULL THEN "
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_order_units_active "
     "ON order_units (instance_unit_id) WHERE released_at IS NULL; END IF; END $$;",
+    # ►► Die **Journey** (services/journey): «welcher Auftrag war vor bzw. nach diesem?»
+    #    ist ein Sprung an die Nachbar-Zeile derselben Einzelinstanz. Ohne diesen Index
+    #    wird daraus ein Sortieren über alle Ereignisse des Stücks.
+    "DO $$ BEGIN IF to_regclass('public.process_events') IS NOT NULL THEN "
+    "CREATE INDEX IF NOT EXISTS ix_process_events_unit_timeline "
+    "ON process_events (instance_unit_id, id); END IF; END $$;",
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
@@ -600,6 +612,103 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
     else:
         detail = "Die Angaben verletzen eine Datenbank-Regel und wurden nicht gespeichert."
     return JSONResponse(status_code=400, content={"detail": detail, "code": "INTEGRITY_ERROR"})
+
+
+#: Rohe Pydantic-Meldungen → Klartext. Sie sagen, was die **Regel** war, nie was der
+#: Mensch tun soll: «String should have at least 1 character» ist wahr und trotzdem
+#: unbrauchbar (Testnotiz #686). Was hier nicht steht, wird als Regel-Satz durchgereicht –
+#: sichtbar bleibt er, nur mit Feldnamen davor.
+_VALIDATION_TEXTS: tuple[tuple[str, str], ...] = (
+    ("Field required", "fehlt"),
+    ("at least 1 character", "darf nicht leer sein"),
+    ("at least", "ist zu kurz"),
+    ("at most", "ist zu lang"),
+    ("valid integer", "muss eine ganze Zahl sein"),
+    ("valid number", "muss eine Zahl sein"),
+    ("valid boolean", "muss ja oder nein sein"),
+    ("greater than or equal", "ist zu klein"),
+    ("less than or equal", "ist zu gross"),
+    ("valid list", "muss eine Liste sein"),
+    ("valid dictionary", "hat die falsche Form"),
+)
+
+#: Feldnamen → das Wort, das der Mensch auf dem Bildschirm sieht. Ein Feld, das hier
+#: fehlt, erscheint mit seinem technischen Namen – unschön, aber ehrlich, und es fällt
+#: auf. Eine erfundene Übersetzung wäre schlimmer.
+_FIELD_LABELS: dict[str, str] = {
+    "name": "Name",
+    "quantity": "Menge",
+    "size": "Abmessungen",
+    "weight_kg": "Gewicht",
+    "unit": "Mengeneinheit",
+    "serialization": "Serialisierung",
+    "module_type": "Modultyp",
+    "label": "Bezeichnung",
+    "type": "Typ",
+    "target": "Sollwert",
+    "tolerance": "Toleranz",
+    "points": "Erfassungspunkte",
+    "steps": "Prozessschrittmodule",
+    "lines": "Definitionszeilen",
+    "article_object_id": "Artikel",
+    "origin": "Herkunft",
+    "values": "Erfassung",
+    "config": "Konfiguration",
+}
+
+
+def _field_path(loc: tuple) -> str:
+    """``('body', 'steps', 0, 'name')`` → «Prozessschrittmodule → 1 → Name».
+
+    **Wo** der Fehler steckt, ist die halbe Meldung. Ohne den Pfad steht bei einem
+    Auftrag mit acht Modulen nur da, dass irgendwo etwas zu kurz ist. Listen-Indizes
+    werden dabei ab 1 gezählt – für einen Menschen ist das erste Modul das erste.
+    """
+    parts: list[str] = []
+    for item in loc:
+        if item in ("body", "query", "path"):
+            continue
+        if isinstance(item, int):
+            parts.append(str(item + 1))
+        else:
+            parts.append(_FIELD_LABELS.get(str(item), str(item)))
+    return " → ".join(parts)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    """Eingabefehler in **Klartext**: was fehlt, und wo.
+
+    Vorher reichte FastAPI seine Liste roher Validator-Texte durch, und die Oberfläche
+    zeigte sie unverändert an – «String should have at least 1 character», ohne Feld,
+    ohne Ort (Testnotiz #686). Der Nutzer sah kein Feld, in dem etwas fehlte, weil das
+    betroffene gar nicht auf seinem Bildschirm stand.
+
+    Die Regel für **jede** Fehlermeldung: sie sagt, **was** fehlt und **wo**. Rohe
+    Validator-Texte gehören ins Log, nicht ins Formular. Darum steht dieser Handler an
+    genau einer Stelle statt als Übersetzung an jedem Endpunkt.
+    """
+    seen: list[str] = []
+    for err in exc.errors():
+        where = _field_path(tuple(err.get("loc") or ()))
+        # ``Value error, …`` ist Pydantic-Rahmen um eine **selbst geschriebene** Meldung
+        # aus einem Feld-Validator. Die ist bereits Klartext – sie braucht die Übersetzung
+        # nicht, nur den Rahmen weg.
+        raw = str(err.get("msg") or "").removeprefix("Value error, ")
+        what = next((text for needle, text in _VALIDATION_TEXTS if needle in raw), raw)
+        # Nennt die Meldung ihr Feld schon selbst, wäre der Pfad davor ein Stottern
+        # («Name: Name ist ein Pflichtfeld»).
+        head = where.split(" → ")[-1] if where else ""
+        line = what if (head and head.lower() in what.lower()) else (
+            f"{where}: {what}" if where else what)
+        if line not in seen:
+            seen.append(line)
+    print(f"WARNING: 422 on {request.method} {request.url.path} – {exc.errors()}", flush=True)
+    return JSONResponse(
+        status_code=422,
+        content={"detail": " · ".join(seen) or "Die Eingaben sind unvollständig.",
+                 "code": "VALIDATION_ERROR"},
+    )
 
 
 @app.exception_handler(Exception)

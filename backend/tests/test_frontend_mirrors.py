@@ -1328,3 +1328,203 @@ def test_a_piece_number_is_written_the_same_way_everywhere():
     users = [f.name for f in (FRONTEND / "components").rglob("*.tsx")
              if "<UnitNumber" in _read(f)]
     assert len(users) >= 4, f"Nur {users} nutzen das gemeinsame Bauteil."
+
+
+# ---------------------------------------------------------------------------
+# Die Journey der Einzelinstanz (Teil A)
+# ---------------------------------------------------------------------------
+
+def test_the_journey_is_derived_never_maintained():
+    """**Abgeleitet, nicht gepflegt** – die harte Vorgabe an die Journey.
+
+    Zeiger-Felder (``vorheriger_auftrag`` / ``naechster_auftrag``) müssten bei jeder
+    Freigabe mitgeschrieben werden und liefen irgendwann auseinander. Dann wäre die
+    Journey für genau das unbrauchbar, was sie beweisen soll. Die Quelle ist darum die,
+    die es ohnehin gibt: der append-only Ereignis-Log.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.models import Order, ProcessEvent
+
+    for forbidden in ("previous_order_id", "next_order_id", "prev_order_id"):
+        assert forbidden not in Order.__table__.columns, (
+            f"«{forbidden}» ist ein gepflegter Zeiger – die Journey wird abgeleitet."
+        )
+    svc = _read(BACKEND / "app" / "services" / "journey.py")
+    assert "ProcessEvent" in svc, "Die Journey liest nicht den Ereignis-Log."
+    # Kein zweiter Datenbestand: gelesen wird, geschrieben nicht.
+    for write in ("db.add(", "insert(", "update(", "db.commit("):
+        assert write not in svc, f"Die Journey schreibt («{write}») – sie soll nur lesen."
+
+
+def test_the_journey_scales_by_grouping_not_by_listing():
+    """Bei 5000 Stück werden **Nachbarn gezählt**, nicht 5000 Verweise gerendert.
+
+    Zwei Abfragen je Auftrag, unabhängig von der Stückzahl – kein N+1. Und die Antwort
+    ist eine Liste je Nachbar-Auftrag mit Anzahl, keine Liste je Stück.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.schemas.order import JourneyNeighbour
+
+    assert set(JourneyNeighbour.model_fields) == {"object_id", "name", "unit_count"}, (
+        "Der Nachbar trägt etwas anderes als Objektnummer, Name und Anzahl."
+    )
+    svc = _read(BACKEND / "app" / "services" / "journey.py")
+    assert "func.count()" in svc and "group_by" in svc, "Es wird nicht gruppiert."
+    assert "for " not in _body(svc, "_neighbour_counts").split("return")[0], (
+        "Die Nachbarn werden je Stück einzeln geholt – das ist ein N+1."
+    )
+    # Der Index, der den Sprung an die Nachbarzeile trägt.
+    main = _read(BACKEND / "app" / "main.py")
+    assert "ix_process_events_unit_timeline" in main, (
+        "Der Journey-Index fehlt im Lifespan-Netz."
+    )
+
+
+def test_no_neighbour_means_nothing_shown():
+    """Kein Vorgänger/Nachfolger → **nichts**, kein Platzhalter mit Fantasiedaten."""
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    pushes = re.findall(r"^\s*(.*out\.push\(\{ id: 'journey-\w+'.*)$", diagram, re.M)
+    assert len(pushes) == 2, f"Erwartet zwei Journey-Knoten, gefunden {len(pushes)}."
+    for line in pushes:
+        assert re.match(r"if \(journey(In|Out)\.length\) ", line.strip()), (
+            f"Der Journey-Knoten entsteht unbedingt – bei leerer Liste stünde eine "
+            f"leere Zeile: «{line.strip()}»"
+        )
+    assert "useErpNav" in diagram, (
+        "Der Verweis ist nicht anklickbar – oder er benutzt eine zweite Navigation."
+    )
+
+
+# ---------------------------------------------------------------------------
+# #682 / #687 – die ID ist die Identität, der Typ der Name
+# ---------------------------------------------------------------------------
+
+def test_a_module_is_identified_by_its_id_and_named_by_its_type():
+    """**Kein Modulname** – weder als Feld noch als Identität.
+
+    Der Name war immer «Datenerfassung» und trotzdem Pflicht (#682); als *Identität*
+    taugte er nie (#687): ein Name lässt sich ändern, doppelt vergeben oder leer lassen,
+    und dann zeigt die Historie auf etwas, das es so nie gab.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.models import ArticleProcessStep, ProcessStep
+    from app.schemas.process import ModuleInput
+
+    for model in (ProcessStep, ArticleProcessStep):
+        assert "name" not in model.__table__.columns, (
+            f"{model.__name__} trägt wieder einen Namen."
+        )
+    assert "name" not in ModuleInput.model_fields, "Der Entwurf schickt wieder einen Namen."
+
+    # Beschriftet wird aus der Registry – an EINER Stelle.
+    from app.domain import modules
+    assert modules.label(modules.DATENERFASSUNG) == "Datenerfassung"
+    assert modules.label("gibtsnicht") == "gibtsnicht", (
+        "Ein unbekannter Typ wird schöngefärbt statt gemeldet."
+    )
+
+
+def test_the_history_points_at_the_id_not_at_a_name():
+    """Die Historie referenziert **ausschliesslich die ID** – nie den Namen, nie die
+    Position. Die Beschriftung daneben kommt aus dem Modultyp."""
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.models import ProcessEvent
+
+    assert "step_id" in ProcessEvent.__table__.columns
+    for forbidden in ("step_name", "module_name", "position"):
+        assert forbidden not in ProcessEvent.__table__.columns, (
+            f"Der Log trägt «{forbidden}» – er soll auf die ID zeigen."
+        )
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    log = _body(detail, "EventLog", kind="function")
+    assert "e.step_id" in log, "Die Historie löst den Schritt nicht über seine ID auf."
+    assert "s.name" not in log, "Die Historie beschriftet wieder über einen Namen."
+
+
+# ---------------------------------------------------------------------------
+# #683 / #684 / #686 / #688
+# ---------------------------------------------------------------------------
+
+def test_the_capture_type_is_chosen_once():
+    """Die Art eines Erfassungspunktes wird über die **Palette** gewählt – nicht daneben
+    noch einmal über ein Auswahlfeld. Zwei Wege zur selben Entscheidung sind einer zu
+    viel (#683); gezeigt wird sie als Symbol der Zeile."""
+    src = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
+    assert "<select" not in src, "Der Erfassungstyp hat wieder ein Auswahlfeld."
+    assert "PointIcon" in src, "Die Art der Zeile ist nicht mehr erkennbar."
+    assert "ix-palette-sm" in src, "Die Palette, die die Art wählt, fehlt."
+
+
+def test_the_process_picture_brings_its_own_width():
+    """Der Prozess sieht am Artikel **genau so aus** wie im Auftrag (#684).
+
+    Es war schon EINE Komponente – aber der Artikel stellte sie in einen 880-px-Container
+    und der Auftrag in einen 620er. Eine visuelle Abweichung ist der Beweis, dass irgendwo
+    zwei Stände sind; hier war es nicht die Komponente, sondern das Mass. Also bringt sie
+    es selbst mit.
+    """
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    assert "export const PROCESS_MAXW" in diagram, "Das Prozessbild hat keine eigene Breite."
+    assert "maxWidth: PROCESS_MAXW" in diagram
+    width = re.search(r"export const PROCESS_MAXW\s*=\s*(\d+)", diagram)
+    assert width, "PROCESS_MAXW ist keine Zahl."
+    _PROCESS_MAXW = int(width.group(1))
+    for name in ("article-detail.tsx", "order-detail.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        assert "ProcessDesigner" in src or "ProcessDiagram" in src
+        assert "function StepCard" not in src, f"{name} baut die Modul-Karte nach."
+        # **Das Mass steht nur an EINER Stelle.** Wer die Zahl abschreibt, hat wieder
+        # zwei Stände – genau die Lage, aus der der gemeldete Unterschied entstand.
+        assert str(_PROCESS_MAXW) not in src, (
+            f"{name} schreibt die Prozessbreite ab, statt PROCESS_MAXW zu lesen."
+        )
+
+
+def test_a_validation_error_says_what_is_missing_and_where():
+    """Rohe Validator-Texte gehören nicht ins UI (#686).
+
+    «String should have at least 1 character» ist wahr und trotzdem unbrauchbar: kein
+    Feld, kein Ort. Der Handler steht an **einer** Stelle statt als Übersetzung an jedem
+    Endpunkt.
+    """
+    main = _read(BACKEND / "app" / "main.py")
+    assert "@app.exception_handler(RequestValidationError)" in main, (
+        "Eingabefehler laufen wieder in FastAPIs Vorgabe – rohe Validator-Texte im UI."
+    )
+    body = _body(main, "validation_error_handler")
+    assert "_field_path" in body, "Die Meldung nennt nicht, WO der Fehler steckt."
+    assert "_VALIDATION_TEXTS" in body, "Die Meldung nennt nicht in Klartext, WAS fehlt."
+
+
+def test_the_feed_learns_about_every_write_from_one_place():
+    """Feed und Detail lesen **dieselbe** Ableitung – der Feed hatte nur einen alten
+    Stand (#688), und eine frische Instanz erschien erst nach Reload (#685).
+
+    Gemeldet wird das an genau einer Stelle: jede Anfrage, die kein GET ist. Ein
+    Aufrufer kann es damit nicht vergessen, und ein zweiter Melde-Weg kann nicht
+    entstehen.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import process as process_svc
+
+    # Eine Quelle: der Feed leitet ab wie das Detail.
+    router = _read(BACKEND / "app" / "routers" / "orders.py")
+    assert "process_svc.order_statuses" in router and "process_svc.order_status" in router
+    assert hasattr(process_svc, "order_statuses")
+
+    api = _read(FRONTEND / "lib" / "api.ts")
+    assert "function notifyDataChanged" in api, "Die Meldestelle fehlt."
+    assert "if (!idempotent) notifyDataChanged(path);" in api, (
+        "Nicht jede schreibende Anfrage meldet – dann bleibt der Feed irgendwann stehen."
+    )
+    # Und kein zweiter Melde-Weg in den Detailfenstern.
+    for name in ("order-detail.tsx", "article-detail.tsx", "instance-detail.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        assert "inexxio:data-changed" not in src, (
+            f"{name} meldet selbst – das ist der zweite Weg."
+        )

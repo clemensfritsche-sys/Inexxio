@@ -63,7 +63,8 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
     wäre eine Tür in einen Datensatz, der schon Aufträge speisen kann.
 
     Der **Übergang wird nicht übernommen, sondern abgeleitet**: er gehört zum Modultyp
-    (``domain/modules``). Was der Entwurf schickt, ist Name und Konfiguration.
+    (``domain/modules``). Was der Entwurf schickt, ist Typ und Konfiguration – einen
+    **Namen** gibt es nicht mehr (Testnotiz #682): wie ein Modul heisst, sagt sein Typ.
     """
     if not raw:
         raise HTTPException(
@@ -74,14 +75,10 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
     out: list[ArticleProcessStep] = []
     for position, data in enumerate(raw, start=1):
         module = modules.get(data.get("module_type"))
-        name = (data.get("name") or "").strip()
-        if not name:
-            raise HTTPException(status_code=400, detail="Ein Modul braucht einen Namen.")
         step = ArticleProcessStep(
             article_id=article.id,
             position=position,
             module_type=module.key,
-            name=name[:120],
             status_before=module.status_before,
             status_after=module.status_after,
             config=module.clean_config(data.get("config")),
@@ -105,7 +102,6 @@ def mirror(db: Session, article: Article) -> list[dict[str, Any]]:
     return [
         {
             "module_type": s.module_type,
-            "name": s.name,
             "status_before": s.status_before,
             "status_after": s.status_after,
             # **Die Konfiguration muss mit.** Ohne sie käme ein Datenerfassungs-Modul

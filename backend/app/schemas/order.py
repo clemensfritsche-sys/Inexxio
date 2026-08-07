@@ -9,7 +9,9 @@ Transaktionen und damit die Möglichkeit eines halben Auftrags.
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from ..domain import modules
 
 from .process import ModuleInput
 
@@ -50,12 +52,19 @@ class OrderValidation(BaseModel):
 
 
 class ProcessStepResponse(BaseModel):
+    """Ein Modul im laufenden Auftrag.
+
+    **Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie
+    und auf nichts sonst. ``label`` ist nur die Beschriftung und **abgeleitet** aus
+    ``domain/modules`` – ein gespeicherter Name wäre eine zweite Aussage darüber, was
+    dieses Modul ist, und die erste falsche Eingabe liesse beide auseinanderlaufen.
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     position: int
     module_type: str
-    name: str
     status_before: str
     status_after: str
     #: Was der Modultyp braucht – bei der Datenerfassung die Erfassungspunkte.
@@ -63,6 +72,12 @@ class ProcessStepResponse(BaseModel):
     #: Gesetzt, wenn dieser Schritt die **Kopie** eines Artikel-Erzeugungsprozesses ist.
     source_article_id: Optional[int] = None
     source_version: Optional[int] = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def label(self) -> str:
+        """Wie das Modul heisst – aus der Registry, nicht aus einer Spalte."""
+        return modules.label(self.module_type)
 
 
 class OrderLineResponse(BaseModel):
@@ -124,6 +139,19 @@ class ProcessEventResponse(BaseModel):
     created_at: datetime
 
 
+class JourneyNeighbour(BaseModel):
+    """Ein Nachbar-Auftrag in der Journey – **gruppiert**, nicht je Stück.
+
+    Bei 5000 Einzelinstanzen will niemand 5000 Verweise sehen; die Frage lautet «wie
+    viele kamen woher», nicht «welche». Wer die einzelnen Stücke braucht, öffnet den
+    genannten Auftrag – dort stehen sie.
+    """
+
+    object_id: int
+    name: str
+    unit_count: int
+
+
 class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -147,6 +175,14 @@ class OrderResponse(BaseModel):
     #: Wie viele Einträge der Log **insgesamt** hat. Ist er länger als ``events``, sagt
     #: die Oberfläche das – ein stumm gekappte Liste sähe aus wie die ganze Wahrheit.
     event_count: int = 0
+
+    #: **Die Journey** (Testnotiz-Auftrag Teil A) – woher die Stücke dieses Auftrags
+    #: kamen und wohin sie gingen. Beides **abgeleitet** aus dem Ereignis-Log
+    #: (``services/journey``), nicht gepflegt: Zeiger-Felder liefen irgendwann
+    #: auseinander, und dann wäre die Journey für genau das unbrauchbar, was sie
+    #: beweisen soll. Leer heisst «keiner» – kein Platzhalter, nichts erfunden.
+    journey_in: list[JourneyNeighbour] = Field(default_factory=list)
+    journey_out: list[JourneyNeighbour] = Field(default_factory=list)
     #: Welches Modul ist jetzt dran – **abgeleitet**, nicht gespeichert.
     active_step_id: Optional[int] = None
 

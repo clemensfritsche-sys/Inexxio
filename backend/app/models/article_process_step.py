@@ -21,6 +21,10 @@ class ArticleProcessStep(Base, TimestampMixin):
     gehören» mitschleppen; wer es einmal vergisst, führt eine Vorlage aus. Was es nicht
     gibt, kann nicht aufgerufen werden.
 
+    Auch hier gilt: **die ``id`` ist die Identität**, der Typ sagt den Namen. Ein
+    Namensfeld gab es, es war immer «Datenerfassung», und es war trotzdem Pflicht – ein
+    Feld, dessen einzige richtige Antwort feststeht, ist keine Frage (#682).
+
     **Kopie, nicht Verweis.** Bei der Freigabe wird diese Liste in ``process_steps``
     **kopiert** und mit ``Article.process_version`` gestempelt. Ein Verweis hiesse, dass
     eine spätere Artikeländerung rückwirkend laufende Aufträge umschreibt — das
@@ -34,7 +38,6 @@ class ArticleProcessStep(Base, TimestampMixin):
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     module_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
     status_before: Mapped[str] = mapped_column(String(30), nullable=False)
     status_after: Mapped[str] = mapped_column(String(30), nullable=False)
     config: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
