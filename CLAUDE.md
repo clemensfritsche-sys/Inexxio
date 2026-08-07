@@ -35,9 +35,15 @@
 > Signatur · Soll-Ist-Vergleich, je Typ eine Datei in `domain/capture_types/`).
 > **Abweichungen sind ganz normale Aufträge** (PROCESS_CORE §12): ein Auftrag, der Stücke
 > mit Status `Im Prozess` greift, entzieht sie dem laufenden Auftrag und trägt dafür ein
-> **abgeleitetes** Label. Ob ein Stück zurückkehrt, ist eine Eigenschaft der **Verbindung**
+> **abgeleitetes** Label (im Bild ein Zeichen am Symbol, in Feed und Kopf dieselbe
+> Komponente). Ob ein Stück zurückkehrt, ist eine Eigenschaft der **Verbindung**
 > (`order_units.return_to_order_id`), nicht des Auftrags – darum funktionieren Schachtelung
 > und Parallelität ohne zweite Regel. Kein `if abweichung:` im Code.
+> **Die Abzweigung hängt an einem Zustandspunkt** («vor Modul X» = `current_step_id`), nicht
+> an einem Modul – das Stück hat es nie betreten, und darum kehrt es an denselben Punkt
+> zurück. **Solange eine Rückführung aussteht, ist das Modul gesperrt**: durchgesetzt an
+> der EINEN Ausführungsstelle (`process.confirm_step`), dargestellt in der EINEN Modul-Karte
+> (`StepCard`, `fieldset[disabled]`) – ein Modul fragt nicht, ob es darf.
 > Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
 > Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
 

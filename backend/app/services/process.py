@@ -178,23 +178,33 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
             unit_numbers=[str(n) for n in (row.get("unit_numbers") or [])],
             returns=bool(row.get("returns", True)),
         ))
+    _assert_single_new(out)
     return out
 
 
-def _shape(steps: list[dict[str, Any]]) -> str:
-    """Die vergleichbare Form einer Vorlage – **inklusive Konfiguration**.
+def _assert_single_new(lines: list[_Line]) -> None:
+    """**«Neu» ist eine Herkunft für sich allein** (Testnotiz #693).
 
-    Zwei Vorlagen mit gleichen Modultypen, aber verschiedenen Erfassungspunkten sind
-    nicht dieselbe Vorlage. Ohne die Konfiguration im Vergleich gälten sie als gleich,
-    und der Auftrag führe stillschweigend die eine von beiden.
+    Ein Erzeugungsauftrag fährt die **Vorlage des Artikels**, als Kopie mit
+    Versionsstempel (§2.1). Der Stempel sagt «diese Stücke sind genau so entstanden, wie
+    Artikel X es beschreibt» – und das gilt nur für die Stücke dieses einen Artikels. Eine
+    zweite Zeile liefe durch denselben Prozess, obwohl er nicht ihrer ist: der Stempel
+    wäre für sie eine Behauptung.
+
+    Die Regel liest sich von beiden Enden gleich: mit «Neu» kommt keine zweite Zeile dazu,
+    und zu einer zweiten Zeile lässt sich «Neu» nicht mehr wählen. Zwei Erzeugungen sind
+    zwei Aufträge.
     """
-    import json as _json
-
-    return _json.dumps(
-        [[s["module_type"], s["status_before"], s["status_after"], s.get("config")]
-         for s in steps],
-        sort_keys=True, ensure_ascii=False,
-    )
+    new_lines = [ln for ln in lines if ln.origin == NEU]
+    if new_lines and len(lines) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{new_lines[0].label}: «Neu» steht für sich allein – ein Erzeugungsauftrag "
+                f"fährt die Vorlage genau dieses Artikels. Für den zweiten Artikel einen "
+                f"eigenen Auftrag anlegen."
+            ),
+        )
 
 
 def _from_module(data: dict[str, Any]) -> dict[str, Any]:
@@ -221,39 +231,25 @@ def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) 
       der Artikel es sagt, sonst wäre der Stempel eine Behauptung.
     - Sonst (reiner ``Lager``-Auftrag) ist es der im Entwurf modellierte Prozess.
 
-    Bringen zwei ``Neu``-Zeilen **verschiedene** Vorlagen mit, ist das ein harter Fehler:
-    ein Auftrag hat einen Prozess. Welcher der beiden gälte, kann das System nicht
-    entscheiden, und raten wäre hier besonders teuer.
+    Eine ``Neu``-Zeile steht für sich allein (``_assert_single_new``, #693) – die Frage
+    «welche von zwei Vorlagen gilt» kann es darum gar nicht geben.
     """
     new_lines = [ln for ln in lines if ln.origin == NEU]
     if not new_lines:
         return [_from_module(s) for s in submitted]
 
-    variants: list[tuple[list[dict[str, Any]], _Line]] = []
-    for ln in new_lines:
-        copied = article_process.mirror(db, ln.article)
-        if not copied:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"{ln.label}: dieser Artikel hat keinen Erzeugungsprozess. "
-                    f"«Neu» ist erst wählbar, wenn im Artikel-Reiter «Erzeugungsprozess» "
-                    f"mindestens ein Modul steht."
-                ),
-            )
-        shape = _shape(copied)
-        if variants and shape != _shape(variants[0][0]):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"{variants[0][1].label} und {ln.label} bringen verschiedene "
-                    f"Erzeugungsprozesse mit – ein Auftrag hat einen Prozess. Lege für "
-                    f"den zweiten Artikel einen eigenen Auftrag an."
-                ),
-            )
-        if not variants:
-            variants.append((copied, ln))
-    return variants[0][0]
+    ln = new_lines[0]
+    copied = article_process.mirror(db, ln.article)
+    if not copied:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{ln.label}: dieser Artikel hat keinen Erzeugungsprozess. "
+                f"«Neu» ist erst wählbar, wenn im Artikel-Reiter «Erzeugungsprozess» "
+                f"mindestens ein Modul steht."
+            ),
+        )
+    return copied
 
 
 # ---------------------------------------------------------------------------
@@ -618,6 +614,24 @@ def confirm_step(
                     f"es gibt nichts mehr zu bestätigen."),
         )
 
+    # ►► **Die Sperre — hier und nur hier.** ◄◄
+    #
+    # Sie steht am EINEN Ausführungs-Mechanismus, den jedes Modul auslöst, und nicht in
+    # einem Modul. Ein neuer Modultyp erbt sie damit, ohne eine Zeile dafür zu schreiben –
+    # er fragt gar nicht, ob er darf, ihm wird gesagt, dass er nicht darf.
+    blocked = pending_returns(db, order).get(step.id)
+    if blocked:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"«{modules.label(step.module_type)}» wartet auf die Rückführung aus "
+                + ("Auftrag " if len(blocked) == 1 else "den Aufträgen ")
+                + ", ".join(str(n) for n in blocked)
+                + ". Solange dort etwas offen ist, gehört es zu dem, was hier bearbeitet "
+                  "wird – bestätigen hiesse ohne dieses Stück fortzufahren."
+            ),
+        )
+
     waiting = _units_at(db, order, step.id)
     if not waiting:
         raise HTTPException(
@@ -960,6 +974,79 @@ def waiting_counts(db: Session, order_ids: list[int]) -> dict[int, int]:
     return out
 
 
+def pending_returns(db: Session, order: Order) -> dict[int, list[int]]:
+    """**Worauf wartet welches Modul?** — Modul-id → Objektnummern der Abweichungen.
+
+    Ein Stück, das an einem Zustandspunkt ausgeschert ist und **zurückkommt**, gehört zu
+    dem, was an diesem Punkt bearbeitet wird. Solange es unterwegs ist, darf das Modul
+    dahinter nicht laufen: bestätigen hiesse ohne dieses Stück fortzufahren – und
+    hinterher wäre es zurück, aber der Zug abgefahren.
+
+    **Gekappte Ausleihen sperren nichts.** Sie kommen nie zurück; der Auftrag läuft mit
+    weniger Stücken weiter und wartet ausdrücklich nicht (§3.4). Ohne diese Unterscheidung
+    stünde jedes Modul, aus dem je etwas ausgesondert wurde, für immer still.
+
+    **Die Kette zählt** (§3.5): leiht A an B und B weiter an C, wartet auch A – das Stück
+    ist unterwegs zu ihm, nur eine Stufe tiefer. Genannt wird dabei der Auftrag, in dem es
+    **jetzt** steckt: dort ist etwas zu tun, damit es weitergeht.
+
+    Abgeleitet, nicht gespeichert – wie alles hier. Ein Sperr-Flag am Modul wäre ein
+    zweiter Ort für dieselbe Aussage, und der erste vergessene Rückweg liesse ihn stehen.
+    """
+    away = (
+        db.query(OrderUnit)
+        .filter(
+            OrderUnit.order_id == order.id,
+            OrderUnit.released_at.isnot(None),
+            OrderUnit.current_step_id.isnot(None),
+        )
+        .all()
+    )
+    if not away:
+        return {}
+    at = {m.instance_unit_id: m.current_step_id for m in away}
+    holders = held_by(db, list(at))
+    if not holders:
+        return {}
+
+    upward: dict[tuple[int, int], int] = {}
+    for part in _chunks(list(at)):
+        for m in (
+            db.query(OrderUnit)
+            .filter(
+                OrderUnit.instance_unit_id.in_(part),
+                OrderUnit.return_to_order_id.isnot(None),
+            )
+            .all()
+        ):
+            upward[(m.order_id, m.instance_unit_id)] = m.return_to_order_id
+
+    found: dict[int, set[int]] = {}
+    for unit_id, holder in holders.items():
+        step_id = at.get(unit_id)
+        if step_id is None:
+            continue
+        target, seen = upward.get((holder.order_id, unit_id)), set()
+        while target is not None and target not in seen:
+            seen.add(target)
+            if target == order.id:
+                found.setdefault(int(step_id), set()).add(holder.order_id)
+                break
+            target = upward.get((target, unit_id))
+    if not found:
+        return {}
+
+    ids = {oid for group in found.values() for oid in group}
+    numbers = {
+        o.id: o.object_id
+        for o in db.query(Order).filter(Order.id.in_(ids)).all()
+    }
+    return {
+        step_id: sorted(numbers[oid] for oid in group if oid in numbers)
+        for step_id, group in found.items()
+    }
+
+
 def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
     """Der Zustand **vieler** Aufträge – für den Feed, ohne N+1.
 
@@ -1062,6 +1149,35 @@ def events_page(db: Session, order: Order, *, limit: int) -> tuple[list[ProcessE
         .all()
     )
     return list(reversed(rows)), int(total)
+
+
+def started_at(db: Session, order: Order, unit_ids: list[int]) -> dict[int, datetime]:
+    """**Wann hat dieses Stück das Start-Objekt passiert?** — je Stück, aus dem Log.
+
+    Der Start ist ein Ereignis wie jedes andere, und sein Zeitstempel steht bereits im
+    Log. Eine Spalte ``gestartet_am`` daneben wäre eine Kopie, die beim ersten Nacherfassen
+    von der Wahrheit abweicht – und die Wahrheit ist der Log (§7.2).
+
+    Gemeint ist der Eintritt in **diesen** Auftrag: ein Stück, das ausschert, passiert im
+    Abweichungsauftrag ein zweites Start-Objekt, und dort ist «seit wann läuft es hier»
+    eine andere Zahl als im Auftrag darüber.
+    """
+    if not unit_ids:
+        return {}
+    out: dict[int, datetime] = {}
+    for part in _chunks(list(unit_ids)):
+        for uid, at in (
+            db.query(ProcessEvent.instance_unit_id, func.min(ProcessEvent.created_at))
+            .filter(
+                ProcessEvent.order_id == order.id,
+                ProcessEvent.kind == KIND_START,
+                ProcessEvent.instance_unit_id.in_(part),
+            )
+            .group_by(ProcessEvent.instance_unit_id)
+            .all()
+        ):
+            out[int(uid)] = at
+    return out
 
 
 def unit_numbers(db: Session, units: Iterable[InstanceUnit]) -> dict[int, str]:

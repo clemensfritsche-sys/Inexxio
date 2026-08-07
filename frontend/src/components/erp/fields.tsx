@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
+import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
+import { TYPE_META } from '@/lib/erp-record';
+import type { ErpRecordType } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 
 // ─── Karte: der Container eines Formular-Abschnitts ──────────────────────────
@@ -346,16 +348,86 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
  * Zeile darunter – und die Aktionen dort, wo sie hingehören: bei der Objektnummer. Rechts
  * bleibt allein der Zustand (plus optional die Speicher-Anzeige).
  */
+/**
+ * **Das Symbol eines Datensatzes — EINE Komponente für Feed und Detail-Kopf** (#697/#699).
+ *
+ * Symbol, Farbfamilie und Form kommen aus `TYPE_META`; nur die **Grösse** unterscheidet
+ * die beiden Orte. Ein Benutzer ist rund (ein Foto in einem Quadrat sieht falsch aus) –
+ * diese eine Formregel steht **hier**, abgeleitet aus dem Typ, damit keine Aufrufstelle
+ * sie neu erfinden kann.
+ *
+ * **Die Abweichung ist ein Zeichen am Symbol, kein Textlabel** (#699). Sie ist keine
+ * Eigenschaft des Auftrags, sondern eine Auskunft über die Herkunft seiner Stücke – und
+ * weil Feed und Kopf dieselbe Komponente benutzen, können sie nicht auseinanderlaufen
+ * (genau der Fehler aus #688).
+ */
+export function RecordIcon({ type, size, photoUrl, initials, deviation }: {
+  type: ErpRecordType;
+  size: number;
+  photoUrl?: string | null;
+  initials?: string;
+  deviation?: boolean;
+}) {
+  const meta = TYPE_META[type];
+  const Icon = meta.icon;
+  const round = type === 'user';
+  const mark = Math.max(11, Math.round(size * 0.34));
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flex: 'none' }}>
+      <div style={{
+        width: '100%', height: '100%', overflow: 'hidden',
+        borderRadius: round ? '50%' : 'var(--r-md)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: photoUrl ? 'transparent' : meta.bg,
+        color: meta.fg,
+        font: `700 ${Math.round(size * 0.34)}px var(--font-body)`,
+      }}>
+        {photoUrl
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : initials || <Icon size={Math.round(size * 0.46)} />}
+      </div>
+      {deviation && (
+        <span
+          style={{
+            position: 'absolute', right: -2, bottom: -2,
+            width: mark, height: mark, borderRadius: 999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--warning)', color: '#fff',
+            // Der Ring hebt das Zeichen von jeder Symbolfarbe ab – ohne ihn verschwände
+            // es auf einer getönten Fläche.
+            boxShadow: '0 0 0 2px var(--bg-1)',
+          }}
+          data-tip="Abweichung – dieser Auftrag hat Einzelinstanzen aus einem laufenden Auftrag übernommen"
+        >
+          <GitBranch size={Math.round(mark * 0.62)} />
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function DetailHeader({
-  icon: Icon, iconBg, iconFg, avatar, eyebrow, title, placeholder = 'Ohne Bezeichnung',
+  type, photoUrl, initials, deviation, title, placeholder = 'Ohne Bezeichnung',
   objectId, objectIdText, objectIdHint, actions, status, right, onBack, children, tabs,
 }: {
-  icon?: ElementType;
-  iconBg?: string;
-  iconFg?: string;
-  /** Ersetzt den Symbol-Kasten (Benutzer: rundes Foto/Initialen). */
-  avatar?: ReactNode;
-  eyebrow: string;
+  /**
+   * **Der Datensatztyp — und sonst nichts** (Testnotiz #697).
+   *
+   * Symbol, Farbfamilie und Eyebrow kommen aus der EINEN Quelle (`lib/erp-record.TYPE_META`)
+   * und werden hier aufgelöst. Vorher reichte jede Ansicht sie einzeln herein: drei von
+   * fünf mit hart getippten Hex-Werten und einem zweiten Mal ausgeschriebenem Namen –
+   * dieselbe Aussage an zwei Orten, und der Feed konnte davon abweichen, ohne dass es
+   * jemandem auffiel. Was **variieren darf, ist der Inhalt**; Layout, Raster, Farben,
+   * Schriften und Logik dürfen es nicht, also lassen sie sich hier nicht mehr übergeben.
+   */
+  type: ErpRecordType;
+  /** Rundes Foto statt des Symbol-Kastens (Benutzer). Die Geometrie steht hier. */
+  photoUrl?: string | null;
+  /** Fällt das Foto weg: Initialen im selben runden Kasten. */
+  initials?: string;
+  /** **Abweichung** – ein Zeichen am Symbol, siehe `RecordIcon` (#699). */
+  deviation?: boolean;
   /** `null` = dieser Datensatz hat (noch) keinen Namen → Platzhalter, kursiv. */
   title: string | null;
   placeholder?: string;
@@ -385,6 +457,7 @@ export function DetailHeader({
    */
   tabs?: ReactNode;
 }) {
+  const meta = TYPE_META[type];
   return (
     <div style={{ ...DH.head, paddingBottom: tabs ? 0 : 14 }}>
       {onBack && (
@@ -393,13 +466,10 @@ export function DetailHeader({
         </button>
       )}
       <div style={DH.top}>
-        {avatar ?? (
-          <div style={{ ...DH.ico, background: iconBg ?? 'var(--bg-2)', color: iconFg ?? 'var(--fg-2)' }}>
-            {Icon && <Icon size={26} />}
-          </div>
-        )}
+        <RecordIcon type={type} size={56} photoUrl={photoUrl} initials={initials}
+          deviation={deviation} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={DH.eyebrow}>{eyebrow}</div>
+          <div style={DH.eyebrow}>{meta.label}</div>
           <h1 style={{ ...DH.title, ...(title ? null : DH.titleEmpty) }}>{title ?? placeholder}</h1>
           <div style={DH.sub}>
             <span style={DH.subN} data-tip={objectIdHint} data-tip-pos="bottom">
@@ -464,10 +534,6 @@ export const DH: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0,
   },
   top: { display: 'flex', alignItems: 'flex-start', gap: 'clamp(10px, 3vw, 16px)', flexWrap: 'wrap' },
-  ico: {
-    width: 56, height: 56, borderRadius: 'var(--r-md)', flex: 'none',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
   eyebrow: {
     font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)',
     textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6,

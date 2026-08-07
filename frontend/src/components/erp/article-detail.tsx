@@ -103,13 +103,16 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh }: {
+export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh,
+  onCreateOrder }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
   onSaved: (a: Article) => void;
   onCancel: () => void;
   onBack: () => void;
   onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
+  /** Shortcut «Auftrag» (#690): öffnet den Auftragsentwurf mit diesem Artikel vorgewählt. */
+  onCreateOrder?: (articleObjectId: number) => void;
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('spezifikation');
@@ -124,8 +127,9 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   // und die trifft der Mensch. Eine vorausgefüllte «1» wäre eine Behauptung, die in den
   // meisten Fällen falsch ist und trotzdem freigebbar aussieht.
   function createOrderShortcut() {
-    if (isCreate || record == null || record.status !== FREIGEGEBEN) return;
-      }
+    if (isCreate || record?.object_id == null || record.status !== FREIGEGEBEN) return;
+    onCreateOrder?.(record.object_id);
+  }
   // Optimistic Locking: zuletzt bekannter Stand (nur für den Statuswechsel).
   const verRef = useRef<string | null>(record?.updated_at ?? null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
@@ -273,8 +277,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
     <div className="flex flex-col h-full bg-bg-1">
       {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242). */}
       <DetailHeader
-        icon={Package} iconBg="#F4EBDD" iconFg="#9A7238"
-        eyebrow="Artikel" title={form.name || null} placeholder="Neuer Artikel"
+        type="article" title={form.name || null} placeholder="Neuer Artikel"
         objectId={isCreate ? null : record.object_id}
         objectIdText={isCreate ? '—' : undefined}
         objectIdHint={isCreate
@@ -374,15 +377,14 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                     </div>
                   )}
                 </div>
-                {/* **Kein Footer** (Testnotiz #653, wie #140 am Auftrag). Der Hinweis, warum
-                    noch nicht gespeichert wird, gehört leise in die Karte, auf die er sich
-                    bezieht – nicht als Leiste an den Fensterrand. Ein echter Fehler steht in
-                    der Warnfarbe; der Speicher-Status ist ohnehin der grüne Flash im Kopf,
-                    und verworfen wird durch Wegklicken (Notiz #389). */}
-                {(error || blocked) && (
-                  <div style={{ font: '500 12.5px var(--font-body)',
-                    color: error ? 'var(--danger)' : 'var(--fg-4)' }}>
-                    {error ?? `Zur Freigabe fehlt: ${missing!.join(' · ')}`}
+                {/* **Kein «Zur Freigabe fehlt …»** (Testnotiz #692). Der ausgegraute Knopf
+                    im Kopf ist die Information – und er nennt den Grund im Hover, dort wo
+                    man ihn sucht. Derselbe Satz ein zweites Mal in der Fläche sagt nichts
+                    Neues. Ein echter **Fehler** bleibt: der ist keine Anleitung, sondern
+                    eine Meldung. */}
+                {error && (
+                  <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--danger)' }}>
+                    {error}
                   </div>
                 )}
               </div>

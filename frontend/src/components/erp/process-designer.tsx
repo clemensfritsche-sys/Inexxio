@@ -41,6 +41,10 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
 }) {
   const [catalog, setCatalog] = useState<ModuleCatalog | null>(null);
   const [drag, setDrag] = useState<number | null>(null);
+  // **Das zuletzt angelegte Modul startet aufgeklappt** (#696): es ist das, woran gerade
+  // gearbeitet wird – die Entsprechung zum «aktiven» Modul im laufenden Auftrag. Alle
+  // übrigen sind zu; ihr Kopf klappt sie auf.
+  const [justAdded, setJustAdded] = useState<number | null>(null);
 
   useEffect(() => {
     if (frozen) return;
@@ -62,6 +66,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
 
   function add(moduleType: string) {
     const id = (modules[modules.length - 1]?.id ?? 0) + 1;
+    setJustAdded(id);
     onChange([...modules, { id, moduleType, points: [] }]);
   }
   function patch(id: number, next: Partial<ModuleDraft>) {
@@ -81,6 +86,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
     <ProcessDiagram
       mode="definition"
       steps={steps}
+      expandedStepId={justAdded}
       endStatus={END_BEFORE}
       head={head}
       tone={(t) => moduleTone(catalog?.modules?.find((m) => m.key === t)?.tone)}

@@ -97,10 +97,17 @@ def clean_points(raw: Any) -> list[dict[str, Any]]:
         )
     out: list[dict[str, Any]] = []
     taken: set[str] = set()
-    for row in rows:
+    for position, row in enumerate(rows, start=1):
         label = str((row or {}).get("label") or "").strip()
         if not label:
-            raise bad("Jeder Erfassungspunkt braucht eine Bezeichnung.")
+            # **Hier, nicht im Schema** (#695): der Entwurf legt einen Punkt beim Klick an
+            # und füllt ihn beim Tippen. Eine Schema-Pflicht machte daraus bei jedem
+            # Tastendruck einen rohen Feldpfad-Fehler; verlangt wird sie darum erst bei der
+            # Freigabe – und dann mit einem Satz, der sagt, welcher Punkt gemeint ist.
+            raise bad(
+                f"Erfassungspunkt {position} braucht noch eine Bezeichnung – sie ist die "
+                f"Frage, die im Prozess gestellt wird."
+            )
         if len(label) > 120:
             raise bad(f"Die Bezeichnung «{label[:30]}…» ist zu lang (max. 120 Zeichen).")
         kind = get(row.get("type"))

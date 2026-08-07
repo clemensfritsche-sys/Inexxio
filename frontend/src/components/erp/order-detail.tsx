@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, GitBranch, History } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary } from '@/types';
-import { TYPE_META } from '@/lib/erp-record';
 import { orderStatus } from '@/lib/record-status';
 import { localDateTime } from '@/lib/utils';
 import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
@@ -18,7 +17,7 @@ import {
 import { END_BEFORE, statusCfg, statusLabel } from '@/lib/process-status';
 import { CaptureForm } from '@/components/erp/capture-form';
 import { UnitNumber } from '@/components/erp/unit-number';
-import { toModulePayload, type ModuleDraft } from '@/lib/modules';
+import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
 // keine weiteren – auch keine leeren oder deaktivierten.
@@ -50,7 +49,12 @@ const TABS = [{ key: 'auftrag' as const, label: 'Auftrag', icon: ClipboardList }
  */
 export interface OrderSeed {
   articleObjectId: number;
-  unitNumber: string;
+  /**
+   * **Nur beim Auslöser am Stück** (§3.1). Der Shortcut am Artikel (#690) merkt bewusst
+   * nur den Artikel vor: wie viel, woher und mit welchem Ablauf ist die Entscheidung,
+   * und die trifft der Mensch. Ein reiner Shortcut, kein zweiter Anlagepfad.
+   */
+  unitNumber?: string;
 }
 
 export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
@@ -65,12 +69,16 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   onBack?: () => void;
 }) {
   const isDraft = record === null;
-  const meta = TYPE_META.order;
 
-  const [lines, setLines] = useState<DefinitionLine[]>(() => (seed
-    ? [{ key: 1, articleObjectId: seed.articleObjectId, quantity: 1,
-         origin: LAGER, unitNumbers: [seed.unitNumber], returns: true }]
-    : [emptyLine(1)]));
+  const [lines, setLines] = useState<DefinitionLine[]>(() => {
+    if (!seed) return [emptyLine(1)];
+    // Mit Stück: es steht schon in der Definition, Herkunft «Lager» folgt daraus.
+    // Ohne Stück (Artikel-Shortcut): nur der Artikel – Menge und Herkunft bleiben offen.
+    return seed.unitNumber
+      ? [{ key: 1, articleObjectId: seed.articleObjectId, quantity: 1,
+           origin: LAGER, unitNumbers: [seed.unitNumber], returns: true }]
+      : [{ ...emptyLine(1), articleObjectId: seed.articleObjectId }];
+  });
   const [steps, setSteps] = useState<ModuleDraft[]>([]);
   const [missing, setMissing] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -145,10 +153,10 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   return (
     <div className="flex flex-col h-full overflow-auto">
       <DetailHeader
-        icon={meta.icon}
-        iconBg={meta.bg}
-        iconFg={meta.fg}
-        eyebrow={meta.label}
+        type="order"
+        // **Die Abweichung ist ein Zeichen am Symbol** (#699) – dieselbe Komponente wie
+        // im Feed. Zwei Implementierungen driften garantiert auseinander (#688).
+        deviation={shown?.is_deviation ?? false}
         title={shown?.name ?? null}
         placeholder="Neuer Auftrag"
         objectId={shown?.object_id ?? record?.object_id ?? null}
@@ -308,7 +316,7 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
 
   const expand = useCallback(async (stepId: number | null, active: boolean) => {
     const page = await api.getOrderUnits(order.object_id, stepId, active, 100, 0);
-    return (page.units ?? []).map((u) => u.number);
+    return (page.units ?? []).map((u) => ({ number: u.number, startedAt: u.started_at }));
   }, [order.object_id]);
 
   return (
@@ -324,9 +332,11 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
           : undefined}
         journeyIn={order.journey_in ?? []}
         journeyOut={order.journey_out ?? []}
+        // **Jedes Modul zeigt, was es tut** (Testnotiz #696) – das aktive als Formular,
+        // die übrigen als das, was in ihnen definiert ist. Ob die Karte auf- oder
+        // zugeklappt startet und ob sie gesperrt ist, entscheidet das Diagramm; hier
+        // steht nur der Inhalt.
         renderStep={(step, isActive) => (isActive ? (
-          // Was das aktive Modul verlangt, steht in seiner Definition – die Karte des
-          // Schritts ist der Ort, an dem es ausgefüllt wird.
           <CaptureForm
             points={pointsOf(order, step.id)}
             count={waitingAt(order, step.id)}
@@ -334,9 +344,40 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
             onDirty={setEntryStarted}
             onConfirm={(values) => onConfirm(step.id, values)}
           />
-        ) : null)}
+        ) : (
+          <PointList points={pointsOf(order, step.id)} />
+        ))}
       />
     </>
+  );
+}
+
+/**
+ * Was dieses Modul erfassen wird – seine eingefrorene Definition.
+ *
+ * Für ein Modul, das nicht an der Reihe ist: es soll zeigen, **was** es tut, ohne es tun
+ * zu lassen. Die erfassten *Werte* eines erledigten Moduls stehen nicht hier, sondern in
+ * der Historie – sie sind ein Ereignis, keine Eigenschaft des Moduls.
+ */
+function PointList({ points }: { points: CapturePoint[] }) {
+  if (!points.length) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      {points.map((p) => {
+        const Icon = CAPTURE_ICON[p.type] ?? CAPTURE_ICON.text;
+        return (
+          <div key={p.key} className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
+            <Icon size={13} style={{ color: 'var(--fg-4)' }} />
+            <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--fg-2)' }}>{p.label}</span>
+            {p.target != null && (
+              <span className="ix-tnum">
+                Soll {p.target}{p.tolerance ? ` ± ${p.tolerance}` : ''}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

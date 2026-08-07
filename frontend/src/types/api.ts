@@ -1253,6 +1253,23 @@ export interface components {
             file: string;
         };
         /**
+         * BranchPoint
+         * @description **Der Zustandspunkt**, an dem Stücke ausgeschert sind.
+         *
+         *     Ein Zustandspunkt ist die Stelle auf der Prozesslinie, an der ein Stück wartet –
+         *     zwischen zwei Objekten, nicht in einem. Er heisst «**vor** Modul ``at_step_id``»;
+         *     ``None`` ist der Punkt nach dem Ende. Das Modul benennt den Punkt, es besitzt ihn
+         *     nicht: die Abzweigung geht **vor** dem Modul von der Linie ab, weil das Stück es zu
+         *     diesem Zeitpunkt noch gar nicht betreten hatte – und darum durchläuft es das Modul
+         *     nach der Rückkehr regulär.
+         */
+        BranchPoint: {
+            /** At Step Id */
+            at_step_id?: number | null;
+            /** Unit Count */
+            unit_count: number;
+        };
+        /**
          * CapturePointInput
          * @description Ein Erfassungspunkt, wie ihn die Definition schickt.
          *
@@ -1265,9 +1282,24 @@ export interface components {
          *     dieses Schema ist bewusst die Aussenform und nicht die Regel.
          *
          *     Ein ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht.
+         *
+         *     **Die Bezeichnung ist hier NICHT schema-pflichtig** (Testnotiz #695). Sie ist es
+         *     fachlich sehr wohl – ohne sie steht im Prozess ein Daumen hoch/runter ohne Frage –,
+         *     aber ein `min_length=1` an dieser Stelle ist eine Prüfung zur **falschen Zeit**: der
+         *     Entwurf legt den Punkt beim Klick auf die Palette an und füllt ihn, während man tippt.
+         *     Jeder Tastendruck ging so durch ``/validate`` und kam als rohe 422 zurück
+         *     («Erfassungspunkte → 1 → Bezeichnung: darf nicht leer sein»), statt als «das fehlt
+         *     noch». Es ist derselbe Fehler, den #682/#686 eine Ebene höher am Modulnamen behoben
+         *     haben – nur war er hier nicht mitgeräumt.
+         *
+         *     Verlangt wird sie jetzt dort, wo es zählt: bei der **Freigabe**
+         *     (``domain/capture_types.clean_points``), mit einem Satz statt einem Feldpfad.
          */
         CapturePointInput: {
-            /** Label */
+            /**
+             * Label
+             * @default
+             */
             label: string;
             /** Type */
             type: string;
@@ -2074,6 +2106,8 @@ export interface components {
             current_step_id?: number | null;
             /** Active */
             active: boolean;
+            /** Started At */
+            started_at?: string | null;
         };
         /**
          * OrderValidation
@@ -2198,6 +2232,8 @@ export interface components {
             source_article_id?: number | null;
             /** Source Version */
             source_version?: number | null;
+            /** Waiting For */
+            waiting_for?: number[];
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -2238,8 +2274,8 @@ export interface components {
              * @default false
              */
             returns: boolean;
-            /** Origin Step Id */
-            origin_step_id?: number | null;
+            /** Branches */
+            branches?: components["schemas"]["BranchPoint"][];
         };
         /**
          * StepConfirm

@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, GitBranch } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2 } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, instanceName, organizationName, orderName } from '@/lib/record-name';
 import { articleStatus, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
-import { StatusBadge } from '@/components/erp/fields';
+import { RecordIcon, StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
 import type {Article, CompanySettings, Instance, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
@@ -72,9 +72,6 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
 
   const badge = rowStatus(row);
 
-  const meta = TYPE_META[row.type];
-  const TypeIcon = meta.icon;
-
   return (
     <button
       onClick={onClick}
@@ -86,21 +83,17 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         sel ? 'bg-accent-soft' : 'hover:bg-bg-2',
       )}
     >
-      {row.type === 'user' && row.data.photo_url ? (
-        <div className="w-7 h-7 rounded-full flex-none overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={row.data.photo_url} alt="" className="w-full h-full object-cover" />
-        </div>
-      ) : (
-        <div
-          className={cn('w-7 h-7 flex-none flex items-center justify-center relative', row.type === 'user' ? 'rounded-full' : 'rounded-ds-sm')}
-          style={{ background: meta.bg, color: meta.fg }}
-        >
-          {row.type === 'user'
-            ? <span className="text-[11px] font-bold">{userInitials(title ?? '', row.data.email)}</span>
-            : <TypeIcon size={14} />}
-        </div>
-      )}
+      {/* **Dieselbe Komponente wie im Detail-Kopf** (#697/#699) – Symbol, Farbfamilie,
+          Form und das Abweichungs-Zeichen kommen aus EINER Stelle; nur die Grösse
+          unterscheidet die beiden Orte. Zwei Implementierungen driften garantiert
+          auseinander (#688). */}
+      <RecordIcon
+        type={row.type}
+        size={28}
+        photoUrl={row.type === 'user' ? row.data.photo_url : undefined}
+        initials={row.type === 'user' ? userInitials(title ?? '', row.data.email) : undefined}
+        deviation={row.type === 'order' && row.data.is_deviation}
+      />
       <div className="min-w-0 flex-1">
         <div className={cn('text-sm font-semibold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
           {title ?? (row.type === 'user' ? 'Kein Name' : 'Ohne Bezeichnung')}
@@ -112,16 +105,6 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         <div className="flex items-center gap-2.5 mt-1">
           <span className="text-fg-4 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{formatObjectId(row.objectId)}</span>
           {badge && <StatusBadge cfg={badge} size={11} />}
-          {/* **«Abweichung» ist kein Zustand**, sondern eine Auskunft über die Herkunft
-              seiner Stücke – und darum keine Ampel-Badge, sondern ein leises Label
-              daneben. Abgeleitet aus dem Ereignis-Log, nicht gesetzt. */}
-          {row.type === 'order' && row.data.is_deviation && (
-            <span className="inline-flex items-center gap-1 text-[10.5px]"
-              style={{ color: 'var(--fg-4)' }}
-              data-tip="Dieser Auftrag hat Einzelinstanzen aus einem laufenden Auftrag übernommen.">
-              <GitBranch size={10} /> Abweichung
-            </span>
-          )}
         </div>
       </div>
     </button>
@@ -603,7 +586,14 @@ export default function ErpPage() {
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'article' && (
-            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers}
+              onSaved={handleArticleSaved}
+              onRefresh={() => api.getArticles().then(setArticles).catch(() => {})}
+              // **Ein reiner Shortcut, kein zweiter Anlagepfad** (#690): derselbe Entwurf
+              // wie über «+», nur mit vorbelegtem Artikel. Angelegt wird nichts – einen
+              // Auftrag gibt es erst mit der Freigabe (#386).
+              onCreateOrder={(articleObjectId) => startCreate('order', { articleObjectId })}
+              onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'instance' && (
             <InstanceDetail key={`i-${sel.objectId}`} objectId={sel.objectId} onBack={() => setMobileView('list')} />

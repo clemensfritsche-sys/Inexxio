@@ -47,10 +47,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
   return (
     <div className="flex flex-col h-full overflow-auto">
       <DetailHeader
-        icon={meta.icon}
-        iconBg={meta.bg}
-        iconFg={meta.fg}
-        eyebrow={meta.label}
+        type="instance"
         title={instanceName(rec)}
         objectId={rec.object_id}
         onBack={onBack}
