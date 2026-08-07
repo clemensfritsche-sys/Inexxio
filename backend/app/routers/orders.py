@@ -22,6 +22,10 @@ from ..schemas.order import (
     OrderUnitPage, OrderUnitResponse, OrderValidation, ProcessEventResponse,
     ProcessStepResponse, UnitGroup, UnitOption,
 )
+from ..schemas.process import (
+    CaptureTypeInfo, ModuleCatalog, ModuleTypeInfo, StepConfirm,
+)
+from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
@@ -158,6 +162,25 @@ def article_options(
     ]
 
 
+@router.get("/module-catalog", response_model=ModuleCatalog)
+def module_catalog(_: UserProfile = Depends(require_employee)):
+    """Was sich modellieren lässt – Modultypen und Erfassungspunkt-Typen.
+
+    Beides sind **geschlossene Listen** im Backend (``domain/modules``,
+    ``domain/capture_types``). Die Oberfläche holt sie hier, statt sie nachzubauen: eine
+    zweite Aufzählung liefe beim ersten neuen Typ auseinander, und der Fehler zeigte sich
+    erst, wenn jemand ihn auswählt.
+    """
+    return ModuleCatalog(
+        modules=[
+            ModuleTypeInfo(key=m.key, label=m.label,
+                           status_before=m.status_before, status_after=m.status_after)
+            for m in modules.MODULES.values()
+        ],
+        capture_types=[CaptureTypeInfo(key=t.key, label=t.label) for t in capture_types.ALL],
+    )
+
+
 @router.get("/unit-options", response_model=list[UnitOption])
 def unit_options(
     article: Optional[int] = Query(None, description="Objektnummer des Artikels"),
@@ -272,12 +295,19 @@ def list_units(
 def confirm_step(
     object_id: int,
     step_id: int,
+    data: StepConfirm,
     db: Session = Depends(get_db),
     user: UserProfile = Depends(require_employee),
 ):
-    """«Schritt bestätigen» – der eine Ausführungs-Endpunkt des Testmoduls."""
+    """«Bestätigen» – der **eine** Ausführungs-Endpunkt, für jedes Modul derselbe.
+
+    Was im Rumpf steht, entscheidet der Modultyp: bei der Datenerfassung die erfassten
+    Werte. Ein Endpunkt je Modul wäre ein zweiter Ausführungspfad – und damit eine
+    zweite Stelle, an der ein Statuswechsel geschrieben wird.
+    """
     order = orders_svc.get(db, object_id)
-    moved = process_svc.confirm_step(db, order=order, step_id=step_id, actor_id=user.id)
+    moved = process_svc.confirm_step(
+        db, order=order, step_id=step_id, values=data.values, actor_id=user.id)
     log_audit(db, "process_steps", "confirm", str(moved),
               user_id=user.id, object_id=order.object_id)
     db.commit()

@@ -1336,6 +1336,7 @@
           "articles"
         ],
         "summary": "Create Article",
+        "description": "Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion.\n\nVorher entstand der Artikel per Autosave, sobald die Spezifikation stand: mit\nObjektnummer, aber ohne Prozess – ein Datensatz, der eine Zusage macht, die er nicht\nhalten kann. Jetzt entsteht er erst, wenn **beides** da ist.",
         "operationId": "create_article_api_v1_erp_articles_post",
         "security": [
           {
@@ -1374,6 +1375,53 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/erp/articles/validate": {
+      "post": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Validate Article",
+        "description": "Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.\n\nDie Oberfläche fragt hier, statt die Regel nachzuformulieren: sonst gäbe es zwei\nMassstäbe für dieselbe Frage, und der schwächere entschiede, ob der Knopf leuchtet.",
+        "operationId": "validate_article_api_v1_erp_articles_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleValidation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/erp/articles/{object_id}": {
@@ -1577,119 +1625,6 @@
         }
       }
     },
-    "/api/v1/erp/articles/{object_id}/process/steps": {
-      "post": {
-        "tags": [
-          "articles"
-        ],
-        "summary": "Add Process Step",
-        "operationId": "add_process_step_api_v1_erp_articles__object_id__process_steps_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ArticleProcessStepInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArticleProcess"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/articles/{object_id}/process/steps/{step_id}": {
-      "delete": {
-        "tags": [
-          "articles"
-        ],
-        "summary": "Delete Process Step",
-        "operationId": "delete_process_step_api_v1_erp_articles__object_id__process_steps__step_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          },
-          {
-            "name": "step_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Step Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArticleProcess"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/orders": {
       "get": {
         "tags": [
@@ -1851,6 +1786,33 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/erp/orders/module-catalog": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Module Catalog",
+        "description": "Was sich modellieren lässt – Modultypen und Erfassungspunkt-Typen.\n\nBeides sind **geschlossene Listen** im Backend (``domain/modules``,\n``domain/capture_types``). Die Oberfläche holt sie hier, statt sie nachzubauen: eine\nzweite Aufzählung liefe beim ersten neuen Typ auseinander, und der Fehler zeigte sich\nerst, wenn jemand ihn auswählt.",
+        "operationId": "module_catalog_api_v1_erp_orders_module_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleCatalog"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/erp/orders/unit-options": {
@@ -2121,7 +2083,7 @@
           "orders"
         ],
         "summary": "Confirm Step",
-        "description": "«Schritt bestätigen» – der eine Ausführungs-Endpunkt des Testmoduls.",
+        "description": "«Bestätigen» – der **eine** Ausführungs-Endpunkt, für jedes Modul derselbe.\n\nWas im Rumpf steht, entscheidet der Modultyp: bei der Datenerfassung die erfassten\nWerte. Ein Endpunkt je Modul wäre ein zweiter Ausführungspfad – und damit eine\nzweite Stelle, an der ein Statuswechsel geschrieben wird.",
         "operationId": "confirm_step_api_v1_erp_orders__object_id__steps__step_id__confirm_post",
         "security": [
           {
@@ -2148,6 +2110,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepConfirm"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2473,58 +2445,13 @@
         }
       }
     },
-    "/api/v1/erp/captures/{number}/fields": {
-      "get": {
-        "tags": [
-          "captures"
-        ],
-        "summary": "Capture Fields",
-        "description": "Die Erfassungsmaske für diese Einzelinstanz (kommt vom Artikel).",
-        "operationId": "capture_fields_api_v1_erp_captures__number__fields_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "number",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/captures/{number}": {
       "get": {
         "tags": [
           "captures"
         ],
         "summary": "List Captures",
+        "description": "Was an dieser Einzelinstanz erfasst wurde – neueste zuerst.\n\nDie **Punkte** kommen aus dem Modul, das sie erfasst hat: ohne sie stünden nur\nSchlüssel und Rohwerte da, und ein Messwert ohne seine Bezeichnung ist eine Zahl.",
         "operationId": "list_captures_api_v1_erp_captures__number__get",
         "security": [
           {
@@ -2553,61 +2480,6 @@
                     "$ref": "#/components/schemas/CaptureResponse"
                   },
                   "title": "Response List Captures Api V1 Erp Captures  Number  Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "captures"
-        ],
-        "summary": "Record Capture",
-        "operationId": "record_capture_api_v1_erp_captures__number__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "number",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Number"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CaptureCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CaptureResponse"
                 }
               }
             }
@@ -3303,18 +3175,6 @@
             ],
             "title": "Is Hazmat"
           },
-          "capture_fields": {
-            "anyOf": [
-              {
-                "items": {},
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capture Fields"
-          },
           "procurement_mode": {
             "anyOf": [
               {
@@ -3347,6 +3207,13 @@
               }
             ],
             "title": "Default Webshop Url"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ModuleInput"
+            },
+            "type": "array",
+            "title": "Steps"
           }
         },
         "type": "object",
@@ -3354,7 +3221,7 @@
           "name"
         ],
         "title": "ArticleCreate",
-        "description": "Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.\n\nPflicht ist einzig der **Name**. Einheit/Serialisierung tragen einen Default\n(Stk / Einzelteil), Grösse & Gewicht sind optional (physische Attribute, die z. B. ein\nDokument-Artikel nicht braucht). Es gibt KEINE Typ-Unterscheidung physisch/nicht-physisch:\nob ein Dokument entsteht, entscheidet allein der Prozessschritt «document»."
+        "description": "Der Artikel-Entwurf, so wie ihn die Oberfläche schickt – Spezifikation **und**\nErzeugungsprozess in einem Aufruf.\n\nDas ist keine Bequemlichkeit, sondern die Folge aus der Regel: der Artikel entsteht\nerst mit seiner **Freigabe**, und die verlangt beides. Zwei Aufrufe hiessen zwei\nTransaktionen und damit die Möglichkeit eines halben Artikels – genau die, die es\nvorher gab (Spezifikation gespeichert, Prozess leer).\n\nPflicht sind **Name, Abmessungen, Gewicht** und **mindestens ein Prozessschrittmodul**.\nEinheit/Serialisierung tragen einen Default (Stk / Einzelteil). Geprüft wird in\n``services/articles.missing_for_release`` – der einen Stelle, die auch ``/validate``\nbeantwortet."
       },
       "ArticleNameSuggestion": {
         "properties": {
@@ -3441,37 +3308,6 @@
         "title": "ArticleProcess",
         "description": "Der Erzeugungsprozess eines Artikels samt Versionsstempel.\n\n``version`` ist der Stand, der bei einer Freigabe auf die Kopie geschrieben wird –\ner macht an einem laufenden Auftrag ablesbar, welche Fassung er fährt."
       },
-      "ArticleProcessStepInput": {
-        "properties": {
-          "module_type": {
-            "type": "string",
-            "title": "Module Type"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "status_before": {
-            "type": "string",
-            "title": "Status Before"
-          },
-          "status_after": {
-            "type": "string",
-            "title": "Status After"
-          }
-        },
-        "type": "object",
-        "required": [
-          "module_type",
-          "name",
-          "status_before",
-          "status_after"
-        ],
-        "title": "ArticleProcessStepInput",
-        "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft."
-      },
       "ArticleProcessStepResponse": {
         "properties": {
           "id": {
@@ -3497,6 +3333,17 @@
           "status_after": {
             "type": "string",
             "title": "Status After"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
           }
         },
         "type": "object",
@@ -3508,7 +3355,8 @@
           "status_before",
           "status_after"
         ],
-        "title": "ArticleProcessStepResponse"
+        "title": "ArticleProcessStepResponse",
+        "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft."
       },
       "ArticleResponse": {
         "properties": {
@@ -3710,18 +3558,6 @@
             "type": "string",
             "title": "Sales Fulfillment",
             "default": "make"
-          },
-          "capture_fields": {
-            "anyOf": [
-              {
-                "items": {},
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capture Fields"
           },
           "replaced_by_id": {
             "anyOf": [
@@ -3928,18 +3764,6 @@
             ],
             "title": "Is Hazmat"
           },
-          "capture_fields": {
-            "anyOf": [
-              {
-                "items": {},
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capture Fields"
-          },
           "procurement_mode": {
             "anyOf": [
               {
@@ -4001,6 +3825,28 @@
         "title": "ArticleUpdate",
         "description": "Teil-Update aus dem Detailfenster. Alle Felder optional."
       },
+      "ArticleValidation": {
+        "properties": {
+          "saveable": {
+            "type": "boolean",
+            "title": "Saveable"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing",
+            "description": "Was noch fehlt – leer heisst freigebbar."
+          }
+        },
+        "type": "object",
+        "required": [
+          "saveable"
+        ],
+        "title": "ArticleValidation",
+        "description": "Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."
+      },
       "Body_upload_attachment_api_v1_erp_attachments_post": {
         "properties": {
           "file": {
@@ -4015,40 +3861,110 @@
         ],
         "title": "Body_upload_attachment_api_v1_erp_attachments_post"
       },
-      "CaptureCreate": {
+      "CapturePoint": {
         "properties": {
-          "values": {
-            "type": "object",
-            "title": "Values"
+          "key": {
+            "type": "string",
+            "title": "Key"
           },
-          "note": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "target": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "number"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Note"
+            "title": "Target"
+          },
+          "tolerance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance"
           }
         },
         "type": "object",
         "required": [
-          "values"
+          "key",
+          "label",
+          "type"
         ],
-        "title": "CaptureCreate",
-        "description": "Datenerfassung an einer Einzelinstanz."
+        "title": "CapturePoint",
+        "description": "Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt."
+      },
+      "CapturePointInput": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "tolerance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "type"
+        ],
+        "title": "CapturePointInput",
+        "description": "Ein Erfassungspunkt, wie ihn die Definition schickt.\n\n``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet\n(``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck\nman erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.\n\n``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche\nZusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);\ndieses Schema ist bewusst die Aussenform und nicht die Regel."
       },
       "CaptureResponse": {
         "properties": {
           "id": {
             "type": "integer",
             "title": "Id"
-          },
-          "instance_unit_id": {
-            "type": "integer",
-            "title": "Instance Unit Id"
           },
           "values": {
             "type": "object",
@@ -4065,10 +3981,6 @@
             ],
             "title": "Result"
           },
-          "captured_by": {
-            "type": "integer",
-            "title": "Captured By"
-          },
           "note": {
             "anyOf": [
               {
@@ -4084,19 +3996,54 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "step_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Name"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/CapturePoint"
+            },
+            "type": "array",
+            "title": "Points"
           }
         },
         "type": "object",
         "required": [
           "id",
-          "instance_unit_id",
           "values",
           "result",
-          "captured_by",
-          "note",
           "created_at"
         ],
-        "title": "CaptureResponse"
+        "title": "CaptureResponse",
+        "description": "Eine Erfassung an einer Einzelinstanz – **nur lesend**.\n\nEs gibt kein ``CaptureCreate`` mehr: geschrieben wird ausschliesslich im Prozess,\nwenn ein Stück vor einem Modul steht und jemand bestätigt.\n\n``points`` sind die Erfassungspunkte des Moduls, das erfasst hat – sie liegen bei,\nweil ``values`` ohne sie nur Schlüssel und Rohwerte wären. Sie kommen aus dem Modul\nund nicht aus einer Kopie an der Erfassung: der Punkt ist Definition, der Wert ist\nMessung, und die Definition rastet ohnehin ein."
+      },
+      "CaptureTypeInfo": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "CaptureTypeInfo",
+        "description": "Ein wählbarer Erfassungspunkt-Typ."
       },
       "CompanyCreate": {
         "properties": {
@@ -5791,6 +5738,101 @@
         "title": "InstanceUnitsAdd",
         "description": "Weitere Einzelinstanzen zu einer bestehenden Instanz."
       },
+      "ModuleCatalog": {
+        "properties": {
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/ModuleTypeInfo"
+            },
+            "type": "array",
+            "title": "Modules"
+          },
+          "capture_types": {
+            "items": {
+              "$ref": "#/components/schemas/CaptureTypeInfo"
+            },
+            "type": "array",
+            "title": "Capture Types"
+          }
+        },
+        "type": "object",
+        "title": "ModuleCatalog",
+        "description": "Was sich modellieren lässt. **Eine** Antwort für beide Definitionsorte."
+      },
+      "ModuleConfigInput": {
+        "properties": {
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/CapturePointInput"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "title": "ModuleConfigInput",
+        "description": "Die Konfiguration eines Moduls. Heute genau ein Feld – geprüft wird sie im Modul."
+      },
+      "ModuleInput": {
+        "properties": {
+          "module_type": {
+            "type": "string",
+            "title": "Module Type"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModuleConfigInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "module_type",
+          "name"
+        ],
+        "title": "ModuleInput",
+        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt."
+      },
+      "ModuleTypeInfo": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "status_before": {
+            "type": "string",
+            "title": "Status Before"
+          },
+          "status_after": {
+            "type": "string",
+            "title": "Status After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "status_before",
+          "status_after"
+        ],
+        "title": "ModuleTypeInfo",
+        "description": "Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut."
+      },
       "ObjectReference": {
         "properties": {
           "kind": {
@@ -5856,7 +5898,7 @@
           },
           "steps": {
             "items": {
-              "$ref": "#/components/schemas/ProcessStepInput"
+              "$ref": "#/components/schemas/ModuleInput"
             },
             "type": "array",
             "title": "Steps"
@@ -6308,37 +6350,6 @@
         "title": "ProcessEventResponse",
         "description": "Ein Eintrag im Ereignis-Log. Append-only – es gibt keinen Schreib-Pfad hierauf."
       },
-      "ProcessStepInput": {
-        "properties": {
-          "module_type": {
-            "type": "string",
-            "title": "Module Type"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "status_before": {
-            "type": "string",
-            "title": "Status Before"
-          },
-          "status_after": {
-            "type": "string",
-            "title": "Status After"
-          }
-        },
-        "type": "object",
-        "required": [
-          "module_type",
-          "name",
-          "status_before",
-          "status_after"
-        ],
-        "title": "ProcessStepInput",
-        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n``status_before``/``status_after`` sind **Pflicht** – ein Modul ohne definierten\nÜbergang ist nicht anlegbar (§4). Geprüft wird der Wert gegen die geschlossene Liste\nin ``domain/statuses.assert_known``, nicht hier: eine zweite Aufzählung im Schema\nwäre eine zweite Wahrheit.\n\nEin Auftrag mit einer ``Neu``-Zeile **ignoriert** diese Liste: sein Prozess ist die\nVorlage des Artikels, als Kopie. Etwas anderes zu schicken änderte daran nichts."
-      },
       "ProcessStepResponse": {
         "properties": {
           "id": {
@@ -6364,6 +6375,17 @@
           "status_after": {
             "type": "string",
             "title": "Status After"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
           },
           "source_article_id": {
             "anyOf": [
@@ -6398,6 +6420,17 @@
           "status_after"
         ],
         "title": "ProcessStepResponse"
+      },
+      "StepConfirm": {
+        "properties": {
+          "values": {
+            "type": "object",
+            "title": "Values"
+          }
+        },
+        "type": "object",
+        "title": "StepConfirm",
+        "description": "«Bestätigen» an einem Modul: die erfassten Werte, geschlüsselt nach Punkt-``key``.\n\nEin Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem\nnicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens\neinen)."
       },
       "TerritoryAssign": {
         "properties": {

@@ -15,9 +15,8 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..domain import statuses as st
+from ..domain import modules
 from ..models import Article, ArticleProcessStep
-from ..models.process_step import MODULE_TYPES
 
 
 def steps_of(db: Session, article: Article) -> list[ArticleProcessStep]:
@@ -56,72 +55,43 @@ def step_counts(db: Session, article_ids: list[int]) -> dict[int, int]:
     return {int(a): counts.get(int(a), 0) for a in article_ids}
 
 
-def add_step(db: Session, article: Article, data: dict[str, Any]) -> ArticleProcessStep:
-    """Ein Modul an die Vorlage anhängen. Hebt den Versionsstempel.
+def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> list[ArticleProcessStep]:
+    """Den Erzeugungsprozess eines Artikels anlegen — **in einem Zug mit dem Artikel**.
 
-    Wie im Auftrag gilt: **Definitionen rasten ein** (§6.5). Es gibt keinen Pfad, der ein
-    bestehendes Modul ändert – nur anlegen und löschen. Darum genügt der Zähler als
-    Version: jede Mutation ist eine Anlage oder eine Löschung.
+    Es gibt keinen Pfad, der ihn danach ändert: der Artikel entsteht erst mit seiner
+    Freigabe, und ab da ist er eingefroren (§6.5). Ein «Modul nachträglich hinzufügen»
+    wäre eine Tür in einen Datensatz, der schon Aufträge speisen kann.
+
+    Der **Übergang wird nicht übernommen, sondern abgeleitet**: er gehört zum Modultyp
+    (``domain/modules``). Was der Entwurf schickt, ist Name und Konfiguration.
     """
-    if article.status != "draft":
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "Der Erzeugungsprozess ist eingefroren – ein freigegebener Artikel wird "
-                "nicht mehr umgebaut. Für eine Änderung braucht es einen neuen Artikel."
-            ),
-        )
-    module_type = data.get("module_type")
-    if module_type not in MODULE_TYPES:
+    if not raw:
         raise HTTPException(
             status_code=400,
-            detail=f"Unbekannter Modultyp «{module_type}». Erlaubt: {', '.join(MODULE_TYPES)}.",
+            detail=("Ohne Prozessschrittmodul kann dieser Artikel nichts erzeugen. "
+                    "Mindestens eines ist Pflicht."),
         )
-    name = (data.get("name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Ein Modul braucht einen Namen.")
-    before = st.assert_known(data["status_before"], field="Vorher-Status")
-    after = st.assert_known(data["status_after"], field="Nachher-Status")
-
-    last = steps_of(db, article)
-    step = ArticleProcessStep(
-        article_id=article.id,
-        position=(last[-1].position + 1) if last else 1,
-        module_type=module_type,
-        name=name[:120],
-        status_before=before,
-        status_after=after,
-    )
-    db.add(step)
-    article.process_version = int(article.process_version or 0) + 1
-    return step
-
-
-def delete_step(db: Session, article: Article, step_id: int) -> None:
-    """Ein Modul aus der Vorlage entfernen. Hebt den Versionsstempel."""
-    if article.status != "draft":
-        raise HTTPException(
-            status_code=409,
-            detail="Der Erzeugungsprozess ist eingefroren – ein freigegebener Artikel wird nicht mehr umgebaut.",
+    out: list[ArticleProcessStep] = []
+    for position, data in enumerate(raw, start=1):
+        module = modules.get(data.get("module_type"))
+        name = (data.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Ein Modul braucht einen Namen.")
+        step = ArticleProcessStep(
+            article_id=article.id,
+            position=position,
+            module_type=module.key,
+            name=name[:120],
+            status_before=module.status_before,
+            status_after=module.status_after,
+            config=module.clean_config(data.get("config")),
         )
-    step = (
-        db.query(ArticleProcessStep)
-        .filter(
-            ArticleProcessStep.article_id == article.id,
-            ArticleProcessStep.id == step_id,
-            ArticleProcessStep.is_active.is_(True),
-        )
-        .first()
-    )
-    if step is None:
-        raise HTTPException(status_code=404, detail="Dieses Modul gibt es nicht.")
-    step.is_active = False
-    article.process_version = int(article.process_version or 0) + 1
-    db.flush()
-    # Positionen schliessen, damit die Reihenfolge lückenlos bleibt (sie ist die Kante
-    # des Prozesses, keine Sortierhilfe).
-    for i, row in enumerate(steps_of(db, article), start=1):
-        row.position = i
+        db.add(step)
+        out.append(step)
+    # Der Stempel zählt die Fassungen der Vorlage. Sie entsteht genau einmal – die 1 ist
+    # damit keine Zählung, sondern die Aussage «erste und einzige Fassung».
+    article.process_version = 1
+    return out
 
 
 def mirror(db: Session, article: Article) -> list[dict[str, Any]]:
@@ -138,6 +108,10 @@ def mirror(db: Session, article: Article) -> list[dict[str, Any]]:
             "name": s.name,
             "status_before": s.status_before,
             "status_after": s.status_after,
+            # **Die Konfiguration muss mit.** Ohne sie käme ein Datenerfassungs-Modul
+            # ohne seine Erfassungspunkte im Auftrag an – es stünde im Prozess und hätte
+            # nichts zu erfassen. Eine Kopie, die das Wesentliche weglässt, ist keine.
+            "config": dict(s.config) if s.config else None,
             "source_article_id": article.id,
             "source_version": version,
         }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Package, ArrowLeft, FileText, Workflow, Boxes, Trash2, Tag, QrCode, AlertTriangle,
   Ruler, TrendingUp, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleProcess, Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile } from '@/types';
+import type { ModuleDraft } from '@/lib/modules';
+import { toModulePayload } from '@/lib/modules';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
@@ -16,10 +18,9 @@ import {
 } from '@/lib/article';
 import { articleStatus, KIND_LABEL } from '@/lib/record-status';
 import type { StatusAction } from '@/lib/status-flow';
-import { useAutosave } from '@/lib/use-autosave';
 import { ProcessDiagram, type DiagramStep } from '@/components/erp/process-diagram';
-import { AddStep } from '@/components/erp/order-detail';
-import { END_BEFORE, START_AFTER } from '@/lib/process-status';
+import { AddModule } from '@/components/erp/module-editor';
+import { END_BEFORE } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
 import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
@@ -29,15 +30,12 @@ import { DetailTabs } from '@/components/erp/detail-tabs';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { formatAmount as fmtChf, formatObjectId, localDate } from '@/lib/utils';
 
-// Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
-// Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
-// (sonst „kann" der Artikel nichts). **Inaktiv ist endgültig** – kein Reaktivieren
-// (Neustart = neuer Artikel bzw. «Ersetzen»).
-function articleActions(status: string, hasProcess: boolean): StatusAction[] {
-  if (status === 'draft')
-    return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !hasProcess,
-      hint: hasProcess ? undefined : 'Erst im Reiter «Prozess» einen Schritt hinterlegen' }];
-  // EIN «Deaktivieren»-Knopf – «Ersetzen» (Nachfolger anlegen) ist als Option im Dialog.
+// Artikel-Lebenszyklus. **Es gibt keinen gespeicherten Entwurf mehr**: der Artikel
+// entsteht erst mit seiner Freigabe (services/articles.py), und die verlangt beides –
+// vollständige Spezifikation UND mindestens ein Prozessschrittmodul. Damit ist jeder
+// vorhandene Artikel freigegeben und eingefroren.
+// **Inaktiv ist endgültig** – kein Reaktivieren (Neustart = neuer Artikel).
+function articleActions(status: string): StatusAction[] {
   if (status === 'released')
     return [{ label: 'Deaktivieren', target: 'inactive', tone: 'danger' }];
   return [];   // inaktiv → keine Aktionen (endgültig)
@@ -99,22 +97,6 @@ function seedFrom(record: Article | null): Form {
   };
 }
 
-// Normalisierte Änderungs-Signatur des Formulars (Autosave-Erkennung). Grösse/Gewicht sind
-// optional – leer bleibt leer (kein Fehl-Autosave beim Öffnen eines Artikels ohne diese Werte).
-function signatureOf(form: Form): string {
-  return JSON.stringify({
-    name: form.name.trim(), unit: form.unit, serialization: form.serialization,
-    size: form.size.trim() ? normalizeSize(form.size) : '',
-    weight_kg: form.weight_kg.trim() ? normalizeWeight(form.weight_kg) : '',
-    material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
-    supplier_article_number: form.supplier_article_number.trim(),
-    min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
-    procurement_mode: form.procurement_mode,
-    default_supplier_id: form.procurement_mode === 'supplier' ? form.default_supplier_id : '',
-    default_webshop_url: form.procurement_mode === 'webshop' ? form.default_webshop_url.trim() : '',
-  });
-}
-
 // Vorübergehender Transportfehler (Server nicht erreichbar / Kaltstart) vs.
 // fachlicher Fehler. Der API-Client wiederholt solche Anfragen bereits mehrfach;
 // schlägt es danach noch fehl, bekommt der Nutzer einen Wiederhol-Hinweis.
@@ -145,20 +127,17 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   function createOrderShortcut() {
     if (isCreate || record == null || record.status !== 'released') return;
       }
-  // Optimistic Locking: zuletzt bekannter Stand; wird nach jedem Speichern aktualisiert.
+  // Optimistic Locking: zuletzt bekannter Stand (nur für den Statuswechsel).
   const verRef = useRef<string | null>(record?.updated_at ?? null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
-  const [savedSig, setSavedSig] = useState<string>(() => (isCreate ? '' : signatureOf(seedFrom(record))));
   const [saving, setSaving] = useState(false);
-  const [flash, setFlash] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Prozessschritt-Anzahl (für die Freigabe-Bedingung) – tab-unabhängig vorgeladen,
-  // im Prozess-Reiter live über onStepsCount aktualisiert.
-  const [stepsCount, setStepsCount] = useState<number | null>(null);
-  useEffect(() => {
-    if (isCreate || record?.object_id == null) { setStepsCount(0); return; }
-  }, [isCreate, record?.object_id]);
+
+  // **Der Entwurf lebt hier, nicht in der Datenbank.** Spezifikation und Prozess sind
+  // zwei Hälften derselben Anlage: der Artikel entsteht erst, wenn beide stehen.
+  const [steps, setSteps] = useState<ModuleDraft[]>([]);
+  const [missing, setMissing] = useState<string[] | null>(null);
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<AddKey[]>(() => {
     const s = seedFrom(record);
@@ -175,8 +154,10 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
     set(key, '');
   }
 
-  // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
-  const locked = !isCreate && record !== null && record.status !== 'draft';
+  // **Jeder gespeicherte Artikel ist freigegeben** und damit schreibgeschützt: es gibt
+  // keinen Entwurf in der Datenbank mehr, also auch keinen Zustand, in dem man ihn noch
+  // umbauen könnte (keine Versionierung – Änderung = neuer Artikel).
+  const locked = !isCreate;
 
   // Gewicht wird read-only, sobald der Artikel verbaute Ressourcen hat: es ergibt
   // sich dann automatisch aus der Stückliste (über mehrere Ebenen, Backend).
@@ -192,18 +173,42 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
     size: form.size.trim() ? validateSize(form.size) : null,
     weight: form.weight_kg.trim() ? validateWeight(form.weight_kg) : null,
   };
-  const missingCore = !form.name.trim() || !form.size.trim() || (!weightIsComputed && !form.weight_kg.trim());
-  const valid = !errs.name && !errs.size && !errs.weight && !missingCore;
+  // Der Entwurf, so wie ihn die Freigabe schickt. Was zur Freigabe fehlt, sagt der
+  // **Server** (``POST /erp/articles/validate``) – nicht dieses Formular: sonst gäbe es
+  // zwei Massstäbe für dieselbe Frage, und der schwächere entschiede, ob der Knopf leuchtet.
+  const payload: ArticleInput & { steps: unknown[] } = useMemo(() => ({
+    name: form.name.trim(),
+    unit: form.unit as ArticleUnit,
+    serialization: form.serialization as ArticleSerialization,
+    size: form.size.trim() ? normalizeSize(form.size) : null,
+    weight_kg: form.weight_kg.trim() ? normalizeWeight(form.weight_kg) : null,
+    material: form.material.trim() || null,
+    cad_url: form.cad_url.trim() || null,
+    surface: form.surface.trim() || null,
+    supplier_article_number: form.supplier_article_number.trim() || null,
+    min_order_qty: form.min_order_qty.trim() || null,
+    safety_stock: form.safety_stock.trim() || null,
+    is_hazmat: form.is_hazmat === 'ja',
+    // Beschaffungsquelle: nur das zum Modus passende Quellfeld senden.
+    procurement_mode: (form.procurement_mode as 'supplier' | 'webshop') || 'supplier',
+    default_supplier_id: form.procurement_mode === 'supplier' && form.default_supplier_id
+      ? Number(form.default_supplier_id) : null,
+    default_webshop_url: form.procurement_mode === 'webshop'
+      ? (form.default_webshop_url.trim() || null) : null,
+    steps: steps.map(toModulePayload),
+  }), [form, steps]);
 
-  // Konkreter, handlungsleitender Grund, warum (noch) nicht gespeichert wird.
-  const blockReason: string | null = valid ? null
-    : (!form.name.trim() ? 'Bitte einen Artikelnamen eingeben.'
-      : !form.size.trim() ? 'Bitte die Abmessungen angeben (Pflichtfeld).'
-      : (!weightIsComputed && !form.weight_kg.trim()) ? 'Bitte das Gewicht angeben (Pflichtfeld).'
-      : errs.name || errs.size || errs.weight || 'Pflichtfelder ausfüllen: Name, Grösse, Gewicht');
-
-  const sig = signatureOf(form);
-  const canSave = !locked && valid && sig !== savedSig && !saving;
+  // Freigebbarkeit beim Server erfragen, nicht selbst behaupten.
+  useEffect(() => {
+    if (!isCreate) { setMissing(null); return; }
+    let dead = false;
+    const t = setTimeout(() => {
+      api.validateArticle(payload)
+        .then((v) => { if (!dead) setMissing(v.missing ?? []); })
+        .catch(() => { if (!dead) setMissing(['Prüfung nicht erreichbar']); });
+    }, 250);
+    return () => { dead = true; clearTimeout(t); };
+  }, [isCreate, payload]);
 
   // Bei Versions-Konflikt frischen Stand laden (Version aktualisieren, Feed melden).
   async function resyncVersion() {
@@ -240,59 +245,27 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
   // EIN kombinierter Knopf: optional einen Nachfolger anlegen («Ersetzen») oder nur deaktivieren.
 
-  async function save() {
-    if (!valid) return;
-    const current = sig;
+  /**
+   * **Freigeben = Anlegen.** Ein Aufruf, eine Transaktion: erst hier entsteht der
+   * Datensatz und erst hier die Objektnummer. Bis dahin steht in der Datenbank nichts –
+   * wer das Fenster verlässt, lässt keine Spur.
+   */
+  async function release() {
     setSaving(true);
     setError(null);
     try {
-      // Grösse/Gewicht sind optional – leer ⇒ null (z. B. bei einem Dokument-Artikel).
-      const payload: ArticleInput = {
-        name: form.name.trim(),
-        unit: form.unit as ArticleUnit,
-        serialization: form.serialization as ArticleSerialization,
-        size: form.size.trim() ? normalizeSize(form.size) : null,
-        weight_kg: form.weight_kg.trim() ? normalizeWeight(form.weight_kg) : null,
-        material: form.material.trim() || null,
-        cad_url: form.cad_url.trim() || null,
-        surface: form.surface.trim() || null,
-        supplier_article_number: form.supplier_article_number.trim() || null,
-        min_order_qty: form.min_order_qty.trim() || null,
-        safety_stock: form.safety_stock.trim() || null,
-        is_hazmat: form.is_hazmat === 'ja',
-        // Beschaffungsquelle: nur das zum Modus passende Quellfeld senden (Backend spiegelt das).
-        procurement_mode: (form.procurement_mode as 'supplier' | 'webshop') || 'supplier',
-        default_supplier_id: form.procurement_mode === 'supplier' && form.default_supplier_id
-          ? Number(form.default_supplier_id) : null,
-        default_webshop_url: form.procurement_mode === 'webshop'
-          ? (form.default_webshop_url.trim() || null) : null,
-      };
-      if (isCreate) {
-        onSaved(await api.createArticle(payload));
-      } else {
-        const saved = await api.updateArticle(record.object_id as number,
-          { ...payload, expected_updated_at: verRef.current });
-        verRef.current = saved.updated_at;
-        onSaved(saved);
-        setSavedSig(current);
-        setFlash(true);
-        setTimeout(() => setFlash(false), 700);
-      }
+      onSaved(await api.createArticle(payload));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Fehler beim Speichern';
-      // useAutosave wiederholt einen fehlgeschlagenen Stand NICHT automatisch
-      // (kein Loop) – Hinweis: Änderung oder Enter löst einen neuen Versuch aus.
-      setError(isTransient(msg) ? `${msg} – mit Enter erneut versuchen.` : msg);
-      if (!isCreate && isVersionConflict(e)) await resyncVersion();
+      const msg = e instanceof Error ? e.message : 'Freigabe fehlgeschlagen';
+      setError(isTransient(msg) ? `${msg} – bitte erneut versuchen.` : msg);
     } finally {
       setSaving(false);
     }
   }
 
-  const flush = useAutosave(sig, canSave, save);
-
   const statusCfg = articleStatus({ status: isCreate || !record ? 'draft' : record.status });
-  const actions = isCreate || !record ? [] : articleActions(record.status, (stepsCount ?? 0) > 0);
+  const actions = isCreate || !record ? [] : articleActions(record.status);
+  const blocked = missing != null && missing.length > 0;
 
   return (
     <div className="flex flex-col h-full bg-bg-1">
@@ -301,11 +274,24 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         icon={Package} iconBg="#F4EBDD" iconFg="#9A7238"
         eyebrow="Artikel" title={form.name || null} placeholder="Neuer Artikel"
         objectId={isCreate ? null : record.object_id}
-        objectIdText={isCreate ? 'wird vergeben' : undefined}
+        objectIdText={isCreate ? '—' : undefined}
+        objectIdHint={isCreate
+          ? 'Die Objektnummer entsteht erst mit der Freigabe. Bis dahin existiert dieser Artikel nur in diesem Fenster.'
+          : undefined}
         onBack={onBack}
         status={statusCfg}
-        right={<SaveIndicator saving={saving} flash={flash} />}
-        actions={!isCreate && record.object_id != null ? (
+        right={<SaveIndicator saving={saving} flash={false} />}
+        actions={isCreate ? (
+          // **Freigeben ist die Anlage.** Der Knopf sagt, was noch fehlt – ein stumm
+          // graues «Freigeben» liesse den Nutzer suchen.
+          <HeaderAction
+            label="Freigeben"
+            hint={blocked ? `Es fehlt: ${missing!.join(' · ')}`
+              : 'Legt den Artikel an und vergibt die Objektnummer'}
+            disabled={saving || blocked || missing == null}
+            onClick={release}
+          />
+        ) : record.object_id != null ? (
           <>
             <HeaderSep />
             <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
@@ -350,8 +336,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
       {/* FIX: Enter im Container löst den Autosave-Flush aus – in TEXTAREAs (mehrzeilige
           Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
           Zeilenumbruch. Textareas ausnehmen. */}
-      <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
-        style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
         {tab === 'spezifikation' && (
           <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
             {locked ? (
@@ -392,10 +377,10 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                     bezieht – nicht als Leiste an den Fensterrand. Ein echter Fehler steht in
                     der Warnfarbe; der Speicher-Status ist ohnehin der grüne Flash im Kopf,
                     und verworfen wird durch Wegklicken (Notiz #389). */}
-                {(error || blockReason) && (
+                {(error || blocked) && (
                   <div style={{ font: '500 12.5px var(--font-body)',
                     color: error ? 'var(--danger)' : 'var(--fg-4)' }}>
-                    {error ?? blockReason}
+                    {error ?? `Zur Freigabe fehlt: ${missing!.join(' · ')}`}
                   </div>
                 )}
               </div>
@@ -406,7 +391,8 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         {tab === 'prozess' && (
           <ArticleProcessTab
             articleObjectId={record?.object_id ?? null}
-            frozen={record?.status !== 'draft'}
+            draft={steps}
+            setDraft={setSteps}
           />
         )}
 
@@ -861,45 +847,38 @@ function AddInstance({ articleObjectId, onCreated }: {
  * Reiter «Erzeugungsprozess» – die **Vorlage**: wie ein Stück dieses Artikels entsteht.
  *
  * Es ist **dieselbe** Darstellung wie im Auftrag (`ProcessDiagram`, Modus `definition`)
- * und **derselbe** Modul-Editor (`AddStep`) – keine zweite Komponente, kein Nachbau. Der
- * Unterschied liegt nicht in der Optik, sondern darin, was fehlt: es gibt hier keine
- * Einzelinstanzen, keinen Start-Knopf und keine Ausführung (PROCESS_CORE.md §8.2). Was
- * hier steht, wird bei der Freigabe eines Erzeugungsauftrags **kopiert**.
+ * und **derselbe** Modul-Editor (`AddModule`) – keine zweite Komponente, kein Nachbau.
+ * Der einzige Unterschied ist der fehlende Definitionsbereich darüber: welche
+ * Einzelinstanzen durchlaufen, entscheidet ausschliesslich der Auftrag. Ein Artikel hat
+ * keine, und ein Diagramm, das sie voraussetzt, wäre hier nicht wiederverwendbar
+ * (PROCESS_CORE.md §8.1/§8.2).
+ *
+ * **Im Entwurf lebt die Liste im Browser** – wie der Auftragsentwurf. Sie wird mit dem
+ * Artikel zusammen angelegt und ist danach eingefroren; einen Endpunkt, der sie
+ * nachträglich ändert, gibt es nicht.
  */
-function ArticleProcessTab({ articleObjectId, frozen }: {
-  articleObjectId: number | null; frozen: boolean;
+function ArticleProcessTab({ articleObjectId, draft, setDraft }: {
+  articleObjectId: number | null;
+  draft: ModuleDraft[];
+  setDraft: (m: ModuleDraft[]) => void;
 }) {
   const [proc, setProc] = useState<ArticleProcess | null>(null);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  // Ein gespeicherter Artikel ist freigegeben – seine Vorlage wird nur noch gelesen.
+  useEffect(() => {
     if (!articleObjectId) { setProc(null); return; }
+    let dead = false;
     api.getArticleProcess(articleObjectId)
-      .then(setProc)
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+      .then((p) => { if (!dead) setProc(p); })
+      .catch((e) => { if (!dead) setErr(e instanceof Error ? e.message : String(e)); });
+    return () => { dead = true; };
   }, [articleObjectId]);
-  useEffect(() => { load(); }, [load]);
 
-  if (!articleObjectId) {
-    return (
-      <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
-        Der Erzeugungsprozess entsteht mit dem Artikel – zuerst die Spezifikation speichern.
-      </p>
-    );
-  }
-
-  const steps: DiagramStep[] = (proc?.steps ?? []).map((s) => ({
-    id: s.id, name: s.name, moduleType: s.module_type,
-    statusBefore: s.status_before, statusAfter: s.status_after,
-  }));
-
-  async function run(fn: () => Promise<ArticleProcess>) {
-    setBusy(true); setErr(null);
-    try { setProc(await fn()); }
-    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
-  }
+  const isDraft = articleObjectId === null;
+  const steps: DiagramStep[] = isDraft
+    ? draft.map((m) => ({ id: m.id, name: m.name, moduleType: m.moduleType }))
+    : (proc?.steps ?? []).map((s) => ({ id: s.id, name: s.name, moduleType: s.module_type }));
 
   return (
     <div className="mx-auto" style={{ maxWidth: 620 }}>
@@ -911,25 +890,18 @@ function ArticleProcessTab({ articleObjectId, frozen }: {
         mode="definition"
         steps={steps}
         endStatus={END_BEFORE}
-        onDelete={frozen || busy ? undefined
-          : (id) => run(() => api.deleteArticleProcessStep(articleObjectId, id))}
+        onDelete={isDraft ? (id) => setDraft(draft.filter((m) => m.id !== id)) : undefined}
       />
-      {frozen ? (
+      {isDraft ? (
+        <div className="mt-3">
+          <AddModule
+            onAdd={(m) => setDraft([...draft, { ...m, id: (draft[draft.length - 1]?.id ?? 0) + 1 }])}
+          />
+        </div>
+      ) : (
         <p className="mt-3 text-xs text-center" style={{ color: 'var(--fg-3)' }}>
           Eingefroren – ein freigegebener Artikel wird nicht mehr umgebaut. Stand {proc?.version ?? 0}.
         </p>
-      ) : (
-        <div className="mt-3">
-          <AddStep
-            title="Modul hinzufügen"
-            suggestedBefore={steps.length ? steps[steps.length - 1].statusAfter : START_AFTER}
-            onAdd={(name, before, after) => run(() =>
-              api.addArticleProcessStep(articleObjectId, {
-                module_type: 'testmodul', name,
-                status_before: before, status_after: after,
-              }))}
-          />
-        </div>
       )}
     </div>
   );

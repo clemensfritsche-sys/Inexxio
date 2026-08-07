@@ -532,8 +532,38 @@ export interface paths {
         /** List Articles */
         get: operations["list_articles_api_v1_erp_articles_get"];
         put?: never;
-        /** Create Article */
+        /**
+         * Create Article
+         * @description Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion.
+         *
+         *     Vorher entstand der Artikel per Autosave, sobald die Spezifikation stand: mit
+         *     Objektnummer, aber ohne Prozess – ein Datensatz, der eine Zusage macht, die er nicht
+         *     halten kann. Jetzt entsteht er erst, wenn **beides** da ist.
+         */
         post: operations["create_article_api_v1_erp_articles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Article
+         * @description Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.
+         *
+         *     Die Oberfläche fragt hier, statt die Regel nachzuformulieren: sonst gäbe es zwei
+         *     Massstäbe für dieselbe Frage, und der schwächere entschiede, ob der Knopf leuchtet.
+         */
+        post: operations["validate_article_api_v1_erp_articles_validate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -595,40 +625,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/process/steps": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add Process Step */
-        post: operations["add_process_step_api_v1_erp_articles__object_id__process_steps_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/articles/{object_id}/process/steps/{step_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Process Step */
-        delete: operations["delete_process_step_api_v1_erp_articles__object_id__process_steps__step_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/orders": {
         parameters: {
             query?: never;
@@ -666,6 +662,31 @@ export interface paths {
          *     zu zeigen.
          */
         get: operations["article_options_api_v1_erp_orders_article_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/module-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Module Catalog
+         * @description Was sich modellieren lässt – Modultypen und Erfassungspunkt-Typen.
+         *
+         *     Beides sind **geschlossene Listen** im Backend (``domain/modules``,
+         *     ``domain/capture_types``). Die Oberfläche holt sie hier, statt sie nachzubauen: eine
+         *     zweite Aufzählung liefe beim ersten neuen Typ auseinander, und der Fehler zeigte sich
+         *     erst, wenn jemand ihn auswählt.
+         */
+        get: operations["module_catalog_api_v1_erp_orders_module_catalog_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -768,7 +789,11 @@ export interface paths {
         put?: never;
         /**
          * Confirm Step
-         * @description «Schritt bestätigen» – der eine Ausführungs-Endpunkt des Testmoduls.
+         * @description «Bestätigen» – der **eine** Ausführungs-Endpunkt, für jedes Modul derselbe.
+         *
+         *     Was im Rumpf steht, entscheidet der Modultyp: bei der Datenerfassung die erfassten
+         *     Werte. Ein Endpunkt je Modul wäre ein zweiter Ausführungspfad – und damit eine
+         *     zweite Stelle, an der ein Statuswechsel geschrieben wird.
          */
         post: operations["confirm_step_api_v1_erp_orders__object_id__steps__step_id__confirm_post"];
         delete?: never;
@@ -849,26 +874,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/captures/{number}/fields": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Capture Fields
-         * @description Die Erfassungsmaske für diese Einzelinstanz (kommt vom Artikel).
-         */
-        get: operations["capture_fields_api_v1_erp_captures__number__fields_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/captures/{number}": {
         parameters: {
             query?: never;
@@ -876,11 +881,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Captures */
+        /**
+         * List Captures
+         * @description Was an dieser Einzelinstanz erfasst wurde – neueste zuerst.
+         *
+         *     Die **Punkte** kommen aus dem Modul, das sie erfasst hat: ohne sie stünden nur
+         *     Schlüssel und Rohwerte da, und ein Messwert ohne seine Bezeichnung ist eine Zahl.
+         */
         get: operations["list_captures_api_v1_erp_captures__number__get"];
         put?: never;
-        /** Record Capture */
-        post: operations["record_capture_api_v1_erp_captures__number__post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1030,12 +1040,18 @@ export interface components {
     schemas: {
         /**
          * ArticleCreate
-         * @description Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.
+         * @description Der Artikel-Entwurf, so wie ihn die Oberfläche schickt – Spezifikation **und**
+         *     Erzeugungsprozess in einem Aufruf.
          *
-         *     Pflicht ist einzig der **Name**. Einheit/Serialisierung tragen einen Default
-         *     (Stk / Einzelteil), Grösse & Gewicht sind optional (physische Attribute, die z. B. ein
-         *     Dokument-Artikel nicht braucht). Es gibt KEINE Typ-Unterscheidung physisch/nicht-physisch:
-         *     ob ein Dokument entsteht, entscheidet allein der Prozessschritt «document».
+         *     Das ist keine Bequemlichkeit, sondern die Folge aus der Regel: der Artikel entsteht
+         *     erst mit seiner **Freigabe**, und die verlangt beides. Zwei Aufrufe hiessen zwei
+         *     Transaktionen und damit die Möglichkeit eines halben Artikels – genau die, die es
+         *     vorher gab (Spezifikation gespeichert, Prozess leer).
+         *
+         *     Pflicht sind **Name, Abmessungen, Gewicht** und **mindestens ein Prozessschrittmodul**.
+         *     Einheit/Serialisierung tragen einen Default (Stk / Einzelteil). Geprüft wird in
+         *     ``services/articles.missing_for_release`` – der einen Stelle, die auch ``/validate``
+         *     beantwortet.
          */
         ArticleCreate: {
             /** Name */
@@ -1062,14 +1078,14 @@ export interface components {
             safety_stock?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
-            /** Capture Fields */
-            capture_fields?: unknown[] | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
             default_supplier_id?: number | null;
             /** Default Webshop Url */
             default_webshop_url?: string | null;
+            /** Steps */
+            steps?: components["schemas"]["ModuleInput"][];
         };
         /**
          * ArticleNameSuggestion
@@ -1121,21 +1137,10 @@ export interface components {
             steps?: components["schemas"]["ArticleProcessStepResponse"][];
         };
         /**
-         * ArticleProcessStepInput
+         * ArticleProcessStepResponse
          * @description Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,
          *     nur bevor er läuft.
          */
-        ArticleProcessStepInput: {
-            /** Module Type */
-            module_type: string;
-            /** Name */
-            name: string;
-            /** Status Before */
-            status_before: string;
-            /** Status After */
-            status_after: string;
-        };
-        /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
             /** Id */
             id: number;
@@ -1149,6 +1154,8 @@ export interface components {
             status_before: string;
             /** Status After */
             status_after: string;
+            /** Config */
+            config?: Record<string, never> | null;
         };
         /** ArticleResponse */
         ArticleResponse: {
@@ -1215,8 +1222,6 @@ export interface components {
              * @default make
              */
             sales_fulfillment: string;
-            /** Capture Fields */
-            capture_fields?: unknown[] | null;
             /** Replaced By Id */
             replaced_by_id?: number | null;
             /** Replaces Id */
@@ -1265,8 +1270,6 @@ export interface components {
             safety_stock?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
-            /** Capture Fields */
-            capture_fields?: unknown[] | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -1278,6 +1281,19 @@ export interface components {
             /** Expected Updated At */
             expected_updated_at?: string | null;
         };
+        /**
+         * ArticleValidation
+         * @description Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen.
+         */
+        ArticleValidation: {
+            /** Saveable */
+            saveable: boolean;
+            /**
+             * Missing
+             * @description Was noch fehlt – leer heisst freigebbar.
+             */
+            missing?: string[];
+        };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
             /**
@@ -1287,34 +1303,93 @@ export interface components {
             file: string;
         };
         /**
-         * CaptureCreate
-         * @description Datenerfassung an einer Einzelinstanz.
+         * CapturePoint
+         * @description Ein gespeicherter Erfassungspunkt, so wie ihn die Laufzeit ausfüllt.
          */
-        CaptureCreate: {
-            /** Values */
-            values: Record<string, never>;
-            /** Note */
-            note?: string | null;
+        CapturePoint: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Type */
+            type: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Target */
+            target?: number | null;
+            /** Tolerance */
+            tolerance?: number | null;
         };
-        /** CaptureResponse */
+        /**
+         * CapturePointInput
+         * @description Ein Erfassungspunkt, wie ihn die Definition schickt.
+         *
+         *     ``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet
+         *     (``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck
+         *     man erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.
+         *
+         *     ``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche
+         *     Zusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);
+         *     dieses Schema ist bewusst die Aussenform und nicht die Regel.
+         */
+        CapturePointInput: {
+            /** Label */
+            label: string;
+            /** Type */
+            type: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Target */
+            target?: number | null;
+            /** Tolerance */
+            tolerance?: number | null;
+        };
+        /**
+         * CaptureResponse
+         * @description Eine Erfassung an einer Einzelinstanz – **nur lesend**.
+         *
+         *     Es gibt kein ``CaptureCreate`` mehr: geschrieben wird ausschliesslich im Prozess,
+         *     wenn ein Stück vor einem Modul steht und jemand bestätigt.
+         *
+         *     ``points`` sind die Erfassungspunkte des Moduls, das erfasst hat – sie liegen bei,
+         *     weil ``values`` ohne sie nur Schlüssel und Rohwerte wären. Sie kommen aus dem Modul
+         *     und nicht aus einer Kopie an der Erfassung: der Punkt ist Definition, der Wert ist
+         *     Messung, und die Definition rastet ohnehin ein.
+         */
         CaptureResponse: {
             /** Id */
             id: number;
-            /** Instance Unit Id */
-            instance_unit_id: number;
             /** Values */
             values: Record<string, never>;
             /** Result */
             result: string | null;
-            /** Captured By */
-            captured_by: number;
             /** Note */
-            note: string | null;
+            note?: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Step Name */
+            step_name?: string | null;
+            /** Points */
+            points?: components["schemas"]["CapturePoint"][];
+        };
+        /**
+         * CaptureTypeInfo
+         * @description Ein wählbarer Erfassungspunkt-Typ.
+         */
+        CaptureTypeInfo: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
         };
         /**
          * CompanyCreate
@@ -1875,6 +1950,49 @@ export interface components {
             count: number;
         };
         /**
+         * ModuleCatalog
+         * @description Was sich modellieren lässt. **Eine** Antwort für beide Definitionsorte.
+         */
+        ModuleCatalog: {
+            /** Modules */
+            modules?: components["schemas"]["ModuleTypeInfo"][];
+            /** Capture Types */
+            capture_types?: components["schemas"]["CaptureTypeInfo"][];
+        };
+        /**
+         * ModuleConfigInput
+         * @description Die Konfiguration eines Moduls. Heute genau ein Feld – geprüft wird sie im Modul.
+         */
+        ModuleConfigInput: {
+            /** Points */
+            points?: components["schemas"]["CapturePointInput"][];
+        };
+        /**
+         * ModuleInput
+         * @description Ein Prozessschrittmodul, wie es der Entwurf schickt.
+         */
+        ModuleInput: {
+            /** Module Type */
+            module_type: string;
+            /** Name */
+            name: string;
+            config?: components["schemas"]["ModuleConfigInput"] | null;
+        };
+        /**
+         * ModuleTypeInfo
+         * @description Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut.
+         */
+        ModuleTypeInfo: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Status Before */
+            status_before: string;
+            /** Status After */
+            status_after: string;
+        };
+        /**
          * ObjectReference
          * @description Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet.
          */
@@ -1911,7 +2029,7 @@ export interface components {
             /** Lines */
             lines?: components["schemas"]["DefinitionLine"][];
             /** Steps */
-            steps?: components["schemas"]["ProcessStepInput"][];
+            steps?: components["schemas"]["ModuleInput"][];
         };
         /**
          * OrderLineResponse
@@ -2116,28 +2234,6 @@ export interface components {
              */
             created_at: string;
         };
-        /**
-         * ProcessStepInput
-         * @description Ein Prozessschrittmodul, wie es der Entwurf schickt.
-         *
-         *     ``status_before``/``status_after`` sind **Pflicht** – ein Modul ohne definierten
-         *     Übergang ist nicht anlegbar (§4). Geprüft wird der Wert gegen die geschlossene Liste
-         *     in ``domain/statuses.assert_known``, nicht hier: eine zweite Aufzählung im Schema
-         *     wäre eine zweite Wahrheit.
-         *
-         *     Ein Auftrag mit einer ``Neu``-Zeile **ignoriert** diese Liste: sein Prozess ist die
-         *     Vorlage des Artikels, als Kopie. Etwas anderes zu schicken änderte daran nichts.
-         */
-        ProcessStepInput: {
-            /** Module Type */
-            module_type: string;
-            /** Name */
-            name: string;
-            /** Status Before */
-            status_before: string;
-            /** Status After */
-            status_after: string;
-        };
         /** ProcessStepResponse */
         ProcessStepResponse: {
             /** Id */
@@ -2152,10 +2248,24 @@ export interface components {
             status_before: string;
             /** Status After */
             status_after: string;
+            /** Config */
+            config?: Record<string, never> | null;
             /** Source Article Id */
             source_article_id?: number | null;
             /** Source Version */
             source_version?: number | null;
+        };
+        /**
+         * StepConfirm
+         * @description «Bestätigen» an einem Modul: die erfassten Werte, geschlüsselt nach Punkt-``key``.
+         *
+         *     Ein Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem
+         *     nicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens
+         *     einen).
+         */
+        StepConfirm: {
+            /** Values */
+            values?: Record<string, never>;
         };
         /**
          * TerritoryAssign
@@ -3418,6 +3528,39 @@ export interface operations {
             };
         };
     };
+    validate_article_api_v1_erp_articles_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleValidation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_article_api_v1_erp_articles__object_id__get: {
         parameters: {
             query?: never;
@@ -3546,73 +3689,6 @@ export interface operations {
             };
         };
     };
-    add_process_step_api_v1_erp_articles__object_id__process_steps_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ArticleProcessStepInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArticleProcess"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_process_step_api_v1_erp_articles__object_id__process_steps__step_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                step_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArticleProcess"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_orders_api_v1_erp_orders_get: {
         parameters: {
             query?: {
@@ -3705,6 +3781,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    module_catalog_api_v1_erp_orders_module_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleCatalog"];
                 };
             };
         };
@@ -3852,7 +3948,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepConfirm"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -4039,37 +4139,6 @@ export interface operations {
             };
         };
     };
-    capture_fields_api_v1_erp_captures__number__fields_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                number: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_captures_api_v1_erp_captures__number__get: {
         parameters: {
             query?: never;
@@ -4088,41 +4157,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaptureResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    record_capture_api_v1_erp_captures__number__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                number: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CaptureCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CaptureResponse"];
                 };
             };
             /** @description Validation Error */

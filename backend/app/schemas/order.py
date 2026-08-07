@@ -11,6 +11,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .process import ModuleInput
+
 
 class DefinitionLine(BaseModel):
     """Eine Definitionszeile: Artikel · Menge · Herkunft.
@@ -27,29 +29,14 @@ class DefinitionLine(BaseModel):
     unit_numbers: list[str] = Field(default_factory=list)
 
 
-class ProcessStepInput(BaseModel):
-    """Ein Prozessschrittmodul, wie es der Entwurf schickt.
-
-    ``status_before``/``status_after`` sind **Pflicht** – ein Modul ohne definierten
-    Übergang ist nicht anlegbar (§4). Geprüft wird der Wert gegen die geschlossene Liste
-    in ``domain/statuses.assert_known``, nicht hier: eine zweite Aufzählung im Schema
-    wäre eine zweite Wahrheit.
-
-    Ein Auftrag mit einer ``Neu``-Zeile **ignoriert** diese Liste: sein Prozess ist die
-    Vorlage des Artikels, als Kopie. Etwas anderes zu schicken änderte daran nichts.
-    """
-
-    module_type: str
-    name: str = Field(min_length=1, max_length=120)
-    status_before: str
-    status_after: str
-
-
 class OrderCreate(BaseModel):
     """Der Entwurf, so wie ihn die Oberfläche schickt."""
 
     lines: list[DefinitionLine] = Field(default_factory=list)
-    steps: list[ProcessStepInput] = Field(default_factory=list)
+    #: Der modellierte Prozess. Ein Auftrag mit einer ``Neu``-Zeile **ignoriert** ihn:
+    #: sein Prozess ist die Vorlage des Artikels, als Kopie. Etwas anderes zu schicken
+    #: änderte daran nichts.
+    steps: list[ModuleInput] = Field(default_factory=list)
 
 
 class OrderValidation(BaseModel):
@@ -71,6 +58,8 @@ class ProcessStepResponse(BaseModel):
     name: str
     status_before: str
     status_after: str
+    #: Was der Modultyp braucht – bei der Datenerfassung die Erfassungspunkte.
+    config: Optional[dict] = None
     #: Gesetzt, wenn dieser Schritt die **Kopie** eines Artikel-Erzeugungsprozesses ist.
     source_article_id: Optional[int] = None
     source_version: Optional[int] = None

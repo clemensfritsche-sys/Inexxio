@@ -16,16 +16,16 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, UserProfile
 from ..schemas.article import (
-    ArticleProcess, ArticleProcessStepInput, ArticleProcessStepResponse,
-    ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate,
+    ArticleProcess, ArticleProcessStepResponse,
+    ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate, ArticleValidation,
 )
 from ..schemas.instance import InstanceSummary
 from ..services import article_names
 from ..services import article_process as tpl_svc
+from ..services import articles as articles_svc
 from ..services import instances as inst_svc
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_version
-from ..services.objects import next_object_id
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["articles"])
 
@@ -66,17 +66,36 @@ def list_articles(
     return [_out(a) for a in rows]
 
 
+@router.post("/validate", response_model=ArticleValidation)
+def validate_article(
+    data: ArticleCreate,
+    _db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.
+
+    Die Oberfläche fragt hier, statt die Regel nachzuformulieren: sonst gäbe es zwei
+    Massstäbe für dieselbe Frage, und der schwächere entschiede, ob der Knopf leuchtet.
+    """
+    missing = articles_svc.validate_draft(data.model_dump())
+    return ArticleValidation(saveable=not missing, missing=missing)
+
+
 @router.post("", response_model=ArticleResponse, status_code=201)
 def create_article(
     data: ArticleCreate,
     db: Session = Depends(get_db),
     user: UserProfile = Depends(require_employee),
 ):
-    payload = data.model_dump(exclude_unset=True)
-    article = Article(object_id=next_object_id(db, "article"), **payload)
-    db.add(article)
-    db.flush()
-    log_audit(db, "articles", "create", article.name,
+    """Anlegen **ist** Freigeben – ein Aufruf, eine Transaktion.
+
+    Vorher entstand der Artikel per Autosave, sobald die Spezifikation stand: mit
+    Objektnummer, aber ohne Prozess – ein Datensatz, der eine Zusage macht, die er nicht
+    halten kann. Jetzt entsteht er erst, wenn **beides** da ist.
+    """
+    article = articles_svc.create_article(
+        db, data.model_dump(exclude_unset=True), actor_id=user.id)
+    log_audit(db, "articles", "release", article.name,
               user_id=user.id, object_id=article.object_id)
     db.commit()
     db.refresh(article)
@@ -149,6 +168,11 @@ def article_instances(
 # ---------------------------------------------------------------------------
 # Erzeugungsprozess – die Vorlage. Sie kann nichts ausführen (PROCESS_CORE.md §8.2):
 # es gibt hier keinen Endpunkt, der ein Stück bewegt, und keinen Status zu setzen.
+#
+# Und sie lässt sich **nicht nachträglich ändern**: sie entsteht mit dem Artikel
+# (``POST /erp/articles``) und ist ab da eingefroren. Ein «Modul hinzufügen»-Endpunkt
+# wäre eine Tür in einen Datensatz, der bereits Aufträge speist – und die Kopien in
+# laufenden Aufträgen trügen einen Stempel, der nicht mehr stimmt.
 # ---------------------------------------------------------------------------
 
 @router.get("/{object_id}/process", response_model=ArticleProcess)
@@ -165,35 +189,3 @@ def get_process(
             for s in tpl_svc.steps_of(db, article)
         ],
     )
-
-
-@router.post("/{object_id}/process/steps", response_model=ArticleProcess, status_code=201)
-def add_process_step(
-    object_id: int,
-    data: ArticleProcessStepInput,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(require_employee),
-):
-    article = _get(db, object_id)
-    tpl_svc.add_step(db, article, data.model_dump())
-    log_audit(db, "article_process_steps", "add", data.name,
-              user_id=user.id, object_id=article.object_id)
-    db.commit()
-    db.refresh(article)
-    return get_process(object_id, db, user)
-
-
-@router.delete("/{object_id}/process/steps/{step_id}", response_model=ArticleProcess)
-def delete_process_step(
-    object_id: int,
-    step_id: int,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(require_employee),
-):
-    article = _get(db, object_id)
-    tpl_svc.delete_step(db, article, step_id)
-    log_audit(db, "article_process_steps", "delete", str(step_id),
-              user_id=user.id, object_id=article.object_id)
-    db.commit()
-    db.refresh(article)
-    return get_process(object_id, db, user)

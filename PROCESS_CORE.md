@@ -7,9 +7,9 @@
 > Datensatztyps «Auftrag» und den Entscheiden A1–A6. Die frühere Prozesslogik ist
 > ersatzlos entfernt; nichts davon ist Vorlage.
 >
-> **Stand der Umsetzung:** §1–§10 sind **gebaut und im Browser durchgeprüft**. Das
-> Prozessschrittmodul ist heute ein bewusstes Platzhalter-**Testmodul** (§9) – das erste
-> echte wird die Datenerfassung.
+> **Stand der Umsetzung:** §1–§11 sind **gebaut und im Browser durchgeprüft**. Das erste
+> echte Prozessschrittmodul ist die **Datenerfassung** (§9); das frühere Testmodul ist
+> ersatzlos entfallen.
 
 ---
 
@@ -300,6 +300,17 @@ Der Auftrag kann **nicht** freigegeben werden, solange nicht **beides** erfüllt
 Die eine Stelle dafür ist `services/orders.validate_draft` — sie ist bereits verdrahtet
 und wird von Router **und** Oberfläche gelesen, damit es nie zwei Massstäbe gibt.
 
+**Für den Artikel gilt dasselbe, Wort für Wort** (`services/articles.missing_for_release`):
+er kann nicht freigegeben werden, solange nicht **beides** steht — alle Pflichtfelder der
+Spezifikation **und** mindestens ein Prozessschrittmodul. Und weil ein Artikel erst mit
+seiner Freigabe entsteht (§2.2), heisst das: bis dahin gibt es **keine Zeile und keine
+Objektnummer**. Kein Autosave, kein Zwischenspeichern, kein Datensatz «Entwurf».
+
+*Vorher war es anders, und das war ein Fehler:* das Formular speicherte, sobald die
+Spezifikation stand. Es entstand ein Artikel mit Objektnummer, der nichts erzeugen
+konnte, weil sein Prozess leer war — ein Datensatz, der eine Zusage macht, die er nicht
+halten kann.
+
 ### 6.3 Was «Freigeben» auslöst — exakte Reihenfolge
 
 Freigeben = den Prozess starten. Der Klick ist der Trigger.
@@ -401,6 +412,11 @@ Definiert werden sie an genau zwei Orten — mit **identischer Darstellung**:
 | **Auftrag** | Konkreter Prozess für konkrete Einzelinstanzen | **ja** |
 | **Artikel** | Erzeugungsprozess / Arbeitsplan als **Vorlage** | **nein** |
 
+Beide benutzen **dieselben** Bauteile: `ProcessDiagram` (Modus `definition`) und
+`AddModule`. Der einzige Unterschied ist der **fehlende Definitionsbereich** über dem
+Start: ein Artikel hat keine Einzelinstanzen, und welche durchlaufen, entscheidet
+ausschliesslich der Auftrag.
+
 ### 8.1 Eine Komponente, zwei Modi
 
 Die Prozessdarstellung ist **eine** wiederverwendbare Komponente mit zwei Modi:
@@ -443,19 +459,57 @@ zweite Art Vorlage trägt. «Prozess» wäre der Behälter, nicht die Sache.*
 
 ---
 
-## 9. Das Prozessschrittmodul «Testmodul»
+## 9. Das Prozessschrittmodul «Datenerfassung»
 
-Es gibt heute **genau ein** Modul, und es ist bewusst ein Platzhalter — ein Testvehikel
-für den Mechanismus, nicht das spätere Datenerfassungsmodul.
+Es gibt heute **genau ein** Modul, und es ist das erste echte. Das frühere Testmodul war
+ein Testvehikel für den Mechanismus und ist **ersatzlos entfallen** — den Mechanismus
+gibt es jetzt echt.
+
+Zweck: im Prozess laufend Daten erfassen und kontrollieren (Richtung Qualitätssicherung).
 
 | | |
 |---|---|
-| Anlegen | Freier Name · **Vorher-** und **Nachher-Status** aus der geschlossenen Liste. Beides Pflicht — ohne sie ist es nicht anlegbar (§4). |
-| Laufzeit | Es zeigt die Einzelinstanzen, die gerade davor stehen. |
-| **«Schritt bestätigen»** | Vorher-Status prüfen (passt nicht → sauberer Fehler) · Nachher-Status setzen · Ereignis loggen und einfrieren · Stück rückt vor. |
+| Übergang | **Durchläufer**: `Im Prozess` → `Im Prozess`, **fest verdrahtet** (`domain/modules`). Es misst — es verändert den Zustand des Stücks nicht. Passt der Ist-Status nicht: sauberer Fehler. |
+| Anlegen | Freier Name · **Erfassungspunkte**: je Punkt Bezeichnung, Typ, Pflicht ja/nein. Mindestens einer — ein Modul ohne Punkt stünde im Prozess und hätte nichts zu tun. |
+| Laufzeit | Es zeigt die Einzelinstanzen, die gerade davorstehen, und die zu erfassenden Punkte. |
+| **«Bestätigen»** | Pflichtpunkte prüfen (offen → Fehler, der sie **benennt**) · erfassen · Nachher-Status setzen · Ereignis loggen und einfrieren · Stück rückt vor. |
 
-Mehr nicht. Keine Felder, keine Eingaben, keine Fachlogik. Ist es das **letzte** Modul,
-passiert das Stück im selben Zug das Ende-Objekt und wird frei (§3.1).
+**Kein Status-Feld beim Anlegen.** Der Übergang gehört zum Modultyp; zwei Auswahlen
+hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand.
+
+### 9.1 Die Erfassungspunkt-Typen — eine geschlossene Liste aus Bausteinen
+
+| Typ | Erfassung | Urteil? |
+|---|---|---|
+| `text` | Freitext | nein |
+| `bool` | Ja/Nein (Daumen hoch/runter) | **ja** |
+| `photo` | Foto/Upload | nein |
+| `signature` | handschriftlich | nein |
+| `measure` | Soll-Ist-Vergleich (Sollwert **Pflicht**, Toleranz optional) | **ja** |
+
+Geschlossen wie die Statuswerte (§5.1) — aber ein Typ ist nicht nur ein Wort, sondern
+**Verhalten**: prüfen, wissen was fehlt, bewerten. Darum ist jeder Typ eine eigene Datei
+mit einer eigenen Klasse (`domain/capture_types/`), und die Registry findet sie selbst
+(`pkgutil`). **Ein sechster Typ ist eine neue Datei, sonst nichts** — keine Aufzählung,
+die man vergisst, und keine `if type == …`-Kette, in der man eine von drei Stellen
+übersieht.
+
+*«Nicht angetippt» ist bei `bool` nicht dasselbe wie «nein»* — sonst zählte ein
+übersehener Pflichtpunkt als bewusstes «schlecht».
+
+### 9.2 Was erfasst wurde, hängt am Stück
+
+Eine Erfassung ist eine Zeile in `captures`, mit Fremdschlüssel auf die **Einzelinstanz**
+— und auf Auftrag und Modul, aus denen sie stammt. Es gibt **keinen** Endpunkt, der eine
+Erfassung ohne Modul schreibt: erfasst wird, wenn ein Stück davorsteht und jemand
+bestätigt. Gelesen wird frei (Instanz-Detail, Reiter «Datenerfassung»); geändert nie.
+
+Ist es das **letzte** Modul, passiert das Stück im selben Zug das Ende-Objekt und wird
+frei (§3.1).
+
+**Was ein «nicht bestanden» auslöst, ist weiterhin offen** (§12.5). Bis dahin ist das
+Ergebnis eine Aussage über die **Messung**, kein Ereignis im Prozess — ein erfundener
+Abzweig wäre schlimmer als keiner.
 
 ---
 
@@ -609,8 +663,9 @@ Buchführung in denselben Zeilen zu führen — und die schwächere Garantie gew
 Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werden einzeln
 nachgetragen — nicht beim Bauen erraten.
 
-1. **Die Prozessschrittmodule selbst.** Erstes: Datenerfassung.
-   *Offen daran: was bei «nicht bestanden» passiert (siehe 5).*
+1. **Die weiteren Prozessschrittmodule.** Das erste ist gebaut (Datenerfassung, §9).
+   *Offen daran: was bei «nicht bestanden» passiert (siehe 5) – und ob je Einzelinstanz
+   einzeln erfasst wird oder einmal gemeinsam (§13, heute gemeinsam).*
 2. **Der Unterauftrag-Mechanismus.** Die Skizze zeigt Abzweigungen nach rechts und
    zurück. Wann zweigt es ab, was nimmt der Unterauftrag mit, wo mündet er, was passiert
    mit dem Status des Stücks währenddessen?
@@ -644,6 +699,13 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **A5 gilt für Modul-Definitionen, nicht für die Instanz-Liste** | Bei einer Liste wäre «löschen und neu anlegen» dasselbe wie «bearbeiten». |
 | **Der Auftrag kennt `released` und `completed`** | «Abgeschlossen» ist abgeleitet: alle Stücke sind durch. Kein Feld, das jemand von Hand setzt. |
 | **Ein Modul bewegt alle Stücke, die davor stehen** | Ein Bestätigen je Stück wäre bei 500 Stück unbedienbar; die Historie bleibt trotzdem **je Stück** ein eigener Eintrag. |
+| **Die Datenerfassung erfasst EINMAL für alle Davorstehenden** | Die einfachere der beiden plausiblen Varianten (die andere: je Stück ein eigener Wertesatz, also 5 Unterschriften bei 5 Stück). **Gespeichert wird trotzdem je Einzelinstanz** — das Modell nimmt die andere Variante damit vorweg, sie wäre eine Änderung an der Eingabe, nicht an der Datenhaltung. **Zur Entscheidung vorgelegt.** |
+| **Der Übergang gehört zum Modultyp, nicht zum Anwender** | «Fest verdrahtet, nicht einstellbar» (Vorgabe). Zwei Status-Auswahlen beim Anlegen hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand — und deren falsche einen Prozess ergäbe, der nicht läuft. |
+| **Ein neuer Erfassungspunkt ist standardmässig Pflicht** | Man legt einen Punkt an, weil er erfasst werden soll; «optional» ist die Ausnahme und steht als Häkchen daneben. |
+| **Ein Erfassungspunkt-Typ ist eine Datei, keine Zeile in einer Liste** | Ein Typ ist **Verhalten** (prüfen · fehlt der Wert · bewerten), nicht nur ein Wort. Als `if/else` verteilt sich das auf drei Stellen, von denen man die dritte vergisst. |
+| **Der Artikel entsteht erst bei seiner Freigabe** | Dieselbe Regel wie beim Auftrag (§6.1) und aus demselben Grund. Ein Artikel, der schon eine Objektnummer hat, aber nichts erzeugen kann, ist ein Datensatz mit einer Zusage, die er nicht halten kann. |
+| **`articles.status` kennt nur noch `released` und `inactive`** | `draft` hatte keinen Zustand mehr zu beschreiben: vor der Freigabe gibt es keine Zeile. Vorgefundene Entwürfe (Ergebnis des behobenen Fehlers) werden **inaktiv** — nicht gelöscht, denn ihre Objektnummer ist vergeben. |
+| **Der Erzeugungsprozess ist nach der Freigabe nicht mehr änderbar** | Er entsteht mit dem Artikel; es gibt keinen Endpunkt, der ihn danach anfasst. Ein «Modul nachträglich hinzufügen» wäre eine Tür in einen Datensatz, der bereits Aufträge speist — und die Kopien in laufenden Aufträgen trügen einen Stempel, der nicht mehr stimmt. |
 | **Reiter-Name «Erzeugungsprozess»** | Sagt, wofür der Prozess da ist, und lässt Platz für eine zweite Art Vorlage. |
 | **Mehrere Definitionszeilen sind erlaubt** | Artikel A `Neu` + Artikel B `Lager` in einem Auftrag ist ein normaler Fall. |
 | **Ein Auftrag hat EINEN Prozess** | Bringen zwei `Neu`-Zeilen verschiedene Vorlagen mit, ist das ein harter Fehler mit Klartext-Grund. Welcher gälte, kann das System nicht entscheiden — und raten wäre hier besonders teuer. |

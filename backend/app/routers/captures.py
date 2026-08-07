@@ -1,8 +1,14 @@
-"""Datenerfassung – erfasst wird an der **Einzelinstanz**, sonst nirgends.
+"""Datenerfassung – **lesen**. Geschrieben wird ausschliesslich im Prozess.
 
-Die Maske steht am Artikel (``articles.capture_fields``), die Werte an der Einzelinstanz.
-Eine Erfassung hat heute keine Folgen: sie hält fest, was gemessen wurde. Was daraus
-folgt, entscheidet die neue Prozesslogik – die gibt es noch nicht.
+Erfasst wird, wenn ein Stück vor einem Modul steht und jemand bestätigt
+(``POST /erp/orders/{id}/steps/{step_id}/confirm``). Es gibt hier bewusst **keinen**
+Schreib-Endpunkt mehr: der frühere legte Werte an einer beliebigen Einzelinstanz an,
+ohne dass sie irgendwo davorstand – eine Erfassung ohne Anlass, und eine zweite Tür zu
+derselben Sache.
+
+Was bleibt, ist die **Historie am Stück**: was an dieser Einzelinstanz erfasst wurde,
+wann, von wem und mit welchem Ergebnis. Eingefroren – eine Korrektur wäre eine neue
+Erfassung, kein Update.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,16 +16,16 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
-from ..models import Article, Instance, InstanceUnit, UserProfile
-from ..schemas.instance import CaptureCreate, CaptureResponse
+from ..models import Instance, InstanceUnit, ProcessStep, UserProfile
+from ..schemas.instance import CaptureResponse
 from ..services import capture as capture_svc
 from ..services import instances as inst_svc
 
 router = APIRouter(prefix="/api/v1/erp/captures", tags=["captures"])
 
 
-def _resolve(db: Session, number: str) -> tuple[Instance, InstanceUnit, Article]:
-    """``100000123-7`` → (Instanz, Einzelinstanz, Artikel). Jeder Fehlschlag nennt seinen Grund."""
+def _unit(db: Session, number: str) -> InstanceUnit:
+    """``100000123-7`` → Einzelinstanz. Jeder Fehlschlag nennt seinen Grund."""
     parsed = inst_svc.parse_unit_number(number)
     if not parsed:
         raise HTTPException(
@@ -38,24 +44,7 @@ def _resolve(db: Session, number: str) -> tuple[Instance, InstanceUnit, Article]
     )
     if unit is None:
         raise HTTPException(status_code=404, detail=f"Einzelinstanz {number} nicht gefunden.")
-    article = db.query(Article).filter(Article.id == instance.article_id).first()
-    if article is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Artikel der Instanz {object_id} nicht gefunden (Datensatz {instance.article_id}).",
-        )
-    return instance, unit, article
-
-
-@router.get("/{number}/fields")
-def capture_fields(
-    number: str,
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
-):
-    """Die Erfassungsmaske für diese Einzelinstanz (kommt vom Artikel)."""
-    _, _unit, article = _resolve(db, number)
-    return {"article_object_id": article.object_id, "fields": capture_svc.fields_of(article)}
+    return unit
 
 
 @router.get("/{number}", response_model=list[CaptureResponse])
@@ -64,22 +53,26 @@ def list_captures(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    _, unit, _article = _resolve(db, number)
-    return capture_svc.history(db, unit)
+    """Was an dieser Einzelinstanz erfasst wurde – neueste zuerst.
 
-
-@router.post("/{number}", response_model=CaptureResponse, status_code=201)
-def record_capture(
-    number: str,
-    data: CaptureCreate,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(require_employee),
-):
-    _, unit, article = _resolve(db, number)
-    entry = capture_svc.record(
-        db, unit=unit, article=article, values=data.values,
-        actor_id=user.id, note=data.note,
-    )
-    db.commit()
-    db.refresh(entry)
-    return entry
+    Die **Punkte** kommen aus dem Modul, das sie erfasst hat: ohne sie stünden nur
+    Schlüssel und Rohwerte da, und ein Messwert ohne seine Bezeichnung ist eine Zahl.
+    """
+    unit = _unit(db, number)
+    rows = capture_svc.history(db, unit)
+    steps = {
+        s.id: s
+        for s in db.query(ProcessStep).filter(ProcessStep.id.in_({c.step_id for c in rows})).all()
+    } if rows else {}
+    return [
+        CaptureResponse(
+            id=c.id,
+            values=c.values,
+            result=c.result,
+            note=c.note,
+            created_at=c.created_at,
+            step_name=steps[c.step_id].name if c.step_id in steps else None,
+            points=capture_svc.points_of(steps[c.step_id]) if c.step_id in steps else [],
+        )
+        for c in rows
+    ]

@@ -15,7 +15,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, insert, update
 from sqlalchemy.orm import Session
 
-from ..domain import statuses as st
+from ..domain import modules, statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent,
     ProcessStep,
@@ -23,7 +23,7 @@ from ..models import (
 from ..models.order import COMPLETED, RELEASED
 from ..models.order_line import LAGER, NEU, ORIGINS
 from ..models.process_event import KIND_END, KIND_START, KIND_STEP
-from . import article_process, materialize
+from . import article_process, capture as capture_svc, materialize
 from .instances import unit_number
 
 #: Wie viele Werte höchstens in eine ``IN``-Liste kommen. Bei 5000 Stück wäre eine
@@ -52,6 +52,7 @@ def _pass(
     status_after: str,
     next_step_id: Optional[int],
     actor_id: Optional[int],
+    payloads: Optional[dict[int, dict[str, Any]]] = None,
 ) -> int:
     """Stücke passieren ein Prozessobjekt.
 
@@ -78,7 +79,10 @@ def _pass(
                 "kind": kind,
                 "status_before": u.status,
                 "status_after": status_after,
-                "payload": None,
+                # Was das Modul dabei festgehalten hat – bei der Datenerfassung die
+                # ``captures``-Zeile dieses Stücks. Der Log verweist darauf, statt die
+                # Werte ein zweites Mal zu führen: zwei Kopien laufen auseinander.
+                "payload": (payloads or {}).get(u.id),
                 "actor_id": actor_id,
             }
             for u in units
@@ -167,6 +171,42 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
     return out
 
 
+def _shape(steps: list[dict[str, Any]]) -> str:
+    """Die vergleichbare Form einer Vorlage – **inklusive Konfiguration**.
+
+    Zwei Vorlagen mit gleichen Namen, aber verschiedenen Erfassungspunkten sind nicht
+    dieselbe Vorlage. Ohne die Konfiguration im Vergleich gälten sie als gleich, und der
+    Auftrag führe stillschweigend die eine von beiden.
+    """
+    import json as _json
+
+    return _json.dumps(
+        [[s["module_type"], s["name"], s["status_before"], s["status_after"], s.get("config")]
+         for s in steps],
+        sort_keys=True, ensure_ascii=False,
+    )
+
+
+def _from_module(data: dict[str, Any]) -> dict[str, Any]:
+    """Eine Modul-Definition aus dem Entwurf in ihre gespeicherte Form bringen.
+
+    **Der Übergang wird abgeleitet, nicht übernommen**: er gehört zum Modultyp
+    (``domain/modules``). Was der Entwurf schickt, ist Name und Konfiguration – und die
+    läuft durch die Prüfung des Moduls, nicht durch eine Kopie davon.
+    """
+    module = modules.get(data.get("module_type"))
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Ein Modul braucht einen Namen.")
+    return {
+        "module_type": module.key,
+        "name": name[:120],
+        "status_before": module.status_before,
+        "status_after": module.status_after,
+        "config": module.clean_config(data.get("config")),
+    }
+
+
 def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Welcher Prozess gilt für diesen Auftrag?
 
@@ -181,7 +221,7 @@ def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) 
     """
     new_lines = [ln for ln in lines if ln.origin == NEU]
     if not new_lines:
-        return [dict(s) for s in submitted]
+        return [_from_module(s) for s in submitted]
 
     variants: list[tuple[list[dict[str, Any]], _Line]] = []
     for ln in new_lines:
@@ -195,12 +235,8 @@ def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) 
                     f"mindestens ein Modul steht."
                 ),
             )
-        shape = [(s["module_type"], s["name"], s["status_before"], s["status_after"])
-                 for s in copied]
-        if variants and shape != [
-            (s["module_type"], s["name"], s["status_before"], s["status_after"])
-            for s in variants[0][0]
-        ]:
+        shape = _shape(copied)
+        if variants and shape != _shape(variants[0][0]):
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -417,6 +453,7 @@ def release(
             name=step["name"],
             status_before=step["status_before"],
             status_after=step["status_after"],
+            config=step.get("config"),
             source_article_id=step.get("source_article_id"),
             source_version=step.get("source_version"),
         )
@@ -461,13 +498,19 @@ def release(
 # ---------------------------------------------------------------------------
 
 def confirm_step(
-    db: Session, *, order: Order, step_id: int, actor_id: Optional[int],
+    db: Session, *, order: Order, step_id: int, values: dict[str, Any],
+    actor_id: Optional[int],
 ) -> int:
-    """«Schritt bestätigen» — der Mechanismus, den das Testmodul auslöst.
+    """«Bestätigen» — der eine Mechanismus, den jedes Modul auslöst.
 
-    Prüft den Vorher-Status, setzt den Nachher-Status, loggt, rückt vor. Ist der
-    Schritt der letzte, passiert das Stück im selben Zug das **Ende-Objekt** und wird
-    frei. Gibt die Zahl der bewegten Stücke zurück.
+    Prüft den Vorher-Status, lässt das Modul festhalten was es festhält, setzt den
+    Nachher-Status, loggt, rückt vor. Ist der Schritt der letzte, passiert das Stück im
+    selben Zug das **Ende-Objekt** und wird frei. Gibt die Zahl der bewegten Stücke zurück.
+
+    **Die Erfassung liegt VOR dem Statuswechsel.** Fehlt ein Pflichtpunkt, ist das ein
+    Fehler mit Namen – und es hat sich nichts bewegt. Andersherum stünde die Erfassung
+    unter Zugzwang: das Stück wäre schon vorgerückt, und der einzige Weg zurück wäre
+    keiner.
     """
     step = (
         db.query(ProcessStep)
@@ -509,12 +552,21 @@ def confirm_step(
 
     units = [u for _, u in waiting]
     membership_ids = [m.id for m, _ in waiting]
+
+    # Was das Modul festhält, hängt am **Stück** – ein Wertesatz, eine Zeile je
+    # Einzelinstanz (siehe ``capture.record_for_step``).
+    captures = capture_svc.record_for_step(
+        db, order=order, step=step, units=units, values=values, actor_id=actor_id,
+    )
+    payloads = {uid: {"capture_id": c.id} for uid, c in captures.items()}
+
     _pass(
         db, order=order, units=units, membership_ids=membership_ids,
         kind=KIND_STEP, step=step,
         status_after=step.status_after,
         next_step_id=following.id if following else None,
         actor_id=actor_id,
+        payloads=payloads,
     )
     if following is None:
         # Das Ende-Objekt im selben Zug: es ist kein Schritt, also ein eigener

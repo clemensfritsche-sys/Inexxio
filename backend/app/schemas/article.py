@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .process import ModuleInput
+
 # ─── Erlaubte Werte ──────────────────────────────────────────────────────────
 
 ALLOWED_UNITS = ("Stk", "mm", "m2", "m3", "kg", "l")
@@ -111,12 +113,18 @@ _OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 
 class ArticleCreate(BaseModel):
-    """Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.
+    """Der Artikel-Entwurf, so wie ihn die Oberfläche schickt – Spezifikation **und**
+    Erzeugungsprozess in einem Aufruf.
 
-    Pflicht ist einzig der **Name**. Einheit/Serialisierung tragen einen Default
-    (Stk / Einzelteil), Grösse & Gewicht sind optional (physische Attribute, die z. B. ein
-    Dokument-Artikel nicht braucht). Es gibt KEINE Typ-Unterscheidung physisch/nicht-physisch:
-    ob ein Dokument entsteht, entscheidet allein der Prozessschritt «document»."""
+    Das ist keine Bequemlichkeit, sondern die Folge aus der Regel: der Artikel entsteht
+    erst mit seiner **Freigabe**, und die verlangt beides. Zwei Aufrufe hiessen zwei
+    Transaktionen und damit die Möglichkeit eines halben Artikels – genau die, die es
+    vorher gab (Spezifikation gespeichert, Prozess leer).
+
+    Pflicht sind **Name, Abmessungen, Gewicht** und **mindestens ein Prozessschrittmodul**.
+    Einheit/Serialisierung tragen einen Default (Stk / Einzelteil). Geprüft wird in
+    ``services/articles.missing_for_release`` – der einen Stelle, die auch ``/validate``
+    beantwortet."""
 
     name: str
     unit: Optional[str] = None            # Default 'Stk' (siehe ``_defaults``)
@@ -131,12 +139,13 @@ class ArticleCreate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
-    capture_fields: Optional[list] = None       # Erfassungsmaske der Datenerfassung
     # Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (alle optional –
     # kann später ergänzt werden; der purchase-Schritt erbt sie als Default).
     procurement_mode: Optional[str] = None   # Default 'supplier'
     default_supplier_id: Optional[int] = None
     default_webshop_url: Optional[str] = None
+    #: Der Erzeugungsprozess. **Pflicht** – ein Artikel ohne ihn kann nichts erzeugen.
+    steps: list[ModuleInput] = Field(default_factory=list)
 
     @field_validator(*_OPTIONAL_TEXT_FIELDS)
     @classmethod
@@ -225,7 +234,6 @@ class ArticleUpdate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
-    capture_fields: Optional[list] = None       # Erfassungsmaske der Datenerfassung
     # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
     procurement_mode: Optional[str] = None
     default_supplier_id: Optional[int] = None
@@ -336,8 +344,6 @@ class ArticleResponse(BaseModel):
     sales_visibility: str = "public"
     sales_fulfillment: str = "make"
     # Die Erfassungsmaske der Datenerfassung: was an einer Einzelinstanz dieses
-    # Artikels erfasst wird (services/capture.py). Leer heisst: hier wird nichts erfasst.
-    capture_fields: Optional[list] = None
     # Ersetzen (Nachvollziehbarkeit): Nachfolger bzw. Vorgänger (Objektnummern).
     replaced_by_id: Optional[int] = None
     replaces_id: Optional[int] = None  # vom Router gesetzt (Vorgänger)
@@ -347,6 +353,16 @@ class ArticleResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class ArticleValidation(BaseModel):
+    """Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."""
+
+    saveable: bool
+    missing: list[str] = Field(
+        default_factory=list,
+        description="Was noch fehlt – leer heisst freigebbar.",
+    )
 
 
 class ArticleNameSuggestion(BaseModel):
@@ -361,17 +377,10 @@ class ArticleNameSuggestion(BaseModel):
 # Erzeugungsprozess (Vorlage am Artikel)
 # ---------------------------------------------------------------------------
 
-class ArticleProcessStepInput(BaseModel):
+class ArticleProcessStepResponse(BaseModel):
     """Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,
     nur bevor er läuft."""
 
-    module_type: str
-    name: str = Field(min_length=1, max_length=120)
-    status_before: str
-    status_after: str
-
-
-class ArticleProcessStepResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -380,6 +389,7 @@ class ArticleProcessStepResponse(BaseModel):
     name: str
     status_before: str
     status_after: str
+    config: Optional[dict] = None
 
 
 class ArticleProcess(BaseModel):

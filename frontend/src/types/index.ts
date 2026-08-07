@@ -187,26 +187,19 @@ export type InstanceSummary = components['schemas']['InstanceSummary'];
 // Die Einzelinstanz – das einzige Arbeitsobjekt. Nummer = <Instanznr>-<suffix>.
 export type InstanceUnit = components['schemas']['InstanceUnitResponse'];
 export type InstanceCreateInput = components['schemas']['InstanceCreate'];
-// Datenerfassung an einer Einzelinstanz.
+// Datenerfassung an einer Einzelinstanz – **nur lesend**. Geschrieben wird
+// ausschliesslich im Prozess, wenn ein Stück vor einem Modul steht und jemand bestätigt.
 export type Capture = components['schemas']['CaptureResponse'];
-export type CaptureInput = components['schemas']['CaptureCreate'];
 
 /**
- * Ein Erfassungsfeld der Maske am Artikel (`articles.capture_fields`).
+ * Ein Erfassungspunkt aus der Definition eines Moduls (`process_steps.config`).
  *
- * Handgepflegter Spiegel: die Maske ist im Backend ein freies JSONB, hat dort also kein
- * eigenes Schema. Die Feldform ist unverändert die bisherige – `services/capture.py`
- * beschreibt sie, `EVALUABLE`/`MEDIA` dort entscheiden über die Bewertung.
+ * Die Typen selbst sind eine geschlossene Liste im Backend (`domain/capture_types/`) und
+ * kommen über den Modul-Katalog; hier steht nur die Form eines gespeicherten Punktes.
  */
-export type CaptureFieldType = 'measure' | 'bool' | 'text' | 'photo' | 'signature';
-
-export interface CaptureField {
-  key: string;
-  label: string;
-  type: CaptureFieldType;
-  target?: number | null;      // nur measure: Sollwert (ohne Soll = reine Ablesung)
-  tolerance?: number | null;   // nur measure
-}
+export type CapturePoint = components['schemas']['CapturePoint'];
+export type ModuleCatalog = components['schemas']['ModuleCatalog'];
+export type ArticleValidation = components['schemas']['ArticleValidation'];
 export type ObjectReference = components['schemas']['ObjectReference'];
 export type SalesVisibility = 'public' | 'private';
 export type SalesFulfillment = 'make' | 'stock';

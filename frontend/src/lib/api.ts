@@ -9,9 +9,9 @@ import type {
   ArticleProcess,
   InstanceSummary,
   InstanceCreateInput,
+  ArticleValidation,
   Capture,
-  CaptureInput,
-  CaptureField,
+  ModuleCatalog,
   Article,
   ArticleInput,
   ArticleUpdateInput,
@@ -349,6 +349,14 @@ class ApiClient {
     return this.get(`/api/v1/erp/articles/${objectId}`);
   }
 
+  /** Wäre dieser Artikel-Entwurf freigebbar? Legt nichts an und zieht keine Nummer –
+   *  dieselbe Regel, die auch die Anlage prüft (services/articles.validate_draft). */
+  validateArticle(draft: unknown): Promise<ArticleValidation> {
+    return this.post('/api/v1/erp/articles/validate', draft);
+  }
+
+  /** Anlegen **ist** Freigeben: Spezifikation UND Erzeugungsprozess in einem Aufruf –
+   *  erst dabei entsteht der Datensatz und seine Objektnummer. */
   createArticle(data: ArticleInput): Promise<Article> {
     return this.post('/api/v1/erp/articles', data);
   }
@@ -510,19 +518,20 @@ class ApiClient {
     return this.get(`/api/v1/erp/articles/${objectId}/process`);
   }
 
-  addArticleProcessStep(objectId: number, step: {
-    module_type: string; name: string; status_before: string; status_after: string;
-  }): Promise<ArticleProcess> {
-    return this.post(`/api/v1/erp/articles/${objectId}/process/steps`, step);
+  // Es gibt KEINEN Schreib-Endpunkt auf die Vorlage: sie entsteht mit dem Artikel
+  // (`createArticle`) und ist ab da eingefroren.
+
+  /** Was sich modellieren lässt – Modultypen und Erfassungspunkt-Typen. Beides sind
+   *  geschlossene Listen im Backend; die Oberfläche holt sie, statt sie nachzubauen. */
+  getModuleCatalog(): Promise<ModuleCatalog> {
+    return this.get('/api/v1/erp/orders/module-catalog');
   }
 
-  deleteArticleProcessStep(objectId: number, stepId: number): Promise<ArticleProcess> {
-    return this.delete(`/api/v1/erp/articles/${objectId}/process/steps/${stepId}`);
-  }
-
-  /** «Schritt bestätigen» – der eine Ausführungs-Endpunkt des Testmoduls. */
-  confirmStep(objectId: number, stepId: number): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {});
+  /** «Bestätigen» – der eine Ausführungs-Endpunkt, für jedes Modul derselbe. Was im
+   *  Rumpf steht, entscheidet der Modultyp (Datenerfassung: die erfassten Werte). */
+  confirmStep(objectId: number, stepId: number,
+              values: Record<string, unknown> = {}): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, { values });
   }
 
   // Instanz-Feed (server-seitig durchsuchbar/paginierbar, neueste Objektnummer zuerst).
@@ -551,16 +560,11 @@ class ApiClient {
   }
 
   // ─── Datenerfassung (an der Einzelinstanz) ─────────────────────────────────
-  getCaptureFields(number: string): Promise<{ article_object_id: number; fields: CaptureField[] }> {
-    return this.get(`/api/v1/erp/captures/${number}/fields`);
-  }
-
+  /** Was an dieser Einzelinstanz erfasst wurde – **nur lesend**. Geschrieben wird
+   *  ausschliesslich im Prozess (`confirmStep`): eine Erfassung ohne Modul hätte
+   *  keinen Anlass. */
   getCaptures(number: string): Promise<Capture[]> {
     return this.get(`/api/v1/erp/captures/${number}`);
-  }
-
-  recordCapture(number: string, input: CaptureInput): Promise<Capture> {
-    return this.post(`/api/v1/erp/captures/${number}`, input);
   }
 
   // Universelle Objektnummer serverseitig auf ihren Typ auflösen (Scan/Navigation)
