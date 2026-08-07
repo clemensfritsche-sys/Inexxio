@@ -7,7 +7,7 @@
 > Datensatztyps «Auftrag» und den Entscheiden A1–A6. Die frühere Prozesslogik ist
 > ersatzlos entfernt; nichts davon ist Vorlage.
 >
-> **Stand der Umsetzung:** §1–§11 sind **gebaut und im Browser durchgeprüft**. Das erste
+> **Stand der Umsetzung:** §1–§12 sind **gebaut und im Browser durchgeprüft**. Das erste
 > echte Prozessschrittmodul ist die **Datenerfassung** (§9); das frühere Testmodul ist
 > ersatzlos entfallen.
 
@@ -140,8 +140,9 @@ Fehlern unmöglich — statt sie zu bewachen.
   Sonst hebelt der erste Parallelzugriff sie aus (§10.2).
 - **Folge, ausdrücklich gewollt: Reservierung, Anteil und Unterdeckung entfallen
   ersatzlos.** Nichts davon wird gebaut, auch nicht vorbereitend.
-- Solange ein Stück in einem Auftrag steckt, ist es für jeden anderen tabu. Es gibt
-  keine Ausnahme, bis der Unterauftrag-Mechanismus (§11.2) definiert ist.
+- Solange ein Stück in einem Auftrag steckt, ist es für jeden anderen tabu. **Es gibt
+  keine Ausnahme** — auch der Abweichungsauftrag (§12) ist keine: er **entzieht** das
+  Stück dem laufenden Auftrag, statt es ein zweites Mal aktiv zu machen.
 
 ### 3.1 Wann wird ein Stück wieder frei?
 
@@ -242,7 +243,7 @@ spiegelt sie und wird dagegen getestet.
 |---|---|
 | `verfügbar` | wäre ein **zweites Wort für `Freigegeben`** — genau die Doppelung, die dieses System überall abbaut |
 | `gebunden` | war der Reservierungs-Begriff. **A3 streicht Reservierung ersatzlos** — der Wert wäre vorbereitendes Bauen für etwas, das es nicht geben soll |
-| `gesperrt` | Problem-Zustand. Die Fehlerbehandlung im Modul ist **nicht entschieden** (§11.5) — ein Wert dafür wäre erfunden |
+| `gesperrt` | Problem-Zustand. Die Fehlerbehandlung im Modul ist **nicht entschieden** (§13.4) — ein Wert dafür wäre erfunden |
 | `verbraucht` | Endzustand. **A6 sagt: heute genau einer** |
 
 **Rot hat heute keinen Wert.** Der Ton steht in der Farbregel, aber es gibt noch keinen
@@ -373,9 +374,9 @@ Modul hat keinen Bearbeiten-Zustand, nur einen Papierkorb.
 Einzelinstanzen wandern **ausschliesslich abwärts**. Kein Rücksprung, keine Schleife,
 keine Wiederholung an Ort und Stelle.
 
-Was schiefgeht, geht **seitlich** in einen Unterauftrag und kommt **unterhalb** der
-Abzweigung zurück — die Bewegung bleibt damit abwärts. Der Mechanismus dafür ist noch
-nicht definiert (§11.2).
+Was schiefgeht, geht **seitlich** in einen Abweichungsauftrag und kommt an **genau der
+Stelle** zurück, an der es ausgeschert ist — die Bewegung innerhalb eines Auftrags bleibt
+damit abwärts (§12).
 
 ### 7.2 Geloggt und eingefroren
 
@@ -545,7 +546,7 @@ bestätigt. Gelesen wird frei (Instanz-Detail, Reiter «Datenerfassung»); geän
 Ist es das **letzte** Modul, passiert das Stück im selben Zug das Ende-Objekt und wird
 frei (§3.1).
 
-**Was ein «nicht bestanden» auslöst, ist weiterhin offen** (§12.5). Bis dahin ist das
+**Was ein «nicht bestanden» auslöst, ist weiterhin offen** (§13.4). Bis dahin ist das
 Ergebnis eine Aussage über die **Messung**, kein Ereignis im Prozess — ein erfundener
 Abzweig wäre schlimmer als keiner.
 
@@ -638,7 +639,7 @@ process_steps
 
 **Eine geordnete Liste, kein allgemeiner Graph.** Ein Auftrag hat einen Anfang, ein Ende
 und dazwischen eine Folge — `position` ist die Kante. Verzweigungen entstehen nicht
-innerhalb der Definition, sondern als **eigener Auftrag** daneben (Unterauftrag, §11.2).
+innerhalb der Definition, sondern als **eigener Auftrag** daneben (Abweichungsauftrag, §12).
 Ein Kantenmodell würde eine Freiheit anbieten, die es fachlich nicht gibt, und jede
 Auswertung müsste danach mit Zyklen und toten Ästen rechnen.
 
@@ -708,32 +709,168 @@ Buchführung in denselben Zeilen zu führen — und die schwächere Garantie gew
 
 ---
 
-## 12. Bewusst noch nicht definiert
+## 12. Abweichungsaufträge
+
+Der definierte Prozess ist das **Soll**. Was in der Wirklichkeit davon abweicht — nochmals
+kontrollieren, nacharbeiten, aussortieren, zurückschicken — sind unendlich viele Fälle.
+Sie werden nicht aufgezählt und nicht als Modultypen vorgesehen. Sie werden **mit einem
+Auftrag** dargestellt.
+
+### 12.1 Ein Abweichungsauftrag ist 1:1 ein regulärer Auftrag
+
+Kein neuer Datensatztyp, keine zweite Tabelle, kein zweiter Endpunkt, kein Sonderweg bei
+der Freigabe. Dieselbe Definition (§2.1), dieselbe Exklusivität (§3), dieselben Module,
+derselbe Log.
+
+> **Wer im Code nach `if abweichung:` sucht, hat es falsch gebaut.**
+
+Was ihn ausmacht, ist **nichts an ihm selbst**, sondern die Herkunft seiner Stücke: er
+greift Einzelinstanzen, die in diesem Moment `Im Prozess` stehen. Das ist keine Ausnahme
+von §3, sondern deren Anwendung — das Stück wird dem laufenden Auftrag **entzogen**, nicht
+ein zweites Mal aktiv gemacht. In einer Transaktion: die alte Zugehörigkeit schliessen,
+dann die neue anlegen. Der partielle Unique-Index sieht nie zwei aktive Zeilen; er ist
+damit auch hier die Stelle, an der die Regel nicht umgangen werden kann.
+
+### 12.2 Das Label ist abgeleitet, nicht gesetzt
+
+Ein Auftrag trägt das Wort «Abweichung», wenn **irgendein Stück ihn mit dem Status
+`Im Prozess` betreten hat**. Genau diese Frage steht im Log:
+
+```sql
+kind = 'start' AND status_before = 'im_prozess'
+```
+
+Kein Feld, kein Flag, keine Pflege. Es ist die Frage selbst, an den Log gestellt — und
+damit per Konstruktion nie veraltet.
+
+### 12.3 Die Rückführung ist eine Eigenschaft der VERBINDUNG
+
+Nicht des Auftrags. Sie steht als **eine Spalte** an der Zugehörigkeit:
+
+```
+order_units.return_to_order_id   in welchen Auftrag kehrt dieses Stück zurück
+                                 NULL = nirgendwohin
+```
+
+Das ist der Grund, warum Schachtelung und Parallelität **ohne eine zweite Regel**
+funktionieren: jede Kante entscheidet für sich. Ein Stück kann durch fünf Aufträge
+wandern, von denen der dritte gekappt ist — dann endet die Kette dort, und zwar für alle
+darüber gleichermassen. Stünde die Eigenschaft am *Auftrag*, müsste sie für jede Kante
+gelten, die je an ihm hängt; ein Auftrag, der Stücke aus zwei verschiedenen Aufträgen
+holt, hätte dann eine Antwort für zwei Fragen.
+
+Zwei Fälle, **eine Logik**:
+
+| | Der Hauptauftrag |
+|---|---|
+| **rückführend** | wartet auf das Stück und läuft danach an derselben Stelle weiter |
+| **gekappt** | läuft mit **reduzierter Menge** ganz normal weiter — er wartet nicht |
+
+Die Menge des Hauptauftrags wird dabei nirgends dekrementiert. Sie *ist* die Zahl seiner
+aktiven Zugehörigkeiten; ein entzogenes Stück ist schlicht keine mehr.
+
+### 12.4 Die Rückkehrposition braucht kein eigenes Feld
+
+Beim Ausscheren wird die Zeile des Hauptauftrags geschlossen (`released_at`), aber ihr
+`current_step_id` **nicht angefasst**. Damit steht die Position, an der das Stück
+ausgeschert ist, bereits dort, wo sie hingehört — in der Zeile selbst. Die Rückkehr ist
+das Wiederöffnen genau dieser Zeile.
+
+Daraus folgt die Lesart der geschlossenen Zeile, und sie ist eindeutig:
+
+| `current_step_id` | Bedeutung |
+|---|---|
+| `NULL` | angekommen — das Stück hat das Ende passiert |
+| gesetzt | ausgeschert — und das ist die Stelle, an die es zurückkehrt |
+
+Ein gemerkter «Rücksprungpunkt» wäre eine zweite Aussage über dieselbe Sache und könnte
+von der ersten abweichen. Diese hier kann es nicht.
+
+### 12.5 «Wartet auf Rückführung» wird abgeleitet
+
+Gezählt werden die **offenen rückführenden Verbindungen**, die auf diesen Auftrag zeigen —
+über die ganze Kette nach oben, denn ein Stück, das zwei Ebenen tiefer steckt, kommt
+ebenso zurück. Kein Zähler, kein Flag, nichts, das jemand zu dekrementieren vergessen
+kann.
+
+Aus derselben Quelle fällt der **Auftragsstatus** — ebenfalls abgeleitet, nie gesetzt:
+
+```
+noch etwas aktiv oder verliehen  →  Im Prozess
+sonst, mindestens eines angekommen  →  Abgeschlossen
+sonst  →  Abgebrochen
+```
+
+Die Reihenfolge ist nicht beliebig: «angekommen» darf «noch unterwegs» nicht schlagen,
+sonst gilt ein Auftrag als fertig, sobald das erste Stück durch ist. Solange alle Stücke
+im Gleichschritt laufen, fällt das nie auf — mit Abweichungen sofort.
+
+### 12.6 Wann darf ein Stück ein Modul verlassen?
+
+**Offene Entscheidung** (§13.2). Gebaut ist die restriktivere Variante: solange in einem
+Modul mit der Eingabe **begonnen** wurde, ist der Auslöser gesperrt.
+
+Sie steht als **Eigenschaft des Modultyps** (`Module.units_may_leave`), nicht als globale
+Regel — denn die richtige Antwort hängt am Modul: eine begonnene Datenerfassung ist
+verlorene Tipparbeit, eine ausgelöste Bestellung ist Aussenwirkung. Ein Modultyp, der
+etwas Unwiderrufliches tut, wird die Antwort «nein» brauchen, während sie für die
+Datenerfassung eher «ja» lautet.
+
+**Serverseitig kann diese Regel nicht erzwungen werden**, und das ist kein Versäumnis:
+eine nicht bestätigte Eingabe existiert nirgends — nicht in der Datenbank, nicht im Log.
+Nur das Fenster, in dem getippt wird, kennt diesen Zustand. Die Sperre ist deshalb eine
+Vorsichtsmassnahme in der Oberfläche; die *Regel* wohnt am Modultyp und wird dort
+beantwortet, sobald ein Modul mit Aussenwirkung existiert.
+
+### 12.7 Darstellung — drei Spalten, eine Komponente
+
+```
+   übergeordneter Auftrag  │   dieser Auftrag   │   Abweichungsaufträge
+   (verblasst)             │   (der Fokus)      │   (verblasst)
+```
+
+- Eine Seitenspalte erscheint **nur**, wenn es dort etwas gibt.
+- Die Nachbarn zeigen **exakt den Prozess, der in ihnen definiert ist** — nicht eine
+  Zusammenfassung, nicht ein Symbol. **Dieselbe Komponente** (`FlowColumn`), nur mit
+  `faded`. Ein eigener «Kurzform»-Renderer wäre eine zweite Darstellung derselben Sache
+  und liefe irgendwann auseinander.
+- Ein Klick öffnet den Nachbarn: er wird zur Mitte, und seine Nachbarn erscheinen um ihn
+  herum. Es gibt keine Sonderansicht — nur einen anderen Auftrag in der Mitte.
+- **Die Prozesslinien führen.** Eine Querlinie geht dorthin, wo das Stück ausgeschert
+  ist, und eine **gestrichelte** kommt dorthin zurück, wo es weitergeht. Ist die
+  Rückführung gekappt, fehlt die zweite Linie — das Bild sagt es, ohne ein Wort.
+- **Skalierung:** die Seitenspalte rendert **höchstens drei** Nachbarn voll; der Rest
+  steht als Zeile «+N weitere» mit der Gesamtzahl und ist anklickbar. Abschneiden mit
+  Zähler, nicht gruppieren: eine Gruppe müsste einen gemeinsamen Nenner behaupten, den es
+  bei Abweichungen nicht gibt.
+
+---
+
+## 13. Bewusst noch nicht definiert
 
 Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werden einzeln
 nachgetragen — nicht beim Bauen erraten.
 
 1. **Die weiteren Prozessschrittmodule.** Das erste ist gebaut (Datenerfassung, §9).
-   *Offen daran: was bei «nicht bestanden» passiert (siehe 5) – und ob je Einzelinstanz
-   einzeln erfasst wird oder einmal gemeinsam (§13, heute gemeinsam).*
-2. **Der Unterauftrag-Mechanismus.** Die Skizze zeigt Abzweigungen nach rechts und
-   zurück. Wann zweigt es ab, was nimmt der Unterauftrag mit, wo mündet er, was passiert
-   mit dem Status des Stücks währenddessen?
-3. **Der übergeordnete Auftrag.** Die linke Spalte — Gegenrichtung von (2).
-4. **Abbruch.** §3.1 schlägt vor, was mit den Stücken geschieht; wer abbrechen darf und
+   *Offen daran: was bei «nicht bestanden» passiert (siehe 4) – und ob je Einzelinstanz
+   einzeln erfasst wird oder einmal gemeinsam (§14, heute gemeinsam).*
+2. **Darf ein Abweichungsauftrag noch ausgelöst werden, wenn in einem Modul bereits mit
+   der Dateneingabe begonnen wurde?** Gebaut ist vorläufig die restriktivere Variante
+   (nein) — als **Eigenschaft des Modultyps**, nicht als globale Regel (§12.6).
+3. **Abbruch.** §3.1 schlägt vor, was mit den Stücken geschieht; wer abbrechen darf und
    was mit dem Auftrag selbst passiert, ist offen.
-5. **Fehlerbehandlung im Modul.** Ein Modul kann scheitern (Prüfung nicht bestanden).
+4. **Fehlerbehandlung im Modul.** Ein Modul kann scheitern (Prüfung nicht bestanden).
    Ist das ein Status, ein Abzweig, oder beides? Solange das offen ist, gibt es keinen
    roten Statuswert (§5.2).
-6. **Zwei `Neu`-Zeilen mit verschiedenen Vorlagen.** Heute ein harter Fehler: ein Auftrag
-   hat einen Prozess (§13). Ob es dafür je einen Fall gibt, ist nicht entschieden.
-7. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
+5. **Zwei `Neu`-Zeilen mit verschiedenen Vorlagen.** Heute ein harter Fehler: ein Auftrag
+   hat einen Prozess (§14). Ob es dafür je einen Fall gibt, ist nicht entschieden.
+6. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
    sonst eine Behauptung. Falls es gebraucht wird, ist es ein eigener Vorgang
    («Prozess dieses Auftrags von der Vorlage lösen»), kein stilles Editieren.
 
 ---
 
-## 13. Getroffene Annahmen
+## 14. Getroffene Annahmen
 
 Wo die Vorgabe eine Lücke liess, steht hier die gewählte Variante — jede ist die
 einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
@@ -767,6 +904,11 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **Mehrere Nachbarn: nach Stückzahl absteigend** | Der Hauptstrom zuerst. Bei Gleichstand die Objektnummer — eine willkürliche, aber stabile Reihenfolge ist besser als eine wechselnde. |
 | **Ein gelöschter Nachbar fällt aus der Liste** | Statt als Zeile mit leerem Namen zu erscheinen. Eine Zeile, die auf nichts zeigt, ist schlimmer als keine Zeile. |
 | **Fehlermeldungen sagen was und wo** | Ein `RequestValidationError`-Handler an EINER Stelle übersetzt jeden Eingabefehler in Klartext und nennt den Feldpfad («Prozessschrittmodule → 1 → Modultyp: fehlt»). Rohe Validator-Texte gehen ins Log. Ein Feld ohne hinterlegte Bezeichnung erscheint mit seinem technischen Namen — unschön, aber ehrlich und auffällig; eine erfundene Übersetzung wäre schlimmer. |
+| **Die Rückführung wird bei der DEFINITION entschieden** | Sie steht als Frage an der Zeile, sobald ein gewähltes Stück in einem anderen Auftrag aktiv ist («kehrt zurück» / «bleibt hier»), und wird bei der Freigabe zu `return_to_order_id`. Nachträglich umschaltbar wäre sie nicht: der Hauptauftrag richtet sein Verhalten daran aus, sobald das Stück weg ist. |
+| **Zwei Ereignisarten für den Wechsel: `handover` und `return`** | Ein Stück, das den Auftrag wechselt, ist keines der drei bestehenden Ereignisse. Ohne eigene Art müsste man den Auftragswechsel aus einem `step` erschliessen, das gar keines ist. Der **Eintritt** in den Abweichungsauftrag bleibt dagegen ein gewöhnliches `start` — sein `status_before = Im Prozess` **ist** das Merkmal (§12.2), eine vierte Art wäre dieselbe Aussage doppelt. |
+| **Beim Ausscheren wechselt der Status NICHT** | Das Stück bleibt `Im Prozess` — es ist ja weiterhin in Arbeit, nur woanders. Ein Zwischenstatus («ausgeschert») wäre ein Zustand, den §5.2 nicht kennt, und er müsste beim Zurückkommen wieder zurückgenommen werden. |
+| **Höchstens 3 Nachbarn voll, der Rest als Zähler** | Abschneiden statt gruppieren: eine Gruppe müsste einen gemeinsamen Nenner behaupten, den es bei Abweichungen nicht gibt. Der Zähler nennt die **Gesamtzahl** — eine stumm gekappte Spalte sähe aus wie die ganze Wahrheit. |
+| **Die Sperre bei begonnener Eingabe sitzt in der Oberfläche** | Sie kann nirgends sonst sitzen: eine nicht bestätigte Eingabe existiert weder in der Datenbank noch im Log. Die **Regel** wohnt trotzdem am Modultyp (`Module.units_may_leave`, §12.6) — dort, wo sie beantwortet wird, sobald ein Modul mit Aussenwirkung existiert. |
 
 ---
 

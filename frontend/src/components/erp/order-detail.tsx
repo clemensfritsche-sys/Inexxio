@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, History } from 'lucide-react';
+import { ClipboardList, GitBranch, History } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary } from '@/types';
 import { TYPE_META } from '@/lib/erp-record';
@@ -10,6 +10,7 @@ import { localDateTime } from '@/lib/utils';
 import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { ProcessDiagram, PROCESS_MAXW, type DiagramStep } from '@/components/erp/process-diagram';
+import { ProcessColumns } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
@@ -40,17 +41,36 @@ const TABS = [{ key: 'auftrag' as const, label: 'Auftrag', icon: ClipboardList }
  * `services/orders.validate_draft`). Die Oberfläche formuliert die Regel nicht nach,
  * sie fragt sie ab: sonst gäbe es zwei Massstäbe für dieselbe Frage.
  */
-export function OrderDetail({ record, onSaved, onBack }: {
+/**
+ * **Ein Entwurf mit bereits gewählter Einzelinstanz** (Abweichungsauftrag §3.1).
+ *
+ * Mehr ist eine «Abweichung» nicht: derselbe Entwurf, derselbe Editor, dieselbe Freigabe –
+ * das Stück steht nur schon drin. Ob daraus eine Abweichung wird, entscheidet sich beim
+ * Freigeben und ergibt sich aus dem Zustand des Stücks, nicht aus diesem Seed.
+ */
+export interface OrderSeed {
+  articleObjectId: number;
+  unitNumber: string;
+}
+
+export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   /** ``null`` ⇒ Entwurf (existiert nur im Browser). Sonst genügt die **Feed-Zeile** –
    *  das Detail lädt sich selbst nach (siehe unten). */
   record: OrderSummary | Order | null;
+  /** Nur beim Entwurf: eine vorgewählte Einzelinstanz. */
+  seed?: OrderSeed | null;
   onSaved: (o: Order) => void;
+  /** Ein Stück im Prozess soll eine Abweichung bekommen – die Seite öffnet den Entwurf. */
+  onDeviate?: (seed: OrderSeed) => void;
   onBack?: () => void;
 }) {
   const isDraft = record === null;
   const meta = TYPE_META.order;
 
-  const [lines, setLines] = useState<DefinitionLine[]>([emptyLine(1)]);
+  const [lines, setLines] = useState<DefinitionLine[]>(() => (seed
+    ? [{ key: 1, articleObjectId: seed.articleObjectId, quantity: 1,
+         origin: LAGER, unitNumbers: [seed.unitNumber], returns: true }]
+    : [emptyLine(1)]));
   const [steps, setSteps] = useState<ModuleDraft[]>([]);
   const [missing, setMissing] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -158,20 +178,19 @@ export function OrderDetail({ record, onSaved, onBack }: {
           </p>
         )}
 
-        {/* Dasselbe Mass wie das Prozessbild – **aus dessen Quelle** (#684). Eine zweite
-            Zahl hier hiesse, dass die beiden auseinanderlaufen können, ohne dass es
-            jemand merkt; genau daraus entstand der gemeldete Breitenunterschied. */}
-        <div className="mx-auto" style={{ maxWidth: PROCESS_MAXW }}>
-          {isDraft ? (
-            <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps} />
-          ) : shown ? (
-            <RunView order={shown} busy={busy} onConfirm={confirmStep} />
-          ) : (
-            <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
-              {loading ? 'Lädt …' : null}
-            </p>
-          )}
-        </div>
+        {/* **Kein Mass von hier.** Jedes Prozessbild bringt seines mit (#684) – der
+            Entwurf ist eine Spalte, der laufende Auftrag sind bis zu drei. Eine Zahl an
+            dieser Stelle wäre der zweite Stand, aus dem der gemeldete Breitenunterschied
+            entstanden ist. */}
+        {isDraft ? (
+          <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps} />
+        ) : shown ? (
+          <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate} />
+        ) : (
+          <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
+            {loading ? 'Lädt …' : null}
+          </p>
+        )}
 
         {!isDraft && shown && <EventLog order={shown} />}
       </div>
@@ -261,9 +280,10 @@ function DraftView({ lines, setLines, steps, setSteps }: {
 // Freigegeben — Modus «ausfuehrung»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RunView({ order, busy, onConfirm }: {
+function RunView({ order, busy, onConfirm, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, values: Record<string, unknown>) => void;
+  onDeviate?: (seed: OrderSeed) => void;
 }) {
   const steps: DiagramStep[] = (order.steps ?? []).map((s) => ({
     id: s.id, moduleType: s.module_type, label: s.label,
@@ -275,6 +295,17 @@ function RunView({ order, busy, onConfirm }: {
 
   // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
   // Unterschied zwischen einer Antwort und einem Megabyte.
+  /**
+   * ►►► Die **restriktivere Variante** zur offenen Frage (Abweichungsauftrag §5) ◄◄◄
+   *
+   * Solange im aktiven Modul erfasst wird, lässt sich keine Abweichung auslösen. Der
+   * Server kann das nicht prüfen: eine begonnene Erfassung ist nirgends gespeichert (sie
+   * entsteht erst beim Bestätigen). Diese Sperre ist darum **hier** – und sie ist
+   * bewusst die strengere von zwei möglichen Antworten, bis die Frage entschieden ist.
+   * Die dauerhafte Regel gehört an den Modultyp (`domain/modules.units_may_leave`).
+   */
+  const [entryStarted, setEntryStarted] = useState(false);
+
   const expand = useCallback(async (stepId: number | null, active: boolean) => {
     const page = await api.getOrderUnits(order.object_id, stepId, active, 100, 0);
     return (page.units ?? []).map((u) => u.number);
@@ -283,13 +314,14 @@ function RunView({ order, busy, onConfirm }: {
   return (
     <>
       <DefinitionSummary order={order} />
-      <ProcessDiagram
-        mode="ausfuehrung"
-        steps={steps}
-        groups={groups}
-        activeStepId={order.active_step_id ?? null}
-        endStatus={order.end_status}
+      <WaitingNotice order={order} />
+      <ProcessColumns
+        order={order}
         onExpand={expand}
+        onDeviate={onDeviate ? (unitNumber) => { void startDeviation(unitNumber, onDeviate); } : undefined}
+        deviateBlocked={entryStarted
+          ? 'Im aktiven Modul wurde bereits erfasst. Erst bestätigen – oder das Fenster neu laden, dann ist die Eingabe verworfen.'
+          : undefined}
         journeyIn={order.journey_in ?? []}
         journeyOut={order.journey_out ?? []}
         renderStep={(step, isActive) => (isActive ? (
@@ -299,12 +331,46 @@ function RunView({ order, busy, onConfirm }: {
             points={pointsOf(order, step.id)}
             count={waitingAt(order, step.id)}
             busy={busy}
+            onDirty={setEntryStarted}
             onConfirm={(values) => onConfirm(step.id, values)}
           />
         ) : null)}
       />
     </>
   );
+}
+
+/**
+ * **Wartet dieser Auftrag auf eine Rückführung?** Abgeleitet, nicht gespeichert – es
+ * wartet, wer noch eine offene rückführende Verbindung hat. Steht hier nichts, wartet er
+ * auf nichts; ein Platzhalter «wartet auf 0» wäre eine Zeile ohne Aussage.
+ */
+function WaitingNotice({ order }: { order: Order }) {
+  const n = order.waiting_for_return ?? 0;
+  if (!n) return null;
+  return (
+    <div className="mb-3 mx-auto flex items-center gap-2 rounded-ds-lg px-3 py-2 text-xs"
+      style={{ background: 'var(--warning-bg)', color: 'var(--fg-2)', maxWidth: PROCESS_MAXW }}>
+      <GitBranch size={14} style={{ color: 'var(--warning)' }} />
+      {n === 1
+        ? 'Eine Einzelinstanz ist in einer Abweichung und kehrt an ihre Stelle zurück.'
+        : `${n} Einzelinstanzen sind in Abweichungen und kehren an ihre Stelle zurück.`}
+    </div>
+  );
+}
+
+/**
+ * **Welcher Artikel gehört zu diesem Stück?** Die Nummer sagt es zur Hälfte: ihr vorderer
+ * Teil ist die Objektnummer der Instanz, und die Instanz kennt ihren Artikel. Gefragt wird
+ * darum der bestehende Endpunkt – ein zweites Feld an der Stück-Antwort wäre eine Kopie,
+ * die auseinanderlaufen kann.
+ */
+async function startDeviation(unitNumber: string, open: (seed: OrderSeed) => void) {
+  const instanceId = Number(unitNumber.split('-')[0]);
+  if (!Number.isInteger(instanceId)) return;
+  const instance = await api.getInstance(instanceId);
+  if (instance.article_object_id == null) return;
+  open({ articleObjectId: instance.article_object_id, unitNumber });
 }
 
 /** Die Erfassungspunkte eines Moduls – aus seiner eingefrorenen Definition. */
@@ -326,7 +392,9 @@ function DefinitionSummary({ order }: { order: Order }) {
   const lines = order.lines ?? [];
   if (!lines.length) return null;
   return (
-    <div className="rounded-ds-lg mb-3" style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 12 }}>
+    <div className="rounded-ds-lg mb-3 mx-auto"
+      style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)',
+               padding: 12, maxWidth: PROCESS_MAXW }}>
       {lines.map((ln) => (
         <div key={ln.id} className="flex flex-wrap items-center gap-x-2 text-xs py-0.5">
           <span className="ix-tnum" style={{ minWidth: 34 }}>{ln.quantity}×</span>

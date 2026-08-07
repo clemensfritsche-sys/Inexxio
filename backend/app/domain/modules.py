@@ -28,6 +28,23 @@ DATENERFASSUNG = "datenerfassung"
 class Module:
     """Ein Modultyp. Was ihn ausmacht: sein Übergang und die Form seiner Konfiguration."""
 
+    #: ►►►  OFFENE ENTSCHEIDUNG – Abweichungsauftrag §5  ◄◄◄
+    #:
+    #: **Darf ein Stück diesen Modultyp verlassen, während davor gearbeitet wird?**
+    #:
+    #: Eine **globale** Regel wäre entweder zu streng oder zu lasch, denn die Antwort
+    #: hängt am Modul: eine **Datenerfassung** ist reversibel (was noch nicht bestätigt
+    #: ist, existiert nirgends), ein künftiger **Einkauf** oder **Verkauf** hat
+    #: Aussenwirkung – dort liegt eine Bestellung beim Lieferanten bzw. eine Rechnung
+    #: beim Kunden, und ein stilles Herausnehmen wäre ein Beleg, der nicht mehr stimmt.
+    #: Für solche Module ist das Verlassen kein Nebeneffekt, sondern ein eigener Vorgang
+    #: (Storno / Teilstorno).
+    #:
+    #: Bis das entschieden ist, steht der Wert hier – **an genau einer Stelle** – und
+    #: wird von ``process._assert_may_leave`` gelesen. Wer einen Modultyp mit
+    #: Aussenwirkung anlegt, setzt ihn auf ``False`` und bekommt die Sperre geschenkt.
+    units_may_leave: bool = True
+
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
                  tone: str):
         self.key = key

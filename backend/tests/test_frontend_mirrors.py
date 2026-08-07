@@ -282,12 +282,12 @@ def test_a_draft_never_touches_the_database():
     assert "next_object_id" in svc.split("def release(")[1], (
         "Die Nummer entsteht nicht in der Freigabe."
     )
-    # Sie wird NACH der Exklusivitätsprüfung gezogen: eine Sequence ist nicht
+    # Sie wird NACH der Auflösung der bestehenden Stücke gezogen: eine Sequence ist nicht
     # transaktional, ein Rollback danach liesse eine Lücke im Nummernkreis.
     body = svc.split("def release(")[1]
-    assert body.index("_assert_exclusive") < body.index("next_object_id(db,"), (
-        "Die Objektnummer wird vor der Exklusivitätsprüfung gezogen – jeder Verstoss "
-        "verbrennt dann eine Nummer."
+    assert body.index("held_by(") < body.index("next_object_id(db,"), (
+        "Die Objektnummer wird gezogen, bevor die bestehenden Stücke aufgelöst sind – "
+        "jeder Verstoss verbrennt dann eine Nummer."
     )
     router = _read(BACKEND / "app" / "routers" / "orders.py")
     assert "next_object_id" not in router, "Der Router zieht selbst eine Nummer."
@@ -666,7 +666,8 @@ def test_every_check_runs_before_the_first_object_number():
     number_at = body.index("next_object_id(db,")
     head = body[:number_at]
     for guard in ("resolve_lines(", "steps_for(", "assert_releasable(",
-                  "_assert_chain(", "_assert_exclusive(", "assert_quantity("):
+                  "_assert_chain(", "held_by(", "_assert_may_leave(",
+                  "assert_quantity("):
         assert guard in head, f"«{guard}» läuft nach der Nummernvergabe."
 
 
@@ -1120,9 +1121,9 @@ def test_the_palette_stands_where_the_next_module_would_go():
     Mengeneinheit am Artikel (`IconSwitch labelActiveOnly`), nicht etwas Neues.
     """
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
-    body = diagram.split("const nodes = useMemo(")[1].split("}, [head,")[0]
+    body = _body(diagram, "flowNodes", kind="function")
     # Der Palettenknoten steht zwischen letztem Modul und Ende.
-    order = [body.index("kind: 'step', step"), body.index("id: 'tail'"), body.index("id: 'end'")]
+    order = [body.index("kind: 'step', step"), body.index("p('tail')"), body.index("p('end')")]
     assert order == sorted(order), (
         "Die Palette steht nicht zwischen dem letzten Modul und dem Ende."
     )
@@ -1385,10 +1386,10 @@ def test_the_journey_scales_by_grouping_not_by_listing():
 def test_no_neighbour_means_nothing_shown():
     """Kein Vorgänger/Nachfolger → **nichts**, kein Platzhalter mit Fantasiedaten."""
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
-    pushes = re.findall(r"^\s*(.*out\.push\(\{ id: 'journey-\w+'.*)$", diagram, re.M)
+    pushes = re.findall(r"^\s*(.*out\.push\(\{ id: p\('journey-\w+'\).*)$", diagram, re.M)
     assert len(pushes) == 2, f"Erwartet zwei Journey-Knoten, gefunden {len(pushes)}."
     for line in pushes:
-        assert re.match(r"if \(journey(In|Out)\.length\) ", line.strip()), (
+        assert re.match(r"if \(journey(In|Out)\) ", line.strip()), (
             f"Der Journey-Knoten entsteht unbedingt – bei leerer Liste stünde eine "
             f"leere Zeile: «{line.strip()}»"
         )
@@ -1528,3 +1529,156 @@ def test_the_feed_learns_about_every_write_from_one_place():
         assert "inexxio:data-changed" not in src, (
             f"{name} meldet selbst – das ist der zweite Weg."
         )
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Abweichungsaufträge
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+def test_a_deviation_order_is_a_regular_order():
+    """Es gibt **keinen** Auftragstyp «Abweichung» (§2).
+
+    Kein zweites Modell, kein zweiter Endpunkt, kein ``if abweichung:`` in der
+    Auftragslogik. Was es gibt, ist eine **Auskunft** über einen ganz gewöhnlichen
+    Auftrag – abgeleitet aus dem Ereignis-Log.
+    """
+    models = (BACKEND / "app" / "models").glob("*.py")
+    assert not [m for m in models if "deviation" in m.name or "abweichung" in m.name], (
+        "Es gibt ein eigenes Modell für Abweichungen – dann ist es ein zweiter Typ."
+    )
+    order = _read(BACKEND / "app" / "models" / "order.py")
+    for forbidden in ("is_deviation", "deviation", "parent_order_id"):
+        assert forbidden not in order, (
+            f"``orders`` trägt «{forbidden}» – die Abweichung ist ein Feld geworden."
+        )
+    router = _read(BACKEND / "app" / "routers" / "orders.py")
+    assert "/deviation" not in router, "Es gibt einen eigenen Endpunkt für Abweichungen."
+
+    # Und das Label wird wörtlich aus §2 abgeleitet: der Start-Eintrag trägt «Im Prozess».
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    body = _body(proc, "deviation_flags")
+    assert "ProcessEvent" in body and "KIND_START" in body and "IM_PROZESS" in body, (
+        "«Abweichung» kommt nicht aus dem Log – dann ist es irgendwo gespeichert."
+    )
+
+
+def test_the_return_belongs_to_the_connection_not_to_the_order():
+    """Die Rückführung hängt an der **Verbindung** zwischen zwei Aufträgen (§6).
+
+    Nur dadurch funktionieren Schachtelung und Parallelität ohne Zusatzregel: jedes
+    ausgeliehene Stück trägt seine eigene Antwort.
+    """
+    unit = _read(BACKEND / "app" / "models" / "order_unit.py")
+    assert "return_to_order_id" in unit, "Die Verbindung hat keinen Ort."
+    order = _read(BACKEND / "app" / "models" / "order.py")
+    assert "return_to" not in order and "returns" not in order, (
+        "Die Rückführung steht am Auftrag – dann gilt sie für alle seine Stücke gleich."
+    )
+    # Und «wartet auf» wird gezählt, nicht gespeichert.
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def waiting_counts(" in proc
+    assert "waiting_for_return" not in _read(BACKEND / "app" / "models" / "order.py"), (
+        "Am Auftrag steht ein Wartezähler – den vergisst irgendwann jemand zu senken."
+    )
+
+
+def test_the_return_position_needs_no_field_of_its_own():
+    """Die Rückkehrposition steht schon da: ``current_step_id`` der ausgescherten Zeile.
+
+    Sie wird beim Ausscheren **nicht** angetastet – «wo steht dieses Stück» ist genau die
+    Frage, die diese Spalte beantwortet, und beim Ausscheren steht es eben noch dort.
+    Ein zweites Feld dafür wäre eine Kopie, die auseinanderlaufen kann.
+    """
+    unit = _read(BACKEND / "app" / "models" / "order_unit.py")
+    for forbidden in ("return_step_id", "return_position", "resume_step_id"):
+        assert forbidden not in unit, f"«{forbidden}» ist ein zweites Feld für die Position."
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    hand = _body(proc, "_hand_over")
+    assert "current_step_id" not in hand.split("values(")[-1], (
+        "Das Ausscheren setzt die Position zurück – dann ist die Rückkehr geraten."
+    )
+    home = _body(proc, "_return_home")
+    assert "released_at=None" in home, "Die Rückkehr öffnet die alte Zeile nicht wieder."
+
+
+def test_the_neighbours_are_drawn_with_the_same_component():
+    """Die Spalten daneben zeigen den **echten** Ablauf – dieselbe Komponente (§4).
+
+    Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform für dieselbe
+    Sache, und die läuft irgendwann von der ersten weg.
+    """
+    flow = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
+    assert "FlowColumn" in flow, "Die Nachbarn werden nicht mit der Prozess-Komponente gezeichnet."
+    assert "faded" in flow, "Die Nachbarn heben sich nicht ab – der Fokus geht verloren."
+    # Ein Rahmen für alle Spalten: sonst gäbe es keine gemeinsame Linie.
+    assert flow.count("<FlowFrame") == 1, (
+        "Mehrere Rahmen – dann haben die Spalten verschiedene Nullpunkte und die "
+        "Verbindungslinie lässt sich nicht zeichnen."
+    )
+    assert "function Branch(" in flow, "Es gibt keine Linie zwischen den Spalten."
+    # Und der Server liefert dafür dieselben Felder wie für die Mitte.
+    schema = _read(BACKEND / "app" / "schemas" / "order.py")
+    related = schema.split("class RelatedOrder")[1].split("class ")[0]
+    for field in ("steps", "unit_groups", "active_step_id", "end_status"):
+        assert field in related, f"«{field}» fehlt – der Nachbar kann nicht gerendert werden."
+
+
+def test_many_deviations_are_cut_off_and_say_so():
+    """Bei vielen Abweichungen wird **abgeschnitten und die Zahl genannt** (§4).
+
+    Gruppieren wäre hier falsch: zwei Abweichungen sind zwei verschiedene Abläufe, eine
+    Gruppe daraus sagte nichts. Eine stumm gekappte Liste sähe aus wie alles.
+    """
+    router = _read(BACKEND / "app" / "routers" / "orders.py")
+    assert "RELATED_LIMIT" in router, "Es gibt keine Grenze – die Antwort wächst unbegrenzt."
+    assert "deviation_total=len(branches)" in router, (
+        "Die wahre Zahl wird nicht mitgeliefert – die gekappte Liste sähe aus wie alles."
+    )
+    flow = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
+    assert "deviation_total" in flow and "function Rest(" in flow, (
+        "Die Oberfläche verschweigt, dass abgeschnitten wurde."
+    )
+
+
+def test_leaving_a_module_is_a_question_of_the_module_type():
+    """►►► Die offene Frage (§5) hat **genau eine** Stelle im Code ◄◄◄
+
+    Ob ein Stück ein Modul verlassen darf, hängt am Modultyp – eine globale Regel wäre
+    für die reversible Datenerfassung zu streng und für einen künftigen Einkauf zu lasch.
+    """
+    reg = _read(BACKEND / "app" / "domain" / "modules.py")
+    assert "units_may_leave" in reg, "Die Eigenschaft fehlt – dann ist die Regel global."
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def _assert_may_leave(" in proc
+    # Gelesen wird sie in **einer** Funktion – sonst gäbe es zwei Antworten auf dieselbe
+    # Frage, und die eine würde beim Ändern vergessen.
+    readers = [name for name in ("_assert_may_leave", "release", "confirm_step", "_hand_over")
+               if "units_may_leave" in _body(proc, name)]
+    assert readers == ["_assert_may_leave"], f"Gelesen in: {readers}"
+    # Und die vorläufig strengere Variante steht im Fenster, wo sie allein stehen kann.
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "deviateBlocked" in detail and "entryStarted" in detail, (
+        "Eine begonnene Erfassung sperrt den Auslöser nicht – das ist die lockerere "
+        "Variante, und entschieden ist noch nichts."
+    )
+
+
+def test_the_trigger_sits_where_the_piece_stands():
+    """Der Auslöser sitzt **am Stück, an seiner Stelle im Prozess** (§3.1).
+
+    Und er legt nichts an: er öffnet einen ganz gewöhnlichen Auftragsentwurf, in dem das
+    Stück schon steht. Eine eigene «Abweichung anlegen»-Aktion wäre ein zweiter
+    Anlage-Weg.
+    """
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    assert "onDeviate" in diagram, "Am Stück gibt es keinen Auslöser."
+    assert "function StateRow(" in diagram
+    page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    assert "OrderSeed" in page and "startCreate('order', seed)" in page, (
+        "Der Auslöser führt nicht in den gewöhnlichen Entwurf."
+    )
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "api.createOrder" in detail and detail.count("api.createOrder") == 1, (
+        "Es gibt mehr als einen Anlage-Weg."
+    )

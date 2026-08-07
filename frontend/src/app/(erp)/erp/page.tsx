@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2 } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, GitBranch } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import {userName, articleName, instanceName, organizationName, orderName } from '@/lib/record-name';
@@ -15,7 +15,7 @@ import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
 import { setOpenRecord } from '@/lib/feedback';
 import { ArticleDetail } from '@/components/erp/article-detail';
-import { OrderDetail } from '@/components/erp/order-detail';
+import { OrderDetail, type OrderSeed } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
 
@@ -112,6 +112,16 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         <div className="flex items-center gap-2.5 mt-1">
           <span className="text-fg-4 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{formatObjectId(row.objectId)}</span>
           {badge && <StatusBadge cfg={badge} size={11} />}
+          {/* **«Abweichung» ist kein Zustand**, sondern eine Auskunft über die Herkunft
+              seiner Stücke – und darum keine Ampel-Badge, sondern ein leises Label
+              daneben. Abgeleitet aus dem Ereignis-Log, nicht gesetzt. */}
+          {row.type === 'order' && row.data.is_deviation && (
+            <span className="inline-flex items-center gap-1 text-[10.5px]"
+              style={{ color: 'var(--fg-4)' }}
+              data-tip="Dieser Auftrag hat Einzelinstanzen aus einem laufenden Auftrag übernommen.">
+              <GitBranch size={10} /> Abweichung
+            </span>
+          )}
         </div>
       </div>
     </button>
@@ -136,6 +146,15 @@ export default function ErpPage() {
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
   const [creating, setCreating] = useState<'article' | 'order' | null>(null);
+  /**
+   * **Der Entwurf mit einer bereits gewählten Einzelinstanz** (Abweichungsauftrag §3.1).
+   *
+   * Der Klick an einem Stück im Prozess öffnet einen **ganz gewöhnlichen** Auftragsentwurf –
+   * er steht nur schon in der Definition drin. Angelegt wird dabei nichts: ein Entwurf lebt
+   * im Browser, bis er freigegeben wird (§6.1). Eine eigene «Abweichung anlegen»-Aktion
+   * gäbe es nicht zu bauen, sie wäre ein zweiter Anlage-Weg.
+   */
+  const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
@@ -357,9 +376,10 @@ export default function ErpPage() {
     } catch { /* Objekt nicht gefunden – ignorieren */ }
   }
 
-  function startCreate(type: 'article' | 'order') {
+  function startCreate(type: 'article' | 'order', seed?: OrderSeed) {
     setPlusOpen(false);
     setSel(null);
+    setOrderSeed(seed ?? null);
     setCreating(type);
     setMobileView('detail');
   }
@@ -568,10 +588,16 @@ export default function ErpPage() {
             <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {creating === 'order' && (
-            <OrderDetail key="new-order" record={null} onSaved={handleOrderSaved} onBack={cancelCreate} />
+            <OrderDetail key="new-order" record={null} seed={orderSeed} onSaved={handleOrderSaved} onBack={cancelCreate} />
           )}
           {!creating && activeRow?.type === 'order' && (
-            <OrderDetail key={activeRow.key} record={activeRow.data as Order} onSaved={handleOrderSaved} onBack={() => setMobileView('list')} />
+            <OrderDetail
+              key={activeRow.key}
+              record={activeRow.data as Order}
+              onSaved={handleOrderSaved}
+              onDeviate={(seed) => startCreate('order', seed)}
+              onBack={() => setMobileView('list')}
+            />
           )}
           {!creating && activeRow?.type === 'user' && (
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />

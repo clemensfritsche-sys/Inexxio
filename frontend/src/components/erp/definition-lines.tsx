@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Boxes, ChevronDown, Package, PackagePlus, Plus, Trash2, X } from 'lucide-react';
+import { Boxes, ChevronDown, GitBranch, Package, PackagePlus, Plus, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
@@ -33,10 +33,16 @@ export interface DefinitionLine {
   quantity: number;
   origin: typeof NEU | typeof LAGER | null;
   unitNumbers: string[];
+  /**
+   * **Die Rückführung** (Abweichungsauftrag §3.3/§3.4): kehrt ein Stück, das aus einem
+   * laufenden Auftrag kommt, dorthin zurück? Standard ja – das ist der Normalfall
+   * (nochmal kontrollieren, nacharbeiten). Aus ist die Aussonderung.
+   */
+  returns: boolean;
 }
 
 export function emptyLine(key: number): DefinitionLine {
-  return { key, articleObjectId: null, quantity: 1, origin: null, unitNumbers: [] };
+  return { key, articleObjectId: null, quantity: 1, origin: null, unitNumbers: [], returns: true };
 }
 
 /** Was diese Zeile an den Server schickt. Unvollständige Zeilen bleiben draussen. */
@@ -48,6 +54,7 @@ export function toPayload(lines: DefinitionLine[]) {
       quantity: l.quantity,
       origin: l.origin as string,
       unit_numbers: l.origin === LAGER ? l.unitNumbers : [],
+      returns: l.returns,
     }));
 }
 
@@ -221,6 +228,8 @@ function LineRow({ line, articles, onChange, onRemove }: {
           quantity={line.quantity}
           chosen={line.unitNumbers}
           onChange={(unitNumbers) => onChange({ unitNumbers })}
+          returns={line.returns}
+          onReturns={(returns) => onChange({ returns })}
         />
       )}
     </div>
@@ -256,6 +265,30 @@ function OriginBtn({ icon: Icon, label, active, disabled, hint, onClick }: {
   );
 }
 
+/** Die zwei Wege der Rückführung. Dieselbe Form wie die Herkunft – es ist dieselbe Art
+ *  Entscheidung: zwei sich ausschliessende Antworten, beide mit Grund im Hover. */
+function ReturnBtn({ active, label, hint, onClick }: {
+  active: boolean; label: string; hint: string; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-tip={hint}
+      aria-label={label}
+      className="inline-flex items-center gap-1.5 text-xs rounded-ds-lg"
+      style={{
+        height: 28, padding: '0 9px',
+        border: `1px solid ${active ? 'var(--accent-ink)' : 'var(--border-2)'}`,
+        background: active ? 'var(--accent-soft)' : 'var(--bg-1)',
+        color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Herkunft «Lager»: konkrete bestehende Einzelinstanzen
 // ─────────────────────────────────────────────────────────────────────────────
@@ -267,9 +300,11 @@ function OriginBtn({ icon: Icon, label, active, disabled, hint, onClick }: {
  *
  * Gesperrte Stücke werden **gezeigt**, nicht weggefiltert, und nennen den Grund.
  */
-function StockPicker({ articleObjectId, quantity, chosen, onChange }: {
+function StockPicker({ articleObjectId, quantity, chosen, onChange, returns, onReturns }: {
   articleObjectId: number; quantity: number; chosen: string[];
   onChange: (numbers: string[]) => void;
+  returns: boolean;
+  onReturns: (value: boolean) => void;
 }) {
   const [options, setOptions] = useState<UnitOption[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -294,6 +329,10 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange }: {
 
   const picked = new Set(chosen);
   const enough = chosen.length === quantity;
+  // **Die Rückführung ist nur eine Frage, wenn es etwas zurückzugeben gibt.** Ein freies
+  // Stück kommt aus keinem Auftrag – eine Wahl anzubieten, die nichts bewirkt, wäre eine
+  // Behauptung, hier passiere etwas.
+  const borrowed = (options ?? []).filter((o) => picked.has(o.number) && o.in_order);
 
   return (
     <div className="mt-2">
@@ -318,6 +357,25 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange }: {
         </span>
       </div>
 
+      {borrowed.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-ds-lg px-2.5 py-2"
+          style={{ background: 'var(--warning-bg)' }}>
+          <GitBranch size={13} style={{ color: 'var(--warning)' }} />
+          <span className="text-xs flex-1 min-w-[180px]" style={{ color: 'var(--fg-2)' }}>
+            {borrowed.length === 1 ? 'Ein Stück läuft' : `${borrowed.length} Stücke laufen`} in
+            einem anderen Auftrag – dieser hier wird eine <strong>Abweichung</strong>.
+          </span>
+          <div className="flex gap-1">
+            <ReturnBtn active={returns} onClick={() => onReturns(true)}
+              label="kehrt zurück"
+              hint="Nach dem Durchlauf geht das Stück an genau die Stelle zurück, an der es ausgeschert ist. Der andere Auftrag wartet solange." />
+            <ReturnBtn active={!returns} onClick={() => onReturns(false)}
+              label="bleibt hier"
+              hint="Das Stück kehrt nicht zurück (z. B. Aussonderung). Der andere Auftrag läuft mit weniger Stücken weiter und wartet nicht." />
+          </div>
+        </div>
+      )}
+
       {open && (
         <div className="mt-2 max-h-56 overflow-auto" style={{ borderTop: '1px solid var(--border-1)' }}>
           {options === null && <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>Lädt …</p>}
@@ -329,8 +387,11 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange }: {
           )}
           {options?.map((o) => {
             const taken = picked.has(o.number);
-            const why = o.blocked_by
-              ? `Aktiv in Auftrag ${formatObjectId(o.blocked_by)}`
+            // **Ein laufendes Stück ist wählbar** – daraus wird eine Abweichung
+            // (Abweichungsauftrag §3.5). Gesagt wird es trotzdem: was der Klick bewirkt,
+            // gehört vor den Klick, nicht danach.
+            const why = o.in_order
+              ? `Läuft in Auftrag ${formatObjectId(o.in_order)} – daraus wird eine Abweichung`
               : !o.available ? `Steht auf «${statusLabel(o.status)}»` : undefined;
             return (
               <button
@@ -345,7 +406,13 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange }: {
               >
                 <span style={{ minWidth: 110 }}><UnitNumber value={o.number} /></span>
                 <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{o.article_name}</span>
-                <span style={{ color: statusCfg(o.status).color }}>{why ?? statusLabel(o.status)}</span>
+                <span style={{ color: statusCfg(o.status).color }}>{statusLabel(o.status)}</span>
+                {o.in_order && (
+                  <span className="inline-flex items-center gap-1 ix-tnum"
+                    style={{ color: 'var(--warning)' }}>
+                    <GitBranch size={11} />{formatObjectId(o.in_order)}
+                  </span>
+                )}
               </button>
             );
           })}
