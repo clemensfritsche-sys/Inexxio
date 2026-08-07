@@ -30,6 +30,13 @@ class ProcessStep(Base, TimestampMixin):
     Erfassungspunkte. Geprüft wird sie beim Anlegen (``Module.clean_config``), nicht zur
     Laufzeit: ein Modul, das erst beim Ausführen auffliegt, steht schon im Prozess.
 
+    **Die ``id`` IST die Identität des Moduls** (Testnotiz #687). Sie entsteht mit der
+    Zeile, ändert sich nie und ist das Einzige, worauf der Ereignis-Log zeigt. Vorher
+    diente der **Name** als Merkmal in der Anzeige – und ein Name ist eine Eingabe: er
+    lässt sich ändern, doppelt vergeben oder leer lassen, und dann zeigt die Historie auf
+    etwas, das es so nie gab. Wie ein Modul **heisst**, sagt sein Typ (``domain/modules``);
+    **welches** es ist, sagt diese Zahl.
+
     **Eingefroren nach der Freigabe.** Weil der Auftrag erst mit der Freigabe entsteht,
     entstehen auch diese Zeilen erst dort – und danach gibt es keinen Schreibpfad mehr
     auf sie. Das ist keine bewachte Regel, sondern eine fehlende Tür.
@@ -41,7 +48,6 @@ class ProcessStep(Base, TimestampMixin):
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     module_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
     status_before: Mapped[str] = mapped_column(String(30), nullable=False)
     status_after: Mapped[str] = mapped_column(String(30), nullable=False)
     config: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)

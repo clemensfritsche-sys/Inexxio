@@ -96,3 +96,13 @@ def get(module_type: Any) -> Module:
 def points_of(config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
     """Die Erfassungspunkte einer gespeicherten Definition — die eine Lesestelle."""
     return list((config or {}).get("points") or [])
+
+
+def label(module_type: str) -> str:
+    """Wie ein Modul heisst. **Abgeleitet aus dem Typ, nie gespeichert** (#682/#687).
+
+    Ein unbekannter Typ wird als roher Wert gemeldet statt schöngefärbt – er dürfte
+    nicht existieren, und eine Anzeige, die ihn wie einen normalen Modultyp malt,
+    verbirgt genau den Fehler, den man sehen müsste.
+    """
+    return LABELS.get(module_type, module_type)

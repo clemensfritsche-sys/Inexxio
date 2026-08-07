@@ -4,9 +4,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (BaseModel, ConfigDict, Field, computed_field, field_validator,
+                      model_validator)
 
-from ..domain import statuses as st
+from ..domain import modules, statuses as st
 from .process import ModuleInput
 
 # ─── Erlaubte Werte ──────────────────────────────────────────────────────────
@@ -386,13 +387,21 @@ class ArticleProcessStepResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    #: **Die Identität des Moduls** (#687). Der Ereignis-Log zeigt auf sie und auf
+    #: nichts sonst – nicht auf einen Namen, nicht auf die Position.
     id: int
     position: int
     module_type: str
-    name: str
     status_before: str
     status_after: str
     config: Optional[dict] = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def label(self) -> str:
+        """Wie der Typ heisst – **abgeleitet** aus ``domain/modules``, nicht gespeichert.
+        So kann die Beschriftung nicht von der Registry abweichen."""
+        return modules.label(self.module_type)
 
 
 class ArticleProcess(BaseModel):

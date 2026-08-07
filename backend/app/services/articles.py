@@ -88,8 +88,6 @@ def _clean_steps(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     for data in raw:
         module = modules.get(data.get("module_type"))
-        if not str(data.get("name") or "").strip():
-            raise HTTPException(status_code=400, detail="Ein Modul braucht einen Namen.")
         module.clean_config(data.get("config"))
     return raw
 

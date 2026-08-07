@@ -9,7 +9,7 @@ import { orderStatus } from '@/lib/record-status';
 import { localDateTime } from '@/lib/utils';
 import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { ProcessDiagram, type DiagramStep } from '@/components/erp/process-diagram';
+import { ProcessDiagram, PROCESS_MAXW, type DiagramStep } from '@/components/erp/process-diagram';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
@@ -158,7 +158,10 @@ export function OrderDetail({ record, onSaved, onBack }: {
           </p>
         )}
 
-        <div className="mx-auto" style={{ maxWidth: 620 }}>
+        {/* Dasselbe Mass wie das Prozessbild – **aus dessen Quelle** (#684). Eine zweite
+            Zahl hier hiesse, dass die beiden auseinanderlaufen können, ohne dass es
+            jemand merkt; genau daraus entstand der gemeldete Breitenunterschied. */}
+        <div className="mx-auto" style={{ maxWidth: PROCESS_MAXW }}>
           {isDraft ? (
             <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps} />
           ) : shown ? (
@@ -216,7 +219,7 @@ function DraftView({ lines, setLines, steps, setSteps }: {
   const mirrored: DiagramStep[] | null = useMemo(() => {
     if (!template) return null;
     return (template.steps ?? []).map((s) => ({
-      id: s.id, name: s.name, moduleType: s.module_type,
+      id: s.id, moduleType: s.module_type, label: s.label,
     }));
   }, [template]);
 
@@ -263,7 +266,7 @@ function RunView({ order, busy, onConfirm }: {
   onConfirm: (stepId: number, values: Record<string, unknown>) => void;
 }) {
   const steps: DiagramStep[] = (order.steps ?? []).map((s) => ({
-    id: s.id, name: s.name, moduleType: s.module_type,
+    id: s.id, moduleType: s.module_type, label: s.label,
   }));
   const groups = (order.unit_groups ?? []).map((g) => ({
     currentStepId: g.current_step_id ?? null, status: g.status,
@@ -287,6 +290,8 @@ function RunView({ order, busy, onConfirm }: {
         activeStepId={order.active_step_id ?? null}
         endStatus={order.end_status}
         onExpand={expand}
+        journeyIn={order.journey_in ?? []}
+        journeyOut={order.journey_out ?? []}
         renderStep={(step, isActive) => (isActive ? (
           // Was das aktive Modul verlangt, steht in seiner Definition – die Karte des
           // Schritts ist der Ort, an dem es ausgefüllt wird.
@@ -343,10 +348,12 @@ function EventLog({ order }: { order: Order }) {
   const events = order.events ?? [];
   if (!events.length) return null;
   const KIND: Record<string, string> = { start: 'Start', step: 'Modul', end: 'Ende' };
-  const names = new Map((order.steps ?? []).map((s) => [s.id, s.name]));
+  // **Referenziert wird die id, beschriftet der Typ** (#687): ein Name wäre eine
+  // Eingabe, und die Historie darf nicht auf eine Eingabe zeigen.
+  const labels = new Map((order.steps ?? []).map((s) => [s.id, s.label]));
   const total = order.event_count ?? events.length;
   return (
-    <div className="mx-auto mt-5" style={{ maxWidth: 620 }}>
+    <div className="mx-auto mt-5" style={{ maxWidth: PROCESS_MAXW }}>
       <Card icon={History} title="Historie">
         <p className="text-xs mb-2.5" style={{ color: 'var(--fg-3)' }}>
           Eingefroren. Was hier steht, wird nicht mehr geändert – eine Korrektur wäre ein
@@ -362,7 +369,7 @@ function EventLog({ order }: { order: Order }) {
               style={{ borderTop: '1px solid var(--border-1)' }}>
               <span style={{ minWidth: 104 }}><UnitNumber value={e.unit_number} /></span>
               <span style={{ color: 'var(--fg-3)', minWidth: 92 }}>
-                {e.step_id ? names.get(e.step_id) ?? KIND[e.kind] : KIND[e.kind]}
+                {e.step_id ? labels.get(e.step_id) ?? KIND[e.kind] : KIND[e.kind]}
               </span>
               <span style={{ color: statusCfg(e.status_before).color }}>{statusLabel(e.status_before)}</span>
               <span style={{ color: 'var(--fg-4)' }}>→</span>

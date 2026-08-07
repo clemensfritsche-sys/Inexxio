@@ -52,11 +52,17 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   }, [frozen]);
 
   const steps: DiagramStep[] = readOnlySteps
-    ?? modules.map((m) => ({ id: m.id, name: m.name, moduleType: m.moduleType }));
+    ?? modules.map((m) => ({
+      id: m.id,
+      moduleType: m.moduleType,
+      // Wie das Modul heisst, sagt sein **Typ** – im Entwurf über den Katalog, gespeichert
+      // über das Label der Antwort. Beides dieselbe Registry, nur zwei Wege dorthin.
+      label: catalog?.modules?.find((x) => x.key === m.moduleType)?.label ?? m.moduleType,
+    }));
 
   function add(moduleType: string) {
     const id = (modules[modules.length - 1]?.id ?? 0) + 1;
-    onChange([...modules, { id, moduleType, name: '', points: [] }]);
+    onChange([...modules, { id, moduleType, points: [] }]);
   }
   function patch(id: number, next: Partial<ModuleDraft>) {
     onChange(modules.map((m) => (m.id === id ? { ...m, ...next } : m)));
@@ -130,8 +136,20 @@ function Palette({ catalog, onPick }: {
   );
 }
 
+/** Die Art eines Erfassungspunktes – Symbol mit dem Namen im Hover. */
+function PointIcon({ type, types }: { type: string; types: { key: string; label: string }[] }) {
+  const Icon = CAPTURE_ICON[type] ?? CAPTURE_ICON.text;
+  return (
+    <span className="flex items-center justify-center flex-none rounded"
+      style={{ width: 26, height: 26, color: 'var(--fg-3)' }}
+      data-tip={types.find((t) => t.key === type)?.label ?? type}>
+      <Icon size={14} />
+    </span>
+  );
+}
+
 /**
- * Der Inhalt eines Moduls im Entwurf: Name und Erfassungspunkte.
+ * Der Inhalt eines Moduls im Entwurf: seine Erfassungspunkte.
  *
  * Es gibt **kein** «Pflicht ja/nein» mehr: alles, was angelegt ist, ist Pflicht. Ein
  * Schalter dafür wäre die Frage, warum man einen Erfassungspunkt anlegt, den niemand
@@ -149,24 +167,17 @@ function ModuleFields({ module: m, types, onChange }: {
 
   return (
     <div className="flex flex-col gap-2">
-      <input
-        className={inputCls}
-        value={m.name}
-        maxLength={120}
-        placeholder="Name des Moduls, z. B. Endkontrolle"
-        onChange={(e) => onChange({ name: e.target.value })}
-      />
-
       <div className="flex flex-col gap-1.5">
         {m.points.map((p, i) => (
           <div key={i} className="flex flex-wrap gap-1.5 items-center">
+            {/* **Die Art ist das Symbol der Zeile, kein Feld** (Testnotiz #683). Gewählt
+                wird sie unten mit der Palette – ein Auswahlfeld daneben wäre der zweite
+                Weg zur selben Entscheidung. Umentscheiden heisst löschen und neu
+                anlegen, wie beim Modul selbst. */}
+            <PointIcon type={p.type} types={types} />
             <input className={inputCls} style={{ flex: 1, minWidth: 120 }} value={p.label}
               maxLength={120} placeholder="Erfassungspunkt, z. B. Gratfrei"
               onChange={(e) => setPoint(i, { label: e.target.value })} />
-            <select className={inputCls} style={{ width: 150 }} value={p.type}
-              onChange={(e) => setPoint(i, { type: e.target.value })}>
-              {types.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-            </select>
             {p.type === NEEDS_TARGET && (
               <>
                 <input className={inputCls} style={{ width: 76 }} value={p.target ?? ''}

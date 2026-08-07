@@ -1,11 +1,17 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { Blocks, ChevronDown, ChevronUp, Flag, GripVertical, Play, Trash2 } from 'lucide-react';
+import {
+  Blocks, ChevronDown, ChevronUp, CornerDownRight, CornerRightDown, Flag,
+  GripVertical, Play, Trash2,
+} from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
 import { FlowFrame, FlowNode, polyPath, type FlowAnchor } from './process-flow';
 import { UnitNumber } from './unit-number';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
+import { formatObjectId } from '@/lib/utils';
+import { useErpNav } from './obj-id';
+import type { JourneyStop } from '@/types';
 
 /**
  * **Die Prozessdarstellung — EINE Komponente, zwei Modi.**
@@ -29,13 +35,29 @@ import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@
  */
 
 export interface DiagramStep {
-  /** Serverseitige id im Ausführungsmodus; im Entwurf eine lokale Nummer. */
+  /**
+   * **Die Identität des Moduls** (Testnotiz #687). Serverseitig vergeben und
+   * unveränderlich; im Entwurf eine lokale Nummer, weil es den Datensatz noch nicht gibt.
+   * Der Ereignis-Log zeigt auf sie – nie auf einen Namen, nie auf die Position.
+   */
   id: number;
-  name: string;
   moduleType: string;
+  /** Wie das Modul heisst – **aus seinem Typ abgeleitet**, nicht eingegeben (#682). */
+  label: string;
 }
 
 export type DiagramMode = 'definition' | 'ausfuehrung';
+
+/**
+ * **Die Breite gehört zum Prozessbild, nicht zu seinem Aufrufer** (Testnotiz #684).
+ *
+ * Es war schon EINE Komponente – aber der Artikel stellte sie in einen 880-px-Container
+ * und der Auftrag in einen 620er, und damit sahen dieselben Module verschieden breit
+ * aus. Eine visuelle Abweichung ist der Beweis, dass irgendwo zwei Stände sind; hier war
+ * es nicht die Komponente, sondern das Mass. Also bringt sie es selbst mit: der Prozess
+ * sieht überall gleich aus, weil ihn niemand mehr messen kann.
+ */
+export const PROCESS_MAXW = 620;
 
 /**
  * Wie viele Stücke stehen an einer Stelle, in welchem Zustand.
@@ -56,6 +78,7 @@ export interface DiagramGroup {
 export function ProcessDiagram({
   mode, steps, groups = [], activeStepId = null, endStatus,
   head, tail, onDelete, renderStep, onExpand, tone, onReorder, dragging, onDragState,
+  journeyIn = [], journeyOut = [],
 }: {
   mode: DiagramMode;
   steps: DiagramStep[];
@@ -65,6 +88,10 @@ export function ProcessDiagram({
   endStatus: string;
   /** Slot über dem Start: die Definition (nur beim Auftrag). */
   head?: ReactNode;
+  /** **Journey**: woher die Stücke kamen (über dem Start) und wohin sie gingen (unter
+   *  dem Ende). Leer heisst «keiner» – dann steht dort nichts. */
+  journeyIn?: JourneyStop[];
+  journeyOut?: JourneyStop[];
   /** Slot **vor dem Ende**: die Modulauswahl – genau dort, wo das nächste Modul hinkäme. */
   tail?: ReactNode;
   /** Nur im Definitionsmodus: ein Modul entfernen. */
@@ -98,8 +125,10 @@ export function ProcessDiagram({
       | { id: string; kind: 'terminal'; which: 'start' | 'end' }
       | { id: string; kind: 'state'; at: number | null }
       | { id: string; kind: 'step'; step: DiagramStep; index: number }
+      | { id: string; kind: 'journey'; where: 'in' | 'out' }
     > = [];
     if (head) out.push({ id: 'head', kind: 'head' });
+    if (journeyIn.length) out.push({ id: 'journey-in', kind: 'journey', where: 'in' });
     out.push({ id: 'start', kind: 'terminal', which: 'start' });
     if (running && groupsAt(groups, steps[0]?.id ?? null, true).length) {
       out.push({ id: 'state-start', kind: 'state', at: steps[0]?.id ?? null });
@@ -116,8 +145,9 @@ export function ProcessDiagram({
     if (running && groups.some((g) => !g.active)) {
       out.push({ id: 'state-end', kind: 'state', at: null });
     }
+    if (journeyOut.length) out.push({ id: 'journey-out', kind: 'journey', where: 'out' });
     return out;
-  }, [head, tail, steps, groups, running]);
+  }, [head, tail, steps, groups, running, journeyIn.length, journeyOut.length]);
 
   /** Bis wohin ist die Linie stark? Bis zu der Stelle, an der der Prozess wirklich steht. */
   const walkedEdges = useMemo(() => {
@@ -130,6 +160,7 @@ export function ProcessDiagram({
   }, [nodes, running]);
 
   return (
+    <div className="mx-auto w-full" style={{ maxWidth: PROCESS_MAXW }}>
     <FlowFrame lines={(a) => <Lines ids={nodes.map((n) => n.id)} anchors={a} walked={walkedEdges} />}>
       {() => (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
@@ -139,6 +170,13 @@ export function ProcessDiagram({
             }
             if (n.kind === 'tail') {
               return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{tail}</FlowNode>;
+            }
+            if (n.kind === 'journey') {
+              return (
+                <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
+                  <JourneyRow where={n.where} stops={n.where === 'in' ? journeyIn : journeyOut} />
+                </FlowNode>
+              );
             }
             if (n.kind === 'terminal') {
               return (
@@ -186,6 +224,7 @@ export function ProcessDiagram({
         </div>
       )}
     </FlowFrame>
+    </div>
   );
 }
 
@@ -223,6 +262,50 @@ function Lines({ ids, anchors, walked }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // Knoten
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * **Die Journey** – woher die Stücke dieses Auftrags kamen, wohin sie gingen.
+ *
+ * Ein Stück ist immer in genau einem Auftrag aktiv; alles ist ein einziger Prozess, nur
+ * in Aufträge aufgeteilt. Diese Zeile setzt die Teilung wieder zusammen: über dem Start
+ * der Auftrag davor, unter dem Ende der danach.
+ *
+ * **Gruppiert, nicht aufgezählt.** Bei 5000 Stück wären 5000 Verweise weder darstellbar
+ * noch lesbar – und die Frage lautet «wie viele kamen woher», nicht «welche». Wer die
+ * einzelnen Stücke sehen will, öffnet den genannten Auftrag; dort stehen sie.
+ *
+ * Gibt es keinen Nachbarn, steht hier **nichts**: der Knoten entsteht gar nicht erst.
+ * Ein Platzhalter «kein Vorgänger» wäre eine Zeile, die nichts sagt.
+ */
+function JourneyRow({ where, stops }: { where: 'in' | 'out'; stops: JourneyStop[] }) {
+  // Der Sprung zum Nachbarn läuft über die **bestehende** Navigation (`ErpNavContext`) –
+  // dieselbe, mit der jede Objektnummer im ERP ihren Datensatz öffnet. Ein eigener
+  // Handler wäre ein zweiter Weg zur selben Sache.
+  const nav = useErpNav();
+  const Icon = where === 'in' ? CornerDownRight : CornerRightDown;
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5">
+      <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: 'var(--fg-4)' }}>
+        <Icon size={12} />
+        {where === 'in' ? 'aus' : 'weiter nach'}
+      </span>
+      {stops.map((j) => (
+        <button
+          key={j.object_id}
+          type="button"
+          onClick={nav ? () => nav(j.object_id) : undefined}
+          disabled={!nav}
+          className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full"
+          style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'var(--fg-3)' }}
+          data-tip={`${j.name} – ${j.unit_count} Stück`}
+        >
+          <span className="ix-tnum">{formatObjectId(j.object_id)}</span>
+          <span style={{ color: 'var(--fg-4)' }}>· {j.unit_count}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function Terminal({ which, endStatus }: { which: 'start' | 'end'; endStatus: string }) {
   const Icon = which === 'start' ? Play : Flag;
@@ -380,7 +463,7 @@ function StepCard({ step, active, dimmed, onDelete, tone, drag, children }: {
             }}
             onDragEnd={drag.onEnd}
             role="button"
-            aria-label={`${step.name || 'Neues Modul'} verschieben`}
+            aria-label={`${step.label} verschieben`}
             data-tip="Ziehen, um die Reihenfolge zu ändern">
             <GripVertical size={15} />
           </span>
@@ -392,7 +475,7 @@ function StepCard({ step, active, dimmed, onDelete, tone, drag, children }: {
           <Icon size={17} />
         </span>
         <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: c.fg }}>
-          {step.name || <span style={{ opacity: 0.5, fontWeight: 500 }}>Neues Modul</span>}
+          {step.label}
         </span>
         {onDelete && (
           <button
@@ -401,7 +484,7 @@ function StepCard({ step, active, dimmed, onDelete, tone, drag, children }: {
             className="flex items-center justify-center rounded"
             style={{ width: 26, height: 26, color: 'var(--danger)' }}
             data-tip="Modul entfernen. Ändern geht nicht – eine gesetzte Definition rastet ein."
-            aria-label={`${step.name} entfernen`}
+            aria-label={`${step.label} entfernen`}
           >
             <Trash2 size={14} />
           </button>

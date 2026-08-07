@@ -803,7 +803,9 @@ function ArticleProcess({ articleObjectId, draft, setDraft }: {
 
   const frozen = articleObjectId !== null;
   const steps: DiagramStep[] | undefined = frozen
-    ? (proc?.steps ?? []).map((s) => ({ id: s.id, name: s.name, moduleType: s.module_type }))
+    ? (proc?.steps ?? []).map((s) => ({
+      id: s.id, moduleType: s.module_type, label: s.label,
+    }))
     : undefined;
 
   return (

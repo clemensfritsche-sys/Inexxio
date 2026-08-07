@@ -3113,10 +3113,6 @@
             "type": "string",
             "title": "Module Type"
           },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
           "status_before": {
             "type": "string",
             "title": "Status Before"
@@ -3135,6 +3131,12 @@
               }
             ],
             "title": "Config"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Wie der Typ heisst – **abgeleitet** aus ``domain/modules``, nicht gespeichert.\nSo kann die Beschriftung nicht von der Registry abweichen.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -3142,9 +3144,9 @@
           "id",
           "position",
           "module_type",
-          "name",
           "status_before",
-          "status_after"
+          "status_after",
+          "label"
         ],
         "title": "ArticleProcessStepResponse",
         "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft."
@@ -5345,6 +5347,30 @@
         "title": "InstanceUnitResponse",
         "description": "Eine Einzelinstanz – das Arbeitsobjekt."
       },
+      "JourneyNeighbour": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unit_count": {
+            "type": "integer",
+            "title": "Unit Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "name",
+          "unit_count"
+        ],
+        "title": "JourneyNeighbour",
+        "description": "Ein Nachbar-Auftrag in der Journey – **gruppiert**, nicht je Stück.\n\nBei 5000 Einzelinstanzen will niemand 5000 Verweise sehen; die Frage lautet «wie\nviele kamen woher», nicht «welche». Wer die einzelnen Stücke braucht, öffnet den\ngenannten Auftrag – dort stehen sie."
+      },
       "ModuleCatalog": {
         "properties": {
           "modules": {
@@ -5386,12 +5412,6 @@
             "type": "string",
             "title": "Module Type"
           },
-          "name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Name"
-          },
           "config": {
             "anyOf": [
               {
@@ -5405,11 +5425,10 @@
         },
         "type": "object",
         "required": [
-          "module_type",
-          "name"
+          "module_type"
         ],
         "title": "ModuleInput",
-        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt."
+        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n**Keinen Namen.** Wie ein Modul heisst, sagt sein Typ (``domain/modules``) – ein\nEingabefeld daneben hätte genau eine richtige Antwort und war trotzdem Pflicht\n(Testnotiz #682). Es war zugleich die Quelle der Meldung «String should have at\nleast 1 character»: ein leer gelassenes Feld, das der Anwender gar nicht sehen\nwollte (#686).\n\nDie **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie\nsteht hier nicht, weil der Entwurf noch keine hat."
       },
       "ModuleTypeInfo": {
         "properties": {
@@ -5639,6 +5658,20 @@
             "type": "integer",
             "title": "Event Count",
             "default": 0
+          },
+          "journey_in": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyNeighbour"
+            },
+            "type": "array",
+            "title": "Journey In"
+          },
+          "journey_out": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyNeighbour"
+            },
+            "type": "array",
+            "title": "Journey Out"
           },
           "active_step_id": {
             "anyOf": [
@@ -5986,10 +6019,6 @@
             "type": "string",
             "title": "Module Type"
           },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
           "status_before": {
             "type": "string",
             "title": "Status Before"
@@ -6030,6 +6059,12 @@
               }
             ],
             "title": "Source Version"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -6037,11 +6072,12 @@
           "id",
           "position",
           "module_type",
-          "name",
           "status_before",
-          "status_after"
+          "status_after",
+          "label"
         ],
-        "title": "ProcessStepResponse"
+        "title": "ProcessStepResponse",
+        "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. ``label`` ist nur die Beschriftung und **abgeleitet** aus\n``domain/modules`` – ein gespeicherter Name wäre eine zweite Aussage darüber, was\ndieses Modul ist, und die erste falsche Eingabe liesse beide auseinanderlaufen."
       },
       "StepConfirm": {
         "properties": {

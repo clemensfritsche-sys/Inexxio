@@ -57,6 +57,29 @@ export class ApiError extends Error {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+/**
+ * **«Ich habe Daten geändert» – an EINER Stelle gesagt** (Testnotizen #685/#688).
+ *
+ * Den Mechanismus gab es längst: der ERP-Feed hört auf `inexxio:data-changed` und lädt
+ * dann sofort nach. Gefeuert hat ihn nur das KI-Widget – jedes Detailfenster schrieb
+ * still an ihm vorbei. Darum stand im Feed «Im Prozess», während das Detail daneben
+ * längst «Abgeschlossen» zeigte (#688), und eine frisch erzeugte Instanz erschien erst
+ * nach einem Reload (#685). Es waren nie **zwei Quellen** – Feed und Detail leiten den
+ * Status aus derselben Ableitung ab; der Feed hatte nur einen alten Stand.
+ *
+ * Die Stelle, an der «geändert» mit Sicherheit zutrifft, ist hier: **jede Anfrage, die
+ * kein GET ist.** Ein Aufrufer kann es damit nicht mehr vergessen – und ein zweiter
+ * Melde-Weg kann nicht entstehen.
+ *
+ * Ausgenommen sind die **Testnotizen**: sie sind keine ERP-Daten, und beim Anheften
+ * einer Notiz vier Feed-Abfragen auszulösen wäre Arbeit ohne Ertrag.
+ */
+function notifyDataChanged(path: string) {
+  if (typeof window === 'undefined') return;
+  if (path.startsWith('/api/v1/feedback')) return;
+  window.dispatchEvent(new CustomEvent('inexxio:data-changed'));
+}
+
 class ApiClient {
   private token: string | null = null;
   /**
@@ -88,6 +111,7 @@ class ApiClient {
   // schreibende, da der Server sie nie verarbeitet hat → keine Doppelanlage).
   // 500/504 hingegen nur bei LESENDEN (idempotenten) Anfragen wiederholen.
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    // (Der Erfolgspfad unten meldet die Änderung – siehe ``notifyDataChanged``.)
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) || {}),
@@ -112,6 +136,7 @@ class ApiClient {
       }
 
       if (response.ok) {
+        if (!idempotent) notifyDataChanged(path);
         if (response.status === 204) return {} as T;
         return response.json() as Promise<T>;
       }

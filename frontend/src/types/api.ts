@@ -1093,14 +1093,18 @@ export interface components {
             position: number;
             /** Module Type */
             module_type: string;
-            /** Name */
-            name: string;
             /** Status Before */
             status_before: string;
             /** Status After */
             status_after: string;
             /** Config */
             config?: Record<string, never> | null;
+            /**
+             * Label
+             * @description Wie der Typ heisst – **abgeleitet** aus ``domain/modules``, nicht gespeichert.
+             *     So kann die Beschriftung nicht von der Registry abweichen.
+             */
+            readonly label: string;
         };
         /** ArticleResponse */
         ArticleResponse: {
@@ -1813,6 +1817,22 @@ export interface components {
             created_at: string;
         };
         /**
+         * JourneyNeighbour
+         * @description Ein Nachbar-Auftrag in der Journey – **gruppiert**, nicht je Stück.
+         *
+         *     Bei 5000 Einzelinstanzen will niemand 5000 Verweise sehen; die Frage lautet «wie
+         *     viele kamen woher», nicht «welche». Wer die einzelnen Stücke braucht, öffnet den
+         *     genannten Auftrag – dort stehen sie.
+         */
+        JourneyNeighbour: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name: string;
+            /** Unit Count */
+            unit_count: number;
+        };
+        /**
          * ModuleCatalog
          * @description Was sich modellieren lässt. **Eine** Antwort für beide Definitionsorte.
          */
@@ -1833,12 +1853,19 @@ export interface components {
         /**
          * ModuleInput
          * @description Ein Prozessschrittmodul, wie es der Entwurf schickt.
+         *
+         *     **Keinen Namen.** Wie ein Modul heisst, sagt sein Typ (``domain/modules``) – ein
+         *     Eingabefeld daneben hätte genau eine richtige Antwort und war trotzdem Pflicht
+         *     (Testnotiz #682). Es war zugleich die Quelle der Meldung «String should have at
+         *     least 1 character»: ein leer gelassenes Feld, das der Anwender gar nicht sehen
+         *     wollte (#686).
+         *
+         *     Die **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie
+         *     steht hier nicht, weil der Entwurf noch keine hat.
          */
         ModuleInput: {
             /** Module Type */
             module_type: string;
-            /** Name */
-            name: string;
             config?: components["schemas"]["ModuleConfigInput"] | null;
         };
         /**
@@ -1955,6 +1982,10 @@ export interface components {
              * @default 0
              */
             event_count: number;
+            /** Journey In */
+            journey_in?: components["schemas"]["JourneyNeighbour"][];
+            /** Journey Out */
+            journey_out?: components["schemas"]["JourneyNeighbour"][];
             /** Active Step Id */
             active_step_id?: number | null;
         };
@@ -2111,7 +2142,15 @@ export interface components {
              */
             created_at: string;
         };
-        /** ProcessStepResponse */
+        /**
+         * ProcessStepResponse
+         * @description Ein Modul im laufenden Auftrag.
+         *
+         *     **Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie
+         *     und auf nichts sonst. ``label`` ist nur die Beschriftung und **abgeleitet** aus
+         *     ``domain/modules`` – ein gespeicherter Name wäre eine zweite Aussage darüber, was
+         *     dieses Modul ist, und die erste falsche Eingabe liesse beide auseinanderlaufen.
+         */
         ProcessStepResponse: {
             /** Id */
             id: number;
@@ -2119,8 +2158,6 @@ export interface components {
             position: number;
             /** Module Type */
             module_type: string;
-            /** Name */
-            name: string;
             /** Status Before */
             status_before: string;
             /** Status After */
@@ -2131,6 +2168,11 @@ export interface components {
             source_article_id?: number | null;
             /** Source Version */
             source_version?: number | null;
+            /**
+             * Label
+             * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
+             */
+            readonly label: string;
         };
         /**
          * StepConfirm
