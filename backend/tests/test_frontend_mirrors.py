@@ -1488,8 +1488,14 @@ def test_the_process_picture_brings_its_own_width():
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
     assert "export const PROCESS_MAXW" in diagram, "Das Prozessbild hat keine eigene Breite."
     assert "maxWidth: PROCESS_MAXW" in diagram
-    width = re.search(r"export const PROCESS_MAXW\s*=\s*(\d+)", diagram)
-    assert width, "PROCESS_MAXW ist keine Zahl."
+    # Das Mass kommt aus den Spurmassen (`process-flow.LANE`) – dort steht jede Breite,
+    # die dieses Bild kennt, und nur dort.
+    assert "export const PROCESS_MAXW = LANE.MID_MAX" in diagram, (
+        "PROCESS_MAXW ist wieder eine eigene Zahl neben den Spurmassen."
+    )
+    flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
+    width = re.search(r"\n  MID_MAX: (\d+)", flow)
+    assert width, "LANE.MID_MAX ist keine Zahl."
     _PROCESS_MAXW = int(width.group(1))
     for name in ("article-detail.tsx", "order-detail.tsx"):
         src = _read(FRONTEND / "components" / "erp" / name)
@@ -1633,7 +1639,10 @@ def test_the_neighbours_are_drawn_with_the_same_component():
         "Mehrere Rahmen – dann haben die Spalten verschiedene Nullpunkte und die "
         "Verbindungslinie lässt sich nicht zeichnen."
     )
-    assert "function Branch(" in flow, "Es gibt keine Linie zwischen den Spalten."
+    assert "function Detour(" in flow, "Es gibt keine Linie zwischen den Spalten."
+    assert "function Inflow(" in flow, (
+        "Der übergeordnete Auftrag hängt an keiner Linie – dann steht er nur daneben."
+    )
     # Und der Server liefert dafür dieselben Felder wie für die Mitte.
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
     related = schema.split("class RelatedOrder")[1].split("class ")[0]
@@ -1732,9 +1741,16 @@ def test_a_branch_hangs_on_a_state_point_not_on_a_module():
     assert "statePointId(b.at_step_id ?? null)" in cols, (
         "Die Abzweigung hängt nicht am Zustandspunkt."
     )
-    branch = _body(cols, "Branch", kind="function")
+    branch = _body(cols, "Detour", kind="function")
     assert "s.points.map(" in branch, (
         "Nur EIN Anker je Nachbar – ein Auftrag kann an mehreren Stellen zugegriffen haben."
+    )
+    # **Und der Nachbar steht in der ZEILE seines Punktes.** Nur dadurch ist die
+    # Verbindung kurz: die Zeile wächst auf seine Höhe, die Hauptachse wächst mit, und
+    # es entsteht das Bild, das die Sache ist – Teilung, zwei Wege, Zusammenfluss.
+    assert "gridRow: rowOf(c.anchor)" in cols, (
+        "Der Nachbar steht nicht in der Zeile seines Zustandspunkts – dann muss die "
+        "Linie wieder quer über das halbe Bild laufen."
     )
 
     # Serverseitig: je Zustandspunkt eine Zeile, nicht ein geratenes Minimum.
@@ -1878,7 +1894,7 @@ def test_the_origin_uses_the_shared_switch():
     )
     # Geprüft wird die **Verdrahtung**, nicht das Vorkommen des Wortes: der Regler muss
     # an der Herkunft hängen, sonst steht er irgendwo und die Knöpfe stehen daneben.
-    assert "value={(line.origin ?? LAGER)" in ui, "Der Regler hängt nicht an der Herkunft."
+    assert "value={line.origin}" in ui, "Der Regler hängt nicht an der Herkunft."
     assert "function OriginBtn(" not in ui, "Der nachgebaute Knopf steht noch da."
 
 
@@ -1976,28 +1992,119 @@ def test_the_header_never_mixes_font_shorthand_with_a_conditional_override():
         )
 
 
-def test_three_lanes_fit_on_a_laptop():
-    """**Drei Spuren müssen auf einem Notebook erscheinen, nicht erst auf einem Grossbild.**
+def test_the_lane_widths_live_in_exactly_one_place():
+    """**Die Umbruchpunkte stehen an EINER Stelle, und drei Spuren tragen ein Notebook.**
 
-    Der Rahmen im Detailfenster ist rund 380 px schmaler als das Fenster (Feed +
-    Polsterung) – gemessen: 1366 → 990, 1440 → 1064, 1512 → 1136, 1536 → 1160. Bei einer
-    Mindestbreite von 240 px je Nachbar lag die Schwelle bei 1160 und damit erst bei
-    **1536 px Fensterbreite**: auf jedem Notebook stand alles untereinander.
+    Entschieden wird nach **effektiver CSS-Breite**, nicht nach der Panel-Auflösung: ein
+    MacBook Pro 13,3″ hat 2560 × 1600 Pixel und liefert dem Browser 1440 × 900 CSS-Pixel
+    (Standard, DPR 2) bzw. 1280 / 1680 in den skalierten Modi. Der Rahmen im Detailfenster
+    ist rund 380 px schmaler als das Fenster (Feed + Polsterung) – gemessen: 1152 → 776,
+    1280 → 904, 1366 → 990, 1440 → 1064, 1680 → 1304.
 
-    Der Wert ist gemessen, nicht geschätzt – darum steht hier die Zahl und nicht die
-    Formel.
+    Zwei Aussagen, beide gemessen und nicht geschätzt:
+
+    1. Alle Masse kommen aus ``process-flow.LANE``. Eine zweite Zahl in einer Komponente
+       wäre ein zweiter Umbruchpunkt, und der läuft vom ersten weg.
+    2. Drei Spuren müssen bei 1280 px Fensterbreite (Rahmen 904) stehen – der schmalste
+       Modus, den ein 13,3″-Notebook üblicherweise fährt.
     """
-    ui = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-    assert "const WIDE = PROCESS_MAXW + 2 * SIDE_MINW + 2 * GAP" in ui, (
-        "Die Schwelle ist nicht mehr aus den Spurbreiten abgeleitet."
+    flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
+    lane = {k: int(v) for k, v in re.findall(r"\n  (GAP|MID_MIN|MID_MAX|SIDE_MIN|SIDE_MAX): (\d+)", flow)}
+    assert len(lane) == 5, f"LANE ist unvollständig: {sorted(lane)}"
+    assert "export const LANES_FROM = LANE.MID_MIN + 2 * LANE.SIDE_MIN + 2 * LANE.GAP" in flow, (
+        "Die Schwelle ist nicht mehr aus den Spurbreiten abgeleitet – dann ist sie eine "
+        "zweite Zahl neben ihnen."
     )
-    side = int(re.search(r"const SIDE_MINW = (\d+)", ui).group(1))
-    gap = int(re.search(r"const GAP = (\d+)", ui).group(1))
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
-    mid = int(re.search(r"export const PROCESS_MAXW = (\d+)", diagram).group(1))
-    wide = mid + 2 * side + 2 * gap
-    assert wide <= 990, (
-        f"Drei Spuren brauchen {wide} px Rahmen – bei 1366 px Fensterbreite sind nur "
-        f"990 da. Dann stapelt es auf jedem Notebook."
+    threshold = lane["MID_MIN"] + 2 * lane["SIDE_MIN"] + 2 * lane["GAP"]
+    assert threshold <= 904, (
+        f"Drei Spuren brauchen {threshold} px Rahmen – bei 1280 px Fensterbreite (der "
+        f"schmalste übliche Modus eines 13,3″-Notebooks) sind nur 904 da."
     )
-    assert side >= 150, f"Ein Nachbar mit {side} px trägt seine Modul-Karten nicht mehr."
+    assert lane["SIDE_MIN"] >= 150, (
+        f"Ein Nachbar mit {lane['SIDE_MIN']} px trägt seine Modul-Karten nicht mehr."
+    )
+    assert lane["MID_MIN"] < lane["MID_MAX"], (
+        "Die Mitte darf schmaler werden – sonst ist sie kein Verhandlungsspielraum, "
+        "sondern eine feste Sperre."
+    )
+
+    # Keine zweite Stelle: die Prozess-Komponenten bringen keine eigenen Spurbreiten mit.
+    for name in ("process-columns.tsx", "process-diagram.tsx"):
+        code = _code(_read(FRONTEND / "components" / "erp" / name))
+        strays = re.findall(r"const (SIDE_\w*|MID_\w*|WIDE|GAP)\s*=\s*\d", code)
+        assert not strays, (
+            f"{name} definiert eigene Spurmasse {strays} – sie gehören in "
+            f"`process-flow.LANE`, sonst gibt es zwei Umbruchpunkte."
+        )
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    assert "export const PROCESS_MAXW = LANE.MID_MAX" in diagram, (
+        "PROCESS_MAXW ist wieder eine eigene Zahl statt der Spurbreite."
+    )
+
+
+def test_the_process_picture_has_one_line_system():
+    """**Zwei Stärken, zwei Farben, ein Linientyp — mehr trägt keine Information.**
+
+    Die Ausscherung in einen Nebenauftrag ist **keine andere Art Linie**, sondern derselbe
+    Strang, der abzweigt: sie folgt darum derselben Regel wie die Achse (gegangen ↔
+    ausstehend). Ob ein Stück zurückkehrt, sagt nicht ein Strichmuster, sondern **ob es
+    die Linie gibt**.
+
+    Vorher waren es drei Farben (Achse gegangen · Achse offen · Abzweigung) und zwei
+    Linientypen (durchgezogen · gestrichelt) – vier Zeichen für zwei Aussagen.
+    """
+    code = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
+    assert "strokeDasharray" not in code, (
+        "Im Prozessbild ist wieder eine gestrichelte Linie – das Fehlen einer Linie IST "
+        "die Aussage «kommt nicht zurück»."
+    )
+    strokes = set(re.findall(r"stroke=\{?['\"]?(var\(--[a-z0-9-]+\))", code))
+    inline = set(re.findall(r"stroke=\{[^}]*?(var\(--[a-z0-9-]+\))", code))
+    used = strokes | inline
+    assert used <= {"var(--fg-2)", "var(--border-2)"}, (
+        f"Das Prozessbild benutzt weitere Linienfarben: {sorted(used)}. Farbe an einer "
+        f"Prozesslinie ist keine freie Entscheidung – gegangen und ausstehend, sonst nichts."
+    )
+    # Und es gibt genau EINE Stelle, die eine Linie zeichnet.
+    assert code.count("<path") == 1, (
+        "Es gibt mehr als eine Stelle, die eine Prozesslinie zeichnet – dann kann sich "
+        "eine davon anders entscheiden."
+    )
+
+
+def test_the_origin_has_no_state_that_only_a_detour_can_reach():
+    """**Die Vorauswahl «Lager» IST der Wert, nicht seine Anzeige.**
+
+    ``origin`` war ``… | null``, angezeigt wurde aber ``origin ?? LAGER``: der Regler stand
+    auf «Lager», der Zustand sagte «nichts». Alles, was an ``origin === LAGER`` hing – die
+    Instanz-Auswahl und damit die FIFO-Vorauswahl – lief deshalb nicht an, und die Zeile
+    fiel beim Absenden aus dem Nutzdatensatz («keine Einzelinstanz gewählt»). Erreichbar
+    wurde der Zustand nur über den Umweg *einmal umschalten und zurück*.
+
+    Ein angezeigter Zustand, den es in den Daten nicht gibt, ist kein Vorzustand, sondern
+    ein Widerspruch.
+    """
+    code = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    assert re.search(r"origin: typeof NEU \| typeof LAGER;", code), (
+        "`origin` trägt wieder einen dritten Wert – dann weicht die Anzeige wieder vom "
+        "Zustand ab."
+    )
+    assert "origin ??" not in code, (
+        "Die Herkunft wird für die Anzeige wieder ersetzt (`origin ?? …`) – genau so "
+        "entstand ein Regler, dessen Stellung nichts auslöst."
+    )
+    assert "origin: null" not in code, "Die Zeile startet wieder ohne Herkunft."
+
+    # Der Vorschlag hängt an seiner Grundlage (Stücke UND Menge), nicht an einem Ereignis.
+    effect = re.search(r"useEffect\(\(\) => \{\s*if \(!options \|\| chosen\.length\)[\s\S]*?\}, \[([^\]]*)\]\);", code)
+    assert effect, "Die FIFO-Vorauswahl ist nicht mehr auffindbar."
+    deps = {d.strip() for d in effect.group(1).split(",") if d.strip()}
+    assert deps == {"options", "quantity"}, (
+        f"Die Vorauswahl hängt an {sorted(deps)}. Ihre Grundlage sind die vorhandenen "
+        f"Stücke UND die verlangte Menge – ändert sich eine davon ohne neuen Vorschlag, "
+        f"steht dort «0 von 3»."
+    )
+    assert "!o.in_order" in code, (
+        "Die Vorauswahl schlägt wieder Stücke vor, die in einem anderen Auftrag laufen – "
+        "daraus würde still eine Abweichung."
+    )

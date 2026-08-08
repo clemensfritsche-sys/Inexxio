@@ -1,25 +1,34 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { GitBranch, MoreHorizontal } from 'lucide-react';
-import { FlowFrame, polyPath, type FlowAnchor } from './process-flow';
+import { FlowFrame, flowMetrics, polyPath, type FlowAnchor, type FlowMetrics } from './process-flow';
 import {
   FlowColumn, PROCESS_MAXW, flowNodes, statePointId, walkedEdges,
   type DiagramGroup, type DiagramStep, type FlowSpec, type UnitChip,
 } from './process-diagram';
 import { useErpNav } from './obj-id';
 import { formatObjectId } from '@/lib/utils';
-import { statusCfg } from '@/lib/process-status';
+import { IM_PROZESS, statusCfg } from '@/lib/process-status';
 import type { JourneyStop, Order, RelatedOrder } from '@/types';
 
 /**
- * **Der Auftrag in seinem Zusammenhang — drei Spuren, ein Rahmen.**
+ * **Der Auftrag in seinem Zusammenhang — drei Spuren, ein Rahmen, EIN Liniensystem.**
  *
  * ```
- * ┌───────────────────┬──────────────────┬────────────────────┐
- * │ Übergeordneter    │  Eigener Ablauf  │  Abweichungen      │
- * │ Auftrag           │  (der Fokus)     │                    │
- * └───────────────────┴──────────────────┴────────────────────┘
+ *   übergeordneter          eigener Ablauf              Abweichungen
+ *   Auftrag                 (der Fokus)
+ *        │                        │
+ *        └───────────────────────►●  Start
+ *                                 │
+ *                              [Modul]
+ *                                 │
+ *                                 ●───────────────────► ● Start
+ *                                 │  ausgeschert        │
+ *                                 │                  [Modul]
+ *                                 │                     │
+ *                                 │◄────────────────────⚑ Ende
+ *                              [Modul]   zurück
  * ```
  *
  * **Die Nachbarn zeigen ihren echten Ablauf**, nicht eine Zusammenfassung und kein
@@ -27,36 +36,54 @@ import type { JourneyStop, Order, RelatedOrder } from '@/types';
  * Zweitform wäre eine zweite Darstellung derselben Sache – und die läuft irgendwann von
  * der ersten weg. Sie sind nur **verblasst**: der Fokus ist und bleibt die Mitte.
  *
- * **Die Linien führen.** Alle Spalten liegen in **einem** `FlowFrame`, also in einem
- * Koordinatensystem – dadurch lässt sich die Abzweigung genau dort zeichnen, wo sie
- * passiert ist, und der Rückweg genau dorthin, wo das Stück wieder einsteigt. Zwei
- * Rahmen hätten zwei Nullpunkte und damit keine gemeinsame Linie.
+ * ## Warum ein Raster mit Zeilen und keine drei nebeneinanderstehenden Säulen
  *
- * **Schmale Fenster**: unter `WIDE` gibt es keine drei Spuren, die noch lesbar wären.
- * Dann stehen die Nachbarn untereinander – dieselben Spalten, nur ohne Querlinien; was
- * die Linie sagte, sagt dann die Kopfzeile über der Spalte.
+ * Ein Nebenauftrag hängt an **einem Zustandspunkt** der Hauptachse. Stehen die Spalten
+ * unabhängig nebeneinander, liegt sein Start irgendwo – meist weit über oder unter dem
+ * Punkt –, und die Verbindungslinie muss die halbe Höhe des Bildes überbrücken. Genau
+ * daraus entstanden die langen, sich überlagernden Züge quer über fremde Karten.
+ *
+ * Darum ist das Ganze **ein** Raster: jeder Knoten der Mitte ist eine Zeile, und ein
+ * Nebenauftrag steht in der Zeile seines Zustandspunkts. Die Zeile wächst dann auf seine
+ * Höhe — und damit wächst **die Hauptachse an genau dieser Stelle mit**. Was übrig
+ * bleibt, ist das Bild, das die Sache ohnehin ist: eine Teilung, zwei parallele Wege, ein
+ * Zusammenfluss. Keine Rechnung, keine Rückkopplung von der Messung ins Layout — das
+ * Raster tut es.
+ *
+ * ## Das Liniensystem: zwei Stärken, sonst nichts
+ *
+ * | | |
+ * |---|---|
+ * | **gegangen** | `--fg-2`, kräftig — hier ist Material durchgelaufen |
+ * | **ausstehend** | `--border-2`, Haarlinie — hier steht es noch aus |
+ *
+ * Keine dritte Farbe, kein zweiter Linientyp. Eine Abzweigung ist **keine andere Art
+ * Linie**, sondern derselbe Strang, der ausschert; sie folgt darum derselben Regel. Ob
+ * ein Stück zurückkehrt, sagt nicht ein Strichmuster, sondern **ob es die Linie gibt**:
+ * eine gekappte Ausleihe hat keinen Rückweg, und das Fehlen ist die Aussage.
+ *
+ * **Schmale Fenster**: unter `LANES_FROM` gibt es keine drei Spuren, die noch lesbar
+ * wären. Dann stehen die Nachbarn untereinander – dieselben Spalten, nur ohne
+ * Querlinien; was die Linie sagte, sagt dann die Kopfzeile über der Spalte.
  */
 
-/** Abstand zwischen zwei Spuren. */
-const GAP = 20;
+/** Zeilenabstand der Hauptachse – dieselbe Luft wie im Fluss einer einzelnen Spalte. */
+const ROW_GAP = 14;
 /**
- * Wie schmal ein Nachbar werden darf, bevor drei Spuren keinen Sinn mehr ergeben.
+ * Der Streifen zwischen der Kopfzeile eines Nachbarn und seinem Start-Objekt.
  *
- * **Gemessen, nicht geschätzt.** Bei 240 px lag die Schwelle bei einem Rahmen von
- * 1160 px – und der Rahmen ist im Detailfenster rund 380 px schmaler als das Fenster
- * (Feed + Polsterung). Drei Spuren erschienen damit erst ab **1536 px Fensterbreite**,
- * also auf keinem Notebook: 1512 → gestapelt, 1440 → gestapelt, 1366 → gestapelt. Der
- * Nachbar ist eine verblasste Nebenspur, keine Leseansicht; bei 160 px trägt er seine
- * Modul-Karten noch, und die Schwelle liegt bei 1366 px Fensterbreite.
+ * Er ist **die Fahrbahn der Ausscherung**: die Linie muss senkrecht in das Start-Objekt
+ * einlaufen (§2.5) und darf dabei keine Karte überqueren. Ohne diesen Streifen liefe sie
+ * hinter der Kopfzeile durch – gezeichnet, aber unsichtbar, weil die Knoten über den
+ * Linien liegen.
  */
-const SIDE_MINW = 160;
+const HEAD_GAP = 22;
 /**
- * Ab dieser gemessenen **Rahmen**breite passen drei Spuren nebeneinander: die feste
- * Mitte, zwei noch lesbare Nachbarn und die Abstände. Darunter stehen sie untereinander.
+ * Luft über dem Start-Objekt der Mitte. Ein übergeordneter Auftrag mündet **von oben**
+ * ein; stünde der Start bei y = 0, gäbe es für diese Einmündung keinen Platz und die
+ * Linie liefe aus dem Rahmen.
  */
-const WIDE = PROCESS_MAXW + 2 * SIDE_MINW + 2 * GAP;
-/** Wie breit ein Nachbar höchstens wird. Schmaler als die Mitte – sie ist der Fokus. */
-const SIDE_MAXW = 420;
+const TOP_LEAD = 26;
 
 export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviateBlocked, journeyIn, journeyOut }: {
   order: Order;
@@ -99,33 +126,33 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
     }),
     [steps, groups, branchPoints, inStops.length, outStops.length],
   );
-  const sides = useMemo(
-    () => [
-      ...(order.parents ?? []).map((r) => side(r, 'p')),
-      ...(order.deviations ?? []).map((r) => side(r, 'd')),
-    ],
-    [order.parents, order.deviations],
-  );
+  const left = useMemo(() => (order.parents ?? []).map((r) => side(r, 'p')), [order.parents]);
+  const right = useMemo(() => (order.deviations ?? []).map((r) => side(r, 'd')), [order.deviations]);
+  const sides = useMemo(() => [...left, ...right], [left, right]);
 
   const walked = walkedEdges(main, true);
+  const rowOf = (nodeId: string) => 1 + Math.max(0, main.findIndex((n) => n.id === nodeId));
+  // Je Zustandspunkt **eine** Zelle: zwei Abweichungen an derselben Stelle stehen
+  // untereinander in derselben Zeile, statt sich zu überlagern.
+  const cells = useMemo(() => {
+    const by = new Map<string, SideFlow[]>();
+    right.forEach((s) => {
+      const key = s.points[0] ?? statePointId(null);
+      const list = by.get(key);
+      if (list) list.push(s); else by.set(key, [s]);
+    });
+    return [...by].map(([anchor, list]) => ({ anchor, list }));
+  }, [right]);
 
   return (
     <FlowFrame lines={(a, size) => (
-      <>
-        <Lines ids={main.map((n) => n.id)} anchors={a} walked={walked} />
-        {sides.map((s) => (
-          <Lines key={s.prefix} ids={s.nodes.map((n) => n.id)} anchors={a} walked={s.walked} />
-        ))}
-        {size.w >= WIDE && sides.map((s) => (
-          <Branch key={`b-${s.prefix}`} side={s} anchors={a} />
-        ))}
-      </>
+      <Wiring
+        main={main} walked={walked} left={left} right={right}
+        anchors={a} metrics={flowMetrics(size.w)}
+      />
     )}>
-      {(width) => {
-        const wide = width >= WIDE;
-        const left = sides.filter((s) => s.where === 'p');
-        const right = sides.filter((s) => s.where === 'd');
-        const column = (
+      {(m) => {
+        const column = (nodeStyle?: (i: number) => CSSProperties) => (
           <FlowColumn
             nodes={main} mode="ausfuehrung" groups={groups}
             activeStepId={order.active_step_id ?? null}
@@ -135,16 +162,17 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
             renderStep={renderStep} onExpand={onExpand} onDeviate={onDeviate}
             deviateBlocked={deviateBlocked}
             journeyIn={inStops} journeyOut={outStops}
+            containerStyle={nodeStyle ? { display: 'contents' } : undefined}
+            nodeStyle={nodeStyle}
           />
         );
-        if (!wide) {
+        if (!m.lanes) {
           return (
             <div className="flex flex-col items-center gap-6">
-              <div className="w-full" style={{ maxWidth: PROCESS_MAXW }}>{column}</div>
-              {[...left, ...right].map((s) => (
+              <div className="w-full" style={{ maxWidth: PROCESS_MAXW }}>{column()}</div>
+              {sides.map((s) => (
                 <div key={s.prefix} className="w-full" style={{ maxWidth: PROCESS_MAXW }}>
-                  <SideHead side={s} />
-                  <Side side={s} />
+                  <Neighbour side={s} />
                 </div>
               ))}
               <Rest total={order.deviation_total ?? 0} shown={right.length} />
@@ -152,20 +180,41 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
           );
         }
         return (
-          <div style={{
-            display: 'grid', alignItems: 'start', gap: GAP,
-            // Die Mitte ist **fest**: als `minmax(0, …)` wäre sie eine Obergrenze, und
-            // weil ihr Inhalt seine Breite aus der Spur bezieht, fiele sie auf die
-            // Mindestbreite zusammen – der Fokus wäre die schmalste Spalte.
-            gridTemplateColumns: `minmax(0,1fr) ${PROCESS_MAXW}px minmax(0,1fr)`,
-          }}>
-            <Stack sides={left} align="end" />
-            <div>{column}</div>
-            <div>
-              <Stack sides={right} align="start" />
-              <Rest total={order.deviation_total ?? 0} shown={right.length} />
+          <>
+            <div style={{
+              display: 'grid', alignItems: 'start', justifyItems: 'center',
+              columnGap: m.gap, rowGap: ROW_GAP, paddingTop: TOP_LEAD,
+              // Die Mitte ist **fest**: als `minmax(0, …)` wäre sie eine Obergrenze, und
+              // weil ihr Inhalt seine Breite aus der Spur bezieht, fiele sie auf die
+              // Mindestbreite zusammen – der Fokus wäre die schmalste Spalte.
+              gridTemplateColumns: `${m.side}px ${m.mid}px ${m.side}px`,
+              // **Die Zeilen stehen ausdrücklich da.** Ohne sie sind es implizite Spuren,
+              // und in einem impliziten Raster zeigt `-1` nicht auf die letzte Zeile: der
+              // übergeordnete Auftrag spannte dann über genau eine und blähte sie auf.
+              gridTemplateRows: `repeat(${main.length}, auto)`,
+              justifyContent: 'center',
+            }}>
+              {/* **Der übergeordnete Auftrag steht daneben, nicht in einer Zeile.** Über
+                  alle Zeilen gespannt zwingt er keine davon zu wachsen: er ist vorher
+                  gelaufen und gehört nicht in den Takt dieser Achse. Eine eigene Zeile
+                  über dem Bild hätte den eigenen Prozess um seine ganze Höhe nach unten
+                  geschoben – und der ist das, was man sehen will. */}
+              {left.length > 0 && (
+                <div style={{ gridColumn: 1, gridRow: '1 / -1', alignSelf: 'start', width: '100%' }}
+                  className="flex flex-col gap-7">
+                  {left.map((s) => <Neighbour key={s.prefix} side={s} />)}
+                </div>
+              )}
+              {column((i) => ({ gridColumn: 2, gridRow: 1 + i }))}
+              {cells.map((c) => (
+                <div key={c.anchor} className="flex flex-col gap-7"
+                  style={{ gridColumn: 3, gridRow: rowOf(c.anchor), alignSelf: 'start', width: '100%' }}>
+                  {c.list.map((s) => <Neighbour key={s.prefix} side={s} />)}
+                </div>
+              ))}
             </div>
-          </div>
+            <Rest total={order.deviation_total ?? 0} shown={right.length} />
+          </>
         );
       }}
     </FlowFrame>
@@ -198,29 +247,25 @@ function side(rel: RelatedOrder, where: 'p' | 'd'): SideFlow {
     active: g.active, count: g.count,
   }));
   const nodes = flowNodes({ prefix, running: true, steps, groups });
-  // Aus einem **übergeordneten** Auftrag kommen die Stücke am Start herein – das ist kein
-  // Zustandspunkt im eigenen Ablauf, sondern das Start-Objekt selbst.
+  // **Wo die Stücke diesen Auftrag verlassen bzw. betreten haben – am Zustandspunkt.**
+  //
+  // Beim übergeordneten Auftrag ist das die Stelle in **seinem** Ablauf, an der unsere
+  // Stücke stehen (``active: false``): dort sind sie ausgeschert, nicht an seinem Ende.
+  // Die Linie an sein Ende zu hängen wäre die Behauptung, sie hätten seinen Prozess
+  // durchlaufen – und das ist bei einer Übernahme mitten im Ablauf schlicht falsch.
   const points = where === 'p'
-    ? ['start']
+    ? [...new Set(groups.filter((g) => !g.active)
+        .map((g) => statePointId(g.currentStepId, prefix)))]
     : (rel.branches ?? []).map((b) => statePointId(b.at_step_id ?? null));
   return { prefix, where, rel, steps, groups, nodes, walked: walkedEdges(nodes, true), points };
 }
 
-/**
- * Eine Seitenspur. Sie rendert **auch leer** ein Element – ein ``null`` wäre kein
- * Grid-Element, und dann rutschte die Mitte in die erste Spur und bekäme deren Breite.
- * Genau so war der Fokus plötzlich die schmalste Spalte.
- */
-function Stack({ sides, align }: { sides: SideFlow[]; align: 'start' | 'end' }) {
-  if (!sides.length) return <div />;
+/** Kopfzeile + Ablauf eines Nachbarn – **eine** Einheit, damit sie im Raster zusammenbleiben. */
+function Neighbour({ side: s }: { side: SideFlow }) {
   return (
-    <div className="flex flex-col gap-7" style={{ alignItems: align === 'end' ? 'flex-end' : 'flex-start' }}>
-      {sides.map((s) => (
-        <div key={s.prefix} className="w-full" style={{ maxWidth: SIDE_MAXW }}>
-          <SideHead side={s} />
-          <Side side={s} />
-        </div>
-      ))}
+    <div className="w-full">
+      <SideHead side={s} />
+      <Side side={s} />
     </div>
   );
 }
@@ -234,8 +279,9 @@ function SideHead({ side: s }: { side: SideFlow }) {
       type="button"
       onClick={nav ? () => nav(s.rel.object_id) : undefined}
       disabled={!nav}
-      className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 text-left mb-2 px-2 py-1.5 rounded-ds-md"
-      style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)' }}
+      className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 text-left px-2 py-1.5 rounded-ds-md"
+      style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)',
+               marginBottom: HEAD_GAP }}
       data-tip="Öffnen – dann steht dieser Auftrag in der Mitte"
     >
       <GitBranch size={12} style={{ color: 'var(--fg-4)' }} />
@@ -264,8 +310,6 @@ function Side({ side: s }: { side: SideFlow }) {
   );
 }
 
-/** Beim Nachbarn wird nichts ausgefüllt – er hat darum auch nichts aufzuklappen. */
-
 /** Abgeschnitten, aber nicht verschwiegen: eine stumme Liste sähe aus wie alles. */
 function Rest({ total, shown }: { total: number; shown: number }) {
   if (total <= shown) return null;
@@ -280,10 +324,25 @@ function Rest({ total, shown }: { total: number; shown: number }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Linien
+// Linien — **eine** Stelle, zwei Stärken
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Lines({ ids, anchors, walked }: {
+/** Gegangen oder ausstehend – die einzige Unterscheidung, die eine Linie trägt. */
+function Line({ d, walked }: { d: string; walked: boolean }) {
+  if (!d) return null;
+  return (
+    <path
+      d={d}
+      fill="none"
+      stroke={walked ? 'var(--fg-2)' : 'var(--border-2)'}
+      strokeWidth={walked ? 2.5 : 1.5}
+      strokeLinecap="round"
+    />
+  );
+}
+
+/** Die Achse einer Spalte: Knoten für Knoten, senkrecht, unten heraus und oben hinein. */
+function Axis({ ids, anchors, walked }: {
   ids: string[]; anchors: Record<string, FlowAnchor>; walked: number;
 }) {
   const out: ReactNode[] = [];
@@ -292,60 +351,142 @@ function Lines({ ids, anchors, walked }: {
     const B = anchors[ids[i + 1]];
     if (!A || !B) continue;
     out.push(
-      <path
-        key={ids[i]}
-        d={polyPath([[A.cx, A.bottom], [B.cx, B.top]])}
-        fill="none"
-        stroke={i < walked ? 'var(--fg-2)' : 'var(--border-2)'}
-        strokeWidth={2}
-      />,
+      <Line key={ids[i]} d={polyPath([[A.cx, A.bottom], [B.cx, B.top]])} walked={i < walked} />,
     );
   }
   return <>{out}</>;
 }
 
 /**
- * **Die Abzweigung – sie hängt an einem ZUSTANDSPUNKT, nicht an einem Modul** (#700).
+ * **Alle Linien des Bildes.** Sie entstehen aus gemessenen Ankern, nirgends aus Zahlen im
+ * Code – die Zahl der Module ist unbekannt und wächst (PROCESS_CORE.md §8).
+ */
+function Wiring({ main, walked, left, right, anchors, metrics }: {
+  main: FlowSpec[];
+  walked: number;
+  left: SideFlow[];
+  right: SideFlow[];
+  anchors: Record<string, FlowAnchor>;
+  /** Ohne drei Spuren gibt es keine Querlinien – dann sagt es die Kopfzeile. */
+  metrics: FlowMetrics;
+}) {
+  const ids = main.map((n) => n.id);
+  const lanes = metrics.lanes;
+  return (
+    <>
+      <Axis ids={ids} anchors={anchors} walked={walked} />
+      {[...left, ...right].map((s) => (
+        <Axis key={s.prefix} ids={s.nodes.map((n) => n.id)} anchors={anchors} walked={s.walked} />
+      ))}
+      {lanes && left.map((s) => (
+        <Inflow key={`i-${s.prefix}`} side={s} anchors={anchors} metrics={metrics} />
+      ))}
+      {lanes && right.map((s) => (
+        <Detour key={`d-${s.prefix}`} side={s} anchors={anchors} ids={ids} gap={metrics.gap} />
+      ))}
+    </>
+  );
+}
+
+/**
+ * **Der übergeordnete Auftrag mündet in unseren Start.**
  *
- * Ein Stück kann nur abweichen, solange am Modul noch nichts eingegeben wurde: es hat das
- * Modul also gar nicht betreten. Folglich geht die Linie **vor** dem Modul von der
- * Prozesslinie ab – vom Punkt, an dem das Stück wartete – und führt an **denselben Punkt**
- * zurück, sodass es das Modul danach regulär durchläuft.
+ * Aus seinem **Ende**, nicht aus seinem Start: dort hat er die Stücke abgegeben. Beide
+ * Enden der Linie stehen senkrecht auf ihrem Objekt (§2.5) – ein Start-Objekt wird von
+ * oben betreten, ein Ende-Objekt unten verlassen.
+ */
+function Inflow({ side: s, anchors, metrics }: {
+  side: SideFlow; anchors: Record<string, FlowAnchor>; metrics: FlowMetrics;
+}) {
+  const to = anchors.start;
+  if (!to) return null;
+  // Der Korridor liegt in der Spurlücke, die Fahrbahn über dem Start – beide führen an
+  // jeder Karte vorbei, nicht darunter durch.
+  const corridor = to.cx - metrics.mid / 2 - metrics.gap / 2;
+  const lane = to.top - TOP_LEAD / 2;
+  return (
+    <>
+      {s.points.map((id) => {
+        const P = anchors[id];
+        if (!P) return null;
+        return (
+          <Line
+            key={id}
+            d={polyPath([
+              [P.right, P.cy],
+              [corridor, P.cy],
+              [corridor, lane],
+              [to.cx, lane],
+              [to.cx, to.top],
+            ])}
+            walked
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * **Die Ausscherung — der Hauptstrang zweigt ab und kommt zurück.**
  *
- * Weil ein Zustandspunkt nach dem Modul heisst, vor dem er liegt, ist sein Anker direkt
- * berechenbar (`statePointId`) – gesucht oder geraten wird nichts. Kommt das Stück nicht
- * zurück (Aussonderung), gibt es die zweite Linie nicht: das Fehlen **ist** die Aussage.
+ * Sie hängt an einem **Zustandspunkt**, nicht an einem Modul (#700): ein Stück kann nur
+ * abweichen, solange am Modul noch nichts eingegeben wurde, es hat das Modul also gar
+ * nicht betreten. Die Linie geht darum **vor** dem Modul ab und mündet **vor** demselben
+ * Modul wieder ein – dazwischen liegt kein Prozessobjekt, es ist derselbe Punkt.
+ *
+ * Weil der Nebenauftrag in der **Zeile** seines Punktes steht, liegt sein Start neben dem
+ * Punkt und sein Ende neben der Einmündung: beide Linien sind kurz, laufen abwärts und
+ * kreuzen nichts. Der Weg daneben auf der Hauptachse ist der der Stücke, die geblieben
+ * sind – Teilung, zwei Wege, Zusammenfluss.
+ *
+ * **Kehrt nichts zurück, gibt es keine Rückführungslinie.** Das Fehlen ist die Aussage;
+ * ein zweites Strichmuster dafür wäre eine Sprache, die man erst lernen müsste.
  *
  * Ein Auftrag kann an **mehreren** Punkten zugegriffen haben – dann gibt es je Punkt ein
  * Linienpaar. Ein einzelner Anker hätte sich für einen entschieden und die anderen
  * verschwiegen.
  */
-function Branch({ side: s, anchors }: {
-  side: SideFlow; anchors: Record<string, FlowAnchor>;
+function Detour({ side: s, anchors, ids, gap }: {
+  side: SideFlow; anchors: Record<string, FlowAnchor>; ids: string[]; gap: number;
 }) {
-  const from = anchors[`${s.prefix}start`];
-  const to = anchors[`${s.prefix}end`];
-  if (!from || !to) return null;
-  const stroke = 'var(--warning)';
+  const start = anchors[`${s.prefix}start`];
+  const end = anchors[`${s.prefix}end`];
+  if (!start || !end) return null;
+  // **Zurück heisst zurück.** Solange der Nebenauftrag läuft, steht die Rückführung aus –
+  // dieselbe Aussage, aus der auch die Modulsperre entsteht (`process.pending_returns`).
+  const home = s.rel.status !== IM_PROZESS;
   return (
     <>
       {s.points.map((id) => {
-        const A = anchors[id];
-        if (!A) return null;
-        const right = from.cx > A.cx;
-        const edge = right ? A.right : A.left;
-        const mid = right ? from.left : from.right;
-        const back = right ? to.left : to.right;
+        const P = anchors[id];
+        if (!P) return null;
+        const next = anchors[ids[ids.indexOf(id) + 1]];
+        // Der Korridor liegt in der Spurlücke, die Fahrbahn im Streifen unter der
+        // Kopfzeile – beide führen an jeder Karte vorbei, nicht darunter durch.
+        const corridor = P.right + gap / 2;
+        const lane = start.top - HEAD_GAP / 2;
         return (
           <g key={id}>
-            <path
-              d={polyPath([[edge, A.cy], [(edge + mid) / 2, A.cy], [(edge + mid) / 2, from.cy], [mid, from.cy]])}
-              fill="none" stroke={stroke} strokeWidth={2}
+            <Line
+              d={polyPath([
+                [P.right, P.cy],
+                [corridor, P.cy],
+                [corridor, lane],
+                [start.cx, lane],
+                [start.cx, start.top],
+              ])}
+              walked
             />
-            {s.rel.returns && (
-              <path
-                d={polyPath([[back, to.cy], [(edge + back) / 2, to.cy], [(edge + back) / 2, A.cy], [edge, A.cy]])}
-                fill="none" stroke={stroke} strokeWidth={2} strokeDasharray="5 4"
+            {s.rel.returns && next && (
+              <Line
+                d={polyPath([
+                  [end.cx, end.bottom],
+                  [end.cx, next.top - ROW_GAP / 2],
+                  [P.cx, next.top - ROW_GAP / 2],
+                  [P.cx, next.top],
+                ])}
+                walked={home}
               />
             )}
           </g>

@@ -44,6 +44,13 @@
 > zurück. **Solange eine Rückführung aussteht, ist das Modul gesperrt**: durchgesetzt an
 > der EINEN Ausführungsstelle (`process.confirm_step`), dargestellt in der EINEN Modul-Karte
 > (`StepCard`, `fieldset[disabled]`) – ein Modul fragt nicht, ob es darf.
+> **Das Bild hat EIN Liniensystem** (PROCESS_CORE §8.1a/§8.1b): zwei Stärken – gegangen
+> (kräftig) ↔ ausstehend (Haarlinie) –, keine dritte Farbe, keine Strichmuster; ob ein
+> Stück zurückkehrt, sagt **ob es die Linie gibt**. Drei Spuren in **einem** Raster mit
+> einer Zeile je Knoten: der Nebenauftrag steht in der Zeile seines Zustandspunkts, die
+> Zeile wächst auf seine Höhe, die Hauptachse wächst mit – Teilung, zwei Wege,
+> Zusammenfluss. Alle Spurmasse in `process-flow.LANE`, entschieden nach **effektiver
+> CSS-Breite** des Rahmens (ein 13,3″-Notebook liefert 1440 CSS-Pixel, nicht 2560).
 > Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
 > Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
 

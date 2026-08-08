@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Blocks, ChevronDown, ChevronUp, CornerDownRight, CornerRightDown, Flag, GitBranch,
   GripVertical, Lock, Play, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
-import { FlowFrame, FlowNode, polyPath, type FlowAnchor } from './process-flow';
+import { FlowFrame, FlowNode, LANE, polyPath, type FlowAnchor } from './process-flow';
 import { UnitNumber } from './unit-number';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
 import { formatObjectId, localDateTime } from '@/lib/utils';
@@ -93,7 +93,7 @@ export interface UnitChip {
  * es nicht die Komponente, sondern das Mass. Also bringt sie es selbst mit: der Prozess
  * sieht überall gleich aus, weil ihn niemand mehr messen kann.
  */
-export const PROCESS_MAXW = 620;
+export const PROCESS_MAXW = LANE.MID_MAX;
 
 /**
  * Wie viele Stücke stehen an einer Stelle, in welchem Zustand.
@@ -259,6 +259,7 @@ export function FlowColumn({
   head, tail, onDelete,
   renderStep, onExpand, tone, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
+  containerStyle, nodeStyle,
 }: {
   nodes: FlowSpec[];
   mode: DiagramMode;
@@ -285,30 +286,46 @@ export function FlowColumn({
   onDeviate?: (unitNumber: string) => void;
   /** Warum der Auslöser gerade gesperrt ist. Gesetzt = gesperrt, mit Grund im Hover. */
   deviateBlocked?: string;
+  /**
+   * **Die Spalte in ein fremdes Raster stellen** – `display: contents` löst den eigenen
+   * Behälter auf, sodass die Knoten unmittelbar Kinder des äusseren Rasters werden.
+   *
+   * Das ist der Preis dafür, dass es **eine** Spaltenkomponente gibt und nicht zwei: das
+   * Bild mit drei Spuren braucht dieselben Knoten in seinen Zeilen (damit eine Zeile mit
+   * einem Nebenauftrag die Hauptachse mitwachsen lässt), und ein zweiter Renderer dafür
+   * wäre eine zweite Darstellungsform derselben Sache.
+   */
+  containerStyle?: CSSProperties;
+  /** Je Knoten sein Platz im äusseren Raster. Ohne Raster leer – dann trägt der Fluss. */
+  nodeStyle?: (index: number) => CSSProperties;
 }) {
   const running = mode === 'ausfuehrung';
+  const place = (i: number, extra?: CSSProperties): CSSProperties => ({
+    ...extra, ...nodeStyle?.(i),
+  });
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
       opacity: faded ? 0.5 : 1,
+      ...containerStyle,
     }}>
-      {nodes.map((n) => {
+      {nodes.map((n, i) => {
         if (n.kind === 'head') {
-          return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{head}</FlowNode>;
+          return <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>{head}</FlowNode>;
         }
         if (n.kind === 'tail') {
-          return <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>{tail}</FlowNode>;
+          return <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>{tail}</FlowNode>;
         }
         if (n.kind === 'journey') {
           return (
-            <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
+            <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>
               <JourneyRow where={n.where} stops={n.where === 'in' ? journeyIn : journeyOut} />
             </FlowNode>
           );
         }
         if (n.kind === 'terminal') {
           return (
-            <FlowNode key={n.id} id={n.id}>
+            <FlowNode key={n.id} id={n.id} style={place(i)}>
               <Terminal which={n.which} endStatus={endStatus} />
             </FlowNode>
           );
@@ -316,7 +333,7 @@ export function FlowColumn({
         if (n.kind === 'state') {
           const active = n.at !== null;
           return (
-            <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
+            <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>
               <StateRow
                 groups={groupsAt(groups, n.at, active)}
                 away={n.at !== null ? groupsAway(groups, n.at) : []}
@@ -332,7 +349,7 @@ export function FlowColumn({
         const isActive = running && n.step.id === activeStepId;
         const index = n.index;
         return (
-          <FlowNode key={n.id} id={n.id} style={{ width: '100%' }}>
+          <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>
             <StepCard
               step={n.step}
               active={isActive}
@@ -533,8 +550,12 @@ function StateRow({ groups, away = [], stepId, active, onExpand, onDeviate, devi
               type="button"
               onClick={toggle}
               disabled={!onExpand}
-              className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
-              style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}22` }}
+              // **Hier stehen sie jetzt.** Die kräftige Linie endet an dieser Stelle –
+              // der leise Ring ist ihr Fixpunkt in einem langen Bild, in der Farbe, die
+              // die Pille ohnehin trägt. Keine zweite Aussage, keine neue Farbe.
+              className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum${active ? ' ix-live' : ''}`}
+              style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}22`,
+                       ['--ix-live' as string]: `${cfg.color}55` }}
               data-tip={onExpand ? 'Nummern anzeigen' : cfg.label}
             >
               <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.color }} />

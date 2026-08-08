@@ -895,3 +895,22 @@
 @media (prefers-reduced-motion: reduce) {
   .ix-palette, .ix-palette-name { transition: none; }
 }
+
+/* ── Die aktuelle Stelle im Prozess ──────────────────────────────────────────
+   Die wichtigste Frage an einem laufenden Auftrag ist «wo stehen die
+   Einzelinstanzen JETZT». Die kräftige Prozesslinie beantwortet sie schon – sie
+   endet dort –, aber ein Blick über ein langes Bild braucht einen Fixpunkt. Der
+   Ring ist genau das: ein leiser Puls in der **Statusfarbe** der Stelle, also
+   keine neue Farbe und keine zweite Aussage.
+
+   `box-shadow` statt eines zusätzlichen Elements: nichts wird umgebrochen,
+   nichts verschoben – die Pille bleibt exakt, wo sie ist. */
+@keyframes ix-live {
+  0%   { box-shadow: 0 0 0 0 var(--ix-live, transparent); }
+  70%  { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.ix-live { animation: ix-live 2.6s cubic-bezier(.3,.7,.4,1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .ix-live { animation: none; box-shadow: 0 0 0 3px var(--ix-live, transparent); }
+}
