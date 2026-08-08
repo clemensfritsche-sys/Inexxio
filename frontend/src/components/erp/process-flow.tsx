@@ -33,6 +33,76 @@ import {
  * einmal mit geratener Breite rendern und dann umbauen.
  */
 
+/**
+ * **Die Spurmasse — die eine Stelle, an der eine Breite entsteht.**
+ *
+ * Sie gehören zum Bild, nicht zu seinen Aufrufern: sonst gäbe es je Ansicht ein eigenes
+ * Mass, und dieselben Module sähen verschieden breit aus (Testnotiz #684, #597).
+ *
+ * Gemessen wird der **Rahmen**, nicht das Fenster — eine Container-Abfrage statt einer
+ * Media-Query. Das ist nicht Geschmack: dieselbe Fensterbreite ergibt im Detailfenster
+ * einen anderen Rahmen als auf einer freien Seite, und die Linien richten sich ohnehin
+ * nach der Messung. Eine Media-Query wäre der zweite Massstab für dieselbe Frage.
+ *
+ * **Warum das an einem 13,3″-Notebook zählt:** entschieden wird nach **effektiver
+ * CSS-Breite**, nicht nach der Panel-Auflösung. Ein MacBook Pro 13,3″ hat 2560 × 1600
+ * Pixel und liefert dem Browser trotzdem 1440 × 900 CSS-Pixel (Standard, DPR 2) bzw.
+ * 1280 / 1680 in den skalierten Modi. Wer gegen 2560 rechnet, hält jedes Notebook für
+ * einen Grossbildschirm.
+ */
+export const LANE = {
+  /** Abstand zwischen zwei Spuren. */
+  GAP: 16,
+  /** Wie schmal die Mitte werden darf. Darunter drängen sich die Modul-Karten. */
+  MID_MIN: 360,
+  /** Wie breit die Mitte höchstens wird — sie ist der Fokus, aber kein Fass ohne Boden. */
+  MID_MAX: 620,
+  /** Was ein Nachbar mindestens braucht, damit seine Modul-Karten lesbar bleiben. */
+  SIDE_MIN: 168,
+  /** Wie breit ein Nachbar höchstens wird. Schmaler als die Mitte. */
+  SIDE_MAX: 380,
+} as const;
+
+/**
+ * Ab dieser **Rahmen**breite stehen drei Spuren nebeneinander.
+ *
+ * 360 + 2·168 + 2·16 = **728 px Rahmen** ≈ 1108 px Fenster (das Detailfenster ist rund
+ * 380 px schmaler als das Fenster: Feed + Polsterung). Damit tragen alle üblichen
+ * Notebook-Modi drei Spuren — 1280, 1440, 1512, 1680 — und erst darunter wird gestapelt.
+ */
+export const LANES_FROM = LANE.MID_MIN + 2 * LANE.SIDE_MIN + 2 * LANE.GAP;
+
+export interface FlowMetrics {
+  /** Drei Spuren nebeneinander? Sonst untereinander. */
+  lanes: boolean;
+  /** Breite der Mitte. */
+  mid: number;
+  /** Breite je Nachbarspur. */
+  side: number;
+  gap: number;
+  /** Die gemessene Rahmenbreite – für alles, was sich sonst noch danach richtet. */
+  width: number;
+}
+
+/**
+ * Die Spurbreiten zu einer gemessenen Rahmenbreite — **eine Formel, keine Stufenliste**.
+ *
+ * Die Reihenfolge der Zuteilung ist die Aussage: **erst bekommt die Mitte, was sie
+ * braucht** (sie ist der Fokus), **dann geht der Rest an die Nachbarn**. Umgekehrt wäre
+ * der Fokus die schmalste Spalte, sobald es eng wird — genau der Fehler, den ein
+ * `minmax(0,1fr)` in der Mitte schon einmal erzeugt hat.
+ */
+export function flowMetrics(width: number): FlowMetrics {
+  const { GAP, MID_MIN, MID_MAX, SIDE_MIN, SIDE_MAX } = LANE;
+  const mid = clamp(MID_MIN, width - 2 * SIDE_MIN - 2 * GAP, MID_MAX);
+  const side = clamp(SIDE_MIN, (width - mid - 2 * GAP) / 2, SIDE_MAX);
+  return { lanes: width >= LANES_FROM, mid, side: Math.floor(side), gap: GAP, width };
+}
+
+function clamp(lo: number, v: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
 /** Ein gemessener Knoten — in Koordinaten des Rahmens, nicht des Fensters. */
 export interface FlowAnchor {
   top: number;
@@ -58,10 +128,10 @@ const Ctx = createContext<Register | null>(null);
 const useIsoLayout = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 export function FlowFrame({ children, lines }: {
-  /** Die Knoten. Bekommt die **gemessene** Rahmenbreite — davon hängt das Layout ab
+  /** Die Knoten. Bekommen die **gemessenen** Spurmasse — davon hängt das Layout ab
    *  (drei Spuren oder eine), nicht von einer Media-Query: sonst gäbe es zwei Massstäbe
    *  für dieselbe Frage, und die Linien richten sich ohnehin nach der Messung. */
-  children: (width: number) => ReactNode;
+  children: (metrics: FlowMetrics) => ReactNode;
   /** Die Linien. Bekommt die Anker aller registrierten Knoten und die Rahmengrösse. */
   lines: (anchors: Record<string, FlowAnchor>, size: FlowSize) => ReactNode;
 }) {
@@ -139,7 +209,7 @@ export function FlowFrame({ children, lines }: {
         >
           {size && lines(anchors, size)}
         </svg>
-        {size && children(size.w)}
+        {size && children(flowMetrics(size.w))}
       </div>
     </Ctx.Provider>
   );

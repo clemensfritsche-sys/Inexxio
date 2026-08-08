@@ -474,6 +474,50 @@ Die **Definitions-Liste der Einzelinstanzen** ist bewusst **nicht** Teil des Dia
 sondern ein Slot darüber: der Artikel hat keine Einzelinstanzen, und ein Diagramm, das
 sie voraussetzt, wäre dort nicht wiederverwendbar.
 
+### 8.1a Das Liniensystem — zwei Stärken, sonst nichts
+
+Eine Prozesslinie trägt genau **eine** Aussage, und die hat zwei Werte:
+
+| | |
+|---|---|
+| **gegangen** | kräftig — hier ist Material durchgelaufen |
+| **ausstehend** | Haarlinie — hier steht es noch aus |
+
+Keine dritte Farbe, kein zweiter Linientyp, keine Strichmuster. Eine **Ausscherung** in
+einen Nebenauftrag ist keine andere Art Linie, sondern derselbe Strang, der abzweigt —
+sie folgt darum derselben Regel. Ob ein Stück zurückkehrt, sagt **ob es die Linie gibt**:
+eine gekappte Ausleihe hat keinen Rückweg, und das Fehlen ist die Aussage.
+
+Geometrie, verbindlich:
+
+- Start- und Ende-Objekte werden **senkrecht** betreten und verlassen.
+- Ecken sind gerundet, und der Radius entsteht an **einer** Stelle (`polyPath`).
+- Querlinien laufen in der **Spurlücke**, nie unter einer Karte hindurch: eine gezeichnete
+  Linie, die ein Knoten verdeckt, ist eine Linie, die es für den Betrachter nicht gibt.
+
+### 8.1b Drei Spuren — und warum der Nebenauftrag in einer Zeile steht
+
+Der Auftrag steht in der Mitte, der übergeordnete links, die Abweichungen rechts. Das
+Ganze ist **ein** Raster mit **einer Zeile je Knoten der Mitte**; ein Nebenauftrag steht
+in der Zeile seines Zustandspunkts.
+
+Das ist keine Layout-Laune, sondern die Bedingung dafür, dass die Verbindung kurz bleibt:
+die Zeile wächst auf die Höhe des Nebenauftrags, und damit wächst **die Hauptachse an
+genau dieser Stelle mit**. Übrig bleibt das Bild, das die Sache ohnehin ist — Teilung,
+zwei parallele Wege, Zusammenfluss. Stehen die Spalten unabhängig nebeneinander, liegt der
+Start des Nebenauftrags irgendwo, und die Linie muss quer über das halbe Bild.
+
+**Der übergeordnete Auftrag ist davon ausgenommen** (er spannt über alle Zeilen): er ist
+vorher gelaufen und gehört nicht in den Takt dieser Achse. Eine eigene Zeile über dem Bild
+schöbe den eigenen Prozess um seine ganze Höhe nach unten — und der ist das, was man sehen
+will.
+
+**Die Spurmasse stehen an genau einer Stelle** (`process-flow.LANE`). Entschieden wird
+nach **effektiver CSS-Breite** des gemessenen Rahmens, nicht nach der Panel-Auflösung und
+nicht per Media-Query: ein 13,3″-Notebook mit 2560 × 1600 Pixeln liefert dem Browser
+1440 CSS-Pixel. Reicht die Breite nicht, stehen die Nachbarn untereinander — dieselben
+Spalten, nur ohne Querlinien.
+
 ### 8.2 Artikel-Reiter «Erzeugungsprozess» — die Vorlage
 
 Neben «Spezifikation» trägt der Artikel den Reiter «Erzeugungsprozess»:

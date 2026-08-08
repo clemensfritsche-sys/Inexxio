@@ -31,7 +31,19 @@ export interface DefinitionLine {
   key: number;
   articleObjectId: number | null;
   quantity: number;
-  origin: typeof NEU | typeof LAGER | null;
+  /**
+   * **Die Herkunft hat keinen dritten Wert** (Testnotiz zur Vorauswahl «Lager»).
+   *
+   * Sie war einmal `… | null`, angezeigt wurde aber `origin ?? LAGER`: der Regler stand
+   * auf «Lager», der Zustand sagte «nichts». Alles, was an `origin === LAGER` hing –
+   * die Instanz-Auswahl und damit die FIFO-Vorauswahl – lief deshalb nicht an, und die
+   * Zeile fiel beim Absenden aus dem Nutzdatensatz («keine Einzelinstanz gewählt»).
+   * Erreichbar wurde der Zustand nur über den Umweg *einmal umschalten und zurück*.
+   *
+   * Ein angezeigter Zustand, den es in den Daten nicht gibt, ist kein Vorzustand,
+   * sondern ein Widerspruch. Darum ist die Vorauswahl jetzt **der Wert selbst**.
+   */
+  origin: typeof NEU | typeof LAGER;
   unitNumbers: string[];
   /**
    * **Die Rückführung** (Abweichungsauftrag §3.3/§3.4): kehrt ein Stück, das aus einem
@@ -42,17 +54,17 @@ export interface DefinitionLine {
 }
 
 export function emptyLine(key: number): DefinitionLine {
-  return { key, articleObjectId: null, quantity: 1, origin: null, unitNumbers: [], returns: true };
+  return { key, articleObjectId: null, quantity: 1, origin: LAGER, unitNumbers: [], returns: true };
 }
 
 /** Was diese Zeile an den Server schickt. Unvollständige Zeilen bleiben draussen. */
 export function toPayload(lines: DefinitionLine[]) {
   return lines
-    .filter((l) => l.articleObjectId !== null && l.origin !== null)
+    .filter((l) => l.articleObjectId !== null)
     .map((l) => ({
       article_object_id: l.articleObjectId as number,
       quantity: l.quantity,
-      origin: l.origin as string,
+      origin: l.origin,
       unit_numbers: l.origin === LAGER ? l.unitNumbers : [],
       returns: l.returns,
     }));
@@ -154,8 +166,11 @@ function LineRow({ line, articles, multi, onChange, onRemove }: {
             value={line.articleObjectId ?? ''}
             onChange={(e) => onChange({
               articleObjectId: e.target.value ? Number(e.target.value) : null,
-              // Artikelwechsel verwirft die Auswahl: sie gehörte zum alten Artikel.
-              origin: null, unitNumbers: [],
+              // Artikelwechsel verwirft die **Auswahl** – sie gehörte zum alten Artikel.
+              // Die **Herkunft** bleibt: sie ist eine Entscheidung über diese Zeile, nicht
+              // über den Artikel, und sie zurückzusetzen hiesse den Regler auf einen Wert
+              // zu stellen, den es nicht gibt.
+              unitNumbers: [],
             })}
           >
             <option value="">— wählen —</option>
@@ -190,7 +205,7 @@ function LineRow({ line, articles, multi, onChange, onRemove }: {
         <div>
           <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Herkunft</span>
           <IconSwitch<typeof NEU | typeof LAGER>
-            value={(line.origin ?? LAGER) as typeof NEU | typeof LAGER}
+            value={line.origin}
             onChange={(v) => onChange(v === NEU
               ? { origin: NEU, unitNumbers: [] }
               : { origin: LAGER })}
@@ -311,14 +326,24 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange, returns, onR
     return () => { dead = true; };
   }, [articleObjectId]);
 
-  // FIFO-Vorauswahl: die ältesten verfügbaren Stücke, sobald die Liste da ist.
+  // **Der Vorschlag hängt an seiner Grundlage, nicht an einem Ereignis.**
+  //
+  // Er lief nur beim Eintreffen der Liste. Änderte man danach die Menge – was die
+  // Auswahl verwirft, weil sie zur alten Menge gehörte –, kam kein neuer Vorschlag:
+  // «0 von 3», und jedes Stück musste von Hand gewählt werden. Seine Grundlage sind
+  // die vorhandenen Stücke UND die verlangte Menge; ändert sich eine davon, wird neu
+  // vorgeschlagen. Was der Mensch gewählt hat, wird dabei nie überschrieben (`chosen`
+  // ist bewusst keine Abhängigkeit): ein Vorschlag entsteht nur ins Leere.
   useEffect(() => {
     if (!options || chosen.length) return;
-    const fifo = options.filter((o) => o.available).slice(0, quantity).map((o) => o.number);
+    // **Nie ein Stück, das in einem anderen Auftrag läuft.** Es zu nehmen ist eine
+    // Entscheidung – daraus wird eine Abweichung, die einem laufenden Auftrag sein
+    // Material entzieht. Das darf nie die Voreinstellung sein.
+    const free = options.filter((o) => o.available && !o.in_order);
+    const fifo = free.slice(0, quantity).map((o) => o.number);
     if (fifo.length) onChange(fifo);
-    // Nur beim ersten Eintreffen der Liste – danach entscheidet der Mensch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options]);
+  }, [options, quantity]);
 
   const picked = new Set(chosen);
   const enough = chosen.length === quantity;
