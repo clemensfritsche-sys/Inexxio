@@ -70,14 +70,16 @@ import type { JourneyStop, Order, RelatedOrder } from '@/types';
 /** Zeilenabstand der Hauptachse – dieselbe Luft wie im Fluss einer einzelnen Spalte. */
 const ROW_GAP = 14;
 /**
- * Der Streifen zwischen der Kopfzeile eines Nachbarn und seinem Start-Objekt.
+ * Luft über dem Start-Objekt eines Nachbarn — **die Fahrbahn der Ausscherung**.
  *
- * Er ist **die Fahrbahn der Ausscherung**: die Linie muss senkrecht in das Start-Objekt
- * einlaufen (§2.5) und darf dabei keine Karte überqueren. Ohne diesen Streifen liefe sie
- * hinter der Kopfzeile durch – gezeichnet, aber unsichtbar, weil die Knoten über den
- * Linien liegen.
+ * Die Linie zweigt an der Hauptachse ab, läuft quer und muss **senkrecht** in das
+ * Start-Objekt einlaufen (§2.5). Dafür braucht sie einen Streifen, in dem keine Karte
+ * steht: sonst liefe sie dahinter durch – gezeichnet, aber unsichtbar, weil die Knoten
+ * über den Linien liegen.
  */
-const HEAD_GAP = 22;
+const NEIGHBOUR_DROP = 46;
+/** Wie weit über einem Start-Objekt die Linie senkrecht einläuft. */
+const LEAD = 12;
 /**
  * Luft über dem Start-Objekt der Mitte. Ein übergeordneter Auftrag mündet **von oben**
  * ein; stünde der Start bei y = 0, gäbe es für diese Einmündung keinen Platz und die
@@ -260,53 +262,44 @@ function side(rel: RelatedOrder, where: 'p' | 'd'): SideFlow {
   return { prefix, where, rel, steps, groups, nodes, walked: walkedEdges(nodes, true), points };
 }
 
-/** Kopfzeile + Ablauf eines Nachbarn – **eine** Einheit, damit sie im Raster zusammenbleiben. */
+/**
+ * **Ein Nachbar ist sein Prozess — sonst nichts** (Testnotiz #702).
+ *
+ * Über der Spalte stand eine Karte mit Art, Objektnummer, Status und Stückzahl. Jede
+ * dieser Angaben steht bereits im Bild: dass es eine Abweichung ist, sagt die Abzweigung;
+ * wie weit sie ist, sagt ihre Linie; wie viele Stücke unterwegs sind, sagen die Pillen an
+ * den Zustandspunkten. Eine Karte, die das wiederholt, ist eine zweite Wahrheit mit
+ * Platzbedarf.
+ *
+ * Geblieben ist das Einzige, was sie konnte und das Bild nicht: **hinführen**. Das kann
+ * jetzt der Prozess selbst — ein Klick irgendwo auf die Spalte öffnet den Auftrag, und
+ * wer wissen will, welcher es ist, hält den Zeiger darauf (Infotexte gehören in den
+ * Hover, nicht in die Fläche).
+ */
 function Neighbour({ side: s }: { side: SideFlow }) {
-  return (
-    <div className="w-full">
-      <SideHead side={s} />
-      <Side side={s} />
-    </div>
-  );
-}
-
-/** Wer ist das, und was verbindet ihn mit der Mitte. Ein Klick öffnet ihn. */
-function SideHead({ side: s }: { side: SideFlow }) {
   const nav = useErpNav();
   const cfg = statusCfg(s.rel.status);
   return (
-    <button
-      type="button"
+    <div
+      role={nav ? 'button' : undefined}
+      tabIndex={nav ? 0 : undefined}
       onClick={nav ? () => nav(s.rel.object_id) : undefined}
-      disabled={!nav}
-      className="w-full flex flex-wrap items-center gap-x-2 gap-y-1 text-left px-2 py-1.5 rounded-ds-md"
-      style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)',
-               marginBottom: HEAD_GAP }}
-      data-tip="Öffnen – dann steht dieser Auftrag in der Mitte"
+      onKeyDown={nav ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav(s.rel.object_id); }
+      } : undefined}
+      className="w-full"
+      style={{ cursor: nav ? 'pointer' : undefined, paddingTop: NEIGHBOUR_DROP }}
+      aria-label={`Auftrag ${formatObjectId(s.rel.object_id)} öffnen`}
+      data-tip={`${s.where === 'p' ? 'Aus' : 'Abweichung'} ${formatObjectId(s.rel.object_id)}`
+        + ` · ${cfg.label} · ${s.rel.unit_count} Stück`
+        + ` · ${s.rel.returns ? 'kehrt zurück' : 'bleibt dort'} — öffnen`}
     >
-      <GitBranch size={12} style={{ color: 'var(--fg-4)' }} />
-      <span className="text-[11px]" style={{ color: 'var(--fg-4)' }}>
-        {s.where === 'p' ? 'aus' : 'Abweichung'}
-      </span>
-      <span className="ix-tnum text-xs" style={{ color: 'var(--fg-2)' }}>
-        {formatObjectId(s.rel.object_id)}
-      </span>
-      <span className="text-[11px]" style={{ color: cfg.color }}>{cfg.label}</span>
-      <span className="flex-1" />
-      <span className="text-[11px]" style={{ color: 'var(--fg-3)' }}>
-        {s.rel.unit_count} Stück · {s.rel.returns ? 'kehrt zurück' : 'bleibt dort'}
-      </span>
-    </button>
-  );
-}
-
-function Side({ side: s }: { side: SideFlow }) {
-  return (
-    <FlowColumn
-      nodes={s.nodes} mode="ausfuehrung" groups={s.groups}
-      activeStepId={s.rel.active_step_id ?? null} endStatus={s.rel.end_status}
-      faded
-    />
+      <FlowColumn
+        nodes={s.nodes} mode="ausfuehrung" groups={s.groups}
+        activeStepId={s.rel.active_step_id ?? null} endStatus={s.rel.end_status}
+        faded
+      />
+    </div>
   );
 }
 
@@ -409,12 +402,13 @@ function Inflow({ side: s, anchors, metrics }: {
       {s.points.map((id) => {
         const P = anchors[id];
         if (!P) return null;
+        const fork = P.bottom + ROW_GAP / 2;
         return (
           <Line
             key={id}
             d={polyPath([
-              [P.right, P.cy],
-              [corridor, P.cy],
+              [P.cx, fork],
+              [corridor, fork],
               [corridor, lane],
               [to.cx, lane],
               [to.cx, to.top],
@@ -462,16 +456,21 @@ function Detour({ side: s, anchors, ids, gap }: {
         const P = anchors[id];
         if (!P) return null;
         const next = anchors[ids[ids.indexOf(id) + 1]];
-        // Der Korridor liegt in der Spurlücke, die Fahrbahn im Streifen unter der
-        // Kopfzeile – beide führen an jeder Karte vorbei, nicht darunter durch.
+        // **Die Abzweigung geht von der Achse ab, nicht vom Spurrand.** Der
+        // Zustandsknoten ist so breit wie seine Spur; nähme man seinen rechten Rand,
+        // begänne die Linie weit neben der Prozesslinie und sähe aus, als hinge sie an
+        // nichts. Sie verlässt die Achse darum knapp unter dem Punkt – dort, wo das
+        // Stück steht – und der Korridor liegt in der Spurlücke, die Fahrbahn über dem
+        // Start-Objekt: beide führen an jeder Karte vorbei, nicht darunter durch.
         const corridor = P.right + gap / 2;
-        const lane = start.top - HEAD_GAP / 2;
+        const lane = start.top - LEAD;
+        const fork = Math.min(P.bottom + ROW_GAP / 2, lane);
         return (
           <g key={id}>
             <Line
               d={polyPath([
-                [P.right, P.cy],
-                [corridor, P.cy],
+                [P.cx, fork],
+                [corridor, fork],
                 [corridor, lane],
                 [start.cx, lane],
                 [start.cx, start.top],

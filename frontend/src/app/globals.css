@@ -632,10 +632,21 @@
    Elemente daher als Klassen, nicht als style-Objekt.
    ============================================================ */
 
-/* ── Hover-Tooltip: [data-tip="…"] – dunkel, erscheint oben ── */
+/* ── Hover-Tooltip: [data-tip="…"] – dunkel, erscheint oben ──────────────────
+   **Er existiert erst beim Hover** (`display: none`), und das ist keine Kosmetik:
+   ein absolut positioniertes Kind zählt zur *scrollable overflow area* seiner
+   Vorfahren – auch unsichtbar bei `opacity: 0`. Eine bis zu 240 px breite Blase an
+   einem 46-px-Symbol schob damit den nächsten `overflow-auto`-Container über seine
+   Breite hinaus, und der Browser bot **seitwärts scrollen** über leere Fläche an.
+
+   Seitwärts scrollen ist im Inexxio-UI verboten, ausser es ist ausdrücklich gewollt
+   (Testnotiz #703). Gescrollt wird senkrecht. Darum darf nichts, was man nicht sieht,
+   die Breite bestimmen – der Übergang entfällt dafür, und das passt: der Hover soll
+   ohnehin sofort kommen (#618). */
 [data-tip] { position: relative; }
 [data-tip]::after {
   content: attr(data-tip);
+  display: none;
   position: absolute;
   bottom: calc(100% + 9px);
   left: 50%;
@@ -649,16 +660,14 @@
   text-align: center;
   padding: 6px 10px;
   border-radius: var(--r-sm);
-  opacity: 0;
   pointer-events: none;
-  transition: opacity .15s, transform .15s;
   z-index: 60;
   box-shadow: var(--shadow-md);
 }
-[data-tip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+[data-tip]:hover::after { display: block; transform: translateX(-50%) translateY(0); }
 /* nach unten öffnen (für Elemente ganz oben) */
 [data-tip][data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 9px); transform: translateX(-50%) translateY(-3px); }
-[data-tip][data-tip-pos="bottom"]:hover::after { transform: translateX(-50%) translateY(0); }
+[data-tip][data-tip-pos="bottom"]:hover::after { display: block; transform: translateX(-50%) translateY(0); }
 [data-tip][data-tip-hidden]::after { display: none; }
 
 /* ── Detail-Kopf: Icon-Knöpfe (QR, Abweichung, Werkzeuge) ── */

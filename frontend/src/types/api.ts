@@ -1496,7 +1496,7 @@ export interface components {
          * @description Eine Definitionszeile: Artikel · Menge · Herkunft.
          *
          *     ``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie
-         *     eine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``unit_numbers``
+         *     eine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``units``
          *     dabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der
          *     Freigabe entstehen.
          */
@@ -1507,8 +1507,8 @@ export interface components {
             quantity: number;
             /** Origin */
             origin: string;
-            /** Unit Numbers */
-            unit_numbers?: string[];
+            /** Units */
+            units?: components["schemas"]["UnitPick"][];
             /**
              * Returns
              * @default true
@@ -2403,6 +2403,31 @@ export interface components {
             available: boolean;
             /** In Order */
             in_order?: number | null;
+        };
+        /**
+         * UnitPick
+         * @description Ein gewähltes Stück — **und wo es lag, als es gewählt wurde.**
+         *
+         *     Ein Entwurf lebt im Browser, die Freigabe passiert später. Dazwischen kann jemand
+         *     anders dasselbe Stück nehmen: die Exklusivität (§3) verhindert, dass beide es halten,
+         *     aber ohne diese Angabe **entscheidet die Zeit**, welche Art Auftrag entsteht. Genau das
+         *     ist passiert – ein als frei gewähltes Stück, das inzwischen lief, machte die Freigabe
+         *     **still** zur Abweichung und entzog es dem anderen Auftrag, ohne Rückführung und ohne
+         *     dass jemand gefragt wurde.
+         *
+         *     ``from_order`` ist darum keine Zusatzinfo, sondern die **Aussage des Menschen**: «ich
+         *     nehme ein freies Stück» (``None``) oder «ich hole es aus Auftrag N». Stimmt sie bei
+         *     der Freigabe nicht mehr, bricht die Freigabe ab und sagt, was sich geändert hat —
+         *     statt lautlos etwas anderes zu tun als gewollt.
+         *
+         *     Damit gibt es **eine** Auswahl-Logik: konkrete Stücke, sichtbar vorher, änderbar, und
+         *     mit der Absicht, in der sie gewählt wurden. Kein zweiter Weg «nur nach Kriterium».
+         */
+        UnitPick: {
+            /** Number */
+            number: string;
+            /** From Order */
+            from_order?: number | null;
         };
         /** UploadResult */
         UploadResult: {

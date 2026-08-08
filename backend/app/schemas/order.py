@@ -16,11 +16,35 @@ from ..domain import modules
 from .process import ModuleInput
 
 
+class UnitPick(BaseModel):
+    """Ein gewähltes Stück — **und wo es lag, als es gewählt wurde.**
+
+    Ein Entwurf lebt im Browser, die Freigabe passiert später. Dazwischen kann jemand
+    anders dasselbe Stück nehmen: die Exklusivität (§3) verhindert, dass beide es halten,
+    aber ohne diese Angabe **entscheidet die Zeit**, welche Art Auftrag entsteht. Genau das
+    ist passiert – ein als frei gewähltes Stück, das inzwischen lief, machte die Freigabe
+    **still** zur Abweichung und entzog es dem anderen Auftrag, ohne Rückführung und ohne
+    dass jemand gefragt wurde.
+
+    ``from_order`` ist darum keine Zusatzinfo, sondern die **Aussage des Menschen**: «ich
+    nehme ein freies Stück» (``None``) oder «ich hole es aus Auftrag N». Stimmt sie bei
+    der Freigabe nicht mehr, bricht die Freigabe ab und sagt, was sich geändert hat —
+    statt lautlos etwas anderes zu tun als gewollt.
+
+    Damit gibt es **eine** Auswahl-Logik: konkrete Stücke, sichtbar vorher, änderbar, und
+    mit der Absicht, in der sie gewählt wurden. Kein zweiter Weg «nur nach Kriterium».
+    """
+
+    number: str
+    #: Objektnummer des Auftrags, in dem das Stück bei der Auswahl lief. ``None`` = frei.
+    from_order: Optional[int] = None
+
+
 class DefinitionLine(BaseModel):
     """Eine Definitionszeile: Artikel · Menge · Herkunft.
 
     ``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie
-    eine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``unit_numbers``
+    eine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``units``
     dabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der
     Freigabe entstehen.
     """
@@ -28,7 +52,7 @@ class DefinitionLine(BaseModel):
     article_object_id: int
     quantity: int = Field(ge=1)
     origin: str
-    unit_numbers: list[str] = Field(default_factory=list)
+    units: list[UnitPick] = Field(default_factory=list)
     #: **Die Rückführung** – kehren Stücke, die aus einem laufenden Auftrag übernommen
     #: werden, dorthin zurück (Abweichungsauftrag §3.3/§3.4)? Gespeichert wird sie an der
     #: **Verbindung** (``order_units.return_to_order_id``), nicht am Auftrag; darum

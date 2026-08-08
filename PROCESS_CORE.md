@@ -488,12 +488,26 @@ einen Nebenauftrag ist keine andere Art Linie, sondern derselbe Strang, der abzw
 sie folgt darum derselben Regel. Ob ein Stück zurückkehrt, sagt **ob es die Linie gibt**:
 eine gekappte Ausleihe hat keinen Rückweg, und das Fehlen ist die Aussage.
 
+**Kräftig läuft die Linie bis in das Modul, das jetzt dran ist.** «Vor Modul X stehen»
+(`current_step_id`) und «X ist dran» (`active_step_id`) sind **dieselbe** Tatsache – der
+Server sagt beides über denselben Zustand, und zwischen dem Zustandspunkt und dem Modul
+liegt kein Prozessobjekt. Der Abstand dazwischen ist Layout (die Zeile macht Platz für
+einen Nebenauftrag), kein Weg. Ein aktives Modul, zu dem eine Haarlinie führt, sähe aus,
+als wäre es nicht erreicht.
+
 Geometrie, verbindlich:
 
 - Start- und Ende-Objekte werden **senkrecht** betreten und verlassen.
 - Ecken sind gerundet, und der Radius entsteht an **einer** Stelle (`polyPath`).
+- Eine Ausscherung geht von der **Achse** ab, nicht vom Rand der Spur. Ein Zustandsknoten
+  ist so breit wie seine Spur; nähme man seinen rechten Rand, begänne die Linie weit
+  neben der Prozesslinie und hinge sichtbar an nichts.
 - Querlinien laufen in der **Spurlücke**, nie unter einer Karte hindurch: eine gezeichnete
   Linie, die ein Knoten verdeckt, ist eine Linie, die es für den Betrachter nicht gibt.
+- **Seitwärts scrollen ist verboten**, ausser es ist ausdrücklich gewollt. Gescrollt wird
+  senkrecht. Insbesondere darf **nichts Unsichtbares die Breite bestimmen**: ein absolut
+  positioniertes Kind (etwa ein Hover-Tooltip) zählt zur *scrollable overflow area*
+  seiner Vorfahren – auch bei `opacity: 0`.
 
 ### 8.1b Drei Spuren — und warum der Nebenauftrag in einer Zeile steht
 
@@ -511,6 +525,13 @@ Start des Nebenauftrags irgendwo, und die Linie muss quer über das halbe Bild.
 vorher gelaufen und gehört nicht in den Takt dieser Achse. Eine eigene Zeile über dem Bild
 schöbe den eigenen Prozess um seine ganze Höhe nach unten — und der ist das, was man sehen
 will.
+
+**Ein Nachbar ist sein Prozess — sonst nichts.** Keine Kopfkarte mit Art, Nummer, Status
+und Stückzahl: dass es eine Abweichung ist, sagt die Abzweigung; wie weit sie ist, sagt
+ihre Linie; wie viele Stücke unterwegs sind, sagen die Pillen an den Zustandspunkten.
+Geblieben ist, was das Bild nicht kann — **hinführen**: ein Klick auf die Spalte öffnet den
+Auftrag, der Rest steht im Hover. Dasselbe gilt für die Sperre eines Moduls: ein Symbol und
+eine tote Eingabe, kein Absatz.
 
 **Die Spurmasse stehen an genau einer Stelle** (`process-flow.LANE`). Entschieden wird
 nach **effektiver CSS-Breite** des gemessenen Rahmens, nicht nach der Panel-Auflösung und
@@ -908,6 +929,32 @@ zählt** (§12.5): leiht A an B und B weiter an C, ist auch A gesperrt.
 Ein künftiger Einkauf oder Verkauf erbt beides, ohne eine Zeile dafür zu schreiben.
 `fieldset[disabled]` schaltet jede Eingabe und jeden Knopf darin ab, ganz gleich was das
 Modul rendert — die Sperre muss nicht wissen, was sie sperrt.
+
+### 12.6a Die Auswahl nennt, wo sie zugreift
+
+Ein Entwurf lebt im Browser, die Freigabe passiert später. Dazwischen kann jemand anders
+dasselbe Stück nehmen. Die Exklusivität (§3) verhindert, dass beide es halten — sie sagt
+aber nicht, **wer** verliert.
+
+Darum trägt jeder gewählte Anteil seine **Absicht** mit (`UnitPick.from_order`):
+
+| Auswahl | Bedeutung |
+|---|---|
+| `null` | «ich nehme ein freies Stück» |
+| Objektnummer | «ich hole es aus genau diesem Auftrag» — das ist die Abweichung |
+
+Die Freigabe vergleicht die Absicht mit der Wirklichkeit (`process._assert_as_picked`).
+Weicht sie ab, passiert **nichts**, und der Fehler nennt beide Seiten. Ohne diese Prüfung
+entschied die Reihenfolge der Klicks, welche **Art** Auftrag entsteht: ein als frei
+gewähltes Stück, das inzwischen lief, machte die Freigabe still zur Abweichung und entzog
+es dem anderen Auftrag — mit `return_to = NULL`, also für immer.
+
+Das ist optimistisches Sperren mit dem Wert, den der Mensch gesehen hat, und es ist **eine**
+Auswahl-Logik für beide Fälle: konkrete Stücke, vorher sichtbar, änderbar. Einen zweiten
+Weg «nur nach Kriterium» gibt es nicht — die Kriterien-Auswahl ist der Normalfall dieser
+einen: FIFO schlägt vor, der Mensch übersteuert.
+
+**Ein Auftrag darf nie unbemerkt seine Art ändern.**
 
 ### 12.7 Wann darf ein Stück ein Modul verlassen?
 

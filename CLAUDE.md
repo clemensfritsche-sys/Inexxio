@@ -51,6 +51,12 @@
 > Zeile wächst auf seine Höhe, die Hauptachse wächst mit – Teilung, zwei Wege,
 > Zusammenfluss. Alle Spurmasse in `process-flow.LANE`, entschieden nach **effektiver
 > CSS-Breite** des Rahmens (ein 13,3″-Notebook liefert 1440 CSS-Pixel, nicht 2560).
+> **Die Auswahl nennt, wo sie zugreift** (PROCESS_CORE §12.6a): jeder gewählte Anteil trägt
+> seine Absicht mit (`UnitPick.from_order` – «war frei» ↔ «aus Auftrag N»), und die Freigabe
+> vergleicht sie mit der Wirklichkeit. Ohne das entschied die Reihenfolge der Klicks, welche
+> **Art** Auftrag entsteht. EINE Auswahl-Logik: konkrete Stücke, vorher sichtbar, änderbar –
+> FIFO schlägt vor, der Mensch übersteuert. **Seitwärts scrollen ist verboten**; nichts
+> Unsichtbares darf die Breite bestimmen (ein `opacity:0`-Tooltip zählt zur Overflow-Fläche).
 > Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
 > Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
 

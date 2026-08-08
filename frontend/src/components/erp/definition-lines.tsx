@@ -26,6 +26,20 @@ import { statusCfg, statusLabel } from '@/lib/process-status';
 export const NEU = 'neu';
 export const LAGER = 'lager';
 
+/**
+ * **Ein gewähltes Stück – und wo es lag, als es gewählt wurde.**
+ *
+ * Ein Entwurf lebt im Browser, die Freigabe passiert später. Dazwischen kann jemand
+ * anders dasselbe Stück nehmen. `fromOrder` ist darum die **Aussage** dieser Auswahl
+ * («war frei» ↔ «kam aus Auftrag N»); der Server prüft sie bei der Freigabe und bricht
+ * ab, statt still etwas anderes zu tun als gewollt.
+ */
+export interface UnitPick {
+  number: string;
+  /** Objektnummer des Auftrags, in dem das Stück bei der Auswahl lief. `null` = frei. */
+  fromOrder: number | null;
+}
+
 export interface DefinitionLine {
   /** Lokale Nummer – die Zeile existiert nur im Browser, bis der Auftrag freigegeben wird. */
   key: number;
@@ -44,7 +58,7 @@ export interface DefinitionLine {
    * sondern ein Widerspruch. Darum ist die Vorauswahl jetzt **der Wert selbst**.
    */
   origin: typeof NEU | typeof LAGER;
-  unitNumbers: string[];
+  units: UnitPick[];
   /**
    * **Die Rückführung** (Abweichungsauftrag §3.3/§3.4): kehrt ein Stück, das aus einem
    * laufenden Auftrag kommt, dorthin zurück? Standard ja – das ist der Normalfall
@@ -54,7 +68,7 @@ export interface DefinitionLine {
 }
 
 export function emptyLine(key: number): DefinitionLine {
-  return { key, articleObjectId: null, quantity: 1, origin: LAGER, unitNumbers: [], returns: true };
+  return { key, articleObjectId: null, quantity: 1, origin: LAGER, units: [], returns: true };
 }
 
 /** Was diese Zeile an den Server schickt. Unvollständige Zeilen bleiben draussen. */
@@ -65,16 +79,26 @@ export function toPayload(lines: DefinitionLine[]) {
       article_object_id: l.articleObjectId as number,
       quantity: l.quantity,
       origin: l.origin,
-      unit_numbers: l.origin === LAGER ? l.unitNumbers : [],
+      units: l.origin === LAGER
+        ? l.units.map((u) => ({ number: u.number, from_order: u.fromOrder }))
+        : [],
       returns: l.returns,
     }));
 }
 
-export function DefinitionLines({ lines, setLines, onArticlesLoaded }: {
+export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey = 0 }: {
   lines: DefinitionLine[];
   setLines: (l: DefinitionLine[]) => void;
   /** Meldet die Artikelliste nach oben – der Entwurf spiegelt daraus die Vorlage. */
   onArticlesLoaded?: (options: ArticleOption[]) => void;
+  /**
+   * **Die Auswahl neu gegen die Wirklichkeit halten.** Wird hochgezählt, wenn die
+   * Freigabe abbricht, weil ein gewähltes Stück inzwischen woanders läuft: dann holt der
+   * Picker die Stückliste neu und zieht die **beobachtete Herkunft** der gewählten Stücke
+   * nach. Der Mensch sieht damit, was sich geändert hat, und entscheidet erneut – statt
+   * dass die Freigabe still etwas anderes tut als gewollt.
+   */
+  refreshKey?: number;
 }) {
   const [articles, setArticles] = useState<ArticleOption[] | null>(null);
 
@@ -111,6 +135,7 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded }: {
             line={line}
             articles={articles}
             multi={lines.length > 1}
+            refreshKey={refreshKey}
             onChange={(next) => patch(line.key, next)}
             onRemove={() => setLines(lines.filter((l) => l.key !== line.key))}
           />
@@ -140,11 +165,12 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded }: {
 // Eine Zeile
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LineRow({ line, articles, multi, onChange, onRemove }: {
+function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
   line: DefinitionLine;
   articles: ArticleOption[] | null;
   /** Gibt es mehr als eine Zeile? Dann ist «Neu» keine Option mehr (#693). */
   multi: boolean;
+  refreshKey: number;
   onChange: (next: Partial<DefinitionLine>) => void;
   onRemove: () => void;
 }) {
@@ -170,7 +196,7 @@ function LineRow({ line, articles, multi, onChange, onRemove }: {
               // Die **Herkunft** bleibt: sie ist eine Entscheidung über diese Zeile, nicht
               // über den Artikel, und sie zurückzusetzen hiesse den Regler auf einen Wert
               // zu stellen, den es nicht gibt.
-              unitNumbers: [],
+              units: [],
             })}
           >
             <option value="">— wählen —</option>
@@ -193,7 +219,7 @@ function LineRow({ line, articles, multi, onChange, onRemove }: {
             data-tip={hasArticle ? undefined : 'Zuerst den Artikel wählen – ohne ihn ist die Menge nicht deutbar.'}
             onChange={(e) => {
               const raw = e.target.value.replace(/[^0-9]/g, '');
-              onChange({ quantity: raw ? Number(raw) : 0, unitNumbers: [] });
+              onChange({ quantity: raw ? Number(raw) : 0, units: [] });
             }}
           />
         </label>
@@ -207,7 +233,7 @@ function LineRow({ line, articles, multi, onChange, onRemove }: {
           <IconSwitch<typeof NEU | typeof LAGER>
             value={line.origin}
             onChange={(v) => onChange(v === NEU
-              ? { origin: NEU, unitNumbers: [] }
+              ? { origin: NEU, units: [] }
               : { origin: LAGER })}
             options={[
               {
@@ -263,8 +289,9 @@ function LineRow({ line, articles, multi, onChange, onRemove }: {
         <StockPicker
           articleObjectId={article!.object_id}
           quantity={line.quantity}
-          chosen={line.unitNumbers}
-          onChange={(unitNumbers) => onChange({ unitNumbers })}
+          refreshKey={refreshKey}
+          chosen={line.units}
+          onChange={(units) => onChange({ units })}
           returns={line.returns}
           onReturns={(returns) => onChange({ returns })}
         />
@@ -308,9 +335,9 @@ function ReturnBtn({ active, label, hint, onClick }: {
  *
  * Gesperrte Stücke werden **gezeigt**, nicht weggefiltert, und nennen den Grund.
  */
-function StockPicker({ articleObjectId, quantity, chosen, onChange, returns, onReturns }: {
-  articleObjectId: number; quantity: number; chosen: string[];
-  onChange: (numbers: string[]) => void;
+function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange, returns, onReturns }: {
+  articleObjectId: number; quantity: number; chosen: UnitPick[]; refreshKey: number;
+  onChange: (picks: UnitPick[]) => void;
   returns: boolean;
   onReturns: (value: boolean) => void;
 }) {
@@ -324,7 +351,7 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange, returns, onR
       .then((o) => { if (!dead) setOptions(o); })
       .catch(() => { if (!dead) setOptions([]); });
     return () => { dead = true; };
-  }, [articleObjectId]);
+  }, [articleObjectId, refreshKey]);
 
   // **Der Vorschlag hängt an seiner Grundlage, nicht an einem Ereignis.**
   //
@@ -340,27 +367,51 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange, returns, onR
     // Entscheidung – daraus wird eine Abweichung, die einem laufenden Auftrag sein
     // Material entzieht. Das darf nie die Voreinstellung sein.
     const free = options.filter((o) => o.available && !o.in_order);
-    const fifo = free.slice(0, quantity).map((o) => o.number);
+    const fifo = free.slice(0, quantity).map((o) => ({ number: o.number, fromOrder: null }));
     if (fifo.length) onChange(fifo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, quantity]);
 
-  const picked = new Set(chosen);
+  // **Die beobachtete Herkunft wird nachgezogen, die Auswahl nicht.** Kommt die Liste
+  // neu (Artikelwechsel oder nach einem Freigabe-Abbruch), kann ein gewähltes Stück
+  // inzwischen woanders laufen. Dann ändert sich, was der Klick bewirken WÜRDE – und das
+  // gehört vor den Klick. Was der Mensch gewählt hat, bleibt; nur was es nicht mehr gibt,
+  // fällt weg.
+  useEffect(() => {
+    if (!options || !chosen.length) return;
+    const holder = new Map(options.map((o) => [o.number, o.in_order ?? null]));
+    const next = chosen
+      .filter((u) => holder.has(u.number))
+      .map((u) => ({ number: u.number, fromOrder: holder.get(u.number) ?? null }));
+    const same = next.length === chosen.length
+      && next.every((u, i) => u.number === chosen[i].number && u.fromOrder === chosen[i].fromOrder);
+    if (!same) onChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options]);
+
+  const picked = new Set(chosen.map((u) => u.number));
   const enough = chosen.length === quantity;
   // **Die Rückführung ist nur eine Frage, wenn es etwas zurückzugeben gibt.** Ein freies
   // Stück kommt aus keinem Auftrag – eine Wahl anzubieten, die nichts bewirkt, wäre eine
   // Behauptung, hier passiere etwas.
-  const borrowed = (options ?? []).filter((o) => picked.has(o.number) && o.in_order);
+  const borrowed = chosen.filter((u) => u.fromOrder !== null);
 
   return (
     <div className="mt-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        {chosen.map((n) => (
-          <span key={n} className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
-            style={{ background: 'var(--success-bg)', color: 'var(--success)' }}>
-            {n}
-            <button type="button" onClick={() => onChange(chosen.filter((c) => c !== n))}
-              style={{ opacity: 0.6 }} aria-label={`${n} entfernen`}>
+        {chosen.map((u) => (
+          <span key={u.number}
+            className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
+            style={u.fromOrder === null
+              ? { background: 'var(--success-bg)', color: 'var(--success)' }
+              : { background: 'var(--warning-bg)', color: 'var(--warning)' }}
+            data-tip={u.fromOrder === null
+              ? 'War bei der Auswahl frei'
+              : `Kommt aus Auftrag ${formatObjectId(u.fromOrder)} – daraus wird eine Abweichung`}>
+            <UnitNumber value={u.number} />
+            <button type="button"
+              onClick={() => onChange(chosen.filter((c) => c.number !== u.number))}
+              style={{ opacity: 0.6 }} aria-label={`${u.number} entfernen`}>
               <X size={11} />
             </button>
           </span>
@@ -416,7 +467,9 @@ function StockPicker({ articleObjectId, quantity, chosen, onChange, returns, onR
                 key={o.number}
                 type="button"
                 disabled={!o.available}
-                onClick={() => onChange(taken ? chosen.filter((c) => c !== o.number) : [...chosen, o.number])}
+                onClick={() => onChange(taken
+                  ? chosen.filter((c) => c.number !== o.number)
+                  : [...chosen, { number: o.number, fromOrder: o.in_order ?? null }])}
                 data-tip={why}
                 className="w-full flex items-center gap-2 text-left text-xs py-1.5 px-1 disabled:opacity-45"
                 style={{ borderBottom: '1px solid var(--border-1)',
