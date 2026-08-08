@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, GitBranch, History } from 'lucide-react';
-import { api } from '@/lib/api';
+import { ClipboardList, History } from 'lucide-react';
+import { api, type ApiError } from '@/lib/api';
 import type { ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary } from '@/types';
 import { orderStatus } from '@/lib/record-status';
 import { localDateTime } from '@/lib/utils';
@@ -55,6 +55,13 @@ export interface OrderSeed {
    * und die trifft der Mensch. Ein reiner Shortcut, kein zweiter Anlagepfad.
    */
   unitNumber?: string;
+  /**
+   * In welchem Auftrag das Stück lief, als der Shortcut es griff. Das ist keine
+   * Zusatzinfo, sondern die **Absicht**: «ich hole es aus diesem Auftrag». Der Server
+   * prüft sie bei der Freigabe – wechselt das Stück vorher den Auftrag, bricht sie ab,
+   * statt still etwas anderes zu tun (`UnitPick.from_order`).
+   */
+  fromOrder?: number | null;
 }
 
 export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
@@ -75,8 +82,9 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     // Mit Stück: es steht schon in der Definition, Herkunft «Lager» folgt daraus.
     // Ohne Stück (Artikel-Shortcut): nur der Artikel – Menge und Herkunft bleiben offen.
     return seed.unitNumber
-      ? [{ key: 1, articleObjectId: seed.articleObjectId, quantity: 1,
-           origin: LAGER, unitNumbers: [seed.unitNumber], returns: true }]
+      ? [{ key: 1, articleObjectId: seed.articleObjectId, quantity: 1, origin: LAGER,
+           units: [{ number: seed.unitNumber, fromOrder: seed.fromOrder ?? null }],
+           returns: true }]
       : [{ ...emptyLine(1), articleObjectId: seed.articleObjectId }];
   });
   const [steps, setSteps] = useState<ModuleDraft[]>([]);
@@ -84,6 +92,9 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<Order | null>(null);
+  // Zählt hoch, wenn die Freigabe an einer veralteten Auswahl scheitert – der Picker holt
+  // die Stückliste dann neu und zeigt, wo die Stücke jetzt liegen.
+  const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(false);
 
   /**
@@ -130,6 +141,11 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
       onSaved(await api.createOrder(draft));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      // **Ein veralteter Pick ist kein blosser Fehler, sondern eine neue Lage.** Der
+      // Server nennt sie mit einem Code (nicht mit einem Satz, den jemand umformulieren
+      // könnte); die Auswahl wird daraufhin gegen die Wirklichkeit nachgezogen.
+      const detail = (e as ApiError)?.detail as { code?: string } | undefined;
+      if (detail?.code === 'pick_stale') setRefreshKey((n) => n + 1);
     } finally {
       setBusy(false);
     }
@@ -191,7 +207,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             dieser Stelle wäre der zweite Stand, aus dem der gemeldete Breitenunterschied
             entstanden ist. */}
         {isDraft ? (
-          <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps} />
+          <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
+            refreshKey={refreshKey} />
         ) : shown ? (
           <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate} />
         ) : (
@@ -221,9 +238,11 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
  * Ein reiner «Lager»-Auftrag greift auf Vorhandenes zu – was damit geschehen soll, weiss
  * nur dieser eine Auftrag. Dort wird frei modelliert.
  */
-function DraftView({ lines, setLines, steps, setSteps }: {
+function DraftView({ lines, setLines, steps, setSteps, refreshKey }: {
   lines: DefinitionLine[]; setLines: (l: DefinitionLine[]) => void;
   steps: ModuleDraft[]; setSteps: (s: ModuleDraft[]) => void;
+  /** Hochgezählt, wenn die Freigabe an einer veralteten Auswahl scheitert. */
+  refreshKey: number;
 }) {
   const [articles, setArticles] = useState<ArticleOption[]>([]);
   const [template, setTemplate] = useState<ArticleProcess | null>(null);
@@ -262,13 +281,13 @@ function DraftView({ lines, setLines, steps, setSteps }: {
           mode="definition"
           steps={mirrored ?? []}
           endStatus={END_BEFORE}
-          head={<DefinitionLines lines={lines} setLines={setLines} onArticlesLoaded={setArticles} />}
+          head={<DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey} onArticlesLoaded={setArticles} />}
         />
       ) : (
         <ProcessDesigner
           modules={steps}
           onChange={setSteps}
-          head={<DefinitionLines lines={lines} setLines={setLines} onArticlesLoaded={setArticles} />}
+          head={<DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey} onArticlesLoaded={setArticles} />}
         />
       )}
 
@@ -322,11 +341,12 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
   return (
     <>
       <DefinitionSummary order={order} />
-      <WaitingNotice order={order} />
       <ProcessColumns
         order={order}
         onExpand={expand}
-        onDeviate={onDeviate ? (unitNumber) => { void startDeviation(unitNumber, onDeviate); } : undefined}
+        onDeviate={onDeviate
+          ? (unitNumber) => { void startDeviation(unitNumber, order.object_id, onDeviate); }
+          : undefined}
         deviateBlocked={entryStarted
           ? 'Im aktiven Modul wurde bereits erfasst. Erst bestätigen – oder das Fenster neu laden, dann ist die Eingabe verworfen.'
           : undefined}
@@ -386,19 +406,6 @@ function PointList({ points }: { points: CapturePoint[] }) {
  * wartet, wer noch eine offene rückführende Verbindung hat. Steht hier nichts, wartet er
  * auf nichts; ein Platzhalter «wartet auf 0» wäre eine Zeile ohne Aussage.
  */
-function WaitingNotice({ order }: { order: Order }) {
-  const n = order.waiting_for_return ?? 0;
-  if (!n) return null;
-  return (
-    <div className="mb-3 mx-auto flex items-center gap-2 rounded-ds-lg px-3 py-2 text-xs"
-      style={{ background: 'var(--warning-bg)', color: 'var(--fg-2)', maxWidth: PROCESS_MAXW }}>
-      <GitBranch size={14} style={{ color: 'var(--warning)' }} />
-      {n === 1
-        ? 'Eine Einzelinstanz ist in einer Abweichung und kehrt an ihre Stelle zurück.'
-        : `${n} Einzelinstanzen sind in Abweichungen und kehren an ihre Stelle zurück.`}
-    </div>
-  );
-}
 
 /**
  * **Welcher Artikel gehört zu diesem Stück?** Die Nummer sagt es zur Hälfte: ihr vorderer
@@ -406,12 +413,16 @@ function WaitingNotice({ order }: { order: Order }) {
  * darum der bestehende Endpunkt – ein zweites Feld an der Stück-Antwort wäre eine Kopie,
  * die auseinanderlaufen kann.
  */
-async function startDeviation(unitNumber: string, open: (seed: OrderSeed) => void) {
+async function startDeviation(
+  unitNumber: string, fromOrder: number, open: (seed: OrderSeed) => void,
+) {
   const instanceId = Number(unitNumber.split('-')[0]);
   if (!Number.isInteger(instanceId)) return;
   const instance = await api.getInstance(instanceId);
   if (instance.article_object_id == null) return;
-  open({ articleObjectId: instance.article_object_id, unitNumber });
+  // Woher das Stück kommt, weiss diese Stelle sicher: aus dem Auftrag, dessen Prozess
+  // gerade offen ist. Genau das ist die Aussage, die der Server bei der Freigabe prüft.
+  open({ articleObjectId: instance.article_object_id, unitNumber, fromOrder });
 }
 
 /** Die Erfassungspunkte eines Moduls – aus seiner eingefrorenen Definition. */

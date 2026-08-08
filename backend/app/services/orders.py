@@ -55,10 +55,10 @@ def validate_draft(db: Session | None, draft: dict[str, Any]) -> list[str]:
     # Eine ``Lager``-Zeile muss so viele Stücke benennen, wie sie verlangt – sonst
     # stimmt die Mengen-Invariante nicht, und das merkt man besser jetzt als beim Klick.
     for ln in lines:
-        if ln.origin == LAGER and len(ln.unit_numbers) != ln.quantity:
+        if ln.origin == LAGER and len(ln.picks) != ln.quantity:
             missing.append(
                 f"{ln.label}: {ln.quantity} Einzelinstanzen, gewählt sind "
-                f"{len(ln.unit_numbers)}"
+                f"{len(ln.picks)}"
             )
     return missing
 

@@ -4391,12 +4391,12 @@
             "type": "string",
             "title": "Origin"
           },
-          "unit_numbers": {
+          "units": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/UnitPick"
             },
             "type": "array",
-            "title": "Unit Numbers"
+            "title": "Units"
           },
           "returns": {
             "type": "boolean",
@@ -4411,7 +4411,7 @@
           "origin"
         ],
         "title": "DefinitionLine",
-        "description": "Eine Definitionszeile: Artikel · Menge · Herkunft.\n\n``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie\neine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``unit_numbers``\ndabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der\nFreigabe entstehen."
+        "description": "Eine Definitionszeile: Artikel · Menge · Herkunft.\n\n``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie\neine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``units``\ndabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der\nFreigabe entstehen."
       },
       "ErpAdminUpdate": {
         "properties": {
@@ -6488,6 +6488,31 @@
         ],
         "title": "UnitOption",
         "description": "Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.\n\n``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein\nHindernis mehr**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine\nAbweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was\nbeim Wählen passiert – statt es geschehen zu lassen.\n\n``available`` heisst darum nur noch: dieses Stück lässt sich überhaupt nehmen."
+      },
+      "UnitPick": {
+        "properties": {
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "from_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number"
+        ],
+        "title": "UnitPick",
+        "description": "Ein gewähltes Stück — **und wo es lag, als es gewählt wurde.**\n\nEin Entwurf lebt im Browser, die Freigabe passiert später. Dazwischen kann jemand\nanders dasselbe Stück nehmen: die Exklusivität (§3) verhindert, dass beide es halten,\naber ohne diese Angabe **entscheidet die Zeit**, welche Art Auftrag entsteht. Genau das\nist passiert – ein als frei gewähltes Stück, das inzwischen lief, machte die Freigabe\n**still** zur Abweichung und entzog es dem anderen Auftrag, ohne Rückführung und ohne\ndass jemand gefragt wurde.\n\n``from_order`` ist darum keine Zusatzinfo, sondern die **Aussage des Menschen**: «ich\nnehme ein freies Stück» (``None``) oder «ich hole es aus Auftrag N». Stimmt sie bei\nder Freigabe nicht mehr, bricht die Freigabe ab und sagt, was sich geändert hat —\nstatt lautlos etwas anderes zu tun als gewollt.\n\nDamit gibt es **eine** Auswahl-Logik: konkrete Stücke, sichtbar vorher, änderbar, und\nmit der Absicht, in der sie gewählt wurden. Kein zweiter Weg «nur nach Kriterium»."
       },
       "UploadResult": {
         "properties": {

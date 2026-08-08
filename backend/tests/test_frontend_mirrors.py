@@ -2108,3 +2108,119 @@ def test_the_origin_has_no_state_that_only_a_detour_can_reach():
         "Die Vorauswahl schlägt wieder Stücke vor, die in einem anderen Auftrag laufen – "
         "daraus würde still eine Abweichung."
     )
+
+
+def test_a_pick_says_where_it_was_taken_from():
+    """**Ein Auftrag darf nie unbemerkt seine Art ändern.**
+
+    Ein Entwurf lebt im Browser, die Freigabe passiert später. Nimmt jemand dazwischen
+    dasselbe Stück, verhinderte der Unique-Index (§3) zwar, dass beide es halten – aber
+    nicht, **wer** verliert: ein als frei gewähltes Stück, das inzwischen lief, machte die
+    Freigabe **still** zur Abweichung und entzog es dem anderen Auftrag, mit
+    ``return_to = NULL``, also für immer. Gefragt wurde niemand.
+
+    Die Auswahl trägt deshalb ihre **Absicht** mit («war frei» ↔ «aus Auftrag N»), und die
+    Freigabe vergleicht sie mit der Wirklichkeit. Es ist optimistisches Sperren mit dem
+    Wert, den der Mensch gesehen hat – **eine** Auswahl-Logik für beide Fälle, kein
+    zweiter Weg «nur nach Kriterium».
+    """
+    schema = _read(BACKEND / "app" / "schemas" / "order.py")
+    assert "class UnitPick(" in schema and "from_order: Optional[int]" in schema, (
+        "Die Auswahl nennt nicht mehr, wo das Stück lag."
+    )
+    assert "unit_numbers" not in schema, (
+        "Die alte, absichtslose Nummernliste steht wieder da – dann entscheidet die Zeit, "
+        "welche Art Auftrag entsteht."
+    )
+
+    svc = _code(_read(BACKEND / "app" / "services" / "process.py"))
+    assert "def _assert_as_picked(" in svc, "Die Absicht wird bei der Freigabe nicht geprüft."
+    assert "_assert_as_picked(db, ln, pairs, held)" in svc, (
+        "Die Prüfung ist nicht verdrahtet – sie muss VOR dem Übernehmen laufen."
+    )
+    assert '"code": "pick_stale"' in svc, (
+        "Der Konflikt hat keinen Code. Die Oberfläche müsste im Meldungstext nach Wörtern "
+        "suchen, und eine Umformulierung würde ihn still verschlucken."
+    )
+
+    ui = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    assert "fromOrder: number | null" in ui, "Die Oberfläche merkt sich den Halter nicht."
+    assert "from_order: u.fromOrder" in ui, "Der Halter wird nicht mitgeschickt."
+    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    assert "'pick_stale'" in detail and "setRefreshKey" in detail, (
+        "Nach dem Abbruch wird die Auswahl nicht gegen die Wirklichkeit nachgezogen – "
+        "dann sieht der Mensch nicht, was sich geändert hat."
+    )
+
+
+def test_nothing_invisible_decides_the_width():
+    """**Seitwärts scrollen ist verboten** (Testnotiz #703) – auch versehentlich.
+
+    Der Hover-Tooltip ist absolut positioniert und bis 240 px breit. Ein absolut
+    positioniertes Kind zählt zur *scrollable overflow area* seiner Vorfahren – auch
+    unsichtbar bei ``opacity: 0``. An einem 46-px-Symbol schob er damit den nächsten
+    ``overflow-auto``-Container über seine Breite hinaus, und der Browser bot seitwärts
+    scrollen über leere Fläche an. Gemessen: 991 → 1007 px, an jeder Fensterbreite.
+
+    Was man nicht sieht, darf die Breite nicht bestimmen.
+    """
+    css = _read(FRONTEND / "app" / "globals.css")
+    tip = css[css.index("[data-tip]::after"):]
+    tip = tip[:tip.index("}")]
+    assert "display: none" in tip, (
+        "Der Tooltip liegt wieder dauerhaft im Layout – dann scrollt irgendein Container "
+        "seitwärts über leere Fläche."
+    )
+    assert "opacity: 0" not in tip, (
+        "Unsichtbar über `opacity` heisst: trotzdem im Layout. Genau das war der Fehler."
+    )
+
+
+def test_the_branch_leaves_the_axis_and_the_line_reaches_the_module():
+    """**Zwei Aussagen der Prozesslinie, beide gemessen an dem, was das Backend sagt.**
+
+    1. Eine Ausscherung geht von der **Achse** ab, nicht vom Rand der Spur. Der
+       Zustandsknoten ist so breit wie seine Spur; nähme man seinen rechten Rand, begänne
+       die Linie weit neben der Prozesslinie und sähe aus, als hinge sie an nichts.
+    2. Kräftig läuft die Linie **bis in das Modul, das jetzt dran ist**. «Vor Modul X
+       stehen» (``current_step_id``) und «X ist dran» (``active_step_id``) sind dieselbe
+       Tatsache; zwischen dem Zustandspunkt und dem Modul liegt kein Prozessobjekt. Der
+       Abstand dazwischen ist Layout – die Zeile macht Platz für einen Nebenauftrag.
+    """
+    cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
+    assert "[P.cx, fork]" in cols, "Die Abzweigung beginnt nicht auf der Achse."
+    assert "[P.right, P.cy]" not in cols, (
+        "Die Abzweigung beginnt wieder am Spurrand – sie hängt dann sichtbar an nichts."
+    )
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    body = _body(diagram, "walkedEdges", kind="export function")
+    assert "last + 1" in body, (
+        "Die kräftige Linie endet wieder VOR dem Modul, das dran ist – und das aktive "
+        "Modul sieht aus, als wäre es nicht erreicht."
+    )
+
+
+def test_a_neighbour_is_its_process_and_a_lock_needs_no_paragraph():
+    """**Was das Bild zeigt, wird nicht danebengeschrieben** (Notizen #701/#702/#704).
+
+    Drei Texte sagten dasselbe wie die Darstellung: die Kopfkarte über einem Nachbarn
+    (Art, Nummer, Status, Stückzahl), die Notiz über dem Bild («eine Einzelinstanz ist in
+    einer Abweichung») und die Sperr-Notiz im Modul. Alles davon steht in den Linien, den
+    Pillen und der Abzweigung.
+
+    Geblieben ist, was das Bild nicht kann: **hinführen**. Das tut jetzt der Prozess
+    selbst – ein Klick auf die Spalte öffnet den Auftrag, der Rest steht im Hover.
+    """
+    cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
+    assert "function SideHead(" not in cols, "Die Kopfkarte über dem Nachbarn steht wieder da."
+    assert "nav(s.rel.object_id)" in cols, (
+        "Die Nachbar-Spalte führt nicht mehr zu ihrem Auftrag – das war das Einzige, was "
+        "die Karte konnte und das Bild nicht."
+    )
+    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    assert "WaitingNotice" not in detail, "Die Warte-Notiz über dem Bild steht wieder da."
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    assert "function LockNotice(" not in diagram, "Die Sperr-Notiz im Modul steht wieder da."
+    assert "fieldset disabled={locked}" in diagram.replace("<", ""), (
+        "Die Sperre selbst ist weg – der Text war überflüssig, die Wirkung nicht."
+    )

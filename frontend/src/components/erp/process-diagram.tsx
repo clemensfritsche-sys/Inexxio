@@ -177,12 +177,23 @@ export function flowNodes({
   return out;
 }
 
-/** Bis wohin ist die Linie stark? Bis zu der Stelle, an der der Prozess wirklich steht. */
+/**
+ * **Bis wohin ist die Linie stark? Bis zu dem Objekt, das jetzt dran ist.**
+ *
+ * Die Stelle, an der das Material steht, heisst «vor Modul X» (`current_step_id`) – und
+ * genau dieses Modul nennt der Server seinen **aktiven Schritt**. «Davorstehen» und «X
+ * ist dran» sind dieselbe Tatsache, nicht zwei; zwischen dem Zustandspunkt und dem Modul
+ * liegt kein Prozessobjekt. Die Linie läuft darum **bis in dieses Modul hinein**.
+ *
+ * Das ist keine Behauptung über einen erledigten Schritt: kräftig heisst «der Prozess ist
+ * hier angekommen», und der letzte Zustandspunkt sagt, wo. Der Abstand dazwischen ist
+ * Layout (die Zeile macht Platz für einen Nebenauftrag), kein Weg.
+ */
 export function walkedEdges(nodes: FlowSpec[], running: boolean): number {
   if (!running) return 0;
   let last = -1;
   nodes.forEach((n, i) => { if (n.kind === 'state') last = i; });
-  return Math.max(0, last);
+  return last < 0 ? 0 : Math.min(last + 1, Math.max(0, nodes.length - 1));
 }
 
 export function ProcessDiagram({
@@ -733,7 +744,6 @@ function StepCard({ step, active, dimmed, defaultOpen, onDelete, tone, drag, chi
       </div>
       {children && open && (
         <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border-1)' }}>
-          {locked && <LockNotice waiting={waiting} />}
           <fieldset disabled={locked}
             style={{ border: 0, padding: 0, margin: 0, minWidth: 0,
                      opacity: locked ? 0.65 : 1 }}>
@@ -750,30 +760,3 @@ function lockReason(waiting: number[]): string {
     + waiting.map(formatObjectId).join(', ');
 }
 
-/**
- * **Warum dieses Modul gesperrt ist – und worauf es wartet.**
- *
- * Eine Sperre ohne Grund ist eine Sackgasse mit Ausrufezeichen. Genannt wird darum der
- * Auftrag, in dem das Stück gerade steckt: dort ist etwas zu tun, damit es weitergeht,
- * und die Objektnummer führt mit einem Klick hin.
- */
-function LockNotice({ waiting }: { waiting: number[] }) {
-  const nav = useErpNav();
-  return (
-    <div className="mb-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-ds-md px-2.5 py-2 text-xs"
-      style={{ background: 'var(--warning-bg)', color: 'var(--fg-2)' }}>
-      <Lock size={13} style={{ color: 'var(--warning)' }} />
-      <span>
-        Gesperrt – {waiting.length === 1 ? 'ein Stück ist' : `${waiting.length} Stücke sind`} in
-        einer Abweichung und {waiting.length === 1 ? 'kehrt' : 'kehren'} an diese Stelle zurück.
-      </span>
-      {waiting.map((n) => (
-        <button key={n} type="button" onClick={nav ? () => nav(n) : undefined} disabled={!nav}
-          className="ix-tnum" style={{ color: 'var(--accent-ink)', font: 'var(--mono-sm)' }}
-          data-tip="Abweichung öffnen">
-          {formatObjectId(n)}
-        </button>
-      ))}
-    </div>
-  );
-}

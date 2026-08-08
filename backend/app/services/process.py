@@ -121,12 +121,15 @@ class _Line:
     """Eine aufgelöste Definitionszeile – Artikel statt Objektnummer, geprüft."""
 
     def __init__(self, position: int, article: Article, quantity: int, origin: str,
-                 unit_numbers: list[str], returns: bool = True):
+                 picks: list[tuple[str, Optional[int]]], returns: bool = True):
         self.position = position
         self.article = article
         self.quantity = quantity
         self.origin = origin
-        self.unit_numbers = unit_numbers
+        #: Je gewähltem Stück seine Nummer **und der Auftrag, in dem es bei der Auswahl
+        #: lief** (``None`` = frei). Die zweite Hälfte ist die Absicht des Menschen und
+        #: wird bei der Freigabe gegen die Wirklichkeit geprüft (``_assert_as_picked``).
+        self.picks = picks
         #: Kehren übernommene Stücke in ihren Quell-Auftrag zurück? Nur für Stücke
         #: bedeutsam, die aus einem laufenden Auftrag kommen – ein freies Stück hat
         #: keinen Auftrag, in den es zurückkönnte.
@@ -175,7 +178,10 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
             article=article,
             quantity=quantity,
             origin=origin,
-            unit_numbers=[str(n) for n in (row.get("unit_numbers") or [])],
+            picks=[
+                (str(u.get("number") or "").strip(), u.get("from_order"))
+                for u in (row.get("units") or [])
+            ],
             returns=bool(row.get("returns", True)),
         ))
     _assert_single_new(out)
@@ -380,6 +386,69 @@ def _assert_chain(steps: list[dict[str, Any]]) -> None:
         )
 
 
+def _assert_as_picked(
+    db: Session,
+    line: "_Line",
+    pairs: list[tuple[InstanceUnit, str]],
+    held: dict[int, OrderUnit],
+) -> None:
+    """**Die Auswahl muss noch die sein, die der Mensch getroffen hat.**
+
+    Zwischen Auswahl und Freigabe liegt Zeit, und in der kann jemand anders dasselbe Stück
+    nehmen. Der partielle Unique-Index (§3) verhindert, dass beide es halten – er sagt aber
+    nicht, **wer** es verliert. Ohne diese Prüfung entschied das die Reihenfolge der Klicks:
+    ein als frei gewähltes Stück, das inzwischen lief, machte die Freigabe **still** zur
+    Abweichung und entzog es dem anderen Auftrag, mit ``return_to = NULL`` – also für immer.
+
+    Es ist optimistisches Sperren, und der Vergleichswert ist die Absicht selbst
+    (``UnitPick.from_order``): «frei» oder «aus Auftrag N». Weicht die Wirklichkeit ab,
+    passiert **nichts**, und der Fehler nennt beide Seiten. Ein Auftrag darf nie
+    unbemerkt seine Art ändern.
+    """
+    stated = dict(line.picks)
+    holders = {
+        m.instance_unit_id: o.object_id
+        for m, o in (
+            db.query(OrderUnit, Order)
+            .join(Order, Order.id == OrderUnit.order_id)
+            .filter(OrderUnit.id.in_([m.id for m in held.values()]))
+            .all()
+        )
+    } if held else {}
+
+    stale: list[dict[str, Any]] = []
+    for unit, number in pairs:
+        was = stated.get(number)
+        now = holders.get(unit.id)
+        if was != now:
+            stale.append({"number": number, "picked_from": was, "now_in": now})
+    if not stale:
+        return
+
+    def where(order_object_id: Optional[int]) -> str:
+        return f"in Auftrag {order_object_id}" if order_object_id else "frei"
+
+    lines = [
+        f"{s['number']}: bei der Auswahl {where(s['picked_from'])}, "
+        f"jetzt {where(s['now_in'])}"
+        for s in stale
+    ]
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "code": "pick_stale",
+            "message": (
+                ("Eine Einzelinstanz hat " if len(stale) == 1
+                 else f"{len(stale)} Einzelinstanzen haben ")
+                + "seit der Auswahl den Auftrag gewechselt – "
+                + "; ".join(lines)
+                + ". Die Auswahl ist veraltet – bitte prüfen und erneut freigeben."
+            ),
+            "units": stale,
+        },
+    )
+
+
 def release(
     db: Session,
     *,
@@ -423,8 +492,9 @@ def release(
     for ln in resolved:
         if ln.origin != LAGER:
             continue
-        pairs = _resolve_units(db, ln.unit_numbers, seen=seen)
+        pairs = _resolve_units(db, [n for n, _ in ln.picks], seen=seen)
         held = held_by(db, [u.id for u, _ in pairs])
+        _assert_as_picked(db, ln, pairs, held)
         for unit, number in pairs:
             source = held.get(unit.id)
             if source is None:
