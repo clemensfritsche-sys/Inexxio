@@ -136,6 +136,7 @@ function spanOf(span: Map<string, Span>, col: Column): Span {
   return span.get(col.prefix) ?? { from: 0, to: 0 };
 }
 
+
 /** Die Kanalzuteilung: je Nachbar seine Spur, je Seite deren Anzahl. */
 interface Wires {
   of: Map<string, number>;
@@ -294,6 +295,11 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
                   {left.map((c) => <Neighbour key={c.prefix} col={c} />)}
                 </div>
               )}
+              {/* **Der Rückführpunkt bleibt am Anfang seiner Zeile.** Ihn ans Ende zu
+                  setzen läge näher an der Stelle, an der der Nachbar zurückkommt – und
+                  drückte seinen Rückweg genau in die Modulkarte darunter (gemessen).
+                  Eine Linie durch einen Knoten wiegt schwerer als eine flache Schleife;
+                  zwischen beidem entscheidet die Messung, nicht das Gefühl. */}
               {column((i) => ({ gridColumn: 2, gridRow: i + 1 }))}
               {bands.map((b) => (
                 <div key={b.cols[0].prefix}
@@ -451,11 +457,11 @@ function Wiring({ columns, anchors, metrics, wires }: {
  * seinen Rand; darum kann sie nicht mehr in ihn hineinragen, gleich wie hoch er wird,
  * ob er auf- oder zugeklappt ist und bei welcher Rahmenbreite.
  *
- * **2. Der Bogen beginnt am Punkt.** Der Zug startet `BEND` über dem Abzweigepunkt auf
- * der Achse und knickt `BEND` darunter – damit liegt die **Tangente** des Bogens exakt
- * auf dem Punkt: dort verlässt die Linie den Strang, und genau dort sitzt der Punkt
- * (Befund 2.2). Auf dem gemeinsamen Stück liegen beide Linien übereinander (gleiche
- * Farbe, gleiche Stärke); zu sehen ist die Teilung, nicht die Überlagerung.
+ * **2. Der Zug beginnt IM Punkt – ohne Stummel davor.** Er startet auf dem Punkt und
+ * knickt `BEND` darunter; weil ein Endstück ganz im Bogen aufgehen darf (`polyPath`),
+ * ist der Punkt zugleich der Anfang des Bogens. Die Linie verlässt den Strang also
+ * tangential, ohne vorher ein gerades Stück auf ihm zu liegen – das war das sichtbar
+ * überstehende Stück, das die Hauptlinie überlagerte.
  *
  * **3. Senkrecht wird nur im eigenen Kanal gefahren.** Die Spurlücke ist keine Linie,
  * sondern ein Bündel: jede Abzweigung hat ihre Spur, zugeteilt von `channels` (§1).
@@ -486,21 +492,29 @@ function Cross({ edge, col, at, metrics, wires }: {
   const corridor = channelX(centre, wires.of.get(nb.prefix) ?? 0, wires.used[nb.side]);
 
   const [hx, hy] = port(here.a, 'center');
+  // **Die Linie verlässt den Punkt zu der Seite, auf der ihr Ziel liegt** – und kehrt
+  // von dort zurück. Das ist keine Fallunterscheidung, sondern die Wahl des Ports, die
+  // jedes Routing trifft: liegt der Nachbar oben und die Linie ginge nach unten
+  // hinaus, kreuzt sie ihren eigenen Rückweg, sobald beide Punkte nahe beieinander
+  // liegen. Mit der Richtung bleibt die Reihenfolge oben/unten erhalten.
+  const side = (other: number) => (other >= hy ? BEND : -BEND);
   const points: Array<[number, number]> = outward
     ? (() => {
       const [tx, ty] = port(there.a, 'top');
+      const dy = side(ty);
       return [
-        [hx, hy - BEND], [hx, hy + BEND],
-        [corridor, hy + BEND], [corridor, ty - LEAD],
+        [hx, hy], [hx, hy + dy],
+        [corridor, hy + dy], [corridor, ty - LEAD],
         [tx, ty - LEAD], [tx, ty],
       ];
     })()
     : (() => {
       const [tx, tb] = port(there.a, 'bottom');
+      const dy = side(tb);
       return [
         [tx, tb], [tx, tb + LEAD],
-        [corridor, tb + LEAD], [corridor, hy - BEND],
-        [hx, hy - BEND], [hx, hy + BEND],
+        [corridor, tb + LEAD], [corridor, hy + dy],
+        [hx, hy + dy], [hx, hy],
       ];
     })();
   return <Stroke d={polyPath(points)} walked={edge.walked} />;

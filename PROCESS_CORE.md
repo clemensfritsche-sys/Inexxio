@@ -547,11 +547,47 @@ Prozessfläche, `overflow: visible`, gehört keiner Spalte. Platz wird im **Layo
 mit z-index. Ein Zug, der einen Pixel über die gemessene Rahmenhöhe hinausliefe, fehlte
 sonst still – und still fehlend ist genau das, was ein Prozessbild nicht darf.
 
-**Der Bogen beginnt am Punkt.** Eine Ausscherung startet `BEND` **über** dem
-Abzweigepunkt auf der Achse und knickt `BEND` darunter; damit liegt die **Tangente** des
-Bogens exakt auf dem Punkt – dort verlässt die Linie den Strang, und genau dort sitzt der
-Punkt. Mit `2 · BEND` Anlauf löste sie sich schon eine Radiuslänge über ihm, und der Punkt
-stand am gedachten Schnittpunkt zweier Geraden statt an der Stelle, an der etwas passiert.
+**Der Zug beginnt IM Punkt.** Eine Ausscherung startet **auf** dem Abzweigepunkt und
+knickt `BEND` daneben; weil ein **Endstück ganz im Bogen aufgehen darf** (die Halbierung
+in `polyPath` gibt es nur zwischen zwei benachbarten Ecken), ist der Punkt zugleich der
+Anfang des Bogens. Vorher lag davor noch ein gerades Stück auf der Achse – sichtbar als
+überstehendes Endchen, das die Hauptlinie überlagerte.
+
+**Sie geht zu der Seite hinaus, auf der ihr Ziel liegt** (und kommt von dort zurück). Das
+ist keine Fallunterscheidung, sondern die Port-Wahl, die jedes Routing trifft: läge der
+Nachbar oben und die Linie ginge nach unten hinaus, kreuzte sie ihren eigenen Rückweg,
+sobald Abzweige- und Rückführpunkt nahe beieinander liegen.
+
+### 8.1a‴ Kreuzungsfreiheit — sie entsteht im Graph, nicht beim Zeichnen
+
+Das Bild ist ein **Raupengraph**: eine Achse mit Anhängseln. Ein solcher Graph ist genau
+dann kreuzungsfrei zeichenbar, wenn die Ansatz-**Intervalle** der Anhängsel einander
+nicht überschneiden. Und weil ein Stück immer an den Punkt zurückkehrt, an dem es
+ausgeschert ist (§12.4), ist jedes Intervall das eines **einzelnen** Zustandspunkts.
+
+Daraus folgt die eine Regel: **je Nachbar ein eigenes Paar `fork`/`join`**, hintereinander
+auf der Achse —
+
+```
+… → fork₁ → join₁ → fork₂ → join₂ → [ Modul ]
+      └──►A──┘         └──►B──┘
+```
+
+— statt eines gemeinsamen Paares für alle. Mit **einem** Rückführpunkt liegt er unter dem
+letzten Nachbarn, und der Rückweg des ersten muss an allen folgenden vorbei, quer durch
+deren Hinwege: das war das Bild, das bei zwei Abweichungen «zu wirr» wurde. Mit eigenen
+Paaren sind die Intervalle **disjunkt**, jeder Nachbar steht in den Zeilen seines eigenen
+Punktes, jede Verbindung ist eine **kurze Waagrechte** – und eine Kreuzung ist damit nicht
+vermieden, sondern **unmöglich**. Das skaliert linear: drei, vier, fünf Abweichungen sind
+drei, vier, fünf Paare; geschachtelte sind gar kein Fall, weil ein Enkel im Bild des
+Kindes steht, nicht in dem des Auftrags.
+
+Die **Reihenfolge** ist chronologisch (aufsteigende Objektnummer): gleiche Daten, gleiches
+Bild. Wer geblieben ist, steht auf dem Bypass der **ersten noch offenen** Abzweigung –
+einer, nicht mehreren: eine Position ist eine Kante.
+
+Invariante: `tests/test_flow_graph.py: test_branches_at_one_point_get_their_own_pair_and_never_overlap`
+prüft die paarweise Disjunktheit am echten Knotenverlauf.
 
 ### 8.1a Das Liniensystem — zwei Stärken, sonst nichts
 

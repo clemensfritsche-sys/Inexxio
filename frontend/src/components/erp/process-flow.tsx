@@ -449,7 +449,14 @@ export function polyPath(points: Array<[number, number]>, r = BEND): string {
     const inLen = Math.hypot(cx - px, cy - py);
     const outLen = Math.hypot(nx - cx, ny - cy);
     if (inLen === 0 || outLen === 0) continue;
-    const k = Math.min(r, inLen / 2, outLen / 2);
+    // **Ein Endstück darf ganz im Bogen aufgehen.** Die Halbierung gibt es nur,
+    // damit zwei benachbarte Ecken sich das Stück dazwischen teilen können; am
+    // ersten und letzten Punkt gibt es keinen Nachbarn, mit dem zu teilen wäre.
+    // Genau daraus entstand der **überstehende Stummel**: der Bogen begann eine
+    // halbe Radiuslänge zu spät, also musste der Zug vorher gerade auf der Achse
+    // liegen – sichtbar als kurzes Stück, das die Hauptlinie überlagert. Jetzt
+    // beginnt bzw. endet er **am Punkt**, und davor liegt nichts mehr.
+    const k = Math.min(r, inLen / (i === 1 ? 1 : 2), outLen / (i === pts.length - 2 ? 1 : 2));
     const ax = cx + ((px - cx) / inLen) * k;
     const ay = cy + ((py - cy) / inLen) * k;
     const bx = cx + ((nx - cx) / outLen) * k;

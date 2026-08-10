@@ -822,11 +822,28 @@
   .ix-seg .ix-seg-label, .ix-seg .ix-seg-label > span { transition: none; }
 }
 
-/* ── Feed: ruhige Fläche ohne Scrollbalken ────────────────────────────────────
+/* ── Ruhige Flächen ohne Scrollbalken — GENERELL, an genau einer Stelle ───────
    Gescrollt wird weiterhin (Rad, Trackpad, Touch, Tastatur) – nur der Balken
-   verschwindet. */
-.ix-noscrollbar { scrollbar-width: none; -ms-overflow-style: none; }
-.ix-noscrollbar::-webkit-scrollbar { width: 0; height: 0; }
+   verschwindet.
+
+   **Warum global und nicht je Container.** Ein Balken kostet auf Windows und
+   Linux ~15 px echte Breite. Erscheint er, weil ein Aufklappen die Seite
+   verlängert, wird der Inhalt schmaler – und alles Zentrierte **springt
+   seitlich**. Das ist kein Schönheitsfehler, sondern ein Layoutsprung mitten in
+   einer Bedienung. Ein Klassenname dagegen ist eine Bitte: er hilft dort, wo
+   jemand daran gedacht hat, und der nächste `overflow: auto` fängt wieder an zu
+   springen. Ohne Balken gibt es keine Breite, die sich ändern kann – die Frage
+   ist damit gegenstandslos statt beantwortet.
+
+   `scrollbar-gutter: stable` wäre die Gegenrichtung (Platz dauerhaft
+   reservieren): kein Sprung, aber ein leerer Streifen auf jeder Seite.
+
+   Das ist bewusst eine **Design-Entscheidung mit Preis**: die Bildlaufleiste ist
+   auch eine Positionsanzeige. Sie fällt hier weg, weil das ERP flächig und dicht
+   ist und ein Balken je Container die Fläche zerlegt. Tastatur, Rad, Trackpad und
+   Touch bleiben unberührt, und `:focus-visible` scrollt weiterhin mit. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 /* ── Lieferung unterwegs: der Lastwagen fährt auf dem Fortschrittsbalken ──────
    Eine kleine, schlichte Freude an einer Stelle, an der man ohnehin wartet

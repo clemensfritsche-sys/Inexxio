@@ -1000,7 +1000,7 @@ export function ScrollFade({ max, children }: { max: number; children: ReactNode
   ].join(', ');
   const mask = `linear-gradient(to bottom, ${stops})`;
   return (
-    <div ref={ref} onScroll={measure} className="ix-noscrollbar"
+    <div ref={ref} onScroll={measure}
       style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: max,
         overflowY: 'auto', WebkitMaskImage: mask, maskImage: mask }}>
       {children}

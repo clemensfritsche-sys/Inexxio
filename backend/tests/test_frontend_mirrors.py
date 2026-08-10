@@ -1771,8 +1771,16 @@ def test_a_branch_hangs_on_a_state_point_not_on_a_module():
     assert "out: dict[tuple[Optional[int], int], int]" in flow, (
         "Die Abzweigungen werden nicht je Zustandspunkt und Ziel gezählt."
     )
-    assert 'f"out:{at}:{target}"' in flow and 'f"back:{at}:{source}"' in flow, (
+    assert 'f"out:{at}:{t}"' in flow and 'f"back:{at}:{t}"' in flow, (
         "Eine Querverbindung nennt ihren Punkt nicht – dann ist sie nicht verortbar."
+    )
+    # **Und je Nachbar ein eigenes Paar.** Ein gemeinsamer Rückführpunkt liegt unter
+    # dem letzten Nachbarn – der Rückweg des ersten müsste an allen folgenden vorbei.
+    assert 'f"fork:{at if at is not None else \'end\'}:{target}"' in flow, (
+        "Abzweigepunkte werden wieder je Zustandspunkt vergeben statt je Nachbar."
+    )
+    assert "def _branches(" in flow and "targets = _targets_at(" in flow, (
+        "Die Auffaltung in ein Paar je Nachbar fehlt."
     )
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
     assert "class BranchPoint(" not in schema, (
@@ -2203,6 +2211,32 @@ def test_nothing_invisible_decides_the_width():
     )
 
 
+def test_a_scrollbar_never_changes_the_available_width():
+    """**Kein sichtbarer Scrollbalken – generell, an genau einer Stelle.**
+
+    Ein Balken kostet auf Windows und Linux echte Breite. Erscheint er, weil ein
+    Aufklappen die Seite verlängert, wird der Inhalt schmaler und alles Zentrierte
+    **springt seitlich** – mitten in einer Bedienung. Gescrollt wird weiterhin ganz
+    normal; nur die Leiste verschwindet, und damit die Breite, die sich ändern könnte.
+
+    **Global, nicht je Container.** Ein Klassenname ist eine Bitte: er hilft dort, wo
+    jemand daran gedacht hat, und der nächste ``overflow: auto`` fängt wieder an zu
+    springen. Genau darum darf es die frühere Einzelklasse nicht mehr geben.
+    """
+    css = _read(FRONTEND / "app" / "globals.css")
+    assert "* { scrollbar-width: none" in css, (
+        "Die Regel steht nicht global – dann entscheidet je Container, ob es springt."
+    )
+    assert "*::-webkit-scrollbar" in css, "WebKit blendet die Leiste nicht aus."
+    assert ".ix-noscrollbar" not in css, (
+        "Die Einzelklasse ist zurück – zwei Wahrheiten für dieselbe Regel."
+    )
+    for path in FRONTEND.rglob("*.tsx"):
+        assert "ix-noscrollbar" not in _read(path), (
+            f"{path.name} bittet noch einzeln um eine unsichtbare Leiste."
+        )
+
+
 def test_the_branch_leaves_the_axis_and_the_line_reaches_the_module():
     """**Zwei Aussagen der Prozesslinie, beide gemessen an dem, was das Backend sagt.**
 
@@ -2220,14 +2254,22 @@ def test_the_branch_leaves_the_axis_and_the_line_reaches_the_module():
         "Die Abzweigung beginnt nicht auf der Achse – sie soll dort mit einer Kurve "
         "abbiegen wie eine Ausfahrt, nicht mit einem Knick danebenstehen."
     )
-    # **Der Bogen beginnt am Punkt** (Befund 2.2): `BEND` davor auf der Achse, `BEND`
-    # danach der Knick – dann liegt die Tangente exakt auf dem Punkt. Mit `2 · BEND`
-    # davor löste sich die Linie schon eine Radiuslänge über ihm vom Strang, und der
-    # Punkt stand dort, wo sich zwei gedachte Geraden schneiden statt dort, wo etwas
-    # passiert.
-    assert "[hx, hy - BEND], [hx, hy + BEND]" in branch, (
-        "Der Bogen setzt nicht am Punkt an – der Punkt sitzt dann am gedachten "
-        "Schnittpunkt statt an der Stelle, an der die Linie den Strang verlässt."
+    # **Der Zug beginnt IM Punkt – kein Stummel davor.** Ein gerades Stück auf der
+    # Achse vor dem Bogen überlagert die Hauptlinie; sichtbar als überstehendes
+    # Endchen. Möglich wird das dadurch, dass ein **Endstück** ganz im Bogen aufgehen
+    # darf – die Halbierung gibt es nur zwischen zwei benachbarten Ecken.
+    assert "[hx, hy], [hx, hy + dy]" in branch and "[hx, hy + dy], [hx, hy]" in branch, (
+        "Die Ausscherung liegt vor dem Bogen noch ein Stück auf der Achse – genau das "
+        "ist das überstehende Linienstück am Knotenpunkt."
+    )
+    # **Und sie geht zu der Seite hinaus, auf der ihr Ziel liegt.** Ginge sie immer nach
+    # unten, kreuzte sie ihren eigenen Rückweg, sobald der Nachbar oberhalb liegt.
+    assert "const side = (other: number) => (other >= hy ? BEND : -BEND)" in branch, (
+        "Die Richtung, in der die Linie den Punkt verlässt, folgt nicht ihrem Ziel."
+    )
+    flowsrc = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
+    assert "i === 1 ? 1 : 2" in flowsrc and "i === pts.length - 2 ? 1 : 2" in flowsrc, (
+        "Ein Endstück darf nicht ganz im Bogen aufgehen – dann bleibt der Stummel."
     )
     assert ".right" not in branch and "P.right" not in cols, (
         "Die Abzweigung beginnt wieder am Spurrand – sie hängt dann sichtbar an nichts."

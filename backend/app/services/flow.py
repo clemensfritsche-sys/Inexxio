@@ -91,12 +91,17 @@ def order_ref(object_id: int) -> str:
     return f"order:{object_id}"
 
 
-def fork_id(at: Optional[int]) -> str:
-    return f"fork:{at if at is not None else 'end'}"
+#: **Je Nachbar ein eigenes Paar.** Zwei Abweichungen am selben Zustandspunkt teilten
+#: sich früher einen Abzweige- und einen Rückführpunkt – und damit musste die erste
+#: Rückführung an der zweiten Abweichung *vorbei*, quer über die Fläche. Mit einem
+#: eigenen Paar je Nachbar liegt jeder Rückweg unmittelbar unter seinem Hinweg; die
+#: Kreuzung ist damit nicht vermieden, sondern **unmöglich** (§8.1a‴).
+def fork_id(at: Optional[int], target: int) -> str:
+    return f"fork:{at if at is not None else 'end'}:{target}"
 
 
-def join_id(at: Optional[int]) -> str:
-    return f"join:{at if at is not None else 'end'}"
+def join_id(at: Optional[int], target: int) -> str:
+    return f"join:{at if at is not None else 'end'}:{target}"
 
 
 def module_id(step_id: int) -> str:
@@ -365,37 +370,7 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
         reached = arrived > 0
         open_here = any(point == at for point, _ in pending)
 
-        if at in forks:
-            g.nodes.append(Node(id=fork_id(at), kind=NODE_FORK, at=at))
-            # Die Ankunftskante trägt niemanden: wer hier ist, ist am Abzweigepunkt
-            # vorbei – entweder hinaus oder auf dem Bypass daneben.
-            prev = _link(g, prev, fork_id(at), reached, [])
-            for (point, target) in sorted(tally.out, key=_pointkey):
-                if point != at:
-                    continue
-                g.edges.append(_edge(
-                    f"out:{at}:{target}", fork_id(at), order_ref(target), EDGE_OUT, True,
-                    _pick(rows, lambda r, t=target, a=at: _away_at(r, a, t)),
-                ))
-
-        if at in joins:
-            g.nodes.append(Node(id=join_id(at), kind=NODE_JOIN, at=at))
-            # **Der Bypass trägt nur, solange die Teilung offen ist.**
-            #
-            # Ist alles zurück, steht auch das gebliebene Stück *hinter* dem
-            # Zusammenfluss: die Unterscheidung «geblieben ↔ zurückgekehrt» ist dann
-            # Geschichte, keine Position. Beide warten an derselben Stelle auf dasselbe
-            # Modul, und zwei Pillen dafür behaupteten zwei Orte.
-            prev = _link(g, prev, join_id(at), reached,
-                         _pick(rows, lambda r: _here_at(r, at, returned=False))
-                         if open_here else [])
-            for (point, source) in sorted(set(tally.back) | pending, key=_pointkey):
-                if point != at:
-                    continue
-                g.edges.append(_edge(
-                    f"back:{at}:{source}", order_ref(source), join_id(at), EDGE_BACK,
-                    tally.back.get((at, source), 0) > 0, [],
-                ))
+        prev = _branches(g, prev, at, tally, rows, pending, reached)
 
         g.nodes.append(Node(id=module_id(at), kind=NODE_MODULE, at=at))
         # Die letzte Kante vor dem Modul: alle, die hier warten – ausser denen, die der
@@ -429,10 +404,63 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
 # zeigte beide Gruppen – zweimal dieselbe. Jetzt beantwortet **ein** Prädikat je Kante
 # beide Fragen: ``build`` zählt, was es zurückgibt, ``units_on`` listet es auf.
 
-def _pointkey(key: tuple) -> tuple:
-    """Sortierschlüssel für ``(Zustandspunkt, Auftrag)`` – ``None`` ist ein Punkt wie jeder
-    andere und darf die Sortierung nicht sprengen."""
-    return (key[0] is None, key[0] or 0, key[1])
+def _targets_at(at: Optional[int], tally: _Tally, pending: set) -> list[int]:
+    """Die Nachbarn an diesem Zustandspunkt — **chronologisch**.
+
+    Die Objektnummer wächst mit der Zeit, also ist «aufsteigend» dasselbe wie «die
+    zuerst abgezweigte zuerst». Das ist die Reihenfolge, in der sie im Bild
+    untereinander stehen: deterministisch, gleiche Daten ⇒ gleiches Bild.
+    """
+    return sorted({t for (p, t) in tally.out if p == at}
+                  | {s for (p, s) in tally.back if p == at}
+                  | {s for (p, s) in pending if p == at})
+
+
+def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
+              rows: list["_Row"], pending: set, reached: bool) -> str:
+    """Die Abzweigungen an einem Zustandspunkt — **je Nachbar ein eigenes Paar**.
+
+    ``… → fork₁ → join₁ → fork₂ → join₂ → Modul`` statt eines gemeinsamen Paares für
+    alle. Der Unterschied ist nicht kosmetisch: mit **einem** Rückführpunkt für alle
+    liegt er unter dem letzten Nachbarn, und der Rückweg des ersten muss an allen
+    folgenden vorbei – quer über die Fläche, mitten durch deren Hinwege. Mit einem
+    eigenen Paar liegt jeder Rückweg unmittelbar unter seinem Hinweg.
+
+    Das ist die Standardform eines **Raupengraphen** (eine Achse mit Anhängseln): sind
+    die Ansatzpunkte verschieden, ist die Zeichnung **planar** – Kreuzungen sind dann
+    nicht vermieden, sondern unmöglich. Genau das stellt diese Auffaltung her, denn ein
+    Stück kehrt immer an den Punkt zurück, an dem es ausgeschert ist (§12.4): ohne sie
+    fallen alle Anhängsel eines Punktes auf dieselbe Stelle.
+
+    **Wer geblieben ist, steht auf dem Bypass der ersten noch offenen Abzweigung** –
+    einer, nicht mehreren: eine Position ist eine Kante. Ist nichts mehr draussen,
+    trägt ihn die Kante vor dem Modul (Befund 2.1).
+    """
+    stayed = _pick(rows, lambda r: _here_at(r, at, returned=False))
+    targets = _targets_at(at, tally, pending)
+    holds = next((t for t in targets if (at, t) in pending), None)
+
+    for t in targets:
+        fid = fork_id(at, t)
+        g.nodes.append(Node(id=fid, kind=NODE_FORK, at=at))
+        # Die Ankunftskante trägt niemanden: wer hier ist, ist am Abzweigepunkt
+        # vorbei – entweder hinaus oder auf dem Bypass daneben.
+        prev = _link(g, prev, fid, reached, [])
+        g.edges.append(_edge(
+            f"out:{at}:{t}", fid, order_ref(t), EDGE_OUT,
+            tally.out.get((at, t), 0) > 0,
+            _pick(rows, lambda r, tt=t: _away_at(r, at, tt)),
+        ))
+        if (at, t) not in tally.back and (at, t) not in pending:
+            continue  # **gekappte Ausleihe**: es gibt keinen Rückweg, also keinen Punkt
+        jid = join_id(at, t)
+        g.nodes.append(Node(id=jid, kind=NODE_JOIN, at=at))
+        prev = _link(g, prev, jid, reached, stayed if t == holds else [])
+        g.edges.append(_edge(
+            f"back:{at}:{t}", order_ref(t), jid, EDGE_BACK,
+            tally.back.get((at, t), 0) > 0, [],
+        ))
+    return prev
 
 
 def _pick(rows: list["_Row"], where) -> list["_Row"]:
