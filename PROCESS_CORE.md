@@ -658,6 +658,26 @@ einen Nebenauftrag ist keine andere Art Linie, sondern derselbe Strang, der abzw
 sie folgt darum derselben Regel. Ob ein Stück zurückkehrt, sagt **ob es die Linie gibt**:
 eine gekappte Ausleihe hat keinen Rückweg, und das Fehlen ist die Aussage.
 
+**Herkunft und Verbleib sind Äste desselben Strangs** (§6). Über dem Start und unter dem
+Ende steht, aus welchen Aufträgen die Einzelinstanzen kamen und wohin sie gingen — nicht
+als Textzeile neben dem Bild, sondern als **Verzweigung**: jeder Nachbar fällt auf eine
+gemeinsame Waagrechte und läuft von dort in das Start- bzw. aus dem Ende-Objekt. Ein
+**Bus**, kein Bündel: die Äste treffen sich auf einer Linie und teilen sich danach den
+Weg, wie in jedem Stammbaum — das ist die Zusammenführung selbst und darum keine
+Überlagerung im Sinne von §8.1a″. Möglich ist es nur, weil die Zeile **nicht umbricht**
+(sonst fiele ein Ast der oberen Reihe durch die untere) und weil sie **gekappt** ist
+(`JOURNEY_LIMIT`, der Rest gezählt).
+
+**Gruppiert nach Nachbar, nicht je Stück** — eine Verzweigung mit Anzahl. Bei drei
+Instanzen sieht man dasselbe wie bei 5000; wer die Nummern braucht, öffnet den Nachbarn,
+und dort ist er die Mitte. **Zwei Ebenen, mehr nicht**: Rekursion im Bild wäre Tiefe ohne
+Grenze. Die eine Herkunft, die nicht im Log steht, ist die **Entstehung** — ein
+Erzeugungsauftrag hat keinen Vorgänger, seine Stücke entstehen bei der Freigabe; sie
+stehen als eigener Ast «N× ⟨Artikel⟩». Beide zusammen decken **jedes** Stück ab (gegen
+echtes PostgreSQL gemessen: Erzeugung · Lagerzugriff · zwei Vorgänger · Abweichung), und
+genau darum ist der frühere Definitions-Container entfallen: er sagte ein zweites Mal,
+was am Baum steht.
+
 **Auch im Entwurf** (§5): dort ist der geplante Rückweg ein Knoten unter dem Ende, und
 die Linie dorthin gibt es nur, wenn zurückgeführt wird — ein Klick auf das Ziel schaltet
 sie an und aus. Der Knoten **bleibt**, wenn die Linie geht (sonst wäre die Entscheidung

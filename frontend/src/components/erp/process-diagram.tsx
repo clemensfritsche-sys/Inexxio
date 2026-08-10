@@ -2,12 +2,12 @@
 
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
-  Blocks, ChevronDown, ChevronUp, CornerDownRight, CornerRightDown, CornerUpLeft, Flag,
-  GitBranch, GripVertical, Lock, Play, Trash2,
+  Blocks, ChevronDown, ChevronUp, CornerUpLeft, Flag, GitBranch, GripVertical, Lock,
+  MoreHorizontal, Play, Sprout, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
 import {
-  FLOW_GAP, FlowFrame, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
+  BEND, FLOW_GAP, FlowFrame, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
 } from './process-flow';
 import { UnitNumber } from './unit-number';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
@@ -172,6 +172,77 @@ export function rowOfNode(rows: ColumnRow[], nodeId: string): number {
 }
 
 /**
+ * **Woher die Stücke kamen, ohne dass sie ein Auftrag hergibt.**
+ *
+ * Ein Erzeugungsauftrag hat keinen Vorgänger – seine Stücke entstehen bei der Freigabe.
+ * Das ist die einzige Herkunft, die nicht im Log steht, weil es davor nichts gab.
+ */
+export interface JourneyOrigin {
+  label: string;
+  count: number;
+}
+
+/** Wie viele Nachbarn eine Journey-Zeile **vollständig** zeigt (wie `RELATED_LIMIT`). */
+export const JOURNEY_LIMIT = 3;
+
+const journeyId = (where: 'in' | 'out', key: string | number) => `j:${where}:${key}`;
+
+/**
+ * Die Schlüssel der Äste einer Journey-Zeile — **dieselbe Liste, die sie rendert**.
+ *
+ * Die Zeile zeigt die Nachbarn und der Linien-Layer verbindet sie; zwei Listen dafür
+ * hiessen, dass ein Ast ohne Chip oder ein Chip ohne Ast entstehen kann. Genau diese
+ * Klasse Fehler hat den Abzweigepunkt ohne Nachbarn erzeugt.
+ */
+/** Gibt es die Herkunfts-Zeile? — **die** Bedingung, nicht eine je Aufrufer. */
+export const hasJourney = (stops: JourneyStop[], origins: JourneyOrigin[] = []) =>
+  stops.length > 0 || origins.length > 0;
+
+export function journeyKeys(stops: JourneyStop[],
+                            origins: JourneyOrigin[] = []): Array<string | number> {
+  return [
+    ...origins.map((_, i) => `new:${i}`),
+    ...stops.slice(0, JOURNEY_LIMIT).map((s) => s.object_id),
+  ];
+}
+
+/**
+ * **Der Herkunfts-/Verbleibsbaum — dieselbe Linie, nur verzweigt.**
+ *
+ * Oben und unten am Prozess steht, aus welchen Aufträgen die Einzelinstanzen kamen und
+ * wohin sie gingen. Das war eine Textzeile neben dem Bild; jetzt ist es ein **Ast** am
+ * selben Strang: jeder Nachbar fällt auf einen gemeinsamen Bus und läuft von dort in
+ * das Start- bzw. aus dem Ende-Objekt.
+ *
+ * **Gruppiert, nicht aufgezählt** — je Nachbar eine Verzweigung mit Anzahl, nicht je
+ * Stück eine Linie. Bei drei Instanzen sieht man dasselbe wie bei 5000; wer die Nummern
+ * braucht, öffnet den Nachbarn, und dort ist er die Mitte. Zwei Ebenen, mehr nicht:
+ * Rekursion im Bild wäre Tiefe ohne Grenze.
+ *
+ * **Ein Bus, kein Bündel.** Alle Äste treffen sich auf **einer** Waagrechten und teilen
+ * sich danach den Weg in den Knoten – wie in jedem Stammbaum. Das ist keine Überlagerung
+ * zweier Aussagen (§8.1a″), sondern die Zusammenführung selbst; darum brauchen sie auch
+ * keine eigenen Kanäle. Möglich ist das nur, weil die Zeile **nicht umbricht**: sonst
+ * fiele ein Ast der oberen Reihe durch die untere.
+ */
+function fanPaths(anchors: Record<string, FlowAnchor>, prefix: string,
+                  where: 'in' | 'out', keys: Array<string | number>): string[] {
+  const at = (id: string) => anchors[`${prefix}${id}`];
+  // Unten hängt der Baum an der Pille der angekommenen Stücke, wenn es sie gibt – sonst
+  // am Ende-Objekt. Beides ist «das Letzte auf der Achse»; welches, sagt das Bild.
+  const trunk = where === 'in' ? at('start') : (at('on:edge:end:done') ?? at('end'));
+  if (!trunk) return [];
+  const bus = where === 'in' ? trunk.top - BEND : trunk.bottom + BEND;
+  return keys.flatMap((k) => {
+    const c = at(journeyId(where, k));
+    if (!c) return [];
+    return [where === 'in'
+      ? polyPath([[c.cx, c.bottom], [c.cx, bus], [trunk.cx, bus], [trunk.cx, trunk.top]])
+      : polyPath([[trunk.cx, trunk.bottom], [trunk.cx, bus], [c.cx, bus], [c.cx, c.top]])];
+  });
+}
+
+/**
  * Die Achsenkanten – alles, was innerhalb einer Spalte zu zeichnen ist.
  *
  * **Auch die Kante hinter dem Ende** (``to = null``). Sie hat keinen nächsten Knoten,
@@ -209,7 +280,7 @@ export const PROCESS_MAXW = LANE.MID_MAX;
 export function ProcessDiagram({
   mode, steps, graph, activeStepId = null, expandedStepId = null, endStatus,
   head, tail, onDelete, renderStep, onExpand, tone, onReorder, dragging, onDragState,
-  journeyIn = [], journeyOut = [], back = [], onToggleReturn,
+  journeyIn = [], journeyOut = [], back = [], onToggleReturn, origins = [],
 }: {
   mode: DiagramMode;
   steps: DiagramStep[];
@@ -242,12 +313,17 @@ export function ProcessDiagram({
   /** Nur im Entwurf: die geplanten Rückführungen (§5). */
   back?: ReturnLink[];
   onToggleReturn?: (key: number) => void;
+  /** **Hier entstandene** Stücke – der Ast ohne Vorgänger. */
+  origins?: JourneyOrigin[];
 }) {
   const g = useMemo(() => graph ?? definitionGraph(steps, back), [graph, steps, back]);
 
   return (
     <div className="mx-auto w-full" style={{ maxWidth: PROCESS_MAXW }}>
-      <FlowFrame lines={(a) => <Axis edges={axisEdges(g)} anchors={a} />}>
+      <FlowFrame lines={(a) => (
+        <Axis edges={axisEdges(g)} anchors={a}
+          journeyIn={journeyKeys(journeyIn, origins)} journeyOut={journeyKeys(journeyOut)} />
+      )}>
         {() => (
           <FlowColumn
             graph={g} steps={steps} mode={mode} activeStepId={activeStepId}
@@ -255,7 +331,7 @@ export function ProcessDiagram({
             endStatus={endStatus} head={head} tail={tail} onDelete={onDelete}
             renderStep={renderStep} onExpand={onExpand} tone={tone} onReorder={onReorder}
             dragging={dragging} onDragState={onDragState}
-            journeyIn={journeyIn} journeyOut={journeyOut}
+            journeyIn={journeyIn} journeyOut={journeyOut} origins={origins}
             back={back} onToggleReturn={onToggleReturn}
           />
         )}
@@ -275,7 +351,7 @@ export function FlowColumn({
   head, tail, onDelete,
   renderStep, onExpand, tone, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
-  containerStyle, rowStyle, back = [], onToggleReturn,
+  containerStyle, rowStyle, back = [], onToggleReturn, origins = [],
 }: {
   /** **Das Bild dieser Spalte** – vom Server, nicht hier abgeleitet. */
   graph: ProcessGraph;
@@ -321,11 +397,18 @@ export function FlowColumn({
   /** Nur im Entwurf: die geplanten Rückführungen (§5) – Schalter und Linie zugleich. */
   back?: ReturnLink[];
   onToggleReturn?: (key: number) => void;
+  /** **Hier entstandene** Stücke – die eine Herkunft, die nicht im Log steht. */
+  origins?: JourneyOrigin[];
 }) {
   const running = mode === 'ausfuehrung';
+  // **Eine Bedingung, eine Zeile.** Ob es die Herkunfts-Zeile gibt, entscheidet
+  // dieselbe Frage wie im Raster daneben (`ProcessColumns.mid.rows`): kommt etwas aus
+  // einem Auftrag ODER entsteht etwas hier. Zwei Formulierungen davon hiessen: das
+  // Raster zählt eine Zeile, die Spalte rendert sie nicht – und alles darunter sitzt
+  // eine Zeile daneben.
   const rows = columnRows(graph, {
     head: !!head, tail: !!tail,
-    journeyIn: journeyIn.length > 0, journeyOut: journeyOut.length > 0,
+    journeyIn: hasJourney(journeyIn, origins), journeyOut: journeyOut.length > 0,
   });
   const byId = new Map(steps.map((s) => [s.id, s]));
   const place = (i: number, extra?: CSSProperties): CSSProperties => ({
@@ -346,8 +429,14 @@ export function FlowColumn({
         if ('slot' in row) {
           const body = row.slot === 'head' ? head
             : row.slot === 'tail' ? tail
-              : <JourneyRow where={row.slot === 'journey-in' ? 'in' : 'out'}
-                  stops={row.slot === 'journey-in' ? journeyIn : journeyOut} />;
+              : <JourneyRow
+                  where={row.slot === 'journey-in' ? 'in' : 'out'}
+                  stops={(row.slot === 'journey-in' ? journeyIn : journeyOut)
+                    .slice(0, JOURNEY_LIMIT)}
+                  origins={row.slot === 'journey-in' ? origins : []}
+                  rest={Math.max(0, (row.slot === 'journey-in' ? journeyIn : journeyOut).length
+                    - JOURNEY_LIMIT)}
+                  prefix={prefix} />;
           return (
             <FlowNode key={row.key} id={`${prefix}${row.key}`}
               style={place(i, { width: '100%' })}>{body}</FlowNode>
@@ -532,11 +621,23 @@ function Problems({ list }: { list: string[] }) {
  * war genau die Ableitung, die aus dem *aktuellen* Zustand kam – und darum verschwand,
  * sobald an einer Stelle nichts mehr stand.
  */
-export function Axis({ edges, anchors, prefix = '' }: {
+export function Axis({ edges, anchors, prefix = '', journeyIn = [], journeyOut = [] }: {
   edges: GraphEdge[]; anchors: Record<string, FlowAnchor>; prefix?: string;
+  /** Die Äste des Herkunfts-/Verbleibsbaums – Schlüssel, keine Geometrie. */
+  journeyIn?: Array<string | number>;
+  journeyOut?: Array<string | number>;
 }) {
   return (
     <>
+      {fanPaths(anchors, prefix, 'in', journeyIn).map((d, i) => (
+        // **Gegangen**: die Stücke sind von dort gekommen bzw. dorthin gegangen. Ein
+        // Ast, der nicht passiert ist, existiert nicht – die Journey kennt nur, was im
+        // Log steht.
+        <Stroke key={`fan-in-${i}`} d={d} walked />
+      ))}
+      {fanPaths(anchors, prefix, 'out', journeyOut).map((d, i) => (
+        <Stroke key={`fan-out-${i}`} d={d} walked />
+      ))}
       {edges.map((e) => {
         const A = anchors[`${prefix}${e.frm}`];
         // Ohne nächsten Knoten führt die Kante zu der Zeile, die ihre Stücke trägt
@@ -589,32 +690,58 @@ export function Stroke({ d, walked }: { d: string; walked: boolean }) {
  * Gibt es keinen Nachbarn, steht hier **nichts**: der Knoten entsteht gar nicht erst.
  * Ein Platzhalter «kein Vorgänger» wäre eine Zeile, die nichts sagt.
  */
-function JourneyRow({ where, stops }: { where: 'in' | 'out'; stops: JourneyStop[] }) {
+function JourneyRow({ where, stops, origins, prefix, rest }: {
+  where: 'in' | 'out';
+  stops: JourneyStop[];
+  /** Nur oben: die **hier entstandenen** Stücke – sie haben keinen Vorgänger. */
+  origins: JourneyOrigin[];
+  prefix: string;
+  /** Wie viele Nachbarn nicht gezeigt werden. Gekappt, aber nicht verschwiegen. */
+  rest: number;
+}) {
   // Der Sprung zum Nachbarn läuft über die **bestehende** Navigation (`ErpNavContext`) –
   // dieselbe, mit der jede Objektnummer im ERP ihren Datensatz öffnet. Ein eigener
   // Handler wäre ein zweiter Weg zur selben Sache.
   const nav = useErpNav();
-  const Icon = where === 'in' ? CornerDownRight : CornerRightDown;
   return (
-    <div className="flex flex-wrap items-center justify-center gap-1.5">
-      <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: 'var(--fg-4)' }}>
-        <Icon size={12} />
-        {where === 'in' ? 'aus' : 'weiter nach'}
-      </span>
-      {stops.map((j) => (
-        <button
-          key={j.object_id}
-          type="button"
-          onClick={nav ? () => nav(j.object_id) : undefined}
-          disabled={!nav}
-          className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full"
-          style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'var(--fg-3)' }}
-          data-tip={`${j.name} – ${j.unit_count} Stück`}
-        >
-          <span className="ix-tnum">{formatObjectId(j.object_id)}</span>
-          <span style={{ color: 'var(--fg-4)' }}>· {j.unit_count}</span>
-        </button>
+    <div className="flex items-start justify-center gap-1.5" style={{ flexWrap: 'nowrap' }}>
+      {origins.map((o, i) => (
+        <FlowNode key={`new-${i}`} id={`${prefix}${journeyId(where, `new:${i}`)}`}>
+          <span
+            className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full"
+            style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)',
+                     color: 'var(--fg-3)', whiteSpace: 'nowrap' }}
+            data-tip={`${o.count}× ${o.label} entstehen in diesem Auftrag – kein Vorgänger`}
+          >
+            <Sprout size={11} style={{ color: 'var(--fg-4)' }} />
+            <span className="ix-tnum">{o.count}×</span>
+            <span className="truncate" style={{ maxWidth: 120 }}>{o.label}</span>
+          </span>
+        </FlowNode>
       ))}
+      {stops.map((j) => (
+        <FlowNode key={j.object_id} id={`${prefix}${journeyId(where, j.object_id)}`}>
+          <button
+            type="button"
+            onClick={nav ? () => nav(j.object_id) : undefined}
+            disabled={!nav}
+            className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full"
+            style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)',
+                     color: 'var(--fg-3)', whiteSpace: 'nowrap' }}
+            data-tip={`${j.name} · ${j.unit_count} Stück – öffnen`}
+          >
+            <span className="ix-tnum">{formatObjectId(j.object_id)}</span>
+            <span style={{ color: 'var(--fg-4)' }}>· {j.unit_count}</span>
+          </button>
+        </FlowNode>
+      ))}
+      {rest > 0 && (
+        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-1"
+          style={{ color: 'var(--fg-4)', whiteSpace: 'nowrap' }}
+          data-tip="Weitere Nachbarn – sie stehen im jeweiligen Auftrag">
+          <MoreHorizontal size={12} /> {rest}
+        </span>
+      )}
     </div>
   );
 }

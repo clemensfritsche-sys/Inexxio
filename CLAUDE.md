@@ -99,6 +99,15 @@
 > wenn die Linie geht, sonst wäre die Entscheidung einmalig. Mehrere Quellen stehen als
 > Ziele in EINER Zeile – je Quelle ein eigener Knoten untereinander hiesse, die Linie zum
 > zweiten liefe durch den ersten.
+> **Herkunft und Verbleib sind ÄSTE desselben Strangs** (PROCESS_CORE §8.1a, §6): über dem
+> Start und unter dem Ende verzweigt die Linie zu den Nachbar-Aufträgen – je Nachbar ein
+> Ast mit Anzahl, alle auf **einer** Waagrechten zusammengeführt (ein Bus wie im Stammbaum,
+> darum keine Überlagerung); die Zeile bricht nie um und ist gekappt (`JOURNEY_LIMIT`,
+> Rest gezählt). **Gruppiert statt aufgezählt** – bei 3 wie bei 5000 Stück dasselbe Bild;
+> wer die Nummern braucht, öffnet den Nachbarn, und dort ist er die Mitte (zwei Ebenen,
+> keine Rekursion). Die eine Herkunft ohne Log-Eintrag ist die **Entstehung** («3× Blech»),
+> denn ein Erzeugungsauftrag hat keinen Vorgänger; zusammen decken beide jedes Stück ab
+> (gemessen) – deshalb ist der frühere Definitions-Container ersatzlos entfallen.
 > **Freie und gebundene Stücke dürfen im selben Auftrag stehen** (§12.6a) – dafür braucht
 > es keine Regel: die Absicht steht **je Stück** (`UnitPick.from_order`), nicht je Auftrag,
 > und `return_to_order_id` entsteht nur für die geliehenen. Gemessen an den echten

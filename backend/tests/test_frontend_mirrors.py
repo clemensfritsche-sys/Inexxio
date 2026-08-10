@@ -1405,8 +1405,13 @@ def test_no_neighbour_means_nothing_shown():
     pushes = re.findall(r"^\s*(if \(extra\.journey\w+\) rows\.push.*)$", body, re.M)
     assert len(pushes) == 2, f"Erwartet zwei Journey-Zeilen, gefunden {len(pushes)}."
     cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-    assert "journeyIn: inStops.length > 0" in cols, (
+    # Die Bedingung hat **einen** Ort (`hasJourney`), seit die Zeile auch die hier
+    # entstandenen Stücke trägt (§6). Sie bleibt eine Bedingung: leer heisst leer.
+    assert "hasJourney(inStops, origins)" in cols, (
         "Die Journey-Zeile entsteht unbedingt – bei leerer Liste stünde eine leere Zeile."
+    )
+    assert "stops.length > 0 || origins.length > 0" in diagram, (
+        "«Gibt es die Zeile» ist keine Bedingung mehr, sondern eine Behauptung."
     )
     assert "useErpNav" in diagram, (
         "Der Verweis ist nicht anklickbar – oder er benutzt eine zweite Navigation."

@@ -7,8 +7,8 @@ import {
   type FlowAnchor, type FlowMetrics,
 } from './process-flow';
 import {
-  Axis, FlowColumn, PROCESS_MAXW, Stroke, axisEdges, columnRows, rowOfNode,
-  type ColumnRow, type DiagramStep, type UnitChip,
+  Axis, FlowColumn, PROCESS_MAXW, Stroke, axisEdges, columnRows, hasJourney, journeyKeys, rowOfNode,
+  type ColumnRow, type DiagramStep, type JourneyOrigin, type UnitChip,
 } from './process-diagram';
 import { useErpNav } from './obj-id';
 import { formatObjectId } from '@/lib/utils';
@@ -145,7 +145,7 @@ interface Wires {
 }
 
 export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviateBlocked,
-  journeyIn, journeyOut }: {
+  journeyIn, journeyOut, origins = [] }: {
   order: Order;
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
   onExpand?: (edgeId: string) => Promise<UnitChip[]>;
@@ -155,6 +155,8 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
   deviateBlocked?: string;
   journeyIn: JourneyStop[];
   journeyOut: JourneyStop[];
+  /** **Hier entstandene** Stücke – der Ast des Baums ohne Vorgänger. */
+  origins?: JourneyOrigin[];
 }) {
   const steps = useSteps(order.steps ?? []);
   // **Eine Sache, eine Stelle.** Ein Auftrag, der schon als Spalte danebensteht, ist
@@ -174,10 +176,10 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
     return {
       prefix: '', objectId: order.object_id, graph, steps, side: 'mid',
       rows: columnRows(graph, {
-        journeyIn: inStops.length > 0, journeyOut: outStops.length > 0,
+        journeyIn: hasJourney(inStops, origins), journeyOut: outStops.length > 0,
       }),
     };
-  }, [order.flow, order.object_id, steps, inStops.length, outStops.length]);
+  }, [order.flow, order.object_id, steps, inStops.length, outStops.length, origins.length]);
 
   const left = useMemo(() => (order.parents ?? []).map((r) => side(r, 'left')), [order.parents]);
   const right = useMemo(
@@ -242,7 +244,10 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
   return (
     <FlowFrame
       gutter={gutter}
-      lines={(a, _size, m) => <Wiring columns={columns} anchors={a} metrics={m} wires={wires} />}
+      lines={(a, _size, m) => (
+        <Wiring columns={columns} anchors={a} metrics={m} wires={wires}
+          journeyIn={journeyKeys(inStops, origins)} journeyOut={journeyKeys(outStops)} />
+      )}
     >
       {(m) => {
         const column = (rowStyle?: (i: number) => CSSProperties) => (
@@ -254,7 +259,7 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
             endStatus={order.end_status}
             renderStep={renderStep} onExpand={onExpand} onDeviate={onDeviate}
             deviateBlocked={deviateBlocked}
-            journeyIn={inStops} journeyOut={outStops}
+            journeyIn={inStops} journeyOut={outStops} origins={origins}
             containerStyle={rowStyle ? { display: 'contents' } : undefined}
             rowStyle={rowStyle}
           />
@@ -405,12 +410,15 @@ function Rest({ total, shown }: { total: number; shown: number }) {
  * denen er zu tun hatte – die meisten davon stehen hier nicht. Keine Seite muss darum
  * wissen, welche Spalten gerade sichtbar sind.
  */
-function Wiring({ columns, anchors, metrics, wires }: {
+function Wiring({ columns, anchors, metrics, wires, journeyIn, journeyOut }: {
   columns: Column[];
   anchors: Record<string, FlowAnchor>;
   /** Ohne drei Spuren gibt es keine Querlinien – dann stehen die Nachbarn untereinander. */
   metrics: FlowMetrics;
   wires: Wires;
+  /** Die Äste des Herkunfts-/Verbleibsbaums – nur in der Mitte, sie ist der Fokus. */
+  journeyIn: Array<string | number>;
+  journeyOut: Array<string | number>;
 }) {
   const byOrder = new Map(columns.map((c) => [c.objectId, c]));
   const at = (col: Column, ref: string, end: 'start' | 'end'): Hit | null => {
@@ -434,7 +442,9 @@ function Wiring({ columns, anchors, metrics, wires }: {
     <>
       {columns.map((c) => (
         <Axis key={c.prefix || 'mid'} edges={axisEdges(c.graph)}
-          anchors={anchors} prefix={c.prefix} />
+          anchors={anchors} prefix={c.prefix}
+          journeyIn={c.side === 'mid' ? journeyIn : []}
+          journeyOut={c.side === 'mid' ? journeyOut : []} />
       ))}
       {metrics.lanes && columns.flatMap((c) =>
         (c.graph.edges ?? [])

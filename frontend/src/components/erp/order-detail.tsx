@@ -9,7 +9,7 @@ import { localDateTime } from '@/lib/utils';
 import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import {
-  ProcessDiagram, PROCESS_MAXW, type DiagramStep, type ReturnLink,
+  ProcessDiagram, PROCESS_MAXW, type DiagramStep, type JourneyOrigin, type ReturnLink,
 } from '@/components/erp/process-diagram';
 import { ProcessColumns } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
@@ -352,6 +352,17 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
    */
   const [entryStarted, setEntryStarted] = useState(false);
 
+  /**
+   * **Die eine Herkunft, die nicht im Log steht.** Ein Erzeugungsauftrag hat keinen
+   * Vorgänger – seine Stücke entstehen bei der Freigabe. Alles andere kam aus einem
+   * Auftrag und steht darum in `journey_in`; zusammen decken beide jedes Stück ab
+   * (gemessen). Genau deshalb ist der frühere Definitions-Container weg: er sagte ein
+   * zweites Mal, was am Baum steht.
+   */
+  const origins: JourneyOrigin[] = (order.lines ?? [])
+    .filter((ln) => ln.origin === NEU)
+    .map((ln) => ({ label: ln.article_name ?? 'Artikel', count: ln.quantity }));
+
   const expand = useCallback(async (edgeId: string) => {
     const page = await api.getOrderUnits(order.object_id, edgeId, 100, 0);
     return (page.units ?? []).map((u) => ({ number: u.number, startedAt: u.started_at }));
@@ -359,7 +370,6 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
 
   return (
     <>
-      <DefinitionSummary order={order} />
       <ProcessColumns
         order={order}
         onExpand={expand}
@@ -371,6 +381,7 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
           : undefined}
         journeyIn={order.journey_in ?? []}
         journeyOut={order.journey_out ?? []}
+        origins={origins}
         // **Jedes Modul zeigt, was es tut** (Testnotiz #696) – das aktive als Formular,
         // die übrigen als das, was in ihnen definiert ist. Ob die Karte auf- oder
         // zugeklappt startet und ob sie gesperrt ist, entscheidet das Diagramm; hier
@@ -466,26 +477,13 @@ function waitingAt(order: Order, stepId: number): number {
     .reduce((n, u) => n + u.count, 0);
 }
 
-/** Was dieser Auftrag bearbeitet – festgeschrieben bei der Freigabe. */
-function DefinitionSummary({ order }: { order: Order }) {
-  const lines = order.lines ?? [];
-  if (!lines.length) return null;
-  return (
-    <div className="rounded-ds-lg mb-3 mx-auto"
-      style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)',
-               padding: 12, maxWidth: PROCESS_MAXW }}>
-      {lines.map((ln) => (
-        <div key={ln.id} className="flex flex-wrap items-center gap-x-2 text-xs py-0.5">
-          <span className="ix-tnum" style={{ minWidth: 34 }}>{ln.quantity}×</span>
-          <span className="flex-1 truncate">{ln.article_name}</span>
-          <span style={{ color: 'var(--fg-3)' }}>
-            {ln.origin === NEU ? 'neu erzeugt' : 'ab Lager'}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
+/*
+ * **Der Definitions-Container ist entfallen** (Punkt 6). Er sagte «3× Blech, neu
+ * erzeugt» — dieselbe Auskunft, die jetzt oben am Baum steht: was hier entstanden ist,
+ * als eigener Ast; was aus einem Auftrag kam, als Ast mit dessen Objektnummer. Beides
+ * zusammen deckt jedes Stück ab (gemessen), also war es eine zweite Anzeige derselben
+ * Sache — und die läuft irgendwann der ersten davon.
+ */
 
 /**
  * Die Historie. **Append-only** – es gibt keinen Bearbeiten- und keinen Löschen-Knopf,

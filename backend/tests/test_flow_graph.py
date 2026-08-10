@@ -720,6 +720,54 @@ def test_the_planned_return_is_the_line_itself():
         )
 
 
+def test_the_journey_is_a_tree_on_the_same_line():
+    """**Herkunft und Verbleib hängen am Strang, nicht daneben** (Auftrag §6).
+
+    Oben und unten stand eine Textzeile mit den Nachbar-Aufträgen, und **daneben** ein
+    Container mit der Definition («3× Blech, neu erzeugt»). Zwei Anzeigen derselben
+    Sache: jedes Stück kam entweder aus einem Auftrag (steht in ``journey_in``) oder ist
+    hier entstanden (steht als ``neu``-Zeile) – gegen echtes PostgreSQL gemessen, über
+    Erzeugung, Lagerzugriff, zwei Vorgänger und Abweichung.
+
+    Geblieben ist **ein** Baum am selben Strang. Drei Eigenschaften tragen ihn:
+
+    * **Eine Bedingung** dafür, ob es die Zeile gibt (``hasJourney``) – das Raster mit
+      drei Spuren und die Spalte darin zählen sonst verschiedene Zeilen, und alles
+      darunter sitzt eine daneben.
+    * **Eine Liste** für Chips und Äste (``journeyKeys``) – sonst entsteht ein Ast ohne
+      Chip oder ein Chip ohne Ast. Genau diese Klasse Fehler war Befund 2.
+    * **Gruppiert, gekappt, nicht verschwiegen**: je Nachbar eine Verzweigung mit Anzahl,
+      höchstens ``JOURNEY_LIMIT``, der Rest gezählt. Bei 5000 Stück sieht man dasselbe
+      wie bei drei.
+    """
+    diagram = _read(FRONTEND / "components/erp/process-diagram.tsx")
+    cols = _read(FRONTEND / "components/erp/process-columns.tsx")
+    detail = _read(FRONTEND / "components/erp/order-detail.tsx")
+
+    assert "export const hasJourney" in diagram, (
+        "Die Bedingung für die Herkunfts-Zeile hat keinen Ort mehr."
+    )
+    assert diagram.count("journeyIn: hasJourney(") == 1 and "hasJourney(inStops" in cols, (
+        "Raster und Spalte entscheiden wieder verschieden, ob es die Zeile gibt."
+    )
+    assert "export function journeyKeys" in diagram, "Die Ast-Schlüssel sind keine Liste mehr."
+    assert "journeyKeys(inStops, origins)" in cols and "journeyKeys(journeyIn, origins)" in diagram, (
+        "Chips und Äste kommen nicht mehr aus derselben Liste – dann gibt es Chips ohne "
+        "Linie oder Linien ohne Chip."
+    )
+    assert "slice(0, JOURNEY_LIMIT)" in diagram and "rest=" in diagram, (
+        "Die Journey ist nicht mehr gekappt oder sagt es nicht – eine stumme Liste sähe "
+        "aus wie alles."
+    )
+    assert "flexWrap: 'nowrap'" in diagram, (
+        "Die Journey-Zeile bricht um – dann fällt ein Ast der oberen Reihe durch die "
+        "untere (§4)."
+    )
+    assert "DefinitionSummary" not in detail, (
+        "Der Definitions-Container ist zurück – er sagt ein zweites Mal, was am Baum steht."
+    )
+
+
 def test_the_count_and_the_list_ask_the_same_position():
     """**Zähler und Aufklappen fragen dieselbe Stelle** (Befund 2.1).
 
