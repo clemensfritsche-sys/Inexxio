@@ -732,14 +732,12 @@ def test_large_quantities_are_counted_not_listed():
     Deckel der Historie wird ausgewiesen: eine stumm gekappte Liste sähe aus wie die
     ganze Wahrheit.
     """
-    svc = _read(BACKEND / "app" / "services" / "process.py")
-    assert "def unit_groups(" in svc and "func.count(" in svc, (
-        "Die Gruppen werden nicht gezählt, sondern aufgelistet."
-    )
+    svc = _read(BACKEND / "app" / "services" / "flow.py")
+    assert "func.count(" in svc, "Die Gruppen werden nicht gezählt, sondern aufgelistet."
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
-    assert "class UnitGroup(" in schema and "event_count" in schema
+    assert "class FlowUnits(" in schema and "event_count" in schema
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
-    assert "DiagramGroup" in diagram and "g.count" in diagram
+    assert "GraphUnits" in diagram and "g.count" in diagram
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
     assert "von {total} Einträgen" in detail, "Der Deckel der Historie wird verschwiegen."
 
@@ -1138,11 +1136,11 @@ def test_the_palette_stands_where_the_next_module_would_go():
     Mengeneinheit am Artikel (`IconSwitch labelActiveOnly`), nicht etwas Neues.
     """
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
-    body = _body(diagram, "flowNodes", kind="function")
-    # Der Palettenknoten steht zwischen letztem Modul und Ende.
-    order = [body.index("kind: 'step', step"), body.index("p('tail')"), body.index("p('end')")]
-    assert order == sorted(order), (
-        "Die Palette steht nicht zwischen dem letzten Modul und dem Ende."
+    body = _body(diagram, "columnRows", kind="export function")
+    # Der Palettenknoten wird **vor** dem Ende-Knoten eingeschoben – nicht danach und
+    # nicht am Listenende, wo er hinter der Zielflagge stünde.
+    assert "if (extra.tail && n.kind === 'end') rows.push" in body, (
+        "Die Palette steht nicht unmittelbar vor dem Ende-Objekt."
     )
     designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
     assert "ix-palette" in designer and "ix-palette-name" in designer
@@ -1403,13 +1401,13 @@ def test_the_journey_scales_by_grouping_not_by_listing():
 def test_no_neighbour_means_nothing_shown():
     """Kein Vorgänger/Nachfolger → **nichts**, kein Platzhalter mit Fantasiedaten."""
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
-    pushes = re.findall(r"^\s*(.*out\.push\(\{ id: p\('journey-\w+'\).*)$", diagram, re.M)
-    assert len(pushes) == 2, f"Erwartet zwei Journey-Knoten, gefunden {len(pushes)}."
-    for line in pushes:
-        assert re.match(r"if \(journey(In|Out)\) ", line.strip()), (
-            f"Der Journey-Knoten entsteht unbedingt – bei leerer Liste stünde eine "
-            f"leere Zeile: «{line.strip()}»"
-        )
+    body = _body(diagram, "columnRows", kind="export function")
+    pushes = re.findall(r"^\s*(if \(extra\.journey\w+\) rows\.push.*)$", body, re.M)
+    assert len(pushes) == 2, f"Erwartet zwei Journey-Zeilen, gefunden {len(pushes)}."
+    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
+    assert "journeyIn: inStops.length > 0" in cols, (
+        "Die Journey-Zeile entsteht unbedingt – bei leerer Liste stünde eine leere Zeile."
+    )
     assert "useErpNav" in diagram, (
         "Der Verweis ist nicht anklickbar – oder er benutzt eine zweite Navigation."
     )
@@ -1639,14 +1637,17 @@ def test_the_neighbours_are_drawn_with_the_same_component():
         "Mehrere Rahmen – dann haben die Spalten verschiedene Nullpunkte und die "
         "Verbindungslinie lässt sich nicht zeichnen."
     )
-    assert "function Detour(" in flow, "Es gibt keine Linie zwischen den Spalten."
-    assert "function Inflow(" in flow, (
-        "Der übergeordnete Auftrag hängt an keiner Linie – dann steht er nur daneben."
+    assert "function Cross(" in flow, "Es gibt keine Linie zwischen den Spalten."
+    # **Eine** Stelle für beide Richtungen: hinaus in eine Abweichung und herein aus dem
+    # übergeordneten Auftrag sind dieselbe Verbindung, von zwei Seiten gelesen. Zwei
+    # Zeichenfunktionen dafür waren zwei Geometrien, die auseinanderlaufen konnten.
+    assert "function Inflow(" not in flow and "function Detour(" not in flow, (
+        "Die Querverbindung wird wieder an zwei Stellen gezeichnet."
     )
     # Und der Server liefert dafür dieselben Felder wie für die Mitte.
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
     related = schema.split("class RelatedOrder")[1].split("class ")[0]
-    for field in ("steps", "unit_groups", "active_step_id", "end_status"):
+    for field in ("steps", "flow", "active_step_id", "end_status"):
         assert field in related, f"«{field}» fehlt – der Nachbar kann nicht gerendert werden."
 
 
@@ -1727,30 +1728,30 @@ def test_a_branch_hangs_on_a_state_point_not_on_a_module():
     Modul («gibt es den Zustandsknoten nicht, nimm das Modul») war genau der gemeldete
     Fehler – und er ist ersatzlos weg: den Punkt gibt es immer, wo eine Abzweigung ansetzt.
     """
-    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
-    assert "export function statePointId(" in diagram, "Der Zustandspunkt hat keine Identität."
-    assert "branchPoints" in diagram, (
-        "Ein Punkt entsteht nur, wenn dort etwas steht – dann fehlt er, sobald das Stück "
-        "zurück und weitergezogen ist."
+    # **Der Abzweigepunkt ist ein eigener Knoten** – und der Rückführpunkt auch. Solange
+    # es einer war, standen das gebliebene und das zurückgekehrte Stück an derselben
+    # Stelle im Bild, und man sah der Zeichnung die Runde nicht an.
+    svc = _read(BACKEND / "app" / "services" / "flow.py")
+    assert 'NODE_FORK = "fork"' in svc and 'NODE_JOIN = "join"' in svc, (
+        "Abzweige- und Rückführpunkt sind keine Knoten – dann gibt es die Stelle nicht, "
+        "an der die Linie ansetzt."
+    )
+    assert "def fork_id(" in svc and "def join_id(" in svc, (
+        "Die Kennung des Punktes wird nicht berechnet – beim Suchen war das Modul der "
+        "Rückfall, und genau das war der gemeldete Fehler."
     )
 
     cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
     assert "resolveAnchor" not in cols, (
         "Der Anker wird gesucht statt berechnet – und beim Suchen war das Modul der Rückfall."
     )
-    assert "statePointId(b.at_step_id ?? null)" in cols, (
-        "Die Abzweigung hängt nicht am Zustandspunkt."
-    )
-    branch = _body(cols, "Detour", kind="function")
-    assert "s.points.map(" in branch, (
-        "Nur EIN Anker je Nachbar – ein Auftrag kann an mehreren Stellen zugegriffen haben."
-    )
-    # **Und der Nachbar steht in der ZEILE seines Punktes.** Nur dadurch ist die
-    # Verbindung kurz: die Zeile wächst auf seine Höhe, die Hauptachse wächst mit, und
-    # es entsteht das Bild, das die Sache ist – Teilung, zwei Wege, Zusammenfluss.
-    assert "gridRow: rowOf(c.anchor)" in cols, (
-        "Der Nachbar steht nicht in der Zeile seines Zustandspunkts – dann muss die "
-        "Linie wieder quer über das halbe Bild laufen."
+    # **Und der Nachbar spannt von der Zeile seines fork bis zu der seines join.** Nur
+    # dadurch bleibt die Verbindung kurz: die Zeilen wachsen auf seine Höhe, die
+    # Hauptachse wächst mit, und es entsteht das Bild, das die Sache ist – Teilung, zwei
+    # Wege, Zusammenfluss.
+    assert "rowOfNode(mid.rows, e.frm)" in cols and "rowOfNode(mid.rows, e.to ?? '')" in cols, (
+        "Der Nachbar steht nicht in den Zeilen seiner Punkte – dann muss die Linie "
+        "wieder quer über das halbe Bild laufen."
     )
 
     # Serverseitig: je Zustandspunkt eine Zeile, nicht ein geratenes Minimum.
@@ -1760,8 +1761,21 @@ def test_a_branch_hangs_on_a_state_point_not_on_a_module():
         "Stelle, an der nichts passiert ist."
     )
     assert "group_by(sub.c.oid, sub.c.step_id)" in svc, "Es wird nicht je Punkt gezählt."
+    # Der Graph zählt **je Punkt UND Nachbar**: derselbe Auftrag kann an zwei Stellen
+    # zugegriffen haben. Ein Einzelwert hätte sich für eine entschieden und die andere
+    # verschwiegen – und die Linie zeigte dann auf eine Stelle, an der nichts passiert ist.
+    flow = _read(BACKEND / "app" / "services" / "flow.py")
+    assert "out: dict[tuple[Optional[int], int], int]" in flow, (
+        "Die Abzweigungen werden nicht je Zustandspunkt und Ziel gezählt."
+    )
+    assert 'f"out:{at}:{target}"' in flow and 'f"back:{at}:{source}"' in flow, (
+        "Eine Querverbindung nennt ihren Punkt nicht – dann ist sie nicht verortbar."
+    )
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
-    assert "class BranchPoint(" in schema and "at_step_id" in schema
+    assert "class BranchPoint(" not in schema, (
+        "Der Zustandspunkt steht wieder neben dem Graph statt in ihm – zwei Wahrheiten "
+        "darüber, wo eine Abzweigung ansetzt."
+    )
     assert "origin_step_id" not in schema, "Der Einzelwert steht noch da."
 
 
@@ -2053,7 +2067,9 @@ def test_the_process_picture_has_one_line_system():
     Vorher waren es drei Farben (Achse gegangen · Achse offen · Abzweigung) und zwei
     Linientypen (durchgezogen · gestrichelt) – vier Zeichen für zwei Aussagen.
     """
-    code = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
+    files = [_code(_read(FRONTEND / "components" / "erp" / f))
+             for f in ("process-columns.tsx", "process-diagram.tsx", "process-flow.tsx")]
+    code = "\n".join(files)
     assert "strokeDasharray" not in code, (
         "Im Prozessbild ist wieder eine gestrichelte Linie – das Fehlen einer Linie IST "
         "die Aussage «kommt nicht zurück»."
@@ -2065,11 +2081,19 @@ def test_the_process_picture_has_one_line_system():
         f"Das Prozessbild benutzt weitere Linienfarben: {sorted(used)}. Farbe an einer "
         f"Prozesslinie ist keine freie Entscheidung – gegangen und ausstehend, sonst nichts."
     )
-    # Und es gibt genau EINE Stelle, die eine Linie zeichnet.
+    # **Genau EIN Bauteil zeichnet, und genau EIN Generator formt.** Achse, Ausscherung
+    # und Rückführung sind derselbe Strang; drei Zeichenstellen wären drei Gelegenheiten,
+    # sich anders zu entscheiden – und genau daraus entstanden die Abweichungen im Bild.
     assert code.count("<path") == 1, (
-        "Es gibt mehr als eine Stelle, die eine Prozesslinie zeichnet – dann kann sich "
-        "eine davon anders entscheiden."
+        "Es gibt mehr als eine Stelle, die eine Prozesslinie zeichnet."
     )
+    assert code.count("export function polyPath(") == 1 and code.count(" d={polyPath(") >= 1, (
+        "Es gibt mehr als einen Pfad-Generator."
+    )
+    for f in files[:2]:
+        assert " d=\"M" not in f and "d={`M" not in f, (
+            "Ein Pfad wird von Hand geschrieben statt aus dem einen Generator geholt."
+        )
 
 
 def test_the_origin_has_no_state_that_only_a_detour_can_reach():
@@ -2188,16 +2212,22 @@ def test_the_branch_leaves_the_axis_and_the_line_reaches_the_module():
        Abstand dazwischen ist Layout – die Zeile macht Platz für einen Nebenauftrag.
     """
     cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
-    assert "[P.cx, fork]" in cols, "Die Abzweigung beginnt nicht auf der Achse."
-    assert "[P.right, P.cy]" not in cols, (
+    branch = _body(cols, "Cross", kind="function")
+    assert "[here.a.cx, here.a.cy - LEAD]" in branch, (
+        "Die Abzweigung beginnt nicht auf der Achse – sie soll dort mit einer Kurve "
+        "abbiegen wie eine Ausfahrt, nicht mit einem Knick danebenstehen."
+    )
+    assert ".right" not in branch.split("const clear")[0] and "P.right" not in cols, (
         "Die Abzweigung beginnt wieder am Spurrand – sie hängt dann sichtbar an nichts."
     )
+    # **Der Kantenzustand kommt vom Server, das Frontend rechnet ihn nicht.** Die frühere
+    # Zählung «bis zum wievielten Knoten» las den *aktuellen* Zustand – und verschwand
+    # darum, sobald an einer Stelle nichts mehr stand.
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
-    body = _body(diagram, "walkedEdges", kind="export function")
-    assert "last + 1" in body, (
-        "Die kräftige Linie endet wieder VOR dem Modul, das dran ist – und das aktive "
-        "Modul sieht aus, als wäre es nicht erreicht."
+    assert "walkedEdges" not in diagram and "walkedEdges" not in cols, (
+        "Die Linienstärke wird wieder im Browser abgeleitet."
     )
+    assert "walked={e.walked}" in diagram, "Die Kante trägt ihren Zustand nicht selbst."
 
 
 def test_a_neighbour_is_its_process_and_a_lock_needs_no_paragraph():
@@ -2213,7 +2243,7 @@ def test_a_neighbour_is_its_process_and_a_lock_needs_no_paragraph():
     """
     cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
     assert "function SideHead(" not in cols, "Die Kopfkarte über dem Nachbarn steht wieder da."
-    assert "nav(s.rel.object_id)" in cols, (
+    assert "nav(rel.object_id)" in cols, (
         "Die Nachbar-Spalte führt nicht mehr zu ihrem Auftrag – das war das Einzige, was "
         "die Karte konnte und das Bild nicht."
     )

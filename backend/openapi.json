@@ -3654,31 +3654,6 @@
         ],
         "title": "Body_upload_attachment_api_v1_erp_attachments_post"
       },
-      "BranchPoint": {
-        "properties": {
-          "at_step_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "At Step Id"
-          },
-          "unit_count": {
-            "type": "integer",
-            "title": "Unit Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "unit_count"
-        ],
-        "title": "BranchPoint",
-        "description": "**Der Zustandspunkt**, an dem Stücke ausgeschert sind.\n\nEin Zustandspunkt ist die Stelle auf der Prozesslinie, an der ein Stück wartet –\nzwischen zwei Objekten, nicht in einem. Er heisst «**vor** Modul ``at_step_id``»;\n``None`` ist der Punkt nach dem Ende. Das Modul benennt den Punkt, es besitzt ihn\nnicht: die Abzweigung geht **vor** dem Modul von der Linie ab, weil das Stück es zu\ndiesem Zeitpunkt noch gar nicht betreten hatte – und darum durchläuft es das Modul\nnach der Rückkehr regulär."
-      },
       "CapturePointInput": {
         "properties": {
           "label": {
@@ -5163,6 +5138,146 @@
         "title": "FeedbackUpdate",
         "description": "Rückkopplung: erledigt/verworfen setzen (oder wieder öffnen) + Begründung."
       },
+      "FlowEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "frm": {
+            "type": "string",
+            "title": "Frm"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "axis"
+          },
+          "walked": {
+            "type": "boolean",
+            "title": "Walked",
+            "default": false
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/FlowUnits"
+            },
+            "type": "array",
+            "title": "Units"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "frm"
+        ],
+        "title": "FlowEdge",
+        "description": "Eine **Kante** zwischen genau zwei Knoten – und was auf ihr steht.\n\n``kind`` sagt, wohin sie führt: ``axis`` bleibt in diesem Auftrag, ``out`` geht in\neinen anderen hinaus (``to`` = ``order:<Objektnummer>``, gemeint ist dessen Start),\n``back`` kommt aus einem anderen zurück (``frm`` = ``order:<Objektnummer>``, gemeint\nist dessen Ende). Steht dieser Auftrag gerade nicht im Bild, zeichnet die Oberfläche\ndie Kante nicht – sie muss dafür nichts wissen und nichts erfragen.\n\n``to = null`` gibt es genau einmal: hinter dem Ende. Dort ist der Prozess zu Ende;\ndie angekommenen Stücke stehen trotzdem irgendwo, und «irgendwo» ist diese Kante.\n\n``walked`` hat **zwei** Werte und keinen dritten: kräftig, wenn Material die Kante\nlaut Log erreicht hat – sonst Haarlinie."
+      },
+      "FlowGraph": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/FlowNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/FlowEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "title": "FlowGraph",
+        "description": "**Das Bild, wie der Server es sieht.** Das Frontend layoutet und zeichnet es nur.\n\nVorher baute die Oberfläche die Knotenfolge selbst und leitete aus den *aktuellen*\nStück-Gruppen ab, wie weit die Linie kräftig läuft. Das war Prozesslogik am falschen\nOrt – und sie las den Zustand statt den Log: sobald an einer Stelle nichts mehr\nstand, verschwand sie samt der Abzweigung, die dort stattgefunden hatte.\n\n``problems`` ist die Notbremse: verletzte Invarianten (eine Einzelinstanz ohne oder\nmit zwei Positionen, eine Kante ins Leere). Nicht leer heisst, die Oberfläche sagt\nes – ein Bild, das eine Einzelinstanz verliert, ist schlimmer als keines, weil es\nvollständig aussieht."
+      },
+      "FlowNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind"
+        ],
+        "title": "FlowNode",
+        "description": "Ein **Prozessobjekt** im Bild. Fünf Arten, mehr gibt es nicht.\n\n============  ==========================================================\n``start``     Start-Objekt\n``module``    ein Prozessschrittmodul\n``end``       Ende-Objekt\n``fork``      **Abzweigepunkt** – hier hat ein Stück den Auftrag verlassen\n``join``      **Rückführpunkt** – hierher kehrt eines zurück\n============  ==========================================================\n\n``at`` ist bei ``module`` die eigene ``step_id``, bei ``fork``/``join`` das Modul,\n**vor** dem der Punkt liegt (§12.4 – das Modul benennt ihn, es besitzt ihn nicht).\n\nEin Knoten trägt **keinen Namen**: was in einem Modul steht, sagt seine Zeile in\n``steps``. Beides hier wäre dieselbe Angabe an zwei Stellen."
+      },
+      "FlowUnits": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "at_step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Step Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "count",
+          "active"
+        ],
+        "title": "FlowUnits",
+        "description": "Stücke an **einer** Position – gezählt, nicht aufgezählt.\n\n``at_step_id`` und ``active`` sind der Schlüssel, mit dem die Oberfläche die\neinzelnen Nummern nachlädt (``GET …/units``)."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5669,12 +5784,8 @@
             "type": "array",
             "title": "Steps"
           },
-          "unit_groups": {
-            "items": {
-              "$ref": "#/components/schemas/UnitGroup"
-            },
-            "type": "array",
-            "title": "Unit Groups"
+          "flow": {
+            "$ref": "#/components/schemas/FlowGraph"
           },
           "events": {
             "items": {
@@ -6186,12 +6297,8 @@
             "type": "array",
             "title": "Steps"
           },
-          "unit_groups": {
-            "items": {
-              "$ref": "#/components/schemas/UnitGroup"
-            },
-            "type": "array",
-            "title": "Unit Groups"
+          "flow": {
+            "$ref": "#/components/schemas/FlowGraph"
           },
           "active_step_id": {
             "anyOf": [
@@ -6212,13 +6319,6 @@
             "type": "boolean",
             "title": "Returns",
             "default": false
-          },
-          "branches": {
-            "items": {
-              "$ref": "#/components/schemas/BranchPoint"
-            },
-            "type": "array",
-            "title": "Branches"
           }
         },
         "type": "object",
@@ -6230,7 +6330,7 @@
           "unit_count"
         ],
         "title": "RelatedOrder",
-        "description": "Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.\n\nEr bringt seinen **vollständigen Ablauf** mit (``steps`` + ``unit_groups`` +\n``active_step_id``), damit die Spalte daneben dieselbe Komponente rendern kann wie\ndie Mitte. Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform\nfür dieselbe Sache – und die läuft irgendwann von der ersten weg.\n\n``unit_count`` ist die Zahl der Stücke, die **zwischen den beiden** unterwegs sind;\n``returns`` sagt, ob sie zurückkommen. Beides ist die Beschriftung der Verbindung."
+        "description": "Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.\n\nEr bringt seinen **vollständigen Ablauf** mit (``steps`` + ``flow`` +\n``active_step_id``), damit die Spalte daneben dieselbe Komponente rendern kann wie\ndie Mitte. Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform\nfür dieselbe Sache – und die läuft irgendwann von der ersten weg.\n\n``unit_count`` ist die Zahl der Stücke, die **zwischen den beiden** unterwegs sind;\n``returns`` sagt, ob sie zurückkommen. Beides ist die Beschriftung der Verbindung."
       },
       "StepConfirm": {
         "properties": {
@@ -6396,41 +6496,6 @@
         ],
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
-      },
-      "UnitGroup": {
-        "properties": {
-          "current_step_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current Step Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "active": {
-            "type": "boolean",
-            "title": "Active"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status",
-          "active",
-          "count"
-        ],
-        "title": "UnitGroup",
-        "description": "Wie viele Stücke stehen an einer Stelle, in welchem Zustand.\n\nDie Datenhaltung bleibt **pro Einzelinstanz** – dies ist die Darstellungsfrage. Bei\n5000 Stück ist der Unterschied nicht Geschmack, sondern der zwischen einer Zeile und\n5000. Die einzelnen Nummern holt ``GET …/units``, wenn jemand aufklappt."
       },
       "UnitOption": {
         "properties": {

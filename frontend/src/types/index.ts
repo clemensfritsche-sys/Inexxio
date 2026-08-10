@@ -102,7 +102,12 @@ export type JourneyStop = components['schemas']['JourneyNeighbour'];
 export type RelatedOrder = components['schemas']['RelatedOrder'];
 export type ArticleOption = components['schemas']['ArticleOption'];
 export type OrderLineResponse = components['schemas']['OrderLineResponse'];
-export type UnitGroup = components['schemas']['UnitGroup'];
+/** **Das Prozessbild, wie der Server es sieht** – Knoten, Kanten, Positionen.
+ *  Das Frontend layoutet und zeichnet es; abgeleitet wird nichts mehr davon. */
+export type ProcessGraph = components['schemas']['FlowGraph'];
+export type GraphNode = components['schemas']['FlowNode'];
+export type GraphEdge = components['schemas']['FlowEdge'];
+export type GraphUnits = components['schemas']['FlowUnits'];
 export type OrderUnitPage = components['schemas']['OrderUnitPage'];
 
 /** Der Erzeugungsprozess eines Artikels – die Vorlage, die ein Erzeugungsauftrag kopiert. */

@@ -64,10 +64,6 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
-      - name: pytest (smoke tests)
-        working-directory: backend
-        run: python -m pytest tests/ -v --tb=short
-
       # Baut das Schema von NULL aus den Migrationen auf. Klingt selbstverständlich, war es
       # aber nicht: eine Datenreparatur (074) griff auf eine Spalte zu, die nie eine
       # Migration angelegt hatte (sie stammte aus dem Lifespan-``create_all`` und wurde von
@@ -80,6 +76,17 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
         run: alembic upgrade head
+
+      # ERST das Schema, DANN die Tests: die Invarianten des Prozessbildes
+      # (tests/test_flow_graph.py) brauchen echtes PostgreSQL – JSONB-Payloads und der
+      # partielle Unique-Index auf ``order_units`` sind genau das, was sie prüfen.
+      # Ohne DATABASE_URL überspringen sie sich lautlos, und ein Wächter, der nie
+      # anschlägt, ist von einem kaputten nicht zu unterscheiden.
+      - name: pytest (smoke tests + Invarianten)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+        run: python -m pytest tests/ -v --tb=short
 
       # Die Regel-Tabelle (Unterdeckung/Ausleihe/Pause) und das Szenario-Netz sind mit
       # der Prozesslogik entfallen (Basis-Neuaufbau). Sie kommen zurück, wenn die neue

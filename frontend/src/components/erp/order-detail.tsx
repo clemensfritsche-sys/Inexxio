@@ -315,11 +315,6 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
   const steps: DiagramStep[] = (order.steps ?? []).map((s) => ({
     id: s.id, moduleType: s.module_type, label: s.label,
   }));
-  const groups = (order.unit_groups ?? []).map((g) => ({
-    currentStepId: g.current_step_id ?? null, status: g.status,
-    active: g.active, count: g.count,
-  }));
-
   // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
   // Unterschied zwischen einer Antwort und einem Megabyte.
   /**
@@ -432,11 +427,19 @@ function pointsOf(order: Order, stepId: number): CapturePoint[] {
   return cfg?.points ?? [];
 }
 
-/** Wie viele Stücke stehen gerade davor – die Erfassung gilt für sie alle. */
+/**
+ * Wie viele Stücke stehen gerade davor – die Erfassung gilt für sie alle.
+ *
+ * Aus **derselben** Quelle wie das Bild (`order.flow`): eine Position ist eine Kante,
+ * und die Kanten, die in dieses Modul münden, tragen sie. Eine zweite Liste daneben
+ * hätte irgendwann eine andere Zahl genannt als das Diagramm daneben zeigt.
+ */
 function waitingAt(order: Order, stepId: number): number {
-  return (order.unit_groups ?? [])
-    .filter((g) => g.active && g.current_step_id === stepId)
-    .reduce((n, g) => n + g.count, 0);
+  return (order.flow?.edges ?? [])
+    .filter((e) => e.to === `module:${stepId}`)
+    .flatMap((e) => e.units ?? [])
+    .filter((u) => u.active)
+    .reduce((n, u) => n + u.count, 0);
 }
 
 /** Was dieser Auftrag bearbeitet – festgeschrieben bei der Freigabe. */

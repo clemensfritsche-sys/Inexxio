@@ -474,6 +474,41 @@ Die **Definitions-Liste der Einzelinstanzen** ist bewusst **nicht** Teil des Dia
 sondern ein Slot darüber: der Artikel hat keine Einzelinstanzen, und ein Diagramm, das
 sie voraussetzt, wäre dort nicht wiederverwendbar.
 
+### 8.1a′ Das Bild ist ein GRAPH, und der Server liefert ihn
+
+Die Oberfläche **layoutet und zeichnet**. Sie leitet nichts ab. Vier Ebenen, strikt
+getrennt — mehr Begriffe gibt es nicht:
+
+| Ebene | | |
+|---|---|---|
+| **1 Graph** | `services/flow.build` | **Knoten**: `start` · `module` · `end` · `fork` · `join`. **Kanten**: Verbindung zwischen genau zwei Knoten. |
+| **2 Position** | `FlowEdge.units` | Wo ein Stück steht — **immer eine Kante**, nie ein Knoten, nie ein Zwischenraum. |
+| **3 Kantenzustand** | `FlowEdge.walked` | Kräftig, wenn Material die Kante laut **Log** erreicht hat. Sonst Haarlinie. Kein dritter Wert, nie gesetzt. |
+| **4 Layout/Pfade** | `process-flow.polyPath` | **Ein** Generator zeichnet **jede** Linie – Achse, Ausscherung, Rückführung. |
+
+**Abzweige- und Rückführpunkt sind eigene Knoten.** Fachlich bleibt es *ein*
+Zustandspunkt «vor Modul X» (§12.4, `current_step_id`); im Bild ist es seine Darstellung
+in der Zeit — davor und danach. Erst dadurch lässt sich sagen, wer **geblieben** ist (auf
+dem Bypass `fork → join`) und wer **zurückkam** (auf `join → Modul`). Als ein Knoten
+standen beide an derselben Stelle, und die Zeichnung verschwieg die Runde.
+
+**Der Graph wird aus dem Ereignis-Log abgeleitet, nicht aus dem Zustand.** Ein
+`handover`-Eintrag verschwindet nie: eine Abzweigung, die einmal passiert ist, bleibt im
+Bild, auch wenn das Stück längst zurück und weitergezogen ist. Alle Zähler sind
+Zeilenzahlen im Log und können nur wachsen — daraus folgt «eine einmal kräftige Kante
+wird nie wieder schwach» **von selbst**, statt bewacht zu werden.
+
+**Eine Kante über die Auftragsgrenze** (`out`/`back`) nennt den Nachbarn als
+`order:<Objektnummer>`. Das Frontend zeichnet sie, wenn **beide Enden im Bild stehen** –
+darum muss keine Seite wissen, welche Spalten gerade sichtbar sind, und beide Richtungen
+stammen aus dem Log dessen, bei dem sie passiert sind.
+
+**Invarianten** (`tests/test_flow_graph.py`, gegen echtes PostgreSQL): jede Einzelinstanz
+hat genau eine Position · die Summe der Positionen ist die Stückzahl des Auftrags · jede
+Kante hat genau einen Zustand · eine kräftige Kante bleibt kräftig · jeder Pfad stammt
+aus dem einen Generator. Verletzt heisst **sichtbar kaputt**: `FlowGraph.problems` wird
+als rote Notiz gerendert, statt eine falsche Zeichnung anzubieten.
+
 ### 8.1a Das Liniensystem — zwei Stärken, sonst nichts
 
 Eine Prozesslinie trägt genau **eine** Aussage, und die hat zwei Werte:

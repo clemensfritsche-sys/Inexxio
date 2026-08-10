@@ -18,15 +18,16 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, UserProfile,
 )
 from ..schemas.order import (
-    ArticleOption, BranchPoint, JourneyNeighbour, OrderCreate, OrderLineResponse,
+    ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
-    ProcessEventResponse, ProcessStepResponse, RelatedOrder, UnitGroup, UnitOption,
+    ProcessEventResponse, ProcessStepResponse, RelatedOrder, UnitOption,
 )
 from ..schemas.process import (
     CaptureTypeInfo, ModuleCatalog, ModuleTypeInfo, StepConfirm,
 )
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
+from ..services import flow as flow_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
@@ -103,7 +104,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
             for ln in lines
         ],
         steps=_steps(db, order),
-        unit_groups=[UnitGroup(**g) for g in process_svc.unit_groups(db, order)],
+        flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, order))),
         events=[
             ProcessEventResponse(
                 id=e.id,
@@ -161,11 +162,10 @@ def _related(db: Session, order: Order, counts: list[journey_svc.Related],
             status=states.get(rel.order_id, st.IM_PROZESS),
             end_status=row.end_status,
             steps=_steps(db, row),
-            unit_groups=[UnitGroup(**g) for g in process_svc.unit_groups(db, row)],
+            flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row))),
             active_step_id=process_svc.active_step_id(db, row),
             unit_count=rel.unit_count,
             returns=rel.order_id in returning,
-            branches=[BranchPoint(at_step_id=at, unit_count=n) for at, n in rel.points],
         ))
     return out
 

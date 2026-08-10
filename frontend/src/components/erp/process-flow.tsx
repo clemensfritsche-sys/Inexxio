@@ -252,14 +252,81 @@ export function FlowNode({ id, children, style, onClick, title }: {
 }
 
 /**
+ * **Der Eckenradius.** Eine Zahl, ein Ort – jede Ecke im Bild ist gleich rund.
+ */
+export const BEND = 14;
+
+/**
+ * **Ein Zittern ist kein Weg.**
+ *
+ * Zwei lange Geraden, dazwischen ein Versatz von wenigen Pixeln: geometrisch ein
+ * Linienzug mit zwei Ecken, im Bild ein Knick, der nichts bedeutet. Er entsteht ganz
+ * von selbst, sobald zwei gemessene Anker fast – aber eben nicht genau – auf einer
+ * Höhe liegen, und er fiel bisher unterschiedlich aus, je nachdem wie hoch ein Knoten
+ * gerade war: derselbe Weg sah zweimal verschieden aus.
+ *
+ * Die Rundung macht es sichtbar, statt es zu verdecken: für eine Ecke braucht es
+ * ``2 · BEND`` Länge, kürzere Stücke bekommen einen gestauchten Bogen – genau das
+ * Wackeln, das man dann sieht. Also wird ein zu kurzes Stück **begradigt** statt
+ * gerundet: die spätere Koordinate rastet auf die frühere ein, und die Ecke dahinter
+ * zieht mit, damit alles achsenparallel bleibt.
+ *
+ * **Nur im Inneren.** Das erste und das letzte Stück sind die senkrechten Stummel, mit
+ * denen eine Linie in ein Objekt einläuft (§8.1a) – die sind kurz und sollen es sein.
+ */
+function straighten(points: Array<[number, number]>, minLen: number): Array<[number, number]> {
+  const p = points.map((q) => [...q] as [number, number]);
+  for (let i = 1; i + 2 < p.length; i++) {
+    for (const axis of [0, 1] as const) {
+      const delta = p[i + 1][axis] - p[i][axis];
+      if (delta === 0 || Math.abs(delta) >= minLen) continue;
+      const was = p[i + 1][axis];
+      p[i + 1][axis] = p[i][axis];
+      if (i + 2 < p.length && p[i + 2][axis] === was) p[i + 2][axis] = p[i][axis];
+    }
+  }
+  return p;
+}
+
+/**
+ * **Nur echte Knicke sind Ecken.**
+ *
+ * Nach dem Begradigen liegen drei Punkte auf einer Geraden – der mittlere ist dann kein
+ * Knick mehr, sondern ein Rest. Bliebe er stehen, setzte die Rundung dort einen Bogen
+ * an, dessen Kontrollpunkt auf der Geraden liegt: unsichtbar, aber vorhanden, und die
+ * Linie sähe je nach Vorgeschichte anders aus, obwohl sie denselben Weg beschreibt.
+ *
+ * Dasselbe gilt für doppelte Punkte. Beides ist derselbe Fall: **wer nichts an der
+ * Richtung ändert, ist kein Punkt.**
+ */
+function simplify(points: Array<[number, number]>): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const p of points) {
+    const b = out[out.length - 1];
+    if (b && b[0] === p[0] && b[1] === p[1]) continue;
+    const a = out[out.length - 2];
+    if (a && b && ((a[0] === b[0] && b[0] === p[0]) || (a[1] === b[1] && b[1] === p[1]))) {
+      out[out.length - 1] = p;
+      continue;
+    }
+    out.push(p);
+  }
+  return out;
+}
+
+/**
  * Ein Linienzug mit gerundeten Ecken — die **eine** Stelle, an der eine Ecke entsteht.
  *
  * Vier von Hand geschriebene Bogen-Formeln wären vier Stellen, an denen ein Radius
  * auseinanderlaufen kann; hier ist die Rundung eine Eigenschaft des Linienzugs. Die
  * Richtung fällt aus den Punkten heraus, sie wird nicht angegeben.
+ *
+ * **Jede** Linie des Bildes geht hier durch – Achse, Ausscherung, Rückführung. Eine
+ * zweite Zeichenstelle wäre eine zweite Bildsprache; ein Korrekturversatz an einer
+ * Aufrufstelle wäre der Anfang davon.
  */
-export function polyPath(points: Array<[number, number]>, r = 10): string {
-  const pts = points.filter((p, i) => i === 0 || p[0] !== points[i - 1][0] || p[1] !== points[i - 1][1]);
+export function polyPath(points: Array<[number, number]>, r = BEND): string {
+  const pts = simplify(straighten(points, 2 * r));
   if (pts.length < 2) return '';
 
   let d = `M ${pts[0][0]} ${pts[0][1]}`;

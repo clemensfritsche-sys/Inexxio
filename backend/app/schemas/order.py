@@ -129,22 +129,6 @@ class OrderLineResponse(BaseModel):
     article_name: Optional[str] = None
 
 
-class UnitGroup(BaseModel):
-    """Wie viele Stücke stehen an einer Stelle, in welchem Zustand.
-
-    Die Datenhaltung bleibt **pro Einzelinstanz** – dies ist die Darstellungsfrage. Bei
-    5000 Stück ist der Unterschied nicht Geschmack, sondern der zwischen einer Zeile und
-    5000. Die einzelnen Nummern holt ``GET …/units``, wenn jemand aufklappt.
-    """
-
-    #: ``None`` = am Ende angekommen (bzw. noch nicht gestartet).
-    current_step_id: Optional[int] = None
-    status: str
-    #: ``False`` = die Stücke haben den Auftrag verlassen und sind wieder frei.
-    active: bool
-    count: int
-
-
 class OrderUnitResponse(BaseModel):
     """Ein einzelnes Stück im Auftrag – wo es steht und wie es steht."""
 
@@ -193,25 +177,89 @@ class JourneyNeighbour(BaseModel):
     unit_count: int
 
 
-class BranchPoint(BaseModel):
-    """**Der Zustandspunkt**, an dem Stücke ausgeschert sind.
+class FlowNode(BaseModel):
+    """Ein **Prozessobjekt** im Bild. Fünf Arten, mehr gibt es nicht.
 
-    Ein Zustandspunkt ist die Stelle auf der Prozesslinie, an der ein Stück wartet –
-    zwischen zwei Objekten, nicht in einem. Er heisst «**vor** Modul ``at_step_id``»;
-    ``None`` ist der Punkt nach dem Ende. Das Modul benennt den Punkt, es besitzt ihn
-    nicht: die Abzweigung geht **vor** dem Modul von der Linie ab, weil das Stück es zu
-    diesem Zeitpunkt noch gar nicht betreten hatte – und darum durchläuft es das Modul
-    nach der Rückkehr regulär.
+    ============  ==========================================================
+    ``start``     Start-Objekt
+    ``module``    ein Prozessschrittmodul
+    ``end``       Ende-Objekt
+    ``fork``      **Abzweigepunkt** – hier hat ein Stück den Auftrag verlassen
+    ``join``      **Rückführpunkt** – hierher kehrt eines zurück
+    ============  ==========================================================
+
+    ``at`` ist bei ``module`` die eigene ``step_id``, bei ``fork``/``join`` das Modul,
+    **vor** dem der Punkt liegt (§12.4 – das Modul benennt ihn, es besitzt ihn nicht).
+
+    Ein Knoten trägt **keinen Namen**: was in einem Modul steht, sagt seine Zeile in
+    ``steps``. Beides hier wäre dieselbe Angabe an zwei Stellen.
     """
 
+    id: str
+    kind: str
+    at: Optional[int] = None
+
+
+class FlowUnits(BaseModel):
+    """Stücke an **einer** Position – gezählt, nicht aufgezählt.
+
+    ``at_step_id`` und ``active`` sind der Schlüssel, mit dem die Oberfläche die
+    einzelnen Nummern nachlädt (``GET …/units``).
+    """
+
+    status: str
+    count: int
+    active: bool
     at_step_id: Optional[int] = None
-    unit_count: int
+
+
+class FlowEdge(BaseModel):
+    """Eine **Kante** zwischen genau zwei Knoten – und was auf ihr steht.
+
+    ``kind`` sagt, wohin sie führt: ``axis`` bleibt in diesem Auftrag, ``out`` geht in
+    einen anderen hinaus (``to`` = ``order:<Objektnummer>``, gemeint ist dessen Start),
+    ``back`` kommt aus einem anderen zurück (``frm`` = ``order:<Objektnummer>``, gemeint
+    ist dessen Ende). Steht dieser Auftrag gerade nicht im Bild, zeichnet die Oberfläche
+    die Kante nicht – sie muss dafür nichts wissen und nichts erfragen.
+
+    ``to = null`` gibt es genau einmal: hinter dem Ende. Dort ist der Prozess zu Ende;
+    die angekommenen Stücke stehen trotzdem irgendwo, und «irgendwo» ist diese Kante.
+
+    ``walked`` hat **zwei** Werte und keinen dritten: kräftig, wenn Material die Kante
+    laut Log erreicht hat – sonst Haarlinie.
+    """
+
+    id: str
+    frm: str
+    to: Optional[str] = None
+    kind: str = "axis"
+    walked: bool = False
+    units: list[FlowUnits] = Field(default_factory=list)
+
+
+class FlowGraph(BaseModel):
+    """**Das Bild, wie der Server es sieht.** Das Frontend layoutet und zeichnet es nur.
+
+    Vorher baute die Oberfläche die Knotenfolge selbst und leitete aus den *aktuellen*
+    Stück-Gruppen ab, wie weit die Linie kräftig läuft. Das war Prozesslogik am falschen
+    Ort – und sie las den Zustand statt den Log: sobald an einer Stelle nichts mehr
+    stand, verschwand sie samt der Abzweigung, die dort stattgefunden hatte.
+
+    ``problems`` ist die Notbremse: verletzte Invarianten (eine Einzelinstanz ohne oder
+    mit zwei Positionen, eine Kante ins Leere). Nicht leer heisst, die Oberfläche sagt
+    es – ein Bild, das eine Einzelinstanz verliert, ist schlimmer als keines, weil es
+    vollständig aussieht.
+    """
+
+    nodes: list[FlowNode] = Field(default_factory=list)
+    edges: list[FlowEdge] = Field(default_factory=list)
+    problems: list[str] = Field(default_factory=list)
 
 
 class RelatedOrder(BaseModel):
     """Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.
 
-    Er bringt seinen **vollständigen Ablauf** mit (``steps`` + ``unit_groups`` +
+    Er bringt seinen **vollständigen Ablauf** mit (``steps`` + ``flow`` +
     ``active_step_id``), damit die Spalte daneben dieselbe Komponente rendern kann wie
     die Mitte. Eine Zusammenfassung oder ein Symbol wäre eine zweite Darstellungsform
     für dieselbe Sache – und die läuft irgendwann von der ersten weg.
@@ -225,18 +273,17 @@ class RelatedOrder(BaseModel):
     status: str
     end_status: str
     steps: list[ProcessStepResponse] = Field(default_factory=list)
-    unit_groups: list[UnitGroup] = Field(default_factory=list)
+    #: **Sein** Graph – dieselbe Form wie in der Mitte, mit derselben Komponente
+    #: gezeichnet. Darin stehen auch die Kanten zu *diesem* Auftrag: ein übergeordneter
+    #: Auftrag trägt seine ``out``-Kante zu uns, wir tragen unsere zu den Abweichungen.
+    #: Beide Richtungen stammen damit aus dem Log dessen, bei dem sie passiert sind –
+    #: es gibt keine zweite Ableitung für die Gegenrichtung.
+    flow: FlowGraph = Field(default_factory=FlowGraph)
     active_step_id: Optional[int] = None
     #: Wie viele Stücke dieses Auftrags stammen aus bzw. gehen an den gezeigten Auftrag.
     unit_count: int
     #: Kehren sie zurück? Bei ``False`` läuft der Quell-Auftrag mit weniger weiter.
     returns: bool = False
-    #: **An welchen Zustandspunkten** des betrachteten Auftrags die Abzweigung ansetzt.
-    #: Eine Liste, weil derselbe Auftrag an zwei Stellen zugegriffen haben kann; ein
-    #: einzelner Wert hätte sich für eine entschieden und die andere verschwiegen.
-    #: Bei einem übergeordneten Auftrag genau ein Eintrag mit ``at_step_id = None``:
-    #: von dort kommen die Stücke am **Start** herein.
-    branches: list[BranchPoint] = Field(default_factory=list)
 
 
 class OrderResponse(BaseModel):
@@ -256,8 +303,11 @@ class OrderResponse(BaseModel):
 
     lines: list[OrderLineResponse] = Field(default_factory=list)
     steps: list[ProcessStepResponse] = Field(default_factory=list)
-    #: Gezählt, nicht aufgelistet – siehe ``UnitGroup``.
-    unit_groups: list[UnitGroup] = Field(default_factory=list)
+    #: **Das Bild** – Knoten, Kanten, Positionen (``services/flow``). Es ersetzt die
+    #: frühere flache Liste ``unit_groups``: die sagte nur, wie viele Stücke wo stehen,
+    #: und die Oberfläche musste daraus selbst ableiten, wo Linien verlaufen und wie
+    #: weit sie kräftig sind. Genau diese Ableitung gehört hierher.
+    flow: FlowGraph = Field(default_factory=FlowGraph)
     events: list[ProcessEventResponse] = Field(default_factory=list)
     #: Wie viele Einträge der Log **insgesamt** hat. Ist er länger als ``events``, sagt
     #: die Oberfläche das – ein stumm gekappte Liste sähe aus wie die ganze Wahrheit.
