@@ -6,7 +6,7 @@ Freigabe. ``/validate`` sagt der Oberfläche vorher, ob es reichen würde, ohne 
 anzulegen und ohne eine Nummer zu ziehen.
 """
 
-from typing import Optional
+from typing import Optional, Sequence, Union
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -81,7 +81,12 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
     numbers = _event_numbers(db, events)
     actors = _actor_names(db, {e.actor_id for e in events if e.actor_id})
     came_from, went_to = journey_svc.neighbours(db, order)
-    branches = journey_svc.deviations(db, order)
+    # **Ein Graph, ein Bild.** Die Spalten daneben und die Linien dorthin kommen aus
+    # derselben Kantenliste: ein Nachbar steht genau dann im Bild, wenn es seine
+    # Abzweigung gibt. Zwei Ableitungen ergaben sonst den Abzweigepunkt ohne seinen
+    # Nachbarn – ein Punkt, an dem eine Linie ins Nichts führt.
+    graph = flow_svc.build(db, order)
+    branches = graph.neighbours
 
     return OrderResponse(
         id=order.id,
@@ -104,7 +109,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
             for ln in lines
         ],
         steps=_steps(db, order),
-        flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, order))),
+        flow=FlowGraph(**flow_svc.as_dict(graph)),
         events=[
             ProcessEventResponse(
                 id=e.id,
@@ -130,17 +135,23 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
     )
 
 
-def _related(db: Session, order: Order, counts: list[journey_svc.Related],
+def _related(db: Session, order: Order,
+             counts: Sequence[Union[journey_svc.Related, flow_svc.Neighbour]],
              *, incoming: bool) -> list[RelatedOrder]:
     """Nachbar-Aufträge mit **ihrem eigenen Ablauf** – dieselben Felder wie die Mitte.
 
     Sie werden daneben mit derselben Komponente gerendert; darum liefert der Server auch
     dieselben Angaben. Eine gekürzte Sonderform wäre eine zweite Darstellung derselben
     Sache, und die läuft irgendwann von der ersten weg.
+
+    Die Liste kommt für Abweichungen aus dem **Graph** (dort steht die Abzweigung) und
+    für übergeordnete Aufträge aus dem **Log** (dort steht die Übernahme) – beide nennen
+    einen Auftrag über seine ``order_id``, mehr braucht es hier nicht.
     """
     if not counts:
         return []
-    rows = {o.id: o for o in db.query(Order).filter(Order.id.in_([r.order_id for r in counts])).all()}
+    wanted = _order_ids(db, counts)
+    rows = {o.id: o for o in db.query(Order).filter(Order.id.in_(wanted)).all()}
     states = process_svc.order_statuses(db, list(rows))
     # Wer gibt zurück: bei Abweichungen die Verbindung des Nachbarn zu mir, bei einem
     # übergeordneten Auftrag meine eigene zu ihm.
@@ -152,22 +163,41 @@ def _related(db: Session, order: Order, counts: list[journey_svc.Related],
         returning = journey_svc.returning_to(db, order, list(rows))
 
     out: list[RelatedOrder] = []
-    for rel in counts:
-        row = rows.get(rel.order_id)
+    for rel, oid in zip(counts, wanted):
+        row = rows.get(oid)
         if row is None:
             continue
         out.append(RelatedOrder(
             object_id=row.object_id,
             name=row.name,
-            status=states.get(rel.order_id, st.IM_PROZESS),
+            status=states.get(oid, st.IM_PROZESS),
             end_status=row.end_status,
             steps=_steps(db, row),
             flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row))),
             active_step_id=process_svc.active_step_id(db, row),
             unit_count=rel.unit_count,
-            returns=rel.order_id in returning,
+            returns=oid in returning,
         ))
     return out
+
+
+def _order_ids(db: Session,
+               counts: Sequence[Union[journey_svc.Related, flow_svc.Neighbour]]) -> list[int]:
+    """Die internen ``id``s der Nachbarn – gleich, aus welcher Quelle sie kommen.
+
+    Der Graph kennt einen Auftrag über seine **Objektnummer** (nach aussen ist das seine
+    Identität), der Log über die interne ``id``. Hier wird das **einmal** übersetzt, in
+    einer Abfrage – statt die eine Quelle der anderen anzupassen.
+    """
+    objs = [r.object_id for r in counts if isinstance(r, flow_svc.Neighbour)]
+    known = {
+        int(o): int(i)
+        for o, i in db.query(Order.object_id, Order.id).filter(Order.object_id.in_(objs)).all()
+    } if objs else {}
+    return [
+        known.get(r.object_id, -1) if isinstance(r, flow_svc.Neighbour) else r.order_id
+        for r in counts
+    ]
 
 
 def _event_numbers(db: Session, events) -> dict[int, str]:

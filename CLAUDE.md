@@ -50,7 +50,16 @@
 > nur gegangen ↔ ausstehend. Abgeleitet aus dem **Ereignis-Log**, nie aus dem aktuellen
 > Zustand – darum verschwindet eine Abzweigung nicht mehr, sobald das Stück zurück ist,
 > und «einmal kräftig bleibt kräftig» folgt aus der Append-only-Natur des Logs statt aus
-> einem Wächter. Abzweige- und Rückführpunkt sind **eigene Knoten**: nur so steht das
+> einem Wächter. **Der Kantenzustand gehört der KANTE, nicht dem Punkt**: der Hauptstrang
+> ist eine **Folge** von Kanten, und «hier ist Material angekommen» gilt für die Kante zum
+> Abzweigepunkt, nicht für den geraden Weg dahinter. Nimmt eine Abweichung **alle** Stücke,
+> hat ihn niemand genommen → Haarlinie. Gerechnet als **Bilanz entlang der Achse** (jeder
+> fork zieht ab, jeder join addiert, `flow._branches`), gezählt in **Einzelinstanzen** statt
+> Log-Zeilen – kein `if` je Kantenart. **Die Nachbarn kommen aus DEMSELBEN Graph**
+> (`Graph.neighbours`): die Spalte daneben und die Linie dorthin sind dieselbe Liste, ein
+> Nachbar existiert genau dann, wenn es seine Kante gibt. Zwei Ableitungen ergaben sonst
+> den Abzweigepunkt **ohne** seinen Nachbarn – kein Block, keine Linie, nur der Punkt.
+> Abzweige- und Rückführpunkt sind **eigene Knoten**: nur so steht das
 > gebliebene Stück auf dem Bypass und das zurückgekehrte hinter dem Zusammenfluss. Das
 > Frontend **rechnet keine Prozesslogik** – es layoutet und zeichnet, und **jede** Linie
 > geht durch den EINEN Generator (`process-flow.polyPath`, der ein zu kurzes
@@ -75,10 +84,34 @@
 > Zuführung schert damit aus, die Rückführung mündet ein, unterscheidbar ohne Pfeil und
 > ohne Farbe. Sie beginnt **im** Punkt (ein Endstück darf ganz im Bogen aufgehen, darum
 > liegt kein gerades Stück über der Hauptlinie), der senkrechte Takt ist eine Ableitung
-> des Radius (`FLOW_GAP = 2·BEND − 8`, im Raster **wie** in der Spalte), und die
-> Querverbindung ist EINE Waagrechte (`NEIGHBOUR_PAD` oben wie unten, Rückführpunkt am
+> des Radius (`FLOW_GAP = 2·BEND`, im Raster **wie** in der Spalte) – zwischen einem
+> Abzweigepunkt und **seinem** Rückführpunkt liegen **zwei Waagrechte** (`fork+BEND` und
+> `join−BEND`), und übrig bleiben soll so viel Luft, wie der Punkt gross ist; der frühere
+> Takt `2·BEND − 8` liess **einen** Pixel, im Bild also eine einzige Linie (gemessen: 1,6 px
+> über 172 px gemeinsame Länge, sichtbar in der schmalen Nachbarspalte, nicht in der Mitte).
+> Die Querverbindung ist EINE Waagrechte (`NEIGHBOUR_PAD` oben wie unten, Rückführpunkt am
 > Ende seiner Zeile) – ausser zum **übergeordneten** Auftrag, dessen Punkte sein eigener
 > Prozess setzt.
+> **Im Entwurf ist die Rückführungslinie selbst das Bedienelement** (PROCESS_CORE §8.1a):
+> unter dem Ende steht der Rückweg als Knoten, die Linie dorthin gibt es nur, wenn
+> zurückgeführt wird – ein Klick auf das Ziel schaltet sie an und aus. Kein Strichmuster
+> (es bleibt bei zwei Stärken), kein Knopfpaar neben der Stückauswahl; der Knoten bleibt,
+> wenn die Linie geht, sonst wäre die Entscheidung einmalig. Mehrere Quellen stehen als
+> Ziele in EINER Zeile – je Quelle ein eigener Knoten untereinander hiesse, die Linie zum
+> zweiten liefe durch den ersten.
+> **Herkunft und Verbleib sind ÄSTE desselben Strangs** (PROCESS_CORE §8.1a, §6): über dem
+> Start und unter dem Ende verzweigt die Linie zu den Nachbar-Aufträgen – je Nachbar ein
+> Ast mit Anzahl, alle auf **einer** Waagrechten zusammengeführt (ein Bus wie im Stammbaum,
+> darum keine Überlagerung); die Zeile bricht nie um und ist gekappt (`JOURNEY_LIMIT`,
+> Rest gezählt). **Gruppiert statt aufgezählt** – bei 3 wie bei 5000 Stück dasselbe Bild;
+> wer die Nummern braucht, öffnet den Nachbarn, und dort ist er die Mitte (zwei Ebenen,
+> keine Rekursion). Die eine Herkunft ohne Log-Eintrag ist die **Entstehung** («3× Blech»),
+> denn ein Erzeugungsauftrag hat keinen Vorgänger; zusammen decken beide jedes Stück ab
+> (gemessen) – deshalb ist der frühere Definitions-Container ersatzlos entfallen.
+> **Freie und gebundene Stücke dürfen im selben Auftrag stehen** (§12.6a) – dafür braucht
+> es keine Regel: die Absicht steht **je Stück** (`UnitPick.from_order`), nicht je Auftrag,
+> und `return_to_order_id` entsteht nur für die geliehenen. Gemessen an den echten
+> Dienstpfaden; eine zusätzliche Regel wäre eine zweite Aussage über dieselbe Sache.
 > **Scrollbalken sind generell unsichtbar** (`globals.css`, `*`-Regel – nicht je
 > Container): ein Balken kostet echte Breite, und wenn er beim Aufklappen erscheint,
 > springt alles Zentrierte seitlich. Gescrollt wird unverändert. **Zähler und Aufklappen fragen

@@ -309,18 +309,37 @@ export function FlowNode({ id, children, style, onClick, title }: {
 export const BEND = 16;
 
 /**
+ * **Der Abzweige- bzw. Rückführpunkt** – ein Punkt auf der Achse, sonst nichts.
+ *
+ * Sein Durchmesser steht hier und nicht in der Komponente, weil der **Takt** von ihm
+ * abhängt: er ist der Abstand, den zwei Punkte durch ihre eigene Grösse schon mitbringen.
+ */
+export const POINT = 9;
+
+/**
  * **Der senkrechte Takt des Flusses** – und er ist nicht frei wählbar.
  *
  * An einem Prozesspunkt setzt ein Bogen an: die ausgehende Kante läuft ab ihm `BEND`
- * stromabwärts, die eingehende kommt `BEND` von oben auf ihn zu. Liegen zwei Punkte
- * näher beieinander als **zwei** Radien, überlappen sich diese Stücke – und die beiden
- * Bögen kreuzen sich, direkt an den Punkten. Also gilt: Mitte zu Mitte mindestens
- * `2 · BEND`; bei einem 9 px grossen Punkt bleibt daraus dieser Abstand.
+ * stromabwärts und biegt dort **waagrecht** ab, die eingehende kommt `BEND` über ihm
+ * waagrecht herein und biegt hinunter. Zwischen einem Abzweigepunkt und *seinem*
+ * Rückführpunkt liegen also **zwei Waagrechte**, und die brauchen eigene Höhen:
  *
- * Damit ist «keine Kreuzung» auch an der dichtesten Stelle des Bildes eine Eigenschaft
- * des Rasters und keine Frage des Zeichnens.
+ * ```
+ *     ● fork          ─┐   ← hinaus,  bei  fork + BEND
+ *                      │
+ *     ● join          ─┘   ← herein,  bei  join − BEND
+ * ```
+ *
+ * Mitte zu Mitte bleibt davon `FLOW_GAP + POINT − 2 · BEND` an Luft übrig. Der frühere
+ * Takt (`2 · BEND − 8`) liess davon **einen Pixel** – rechnerisch überschneidungsfrei,
+ * im Bild eine einzige Linie. Also so viel Luft, wie der Punkt selbst gross ist:
+ *
+ *     FLOW_GAP + POINT − 2 · BEND  =  POINT      ⟹  FLOW_GAP = 2 · BEND
+ *
+ * Damit ist «zwei Linien bleiben zwei Linien» eine Eigenschaft des Rasters und keine
+ * Frage des Zeichnens – bei zwei Nachbarn genauso wie bei fünf.
  */
-export const FLOW_GAP = 2 * BEND - 8;
+export const FLOW_GAP = 2 * BEND;
 
 /**
  * **Ports — feste Andockpunkte am Container** (React Flow nennt sie *Handles*, bpmn-js

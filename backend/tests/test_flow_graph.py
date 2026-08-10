@@ -329,6 +329,175 @@ def test_a_walked_edge_never_becomes_weak_again():
         db.close()
 
 
+def test_the_strong_line_shows_the_way_a_piece_actually_took():
+    """**Der Hauptstrang ist eine Folge von Kanten, nicht eine Linie** (Befund 1).
+
+    Nimmt eine Abweichung **alle** Stücke mit, hat den geraden Weg zwischen Abzweige-
+    und Rückführpunkt niemand genommen – er ist dünn. Die Kante **zum** Abzweigepunkt ist
+    kräftig (dort ist Material angekommen), und das ist kein Widerspruch, sondern der
+    Unterschied zwischen zwei Kanten.
+
+    Vorher trug jede Kante an einem Punkt denselben Zustand («hier ist etwas
+    angekommen»); der gerade Weg war damit **immer** kräftig, sobald überhaupt jemand
+    dort war. Gerechnet wird jetzt als Bilanz entlang der Achse – ohne Fallunterscheidung
+    für «Abweichung nimmt alles».
+
+    Die Gegenprobe steckt mit im selben Test: bei **zwei** Nachbarn am selben Punkt ist
+    der Bypass des ersten kräftig (das zweite Stück lief daran vorbei) und der des
+    zweiten dünn.
+    """
+    from app.models import InstanceUnit, OrderUnit, ProcessStep
+    from app.services import article_process as tpl, flow, objects as obj, process as proc
+
+    db = _db()
+    try:
+        art = _article(db, tpl, obj)
+        parent = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
+                    "units": []}],
+            steps=[], actor_id=None,
+        )
+        db.flush()
+        rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
+        names = proc.unit_numbers(
+            db, db.query(InstanceUnit).filter(
+                InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
+        numbers = [names[r.instance_unit_id] for r in rows]
+        at = db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one().id
+
+        both = _deviate(db, proc, art, parent, numbers)
+        db.flush()
+        g = flow.build(db, parent)
+        edges = {e.id: e for e in g.edges}
+        bypass = edges[f"edge:fork:{at}:{both.object_id}:join:{at}:{both.object_id}"]
+        assert not bypass.walked, (
+            "Der gerade Weg ist kräftig, obwohl jede Einzelinstanz die Abweichung "
+            "genommen hat – die Volllinie zeigt damit einen Weg, den niemand ging."
+        )
+        assert edges[f"edge:start:fork:{at}:{both.object_id}"].walked, (
+            "Die Kante ZUM Abzweigepunkt muss kräftig bleiben – dort ist Material "
+            "angekommen."
+        )
+
+        # Gegenprobe: zwei Nachbarn, je ein Stück. Am ersten läuft das zweite vorbei.
+        db.rollback()
+        art = _article(db, tpl, obj)
+        parent = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
+                    "units": []}],
+            steps=[], actor_id=None,
+        )
+        db.flush()
+        rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
+        names = proc.unit_numbers(
+            db, db.query(InstanceUnit).filter(
+                InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
+        numbers = [names[r.instance_unit_id] for r in rows]
+        at = db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one().id
+        first = _deviate(db, proc, art, parent, numbers[:1])
+        second = _deviate(db, proc, art, parent, numbers[1:])
+        db.flush()
+        edges = {e.id: e for e in flow.build(db, parent).edges}
+        assert edges[f"edge:fork:{at}:{first.object_id}:join:{at}:{first.object_id}"].walked, (
+            "Am ersten Nachbarn ist das zweite Stück vorbeigelaufen – dort ist die Linie "
+            "kräftig."
+        )
+        assert not edges[
+            f"edge:fork:{at}:{second.object_id}:join:{at}:{second.object_id}"].walked, (
+            "Am zweiten Nachbarn ist niemand mehr vorbeigelaufen – dort ist sie dünn."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_neighbour_exists_exactly_when_its_branch_does():
+    """**Spalte und Linie kommen aus EINER Liste** (Befund 2).
+
+    Die Nachbarn daneben stammten aus einer eigenen Log-Abfrage, die Abzweigungen aus dem
+    Graph. Zwei Ableitungen derselben Sache – und wo sie auseinanderliefen, stand im Bild
+    ein Abzweigepunkt ohne seinen Nachbarn: kein Block, keine Linie, nur der Punkt.
+
+    Geprüft wird die Gleichheit selbst, nicht ein Symptom: **jeder** Auftrag, auf den eine
+    Kante zeigt, steht in ``graph.neighbours`` – und umgekehrt. Eine gekappte Abweichung
+    (ohne Rückweg) ist dabei der Fall, der es am ehesten auseinanderreisst, denn sie hat
+    nur eine der beiden Kanten.
+    """
+    from app.models import InstanceUnit, OrderUnit
+    from app.services import article_process as tpl, flow, objects as obj, process as proc
+
+    db = _db()
+    try:
+        art = _article(db, tpl, obj)
+        parent = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 3, "origin": "neu",
+                    "units": []}],
+            steps=[], actor_id=None,
+        )
+        db.flush()
+        rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
+        names = proc.unit_numbers(
+            db, db.query(InstanceUnit).filter(
+                InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
+        numbers = [names[r.instance_unit_id] for r in rows]
+
+        cut = _deviate(db, proc, art, parent, numbers[:1], returns=False)
+        back = _deviate(db, proc, art, parent, numbers[1:2])
+        db.flush()
+
+        g = flow.build(db, parent)
+        listed = {n.object_id for n in g.neighbours}
+        referenced = {
+            int(end[len("order:"):])
+            for e in g.edges
+            for end in (e.frm, e.to or "")
+            if end.startswith("order:")
+        }
+        assert listed == referenced, (
+            "Nachbar-Liste und Kanten des Graphs nennen verschiedene Aufträge – "
+            f"Liste {sorted(listed)}, Kanten {sorted(referenced)}."
+        )
+        assert cut.object_id in listed, (
+            "Die gekappte Abweichung fehlt in der Liste – ihr Abzweigepunkt stünde im "
+            "Bild ohne Nachbarn."
+        )
+        assert back.object_id in listed
+        assert [n.object_id for n in g.neighbours] == sorted(listed), (
+            "Die Reihenfolge ist nicht chronologisch – gleiche Daten müssen dasselbe "
+            "Bild ergeben."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def _article(db, tpl, obj):
+    from app.models import Article
+    art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
+                  serialization="unit", status="released")
+    db.add(art)
+    db.flush()
+    tpl.create_steps(db, art, [{"module_type": "datenerfassung",
+                                "config": {"points": [{"label": "OK", "type": "bool"}]}}])
+    db.flush()
+    return art
+
+
+def _deviate(db, proc, art, parent, numbers, *, returns=True):
+    return proc.release(
+        db,
+        lines=[{"article_object_id": art.object_id, "quantity": len(numbers),
+                "origin": "lager", "returns": returns,
+                "units": [{"number": n, "from_order": parent.object_id} for n in numbers]}],
+        steps=[{"module_type": "datenerfassung",
+                "config": {"points": [{"label": "OK", "type": "bool"}]}}],
+        actor_id=None,
+    )
+
+
 def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
     """**Kreuzungsfreiheit entsteht aus dem Graph, nicht aus geschickterem Zeichnen.**
 
@@ -492,12 +661,110 @@ def test_a_line_docks_at_a_port_and_the_layer_is_never_clipped():
     # zwei Punkte näher als zwei Radien, überlagern sich die Bögen und kreuzen sich.
     # Zwei Rhythmen – einer im Raster, einer in der Spalte – hiessen: in der einen
     # Ansicht stimmt es, in der anderen nicht.
-    assert "export const FLOW_GAP = 2 * BEND" in flow, (
-        "Der senkrechte Takt ist keine Ableitung des Radius mehr."
+    assert "export const FLOW_GAP = 2 * BEND;" in flow, (
+        "Der senkrechte Takt ist keine Ableitung des Radius mehr. Zwischen einem "
+        "Abzweigepunkt und SEINEM Rückführpunkt liegen zwei Waagrechte (hinaus bei "
+        "`fork + BEND`, herein bei `join − BEND`); übrig bleibt `FLOW_GAP + POINT − "
+        "2·BEND`. Beim früheren `2·BEND − 8` war das **ein** Pixel – im Bild eine "
+        "einzige Linie (gemessen: 1,6 px Abstand über 172 px gemeinsame Länge)."
+    )
+    assert "export const POINT = 9;" in flow and "width: POINT, height: POINT" in diagram, (
+        "Die Punktgrösse steht nicht mehr an der einen Stelle, aus der der Takt sie "
+        "liest – dann rechnet der Takt mit einer Zahl, die die Komponente nicht hat."
     )
     assert "rowGap: FLOW_GAP" in cols and "gap: FLOW_GAP" in diagram, (
-        "Raster und Spalte laufen in verschiedenen Takten – dann kreuzt es in genau "
-        "einer der beiden Ansichten."
+        "Raster und Spalte laufen in verschiedenen Takten – dann überlagert es in genau "
+        "einer der beiden Ansichten. Genau so ist es aufgetreten: in der Mitte stimmte "
+        "es, in der Nachbarspalte lagen die beiden Waagrechten aufeinander."
+    )
+
+
+def test_the_planned_return_is_the_line_itself():
+    """**Ob zurückgeführt wird, sagt die Linie – nicht ein Knopfpaar** (Auftrag §5).
+
+    Im laufenden Bild ist es längst so: eine gekappte Ausleihe hat schlicht keinen
+    Rückweg, und das Fehlen ist die Aussage. Der Entwurf sagte es daneben, mit zwei
+    Knöpfen an der Stückauswahl – also an einer anderen Stelle als seine Wirkung.
+
+    Drei Eigenschaften, die das tragen:
+
+    * Die Kante ``end → back`` entsteht **nur**, wenn zurückgeführt wird. Kein
+      Strichmuster, kein dritter Linientyp.
+    * Der Knoten **bleibt**, wenn die Linie geht – sonst wäre die Entscheidung einmalig
+      statt änderbar, weil nichts mehr da wäre, das man anklicken könnte.
+    * **Ein** Rückweg-Knoten, auch bei mehreren Quellen: je Quelle einen eigenen
+      untereinander zu hängen hiesse, die Linie zum zweiten liefe durch den ersten.
+    """
+    diagram = _read(FRONTEND / "components/erp/process-diagram.tsx")
+    lines = _read(FRONTEND / "components/erp/definition-lines.tsx")
+
+    assert "const returning = back.some((b) => b.on);" in diagram, (
+        "Der Entwurf leitet nicht mehr aus den Verbindungen ab, ob es einen Rückweg gibt."
+    )
+    assert "id: 'edge:end:back'" in diagram and "returning" in diagram, (
+        "Die Rückweg-Kante hängt nicht mehr an der Entscheidung – dann ist sie entweder "
+        "immer da oder nie."
+    )
+    assert "back.length ? [{ id: 'back', kind: 'back', at: null }] : []" in diagram, (
+        "Es gibt mehr als einen Rückweg-Knoten – dann läuft die Linie zum zweiten durch "
+        "den ersten hindurch (§4)."
+    )
+    assert "ReturnBtn" not in lines and "onReturns" not in lines, (
+        "Die Rückführung wird wieder neben der Stückauswahl entschieden – zwei Orte für "
+        "dieselbe Aussage."
+    )
+    for banned in ("strokeDasharray", "dashed'"):
+        assert banned not in diagram, (
+            f"«{banned}» im Prozessbild: es gibt zwei Stärken und sonst nichts – ob "
+            f"zurückgeführt wird, sagt die Anwesenheit der Linie."
+        )
+
+
+def test_the_journey_is_a_tree_on_the_same_line():
+    """**Herkunft und Verbleib hängen am Strang, nicht daneben** (Auftrag §6).
+
+    Oben und unten stand eine Textzeile mit den Nachbar-Aufträgen, und **daneben** ein
+    Container mit der Definition («3× Blech, neu erzeugt»). Zwei Anzeigen derselben
+    Sache: jedes Stück kam entweder aus einem Auftrag (steht in ``journey_in``) oder ist
+    hier entstanden (steht als ``neu``-Zeile) – gegen echtes PostgreSQL gemessen, über
+    Erzeugung, Lagerzugriff, zwei Vorgänger und Abweichung.
+
+    Geblieben ist **ein** Baum am selben Strang. Drei Eigenschaften tragen ihn:
+
+    * **Eine Bedingung** dafür, ob es die Zeile gibt (``hasJourney``) – das Raster mit
+      drei Spuren und die Spalte darin zählen sonst verschiedene Zeilen, und alles
+      darunter sitzt eine daneben.
+    * **Eine Liste** für Chips und Äste (``journeyKeys``) – sonst entsteht ein Ast ohne
+      Chip oder ein Chip ohne Ast. Genau diese Klasse Fehler war Befund 2.
+    * **Gruppiert, gekappt, nicht verschwiegen**: je Nachbar eine Verzweigung mit Anzahl,
+      höchstens ``JOURNEY_LIMIT``, der Rest gezählt. Bei 5000 Stück sieht man dasselbe
+      wie bei drei.
+    """
+    diagram = _read(FRONTEND / "components/erp/process-diagram.tsx")
+    cols = _read(FRONTEND / "components/erp/process-columns.tsx")
+    detail = _read(FRONTEND / "components/erp/order-detail.tsx")
+
+    assert "export const hasJourney" in diagram, (
+        "Die Bedingung für die Herkunfts-Zeile hat keinen Ort mehr."
+    )
+    assert diagram.count("journeyIn: hasJourney(") == 1 and "hasJourney(inStops" in cols, (
+        "Raster und Spalte entscheiden wieder verschieden, ob es die Zeile gibt."
+    )
+    assert "export function journeyKeys" in diagram, "Die Ast-Schlüssel sind keine Liste mehr."
+    assert "journeyKeys(inStops, origins)" in cols and "journeyKeys(journeyIn, origins)" in diagram, (
+        "Chips und Äste kommen nicht mehr aus derselben Liste – dann gibt es Chips ohne "
+        "Linie oder Linien ohne Chip."
+    )
+    assert "slice(0, JOURNEY_LIMIT)" in diagram and "rest=" in diagram, (
+        "Die Journey ist nicht mehr gekappt oder sagt es nicht – eine stumme Liste sähe "
+        "aus wie alles."
+    )
+    assert "flexWrap: 'nowrap'" in diagram, (
+        "Die Journey-Zeile bricht um – dann fällt ein Ast der oberen Reihe durch die "
+        "untere (§4)."
+    )
+    assert "DefinitionSummary" not in detail, (
+        "Der Definitions-Container ist zurück – er sagt ein zweites Mal, was am Baum steht."
     )
 
 
