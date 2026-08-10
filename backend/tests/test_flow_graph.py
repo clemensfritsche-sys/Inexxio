@@ -488,6 +488,17 @@ def test_a_line_docks_at_a_port_and_the_layer_is_never_clipped():
     # Und der Knoten nennt sich, damit «keine Linie überlagert einen Knoten» nachmessbar
     # ist statt behauptet.
     assert "data-flow-node={id}" in flow, "Ein Knoten ist im DOM nicht als solcher erkennbar."
+    # **Ein Takt für das ganze Bild.** An jedem Prozesspunkt setzt ein Bogen an; liegen
+    # zwei Punkte näher als zwei Radien, überlagern sich die Bögen und kreuzen sich.
+    # Zwei Rhythmen – einer im Raster, einer in der Spalte – hiessen: in der einen
+    # Ansicht stimmt es, in der anderen nicht.
+    assert "export const FLOW_GAP = 2 * BEND" in flow, (
+        "Der senkrechte Takt ist keine Ableitung des Radius mehr."
+    )
+    assert "rowGap: FLOW_GAP" in cols and "gap: FLOW_GAP" in diagram, (
+        "Raster und Spalte laufen in verschiedenen Takten – dann kreuzt es in genau "
+        "einer der beiden Ansichten."
+    )
 
 
 def test_the_count_and_the_list_ask_the_same_position():

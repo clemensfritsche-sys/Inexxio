@@ -3,7 +3,7 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import {
-  BEND, FlowFrame, channelX, channels, gutterFor, polyPath, port,
+  BEND, FLOW_GAP, FlowFrame, channelX, channels, gutterFor, polyPath, port,
   type FlowAnchor, type FlowMetrics,
 } from './process-flow';
 import {
@@ -81,22 +81,20 @@ import type {
  */
 const LEAD = 2 * BEND;
 /**
- * Zeilenabstand der Hauptachse.
- *
- * Er ist **nicht frei wählbar**: eine Abzweigung verlässt den Strang im Punkt und liegt
- * `BEND` darunter waagrecht (Befund 2.2). Damit dieser Zug nicht in die nächste Zeile
- * gerät, muss die Lücke ihn tragen — `2 · (BEND − halber Punkt)` plus etwas Luft.
- */
-const ROW_GAP = 18;
-/**
- * Luft über dem Start-Objekt eines Nachbarn — **die Fahrbahn der Ausscherung**.
+ * Luft **über und unter** dem Prozess eines Nachbarn — die Fahrbahn seiner beiden
+ * Verbindungen.
  *
  * Die Linie zweigt an der Hauptachse ab, läuft quer und muss **senkrecht** in das
- * Start-Objekt einlaufen (§8.1a). Dafür braucht sie einen Streifen, in dem keine Karte
- * steht: sonst liefe sie dahinter durch – gezeichnet, aber unsichtbar, weil die Knoten
- * über den Linien liegen.
+ * Start-Objekt einlaufen bzw. aus dem Ende-Objekt heraus (§8.1a). Dafür braucht sie
+ * einen Streifen, in dem keine Karte steht.
+ *
+ * **Das Mass ist gerechnet, nicht gewählt:** damit die Querverbindung eine **einzige
+ * Waagrechte** bleibt, muss zwischen dem Punkt auf der Achse und dem Objekt des
+ * Nachbarn Platz für beide Bögen sein — `LEAD` für den senkrechten Ein-/Auslauf plus
+ * `BEND` für die Krümmung am Punkt. Ist er knapper, bleibt ein Versatz stehen; ist er
+ * grösser, entsteht Leerraum ohne Aussage.
  */
-const NEIGHBOUR_DROP = LEAD + 12;
+const NEIGHBOUR_PAD = LEAD + BEND + 8;
 /**
  * Luft über der Mitte. Ein übergeordneter Auftrag mündet **von oben** ein; ohne diesen
  * Streifen liefe seine Linie über den oberen Rahmenrand hinaus.
@@ -130,6 +128,9 @@ type Side = 'left' | 'mid' | 'right';
 
 /** Von welcher bis zu welcher **Zeile** der Hauptachse ein Nachbar reicht. */
 interface Span { from: number; to: number }
+
+/** Der Rückführpunkt – die einzige Zeile, die am Ende ihrer Rasterzeile sitzt. */
+const isJoin = (row?: ColumnRow) => !!row && 'node' in row && row.node.kind === 'join';
 
 /** Die Spanne einer Spalte – fehlt sie, hängt der Nachbar an keinem Punkt dieser Achse. */
 function spanOf(span: Map<string, Span>, col: Column): Span {
@@ -275,7 +276,7 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
           <>
             <div style={{
               display: 'grid', alignItems: 'start', justifyItems: 'center',
-              columnGap: m.gap, rowGap: ROW_GAP,
+              columnGap: m.gap, rowGap: FLOW_GAP,
               paddingTop: TOP_LEAD, paddingBottom: BOTTOM_LEAD,
               // Die Mitte ist **fest**: als `minmax(0, …)` wäre sie eine Obergrenze, und
               // weil ihr Inhalt seine Breite aus der Spur bezieht, fiele sie auf die
@@ -295,12 +296,17 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
                   {left.map((c) => <Neighbour key={c.prefix} col={c} />)}
                 </div>
               )}
-              {/* **Der Rückführpunkt bleibt am Anfang seiner Zeile.** Ihn ans Ende zu
-                  setzen läge näher an der Stelle, an der der Nachbar zurückkommt – und
-                  drückte seinen Rückweg genau in die Modulkarte darunter (gemessen).
-                  Eine Linie durch einen Knoten wiegt schwerer als eine flache Schleife;
-                  zwischen beidem entscheidet die Messung, nicht das Gefühl. */}
-              {column((i) => ({ gridColumn: 2, gridRow: i + 1 }))}
+              {/* **Der Rückführpunkt sitzt am ENDE seiner Zeile** – dort, wo der
+                  Nachbar daneben aufhört und seine Rückführung ansetzt. Stünde er am
+                  Zeilenanfang, müsste sie erst hinunter und dann wieder hinauf: der
+                  Versatz, den man in der Linie sieht. Der Abzweigepunkt braucht das
+                  Gegenstück nicht – er steht ohnehin dort, wo der Nachbar beginnt.
+                  Möglich wird das erst durch `NEIGHBOUR_PAD`: ohne diese Luft landete
+                  der Auslauf der Rückführung in der Modulkarte darunter (gemessen). */}
+              {column((i) => ({
+                gridColumn: 2, gridRow: i + 1,
+                ...(isJoin(mid.rows[i]) ? { alignSelf: 'end' as const } : null),
+              }))}
               {bands.map((b) => (
                 <div key={b.cols[0].prefix}
                   className="flex flex-col gap-7"
@@ -357,7 +363,8 @@ function Neighbour({ col }: { col: Column }) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav(rel.object_id); }
       } : undefined}
       className="w-full"
-      style={{ cursor: nav ? 'pointer' : undefined, paddingTop: NEIGHBOUR_DROP }}
+      style={{ cursor: nav ? 'pointer' : undefined,
+               padding: `${NEIGHBOUR_PAD}px 0` }}
       aria-label={`Auftrag ${formatObjectId(rel.object_id)} öffnen`}
       data-tip={`${col.side === 'left' ? 'Aus' : 'Abweichung'} ${formatObjectId(rel.object_id)}`
         + ` · ${cfg.label} · ${rel.unit_count} Stück`
@@ -457,11 +464,25 @@ function Wiring({ columns, anchors, metrics, wires }: {
  * seinen Rand; darum kann sie nicht mehr in ihn hineinragen, gleich wie hoch er wird,
  * ob er auf- oder zugeklappt ist und bei welcher Rahmenbreite.
  *
- * **2. Der Zug beginnt IM Punkt – ohne Stummel davor.** Er startet auf dem Punkt und
- * knickt `BEND` darunter; weil ein Endstück ganz im Bogen aufgehen darf (`polyPath`),
- * ist der Punkt zugleich der Anfang des Bogens. Die Linie verlässt den Strang also
- * tangential, ohne vorher ein gerades Stück auf ihm zu liegen – das war das sichtbar
- * überstehende Stück, das die Hauptlinie überlagerte.
+ * **2. Der Zug beginnt IM Punkt und läuft dort in FLUSSRICHTUNG.** Der Fluss geht von
+ * oben nach unten; das Stück, mit dem eine Querlinie die Achse berührt, wird darum
+ * **immer stromabwärts durchlaufen** – ein Satz, aus dem beide Fälle folgen:
+ *
+ * | | | |
+ * |---|---|---|
+ * | **hinaus** | der Punkt ist der **Anfang** | ab ihm `BEND` hinunter, dann weg → die Kurve **schert aus** |
+ * | **herein** | der Punkt ist das **Ende** | `BEND` über ihm herein, dann hinunter → die Kurve **mündet ein** |
+ *
+ * Damit sind Zuführung und Rückführung **allein an der Krümmung** zu unterscheiden –
+ * ohne Farbe, ohne Pfeil, ohne Beschriftung; im Abweichungsauftrag spiegelverkehrt und
+ * nach derselben Regel. Und weil ein Endstück ganz im Bogen aufgehen darf (`polyPath`),
+ * ist der Punkt zugleich Anfang bzw. Ende des Bogens: kein gerades Stück liegt davor
+ * auf der Achse.
+ *
+ * *Nicht die Position des Ziels.* Danach zu entscheiden liegt nahe (die Linie ginge
+ * dann «zur richtigen Seite hinaus»), kehrt aber die Aussage um: der Rückführpunkt sähe
+ * aus wie ein Abzweigepunkt, weil beide gleich gekrümmt wären. Dass zwei Bögen dabei
+ * nicht kollidieren, sichert der **Takt** (`FLOW_GAP`), nicht die Richtung.
  *
  * **3. Senkrecht wird nur im eigenen Kanal gefahren.** Die Spurlücke ist keine Linie,
  * sondern ein Bündel: jede Abzweigung hat ihre Spur, zugeteilt von `channels` (§1).
@@ -492,29 +513,21 @@ function Cross({ edge, col, at, metrics, wires }: {
   const corridor = channelX(centre, wires.of.get(nb.prefix) ?? 0, wires.used[nb.side]);
 
   const [hx, hy] = port(here.a, 'center');
-  // **Die Linie verlässt den Punkt zu der Seite, auf der ihr Ziel liegt** – und kehrt
-  // von dort zurück. Das ist keine Fallunterscheidung, sondern die Wahl des Ports, die
-  // jedes Routing trifft: liegt der Nachbar oben und die Linie ginge nach unten
-  // hinaus, kreuzt sie ihren eigenen Rückweg, sobald beide Punkte nahe beieinander
-  // liegen. Mit der Richtung bleibt die Reihenfolge oben/unten erhalten.
-  const side = (other: number) => (other >= hy ? BEND : -BEND);
   const points: Array<[number, number]> = outward
     ? (() => {
       const [tx, ty] = port(there.a, 'top');
-      const dy = side(ty);
       return [
-        [hx, hy], [hx, hy + dy],
-        [corridor, hy + dy], [corridor, ty - LEAD],
+        [hx, hy], [hx, hy + BEND],
+        [corridor, hy + BEND], [corridor, ty - LEAD],
         [tx, ty - LEAD], [tx, ty],
       ];
     })()
     : (() => {
       const [tx, tb] = port(there.a, 'bottom');
-      const dy = side(tb);
       return [
         [tx, tb], [tx, tb + LEAD],
-        [corridor, tb + LEAD], [corridor, hy + dy],
-        [hx, hy + dy], [hx, hy],
+        [corridor, tb + LEAD], [corridor, hy - BEND],
+        [hx, hy - BEND], [hx, hy],
       ];
     })();
   return <Stroke d={polyPath(points)} walked={edge.walked} />;

@@ -553,10 +553,34 @@ in `polyPath` gibt es nur zwischen zwei benachbarten Ecken), ist der Punkt zugle
 Anfang des Bogens. Vorher lag davor noch ein gerades Stück auf der Achse – sichtbar als
 überstehendes Endchen, das die Hauptlinie überlagerte.
 
-**Sie geht zu der Seite hinaus, auf der ihr Ziel liegt** (und kommt von dort zurück). Das
-ist keine Fallunterscheidung, sondern die Port-Wahl, die jedes Routing trifft: läge der
-Nachbar oben und die Linie ginge nach unten hinaus, kreuzte sie ihren eigenen Rückweg,
-sobald Abzweige- und Rückführpunkt nahe beieinander liegen.
+**Die Krümmung ist die Richtung.** Der Fluss läuft von oben nach unten, und das Stück,
+mit dem eine Querlinie die Achse berührt, wird **immer stromabwärts durchlaufen**:
+
+| | | |
+|---|---|---|
+| **hinaus** | der Punkt ist der **Anfang** | ab ihm hinunter, dann weg → die Kurve **schert aus** |
+| **herein** | der Punkt ist das **Ende** | über ihm herein, dann hinunter → die Kurve **mündet ein** |
+
+Damit sind Zuführung und Rückführung **allein an der Krümmung** zu unterscheiden – ohne
+Farbe, ohne Pfeil, ohne Beschriftung; im Abweichungsauftrag spiegelverkehrt und nach
+derselben Regel. Nach der **Lage des Ziels** zu entscheiden liegt nahe (die Linie ginge
+dann «zur richtigen Seite hinaus»), kehrt die Aussage aber um: beide wären gleich
+gekrümmt, und der Rückführpunkt sähe aus wie ein Abzweigepunkt.
+
+**Der senkrechte Takt ist eine Ableitung des Radius** (`process-flow.FLOW_GAP` =
+`2·BEND − 8`), und er gilt im Raster **wie** in der Spalte. An jedem Punkt setzt ein
+Bogen an; liegen zwei Punkte näher beieinander als zwei Radien, überlagern sich diese
+Stücke und die Bögen kreuzen sich. Zwei Rhythmen hiessen: in einer der beiden Ansichten
+stimmt es, in der anderen nicht.
+
+**Die Querverbindung ist EINE Waagrechte.** Der Nachbar trägt oben und unten denselben
+Streifen Luft (`NEIGHBOUR_PAD` = `LEAD + BEND + 8`), und der **Rückführpunkt sitzt am
+Ende seiner Zeile** – dort, wo der Nachbar aufhört. Damit liegen Ein- und Auslauf auf
+einer Höhe und der Versatz in der Rückführung fällt weg (`polyPath.straighten` begradigt
+den Rest). *Nicht überall möglich:* der **übergeordnete** Auftrag steht über alle Zeilen
+gespannt, seine Punkte liegen dort, wo sein eigener Prozess sie hinlegt – zwei
+unabhängige Abläufe lassen sich nicht auf eine Zeile ausrichten, ohne einen davon zu
+verbiegen. Dort bleibt der Weg über den Kanal.
 
 ### 8.1a‴ Kreuzungsfreiheit — sie entsteht im Graph, nicht beim Zeichnen
 
