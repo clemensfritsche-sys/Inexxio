@@ -2258,14 +2258,26 @@ def test_the_branch_leaves_the_axis_and_the_line_reaches_the_module():
     # Achse vor dem Bogen überlagert die Hauptlinie; sichtbar als überstehendes
     # Endchen. Möglich wird das dadurch, dass ein **Endstück** ganz im Bogen aufgehen
     # darf – die Halbierung gibt es nur zwischen zwei benachbarten Ecken.
-    assert "[hx, hy], [hx, hy + dy]" in branch and "[hx, hy + dy], [hx, hy]" in branch, (
+    assert "[hx, hy - BEND], [hx, hy - BEND]" not in branch, (
         "Die Ausscherung liegt vor dem Bogen noch ein Stück auf der Achse – genau das "
         "ist das überstehende Linienstück am Knotenpunkt."
     )
-    # **Und sie geht zu der Seite hinaus, auf der ihr Ziel liegt.** Ginge sie immer nach
-    # unten, kreuzte sie ihren eigenen Rückweg, sobald der Nachbar oberhalb liegt.
-    assert "const side = (other: number) => (other >= hy ? BEND : -BEND)" in branch, (
-        "Die Richtung, in der die Linie den Punkt verlässt, folgt nicht ihrem Ziel."
+    # **Die Krümmung folgt dem FLUSS, nicht der Lage des Ziels.** Der Fluss geht von oben
+    # nach unten; das Stück, mit dem eine Querlinie die Achse berührt, wird darum immer
+    # stromabwärts durchlaufen: hinaus ab dem Punkt hinunter (er ist der Anfang), herein
+    # von oben auf ihn zu (er ist das Ende). Erst dadurch sind Zu- und Rückführung allein
+    # an der Krümmung zu unterscheiden – nach der Lage des Ziels waren beide gleich
+    # gekrümmt, und der Rückführpunkt sah aus wie ein Abzweigepunkt.
+    assert "[hx, hy], [hx, hy + BEND]" in branch, (
+        "Die Ausscherung läuft am Punkt nicht stromabwärts – sie krümmt sich dann nicht "
+        "weg vom Strang."
+    )
+    assert "[hx, hy - BEND], [hx, hy]" in branch, (
+        "Die Rückführung mündet nicht stromabwärts ein – sie sieht dann aus wie eine "
+        "Ausscherung."
+    )
+    assert "other >= hy" not in branch, (
+        "Die Richtung hängt wieder an der Lage des Ziels statt am Fluss."
     )
     flowsrc = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
     assert "i === 1 ? 1 : 2" in flowsrc and "i === pts.length - 2 ? 1 : 2" in flowsrc, (

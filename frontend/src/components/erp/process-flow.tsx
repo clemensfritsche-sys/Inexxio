@@ -309,6 +309,20 @@ export function FlowNode({ id, children, style, onClick, title }: {
 export const BEND = 16;
 
 /**
+ * **Der senkrechte Takt des Flusses** – und er ist nicht frei wählbar.
+ *
+ * An einem Prozesspunkt setzt ein Bogen an: die ausgehende Kante läuft ab ihm `BEND`
+ * stromabwärts, die eingehende kommt `BEND` von oben auf ihn zu. Liegen zwei Punkte
+ * näher beieinander als **zwei** Radien, überlappen sich diese Stücke – und die beiden
+ * Bögen kreuzen sich, direkt an den Punkten. Also gilt: Mitte zu Mitte mindestens
+ * `2 · BEND`; bei einem 9 px grossen Punkt bleibt daraus dieser Abstand.
+ *
+ * Damit ist «keine Kreuzung» auch an der dichtesten Stelle des Bildes eine Eigenschaft
+ * des Rasters und keine Frage des Zeichnens.
+ */
+export const FLOW_GAP = 2 * BEND - 8;
+
+/**
  * **Ports — feste Andockpunkte am Container** (React Flow nennt sie *Handles*, bpmn-js
  * *docking points*, Miro schlicht Ankerpunkte).
  *

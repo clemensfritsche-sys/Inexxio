@@ -6,7 +6,9 @@ import {
   GripVertical, Lock, Play, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
-import { FlowFrame, FlowNode, LANE, polyPath, port, type FlowAnchor } from './process-flow';
+import {
+  FLOW_GAP, FlowFrame, FlowNode, LANE, polyPath, port, type FlowAnchor,
+} from './process-flow';
 import { UnitNumber } from './unit-number';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
 import { formatObjectId, localDateTime } from '@/lib/utils';
@@ -292,7 +294,11 @@ export function FlowColumn({
   });
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+      // **Derselbe Takt wie im Raster** (`FLOW_GAP`): zwei Prozesspunkte müssen weit
+      // genug auseinander liegen, dass sich die Bögen ihrer Querlinien nicht
+      // überlagern. Eine eigene Zahl hier wäre ein zweiter Rhythmus – und in einer
+      // Nachbarspalte, die selbst Abzweigungen trägt, prompt eine Kreuzung.
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: FLOW_GAP,
       opacity: faded ? 0.5 : 1,
       ...containerStyle,
     }}>

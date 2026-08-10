@@ -70,9 +70,15 @@
 > sich alle eines teilen. Mit einem gemeinsamen Rückführpunkt musste der Rückweg des
 > ersten an allen folgenden vorbei; jetzt ist jede Verbindung eine kurze Waagrechte und
 > eine Kreuzung **unmöglich** statt vermieden (3, 4, 5 Abweichungen = 3, 4, 5 Paare;
-> geschachtelte sind kein Fall). Eine Linie verlässt den Punkt zu der Seite, auf der ihr
-> Ziel liegt, und beginnt **im** Punkt – ein Endstück darf ganz im Bogen aufgehen, darum
-> liegt kein gerades Stück mehr über der Hauptlinie.
+> geschachtelte sind kein Fall). **Die Krümmung ist die Richtung**: der Fluss geht von
+> oben nach unten, das Stück auf der Achse wird **immer stromabwärts** durchlaufen – die
+> Zuführung schert damit aus, die Rückführung mündet ein, unterscheidbar ohne Pfeil und
+> ohne Farbe. Sie beginnt **im** Punkt (ein Endstück darf ganz im Bogen aufgehen, darum
+> liegt kein gerades Stück über der Hauptlinie), der senkrechte Takt ist eine Ableitung
+> des Radius (`FLOW_GAP = 2·BEND − 8`, im Raster **wie** in der Spalte), und die
+> Querverbindung ist EINE Waagrechte (`NEIGHBOUR_PAD` oben wie unten, Rückführpunkt am
+> Ende seiner Zeile) – ausser zum **übergeordneten** Auftrag, dessen Punkte sein eigener
+> Prozess setzt.
 > **Scrollbalken sind generell unsichtbar** (`globals.css`, `*`-Regel – nicht je
 > Container): ein Balken kostet echte Breite, und wenn er beim Aufklappen erscheint,
 > springt alles Zentrierte seitlich. Gescrollt wird unverändert. **Zähler und Aufklappen fragen
