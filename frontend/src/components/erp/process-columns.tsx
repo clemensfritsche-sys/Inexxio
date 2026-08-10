@@ -7,7 +7,7 @@ import {
   type FlowAnchor, type FlowMetrics,
 } from './process-flow';
 import {
-  Axis, FlowColumn, PROCESS_MAXW, Stroke, columnRows, rowOfNode,
+  Axis, FlowColumn, PROCESS_MAXW, Stroke, axisEdges, columnRows, rowOfNode,
   type ColumnRow, type DiagramStep, type UnitChip,
 } from './process-diagram';
 import { useErpNav } from './obj-id';
@@ -351,8 +351,7 @@ function Wiring({ columns, anchors, metrics }: {
   return (
     <>
       {columns.map((c) => (
-        <Axis key={c.prefix || 'mid'}
-          edges={(c.graph.edges ?? []).filter((e) => e.kind === 'axis' && e.to)}
+        <Axis key={c.prefix || 'mid'} edges={axisEdges(c.graph)}
           anchors={anchors} prefix={c.prefix} />
       ))}
       {metrics.lanes && columns.flatMap((c) =>
