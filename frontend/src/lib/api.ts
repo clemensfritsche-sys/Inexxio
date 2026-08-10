@@ -526,11 +526,13 @@ class ApiClient {
 
   /** Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt. Das Diagramm
    *  selbst rechnet mit Zahlen (`unit_groups`), nicht mit 5000 Zeilen. */
-  getOrderUnits(objectId: number, stepId: number | null, active = true,
+  /** Die Stücke **einer Kante** des Prozessbildes – dieselbe Position, die die Pille
+   *  zählt (Befund 2.1). Die frühere Frage «Schritt X, aktiv» war gröber als das Bild:
+   *  an einem Punkt mit Teilung zählte die Pille die Gruppe, die Liste kannte die
+   *  Teilung nicht und zeigte beide. */
+  getOrderUnits(objectId: number, edge: string,
                 limit = 100, offset = 0): Promise<OrderUnitPage> {
-    const p = new URLSearchParams({ active: String(active), limit: String(limit),
-                                    offset: String(offset) });
-    if (stepId !== null) p.set('step_id', String(stepId));
+    const p = new URLSearchParams({ edge, limit: String(limit), offset: String(offset) });
     return this.get(`/api/v1/erp/orders/${objectId}/units?${p.toString()}`);
   }
 

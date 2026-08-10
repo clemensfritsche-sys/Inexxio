@@ -141,6 +141,11 @@ class Edge:
     to: Optional[str]
     kind: str = EDGE_AXIS
     walked: bool = False
+    #: **Die Zuordnung selbst**: die ``order_units``-Zeilen, die auf dieser Kante stehen.
+    #: Sie verlässt die Antwort nicht – aber die Zahlen an der Pille (``units``) und die
+    #: Liste im Aufklappen (``units_on``) kommen **beide** von hier. Zwei Abfragen für
+    #: dieselbe Frage waren genau der Widerspruch «1 Stk, aber zwei Nummern im Dropdown».
+    members: list[int] = field(default_factory=list)
     units: list[Placed] = field(default_factory=list)
 
 
@@ -221,32 +226,36 @@ def _tally(db: Session, order_id: int) -> _Tally:
 # ---------------------------------------------------------------------------
 
 @dataclass
-class _Live:
-    """Wo die Stücke **jetzt** stehen. Der Log sagt, was passiert ist; das hier, wo es steht."""
+class _Row:
+    """Eine Zugehörigkeit dieses Auftrags — **eine Zeile, eine Position**.
 
-    #: ``(step_id, status) → Anzahl`` – anwesend und noch nicht zurückgekehrt.
-    stayed: dict[tuple[Optional[int], str], int] = field(default_factory=dict)
-    #: ``(step_id, status) → Anzahl`` – anwesend, aus einer Abweichung zurückgekehrt.
-    returned: dict[tuple[Optional[int], str], int] = field(default_factory=dict)
-    #: ``(step_id, Ziel-Objektnummer, status) → Anzahl`` – ausgeschert, gerade woanders.
-    away: dict[tuple[Optional[int], int, str], int] = field(default_factory=dict)
-    #: ``status → Anzahl`` – angekommen, hinter dem Ende.
-    arrived: dict[str, int] = field(default_factory=dict)
-    #: Zustandspunkte mit einer **offenen** Rückführung: ``(step_id, Objektnummer)``.
-    pending: set[tuple[Optional[int], int]] = field(default_factory=set)
-    total: int = 0
+    Vier sich ausschliessende Fälle, und sie decken alles ab:
+
+    ==========================  =============================================
+    aktiv, Punkt gesetzt        steht hier (geblieben **oder** zurückgekehrt)
+    geschlossen, Punkt gesetzt  ausgeschert – gerade in einem anderen Auftrag
+    geschlossen, Punkt ``NULL`` angekommen, hinter dem Ende
+    aktiv, Punkt ``NULL``       gibt es nicht (wer das Ende passiert, wird frei)
+    ==========================  =============================================
+    """
+
+    membership_id: int
+    at: Optional[int]
+    status: str
+    active: bool
+    #: Nur für Ausgescherte: die Objektnummer des Auftrags, **durch den** es ging.
+    through: Optional[int] = None
+    #: Ist dieses Stück an diesem Punkt schon einmal zurückgekehrt?
+    returned: bool = False
+    #: Kommt es (noch) zurück? Über die ganze Kette gelesen (§3.5).
+    coming_back: bool = False
 
 
 def _returned_here(db: Session, order_id: int) -> set[tuple[int, Optional[int]]]:
     """``{(Stück, Zustandspunkt)}`` – wo ein Stück in diesen Auftrag **zurückgekehrt** ist.
 
-    Das ist der Unterschied zwischen «steht hier» und «steht hier **wieder**» – und der
-    Grund, warum der Rückführpunkt ein eigener Knoten ist: ohne diese Menge stünden
-    beide auf derselben Kante, und das Bild verschwiege die Runde.
-
-    Der Punkt gehört dazu. Ein Stück, das an Punkt P zurückkam und längst bei P′ steht,
-    ist dort ein ganz gewöhnliches Stück; ohne den Punkt hinge es für immer an einem
-    Rückführpunkt, den es hinter sich hat.
+    Der Punkt gehört dazu: ein Stück, das an Punkt P zurückkam und längst bei P′ steht,
+    ist dort ein ganz gewöhnliches Stück.
     """
     return {
         (int(uid), int(sid) if sid is not None else None)
@@ -275,20 +284,11 @@ def _left_through(db: Session, order_id: int) -> dict[int, int]:
     return {int(uid): int(to) for uid, to in rows if to is not None}
 
 
-def _live(db: Session, order: Order) -> _Live:
-    """Jede Zugehörigkeit dieses Auftrags, eingeordnet — **genau einmal**.
-
-    Vier sich ausschliessende Fälle, und sie decken alles ab:
-
-    ==========================  =============================================
-    aktiv, Punkt gesetzt        steht hier (geblieben **oder** zurückgekehrt)
-    geschlossen, Punkt gesetzt  ausgeschert – gerade in einem anderen Auftrag
-    geschlossen, Punkt ``NULL`` angekommen, hinter dem Ende
-    aktiv, Punkt ``NULL``       gibt es nicht (wer das Ende passiert, wird frei)
-    ==========================  =============================================
-    """
-    rows = db.execute(
+def _rows(db: Session, order: Order) -> list[_Row]:
+    """Alle Zugehörigkeiten dieses Auftrags, angereichert — **eine** Abfrage plus Log."""
+    raw = db.execute(
         select(
+            OrderUnit.id,
             OrderUnit.current_step_id,
             OrderUnit.released_at.is_(None).label("active"),
             InstanceUnit.status,
@@ -296,32 +296,24 @@ def _live(db: Session, order: Order) -> _Live:
         )
         .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
         .where(OrderUnit.order_id == order.id)
+        .order_by(OrderUnit.id)
     ).all()
-
     came_back = _returned_here(db, order.id)
     through = _left_through(db, order.id)
     # **Kommt es zurück?** – dieselbe Ableitung, die auch das Modul sperrt. Die Kette
     # zählt (§3.5); zweimal gelaufen wären es zwei Antworten auf eine Frage.
     coming = process.returning_home(db, order)
 
-    live = _Live(total=len(rows))
-    for at, active, status, unit_id in rows:
+    out: list[_Row] = []
+    for mid, at, active, status, unit_id in raw:
         at = int(at) if at is not None else None
-        unit_id = int(unit_id)
-        if active:
-            bucket = live.returned if (unit_id, at) in came_back else live.stayed
-            bucket[(at, status)] = bucket.get((at, status), 0) + 1
-        elif at is None:
-            live.arrived[status] = live.arrived.get(status, 0) + 1
-        else:
-            target = through.get(unit_id)
-            if target is None:
-                continue
-            key = (at, target, status)
-            live.away[key] = live.away.get(key, 0) + 1
-            if unit_id in coming:
-                live.pending.add((at, target))
-    return live
+        out.append(_Row(
+            membership_id=int(mid), at=at, status=status, active=bool(active),
+            through=through.get(int(unit_id)),
+            returned=(int(unit_id), at) in came_back,
+            coming_back=int(unit_id) in coming,
+        ))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -345,12 +337,17 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
             .all()
         )
     tally = _tally(db, order.id)
-    live = _live(db, order)
+    rows = _rows(db, order)
     g = Graph()
 
     known = {s.id for s in steps}
     forks = {at for (at, _) in tally.out}
-    joins = {at for (at, _) in tally.back} | {at for (at, _) in live.pending}
+    # Ein Rückführpunkt entsteht, wenn dort je etwas zurückkam **oder** noch etwas
+    # unterwegs ist. Beides ist «hier mündet etwas ein» – einmal rückblickend, einmal
+    # angekündigt.
+    pending = {(r.at, r.through) for r in rows
+               if not r.active and r.at is not None and r.through and r.coming_back}
+    joins = {at for (at, _) in tally.back} | {at for (at, _) in pending}
     for at in sorted(x for x in (forks | joins) if x is not None and x not in known):
         g.problems.append(
             f"Abzweigung an Modul {at}, das nicht (mehr) zum Ablauf gehört – "
@@ -366,10 +363,7 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
         # ersten Modul über das Start-Objekt, jeder weitere über das Modul davor.
         arrived = tally.started if index == 0 else tally.passed.get(steps[index - 1].id, 0)
         reached = arrived > 0
-        # Wer hier steht: **geblieben** (nie ausgeschert) und **zurückgekehrt**. Die
-        # Trennung ist der ganze Zweck von fork und join – sie stehen auf verschiedenen
-        # Kanten, obwohl sie an derselben Stelle warten.
-        stayed = _at(live.stayed, at)
+        open_here = any(point == at for point, _ in pending)
 
         if at in forks:
             g.nodes.append(Node(id=fork_id(at), kind=NODE_FORK, at=at))
@@ -379,44 +373,61 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
             for (point, target) in sorted(tally.out, key=_pointkey):
                 if point != at:
                     continue
-                g.edges.append(Edge(
-                    id=f"out:{at}:{target}", frm=fork_id(at), to=order_ref(target),
-                    kind=EDGE_OUT, walked=True, units=_away(live.away, at, target),
+                g.edges.append(_edge(
+                    f"out:{at}:{target}", fork_id(at), order_ref(target), EDGE_OUT, True,
+                    _pick(rows, lambda r, t=target, a=at: _away_at(r, a, t)),
                 ))
 
         if at in joins:
             g.nodes.append(Node(id=join_id(at), kind=NODE_JOIN, at=at))
-            # Zwischen fork und join liegt der **Bypass** – der Weg derer, die geblieben
-            # sind. Ohne fork davor ist es schlicht die Ankunftskante; in beiden Fällen
-            # ist es die Kante, auf der sie stehen.
-            prev = _link(g, prev, join_id(at), reached, stayed)
-            stayed = []
-            for (point, source) in sorted(set(tally.back) | live.pending, key=_pointkey):
+            # **Der Bypass trägt nur, solange die Teilung offen ist.**
+            #
+            # Ist alles zurück, steht auch das gebliebene Stück *hinter* dem
+            # Zusammenfluss: die Unterscheidung «geblieben ↔ zurückgekehrt» ist dann
+            # Geschichte, keine Position. Beide warten an derselben Stelle auf dasselbe
+            # Modul, und zwei Pillen dafür behaupteten zwei Orte.
+            prev = _link(g, prev, join_id(at), reached,
+                         _pick(rows, lambda r: _here_at(r, at, returned=False))
+                         if open_here else [])
+            for (point, source) in sorted(set(tally.back) | pending, key=_pointkey):
                 if point != at:
                     continue
-                g.edges.append(Edge(
-                    id=f"back:{at}:{source}", frm=order_ref(source), to=join_id(at),
-                    kind=EDGE_BACK, walked=tally.back.get((at, source), 0) > 0,
+                g.edges.append(_edge(
+                    f"back:{at}:{source}", order_ref(source), join_id(at), EDGE_BACK,
+                    tally.back.get((at, source), 0) > 0, [],
                 ))
 
         g.nodes.append(Node(id=module_id(at), kind=NODE_MODULE, at=at))
-        # Die letzte Kante vor dem Modul: die Zurückgekehrten immer – und die
-        # Gebliebenen dann, wenn es hier weder fork noch join gab.
-        prev = _link(g, prev, module_id(at), reached, stayed + _at(live.returned, at))
+        # Die letzte Kante vor dem Modul: alle, die hier warten – ausser denen, die der
+        # noch offene Bypass daneben schon trägt.
+        prev = _link(g, prev, module_id(at), reached, _pick(
+            rows,
+            (lambda r: _here_at(r, at, returned=True)) if open_here
+            else (lambda r: _here_at(r, at)),
+        ))
 
     g.nodes.append(Node(id=NODE_END, kind=NODE_END))
     _link(g, prev, NODE_END, tally.ended > 0, [])
     # Hinter dem Ende gibt es keinen Knoten mehr – angekommene Stücke stehen trotzdem
     # irgendwo, und «irgendwo» ist die Kante, die aus dem Ende herausführt.
-    g.edges.append(Edge(
-        id="edge:end:done", frm=NODE_END, to=None, walked=tally.ended > 0,
-        units=[Placed(status=s, count=n, active=False, at_step_id=None)
-               for s, n in sorted(live.arrived.items())],
+    g.edges.append(_edge(
+        "edge:end:done", NODE_END, None, EDGE_AXIS, tally.ended > 0,
+        _pick(rows, lambda r: not r.active and r.at is None),
     ))
 
-    _verify(g, live)
+    _verify(g, rows)
     return g
 
+
+# ---------------------------------------------------------------------------
+# Die Zuordnung — **eine** Stelle, an der ein Stück auf eine Kante kommt
+# ---------------------------------------------------------------------------
+#
+# Der Zähler an der Pille und die Liste im Dropdown lasen früher aus zwei verschiedenen
+# Quellen: die Pille aus dem Graph, das Dropdown aus einer gröberen Abfrage
+# «alle Stücke an Schritt X». Bei einer Teilung stimmte darum die Zahl, aber die Liste
+# zeigte beide Gruppen – zweimal dieselbe. Jetzt beantwortet **ein** Prädikat je Kante
+# beide Fragen: ``build`` zählt, was es zurückgibt, ``units_on`` listet es auf.
 
 def _pointkey(key: tuple) -> tuple:
     """Sortierschlüssel für ``(Zustandspunkt, Auftrag)`` – ``None`` ist ein Punkt wie jeder
@@ -424,41 +435,45 @@ def _pointkey(key: tuple) -> tuple:
     return (key[0] is None, key[0] or 0, key[1])
 
 
-def _link(g: Graph, frm: str, to: str, walked: bool, units: list[Placed]) -> str:
-    g.edges.append(Edge(id=f"edge:{frm}:{to}", frm=frm, to=to, walked=walked, units=units))
+def _pick(rows: list["_Row"], where) -> list["_Row"]:
+    """Die Zeilen, die auf einer Kante stehen — **das** ist die Zuordnung."""
+    return [r for r in rows if where(r)]
+
+
+def _edge(eid: str, frm: str, to: Optional[str], kind: str, walked: bool,
+          members: list) -> Edge:
+    """Eine Kante mit ihren Mitgliedern – und den Zahlen, die daraus folgen.
+
+    **Ein** Konstruktor für jede Kante des Graphs. Zahlen und Mitglieder können damit
+    nicht auseinanderlaufen: die einen sind aus den anderen gerechnet.
+    """
+    return Edge(id=eid, frm=frm, to=to, kind=kind, walked=walked,
+                members=[r.membership_id for r in members], units=_counted(members))
+
+
+def _link(g: Graph, frm: str, to: str, walked: bool, members: list) -> str:
+    g.edges.append(_edge(f"edge:{frm}:{to}", frm, to, EDGE_AXIS, walked, members))
     return to
 
 
-def _at(bucket: dict[tuple[Optional[int], str], int], at: Optional[int]) -> list[Placed]:
-    return [
-        Placed(status=status, count=n, active=True, at_step_id=point)
-        for (point, status), n in sorted(bucket.items(), key=lambda kv: kv[0][1])
-        if point == at
-    ]
-
-
-def _away(bucket: dict[tuple[Optional[int], int, str], int],
-          at: Optional[int], target: int) -> list[Placed]:
-    return [
-        Placed(status=status, count=n, active=False, at_step_id=point)
-        for (point, to, status), n in sorted(bucket.items(), key=lambda kv: kv[0][2])
-        if point == at and to == target
-    ]
-
-
-def _verify(g: Graph, live: _Live) -> None:
+def _verify(g: Graph, rows: list["_Row"]) -> None:
     """Die Invarianten. Verletzt heisst **sichtbar kaputt**, nicht still falsch.
 
     Ein Bild, das eine Einzelinstanz verliert oder doppelt zeigt, ist schlimmer als
     keines: es sieht vollständig aus. Darum wird hier gezählt, und was nicht aufgeht,
     steht in ``problems`` – die Oberfläche sagt es dann, statt es zu zeichnen.
     """
-    placed = sum(p.count for e in g.edges for p in e.units)
-    if placed != live.total:
+    placed: list[int] = [m for e in g.edges for m in e.members]
+    if len(placed) != len(set(placed)):
+        g.problems.append("Eine Einzelinstanz steht an zwei Stellen im Bild.")
+    if len(set(placed)) != len(rows):
         g.problems.append(
-            f"{placed} von {live.total} Einzelinstanzen haben eine Position im Bild – "
-            "jede muss genau eine haben."
+            f"{len(set(placed))} von {len(rows)} Einzelinstanzen haben eine Position im "
+            "Bild – jede muss genau eine haben."
         )
+    for e in g.edges:
+        if sum(p.count for p in e.units) != len(e.members):
+            g.problems.append(f"Kante {e.id}: Zahl und Mitglieder stimmen nicht überein.")
     ids = [n.id for n in g.nodes]
     if len(ids) != len(set(ids)):
         g.problems.append("Zwei Knoten teilen sich eine Kennung.")
@@ -468,6 +483,50 @@ def _verify(g: Graph, live: _Live) -> None:
             g.problems.append(f"Kante {e.id} beginnt an einem Knoten, den es nicht gibt.")
         if e.to is not None and e.to not in anchored and not e.to.startswith("order:"):
             g.problems.append(f"Kante {e.id} endet an einem Knoten, den es nicht gibt.")
+
+
+def _away_at(r: _Row, at: Optional[int], target: int) -> bool:
+    """Ausgeschert an Punkt ``at``, hinaus durch Auftrag ``target``."""
+    return not r.active and r.at == at and r.through == target
+
+
+def _here_at(r: _Row, at: Optional[int], returned: Optional[bool] = None) -> bool:
+    """Steht an Punkt ``at`` – wahlweise nur die Zurückgekehrten bzw. nur die Gebliebenen."""
+    if not (r.active and r.at == at):
+        return False
+    return returned is None or r.returned is returned
+
+
+def _counted(members: list[_Row]) -> list[Placed]:
+    """Die Zahlen an der Pille – **abgeleitet aus den Mitgliedern**, nicht daneben gezählt.
+
+    Bei Menge 5000 will niemand 5000 Zeilen sehen; die Frage an dieser Stelle lautet «wie
+    viele stehen wo». Wer die Nummern braucht, klappt auf – und bekommt dann genau diese
+    Mitglieder, nicht das Ergebnis einer zweiten, gröberen Abfrage.
+    """
+    counts: dict[tuple[str, bool, Optional[int]], int] = {}
+    for r in members:
+        key = (r.status, r.active, r.at)
+        counts[key] = counts.get(key, 0) + 1
+    return [
+        Placed(status=status, count=n, active=active, at_step_id=at)
+        for (status, active, at), n in sorted(counts.items())
+    ]
+
+
+def units_on(db: Session, order: Order, edge_id: str) -> list[int]:
+    """Die ``order_units``-Zeilen dieser Kante — **nachgeschlagen**, nicht neu hergeleitet.
+
+    Der Graph wird dafür gebaut und die Kante aufgeschlagen. Das ist Absicht: eine
+    zweite, schnellere Abfrage («alle Stücke an Schritt X») wäre genau die zweite
+    Quelle, aus der der Widerspruch entstand – die Pille zählte die Teilung, die Liste
+    kannte sie nicht und zeigte beide Gruppen. Es passiert nur beim Aufklappen.
+    """
+    g = build(db, order)
+    for e in g.edges:
+        if e.id == edge_id:
+            return list(e.members)
+    return []
 
 
 def as_dict(g: Graph) -> dict[str, Any]:

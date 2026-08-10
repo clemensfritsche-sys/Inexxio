@@ -774,7 +774,13 @@ export interface paths {
         };
         /**
          * List Units
-         * @description Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt.
+         * @description Die einzelnen Stücke **einer Position** – erst wenn jemand aufklappt.
+         *
+         *     **Gefragt wird nach der Kante**, nicht nach «Schritt X, aktiv» (Befund 2.1). Die
+         *     gröbere Frage war eine zweite Quelle: an einem Punkt mit Teilung zählte die Pille
+         *     die Gruppe, die Liste kannte die Teilung nicht und zeigte beide – «1 Stk», und im
+         *     Aufklappen zwei Nummern. Jetzt beantwortet die Zuordnung im Graph beide Fragen
+         *     (``flow.units_on``).
          */
         get: operations["list_units_api_v1_erp_orders__object_id__units_get"];
         put?: never;
@@ -4017,9 +4023,9 @@ export interface operations {
     };
     list_units_api_v1_erp_orders__object_id__units_get: {
         parameters: {
-            query?: {
-                step_id?: number | null;
-                active?: boolean;
+            query: {
+                /** @description Die Kante des Prozessbildes, deren Stücke gemeint sind. */
+                edge: string;
                 limit?: number;
                 offset?: number;
             };

@@ -1749,9 +1749,12 @@ def test_a_branch_hangs_on_a_state_point_not_on_a_module():
     # dadurch bleibt die Verbindung kurz: die Zeilen wachsen auf seine Höhe, die
     # Hauptachse wächst mit, und es entsteht das Bild, das die Sache ist – Teilung, zwei
     # Wege, Zusammenfluss.
-    assert "rowOfNode(mid.rows, e.frm)" in cols and "rowOfNode(mid.rows, e.to ?? '')" in cols, (
+    assert "rowOfNode(mid.rows," in cols and "e.kind === 'out' ? e.frm : e.to" in cols, (
         "Der Nachbar steht nicht in den Zeilen seiner Punkte – dann muss die Linie "
         "wieder quer über das halbe Bild laufen."
+    )
+    assert "gridRow: `${b.from + 1} / ${b.to + 2}`" in cols, (
+        "Die Zeilenspanne wird nicht auf das Raster gelegt."
     )
 
     # Serverseitig: je Zustandspunkt eine Zeile, nicht ein geratenes Minimum.
@@ -2213,11 +2216,20 @@ def test_the_branch_leaves_the_axis_and_the_line_reaches_the_module():
     """
     cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
     branch = _body(cols, "Cross", kind="function")
-    assert "[here.a.cx, here.a.cy - LEAD]" in branch, (
+    assert "port(here.a, 'center')" in branch, (
         "Die Abzweigung beginnt nicht auf der Achse – sie soll dort mit einer Kurve "
         "abbiegen wie eine Ausfahrt, nicht mit einem Knick danebenstehen."
     )
-    assert ".right" not in branch.split("const clear")[0] and "P.right" not in cols, (
+    # **Der Bogen beginnt am Punkt** (Befund 2.2): `BEND` davor auf der Achse, `BEND`
+    # danach der Knick – dann liegt die Tangente exakt auf dem Punkt. Mit `2 · BEND`
+    # davor löste sich die Linie schon eine Radiuslänge über ihm vom Strang, und der
+    # Punkt stand dort, wo sich zwei gedachte Geraden schneiden statt dort, wo etwas
+    # passiert.
+    assert "[hx, hy - BEND], [hx, hy + BEND]" in branch, (
+        "Der Bogen setzt nicht am Punkt an – der Punkt sitzt dann am gedachten "
+        "Schnittpunkt statt an der Stelle, an der die Linie den Strang verlässt."
+    )
+    assert ".right" not in branch and "P.right" not in cols, (
         "Die Abzweigung beginnt wieder am Spurrand – sie hängt dann sichtbar an nichts."
     )
     # **Der Kantenzustand kommt vom Server, das Frontend rechnet ihn nicht.** Die frühere

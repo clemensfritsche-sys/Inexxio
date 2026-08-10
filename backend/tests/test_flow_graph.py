@@ -6,15 +6,18 @@ nachgebessert, und beim nächsten brach etwas anderes. Das ist das Muster, das e
 Regel-Tabelle beendet: nicht jeden Fall prüfen, sondern die **Eigenschaften**, aus denen
 alle Fälle folgen.
 
-Fünf Invarianten, und sie sind der ganze Vertrag:
+Acht Invarianten, und sie sind der ganze Vertrag:
 
-=================================================  ===========================
+=================================================  ===============================
 Jede Einzelinstanz hat **genau eine** Position     ``test_every_unit_has_…``
 Die Summe der Positionen = Stückzahl des Auftrags  ``test_every_unit_has_…``
+Zähler und Aufklappen fragen **dieselbe** Position ``test_the_count_and_the_list_…``
 Jede Kante hat **genau einen** Zustand             strukturell (``bool``)
 Eine kräftige Kante wird **nie wieder** schwach    ``test_a_walked_edge_…``
 Jeder Pfad stammt aus dem **einen** Generator      ``test_every_line_comes_…``
-=================================================  ===========================
+Keine zwei Kanten teilen sich einen **Kanal**      ``test_no_two_branches_…``
+Keine Kante überlagert einen **Knoten-Container**  ``test_a_line_docks_at_a_port_…``
+=================================================  ===============================
 
 Wird eine verletzt, ist das ein **sauberer Fehler** – im Bild eine rote Notiz statt
 einer stillen Fehldarstellung (``Graph.problems``), hier ein roter Test.
@@ -296,6 +299,122 @@ def test_a_walked_edge_never_becomes_weak_again():
     finally:
         db.rollback()
         db.close()
+
+
+def test_no_two_branches_share_a_channel():
+    """**Mehrere Abzweigungen sind kein Sonderfall, sondern n statt 1.**
+
+    Laufen zwei Abweichungen gleichzeitig, brauchen ihre senkrechten Stücke verschiedene
+    Spuren – sonst liegen die Linien exakt übereinander, und aus zwei Wegen wird optisch
+    einer. Das ist seit Jahrzehnten gelöst (ELK nennt die Spuren *tracks*): zwei
+    Segmente, deren **Spannen sich überschneiden**, bekommen verschiedene Spuren; für
+    Intervalle ist gierig nach Anfang sortiert optimal.
+
+    Geprüft wird, dass die Zuteilung **an einer Stelle** entsteht und nirgends
+    danebengerechnet wird. Eine zweite Zuteilung wäre wieder «meistens passt es».
+    """
+    flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
+    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
+
+    assert flow.count("export function channels(") == 1, (
+        "Die Kanalzuteilung steht nicht an genau einer Stelle."
+    )
+    assert "open[i].end < s.from" in flow, (
+        "Die Spannen sind halboffen – zwei Abzweigungen, die sich eine Zeile teilen, "
+        "bekämen denselben Kanal und lägen aufeinander."
+    )
+    assert "channelX(centre," in cols and flow.count("export function channelX(") == 1, (
+        "Die x-Koordinate eines Kanals entsteht nicht aus der Zuteilung."
+    )
+    assert "channels(spans(left))" in cols and "channels(spans(right))" in cols, (
+        "Nicht jede Seite bekommt ihre eigene Zuteilung."
+    )
+    # **Die Lücke folgt der Zuteilung, nicht umgekehrt.** Ein festes Mass wäre bei zwei
+    # Abweichungen zu eng – und «zu eng» heisst hier: übereinander.
+    assert "gutterFor(Math.max(" in cols and "gutter={gutter}" in cols, (
+        "Die Spurlücke wächst nicht mit der Zahl der Kanäle."
+    )
+    # Und Nachbarn, deren Spannen sich überschneiden, stehen **untereinander**: im
+    # selben Rasterfeld lägen sie sonst als zwei Rasterelemente aufeinander.
+    assert "if (last && s.from <= last.to)" in cols, (
+        "Überschneidende Nachbarn werden nicht zu einem Band zusammengefasst – im "
+        "Raster stünden sie dann in derselben Zelle, also übereinander."
+    )
+
+
+def test_a_line_docks_at_a_port_and_the_layer_is_never_clipped():
+    """**Ports und ein Linien-Layer** – die beiden Befunde 2.3 und 2.4 hatten eine Wurzel.
+
+    Eine Linie endete «irgendwo am Knoten» und lief darum je nach Modulhöhe hinein; und
+    sie wurde vom Rahmen beschnitten, wenn sie einen Pixel darüber hinausging. Beides
+    ist dieselbe Frage: **wo hört eine Linie auf?**
+
+    Die Antwort ist die der etablierten Werkzeuge (React Flow *Handles*, bpmn-js
+    *docking points*, Miro-Ankerpunkte): sie hört an einem **Port** auf – einem Punkt
+    auf dem Rand, der aus der Messung kommt. Sie kennt die Fläche eines Knotens gar
+    nicht mehr. Und gezeichnet wird auf **einem** Layer über der ganzen Prozessfläche,
+    den kein Geschwister-Container beschneidet.
+    """
+    flow = _read(FRONTEND / "components" / "erp" / "process-flow.tsx")
+    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+
+    assert flow.count("export function port(") == 1, "Der Andockpunkt entsteht nicht an einer Stelle."
+    # Jedes Ende einer Linie ist ein Port – auch die Achse, damit es nur eine Regel gibt.
+    assert "port(A, 'bottom'), port(B, 'top')" in diagram, (
+        "Die Achse dockt nicht an Ports an."
+    )
+    for side in ("'center'", "'top'", "'bottom'"):
+        assert f"port(there.a, {side})" in cols or f"port(here.a, {side})" in cols, (
+            f"Die Querverbindung nutzt den Port {side} nicht."
+        )
+    # **Ein Layer, und er beschneidet nichts.** Ohne `overflow: visible` fehlte eine
+    # Linie still, sobald sie einen Pixel über die gemessene Rahmenhöhe hinauslief.
+    assert flow.count("<svg") == 1, "Es gibt mehr als einen Linien-Layer."
+    assert "overflow: 'visible'" in flow, (
+        "Der Linien-Layer beschneidet wieder – dann fehlt eine Linie, statt dass sie "
+        "sichtbar zu weit läuft."
+    )
+    # Platz wird im **Layout** gemacht, nicht mit einem Versatz an der Linie.
+    assert "paddingTop: TOP_LEAD, paddingBottom: BOTTOM_LEAD" in cols, (
+        "Der Rahmen macht oben und unten keinen Platz für die ein- und ausmündenden "
+        "Linien – dann läuft eine davon über den Rand."
+    )
+    # Und der Knoten nennt sich, damit «keine Linie überlagert einen Knoten» nachmessbar
+    # ist statt behauptet.
+    assert "data-flow-node={id}" in flow, "Ein Knoten ist im DOM nicht als solcher erkennbar."
+
+
+def test_the_count_and_the_list_ask_the_same_position():
+    """**Zähler und Aufklappen fragen dieselbe Stelle** (Befund 2.1).
+
+    Die Pille zählte aus dem Graph, das Dropdown holte «alle Stücke an Schritt X» – zwei
+    Quellen, und an einem Punkt mit Teilung liefen sie auseinander: «1 Stk», und im
+    Aufklappen zwei Nummern. Jetzt ist die Zuordnung **die Kante**: ``build`` zählt, was
+    sie enthält, ``units_on`` schlägt genau dieselbe Liste nach.
+    """
+    svc = _read(BACKEND / "app" / "services" / "flow.py")
+    assert "members: list[int]" in svc, "Die Kante trägt ihre Mitglieder nicht."
+    assert "units=_counted(members)" in svc, (
+        "Die Zahl an der Pille wird nicht aus den Mitgliedern gerechnet."
+    )
+    body = svc[svc.index("def units_on("):]
+    body = body[:body.index("\ndef ")]
+    assert "build(db, order)" in body and "OrderUnit" not in body, (
+        "Das Aufklappen fragt wieder eigenständig ab – das ist die zweite Quelle."
+    )
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    page = proc[proc.index("def units_page("):]
+    page = page[:page.index("\ndef ")]
+    assert "membership_ids" in page and "current_step_id" not in page, (
+        "Die Seite sucht sich ihre Stücke selbst zusammen, statt die Zuordnung des "
+        "Bildes zu übernehmen."
+    )
+    api = _read(FRONTEND / "lib" / "api.ts")
+    assert "getOrderUnits(objectId: number, edge: string" in api, (
+        "Die Oberfläche fragt nicht nach der Kante – dann kann sie eine andere Menge "
+        "bekommen als die, die sie gezählt hat."
+    )
 
 
 def test_the_invariants_run_on_every_push():

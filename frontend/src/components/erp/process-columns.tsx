@@ -3,7 +3,7 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import {
-  BEND, FlowFrame, FlowNode, flowMetrics, polyPath,
+  BEND, FlowFrame, channelX, channels, gutterFor, polyPath, port,
   type FlowAnchor, type FlowMetrics,
 } from './process-flow';
 import {
@@ -73,17 +73,6 @@ import type {
  * wären. Dann stehen die Nachbarn untereinander – dieselben Spalten, nur ohne Querlinien.
  */
 
-/** Zeilenabstand der Hauptachse – dieselbe Luft wie im Fluss einer einzelnen Spalte. */
-const ROW_GAP = 14;
-/**
- * Luft über dem Start-Objekt eines Nachbarn — **die Fahrbahn der Ausscherung**.
- *
- * Die Linie zweigt an der Hauptachse ab, läuft quer und muss **senkrecht** in das
- * Start-Objekt einlaufen (§8.1a). Dafür braucht sie einen Streifen, in dem keine Karte
- * steht: sonst liefe sie dahinter durch – gezeichnet, aber unsichtbar, weil die Knoten
- * über den Linien liegen.
- */
-const NEIGHBOUR_DROP = 44;
 /**
  * Wie weit eine Linie **senkrecht** in ein Objekt ein- bzw. aus ihm herausläuft.
  *
@@ -92,11 +81,33 @@ const NEIGHBOUR_DROP = 44;
  */
 const LEAD = 2 * BEND;
 /**
- * Luft über dem Start-Objekt der Mitte. Ein übergeordneter Auftrag mündet **von oben**
- * ein; stünde der Start bei y = 0, gäbe es für diese Einmündung keinen Platz und die
- * Linie liefe aus dem Rahmen.
+ * Zeilenabstand der Hauptachse.
+ *
+ * Er ist **nicht frei wählbar**: eine Abzweigung verlässt den Strang im Punkt und liegt
+ * `BEND` darunter waagrecht (Befund 2.2). Damit dieser Zug nicht in die nächste Zeile
+ * gerät, muss die Lücke ihn tragen — `2 · (BEND − halber Punkt)` plus etwas Luft.
  */
-const TOP_LEAD = 30;
+const ROW_GAP = 18;
+/**
+ * Luft über dem Start-Objekt eines Nachbarn — **die Fahrbahn der Ausscherung**.
+ *
+ * Die Linie zweigt an der Hauptachse ab, läuft quer und muss **senkrecht** in das
+ * Start-Objekt einlaufen (§8.1a). Dafür braucht sie einen Streifen, in dem keine Karte
+ * steht: sonst liefe sie dahinter durch – gezeichnet, aber unsichtbar, weil die Knoten
+ * über den Linien liegen.
+ */
+const NEIGHBOUR_DROP = LEAD + 12;
+/**
+ * Luft über der Mitte. Ein übergeordneter Auftrag mündet **von oben** ein; ohne diesen
+ * Streifen liefe seine Linie über den oberen Rahmenrand hinaus.
+ */
+const TOP_LEAD = LEAD + 10;
+/**
+ * Luft unter dem Raster — der Gegenpart: eine Rückführung verlässt die Spalte **unter**
+ * ihrer letzten Zeile. Sie wird hier im Layout gemacht, nicht durch einen Versatz an der
+ * Linie: der Rahmen ist so hoch, wie das Bild ist.
+ */
+const BOTTOM_LEAD = LEAD + 10;
 
 /**
  * Eine Spalte des Bildes: ein Auftrag mit seinem Graph.
@@ -111,15 +122,31 @@ interface Column {
   graph: ProcessGraph;
   steps: DiagramStep[];
   rows: ColumnRow[];
-  side: 'left' | 'mid' | 'right';
+  side: Side;
   rel?: RelatedOrder;
+}
+
+type Side = 'left' | 'mid' | 'right';
+
+/** Von welcher bis zu welcher **Zeile** der Hauptachse ein Nachbar reicht. */
+interface Span { from: number; to: number }
+
+/** Die Spanne einer Spalte – fehlt sie, hängt der Nachbar an keinem Punkt dieser Achse. */
+function spanOf(span: Map<string, Span>, col: Column): Span {
+  return span.get(col.prefix) ?? { from: 0, to: 0 };
+}
+
+/** Die Kanalzuteilung: je Nachbar seine Spur, je Seite deren Anzahl. */
+interface Wires {
+  of: Map<string, number>;
+  used: Record<Side, number>;
 }
 
 export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviateBlocked,
   journeyIn, journeyOut }: {
   order: Order;
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
-  onExpand?: (stepId: number | null, active: boolean) => Promise<UnitChip[]>;
+  onExpand?: (edgeId: string) => Promise<UnitChip[]>;
   /** Abweichung an einem Stück – nur in der **Mitte**, nie in einer fremden Spalte. */
   onDeviate?: (unitNumber: string) => void;
   /** Warum der Auslöser gesperrt ist (§5). Gesetzt = gesperrt, mit Grund im Hover. */
@@ -159,24 +186,62 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
   // Kante in der Mitte. Findet sich keine (ein übergeordneter Auftrag hängt an unserem
   // Start), spannt er über alles: er ist vorher gelaufen und gehört nicht in den Takt.
   const span = useMemo(() => {
-    const out = new Map<string, { from: number; to: number }>();
-    right.forEach((c) => {
+    const all = { from: 0, to: Math.max(0, mid.rows.length - 1) };
+    const out = new Map<string, Span>();
+    [...left, ...right].forEach((c) => {
       const ref = `order:${c.objectId}`;
-      const forks = (mid.graph.edges ?? []).filter((e) => e.kind === 'out' && e.to === ref);
-      const joins = (mid.graph.edges ?? []).filter((e) => e.kind === 'back' && e.frm === ref);
-      const rows = [
-        ...forks.map((e) => rowOfNode(mid.rows, e.frm)),
-        ...joins.map((e) => rowOfNode(mid.rows, e.to ?? '')),
-      ].filter((r) => r >= 0);
-      if (rows.length) out.set(c.prefix, { from: Math.min(...rows), to: Math.max(...rows) });
+      const rows = (mid.graph.edges ?? [])
+        .filter((e) => (e.kind === 'out' && e.to === ref) || (e.kind === 'back' && e.frm === ref))
+        .map((e) => rowOfNode(mid.rows, (e.kind === 'out' ? e.frm : e.to) ?? ''))
+        .filter((r) => r >= 0);
+      out.set(c.prefix, rows.length
+        ? { from: Math.min(...rows), to: Math.max(...rows) } : all);
     });
     return out;
-  }, [right, mid]);
+  }, [left, right, mid]);
+
+  // **Die Kanäle** (§1). Zwei Abzweigungen, deren Spannen sich überschneiden, bekommen
+  // verschiedene senkrechte Spuren – gierig nach Anfang sortiert, also deterministisch
+  // und nie mehr Spuren als an der dicksten Stelle gleichzeitig laufen. Gerechnet wird
+  // auf **Zeilennummern**, nicht auf gemessenen Pixeln: die Zuteilung steht damit fest,
+  // bevor irgendetwas gemessen ist, und die Lücke kann sich danach richten.
+  const wires = useMemo<Wires>(() => {
+    const spans = (cols: Column[]) =>
+      cols.map((c) => ({ key: c.prefix, ...spanOf(span, c) }));
+    const l = channels(spans(left));
+    const r = channels(spans(right));
+    return {
+      of: new Map([...l.of, ...r.of]),
+      used: { left: l.used, right: r.used, mid: 0 },
+    };
+  }, [left, right, span]);
+
+  // **Nachbarn, deren Spannen sich überschneiden, stehen untereinander** – sonst lägen
+  // sie im Raster in derselben Zelle und damit übereinander (der eigentliche Grund,
+  // warum zwei Abweichungen bisher ein Desaster ergaben). Ein Band spannt über die
+  // Vereinigung seiner Spannen; die Achse wächst an dieser Stelle mit.
+  const bands = useMemo(() => {
+    const out: Array<Span & { cols: Column[] }> = [];
+    [...right]
+      .sort((a, b) => (spanOf(span, a).from - spanOf(span, b).from) || a.objectId - b.objectId)
+      .forEach((c) => {
+        const s = spanOf(span, c);
+        const last = out[out.length - 1];
+        if (last && s.from <= last.to) {
+          last.to = Math.max(last.to, s.to);
+          last.cols.push(c);
+        } else out.push({ from: s.from, to: s.to, cols: [c] });
+      });
+    return out;
+  }, [right, span]);
+
+  const gutter = gutterFor(Math.max(wires.used.left, wires.used.right));
 
   return (
-    <FlowFrame lines={(a, size) => (
-      <Wiring columns={columns} anchors={a} metrics={flowMetrics(size.w)} />
-    )}>
+    <FlowFrame
+      gutter={gutter}
+      lines={(a, _size, m) => <Wiring columns={columns} anchors={a} metrics={m} wires={wires} />}
+    >
       {(m) => {
         const column = (rowStyle?: (i: number) => CSSProperties) => (
           <FlowColumn
@@ -209,7 +274,8 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
           <>
             <div style={{
               display: 'grid', alignItems: 'start', justifyItems: 'center',
-              columnGap: m.gap, rowGap: ROW_GAP, paddingTop: TOP_LEAD,
+              columnGap: m.gap, rowGap: ROW_GAP,
+              paddingTop: TOP_LEAD, paddingBottom: BOTTOM_LEAD,
               // Die Mitte ist **fest**: als `minmax(0, …)` wäre sie eine Obergrenze, und
               // weil ihr Inhalt seine Breite aus der Spur bezieht, fiele sie auf die
               // Mindestbreite zusammen – der Fokus wäre die schmalste Spalte.
@@ -229,18 +295,16 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
                 </div>
               )}
               {column((i) => ({ gridColumn: 2, gridRow: i + 1 }))}
-              {right.map((c) => {
-                const s = span.get(c.prefix);
-                return (
-                  <div key={c.prefix}
-                    style={{
-                      gridColumn: 3, alignSelf: 'start', width: '100%',
-                      gridRow: s ? `${s.from + 1} / ${s.to + 2}` : '1 / -1',
-                    }}>
-                    <Neighbour col={c} />
-                  </div>
-                );
-              })}
+              {bands.map((b) => (
+                <div key={b.cols[0].prefix}
+                  className="flex flex-col gap-7"
+                  style={{
+                    gridColumn: 3, alignSelf: 'start', width: '100%',
+                    gridRow: `${b.from + 1} / ${b.to + 2}`,
+                  }}>
+                  {b.cols.map((c) => <Neighbour key={c.prefix} col={c} />)}
+                </div>
+              ))}
             </div>
             <Rest total={order.deviation_total ?? 0} shown={right.length} />
           </>
@@ -279,7 +343,6 @@ function Neighbour({ col }: { col: Column }) {
   const rel = col.rel!;
   const cfg = statusCfg(rel.status);
   return (
-    <FlowNode id={`${col.prefix}lane`} style={{ width: '100%' }}>
     <div
       role={nav ? 'button' : undefined}
       tabIndex={nav ? 0 : undefined}
@@ -300,7 +363,6 @@ function Neighbour({ col }: { col: Column }) {
         faded
       />
     </div>
-    </FlowNode>
   );
 }
 
@@ -330,11 +392,12 @@ function Rest({ total, shown }: { total: number; shown: number }) {
  * denen er zu tun hatte – die meisten davon stehen hier nicht. Keine Seite muss darum
  * wissen, welche Spalten gerade sichtbar sind.
  */
-function Wiring({ columns, anchors, metrics }: {
+function Wiring({ columns, anchors, metrics, wires }: {
   columns: Column[];
   anchors: Record<string, FlowAnchor>;
   /** Ohne drei Spuren gibt es keine Querlinien – dann stehen die Nachbarn untereinander. */
   metrics: FlowMetrics;
+  wires: Wires;
 }) {
   const byOrder = new Map(columns.map((c) => [c.objectId, c]));
   const at = (col: Column, ref: string, end: 'start' | 'end'): Hit | null => {
@@ -344,8 +407,14 @@ function Wiring({ columns, anchors, metrics }: {
     }
     const other = byOrder.get(Number(ref.slice('order:'.length)));
     if (!other) return null;
-    const a = anchors[`${other.prefix}${end}`];
-    return a ? { a, col: other, lane: anchors[`${other.prefix}lane`] } : null;
+    // **Eine Querlinie dockt an der Spalte an, nicht an einem Knoten darin** – oben an
+    // ihrer ersten, unten an ihrer letzten Zeile. Am `end`-Objekt anzudocken war die
+    // Ursache dafür, dass die Rückführung senkrecht durch alles lief, was darunter noch
+    // stand (die angekommenen Stücke) – sichtbar quer durch die Pille.
+    const rows = other.rows;
+    const key = (end === 'start' ? rows[0] : rows[rows.length - 1])?.key;
+    const a = key ? anchors[`${other.prefix}${key}`] : undefined;
+    return a ? { a, col: other } : null;
   };
 
   return (
@@ -358,7 +427,8 @@ function Wiring({ columns, anchors, metrics }: {
         (c.graph.edges ?? [])
           .filter((e) => e.kind === 'out' || e.kind === 'back')
           .map((e) => (
-            <Cross key={`${c.prefix}${e.id}`} edge={e} col={c} at={at} metrics={metrics} />
+            <Cross key={`${c.prefix}${e.id}`} edge={e} col={c} at={at}
+              metrics={metrics} wires={wires} />
           )),
       )}
     </>
@@ -373,63 +443,73 @@ function Wiring({ columns, anchors, metrics }: {
  * nicht betreten. Die Linie geht darum **vor** dem Modul ab und mündet am Rückführpunkt
  * wieder ein, der ebenfalls davor liegt.
  *
- * **Sie verlässt die Achse mit einer Kurve, nicht mit einem Knick.** Der Zug beginnt
- * `2 · BEND` über dem Abzweigepunkt auf der Achse selbst und biegt dort mit vollem
- * Radius ab – wie eine Ausfahrt. Auf dem gemeinsamen Stück liegen beide Linien exakt
- * übereinander (gleiche Farbe, gleiche Stärke); zu sehen ist die Teilung, nicht die
- * Überlagerung.
+ * ## Drei Regeln, aus denen der ganze Zug folgt
+ *
+ * **1. Andocken nur an Ports.** Anfang und Ende sind `port(...)`-Punkte – der Punkt
+ * selbst am Abzweigepunkt, die Oberkante der ersten bzw. die Unterkante der letzten
+ * Zeile der Nachbarspalte. Eine Linie kennt die Fläche eines Knotens gar nicht, nur
+ * seinen Rand; darum kann sie nicht mehr in ihn hineinragen, gleich wie hoch er wird,
+ * ob er auf- oder zugeklappt ist und bei welcher Rahmenbreite.
+ *
+ * **2. Der Bogen beginnt am Punkt.** Der Zug startet `BEND` über dem Abzweigepunkt auf
+ * der Achse und knickt `BEND` darunter – damit liegt die **Tangente** des Bogens exakt
+ * auf dem Punkt: dort verlässt die Linie den Strang, und genau dort sitzt der Punkt
+ * (Befund 2.2). Auf dem gemeinsamen Stück liegen beide Linien übereinander (gleiche
+ * Farbe, gleiche Stärke); zu sehen ist die Teilung, nicht die Überlagerung.
+ *
+ * **3. Senkrecht wird nur im eigenen Kanal gefahren.** Die Spurlücke ist keine Linie,
+ * sondern ein Bündel: jede Abzweigung hat ihre Spur, zugeteilt von `channels` (§1).
  */
-function Cross({ edge, col, at, metrics }: {
+function Cross({ edge, col, at, metrics, wires }: {
   edge: GraphEdge;
   col: Column;
   at: (col: Column, ref: string, end: 'start' | 'end') => Hit | null;
   metrics: FlowMetrics;
+  wires: Wires;
 }) {
   const outward = edge.kind === 'out';
   const here = at(col, outward ? edge.frm : (edge.to ?? ''), 'end');
   const there = at(col, outward ? (edge.to ?? '') : edge.frm, outward ? 'start' : 'end');
   if (!here || !there) return null;
+  // Eine Querlinie führt **immer** von der Mitte weg oder zu ihr hin. Zwischen zwei
+  // Nachbarn liefe sie quer durch die Mitte – also gibt es sie nicht.
+  const nb = here.col.side === 'mid' ? there.col : here.col;
+  if (nb.side === 'mid' || (here.col.side !== 'mid' && there.col.side !== 'mid')) return null;
 
   // **Der Korridor liegt in der Spurlücke, nie unter einer Karte** (§8.1a): eine
   // gezeichnete Linie, die ein Knoten verdeckt, ist eine Linie, die es für den
   // Betrachter nicht gibt. Wie breit eine Spur ist, sagt das Raster – die Mitte trägt
-  // `mid`, ein Nachbar `side`. Beide über `mid` zu rechnen traf die Lücke nur dann,
-  // wenn die Linie zufällig in der Mitte begann.
+  // `mid`, ein Nachbar `side`.
   const half = (h: Hit) => (h.col.side === 'mid' ? metrics.mid : metrics.side) / 2;
   const dir = here.a.cx < there.a.cx ? 1 : -1;
-  const corridor =
-    ((here.a.cx + dir * half(here)) + (there.a.cx - dir * half(there))) / 2;
+  const centre = ((here.a.cx + dir * half(here)) + (there.a.cx - dir * half(there))) / 2;
+  const corridor = channelX(centre, wires.of.get(nb.prefix) ?? 0, wires.used[nb.side]);
 
-  // Die Rückführung verlässt den Nachbarn **unter seiner ganzen Spalte**, nicht knapp
-  // unter seinem Ende-Objekt: darunter steht noch, was dort angekommen ist, und die
-  // Linie liefe quer durch diese Pille.
-  const clear = Math.max(there.a.bottom + LEAD, there.lane?.bottom ?? 0);
-
+  const [hx, hy] = port(here.a, 'center');
   const points: Array<[number, number]> = outward
-    ? [
-      [here.a.cx, here.a.cy - LEAD],
-      [here.a.cx, here.a.cy],
-      [corridor, here.a.cy],
-      [corridor, there.a.top - LEAD],
-      [there.a.cx, there.a.top - LEAD],
-      [there.a.cx, there.a.top],
-    ]
-    : [
-      [there.a.cx, there.a.bottom],
-      [there.a.cx, clear],
-      [corridor, clear],
-      [corridor, here.a.cy],
-      [here.a.cx, here.a.cy],
-      [here.a.cx, here.a.cy + LEAD],
-    ];
+    ? (() => {
+      const [tx, ty] = port(there.a, 'top');
+      return [
+        [hx, hy - BEND], [hx, hy + BEND],
+        [corridor, hy + BEND], [corridor, ty - LEAD],
+        [tx, ty - LEAD], [tx, ty],
+      ];
+    })()
+    : (() => {
+      const [tx, tb] = port(there.a, 'bottom');
+      return [
+        [tx, tb], [tx, tb + LEAD],
+        [corridor, tb + LEAD], [corridor, hy - BEND],
+        [hx, hy - BEND], [hx, hy + BEND],
+      ];
+    })();
   return <Stroke d={polyPath(points)} walked={edge.walked} />;
 }
 
-/** Ein aufgelöstes Kantenende: der gemessene Knoten, seine Spalte, und deren Ausdehnung. */
+/** Ein aufgelöstes Kantenende: der gemessene Andockknoten und seine Spalte. */
 interface Hit {
   a: FlowAnchor;
   col: Column;
-  lane?: FlowAnchor;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

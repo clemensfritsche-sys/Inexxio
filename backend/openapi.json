@@ -1988,7 +1988,7 @@
           "orders"
         ],
         "summary": "List Units",
-        "description": "Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt.",
+        "description": "Die einzelnen Stücke **einer Position** – erst wenn jemand aufklappt.\n\n**Gefragt wird nach der Kante**, nicht nach «Schritt X, aktiv» (Befund 2.1). Die\ngröbere Frage war eine zweite Quelle: an einem Punkt mit Teilung zählte die Pille\ndie Gruppe, die Liste kannte die Teilung nicht und zeigte beide – «1 Stk», und im\nAufklappen zwei Nummern. Jetzt beantwortet die Zuordnung im Graph beide Fragen\n(``flow.units_on``).",
         "operationId": "list_units_api_v1_erp_orders__object_id__units_get",
         "security": [
           {
@@ -2006,30 +2006,15 @@
             }
           },
           {
-            "name": "step_id",
+            "name": "edge",
             "in": "query",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Step Id"
-            }
-          },
-          {
-            "name": "active",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": true,
-              "title": "Active"
-            }
+              "type": "string",
+              "description": "Die Kante des Prozessbildes, deren Stücke gemeint sind.",
+              "title": "Edge"
+            },
+            "description": "Die Kante des Prozessbildes, deren Stücke gemeint sind."
           },
           {
             "name": "limit",

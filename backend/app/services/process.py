@@ -897,17 +897,22 @@ def lines_of(db: Session, order: Order) -> list[OrderLine]:
     )
 
 
-def units_page(db: Session, order: Order, *, step_id: Optional[int], active: bool,
+def units_page(db: Session, order: Order, *, membership_ids: list[int],
                limit: int, offset: int) -> tuple[list[tuple[OrderUnit, InstanceUnit]], int]:
-    """Die einzelnen Stücke einer Gruppe – auf Abruf und in Seiten."""
+    """Die einzelnen Stücke einer Position – auf Abruf und in Seiten.
+
+    **Welche** Stücke, entscheidet nicht diese Abfrage, sondern die Zuordnung im
+    Prozessbild (``flow.units_on``): sie kommen als Zeilen-ids herein. Eine eigene
+    Bedingung hier wäre eine zweite Antwort auf «wo steht dieses Stück» – und genau
+    daraus entstand der Widerspruch zwischen Pille und Liste (Befund 2.1).
+    """
+    if not membership_ids:
+        return [], 0
     q = (
         db.query(OrderUnit, InstanceUnit)
         .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
-        .filter(OrderUnit.order_id == order.id)
+        .filter(OrderUnit.order_id == order.id, OrderUnit.id.in_(membership_ids))
     )
-    q = q.filter(OrderUnit.released_at.is_(None)) if active else q.filter(OrderUnit.released_at.isnot(None))
-    q = q.filter(OrderUnit.current_step_id.is_(None) if step_id is None
-                 else OrderUnit.current_step_id == step_id)
     total = q.count()
     return q.order_by(OrderUnit.id).limit(limit).offset(offset).all(), total
 

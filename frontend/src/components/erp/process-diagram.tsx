@@ -6,7 +6,7 @@ import {
   GripVertical, Lock, Play, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
-import { FlowFrame, FlowNode, LANE, polyPath, type FlowAnchor } from './process-flow';
+import { FlowFrame, FlowNode, LANE, polyPath, port, type FlowAnchor } from './process-flow';
 import { UnitNumber } from './unit-number';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
 import { formatObjectId, localDateTime } from '@/lib/utils';
@@ -137,9 +137,16 @@ export function rowOfNode(rows: ColumnRow[], nodeId: string): number {
   return rows.findIndex((r) => 'node' in r && r.node.id === nodeId);
 }
 
-/** Die Achsenkanten mit beiden Enden – alles, was innerhalb einer Spalte zu zeichnen ist. */
+/**
+ * Die Achsenkanten – alles, was innerhalb einer Spalte zu zeichnen ist.
+ *
+ * **Auch die Kante hinter dem Ende** (``to = null``). Sie hat keinen nächsten Knoten,
+ * aber sehr wohl ein Ziel: die Zeile, auf der ihre Stücke stehen. Ohne sie hing die
+ * Pille «angekommen» ohne Anschluss unter dem Ende – und die Rückführung in einen
+ * übergeordneten Auftrag, die unter dieser Zeile abgeht, begann im Nichts.
+ */
 export function axisEdges(g: ProcessGraph): GraphEdge[] {
-  return (g.edges ?? []).filter((e) => e.kind === 'axis' && !!e.to);
+  return (g.edges ?? []).filter((e) => e.kind === 'axis');
 }
 
 /**
@@ -190,8 +197,8 @@ export function ProcessDiagram({
   onDelete?: (id: number) => void;
   /** Was in der Karte steht: im Entwurf die Felder des Moduls, zur Laufzeit seine Arbeit. */
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
-  /** Eine Gruppe aufklappen: die einzelnen Nummern nachladen. */
-  onExpand?: (stepId: number | null, active: boolean) => Promise<UnitChip[]>;
+  /** Eine Position aufklappen: die einzelnen Nummern **dieser Kante** nachladen. */
+  onExpand?: (edgeId: string) => Promise<UnitChip[]>;
   /** Farbfamilie je Modultyp. Ohne sie der neutrale Grundton – nie eine leere Fläche. */
   tone?: (moduleType: string) => { bg: string; fg: string; border: string };
   /** Nur im Definitionsmodus: Reihenfolge per Drag & Drop. Sie IST der Prozess. */
@@ -247,7 +254,7 @@ export function FlowColumn({
   tail?: ReactNode;
   onDelete?: (id: number) => void;
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
-  onExpand?: (stepId: number | null, active: boolean) => Promise<UnitChip[]>;
+  onExpand?: (edgeId: string) => Promise<UnitChip[]>;
   tone?: (moduleType: string) => { bg: string; fg: string; border: string };
   onReorder?: (from: number, to: number) => void;
   dragging?: number | null;
@@ -307,6 +314,7 @@ export function FlowColumn({
             <FlowNode key={row.key} id={`${prefix}${row.key}`} style={place(i, { width: '100%' })}>
               <StateRow
                 units={row.edge.units ?? []}
+                edgeId={row.edge.id}
                 away={row.edge.kind === 'out'}
                 onExpand={onExpand}
                 onDeviate={onDeviate}
@@ -422,10 +430,14 @@ export function Axis({ edges, anchors, prefix = '' }: {
     <>
       {edges.map((e) => {
         const A = anchors[`${prefix}${e.frm}`];
-        const B = e.to ? anchors[`${prefix}${e.to}`] : null;
+        // Ohne nächsten Knoten führt die Kante zu der Zeile, die ihre Stücke trägt
+        // (`columnRows` legt sie unter dem Schlüssel `on:<Kante>` an). Gibt es dort
+        // nichts, gibt es auch nichts zu zeichnen.
+        const B = anchors[`${prefix}${e.to ?? `on:${e.id}`}`];
         if (!A || !B) return null;
         return (
-          <Stroke key={e.id} d={polyPath([[A.cx, A.bottom], [B.cx, B.top]])} walked={e.walked} />
+          <Stroke key={e.id}
+            d={polyPath([port(A, 'bottom'), port(B, 'top')])} walked={e.walked} />
         );
       })}
     </>
@@ -521,14 +533,17 @@ function Terminal({ which, endStatus }: { which: 'start' | 'end'; endStatus: str
  * man an dieser Stelle hat, ist «wie viele stehen wo», nicht «welche». Wer die Nummern
  * braucht, klappt auf: dann und nur dann werden sie geholt.
  */
-function StateRow({ units, away: outward = false, onExpand, onDeviate, deviateBlocked }: {
+function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
+  deviateBlocked }: {
   /** Was auf dieser Kante steht – vom Server gezählt, hier nur gezeigt. */
   units: GraphUnits[];
+  /** **Die Position.** Zähler und Aufklappen fragen dieselbe (Befund 2.1). */
+  edgeId: string;
   /** Führt die Kante **hinaus** in einen anderen Auftrag? Dann sind es ausgescherte
    *  Stücke – und nur dann. Am `active`-Flag abzulesen wäre falsch: hinter dem Ende
    *  steht ebenfalls Geschlossenes, und das ist keine Abweichung, sondern der Weiterweg. */
   away?: boolean;
-  onExpand?: (stepId: number | null, active: boolean) => Promise<UnitChip[]>;
+  onExpand?: (edgeId: string) => Promise<UnitChip[]>;
   onDeviate?: (unitNumber: string) => void;
   deviateBlocked?: string;
 }) {
@@ -539,17 +554,13 @@ function StateRow({ units, away: outward = false, onExpand, onDeviate, deviateBl
   const away = outward ? units : [];
   const total = groups.reduce((n, g) => n + g.count, 0);
   const gone = away.reduce((n, g) => n + g.count, 0);
-  const key = groups[0] ?? away[0];
-
   async function toggle() {
-    if (!onExpand || !key) return;
+    if (!onExpand) return;
     if (open) { setOpen(false); return; }
     setOpen(true);
     if (numbers === null) {
       setBusy(true);
-      try {
-        setNumbers(await onExpand(key.at_step_id ?? null, key.active));
-      } finally { setBusy(false); }
+      try { setNumbers(await onExpand(edgeId)); } finally { setBusy(false); }
     }
   }
 
