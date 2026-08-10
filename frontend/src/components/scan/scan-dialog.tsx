@@ -168,7 +168,7 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
 
           {/* Gescrollt wird weiterhin, nur der Balken bleibt weg (Notiz #146). */}
           {suggestions.length > 0 && (
-            <div className="ix-noscrollbar" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 152, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 152, overflowY: 'auto' }}>
               {suggestions.map((c) => (
                 <button key={c.objectId} onClick={() => handle(c.objectId)} style={suggestionBtn}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{formatObjectId(c.objectId)}</span>

@@ -62,7 +62,20 @@
 > färbt den Intervall-Graphen gierig nach Anfang, die Lücke wächst mit `gutterFor`,
 > überschneidende Nachbarn stehen untereinander in einem Band); **ein** Linien-Layer mit
 > `overflow: visible`, Platz kommt aus dem Layout statt aus einem Versatz. Damit ist «zwei
-> Abweichungen» kein Sonderfall, sondern n statt 1. **Zähler und Aufklappen fragen
+> Abweichungen» kein Sonderfall, sondern n statt 1.
+> **Kreuzungsfreiheit entsteht im GRAPH** (PROCESS_CORE §8.1a‴): das Bild ist ein
+> **Raupengraph** (Achse + Anhängsel) und darum genau dann kreuzungsfrei, wenn die
+> Ansatz-Intervalle disjunkt sind – also bekommt **jeder Nachbar ein eigenes Paar
+> `fork`/`join`** hintereinander auf der Achse (`fork:<Modul>:<Auftrag>`), statt dass
+> sich alle eines teilen. Mit einem gemeinsamen Rückführpunkt musste der Rückweg des
+> ersten an allen folgenden vorbei; jetzt ist jede Verbindung eine kurze Waagrechte und
+> eine Kreuzung **unmöglich** statt vermieden (3, 4, 5 Abweichungen = 3, 4, 5 Paare;
+> geschachtelte sind kein Fall). Eine Linie verlässt den Punkt zu der Seite, auf der ihr
+> Ziel liegt, und beginnt **im** Punkt – ein Endstück darf ganz im Bogen aufgehen, darum
+> liegt kein gerades Stück mehr über der Hauptlinie.
+> **Scrollbalken sind generell unsichtbar** (`globals.css`, `*`-Regel – nicht je
+> Container): ein Balken kostet echte Breite, und wenn er beim Aufklappen erscheint,
+> springt alles Zentrierte seitlich. Gescrollt wird unverändert. **Zähler und Aufklappen fragen
 > dieselbe Position** (`FlowEdge.members` → `flow.units_on`, `GET …/units?edge=…`) – die
 > frühere zweite Abfrage «alle Stücke an Schritt X» war gröber als das Bild und zeigte an
 > einer Teilung beide Gruppen. Invarianten: `tests/test_flow_graph.py` (gegen echtes

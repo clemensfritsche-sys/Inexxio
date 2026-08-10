@@ -241,7 +241,9 @@ def test_a_returned_piece_stands_after_the_join():
     db = _db()
     try:
         parent, child, step = _scenario(db)
-        fork, join, module = flow.fork_id(step.id), flow.join_id(step.id), flow.module_id(step.id)
+        fork = flow.fork_id(step.id, child.object_id)
+        join = flow.join_id(step.id, child.object_id)
+        module = flow.module_id(step.id)
 
         def picture():
             g = flow.build(db, parent)
@@ -321,6 +323,83 @@ def test_a_walked_edge_never_becomes_weak_again():
         )
         assert any(e.kind == "back" and e.walked for e in g.edges), (
             "Die Rückführung ist aus dem Bild verschwunden."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
+    """**Kreuzungsfreiheit entsteht aus dem Graph, nicht aus geschickterem Zeichnen.**
+
+    Das Bild ist ein **Raupengraph**: eine Achse mit Anhängseln. Ein solcher Graph ist
+    genau dann planar zeichenbar, wenn die Ansatz-Intervalle der Anhängsel einander
+    nicht überschneiden. Ein Stück kehrt immer an den Punkt zurück, an dem es
+    ausgeschert ist (§12.4) – also ist jedes Intervall ``[fork, join]`` **eines**
+    Punktes, und zwei Punkte liegen nie ineinander.
+
+    Blieb es bei **einem** Paar je Zustandspunkt, fielen alle Anhängsel eines Punktes
+    auf dasselbe Intervall: der Rückweg des ersten musste an allen folgenden vorbei,
+    quer durch deren Hinwege. Mit einem eigenen Paar je Nachbar sind die Intervalle
+    disjunkt – und damit ist eine Kreuzung nicht vermieden, sondern **unmöglich**.
+
+    Geprüft wird genau das: paarweise Disjunktheit über den echten Knotenverlauf.
+    """
+    from app.models import ProcessStep
+    from app.services import article_process as tpl, flow, objects as obj, process as proc
+    from app.models import Article, InstanceUnit, OrderUnit
+
+    db = _db()
+    try:
+        art = Article(object_id=obj.next_object_id(db), name="Blech", unit="stk",
+                      serialization="unit", status="released")
+        db.add(art)
+        db.flush()
+        point = {"points": [{"label": "OK", "type": "bool"}]}
+        tpl.create_steps(db, art, [{"module_type": "datenerfassung", "config": point}])
+        db.flush()
+        parent = proc.release(db, steps=[], actor_id=None,
+                              lines=[{"article_object_id": art.object_id, "quantity": 4,
+                                      "origin": "neu", "units": []}])
+        db.flush()
+        step = db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one()
+        rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
+        nums = proc.unit_numbers(db, [db.get(InstanceUnit, r.instance_unit_id) for r in rows])
+
+        # Drei Abweichungen am **selben** Punkt – der gemeldete Fall.
+        kids = [
+            proc.release(db, lines=[{
+                "article_object_id": art.object_id, "quantity": 1, "origin": "lager",
+                "units": [{"number": nums[r.instance_unit_id],
+                           "from_order": parent.object_id}],
+                "returns": i != 1,          # einer davon gekappt
+            }], steps=[{"module_type": "datenerfassung", "config": point}], actor_id=None)
+            for i, r in enumerate(rows[:3])
+        ]
+        db.flush()
+
+        g = flow.build(db, parent)
+        assert not g.problems, g.problems
+        order_of = {n.id: i for i, n in enumerate(g.nodes)}
+
+        spans = []
+        for kid in kids:
+            ref = flow.order_ref(kid.object_id)
+            ends = [order_of[e.frm] for e in g.edges if e.kind == "out" and e.to == ref]
+            ends += [order_of[e.to] for e in g.edges if e.kind == "back" and e.frm == ref]
+            assert ends, f"Abweichung {kid.object_id} hängt an keinem Punkt."
+            spans.append((min(ends), max(ends), kid.object_id))
+
+        for i, (a0, a1, a) in enumerate(spans):
+            for (b0, b1, b) in spans[i + 1:]:
+                assert a1 < b0 or b1 < a0, (
+                    f"Die Abzweigungen {a} und {b} teilen sich Zeilen ({a0}–{a1} ↔ "
+                    f"{b0}–{b1}) – dann muss eine Linie an der anderen vorbei, und "
+                    f"genau daraus entsteht die Kreuzung."
+                )
+        # Und die Reihenfolge im Bild ist die chronologische – gleiche Daten, gleiches Bild.
+        assert [s[2] for s in sorted(spans)] == sorted(k.object_id for k in kids), (
+            "Die Abzweigungen stehen nicht in der Reihenfolge, in der sie entstanden."
         )
     finally:
         db.rollback()
