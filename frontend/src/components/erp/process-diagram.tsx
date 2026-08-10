@@ -2,12 +2,12 @@
 
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
-  Blocks, ChevronDown, ChevronUp, CornerDownRight, CornerRightDown, Flag, GitBranch,
-  GripVertical, Lock, Play, Trash2,
+  Blocks, ChevronDown, ChevronUp, CornerDownRight, CornerRightDown, CornerUpLeft, Flag,
+  GitBranch, GripVertical, Lock, Play, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
 import {
-  FLOW_GAP, FlowFrame, FlowNode, LANE, polyPath, port, type FlowAnchor,
+  FLOW_GAP, FlowFrame, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
 } from './process-flow';
 import { UnitNumber } from './unit-number';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
@@ -71,20 +71,52 @@ export type DiagramMode = 'definition' | 'ausfuehrung';
  * abzuzweigen wäre. Übrig bleibt die Kette Start → Module → Ende, und die *ist* die
  * Liste, die daneben bearbeitet wird.
  */
-export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
-  const nodes: GraphNode[] = [
+export function definitionGraph(steps: DiagramStep[],
+                                back: ReturnLink[] = []): ProcessGraph {
+  const chain: GraphNode[] = [
     { id: 'start', kind: 'start', at: null },
     ...steps.map((s) => ({ id: `module:${s.id}`, kind: 'module', at: s.id })),
     { id: 'end', kind: 'end', at: null },
   ];
+  // **Ein Rückweg, eine Zeile** – auch bei mehreren Quellen. Je Quelle einen eigenen
+  // Knoten untereinander zu hängen hiesse, die Linie zum zweiten liefe durch den ersten
+  // hindurch (§4: keine Linie über einem Knoten); je Quelle eine eigene Spur wäre die
+  // Kanal-Maschinerie der Nachbarspalten, mitten im Entwurf. Also: der Rückweg ist EINE
+  // Zeile mit n Zielen darin – die Linie sagt **ob**, die Ziele sagen **wohin**.
+  const returning = back.some((b) => b.on);
   return {
-    nodes,
-    edges: nodes.slice(0, -1).map((n, i) => ({
-      id: `edge:${n.id}:${nodes[i + 1].id}`,
-      frm: n.id, to: nodes[i + 1].id, kind: 'axis', walked: false, units: [],
-    })),
+    nodes: [...chain, ...(back.length ? [{ id: 'back', kind: 'back', at: null }] : [])],
+    edges: [
+      ...chain.slice(0, -1).map((n, i) => ({
+        id: `edge:${n.id}:${chain[i + 1].id}`,
+        frm: n.id, to: chain[i + 1].id, kind: 'axis', walked: false, units: [],
+      })),
+      // **Die Linie ist die Antwort.** Sie gibt es nur, wenn zurückgeführt wird – das
+      // Fehlen ist die Aussage, kein Strichmuster und kein zweiter Linientyp.
+      ...(returning
+        ? [{ id: 'edge:end:back', frm: 'end', to: 'back', kind: 'axis',
+             walked: false, units: [] }]
+        : []),
+    ],
     problems: [],
   };
+}
+
+/**
+ * **Eine geplante Rückführung im Entwurf.**
+ *
+ * Ein Auftrag, der einem laufenden ein Stück abnimmt, gibt es zurück – oder eben nicht.
+ * Das war ein Knopfpaar («kehrt zurück» / «bleibt hier»), also eine Aussage über etwas,
+ * das man daneben nicht sah. Im laufenden Bild sagt es längst **die Linie selbst**: eine
+ * gekappte Ausleihe hat keinen Rückweg. Der Entwurf spricht jetzt dieselbe Sprache, mit
+ * demselben Bauteil – der Knoten ist der Schalter, die Linie das Ergebnis.
+ */
+export interface ReturnLink {
+  /** Woran die Entscheidung hängt – die Definitionszeile, die die Stücke holt. */
+  key: number;
+  /** Objektnummern der Aufträge, aus denen diese Zeile Stücke nimmt. */
+  orders: number[];
+  on: boolean;
 }
 
 /**
@@ -177,7 +209,7 @@ export const PROCESS_MAXW = LANE.MID_MAX;
 export function ProcessDiagram({
   mode, steps, graph, activeStepId = null, expandedStepId = null, endStatus,
   head, tail, onDelete, renderStep, onExpand, tone, onReorder, dragging, onDragState,
-  journeyIn = [], journeyOut = [],
+  journeyIn = [], journeyOut = [], back = [], onToggleReturn,
 }: {
   mode: DiagramMode;
   steps: DiagramStep[];
@@ -207,8 +239,11 @@ export function ProcessDiagram({
   onReorder?: (from: number, to: number) => void;
   dragging?: number | null;
   onDragState?: (index: number | null) => void;
+  /** Nur im Entwurf: die geplanten Rückführungen (§5). */
+  back?: ReturnLink[];
+  onToggleReturn?: (key: number) => void;
 }) {
-  const g = useMemo(() => graph ?? definitionGraph(steps), [graph, steps]);
+  const g = useMemo(() => graph ?? definitionGraph(steps, back), [graph, steps, back]);
 
   return (
     <div className="mx-auto w-full" style={{ maxWidth: PROCESS_MAXW }}>
@@ -221,6 +256,7 @@ export function ProcessDiagram({
             renderStep={renderStep} onExpand={onExpand} tone={tone} onReorder={onReorder}
             dragging={dragging} onDragState={onDragState}
             journeyIn={journeyIn} journeyOut={journeyOut}
+            back={back} onToggleReturn={onToggleReturn}
           />
         )}
       </FlowFrame>
@@ -239,7 +275,7 @@ export function FlowColumn({
   head, tail, onDelete,
   renderStep, onExpand, tone, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
-  containerStyle, rowStyle,
+  containerStyle, rowStyle, back = [], onToggleReturn,
 }: {
   /** **Das Bild dieser Spalte** – vom Server, nicht hier abgeleitet. */
   graph: ProcessGraph;
@@ -282,6 +318,9 @@ export function FlowColumn({
   containerStyle?: CSSProperties;
   /** Je Zeile ihr Platz im äusseren Raster. Ohne Raster leer – dann trägt der Fluss. */
   rowStyle?: (index: number) => CSSProperties;
+  /** Nur im Entwurf: die geplanten Rückführungen (§5) – Schalter und Linie zugleich. */
+  back?: ReturnLink[];
+  onToggleReturn?: (key: number) => void;
 }) {
   const running = mode === 'ausfuehrung';
   const rows = columnRows(graph, {
@@ -295,9 +334,10 @@ export function FlowColumn({
   return (
     <div style={{
       // **Derselbe Takt wie im Raster** (`FLOW_GAP`): zwei Prozesspunkte müssen weit
-      // genug auseinander liegen, dass sich die Bögen ihrer Querlinien nicht
-      // überlagern. Eine eigene Zahl hier wäre ein zweiter Rhythmus – und in einer
-      // Nachbarspalte, die selbst Abzweigungen trägt, prompt eine Kreuzung.
+      // genug auseinander liegen, dass die **Waagrechten** ihrer Querlinien als zwei
+      // Linien lesbar bleiben. Eine eigene Zahl hier wäre ein zweiter Rhythmus – und in
+      // einer Nachbarspalte, die selbst Abzweigungen trägt, prompt eine Überlagerung.
+      // (Genau dort ist sie aufgetreten: dieselbe Spalte, nur nicht in der Mitte.)
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: FLOW_GAP,
       opacity: faded ? 0.5 : 1,
       ...containerStyle,
@@ -345,6 +385,15 @@ export function FlowColumn({
             </FlowNode>
           );
         }
+        // **Der geplante Rückweg** – nur im Entwurf. Die Ziele sind die Schalter, die
+        // Linie darüber die Antwort: sie ist da oder eben nicht.
+        if (n.kind === 'back') {
+          return (
+            <FlowNode key={row.key} id={id} style={place(i, { width: '100%' })}>
+              <ReturnSwitch links={back} onToggle={onToggleReturn} />
+            </FlowNode>
+          );
+        }
         const step = n.at !== null && n.at !== undefined ? byId.get(n.at) : undefined;
         if (!step) return null;
         const isActive = running && step.id === activeStepId;
@@ -387,12 +436,66 @@ function Point({ kind }: { kind: string }) {
   return (
     <span
       style={{
-        display: 'block', width: 9, height: 9, borderRadius: 999,
+        display: 'block', width: POINT, height: POINT, borderRadius: 999,
         border: '2px solid var(--fg-2)', background: 'var(--bg-1)',
       }}
       data-tip={kind === 'fork' ? 'Hier ist ein Stück ausgeschert'
         : 'Hierher kehrt ein Stück zurück'}
     />
+  );
+}
+
+/**
+ * **Der geplante Rückweg — die Linie IST die Entscheidung** (Auftrag §5).
+ *
+ * Vorher zwei Knöpfe («kehrt zurück» / «bleibt hier») neben der Stückauswahl. Die
+ * Aussage stand damit an einer anderen Stelle als ihre Wirkung, und man sah erst nach
+ * der Freigabe, was daraus wird. Jetzt steht sie dort, wo sie passiert: unter dem Ende,
+ * am Ende der Linie – und die Linie darüber gibt es nur, wenn zurückgeführt wird.
+ *
+ * **Kein dritter Linientyp.** Die zwei Stärken bleiben, was sie sind; ob es zurückgeht,
+ * sagt die Anwesenheit der Linie – exakt wie im laufenden Bild, wo eine gekappte
+ * Ausleihe schlicht keinen Rückweg hat.
+ *
+ * **Der Knoten bleibt, wenn die Linie geht.** Sonst gäbe es nichts mehr anzuklicken, um
+ * sie zurückzuholen – und die Entscheidung wäre einmalig statt änderbar. Er ist zugleich
+ * das Ziel für die Bedienung: volle Zeilenbreite, 44 px hoch, also auch auf einem
+ * Telefon zu treffen.
+ */
+function ReturnSwitch({ links, onToggle }: {
+  links: ReturnLink[]; onToggle?: (key: number) => void;
+}) {
+  return (
+    <div className="w-full flex flex-wrap items-center justify-center gap-1.5">
+      {links.map((link) => (
+        <button
+          key={link.key}
+          type="button"
+          disabled={!onToggle}
+          onClick={() => onToggle?.(link.key)}
+          className="inline-flex items-center gap-1.5 rounded-ds-lg text-xs"
+          style={{
+            minHeight: 40, padding: '8px 12px',
+            border: `1px solid ${link.on ? 'var(--border-2)' : 'var(--border-1)'}`,
+            background: link.on ? 'var(--bg-2)' : 'transparent',
+            color: link.on ? 'var(--fg-2)' : 'var(--fg-4)',
+            cursor: onToggle ? 'pointer' : 'default',
+          }}
+          data-tip={link.on
+            ? 'Nach dem Durchlauf geht jedes Stück an genau die Stelle zurück, an der es '
+              + 'ausgeschert ist. Der andere Auftrag wartet solange. — Klicken kappt die '
+              + 'Rückführung.'
+            : 'Die Stücke bleiben hier (z. B. Aussonderung). Der andere Auftrag läuft mit '
+              + 'weniger Stücken weiter. — Klicken führt sie wieder zurück.'}
+        >
+          <CornerUpLeft size={13} style={{ opacity: link.on ? 1 : 0.4 }} />
+          <span className="ix-tnum">
+            {link.orders.map((o) => formatObjectId(o)).join(' · ')}
+          </span>
+          <span style={{ color: 'var(--fg-4)' }}>{link.on ? 'zurück' : 'bleibt hier'}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 

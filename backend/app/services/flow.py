@@ -20,9 +20,23 @@ ihn nur noch. Die Begriffe sind abschliessend – mehr gibt es nicht:
 **Kante**               Verbindung zwischen genau zwei Knoten.
 **Position**            Wo ein Stück steht — **immer eine Kante**, nie ein
                         Knoten und nie ein diffuser Zwischenraum.
-**Kantenzustand**       ``walked`` — kräftig, wenn Material die Kante laut
-                        Log erreicht hat. Sonst Haarlinie. Kein dritter Wert.
+**Kantenzustand**       ``walked`` — kräftig, wenn **mindestens eine
+                        Einzelinstanz diese Kante genommen hat**. Sonst
+                        Haarlinie. Kein dritter Wert.
 ======================  ====================================================
+
+## Der Kantenzustand ist eine Aussage über die KANTE, nicht über den Punkt
+
+Der Hauptstrang ist keine durchgehende Linie, sondern eine Folge von Kanten – und jede
+beantwortet ihre eigene Frage. «Hier sind Stücke angekommen» gilt für die Kante **zum**
+Abzweigepunkt; ob danach noch jemand geradeaus weiterging, ist eine andere Frage. Nimmt
+eine Abweichung alle Stücke mit, hat den geraden Weg **niemand** genommen, und er ist
+darum dünn – auch wenn unmittelbar davor sehr wohl Material stand.
+
+Gerechnet wird das als **Bilanz entlang der Achse**: sie beginnt mit dem, was am Punkt
+angekommen ist, jeder Abzweigepunkt zieht seine Ausgescherten ab, jeder Rückführpunkt
+addiert seine Rückkehrer. Es gibt kein ``if`` je Kantenart und keinen Sonderfall für
+«Abweichung nimmt alles»: die Zahl ist entweder grösser als null oder eben nicht.
 
 ## Warum fork und join eigene Knoten sind
 
@@ -55,7 +69,7 @@ einmal kräftige Kante wird nie wieder schwach» **von selbst**, statt sie zu be
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from . import process
@@ -155,9 +169,27 @@ class Edge:
 
 
 @dataclass
+class Neighbour:
+    """Ein Auftrag, der an diesem hier hängt — **aus dem Graph, nicht daneben gezählt**.
+
+    Welche Nachbarn es gibt, stand einmal an zwei Stellen: die Spalten kamen aus einer
+    eigenen Log-Abfrage, die Linien aus den Kanten dieses Graphs. Zwei Ableitungen
+    derselben Sache laufen auseinander – und dann steht im Bild ein Abzweigepunkt, dessen
+    Nachbar fehlt (kein Block, keine Linie, nur der Punkt). Jetzt ist es **dieselbe**
+    Liste: ein Nachbar existiert genau dann, wenn es seine Kante gibt.
+    """
+
+    object_id: int
+    #: Wie viele Einzelinstanzen sind zu ihm hinausgegangen (über alle Zustandspunkte).
+    unit_count: int
+
+
+@dataclass
 class Graph:
     nodes: list[Node] = field(default_factory=list)
     edges: list[Edge] = field(default_factory=list)
+    #: Die Nachbarn in der Reihenfolge, in der sie im Bild stehen (chronologisch).
+    neighbours: list[Neighbour] = field(default_factory=list)
     #: Verletzte Invarianten. Nicht leer heisst: das Bild ist **nicht** verlässlich, und
     #: die Oberfläche sagt das, statt eine falsche Zeichnung anzubieten.
     problems: list[str] = field(default_factory=list)
@@ -186,9 +218,11 @@ class _Tally:
 def _tally(db: Session, order_id: int) -> _Tally:
     """**Eine** Abfrage über den Log dieses Auftrags, gruppiert.
 
-    Gezählt werden Zeilen, nicht Stücke: ein Stück kann eine Stelle mehrfach verlassen
-    (Abweichung der Abweichung). Für die Frage «ist hier je etwas passiert» genügt das,
-    und es ist die Zahl, die nur wachsen kann.
+    Gezählt werden **Einzelinstanzen**, nicht Log-Zeilen: ein Stück kann dieselbe Stelle
+    mehrfach verlassen (Abweichung der Abweichung), und die Bilanz entlang der Achse
+    («angekommen − ausgeschert + zurückgekehrt») ginge dann nicht mehr auf. Jeder Term
+    bleibt dabei monoton – ein Stück, das eine Stelle einmal passiert hat, hat sie
+    passiert.
     """
     rows = db.execute(
         select(
@@ -196,7 +230,7 @@ def _tally(db: Session, order_id: int) -> _Tally:
             ProcessEvent.step_id,
             ProcessEvent.payload["to_order"].astext,
             ProcessEvent.payload["from_order"].astext,
-            func.count(),
+            func.count(distinct(ProcessEvent.instance_unit_id)),
         )
         .where(ProcessEvent.order_id == order_id)
         .group_by(
@@ -353,9 +387,13 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
     pending = {(r.at, r.through) for r in rows
                if not r.active and r.at is not None and r.through and r.coming_back}
     joins = {at for (at, _) in tally.back} | {at for (at, _) in pending}
-    for at in sorted(x for x in (forks | joins) if x is not None and x not in known):
+    for at in sorted(
+        (x for x in (forks | joins) if x not in known),
+        key=lambda x: (x is None, x),
+    ):
+        where = f"Modul {at}" if at is not None else "einem Punkt hinter dem Ende"
         g.problems.append(
-            f"Abzweigung an Modul {at}, das nicht (mehr) zum Ablauf gehört – "
+            f"Abzweigung an {where}, das nicht (mehr) zum Ablauf gehört – "
             "das Bild kann sie nicht verorten."
         )
 
@@ -364,18 +402,19 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
 
     for index, step in enumerate(steps):
         at = step.id
-        # Wie viele Stücke sind je an diesem Punkt angekommen — der Punkt vor dem
-        # ersten Modul über das Start-Objekt, jeder weitere über das Modul davor.
-        arrived = tally.started if index == 0 else tally.passed.get(steps[index - 1].id, 0)
-        reached = arrived > 0
+        # **Die Bilanz.** Sie beginnt mit dem, was an diesem Punkt angekommen ist — vor dem
+        # ersten Modul über das Start-Objekt, sonst über das Modul davor — und wird in
+        # ``_branches`` an jeder Teilung fortgeschrieben. Die Kante **vor** dem Modul trägt
+        # damit, was nach allen Abzweigungen und Rückführungen übrig ist.
+        flow = tally.started if index == 0 else tally.passed.get(steps[index - 1].id, 0)
         open_here = any(point == at for point, _ in pending)
 
-        prev = _branches(g, prev, at, tally, rows, pending, reached)
+        prev, flow = _branches(g, prev, at, tally, rows, pending, flow)
 
         g.nodes.append(Node(id=module_id(at), kind=NODE_MODULE, at=at))
         # Die letzte Kante vor dem Modul: alle, die hier warten – ausser denen, die der
         # noch offene Bypass daneben schon trägt.
-        prev = _link(g, prev, module_id(at), reached, _pick(
+        prev = _link(g, prev, module_id(at), flow > 0, _pick(
             rows,
             (lambda r: _here_at(r, at, returned=True)) if open_here
             else (lambda r: _here_at(r, at)),
@@ -390,8 +429,24 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
         _pick(rows, lambda r: not r.active and r.at is None),
     ))
 
+    g.neighbours = _merged(g.neighbours)
     _verify(g, rows)
     return g
+
+
+def _merged(found: list[Neighbour]) -> list[Neighbour]:
+    """Ein Nachbar, der an zwei Punkten ansetzt, ist **ein** Nachbar.
+
+    Die Reihenfolge ist die des ersten Auftretens – dieselbe, in der er im Bild steht.
+    """
+    out: dict[int, Neighbour] = {}
+    for n in found:
+        seen = out.get(n.object_id)
+        if seen is None:
+            out[n.object_id] = Neighbour(object_id=n.object_id, unit_count=n.unit_count)
+        else:
+            seen.unit_count += n.unit_count
+    return list(out.values())
 
 
 # ---------------------------------------------------------------------------
@@ -417,7 +472,7 @@ def _targets_at(at: Optional[int], tally: _Tally, pending: set) -> list[int]:
 
 
 def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
-              rows: list["_Row"], pending: set, reached: bool) -> str:
+              rows: list["_Row"], pending: set, flow: int) -> tuple[str, int]:
     """Die Abzweigungen an einem Zustandspunkt — **je Nachbar ein eigenes Paar**.
 
     ``… → fork₁ → join₁ → fork₂ → join₂ → Modul`` statt eines gemeinsamen Paares für
@@ -435,6 +490,13 @@ def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
     **Wer geblieben ist, steht auf dem Bypass der ersten noch offenen Abzweigung** –
     einer, nicht mehreren: eine Position ist eine Kante. Ist nichts mehr draussen,
     trägt ihn die Kante vor dem Modul (Befund 2.1).
+
+    **Die Bilanz wandert mit** (``flow``): sie kommt mit dem herein, was am Punkt
+    angekommen ist, verliert an jedem Abzweigepunkt seine Ausgescherten und gewinnt an
+    jedem Rückführpunkt seine Rückkehrer. Der Bypass zwischen beiden trägt genau das,
+    was **an diesem Nachbarn vorbeigelaufen** ist – nimmt er alles mit, ist es null, und
+    die Linie ist dünn. Genau das ist die Regel «die Volllinie zeigt den Weg der
+    Einzelinstanz», ohne eine einzige Fallunterscheidung.
     """
     stayed = _pick(rows, lambda r: _here_at(r, at, returned=False))
     targets = _targets_at(at, tally, pending)
@@ -445,22 +507,28 @@ def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
         g.nodes.append(Node(id=fid, kind=NODE_FORK, at=at))
         # Die Ankunftskante trägt niemanden: wer hier ist, ist am Abzweigepunkt
         # vorbei – entweder hinaus oder auf dem Bypass daneben.
-        prev = _link(g, prev, fid, reached, [])
+        prev = _link(g, prev, fid, flow > 0, [])
+        left = tally.out.get((at, t), 0)
         g.edges.append(_edge(
-            f"out:{at}:{t}", fid, order_ref(t), EDGE_OUT,
-            tally.out.get((at, t), 0) > 0,
+            f"out:{at}:{t}", fid, order_ref(t), EDGE_OUT, left > 0,
             _pick(rows, lambda r, tt=t: _away_at(r, at, tt)),
         ))
+        g.neighbours.append(Neighbour(object_id=t, unit_count=left))
+        # Ab hier ist die Achse um die Ausgescherten leichter. Nicht negativ: ein Stück
+        # kann eine Stelle mehrfach verlassen haben (es kam zwischendurch zurück), und
+        # «weniger als niemand» gibt es nicht.
+        flow = max(0, flow - left)
         if (at, t) not in tally.back and (at, t) not in pending:
             continue  # **gekappte Ausleihe**: es gibt keinen Rückweg, also keinen Punkt
         jid = join_id(at, t)
         g.nodes.append(Node(id=jid, kind=NODE_JOIN, at=at))
-        prev = _link(g, prev, jid, reached, stayed if t == holds else [])
+        prev = _link(g, prev, jid, flow > 0, stayed if t == holds else [])
+        came = tally.back.get((at, t), 0)
         g.edges.append(_edge(
-            f"back:{at}:{t}", order_ref(t), jid, EDGE_BACK,
-            tally.back.get((at, t), 0) > 0, [],
+            f"back:{at}:{t}", order_ref(t), jid, EDGE_BACK, came > 0, [],
         ))
-    return prev
+        flow += came
+    return prev, flow
 
 
 def _pick(rows: list["_Row"], where) -> list["_Row"]:
@@ -502,6 +570,13 @@ def _verify(g: Graph, rows: list["_Row"]) -> None:
     for e in g.edges:
         if sum(p.count for p in e.units) != len(e.members):
             g.problems.append(f"Kante {e.id}: Zahl und Mitglieder stimmen nicht überein.")
+        # **Wo etwas steht, ist etwas gewesen.** Eine Haarlinie mit Stücken darauf wäre
+        # ein Widerspruch in sich – und genau der Fehler, den die Bilanz entlang der
+        # Achse machen könnte, wenn sie an einer Stelle zu viel abzöge.
+        if e.members and not e.walked:
+            g.problems.append(
+                f"Kante {e.id}: dort stehen Einzelinstanzen, aber sie gilt als nicht gegangen."
+            )
     ids = [n.id for n in g.nodes]
     if len(ids) != len(set(ids)):
         g.problems.append("Zwei Knoten teilen sich eine Kennung.")

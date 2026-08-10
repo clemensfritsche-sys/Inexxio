@@ -40,7 +40,7 @@ from sqlalchemy.orm import Session, aliased
 
 from ..domain import statuses as st
 from ..models import Order, OrderUnit, ProcessEvent
-from ..models.process_event import KIND_HANDOVER, KIND_START
+from ..models.process_event import KIND_START
 
 
 def _span(order_id: int):
@@ -205,16 +205,14 @@ def parents(db: Session, order: Order) -> list[Related]:
     return out
 
 
-def deviations(db: Session, order: Order) -> list[Related]:
-    """Welche Aufträge haben diesem hier Stücke **mitten im Ablauf** abgenommen?
-
-    Anker ist sein eigener ``handover``-Eintrag; daneben steht der Auftrag, der das
-    Stück aufgenommen hat. Gekappte Abweichungen erscheinen dabei genauso wie
-    rückführende – sie sind ja passiert, und dass sie nichts zurückgeben, ist ihre
-    Eigenschaft, nicht ihr Fehlen.
-    """
-    return _counts_from(db, order_id=order.id, kind=KIND_HANDOVER,
-                        status_before=None, before=False)
+# **«Welche Aufträge haben mir Stücke abgenommen» steht nicht mehr hier.**
+#
+# Es gab die Frage zweimal: hier über den Log (der Nachbar des ``handover``-Eintrags) und
+# in ``flow.build`` über die Abzweigungen des Graphs. Zwei Ableitungen derselben Sache
+# laufen auseinander, und man sieht es erst am Bildschirm – als Abzweigepunkt ohne seinen
+# Nachbarn. Die Antwort steht jetzt allein im Graph (``flow.Graph.neighbours``): ein
+# Nachbar existiert genau dann, wenn es seine Kante gibt. Der übergeordnete Auftrag
+# bleibt hier, denn im eigenen Graph gibt es ihn nicht – die Übernahme steht in *seinem*.
 
 
 def returning_to(db: Session, order: Order, order_ids: list[int]) -> set[int]:

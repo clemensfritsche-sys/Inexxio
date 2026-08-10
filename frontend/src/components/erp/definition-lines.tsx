@@ -292,35 +292,9 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
           refreshKey={refreshKey}
           chosen={line.units}
           onChange={(units) => onChange({ units })}
-          returns={line.returns}
-          onReturns={(returns) => onChange({ returns })}
         />
       )}
     </div>
-  );
-}
-
-/** Die zwei Wege der Rückführung. Dieselbe Form wie die Herkunft – es ist dieselbe Art
- *  Entscheidung: zwei sich ausschliessende Antworten, beide mit Grund im Hover. */
-function ReturnBtn({ active, label, hint, onClick }: {
-  active: boolean; label: string; hint: string; onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-tip={hint}
-      aria-label={label}
-      className="inline-flex items-center gap-1.5 text-xs rounded-ds-lg"
-      style={{
-        height: 28, padding: '0 9px',
-        border: `1px solid ${active ? 'var(--accent-ink)' : 'var(--border-2)'}`,
-        background: active ? 'var(--accent-soft)' : 'var(--bg-1)',
-        color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
-      }}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -335,11 +309,9 @@ function ReturnBtn({ active, label, hint, onClick }: {
  *
  * Gesperrte Stücke werden **gezeigt**, nicht weggefiltert, und nennen den Grund.
  */
-function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange, returns, onReturns }: {
+function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }: {
   articleObjectId: number; quantity: number; chosen: UnitPick[]; refreshKey: number;
   onChange: (picks: UnitPick[]) => void;
-  returns: boolean;
-  onReturns: (value: boolean) => void;
 }) {
   const [options, setOptions] = useState<UnitOption[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -426,22 +398,21 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange, 
         </span>
       </div>
 
+      {/*
+        **Ob es zurückgeht, steht am Ende der Linie – nicht hier** (Auftrag §5). Es war
+        ein Knopfpaar an dieser Stelle; die Aussage stand damit woanders als ihre
+        Wirkung, und man sah erst nach der Freigabe, was daraus wird. Jetzt hängt sie
+        unter dem Ende-Objekt am Rückweg selbst (`ReturnSwitch`): die Linie ist da oder
+        eben nicht. Hier bleibt die Tatsache, aus der die Frage überhaupt entsteht.
+      */}
       {borrowed.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-ds-lg px-2.5 py-2"
           style={{ background: 'var(--warning-bg)' }}>
           <GitBranch size={13} style={{ color: 'var(--warning)' }} />
-          <span className="text-xs flex-1 min-w-[180px]" style={{ color: 'var(--fg-2)' }}>
+          <span className="text-xs" style={{ color: 'var(--fg-2)' }}>
             {borrowed.length === 1 ? 'Ein Stück läuft' : `${borrowed.length} Stücke laufen`} in
             einem anderen Auftrag – dieser hier wird eine <strong>Abweichung</strong>.
           </span>
-          <div className="flex gap-1">
-            <ReturnBtn active={returns} onClick={() => onReturns(true)}
-              label="kehrt zurück"
-              hint="Nach dem Durchlauf geht das Stück an genau die Stelle zurück, an der es ausgeschert ist. Der andere Auftrag wartet solange." />
-            <ReturnBtn active={!returns} onClick={() => onReturns(false)}
-              label="bleibt hier"
-              hint="Das Stück kehrt nicht zurück (z. B. Aussonderung). Der andere Auftrag läuft mit weniger Stücken weiter und wartet nicht." />
-          </div>
         </div>
       )}
 

@@ -8,7 +8,9 @@ import { orderStatus } from '@/lib/record-status';
 import { localDateTime } from '@/lib/utils';
 import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { ProcessDiagram, PROCESS_MAXW, type DiagramStep } from '@/components/erp/process-diagram';
+import {
+  ProcessDiagram, PROCESS_MAXW, type DiagramStep, type ReturnLink,
+} from '@/components/erp/process-diagram';
 import { ProcessColumns } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
@@ -272,6 +274,24 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey }: {
   const isMake = sourceArticle !== null;
   const articleName = articles.find((a) => a.object_id === sourceArticle)?.name;
 
+  // **Die geplanten Rückführungen** (§5): je Definitionszeile, die einem laufenden
+  // Auftrag Stücke abnimmt, eine – dieselbe Einheit, an der die Entscheidung hängt
+  // (`returns` steht an der Zeile). Nimmt eine Zeile nichts Gebundenes, gibt es keine
+  // Frage und darum auch keinen Knoten.
+  const back: ReturnLink[] = useMemo(
+    () => lines
+      .map((l) => ({
+        key: l.key,
+        orders: [...new Set(l.units.map((u) => u.fromOrder).filter((o): o is number => o !== null))],
+        on: l.returns,
+      }))
+      .filter((b) => b.orders.length > 0),
+    [lines],
+  );
+  const toggleReturn = useCallback((key: number) => {
+    setLines(lines.map((l) => (l.key === key ? { ...l, returns: !l.returns } : l)));
+  }, [lines, setLines]);
+
   // Bringt eine Zeile «Neu» mit, ist der Prozess die **Vorlage des Artikels** – dann nur
   // ansehen. Sonst wird hier modelliert, mit demselben Editor wie am Artikel.
   return (
@@ -281,12 +301,16 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey }: {
           mode="definition"
           steps={mirrored ?? []}
           endStatus={END_BEFORE}
+          back={back}
+          onToggleReturn={toggleReturn}
           head={<DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey} onArticlesLoaded={setArticles} />}
         />
       ) : (
         <ProcessDesigner
           modules={steps}
           onChange={setSteps}
+          back={back}
+          onToggleReturn={toggleReturn}
           head={<DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey} onArticlesLoaded={setArticles} />}
         />
       )}

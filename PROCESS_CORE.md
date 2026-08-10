@@ -483,7 +483,7 @@ getrennt — mehr Begriffe gibt es nicht:
 |---|---|---|
 | **1 Graph** | `services/flow.build` | **Knoten**: `start` · `module` · `end` · `fork` · `join`. **Kanten**: Verbindung zwischen genau zwei Knoten. |
 | **2 Position** | `FlowEdge.units` | Wo ein Stück steht — **immer eine Kante**, nie ein Knoten, nie ein Zwischenraum. |
-| **3 Kantenzustand** | `FlowEdge.walked` | Kräftig, wenn Material die Kante laut **Log** erreicht hat. Sonst Haarlinie. Kein dritter Wert, nie gesetzt. |
+| **3 Kantenzustand** | `FlowEdge.walked` | Kräftig, wenn laut **Log** mindestens **eine Einzelinstanz diese Kante genommen** hat. Sonst Haarlinie. Kein dritter Wert, nie gesetzt. |
 | **4 Layout/Pfade** | `process-flow.polyPath` | **Ein** Generator zeichnet **jede** Linie – Achse, Ausscherung, Rückführung. |
 
 **Abzweige- und Rückführpunkt sind eigene Knoten.** Fachlich bleibt es *ein*
@@ -498,10 +498,31 @@ Bild, auch wenn das Stück längst zurück und weitergezogen ist. Alle Zähler s
 Zeilenzahlen im Log und können nur wachsen — daraus folgt «eine einmal kräftige Kante
 wird nie wieder schwach» **von selbst**, statt bewacht zu werden.
 
+**Der Kantenzustand gehört der KANTE, nicht dem Punkt.** Der Hauptstrang ist keine
+durchgehende Linie, sondern eine Folge von Kanten, und jede beantwortet ihre eigene
+Frage. «Hier ist Material angekommen» gilt für die Kante **zum** Abzweigepunkt; ob danach
+noch jemand geradeaus weiterging, ist eine andere. Nimmt eine Abweichung **alle** Stücke
+mit, hat den geraden Weg niemand genommen — er ist dünn, obwohl unmittelbar darüber sehr
+wohl Material stand. Gerechnet wird das als **Bilanz entlang der Achse**: sie beginnt mit
+dem, was am Punkt angekommen ist, jeder Abzweigepunkt zieht seine Ausgescherten ab, jeder
+Rückführpunkt addiert seine Rückkehrer (`flow._branches`). Kein `if` je Kantenart, kein
+Sonderfall «Abweichung nimmt alles» — die Zahl ist grösser als null oder eben nicht.
+Gezählt werden dafür **Einzelinstanzen**, nicht Log-Zeilen: ein Stück kann dieselbe
+Stelle mehrfach verlassen (Abweichung der Abweichung), und die Bilanz ginge sonst nicht
+auf.
+
 **Eine Kante über die Auftragsgrenze** (`out`/`back`) nennt den Nachbarn als
 `order:<Objektnummer>`. Das Frontend zeichnet sie, wenn **beide Enden im Bild stehen** –
 darum muss keine Seite wissen, welche Spalten gerade sichtbar sind, und beide Richtungen
 stammen aus dem Log dessen, bei dem sie passiert sind.
+
+**Die Nachbarn kommen aus demselben Graph** (`Graph.neighbours` → `OrderResponse.
+deviations`). Es gab die Frage zweimal: die Spalten daneben aus einer eigenen Log-Abfrage,
+die Abzweigungen aus den Kanten. Zwei Ableitungen derselben Sache laufen auseinander, und
+man sieht es erst am Bildschirm — als Abzweigepunkt **ohne** seinen Nachbarn: kein Block,
+keine Linie, nur der Punkt. Ein Nachbar existiert jetzt genau dann, wenn es seine Kante
+gibt. *Der übergeordnete Auftrag bleibt beim Log: im eigenen Graph gibt es ihn nicht, die
+Übernahme steht in **seinem**.*
 
 **Eine Position hat genau eine Adresse: die Kante.** Der Zähler an der Pille und die Liste
 beim Aufklappen fragen **dieselbe** (`FlowEdge.members` → `flow.units_on`,
@@ -568,10 +589,20 @@ dann «zur richtigen Seite hinaus»), kehrt die Aussage aber um: beide wären gl
 gekrümmt, und der Rückführpunkt sähe aus wie ein Abzweigepunkt.
 
 **Der senkrechte Takt ist eine Ableitung des Radius** (`process-flow.FLOW_GAP` =
-`2·BEND − 8`), und er gilt im Raster **wie** in der Spalte. An jedem Punkt setzt ein
-Bogen an; liegen zwei Punkte näher beieinander als zwei Radien, überlagern sich diese
-Stücke und die Bögen kreuzen sich. Zwei Rhythmen hiessen: in einer der beiden Ansichten
-stimmt es, in der anderen nicht.
+`2·BEND`), und er gilt im Raster **wie** in der Spalte. Zwischen einem Abzweigepunkt und
+*seinem* Rückführpunkt liegen **zwei Waagrechte** — hinaus bei `fork + BEND`, herein bei
+`join − BEND`. Übrig bleibt `FLOW_GAP + POINT − 2·BEND`, und genau das muss so viel sein,
+dass zwei Linien als zwei zu lesen sind:
+
+```
+FLOW_GAP + POINT − 2·BEND  =  POINT      ⟹  FLOW_GAP = 2 · BEND
+```
+
+Der frühere Takt (`2·BEND − 8`) liess davon **einen** Pixel: rechnerisch
+überschneidungsfrei, im Bild eine einzige Linie (gemessen: 1,6 px Abstand über 172 px
+gemeinsame Länge). Sichtbar wurde es dort, wo nichts die beiden Punkte auseinanderzieht —
+in der schmalen Nachbarspalte, nicht in der Mitte. Zwei Rhythmen hiessen darum: in einer
+der beiden Ansichten stimmt es, in der anderen nicht.
 
 **Die Querverbindung ist EINE Waagrechte.** Der Nachbar trägt oben und unten denselben
 Streifen Luft (`NEIGHBOUR_PAD` = `LEAD + BEND + 8`), und der **Rückführpunkt sitzt am
@@ -619,13 +650,21 @@ Eine Prozesslinie trägt genau **eine** Aussage, und die hat zwei Werte:
 
 | | |
 |---|---|
-| **gegangen** | kräftig — hier ist Material durchgelaufen |
-| **ausstehend** | Haarlinie — hier steht es noch aus |
+| **gegangen** | kräftig — **mindestens eine Einzelinstanz hat genau diese Kante genommen** |
+| **ausstehend** | Haarlinie — hier ist noch keine gegangen |
 
 Keine dritte Farbe, kein zweiter Linientyp, keine Strichmuster. Eine **Ausscherung** in
 einen Nebenauftrag ist keine andere Art Linie, sondern derselbe Strang, der abzweigt —
 sie folgt darum derselben Regel. Ob ein Stück zurückkehrt, sagt **ob es die Linie gibt**:
 eine gekappte Ausleihe hat keinen Rückweg, und das Fehlen ist die Aussage.
+
+**Auch im Entwurf** (§5): dort ist der geplante Rückweg ein Knoten unter dem Ende, und
+die Linie dorthin gibt es nur, wenn zurückgeführt wird — ein Klick auf das Ziel schaltet
+sie an und aus. Der Knoten **bleibt**, wenn die Linie geht (sonst wäre die Entscheidung
+einmalig statt änderbar); mehrere Quellen stehen als Ziele in **einer** Zeile, denn je
+Quelle einen eigenen Knoten untereinander zu hängen hiesse, die Linie zum zweiten liefe
+durch den ersten hindurch. Das frühere Knopfpaar «kehrt zurück / bleibt hier» neben der
+Stückauswahl ist damit weg: die Aussage stand an einer anderen Stelle als ihre Wirkung.
 
 **Kräftig läuft die Linie bis in das Modul, das jetzt dran ist.** «Vor Modul X stehen»
 (`current_step_id`) und «X ist dran» (`active_step_id`) sind **dieselbe** Tatsache – der
@@ -1095,6 +1134,18 @@ Weg «nur nach Kriterium» gibt es nicht — die Kriterien-Auswahl ist der Norma
 einen: FIFO schlägt vor, der Mensch übersteuert.
 
 **Ein Auftrag darf nie unbemerkt seine Art ändern.**
+
+**Freie und gebundene Stücke dürfen im selben Auftrag stehen** — und es braucht dafür
+**keine** Regel. Die Frage «grün und orange nicht mischen» ist bereits beantwortet, nur
+eine Ebene tiefer: die Absicht steht **je Stück**, nicht je Auftrag. Damit ist eine
+gemischte Auswahl kein Zwitter, sondern schlicht ein Auftrag, der ein freies Stück
+übernimmt *und* einem laufenden eines abnimmt — beide Wege gehen durch dasselbe
+Start-Objekt (§4.1), und `return_to_order_id` entsteht genau für die geliehenen. Auch die
+Rückführung ist keine Ausnahme: ein freies Stück kommt aus keinem Auftrag, es kann darum
+nirgends zurückkehren. Gemessen an den echten Dienstpfaden (eine Zeile, zwei Zeilen,
+gekappt und rückführend): Graph widerspruchsfrei, Nachbar-Liste korrekt, Bypass korrekt.
+Eine zusätzliche Regel wäre eine zweite Aussage über dieselbe Sache — und die überstimmt
+irgendwann die erste.
 
 ### 12.7 Wann darf ein Stück ein Modul verlassen?
 

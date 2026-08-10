@@ -8,7 +8,9 @@ import {
   CAPTURE_ICON, MODULE_ICON, NEEDS_TARGET, moduleTone,
   type ModuleDraft, type PointDraft,
 } from '@/lib/modules';
-import { ProcessDiagram, type DiagramStep } from '@/components/erp/process-diagram';
+import {
+  ProcessDiagram, type DiagramStep, type ReturnLink,
+} from '@/components/erp/process-diagram';
 import { END_BEFORE } from '@/lib/process-status';
 import { inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 
@@ -29,7 +31,8 @@ import { inputCls, numericInputProps, numericOnly } from '@/components/erp/field
  * Mülleimer, kein Ziehen. Das ist keine bewachte Regel, sondern ein fehlendes Bedienelement –
  * einen Endpunkt, der eine freigegebene Definition ändert, gibt es ohnehin nicht.
  */
-export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head }: {
+export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head,
+  back, onToggleReturn }: {
   modules: ModuleDraft[];
   onChange: (m: ModuleDraft[]) => void;
   frozen?: boolean;
@@ -38,6 +41,9 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   /** Slot über dem Start – beim Auftrag die Definition der Einzelinstanzen. Der Artikel
    *  hat keine, und ein Diagramm, das sie voraussetzt, wäre dort nicht wiederverwendbar. */
   head?: React.ReactNode;
+  /** Die geplanten Rückführungen (§5) – der Knoten unter dem Ende IST der Schalter. */
+  back?: ReturnLink[];
+  onToggleReturn?: (key: number) => void;
 }) {
   const [catalog, setCatalog] = useState<ModuleCatalog | null>(null);
   const [drag, setDrag] = useState<number | null>(null);
@@ -89,6 +95,8 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
       expandedStepId={justAdded}
       endStatus={END_BEFORE}
       head={head}
+      back={back}
+      onToggleReturn={onToggleReturn}
       tone={(t) => moduleTone(catalog?.modules?.find((m) => m.key === t)?.tone)}
       onDelete={frozen ? undefined : (id) => onChange(modules.filter((m) => m.id !== id))}
       onReorder={frozen ? undefined : move}
