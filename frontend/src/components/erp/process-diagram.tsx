@@ -11,7 +11,9 @@ import { UnitNumber } from './unit-number';
 import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
 import { formatObjectId, localDateTime } from '@/lib/utils';
 import { useErpNav } from './obj-id';
-import type { JourneyStop } from '@/types';
+import type {
+  GraphEdge, GraphNode, GraphUnits, JourneyStop, ProcessGraph,
+} from '@/types';
 
 /**
  * **Die Prozessdarstellung — EINE Komponente, zwei Modi.**
@@ -55,22 +57,90 @@ export interface DiagramStep {
   waitingFor?: number[];
 }
 
+export type DiagramMode = 'definition' | 'ausfuehrung';
+
 /**
- * **Ein Zustandspunkt** – die Stelle auf der Prozesslinie, an der ein Stück wartet.
+ * **Der Graph eines Entwurfs.** Ein Auftragsentwurf lebt im Browser (§6.1) – es gibt
+ * ihn auf dem Server nicht, also kann der ihn auch nicht liefern.
  *
- * Er liegt **zwischen** zwei Objekten und heisst «vor Modul `at`» (`null` = nach dem
- * Ende). Das Modul benennt ihn, es besitzt ihn nicht: eine Abweichung zweigt an diesem
- * Punkt ab – vor dem Modul, denn das Stück hat es noch gar nicht betreten – und kehrt an
- * denselben Punkt zurück, sodass es das Modul danach regulär durchläuft.
- *
- * Weil der Punkt so heisst, ist seine Knoten-Id direkt aus `at` berechenbar; sie muss
- * nirgends gesucht werden.
+ * Das ist **keine** zweite Ableitung: hier steht keine Prozesslogik, sondern die
+ * Definition selbst. Ein Entwurf hat keine Einzelinstanzen, also keine Positionen; er
+ * ist nicht gelaufen, also ist keine Kante gegangen; und es gibt nichts, wovon
+ * abzuzweigen wäre. Übrig bleibt die Kette Start → Module → Ende, und die *ist* die
+ * Liste, die daneben bearbeitet wird.
  */
-export function statePointId(at: number | null, prefix = ''): string {
-  return `${prefix}state@${at ?? 'end'}`;
+export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
+  const nodes: GraphNode[] = [
+    { id: 'start', kind: 'start', at: null },
+    ...steps.map((s) => ({ id: `module:${s.id}`, kind: 'module', at: s.id })),
+    { id: 'end', kind: 'end', at: null },
+  ];
+  return {
+    nodes,
+    edges: nodes.slice(0, -1).map((n, i) => ({
+      id: `edge:${n.id}:${nodes[i + 1].id}`,
+      frm: n.id, to: nodes[i + 1].id, kind: 'axis', walked: false, units: [],
+    })),
+    problems: [],
+  };
 }
 
-export type DiagramMode = 'definition' | 'ausfuehrung';
+/**
+ * **Eine Zeile im Bild.** Ein Prozessobjekt, die Beschriftung einer Kante – oder eine
+ * Zutat, die nicht zum Graph gehört (Definitionsbereich, Modulauswahl, Journey).
+ *
+ * Die Trennung Knoten ↔ Kante ist die Umsetzung der Regel «eine Position ist **immer**
+ * eine Kante»: Stücke stehen nicht *in* einem Knoten, sondern auf dem Weg zum nächsten –
+ * und genau dort steht ihre Pille, mitten auf der Linie.
+ *
+ * **Eine Liste, ein Index.** Das Raster mit drei Spuren braucht je Zeile eine Rasterzeile
+ * und muss wissen, in welcher ein bestimmter Knoten steht; die Spalte braucht dieselbe
+ * Reihenfolge zum Rendern. Zwei Zählungen davon wären zwei Wahrheiten – und die eine
+ * verschöbe den Nebenauftrag gegenüber der anderen um eine Zeile.
+ */
+export type ColumnRow =
+  | { key: string; slot: 'head' | 'tail' | 'journey-in' | 'journey-out' }
+  | { key: string; node: GraphNode }
+  | { key: string; edge: GraphEdge };
+
+/**
+ * Der Graph als Zeilenfolge — reines Layout, keine Ableitung.
+ *
+ * Die Knoten kommen in der Reihenfolge, in der der Server sie liefert; zwischen zwei
+ * Knoten schiebt sich die Beschriftung ihrer Kante, sofern dort etwas steht.
+ */
+export function columnRows(g: ProcessGraph, extra: {
+  head?: boolean; tail?: boolean; journeyIn?: boolean; journeyOut?: boolean;
+} = {}): ColumnRow[] {
+  const outgoing = new Map<string, GraphEdge>();
+  (g.edges ?? []).forEach((e) => { if (e.kind === 'axis') outgoing.set(e.frm, e); });
+  const rows: ColumnRow[] = [];
+  if (extra.head) rows.push({ key: 'head', slot: 'head' });
+  if (extra.journeyIn) rows.push({ key: 'journey-in', slot: 'journey-in' });
+  (g.nodes ?? []).forEach((n) => {
+    if (extra.tail && n.kind === 'end') rows.push({ key: 'tail', slot: 'tail' });
+    rows.push({ key: n.id, node: n });
+    // **Was hinausgegangen ist, steht am Abzweigepunkt.** Die out-Kante führt in eine
+    // andere Spalte; ihre Stücke stehen aber hier – sie sind an dieser Stelle weg.
+    (g.edges ?? [])
+      .filter((e) => e.kind === 'out' && e.frm === n.id && (e.units ?? []).length)
+      .forEach((e) => rows.push({ key: `on:${e.id}`, edge: e }));
+    const e = outgoing.get(n.id);
+    if (e && (e.units ?? []).length) rows.push({ key: `on:${e.id}`, edge: e });
+  });
+  if (extra.journeyOut) rows.push({ key: 'journey-out', slot: 'journey-out' });
+  return rows;
+}
+
+/** In welcher Zeile steht dieser Knoten? — für das Raster mit drei Spuren. */
+export function rowOfNode(rows: ColumnRow[], nodeId: string): number {
+  return rows.findIndex((r) => 'node' in r && r.node.id === nodeId);
+}
+
+/** Die Achsenkanten mit beiden Enden – alles, was innerhalb einer Spalte zu zeichnen ist. */
+export function axisEdges(g: ProcessGraph): GraphEdge[] {
+  return (g.edges ?? []).filter((e) => e.kind === 'axis' && !!e.to);
+}
 
 /**
  * Ein einzelnes Stück, wenn jemand einen Zustandspunkt aufklappt.
@@ -95,116 +165,15 @@ export interface UnitChip {
  */
 export const PROCESS_MAXW = LANE.MID_MAX;
 
-/**
- * Wie viele Stücke stehen an einer Stelle, in welchem Zustand.
- *
- * **Gezählt, nicht aufgelistet.** Die Datenhaltung bleibt pro Einzelinstanz (§4 des
- * Auftrags); dies ist die Darstellungsfrage. Bei Menge 5000 ist der Unterschied nicht
- * Geschmack, sondern der zwischen einer Pille und 5000 DOM-Knoten. Wer die Nummern
- * sehen will, klappt auf – dann holt `onExpand` sie nach.
- */
-export interface DiagramGroup {
-  /** `null` = am Ende angekommen. Nur im Ausführungsmodus gesetzt. */
-  currentStepId: number | null;
-  status: string;
-  active: boolean;
-  count: number;
-}
-
-/** Ein Knoten im Bild. Die Liste entsteht in ``flowNodes`` – **einmal**, für jede Spalte. */
-export type FlowSpec =
-  | { id: string; kind: 'head' }
-  | { id: string; kind: 'tail' }
-  | { id: string; kind: 'terminal'; which: 'start' | 'end' }
-  | { id: string; kind: 'state'; at: number | null }
-  | { id: string; kind: 'step'; step: DiagramStep; index: number }
-  | { id: string; kind: 'journey'; where: 'in' | 'out' };
-
-/**
- * Die Knotenfolge — **eine reine Funktion**, damit sie nicht nur die Komponente selbst
- * kennt. Ein Bild aus mehreren Spalten (übergeordneter Auftrag · eigener Ablauf ·
- * Abweichungen) braucht sie je Spalte, und die Linien dazwischen brauchen die Ids.
- *
- * Die **Zustandsanzeige zwischen zwei Modulen ist abgeleitet**: nach Modul *i* steht per
- * Statusregel genau dessen `Nachher` (§4). Das Bild zeigt damit die Regel, statt sie zu
- * wiederholen. Unterhalb der aktuellen Stelle entsteht **kein** Zustandsknoten — dort
- * war noch kein Material (§7.3), und eine leere Anzeige wäre eine Fallback-Anzeige.
- */
-export function flowNodes({
-  prefix = '', running, steps, groups, hasHead, hasTail, journeyIn = 0, journeyOut = 0,
-  branchPoints,
-}: {
-  prefix?: string;
-  running: boolean;
-  steps: DiagramStep[];
-  groups: DiagramGroup[];
-  hasHead?: boolean;
-  hasTail?: boolean;
-  journeyIn?: number;
-  journeyOut?: number;
-  /**
-   * Zustandspunkte, an denen eine **Abweichung ansetzt**. Sie entstehen auch dann, wenn
-   * dort gerade nichts steht: das Stück ist längst zurück und weitergezogen, die
-   * Abzweigung ist trotzdem passiert. Ohne sie fiele die Linie auf das nächstbeste
-   * Element zurück – und das war das Modul (Testnotiz #700).
-   */
-  branchPoints?: Set<number | null>;
-}): FlowSpec[] {
-  const p = (id: string) => `${prefix}${id}`;
-  // **Ein Punkt entsteht, wenn dort etwas ist.** Anwesend oder ausgeschert – beides steht
-  // an dieser Stelle; ein ausgeschertes Stück arbeitet nur gerade woanders. Und wo eine
-  // Abzweigung ansetzt, gibt es den Punkt in jedem Fall.
-  const occupied = (at: number | null) =>
-    running && (groups.some((g) => g.currentStepId === at) || !!branchPoints?.has(at));
-  const point = (at: number | null): FlowSpec =>
-    ({ id: statePointId(at, prefix), kind: 'state', at });
-
-  const out: FlowSpec[] = [];
-  if (hasHead) out.push({ id: p('head'), kind: 'head' });
-  if (journeyIn) out.push({ id: p('journey-in'), kind: 'journey', where: 'in' });
-  out.push({ id: p('start'), kind: 'terminal', which: 'start' });
-  const first = steps[0]?.id ?? null;
-  if (first !== null && occupied(first)) out.push(point(first));
-  steps.forEach((s, i) => {
-    out.push({ id: p(`step-${s.id}`), kind: 'step', step: s, index: i });
-    const next = steps[i + 1]?.id ?? null;
-    if (next !== null && occupied(next)) out.push(point(next));
-  });
-  if (hasTail) out.push({ id: p('tail'), kind: 'tail' });
-  out.push({ id: p('end'), kind: 'terminal', which: 'end' });
-  if (occupied(null)) out.push(point(null));
-  if (journeyOut) out.push({ id: p('journey-out'), kind: 'journey', where: 'out' });
-  return out;
-}
-
-/**
- * **Bis wohin ist die Linie stark? Bis zu dem Objekt, das jetzt dran ist.**
- *
- * Die Stelle, an der das Material steht, heisst «vor Modul X» (`current_step_id`) – und
- * genau dieses Modul nennt der Server seinen **aktiven Schritt**. «Davorstehen» und «X
- * ist dran» sind dieselbe Tatsache, nicht zwei; zwischen dem Zustandspunkt und dem Modul
- * liegt kein Prozessobjekt. Die Linie läuft darum **bis in dieses Modul hinein**.
- *
- * Das ist keine Behauptung über einen erledigten Schritt: kräftig heisst «der Prozess ist
- * hier angekommen», und der letzte Zustandspunkt sagt, wo. Der Abstand dazwischen ist
- * Layout (die Zeile macht Platz für einen Nebenauftrag), kein Weg.
- */
-export function walkedEdges(nodes: FlowSpec[], running: boolean): number {
-  if (!running) return 0;
-  let last = -1;
-  nodes.forEach((n, i) => { if (n.kind === 'state') last = i; });
-  return last < 0 ? 0 : Math.min(last + 1, Math.max(0, nodes.length - 1));
-}
-
 export function ProcessDiagram({
-  mode, steps, groups = [], activeStepId = null, expandedStepId = null, endStatus,
+  mode, steps, graph, activeStepId = null, expandedStepId = null, endStatus,
   head, tail, onDelete, renderStep, onExpand, tone, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [],
 }: {
   mode: DiagramMode;
   steps: DiagramStep[];
-  /** Nur im Ausführungsmodus – im Definitionsmodus gibt es nichts unterwegs (§6.1). */
-  groups?: DiagramGroup[];
+  /** Der Graph vom Server. Fehlt er, ist es ein Entwurf – dann die reine Kette. */
+  graph?: ProcessGraph;
   activeStepId?: number | null;
   /** Welches Modul startet aufgeklappt (#696) – im Entwurf das zuletzt angelegte. */
   expandedStepId?: number | null;
@@ -230,23 +199,14 @@ export function ProcessDiagram({
   dragging?: number | null;
   onDragState?: (index: number | null) => void;
 }) {
-  const running = mode === 'ausfuehrung';
-  const nodes = useMemo(
-    () => flowNodes({
-      running, steps, groups,
-      hasHead: !!head, hasTail: !!tail,
-      journeyIn: journeyIn.length, journeyOut: journeyOut.length,
-    }),
-    [head, tail, steps, groups, running, journeyIn.length, journeyOut.length],
-  );
-  const walked = useMemo(() => walkedEdges(nodes, running), [nodes, running]);
+  const g = useMemo(() => graph ?? definitionGraph(steps), [graph, steps]);
 
   return (
     <div className="mx-auto w-full" style={{ maxWidth: PROCESS_MAXW }}>
-      <FlowFrame lines={(a) => <Lines ids={nodes.map((n) => n.id)} anchors={a} walked={walked} />}>
+      <FlowFrame lines={(a) => <Axis edges={axisEdges(g)} anchors={a} />}>
         {() => (
           <FlowColumn
-            nodes={nodes} mode={mode} groups={groups} activeStepId={activeStepId}
+            graph={g} steps={steps} mode={mode} activeStepId={activeStepId}
             expandedStepId={mode === 'ausfuehrung' ? activeStepId : expandedStepId}
             endStatus={endStatus} head={head} tail={tail} onDelete={onDelete}
             renderStep={renderStep} onExpand={onExpand} tone={tone} onReorder={onReorder}
@@ -266,15 +226,19 @@ export function ProcessDiagram({
  * dazwischen aus denselben gemessenen Ankern berechnen.
  */
 export function FlowColumn({
-  nodes, mode, groups = [], activeStepId = null, expandedStepId = null, endStatus,
+  graph, steps, prefix = '', mode, activeStepId = null, expandedStepId = null, endStatus,
   head, tail, onDelete,
   renderStep, onExpand, tone, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
-  containerStyle, nodeStyle,
+  containerStyle, rowStyle,
 }: {
-  nodes: FlowSpec[];
+  /** **Das Bild dieser Spalte** – vom Server, nicht hier abgeleitet. */
+  graph: ProcessGraph;
+  /** Der Inhalt der Module. Der Graph sagt *wo* ein Modul steht, dies *was* darin steht. */
+  steps: DiagramStep[];
+  /** Kennung dieser Spalte im gemeinsamen Rahmen – sonst kollidieren die Knoten-Ids. */
+  prefix?: string;
   mode: DiagramMode;
-  groups?: DiagramGroup[];
   activeStepId?: number | null;
   /** Welches Modul startet **aufgeklappt** (#696). Sonst sind alle zu. */
   expandedStepId?: number | null;
@@ -307,12 +271,17 @@ export function FlowColumn({
    * wäre eine zweite Darstellungsform derselben Sache.
    */
   containerStyle?: CSSProperties;
-  /** Je Knoten sein Platz im äusseren Raster. Ohne Raster leer – dann trägt der Fluss. */
-  nodeStyle?: (index: number) => CSSProperties;
+  /** Je Zeile ihr Platz im äusseren Raster. Ohne Raster leer – dann trägt der Fluss. */
+  rowStyle?: (index: number) => CSSProperties;
 }) {
   const running = mode === 'ausfuehrung';
+  const rows = columnRows(graph, {
+    head: !!head, tail: !!tail,
+    journeyIn: journeyIn.length > 0, journeyOut: journeyOut.length > 0,
+  });
+  const byId = new Map(steps.map((s) => [s.id, s]));
   const place = (i: number, extra?: CSSProperties): CSSProperties => ({
-    ...extra, ...nodeStyle?.(i),
+    ...extra, ...rowStyle?.(i),
   });
   return (
     <div style={{
@@ -320,56 +289,63 @@ export function FlowColumn({
       opacity: faded ? 0.5 : 1,
       ...containerStyle,
     }}>
-      {nodes.map((n, i) => {
-        if (n.kind === 'head') {
-          return <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>{head}</FlowNode>;
-        }
-        if (n.kind === 'tail') {
-          return <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>{tail}</FlowNode>;
-        }
-        if (n.kind === 'journey') {
+      {rows.map((row, i) => {
+        if ('slot' in row) {
+          const body = row.slot === 'head' ? head
+            : row.slot === 'tail' ? tail
+              : <JourneyRow where={row.slot === 'journey-in' ? 'in' : 'out'}
+                  stops={row.slot === 'journey-in' ? journeyIn : journeyOut} />;
           return (
-            <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>
-              <JourneyRow where={n.where} stops={n.where === 'in' ? journeyIn : journeyOut} />
-            </FlowNode>
+            <FlowNode key={row.key} id={`${prefix}${row.key}`}
+              style={place(i, { width: '100%' })}>{body}</FlowNode>
           );
         }
-        if (n.kind === 'terminal') {
+        // **Eine Kante trägt ihre Stücke.** Sie stehen nicht in einem Knoten, sondern
+        // auf dem Weg zum nächsten – und die Pille sitzt genau dort, auf der Linie.
+        if ('edge' in row) {
           return (
-            <FlowNode key={n.id} id={n.id} style={place(i)}>
-              <Terminal which={n.which} endStatus={endStatus} />
-            </FlowNode>
-          );
-        }
-        if (n.kind === 'state') {
-          const active = n.at !== null;
-          return (
-            <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>
+            <FlowNode key={row.key} id={`${prefix}${row.key}`} style={place(i, { width: '100%' })}>
               <StateRow
-                groups={groupsAt(groups, n.at, active)}
-                away={n.at !== null ? groupsAway(groups, n.at) : []}
-                stepId={n.at}
-                active={active}
+                units={row.edge.units ?? []}
+                away={row.edge.kind === 'out'}
                 onExpand={onExpand}
-                onDeviate={active ? onDeviate : undefined}
+                onDeviate={onDeviate}
                 deviateBlocked={deviateBlocked}
               />
             </FlowNode>
           );
         }
-        const isActive = running && n.step.id === activeStepId;
-        const index = n.index;
+        const n = row.node;
+        const id = `${prefix}${n.id}`;
+        if (n.kind === 'start' || n.kind === 'end') {
+          return (
+            <FlowNode key={row.key} id={id} style={place(i)}>
+              <Terminal which={n.kind} endStatus={endStatus} />
+            </FlowNode>
+          );
+        }
+        if (n.kind === 'fork' || n.kind === 'join') {
+          return (
+            <FlowNode key={row.key} id={id} style={place(i)}>
+              <Point kind={n.kind} />
+            </FlowNode>
+          );
+        }
+        const step = n.at !== null && n.at !== undefined ? byId.get(n.at) : undefined;
+        if (!step) return null;
+        const isActive = running && step.id === activeStepId;
+        const index = steps.indexOf(step);
         return (
-          <FlowNode key={n.id} id={n.id} style={place(i, { width: '100%' })}>
+          <FlowNode key={row.key} id={id} style={place(i, { width: '100%' })}>
             <StepCard
-              step={n.step}
+              step={step}
               active={isActive}
               dimmed={running && !isActive}
               // **Eingeklappt, ausser das Modul ist dran** (Testnotiz #696) – eine Regel,
               // eine Stelle. Im Entwurf ist «dran» das zuletzt angelegte Modul.
-              defaultOpen={n.step.id === expandedStepId}
-              tone={tone?.(n.step.moduleType)}
-              onDelete={mode === 'definition' && onDelete ? () => onDelete(n.step.id) : undefined}
+              defaultOpen={step.id === expandedStepId}
+              tone={tone?.(step.moduleType)}
+              onDelete={mode === 'definition' && onDelete ? () => onDelete(step.id) : undefined}
               drag={onReorder && mode === 'definition' ? {
                 index,
                 over: dragging !== null && dragging !== index,
@@ -378,53 +354,100 @@ export function FlowColumn({
                 onDrop: (from) => { onReorder(from, index); onDragState?.(null); },
               } : undefined}
             >
-              {renderStep?.(n.step, isActive)}
+              {renderStep?.(step, isActive)}
             </StepCard>
           </FlowNode>
         );
       })}
+      {(graph.problems ?? []).length > 0 && <Problems list={graph.problems ?? []} />}
     </div>
   );
 }
 
-function groupsAt(groups: DiagramGroup[], stepId: number | null, active: boolean): DiagramGroup[] {
-  return groups.filter((g) => g.active === active && g.currentStepId === stepId);
+/**
+ * **Abzweige- und Rückführpunkt** – die Stelle, an der sich der Strang teilt bzw. wieder
+ * zusammenläuft. Ein Punkt auf der Linie, sonst nichts: was hier passiert, sagen die
+ * Linien, die ihn berühren, und die Stücke, die daneben stehen.
+ */
+function Point({ kind }: { kind: string }) {
+  return (
+    <span
+      style={{
+        display: 'block', width: 9, height: 9, borderRadius: 999,
+        border: '2px solid var(--fg-2)', background: 'var(--bg-1)',
+      }}
+      data-tip={kind === 'fork' ? 'Hier ist ein Stück ausgeschert'
+        : 'Hierher kehrt ein Stück zurück'}
+    />
+  );
 }
 
 /**
- * **Ausgescherte Stücke** – sie stehen an dieser Stelle, sind aber gerade in einem
- * anderen Auftrag. Erkennbar an genau der Kombination, die ``OrderUnit`` beschreibt:
- * Zugehörigkeit geschlossen (``!active``), Position aber noch gesetzt.
+ * **Sichtbar kaputt statt still falsch.**
+ *
+ * Ein Bild, das eine Einzelinstanz verliert oder doppelt zeigt, ist schlimmer als
+ * keines – es sieht ja vollständig aus. Verletzt der Graph eine Invariante, sagt die
+ * Oberfläche das an der Stelle, an der man sonst der Zeichnung glauben würde.
  */
-function groupsAway(groups: DiagramGroup[], stepId: number): DiagramGroup[] {
-  return groups.filter((g) => !g.active && g.currentStepId === stepId);
+function Problems({ list }: { list: string[] }) {
+  return (
+    <div className="w-full rounded-ds-lg text-[12px]"
+      style={{ border: '1px solid var(--danger)', background: 'var(--danger-bg)',
+               color: 'var(--danger)', padding: '8px 11px' }}>
+      <strong>Das Bild ist nicht verlässlich.</strong>
+      <ul className="mt-1 list-disc pl-4">
+        {list.map((p) => <li key={p}>{p}</li>)}
+      </ul>
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Linien — berechnet aus gemessenen Ankern, nirgends eingetragen
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Lines({ ids, anchors, walked }: {
-  ids: string[]; anchors: Record<string, FlowAnchor>; walked: number;
+/**
+ * **Die Achse einer Spalte.** Je Kante ein Zug, von Knoten zu Knoten – senkrecht heraus
+ * und senkrecht hinein (§8.1a).
+ *
+ * Ob eine Kante kräftig ist, steht **an der Kante** und wird hier nicht gerechnet: der
+ * Server hat es aus dem Log abgeleitet. Die frühere Zählung «bis zum wievielten Knoten»
+ * war genau die Ableitung, die aus dem *aktuellen* Zustand kam – und darum verschwand,
+ * sobald an einer Stelle nichts mehr stand.
+ */
+export function Axis({ edges, anchors, prefix = '' }: {
+  edges: GraphEdge[]; anchors: Record<string, FlowAnchor>; prefix?: string;
 }) {
-  const out: ReactNode[] = [];
-  for (let i = 0; i < ids.length - 1; i++) {
-    const A = anchors[ids[i]];
-    const B = anchors[ids[i + 1]];
-    if (!A || !B) continue;
-    out.push(
-      <path
-        key={ids[i]}
-        // Stabile Identität je Kante — Voraussetzung dafür, dass hier später eine
-        // Animation andocken kann (stroke-dashoffset, getPointAtLength).
-        d={polyPath([[A.cx, A.bottom], [B.cx, B.top]])}
-        fill="none"
-        stroke={i < walked ? 'var(--fg-2)' : 'var(--border-2)'}
-        strokeWidth={2}
-      />,
-    );
-  }
-  return <>{out}</>;
+  return (
+    <>
+      {edges.map((e) => {
+        const A = anchors[`${prefix}${e.frm}`];
+        const B = e.to ? anchors[`${prefix}${e.to}`] : null;
+        if (!A || !B) return null;
+        return (
+          <Stroke key={e.id} d={polyPath([[A.cx, A.bottom], [B.cx, B.top]])} walked={e.walked} />
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * **Zwei Stärken, sonst nichts** (§8.1a). Jede Linie des Bildes geht durch dieses eine
+ * Bauteil: gegangen ist kräftig, ausstehend eine Haarlinie. Keine dritte Farbe, kein
+ * zweiter Linientyp – und darum auch keine Stelle, an der ein dritter entstehen könnte.
+ */
+export function Stroke({ d, walked }: { d: string; walked: boolean }) {
+  if (!d) return null;
+  return (
+    <path
+      d={d}
+      fill="none"
+      stroke={walked ? 'var(--fg-2)' : 'var(--border-2)'}
+      strokeWidth={walked ? 2.5 : 1.5}
+      strokeLinecap="round"
+    />
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -498,12 +521,13 @@ function Terminal({ which, endStatus }: { which: 'start' | 'end'; endStatus: str
  * man an dieser Stelle hat, ist «wie viele stehen wo», nicht «welche». Wer die Nummern
  * braucht, klappt auf: dann und nur dann werden sie geholt.
  */
-function StateRow({ groups, away = [], stepId, active, onExpand, onDeviate, deviateBlocked }: {
-  groups: DiagramGroup[];
-  /** Stücke, die hier stehen, aber gerade in einer Abweichung sind. */
-  away?: DiagramGroup[];
-  stepId: number | null;
-  active: boolean;
+function StateRow({ units, away: outward = false, onExpand, onDeviate, deviateBlocked }: {
+  /** Was auf dieser Kante steht – vom Server gezählt, hier nur gezeigt. */
+  units: GraphUnits[];
+  /** Führt die Kante **hinaus** in einen anderen Auftrag? Dann sind es ausgescherte
+   *  Stücke – und nur dann. Am `active`-Flag abzulesen wäre falsch: hinter dem Ende
+   *  steht ebenfalls Geschlossenes, und das ist keine Abweichung, sondern der Weiterweg. */
+  away?: boolean;
   onExpand?: (stepId: number | null, active: boolean) => Promise<UnitChip[]>;
   onDeviate?: (unitNumber: string) => void;
   deviateBlocked?: string;
@@ -511,32 +535,25 @@ function StateRow({ groups, away = [], stepId, active, onExpand, onDeviate, devi
   const [open, setOpen] = useState(false);
   const [numbers, setNumbers] = useState<UnitChip[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const groups = outward ? [] : units;
+  const away = outward ? units : [];
   const total = groups.reduce((n, g) => n + g.count, 0);
   const gone = away.reduce((n, g) => n + g.count, 0);
+  const key = groups[0] ?? away[0];
 
   async function toggle() {
-    if (!onExpand) return;
+    if (!onExpand || !key) return;
     if (open) { setOpen(false); return; }
     setOpen(true);
     if (numbers === null) {
       setBusy(true);
-      try { setNumbers(await onExpand(stepId, active)); } finally { setBusy(false); }
+      try {
+        setNumbers(await onExpand(key.at_step_id ?? null, key.active));
+      } finally { setBusy(false); }
     }
   }
 
-  // **Der Punkt ohne Inhalt ist trotzdem ein Punkt.** Hier ist etwas ausgeschert; das
-  // Stück ist längst zurück und weitergezogen. Die Abzweigung braucht ihre Stelle – ohne
-  // sie hinge die Linie an einem Modul, das nie betreten wurde (#700).
-  if (!total && !gone) {
-    return (
-      <div className="flex justify-center">
-        <span style={{
-          width: 9, height: 9, borderRadius: 999,
-          border: '2px solid var(--warning)', background: 'var(--bg-1)',
-        }} data-tip="Von hier ist ein Stück abgezweigt" />
-      </div>
-    );
-  }
+  if (!total && !gone) return null;
 
   return (
     <div className="flex flex-col items-center gap-1.5">
@@ -555,6 +572,7 @@ function StateRow({ groups, away = [], stepId, active, onExpand, onDeviate, devi
         )}
         {groups.map((g) => {
           const cfg = statusCfg(g.status);
+          const active = g.active;
           return (
             <button
               key={`${g.status}-${g.active}`}

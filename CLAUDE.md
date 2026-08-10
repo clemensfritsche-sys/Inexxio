@@ -44,6 +44,19 @@
 > zurück. **Solange eine Rückführung aussteht, ist das Modul gesperrt**: durchgesetzt an
 > der EINEN Ausführungsstelle (`process.confirm_step`), dargestellt in der EINEN Modul-Karte
 > (`StepCard`, `fieldset[disabled]`) – ein Modul fragt nicht, ob es darf.
+> **Das Bild ist ein GRAPH, und der Server liefert ihn** (PROCESS_CORE §8.1a′,
+> `services/flow.py` → `OrderResponse.flow`): **Knoten** (start · module · end · **fork** ·
+> **join**), **Kanten** dazwischen, **Positionen** immer auf einer Kante, **Kantenzustand**
+> nur gegangen ↔ ausstehend. Abgeleitet aus dem **Ereignis-Log**, nie aus dem aktuellen
+> Zustand – darum verschwindet eine Abzweigung nicht mehr, sobald das Stück zurück ist,
+> und «einmal kräftig bleibt kräftig» folgt aus der Append-only-Natur des Logs statt aus
+> einem Wächter. Abzweige- und Rückführpunkt sind **eigene Knoten**: nur so steht das
+> gebliebene Stück auf dem Bypass und das zurückgekehrte hinter dem Zusammenfluss. Das
+> Frontend **rechnet keine Prozesslogik** – es layoutet und zeichnet, und **jede** Linie
+> geht durch den EINEN Generator (`process-flow.polyPath`, der ein zu kurzes
+> Zwischenstück selbst begradigt statt es als Knick zu runden). Invarianten:
+> `tests/test_flow_graph.py` (gegen echtes PostgreSQL, in der CI **nach** dem
+> Schema-Aufbau).
 > **Das Bild hat EIN Liniensystem** (PROCESS_CORE §8.1a/§8.1b): zwei Stärken – gegangen
 > (kräftig) ↔ ausstehend (Haarlinie) –, keine dritte Farbe, keine Strichmuster; ob ein
 > Stück zurückkehrt, sagt **ob es die Linie gibt**. Drei Spuren in **einem** Raster mit

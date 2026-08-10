@@ -897,37 +897,6 @@ def lines_of(db: Session, order: Order) -> list[OrderLine]:
     )
 
 
-def unit_groups(db: Session, order: Order) -> list[dict[str, Any]]:
-    """Wie viele Stücke stehen wo, in welchem Zustand? — **gezählt, nicht aufgelistet**.
-
-    Die Datenhaltung bleibt pro Einzelinstanz; dies ist die Darstellungsfrage. Bei 5000
-    Stück ist der Unterschied nicht Geschmack, sondern der zwischen einer Zeile und 5000:
-    das Diagramm braucht Zahlen, die einzelnen Nummern holt sich, wer eine Gruppe
-    aufklappt (``GET …/units``).
-    """
-    rows = (
-        db.query(
-            OrderUnit.current_step_id,
-            InstanceUnit.status,
-            OrderUnit.released_at.is_(None).label("active"),
-            func.count(OrderUnit.id),
-        )
-        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
-        .filter(OrderUnit.order_id == order.id)
-        .group_by(OrderUnit.current_step_id, InstanceUnit.status, "active")
-        .all()
-    )
-    return [
-        {
-            "current_step_id": step_id,
-            "status": status,
-            "active": bool(active),
-            "count": int(count),
-        }
-        for step_id, status, active, count in rows
-    ]
-
-
 def units_page(db: Session, order: Order, *, step_id: Optional[int], active: bool,
                limit: int, offset: int) -> tuple[list[tuple[OrderUnit, InstanceUnit]], int]:
     """Die einzelnen Stücke einer Gruppe – auf Abruf und in Seiten."""
@@ -1044,6 +1013,67 @@ def waiting_counts(db: Session, order_ids: list[int]) -> dict[int, int]:
     return out
 
 
+def _away_points(db: Session, order: Order) -> dict[int, int]:
+    """Je ausgeschertem Stück der Zustandspunkt, an dem es diesen Auftrag verlassen hat.
+
+    Die Stelle steht schon da: beim Ausscheren wurde die Zeile geschlossen, ihr
+    ``current_step_id`` aber nicht angetastet (§3.3). Nachzuschlagen gibt es nichts.
+    """
+    return {
+        m.instance_unit_id: m.current_step_id
+        for m in db.query(OrderUnit).filter(
+            OrderUnit.order_id == order.id,
+            OrderUnit.released_at.isnot(None),
+            OrderUnit.current_step_id.isnot(None),
+        ).all()
+        if m.current_step_id is not None
+    }
+
+
+def returning_home(db: Session, order: Order) -> dict[int, int]:
+    """Welche ausgescherten Stücke kehren **hierher** zurück? — ``{Stück: Halter-Auftrag}``.
+
+    Die eine Stelle, an der die Rückführungs-**Kette** gelesen wird (§3.5): leiht A an B
+    und B weiter an C, kommt das Stück trotzdem zu A – nur eine Stufe tiefer. Gefolgt wird
+    ``return_to_order_id``, die Eigenschaft der **Verbindung**; eine gekappte Ausleihe
+    endet die Kette, und das ist die Aussage «kommt nie zurück».
+
+    Zwei Fragen lesen sie: welches Modul **gesperrt** ist (``pending_returns``) und wo im
+    Bild eine **Rückführungslinie** hingehört (``services/flow``). Zweimal gelaufen wären
+    es zwei Ableitungen derselben Sache – und die eine hätte die Kette irgendwann nicht
+    mehr gekannt.
+    """
+    at = _away_points(db, order)
+    if not at:
+        return {}
+    holders = held_by(db, list(at))
+    if not holders:
+        return {}
+
+    upward: dict[tuple[int, int], int] = {}
+    for part in _chunks(list(at)):
+        for m in (
+            db.query(OrderUnit)
+            .filter(
+                OrderUnit.instance_unit_id.in_(part),
+                OrderUnit.return_to_order_id.isnot(None),
+            )
+            .all()
+        ):
+            upward[(m.order_id, m.instance_unit_id)] = m.return_to_order_id
+
+    out: dict[int, int] = {}
+    for unit_id, holder in holders.items():
+        target, seen = upward.get((holder.order_id, unit_id)), set()
+        while target is not None and target not in seen:
+            seen.add(target)
+            if target == order.id:
+                out[unit_id] = holder.order_id
+                break
+            target = upward.get((target, unit_id))
+    return out
+
+
 def pending_returns(db: Session, order: Order) -> dict[int, list[int]]:
     """**Worauf wartet welches Modul?** — Modul-id → Objektnummern der Abweichungen.
 
@@ -1063,48 +1093,17 @@ def pending_returns(db: Session, order: Order) -> dict[int, list[int]]:
     Abgeleitet, nicht gespeichert – wie alles hier. Ein Sperr-Flag am Modul wäre ein
     zweiter Ort für dieselbe Aussage, und der erste vergessene Rückweg liesse ihn stehen.
     """
-    away = (
-        db.query(OrderUnit)
-        .filter(
-            OrderUnit.order_id == order.id,
-            OrderUnit.released_at.isnot(None),
-            OrderUnit.current_step_id.isnot(None),
-        )
-        .all()
-    )
-    if not away:
+    coming = returning_home(db, order)
+    if not coming:
         return {}
-    at = {m.instance_unit_id: m.current_step_id for m in away}
-    holders = held_by(db, list(at))
-    if not holders:
-        return {}
-
-    upward: dict[tuple[int, int], int] = {}
-    for part in _chunks(list(at)):
-        for m in (
-            db.query(OrderUnit)
-            .filter(
-                OrderUnit.instance_unit_id.in_(part),
-                OrderUnit.return_to_order_id.isnot(None),
-            )
-            .all()
-        ):
-            upward[(m.order_id, m.instance_unit_id)] = m.return_to_order_id
+    at = _away_points(db, order)
 
     found: dict[int, set[int]] = {}
-    for unit_id, holder in holders.items():
+    for unit_id, holder_order_id in coming.items():
         step_id = at.get(unit_id)
         if step_id is None:
             continue
-        target, seen = upward.get((holder.order_id, unit_id)), set()
-        while target is not None and target not in seen:
-            seen.add(target)
-            if target == order.id:
-                found.setdefault(int(step_id), set()).add(holder.order_id)
-                break
-            target = upward.get((target, unit_id))
-    if not found:
-        return {}
+        found.setdefault(int(step_id), set()).add(holder_order_id)
 
     ids = {oid for group in found.values() for oid in group}
     numbers = {
