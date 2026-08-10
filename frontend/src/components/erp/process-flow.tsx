@@ -51,8 +51,17 @@ import {
  * einen Grossbildschirm.
  */
 export const LANE = {
-  /** Abstand zwischen zwei Spuren. */
+  /** Abstand zwischen zwei Spuren — **die Fahrbahn der Querlinien**. */
   GAP: 16,
+  /**
+   * Abstand zweier **Kanäle** in dieser Fahrbahn (§1).
+   *
+   * Laufen mehrere Abzweigungen gleichzeitig, bekommt jede ihre eigene senkrechte Spur;
+   * die Lücke wächst um genau so viel, wie dafür gebraucht wird. Das ist die Stelle, an
+   * der «zwei Abweichungen» aufhört, ein Sonderfall zu sein: die Zuteilung rechnet mit
+   * n, nicht mit 1.
+   */
+  CHANNEL: 12,
   /** Wie schmal die Mitte werden darf. Darunter drängen sich die Modul-Karten. */
   MID_MIN: 360,
   /** Wie breit die Mitte höchstens wird — sie ist der Fokus, aber kein Fass ohne Boden. */
@@ -92,11 +101,31 @@ export interface FlowMetrics {
  * der Fokus die schmalste Spalte, sobald es eng wird — genau der Fehler, den ein
  * `minmax(0,1fr)` in der Mitte schon einmal erzeugt hat.
  */
-export function flowMetrics(width: number): FlowMetrics {
+export function flowMetrics(width: number, gutter: number = LANE.GAP): FlowMetrics {
   const { GAP, MID_MIN, MID_MAX, SIDE_MIN, SIDE_MAX } = LANE;
-  const mid = clamp(MID_MIN, width - 2 * SIDE_MIN - 2 * GAP, MID_MAX);
-  const side = clamp(SIDE_MIN, (width - mid - 2 * GAP) / 2, SIDE_MAX);
-  return { lanes: width >= LANES_FROM, mid, side: Math.floor(side), gap: GAP, width };
+  const gap = Math.max(GAP, Math.round(gutter));
+  const mid = clamp(MID_MIN, width - 2 * SIDE_MIN - 2 * gap, MID_MAX);
+  const side = clamp(SIDE_MIN, (width - mid - 2 * gap) / 2, SIDE_MAX);
+  return {
+    lanes: width >= MID_MIN + 2 * SIDE_MIN + 2 * gap,
+    mid, side: Math.floor(side), gap, width,
+  };
+}
+
+/**
+ * Wie breit die Spurlücke sein muss, damit ``n`` Kanäle **nebeneinander** hineinpassen.
+ *
+ * Die Breite folgt der Zuteilung, nicht umgekehrt: erst steht fest, wie viele
+ * Abzweigungen gleichzeitig laufen, dann wird Platz dafür gemacht. Ein festes Mass
+ * wäre bei zwei Abweichungen zu eng und bei keiner zu breit.
+ */
+export function gutterFor(channelCount: number): number {
+  return LANE.GAP + Math.max(0, channelCount - 1) * LANE.CHANNEL;
+}
+
+/** Die x-Koordinate eines Kanals — mittig um die Lücke gelegt, Kanal für Kanal. */
+export function channelX(centre: number, channel: number, used: number): number {
+  return Math.round(centre + (channel - (used - 1) / 2) * LANE.CHANNEL);
 }
 
 function clamp(lo: number, v: number, hi: number): number {
@@ -127,13 +156,16 @@ const Ctx = createContext<Register | null>(null);
 // Auf dem Server gibt es kein Layout zu messen; `useLayoutEffect` würde dort nur warnen.
 const useIsoLayout = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-export function FlowFrame({ children, lines }: {
+export function FlowFrame({ children, lines, gutter }: {
   /** Die Knoten. Bekommen die **gemessenen** Spurmasse — davon hängt das Layout ab
    *  (drei Spuren oder eine), nicht von einer Media-Query: sonst gäbe es zwei Massstäbe
    *  für dieselbe Frage, und die Linien richten sich ohnehin nach der Messung. */
   children: (metrics: FlowMetrics) => ReactNode;
-  /** Die Linien. Bekommt die Anker aller registrierten Knoten und die Rahmengrösse. */
-  lines: (anchors: Record<string, FlowAnchor>, size: FlowSize) => ReactNode;
+  /** Die Linien. Bekommt die Anker aller Knoten, die Rahmengrösse und **dieselben**
+   *  Spurmasse wie die Knoten – nicht eine zweite Rechnung daneben. */
+  lines: (anchors: Record<string, FlowAnchor>, size: FlowSize, m: FlowMetrics) => ReactNode;
+  /** Wie breit die Spurlücke sein muss (`gutterFor`), damit alle Kanäle hineinpassen. */
+  gutter?: number;
 }) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const els = useRef(new Map<string, HTMLElement>());
@@ -198,18 +230,30 @@ export function FlowFrame({ children, lines }: {
   // darüber fällt weg). Der ResizeObserver sieht das nicht — der Commit schon.
   useIsoLayout(() => { measure(); });
 
+  const metrics = size ? flowMetrics(size.w, gutter) : null;
+
   return (
     <Ctx.Provider value={register}>
       <div ref={frameRef} style={{ position: 'relative', width: '100%' }}>
+        {/*
+          **Ein einziger, durchgehender Linien-Layer** (Befund 2.4). Er liegt über der
+          ganzen Prozessfläche, gehört keiner Spalte und wird von keinem
+          Geschwister-Container beschnitten. `overflow: visible` ist dabei kein Pflaster,
+          sondern die Aufhebung der einzigen Kante, die noch schneiden konnte: die des
+          SVG selbst. Ein Zug, der einen Pixel über die gemessene Rahmenhöhe hinausläuft,
+          fehlte sonst still – und «still fehlend» ist genau das, was ein Prozessbild
+          nicht darf. Platz gemacht wird trotzdem im Layout, nicht mit einem Versatz.
+        */}
         <svg
           width={size?.w ?? 0}
           height={size?.h ?? 0}
-          style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+                   overflow: 'visible' }}
           aria-hidden
         >
-          {size && lines(anchors, size)}
+          {size && metrics && lines(anchors, size, metrics)}
         </svg>
-        {size && children(flowMetrics(size.w))}
+        {metrics && children(metrics)}
       </div>
     </Ctx.Provider>
   );
@@ -242,6 +286,10 @@ export function FlowNode({ id, children, style, onClick, title }: {
   return (
     <div
       ref={ref}
+      // **Der Knoten nennt sich.** Damit ist «keine Linie überlagert einen Knoten»
+      // (§4) nachmessbar statt behauptet: der Prüfstand liest die Rechtecke aus dem
+      // DOM, statt sie aus dem Code zu erraten.
+      data-flow-node={id}
       style={{ position: 'relative', zIndex: 1, ...style }}
       onClick={onClick}
       title={title}
@@ -254,7 +302,67 @@ export function FlowNode({ id, children, style, onClick, title }: {
 /**
  * **Der Eckenradius.** Eine Zahl, ein Ort – jede Ecke im Bild ist gleich rund.
  */
-export const BEND = 14;
+export const BEND = 16;
+
+/**
+ * **Ports — feste Andockpunkte am Container** (React Flow nennt sie *Handles*, bpmn-js
+ * *docking points*, Miro schlicht Ankerpunkte).
+ *
+ * Eine Linie beginnt und endet **an einem Port**, nie irgendwo auf einem Knoten und nie
+ * dahinter. Das ist der Grund, warum eine Kante nicht mehr in ein Modul hineinragen
+ * kann: sie kennt seine Fläche gar nicht, nur seinen Rand. Und weil der Port aus der
+ * **Messung** kommt, stimmt er bei jeder Modulhöhe, jedem Umbruch und jedem Auf- und
+ * Zuklappen – ohne dass irgendwo eine Zahl nachgeführt werden müsste.
+ */
+export type Port = 'top' | 'bottom' | 'left' | 'right' | 'center';
+
+export function port(a: FlowAnchor, side: Port): [number, number] {
+  if (side === 'top') return [a.cx, a.top];
+  if (side === 'bottom') return [a.cx, a.bottom];
+  // **Der Punkt selbst.** Abzweige- und Rückführpunkt sind ein Punkt auf der Achse und
+  // haben keine Ränder, an denen etwas andocken könnte: die Linie verlässt den Strang
+  // *im* Punkt (Befund 2.2). Alles andere wäre ein Andockrand, den es nicht gibt.
+  if (side === 'center') return [a.cx, a.cy];
+  return [side === 'left' ? a.left : a.right, a.cy];
+}
+
+/**
+ * **Kanäle — je Verbindung eine eigene Spur** (ELK nennt sie *tracks* im *layer pipe*).
+ *
+ * Mehrere Abzweigungen laufen durch dieselbe Spurlücke. Teilen sie sich eine Spur,
+ * liegen ihre Linien übereinander – das ist das Desaster bei zwei Abweichungen. Die
+ * Layout-Engines lösen es seit Jahrzehnten gleich: zwei Segmente, deren **Spannen sich
+ * überschneiden**, müssen verschiedene Spuren bekommen. Das ist eine Färbung des
+ * Intervall-Graphen, und für Intervalle ist **gierig nach Anfang sortiert optimal** –
+ * es entstehen nie mehr Spuren als an der dicksten Stelle gleichzeitig laufen.
+ *
+ * Deterministisch, nicht «meistens passt es»: gleiche Eingabe, gleiche Zuteilung.
+ *
+ * Die Spannen sind **geschlossen** – zwei Abzweigungen, die sich eine einzige Zeile
+ * teilen, überschneiden sich. Mit halboffenen Intervallen bekämen zwei Nachbarn, die
+ * am selben Punkt hängen (Spanne von *r* bis *r*), denselben Kanal: die beiden Linien
+ * lägen exakt aufeinander, und genau das soll hier nicht mehr passieren können.
+ */
+export function channels(
+  spans: Array<{ key: string; from: number; to: number }>,
+): { of: Map<string, number>; used: number } {
+  const of = new Map<string, number>();
+  const open: Array<{ end: number; ch: number }> = [];
+  let used = 0;
+  [...spans]
+    .map((s) => (s.from <= s.to ? s : { ...s, from: s.to, to: s.from }))
+    .sort((a, b) => a.from - b.from || a.to - b.to || a.key.localeCompare(b.key))
+    .forEach((s) => {
+      for (let i = open.length - 1; i >= 0; i--) if (open[i].end < s.from) open.splice(i, 1);
+      const taken = new Set(open.map((o) => o.ch));
+      let ch = 0;
+      while (taken.has(ch)) ch++;
+      of.set(s.key, ch);
+      open.push({ end: s.to, ch });
+      used = Math.max(used, ch + 1);
+    });
+  return { of, used };
+}
 
 /**
  * **Ein Zittern ist kein Weg.**

@@ -328,8 +328,8 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
    */
   const [entryStarted, setEntryStarted] = useState(false);
 
-  const expand = useCallback(async (stepId: number | null, active: boolean) => {
-    const page = await api.getOrderUnits(order.object_id, stepId, active, 100, 0);
+  const expand = useCallback(async (edgeId: string) => {
+    const page = await api.getOrderUnits(order.object_id, edgeId, 100, 0);
     return (page.units ?? []).map((u) => ({ number: u.number, startedAt: u.started_at }));
   }, [order.object_id]);
 

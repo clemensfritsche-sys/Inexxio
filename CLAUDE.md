@@ -54,9 +54,19 @@
 > gebliebene Stück auf dem Bypass und das zurückgekehrte hinter dem Zusammenfluss. Das
 > Frontend **rechnet keine Prozesslogik** – es layoutet und zeichnet, und **jede** Linie
 > geht durch den EINEN Generator (`process-flow.polyPath`, der ein zu kurzes
-> Zwischenstück selbst begradigt statt es als Knick zu runden). Invarianten:
-> `tests/test_flow_graph.py` (gegen echtes PostgreSQL, in der CI **nach** dem
-> Schema-Aufbau).
+> Zwischenstück selbst begradigt statt es als Knick zu runden). **Geführt wird nach
+> etablierter Diagramm-Praxis** (PROCESS_CORE §8.1a″), nicht nach Gefühl: **Ports** statt
+> Flächen (React Flow *Handles* / bpmn-js *docking points* / Miro-Anker – `port()`; eine
+> Querverbindung dockt an der **Spalte** an, an deren erster bzw. letzter Zeile, nie am
+> `end`-Objekt mitten in ihr); **Kanäle** statt einer Gasse (ELK *tracks* – `channels()`
+> färbt den Intervall-Graphen gierig nach Anfang, die Lücke wächst mit `gutterFor`,
+> überschneidende Nachbarn stehen untereinander in einem Band); **ein** Linien-Layer mit
+> `overflow: visible`, Platz kommt aus dem Layout statt aus einem Versatz. Damit ist «zwei
+> Abweichungen» kein Sonderfall, sondern n statt 1. **Zähler und Aufklappen fragen
+> dieselbe Position** (`FlowEdge.members` → `flow.units_on`, `GET …/units?edge=…`) – die
+> frühere zweite Abfrage «alle Stücke an Schritt X» war gröber als das Bild und zeigte an
+> einer Teilung beide Gruppen. Invarianten: `tests/test_flow_graph.py` (gegen echtes
+> PostgreSQL, in der CI **nach** dem Schema-Aufbau).
 > **Das Bild hat EIN Liniensystem** (PROCESS_CORE §8.1a/§8.1b): zwei Stärken – gegangen
 > (kräftig) ↔ ausstehend (Haarlinie) –, keine dritte Farbe, keine Strichmuster; ob ein
 > Stück zurückkehrt, sagt **ob es die Linie gibt**. Drei Spuren in **einem** Raster mit

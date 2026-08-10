@@ -503,11 +503,55 @@ wird nie wieder schwach» **von selbst**, statt bewacht zu werden.
 darum muss keine Seite wissen, welche Spalten gerade sichtbar sind, und beide Richtungen
 stammen aus dem Log dessen, bei dem sie passiert sind.
 
+**Eine Position hat genau eine Adresse: die Kante.** Der Zähler an der Pille und die Liste
+beim Aufklappen fragen **dieselbe** (`FlowEdge.members` → `flow.units_on`,
+`GET …/units?edge=…`). Vorher zählte die Pille aus dem Graph und das Dropdown holte «alle
+Stücke an Schritt X»: an einem Punkt mit Teilung stand «1 Stk» und im Aufklappen zwei
+Nummern. Zwei Fragen an dieselbe Sache laufen auseinander, sobald die Sache feiner wird.
+
 **Invarianten** (`tests/test_flow_graph.py`, gegen echtes PostgreSQL): jede Einzelinstanz
-hat genau eine Position · die Summe der Positionen ist die Stückzahl des Auftrags · jede
-Kante hat genau einen Zustand · eine kräftige Kante bleibt kräftig · jeder Pfad stammt
-aus dem einen Generator. Verletzt heisst **sichtbar kaputt**: `FlowGraph.problems` wird
-als rote Notiz gerendert, statt eine falsche Zeichnung anzubieten.
+hat genau eine Position · die Summe der Positionen ist die Stückzahl des Auftrags · Zähler
+und Aufklappen fragen dieselbe Position · jede Kante hat genau einen Zustand · eine
+kräftige Kante bleibt kräftig · jeder Pfad stammt aus dem einen Generator · keine zwei
+Kanten teilen sich einen Kanal · keine Kante überlagert einen Knoten-Container. Verletzt
+heisst **sichtbar kaputt**: `FlowGraph.problems` wird als rote Notiz gerendert, statt eine
+falsche Zeichnung anzubieten.
+
+### 8.1a″ Wie eine Linie geführt wird — Ports, Kanäle, ein Layer
+
+Die drei Regeln sind aus etablierten Diagramm-Werkzeugen übernommen, nicht erfunden. Sie
+sind der Grund, warum «mehrere Abweichungen» kein neuer Fall mehr ist.
+
+**1 · Ports statt Flächen** (React Flow nennt sie *Handles*, bpmn-js *docking points*,
+Miro schlicht Ankerpunkte). Eine Linie beginnt und endet an einem **Punkt auf dem Rand**
+eines Knotens (`process-flow.port`), nie irgendwo auf ihm und nie dahinter. Damit kennt
+sie seine Fläche gar nicht mehr und kann nicht in ihn hineinragen – bei jeder Modulhöhe,
+jedem Umbruch, jedem Auf- und Zuklappen, jeder Rahmenbreite. Eine **Querverbindung dockt
+an der Spalte an**, nicht an einem Knoten darin: oben an deren erster, unten an deren
+letzter Zeile. Am `end`-Objekt anzudocken war der Grund, warum die Rückführung senkrecht
+durch alles lief, was darunter noch stand.
+
+**2 · Kanäle statt einer Gasse** (ELK nennt sie *tracks* im *layer pipe*). Die Spurlücke
+ist ein **Bündel**: jede Abzweigung bekommt ihre eigene senkrechte Spur. Zwei Spannen, die
+sich überschneiden, bekommen verschiedene Spuren – das ist eine Färbung des
+Intervall-Graphen, und für Intervalle ist **gierig nach Anfang sortiert optimal**
+(`process-flow.channels`). Gerechnet wird auf **Zeilennummern**, nicht auf gemessenen
+Pixeln: die Zuteilung steht fest, bevor irgendetwas gemessen ist, und die Lücke richtet
+sich danach (`gutterFor`) statt umgekehrt. Deterministisch, nicht «meistens passt es».
+Und Nachbarn, deren Spannen sich überschneiden, stehen **untereinander** in einem Band:
+im selben Rasterfeld lägen zwei Rasterelemente sonst aufeinander.
+
+**3 · Ein Linien-Layer, der nichts beschneidet.** Ein einziges SVG über der ganzen
+Prozessfläche, `overflow: visible`, gehört keiner Spalte. Platz wird im **Layout** gemacht
+(`paddingTop`/`paddingBottom` des Rasters), nicht mit einem Versatz an der Linie und nicht
+mit z-index. Ein Zug, der einen Pixel über die gemessene Rahmenhöhe hinausliefe, fehlte
+sonst still – und still fehlend ist genau das, was ein Prozessbild nicht darf.
+
+**Der Bogen beginnt am Punkt.** Eine Ausscherung startet `BEND` **über** dem
+Abzweigepunkt auf der Achse und knickt `BEND` darunter; damit liegt die **Tangente** des
+Bogens exakt auf dem Punkt – dort verlässt die Linie den Strang, und genau dort sitzt der
+Punkt. Mit `2 · BEND` Anlauf löste sie sich schon eine Radiuslänge über ihm, und der Punkt
+stand am gedachten Schnittpunkt zweier Geraden statt an der Stelle, an der etwas passiert.
 
 ### 8.1a Das Liniensystem — zwei Stärken, sonst nichts
 
@@ -539,6 +583,7 @@ Geometrie, verbindlich:
   neben der Prozesslinie und hinge sichtbar an nichts.
 - Querlinien laufen in der **Spurlücke**, nie unter einer Karte hindurch: eine gezeichnete
   Linie, die ein Knoten verdeckt, ist eine Linie, die es für den Betrachter nicht gibt.
+  Wie das erzwungen wird, steht in §8.1a″ — Ports, Kanäle, ein Layer.
 - **Seitwärts scrollen ist verboten**, ausser es ist ausdrücklich gewollt. Gescrollt wird
   senkrecht. Insbesondere darf **nichts Unsichtbares die Breite bestimmen**: ein absolut
   positioniertes Kind (etwa ein Hover-Tooltip) zählt zur *scrollable overflow area*

@@ -358,17 +358,24 @@ def get_order(
 @router.get("/{object_id}/units", response_model=OrderUnitPage)
 def list_units(
     object_id: int,
-    step_id: Optional[int] = Query(None),
-    active: bool = Query(True),
+    edge: str = Query(..., description="Die Kante des Prozessbildes, deren Stücke gemeint sind."),
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt."""
+    """Die einzelnen Stücke **einer Position** – erst wenn jemand aufklappt.
+
+    **Gefragt wird nach der Kante**, nicht nach «Schritt X, aktiv» (Befund 2.1). Die
+    gröbere Frage war eine zweite Quelle: an einem Punkt mit Teilung zählte die Pille
+    die Gruppe, die Liste kannte die Teilung nicht und zeigte beide – «1 Stk», und im
+    Aufklappen zwei Nummern. Jetzt beantwortet die Zuordnung im Graph beide Fragen
+    (``flow.units_on``).
+    """
     order = orders_svc.get(db, object_id)
     rows, total = process_svc.units_page(
-        db, order, step_id=step_id, active=active, limit=limit, offset=offset,
+        db, order, membership_ids=flow_svc.units_on(db, order, edge),
+        limit=limit, offset=offset,
     )
     numbers = process_svc.unit_numbers(db, [u for _, u in rows])
     started = process_svc.started_at(db, order, [u.id for _, u in rows])
