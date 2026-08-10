@@ -220,10 +220,20 @@ def test_every_unit_has_exactly_one_position():
 
 
 def test_a_returned_piece_stands_after_the_join():
-    """**Wer zurückkam, steht hinter dem Rückführpunkt – nicht vor der Abzweigung.**
+    """**Der Bypass trägt nur, solange die Teilung offen ist** (Befund 2.1).
 
-    Solange Abzweige- und Rückführpunkt **ein** Knoten waren, standen das gebliebene und
-    das zurückgekehrte Stück an derselben Stelle: man sah dem Bild die Runde nicht an.
+    Zwei Zustände, eine Regel:
+
+    * **Solange etwas draussen ist**, sind «geblieben» und «zurückgekehrt» zwei Orte:
+      das gebliebene Stück steht auf dem Bypass ``fork → join``, das zurückgekehrte
+      dahinter. Solange Abzweige- und Rückführpunkt **ein** Knoten waren, standen beide
+      an derselben Stelle und man sah dem Bild die Runde nicht an.
+    * **Ist alles zurück**, ist die Unterscheidung Geschichte und keine Position mehr:
+      beide warten an derselben Stelle auf dasselbe Modul. Zwei Pillen dafür behaupteten
+      zwei Orte – und darum standen im Aufklappen beide Nummern unter «1 Stk».
+
+    Die Reihenfolge fork → join → Modul gilt in beiden Zuständen: sie ist die Aussage
+    über das, was **passiert ist**, nicht darüber, wo gerade jemand steht.
     """
     from app.models import ProcessStep
     from app.services import flow, process as proc
@@ -231,21 +241,37 @@ def test_a_returned_piece_stands_after_the_join():
     db = _db()
     try:
         parent, child, step = _scenario(db)
+        fork, join, module = flow.fork_id(step.id), flow.join_id(step.id), flow.module_id(step.id)
+
+        def picture():
+            g = flow.build(db, parent)
+            ids = [n.id for n in g.nodes]
+            assert ids.index(fork) < ids.index(join) < ids.index(module), (
+                f"Die Punkte stehen in der falschen Reihenfolge: {ids}"
+            )
+            return {(e.frm, e.to): sum(p.count for p in e.units) for e in g.edges}
+
+        on = picture()
+        assert on[(fork, join)] == 1, (
+            "Das gebliebene Stück steht nicht auf dem Bypass, solange draussen noch "
+            "etwas unterwegs ist."
+        )
+        assert on[(join, module)] == 0, (
+            "Vor dem Modul steht schon jemand, obwohl die Teilung noch offen ist."
+        )
+
         cstep = db.query(ProcessStep).filter(ProcessStep.order_id == child.id).one()
         proc.confirm_step(db, order=child, step_id=cstep.id, values={"ok": True},
                           actor_id=None)
         db.flush()
 
-        g = flow.build(db, parent)
-        fork, join, module = flow.fork_id(step.id), flow.join_id(step.id), flow.module_id(step.id)
-        ids = [n.id for n in g.nodes]
-        assert ids.index(fork) < ids.index(join) < ids.index(module), (
-            f"Die Punkte stehen in der falschen Reihenfolge: {ids}"
+        on = picture()
+        assert on[(fork, join)] == 0, (
+            "Der Bypass trägt noch etwas, obwohl nichts mehr draussen ist – dann steht "
+            "dasselbe Stück im Bild zweimal an zwei Orten."
         )
-        on = {(e.frm, e.to): sum(p.count for p in e.units) for e in g.edges}
-        assert on[(fork, join)] == 1, "Das gebliebene Stück steht nicht auf dem Bypass."
-        assert on[(join, module)] == 1, (
-            "Das zurückgekehrte Stück steht nicht hinter dem Rückführpunkt."
+        assert on[(join, module)] == 2, (
+            "Nach der Rückkehr stehen nicht beide Stücke vor dem Modul."
         )
     finally:
         db.rollback()
