@@ -78,6 +78,10 @@ export const LANE = {
  * 360 + 2·168 + 2·16 = **728 px Rahmen** ≈ 1108 px Fenster (das Detailfenster ist rund
  * 380 px schmaler als das Fenster: Feed + Polsterung). Damit tragen alle üblichen
  * Notebook-Modi drei Spuren — 1280, 1440, 1512, 1680 — und erst darunter wird gestapelt.
+ *
+ * Das ist die **untere** Schranke: braucht das Bild mehrere Kanäle, wächst die Lücke
+ * (`gutterFor`) und damit die Schwelle. Gerechnet wird sie darum in `flowMetrics` aus
+ * der tatsächlichen Lücke — diese Konstante ist ihr Fall «eine Abzweigung».
  */
 export const LANES_FROM = LANE.MID_MIN + 2 * LANE.SIDE_MIN + 2 * LANE.GAP;
 
