@@ -740,6 +740,11 @@ export interface paths {
         /**
          * Validate Order
          * @description Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.
+         *
+         *     Dazu die **Vorschau** (Auftrag §2): die laufenden Aufträge, aus denen der Entwurf
+         *     Stücke nähme, jeder mit dem Bild, das er nach der Freigabe hätte. Sie kommt aus
+         *     derselben Ableitung wie das echte Bild (``flow.build`` mit ``planned``) – ein
+         *     Nachbau im Browser wäre eine zweite Wahrheit, und die läuft von der ersten weg.
          */
         post: operations["validate_order_api_v1_erp_orders_validate_post"];
         delete?: never;
@@ -2210,6 +2215,11 @@ export interface components {
              * @description Was noch fehlt – leer heisst freigebbar.
              */
             missing?: string[];
+            /**
+             * Parents
+             * @description **Die Vorschau**: die laufenden Aufträge, aus denen dieser Entwurf Stücke nähme – jeder mit dem Bild, das er nach der Freigabe hätte (Abzweigung, und Rückführpunkt nur, wenn zurückgeführt wird). Damit zeigt der Entwurf dieselbe Darstellung wie der freigegebene Auftrag; sie kommt aus derselben Ableitung (``flow.build``) und wird nicht daneben nachgebaut.
+             */
+            parents?: components["schemas"]["RelatedOrder"][];
         };
         /**
          * PasskeyLoginResult

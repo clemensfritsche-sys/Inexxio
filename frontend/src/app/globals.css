@@ -664,7 +664,18 @@
   z-index: 60;
   box-shadow: var(--shadow-md);
 }
-[data-tip]:hover::after { display: block; transform: translateX(-50%) translateY(0); }
+[data-tip]:hover::after,
+/* **Und auf dem Touchgerät**: dort gibt es kein Hover. Ein Tipp auf ein fokussierbares
+   Element setzt den Fokus – dieselbe Blase, derselbe Weg, kein zweites Muster. Für die
+   Tastatur fällt es geschenkt ab. */
+[data-tip]:focus::after,
+[data-tip]:focus-within::after { display: block; transform: translateX(-50%) translateY(0); }
+/* **Mehrzeilig** (Historie am Prozessobjekt): Zeilenumbrüche aus `attr()` gelten nur
+   mit `pre-line`, und eine Liste liest sich linksbündig. Eigene Variante statt einer
+   Änderung an allen Blasen – ein einzeiliger Hinweis bleibt zentriert. */
+[data-tip][data-tip-list]::after {
+  white-space: pre-line; text-align: left; max-width: 340px; font-variant-numeric: tabular-nums;
+}
 /* nach unten öffnen (für Elemente ganz oben) */
 [data-tip][data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 9px); transform: translateX(-50%) translateY(-3px); }
 [data-tip][data-tip-pos="bottom"]:hover::after { display: block; transform: translateX(-50%) translateY(0); }

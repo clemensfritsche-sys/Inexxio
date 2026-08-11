@@ -20,7 +20,8 @@ from ..models import (
 from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
-    ProcessEventResponse, ProcessStepResponse, RelatedOrder, UnitOption,
+    DRAFT_OBJECT_ID, ProcessEventResponse, ProcessStepResponse, RelatedOrder,
+    UnitOption,
 )
 from ..schemas.process import (
     CaptureTypeInfo, ModuleCatalog, ModuleTypeInfo, StepConfirm,
@@ -32,7 +33,7 @@ from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
 from ..services.admin import log_audit
-from ..services.instances import unit_number
+from ..services.instances import find_unit, unit_number
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
@@ -356,9 +357,80 @@ def validate_order(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer."""
-    missing = orders_svc.validate_draft(db, data.model_dump())
-    return OrderValidation(saveable=not missing, missing=missing)
+    """Wäre dieser Entwurf freigebbar? Legt **nichts** an, zieht **keine** Nummer.
+
+    Dazu die **Vorschau** (Auftrag §2): die laufenden Aufträge, aus denen der Entwurf
+    Stücke nähme, jeder mit dem Bild, das er nach der Freigabe hätte. Sie kommt aus
+    derselben Ableitung wie das echte Bild (``flow.build`` mit ``planned``) – ein
+    Nachbau im Browser wäre eine zweite Wahrheit, und die läuft von der ersten weg.
+    """
+    draft = data.model_dump()
+    missing = orders_svc.validate_draft(db, draft)
+    return OrderValidation(saveable=not missing, missing=missing,
+                           parents=_preview_parents(db, draft))
+
+
+def _preview_parents(db: Session, draft: dict) -> list[RelatedOrder]:
+    """Die Quell-Aufträge des Entwurfs – **mit der Abzweigung, die entstehen würde**.
+
+    Woher ein Stück kommt, sagt die Auswahl selbst (``UnitPick.from_order``): sie ist die
+    **Absicht** des Menschen und wird bei der Freigabe gegen die Wirklichkeit geprüft.
+    Genau diese Absicht wird hier gezeichnet – nicht der heutige Aufenthaltsort, sonst
+    zeigte die Vorschau etwas anderes, als die Freigabe täte.
+
+    Der Zustandspunkt steht an der Zeile des Quell-Auftrags (``current_step_id``); dort
+    entsteht der Abzweigepunkt, und dorthin kehrt das Stück zurück (§12.4).
+    """
+    want: dict[int, bool] = {}          # Objektnummer des Quell-Auftrags → kehrt zurück?
+    picked: list[str] = []
+    for ln in draft.get("lines") or []:
+        for u in ln.get("units") or []:
+            src = u.get("from_order")
+            if src is None:
+                continue
+            want[int(src)] = want.get(int(src), False) or bool(ln.get("returns", True))
+            picked.append(str(u.get("number") or "").strip())
+    if not want:
+        return []
+
+    rows = db.query(Order).filter(Order.object_id.in_(list(want))).all()
+    if not rows:
+        return []
+    # An welchem Punkt hängen die gewählten Stücke? Die offene Zeile des Quell-Auftrags
+    # sagt es – eine Abfrage, keine Rekonstruktion.
+    # Nummer → Einzelinstanz über die **eine** Auflösung (`instances.find_unit`); eine
+    # eigene Abfrage hier wäre eine zweite Lesart derselben Schreibweise.
+    chosen = {u.id for u in (find_unit(db, n) for n in picked) if u is not None}
+    holds = {
+        (m.order_id, m.instance_unit_id): m.current_step_id
+        for m in db.query(OrderUnit).filter(
+            OrderUnit.order_id.in_([o.id for o in rows]),
+            OrderUnit.released_at.is_(None),
+        ).all()
+    }
+
+    out: list[RelatedOrder] = []
+    for row in rows:
+        points = {step for (oid, uid), step in holds.items()
+                  if oid == row.id and uid in chosen}
+        plan = [
+            flow_svc.Planned(at=at, target=DRAFT_OBJECT_ID, returns=want[row.object_id])
+            for at in sorted(points, key=lambda x: (x is None, x))
+        ]
+        taken = sum(1 for (oid, uid), _ in holds.items()
+                    if oid == row.id and uid in chosen)
+        out.append(RelatedOrder(
+            object_id=row.object_id,
+            name=row.name,
+            status=process_svc.order_status(db, row),
+            end_status=row.end_status,
+            steps=_steps(db, row),
+            flow=FlowGraph(**flow_svc.as_dict(flow_svc.build(db, row, planned=plan))),
+            active_step_id=process_svc.active_step_id(db, row),
+            unit_count=taken,
+            returns=want[row.object_id],
+        ))
+    return out
 
 
 @router.post("", response_model=OrderResponse, status_code=201)

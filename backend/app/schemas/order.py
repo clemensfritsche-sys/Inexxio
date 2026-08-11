@@ -72,6 +72,13 @@ class OrderCreate(BaseModel):
     steps: list[ModuleInput] = Field(default_factory=list)
 
 
+#: Die Marke, unter der ein Entwurf im Bild seines künftigen Nachbarn steht. Er hat noch
+#: keine Objektnummer (§6.1) – und soll auch keine bekommen, nur um gezeichnet zu werden.
+#: Null ist keine gültige Objektnummer (der Kreis beginnt bei 100'000'001), kollidiert
+#: also mit nichts.
+DRAFT_OBJECT_ID = 0
+
+
 class OrderValidation(BaseModel):
     """Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."""
 
@@ -79,6 +86,16 @@ class OrderValidation(BaseModel):
     missing: list[str] = Field(
         default_factory=list,
         description="Was noch fehlt – leer heisst freigebbar.",
+    )
+    parents: list["RelatedOrder"] = Field(
+        default_factory=list,
+        description=(
+            "**Die Vorschau**: die laufenden Aufträge, aus denen dieser Entwurf Stücke "
+            "nähme – jeder mit dem Bild, das er nach der Freigabe hätte (Abzweigung, "
+            "und Rückführpunkt nur, wenn zurückgeführt wird). Damit zeigt der Entwurf "
+            "dieselbe Darstellung wie der freigegebene Auftrag; sie kommt aus derselben "
+            "Ableitung (``flow.build``) und wird nicht daneben nachgebaut."
+        ),
     )
 
 

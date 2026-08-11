@@ -9,9 +9,11 @@ import {
   type ModuleDraft, type PointDraft,
 } from '@/lib/modules';
 import {
-  ProcessDiagram, type DiagramStep, type ReturnLink,
+  DRAFT_OBJECT_ID, definitionGraph, type DiagramStep,
 } from '@/components/erp/process-diagram';
+import { ProcessColumns } from '@/components/erp/process-columns';
 import { END_BEFORE } from '@/lib/process-status';
+import type { RelatedOrder } from '@/types';
 import { inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 
 /**
@@ -32,7 +34,7 @@ import { inputCls, numericInputProps, numericOnly } from '@/components/erp/field
  * einen Endpunkt, der eine freigegebene Definition ändert, gibt es ohnehin nicht.
  */
 export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head,
-  back, onToggleReturn }: {
+  parents, onToggleReturn }: {
   modules: ModuleDraft[];
   onChange: (m: ModuleDraft[]) => void;
   frozen?: boolean;
@@ -41,9 +43,14 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   /** Slot über dem Start – beim Auftrag die Definition der Einzelinstanzen. Der Artikel
    *  hat keine, und ein Diagramm, das sie voraussetzt, wäre dort nicht wiederverwendbar. */
   head?: React.ReactNode;
-  /** Die geplanten Rückführungen (§5) – der Knoten unter dem Ende IST der Schalter. */
-  back?: ReturnLink[];
-  onToggleReturn?: (key: number) => void;
+  /**
+   * **Die Quell-Aufträge des Entwurfs** (Auftrag §2) – vom Server vorausberechnet, mit
+   * der Abzweigung, die entstehen würde. Ein Artikel hat keine; dann steht hier nur der
+   * Prozess, wie bisher.
+   */
+  parents?: RelatedOrder[];
+  /** Ein Klick auf den Quell-Auftrag schaltet seine Rückführung an und aus (§5). */
+  onToggleReturn?: (parentObjectId: number) => void;
 }) {
   const [catalog, setCatalog] = useState<ModuleCatalog | null>(null);
   const [drag, setDrag] = useState<number | null>(null);
@@ -89,27 +96,31 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   }
 
   return (
-    <ProcessDiagram
-      mode="definition"
-      steps={steps}
-      expandedStepId={justAdded}
-      endStatus={END_BEFORE}
-      head={head}
-      back={back}
-      onToggleReturn={onToggleReturn}
-      tone={(t) => moduleTone(catalog?.modules?.find((m) => m.key === t)?.tone)}
-      onDelete={frozen ? undefined : (id) => onChange(modules.filter((m) => m.id !== id))}
-      onReorder={frozen ? undefined : move}
-      dragging={drag}
-      onDragState={setDrag}
-      renderStep={frozen ? undefined : (step) => {
-        const m = modules.find((x) => x.id === step.id);
-        return m ? <ModuleFields module={m} types={catalog?.capture_types ?? []}
-          onChange={(next) => patch(m.id, next)} /> : null;
+    <ProcessColumns
+      mid={{
+        objectId: DRAFT_OBJECT_ID,
+        // **Der Graph eines Entwurfs ist seine Definition** – hier steht keine
+        // Prozesslogik, sondern die Liste, die daneben bearbeitet wird.
+        graph: definitionGraph(steps),
+        steps,
+        mode: 'definition',
+        expandedStepId: justAdded,
+        endStatus: END_BEFORE,
+        head,
+        tone: (t) => moduleTone(catalog?.modules?.find((m) => m.key === t)?.tone),
+        onDelete: frozen ? undefined : (id) => onChange(modules.filter((m) => m.id !== id)),
+        onReorder: frozen ? undefined : move,
+        dragging: drag,
+        onDragState: setDrag,
+        renderStep: frozen ? undefined : (step) => {
+          const m = modules.find((x) => x.id === step.id);
+          return m ? <ModuleFields module={m} types={catalog?.capture_types ?? []}
+            onChange={(next) => patch(m.id, next)} /> : null;
+        },
+        tail: frozen ? undefined : <Palette catalog={catalog} onPick={add} />,
       }}
-      tail={frozen ? undefined : (
-        <Palette catalog={catalog} onPick={add} />
-      )}
+      parents={parents}
+      onToggleReturn={onToggleReturn}
     />
   );
 }

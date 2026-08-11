@@ -14,7 +14,7 @@ import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@
 import { formatObjectId, localDateTime } from '@/lib/utils';
 import { useErpNav } from './obj-id';
 import type {
-  GraphEdge, GraphNode, GraphUnits, JourneyStop, ProcessGraph,
+  GraphEdge, GraphNode, GraphUnits, JourneyStop, ProcessEventResponse, ProcessGraph,
 } from '@/types';
 
 /**
@@ -71,52 +71,35 @@ export type DiagramMode = 'definition' | 'ausfuehrung';
  * abzuzweigen wäre. Übrig bleibt die Kette Start → Module → Ende, und die *ist* die
  * Liste, die daneben bearbeitet wird.
  */
-export function definitionGraph(steps: DiagramStep[],
-                                back: ReturnLink[] = []): ProcessGraph {
+/**
+ * **Wie ein Entwurf im Bild heisst.** Er hat keine Objektnummer (§6.1) und braucht doch
+ * eine Adresse: die Vorschau des Quell-Auftrags nennt ihn als Ziel ihrer Abzweigung
+ * (`order:<n>`), und ohne einen gemeinsamen Wert fände die Linie ihr Ende nicht.
+ *
+ * Gespiegelt von `backend/app/schemas/order.DRAFT_OBJECT_ID` – der Server schreibt sie
+ * in die Vorschau, diese Seite liest sie; `tests/test_frontend_mirrors.py` hält beide
+ * zusammen. Null ist keine gültige Objektnummer (der Kreis beginnt bei 100'000'001),
+ * kann also mit keinem echten Auftrag kollidieren.
+ */
+export const DRAFT_OBJECT_ID = 0;
+
+/** Ein Bild, das der Server (noch) nicht geliefert hat. Leer, nicht erfunden. */
+export const EMPTY_GRAPH: ProcessGraph = { nodes: [], edges: [], problems: [] };
+
+export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
   const chain: GraphNode[] = [
     { id: 'start', kind: 'start', at: null },
     ...steps.map((s) => ({ id: `module:${s.id}`, kind: 'module', at: s.id })),
     { id: 'end', kind: 'end', at: null },
   ];
-  // **Ein Rückweg, eine Zeile** – auch bei mehreren Quellen. Je Quelle einen eigenen
-  // Knoten untereinander zu hängen hiesse, die Linie zum zweiten liefe durch den ersten
-  // hindurch (§4: keine Linie über einem Knoten); je Quelle eine eigene Spur wäre die
-  // Kanal-Maschinerie der Nachbarspalten, mitten im Entwurf. Also: der Rückweg ist EINE
-  // Zeile mit n Zielen darin – die Linie sagt **ob**, die Ziele sagen **wohin**.
-  const returning = back.some((b) => b.on);
   return {
-    nodes: [...chain, ...(back.length ? [{ id: 'back', kind: 'back', at: null }] : [])],
-    edges: [
-      ...chain.slice(0, -1).map((n, i) => ({
-        id: `edge:${n.id}:${chain[i + 1].id}`,
-        frm: n.id, to: chain[i + 1].id, kind: 'axis', walked: false, units: [],
-      })),
-      // **Die Linie ist die Antwort.** Sie gibt es nur, wenn zurückgeführt wird – das
-      // Fehlen ist die Aussage, kein Strichmuster und kein zweiter Linientyp.
-      ...(returning
-        ? [{ id: 'edge:end:back', frm: 'end', to: 'back', kind: 'axis',
-             walked: false, units: [] }]
-        : []),
-    ],
+    nodes: chain,
+    edges: chain.slice(0, -1).map((n, i) => ({
+      id: `edge:${n.id}:${chain[i + 1].id}`,
+      frm: n.id, to: chain[i + 1].id, kind: 'axis', walked: false, units: [],
+    })),
     problems: [],
   };
-}
-
-/**
- * **Eine geplante Rückführung im Entwurf.**
- *
- * Ein Auftrag, der einem laufenden ein Stück abnimmt, gibt es zurück – oder eben nicht.
- * Das war ein Knopfpaar («kehrt zurück» / «bleibt hier»), also eine Aussage über etwas,
- * das man daneben nicht sah. Im laufenden Bild sagt es längst **die Linie selbst**: eine
- * gekappte Ausleihe hat keinen Rückweg. Der Entwurf spricht jetzt dieselbe Sprache, mit
- * demselben Bauteil – der Knoten ist der Schalter, die Linie das Ergebnis.
- */
-export interface ReturnLink {
-  /** Woran die Entscheidung hängt – die Definitionszeile, die die Stücke holt. */
-  key: number;
-  /** Objektnummern der Aufträge, aus denen diese Zeile Stücke nimmt. */
-  orders: number[];
-  on: boolean;
 }
 
 /**
@@ -164,6 +147,43 @@ export function columnRows(g: ProcessGraph, extra: {
   });
   if (extra.journeyOut) rows.push({ key: 'journey-out', slot: 'journey-out' });
   return rows;
+}
+
+/**
+ * **Die Historie steht am Prozessobjekt, nicht in einer Box darunter** (Auftrag §5).
+ *
+ * Der Ereignis-Log ist die Wahrheit über das Vergangene (§10.3) und bleibt vollständig
+ * erhalten – aufgezeichnet wird unverändert. Nur **wo** man ihn liest, ändert sich: eine
+ * Liste am Fuss des Auftrags zwingt dazu, jede Zeile erst dem Objekt zuzuordnen, an dem
+ * sie passiert ist. Am Objekt selbst ist diese Zuordnung die Position.
+ *
+ * **Ein Muster für alle**, und zwar für *alle drei* Objektarten – nicht nur für Module:
+ * ``start`` und ``end`` tragen ``step_id = null``, ihre Einträge (die Hälfte des Logs)
+ * wären an einem reinen Modul-Hover **unerreichbar**. Der Schlüssel ist darum nicht «das
+ * Modul», sondern «dieses Prozessobjekt».
+ *
+ * Gekappt wird nicht verschwiegen: liefert der Server nur die letzten N von M Einträgen,
+ * sagt es die letzte Zeile.
+ */
+export function historyTip(events: ProcessEventResponse[], node: GraphNode,
+                           total?: number): string | undefined {
+  const mine = events.filter((e) => (
+    node.kind === 'module' ? e.step_id === node.at
+      : node.kind === 'start' ? e.kind === 'start'
+        : node.kind === 'end' ? e.kind === 'end' : false
+  ));
+  if (!mine.length) return undefined;
+  const lines = mine.map((e) => [
+    e.unit_number,
+    `${statusLabel(e.status_before)} → ${statusLabel(e.status_after)}`,
+    localDateTime(e.created_at),
+    e.actor,
+  ].filter(Boolean).join(' · '));
+  // Der Log ist append-only – eine Korrektur wäre ein neuer Eintrag, kein geänderter.
+  if (total != null && total > events.length) {
+    lines.push(`… gezeigt sind die letzten ${events.length} von ${total} Einträgen`);
+  }
+  return lines.join('\n');
 }
 
 /** In welcher Zeile steht dieser Knoten? — für das Raster mit drei Spuren. */
@@ -277,82 +297,14 @@ export interface UnitChip {
  */
 export const PROCESS_MAXW = LANE.MID_MAX;
 
-export function ProcessDiagram({
-  mode, steps, graph, activeStepId = null, expandedStepId = null, endStatus,
-  head, tail, onDelete, renderStep, onExpand, tone, onReorder, dragging, onDragState,
-  journeyIn = [], journeyOut = [], back = [], onToggleReturn, origins = [],
-}: {
-  mode: DiagramMode;
-  steps: DiagramStep[];
-  /** Der Graph vom Server. Fehlt er, ist es ein Entwurf – dann die reine Kette. */
-  graph?: ProcessGraph;
-  activeStepId?: number | null;
-  /** Welches Modul startet aufgeklappt (#696) – im Entwurf das zuletzt angelegte. */
-  expandedStepId?: number | null;
-  endStatus: string;
-  /** Slot über dem Start: die Definition (nur beim Auftrag). */
-  head?: ReactNode;
-  /** **Journey**: woher die Stücke kamen (über dem Start) und wohin sie gingen (unter
-   *  dem Ende). Leer heisst «keiner» – dann steht dort nichts. */
-  journeyIn?: JourneyStop[];
-  journeyOut?: JourneyStop[];
-  /** Slot **vor dem Ende**: die Modulauswahl – genau dort, wo das nächste Modul hinkäme. */
-  tail?: ReactNode;
-  /** Nur im Definitionsmodus: ein Modul entfernen. */
-  onDelete?: (id: number) => void;
-  /** Was in der Karte steht: im Entwurf die Felder des Moduls, zur Laufzeit seine Arbeit. */
-  renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
-  /** Eine Position aufklappen: die einzelnen Nummern **dieser Kante** nachladen. */
-  onExpand?: (edgeId: string) => Promise<UnitChip[]>;
-  /** Farbfamilie je Modultyp. Ohne sie der neutrale Grundton – nie eine leere Fläche. */
-  tone?: (moduleType: string) => { bg: string; fg: string; border: string };
-  /** Nur im Definitionsmodus: Reihenfolge per Drag & Drop. Sie IST der Prozess. */
-  onReorder?: (from: number, to: number) => void;
-  dragging?: number | null;
-  onDragState?: (index: number | null) => void;
-  /** Nur im Entwurf: die geplanten Rückführungen (§5). */
-  back?: ReturnLink[];
-  onToggleReturn?: (key: number) => void;
-  /** **Hier entstandene** Stücke – der Ast ohne Vorgänger. */
-  origins?: JourneyOrigin[];
-}) {
-  const g = useMemo(() => graph ?? definitionGraph(steps, back), [graph, steps, back]);
-
-  return (
-    <div className="mx-auto w-full" style={{ maxWidth: PROCESS_MAXW }}>
-      <FlowFrame lines={(a) => (
-        <Axis edges={axisEdges(g)} anchors={a}
-          journeyIn={journeyKeys(journeyIn, origins)} journeyOut={journeyKeys(journeyOut)} />
-      )}>
-        {() => (
-          <FlowColumn
-            graph={g} steps={steps} mode={mode} activeStepId={activeStepId}
-            expandedStepId={mode === 'ausfuehrung' ? activeStepId : expandedStepId}
-            endStatus={endStatus} head={head} tail={tail} onDelete={onDelete}
-            renderStep={renderStep} onExpand={onExpand} tone={tone} onReorder={onReorder}
-            dragging={dragging} onDragState={onDragState}
-            journeyIn={journeyIn} journeyOut={journeyOut} origins={origins}
-            back={back} onToggleReturn={onToggleReturn}
-          />
-        )}
-      </FlowFrame>
-    </div>
-  );
-}
-
 /**
- * **Eine Spalte des Bildes.** Sie zeichnet ihre Knoten in den Rahmen, in dem sie steht –
- * eigene Linien hat sie nicht. Genau dadurch lassen sich mehrere Spalten in **einem**
- * Rahmen zeigen (übergeordneter Auftrag · eigener Ablauf · Abweichungen) und die Linien
- * dazwischen aus denselben gemessenen Ankern berechnen.
+ * **Was in einer Spalte steht.**
+ *
+ * Ausdrücklich benannt, weil die Mitte des Bildes von aussen kommt: der laufende Auftrag
+ * bestückt sie anders als ein Entwurf, aber es ist **dieselbe** Spalte (Auftrag §2). Ein
+ * zweiter Satz Felder dafür wäre die zweite Darstellung, die es hier nie geben darf.
  */
-export function FlowColumn({
-  graph, steps, prefix = '', mode, activeStepId = null, expandedStepId = null, endStatus,
-  head, tail, onDelete,
-  renderStep, onExpand, tone, onReorder, dragging, onDragState,
-  journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
-  containerStyle, rowStyle, back = [], onToggleReturn, origins = [],
-}: {
+export interface ColumnProps {
   /** **Das Bild dieser Spalte** – vom Server, nicht hier abgeleitet. */
   graph: ProcessGraph;
   /** Der Inhalt der Module. Der Graph sagt *wo* ein Modul steht, dies *was* darin steht. */
@@ -375,7 +327,17 @@ export function FlowColumn({
   onDragState?: (index: number | null) => void;
   journeyIn?: JourneyStop[];
   journeyOut?: JourneyStop[];
-  /** Ein **fremder** Auftrag daneben: vollständig sichtbar, aber nicht der Fokus. */
+  /**
+   * **Kontext statt Fokus** (Auftrag §4) – ein fremder Auftrag daneben.
+   *
+   * Er tritt **tonal** zurück: entsättigt und leiser. Das ist bewusst das einzige
+   * Mittel. Eine abgesetzte Fläche oder eine senkrechte Trennlinie wären die
+   * naheliegenden Alternativen – aber die Querverbindungen laufen **durch** jede
+   * Spurgrenze; eine gezeichnete Kante würde von jeder Abzweigung geschnitten und
+   * brächte genau die Unruhe zurück, die hier weg soll. Ton kann man nicht schneiden.
+   *
+   * Die **Linie** dorthin bleibt voll: sie gehört zu diesem Fluss, nicht zum Nachbarn.
+   */
   faded?: boolean;
   /** **Abweichung an genau diesem Stück** (Abweichungsauftrag §3.1): der Auslöser sitzt
    *  dort, wo das Stück gerade im Prozess steht – nicht in einem Menü darüber. */
@@ -394,13 +356,33 @@ export function FlowColumn({
   containerStyle?: CSSProperties;
   /** Je Zeile ihr Platz im äusseren Raster. Ohne Raster leer – dann trägt der Fluss. */
   rowStyle?: (index: number) => CSSProperties;
-  /** Nur im Entwurf: die geplanten Rückführungen (§5) – Schalter und Linie zugleich. */
-  back?: ReturnLink[];
-  onToggleReturn?: (key: number) => void;
   /** **Hier entstandene** Stücke – die eine Herkunft, die nicht im Log steht. */
   origins?: JourneyOrigin[];
-}) {
+  /** Der Ereignis-Log – **am Objekt**, an dem er passiert ist (§5). */
+  events?: ProcessEventResponse[];
+  eventTotal?: number;
+}
+
+/**
+ * **Eine Spalte des Bildes.** Sie zeichnet ihre Knoten in den Rahmen, in dem sie steht –
+ * eigene Linien hat sie nicht. Genau dadurch lassen sich mehrere Spalten in **einem**
+ * Rahmen zeigen (übergeordneter Auftrag · eigener Ablauf · Abweichungen) und die Linien
+ * dazwischen aus denselben gemessenen Ankern berechnen.
+ */
+export function FlowColumn({
+  graph, steps, prefix = '', mode, activeStepId = null, expandedStepId = null, endStatus,
+  head, tail, onDelete,
+  renderStep, onExpand, tone, onReorder, dragging, onDragState,
+  journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
+  containerStyle, rowStyle, origins = [],
+  events = [], eventTotal,
+}: ColumnProps) {
   const running = mode === 'ausfuehrung';
+  // **Eingeklappt, ausser das Modul ist dran** (#696) – EINE Regel, EINE Stelle. Sie
+  // stand zweimal (einmal je Rahmen-Aufrufer), und damit war «dran» im laufenden Auftrag
+  // eine andere Frage als im Entwurf. Hier ist sie dieselbe: läuft er, ist es das aktive
+  // Modul; im Entwurf das zuletzt angelegte.
+  const openId = running ? activeStepId : expandedStepId;
   // **Eine Bedingung, eine Zeile.** Ob es die Herkunfts-Zeile gibt, entscheidet
   // dieselbe Frage wie im Raster daneben (`ProcessColumns.mid.rows`): kommt etwas aus
   // einem Auftrag ODER entsteht etwas hier. Zwei Formulierungen davon hiessen: das
@@ -422,7 +404,8 @@ export function FlowColumn({
       // einer Nachbarspalte, die selbst Abzweigungen trägt, prompt eine Überlagerung.
       // (Genau dort ist sie aufgetreten: dieselbe Spalte, nur nicht in der Mitte.)
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: FLOW_GAP,
-      opacity: faded ? 0.5 : 1,
+      opacity: faded ? 0.55 : 1,
+      filter: faded ? 'saturate(0.15)' : undefined,
       ...containerStyle,
     }}>
       {rows.map((row, i) => {
@@ -463,7 +446,8 @@ export function FlowColumn({
         if (n.kind === 'start' || n.kind === 'end') {
           return (
             <FlowNode key={row.key} id={id} style={place(i)}>
-              <Terminal which={n.kind} endStatus={endStatus} />
+              <Terminal which={n.kind} endStatus={endStatus}
+                history={historyTip(events, n, eventTotal)} />
             </FlowNode>
           );
         }
@@ -471,15 +455,6 @@ export function FlowColumn({
           return (
             <FlowNode key={row.key} id={id} style={place(i)}>
               <Point kind={n.kind} />
-            </FlowNode>
-          );
-        }
-        // **Der geplante Rückweg** – nur im Entwurf. Die Ziele sind die Schalter, die
-        // Linie darüber die Antwort: sie ist da oder eben nicht.
-        if (n.kind === 'back') {
-          return (
-            <FlowNode key={row.key} id={id} style={place(i, { width: '100%' })}>
-              <ReturnSwitch links={back} onToggle={onToggleReturn} />
             </FlowNode>
           );
         }
@@ -493,9 +468,8 @@ export function FlowColumn({
               step={step}
               active={isActive}
               dimmed={running && !isActive}
-              // **Eingeklappt, ausser das Modul ist dran** (Testnotiz #696) – eine Regel,
-              // eine Stelle. Im Entwurf ist «dran» das zuletzt angelegte Modul.
-              defaultOpen={step.id === expandedStepId}
+              history={historyTip(events, n, eventTotal)}
+              defaultOpen={step.id === openId}
               tone={tone?.(step.moduleType)}
               onDelete={mode === 'definition' && onDelete ? () => onDelete(step.id) : undefined}
               drag={onReorder && mode === 'definition' ? {
@@ -534,59 +508,21 @@ function Point({ kind }: { kind: string }) {
   );
 }
 
-/**
- * **Der geplante Rückweg — die Linie IST die Entscheidung** (Auftrag §5).
+/*
+ * **Der geplante Rückweg hat keinen eigenen Knoten mehr** (Auftrag §2 + §5).
  *
- * Vorher zwei Knöpfe («kehrt zurück» / «bleibt hier») neben der Stückauswahl. Die
- * Aussage stand damit an einer anderen Stelle als ihre Wirkung, und man sah erst nach
- * der Freigabe, was daraus wird. Jetzt steht sie dort, wo sie passiert: unter dem Ende,
- * am Ende der Linie – und die Linie darüber gibt es nur, wenn zurückgeführt wird.
+ * Hier stand `ReturnSwitch`: unter dem Ende eine Zeile mit den Quell-Aufträgen als
+ * Zielen, und die Linie dorthin gab es nur, wenn zurückgeführt wird. Das war der
+ * **Ersatz** für etwas, das im Entwurf nicht zu sehen war – der Quell-Auftrag selbst.
  *
- * **Kein dritter Linientyp.** Die zwei Stärken bleiben, was sie sind; ob es zurückgeht,
- * sagt die Anwesenheit der Linie – exakt wie im laufenden Bild, wo eine gekappte
- * Ausleihe schlicht keinen Rückweg hat.
+ * Seit die Vorschau ihn in die linke Spur stellt, ist er da: mit seinem Abzweigepunkt,
+ * seinem Rückführpunkt und der Linie dazwischen, gerechnet vom Server (`flow.Planned`) –
+ * also genau dem Bild, das nach der Freigabe entsteht. Beides nebeneinander hiesse: zwei
+ * Rückweg-Linien für eine Entscheidung, und die zweite wäre die erfundene.
  *
- * **Der Knoten bleibt, wenn die Linie geht.** Sonst gäbe es nichts mehr anzuklicken, um
- * sie zurückzuholen – und die Entscheidung wäre einmalig statt änderbar. Er ist zugleich
- * das Ziel für die Bedienung: volle Zeilenbreite, 44 px hoch, also auch auf einem
- * Telefon zu treffen.
+ * Die Regel bleibt Wort für Wort – «ein Klick auf das Ziel schaltet sie an und aus»; nur
+ * ist das Ziel jetzt der echte Auftrag statt einer Ersatz-Pille (`Neighbour onToggle`).
  */
-function ReturnSwitch({ links, onToggle }: {
-  links: ReturnLink[]; onToggle?: (key: number) => void;
-}) {
-  return (
-    <div className="w-full flex flex-wrap items-center justify-center gap-1.5">
-      {links.map((link) => (
-        <button
-          key={link.key}
-          type="button"
-          disabled={!onToggle}
-          onClick={() => onToggle?.(link.key)}
-          className="inline-flex items-center gap-1.5 rounded-ds-lg text-xs"
-          style={{
-            minHeight: 40, padding: '8px 12px',
-            border: `1px solid ${link.on ? 'var(--border-2)' : 'var(--border-1)'}`,
-            background: link.on ? 'var(--bg-2)' : 'transparent',
-            color: link.on ? 'var(--fg-2)' : 'var(--fg-4)',
-            cursor: onToggle ? 'pointer' : 'default',
-          }}
-          data-tip={link.on
-            ? 'Nach dem Durchlauf geht jedes Stück an genau die Stelle zurück, an der es '
-              + 'ausgeschert ist. Der andere Auftrag wartet solange. — Klicken kappt die '
-              + 'Rückführung.'
-            : 'Die Stücke bleiben hier (z. B. Aussonderung). Der andere Auftrag läuft mit '
-              + 'weniger Stücken weiter. — Klicken führt sie wieder zurück.'}
-        >
-          <CornerUpLeft size={13} style={{ opacity: link.on ? 1 : 0.4 }} />
-          <span className="ix-tnum">
-            {link.orders.map((o) => formatObjectId(o)).join(' · ')}
-          </span>
-          <span style={{ color: 'var(--fg-4)' }}>{link.on ? 'zurück' : 'bleibt hier'}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /**
  * **Sichtbar kaputt statt still falsch.**
@@ -746,16 +682,25 @@ function JourneyRow({ where, stops, origins, prefix, rest }: {
   );
 }
 
-function Terminal({ which, endStatus }: { which: 'start' | 'end'; endStatus: string }) {
+function Terminal({ which, endStatus, history }: {
+  which: 'start' | 'end'; endStatus: string;
+  /** Was hier passiert ist – dieselbe Blase wie am Modul (§5). */
+  history?: string;
+}) {
   const Icon = which === 'start' ? Play : Flag;
   const after = which === 'start' ? START_AFTER : endStatus;
   const before = which === 'start' ? START_BEFORE : END_BEFORE;
   const cfg = statusCfg(after);
+  const head = `${which === 'start' ? 'Start' : 'Ende'}: ${statusLabel(before)} → ${statusLabel(after)}`;
   return (
     <div
       className="flex items-center justify-center rounded-full"
+      // Fokussierbar, damit die Blase auch **ohne Hover** erscheint – auf dem Touchgerät
+      // per Tipp, an der Tastatur per Tab. Ein zweites Muster dafür gibt es nicht.
+      tabIndex={history ? 0 : undefined}
       style={{ width: 46, height: 46, border: `2px solid ${cfg.color}`, background: cfg.bg, color: cfg.color }}
-      data-tip={`${which === 'start' ? 'Start' : 'Ende'}: ${statusLabel(before)} → ${statusLabel(after)}`}
+      data-tip={history ? `${head}\n${history}` : head}
+      data-tip-list={history ? '' : undefined}
     >
       <Icon size={19} />
     </div>
@@ -901,8 +846,11 @@ interface DragProps {
   onDrop: (from: number) => void;
 }
 
-function StepCard({ step, active, dimmed, defaultOpen, onDelete, tone, drag, children }: {
+function StepCard({ step, active, dimmed, defaultOpen, onDelete, tone, drag, history,
+  children }: {
   step: DiagramStep; active: boolean; dimmed: boolean;
+  /** Was an diesem Modul passiert ist – der Ereignis-Log, an seinem Ort (§5). */
+  history?: string;
   /** Startet dieses Modul aufgeklappt? Sonst zu – und der Kopf klappt es auf (#696). */
   defaultOpen?: boolean;
   onDelete?: () => void;
@@ -984,7 +932,9 @@ function StepCard({ step, active, dimmed, defaultOpen, onDelete, tone, drag, chi
         >
           <Icon size={17} />
         </span>
-        <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: c.fg }}>
+        <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: c.fg }}
+          tabIndex={history ? 0 : undefined}
+          data-tip={history} data-tip-list={history ? '' : undefined}>
           {step.label}
         </span>
         {locked && (

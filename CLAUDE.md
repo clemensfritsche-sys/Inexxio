@@ -92,13 +92,22 @@
 > Die Querverbindung ist EINE Waagrechte (`NEIGHBOUR_PAD` oben wie unten, Rückführpunkt am
 > Ende seiner Zeile) – ausser zum **übergeordneten** Auftrag, dessen Punkte sein eigener
 > Prozess setzt.
-> **Im Entwurf ist die Rückführungslinie selbst das Bedienelement** (PROCESS_CORE §8.1a):
-> unter dem Ende steht der Rückweg als Knoten, die Linie dorthin gibt es nur, wenn
-> zurückgeführt wird – ein Klick auf das Ziel schaltet sie an und aus. Kein Strichmuster
-> (es bleibt bei zwei Stärken), kein Knopfpaar neben der Stückauswahl; der Knoten bleibt,
-> wenn die Linie geht, sonst wäre die Entscheidung einmalig. Mehrere Quellen stehen als
-> Ziele in EINER Zeile – je Quelle ein eigener Knoten untereinander hiesse, die Linie zum
-> zweiten liefe durch den ersten.
+> **Der Entwurf ist dasselbe Bild, nur früher** (PROCESS_CORE §8.1c): nimmt die Auswahl
+> einem laufenden Auftrag ein Stück ab, steht **er** schon vor der Freigabe in der linken
+> Spur – mit dem Abzweigepunkt, der entstünde, und dem Rückführpunkt, falls zurückgeführt
+> wird. Kein Nachbau: dieselbe Ableitung (`flow.build(..., planned=[…])` ← `/orders/validate`
+> → `OrderValidation.parents`) und **EIN** Rahmen für beide Fälle (`ProcessColumns`; was in
+> der Mitte steht, sagt der Aufrufer – laufender Auftrag oder Modul-Editor). Geprüft wird
+> die **Gleichheit selbst**: Vorschau vor der Freigabe == echter Graph danach, bis auf
+> Objektnummer und `walked` (nichts Geplantes ist je gegangen). Der Entwurf hat dafür eine
+> **Adresse statt einer Nummer** – `DRAFT_OBJECT_ID = 0`, auf beiden Seiten dieselbe, sonst
+> endete die Linie still im Nichts.
+> **Damit ist die Rückführungslinie das Bedienelement mit dem ECHTEN Ziel** (§8.1a):
+> ein Klick auf den Quell-Auftrag schaltet sie an und aus; er bleibt, wenn die Linie geht
+> (sonst wäre die Entscheidung einmalig). Kein Strichmuster (es bleibt bei zwei Stärken),
+> kein Knopfpaar neben der Stückauswahl – und **kein Ersatz-Knoten unter dem Ende** mehr:
+> der war der Platzhalter für einen Auftrag, den man nicht sah, und neben dem echten wären
+> es zwei Rückweg-Linien für EINE Entscheidung.
 > **Herkunft und Verbleib sind ÄSTE desselben Strangs** (PROCESS_CORE §8.1a, §6): über dem
 > Start und unter dem Ende verzweigt die Linie zu den Nachbar-Aufträgen – je Nachbar ein
 > Ast mit Anzahl, alle auf **einer** Waagrechten zusammengeführt (ein Bus wie im Stammbaum,

@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, History } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
-import type { ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary } from '@/types';
+import type {
+  ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, RelatedOrder,
+} from '@/types';
 import { orderStatus } from '@/lib/record-status';
 import { localDateTime } from '@/lib/utils';
 import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import {
-  ProcessDiagram, PROCESS_MAXW, type DiagramStep, type JourneyOrigin, type ReturnLink,
+  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, definitionGraph, type DiagramStep,
+  type JourneyOrigin,
 } from '@/components/erp/process-diagram';
-import { ProcessColumns } from '@/components/erp/process-columns';
+import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
@@ -91,6 +94,12 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   });
   const [steps, setSteps] = useState<ModuleDraft[]>([]);
   const [missing, setMissing] = useState<string[] | null>(null);
+  /**
+   * **Die Vorschau der Quell-Aufträge** (Auftrag §2). Sie kommt aus derselben Ableitung
+   * wie das echte Bild (`flow.build` mit `planned`) und aus derselben Anfrage wie die
+   * Freigebbarkeit – ein zweiter Aufruf dafür wäre ein zweiter Stand desselben Entwurfs.
+   */
+  const [preview, setPreview] = useState<RelatedOrder[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<Order | null>(null);
@@ -129,10 +138,14 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
 
   // Freigebbarkeit beim Server erfragen, nicht selbst behaupten.
   useEffect(() => {
-    if (!isDraft) { setMissing(null); return; }
+    if (!isDraft) { setMissing(null); setPreview([]); return; }
     let dead = false;
     api.validateOrder(draft)
-      .then((v) => { if (!dead) setMissing(v.missing ?? []); })
+      .then((v) => {
+        if (dead) return;
+        setMissing(v.missing ?? []);
+        setPreview(v.parents ?? []);
+      })
       .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
     return () => { dead = true; };
   }, [isDraft, draft]);
@@ -210,7 +223,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             entstanden ist. */}
         {isDraft ? (
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
-            refreshKey={refreshKey} />
+            refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
           <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate} />
         ) : (
@@ -219,7 +232,6 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
           </p>
         )}
 
-        {!isDraft && shown && <EventLog order={shown} />}
       </div>
     </div>
   );
@@ -240,11 +252,13 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
  * Ein reiner «Lager»-Auftrag greift auf Vorhandenes zu – was damit geschehen soll, weiss
  * nur dieser eine Auftrag. Dort wird frei modelliert.
  */
-function DraftView({ lines, setLines, steps, setSteps, refreshKey }: {
+function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
   lines: DefinitionLine[]; setLines: (l: DefinitionLine[]) => void;
   steps: ModuleDraft[]; setSteps: (s: ModuleDraft[]) => void;
   /** Hochgezählt, wenn die Freigabe an einer veralteten Auswahl scheitert. */
   refreshKey: number;
+  /** Die Quell-Aufträge, wie sie nach der Freigabe aussähen (Auftrag §2). */
+  parents: RelatedOrder[];
 }) {
   const [articles, setArticles] = useState<ArticleOption[]>([]);
   const [template, setTemplate] = useState<ArticleProcess | null>(null);
@@ -274,44 +288,51 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey }: {
   const isMake = sourceArticle !== null;
   const articleName = articles.find((a) => a.object_id === sourceArticle)?.name;
 
-  // **Die geplanten Rückführungen** (§5): je Definitionszeile, die einem laufenden
-  // Auftrag Stücke abnimmt, eine – dieselbe Einheit, an der die Entscheidung hängt
-  // (`returns` steht an der Zeile). Nimmt eine Zeile nichts Gebundenes, gibt es keine
-  // Frage und darum auch keinen Knoten.
-  const back: ReturnLink[] = useMemo(
-    () => lines
-      .map((l) => ({
-        key: l.key,
-        orders: [...new Set(l.units.map((u) => u.fromOrder).filter((o): o is number => o !== null))],
-        on: l.returns,
-      }))
-      .filter((b) => b.orders.length > 0),
-    [lines],
-  );
-  const toggleReturn = useCallback((key: number) => {
-    setLines(lines.map((l) => (l.key === key ? { ...l, returns: !l.returns } : l)));
+  /**
+   * **Die Rückführung schaltet man am Ziel** (§5) – und das Ziel ist seit der Vorschau
+   * der Quell-Auftrag selbst, nicht mehr eine Ersatz-Pille unter dem Ende.
+   *
+   * Die Entscheidung hängt an der **Definitionszeile** (`returns`), gefragt wird sie am
+   * **Auftrag**: umgeschaltet wird darum jede Zeile, die aus ihm etwas nimmt. Das ist
+   * dieselbe Zusammenfassung, die der Server für die Vorschau macht (ein Auftrag kehrt
+   * zurück, wenn irgendeine seiner Zeilen zurückführt) – zwei Lesarten davon ergäben
+   * einen Klick, der die Linie nicht bewegt.
+   */
+  const toggleReturn = useCallback((parentObjectId: number) => {
+    const takes = (l: DefinitionLine) => l.units.some((u) => u.fromOrder === parentObjectId);
+    const on = lines.some((l) => takes(l) && l.returns);
+    setLines(lines.map((l) => (takes(l) ? { ...l, returns: !on } : l)));
   }, [lines, setLines]);
+
+  const head = (
+    <DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey}
+      onArticlesLoaded={setArticles} />
+  );
 
   // Bringt eine Zeile «Neu» mit, ist der Prozess die **Vorlage des Artikels** – dann nur
   // ansehen. Sonst wird hier modelliert, mit demselben Editor wie am Artikel.
   return (
     <>
       {isMake ? (
-        <ProcessDiagram
-          mode="definition"
-          steps={mirrored ?? []}
-          endStatus={END_BEFORE}
-          back={back}
+        <ProcessColumns
+          mid={{
+            objectId: DRAFT_OBJECT_ID,
+            graph: definitionGraph(mirrored ?? []),
+            steps: mirrored ?? [],
+            mode: 'definition',
+            endStatus: END_BEFORE,
+            head,
+          }}
+          parents={parents}
           onToggleReturn={toggleReturn}
-          head={<DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey} onArticlesLoaded={setArticles} />}
         />
       ) : (
         <ProcessDesigner
           modules={steps}
           onChange={setSteps}
-          back={back}
+          parents={parents}
           onToggleReturn={toggleReturn}
-          head={<DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey} onArticlesLoaded={setArticles} />}
+          head={head}
         />
       )}
 
@@ -336,9 +357,7 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
   onConfirm: (stepId: number, values: Record<string, unknown>) => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
-  const steps: DiagramStep[] = (order.steps ?? []).map((s) => ({
-    id: s.id, moduleType: s.module_type, label: s.label,
-  }));
+  const steps: DiagramStep[] = toDiagramSteps(order.steps);
   // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
   // Unterschied zwischen einer Antwort und einem Megabyte.
   /**
@@ -371,32 +390,46 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
   return (
     <>
       <ProcessColumns
-        order={order}
-        onExpand={expand}
-        onDeviate={onDeviate
-          ? (unitNumber) => { void startDeviation(unitNumber, order.object_id, onDeviate); }
-          : undefined}
-        deviateBlocked={entryStarted
-          ? 'Im aktiven Modul wurde bereits erfasst. Erst bestätigen – oder das Fenster neu laden, dann ist die Eingabe verworfen.'
-          : undefined}
+        mid={{
+          objectId: order.object_id,
+          graph: order.flow ?? EMPTY_GRAPH,
+          steps,
+          mode: 'ausfuehrung',
+          activeStepId: order.active_step_id ?? null,
+          endStatus: order.end_status,
+          onExpand: expand,
+          onDeviate: onDeviate
+            ? (unitNumber) => { void startDeviation(unitNumber, order.object_id, onDeviate); }
+            : undefined,
+          deviateBlocked: entryStarted
+            ? 'Im aktiven Modul wurde bereits erfasst. Erst bestätigen – oder das Fenster neu laden, dann ist die Eingabe verworfen.'
+            : undefined,
+          // **Die Historie steht am Objekt** (§5) – und nur in der Mitte: von einem
+          // Nachbarn ist sie gar nicht geladen, und sie gehört in seinen Datensatz.
+          events: order.events ?? [],
+          eventTotal: order.event_count ?? undefined,
+          // **Jedes Modul zeigt, was es tut** (Testnotiz #696) – das aktive als Formular,
+          // die übrigen als das, was in ihnen definiert ist. Ob die Karte auf- oder
+          // zugeklappt startet und ob sie gesperrt ist, entscheidet das Diagramm; hier
+          // steht nur der Inhalt.
+          renderStep: (step, isActive) => (isActive ? (
+            <CaptureForm
+              points={pointsOf(order, step.id)}
+              count={waitingAt(order, step.id)}
+              busy={busy}
+              onDirty={setEntryStarted}
+              onConfirm={(values) => onConfirm(step.id, values)}
+            />
+          ) : (
+            <PointList points={pointsOf(order, step.id)} />
+          )),
+        }}
+        parents={order.parents ?? []}
+        deviations={order.deviations ?? []}
+        deviationTotal={order.deviation_total ?? 0}
         journeyIn={order.journey_in ?? []}
         journeyOut={order.journey_out ?? []}
         origins={origins}
-        // **Jedes Modul zeigt, was es tut** (Testnotiz #696) – das aktive als Formular,
-        // die übrigen als das, was in ihnen definiert ist. Ob die Karte auf- oder
-        // zugeklappt startet und ob sie gesperrt ist, entscheidet das Diagramm; hier
-        // steht nur der Inhalt.
-        renderStep={(step, isActive) => (isActive ? (
-          <CaptureForm
-            points={pointsOf(order, step.id)}
-            count={waitingAt(order, step.id)}
-            busy={busy}
-            onDirty={setEntryStarted}
-            onConfirm={(values) => onConfirm(step.id, values)}
-          />
-        ) : (
-          <PointList points={pointsOf(order, step.id)} />
-        ))}
       />
     </>
   );
@@ -485,48 +518,16 @@ function waitingAt(order: Order, stepId: number): number {
  * Sache — und die läuft irgendwann der ersten davon.
  */
 
-/**
- * Die Historie. **Append-only** – es gibt keinen Bearbeiten- und keinen Löschen-Knopf,
- * weil es dafür keinen Endpunkt gibt (§7.2). Eine Korrektur wäre ein neuer Eintrag.
+/*
+ * **Die History-Box ist entfallen** (Auftrag §5). Der Ereignis-Log bleibt vollständig –
+ * aufgezeichnet wird unverändert, und der Server liefert ihn weiter. Nur der ORT ist ein
+ * anderer: die Einträge stehen jetzt am **Prozessobjekt**, an dem sie passiert sind
+ * (`process-diagram.historyTip`). Eine Liste am Fuss zwang dazu, jede Zeile erst dem
+ * Objekt zuzuordnen; am Objekt selbst IST diese Zuordnung die Position.
+ *
+ * Entscheidend dabei: `start` und `end` tragen **kein** Modul (`step_id = null`) – ein
+ * Hover nur an Modulen hätte die Hälfte des Logs unerreichbar gemacht. Alle drei
+ * Objektarten tragen darum dieselbe Blase, und die Kappungs-Notiz («die letzten N von M»)
+ * steht als letzte Zeile darin.
  */
-function EventLog({ order }: { order: Order }) {
-  const events = order.events ?? [];
-  if (!events.length) return null;
-  const KIND: Record<string, string> = { start: 'Start', step: 'Modul', end: 'Ende' };
-  // **Referenziert wird die id, beschriftet der Typ** (#687): ein Name wäre eine
-  // Eingabe, und die Historie darf nicht auf eine Eingabe zeigen.
-  const labels = new Map((order.steps ?? []).map((s) => [s.id, s.label]));
-  const total = order.event_count ?? events.length;
-  return (
-    <div className="mx-auto mt-5" style={{ maxWidth: PROCESS_MAXW }}>
-      <Card icon={History} title="Historie">
-        <p className="text-xs mb-2.5" style={{ color: 'var(--fg-3)' }}>
-          Eingefroren. Was hier steht, wird nicht mehr geändert – eine Korrektur wäre ein
-          neuer Eintrag.
-          {total > events.length && (
-            // Gekappt, aber nicht verschwiegen: eine stumme Liste sähe aus wie alles.
-            <> Gezeigt sind die letzten {events.length} von {total} Einträgen.</>
-          )}
-        </p>
-        <div className="flex flex-col">
-          {events.map((e) => (
-            <div key={e.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs py-1.5"
-              style={{ borderTop: '1px solid var(--border-1)' }}>
-              <span style={{ minWidth: 104 }}><UnitNumber value={e.unit_number} /></span>
-              <span style={{ color: 'var(--fg-3)', minWidth: 92 }}>
-                {e.step_id ? labels.get(e.step_id) ?? KIND[e.kind] : KIND[e.kind]}
-              </span>
-              <span style={{ color: statusCfg(e.status_before).color }}>{statusLabel(e.status_before)}</span>
-              <span style={{ color: 'var(--fg-4)' }}>→</span>
-              <span style={{ color: statusCfg(e.status_after).color }}>{statusLabel(e.status_after)}</span>
-              <span className="flex-1" />
-              <span style={{ color: 'var(--fg-4)' }}>
-                {e.actor ? `${e.actor} · ` : ''}{localDateTime(e.created_at)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
+

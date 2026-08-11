@@ -43,6 +43,14 @@ def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _code(src: str) -> str:
+    """Nur der Code. Eine **Begründung**, warum etwas weg ist, darf den Namen nennen."""
+    return "\n".join(
+        line for line in src.split("\n")
+        if not line.lstrip().startswith(("*", "//", "/*"))
+    )
+
+
 # ---------------------------------------------------------------------------
 # Der Vertrag: das Backend weiss, das Frontend zeichnet
 # ---------------------------------------------------------------------------
@@ -63,8 +71,11 @@ def test_the_backend_is_master_and_the_frontend_only_draws():
         )
     # Die Kante bringt ihren Zustand mit; niemand rechnet ihn nach.
     assert "walked={e.walked}" in diagram, "Die Kante trägt ihren Zustand nicht selbst."
-    assert "order.flow" in cols, "Die Mitte zeichnet nicht den Graph des Servers."
     assert "rel.flow" in cols, "Der Nachbar zeichnet nicht seinen eigenen Graph."
+    # Die Mitte bekommt ihren Graph vom Aufrufer – am laufenden Auftrag ist das der des
+    # Servers. Wer ihn dort nicht durchreicht, zeichnet wieder etwas Eigenes.
+    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "graph: order.flow" in detail, "Die Mitte zeichnet nicht den Graph des Servers."
 
 
 def test_every_line_comes_from_the_one_generator():
@@ -679,6 +690,90 @@ def test_a_line_docks_at_a_port_and_the_layer_is_never_clipped():
     )
 
 
+def test_the_draft_shows_the_source_order_exactly_as_it_will_be():
+    """**Die Vorschau ist dasselbe Bild, nur früher** (Auftrag §2).
+
+    Ein Entwurf, der einem laufenden Auftrag ein Stück abnimmt, zeigt ihn schon vor der
+    Freigabe in der linken Spur – mit dem Abzweigepunkt, der entstünde, und (falls
+    zurückgeführt wird) dem Rückführpunkt. Das ist **keine zweite Darstellung**: sie kommt
+    aus derselben Ableitung (``flow.build`` mit ``planned``) und wird mit denselben
+    Bauteilen gezeichnet.
+
+    Geprüft wird die Gleichheit selbst — Vorschau vor der Freigabe gegen den echten Graph
+    danach, bis auf die Objektnummer (die es vorher nicht gibt) und ``walked`` (vorher ist
+    nichts gegangen). Läuft eine der beiden Seiten weg, bricht genau das.
+    """
+    from app.routers import orders as router
+    from app.schemas.order import DRAFT_OBJECT_ID
+    from app.services import article_process as tpl, flow, objects as obj, process as proc
+    from app.models import InstanceUnit, OrderUnit
+
+    db = _db()
+    try:
+        for returns in (True, False):
+            art = _article(db, tpl, obj)
+            parent = proc.release(
+                db,
+                lines=[{"article_object_id": art.object_id, "quantity": 2,
+                        "origin": "neu", "units": []}],
+                steps=[], actor_id=None,
+            )
+            db.flush()
+            rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
+            numbers = proc.unit_numbers(
+                db, db.query(InstanceUnit).filter(
+                    InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
+            first = numbers[rows[0].instance_unit_id]
+
+            draft = {
+                "lines": [{"article_object_id": art.object_id, "quantity": 1,
+                           "origin": "lager", "returns": returns,
+                           "units": [{"number": first, "from_order": parent.object_id}]}],
+                "steps": [{"module_type": "datenerfassung",
+                           "config": {"points": [{"label": "OK", "type": "bool"}]}}],
+            }
+            preview = router._preview_parents(db, draft)
+            assert len(preview) == 1, "Der Quell-Auftrag fehlt in der Vorschau."
+            shown = preview[0]
+            assert shown.object_id == parent.object_id
+            assert shown.unit_count == 1, "Die Vorschau nennt die Stückzahl nicht."
+            assert shown.returns is returns
+
+            kinds = [n.kind for n in shown.flow.nodes]
+            assert "fork" in kinds, "Die geplante Abzweigung fehlt im Bild."
+            assert ("join" in kinds) is returns, (
+                "Der Rückführpunkt richtet sich nicht nach der Entscheidung."
+            )
+            assert not [e for e in shown.flow.edges
+                        if e.kind in ("out", "back") and e.walked], (
+                "Etwas Geplantes ist kräftig – es ist aber noch nichts gegangen."
+            )
+
+            def shape(graph, target):
+                def norm(x):
+                    # Als **ganze Zahl** ersetzen: ein blosses `replace` träfe die 0 des
+                    # Entwurfs auch mitten in jeder Objektnummer und in jeder Schritt-id.
+                    return re.sub(rf"(?<!\d){target}(?!\d)", "<DRAFT>", x or "")
+                return {
+                    "nodes": [(norm(n.id), n.kind) for n in graph.nodes],
+                    "edges": sorted((norm(e.id), norm(e.frm), norm(e.to), e.kind)
+                                    for e in graph.edges),
+                }
+
+            before = shape(shown.flow, DRAFT_OBJECT_ID)
+            child = proc.release(db, lines=draft["lines"], steps=draft["steps"], actor_id=None)
+            db.flush()
+            after = shape(
+                type(shown.flow)(**flow.as_dict(flow.build(db, parent))), child.object_id)
+            assert before == after, (
+                "Vorschau und Wirklichkeit haben verschiedene Formen – dann ist die "
+                "Vorschau eine zweite Darstellung und nicht dasselbe Bild."
+            )
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_the_planned_return_is_the_line_itself():
     """**Ob zurückgeführt wird, sagt die Linie – nicht ein Knopfpaar** (Auftrag §5).
 
@@ -686,38 +781,59 @@ def test_the_planned_return_is_the_line_itself():
     Rückweg, und das Fehlen ist die Aussage. Der Entwurf sagte es daneben, mit zwei
     Knöpfen an der Stückauswahl – also an einer anderen Stelle als seine Wirkung.
 
-    Drei Eigenschaften, die das tragen:
+    Seit der Vorschau (§2) ist die Linie die **echte**: sie führt zum Quell-Auftrag, der
+    daneben steht, und kommt aus dem Server. Der frühere Ersatz-Knoten unter dem Ende
+    (``ReturnSwitch``) ist damit weg – zwei Rückweg-Linien für eine Entscheidung wären
+    eine zu viel, und die zweite wäre die erfundene.
 
-    * Die Kante ``end → back`` entsteht **nur**, wenn zurückgeführt wird. Kein
-      Strichmuster, kein dritter Linientyp.
-    * Der Knoten **bleibt**, wenn die Linie geht – sonst wäre die Entscheidung einmalig
-      statt änderbar, weil nichts mehr da wäre, das man anklicken könnte.
-    * **Ein** Rückweg-Knoten, auch bei mehreren Quellen: je Quelle einen eigenen
-      untereinander zu hängen hiesse, die Linie zum zweiten liefe durch den ersten.
+    Was bleibt, ist die Regel Wort für Wort: **ein Klick auf das Ziel schaltet sie an und
+    aus**, der Knoten bleibt, wenn die Linie geht (sonst wäre die Entscheidung einmalig),
+    und es gibt keinen dritten Linientyp.
     """
-    diagram = _read(FRONTEND / "components/erp/process-diagram.tsx")
+    diagram = _code(_read(FRONTEND / "components/erp/process-diagram.tsx"))
+    cols = _read(FRONTEND / "components/erp/process-columns.tsx")
     lines = _read(FRONTEND / "components/erp/definition-lines.tsx")
+    detail = _read(FRONTEND / "components/erp/order-detail.tsx")
 
-    assert "const returning = back.some((b) => b.on);" in diagram, (
-        "Der Entwurf leitet nicht mehr aus den Verbindungen ab, ob es einen Rückweg gibt."
+    for gone in ("ReturnSwitch", "ReturnLink", "kind: 'back'", "edge:end:back"):
+        assert gone not in diagram, (
+            f"«{gone}» ist zurück – der Ersatz-Rückweg steht neben dem echten, und das "
+            f"Bild zeigt dieselbe Entscheidung zweimal."
+        )
+    assert "onToggleReturn" in cols and "onToggle ?? (nav" in cols, (
+        "Das Ziel ist kein Schalter mehr – dann ist die Entscheidung im Entwurf nicht "
+        "mehr zu treffen."
     )
-    assert "id: 'edge:end:back'" in diagram and "returning" in diagram, (
-        "Die Rückweg-Kante hängt nicht mehr an der Entscheidung – dann ist sie entweder "
-        "immer da oder nie."
-    )
-    assert "back.length ? [{ id: 'back', kind: 'back', at: null }] : []" in diagram, (
-        "Es gibt mehr als einen Rückweg-Knoten – dann läuft die Linie zum zweiten durch "
-        "den ersten hindurch (§4)."
+    assert "onToggleReturn" in detail and "l.returns" in detail, (
+        "Der Klick landet nicht mehr an der Definitionszeile, an der die Entscheidung hängt."
     )
     assert "ReturnBtn" not in lines and "onReturns" not in lines, (
         "Die Rückführung wird wieder neben der Stückauswahl entschieden – zwei Orte für "
         "dieselbe Aussage."
     )
     for banned in ("strokeDasharray", "dashed'"):
-        assert banned not in diagram, (
+        assert banned not in diagram and banned not in cols, (
             f"«{banned}» im Prozessbild: es gibt zwei Stärken und sonst nichts – ob "
             f"zurückgeführt wird, sagt die Anwesenheit der Linie."
         )
+
+
+def test_the_draft_is_named_the_same_on_both_sides():
+    """Der Entwurf hat keine Objektnummer – aber **eine Adresse**, und die ist geteilt.
+
+    Die Vorschau nennt ihn als Ziel ihrer Abzweigung (``order:<n>``); im Browser muss
+    dieselbe Zahl die Mitte bezeichnen, sonst findet die Linie ihr Ende nicht und
+    verschwindet **still**.
+    """
+    schema = _read(BACKEND / "app" / "schemas" / "order.py")
+    diagram = _read(FRONTEND / "components/erp/process-diagram.tsx")
+    server = re.search(r"DRAFT_OBJECT_ID\s*=\s*(-?\d+)", schema)
+    client = re.search(r"DRAFT_OBJECT_ID\s*=\s*(-?\d+)", diagram)
+    assert server and client, "Eine der beiden Seiten kennt die Entwurfs-Adresse nicht."
+    assert server.group(1) == client.group(1), (
+        f"Server sagt {server.group(1)}, Browser sagt {client.group(1)} – die Linie zum "
+        f"Entwurf endet damit im Nichts."
+    )
 
 
 def test_the_journey_is_a_tree_on_the_same_line():
@@ -751,9 +867,17 @@ def test_the_journey_is_a_tree_on_the_same_line():
         "Raster und Spalte entscheiden wieder verschieden, ob es die Zeile gibt."
     )
     assert "export function journeyKeys" in diagram, "Die Ast-Schlüssel sind keine Liste mehr."
-    assert "journeyKeys(inStops, origins)" in cols and "journeyKeys(journeyIn, origins)" in diagram, (
-        "Chips und Äste kommen nicht mehr aus derselben Liste – dann gibt es Chips ohne "
-        "Linie oder Linien ohne Chip."
+    # **Dieselben Variablen speisen beides**: die Äste (über `journeyKeys`) und die Chips
+    # (über die Spalte). Sie stehen im selben Rahmen und werden dort einmal berechnet –
+    # ein zweiter Rahmen mit eigener Rechnung war genau die Stelle, an der ein Ast ohne
+    # Chip entstehen konnte.
+    assert "journeyKeys(inStops, origins)" in cols, "Die Äste kommen nicht aus der Liste."
+    assert "journeyIn={inStops} journeyOut={outStops} origins={origins}" in cols, (
+        "Chips und Äste kommen nicht mehr aus denselben Variablen – dann gibt es Chips "
+        "ohne Linie oder Linien ohne Chip."
+    )
+    assert cols.count("journeyKeys(") == 2, (
+        "Die Ast-Schlüssel werden an mehr als einer Stelle gerechnet."
     )
     assert "slice(0, JOURNEY_LIMIT)" in diagram and "rest=" in diagram, (
         "Die Journey ist nicht mehr gekappt oder sagt es nicht – eine stumme Liste sähe "
