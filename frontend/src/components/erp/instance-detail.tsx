@@ -1,16 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes } from 'lucide-react';
+import { Fingerprint, Package } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance } from '@/types';
-import { TYPE_META } from '@/lib/erp-record';
 import { instanceName } from '@/lib/record-name';
 import { kindLabel } from '@/lib/record-status';
-import { Card, DetailHeader } from '@/components/erp/fields';
+import { DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
-import { StockBar, StockLegend } from '@/components/erp/stock-bar';
-import { UnitNumbers } from '@/components/erp/unit-numbers';
+import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
 
 /**
@@ -18,15 +16,18 @@ import { LabelButton } from '@/components/scan/object-label';
  *
  * **Es gibt hier nichts zu tun.** Eine Einzelinstanz entsteht mit ihrer Instanz und die
  * mit einem Auftrag (Testnotiz #678); gelöscht wird sie nie (#679). Gearbeitet wird am
- * Prozess, und dort steht auch, was erfasst wurde – die frühere Erfassungs-Historie hier
- * war eine zweite Ansicht auf dieselbe Sache, an einem Ort, an dem man nicht arbeitet
- * (#677). Übrig bleibt die Auskunft: **woher** die Gruppe stammt und **welche** Stücke
- * sie enthält.
+ * Prozess, und dort steht auch, was erfasst wurde. Übrig bleibt die Auskunft: **woher**
+ * die Gruppe stammt und **was** in ihr liegt.
  *
- * **Die Gruppe trägt keinen Zustand** (#675). Solange genau ein Stück darunter liegt,
- * liesse er sich spiegeln – bei einer Charge mit gemischten Zuständen gibt es keine
- * richtige Antwort, und jede gewählte wäre eine Behauptung. Der Zustand steht an den
- * Stücken, wo er hingehört.
+ * **Dieselbe Anatomie wie der Artikel**: der Kopf ist der eine `DetailHeader`, darunter
+ * Spezifikations-Karten – erst die Herkunft, dann der Bestand. Und der Bestand ist
+ * wörtlich dasselbe Modul wie im Artikel-Reiter «Bestand» (`stock-view.tsx`), nur mit dem
+ * kleineren Umfang: hier sind die Zeilen direkt die Einzelinstanzen.
+ *
+ * **Die Gruppe trägt keinen Zustand** (#675). Bei genau einem Stück liesse er sich
+ * spiegeln – bei einer Charge mit gemischten Zuständen gibt es keine richtige Antwort,
+ * und jede gewählte wäre eine Behauptung. Der Zustand steht an den Stücken, wo er
+ * hingehört; die Leiste im Bestand zählt auf, statt zu behaupten.
  */
 export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?: () => void }) {
   const [rec, setRec] = useState<Instance | null>(null);
@@ -43,10 +44,8 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
   if (error) return <div className="p-6 text-sm" style={{ color: 'var(--danger)' }}>{error}</div>;
   if (!rec) return null;
 
-  const meta = TYPE_META.instance;
-
   return (
-    <div className="flex flex-col h-full overflow-auto">
+    <div className="flex flex-col h-full bg-bg-1">
       <DetailHeader
         type="instance"
         title={instanceName(rec)}
@@ -55,44 +54,37 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
         onBack={onBack}
       />
 
-      <div className="w-full max-w-[880px] mx-auto px-5 py-5 flex flex-col gap-4">
-        {/* **Woher stammt diese Gruppe?** Ein Verweis auf den Artikel, dessen
-            Erzeugungsprozess sie durchlaufen hat – mehr braucht es nicht (#676). Die
-            Merkmale daneben (Name, Nummer, Typ, Menge) standen entweder schon im Kopf
-            oder eine Zeile weiter unten; sie am Artikel zu lesen ist ein Klick und
-            immer aktuell, statt hier eine Kopie zu pflegen. */}
-        <Card icon={meta.icon} title="Herkunft">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
-            {rec.article_object_id ? (
-              <ObjId value={rec.article_object_id} />
-            ) : (
-              <span className="text-fg-4">—</span>
-            )}
-            <span>{rec.article_name ?? 'Unbekannter Artikel'}</span>
-            <span className="text-fg-4">·</span>
-            <span className="text-fg-3">{kindLabel(rec.kind)}</span>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
+        <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 22 }}>
+          {/* **Woher stammt diese Gruppe?** Der Artikel, dessen Erzeugungsprozess sie
+              durchlaufen hat – als **verlinkte Objektnummer**, nicht als abgeschriebener
+              Name: die Spezifikation liegt einen Klick entfernt und ist dort immer
+              aktuell (#676). Die Merkmale daneben (Menge, Zustände) stehen im Bestand
+              darunter; sie hier zu wiederholen wäre dieselbe Aussage an zwei Stellen. */}
+          <div style={SPEC.card}>
+            <SpecHead icon={Package} title="Herkunft" />
+            <div style={SPEC.grid}>
+              <ReadField
+                icon={Package}
+                label="Artikel"
+                full
+                value={
+                  <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    {rec.article_object_id != null
+                      ? <ObjId value={rec.article_object_id} />
+                      : <span className="text-fg-4">—</span>}
+                    <span>{rec.article_name ?? 'Unbekannter Artikel'}</span>
+                  </span>
+                }
+              />
+              <ReadField icon={Fingerprint} label="Serialisierung" value={kindLabel(rec.kind)} />
+            </div>
           </div>
-        </Card>
 
-        {/* Eine Zeile je Stück: Nummer, Zustand. Die Menge steht nicht dabei – eine
-            Einzelinstanz IST genau ein Stück, das ist ihre Definition und keine
-            Angabe, die man wiederholen müsste (#680).
-
-            Darüber die Aufstellung: eine Gruppe hat keinen Zustand (#675), aber sie hat
-            eine Verteilung – und die ist dieselbe Leiste wie im Bestand des Artikels.
-            Die Nummern kommen seitenweise aus **derselben** Komponente; eine 5000er-
-            Charge hier am Stück zu rendern war der Grund, dass es sie gibt. */}
-        <Card icon={Boxes} title={`Einzelinstanzen · ${rec.quantity}`}>
-          <div className="flex flex-col gap-3">
-            {rec.states.length > 1 && (
-              <div className="flex flex-col gap-2">
-                <StockBar states={rec.states} />
-                <StockLegend states={rec.states} />
-              </div>
-            )}
-            <UnitNumbers objectId={rec.object_id} quantity={rec.quantity} />
-          </div>
-        </Card>
+          {/* **Dasselbe Bestandsmodul wie am Artikel** – kein Nachbau, nur der kleinere
+              Umfang: die Aufstellung dieser Gruppe und darunter ihre Nummern. */}
+          <StockView scope={{ kind: 'instance', record: rec }} />
+        </div>
       </div>
     </div>
   );

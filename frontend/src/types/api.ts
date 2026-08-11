@@ -2473,12 +2473,20 @@ export interface components {
          *
          *     Die Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese
          *     Instanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess».
+         *
+         *     ``stock`` sagt, in welchen Block das Segment gehört – ``live`` (aktueller Bestand),
+         *     ``history`` (nur noch Datensatz) oder ``unknown``. **Die Zuordnung kommt vom
+         *     Server**, weil sie eine Eigenschaft des Status ist (``domain/statuses.Status.stock``)
+         *     und keine Liste, die eine Oberfläche pflegt. Ein neuer Status wird damit an genau
+         *     einer Stelle ergänzt, und die Bestandsansicht folgt ohne Änderung.
          */
         StockState: {
             /** Status */
             status: string;
             /** Quantity */
             quantity: number;
+            /** Stock */
+            stock: string;
         };
         /**
          * TerritoryAssign

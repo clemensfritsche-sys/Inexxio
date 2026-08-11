@@ -12,6 +12,10 @@ export type { ScanRequest };
 const THROTTLE_MS = 1200;
 // Wie lange der grüne Rahmen den Treffer quittiert, bevor es weitergeht.
 const ACK_MS = 380;
+// Vorschläge: höchstens so viele, und erst wenn das Tippen kurz ruht (die Suche geht
+// ggf. an den Server – jeder Tastendruck wäre eine Anfrage).
+const SUGGEST_MAX = 6;
+const SUGGEST_DEBOUNCE_MS = 220;
 
 type Feedback = { kind: 'ok' | 'bad'; text: string } | null;
 
@@ -145,14 +149,40 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
-  // Semantische Suche: tippt man «003», erscheint 100000003 als Vorschlag.
-  const suggestions = useMemo<ScanCandidate[]>(() => {
+  // Semantische Suche, Teil 1: die **mitgegebene** Menge – dort, wo der Aufrufer sie
+  // kennt (die paar Zielorte einer Bewegung). Sie ist zugleich die Gültigkeitsmenge eines
+  // eingeschränkten Schritts, also wird hier nur gefiltert, nie erweitert.
+  const known = useMemo<ScanCandidate[]>(() => {
     const q = query.trim().toLowerCase();
     if (!q || !step?.candidates) return [];
     return step.candidates
       .filter((c) => formatObjectId(c.objectId).includes(q) || c.label.toLowerCase().includes(q))
-      .slice(0, 6);
+      .slice(0, SUGGEST_MAX);
   }, [query, step]);
+
+  // Teil 2: die **gesuchte** Menge. Wo die Kandidaten das halbe ERP wären, gibt der
+  // Aufrufer keine Liste mit, sondern seine Suche (`step.suggest`) – bei einem
+  // **eingeschränkten** Schritt bleibt sie aussen vor: eine breitere Vorschlagsquelle
+  // darf nichts anbieten, was der Schritt gar nicht annehmen würde.
+  const [found, setFound] = useState<ScanCandidate[]>([]);
+  useEffect(() => {
+    const q = query.trim();
+    const ask = step?.suggest;
+    if (!q || !ask || step?.restrict) { setFound([]); return; }
+    let stale = false;
+    const t = window.setTimeout(() => {
+      ask(q)
+        .then((r) => { if (!stale) setFound(r); })
+        .catch(() => { if (!stale) setFound([]); });
+    }, SUGGEST_DEBOUNCE_MS);
+    // Eine ältere Antwort darf eine neuere nie überholen (tippen und sofort löschen).
+    return () => { stale = true; window.clearTimeout(t); };
+  }, [query, step]);
+
+  const suggestions = useMemo<ScanCandidate[]>(() => {
+    const seen = new Set(known.map((c) => c.objectId));
+    return [...known, ...found.filter((c) => !seen.has(c.objectId))].slice(0, SUGGEST_MAX);
+  }, [known, found]);
 
   // Was im Bild steht, sagt die Deutung – der Dialog weiss nicht, was ein Schritt meint.
   const actionText = reading.prompt(step);

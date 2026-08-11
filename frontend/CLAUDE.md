@@ -62,11 +62,26 @@ ERP-Seiten prüfen Firebase Auth. Nicht eingeloggt → Redirect zu /login.
 ## Typen (Single Source of Truth)
 - `src/types/api.ts` wird aus dem Backend-OpenAPI-Schema generiert – NICHT editieren.
 - `src/types/index.ts` leitet `UserProfile` daraus ab (nur `role` wird auf die Union verengt).
+- **`src/lib/status-catalog.ts` ebenso** – aus `backend/app/domain/statuses.py`. Die
+  Statusliste ist eine **Quelle, kein Spiegel**: ein neuer Status ist EINE Zeile im
+  Backend, und Beschriftung/Ampelton/Achsen/Bestands-Zugehörigkeit kommen von selbst
+  hier an. `lib/process-status.ts` liegt daneben und trägt nur das **Symbol** – eine
+  Gestaltungsfrage, die aus dem Fachmodell nicht kommen kann.
 - Neu generieren nach Backend-Schema-Änderung:
   ```bash
   cd backend && python -m scripts.dump_openapi   # → backend/openapi.json
+  cd backend && python -m scripts.dump_statuses  # → frontend/src/lib/status-catalog.ts
   cd frontend && npm run generate:types          # → src/types/api.ts
   ```
+
+## Bestand (`components/erp/stock-view.tsx`)
+EIN Modul, zwei Umfänge – am **Artikel** (Zeilen = seine Instanzen) und an der **Instanz**
+(Zeilen = ihre Einzelinstanzen). Der Unterschied ist der Umfang der Daten, nie die
+Darstellung; eine zweite Fassung liefe beim ersten neuen Zustand auseinander.
+Bestand ↔ Historie entscheidet **der Server** (`StockState.stock`) – die Ansicht führt
+keine Liste und meldet einen Zustand ohne Zuordnung, statt ihn zu raten.
+Karte + Kopf + Werteraster kommen aus `fields.tsx` (`SPEC`, `SpecHead`, `SpecSection`,
+`ReadField`) – die Anatomie **jeder** Detail-Ansicht.
 
 ## Kamera-Scan (`lib/scan.ts` + `components/scan/`)
 Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf
@@ -79,9 +94,15 @@ Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf
 | Dialog | `components/scan/scan-dialog.tsx` | Decoder, Objektnummern |
 
 Aufruf über `useScan()` (eine Instanz am ERP-Layout, lazy). Ein Vorgang ist eine
-**Sequenz**: `steps: [{label, expected?, candidates?, restrict?, exists?}]`.
+**Sequenz**: `steps: [{label, expected?, candidates?, restrict?, exists?, suggest?}]`.
 `expected` = Verifikation · `restrict`+`candidates` = eingeschränkte Wahl · sonst freier
 Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
+
+- **Vorschläge:** `candidates` ist eine fertige Menge (die paar Zielorte einer Bewegung);
+  wo sie das halbe ERP wäre, gibt man stattdessen `suggest` mit – **seine eigene Suche**,
+  nicht eine zweite. Der Feed reicht dafür `feedMatch` + `api.getInstances` herein.
+  **Nur die Vorschlagsquelle wird breiter, nicht die Gültigkeitsregel** (`validateForStep`);
+  ein `restrict`-Schritt fragt `suggest` gar nicht erst.
 
 - **Deutung tauschen** heisst `reading` mitgeben, nicht den Dialog anfassen.
 - **ZXing nur als Rückfall** und nur `await import(…)` – der native `BarcodeDetector`

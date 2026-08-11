@@ -22,7 +22,10 @@ export const TYPE_META: Record<ErpRecordType, TypeMeta> = {
   user:             { label: 'Benutzer',    icon: Users,         bg: '#E8F1EC', fg: '#2E7D5B' },
   article:          { label: 'Artikel',     icon: Package,       bg: '#F4EBDD', fg: '#9A7238' },
   order:            { label: 'Auftrag',     icon: ClipboardList, bg: '#E7F0F4', fg: '#1C6487' },
-  instance:         { label: 'Instanzen',   icon: Boxes,         bg: '#E9EDEC', fg: '#5E6B66' },
+  // **Singular, wie jeder andere Typ.** Das Wort steht im Detail-Kopf über EINEM
+  // Datensatz («INSTANZEN · Schraube M4» las sich, als wären es mehrere) und im Feed
+  // neben seiner Anzahl – beides will die Einzahl.
+  instance:         { label: 'Instanz',     icon: Boxes,         bg: '#E9EDEC', fg: '#5E6B66' },
   organization:     { label: 'Unternehmen', icon: Building2,     bg: '#F3E5DD', fg: '#A65A3C' },
 };
 

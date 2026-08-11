@@ -15,13 +15,12 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
-from ..domain import statuses as st
 from ..models import Article, UserProfile
 from ..schemas.article import (
     ArticleProcess, ArticleProcessStepResponse,
     ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate, ArticleValidation,
 )
-from ..schemas.instance import ArticleStock, InstanceSummary, StockState
+from ..schemas.instance import ArticleStock, InstanceSummary, stock_states
 from ..services import article_names
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
@@ -177,7 +176,7 @@ def article_stock(
     by_instance = inst_svc.states(db, [i.id for i in rows])
     counts = inst_svc.article_states(db, article_id=article.id)
     return ArticleStock(
-        states=[StockState(status=s, quantity=n) for s, n in st.in_order(counts)],
+        states=stock_states(counts),
         total=sum(counts.values()),
         instance_total=int(total_instances),
         instances=[
@@ -185,10 +184,7 @@ def article_stock(
                 id=i.id, object_id=i.object_id, article_id=i.article_id,
                 article_name=article.name, kind=i.kind, label=i.label,
                 quantity=sum(by_instance.get(i.id, {}).values()),
-                states=[
-                    StockState(status=s, quantity=n)
-                    for s, n in st.in_order(by_instance.get(i.id, {}))
-                ],
+                states=stock_states(by_instance.get(i.id, {})),
                 created_at=i.created_at, updated_at=i.updated_at, is_active=i.is_active,
             )
             for i in rows

@@ -13,6 +13,7 @@ import type { StatusCfg } from '@/lib/status-flow';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';
+import type { ScanCandidate } from '@/lib/scan';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
 import { setOpenRecord } from '@/lib/feedback';
 import { ArticleDetail } from '@/components/erp/article-detail';
@@ -65,6 +66,27 @@ function rowSearchText(row: Row): string {
   if (row.type === 'article') parts.push(row.data.size ?? '');
   return parts.join(' ').toLowerCase();
 }
+
+/**
+ * **Die EINE Suchregel des Feeds.** Sie gilt für die Liste **und** für die Vorschläge im
+ * Scanner – nicht als zweite Implementierung «für die Kamera», sondern als derselbe
+ * Aufruf: sonst fände die eine Suche etwas, das die andere nicht kennt.
+ *
+ * `needle` kommt bereits in Kleinschreibung.
+ */
+function feedMatch(row: Row, needle: string): boolean {
+  return rowSearchText(row).includes(needle);
+}
+
+/** Ein Datensatz als Scanner-Vorschlag: Nummer + «Typ · Name». */
+function toCandidate(row: Row): ScanCandidate {
+  const label = TYPE_META[row.type].label;
+  const title = rowTitle(row);
+  return { objectId: row.objectId as number, label: title ? `${label} · ${title}` : label };
+}
+
+// Wie viele Vorschläge der Scanner höchstens anbietet (er zeigt ohnehin nur die ersten).
+const SUGGEST_LIMIT = 8;
 
 // ─── Feed item ───────────────────────────────────────────────────────────────
 
@@ -280,7 +302,7 @@ export default function ErpPage() {
   const filtered = rows.filter((r) => {
     if (typeFilter && r.type !== typeFilter) return false;
     // Instanzen sind bereits server-seitig durchsucht (kein erneuter Client-Filter).
-    if (search && r.type !== 'instance' && !rowSearchText(r).includes(search.toLowerCase())) return false;
+    if (search && r.type !== 'instance' && !feedMatch(r, search.toLowerCase())) return false;
     return true;
   });
 
@@ -355,6 +377,31 @@ export default function ErpPage() {
   }
 
   /**
+   * **Die Suche des Feeds – für den Scanner.** Nicht nachgebaut, sondern derselbe Aufruf:
+   * die geladenen Zeilen durch `feedMatch`, die Instanzen durch dieselbe Server-Suche
+   * (`api.getInstances(…, search)`), die auch der Instanz-Feed benutzt. Eine zweite
+   * Fassung «für die Kamera» hätte anders getroffen als die Liste daneben.
+   */
+  async function suggestFromFeed(q: string): Promise<ScanCandidate[]> {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return [];
+    const local = rows
+      .filter((r) => r.objectId != null && r.type !== 'instance' && feedMatch(r, needle))
+      .slice(0, SUGGEST_LIMIT)
+      .map(toCandidate);
+    // Instanzen haben die höchste Kardinalität und werden darum serverseitig gesucht –
+    // genau wie im Feed. Fällt die Abfrage aus, bleiben die lokalen Treffer.
+    const found = await api.getInstances(SUGGEST_LIMIT, 0, needle).catch(() => []);
+    return [
+      ...local,
+      ...found.map((i): ScanCandidate => ({
+        objectId: i.object_id,
+        label: `${TYPE_META.instance.label} · ${i.article_name ?? 'Ohne Bezeichnung'}`,
+      })),
+    ];
+  }
+
+  /**
    * **Suchen mit der Kamera.** Ein freier Lookup: kein `expected`, kein `restrict` –
    * jede Objektnummer des Hauses darf es sein, und was sie ist, löst der Server auf.
    *
@@ -362,12 +409,17 @@ export default function ErpPage() {
    * Frage gilt jede formal gültige 9-stellige Zahl, der Dialog meldet Erfolg, schliesst –
    * und hier passiert nichts, weil die Nummer keinen Datensatz hat. Mit ihr sagt es der
    * Rahmen im Bild, wo der Mensch gerade hinschaut.
+   *
+   * `suggest` ist die **Vorschlagsquelle**: ohne sie gab es hier nichts zu filtern (der
+   * freie Lookup hat naturgemäss keine Kandidatenliste), und wer eine Teilnummer tippte,
+   * sah nichts. Die Gültigkeitsregel bleibt davon unberührt.
    */
   function openScanner() {
     scan({
       steps: [{
         label: 'Datensatz',
         exists: (id) => api.resolveObject(id).then(() => true).catch(() => false),
+        suggest: suggestFromFeed,
       }],
       onComplete: ([objectId]) => { void openByObjectId(objectId); },
     });

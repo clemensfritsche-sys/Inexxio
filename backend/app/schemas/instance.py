@@ -10,9 +10,11 @@ den haben nur ihre Stücke (Testnotizen #675/#678/#679).
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Mapping, Optional
 
 from pydantic import BaseModel, ConfigDict
+
+from ..domain import statuses as st
 
 
 class InstanceUnitResponse(BaseModel):
@@ -35,10 +37,29 @@ class StockState(BaseModel):
 
     Die Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese
     Instanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess».
+
+    ``stock`` sagt, in welchen Block das Segment gehört – ``live`` (aktueller Bestand),
+    ``history`` (nur noch Datensatz) oder ``unknown``. **Die Zuordnung kommt vom
+    Server**, weil sie eine Eigenschaft des Status ist (``domain/statuses.Status.stock``)
+    und keine Liste, die eine Oberfläche pflegt. Ein neuer Status wird damit an genau
+    einer Stelle ergänzt, und die Bestandsansicht folgt ohne Änderung.
     """
 
     status: str
     quantity: int
+    stock: str
+
+
+def stock_states(counts: Mapping[str, int]) -> list["StockState"]:
+    """Gezählte Zustände → **Segmente**: in Anzeige-Reihenfolge, je mit Zugehörigkeit.
+
+    Die eine Umwandlung. Sie stand an vier Stellen fast gleich – und hätte beim
+    Hinzufügen der Zugehörigkeit an vier Stellen nachgezogen werden müssen.
+    """
+    return [
+        StockState(status=s, quantity=n, stock=st.stock_kind(s))
+        for s, n in st.in_order(dict(counts))
+    ]
 
 
 class InstanceResponse(BaseModel):

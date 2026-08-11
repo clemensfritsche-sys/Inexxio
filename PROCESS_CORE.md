@@ -229,13 +229,33 @@ erfinden nie eigene Werte.** Ein Modul mit unbekanntem Status ist nicht anlegbar
 
 ### 5.2 Die Werte
 
-`backend/app/domain/statuses.py` ist die eine Quelle; `frontend/src/lib/process-status.ts`
-spiegelt sie und wird dagegen getestet.
+`backend/app/domain/statuses.py` ist die eine Quelle. Das Frontend **spiegelt sie nicht,
+es bekommt sie**: `scripts/dump_statuses.py` schreibt `frontend/src/lib/status-catalog.ts`,
+genau wie `api.ts` aus dem OpenAPI-Schema entsteht. Ein Spiegel, den ein Test vergleicht,
+findet ein Auseinanderlaufen erst hinterher; eine generierte Datei kann gar nicht
+abweichen.
 
-| Wert | Farbe | Bedeutung |
-|---|---|---|
-| `Freigegeben` | Grün | Einsatzbereit, in keinem laufenden Auftrag. Anfangs- **und** (heute einziger) Endzustand. |
-| `Im Prozess` | Orange | Im Prozess genau eines freigegebenen Auftrags. |
+**Ein Status trägt alles, was über ihn zu wissen ist** – in EINER Zeile: Beschriftung,
+Ampelton, welche **Achsen** ihn tragen (Einzelinstanz · Auftrag · Artikel) und, für
+Stücke, ob er zum **Bestand** oder zur **Historie** zählt. Alles Weitere ist abgeleitet:
+Achsenlisten, Anzeige-Reihenfolge, Gruppierung im Bestand, Farbe, Frontend-Katalog.
+
+| Wert | Farbe | Achsen | Bestand | Bedeutung |
+|---|---|---|---|---|
+| `Freigegeben` | Grün | Stück · Artikel | live | Einsatzbereit, in keinem laufenden Auftrag. Anfangs- **und** (heute einziger) Endzustand. |
+| `Im Prozess` | Orange | Stück · Auftrag | live | Im Prozess genau eines freigegebenen Auftrags. |
+| `Abgeschlossen` | Grün | Auftrag | — | Ziel erreicht. |
+| `Abgebrochen` | Rot | Auftrag | — | Ziel nicht mehr erreichbar. |
+| `Inaktiv` | Rot | Artikel | — | Ausser Betrieb, endgültig. |
+
+**Eine fachliche Zuordnung gehört an den Status, nicht in die Ansicht, die sie braucht.**
+«Zählt dieser Zustand zum aktuellen Bestand?» stand einmal als eigene Liste daneben
+(`LIVE_UNIT_STATUSES`) – die Form, die man beim nächsten neuen Zustand vergisst: er wäre
+stillschweigend als Bestand gezählt worden, weil «alles, was ein Stück tragen kann»
+zufällig heute dasselbe ist. Jetzt ist es ein Feld, und sein **Fehlen ist ein Fehler beim
+Start** (`_check`), kein stiller Standardwert. Zur Laufzeit reist die Antwort als
+`StockState.stock` mit den Daten – die Oberfläche entscheidet nichts und meldet einen
+Zustand ohne Zuordnung, statt ihn zu raten.
 
 **Mehr nicht.** Die früher vorgeschlagenen Werte sind zurückgezogen, jeder mit Grund:
 
@@ -935,9 +955,23 @@ Re-Renders hinweg. `prefers-reduced-motion` ist dann zu beachten.
 
 ### 10.3 Der Bestand — eine Frage, drei Ebenen, kein Filter
 
-Der Reiter «Bestand» am Artikel beantwortet **eine** Frage: *wie viel habe ich von diesem
-Artikel, in welchem Zustand, unter welcher Nummer?* Er ist reine **Summierung über
-Einzelinstanzen** — die Einzelinstanz-Regel (§2) auf der Anzeige-Ebene.
+Der Bestand beantwortet **eine** Frage: *wie viel habe ich, in welchem Zustand, unter
+welcher Nummer?* Er ist reine **Summierung über Einzelinstanzen** — die
+Einzelinstanz-Regel (§2) auf der Anzeige-Ebene.
+
+**EIN Modul, zwei Umfänge** (`components/erp/stock-view.tsx`). Dieselbe Frage steht an
+zwei Orten, und sie unterscheiden sich ausschliesslich im **Umfang der Daten**, nie in
+der Darstellung:
+
+| Aufruf | Umfang | Die Zeilen sind |
+|---|---|---|
+| Artikel, Reiter «Bestand» | alles von diesem Artikel | seine **Instanzen**, aufklappbar zu ihren Nummern |
+| Instanz-Datensatz | diese eine Gruppe | direkt ihre **Einzelinstanzen** |
+
+Die Ansicht an der Instanz ist damit exakt der Teilbaum, den man am Artikel aufklappt.
+Zwei Fassungen hätten sich beim ersten neuen Zustand, beim ersten Design-Wechsel und bei
+der ersten Regel (Bestand ↔ Historie) getrennt — genau so stand es hier: der Artikel
+hatte drei Ebenen mit Leiste und Legende, die Instanz eine schlichte Liste.
 
 **Drei Ebenen, jede vollständiger als die darüber:**
 
@@ -951,7 +985,19 @@ Einzelinstanzen** — die Einzelinstanz-Regel (§2) auf der Anzeige-Ebene.
 viel Rauschen enthält; und er versteckt, was er nicht zeigt. Stattdessen ist die
 **Aufteilung selbst das Bedienelement**: ein Segment der Leiste anklicken heisst «zeig mir
 diese Nummern», der Rest bleibt sichtbar und tritt nur zurück. Zwei Blöcke statt eines
-Filters — **Bestand** (offen) und **Historie** (zu).
+Filters — **Bestand** (offen) und **Historie** (zu); ein Block, dessen Zustände es nicht
+gibt, steht gar nicht da.
+
+**Welcher Block, sagt der Status** (§5.2), nicht die Ansicht: `StockState.stock` kommt mit
+den Daten. Ein neuer Zustand wird damit an **genau einer Stelle** ergänzt und erscheint
+hier ohne eine Zeile Änderung – mit Beschriftung, Farbe, Reihenfolge und im richtigen
+Block. Ein Zustand **ohne** Zuordnung wird **gemeldet** statt einsortiert: ihn zu raten
+wäre eine Behauptung, ihn wegzulassen ein stiller Verlust.
+
+**Die Karte ist die der Spezifikation** (`SPEC.card` + `SpecHead` aus `fields.tsx`) – die
+Anatomie jeder Detail-Ansicht, nicht die des Artikels. Sie stand lokal im Artikel und war
+dort auf «Spezifikation» festgenagelt; wer daneben etwas baute, schrieb sich einen eigenen
+Kopf, und dann sahen die Karten nur noch *ähnlich* aus.
 
 **Die Instanz hat keinen Zustand, sondern eine Aufstellung.** Eine Gruppe mit drei
 freigegebenen und einem laufenden Stück hat keinen einen Zustand (Testnotiz #675); jede

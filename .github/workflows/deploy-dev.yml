@@ -97,9 +97,10 @@ jobs:
       - name: Check generated types are up to date
         run: |
           (cd backend && python -m scripts.dump_openapi)
+          (cd backend && python -m scripts.dump_statuses)
           (cd frontend && npm run generate:types)
-          git diff --exit-code backend/openapi.json frontend/src/types/api.ts || \
-            (echo "::error::Generierte Typen sind veraltet — 'npm run generate:types' nach Backend-Schema-Änderungen ausführen und committen" && exit 1)
+          git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts || \
+            (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses' und 'npm run generate:types' ausführen und committen" && exit 1)
 
   deploy-backend:
     name: Backend → Cloud Run (dev)

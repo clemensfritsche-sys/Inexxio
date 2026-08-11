@@ -433,28 +433,42 @@ def test_the_mockup_is_replaced_by_the_real_thing():
 # Prozesslogik (PROCESS_CORE.md)
 # ---------------------------------------------------------------------------
 
-def test_the_status_list_is_closed_and_says_the_same_on_both_sides():
-    """Module wählen aus einer **geschlossenen** Liste – sie erfinden keine Werte.
+def test_the_status_list_is_generated_not_mirrored():
+    """Die Statusliste ist eine **Quelle**, kein Spiegel.
 
-    Läuft die Liste zwischen Backend und Oberfläche auseinander, zeigt die eine Seite
-    einen Zustand, den die andere nicht kennt: genau die zweite Wahrheit, gegen die die
-    geschlossene Liste gebaut ist.
+    Vorher stand sie zweimal da – in ``domain/statuses.py`` und, von Hand nachgepflegt,
+    im Frontend. Ein Test verglich beide; er **fand** ein Auseinanderlaufen, verhinderte
+    es aber nicht: ein neuer Status kostete zwei Einträge, und wer den zweiten vergass,
+    sah es erst in der CI.
+
+    Jetzt wird die eine Quelle ausgeschrieben (``scripts/dump_statuses.py``), genau wie
+    ``api.ts`` aus dem OpenAPI-Schema entsteht. Der Wächter vergleicht darum nicht mehr
+    Wert für Wert, sondern verlangt, dass die Datei **exakt** die ist, die der Generator
+    schreibt – damit kann sie gar nicht mehr abweichen.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
     from app.domain import statuses as st
+    from scripts.dump_statuses import build
 
+    path = FRONTEND / "lib" / "status-catalog.ts"
+    current = _read(path)
+    assert "GENERIERT" in current, "Der Katalog behauptet nicht mehr, generiert zu sein."
+    assert current == build(), (
+        "Der Status-Katalog ist veraltet – neu erzeugen: "
+        "cd backend && python -m scripts.dump_statuses"
+    )
+
+    # Und die Anzeige-Seite fügt nichts hinzu ausser dem Symbol: Beschriftung, Ton und
+    # Bestands-Zugehörigkeit kommen aus dem Katalog, nicht aus einer zweiten Liste.
     ts = _read(FRONTEND / "lib" / "process-status.ts")
     for value, text in st.STATUS_LABELS.items():
-        assert f"'{value}'" in ts, f"Das Frontend kennt den Status «{value}» nicht."
-        assert text in ts, f"Die Beschriftung «{text}» fehlt im Frontend."
-    # Kein erfundener Zusatzwert auf der TS-Seite.
-    m = re.search(r"export const STATUS_VALUES = \[(.*?)\]", ts, re.S)
-    assert m, "STATUS_VALUES fehlt."
-    listed = [v for v in re.split(r"[,\s]+", m.group(1)) if v]
-    assert len(listed) == len(st.STATUSES), (
-        f"Die Oberfläche führt {len(listed)} Statuswerte, das Backend {len(st.STATUSES)}."
-    )
+        assert f"'{text}'" not in ts, (
+            f"Die Beschriftung «{text}» steht wieder von Hand im Frontend."
+        )
+        assert value in ts or "STATUS_CATALOG" in ts, (
+            f"Das Frontend kennt den Status «{value}» nicht."
+        )
 
 
 def test_colour_hangs_on_the_status_at_exactly_one_place():
@@ -467,7 +481,7 @@ def test_colour_hangs_on_the_status_at_exactly_one_place():
     # Fassung verlangte, dass jede dieser Dateien `statusCfg` *nennt* – und hielt damit
     # einen Import am Leben, der längst nichts mehr tat. Ein Wächter, der tote Zeilen
     # erzwingt, arbeitet gegen sein eigenes Ziel.
-    for name in ("process-diagram.tsx", "order-detail.tsx", "instance-list.tsx",
+    for name in ("process-diagram.tsx", "order-detail.tsx", "stock-view.tsx",
                  "unit-numbers.tsx", "stock-bar.tsx"):
         src = _code(_read(FRONTEND / "components" / "erp" / name))
         # ``MODULE_TONE`` ist ausdrücklich erlaubt: Prozessmodule tragen eine eigene,
@@ -597,7 +611,7 @@ def test_an_instance_is_never_created_beside_an_order():
     # Gefragt ist «schreibt sie?», nicht «spricht sie mit dem Server?»: der Bestand ist
     # eine Summierung, und die muss er lesen. Geprüft wird darum jeder Aufruf einzeln –
     # erlaubt sind ausschliesslich Lese-Methoden.
-    for name in ("instance-list.tsx", "unit-numbers.tsx", "stock-bar.tsx"):
+    for name in ("stock-view.tsx", "unit-numbers.tsx", "stock-bar.tsx"):
         src = _read(FRONTEND / "components" / "erp" / name)
         calls = set(re.findall(r"\bapi\.([A-Za-z_]+)\(", src))
         writes = {c for c in calls if not c.startswith("get")}
@@ -1044,10 +1058,12 @@ def test_the_order_has_exactly_three_states_and_none_of_them_is_released():
     assert st.ORDER_STATUSES == (st.IM_PROZESS, st.ABGESCHLOSSEN, st.ABGEBROCHEN)
     assert st.FREIGEGEBEN not in st.ORDER_STATUSES
 
-    ts = _read(FRONTEND / "lib" / "process-status.ts")
-    m = re.search(r"export const ORDER_STATUSES = \[(.*?)\]", ts, re.S)
-    assert m, "ORDER_STATUSES fehlt im Frontend."
-    assert "FREIGEGEBEN" not in m.group(1), (
+    # Im Frontend ist die Achse eine **Eigenschaft** des Eintrags, keine zweite Liste –
+    # geprüft wird darum der Eintrag selbst.
+    ts = _read(FRONTEND / "lib" / "status-catalog.ts")
+    m = re.search(r"\{ value: FREIGEGEBEN,.*?\}", ts, re.S)
+    assert m, "Der Katalog kennt «Freigegeben» nicht."
+    assert '"order"' not in m.group(0), (
         "Die Oberfläche kennt «Freigegeben» wieder als Auftragszustand."
     )
 
@@ -2533,8 +2549,7 @@ def test_no_view_ever_renders_every_unit_at_once():
     # Und im Frontend gibt es genau EINE Liste, die Nummern zeigt.
     detail = _read(FRONTEND / "components" / "erp" / "instance-detail.tsx")
     assert "rec.units.map" not in detail, "Der Instanz-Datensatz zeichnet wieder alles."
-    assert "UnitNumbers" in detail, "Er benutzt nicht die eine, seitenweise Liste."
-    stock = _read(FRONTEND / "components" / "erp" / "instance-list.tsx")
+    stock = _read(FRONTEND / "components" / "erp" / "stock-view.tsx")
     assert "UnitNumbers" in stock, "Der Bestand hat eine zweite Nummernliste."
     units = _read(FRONTEND / "components" / "erp" / "unit-numbers.tsx")
     assert "offset" in units and "weitere" in units, (
@@ -2553,14 +2568,13 @@ def test_the_stock_groups_instead_of_filtering():
     an dem Tag, an dem es den ersten terminalen Zustand gibt; ihn heute leer hinzustellen
     wäre ein Versprechen, das die Ansicht nicht halten kann.
     """
-    stock = _read(FRONTEND / "components" / "erp" / "instance-list.tsx")
+    stock = _read(FRONTEND / "components" / "erp" / "stock-view.tsx")
     # Nur der Code: die **Begründung**, warum es keinen Filter gibt, darf ihn benennen.
     for word in ("filterBy", "<select", "Filter:"):
         assert word not in _code(stock), f"Im Bestand steht wieder ein Filter («{word}»)."
-    assert "past.length > 0 &&" in stock, (
-        "Die Historie steht unbedingt da – auch wenn es sie nicht gibt."
+    assert "if (mine.length === 0) return null;" in stock, (
+        "Ein Block steht unbedingt da – auch wenn es seinen Zustand gar nicht gibt."
     )
-    assert "isLive" in stock, "Die Trennung Bestand/Historie ist wieder hart kodiert."
 
     # Die Leiste ist EINE Komponente – oben wie in jeder Zeile.
     bar = _read(FRONTEND / "components" / "erp" / "stock-bar.tsx")
@@ -2577,28 +2591,202 @@ def test_the_stock_groups_instead_of_filtering():
     assert "onPick" in bar, "Ein Segment ist nicht anklickbar – dann braucht es doch einen Filter."
 
 
-def test_live_and_history_are_one_line_on_both_sides():
-    """Was zum **aktuellen Bestand** zählt, steht einmal – und beidseitig gleich.
+def test_live_or_history_is_a_property_of_the_status_not_a_list():
+    """**Bestand oder Historie gehört an den Status** – nicht in die Bestandsansicht.
 
-    Die Liste ist heute vollständig (es gibt keinen terminalen Zustand für ein Stück,
-    §4.2). Genau darum muss sie benannt sein: sonst steht die Trennung als ``!== 'x'``
-    in einer Komponente, und der Tag, an dem der erste solche Zustand dazukommt, findet
-    sie niemand wieder.
+    Vorher war es eine Liste (``LIVE_UNIT_STATUSES``), auf beiden Seiten gepflegt. Eine
+    Liste ist genau die Form, die man beim nächsten neuen Zustand vergisst: er wäre
+    stillschweigend als Bestand gezählt worden, weil «alles, was ein Stück tragen kann»
+    zufällig heute dasselbe ist.
+
+    Jetzt deklariert **jeder** Stück-Zustand seine Zugehörigkeit (``Status.stock``), ein
+    Import-Wächter weist eine fehlende ab, und die Antwort reist als ``StockState.stock``
+    mit den Daten. Die Oberfläche entscheidet dabei **nichts** mehr.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
     from app.domain import statuses as st
 
-    mirror = _read(FRONTEND / "lib" / "process-status.ts")
-    assert "LIVE_UNIT_STATUSES" in mirror, "Der Spiegel kennt die Zeile nicht."
-    # Heute: die Liste der Stück-Zustände. Läuft sie auseinander, ist es ein Fehler.
-    assert set(st.LIVE_UNIT_STATUSES) <= set(st.UNIT_STATUSES), (
-        "Bestands-Zustände, die ein Stück gar nicht tragen kann."
+    # 1. Deklariert, nicht abgeleitet: jeder Zustand, den ein Stück tragen kann, sagt es.
+    for value in st.UNIT_STATUSES:
+        assert st.stock_kind(value) in (st.LIVE, st.HISTORY), (
+            f"«{value}» sagt nicht, ob es Bestand oder Historie ist."
+        )
+    # 2. Und ein Wert, den es nicht gibt, wird gemeldet statt geraten.
+    assert st.stock_kind("gibt-es-nicht") == st.UNKNOWN
+
+    # 3. Die Oberfläche führt keine eigene Liste mehr und liest die Zugehörigkeit am Segment.
+    for name in ("process-status.ts", "status-catalog.ts"):
+        src = _read(FRONTEND / "lib" / name)
+        assert "LIVE_UNIT_STATUSES" not in src, (
+            f"{name} führt wieder eine Bestands-Liste – sie gehört an den Status."
+        )
+    view = _code(_read(FRONTEND / "components" / "erp" / "stock-view.tsx"))
+    assert "s.stock === b.stock" in view, (
+        "Die Bestandsansicht teilt nicht nach der vom Server gelieferten Zugehörigkeit."
     )
-    listed = re.search(r"LIVE_UNIT_STATUSES: readonly string\[\] = (\w+)", mirror)
-    assert listed, "Der Spiegel leitet die Liste nicht ab, er schreibt sie ab."
-    assert listed.group(1) == "UNIT_STATUSES", (
-        "Der Spiegel behauptet eine andere Liste als das Backend."
+    for value in st.UNIT_STATUSES:
+        assert f"'{value}'" not in view and f'"{value}"' not in view, (
+            f"Die Bestandsansicht nennt «{value}» beim Namen – dann entscheidet sie doch."
+        )
+
+
+def test_a_status_without_a_bucket_is_reported_not_guessed():
+    """Ein Zustand ohne Zugehörigkeit ist ein **Fehler**, kein Sonderfall.
+
+    Zwei Riegel, und beide müssen halten: die **Deklaration** kommt gar nicht erst durch
+    (Import-Wächter), und ein zur Laufzeit auftauchender Wert (Altdaten, von Hand
+    geschrieben) wird in der Oberfläche **benannt**. Ihn in einen Block zu raten wäre
+    eine Behauptung, ihn wegzulassen ein stiller Verlust.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    import pytest
+    from app.domain import statuses as st
+
+    # Riegel 1: ein Stück-Zustand ohne ``stock`` fliegt beim Import.
+    with pytest.raises(ValueError, match="stock"):
+        st._check(st.CATALOG + (st.Status("neu", "Neu", "done", (st.UNIT,)),))
+
+    # Riegel 2: die Oberfläche meldet, was weder Bestand noch Historie ist.
+    # Geprüft wird die **Anwendung**, nicht die Anwesenheit: eine Komponente, die nur
+    # definiert ist, meldet nichts – und genau so hätte der Wächter geschwiegen.
+    view = _code(_read(FRONTEND / "components" / "erp" / "stock-view.tsx"))
+    assert "<UnknownStates" in view, "Die Bestandsansicht meldet einen unbekannten Zustand nicht."
+    assert "s.stock !== 'live' && s.stock !== 'history'" in view, (
+        "Die Ansicht filtert das Unbekannte nicht heraus – dann landet es im falschen Block."
+    )
+
+
+def test_the_stock_is_one_module_for_the_article_and_the_instance():
+    """**Keine zweite Kopie – dasselbe Modul.**
+
+    Der Bestand beantwortet dieselbe Frage an zwei Orten: am **Artikel** «was habe ich
+    davon», an der **Instanz** «was liegt in dieser Gruppe». Der Unterschied ist der
+    Umfang der Daten, nicht die Darstellung – die Ansicht an der Instanz ist exakt der
+    Teilbaum, den man am Artikel aufklappt.
+
+    Zwei Fassungen hätten sich beim ersten neuen Zustand, beim ersten Design-Wechsel und
+    bei der ersten Regel (Bestand ↔ Historie) getrennt; genau so stand es hier: der
+    Artikel hatte drei Ebenen mit Leiste und Legende, die Instanz eine schlichte Liste.
+    """
+    view = FRONTEND / "components" / "erp" / "stock-view.tsx"
+    src = _read(view)
+    assert "export function StockView" in src, "Das Bestandsmodul heisst nicht mehr so."
+    assert not (FRONTEND / "components" / "erp" / "instance-list.tsx").exists(), (
+        "Die alte, zweite Bestandsansicht ist wieder da."
+    )
+
+    # Beide Orte rufen dasselbe Modul – und keiner baut sich Leiste/Legende selbst.
+    for name in ("article-detail.tsx", "instance-detail.tsx"):
+        caller = _read(FRONTEND / "components" / "erp" / name)
+        assert "StockView" in caller, f"{name} benutzt das Bestandsmodul nicht."
+        for own in ("StockBar", "StockLegend", "getArticleStock", "getInstanceUnits"):
+            assert own not in caller, (
+                f"{name} baut den Bestand teilweise selbst ({own}) – das ist die zweite Kopie."
+            )
+
+    # Der Umfang ist das EINZIGE, was die beiden Aufrufe unterscheidet.
+    assert "kind: 'article'" in src and "kind: 'instance'" in src, (
+        "Das Modul kennt die beiden Umfänge nicht."
+    )
+
+
+def test_the_stock_wears_the_specification_design():
+    """Der Bestand sieht aus wie die **Spezifikation** – aus derselben Quelle.
+
+    Karte, Kopf und Werteraster sind die Anatomie JEDER Detail-Ansicht; sie standen
+    lokal im Artikel und waren dort auf «Spezifikation» festgenagelt. Wer daneben eine
+    zweite Ansicht baute, musste sich einen eigenen Kopf schreiben – und dann sahen die
+    Karten nur noch *ähnlich* aus.
+    """
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    assert "export function SpecHead" in fields and "export function SpecSection" in fields, (
+        "Der Karten-Kopf wohnt nicht im gemeinsamen Vokabular."
+    )
+
+    article = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
+    assert "function CardHead" not in article and "function SubSection" not in article, (
+        "Der Artikel hält wieder eine eigene Karten-Anatomie."
+    )
+
+    for name in ("stock-view.tsx", "instance-detail.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        assert "SPEC.card" in src and "SpecHead" in src, (
+            f"{name} trägt nicht die Spezifikations-Karte."
+        )
+
+
+def test_the_instance_links_its_article_and_wears_the_shared_header():
+    """Die Instanz nennt ihren **Artikel als Datensatz**, nicht als abgeschriebenen Namen.
+
+    Sie ist eine Gruppe, die aus genau einem Artikel entstanden ist; alles Fachliche über
+    sie steht dort. Darum die **verlinkte Objektnummer** – ein Klick, immer aktuell –
+    statt einer Kopie, die veraltet, sobald jemand den Artikel anfasst.
+
+    Und der Kopf bleibt der EINE (`DetailHeader`): Layout, Raster, Farben und Schriften
+    sind über alle Datensatztypen identisch, nur der Inhalt unterscheidet sich.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "instance-detail.tsx")
+    assert "<DetailHeader" in src, "Die Instanz baut sich wieder einen eigenen Kopf."
+    assert "<ObjId value={rec.article_object_id}" in src, (
+        "Die Artikelnummer ist nicht klickbar – dann ist sie nur Text."
+    )
+    assert "<ReadField" in src, "Die Herkunft steht nicht im Werteraster der Spezifikation."
+    # Der Kopf entscheidet über Symbol/Eyebrow/Status selbst (#697) – hier keine Kopie.
+    assert "TYPE_META" not in src, (
+        "Das Instanz-Fenster löst die Typ-Identität selbst auf, statt sie dem Kopf zu überlassen."
+    )
+
+
+def test_the_scanner_suggests_with_the_feeds_own_search():
+    """**Dieselbe Suche wie im Feed** – nicht eine zweite «für die Kamera».
+
+    Die Vorschlagsliste gab es im Scanner längst; sie filterte ``step.candidates``. Nur
+    hatte der einzige Aufrufer keine: ein freier Lookup über das ganze ERP kann keine
+    fertige Kandidatenliste mitgeben, also war die Quelle **immer leer** – wer «00787»
+    tippte, sah nichts, und der Knopf blieb grau, weil eine Teilnummer keine gültige
+    Objektnummer ist.
+
+    Jetzt reicht der Feed seine eigene Suche durch (``suggest``). **Nur die
+    Vorschlagsquelle wird breiter, nicht die Gültigkeitsregel**: was ein Schritt annimmt,
+    sagt weiterhin allein ``validateForStep``.
+    """
+    lib = _read(FRONTEND / "lib" / "scan.ts")
+    assert "suggest?:" in lib, "Die Vorschlagsquelle ist keine Naht am Schritt."
+    # Die Gültigkeitsregel bleibt, wo sie war – `suggest` taucht dort nicht auf.
+    rule = _body(lib, "validateForStep", kind="function")
+    assert "suggest" not in rule, (
+        "Die Vorschlagsquelle entscheidet mit über die Gültigkeit – dann ist sie keine."
+    )
+
+    dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
+    assert "step?.suggest" in dialog, "Der Dialog fragt die Vorschlagsquelle nicht."
+    assert "step?.restrict) { setFound([]); return; }" in dialog, (
+        "Ein eingeschränkter Schritt bekommt breitere Vorschläge – dann bietet er an, "
+        "was er gar nicht annimmt."
+    )
+    assert "stale = true" in dialog, "Eine ältere Antwort kann eine neuere überholen."
+
+    # Und der Feed gibt seine EIGENE Suche herein, keine nachgebaute.
+    page = _code(_read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx"))
+    assert "suggest: suggestFromFeed" in page, "Der Feed reicht seine Suche nicht durch."
+    body = _body(page, "suggestFromFeed", kind="function")
+    assert "feedMatch(" in body and "api.getInstances(" in body, (
+        "Die Vorschläge suchen anders als der Feed – zwei Suchen, zwei Ergebnisse."
+    )
+    assert "feedMatch(r, search.toLowerCase())" in page, (
+        "Die Liste filtert nicht über die geteilte Regel."
+    )
+    assert "rowSearchText(" in _body(page, "feedMatch", kind="function"), (
+        "Die geteilte Regel liest den Suchtext nicht – dann ist sie eine zweite."
+    )
+    assert page.count("rowSearchText(") == 2, (
+        "Der Suchtext wird ausserhalb der einen Regel gelesen (Definition + 1 Anwendung)."
+    )
+    # Der Hardware-Scanner-Pfad bleibt: volle Nummer + Enter geht direkt durch.
+    assert "if (e.key === 'Enter' && typedDirectOk) submitQuery();" in dialog, (
+        "Der direkte Weg (volle Nummer + Enter) ist weg."
     )
 
 

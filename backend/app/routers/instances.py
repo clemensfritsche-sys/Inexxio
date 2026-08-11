@@ -20,7 +20,7 @@ from ..core.database import get_db
 from ..domain import statuses as st
 from ..models import Article, Instance, InstanceUnit, UserProfile
 from ..schemas.instance import (
-    InstanceResponse, InstanceSummary, InstanceUnitResponse, StockState, UnitPage,
+    InstanceResponse, InstanceSummary, InstanceUnitResponse, UnitPage, stock_states,
 )
 from ..services import instances as inst_svc, process
 
@@ -55,7 +55,7 @@ def _detail(db: Session, instance: Instance) -> InstanceResponse:
         kind=instance.kind,
         label=instance.label,
         quantity=sum(by_status.values()),
-        states=[StockState(status=s, quantity=n) for s, n in st.in_order(by_status)],
+        states=stock_states(by_status),
         created_at=instance.created_at,
         updated_at=instance.updated_at,
         is_active=instance.is_active,
@@ -103,10 +103,7 @@ def list_instances(
             article_name=names.get(i.article_id), kind=i.kind,
             label=i.label,
             quantity=sum(by_instance.get(i.id, {}).values()),
-            states=[
-                StockState(status=s, quantity=n)
-                for s, n in st.in_order(by_instance.get(i.id, {}))
-            ],
+            states=stock_states(by_instance.get(i.id, {})),
             created_at=i.created_at, updated_at=i.updated_at, is_active=i.is_active,
         )
         for i in rows

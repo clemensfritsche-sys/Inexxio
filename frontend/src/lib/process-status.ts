@@ -1,73 +1,53 @@
 import { Ban, CheckCircle2, Clock, AlertTriangle, XCircle } from 'lucide-react';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
+import { STATUS_CATALOG } from '@/lib/status-catalog';
 
 /**
- * **Die Statusliste — die eine Stelle, für alles.**
+ * **Die Anzeige eines Status — was der Katalog nicht sagen kann.**
  *
- * Fünf Wörter für drei Achsen: Einzelinstanz, Auftrag, Artikel. Sie **teilen sich** die
- * Werte, wo sie dasselbe meinen – `im_prozess` heisst am Stück wie am Auftrag dasselbe,
- * also steht es einmal da, mit einer Beschriftung und einer Farbe. Vorher lag dieselbe
- * Aussage in drei Dateien mit drei Beschriftungen, und beim Auftrag sogar als
- * «Freigegeben»: das ist keine Zustand, sondern die Aktion, mit der er entstanden ist.
+ * Beschriftung, Ampelton, Achsen und Bestands-Zugehörigkeit stehen in
+ * `lib/status-catalog.ts`, und die Datei ist **generiert** aus
+ * `backend/app/domain/statuses.py`. Hier bleibt genau das, was aus dem Fachmodell nicht
+ * kommen kann: das **Symbol** – eine Gestaltungsfrage – und die Auflösung zur
+ * Anzeige-Konfiguration.
  *
- * Farbe hängt am **Status**, nie an der Position im Fluss (PROCESS_CORE.md §5.3). Sonst
- * skaliert die Darstellung nicht: dasselbe Stück sähe oben anders aus als unten, und
- * jede neue Ansicht müsste die Regel neu erfinden.
+ * Vorher stand die ganze Liste hier ein zweites Mal, von Hand gepflegt. Ein neuer Status
+ * kostete zwei Einträge; ein Test verglich sie, verhinderte das Auseinanderlaufen aber
+ * nicht – er meldete es erst hinterher. Jetzt kostet er **einen**.
  *
- * Es gibt hier **keine** Farblogik in einzelnen Komponenten — wer einen Status anzeigt,
- * liest diese Karte. Sie spiegelt `backend/app/domain/statuses.py` und wird dagegen
- * getestet (`tests/test_frontend_mirrors.py`), damit die beiden Seiten nicht still
- * auseinanderlaufen.
+ * Farbe hängt am **Status**, nie an der Position im Fluss (PROCESS_CORE.md §5.3): der
+ * Katalog nennt den Ton, die Tokens die Farbe. Es gibt hier keine Farblogik in
+ * einzelnen Komponenten — wer einen Status anzeigt, liest `statusCfg`.
  */
 
-/** Einsatzbereit. Am Stück: in keinem Auftrag. Am Artikel: auftragsfähig. */
-export const FREIGEGEBEN = 'freigegeben';
-/** Läuft gerade – am Stück wie am Auftrag. */
-export const IM_PROZESS = 'im_prozess';
-/** Ziel erreicht (Auftrag). */
-export const ABGESCHLOSSEN = 'abgeschlossen';
-/** Das Ziel ist nicht mehr erreichbar (Auftrag). */
-export const ABGEBROCHEN = 'abgebrochen';
-/** Ausser Betrieb (Artikel). Endgültig. */
-export const INAKTIV = 'inaktiv';
+export {
+  FREIGEGEBEN, IM_PROZESS, ABGESCHLOSSEN, ABGEBROCHEN, INAKTIV,
+  STATUS_CATALOG, STATUS_VALUES,
+  UNIT_STATUSES, ORDER_STATUSES, ARTICLE_STATUSES,
+  START_BEFORE, START_AFTER, END_BEFORE,
+  type StatusTone, type StockKind, type StatusEntry,
+} from '@/lib/status-catalog';
 
-export const STATUS_CFG: Record<string, StatusCfg> = {
-  [FREIGEGEBEN]: { label: 'Freigegeben', ...TONE.done, icon: CheckCircle2 },
-  [IM_PROZESS]: { label: 'Im Prozess', ...TONE.pending, icon: Clock },
-  [ABGESCHLOSSEN]: { label: 'Abgeschlossen', ...TONE.done, icon: CheckCircle2 },
-  [ABGEBROCHEN]: { label: 'Abgebrochen', ...TONE.danger, icon: XCircle },
-  [INAKTIV]: { label: 'Inaktiv', ...TONE.danger, icon: Ban },
+/**
+ * Symbol je Status. **Das Einzige, was hier von Hand steht** – und das Einzige, was ein
+ * neuer Status hier braucht. Fehlt es, greift ein Standard: ein fehlendes Symbol ist
+ * eine Lücke in der Gestaltung, kein Fehler im Modell, und darf die Anzeige nicht
+ * blockieren.
+ */
+const ICONS: Record<string, StatusCfg['icon']> = {
+  freigegeben: CheckCircle2,
+  im_prozess: Clock,
+  abgeschlossen: CheckCircle2,
+  abgebrochen: XCircle,
+  inaktiv: Ban,
 };
 
-/** Alle Werte in Anzeige-Reihenfolge. */
-export const STATUS_VALUES = [
-  FREIGEGEBEN, IM_PROZESS, ABGESCHLOSSEN, ABGEBROCHEN, INAKTIV,
-] as const;
-
-/** Wer welche Werte tragen kann – drei Teilmengen EINER Liste, nicht drei Listen. */
-export const UNIT_STATUSES = [FREIGEGEBEN, IM_PROZESS] as const;
-export const ORDER_STATUSES = [IM_PROZESS, ABGESCHLOSSEN, ABGEBROCHEN] as const;
-export const ARTICLE_STATUSES = [FREIGEGEBEN, INAKTIV] as const;
-
-/**
- * **Welche davon sind aktueller Bestand?** Das Gegenstück ist die Historie: Stücke, die
- * es noch als Datensatz gibt, aber nicht mehr als Material.
- *
- * Heute ist das die **volle** Liste – einen terminalen Zustand für ein Stück gibt es im
- * Modell nicht (PROCESS_CORE.md §4.2 kennt genau einen Ausgang, und der ist
- * `freigegeben`). Der Bestand trennt trotzdem entlang dieser Zeile: der Historien-Block
- * erscheint an dem Tag, an dem der erste solche Zustand dazukommt, ohne dass jemand eine
- * Oberfläche anfassen muss. Solange es ihn nicht gibt, steht er auch nicht da – ein
- * leerer Block wäre ein Versprechen, das die Ansicht nicht halten kann.
- *
- * Spiegelt `domain/statuses.LIVE_UNIT_STATUSES`, getestet.
- */
-export const LIVE_UNIT_STATUSES: readonly string[] = UNIT_STATUSES;
-
-/** Zählt dieser Zustand zum aktuellen Bestand? */
-export function isLive(status: string): boolean {
-  return LIVE_UNIT_STATUSES.includes(status);
-}
+const CFG: Record<string, StatusCfg> = Object.fromEntries(
+  STATUS_CATALOG.map((s) => [
+    s.value,
+    { label: s.label, ...TONE[s.tone], icon: ICONS[s.value] ?? CheckCircle2 },
+  ]),
+);
 
 /**
  * Anzeige eines Status. Ein unbekannter Wert wird **rot gemeldet**, nicht schöngefärbt:
@@ -75,7 +55,7 @@ export function isLive(status: string): boolean {
  * malt, verbirgt genau den Fehler, den man sehen müsste.
  */
 export function statusCfg(status: string): StatusCfg {
-  return STATUS_CFG[status] ?? {
+  return CFG[status] ?? {
     label: status,
     ...TONE.danger,
     icon: AlertTriangle,
@@ -85,8 +65,3 @@ export function statusCfg(status: string): StatusCfg {
 export function statusLabel(status: string): string {
   return statusCfg(status).label;
 }
-
-/** Die festen Rand-Übergänge (§4.1) – nicht je Auftrag einstellbar. */
-export const START_BEFORE = FREIGEGEBEN;
-export const START_AFTER = IM_PROZESS;
-export const END_BEFORE = IM_PROZESS;
