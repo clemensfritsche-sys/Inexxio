@@ -26,6 +26,28 @@
 > Grund. Die Module dieser Bereiche liegen weiterhin im Repo, sind aber **nicht
 > importierbar** (Liste in `tests/test_no_undefined_names.DISABLED_PREFIXES`).
 >
+> **Das Datenerfassungsmodul ist fertig** (PROCESS_CORE §4.4/§4.5/§9.3) – und die drei
+> Regeln, die dabei entstanden sind, stehen im **Prozess-Framework**, nicht im Modul;
+> jedes künftige erbt sie ohne eine eigene Zeile. **(1) Ein Vorgang ist EINE Instanz**:
+> der Scan verifiziert das physische Ding, und das ist die Instanz – eine Einzelinstanz
+> zieht bewusst keine Objektnummer, es kann für sie gar kein Etikett geben. Charge = ein
+> Scan, Einzelserialisierung = n Scans, **ohne** eine einzige Abfrage nach der
+> Serialisierung; `confirm_step` ist darum ein **Teil**-Abschluss. Ohne Verifikation ist
+> die Eingabe **nicht möglich** (400 an der Ausführungsstelle, nicht nur ausgegraut); die
+> Tastatur bleibt die Alternative und wird als `verification='manual'` mitgeloggt – ohne
+> den Vermerk wäre sie eine stille Umgehung. **(2) «Nicht bestanden» rückt nicht vor und
+> legt nichts an**: die Stücke bleiben stehen, das System **bietet** einen ganz
+> gewöhnlichen Auftrag mit vorgewählten Stücken an. Angehalten wird die **ganze Instanz**
+> samt ungeprüftem Rest – eine durchgefallene Stichprobe ist nicht mehr repräsentativ
+> (ISO 2859-1). Die 100 %-Kontrolle ist **kein neuer Mechanismus**, nur eine andere
+> Vorbelegung, und ihr Umfang ist der Rest **dieser Instanz an diesem Modul**.
+> **(3) Die Stichprobe** ist eine Angabe in drei Formen (alle · Anzahl · Prozent,
+> `domain/sampling.py`) und gilt **je Instanz** – ein Los ist die Instanz, «10 % von drei
+> Chargen» heisst 10 % aus jeder. Gezogen wird bei der **Ankunft** (vorher steht die Menge
+> nicht fest), **zufällig** (eine Rechenregel wäre vorhersagbar) und **eingefroren im Log**
+> (`sample`-Ereignis); der ungezogene Rest läuft ohne Erfassung durch – **sichtbar**, nicht
+> stillschweigend. Wächter: `tests/test_capture_module.py`.
+>
 > **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
 > Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,
 > jeder Statuswechsel schreibt einen Eintrag im append-only Ereignis-Log; Exklusivität als

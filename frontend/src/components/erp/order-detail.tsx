@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, Layers } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import type {
   ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, RelatedOrder,
+  StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
 import { DetailHeader, HeaderAction } from '@/components/erp/fields';
@@ -20,7 +21,7 @@ import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
 import { END_BEFORE } from '@/lib/process-status';
-import { CaptureForm } from '@/components/erp/capture-form';
+import { CaptureWork } from '@/components/erp/capture-work';
 import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
@@ -58,7 +59,7 @@ export interface OrderSeed {
    * nur den Artikel vor: wie viel, woher und mit welchem Ablauf ist die Entscheidung,
    * und die trifft der Mensch. Ein reiner Shortcut, kein zweiter Anlagepfad.
    */
-  unitNumber?: string;
+  unitNumbers?: string[];
   /**
    * In welchem Auftrag das Stück lief, als der Shortcut es griff. Das ist keine
    * Zusatzinfo, sondern die **Absicht**: «ich hole es aus diesem Auftrag». Der Server
@@ -85,9 +86,11 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     if (!seed) return [emptyLine(1)];
     // Mit Stück: es steht schon in der Definition, Herkunft «Lager» folgt daraus.
     // Ohne Stück (Artikel-Shortcut): nur der Artikel – Menge und Herkunft bleiben offen.
-    return seed.unitNumber
-      ? [{ key: 1, articleObjectId: seed.articleObjectId, quantity: 1, origin: LAGER,
-           units: [{ number: seed.unitNumber, fromOrder: seed.fromOrder ?? null }],
+    const picked = seed.unitNumbers ?? [];
+    return picked.length
+      ? [{ key: 1, articleObjectId: seed.articleObjectId, quantity: picked.length,
+           origin: LAGER,
+           units: picked.map((number) => ({ number, fromOrder: seed.fromOrder ?? null })),
            returns: true }]
       : [{ ...emptyLine(1), articleObjectId: seed.articleObjectId }];
   });
@@ -165,11 +168,14 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     }
   }
 
-  const confirmStep = useCallback(async (stepId: number, values: Record<string, unknown>) => {
+  const confirmStep = useCallback(async (stepId: number, instanceObjectId: number,
+                                         verification: string,
+                                         values: Record<string, unknown>) => {
     if (!live) return;
     setBusy(true); setError(null);
     try {
-      setLive(await api.confirmStep(live.object_id, stepId, values));
+      setLive(await api.confirmStep(live.object_id, stepId, values,
+                                    instanceObjectId, verification));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -355,7 +361,8 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 
 function RunView({ order, busy, onConfirm, onDeviate }: {
   order: Order; busy: boolean;
-  onConfirm: (stepId: number, values: Record<string, unknown>) => void;
+  onConfirm: (stepId: number, instanceObjectId: number, verification: string,
+              values: Record<string, unknown>) => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
@@ -414,15 +421,22 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
           // zugeklappt startet und ob sie gesperrt ist, entscheidet das Diagramm; hier
           // steht nur der Inhalt.
           renderStep: (step, isActive) => (isActive ? (
-            <CaptureForm
+            // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
+            // (Scan-Regel §3). Was zu scannen ist, ist dieselbe Liste wie das, was zu
+            // tun ist; eine zweite daneben wäre eine zweite Wahrheit.
+            <CaptureWork
+              orderObjectId={order.object_id}
+              stepId={step.id}
               points={pointsOf(order, step.id)}
-              count={waitingAt(order, step.id)}
+              work={workOf(order, step.id)}
               busy={busy}
               onDirty={setEntryStarted}
-              onConfirm={(values) => onConfirm(step.id, values)}
+              onDeviate={onDeviate}
+              onConfirm={(instanceObjectId, verification, values) =>
+                onConfirm(step.id, instanceObjectId, verification, values)}
             />
           ) : (
-            <PointList points={pointsOf(order, step.id)} />
+            <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)} />
           )),
         }}
         parents={order.parents ?? []}
@@ -443,10 +457,19 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
  * zu lassen. Die erfassten *Werte* eines erledigten Moduls stehen nicht hier, sondern in
  * der Historie – sie sind ein Ereignis, keine Eigenschaft des Moduls.
  */
-function PointList({ points }: { points: CapturePoint[] }) {
+function PointList({ points, sample }: { points: CapturePoint[]; sample?: string }) {
   if (!points.length) return null;
   return (
     <div className="flex flex-col gap-1">
+      {/* **Die Stichprobenregel gehört zur Definition** – sie sagt, an wie vielen Stücken
+          erfasst wird. Der Satz kommt vom Server (`sampling.describe`); wie viele es
+          konkret wurden, sagt erst die Ziehung am aktiven Modul. */}
+      {sample && (
+        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-4)' }}>
+          <Layers size={13} />
+          <span>Stichprobe: {sample}</span>
+        </div>
+      )}
       {points.map((p) => {
         const Icon = CAPTURE_ICON[p.type] ?? CAPTURE_ICON.text;
         return (
@@ -486,7 +509,12 @@ async function startDeviation(
   if (instance.article_object_id == null) return;
   // Woher das Stück kommt, weiss diese Stelle sicher: aus dem Auftrag, dessen Prozess
   // gerade offen ist. Genau das ist die Aussage, die der Server bei der Freigabe prüft.
-  open({ articleObjectId: instance.article_object_id, unitNumber, fromOrder });
+  open({ articleObjectId: instance.article_object_id, unitNumbers: [unitNumber], fromOrder });
+}
+
+/** Die Stichprobenregel eines Moduls – als Satz, vom Server (`ProcessStepResponse.sample`). */
+function sampleOf(order: Order, stepId: number): string | undefined {
+  return (order.steps ?? []).find((s) => s.id === stepId)?.sample;
 }
 
 /** Die Erfassungspunkte eines Moduls – aus seiner eingefrorenen Definition. */
@@ -503,12 +531,8 @@ function pointsOf(order: Order, stepId: number): CapturePoint[] {
  * und die Kanten, die in dieses Modul münden, tragen sie. Eine zweite Liste daneben
  * hätte irgendwann eine andere Zahl genannt als das Diagramm daneben zeigt.
  */
-function waitingAt(order: Order, stepId: number): number {
-  return (order.flow?.edges ?? [])
-    .filter((e) => e.to === `module:${stepId}`)
-    .flatMap((e) => e.units ?? [])
-    .filter((u) => u.active)
-    .reduce((n, u) => n + u.count, 0);
+function workOf(order: Order, stepId: number): StepWork[] {
+  return order.steps?.find((s) => s.id === stepId)?.work ?? [];
 }
 
 /*

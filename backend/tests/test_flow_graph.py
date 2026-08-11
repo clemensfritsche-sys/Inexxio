@@ -152,6 +152,25 @@ def _db():
                     f"DATABASE_URL setzen, damit diese Invarianten wirklich laufen.")
 
 
+def _confirm(db, order, step, values=None):
+    """Ein Modul bestätigen — **ein Vorgang je wartender Instanz** (Scan-Regel §3).
+
+    Der Scan verifiziert die Instanz, nicht die Einzelinstanz; ein Bestätigen gilt darum
+    für die Stücke genau einer Instanz. Diese Tests wollen «das Modul läuft durch», also
+    gehen sie der Reihe nach durch alles, was davorsteht.
+    """
+    from app.services import process as proc
+
+    moved = 0
+    for work in proc.step_work(db, order, step):
+        moved += proc.confirm_step(
+            db, order=order, step_id=step.id, values=values or {"ok": True},
+            instance_object_id=work["instance_object_id"], verification="scan",
+            actor_id=None,
+        )["moved"]
+    return moved
+
+
 def _scenario(db):
     """Der gemeldete Fall: 2 Stück, 1 Modul, eine Abweichung nimmt 1 und gibt es zurück."""
     from app.models import Article, InstanceUnit, OrderUnit, ProcessStep
@@ -215,14 +234,12 @@ def test_every_unit_has_exactly_one_position():
 
         assert placed() == total, "Nach der Ausscherung fehlt oder doppelt ein Stück."
         cstep = db.query(ProcessStep).filter(ProcessStep.order_id == child.id).one()
-        proc.confirm_step(db, order=child, step_id=cstep.id, values={"ok": True},
-                          actor_id=None)
+        _confirm(db, child, cstep)
         db.flush()
         assert placed() == total, "Nach der Rückkehr fehlt oder doppelt ein Stück."
 
         pstep = db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one()
-        proc.confirm_step(db, order=parent, step_id=pstep.id, values={"ok": True},
-                          actor_id=None)
+        _confirm(db, parent, pstep)
         db.flush()
         assert placed() == total, "Nach dem Abschluss fehlt oder doppelt ein Stück."
     finally:
@@ -274,8 +291,7 @@ def test_a_returned_piece_stands_after_the_join():
         )
 
         cstep = db.query(ProcessStep).filter(ProcessStep.order_id == child.id).one()
-        proc.confirm_step(db, order=child, step_id=cstep.id, values={"ok": True},
-                          actor_id=None)
+        _confirm(db, child, cstep)
         db.flush()
 
         on = picture()
@@ -317,14 +333,12 @@ def test_a_walked_edge_never_becomes_weak_again():
 
         snapshot("nach dem Ausscheren")
         cstep = db.query(ProcessStep).filter(ProcessStep.order_id == child.id).one()
-        proc.confirm_step(db, order=child, step_id=cstep.id, values={"ok": True},
-                          actor_id=None)
+        _confirm(db, child, cstep)
         db.flush()
         snapshot("nach der Rückkehr")
 
         pstep = db.query(ProcessStep).filter(ProcessStep.order_id == parent.id).one()
-        proc.confirm_step(db, order=parent, step_id=pstep.id, values={"ok": True},
-                          actor_id=None)
+        _confirm(db, parent, pstep)
         db.flush()
         snapshot("nach dem Abschluss")
 
@@ -870,9 +884,8 @@ def test_the_line_says_the_past_and_the_pill_says_the_present():
         # Der Nachbar läuft durch. Das Stück kommt nicht zurück (gekappt).
         for s in (db.query(ProcessStep).filter(ProcessStep.order_id == child.id)
                   .order_by(ProcessStep.position).all()):
-            proc.confirm_step(db, order=child, step_id=s.id,
-                              values={p["key"]: True for p in (s.config or {}).get("points", [])},
-                              actor_id=None)
+            _confirm(db, child, s,
+                     values={p["key"]: True for p in (s.config or {}).get("points", [])})
         db.flush()
 
         done = out_edge()

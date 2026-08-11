@@ -8,23 +8,23 @@ anzulegen und ohne eine Nummer zu ziehen.
 
 from typing import Optional, Sequence, Union
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..domain import statuses as st
 from ..models import (
-    Article, Instance, InstanceUnit, Order, OrderUnit, UserProfile,
+    Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
 from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     DRAFT_OBJECT_ID, ProcessEventResponse, ProcessStepResponse, RelatedOrder,
-    UnitOption,
+    StepWork, UnitOption,
 )
 from ..schemas.process import (
-    CaptureTypeInfo, ModuleCatalog, ModuleTypeInfo, StepConfirm,
+    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, StepConfirm,
 )
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
@@ -68,6 +68,10 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
     for s in process_svc.steps_of(db, order):
         row = ProcessStepResponse.model_validate(s)
         row.waiting_for = pending.get(s.id, [])
+        # **Die Arbeitsliste** – je wartender Instanz eine Zeile. Sie steht am Schritt,
+        # weil ein Vorgang eine Instanz ist (Scan-Regel §3): was zu scannen ist, ist
+        # dieselbe Liste wie das, was zu tun ist.
+        row.work = [StepWork(**w) for w in process_svc.step_work(db, order, s)]
         out.append(row)
     return out
 
@@ -512,10 +516,44 @@ def confirm_step(
     zweite Stelle, an der ein Statuswechsel geschrieben wird.
     """
     order = orders_svc.get(db, object_id)
-    moved = process_svc.confirm_step(
-        db, order=order, step_id=step_id, values=data.values, actor_id=user.id)
-    log_audit(db, "process_steps", "confirm", str(moved),
+    outcome = process_svc.confirm_step(
+        db, order=order, step_id=step_id, values=data.values,
+        instance_object_id=data.instance_object_id, verification=data.verification,
+        actor_id=user.id)
+    log_audit(db, "process_steps", "confirm",
+              f"{outcome['moved']} bewegt, {outcome['held']} angehalten",
               user_id=user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)
     return _to_response(db, order)
+
+
+@router.get("/{object_id}/steps/{step_id}/hold", response_model=HoldNumbers)
+def hold_numbers(
+    object_id: int,
+    step_id: int,
+    instance: int = Query(..., description="Objektnummer der betroffenen Instanz"),
+    group: str = Query(..., description="failed | rest"),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Die Nummern für eine Entscheidung – **erst auf Klick** (§4/§4.1).
+
+    ``failed`` sind die durchgefallenen Stücke (die Stichprobe), ``rest`` die ungeprüften
+    **dieser Instanz an diesem Modul**. Beide gehen als Vorauswahl in einen ganz
+    gewöhnlichen Auftragsentwurf – die 100 %-Kontrolle ist kein eigener Mechanismus,
+    sondern dieselbe Anlage mit anderer Vorbelegung.
+
+    Nicht in der Auftrags-Antwort, weil der «Rest» einer 6000er-Charge sechstausend
+    Nummern wären – mitgeliefert bei jedem Öffnen.
+    """
+    order = orders_svc.get(db, object_id)
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None:
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    return HoldNumbers(numbers=process_svc.held_numbers(
+        db, order, step, instance_object_id=instance, group=group))

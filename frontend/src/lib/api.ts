@@ -562,9 +562,30 @@ class ApiClient {
 
   /** «Bestätigen» – der eine Ausführungs-Endpunkt, für jedes Modul derselbe. Was im
    *  Rumpf steht, entscheidet der Modultyp (Datenerfassung: die erfassten Werte). */
-  confirmStep(objectId: number, stepId: number,
-              values: Record<string, unknown> = {}): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, { values });
+  /**
+   * «Bestätigen» an einem Modul – **für genau eine Instanz** (Scan-Regel §3). Wie sie
+   * verifiziert wurde (`scan` | `manual`), reist mit: beides ist eine Bestätigung, und
+   * ohne den Vermerk wäre die Tastatur hinterher nicht von der Kamera zu unterscheiden.
+   */
+  confirmStep(objectId: number, stepId: number, values: Record<string, unknown> = {},
+              instanceObjectId?: number, verification?: string): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {
+      values,
+      instance_object_id: instanceObjectId ?? null,
+      verification: verification ?? null,
+    });
+  }
+
+  /**
+   * Die Nummern einer Entscheidungs-Gruppe – **erst auf Klick** (§4.1). Der «Rest» einer
+   * 6000er-Charge wären sechstausend Nummern; sie in jeder Auftrags-Antwort mitzuführen
+   * wäre der Preis dafür, dass man sie einmal braucht.
+   */
+  stepHold(objectId: number, stepId: number, instance: number,
+           group: 'failed' | 'rest'): Promise<{ numbers: string[] }> {
+    return this.get(
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/hold`
+      + `?instance=${instance}&group=${group}`);
   }
 
   // Instanz-Feed (server-seitig durchsuchbar/paginierbar, neueste Objektnummer zuerst).

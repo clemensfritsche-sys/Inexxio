@@ -832,6 +832,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/hold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hold Numbers
+         * @description Die Nummern für eine Entscheidung – **erst auf Klick** (§4/§4.1).
+         *
+         *     ``failed`` sind die durchgefallenen Stücke (die Stichprobe), ``rest`` die ungeprüften
+         *     **dieser Instanz an diesem Modul**. Beide gehen als Vorauswahl in einen ganz
+         *     gewöhnlichen Auftragsentwurf – die 100 %-Kontrolle ist kein eigener Mechanismus,
+         *     sondern dieselbe Anlage mit anderer Vorbelegung.
+         *
+         *     Nicht in der Auftrags-Antwort, weil der «Rest» einer 6000er-Charge sechstausend
+         *     Nummern wären – mitgeliefert bei jedem Öffnen.
+         */
+        get: operations["hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/instances": {
         parameters: {
             query?: never;
@@ -1922,6 +1950,14 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HoldNumbers
+         * @description Die Nummern einer Entscheidungs-Gruppe – Vorauswahl für einen Auftragsentwurf.
+         */
+        HoldNumbers: {
+            /** Numbers */
+            numbers?: string[];
+        };
+        /**
          * InstanceResponse
          * @description Instanz – die Gruppe, mit ihrer Menge und ihrer Aufstellung.
          *
@@ -2415,11 +2451,23 @@ export interface components {
             source_version?: number | null;
             /** Waiting For */
             waiting_for?: number[];
+            /** Work */
+            work?: components["schemas"]["StepWork"][];
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
              */
             readonly label: string;
+            /**
+             * Sample
+             * @description Die Stichprobenregel als **Satz** – aus einer Quelle (``sampling.describe``).
+             *
+             *     Sie steht in ``config``, aber die Oberfläche soll sie nicht selbst formulieren:
+             *     «3 je Instanz» ist eine Aussage über das Los, und eine zweite Formulierung
+             *     daneben liefe der ersten davon. Was zur **Laufzeit** wirklich gezogen wurde,
+             *     sagt ``StepWork`` – das ist die Ziehung, nicht die Regel.
+             */
+            readonly sample: string;
         };
         /**
          * RelatedOrder
@@ -2462,10 +2510,49 @@ export interface components {
          *     Ein Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem
          *     nicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens
          *     einen).
+         *
+         *     **Ein Vorgang ist EINE Instanz.** ``instance_object_id`` ist die verifizierte Instanz,
+         *     ``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.
+         *     Beides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die
+         *     Tastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative.
          */
         StepConfirm: {
             /** Values */
             values?: Record<string, never>;
+            /** Instance Object Id */
+            instance_object_id?: number | null;
+            /** Verification */
+            verification?: string | null;
+        };
+        /**
+         * StepWork
+         * @description Was an einem Modul für **eine Instanz** ansteht.
+         *
+         *     Zahlen statt Nummern: bei einer 6000er-Charge wäre der «Rest» sechstausend Nummern
+         *     in jeder Auftrags-Antwort. Wer sie braucht (die Vorauswahl einer Entscheidung), holt
+         *     sie einzeln (``GET …/steps/{id}/hold``) – erst auf Klick.
+         *
+         *     Die **durchgefallenen** Nummern stehen trotzdem hier: sie sind die Stichprobe, also
+         *     von Natur aus wenige, und sie sind die eigentliche Auskunft («welches Stück war es»).
+         */
+        StepWork: {
+            /** Instance Object Id */
+            instance_object_id: number;
+            /** Article Name */
+            article_name?: string | null;
+            /** Waiting */
+            waiting: number;
+            /** Sample */
+            sample: number;
+            /** Rest */
+            rest: number;
+            /**
+             * Held
+             * @default false
+             */
+            held: boolean;
+            /** Failed Numbers */
+            failed_numbers?: string[];
         };
         /**
          * StockState
@@ -4206,6 +4293,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get: {
+        parameters: {
+            query: {
+                /** @description Objektnummer der betroffenen Instanz */
+                instance: number;
+                /** @description failed | rest */
+                group: string;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldNumbers"];
                 };
             };
             /** @description Validation Error */

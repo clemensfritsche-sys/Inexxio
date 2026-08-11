@@ -20,7 +20,7 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 
-from . import capture_types, statuses as st
+from . import capture_types, sampling, statuses as st
 
 DATENERFASSUNG = "datenerfassung"
 
@@ -44,6 +44,15 @@ class Module:
     #: wird von ``process._assert_may_leave`` gelesen. Wer einen Modultyp mit
     #: Aussenwirkung anlegt, setzt ihn auf ``False`` und bekommt die Sperre geschenkt.
     units_may_leave: bool = True
+
+    #: **Muss die Instanz vor der Eingabe verifiziert werden?** (Scan-Pflicht)
+    #:
+    #: Bevor jemand etwas mit einem Stück tut, muss feststehen, dass er **das richtige
+    #: vor sich hat** – das Etikett klebt am physischen Ding. Die Regel ist darum global
+    #: und steht hier nur, damit ein künftiger Modultyp ohne physischen Bezug (ein reiner
+    #: Rechenschritt, eine Freigabe am Schreibtisch) sie abschalten kann, **ohne** dass
+    #: die Ausführungsstelle eine Fallunterscheidung bekommt.
+    requires_verification: bool = True
 
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
                  tone: str):
@@ -76,7 +85,13 @@ class Datenerfassung(Module):
     """
 
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
-        return {"points": capture_types.clean_points((raw or {}).get("points"))}
+        return {
+            "points": capture_types.clean_points((raw or {}).get("points")),
+            # **Wie viele der wartenden Stücke erfasst werden** (``domain/sampling``).
+            # Ohne Angabe: alle. Die Regel steht in der Definition, gezogen wird sie zur
+            # Laufzeit – vorher steht die Menge nicht fest.
+            "sample": sampling.clean((raw or {}).get("sample")),
+        }
 
 
 MODULES: dict[str, Module] = {
@@ -113,6 +128,15 @@ def get(module_type: Any) -> Module:
 def points_of(config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
     """Die Erfassungspunkte einer gespeicherten Definition — die eine Lesestelle."""
     return list((config or {}).get("points") or [])
+
+
+def sample_of(config: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """Die Stichprobenregel einer gespeicherten Definition — die eine Lesestelle.
+
+    Fehlt sie (Definitionen aus der Zeit vor der Stichprobe), gilt **alle**: das ist,
+    was diese Module bisher getan haben, und damit ändert sich an ihnen nichts.
+    """
+    return (config or {}).get("sample") or dict(sampling.DEFAULT)
 
 
 def label(module_type: str) -> str:

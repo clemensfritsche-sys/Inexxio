@@ -214,6 +214,58 @@ Das ist der Unterschied zwischen einer Regel und einer Hoffnung: ein Prozess, de
 freigegeben werden konnte, kann nicht mitten drin an einem Statuskonflikt hängen
 bleiben.
 
+### 4.4 Ein Vorgang ist EINE Instanz — und sie wird zuerst bestätigt
+
+Bevor jemand an einem Modul arbeitet, muss feststehen, dass er **das richtige Ding vor
+sich hat**. Also: erst die Instanz verifizieren, dann die Eingabe. Ohne Verifikation ist
+sie **nicht möglich** — durchgesetzt an der einen Ausführungsstelle
+(`process.confirm_step` → `_verified_instance`, 400), nicht als ausgegrautes Feld. Ein
+Knopf, der nicht tut, was er verspricht, ist keine Sperre, sondern eine Bitte.
+
+**Der Scan verifiziert die INSTANZ, nicht die Einzelinstanz.** Das ist keine
+Vereinfachung, sondern die einzige Möglichkeit: das Etikett klebt am physischen Ding, und
+eine Einzelinstanz zieht bewusst keine Objektnummer (§2.2) — es kann für sie gar kein
+Etikett geben. Daraus fällt der Unterschied von selbst heraus:
+
+| Serialisierung | Instanzen davor | Scans | Erfassungen |
+|---|---|---|---|
+| `batch`, 12 Stück | 1 | **1** | 1 |
+| `unit`, 12 Stück | 12 | **12** | 12 |
+
+Kein `if`, keine Abfrage nach der Serialisierung im Modul. Ein Bestätigen deckt genau die
+Stücke **einer** Instanz ab; darum ist `confirm_step` seit dieser Runde ein **Teil**-
+Abschluss und gibt zurück, was er bewirkt hat (`{moved, held, result}`).
+
+**Die Tastatur ist die Alternative, nicht die Umgehung.** Wer die Kamera nicht nutzen
+kann, tippt die Nummer — im selben Dialog. Auch das ist eine Bestätigung, und sie wird
+als solche geloggt (`verification` ∈ `scan` | `manual` im `capture`-Ereignis). Ohne den
+Vermerk wäre die Tastatur eine stille Umgehung statt einer protokollierten Alternative.
+
+**Global, nicht modulspezifisch.** Ein künftiger Modultyp ohne physischen Bezug (ein
+reiner Rechenschritt) schaltet sie mit `Module.requires_verification = False` ab — an
+seiner Registry-Zeile, ohne dass die Ausführungsstelle eine Fallunterscheidung bekommt.
+
+### 4.5 «Nicht bestanden» rückt nicht vor — und legt nichts an
+
+Ergibt eine Erfassung ein negatives Urteil, passiert **dreierlei und nicht mehr**:
+
+1. Die Erfassung ist geloggt und eingefroren (sie ist eine Tatsache, auch die schlechte).
+2. **Nichts rückt vor** — die Stücke bleiben an diesem Modul stehen, sichtbar mit Grund.
+3. Das System **bietet** den Folgeauftrag an, mit vorgewählten Stücken.
+
+Es legt ihn **nicht** an. Ein automatischer Entwurf wäre ein Auftrag, den niemand
+bestellt hat — und er zöge Stücke aus dem laufenden Auftrag, ohne dass jemand zugestimmt
+hätte (§12.6a: die Auswahl nennt, wo sie zugreift). Angelegt wird er über **denselben**
+Weg wie jeder Auftrag; die Vorauswahl ist der ganze Unterschied.
+
+**Angehalten wird die ganze Instanz, nicht nur die Stichprobe.** Fällt die Stichprobe
+durch, ist sie nicht mehr repräsentativ, und der ungeprüfte Rest ist verdächtig
+(ISO 2859-1: Sortierprüfung). Ihn weiterlaufen zu lassen hiesse, ihn hinterher wieder
+einzusammeln.
+
+Auch das ist **global**: die Regel steht in `confirm_step`, nicht im Modul. Ein Modultyp
+muss nur sagen, wie sein Urteil lautet (`CaptureType.verdict`).
+
 ---
 
 ## 5. Statuswerte (A1, A4)
@@ -842,9 +894,9 @@ Zweck: im Prozess laufend Daten erfassen und kontrollieren (Richtung Qualitätss
 | | |
 |---|---|
 | Übergang | **Durchläufer**: `Im Prozess` → `Im Prozess`, **fest verdrahtet** (`domain/modules`). Es misst — es verändert den Zustand des Stücks nicht. Passt der Ist-Status nicht: sauberer Fehler. |
-| Anlegen | Freier Name · **Erfassungspunkte**: je Punkt Bezeichnung, Typ, Pflicht ja/nein. Mindestens einer — ein Modul ohne Punkt stünde im Prozess und hätte nichts zu tun. |
-| Laufzeit | Es zeigt die Einzelinstanzen, die gerade davorstehen, und die zu erfassenden Punkte. |
-| **«Bestätigen»** | Pflichtpunkte prüfen (offen → Fehler, der sie **benennt**) · erfassen · Nachher-Status setzen · Ereignis loggen und einfrieren · Stück rückt vor. |
+| Anlegen | **Kein Name** (er steht im Typ, #682) · **Stichprobe** (§9.3) · **Erfassungspunkte**: je Punkt Bezeichnung und Typ. Mindestens einer — ein Modul ohne Punkt stünde im Prozess und hätte nichts zu tun. **Alles, was angelegt ist, ist Pflicht**; ein «optional»-Häkchen gibt es nicht mehr. |
+| Laufzeit | Eine Zeile **je Instanz**, die davorsteht (§4.4): Objektnummer, Artikel, Umfang («3 von 10 Stück werden erfasst · 7 laufen ohne Erfassung durch»). |
+| **«Bestätigen»** | Instanz verifiziert? (§4.4, sonst 400) · alle Punkte erfasst? (offen → Fehler, der sie **benennt**) · erfassen · Urteil bilden · **bestanden**: Nachher-Status setzen, Ereignis loggen, Stücke rücken vor — **nicht bestanden**: §4.5. |
 
 **Kein Status-Feld beim Anlegen.** Der Übergang gehört zum Modultyp; zwei Auswahlen
 hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand.
@@ -879,9 +931,42 @@ bestätigt. Gelesen wird frei (Instanz-Detail, Reiter «Datenerfassung»); geän
 Ist es das **letzte** Modul, passiert das Stück im selben Zug das Ende-Objekt und wird
 frei (§3.1).
 
-**Was ein «nicht bestanden» auslöst, ist weiterhin offen** (§13.4). Bis dahin ist das
-Ergebnis eine Aussage über die **Messung**, kein Ereignis im Prozess — ein erfundener
-Abzweig wäre schlimmer als keiner.
+**Was ein «nicht bestanden» auslöst, steht in §4.5** — es ist keine Modulregel, sondern
+eine Prozessregel, und jedes künftige Modul erbt sie.
+
+### 9.3 Die Stichprobe — eine Angabe, drei Formen
+
+Nicht jede Prüfung geht über alle Stücke. Die Regel steht in der **Definition**
+(`domain/sampling.py`), gezogen wird sie zur **Laufzeit**:
+
+| Form | Bedeutung |
+|---|---|
+| **alle** | Vorgabe — wer nichts sagt, prüft alles. |
+| **Anzahl n** | n Stücke je Instanz. |
+| **Prozent p** | p % der Instanz, **aufgerundet**. |
+
+Drei Entscheidungen, jede an einer Stelle:
+
+**Die Regel gilt je INSTANZ, nicht je Auftrag.** Eine Stichprobe wird aus einem **Los**
+gezogen (ISO 2859-1), und das Los ist hier die Instanz — die Charge, die physisch als
+eine Kiste dasteht. «10 % von drei Chargen» heisst 10 % **aus jeder**; sonst bliebe eine
+ganze Charge womöglich ungeprüft, und die Aussage der Stichprobe wäre keine. Daraus folgt
+zugleich, dass sie **nie leer** ist: «0 von 5» ist keine Prüfung, sondern ihr Ausfall.
+
+**Gezogen wird bei der ANKUNFT** — nicht bei der Freigabe. Vorher steht die Menge nicht
+fest: eine Abweichung kann Stücke entzogen, eine Rückführung welche hinzugefügt haben.
+`sampling.ensure` läuft darum genau dann, wenn Stücke an einem Modul ankommen (Start und
+jedes Vorrücken), und ist **idempotent** je (Modul, Instanz).
+
+**Zufällig, aber eingefroren.** Wer gezogen wurde, entscheidet `random.sample` über die
+nach id sortierte Menge — und das Ergebnis steht als `sample`-Ereignis im Log
+(§11.3, append-only). Damit ist die Auswahl **nachweisbar** und ändert sich nicht mehr,
+wenn jemand die Seite neu lädt. Eine deterministische Ableitung (jedes n-te Stück) wäre
+vorhersagbar und damit als Stichprobe wertlos.
+
+**Der Rest läuft ohne Erfassung durch — sichtbar.** Das steht in der Zeile («7 laufen
+ohne Erfassung durch») und ist keine stille Auslassung. Bestätigt wird für die gezogenen
+Stücke; vorgerückt wird die **ganze** Instanz.
 
 ---
 
@@ -1357,17 +1442,20 @@ beantwortet, sobald ein Modul mit Aussenwirkung existiert.
 Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werden einzeln
 nachgetragen — nicht beim Bauen erraten.
 
-1. **Die weiteren Prozessschrittmodule.** Das erste ist gebaut (Datenerfassung, §9).
-   *Offen daran: was bei «nicht bestanden» passiert (siehe 4) – und ob je Einzelinstanz
-   einzeln erfasst wird oder einmal gemeinsam (§14, heute gemeinsam).*
+1. **Die weiteren Prozessschrittmodule.** Das erste ist fertig (Datenerfassung, §9).
+   *Nicht mehr offen: die Erfassungsgrösse ist die **Instanz** (§4.4), und was bei
+   «nicht bestanden» passiert, steht in §4.5.*
 2. **Darf ein Abweichungsauftrag noch ausgelöst werden, wenn in einem Modul bereits mit
    der Dateneingabe begonnen wurde?** Gebaut ist vorläufig die restriktivere Variante
    (nein) — als **Eigenschaft des Modultyps**, nicht als globale Regel (§12.7).
 3. **Abbruch.** §3.1 schlägt vor, was mit den Stücken geschieht; wer abbrechen darf und
    was mit dem Auftrag selbst passiert, ist offen.
-4. **Fehlerbehandlung im Modul.** Ein Modul kann scheitern (Prüfung nicht bestanden).
-   Ist das ein Status, ein Abzweig, oder beides? Solange das offen ist, gibt es keinen
-   roten Statuswert (§5.2).
+4. **~~Fehlerbehandlung im Modul.~~ Entschieden (§4.5): weder Status noch automatischer
+   Abzweig.** Das Stück bleibt stehen, das Ergebnis ist geloggt, und der Mensch
+   entscheidet — angeboten wird ein ganz gewöhnlicher Auftrag mit vorgewählten Stücken.
+   Es bleibt darum bei den zwei Statuswerten (§5.2): «nicht bestanden» ist eine Aussage
+   über die **Messung**, kein Zustand des Stücks. Ein Stück, das in einem
+   Abweichungsauftrag landet, ist `Im Prozess` — dort, wo es hingehört.
 5. **Zwei `Neu`-Zeilen mit verschiedenen Vorlagen.** Heute ein harter Fehler: ein Auftrag
    hat einen Prozess (§14). Ob es dafür je einen Fall gibt, ist nicht entschieden.
 6. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
@@ -1391,10 +1479,16 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **`orders.end_status` als Ort des Endzustands** | Hält die Schrittliste rein und gibt dem Endzustand seine eine Adresse. |
 | **A5 gilt für Modul-Definitionen, nicht für die Instanz-Liste** | Bei einer Liste wäre «löschen und neu anlegen» dasselbe wie «bearbeiten». |
 | **Der Auftrag kennt `released` und `completed`** | «Abgeschlossen» ist abgeleitet: alle Stücke sind durch. Kein Feld, das jemand von Hand setzt. |
-| **Ein Modul bewegt alle Stücke, die davor stehen** | Ein Bestätigen je Stück wäre bei 500 Stück unbedienbar; die Historie bleibt trotzdem **je Stück** ein eigener Eintrag. |
-| **Die Datenerfassung erfasst EINMAL für alle Davorstehenden** | Die einfachere der beiden plausiblen Varianten (die andere: je Stück ein eigener Wertesatz, also 5 Unterschriften bei 5 Stück). **Gespeichert wird trotzdem je Einzelinstanz** — das Modell nimmt die andere Variante damit vorweg, sie wäre eine Änderung an der Eingabe, nicht an der Datenhaltung. **Zur Entscheidung vorgelegt.** |
+| **Ein Modul bewegt alle Stücke einer INSTANZ, die davor stehen** | *(Ersetzt «alle Stücke, die davor stehen».)* Ein Bestätigen je Stück wäre bei 500 Stück unbedienbar — je **Instanz** ist es die richtige Grösse, weil der Scan die Instanz verifiziert (§4.4): eine Charge ist ein Griff, zwölf Einzelteile sind zwölf. Die Historie bleibt **je Stück** ein eigener Eintrag. |
+| **Die Datenerfassung erfasst EINMAL je Instanz** | *(Ersetzt «einmal für alle Davorstehenden» — entschieden über §4.4.)* Nicht die bequemere, sondern die einzig mögliche Grösse: ein Wertesatz gehört zu **einem** Urteil, und verifiziert wird eine Instanz. **Gespeichert wird weiterhin je Einzelinstanz**, damit die Zeile in deren Historie steht. |
+| **Die Stichprobe wird zufällig gezogen, nicht gerechnet** | «Jedes n-te Stück» wäre vorhersagbar und damit als Stichprobe wertlos. Gezogen wird bei der **Ankunft** (vorher steht die Menge nicht fest) und **eingefroren im Log** — sie ändert sich nicht mehr, wenn jemand die Seite neu lädt (§9.3). |
+| **Die Stichprobenregel gilt je Instanz** | Ein Los ist die Instanz (ISO 2859-1). «10 % von drei Chargen» heisst 10 % aus jeder; je Auftrag gerechnet bliebe eine ganze Charge womöglich ungeprüft. |
+| **Ein «nicht bestanden» hält die GANZE Instanz an** | Auch die nicht gezogenen Stücke: eine durchgefallene Stichprobe ist nicht mehr repräsentativ, der Rest ist verdächtig (Sortierprüfung). Ihn weiterlaufen zu lassen hiesse, ihn hinterher wieder einzusammeln. |
+| **Die 100 %-Kontrolle ist ein gewöhnlicher Auftrag** | Kein neuer Mechanismus — nur eine andere Vorbelegung (der ungeprüfte Rest statt der Durchfaller). Ihr Umfang ist der Rest **dieser Instanz an diesem Modul**: Stücke, die anderswo laufen oder längst am Lager liegen, hat dieses Modul nie behandelt, und eine Aussage über sie wäre eine über Material, das hier nie war. |
+| **Die Nummern der Entscheidungs-Gruppen kommen erst auf Klick** | Bei einer 6000er-Charge wäre der «Rest» sechstausend Nummern — mitgeliefert bei jedem Öffnen des Auftrags. Eigener Endpunkt (`GET …/steps/{id}/hold`). |
+| **Die Art der Bestätigung steht im Log** | `scan` oder `manual`. Ohne den Vermerk wäre die Tastatur eine stille Umgehung der Scan-Pflicht statt ihrer protokollierten Alternative. |
 | **Der Übergang gehört zum Modultyp, nicht zum Anwender** | «Fest verdrahtet, nicht einstellbar» (Vorgabe). Zwei Status-Auswahlen beim Anlegen hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand — und deren falsche einen Prozess ergäbe, der nicht läuft. |
-| **Ein neuer Erfassungspunkt ist standardmässig Pflicht** | Man legt einen Punkt an, weil er erfasst werden soll; «optional» ist die Ausnahme und steht als Häkchen daneben. |
+| **Alles, was angelegt ist, ist Pflicht** | *(Ersetzt «standardmässig Pflicht, optional als Häkchen».)* Man legt einen Punkt an, weil er erfasst werden soll. Ein Häkchen daneben wäre die Frage, warum man einen Punkt anlegt, den niemand ausfüllen muss — und jeder ausgeschaltete eine Lücke, die erst später auffällt. |
 | **Ein Erfassungspunkt-Typ ist eine Datei, keine Zeile in einer Liste** | Ein Typ ist **Verhalten** (prüfen · fehlt der Wert · bewerten), nicht nur ein Wort. Als `if/else` verteilt sich das auf drei Stellen, von denen man die dritte vergisst. |
 | **Der Artikel entsteht erst bei seiner Freigabe** | Dieselbe Regel wie beim Auftrag (§6.1) und aus demselben Grund. Ein Artikel, der schon eine Objektnummer hat, aber nichts erzeugen kann, ist ein Datensatz mit einer Zusage, die er nicht halten kann. |
 | **`articles.status` kennt nur noch `released` und `inactive`** | `draft` hatte keinen Zustand mehr zu beschreiben: vor der Freigabe gibt es keine Zeile. Vorgefundene Entwürfe (Ergebnis des behobenen Fehlers) werden **inaktiv** — nicht gelöscht, denn ihre Objektnummer ist vergeben. |
