@@ -664,18 +664,36 @@
   z-index: 60;
   box-shadow: var(--shadow-md);
 }
-[data-tip]:hover::after,
-/* **Und auf dem Touchgerät**: dort gibt es kein Hover. Ein Tipp auf ein fokussierbares
-   Element setzt den Fokus – dieselbe Blase, derselbe Weg, kein zweites Muster. Für die
-   Tastatur fällt es geschenkt ab. */
-[data-tip]:focus::after,
-[data-tip]:focus-within::after { display: block; transform: translateX(-50%) translateY(0); }
+[data-tip]:hover::after { display: block; transform: translateX(-50%) translateY(0); }
+/* **Ohne Zeigegerät ist der Fokus der Hover.** Ein Tipp auf ein fokussierbares Element
+   setzt den Fokus – dieselbe Blase, derselbe Weg, kein zweites Muster.
+
+   **Mit Maus gilt das nur für die Tastatur** (`:focus-visible`). Ein Klick setzt ebenfalls
+   Fokus, und die Blase blieb danach stehen, bis man woandershin klickte: beim Aufklappen
+   einer Stück-Pille hing ihr «Nummern anzeigen» über der Liste, während der Zeiger schon
+   auf einer Nummer stand – **zwei Blasen gleichzeitig**, die eine ohne Bezug zum Zeiger.
+   Getrennt nach Eingabeart, weil die Frage «wo zeige ich hin» genau daran hängt. */
+@media (hover: none) {
+  [data-tip]:focus::after,
+  [data-tip]:focus-within::after { display: block; transform: translateX(-50%) translateY(0); }
+}
+@media (hover: hover) {
+  [data-tip]:focus-visible::after { display: block; transform: translateX(-50%) translateY(0); }
+}
 /* **Mehrzeilig** (Historie am Prozessobjekt): Zeilenumbrüche aus `attr()` gelten nur
    mit `pre-line`, und eine Liste liest sich linksbündig. Eigene Variante statt einer
    Änderung an allen Blasen – ein einzeiliger Hinweis bleibt zentriert. */
 [data-tip][data-tip-list]::after {
   white-space: pre-line; text-align: left; max-width: 340px; font-variant-numeric: tabular-nums;
 }
+/* **Die innere Blase gewinnt.** Liegt ein `[data-tip]` in einem anderen, ist beim Zeigen
+   auf das innere auch das äussere «hover» – und es erschienen **zwei** Blasen übereinander
+   (gemeldet an der Stück-Pille: «seit wann steht es hier» und «Datensatz öffnen»). Welche
+   gemeint ist, sagt der Cursor: die am genaueren Element. Als Regel hier statt als
+   Einzelfall dort – sonst wächst dieselbe Doppelung beim nächsten geschachtelten Hinweis
+   wieder nach. */
+[data-tip]:has([data-tip]:hover)::after,
+[data-tip]:has([data-tip]:focus)::after { display: none; }
 /* nach unten öffnen (für Elemente ganz oben) */
 [data-tip][data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 9px); transform: translateX(-50%) translateY(-3px); }
 [data-tip][data-tip-pos="bottom"]:hover::after { display: block; transform: translateX(-50%) translateY(0); }

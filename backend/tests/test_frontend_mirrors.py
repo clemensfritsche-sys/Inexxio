@@ -2344,3 +2344,107 @@ def test_a_neighbour_is_its_process_and_a_lock_needs_no_paragraph():
     assert "fieldset disabled={locked}" in diagram.replace("<", ""), (
         "Die Sperre selbst ist weg – der Text war überflüssig, die Wirkung nicht."
     )
+
+
+def test_the_pill_reads_the_present_and_the_line_the_past():
+    """**Zwei Aussagen, zwei Träger** (Auftrag §1).
+
+    «In Abweichung» ist ein Satz in der Gegenwartsform. Er stand unbedingt an jeder
+    ausgescherten Zeile – auch dann noch, wenn der Nachbar fertig war und das Stück in
+    keinem Prozess mehr stand. Die Antwort steht in den Daten, die die Kante ohnehin
+    trägt: ``status``. Wer sie ignoriert und das Wort festverdrahtet, behauptet wieder
+    Gegenwart über Vergangenes.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    assert "u.status === IM_PROZESS" in src and "u.status !== IM_PROZESS" in src, (
+        "Die ausgescherten Stücke werden nicht mehr nach ihrem Zustand getrennt – dann "
+        "sagt die Pille wieder für immer «In Abweichung»."
+    )
+    assert "Abgegeben ·" in src, "Für «dort geblieben» fehlt das Wort."
+    # Die Linie bleibt, was sie ist: Vergangenheit aus dem Log.
+    assert "walked={e.walked}" in src, "Die Linie liest nicht mehr den Log."
+
+
+def test_the_history_hangs_where_nothing_clips_it():
+    """**Die Blase ist ein `::after` – ein `overflow: hidden` schneidet sie weg.**
+
+    Genau das war der Grund, warum der Ereignis-Log an Start und Ende erschien, am
+    **Modul** aber nicht: dort hing er an der Beschriftung, und die kürzt lange Namen
+    (`truncate`). Ein Hinweis, der an manchen Objekten unsichtbar ist, ist kein Muster.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    head = src.split("function StepCard(")[1].split("\nfunction ")[0]
+    for block in re.findall(r"<span[^>]*truncate[^>]*>", head):
+        assert "data-tip" not in block, (
+            "Die Historie hängt wieder an einem kürzenden Element – dort ist sie unsichtbar."
+        )
+    assert "data-tip={history} data-tip-list={history ? '' : undefined}" in head, (
+        "Das Modul trägt die Historie gar nicht mehr."
+    )
+
+
+def test_only_one_bubble_at_a_time():
+    """**Eine Blase, und zwar die unter dem Zeiger.**
+
+    Zwei Wege führten dazu, dass zwei gleichzeitig standen:
+
+    * **Geschachtelt** – zeigt man auf das innere `[data-tip]`, ist das äussere ebenfalls
+      «hover». Gemeint ist immer das genauere.
+    * **Fokus nach Klick** – ein Mausklick setzt Fokus, und die Blase blieb danach
+      stehen, während der Zeiger längst woanders war. Der Fokus-Weg ist für Touch und
+      Tastatur gedacht; mit Maus zählt darum nur `:focus-visible`.
+    """
+    css = _read(FRONTEND / "app" / "globals.css")
+    assert "[data-tip]:has([data-tip]:hover)::after" in css, (
+        "Die innere Blase gewinnt nicht mehr – geschachtelt stehen wieder zwei."
+    )
+    assert "@media (hover: none)" in css and "@media (hover: hover)" in css, (
+        "Der Fokus-Weg ist nicht mehr nach Eingabeart getrennt."
+    )
+    focus = css.split("@media (hover: hover)")[1][:200]
+    assert ":focus-visible::after" in focus and ":focus::after" not in focus, (
+        "Mit Maus zeigt ein Klick wieder eine Blase, die dann stehen bleibt."
+    )
+
+
+def test_the_return_switch_sits_where_its_line_starts():
+    """**Der Schalter steht auf der Linie, die er schaltet** (Auftrag §5).
+
+    Drei Anläufe: neben der Stückauswahl (Aussage ≠ Wirkung), als Ersatz-Knoten mit
+    **eigener** Linie (zwei Linien für eine Entscheidung), als Klick auf die ganze
+    Nachbarspalte (kein Bedienelement, nur Fläche). Jetzt: eine Pille unter dem
+    Ende-Objekt – **die letzte Zeile der Spalte**, und genau dort dockt die echte
+    Rückführungslinie an (§8.1a″).
+
+    Sie **bleibt**, wenn die Linie geht: sonst wäre die Entscheidung einmalig.
+    """
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    cols = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
+    assert "function ReturnRow(" in diagram, "Es gibt keinen Schalter mehr."
+    assert "if (extra.returns) rows.push({ key: 'return', slot: 'return' });" in diagram, (
+        "Der Schalter ist nicht die letzte Zeile – dann beginnt die Linie woanders als er."
+    )
+    # Die Linie dockt an der letzten Zeile an; steht der Schalter nicht dort, driften sie.
+    assert "rows[rows.length - 1]" in cols, (
+        "Die Querverbindung dockt nicht mehr an der letzten Zeile der Spalte an."
+    )
+    assert "onToggle" not in _code(cols).split("function Neighbour(")[1].split("\n}")[0], (
+        "Die Nachbarspalte schaltet wieder – eine Fläche ohne Aufforderung ist kein "
+        "Bedienelement."
+    )
+
+
+def test_the_definition_is_the_fields_not_a_frame_around_them():
+    """**Kein Container um Karten, keine Überschrift über Feldern.**
+
+    Über der Anlage stand «Definition» und der Satz «Was bearbeitet dieser Auftrag? Ohne
+    Definition kein Start.» – beides sagte, was die Felder darunter zeigen, und der
+    Rahmen legte eine zweite Kante um Zeilen, die bereits Karten sind.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
+    assert "Ohne Definition kein Start" not in src, "Der Erklärsatz steht wieder da."
+    body = src.split("export function DefinitionLines(")[1].split("\nfunction ")[0]
+    assert ">\n          Definition\n" not in body, "Die Überschrift steht wieder da."
+    assert "border: '1px solid var(--border-1)'" not in body, (
+        "Um die Zeilen liegt wieder ein eigener Rahmen."
+    )

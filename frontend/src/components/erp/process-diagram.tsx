@@ -3,14 +3,16 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Blocks, ChevronDown, ChevronUp, CornerUpLeft, Flag, GitBranch, GripVertical, Lock,
-  MoreHorizontal, Play, Sprout, Trash2,
+  MoreHorizontal, Play, Scissors, Sprout, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
 import {
   BEND, FLOW_GAP, FlowFrame, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
 } from './process-flow';
 import { UnitNumber } from './unit-number';
-import { statusCfg, START_AFTER, START_BEFORE, END_BEFORE, statusLabel } from '@/lib/process-status';
+import {
+  statusCfg, IM_PROZESS, START_AFTER, START_BEFORE, END_BEFORE, statusLabel,
+} from '@/lib/process-status';
 import { formatObjectId, localDateTime } from '@/lib/utils';
 import { useErpNav } from './obj-id';
 import type {
@@ -116,7 +118,7 @@ export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
  * verschöbe den Nebenauftrag gegenüber der anderen um eine Zeile.
  */
 export type ColumnRow =
-  | { key: string; slot: 'head' | 'tail' | 'journey-in' | 'journey-out' }
+  | { key: string; slot: 'head' | 'tail' | 'journey-in' | 'journey-out' | 'return' }
   | { key: string; node: GraphNode }
   | { key: string; edge: GraphEdge };
 
@@ -128,6 +130,8 @@ export type ColumnRow =
  */
 export function columnRows(g: ProcessGraph, extra: {
   head?: boolean; tail?: boolean; journeyIn?: boolean; journeyOut?: boolean;
+  /** Der Rückführungs-Schalter des Entwurfs – **die letzte Zeile**, siehe `ReturnRow`. */
+  returns?: boolean;
 } = {}): ColumnRow[] {
   const outgoing = new Map<string, GraphEdge>();
   (g.edges ?? []).forEach((e) => { if (e.kind === 'axis') outgoing.set(e.frm, e); });
@@ -146,6 +150,9 @@ export function columnRows(g: ProcessGraph, extra: {
     if (e && (e.units ?? []).length) rows.push({ key: `on:${e.id}`, edge: e });
   });
   if (extra.journeyOut) rows.push({ key: 'journey-out', slot: 'journey-out' });
+  // **Ganz unten**, denn genau dort beginnt die Rückführungslinie: sie dockt an der
+  // letzten Zeile dieser Spalte an (§8.1a″). Der Schalter sitzt damit **auf** ihr.
+  if (extra.returns) rows.push({ key: 'return', slot: 'return' });
   return rows;
 }
 
@@ -361,6 +368,17 @@ export interface ColumnProps {
   /** Der Ereignis-Log – **am Objekt**, an dem er passiert ist (§5). */
   events?: ProcessEventResponse[];
   eventTotal?: number;
+  /** Nur im Entwurf: die geplanten Rückführungen – der Schalter am Anfang ihrer Linie. */
+  returns?: ReturnTarget[];
+  onToggleReturn?: (parentObjectId: number) => void;
+}
+
+/**
+ * **Eine geplante Rückführung** – ein Quell-Auftrag und die Frage, ob es zu ihm zurückgeht.
+ */
+export interface ReturnTarget {
+  objectId: number;
+  on: boolean;
 }
 
 /**
@@ -375,7 +393,7 @@ export function FlowColumn({
   renderStep, onExpand, tone, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
   containerStyle, rowStyle, origins = [],
-  events = [], eventTotal,
+  events = [], eventTotal, returns = [], onToggleReturn,
 }: ColumnProps) {
   const running = mode === 'ausfuehrung';
   // **Eingeklappt, ausser das Modul ist dran** (#696) – EINE Regel, EINE Stelle. Sie
@@ -391,6 +409,7 @@ export function FlowColumn({
   const rows = columnRows(graph, {
     head: !!head, tail: !!tail,
     journeyIn: hasJourney(journeyIn, origins), journeyOut: journeyOut.length > 0,
+    returns: returns.length > 0,
   });
   const byId = new Map(steps.map((s) => [s.id, s]));
   const place = (i: number, extra?: CSSProperties): CSSProperties => ({
@@ -412,7 +431,9 @@ export function FlowColumn({
         if ('slot' in row) {
           const body = row.slot === 'head' ? head
             : row.slot === 'tail' ? tail
-              : <JourneyRow
+              : row.slot === 'return'
+                ? <ReturnRow targets={returns} onToggle={onToggleReturn} />
+                : <JourneyRow
                   where={row.slot === 'journey-in' ? 'in' : 'out'}
                   stops={(row.slot === 'journey-in' ? journeyIn : journeyOut)
                     .slice(0, JOURNEY_LIMIT)}
@@ -508,21 +529,66 @@ function Point({ kind }: { kind: string }) {
   );
 }
 
-/*
- * **Der geplante Rückweg hat keinen eigenen Knoten mehr** (Auftrag §2 + §5).
+/**
+ * **Der Schalter sitzt am ANFANG der Rückführungslinie** (Auftrag §5).
  *
- * Hier stand `ReturnSwitch`: unter dem Ende eine Zeile mit den Quell-Aufträgen als
- * Zielen, und die Linie dorthin gab es nur, wenn zurückgeführt wird. Das war der
- * **Ersatz** für etwas, das im Entwurf nicht zu sehen war – der Quell-Auftrag selbst.
+ * Drei Anläufe, und der Unterschied ist jedes Mal, *wo* die Entscheidung steht:
  *
- * Seit die Vorschau ihn in die linke Spur stellt, ist er da: mit seinem Abzweigepunkt,
- * seinem Rückführpunkt und der Linie dazwischen, gerechnet vom Server (`flow.Planned`) –
- * also genau dem Bild, das nach der Freigabe entsteht. Beides nebeneinander hiesse: zwei
- * Rückweg-Linien für eine Entscheidung, und die zweite wäre die erfundene.
+ * | | |
+ * |---|---|
+ * | Knopfpaar an der Stückauswahl | die Aussage stand woanders als ihre Wirkung |
+ * | Ersatz-Knoten mit eigener Linie | zwei Rückweg-Linien für **eine** Entscheidung |
+ * | Klick auf die ganze Nachbarspalte | kein Bedienelement, nur eine grosse Fläche |
  *
- * Die Regel bleibt Wort für Wort – «ein Klick auf das Ziel schaltet sie an und aus»; nur
- * ist das Ziel jetzt der echte Auftrag statt einer Ersatz-Pille (`Neighbour onToggle`).
+ * Jetzt: **eine Pille unter dem Ende-Objekt** – und die echte Rückführungslinie geht von
+ * genau dort ab (sie dockt an der letzten Zeile dieser Spalte an, §8.1a″). Der Schalter
+ * ist damit sichtbar ein Bedienelement, steht auf der Linie, die er schaltet, und
+ * **bleibt**, wenn sie geht: sonst wäre die Entscheidung einmalig statt änderbar.
+ *
+ * Die Linie selbst bleibt die Antwort – ist sie da, geht es zurück. Kein Strichmuster,
+ * keine dritte Stärke, keine zweite Linie.
  */
+function ReturnRow({ targets, onToggle }: {
+  targets: ReturnTarget[]; onToggle?: (objectId: number) => void;
+}) {
+  return (
+    <div className="w-full flex flex-wrap items-center justify-center gap-1.5">
+      {targets.map((t) => (
+        <button
+          key={t.objectId}
+          type="button"
+          disabled={!onToggle}
+          onClick={() => onToggle?.(t.objectId)}
+          className="inline-flex items-center gap-1.5 rounded-full text-xs"
+          // **Kein Strichmuster, auch nicht am Rand.** Der Schalter steht am Anfang einer
+          // Linie; ein gestrichelter Rahmen dort läse sich als dritte Linienart (§8.1a).
+          // Sein Zustand steht ohnehin zweifach da: im Symbol und im Wort.
+          style={{
+            minHeight: 36, padding: '7px 12px',
+            border: `1px solid var(${t.on ? '--border-2' : '--border-1'})`,
+            background: t.on ? 'var(--bg-1)' : 'transparent',
+            color: t.on ? 'var(--fg-2)' : 'var(--fg-4)',
+            cursor: onToggle ? 'pointer' : 'default',
+          }}
+          data-tip={t.on
+            ? `Nach dem Durchlauf geht jedes Stück an genau die Stelle in Auftrag `
+              + `${formatObjectId(t.objectId)} zurück, an der es ausgeschert ist. `
+              + `Klicken kappt die Rückführung.`
+            : `Die Stücke bleiben hier; Auftrag ${formatObjectId(t.objectId)} läuft mit `
+              + `weniger weiter. Klicken führt sie wieder zurück.`}
+        >
+          {t.on ? <CornerUpLeft size={13} /> : <Scissors size={13} />}
+          {t.on ? 'kehrt zurück' : 'bleibt hier'}
+          {targets.length > 1 && (
+            <span className="ix-tnum" style={{ color: 'var(--fg-4)' }}>
+              {formatObjectId(t.objectId)}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * **Sichtbar kaputt statt still falsch.**
@@ -732,9 +798,24 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
   const [numbers, setNumbers] = useState<UnitChip[] | null>(null);
   const [busy, setBusy] = useState(false);
   const groups = outward ? [] : units;
-  const away = outward ? units : [];
+  /**
+   * **Die Linie sagt die Vergangenheit, die Pille die Gegenwart** (Auftrag §1).
+   *
+   * Beides stand hier einmal in einem Wort: eine ausgescherte Zeile hiess «In
+   * Abweichung», für immer – auch wenn der Nachbar längst fertig war und das Stück
+   * nirgends mehr in einem Prozess stand. Die Aussage war in der Gegenwartsform und
+   * meinte die Vergangenheit.
+   *
+   * Beantwortet wird sie jetzt aus dem **Status**, den die Kante ohnehin mitbringt: er
+   * ist die Gegenwart des Stücks. `im_prozess` heisst «es arbeitet gerade woanders»;
+   * alles andere heisst «es ist dort geblieben». Die **Linie** bleibt unberührt – dass
+   * hier etwas ausgeschert ist, ist passiert und bleibt wahr.
+   */
+  const away = outward ? units.filter((u) => u.status === IM_PROZESS) : [];
+  const handed = outward ? units.filter((u) => u.status !== IM_PROZESS) : [];
   const total = groups.reduce((n, g) => n + g.count, 0);
   const gone = away.reduce((n, g) => n + g.count, 0);
+  const left = handed.reduce((n, g) => n + g.count, 0);
   async function toggle() {
     if (!onExpand) return;
     if (open) { setOpen(false); return; }
@@ -745,14 +826,14 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
     }
   }
 
-  if (!total && !gone) return null;
+  if (!total && !gone && !left) return null;
 
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div className="flex flex-wrap gap-1.5 justify-center">
         {gone > 0 && (
-          // **Ausgeschert.** Das Stück steht hier – es arbeitet nur gerade woanders.
-          // Es fehlt nicht, und es ist nicht fertig; beides zu behaupten wäre falsch.
+          // **Ausgeschert und noch dort.** Das Stück steht hier – es arbeitet nur gerade
+          // woanders. Es fehlt nicht, und es ist nicht fertig; beides wäre falsch.
           <span
             className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
             style={{ background: 'var(--warning-bg)', color: 'var(--warning)',
@@ -760,6 +841,18 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
             data-tip="In einem Abweichungsauftrag – es steht weiterhin an dieser Stelle"
           >
             <GitBranch size={11} /> In Abweichung · {gone}
+          </span>
+        )}
+        {left > 0 && (
+          // **Ausgeschert und dort geblieben.** Die Abzweigung bleibt im Bild – sie ist
+          // passiert. Nur ist dieses Stück nicht mehr «in Abweichung»: es ist weg.
+          <span
+            className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
+            style={{ background: 'var(--bg-3)', color: 'var(--fg-3)',
+                     border: '1px dashed var(--border-2)' }}
+            data-tip="Hier ausgeschert und dort geblieben – die Rückführung war gekappt"
+          >
+            <GitBranch size={11} /> Abgegeben · {left}
           </span>
         )}
         {groups.map((g) => {
@@ -926,15 +1019,21 @@ function StepCard({ step, active, dimmed, defaultOpen, onDelete, tone, drag, his
             <GripVertical size={15} />
           </span>
         )}
+        {/* **Die Historie hängt am Symbol** (§5) – wie bei Start und Ende, die dieselbe
+            Blase auf ihrem Kreis tragen. Sie hing hier an der Beschriftung, und die
+            trägt `truncate` (`overflow: hidden`): das **schneidet die Blase weg**, denn
+            sie ist ein `::after` dieses Elements. Sichtbar war der Log darum nur an den
+            beiden Objekten ohne Textkürzung – genau der gemeldete Fall. */}
         <span
           className="flex items-center justify-center rounded-md flex-none"
           style={{ width: 32, height: 32, background: 'var(--bg-1)', color: c.fg }}
+          tabIndex={history ? 0 : undefined}
+          onClick={history ? (e) => e.stopPropagation() : undefined}
+          data-tip={history} data-tip-list={history ? '' : undefined}
         >
           <Icon size={17} />
         </span>
-        <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: c.fg }}
-          tabIndex={history ? 0 : undefined}
-          data-tip={history} data-tip-list={history ? '' : undefined}>
+        <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: c.fg }}>
           {step.label}
         </span>
         {locked && (

@@ -102,12 +102,26 @@
 > Objektnummer und `walked` (nichts Geplantes ist je gegangen). Der Entwurf hat dafür eine
 > **Adresse statt einer Nummer** – `DRAFT_OBJECT_ID = 0`, auf beiden Seiten dieselbe, sonst
 > endete die Linie still im Nichts.
-> **Damit ist die Rückführungslinie das Bedienelement mit dem ECHTEN Ziel** (§8.1a):
-> ein Klick auf den Quell-Auftrag schaltet sie an und aus; er bleibt, wenn die Linie geht
-> (sonst wäre die Entscheidung einmalig). Kein Strichmuster (es bleibt bei zwei Stärken),
-> kein Knopfpaar neben der Stückauswahl – und **kein Ersatz-Knoten unter dem Ende** mehr:
-> der war der Platzhalter für einen Auftrag, den man nicht sah, und neben dem echten wären
-> es zwei Rückweg-Linien für EINE Entscheidung.
+> **Der Rückführungs-Schalter steht AUF der Linie, die er schaltet** (§8.1a): eine Pille
+> unter dem Ende-Objekt, also an der **letzten Zeile der Spalte** – genau dort dockt die
+> Rückführungslinie an, sie geht von ihm ab. Er bleibt, wenn die Linie geht (sonst wäre die
+> Entscheidung einmalig), und sagt seinen Zustand im Wort («kehrt zurück» ↔ «bleibt hier»),
+> nie im Strichmuster. Drei Anläufe stehen dahinter, und der Unterschied ist jedes Mal
+> *wo*: neben der Stückauswahl (Aussage ≠ Wirkung) · Ersatz-Knoten mit **eigener** Linie
+> (zwei Rückweg-Linien für EINE Entscheidung) · Klick auf die ganze Nachbarspalte (kein
+> Bedienelement, nur Fläche – man sieht ihr nicht an, dass sie etwas tut).
+> **Die Linie sagt die Vergangenheit, die Pille die Gegenwart** (§8.1a): `walked` kommt aus
+> dem Log (monoton, verschwindet nie), `units[].status` ist der HEUTIGE Zustand des Stücks.
+> Eine Abzweigung bleibt darum für immer im Bild, das Wort daneben wechselt – «In
+> Abweichung», solange es dort arbeitet, danach «Abgegeben» (gekappt) bzw. es verschwindet
+> (zurückgekehrt, dann steht es wieder auf der Achse). Ein Zustandswort in der
+> Gegenwartsform, das Vergangenes behauptet, ist ein Fehler, auch wenn es einmal stimmte.
+> **Eine Blase, und zwar die unter dem Zeiger** (`globals.css`): geschachtelte Hinweise –
+> die innere gewinnt (`:has`); und der Fokus-Weg (Touch/Tastatur) gilt **mit Maus nur für
+> `:focus-visible`** – ein Klick liess seine Blase sonst stehen, während der Zeiger längst
+> woanders war. Die **Historie** hängt am **Symbol** des Prozessobjekts, nie an einer
+> gekürzten Beschriftung: `truncate` ist `overflow: hidden` und schneidet das `::after`
+> weg – genau daran war sie am Modul unsichtbar und an Start/Ende sichtbar.
 > **Herkunft und Verbleib sind ÄSTE desselben Strangs** (PROCESS_CORE §8.1a, §6): über dem
 > Start und unter dem Ende verzweigt die Linie zu den Nachbar-Aufträgen – je Nachbar ein
 > Ast mit Anzahl, alle auf **einer** Waagrechten zusammengeführt (ein Bus wie im Stammbaum,
