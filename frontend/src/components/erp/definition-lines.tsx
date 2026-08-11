@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Boxes, ChevronDown, GitBranch, Package, Plus, Sprout, Trash2, X } from 'lucide-react';
+import { ChevronDown, GitBranch, Package, Plus, Sprout, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleOption, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
@@ -116,31 +116,24 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
 
   const hasNew = lines.some((l) => l.origin === NEU);
 
+  // **Kein Container um den Container** (Testnotiz zur Anlage). Hier stand eine Karte mit
+  // Überschrift «Definition» und dem Satz «Was bearbeitet dieser Auftrag? Ohne Definition
+  // kein Start.» – beides sagte, was die Felder darunter ohnehin zeigen, und der Rahmen
+  // legte eine zweite Kante um Zeilen, die bereits Karten sind. Übrig bleibt die Sache
+  // selbst: eine Zeile je Position, darunter der Knopf für die nächste.
   return (
-    <div className="rounded-ds-lg" style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 14 }}>
-      <div className="flex items-center gap-2 mb-2">
-        <Boxes size={14} style={{ color: 'var(--fg-3)' }} />
-        <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--fg-3)' }}>
-          Definition
-        </span>
-      </div>
-      <p className="text-xs mb-3" style={{ color: 'var(--fg-3)' }}>
-        Was bearbeitet dieser Auftrag? Ohne Definition kein Start.
-      </p>
-
-      <div className="flex flex-col gap-2">
-        {lines.map((line) => (
-          <LineRow
-            key={line.key}
-            line={line}
-            articles={articles}
-            multi={lines.length > 1}
-            refreshKey={refreshKey}
-            onChange={(next) => patch(line.key, next)}
-            onRemove={() => setLines(lines.filter((l) => l.key !== line.key))}
-          />
-        ))}
-      </div>
+    <div className="flex flex-col gap-2">
+      {lines.map((line) => (
+        <LineRow
+          key={line.key}
+          line={line}
+          articles={articles}
+          multi={lines.length > 1}
+          refreshKey={refreshKey}
+          onChange={(next) => patch(line.key, next)}
+          onRemove={() => setLines(lines.filter((l) => l.key !== line.key))}
+        />
+      ))}
 
       {/* **«Neu» steht für sich allein** (Testnotiz #693): ein Erzeugungsauftrag fährt die
           Vorlage genau dieses Artikels, und ihr Versionsstempel gilt nur für seine Stücke.
@@ -151,7 +144,7 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
         <button
           type="button"
           onClick={() => setLines([...lines, emptyLine((lines[lines.length - 1]?.key ?? 0) + 1)])}
-          className="mt-2 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+          className="self-center inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
           style={{ border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}
         >
           <Plus size={12} /> Zeile
@@ -182,7 +175,8 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
   const hasTemplate = (article?.template_steps ?? 0) > 0;
 
   return (
-    <div className="rounded-ds-lg" style={{ border: '1px solid var(--border-1)', padding: 10 }}>
+    <div className="rounded-ds-lg"
+      style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 10 }}>
       <div className="flex flex-wrap items-end gap-2">
         {/* 1 — Artikel. Sperrt alles Weitere, bis er steht. */}
         <label className="flex-1 min-w-[190px]">

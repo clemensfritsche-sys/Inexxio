@@ -137,7 +137,7 @@ interface Column {
  */
 export type MidColumn =
   Omit<ColumnProps, 'prefix' | 'faded' | 'containerStyle' | 'rowStyle'
-    | 'journeyIn' | 'journeyOut' | 'origins'>
+    | 'journeyIn' | 'journeyOut' | 'origins' | 'returns' | 'onToggleReturn'>
   & {
     /**
      * Wie der Graph eines Nachbarn diese Spalte nennt (`order:<Objektnummer>`). Im
@@ -182,10 +182,10 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
   /** **Hier entstandene** Stücke – der Ast des Baums ohne Vorgänger. */
   origins?: JourneyOrigin[];
   /**
-   * **Nur im Entwurf**: ein Klick auf den Quell-Auftrag schaltet seine Rückführung an
-   * und aus (Auftrag §5). Gesetzt = die Spalte ist der Schalter; sonst öffnet sie den
-   * Datensatz. Beides am selben Ziel wäre zweideutig, und aus einem Entwurf heraus zu
-   * navigieren hiesse ihn zu verwerfen.
+   * **Nur im Entwurf**: die geplante Rückführung an- und ausschalten (Auftrag §5). Der
+   * Schalter steht am **Anfang ihrer Linie** – unter dem Ende-Objekt, dort, wo sie
+   * abgeht (`ReturnRow`). Ohne ihn gibt es die Zeile nicht: am laufenden Auftrag ist die
+   * Entscheidung längst gefallen.
    */
   onToggleReturn?: (parentObjectId: number) => void;
 }) {
@@ -201,6 +201,14 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
   const outStops = useMemo(
     () => journeyOut.filter((j) => !shownAside.has(j.object_id)), [journeyOut, shownAside]);
 
+  // **Was zu schalten ist, sagen die Eltern.** Jeder Quell-Auftrag bringt seine eigene
+  // Antwort mit (`returns`, vom Server aus derselben Auswahl gerechnet); die Zeile
+  // spiegelt sie nur. Ein eigener Zustand daneben wäre die zweite Wahrheit.
+  const returns = useMemo(
+    () => (onToggleReturn ? parents.map((p) => ({ objectId: p.object_id, on: p.returns })) : []),
+    [parents, onToggleReturn],
+  );
+
   const mid: Column = useMemo(() => ({
     prefix: '', objectId: midProps.objectId, graph: midProps.graph, steps: midProps.steps,
     side: 'mid',
@@ -211,13 +219,14 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
     rows: columnRows(midProps.graph, {
       head: !!midProps.head, tail: !!midProps.tail,
       journeyIn: hasJourney(inStops, origins), journeyOut: outStops.length > 0,
+      returns: returns.length > 0,
     }),
     // Nur die **Länge** zählt: ob es die Journey-Zeile gibt, hängt an «leer oder nicht»,
     // und die Listen selbst sind bei jedem Rendern neue Objekte – als Abhängigkeit
     // wären sie eine Endlosschleife statt einer Bedingung.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [midProps.objectId, midProps.graph, midProps.steps, midProps.head, midProps.tail,
-    inStops.length, outStops.length, origins.length]);
+    inStops.length, outStops.length, origins.length, returns.length]);
 
   const left = useMemo(() => parents.map((r) => side(r, 'left')), [parents]);
   const right = useMemo(() => deviations.map((r) => side(r, 'right')), [deviations]);
@@ -280,12 +289,6 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
 
   const gutter = gutterFor(Math.max(wires.used.left, wires.used.right));
 
-  // **Im Entwurf ist der Quell-Auftrag selbst der Schalter** (§5). Nur links, nur wenn
-  // jemand zuhört: eine Abweichung rechts hat nichts zu schalten, und am laufenden
-  // Auftrag ist die Entscheidung längst gefallen – dort öffnet die Spalte ihren Datensatz.
-  const toggle = (c: Column) =>
-    (onToggleReturn && c.side === 'left' ? () => onToggleReturn(c.objectId) : undefined);
-
   return (
     <div className="mx-auto w-full"
       // Ohne Nachbarn ist die Mitte das ganze Bild – dann trägt sie ihr eigenes Mass
@@ -304,6 +307,7 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
             {...midProps}
             prefix=""
             journeyIn={inStops} journeyOut={outStops} origins={origins}
+            returns={returns} onToggleReturn={onToggleReturn}
             containerStyle={rowStyle ? { display: 'contents' } : undefined}
             rowStyle={rowStyle}
           />
@@ -314,7 +318,7 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
               <div className="w-full" style={{ maxWidth: PROCESS_MAXW }}>{column()}</div>
               {[...left, ...right].map((c) => (
                 <div key={c.prefix} className="w-full" style={{ maxWidth: PROCESS_MAXW }}>
-                  <Neighbour col={c} onToggle={toggle(c)} />
+                  <Neighbour col={c} />
                 </div>
               ))}
               <Rest total={deviationTotal} shown={right.length} />
@@ -342,7 +346,7 @@ export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
               {left.length > 0 && (
                 <div style={{ gridColumn: 1, gridRow: '1 / -1', alignSelf: 'start', width: '100%' }}
                   className="flex flex-col gap-7">
-                  {left.map((c) => <Neighbour key={c.prefix} col={c} onToggle={toggle(c)} />)}
+                  {left.map((c) => <Neighbour key={c.prefix} col={c} />)}
                 </div>
               )}
               {/* **Der Rückführpunkt sitzt am ENDE seiner Zeile** – dort, wo der
@@ -395,23 +399,16 @@ function side(rel: RelatedOrder, where: 'left' | 'right'): Column {
  *
  * Geblieben ist das Einzige, was sie konnte und das Bild nicht: **hinführen**.
  *
- * **Im Entwurf führt sie nicht hin, sondern schaltet** (`onToggle`, Auftrag §5): dort
- * ist dieser Auftrag das *Ziel* der geplanten Rückführung, und «ein Klick auf das Ziel
- * schaltet sie an und aus» ist die Regel, die dafür schon steht. Navigieren wäre an
- * dieser Stelle ohnehin falsch – wer einen Entwurf verlässt, verwirft ihn.
+ * **Sie schaltet nichts.** Die Rückführung wird an ihrer Linie entschieden, nicht an der
+ * Spalte: eine ganze Spalte anzuklicken ist kein Bedienelement, sondern eine Fläche ohne
+ * Aufforderung – man sieht ihr nicht an, dass sie etwas tut, und trifft sie versehentlich.
+ * Der Schalter steht darum dort, wo die Linie **abgeht** (`ReturnRow`, §5).
  */
-function Neighbour({ col, onToggle }: { col: Column; onToggle?: () => void }) {
+function Neighbour({ col }: { col: Column }) {
   const nav = useErpNav();
   const rel = col.rel!;
   const cfg = statusCfg(rel.status);
-  const act = onToggle ?? (nav ? () => nav(rel.object_id) : undefined);
-  const what = onToggle
-    ? (rel.returns
-      ? 'Jedes Stück kehrt an die Stelle zurück, an der es ausgeschert ist – dieser '
-        + 'Auftrag wartet solange. Klicken kappt die Rückführung.'
-      : 'Die Stücke bleiben hier (z. B. Aussonderung); dieser Auftrag läuft mit weniger '
-        + 'weiter. Klicken führt sie wieder zurück.')
-    : 'öffnen';
+  const act = nav ? () => nav(rel.object_id) : undefined;
   return (
     <div
       role={act ? 'button' : undefined}
@@ -423,12 +420,10 @@ function Neighbour({ col, onToggle }: { col: Column; onToggle?: () => void }) {
       className="w-full"
       style={{ cursor: act ? 'pointer' : undefined,
                padding: `${NEIGHBOUR_PAD}px 0` }}
-      aria-label={onToggle
-        ? `Rückführung nach ${formatObjectId(rel.object_id)} ${rel.returns ? 'kappen' : 'einschalten'}`
-        : `Auftrag ${formatObjectId(rel.object_id)} öffnen`}
+      aria-label={`Auftrag ${formatObjectId(rel.object_id)} öffnen`}
       data-tip={`${col.side === 'left' ? 'Aus' : 'Abweichung'} ${formatObjectId(rel.object_id)}`
         + ` · ${cfg.label} · ${rel.unit_count} Stück`
-        + ` · ${rel.returns ? 'kehrt zurück' : 'bleibt dort'} — ${what}`}
+        + ` · ${rel.returns ? 'kehrt zurück' : 'bleibt dort'} — öffnen`}
     >
       <FlowColumn
         graph={col.graph} steps={col.steps} prefix={col.prefix} mode="ausfuehrung"

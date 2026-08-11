@@ -658,6 +658,15 @@ einen Nebenauftrag ist keine andere Art Linie, sondern derselbe Strang, der abzw
 sie folgt darum derselben Regel. Ob ein Stück zurückkehrt, sagt **ob es die Linie gibt**:
 eine gekappte Ausleihe hat keinen Rückweg, und das Fehlen ist die Aussage.
 
+**Die Linie sagt die Vergangenheit, die Pille die Gegenwart.** Das ist die Arbeitsteilung
+zwischen beiden, und sie ist keine Konvention, sondern folgt aus ihren Quellen: ``walked``
+kommt aus dem Log (monoton, verschwindet nie), ``units[].status`` ist der **heutige**
+Zustand des Stücks. Eine Abzweigung bleibt darum für immer im Bild, aber das Wort daneben
+wechselt: solange das Stück in einem anderen Prozess steht, heisst es «In Abweichung»;
+danach «Abgegeben» (gekappt) bzw. es verschwindet (zurückgekehrt — dann steht es wieder
+auf der Achse). Eine Zustandsanzeige in der Gegenwartsform, die Vergangenes behauptet,
+ist ein Fehler, auch wenn sie einmal richtig war.
+
 **Herkunft und Verbleib sind Äste desselben Strangs** (§6). Über dem Start und unter dem
 Ende steht, aus welchen Aufträgen die Einzelinstanzen kamen und wohin sie gingen — nicht
 als Textzeile neben dem Bild, sondern als **Verzweigung**: jeder Nachbar fällt auf eine
@@ -680,13 +689,20 @@ was am Baum steht.
 
 **Auch im Entwurf, und dort mit dem echten Ziel** (§5 + §8.1c): sobald die Auswahl einem
 laufenden Auftrag ein Stück abnimmt, steht **er** in der linken Spur — mit dem
-Abzweigepunkt, der entstünde, und der Rückführung, wenn zurückgeführt wird. Ein Klick auf
-dieses Ziel schaltet sie an und aus; das Ziel **bleibt**, wenn die Linie geht (sonst wäre
-die Entscheidung einmalig statt änderbar). Der frühere Ersatz-Knoten unter dem Ende ist
-damit weg — er war der Platzhalter für einen Auftrag, den man nicht sah, und neben dem
-echten wären es **zwei Rückweg-Linien für eine Entscheidung**. Ebenso weg ist das
-Knopfpaar «kehrt zurück / bleibt hier» neben der Stückauswahl: die Aussage stand an einer
-anderen Stelle als ihre Wirkung.
+Abzweigepunkt, der entstünde, und der Rückführung, wenn zurückgeführt wird.
+
+**Der Schalter steht auf der Linie, die er schaltet**: eine Pille unter dem Ende-Objekt,
+also an der **letzten Zeile der Spalte** — genau dort dockt die Rückführungslinie an
+(§8.1a″), sie geht von ihm ab. Er **bleibt**, wenn die Linie geht (sonst wäre die
+Entscheidung einmalig statt änderbar), und trägt seinen Zustand im Wort («kehrt zurück» ↔
+«bleibt hier»), nicht im Strichmuster.
+
+Drei Anläufe stehen dahinter, und der Unterschied ist jedes Mal, *wo* die Entscheidung
+sitzt: **neben der Stückauswahl** (die Aussage stand woanders als ihre Wirkung) · als
+**Ersatz-Knoten mit eigener Linie** (zwei Rückweg-Linien für **eine** Entscheidung, und
+die zweite war die erfundene) · als **Klick auf die ganze Nachbarspalte** (kein
+Bedienelement, sondern eine Fläche ohne Aufforderung — man sieht ihr nicht an, dass sie
+etwas tut, und trifft sie versehentlich).
 
 **Kräftig läuft die Linie bis in das Modul, das jetzt dran ist.** «Vor Modul X stehen»
 (`current_step_id`) und «X ist dran» (`active_step_id`) sind **dieselbe** Tatsache – der

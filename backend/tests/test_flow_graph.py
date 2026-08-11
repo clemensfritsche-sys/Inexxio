@@ -786,9 +786,10 @@ def test_the_planned_return_is_the_line_itself():
     (``ReturnSwitch``) ist damit weg – zwei Rückweg-Linien für eine Entscheidung wären
     eine zu viel, und die zweite wäre die erfundene.
 
-    Was bleibt, ist die Regel Wort für Wort: **ein Klick auf das Ziel schaltet sie an und
-    aus**, der Knoten bleibt, wenn die Linie geht (sonst wäre die Entscheidung einmalig),
-    und es gibt keinen dritten Linientyp.
+    Was bleibt, ist die Regel Wort für Wort: **ein Klick schaltet sie an und aus**, der
+    Schalter bleibt, wenn die Linie geht (sonst wäre die Entscheidung einmalig), und es
+    gibt keinen dritten Linientyp. *Wo* er steht – am Anfang der Linie, als letzte Zeile
+    der Spalte –, prüft ``test_the_return_switch_sits_where_its_line_starts``.
     """
     diagram = _code(_read(FRONTEND / "components/erp/process-diagram.tsx"))
     cols = _read(FRONTEND / "components/erp/process-columns.tsx")
@@ -800,9 +801,9 @@ def test_the_planned_return_is_the_line_itself():
             f"«{gone}» ist zurück – der Ersatz-Rückweg steht neben dem echten, und das "
             f"Bild zeigt dieselbe Entscheidung zweimal."
         )
-    assert "onToggleReturn" in cols and "onToggle ?? (nav" in cols, (
-        "Das Ziel ist kein Schalter mehr – dann ist die Entscheidung im Entwurf nicht "
-        "mehr zu treffen."
+    assert "onToggleReturn" in cols and "function ReturnRow(" in diagram, (
+        "Es gibt keinen Schalter mehr – dann ist die Entscheidung im Entwurf nicht mehr "
+        "zu treffen."
     )
     assert "onToggleReturn" in detail and "l.returns" in detail, (
         "Der Klick landet nicht mehr an der Definitionszeile, an der die Entscheidung hängt."
@@ -816,6 +817,75 @@ def test_the_planned_return_is_the_line_itself():
             f"«{banned}» im Prozessbild: es gibt zwei Stärken und sonst nichts – ob "
             f"zurückgeführt wird, sagt die Anwesenheit der Linie."
         )
+
+
+def test_the_line_says_the_past_and_the_pill_says_the_present():
+    """**Zwei Aussagen, zwei Träger** (Auftrag §1) – und beide stehen schon in den Daten.
+
+    Eine ausgescherte Zeile hiess «In Abweichung», für immer. Bei einer **gekappten**
+    Ausleihe blieb das stehen, auch wenn der Nachbar längst fertig war und das Stück
+    nirgends mehr in einem Prozess stand: ein Satz in der Gegenwartsform über etwas
+    Vergangenes.
+
+    Aufgelöst wird das ohne neues Feld, denn der Graph trägt beides längst:
+
+    * ``walked`` ist **Vergangenheit** – aus dem Log, monoton, verschwindet nie.
+    * ``units[].status`` ist die **Gegenwart** des Stücks – ``im_prozess`` heisst «es
+      arbeitet gerade woanders», alles andere heisst «es ist dort geblieben».
+
+    Geprüft wird genau der gemeldete Ablauf: die Abzweigung bleibt kräftig, der Status
+    darauf wechselt. Läuft eine der beiden Aussagen der anderen nach, bricht das hier.
+    """
+    from app.domain import statuses as st
+    from app.models import InstanceUnit, OrderUnit, ProcessStep
+    from app.services import article_process as tpl, flow, objects as obj, process as proc
+
+    db = _db()
+    try:
+        art = _article(db, tpl, obj)
+        parent = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
+                    "units": []}],
+            steps=[], actor_id=None,
+        )
+        db.flush()
+        rows = db.query(OrderUnit).filter(OrderUnit.order_id == parent.id).all()
+        numbers = proc.unit_numbers(
+            db, db.query(InstanceUnit).filter(
+                InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all())
+        child = _deviate(db, proc, art, parent, [numbers[rows[0].instance_unit_id]],
+                         returns=False)
+        db.flush()
+
+        def out_edge():
+            return next(e for e in flow.build(db, parent).edges if e.kind == flow.EDGE_OUT)
+
+        away = out_edge()
+        assert away.walked, "Die Abzweigung ist nicht kräftig – da ist aber etwas gegangen."
+        assert [(p.status, p.count) for p in away.units] == [(st.IM_PROZESS, 1)], (
+            "Solange der Nachbar läuft, ist das Stück «im Prozess» – das ist die Gegenwart."
+        )
+
+        # Der Nachbar läuft durch. Das Stück kommt nicht zurück (gekappt).
+        for s in (db.query(ProcessStep).filter(ProcessStep.order_id == child.id)
+                  .order_by(ProcessStep.position).all()):
+            proc.confirm_step(db, order=child, step_id=s.id,
+                              values={p["key"]: True for p in (s.config or {}).get("points", [])},
+                              actor_id=None)
+        db.flush()
+
+        done = out_edge()
+        assert done.walked, (
+            "Die Abzweigung ist schwach geworden – was passiert ist, bleibt passiert."
+        )
+        assert [p.status for p in done.units] == [st.FREIGEGEBEN], (
+            "Das Stück gilt weiter als «im Prozess», obwohl es in keinem mehr steht – "
+            "dann sagt die Pille die Vergangenheit in der Gegenwartsform."
+        )
+    finally:
+        db.rollback()
+        db.close()
 
 
 def test_the_draft_is_named_the_same_on_both_sides():
