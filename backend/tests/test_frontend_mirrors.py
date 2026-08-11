@@ -713,7 +713,7 @@ def test_every_check_runs_before_the_first_object_number():
     number_at = body.index("next_object_id(db,")
     head = body[:number_at]
     for guard in ("resolve_lines(", "steps_for(", "assert_releasable(",
-                  "_assert_chain(", "held_by(", "_assert_may_leave(",
+                  "chain.assert_closes(", "held_by(", "_assert_may_leave(",
                   "assert_quantity("):
         assert guard in head, f"«{guard}» läuft nach der Nummernvergabe."
 
@@ -3135,4 +3135,96 @@ def test_the_hundred_percent_check_is_an_ordinary_order():
     assert "_units_at(db, order, step.id, instance_id=" in body, (
         "Der Rest wird nicht mehr auf dieses Modul begrenzt – die 100 %-Kontrolle griffe "
         "nach der ganzen Charge."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Aussondern – zwei Ausprägungen, eine Registry
+# ---------------------------------------------------------------------------
+
+def test_the_disposal_modes_match_the_backend_exactly():
+    """**Zwei Fälle, ein Modul** – und die Liste steht im Backend.
+
+    Ein dritter Fall wäre dort ein Eintrag; hier stehen nur Wort und Erklärung. Ein
+    Modus ohne Gegenstück wäre eine tote Auswahl, ein Gegenstück ohne Modus eine Wahl,
+    die niemand treffen kann.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain.modules import Aussondern
+
+    ts = _read(FRONTEND / "lib" / "modules.ts")
+    body = ts.split("export const DISPOSAL_MODES")[1].split("];")[0]
+    assert set(re.findall(r"value: '(\w+)'", body)) == set(Aussondern.MODES)
+
+
+def test_a_module_type_brings_its_own_fields_from_one_registry():
+    """**Welche Felder ein Modul hat, sagt sein Typ** – als Zuordnung, nicht als Kette.
+
+    Verteilt über `toModulePayload`, `moduleIncomplete` und den Editor wären es drei
+    Ketten, die beim dritten Modultyp auseinanderlaufen. Sie stehen darum an je einer
+    Stelle, und die Schlüssel decken die Backend-Registry genau ab.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules
+
+    ts = _read(FRONTEND / "lib" / "modules.ts")
+    form = ts.split("export const MODULE_FORM")[1].split("\n};")[0]
+    assert set(re.findall(r"^  (\w+): \{", form, re.M)) == set(modules.KEYS)
+
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    # Ab dem Zuweisungs-`{`, sonst fängt die Typ-Signatur der Props mit.
+    fields = designer.split("const MODULE_FIELDS")[1].split("= {", 1)[1].split("\n};")[0]
+    assert set(re.findall(r"^  (\w+):", fields, re.M)) == set(modules.KEYS)
+    assert "MODULE_FIELDS[m.moduleType]" in designer, (
+        "Der Editor wählt den Feldsatz nicht mehr über die Zuordnung."
+    )
+
+    # Und es gibt genau EINE Stelle, an der ein Modul-Entwurf entsteht.
+    assert "blankModule(id, moduleType)" in designer
+    assert "moduleType, points: []" not in _code(designer), (
+        "Ein zweites Objektliteral für einen Modul-Entwurf – der nächste Feldzusatz "
+        "fehlt dann an einer der beiden Stellen."
+    )
+
+
+def test_the_action_verb_comes_from_the_server():
+    """**Was der Knopf sagt, sagt das Modul** (`ProcessStepResponse.action`).
+
+    Beim Aussondern hängt es an der Ausprägung – «Erfassen & bestätigen» über einem
+    Verschrotten-Modul wäre schlicht falsch, und eine Fallunterscheidung in der
+    Oberfläche wäre eine zweite Aussage über dieselbe Sache.
+    """
+    form = _code(_read(FRONTEND / "components" / "erp" / "capture-form.tsx"))
+    assert "Erfassen &amp; bestätigen" not in form and "Erfassen & bestätigen" not in form, (
+        "Das Verb steht wieder fest in der Oberfläche."
+    )
+    assert "{action}" in form
+    order = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    assert "action={stepInfo(order, step.id)?.action" in order
+
+    schema = _read(BACKEND / "app" / "schemas" / "order.py")
+    assert "action_for(self.config)" in schema
+
+
+def test_a_terminal_module_is_an_exit_not_a_step():
+    """**Ein Ausgang ist kein Durchgang** – die Regel steht am Modultyp, nicht im Ablauf.
+
+    Zwei Folgen, beide ohne Fallunterscheidung: hinter ihm steht kein Modul (die Kette
+    endet), und es passiert das Ende-Objekt nicht – dort hängt die Rückführung, und ein
+    ausgesondertes Stück kehrt nirgends zurück.
+    """
+    mods = _read(BACKEND / "app" / "domain" / "modules.py")
+    assert "terminal: bool = False" in mods and "terminal = True" in mods
+
+    chain = _read(BACKEND / "app" / "domain" / "chain.py")
+    assert ".terminal:" in chain, "Die Kette kennt den Ausgang nicht mehr."
+
+    proc = _code(_read(BACKEND / "app" / "services" / "process.py"))
+    body = _body(proc, "confirm_step")
+    assert "if module.terminal:" in body
+    assert body.index("if module.terminal:") < body.index("_finish("), (
+        "Das terminale Modul läuft ins Ende-Objekt – und löst damit eine Rückführung aus, "
+        "die es nicht geben darf."
     )

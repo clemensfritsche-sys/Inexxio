@@ -6502,6 +6502,12 @@
             "description": "Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.",
             "readOnly": true
           },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "Wie die Ausführung dieses Moduls heisst – das Verb auf dem Knopf.\n\nAus der Registry (``Module.action_for``), nicht aus der Oberfläche: beim\nAussondern hängt es an der Ausprägung, und «Erfassen & bestätigen» über einem\nVerschrotten-Modul wäre schlicht falsch.",
+            "readOnly": true
+          },
           "sample": {
             "type": "string",
             "title": "Sample",
@@ -6517,6 +6523,7 @@
           "status_before",
           "status_after",
           "label",
+          "action",
           "sample"
         ],
         "title": "ProcessStepResponse",

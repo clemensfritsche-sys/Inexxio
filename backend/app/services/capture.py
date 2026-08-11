@@ -59,6 +59,13 @@ def record_for_step(
     """
     points = points_of(step)
     capture_types.check_values(points, values)
+    # **Ohne Erfassungspunkte wird nichts erfasst.** Das Aussondern im Modus «verschrotten»
+    # hält nichts fest – der Scan ist die Bestätigung, und die steht als Ereignis im Log
+    # (``process._pass``). Eine leere Zeile je Stück wäre ein Nachweis über nichts und
+    # sähe in der Historie aus wie eine Erfassung. Geprüft wird trotzdem: ein Wert, den
+    # dieses Modul nicht kennt, bleibt ein Fehler (``check_values`` oben).
+    if not points:
+        return {}
     result = capture_types.verdict(points, values)
 
     out: dict[int, Capture] = {}

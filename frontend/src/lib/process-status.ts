@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Clock, AlertTriangle, XCircle } from 'lucide-react';
+import { Ban, CheckCircle2, Clock, AlertTriangle, Lock, Trash2, XCircle } from 'lucide-react';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
 import { STATUS_CATALOG } from '@/lib/status-catalog';
 
@@ -21,7 +21,7 @@ import { STATUS_CATALOG } from '@/lib/status-catalog';
  */
 
 export {
-  FREIGEGEBEN, IM_PROZESS, ABGESCHLOSSEN, ABGEBROCHEN, INAKTIV,
+  FREIGEGEBEN, IM_PROZESS, GESPERRT, VERSCHROTTET, ABGESCHLOSSEN, ABGEBROCHEN, INAKTIV,
   STATUS_CATALOG, STATUS_VALUES,
   UNIT_STATUSES, ORDER_STATUSES, ARTICLE_STATUSES,
   START_BEFORE, START_AFTER, END_BEFORE,
@@ -37,6 +37,8 @@ export {
 const ICONS: Record<string, StatusCfg['icon']> = {
   freigegeben: CheckCircle2,
   im_prozess: Clock,
+  gesperrt: Lock,
+  verschrottet: Trash2,
   abgeschlossen: CheckCircle2,
   abgebrochen: XCircle,
   inaktiv: Ban,

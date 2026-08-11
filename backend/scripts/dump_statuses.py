@@ -46,6 +46,8 @@ export interface StatusEntry {
   axes: readonly string[];
   /** Nur für Zustände, die ein Stück tragen kann – sonst `null`. */
   stock: StockKind | null;
+  /** Darf ein Auftrag ein Stück in diesem Zustand greifen? «Gibt es einen Weg zurück?» */
+  selectable: boolean;
 }
 
 '''
@@ -70,7 +72,8 @@ def build() -> str:
         stock = _ts(s.stock) if s.stock else "null"
         lines.append(
             f"  {{ value: {s.value.upper()}, label: {_ts(s.label)}, "
-            f"tone: {_ts(s.tone)}, axes: {_ts(list(s.axes))}, stock: {stock} }},"
+            f"tone: {_ts(s.tone)}, axes: {_ts(list(s.axes))}, stock: {stock}, "
+            f"selectable: {_ts(s.selectable)} }},"
         )
     lines.append("];")
     lines.append("")

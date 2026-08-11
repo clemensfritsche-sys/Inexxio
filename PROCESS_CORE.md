@@ -266,6 +266,37 @@ einzusammeln.
 Auch das ist **global**: die Regel steht in `confirm_step`, nicht im Modul. Ein Modultyp
 muss nur sagen, wie sein Urteil lautet (`CaptureType.verdict`).
 
+### 4.6 Ein terminales Modul ist ein AUSGANG, kein Durchgang
+
+Ein Modul kann das Stück aus dem Auftrag **hinausführen**, statt es weiterzureichen. Es
+sagt das an seiner Registry-Zeile (`Module.terminal`), und daraus folgt alles Weitere —
+ohne eine einzige Fallunterscheidung im Ablauf:
+
+| Folge | warum |
+|---|---|
+| **Hinter ihm steht kein Modul** (Freigabe-Fehler) | was dort ankommt, verlässt den Auftrag – das nächste Modul bekäme nie ein Stück, und eine tote Definition sieht aus wie ein Prozess |
+| **Die Kette endet dort** | das Ende-Objekt dahinter zu verlangen wäre falsch: es kommt nie ein Stück an |
+| **Es passiert das Ende-Objekt nicht** (`_finish`) | es ist selbst eines |
+| **Eine geplante Rückführung endet** | die Rückkehr hängt am Ende-Objekt – dorthin kommt das Stück nie |
+
+**Die letzte Zeile ist der Kern und kostet keine Zeile Wartelogik.** Ein Quell-Auftrag
+zählt seine Ausleihen über die **offene** Zugehörigkeit (`waiting_counts`,
+`pending_returns`); das Aussondern schliesst sie (`_pass` mit `next_step_id=None`). Damit
+wartet er nicht mehr, sein Modul ist nicht mehr gesperrt, und bleibt ihm nichts, ist sein
+Ziel unerreichbar – **genau wie bei einer gekappten Rückführung**, nur ausgelöst durch die
+Aussonderung statt bei der Definition.
+
+`return_to_order_id` bleibt dabei **unangetastet**. Die Absicht «kehrt zurück» war da; sie
+nachträglich zu löschen hiesse, die Vergangenheit umzuschreiben. Gezählt wird ohnehin
+nicht sie, sondern die offene Zeile.
+
+**Und der Auftragsstatus braucht keinen neuen Wert.** Die bestehende Regel (`_derive`)
+trägt beide Fälle: wer noch etwas unterwegs oder angekommen hat, ist `Im Prozess` bzw.
+`Abgeschlossen`; wem nichts bleibt, dessen Ziel ist unerreichbar → `Abgebrochen`. Ein
+Auftrag, der aussondert, hat damit **getan, wozu er da war** (`Abgeschlossen`) – und der
+Auftrag, dem die Stücke dadurch endgültig fehlen, ist `Abgebrochen`. Beides fällt heraus,
+ohne dass jemand es deklariert.
+
 ---
 
 ## 5. Statuswerte (A1, A4)
@@ -294,11 +325,30 @@ Achsenlisten, Anzeige-Reihenfolge, Gruppierung im Bestand, Farbe, Frontend-Katal
 
 | Wert | Farbe | Achsen | Bestand | Bedeutung |
 |---|---|---|---|---|
-| `Freigegeben` | Grün | Stück · Artikel | live | Einsatzbereit, in keinem laufenden Auftrag. Anfangs- **und** (heute einziger) Endzustand. |
+| `Freigegeben` | Grün | Stück · Artikel | live | Einsatzbereit, in keinem laufenden Auftrag. Anfangs- **und** (heute einziger) regulärer Endzustand. |
 | `Im Prozess` | Orange | Stück · Auftrag | live | Im Prozess genau eines freigegebenen Auftrags. |
+| `Gesperrt` | Orange | Stück | live | Aus dem Verkehr gezogen, **physisch noch da**. Nicht einplanbar, solange die Sperre gilt – **aufhebbar**. |
+| `Verschrottet` | Rot | Stück | history | Aus dem Verkehr gezogen und **physisch weg**. Endgültig. |
 | `Abgeschlossen` | Grün | Auftrag | — | Ziel erreicht. |
 | `Abgebrochen` | Rot | Auftrag | — | Ziel nicht mehr erreichbar. |
 | `Inaktiv` | Rot | Artikel | — | Ausser Betrieb, endgültig. |
+
+**«Gibt es einen Weg zurück?» ist eine Eigenschaft des Status, keine Farbfrage.** Sie
+heisst `selectable` und beantwortet genau eine Sache: *darf ein Auftrag ein Stück in
+diesem Zustand greifen?* Die **Farbe folgt daraus** – was endgültig ist, ist rot; was
+aufhebbar ist, ist orange –, und ebenso die Freigabe-Prüfung (`process.release`) und die
+Auswahl-Liste (`routers/orders`). Zwei Listen dafür liefen auseinander, und die
+Oberfläche böte an, was der Server abweist.
+
+Daraus fällt das **Zurückholen** von selbst heraus: ein gesperrtes Stück nimmt ein ganz
+gewöhnlicher Auftrag auf, das Start-Objekt setzt es auf `Im Prozess` wie jedes andere.
+**Das Greifen IST das Aufheben** – es braucht keinen zweiten Mechanismus und keinen
+Endpunkt «entsperren». Ein verschrottetes wird abgewiesen: das Ding gibt es nicht mehr,
+ein Auftrag darauf wäre ein Auftrag auf nichts.
+
+**Nichts wird gelöscht.** Beide bleiben Datensätze und bleiben sichtbar – im Bestand als
+eigenes Segment (gesperrt) bzw. im Historie-Block (verschrottet), am Stück mit Zeitpunkt,
+Auftrag und Person aus dem Ereignis-Log.
 
 **Eine fachliche Zuordnung gehört an den Status, nicht in die Ansicht, die sie braucht.**
 «Zählt dieser Zustand zum aktuellen Bestand?» stand einmal als eigene Liste daneben
@@ -315,12 +365,11 @@ Zustand ohne Zuordnung, statt ihn zu raten.
 |---|---|
 | `verfügbar` | wäre ein **zweites Wort für `Freigegeben`** — genau die Doppelung, die dieses System überall abbaut |
 | `gebunden` | war der Reservierungs-Begriff. **A3 streicht Reservierung ersatzlos** — der Wert wäre vorbereitendes Bauen für etwas, das es nicht geben soll |
-| `gesperrt` | Problem-Zustand. Die Fehlerbehandlung im Modul ist **nicht entschieden** (§13.4) — ein Wert dafür wäre erfunden |
-| `verbraucht` | Endzustand. **A6 sagt: heute genau einer** |
+| `verbraucht` | Endzustand. **A6 sagt: heute genau einer** – und das Aussondern (§9.4) hat seine zwei eigenen, weil es sie wirklich braucht |
 
-**Rot hat heute keinen Wert.** Der Ton steht in der Farbregel, aber es gibt noch keinen
-Status dafür. Eine Farbe ohne Wert ist ehrlicher als ein erfundener Wert – die Anzeige
-nutzt ihn trotzdem: ein **unbekannter** Wert wird rot gemeldet statt schöngefärbt.
+*`gesperrt` stand hier einmal als «erfunden, weil die Fehlerbehandlung nicht entschieden
+ist». Sie ist es jetzt (§4.5), und das Aussondern-Modul (§9.4) braucht den Wert – er ist
+damit kein Vorrat mehr, sondern die Aussage eines gebauten Vorgangs.*
 
 **Eine frisch angelegte Einzelinstanz ist `Freigegeben`** (`INITIAL_UNIT_STATUS`): sie ist
 einsatzbereit und in keinem Auftrag – genau das heisst das Wort. Der frühere Platzhalter
@@ -883,11 +932,13 @@ zweite Art Vorlage trägt. «Prozess» wäre der Behälter, nicht die Sache.*
 
 ---
 
-## 9. Das Prozessschrittmodul «Datenerfassung»
+## 9. Die Prozessschrittmodule
 
-Es gibt heute **genau ein** Modul, und es ist das erste echte. Das frühere Testmodul war
-ein Testvehikel für den Mechanismus und ist **ersatzlos entfallen** — den Mechanismus
-gibt es jetzt echt.
+Es gibt heute **zwei**: die **Datenerfassung** (§9.1–§9.3) und das **Aussondern** (§9.4).
+Das frühere Testmodul war ein Testvehikel für den Mechanismus und ist **ersatzlos
+entfallen** — den Mechanismus gibt es jetzt echt.
+
+### 9.0 Das Modul «Datenerfassung»
 
 Zweck: im Prozess laufend Daten erfassen und kontrollieren (Richtung Qualitätssicherung).
 
@@ -967,6 +1018,47 @@ vorhersagbar und damit als Stichprobe wertlos.
 **Der Rest läuft ohne Erfassung durch — sichtbar.** Das steht in der Zeile («7 laufen
 ohne Erfassung durch») und ist keine stille Auslassung. Bestätigt wird für die gezogenen
 Stücke; vorgerückt wird die **ganze** Instanz.
+
+### 9.4 Das Modul «Aussondern» — verschrotten oder sperren
+
+Es zieht Einzelinstanzen **aus dem Verkehr**. Zwei Fälle, **ein** Modul:
+
+| Ausprägung | Zustand danach | physisch | Weg zurück |
+|---|---|---|---|
+| **Verschrotten** | `Verschrottet` | weg | nein, endgültig |
+| **Sperren** | `Gesperrt` | **weiterhin da** | ja – ein Auftrag greift es (§5.2) |
+
+Sie tun dasselbe: das Stück verlässt den Auftrag, die Reise endet hier. Der einzige
+Unterschied ist der Zielzustand – also ist es ein **Parameter**, kein zweites Modul.
+Gewählt wird er bei der Definition (`config.mode`); den **Status leitet das Modul ab**
+(`Module.status_after_for`), es gibt kein Status-Dropdown. Das ist der Unterschied
+zwischen «welchen Zustand willst du?» (eine Eingabe, die man falsch ausfüllen kann) und
+«was soll passieren?» (eine fachliche Wahl, aus der der Zustand **folgt**).
+
+| | |
+|---|---|
+| Übergang | `Im Prozess` → `Verschrottet` bzw. `Gesperrt`. **Terminal** (§4.6): das Stück verlässt den Auftrag. |
+| Anlegen | **Eine** Angabe: die Ausprägung. Keine Erfassungspunkte, keine Stichprobe. |
+| Laufzeit | Eine Zeile je Instanz (§4.4) – dieselbe wie überall, inklusive Scan-Pflicht. |
+| **Ausführen** | Verifizieren · beim Sperren den **Grund** erfassen · Zustand setzen · loggen · das Stück verlässt den Auftrag. |
+
+**Teilmengen gibt es hier nicht.** Was am Modul ankommt, wird ausgesondert – ohne Auswahl
+und ohne Stichprobenmechanismus. Wer nur einen Teil meint, gibt nur diesen Teil in den
+Auftrag; eine zweite Auswahl daneben wäre ein zweiter Weg zur selben Entscheidung.
+
+**Der Grund ist Pflicht — aber nur beim Sperren.** Eine Sperre ohne Begründung ist in drei
+Monaten wertlos: niemand weiss mehr, ob man sie aufheben darf, und im Zweifel bleibt das
+Teil für immer liegen. Beim **Verschrotten** ist der Scan die Bestätigung – das Teil ist
+weg, ein zweites Feld macht den Fall nicht häufiger richtig, sondern nur länger.
+
+Der Grund ist dabei **kein neuer Mechanismus**, sondern ein ganz gewöhnlicher
+Erfassungspunkt (`text`) – nur einer, den das **Modul** deklariert statt ihn erfragen zu
+lassen. Wäre er konfigurierbar, könnte man ihn wegkonfigurieren, und genau er ist der
+Sinn der Sperre. Er erbt damit Prüfung, Speicherung am Stück und Anzeige.
+
+*Der Erfassungstyp «Auswahl aus einer Liste» wäre hier die naheliegende Verfeinerung – es
+gibt ihn bewusst nicht (§9.1). Kommt er, ist der Grund-Punkt genau dieselbe Zeile, nur mit
+anderem Typ.*
 
 ---
 
@@ -1442,9 +1534,10 @@ beantwortet, sobald ein Modul mit Aussenwirkung existiert.
 Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werden einzeln
 nachgetragen — nicht beim Bauen erraten.
 
-1. **Die weiteren Prozessschrittmodule.** Das erste ist fertig (Datenerfassung, §9).
-   *Nicht mehr offen: die Erfassungsgrösse ist die **Instanz** (§4.4), und was bei
-   «nicht bestanden» passiert, steht in §4.5.*
+1. **Die weiteren Prozessschrittmodule.** Zwei sind fertig: Datenerfassung (§9.0–§9.3)
+   und Aussondern (§9.4). *Nicht mehr offen: die Erfassungsgrösse ist die **Instanz**
+   (§4.4), was bei «nicht bestanden» passiert steht in §4.5, und ein Modul darf das
+   Stück aus dem Auftrag hinausführen (§4.6).*
 2. **Darf ein Abweichungsauftrag noch ausgelöst werden, wenn in einem Modul bereits mit
    der Dateneingabe begonnen wurde?** Gebaut ist vorläufig die restriktivere Variante
    (nein) — als **Eigenschaft des Modultyps**, nicht als globale Regel (§12.7).
@@ -1453,9 +1546,10 @@ nachgetragen — nicht beim Bauen erraten.
 4. **~~Fehlerbehandlung im Modul.~~ Entschieden (§4.5): weder Status noch automatischer
    Abzweig.** Das Stück bleibt stehen, das Ergebnis ist geloggt, und der Mensch
    entscheidet — angeboten wird ein ganz gewöhnlicher Auftrag mit vorgewählten Stücken.
-   Es bleibt darum bei den zwei Statuswerten (§5.2): «nicht bestanden» ist eine Aussage
-   über die **Messung**, kein Zustand des Stücks. Ein Stück, das in einem
-   Abweichungsauftrag landet, ist `Im Prozess` — dort, wo es hingehört.
+   «Nicht bestanden» ist eine Aussage über die **Messung**, kein Zustand des Stücks; ein
+   Stück in einem Abweichungsauftrag ist `Im Prozess`, dort, wo es hingehört. Was daraus
+   folgt, entscheidet der Folgeauftrag — und **wenn** er aussondert, sagt das sein Modul
+   (§9.4), nicht die Datenerfassung.
 5. **Zwei `Neu`-Zeilen mit verschiedenen Vorlagen.** Heute ein harter Fehler: ein Auftrag
    hat einen Prozess (§14). Ob es dafür je einen Fall gibt, ist nicht entschieden.
 6. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
@@ -1487,7 +1581,17 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **Die 100 %-Kontrolle ist ein gewöhnlicher Auftrag** | Kein neuer Mechanismus — nur eine andere Vorbelegung (der ungeprüfte Rest statt der Durchfaller). Ihr Umfang ist der Rest **dieser Instanz an diesem Modul**: Stücke, die anderswo laufen oder längst am Lager liegen, hat dieses Modul nie behandelt, und eine Aussage über sie wäre eine über Material, das hier nie war. |
 | **Die Nummern der Entscheidungs-Gruppen kommen erst auf Klick** | Bei einer 6000er-Charge wäre der «Rest» sechstausend Nummern — mitgeliefert bei jedem Öffnen des Auftrags. Eigener Endpunkt (`GET …/steps/{id}/hold`). |
 | **Die Art der Bestätigung steht im Log** | `scan` oder `manual`. Ohne den Vermerk wäre die Tastatur eine stille Umgehung der Scan-Pflicht statt ihrer protokollierten Alternative. |
-| **Der Übergang gehört zum Modultyp, nicht zum Anwender** | «Fest verdrahtet, nicht einstellbar» (Vorgabe). Zwei Status-Auswahlen beim Anlegen hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand — und deren falsche einen Prozess ergäbe, der nicht läuft. |
+| **Zwei Zustände statt einem «ausgesondert»** | Sie unterscheiden sich in genau einer Sache, und die zählt: ob es einen Weg zurück gibt. Ein gemeinsamer Wert mit einem Flag daneben wäre dieselbe Aussage in zwei Feldern – und die Farbe müsste sie erraten. |
+| **`Gesperrt` zählt zum Bestand** | Das Stück liegt im Regal. Es in die Historie zu legen hiesse, den Bestand kleiner zu melden, als er ist; die Leiste zeigt es als eigenes Segment, und genau das ist die Auskunft. |
+| **Das Greifen IST das Aufheben der Sperre** | Kein Endpunkt «entsperren», kein zweiter Weg: ein gewöhnlicher Auftrag nimmt das Stück auf, das Start-Objekt setzt es auf «Im Prozess». Ein eigener Mechanismus wäre eine zweite Art, dasselbe zu tun. |
+| **Verschrotten ist keine Bestandsbewegung mit Ziel** | Es gibt kein «Schrottlager». Der Zustand IST die Aussage «gibt es nicht mehr»; ein Lagerort dafür wäre ein Ort für etwas, das weg ist. |
+| **Aussondern kennt keine Teilmengen** | Was am Modul ankommt, wird ausgesondert. Wer nur einen Teil meint, gibt nur diesen Teil in den Auftrag – eine Auswahl im Modul wäre ein zweiter Weg zur selben Entscheidung. |
+| **Der Grund ist Pflicht beim Sperren, nicht beim Verschrotten** | Eine Sperre ohne Begründung ist in drei Monaten wertlos. Beim Verschrotten ist der Scan die Bestätigung; ein zweites Feld macht den Fall nicht häufiger richtig. |
+| **Der Grund ist ein Erfassungspunkt, den das MODUL deklariert** | Kein neuer Mechanismus, aber auch keine Konfiguration: wäre er einstellbar, könnte man ihn wegkonfigurieren – und genau er ist der Sinn der Sperre. |
+| **Ein terminales Modul darf nur zuletzt stehen** | Alles dahinter bekäme nie ein Stück. Eine tote Definition durchzulassen wäre schlimmer als ein Freigabe-Fehler: sie sieht aus wie ein Prozess. |
+| **Die Kettenregel gilt auch für die Artikel-Vorlage** | Sie stand nur in der Auftrags-Freigabe; ein Erzeugungsprozess mit gebrochener Kette liess sich anlegen und scheiterte erst beim ersten Auftrag – dann aber ist der Artikel eingefroren und nicht mehr zu reparieren. Jetzt in `domain/chain.py`, von beiden Definitionsorten gerufen. |
+| **Der Auftragsstatus bekommt keinen vierten Wert** | Die bestehende Regel trägt beide Fälle: wer aussondert, hat sein Ziel erreicht (`Abgeschlossen`); wem die Stücke dadurch endgültig fehlen, dessen Ziel ist unerreichbar (`Abgebrochen`). |
+| **Der Übergang gehört zum Modultyp, nicht zum Anwender** | «Fest verdrahtet, nicht einstellbar» (Vorgabe). Zwei Status-Auswahlen beim Anlegen hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand — und deren falsche einen Prozess ergäbe, der nicht läuft. **Der Typ darf dabei seine eigene Konfiguration lesen** (`status_after_for`, seit dem Aussondern): gewählt wird «was soll passieren», nicht «welcher Status». |
 | **Alles, was angelegt ist, ist Pflicht** | *(Ersetzt «standardmässig Pflicht, optional als Häkchen».)* Man legt einen Punkt an, weil er erfasst werden soll. Ein Häkchen daneben wäre die Frage, warum man einen Punkt anlegt, den niemand ausfüllen muss — und jeder ausgeschaltete eine Lücke, die erst später auffällt. |
 | **Ein Erfassungspunkt-Typ ist eine Datei, keine Zeile in einer Liste** | Ein Typ ist **Verhalten** (prüfen · fehlt der Wert · bewerten), nicht nur ein Wort. Als `if/else` verteilt sich das auf drei Stellen, von denen man die dritte vergisst. |
 | **Der Artikel entsteht erst bei seiner Freigabe** | Dieselbe Regel wie beim Auftrag (§6.1) und aus demselben Grund. Ein Artikel, der schon eine Objektnummer hat, aber nichts erzeugen kann, ist ein Datensatz mit einer Zusage, die er nicht halten kann. |

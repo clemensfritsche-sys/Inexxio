@@ -2459,6 +2459,15 @@ export interface components {
              */
             readonly label: string;
             /**
+             * Action
+             * @description Wie die Ausführung dieses Moduls heisst – das Verb auf dem Knopf.
+             *
+             *     Aus der Registry (``Module.action_for``), nicht aus der Oberfläche: beim
+             *     Aussondern hängt es an der Ausprägung, und «Erfassen & bestätigen» über einem
+             *     Verschrotten-Modul wäre schlicht falsch.
+             */
+            readonly action: string;
+            /**
              * Sample
              * @description Die Stichprobenregel als **Satz** – aus einer Quelle (``sampling.describe``).
              *

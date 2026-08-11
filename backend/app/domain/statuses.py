@@ -52,6 +52,14 @@ ABGEBROCHEN = "abgebrochen"
 #: Ausser Betrieb (**Artikel**). Endgültig – kein Reaktivieren.
 INAKTIV = "inaktiv"
 
+#: Aus dem Verkehr gezogen und **physisch weg** (**Einzelinstanz**). Endgültig: es gibt
+#: das Ding nicht mehr, also kann es in keinem Auftrag mehr vorkommen.
+VERSCHROTTET = "verschrottet"
+
+#: Aus dem Verkehr gezogen, aber **physisch noch da** (**Einzelinstanz**). Nicht mehr
+#: einplanbar, solange die Sperre gilt – aufhebbar, indem ein Auftrag das Stück greift.
+GESPERRT = "gesperrt"
+
 # ---------------------------------------------------------------------------
 # Die Eigenschaften, die ein Status trägt
 # ---------------------------------------------------------------------------
@@ -79,12 +87,27 @@ class Status:
     #: **Bestand oder Historie?** Pflicht für jeden Zustand, den ein Stück tragen kann;
     #: für alle anderen sinnlos und darum verboten (siehe ``_check``).
     stock: str | None = None
+    #: **Darf ein Auftrag ein Stück in diesem Zustand aufnehmen?**
+    #:
+    #: Das ist die Frage «gibt es einen Weg zurück?» – und sie gehört an den Status, nicht
+    #: an eine Liste in der Freigabe. Die **Farbe folgt daraus**, nicht umgekehrt: was
+    #: endgültig ist, ist rot; was aufhebbar ist, ist gelb.
+    #:
+    #: ``Verschrottet`` ist der einzige Zustand, der es verneint: das Ding gibt es
+    #: physisch nicht mehr, ein Auftrag darauf wäre ein Auftrag auf nichts. ``Gesperrt``
+    #: bejaht es – **das Greifen ist das Aufheben**, es braucht keinen zweiten Mechanismus.
+    selectable: bool = True
 
 
 #: **Die eine Liste.** Reihenfolge = Anzeige-Reihenfolge (Leiste, Legende, Filter).
 CATALOG: tuple[Status, ...] = (
     Status(FREIGEGEBEN, "Freigegeben", "done", (UNIT, ARTICLE), stock=LIVE),
     Status(IM_PROZESS, "Im Prozess", "pending", (UNIT, ORDER), stock=LIVE),
+    # **Gesperrt zählt zum Bestand.** Das Stück liegt im Regal – es ist da, nur nicht
+    # verwendbar. Es in die Historie zu legen hiesse, den Bestand kleiner zu melden, als
+    # er ist; die Leiste zeigt es als eigenes Segment, und genau das ist die Auskunft.
+    Status(GESPERRT, "Gesperrt", "pending", (UNIT,), stock=LIVE),
+    Status(VERSCHROTTET, "Verschrottet", "danger", (UNIT,), stock=HISTORY, selectable=False),
     Status(ABGESCHLOSSEN, "Abgeschlossen", "done", (ORDER,)),
     Status(ABGEBROCHEN, "Abgebrochen", "danger", (ORDER,)),
     Status(INAKTIV, "Inaktiv", "danger", (ARTICLE,)),
@@ -126,6 +149,12 @@ def _check(catalog: tuple[Status, ...] = CATALOG) -> None:
                 f"Status «{s.value}» trägt kein Stück, behauptet aber eine Bestands-"
                 f"Zugehörigkeit ({s.stock}). Das ist eine Aussage über etwas, das es nicht gibt."
             )
+        if UNIT not in s.axes and not s.selectable:
+            raise ValueError(
+                f"Status «{s.value}» trägt kein Stück, sagt aber, dass ein Auftrag ihn "
+                f"nicht aufnehmen darf. Auch das ist eine Aussage über etwas, das es "
+                f"nicht gibt."
+            )
 
 
 _check()
@@ -155,6 +184,12 @@ ORDER_STATUSES: tuple[str, ...] = _on(ORDER)
 
 #: Artikel: freigegeben (er entsteht erst damit) oder ausser Betrieb.
 ARTICLE_STATUSES: tuple[str, ...] = _on(ARTICLE)
+
+#: **Welche Stücke darf ein Auftrag greifen?** Abgeleitet aus der Eigenschaft am Status –
+#: keine zweite Liste, die jemand nachzieht, wenn ein Zustand dazukommt.
+SELECTABLE_UNIT_STATUSES: tuple[str, ...] = tuple(
+    s.value for s in CATALOG if UNIT in s.axes and s.selectable
+)
 
 # **Keine Liste «was zählt zum Bestand»** – die Frage beantwortet ``stock_kind`` je
 # Zustand. Sie stand hier einmal als abgeleitete Liste und war der Rückfall in genau das
@@ -191,6 +226,20 @@ def label(status: str) -> str:
     """Beschriftung eines Status. Unbekannt → der rohe Wert, damit eine Anzeige nie
     lügt: ein Wert, den es nicht geben dürfte, wird sichtbar, nicht versteckt."""
     return STATUS_LABELS.get(status, status)
+
+
+def is_selectable(status: str) -> bool:
+    """**Darf ein Auftrag ein Stück in diesem Zustand greifen?**
+
+    Die eine Antwort für die Freigabe (``process.release``) **und** für die Auswahl-Liste
+    (``routers/orders``). Getrennt gestellt wären es zwei Regeln, und die Oberfläche böte
+    irgendwann etwas an, das der Server ablehnt – oder schlimmer, umgekehrt.
+
+    Ein unbekannter Wert ist **nicht** wählbar: was der Katalog nicht kennt, kann er auch
+    nicht erlauben.
+    """
+    s = _BY_VALUE.get(status)
+    return bool(s and s.selectable)
 
 
 def stock_kind(status: str) -> str:

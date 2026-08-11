@@ -345,10 +345,11 @@ def unit_options(
             status=unit.status,
             article_object_id=art.object_id if art else None,
             article_name=art.name if art else None,
-            # Frei (``Freigegeben``) oder in einem laufenden Auftrag – beides lässt sich
-            # nehmen. Was nicht geht, hat gar keinen Zustand mehr, in dem es arbeiten
-            # könnte.
-            available=unit.status in (st.START_BEFORE, st.IM_PROZESS),
+            # **Dieselbe Frage wie in der Freigabe** (``statuses.is_selectable``): frei,
+            # in einem laufenden Auftrag oder gesperrt – all das lässt sich nehmen. Nicht
+            # nehmen lässt sich, was es physisch nicht mehr gibt. Zwei Listen für dieselbe
+            # Regel liefen auseinander, und die Oberfläche böte an, was der Server abweist.
+            available=st.is_selectable(unit.status),
             in_order=running.get(unit.id),
         )
         for unit, instance, art in rows

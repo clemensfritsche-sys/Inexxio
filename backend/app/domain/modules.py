@@ -23,6 +23,7 @@ from fastapi import HTTPException
 from . import capture_types, sampling, statuses as st
 
 DATENERFASSUNG = "datenerfassung"
+AUSSONDERN = "aussondern"
 
 
 class Module:
@@ -54,6 +55,16 @@ class Module:
     #: die Ausführungsstelle eine Fallunterscheidung bekommt.
     requires_verification: bool = True
 
+    #: **Endet die Reise hier?** Ein terminales Modul ist kein Durchgang, sondern ein
+    #: **Ausgang**: das Stück verlässt den Auftrag an dieser Stelle und geht nicht weiter.
+    #:
+    #: Daraus folgt zweierlei, beides ohne Fallunterscheidung im Ablauf: hinter ihm kann
+    #: kein Modul mehr stehen (es bekäme nie ein Stück – ``_assert_chain`` weist das bei
+    #: der Freigabe ab), und es passiert **nicht** das Ende-Objekt (``_finish``), denn es
+    #: ist selbst eines. Genau das schneidet auch eine geplante Rückführung ab: die
+    #: Rückkehr hängt am Ende-Objekt, und dorthin kommt das Stück nie.
+    terminal: bool = False
+
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
                  tone: str):
         self.key = key
@@ -72,6 +83,29 @@ class Module:
     def clean_config(self, raw: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
         """Die Konfiguration prüfen und normalisieren. Ohne Konfiguration: ``None``."""
         return None
+
+    #: Was der Knopf sagt, der dieses Modul ausführt. Ein Verb, kein Modulname – der
+    #: steht schon auf der Karte.
+    action: str = "Erfassen & bestätigen"
+
+    def action_for(self, config: Optional[dict[str, Any]]) -> str:
+        """Wie heisst die Ausführung dieses Moduls? Vorgabe: sein ``action``.
+
+        Wie ``status_after_for`` darf ein Typ dabei seine Konfiguration lesen – beim
+        Aussondern heisst der Knopf «Verschrotten» oder «Sperren», je nachdem, was
+        passiert. Ein fester Text daneben wäre eine zweite Aussage über dieselbe Sache.
+        """
+        return self.action
+
+    def status_after_for(self, config: Optional[dict[str, Any]]) -> str:
+        """Auf welchen Zustand setzt dieses Modul? Vorgabe: der des **Typs**.
+
+        Der Übergang gehört weiterhin zum Modultyp und nicht zum Anwender (§14) – aber
+        der Typ darf seine eigene Konfiguration lesen. Das ist der Unterschied zwischen
+        «welchen Status willst du?» (ein Dropdown, das man falsch ausfüllen kann) und
+        «was soll passieren?» (eine fachliche Wahl, aus der der Status **folgt**).
+        """
+        return self.status_after
 
 
 class Datenerfassung(Module):
@@ -94,6 +128,68 @@ class Datenerfassung(Module):
         }
 
 
+class Aussondern(Module):
+    """Einzelinstanzen **aus dem Verkehr ziehen** – verschrotten oder sperren.
+
+    **Zwei Fälle, ein Modul.** Sie tun dasselbe: das Stück verlässt den Auftrag, die
+    Reise endet hier. Der einzige Unterschied ist der Zielzustand – also ist es ein
+    **Parameter**, kein zweites Modul. Zwei Module wären zwei Definitionen, zwei Karten,
+    zwei Panels und zwei Stellen, an denen man dieselbe Regel pflegt.
+
+    **Was ankommt, wird ausgesondert** – ohne Auswahl und ohne Stichprobe. Es gibt
+    keinen Fall, in dem man «die Hälfte davon» verschrotten will: wer nur einen Teil
+    meint, gibt nur diesen Teil in den Auftrag.
+
+    **Der Grund ist Pflicht – aber nur beim Sperren.** Eine Sperre ohne Begründung ist in
+    drei Monaten wertlos: niemand weiss mehr, ob man sie aufheben darf, und im Zweifel
+    bleibt das Teil für immer liegen. Beim Verschrotten ist der Scan die Bestätigung –
+    das Teil ist weg, ein zweites Feld macht den Fall nicht häufiger richtig.
+
+    Der Grund ist dabei **kein neuer Mechanismus**: er ist ein ganz gewöhnlicher
+    Erfassungspunkt (``capture_types``), nur einer, den das Modul selbst deklariert statt
+    ihn erfragen zu lassen. Damit erbt er Prüfung, Speicherung am Stück und Anzeige.
+    """
+
+    #: Die beiden Ausprägungen – und der Zustand, auf den jede setzt. Die Zuordnung steht
+    #: hier und nirgends sonst; die Oberfläche fragt danach, statt sie nachzubauen.
+    MODES: dict[str, str] = {"scrap": st.VERSCHROTTET, "block": st.GESPERRT}
+    DEFAULT_MODE = "scrap"
+
+    terminal = True
+
+    #: Der Erfassungspunkt, den das Sperren mitbringt. Fest, nicht konfigurierbar: er ist
+    #: die **Frage des Moduls**, nicht die des Anwenders.
+    REASON_POINT = {"label": "Grund der Sperre", "type": "text"}
+
+    #: Das Verb je Ausprägung – dieselbe Zuordnung wie ``MODES``, andere Spalte.
+    ACTIONS: dict[str, str] = {"scrap": "Verschrotten", "block": "Sperren"}
+
+    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
+        mode = ((raw or {}).get("mode") or self.DEFAULT_MODE)
+        if mode not in self.MODES:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"«{mode}» ist keine Aussonderungs-Art. Erlaubt: "
+                    + ", ".join(self.MODES) + "."
+                ),
+            )
+        # Die Punkte entstehen **hier**, nicht aus der Eingabe: was erfasst wird, sagt
+        # das Modul. Käme es aus dem Entwurf, könnte man den Grund wegkonfigurieren –
+        # und genau der ist der Sinn der Sperre.
+        points = capture_types.clean_points([self.REASON_POINT]) if mode == "block" else []
+        return {"mode": mode, "points": points, "sample": dict(sampling.DEFAULT)}
+
+    def _mode(self, config: Optional[dict[str, Any]]) -> str:
+        return (config or {}).get("mode") or self.DEFAULT_MODE
+
+    def status_after_for(self, config: Optional[dict[str, Any]]) -> str:
+        return self.MODES[self._mode(config)]
+
+    def action_for(self, config: Optional[dict[str, Any]]) -> str:
+        return self.ACTIONS[self._mode(config)]
+
+
 MODULES: dict[str, Module] = {
     m.key: m for m in (
         Datenerfassung(
@@ -102,6 +198,15 @@ MODULES: dict[str, Module] = {
             status_before=st.IM_PROZESS,
             status_after=st.IM_PROZESS,
             tone="slate",
+        ),
+        Aussondern(
+            key=AUSSONDERN,
+            label="Aussondern",
+            status_before=st.IM_PROZESS,
+            # Der Vorgabewert; das gültige Nachher steht in ``status_after_for``, weil es
+            # an der Ausprägung hängt.
+            status_after=st.VERSCHROTTET,
+            tone="clay",
         ),
     )
 }

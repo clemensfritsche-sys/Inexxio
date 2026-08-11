@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Hash, Layers, Percent, Trash2 } from 'lucide-react';
+import { Hash, Layers, Lock, Percent, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ModuleCatalog } from '@/types';
 import {
-  CAPTURE_ICON, MODULE_ICON, NEEDS_TARGET, SAMPLE_ALL, moduleTone,
-  type ModuleDraft, type PointDraft, type SampleDraft,
+  CAPTURE_ICON, DISPOSAL_MODES, MODULE_ICON, NEEDS_TARGET, blankModule, moduleTone,
+  type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft,
 } from '@/lib/modules';
 import {
   DRAFT_OBJECT_ID, definitionGraph, type DiagramStep,
@@ -80,7 +80,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   function add(moduleType: string) {
     const id = (modules[modules.length - 1]?.id ?? 0) + 1;
     setJustAdded(id);
-    onChange([...modules, { id, moduleType, points: [], sample: { ...SAMPLE_ALL } }]);
+    onChange([...modules, blankModule(id, moduleType)]);
   }
   function patch(id: number, next: Partial<ModuleDraft>) {
     onChange(modules.map((m) => (m.id === id ? { ...m, ...next } : m)));
@@ -114,8 +114,16 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
         onDragState: setDrag,
         renderStep: frozen ? undefined : (step) => {
           const m = modules.find((x) => x.id === step.id);
-          return m ? <ModuleFields module={m} types={catalog?.capture_types ?? []}
-            onChange={(next) => patch(m.id, next)} /> : null;
+          if (!m) return null;
+          // **Welche Felder ein Modul hat, sagt sein Typ** – die Zuordnung steht hier,
+          // nicht als Bedingung im Rumpf. Ein neuer Typ ist ein Eintrag, kein Eingriff.
+          const Fields = MODULE_FIELDS[m.moduleType];
+          return Fields ? <Fields module={m} types={catalog?.capture_types ?? []}
+            onChange={(next) => patch(m.id, next)} /> : (
+            <p className="text-xs" style={{ color: 'var(--danger)' }}>
+              Modultyp «{m.moduleType}» ist dieser Oberfläche unbekannt.
+            </p>
+          );
         },
         tail: frozen ? undefined : <Palette catalog={catalog} onPick={add} />,
       }}
@@ -160,6 +168,54 @@ function Palette({ catalog, onPick }: {
     </div>
   );
 }
+
+/**
+ * **Aussondern — eine Entscheidung, sonst nichts.**
+ *
+ * Verschrotten und Sperren tun dasselbe: das Stück verlässt den Auftrag. Der einzige
+ * Unterschied ist, **ob es einen Weg zurück gibt** – und genau das steht hier. Es ist
+ * kein Status-Dropdown: der Anwender wählt, was passieren soll, den Zustand leitet das
+ * Modul ab (`Aussondern.status_after_for`).
+ *
+ * Keine Erfassungspunkte, keine Stichprobe. Was ankommt, wird ausgesondert – und der
+ * Grund beim Sperren ist die Frage des **Moduls**, nicht des Anwenders; wäre er
+ * konfigurierbar, könnte man ihn wegkonfigurieren, und das ist der Sinn der Sperre.
+ */
+function DisposalFields({ module: m, onChange }: {
+  module: ModuleDraft;
+  types: { key: string; label: string }[];
+  onChange: (next: Partial<ModuleDraft>) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <IconSwitch
+        value={m.mode}
+        onChange={(mode: DisposalMode) => onChange({ mode })}
+        options={DISPOSAL_MODES.map((o) => ({
+          value: o.value, icon: o.value === 'scrap' ? Trash2 : Lock,
+          label: o.label, hint: o.hint,
+        }))}
+      />
+      {m.mode === 'block' && (
+        <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--fg-4)' }}>
+          <Lock size={13} />
+          Beim Sperren wird ein Grund erfasst – ohne ihn weiss später niemand, ob die
+          Sperre aufgehoben werden darf.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Welcher Feldsatz gehört zu welchem Modultyp. Eine Zuordnung, keine Bedingung. */
+const MODULE_FIELDS: Record<string, React.ComponentType<{
+  module: ModuleDraft;
+  types: { key: string; label: string }[];
+  onChange: (next: Partial<ModuleDraft>) => void;
+}>> = {
+  datenerfassung: ModuleFields,
+  aussondern: DisposalFields,
+};
 
 /**
  * **Die Stichprobe — eine Zeile, keine Maske.**

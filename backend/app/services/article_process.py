@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..domain import modules
+from ..domain import chain, modules
 from ..models import Article, ArticleProcessStep
 
 
@@ -75,16 +75,28 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
     out: list[ArticleProcessStep] = []
     for position, data in enumerate(raw, start=1):
         module = modules.get(data.get("module_type"))
+        config = module.clean_config(data.get("config"))
         step = ArticleProcessStep(
             article_id=article.id,
             position=position,
             module_type=module.key,
             status_before=module.status_before,
-            status_after=module.status_after,
-            config=module.clean_config(data.get("config")),
+            # Erst prüfen, dann ableiten: beim Aussondern hängt das Nachher an der
+            # Ausprägung (``Module.status_after_for``).
+            status_after=module.status_after_for(config),
+            config=config,
         )
         db.add(step)
         out.append(step)
+    # **Dieselbe Kettenregel wie beim Auftrag** (``domain/chain``). Sie hier zu prüfen ist
+    # kein Extra, sondern der richtige Zeitpunkt: der Artikel entsteht mit seiner Freigabe
+    # und ist danach eingefroren – eine Vorlage, deren Kette nicht schliesst, wäre erst
+    # beim ersten Auftrag aufgefallen, und dann liesse sie sich nicht mehr reparieren.
+    chain.assert_closes([
+        {"module_type": s.module_type, "status_before": s.status_before,
+         "status_after": s.status_after}
+        for s in out
+    ])
     # Der Stempel zählt die Fassungen der Vorlage. Sie entsteht genau einmal – die 1 ist
     # damit keine Zählung, sondern die Aussage «erste und einzige Fassung».
     article.process_version = 1

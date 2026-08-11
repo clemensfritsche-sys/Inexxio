@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Layers } from 'lucide-react';
+import { ClipboardList, Layers, PackageX } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import type {
   ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, RelatedOrder,
@@ -428,6 +428,7 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
               orderObjectId={order.object_id}
               stepId={step.id}
               points={pointsOf(order, step.id)}
+              action={stepInfo(order, step.id)?.action ?? ''}
               work={workOf(order, step.id)}
               busy={busy}
               onDirty={setEntryStarted}
@@ -436,7 +437,8 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
                 onConfirm(step.id, instanceObjectId, verification, values)}
             />
           ) : (
-            <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)} />
+            <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
+              action={stepInfo(order, step.id)?.action} />
           )),
         }}
         parents={order.parents ?? []}
@@ -457,8 +459,20 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
  * zu lassen. Die erfassten *Werte* eines erledigten Moduls stehen nicht hier, sondern in
  * der Historie – sie sind ein Ereignis, keine Eigenschaft des Moduls.
  */
-function PointList({ points, sample }: { points: CapturePoint[]; sample?: string }) {
-  if (!points.length) return null;
+function PointList({ points, sample, action }: {
+  points: CapturePoint[]; sample?: string; action?: string;
+}) {
+  // **Ein Modul ohne Erfassungspunkte hat trotzdem etwas zu sagen.** Das Aussondern
+  // erfasst nichts – was es tut, steht in seinem Verb, und ohne diese Zeile stünde die
+  // Karte leer da.
+  if (!points.length) {
+    return action ? (
+      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
+        <PackageX size={13} style={{ color: 'var(--fg-4)' }} />
+        <span>{action}</span>
+      </div>
+    ) : null;
+  }
   return (
     <div className="flex flex-col gap-1">
       {/* **Die Stichprobenregel gehört zur Definition** – sie sagt, an wie vielen Stücken
@@ -512,9 +526,14 @@ async function startDeviation(
   open({ articleObjectId: instance.article_object_id, unitNumbers: [unitNumber], fromOrder });
 }
 
+/** Das Modul eines Schritts, wie der Server es beschreibt – die eine Lesestelle. */
+function stepInfo(order: Order, stepId: number) {
+  return (order.steps ?? []).find((s) => s.id === stepId);
+}
+
 /** Die Stichprobenregel eines Moduls – als Satz, vom Server (`ProcessStepResponse.sample`). */
 function sampleOf(order: Order, stepId: number): string | undefined {
-  return (order.steps ?? []).find((s) => s.id === stepId)?.sample;
+  return stepInfo(order, stepId)?.sample;
 }
 
 /** Die Erfassungspunkte eines Moduls – aus seiner eingefrorenen Definition. */
