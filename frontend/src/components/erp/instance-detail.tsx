@@ -11,6 +11,7 @@ import { Card, DetailHeader } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockBar, StockLegend } from '@/components/erp/stock-bar';
 import { UnitNumbers } from '@/components/erp/unit-numbers';
+import { LabelButton } from '@/components/scan/object-label';
 
 /**
  * Instanz-Detail – eine **Gruppe** und ihre Einzelinstanzen.
@@ -50,6 +51,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
         type="instance"
         title={instanceName(rec)}
         objectId={rec.object_id}
+        actions={<LabelButton objectId={rec.object_id} title={rec.article_name} kind="Instanz" />}
         onBack={onBack}
       />
 

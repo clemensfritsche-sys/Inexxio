@@ -25,7 +25,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Globe2, Building2, Check, Plus, X, Search } from 'lucide-react';
+import { Globe2, Check, Plus, X, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { TerritoryMap as TerritoryMapData } from '@/types';
 import { WorldMap, regionAnchor } from '@/components/erp/world-map';

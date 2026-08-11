@@ -4,14 +4,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2 } from 'lucide-react';
 import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
-import {userName, articleName, instanceName, organizationName, orderName } from '@/lib/record-name';
+import {userName, articleName, organizationName, orderName } from '@/lib/record-name';
 import { articleStatus, organizationStatus, userStatus, orderStatus } from '@/lib/record-status';
 import { RecordIcon, StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type {Article, CompanySettings, Instance, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order } from '@/types';
+import type {Article, CompanySettings, UserProfile, ErpRecordType, InstanceSummary, OrderSummary, Order } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
+import { useScan } from '@/components/scan/scan-provider';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
 import { setOpenRecord } from '@/lib/feedback';
 import { ArticleDetail } from '@/components/erp/article-detail';
@@ -120,7 +121,6 @@ export default function ErpPage() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [instances, setInstances] = useState<InstanceSummary[]>([]);
   const [instanceLoadingMore, setInstanceLoadingMore] = useState(false);
-  const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
   // Unternehmen (Gesellschaften): ein gleichrangiger ERP-Datensatztyp `organization` –
   // der Betreiber (ältestes) + jede weitere Gesellschaft. Admin-only.
   const [companies, setCompanies] = useState<CompanySettings[]>([]);
@@ -150,9 +150,7 @@ export default function ErpPage() {
   const lastLoadRef = useRef<number>(0);   // Zeitpunkt des letzten Feed-Ladens (Rückkehr-Refresh)
 
   const suppliers = users.filter((u) => u.role === 'supplier');
-  // Kombinierte Kamera im Feed: EIN Knopf für Scannen (Code → Datensatz öffnen) UND
-  // Dokument erfassen (Auslöser → KI-Aufnahme). Kein Moduswechsel.
-  const [feedCapture, setFeedCapture] = useState(false);
+  const scan = useScan();
 
   useEffect(() => {
     // Kern-Feeds (geringe Kardinalität) blockierend laden – die Shell erscheint
@@ -172,9 +170,6 @@ export default function ErpPage() {
       }
       setLoading(false);
     });
-    // Nicht-blockierend nachladen (Shell erscheint sofort). Instanzen werden
-    // separat server-paginiert/-durchsucht geladen (Effekt unten).
-    api.getPublicSettings().then(setSettings).catch(() => {});
   }, []);
 
   // Tiefer Link «?open=<Objektnummer>» (z. B. von der KI-Navigation): den Datensatz direkt
@@ -359,6 +354,25 @@ export default function ErpPage() {
     } catch { /* Objekt nicht gefunden – ignorieren */ }
   }
 
+  /**
+   * **Suchen mit der Kamera.** Ein freier Lookup: kein `expected`, kein `restrict` –
+   * jede Objektnummer des Hauses darf es sein, und was sie ist, löst der Server auf.
+   *
+   * `exists` ist dabei der Unterschied zwischen «funktioniert» und «tut so»: ohne die
+   * Frage gilt jede formal gültige 9-stellige Zahl, der Dialog meldet Erfolg, schliesst –
+   * und hier passiert nichts, weil die Nummer keinen Datensatz hat. Mit ihr sagt es der
+   * Rahmen im Bild, wo der Mensch gerade hinschaut.
+   */
+  function openScanner() {
+    scan({
+      steps: [{
+        label: 'Datensatz',
+        exists: (id) => api.resolveObject(id).then(() => true).catch(() => false),
+      }],
+      onComplete: ([objectId]) => { void openByObjectId(objectId); },
+    });
+  }
+
   function startCreate(type: 'article' | 'order', seed?: OrderSeed) {
     setPlusOpen(false);
     setSel(null);
@@ -374,7 +388,6 @@ export default function ErpPage() {
       // seinen Titel verliert (genau EINE Gesellschaft trägt is_operator). Und die im
       // Fenster mitgeführte Firmenangabe (Impressum) nachziehen.
       api.getCompanies().then(setCompanies).catch(() => {});
-      api.getPublicSettings().then(setSettings).catch(() => {});
     }
   }
 
@@ -398,12 +411,6 @@ export default function ErpPage() {
     if (a.object_id != null) setSel({ type: 'article', objectId: a.object_id });
   }
 
-
-  // Instanz-Feed neu laden (Seite 0 + Gesamtzahl, aktuelle Suche)
-  function reloadInstances() {
-    const q = search.trim();
-    api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
-  }
 
   function handleUserSaved(u: UserProfile) {
     setUsers((prev) => prev.map((x) => (x.id === u.id ? u : x)));
@@ -459,10 +466,10 @@ export default function ErpPage() {
                 </button>
               )}
               <button
-                onClick={() => setFeedCapture(true)}
-                data-tip="Scannen oder Dokument erfassen"
+                onClick={openScanner}
+                data-tip="Datensatz scannen"
                 data-tip-pos="bottom"
-                aria-label="Scannen oder Dokument erfassen"
+                aria-label="Datensatz scannen"
                 className="flex-none w-10 h-10 rounded-ds-sm flex items-center justify-center bg-bg-2 border border-border-1 text-fg-3 hover:text-fg-1 hover:bg-bg-3 transition-colors"
               >
                 <ScanLine size={18} />

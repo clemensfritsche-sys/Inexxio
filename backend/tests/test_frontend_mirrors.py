@@ -7,6 +7,7 @@ Nach dem Basis-Neuaufbau ist die Liste kurz – das ist der Punkt: es gibt kaum 
 zu spiegeln, weil es kaum noch etwas gibt. Was hier fehlt, fehlt absichtlich.
 """
 
+import json
 import pathlib
 import re
 
@@ -462,9 +463,13 @@ def test_colour_hangs_on_the_status_at_exactly_one_place():
     Baut eine Komponente sich ihre eigene Farblogik, sieht derselbe Zustand an zwei
     Stellen verschieden aus, und jede neue Ansicht muss die Regel neu erfinden.
     """
-    for name in ("process-diagram.tsx", "order-detail.tsx"):
-        src = _read(FRONTEND / "components" / "erp" / name)
-        assert "statusCfg" in src, f"{name} liest die zentrale Zuordnung nicht."
+    # Geprüft wird das **Verbot**, nicht die Anwesenheit eines Imports: die frühere
+    # Fassung verlangte, dass jede dieser Dateien `statusCfg` *nennt* – und hielt damit
+    # einen Import am Leben, der längst nichts mehr tat. Ein Wächter, der tote Zeilen
+    # erzwingt, arbeitet gegen sein eigenes Ziel.
+    for name in ("process-diagram.tsx", "order-detail.tsx", "instance-list.tsx",
+                 "unit-numbers.tsx", "stock-bar.tsx"):
+        src = _code(_read(FRONTEND / "components" / "erp" / name))
         # ``MODULE_TONE`` ist ausdrücklich erlaubt: Prozessmodule tragen eine eigene,
         # von der Ampel getrennte Farbfamilie (§5.3). Verboten ist der Griff zur Ampel.
         for ampel in ("TONE.done", "TONE.pending", "TONE.danger"):
@@ -472,6 +477,10 @@ def test_colour_hangs_on_the_status_at_exactly_one_place():
                 f"{name} greift direkt auf «{ampel}» zu – die Zuordnung Status→Farbe "
                 f"gehört in lib/process-status.ts."
             )
+
+    # Und wer Farbe zeigt, holt sie dort: das Diagramm färbt Knoten nach Zustand.
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    assert "statusCfg" in diagram, "Das Diagramm färbt nicht über die zentrale Zuordnung."
 
 
 def test_the_process_diagram_is_one_component_with_two_modes():
@@ -2614,4 +2623,197 @@ def test_a_running_piece_names_the_order_it_runs_in():
     )
     assert "u.order_object_id ?" in units, (
         "Der Auftrag wird unbedingt gerendert – ein freies Stück hat keinen."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Der Scanner — wieder in Betrieb, und robuster als vorher
+# ---------------------------------------------------------------------------
+
+def test_a_button_without_effect_is_caught_by_the_linter():
+    """**Ein Knopf, der nichts tut, muss auffallen** – automatisch, nicht durch Lesen.
+
+    Der Scan-Knopf im Feed setzte einen Zustand, den niemand las: seit dem Basis-Neuaufbau
+    tat er nichts, und nichts hat es gemeldet. Die Ursache war nicht Unachtsamkeit,
+    sondern eine ausgeschaltete Regel – `next/core-web-vitals` allein prüft ungenutzte
+    Variablen nicht, und eine ungenutzte **Destrukturierung** (`const [x, setX] = …`) ist
+    genau die Form, in der ein toter Knopf auftritt.
+
+    Der Wächter hält fest, dass die Regel an ist. Gefunden hat sie danach nicht eine
+    Leiche, sondern **46** – darunter zwei API-Abfragen für einen Wert, den niemand liest.
+    """
+    cfg = json.loads(_read(FRONTEND.parent / ".eslintrc.json"))
+    rule = cfg.get("rules", {}).get("no-unused-vars")
+    assert rule, "Die Regel gegen ungenutzte Variablen ist nicht eingeschaltet."
+    assert rule[0] == "error", "Die Regel warnt nur – dann fällt nichts auf."
+    assert "destructuredArrayIgnorePattern" in rule[1], (
+        "Ohne diese Option bleibt die tote `useState`-Destrukturierung unbemerkt – "
+        "und genau die war der tote Scan-Knopf."
+    )
+    # Und die CI führt sie aus; eine Regel, die nur lokal läuft, ist keine.
+    ci = _read(ROOT / ".github" / "workflows" / "deploy-dev.yml")
+    assert "npm run lint" in ci, "Der Linter läuft nicht in der CI."
+
+    feed = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
+    assert "feedCapture" not in feed, "Der tote Zustand hinter dem Scan-Knopf ist zurück."
+    assert "onClick={openScanner}" in feed, "Der Scan-Knopf ist wieder ohne Wirkung."
+
+
+def test_an_aborted_scan_never_completes():
+    """**Wer abbricht, löst nichts aus.**
+
+    Der Erfolgs-Timer (380 ms) lief ungebremst weiter: Esc oder Klick daneben in diesem
+    Fenster → der Dialog war weg, der Timer feuerte trotzdem, und `onComplete` bewegte
+    eine Instanz, die niemand mehr bewegen wollte. Ein Datenfehler, kein Schönheitsfehler.
+    """
+    src = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
+    assert "clearTimeout" in src, "Der Quittierungs-Timer wird nicht aufgeräumt."
+    assert "if (!alive.current) return;" in src, (
+        "Nach dem Abbruch fehlt die Prüfung, ob der Dialog überhaupt noch lebt – die "
+        "asynchrone Existenzprüfung kann sonst NACH dem Schliessen einen Timer setzen, "
+        "den kein Cleanup mehr erwischt."
+    )
+    # Und die Marke wird beim Betreten **zurückgesetzt**: React ruft einen Effekt in der
+    # Entwicklung zweimal auf (mount → cleanup → mount). Fehlt die Zeile, steht sie nach
+    # dem ersten Cleanup für immer auf «tot» und der Dialog nimmt gar nichts mehr an –
+    # genau das hat der Browser-Durchlauf gemeldet, nicht das Lesen.
+    assert "alive.current = true;" in src, (
+        "Die Lebend-Marke wird beim Mount nicht zurückgesetzt (StrictMode-Doppellauf)."
+    )
+
+
+def test_a_free_lookup_asks_whether_the_object_exists():
+    """**«Erkannt» heisst «gibt es».**
+
+    Ohne `expected`/`restrict` galt jede formal gültige 9-stellige Zahl – irgendein
+    fremder QR-Code kam durch, der Rahmen wurde grün, der Dialog schloss, und beim
+    Aufrufer passierte stillschweigend nichts (404, verschluckt). Die Meldung «… ist
+    nicht im ERP» gab es bereits; sie war nur unerreichbar.
+    """
+    lib = _code(_read(FRONTEND / "lib" / "scan.ts"))
+    assert "exists?:" in lib, "Der Schritt kann die Existenzfrage nicht stellen."
+    assert "ist nicht im ERP" in lib and "await step.exists(" in lib, (
+        "Die Deutung fragt nicht nach – dann meldet der Scanner Erfolg für Nummern, "
+        "die es nicht gibt."
+    )
+    feed = _code(_read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx"))
+    assert "exists: (id) => api.resolveObject(id)" in feed, (
+        "Der Feed reicht die Frage nicht herein – dort trifft sie am häufigsten zu."
+    )
+
+
+def test_the_dialog_knows_neither_decoder_nor_object_semantics():
+    """**Drei Schichten, und die Deutung ist austauschbar** (die Naht für später).
+
+    Der Dialog besitzt die Kamera und liefert ein Ergebnis; was das Ergebnis BEDEUTET,
+    steht in `ScanReading` (heute `objectCodes`). Vorher griff er selbst zu
+    `parseScannedCode`/`validateForStep` – damit wusste er, dass ein Scan eine
+    Objektnummer ist, und eine zweite Deutung wäre ein Umbau statt eines neuen Objekts.
+    """
+    dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
+    for leak in ("parseScannedCode", "validateForStep", "@zxing"):
+        assert leak not in dialog, f"Der Dialog greift wieder direkt zu «{leak}»."
+    for call in ("reading.read(", "reading.check(", "reading.prompt("):
+        assert call in dialog, f"Der Dialog benutzt den Vertrag nicht ({call})."
+
+    lib = _code(_read(FRONTEND / "lib" / "scan.ts"))
+    assert "export interface ScanReading" in lib and "export const objectCodes" in lib
+    # Die Logikschicht bleibt frei von React und API.
+    assert "react" not in lib.lower() and "lib/api" not in lib, (
+        "lib/scan.ts zieht React oder den API-Client herein – die unterste Schicht muss "
+        "ohne beides auskommen, sonst ist sie keine."
+    )
+
+
+def test_the_camera_is_chosen_and_can_light_up():
+    """**In der Halle entscheidet sich das.**
+
+    `facingMode: 'environment'` überlässt die Wahl dem Browser, und der greift auf
+    Telefonen mit mehreren Rückkameras oft zur Ultraweitwinkel-Linse – die bei 10 cm
+    nicht scharf stellt, also genau dort, wo man ein Etikett hält.
+
+    Und der native Decoder kommt zuerst: ZXing wird nur noch **dynamisch** geladen, damit
+    die ~112 kB auf Geräten mit `BarcodeDetector` gar nicht erst über die Leitung gehen.
+    """
+    hook = _code(_read(FRONTEND / "components" / "scan" / "use-barcode-scanner.ts"))
+    assert "export function pickCamera" in hook, "Die Linsenwahl fehlt."
+    assert "torch" in hook and "applyConstraints" in hook, "Die Taschenlampe fehlt."
+    assert "BarcodeDetector" in hook, "Der native Schnellpfad fehlt."
+    assert "await import('@zxing/browser')" in hook, (
+        "ZXing wird statisch geladen – dann kostet der Rückfall auch die Geräte, die ihn "
+        "nicht brauchen."
+    )
+    assert "import { BrowserMultiFormatReader" not in hook
+
+    # **Der Speicherleck-Fix bleibt.** ZXings `stop()` beendet nur die Decode-Schleife;
+    # ohne explizites Stoppen der Tracks wächst der Video-Puffer über jeden Scan hinweg.
+    # Geprüft wird der **Cleanup**, nicht die Datei: `getTracks` steht auch im Abbruch-
+    # Zweig, und der räumt beim Schliessen nichts auf.
+    cleanup = hook.split("return () => {")[-1]
+    assert "getTracks" in cleanup and "t.stop()" in cleanup, (
+        "Der Cleanup stoppt die Kamera-Tracks nicht mehr – das Speicherleck ist zurück."
+    )
+
+
+def test_the_focus_follows_the_camera():
+    """Läuft die Kamera, bleibt die Tastatur zu – **ausser** sie ist der einzige Weg.
+
+    `autoFocus` öffnete auf dem Telefon sofort die Bildschirmtastatur über dem Bild, um
+    das es geht. Ohne Fokus verlöre man aber den Hardware-Scanner: ein USB-/Bluetooth-
+    Gerät tippt Nummer + Enter in das fokussierte Feld. Beides zugleich geht, weil die
+    erste Ziffer den Fokus holt und mitgenommen wird.
+    """
+    src = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
+    assert "autoFocus" not in src, "Die Tastatur springt wieder unbedingt auf."
+    assert "if (cameraLive) sheetRef.current?.focus();" in src
+    assert "/^\\d$/.test(e.key)" in src, (
+        "Ohne die Ziffern-Weiche verliert der Hardware-Scanner sein Ziel."
+    )
+    assert 'role="dialog"' in src and 'aria-modal="true"' in src
+
+
+def test_every_record_type_can_print_its_label():
+    """**Was man scannen soll, muss man etikettieren können.**
+
+    Den QR-Knopf gab es nur am Artikel – ausgerechnet nicht an der **Instanz**, dem Ding
+    im Regal. Ein Etikett trägt nur die Objektnummer, und die hat jeder Datensatz; der
+    Knopf ist darum EIN Bauteil, kein Nachbau je Ansicht.
+    """
+    label = _read(FRONTEND / "components" / "scan" / "object-label.tsx")
+    assert "export function LabelButton" in label
+    for name in ("article-detail.tsx", "instance-detail.tsx", "order-detail.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        assert "<LabelButton" in src, f"{name} kann kein Etikett drucken."
+        assert "printObjectLabel(" not in src, (
+            f"{name} baut den Knopf selbst nach, statt das gemeinsame Bauteil zu nehmen."
+        )
+
+
+def test_the_scanner_lies_above_the_detail_and_below_the_notes():
+    """Die Stapel-Ordnung ist eine Entscheidung – also steht sie fest.
+
+    Der Scanner liegt über den Detail-Dialogen (die Kamera ist der Vordergrund) und unter
+    dem Notiz-Werkzeug (beim Testen muss man ihn selbst melden können).
+    """
+    dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
+    assert "zIndex: 100" in dialog, "Der Scanner hat seine Ebene verloren."
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    assert "zIndex: 60" in fields, "Der Detail-Dialog liegt nicht mehr unter dem Scanner."
+    pin = _read(FRONTEND / "components" / "feedback" / "feedback-pin.tsx")
+    assert "z-[2000]" in pin, "Das Notiz-Werkzeug liegt nicht mehr über dem Scanner."
+
+
+def test_the_object_registry_claims_only_what_it_can_serve():
+    """Ein Typ, den kein Endpunkt liefern kann, ist eine Behauptung.
+
+    ``document`` stammt aus dem abgeschalteten Dokumentmodul – jede Auflösung einer
+    unbekannten Nummer durchsuchte eine Tabelle, die immer leer ist. **Der Nummernraum
+    ist davon getrennt**: die Spalte speist ``current_max_object_id`` → ``setval``, und
+    eine Alt-Zeile mit der höchsten Nummer würde sonst ein zweites Mal vergeben.
+    """
+    src = _read(BACKEND / "app" / "services" / "objects.py")
+    models = src.split("_TYPE_MODELS = {")[1].split("}")[0]
+    assert '"document"' not in models, "Der Scan löst wieder auf ein totes Modul auf."
+    assert "DocumentFile.object_id" in src.split("_OBJECT_ID_COLUMNS")[1][:300], (
+        "Die Alt-Nummern fallen aus dem Nummernraum – die Sequence kann sie neu vergeben."
     )

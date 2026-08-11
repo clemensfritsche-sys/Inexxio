@@ -26,16 +26,17 @@ OBJECT_ID_SEQUENCE = "object_id_seq"
 
 # Objekttyp ↔ Modell (für Registry-Backfill und -Pflege). Prozesse sind KEINE
 # eigenständigen Objekte mehr (Schritte hängen am Artikel/Auftrag, ohne Nummer).
+#
+# ``document`` steht hier **nicht mehr**: das Dokumentmodul ist abgeschaltet
+# (``core/features.ACTIVE``), sein Router wird gar nicht erst importiert. Ein Typ, den
+# kein Endpunkt liefern kann, ist eine Behauptung – und sie kostet: jede Auflösung einer
+# unbekannten Nummer durchsuchte eine Tabelle, die immer leer ist.
 _TYPE_MODELS = {
     "user": UserProfile,
     "article": Article,
     "order": Order,
     "instance": Instance,
-    # Das Prozessschritt-``Document`` trägt KEINE eigene Nummer – seine Nummer ist die
-    # Instanz-Objektnummer. Ein hochgeladenes ``DocumentFile`` (Beleg/Anleitung) hingegen
-    # ist ein eigenständiges, zitier-/etikettierbares Objekt mit eigener Nummer.
-    "document": DocumentFile,
-    # Das Unternehmen selbst (Singleton) ist ebenfalls ein nummerierter ERP-Datensatz.
+    # Das Unternehmen selbst ist ebenfalls ein nummerierter ERP-Datensatz.
     "organization": CompanySettings,
 }
 
@@ -43,7 +44,13 @@ _TYPE_MODELS = {
 # Bestellungen/Eingangskontrollen bekommen KEINE eigene Nummer (laufen unter dem
 # Auftrag); Instanzen hingegen sind eigenständige Objekte. Abweichungen sind
 # Unteraufträge (parent_order_id) und laufen daher als Auftrag mit Objektnummer.
-_OBJECT_ID_COLUMNS = tuple(m.object_id for m in _TYPE_MODELS.values())
+#
+# **Der Nummernraum ist eine andere Aussage als der Typ.** ``DocumentFile`` bleibt hier
+# aufgeführt, obwohl es oben fehlt: die Spalte speist über ``current_max_object_id`` das
+# ``setval`` beim Start. Trägt eine Alt-Zeile die höchste Nummer und fiele sie hier
+# heraus, vergäbe die Sequence sie ein zweites Mal. «Nicht mehr auflösbar» heisst nicht
+# «nie vergeben gewesen».
+_OBJECT_ID_COLUMNS = tuple(m.object_id for m in _TYPE_MODELS.values()) + (DocumentFile.object_id,)
 
 
 def _register(db: Session, ids: list[int], object_type: str | None) -> None:

@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { User, Shield, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
-import { api } from '@/lib/api';
 import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';

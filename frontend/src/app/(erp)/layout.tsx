@@ -7,7 +7,6 @@ import { api } from '@/lib/api';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { ScanProvider } from '@/components/scan/scan-provider';
-import { PasskeyNudge } from '@/components/auth/passkey-nudge';
 import { FeedbackPin } from '@/components/feedback/feedback-pin';
 
 const ROLE_KEY = 'inexxio_user_role';

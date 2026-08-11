@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Blocks, ChevronDown, ChevronUp, CornerUpLeft, Flag, GitBranch, GripVertical, Lock,
   MoreHorizontal, Play, Scissors, Sprout, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, moduleTone } from '@/lib/modules';
 import {
-  BEND, FLOW_GAP, FlowFrame, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
+  BEND, FLOW_GAP, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
 } from './process-flow';
 import { UnitNumber } from './unit-number';
 import {
