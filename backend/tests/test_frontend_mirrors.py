@@ -421,7 +421,7 @@ def test_the_mockup_is_replaced_by_the_real_thing():
     """
     assert not (FRONTEND / "components" / "erp" / "order-process-mockup.tsx").exists()
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    assert "ProcessDiagram" in detail, "Der Auftrag-Reiter zeigt das Diagramm nicht."
+    assert "ProcessColumns" in detail, "Der Auftrag-Reiter zeigt das Prozessbild nicht."
     assert "Mockup" not in detail and "Beispieldaten" not in detail, (
         "Im Auftrag stehen noch Mockup-Reste."
     )
@@ -738,8 +738,8 @@ def test_large_quantities_are_counted_not_listed():
     assert "class FlowUnits(" in schema and "event_count" in schema
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
     assert "GraphUnits" in diagram and "g.count" in diagram
-    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    assert "von {total} Einträgen" in detail, "Der Deckel der Historie wird verschwiegen."
+    # Der Deckel steht dort, wo die Historie jetzt steht: **am Prozessobjekt** (§5).
+    assert "von ${total} Einträgen" in diagram, "Der Deckel der Historie wird verschwiegen."
 
 
 def test_the_article_process_stands_under_the_specification():
@@ -1340,10 +1340,17 @@ def test_a_piece_number_is_written_the_same_way_everywhere():
             f"{f.name} gibt eine Stück-Nummer roh aus ({', '.join(hits)}) – "
             f"sie gehört durch <UnitNumber>."
         )
-    # Vier Stellen zeigen sie – alle über dasselbe Bauteil.
+    # Mehrere Stellen zeigen sie – alle über dasselbe Bauteil. (Die History-Box war eine
+    # davon und ist entfallen (§5); die Historie steht jetzt am Prozessobjekt.)
     users = [f.name for f in (FRONTEND / "components").rglob("*.tsx")
              if "<UnitNumber" in _read(f)]
-    assert len(users) >= 4, f"Nur {users} nutzen das gemeinsame Bauteil."
+    assert len(users) >= 3, f"Nur {users} nutzen das gemeinsame Bauteil."
+    # **Und sie führt zu ihrem Datensatz** (Auftrag §3) – über die bestehende Navigation,
+    # nicht über einen eigenen Weg.
+    comp_nav = _read(FRONTEND / "components" / "erp" / "unit-number.tsx")
+    assert "useErpNav" in comp_nav and "nav(objectId)" in comp_nav, (
+        "Die Stück-Nummer führt nicht mehr zu ihrer Einzelinstanz."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1460,10 +1467,17 @@ def test_the_history_points_at_the_id_not_at_a_name():
         assert forbidden not in ProcessEvent.__table__.columns, (
             f"Der Log trägt «{forbidden}» – er soll auf die ID zeigen."
         )
-    detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    log = _body(detail, "EventLog", kind="function")
-    assert "e.step_id" in log, "Die Historie löst den Schritt nicht über seine ID auf."
+    # Die Historie steht seit §5 **am Prozessobjekt** statt in einer Box darunter – die
+    # Regel ist dieselbe: aufgelöst wird über die ID.
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    log = _body(diagram, "historyTip", kind="export function")
+    assert "e.step_id === node.at" in log, (
+        "Die Historie löst den Schritt nicht über seine ID auf."
+    )
     assert "s.name" not in log, "Die Historie beschriftet wieder über einen Namen."
+    assert "EventLog" not in _read(FRONTEND / "components" / "erp" / "order-detail.tsx"), (
+        "Die History-Box ist zurück – sie sollte am Objekt stehen, nicht darunter."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1490,7 +1504,9 @@ def test_the_process_picture_brings_its_own_width():
     """
     diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
     assert "export const PROCESS_MAXW" in diagram, "Das Prozessbild hat keine eigene Breite."
-    assert "maxWidth: PROCESS_MAXW" in diagram
+    # Das Mass wird dort angewandt, wo der Rahmen entsteht – und den gibt es genau einmal.
+    assert "maxWidth: PROCESS_MAXW" in _read(
+        FRONTEND / "components" / "erp" / "process-columns.tsx")
     # Das Mass kommt aus den Spurmassen (`process-flow.LANE`) – dort steht jede Breite,
     # die dieses Bild kennt, und nur dort.
     assert "export const PROCESS_MAXW = LANE.MID_MAX" in diagram, (
@@ -1502,7 +1518,7 @@ def test_the_process_picture_brings_its_own_width():
     _PROCESS_MAXW = int(width.group(1))
     for name in ("article-detail.tsx", "order-detail.tsx"):
         src = _read(FRONTEND / "components" / "erp" / name)
-        assert "ProcessDesigner" in src or "ProcessDiagram" in src
+        assert "ProcessDesigner" in src or "ProcessColumns" in src
         assert "function StepCard" not in src, f"{name} baut die Modul-Karte nach."
         # **Das Mass steht nur an EINER Stelle.** Wer die Zahl abschreibt, hat wieder
         # zwei Stände – genau die Lage, aus der der gemeldete Unterschied entstand.
@@ -1668,8 +1684,11 @@ def test_many_deviations_are_cut_off_and_say_so():
         "Die wahre Zahl wird nicht mitgeliefert – die gekappte Liste sähe aus wie alles."
     )
     flow = _read(FRONTEND / "components" / "erp" / "process-columns.tsx")
-    assert "deviation_total" in flow and "function Rest(" in flow, (
+    assert "deviationTotal" in flow and "function Rest(" in flow, (
         "Die Oberfläche verschweigt, dass abgeschnitten wurde."
+    )
+    assert "deviation_total" in _read(FRONTEND / "components" / "erp" / "order-detail.tsx"), (
+        "Die wahre Zahl kommt gar nicht erst im Bild an."
     )
 
 

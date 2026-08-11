@@ -451,7 +451,7 @@ Definiert werden sie an genau zwei Orten — mit **identischer Darstellung**:
 | **Auftrag** | Konkreter Prozess für konkrete Einzelinstanzen | **ja** |
 | **Artikel** | Erzeugungsprozess / Arbeitsplan als **Vorlage** | **nein** |
 
-Beide benutzen **dieselben** Bauteile: `ProcessDiagram` (Modus `definition`) und
+Beide benutzen **dieselben** Bauteile: `ProcessColumns` (Modus `definition`) und
 `AddModule`. Der einzige Unterschied ist der **fehlende Definitionsbereich** über dem
 Start: ein Artikel hat keine Einzelinstanzen, und welche durchlaufen, entscheidet
 ausschliesslich der Auftrag.
@@ -678,13 +678,15 @@ echtes PostgreSQL gemessen: Erzeugung · Lagerzugriff · zwei Vorgänger · Abwe
 genau darum ist der frühere Definitions-Container entfallen: er sagte ein zweites Mal,
 was am Baum steht.
 
-**Auch im Entwurf** (§5): dort ist der geplante Rückweg ein Knoten unter dem Ende, und
-die Linie dorthin gibt es nur, wenn zurückgeführt wird — ein Klick auf das Ziel schaltet
-sie an und aus. Der Knoten **bleibt**, wenn die Linie geht (sonst wäre die Entscheidung
-einmalig statt änderbar); mehrere Quellen stehen als Ziele in **einer** Zeile, denn je
-Quelle einen eigenen Knoten untereinander zu hängen hiesse, die Linie zum zweiten liefe
-durch den ersten hindurch. Das frühere Knopfpaar «kehrt zurück / bleibt hier» neben der
-Stückauswahl ist damit weg: die Aussage stand an einer anderen Stelle als ihre Wirkung.
+**Auch im Entwurf, und dort mit dem echten Ziel** (§5 + §8.1c): sobald die Auswahl einem
+laufenden Auftrag ein Stück abnimmt, steht **er** in der linken Spur — mit dem
+Abzweigepunkt, der entstünde, und der Rückführung, wenn zurückgeführt wird. Ein Klick auf
+dieses Ziel schaltet sie an und aus; das Ziel **bleibt**, wenn die Linie geht (sonst wäre
+die Entscheidung einmalig statt änderbar). Der frühere Ersatz-Knoten unter dem Ende ist
+damit weg — er war der Platzhalter für einen Auftrag, den man nicht sah, und neben dem
+echten wären es **zwei Rückweg-Linien für eine Entscheidung**. Ebenso weg ist das
+Knopfpaar «kehrt zurück / bleibt hier» neben der Stückauswahl: die Aussage stand an einer
+anderen Stelle als ihre Wirkung.
 
 **Kräftig läuft die Linie bis in das Modul, das jetzt dran ist.** «Vor Modul X stehen»
 (`current_step_id`) und «X ist dran» (`active_step_id`) sind **dieselbe** Tatsache – der
@@ -738,11 +740,42 @@ nicht per Media-Query: ein 13,3″-Notebook mit 2560 × 1600 Pixeln liefert dem 
 1440 CSS-Pixel. Reicht die Breite nicht, stehen die Nachbarn untereinander — dieselben
 Spalten, nur ohne Querlinien.
 
+### 8.1c Der Entwurf ist dasselbe Bild, nur früher
+
+Ein Entwurf, der einem laufenden Auftrag ein Stück abnimmt, zeigt ihn **schon vor der
+Freigabe** in der linken Spur — mit dem Abzweigepunkt, der entstünde, und (falls
+zurückgeführt wird) dem Rückführpunkt.
+
+**Es gibt genau einen Rahmen** (`ProcessColumns`). Was in der Mitte steht, sagt der
+Aufrufer: der laufende Auftrag seinen Server-Graph, der Entwurf seine Definition samt
+Modul-Editor. Ein zweites Bauteil für «Bild mit Nachbarn» neben «Bild ohne Nachbarn» wäre
+die zweite Darstellung derselben Sache — genau der Schnitt, den §8.1 verbietet. Ohne
+Nachbarn ist das Bild schlicht die Spalte, und dann trägt sie ihr eigenes Mass.
+
+**Die Vorschau ist keine zweite Wahrheit.** Sie kommt aus derselben Ableitung wie das
+echte Bild — `flow.build(db, row, planned=[…])`, wobei `Planned` nur sagt, *an welchem
+Zustandspunkt* eine Abzweigung *entstünde* und *ob* sie zurückführt. Nichts Geplantes ist
+je **gegangen**: es gibt keine Log-Zeile dafür, also bleibt jede geplante Kante Haarlinie.
+Geprüft wird die Gleichheit selbst — Vorschau vor der Freigabe gegen den echten Graph
+danach, bis auf die Objektnummer und `walked` (`test_the_draft_shows_the_source_order_
+exactly_as_it_will_be`, gegen echtes PostgreSQL).
+
+**Der Entwurf hat eine Adresse, keine Objektnummer** (§6.1). Die Vorschau nennt ihn als
+Ziel ihrer Abzweigung; dafür teilen sich beide Seiten `DRAFT_OBJECT_ID` (0 — der
+Nummernkreis beginnt bei 100'000'001, eine Kollision ist unmöglich). Läuft der Wert
+auseinander, fände die Linie ihr Ende nicht und verschwände **still**; ein Wächter
+vergleicht die beiden Stellen.
+
+**Woher der Zustandspunkt kommt:** aus der Absicht der Auswahl (`UnitPick.from_order`,
+§12.6a) und der offenen Zeile des Quell-Auftrags (`OrderUnit.current_step_id`) — nicht aus
+dem heutigen Aufenthaltsort. Sonst zeigte die Vorschau etwas anderes, als die Freigabe
+täte.
+
 ### 8.2 Artikel-Reiter «Erzeugungsprozess» — die Vorlage
 
 Neben «Spezifikation» trägt der Artikel den Reiter «Erzeugungsprozess»:
 
-- Inhalt: **dieselbe** Darstellung wie im Auftrag (`ProcessDiagram`, Modus `definition`)
+- Inhalt: **dieselbe** Darstellung wie im Auftrag (`ProcessColumns`, Modus `definition`)
   und **derselbe** Modul-Editor. Kein Nachbau — der Schnitt aus §8.1 hat gehalten.
 - Dort wird **ausschliesslich der Prozess definiert**, sonst nichts.
 - **Kein Anstossen von Prozessen, keine Einzelinstanzen, keine Ausführung.** Das ist

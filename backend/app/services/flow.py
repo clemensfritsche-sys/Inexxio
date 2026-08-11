@@ -359,7 +359,31 @@ def _rows(db: Session, order: Order) -> list[_Row]:
 # Der Aufbau
 # ---------------------------------------------------------------------------
 
-def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) -> Graph:
+@dataclass
+class Planned:
+    """Eine Abzweigung, die es **noch nicht gibt** – der Entwurf daneben.
+
+    Ein Auftragsentwurf lebt im Browser (§6.1): er hat keine Zeile, keine Objektnummer
+    und schreibt nichts in den Log. Trotzdem will man **vor** der Freigabe sehen, woher
+    seine Stücke kommen und ob sie zurückgehen — und zwar in demselben Bild, das nach der
+    Freigabe entsteht, nicht in einer Skizze daneben.
+
+    Darum nimmt der Graph den Plan als Eingabe entgegen, statt dass ihn jemand nachbaut:
+    dieselbe Auffaltung, dieselben Knoten-Kennungen, dieselben Kanten. Der einzige
+    Unterschied ist der, der wahr ist — **nichts ist gegangen**, also bleibt jede Kante
+    des Plans eine Haarlinie und trägt keine Stücke (Regel Nr. 1).
+    """
+
+    #: Zustandspunkt, an dem die Stücke stehen (``order_units.current_step_id``).
+    at: Optional[int]
+    #: Objektnummer des Entwurfs. Er hat noch keine – die Oberfläche setzt eine Marke.
+    target: int
+    #: Kommt das Material zurück? Nur dann gibt es einen Rückführpunkt.
+    returns: bool
+
+
+def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
+          *, planned: Optional[list[Planned]] = None) -> Graph:
     """Der Graph dieses Auftrags: Knoten, Kanten, Positionen.
 
     Die Knotenfolge ist die Schrittliste, aufgefaltet um die Punkte, an denen etwas
@@ -377,6 +401,7 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
         )
     tally = _tally(db, order.id)
     rows = _rows(db, order)
+    plan = planned or []
     g = Graph()
 
     known = {s.id for s in steps}
@@ -386,7 +411,9 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
     # angekündigt.
     pending = {(r.at, r.through) for r in rows
                if not r.active and r.at is not None and r.through and r.coming_back}
-    joins = {at for (at, _) in tally.back} | {at for (at, _) in pending}
+    joins = ({at for (at, _) in tally.back} | {at for (at, _) in pending}
+             | {p.at for p in plan if p.returns})
+    forks |= {p.at for p in plan}
     for at in sorted(
         (x for x in (forks | joins) if x not in known),
         key=lambda x: (x is None, x),
@@ -409,7 +436,7 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None) 
         flow = tally.started if index == 0 else tally.passed.get(steps[index - 1].id, 0)
         open_here = any(point == at for point, _ in pending)
 
-        prev, flow = _branches(g, prev, at, tally, rows, pending, flow)
+        prev, flow = _branches(g, prev, at, tally, rows, pending, plan, flow)
 
         g.nodes.append(Node(id=module_id(at), kind=NODE_MODULE, at=at))
         # Die letzte Kante vor dem Modul: alle, die hier warten – ausser denen, die der
@@ -459,7 +486,8 @@ def _merged(found: list[Neighbour]) -> list[Neighbour]:
 # zeigte beide Gruppen – zweimal dieselbe. Jetzt beantwortet **ein** Prädikat je Kante
 # beide Fragen: ``build`` zählt, was es zurückgibt, ``units_on`` listet es auf.
 
-def _targets_at(at: Optional[int], tally: _Tally, pending: set) -> list[int]:
+def _targets_at(at: Optional[int], tally: _Tally, pending: set,
+                plan: list["Planned"]) -> list[int]:
     """Die Nachbarn an diesem Zustandspunkt — **chronologisch**.
 
     Die Objektnummer wächst mit der Zeit, also ist «aufsteigend» dasselbe wie «die
@@ -468,11 +496,13 @@ def _targets_at(at: Optional[int], tally: _Tally, pending: set) -> list[int]:
     """
     return sorted({t for (p, t) in tally.out if p == at}
                   | {s for (p, s) in tally.back if p == at}
-                  | {s for (p, s) in pending if p == at})
+                  | {s for (p, s) in pending if p == at}
+                  | {p.target for p in plan if p.at == at})
 
 
 def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
-              rows: list["_Row"], pending: set, flow: int) -> tuple[str, int]:
+              rows: list["_Row"], pending: set, plan: list["Planned"],
+              flow: int) -> tuple[str, int]:
     """Die Abzweigungen an einem Zustandspunkt — **je Nachbar ein eigenes Paar**.
 
     ``… → fork₁ → join₁ → fork₂ → join₂ → Modul`` statt eines gemeinsamen Paares für
@@ -499,7 +529,10 @@ def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
     Einzelinstanz», ohne eine einzige Fallunterscheidung.
     """
     stayed = _pick(rows, lambda r: _here_at(r, at, returned=False))
-    targets = _targets_at(at, tally, pending)
+    targets = _targets_at(at, tally, pending, plan)
+    # **Der Plan ist keine Vergangenheit.** Eine geplante Abzweigung bekommt ihren
+    # Rückführpunkt aus dem Plan, nicht aus dem Log – und dort steht sonst nichts.
+    plans = {p.target: p for p in plan if p.at == at}
     holds = next((t for t in targets if (at, t) in pending), None)
 
     for t in targets:
@@ -518,7 +551,10 @@ def _branches(g: Graph, prev: str, at: Optional[int], tally: _Tally,
         # kann eine Stelle mehrfach verlassen haben (es kam zwischendurch zurück), und
         # «weniger als niemand» gibt es nicht.
         flow = max(0, flow - left)
-        if (at, t) not in tally.back and (at, t) not in pending:
+        returning = (at, t) in tally.back or (at, t) in pending
+        if t in plans:
+            returning = plans[t].returns
+        if not returning:
             continue  # **gekappte Ausleihe**: es gibt keinen Rückweg, also keinen Punkt
         jid = join_id(at, t)
         g.nodes.append(Node(id=jid, kind=NODE_JOIN, at=at))

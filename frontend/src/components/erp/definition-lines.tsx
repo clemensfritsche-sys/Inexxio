@@ -399,11 +399,12 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
       </div>
 
       {/*
-        **Ob es zurückgeht, steht am Ende der Linie – nicht hier** (Auftrag §5). Es war
-        ein Knopfpaar an dieser Stelle; die Aussage stand damit woanders als ihre
-        Wirkung, und man sah erst nach der Freigabe, was daraus wird. Jetzt hängt sie
-        unter dem Ende-Objekt am Rückweg selbst (`ReturnSwitch`): die Linie ist da oder
-        eben nicht. Hier bleibt die Tatsache, aus der die Frage überhaupt entsteht.
+        **Ob es zurückgeht, steht am Bild – nicht hier** (Auftrag §5). Es war ein
+        Knopfpaar an dieser Stelle; die Aussage stand damit woanders als ihre Wirkung,
+        und man sah erst nach der Freigabe, was daraus wird. Jetzt steht der Quell-Auftrag
+        selbst in der linken Spur (Vorschau, §2), mit der Rückführungslinie, die entstehen
+        würde – ein Klick auf ihn schaltet sie an und aus. Hier bleibt die Tatsache, aus
+        der die Frage überhaupt entsteht.
       */}
       {borrowed.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-ds-lg px-2.5 py-2"

@@ -7,14 +7,15 @@ import {
   type FlowAnchor, type FlowMetrics,
 } from './process-flow';
 import {
-  Axis, FlowColumn, PROCESS_MAXW, Stroke, axisEdges, columnRows, hasJourney, journeyKeys, rowOfNode,
-  type ColumnRow, type DiagramStep, type JourneyOrigin, type UnitChip,
+  Axis, EMPTY_GRAPH, FlowColumn, PROCESS_MAXW, Stroke, axisEdges, columnRows, hasJourney,
+  journeyKeys, rowOfNode,
+  type ColumnProps, type ColumnRow, type DiagramStep, type JourneyOrigin,
 } from './process-diagram';
 import { useErpNav } from './obj-id';
 import { formatObjectId } from '@/lib/utils';
 import { statusCfg } from '@/lib/process-status';
 import type {
-  GraphEdge, JourneyStop, Order, ProcessGraph, RelatedOrder,
+  GraphEdge, JourneyStop, ProcessGraph, ProcessStepResponse, RelatedOrder,
 } from '@/types';
 
 /**
@@ -124,6 +125,28 @@ interface Column {
   rel?: RelatedOrder;
 }
 
+/**
+ * **Die Mitte — der Fokus, von aussen bestückt.**
+ *
+ * Sie ist mal ein laufender Auftrag und mal ein Entwurf; das Bild drumherum ist in
+ * beiden Fällen dasselbe (Auftrag §2). Darum sagt der Aufrufer, *was* in der Mitte
+ * steht, und diese Datei, *wie* das Ganze aussieht – die Spuren, die Zeilen, die Linien.
+ *
+ * Was eine Nachbarspalte ausmacht (`prefix`, `faded`, die Journey-Zeilen, der Platz im
+ * Raster), gehört nicht dazu: das entsteht hier.
+ */
+export type MidColumn =
+  Omit<ColumnProps, 'prefix' | 'faded' | 'containerStyle' | 'rowStyle'
+    | 'journeyIn' | 'journeyOut' | 'origins'>
+  & {
+    /**
+     * Wie der Graph eines Nachbarn diese Spalte nennt (`order:<Objektnummer>`). Im
+     * Entwurf ist das `DRAFT_OBJECT_ID` – dieselbe Zahl, die der Server in die Vorschau
+     * schreibt, weil es die echte Nummer noch nicht gibt.
+     */
+    objectId: number;
+  };
+
 type Side = 'left' | 'mid' | 'right';
 
 /** Von welcher bis zu welcher **Zeile** der Hauptachse ein Nachbar reicht. */
@@ -144,47 +167,63 @@ interface Wires {
   used: Record<Side, number>;
 }
 
-export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviateBlocked,
-  journeyIn, journeyOut, origins = [] }: {
-  order: Order;
-  renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
-  onExpand?: (edgeId: string) => Promise<UnitChip[]>;
-  /** Abweichung an einem Stück – nur in der **Mitte**, nie in einer fremden Spalte. */
-  onDeviate?: (unitNumber: string) => void;
-  /** Warum der Auslöser gesperrt ist (§5). Gesetzt = gesperrt, mit Grund im Hover. */
-  deviateBlocked?: string;
-  journeyIn: JourneyStop[];
-  journeyOut: JourneyStop[];
+export function ProcessColumns({ mid: midProps, parents = [], deviations = [],
+  deviationTotal = 0, journeyIn = [], journeyOut = [], origins = [], onToggleReturn }: {
+  /** Was in der Mitte steht – der laufende Auftrag oder der Entwurf. */
+  mid: MidColumn;
+  /** Übergeordnete Aufträge (links). Im Entwurf die **Vorschau** aus `/validate`. */
+  parents?: RelatedOrder[];
+  /** Abweichungen (rechts) – gibt es nur am laufenden Auftrag. */
+  deviations?: RelatedOrder[];
+  /** Wie viele es insgesamt sind; gezeigt werden die ersten. */
+  deviationTotal?: number;
+  journeyIn?: JourneyStop[];
+  journeyOut?: JourneyStop[];
   /** **Hier entstandene** Stücke – der Ast des Baums ohne Vorgänger. */
   origins?: JourneyOrigin[];
+  /**
+   * **Nur im Entwurf**: ein Klick auf den Quell-Auftrag schaltet seine Rückführung an
+   * und aus (Auftrag §5). Gesetzt = die Spalte ist der Schalter; sonst öffnet sie den
+   * Datensatz. Beides am selben Ziel wäre zweideutig, und aus einem Entwurf heraus zu
+   * navigieren hiesse ihn zu verwerfen.
+   */
+  onToggleReturn?: (parentObjectId: number) => void;
 }) {
-  const steps = useSteps(order.steps ?? []);
   // **Eine Sache, eine Stelle.** Ein Auftrag, der schon als Spalte danebensteht, ist
   // kein zweiter Eintrag in der Journey-Zeile – dort bleibt, was die Spalten nicht
   // zeigen: der gewöhnliche Vorgänger bzw. Nachfolger auf der Zeitachse.
   const shownAside = useMemo(
-    () => new Set([...(order.parents ?? []), ...(order.deviations ?? [])].map((r) => r.object_id)),
-    [order.parents, order.deviations],
+    () => new Set([...parents, ...deviations].map((r) => r.object_id)),
+    [parents, deviations],
   );
   const inStops = useMemo(
     () => journeyIn.filter((j) => !shownAside.has(j.object_id)), [journeyIn, shownAside]);
   const outStops = useMemo(
     () => journeyOut.filter((j) => !shownAside.has(j.object_id)), [journeyOut, shownAside]);
 
-  const mid: Column = useMemo(() => {
-    const graph = order.flow ?? empty;
-    return {
-      prefix: '', objectId: order.object_id, graph, steps, side: 'mid',
-      rows: columnRows(graph, {
-        journeyIn: hasJourney(inStops, origins), journeyOut: outStops.length > 0,
-      }),
-    };
-  }, [order.flow, order.object_id, steps, inStops.length, outStops.length, origins.length]);
+  const mid: Column = useMemo(() => ({
+    prefix: '', objectId: midProps.objectId, graph: midProps.graph, steps: midProps.steps,
+    side: 'mid',
+    // **Dieselben Zeilen, die die Spalte rendert** – inklusive der Slots. Ein Entwurf
+    // hat einen Kopf (die Definition) und einen Fuss (die Modulauswahl); zählte das
+    // Raster sie nicht mit, sässe jeder Knoten eine Zeile daneben und jede Querlinie
+    // dockte am falschen an.
+    rows: columnRows(midProps.graph, {
+      head: !!midProps.head, tail: !!midProps.tail,
+      journeyIn: hasJourney(inStops, origins), journeyOut: outStops.length > 0,
+    }),
+    // Nur die **Länge** zählt: ob es die Journey-Zeile gibt, hängt an «leer oder nicht»,
+    // und die Listen selbst sind bei jedem Rendern neue Objekte – als Abhängigkeit
+    // wären sie eine Endlosschleife statt einer Bedingung.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [midProps.objectId, midProps.graph, midProps.steps, midProps.head, midProps.tail,
+    inStops.length, outStops.length, origins.length]);
 
-  const left = useMemo(() => (order.parents ?? []).map((r) => side(r, 'left')), [order.parents]);
-  const right = useMemo(
-    () => (order.deviations ?? []).map((r) => side(r, 'right')), [order.deviations]);
+  const left = useMemo(() => parents.map((r) => side(r, 'left')), [parents]);
+  const right = useMemo(() => deviations.map((r) => side(r, 'right')), [deviations]);
   const columns = useMemo(() => [mid, ...left, ...right], [mid, left, right]);
+  /** Ohne Nachbarn gibt es keine Spuren – dann ist das Bild die Spalte selbst. */
+  const solo = left.length === 0 && right.length === 0;
 
   // **Wo hängt ein Nachbar?** An seinem fork, bis zu seinem join – beides steht als
   // Kante in der Mitte. Findet sich keine (ein übergeordneter Auftrag hängt an unserem
@@ -241,7 +280,17 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
 
   const gutter = gutterFor(Math.max(wires.used.left, wires.used.right));
 
+  // **Im Entwurf ist der Quell-Auftrag selbst der Schalter** (§5). Nur links, nur wenn
+  // jemand zuhört: eine Abweichung rechts hat nichts zu schalten, und am laufenden
+  // Auftrag ist die Entscheidung längst gefallen – dort öffnet die Spalte ihren Datensatz.
+  const toggle = (c: Column) =>
+    (onToggleReturn && c.side === 'left' ? () => onToggleReturn(c.objectId) : undefined);
+
   return (
+    <div className="mx-auto w-full"
+      // Ohne Nachbarn ist die Mitte das ganze Bild – dann trägt sie ihr eigenes Mass
+      // (`PROCESS_MAXW`), sonst richtet sich alles nach der gemessenen Rahmenbreite.
+      style={{ maxWidth: solo ? PROCESS_MAXW : undefined }}>
     <FlowFrame
       gutter={gutter}
       lines={(a, _size, m) => (
@@ -252,28 +301,23 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
       {(m) => {
         const column = (rowStyle?: (i: number) => CSSProperties) => (
           <FlowColumn
-            graph={mid.graph} steps={steps} mode="ausfuehrung"
-            activeStepId={order.active_step_id ?? null}
-            // **Eingeklappt, ausser das Modul ist dran** (#696) – eine Regel, eine Stelle.
-            expandedStepId={order.active_step_id ?? null}
-            endStatus={order.end_status}
-            renderStep={renderStep} onExpand={onExpand} onDeviate={onDeviate}
-            deviateBlocked={deviateBlocked}
+            {...midProps}
+            prefix=""
             journeyIn={inStops} journeyOut={outStops} origins={origins}
             containerStyle={rowStyle ? { display: 'contents' } : undefined}
             rowStyle={rowStyle}
           />
         );
-        if (!m.lanes) {
+        if (solo || !m.lanes) {
           return (
             <div className="flex flex-col items-center gap-6">
               <div className="w-full" style={{ maxWidth: PROCESS_MAXW }}>{column()}</div>
               {[...left, ...right].map((c) => (
                 <div key={c.prefix} className="w-full" style={{ maxWidth: PROCESS_MAXW }}>
-                  <Neighbour col={c} />
+                  <Neighbour col={c} onToggle={toggle(c)} />
                 </div>
               ))}
-              <Rest total={order.deviation_total ?? 0} shown={right.length} />
+              <Rest total={deviationTotal} shown={right.length} />
             </div>
           );
         }
@@ -298,7 +342,7 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
               {left.length > 0 && (
                 <div style={{ gridColumn: 1, gridRow: '1 / -1', alignSelf: 'start', width: '100%' }}
                   className="flex flex-col gap-7">
-                  {left.map((c) => <Neighbour key={c.prefix} col={c} />)}
+                  {left.map((c) => <Neighbour key={c.prefix} col={c} onToggle={toggle(c)} />)}
                 </div>
               )}
               {/* **Der Rückführpunkt sitzt am ENDE seiner Zeile** – dort, wo der
@@ -323,25 +367,21 @@ export function ProcessColumns({ order, renderStep, onExpand, onDeviate, deviate
                 </div>
               ))}
             </div>
-            <Rest total={order.deviation_total ?? 0} shown={right.length} />
+            <Rest total={deviationTotal} shown={right.length} />
           </>
         );
       }}
     </FlowFrame>
+    </div>
   );
 }
 
-const empty: ProcessGraph = { nodes: [], edges: [], problems: [] };
-
 function side(rel: RelatedOrder, where: 'left' | 'right'): Column {
-  const graph = rel.flow ?? empty;
-  const steps = (rel.steps ?? []).map((s) => ({
-    id: s.id, moduleType: s.module_type, label: s.label, waitingFor: s.waiting_for ?? [],
-  }));
+  const graph = rel.flow ?? EMPTY_GRAPH;
   return {
     prefix: `${where === 'left' ? 'p' : 'd'}${rel.object_id}:`,
     objectId: rel.object_id,
-    graph, steps, rows: columnRows(graph), side: where, rel,
+    graph, steps: toDiagramSteps(rel.steps), rows: columnRows(graph), side: where, rel,
   };
 }
 
@@ -354,26 +394,41 @@ function side(rel: RelatedOrder, where: 'left' | 'right'): Column {
  * den Kanten. Eine Karte, die das wiederholt, ist eine zweite Wahrheit mit Platzbedarf.
  *
  * Geblieben ist das Einzige, was sie konnte und das Bild nicht: **hinführen**.
+ *
+ * **Im Entwurf führt sie nicht hin, sondern schaltet** (`onToggle`, Auftrag §5): dort
+ * ist dieser Auftrag das *Ziel* der geplanten Rückführung, und «ein Klick auf das Ziel
+ * schaltet sie an und aus» ist die Regel, die dafür schon steht. Navigieren wäre an
+ * dieser Stelle ohnehin falsch – wer einen Entwurf verlässt, verwirft ihn.
  */
-function Neighbour({ col }: { col: Column }) {
+function Neighbour({ col, onToggle }: { col: Column; onToggle?: () => void }) {
   const nav = useErpNav();
   const rel = col.rel!;
   const cfg = statusCfg(rel.status);
+  const act = onToggle ?? (nav ? () => nav(rel.object_id) : undefined);
+  const what = onToggle
+    ? (rel.returns
+      ? 'Jedes Stück kehrt an die Stelle zurück, an der es ausgeschert ist – dieser '
+        + 'Auftrag wartet solange. Klicken kappt die Rückführung.'
+      : 'Die Stücke bleiben hier (z. B. Aussonderung); dieser Auftrag läuft mit weniger '
+        + 'weiter. Klicken führt sie wieder zurück.')
+    : 'öffnen';
   return (
     <div
-      role={nav ? 'button' : undefined}
-      tabIndex={nav ? 0 : undefined}
-      onClick={nav ? () => nav(rel.object_id) : undefined}
-      onKeyDown={nav ? (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nav(rel.object_id); }
+      role={act ? 'button' : undefined}
+      tabIndex={act ? 0 : undefined}
+      onClick={act}
+      onKeyDown={act ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); }
       } : undefined}
       className="w-full"
-      style={{ cursor: nav ? 'pointer' : undefined,
+      style={{ cursor: act ? 'pointer' : undefined,
                padding: `${NEIGHBOUR_PAD}px 0` }}
-      aria-label={`Auftrag ${formatObjectId(rel.object_id)} öffnen`}
+      aria-label={onToggle
+        ? `Rückführung nach ${formatObjectId(rel.object_id)} ${rel.returns ? 'kappen' : 'einschalten'}`
+        : `Auftrag ${formatObjectId(rel.object_id)} öffnen`}
       data-tip={`${col.side === 'left' ? 'Aus' : 'Abweichung'} ${formatObjectId(rel.object_id)}`
         + ` · ${cfg.label} · ${rel.unit_count} Stück`
-        + ` · ${rel.returns ? 'kehrt zurück' : 'bleibt dort'} — öffnen`}
+        + ` · ${rel.returns ? 'kehrt zurück' : 'bleibt dort'} — ${what}`}
     >
       <FlowColumn
         graph={col.graph} steps={col.steps} prefix={col.prefix} mode="ausfuehrung"
@@ -551,14 +606,17 @@ interface Hit {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function useSteps(steps: NonNullable<Order['steps']>): DiagramStep[] {
-  return useMemo(
-    () => steps.map((s) => ({
-      id: s.id, moduleType: s.module_type, label: s.label,
-      // **Worauf das Modul wartet** – die Sperre wird eine Ebene tiefer gerendert
-      // (`StepCard`), damit kein Modul sie selbst kennen muss (#698).
-      waitingFor: s.waiting_for ?? [],
-    })),
-    [steps],
-  );
+/**
+ * Die Module eines Auftrags, wie das Bild sie braucht — **eine Übersetzung, eine Stelle**.
+ *
+ * Sie gilt für die Mitte wie für jede Nachbarspalte: dieselben Felder, derselbe Weg. Eine
+ * zweite Fassung liesse zu, dass ein Nachbar seine Sperre zeigt und die Mitte nicht.
+ */
+export function toDiagramSteps(steps: ProcessStepResponse[] | null | undefined): DiagramStep[] {
+  return (steps ?? []).map((s) => ({
+    id: s.id, moduleType: s.module_type, label: s.label,
+    // **Worauf das Modul wartet** – die Sperre wird eine Ebene tiefer gerendert
+    // (`StepCard`), damit kein Modul sie selbst kennen muss (#698).
+    waitingFor: s.waiting_for ?? [],
+  }));
 }
