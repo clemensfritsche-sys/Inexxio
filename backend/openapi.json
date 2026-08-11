@@ -1526,14 +1526,14 @@
         }
       }
     },
-    "/api/v1/erp/articles/{object_id}/instances": {
+    "/api/v1/erp/articles/{object_id}/stock": {
       "get": {
         "tags": [
           "articles"
         ],
-        "summary": "Article Instances",
-        "description": "Die Instanzen dieses Artikels – mit ihrer gezählten Menge.",
-        "operationId": "article_instances_api_v1_erp_articles__object_id__instances_get",
+        "summary": "Article Stock",
+        "description": "**Wie viel habe ich von diesem Artikel, in welchem Zustand, unter welcher Nummer?**\n\nEine Frage, ein Endpunkt. Der Vorgänger (``/instances``) lieferte nur eine Liste von\nInstanzen und war dabei kaputt: er las ``Instance.status``, eine Spalte, die es nicht\ngibt – die Instanz ist eine Gruppe und trägt keinen Zustand (Testnotiz #675). Jeder\nAufruf endete mit 500, der Reiter «Bestand» war also nie zu sehen.\n\nDie **Aufstellung oben gilt für den ganzen Artikel**, die Liste darunter ist eine\nSeite. Sortiert wird **aufsteigend nach Objektnummer**: Nummern werden aufsteigend\nvergeben, und eine Instanz entsteht mit ihren Stücken – aufsteigend ist damit\nschlicht die Reihenfolge, in der das Material entstanden ist, also FIFO. Der Feed\nsortiert absteigend, weil man dort den zuletzt angelegten Datensatz sucht; hier sucht\nman das älteste Material, und das ist eine andere Frage.",
+        "operationId": "article_stock_api_v1_erp_articles__object_id__stock_get",
         "security": [
           {
             "HTTPBearer": []
@@ -1548,6 +1548,29 @@
               "type": "integer",
               "title": "Object Id"
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
           }
         ],
         "responses": {
@@ -1556,11 +1579,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InstanceSummary"
-                  },
-                  "title": "Response Article Instances Api V1 Erp Articles  Object Id  Instances Get"
+                  "$ref": "#/components/schemas/ArticleStock"
                 }
               }
             }
@@ -2136,6 +2155,7 @@
           "instances"
         ],
         "summary": "List Instances",
+        "description": "Der Instanz-Feed – **alle** Instanzen, neueste Objektnummer zuerst.\n\nDer frühere Filter ``article_object_id`` ist entfallen: «was habe ich von diesem\nArtikel» beantwortet ``GET /erp/articles/{id}/stock``, samt Aufstellung. Zwei Wege\nzu derselben Frage sind auch dann einer zu viel, wenn der zweite niemanden hat –\ndieser hatte keinen einzigen Aufrufer.",
         "operationId": "list_instances_api_v1_erp_instances_get",
         "security": [
           {
@@ -2157,22 +2177,6 @@
                 }
               ],
               "title": "Search"
-            }
-          },
-          {
-            "name": "article_object_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Article Object Id"
             }
           },
           {
@@ -2256,6 +2260,98 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InstanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/instances/{object_id}/units": {
+      "get": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Instance Units",
+        "description": "Die **Nummern** der Einzelinstanzen – seitenweise, auf Nachfrage.\n\nDie unterste Ebene der Bestandsansicht. Sie wird erst geholt, wenn jemand sie\naufklappt: eine 5000er-Charge trägt 5000 Nummern, und die auf Vorrat mitzuliefern\nmacht jede Instanz-Zeile so teuer wie die ganze Charge.",
+        "operationId": "instance_units_api_v1_erp_instances__object_id__units_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur Stücke in diesen Zuständen",
+              "title": "Status"
+            },
+            "description": "Nur Stücke in diesen Zuständen"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 60,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitPage"
                 }
               }
             }
@@ -3387,6 +3483,41 @@
           "updated_at"
         ],
         "title": "ArticleResponse"
+      },
+      "ArticleStock": {
+        "properties": {
+          "states": {
+            "items": {
+              "$ref": "#/components/schemas/StockState"
+            },
+            "type": "array",
+            "title": "States"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "instance_total": {
+            "type": "integer",
+            "title": "Instance Total"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceSummary"
+            },
+            "type": "array",
+            "title": "Instances"
+          }
+        },
+        "type": "object",
+        "required": [
+          "states",
+          "total",
+          "instance_total",
+          "instances"
+        ],
+        "title": "ArticleStock",
+        "description": "**Der Bestand eines Artikels** – die eine Antwort auf «was habe ich davon».\n\nDrei Ebenen in einer Antwort, und keine davon ist ein gespeichertes Feld:\n``states``/``total`` beschreiben **alle** Stücke des Artikels (nicht nur die\nangezeigte Seite), ``instances`` ist eine Seite Instanzen mit je ihrer eigenen\nAufstellung, und die Nummern der Stücke holt die Ebene darunter\n(``GET /erp/instances/{id}/units``) – erst auf Klick, nie auf Vorrat."
       },
       "ArticleUpdate": {
         "properties": {
@@ -5331,12 +5462,13 @@
             "type": "integer",
             "title": "Quantity"
           },
-          "units": {
+          "states": {
             "items": {
-              "$ref": "#/components/schemas/InstanceUnitResponse"
+              "$ref": "#/components/schemas/StockState"
             },
             "type": "array",
-            "title": "Units"
+            "title": "States",
+            "default": []
           },
           "created_at": {
             "type": "string",
@@ -5360,13 +5492,12 @@
           "article_id",
           "kind",
           "quantity",
-          "units",
           "created_at",
           "updated_at",
           "is_active"
         ],
         "title": "InstanceResponse",
-        "description": "Instanz mit ihren Einzelinstanzen.\n\n``quantity`` ist **gezählt**, nicht gespeichert – die Instanz hat keine Mengen-Spalte.\n\nEinen ``status`` trägt sie nicht: eine Gruppe hat keinen Zustand, nur ihre Stücke\nhaben einen (Testnotiz #675)."
+        "description": "Instanz – die Gruppe, mit ihrer Menge und ihrer Aufstellung.\n\n``quantity`` ist **gezählt**, nicht gespeichert – die Instanz hat keine Mengen-Spalte.\n\nEinen ``status`` trägt sie nicht: eine Gruppe hat keinen Zustand, nur ihre Stücke\nhaben einen (Testnotiz #675). ``states`` zählt darum auf, statt zu behaupten.\n\n**Die Nummern der Stücke stehen nicht drin.** Sie kommen seitenweise über\n``GET /erp/instances/{id}/units`` – eine 5000er-Charge hier vollständig mitzuliefern\nhiesse, jedes Öffnen der Instanz so teuer zu machen wie die ganze Charge, und die\nOberfläche müsste 5000 Zeilen auf einmal zeichnen."
       },
       "InstanceSummary": {
         "properties": {
@@ -5412,6 +5543,14 @@
             "type": "integer",
             "title": "Quantity"
           },
+          "states": {
+            "items": {
+              "$ref": "#/components/schemas/StockState"
+            },
+            "type": "array",
+            "title": "States",
+            "default": []
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -5439,7 +5578,7 @@
           "is_active"
         ],
         "title": "InstanceSummary",
-        "description": "Feed-Zeile: ohne die Einzelinstanzen, aber mit ihrer Anzahl."
+        "description": "Feed-Zeile: ohne die Einzelinstanzen, aber mit ihrer Anzahl **und Aufstellung**.\n\n``quantity`` ist die Summe über ``states`` – dieselbe Abfrage, zwei Lesarten. Die\nZeile behauptet damit keinen Zustand (den hat eine Gruppe nicht), sondern zählt auf."
       },
       "InstanceUnitResponse": {
         "properties": {
@@ -5458,6 +5597,17 @@
           "status": {
             "type": "string",
             "title": "Status"
+          },
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
           },
           "created_at": {
             "type": "string",
@@ -6336,6 +6486,25 @@
         "title": "StepConfirm",
         "description": "«Bestätigen» an einem Modul: die erfassten Werte, geschlüsselt nach Punkt-``key``.\n\nEin Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem\nnicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens\neinen)."
       },
+      "StockState": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "quantity"
+        ],
+        "title": "StockState",
+        "description": "Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.\n\nDie Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese\nInstanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess»."
+      },
       "TerritoryAssign": {
         "properties": {
           "company_object_id": {
@@ -6546,6 +6715,28 @@
         ],
         "title": "UnitOption",
         "description": "Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.\n\n``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein\nHindernis mehr**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine\nAbweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was\nbeim Wählen passiert – statt es geschehen zu lassen.\n\n``available`` heisst darum nur noch: dieses Stück lässt sich überhaupt nehmen."
+      },
+      "UnitPage": {
+        "properties": {
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceUnitResponse"
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "units",
+          "total"
+        ],
+        "title": "UnitPage",
+        "description": "Eine Seite Einzelinstanz-Nummern – plus wie viele es insgesamt sind."
       },
       "UnitPick": {
         "properties": {

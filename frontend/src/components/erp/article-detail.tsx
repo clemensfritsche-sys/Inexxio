@@ -24,8 +24,7 @@ import { FREIGEGEBEN, INAKTIV } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
 import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
-import type { InstanceSummary } from '@/types';
-import { InstanceList } from '@/components/erp/instance-list';
+import { ArticleStockTab } from '@/components/erp/instance-list';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { formatAmount as fmtChf, formatObjectId, localDate } from '@/lib/utils';
@@ -407,7 +406,10 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         )}
 
         {tab === 'bestand' && (
-          <ArticleStock articleObjectId={record?.object_id ?? null} />
+          <ArticleStockTab
+            articleObjectId={record?.object_id ?? null}
+            unit={record?.unit ?? form.unit ?? null}
+          />
         )}
 
       </div>
@@ -743,33 +745,10 @@ function formatDuration(days: number): string {
 }
 
 
-/**
- * Reiter «Bestand»: die Instanzen dieses Artikels.
- *
- * Eine reine **Summierung** – jede Zahl hier ist die Anzahl von Einzelinstanzen, keine
- * eigene Datenquelle. Das ist die Einzelinstanz-Regel auf der Anzeige-Ebene.
- */
-function ArticleStock({ articleObjectId }: { articleObjectId: number | null }) {
-  const [rows, setRows] = useState<InstanceSummary[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    if (!articleObjectId) { setRows([]); return; }
-    api.getArticleInstances(articleObjectId)
-      .then(setRows)
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [articleObjectId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  if (err) return <div style={{ maxWidth: 880, marginInline: 'auto' }} className="text-sm" >{err}</div>;
-  if (!rows) return null;
-  return (
-    <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
-      <InstanceList rows={rows} />
-    </div>
-  );
-}
+// Der Reiter «Bestand» wohnt in `instance-list.tsx` (`ArticleStockTab`) – hier stand
+// vorher eine zweite, kürzere Fassung, die nur eine Instanzliste lud. Der Bestand ist
+// eine eigene Frage mit drei Ebenen; sie zur Hälfte im Artikel-Detail zu beantworten
+// hiesse, sie an zwei Stellen zu pflegen.
 
 /**
  * **Der Erzeugungsprozess eines Artikels** – die Vorlage: wie ein Stück entsteht.

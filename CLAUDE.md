@@ -155,6 +155,22 @@
 > **Art** Auftrag entsteht. EINE Auswahl-Logik: konkrete Stücke, vorher sichtbar, änderbar –
 > FIFO schlägt vor, der Mensch übersteuert. **Seitwärts scrollen ist verboten**; nichts
 > Unsichtbares darf die Breite bestimmen (ein `opacity:0`-Tooltip zählt zur Overflow-Fläche).
+> **Der Bestand ist eine Summierung in drei Ebenen – ohne Filter** (PROCESS_CORE §10.3):
+> Leiste über alles → eine Zeile je Instanz mit eigener Leiste → die Nummern auf Klick
+> (`GET …/articles/{id}/stock`, `GET …/instances/{id}/units`). Ein Filter versteckt, was er
+> nicht zeigt; hier ist die **Aufteilung selbst das Bedienelement** – ein Segment anklicken
+> heisst «zeig mir diese Nummern», der Rest bleibt sichtbar. Die Instanz hat dabei **keinen
+> Zustand, sondern eine Aufstellung** (`states`, Menge = ihre Summe): eine Gruppe mit drei
+> freigegebenen und einem laufenden Stück hat keine richtige Einzel-Antwort. Genau daran
+> starb der Vorgänger – er las `Instance.status`, eine Spalte, die es nicht gibt, und
+> antwortete auf **jeden** Aufruf mit 500. Sortiert wird **aufsteigend nach Objektnummer =
+> FIFO** (Nummern steigen, Instanz und Stücke entstehen gemeinsam – kein zweites Datum),
+> gruppiert nach **Instanz** statt nach Zustand (die Leiste beantwortet den Zustand längst,
+> und nach Zustand gruppiert stünde dieselbe Charge in zwei Gruppen). **Nie alles auf
+> einmal**: 50 Instanzen bzw. 60 Nummern je Seite, gemessen 5 Abfragen und ~8–14 ms bei
+> 300 Instanzen wie bei einer 5000er-Charge. Dieselbe Regel gilt im Instanz-Datensatz –
+> dessen frühere Volle-Liste (`units_of`, gemessen 149 ms / 5000 Zeilen) ist **ersatzlos
+> entfernt**, damit sie niemand versehentlich wieder benutzt.
 > Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
 > Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
 

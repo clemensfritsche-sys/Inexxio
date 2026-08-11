@@ -198,6 +198,12 @@ export type Instance = InstanceApi;
 export type InstanceSummary = components['schemas']['InstanceSummary'];
 // Die Einzelinstanz – das einzige Arbeitsobjekt. Nummer = <Instanznr>-<suffix>.
 export type InstanceUnit = components['schemas']['InstanceUnitResponse'];
+// Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.
+export type StockState = components['schemas']['StockState'];
+// Der Bestand eines Artikels: Aufstellung über alles + eine Seite Instanzen.
+export type ArticleStock = components['schemas']['ArticleStock'];
+// Eine Seite Einzelinstanz-Nummern (Ebene 3, auf Klick).
+export type UnitPage = components['schemas']['UnitPage'];
 
 /**
  * Ein Erfassungspunkt aus der Definition eines Moduls (`process_steps.config`).

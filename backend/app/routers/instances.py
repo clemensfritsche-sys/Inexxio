@@ -17,9 +17,12 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
+from ..domain import statuses as st
 from ..models import Article, Instance, InstanceUnit, UserProfile
-from ..schemas.instance import InstanceResponse, InstanceSummary, InstanceUnitResponse
-from ..services import instances as inst_svc
+from ..schemas.instance import (
+    InstanceResponse, InstanceSummary, InstanceUnitResponse, StockState, UnitPage,
+)
+from ..services import instances as inst_svc, process
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -28,19 +31,21 @@ def _article(db: Session, instance: Instance) -> Article | None:
     return db.query(Article).filter(Article.id == instance.article_id).first()
 
 
-def _unit_out(instance: Instance, unit: InstanceUnit) -> InstanceUnitResponse:
+def _unit_out(instance: Instance, unit: InstanceUnit,
+              holders: dict[int, int]) -> InstanceUnitResponse:
     return InstanceUnitResponse(
         id=unit.id,
         suffix=unit.suffix,
         number=inst_svc.unit_number(instance, unit),
         status=unit.status,
+        order_object_id=holders.get(unit.id),
         created_at=unit.created_at,
     )
 
 
 def _detail(db: Session, instance: Instance) -> InstanceResponse:
     article = _article(db, instance)
-    units = inst_svc.units_of(db, instance)
+    by_status = inst_svc.states(db, [instance.id]).get(instance.id, {})
     return InstanceResponse(
         id=instance.id,
         object_id=instance.object_id,
@@ -49,8 +54,8 @@ def _detail(db: Session, instance: Instance) -> InstanceResponse:
         article_name=article.name if article else None,
         kind=instance.kind,
         label=instance.label,
-        quantity=len(units),
-        units=[_unit_out(instance, u) for u in units],
+        quantity=sum(by_status.values()),
+        states=[StockState(status=s, quantity=n) for s, n in st.in_order(by_status)],
         created_at=instance.created_at,
         updated_at=instance.updated_at,
         is_active=instance.is_active,
@@ -67,18 +72,19 @@ def _get(db: Session, object_id: int) -> Instance:
 @router.get("", response_model=list[InstanceSummary])
 def list_instances(
     search: str | None = Query(None),
-    article_object_id: int | None = Query(None),
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
+    """Der Instanz-Feed – **alle** Instanzen, neueste Objektnummer zuerst.
+
+    Der frühere Filter ``article_object_id`` ist entfallen: «was habe ich von diesem
+    Artikel» beantwortet ``GET /erp/articles/{id}/stock``, samt Aufstellung. Zwei Wege
+    zu derselben Frage sind auch dann einer zu viel, wenn der zweite niemanden hat –
+    dieser hatte keinen einzigen Aufrufer.
+    """
     q = db.query(Instance).filter(Instance.is_active.is_(True))
-    if article_object_id is not None:
-        article = db.query(Article).filter(Article.object_id == article_object_id).first()
-        if article is None:
-            raise HTTPException(status_code=404, detail=f"Artikel {article_object_id} nicht gefunden.")
-        q = q.filter(Instance.article_id == article.id)
     if search and search.strip():
         like = f"%{search.strip()}%"
         q = q.join(Article, Article.id == Instance.article_id, isouter=True).filter(
@@ -86,7 +92,7 @@ def list_instances(
         )
     rows = q.order_by(Instance.object_id.desc()).limit(limit).offset(offset).all()
 
-    counts = inst_svc.quantities(db, [i.id for i in rows])
+    by_instance = inst_svc.states(db, [i.id for i in rows])
     names = {
         a.id: a.name
         for a in db.query(Article).filter(Article.id.in_([i.article_id for i in rows])).all()
@@ -95,7 +101,12 @@ def list_instances(
         InstanceSummary(
             id=i.id, object_id=i.object_id, article_id=i.article_id,
             article_name=names.get(i.article_id), kind=i.kind,
-            label=i.label, quantity=counts.get(i.id, 0),
+            label=i.label,
+            quantity=sum(by_instance.get(i.id, {}).values()),
+            states=[
+                StockState(status=s, quantity=n)
+                for s, n in st.in_order(by_instance.get(i.id, {}))
+            ],
             created_at=i.created_at, updated_at=i.updated_at, is_active=i.is_active,
         )
         for i in rows
@@ -109,3 +120,27 @@ def get_instance(
     _: UserProfile = Depends(require_employee),
 ):
     return _detail(db, _get(db, object_id))
+
+
+@router.get("/{object_id}/units", response_model=UnitPage)
+def instance_units(
+    object_id: int,
+    status: list[str] | None = Query(None, description="Nur Stücke in diesen Zuständen"),
+    limit: int = Query(60, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Die **Nummern** der Einzelinstanzen – seitenweise, auf Nachfrage.
+
+    Die unterste Ebene der Bestandsansicht. Sie wird erst geholt, wenn jemand sie
+    aufklappt: eine 5000er-Charge trägt 5000 Nummern, und die auf Vorrat mitzuliefern
+    macht jede Instanz-Zeile so teuer wie die ganze Charge.
+    """
+    for value in status or []:
+        st.assert_known(value, field="status")
+    instance = _get(db, object_id)
+    rows, total = inst_svc.units_page(
+        db, instance, statuses=status, limit=limit, offset=offset)
+    holders = process.holders(db, [u.id for u in rows])
+    return UnitPage(units=[_unit_out(instance, u, holders) for u in rows], total=total)

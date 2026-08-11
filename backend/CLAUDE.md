@@ -83,6 +83,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern |
 | GET/POST | /api/v1/erp/articles/{object_id}/process-steps | staff | Prozessschritte (Purchase) lesen/anlegen |
 | PATCH/DELETE | /api/v1/erp/articles/{object_id}/process-steps/{step_id} | staff | Prozessschritt ändern/entfernen |
+| GET | /api/v1/erp/articles/{object_id}/stock | staff | **Bestand** – Aufstellung (Zustand → Menge) über ALLE Stücke + eine Seite Instanzen mit je eigener Aufstellung (PROCESS_CORE §10.3) |
+| GET | /api/v1/erp/instances/{object_id}/units | staff | Die **Nummern** der Einzelinstanzen – seitenweise, optional auf Zustände gefiltert (`status` mehrfach) |
 | GET | /api/v1/erp/orders | user | Auftrag-Feed (Lieferant: nur eigene, mit eingebettetem Prozess) |
 | POST | /api/v1/erp/orders | staff | **Auftrag erteilen** – Bedarf + Positionen + Ablauf + Instanz-Auswahl in EINEM Aufruf, anlegen **und** freigeben; erst dabei entsteht die Objektnummer (ein Entwurf existiert nie in der DB) |
 | GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed) |
@@ -120,8 +122,10 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | PATCH | /api/v1/feedback/{id} | user | Notiz erledigt/verworfen setzen bzw. wieder öffnen |
 | DELETE | /api/v1/feedback/{id} · ?scope=done\|all | user | Notiz löschen bzw. aufräumen/zurücksetzen (weich, nur eigene sichtbare) |
 
-> Artikel: **Stammdaten** + **Prozess** (Purchase-Schritt) implementiert; Reiter **Bestand** ist
-> noch Platzhalter. Prozessschritt-Modul «Purchase»: Auftrag (Artikel+Menge) → Freigabe instanziiert
+> Artikel: **Stammdaten**, **Prozess** (Purchase-Schritt) und **Bestand** implementiert. Der
+> Bestand ist reine Summierung über Einzelinstanzen, in drei Ebenen und **ohne Filter** (die
+> Aufteilung selbst ist das Bedienelement) – PROCESS_CORE §10.3.
+> Prozessschritt-Modul «Purchase»: Auftrag (Artikel+Menge) → Freigabe instanziiert
 > die Bestellung. Diese läuft **unter der Auftragsnummer** (Tabelle `purchase_orders` OHNE eigene
 > Objektnummer, eingebettet als `purchase` in der OrderResponse). Status requested→quoted→
 > approved/rejected→confirmed→received; Einstandspreis netto/Stück wird auf den Artikel zurück-

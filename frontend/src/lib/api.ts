@@ -20,6 +20,8 @@ import type {
   ResourceUpdateInput,
   ScrapUpdateInput,
   Instance,
+  ArticleStock,
+  UnitPage,
   ObjectReference,
   CompanySettings,
   UserProfile,
@@ -478,9 +480,23 @@ class ApiClient {
 
 
 
-  // Bestand (Instanzen) eines Artikels
-  getArticleInstances(objectId: number): Promise<Instance[]> {
-    return this.get(`/api/v1/erp/articles/${objectId}/instances`);
+  // Bestand eines Artikels: Aufstellung über ALLE Stücke + eine Seite Instanzen.
+  getArticleStock(objectId: number, limit = 50, offset = 0): Promise<ArticleStock> {
+    const p = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    return this.get(`/api/v1/erp/articles/${objectId}/stock?${p}`);
+  }
+
+  // Ebene 3: die Nummern der Einzelinstanzen – seitenweise, auf Klick.
+  // `statuses` ist eine Menge, keine Einzelwahl: ein Block der Bestandsansicht kann
+  // mehrere Zustände umfassen, ein angeklicktes Segment genau einen.
+  getInstanceUnits(objectId: number, opts: {
+    statuses?: readonly string[]; limit?: number; offset?: number;
+  } = {}): Promise<UnitPage> {
+    const p = new URLSearchParams();
+    (opts.statuses ?? []).forEach((s) => p.append('status', s));
+    p.set('limit', String(opts.limit ?? 60));
+    p.set('offset', String(opts.offset ?? 0));
+    return this.get(`/api/v1/erp/instances/${objectId}/units?${p}`);
   }
 
   // ─── Auftrag ───────────────────────────────────────────────────────────────

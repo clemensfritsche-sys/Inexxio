@@ -933,6 +933,55 @@ mit stabiler Identität ist:
 Voraussetzung, die heute erfüllt ist: jede Kante hat einen **stabilen Schlüssel** über
 Re-Renders hinweg. `prefers-reduced-motion` ist dann zu beachten.
 
+### 10.3 Der Bestand — eine Frage, drei Ebenen, kein Filter
+
+Der Reiter «Bestand» am Artikel beantwortet **eine** Frage: *wie viel habe ich von diesem
+Artikel, in welchem Zustand, unter welcher Nummer?* Er ist reine **Summierung über
+Einzelinstanzen** — die Einzelinstanz-Regel (§2) auf der Anzeige-Ebene.
+
+**Drei Ebenen, jede vollständiger als die darüber:**
+
+| Ebene | Zeigt | Kommt von |
+|---|---|---|
+| 1 | Gesamtmenge + gestapelte Leiste | `GET /erp/articles/{id}/stock` → `states`/`total` |
+| 2 | eine Zeile je Instanz: Nummer · Menge · eigene Leiste | dieselbe Antwort, `instances` (seitenweise) |
+| 3 | die Nummern der Stücke, je mit Zustand und Auftrag | `GET /erp/instances/{id}/units` (erst auf Klick) |
+
+**Kein Filter.** Ein Filter ist meistens das Eingeständnis, dass die Standardansicht zu
+viel Rauschen enthält; und er versteckt, was er nicht zeigt. Stattdessen ist die
+**Aufteilung selbst das Bedienelement**: ein Segment der Leiste anklicken heisst «zeig mir
+diese Nummern», der Rest bleibt sichtbar und tritt nur zurück. Zwei Blöcke statt eines
+Filters — **Bestand** (offen) und **Historie** (zu).
+
+**Die Instanz hat keinen Zustand, sondern eine Aufstellung.** Eine Gruppe mit drei
+freigegebenen und einem laufenden Stück hat keinen einen Zustand (Testnotiz #675); jede
+gewählte Antwort wäre eine Behauptung. `states` zählt darum auf, und die Menge ist die
+Summe — **eine** Abfrage, zwei Lesarten. Genau daran scheiterte der Vorgänger: er las
+`Instance.status`, eine Spalte, die es nicht gibt, und endete bei jedem Aufruf mit 500.
+
+**Kein Sonderfall für Einzelserialisierung.** Eine Einzelinstanz ist eine Instanz mit
+Menge 1 — dieselbe Zeile, dieselbe Leiste, dieselbe Nummernliste. Und die Leiste ist
+**ein** Bauteil für beide Massstäbe (Artikel wie Instanz): eine zweite «kleine» Leiste
+wäre eine zweite Regel dafür, wie ein Zustand aussieht.
+
+**Sortierung: aufsteigend nach Objektnummer = FIFO.** Nummern werden aufsteigend
+vergeben, und eine Instanz entsteht mit ihren Stücken (§2.2) — aufsteigend ist damit die
+Reihenfolge, in der das Material entstanden ist. Der Feed sortiert absteigend, weil man
+dort den zuletzt angelegten Datensatz sucht; hier sucht man das älteste Material. **Ein
+eigenes Datum braucht es dafür nicht**, und es wäre die zweite Wahrheit neben der Nummer.
+
+**Gruppiert wird nach Instanz, nicht nach Zustand.** Die Vorgängeransicht gruppierte nach
+Zustand, weil sie keine Leiste hatte — die Gruppenköpfe *waren* die Übersicht. Mit der
+Leiste ist diese Frage oben beantwortet, und die Instanz ist die Klammer, die zählt: sie
+trägt die Objektnummer, die man scannt und zitiert. Nach Zustand gruppiert erschiene
+dieselbe Charge in zwei Gruppen und ihre Menge nirgends vollständig.
+
+**Nie alles auf einmal.** Instanzen kommen seitenweise (50), Nummern erst auf Klick und
+auch dann seitenweise (60). Die Leiste oben gilt trotzdem für den **ganzen** Artikel —
+eine Aggregation, die sich beim Blättern ändert, beantwortet «wie viel habe ich» nicht.
+Dieselbe Regel gilt im **Instanz-Datensatz**: eine Ansicht, die die Regel einhält, und
+eine Nachbaransicht, die sie einen Klick weiter bricht, ist keine Regel.
+
 ---
 
 ## 11. Datenstruktur — drei Ebenen
