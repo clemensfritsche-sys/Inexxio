@@ -100,6 +100,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/erp/orders/{object_id}/diagnostics | staff | **Systemprotokoll** (Fehlersuche): Befund (abgeleiteter Zustand + Drift-Prüfung) + Chronologie aus Audit · Ereignissen · Material-Journal – on demand, keine eigene Wahrheit |
 | PATCH | /api/v1/erp/orders/{object_id} | staff | Auftrag ändern (Freigabe stösst Prozess an); `picks` = gewählte **Anteile** (Instanz · Menge · Halter) |
 | PATCH | /api/v1/erp/orders/{object_id}/purchase | user | Beschaffungsschritt (Offerte/Status, rollenabhängig) |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/confirm | staff | **Ein Modul bestätigen – für EINE Instanz.** `instance_object_id` + `verification` (`scan`\|`manual`) sind Pflicht (§4.4); ohne sie 400. Bestanden → die Stücke rücken vor, nicht bestanden → sie bleiben stehen (§4.5). Antwort: der Auftrag; die Wirkung steht im Audit. |
+| GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/hold?instance=&group= | staff | Die **Nummern** einer Entscheidungs-Gruppe (`failed` \| `rest`) – Vorauswahl für einen gewöhnlichen Auftragsentwurf. **Erst auf Klick**: der «Rest» einer 6000er-Charge wären sechstausend Nummern in jeder Auftrags-Antwort. |
 | GET/PATCH | /api/v1/erp/articles/{object_id}/sales | staff | Verkaufs-Profil (publiziert/Sichtbarkeit/Inhalt) – immer editierbar |
 | GET/POST | /api/v1/erp/articles/{object_id}/sales/prices | staff | Verkaufspreise (1:n) lesen/anlegen |
 | PATCH/DELETE | /api/v1/erp/articles/{object_id}/sales/prices/{price_id} | staff | Preis ändern/entfernen |
@@ -155,6 +157,20 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > `CompanySettings.id == 1` oder ein blosses `.first()` – das wählt ab der zweiten Zeile
 > willkürlich; `tests/test_sites.py` erzwingt es. `ENTITY_FIELDS` (je Gesellschaft) vs.
 > `PLATFORM_FIELDS` (die eine Website, nur über `/admin/settings`).
+
+> **Datenerfassung – drei Regeln, die keine Modulregeln sind** (PROCESS_CORE §4.4/§4.5/§9.3):
+> (1) **Ein Vorgang ist EINE Instanz**, denn der Scan verifiziert das physische Ding – eine
+> Einzelinstanz zieht bewusst keine Objektnummer. Charge = 1 Scan, Einzelserialisierung =
+> n Scans, **ohne** Abfrage nach der Serialisierung. Ohne Verifikation lehnt
+> `process.confirm_step` ab (400) – ein ausgegrautes Feld ist keine Sperre.
+> (2) **«Nicht bestanden» rückt nicht vor** und legt **nichts** an: angehalten wird die
+> ganze Instanz (eine durchgefallene Stichprobe ist nicht mehr repräsentativ), angeboten
+> wird ein ganz gewöhnlicher Auftrag mit vorgewählten Stücken.
+> (3) **Die Stichprobe** (`domain/sampling.py` = die Regel, `services/sampling.py` = die
+> Ziehung) gilt **je Instanz** (Los, ISO 2859-1), wird bei der **Ankunft** gezogen
+> (vorher steht die Menge nicht fest), ist zufällig und steht als `sample`-Ereignis
+> **eingefroren** im Log. Der ungezogene Rest läuft ohne Erfassung durch – sichtbar.
+> Alle drei stehen an der EINEN Ausführungsstelle; jedes künftige Modul erbt sie.
 
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete

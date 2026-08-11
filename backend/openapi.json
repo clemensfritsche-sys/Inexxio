@@ -2149,6 +2149,85 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/hold": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Hold Numbers",
+        "description": "Die Nummern für eine Entscheidung – **erst auf Klick** (§4/§4.1).\n\n``failed`` sind die durchgefallenen Stücke (die Stichprobe), ``rest`` die ungeprüften\n**dieser Instanz an diesem Modul**. Beide gehen als Vorauswahl in einen ganz\ngewöhnlichen Auftragsentwurf – die 100 %-Kontrolle ist kein eigener Mechanismus,\nsondern dieselbe Anlage mit anderer Vorbelegung.\n\nNicht in der Auftrags-Antwort, weil der «Rest» einer 6000er-Charge sechstausend\nNummern wären – mitgeliefert bei jedem Öffnen.",
+        "operationId": "hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          },
+          {
+            "name": "instance",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Objektnummer der betroffenen Instanz",
+              "title": "Instance"
+            },
+            "description": "Objektnummer der betroffenen Instanz"
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "failed | rest",
+              "title": "Group"
+            },
+            "description": "failed | rest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldNumbers"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/instances": {
       "get": {
         "tags": [
@@ -5407,6 +5486,20 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HoldNumbers": {
+        "properties": {
+          "numbers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Numbers"
+          }
+        },
+        "type": "object",
+        "title": "HoldNumbers",
+        "description": "Die Nummern einer Entscheidungs-Gruppe – Vorauswahl für einen Auftragsentwurf."
+      },
       "InstanceResponse": {
         "properties": {
           "id": {
@@ -6396,10 +6489,23 @@
             "type": "array",
             "title": "Waiting For"
           },
+          "work": {
+            "items": {
+              "$ref": "#/components/schemas/StepWork"
+            },
+            "type": "array",
+            "title": "Work"
+          },
           "label": {
             "type": "string",
             "title": "Label",
             "description": "Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.",
+            "readOnly": true
+          },
+          "sample": {
+            "type": "string",
+            "title": "Sample",
+            "description": "Die Stichprobenregel als **Satz** – aus einer Quelle (``sampling.describe``).\n\nSie steht in ``config``, aber die Oberfläche soll sie nicht selbst formulieren:\n«3 je Instanz» ist eine Aussage über das Los, und eine zweite Formulierung\ndaneben liefe der ersten davon. Was zur **Laufzeit** wirklich gezogen wurde,\nsagt ``StepWork`` – das ist die Ziehung, nicht die Regel.",
             "readOnly": true
           }
         },
@@ -6410,7 +6516,8 @@
           "module_type",
           "status_before",
           "status_after",
-          "label"
+          "label",
+          "sample"
         ],
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. ``label`` ist nur die Beschriftung und **abgeleitet** aus\n``domain/modules`` – ein gespeicherter Name wäre eine zweite Aussage darüber, was\ndieses Modul ist, und die erste falsche Eingabe liesse beide auseinanderlaufen."
@@ -6480,11 +6587,85 @@
           "values": {
             "type": "object",
             "title": "Values"
+          },
+          "instance_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Object Id"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification"
           }
         },
         "type": "object",
         "title": "StepConfirm",
-        "description": "«Bestätigen» an einem Modul: die erfassten Werte, geschlüsselt nach Punkt-``key``.\n\nEin Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem\nnicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens\neinen)."
+        "description": "«Bestätigen» an einem Modul: die erfassten Werte, geschlüsselt nach Punkt-``key``.\n\nEin Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem\nnicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens\neinen).\n\n**Ein Vorgang ist EINE Instanz.** ``instance_object_id`` ist die verifizierte Instanz,\n``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.\nBeides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die\nTastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative."
+      },
+      "StepWork": {
+        "properties": {
+          "instance_object_id": {
+            "type": "integer",
+            "title": "Instance Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting"
+          },
+          "sample": {
+            "type": "integer",
+            "title": "Sample"
+          },
+          "rest": {
+            "type": "integer",
+            "title": "Rest"
+          },
+          "held": {
+            "type": "boolean",
+            "title": "Held",
+            "default": false
+          },
+          "failed_numbers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed Numbers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_object_id",
+          "waiting",
+          "sample",
+          "rest"
+        ],
+        "title": "StepWork",
+        "description": "Was an einem Modul für **eine Instanz** ansteht.\n\nZahlen statt Nummern: bei einer 6000er-Charge wäre der «Rest» sechstausend Nummern\nin jeder Auftrags-Antwort. Wer sie braucht (die Vorauswahl einer Entscheidung), holt\nsie einzeln (``GET …/steps/{id}/hold``) – erst auf Klick.\n\nDie **durchgefallenen** Nummern stehen trotzdem hier: sie sind die Stichprobe, also\nvon Natur aus wenige, und sie sind die eigentliche Auskunft («welches Stück war es»)."
       },
       "StockState": {
         "properties": {

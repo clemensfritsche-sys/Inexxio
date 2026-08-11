@@ -2017,7 +2017,11 @@ def test_the_article_shortcut_only_preselects_the_article():
     page = _read(FRONTEND / "app" / "(erp)" / "erp" / "page.tsx")
     assert "startCreate('order', { articleObjectId })" in page
     detail = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    assert "unitNumber?: string;" in detail, "Der Seed verlangt weiterhin ein Stück."
+    # **Optional, nicht abwesend.** Der Auslöser am Stück (§3.1) und die Entscheidung nach
+    # einem «nicht bestanden» reichen sehr wohl Stücke herein – nur eben mehrere und nur
+    # dort, wo sie bekannt sind. Der Artikel-Shortcut lässt das Feld leer; hier steht die
+    # Form, nicht die Zahl.
+    assert "unitNumbers?: string[];" in detail, "Der Seed verlangt weiterhin ein Stück."
 
 
 def test_the_start_time_comes_from_the_event_log():
@@ -3004,4 +3008,131 @@ def test_the_object_registry_claims_only_what_it_can_serve():
     assert '"document"' not in models, "Der Scan löst wieder auf ein totes Modul auf."
     assert "DocumentFile.object_id" in src.split("_OBJECT_ID_COLUMNS")[1][:300], (
         "Die Alt-Nummern fallen aus dem Nummernraum – die Sequence kann sie neu vergeben."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Datenerfassung – Scan-Pflicht, Stichprobe, Entscheidung
+# ---------------------------------------------------------------------------
+
+def test_no_entry_without_a_confirmed_instance():
+    """**Ohne Bestätigung keine Eingabe** (§3) – und die Regel steht im Backend.
+
+    Die Oberfläche zeigt das Formular erst nach einer Bestätigung; das ist die Bedienung.
+    Die **Regel** ist die Ablehnung in ``process._verified_instance``: ein ausgegrautes
+    Feld ist keine Sperre, sondern eine Bitte. Beides muss dastehen – ein Gate, das nur
+    im Backend steht, wäre eine Fehlermeldung statt einer Führung; eines, das nur im
+    Frontend steht, wäre gar keins.
+    """
+    work = _read(FRONTEND / "components" / "erp" / "capture-work.tsx")
+    code = _code(work)
+    assert "verified ? (" in code, "Das Formular hängt nicht mehr an der Bestätigung."
+    assert "expected: work.instance_object_id" in code, (
+        "Der Scan verifiziert nicht mehr die Instanz – ohne ``expected`` ist er ein "
+        "beliebiger Lookup und bestätigt gar nichts."
+    )
+    assert "setVerified('manual')" in code, (
+        "Die Tastatur ist keine Alternative mehr – wer keine Kamera hat, kann nicht "
+        "arbeiten."
+    )
+    api = _code(_read(FRONTEND / "lib" / "api.ts"))
+    call = api[api.index("confirmStep("):][:420]
+    assert "verification: verification ?? null" in call, (
+        "Die Art der Bestätigung fährt nicht mehr mit – von Hand wäre damit eine stille "
+        "Umgehung statt einer protokollierten Alternative."
+    )
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def _verified_instance" in proc, "Die Regel steht nur noch im Frontend."
+
+
+def test_one_scan_per_instance_and_no_serialisation_question():
+    """**Der Scan verifiziert die Instanz, nicht die Einzelinstanz** (§3).
+
+    Das Etikett klebt am physischen Ding, und das ist die Instanz – eine Einzelinstanz
+    zieht bewusst keine Objektnummer. Daraus fällt der Unterschied von selbst heraus:
+    eine Charge ist **ein** Scan, Einzelserialisierung sind **n**. Steht im Modul eine
+    Abfrage nach der Serialisierung, ist genau diese Ableitung nachgebaut worden.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    for forbidden in ("serialization", "'batch'", '"batch"', "'unit'"):
+        assert forbidden not in work, (
+            f"«{forbidden}» im Datenerfassungs-Modul – der Unterschied wird abgefragt "
+            f"statt abgeleitet."
+        )
+    assert "work.map(" in work, "Die Arbeit steht nicht mehr je Instanz da."
+
+
+def test_the_sample_rule_is_written_in_exactly_one_place():
+    """**Die Stichprobe ist eine Regel, kein Satz im Frontend** (§2).
+
+    Wie sie lautet, sagt ``sampling.describe`` – die Oberfläche bekommt sie fertig
+    (``ProcessStepResponse.sample``). Formulierte sie sie selbst, gäbe es zwei Texte für
+    dieselbe Regel, und «10 %» hiesse an einer Stelle je Instanz und an der anderen je
+    Auftrag.
+    """
+    order = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    assert "?.sample" in _body(order, "sampleOf", kind="function"), (
+        "Der Satz kommt nicht mehr vom Server."
+    )
+    schema = _read(BACKEND / "app" / "schemas" / "order.py")
+    assert "sampling.describe(modules.sample_of(self.config))" in schema, (
+        "Die Antwort trägt die Regel nicht mehr mit."
+    )
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "je Instanz" in designer, (
+        "Die Definition sagt nicht mehr, dass die Regel je **Los** gilt – «10 %» liest "
+        "sich dann als Anteil am ganzen Auftrag."
+    )
+    mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    assert "sample: { mode: m.sample.mode, value: m.sample.value }" in mods, (
+        "Der Entwurf deutet die Stichprobe selbst – ein halb getipptes Feld würde damit "
+        "stillschweigend zu «alle»."
+    )
+
+
+def test_a_failed_capture_creates_nothing_by_itself():
+    """**Erfassen ist eine Aussage, kein Auftrag** (§4).
+
+    Ein automatischer Folgeauftrag wäre ein Entwurf, den niemand bestellt hat – und er
+    zöge Stücke aus dem laufenden Auftrag, ohne dass jemand zugestimmt hätte. Das System
+    **hält an** und **bietet an**; angelegt wird über denselben Weg wie jeder Auftrag.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    assert "api.createOrder" not in work, (
+        "Das Modul legt selbst einen Auftrag an – ein zweiter Anlagepfad."
+    )
+    assert "onDeviate({" in work, "Die Entscheidung öffnet keinen Entwurf mehr."
+    assert "work.held" in work, (
+        "Der Haltezustand wird nicht mehr gezeigt – stilles Weiterlaufen."
+    )
+    held = _code(_read(BACKEND / "app" / "services" / "process.py"))
+    held = _body(held, "confirm_step")
+    assert 'if result == "failed":' in held and '"moved": 0, "held": len(units)' in held, (
+        "Ein «nicht bestanden» rückt wieder vor, statt anzuhalten."
+    )
+    assert held.index('if result == "failed":') < held.index("    _pass("), (
+        "Der Haltezweig steht hinter dem Vorrücken – er kommt zu spät."
+    )
+
+
+def test_the_hundred_percent_check_is_an_ordinary_order():
+    """**Kein neuer Mechanismus** (§4.1) – nur eine andere Vorbelegung.
+
+    Und ihr Umfang ist der **Rest dieser Instanz an diesem Modul**, nicht die ganze
+    Charge: Stücke, die anderswo laufen oder längst am Lager liegen, hat dieses Modul nie
+    behandelt – eine 100 %-Kontrolle über sie wäre eine Aussage über Material, das hier
+    nie war.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    assert "api.stepHold(orderObjectId, stepId, work.instance_object_id, group)" in work, (
+        "Die Nummern kommen nicht mehr vom Server – eine zweite Auswahl-Regel."
+    )
+    assert "open('rest')" in work and "open('failed')" in work, (
+        "Es gibt nicht mehr beide Wege aus derselben Entscheidung."
+    )
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    body = _body(proc, "held_numbers")
+    assert "_units_at(db, order, step.id, instance_id=" in body, (
+        "Der Rest wird nicht mehr auf dieses Modul begrenzt – die 100 %-Kontrolle griffe "
+        "nach der ganzen Charge."
     )

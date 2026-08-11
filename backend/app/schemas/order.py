@@ -11,7 +11,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from ..domain import modules
+from ..domain import modules, sampling
 
 from .process import ModuleInput
 
@@ -125,12 +125,52 @@ class ProcessStepResponse(BaseModel):
     #: (``process.confirm_step``); diese Liste ist die **Begründung** für die Oberfläche,
     #: nicht ihre Regel. Abgeleitet, nicht gespeichert (``process.pending_returns``).
     waiting_for: list[int] = Field(default_factory=list)
+    #: **Die Arbeitsliste dieses Moduls** – eine Zeile je wartender Instanz
+    #: (``process.step_work``). Ein Vorgang ist eine Instanz, weil der Scan eine Instanz
+    #: verifiziert; die Liste ist damit zugleich die Liste der zu scannenden Dinge.
+    work: list["StepWork"] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def label(self) -> str:
         """Wie das Modul heisst – aus der Registry, nicht aus einer Spalte."""
         return modules.label(self.module_type)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def sample(self) -> str:
+        """Die Stichprobenregel als **Satz** – aus einer Quelle (``sampling.describe``).
+
+        Sie steht in ``config``, aber die Oberfläche soll sie nicht selbst formulieren:
+        «3 je Instanz» ist eine Aussage über das Los, und eine zweite Formulierung
+        daneben liefe der ersten davon. Was zur **Laufzeit** wirklich gezogen wurde,
+        sagt ``StepWork`` – das ist die Ziehung, nicht die Regel.
+        """
+        return sampling.describe(modules.sample_of(self.config))
+
+
+class StepWork(BaseModel):
+    """Was an einem Modul für **eine Instanz** ansteht.
+
+    Zahlen statt Nummern: bei einer 6000er-Charge wäre der «Rest» sechstausend Nummern
+    in jeder Auftrags-Antwort. Wer sie braucht (die Vorauswahl einer Entscheidung), holt
+    sie einzeln (``GET …/steps/{id}/hold``) – erst auf Klick.
+
+    Die **durchgefallenen** Nummern stehen trotzdem hier: sie sind die Stichprobe, also
+    von Natur aus wenige, und sie sind die eigentliche Auskunft («welches Stück war es»).
+    """
+
+    instance_object_id: int
+    article_name: Optional[str] = None
+    #: Wie viele Stücke dieser Instanz stehen vor dem Modul.
+    waiting: int
+    #: Davon **gezogen** – nur diese werden erfasst (``domain/sampling``).
+    sample: int
+    #: Die übrigen: sie laufen ohne Erfassung durch. Sichtbar, nicht stillschweigend.
+    rest: int
+    #: Hat die letzte Erfassung **nicht bestanden**? Dann rückt hier nichts vor (§4).
+    held: bool = False
+    failed_numbers: list[str] = Field(default_factory=list)
 
 
 class OrderLineResponse(BaseModel):

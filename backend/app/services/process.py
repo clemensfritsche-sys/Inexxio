@@ -22,10 +22,17 @@ from ..models import (
 )
 from ..models.order_line import LAGER, NEU, ORIGINS
 from ..models.process_event import (
-    KIND_END, KIND_HANDOVER, KIND_RETURN, KIND_START, KIND_STEP,
+    KIND_CAPTURE, KIND_END, KIND_HANDOVER, KIND_RETURN, KIND_SAMPLE, KIND_START, KIND_STEP,
 )
-from . import article_process, capture as capture_svc, materialize
+from . import article_process, capture as capture_svc, materialize, sampling
 from .instances import unit_number
+
+#: Wie die Instanz vor der Eingabe verifiziert wurde. **Beides ist eine Bestätigung** –
+#: die Tastatur ist die Alternative zum Scan, nicht seine Umgehung, und beides steht im
+#: Log. Ohne den Vermerk wäre «getippt» von «gescannt» hinterher nicht zu unterscheiden,
+#: und die Scan-Pflicht wäre eine Behauptung.
+VERIFY_SCAN, VERIFY_MANUAL = "scan", "manual"
+VERIFICATIONS = (VERIFY_SCAN, VERIFY_MANUAL)
 
 #: Wie viele Werte höchstens in eine ``IN``-Liste kommen. Bei 5000 Stück wäre eine
 #: einzige Liste ein Abfrage-Text von hunderten Kilobyte; das ist kein Fehler, aber
@@ -621,6 +628,9 @@ def release(
     )
 
     # ── 6. Das erste Modul ist damit aktiv (abgeleitet: dort stehen die Stücke) ──
+    # Und weil die Stücke jetzt davorstehen, wird hier die Stichprobe gezogen: **bei der
+    # Ankunft**, nicht beim Modellieren (§2 – vorher steht die Menge nicht fest).
+    sampling.ensure(db, order=order, step=rows[0], units=all_units, actor_id=actor_id)
     return order
 
 
@@ -674,20 +684,77 @@ def _hand_over(db: Session, *, order: Order, lines: list[_Line],
 # Schritt bestätigen
 # ---------------------------------------------------------------------------
 
+def _verified_instance(db: Session, *, order: Order, step: ProcessStep,
+                       instance_object_id: Optional[int],
+                       verification: Optional[str]) -> Optional[Instance]:
+    """**Habe ich das richtige Ding vor mir?** — die Scan-Pflicht, serverseitig.
+
+    Der Scan verifiziert die **Instanz**, nicht die Einzelinstanz — und das ist keine
+    Vereinfachung, sondern die einzige Möglichkeit: eine Einzelinstanz zieht bewusst
+    keine Objektnummer (``models/instance_unit``), ein Etikett kann es für sie also gar
+    nicht geben. Das physische Etikett klebt am physischen Ding, und das Ding **ist** die
+    Instanz – die Kiste, die Maschine.
+
+    Daraus fällt der Unterschied Charge ↔ Einzelserialisierung von selbst heraus, ohne
+    eine einzige Abfrage danach (``materialize.plan``)::
+
+        Charge, Menge 3              →  (1, 3)  eine Instanz   →  EIN Scan
+        Einzelserialisierung, Menge 3 → (3, 1)  drei Instanzen →  DREI Scans
+
+    Ein Vorgang je Instanz, ein Scan je Vorgang. Deshalb nimmt diese Ausführungsstelle
+    genau **eine** Instanz entgegen und nicht «alles, was davorsteht».
+    """
+    module = modules.get(step.module_type)
+    if not module.requires_verification:
+        return None
+    if verification not in VERIFICATIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"«{modules.label(step.module_type)}» verlangt, dass die Instanz vor der "
+                f"Eingabe bestätigt wird – gescannt oder von Hand eingegeben. Ohne diese "
+                f"Angabe steht nicht fest, an welchem Ding gearbeitet wurde."
+            ),
+        )
+    instance = (
+        db.query(Instance).filter(Instance.object_id == instance_object_id).first()
+        if instance_object_id else None
+    )
+    if instance is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Instanz {instance_object_id} gibt es nicht – es wurde nichts erfasst.",
+        )
+    return instance
+
+
 def confirm_step(
     db: Session, *, order: Order, step_id: int, values: dict[str, Any],
     actor_id: Optional[int],
-) -> int:
+    instance_object_id: Optional[int] = None,
+    verification: Optional[str] = None,
+) -> dict[str, Any]:
     """«Bestätigen» — der eine Mechanismus, den jedes Modul auslöst.
 
-    Prüft den Vorher-Status, lässt das Modul festhalten was es festhält, setzt den
-    Nachher-Status, loggt, rückt vor. Ist der Schritt der letzte, passiert das Stück im
-    selben Zug das **Ende-Objekt** und wird frei. Gibt die Zahl der bewegten Stücke zurück.
+    Prüft die Verifikation, prüft den Vorher-Status, lässt das Modul festhalten was es
+    festhält, setzt den Nachher-Status, loggt, rückt vor. Ist der Schritt der letzte,
+    passiert das Stück im selben Zug das **Ende-Objekt** und wird frei.
+
+    **Ein Vorgang ist EINE Instanz** (§3): der Scan verifiziert sie, die Erfassung gilt
+    für ihre gezogenen Stücke, und das Urteil betrifft sie. Bei mehreren Instanzen vor
+    dem Modul sind es mehrere Vorgänge – bei einer Charge einer.
 
     **Die Erfassung liegt VOR dem Statuswechsel.** Fehlt ein Pflichtpunkt, ist das ein
     Fehler mit Namen – und es hat sich nichts bewegt. Andersherum stünde die Erfassung
     unter Zugzwang: das Stück wäre schon vorgerückt, und der einzige Weg zurück wäre
     keiner.
+
+    **«Nicht bestanden» rückt NICHT vor** (§4). Die Feststellung ist geloggt und
+    eingefroren, die Stücke bleiben an ihrem Zustandspunkt stehen, und was daraus folgt,
+    entscheidet ein Mensch. Ein automatisch angelegter Folgeauftrag wäre ein leerer
+    Entwurf, den niemand bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass
+    jemand zugestimmt hätte. Stilles Weiterlaufen ist der Fehler, den es zu verhindern
+    gilt; das Anhalten ist nicht der Nebeneffekt, sondern der Zweck.
     """
     step = (
         db.query(ProcessStep)
@@ -702,6 +769,10 @@ def confirm_step(
             detail=(f"Der Auftrag ist «{st.label(order_status(db, order))}» – "
                     f"es gibt nichts mehr zu bestätigen."),
         )
+    instance = _verified_instance(
+        db, order=order, step=step,
+        instance_object_id=instance_object_id, verification=verification,
+    )
 
     # ►► **Die Sperre — hier und nur hier.** ◄◄
     #
@@ -721,12 +792,13 @@ def confirm_step(
             ),
         )
 
-    waiting = _units_at(db, order, step.id)
+    waiting = _units_at(db, order, step.id, instance_id=instance.id if instance else None)
     if not waiting:
+        where = f" von Instanz {instance.object_id}" if instance else ""
         raise HTTPException(
             status_code=409,
-            detail=(f"Vor «{modules.label(step.module_type)}» steht keine Einzelinstanz – "
-                    f"der Schritt ist nicht an der Reihe."),
+            detail=(f"Vor «{modules.label(step.module_type)}» steht keine Einzelinstanz"
+                    f"{where} – hier ist gerade nichts zu tun."),
         )
 
     following = (
@@ -750,12 +822,47 @@ def confirm_step(
     units = [u for _, u in waiting]
     membership_ids = [m.id for m, _ in waiting]
 
-    # Was das Modul festhält, hängt am **Stück** – ein Wertesatz, eine Zeile je
-    # Einzelinstanz (siehe ``capture.record_for_step``).
+    # **Wer wird erfasst?** Die gezogene Stichprobe – einmal gezogen, eingefroren im Log.
+    # Das Netz hier ist idempotent: gibt es die Ziehung schon, passiert nichts.
+    sampling.ensure(db, order=order, step=step, units=units, actor_id=actor_id)
+    db.flush()
+    drawn_ids = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
+    drawn = [u for u in units if u.id in drawn_ids]
+
+    # Was das Modul festhält, hängt am **Stück** – ein Wertesatz, eine Zeile je gezogener
+    # Einzelinstanz (siehe ``capture.record_for_step``). Die **nicht** gezogenen laufen
+    # ohne Erfassung durch; sichtbar ist das, weil sie keinen ``capture``-Eintrag haben.
     captures = capture_svc.record_for_step(
-        db, order=order, step=step, units=units, values=values, actor_id=actor_id,
+        db, order=order, step=step, units=drawn, values=values, actor_id=actor_id,
     )
-    payloads = {uid: {"capture_id": c.id} for uid, c in captures.items()}
+    result = next((c.result for c in captures.values()), None)
+    if drawn:
+        db.execute(
+            insert(ProcessEvent),
+            [
+                {
+                    "order_id": order.id, "step_id": step.id, "instance_unit_id": u.id,
+                    "kind": KIND_CAPTURE,
+                    # Erfassen ist keine Zustandsänderung – gemessen wird, was da ist.
+                    "status_before": u.status, "status_after": u.status,
+                    "payload": {
+                        "capture_id": captures[u.id].id,
+                        "result": result,
+                        "verification": verification,
+                    },
+                    "actor_id": actor_id,
+                }
+                for u in drawn
+            ],
+        )
+
+    # **Nicht bestanden ⇒ nichts rückt vor.** Auch die nicht gezogenen Stücke dieser
+    # Instanz bleiben stehen: fällt die Stichprobe durch, ist sie nicht mehr
+    # repräsentativ, und der ungeprüfte Rest ist verdächtig (§4.1). Ihn weiterlaufen zu
+    # lassen hiesse, ihn hinterher wieder einsammeln zu müssen.
+    if result == "failed":
+        db.flush()
+        return {"moved": 0, "held": len(units), "result": result}
 
     _pass(
         db, order=order, units=units, membership_ids=membership_ids,
@@ -763,12 +870,15 @@ def confirm_step(
         status_after=step.status_after,
         next_step_id=following.id if following else None,
         actor_id=actor_id,
-        payloads=payloads,
     )
     if following is None:
         _finish(db, order=order, rows=waiting, actor_id=actor_id)
-        db.flush()
-    return len(waiting)
+    else:
+        # Angekommen am nächsten Modul – dort wird jetzt gezogen (§2: bei der Ankunft,
+        # denn vorher steht die Menge nicht fest).
+        sampling.ensure(db, order=order, step=following, units=units, actor_id=actor_id)
+    db.flush()
+    return {"moved": len(units), "held": 0, "result": result}
 
 
 def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUnit]],
@@ -866,8 +976,14 @@ def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, Insta
 # Ableitungen (Ebene 2 lesen)
 # ---------------------------------------------------------------------------
 
-def _units_at(db: Session, order: Order, step_id: Optional[int]):
-    return (
+def _units_at(db: Session, order: Order, step_id: Optional[int],
+              *, instance_id: Optional[int] = None):
+    """Was steht an diesem Zustandspunkt — wahlweise nur die Stücke **einer** Instanz.
+
+    Die Einschränkung ist die Ausführungsseite der Scan-Regel: verifiziert wird eine
+    Instanz, also arbeitet ein Vorgang auch nur an ihren Stücken.
+    """
+    q = (
         db.query(OrderUnit, InstanceUnit)
         .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
         .filter(
@@ -875,9 +991,140 @@ def _units_at(db: Session, order: Order, step_id: Optional[int]):
             OrderUnit.released_at.is_(None),
             OrderUnit.current_step_id == step_id,
         )
-        .order_by(OrderUnit.id)
-        .all()
     )
+    if instance_id is not None:
+        q = q.filter(InstanceUnit.instance_id == instance_id)
+    return q.order_by(OrderUnit.id).all()
+
+
+def step_work(db: Session, order: Order, step: ProcessStep) -> list[dict[str, Any]]:
+    """**Was ist an diesem Modul zu tun — je Instanz?**
+
+    Ein Vorgang ist eine Instanz (§3), also ist das hier die Arbeitsliste: eine Zeile je
+    Instanz, die davorsteht. Sie trägt alles, was die Oberfläche braucht, ohne dass sie
+    etwas ableitet:
+
+    ``waiting``   wie viele Stücke dieser Instanz hier stehen
+    ``sample``    wie viele davon **gezogen** sind (die übrigen laufen ohne Erfassung durch)
+    ``held``      hat die letzte Erfassung **nicht bestanden**? Dann rückt hier nichts vor
+    ``rest``      die ungeprüften Stücke **dieser** Instanz an **diesem** Modul
+
+    ``rest`` ist der «Rest» aus §4.1 – und zwar genau in dem Umfang, den er haben darf:
+    die Stücke, die hier im Prozess stehen. **Nicht** die übrige Charge: Stücke, die
+    anderswo laufen oder längst am Lager liegen, hat dieses Modul nie behandelt, und eine
+    100 %-Kontrolle über sie wäre eine Aussage über Material, das hier nie war.
+
+    Das ``held`` ist die **letzte** Erfassung, nicht irgendeine: kommt ein Stück nach einer
+    Abweichung zurück und wird erneut erfasst, zählt das neue Urteil. Ein Hold, den nur ein
+    alter Befund am Leben hält, wäre eine Sackgasse ohne Ausgang.
+    """
+    waiting = _units_at(db, order, step.id)
+    if not waiting:
+        return []
+    units = [u for _, u in waiting]
+    # **Gezogen** kommt aus dem Log, **erfasst** aus den Werten – zwei verschiedene
+    # Fragen. Wer «gezogen» aus dem Vorhandensein einer Erfassung ableitet, meldet vor
+    # der ersten Eingabe eine leere Stichprobe und einen Rest, der alles umfasst.
+    drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
+    latest = _latest_captures(db, order, step, [u.id for u in units])
+    numbers = unit_numbers(db, units)
+
+    instances = {
+        i.id: i
+        for i in db.query(Instance).filter(Instance.id.in_({u.instance_id for u in units})).all()
+    }
+    articles = {
+        a.id: a.name
+        for a in db.query(Article)
+        .filter(Article.id.in_({i.article_id for i in instances.values()}))
+        .all()
+    } if instances else {}
+
+    groups: dict[int, dict[str, Any]] = {}
+    for unit in units:
+        instance = instances.get(unit.instance_id)
+        if instance is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Einzelinstanz {unit.id} hat keine Instanz – der Datenbestand ist kaputt.",
+            )
+        row = groups.setdefault(instance.id, {
+            "instance_object_id": instance.object_id,
+            "article_name": articles.get(instance.article_id),
+            "waiting": 0, "sample": 0, "rest": 0, "held": False,
+            "failed_numbers": [],
+        })
+        row["waiting"] += 1
+        if unit.id in drawn:
+            row["sample"] += 1
+        else:
+            row["rest"] += 1
+        capture = latest.get(unit.id)
+        if capture is not None and capture.result == "failed":
+            row["held"] = True
+            row["failed_numbers"].append(numbers[unit.id])
+    return [groups[i] for i in sorted(groups)]
+
+
+def _latest_captures(db: Session, order: Order, step: ProcessStep,
+                     unit_ids: list[int]) -> dict[int, Any]:
+    """Je Stück die **jüngste** Erfassung an diesem Modul. Ältere zählen nicht mehr."""
+    from ..models import Capture
+
+    out: dict[int, Any] = {}
+    if not unit_ids:
+        return out
+    for part in _chunks(list(unit_ids)):
+        for row in (
+            db.query(Capture)
+            .filter(
+                Capture.order_id == order.id,
+                Capture.step_id == step.id,
+                Capture.instance_unit_id.in_(part),
+            )
+            .order_by(Capture.id)
+            .all()
+        ):
+            out[row.instance_unit_id] = row   # die letzte gewinnt
+    return out
+
+
+def held_numbers(db: Session, order: Order, step: ProcessStep, *,
+                 instance_object_id: int, group: str) -> list[str]:
+    """Die Nummern einer Entscheidungs-Gruppe — **erst auf Klick**, nie auf Vorrat.
+
+    ``failed`` sind die durchgefallenen (die Stichprobe), ``rest`` die ungeprüften
+    Stücke derselben Instanz an diesem Modul. Beide Listen gehen als Vorauswahl in einen
+    ganz gewöhnlichen Auftragsentwurf – **kein neuer Mechanismus** (§4.1), nur eine
+    andere Vorbelegung.
+
+    Sie stehen bewusst nicht in der Auftrags-Antwort: bei einer 6000er-Charge wäre der
+    «Rest» sechstausend Nummern, mitgeliefert bei jedem Öffnen des Auftrags.
+    """
+    instance = (
+        db.query(Instance).filter(Instance.object_id == instance_object_id).first()
+    )
+    if instance is None:
+        raise HTTPException(
+            status_code=404, detail=f"Instanz {instance_object_id} gibt es nicht.",
+        )
+    waiting = _units_at(db, order, step.id, instance_id=instance.id)
+    units = [u for _, u in waiting]
+    if group == "failed":
+        latest = _latest_captures(db, order, step, [u.id for u in units])
+        chosen = [u for u in units if (latest.get(u.id) is not None
+                                       and latest[u.id].result == "failed")]
+    elif group == "rest":
+        # **Ungeprüft = nicht gezogen** – dieselbe Quelle wie die Zahl daneben.
+        drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
+        chosen = [u for u in units if u.id not in drawn]
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"«{group}» ist keine Gruppe – erlaubt: failed, rest.",
+        )
+    numbers = unit_numbers(db, chosen)
+    return [numbers[u.id] for u in chosen]
 
 
 def _open_memberships(db: Session, order: Order) -> list[OrderUnit]:

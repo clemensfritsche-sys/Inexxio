@@ -55,6 +55,21 @@ export function moduleTone(tone: string | undefined): { bg: string; fg: string; 
 export const NEEDS_TARGET = 'measure';
 
 /**
+ * Die Stichprobenregel im Entwurf (`domain/sampling.py`) — drei Formen, eine Zahl.
+ *
+ * `value` ist bewusst ein **String**: es ist ein Eingabefeld, und ein halb getipptes
+ * Feld hat keine Zahl. Geprüft wird sie serverseitig (`sampling.clean`), die Antwort
+ * kommt als Satz durch `validate` zurück – hier steht keine zweite Regel.
+ */
+export interface SampleDraft {
+  mode: 'all' | 'count' | 'percent';
+  value: string;
+}
+
+/** Was ohne Angabe gilt – **alle**, wie im Backend (`sampling.DEFAULT`). */
+export const SAMPLE_ALL: SampleDraft = { mode: 'all', value: '' };
+
+/**
  * Ein Erfassungspunkt im Entwurf. `key` fehlt: er wird serverseitig aus der Bezeichnung
  * abgeleitet — ihn hier zu vergeben hiesse, zwei Stellen für dieselbe Regel zu haben.
  *
@@ -81,6 +96,10 @@ export interface ModuleDraft {
   id: number;
   moduleType: string;
   points: PointDraft[];
+  /** **Wie viele der wartenden Stücke erfasst werden** – je Instanz. Pflichtfeld der
+   *  Entwurfsform, damit jede Anlagestelle sie aussprechen muss; ihr Vorgabewert ist
+   *  `SAMPLE_ALL`, nicht ein stillschweigend fehlendes Feld. */
+  sample: SampleDraft;
 }
 
 /** Entwurfsform → API-Form (`schemas/process.ModuleInput`). */
@@ -94,6 +113,10 @@ export function toModulePayload(m: ModuleDraft) {
         target: p.type === NEEDS_TARGET && p.target !== '' ? Number(p.target) : null,
         tolerance: p.type === NEEDS_TARGET && p.tolerance !== '' ? Number(p.tolerance) : null,
       })),
+      // **Unverändert weiterreichen, auch halb getippt.** Ein leeres Feld hier in «alle»
+      // umzudeuten wäre eine stille Änderung der Konfiguration – der Server sagt statt-
+      // dessen, dass die Zahl fehlt, und die Freigabe verweigert bis dahin.
+      sample: { mode: m.sample.mode, value: m.sample.value },
     },
   };
 }
@@ -108,5 +131,6 @@ export function moduleIncomplete(m: ModuleDraft): string | null {
   if (m.points.some((p) => p.type === NEEDS_TARGET && !String(p.target ?? '').trim())) {
     return 'Soll-Ist-Vergleich ohne Sollwert';
   }
+  if (m.sample.mode !== 'all' && !m.sample.value.trim()) return 'Stichprobe ohne Zahl';
   return null;
 }

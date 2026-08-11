@@ -11,10 +11,11 @@ import { inputCls, numericInputProps, numericOnly } from '@/components/erp/field
 /**
  * **Die Datenerfassung zur Laufzeit** — was das Modul festhält, bevor die Stücke vorrücken.
  *
- * Erfasst wird **einmal für alle**, die gerade vor dem Modul stehen (getroffene Annahme,
- * siehe PROCESS_CORE §13 – die Alternative «je Stück ein eigener Satz» ist die offene
- * Frage an den Nutzer). Gespeichert wird trotzdem **je Einzelinstanz**: die Zeile hängt am
- * Stück, damit sie in dessen Historie steht.
+ * Erfasst wird **einmal je Instanz** (PROCESS_CORE §4.4) – und zwar für die gezogene
+ * Stichprobe (§9.3). Das ist nicht die bequemere, sondern die einzig mögliche Grösse: ein
+ * Wertesatz gehört zu **einem** Urteil, und verifiziert wird eine Instanz (das Etikett
+ * klebt am physischen Ding). Gespeichert wird weiterhin **je Einzelinstanz**: die Zeile
+ * hängt am Stück, damit sie in dessen Historie steht.
  *
  * **Jeder offene Punkt blockiert – mit Grund.** «Bestätigen nicht möglich» ohne zu sagen,
  * was fehlt, wäre eine Sackgasse mit Ausrufezeichen. Alles, was angelegt ist, ist Pflicht;

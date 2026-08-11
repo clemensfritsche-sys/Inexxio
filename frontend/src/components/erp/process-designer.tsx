@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Hash, Layers, Percent, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ModuleCatalog } from '@/types';
 import {
-  CAPTURE_ICON, MODULE_ICON, NEEDS_TARGET, moduleTone,
-  type ModuleDraft, type PointDraft,
+  CAPTURE_ICON, MODULE_ICON, NEEDS_TARGET, SAMPLE_ALL, moduleTone,
+  type ModuleDraft, type PointDraft, type SampleDraft,
 } from '@/lib/modules';
 import {
   DRAFT_OBJECT_ID, definitionGraph, type DiagramStep,
@@ -14,7 +14,7 @@ import {
 import { ProcessColumns } from '@/components/erp/process-columns';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
-import { inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { IconSwitch, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 
 /**
  * **Den Prozess definieren — dieselbe Komponente am Artikel wie im Auftrag.**
@@ -80,7 +80,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   function add(moduleType: string) {
     const id = (modules[modules.length - 1]?.id ?? 0) + 1;
     setJustAdded(id);
-    onChange([...modules, { id, moduleType, points: [] }]);
+    onChange([...modules, { id, moduleType, points: [], sample: { ...SAMPLE_ALL } }]);
   }
   function patch(id: number, next: Partial<ModuleDraft>) {
     onChange(modules.map((m) => (m.id === id ? { ...m, ...next } : m)));
@@ -161,6 +161,53 @@ function Palette({ catalog, onPick }: {
   );
 }
 
+/**
+ * **Die Stichprobe — eine Zeile, keine Maske.**
+ *
+ * Drei Formen und **eine** Zahl: alle (Vorgabe) · Anzahl · Prozent. Mehr braucht die
+ * Frage nicht, und ein Formular mit fünf Feldern wäre die falsche Antwort auf etwas,
+ * das sich in einem Satz stellen lässt.
+ *
+ * **Die Wörter stehen ausgeschrieben da.** Ein Anteil hat kein Bild, das man ohne
+ * Vorwissen liest – ein Symbol, das man raten muss, ist keines (Testnotizen #618/#636).
+ *
+ * **«je Instanz» ist keine Beschriftungs-Kosmetik, sondern die Regel**: eine Stichprobe
+ * wird aus einem Los gezogen (ISO 2859-1), und das Los ist die Instanz. «10 %» heisst
+ * 10 % **aus jeder** Charge, nicht 10 % aus dem Haufen; sonst bliebe eine ganze Charge
+ * womöglich ungeprüft.
+ */
+function SampleRow({ value, onChange }: {
+  value: SampleDraft; onChange: (next: SampleDraft) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span style={{
+        font: '700 11px var(--font-body)', textTransform: 'uppercase',
+        letterSpacing: '.07em', color: 'var(--fg-4)',
+      }}>Stichprobe</span>
+      <IconSwitch
+        value={value.mode}
+        onChange={(mode) => onChange({ mode, value: mode === 'all' ? '' : value.value })}
+        options={[
+          { value: 'all', icon: Layers, label: 'Alle', hint: 'Jedes wartende Stück wird erfasst' },
+          { value: 'count', icon: Hash, label: 'Anzahl', hint: 'Eine feste Zahl Stücke je Instanz' },
+          { value: 'percent', icon: Percent, label: 'Prozent', hint: 'Ein Anteil je Instanz, aufgerundet' },
+        ]}
+      />
+      {value.mode !== 'all' && (
+        <>
+          <input className={inputCls} style={{ width: 80 }} value={value.value}
+            {...numericInputProps} placeholder={value.mode === 'count' ? 'z. B. 3' : 'z. B. 10'}
+            onChange={(e) => onChange({ ...value, value: numericOnly(e.target.value) })} />
+          <span className="text-xs" style={{ color: 'var(--fg-4)' }}>
+            {value.mode === 'count' ? 'Stück je Instanz' : '% je Instanz'}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Die Art eines Erfassungspunktes – Symbol mit dem Namen im Hover. */
 function PointIcon({ type, types }: { type: string; types: { key: string; label: string }[] }) {
   const Icon = CAPTURE_ICON[type] ?? CAPTURE_ICON.text;
@@ -192,6 +239,8 @@ function ModuleFields({ module: m, types, onChange }: {
 
   return (
     <div className="flex flex-col gap-2">
+      <SampleRow value={m.sample} onChange={(sample) => onChange({ sample })} />
+
       <div className="flex flex-col gap-1.5">
         {m.points.map((p, i) => (
           <div key={i} className="flex flex-wrap gap-1.5 items-center">

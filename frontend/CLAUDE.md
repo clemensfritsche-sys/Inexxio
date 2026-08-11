@@ -83,6 +83,22 @@ keine Liste und meldet einen Zustand ohne Zuordnung, statt ihn zu raten.
 Karte + Kopf + Werteraster kommen aus `fields.tsx` (`SPEC`, `SpecHead`, `SpecSection`,
 `ReadField`) – die Anatomie **jeder** Detail-Ansicht.
 
+## Datenerfassung (`components/erp/capture-work.tsx`)
+Eine Zeile **je Instanz**, denn ein Vorgang ist eine Instanz (PROCESS_CORE §4.4): das
+Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnummer. Charge
+= ein Scan, Einzelserialisierung = n Scans – **ohne** Abfrage nach der Serialisierung.
+
+- **Ohne Bestätigung kein Formular.** Der Scan ist der Regelweg (`useScan` mit
+  `expected` = der Objektnummer, kein eigener Dialog), die Tastatur die Alternative. Die
+  **Regel** ist die Ablehnung im Backend (`process.confirm_step`), nicht das ausgegraute
+  Feld; `verification` (`scan`|`manual`) fährt mit und wird geloggt.
+- **«Nicht bestanden» hält an.** Das Modul legt **nichts** an: es zeigt den Haltezustand
+  und öffnet auf Klick einen ganz gewöhnlichen Auftragsentwurf mit vorgewählten Stücken
+  (Nummern erst auf Klick: `api.stepHold`).
+- **Die Stichprobe kommt vom Server** – die Zeile nennt die Ziehung («3 von 10 …»), die
+  Definition den Satz (`ProcessStepResponse.sample`). Die Oberfläche formuliert ihn nicht
+  selbst; `sampling.describe` ist die eine Quelle.
+
 ## Kamera-Scan (`lib/scan.ts` + `components/scan/`)
 Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf
 (`GET /erp/objects/{id}`). Drei Schichten, strikt getrennt:

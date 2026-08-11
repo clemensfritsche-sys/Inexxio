@@ -117,6 +117,32 @@ class StepConfirm(BaseModel):
     Ein Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem
     nicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens
     einen).
+
+    **Ein Vorgang ist EINE Instanz.** ``instance_object_id`` ist die verifizierte Instanz,
+    ``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.
+    Beides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die
+    Tastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative.
     """
 
     values: dict[str, Any] = Field(default_factory=dict)
+    instance_object_id: Optional[int] = None
+    verification: Optional[str] = None
+
+
+class StepConfirmResult(BaseModel):
+    """Was das Bestätigen bewirkt hat – die Antwort auf «und jetzt?».
+
+    ``held`` ist der Fall, den es vorher nicht gab: erfasst, **nicht bestanden**, nichts
+    vorgerückt. Die Zahl daneben ist die Auskunft, dass genau so viele Stücke jetzt an
+    diesem Modul warten, bis jemand entscheidet.
+    """
+
+    moved: int = 0
+    held: int = 0
+    result: Optional[str] = None
+
+
+class HoldNumbers(BaseModel):
+    """Die Nummern einer Entscheidungs-Gruppe – Vorauswahl für einen Auftragsentwurf."""
+
+    numbers: list[str] = Field(default_factory=list)

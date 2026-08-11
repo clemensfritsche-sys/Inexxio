@@ -29,7 +29,29 @@ KIND_END = "end"
 KIND_HANDOVER = "handover"
 KIND_RETURN = "return"
 
-EVENT_KINDS = (KIND_START, KIND_STEP, KIND_END, KIND_HANDOVER, KIND_RETURN)
+#: **Die gezogene Stichprobe** (§2 des Datenerfassungs-Auftrags). Eine Zeile je gezogenem
+#: Stück, geschrieben in dem Moment, in dem die Stücke am Modul **ankommen** – vorher
+#: steht die Menge nicht fest, nachher wäre die Ziehung beeinflussbar.
+#:
+#: Sie steht hier und nicht in einem Feld am Modul, weil sie genau das braucht, was
+#: dieser Log leistet: **eingefroren und nachvollziehbar**. Eine Stichprobe, die sich
+#: nachträglich ändern lässt, ist keine – und ihr Wert liegt nicht im Algorithmus,
+#: sondern darin, dass hinterher dasteht, wer gezogen wurde, wann und durch wen.
+#:
+#: Der Status ändert sich dabei nicht: gezogen zu sein ist keine Zustandsänderung des
+#: Stücks, sondern eine Aussage darüber, was mit ihm geschehen wird.
+KIND_SAMPLE = "sample"
+
+#: **Es wurde erfasst** – mit ``payload.capture_id`` und ``payload.result``.
+#:
+#: Eigene Art, weil Erfassen und Passieren zwei Dinge sind: was **nicht bestanden** hat,
+#: rückt nicht vor (§4) und hinterliesse sonst überhaupt keine Spur in der Historie –
+#: die Messung stünde allein in ``captures``, und die Geschichte des Stücks bräche an
+#: der interessantesten Stelle ab.
+KIND_CAPTURE = "capture"
+
+EVENT_KINDS = (KIND_START, KIND_STEP, KIND_END, KIND_HANDOVER, KIND_RETURN,
+               KIND_SAMPLE, KIND_CAPTURE)
 
 
 class ProcessEvent(Base):
