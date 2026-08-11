@@ -193,6 +193,42 @@
 > Fake-Kamera (QR → Y4M), beide Kernfixes gegen ihre Bug-Form gegengeprüft. *Am Gerät
 > offen: welche Linse `pickCamera` real trifft und ob `torch` greift – beides braucht ein
 > Telefon.*
+> **Der Bestand ist EIN Modul mit zwei Umfängen** (`components/erp/stock-view.tsx`,
+> PROCESS_CORE §10.3): am **Artikel** sind die Zeilen seine Instanzen, an der **Instanz**
+> direkt ihre Einzelinstanzen – dieselbe Karte, dieselbe Leiste, dieselbe Aufteilung, nur
+> ein anderer Ausschnitt derselben Frage. Die Instanz-Ansicht ist damit exakt der Teilbaum,
+> den man am Artikel aufklappt; vorher war sie eine schlichte Liste ohne Leiste und ohne
+> Historie – zwei Fassungen, die beim ersten neuen Zustand auseinandergelaufen wären. Beide
+> tragen jetzt die **Spezifikations-Karte** (`SPEC.card` + `SpecHead`/`SpecSection`, aus dem
+> Artikel nach `fields.tsx` gezogen): sie ist die Anatomie **jeder** Detail-Ansicht, nicht
+> die des Artikels – wer daneben etwas baute, schrieb sich sonst einen eigenen Kopf.
+> **Ein neuer Status wird an genau EINER Stelle ergänzt** (`domain/statuses.py`): ein
+> Eintrag trägt Beschriftung, Ampelton, **Achsen** und – für Stücke – ob er zum Bestand
+> oder zur Historie zählt; alles Weitere ist abgeleitet. Der Frontend-Katalog wird
+> **generiert** (`scripts/dump_statuses.py` → `lib/status-catalog.ts`, in der CI wie
+> `api.ts` auf Aktualität geprüft) statt gespiegelt: ein Spiegel, den ein Test vergleicht,
+> **findet** ein Auseinanderlaufen, verhindert es aber nicht. Und die fachliche Zuordnung
+> «Bestand ↔ Historie» gehört an den **Status**, nicht in die Bestandsansicht – sie stand
+> als eigene Liste daneben (`LIVE_UNIT_STATUSES`), also in genau der Form, die man beim
+> nächsten Zustand vergisst: er wäre stillschweigend als Bestand gezählt worden. Jetzt ist
+> es ein Feld, sein **Fehlen ein Fehler beim Start**, und zur Laufzeit reist die Antwort als
+> `StockState.stock` mit den Daten; ein Zustand ohne Zuordnung wird in der Oberfläche
+> **gemeldet** statt geraten.
+> **Die Instanz nennt ihren Artikel als Datensatz**: verlinkte Objektnummer im Werteraster
+> statt eines abgeschriebenen Namens – ein Klick, immer aktuell. Der Typ heisst im Kopf
+> jetzt «Instanz» statt «Instanzen» (der einzige Plural in `TYPE_META`; über EINEM Datensatz
+> las er sich, als wären es mehrere).
+> **Die Vorschlagssuche im Scanner funktionierte nie** – der Code war da, die Daten nicht:
+> der Dialog filterte `step.candidates`, und der einzige Aufrufer (der freie Lookup im Feed)
+> kann keine fertige Kandidatenliste mitgeben, also war die Quelle **immer leer**. Wer
+> «00787» tippte, sah nichts. Jetzt reicht der Feed **seine eigene Suche** durch
+> (`ScanStep.suggest` ← `feedMatch` + `api.getInstances`, entprellt, mit Veralterungs-
+> Schutz), statt dass der Scanner eine zweite baut. **Nur die Vorschlagsquelle wird breiter,
+> nicht die Gültigkeitsregel** (`validateForStep`): ein `restrict`-Schritt fragt `suggest`
+> gar nicht erst, und der Hardware-Weg (volle Nummer + Enter) bleibt unberührt.
+> **Gemessen, nicht gelesen**: 34 Prüfungen in Chromium (beide Umfänge, drei Blöcke inkl.
+> eines erfundenen Zustands, Artikel-Link, Vorschlag aus Teilnummer, voller Scan, unbekannte
+> Nummer); jeder neue Wächter gegen seine Bug-Form gegengeprüft.
 > **`no-unused-vars` ist eingeschaltet** (`frontend/.eslintrc.json`, läuft in der CI): ein
 > Knopf, der einen Zustand setzt, den niemand liest, war nicht auffindbar – `next/core-web-
 > vitals` prüft ungenutzte Variablen nicht, und eine tote `useState`-Destrukturierung ist

@@ -62,6 +62,22 @@ export interface ScanStep {
   candidates?: ScanCandidate[];               // Vorschläge für die manuelle Suche
   restrict?: boolean;                         // nur Kandidaten-IDs zulassen (sonst: jede gültige Nr.)
   /**
+   * **Vorschläge suchen, statt eine Liste mitzugeben.**
+   *
+   * `candidates` ist eine **fertige Menge** – brauchbar, wo der Aufrufer sie kennt (die
+   * paar Zielorte einer Bewegung), unbrauchbar, wo sie das halbe ERP wäre: der freie
+   * Lookup im Feed gab darum gar keine mit, und die Vorschlagsliste blieb für immer
+   * leer. Wer «00787» tippte, sah nichts.
+   *
+   * Diese Frage geht stattdessen an den Aufrufer, der die Suche ohnehin besitzt – der
+   * Feed reicht seine eigene durch, statt dass der Scanner eine zweite baut.
+   *
+   * **Nur die Vorschlagsquelle wird breiter, nicht die Gültigkeitsregel**: was ein
+   * Schritt annimmt, sagt weiterhin allein {@link validateForStep} (`expected` ·
+   * `restrict`+`candidates`).
+   */
+  suggest?: (query: string) => Promise<ScanCandidate[]>;
+  /**
    * **Gibt es dieses Objekt überhaupt?** – nur für den freien Lookup.
    *
    * Ohne `expected`/`restrict` gilt jede formal gültige 9-stellige Zahl. Das ist für

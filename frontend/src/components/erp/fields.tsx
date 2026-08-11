@@ -120,6 +120,48 @@ export const SPEC = {
   } as React.CSSProperties,
 };
 
+/**
+ * **Der Kopf einer Spezifikations-Karte**: grosses getöntes Symbol + Titel + optionaler
+ * rechter Slot. Stand lokal im Artikel-Detail und war dort auf «Spezifikation»
+ * festgenagelt – womit jede zweite Ansicht (Bestand, Instanz) sich einen eigenen Kopf
+ * hätte bauen müssen und die Karten nur noch *ähnlich* ausgesehen hätten.
+ */
+export function SpecHead({ icon: Icon, title, right }: {
+  icon: ElementType; title: string; right?: ReactNode;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+      <span style={SPEC_ICO}><Icon size={17} /></span>
+      <h2 style={{ font: '800 18px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>{title}</h2>
+      {right && <span style={{ flex: 'none' }}>{right}</span>}
+    </div>
+  );
+}
+
+/**
+ * Unterabschnitt einer Spezifikations-Karte: 32-px-Symbol + Titel über einer Haarlinie,
+ * darunter das Werte-Raster. Gliedert eine Karte, ohne eine zweite Karte zu öffnen.
+ */
+export function SpecSection({ icon: Icon, title, right, grid = true, children }: {
+  icon: ElementType; title: string; right?: ReactNode; grid?: boolean; children: ReactNode;
+}) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, paddingBottom: 14, margin: '18px 0 20px', borderBottom: '1px solid var(--border-1)' }}>
+        <span style={{ ...SPEC_ICO, width: 32, height: 32 }}><Icon size={16} /></span>
+        <h3 style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>{title}</h3>
+        {right && <span style={{ flex: 'none' }}>{right}</span>}
+      </div>
+      <div style={grid ? SPEC.grid : undefined}>{children}</div>
+    </div>
+  );
+}
+
+const SPEC_ICO: React.CSSProperties = {
+  width: 34, height: 34, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
+};
+
 function linkHost(href: string): string {
   try { return new URL(href).hostname.replace(/^www\./, ''); } catch { return href; }
 }

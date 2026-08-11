@@ -51,8 +51,17 @@ Die TypeScript-Typen des Frontends werden aus den Pydantic-Schemas generiert.
 Nach jeder Änderung an einem Request/Response-Schema:
 ```bash
 cd backend && python -m scripts.dump_openapi     # → backend/openapi.json
+cd backend && python -m scripts.dump_statuses    # → frontend/src/lib/status-catalog.ts
 cd ../frontend && npm run generate:types          # → src/types/api.ts
 ```
+
+> **Die Statusliste gehört dazu.** `app/domain/statuses.py` ist die eine Quelle; das
+> Frontend spiegelt sie nicht, es **bekommt** sie (`scripts/dump_statuses.py`). Ein neuer
+> Status ist **eine Zeile in `CATALOG`** – mit Beschriftung, Ampelton, Achsen und (für
+> Stücke) Bestands-Zugehörigkeit. Fehlt Letztere, **startet die App nicht** (`_check`):
+> ein Stück-Zustand, der nicht sagt, ob er zum Bestand zählt, landete sonst
+> stillschweigend irgendwo, und die Bestandsleiste zeigte eine Zahl, die niemand
+> nachrechnet.
 
 > **ACHTUNG – mit den GEPINNTEN Versionen generieren.** Die CI (`deploy-dev.yml`,
 > Job «Quality gates») generiert beides neu und bricht bei jedem Unterschied ab
@@ -83,7 +92,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern |
 | GET/POST | /api/v1/erp/articles/{object_id}/process-steps | staff | Prozessschritte (Purchase) lesen/anlegen |
 | PATCH/DELETE | /api/v1/erp/articles/{object_id}/process-steps/{step_id} | staff | Prozessschritt ändern/entfernen |
-| GET | /api/v1/erp/articles/{object_id}/stock | staff | **Bestand** – Aufstellung (Zustand → Menge) über ALLE Stücke + eine Seite Instanzen mit je eigener Aufstellung (PROCESS_CORE §10.3) |
+| GET | /api/v1/erp/articles/{object_id}/stock | staff | **Bestand** – Aufstellung (Zustand → Menge → **Block**) über ALLE Stücke + eine Seite Instanzen mit je eigener Aufstellung (PROCESS_CORE §10.3) |
 | GET | /api/v1/erp/instances/{object_id}/units | staff | Die **Nummern** der Einzelinstanzen – seitenweise, optional auf Zustände gefiltert (`status` mehrfach) |
 | GET | /api/v1/erp/orders | user | Auftrag-Feed (Lieferant: nur eigene, mit eingebettetem Prozess) |
 | POST | /api/v1/erp/orders | staff | **Auftrag erteilen** – Bedarf + Positionen + Ablauf + Instanz-Auswahl in EINEM Aufruf, anlegen **und** freigeben; erst dabei entsteht die Objektnummer (ein Entwurf existiert nie in der DB) |

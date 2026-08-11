@@ -23,8 +23,8 @@ import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN, INAKTIV } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
-import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
-import { ArticleStockTab } from '@/components/erp/instance-list';
+import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
+import { StockView } from '@/components/erp/stock-view';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
 
@@ -350,7 +350,8 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
             ) : (
               <div style={SPEC.card}>
                 {/* Karten-Kopf «Spezifikation» + «+»-Knopf (nur Entwurf) für optionale Felder. */}
-                <CardHead right={<SectionAddButton added={added} onAdd={addField} />} />
+                <SpecHead icon={FileText} title="Spezifikation"
+                  right={<SectionAddButton added={added} onAdd={addField} />} />
                 {/* Standardmässig NUR die Pflichtfelder (Name, Mengeneinheit, Serialisierung,
                     Grösse, Gewicht) – Name über volle Breite, dann zwei gepaarte Zeilen. ALLE
                     weiteren Felder sind ausgeblendet und werden über den «+»-Knopf ergänzt. */}
@@ -407,11 +408,19 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           </div>
         )}
 
+        {/* **Derselbe Bestand wie an der Instanz** – EIN Modul, zwei Umfänge
+            (`stock-view.tsx`). Ohne Objektnummer gibt es den Artikel noch nicht, also
+            auch nichts von ihm. */}
         {tab === 'bestand' && (
-          <ArticleStockTab
-            articleObjectId={record?.object_id ?? null}
-            unit={record?.unit ?? form.unit ?? null}
-          />
+          <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
+            {record?.object_id != null ? (
+              <StockView scope={{ kind: 'article', objectId: record.object_id }} />
+            ) : (
+              <p className="text-sm text-fg-3">
+                Noch kein Bestand – der Artikel entsteht mit seiner Freigabe.
+              </p>
+            )}
+          </div>
         )}
 
       </div>
@@ -521,38 +530,9 @@ const GRID2: React.CSSProperties = {
   display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '22px 40px',
 };
 
-// Karten-Kopf (Design `.card-h`): grosses getöntes Symbol + Titel «Spezifikation» +
-// optionaler rechter Slot («+ Feld hinzufügen», nur im Entwurf). Keine Haarlinie – die
-// Trennlinien tragen erst die Lese-Unterabschnitte.
-function CardHead({ right }: { right?: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-      <span style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-        <FileText size={17} />
-      </span>
-      <h2 style={{ font: '800 18px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>Spezifikation</h2>
-      {right && <span style={{ flex: 'none' }}>{right}</span>}
-    </div>
-  );
-}
-
-// Lese-Unterabschnitt (Design `.rsec` + `.rsec-h`): 32-px-Symbol + Titel (h3) über einer
-// Haarlinie, darunter das Werte-Raster. Gliedert die freigegebene Spezifikation.
-function SubSection({ icon: Icon, title, children }: {
-  icon: React.ElementType; title: string; children: React.ReactNode;
-}) {
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11, paddingBottom: 14, margin: '18px 0 20px', borderBottom: '1px solid var(--border-1)' }}>
-        <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-          <Icon size={16} />
-        </span>
-        <h3 style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', margin: 0, color: 'var(--fg-1)' }}>{title}</h3>
-      </div>
-      <div style={SPEC.grid}>{children}</div>
-    </div>
-  );
-}
+// Karten-Kopf und Lese-Unterabschnitt wohnen in `fields.tsx` (`SpecHead`/`SpecSection`) –
+// sie sind die Anatomie JEDER Spezifikations-Karte, nicht die des Artikels: der Bestand
+// benutzt denselben Kopf, und zwei fast gleiche Köpfe wären zwei Gestaltungen.
 
 // Add-Menü: die optionalen Text-/Mengenfelder. EIN Menü im Sektions-Kopf bietet alle noch
 // nicht sichtbaren Felder an.
@@ -702,7 +682,7 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
   return (
     <div style={SPEC.card}>
       {/* Karten-Kopf «Spezifikation» (ohne «+»-Knopf – freigegeben ist read-only). */}
-      <CardHead />
+      <SpecHead icon={FileText} title="Spezifikation" />
       {/* Basis-Gruppe ohne eigenen Unter-Kopf – der Karten-Kopf trägt sie (Design `.rsec` #1). */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ ...SPEC.grid, paddingTop: 2 }}>
@@ -718,13 +698,13 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
         </div>
       </div>
       {hasPhysical && (
-        <SubSection icon={Box} title="Physische Eigenschaften">
+        <SpecSection icon={Box} title="Physische Eigenschaften">
           {record.size && <ReadField icon={Scaling} label="Abmessungen" value={record.size} unit="mm" mono />}
           {(weightIsComputed || record.weight_kg != null) && (
             <ReadField icon={Weight} label="Gewicht" value={weightIsComputed ? fmtWeight(computedWeight!) : String(record.weight_kg)}
               unit={weightIsComputed ? 'kg (berechnet)' : 'kg'} mono />
           )}
-        </SubSection>
+        </SpecSection>
       )}
     </div>
   );
@@ -737,10 +717,10 @@ const MENU_ICON: Record<string, React.ElementType> = {
 
 
 
-// Der Reiter «Bestand» wohnt in `instance-list.tsx` (`ArticleStockTab`) – hier stand
-// vorher eine zweite, kürzere Fassung, die nur eine Instanzliste lud. Der Bestand ist
-// eine eigene Frage mit drei Ebenen; sie zur Hälfte im Artikel-Detail zu beantworten
-// hiesse, sie an zwei Stellen zu pflegen.
+// Der Reiter «Bestand» ist `stock-view.tsx` – **dasselbe Modul**, das die Instanz zeigt,
+// nur mit dem grösseren Umfang. Hier stand vorher eine zweite, kürzere Fassung, die nur
+// eine Instanzliste lud; der Bestand ist eine eigene Frage mit drei Ebenen, und sie zur
+// Hälfte im Artikel-Detail zu beantworten hiesse, sie an zwei Stellen zu pflegen.
 
 /**
  * **Der Erzeugungsprozess eines Artikels** – die Vorlage: wie ein Stück entsteht.
