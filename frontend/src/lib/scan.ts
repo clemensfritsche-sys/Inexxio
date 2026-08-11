@@ -61,11 +61,27 @@ export interface ScanStep {
   expected?: number | number[] | null;        // exakt zu treffende Objektnummer(n)
   candidates?: ScanCandidate[];               // Vorschläge für die manuelle Suche
   restrict?: boolean;                         // nur Kandidaten-IDs zulassen (sonst: jede gültige Nr.)
+  /**
+   * **Gibt es dieses Objekt überhaupt?** – nur für den freien Lookup.
+   *
+   * Ohne `expected`/`restrict` gilt jede formal gültige 9-stellige Zahl. Das ist für
+   * einen Verifikationsschritt richtig (dort sagt `expected`, was stimmen muss), für
+   * den freien Lookup aber zu lasch: irgendein fremder QR-Code mit neun Ziffern kam
+   * durch, der Dialog meldete Erfolg – und beim Aufrufer passierte stillschweigend
+   * nichts. Wer die Frage beantworten kann, reicht sie hier herein.
+   */
+  exists?: (objectId: number) => Promise<boolean>;
 }
 
 export interface ScanRequest {
   steps: ScanStep[];
   onComplete: (objectIds: number[]) => void;
+  /**
+   * Wie ein Kamerabild zu einem Ergebnis wird. Ohne Angabe: {@link objectCodes}.
+   * Siehe {@link ScanReading} – das ist die Naht, an der später eine zweite Deutung
+   * andockt, ohne den Dialog anzufassen.
+   */
+  reading?: ScanReading;
 }
 
 /** Bewertet einen gescannten/eingegebenen Code gegen einen Schritt. */
@@ -74,3 +90,54 @@ export function validateForStep(objectId: number, step: ScanStep): boolean {
   if (step.restrict && step.candidates) return step.candidates.some((c) => c.objectId === objectId);
   return true;   // freier Lookup: jede gültige Objektnummer zählt
 }
+
+// ─── Die Deutung – austauschbar, heute genau eine ────────────────────────────
+//
+// **Der Dialog besitzt die Kamera und liefert ein Ergebnis. Was dieses Ergebnis
+// BEDEUTET, steht hier.** Vorher griff der Dialog direkt zu `parseScannedCode` und
+// `validateForStep` – damit wusste er, dass ein Scan eine Objektnummer ist. Das ist
+// eine Annahme, die heute stimmt und morgen eine zweite Deutung ausschliesst.
+//
+// Drei Fragen, mehr braucht eine Deutung nicht:
+//   read    – was steht in diesem Rohtext?
+//   check   – darf dieser Wert den Schritt erfüllen? (`null` = ja, sonst der Grund)
+//   prompt  – was soll im Bild stehen?
+//
+// Der Dialog kennt nur diesen Vertrag; die Objektnummer-Semantik lebt vollständig in
+// `objectCodes`, und wer die Deutung tauscht, tauscht ein Objekt – keine Zeile im Dialog.
+
+export interface ScanReading {
+  read(raw: string): number | null;
+  check(value: number, step: ScanStep): Promise<string | null>;
+  prompt(step: ScanStep | undefined): string;
+}
+
+/** Neunstellig, mit führenden Nullen – dieselbe Schreibweise wie überall im ERP. */
+function nr(objectId: number): string {
+  return String(objectId).padStart(9, '0');
+}
+
+/** Die heutige Deutung: **eine Objektnummer lesen, prüfen, benennen.** */
+export const objectCodes: ScanReading = {
+  read: parseScannedCode,
+
+  async check(objectId, step) {
+    if (!validateForStep(objectId, step)) {
+      return step.expected != null
+        ? `${nr(objectId)} ist nicht das erwartete Objekt`
+        : `${nr(objectId)} steht hier nicht zur Wahl`;
+    }
+    // Formal gültig – aber gibt es die Nummer? Nur der freie Lookup fragt das; ein
+    // Verifikationsschritt kennt sein Ziel bereits.
+    if (step.exists && !(await step.exists(objectId))) {
+      return `${nr(objectId)} ist nicht im ERP`;
+    }
+    return null;
+  },
+
+  // «Instanz 100000479 scannen» – der Platzhalter sagt, was zu TUN ist (Notiz #145).
+  prompt(step) {
+    if (!step) return 'Objektnummer scannen';
+    return `${step.label}${typeof step.expected === 'number' ? ` ${nr(step.expected)}` : ''} scannen`;
+  },
+};

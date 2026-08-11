@@ -68,8 +68,32 @@ ERP-Seiten prüfen Firebase Auth. Nicht eingeloggt → Redirect zu /login.
   cd frontend && npm run generate:types          # → src/types/api.ts
   ```
 
+## Kamera-Scan (`lib/scan.ts` + `components/scan/`)
+Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf
+(`GET /erp/objects/{id}`). Drei Schichten, strikt getrennt:
+
+| Schicht | Datei | weiss nichts von |
+|---|---|---|
+| Logik + **Deutung** | `lib/scan.ts` (`ScanReading`, `objectCodes`) | React, API |
+| Kamera + Decoder | `components/scan/use-barcode-scanner.ts` | dem ERP |
+| Dialog | `components/scan/scan-dialog.tsx` | Decoder, Objektnummern |
+
+Aufruf über `useScan()` (eine Instanz am ERP-Layout, lazy). Ein Vorgang ist eine
+**Sequenz**: `steps: [{label, expected?, candidates?, restrict?, exists?}]`.
+`expected` = Verifikation · `restrict`+`candidates` = eingeschränkte Wahl · sonst freier
+Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
+
+- **Deutung tauschen** heisst `reading` mitgeben, nicht den Dialog anfassen.
+- **ZXing nur als Rückfall** und nur `await import(…)` – der native `BarcodeDetector`
+  kommt zuerst (5 kB statt 112 kB gzip beim Öffnen).
+- **Der Stream gehört dem Hook.** Tracks im Cleanup explizit stoppen – ZXings `stop()`
+  beendet nur die Decode-Schleife, sonst wächst der Video-Puffer über jeden Scan.
+- Etikett drucken: `<LabelButton objectId title kind />` im `DetailHeader`.
+
 ## Wichtige Konventionen
 - 'use client' nur wenn nötig (Interaktivität, Hooks)
+- **`no-unused-vars` ist scharf** (`.eslintrc.json`, läuft in der CI): eine ungenutzte
+  `useState`-Destrukturierung ist die Form, in der ein Knopf ohne Wirkung auftritt.
 - Server Components für statische Seiten
 - react-hook-form + zod für alle Formulare
 - Lucide React für alle Icons

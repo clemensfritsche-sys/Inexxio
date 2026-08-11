@@ -3,39 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogIn, LogOut, ChevronDown, Settings, ShoppingCart } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import type { User } from 'firebase/auth';
 
 // Elegantes Warenkorb-Symbol für den Header: dezenter Icon-Button, Badge nur bei Inhalt.
-function CartButton({ count, size = 38 }: { count: number; size?: number }) {
-  return (
-    <Link
-      href="/shop/cart"
-      aria-label={`Warenkorb${count > 0 ? ` (${count})` : ''}`}
-      style={{
-        position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: size, height: size, borderRadius: '50%', color: 'var(--fg-1)',
-        transition: 'background 0.15s',
-      }}
-      className="hover:bg-slate-100"
-    >
-      <ShoppingCart style={{ width: 19, height: 19 }} strokeWidth={1.8} />
-      {count > 0 && (
-        <span style={{
-          position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, padding: '0 4px',
-          borderRadius: 999, background: 'var(--ix-red, #E51A14)', color: '#fff',
-          fontSize: 10, fontWeight: 700, lineHeight: '16px', textAlign: 'center',
-          boxShadow: '0 0 0 2px #fff',
-        }}>
-          {count > 99 ? '99+' : count}
-        </span>
-      )}
-    </Link>
-  );
-}
 
 const ROLE_KEY = 'inexxio_user_role';
 const NAME_KEY = 'inexxio_user_fullname';

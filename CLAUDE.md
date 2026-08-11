@@ -171,6 +171,38 @@
 > 300 Instanzen wie bei einer 5000er-Charge. Dieselbe Regel gilt im Instanz-Datensatz –
 > dessen frühere Volle-Liste (`units_of`, gemessen 149 ms / 5000 Zeilen) ist **ersatzlos
 > entfernt**, damit sie niemand versehentlich wieder benutzt.
+> **Der Scanner ist wieder in Betrieb – und die Deutung ist austauschbar** (`lib/scan.ts`,
+> `components/scan/`): der Knopf in der ERP-Suchleiste öffnet die Kamera, der Treffer öffnet
+> den Datensatz (`resolveObject`). Drei Schichten, unverändert getrennt: Logik ohne React ·
+> Kamera-Hook ohne ERP-Wissen · Dialog ohne Kamera-API. **Neu ist die Naht dazwischen**:
+> `ScanReading` (`read` · `check` · `prompt`) sagt, was ein Kamerabild BEDEUTET – heute
+> `objectCodes`, und der Dialog kennt weder ZXing noch Objektnummern. Eine zweite Deutung
+> ist damit ein neues Objekt, kein Umbau. **Zwei Datenfehler behoben:** der 380-ms-
+> Quittierungs-Timer lief nach Esc weiter (`onComplete` bewegte eine Instanz, die niemand
+> mehr bewegen wollte), und der freie Lookup nahm **jede** 9-stellige Zahl an – der Rahmen
+> wurde grün, und beim Aufrufer passierte stillschweigend nichts (404, verschluckt). Jetzt
+> fragt `ScanStep.exists` nach, und der Grund steht im Bild. **Gerätetauglichkeit:**
+> `pickCamera` meidet die Ultraweitwinkel-Linse (die bei 10 cm nicht scharf stellt – die
+> häufigste Ursache für «erkennt nichts»), Taschenlampe über `torch`, und der native
+> `BarcodeDetector` kommt zuerst: ZXing wird nur noch **dynamisch** geladen (Öffnen kostet
+> **5 kB statt 112 kB gzip**). `autoFocus` hängt am Kamerazustand – läuft sie, bleibt die
+> Bildschirmtastatur zu; der **Hardware-Scanner** bleibt trotzdem bedienbar, weil die erste
+> Ziffer den Fokus holt und mitgenommen wird. Etikettendruck ist EIN Bauteil (`LabelButton`)
+> an Artikel · **Instanz** · Auftrag – vorher gab es ihn nur am Artikel, also ausgerechnet
+> nicht am Ding im Regal. **Gemessen, nicht gelesen**: 21 Prüfungen in Chromium mit echter
+> Fake-Kamera (QR → Y4M), beide Kernfixes gegen ihre Bug-Form gegengeprüft. *Am Gerät
+> offen: welche Linse `pickCamera` real trifft und ob `torch` greift – beides braucht ein
+> Telefon.*
+> **`no-unused-vars` ist eingeschaltet** (`frontend/.eslintrc.json`, läuft in der CI): ein
+> Knopf, der einen Zustand setzt, den niemand liest, war nicht auffindbar – `next/core-web-
+> vitals` prüft ungenutzte Variablen nicht, und eine tote `useState`-Destrukturierung ist
+> genau diese Form. Die Regel fand **46** Leichen aus dem Neuaufbau, darunter zwei
+> API-Abfragen für einen Wert, den niemand liest (`settings` im Feed), eine ungenutzte
+> Funktion, eine ganze Komponente (`CartButton`) – und den **Deaktivieren-Knopf am Artikel**,
+> der denselben toten Zustand setzt (sein Dialog ist mit dem Neuaufbau entfallen; bewusst
+> nur gemeldet, weil Deaktivieren endgültig ist). `_TYPE_MODELS` behauptet kein `document`
+> mehr (abgeschaltetes Modul) – die Spalte bleibt aber im **Nummernraum**, sonst vergäbe
+> `setval` eine Alt-Nummer ein zweites Mal.
 > Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
 > Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
 

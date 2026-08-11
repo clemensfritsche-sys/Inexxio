@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Package, ArrowLeft, FileText, Boxes, Trash2, Tag, QrCode, AlertTriangle,
-  Ruler, TrendingUp, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
-  Scaling, Hash, Truck, Banknote, Link2, Weight, Sparkles, Plus, Shield, Ban, FolderOpen,
-  MapPin, ClipboardPlus,
+  Package, FileText, Boxes, Trash2, Tag, AlertTriangle,
+  Ruler, Box, Square, Scale, Droplet, Fingerprint, Layers,
+  Scaling, Hash, Link2, Weight, Sparkles, Plus, Shield, Ban,
+  ClipboardPlus,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ArticleProcess as ArticleProcessType, Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile } from '@/types';
@@ -26,8 +26,7 @@ import { isVersionConflict } from '@/lib/optimistic';
 import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
 import { ArticleStockTab } from '@/components/erp/instance-list';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { printObjectLabel } from '@/components/scan/object-label';
-import { formatAmount as fmtChf, formatObjectId, localDate } from '@/lib/utils';
+import { LabelButton } from '@/components/scan/object-label';
 
 // Artikel-Lebenszyklus. **Es gibt keinen gespeicherten Entwurf mehr**: der Artikel
 // entsteht erst mit seiner Freigabe (services/articles.py), und die verlangt beides –
@@ -115,6 +114,12 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('spezifikation');
+  // ⚠ **Bekannte Lücke, gemeldet statt versteckt.** `setDialog` wird beim Klick auf
+  // «Deaktivieren» gerufen (unten), aber der zugehörige Dialog wurde beim Basis-Neuaufbau
+  // entfernt – der Knopf tut also nichts. Genau die Bauform, die auch der Scan-Knopf im
+  // Feed hatte. Nicht im Vorbeigehen repariert: Deaktivieren ist **endgültig** (kein
+  // Reaktivieren), und was es an Wirkungsanalyse braucht, ist eine eigene Entscheidung.
+  // eslint-disable-next-line no-unused-vars
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
 
   // Shortcut «Auftrag»: das Anlage-Fenster mit diesem Artikel vorgewählt öffnen. Es
@@ -298,10 +303,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         ) : record.object_id != null ? (
           <>
             <HeaderSep />
-            <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
-              onClick={() => printObjectLabel(record.object_id as number, form.name || record.name, 'Artikel')}>
-              <QrCode size={15} />
-            </button>
+            <LabelButton objectId={record.object_id} title={form.name || record.name} kind="Artikel" />
             {/* Shortcut «Auftrag»: aus dem freigegebenen Artikel direkt einen Auftrag
                 auslösen (nur freigegebene Artikel sind auftragsfähig). */}
             {record.status === FREIGEGEBEN && (
@@ -419,10 +421,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
 // Kopf-/Chrome-Styles (Inexxio Design System, analog Instanz-Detail)
 // Der Kopf kommt aus `fields.DetailHeader` (Notiz #242) – hier bleibt nur die Karte.
-const H: Record<string, React.CSSProperties> = {
-  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: 'clamp(16px, 3vw, 24px)', display: 'flex', flexDirection: 'column', gap: 16, width: '100%' },
-};
-
 function fmtWeight(v: string | number): string {
   return Number(v).toLocaleString('de-CH', { maximumFractionDigits: 3 });
 }
@@ -737,12 +735,6 @@ const MENU_ICON: Record<string, React.ElementType> = {
   material: Layers, surface: Sparkles, min_order_qty: Package, safety_stock: Shield,
 };
 
-function formatDuration(days: number): string {
-  if (days >= 1) return `${days.toFixed(days < 10 ? 1 : 0)} Tag${days >= 2 ? 'e' : ''}`;
-  const hours = days * 24;
-  if (hours >= 1) return `${hours.toFixed(1)} Std`;
-  return `${Math.max(1, Math.round(hours * 60))} Min`;
-}
 
 
 // Der Reiter «Bestand» wohnt in `instance-list.tsx` (`ArticleStockTab`) – hier stand

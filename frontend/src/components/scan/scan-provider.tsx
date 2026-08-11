@@ -30,7 +30,14 @@ export function ScanProvider({ children }: { children: React.ReactNode }) {
   // die `scan()` mehrfach hintereinander aufrufen: kein Zustands-Recycling.
   const [req, setReq] = useState<{ id: number; req: ScanRequest } | null>(null);
   const idRef = useRef(0);
-  const scan = useCallback<ScanFn>((r) => { idRef.current += 1; setReq({ id: idRef.current, req: r }); }, []);
+  const scan = useCallback<ScanFn>((r) => {
+    // Eine leere Sequenz ergäbe einen Dialog, der die Kamera öffnet und auf nichts
+    // wartet. Das ist ein Aufruffehler und wird als solcher gemeldet, statt als
+    // stummes Fenster zu erscheinen.
+    if (!r.steps.length) throw new Error('scan() braucht mindestens einen Schritt');
+    idRef.current += 1;
+    setReq({ id: idRef.current, req: r });
+  }, []);
 
   return (
     <ScanContext.Provider value={scan}>

@@ -1,17 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, History } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import type {
   ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, RelatedOrder,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { localDateTime } from '@/lib/utils';
-import { DetailHeader, HeaderAction, Card } from '@/components/erp/fields';
+import { DetailHeader, HeaderAction } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
+import { LabelButton } from '@/components/scan/object-label';
 import {
-  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, definitionGraph, type DiagramStep,
+  DRAFT_OBJECT_ID, EMPTY_GRAPH, definitionGraph, type DiagramStep,
   type JourneyOrigin,
 } from '@/components/erp/process-diagram';
 import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
@@ -19,9 +19,8 @@ import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
-import { END_BEFORE, statusCfg, statusLabel } from '@/lib/process-status';
+import { END_BEFORE } from '@/lib/process-status';
 import { CaptureForm } from '@/components/erp/capture-form';
-import { UnitNumber } from '@/components/erp/unit-number';
 import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
@@ -204,6 +203,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             disabled={busy || blocked || missing == null}
             onClick={release}
           />
+        ) : shown?.object_id != null ? (
+          <LabelButton objectId={shown.object_id} title={shown.name} kind="Auftrag" />
         ) : undefined}
         onBack={onBack}
         tabs={<DetailTabs tabs={TABS} active="auftrag" onChange={() => {}} />}

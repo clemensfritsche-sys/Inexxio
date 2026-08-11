@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import {
   BEND, FLOW_GAP, FlowFrame, channelX, channels, gutterFor, polyPath, port,

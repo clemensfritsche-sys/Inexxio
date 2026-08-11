@@ -1,5 +1,6 @@
 'use client';
 
+import { QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { encodeObjectCode } from '@/lib/scan';
@@ -29,8 +30,36 @@ function labelMarkup(objectId: number, title?: string | null, subtitle?: string 
 }
 
 /**
+ * **Der Etiketten-Knopf im Detail-Kopf — eine Stelle für alle Datensatztypen.**
+ *
+ * Ein Etikett trägt nur die Objektnummer, und die hat jeder Datensatz. Der Knopf sah
+ * darum an jeder Ansicht gleich aus – nur gab es ihn lange **nur am Artikel**, also
+ * ausgerechnet nicht an der Instanz, dem Ding im Regal, das man scannt.
+ */
+export function LabelButton({ objectId, title, kind }: {
+  objectId: number | null | undefined;
+  title?: string | null;
+  /** Der Datensatztyp, als Unterzeile auf dem Etikett («Instanz», «Auftrag», …). */
+  kind: string;
+}) {
+  if (objectId == null) return null;
+  return (
+    <button
+      type="button"
+      className="erp-idbtn"
+      data-tip="Etikett drucken (QR)"
+      data-tip-pos="bottom"
+      aria-label="Etikett drucken"
+      onClick={() => printObjectLabel(objectId, title, kind)}
+    >
+      <QrCode size={15} />
+    </button>
+  );
+}
+
+/**
  * Öffnet direkt den Druckdialog mit dem QR-Etikett des Objekts – ohne dass das
- * Etikett auf der Seite gerendert sein muss. Genutzt vom QR-Knopf im Detail-Kopf.
+ * Etikett auf der Seite gerendert sein muss. Genutzt von {@link LabelButton}.
  */
 export function printObjectLabel(objectId: number, title?: string | null, subtitle?: string | null, size = 120) {
   const w = window.open('', '_blank', 'width=420,height=520');

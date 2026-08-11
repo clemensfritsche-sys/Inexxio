@@ -1,51 +1,82 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CameraOff, AlertTriangle, Search } from 'lucide-react';
-import {
-  parseScannedCode, validateForStep, OBJECT_ID_MIN, OBJECT_ID_MAX,
-  type ScanCandidate, type ScanStep, type ScanRequest,
-} from '@/lib/scan';
+import { CameraOff, AlertTriangle, Flashlight, Search } from 'lucide-react';
+import { objectCodes, type ScanCandidate, type ScanStep, type ScanRequest } from '@/lib/scan';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
 import { formatObjectId } from '@/lib/utils';
 
 export type { ScanRequest };
 
-// Mehrfach-Lesungen desselben Codes kurz ignorieren (ZXing feuert laufend).
+// Mehrfach-Lesungen desselben Codes kurz ignorieren (der Decoder feuert laufend).
 const THROTTLE_MS = 1200;
+// Wie lange der grüne Rahmen den Treffer quittiert, bevor es weitergeht.
+const ACK_MS = 380;
 
 type Feedback = { kind: 'ok' | 'bad'; text: string } | null;
 
-export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClose: () => void }) {
+/**
+ * **Der Scanner.** Er besitzt die Kamera, führt durch eine Sequenz von Schritten und
+ * liefert am Ende die Ergebnisse.
+ *
+ * **Was ein Ergebnis BEDEUTET, weiss er nicht** – das steht in der Deutung
+ * (`lib/scan.ScanReading`, heute `objectCodes`), die er als Vertrag bekommt. Er kennt
+ * weder den Decoder noch die Objektnummer-Semantik; er zeigt, quittiert und schaltet
+ * weiter. Genau diese Naht macht eine zweite Deutung später zu einem neuen Objekt statt
+ * zu einem Umbau.
+ */
+export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }: ScanRequest & { onClose: () => void }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [query, setQuery] = useState('');
   const [feedback, setFeedback] = useState<Feedback>(null);
   // Refs vermeiden veraltete Closures im Kamera-Callback (robustes Weiterschalten).
   const stepIndexRef = useRef(0);
   const results = useRef<number[]>([]);
-  const lock = useRef(false);                 // während der Erfolgs-Quittierung sperren
+  const lock = useRef(false);                 // während Prüfung und Quittierung sperren
   const completed = useRef(false);
   const lastRef = useRef<{ id: number; at: number } | null>(null);
+  // Lebt der Dialog noch? Und läuft ein Quittierungs-Timer?  → §2.1
+  const alive = useRef(true);
+  const ackTimer = useRef<number | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const step: ScanStep | undefined = steps[stepIndex];
   const multi = steps.length > 1;
 
-  function handle(objectId: number) {
+  // **Ein abgebrochener Scan darf nichts auslösen.** Der Quittierungs-Timer lief früher
+  // ungebremst weiter: Esc oder Klick daneben in diesen 380 ms → der Dialog war weg, der
+  // Timer feuerte trotzdem, und `onComplete` bewegte eine Instanz, die niemand mehr
+  // bewegen wollte.
+  useEffect(() => {
+    // Beim Betreten **wieder** auf «lebt» stellen: React ruft einen Effekt in der
+    // Entwicklung absichtlich zweimal auf (mount → cleanup → mount). Ohne diese Zeile
+    // bliebe die Marke nach dem ersten Cleanup für immer auf «tot» – der Dialog nähme
+    // dann nichts mehr an. Genau das hat der Browser-Durchlauf gemeldet.
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      if (ackTimer.current) window.clearTimeout(ackTimer.current);
+    };
+  }, []);
+
+  async function handle(objectId: number) {
     if (lock.current || completed.current) return;
     const cur = steps[stepIndexRef.current];
     if (!cur) return;
-    if (!validateForStep(objectId, cur)) {
-      const text = cur.expected != null
-        ? `${formatObjectId(objectId)} ist nicht das erwartete Objekt`
-        : `${formatObjectId(objectId)} ist nicht im ERP`;
-      setFeedback({ kind: 'bad', text });
-      return;
-    }
-    // gültig → kurz grün zeigen, dann weiter / abschliessen
+
+    // Schon während der Prüfung sperren: der Decoder feuert weiter, und eine
+    // Existenzabfrage darf nicht n-mal parallel laufen.
     lock.current = true;
+    const reason = await reading.check(objectId, cur);
+    if (!alive.current) return;
+    if (reason) { setFeedback({ kind: 'bad', text: reason }); lock.current = false; return; }
+
     results.current = [...results.current, objectId];
     setFeedback({ kind: 'ok', text: `Erkannt: ${formatObjectId(objectId)}` });
-    window.setTimeout(() => {
+    ackTimer.current = window.setTimeout(() => {
+      ackTimer.current = null;
+      if (!alive.current) return;
       const next = stepIndexRef.current + 1;
       if (next >= steps.length) {
         completed.current = true;
@@ -57,30 +88,62 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
         setFeedback(null);
         lock.current = false;
       }
-    }, 380);
+    }, ACK_MS);
   }
 
-  // Kamera-Treffer: Rohtext → Objektnummer; ungültige bleiben sichtbar, Kamera läuft weiter.
+  // Decoder-Treffer: Rohtext → Wert; ungültige bleiben sichtbar, die Kamera läuft weiter.
   // lastRef wird NICHT bei Schrittwechsel zurückgesetzt → ein im Bild verbleibender
   // (bereits quittierter) Code löst auf dem Folgeschritt keinen Fehlalarm aus.
   function handleText(raw: string) {
     if (lock.current || completed.current) return;
-    const id = parseScannedCode(raw);
+    const id = reading.read(raw);
     if (id == null) { setFeedback({ kind: 'bad', text: 'Kein gültiger Objekt-Code' }); return; }
     const now = Date.now();
     if (lastRef.current && lastRef.current.id === id && now - lastRef.current.at < THROTTLE_MS) return;
     lastRef.current = { id, at: now };
-    handle(id);
+    void handle(id);
   }
 
-  const { videoRef, state } = useBarcodeScanner(true, handleText);
+  const { videoRef, state, torch, setTorch } = useBarcodeScanner(true, handleText);
   const cameraLive = state === 'starting' || state === 'scanning';
 
+  // **Der Fokus richtet sich nach der Kamera** (§3.2): läuft sie, bleibt er am Dialog –
+  // auf dem Telefon poppte sonst die Tastatur sofort über das Bild, um das es geht.
+  // Läuft sie nicht, ist die Tastatur der einzige Weg und bekommt den Fokus.
+  useEffect(() => {
+    if (cameraLive) sheetRef.current?.focus();
+    else inputRef.current?.focus();
+  }, [cameraLive]);
+
+  // Esc schliesst – am Fenster, damit es unabhängig davon gilt, wo der Fokus gerade steht.
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    // **Hardware-Scanner bleiben bedienbar.** Ein USB-/Bluetooth-Gerät tippt die Nummer
+    // plus Enter – ohne Fokus im Feld ginge das ins Leere. Die erste Ziffer holt den
+    // Fokus und wird mitgenommen, damit nichts verloren geht. (Auf dem Telefon tippt
+    // niemand Ziffern, also geht dort auch keine Tastatur auf.)
+    if (/^\d$/.test(e.key) && document.activeElement !== inputRef.current) {
+      setQuery((q) => q + e.key);
+      inputRef.current?.focus();
+      e.preventDefault();
+      return;
+    }
+
+    // Fokusfalle: im Dialog gibt es zwei bis vier bedienbare Dinge – sie im Kreis zu
+    // führen kostet acht Zeilen und macht ihn tastaturfähig.
+    if (e.key !== 'Tab') return;
+    const items = sheetRef.current?.querySelectorAll<HTMLElement>('button, input');
+    if (!items?.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 
   // Semantische Suche: tippt man «003», erscheint 100000003 als Vorschlag.
   const suggestions = useMemo<ScanCandidate[]>(() => {
@@ -91,31 +154,31 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
       .slice(0, 6);
   }, [query, step]);
 
-  // Der Platzhalter sagt, was zu TUN ist – nicht, was das Feld kann: «Standort 100000292
-  // scannen». Steht die Zielnummer fest, steht sie darin; das Eingabefeld bleibt daneben
-  // ganz normal benutzbar, für den Bedarfsfall (Notiz #145).
-  const actionText = step
-    ? `${step.label}${typeof step.expected === 'number' ? ` ${formatObjectId(step.expected)}` : ''} scannen`
-    : 'Objektnummer scannen';
-
-  // Direkte Übernahme einer eingetippten vollständigen Objektnummer (ohne Vorschlag).
-  const typedId = parseScannedCode(query);
+  // Was im Bild steht, sagt die Deutung – der Dialog weiss nicht, was ein Schritt meint.
+  const actionText = reading.prompt(step);
+  const typedId = reading.read(query);
   const typedDirectOk = typedId != null && (!step?.restrict || step.candidates?.some((c) => c.objectId === typedId));
 
   function submitQuery() {
-    if (typedId == null) {
-      setFeedback({ kind: 'bad', text: `Nummer muss ${OBJECT_ID_MIN}–${OBJECT_ID_MAX} sein` });
-      return;
-    }
-    handle(typedId);
+    if (typedId == null) { setFeedback({ kind: 'bad', text: 'Keine gültige Objektnummer' }); return; }
+    void handle(typedId);
   }
 
   return (
     // Der ganze Container IST die Kameraansicht. Kein Kopf, kein Erklärtext, kein zweiter
     // Kasten: was zu tun ist, steht im Bild – und was man sucht, tippt man im Bild.
-    // Klick daneben schliesst (identisch zum ×), Esc ebenso.
+    // Klick daneben schliesst, Esc ebenso.
     <div style={backdrop} onClick={onClose}>
-      <div style={sheet} onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={actionText}
+        tabIndex={-1}
+        style={sheet}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDown}
+      >
         {cameraLive ? (
           // eslint-disable-next-line jsx-a11y/media-has-caption
           <video ref={videoRef} style={video} muted playsInline autoPlay />
@@ -137,6 +200,20 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
           </div>
         )}
 
+        {/* Taschenlampe – nur, wo das Gerät sie hat. Im Regal entscheidet sie darüber,
+            ob überhaupt etwas zu lesen ist. */}
+        {torch !== null && (
+          <button
+            type="button"
+            onClick={() => void setTorch(!torch)}
+            aria-label={torch ? 'Licht aus' : 'Licht an'}
+            aria-pressed={torch}
+            style={{ ...torchBtn, background: torch ? '#fff' : 'rgba(15,23,42,.5)', color: torch ? 'var(--fg-1)' : '#fff' }}
+          >
+            <Flashlight size={17} />
+          </button>
+        )}
+
         {/* Zielrahmen mit Suchstrahl + der EINEN Angabe, die zählt: was soll gescannt werden. */}
         <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? 'var(--danger)' : feedback?.kind === 'ok' ? 'var(--success)' : 'rgba(255,255,255,.85)' }}>
           {cameraLive && !feedback && <div className="ix-scanbeam" style={beam} />}
@@ -145,7 +222,7 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
             eine zweite grüne Meldung daneben sagte dasselbe noch einmal (Notiz #253).
             Ein Text braucht es nur beim Fehlschlag: dort zählt der GRUND. */}
         {feedback?.kind === 'bad' && (
-          <div style={{ ...badge, background: 'var(--danger)' }}>
+          <div style={{ ...badge, background: 'var(--danger)' }} role="status">
             <AlertTriangle size={14} /> {feedback.text}
           </div>
         )}
@@ -155,13 +232,14 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
           <div style={{ position: 'relative' }}>
             <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.7)', pointerEvents: 'none' }} />
             <input
+              ref={inputRef}
               value={query}
               onChange={(e) => { setQuery(e.target.value); setFeedback(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter' && typedDirectOk) submitQuery(); }}
-              autoFocus
               // Die Zielangabe («Instanz 100000479») lebt HIER statt zusätzlich als Chip im
               // Bild – eine Aussage, eine Stelle (Notiz #126).
               placeholder={actionText}
+              aria-label={actionText}
               style={input}
             />
           </div>
@@ -170,7 +248,7 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
           {suggestions.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 152, overflowY: 'auto' }}>
               {suggestions.map((c) => (
-                <button key={c.objectId} onClick={() => handle(c.objectId)} style={suggestionBtn}>
+                <button key={c.objectId} onClick={() => void handle(c.objectId)} style={suggestionBtn}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{formatObjectId(c.objectId)}</span>
                   <span style={{ opacity: .8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
                 </button>
@@ -198,7 +276,7 @@ const sheet: React.CSSProperties = {
   position: 'relative', width: '100%', maxWidth: 420, aspectRatio: '3 / 4', maxHeight: '82vh',
   background: '#0B1220', borderRadius: 18, overflow: 'hidden',
   boxShadow: '0 24px 60px rgba(15,23,42,0.4)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', outline: 'none',
 };
 const video: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' };
 const cameraOff: React.CSSProperties = {
@@ -206,6 +284,11 @@ const cameraOff: React.CSSProperties = {
 };
 const progressBar: React.CSSProperties = {
   position: 'absolute', top: 10, left: 14, right: 14, display: 'flex', gap: 5,
+};
+const torchBtn: React.CSSProperties = {
+  position: 'absolute', top: 14, right: 14, width: 38, height: 38, borderRadius: 999,
+  border: '1px solid rgba(255,255,255,.22)', display: 'flex', alignItems: 'center',
+  justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(10px)',
 };
 const frame: React.CSSProperties = {
   position: 'absolute', width: '64%', aspectRatio: '1 / 1', border: '2px solid rgba(255,255,255,.85)',

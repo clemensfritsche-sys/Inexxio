@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star, Pencil, Ban } from 'lucide-react';
+import { Building2, Server, FolderOpen, Star, Pencil, Ban } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type {CompanySettings } from '@/types';
@@ -521,13 +521,5 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
 // KI (Tokens × Tarif) und Zahlungen (Stripe-Gebühren) sind GEMESSEN; die Infrastruktur
 // ist eine anteilige Schätzung der fixen Google-Cloud-Grundkosten. Kompakt gruppiert,
 // mit grosser Summe und Monats-Hochrechnung.
-const GROUP_ICON: Record<string, React.ElementType> = {
-  ai: Sparkles, payments: CreditCard, infrastructure: Server,
-};
-
-function chf(v: number): string {
-  return v.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 // Die Betriebskosten-Karte ist entfallen: sie summierte KI-Ereignisse und
 // Stripe-Gebühren – beide Module sind abgeschaltet (core/features.py).
