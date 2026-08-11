@@ -7,10 +7,10 @@ import type { Instance } from '@/types';
 import { TYPE_META } from '@/lib/erp-record';
 import { instanceName } from '@/lib/record-name';
 import { kindLabel } from '@/lib/record-status';
-import { statusCfg } from '@/lib/process-status';
-import { Card, DetailHeader, StatusBadge } from '@/components/erp/fields';
+import { Card, DetailHeader } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
-import { UnitNumber } from '@/components/erp/unit-number';
+import { StockBar, StockLegend } from '@/components/erp/stock-bar';
+import { UnitNumbers } from '@/components/erp/unit-numbers';
 
 /**
  * Instanz-Detail – eine **Gruppe** und ihre Einzelinstanzen.
@@ -74,23 +74,22 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
 
         {/* Eine Zeile je Stück: Nummer, Zustand. Die Menge steht nicht dabei – eine
             Einzelinstanz IST genau ein Stück, das ist ihre Definition und keine
-            Angabe, die man wiederholen müsste (#680). */}
+            Angabe, die man wiederholen müsste (#680).
+
+            Darüber die Aufstellung: eine Gruppe hat keinen Zustand (#675), aber sie hat
+            eine Verteilung – und die ist dieselbe Leiste wie im Bestand des Artikels.
+            Die Nummern kommen seitenweise aus **derselben** Komponente; eine 5000er-
+            Charge hier am Stück zu rendern war der Grund, dass es sie gibt. */}
         <Card icon={Boxes} title={`Einzelinstanzen · ${rec.quantity}`}>
-          {rec.units.length === 0 ? (
-            <p className="text-sm text-fg-3">Keine Einzelinstanzen.</p>
-          ) : (
-            <div className="flex flex-col">
-              {rec.units.map((u) => (
-                <div key={u.id}
-                  className="flex items-center gap-3 py-1.5 border-t border-border-1">
-                  <UnitNumber value={u.number} />
-                  <span className="ml-auto">
-                    <StatusBadge cfg={statusCfg(u.status)} />
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-col gap-3">
+            {rec.states.length > 1 && (
+              <div className="flex flex-col gap-2">
+                <StockBar states={rec.states} />
+                <StockLegend states={rec.states} />
+              </div>
+            )}
+            <UnitNumbers objectId={rec.object_id} quantity={rec.quantity} />
+          </div>
         </Card>
       </div>
     </div>

@@ -50,6 +50,26 @@ export const ORDER_STATUSES = [IM_PROZESS, ABGESCHLOSSEN, ABGEBROCHEN] as const;
 export const ARTICLE_STATUSES = [FREIGEGEBEN, INAKTIV] as const;
 
 /**
+ * **Welche davon sind aktueller Bestand?** Das Gegenstück ist die Historie: Stücke, die
+ * es noch als Datensatz gibt, aber nicht mehr als Material.
+ *
+ * Heute ist das die **volle** Liste – einen terminalen Zustand für ein Stück gibt es im
+ * Modell nicht (PROCESS_CORE.md §4.2 kennt genau einen Ausgang, und der ist
+ * `freigegeben`). Der Bestand trennt trotzdem entlang dieser Zeile: der Historien-Block
+ * erscheint an dem Tag, an dem der erste solche Zustand dazukommt, ohne dass jemand eine
+ * Oberfläche anfassen muss. Solange es ihn nicht gibt, steht er auch nicht da – ein
+ * leerer Block wäre ein Versprechen, das die Ansicht nicht halten kann.
+ *
+ * Spiegelt `domain/statuses.LIVE_UNIT_STATUSES`, getestet.
+ */
+export const LIVE_UNIT_STATUSES: readonly string[] = UNIT_STATUSES;
+
+/** Zählt dieser Zustand zum aktuellen Bestand? */
+export function isLive(status: string): boolean {
+  return LIVE_UNIT_STATUSES.includes(status);
+}
+
+/**
  * Anzeige eines Status. Ein unbekannter Wert wird **rot gemeldet**, nicht schöngefärbt:
  * er dürfte nicht existieren, und eine Anzeige, die ihn wie einen normalen Zustand
  * malt, verbirgt genau den Fehler, den man sehen müsste.

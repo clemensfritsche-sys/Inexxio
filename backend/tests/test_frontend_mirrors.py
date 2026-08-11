@@ -585,10 +585,17 @@ def test_an_instance_is_never_created_beside_an_order():
     assert "createInstance" not in detail and "AddInstance" not in detail, (
         "Der Bestand-Reiter legt wieder Instanzen an – dann entsteht Material ohne Auftrag."
     )
-    stock = _read(FRONTEND / "components" / "erp" / "instance-list.tsx")
-    assert "onCreated" not in stock and "api." not in stock, (
-        "Die Bestandsliste schreibt – sie ist eine Summierung, keine Werkbank."
-    )
+    # Gefragt ist «schreibt sie?», nicht «spricht sie mit dem Server?»: der Bestand ist
+    # eine Summierung, und die muss er lesen. Geprüft wird darum jeder Aufruf einzeln –
+    # erlaubt sind ausschliesslich Lese-Methoden.
+    for name in ("instance-list.tsx", "unit-numbers.tsx", "stock-bar.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        calls = set(re.findall(r"\bapi\.([A-Za-z_]+)\(", src))
+        writes = {c for c in calls if not c.startswith("get")}
+        assert not writes, (
+            f"«{name}» schreibt ({', '.join(sorted(writes))}) – der Bestand ist eine "
+            f"Summierung, keine Werkbank."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -2447,4 +2454,164 @@ def test_the_definition_is_the_fields_not_a_frame_around_them():
     assert ">\n          Definition\n" not in body, "Die Überschrift steht wieder da."
     assert "border: '1px solid var(--border-1)'" not in body, (
         "Um die Zeilen liegt wieder ein eigener Rahmen."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Reiter «Bestand» — wie viel, in welchem Zustand, unter welcher Nummer
+# ---------------------------------------------------------------------------
+
+def test_the_stock_is_answered_at_exactly_one_place():
+    """**Eine Frage, ein Endpunkt** – und die Aufstellung ersetzt den Zustand.
+
+    Der Vorgänger las ``Instance.status``, eine Spalte, die es nicht gibt: jeder Aufruf
+    endete mit 500, der Reiter war nie zu sehen. Die eigentliche Lehre steckt aber nicht
+    im Tippfehler, sondern darin, warum es ihn geben konnte – eine Gruppe hat keinen
+    Zustand (Testnotiz #675), und wer trotzdem einen liest, greift ins Leere. Was sie
+    hat, ist eine **Aufstellung**: 3 freigegeben, 1 im Prozess.
+
+    Daneben darf keine zweite Tür zu derselben Frage stehen; der frühere Filter
+    ``article_object_id`` am Instanz-Feed war genau das, ohne einen einzigen Aufrufer.
+    """
+    router = _read(BACKEND / "app" / "routers" / "articles.py")
+    assert "status=i.status" not in router, (
+        "Der Bestand liest wieder einen Zustand an der Instanz – die Spalte gibt es nicht."
+    )
+    assert "/{object_id}/stock" in router, "Es gibt keinen Bestands-Endpunkt."
+    assert "/{object_id}/instances" not in router, (
+        "Neben dem Bestand steht wieder eine reine Instanzliste – zwei Wege, eine Frage."
+    )
+    feed = _read(BACKEND / "app" / "routers" / "instances.py")
+    assert "article_object_id: int | None = Query(" not in feed, (
+        "Der Instanz-Feed filtert wieder nach Artikel – das beantwortet der Bestand."
+    )
+
+    # Die Aufstellung wird EINMAL gezählt; die Menge ist ihre Summe.
+    svc = _read(BACKEND / "app" / "services" / "instances.py")
+    assert "def states(" in svc and "def article_states(" in svc
+    assert "return {i: sum(by_status.values())" in svc, (
+        "Menge und Aufstellung werden getrennt gezählt – zwei Abfragen für eine Frage."
+    )
+
+    api = _read(FRONTEND / "lib" / "api.ts")
+    assert "getArticleInstances" not in api, "Der alte, kaputte Weg ist wieder da."
+    assert "getArticleStock" in api and "getInstanceUnits" in api
+
+
+def test_no_view_ever_renders_every_unit_at_once():
+    """**Niemals 600 Zeilen auf einmal** – und zwar in jeder Ansicht, nicht nur im Reiter.
+
+    Die Nummern einer 5000er-Charge am Stück zu liefern kostete gemessen 149 ms und 5000
+    Zeilen; im Instanz-Datensatz stand genau das, einen Klick vom Bestand entfernt. Eine
+    Regel, die eine Ansicht einhält und die Nachbaransicht bricht, ist keine.
+
+    Der Riegel ist nicht Disziplin, sondern **Abwesenheit**: es gibt keine Funktion mehr,
+    die alle Stücke einer Instanz zurückgibt.
+    """
+    svc = _read(BACKEND / "app" / "services" / "instances.py")
+    assert "def units_of(" not in svc, (
+        "Es gibt wieder einen Weg, alle Einzelinstanzen auf einmal zu holen."
+    )
+    assert "def units_page(" in svc and "limit" in _body(svc, "units_page")
+
+    schema = _read(BACKEND / "app" / "schemas" / "instance.py")
+    body = schema.split("class InstanceResponse(")[1].split("\nclass ")[0]
+    assert "units: list[" not in body, (
+        "Das Instanz-Detail liefert wieder alle Nummern mit – unbegrenzt."
+    )
+    assert "class UnitPage(" in schema, "Die Seite der Nummern fehlt."
+
+    # Und im Frontend gibt es genau EINE Liste, die Nummern zeigt.
+    detail = _read(FRONTEND / "components" / "erp" / "instance-detail.tsx")
+    assert "rec.units.map" not in detail, "Der Instanz-Datensatz zeichnet wieder alles."
+    assert "UnitNumbers" in detail, "Er benutzt nicht die eine, seitenweise Liste."
+    stock = _read(FRONTEND / "components" / "erp" / "instance-list.tsx")
+    assert "UnitNumbers" in stock, "Der Bestand hat eine zweite Nummernliste."
+    units = _read(FRONTEND / "components" / "erp" / "unit-numbers.tsx")
+    assert "offset" in units and "weitere" in units, (
+        "Die Nummernliste lädt alles oder sagt nicht, dass sie gekappt ist."
+    )
+
+
+def test_the_stock_groups_instead_of_filtering():
+    """**Kein Filter** – die Aufteilung selbst ist das Bedienelement.
+
+    Ein Filter ist das Eingeständnis, dass die Standardansicht zu viel Rauschen enthält;
+    und er versteckt, was er nicht zeigt. Stattdessen: ein Segment der Leiste anklicken
+    heisst «zeig mir diese Nummern», und der Rest bleibt sichtbar.
+
+    Zwei Blöcke statt eines Filters – Bestand offen, Historie zu. Der zweite erscheint
+    an dem Tag, an dem es den ersten terminalen Zustand gibt; ihn heute leer hinzustellen
+    wäre ein Versprechen, das die Ansicht nicht halten kann.
+    """
+    stock = _read(FRONTEND / "components" / "erp" / "instance-list.tsx")
+    # Nur der Code: die **Begründung**, warum es keinen Filter gibt, darf ihn benennen.
+    for word in ("filterBy", "<select", "Filter:"):
+        assert word not in _code(stock), f"Im Bestand steht wieder ein Filter («{word}»)."
+    assert "past.length > 0 &&" in stock, (
+        "Die Historie steht unbedingt da – auch wenn es sie nicht gibt."
+    )
+    assert "isLive" in stock, "Die Trennung Bestand/Historie ist wieder hart kodiert."
+
+    # Die Leiste ist EINE Komponente – oben wie in jeder Zeile.
+    bar = _read(FRONTEND / "components" / "erp" / "stock-bar.tsx")
+    assert "statusCfg(" in _code(bar), "Die Leiste liest die eine Statuskarte nicht."
+    # Und sie färbt nicht selbst: jeder Ton kommt aus `cfg`, keiner steht hier.
+    own = re.findall(r"var\(--(?:success|warning|danger)[^)]*\)", _code(bar))
+    assert not own, (
+        f"Die Leiste kennt eigene Ampelfarben ({', '.join(sorted(set(own)))}) – dann "
+        f"sieht derselbe Zustand hier anders aus als in seiner Badge."
+    )
+    assert stock.count("<StockBar") >= 2, (
+        "Artikel-Leiste und Instanz-Leiste sind nicht dieselbe Komponente."
+    )
+    assert "onPick" in bar, "Ein Segment ist nicht anklickbar – dann braucht es doch einen Filter."
+
+
+def test_live_and_history_are_one_line_on_both_sides():
+    """Was zum **aktuellen Bestand** zählt, steht einmal – und beidseitig gleich.
+
+    Die Liste ist heute vollständig (es gibt keinen terminalen Zustand für ein Stück,
+    §4.2). Genau darum muss sie benannt sein: sonst steht die Trennung als ``!== 'x'``
+    in einer Komponente, und der Tag, an dem der erste solche Zustand dazukommt, findet
+    sie niemand wieder.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import statuses as st
+
+    mirror = _read(FRONTEND / "lib" / "process-status.ts")
+    assert "LIVE_UNIT_STATUSES" in mirror, "Der Spiegel kennt die Zeile nicht."
+    # Heute: die Liste der Stück-Zustände. Läuft sie auseinander, ist es ein Fehler.
+    assert set(st.LIVE_UNIT_STATUSES) <= set(st.UNIT_STATUSES), (
+        "Bestands-Zustände, die ein Stück gar nicht tragen kann."
+    )
+    listed = re.search(r"LIVE_UNIT_STATUSES: readonly string\[\] = (\w+)", mirror)
+    assert listed, "Der Spiegel leitet die Liste nicht ab, er schreibt sie ab."
+    assert listed.group(1) == "UNIT_STATUSES", (
+        "Der Spiegel behauptet eine andere Liste als das Backend."
+    )
+
+
+def test_a_running_piece_names_the_order_it_runs_in():
+    """Ein Stück «Im Prozess» ohne den Weg zu seinem Auftrag ist eine Sackgasse.
+
+    Man sieht, dass es läuft, aber nicht wo – und genau das ist die Frage, die man am
+    Bestand stellt. Die Zuordnung kommt aus **derselben** Stelle, die die Exklusivität
+    liest (``process.held_by``); eine zweite Abfrage «welcher Auftrag hat dieses Stück»
+    wäre eine zweite Antwort auf eine Frage, die nur eine haben darf.
+    """
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def holders(" in proc and "held_by(db, unit_ids)" in _body(proc, "holders"), (
+        "Die Auftrags-Zuordnung wird neben der Exklusivität noch einmal abgeleitet."
+    )
+    schema = _read(BACKEND / "app" / "schemas" / "instance.py")
+    assert "order_object_id" in schema, "Das Stück nennt seinen Auftrag nicht."
+    units = _code(_read(FRONTEND / "components" / "erp" / "unit-numbers.tsx"))
+    assert "<ObjId value={u.order_object_id}" in units, (
+        "Die Zeile zeigt den Auftrag nicht als anklickbare Objektnummer – dann ist das "
+        "Stück zwar als «läuft» erkennbar, aber der Weg dorthin fehlt."
+    )
+    assert "u.order_object_id ?" in units, (
+        "Der Auftrag wird unbedingt gerendert – ein freies Stück hat keinen."
     )

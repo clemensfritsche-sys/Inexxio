@@ -84,30 +84,83 @@ def quantity(db: Session, instance: Instance) -> int:
     )
 
 
-def quantities(db: Session, instance_ids: Iterable[int]) -> dict[int, int]:
-    """Mengen für viele Instanzen in EINER Abfrage (Feed/Listen, kein N+1)."""
+def states(db: Session, instance_ids: Iterable[int]) -> dict[int, dict[str, int]]:
+    """Je Instanz: **Zustand → Anzahl Stücke**, in EINER Abfrage.
+
+    Das ist die vollständige Auskunft über eine Instanz, und die Menge ist ihre Summe
+    (``quantities`` liest sie hier – zwei Formen einer Frage, nicht zwei Abfragen).
+
+    Es ist **kein** Zustand der Instanz (Testnotiz #675): eine Gruppe mit drei
+    freigegebenen und einem laufenden Stück hat keinen einen Zustand – sie hat genau
+    diese Aufstellung. Ein projizierter Wert wäre eine Behauptung; die Aufstellung ist
+    die Aufzählung dessen, was dasteht.
+    """
     ids = list(instance_ids)
     if not ids:
         return {}
     rows = (
-        db.query(InstanceUnit.instance_id, func.count(InstanceUnit.id))
+        db.query(InstanceUnit.instance_id, InstanceUnit.status, func.count(InstanceUnit.id))
         .filter(InstanceUnit.instance_id.in_(ids), InstanceUnit.is_active.is_(True))
-        .group_by(InstanceUnit.instance_id)
+        .group_by(InstanceUnit.instance_id, InstanceUnit.status)
         .all()
     )
-    counts = {int(iid): int(n) for iid, n in rows}
-    # Eine Instanz ohne Einzelinstanzen hat die Menge 0 – das ist eine Antwort, kein Loch.
-    return {int(i): counts.get(int(i), 0) for i in ids}
+    out: dict[int, dict[str, int]] = {int(i): {} for i in ids}
+    for iid, status, n in rows:
+        out[int(iid)][status] = int(n)
+    # Eine Instanz ohne Einzelinstanzen bekommt ein leeres Bild – das ist eine Antwort,
+    # kein Loch.
+    return out
 
 
-def units_of(db: Session, instance: Instance) -> list[InstanceUnit]:
-    """Die aktiven Einzelinstanzen einer Instanz, aufsteigend nach Suffix."""
-    return (
-        db.query(InstanceUnit)
-        .filter(InstanceUnit.instance_id == instance.id, InstanceUnit.is_active.is_(True))
-        .order_by(InstanceUnit.suffix)
+def quantities(db: Session, instance_ids: Iterable[int]) -> dict[int, int]:
+    """Mengen für viele Instanzen in EINER Abfrage (Feed/Listen, kein N+1)."""
+    return {i: sum(by_status.values()) for i, by_status in states(db, instance_ids).items()}
+
+
+def article_states(db: Session, *, article_id: int) -> dict[str, int]:
+    """Über **alle** Instanzen eines Artikels: Zustand → Anzahl Stücke. EINE Abfrage.
+
+    Bewusst nicht die Summe der angezeigten Seite: die Leiste beschreibt den ganzen
+    Artikel, auch wenn darunter nur die ersten Instanzen stehen. Eine Leiste, die mit
+    dem Blättern ihre Länge ändert, beantwortet die Frage «wie viel habe ich» nicht.
+    """
+    rows = (
+        db.query(InstanceUnit.status, func.count(InstanceUnit.id))
+        .join(Instance, Instance.id == InstanceUnit.instance_id)
+        .filter(
+            Instance.article_id == article_id,
+            Instance.is_active.is_(True),
+            InstanceUnit.is_active.is_(True),
+        )
+        .group_by(InstanceUnit.status)
         .all()
     )
+    return {status: int(n) for status, n in rows}
+
+
+def units_page(db: Session, instance: Instance, *, statuses: Optional[list[str]] = None,
+               limit: int, offset: int) -> tuple[list[InstanceUnit], int]:
+    """Eine **Seite** Einzelinstanzen, aufsteigend nach Suffix – plus wie viele es sind.
+
+    Eine Charge über 5000 Stück hat 5000 Nummern; sie alle auf einmal zu liefern wäre
+    dieselbe Antwort in unbrauchbar. Gefiltert wird nach einer **Menge von Zuständen**,
+    weil die Aufstellung darüber die Auswahl ist: ein Segment anklicken heisst «zeig mir
+    diese Nummern», eine Zeile aufklappen «zeig mir die dieses Blocks» – und ein Block
+    kann mehrere Zustände umfassen. Mit nur einem Wert wäre die zweite Frage nicht
+    stellbar, und «alle» hiesse im Historien-Block auch die aktuellen.
+
+    Das ist die **einzige** Stelle, die Nummern herausgibt. Ein ``units_of``, das alle
+    auf einmal lieferte, gab es hier – und genau darüber rendete das Instanz-Detail eine
+    5000er-Charge am Stück (gemessen: 149 ms, 5000 Zeilen). Was es nicht gibt, kann
+    niemand aus Versehen wieder benutzen.
+    """
+    q = db.query(InstanceUnit).filter(
+        InstanceUnit.instance_id == instance.id, InstanceUnit.is_active.is_(True))
+    if statuses:
+        q = q.filter(InstanceUnit.status.in_(statuses))
+    total = int(q.with_entities(func.count(InstanceUnit.id)).scalar() or 0)
+    rows = q.order_by(InstanceUnit.suffix).limit(limit).offset(offset).all()
+    return rows, total
 
 
 # ---------------------------------------------------------------------------

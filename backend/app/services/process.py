@@ -320,6 +320,25 @@ def held_by(db: Session, unit_ids: list[int]) -> dict[int, OrderUnit]:
     return rows
 
 
+def holders(db: Session, unit_ids: list[int]) -> dict[int, int]:
+    """Je Stück die **Objektnummer des Auftrags**, in dem es gerade läuft.
+
+    Zweite Form von ``held_by``, für die Anzeige: dort zählt nicht die Zeile, sondern
+    wohin der Klick führt. Ein Stück «Im Prozess» ohne den Weg zu seinem Auftrag ist
+    eine Sackgasse – man sieht, dass es läuft, aber nicht wo.
+    """
+    memberships = held_by(db, unit_ids)
+    if not memberships:
+        return {}
+    nrs = {
+        o.id: o.object_id
+        for o in db.query(Order)
+        .filter(Order.id.in_({m.order_id for m in memberships.values()}))
+        .all()
+    }
+    return {uid: nrs[m.order_id] for uid, m in memberships.items() if m.order_id in nrs}
+
+
 def _assert_may_leave(db: Session, membership: OrderUnit, number: str) -> None:
     """►►► Die markierte Stelle zur offenen Frage (Abweichungsauftrag §5) ◄◄◄
 

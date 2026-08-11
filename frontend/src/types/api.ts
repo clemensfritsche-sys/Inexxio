@@ -588,7 +588,7 @@ export interface paths {
         patch: operations["update_article_api_v1_erp_articles__object_id__patch"];
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/instances": {
+    "/api/v1/erp/articles/{object_id}/stock": {
         parameters: {
             query?: never;
             header?: never;
@@ -596,10 +596,22 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Article Instances
-         * @description Die Instanzen dieses Artikels – mit ihrer gezählten Menge.
+         * Article Stock
+         * @description **Wie viel habe ich von diesem Artikel, in welchem Zustand, unter welcher Nummer?**
+         *
+         *     Eine Frage, ein Endpunkt. Der Vorgänger (``/instances``) lieferte nur eine Liste von
+         *     Instanzen und war dabei kaputt: er las ``Instance.status``, eine Spalte, die es nicht
+         *     gibt – die Instanz ist eine Gruppe und trägt keinen Zustand (Testnotiz #675). Jeder
+         *     Aufruf endete mit 500, der Reiter «Bestand» war also nie zu sehen.
+         *
+         *     Die **Aufstellung oben gilt für den ganzen Artikel**, die Liste darunter ist eine
+         *     Seite. Sortiert wird **aufsteigend nach Objektnummer**: Nummern werden aufsteigend
+         *     vergeben, und eine Instanz entsteht mit ihren Stücken – aufsteigend ist damit
+         *     schlicht die Reihenfolge, in der das Material entstanden ist, also FIFO. Der Feed
+         *     sortiert absteigend, weil man dort den zuletzt angelegten Datensatz sucht; hier sucht
+         *     man das älteste Material, und das ist eine andere Frage.
          */
-        get: operations["article_instances_api_v1_erp_articles__object_id__instances_get"];
+        get: operations["article_stock_api_v1_erp_articles__object_id__stock_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -827,7 +839,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Instances */
+        /**
+         * List Instances
+         * @description Der Instanz-Feed – **alle** Instanzen, neueste Objektnummer zuerst.
+         *
+         *     Der frühere Filter ``article_object_id`` ist entfallen: «was habe ich von diesem
+         *     Artikel» beantwortet ``GET /erp/articles/{id}/stock``, samt Aufstellung. Zwei Wege
+         *     zu derselben Frage sind auch dann einer zu viel, wenn der zweite niemanden hat –
+         *     dieser hatte keinen einzigen Aufrufer.
+         */
         get: operations["list_instances_api_v1_erp_instances_get"];
         put?: never;
         post?: never;
@@ -846,6 +866,30 @@ export interface paths {
         };
         /** Get Instance */
         get: operations["get_instance_api_v1_erp_instances__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/instances/{object_id}/units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Instance Units
+         * @description Die **Nummern** der Einzelinstanzen – seitenweise, auf Nachfrage.
+         *
+         *     Die unterste Ebene der Bestandsansicht. Sie wird erst geholt, wenn jemand sie
+         *     aufklappt: eine 5000er-Charge trägt 5000 Nummern, und die auf Vorrat mitzuliefern
+         *     macht jede Instanz-Zeile so teuer wie die ganze Charge.
+         */
+        get: operations["instance_units_api_v1_erp_instances__object_id__units_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1199,6 +1243,26 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * ArticleStock
+         * @description **Der Bestand eines Artikels** – die eine Antwort auf «was habe ich davon».
+         *
+         *     Drei Ebenen in einer Antwort, und keine davon ist ein gespeichertes Feld:
+         *     ``states``/``total`` beschreiben **alle** Stücke des Artikels (nicht nur die
+         *     angezeigte Seite), ``instances`` ist eine Seite Instanzen mit je ihrer eigenen
+         *     Aufstellung, und die Nummern der Stücke holt die Ebene darunter
+         *     (``GET /erp/instances/{id}/units``) – erst auf Klick, nie auf Vorrat.
+         */
+        ArticleStock: {
+            /** States */
+            states: components["schemas"]["StockState"][];
+            /** Total */
+            total: number;
+            /** Instance Total */
+            instance_total: number;
+            /** Instances */
+            instances: components["schemas"]["InstanceSummary"][];
         };
         /**
          * ArticleUpdate
@@ -1859,12 +1923,17 @@ export interface components {
         };
         /**
          * InstanceResponse
-         * @description Instanz mit ihren Einzelinstanzen.
+         * @description Instanz – die Gruppe, mit ihrer Menge und ihrer Aufstellung.
          *
          *     ``quantity`` ist **gezählt**, nicht gespeichert – die Instanz hat keine Mengen-Spalte.
          *
          *     Einen ``status`` trägt sie nicht: eine Gruppe hat keinen Zustand, nur ihre Stücke
-         *     haben einen (Testnotiz #675).
+         *     haben einen (Testnotiz #675). ``states`` zählt darum auf, statt zu behaupten.
+         *
+         *     **Die Nummern der Stücke stehen nicht drin.** Sie kommen seitenweise über
+         *     ``GET /erp/instances/{id}/units`` – eine 5000er-Charge hier vollständig mitzuliefern
+         *     hiesse, jedes Öffnen der Instanz so teuer zu machen wie die ganze Charge, und die
+         *     Oberfläche müsste 5000 Zeilen auf einmal zeichnen.
          */
         InstanceResponse: {
             /** Id */
@@ -1883,8 +1952,11 @@ export interface components {
             label?: string | null;
             /** Quantity */
             quantity: number;
-            /** Units */
-            units: components["schemas"]["InstanceUnitResponse"][];
+            /**
+             * States
+             * @default []
+             */
+            states: components["schemas"]["StockState"][];
             /**
              * Created At
              * Format: date-time
@@ -1900,7 +1972,10 @@ export interface components {
         };
         /**
          * InstanceSummary
-         * @description Feed-Zeile: ohne die Einzelinstanzen, aber mit ihrer Anzahl.
+         * @description Feed-Zeile: ohne die Einzelinstanzen, aber mit ihrer Anzahl **und Aufstellung**.
+         *
+         *     ``quantity`` ist die Summe über ``states`` – dieselbe Abfrage, zwei Lesarten. Die
+         *     Zeile behauptet damit keinen Zustand (den hat eine Gruppe nicht), sondern zählt auf.
          */
         InstanceSummary: {
             /** Id */
@@ -1917,6 +1992,11 @@ export interface components {
             label?: string | null;
             /** Quantity */
             quantity: number;
+            /**
+             * States
+             * @default []
+             */
+            states: components["schemas"]["StockState"][];
             /**
              * Created At
              * Format: date-time
@@ -1943,6 +2023,8 @@ export interface components {
             number: string;
             /** Status */
             status: string;
+            /** Order Object Id */
+            order_object_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -2386,6 +2468,19 @@ export interface components {
             values?: Record<string, never>;
         };
         /**
+         * StockState
+         * @description Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.
+         *
+         *     Die Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese
+         *     Instanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess».
+         */
+        StockState: {
+            /** Status */
+            status: string;
+            /** Quantity */
+            quantity: number;
+        };
+        /**
          * TerritoryAssign
          * @description Ein Gebiet (Region ODER einzelnes Land) einer Gesellschaft zuweisen. ``None`` (oder die
          *     Gesellschaft, der es ohnehin zufiele) = Standard wiederherstellen.
@@ -2481,6 +2576,16 @@ export interface components {
             available: boolean;
             /** In Order */
             in_order?: number | null;
+        };
+        /**
+         * UnitPage
+         * @description Eine Seite Einzelinstanz-Nummern – plus wie viele es insgesamt sind.
+         */
+        UnitPage: {
+            /** Units */
+            units: components["schemas"]["InstanceUnitResponse"][];
+            /** Total */
+            total: number;
         };
         /**
          * UnitPick
@@ -3756,9 +3861,12 @@ export interface operations {
             };
         };
     };
-    article_instances_api_v1_erp_articles__object_id__instances_get: {
+    article_stock_api_v1_erp_articles__object_id__stock_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path: {
                 object_id: number;
@@ -3773,7 +3881,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstanceSummary"][];
+                    "application/json": components["schemas"]["ArticleStock"];
                 };
             };
             /** @description Validation Error */
@@ -4107,7 +4215,6 @@ export interface operations {
         parameters: {
             query?: {
                 search?: string | null;
-                article_object_id?: number | null;
                 limit?: number;
                 offset?: number;
             };
@@ -4155,6 +4262,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    instance_units_api_v1_erp_instances__object_id__units_get: {
+        parameters: {
+            query?: {
+                /** @description Nur Stücke in diesen Zuständen */
+                status?: string[] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitPage"];
                 };
             };
             /** @description Validation Error */

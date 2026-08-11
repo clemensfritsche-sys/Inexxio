@@ -10,16 +10,18 @@ abgeleitet) sowie das aufsummierte Gewicht (aus verbauten Ressourcen).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
+from ..domain import statuses as st
 from ..models import Article, UserProfile
 from ..schemas.article import (
     ArticleProcess, ArticleProcessStepResponse,
     ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate, ArticleValidation,
 )
-from ..schemas.instance import InstanceSummary
+from ..schemas.instance import ArticleStock, InstanceSummary, StockState
 from ..services import article_names
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
@@ -137,32 +139,61 @@ def update_article(
     return _out(article)
 
 
-@router.get("/{object_id}/instances", response_model=list[InstanceSummary])
-def article_instances(
+@router.get("/{object_id}/stock", response_model=ArticleStock)
+def article_stock(
     object_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Die Instanzen dieses Artikels – mit ihrer gezählten Menge."""
+    """**Wie viel habe ich von diesem Artikel, in welchem Zustand, unter welcher Nummer?**
+
+    Eine Frage, ein Endpunkt. Der Vorgänger (``/instances``) lieferte nur eine Liste von
+    Instanzen und war dabei kaputt: er las ``Instance.status``, eine Spalte, die es nicht
+    gibt – die Instanz ist eine Gruppe und trägt keinen Zustand (Testnotiz #675). Jeder
+    Aufruf endete mit 500, der Reiter «Bestand» war also nie zu sehen.
+
+    Die **Aufstellung oben gilt für den ganzen Artikel**, die Liste darunter ist eine
+    Seite. Sortiert wird **aufsteigend nach Objektnummer**: Nummern werden aufsteigend
+    vergeben, und eine Instanz entsteht mit ihren Stücken – aufsteigend ist damit
+    schlicht die Reihenfolge, in der das Material entstanden ist, also FIFO. Der Feed
+    sortiert absteigend, weil man dort den zuletzt angelegten Datensatz sucht; hier sucht
+    man das älteste Material, und das ist eine andere Frage.
+    """
     from ..models import Instance  # lokal: der Artikel-Router kennt sonst kein Bestandsobjekt
 
     article = _get(db, object_id)
+    mine = (Instance.article_id == article.id, Instance.is_active.is_(True))
+    total_instances = db.query(func.count(Instance.id)).filter(*mine).scalar() or 0
     rows = (
         db.query(Instance)
-        .filter(Instance.article_id == article.id, Instance.is_active.is_(True))
-        .order_by(Instance.object_id.desc())
+        .filter(*mine)
+        .order_by(Instance.object_id)
+        .limit(limit)
+        .offset(offset)
         .all()
     )
-    counts = inst_svc.quantities(db, [i.id for i in rows])
-    return [
-        InstanceSummary(
-            id=i.id, object_id=i.object_id, article_id=i.article_id,
-            article_name=article.name, kind=i.kind, status=i.status, label=i.label,
-            quantity=counts.get(i.id, 0), created_at=i.created_at,
-            updated_at=i.updated_at, is_active=i.is_active,
-        )
-        for i in rows
-    ]
+    by_instance = inst_svc.states(db, [i.id for i in rows])
+    counts = inst_svc.article_states(db, article_id=article.id)
+    return ArticleStock(
+        states=[StockState(status=s, quantity=n) for s, n in st.in_order(counts)],
+        total=sum(counts.values()),
+        instance_total=int(total_instances),
+        instances=[
+            InstanceSummary(
+                id=i.id, object_id=i.object_id, article_id=i.article_id,
+                article_name=article.name, kind=i.kind, label=i.label,
+                quantity=sum(by_instance.get(i.id, {}).values()),
+                states=[
+                    StockState(status=s, quantity=n)
+                    for s, n in st.in_order(by_instance.get(i.id, {}))
+                ],
+                created_at=i.created_at, updated_at=i.updated_at, is_active=i.is_active,
+            )
+            for i in rows
+        ],
+    )
 
 
 # ---------------------------------------------------------------------------

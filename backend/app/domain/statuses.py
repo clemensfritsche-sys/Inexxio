@@ -75,6 +75,19 @@ STATUSES: tuple[str, ...] = tuple(STATUS_LABELS)
 #: Einzelinstanz: einsatzbereit oder unterwegs. Mehr Zustände hat ein Stück heute nicht.
 UNIT_STATUSES: tuple[str, ...] = (FREIGEGEBEN, IM_PROZESS)
 
+#: **Welche davon sind aktueller Bestand?** Das Gegenstück ist die Historie: Stücke, die
+#: es zwar noch als Datensatz gibt (eine Nummer wird nie gelöscht), aber nicht mehr als
+#: Material — verbraucht, ausgesondert.
+#:
+#: Heute ist das die **volle** Liste, und zwar nicht aus Bequemlichkeit: einen terminalen
+#: Zustand für ein Stück gibt es im Modell nicht (§4.2 kennt genau einen Ausgang, und der
+#: ist ``freigegeben``). Die Bestandsansicht trennt trotzdem entlang dieser Zeile — dann
+#: erscheint der Historien-Block an dem Tag, an dem der erste solche Zustand dazukommt,
+#: ohne dass jemand eine Oberfläche anfassen muss. Eine Liste zu erfinden, die heute
+#: nichts enthält, wäre der Fehler; eine **Eigenschaft** vorhandener Werte zu benennen
+#: ist es nicht.
+LIVE_UNIT_STATUSES: tuple[str, ...] = UNIT_STATUSES
+
 #: Auftrag: **genau drei**, und alle drei sind **abgeleitet** (``process.order_status``).
 #: «Freigegeben» ist bewusst nicht dabei — Freigeben ist eine Aktion, kein Zustand.
 ORDER_STATUSES: tuple[str, ...] = (IM_PROZESS, ABGESCHLOSSEN, ABGEBROCHEN)
@@ -107,6 +120,22 @@ def label(status: str) -> str:
     """Beschriftung eines Status. Unbekannt → der rohe Wert, damit eine Anzeige nie
     lügt: ein Wert, den es nicht geben dürfte, wird sichtbar, nicht versteckt."""
     return STATUS_LABELS.get(status, status)
+
+
+def in_order(counts: dict[str, int]) -> list[tuple[str, int]]:
+    """Gezählte Zustände in **Anzeige-Reihenfolge**, Nullen weggelassen.
+
+    Die Reihenfolge steht oben in ``STATUS_LABELS`` und sonst nirgends – jede Ansicht,
+    die Zustände nebeneinander zeigt (Bestandsleiste, Legende), liest sie hier. Sonst
+    stünde dieselbe Aufstellung an zwei Stellen in zwei Reihenfolgen.
+
+    Ein **unbekannter** Wert wird hinten angehängt statt verschwiegen: er dürfte nicht
+    existieren, und eine Leiste, deren Segmente sich nicht zur Menge summieren, verbirgt
+    genau den Fehler, den man sehen müsste.
+    """
+    known = [(s, counts[s]) for s in STATUS_LABELS if counts.get(s)]
+    rest = [(s, n) for s, n in counts.items() if s not in STATUS_LABELS and n]
+    return known + sorted(rest)
 
 
 def assert_known(status: str, *, field: str) -> str:
