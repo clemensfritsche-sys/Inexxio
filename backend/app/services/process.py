@@ -15,7 +15,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, insert, update
 from sqlalchemy.orm import Session
 
-from ..domain import modules, statuses as st
+from ..domain import chain, modules, statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent,
     ProcessStep,
@@ -228,11 +228,14 @@ def _from_module(data: dict[str, Any]) -> dict[str, Any]:
     läuft durch die Prüfung des Moduls, nicht durch eine Kopie davon.
     """
     module = modules.get(data.get("module_type"))
+    config = module.clean_config(data.get("config"))
     return {
         "module_type": module.key,
         "status_before": module.status_before,
-        "status_after": module.status_after,
-        "config": module.clean_config(data.get("config")),
+        # **Erst prüfen, dann ableiten.** Beim Aussondern hängt das Nachher an der
+        # Ausprägung – gefragt wird also die bereinigte Konfiguration, nie die rohe.
+        "status_after": module.status_after_for(config),
+        "config": config,
     }
 
 
@@ -375,43 +378,6 @@ def _assert_may_leave(db: Session, membership: OrderUnit, number: str) -> None:
     )
 
 
-def _assert_chain(steps: list[dict[str, Any]]) -> None:
-    """Die Kette muss schliessen (§4.3) — geprüft **bei der Freigabe**, nicht zur Laufzeit.
-
-    Geprüft wird gegen den **Vorher**-Status des Ende-Objekts (``END_BEFORE``), nicht
-    gegen den Endzustand: das Ende ist ein Übergang wie jedes Modul, es *erwartet*
-    «Im Prozess» und *setzt* ``order.end_status``. Beides zu verwechseln hiesse, vom
-    letzten Modul zu verlangen, dass es den Endzustand selbst schon setzt.
-
-    Das ist der Unterschied zwischen einer Regel und einer Hoffnung: ein Prozess, der
-    freigegeben werden konnte, kann nicht mitten drin an einem Statuskonflikt hängen
-    bleiben.
-    """
-    current = st.START_AFTER
-    for i, step in enumerate(steps, start=1):
-        before = step["status_before"]
-        if before != current:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Die Statuskette bricht bei Schritt {i} "
-                    f"«{modules.label(step['module_type'])}»: davor "
-                    f"steht «{st.label(current)}», das Modul erwartet "
-                    f"«{st.label(before)}»."
-                ),
-            )
-        current = step["status_after"]
-    if current != st.END_BEFORE:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Die Statuskette bricht am Ende: der letzte Schritt endet auf "
-                f"«{st.label(current)}», das Ende-Objekt erwartet "
-                f"«{st.label(st.END_BEFORE)}»."
-            ),
-        )
-
-
 def _assert_as_picked(
     db: Session,
     line: "_Line",
@@ -508,7 +474,7 @@ def release(
         st.assert_known(step["status_after"], field="Nachher-Status")
 
     end_status = st.DEFAULT_END_STATUS
-    _assert_chain(effective)
+    chain.assert_closes(effective)
 
     # Bestehende Stücke auflösen: frei übernehmen oder **aus einem laufenden Auftrag**
     # herüberholen. Beides führt durch dasselbe Start-Objekt (§4.1) – der Status eines
@@ -524,13 +490,17 @@ def release(
         for unit, number in pairs:
             source = held.get(unit.id)
             if source is None:
-                if unit.status != st.START_BEFORE:
+                # **Darf ein Auftrag dieses Stück greifen?** Die Antwort steht am Status
+                # (``selectable``), nicht als Liste hier: ein gesperrtes Stück ja – das
+                # Greifen IST das Aufheben der Sperre –, ein verschrottetes nie, denn es
+                # gibt das Ding nicht mehr.
+                if not st.is_selectable(unit.status):
                     raise HTTPException(
                         status_code=409,
                         detail=(
-                            f"Einzelinstanz {number} steht auf «{st.label(unit.status)}» "
-                            f"und ist in keinem Auftrag – das Start-Objekt erwartet "
-                            f"«{st.label(st.START_BEFORE)}»."
+                            f"Einzelinstanz {number} ist «{st.label(unit.status)}» – "
+                            f"sie gibt es physisch nicht mehr und kann in keinem Auftrag "
+                            f"mehr vorkommen."
                         ),
                     )
             else:
@@ -769,6 +739,7 @@ def confirm_step(
             detail=(f"Der Auftrag ist «{st.label(order_status(db, order))}» – "
                     f"es gibt nichts mehr zu bestätigen."),
         )
+    module = modules.get(step.module_type)
     instance = _verified_instance(
         db, order=order, step=step,
         instance_object_id=instance_object_id, verification=verification,
@@ -836,7 +807,7 @@ def confirm_step(
         db, order=order, step=step, units=drawn, values=values, actor_id=actor_id,
     )
     result = next((c.result for c in captures.values()), None)
-    if drawn:
+    if captures:
         db.execute(
             insert(ProcessEvent),
             [
@@ -870,7 +841,25 @@ def confirm_step(
         status_after=step.status_after,
         next_step_id=following.id if following else None,
         actor_id=actor_id,
+        # **Wie wurde bestätigt?** Am Schritt-Ereignis, nicht nur an der Erfassung: ein
+        # Modul ohne Erfassungspunkte (Verschrotten) hat sonst keinen Beleg dafür – und
+        # gerade dort ist er am wichtigsten, weil der Vorgang endgültig ist.
+        payloads={u.id: {"verification": verification} for u in units},
     )
+    # ►► **Ein terminales Modul IST der Ausgang.** ◄◄
+    #
+    # ``_pass`` hat die Zugehörigkeit gerade geschlossen (``next_step_id=None``) und den
+    # Zielzustand gesetzt – mehr passiert nicht. Insbesondere **nicht** das Ende-Objekt:
+    # dort hängt die Rückführung, und ein ausgesondertes Stück kehrt nirgends zurück.
+    #
+    # Damit ist §3 des Auftrags erfüllt, ohne eine Zeile Wartelogik: der Quell-Auftrag
+    # zählt seine Ausleihen über die **offene** Zeile (``waiting_counts``), und die gibt
+    # es nicht mehr. Er wartet nicht, sein Modul ist nicht gesperrt, und bleibt ihm
+    # nichts, ist sein Ziel unerreichbar – genau wie bei einer gekappten Rückführung.
+    if module.terminal:
+        db.flush()
+        return {"moved": len(units), "held": 0, "result": result}
+
     if following is None:
         _finish(db, order=order, rows=waiting, actor_id=actor_id)
     else:

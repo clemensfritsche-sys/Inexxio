@@ -13,7 +13,7 @@
  */
 
 import {
-  Camera, ClipboardCheck, PenLine, Ruler, ThumbsUp, Type, type LucideIcon,
+  Camera, ClipboardCheck, PackageX, PenLine, Ruler, ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
 
 /** Erfassungspunkt-Typen (`domain/capture_types/`). */
@@ -28,6 +28,7 @@ export const CAPTURE_ICON: Record<string, LucideIcon> = {
 /** Prozessschrittmodule (`domain/modules.py`). */
 export const MODULE_ICON: Record<string, LucideIcon> = {
   datenerfassung: ClipboardCheck,
+  aussondern: PackageX,
 };
 
 /**
@@ -100,13 +101,38 @@ export interface ModuleDraft {
    *  Entwurfsform, damit jede Anlagestelle sie aussprechen muss; ihr Vorgabewert ist
    *  `SAMPLE_ALL`, nicht ein stillschweigend fehlendes Feld. */
   sample: SampleDraft;
+  /** Nur «Aussondern»: verschrotten (endgültig) oder sperren (aufhebbar). */
+  mode: DisposalMode;
 }
 
-/** Entwurfsform → API-Form (`schemas/process.ModuleInput`). */
-export function toModulePayload(m: ModuleDraft) {
-  return {
-    module_type: m.moduleType,
-    config: {
+/**
+ * **Die Ausprägungen des Aussonderns.** Zwei Fälle, ein Modul – sie tun dasselbe, nur
+ * der Zielzustand unterscheidet sie. Welcher das ist, sagt das Backend
+ * (`Aussondern.MODES`); hier stehen nur Wort und Erklärung.
+ */
+export type DisposalMode = 'scrap' | 'block';
+
+export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string }[] = [
+  { value: 'scrap', label: 'Verschrotten', hint: 'Physisch entsorgt – endgültig, kein Weg zurück' },
+  { value: 'block', label: 'Sperren', hint: 'Bleibt vorhanden, ist aber nicht mehr einplanbar' },
+];
+
+/**
+ * **Was ein Modultyp im Entwurf ausmacht — je Typ ein Eintrag, nicht je Stelle ein `if`.**
+ *
+ * Zwei Fragen hängen am Typ und sonst an nichts: *was schickt er als Konfiguration* und
+ * *wann ist er vollständig*. Beide stehen hier zusammen; verteilt über `toModulePayload`
+ * und `moduleIncomplete` wären es zwei Ketten, die beim dritten Modultyp auseinanderlaufen.
+ *
+ * Es ist bewusst **kein** Spiegel des Backends: die Regel gilt dort (`Module.clean_config`),
+ * hier steht nur die Form der Eingabe. `test_frontend_mirrors` hält die Schlüssel deckungsgleich.
+ */
+export const MODULE_FORM: Record<string, {
+  config: (m: ModuleDraft) => Record<string, unknown>;
+  incomplete: (m: ModuleDraft) => string | null;
+}> = {
+  datenerfassung: {
+    config: (m) => ({
       points: m.points.map((p) => ({
         label: p.label,
         type: p.type,
@@ -117,20 +143,43 @@ export function toModulePayload(m: ModuleDraft) {
       // umzudeuten wäre eine stille Änderung der Konfiguration – der Server sagt statt-
       // dessen, dass die Zahl fehlt, und die Freigabe verweigert bis dahin.
       sample: { mode: m.sample.mode, value: m.sample.value },
+    }),
+    incomplete: (m) => {
+      if (m.points.length === 0) return 'kein Erfassungspunkt';
+      if (m.points.some((p) => !p.label.trim())) return 'Erfassungspunkt ohne Bezeichnung';
+      if (m.points.some((p) => p.type === NEEDS_TARGET && !String(p.target ?? '').trim())) {
+        return 'Soll-Ist-Vergleich ohne Sollwert';
+      }
+      if (m.sample.mode !== 'all' && !m.sample.value.trim()) return 'Stichprobe ohne Zahl';
+      return null;
     },
-  };
+  },
+  aussondern: {
+    // Die Ausprägung ist die **einzige** Angabe – und sie ist immer gesetzt. Was erfasst
+    // wird (der Grund beim Sperren), entscheidet das Modul selbst, nicht der Anwender.
+    config: (m) => ({ mode: m.mode }),
+    incomplete: () => null,
+  },
+};
+
+/** Ein frischer Entwurf dieses Modultyps – mit den Vorgaben, die das Backend kennt. */
+export function blankModule(id: number, moduleType: string): ModuleDraft {
+  return { id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap' };
+}
+
+/** Entwurfsform → API-Form (`schemas/process.ModuleInput`). */
+export function toModulePayload(m: ModuleDraft) {
+  return { module_type: m.moduleType, config: MODULE_FORM[m.moduleType]?.config(m) ?? {} };
 }
 
 /**
  * Ist dieses Modul vollständig? **Erst dann ist es angelegt** – vorher steht es zwar im
  * Fluss, aber die Freigabe verlangt es vollständig (der Server prüft dasselbe).
+ *
+ * Einen Typ, den diese Oberfläche nicht kennt, meldet sie – statt ihn durchzulassen: er
+ * käme aus einem neueren Backend, und was er braucht, weiss sie nicht.
  */
 export function moduleIncomplete(m: ModuleDraft): string | null {
-  if (m.points.length === 0) return 'kein Erfassungspunkt';
-  if (m.points.some((p) => !p.label.trim())) return 'Erfassungspunkt ohne Bezeichnung';
-  if (m.points.some((p) => p.type === NEEDS_TARGET && !String(p.target ?? '').trim())) {
-    return 'Soll-Ist-Vergleich ohne Sollwert';
-  }
-  if (m.sample.mode !== 'all' && !m.sample.value.trim()) return 'Stichprobe ohne Zahl';
-  return null;
+  const form = MODULE_FORM[m.moduleType];
+  return form ? form.incomplete(m) : `Modultyp «${m.moduleType}» ist hier unbekannt`;
 }

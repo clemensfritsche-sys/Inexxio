@@ -28,10 +28,12 @@ import type { OrderSeed } from '@/components/erp/order-detail';
  * legt nichts an: ein automatischer Folgeauftrag wäre ein leerer Entwurf, den niemand
  * bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass jemand zugestimmt hätte.
  */
-export function CaptureWork({ orderObjectId, stepId, points, work, busy, onConfirm, onDeviate, onDirty }: {
+export function CaptureWork({ orderObjectId, stepId, points, action, work, busy, onConfirm, onDeviate, onDirty }: {
   orderObjectId: number;
   stepId: number;
   points: CapturePoint[];
+  /** Das Verb des Moduls – vom Server, siehe `CaptureForm`. */
+  action: string;
   work: StepWork[];
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
@@ -52,6 +54,7 @@ export function CaptureWork({ orderObjectId, stepId, points, work, busy, onConfi
           stepId={stepId}
           work={w}
           points={points}
+          action={action}
           busy={busy}
           onConfirm={onConfirm}
           onDeviate={onDeviate}
@@ -62,11 +65,12 @@ export function CaptureWork({ orderObjectId, stepId, points, work, busy, onConfi
   );
 }
 
-function InstanceWork({ orderObjectId, stepId, work, points, busy, onConfirm, onDeviate, onDirty }: {
+function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onConfirm, onDeviate, onDirty }: {
   orderObjectId: number;
   stepId: number;
   work: StepWork;
   points: CapturePoint[];
+  action: string;
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
               values: Record<string, unknown>) => void;
@@ -109,6 +113,7 @@ function InstanceWork({ orderObjectId, stepId, work, points, busy, onConfirm, on
         <div className="px-2.5 pb-2.5">
           <CaptureForm
             points={points}
+            action={action}
             count={work.sample}
             busy={busy}
             onDirty={onDirty}

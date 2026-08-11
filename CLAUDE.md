@@ -48,6 +48,30 @@
 > (`sample`-Ereignis); der ungezogene Rest läuft ohne Erfassung durch – **sichtbar**, nicht
 > stillschweigend. Wächter: `tests/test_capture_module.py`.
 >
+> **Das zweite Modul ist «Aussondern»** (PROCESS_CORE §9.4) – und wie beim ersten stehen
+> die Regeln, die dabei entstanden, im **Framework**: **Verschrotten** (`Verschrottet`,
+> rot, endgültig) und **Sperren** (`Gesperrt`, gelb, physisch noch da) tun dasselbe – das
+> Stück verlässt den Auftrag –, also ist der Unterschied ein **Parameter**, kein zweites
+> Modul; den Zustand leitet das Modul ab (`status_after_for`), es gibt kein
+> Status-Dropdown. **«Gibt es einen Weg zurück?» ist eine Eigenschaft des Status**
+> (`Status.selectable`) und keine Farbfrage: Farbe, Freigabe-Prüfung und Auswahl-Liste
+> folgen daraus, und daraus fällt das Zurückholen von selbst heraus – ein gesperrtes Stück
+> nimmt ein **ganz gewöhnlicher Auftrag** auf, **das Greifen IST das Aufheben** (kein
+> «entsperren»-Endpunkt). **Ein terminales Modul ist ein AUSGANG** (`Module.terminal`):
+> hinter ihm steht kein Modul (Freigabe-Fehler mit Grund), die Kette endet dort, und es
+> passiert das Ende-Objekt nicht – **womit auch eine geplante Rückführung endet, ohne eine
+> Zeile Wartelogik**, denn gezählt wird über die **offene** Zugehörigkeit; die Absicht
+> (`return_to_order_id`) bleibt als Historie stehen. Der **Auftragsstatus braucht keinen
+> vierten Wert**: wer aussondert, hat sein Ziel erreicht (`Abgeschlossen`), wem die Stücke
+> dadurch endgültig fehlen, dessen Ziel ist unerreichbar (`Abgebrochen`) – beides fällt aus
+> `_derive` heraus. **Teilmengen gibt es hier nicht** (was ankommt, wird ausgesondert), der
+> **Grund ist Pflicht beim Sperren** (ein gewöhnlicher Erfassungspunkt, den das *Modul*
+> deklariert – wäre er konfigurierbar, könnte man ihn wegkonfigurieren) und beim
+> Verschrotten ist der **Scan** die Bestätigung. Die Kettenregel wohnt jetzt in
+> `domain/chain.py` und gilt an **beiden** Definitionsorten – vorher nur beim Auftrag, und
+> eine Artikel-Vorlage mit gebrochener Kette wäre erst nach dem Einfrieren aufgefallen.
+> Wächter: `tests/test_disposal_module.py`.
+>
 > **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
 > Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,
 > jeder Statuswechsel schreibt einen Eintrag im append-only Ereignis-Log; Exklusivität als

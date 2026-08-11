@@ -99,6 +99,21 @@ Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnumme
   Definition den Satz (`ProcessStepResponse.sample`). Die Oberfläche formuliert ihn nicht
   selbst; `sampling.describe` ist die eine Quelle.
 
+## Prozessschrittmodule im Entwurf (`lib/modules.ts`)
+**Was ein Modultyp mitbringt, steht als Zuordnung, nicht als `if`-Kette**: `MODULE_FORM`
+(Nutzlast + Vollständigkeit) und `MODULE_FIELDS` im Designer (der Feldsatz). Ein neuer
+Typ ist je ein Eintrag; `test_frontend_mirrors` hält die Schlüssel mit `domain/modules.py`
+deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
+
+- **Aussondern** hat genau eine Angabe: Verschrotten ↔ Sperren (`DISPOSAL_MODES`, Liste
+  im Backend). Keine Erfassungspunkte, keine Stichprobe – was erfasst wird (der Grund
+  beim Sperren), deklariert das Modul selbst.
+- **Das Verb auf dem Knopf kommt vom Server** (`ProcessStepResponse.action`):
+  «Erfassen & bestätigen» · «Verschrotten» · «Sperren». Es hängt beim Aussondern an der
+  Ausprägung – ein fester Text in der Oberfläche wäre eine zweite Aussage darüber.
+- Die Laufzeit ist **dieselbe Komponente** (`CaptureWork`): Zeile je Instanz, Scan-Gate,
+  dann das Formular – bei 0 Erfassungspunkten nur der Knopf.
+
 ## Kamera-Scan (`lib/scan.ts` + `components/scan/`)
 Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf
 (`GET /erp/objects/{id}`). Drei Schichten, strikt getrennt:

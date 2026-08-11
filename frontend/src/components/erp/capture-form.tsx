@@ -22,8 +22,12 @@ import { inputCls, numericInputProps, numericOnly } from '@/components/erp/field
  * einen Schalter dafür gibt es nicht mehr. Der Server prüft dasselbe noch einmal – ein
  * deaktivierter Knopf ist keine Absicherung.
  */
-export function CaptureForm({ points, count, busy, onConfirm, onDirty }: {
+export function CaptureForm({ points, count, action, busy, onConfirm, onDirty }: {
   points: CapturePoint[];
+  /** **Das Verb des Moduls** (`ProcessStepResponse.action`) – «Erfassen & bestätigen»,
+   *  «Verschrotten», «Sperren». Es kommt vom Server, weil es beim Aussondern an der
+   *  Ausprägung hängt; ein fester Text hier wäre eine zweite Aussage darüber. */
+  action: string;
   /** Wie viele Stücke stehen davor – die Erfassung gilt für sie alle. */
   count: number;
   busy?: boolean;
@@ -65,11 +69,11 @@ export function CaptureForm({ points, count, busy, onConfirm, onDirty }: {
         data-tip={open.length ? `Noch nicht erfasst: ${open.join(', ')}` : undefined}
         // Fester Name: der Tooltip ist CSS-generierter Inhalt und zählt sonst in den
         // Accessible Name – der Knopf hiesse je nach offenem Punkt anders.
-        aria-label="Erfassen und bestätigen"
+        aria-label={action}
         onClick={() => { onDirty?.(false); onConfirm(values); }}
       >
         <Check size={15} />
-        Erfassen &amp; bestätigen{count > 1 ? ` (${count} Stück)` : ''}
+        {action}{count > 1 ? ` (${count} Stück)` : ''}
       </button>
       {open.length > 0 && (
         <p className="text-xs" style={{ color: 'var(--fg-3)' }}>

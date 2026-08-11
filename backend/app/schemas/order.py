@@ -138,6 +138,17 @@ class ProcessStepResponse(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def action(self) -> str:
+        """Wie die Ausführung dieses Moduls heisst – das Verb auf dem Knopf.
+
+        Aus der Registry (``Module.action_for``), nicht aus der Oberfläche: beim
+        Aussondern hängt es an der Ausprägung, und «Erfassen & bestätigen» über einem
+        Verschrotten-Modul wäre schlicht falsch.
+        """
+        return modules.get(self.module_type).action_for(self.config)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def sample(self) -> str:
         """Die Stichprobenregel als **Satz** – aus einer Quelle (``sampling.describe``).
 

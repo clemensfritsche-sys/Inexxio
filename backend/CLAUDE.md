@@ -172,6 +172,25 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **eingefroren** im Log. Der ungezogene Rest läuft ohne Erfassung durch – sichtbar.
 > Alle drei stehen an der EINEN Ausführungsstelle; jedes künftige Modul erbt sie.
 
+> **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
+> **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,
+> physisch noch da) tun dasselbe – das Stück verlässt den Auftrag; der Unterschied ist
+> ein **Parameter** (`config.mode`), kein zweites Modul. Den Zustand leitet das Modul ab
+> (`Module.status_after_for`) – es gibt kein Status-Dropdown.
+> **«Gibt es einen Weg zurück?» ist eine Eigenschaft des Status** (`Status.selectable`),
+> keine Farbfrage: Farbe, Freigabe-Prüfung und Auswahl-Liste folgen daraus. Ein
+> gesperrtes Stück nimmt ein ganz gewöhnlicher Auftrag auf – **das Greifen IST das
+> Aufheben**, es gibt keinen «entsperren»-Endpunkt.
+> **Ein terminales Modul ist ein Ausgang** (`Module.terminal`): hinter ihm steht kein
+> Modul (Freigabe-Fehler), die Kette endet dort, und es passiert das Ende-Objekt nicht.
+> Damit endet auch eine geplante **Rückführung** – ohne eine Zeile Wartelogik, weil über
+> die **offene** Zugehörigkeit gezählt wird. `return_to_order_id` bleibt unangetastet.
+> **Kein neuer Auftragsstatus:** wer aussondert, hat sein Ziel erreicht; wem die Stücke
+> dadurch fehlen, dessen Ziel ist unerreichbar. Wächter: `tests/test_disposal_module.py`.
+> Die Kettenregel steht in `domain/chain.py` und gilt an **beiden** Definitionsorten
+> (Artikel-Vorlage und Auftrag) – vorher nur beim Auftrag, und ein Artikel ist danach
+> eingefroren.
+
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete
 - UTC Timestamps überall
