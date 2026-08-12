@@ -89,9 +89,23 @@ export interface ScanStep {
   exists?: (objectId: number) => Promise<boolean>;
 }
 
+/**
+ * **Wie ein Wert in den Scanner gekommen ist.**
+ *
+ * Der Kamerascan ist der Regelweg, die Tastatur die Alternative – beides ist eine
+ * Bestätigung, keines eine Umgehung, und beides wird geloggt (`process.confirm_step`
+ * verlangt genau diese Angabe). Sie entsteht **hier**, weil nur der Dialog sie kennt:
+ * ein Aufrufer sähe nur die Nummer und müsste raten, wie sie zustande kam.
+ *
+ * Vorsichtig gerechnet: ist auch nur ein Schritt getippt oder aus der Vorschlagsliste
+ * gewählt worden, gilt der ganze Vorgang als `manual`. Eine Bestätigung ist so viel
+ * wert wie ihr schwächstes Glied.
+ */
+export type ScanVia = 'scan' | 'manual';
+
 export interface ScanRequest {
   steps: ScanStep[];
-  onComplete: (objectIds: number[]) => void;
+  onComplete: (objectIds: number[], via: ScanVia) => void;
   /**
    * Wie ein Kamerabild zu einem Ergebnis wird. Ohne Angabe: {@link objectCodes}.
    * Siehe {@link ScanReading} – das ist die Naht, an der später eine zweite Deutung
@@ -105,6 +119,30 @@ export function validateForStep(objectId: number, step: ScanStep): boolean {
   if (step.expected != null) return matchesExpected(objectId, step.expected);
   if (step.restrict && step.candidates) return step.candidates.some((c) => c.objectId === objectId);
   return true;   // freier Lookup: jede gültige Objektnummer zählt
+}
+
+/**
+ * **Was dieser Schritt anbietet — abgeleitet aus dem, was er ANNIMMT.**
+ *
+ * Das ist die Behebung eines strukturellen Bruchs: die Vorschlagsquelle war eine Angabe
+ * **je Aufrufer** (`candidates`/`suggest`). Der Feed brachte seine Suche mit, ein
+ * Prozessschrittmodul nicht – dort war die Liste darum für immer leer, und wer «00787»
+ * tippte, sah nichts. Es war nie ein zweiter Dialog; es war eine Suche, die an jeder
+ * Aufrufstelle einzeln zu leben hatte, und genau eine davon hatte sie.
+ *
+ * Ein Verifikationsschritt braucht dafür gar keine Suche: was er annimmt, **ist** seine
+ * Vorschlagsliste (``expected``). Damit gilt an jeder Stelle dieselbe Regel – der
+ * Scanner bietet an, was er akzeptiert – und niemand muss mehr etwas mitgeben.
+ *
+ * Ein Aufrufer darf weiterhin **beschriften**: bringt er `candidates` mit, gewinnen sie
+ * (dieselben Nummern, nur mit Namen dran).
+ */
+export function offersFor(step: ScanStep | undefined): ScanCandidate[] {
+  if (!step) return [];
+  if (step.candidates?.length) return step.candidates;
+  if (step.expected == null) return [];
+  const wanted = Array.isArray(step.expected) ? step.expected : [step.expected];
+  return wanted.map((objectId) => ({ objectId, label: step.label }));
 }
 
 // ─── Die Deutung – austauschbar, heute genau eine ────────────────────────────

@@ -1,14 +1,15 @@
-"""**Die Stichprobenregel — wie viele der wartenden Stücke erfasst werden.**
+"""**Die Stichprobenregel — welcher ANTEIL der wartenden Stücke erfasst wird.**
 
-Eine Angabe, drei Formen: *alle* (Vorgabe) · *Anzahl n* · *Prozent p*. Mehr braucht es
-nicht, und ein Formular mit fünf Feldern wäre die falsche Antwort auf eine Frage, die
-sich in einem Satz stellen lässt.
+Eine Angabe, und es ist eine Zahl: der **Anteil in Prozent**. *Alle* ist dabei kein
+eigener Modus, sondern schlicht 100 % – damit gibt es keine zweite Form, die man
+verwechseln könnte, und die Oberfläche kann Kurzwege anbieten (alle · ½ · ¼ · frei),
+ohne dass daraus verschiedene Regeln werden.
 
-**Die Regel gilt je Instanz, nicht je Auftrag.** Das ist keine Vereinfachung, sondern die
-fachliche Form: eine Stichprobe wird aus einem **Los** gezogen (ISO 2859-1), und das Los
-ist hier die Instanz — die Charge, die physisch als eine Kiste dasteht. «10 % von drei
-Chargen» heisst darum 10 % **aus jeder**, nicht 10 % aus dem Haufen; sonst bliebe eine
-ganze Charge womöglich ungeprüft, und die Aussage der Stichprobe wäre keine.
+**Die Bezugsgrösse ist die Gesamtmenge, nicht die einzelne Instanz.** Ein Modul steht im
+Prozess und sieht, was davorsteht: die Summe aller wartenden Einzelinstanzen. Eine Regel
+«je Instanz» wäre eine Aussage über etwas, das an dieser Stelle niemand fragt – bei drei
+Chargen ergäbe «10 %» dreimal eine eigene Ziehung, und die Zahl auf dem Bildschirm
+stimmte mit keiner davon überein.
 
 Daraus folgt zugleich, dass eine Stichprobe **nie leer** ist: aufgerundet wird, weil
 «0 von 5» keine Prüfung ist, sondern ihr Ausfall.
@@ -19,17 +20,11 @@ from typing import Any
 
 from fastapi import HTTPException
 
-#: Alle wartenden Stücke werden erfasst. Die Vorgabe — wer nichts sagt, prüft alles.
-ALL = "all"
-#: Eine feste Anzahl je Instanz.
-COUNT = "count"
-#: Ein Anteil der Instanz, aufgerundet.
-PERCENT = "percent"
-
-MODES = (ALL, COUNT, PERCENT)
+#: Der volle Anteil – jedes wartende Stück wird erfasst. Die Vorgabe.
+FULL = 100
 
 #: Was ohne Angabe gilt.
-DEFAULT: dict[str, Any] = {"mode": ALL, "value": None}
+DEFAULT: dict[str, Any] = {"percent": FULL}
 
 
 def _bad(detail: str) -> HTTPException:
@@ -39,59 +34,73 @@ def _bad(detail: str) -> HTTPException:
 def clean(raw: Any) -> dict[str, Any]:
     """Die Regel prüfen und normalisieren. Fehlt sie, gilt **alle**.
 
-    Ein unbekannter Modus ist ein harter Fehler und kein Rückfall auf «alle»: wer
-    «prozent» tippen wollte und sich vertippt, prüfte sonst stillschweigend alles – das
-    ist zwar die sichere Richtung, aber es ist nicht das, was dasteht.
+    Angenommen wird die eine Form ``{"percent": n}``. Eine unleserliche Zahl ist ein
+    harter Fehler und kein Rückfall auf «alle»: wer sich vertippt, prüfte sonst
+    stillschweigend alles – das ist zwar die sichere Richtung, aber es ist nicht das,
+    was dasteht.
     """
     if not raw:
         return dict(DEFAULT)
-    mode = (raw or {}).get("mode") or ALL
-    if mode not in MODES:
-        raise _bad(
-            f"«{mode}» ist keine Stichprobenregel. Erlaubt: "
-            + ", ".join(MODES) + "."
-        )
-    if mode == ALL:
+    value = raw.get("percent") if isinstance(raw, dict) else raw
+    if value in (None, ""):
         return dict(DEFAULT)
-
-    value = (raw or {}).get("value")
     try:
-        value = int(str(value).strip())
+        percent = int(str(value).strip())
     except (TypeError, ValueError):
         raise _bad(
             "Die Stichprobe braucht eine Zahl – ohne sie ist nicht entscheidbar, "
             "wie viele Stücke erfasst werden."
         )
-    if mode == COUNT and value < 1:
-        raise _bad("Eine Stichprobe von weniger als einem Stück ist keine Stichprobe.")
-    if mode == PERCENT and not (1 <= value <= 100):
+    if not 1 <= percent <= FULL:
         raise _bad("Der Anteil muss zwischen 1 und 100 Prozent liegen.")
-    return {"mode": mode, "value": value}
+    return {"percent": percent}
+
+
+def percent_of(rule: Any) -> int:
+    """Der Anteil einer gespeicherten Regel — **die eine Lesestelle**.
+
+    Sie liest tolerant, weil Definitionen älter sein können als die Regel selbst: die
+    frühere Form trug ``{"mode": …, "value": …}`` und meinte «je Instanz». Geschrieben
+    wird nur noch die neue Form (``clean``); gelesen werden beide, damit eine Vorlage aus
+    der Zeit davor weiter das tut, was dort steht.
+    """
+    rule = rule or DEFAULT
+    if "percent" in rule:
+        return int(rule.get("percent") or FULL)
+    mode = rule.get("mode") or "all"
+    if mode == "percent":
+        return int(rule.get("value") or FULL)
+    return FULL
 
 
 def size(rule: Any, population: int) -> int:
-    """Wie viele Stücke werden aus **dieser Instanz** gezogen?
+    """Wie viele Stücke werden aus **allem, was hier wartet**, gezogen?
 
-    Aufgerundet und mindestens eines, höchstens alle. Der Deckel ist keine Kosmetik:
-    «Anzahl 12» an einer Instanz mit 5 Stücken zieht 5 – die Regel sagt, wie viele man
-    prüfen *will*, nicht wie viele es geben muss.
+    **Aufgerundet, mindestens eines, höchstens alle.** Aufgerundet, weil eine Stichprobe,
+    die auf null fällt, keine Prüfung mehr ist; der Deckel, weil «12 von 5» keine Menge
+    ist. Beide Grenzen sind die konservative Richtung – im Zweifel wird mehr geprüft,
+    nicht weniger.
     """
     if population < 1:
         return 0
     rule = rule or DEFAULT
-    mode = rule.get("mode") or ALL
-    if mode == ALL:
+    # Altbestand: eine feste **Anzahl**. Sie galt einmal je Instanz und gilt jetzt über
+    # die Gesamtmenge – dieselbe Umdeutung wie überall hier, statt eine zweite Regel.
+    if "percent" not in rule and (rule.get("mode") == "count"):
+        return max(1, min(population, int(rule.get("value") or 0)))
+    percent = percent_of(rule)
+    if percent >= FULL:
         return population
-    value = int(rule.get("value") or 0)
-    drawn = value if mode == COUNT else math.ceil(population * value / 100)
-    return max(1, min(population, drawn))
+    return max(1, min(population, math.ceil(population * percent / 100)))
 
 
 def describe(rule: Any) -> str:
-    """Die Regel als Satz – für Anzeige und Fehlermeldung, aus **einer** Quelle."""
+    """Die Regel als Satz – für Anzeige und Fehlermeldung, aus **einer** Quelle.
+
+    Die Bezugsgrösse steht mit dabei: «50 %» allein liesse offen, wovon.
+    """
     rule = rule or DEFAULT
-    mode = rule.get("mode") or ALL
-    if mode == ALL:
-        return "alle"
-    value = rule.get("value")
-    return f"{value} je Instanz" if mode == COUNT else f"{value} % je Instanz"
+    if "percent" not in rule and rule.get("mode") == "count":
+        return f"{int(rule.get('value') or 0)} Stück"
+    percent = percent_of(rule)
+    return "alle" if percent >= FULL else f"{percent} % der Gesamtmenge"

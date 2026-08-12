@@ -140,14 +140,17 @@ class Aussondern(Module):
     keinen Fall, in dem man «die Hälfte davon» verschrotten will: wer nur einen Teil
     meint, gibt nur diesen Teil in den Auftrag.
 
-    **Der Grund ist Pflicht – aber nur beim Sperren.** Eine Sperre ohne Begründung ist in
-    drei Monaten wertlos: niemand weiss mehr, ob man sie aufheben darf, und im Zweifel
-    bleibt das Teil für immer liegen. Beim Verschrotten ist der Scan die Bestätigung –
-    das Teil ist weg, ein zweites Feld macht den Fall nicht häufiger richtig.
+    **Der Grund ist Pflicht – und er wird beim MODELLIEREN gegeben**, nicht im laufenden
+    Prozess. Warum an dieser Stelle ausgesondert wird, ist eine Eigenschaft des Ablaufs
+    («Ausschuss aus der Sichtprüfung»), keine Frage an den Menschen am Band: dort steht
+    dasselbe bei jedem Stück, und was jedes Mal gleich lautet, ist keine Erfassung,
+    sondern eine Wiederholung. Ohne Grund ist das Modul **nicht anlegbar** – eine
+    Aussonderung, deren Anlass in drei Monaten niemand mehr kennt, ist ein Loch im
+    Nachweis.
 
-    Der Grund ist dabei **kein neuer Mechanismus**: er ist ein ganz gewöhnlicher
-    Erfassungspunkt (``capture_types``), nur einer, den das Modul selbst deklariert statt
-    ihn erfragen zu lassen. Damit erbt er Prüfung, Speicherung am Stück und Anzeige.
+    Er gilt für **beide** Ausprägungen: beim Sperren, weil sonst niemand weiss, ob man
+    sie aufheben darf; beim Verschrotten, weil das endgültig ist und die Frage «warum»
+    dann gar nicht mehr gestellt werden kann.
     """
 
     #: Die beiden Ausprägungen – und der Zustand, auf den jede setzt. Die Zuordnung steht
@@ -157,9 +160,8 @@ class Aussondern(Module):
 
     terminal = True
 
-    #: Der Erfassungspunkt, den das Sperren mitbringt. Fest, nicht konfigurierbar: er ist
-    #: die **Frage des Moduls**, nicht die des Anwenders.
-    REASON_POINT = {"label": "Grund der Sperre", "type": "text"}
+    #: Wie lang der Grund höchstens sein darf. Ein Satz, kein Aufsatz.
+    REASON_MAX = 200
 
     #: Das Verb je Ausprägung – dieselbe Zuordnung wie ``MODES``, andere Spalte.
     ACTIONS: dict[str, str] = {"scrap": "Verschrotten", "block": "Sperren"}
@@ -174,11 +176,25 @@ class Aussondern(Module):
                     + ", ".join(self.MODES) + "."
                 ),
             )
-        # Die Punkte entstehen **hier**, nicht aus der Eingabe: was erfasst wird, sagt
-        # das Modul. Käme es aus dem Entwurf, könnte man den Grund wegkonfigurieren –
-        # und genau der ist der Sinn der Sperre.
-        points = capture_types.clean_points([self.REASON_POINT]) if mode == "block" else []
-        return {"mode": mode, "points": points, "sample": dict(sampling.DEFAULT)}
+        reason = str((raw or {}).get("reason") or "").strip()
+        if not reason:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "«Aussondern» braucht einen Grund – ohne ihn steht später da, dass "
+                    "Stücke ausgesondert wurden, aber nicht warum."
+                ),
+            )
+        if len(reason) > self.REASON_MAX:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Der Grund ist zu lang (max. {self.REASON_MAX} Zeichen).",
+            )
+        # **Keine Erfassungspunkte.** Was ankommt, wird ausgesondert; der Scan ist die
+        # Bestätigung, und der Grund steht bereits in der Definition. Ein Feld, das am
+        # Band bei jedem Stück dasselbe aufnimmt, wäre eine Erfassung ohne Erkenntnis.
+        return {"mode": mode, "reason": reason, "points": [],
+                "sample": dict(sampling.DEFAULT)}
 
     def _mode(self, config: Optional[dict[str, Any]]) -> str:
         return (config or {}).get("mode") or self.DEFAULT_MODE
@@ -233,6 +249,16 @@ def get(module_type: Any) -> Module:
 def points_of(config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
     """Die Erfassungspunkte einer gespeicherten Definition — die eine Lesestelle."""
     return list((config or {}).get("points") or [])
+
+
+def reason_of(config: Optional[dict[str, Any]]) -> str:
+    """Der in der Definition gegebene Grund — die eine Lesestelle.
+
+    Nur das Aussondern hat einen; überall sonst ist er leer. Ein Modul, das keinen
+    kennt, gibt darum nicht ``None`` zurück, sondern nichts – die Anzeige fragt dann gar
+    nicht erst nach einer Fallunterscheidung.
+    """
+    return str((config or {}).get("reason") or "")
 
 
 def sample_of(config: Optional[dict[str, Any]]) -> dict[str, Any]:

@@ -46,7 +46,7 @@ export function ScanProvider({ children }: { children: React.ReactNode }) {
         <ScanDialog
           key={req.id}
           {...req.req}
-          onComplete={(ids) => { setReq(null); req.req.onComplete(ids); }}
+          onComplete={(ids, how) => { setReq(null); req.req.onComplete(ids, how); }}
           onClose={() => setReq(null)}
         />
       )}

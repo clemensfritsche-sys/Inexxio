@@ -5,7 +5,7 @@ import {
   Blocks, ChevronDown, ChevronUp, CornerUpLeft, Flag, GitBranch, GripVertical, Lock,
   MoreHorizontal, Play, Scissors, Sprout, Trash2,
 } from 'lucide-react';
-import { MODULE_ICON, moduleTone } from '@/lib/modules';
+import { MODULE_ICON, chainProblems, moduleTone } from '@/lib/modules';
 import {
   BEND, FLOW_GAP, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
 } from './process-flow';
@@ -51,6 +51,22 @@ export interface DiagramStep {
   /** Wie das Modul heisst – **aus seinem Typ abgeleitet**, nicht eingegeben (#682). */
   label: string;
   /**
+   * **Die Farbfamilie – am Schritt, nicht als Prop des Rahmens.**
+   *
+   * Sie kam einmal über einen Rückruf von aussen (`ColumnProps.tone`), gefüttert aus dem
+   * Modul-Katalog. Den lädt aber nur der Editor: der **freigegebene** Auftrag reichte
+   * ihn nicht durch, und ein stiller Rückfall gab jedem Modul die Farbe der
+   * Datenerfassung – die Aussonderung wechselte beim Freigeben ihr Aussehen. Als Feld
+   * des Schritts kann sie nicht mehr fehlen, weil sie niemand mehr weitergeben muss.
+   */
+  tone: string | null;
+  /**
+   * **Ist dies ein Ausgang?** Dann steht dahinter nichts mehr: kein weiteres Modul (der
+   * Editor bietet keines an, die Freigabe weist es ab) und kein Ende-Objekt (das Stück
+   * kommt dort nie an). Eine Eigenschaft des Modultyps – siehe `Module.terminal`.
+   */
+  terminal: boolean;
+  /**
    * **Worauf dieses Modul wartet** (Testnotiz #698) – Objektnummern der Abweichungen,
    * deren Rückführung aussteht. Nicht leer heisst: gesperrt.
    *
@@ -89,10 +105,15 @@ export const DRAFT_OBJECT_ID = 0;
 export const EMPTY_GRAPH: ProcessGraph = { nodes: [], edges: [], problems: [] };
 
 export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
+  // **Ein terminales Modul beendet die Kette** – dieselbe Regel wie serverseitig
+  // (`domain/chain.assert_closes`, `services/flow.build`): was dort ankommt, verlässt den
+  // Auftrag, also gibt es dahinter kein Ende-Objekt. Und weil die Modul-Palette *vor* dem
+  // Ende steht, ist sie damit ebenfalls weg – ohne eine zweite Bedingung dafür.
+  const exit = steps.findIndex((s) => s.terminal);
   const chain: GraphNode[] = [
     { id: 'start', kind: 'start', at: null },
     ...steps.map((s) => ({ id: `module:${s.id}`, kind: 'module', at: s.id })),
-    { id: 'end', kind: 'end', at: null },
+    ...(exit === -1 ? [{ id: 'end', kind: 'end', at: null }] : []),
   ];
   return {
     nodes: chain,
@@ -100,7 +121,9 @@ export function definitionGraph(steps: DiagramStep[]): ProcessGraph {
       id: `edge:${n.id}:${chain[i + 1].id}`,
       frm: n.id, to: chain[i + 1].id, kind: 'axis', walked: false, units: [],
     })),
-    problems: [],
+    // Was daran nicht aufgeht, sagt die Regel selbst (`lib/modules.chainProblems`) – das
+    // Bild rendert nur, was es bekommt.
+    problems: chainProblems(steps),
   };
 }
 
@@ -253,11 +276,10 @@ export function journeyKeys(stops: JourneyStop[],
  * fiele ein Ast der oberen Reihe durch die untere.
  */
 function fanPaths(anchors: Record<string, FlowAnchor>, prefix: string,
-                  where: 'in' | 'out', keys: Array<string | number>): string[] {
+                  where: 'in' | 'out', keys: Array<string | number>,
+                  outTrunk: string): string[] {
   const at = (id: string) => anchors[`${prefix}${id}`];
-  // Unten hängt der Baum an der Pille der angekommenen Stücke, wenn es sie gibt – sonst
-  // am Ende-Objekt. Beides ist «das Letzte auf der Achse»; welches, sagt das Bild.
-  const trunk = where === 'in' ? at('start') : (at('on:edge:end:done') ?? at('end'));
+  const trunk = where === 'in' ? at('start') : at(outTrunk);
   if (!trunk) return [];
   const bus = where === 'in' ? trunk.top - BEND : trunk.bottom + BEND;
   return keys.flatMap((k) => {
@@ -328,7 +350,6 @@ export interface ColumnProps {
   onDelete?: (id: number) => void;
   renderStep?: (step: DiagramStep, isActive: boolean) => ReactNode;
   onExpand?: (edgeId: string) => Promise<UnitChip[]>;
-  tone?: (moduleType: string) => { bg: string; fg: string; border: string };
   onReorder?: (from: number, to: number) => void;
   dragging?: number | null;
   onDragState?: (index: number | null) => void;
@@ -390,7 +411,7 @@ export interface ReturnTarget {
 export function FlowColumn({
   graph, steps, prefix = '', mode, activeStepId = null, expandedStepId = null, endStatus,
   head, tail, onDelete,
-  renderStep, onExpand, tone, onReorder, dragging, onDragState,
+  renderStep, onExpand, onReorder, dragging, onDragState,
   journeyIn = [], journeyOut = [], faded = false, onDeviate, deviateBlocked,
   containerStyle, rowStyle, origins = [],
   events = [], eventTotal, returns = [], onToggleReturn,
@@ -491,7 +512,6 @@ export function FlowColumn({
               dimmed={running && !isActive}
               history={historyTip(events, n, eventTotal)}
               defaultOpen={step.id === openId}
-              tone={tone?.(step.moduleType)}
               onDelete={mode === 'definition' && onDelete ? () => onDelete(step.id) : undefined}
               drag={onReorder && mode === 'definition' ? {
                 index,
@@ -629,15 +649,21 @@ export function Axis({ edges, anchors, prefix = '', journeyIn = [], journeyOut =
   journeyIn?: Array<string | number>;
   journeyOut?: Array<string | number>;
 }) {
+  // **Wo die Achse endet, hängt der Verbleibs-Baum.** Das ist die letzte Achsenkante –
+  // die ohne nächsten Knoten. Sie führt hinter dem Ende-Objekt hinaus, bei einem
+  // terminalen Modul aus diesem selbst; welcher Fall es ist, muss hier niemand wissen.
+  const exit = edges.find((e) => e.to == null);
+  const outTrunk = exit && anchors[`${prefix}on:${exit.id}`] ? `on:${exit.id}`
+    : (exit?.frm ?? 'end');
   return (
     <>
-      {fanPaths(anchors, prefix, 'in', journeyIn).map((d, i) => (
+      {fanPaths(anchors, prefix, 'in', journeyIn, outTrunk).map((d, i) => (
         // **Gegangen**: die Stücke sind von dort gekommen bzw. dorthin gegangen. Ein
         // Ast, der nicht passiert ist, existiert nicht – die Journey kennt nur, was im
         // Log steht.
         <Stroke key={`fan-in-${i}`} d={d} walked />
       ))}
-      {fanPaths(anchors, prefix, 'out', journeyOut).map((d, i) => (
+      {fanPaths(anchors, prefix, 'out', journeyOut, outTrunk).map((d, i) => (
         <Stroke key={`fan-out-${i}`} d={d} walked />
       ))}
       {edges.map((e) => {
@@ -939,7 +965,7 @@ interface DragProps {
   onDrop: (from: number) => void;
 }
 
-function StepCard({ step, active, dimmed, defaultOpen, onDelete, tone, drag, history,
+function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, history,
   children }: {
   step: DiagramStep; active: boolean; dimmed: boolean;
   /** Was an diesem Modul passiert ist – der Ereignis-Log, an seinem Ort (§5). */
@@ -947,7 +973,6 @@ function StepCard({ step, active, dimmed, defaultOpen, onDelete, tone, drag, his
   /** Startet dieses Modul aufgeklappt? Sonst zu – und der Kopf klappt es auf (#696). */
   defaultOpen?: boolean;
   onDelete?: () => void;
-  tone?: { bg: string; fg: string; border: string };
   drag?: DragProps;
   children?: ReactNode;
 }) {
@@ -964,7 +989,10 @@ function StepCard({ step, active, dimmed, defaultOpen, onDelete, tone, drag, his
   // jeder Karte dasselbe sagt. Was die Karten unterscheidet, ist ihre **Art**, und die
   // trägt das Symbol.
   const Icon = MODULE_ICON[step.moduleType] ?? Blocks;
-  const c = tone ?? moduleTone(undefined);
+  // **Die Farbe kommt vom Schritt, nicht von einem Aufrufer.** Wer sie nicht kennt, malt
+  // nicht irgendetwas: `moduleTone` meldet eine unbekannte Familie sichtbar (Warnfarbe),
+  // statt sie stillschweigend zur Datenerfassung zu machen.
+  const c = moduleTone(step.tone);
   return (
     <div
       className="rounded-ds-lg"

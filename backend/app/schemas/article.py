@@ -4,11 +4,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 from urllib.parse import urlparse
 
-from pydantic import (BaseModel, ConfigDict, Field, computed_field, field_validator,
+from pydantic import (BaseModel, ConfigDict, Field, field_validator,
                       model_validator)
 
-from ..domain import modules, statuses as st
-from .process import ModuleInput
+from ..domain import statuses as st
+from .process import ModuleFacts, ModuleInput
 
 # ─── Erlaubte Werte ──────────────────────────────────────────────────────────
 
@@ -381,27 +381,21 @@ class ArticleNameSuggestion(BaseModel):
 # Erzeugungsprozess (Vorlage am Artikel)
 # ---------------------------------------------------------------------------
 
-class ArticleProcessStepResponse(BaseModel):
+class ArticleProcessStepResponse(ModuleFacts):
     """Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,
-    nur bevor er läuft."""
+    nur bevor er läuft.
 
-    model_config = ConfigDict(from_attributes=True)
+    Beschriftung, Farbfamilie und «Ausgang?» kommen aus ``ModuleFacts`` – derselben
+    Ableitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände.
+    """
 
     #: **Die Identität des Moduls** (#687). Der Ereignis-Log zeigt auf sie und auf
     #: nichts sonst – nicht auf einen Namen, nicht auf die Position.
     id: int
     position: int
-    module_type: str
     status_before: str
     status_after: str
     config: Optional[dict] = None
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def label(self) -> str:
-        """Wie der Typ heisst – **abgeleitet** aus ``domain/modules``, nicht gespeichert.
-        So kann die Beschriftung nicht von der Registry abweichen."""
-        return modules.label(self.module_type)
 
 
 class ArticleProcess(BaseModel):

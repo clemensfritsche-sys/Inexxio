@@ -73,6 +73,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from . import process
+from ..domain import modules
 from ..models import InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep
 from ..models.process_event import (
     KIND_END, KIND_HANDOVER, KIND_RETURN, KIND_START, KIND_STEP,
@@ -447,14 +448,31 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
             else (lambda r: _here_at(r, at)),
         ))
 
-    g.nodes.append(Node(id=NODE_END, kind=NODE_END))
-    _link(g, prev, NODE_END, tally.ended > 0, [])
-    # Hinter dem Ende gibt es keinen Knoten mehr – angekommene Stücke stehen trotzdem
-    # irgendwo, und «irgendwo» ist die Kante, die aus dem Ende herausführt.
-    g.edges.append(_edge(
-        "edge:end:done", NODE_END, None, EDGE_AXIS, tally.ended > 0,
-        _pick(rows, lambda r: not r.active and r.at is None),
-    ))
+    # ►► **Ein terminales Modul IST der Ausgang** (``domain/modules.Module.terminal``). ◄◄
+    #
+    # Dieselbe Eigenschaft, aus der ``domain/chain`` seinen Freigabe-Fehler zieht und der
+    # Editor sein «dahinter geht nichts mehr»: hinter ihm gibt es kein Ende-Objekt, weil
+    # dort nie ein Stück ankommt (``process.confirm_step`` überspringt ``_finish``).
+    #
+    # Ein Ende-Objekt trotzdem zu zeichnen war nicht bloss unschön, sondern nachweislich
+    # falsch: die ausgesonderten Stücke landeten auf der Kante **hinter** dem Ende, und
+    # die galt als nicht gegangen (es gab ja kein ``end``-Ereignis). Genau das hat der
+    # Wächter unten gemeldet – zu Recht, und die Ursache war die Zeichnung, nicht er.
+    exit_at = steps[-1] if steps and modules.get(steps[-1].module_type).terminal else None
+    arrived = _pick(rows, lambda r: not r.active and r.at is None)
+    if exit_at is not None:
+        g.edges.append(_edge(
+            "edge:exit:done", module_id(exit_at.id), None, EDGE_AXIS,
+            tally.passed.get(exit_at.id, 0) > 0, arrived,
+        ))
+    else:
+        g.nodes.append(Node(id=NODE_END, kind=NODE_END))
+        _link(g, prev, NODE_END, tally.ended > 0, [])
+        # Hinter dem Ende gibt es keinen Knoten mehr – angekommene Stücke stehen trotzdem
+        # irgendwo, und «irgendwo» ist die Kante, die aus dem Ende herausführt.
+        g.edges.append(_edge(
+            "edge:end:done", NODE_END, None, EDGE_AXIS, tally.ended > 0, arrived,
+        ))
 
     g.neighbours = _merged(g.neighbours)
     _verify(g, rows)

@@ -88,16 +88,22 @@ Eine Zeile **je Instanz**, denn ein Vorgang ist eine Instanz (PROCESS_CORE §4.4
 Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnummer. Charge
 = ein Scan, Einzelserialisierung = n Scans – **ohne** Abfrage nach der Serialisierung.
 
-- **Ohne Bestätigung kein Formular.** Der Scan ist der Regelweg (`useScan` mit
-  `expected` = der Objektnummer, kein eigener Dialog), die Tastatur die Alternative. Die
-  **Regel** ist die Ablehnung im Backend (`process.confirm_step`), nicht das ausgegraute
-  Feld; `verification` (`scan`|`manual`) fährt mit und wird geloggt.
+- **Ohne Bestätigung kein Formular – und genau EIN Weg dorthin.** Der Scan ist der
+  Regelweg (`useScan` mit `expected` = der Objektnummer, kein eigener Dialog), die
+  Tastatur die Alternative **im selben Dialog** (die Leiste im Bild). Ein zweiter Knopf
+  «Von Hand bestätigen» daneben ist entfallen: er war ein zweiter Weg zum selben Ziel und
+  bestätigte gar nichts. **Wie** bestätigt wurde, sagt der Dialog selbst
+  (`onComplete(ids, via)` – `scan` ↔ `manual`, vorsichtig gerechnet: eine getippte oder
+  gewählte Nummer macht den ganzen Vorgang `manual`). Die **Regel** ist die Ablehnung im
+  Backend (`process.confirm_step`), nicht das ausgegraute Feld.
 - **«Nicht bestanden» hält an.** Das Modul legt **nichts** an: es zeigt den Haltezustand
   und öffnet auf Klick einen ganz gewöhnlichen Auftragsentwurf mit vorgewählten Stücken
   (Nummern erst auf Klick: `api.stepHold`).
 - **Die Stichprobe kommt vom Server** – die Zeile nennt die Ziehung («3 von 10 …»), die
   Definition den Satz (`ProcessStepResponse.sample`). Die Oberfläche formuliert ihn nicht
-  selbst; `sampling.describe` ist die eine Quelle.
+  selbst; `sampling.describe` ist die eine Quelle. Sie ist **EINE Zahl: der Anteil an der
+  Gesamtmenge** (alle · Hälfte · Viertel · frei, `SAMPLE_PRESETS`) – die Kurzwege sind
+  Werte derselben Zahl, keine eigenen Modi.
 
 ## Prozessschrittmodule im Entwurf (`lib/modules.ts`)
 **Was ein Modultyp mitbringt, steht als Zuordnung, nicht als `if`-Kette**: `MODULE_FORM`
@@ -105,9 +111,18 @@ Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnumme
 Typ ist je ein Eintrag; `test_frontend_mirrors` hält die Schlüssel mit `domain/modules.py`
 deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
 
-- **Aussondern** hat genau eine Angabe: Verschrotten ↔ Sperren (`DISPOSAL_MODES`, Liste
-  im Backend). Keine Erfassungspunkte, keine Stichprobe – was erfasst wird (der Grund
-  beim Sperren), deklariert das Modul selbst.
+- **Aussondern** hat zwei Angaben, beide Pflicht: Verschrotten ↔ Sperren
+  (`DISPOSAL_MODES`, Liste im Backend) und der **Grund**. Keine Erfassungspunkte, keine
+  Stichprobe: der Grund gehört zur Definition, nicht ans Band – dort lautete er bei jedem
+  Stück gleich. Zur Laufzeit steht er als Auskunft da (`ProcessStepResponse.reason`).
+- **Farbe und «Ausgang?» reisen mit dem Schritt** (`DiagramStep.tone`/`.terminal`, gefüllt
+  aus `ModuleFacts`). Sie waren einmal ein Rückruf des Rahmens, gefüttert aus dem
+  Modul-Katalog – und den lädt nur der Editor: im freigegebenen Auftrag kam nichts an, und
+  ein stiller Rückfall gab jedem Modul die Farbe der Datenerfassung. `moduleTone` hat
+  darum **keinen** Rückfall auf eine echte Modulfarbe mehr; Unbekanntes sieht kaputt aus.
+- **Hinter einem terminalen Modul bietet der Editor nichts an** – dieselbe Eigenschaft,
+  aus der die Freigabe ihren Fehler zieht und das Bild sein Ende (`chainProblems` meldet
+  ein Modul, das durch Umsortieren dahinter geraten ist).
 - **Das Verb auf dem Knopf kommt vom Server** (`ProcessStepResponse.action`):
   «Erfassen & bestätigen» · «Verschrotten» · «Sperren». Es hängt beim Aussondern an der
   Ausprägung – ein fester Text in der Oberfläche wäre eine zweite Aussage darüber.
@@ -129,11 +144,21 @@ Aufruf über `useScan()` (eine Instanz am ERP-Layout, lazy). Ein Vorgang ist ein
 `expected` = Verifikation · `restrict`+`candidates` = eingeschränkte Wahl · sonst freier
 Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
 
-- **Vorschläge:** `candidates` ist eine fertige Menge (die paar Zielorte einer Bewegung);
-  wo sie das halbe ERP wäre, gibt man stattdessen `suggest` mit – **seine eigene Suche**,
-  nicht eine zweite. Der Feed reicht dafür `feedMatch` + `api.getInstances` herein.
-  **Nur die Vorschlagsquelle wird breiter, nicht die Gültigkeitsregel** (`validateForStep`);
-  ein `restrict`-Schritt fragt `suggest` gar nicht erst.
+- **Vorschläge: der Scanner bietet an, was er ANNIMMT** (`offersFor`). Ein
+  Verifikationsschritt braucht dafür keine Suche – seine Vorschlagsmenge *ist* `expected`,
+  also genügt eine Teileingabe («00787»). Das war der strukturelle Bruch: die
+  Vorschlagsquelle war eine Angabe **je Aufrufer**, der Feed brachte eine mit, ein
+  Prozessschrittmodul nicht – dort blieb die Liste für immer leer, und nur die volle
+  neunstellige Nummer ging durch. Wo die Menge das halbe ERP wäre (freier Lookup), gibt
+  der Aufrufer weiterhin `suggest` mit – **seine eigene Suche**, nicht eine zweite (der
+  Feed reicht `feedMatch` + `api.getInstances` herein).
+  **Die Vorschlagsmenge ist die Gültigkeitsmenge**: ein `restrict`- oder `expected`-Schritt
+  fragt `suggest` gar nicht erst.
+- **Kein Zwischenschritt.** Enter bzw. ein Klick auf einen Vorschlag geht direkt durch;
+  passt die Nummer nicht, steht der **Grund im Zielrahmen** (dort ist der Blick, und dort
+  meldet die Farbe den Zustand). Der frühere «Übernehmen»-Knopf war ein zweiter Klick für
+  eine getroffene Entscheidung – und ausgerechnet gesperrt, wenn die Eingabe nicht passte,
+  also genau dann, wenn der Mensch den Grund gebraucht hätte.
 
 - **Deutung tauschen** heisst `reading` mitgeben, nicht den Dialog anfassen.
 - **ZXing nur als Rückfall** und nur `await import(…)` – der native `BarcodeDetector`

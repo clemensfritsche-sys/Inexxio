@@ -598,9 +598,10 @@ def release(
     )
 
     # ── 6. Das erste Modul ist damit aktiv (abgeleitet: dort stehen die Stücke) ──
-    # Und weil die Stücke jetzt davorstehen, wird hier die Stichprobe gezogen: **bei der
-    # Ankunft**, nicht beim Modellieren (§2 – vorher steht die Menge nicht fest).
-    sampling.ensure(db, order=order, step=rows[0], units=all_units, actor_id=actor_id)
+    # Und weil die Stücke jetzt davorstehen, wird hier die Stichprobe gezogen: **beim
+    # Erreichen des Moduls**, nicht beim Modellieren (§2 – vorher steht die Menge nicht
+    # fest). Gezogen wird über die **Gesamtmenge** des Auftrags, nicht je Instanz.
+    sampling.ensure(db, order=order, step=rows[0], actor_id=actor_id)
     return order
 
 
@@ -795,7 +796,7 @@ def confirm_step(
 
     # **Wer wird erfasst?** Die gezogene Stichprobe – einmal gezogen, eingefroren im Log.
     # Das Netz hier ist idempotent: gibt es die Ziehung schon, passiert nichts.
-    sampling.ensure(db, order=order, step=step, units=units, actor_id=actor_id)
+    sampling.ensure(db, order=order, step=step, actor_id=actor_id)
     db.flush()
     drawn_ids = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
     drawn = [u for u in units if u.id in drawn_ids]
@@ -863,9 +864,9 @@ def confirm_step(
     if following is None:
         _finish(db, order=order, rows=waiting, actor_id=actor_id)
     else:
-        # Angekommen am nächsten Modul – dort wird jetzt gezogen (§2: bei der Ankunft,
+        # Angekommen am nächsten Modul – dort wird jetzt gezogen (§2: beim Erreichen,
         # denn vorher steht die Menge nicht fest).
-        sampling.ensure(db, order=order, step=following, units=units, actor_id=actor_id)
+        sampling.ensure(db, order=order, step=following, actor_id=actor_id)
     db.flush()
     return {"moved": len(units), "held": 0, "result": result}
 

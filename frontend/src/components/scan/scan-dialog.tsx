@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CameraOff, AlertTriangle, Flashlight, Search } from 'lucide-react';
-import { objectCodes, type ScanCandidate, type ScanStep, type ScanRequest } from '@/lib/scan';
+import {
+  objectCodes, offersFor, type ScanCandidate, type ScanStep, type ScanRequest, type ScanVia,
+} from '@/lib/scan';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
 import { formatObjectId } from '@/lib/utils';
 
@@ -36,6 +38,9 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
   // Refs vermeiden veraltete Closures im Kamera-Callback (robustes Weiterschalten).
   const stepIndexRef = useRef(0);
   const results = useRef<number[]>([]);
+  // **Wie bestätigt wurde** – gescannt, bis das erste Mal getippt oder gewählt wurde.
+  // Vorsichtig gerechnet: eine Bestätigung ist so viel wert wie ihr schwächstes Glied.
+  const via = useRef<ScanVia>('scan');
   const lock = useRef(false);                 // während Prüfung und Quittierung sperren
   const completed = useRef(false);
   const lastRef = useRef<{ id: number; at: number } | null>(null);
@@ -64,10 +69,11 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
     };
   }, []);
 
-  async function handle(objectId: number) {
+  async function handle(objectId: number, how: ScanVia) {
     if (lock.current || completed.current) return;
     const cur = steps[stepIndexRef.current];
     if (!cur) return;
+    if (how === 'manual') via.current = 'manual';
 
     // Schon während der Prüfung sperren: der Decoder feuert weiter, und eine
     // Existenzabfrage darf nicht n-mal parallel laufen.
@@ -84,7 +90,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
       const next = stepIndexRef.current + 1;
       if (next >= steps.length) {
         completed.current = true;
-        onComplete(results.current);
+        onComplete(results.current, via.current);
       } else {
         stepIndexRef.current = next;
         setStepIndex(next);
@@ -105,7 +111,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
     const now = Date.now();
     if (lastRef.current && lastRef.current.id === id && now - lastRef.current.at < THROTTLE_MS) return;
     lastRef.current = { id, at: now };
-    void handle(id);
+    void handle(id, 'scan');
   }
 
   const { videoRef, state, torch, setTorch } = useBarcodeScanner(true, handleText);
@@ -149,26 +155,28 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
-  // Semantische Suche, Teil 1: die **mitgegebene** Menge – dort, wo der Aufrufer sie
-  // kennt (die paar Zielorte einer Bewegung). Sie ist zugleich die Gültigkeitsmenge eines
-  // eingeschränkten Schritts, also wird hier nur gefiltert, nie erweitert.
+  // Semantische Suche, Teil 1: **was dieser Schritt annimmt** (`offersFor`). Bei einem
+  // Verifikationsschritt ist das genau die erwartete Nummer – deshalb genügt hier eine
+  // Teileingabe, ohne dass irgendein Aufrufer eine Liste oder eine Suche mitgeben müsste.
+  // Erweitert wird nie: die Vorschlagsmenge ist die Gültigkeitsmenge.
   const known = useMemo<ScanCandidate[]>(() => {
     const q = query.trim().toLowerCase();
-    if (!q || !step?.candidates) return [];
-    return step.candidates
+    if (!q) return [];
+    return offersFor(step)
       .filter((c) => formatObjectId(c.objectId).includes(q) || c.label.toLowerCase().includes(q))
       .slice(0, SUGGEST_MAX);
   }, [query, step]);
 
-  // Teil 2: die **gesuchte** Menge. Wo die Kandidaten das halbe ERP wären, gibt der
-  // Aufrufer keine Liste mit, sondern seine Suche (`step.suggest`) – bei einem
-  // **eingeschränkten** Schritt bleibt sie aussen vor: eine breitere Vorschlagsquelle
-  // darf nichts anbieten, was der Schritt gar nicht annehmen würde.
+  // Teil 2: die **gesuchte** Menge. Wo die Kandidaten das halbe ERP wären (der freie
+  // Lookup im Feed), gibt der Aufrufer keine Liste mit, sondern seine Suche
+  // (`step.suggest`). Bei einem **eingeschränkten oder verifizierenden** Schritt bleibt
+  // sie aussen vor: eine breitere Vorschlagsquelle darf nichts anbieten, was der Schritt
+  // gar nicht annehmen würde.
   const [found, setFound] = useState<ScanCandidate[]>([]);
   useEffect(() => {
     const q = query.trim();
     const ask = step?.suggest;
-    if (!q || !ask || step?.restrict) { setFound([]); return; }
+    if (!q || !ask || step?.restrict || step?.expected != null) { setFound([]); return; }
     let stale = false;
     const t = window.setTimeout(() => {
       ask(q)
@@ -186,12 +194,26 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
 
   // Was im Bild steht, sagt die Deutung – der Dialog weiss nicht, was ein Schritt meint.
   const actionText = reading.prompt(step);
-  const typedId = reading.read(query);
-  const typedDirectOk = typedId != null && (!step?.restrict || step.candidates?.some((c) => c.objectId === typedId));
 
+  /**
+   * **Enter geht durch – oder sagt, warum nicht.** Es gibt keinen Zwischenschritt.
+   *
+   * Der frühere «Übernehmen»-Knopf war ein zweiter Klick für eine Entscheidung, die
+   * bereits getroffen war: die Nummer stand im Feld. Schlimmer noch, er war **gesperrt**,
+   * wenn die Eingabe nicht passte – die Meldung, die der Mensch gebraucht hätte
+   * («das ist nicht das erwartete Objekt»), blieb damit aus, und der Knopf sagte nur,
+   * dass etwas nicht geht.
+   *
+   * Jetzt geht jede Eingabe durch dieselbe Prüfung wie ein Kamerabild (`reading.check`),
+   * und ihr Grund erscheint dort, wo der Blick ist: im Zielrahmen.
+   */
   function submitQuery() {
-    if (typedId == null) { setFeedback({ kind: 'bad', text: 'Keine gültige Objektnummer' }); return; }
-    void handle(typedId);
+    const typedId = reading.read(query);
+    if (typedId == null) {
+      setFeedback({ kind: 'bad', text: 'Keine gültige Objektnummer' });
+      return;
+    }
+    void handle(typedId, 'manual');
   }
 
   return (
@@ -244,18 +266,22 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
           </button>
         )}
 
-        {/* Zielrahmen mit Suchstrahl + der EINEN Angabe, die zählt: was soll gescannt werden. */}
+        {/* Zielrahmen mit Suchstrahl + der EINEN Angabe, die zählt: was soll gescannt
+            werden. **Der Grund steht IM Rahmen** – dort schaut der Mensch ohnehin hin,
+            und dort meldet auch die Farbe den Zustand. Darunter oder daneben war er eine
+            zweite Stelle für dieselbe Aussage, und die untere Bildkante gehört der Suche. */}
         <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? 'var(--danger)' : feedback?.kind === 'ok' ? 'var(--success)' : 'rgba(255,255,255,.85)' }}>
           {cameraLive && !feedback && <div className="ix-scanbeam" style={beam} />}
+          {/* Erfolg meldet der **Rahmen** (er wird grün und der Scanner schaltet weiter) –
+              eine zweite grüne Meldung sagte dasselbe noch einmal (Notiz #253). Ein Text
+              braucht es nur beim Fehlschlag: dort zählt der GRUND. */}
+          {feedback?.kind === 'bad' && (
+            <div style={reasonBox} role="status">
+              <AlertTriangle size={15} style={{ flex: 'none' }} />
+              <span>{feedback.text}</span>
+            </div>
+          )}
         </div>
-        {/* Erfolg meldet der **Rahmen** (er wird grün und der Scanner schaltet weiter) –
-            eine zweite grüne Meldung daneben sagte dasselbe noch einmal (Notiz #253).
-            Ein Text braucht es nur beim Fehlschlag: dort zählt der GRUND. */}
-        {feedback?.kind === 'bad' && (
-          <div style={{ ...badge, background: 'var(--danger)' }} role="status">
-            <AlertTriangle size={14} /> {feedback.text}
-          </div>
-        )}
 
         {/* Suche – im Bild statt darunter: eine milchige Leiste am unteren Rand. */}
         <div style={searchBar}>
@@ -265,7 +291,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
               ref={inputRef}
               value={query}
               onChange={(e) => { setQuery(e.target.value); setFeedback(null); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && typedDirectOk) submitQuery(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitQuery(); } }}
               // Die Zielangabe («Instanz 100000479») lebt HIER statt zusätzlich als Chip im
               // Bild – eine Aussage, eine Stelle (Notiz #126).
               placeholder={actionText}
@@ -274,22 +300,18 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
             />
           </div>
 
-          {/* Gescrollt wird weiterhin, nur der Balken bleibt weg (Notiz #146). */}
+          {/* **Ein Klick genügt.** Die Auswahl IST die Eingabe – es gibt keinen zweiten
+              Knopf, der sie noch einmal bestätigt. Gescrollt wird weiterhin, nur der
+              Balken bleibt weg (Notiz #146). */}
           {suggestions.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 152, overflowY: 'auto' }}>
               {suggestions.map((c) => (
-                <button key={c.objectId} onClick={() => void handle(c.objectId)} style={suggestionBtn}>
+                <button key={c.objectId} onClick={() => void handle(c.objectId, 'manual')} style={suggestionBtn}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{formatObjectId(c.objectId)}</span>
                   <span style={{ opacity: .8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
                 </button>
               ))}
             </div>
-          )}
-
-          {suggestions.length === 0 && query.trim() !== '' && (
-            <button onClick={submitQuery} disabled={!typedDirectOk} style={{ ...primaryBtn, opacity: typedDirectOk ? 1 : 0.45 }}>
-              {typedId != null ? `${formatObjectId(typedId)} übernehmen` : 'Übernehmen'}
-            </button>
           )}
         </div>
       </div>
@@ -331,10 +353,15 @@ const beam: React.CSSProperties = {
   background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent)',
   boxShadow: '0 0 12px rgba(255,255,255,.6)',
 };
-// Die EINE Angabe im Bild: was soll gescannt werden.
-const badge: React.CSSProperties = {
-  position: 'absolute', top: 'calc(50% + 34%)', display: 'inline-flex', alignItems: 'center', gap: 6,
-  padding: '7px 14px', borderRadius: 999, color: '#fff', fontSize: 12.5, fontWeight: 700, maxWidth: '86%',
+/**
+ * **Der Grund – im Rahmen, nicht darunter.** Er füllt die untere Hälfte des Zielrahmens:
+ * dort ist der Blick, dort ist der rote Rand, und die Aussage steht damit an genau einer
+ * Stelle. Kein Schweben über der Kamera, kein Streifen ausserhalb.
+ */
+const reasonBox: React.CSSProperties = {
+  position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center',
+  justifyContent: 'center', gap: 7, padding: '10px 12px', textAlign: 'center',
+  background: 'var(--danger)', color: '#fff', fontSize: 12.5, fontWeight: 600, lineHeight: 1.35,
 };
 const searchBar: React.CSSProperties = {
   position: 'absolute', left: 14, right: 14, bottom: 14, display: 'flex', flexDirection: 'column', gap: 6,
@@ -348,8 +375,4 @@ const suggestionBtn: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', width: '100%', textAlign: 'left',
   border: '1px solid rgba(255,255,255,.18)', borderRadius: 10, cursor: 'pointer', fontSize: 13,
   background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(10px)', color: '#fff',
-};
-const primaryBtn: React.CSSProperties = {
-  padding: '10px 14px', borderRadius: 10, border: 'none', background: '#fff', color: 'var(--fg-1)',
-  fontSize: 13, fontWeight: 700, cursor: 'pointer',
 };

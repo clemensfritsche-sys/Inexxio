@@ -166,7 +166,7 @@ def test_the_sample_is_drawn_once_and_frozen():
     db = _db()
     try:
         order, step = _order(db, serialization="batch", quantity=10,
-                             sample={"mode": "count", "value": 3})
+                             sample={"percent": 30})
         work = proc.step_work(db, order, step)[0]
         assert (work["waiting"], work["sample"], work["rest"]) == (10, 3, 7), (
             "Die Stichprobe stimmt nicht – oder der ungeprüfte Rest ist unsichtbar."
@@ -175,7 +175,7 @@ def test_the_sample_is_drawn_once_and_frozen():
         # Zweimal fragen, dieselbe Antwort. Ein zweites Ziehen wäre eine zweite Wahrheit.
         units = [u for _, u in proc._units_at(db, order, step.id)]
         first = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
-        sampling.ensure(db, order=order, step=step, units=units, actor_id=None)
+        sampling.ensure(db, order=order, step=step, actor_id=None)
         db.flush()
         again = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
         assert first == again and len(first) == 3, "Die Ziehung ist nicht eingefroren."
@@ -194,6 +194,95 @@ def test_the_sample_is_drawn_once_and_frozen():
         db.close()
 
 
+def test_the_sample_is_a_share_of_the_whole_not_of_each_instance():
+    """**Die Bezugsgrösse ist die Gesamtmenge** – alles, was am Modul wartet.
+
+    Vier Instanzen zu je einem Stück, Regel «die Hälfte»: gezogen werden **zwei**. Je
+    Instanz gerechnet wären es vier (aus einem Stück muss mindestens eines gezogen
+    werden), also die volle Menge – und «50 %» stünde am Bildschirm, während in
+    Wirklichkeit alles geprüft wird.
+    """
+    from app.services import process as proc
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="unit", quantity=4,
+                             sample={"percent": 50})
+        rows = proc.step_work(db, order, step)
+        assert len(rows) == 4, "Vier Instanzen zu je einem Stück – ein Vorgang je Instanz."
+        assert sum(r["sample"] for r in rows) == 2, (
+            f"Gezogen wurde je Instanz statt über die Gesamtmenge: "
+            f"{[r['sample'] for r in rows]}"
+        )
+        assert sum(r["rest"] for r in rows) == 2
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_later_module_draws_from_the_whole_order_not_from_the_first_wave():
+    """**Gezogen wird über den Bestand des Auftrags, nicht über die erste Welle.**
+
+    Die Stücke erreichen ein späteres Modul in Wellen – ein Vorgang ist eine Instanz.
+    Zöge man je Welle, wäre «die Hälfte» in Wirklichkeit «die Hälfte aus jeder Kiste»:
+    genau die Regel je Instanz, nur an anderer Stelle. Also zählt, was der Auftrag zu
+    diesem Zeitpunkt noch hält – auch das, was noch am Modul davor steht.
+    """
+    from app.models import Article, ProcessEvent, ProcessStep
+    from app.models.process_event import KIND_SAMPLE
+    from app.services import article_process as tpl, objects as obj, process as proc
+
+    db = _db()
+    try:
+        art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
+                      serialization="unit", status="released")
+        db.add(art)
+        db.flush()
+        tpl.create_steps(db, art, [
+            {"module_type": "datenerfassung",
+             "config": {"points": [{"label": "OK", "type": "bool"}]}},
+            {"module_type": "datenerfassung",
+             "config": {"points": [{"label": "Zweite", "type": "bool"}],
+                        "sample": {"percent": 50}}},
+        ])
+        db.flush()
+        order = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 4,
+                    "origin": "neu", "units": []}],
+            steps=[], actor_id=None,
+        )
+        db.flush()
+        first, second = (db.query(ProcessStep)
+                         .filter(ProcessStep.order_id == order.id)
+                         .order_by(ProcessStep.position).all())
+
+        # Genau EINE Instanz geht durch – am zweiten Modul steht damit ein Viertel.
+        one = proc.step_work(db, order, first)[0]
+        proc.confirm_step(db, order=order, step_id=first.id, values={"ok": True},
+                          instance_object_id=one["instance_object_id"],
+                          verification="scan", actor_id=None)
+        db.flush()
+
+        rows = proc.step_work(db, order, second)
+        assert len(rows) == 1, "Nur die erste Instanz ist angekommen."
+        assert sum(r["sample"] for r in rows) <= 2, (
+            "Am zweiten Modul wurde über die erste Welle gezogen statt über den ganzen "
+            "Auftrag – dann ist «die Hälfte» in Wahrheit «die Hälfte aus jeder Kiste»."
+        )
+        drawn = (db.query(ProcessEvent)
+                 .filter(ProcessEvent.order_id == order.id,
+                         ProcessEvent.step_id == second.id,
+                         ProcessEvent.kind == KIND_SAMPLE).count())
+        assert drawn == 2, (
+            f"Die Ziehung am zweiten Modul umfasst {drawn} Stück – erwartet sind 2 "
+            f"(die Hälfte der vier, die der Auftrag hält)."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
 def test_the_sample_is_never_empty_and_never_larger_than_the_lot():
     """Aufgerundet, mindestens eines, höchstens alle — die Regel als Zahl.
 
@@ -201,11 +290,18 @@ def test_the_sample_is_never_empty_and_never_larger_than_the_lot():
     """
     from app.domain import sampling as rule
 
+    assert rule.size({"percent": 100}, 7) == 7
+    assert rule.size(None, 7) == 7                     # ohne Angabe: alle
+    assert rule.size({"percent": 10}, 5) == 1          # 0.5 → 1, aufgerundet
+    assert rule.size({"percent": 10}, 6000) == 600     # dieselbe Regel bei 6000
+    assert rule.size({"percent": 50}, 3) == 2          # 1.5 → 2
+    assert rule.size({"percent": 25}, 3) == 1          # 0.75 → 1
+    assert rule.size({"percent": 10}, 0) == 0          # nichts da, nichts gezogen
+    # **Altbestand wird gelesen, nicht geschrieben**: eine Definition aus der Zeit der
+    # Regel «je Instanz» meint jetzt dieselbe Zahl über die Gesamtmenge.
+    assert rule.size({"mode": "count", "value": 12}, 5) == 5
+    assert rule.size({"mode": "percent", "value": 10}, 5) == 1
     assert rule.size({"mode": "all", "value": None}, 7) == 7
-    assert rule.size({"mode": "percent", "value": 10}, 5) == 1     # 0.5 → 1
-    assert rule.size({"mode": "percent", "value": 10}, 6000) == 600
-    assert rule.size({"mode": "count", "value": 12}, 5) == 5       # gedeckelt
-    assert rule.size({"mode": "count", "value": 3}, 0) == 0        # nichts da, nichts gezogen
 
 
 def _captures(db, order) -> int:
@@ -231,7 +327,7 @@ def test_a_failed_capture_holds_and_nothing_is_created():
     db = _db()
     try:
         order, step = _order(db, serialization="batch", quantity=4,
-                             sample={"mode": "count", "value": 1})
+                             sample={"percent": 25})
         before = db.query(Order).count()
         work = proc.step_work(db, order, step)[0]
 
@@ -354,7 +450,7 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
     from app.services import objects as obj, process as proc
 
     order, step = _order(db, serialization="batch", quantity=10,
-                         sample={"mode": "count", "value": 3})
+                         sample={"percent": 30})
     # **Wiederverwendbar, nicht neu angelegt.** Der Test muss committen (der TestClient
     # öffnet seine eigene Sitzung und sähe sonst nichts) – ein zweiter Lauf kollidierte
     # sonst mit der eindeutigen E-Mail.
@@ -380,7 +476,7 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
         # Die Arbeitsliste reist mit der Antwort – sie IST die Liste der zu scannenden Dinge.
         detail = client.get(f"/api/v1/erp/orders/{order.object_id}").json()
         row = next(s for s in detail["steps"] if s["id"] == step.id)
-        assert row["sample"] == "3 je Instanz", row["sample"]
+        assert row["sample"] == "30 % der Gesamtmenge", row["sample"]
         assert [w["instance_object_id"] for w in row["work"]] == [instance]
         assert (row["work"][0]["sample"], row["work"][0]["rest"]) == (3, 7)
 

@@ -1169,14 +1169,17 @@ export interface components {
          * ArticleProcessStepResponse
          * @description Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,
          *     nur bevor er läuft.
+         *
+         *     Beschriftung, Farbfamilie und «Ausgang?» kommen aus ``ModuleFacts`` – derselben
+         *     Ableitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände.
          */
         ArticleProcessStepResponse: {
+            /** Module Type */
+            module_type: string;
             /** Id */
             id: number;
             /** Position */
             position: number;
-            /** Module Type */
-            module_type: string;
             /** Status Before */
             status_before: string;
             /** Status After */
@@ -1185,10 +1188,19 @@ export interface components {
             config?: Record<string, never> | null;
             /**
              * Label
-             * @description Wie der Typ heisst – **abgeleitet** aus ``domain/modules``, nicht gespeichert.
-             *     So kann die Beschriftung nicht von der Registry abweichen.
+             * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
              */
             readonly label: string;
+            /**
+             * Tone
+             * @description Die Farbfamilie des Modultyps. Ein Wort; die Werte kennt die Oberfläche.
+             */
+            readonly tone: string;
+            /**
+             * Terminal
+             * @description Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.
+             */
+            readonly terminal: boolean;
         };
         /** ArticleResponse */
         ArticleResponse: {
@@ -1354,45 +1366,6 @@ export interface components {
              * Format: binary
              */
             file: string;
-        };
-        /**
-         * CapturePointInput
-         * @description Ein Erfassungspunkt, wie ihn die Definition schickt.
-         *
-         *     ``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet
-         *     (``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck
-         *     man erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.
-         *
-         *     ``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche
-         *     Zusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);
-         *     dieses Schema ist bewusst die Aussenform und nicht die Regel.
-         *
-         *     Ein ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht.
-         *
-         *     **Die Bezeichnung ist hier NICHT schema-pflichtig** (Testnotiz #695). Sie ist es
-         *     fachlich sehr wohl – ohne sie steht im Prozess ein Daumen hoch/runter ohne Frage –,
-         *     aber ein `min_length=1` an dieser Stelle ist eine Prüfung zur **falschen Zeit**: der
-         *     Entwurf legt den Punkt beim Klick auf die Palette an und füllt ihn, während man tippt.
-         *     Jeder Tastendruck ging so durch ``/validate`` und kam als rohe 422 zurück
-         *     («Erfassungspunkte → 1 → Bezeichnung: darf nicht leer sein»), statt als «das fehlt
-         *     noch». Es ist derselbe Fehler, den #682/#686 eine Ebene höher am Modulnamen behoben
-         *     haben – nur war er hier nicht mitgeräumt.
-         *
-         *     Verlangt wird sie jetzt dort, wo es zählt: bei der **Freigabe**
-         *     (``domain/capture_types.clean_points``), mit einem Satz statt einem Feldpfad.
-         */
-        CapturePointInput: {
-            /**
-             * Label
-             * @default
-             */
-            label: string;
-            /** Type */
-            type: string;
-            /** Target */
-            target?: number | null;
-            /** Tolerance */
-            tolerance?: number | null;
         };
         /**
          * CaptureTypeInfo
@@ -2094,14 +2067,6 @@ export interface components {
             capture_types?: components["schemas"]["CaptureTypeInfo"][];
         };
         /**
-         * ModuleConfigInput
-         * @description Die Konfiguration eines Moduls. Heute genau ein Feld – geprüft wird sie im Modul.
-         */
-        ModuleConfigInput: {
-            /** Points */
-            points?: components["schemas"]["CapturePointInput"][];
-        };
-        /**
          * ModuleInput
          * @description Ein Prozessschrittmodul, wie es der Entwurf schickt.
          *
@@ -2113,11 +2078,20 @@ export interface components {
          *
          *     Die **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie
          *     steht hier nicht, weil der Entwurf noch keine hat.
+         *
+         *     **Die Konfiguration ist bewusst ein freier Satz Werte.** Was darin stehen darf,
+         *     entscheidet der Modultyp (``domain/modules.Module.clean_config``) – und *nur* er.
+         *     Eine Feldliste hier wäre eine zweite Aussage darüber, und sie war es auch: sie kannte
+         *     ``points`` und sonst nichts, also verwarf Pydantic beim Eintreffen stillschweigend
+         *     ``mode`` (Verschrotten ↔ Sperren) und ``sample`` (die Stichprobe). Beide Angaben
+         *     kamen nie an, beide Vorgaben galten immer – ohne eine einzige Fehlermeldung.
+         *     Geprüft wird jetzt dort, wo die Regel steht, mit einem Satz statt einem Feldpfad.
          */
         ModuleInput: {
             /** Module Type */
             module_type: string;
-            config?: components["schemas"]["ModuleConfigInput"] | null;
+            /** Config */
+            config?: Record<string, never> | null;
         };
         /**
          * ModuleTypeInfo
@@ -2126,6 +2100,12 @@ export interface components {
          *     ``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,
          *     weil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und
          *     kein Eingriff in die Oberfläche.
+         *
+         *     ``terminal`` sagt, dass hinter diesem Modul nichts mehr stehen kann – es ist ein
+         *     **Ausgang**, kein Durchgang. Es ist dieselbe Eigenschaft, aus der die Freigabe ihren
+         *     Fehler zieht (``domain/chain``) und das Prozessbild sein Ende; die Oberfläche bietet
+         *     daraufhin gar nicht erst an, etwas dahinter zu setzen. Eine Regel, drei Wirkungen –
+         *     ein neuer Modultyp erbt alle drei, ohne eine Zeile dafür.
          */
         ModuleTypeInfo: {
             /** Key */
@@ -2134,6 +2114,11 @@ export interface components {
             label: string;
             /** Tone */
             tone: string;
+            /**
+             * Terminal
+             * @default false
+             */
+            terminal: boolean;
             /** Status Before */
             status_before: string;
             /** Status After */
@@ -2428,17 +2413,16 @@ export interface components {
          * @description Ein Modul im laufenden Auftrag.
          *
          *     **Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie
-         *     und auf nichts sonst. ``label`` ist nur die Beschriftung und **abgeleitet** aus
-         *     ``domain/modules`` – ein gespeicherter Name wäre eine zweite Aussage darüber, was
-         *     dieses Modul ist, und die erste falsche Eingabe liesse beide auseinanderlaufen.
+         *     und auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus
+         *     ``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert.
          */
         ProcessStepResponse: {
+            /** Module Type */
+            module_type: string;
             /** Id */
             id: number;
             /** Position */
             position: number;
-            /** Module Type */
-            module_type: string;
             /** Status Before */
             status_before: string;
             /** Status After */
@@ -2459,6 +2443,16 @@ export interface components {
              */
             readonly label: string;
             /**
+             * Tone
+             * @description Die Farbfamilie des Modultyps. Ein Wort; die Werte kennt die Oberfläche.
+             */
+            readonly tone: string;
+            /**
+             * Terminal
+             * @description Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.
+             */
+            readonly terminal: boolean;
+            /**
              * Action
              * @description Wie die Ausführung dieses Moduls heisst – das Verb auf dem Knopf.
              *
@@ -2477,6 +2471,17 @@ export interface components {
              *     sagt ``StepWork`` – das ist die Ziehung, nicht die Regel.
              */
             readonly sample: string;
+            /**
+             * Reason
+             * @description **Warum** hier ausgesondert wird – aus der Definition, nicht vom Band.
+             *
+             *     Der Grund wird beim Modellieren gegeben (``domain/modules.Aussondern``) und
+             *     gehört damit zum Modul, nicht zum einzelnen Vorgang. Er steht hier, damit die
+             *     Ausführungsstelle ihn zeigen kann, ohne in ``config`` zu greifen – und damit
+             *     jedes künftige Modul, das einen mitbringt, ihn ohne eine Zeile Oberfläche erbt.
+             *     Leer heisst: dieses Modul kennt keinen.
+             */
+            readonly reason: string;
         };
         /**
          * RelatedOrder

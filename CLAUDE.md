@@ -72,6 +72,60 @@
 > eine Artikel-Vorlage mit gebrochener Kette wäre erst nach dem Einfrieren aufgefallen.
 > Wächter: `tests/test_disposal_module.py`.
 >
+> **Ein Kamerascanmodul für alles – und die Vorschläge kommen aus der Regel, nicht vom
+> Aufrufer** (`lib/scan.ts`, `components/scan/`): Es gab nie zwei Dialoge, aber eine
+> **Suche je Aufrufstelle** (`ScanStep.suggest`/`candidates`) – der Feed brachte eine mit,
+> ein Prozessschrittmodul nicht. Dort war die Vorschlagsliste damit **strukturell leer**:
+> wer «00787» tippte, sah nichts, nur die volle neunstellige Nummer ging durch. Genau
+> daraus entstanden alle drei gemeldeten Punkte – die Notlösung «Von Hand bestätigen»
+> neben dem Scanner, die fehlende Teileingabe und der «Übernehmen»-Knopf, der beim
+> Nicht-Treffer **gesperrt** war und so ausgerechnet den **Grund** verschwieg. Jetzt gilt
+> eine Regel: **der Scanner bietet an, was er ANNIMMT** (`offersFor`) – bei einer
+> Verifikation ist das `expected`, also braucht es dort gar keine Suche. Enter und Klick
+> gehen direkt durch; passt es nicht, steht der Grund **im Zielrahmen** (dort ist der
+> Blick, dort meldet die Farbe den Zustand). Die Tastatur ist damit die Alternative **im
+> Dialog**, und **wie** bestätigt wurde, sagt er selbst (`onComplete(ids, via)`) statt ein
+> zweiter Knopf daneben, der gar nichts verifizierte. Gemessen: 10 Logik-Prüfungen +
+> 9 Browser-Prüfungen in Chromium (Teileingabe → Vorschlag → Klick → `manual`, falsche
+> Nummer → Grund im Rahmen).
+>
+> **Die Stichprobe ist EINE Zahl: der Anteil an der GESAMTMENGE** (`domain/sampling.py`):
+> alle (100 %) · Hälfte · Viertel · frei – die Kurzwege sind Werte derselben Zahl, keine
+> eigenen Modi. «Je Instanz» ist zurückgenommen: ein Modul sieht die Summe dessen, was
+> davorsteht, und «10 % von drei Chargen» ergab drei Ziehungen, von denen keine der Zahl
+> auf dem Bildschirm entsprach (bei Einzelserialisierung sogar **100 %**, weil aus einem
+> Stück immer mindestens eines gezogen wird). Gezogen wird darum **einmal je Modul**, wenn
+> es erreicht wird, über den **vollen Bestand des Auftrags** – nicht je Welle, sonst wäre
+> es wieder «je Instanz» (die Stücke kommen instanzweise an, §4.4). Aufgerundet, mindestens
+> eines, höchstens alle: «0 von 5» ist keine Prüfung, sondern ihr Ausfall.
+>
+> **Ein Ausgang ist EINE Eigenschaft mit DREI Wirkungen** (`Module.terminal`): der Editor
+> bietet dahinter nichts an (die Palette steht *vor* dem Ende – wo es keines gibt, gibt es
+> sie nicht), die Freigabe weist ein Modul dahinter ab (das Netz, `domain/chain`), und das
+> **Bild endet dort** (`flow.build` hängt kein `end`-Objekt an). Die dritte fehlte, und
+> genau daraus kam die gemeldete Meldung «Kante `edge:end:done`: dort stehen
+> Einzelinstanzen, aber sie gilt als nicht gegangen» – ein **echter** Fehler der Zeichnung,
+> den die Invariantenprüfung zu Recht meldete (nachgestellt: mit der alten Zeichnung
+> erscheint er wortgleich wieder). Ein neuer Modultyp mit `terminal = True` erbt alle drei.
+>
+> **Der Grund beim Aussondern ist Pflicht – beim MODELLIEREN** (`config.reason`, beide
+> Ausprägungen). Warum ausgesondert wird, ist eine Eigenschaft des Ablaufs und lautet bei
+> jedem Stück gleich; am Band wäre es ein Feld, das immer dasselbe aufnimmt. Zur Laufzeit
+> erfasst das Modul darum **nichts** (der Scan ist die Bestätigung), und der Grund steht
+> als Auskunft an der Ausführungsstelle (`ProcessStepResponse.reason`).
+>
+> **Zwei Fehler nebenbei, beide still:** (1) `ModuleConfigInput` kannte nur `points` –
+> Pydantic verwarf beim Eintreffen **jedes** andere Feld. `mode` (Verschrotten ↔ Sperren)
+> und `sample` kamen damit **nie** an, beide Vorgaben galten immer, ohne eine einzige
+> Fehlermeldung; die Konfiguration ist jetzt ein freier Satz Werte, und was darin stehen
+> darf, entscheidet allein der Modultyp (`Module.clean_config`). (2) Die **Modulfarbe**
+> kam über einen Rückruf des Rahmens aus dem Modul-Katalog – und den lädt nur der Editor:
+> im freigegebenen Auftrag kam nichts an, und der stille Rückfall `?? MODULE_TONE.slate`
+> gab jedem Modul die Farbe der **Datenerfassung**. Sie reist jetzt als Feld mit dem
+> Schritt (`ModuleFacts.tone`), ein Aufrufer kann sie nicht mehr vergessen, und
+> `moduleTone` hat keinen Rückfall mehr auf eine echte Modulfarbe: Unbekanntes sieht
+> kaputt aus, statt sich als anderes Modul auszugeben.
+>
 > **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
 > Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,
 > jeder Statuswechsel schreibt einen Eintrag im append-only Ereignis-Log; Exklusivität als
