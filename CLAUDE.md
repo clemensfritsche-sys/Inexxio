@@ -533,7 +533,11 @@
 > setzt den Status ausdrücklich, sonst fragte im aktiven Bereich niemand. `may_create` ist
 > der erste, der die Frage wirklich beantworten muss, und beantwortete sie für jede so
 > entstandene Zeile mit **nein**; gegen eine frisch aus den Migrationen gebaute Datenbank
-> fiel damit sofort die halbe Suite aus. Der Standardwert kommt jetzt aus dem **Katalog**,
+> fiel damit sofort die halbe Suite aus. **Ehrlich eingegrenzt:** zur Datenverfälschung
+> kam es nie – `main._ARTICLE_STATUS_FIXES` zieht bei jedem Start `released`/`draft` auf
+> `freigegeben` nach; der Schaden war das **Fenster** bis zum nächsten Neustart. Dass es
+> diesen Reparatur-Lauf gibt, macht den Befund kleiner; dass es ihn **braucht**, ist selbst
+> das Symptom. Der Standardwert kommt jetzt aus dem **Katalog**,
 > und ORM- wie Server-Default stehen in **derselben Zeile** – sie können nicht mehr
 > getrennt veralten. In den **abgeschalteten** Bereichen (`ai`, `selling`) steht die alte
 > Sprache noch: heute nicht importierbar, aber beim Wiedereinschalten mitzuziehen

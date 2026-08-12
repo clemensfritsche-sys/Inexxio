@@ -201,7 +201,7 @@ Befunde — und das ist selbst ein Ergebnis:
 | Fall | erster Befund | tatsächlich |
 |---|---|---|
 | **S43** (drei Ebenen tief) | «A wartet nach C nicht mehr» | **Mein Soll war falsch.** Nach C ist das Stück bei **B**, nicht bei A — A wartet zu Recht weiter. Korrigiert und um die fehlende Stufe erweitert (nach B wartet A nicht mehr). |
-| **S94** (Pflichtpunkt fehlt) | «kein Fehler» | **Mein Helfer war falsch.** Er füllte einen leeren Wertesatz automatisch auf (`values or {...}`), sodass der Fall gar nicht gestellt wurde. Direkt am Dienst gestellt kommt der Fehler — aber er nennt das Stück nicht (siehe `FINDINGS.md`, 🟡-3). |
+| **S94** (Pflichtpunkt fehlt) | «kein Fehler» | **Mein Helfer war falsch.** Er füllte einen leeren Wertesatz automatisch auf (`values or {...}`), sodass der Fall gar nicht gestellt wurde. Direkt am Dienst gestellt kommt der Fehler — aber er nennt das Stück nicht (siehe `FINDINGS.md`, 🟡-1). |
 | **S98** (inaktiver Artikel) | «kein Fehler» | **Echter Befund** (🟠-1). |
 
 Dazu ein Befund, den erst die **Invarianten** zutage förderten und der ebenfalls kein
