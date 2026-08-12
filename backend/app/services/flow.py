@@ -324,6 +324,29 @@ def _left_through(db: Session, order_id: int) -> dict[int, int]:
     return {int(uid): int(to) for uid, to in rows if to is not None}
 
 
+def _left_with(db: Session, order_id: int) -> dict[int, str]:
+    """**Mit welchem Zustand hat ein Stück diesen Auftrag verlassen?** — aus dem Log.
+
+    Der letzte Eintrag dieses Stücks in **diesem** Auftrag sagt es: das Ende-Objekt
+    schreibt ``freigegeben``, eine Übergabe schreibt den Zustand, den es beim Weggehen
+    hatte. Beides ist eingefroren – ein Log-Eintrag ändert sich nie.
+    """
+    last = (
+        select(
+            ProcessEvent.instance_unit_id.label("unit"),
+            func.max(ProcessEvent.id).label("last_id"),
+        )
+        .where(ProcessEvent.order_id == order_id)
+        .group_by(ProcessEvent.instance_unit_id)
+        .subquery()
+    )
+    rows = db.execute(
+        select(ProcessEvent.instance_unit_id, ProcessEvent.status_after)
+        .join(last, ProcessEvent.id == last.c.last_id)
+    ).all()
+    return {int(u): s for u, s in rows}
+
+
 def _rows(db: Session, order: Order) -> list[_Row]:
     """Alle Zugehörigkeiten dieses Auftrags, angereichert — **eine** Abfrage plus Log."""
     raw = db.execute(
@@ -343,10 +366,33 @@ def _rows(db: Session, order: Order) -> list[_Row]:
     # **Kommt es zurück?** – dieselbe Ableitung, die auch das Modul sperrt. Die Kette
     # zählt (§3.5); zweimal gelaufen wären es zwei Antworten auf eine Frage.
     coming = process.returning_home(db, order)
+    left_with = _left_with(db, order.id)
 
     out: list[_Row] = []
     for mid, at, active, status, unit_id in raw:
         at = int(at) if at is not None else None
+        # ►►► **Die Achse erzählt diesen Auftrag, die Abzweigung den Nachbarn.** ◄◄◄
+        #
+        # Beide Aussagen sind gewollt, sie beantworten nur verschiedene Fragen:
+        #
+        #   auf der **Abzweigung**  «arbeitet es dort noch?» – dafür ist der HEUTIGE
+        #                           Zustand die Antwort: ``im_prozess`` heisst «noch
+        #                           dort», alles andere «dort geblieben» (§8.1a).
+        #   auf der **Achse**       «was ist an dieser Stelle in DIESEM Auftrag
+        #                           passiert?» – dafür zählt der Zustand von damals.
+        #
+        # Der Unterschied steht schon in der Zeile: geschlossen **mit** Punkt heisst
+        # ausgeschert (Abzweigung), geschlossen **ohne** Punkt heisst hinter dem Ende
+        # angekommen (Achse).
+        #
+        # Auf der Achse stand bisher ebenfalls der heutige Zustand – und damit schrieb ein
+        # fremder Auftrag rückwirkend in dieses Bild: ein längst abgeschlossener Auftrag
+        # zeigte an seinem Ende plötzlich «Verschrottet», obwohl er nie etwas verschrottet
+        # hat. Das Stück war später **anderswo** ausgesondert worden. Ein Zustandswort in
+        # der Gegenwartsform, das Vergangenes behauptet, ist ein Fehler – auch wenn es
+        # einmal stimmte.
+        if not bool(active) and at is None:
+            status = left_with.get(int(unit_id), status)
         out.append(_Row(
             membership_id=int(mid), at=at, status=status, active=bool(active),
             through=through.get(int(unit_id)),

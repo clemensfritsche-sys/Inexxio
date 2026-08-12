@@ -120,7 +120,7 @@ function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onCon
         )}
         {/* **Der eigene Scan-Knopf je Instanz** – klein, neben ihrer Nummer. Der grosse
             Sammel-Knopf unten bleibt; er geht dieselbe Liste der Reihe nach durch. */}
-        {!work.held && !verified && (
+        {!verified && (
           <button type="button" onClick={verify} disabled={busy}
             className="ml-auto flex items-center gap-1 text-[11.5px] disabled:opacity-40"
             style={{ color: 'var(--accent)' }}
@@ -130,9 +130,17 @@ function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onCon
         )}
       </div>
 
-      {work.held ? (
+      {/* ►►► **Der Halt steht NEBEN dem Weg nach vorn, nicht anstelle davon.** ◄◄◄
+          Er zeigte einmal ausschliesslich die Entscheidung – und war damit eine
+          Sackgasse: nach einer Abweichung kam das Stück zurück, der letzte Befund war
+          weiterhin negativ, und die einzige angebotene Handlung legte die nächste
+          Abweichung an. Aufgehoben wird ein Halt durch einen **neuen Befund** (die
+          Wiederholungsprüfung); die Entscheidung ist ein Angebot daneben, keine
+          Bedingung. Der Dienst hat das nie anders gesehen. */}
+      {work.held && (
         <Decision work={work} orderObjectId={orderObjectId} stepId={stepId} onDeviate={onDeviate} />
-      ) : verified ? (
+      )}
+      {verified ? (
         <div className="px-2.5 pb-2.5">
           <CaptureForm
             points={points}
@@ -247,8 +255,11 @@ function Decision({ work, orderObjectId, stepId, onDeviate }: {
       <p className="flex items-start gap-1.5 text-xs" style={{ color: 'var(--danger)' }}>
         <AlertTriangle size={13} style={{ flex: 'none', marginTop: 1 }} />
         <span>
-          Nicht bestanden: {failed.join(', ')}. Hier steht alles still, bis
-          entschieden ist – auch die {work.rest} ungeprüften Stück dieser Instanz.
+          Nicht bestanden: {failed.join(', ')}. Nichts ist vorgerückt
+          {/* **Den Rest nur nennen, wenn es ihn gibt.** «auch die 0 ungeprüften Stück»
+              stand als Satz da, sobald die Stichprobe «alle» war – eine Aussage über
+              eine Menge, die es nicht gibt. */}
+          {work.rest > 0 && <> – auch nicht die {work.rest} ungeprüften Stück dieser Instanz</>}.
         </span>
       </p>
       <div className="flex flex-wrap gap-2">

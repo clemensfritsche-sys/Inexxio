@@ -424,6 +424,42 @@
 > **Gemessen, nicht gelesen**: 34 Prüfungen in Chromium (beide Umfänge, drei Blöcke inkl.
 > eines erfundenen Zustands, Artikel-Link, Vorschlag aus Teilnummer, voller Scan, unbekannte
 > Nummer); jeder neue Wächter gegen seine Bug-Form gegengeprüft.
+>
+> **Drei Fehler mit EINER Wurzel: eine Ansicht las eine Grösse, die sich weiterbewegt**
+> (gemeldet an Auftrag 100000799 und 100000802 – «der Prozess kann nicht weiter laufen,
+> obwohl eine Instanz vor der Modultüre steht» und «auf einmal eines im Prozess und eines
+> verschrottet, obwohl hier gar nichts verschrottet wurde»). Beide sahen aus, als kämen sie
+> aus dem Nichts, und beide waren nachstellbar.
+> **(1) Die Oberfläche erfand eine Sperre, die der Dienst nicht hat – und die erfundene
+> Sperre hatte keinen Schlüssel** (`capture-work.tsx`, PROCESS_CORE §4.5). Nach einem
+> «nicht bestanden» steht die Instanz still; `held_units` ist dafür eine **Auskunft**
+> («welche Stücke haben zuletzt ein negatives Urteil?»), und `confirm_step` lehnt eine
+> erneute Erfassung **nie** ab – das nächste Urteil ersetzt das letzte, das ist der eine
+> Ausweg. Das Modul rendete aber `held ? <Entscheidung/> : <Formular/>`: Formular und
+> Scan-Knopf verschwanden genau dann, wenn man sie braucht, und die einzige verbliebene
+> Handlung war ein Abweichungsauftrag. Kam der zurück, blieb `held` stehen – der Auftrag
+> stand für immer, obwohl jeder Backend-Aufruf ihn weiterbewegt hätte. Jetzt steht die
+> Entscheidung **neben** dem Weg nach vorn (`{work.held && …}` statt `held ? … : …`), und
+> der Scan-Knopf hängt nur noch an der Verifikation. *Der erste Anlauf war falsch und wurde
+> verworfen:* eine Sperre im Backend nachzubauen hätte einen Schlüssel gebraucht, und zwei
+> bestehende Tests haben genau das gemeldet.
+> **(2) Die Pille las den heutigen Zustand auch auf der ACHSE eines längst abgeschlossenen
+> Auftrags** (`flow._rows`, §8.1a). «Die Linie sagt die Vergangenheit, die Pille die
+> Gegenwart» stimmt – aber «Gegenwart» heisst *die dieses Auftrags*, und die endet mit ihm.
+> Verschrottete ein Folgeauftrag eines seiner Stücke, stand im fertigen Bild plötzlich
+> «eines im Prozess, eines verschrottet», ohne dass dort je etwas ausgesondert wurde. Die
+> Achse liest den Status jetzt aus dem **Log** (`_left_with` = der letzte `status_after`
+> dieses Auftrags); auf einer **Ausscherung** (`at` gesetzt) bleibt der heutige Zustand
+> richtig – dort IST der Verbleib die Aussage. Vier Fälle, eine Tabelle, keine Sonderregel.
+> **(3) Der Log schrieb das Urteil der BESTÄTIGUNG auf jedes Stück** (§9.5): fällt eines von
+> fünf durch, ist die Bestätigung als Ganzes «nicht bestanden» – vier Zeilen waren damit
+> falsch, und welches Stück das schlechte war, liess sich aus dem Nachweis nicht mehr lesen.
+> Der Halt gehört der Instanz, das Urteil dem Stück.
+> Wächter, jeder gegen seine Bug-Form gegengeprüft: `test_a_hold_is_never_a_dead_end`,
+> `test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it`,
+> `test_a_finished_order_does_not_retell_what_happened_elsewhere`,
+> `test_the_verdict_in_the_log_belongs_to_its_own_piece`.
+>
 > **`no-unused-vars` ist eingeschaltet** (`frontend/.eslintrc.json`, läuft in der CI): ein
 > Knopf, der einen Zustand setzt, den niemand liest, war nicht auffindbar – `next/core-web-
 > vitals` prüft ungenutzte Variablen nicht, und eine tote `useState`-Destrukturierung ist

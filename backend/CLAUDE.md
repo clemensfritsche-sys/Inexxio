@@ -166,6 +166,13 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > (2) **«Nicht bestanden» rückt nicht vor** und legt **nichts** an: angehalten wird die
 > ganze Instanz (eine durchgefallene Stichprobe ist nicht mehr repräsentativ), angeboten
 > wird ein ganz gewöhnlicher Auftrag mit vorgewählten Stücken.
+> **Der Haltezustand ist dabei eine AUSKUNFT, keine Sperre**: `process.held_units` sagt,
+> welche Stücke zuletzt durchgefallen sind – `confirm_step` lehnt eine erneute Erfassung
+> **nie** ab, und genau das ist der Ausweg (das nächste Urteil ersetzt das letzte). Eine
+> Sperre bräuchte einen Schlüssel, der Schlüssel wäre ein zweiter Weg neben der Erfassung,
+> und er müsste entscheiden, wer ihn drehen darf. **Und das Urteil hängt am Stück**: das
+> `capture`-Ereignis trägt je Einzelinstanz ihr **eigenes** Ergebnis, nicht das der
+> Bestätigung – sonst stünden bei «4 von 5 gut» vier falsche Zeilen im Nachweis.
 > (3) **Die Stichprobe** (`domain/sampling.py` = die Regel, `services/sampling.py` = die
 > Ziehung) ist **EINE Zahl: der Anteil an der Gesamtmenge** – alle (100 %) · Hälfte ·
 > Viertel · frei. Nicht je Instanz: ein Modul sieht die Summe dessen, was davorsteht, und
@@ -215,6 +222,21 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Die Kettenregel steht in `domain/chain.py` und gilt an **beiden** Definitionsorten
 > (Artikel-Vorlage und Auftrag) – vorher nur beim Auftrag, und ein Artikel ist danach
 > eingefroren.
+
+> **Das Bild ist eine Ansicht der VERGANGENHEIT – also darf es keine bewegliche Grösse
+> lesen** (`services/flow.py`, PROCESS_CORE §8.1a). Eine geschlossene Zeile auf der
+> **Achse** (`at is None`) heisst «hier hat *dieser* Auftrag das Stück abgegeben»; was ein
+> anderer danach damit tat, ist nicht seine Geschichte. Die Pille liest dort darum
+> `_left_with` (den letzten `status_after` aus **seinem** Log) statt `InstanceUnit.status`.
+> Auf einer **Ausscherung** (`at` gesetzt) bleibt der heutige Zustand richtig – dort IST
+> der Verbleib die Aussage. Vier Fälle (offen/geschlossen × Achse/Ausscherung), eine
+> Tabelle in `_rows`, keine Sonderregel.
+> Ohne das zeigte ein längst abgeschlossener Auftrag Ereignisse, die nie zu ihm gehörten
+> («eines im Prozess, eines verschrottet», wo nichts ausgesondert wurde) – und der Fehler
+> sah aus, als käme er aus dem Nichts.
+> **Die Invariantenprüfung fragt darum nach dem WIDERSPRUCH**, nicht nach dem Log allein
+> (`_verify_history`): ein Schreiber ausserhalb der Prozesslogik hinterlässt gar keinen
+> Eintrag – gefunden wird er nur, wenn Log und Zeile verglichen werden (§5.3).
 
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete

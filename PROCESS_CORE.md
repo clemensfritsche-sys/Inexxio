@@ -266,6 +266,27 @@ einzusammeln.
 Auch das ist **global**: die Regel steht in `confirm_step`, nicht im Modul. Ein Modultyp
 muss nur sagen, wie sein Urteil lautet (`CaptureType.verdict`).
 
+**Der Haltezustand ist eine AUSKUNFT, keine Sperre — und darum hat er auch keinen
+Schlüssel.** «Angehalten» heisst nicht, dass der Dienst die Eingabe verweigert; es heisst,
+dass die Stücke stehen geblieben sind. `held_units` beantwortet die Frage «welche haben
+zuletzt ein negatives Urteil?» und sonst nichts. Eine erneute Erfassung ist damit **immer**
+möglich, und sie ist der eine Ausweg: das nächste Urteil ersetzt das letzte (§9.2 — was
+erfasst wurde, hängt am Stück, und der Log behält beide).
+
+Das ist keine Nachlässigkeit, sondern die Bedingung dafür, dass der Haltezustand kein
+**toter Punkt** ist. Eine Sperre bräuchte einen Schlüssel; dieser Schlüssel wäre ein
+zweiter Weg neben der Erfassung, und er müsste entscheiden, wer ihn drehen darf. Solange
+das Urteil selbst der Ausweg ist, gibt es diese Frage nicht.
+
+Daraus folgt eine harte Regel für die Oberfläche: **der Haltezustand steht NEBEN dem Weg
+nach vorn, nie an seiner Stelle.** Ein Modul, das bei `held` das Formular und den
+Scan-Knopf durch die Entscheidung ersetzt, erfindet eine Sperre, die es im Dienst nicht
+gibt — und die erfundene Sperre hat keinen Schlüssel, weil der Dienst gar nicht weiss, dass
+er einen ausgeben müsste. Der Auftrag steht dann für immer still, obwohl jeder
+Backend-Aufruf ihn weiterbewegen würde. Wächter:
+`test_capture_module.test_a_hold_is_never_a_dead_end` und
+`test_frontend_mirrors.test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it`.
+
 ### 4.6 Ein terminales Modul ist ein AUSGANG, kein Durchgang
 
 Ein Modul kann das Stück aus dem Auftrag **hinausführen**, statt es weiterzureichen. Es
@@ -858,6 +879,31 @@ danach «Abgegeben» (gekappt) bzw. es verschwindet (zurückgekehrt — dann ste
 auf der Achse). Eine Zustandsanzeige in der Gegenwartsform, die Vergangenes behauptet,
 ist ein Fehler, auch wenn sie einmal richtig war.
 
+**«Gegenwart» heisst: die Gegenwart DIESES Auftrags — und die endet mit ihm.** Das ist die
+Präzisierung, ohne die der Satz oben in sein Gegenteil kippt. Eine Kante der **Achse**
+(`at is None` bei einer geschlossenen Zeile) sagt «hier hat der Auftrag das Stück
+abgegeben»; was ein **anderer** Auftrag danach damit tat, ist nicht seine Geschichte.
+Die Pille liest dort darum den Status aus dem **Log** — den letzten `status_after`, den
+dieser Auftrag selbst geschrieben hat (`flow._left_with`). Auf einer **Ausscherung**
+(`at` gesetzt) gilt weiterhin der heutige Zustand: dort IST der Verbleib die Aussage —
+«In Abweichung» ↔ «Abgegeben» ist genau die Frage, ob das Stück noch woanders steht.
+
+Vier Fälle, eine Tabelle, keine Sonderregel:
+
+| Zeile | `at` | Pille |
+|---|---|---|
+| offen (Stück steht hier) | – | heutiger Status |
+| geschlossen, **Achse** | `NULL` | Status aus dem Log — eingefroren |
+| geschlossen, **Ausscherung** | gesetzt | heutiger Status |
+| offen, Ausscherung | gesetzt | heutiger Status |
+
+Ohne die zweite Zeile zeigte ein längst abgeschlossener Auftrag Ereignisse, die nie zu ihm
+gehörten: verschrottet ein Folgeauftrag eines seiner Stücke, stand plötzlich «eines im
+Prozess, eines verschrottet» in einem Bild, in dem nichts ausgesondert wurde. Der Fehler
+sieht aus, als käme er aus dem Nichts — er kommt daraus, dass eine Ansicht der
+Vergangenheit eine Grösse las, die sich weiterbewegt. Wächter:
+`test_flow_graph.test_a_finished_order_does_not_retell_what_happened_elsewhere`.
+
 **Herkunft und Verbleib sind Äste desselben Strangs** (§6). Über dem Start und unter dem
 Ende steht, aus welchen Aufträgen die Einzelinstanzen kamen und wohin sie gingen — nicht
 als Textzeile neben dem Bild, sondern als **Verzweigung**: jeder Nachbar fällt auf eine
@@ -1167,6 +1213,14 @@ gemessen».
 **Das Urteil hängt am Stück**, der Halt an der Instanz: jede Zeile trägt ihr eigenes
 Ergebnis; fällt **eines** durch, bleibt die ganze Instanz stehen (§4.5) – eine
 durchgefallene Stichprobe ist nicht mehr repräsentativ.
+
+**Und das gilt bis in den Log hinein.** Das `capture`-Ereignis (§11.3) trägt je Stück
+sein **eigenes** Ergebnis, nicht das der Bestätigung. Der Unterschied fällt erst auf,
+wenn er zählt: bestanden 4 von 5 Stück und fällt eines durch, ist die Bestätigung als
+Ganzes «nicht bestanden» – schrieb der Log diesen einen Wert auf alle fünf Zeilen, waren
+vier davon **falsch**, und aus dem Nachweis liess sich hinterher nicht mehr lesen, welches
+Stück das schlechte war. Der Halt gehört der Instanz, das Urteil dem Stück; wer beides in
+dasselbe Feld schreibt, verliert das zweite.
 
 **Welche Stücke gezogen sind, kommt erst auf Klick** (`…/steps/{id}/hold?group=sample`) –
 dieselbe Auskunft, aus der auch die Vorauswahl der Entscheidung kommt. Bei 1500 gezogenen

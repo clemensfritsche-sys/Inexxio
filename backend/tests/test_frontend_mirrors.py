@@ -3504,3 +3504,41 @@ def test_every_module_shows_what_is_coming_before_the_scan():
     )
     # Der eigene Scan-Knopf je Instanz – zusätzlich, nicht anstelle des Sammel-Knopfs.
     assert "Instanz ${nr} scannen" in work, "Es gibt keinen Scan-Knopf je Instanz."
+
+
+def test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it():
+    """►►► **Die Oberfläche erfindet keine Sperre, die der Dienst nicht hat.** ◄◄◄
+
+    Der gemeldete Fall: ein Stück fällt durch, der Mensch legt die angebotene Abweichung
+    an, lässt sie durchlaufen, das Stück kommt zurück – und der Prozess steht immer noch.
+    Ursache war **nicht** der Dienst: ``confirm_step`` hat einen Halt nie abgelehnt.
+    Ursache war diese Ansicht: sie rendete bei ``held`` **ausschliesslich** die
+    Entscheidung (``held ? <Decision/> : <Scan/>``) und blendete den Scan-Knopf aus.
+
+    Damit hatte sie eine Regel erfunden – und die erfundene Regel hatte keinen Schlüssel:
+    aufgehoben wird ein Halt durch einen **neuen Befund**, und genau den konnte man nicht
+    mehr erheben. Jeder Anlauf legte die nächste Abweichung an, im Bild eine Teilung
+    mehr, im Prozess kein Schritt.
+
+    Geprüft wird die **Form**: der Halt steht neben dem Weg nach vorn, und der Scan-Knopf
+    hängt nicht an ihm. Das ist dieselbe Regel wie überall – «die Regel ist die Ablehnung
+    im Backend, nicht das ausgegraute Feld», hier in ihrer Umkehrung.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+
+    assert "work.held ? (" not in work, (
+        "Der Halt verdrängt wieder den Weg nach vorn – das ist die Sackgasse."
+    )
+    assert "{work.held && (" in work, "Der Halt wird gar nicht mehr gezeigt."
+    assert "{!verified && (" in work, (
+        "Der Scan-Knopf hängt an einer Bedingung – bei einem Halt käme man dann nicht "
+        "mehr an die Wiederholungsprüfung."
+    )
+
+    # Und der Dienst hält seine Seite: ein Halt ist eine Auskunft, keine Ablehnung.
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    body = _body(proc, "confirm_step")
+    assert "held_units(" not in body, (
+        "Der Dienst lehnt bei einem Halt ab – dann ist die Wiederholungsprüfung "
+        "unmöglich, und der Halt hat wieder keinen Ausgang."
+    )

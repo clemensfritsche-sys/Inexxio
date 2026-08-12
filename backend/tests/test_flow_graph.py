@@ -168,8 +168,11 @@ def _confirm(db, order, step, values=None):
         moved += proc.confirm_step(
             db, order=order, step_id=step.id,
             # **Ein Scan, n Erfassungen** – je gezogener Einzelinstanz ein Wertesatz.
-            values=per_unit(db, order=order, step=step, instance_object_id=inst,
-                            values=values),
+            # Ein Modul ohne Erfassungspunkte (Aussondern) haelt nichts fest: dort ist
+            # der Scan die Bestaetigung, und ein Wert waere ein Nachweis ueber nichts.
+            values=(per_unit(db, order=order, step=step, instance_object_id=inst,
+                             values=values)
+                    if (step.config or {}).get("points") else {}),
             instance_object_id=inst, verification="scan", actor_id=None,
         )["moved"]
     return moved
@@ -1028,3 +1031,77 @@ def test_the_invariants_run_on_every_push():
     assert "DATABASE_URL" in quality[:tests], (
         "Der Test-Schritt bekommt keine DATABASE_URL – die Invarianten überspringen sich."
     )
+
+
+def test_a_finished_order_does_not_retell_what_happened_elsewhere():
+    """►►► **Die Achse erzählt DIESEN Auftrag – nicht das spätere Leben des Stücks.** ◄◄◄
+
+    Der gemeldete Satz: «auf einmal aus dem Nichts eines im Prozess und eines
+    verschrottet, obwohl hier gar nichts verschrottet wurde.»
+
+    Genau so war es. Die Pille las den **heutigen** Zustand des Stücks – auch auf der
+    Achse eines längst abgeschlossenen Auftrags. Wurde das Stück Wochen später in einem
+    **anderen** Auftrag ausgesondert, stand «Verschrottet» rückwirkend im Bild eines
+    Auftrags, der nie etwas ausgesondert hat. Ein fremder Vorgang schrieb in eine fremde
+    Historie.
+
+    Auf der **Abzweigung** bleibt der heutige Zustand richtig – dort ist «arbeitet es
+    dort noch?» genau die Frage (siehe ``test_the_line_says_the_past_…``). Der
+    Unterschied steht schon in der Zeile: geschlossen **mit** Punkt heisst ausgeschert,
+    geschlossen **ohne** Punkt heisst hinter dem Ende angekommen.
+
+    Gegengeprüft in beide Richtungen: vorher wie nachher muss dasselbe dastehen.
+    """
+    from app.domain import statuses as st
+    from app.models import InstanceUnit, OrderUnit, ProcessStep
+    from app.services import article_process as tpl, flow, objects as obj, process as proc
+
+    db = _db()
+    try:
+        art = _article(db, tpl, obj)
+        done = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
+                    "units": []}],
+            steps=[], actor_id=None,
+        )
+        db.flush()
+        for s in (db.query(ProcessStep).filter(ProcessStep.order_id == done.id)
+                  .order_by(ProcessStep.position).all()):
+            _confirm(db, done, s,
+                     values={p["key"]: True for p in (s.config or {}).get("points", [])})
+        db.flush()
+
+        def end_pills():
+            g = flow.build(db, done)
+            e = next(x for x in g.edges if x.id == "edge:end:done")
+            return sorted((p.status, p.count) for p in e.units)
+
+        before = end_pills()
+        assert before == [(st.FREIGEGEBEN, 2)], before
+
+        # Ein **anderer** Auftrag sondert eines der Stücke aus.
+        rows = db.query(OrderUnit).filter(OrderUnit.order_id == done.id).all()
+        units = db.query(InstanceUnit).filter(
+            InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all()
+        numbers = proc.unit_numbers(db, units)
+        scrap = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 1, "origin": "lager",
+                    "units": [{"number": numbers[units[0].id]}]}],
+            steps=[{"module_type": "aussondern",
+                    "config": {"mode": "scrap", "reason": "Riss"}}],
+            actor_id=None)
+        db.flush()
+        s = db.query(ProcessStep).filter(ProcessStep.order_id == scrap.id).one()
+        _confirm(db, scrap, s)
+        db.flush()
+        assert db.get(InstanceUnit, units[0].id).status == st.VERSCHROTTET
+
+        assert end_pills() == before, (
+            f"Das Bild des abgeschlossenen Auftrags hat sich rückwirkend geändert: "
+            f"{before} → {end_pills()}. Er hat nie etwas ausgesondert."
+        )
+    finally:
+        db.rollback()
+        db.close()

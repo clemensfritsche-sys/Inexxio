@@ -103,9 +103,15 @@ Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnumme
   (`onComplete(ids, via)` – `scan` ↔ `manual`, vorsichtig gerechnet: eine getippte oder
   gewählte Nummer macht den ganzen Vorgang `manual`). Die **Regel** ist die Ablehnung im
   Backend (`process.confirm_step`), nicht das ausgegraute Feld.
-- **«Nicht bestanden» hält an.** Das Modul legt **nichts** an: es zeigt den Haltezustand
-  und öffnet auf Klick einen ganz gewöhnlichen Auftragsentwurf mit vorgewählten Stücken
-  (Nummern erst auf Klick: `api.stepHold`).
+- **«Nicht bestanden» hält an — und der Haltezustand steht NEBEN dem Weg nach vorn, nie an
+  seiner Stelle.** Das Modul legt **nichts** an: es zeigt den Haltezustand und öffnet auf
+  Klick einen ganz gewöhnlichen Auftragsentwurf mit vorgewählten Stücken (Nummern erst auf
+  Klick: `api.stepHold`). Formular und Scan-Knopf bleiben dabei da (`{work.held && …}`,
+  **nicht** `held ? … : …`): `held` ist eine **Auskunft** des Servers, keine Sperre –
+  `confirm_step` lehnt eine erneute Erfassung nie ab, und das nächste Urteil ersetzt das
+  letzte. Wer sie ausblendet, erfindet eine Sperre, die der Dienst nicht kennt, und die
+  erfundene Sperre hat keinen Schlüssel: der Auftrag steht für immer still, obwohl jeder
+  Backend-Aufruf ihn weiterbewegen würde (PROCESS_CORE §4.5).
 - **Die Stichprobe kommt vom Server** – die Zeile nennt die Ziehung («3 von 10 …»), die
   Definition den Satz (`ProcessStepResponse.sample`). Die Oberfläche formuliert ihn nicht
   selbst; `sampling.describe` ist die eine Quelle. Sie ist **EINE Zahl: der Anteil an der
