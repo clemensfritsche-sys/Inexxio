@@ -702,3 +702,127 @@ def test_one_bad_piece_holds_the_whole_instance():
     finally:
         db.rollback()
         db.close()
+
+
+def test_a_hold_is_never_a_dead_end():
+    """►►► **Ein Halt hat immer einen Ausgang – und der ist erreichbar.** ◄◄◄
+
+    Der gemeldete Fall, Schritt für Schritt: ein Stück fällt durch, der Mensch legt die
+    angebotene Abweichung an, lässt sie durchlaufen, das Stück kommt zurück – und der
+    Prozess muss weitergehen können.
+
+    Genau das ging nicht. Nicht weil der Dienst es verhindert hätte (er hat es nie
+    getan), sondern weil die **Oberfläche** bei einem Halt ausschliesslich die
+    Entscheidung anbot und nie die Erfassung. Die erfundene Sperre hatte keinen
+    Schlüssel: jeder Anlauf legte die nächste Abweichung an, im Bild eine Teilung mehr,
+    im Prozess kein Schritt.
+
+    Geprüft wird darum der **ganze Weg**, nicht die Meldung: nach der Rückkehr muss eine
+    erneute Erfassung möglich sein und die Stücke vorrücken lassen.
+    """
+    from app.services import process as proc
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="batch", quantity=2)
+        inst = proc.step_work(db, order, step)[0]["instance_object_id"]
+        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+
+        # 1. Einer fällt durch – nichts rückt vor, die ganze Instanz steht.
+        out = proc.confirm_step(
+            db, order=order, step_id=step.id,
+            values={drawn[0]: {"ok": False}, drawn[1]: {"ok": True}},
+            instance_object_id=inst, verification="scan", actor_id=None)
+        db.flush()
+        assert out["moved"] == 0 and out["result"] == "failed"
+        assert proc.step_work(db, order, step)[0]["held"] is True
+
+        # 2. Die angebotene Abweichung – ein ganz gewöhnlicher Auftrag.
+        failed = proc.held_numbers(db, order, step, instance_object_id=inst, group="failed")
+        assert failed == [drawn[0]]
+        dev = proc.release(
+            db,
+            lines=[{"article_object_id": _article_of(db, order), "quantity": 1,
+                    "origin": "lager",
+                    "units": [{"number": failed[0], "from_order": order.object_id}],
+                    "returns": True}],
+            steps=[{"module_type": "datenerfassung",
+                    "config": {"points": [{"label": "OK", "type": "bool"}]}}],
+            actor_id=None)
+        db.flush()
+        assert proc.deviation_flags(db, [dev.id])[dev.id] is True, (
+            "Der Folgeauftrag greift ein Stück, das nicht regulär verfügbar war – "
+            "er ist eine Abweichung und muss es auch heissen."
+        )
+
+        # 3. Die Abweichung läuft durch, das Stück kommt zurück.
+        d_step = proc.steps_of(db, dev)[0]
+        d_inst = proc.step_work(db, dev, d_step)[0]["instance_object_id"]
+        d_drawn = proc.held_numbers(db, dev, d_step, instance_object_id=d_inst,
+                                    group="sample")
+        proc.confirm_step(db, order=dev, step_id=d_step.id,
+                          values={n: {"ok": True} for n in d_drawn},
+                          instance_object_id=d_inst, verification="scan", actor_id=None)
+        db.flush()
+        work = proc.step_work(db, order, step)[0]
+        assert work["waiting"] == 2, "Das Stück ist nicht zurückgekommen."
+
+        # 4. ►► Und jetzt muss es weitergehen. ◄◄
+        again = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        moved = proc.confirm_step(
+            db, order=order, step_id=step.id,
+            values={n: {"ok": True} for n in again},
+            instance_object_id=inst, verification="scan", actor_id=None)
+        db.flush()
+        assert moved["moved"] == 2, (
+            f"Der Prozess kommt nicht weiter – das ist die Sackgasse: {moved}"
+        )
+        assert proc.step_work(db, order, step) == [], "Am Modul steht immer noch etwas."
+        assert proc.order_status(db, order) == "abgeschlossen"
+    finally:
+        db.rollback()
+        db.close()
+
+
+def _article_of(db, order) -> int:
+    from app.models import Article, Instance, InstanceUnit, OrderUnit
+
+    row = db.query(OrderUnit).filter(OrderUnit.order_id == order.id).first()
+    unit = db.get(InstanceUnit, row.instance_unit_id)
+    inst = db.get(Instance, unit.instance_id)
+    return db.get(Article, inst.article_id).object_id
+
+
+def test_the_verdict_in_the_log_belongs_to_its_own_piece():
+    """Jede Log-Zeile trägt **ihr** Urteil, nicht das der Instanz.
+
+    Der Eintrag stand einmal mit dem zusammengefassten Ergebnis da: fiel ein Stück durch,
+    trugen **alle** Zeilen «failed» – auch die der guten. Ein Nachweis, der die Guten
+    mitverurteilt, ist keiner.
+    """
+    from app.models import ProcessEvent
+    from app.models.process_event import KIND_CAPTURE
+    from app.services import process as proc
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="batch", quantity=2)
+        inst = proc.step_work(db, order, step)[0]["instance_object_id"]
+        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        proc.confirm_step(db, order=order, step_id=step.id,
+                          values={drawn[0]: {"ok": False}, drawn[1]: {"ok": True}},
+                          instance_object_id=inst, verification="scan", actor_id=None)
+        db.flush()
+
+        results = sorted(
+            (e.payload or {}).get("result")
+            for e in db.query(ProcessEvent).filter(
+                ProcessEvent.order_id == order.id,
+                ProcessEvent.kind == KIND_CAPTURE).all()
+        )
+        assert results == ["failed", "passed"], (
+            f"Der Log verurteilt die Guten mit: {results}"
+        )
+    finally:
+        db.rollback()
+        db.close()

@@ -902,7 +902,10 @@ def confirm_step(
                     "status_before": u.status, "status_after": u.status,
                     "payload": {
                         "capture_id": captures[u.id].id,
-                        "result": result,
+                        # **Das Urteil dieses Stücks**, nicht das der Instanz. Hier stand
+                        # einmal das zusammengefasste – damit trug jede Zeile «failed»,
+                        # sobald irgendeines fiel, und der Log log über die Guten.
+                        "result": captures[u.id].result,
                         "verification": verification,
                     },
                     "actor_id": actor_id,
@@ -1154,7 +1157,7 @@ def step_work(db: Session, order: Order, step: ProcessStep) -> list[dict[str, An
     # Fragen. Wer «gezogen» aus dem Vorhandensein einer Erfassung ableitet, meldet vor
     # der ersten Eingabe eine leere Stichprobe und einen Rest, der alles umfasst.
     drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
-    latest = _latest_captures(db, order, step, [u.id for u in units])
+    holds = held_units(db, order, step, [u.id for u in units])
     numbers = unit_numbers(db, units)
 
     instances = {
@@ -1187,8 +1190,7 @@ def step_work(db: Session, order: Order, step: ProcessStep) -> list[dict[str, An
             row["sample"] += 1
         else:
             row["rest"] += 1
-        capture = latest.get(unit.id)
-        if capture is not None and capture.result == "failed":
+        if unit.id in holds:
             row["held"] = True
             row["failed_numbers"].append(numbers[unit.id])
     return [groups[i] for i in sorted(groups)]
@@ -1215,6 +1217,32 @@ def _latest_captures(db: Session, order: Order, step: ProcessStep,
         ):
             out[row.instance_unit_id] = row   # die letzte gewinnt
     return out
+
+
+def held_units(db: Session, order: Order, step: ProcessStep,
+               unit_ids: list[int]) -> set[int]:
+    """►►► **Welche Stücke hält dieses Modul fest?** ◄◄◄ — der **letzte Befund** zählt.
+
+    Ein «nicht bestanden» hält an (§4.5): nichts rückt vor, und der Grund steht da. Der
+    Halt ist eine **Auskunft über den letzten Befund**, keine Sperre – aufgehoben wird er
+    durch einen **neuen Befund**, also durch erneutes Erfassen. Nach einer Nacharbeit ist
+    das die Wiederholungsprüfung; genau so ist es gedacht.
+
+    **Die Sackgasse lag nie hier.** Der Halt hatte immer einen Ausgang – die Oberfläche
+    bot ihn nur nicht an: sie zeigte bei ``held`` **ausschliesslich** die Entscheidung und
+    nie die Erfassung. Damit hatte sie eine Regel erfunden, die es im Dienst nicht gibt,
+    und die erfundene Regel hatte keinen Schlüssel: wer die Abweichung anlegte und
+    durchlaufen liess, bekam sein Stück zurück und stand wieder genau davor – derselbe
+    Halt, dieselbe Meldung, und jeder weitere Anlauf legte nur eine weitere Abweichung an.
+
+    Darum steht die Frage jetzt hier, an **einer** Stelle, statt in der Ansicht: ``held``
+    ist eine abgeleitete Auskunft, und wer sie anzeigt, zeigt sie **neben** dem Weg nach
+    vorn, nicht anstelle davon.
+    """
+    if not unit_ids:
+        return set()
+    latest = _latest_captures(db, order, step, unit_ids)
+    return {u for u, cap in latest.items() if cap is not None and cap.result == "failed"}
 
 
 def held_numbers(db: Session, order: Order, step: ProcessStep, *,
