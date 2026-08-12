@@ -82,15 +82,18 @@ jobs:
       # partielle Unique-Index auf ``order_units`` sind genau das, was sie prüfen.
       # Ohne DATABASE_URL überspringen sie sich lautlos, und ein Wächter, der nie
       # anschlägt, ist von einem kaputten nicht zu unterscheiden.
-      - name: pytest (smoke tests + Invarianten)
+      #
+      # Mitgefahren werden dabei die **Szenariomatrix** (tests/test_scenarios.py, Soll je
+      # Fall in tests/matrix.py) und die **systemweiten Invarianten**
+      # (tests/test_invariants.py → app/services/invariants.py). Sie sind das Ergebnis
+      # der Testkampagne (TEST_REPORT.md) und ersetzen die mit dem Basis-Neuaufbau
+      # entfallene Regel-Tabelle – als geschriebene, überprüfbare Regel statt als Prosa.
+      - name: pytest (Matrix + Invarianten + Wächter)
         working-directory: backend
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
         run: python -m pytest tests/ -v --tb=short
 
-      # Die Regel-Tabelle (Unterdeckung/Ausleihe/Pause) und das Szenario-Netz sind mit
-      # der Prozesslogik entfallen (Basis-Neuaufbau). Sie kommen zurück, wenn die neue
-      # Prozesslogik steht – als geschriebene, überprüfbare Regel, nicht als Prosa.
       # Der Schema-Aufbau von null darüber bleibt: er hat schon einmal einen Fehler
       # gefunden, den die laufende Umgebung nicht zeigt.
 
