@@ -436,9 +436,14 @@ class OrderSummary(BaseModel):
 class ArticleOption(BaseModel):
     """Ein wählbarer Artikel für eine Definitionszeile.
 
-    ``template_steps`` ist die Zahl der Module im Erzeugungsprozess. Sie steht hier,
-    damit die Oberfläche «Neu» sperren **und den Grund nennen** kann – ohne Vorlage kann
-    ein Erzeugungsauftrag nichts erzeugen.
+    Zwei Angaben sagen, ob «Neu» hier möglich ist, und beide tragen ihren Grund mit:
+    ``template_steps`` (ohne Vorlage kann ein Erzeugungsauftrag nichts erzeugen) und
+    ``create_problem`` (ein Artikel ausser Betrieb erzeugt nichts Neues mehr).
+
+    **Ein ausser Betrieb genommener Artikel bleibt in der Liste** – er wird nur nicht mehr
+    erzeugt. Ihn auszublenden hiesse, seinen Restbestand unerreichbar zu machen: die
+    vorhandenen Stücke müssen über «Lager» abwickelbar bleiben, sonst liesse sich nicht
+    einmal mehr aussondern.
     """
 
     object_id: int
@@ -446,6 +451,11 @@ class ArticleOption(BaseModel):
     serialization: str
     unit: str
     template_steps: int
+    #: **Warum «Neu» hier nicht geht** – oder ``None``. Der Satz kommt aus derselben
+    #: Regel, die die Freigabe abweist (``articles.may_create``); die Oberfläche
+    #: formuliert ihn nicht selbst. Zwei Formulierungen wären zwei Massstäbe, und der
+    #: mildere stünde an dem Knopf, der beim Klick scheitert.
+    create_problem: Optional[str] = None
 
 
 class UnitOption(BaseModel):

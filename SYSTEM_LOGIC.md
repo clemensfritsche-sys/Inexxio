@@ -314,25 +314,49 @@ Befund):
 | # | Zustand | Wie kommt man hier raus? |
 |---|---|---|
 | O1 | `im_prozess`, ein Modul ist dran | Modul bestätigen. |
-| O2 | `im_prozess`, das aktive Modul ist **gesperrt** (wartet auf Rückführung) | Die Abweichung abschliessen. **Sie kann immer abgeschlossen werden** — sonst ist es eine Sackgasse (siehe Risiko R1). |
+| O2 | `im_prozess`, das aktive Modul ist **gesperrt** (wartet auf Rückführung) | Zwei Wege: die Abweichung abschliessen — **oder ihr die Stücke ihrerseits entziehen** (§4.4). Der zweite gilt immer, auch wenn die Abweichung liegen bleibt. |
 | O3 | `im_prozess`, das aktive Modul ist **angehalten** (Urteil «nicht bestanden») | Erneut erfassen (U4). |
-| O4 | `im_prozess`, alle Stücke ausgeliehen (rückführend) | Die Abweichungen laufen durch. |
+| O4 | `im_prozess`, alle Stücke ausgeliehen (rückführend) | Die Abweichungen laufen durch — oder sie werden ihrerseits leergeräumt (§4.4). |
 | O5 | `abgeschlossen` | Terminal für den Auftrag — er hat getan, wozu er da war. **Kein Ausgang nötig.** |
 | O6 | `abgebrochen` | Terminal für den Auftrag — sein Ziel ist unerreichbar. **Kein Ausgang nötig.** |
 
-### 4.3 Bekannte Risiken auf dieser Landkarte
+### 4.4 Der Abbruch IST eine Abweichung
+
+> **Es gibt keine Abbruch-Funktion, und das ist eine Entscheidung — kein Loch.**
+
+Ein Auftrag wird abgebrochen, indem ihm über einen **Abweichungsauftrag alle Stücke
+entzogen und die Rückführung gekappt** wird.
+
+**Warum das der bessere Weg ist:** er zwingt dazu, zu regeln, **was mit diesen Stücken
+geschehen soll** — verschrotten, sperren, an einen anderen Auftrag übergeben. Ein Knopf
+«abbrechen» liesse genau diese Frage offen und hinterliesse Stücke ohne Bestimmung.
+
+**Der Auftragsstatus folgt von selbst.** Es braucht dafür keine Zeile Code: sind alle
+Stücke entzogen und kommt keines zurück, ist `unterwegs = 0`, `verliehen = 0`,
+`angekommen = 0` — und das ist genau `Abgebrochen` (§2.1). Geprüft in der Matrix:
+
+| Fall | was er beweist |
+|---|---|
+| **S57** | alle Stücke entzogen und gekappt → Eltern `Abgebrochen`, wartet nicht mehr, kein Modul gesperrt, und die Stücke haben ein definiertes Schicksal |
+| **S58** | derselbe Weg beim **obersten** Auftrag (Erzeugungsauftrag, kein Vorgänger) |
+| **S59** | ein **liegengelassener** Abzweig klemmt seinen Eltern nicht dauerhaft — man entzieht ihm seinerseits die Stücke, und beide Ebenen lösen sich auf |
+
+**Damit ist O2 kein Risiko mehr, sondern ein Zustand mit zwei Ausgängen.**
+
+### 4.5 Bekannte Risiken auf dieser Landkarte
 
 Diese Punkte sind **nicht** behauptete Fehler — sie sind die Stellen, an denen die
 Landkarte dünn ist und an denen darum getestet wird.
 
-| Risiko | Frage |
-|---|---|
-| **R1 — die Wartekette** | Wartet ein Auftrag auf eine Abweichung, die ihrerseits wartet: löst sich die Kette bis nach oben auf, wenn ganz unten ausgesondert wird? Und wenn ganz unten nichts passiert — gibt es dann einen Weg? |
-| **R2 — kein Abbruch** | Es gibt **keine** Abbruch-Funktion für einen Auftrag (bewusst offen, `PROCESS_CORE` §13.3). Ein Auftrag, dessen Abweichung nie fertig wird, hat damit nur einen Ausgang: die Abweichung fertigmachen. Ist das immer möglich? |
-| **R3 — Nebenläufigkeit** | Zwei gleichzeitige Freigaben mit demselben freien Stück: bekommt der Verlierer einen **sprechenden** Fehler (G2.2) oder eine rohe Datenbankmeldung? |
-| **R4 — Stichprobe und Rückkehr** | Ein Stück, das zum Ziehungszeitpunkt ausgeschert war, kommt zurück: ist es in der Stichprobe? Kann ein Stück durch eine Abweichung systematisch der Prüfung entgehen? |
-| **R5 — Artikel inaktiv** | Ein Artikel im Zustand `inaktiv`: lässt sich damit noch ein Auftrag anlegen? |
-| **R6 — leere Menge** | Ein Auftrag, dessen Stücke alle ausgesondert sind, ist `abgeschlossen`. Stimmt die Mengenbilanz danach noch? |
+| Risiko | Frage | Stand |
+|---|---|---|
+| **R1 — die Wartekette** | Wartet ein Auftrag auf eine Abweichung, die ihrerseits wartet: löst sich die Kette bis nach oben auf? | **geprüft** (S43 · S47) — ja, über drei Ebenen |
+| **R2 — kein Abbruch** | Ein Auftrag, dessen Abweichung nie fertig wird: gibt es einen Ausgang? | **beantwortet** (§4.4) — ja, man entzieht ihr die Stücke (S59) |
+| **R3 — Nebenläufigkeit** | Zwei gleichzeitige Freigaben mit demselben freien Stück | **geprüft** (S63) — genau eine gewinnt; der Verlierer bekommt je nach Timing eine rohe Datenbankmeldung (🟡-5) |
+| **R4 — Stichprobe und Rückkehr** | Kann ein Stück durch eine Abweichung der Prüfung entgehen? | **geprüft** (S26) — nein, das Modul ist gesperrt, solange etwas zurückkommt |
+| **R5 — Artikel inaktiv** | Lässt sich mit einem inaktiven Artikel noch etwas erzeugen? | **behoben** (S98 · S98b) — «Neu» gesperrt, «Lager» bleibt |
+| **R6 — leere Menge** | Stimmt die Mengenbilanz nach vollständiger Aussonderung? | **geprüft** (S81) — ja, die Zeilen bleiben, nur der Zustand wechselt |
+| **R7 — `units_may_leave`** | Ein künftiger Modultyp mit Aussenwirkung (Einkauf, Verkauf) darf `units_may_leave = False` setzen. Dann lässt sich ein Stück vor diesem Modul **nicht** herausnehmen — und weil der Abbruch genau darüber läuft (§4.4), wäre der Ausgang zu. | **latent, ungeprüft.** Heute gibt es keinen solchen Modultyp. Wer den ersten baut, muss den Ausgang mitbeantworten. |
 
 ---
 
@@ -341,12 +365,16 @@ Landkarte dünn ist und an denen darum getestet wird.
 Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werden
 einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts behaupten.
 
-1. **Abbruch eines Auftrags** — wer darf ihn abbrechen, was geschieht mit dem Auftrag
-   selbst? (`PROCESS_CORE` §13.3)
+1. ~~**Abbruch eines Auftrags.**~~ **Entschieden** (§4.4): es gibt **keine**
+   Abbruch-Funktion. Ein Auftrag wird abgebrochen, indem ihm über einen
+   Abweichungsauftrag alle Stücke entzogen und die Rückführung gekappt wird — der Weg
+   zwingt dazu, das Schicksal der Stücke zu regeln.
 2. **Darf ein Abweichungsauftrag ausgelöst werden, während in einem Modul bereits mit der
    Eingabe begonnen wurde?** Gebaut ist die restriktivere Variante, **als Eigenschaft des
    Modultyps**, nicht als globale Regel. Serverseitig ist das nicht erzwingbar: eine nicht
    bestätigte Eingabe existiert nirgends.
+   **Achtung, seit §4.4:** derselbe Schalter (`Module.units_may_leave`) entscheidet auch,
+   ob sich ein Auftrag noch abbrechen lässt — siehe Risiko R7.
 3. **Stichprobenregel fehlt in einer Alt-Definition** → es gilt «alle». Das ist ein
    dokumentierter Rückfall für **Historie**, kein Standardwert für neue Eingaben. Eine
    neue Definition trägt die Regel immer.

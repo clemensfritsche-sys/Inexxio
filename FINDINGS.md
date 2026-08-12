@@ -3,9 +3,13 @@
 > Sortiert nach Schwere. Zu jedem Befund die **Ursache**, nicht nur das Symptom — und wo
 > mehrere zur selben Wurzel gehören, steht das dabei.
 >
-> **Es wurde nichts implementiert.** Die einzigen Änderungen dieser Runde sind der
+> **Runde 1 (Audit) hat nichts implementiert.** Die einzigen Änderungen waren der
 > Testapparat selbst und **eine** Korrektur an der bestehenden Wächter-Suite (🟠-2), die
 > den Datenbestand beschädigt hat, über den geprüft werden soll.
+>
+> **Runde 2 (Folgerunde, auf Freigabe)** hat 🟠-1 behoben und 🟠-3 **entschieden**. Was
+> dabei entstanden ist, steht je Befund unter «Erledigt» — und die Fundliste zu `is_active`
+> ab «Fundliste» weiter unten.
 
 ---
 
@@ -14,11 +18,14 @@
 | Schwere | Anzahl | |
 |---|---|---|
 | 🔴 verletzt eine Grundregel / führt zu falschen Daten | **0** | — |
-| 🟠 Sackgasse · Inkonsistenz · unklares Verhalten | **3** | 🟠-1 · 🟠-2 · 🟠-3 |
+| 🟠 Sackgasse · Inkonsistenz · unklares Verhalten | **3** | 🟠-1 ✅ · 🟠-2 ✅ · 🟠-3 ✅ |
 | 🟡 Verbesserungspotenzial | **5** | 🟡-1 … 🟡-5 |
 
+> **Stand nach der Folgerunde:** alle drei 🟠 sind **erledigt** — zwei behoben, einer
+> entschieden. Die Einzelheiten stehen unten je Befund unter «Erledigt».
+
 **Es gibt keinen 🔴-Befund.** Alle sechs Grundregeln aus `SYSTEM_LOGIC.md` §3 halten über
-67 Szenarien und 15 Invarianten (238 Aufträge · 1884 Einzelinstanzen · 7881 Log-Einträge).
+71 Szenarien und 15 Invarianten (238 Aufträge · 1884 Einzelinstanzen · 7881 Log-Einträge).
 Insbesondere: Exklusivität hält auch unter echter Nebenläufigkeit, terminale Status sind
 auf allen drei Ebenen dicht, und die Mengenbilanz stimmt nach Aussonderung wie nach
 Rückführung.
@@ -43,11 +50,21 @@ unabhängig vom fachlichen `status`»). Geprüft wird die eine, gemeint ist die 
 in sich korrekt. Es ist eine **Regel ohne Wirkung**: «Inaktiv = ausser Betrieb, endgültig»
 (`SYSTEM_LOGIC` §1.1) wird nirgends durchgesetzt.
 
-**Die Frage, die vor dem Fix steht** (nicht von mir zu entscheiden): gilt die Sperre für
-**alles** oder nur für «Neu»? Ein Auftrag, der **bestehende** Stücke eines
-ausgelaufenen Artikels prüft oder aussondert, ist fachlich sinnvoll — man muss den
-Restbestand ja noch abwickeln. Neue Stücke zu **erzeugen** ist es nicht. Meine Empfehlung:
-nur die `Neu`-Zeile sperren, `Lager` erlauben.
+### ✅ Erledigt
+
+Die Regel steht jetzt an **einer** Stelle und heisst nach der Frage, nicht nach einem
+Zustand: `articles.may_create(article)` — *«darf dieser Artikel NEUE Einzelinstanzen
+erzeugen?»*, mit dem Grund als Rückgabe (dieselben zwei Formen wie
+`process.pick_problem`).
+
+| | |
+|---|---|
+| **Gesperrt** | ausschliesslich Herkunft **Neu** |
+| **Erlaubt** | **Lager** — sonst wäre jedes Stück eines ausgelaufenen Artikels eine Leiche, die sich nicht einmal mehr aussondern liesse (S98b beweist es) |
+| **Wann** | bei der **Freigabe**, nicht laufend. Ein laufender Auftrag läuft zu Ende, auch wenn der Artikel zwischenzeitlich inaktiv gesetzt wird — sein Prozess ist eine eingefrorene Kopie |
+| **Wo sonst** | die Auswahl-Liste sperrt «Neu» und nennt **denselben Satz** (`ArticleOption.create_problem`); der Artikel bleibt in der Liste, damit sein Restbestand erreichbar ist |
+
+Wächter: **S98** (Neu → 400 mit sprechender Meldung) · **S98b** (Lager bleibt möglich).
 
 ---
 
@@ -90,9 +107,36 @@ drei Ebenen auf, sobald ganz unten ausgesondert wird (S47), und eine gekappte Ve
 blockiert gar nicht erst (S44). Der einzige echte Klemmfall ist der Abweichungsauftrag,
 den niemand mehr anfasst.
 
-**Bewusst offen** (`PROCESS_CORE` §13.3). Ich baue hier nichts auf Verdacht — aber es
-gehört auf die Landkarte, weil es der einzige Zustand ohne Ausgang ist, der nicht
-ausdrücklich terminal ist.
+### ✅ Erledigt — durch eine Entscheidung, nicht durch eine Funktion
+
+**Es gibt weiterhin keine Abbruch-Funktion, und das ist jetzt die Antwort.** Ein Auftrag
+wird abgebrochen, indem ihm über einen **Abweichungsauftrag alle Stücke entzogen und die
+Rückführung gekappt** wird.
+
+Das ist der bessere Weg, weil er dazu **zwingt zu regeln, was mit den Stücken geschehen
+soll** — verschrotten, sperren, weitergeben. Ein Knopf «abbrechen» liesse genau diese
+Frage offen.
+
+Der Auftragsstatus folgt dabei **ohne eine Zeile Code**: sind alle Stücke entzogen und
+kommt keines zurück, ist `unterwegs = 0`, `verliehen = 0`, `angekommen = 0` — und das
+ist genau `Abgebrochen`. Gemessen:
+
+| Fall | Ergebnis |
+|---|---|
+| **S57** | alle Stücke entzogen + gekappt → Eltern `Abgebrochen`, wartet nicht, kein Modul gesperrt, Stücke verschrottet, Bild widerspruchsfrei |
+| **S58** | derselbe Weg beim **obersten** Auftrag (Erzeugungsauftrag ohne Vorgänger) |
+| **S59** | ein **liegengelassener** Abzweig klemmt seinen Eltern nicht — man entzieht ihm seinerseits die Stücke, beide Ebenen lösen sich auf |
+
+**Im Code gab es nichts zu löschen:** in allen aktiven Modulen (`core` · `catalog` ·
+`capture`) existiert kein Endpunkt, keine Aktion, kein Statuswechsel und kein
+Oberflächen-Element für einen Abbruch. Die Treffer auf «abort/abbrechen» liegen
+ausschliesslich in den **abgeschalteten** Modulen (`sale`, `document`, `payments`,
+`shop`), die mit dem Basis-Neuaufbau ohnehin nicht importierbar sind.
+
+**Ein neues, latentes Risiko ist dabei entstanden und steht in der Landkarte** (R7): weil
+der Abbruch über die Abweichung läuft, schliesst ein künftiger Modultyp mit
+`units_may_leave = False` **auch den Abbruch**. Heute gibt es keinen solchen Typ; wer den
+ersten baut, muss den Ausgang mitbeantworten.
 
 ---
 
@@ -156,6 +200,147 @@ Das ist der in `PROCESS_CORE` §6.3 ausdrücklich benannte Restfall («der parti
 Unique-Index bleibt das Netz für den echten Parallelfall»). Er ist selten, er verliert
 keine Daten, und er kostet die einzige Objektnummer, die überhaupt je verloren geht.
 Trotzdem: `G2.2` verlangt einen **sprechenden** Fehler, und dieser hier spricht Postgres.
+
+---
+
+# Fundliste `is_active` — die zwei Achsen, die beide «aktiv» heissen
+
+> Der Auftrag war: **alle** Verwendungen durchgehen und melden, wo sonst noch die falsche
+> der beiden gemeint ist. Systematisch ausgezählt, nicht stichprobenartig.
+
+## Die Zahlen
+
+| | |
+|---|---|
+| Verwendungen gesamt | **194** |
+| davon in **abgeschalteten** Modulen (`sale` · `document` · `ai` · `payments` · `shop` …) | 112 — ausserhalb des Umfangs, sie sind nicht importierbar |
+| davon in **aktiven** Modulen (`core` · `catalog` · `capture`) | **92** in 38 Dateien |
+| Stellen, die `is_active = False` **setzen** | **8**, systemweit |
+
+## Der Kern: wo kann die Verwechslung überhaupt entstehen?
+
+Nur dort, wo ein Modell **beide** Achsen trägt. Ausgezählt über alle Modelle: fünf
+Klassen — und davon liegen drei in abgeschalteten bzw. peripheren Bereichen
+(`AiAction`, `DocumentSignoff`, `FeedbackNote`; bei der Notiz sind beide Achsen
+ausdrücklich gemeint und werden getrennt gelesen).
+
+**Im Prozessbereich bleiben genau zwei:**
+
+| Modell | `is_active` | fachlicher Zustand | Befund |
+|---|---|---|---|
+| **`Article`** | Soft-Delete | `status` = Freigegeben ↔ Inaktiv | **war der Fehler** (🟠-1). `resolve_lines` las `is_active`, gemeint war `status`. |
+| **`InstanceUnit`** | Soft-Delete | `status` = Freigegeben · Im Prozess · Gesperrt · Verschrottet | **kein Fehler, aber tote Filter** — siehe unten |
+
+## Fund 1 · `Article` — behoben
+
+`is_active` wird von der Anwendung **nie** gesetzt; erreichbar war es nur über
+`PATCH /erp/articles/{id}` (Feld in `ArticleUpdate`). Es gab damit **zwei** Wege, einen
+Artikel ausser Betrieb zu nehmen, und die Prozesslogik las den, den niemand benutzt.
+
+**Behoben auf beiden Seiten:** die Regel fragt jetzt `articles.may_create` (den fachlichen
+Zustand), und `is_active` ist **aus `ArticleUpdate` entfernt** — ein Artikel hat wieder
+genau **eine** Achse, über die er ausser Betrieb geht.
+
+## Fund 2 · `InstanceUnit` — fünf tote Filter und eine falsche Begründung
+
+Eine Einzelinstanz wird **nie** deaktiviert (`models/instance_unit`: «Vergeben bleibt
+vergeben»). Nachgezählt: keine einzige Stelle im System setzt `InstanceUnit.is_active =
+False`. Damit sind alle Filter darauf immer wahr:
+
+| Stelle | was sie tut |
+|---|---|
+| `process.waiting_counts` | filtert offene Ausleihen |
+| `process.order_statuses` | filtert «unterwegs» |
+| `process._resolve_units` | weist ein «deaktiviertes» Stück ab |
+| `sampling._population` | filtert die Ziehungsmenge |
+| `routers/orders.unit_options` | filtert die Auswahl-Liste |
+| dazu `instances.*` (4×) und `Instance.is_active` (3×) | dasselbe eine Ebene höher |
+
+Sie sind **harmlos** — aber eine davon trug eine **falsche Begründung**: der Docstring von
+`order_statuses` behauptete, ohne die Bedingung «hätte `Abgebrochen` keinen Erzeuger und
+wäre ein Wert, den nie jemand sieht». Das stimmt nicht: `Abgebrochen` entsteht, wenn eine
+Abweichung alle Stücke nimmt und die Rückführung gekappt ist (S49b · S57 · S58 · S59).
+Eine Erklärung, die einen Mechanismus erfindet, ist schlimmer als keine — **korrigiert**.
+
+**Die Filter selbst bleiben stehen.** Sie kosten nichts, sie machen die Aussage «das Stück
+gibt es noch» vollständig, und sie zu entfernen wäre ein Eingriff in fünf geprüfte
+Abfragen ohne fachlichen Gewinn. Festgehalten ist stattdessen die **Tatsache**, dass
+nichts sie auslöst (Wächter `test_a_record_goes_out_of_service_on_exactly_one_axis`).
+
+## Fund 3 · Zwei Stellen, die «alle Artikel» meinen und den Soft-Delete lesen
+
+`routers/orders.article_options` und `routers/articles` filtern `Article.is_active`. Das
+ist **richtig so** — gemeint ist der Soft-Delete («Datensatz ausgeblendet»), nicht der
+fachliche Zustand. Wichtig ist, was sie **nicht** tun: sie blenden einen `inaktiven`
+Artikel **nicht** aus. Genau das muss so sein, sonst wäre sein Restbestand über «Lager»
+unerreichbar.
+
+## Fund 4 · Der Artikel-Status gab es in **zwei Sprachen** — gefunden durch den Fix selbst
+
+> **Das ist der schwerste Fund dieser Runde**, und er wäre eine Regression gewesen, hätte
+> ihn die Testmatrix nicht sofort gemeldet.
+
+Derselbe Fehlertyp wie 🟠-1 («zwei Ausdrücke für dieselbe Sache»), nur eine Ebene tiefer:
+`articles.status` existierte als **deutsches** Wort (`freigegeben`/`inaktiv`, aus
+`domain/statuses`) **und** als englisches (`released`/`inactive`).
+
+Migration `107` hat beides bereinigt — die **Daten** und den **Server**-Default. Nicht
+mitgezogen wurde der **ORM**-Default im Modell:
+
+```python
+status: Mapped[str] = mapped_column(String(20), default="released", nullable=False)
+```
+
+**Und der ORM-Default gewinnt.** Jede Artikel-Zeile, die über SQLAlchemy ohne
+ausdrücklichen Status entsteht, trug damit wieder `"released"` — ein Wort, das die
+Statusliste nicht kennt.
+
+**Warum es zwei Deploys lang niemandem auffiel: es gab keinen Leser.**
+`services/articles.create_article` setzt den Status ausdrücklich (`st.FREIGEGEBEN`), und
+sonst fragte im aktiven Bereich niemand danach. Der Widerspruch war folgenlos — bis
+`may_create` der erste Leser wurde, der die Frage *«ist dieser Artikel freigegeben?»*
+wirklich beantworten muss. Für jede so entstandene Zeile lautete die Antwort **nein**:
+
+```
+400: Zeile 1: Artikel 100000011 ist «released» – ein Artikel ausser Betrieb erzeugt
+keine neuen Einzelinstanzen.
+```
+
+**Behoben an der Wurzel:** der Standardwert kommt aus dem Katalog (`st.FREIGEGEBEN`), und
+ORM- und Server-Default stehen ausdrücklich nebeneinander in derselben Zeile — sie können
+nicht mehr getrennt veralten. Die Testhelfer schrieben denselben Literal-Wert und tun es
+nicht mehr; sie benutzen jetzt den Standardwert und prüfen ihn damit gleich mit.
+
+**Offen und ausdrücklich gemeldet:** in den **abgeschalteten** Bereichen steht die alte
+Sprache noch — `services/ai/actions.py` (`a.status = "released"`),
+`services/ai/tools.py` (2×, dazu zwei Tool-Schemas mit `enum: [draft, released, inactive]`)
+und `services/selling.py` (`article.status != "released"`). Sie sind heute nicht
+importierbar; **wer `sales` oder `ai` wieder einschaltet, muss sie mitziehen** — sonst
+legt die KI Artikel in einem Zustand an, den das System nicht kennt.
+
+Wächter: `test_the_article_status_has_exactly_one_vocabulary` — prüft die **Quelle** des
+Standardwerts (nicht seinen heutigen Wert), die Gleichheit von ORM- und Server-Default und
+dass kein aktives Modul die alte Sprache spricht. Gegen die Bug-Form gegengeprüft.
+
+## Zur Frage «hilft eine Umbenennung?»
+
+**Nein — jedenfalls nicht als globale Umbenennung, und die empfehle ich ausdrücklich
+nicht.** `is_active` steht in 194 Verwendungen, in Migrationen, in API-Schemas und in
+generierten Frontend-Typen. Eine Umbenennung wäre ein grosser, riskanter Eingriff, der
+den Grossteil legitimer Soft-Delete-Verwendungen anfasst — und die Verwechslung entsteht
+gar nicht dort, sondern nur an den **zwei** Modellen, die beide Achsen tragen.
+
+**Was stattdessen dauerhaft schützt — und umgesetzt ist:**
+
+1. **Die zweite Achse wegnehmen, wo sie keine Bedeutung hat.** Am Artikel ist `is_active`
+   nicht mehr von aussen setzbar. Es gibt genau einen Weg ausser Betrieb.
+2. **Die Frage nach der Regel benennen, nicht nach dem Zustand.** `articles.may_create`
+   statt `is_article_active`. Ein Name, der «aktiv» enthält, hätte dieselbe Falle nur eine
+   Ebene weiter aufgestellt.
+3. **Einen Wächter, der die Tatsache festhält**
+   (`test_a_record_goes_out_of_service_on_exactly_one_axis`): nichts deaktiviert einen
+   Prozess-Datensatz über den Soft-Delete, `ArticleUpdate` nimmt `is_active` nicht mehr
+   entgegen, und die Freigabe **fragt** die Regel, statt sie nachzubauen.
 
 ---
 

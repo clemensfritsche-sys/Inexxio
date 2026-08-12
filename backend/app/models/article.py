@@ -6,18 +6,21 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
+from ..domain import statuses as st
 from .base import TimestampMixin
 
 
 class Article(Base, TimestampMixin):
     """Stammdaten-Datensatz für einen Artikel (Phase 2 – Produktion).
 
-    Statuswerte (`status`):
-        released  → Freigegeben (angelegt heisst freigegeben – siehe unten)
-        inactive  → inaktiv (auslaufend/gesperrt)
+    Statuswerte (``status``) — **aus der EINEN Liste** (``domain/statuses``):
+        ``freigegeben``  → angelegt heisst freigegeben (siehe unten)
+        ``inaktiv``      → auslaufend/gesperrt
 
-    `is_active` bleibt der Soft-Delete-Flag (Datensatz ausgeblendet),
-    unabhängig vom fachlichen `status`.
+    **Zwei Achsen, die beide «aktiv» heissen — und sie meinen Verschiedenes:**
+    ``is_active`` ist der **Soft-Delete** («den Datensatz gibt es nicht»), ``status``
+    der **fachliche** Zustand. Ausser Betrieb genommen wird über ``status``; darum nimmt
+    ``ArticleUpdate`` ``is_active`` gar nicht mehr entgegen.
     """
 
     __tablename__ = "articles"
@@ -27,10 +30,19 @@ class Article(Base, TimestampMixin):
         BigInteger, unique=True, nullable=True, index=True
     )
 
-    # ``released`` | ``inactive``. **``draft`` kommt nicht mehr vor**: ein Artikel
+    # ``freigegeben`` | ``inaktiv``. **``draft`` kommt nicht mehr vor**: ein Artikel
     # entsteht erst mit seiner Freigabe (services/articles.py), und bis dahin gibt es
     # keine Zeile. Der Wert bleibt als Spalte, weil «inaktiv» ein Zustand ist.
-    status: Mapped[str] = mapped_column(String(20), default="released", nullable=False)
+    #
+    # **Der Standardwert kommt aus dem Katalog, nicht aus einem Literal.** Migration
+    # ``107`` hat die Daten und den *Server*-Default auf die deutsche Liste gezogen – der
+    # *ORM*-Default blieb auf ``"released"`` stehen und gewinnt gegen den Server-Default:
+    # jede Zeile, die ohne ausdrücklichen Status entsteht, hätte das alte Wort
+    # zurückgebracht. Aufgefallen ist es erst, als mit ``articles.may_create`` der erste
+    # Leser kam, der die Frage «ist dieser Artikel freigegeben?» wirklich beantworten muss.
+    status: Mapped[str] = mapped_column(
+        String(20), default=st.FREIGEGEBEN, server_default=st.FREIGEGEBEN, nullable=False,
+    )
 
     # Versionsstempel des **Erzeugungsprozesses** (``article_process_steps``). Er zählt
     # bei jeder Änderung der Vorlage hoch und wird auf die Kopie im Auftrag geschrieben.

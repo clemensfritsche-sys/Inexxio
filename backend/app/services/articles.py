@@ -15,7 +15,7 @@ Die Freigabebedingungen stehen **an dieser einen Stelle**. Die Oberfläche fragt
 Massstäbe für dieselbe Frage, und der schwächere entscheidet, ob der Knopf leuchtet.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -36,6 +36,41 @@ _REQUIRED = (
     ("size", "Abmessungen"),
     ("weight_kg", "Gewicht"),
 )
+
+
+def may_create(article: Article) -> Optional[str]:
+    """►►► **Darf dieser Artikel NEUE Einzelinstanzen erzeugen?** ◄◄◄ ``None`` = ja.
+
+    Die Regel in einem Satz: *nur ein Artikel im Zustand «Freigegeben» erzeugt Neues.*
+    Sie sperrt damit ausschliesslich die Herkunft **Neu** — **Lager bleibt erlaubt**, und
+    zwar mit Absicht: sonst würde jedes Stück eines ausgelaufenen Artikels zur Leiche, die
+    sich nicht einmal mehr aussondern liesse.
+
+    **Warum die Funktion nach der Regel heisst und nicht nach dem Zustand.** Der Fehler,
+    aus dem sie entstanden ist, war eine Verwechslung zweier Achsen, die beide «aktiv»
+    heissen: ``is_active`` ist der **Soft-Delete** (Datensatz ausgeblendet),
+    ``status`` ist der **fachliche** Zustand (Freigegeben ↔ Inaktiv). Geprüft wurde die
+    erste, gemeint war die zweite — und weil die erste im ganzen Prozessbereich **nie**
+    gesetzt wird, konnte die Prüfung gar nichts abweisen. Ein Name wie ``is_article_active``
+    hätte dieselbe Falle nur eine Ebene weiter aufgestellt; ``may_create`` benennt die
+    Frage, und die kann man nicht verwechseln.
+
+    **Zwei Formen derselben Regel** (wie ``process.pick_problem``/``unpickable``): sie gibt
+    den Grund zurück, statt zu werfen. Die Freigabe bricht damit ab, die Auswahl-Liste
+    sperrt damit «Neu» und nennt denselben Satz. Zwei Formulierungen wären zwei Massstäbe.
+
+    **Geprüft wird bei der Freigabe, nicht laufend.** Ein bereits laufender Auftrag läuft
+    zu Ende, auch wenn der Artikel zwischenzeitlich inaktiv gesetzt wird — sein Prozess ist
+    eine eingefrorene Kopie (§6.5), und ihn von aussen anzuhalten hiesse, die Vergangenheit
+    umzuschreiben.
+    """
+    if article.status != st.FREIGEGEBEN:
+        return (
+            f"Artikel {article.object_id} ist «{st.label(article.status)}» – ein Artikel "
+            f"ausser Betrieb erzeugt keine neuen Einzelinstanzen. Bestehende Stücke "
+            f"lassen sich weiterhin über «Lager» abwickeln."
+        )
+    return None
 
 
 def missing_for_release(draft: dict[str, Any]) -> list[str]:

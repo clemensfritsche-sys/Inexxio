@@ -936,8 +936,7 @@ def s97(w: World):
 @case("S98", "Auftrag auf einen INAKTIVEN Artikel",
       {"A": A_NEU, "B": B_EINZEL, "C": C_1, "D": D_ERFASSUNG, "E": E_KEINE, "F": "–"},
       {"code": 400, "spricht": True},
-      note="Risiko R5 – ein ausser Betrieb genommener Artikel darf nichts mehr erzeugen.",
-      open_finding="FINDINGS.md 🟠-1")
+      note="Nur ein freigegebener Artikel erzeugt Neues (articles.may_create).")
 def s98(w: World):
     art = w.article(serialization="unit")
     art.status = "inaktiv"
@@ -1089,3 +1088,91 @@ def s99(w: World):
 
     return {"bestand": st.stock_kind("phantasie"), "terminal": st.is_terminal("phantasie"),
             "wählbar": st.is_selectable("phantasie"), "beschriftung": st.label("phantasie")}
+
+
+# ===========================================================================
+# Block 9 · Der Abbruch IST eine Abweichung
+# ===========================================================================
+#
+# Es gibt keine Abbruch-Funktion, und das ist eine Entscheidung, kein Loch: ein Auftrag
+# wird abgebrochen, indem ihm über einen **Abweichungsauftrag alle Stücke entzogen und
+# die Rückführung gekappt** wird. Der Weg zwingt dazu, zu regeln, **was mit den Stücken
+# geschehen soll** – ein Knopf «abbrechen» liesse genau diese Frage offen.
+
+@case("S57", "ABBRUCH: alle Stücke entzogen und gekappt → Auftrag abgebrochen",
+      {"A": A_LAGER, "B": B_BATCH, "C": C_2, "D": D_SCRAP, "E": E_1, "F": F_GEKAPPT},
+      {"eltern_status": "abgebrochen", "eltern_wartet": False,
+       "module_gesperrt": 0, "abbrecher_status": "abgeschlossen",
+       "stück": {"verschrottet": 2}, "probleme": []},
+      note="Der Ausgang existiert – er heisst nur nicht «Abbrechen».")
+def s57(w: World):
+    art = w.article(serialization="batch", template=[w.capture(), w.capture()])
+    opfer = w.produce(art, 2)
+    numbers = w.numbers(opfer)
+    # Der «Abbruch»: alle Stücke, Rückführung gekappt, und ein definiertes Schicksal.
+    abbrecher = w.take(art, numbers, from_order=opfer.object_id, returns=False,
+                       steps=[w.dispose("scrap", "Auftrag abgebrochen")])
+    status_direkt = w.status(opfer)
+    w.run_all(abbrecher)
+    zustand: dict[str, int] = {}
+    for n in numbers:
+        s = w.unit_status(n)
+        zustand[s] = zustand.get(s, 0) + 1
+    return {"eltern_status": status_direkt, "eltern_wartet": w.waits(opfer),
+            "module_gesperrt": len(w.blocked_steps(opfer)),
+            "abbrecher_status": w.status(abbrecher), "stück": zustand,
+            "probleme": w.problems(opfer)}
+
+
+@case("S58", "ABBRUCH beim OBERSTEN Auftrag – ohne Elternteil",
+      {"A": A_NEU, "B": B_EINZEL, "C": C_2, "D": D_SCRAP, "E": E_1, "F": F_GEKAPPT},
+      {"eltern_status": "abgebrochen", "hat_eltern": False},
+      note="Der Erzeugungsauftrag hat keinen Vorgänger – der Weg muss trotzdem gehen.")
+def s58(w: World):
+    from app.models import OrderUnit
+
+    art = w.article(serialization="unit", template=[w.capture()])
+    oberster = w.produce(art, 2)
+    numbers = w.numbers(oberster)
+    w.take(art, numbers, from_order=oberster.object_id, returns=False,
+           steps=[w.dispose("scrap", "Auftrag abgebrochen")])
+    # «Ohne Elternteil» heisst: keine Zeile dieses Auftrags führt irgendwohin zurück.
+    hat_eltern = (
+        w.db.query(OrderUnit)
+        .filter(OrderUnit.order_id == oberster.id,
+                OrderUnit.return_to_order_id.isnot(None))
+        .count() > 0
+    )
+    return {"eltern_status": w.status(oberster), "hat_eltern": hat_eltern}
+
+
+@case("S59", "Ein liegengelassener Abzweig klemmt den Eltern NICHT dauerhaft",
+      {"A": A_LAGER, "B": B_BATCH, "C": C_1, "D": D_SCRAP, "E": E_2, "F": F_GEKAPPT},
+      {"a_wartet_vorher": True, "a_wartet_nachher": False,
+       "a_status": "abgebrochen", "b_status": "abgebrochen"},
+      note="Der Ausweg aus O2: man entzieht dem stehengebliebenen Abzweig seinerseits "
+           "die Stücke.")
+def s59(w: World):
+    art = w.article(serialization="batch", template=[w.capture(), w.capture()])
+    a = w.produce(art, 1)
+    n = w.numbers(a)
+    b = w.take(art, n, from_order=a.object_id, steps=[w.capture()])   # bleibt liegen
+    vorher = w.waits(a)
+    w.take(art, n, from_order=b.object_id, returns=False,
+           steps=[w.dispose("scrap", "Abzweig aufgelöst")])
+    return {"a_wartet_vorher": vorher, "a_wartet_nachher": w.waits(a),
+            "a_status": w.status(a), "b_status": w.status(b)}
+
+
+@case("S98b", "Ein INAKTIVER Artikel bleibt über «Lager» abwickelbar",
+      {"A": A_LAGER, "B": B_EINZEL, "C": C_1, "D": D_SCRAP, "E": E_KEINE, "F": "–"},
+      {"status": "abgeschlossen", "states": {"verschrottet": 1}},
+      note="Sonst wäre jedes Stück eines ausgelaufenen Artikels eine Leiche, die sich "
+           "nicht einmal mehr aussondern liesse.")
+def s98b(w: World):
+    art, numbers = free_stock(w, serialization="unit", quantity=1)
+    art.status = "inaktiv"
+    w.db.flush()
+    order = w.take(art, numbers, steps=[w.dispose("scrap", "Auslauf")])
+    w.run_all(order)
+    return {"status": w.status(order), "states": w.states(order)}

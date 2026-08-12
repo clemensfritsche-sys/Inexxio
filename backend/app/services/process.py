@@ -24,7 +24,10 @@ from ..models.order_line import LAGER, NEU, ORIGINS
 from ..models.process_event import (
     KIND_CAPTURE, KIND_END, KIND_HANDOVER, KIND_RETURN, KIND_SAMPLE, KIND_START, KIND_STEP,
 )
-from . import article_process, capture as capture_svc, materialize, sampling
+from . import (
+    article_process, articles as articles_svc, capture as capture_svc, materialize,
+    sampling,
+)
 from .instances import unit_number
 
 #: Wie die Instanz vor der Eingabe verifiziert wurde. **Beides ist eine Bestätigung** –
@@ -208,6 +211,16 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
             raise HTTPException(
                 status_code=404, detail=f"Zeile {position}: Artikel {object_id} gibt es nicht.",
             )
+        # **Nur ein freigegebener Artikel erzeugt Neues** (``articles.may_create``).
+        # Nur für «Neu»: bestehende Stücke eines ausgelaufenen Artikels müssen abwickelbar
+        # bleiben, sonst wäre jedes davon eine Leiche, die sich nicht einmal aussondern
+        # liesse. Die Regel steht in ``services/articles``; hier wird sie gefragt, nicht
+        # nachgebaut.
+        if origin == NEU:
+            problem = articles_svc.may_create(article)
+            if problem:
+                raise HTTPException(status_code=400,
+                                    detail=f"Zeile {position}: {problem}")
         quantity = int(row.get("quantity") or 0)
         if quantity < 1:
             raise HTTPException(
@@ -1560,9 +1573,15 @@ def pending_returns(db: Session, order: Order) -> dict[int, list[int]]:
 def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
     """Der Zustand **vieler** Aufträge – für den Feed, ohne N+1.
 
-    «Unterwegs» heisst: die Zugehörigkeit ist offen **und** das Stück gibt es noch. Ein
-    deaktiviertes Stück kann nirgends mehr ankommen – ohne diese Bedingung hätte
-    «Abgebrochen» keinen Erzeuger und wäre ein Wert, den nie jemand sieht.
+    «Unterwegs» heisst: die Zugehörigkeit ist offen **und** das Stück gibt es noch.
+
+    *Die zweite Hälfte ist heute ein Gurt neben dem Hosenträger:* eine Einzelinstanz wird
+    **nie** deaktiviert (``models/instance_unit``), also ist ``is_active`` hier immer wahr.
+    Der Docstring behauptete früher, ohne diese Bedingung hätte «Abgebrochen» keinen
+    Erzeuger – das stimmt nicht: «Abgebrochen» entsteht, wenn eine Abweichung **alle**
+    Stücke nimmt und die Rückführung gekappt ist (Matrix S49b · S57 · S58 · S59). Die
+    Bedingung bleibt trotzdem stehen, weil sie nichts kostet und die Aussage «das Stück
+    gibt es noch» vollständig macht; sie ist nur keine Erklärung für den Zustand.
 
     «Angekommen» heisst: die Zugehörigkeit ist geschlossen **und** das Stück steht vor
     keinem Modul mehr. Eine geschlossene Zeile allein genügt nicht – sie schliesst sich

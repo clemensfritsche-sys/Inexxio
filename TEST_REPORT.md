@@ -6,7 +6,11 @@
 > nachgestellte Zustände. Die interessanten Fehler entstehen zwischen den Schritten.
 >
 > **Nichts ist beschönigt.** Ein Fall, der nicht lief, steht als «nicht geprüft» da.
-> Zwei Fälle sind abweichend, und beide stehen als Befund in `FINDINGS.md`.
+> **Ein** Fall weicht ab, und er steht als Befund in `FINDINGS.md` (🟡-1).
+>
+> **Stand: Runde 2.** Die Matrix ist von 67 auf **71 Fälle** gewachsen — Block 9 prüft den
+> **Abbruch über die Abweichung** (S57 · S58 · S59) und den Restbestand eines inaktiven
+> Artikels (S98b). Beide 🟠-Befunde der ersten Runde sind damit erledigt.
 
 ## Wie das hier reproduzierbar ist
 
@@ -113,26 +117,24 @@ fehlt.
 | S95 | Wertesatz für ein NICHT gezogenes Stück | neu · batch · viele · datenerfassung · 0 · – | `code` = 400<br>`spricht` = True | `code` = 400<br>`spricht` = True | ✅ |
 | S96 | Fehlender Wertesatz für ein gezogenes Stück | neu · batch · 2 · datenerfassung · 0 · – | `code` = 400<br>`spricht` = True | `code` = 400<br>`spricht` = True | ✅ |
 | S97 | Ohne Verifikation der Instanz | neu · batch · 1 · datenerfassung · 0 · – | `code` = 400<br>`spricht` = True | `code` = 400<br>`spricht` = True | ✅ |
-| S98 | Auftrag auf einen INAKTIVEN Artikel | neu · einzel · 1 · datenerfassung · 0 · – | `code` = 400<br>`spricht` = True | **`code` = None**<br>**`spricht` = False** | 🟠 |
+| S98 | Auftrag auf einen INAKTIVEN Artikel | neu · einzel · 1 · datenerfassung · 0 · – | `code` = 400<br>`spricht` = True | `code` = 400<br>`spricht` = True | ✅ |
 | S26 | Ein Stück, das in einer Abweichung war, entgeht der Prüfung nicht | lager · einzel · 2 · datenerfassung · 1 · normal | `modul1_gesperrt` = True<br>`am_modul2_erfasst` = 2 | `modul1_gesperrt` = True<br>`am_modul2_erfasst` = 2 | ✅ |
 | S53 | Gesperrt ist nur DAS Modul mit der offenen Rückführung | lager · einzel · 2 · datenerfassung · 1 · normal | `gesperrte_module` = 1<br>`module_gesamt` = 2 | `gesperrte_module` = 1<br>`module_gesamt` = 2 | ✅ |
 | S63 | NEBENLÄUFIGKEIT – zwei Freigaben mit demselben freien Stück | lager · einzel · 1 · datenerfassung · 0 · – | `erfolge` = 1<br>`offene_zeilen` = 1 | `erfolge` = 1<br>`offene_zeilen` = 1 | ✅ |
 | S85 | Eine gescheiterte Freigabe verbraucht KEINE Objektnummer | lager · einzel · 1 · datenerfassung · 0 · – | `nummer_verbraucht` = 0 | `nummer_verbraucht` = 0 | ✅ |
 | S86 | Der Log ist die Wahrheit: Zustand == letzter Eintrag | lager · batch · 2 · datenerfassung · 1 · normal | `abweichungen` = [] | `abweichungen` = [] | ✅ |
 | S99 | Unbekannter Status wird gemeldet, nicht einsortiert | – · – · – · – · 0 · – | `bestand` = 'unknown'<br>`terminal` = False<br>`wählbar` = False<br>`beschriftung` = 'phantasie' | `bestand` = 'unknown'<br>`terminal` = False<br>`wählbar` = False<br>`beschriftung` = 'phantasie' | ✅ |
+| S57 | ABBRUCH: alle Stücke entzogen und gekappt → Auftrag abgebrochen | lager · batch · 2 · verschrotten · 1 · gekappt | `eltern_status` = 'abgebrochen'<br>`eltern_wartet` = False<br>`module_gesperrt` = 0<br>`abbrecher_status` = 'abgeschlossen'<br>`stück` = {'verschrottet': 2}<br>`probleme` = [] | `eltern_status` = 'abgebrochen'<br>`eltern_wartet` = False<br>`module_gesperrt` = 0<br>`abbrecher_status` = 'abgeschlossen'<br>`stück` = {'verschrottet': 2}<br>`probleme` = [] | ✅ |
+| S58 | ABBRUCH beim OBERSTEN Auftrag – ohne Elternteil | neu · einzel · 2 · verschrotten · 1 · gekappt | `eltern_status` = 'abgebrochen'<br>`hat_eltern` = False | `eltern_status` = 'abgebrochen'<br>`hat_eltern` = False | ✅ |
+| S59 | Ein liegengelassener Abzweig klemmt den Eltern NICHT dauerhaft | lager · batch · 1 · verschrotten · 2 · gekappt | `a_wartet_vorher` = True<br>`a_wartet_nachher` = False<br>`a_status` = 'abgebrochen'<br>`b_status` = 'abgebrochen' | `a_wartet_vorher` = True<br>`a_wartet_nachher` = False<br>`a_status` = 'abgebrochen'<br>`b_status` = 'abgebrochen' | ✅ |
+| S98b | Ein INAKTIVER Artikel bleibt über «Lager» abwickelbar | lager · einzel · 1 · verschrotten · 0 · – | `status` = 'abgeschlossen'<br>`states` = {'verschrottet': 1} | `status` = 'abgeschlossen'<br>`states` = {'verschrottet': 1} | ✅ |
 
-**67 Fälle · 65 bestanden · 2 bekannter Befund (🟠, siehe FINDINGS.md) · 0 unerwartet abweichend**
+**71 Fälle · 70 bestanden · 1 bekannter Befund (🟠, siehe FINDINGS.md) · 0 unerwartet abweichend**
 
 ### S94 — Pflichtpunkt nicht erfasst
 _Der Fehler kommt – er nennt aber nur den Punkt, nicht das Stück._
 - ❌ spricht: Soll True · Ist False
 - ℹ️ `meldung` = 'Noch nicht erfasst: OK.'
-
-### S98 — Auftrag auf einen INAKTIVEN Artikel
-_Risiko R5 – ein ausser Betrieb genommener Artikel darf nichts mehr erzeugen._
-- ❌ code: Soll 400 · Ist None
-- ❌ spricht: Soll True · Ist False
-- ℹ️ `meldung` = '<kein Fehler>'
 
 ## 2 · Die Invarianten über den gesamten Bestand
 
@@ -140,9 +142,9 @@ _Risiko R5 – ein ausser Betrieb genommener Artikel darf nichts mehr erzeugen._
 > muss** — auch in den Fällen, an die niemand gedacht hat. Sie sind rein lesend und
 > bleiben dauerhaft im System (`app/services/invariants.py`).
 
-_Bestand aus der Matrix: 65 von 67 Fällen eingespielt._
+_Bestand aus der Matrix: 70 von 71 Fällen eingespielt._
 
-_Geprüfter Bestand: 337 Aufträge · 253 Instanzen · 2620 Einzelinstanzen · 2736 Zugehörigkeiten · 11494 Log-Einträge._
+_Geprüfter Bestand: 102 Aufträge · 71 Instanzen · 720 Einzelinstanzen · 764 Zugehörigkeiten · 3605 Log-Einträge._
 
 | # | Invariante | Regel | Verstösse | |
 |---|---|---|---|---|
@@ -185,10 +187,10 @@ Test kurz weicht, entsteht die Lage. Das ist der beste verfügbare Beweis, dass 
 | Nicht geprüft | Grund |
 |---|---|
 | **Oberfläche im Browser** | Playwright ist in dieser Umgebung nicht installiert, und der Agent-Proxy blockiert die Deploy-URLs. Alle Aussagen über das Frontend stammen aus **Quelltext-Prüfung**, nicht aus einem Klick. Wo eine Regel nur im Frontend steht, ist sie hier ausdrücklich **ungeprüft**. |
-| **Abbruch eines Auftrags** | Es gibt ihn nicht (bewusst offen, `PROCESS_CORE` §13.3). Ein Test würde eine Funktion behaupten, die niemand entschieden hat. |
+| ~~**Abbruch eines Auftrags**~~ | **Jetzt geprüft** (Runde 2): es gibt keine Abbruch-*Funktion*, aber sehr wohl einen Weg — die Abweichung, die alle Stücke nimmt und die Rückführung kappt (S57 · S58 · S59, `SYSTEM_LOGIC.md` §4.4). |
 | **Sehr grosse Mengen (5000+)** | Gefahren wurde bis 600 Stück in einer Charge (S05). Die Grössenordnung darüber ist eine **Laufzeit**-Frage, keine Logikfrage — sie gehört in eine Lastmessung, nicht in diese Kampagne. |
 | **Mehrbenutzer über HTTP** | Die Nebenläufigkeit ist auf **Dienstebene** mit zwei echten Sitzungen und einer Barriere geprüft (S63). Zwei gleichzeitige HTTP-Anfragen durch den vollen Router-Stapel sind nicht gefahren. |
-| **Modultypen mit Aussenwirkung** | Es gibt keine (Einkauf/Verkauf sind nicht gebaut). `Module.units_may_leave` ist damit ungetestet — der Schalter steht, sein Fall existiert noch nicht. |
+| **Modultypen mit Aussenwirkung** | Es gibt keine (Einkauf/Verkauf sind nicht gebaut). `Module.units_may_leave` ist damit ungetestet — der Schalter steht, sein Fall existiert noch nicht. **Seit Runde 2 ist das ein benanntes Risiko** (R7): derselbe Schalter entscheidet auch, ob sich ein Auftrag noch abbrechen lässt. |
 | **Migrationen von echtem Altbestand** | Das Schema wird aus den Migrationen aufgebaut (CI), aber es gibt keinen Produktions-Dump zum Nachfahren. |
 
 ## 4 · Zwischenergebnisse, ehrlich
@@ -207,3 +209,24 @@ Produktfehler war: `I12` meldete 20 verwaiste Einzelinstanzen. Ursache war der
 Aufräumer der bestehenden Wächter-Suite (`test_terminal_status._cleanup`), der über
 **ein Stück** löschte und die Instanz dazu — ein zweites Stück derselben Instanz blieb
 verwaist zurück. Behoben; danach hinterlässt die Suite nichts mehr (0 Waisen nachgemessen).
+
+## 5 · Runde 2 — die Folgerunde
+
+Beide 🟠-Befunde der ersten Runde sind erledigt: **🟠-1 behoben** (`articles.may_create`),
+**🟠-3 entschieden** (der Abbruch IST eine Abweichung). Dabei kam **ein weiterer Befund**
+zutage, und zwar durch den Fix selbst:
+
+| | |
+|---|---|
+| **Wie er auffiel** | Die neue Regel `may_create` ist der **erste Leser**, der die Frage «ist dieser Artikel freigegeben?» wirklich beantworten muss. Auf einer frisch aus den Migrationen gebauten Datenbank fiel sofort **die halbe Suite** aus. |
+| **Was dahintersteckte** | Der Artikel-Status existierte in **zwei Sprachen**. Migration `107` hat Daten und *Server*-Default auf `freigegeben`/`inaktiv` gezogen — der *ORM*-Default im Modell blieb auf `"released"`. Und der ORM-Default gewinnt. |
+| **Warum es niemand merkte** | Es gab keinen Leser. `services/articles` setzt den Status ausdrücklich; sonst fragte im aktiven Bereich niemand danach. Der Widerspruch war folgenlos — bis er es nicht mehr war. |
+| **Behoben** | Standardwert aus dem Katalog, ORM- und Server-Default in derselben Zeile. Wächter `test_the_article_status_has_exactly_one_vocabulary`, gegen die Bug-Form gegengeprüft. |
+| **Ausdrücklich offen** | In den **abgeschalteten** Bereichen (`ai`, `selling`) steht die alte Sprache noch. Sie sind nicht importierbar; wer sie wieder einschaltet, muss sie mitziehen (`FINDINGS.md`, Fund 4). |
+
+**Und ein Messfehler auf meiner Seite, der hierher gehört:** der erste Suite-Lauf dieser
+Runde hing nach 15 Minuten. Ursache war **nicht** der Code, sondern meine über viele Läufe
+gewachsene Scratch-Datenbank — eine offene Sitzung auf `articles` gegen die
+ACCESS-EXCLUSIVE-Sperre des Schema-Netzes. Gegen eine **frisch aus den Migrationen
+gebaute** Datenbank (also so, wie die CI es tut) läuft die ganze Suite in **12 Sekunden**:
+290 bestanden, 1 übersprungen (der bekannte Befund 🟡-1).

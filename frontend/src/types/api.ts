@@ -1136,9 +1136,14 @@ export interface components {
          * ArticleOption
          * @description Ein wählbarer Artikel für eine Definitionszeile.
          *
-         *     ``template_steps`` ist die Zahl der Module im Erzeugungsprozess. Sie steht hier,
-         *     damit die Oberfläche «Neu» sperren **und den Grund nennen** kann – ohne Vorlage kann
-         *     ein Erzeugungsauftrag nichts erzeugen.
+         *     Zwei Angaben sagen, ob «Neu» hier möglich ist, und beide tragen ihren Grund mit:
+         *     ``template_steps`` (ohne Vorlage kann ein Erzeugungsauftrag nichts erzeugen) und
+         *     ``create_problem`` (ein Artikel ausser Betrieb erzeugt nichts Neues mehr).
+         *
+         *     **Ein ausser Betrieb genommener Artikel bleibt in der Liste** – er wird nur nicht mehr
+         *     erzeugt. Ihn auszublenden hiesse, seinen Restbestand unerreichbar zu machen: die
+         *     vorhandenen Stücke müssen über «Lager» abwickelbar bleiben, sonst liesse sich nicht
+         *     einmal mehr aussondern.
          */
         ArticleOption: {
             /** Object Id */
@@ -1151,6 +1156,8 @@ export interface components {
             unit: string;
             /** Template Steps */
             template_steps: number;
+            /** Create Problem */
+            create_problem?: string | null;
         };
         /**
          * ArticleProcess
@@ -1341,8 +1348,6 @@ export interface components {
             default_supplier_id?: number | null;
             /** Default Webshop Url */
             default_webshop_url?: string | null;
-            /** Is Active */
-            is_active?: boolean | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
         };

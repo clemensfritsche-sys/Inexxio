@@ -242,7 +242,11 @@ class ArticleUpdate(BaseModel):
     procurement_mode: Optional[str] = None
     default_supplier_id: Optional[int] = None
     default_webshop_url: Optional[str] = None
-    is_active: Optional[bool] = None
+    # **``is_active`` steht hier bewusst NICHT.** Ein Artikel wird über genau EINE Achse
+    # ausser Betrieb genommen: seinen fachlichen ``status`` (Freigegeben ↔ Inaktiv).
+    # ``is_active`` ist der Soft-Delete des Datensatzes und gehört keinem Formular –
+    # solange er von aussen setzbar war, gab es zwei Wege, dasselbe zu sagen, und die
+    # Prozesslogik las den falschen (``articles.may_create``).
     # Optimistic Locking: Stand, den der Client zuletzt gesehen hat (optional).
     expected_updated_at: Optional[datetime] = None
 

@@ -53,7 +53,7 @@ def _article(db, *, steps: list[dict], serialization: str = "batch"):
     from app.models import Article
     from app.services import article_process as tpl, objects as obj
     art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
-                  serialization=serialization, status="released")
+                  serialization=serialization)
     db.add(art)
     db.flush()
     tpl.create_steps(db, art, steps)

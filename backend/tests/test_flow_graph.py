@@ -184,7 +184,7 @@ def _scenario(db):
     from app.services import article_process as tpl, objects as obj, process as proc
 
     art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
-                  serialization="unit", status="released")
+                  serialization="unit")
     db.add(art)
     db.flush()
     tpl.create_steps(db, art, [{"module_type": "datenerfassung",
@@ -509,7 +509,7 @@ def test_a_neighbour_exists_exactly_when_its_branch_does():
 def _article(db, tpl, obj):
     from app.models import Article
     art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
-                  serialization="unit", status="released")
+                  serialization="unit")
     db.add(art)
     db.flush()
     tpl.create_steps(db, art, [{"module_type": "datenerfassung",
@@ -553,7 +553,7 @@ def test_branches_at_one_point_get_their_own_pair_and_never_overlap():
     db = _db()
     try:
         art = Article(object_id=obj.next_object_id(db), name="Blech", unit="stk",
-                      serialization="unit", status="released")
+                      serialization="unit")
         db.add(art)
         db.flush()
         point = {"points": [{"label": "OK", "type": "bool"}]}
