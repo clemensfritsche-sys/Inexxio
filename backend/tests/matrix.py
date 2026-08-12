@@ -897,7 +897,9 @@ def s95(w: World):
     step = w.steps(order)[0]
     inst = w.work(order, step)[0]["instance_object_id"]
     gezogen = proc.held_numbers(w.db, order, step, instance_object_id=inst, group="sample")
-    rest = proc.held_numbers(w.db, order, step, instance_object_id=inst, group="rest")
+    # Der ungezogene Rest wird **abgeleitet**, nicht abgefragt: die Gruppe «rest» ist mit
+    # der 100 %-Kontrolle entfallen (#713), die Frage «wer wurde nicht gezogen» bleibt.
+    rest = [n for n in w.numbers(order) if n not in set(gezogen)]
     payload = {n: dict(w.GOOD) for n in gezogen}
     payload[rest[0]] = dict(w.GOOD)
     return _err(proc.confirm_step, w.db, order=order, step_id=step.id, values=payload,

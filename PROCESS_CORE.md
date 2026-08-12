@@ -253,6 +253,15 @@ Ergibt eine Erfassung ein negatives Urteil, passiert **dreierlei und nicht mehr*
 2. **Nichts rückt vor** — die Stücke bleiben an diesem Modul stehen, sichtbar mit Grund.
 3. Das System **bietet** den Folgeauftrag an, mit vorgewählten Stücken.
 
+**Es gibt genau EINE Option, und das ist der Abweichungsauftrag** (Testnotiz #713).
+Daneben stand einmal eine «100 %-Kontrolle» über den ungeprüften Rest. Sie war **kein
+zweiter Mechanismus**, sondern derselbe: ein Abweichungsauftrag über die übrigen Stücke
+mit der Stichprobe «alle». Zwei Wege zu demselben Ergebnis sind einer zu viel — und der
+zweite war der schwächere, weil er die Stichprobe der Auflösung stillschweigend festlegte,
+statt sie wählen zu lassen. Entfallen ist sie **ersatzlos**: der Knopf, die Gruppe `rest`
+im Dienst und die im Endpunkt. Wer den Rest behandeln will, legt einen Auftrag an und
+wählt ihn aus — der eine Weg, den es für alles gibt.
+
 Es legt ihn **nicht** an. Ein automatischer Entwurf wäre ein Auftrag, den niemand
 bestellt hat — und er zöge Stücke aus dem laufenden Auftrag, ohne dass jemand zugestimmt
 hätte (§12.6a: die Auswahl nennt, wo sie zugreift). Angelegt wird er über **denselben**
@@ -1137,9 +1146,28 @@ nach id sortierte Menge — und das Ergebnis steht als `sample`-Ereignis im Log
 wenn jemand die Seite neu lädt. Eine deterministische Ableitung (jedes n-te Stück) wäre
 vorhersagbar und damit als Stichprobe wertlos.
 
-**Der Rest läuft ohne Erfassung durch — sichtbar.** Das steht in der Zeile («7 laufen
-ohne Erfassung durch») und ist keine stille Auslassung. Bestätigt wird für die gezogenen
-Stücke; vorgerückt wird die **ganze** Instanz.
+**Der Rest läuft ohne Erfassung durch — sichtbar.** Das steht in der Zeile («nicht
+gezogen, läuft ohne Erfassung durch») und ist keine stille Auslassung. Bestätigt wird für
+die gezogenen Stücke; vorgerückt wird die **ganze** Instanz.
+
+**Und die Zahl der SCANS folgt der Ziehung, nicht umgekehrt** (Testnotiz #714). Die
+Reihenfolge stand einmal auf dem Kopf: jede wartende Instanz wurde zum Scan angeboten,
+und erst danach entschied die Ziehung, ob es dort etwas zu erfassen gab. Bei zwei
+Instanzen und 50 % waren das zwei Scans für **eine** Erfassung; der zweite bestätigte
+nichts — er war nur der Weg, das ungezogene Stück weiterzubewegen.
+
+| ergibt sich aus | |
+|---|---|
+| **Zahl der Erfassungen** | Einzelinstanzen in der Stichprobe |
+| **Zahl der Scans** | **Instanzen**, zu denen diese gehören |
+
+Bewegt wird das Ungezogene darum vom Dienst (`process._run_through`) — und zwar **erst,
+wenn die Stichprobe dieses Moduls durch und bestanden ist** (`_sample_cleared`), nicht
+schon bei der Ankunft. Das ist keine Bequemlichkeit, sondern §4.5: fällt die Stichprobe
+durch, ist der ungeprüfte Rest verdächtig (ISO 2859-1) und darf den Betrieb nicht längst
+verlassen haben. Ein Modul **ohne** Erfassungspunkte ist damit nie «durch» — beim
+Aussondern *ist* der Scan die Bestätigung, und die kann niemand einsparen. Das folgt aus
+der Bedingung, es steht nicht als Abfrage nach dem Modultyp daneben.
 
 ### 9.4 Das Modul «Aussondern» — verschrotten oder sperren
 
@@ -1558,10 +1586,24 @@ order_units.current_step_id   „steht VOR diesem Modul“   (NULL = nach dem En
 
 Ein Punkt heisst also «vor Modul X». **Das Modul benennt ihn, es besitzt ihn nicht.**
 
-Daraus folgt, wo die Abzweigung sitzt: Ein Stück kann nur abweichen, solange am Modul
-noch **nichts eingegeben** wurde (§12.7) — es hat das Modul also gar nicht betreten. Die
-Linie geht darum **vor** dem Modul von der Prozesslinie ab und führt an **denselben
-Punkt** zurück; das Stück durchläuft das Modul danach regulär.
+Daraus folgt, wo die Abzweigung sitzt — und zwar als **eine** Regel, nicht als Liste von
+Fällen:
+
+> Die Abzweigung hängt an der **aktuellen Position** der Einzelinstanz. Vor dem Modul,
+> wenn sie davorsteht; dahinter, wenn sie es passiert hat.
+
+Heute ist der erste Fall der einzige, den es gibt: ein Stück steht **immer** vor dem
+Modul, wenn es abweicht — auch nach einem «nicht bestanden», denn das rückt ausdrücklich
+nicht vor (§4.5). Die Linie geht darum vor dem Modul ab und führt an **denselben Punkt**
+zurück; das Stück durchläuft das Modul danach regulär.
+
+> **Achtung, hier stand eine zu enge Begründung.** «Ein Stück kann nur abweichen, solange
+> am Modul noch nichts eingegeben wurde (§12.7) — es hat das Modul also gar nicht
+> betreten» stimmt für den Regelfall, aber nicht für den wichtigsten: nach einer
+> **durchgefallenen** Erfassung ist sehr wohl etwas eingegeben, und genau dort *bietet*
+> §4.5 die Abweichung an. Die Position ist trotzdem «davor», weil nichts vorgerückt ist —
+> und **das** ist der Grund, nicht die Eingabe. Was daraus folgt und was noch offen ist,
+> steht in `SYSTEM_LOGIC.md` §5.5.
 
 ```
         ⋮

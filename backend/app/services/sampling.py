@@ -119,6 +119,27 @@ def _drawn_already(db: Session, *, order: Order, step: ProcessStep) -> bool:
     ).first() is not None
 
 
+def drawn_ids(db: Session, *, order: Order, step: ProcessStep) -> set[int]:
+    """**Alle** an diesem Modul gezogenen Stücke — unabhängig davon, wo sie heute stehen.
+
+    ``drawn_at`` fragt «welche von diesen hier sind gezogen» und ist damit an die Menge
+    gebunden, die der Aufrufer schon hat. Für die Frage «ist die Stichprobe dieses Moduls
+    durch?» taugt das nicht: ein gezogenes Stück, das erfasst wurde und weitergezogen
+    ist, gehört zur Ziehung, steht aber nirgends mehr in der aktuellen Liste. Wer nur die
+    Gegenwart liest, hielte die Stichprobe für leer.
+    """
+    return {
+        int(uid)
+        for (uid,) in db.execute(
+            select(ProcessEvent.instance_unit_id).where(
+                ProcessEvent.order_id == order.id,
+                ProcessEvent.step_id == step.id,
+                ProcessEvent.kind == KIND_SAMPLE,
+            ).distinct()
+        ).all()
+    }
+
+
 def drawn_at(db: Session, *, order: Order, step: ProcessStep,
              unit_ids: Iterable[int]) -> set[int]:
     """Welche dieser Stücke sind an diesem Modul **gezogen**? — aus dem Log gelesen.

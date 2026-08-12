@@ -359,15 +359,19 @@ def test_a_failed_capture_holds_and_nothing_is_created():
             "Nach dem Durchfaller steht nicht mehr die ganze Instanz still."
         )
         assert len(after["failed_numbers"]) == 1
-        # Und der ungeprüfte Rest ist der «Rest» für die 100 %-Kontrolle (§4.1) –
-        # **nur** die Stücke dieses Auftrags an diesem Modul.
+        # Der ungeprüfte Rest bleibt eine **Zahl** (er steht mit still, §4.1) – aber es
+        # gibt keine Gruppe mehr dafür: die 100 %-Kontrolle ist ersatzlos entfallen
+        # (#713), und damit ist die Abweichung die eine Entscheidung.
         assert after["rest"] == 3
-        rest = proc.held_numbers(db, order, step,
-                                 instance_object_id=work["instance_object_id"], group="rest")
         failed = proc.held_numbers(db, order, step,
                                    instance_object_id=work["instance_object_id"], group="failed")
-        assert len(rest) == 3 and len(failed) == 1
-        assert not set(rest) & set(failed), "Rest und Durchfaller überschneiden sich."
+        assert len(failed) == 1
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as weg:
+            proc.held_numbers(db, order, step,
+                              instance_object_id=work["instance_object_id"], group="rest")
+        assert weg.value.status_code == 400
     finally:
         db.rollback()
         db.close()
@@ -530,14 +534,12 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
         assert row["work"][0]["held"] is True, "Ein «nicht bestanden» rückt vor."
         assert len(row["work"][0]["failed_numbers"]) == 3
 
-        # Die Vorauswahl der Entscheidung – zwei Gruppen, beide erst auf Klick.
+        # Die Vorauswahl der EINEN Entscheidung – erst auf Klick.
         failed = client.get(f"{base}/hold", params={"instance": instance, "group": "failed"})
-        rest = client.get(f"{base}/hold", params={"instance": instance, "group": "rest"})
         assert len(failed.json()["numbers"]) == 3, failed.text
-        assert len(rest.json()["numbers"]) == 7, rest.text
-        assert not set(failed.json()["numbers"]) & set(rest.json()["numbers"]), (
-            "Ein Stück steht in beiden Gruppen – die Vorauswahl wäre doppelt."
-        )
+        # **Die 100 %-Kontrolle ist ersatzlos entfallen** (#713) – kein toter Pfad.
+        assert client.get(f"{base}/hold",
+                          params={"instance": instance, "group": "rest"}).status_code == 400
         assert client.get(f"{base}/hold",
                           params={"instance": instance, "group": "alles"}).status_code == 400
     finally:
@@ -646,8 +648,14 @@ def test_a_capture_covers_exactly_the_drawn_pieces():
         work = proc.step_work(db, order, step)[0]
         inst = work["instance_object_id"]
         drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
-        rest = proc.held_numbers(db, order, step, instance_object_id=inst, group="rest")
-        assert len(drawn) == 2 and len(rest) == 2
+        assert len(drawn) == 2 and work["rest"] == 2
+        alle = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        assert alle == drawn
+        ungezogen = next(
+            n for n in proc.unit_numbers(
+                db, [u for _, u in proc._units_at(db, order, step.id)]).values()
+            if n not in set(drawn)
+        )
 
         with pytest.raises(HTTPException) as zu_wenig:
             proc.confirm_step(db, order=order, step_id=step.id,
@@ -659,7 +667,7 @@ def test_a_capture_covers_exactly_the_drawn_pieces():
         with pytest.raises(HTTPException) as zu_viel:
             proc.confirm_step(
                 db, order=order, step_id=step.id,
-                values={**{n: {"ok": True} for n in drawn}, rest[0]: {"ok": True}},
+                values={**{n: {"ok": True} for n in drawn}, ungezogen: {"ok": True}},
                 instance_object_id=inst, verification="scan", actor_id=None)
         assert zu_viel.value.status_code == 400
         assert "nicht gezogen" in str(zu_viel.value.detail)
@@ -822,6 +830,110 @@ def test_the_verdict_in_the_log_belongs_to_its_own_piece():
         )
         assert results == ["failed", "passed"], (
             f"Der Log verurteilt die Guten mit: {results}"
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# §9.3 – die Zahl der Scans folgt der Stichprobe
+# ---------------------------------------------------------------------------
+
+def test_the_number_of_scans_follows_the_sample():
+    """►►► **Wer hier nicht gezogen wurde, wird hier auch nicht gescannt.** ◄◄◄
+
+    Der gemeldete Fall (Testnotiz #714): zwei Instanzen, Stichprobe 50 %. Erfasst wurde
+    korrekt an **einer** – zum Scan angeboten wurden **beide**. Der zweite Scan bestätigte
+    nichts; er war nur der Weg, das ungezogene Stück weiterzubewegen.
+
+    Die Reihenfolge stand damit auf dem Kopf: erst alle anbieten, dann filtern. Richtig
+    ist die andere Richtung – erst ziehen, daraus ergeben sich die zu erfassenden Stücke,
+    daraus die zu scannenden Instanzen:
+
+    ==========================  ==================================================
+    **Zahl der Erfassungen**    Einzelinstanzen in der Stichprobe
+    **Zahl der Scans**          **Instanzen**, zu denen diese gehören
+    ==========================  ==================================================
+
+    Bewegt wird das Ungezogene jetzt vom Dienst (``_run_through``), und zwar **erst**,
+    wenn die Stichprobe durch und bestanden ist – nicht schon bei der Ankunft. Fällt sie
+    durch, ist der ungeprüfte Rest verdächtig (§4.1) und darf den Betrieb nicht längst
+    verlassen haben.
+    """
+    from app.services import process as proc
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="unit", quantity=2,
+                             sample={"percent": 50})
+        rows = proc.step_work(db, order, step)
+        assert len(rows) == 2, "Zwei Instanzen – zwei Zeilen."
+        gezogen = [r for r in rows if r["sample"] > 0]
+        ohne = [r for r in rows if r["sample"] == 0]
+        assert len(gezogen) == 1 and len(ohne) == 1, (
+            f"50 % von zwei Stück muss genau eine Instanz treffen: {rows}"
+        )
+
+        # Nur die gezogene Instanz wird bestätigt – ein Scan, eine Erfassung.
+        inst = gezogen[0]["instance_object_id"]
+        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        assert len(drawn) == 1
+        proc.confirm_step(db, order=order, step_id=step.id,
+                          values={drawn[0]: {"ok": True}},
+                          instance_object_id=inst, verification="scan", actor_id=None)
+        db.flush()
+
+        # ►► Und die ungezogene ist mitgelaufen – ohne zweiten Scan. ◄◄
+        assert proc.step_work(db, order, step) == [], (
+            "Die ungezogene Instanz steht noch da und wartet auf einen Scan, der nichts "
+            "bestätigen würde."
+        )
+        assert proc.order_status(db, order) == "abgeschlossen", (
+            "Der Auftrag kommt nicht zu Ende, obwohl niemand mehr etwas zu tun hat."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_failed_sample_keeps_the_rest_from_running_through():
+    """**Und genau dann nicht, wenn die Stichprobe durchfällt** (§4.1).
+
+    Das ist die Gegenprobe zur Regel oben: liefe der ungezogene Rest schon bei der
+    Ankunft durch, wäre er beim ersten «nicht bestanden» längst weg – und die
+    Sortierprüfung (ISO 2859-1) hätte nichts mehr zu prüfen. Der Rest läuft darum erst,
+    wenn die Stichprobe **durch und bestanden** ist.
+    """
+    from app.services import process as proc
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="unit", quantity=2,
+                             sample={"percent": 50})
+        rows = proc.step_work(db, order, step)
+        inst = next(r["instance_object_id"] for r in rows if r["sample"] > 0)
+        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        proc.confirm_step(db, order=order, step_id=step.id,
+                          values={drawn[0]: {"ok": False}},
+                          instance_object_id=inst, verification="scan", actor_id=None)
+        db.flush()
+
+        after = proc.step_work(db, order, step)
+        assert len(after) == 2, (
+            "Nach einem Durchfaller ist der ungezogene Rest davongelaufen – dann kann "
+            "ihn niemand mehr aussondern."
+        )
+        assert any(r["held"] for r in after)
+
+        # ►► Und die **Regel** selbst, nicht nur ihre Wirkung an dieser Stelle. ◄◄
+        # Die Bestätigung kehrt bei «nicht bestanden» früh zurück, der Rest bliebe hier
+        # also auch ohne die Bedingung stehen. Sie zählt aber an der zweiten Stelle, an
+        # der sich die Lage ändert: nimmt eine Abweichung ein **anderes** Stück mit,
+        # läuft der Durchlauf – und dann darf er nicht durchlassen.
+        assert proc._sample_cleared(db, order=order, step=step) is False, (
+            "Die Stichprobe gilt als durch, obwohl ein Stück durchgefallen ist und noch "
+            "hier steht – der ungeprüfte Rest liefe davon (§4.1, ISO 2859-1)."
         )
     finally:
         db.rollback()

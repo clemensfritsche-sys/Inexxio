@@ -7,7 +7,7 @@ import type { ArticleStock, Instance, InstanceSummary, StockState } from '@/type
 import { statusCfg } from '@/lib/process-status';
 import { SPEC, SpecHead } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
-import { StockBar, StockLegend } from '@/components/erp/stock-bar';
+import { StockBar } from '@/components/erp/stock-bar';
 import { UnitNumbers } from '@/components/erp/unit-numbers';
 
 const PAGE = 50;
@@ -97,9 +97,13 @@ export function StockView({ scope }: { scope: StockScope }) {
 
   return (
     <Card>
-      <div className="flex flex-col gap-2.5 pb-1">
+      {/* **Die Leiste, und darunter ihre Legende — das sind die Gruppen selbst.**
+          Eine eigene Legende stand einmal dazwischen: Punkt, Wort, Menge je Zustand –
+          und drei Zeilen tiefer noch einmal dasselbe, nur anklickbar. Zwei Anzeigen
+          derselben Zahl auf so engem Raum sind keine zwei Auskünfte (Testnotiz #716).
+          Geblieben ist die, mit der man arbeitet. */}
+      <div className="pb-1">
         <StockBar states={states} height={10} />
-        <StockLegend states={states} />
       </div>
 
       {unknown.length > 0 && <UnknownStates states={unknown} />}
@@ -200,9 +204,12 @@ function UnknownStates({ states }: { states: StockState[] }) {
  */
 function Block({ state, children }: { state: StockState; children: React.ReactNode }) {
   const cfg = statusCfg(state.status);
-  // **Was war, ist zugeklappt.** Nicht «verschrottet ist zu», sondern «Historie ist zu» –
-  // die Frage beantwortet der Status (`stock`), nicht diese Datei.
-  const [shown, setShown] = useState(state.stock !== 'history');
+  // **Zugeklappt startet ALLES** (Testnotiz #716) – dieselbe Regel wie beim
+  // Prozessschrittmodul. Eine Gruppe, die von selbst offensteht, entscheidet für den
+  // Betrachter, was ihn interessiert; die Zahl im Kopf sagt ihm ohnehin, ob sich das
+  // Aufklappen lohnt. (Vorher hing es an `stock`: der lebende Bestand stand offen, die
+  // Historie zu – bei einem Artikel mit genau einem Zustand also immer offen.)
+  const [shown, setShown] = useState(false);
   return (
     <section className="border-t border-border-1">
       <button
