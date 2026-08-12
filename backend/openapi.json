@@ -2155,7 +2155,7 @@
           "orders"
         ],
         "summary": "Hold Numbers",
-        "description": "Die Nummern für eine Entscheidung – **erst auf Klick** (§4/§4.1).\n\n``failed`` sind die durchgefallenen Stücke (die Stichprobe), ``rest`` die ungeprüften\n**dieser Instanz an diesem Modul**. Beide gehen als Vorauswahl in einen ganz\ngewöhnlichen Auftragsentwurf – die 100 %-Kontrolle ist kein eigener Mechanismus,\nsondern dieselbe Anlage mit anderer Vorbelegung.\n\nNicht in der Auftrags-Antwort, weil der «Rest» einer 6000er-Charge sechstausend\nNummern wären – mitgeliefert bei jedem Öffnen.",
+        "description": "Die Nummern einer Gruppe – **erst auf Klick** (§4/§4.1).\n\n``sample`` sind die gezogenen Stücke (für jedes ist ein Wertesatz zu erfassen),\n``failed`` die durchgefallenen. Letztere gehen als Vorauswahl in einen ganz\ngewöhnlichen Auftragsentwurf – die Abweichung ist kein eigener Mechanismus, sondern\ndieselbe Anlage mit anderer Vorbelegung.\n\nDie frühere dritte Gruppe ``rest`` ist ersatzlos entfallen (§4.1, Testnotiz #713).\n\nNicht in der Auftrags-Antwort, weil die Stichprobe einer 6000er-Charge tausende\nNummern wären – mitgeliefert bei jedem Öffnen.",
         "operationId": "hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get",
         "security": [
           {
@@ -2198,10 +2198,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "failed | rest",
+              "description": "sample | failed",
               "title": "Group"
             },
-            "description": "failed | rest"
+            "description": "sample | failed"
           }
         ],
         "responses": {

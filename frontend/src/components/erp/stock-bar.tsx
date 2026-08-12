@@ -75,27 +75,12 @@ export function StockBar({ states, height = 8, onPick, active }: {
   );
 }
 
-/**
- * Die Legende zur Leiste: Wort und Menge je Zustand, in derselben Reihenfolge und
- * derselben Farbe. Sie steht **nur oben** – in einer Liste von 50 Instanzen würde
- * dieselbe Legende 50-mal dasselbe erklären.
+/*
+ * **Es gibt hier keine Legende mehr** (Testnotiz #716).
+ *
+ * Sie stand unter der Leiste – Punkt, Wort, Menge je Zustand – und drei Zeilen tiefer
+ * stand dasselbe noch einmal als Gruppen-Kopf, in derselben Reihenfolge und derselben
+ * Farbe, nur anklickbar. Doppelte Daten auf engem Raum sind keine zwei Auskünfte; die
+ * Gruppen **sind** die Legende dieser Leiste, und sie sind die Fassung, mit der man
+ * arbeitet. Was die Leiste allein sagen muss, sagt sie im Hover.
  */
-export function StockLegend({ states, unit }: { states: StockState[]; unit?: string | null }) {
-  if (states.length === 0) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      {states.map((s) => {
-        const cfg = statusCfg(s.status);
-        return (
-          <span key={s.status} className="flex items-center gap-1.5 text-[12.5px]">
-            <span className="rounded-full" style={{
-              width: 7, height: 7, background: cfg.color, flex: 'none',
-            }} />
-            <span className="text-fg-3">{cfg.label}</span>
-            <span className="ix-tnum">{s.quantity}{unit ? ` ${unit}` : ''}</span>
-          </span>
-        );
-      })}
-    </div>
-  );
-}

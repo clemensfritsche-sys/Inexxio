@@ -1687,9 +1687,15 @@ def test_the_return_position_needs_no_field_of_its_own():
         assert forbidden not in unit, f"«{forbidden}» ist ein zweites Feld für die Position."
     proc = _read(BACKEND / "app" / "services" / "process.py")
     hand = _body(proc, "_hand_over")
-    assert "current_step_id" not in hand.split("values(")[-1], (
-        "Das Ausscheren setzt die Position zurück – dann ist die Rückkehr geraten."
-    )
+    # **Gefragt ist, ob geSCHRIEBEN wird** – geprüft wird darum jede einzelne
+    # ``values(…)``-Zuweisung, nicht «alles nach der letzten». Die grobe Form meldete
+    # jedes spätere *Lesen* der Spalte mit; ein Wächter, der bei richtigem Code
+    # anschlägt, wird stillgelegt statt verstanden.
+    for call in hand.split(".values(")[1:]:
+        assigned = call[: call.index(")")]
+        assert "current_step_id" not in assigned, (
+            "Das Ausscheren setzt die Position zurück – dann ist die Rückkehr geraten."
+        )
     home = _body(proc, "_return_home")
     assert "released_at=None" in home, "Die Rückkehr öffnet die alte Zeile nicht wieder."
 
@@ -2668,11 +2674,12 @@ def test_live_or_history_is_a_property_of_the_status_not_a_list():
             f"{name} führt wieder eine Bestands-Liste – sie gehört an den Status."
         )
     view = _code(_read(FRONTEND / "components" / "erp" / "stock-view.tsx"))
-    # Die Zugehörigkeit bleibt eine **Eigenschaft**, die die Ansicht liest – sie
-    # entscheidet nur noch, was zugeklappt startet («was war, ist zu»).
-    assert "state.stock !== 'history'" in view, (
-        "Die Ansicht liest die Zugehörigkeit nicht mehr – dann steht die Historie offen "
-        "wie der Bestand, und die Aufteilung sagt nichts mehr."
+    # Die Zugehörigkeit bleibt eine **Eigenschaft**, die die Ansicht liest – seit #716
+    # aber nur noch, um das **Unbekannte** zu melden. Was zugeklappt startet, entscheidet
+    # sie nicht mehr: es startet alles zugeklappt.
+    assert "s.stock !== 'live' && s.stock !== 'history'" in view, (
+        "Die Ansicht liest die Zugehörigkeit nicht mehr – dann landet ein Zustand ohne "
+        "Zuordnung stillschweigend irgendwo."
     )
     for value in st.UNIT_STATUSES:
         assert f"'{value}'" not in view and f'"{value}"' not in view, (
@@ -2701,12 +2708,6 @@ def test_a_status_without_a_bucket_is_reported_not_guessed():
     # Geprüft wird die **Anwendung**, nicht die Anwesenheit: eine Komponente, die nur
     # definiert ist, meldet nichts – und genau so hätte der Wächter geschwiegen.
     view = _code(_read(FRONTEND / "components" / "erp" / "stock-view.tsx"))
-    # Die Zugehörigkeit bleibt eine **Eigenschaft**, die die Ansicht liest – sie
-    # entscheidet nur noch, was zugeklappt startet («was war, ist zu»).
-    assert "state.stock !== 'history'" in view, (
-        "Die Ansicht liest die Zugehörigkeit nicht mehr – dann steht die Historie offen "
-        "wie der Bestand, und die Aufteilung sagt nichts mehr."
-    )
     assert "<UnknownStates" in view, "Die Bestandsansicht meldet einen unbekannten Zustand nicht."
     assert "s.stock !== 'live' && s.stock !== 'history'" in view, (
         "Die Ansicht filtert das Unbekannte nicht heraus – dann landet es im falschen Block."
@@ -3089,8 +3090,8 @@ def test_no_entry_without_a_confirmed_instance():
     """
     work = _read(FRONTEND / "components" / "erp" / "capture-work.tsx")
     code = _code(work)
-    assert "verified ? (" in code, "Das Formular hängt nicht mehr an der Bestätigung."
-    assert "expected: work.instance_object_id" in code, (
+    assert "via ? (" in code, "Das Formular hängt nicht mehr an der Bestätigung."
+    assert "expected: w.instance_object_id" in code, (
         "Der Scan verifiziert nicht mehr die Instanz – ohne ``expected`` ist er ein "
         "beliebiger Lookup und bestätigt gar nichts."
     )
@@ -3101,7 +3102,7 @@ def test_no_entry_without_a_confirmed_instance():
         "Neben dem Scanner steht wieder ein eigener «von Hand»-Weg – zwei Wege zum "
         "selben Ziel, und der zweite bestätigt gar nichts."
     )
-    assert "onComplete: (_ids, how) => {" in code and "setVerified(how)" in code, (
+    assert "onComplete: (_ids, how) =>" in code and "accept(w, how)" in code, (
         "Die Art der Bestätigung kommt nicht mehr aus dem Dialog – dann rät der "
         "Aufrufer, wie die Nummer zustande kam."
     )
@@ -3201,26 +3202,97 @@ def test_a_failed_capture_creates_nothing_by_itself():
     )
 
 
-def test_the_hundred_percent_check_is_an_ordinary_order():
-    """**Kein neuer Mechanismus** (§4.1) – nur eine andere Vorbelegung.
+def test_the_deviation_is_the_only_way_out_of_a_hold():
+    """►►► **Eine Frage, EINE Antwort** (§4.1, Testnotiz #713). ◄◄◄
 
-    Und ihr Umfang ist der **Rest dieser Instanz an diesem Modul**, nicht die ganze
-    Charge: Stücke, die anderswo laufen oder längst am Lager liegen, hat dieses Modul nie
-    behandelt – eine 100 %-Kontrolle über sie wäre eine Aussage über Material, das hier
-    nie war.
+    Neben der Abweichung stand einmal eine «100 %-Kontrolle». Sie war **kein zweiter
+    Mechanismus**, sondern derselbe: ein Abweichungsauftrag über die übrigen Stücke mit
+    der Stichprobe «alle». Zwei Wege zu demselben Ergebnis sind einer zu viel – und der
+    zweite war der schwächere, weil er die Stichprobe der Auflösung stillschweigend
+    festlegte, statt sie wählen zu lassen.
+
+    Entfallen ist sie **ersatzlos, auf allen Ebenen**: der Knopf, die Gruppe ``rest`` im
+    Dienst und die im Endpunkt. Ein toter Pfad wäre die Einladung, ihn wiederzubeleben.
     """
     work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
-    assert "api.stepHold(orderObjectId, stepId, work.instance_object_id, group)" in work, (
-        "Die Nummern kommen nicht mehr vom Server – eine zweite Auswahl-Regel."
-    )
-    assert "open('rest')" in work and "open('failed')" in work, (
-        "Es gibt nicht mehr beide Wege aus derselben Entscheidung."
-    )
+    assert "'failed'" in work, "Die Abweichung holt ihre Vorauswahl nicht mehr vom Server."
+    assert "'rest'" not in work, "Die 100 %-Kontrolle ist zurück – zwei Wege, ein Ziel."
+
     proc = _read(BACKEND / "app" / "services" / "process.py")
     body = _body(proc, "held_numbers")
+    assert '"rest"' not in body and "'rest'" not in body, (
+        "Der Dienst kennt die Gruppe «rest» wieder – ein toter Pfad, den niemand ruft."
+    )
     assert "_units_at(db, order, step.id, instance_id=" in body, (
-        "Der Rest wird nicht mehr auf dieses Modul begrenzt – die 100 %-Kontrolle griffe "
-        "nach der ganzen Charge."
+        "Die Vorauswahl wird nicht mehr auf dieses Modul begrenzt – sie griffe nach der "
+        "ganzen Charge."
+    )
+
+
+def test_the_number_of_scans_follows_the_sample():
+    """►►► **Gescannt wird nur, was auch erfasst wird** (Testnotiz #714). ◄◄◄
+
+    Die Reihenfolge stand auf dem Kopf: **jede** wartende Instanz wurde zum Scan
+    angeboten, und erst danach entschied die Ziehung, ob es dort etwas zu erfassen gab.
+    Bei zwei Instanzen und 50 % waren das zwei Scans für eine Erfassung.
+
+    Die Oberfläche bietet den Scan darum nur noch an, wo die Stichprobe zugreift – und
+    der Dienst bewegt das Ungezogene selbst weiter (``_run_through``), damit aus dem
+    weggelassenen Knopf keine Sackgasse wird.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    assert "w.sample > 0" in work, (
+        "Der Scan-Knopf hängt nicht (mehr) an der Ziehung – dann bestätigt er nichts."
+    )
+    proc = _read(BACKEND / "app" / "services" / "process.py")
+    assert "def _run_through(" in proc and "def _sample_cleared(" in proc, (
+        "Der Dienst bewegt das Ungezogene nicht mehr – ohne Scan-Knopf steht es für "
+        "immer still."
+    )
+    body = _body(proc, "_run_through")
+    assert "_sample_cleared(" in body, (
+        "Der Rest läuft, ohne dass die Stichprobe durch ist – bei einem «nicht "
+        "bestanden» wäre er weg, bevor ihn jemand aussondern kann."
+    )
+
+
+def test_the_collective_scan_is_the_scan_sequence():
+    """**Der Sammel-Scan ist kein zweiter Mechanismus** (Testnotiz #711).
+
+    Die Scan-Sequenz ist genau dafür gebaut: ein Dialog, ein Schritt je Instanz, der
+    Reihe nach. Der Unterschied zum Knopf in der Zeile ist die **Zahl der Schritte** –
+    nicht eine zweite Kamera-Logik daneben.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    assert "steps: open.map(" in work, (
+        "Der Sammel-Scan baut sich seine eigene Mechanik, statt die Sequenz zu benutzen."
+    )
+    assert "open.length > 1" in work, (
+        "Der grosse Knopf steht auch bei einer einzigen Instanz da – dann ist er ein "
+        "zweiter Weg zum selben Ziel."
+    )
+
+
+def test_the_stock_view_shows_each_quantity_once():
+    """**Keine doppelten Daten auf engem Raum** (Testnotiz #716).
+
+    Unter der Leiste stand eine Legende (Punkt, Wort, Menge je Zustand) – und drei Zeilen
+    tiefer stand dasselbe noch einmal als Gruppen-Kopf, in derselben Reihenfolge und
+    derselben Farbe, nur anklickbar. Geblieben ist die Fassung, mit der man arbeitet.
+
+    Und **zugeklappt startet alles**: eine Gruppe, die von selbst offensteht, entscheidet
+    für den Betrachter, was ihn interessiert.
+    """
+    view = _code(_read(FRONTEND / "components" / "erp" / "stock-view.tsx"))
+    assert "StockLegend" not in view, "Die Zahlen stehen wieder zweimal untereinander."
+    assert "useState(false)" in view, "Eine Gruppe startet wieder von selbst offen."
+    assert "state.stock !== 'history'" not in view, (
+        "Das Aufklappen hängt wieder am Zustand – bei einem Artikel mit genau einem "
+        "Zustand steht damit immer etwas offen."
+    )
+    bar = _code(_read(FRONTEND / "components" / "erp" / "stock-bar.tsx"))
+    assert "export function StockLegend" not in bar, (
+        "Die Legende steht als toter Pfad herum – die Einladung, sie wieder einzubauen."
     )
 
 
@@ -3477,9 +3549,15 @@ def test_the_capture_is_per_piece_and_the_scan_is_per_instance():
         "Die zu erfassenden Stücke werden nicht erfragt – dann rät die Ansicht sie."
     )
     # Erst nach dem Scan: die Vorschau davor kommt mit den Zahlen aus, die mitreisen.
-    assert work.index("onComplete") < work.index("api.stepHold("), (
-        "Die Nummern werden vor der Bestätigung geholt – bei 6000 Stück ist das die "
-        "Liste, die niemand braucht."
+    # Geprüft wird die **Stelle**, nicht die Zeilenreihenfolge – ``accept`` holt sie, und
+    # ``accept`` wird ausschliesslich aus ``onComplete`` gerufen.
+    assert "'sample'" in _body(work, "accept", kind="function"), (
+        "Die Nummern werden nicht (mehr) nach dem Scan geholt."
+    )
+    assert work.count("accept(w, how)") == 2, (
+        "Die Nummern werden ausserhalb des Scan-Abschlusses geholt – bei 6000 Stück ist "
+        "das die Liste, die niemand braucht. (Zweimal: der Knopf in der Zeile und der "
+        "Sammel-Scan – beide gehen durch dieselbe Stelle.)"
     )
 
 
@@ -3495,11 +3573,16 @@ def test_every_module_shows_what_is_coming_before_the_scan():
     Menge – dass es nichts zu erfassen gibt, ist dann die Auskunft.
     """
     work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
-    assert "function Preview(" in work, "Es gibt keine Vorschau."
-    assert "<Preview points={points} work={work} />" in work, (
-        "Die Vorschau hängt nicht an der gemeinsamen Ausführungsstelle."
+    # **Sie ist keine eigene Komponente mehr, sondern die zweite Ebene der Zeile**
+    # (#715) – die Regel ist dieselbe: sie steht an der gemeinsamen Ausführungsstelle,
+    # also erbt sie jedes Modul, und sie ist **vor** dem Scan da.
+    row = _body(work, "InstanceRow", kind="function")
+    assert "Stück erfassen" in row, "Es gibt keine Vorschau vor dem Scan."
+    assert "via ? (" in row, (
+        "Die Vorschau steht nicht mehr an der Stelle, an die nach dem Scan das Formular "
+        "tritt – dann sind es zwei Aussagen statt einer."
     )
-    assert "points.length === 0" in work, (
+    assert "points.length === 0" in row, (
         "Ein Modul ohne Erfassungspunkte bekommt keine eigene Auskunft."
     )
     # Der eigene Scan-Knopf je Instanz – zusätzlich, nicht anstelle des Sammel-Knopfs.
@@ -3530,9 +3613,14 @@ def test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it():
         "Der Halt verdrängt wieder den Weg nach vorn – das ist die Sackgasse."
     )
     assert "{work.held && (" in work, "Der Halt wird gar nicht mehr gezeigt."
-    assert "{!verified && (" in work, (
-        "Der Scan-Knopf hängt an einer Bedingung – bei einem Halt käme man dann nicht "
-        "mehr an die Wiederholungsprüfung."
+    # Der Scan-Knopf hängt an der **Bestätigung** und an der **Ziehung** (#714) – nie am
+    # Halt. Käme er dort weg, wäre die Wiederholungsprüfung unerreichbar.
+    assert "{!via && !idle && (" in work, (
+        "Der Scan-Knopf hängt an einer anderen Bedingung – steht darin der Halt, ist die "
+        "Wiederholungsprüfung wieder unerreichbar."
+    )
+    assert "work.held" not in _body(work, "InstanceRow", kind="function").split("{work.held && (")[0], (
+        "Der Halt entscheidet weiter oben in der Zeile mit – dann verdrängt er etwas."
     )
 
     # Und der Dienst hält seine Seite: ein Halt ist eine Auskunft, keine Ablehnung.

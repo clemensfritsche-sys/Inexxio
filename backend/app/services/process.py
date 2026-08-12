@@ -738,6 +738,19 @@ def _hand_over(db: Session, *, order: Order, lines: list[_Line],
         )
     for m, _ in taken:
         m.released_at = now
+    db.flush()
+
+    # **Die Quell-Aufträge sehen ihre Stelle neu.** Nimmt eine Abweichung das letzte
+    # gezogene Stück eines Moduls mit, ist dessen Stichprobe damit erledigt – und was dort
+    # noch steht, ist der ungezogene Rest. Er wartete sonst auf einen Scan, den es nach
+    # #714 nicht mehr gibt: der Auftrag stünde still, ohne dass jemand etwas tun könnte.
+    for src_id, at in {(m.order_id, m.current_step_id) for m, _ in taken}:
+        if at is None:
+            continue
+        src = db.query(Order).filter(Order.id == src_id).first()
+        step = db.query(ProcessStep).filter(ProcessStep.id == at).first()
+        if src is not None and step is not None:
+            _run_through(db, order=src, step=step, actor_id=actor_id)
 
 
 # ---------------------------------------------------------------------------
@@ -864,12 +877,7 @@ def confirm_step(
                     f"{where} – hier ist gerade nichts zu tun."),
         )
 
-    following = (
-        db.query(ProcessStep)
-        .filter(ProcessStep.order_id == order.id, ProcessStep.position > step.position)
-        .order_by(ProcessStep.position)
-        .first()
-    )
+    following = _following(db, order, step)
 
     for membership, unit in waiting:
         if unit.status != step.status_before:
@@ -967,7 +975,132 @@ def confirm_step(
         # denn vorher steht die Menge nicht fest).
         sampling.ensure(db, order=order, step=following, actor_id=actor_id)
     db.flush()
+    # **Was hier nicht gezogen wurde, läuft jetzt mit** (§9.3) – siehe ``_run_through``.
+    _run_through(db, order=order, step=step, actor_id=actor_id)
+    db.flush()
     return {"moved": len(units), "held": 0, "result": result}
+
+
+def _following(db: Session, order: Order, step: ProcessStep) -> Optional[ProcessStep]:
+    """Das Modul **nach** diesem – oder ``None``, wenn danach das Ende kommt."""
+    return (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.position > step.position)
+        .order_by(ProcessStep.position)
+        .first()
+    )
+
+
+def _sample_cleared(db: Session, *, order: Order, step: ProcessStep) -> bool:
+    """Ist die Stichprobe **dieses Moduls** durch — und bestanden?
+
+    Zwei Bedingungen, beide aus §4.1/§9.3, keine davon typabhängig:
+
+    1. **Jedes gezogene Stück ist hier erfasst.** Solange eines aussteht, ist die
+       Stichprobe nicht durch – auch wenn es noch bei einem Modul davor steht.
+    2. **Keines ist durchgefallen.** Ein negatives Urteil hält an, und zwar alles: die
+       Stichprobe ist damit nicht mehr repräsentativ, der ungeprüfte Rest verdächtig
+       (ISO 2859-1). Ihn ausgerechnet dann durchlaufen zu lassen wäre das stille
+       Weiterlaufen, das §4.5 verhindert.
+
+    **Ein Modul ohne Erfassungspunkte ist damit nie «durch»** – es erfasst nichts, also
+    hat kein gezogenes Stück eine Erfassung. Genau richtig: beim Aussondern **ist** der
+    Scan die Bestätigung, und die kann niemand einsparen. Das steht hier als Folge, nicht
+    als Abfrage nach dem Modultyp.
+
+    **Gelesen wird die Ziehung, nicht die Gegenwart** (``sampling.drawn_ids``): ein
+    gezogenes Stück, das erfasst wurde und weitergezogen ist, hält keine offene
+    Zugehörigkeit mehr. Wer nur die aktuelle Liste fragt, hielte die Stichprobe für leer –
+    und liesse den Rest gerade dann durchlaufen, wenn noch nichts erfasst ist.
+
+    **Ein Stück, das den Auftrag verlassen hat, hält nichts mehr auf.** Nimmt eine
+    Abweichung den Durchfaller mit, kann er hier nie mehr erfasst werden; auf ihn zu
+    warten wäre eine Sackgasse ohne Ausgang.
+    """
+    drawn = sampling.drawn_ids(db, order=order, step=step)
+    if not drawn:
+        return False
+    here = {
+        int(i) for (i,) in db.query(OrderUnit.instance_unit_id).filter(
+            OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None)).all()
+    }
+    latest = _latest_captures(db, order, step, list(drawn))
+    for uid in drawn:
+        capture = latest.get(uid)
+        if capture is None:
+            if uid in here:
+                return False                       # steht hier noch aus
+            continue                               # weg – kann hier nicht mehr erfasst werden
+        if capture.result == "failed" and uid in here:
+            return False                           # hält an, solange es hier steht (§4.1)
+    return True
+
+
+def _run_through(db: Session, *, order: Order, step: Optional[ProcessStep],
+                 actor_id: Optional[int]) -> None:
+    """►►► **Wer hier nicht gezogen wurde, wird hier auch nicht gescannt.** ◄◄◄
+
+    Die Zahl der Scans folgt der Stichprobe, nicht umgekehrt (Testnotiz #714):
+
+    ==========================  ==================================================
+    **Zahl der Erfassungen**    Einzelinstanzen in der Stichprobe
+    **Zahl der Scans**          **Instanzen**, zu denen diese gehören
+    ==========================  ==================================================
+
+    Vorher stand die Reihenfolge auf dem Kopf: **jede** wartende Instanz wurde zum Scan
+    angeboten, und erst danach entschied die Ziehung, ob es dort etwas zu erfassen gab.
+    Bei zwei Instanzen und 50 % hiess das zwei Scans für eine Erfassung – der zweite
+    bestätigte nichts, er war nur der Weg, das Stück weiterzubewegen.
+
+    **Bewegt wird es jetzt hier**, und zwar erst, wenn die Stichprobe dieses Moduls durch
+    und bestanden ist (``_sample_cleared``). Nicht schon bei der Ankunft: fällt die
+    Stichprobe durch, ist der ungeprüfte Rest verdächtig und darf den Betrieb nicht
+    längst verlassen haben.
+
+    Danach ist, was hier noch steht, genau der ungezogene Rest – ein gezogenes Stück wäre
+    entweder erfasst (und vorgerückt) oder durchgefallen (und dann wäre nichts «durch»).
+    Es passiert das Modul regulär, nur ohne Erfassung; im Log steht das als
+    ``sampled: False``, also **sichtbar** statt stillschweigend (§9.3).
+
+    Und es **kaskadiert**: am nächsten Modul kann dieselbe Instanz wieder ausserhalb der
+    Ziehung liegen. Die Schleife merkt sich die besuchten Module – ein Prozess ist endlich
+    und azyklisch, aber ein Wächter kostet hier nichts.
+    """
+    seen: set[int] = set()
+    while step is not None and step.id not in seen:
+        seen.add(step.id)
+        # **Ein terminales Modul wird nie durchlaufen.** Es ist ein Ausgang (§4.6): was
+        # dort passiert, verlässt den Auftrag endgültig, und das bestätigt ein Mensch.
+        if modules.get(step.module_type).terminal:
+            return
+        if not _sample_cleared(db, order=order, step=step):
+            return
+        here = _units_at(db, order, step.id)
+        if not here:
+            return
+        # **Nur das Ungezogene.** Ein gezogenes Stück, das noch hier steht, ist eine
+        # andere Sache – es wartet, weil ein Geschwister durchgefallen ist, und es
+        # weiterzubewegen wäre eine Entscheidung, die niemand getroffen hat.
+        drawn = sampling.drawn_at(db, order=order, step=step,
+                                  unit_ids=[u.id for _, u in here])
+        waiting = [(m, u) for m, u in here if u.id not in drawn]
+        if not waiting:
+            return
+        units = [u for _, u in waiting]
+        following = _following(db, order, step)
+        _pass(
+            db, order=order, units=units, membership_ids=[m.id for m, _ in waiting],
+            kind=KIND_STEP, step=step, status_after=step.status_after,
+            next_step_id=following.id if following else None, actor_id=actor_id,
+            payloads={u.id: {"sampled": False} for u in units},
+        )
+        if following is None:
+            _finish(db, order=order, rows=waiting, actor_id=actor_id)
+            db.flush()
+            return
+        sampling.ensure(db, order=order, step=following, actor_id=actor_id)
+        db.flush()
+        step = following
 
 
 def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUnit]],
@@ -1262,14 +1395,21 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
                  instance_object_id: int, group: str) -> list[str]:
     """Die Nummern **einer Gruppe dieser Instanz an diesem Modul** — erst auf Klick.
 
-    Drei Rollen, eine Frage – «welche Stücke, und wozu»:
+    Zwei Rollen, eine Frage – «welche Stücke, und wozu»:
 
     ``sample``   die **gezogenen**: für sie ist je ein Wertesatz zu erfassen (§9.3)
     ``failed``   die durchgefallenen – Vorauswahl für einen Abweichungsauftrag
-    ``rest``     die ungeprüften – Vorauswahl für die 100 %-Kontrolle
 
-    ``failed`` und ``rest`` gehen als Vorauswahl in einen ganz gewöhnlichen
-    Auftragsentwurf – **kein neuer Mechanismus** (§4.1), nur eine andere Vorbelegung.
+    ``failed`` geht als Vorauswahl in einen ganz gewöhnlichen Auftragsentwurf – **kein
+    neuer Mechanismus** (§4.1), nur eine andere Vorbelegung.
+
+    **Die dritte Gruppe ``rest`` ist ersatzlos entfallen** (Testnotiz #713). Sie war die
+    Vorauswahl der «100 %-Kontrolle», und die war kein zweiter Mechanismus, sondern
+    derselbe: ein Abweichungsauftrag über die übrigen Stücke mit der Stichprobe «alle».
+    Zwei Wege zu demselben Ergebnis sind einer zu viel – und der zweite war der
+    schwächere, weil er die Stichprobe der Auflösung stillschweigend festlegte, statt sie
+    den Menschen wählen zu lassen. Wer den ungeprüften Rest behandeln will, legt einen
+    Auftrag an und wählt ihn aus; das ist der eine Weg, den es für alles gibt.
 
     **Erst auf Klick, nie auf Vorrat.** Keine dieser Listen steht in der Auftrags-Antwort:
     bei einer 6000er-Charge wären es tausende Nummern bei jedem Öffnen des Auftrags. Die
@@ -1289,17 +1429,13 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
         latest = _latest_captures(db, order, step, [u.id for u in units])
         chosen = [u for u in units if (latest.get(u.id) is not None
                                        and latest[u.id].result == "failed")]
-    elif group in ("rest", "sample"):
-        # **Gezogen ↔ ungeprüft sind dieselbe Ziehung, von beiden Seiten gelesen** –
-        # eine zweite Quelle für «wer wird erfasst» liefe beim ersten Sonderfall
-        # auseinander, und die Zahl daneben käme aus der anderen.
+    elif group == "sample":
         drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
-        want = group == "sample"
-        chosen = [u for u in units if (u.id in drawn) == want]
+        chosen = [u for u in units if u.id in drawn]
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"«{group}» ist keine Gruppe – erlaubt: sample, failed, rest.",
+            detail=f"«{group}» ist keine Gruppe – erlaubt: sample, failed.",
         )
     numbers = unit_numbers(db, chosen)
     return [numbers[u.id] for u in chosen]

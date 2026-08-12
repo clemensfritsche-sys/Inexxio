@@ -538,18 +538,20 @@ def hold_numbers(
     object_id: int,
     step_id: int,
     instance: int = Query(..., description="Objektnummer der betroffenen Instanz"),
-    group: str = Query(..., description="failed | rest"),
+    group: str = Query(..., description="sample | failed"),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Die Nummern für eine Entscheidung – **erst auf Klick** (§4/§4.1).
+    """Die Nummern einer Gruppe – **erst auf Klick** (§4/§4.1).
 
-    ``failed`` sind die durchgefallenen Stücke (die Stichprobe), ``rest`` die ungeprüften
-    **dieser Instanz an diesem Modul**. Beide gehen als Vorauswahl in einen ganz
-    gewöhnlichen Auftragsentwurf – die 100 %-Kontrolle ist kein eigener Mechanismus,
-    sondern dieselbe Anlage mit anderer Vorbelegung.
+    ``sample`` sind die gezogenen Stücke (für jedes ist ein Wertesatz zu erfassen),
+    ``failed`` die durchgefallenen. Letztere gehen als Vorauswahl in einen ganz
+    gewöhnlichen Auftragsentwurf – die Abweichung ist kein eigener Mechanismus, sondern
+    dieselbe Anlage mit anderer Vorbelegung.
 
-    Nicht in der Auftrags-Antwort, weil der «Rest» einer 6000er-Charge sechstausend
+    Die frühere dritte Gruppe ``rest`` ist ersatzlos entfallen (§4.1, Testnotiz #713).
+
+    Nicht in der Auftrags-Antwort, weil die Stichprobe einer 6000er-Charge tausende
     Nummern wären – mitgeliefert bei jedem Öffnen.
     """
     order = orders_svc.get(db, object_id)

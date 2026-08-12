@@ -382,6 +382,37 @@ einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts beh
    mit Aussenwirkung (Einkauf, Verkauf) beim Herausnehmen eines Stücks tun muss, ist noch
    nicht entschieden — der Schalter dafür steht an einer Stelle.
 
+### 5.5 Setzt die Abweichung nach einem «nicht bestanden» VOR oder NACH dem Modul an?
+
+**Gebaut ist: davor.** Die Frage ist gestellt (Testnotiz #713) und die vorgeschlagene
+Präzisierung der Regel ist übernommen (§12.4): *die Abzweigung hängt an der aktuellen
+Position der Einzelinstanz.* Genau das rechnet `flow.build` — der Abzweigepunkt sitzt auf
+`order_units.current_step_id`. Die Zeichnung ist damit **keine** Behauptung; sie gibt die
+Position wieder.
+
+Die eigentliche Frage ist darum nicht, wo gezeichnet wird, sondern: **rückt eine
+durchgefallene Einzelinstanz vor?** Heute nicht (§4.5), und daran hängen drei Dinge:
+
+| Was daran hängt | warum es ohne «steht davor» nicht geht |
+|---|---|
+| **Der Halt ist sichtbar** | `step_work` listet, was vor dem Modul steht. Rückt das Stück vor, verschwindet es aus dieser Liste — und mit ihm die Meldung «nicht bestanden» und die angebotene Abweichung. |
+| **Nichts läuft still weiter** | Ein vorgerücktes Stück steht vor dem **nächsten** Modul und wird dort ganz normal bearbeitet. Ein durchgefallenes Stück liefe damit bis zum Ende durch und käme als «Freigegeben» ans Lager. |
+| **Der Halt braucht keinen Schlüssel** | Ihn stattdessen zu **sperren** hiesse, eine Sperre einzuführen — und die bräuchte jemanden, der sie aufschliesst (§4.5 begründet ausführlich, warum es die nicht gibt). |
+
+**Was die Notiz zu Recht bemängelt, bleibt bestehen:** kehrt ein Stück aus der Abweichung
+an denselben Punkt zurück, durchläuft es das Modul ein **zweites** Mal — und §7.1 verbietet
+die «Wiederholung an Ort und Stelle». Heute ist das der dokumentierte Ausweg aus dem Halt
+(«das nächste Urteil ersetzt das letzte», §4.5); wer die Wiederholung nicht will, **kappt
+die Rückführung** — dann läuft der Auftrag mit weniger Stücken weiter und die Nacharbeit
+lebt im Folgeauftrag.
+
+**Zu entscheiden ist also eine Modellfrage, nicht eine Zeichnungsfrage:** soll ein
+durchgefallenes Stück vorrücken und stattdessen ein **Zustand** es anhalten (der nächste
+Kandidat wäre `Gesperrt`, §5.2)? Das wäre die einzige Variante, die «nach dem Modul» trägt,
+ohne stilles Weiterlaufen zu erlauben — und sie kehrt eine ausdrückliche Entscheidung um
+(§13: «weder Status noch automatischer Folgeauftrag»). Darum steht sie hier und ist nicht
+gebaut.
+
 ---
 
 ## 6. Die Testbarkeitsregel
