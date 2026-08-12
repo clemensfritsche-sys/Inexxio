@@ -169,12 +169,25 @@ Beides ist klein. Beides ist eine Anzeige, die im Fehlerfall lügt statt zu meld
 
 ---
 
-## 🟡-3 · Zwei Vokabulare für den Artikel-Status im Docstring
+## 🟡-3 · Zwei Vokabulare für den Artikel-Status ~~im Docstring~~
 
 `models/article.py` beschreibt die Werte als `released` / `inactive`. Gültig sind
 `freigegeben` / `inaktiv` (`domain/statuses`), und `main._ARTICLE_STATUS_FIXES` zieht
-Altbestand darauf nach. Der Code ist korrekt, der Docstring ist es nicht — und er ist die
-erste Stelle, an der jemand nachschaut.
+Altbestand darauf nach. ~~Der Code ist korrekt, der Docstring ist es nicht~~ — und er ist
+die erste Stelle, an der jemand nachschaut.
+
+### ⚠ Diese Einschätzung war zu milde — korrigiert in Runde 2
+
+**«Der Code ist korrekt» stimmte nicht.** Es war nicht nur der Docstring: der
+**ORM-Default derselben Spalte** stand ebenfalls auf `"released"`, und der gewinnt gegen
+den Server-Default. Ich habe damals den Text gelesen und den Code daneben nicht — genau
+der Fehler, vor dem der Befund selbst warnt.
+
+Aufgefallen ist es erst, als mit `articles.may_create` ein Leser dazukam. Die
+ausführliche Analyse steht als **Fund 4** in der Fundliste unten; behoben ist beides
+(Docstring **und** Default), Wächter `test_the_article_status_has_exactly_one_vocabulary`.
+
+**✅ Erledigt.**
 
 ---
 
@@ -305,6 +318,15 @@ wirklich beantworten muss. Für jede so entstandene Zeile lautete die Antwort **
 400: Zeile 1: Artikel 100000011 ist «released» – ein Artikel ausser Betrieb erzeugt
 keine neuen Einzelinstanzen.
 ```
+
+**Wie weit der Schaden reichte — ehrlich eingegrenzt.** Nicht bis zur Datenverfälschung:
+`main._ARTICLE_STATUS_FIXES` zieht bei **jedem Start** `released`/`draft` auf
+`freigegeben` nach. Ein so entstandener Artikel wäre also spätestens beim nächsten Deploy
+geheilt worden. Der Schaden war ein **Zeitfenster**: zwischen der Anlage eines solchen
+Artikels und dem nächsten Neustart hätte `may_create` ihn zu Unrecht gesperrt — mit einer
+Meldung, die auf einen Zustand zeigt, den der Nutzer nie gesetzt hat. Dass es diesen
+Reparatur-Lauf gibt, macht den Befund kleiner; dass es ihn **braucht**, ist selbst das
+Symptom.
 
 **Behoben an der Wurzel:** der Standardwert kommt aus dem Katalog (`st.FREIGEGEBEN`), und
 ORM- und Server-Default stehen ausdrücklich nebeneinander in derselben Zeile — sie können
