@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
+from .domain import statuses as st
 from .models import UserProfile
 from .core import features
 from .routers import (
@@ -289,6 +290,23 @@ def _ensure_columns() -> None:
                     ))
             for stmt in _RAW_INDEX_SAFETY_NET:
                 conn.execute(text(stmt))
+            # ►► **Endzustände sind terminal – und das steht in der Datenbank.**
+            #
+            # Der Trigger wird bei **jedem Start** aus der Statusliste neu erzeugt, nicht
+            # nur von der Migration. Das ist der Unterschied zwischen einer Zusage und
+            # einer Momentaufnahme: kommt ein zweiter Endzustand in den Katalog, gilt er
+            # ab dem nächsten Start auch unten – niemand muss daran denken, und die
+            # Datenbank kann von der einen Liste nicht abweichen.
+            conn.execute(text(st.terminal_guard_sql()))
+            # ►► **Das Schema wird hier festgeschrieben, bevor Daten angefasst werden.**
+            #
+            # DDL ist in PostgreSQL transaktional: bis hierher hängt jede ergänzte Spalte
+            # an derselben Transaktion wie die Daten-Reparaturen darunter. Scheitert EINE
+            # davon, rollt sie **alles** zurück – auch die Spalten. Genau das ist die
+            # Ausfallklasse von Migration 090, nur eine Ebene tiefer: das Netz ist der
+            # zweite Weg, und beim Ausfall zählt nur der zweite Weg. Eine Daten-Reparatur
+            # darf ihn nicht mitreissen.
+            conn.commit()
             if "articles" in tables:
                 for stmt in _ARTICLE_DATA_FIXES:
                     conn.execute(text(stmt))
@@ -301,10 +319,27 @@ def _ensure_columns() -> None:
                 # Auftrag steckt, ist einsatzbereit – genau das heisst ``freigegeben``.
                 # Bleibt der Altwert stehen, lässt sich das Stück nie starten: das
                 # Start-Objekt erwartet ``freigegeben`` und lehnt sauber ab.
-                conn.execute(text(
-                    "UPDATE instance_units SET status = 'freigegeben' "
-                    "WHERE status IS NULL OR status NOT IN ('freigegeben','im_prozess')"
-                ))
+                #
+                # ►► **Die Liste kommt aus dem Katalog – und das ist hier der ganze Punkt.**
+                #
+                # Diese Reparatur stand einmal als ``NOT IN ('freigegeben','im_prozess')``
+                # da, weil es damals nur diese beiden Zustände gab. Sie ist damit still
+                # veraltet, als ``Gesperrt`` und ``Verschrottet`` dazukamen: seither hat
+                # **jeder Start** – also jeder Deploy – jedes ausgesonderte Stück wieder auf
+                # ``freigegeben`` gesetzt. Ein verschrottetes Stück wurde grün, und zwar
+                # nicht beim Abschluss eines Auftrags, sondern beim nächsten Neustart. In
+                # keiner einzelnen Anfrage war das nachstellbar.
+                #
+                # Repariert wird darum nur noch, was der Katalog **nicht kennt** (der alte
+                # Platzhalter, Fremdwerte). Ein Zustand, der in ``CATALOG`` steht, ist per
+                # Konstruktion nicht mehr betroffen – die Liste kann nicht wieder veralten.
+                conn.execute(
+                    text(
+                        "UPDATE instance_units SET status = :fallback "
+                        "WHERE status IS NULL OR status <> ALL(:known)"
+                    ),
+                    {"fallback": st.INITIAL_UNIT_STATUS, "known": list(st.UNIT_STATUSES)},
+                )
             if "company_settings" in tables:
                 # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt
                 # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht

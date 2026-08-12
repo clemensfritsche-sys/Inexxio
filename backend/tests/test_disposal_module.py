@@ -4,7 +4,7 @@ Vier Regeln, und keine davon ist eine Modulregel: sie stehen im Prozess-Framewor
 jedes künftige terminale Modul erbt sie.
 
 1. **Zwei Zustände, eine Eigenschaft.** «Gibt es einen Weg zurück?» steht am Status
-   (``selectable``), nicht als Liste in der Freigabe – und die Farbe folgt daraus.
+   (``terminal``), nicht als Liste in der Freigabe – und die Farbe folgt daraus.
 2. **Ein terminales Modul ist ein Ausgang.** Das Stück verlässt den Auftrag dort; hinter
    ihm kann kein Modul mehr stehen, und das Ende-Objekt passiert es nie.
 3. **Damit endet auch eine geplante Rückführung** – ohne eine Zeile Wartelogik: gezählt
@@ -99,7 +99,7 @@ def test_two_states_and_the_way_back_is_a_property_not_a_colour():
     """**Die Farbe folgt der Frage «gibt es einen Weg zurück?», nicht umgekehrt.**
 
     Beide Zustände sind erreichbar, beide bleiben Datensätze. Der Unterschied steht an
-    **einer** Eigenschaft: ``selectable``. Daraus folgt die Farbe (rot ↔ gelb), daraus
+    **einer** Eigenschaft: ``terminal``. Daraus folgt die Farbe (rot ↔ gelb), daraus
     folgt die Bestands-Zugehörigkeit, und daraus folgt, was die Freigabe erlaubt – nicht
     aus drei Listen, die jemand nachzieht.
     """

@@ -21,8 +21,10 @@ export interface StatusEntry {
   axes: readonly string[];
   /** Nur für Zustände, die ein Stück tragen kann – sonst `null`. */
   stock: StockKind | null;
-  /** Darf ein Auftrag ein Stück in diesem Zustand greifen? «Gibt es einen Weg zurück?» */
-  selectable: boolean;
+  /** **Ist dieser Zustand endgültig?** Die eine Eigenschaft, aus der alles folgt:
+   *  die Farbe, ob ein Auftrag das Stück greifen darf, und der Schutz in der
+   *  Datenbank. Aus einem Endzustand heraus gibt es keinen Übergang mehr. */
+  terminal: boolean;
 }
 
 
@@ -37,13 +39,13 @@ export const INAKTIV = "inaktiv";
 
 /** Der Katalog. Reihenfolge = Anzeige-Reihenfolge (Leiste, Legende).*/
 export const STATUS_CATALOG: readonly StatusEntry[] = [
-  { value: FREIGEGEBEN, label: "Freigegeben", tone: "done", axes: ["unit", "article"], stock: "live", selectable: true },
-  { value: IM_PROZESS, label: "Im Prozess", tone: "pending", axes: ["unit", "order"], stock: "live", selectable: true },
-  { value: GESPERRT, label: "Gesperrt", tone: "pending", axes: ["unit"], stock: "live", selectable: true },
-  { value: VERSCHROTTET, label: "Verschrottet", tone: "danger", axes: ["unit"], stock: "history", selectable: false },
-  { value: ABGESCHLOSSEN, label: "Abgeschlossen", tone: "done", axes: ["order"], stock: null, selectable: true },
-  { value: ABGEBROCHEN, label: "Abgebrochen", tone: "danger", axes: ["order"], stock: null, selectable: true },
-  { value: INAKTIV, label: "Inaktiv", tone: "danger", axes: ["article"], stock: null, selectable: true },
+  { value: FREIGEGEBEN, label: "Freigegeben", tone: "done", axes: ["unit", "article"], stock: "live", terminal: false },
+  { value: IM_PROZESS, label: "Im Prozess", tone: "pending", axes: ["unit", "order"], stock: "live", terminal: false },
+  { value: GESPERRT, label: "Gesperrt", tone: "pending", axes: ["unit"], stock: "live", terminal: false },
+  { value: VERSCHROTTET, label: "Verschrottet", tone: "danger", axes: ["unit"], stock: "history", terminal: true },
+  { value: ABGESCHLOSSEN, label: "Abgeschlossen", tone: "done", axes: ["order"], stock: null, terminal: false },
+  { value: ABGEBROCHEN, label: "Abgebrochen", tone: "danger", axes: ["order"], stock: null, terminal: false },
+  { value: INAKTIV, label: "Inaktiv", tone: "danger", axes: ["article"], stock: null, terminal: false },
 ];
 
 /** Alle Werte in Anzeige-Reihenfolge. */

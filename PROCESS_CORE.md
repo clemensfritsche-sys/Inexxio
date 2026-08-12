@@ -341,16 +341,29 @@ Achsenlisten, Anzeige-Reihenfolge, Gruppierung im Bestand, Farbe, Frontend-Katal
 | `Im Prozess` | Orange | Stück · Auftrag | live | Im Prozess genau eines freigegebenen Auftrags. |
 | `Gesperrt` | Orange | Stück | live | Aus dem Verkehr gezogen, **physisch noch da**. Nicht einplanbar, solange die Sperre gilt – **aufhebbar**. |
 | `Verschrottet` | Rot | Stück | history | Aus dem Verkehr gezogen und **physisch weg**. Endgültig. |
-| `Abgeschlossen` | Grün | Auftrag | — | Ziel erreicht. |
+| `Abgeschlossen` | Grün | Auftrag | — | **Den definierten Weg zu Ende gegangen.** |
 | `Abgebrochen` | Rot | Auftrag | — | Ziel nicht mehr erreichbar. |
 | `Inaktiv` | Rot | Artikel | — | Ausser Betrieb, endgültig. |
 
-**«Gibt es einen Weg zurück?» ist eine Eigenschaft des Status, keine Farbfrage.** Sie
-heisst `selectable` und beantwortet genau eine Sache: *darf ein Auftrag ein Stück in
-diesem Zustand greifen?* Die **Farbe folgt daraus** – was endgültig ist, ist rot; was
-aufhebbar ist, ist orange –, und ebenso die Freigabe-Prüfung (`process.release`) und die
-Auswahl-Liste (`routers/orders`). Zwei Listen dafür liefen auseinander, und die
-Oberfläche böte an, was der Server abweist.
+**«Abgeschlossen» heisst nicht «hat das Ende-Objekt passiert».** Ein **Ausgang** (§4.6)
+ist ebenfalls ein Ende: wer dort ausgesondert wird, ist seinen Weg zu Ende gegangen.
+Das ist keine neue Regel, sondern die genauere Beschreibung der bestehenden – gezählt
+wird «Zugehörigkeit geschlossen **und** vor keinem Modul mehr stehend»
+(`process.order_statuses`), nie «am Ende-Objekt angekommen». Ein Abweichungsauftrag, der
+verschrottet, ist damit **abgeschlossen** und braucht keinen vierten Wert; `Abgebrochen`
+bleibt dem vorbehalten, dessen Stücke stehen bleiben, ohne irgendein Ende zu erreichen.
+
+**«Gibt es einen Weg zurück?» ist eine Eigenschaft des Status, keine Farbfrage.** Die
+Eigenschaft heisst `terminal` und beantwortet die stärkste Frage, die man an einen
+Zustand stellen kann: *ist er endgültig?* Alles Weitere **folgt daraus**, statt daneben
+zu stehen:
+
+- **Wählbarkeit** (`is_selectable`) – aus einem Endzustand heraus gibt es nichts mehr zu
+  tun, also nimmt ihn kein Auftrag auf (`process.release`, Auswahl-Liste in
+  `routers/orders`). Das war einmal ein eigenes Feld `selectable`; zwei Felder für
+  dieselbe Frage sind zwei Stellen, an denen sie verschieden beantwortet werden kann.
+- die **Farbe** – was endgültig ist, ist rot; was aufhebbar ist, orange.
+- der **Schutz in der Datenbank** – siehe §5.3.
 
 Daraus fällt das **Zurückholen** von selbst heraus: ein gesperrtes Stück nimmt ein ganz
 gewöhnlicher Auftrag auf, das Start-Objekt setzt es auf `Im Prozess` wie jedes andere.
@@ -387,7 +400,34 @@ damit kein Vorrat mehr, sondern die Aussage eines gebauten Vorgangs.*
 einsatzbereit und in keinem Auftrag – genau das heisst das Wort. Der frühere Platzhalter
 `new` aus dem Basis-Neuaufbau ist mit Migration `104` entfallen.
 
-### 5.3 Farbe
+### 5.3 Ein Endzustand ist endgültig – und das steht in der Datenbank
+
+Ein Zustand mit `terminal = True` wird **nicht verlassen**. Nicht «soll nicht», sondern
+**kann nicht** – die Regel liegt so tief, dass niemand an ihr vorbeikommt:
+
+| Ebene | Wo | Wofür |
+|---|---|---|
+| Die eine Schreibstelle | `process._pass` | jeder Statuswechsel der Prozesslogik (Start · Modul · Ende). Bricht mit **409 und einem Satz** ab, bevor etwas geschrieben ist. |
+| Die Tabelle selbst | Trigger `trg_instance_units_terminal` | **alles andere** – Reparaturskript, Migration, Sicherheitsnetz, `UPDATE` von Hand. |
+| Der Abgleich | `flow._verify_history` | falls doch etwas vorbeikam: der Log sagt Endzustand, die Zeile sagt etwas anderes → als Problem im Bild. |
+
+**Es gibt keine Umgehung.** Kein Parameter, kein Force-Flag, keine Administrator-Ausnahme.
+Wer eine bräuchte, hat kein Sonderrecht, sondern ein Modellproblem: ein Zustand, den man
+doch verlassen können muss, ist schlicht **nicht terminal** – und das ist eine Zeile im
+`CATALOG`. Der Trigger wird aus genau dieser Liste erzeugt und bei **jedem Start**
+nachgezogen (`main._ensure_columns`), damit die Datenbank von ihr nicht abweichen kann.
+
+**Warum so tief, und nicht im Modul.** Der Schreiber, der wirklich Schaden anrichtet, ist
+nicht der, an den man denkt. Eine Alt-Reparatur im Startvorgang setzte
+`UPDATE instance_units SET status='freigegeben' WHERE status NOT IN ('freigegeben','im_prozess')`
+– eine Liste aus einer Zeit, in der es nur diese beiden Zustände gab. Als `Gesperrt` und
+`Verschrottet` dazukamen, wurde sie still falsch, und seither hat **jeder Start** jedes
+ausgesonderte Stück zurückgesetzt. Über keinen Dienstpfad und in keiner einzelnen Anfrage
+war das nachstellbar; eine Prüfung im Modul hätte nichts genützt. Die Lehre steht in der
+Reparatur selbst: sie nimmt ihre Liste jetzt aus dem `CATALOG` und repariert nur, was er
+**nicht kennt**.
+
+### 5.4 Farbe
 
 | Farbe | Bedeutung |
 |---|---|

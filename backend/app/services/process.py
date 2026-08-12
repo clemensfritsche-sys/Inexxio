@@ -49,6 +49,42 @@ def _chunks(values: list[int]) -> Iterable[list[int]]:
 # Der Ereignis-Log — die EINE Schreibstelle für einen Statuswechsel
 # ---------------------------------------------------------------------------
 
+def _assert_not_terminal(db: Session, units: list[InstanceUnit], status_after: str) -> None:
+    """►►► **Ein Endzustand wird nicht überschrieben.** ◄◄◄
+
+    Die Prüfung sitzt hier, weil hier **jeder** Statuswechsel durchläuft (§4.1): Start,
+    Modul, Ende – es gibt keinen zweiten Schreibweg, und darum gibt es auch keinen Weg an
+    ihr vorbei. Ein neues Modul erbt sie, ohne von ihr zu wissen; es fragt gar nicht, ob
+    es darf, ihm wird gesagt, dass es nicht darf.
+
+    **An der falschen Stelle wäre sie eine Hoffnung.** Sie am Modul zu prüfen hiesse: an
+    jedem Modul, für immer, und beim ersten vergessenen ist der Endzustand weg. Sie in der
+    Freigabe zu prüfen deckt nur den Eintritt ab – ``release`` tut das ohnehin
+    (``is_selectable``), aber nur für **freie** Stücke; ein Stück, das noch in einem
+    Auftrag liegt, kommt dort gar nicht an dieser Prüfung vorbei.
+
+    **Und darunter liegt der Trigger** (``statuses.terminal_guard_sql``): dieselbe Regel
+    als Eigenschaft der Tabelle. Diese Stelle hier gibt es nicht, weil die Datenbank
+    unsicher wäre, sondern damit der Fehler einen **Satz** hat statt einer rohen
+    Datenbank-Meldung – und damit er den Vorgang abbricht, bevor irgendetwas geschrieben
+    ist.
+    """
+    stuck = [u for u in units if st.is_terminal(u.status)]
+    if not stuck:
+        return
+    first = stuck[0]
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"Einzelinstanz {_number(db, first)} ist «{st.label(first.status)}» – das ist "
+            f"ein Endzustand. Er wird nicht überschrieben"
+            + (f" (versucht: «{st.label(status_after)}»)" if status_after else "")
+            + (f"; betroffen sind {len(stuck)} Stücke" if len(stuck) > 1 else "")
+            + ". Was passiert ist, ist passiert."
+        ),
+    )
+
+
 def _pass(
     db: Session,
     *,
@@ -74,6 +110,7 @@ def _pass(
     """
     if not units:
         return 0
+    _assert_not_terminal(db, units, status_after)
 
     # Der Vorher-Status wird gelesen, **bevor** geschrieben wird – sonst stünde im Log
     # zweimal derselbe Wert und der Übergang wäre nicht mehr ablesbar.
@@ -1191,6 +1228,11 @@ def units_page(db: Session, order: Order, *, membership_ids: list[int],
 
 def _derive(arrived: int, alive: int, lent: int) -> str:
     """Die Regel selbst — aus drei Zahlen. Alles andere zählt nur.
+
+    **«Abgeschlossen» heisst: den definierten Weg zu Ende gegangen** – nicht «das
+    Ende-Objekt passiert». Der Unterschied zählt bei einem **Ausgang** (§4.6): wer
+    ausgesondert wird, verlässt den Auftrag dort, und das ist das Ende seines Weges. Ein
+    vierter Wert dafür wäre falsch; die Regel deckt ihn bereits.
 
     **Was noch unterwegs ist, gewinnt.** Ein Auftrag, dessen eines Stück angekommen und
     dessen anderes gerade in einer Abweichung ist, läuft – er ist nicht «Abgeschlossen».

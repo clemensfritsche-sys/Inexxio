@@ -953,7 +953,7 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
  * geben. Die Farbe kommt aus `lib/modules.moduleTone`, gefüttert vom Backend: ein neuer
  * Modultyp ist ein Eintrag in der Registry, kein Eingriff hier.
  *
- * Prozessmodule tragen eine **eigene Farbfamilie**, getrennt von der Ampel (§5.3): sie
+ * Prozessmodule tragen eine **eigene Farbfamilie**, getrennt von der Ampel (§5.4): sie
  * sind keine Zustände und dürfen nicht wie welche aussehen.
  */
 
