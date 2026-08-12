@@ -73,6 +73,20 @@ und geändert wird; Auftrags- und Artikelzustände sind abgeleitet bzw. anderswo
 Bestands-Zugehörigkeit ist eine Eigenschaft am Status. Es darf keine zweite Liste geben,
 die jemand nachziehen muss.
 
+> **Drei Wörter beantworten hier zwei Fragen** (`CONCEPT_REVIEW` §3). Kein Verhalten ist
+> davon falsch — die Kosten trägt, wer neu dazukommt, und `is_active` hat gezeigt, dass
+> solche Kosten irgendwann als Fehler anfallen:
+>
+> * **`terminal`** heisst am **Status** «für dieses Stück gibt es keinen Weg mehr» und am
+>   **Modul** «die Reise endet hier». Beim Aussondern mit `mode=block` lauten die Antworten
+>   verschieden: ein **terminales Modul** setzt einen **nicht-terminalen** Status.
+> * **`release`** heisst als Vorgang «den Auftrag **starten**», als Spalte
+>   (`OrderUnit.released_at`) «die Zugehörigkeit ist **beendet**». `released_at IS NULL`
+>   liest sich wie «noch nicht freigegeben» und bedeutet «noch aktiv».
+> * **`freigegeben`** meint am Stück «in keinem Auftrag», am Artikel «auftragsfähig» — und
+>   die gleichnamige **Aktion** («Auftrag freigeben») ist genau der Vorgang, der ein Stück
+>   aufhören lässt, freigegeben zu sein.
+
 ### 1.2 Die vollständige Übergangsmatrix (Einzelinstanz)
 
 > **Jeder nicht aufgeführte Übergang ist verboten.**
@@ -357,6 +371,30 @@ Landkarte dünn ist und an denen darum getestet wird.
 | **R5 — Artikel inaktiv** | Lässt sich mit einem inaktiven Artikel noch etwas erzeugen? | **behoben** (S98 · S98b) — «Neu» gesperrt, «Lager» bleibt |
 | **R6 — leere Menge** | Stimmt die Mengenbilanz nach vollständiger Aussonderung? | **geprüft** (S81) — ja, die Zeilen bleiben, nur der Zustand wechselt |
 | **R7 — `units_may_leave`** | Ein künftiger Modultyp mit Aussenwirkung (Einkauf, Verkauf) darf `units_may_leave = False` setzen. Dann lässt sich ein Stück vor diesem Modul **nicht** herausnehmen — und weil der Abbruch genau darüber läuft (§4.4), wäre der Ausgang zu. | **latent, ungeprüft.** Heute gibt es keinen solchen Modultyp. Wer den ersten baut, muss den Ausgang mitbeantworten. |
+| **R8 — Korrektur nach dem Vorrücken** | Eine Erfassung ist falsch und fällt erst auf, wenn das Stück das Modul verlassen hat. Gibt es einen Weg? | **nein** (`CONCEPT_REVIEW` §1.6). Solange das Stück davorsteht, ersetzt das nächste Urteil das letzte (U4); danach findet `_units_at` es dort nicht mehr, und eine Ereignisart für eine Korrektur gibt es nicht. Der Docstring von `ProcessEvent` verspricht sie bereits. **Ohne sie wandert die Korrektur auf Papier — und ab da ist das System nicht mehr die Quelle.** |
+| **R9 — gleichzeitiges Bestätigen** | Zwei Personen bestätigen dieselbe Instanz am selben Modul im selben Moment. | **ungeprüft, Vermutung.** `confirm_step` nimmt keine Sperre; beide lesen dieselbe Warteliste. Erwartet wird kein kaputter Zustand, aber ein **doppelter Nachweis** (zwei Erfassungszeilen, zwei Schritt-Ereignisse). S63 prüft Nebenläufigkeit nur bei der **Freigabe**. |
+| **R10 — wer darf** | Jeder Endpunkt hängt an `require_employee`; es gibt keine Rolle je Modultyp. Wer sich anmelden kann, kann 600 Stück verschrotten. | **bewusst offen.** Die **Attribution** ist lückenlos (`actor_id` an jedem Ereignis) — damit ist die Absicht «wer es zu verantworten hat» erfüllt. Was fehlt, ist **Prävention** bei den unumkehrbaren Vorgängen. Der Ort für die Regel existiert (`Module`, neben `terminal`/`requires_verification`). |
+
+### 4.6 Was ausserhalb dieser Landkarte liegt
+
+> §4.1–§4.2 kartieren jeden Zustand, den es **gibt**. Diese Tabelle nennt die Vorgänge, für
+> die es **keinen** gibt — sie können darum in keiner Sackgassen-Analyse auftauchen und
+> sind bis zum Konzeptreview (`CONCEPT_REVIEW.md`) nirgends festgehalten gewesen.
+
+| Vorgang | Warum das Modell ihn nicht kennt |
+|---|---|
+| **Montage** (4 Teile → 1 Baugruppe) | Es gibt **keine Beziehung zwischen zwei Einzelinstanzen** — nur die zeitliche (Journey §7.4). Kein «besteht aus», kein «steckt in». Dazu fehlt der Zustand: `verbraucht` ist im Katalog ausdrücklich **nicht angelegt**, und `_assert_single_new` (#693) verbietet die eine Auftragsform, die eine Montage wäre (verbrauchende `Lager`-Zeilen **plus** eine erzeugende `Neu`-Zeile). |
+| **Teilung** (eine 6-m-Stange → 3 Stücke) | Umkehrung derselben Lücke. Zusätzlich hat die Länge im Modell keinen Platz (keine Mengen-Spalte, D1) — sie lässt sich nur als Erfassungswert führen. |
+| **Verbrauch** | Ein Stück verlässt den Bestand heute ausschliesslich über `Verschrottet`. «Verbaut» als Endzustand gibt es nicht — der Bestand enthält damit auch alles, was eingebaut oder ausgeliefert wurde. |
+| **Ort** | Es gibt keinen Halter, keine Standort-Spalte, keine Kette. Solange ein Stück in einem Auftrag läuft, ist «vor Modul X» die Antwort; bei **freiem** Bestand ist sie leer. Das ist die grösste Abweichung zwischen der Absicht (*«wo es ist»*) und dem Modell. |
+| **Zweck eines Auftrags** | Ein Auftrag trägt Objektnummer, den daraus gebildeten Namen und den Endzustand. Warum es ihn gibt, steht nirgends — bei zwei Aufträgen mit demselben Ablauf ist es nicht einmal erschliessbar. |
+| **Termin / Soll-Dauer** | Der Auftragsstatus hat keine Zeitachse. Ein Auftrag, an dem seit sechs Wochen niemand war, ist von einem laufenden nicht unterscheidbar. |
+
+**Der gemeinsame Prüfstein für die letzten drei:** die Regel «nichts speichern, was sich
+ableiten lässt» (G3) ist richtig und bleibt. Sie hat aber auch Angaben mit entfernt, die
+sich **nicht** ableiten lassen — Ort, Zweck und Termin existieren nur im Kopf dessen, der
+handelt. Ein Feld ist zulässig, **wenn seine Angabe aus keiner anderen im System
+herleitbar ist**; alles Übrige bleibt verboten.
 
 ---
 
@@ -381,6 +419,24 @@ einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts beh
 4. **Weitere Modultypen.** Zwei sind fertig (Datenerfassung, Aussondern). Was ein Modul
    mit Aussenwirkung (Einkauf, Verkauf) beim Herausnehmen eines Stücks tun muss, ist noch
    nicht entschieden — der Schalter dafür steht an einer Stelle.
+5. **Montage, Teilung, Verbrauch** (§4.6, `CONCEPT_REVIEW` §1.1). Die **wichtigste**
+   offene Entscheidung, und sie steht **vor** dem nächsten Modultyp: er würde sonst auf
+   einem Fundament stehen, das sich noch bewegt. Zu entscheiden ist dreierlei —
+   (a) ein Endzustand `verbaut` im Katalog, (b) ein Modul, das ihn setzt, (c) ob
+   `_assert_single_new` von «eine `Neu`-Zeile und sonst nichts» auf «**höchstens** eine
+   `Neu`-Zeile» präzisiert wird. Der Versionsstempel bleibt dabei eindeutig, denn es gäbe
+   weiterhin nur eine Vorlage. Danach ist die **Stückliste eine Ableitung** über den
+   gemeinsamen Auftrag — kein neues Feld, keine zweite Beziehung.
+6. **Ort.** Ob und wie ein Halter je Einzelinstanz geführt wird (§4.6). Bis dahin ist
+   *«wo ist es»* für freien Bestand unbeantwortbar. Der Vorgänger hatte eine
+   Standort-Kette; sie wieder aufzunehmen heisst, ihre Fehler nicht mitzunehmen.
+7. **Zweck des Auftrags.** Ein Pflichtfeld «warum gibt es diesen Auftrag» — ein Satz, wie
+   ihn das Aussondern-Modul für seinen Grund bereits verlangt, und aus demselben Grund.
+   Ohne ihn wirft das abgeleitete Label «Abweichung» acht verschiedene Vorgänge zusammen
+   (`CONCEPT_REVIEW` §2), und eine Sonderfreigabe hat keinen dokumentierten Anlass.
+8. **Termin und Soll-Dauer** (§4.6). Ohne Soll ist «hängt seit sechs Wochen» nicht von
+   «dauert eben so lange» zu unterscheiden — und zwar unabhängig davon, wie gut eine
+   Auswertung gebaut wäre.
 
 ### 5.5 Setzt die Abweichung nach einem «nicht bestanden» VOR oder NACH dem Modul an?
 
