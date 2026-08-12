@@ -314,6 +314,41 @@
 > es ein Feld, sein **Fehlen ein Fehler beim Start**, und zur Laufzeit reist die Antwort als
 > `StockState.stock` mit den Daten; ein Zustand ohne Zuordnung wird in der Oberfläche
 > **gemeldet** statt geraten.
+>
+> **Ein Endzustand ist endgültig – und das steht in der DATENBANK** (PROCESS_CORE §5.3,
+> Migration `110`): Gemeldet war, dass ein **verschrottetes** Stück später wieder auf
+> «Freigegeben» stand. Über keinen Dienstpfad und in keiner einzelnen Anfrage war das
+> nachstellbar – und genau das war die Spur: der Schreiber sass **ausserhalb** der
+> Prozesslogik. Eine Alt-Reparatur im Startvorgang (`main._ensure_columns`) setzte
+> `UPDATE instance_units SET status='freigegeben' WHERE status NOT IN
+> ('freigegeben','im_prozess')`; die Liste stammte aus der Zeit, als es nur diese beiden
+> Zustände gab, und wurde still falsch, als **Gesperrt** und **Verschrottet** dazukamen.
+> Seither hat **jeder Start – also jeder Deploy –** jedes ausgesonderte Stück
+> zurückgesetzt (gemessen: `UPDATE 4`, beide Zustände auf `freigegeben`).
+> **Die Lehre steckt in der Form des Schutzes, nicht im Einzelfix.** «Endgültig» ist eine
+> **Eigenschaft des Status** (`Status.terminal`, aus der `is_selectable`, die Farbe und
+> die Prüfungen folgen – das frühere zweite Feld `selectable` ist darin aufgegangen), und
+> sie gilt auf drei Ebenen: **die eine Schreibstelle** (`process._pass`, 409 mit einem
+> Satz und der Stück-Nummer, bevor etwas geschrieben ist) · **die Tabelle selbst** (Trigger
+> `trg_instance_units_terminal`, aus dem `CATALOG` erzeugt und bei jedem Start nachgezogen
+> – er kennt auch das Reparaturskript, die Migration und das `UPDATE` von Hand) · **der
+> Abgleich Log ↔ Zeile** (`flow._verify_history`). Die dritte musste dabei umgebaut werden:
+> eine Invariante, die **nur den Log** liest, hätte genau diesen Fehler nie gefunden – ein
+> Schreiber ausserhalb der Prozesslogik hinterlässt gar keinen Eintrag. Gefragt wird darum
+> nach dem **Widerspruch**: der Log sagt Endzustand, die Zeile sagt etwas anderes.
+> **Es gibt keine Umgehung** – kein Parameter, kein Force-Flag. Wer eine bräuchte, hat ein
+> Modellproblem: ein Zustand, den man doch verlassen können muss, ist nicht terminal, und
+> das ist eine Zeile im `CATALOG`.
+> Die Reparatur selbst nimmt ihre Liste jetzt aus dem Katalog und heilt nur, was er
+> **nicht kennt**; und das Sicherheitsnetz **schreibt sein Schema fest, bevor es Daten
+> anfasst** (vorher riss eine scheiternde Daten-Reparatur jede eben ergänzte Spalte mit in
+> den Rollback – die Ausfallklasse von Migration `090`, eine Ebene tiefer).
+> **«Abgeschlossen» heisst «den definierten Weg zu Ende gegangen»**, nicht «das
+> Ende-Objekt passiert»: ein **Ausgang** ist ebenfalls ein Ende, ein Abweichungsauftrag,
+> der verschrottet, ist also abgeschlossen. Keine Verhaltensänderung – genau das zählt
+> `order_statuses` seit jeher –, nur die genauere Beschreibung.
+> Wächter: `tests/test_terminal_status.py` (jede der drei Ebenen **gegen ihre Bug-Form**
+> gegengeprüft).
 > **Die Instanz nennt ihren Artikel als Datensatz**: verlinkte Objektnummer im Werteraster
 > statt eines abgeschriebenen Namens – ein Klick, immer aktuell. Der Typ heisst im Kopf
 > jetzt «Instanz» statt «Instanzen» (der einzige Plural in `TYPE_META`; über EINEM Datensatz

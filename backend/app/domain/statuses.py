@@ -42,7 +42,13 @@ FREIGEGEBEN = "freigegeben"
 #: solange seine Stücke es sind.
 IM_PROZESS = "im_prozess"
 
-#: Ziel erreicht (**Auftrag**).
+#: **Der Auftrag ist seinen definierten Weg zu Ende gegangen** (**Auftrag**).
+#:
+#: Nicht «hat das Ziel erreicht» – das klang nach dem Ende-Objekt und liess einen Auftrag
+#: zweifelhaft aussehen, dessen Stücke durch einen **Ausgang** hinausgingen (§4.6). Ein
+#: terminales Modul IST das Ende des Weges; wer dort ankommt, ist fertig, auch wenn er das
+#: Ende-Objekt nie passiert. Genau das zählt ``process.order_statuses`` schon immer:
+#: Zugehörigkeit geschlossen **und** vor keinem Modul mehr stehend.
 ABGESCHLOSSEN = "abgeschlossen"
 
 #: Das Ziel ist nicht mehr erreichbar (**Auftrag**). Der erste Wert mit dem **roten** Ton –
@@ -80,23 +86,35 @@ class Status:
     value: str
     label: str
     #: Ampelton – die drei des Design-Systems. **Farbe hängt am Status, nie an der
-    #: Position im Fluss** (§5.3); die konkreten Farbwerte stehen in den Design-Tokens.
+    #: Position im Fluss** (§5.4); die konkreten Farbwerte stehen in den Design-Tokens.
     tone: str
     #: Welche Achsen ihn tragen können.
     axes: tuple[str, ...]
     #: **Bestand oder Historie?** Pflicht für jeden Zustand, den ein Stück tragen kann;
     #: für alle anderen sinnlos und darum verboten (siehe ``_check``).
     stock: str | None = None
-    #: **Darf ein Auftrag ein Stück in diesem Zustand aufnehmen?**
+    #: **Ist dieser Zustand endgültig?**
     #:
-    #: Das ist die Frage «gibt es einen Weg zurück?» – und sie gehört an den Status, nicht
-    #: an eine Liste in der Freigabe. Die **Farbe folgt daraus**, nicht umgekehrt: was
-    #: endgültig ist, ist rot; was aufhebbar ist, ist gelb.
+    #: Die stärkste Eigenschaft, die ein Status haben kann: aus ihm heraus gibt es keinen
+    #: Übergang mehr – aus keinem Anlass, an keiner Stelle, durch kein Modul. Was passiert
+    #: ist, ist passiert.
     #:
-    #: ``Verschrottet`` ist der einzige Zustand, der es verneint: das Ding gibt es
-    #: physisch nicht mehr, ein Auftrag darauf wäre ein Auftrag auf nichts. ``Gesperrt``
-    #: bejaht es – **das Greifen ist das Aufheben**, es braucht keinen zweiten Mechanismus.
-    selectable: bool = True
+    #: **Alles Weitere folgt daraus, statt daneben zu stehen:**
+    #:
+    #: * ``is_selectable`` – ein Auftrag kann ein Stück in einem Endzustand nicht
+    #:   aufnehmen. Er könnte nichts damit tun; die Aufnahme wäre ein Versprechen, das
+    #:   der erste Schritt bricht. (Das war einmal ein eigenes Feld ``selectable``. Zwei
+    #:   Felder für dieselbe Frage sind zwei Stellen, an denen sie verschieden beantwortet
+    #:   werden kann – und genau eine davon wird beim nächsten Zustand vergessen.)
+    #: * die **Farbe** – was endgültig ist, ist rot; was aufhebbar ist, gelb.
+    #: * der **Schutz in der Datenbank** (``terminal_guard_sql``): ein Trigger weist jeden
+    #:   Statuswechsel aus einem Endzustand ab. Nicht als Anwendungsregel, sondern als
+    #:   Eigenschaft der Tabelle – es gibt keinen Parameter, der ihn abschaltet.
+    #:
+    #: Nur ein **Stück**-Zustand darf terminal sein: er ist der einzige, der gespeichert
+    #: und geändert wird. Auftrags- und Artikel-Zustände sind abgeleitet bzw. anderswo
+    #: geführt; sie hier terminal zu nennen wäre eine Zusage, die niemand einlöst.
+    terminal: bool = False
 
 
 #: **Die eine Liste.** Reihenfolge = Anzeige-Reihenfolge (Leiste, Legende, Filter).
@@ -107,7 +125,7 @@ CATALOG: tuple[Status, ...] = (
     # verwendbar. Es in die Historie zu legen hiesse, den Bestand kleiner zu melden, als
     # er ist; die Leiste zeigt es als eigenes Segment, und genau das ist die Auskunft.
     Status(GESPERRT, "Gesperrt", "pending", (UNIT,), stock=LIVE),
-    Status(VERSCHROTTET, "Verschrottet", "danger", (UNIT,), stock=HISTORY, selectable=False),
+    Status(VERSCHROTTET, "Verschrottet", "danger", (UNIT,), stock=HISTORY, terminal=True),
     Status(ABGESCHLOSSEN, "Abgeschlossen", "done", (ORDER,)),
     Status(ABGEBROCHEN, "Abgebrochen", "danger", (ORDER,)),
     Status(INAKTIV, "Inaktiv", "danger", (ARTICLE,)),
@@ -149,11 +167,11 @@ def _check(catalog: tuple[Status, ...] = CATALOG) -> None:
                 f"Status «{s.value}» trägt kein Stück, behauptet aber eine Bestands-"
                 f"Zugehörigkeit ({s.stock}). Das ist eine Aussage über etwas, das es nicht gibt."
             )
-        if UNIT not in s.axes and not s.selectable:
+        if UNIT not in s.axes and s.terminal:
             raise ValueError(
-                f"Status «{s.value}» trägt kein Stück, sagt aber, dass ein Auftrag ihn "
-                f"nicht aufnehmen darf. Auch das ist eine Aussage über etwas, das es "
-                f"nicht gibt."
+                f"Status «{s.value}» trägt kein Stück, nennt sich aber endgültig. Nur ein "
+                f"Stück-Zustand wird gespeichert und geändert – bei allen anderen wäre "
+                f"das eine Zusage, die niemand einlösen kann."
             )
 
 
@@ -185,10 +203,16 @@ ORDER_STATUSES: tuple[str, ...] = _on(ORDER)
 #: Artikel: freigegeben (er entsteht erst damit) oder ausser Betrieb.
 ARTICLE_STATUSES: tuple[str, ...] = _on(ARTICLE)
 
-#: **Welche Stücke darf ein Auftrag greifen?** Abgeleitet aus der Eigenschaft am Status –
+#: **Die Endzustände eines Stücks.** Die eine Liste, aus der der Schutz entsteht – in der
+#: Anwendung (``process._pass``) wie in der Datenbank (``terminal_guard_sql``).
+TERMINAL_UNIT_STATUSES: tuple[str, ...] = tuple(
+    s.value for s in CATALOG if UNIT in s.axes and s.terminal
+)
+
+#: **Welche Stücke darf ein Auftrag greifen?** Abgeleitet aus derselben Eigenschaft –
 #: keine zweite Liste, die jemand nachzieht, wenn ein Zustand dazukommt.
 SELECTABLE_UNIT_STATUSES: tuple[str, ...] = tuple(
-    s.value for s in CATALOG if UNIT in s.axes and s.selectable
+    s.value for s in CATALOG if UNIT in s.axes and not s.terminal
 )
 
 # **Keine Liste «was zählt zum Bestand»** – die Frage beantwortet ``stock_kind`` je
@@ -228,6 +252,17 @@ def label(status: str) -> str:
     return STATUS_LABELS.get(status, status)
 
 
+def is_terminal(status: str) -> bool:
+    """**Ist dieser Zustand endgültig?** – die eine Frage, an der der Schutz hängt.
+
+    Ein unbekannter Wert ist **nicht** terminal: sonst wäre ein Tippfehler in den Daten
+    eine Sperre, die niemand mehr aufheben kann. Unbekanntes wird gemeldet
+    (``stock_kind`` → ``unknown``), nicht eingemauert.
+    """
+    s = _BY_VALUE.get(status)
+    return bool(s and s.terminal)
+
+
 def is_selectable(status: str) -> bool:
     """**Darf ein Auftrag ein Stück in diesem Zustand greifen?**
 
@@ -235,11 +270,14 @@ def is_selectable(status: str) -> bool:
     (``routers/orders``). Getrennt gestellt wären es zwei Regeln, und die Oberfläche böte
     irgendwann etwas an, das der Server ablehnt – oder schlimmer, umgekehrt.
 
+    **Abgeleitet aus ``terminal``**, nicht daneben deklariert: aufnehmen heisst, etwas tun
+    zu wollen, und aus einem Endzustand heraus gibt es nichts mehr zu tun.
+
     Ein unbekannter Wert ist **nicht** wählbar: was der Katalog nicht kennt, kann er auch
     nicht erlauben.
     """
     s = _BY_VALUE.get(status)
-    return bool(s and s.selectable)
+    return bool(s and not s.terminal)
 
 
 def stock_kind(status: str) -> str:
@@ -268,6 +306,67 @@ def in_order(counts: dict[str, int]) -> list[tuple[str, int]]:
     known = [(s, counts[s]) for s in STATUS_LABELS if counts.get(s)]
     rest = [(s, n) for s, n in counts.items() if s not in STATUS_LABELS and n]
     return known + sorted(rest)
+
+
+#: Wie der Trigger und seine Funktion heissen. An **einer** Stelle, weil Migration,
+#: Sicherheitsnetz und Wächter dieselben Namen brauchen.
+TERMINAL_GUARD_FN = "instance_units_terminal_guard"
+TERMINAL_GUARD_TRIGGER = "trg_instance_units_terminal"
+
+
+def terminal_guard_sql(statuses: tuple[str, ...] = TERMINAL_UNIT_STATUSES) -> str:
+    """**Der Schutz als Eigenschaft der TABELLE, nicht als Regel der Anwendung.**
+
+    Ein Endzustand ist endgültig – und «endgültig» ist nur dann eine Zusage, wenn es
+    keinen Weg daran vorbei gibt. Eine Prüfung in der Anwendungslogik ist ein Weg, den
+    man vergessen kann: ein neues Modul, ein Reparaturskript, eine Migration, ein
+    ``UPDATE`` von Hand. Der Trigger kennt sie alle, weil er unter ihnen sitzt.
+
+    **Kein Parameter, kein Force-Flag, keine Ausnahme.** Wer eine bräuchte, hat ein
+    Modellproblem und keinen Sonderfall: ein Zustand, den man doch verlassen können muss,
+    ist schlicht nicht terminal – und das ist eine Zeile im ``CATALOG``.
+
+    Die Liste ist ein **Parameter**, damit ein Test die Regel gegen ihre Fehlerform
+    prüfen kann; im Betrieb kommt sie aus dem Katalog, und das Sicherheitsnetz beim Start
+    zieht sie nach. Damit kann die Datenbank nicht von der einen Liste abweichen.
+
+    Idempotent: ``CREATE OR REPLACE`` plus ein ``DROP TRIGGER IF EXISTS``.
+
+    **Ein ``%`` ist ein Platzhalter, kein Sonderzeichen.** In der Meldung stehen einfache
+    Prozentzeichen, weil plpgsql sie so liest; ``%%`` wäre ein *literales* Prozentzeichen,
+    und die Funktion liesse sich gar nicht erst übersetzen («too many parameters specified
+    for RAISE»). Der Reflex, sie zu verdoppeln, kommt vom Datenbanktreiber – der ersetzt
+    aber nur, wenn Parameter mitkommen, und hier kommen keine.
+    """
+    values = ", ".join(f"'{s}'" for s in statuses) or "NULL"
+    return f"""
+DO $guard$
+BEGIN
+  IF to_regclass('public.instance_units') IS NULL THEN
+    RETURN;
+  END IF;
+
+  CREATE OR REPLACE FUNCTION {TERMINAL_GUARD_FN}() RETURNS trigger AS $fn$
+  BEGIN
+    IF NEW.status IS DISTINCT FROM OLD.status
+       AND OLD.status = ANY (ARRAY[{values}]::text[]) THEN
+      RAISE EXCEPTION
+        'Einzelinstanz % steht auf «%» – das ist ein Endzustand. '
+        'Ein Endzustand wird nicht überschrieben (Versuch: «%»).',
+        OLD.id, OLD.status, NEW.status
+        USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END;
+  $fn$ LANGUAGE plpgsql;
+
+  DROP TRIGGER IF EXISTS {TERMINAL_GUARD_TRIGGER} ON instance_units;
+  CREATE TRIGGER {TERMINAL_GUARD_TRIGGER}
+    BEFORE UPDATE ON instance_units
+    FOR EACH ROW EXECUTE FUNCTION {TERMINAL_GUARD_FN}();
+END
+$guard$;
+"""
 
 
 def assert_known(status: str, *, field: str) -> str:

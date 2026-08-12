@@ -73,7 +73,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from . import process
-from ..domain import modules
+from ..domain import modules, statuses as st
 from ..models import InstanceUnit, Order, OrderUnit, ProcessEvent, ProcessStep
 from ..models.process_event import (
     KIND_END, KIND_HANDOVER, KIND_RETURN, KIND_START, KIND_STEP,
@@ -476,6 +476,7 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
 
     g.neighbours = _merged(g.neighbours)
     _verify(g, rows)
+    _verify_history(db, order, g)
     return g
 
 
@@ -640,6 +641,59 @@ def _verify(g: Graph, rows: list["_Row"]) -> None:
             g.problems.append(f"Kante {e.id} beginnt an einem Knoten, den es nicht gibt.")
         if e.to is not None and e.to not in anchored and not e.to.startswith("order:"):
             g.problems.append(f"Kante {e.id} endet an einem Knoten, den es nicht gibt.")
+
+
+def _verify_history(db: Session, order: Order, g: Graph) -> None:
+    """**Sagt der Log dasselbe wie das Stück?** — die Invariante über den ABGLEICH.
+
+    Die übrigen Invarianten prüfen die **Zeichnung**: steht jedes Stück an genau einer
+    Stelle, gibt es jeden Knoten. Das ist richtig und war doch nicht genug – ein
+    überschriebener Endzustand ist kein Zeichenfehler, und darum konnte keine von ihnen
+    ihn melden.
+
+    **Und im Log allein steht er auch nicht.** Das war der lehrreiche Teil: der Schreiber,
+    der wirklich Schaden anrichtet, geht am Log **vorbei** – ein ``UPDATE`` aus einem
+    Reparaturskript, einer Migration, einem Sicherheitsnetz beim Start. Er hinterlässt
+    keinen Eintrag, den man zählen könnte. Eine Invariante, die nur den Log liest, sieht
+    eine tadellose Geschichte und ein falsches Ding.
+
+    Gefragt wird darum nach dem **Widerspruch zwischen beiden**: der Log sagt, dieses
+    Stück hat einen Endzustand erreicht – die Zeile sagt etwas anderes. Weil ein
+    Endzustand endgültig ist, gibt es dafür keine harmlose Lesart; jeder Treffer ist ein
+    Schreiber ausserhalb der einen Schreibstelle. Das deckt auch den Fall ab, den es gab:
+    eine Alt-Reparatur im Startvorgang, die jedes ausgesonderte Stück wieder auf
+    ``freigegeben`` setzte.
+
+    Kein zweiter Zustand, keine zweite Buchführung – nur die beiden vorhandenen Quellen
+    gegeneinander. Eine Zeichnung, die eine unmögliche Geschichte hübsch darstellt, ist
+    schlimmer als eine, die sagt, dass sie nicht stimmt.
+    """
+    terminal = list(st.TERMINAL_UNIT_STATUSES)
+    if not terminal:
+        return
+    reached = (
+        select(ProcessEvent.instance_unit_id)
+        .where(
+            ProcessEvent.instance_unit_id == InstanceUnit.id,
+            ProcessEvent.status_after.in_(terminal),
+        )
+        .exists()
+    )
+    drifted = db.execute(
+        select(func.count(distinct(InstanceUnit.id)))
+        .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
+        .where(
+            OrderUnit.order_id == order.id,
+            InstanceUnit.status.not_in(terminal),
+            reached,
+        )
+    ).scalar() or 0
+    if drifted:
+        g.problems.append(
+            f"{drifted}× hat ein Stück laut Log einen Endzustand erreicht, steht aber "
+            "nicht mehr darauf. Ein Endzustand ist endgültig – hier hat jemand an der "
+            "einen Schreibstelle vorbeigeschrieben."
+        )
 
 
 def _away_at(r: _Row, at: Optional[int], target: int) -> bool:

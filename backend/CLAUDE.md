@@ -182,8 +182,9 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > physisch noch da) tun dasselbe – das Stück verlässt den Auftrag; der Unterschied ist
 > ein **Parameter** (`config.mode`), kein zweites Modul. Den Zustand leitet das Modul ab
 > (`Module.status_after_for`) – es gibt kein Status-Dropdown.
-> **«Gibt es einen Weg zurück?» ist eine Eigenschaft des Status** (`Status.selectable`),
-> keine Farbfrage: Farbe, Freigabe-Prüfung und Auswahl-Liste folgen daraus. Ein
+> **«Gibt es einen Weg zurück?» ist eine Eigenschaft des Status** (`Status.terminal`),
+> keine Farbfrage: Farbe, Freigabe-Prüfung (`is_selectable`) und Auswahl-Liste folgen
+> daraus – und der **Schutz in der Datenbank** (PROCESS_CORE §5.3). Ein
 > gesperrtes Stück nimmt ein ganz gewöhnlicher Auftrag auf – **das Greifen IST das
 > Aufheben**, es gibt keinen «entsperren»-Endpunkt.
 > **Der Grund ist Pflicht – beim MODELLIEREN**, für beide Ausprägungen (`config.reason`).
@@ -199,8 +200,10 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > zu Recht. Es passiert das Ende-Objekt nicht.
 > Damit endet auch eine geplante **Rückführung** – ohne eine Zeile Wartelogik, weil über
 > die **offene** Zugehörigkeit gezählt wird. `return_to_order_id` bleibt unangetastet.
-> **Kein neuer Auftragsstatus:** wer aussondert, hat sein Ziel erreicht; wem die Stücke
-> dadurch fehlen, dessen Ziel ist unerreichbar. Wächter: `tests/test_disposal_module.py`.
+> **Kein neuer Auftragsstatus:** wer aussondert, ist seinen **definierten Weg zu Ende
+> gegangen** (`Abgeschlossen` – nicht «hat das Ende-Objekt passiert»; ein Ausgang IST ein
+> Ende); wem die Stücke dadurch fehlen, dessen Ziel ist unerreichbar (`Abgebrochen`).
+> Wächter: `tests/test_disposal_module.py`.
 > Die Kettenregel steht in `domain/chain.py` und gilt an **beiden** Definitionsorten
 > (Artikel-Vorlage und Auftrag) – vorher nur beim Auftrag, und ein Artikel ist danach
 > eingefroren.

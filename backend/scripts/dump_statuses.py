@@ -46,8 +46,10 @@ export interface StatusEntry {
   axes: readonly string[];
   /** Nur für Zustände, die ein Stück tragen kann – sonst `null`. */
   stock: StockKind | null;
-  /** Darf ein Auftrag ein Stück in diesem Zustand greifen? «Gibt es einen Weg zurück?» */
-  selectable: boolean;
+  /** **Ist dieser Zustand endgültig?** Die eine Eigenschaft, aus der alles folgt:
+   *  die Farbe, ob ein Auftrag das Stück greifen darf, und der Schutz in der
+   *  Datenbank. Aus einem Endzustand heraus gibt es keinen Übergang mehr. */
+  terminal: boolean;
 }
 
 '''
@@ -73,7 +75,7 @@ def build() -> str:
         lines.append(
             f"  {{ value: {s.value.upper()}, label: {_ts(s.label)}, "
             f"tone: {_ts(s.tone)}, axes: {_ts(list(s.axes))}, stock: {stock}, "
-            f"selectable: {_ts(s.selectable)} }},"
+            f"terminal: {_ts(s.terminal)} }},"
         )
     lines.append("];")
     lines.append("")
