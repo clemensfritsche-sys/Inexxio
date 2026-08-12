@@ -52,7 +52,7 @@ def _order(db, *, serialization: str, quantity: int, sample=None, points=None):
         **({"sample": sample} if sample else {}),
     }
     art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
-                  serialization=serialization, status="released")
+                  serialization=serialization)
     db.add(art)
     db.flush()
     tpl.create_steps(db, art, [{"module_type": "datenerfassung", "config": config}])
@@ -241,7 +241,7 @@ def test_a_later_module_draws_from_the_whole_order_not_from_the_first_wave():
     db = _db()
     try:
         art = Article(object_id=obj.next_object_id(db), name="Prüfstück", unit="stk",
-                      serialization="unit", status="released")
+                      serialization="unit")
         db.add(art)
         db.flush()
         tpl.create_steps(db, art, [

@@ -146,3 +146,130 @@ def test_the_campaign_runs_on_every_push():
         assert (pathlib.Path(__file__).parent / name).exists(), (
             f"tests/{name} fehlt – die Szenariomatrix ist damit weg, und niemand merkt es."
         )
+
+
+def test_a_record_goes_out_of_service_on_exactly_one_axis():
+    """►►► **Zwei Achsen, die beide «aktiv» heissen — und nur EINE darf gemeint sein.** ◄◄◄
+
+    Das war die Ursache des Befunds 🟠-1: ``is_active`` ist der **Soft-Delete** des
+    Datensatzes, ``status`` der **fachliche** Zustand. Geprüft wurde die erste, gemeint war
+    die zweite – und weil die erste im ganzen Prozessbereich **nie** gesetzt wird, konnte
+    die Prüfung gar nichts abweisen.
+
+    Der dauerhafte Schutz ist keine Umbenennung, sondern das **Wegnehmen der zweiten
+    Achse, wo sie keine Bedeutung hat**:
+
+    * Am **Artikel** ist ``is_active`` nicht mehr von aussen setzbar (kein Feld in
+      ``ArticleUpdate``) – es gibt genau einen Weg ausser Betrieb, und das ist ``status``.
+    * An der **Einzelinstanz** wird ``is_active`` nirgends gesetzt: sie wird nie gelöscht
+      und nie deaktiviert (``models/instance_unit``). Ihre Filter sind Gurt neben dem
+      Hosenträger, keine lebende Regel – und dieser Wächter hält das fest.
+    * Die eine Frage «darf dieser Artikel Neues erzeugen?» heisst nach der **Regel**
+      (``articles.may_create``), nicht nach einem Zustand. Ein Name wie
+      ``is_article_active`` hätte dieselbe Falle eine Ebene weiter aufgestellt.
+    """
+    import pathlib
+    import re
+
+    app = pathlib.Path(__file__).resolve().parents[1] / "app"
+
+    from app.schemas.article import ArticleUpdate
+
+    assert "is_active" not in ArticleUpdate.model_fields, (
+        "``ArticleUpdate`` nimmt wieder ``is_active`` entgegen – damit gibt es zwei Wege, "
+        "einen Artikel ausser Betrieb zu nehmen, und die Prozesslogik liest den falschen."
+    )
+
+    # Nichts im Prozessbereich deaktiviert eine Einzelinstanz oder eine Instanz.
+    hits: list[str] = []
+    for path in sorted(app.rglob("*.py")):
+        src = path.read_text(encoding="utf-8")
+        for m in re.finditer(r"^\s*(\w+)\.is_active\s*=\s*False", src, re.M):
+            if m.group(1) in ("unit", "instance", "article", "order"):
+                hits.append(f"{path.relative_to(app)}: {m.group(0).strip()}")
+    assert not hits, (
+        "Etwas deaktiviert einen Prozess-Datensatz über den Soft-Delete statt über den "
+        "fachlichen Zustand:\n  " + "\n  ".join(hits)
+    )
+
+    # Und die Regel steht an genau einer Stelle.
+    proc = (app / "services" / "process.py").read_text(encoding="utf-8")
+    assert "articles_svc.may_create" in proc, (
+        "Die Freigabe fragt nicht mehr, ob der Artikel Neues erzeugen darf."
+    )
+    body = proc[proc.index("def resolve_lines"):]
+    body = body[: body.index("\ndef _assert_single_new")]
+    # Die Freigabe **fragt** die Regel, sie formuliert sie nicht nach. Ein eigener
+    # Vergleich auf ``article.status`` wäre der zweite Massstab.
+    assert "article.status" not in body, (
+        "Die Freigabe vergleicht den Artikel-Status selbst, statt ``may_create`` zu "
+        "fragen – zwei Massstäbe für dieselbe Regel."
+    )
+    # Der verbliebene ``is_active``-Vergleich ist der **Soft-Delete** («gibt es nicht»),
+    # nicht der fachliche Zustand – daran hängt die Meldung 404, nicht 400.
+    assert 'detail=f"Zeile {position}: Artikel {object_id} gibt es nicht.",' in body
+    # Und sie greift **nur** für «Neu»: Lager muss abwickelbar bleiben.
+    assert "if origin == NEU:" in body and "may_create" in body.split("if origin == NEU:")[1][:200], (
+        "``may_create`` greift nicht (mehr) ausschliesslich für die Herkunft «Neu» – "
+        "damit wäre der Restbestand eines ausgelaufenen Artikels unerreichbar."
+    )
+
+
+def test_the_article_status_has_exactly_one_vocabulary():
+    """►►► **Ein Zustand, ein Wort — auch im Standardwert der Spalte.** ◄◄◄
+
+    Der zweite Fund derselben Klasse wie oben, nur eine Ebene tiefer: der Artikel-Status
+    gab es in **zwei Sprachen**. Migration ``107`` hat die Daten und den *Server*-Default
+    auf die deutsche Liste gezogen — der *ORM*-Default blieb auf ``"released"`` stehen.
+    Und der ORM-Default **gewinnt**: jede Zeile, die ohne ausdrücklichen Status entsteht,
+    hätte das alte Wort zurückgebracht.
+
+    **Warum es niemand gemerkt hat:** es gab schlicht keinen Leser. ``services/articles``
+    setzt den Status ausdrücklich, und sonst fragte niemand danach. Erst ``may_create``
+    muss die Frage «ist dieser Artikel freigegeben?» wirklich beantworten — und beantwortete
+    sie für jede so entstandene Zeile mit **nein**.
+
+    Geprüft wird darum die **Quelle des Standardwerts**, nicht sein heutiger Wert: ein
+    Literal ist genau die Form, die beim nächsten Umbenennen stehen bleibt.
+    """
+    import pathlib
+    import re
+
+    from app.domain import statuses as st
+    from app.models import Article
+
+    column = Article.__table__.c.status
+    default = column.default.arg if column.default is not None else None
+    assert default in st.ARTICLE_STATUSES, (
+        f"Der Standardwert der Spalte ({default!r}) steht nicht in der Statusliste "
+        f"{st.ARTICLE_STATUSES} – ein Artikel entstünde in einem Zustand, den das System "
+        f"nicht kennt."
+    )
+    assert str(column.server_default.arg) == default, (
+        "ORM- und Server-Default sagen Verschiedenes. Der ORM-Default gewinnt, der "
+        "Server-Default ist die Wahrheit für alles, was an SQLAlchemy vorbeischreibt – "
+        "sie dürfen nicht auseinanderlaufen."
+    )
+
+    # Und kein aktives Modul spricht die alte **Artikel**-Status-Sprache. Gesucht wird
+    # ausdrücklich nach dem Subjekt: ``draft`` ist als *Auftrags*-Zustand weiterhin ein
+    # gültiges Wort, und ein Wächter, der beides in einen Topf wirft, meldet Falsches und
+    # wird dafür stillgelegt. (Die abgeschalteten Bereiche ``ai``/``selling`` sprechen sie
+    # noch – dort ist es totes Holz, das mit ihrer Wiederbelebung mitzuziehen ist;
+    # ``FINDINGS.md`` nennt die Stellen.)
+    app = pathlib.Path(__file__).resolve().parents[1] / "app"
+    dead = ("services/ai", "services/selling.py")
+    pattern = re.compile(
+        r"""\b(?:article|art|Article)\.status\s*(?:=|==|!=)\s*["'](released|inactive|draft)["']"""
+    )
+    hits: list[str] = []
+    for path in sorted(app.rglob("*.py")):
+        rel = str(path.relative_to(app))
+        if any(rel.startswith(d) for d in dead):
+            continue
+        for m in pattern.finditer(path.read_text(encoding="utf-8")):
+            hits.append(f"{rel}: {m.group(0)}")
+    assert not hits, (
+        "Ein aktives Modul spricht wieder die alte Artikel-Status-Sprache:\n  "
+        + "\n  ".join(hits)
+    )

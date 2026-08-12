@@ -59,7 +59,7 @@ def _scrapped_unit(db):
     from app.services import objects as obj
 
     art = Article(object_id=obj.next_object_id(db), name="Endzustand", unit="stk",
-                  serialization="unit", status="released")
+                  serialization="unit")
     db.add(art)
     db.flush()
     inst = Instance(object_id=obj.next_object_id(db), article_id=art.id, kind="batch")

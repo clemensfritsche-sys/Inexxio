@@ -173,6 +173,10 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
   );
   const hasArticle = article !== null;
   const hasTemplate = (article?.template_steps ?? 0) > 0;
+  // **Warum «Neu» nicht geht, sagt der Server** (`articles.may_create`) – die Oberfläche
+  // formuliert den Satz nicht selbst. Zwei Formulierungen wären zwei Massstäbe, und der
+  // mildere stünde an dem Knopf, der beim Klick scheitert.
+  const createProblem = article?.create_problem ?? null;
 
   return (
     <div className="rounded-ds-lg"
@@ -236,14 +240,16 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
                 // «wird geliefert». Ein Paket-Symbol sagte dasselbe wie «Lager».
                 icon: Sprout,
                 label: 'Neu',
-                disabled: !hasArticle || !hasTemplate || multi,
+                disabled: !hasArticle || !hasTemplate || multi || createProblem !== null,
                 hint:
                   !hasArticle ? 'Zuerst den Artikel wählen.'
                     : multi
                       ? '«Neu» steht für sich allein – ein Erzeugungsauftrag fährt die Vorlage genau dieses Artikels. Für den zweiten Artikel einen eigenen Auftrag anlegen.'
-                      : !hasTemplate
-                        ? 'Dieser Artikel hat keinen Erzeugungsprozess. «Neu» ist erst wählbar, wenn am Artikel unter «Spezifikation» mindestens ein Modul steht.'
-                        : 'Die Einzelinstanzen entstehen bei der Freigabe.',
+                      : createProblem
+                        ? createProblem
+                        : !hasTemplate
+                          ? 'Dieser Artikel hat keinen Erzeugungsprozess. «Neu» ist erst wählbar, wenn am Artikel unter «Spezifikation» mindestens ein Modul steht.'
+                          : 'Die Einzelinstanzen entstehen bei der Freigabe.',
               },
               {
                 value: LAGER,

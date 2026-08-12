@@ -28,6 +28,7 @@ from ..schemas.process import (
 )
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
+from ..services import articles as articles_svc
 from ..services import flow as flow_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
@@ -283,6 +284,9 @@ def article_options(
             serialization=a.serialization,
             unit=a.unit,
             template_steps=counts.get(a.id, 0),
+            # **Dieselbe Regel wie in der Freigabe** (``articles.may_create``) – nicht
+            # nachgebaut, sondern gefragt.
+            create_problem=articles_svc.may_create(a),
         )
         for a in rows
     ]

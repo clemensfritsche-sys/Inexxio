@@ -469,7 +469,7 @@
 > Auftrag landen kann, mit der Antwort «wie kommt man hier raus?»). Erst danach die Tests –
 > andernfalls prüft man den Code gegen sich selbst, und ein systematisch falscher Code
 > besteht seine eigenen Tests immer.
-> **Die Matrix ist Daten, kein Code** (`tests/matrix.py`, 67 Fälle über sechs Achsen –
+> **Die Matrix ist Daten, kein Code** (`tests/matrix.py`, 71 Fälle über sechs Achsen –
 > Herkunft · Serialisierung · Menge · Modultyp · Schachtelung bis drei Ebenen ·
 > Rückführung): jeder Fall trägt sein **vorher notiertes Soll**; `test_scenarios.py` fährt
 > ihn als Wächter, `scripts/scenario_report.py` stellt Soll und Ist nebeneinander. Gefahren
@@ -484,10 +484,8 @@
 > Zugehörigkeiten» liess sich **nicht** herstellen, solange der partielle Unique-Index
 > steht – erst nachdem er im Test kurz weicht. Das ist der beste verfügbare Beweis, dass
 > er trägt.
-> **Ergebnis: kein 🔴.** Zwei 🟠 (ein **inaktiver Artikel** kann weiterhin Aufträge und
-> neue Instanzen erzeugen – geprüft wird `is_active`, gemeint war der fachliche Status;
-> und **es gibt keinen Auftrags-Abbruch**, der einzige Zustand ohne Ausgang, bewusst offen)
-> plus fünf 🟡. Dazu ein Befund im **eigenen Netz**: der Aufräumer der Wächter-Suite
+> **Ergebnis: kein 🔴.** Zwei 🟠 (**beide inzwischen erledigt**, siehe unten) plus fünf 🟡.
+> Dazu ein Befund im **eigenen Netz**: der Aufräumer der Wächter-Suite
 > löschte über *ein Stück* und die Instanz dazu und liess Geschwister-Stücke verwaist
 > zurück – gefunden von der neuen Invariante, an genau den Daten, die dieser Wächter
 > hinterlässt. Behoben.
@@ -498,6 +496,64 @@
 > **Ein bekannter Befund kann nicht verrotten** (`Case.open_finding`): die CI wird davon
 > nicht rot, aber der Wächter **meldet**, sobald die Abweichung aufhört – dann ist er
 > behoben und die Markierung muss weg.
+>
+> **Zwei Achsen, die beide «aktiv» heissen – und nur EINE ist gemeint** (`services/articles.
+> may_create`): Das war der Befund 🟠-1. `is_active` ist der **Soft-Delete** («den Datensatz
+> gibt es nicht»), `status` der **fachliche** Zustand (Freigegeben ↔ Inaktiv). Die Freigabe
+> prüfte die erste, gemeint war die zweite – und weil die erste im ganzen Prozessbereich
+> **nie gesetzt wird**, konnte die Prüfung gar nichts abweisen: ein längst ausser Betrieb
+> genommener Artikel erzeugte weiter neue Einzelinstanzen.
+> Die Regel lautet jetzt in einem Satz: **nur ein Artikel im Zustand «Freigegeben» erzeugt
+> Neues.** Sie sperrt ausschliesslich die Herkunft **Neu** – **Lager bleibt erlaubt**, und
+> zwar mit Absicht: sonst würde jedes Stück eines ausgelaufenen Artikels zur Leiche, die
+> sich nicht einmal mehr aussondern liesse (S98b). Und sie greift **bei der Freigabe**, nicht
+> laufend: ein bereits laufender Auftrag läuft zu Ende, sein Prozess ist eine eingefrorene
+> Kopie, und ihn von aussen anzuhalten hiesse, die Vergangenheit umzuschreiben.
+> **Zwei Formen derselben Regel** (wie `pick_problem`/`unpickable`): `may_create` gibt den
+> **Grund** zurück, statt zu werfen – die Freigabe bricht damit ab (400), die Auswahl-Liste
+> sperrt «Neu» und nennt **denselben Satz** (`ArticleOption.create_problem`). Zwei
+> Formulierungen wären zwei Massstäbe.
+> **Der dauerhafte Schutz ist keine Umbenennung, sondern das Wegnehmen der zweiten Achse.**
+> Ein Namensteppich über 92 lebende `is_active`-Stellen in 38 Dateien wäre ein grosser
+> Eingriff für ein Problem, das genau **zwei** Modelle betrifft (Artikel · Einzelinstanz),
+> und der Rest davon ist ein völlig legitimer Soft-Delete. Also: am **Artikel** ist
+> `is_active` nicht mehr von aussen setzbar (kein Feld in `ArticleUpdate` – es gibt genau
+> einen Weg ausser Betrieb, und das ist `status`); an der **Einzelinstanz** wird es nirgends
+> gesetzt, ihre Filter sind Gurt neben dem Hosenträger; und die eine Frage heisst nach der
+> **Regel** (`may_create`) statt nach einem Zustand – ein `is_article_active` hätte dieselbe
+> Falle nur eine Ebene weiter aufgestellt. Wächter:
+> `test_a_record_goes_out_of_service_on_exactly_one_axis`.
+>
+> **Und der Fix förderte den schwereren Fehler zutage: der Artikel-Status gab es in ZWEI
+> SPRACHEN** (`models/article.py`). Migration `107` hatte die **Daten** und den
+> **Server**-Default auf die deutsche Liste gezogen (`freigegeben`/`inaktiv`) – der
+> **ORM**-Default im Modell blieb auf `"released"` stehen, und der **gewinnt**: jede
+> Artikel-Zeile, die ohne ausdrücklichen Status entsteht, trug wieder ein Wort, das die
+> Statusliste nicht kennt. **Folgenlos, solange es keinen Leser gab** – `create_article`
+> setzt den Status ausdrücklich, sonst fragte im aktiven Bereich niemand. `may_create` ist
+> der erste, der die Frage wirklich beantworten muss, und beantwortete sie für jede so
+> entstandene Zeile mit **nein**; gegen eine frisch aus den Migrationen gebaute Datenbank
+> fiel damit sofort die halbe Suite aus. Der Standardwert kommt jetzt aus dem **Katalog**,
+> und ORM- wie Server-Default stehen in **derselben Zeile** – sie können nicht mehr
+> getrennt veralten. In den **abgeschalteten** Bereichen (`ai`, `selling`) steht die alte
+> Sprache noch: heute nicht importierbar, aber beim Wiedereinschalten mitzuziehen
+> (`FINDINGS.md`, Fund 4). Wächter `test_the_article_status_has_exactly_one_vocabulary`
+> prüft die **Quelle** des Standardwerts, nicht seinen heutigen Wert – ein Literal ist
+> genau die Form, die beim nächsten Umbenennen stehen bleibt.
+>
+> **Der Abbruch IST eine Abweichung – es gibt keine Abbruch-Funktion** (SYSTEM_LOGIC §4.4,
+> Befund 🟠-3): «Auftrag abbrechen» war der einzige Zustand ohne Ausgang. Gebaut wurde
+> trotzdem nichts – **weil der Weg schon da war**: man legt einen ganz gewöhnlichen Auftrag
+> an, der **alle** Stücke greift, und **kappt die Rückführung**. Das ist der bessere Weg,
+> nicht bloss der billigere: ein Knopf «abbrechen» beantwortet nicht, was mit den Stücken
+> geschieht – die Abweichung erzwingt genau diese Entscheidung, und sie ist im Log
+> nachvollziehbar. `Abgebrochen` fällt danach **ohne eine Zeile Code** aus `_derive`:
+> unterwegs 0 · verliehen 0 · angekommen 0. Geprüft, nicht behauptet – S57 (Abbruch über
+> die Abweichung), **S58** (derselbe Weg beim **obersten** Auftrag, also ohne Elternteil)
+> und S59 (ein liegengelassener Abzweig klemmt den Eltern nicht dauerhaft: wer ihn
+> abbricht, gibt ihn frei). Damit hat **jeder** Zustand der Sackgassen-Analyse einen
+> Ausgang; offen bleibt nur ein **latentes** Risiko (R7): ein künftiges Modul mit
+> `units_may_leave = False` würde diesen Weg schliessen – heute gibt es keines.
 >
 > **`no-unused-vars` ist eingeschaltet** (`frontend/.eslintrc.json`, läuft in der CI): ein
 > Knopf, der einen Zustand setzt, den niemand liest, war nicht auffindbar – `next/core-web-

@@ -3225,6 +3225,17 @@
           "template_steps": {
             "type": "integer",
             "title": "Template Steps"
+          },
+          "create_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Create Problem"
           }
         },
         "type": "object",
@@ -3236,7 +3247,7 @@
           "template_steps"
         ],
         "title": "ArticleOption",
-        "description": "Ein wählbarer Artikel für eine Definitionszeile.\n\n``template_steps`` ist die Zahl der Module im Erzeugungsprozess. Sie steht hier,\ndamit die Oberfläche «Neu» sperren **und den Grund nennen** kann – ohne Vorlage kann\nein Erzeugungsauftrag nichts erzeugen."
+        "description": "Ein wählbarer Artikel für eine Definitionszeile.\n\nZwei Angaben sagen, ob «Neu» hier möglich ist, und beide tragen ihren Grund mit:\n``template_steps`` (ohne Vorlage kann ein Erzeugungsauftrag nichts erzeugen) und\n``create_problem`` (ein Artikel ausser Betrieb erzeugt nichts Neues mehr).\n\n**Ein ausser Betrieb genommener Artikel bleibt in der Liste** – er wird nur nicht mehr\nerzeugt. Ihn auszublenden hiesse, seinen Restbestand unerreichbar zu machen: die\nvorhandenen Stücke müssen über «Lager» abwickelbar bleiben, sonst liesse sich nicht\neinmal mehr aussondern."
       },
       "ArticleProcess": {
         "properties": {
@@ -3798,17 +3809,6 @@
               }
             ],
             "title": "Default Webshop Url"
-          },
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
           },
           "expected_updated_at": {
             "anyOf": [
