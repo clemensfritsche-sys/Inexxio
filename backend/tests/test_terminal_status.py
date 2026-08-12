@@ -336,3 +336,97 @@ def _cleanup(db, unit) -> None:
     db.execute(text("DELETE FROM instances WHERE id=:i"), {"i": unit.instance_id})
     db.commit()
     db.close()
+
+
+# ---------------------------------------------------------------------------
+# Die Selektion – dieselbe Eigenschaft, drei Wirkungen
+# ---------------------------------------------------------------------------
+
+def test_a_terminal_piece_is_out_of_reach_for_every_further_action():
+    """►►► **Terminal heisst: für jede weitere Prozessaktion unerreichbar.** ◄◄◄
+
+    Nicht als Einzelfall für «verschrottet», sondern aus der einen Eigenschaft. Drei
+    Wirkungen, und alle drei fragen dieselbe Frage (``process.pick_problem``):
+
+    * die **Auswahl-Liste** weist es als nicht verfügbar aus (``unit_options``),
+    * der **Entwurf** ist nicht freigebbar und sagt warum (``orders.validate_draft``),
+    * die **Freigabe** lehnt ab (``process.release``).
+
+    Vorher sagte nur die letzte nein – und zwar erst beim Klick. Die Oberfläche bot den
+    Abweichungstrigger an, wählte das Stück sogar vor, und der Entwurf galt als
+    freigebbar; abgewiesen wurde ganz am Schluss. Das ist die unangenehmste Form einer
+    Regel: sichtbar erst, wenn man alles getan hat.
+
+    **Gesperrt ist NICHT terminal** und bleibt greifbar – das Greifen IST das Aufheben.
+    Genau diese Gegenprobe steht hier, sonst wäre der Wächter mit einem pauschalen
+    «nichts Gelbes» zufrieden.
+    """
+    from fastapi import HTTPException
+
+    db = _db()
+    unit = _scrapped_unit(db)
+    try:
+        from app.domain import statuses as st
+        from app.models import Instance, InstanceUnit
+        from app.services import orders as orders_svc, process as proc
+
+        inst = db.get(Instance, unit.instance_id)
+        gesperrt = InstanceUnit(instance_id=inst.id, suffix=2, status=st.GESPERRT)
+        db.add(gesperrt)
+        db.commit()
+        numbers = proc.unit_numbers(db, [unit, gesperrt])
+        tot, frei = numbers[unit.id], numbers[gesperrt.id]
+
+        # 1) Die eine Regel, direkt gefragt.
+        assert proc.pick_problem(unit, tot), "Ein Endzustand gilt als greifbar."
+        assert proc.pick_problem(gesperrt, frei) is None, (
+            "Gesperrt wird abgewiesen – dann gibt es keinen Weg zurück."
+        )
+
+        from app.models import Article
+        art = db.get(Article, inst.article_id)
+
+        def draft(number: str) -> dict:
+            return {"lines": [{"article_object_id": art.object_id, "quantity": 1,
+                               "origin": "lager",
+                               "units": [{"number": number}]}],
+                    "steps": [{"module_type": "datenerfassung",
+                               "config": {"points": [{"label": "OK", "type": "bool"}]}}]}
+
+        # 2) Der Entwurf sagt es, bevor jemand klickt.
+        missing = orders_svc.validate_draft(db, draft(tot))
+        assert any("Endzustand" in m for m in missing), missing
+        assert not orders_svc.validate_draft(db, draft(frei)), (
+            "Ein gesperrtes Stück macht den Entwurf unfreigebbar – das ist der Weg zurück."
+        )
+
+        # 3) Und die Freigabe lehnt ab – derselbe Satz, dieselbe Quelle.
+        with pytest.raises(HTTPException) as err:
+            proc.release(db, lines=draft(tot)["lines"], steps=draft(tot)["steps"],
+                         actor_id=None)
+        assert err.value.status_code == 409
+        assert "Endzustand" in str(err.value.detail)
+        db.rollback()
+    finally:
+        _cleanup(db, unit)
+
+
+def test_the_rule_names_no_status_and_lives_in_one_place():
+    """Die Regel steht **einmal** – und sie fragt die Eigenschaft, nicht den Wert.
+
+    Ein `status == "verschrottet"` an einer Auswahlstelle wäre genau die Liste, die beim
+    nächsten Endzustand jemand nachziehen müsste. Geprüft wird darum die Form: die eine
+    Funktion nennt keinen Status, und die Freigabe hat keine eigene Fassung daneben.
+    """
+    proc_src = (BACKEND / "app" / "services" / "process.py").read_text(encoding="utf-8")
+    body = proc_src.split("def pick_problem(")[1].split("\ndef ")[0]
+    assert "is_terminal" in body, "Die Regel fragt nicht die Eigenschaft."
+    for named in ("VERSCHROTTET", '"verschrottet"', "'verschrottet'"):
+        assert named not in body, f"Die Regel nennt «{named}» – dann ist sie eine Liste."
+
+    # Und sie wird an beiden Stellen benutzt, statt zweimal geschrieben zu werden.
+    orders_src = (BACKEND / "app" / "services" / "orders.py").read_text(encoding="utf-8")
+    assert "unpickable(" in orders_src, "Der Entwurf prüft mit einer eigenen Fassung."
+    assert proc_src.count("is_terminal(unit.status)") == 1, (
+        "Die Frage «darf ein Auftrag das greifen» steht mehr als einmal im Code."
+    )

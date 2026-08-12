@@ -78,8 +78,15 @@ ERP-Seiten prüfen Firebase Auth. Nicht eingeloggt → Redirect zu /login.
 EIN Modul, zwei Umfänge – am **Artikel** (Zeilen = seine Instanzen) und an der **Instanz**
 (Zeilen = ihre Einzelinstanzen). Der Unterschied ist der Umfang der Daten, nie die
 Darstellung; eine zweite Fassung liefe beim ersten neuen Zustand auseinander.
-Bestand ↔ Historie entscheidet **der Server** (`StockState.stock`) – die Ansicht führt
-keine Liste und meldet einen Zustand ohne Zuordnung, statt ihn zu raten.
+
+**Eine Gruppe je Zustand – und die Ansicht zählt keinen einzigen auf.** Gruppiert wird über
+die gelieferten `states`; Reihenfolge = Position im `CATALOG` (= Lebenszyklus, dieselbe wie
+Leiste und Legende), Farbe = Ampelton, **zugeklappt** startet, was zur Historie zählt
+(`stock`). Ein neuer Zustand erscheint damit ohne eine Zeile Änderung an seiner Stelle;
+die früheren zwei festen Blöcke waren die Form, in der er verschwand. Ein Zustand ohne
+Zuordnung wird **gemeldet**, nicht geraten. **Keine Gesamtzahl im Kopf** – sie summierte
+auch Verschrottetes.
+
 Karte + Kopf + Werteraster kommen aus `fields.tsx` (`SPEC`, `SpecHead`, `SpecSection`,
 `ReadField`) – die Anatomie **jeder** Detail-Ansicht.
 
@@ -126,8 +133,22 @@ deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
 - **Das Verb auf dem Knopf kommt vom Server** (`ProcessStepResponse.action`):
   «Erfassen & bestätigen» · «Verschrotten» · «Sperren». Es hängt beim Aussondern an der
   Ausprägung – ein fester Text in der Oberfläche wäre eine zweite Aussage darüber.
-- Die Laufzeit ist **dieselbe Komponente** (`CaptureWork`): Zeile je Instanz, Scan-Gate,
-  dann das Formular – bei 0 Erfassungspunkten nur der Knopf.
+- Die Laufzeit ist **dieselbe Komponente** (`CaptureWork`): Zeile je Instanz, **Vorschau**,
+  Scan-Gate, dann **je gezogener Einzelinstanz ein Formular**.
+- **Der Scan gilt der Instanz, die Erfassung der Einzelinstanz** (PROCESS_CORE §9.5). Die
+  Nutzlast ist zweistufig (`Record<string, Record<string, unknown>>`: Nummer → Punkt →
+  Wert); ein flacher Satz wäre **eine** Messung, aus der n gleiche würden. Die Nummern der
+  gezogenen Stücke kommen **erst nach dem Scan** (`api.stepHold(…, 'sample')`) – bei 1500
+  gehört diese Liste in keine Auftrags-Antwort; die Vorschau davor kommt mit den Zahlen aus
+  `step_work` aus.
+- **Die Vorschau steht zentral** (`Preview` in `capture-work`), also erbt sie **jedes**
+  Modul: was erfasst wird und an wie vielen Stücken – bevor gescannt wird. Der Scan bleibt
+  Voraussetzung für die **Eingabe**, nicht mehr für die **Auskunft**. Je Instanz ein eigener
+  Scan-Knopf; der Sammel-Knopf bleibt.
+- **Terminal heisst unerreichbar**: `isPickable(status)` aus dem generierten Katalog – der
+  Abweichungstrigger erscheint an einem verschrotteten Stück **gar nicht**, und die
+  Vorauswahl lässt es fallen (`o.available`). Dafür muss der Zustand **mitreisen**: ihn beim
+  Einlesen wegzuwerfen war die Ursache, dass die Ansicht gar nicht prüfen konnte.
 
 ## Kamera-Scan (`lib/scan.ts` + `components/scan/`)
 Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf

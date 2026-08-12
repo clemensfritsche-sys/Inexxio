@@ -259,32 +259,35 @@ function SampleRow({ value, onChange }: {
   value: SampleDraft; onChange: (next: SampleDraft) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // **Die Beschriftung steht ÜBER den Knöpfen**, nicht neben ihnen: daneben stand sie
+    // auf gleicher Höhe wie die Auswahl und las sich wie deren erste Option.
+    <div className="flex flex-col gap-1">
       <span style={{
         font: '700 11px var(--font-body)', textTransform: 'uppercase',
         letterSpacing: '.07em', color: 'var(--fg-4)',
       }}>Stichprobe</span>
-      <IconSwitch
-        value={value.mode}
-        onChange={(mode: SampleMode) => onChange({ mode, value: mode === 'free' ? value.value : '' })}
-        options={SAMPLE_PRESETS.map((p) => ({
-          value: p.value,
-          icon: SAMPLE_ICON[p.value],
-          label: p.label,
-          hint: p.percent
-            ? `${p.percent} % aller wartenden Einzelinstanzen`
-            : 'Ein frei gewählter Anteil, aufgerundet',
-        }))}
-      />
-      {value.mode === 'free' && (
-        <>
-          <input className={inputCls} style={{ width: 80 }} value={value.value}
-            {...numericInputProps} placeholder="z. B. 10"
-            onChange={(e) => onChange({ ...value, value: numericOnly(e.target.value) })} />
-          <span className="text-xs" style={{ color: 'var(--fg-4)' }}>%</span>
-        </>
-      )}
-      <span className="text-xs" style={{ color: 'var(--fg-4)' }}>der Gesamtmenge</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <IconSwitch
+          value={value.mode}
+          onChange={(mode: SampleMode) => onChange({ mode, value: mode === 'free' ? value.value : '' })}
+          options={SAMPLE_PRESETS.map((p) => ({
+            value: p.value,
+            icon: SAMPLE_ICON[p.value],
+            label: p.label,
+            hint: p.percent
+              ? `${p.percent} % aller wartenden Einzelinstanzen`
+              : 'Ein frei gewählter Anteil, aufgerundet',
+          }))}
+        />
+        {value.mode === 'free' && (
+          <>
+            <input className={inputCls} style={{ width: 80 }} value={value.value}
+              {...numericInputProps} placeholder="z. B. 10"
+              onChange={(e) => onChange({ ...value, value: numericOnly(e.target.value) })} />
+            <span className="text-xs" style={{ color: 'var(--fg-4)' }}>%</span>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -341,6 +344,14 @@ function ModuleFields({ module: m, types, onChange }: {
                 <input className={inputCls} style={{ width: 76 }} value={p.tolerance ?? ''}
                   {...numericInputProps} placeholder="± Tol."
                   onChange={(e) => setPoint(i, { tolerance: numericOnly(e.target.value, { decimals: true }) })} />
+                {/* **Worin gemessen wird** – ein freies, kurzes Wort (Testnotiz #707).
+                    Bewusst keine Liste: die Mengeneinheiten des Artikels beantworten
+                    eine andere Frage («worin wird die Menge geführt») und kennen weder
+                    °C noch bar; eine zweite Liste wäre endlos, und das System rechnet
+                    nie mit der Einheit – es zeigt sie an. */}
+                <input className={inputCls} style={{ width: 62 }} value={p.unit ?? ''}
+                  maxLength={8} placeholder="Einheit" data-tip="mm · kg · °C …"
+                  onChange={(e) => setPoint(i, { unit: e.target.value })} />
               </>
             )}
             <button type="button" aria-label="Erfassungspunkt entfernen"
@@ -362,7 +373,8 @@ function ModuleFields({ module: m, types, onChange }: {
             <button key={t.key} type="button" className="ix-palette ix-palette-sm"
               aria-label={`${t.label} hinzufügen`}
               onClick={() => onChange({
-                points: [...m.points, { label: '', type: t.key || defaultType, target: '', tolerance: '' }],
+                points: [...m.points, { label: '', type: t.key || defaultType, target: '',
+                                        tolerance: '', unit: '' }],
               })}>
               <Icon size={14} />
               <span className="ix-palette-name">{t.label}</span>

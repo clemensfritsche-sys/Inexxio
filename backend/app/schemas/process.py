@@ -127,22 +127,35 @@ class CapturePoint(BaseModel):
     type: str
     target: Optional[float] = None
     tolerance: Optional[float] = None
+    #: **Worin wird gemessen?** (mm · kg · °C …) Ein freies, kurzes Wort – bewusst keine
+    #: Liste: die Mengeneinheiten des Artikels beantworten eine andere Frage (siehe
+    #: ``domain/capture_types/measure``), und eine zweite Liste wäre endlos.
+    unit: Optional[str] = None
 
 
 class StepConfirm(BaseModel):
-    """«Bestätigen» an einem Modul: die erfassten Werte, geschlüsselt nach Punkt-``key``.
+    """«Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.
 
-    Ein Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem
-    nicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens
-    einen).
+    ``values`` ist zweistufig: **Nummer der Einzelinstanz** → (Punkt-``key`` → Wert).
+    Erwartet wird genau ein Satz je **gezogenem** Stück; zu viele oder zu wenige werden
+    abgewiesen (``process._captures_for``).
 
-    **Ein Vorgang ist EINE Instanz.** ``instance_object_id`` ist die verifizierte Instanz,
+    **Der Scan verifiziert die Instanz, die Erfassung gilt der Einzelinstanz.** Beides
+    hier nebeneinander zu haben ist der ganze Punkt: ``instance_object_id`` ist die
+    verifizierte Instanz (eine – das Etikett klebt am physischen Ding),
+    ``values`` sind ihre n Messungen. Wäre es ein flacher Satz, entstünden aus einer
+    Messung n gleiche Zeilen, und der Nachweis behauptete Messungen, die niemand gemacht
+    hat.
+
+    Ein Modul ohne Erfassungspunkte (Aussondern) bekommt einen **leeren** Satz – dort ist
+    der Scan die Bestätigung, und ein Wert wäre ein Nachweis über nichts.
+
     ``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.
     Beides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die
     Tastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative.
     """
 
-    values: dict[str, Any] = Field(default_factory=dict)
+    values: dict[str, dict[str, Any]] = Field(default_factory=dict)
     instance_object_id: Optional[int] = None
     verification: Optional[str] = None
 

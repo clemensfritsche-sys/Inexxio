@@ -349,6 +349,66 @@
 > `order_statuses` seit jeher –, nur die genauere Beschreibung.
 > Wächter: `tests/test_terminal_status.py` (jede der drei Ebenen **gegen ihre Bug-Form**
 > gegengeprüft).
+>
+> **Endgültig heisst auch UNERREICHBAR – und das war noch nicht so** (PROCESS_CORE §5.3):
+> An einer **verschrotteten** Einzelinstanz stand der Abweichungstrigger weiterhin da, und
+> sie wurde sogar **vorgewählt**. Die Daten waren nie in Gefahr (die Freigabe lehnte ab),
+> aber die Ablehnung kam **erst beim letzten Klick** – die unangenehmste Form einer Regel:
+> sichtbar erst, wenn man alles getan hat. Ursache war eine **weggeworfene Angabe** – die
+> Antwort trägt den Zustand jedes Stücks, die Ansicht liess ihn beim Einlesen fallen
+> (`order-detail`), danach *konnte* sie nicht mehr prüfen. Jetzt folgen **alle** Wirkungen
+> aus der einen Eigenschaft (`pick_problem` → `is_terminal`, im Frontend `isPickable` aus
+> dem **generierten** Katalog): die Auswahl-Liste weist es aus, der Trigger **erscheint
+> gar nicht** (nicht ausgegraut – ein Knopf, der nie etwas tun kann, ist kein Angebot),
+> die Vorauswahl lässt es fallen, der **Entwurf** ist nicht freigebbar und sagt warum, die
+> Freigabe lehnt ab. Nebenbei geschlossen: die Prüfung sass im `source is None`-Zweig, galt
+> also nur für **freie** Stücke – eine Regel aus Versehen, die beim nächsten Modul gekippt
+> wäre. **Gesperrt bleibt greifbar** (das Greifen IST das Aufheben).
+>
+> **Der Scan gilt der Instanz, die Erfassung der EINZELINSTANZ** (PROCESS_CORE §9.5): Zwei
+> verschiedene Dinge, und sie hingen aneinander – **ein** Wertesatz je Bestätigung, kopiert
+> auf jedes gezogene Stück. Bei einer Charge über 2 entstanden zwei Messwerte, gemessen
+> war einer; ein Nachweis mit mehr Zeilen als Messungen ist keiner. Die Zahl kommt jetzt
+> aus der **Ziehung**: 1 Scan → 2 Erfassungen, ¼ von 6000 → 1 Scan → **1500**. Die Nutzlast
+> ist zweistufig (Nummer → Punkt → Wert), und der Server verlangt **Deckung in beide
+> Richtungen** – zu viel ist ein Nachweis über Ungeprüftes, zu wenig eine Lücke, die wie
+> «durchgelaufen» aussieht. Das **Urteil hängt am Stück**, der Halt an der Instanz (ein
+> einziges «nicht bestanden» hält alles an, §4.5). Welche Stücke gezogen sind, kommt **erst
+> auf Klick** (`…/hold?group=sample` – dieselbe Auskunft wie die Vorauswahl der
+> Entscheidung, nur eine dritte Gruppe); für die **Vorschau** genügen die Zahlen aus
+> `step_work`. *Offen und bewusst nicht gebaut: ein Erfassungspunkt, der der ganzen Charge
+> gilt (Verpackung intakt?) – das wäre eine Eigenschaft der **Instanz**, kein Wert je
+> Stück; auf Verdacht gebaut wäre es die Kopie durch die Hintertür.*
+>
+> **Abweichung = der Start wich vom REGELSTART ab** (PROCESS_CORE §12.2): Die Regel hiess
+> «Stück war `Im Prozess`», also «einem laufenden Auftrag entzogen» – technisch stimmig,
+> fachlich zu eng. Ein **gesperrtes** Stück wieder in Betrieb zu nehmen gehört zu keinem
+> laufenden Auftrag und fiel heraus, obwohl es in der Qualitätssicherung der Musterfall
+> einer **Sonderfreigabe** ist. Jetzt: `status_before != START_BEFORE` – die Regel **nennt
+> keinen Status mehr**, sondern vergleicht mit dem einen Regelstart (`Freigegeben`). Das ist
+> zugleich die einfachere und die haltbarere: ein künftiger Zustand ist automatisch eine
+> Abweichung, ohne dass ihn jemand einträgt, und die Richtung stimmt (wer zu viel ausweist,
+> dokumentiert; wer zu wenig ausweist, verliert den Nachweis).
+>
+> **Der Bestand gruppiert je STATUS – und zählt keinen auf** (PROCESS_CORE §10.3): statt
+> zwei fester Blöcke («Bestand»/«Historie», in denen ein neuer Zustand verschwand) eine
+> Gruppe je Zustand, der wirklich vorkommt. Reihenfolge = Position im `CATALOG` =
+> **Lebenszyklus**, dieselbe, die Leiste und Legende ordnet; Farbe = Ampelton; **zugeklappt**
+> startet, was zur Historie zählt (`stock` bleibt damit eine gelesene Eigenschaft, nur nicht
+> mehr die Gruppierung). Die **grosse Gesamtzahl im Kopf ist entfallen** – sie summierte
+> auch Verschrottetes und war damit zugleich irreführend und uninformativ. Dieselbe
+> Komponente am Artikel wie an der Instanz, wie bisher.
+>
+> **Modul-Vorschau vor dem Scan** (#708, zentral in `capture-work`, also erbt sie **jedes**
+> Modul): was erfasst wird und an wie vielen Einzelinstanzen – **bevor** gescannt wird. Der
+> Scan bleibt Voraussetzung für die **Eingabe**, war aber auch Voraussetzung für die
+> **Auskunft**, und das war zu viel. Dazu je Instanz ein eigener Scan-Knopf; der grosse
+> Sammel-Knopf bleibt. **Einheit beim Soll-Ist-Vergleich** (#707, `unit`, frei, ≤ 8 Zeichen):
+> die Mengeneinheiten des Artikels (`Stk · mm · m2 · m3 · kg · l`) sind **nicht**
+> wiederverwendbar – sie beantworten «worin wird die Menge geführt» und kennen weder °C noch
+> bar; «Stk» wäre als Messeinheit sinnlos. Eine zweite **Liste** wäre endlos, also gar keine:
+> das System rechnet nie mit der Einheit, es zeigt sie an. «Stichprobe» steht **über** den
+> Knöpfen (#706), «der Gesamtmenge» ist entfallen (#705 – die Bezugsgrösse steht im Hover).
 > **Die Instanz nennt ihren Artikel als Datensatz**: verlinkte Objektnummer im Werteraster
 > statt eines abgeschriebenen Namens – ein Klick, immer aktuell. Der Typ heisst im Kopf
 > jetzt «Instanz» statt «Instanzen» (der einzige Plural in `TYPE_META`; über EINEM Datensatz

@@ -15,7 +15,9 @@ from sqlalchemy.orm import Session
 
 from ..models import Order
 from ..models.order_line import LAGER
-from .process import assert_releasable, release, resolve_lines, steps_for
+from .process import (
+    assert_releasable, release, resolve_lines, steps_for, unpickable,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +53,12 @@ def validate_draft(db: Session | None, draft: dict[str, Any]) -> list[str]:
 
     total = sum(ln.quantity for ln in lines)
     missing = assert_releasable(total, steps)
+
+    # **Ein Stück in einem Endzustand ist keine gültige Auswahl** – und das muss der
+    # Entwurf sagen, nicht erst der Klick. Dieselbe Regel wie in der Freigabe, aus
+    # derselben Funktion (``process.pick_problem``); eine zweite, mildere Prüfung hier
+    # wäre ein Knopf, der bereitsteht und dann scheitert.
+    missing.extend(unpickable(db, lines))
 
     # Eine ``Lager``-Zeile muss so viele Stücke benennen, wie sie verlangt – sonst
     # stimmt die Mengen-Invariante nicht, und das merkt man besser jetzt als beim Klick.

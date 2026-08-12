@@ -43,22 +43,39 @@ def record_for_step(
     order: Order,
     step: ProcessStep,
     units: list[InstanceUnit],
-    values: dict[str, Any],
+    captures: dict[int, dict[str, Any]],
     actor_id: Optional[int],
 ) -> dict[int, Capture]:
-    """Eine Erfassung für **alle** Stücke festhalten, die gerade vor dem Modul stehen.
+    """Die Erfassungen festhalten — **je Einzelinstanz einen eigenen Wertesatz**.
 
-    Geprüft wird **vor** der ersten Zeile: fehlt ein Pflichtpunkt, entsteht gar nichts.
-    Eine halbe Erfassung wäre schlimmer als keine – sie sähe hinterher aus wie eine
-    vollständige.
+    ►►► **Der Scan verifiziert die Instanz. Die Erfassung gilt der Einzelinstanz.** ◄◄◄
 
-    **Ein Wertesatz, eine Zeile je Stück** (Annahme, siehe PROCESS_CORE §13): erfasst
-    wird gemeinsam, gespeichert wird je Einzelinstanz. Die Datenhaltung nimmt damit die
-    andere Variante (je Stück eigene Werte) bereits vorweg – sie wäre eine Änderung an
-    der Eingabe, nicht am Modell.
+    Das sind zwei Dinge, und sie dürfen nie gekoppelt sein. Der Scan ist eine Aussage
+    über das **physische Ding**: das Etikett klebt an der Instanz, eine Einzelinstanz
+    zieht keine Objektnummer. Eine Messung dagegen ist eine Aussage über **ein Stück** –
+    zwei Schrauben aus derselben Charge haben zwei Durchmesser.
+
+    Vorher stand hier **ein** Wertesatz, der auf jedes gezogene Stück kopiert wurde. Das
+    war nicht bloss unbequem, es war eine **Behauptung**: bei einer Charge über zwei
+    Stück entstanden zwei Messwerte, gemessen wurde einer. Ein Nachweis, der mehr Zeilen
+    hat als Messungen, ist keiner – und aus derselben Kopie wären bei 1500 gezogenen
+    Stücken 1500 identische «Messungen» geworden.
+
+    Aus einem Scan werden damit **n** Erfassungen: Charge über 2 → 2, Stichprobe ¼ von
+    6000 → 1500. Es gibt hier keine Abfrage nach der Serialisierung; die Zahl folgt aus
+    der Ziehung.
+
+    Geprüft wird **vor** der ersten Zeile, und zwar jeder Satz einzeln: fehlt irgendwo
+    ein Pflichtpunkt, entsteht gar nichts. Eine halbe Erfassung wäre schlimmer als keine –
+    sie sähe hinterher aus wie eine vollständige.
+
+    Das **Urteil hängt am Stück**: jede Zeile trägt ihr eigenes. Was daraus für die
+    Instanz folgt, entscheidet der Aufrufer (§4.1: eine durchgefallene Stichprobe hält
+    die ganze Instanz an).
     """
     points = points_of(step)
-    capture_types.check_values(points, values)
+    for values in captures.values():
+        capture_types.check_values(points, values)
     # **Ohne Erfassungspunkte wird nichts erfasst.** Das Aussondern im Modus «verschrotten»
     # hält nichts fest – der Scan ist die Bestätigung, und die steht als Ereignis im Log
     # (``process._pass``). Eine leere Zeile je Stück wäre ein Nachweis über nichts und
@@ -66,16 +83,18 @@ def record_for_step(
     # dieses Modul nicht kennt, bleibt ein Fehler (``check_values`` oben).
     if not points:
         return {}
-    result = capture_types.verdict(points, values)
 
     out: dict[int, Capture] = {}
     for unit in units:
+        values = captures.get(unit.id)
+        if values is None:
+            continue
         entry = Capture(
             instance_unit_id=unit.id,
             order_id=order.id,
             step_id=step.id,
-            values=dict(values or {}),
-            result=result,
+            values=dict(values),
+            result=capture_types.verdict(points, values),
             captured_by=actor_id,
         )
         db.add(entry)

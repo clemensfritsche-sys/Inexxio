@@ -11,7 +11,7 @@ import {
 } from './process-flow';
 import { UnitNumber } from './unit-number';
 import {
-  statusCfg, IM_PROZESS, START_AFTER, START_BEFORE, END_BEFORE, statusLabel,
+  statusCfg, isPickable, IM_PROZESS, START_AFTER, START_BEFORE, END_BEFORE, statusLabel,
 } from '@/lib/process-status';
 import { formatObjectId, localDateTime } from '@/lib/utils';
 import { useErpNav } from './obj-id';
@@ -313,6 +313,16 @@ export function axisEdges(g: ProcessGraph): GraphEdge[] {
 export interface UnitChip {
   number: string;
   startedAt?: string | null;
+  /**
+   * **Der Zustand reist mit dem Stück.** Er kommt vom Server (die Antwort trägt ihn
+   * längst) und wird hier gebraucht, weil aus ihm folgt, ob das Stück noch greifbar ist.
+   *
+   * Er wurde einmal beim Einlesen weggeworfen – und damit war der Abweichungstrigger
+   * blind: er erschien auch an einem **verschrotteten** Stück, das der Server danach
+   * ablehnte. Eine Angabe, die man wegwirft und dann nicht prüfen kann, ist die Form,
+   * in der eine Regel an der Oberfläche verschwindet.
+   */
+  status?: string | null;
 }
 
 /**
@@ -917,10 +927,15 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
               // Ereignis-Log – der Start ist ein Ereignis wie jedes andere.
               data-tip={u.startedAt ? `Start passiert: ${localDateTime(u.startedAt)}` : undefined}>
               <UnitNumber value={u.number} size={11} />
-              {onDeviate && (
+              {onDeviate && isPickable(u.status) && (
                 // **Der Auslöser sitzt am Stück, an seiner Stelle im Prozess** (§3.1).
                 // Er legt nichts an – er öffnet einen gewöhnlichen Auftragsentwurf, in
                 // dem dieses Stück schon steht.
+                //
+                // **An einem Stück in einem Endzustand gibt es ihn nicht.** Nicht
+                // ausgegraut, sondern gar nicht: ein Knopf, der nie etwas tun kann, ist
+                // kein Angebot. Die Bedingung nennt keinen Status – sie fragt dieselbe
+                // Eigenschaft, aus der auch der Server seine Ablehnung zieht.
                 <button
                   type="button"
                   onClick={() => onDeviate(u.number)}

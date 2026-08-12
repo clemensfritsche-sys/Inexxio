@@ -567,7 +567,14 @@ class ApiClient {
    * verifiziert wurde (`scan` | `manual`), reist mit: beides ist eine Bestätigung, und
    * ohne den Vermerk wäre die Tastatur hinterher nicht von der Kamera zu unterscheiden.
    */
-  confirmStep(objectId: number, stepId: number, values: Record<string, unknown> = {},
+  /**
+   * «Bestätigen» – **ein Wertesatz je Einzelinstanz**.
+   *
+   * `values` ist zweistufig: Nummer der Einzelinstanz → (Punkt-`key` → Wert). Der
+   * Scan verifiziert die **Instanz**, erfasst wird je **Stück**; ein flacher Satz
+   * wäre eine Messung, aus der n gleiche würden.
+   */
+  confirmStep(objectId: number, stepId: number, values: Record<string, Record<string, unknown>> = {},
               instanceObjectId?: number, verification?: string): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {
       values,
@@ -581,8 +588,17 @@ class ApiClient {
    * 6000er-Charge wären sechstausend Nummern; sie in jeder Auftrags-Antwort mitzuführen
    * wäre der Preis dafür, dass man sie einmal braucht.
    */
+  /**
+   * Die Nummern **einer Gruppe dieser Instanz an diesem Modul** – erst auf Klick.
+   *
+   * `sample` sind die **gezogenen**: für jede ist ein eigener Wertesatz zu erfassen.
+   * `failed`/`rest` sind die Vorauswahl der Entscheidung nach einem «nicht bestanden».
+   *
+   * Keine davon steht in der Auftrags-Antwort: bei einer 6000er-Charge wären es
+   * tausende Nummern bei jedem Öffnen. Die Zahlen der Vorschau kommen aus `step_work`.
+   */
   stepHold(objectId: number, stepId: number, instance: number,
-           group: 'failed' | 'rest'): Promise<{ numbers: string[] }> {
+           group: 'sample' | 'failed' | 'rest'): Promise<{ numbers: string[] }> {
     return this.get(
       `/api/v1/erp/orders/${objectId}/steps/${stepId}/hold`
       + `?instance=${instance}&group=${group}`);

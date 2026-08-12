@@ -84,7 +84,7 @@ export function StockView({ scope }: { scope: StockScope }) {
 
   if (total === 0) {
     return (
-      <Card total={0}>
+      <Card>
         <p className="text-sm text-fg-3">
           Noch kein Bestand – Einzelinstanzen entstehen mit der Freigabe eines Auftrags.
         </p>
@@ -92,14 +92,11 @@ export function StockView({ scope }: { scope: StockScope }) {
     );
   }
 
-  // **Wohin ein Zustand gehört, sagt der Server** (`StockState.stock`) – die Zuordnung ist
-  // eine Eigenschaft des Status (`domain/statuses.Status.stock`), keine Liste, die diese
-  // Ansicht pflegt und beim nächsten neuen Zustand vergisst. Ein Zustand ohne Zuordnung
-  // landet darum nicht still im falschen Block, sondern wird **gemeldet**.
+  // **Ein Zustand ohne Zuordnung ist ein Fehler** und wird gemeldet, nicht einsortiert.
   const unknown = states.filter((s) => s.stock !== 'live' && s.stock !== 'history');
 
   return (
-    <Card total={total}>
+    <Card>
       <div className="flex flex-col gap-2.5 pb-1">
         <StockBar states={states} height={10} />
         <StockLegend states={states} />
@@ -107,67 +104,54 @@ export function StockView({ scope }: { scope: StockScope }) {
 
       {unknown.length > 0 && <UnknownStates states={unknown} />}
 
-      {BUCKETS.map((b) => {
-        const mine = states.filter((s) => s.stock === b.stock);
-        if (mine.length === 0) return null;
-        return (
-          <Block key={b.stock} title={b.title} count={sum(mine)} defaultOpen={b.open}>
-            {scope.kind === 'instance' ? (
-              // An der Instanz sind die Zeilen direkt die Einzelinstanzen – dieselbe
-              // Komponente, die am Artikel eine Instanz-Zeile aufklappt.
-              <UnitNumbers
-                objectId={scope.record.object_id}
-                statuses={mine.map((s) => s.status)}
-                quantity={sum(mine)}
-              />
-            ) : (
-              <>
-                {rows
-                  .filter((r) => r.states.some((s) => s.stock === b.stock))
-                  .map((r) => <InstanceRow key={r.id} row={r} bucket={b.stock} />)}
-                {/* Blättern gibt es nur dort, wo eine Seite Instanzen kommt. */}
-                {b.stock === 'live' && stock != null && rows.length < stock.instance_total && (
-                  <button
-                    type="button"
-                    onClick={() => load(rows.length)}
-                    disabled={busy}
-                    className="mt-2 self-start text-[12.5px] text-fg-3 hover:text-fg-1 disabled:opacity-50"
-                  >
-                    {busy ? 'lädt …' : `weitere ${stock.instance_total - rows.length} Instanzen`}
-                  </button>
-                )}
-              </>
-            )}
-          </Block>
-        );
-      })}
+      {states.map((s) => (
+        <Block key={s.status} state={s}>
+          {scope.kind === 'instance' ? (
+            // An der Instanz sind die Zeilen direkt die Einzelinstanzen – dieselbe
+            // Komponente, die am Artikel eine Instanz-Zeile aufklappt.
+            <UnitNumbers
+              objectId={scope.record.object_id}
+              statuses={[s.status]}
+              quantity={s.quantity}
+            />
+          ) : (
+            <>
+              {rows
+                .filter((r) => r.states.some((x) => x.status === s.status))
+                .map((r) => <InstanceRow key={r.id} row={r} status={s.status} />)}
+              {stock != null && rows.length < stock.instance_total && (
+                <button
+                  type="button"
+                  onClick={() => load(rows.length)}
+                  disabled={busy}
+                  className="mt-2 self-start text-[12.5px] text-fg-3 hover:text-fg-1 disabled:opacity-50"
+                >
+                  {busy ? 'lädt …' : `weitere ${stock.instance_total - rows.length} Instanzen`}
+                </button>
+              )}
+            </>
+          )}
+        </Block>
+      ))}
     </Card>
   );
 }
 
-/**
- * Bestand ↔ Historie: zwei Fragen («was habe ich» / «was war»), nicht ein Filter. Die
- * Liste selbst ist in beiden Fällen dieselbe – nur die Zustände unterscheiden sich, und
- * welche wohin gehören, steht am Status.
- */
-const BUCKETS = [
-  { stock: 'live', title: 'Bestand', open: true },
-  { stock: 'history', title: 'Historie', open: false },
-] as const;
-
 const sum = (states: StockState[]) => states.reduce((n, s) => n + s.quantity, 0);
 
-/** Die Karte – dieselbe Anatomie wie die Spezifikation (Karte + Kopf + Inhalt). */
-function Card({ total, children }: { total?: number; children: React.ReactNode }) {
+/**
+ * Die Karte – dieselbe Anatomie wie die Spezifikation (Karte + Kopf + Inhalt).
+ *
+ * **Ohne die eine grosse Zahl.** Sie stand rechts im Kopf und summierte alles – auch
+ * Verschrottetes. Damit war sie zugleich irreführend (das ist kein Bestand) und
+ * uninformativ (sie sagte nicht, wovon). Was sie beantworten sollte, beantworten jetzt
+ * die Leiste und die Gruppen darunter: je Zustand eine Zahl, in der Reihenfolge des
+ * Lebenszyklus.
+ */
+function Card({ children }: { children: React.ReactNode }) {
   return (
     <div style={SPEC.card}>
-      <SpecHead
-        icon={Boxes}
-        title="Bestand"
-        right={total != null ? (
-          <span className="ix-tnum font-display leading-none" style={{ fontSize: 26 }}>{total}</span>
-        ) : undefined}
-      />
+      <SpecHead icon={Boxes} title="Bestand" />
       <div className="flex flex-col">{children}</div>
     </div>
   );
@@ -195,11 +179,30 @@ function UnknownStates({ states }: { states: StockState[] }) {
   );
 }
 
-/** Ein Block: Überschrift mit Menge, darunter die Zeilen dieses Umfangs. */
-function Block({ title, count, defaultOpen, children }: {
-  title: string; count: number; defaultOpen: boolean; children: React.ReactNode;
-}) {
-  const [shown, setShown] = useState(defaultOpen);
+/**
+ * **Eine Gruppe je Zustand** — Punkt, Wort, Menge; darunter, was darin liegt.
+ *
+ * Dieses Werkzeug **zählt keinen Status auf**, weder für die Gruppierung noch für die
+ * Reihenfolge noch für die Farbe. Alles drei kommt vom Status selbst:
+ *
+ *   Welche Gruppen  die Zustände, die wirklich vorkommen (`states` vom Server)
+ *   Reihenfolge     die Position im `CATALOG` – dieselbe, die Leiste und Legende ordnet
+ *   Farbe           der Ampelton des Status (`statusCfg`)
+ *   Zugeklappt      ob er zur **Historie** zählt (`stock`)
+ *
+ * Kommt morgen ein Zustand dazu, erscheint er hier ohne eine Zeile Code – an seiner
+ * Stelle im Lebenszyklus, in seiner Farbe. Vorher waren es zwei feste Blöcke («Bestand»
+ * und «Historie»); ein neuer Zustand verschwand darin, statt sich zu zeigen.
+ *
+ * **Die Reihenfolge ist die des Lebenszyklus**, weil der Katalog sie so führt:
+ * Freigegeben → Im Prozess → Gesperrt → Verschrottet. Sie steht dort einmal und gilt für
+ * jede Ansicht, die Zustände nebeneinander zeigt.
+ */
+function Block({ state, children }: { state: StockState; children: React.ReactNode }) {
+  const cfg = statusCfg(state.status);
+  // **Was war, ist zugeklappt.** Nicht «verschrottet ist zu», sondern «Historie ist zu» –
+  // die Frage beantwortet der Status (`stock`), nicht diese Datei.
+  const [shown, setShown] = useState(state.stock !== 'history');
   return (
     <section className="border-t border-border-1">
       <button
@@ -210,10 +213,13 @@ function Block({ title, count, defaultOpen, children }: {
         <ChevronRight
           size={14}
           className="text-fg-4 transition-transform"
-          style={{ transform: shown ? 'rotate(90deg)' : 'none' }}
+          style={{ transform: shown ? 'rotate(90deg)' : 'none', flex: 'none' }}
         />
-        <span className="text-[13px] font-medium">{title}</span>
-        <span className="ix-tnum text-[13px] text-fg-3">{count}</span>
+        <span aria-hidden className="rounded-full" style={{
+          width: 7, height: 7, flex: 'none', background: cfg.color,
+        }} />
+        <span className="text-[13px] font-medium">{cfg.label}</span>
+        <span className="ix-tnum text-[13px] text-fg-3">{state.quantity}</span>
       </button>
       {shown && <div className="flex flex-col pb-4">{children}</div>}
     </section>
@@ -221,30 +227,32 @@ function Block({ title, count, defaultOpen, children }: {
 }
 
 /**
- * Eine Zeile je Instanz: Objektnummer, Menge, Leiste.
+ * Eine Zeile je Instanz **innerhalb einer Zustands-Gruppe**: Objektnummer, Menge.
  *
- * Die Leiste ist zugleich der Griff zur Ebene darunter: ein Segment anklicken öffnet die
- * Nummern **dieses** Zustands, ein Klick auf die Zeile alle des Blocks. Damit braucht es
- * kein zusätzliches Bedienelement für etwas, das man ohnehin sieht.
+ * Sie zeigt nur, was sie in **diesem** Zustand hat – eine Charge mit drei freigegebenen
+ * und einem verschrotteten Stück steht darum in zwei Gruppen, jedes Mal mit ihrer
+ * dortigen Menge. Das ist die Auskunft, die eine Gruppe je Zustand überhaupt erst
+ * möglich macht: die Instanz hat keinen Zustand, ihre Stücke haben einen.
+ *
+ * Aufklappen zeigt die **Nummern dieses Zustands** – eine Leiste braucht es dafür nicht
+ * mehr: die Gruppe darüber IST die Auswahl.
  *
  * **Die Objektnummer führt zum Datensatz** (bestehende Navigation, kein eigener Weg) –
  * und weil `ObjId` den Klick abfängt, kollidiert das nicht mit dem Aufklappen.
  */
-function InstanceRow({ row, bucket }: { row: InstanceSummary; bucket: string }) {
-  const [pick, setPick] = useState<string | null | undefined>(undefined);
-  const states = row.states.filter((s) => s.stock === bucket);
-  const shown = pick !== undefined;
+function InstanceRow({ row, status }: { row: InstanceSummary; status: string }) {
+  const [shown, setShown] = useState(false);
+  const states = row.states.filter((s) => s.status === status);
 
-  const toggle = (status: string | null) =>
-    setPick((cur) => (cur === status ? undefined : status));
+  const toggle = () => setShown((v) => !v);
 
   return (
     <div className="border-t border-border-1">
       <div
         role="button"
         tabIndex={0}
-        onClick={() => toggle(null)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(null); } }}
+        onClick={toggle}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
         className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2 cursor-pointer"
       >
         <ChevronRight
@@ -254,18 +262,16 @@ function InstanceRow({ row, bucket }: { row: InstanceSummary; bucket: string }) 
         />
         <ObjId value={row.object_id} />
         <span className="ix-tnum text-[13px] whitespace-nowrap">{sum(states)}</span>
-        <span className="ml-auto" style={{ flex: '1 1 120px', minWidth: 90, maxWidth: 260 }}>
-          <StockBar states={states} onPick={toggle} active={pick ?? null} />
-        </span>
       </div>
 
       {shown && (
         <div className="pb-3 pl-6">
-          {/* Ein Segment fragt nach seinem Zustand, die Zeile nach denen ihres Blocks –
-              nie nach «allen»: im Historien-Block wären das auch die aktuellen. */}
+          {/* Genau der Zustand dieser Gruppe – nie «alle»: die Nummern der anderen
+              stehen in ihrer eigenen Gruppe, und zweimal dieselbe Nummer zu zeigen
+              hiesse, die Aufteilung wieder aufzuheben. */}
           <UnitNumbers
             objectId={row.object_id}
-            statuses={pick ? [pick] : states.map((s) => s.status)}
+            statuses={[status]}
             quantity={sum(states)}
             dense
           />

@@ -21,6 +21,8 @@ import pathlib
 
 import pytest
 
+from tests.support import per_unit
+
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -117,18 +119,21 @@ def test_no_entry_without_verification():
         assert without.value.status_code == 400
 
         with pytest.raises(HTTPException) as unknown:
-            proc.confirm_step(db, order=order, step_id=step.id, values={"ok": True},
-                              instance_object_id=999_999_999, verification="scan",
-                              actor_id=None)
+            proc.confirm_step(
+            db, order=order, step_id=step.id,
+            values=per_unit(db, order=order, step=step, instance_object_id=999_999_999,
+                            values={"ok": True}),
+            instance_object_id=999_999_999, verification="scan", actor_id=None)
         assert unknown.value.status_code == 404
 
         # **Die Tastatur ist die Alternative, nicht die Umgehung** – und sie wird als
         # solche vermerkt.
         work = proc.step_work(db, order, step)[0]
         out = proc.confirm_step(
-            db, order=order, step_id=step.id, values={"ok": True},
-            instance_object_id=work["instance_object_id"], verification="manual",
-            actor_id=None)
+            db, order=order, step_id=step.id,
+            values=per_unit(db, order=order, step=step, instance_object_id=work["instance_object_id"],
+                            values={"ok": True}),
+            instance_object_id=work["instance_object_id"], verification="manual", actor_id=None)
         assert out["moved"] == 2
         assert _verifications(db, order) == {"manual"}, (
             "Wie verifiziert wurde, steht nicht im Log – dann ist die Scan-Pflicht "
@@ -182,9 +187,10 @@ def test_the_sample_is_drawn_once_and_frozen():
 
         # Erfasst wird NUR die Stichprobe; die übrigen laufen ohne Erfassung durch.
         out = proc.confirm_step(
-            db, order=order, step_id=step.id, values={"ok": True},
-            instance_object_id=work["instance_object_id"], verification="scan",
-            actor_id=None)
+            db, order=order, step_id=step.id,
+            values=per_unit(db, order=order, step=step, instance_object_id=work["instance_object_id"],
+                            values={"ok": True}),
+            instance_object_id=work["instance_object_id"], verification="scan", actor_id=None)
         assert out["moved"] == 10, "Der ungeprüfte Rest bleibt stehen – er soll durchlaufen."
         assert _captures(db, order) == 3, (
             "Es wurde für mehr Stücke erfasst als gezogen wurden."
@@ -259,9 +265,12 @@ def test_a_later_module_draws_from_the_whole_order_not_from_the_first_wave():
 
         # Genau EINE Instanz geht durch – am zweiten Modul steht damit ein Viertel.
         one = proc.step_work(db, order, first)[0]
-        proc.confirm_step(db, order=order, step_id=first.id, values={"ok": True},
-                          instance_object_id=one["instance_object_id"],
-                          verification="scan", actor_id=None)
+        proc.confirm_step(
+            db, order=order, step_id=first.id,
+            values=per_unit(db, order=order, step=first,
+                            instance_object_id=one["instance_object_id"]),
+            instance_object_id=one["instance_object_id"],
+            verification="scan", actor_id=None)
         db.flush()
 
         rows = proc.step_work(db, order, second)
@@ -332,9 +341,10 @@ def test_a_failed_capture_holds_and_nothing_is_created():
         work = proc.step_work(db, order, step)[0]
 
         out = proc.confirm_step(
-            db, order=order, step_id=step.id, values={"ok": False},
-            instance_object_id=work["instance_object_id"], verification="scan",
-            actor_id=None)
+            db, order=order, step_id=step.id,
+            values=per_unit(db, order=order, step=step, instance_object_id=work["instance_object_id"],
+                            values={"ok": False}),
+            instance_object_id=work["instance_object_id"], verification="scan", actor_id=None)
         db.flush()
 
         assert out == {"moved": 0, "held": 4, "result": "failed"}
@@ -379,13 +389,15 @@ def test_the_flow_splits_between_instances():
         assert len(work) == 2
 
         good = proc.confirm_step(
-            db, order=order, step_id=step.id, values={"ok": True},
-            instance_object_id=work[0]["instance_object_id"], verification="scan",
-            actor_id=None)
+            db, order=order, step_id=step.id,
+            values=per_unit(db, order=order, step=step, instance_object_id=work[0]["instance_object_id"],
+                            values={"ok": True}),
+            instance_object_id=work[0]["instance_object_id"], verification="scan", actor_id=None)
         bad = proc.confirm_step(
-            db, order=order, step_id=step.id, values={"ok": False},
-            instance_object_id=work[1]["instance_object_id"], verification="scan",
-            actor_id=None)
+            db, order=order, step_id=step.id,
+            values=per_unit(db, order=order, step=step, instance_object_id=work[1]["instance_object_id"],
+                            values={"ok": False}),
+            instance_object_id=work[1]["instance_object_id"], verification="scan", actor_id=None)
         db.flush()
 
         assert good["moved"] == 1 and bad["held"] == 1
@@ -413,14 +425,19 @@ def test_a_later_good_capture_clears_the_hold():
         work = proc.step_work(db, order, step)[0]
         instance = work["instance_object_id"]
 
-        proc.confirm_step(db, order=order, step_id=step.id, values={"ok": False},
-                          instance_object_id=instance, verification="scan", actor_id=None)
+        proc.confirm_step(
+            db, order=order, step_id=step.id,
+            values=per_unit(db, order=order, step=step, instance_object_id=instance,
+                            values={"ok": False}),
+            instance_object_id=instance, verification="scan", actor_id=None)
         db.flush()
         assert proc.step_work(db, order, step)[0]["held"] is True
 
-        out = proc.confirm_step(db, order=order, step_id=step.id, values={"ok": True},
-                                instance_object_id=instance, verification="scan",
-                                actor_id=None)
+        out = proc.confirm_step(
+            db, order=order, step_id=step.id,
+            values=per_unit(db, order=order, step=step, instance_object_id=instance,
+                            values={"ok": True}),
+            instance_object_id=instance, verification="scan", actor_id=None)
         db.flush()
         assert out["moved"] == 2, "Die erneute, bestandene Erfassung bewegt nichts."
         assert proc.step_work(db, order, step) == [], "Am Modul steht noch etwas."
@@ -469,7 +486,7 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
         instance = work[0]["instance_object_id"]
 
         # **Ohne Bestätigung keine Eingabe** – und zwar als Fehler, nicht als leerer Erfolg.
-        refused = client.post(f"{base}/confirm", json={"values": {"ok": True}})
+        refused = client.post(f"{base}/confirm", json={"values": {}})
         assert refused.status_code == 400, refused.text
         assert "bestätigt" in refused.json()["detail"], refused.json()
 
@@ -480,9 +497,31 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
         assert [w["instance_object_id"] for w in row["work"]] == [instance]
         assert (row["work"][0]["sample"], row["work"][0]["rest"]) == (3, 7)
 
-        ok = client.post(f"{base}/confirm", json={
+        # **Welche Stücke sind zu erfassen?** – erst auf Klick, dieselbe Gruppe, die der
+        # Server danach verlangt. Genau drei, wie die Vorschau eine Zeile höher sagt.
+        drawn = client.get(f"{base}/hold", params={"instance": instance, "group": "sample"})
+        assert drawn.status_code == 200, drawn.text
+        numbers = drawn.json()["numbers"]
+        assert len(numbers) == 3, numbers
+
+        # **Ein Scan, drei Erfassungen.** Ein flacher Wertesatz wird abgewiesen: er wäre
+        # eine Messung, aus der drei würden.
+        flat = client.post(f"{base}/confirm", json={
             "values": {"ok": False}, "instance_object_id": instance,
             "verification": "manual",
+        })
+        assert flat.status_code == 422, flat.text
+
+        luecke = client.post(f"{base}/confirm", json={
+            "values": {numbers[0]: {"ok": False}}, "instance_object_id": instance,
+            "verification": "manual",
+        })
+        assert luecke.status_code == 400, luecke.text
+        assert "je Stück" in luecke.json()["detail"], luecke.json()
+
+        ok = client.post(f"{base}/confirm", json={
+            "values": {n: {"ok": False} for n in numbers},
+            "instance_object_id": instance, "verification": "manual",
         })
         assert ok.status_code == 200, ok.text
 
@@ -503,4 +542,163 @@ def test_the_endpoints_carry_the_rules_to_the_outside():
                           params={"instance": instance, "group": "alles"}).status_code == 400
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# §3 + §9.3 – der Scan gehört der Instanz, die Erfassung der Einzelinstanz
+# ---------------------------------------------------------------------------
+
+def test_one_scan_gives_one_capture_per_piece_not_one_per_scan():
+    """►►► **Der Scan verifiziert die Instanz. Die Erfassung gilt der Einzelinstanz.** ◄◄◄
+
+    Zwei verschiedene Dinge, und sie dürfen nie gekoppelt sein. Vorher hingen sie
+    aneinander: **ein** Wertesatz je Bestätigung, kopiert auf jedes gezogene Stück. Bei
+    einer Charge über zwei Stück entstanden damit zwei Messwerte, gemessen wurde einer –
+    ein Nachweis mit mehr Zeilen als Messungen.
+
+    Geprüft wird die Zahl **und** der Inhalt: dass die Werte je Stück verschieden sein
+    können, ist der ganze Punkt. Wären sie gleich, wäre die Kopie nicht auffällig.
+    """
+    from app.services import process as proc
+    from app.models import Capture
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="batch", quantity=2,
+                             points=[{"label": "Mass", "type": "measure",
+                                      "target": 10, "tolerance": 5}])
+        work = proc.step_work(db, order, step)
+        assert len(work) == 1, "Eine Charge ist EIN Scan."
+        inst = work[0]["instance_object_id"]
+        assert work[0]["sample"] == 2, "Bei «alle» sind beide Stücke zu erfassen."
+
+        numbers = proc.held_numbers(db, order, step, instance_object_id=inst,
+                                    group="sample")
+        assert len(numbers) == 2, numbers
+
+        out = proc.confirm_step(
+            db, order=order, step_id=step.id,
+            values={numbers[0]: {"mass": 9}, numbers[1]: {"mass": 11}},
+            instance_object_id=inst, verification="scan", actor_id=None)
+        assert out["moved"] == 2
+
+        rows = db.query(Capture).filter(Capture.order_id == order.id).all()
+        assert len(rows) == 2, "Ein Scan, zwei Stücke – also zwei Erfassungen."
+        assert sorted(r.values["mass"] for r in rows) == [9, 11], (
+            "Die Werte sind gleich – dann wurde einer kopiert statt zweimal gemessen."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_capture_count_follows_the_draw_not_the_number_of_scans():
+    """**1 Scan → 1500 Erfassungen**: die Zahl kommt aus der Ziehung, nicht aus dem Scan.
+
+    Das ist die Skalen-Aussage der Regel. Hier klein gemessen (¼ von 8 = 2), aber es ist
+    dieselbe Rechnung: die Erfassungsanzahl darf nirgends aus der Zahl der Scans folgen,
+    sonst hätte eine Charge immer genau eine – unabhängig davon, wie viel gezogen wurde.
+    """
+    from app.services import process as proc
+    from app.models import Capture
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="batch", quantity=8,
+                             sample={"percent": 25})
+        work = proc.step_work(db, order, step)[0]
+        inst = work["instance_object_id"]
+        assert (work["waiting"], work["sample"]) == (8, 2), work
+
+        numbers = proc.held_numbers(db, order, step, instance_object_id=inst,
+                                    group="sample")
+        assert len(numbers) == work["sample"], (
+            "Die Vorschau nennt eine andere Zahl als die Liste – zwei Quellen."
+        )
+        proc.confirm_step(
+            db, order=order, step_id=step.id,
+            values={n: {"ok": True} for n in numbers},
+            instance_object_id=inst, verification="scan", actor_id=None)
+
+        assert db.query(Capture).filter(Capture.order_id == order.id).count() == 2, (
+            "Erfasst wurde nicht je gezogener Einzelinstanz."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_capture_covers_exactly_the_drawn_pieces():
+    """**Zu viel und zu wenig sind beide ein Fehler** – und beide mit einem Satz.
+
+    Ein Satz für ein nicht gezogenes Stück wäre ein Nachweis über etwas, das hier nie
+    geprüft werden sollte; ein fehlender wäre eine Lücke, die hinterher aussieht wie
+    «durchgelaufen, nichts gemessen».
+    """
+    from fastapi import HTTPException
+    from app.services import process as proc
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="batch", quantity=4,
+                             sample={"percent": 50})
+        work = proc.step_work(db, order, step)[0]
+        inst = work["instance_object_id"]
+        drawn = proc.held_numbers(db, order, step, instance_object_id=inst, group="sample")
+        rest = proc.held_numbers(db, order, step, instance_object_id=inst, group="rest")
+        assert len(drawn) == 2 and len(rest) == 2
+
+        with pytest.raises(HTTPException) as zu_wenig:
+            proc.confirm_step(db, order=order, step_id=step.id,
+                              values={drawn[0]: {"ok": True}},
+                              instance_object_id=inst, verification="scan", actor_id=None)
+        assert zu_wenig.value.status_code == 400
+        assert "je Stück" in str(zu_wenig.value.detail)
+
+        with pytest.raises(HTTPException) as zu_viel:
+            proc.confirm_step(
+                db, order=order, step_id=step.id,
+                values={**{n: {"ok": True} for n in drawn}, rest[0]: {"ok": True}},
+                instance_object_id=inst, verification="scan", actor_id=None)
+        assert zu_viel.value.status_code == 400
+        assert "nicht gezogen" in str(zu_viel.value.detail)
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_one_bad_piece_holds_the_whole_instance():
+    """**Das Urteil hängt am Stück, der Halt an der Instanz** (§4.1).
+
+    Jede Zeile trägt ihr eigenes Ergebnis – das ist die Genauigkeit, die aus der
+    Erfassung je Stück folgt. Was daraus für den Prozess folgt, bleibt unverändert: eine
+    durchgefallene Stichprobe ist nicht mehr repräsentativ, also bleibt die **ganze**
+    Instanz stehen, auch ihr ungeprüfter Rest.
+    """
+    from app.services import process as proc
+    from app.models import Capture
+
+    db = _db()
+    try:
+        order, step = _order(db, serialization="batch", quantity=3)
+        work = proc.step_work(db, order, step)[0]
+        inst = work["instance_object_id"]
+        numbers = proc.held_numbers(db, order, step, instance_object_id=inst,
+                                    group="sample")
+
+        out = proc.confirm_step(
+            db, order=order, step_id=step.id,
+            values={numbers[0]: {"ok": True}, numbers[1]: {"ok": False},
+                    numbers[2]: {"ok": True}},
+            instance_object_id=inst, verification="scan", actor_id=None)
+        assert out["result"] == "failed" and out["moved"] == 0, out
+
+        rows = {r.instance_unit_id: r.result
+                for r in db.query(Capture).filter(Capture.order_id == order.id).all()}
+        assert sorted(rows.values()) == ["failed", "passed", "passed"], (
+            "Das Urteil wurde über alle Stücke gleichgezogen – dann ist es keines je Stück."
+        )
+    finally:
+        db.rollback()
         db.close()
