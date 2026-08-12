@@ -160,13 +160,17 @@ def _confirm(db, order, step, values=None):
     gehen sie der Reihe nach durch alles, was davorsteht.
     """
     from app.services import process as proc
+    from tests.support import per_unit
 
     moved = 0
     for work in proc.step_work(db, order, step):
+        inst = work["instance_object_id"]
         moved += proc.confirm_step(
-            db, order=order, step_id=step.id, values=values or {"ok": True},
-            instance_object_id=work["instance_object_id"], verification="scan",
-            actor_id=None,
+            db, order=order, step_id=step.id,
+            # **Ein Scan, n Erfassungen** – je gezogener Einzelinstanz ein Wertesatz.
+            values=per_unit(db, order=order, step=step, instance_object_id=inst,
+                            values=values),
+            instance_object_id=inst, verification="scan", actor_id=None,
         )["moved"]
     return moved
 

@@ -67,3 +67,32 @@ export function statusCfg(status: string): StatusCfg {
 export function statusLabel(status: string): string {
   return statusCfg(status).label;
 }
+
+/**
+ * **Ist dieser Zustand endgültig?** — die eine Frage, aus der die Selektion folgt.
+ *
+ * Sie kommt aus dem **generierten** Katalog (`StatusEntry.terminal`), also aus derselben
+ * Zeile wie im Backend. Die Oberfläche zählt hier keinen Status auf; ein künftiger
+ * Endzustand wirkt ohne eine Zeile Code.
+ *
+ * Ein unbekannter Wert ist **nicht** terminal – gleiche Vorsicht wie im Backend
+ * (`statuses.is_terminal`): ein Tippfehler in den Daten darf keine Sperre sein, die
+ * niemand mehr aufheben kann. Er wird gemeldet, nicht eingemauert.
+ */
+export function isTerminal(status: string | null | undefined): boolean {
+  return CATALOG_BY_VALUE[status ?? '']?.terminal ?? false;
+}
+
+/**
+ * **Darf ein Auftrag ein Stück in diesem Zustand greifen?** – die Umkehrung, abgeleitet.
+ *
+ * Kein zweites Feld: `is_selectable` im Backend ist ebenfalls `not terminal`. Aus dieser
+ * einen Eigenschaft folgt der Abweichungstrigger, die Vorselektion und die Ablehnung.
+ */
+export function isPickable(status: string | null | undefined): boolean {
+  return !isTerminal(status);
+}
+
+const CATALOG_BY_VALUE = Object.fromEntries(
+  STATUS_CATALOG.map((s) => [s.value, s]),
+);

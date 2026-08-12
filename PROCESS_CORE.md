@@ -408,6 +408,7 @@ Ein Zustand mit `terminal = True` wird **nicht verlassen**. Nicht «soll nicht»
 | Ebene | Wo | Wofür |
 |---|---|---|
 | Die eine Schreibstelle | `process._pass` | jeder Statuswechsel der Prozesslogik (Start · Modul · Ende). Bricht mit **409 und einem Satz** ab, bevor etwas geschrieben ist. |
+| Die **Auswahl** | `process.pick_problem` | ein Stück in einem Endzustand wird nirgends angeboten, nirgends vorgewählt, nirgends aufgenommen (siehe unten). |
 | Die Tabelle selbst | Trigger `trg_instance_units_terminal` | **alles andere** – Reparaturskript, Migration, Sicherheitsnetz, `UPDATE` von Hand. |
 | Der Abgleich | `flow._verify_history` | falls doch etwas vorbeikam: der Log sagt Endzustand, die Zeile sagt etwas anderes → als Problem im Bild. |
 
@@ -416,6 +417,23 @@ Wer eine bräuchte, hat kein Sonderrecht, sondern ein Modellproblem: ein Zustand
 doch verlassen können muss, ist schlicht **nicht terminal** – und das ist eine Zeile im
 `CATALOG`. Der Trigger wird aus genau dieser Liste erzeugt und bei **jedem Start**
 nachgezogen (`main._ensure_columns`), damit die Datenbank von ihr nicht abweichen kann.
+
+**Und «endgültig» heisst auch: unerreichbar.** Ein Stück in einem terminalen Zustand ist
+für **jede weitere Prozessaktion** aus dem Spiel – kein Abweichungstrigger, keine
+Vorselektion, keine Aufnahme in einen Auftrag. Alle drei Wirkungen kommen aus derselben
+einen Frage (`process.pick_problem` → `is_terminal`), und keine davon zählt einen Status
+auf:
+
+| Wo | Wirkung |
+|---|---|
+| Auswahl-Liste (`unit_options`) | als **nicht verfügbar** ausgewiesen, mit Grund im Hover |
+| Oberfläche (`isPickable`) | der Abweichungstrigger **erscheint gar nicht**; eine vorgewählte Nummer fällt aus der Auswahl |
+| Entwurf (`orders.validate_draft`) | **nicht freigebbar**, und der Grund steht da |
+| Freigabe (`process.release`) | 409 |
+
+Vorher sagte nur die letzte nein – und zwar erst beim Klick. Das ist die unangenehmste
+Form einer Regel: sichtbar erst, wenn man alles getan hat. **`Gesperrt` ist nicht
+terminal** und bleibt greifbar: das Greifen IST das Aufheben (§5.2).
 
 **Warum so tief, und nicht im Modul.** Der Schreiber, der wirklich Schaden anrichtet, ist
 nicht der, an den man denkt. Eine Alt-Reparatur im Startvorgang setzte
@@ -998,8 +1016,8 @@ Zweck: im Prozess laufend Daten erfassen und kontrollieren (Richtung Qualitätss
 |---|---|
 | Übergang | **Durchläufer**: `Im Prozess` → `Im Prozess`, **fest verdrahtet** (`domain/modules`). Es misst — es verändert den Zustand des Stücks nicht. Passt der Ist-Status nicht: sauberer Fehler. |
 | Anlegen | **Kein Name** (er steht im Typ, #682) · **Stichprobe** (§9.3) · **Erfassungspunkte**: je Punkt Bezeichnung und Typ. Mindestens einer — ein Modul ohne Punkt stünde im Prozess und hätte nichts zu tun. **Alles, was angelegt ist, ist Pflicht**; ein «optional»-Häkchen gibt es nicht mehr. |
-| Laufzeit | Eine Zeile **je Instanz**, die davorsteht (§4.4): Objektnummer, Artikel, Umfang («3 von 10 Stück werden erfasst · 7 laufen ohne Erfassung durch»). |
-| **«Bestätigen»** | Instanz verifiziert? (§4.4, sonst 400) · alle Punkte erfasst? (offen → Fehler, der sie **benennt**) · erfassen · Urteil bilden · **bestanden**: Nachher-Status setzen, Ereignis loggen, Stücke rücken vor — **nicht bestanden**: §4.5. |
+| Laufzeit | Eine Zeile **je Instanz**, die davorsteht (§4.4) – mit **Vorschau, bevor gescannt wird**: Objektnummer, Artikel, Umfang («3 von 10 Stück erfassen · 7 laufen ohne Erfassung durch») und **was** erfasst wird. Je Instanz ein eigener Scan-Knopf; der Sammel-Knopf bleibt. |
+| **«Bestätigen»** | Instanz verifiziert? (§4.4, sonst 400) · **je gezogener Einzelinstanz ein Wertesatz** (§9.5) · alle Punkte erfasst? (offen → Fehler, der sie **benennt**) · erfassen · Urteil **je Stück** · **bestanden**: Nachher-Status setzen, Ereignis loggen, Stücke rücken vor — **ein einziges «nicht bestanden»**: §4.5. |
 
 **Kein Status-Feld beim Anlegen.** Der Übergang gehört zum Modultyp; zwei Auswahlen
 hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon feststand.
@@ -1120,6 +1138,41 @@ Eingabefeld.*
 
 ---
 
+### 9.5 Der Scan gilt der Instanz, die Erfassung der Einzelinstanz
+
+> **Das sind zwei verschiedene Dinge und dürfen nie gekoppelt sein.**
+
+Der **Scan** ist eine Aussage über das physische Ding: das Etikett klebt an der Instanz,
+eine Einzelinstanz zieht bewusst keine Objektnummer (§4.4). Eine **Messung** ist eine
+Aussage über **ein Stück** – zwei Schrauben aus derselben Charge haben zwei Durchmesser.
+
+Daraus folgt die Zahl, und zwar aus der **Ziehung**, nie aus der Zahl der Scans:
+
+| Lage | Scans | Erfassungen |
+|---|---|---|
+| Charge über 2, Stichprobe «alle» | 1 | **2** |
+| Charge über 6000, Stichprobe ¼ | 1 | **1500** |
+| Einzelserialisierung 3, «alle» | 3 | 3 |
+
+Vorher stand hier **ein** Wertesatz je Bestätigung, kopiert auf jedes gezogene Stück. Das
+war nicht bloss unbequem – es war eine **Behauptung**: zwei Zeilen, gemessen eine. Ein
+Nachweis mit mehr Zeilen als Messungen ist keiner.
+
+**Die Nutzlast ist darum zweistufig**: Nummer der Einzelinstanz → (Punkt → Wert). Der
+Server verlangt **Deckung in beide Richtungen** (`process._captures_for`) – ein Satz für
+ein nicht gezogenes Stück ist ein Nachweis über etwas, das hier nie geprüft werden
+sollte; ein fehlender ist eine Lücke, die hinterher aussieht wie «durchgelaufen, nichts
+gemessen».
+
+**Das Urteil hängt am Stück**, der Halt an der Instanz: jede Zeile trägt ihr eigenes
+Ergebnis; fällt **eines** durch, bleibt die ganze Instanz stehen (§4.5) – eine
+durchgefallene Stichprobe ist nicht mehr repräsentativ.
+
+**Welche Stücke gezogen sind, kommt erst auf Klick** (`…/steps/{id}/hold?group=sample`) –
+dieselbe Auskunft, aus der auch die Vorauswahl der Entscheidung kommt. Bei 1500 gezogenen
+Stücken darf diese Liste nicht in jeder Auftrags-Antwort mitreisen; für die **Vorschau**
+genügen die Zahlen aus `step_work`.
+
 ## 10. Darstellung
 
 ### 10.1 Regeln
@@ -1212,22 +1265,34 @@ hatte drei Ebenen mit Leiste und Legende, die Instanz eine schlichte Liste.
 
 | Ebene | Zeigt | Kommt von |
 |---|---|---|
-| 1 | Gesamtmenge + gestapelte Leiste | `GET /erp/articles/{id}/stock` → `states`/`total` |
-| 2 | eine Zeile je Instanz: Nummer · Menge · eigene Leiste | dieselbe Antwort, `instances` (seitenweise) |
+| 1 | gestapelte Leiste + **eine Gruppe je Zustand** | `GET /erp/articles/{id}/stock` → `states` |
+| 2 | in jeder Gruppe eine Zeile je Instanz: Nummer · Menge **in diesem Zustand** | dieselbe Antwort, `instances` (seitenweise) |
 | 3 | die Nummern der Stücke, je mit Zustand und Auftrag | `GET /erp/instances/{id}/units` (erst auf Klick) |
 
 **Kein Filter.** Ein Filter ist meistens das Eingeständnis, dass die Standardansicht zu
 viel Rauschen enthält; und er versteckt, was er nicht zeigt. Stattdessen ist die
-**Aufteilung selbst das Bedienelement**: ein Segment der Leiste anklicken heisst «zeig mir
-diese Nummern», der Rest bleibt sichtbar und tritt nur zurück. Zwei Blöcke statt eines
-Filters — **Bestand** (offen) und **Historie** (zu); ein Block, dessen Zustände es nicht
-gibt, steht gar nicht da.
+**Aufteilung selbst das Bedienelement**: eine Gruppe aufklappen heisst «zeig mir diese
+Nummern», der Rest bleibt sichtbar.
 
-**Welcher Block, sagt der Status** (§5.2), nicht die Ansicht: `StockState.stock` kommt mit
-den Daten. Ein neuer Zustand wird damit an **genau einer Stelle** ergänzt und erscheint
-hier ohne eine Zeile Änderung – mit Beschriftung, Farbe, Reihenfolge und im richtigen
-Block. Ein Zustand **ohne** Zuordnung wird **gemeldet** statt einsortiert: ihn zu raten
-wäre eine Behauptung, ihn wegzulassen ein stiller Verlust.
+**Eine Gruppe je Zustand — und die Ansicht zählt keinen einzigen auf.** Gruppiert wird
+über die Zustände, die wirklich vorkommen (`states`); alles Weitere folgt aus dem Status
+selbst (§5.2):
+
+| Frage | Antwort kommt von |
+|---|---|
+| Welche Gruppen gibt es? | den gelieferten `states` – nie einer Liste in der Ansicht |
+| In welcher **Reihenfolge**? | der Position im `CATALOG` = **Lebenszyklus** (Freigegeben → Im Prozess → Gesperrt → Verschrottet), dieselbe wie Leiste und Legende |
+| Welche **Farbe**? | dem Ampelton des Status |
+| **Zugeklappt** oder offen? | `stock`: was zur **Historie** zählt, startet zu |
+
+Ein neuer Zustand erscheint damit **ohne eine Zeile Änderung** an seiner Stelle im
+Lebenszyklus, in seiner Farbe. Vorher waren es zwei feste Blöcke (Bestand/Historie) – eine
+Aufteilung, in der ein neuer Zustand verschwand, statt sich zu zeigen. Ein Zustand **ohne**
+Zuordnung wird **gemeldet** statt einsortiert.
+
+**Keine Gesamtzahl im Kopf.** Sie summierte alles – auch Verschrottetes – und war damit
+zugleich irreführend (das ist kein Bestand) und uninformativ (sie sagte nicht, wovon). Die
+Zahlen stehen an den Gruppen, je eine je Zustand.
 
 **Die Karte ist die der Spezifikation** (`SPEC.card` + `SpecHead` aus `fields.tsx`) – die
 Anatomie jeder Detail-Ansicht, nicht die des Artikels. Sie stand lokal im Artikel und war
@@ -1376,12 +1441,28 @@ damit auch hier die Stelle, an der die Regel nicht umgangen werden kann.
 
 ### 12.2 Das Label ist abgeleitet, nicht gesetzt
 
-Ein Auftrag trägt das Wort «Abweichung», wenn **irgendein Stück ihn mit dem Status
-`Im Prozess` betreten hat**. Genau diese Frage steht im Log:
+> **Ein Auftrag ist eine Abweichung, wenn sein Start vom Regelstart abwich.**
+
+Der Regelstart ist genau **ein** Zustand (`statuses.START_BEFORE` = *Freigegeben*, §4.1):
+so beginnt ein Stück, das regulär verfügbar war. Alles andere ist ein Zugriff auf
+Material, das gerade **nicht** zur Verfügung stand. Genau diese Frage steht im Log:
 
 ```sql
-kind = 'start' AND status_before = 'im_prozess'
+kind = 'start' AND status_before <> 'freigegeben'
 ```
+
+**Die Regel nennt keinen Status.** Sie hiess einmal `status_before = 'im_prozess'`, also
+«einem laufenden Auftrag entzogen» – technisch stimmig, fachlich zu eng: ein **gesperrtes**
+Stück wieder in Betrieb zu nehmen gehört zu keinem laufenden Auftrag und fiel damit heraus,
+obwohl es in der Qualitätssicherung der Musterfall einer **Sonderfreigabe** ist. Der Zweck
+des Labels ist die **Nachweisbarkeit**; ein Nachweis, der den auffälligsten Fall auslässt,
+ist keiner.
+
+Als Vergleich gegen den einen Regelstart ist sie zugleich die **einfachere** Regel und die
+haltbarere: ein künftiger Zustand ist automatisch eine Abweichung, ohne dass ihn jemand
+hier einträgt. Die Richtung stimmt – wer zu viel ausweist, dokumentiert; wer zu wenig
+ausweist, verliert den Nachweis. Ein **terminales** Stück kommt dabei nie vor: es lässt
+sich gar nicht erst greifen (§5.3).
 
 Kein Feld, kein Flag, keine Pflege. Es ist die Frage selbst, an den Log gestellt — und
 damit per Konstruktion nie veraltet.

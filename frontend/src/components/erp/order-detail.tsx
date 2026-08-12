@@ -170,7 +170,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
 
   const confirmStep = useCallback(async (stepId: number, instanceObjectId: number,
                                          verification: string,
-                                         values: Record<string, unknown>) => {
+                                         values: Record<string, Record<string, unknown>>) => {
     if (!live) return;
     setBusy(true); setError(null);
     try {
@@ -363,7 +363,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 function RunView({ order, busy, onConfirm, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
-              values: Record<string, unknown>) => void;
+              values: Record<string, Record<string, unknown>>) => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
@@ -393,7 +393,11 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
 
   const expand = useCallback(async (edgeId: string) => {
     const page = await api.getOrderUnits(order.object_id, edgeId, 100, 0);
-    return (page.units ?? []).map((u) => ({ number: u.number, startedAt: u.started_at }));
+    // **Der Zustand bleibt am Stück.** Der Server sendet ihn; ihn hier wegzuwerfen war
+    // der Grund, warum der Abweichungstrigger auch an einem verschrotteten Stück stand.
+    return (page.units ?? []).map((u) => ({
+      number: u.number, startedAt: u.started_at, status: u.status,
+    }));
   }, [order.object_id]);
 
   return (

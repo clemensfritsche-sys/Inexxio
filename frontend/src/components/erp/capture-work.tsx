@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import type { CapturePoint, StepWork } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { useScan } from '@/components/scan/scan-provider';
+import { CAPTURE_ICON } from '@/lib/modules';
 import { CaptureForm } from '@/components/erp/capture-form';
 import type { OrderSeed } from '@/components/erp/order-detail';
 
@@ -37,7 +38,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, busy,
   work: StepWork[];
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
-              values: Record<string, unknown>) => void;
+              values: Record<string, Record<string, unknown>>) => void;
   /** Die Entscheidung öffnet einen **ganz gewöhnlichen** Auftragsentwurf (§4/§4.1). */
   onDeviate?: (seed: OrderSeed) => void;
   onDirty?: (dirty: boolean) => void;
@@ -73,17 +74,15 @@ function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onCon
   action: string;
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
-              values: Record<string, unknown>) => void;
+              values: Record<string, Record<string, unknown>>) => void;
   onDeviate?: (seed: OrderSeed) => void;
   onDirty?: (dirty: boolean) => void;
 }) {
   const scan = useScan();
   const [verified, setVerified] = useState<string | null>(null);
+  const [numbers, setNumbers] = useState<string[] | null>(null);
 
   const nr = formatObjectId(work.instance_object_id);
-  const scope = work.rest > 0
-    ? `${work.sample} von ${work.waiting} Stück werden erfasst · ${work.rest} laufen ohne Erfassung durch`
-    : `${work.waiting} Stück`;
 
   /**
    * **Der Verifikationsschritt ist genau der Fall, für den die Sequenz gebaut ist**:
@@ -95,11 +94,20 @@ function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onCon
    * die volle neunstellige Nummer). Das ist behoben: die Tastatur wohnt in der Leiste im
    * Bild, eine Teileingabe genügt, und **wie** bestätigt wurde, sagt der Dialog selbst –
    * `scan` oder `manual`, so wie es der Server verlangt und protokolliert.
+   *
+   * **Erst nach dem Scan holt die Ansicht die Nummern** der gezogenen Stücke – erst dann
+   * werden sie gebraucht, und bei einer grossen Charge sind es viele. Die Vorschau
+   * davor kommt mit den Zahlen aus, die ohnehin mitreisen.
    */
   function verify() {
     scan({
       steps: [{ label: 'Instanz', kind: 'instance', expected: work.instance_object_id }],
-      onComplete: (_ids, how) => setVerified(how),
+      onComplete: (_ids, how) => {
+        setVerified(how);
+        if (!points.length) { setNumbers([]); return; }
+        void api.stepHold(orderObjectId, stepId, work.instance_object_id, 'sample')
+          .then((r) => setNumbers(r.numbers));
+      },
     });
   }
 
@@ -110,7 +118,16 @@ function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onCon
         {work.article_name && (
           <span className="text-xs truncate" style={{ color: 'var(--fg-3)' }}>{work.article_name}</span>
         )}
-        <span className="ml-auto text-[11.5px]" style={{ color: 'var(--fg-4)' }}>{scope}</span>
+        {/* **Der eigene Scan-Knopf je Instanz** – klein, neben ihrer Nummer. Der grosse
+            Sammel-Knopf unten bleibt; er geht dieselbe Liste der Reihe nach durch. */}
+        {!work.held && !verified && (
+          <button type="button" onClick={verify} disabled={busy}
+            className="ml-auto flex items-center gap-1 text-[11.5px] disabled:opacity-40"
+            style={{ color: 'var(--accent)' }}
+            aria-label={`Instanz ${nr} scannen`} data-tip="Diese Instanz scannen">
+            <ScanLine size={13} /> scannen
+          </button>
+        )}
       </div>
 
       {work.held ? (
@@ -120,24 +137,68 @@ function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onCon
           <CaptureForm
             points={points}
             action={action}
-            count={work.sample}
+            numbers={numbers}
             busy={busy}
             onDirty={onDirty}
             onConfirm={(values) => {
               setVerified(null);
+              setNumbers(null);
               onConfirm(work.instance_object_id, verified, values);
             }}
           />
         </div>
       ) : (
-        // **Ohne Bestätigung keine Eingabe – und genau EIN Weg dorthin.** Der Dialog
-        // trägt beides: die Kamera und, in der Leiste im Bild, die Tastatur.
-        <div className="px-2.5 pb-2.5">
-          <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
-            style={{ height: 36 }} disabled={busy} onClick={verify}>
-            <ScanLine size={15} /> Instanz scannen
-          </button>
-        </div>
+        <Preview points={points} work={work} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * ►►► **Was hier zu tun ist — bevor irgendetwas gescannt wurde.** ◄◄◄
+ *
+ * Der Scan bleibt die Voraussetzung für die **Eingabe**; er war aber auch die
+ * Voraussetzung für die **Auskunft**, und das war zu viel. Vorher stand hier nur «Instanz
+ * scannen» – man wusste nicht, was einen erwartet, und musste scannen, um es zu erfahren.
+ *
+ * Die Vorschau beantwortet zwei Fragen, und beide sind da, bevor man etwas tut:
+ *
+ *   *wie viele*  Einzelinstanzen erfasst werden (und wie viele ohne Erfassung durchlaufen)
+ *   *was*        an jeder erfasst wird – die Punkte des Moduls, mit ihrer Einheit
+ *
+ * **Sie steht bewusst hier und nicht in einem Modul**: `points` und `work` hat jedes
+ * Modul, das über diese Ausführungsstelle läuft. Ein Modul ohne Erfassungspunkte
+ * (Aussondern) zeigt nur die Menge – bei ihm gibt es nichts zu erfassen, und genau das
+ * ist dann die Auskunft.
+ */
+function Preview({ points, work }: { points: CapturePoint[]; work: StepWork }) {
+  return (
+    <div className="flex flex-col gap-1.5 px-2.5 pb-2.5">
+      <p className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
+        {points.length === 0
+          ? `${work.waiting} Stück · nichts zu erfassen, der Scan bestätigt`
+          : work.rest > 0
+            ? `${work.sample} von ${work.waiting} Stück erfassen · ${work.rest} laufen ohne Erfassung durch`
+            : `${work.waiting} Stück erfassen`}
+      </p>
+      {points.length > 0 && (
+        <ul className="flex flex-wrap gap-x-3 gap-y-1">
+          {points.map((p) => {
+            const Icon = CAPTURE_ICON[p.type];
+            return (
+              <li key={p.key} className="flex items-center gap-1 text-[11.5px]"
+                  style={{ color: 'var(--fg-4)' }}>
+                {Icon && <Icon size={11} />}
+                {p.label}
+                {p.target != null && (
+                  <span className="ix-tnum">
+                    {' '}{p.target}{p.tolerance ? ` ±${p.tolerance}` : ''}{p.unit ? ` ${p.unit}` : ''}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

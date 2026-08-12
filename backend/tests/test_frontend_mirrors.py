@@ -1632,12 +1632,27 @@ def test_a_deviation_order_is_a_regular_order():
     router = _read(BACKEND / "app" / "routers" / "orders.py")
     assert "/deviation" not in router, "Es gibt einen eigenen Endpunkt für Abweichungen."
 
-    # Und das Label wird wörtlich aus §2 abgeleitet: der Start-Eintrag trägt «Im Prozess».
+    # Und das Label wird aus dem **Log** abgeleitet: der Start-Eintrag sagt, in welchem
+    # Zustand das Stück gegriffen wurde.
     proc = _read(BACKEND / "app" / "services" / "process.py")
     body = _body(proc, "deviation_flags")
-    assert "ProcessEvent" in body and "KIND_START" in body and "IM_PROZESS" in body, (
+    assert "ProcessEvent" in body and "KIND_START" in body, (
         "«Abweichung» kommt nicht aus dem Log – dann ist es irgendwo gespeichert."
     )
+
+    # **Und die Regel nennt keinen einzelnen Status.** Sie vergleicht gegen den EINEN
+    # Regelstart (``START_BEFORE``): alles, was anders beginnt, ist ein Zugriff auf
+    # Material, das nicht regulär verfügbar war – und genau das ist auszuweisen. Stünde
+    # hier ein Status, wäre die Frage «ist das eine Abweichung?» eine Liste, die beim
+    # nächsten Zustand jemand nachziehen muss; ein vergessener Eintrag hiesse: kein
+    # Nachweis, und zwar stillschweigend.
+    assert "START_BEFORE" in body, (
+        "Die Abweichungsregel vergleicht nicht mit dem Regelstart."
+    )
+    for named in ("IM_PROZESS", "GESPERRT", "VERSCHROTTET"):
+        assert named not in body, (
+            f"Die Abweichungsregel nennt «{named}» – damit ist sie wieder eine Liste."
+        )
 
 
 def test_the_return_belongs_to_the_connection_not_to_the_order():
@@ -2570,16 +2585,34 @@ def test_the_stock_groups_instead_of_filtering():
     und er versteckt, was er nicht zeigt. Stattdessen: ein Segment der Leiste anklicken
     heisst «zeig mir diese Nummern», und der Rest bleibt sichtbar.
 
-    Zwei Blöcke statt eines Filters – Bestand offen, Historie zu. Der zweite erscheint
-    an dem Tag, an dem es den ersten terminalen Zustand gibt; ihn heute leer hinzustellen
-    wäre ein Versprechen, das die Ansicht nicht halten kann.
+    **Eine Gruppe je Zustand**, und zwar genau für die, die wirklich vorkommen: die
+    Ansicht rendert `states` vom Server, nicht eine Liste, die sie selbst führt. Kommt
+    morgen ein Zustand dazu, erscheint er ohne eine Zeile Code – ihn hier aufzuzählen
+    hiesse, ihn beim nächsten Mal zu vergessen.
+
+    Vorher waren es **zwei feste Blöcke** («Bestand»/«Historie»). Das war schon eine
+    Aufteilung, aber eine grobe: ein neuer Zustand verschwand darin, statt sich zu zeigen.
     """
     stock = _read(FRONTEND / "components" / "erp" / "stock-view.tsx")
     # Nur der Code: die **Begründung**, warum es keinen Filter gibt, darf ihn benennen.
     for word in ("filterBy", "<select", "Filter:"):
         assert word not in _code(stock), f"Im Bestand steht wieder ein Filter («{word}»)."
-    assert "if (mine.length === 0) return null;" in stock, (
-        "Ein Block steht unbedingt da – auch wenn es seinen Zustand gar nicht gibt."
+
+    code = _code(stock)
+    assert "states.map((s) =>" in code, (
+        "Die Gruppen entstehen nicht aus den gelieferten Zuständen – dann sind sie fest."
+    )
+    # **Kein Status steht im Code** – weder für die Gruppierung noch für die Reihenfolge.
+    for named in ("freigegeben", "im_prozess", "gesperrt", "verschrottet",
+                  "FREIGEGEBEN", "IM_PROZESS", "GESPERRT", "VERSCHROTTET"):
+        assert named not in code, (
+            f"Die Bestandsansicht nennt «{named}» – dann landet ein neuer Zustand "
+            f"irgendwo, statt an seiner Stelle zu erscheinen."
+        )
+    assert "BUCKETS" not in code, "Die festen zwei Blöcke sind zurück."
+    # Und die grosse Gesamtzahl bleibt weg: sie summierte auch Verschrottetes.
+    assert "fontSize: 26" not in code, (
+        "Die eine grosse Zahl steht wieder im Kopf – sie zählt Bestand und Historie zusammen."
     )
 
     # Die Leiste ist EINE Komponente – oben wie in jeder Zeile.
@@ -2591,8 +2624,15 @@ def test_the_stock_groups_instead_of_filtering():
         f"Die Leiste kennt eigene Ampelfarben ({', '.join(sorted(set(own)))}) – dann "
         f"sieht derselbe Zustand hier anders aus als in seiner Badge."
     )
-    assert stock.count("<StockBar") >= 2, (
-        "Artikel-Leiste und Instanz-Leiste sind nicht dieselbe Komponente."
+    # Die Leiste steht **einmal**, über dem ganzen Umfang – und sie gilt für beide
+    # Aufrufe (Artikel und Instanz), weil es EINE Ansicht für beide gibt. Die frühere
+    # zweite Leiste je Instanz-Zeile ist entfallen: seit es eine Gruppe je Zustand gibt,
+    # IST die Gruppe die Auswahl, und die Leiste in der Zeile sagte dasselbe noch einmal.
+    assert stock.count("<StockBar") == 1, (
+        "Es gibt wieder mehr als eine Leiste – dann steht dieselbe Aufteilung zweimal."
+    )
+    assert "scope.kind === 'instance'" in code and "InstanceRow" in code, (
+        "Artikel- und Instanz-Umfang sind nicht mehr dieselbe Ansicht."
     )
     assert "onPick" in bar, "Ein Segment ist nicht anklickbar – dann braucht es doch einen Filter."
 
@@ -2628,8 +2668,11 @@ def test_live_or_history_is_a_property_of_the_status_not_a_list():
             f"{name} führt wieder eine Bestands-Liste – sie gehört an den Status."
         )
     view = _code(_read(FRONTEND / "components" / "erp" / "stock-view.tsx"))
-    assert "s.stock === b.stock" in view, (
-        "Die Bestandsansicht teilt nicht nach der vom Server gelieferten Zugehörigkeit."
+    # Die Zugehörigkeit bleibt eine **Eigenschaft**, die die Ansicht liest – sie
+    # entscheidet nur noch, was zugeklappt startet («was war, ist zu»).
+    assert "state.stock !== 'history'" in view, (
+        "Die Ansicht liest die Zugehörigkeit nicht mehr – dann steht die Historie offen "
+        "wie der Bestand, und die Aufteilung sagt nichts mehr."
     )
     for value in st.UNIT_STATUSES:
         assert f"'{value}'" not in view and f'"{value}"' not in view, (
@@ -2658,6 +2701,12 @@ def test_a_status_without_a_bucket_is_reported_not_guessed():
     # Geprüft wird die **Anwendung**, nicht die Anwesenheit: eine Komponente, die nur
     # definiert ist, meldet nichts – und genau so hätte der Wächter geschwiegen.
     view = _code(_read(FRONTEND / "components" / "erp" / "stock-view.tsx"))
+    # Die Zugehörigkeit bleibt eine **Eigenschaft**, die die Ansicht liest – sie
+    # entscheidet nur noch, was zugeklappt startet («was war, ist zu»).
+    assert "state.stock !== 'history'" in view, (
+        "Die Ansicht liest die Zugehörigkeit nicht mehr – dann steht die Historie offen "
+        "wie der Bestand, und die Aufteilung sagt nichts mehr."
+    )
     assert "<UnknownStates" in view, "Die Bestandsansicht meldet einen unbekannten Zustand nicht."
     assert "s.stock !== 'live' && s.stock !== 'history'" in view, (
         "Die Ansicht filtert das Unbekannte nicht heraus – dann landet es im falschen Block."
@@ -3052,7 +3101,7 @@ def test_no_entry_without_a_confirmed_instance():
         "Neben dem Scanner steht wieder ein eigener «von Hand»-Weg – zwei Wege zum "
         "selben Ziel, und der zweite bestätigt gar nichts."
     )
-    assert "onComplete: (_ids, how) => setVerified(how)" in code, (
+    assert "onComplete: (_ids, how) => {" in code and "setVerified(how)" in code, (
         "Die Art der Bestätigung kommt nicht mehr aus dem Dialog – dann rät der "
         "Aufrufer, wie die Nummer zustande kam."
     )
@@ -3104,7 +3153,15 @@ def test_the_sample_rule_is_written_in_exactly_one_place():
         "Die Definition spricht wieder von «je Instanz» – die Bezugsgrösse ist die "
         "Gesamtmenge dessen, was am Modul wartet."
     )
-    assert "der Gesamtmenge" in designer, "Die Definition nennt ihre Bezugsgrösse nicht."
+    # **Der Zusatz «der Gesamtmenge» ist entfallen** (#705): die Bezugsgrösse steht im
+    # Hover jeder Option («… aller wartenden Einzelinstanzen») und in der Auskunft zur
+    # Laufzeit. Zweimal danebengeschrieben war er ein Satzende, das nie jemand las.
+    assert "der Gesamtmenge" not in designer, (
+        "Der Zusatz steht wieder in der Fläche – er gehört in den Hover der Optionen."
+    )
+    assert "aller wartenden Einzelinstanzen" in designer, (
+        "Die Bezugsgrösse steht nirgends mehr – dann ist «25 %» eine Zahl ohne Nenner."
+    )
     mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
     assert "sample: samplePayload(m.sample)" in mods, (
         "Der Entwurf deutet die Stichprobe selbst – ein halb getipptes Feld würde damit "
@@ -3348,3 +3405,102 @@ def test_a_module_colour_travels_with_the_step_and_is_never_guessed():
     cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
     assert "tone: s.tone" in cols, "Der laufende Auftrag reicht die Farbe nicht durch."
 
+
+
+def test_a_terminal_piece_is_not_offered_anywhere_in_the_interface():
+    """**Terminal heisst unerreichbar – auch für die Oberfläche** (Notiz #705er-Runde).
+
+    Der Server lehnt ab, das war nie die Frage. Die Frage war, ob die Oberfläche es
+    **anbietet**: sie tat es. Der Abweichungstrigger stand an jedem Stück – auch an einem
+    verschrotteten –, die Vorauswahl behielt es, der Entwurf galt als freigebbar, und der
+    Fehler kam erst beim letzten Klick.
+
+    Die Ursache war eine weggeworfene Angabe: die Antwort trägt den Zustand jedes Stücks,
+    die Ansicht liess ihn beim Einlesen fallen. Danach **konnte** sie nicht mehr prüfen.
+
+    Geprüft wird darum die Kette, nicht die Meldung: der Zustand reist mit, die eine
+    abgeleitete Frage wird gestellt, und keine Datei zählt dafür Status auf.
+    """
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    lines = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    status = _code(_read(FRONTEND / "lib" / "process-status.ts"))
+
+    # 1. Die eine abgeleitete Frage – aus dem **generierten** Katalog, nicht aus einer Liste.
+    assert "export function isTerminal(" in status and "export function isPickable(" in status
+    assert ".terminal" in status, (
+        "Die Frage wird nicht aus der Katalog-Eigenschaft beantwortet."
+    )
+    for named in ('"verschrottet"', "'verschrottet'", "VERSCHROTTET ==="):
+        assert named not in status, f"«{named}» steht als Wert im Code – dann ist es eine Liste."
+
+    # 2. Der Zustand reist mit dem Stück, statt beim Einlesen verloren zu gehen.
+    assert "status: u.status" in detail, (
+        "Der Zustand wird beim Einlesen weggeworfen – dann kann die Ansicht nicht prüfen."
+    )
+    assert "status?: string | null;" in diagram, "Das Stück trägt seinen Zustand nicht."
+
+    # 3. Und der Auslöser folgt daraus – nicht ausgegraut, sondern gar nicht da.
+    assert "onDeviate && isPickable(u.status)" in diagram, (
+        "Der Abweichungstrigger steht auch an einem Stück, mit dem nichts mehr geht."
+    )
+
+    # 4. Die Vorauswahl führt nichts, was kein Auftrag greifen kann.
+    assert "o.available" in lines and "usable.has(u.number)" in lines, (
+        "Eine vorgewählte Einzelinstanz bleibt stehen, auch wenn sie unerreichbar ist."
+    )
+
+
+def test_the_capture_is_per_piece_and_the_scan_is_per_instance():
+    """**Ein Scan, n Formulare** – die Oberfläche koppelt die beiden nicht mehr.
+
+    Sie tat es: **ein** Formular je Bestätigung, dessen Werte der Server auf alle
+    gezogenen Stücke kopierte. Bei einer Charge über zwei Stück standen hinterher zwei
+    Messwerte – gemessen war einer.
+
+    Geprüft wird die **Form** der Nutzlast (zweistufig, geschlüsselt nach Nummer) und
+    dass die Nummern **erst auf Klick** geholt werden: bei 1500 gezogenen Stücken darf
+    diese Liste nicht in jeder Auftrags-Antwort mitreisen.
+    """
+    form = _code(_read(FRONTEND / "components" / "erp" / "capture-form.tsx"))
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    client = _code(_read(FRONTEND / "lib" / "api.ts"))
+
+    assert "Record<string, Record<string, unknown>>" in client, (
+        "Die Nutzlast ist wieder flach – dann wird eine Messung zu n gleichen."
+    )
+    assert "numbers.map((n) =>" in form, (
+        "Es gibt nur ein Formular – erfasst wird aber je Einzelinstanz."
+    )
+    assert "byUnit" in form, "Die Werte hängen nicht am Stück."
+    assert "'sample'" in work, (
+        "Die zu erfassenden Stücke werden nicht erfragt – dann rät die Ansicht sie."
+    )
+    # Erst nach dem Scan: die Vorschau davor kommt mit den Zahlen aus, die mitreisen.
+    assert work.index("onComplete") < work.index("api.stepHold("), (
+        "Die Nummern werden vor der Bestätigung geholt – bei 6000 Stück ist das die "
+        "Liste, die niemand braucht."
+    )
+
+
+def test_every_module_shows_what_is_coming_before_the_scan():
+    """**Die Vorschau steht zentral, nicht im Modul** (#708).
+
+    Der Scan bleibt die Voraussetzung für die **Eingabe** – er war aber auch die
+    Voraussetzung für die **Auskunft**, und das war zu viel: man musste scannen, um zu
+    erfahren, was man erfassen soll.
+
+    Sie steht an der einen Ausführungsstelle, also erbt sie jedes Modul: `points` und
+    `work` hat jedes, das hier durchläuft. Ein Modul ohne Erfassungspunkte zeigt die
+    Menge – dass es nichts zu erfassen gibt, ist dann die Auskunft.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    assert "function Preview(" in work, "Es gibt keine Vorschau."
+    assert "<Preview points={points} work={work} />" in work, (
+        "Die Vorschau hängt nicht an der gemeinsamen Ausführungsstelle."
+    )
+    assert "points.length === 0" in work, (
+        "Ein Modul ohne Erfassungspunkte bekommt keine eigene Auskunft."
+    )
+    # Der eigene Scan-Knopf je Instanz – zusätzlich, nicht anstelle des Sammel-Knopfs.
+    assert "Instanz ${nr} scannen" in work, "Es gibt keinen Scan-Knopf je Instanz."

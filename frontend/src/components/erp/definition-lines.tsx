@@ -343,11 +343,18 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
   // inzwischen woanders laufen. Dann ändert sich, was der Klick bewirken WÜRDE – und das
   // gehört vor den Klick. Was der Mensch gewählt hat, bleibt; nur was es nicht mehr gibt,
   // fällt weg.
+  //
+  // **Und was kein Auftrag greifen kann, bleibt auch nicht gewählt.** Die Liste enthält
+  // absichtlich auch die nicht greifbaren Stücke (sie sollen sichtbar sein, mit Grund) –
+  // eine Vorauswahl darf aber nie eines davon führen. `available` ist die Antwort des
+  // Servers auf genau diese Frage (`statuses.is_selectable`), also fragt die Oberfläche
+  // sie und baut sich keine eigene.
   useEffect(() => {
     if (!options || !chosen.length) return;
     const holder = new Map(options.map((o) => [o.number, o.in_order ?? null]));
+    const usable = new Set(options.filter((o) => o.available).map((o) => o.number));
     const next = chosen
-      .filter((u) => holder.has(u.number))
+      .filter((u) => holder.has(u.number) && usable.has(u.number))
       .map((u) => ({ number: u.number, fromOrder: holder.get(u.number) ?? null }));
     const same = next.length === chosen.length
       && next.every((u, i) => u.number === chosen[i].number && u.fromOrder === chosen[i].fromOrder);

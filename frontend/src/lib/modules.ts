@@ -145,6 +145,16 @@ export interface PointDraft {
   type: string;
   target?: string;
   tolerance?: string;
+  /**
+   * **Worin gemessen wird** – nur beim Soll-Ist-Vergleich (mm · kg · °C …).
+   *
+   * Ein freies, kurzes Wort. Bewusst **keine Liste**: die Mengeneinheiten des Artikels
+   * (`Stk · mm · m2 · m3 · kg · l`) beantworten eine andere Frage – worin die **Menge**
+   * geführt wird – und kennen weder °C noch bar noch Nm; sie hier wiederzuverwenden
+   * hiesse, genau die Einheit nicht anbieten zu können, die der Anlass war. Eine zweite
+   * Liste wäre endlos, und das System rechnet nie mit der Einheit: es zeigt sie an.
+   */
+  unit?: string;
 }
 
 /**
@@ -208,6 +218,9 @@ export const MODULE_FORM: Record<string, {
         type: p.type,
         target: p.type === NEEDS_TARGET && p.target !== '' ? Number(p.target) : null,
         tolerance: p.type === NEEDS_TARGET && p.tolerance !== '' ? Number(p.tolerance) : null,
+        // Die Einheit gehört zum Sollwert – ohne ihn gäbe es nichts, worauf sie sich
+        // bezieht (der Server verwirft sie bei jedem anderen Typ ohnehin).
+        unit: p.type === NEEDS_TARGET ? (p.unit ?? '').trim() : null,
       })),
       sample: samplePayload(m.sample),
     }),

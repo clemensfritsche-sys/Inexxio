@@ -224,6 +224,13 @@ export interface CapturePoint {
   type: string;
   target?: number | null;
   tolerance?: number | null;
+  /**
+   * **Worin wird gemessen?** (mm · kg · °C …) Ein freies, kurzes Wort – bewusst keine
+   * Liste. Die Mengeneinheiten des Artikels beantworten eine andere Frage («worin wird
+   * die Menge geführt»), und eine zweite Liste wäre endlos: jede Branche misst anders,
+   * und das System rechnet nie mit der Einheit, es zeigt sie an.
+   */
+  unit?: string | null;
 }
 /** Was an einem Modul für **eine Instanz** ansteht (`process.step_work`). */
 export type StepWork = components['schemas']['StepWork'];

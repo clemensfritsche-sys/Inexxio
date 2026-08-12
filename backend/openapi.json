@@ -6577,6 +6577,9 @@
       "StepConfirm": {
         "properties": {
           "values": {
+            "additionalProperties": {
+              "type": "object"
+            },
             "type": "object",
             "title": "Values"
           },
@@ -6605,7 +6608,7 @@
         },
         "type": "object",
         "title": "StepConfirm",
-        "description": "«Bestätigen» an einem Modul: die erfassten Werte, geschlüsselt nach Punkt-``key``.\n\nEin Modul ohne Erfassungspunkte bekommt einen leeren Satz – erlaubt ist das trotzdem\nnicht, weil es ein solches Modul nicht gibt (``clean_points`` verlangt mindestens\neinen).\n\n**Ein Vorgang ist EINE Instanz.** ``instance_object_id`` ist die verifizierte Instanz,\n``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.\nBeides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die\nTastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative."
+        "description": "«Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.\n\n``values`` ist zweistufig: **Nummer der Einzelinstanz** → (Punkt-``key`` → Wert).\nErwartet wird genau ein Satz je **gezogenem** Stück; zu viele oder zu wenige werden\nabgewiesen (``process._captures_for``).\n\n**Der Scan verifiziert die Instanz, die Erfassung gilt der Einzelinstanz.** Beides\nhier nebeneinander zu haben ist der ganze Punkt: ``instance_object_id`` ist die\nverifizierte Instanz (eine – das Etikett klebt am physischen Ding),\n``values`` sind ihre n Messungen. Wäre es ein flacher Satz, entstünden aus einer\nMessung n gleiche Zeilen, und der Nachweis behauptete Messungen, die niemand gemacht\nhat.\n\nEin Modul ohne Erfassungspunkte (Aussondern) bekommt einen **leeren** Satz – dort ist\nder Scan die Bestätigung, und ein Wert wäre ein Nachweis über nichts.\n\n``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.\nBeides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die\nTastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative."
       },
       "StepWork": {
         "properties": {

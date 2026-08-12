@@ -324,6 +324,49 @@ def assert_releasable(total_units: int, steps: list[dict[str, Any]]) -> list[str
     return missing
 
 
+def pick_problem(unit: InstanceUnit, number: str) -> Optional[str]:
+    """►►► **Darf ein Auftrag dieses Stück greifen?** ◄◄◄ ``None`` = ja.
+
+    **Die eine Antwort, in einem Satz** – und sie nennt keinen Status, sondern fragt die
+    Eigenschaft: ein **Endzustand** ist endgültig, also gibt es nichts mehr zu tun, also
+    nimmt ihn kein Auftrag auf. Ein **gesperrtes** Stück dagegen ist nicht terminal, und
+    das Greifen IST das Aufheben der Sperre – es bleibt wählbar, und genau das ist der
+    Weg zurück (§5.2).
+
+    Ein künftiger terminaler Zustand erbt das ohne eine Zeile Code.
+
+    **Warum als Rückgabe und nicht als Wurf:** dieselbe Regel muss zweimal gestellt
+    werden – die Freigabe bricht damit ab (409), der Entwurf meldet damit, was fehlt
+    (``orders.validate_draft``). Zwei Formulierungen wären zwei Massstäbe, und der
+    mildere stünde irgendwann an dem Knopf, der beim Klick scheitert.
+    """
+    if st.is_terminal(unit.status):
+        return (
+            f"Einzelinstanz {number} ist «{st.label(unit.status)}» – das ist ein "
+            f"Endzustand. Sie kann in keinem Auftrag mehr vorkommen."
+        )
+    return None
+
+
+def unpickable(db: Session, lines: list["_Line"]) -> list[str]:
+    """Dieselbe Regel für den **Entwurf**: welche gewählten Stücke gehen nicht?
+
+    Die zweite Form von ``pick_problem`` – sie sammelt, statt beim ersten Fund
+    abzubrechen, weil ein Entwurf **alles** nennen soll, was ihm im Weg steht.
+    Unbekannte oder doppelte Nummern meldet ``_resolve_units`` bereits selbst.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for ln in lines:
+        if ln.origin != LAGER:
+            continue
+        for unit, number in _resolve_units(db, [n for n, _ in ln.picks], seen=seen):
+            problem = pick_problem(unit, number)
+            if problem:
+                out.append(problem)
+    return out
+
+
 def _resolve_units(db: Session, numbers: list[str], *, seen: set[str]) -> list[tuple[InstanceUnit, str]]:
     """Nummern → Einzelinstanzen. Unbekannt oder doppelt = harter Fehler, kein Filtern."""
     from .instances import find_unit
@@ -525,22 +568,18 @@ def release(
         held = held_by(db, [u.id for u, _ in pairs])
         _assert_as_picked(db, ln, pairs, held)
         for unit, number in pairs:
+            # **Darf ein Auftrag dieses Stück greifen?** — vor der Frage, woher es kommt.
+            #
+            # Die Prüfung stand einmal nur im ``source is None``-Zweig, galt also nur für
+            # **freie** Stücke. Das war eine Regel aus Versehen: ein Stück in einem
+            # Endzustand hat heute keine offene Zugehörigkeit mehr, also lief es zufällig
+            # immer durch den geprüften Zweig. «Zufällig richtig» ist der Zustand, der
+            # beim nächsten Modul kippt.
+            problem = pick_problem(unit, number)
+            if problem:
+                raise HTTPException(status_code=409, detail=problem)
             source = held.get(unit.id)
-            if source is None:
-                # **Darf ein Auftrag dieses Stück greifen?** Die Antwort steht am Status
-                # (``selectable``), nicht als Liste hier: ein gesperrtes Stück ja – das
-                # Greifen IST das Aufheben der Sperre –, ein verschrottetes nie, denn es
-                # gibt das Ding nicht mehr.
-                if not st.is_selectable(unit.status):
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            f"Einzelinstanz {number} ist «{st.label(unit.status)}» – "
-                            f"sie gibt es physisch nicht mehr und kann in keinem Auftrag "
-                            f"mehr vorkommen."
-                        ),
-                    )
-            else:
+            if source is not None:
                 _assert_may_leave(db, source, number)
                 ln.taken[unit.id] = source
         ln.units = [u for u, _ in pairs]
@@ -737,7 +776,7 @@ def _verified_instance(db: Session, *, order: Order, step: ProcessStep,
 
 
 def confirm_step(
-    db: Session, *, order: Order, step_id: int, values: dict[str, Any],
+    db: Session, *, order: Order, step_id: int, values: dict[str, dict[str, Any]],
     actor_id: Optional[int],
     instance_object_id: Optional[int] = None,
     verification: Optional[str] = None,
@@ -748,9 +787,11 @@ def confirm_step(
     festhält, setzt den Nachher-Status, loggt, rückt vor. Ist der Schritt der letzte,
     passiert das Stück im selben Zug das **Ende-Objekt** und wird frei.
 
-    **Ein Vorgang ist EINE Instanz** (§3): der Scan verifiziert sie, die Erfassung gilt
-    für ihre gezogenen Stücke, und das Urteil betrifft sie. Bei mehreren Instanzen vor
-    dem Modul sind es mehrere Vorgänge – bei einer Charge einer.
+    **Ein Vorgang ist EINE Instanz** (§3): der Scan verifiziert sie. **Die Erfassung
+    dagegen gilt der Einzelinstanz** – ``values`` trägt einen eigenen Wertesatz je
+    gezogenem Stück, geschlüsselt nach seiner Nummer. Ein Scan, n Erfassungen; die Zahl
+    kommt aus der Ziehung, nicht aus der Zahl der Scans. Bei mehreren Instanzen vor dem
+    Modul sind es mehrere Vorgänge – bei einer Charge einer.
 
     **Die Erfassung liegt VOR dem Statuswechsel.** Fehlt ein Pflichtpunkt, ist das ein
     Fehler mit Namen – und es hat sich nichts bewegt. Andersherum stünde die Erfassung
@@ -838,13 +879,18 @@ def confirm_step(
     drawn_ids = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
     drawn = [u for u in units if u.id in drawn_ids]
 
-    # Was das Modul festhält, hängt am **Stück** – ein Wertesatz, eine Zeile je gezogener
-    # Einzelinstanz (siehe ``capture.record_for_step``). Die **nicht** gezogenen laufen
-    # ohne Erfassung durch; sichtbar ist das, weil sie keinen ``capture``-Eintrag haben.
+    # Was das Modul festhält, hängt am **Stück**: ein eigener Wertesatz je gezogener
+    # Einzelinstanz. Die **nicht** gezogenen laufen ohne Erfassung durch; sichtbar ist
+    # das, weil sie keinen ``capture``-Eintrag haben.
+    by_unit = _captures_for(db, step=step, drawn=drawn, values=values)
     captures = capture_svc.record_for_step(
-        db, order=order, step=step, units=drawn, values=values, actor_id=actor_id,
+        db, order=order, step=step, units=drawn, captures=by_unit, actor_id=actor_id,
     )
-    result = next((c.result for c in captures.values()), None)
+    # **Eine durchgefallene Einzelinstanz hält die ganze Instanz an** (§4.1) – die
+    # Stichprobe ist damit nicht mehr repräsentativ, und der ungeprüfte Rest ist
+    # verdächtig. Das Urteil je Stück steht in seiner Zeile; hier zählt, ob eines fiel.
+    results = [c.result for c in captures.values()]
+    result = "failed" if "failed" in results else next(iter(results), None)
     if captures:
         db.execute(
             insert(ProcessEvent),
@@ -1003,6 +1049,61 @@ def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, Insta
 # Ableitungen (Ebene 2 lesen)
 # ---------------------------------------------------------------------------
 
+def _captures_for(
+    db: Session, *, step: ProcessStep, drawn: list[InstanceUnit],
+    values: dict[str, dict[str, Any]],
+) -> dict[int, dict[str, Any]]:
+    """Nummern → Stück-ids, und die Deckung wird **verlangt**, nicht angenommen.
+
+    Der Aufrufer schickt einen Wertesatz je Einzelinstanz, geschlüsselt nach ihrer
+    **Nummer** – die sichtbare Identität, dieselbe, die auf dem Bildschirm steht. Interne
+    ids kommen an der Oberfläche nicht vor.
+
+    Geprüft wird in beide Richtungen, und beide Male ist es dieselbe Aussage: **erfasst
+    wird, was gezogen wurde.**
+
+    * Ein Satz für ein Stück, das **nicht gezogen** ist, wäre ein Nachweis über etwas,
+      das an diesem Modul nie geprüft werden sollte.
+    * Ein **fehlender** Satz wäre eine Lücke, die hinterher aussieht wie «durchgelaufen,
+      nichts gemessen» – dabei war die Messung verlangt.
+
+    Ohne Erfassungspunkte gibt es nichts zu decken (Aussondern: der Scan ist die
+    Bestätigung); dann ist ein leerer Satz nicht nur erlaubt, sondern der einzige
+    richtige.
+    """
+    points = capture_svc.points_of(step)
+    if not points:
+        if values:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"«{modules.label(step.module_type)}» erfasst nichts – "
+                        f"hier ist kein Wert festzuhalten."),
+            )
+        return {}
+
+    numbers = unit_numbers(db, drawn)
+    by_number = {numbers[u.id]: u for u in drawn}
+    unknown = sorted(set(values) - set(by_number))
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Für {', '.join(unknown)} ist hier nichts zu erfassen – "
+                    f"diese Einzelinstanzen sind nicht gezogen."),
+        )
+    fehlend = sorted(n for n in by_number if n not in values)
+    if fehlend:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{len(fehlend)} von {len(by_number)} Einzelinstanzen sind noch nicht "
+                f"erfasst: {', '.join(fehlend[:5])}"
+                + (" …" if len(fehlend) > 5 else "")
+                + ". Erfasst wird je Stück, nicht je Scan."
+            ),
+        )
+    return {by_number[n].id: v for n, v in values.items()}
+
+
 def _units_at(db: Session, order: Order, step_id: Optional[int],
               *, instance_id: Optional[int] = None):
     """Was steht an diesem Zustandspunkt — wahlweise nur die Stücke **einer** Instanz.
@@ -1118,15 +1219,21 @@ def _latest_captures(db: Session, order: Order, step: ProcessStep,
 
 def held_numbers(db: Session, order: Order, step: ProcessStep, *,
                  instance_object_id: int, group: str) -> list[str]:
-    """Die Nummern einer Entscheidungs-Gruppe — **erst auf Klick**, nie auf Vorrat.
+    """Die Nummern **einer Gruppe dieser Instanz an diesem Modul** — erst auf Klick.
 
-    ``failed`` sind die durchgefallenen (die Stichprobe), ``rest`` die ungeprüften
-    Stücke derselben Instanz an diesem Modul. Beide Listen gehen als Vorauswahl in einen
-    ganz gewöhnlichen Auftragsentwurf – **kein neuer Mechanismus** (§4.1), nur eine
-    andere Vorbelegung.
+    Drei Rollen, eine Frage – «welche Stücke, und wozu»:
 
-    Sie stehen bewusst nicht in der Auftrags-Antwort: bei einer 6000er-Charge wäre der
-    «Rest» sechstausend Nummern, mitgeliefert bei jedem Öffnen des Auftrags.
+    ``sample``   die **gezogenen**: für sie ist je ein Wertesatz zu erfassen (§9.3)
+    ``failed``   die durchgefallenen – Vorauswahl für einen Abweichungsauftrag
+    ``rest``     die ungeprüften – Vorauswahl für die 100 %-Kontrolle
+
+    ``failed`` und ``rest`` gehen als Vorauswahl in einen ganz gewöhnlichen
+    Auftragsentwurf – **kein neuer Mechanismus** (§4.1), nur eine andere Vorbelegung.
+
+    **Erst auf Klick, nie auf Vorrat.** Keine dieser Listen steht in der Auftrags-Antwort:
+    bei einer 6000er-Charge wären es tausende Nummern bei jedem Öffnen des Auftrags. Die
+    Zahlen daneben (``step_work``) genügen für die Vorschau; die Nummern holt, wer sie
+    wirklich braucht – also der, der gerade zu erfassen beginnt.
     """
     instance = (
         db.query(Instance).filter(Instance.object_id == instance_object_id).first()
@@ -1141,14 +1248,17 @@ def held_numbers(db: Session, order: Order, step: ProcessStep, *,
         latest = _latest_captures(db, order, step, [u.id for u in units])
         chosen = [u for u in units if (latest.get(u.id) is not None
                                        and latest[u.id].result == "failed")]
-    elif group == "rest":
-        # **Ungeprüft = nicht gezogen** – dieselbe Quelle wie die Zahl daneben.
+    elif group in ("rest", "sample"):
+        # **Gezogen ↔ ungeprüft sind dieselbe Ziehung, von beiden Seiten gelesen** –
+        # eine zweite Quelle für «wer wird erfasst» liefe beim ersten Sonderfall
+        # auseinander, und die Zahl daneben käme aus der anderen.
         drawn = sampling.drawn_at(db, order=order, step=step, unit_ids=[u.id for u in units])
-        chosen = [u for u in units if u.id not in drawn]
+        want = group == "sample"
+        chosen = [u for u in units if (u.id in drawn) == want]
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"«{group}» ist keine Gruppe – erlaubt: failed, rest.",
+            detail=f"«{group}» ist keine Gruppe – erlaubt: sample, failed, rest.",
         )
     numbers = unit_numbers(db, chosen)
     return [numbers[u.id] for u in chosen]
@@ -1459,11 +1569,24 @@ def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
 
 
 def deviation_flags(db: Session, order_ids: list[int]) -> dict[int, bool]:
-    """Welche dieser Aufträge sind **Abweichungen**? — wörtlich die Frage aus §2.
+    """Welche dieser Aufträge sind **Abweichungen**? — die Frage aus §2.
 
-    «Enthält ein Auftrag bei seiner Freigabe Einzelinstanzen, die zu diesem Zeitpunkt den
-    Status *Im Prozess* haben» – und genau das steht im Log: sein Start-Eintrag trägt
-    dann ``status_before = im_prozess`` statt ``freigegeben``.
+    **Ein Auftrag ist eine Abweichung, wenn sein Start vom Regelstart abwich.** Der
+    Regelstart ist genau ein Zustand (``statuses.START_BEFORE`` = *Freigegeben*): so
+    beginnt ein Stück, das regulär verfügbar war. Alles andere ist ein Zugriff auf
+    Material, das gerade nicht zur Verfügung stand – und genau das ist dokumentationspflichtig.
+
+    Die Regel **nennt darum keinen Status mehr**. Sie hiess einmal ``status_before ==
+    im_prozess``, also «einem laufenden Auftrag entzogen» – technisch stimmig, fachlich zu
+    eng: ein **gesperrtes** Stück wieder in Betrieb zu nehmen gehört zu keinem laufenden
+    Auftrag und fiel deshalb heraus, obwohl es in der Qualitätssicherung der Musterfall
+    einer Sonderfreigabe ist. Der Zweck des Labels ist die **Nachweisbarkeit**, nicht die
+    Herkunft; ein Nachweis, der den auffälligsten Fall auslässt, ist keiner.
+
+    Als Vergleich gegen den einen Regelstart ist sie zugleich die **einfachere** Regel und
+    die haltbarere: ein künftiger Zustand ist automatisch eine Abweichung, ohne dass ihn
+    jemand hier einträgt. Die Richtung stimmt – wer zu viel ausweist, dokumentiert; wer zu
+    wenig ausweist, verliert den Nachweis.
 
     Es gibt **kein Feld** dafür und keinen Auftragstyp. Ein Abweichungsauftrag ist ein
     ganz gewöhnlicher Auftrag; «Abweichung» ist eine Auskunft über ihn, keine Eigenschaft,
@@ -1477,7 +1600,7 @@ def deviation_flags(db: Session, order_ids: list[int]) -> dict[int, bool]:
         .filter(
             ProcessEvent.order_id.in_(order_ids),
             ProcessEvent.kind == KIND_START,
-            ProcessEvent.status_before == st.IM_PROZESS,
+            ProcessEvent.status_before != st.START_BEFORE,
         )
         .distinct()
         .all()

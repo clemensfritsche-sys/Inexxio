@@ -79,13 +79,23 @@ def _make(db, *, quantity: int, steps: list[dict]):
 
 
 def _confirm(db, order, step, values=None):
-    """Bestätigen – je wartender Instanz einmal, wie die Scan-Regel es verlangt."""
+    """Bestätigen – je wartender Instanz einmal, wie die Scan-Regel es verlangt.
+
+    ``values`` ist **ein** Wertesatz; daraus wird je gezogener Einzelinstanz einer
+    (``support.per_unit``). Ein Modul ohne Erfassungspunkte bekommt einen leeren Satz –
+    dort ist der Scan die Bestätigung.
+    """
     from app.services import process as proc
+    from tests.support import per_unit
+
     out = []
     for row in proc.step_work(db, order, step):
+        inst = row["instance_object_id"]
         out.append(proc.confirm_step(
-            db, order=order, step_id=step.id, values=values or {}, actor_id=None,
-            instance_object_id=row["instance_object_id"], verification="scan",
+            db, order=order, step_id=step.id, actor_id=None,
+            values=(per_unit(db, order=order, step=step, instance_object_id=inst,
+                             values=values) if values else {}),
+            instance_object_id=inst, verification="scan",
         ))
     db.flush()
     return out
