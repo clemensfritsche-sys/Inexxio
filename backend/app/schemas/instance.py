@@ -29,6 +29,11 @@ class InstanceUnitResponse(BaseModel):
     #: In welchem Auftrag läuft dieses Stück gerade? ``None`` = in keinem. Das ist
     #: dieselbe Aussage wie ``status == im_prozess``, nur brauchbar: sie sagt **wo**.
     order_object_id: Optional[int] = None
+    #: **Wie viele Teile stecken darin?** Nur die Zahl – die Liste kommt auf Klick
+    #: (``GET …/units/{suffix}/genealogy``). Sie steht hier, damit die Zeile weiss, ob es
+    #: überhaupt etwas aufzuklappen gibt; ein Pfeil an jeder von 5000 Zeilen, hinter dem
+    #: nichts liegt, ist ein Versprechen, das die Liste nicht halten kann.
+    parts_count: int = 0
     created_at: datetime
 
 
@@ -115,6 +120,40 @@ class UnitPage(BaseModel):
 
     units: list[InstanceUnitResponse]
     total: int
+
+
+class GenealogyPart(BaseModel):
+    """Ein Teil in einer Stückliste – **abgeleitet**, nicht gespeichert.
+
+    ``still_in`` trennt die beiden Fragen, die eine Stückliste beantworten muss: *was
+    wurde verbaut* (der Log, unveränderlich) und *was steckt heute noch drin* (der
+    Zustand). Ein ausgebautes Teil bleibt in der Liste – die Vergangenheit bekommt eine
+    Fortsetzung, sie wird nicht gelöscht.
+    """
+
+    unit_id: int
+    number: str
+    status: str
+    article_name: Optional[str] = None
+    article_object_id: Optional[int] = None
+    #: In welchem Auftrag wurde es verbaut. Er steht immer dabei: die Zuordnung läuft
+    #: über ihn, und bei mehreren Erzeugnissen je Auftrag ist er die genauere Aussage.
+    order_object_id: Optional[int] = None
+    still_in: bool = True
+
+
+class GenealogyHost(BaseModel):
+    """Ein Auftrag, in dem dieses Stück verbaut wurde, samt dem, was dort entstand."""
+
+    order_object_id: Optional[int] = None
+    products: list[GenealogyPart] = []
+
+
+class Genealogy(BaseModel):
+    """**Woraus besteht es – und worin steckt es?** Beide Richtungen, eine Antwort."""
+
+    parts: list[GenealogyPart] = []
+    built_into: list[GenealogyHost] = []
 
 
 class ArticleStock(BaseModel):

@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from tests.scenarios import (
     A_LAGER, A_MIX, A_NEU, B_BATCH, B_EINZEL, C_1, C_2, C_VIELE,
-    D_BLOCK, D_ERFASSUNG, D_SCRAP, E_1, E_2, E_3, E_KEINE,
+    D_BLOCK, D_ERFASSUNG, D_SCRAP, D_VERBRAUCH, E_1, E_2, E_3, E_KEINE,
     F_AUTO, F_GEKAPPT, F_GEMISCHT, F_NORMAL, Case, World, free_stock,
 )
 
@@ -196,17 +196,113 @@ def s10(w: World):
             "rest_frei": len(rest)}
 
 
-@case("S11", "Gemischt «Neu» + «Lager» in EINEM Auftrag",
+@case("S11", "ZWEI «Neu»-Zeilen – welche Vorlage gälte?",
       {"A": A_MIX, "B": B_EINZEL, "C": C_2, "D": D_ERFASSUNG, "E": E_KEINE, "F": "–"},
       {"code": 400, "spricht": True},
-      note="«Neu» steht für sich allein – der Versionsstempel gilt nur für seinen Artikel.")
+      note="Ein Auftrag hat EINEN Erzeugungsprozess; zwei Vorlagen sind zwei Aufträge. "
+           "«Neu» + «Lager» ist dagegen erlaubt – das ist die Montage (S11b).")
 def s11(w: World):
-    art, numbers = free_stock(w, serialization="unit", quantity=1)
+    a1, _ = free_stock(w, serialization="unit", quantity=1)
+    a2, _ = free_stock(w, serialization="unit", quantity=1)
     return _err(w.release, lines=[
-        {"article_object_id": art.object_id, "quantity": 1, "origin": "neu", "units": []},
-        {"article_object_id": art.object_id, "quantity": 1, "origin": "lager",
-         "units": [{"number": numbers[0], "from_order": None}]},
+        {"article_object_id": a1.object_id, "quantity": 1, "origin": "neu", "units": []},
+        {"article_object_id": a2.object_id, "quantity": 1, "origin": "neu", "units": []},
     ], steps=[w.capture()])
+
+
+@case("S11b", "MONTAGE: «Neu» + «Lager» in EINEM Auftrag",
+      {"A": A_MIX, "B": B_EINZEL, "C": C_2, "D": D_ERFASSUNG, "E": E_KEINE, "F": "–"},
+      {"status": "abgeschlossen", "stück": 2, "neue_stück": 1},
+      note="Die Regel heisst «höchstens eine Neu-Zeile», nicht «Neu steht allein» – sonst "
+           "wäre ausgerechnet die Montage verboten (Produkt erzeugen, Teile verbauen).")
+def s11b(w: World):
+    product = w.article(serialization="unit", template=[w.capture()])
+    part, numbers = free_stock(w, serialization="unit", quantity=1)
+    order = w.release(lines=[
+        {"article_object_id": product.object_id, "quantity": 1, "origin": "neu",
+         "units": []},
+        {"article_object_id": part.object_id, "quantity": 1, "origin": "lager",
+         "units": [{"number": numbers[0], "from_order": None}]},
+    ])
+    w.run_all(order, values=World.GOOD)
+    return {"status": w.status(order), "stück": len(w.numbers(order)),
+            "neue_stück": len([n for n in w.numbers(order) if n not in numbers])}
+
+
+@case("S16", "MONTAGE: 2 Teile → 1 Baugruppe, Stückliste abgeleitet",
+      {"A": A_MIX, "B": B_EINZEL, "C": C_2, "D": D_VERBRAUCH, "E": E_KEINE, "F": "–"},
+      {"status": "abgeschlossen", "produkt": "freigegeben",
+       "teile": {"verbaut": 2}, "stückliste": 2},
+      note="Die Stückliste ist kein Feld: sie sind die Stücke, die denselben Auftrag als "
+           "«Verbaut» verlassen haben.")
+def s16(w: World):
+    from app.services import genealogy
+
+    part, numbers = free_stock(w, serialization="unit", quantity=2)
+    product = w.article(serialization="unit",
+                        template=[w.consume(part.object_id), w.capture()])
+    order = w.release(lines=[
+        {"article_object_id": product.object_id, "quantity": 1, "origin": "neu",
+         "units": []},
+        {"article_object_id": part.object_id, "quantity": 2, "origin": "lager",
+         "units": [{"number": n, "from_order": None} for n in numbers]},
+    ])
+    w.run_all(order, values=World.GOOD)
+    made = [n for n in w.numbers(order) if n not in numbers]
+    return {
+        "status": w.status(order),
+        "produkt": w.unit_status(made[0]),
+        "teile": {w.unit_status(numbers[0]): len(
+            [n for n in numbers if w.unit_status(n) == w.unit_status(numbers[0])])},
+        "stückliste": len(genealogy.parts_of(w.db, w.unit(made[0]))),
+    }
+
+
+@case("S17", "Verbrauch nennt einen Artikel, den der Auftrag nicht hat",
+      {"A": A_NEU, "B": B_EINZEL, "C": C_1, "D": D_VERBRAUCH, "E": E_KEINE, "F": "–"},
+      {"code": 400, "spricht": True},
+      note="Ein Verbrauchsmodul ohne Material wäre ein stiller Durchgang, der aussieht "
+           "wie eine Montage.")
+def s17(w: World):
+    other, _ = free_stock(w, serialization="unit", quantity=1)
+    product = w.article(serialization="unit", template=[w.consume(other.object_id)])
+    return _err(w.release, lines=[
+        {"article_object_id": product.object_id, "quantity": 1, "origin": "neu",
+         "units": []},
+    ])
+
+
+@case("S18", "DEMONTAGE: ein verbautes Stück wird zurückgeholt",
+      {"A": A_LAGER, "B": B_EINZEL, "C": C_1, "D": D_VERBRAUCH, "E": E_KEINE, "F": "–"},
+      {"vorher": "verbaut", "abweichung": True, "nachher": "freigegeben",
+       "stückliste_bleibt": 1, "steckt_noch_drin": False},
+      note="«Verbaut» ist nicht terminal – das Greifen IST der Ausbau. Die Stückliste "
+           "kommt aus dem Log und verliert das Teil darum NICHT.")
+def s18(w: World):
+    from app.services import genealogy
+
+    part, numbers = free_stock(w, serialization="unit", quantity=1)
+    product = w.article(serialization="unit", template=[w.consume(part.object_id)])
+    build = w.release(lines=[
+        {"article_object_id": product.object_id, "quantity": 1, "origin": "neu",
+         "units": []},
+        {"article_object_id": part.object_id, "quantity": 1, "origin": "lager",
+         "units": [{"number": numbers[0], "from_order": None}]},
+    ])
+    w.run_all(build, values=World.GOOD)
+    made = [n for n in w.numbers(build) if n not in numbers][0]
+    before = w.unit_status(numbers[0])
+
+    strip = w.take(part, [numbers[0]], steps=[w.capture()])
+    w.run_all(strip, values=World.GOOD)
+    parts = genealogy.parts_of(w.db, w.unit(made))
+    return {
+        "vorher": before,
+        "abweichung": w.is_deviation(strip),
+        "nachher": w.unit_status(numbers[0]),
+        "stückliste_bleibt": len(parts),
+        "steckt_noch_drin": parts[0]["still_in"] if parts else None,
+    }
 
 
 @case("S12", "Gemischt: zwei Lager-Zeilen, zwei Artikel",

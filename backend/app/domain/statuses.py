@@ -66,6 +66,20 @@ VERSCHROTTET = "verschrottet"
 #: einplanbar, solange die Sperre gilt – aufhebbar, indem ein Auftrag das Stück greift.
 GESPERRT = "gesperrt"
 
+#: **Steckt in einem anderen Stück** (**Einzelinstanz**). Es hat seinen Zweck erreicht:
+#: kein Mangel, kein Verlust – darum grün und nicht gelb.
+#:
+#: **Nicht endgültig**, und das ist eine Entscheidung: Demontage ist real (ein Getriebe
+#: wird zerlegt, die Zahnräder gehen zurück ins Lager). Ein Auftrag darf das Stück
+#: greifen – **das Greifen IST der Ausbau**, genau wie beim Sperren; und weil sein Start
+#: dann vom Regelstart abweicht, ist der Vorgang **automatisch** eine Abweichung
+#: (``process.deviation_flags``) und damit dokumentiert, ohne eine Zeile dafür.
+#:
+#: **Die Stückliste liest darum den LOG, nicht diesen Wert** (``services/genealogy``):
+#: läse sie den heutigen Zustand, verschwände ein ausgebautes Teil rückwirkend aus der
+#: Vergangenheit des Produkts. Was verbaut *war*, bleibt verbaut gewesen.
+VERBAUT = "verbaut"
+
 # ---------------------------------------------------------------------------
 # Die Eigenschaften, die ein Status trägt
 # ---------------------------------------------------------------------------
@@ -106,10 +120,17 @@ class Status:
     #:   der erste Schritt bricht. (Das war einmal ein eigenes Feld ``selectable``. Zwei
     #:   Felder für dieselbe Frage sind zwei Stellen, an denen sie verschieden beantwortet
     #:   werden kann – und genau eine davon wird beim nächsten Zustand vergessen.)
-    #: * die **Farbe** – was endgültig ist, ist rot; was aufhebbar ist, gelb.
     #: * der **Schutz in der Datenbank** (``terminal_guard_sql``): ein Trigger weist jeden
     #:   Statuswechsel aus einem Endzustand ab. Nicht als Anwendungsregel, sondern als
     #:   Eigenschaft der Tabelle – es gibt keinen Parameter, der ihn abschaltet.
+    #:
+    #: **Die Farbe folgt NICHT hieraus.** Hier stand einmal «was endgültig ist, ist rot;
+    #: was aufhebbar ist, gelb» – das stimmte, solange die einzigen beiden Ausgänge
+    #: *Verschrottet* und *Gesperrt* hiessen. Mit *Verbaut* stimmt es nicht mehr: ein
+    #: verbautes Stück ist aufhebbar **und** grün, weil es seinen Zweck erreicht hat. Der
+    #: Ton sagt «gut · offen · Problem», ``terminal`` sagt «gibt es einen Weg zurück» –
+    #: zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand
+    #: falsch. Sie steht darum je Eintrag im Katalog.
     #:
     #: Nur ein **Stück**-Zustand darf terminal sein: er ist der einzige, der gespeichert
     #: und geändert wird. Auftrags- und Artikel-Zustände sind abgeleitet bzw. anderswo
@@ -125,6 +146,15 @@ CATALOG: tuple[Status, ...] = (
     # verwendbar. Es in die Historie zu legen hiesse, den Bestand kleiner zu melden, als
     # er ist; die Leiste zeigt es als eigenes Segment, und genau das ist die Auskunft.
     Status(GESPERRT, "Gesperrt", "pending", (UNIT,), stock=LIVE),
+    # **Verbaut zählt zur Historie.** Das Stück liegt nicht im Regal – es steckt in einem
+    # anderen. Als Bestand geführt wäre es Material, das niemand greifen kann, ohne
+    # vorher etwas auseinanderzunehmen.
+    #
+    # **Historie und nicht terminal** ist damit die erste Kombination dieser Art – und
+    # der Beleg, dass die beiden Eigenschaften unabhängig sind: «zählt es zum Bestand»
+    # und «gibt es einen Weg zurück» sind zwei Fragen. Nachgemessen: nichts im System
+    # koppelt sie.
+    Status(VERBAUT, "Verbaut", "done", (UNIT,), stock=HISTORY),
     Status(VERSCHROTTET, "Verschrottet", "danger", (UNIT,), stock=HISTORY, terminal=True),
     Status(ABGESCHLOSSEN, "Abgeschlossen", "done", (ORDER,)),
     Status(ABGEBROCHEN, "Abgebrochen", "danger", (ORDER,)),

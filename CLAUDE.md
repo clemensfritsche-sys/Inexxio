@@ -72,6 +72,48 @@
 > eine Artikel-Vorlage mit gebrochener Kette wäre erst nach dem Einfrieren aufgefallen.
 > Wächter: `tests/test_disposal_module.py`.
 >
+> **Das dritte Modul ist «Verbrauch» – der Zwilling des Aussonderns** (`domain/modules.
+> Verbrauch`): dasselbe tun (das Stück verlässt den Kreislauf), nur mit anderem Ergebnis –
+> `Verschrottet` heisst «gibt es nicht mehr», **`Verbaut`** heisst «steckt jetzt in etwas
+> anderem». **Der Unterschied zum Aussondern ist die Reichweite**, und daraus folgt die
+> einzige neue Regel: `Module.terminal` beantwortet **nur noch** «verlassen ALLE
+> ankommenden Stücke den Auftrag hier?» – beim Verbrauch **nein**, also ist er kein
+> Ausgang und die Kettenregel bleibt unangetastet (hinter ihm darf die Endprüfung stehen).
+> **Wer geht, sagt das Modul je Stück** (`leaves`/`exit_status_for`); die Ausführung teilt
+> nur noch in **zwei Gruppen mit gleichem Ziel** – dasselbe Muster, das `_finish` seit
+> jeher benutzt. **Gefragt wird nach dem ARTIKEL, nicht nach der Definitionszeile**, und
+> das ist keine Bequemlichkeit: dasselbe Modul wird in der **Artikel-Vorlage** definiert
+> (der Erzeugungsprozess IST der Montageplan), und dort gibt es noch keine Zeilen – eine
+> Vorlage kann «Rahmen, Motor» meinen, aber nicht «Zeile 2». Die eine Stelle, an der diese
+> Körnung zu grob ist (derselbe Artikel erzeugt UND verbraucht), wird bei der Freigabe
+> **abgewiesen** statt still falsch gerechnet.
+> **`_assert_single_new` heisst jetzt «HÖCHSTENS eine Neu-Zeile»** – die alte Fassung
+> («Neu steht für sich allein») war einen Tick zu breit und verbot ausgerechnet die
+> Auftragsform, die eine Montage ist: Produkt erzeugen, Teile verbauen. Der ursprüngliche
+> Grund bleibt gewahrt, es gibt weiterhin **eine** Vorlage.
+> **`Verbaut` ist NICHT terminal** – Demontage ist real, und das Greifen IST der Ausbau
+> (wie beim Sperren); `Verschrottet` bleibt der einzige endgültige Zustand. Weil ein
+> verbautes Stück nicht im Regal liegt, zählt es zur **Historie** – die erste Kombination
+> «Historie + nicht terminal», und der Beleg, dass die beiden Eigenschaften unabhängig
+> sind. Die **Farbe folgt darum nicht mehr aus `terminal`**: verbaut ist aufhebbar **und**
+> grün, weil es sein Ziel erreicht hat.
+> **Die Stückliste ist eine ABLEITUNG, kein Feld** (`services/genealogy`): die Stücke, die
+> denselben Auftrag als `Verbaut` verlassen haben. Gelesen wird der **Log**, nicht der
+> heutige Zustand – sonst verschwände ein ausgebautes Zahnrad **rückwirkend** aus der
+> Vergangenheit des Getriebes (dieselbe Regel wie im Prozessbild §8.1a). Ein ausgebautes
+> Teil bleibt darum in der Liste und wird als *ausgebaut* gezeigt.
+> **Das Bild kennt den Ausgang jetzt als REGEL statt als Sonderfall** (`flow._exit_points`):
+> wer wo hinausging, steht im Log (letzter Eintrag `step` statt `end`), also hängt die
+> Ausgangs-Kante an **ihrem** Modul. Vorher hiess es «ist das letzte Modul terminal?» –
+> beim Verbrauch wären die verbauten Stücke damit auf der Kante hinter dem Ende gelandet,
+> unauffällig, weil das Produkt dort ja wirklich hinausging.
+> **Werkzeug ist kein Verbrauch und bekommt kein Modul**: eine Fräse steckt real in zwanzig
+> Aufträgen gleichzeitig, die Exklusivität liesse genau einen zu. Es ist darum ein
+> **Erfassungspunkt «Objekt scannen»** (`capture_types/object_scan.py`, der sechste Typ –
+> und er war genau das, was die Registry versprochen hat: **eine neue Datei**).
+> Wächter: `tests/test_consumption_module.py` (jeder gegen seine Bug-Form gegengeprüft),
+> Matrix S11 · S11b · S16 · S17 · S18.
+>
 > **Ein Kamerascanmodul für alles – und die Vorschläge kommen aus der Regel, nicht vom
 > Aufrufer** (`lib/scan.ts`, `components/scan/`): Es gab nie zwei Dialoge, aber eine
 > **Suche je Aufrufstelle** (`ScanStep.suggest`/`candidates`) – der Feed brachte eine mit,

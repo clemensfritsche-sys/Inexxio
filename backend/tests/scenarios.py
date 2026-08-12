@@ -27,6 +27,7 @@ B_EINZEL, B_BATCH = "einzel", "batch"
 C_1, C_2, C_VIELE = "1", "2", "viele"
 #: D – Modultyp
 D_ERFASSUNG, D_SCRAP, D_BLOCK = "datenerfassung", "verschrotten", "sperren"
+D_VERBRAUCH = "verbrauch"
 #: E – Schachtelung
 E_KEINE, E_1, E_2, E_3 = "0", "1", "2", "3"
 #: F – Rückführung
@@ -123,6 +124,12 @@ class World:
     @staticmethod
     def dispose(mode: str = "scrap", reason: str = "Ausschuss") -> dict[str, Any]:
         return {"module_type": "aussondern", "config": {"mode": mode, "reason": reason}}
+
+    @staticmethod
+    def consume(*article_object_ids: int) -> dict[str, Any]:
+        """Ein Verbrauchsmodul – es nennt die **Artikel**, deren Stücke verbaut werden."""
+        return {"module_type": "verbrauch",
+                "config": {"articles": list(article_object_ids)}}
 
     # ── Aufträge ────────────────────────────────────────────────────────────
 

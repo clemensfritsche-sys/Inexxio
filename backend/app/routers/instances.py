@@ -20,9 +20,10 @@ from ..core.database import get_db
 from ..domain import statuses as st
 from ..models import Article, Instance, InstanceUnit, UserProfile
 from ..schemas.instance import (
-    InstanceResponse, InstanceSummary, InstanceUnitResponse, UnitPage, stock_states,
+    Genealogy, GenealogyHost, GenealogyPart, InstanceResponse, InstanceSummary,
+    InstanceUnitResponse, UnitPage, stock_states,
 )
-from ..services import instances as inst_svc, process
+from ..services import genealogy, instances as inst_svc, process
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -32,13 +33,14 @@ def _article(db: Session, instance: Instance) -> Article | None:
 
 
 def _unit_out(instance: Instance, unit: InstanceUnit,
-              holders: dict[int, int]) -> InstanceUnitResponse:
+              holders: dict[int, int], parts: dict[int, int]) -> InstanceUnitResponse:
     return InstanceUnitResponse(
         id=unit.id,
         suffix=unit.suffix,
         number=inst_svc.unit_number(instance, unit),
         status=unit.status,
         order_object_id=holders.get(unit.id),
+        parts_count=parts.get(unit.id, 0),
         created_at=unit.created_at,
     )
 
@@ -140,4 +142,48 @@ def instance_units(
     rows, total = inst_svc.units_page(
         db, instance, statuses=status, limit=limit, offset=offset)
     holders = process.holders(db, [u.id for u in rows])
-    return UnitPage(units=[_unit_out(instance, u, holders) for u in rows], total=total)
+    # Nur die **Zahl** – zwei Abfragen für die ganze Seite. Die Stückliste selbst kommt
+    # auf Klick; sie ist je Stück eine eigene Geschichte und gehört in keine Liste.
+    parts = genealogy.parts_counts(db, [u.id for u in rows])
+    return UnitPage(
+        units=[_unit_out(instance, u, holders, parts) for u in rows], total=total)
+
+
+@router.get("/{object_id}/units/{suffix}/genealogy", response_model=Genealogy)
+def unit_genealogy(
+    object_id: int,
+    suffix: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """**Woraus besteht dieses Stück – und worin steckt es?**
+
+    Beides ist eine Ableitung über den Ereignis-Log (``services/genealogy``), kein
+    gespeichertes Feld: die Stückliste sind die Stücke, die einen gemeinsamen Auftrag als
+    ``Verbaut`` verlassen haben.
+
+    **Erst auf Klick**, wie die Nummern selbst: eine Baugruppe kann hunderte Teile haben,
+    und sie in jede Zeile der Stückliste mitzuliefern hiesse, die Genealogie bei jedem
+    Öffnen einer Charge vollständig aufzulösen.
+    """
+    instance = _get(db, object_id)
+    unit = (
+        db.query(InstanceUnit)
+        .filter(InstanceUnit.instance_id == instance.id, InstanceUnit.suffix == suffix)
+        .first()
+    )
+    if unit is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Einzelinstanz {object_id}-{suffix} gibt es nicht.",
+        )
+    return Genealogy(
+        parts=[GenealogyPart(**p) for p in genealogy.parts_of(db, unit)],
+        built_into=[
+            GenealogyHost(
+                order_object_id=h["order_object_id"],
+                products=[GenealogyPart(**p) for p in h["products"]],
+            )
+            for h in genealogy.built_into(db, unit)
+        ],
+    )

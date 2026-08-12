@@ -353,8 +353,14 @@ def test_the_picture_ends_at_the_exit_and_keeps_its_invariants():
         assert not [n for n in g.nodes if n.kind == flow.NODE_END], (
             "Hinter einem Ausgang steht ein Ende-Objekt – dort kommt nie ein Stück an."
         )
+        # **Die Kante hängt am Modul, an dem hinausgegangen wurde** – nicht an einem
+        # festen Namen. Sie entsteht aus dem Log (``flow._exit_points``) und trägt darum
+        # denselben Fall beim Verbrauch, wo nur ein *Teil* der Stücke hinausgeht.
         exit_edge = next(e for e in g.edges if e.to is None)
-        assert exit_edge.id == "edge:exit:done"
+        last = g.nodes[-1] if g.nodes else None
+        assert exit_edge.id == f"edge:exit:{last.at}" and exit_edge.frm == last.id, (
+            "Die Ausgangs-Kante gehört an das Modul, das die Stücke hinausgeführt hat."
+        )
         assert exit_edge.walked and sum(p.count for p in exit_edge.units) == 2, (
             "Die ausgesonderten Stücke stehen nicht auf der Kante, die aus dem Modul "
             "hinausführt."
