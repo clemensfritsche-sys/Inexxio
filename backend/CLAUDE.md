@@ -100,7 +100,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/erp/orders/{object_id}/diagnostics | staff | **Systemprotokoll** (Fehlersuche): Befund (abgeleiteter Zustand + Drift-Prüfung) + Chronologie aus Audit · Ereignissen · Material-Journal – on demand, keine eigene Wahrheit |
 | PATCH | /api/v1/erp/orders/{object_id} | staff | Auftrag ändern (Freigabe stösst Prozess an); `picks` = gewählte **Anteile** (Instanz · Menge · Halter) |
 | PATCH | /api/v1/erp/orders/{object_id}/purchase | user | Beschaffungsschritt (Offerte/Status, rollenabhängig) |
-| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/confirm | staff | **Ein Modul bestätigen – für EINE Instanz.** `instance_object_id` + `verification` (`scan`\|`manual`) sind Pflicht (§4.4); ohne sie 400. Bestanden → die Stücke rücken vor, nicht bestanden → sie bleiben stehen (§4.5). Antwort: der Auftrag; die Wirkung steht im Audit. |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/confirm | staff | **Ein Modul bestätigen – für EINE Instanz.** `instance_object_id` + `verification` (`scan`\|`manual`) sind Pflicht (§4.4); ohne sie 400. Die Art kommt aus dem **Scan-Dialog** (Kamera ↔ Tastatur), nicht von einem zweiten Knopf daneben. Bestanden → die Stücke rücken vor, nicht bestanden → sie bleiben stehen (§4.5). Antwort: der Auftrag; die Wirkung steht im Audit. |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/hold?instance=&group= | staff | Die **Nummern** einer Entscheidungs-Gruppe (`failed` \| `rest`) – Vorauswahl für einen gewöhnlichen Auftragsentwurf. **Erst auf Klick**: der «Rest» einer 6000er-Charge wären sechstausend Nummern in jeder Auftrags-Antwort. |
 | GET/PATCH | /api/v1/erp/articles/{object_id}/sales | staff | Verkaufs-Profil (publiziert/Sichtbarkeit/Inhalt) – immer editierbar |
 | GET/POST | /api/v1/erp/articles/{object_id}/sales/prices | staff | Verkaufspreise (1:n) lesen/anlegen |
@@ -167,9 +167,14 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > ganze Instanz (eine durchgefallene Stichprobe ist nicht mehr repräsentativ), angeboten
 > wird ein ganz gewöhnlicher Auftrag mit vorgewählten Stücken.
 > (3) **Die Stichprobe** (`domain/sampling.py` = die Regel, `services/sampling.py` = die
-> Ziehung) gilt **je Instanz** (Los, ISO 2859-1), wird bei der **Ankunft** gezogen
-> (vorher steht die Menge nicht fest), ist zufällig und steht als `sample`-Ereignis
-> **eingefroren** im Log. Der ungezogene Rest läuft ohne Erfassung durch – sichtbar.
+> Ziehung) ist **EINE Zahl: der Anteil an der Gesamtmenge** – alle (100 %) · Hälfte ·
+> Viertel · frei. Nicht je Instanz: ein Modul sieht die Summe dessen, was davorsteht, und
+> «10 % von drei Chargen» ergäbe sonst drei Ziehungen, von denen keine der angezeigten
+> Zahl entspricht. Gezogen wird **einmal je Modul**, wenn es erreicht wird (vorher steht
+> die Menge nicht fest; und je *Welle* gezogen wäre wieder «je Instanz»), zufällig, über
+> den vollen Bestand des Auftrags, und steht als `sample`-Ereignis **eingefroren** im Log.
+> Aufgerundet, mindestens eines, höchstens alle. Der ungezogene Rest läuft ohne Erfassung
+> durch – sichtbar.
 > Alle drei stehen an der EINEN Ausführungsstelle; jedes künftige Modul erbt sie.
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
@@ -181,8 +186,17 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > keine Farbfrage: Farbe, Freigabe-Prüfung und Auswahl-Liste folgen daraus. Ein
 > gesperrtes Stück nimmt ein ganz gewöhnlicher Auftrag auf – **das Greifen IST das
 > Aufheben**, es gibt keinen «entsperren»-Endpunkt.
-> **Ein terminales Modul ist ein Ausgang** (`Module.terminal`): hinter ihm steht kein
-> Modul (Freigabe-Fehler), die Kette endet dort, und es passiert das Ende-Objekt nicht.
+> **Der Grund ist Pflicht – beim MODELLIEREN**, für beide Ausprägungen (`config.reason`).
+> Warum ausgesondert wird, ist eine Eigenschaft des Ablaufs und lautet bei jedem Stück
+> gleich; am Band wäre es ein Feld, das immer dasselbe aufnimmt. Ohne Grund ist das Modul
+> nicht anlegbar – zur Laufzeit erfasst es **nichts** (der Scan ist die Bestätigung), und
+> der Grund reist als `ProcessStepResponse.reason` an die Ausführungsstelle.
+> **Ein terminales Modul ist ein Ausgang** (`Module.terminal`) – **EINE Eigenschaft, DREI
+> Wirkungen**: der Editor bietet dahinter nichts an, die Freigabe weist ein Modul dahinter
+> ab (das Netz), und das **Bild endet dort** (`flow.build` hängt kein `end` an; die
+> ausgesonderten Stücke stehen auf `edge:exit:done`). Die dritte fehlte – dadurch standen
+> Stücke auf einer Kante, die niemand gegangen war, und die Invariantenprüfung meldete es
+> zu Recht. Es passiert das Ende-Objekt nicht.
 > Damit endet auch eine geplante **Rückführung** – ohne eine Zeile Wartelogik, weil über
 > die **offene** Zugehörigkeit gezählt wird. `return_to_order_id` bleibt unangetastet.
 > **Kein neuer Auftragsstatus:** wer aussondert, hat sein Ziel erreicht; wem die Stücke

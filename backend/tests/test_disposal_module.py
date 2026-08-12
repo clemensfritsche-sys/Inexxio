@@ -9,7 +9,8 @@ jedes künftige terminale Modul erbt sie.
    ihm kann kein Modul mehr stehen, und das Ende-Objekt passiert es nie.
 3. **Damit endet auch eine geplante Rückführung** – ohne eine Zeile Wartelogik: gezählt
    wird über die **offene** Zugehörigkeit, und die gibt es nicht mehr.
-4. **Der Grund ist Pflicht beim Sperren**, nicht beim Verschrotten.
+4. **Der Grund ist Pflicht – beim Modellieren**, für beide Ausprägungen. Am Band wird
+   nichts erfasst: was dort bei jedem Stück gleich lautet, gehört in die Definition.
 
 Geprüft über die **echten** Dienstpfade gegen echtes PostgreSQL.
 """
@@ -43,8 +44,9 @@ def _capture_step():
             "config": {"points": [{"label": "OK", "type": "bool"}]}}
 
 
-def _disposal_step(mode: str):
-    return {"module_type": "aussondern", "config": {"mode": mode}}
+def _disposal_step(mode: str, reason: str = "Ausschuss aus der Sichtprüfung"):
+    return {"module_type": "aussondern",
+            "config": {"mode": mode, "reason": reason}}
 
 
 def _article(db, *, steps: list[dict], serialization: str = "batch"):
@@ -143,7 +145,7 @@ def test_a_blocked_piece_comes_back_through_an_ordinary_order():
         for mode, expected in (("block", st.GESPERRT), ("scrap", st.VERSCHROTTET)):
             art, order, rows = _make(db, quantity=2, steps=[_disposal_step(mode)])
             _confirm(db, order, rows[0],
-                     values={"grund_der_sperre": "Lack blättert"} if mode == "block" else {})
+                     values={})
             from app.models import InstanceUnit, OrderUnit
             pieces = (db.query(InstanceUnit)
                       .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
@@ -299,7 +301,7 @@ def test_the_order_status_needs_no_new_value():
         )
         db.flush()
         d_step = db.query(ProcessStep).filter(ProcessStep.order_id == dev.id).one()
-        _confirm(db, dev, d_step, values={"grund_der_sperre": "Wartet auf Labor"})
+        _confirm(db, dev, d_step)
 
         for step in p_steps:
             _confirm(db, parent, step, values={"ok": True})
@@ -313,20 +315,66 @@ def test_the_order_status_needs_no_new_value():
         db.close()
 
 
+def test_the_picture_ends_at_the_exit_and_keeps_its_invariants():
+    """**Ein terminales Modul IST das Ende – auch im Bild** (Punkt 9).
+
+    Das Bild hängte hinter jedes Modul ein Ende-Objekt, auch hinter einen Ausgang. Dort
+    kommt aber nie ein Stück an (``confirm_step`` überspringt ``_finish``): die
+    ausgesonderten Stücke standen damit auf der Kante **hinter** dem Ende, und die galt
+    als nicht gegangen. Genau das hat der Wächter gemeldet – zu Recht. Die Zeichnung war
+    falsch, nicht die Prüfung.
+
+    Geprüft wird darum beides: dass es das Ende-Objekt nicht mehr gibt **und** dass keine
+    Invariante mehr verletzt ist. Ein Bild, das eine Einzelinstanz verliert, ist
+    schlimmer als keines – es sieht ja vollständig aus.
+    """
+    from app.services import flow
+
+    db = _db()
+    try:
+        _, order, rows = _make(db, quantity=2, steps=[_capture_step(),
+                                                      _disposal_step("scrap")])
+        _confirm(db, order, rows[0], values={"ok": True})
+        _confirm(db, order, rows[1])
+        db.flush()
+
+        g = flow.build(db, order)
+        assert g.problems == [], g.problems
+        assert not [n for n in g.nodes if n.kind == flow.NODE_END], (
+            "Hinter einem Ausgang steht ein Ende-Objekt – dort kommt nie ein Stück an."
+        )
+        exit_edge = next(e for e in g.edges if e.to is None)
+        assert exit_edge.id == "edge:exit:done"
+        assert exit_edge.walked and sum(p.count for p in exit_edge.units) == 2, (
+            "Die ausgesonderten Stücke stehen nicht auf der Kante, die aus dem Modul "
+            "hinausführt."
+        )
+
+        # Gegenprobe: ohne terminales Modul gibt es das Ende-Objekt selbstverständlich.
+        _, plain, plain_rows = _make(db, quantity=1, steps=[_capture_step()])
+        _confirm(db, plain, plain_rows[0], values={"ok": True})
+        db.flush()
+        g2 = flow.build(db, plain)
+        assert g2.problems == [] and [n for n in g2.nodes if n.kind == flow.NODE_END]
+    finally:
+        db.rollback()
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # §5 – was das Modul anbietet
 # ---------------------------------------------------------------------------
 
-def test_blocking_asks_for_a_reason_and_scrapping_does_not():
-    """**Der Grund ist Pflicht beim Sperren – und nur dort.**
+def test_the_reason_is_given_when_modelling_not_at_the_line():
+    """**Der Grund ist Pflicht – und er wird beim Modellieren gegeben.**
 
-    Eine Sperre ohne Begründung ist in drei Monaten wertlos: niemand weiss mehr, ob man
-    sie aufheben darf. Beim Verschrotten ist der Scan die Bestätigung; ein zweites Feld
-    macht den Fall nicht häufiger richtig, sondern nur länger.
+    Warum an dieser Stelle ausgesondert wird, ist eine Eigenschaft des **Ablaufs** und
+    lautet für jedes Stück gleich («Ausschuss aus der Sichtprüfung»). Am Band wäre es ein
+    Feld, das bei jedem Vorgang dasselbe aufnimmt – eine Erfassung ohne Erkenntnis.
 
-    Der Grund ist dabei **kein neuer Mechanismus**, sondern ein gewöhnlicher
-    Erfassungspunkt – deklariert vom Modul, nicht vom Anwender: wäre er konfigurierbar,
-    könnte man ihn wegkonfigurieren, und genau er ist der Sinn der Sperre.
+    Ohne Grund ist das Modul **nicht anlegbar**: eine Aussonderung, deren Anlass später
+    niemand mehr kennt, ist ein Loch im Nachweis. Und weil der Grund in der Definition
+    steht, erfasst das Modul zur Laufzeit **nichts** – auch beim Sperren nicht.
     """
     from fastapi import HTTPException
     from app.domain import modules
@@ -334,32 +382,34 @@ def test_blocking_asks_for_a_reason_and_scrapping_does_not():
 
     db = _db()
     try:
-        block = modules.get("aussondern").clean_config({"mode": "block"})
-        assert [p["label"] for p in block["points"]] == ["Grund der Sperre"]
-        assert modules.get("aussondern").clean_config({"mode": "scrap"})["points"] == []
+        for mode in ("scrap", "block"):
+            with pytest.raises(HTTPException) as e:
+                modules.get("aussondern").clean_config({"mode": mode})
+            assert e.value.status_code == 400 and "Grund" in str(e.value.detail), (
+                f"«{mode}» liess sich ohne Grund anlegen."
+            )
+            got = modules.get("aussondern").clean_config(
+                {"mode": mode, "reason": "Riss im Lack"})
+            assert got["reason"] == "Riss im Lack"
+            assert got["points"] == [], (
+                "Der Grund steht in der Definition – am Band wird nichts mehr erfasst."
+            )
 
-        # Sperren ohne Grund: abgelehnt, mit Namen.
-        _, order, rows = _make(db, quantity=1, steps=[_disposal_step("block")])
-        with pytest.raises(HTTPException) as e:
+        # Und zur Laufzeit: keine Eingabe, keine leere Erfassungszeile.
+        for mode in ("scrap", "block"):
+            _, order, rows = _make(db, quantity=1, steps=[_disposal_step(mode)])
             _confirm(db, order, rows[0])
-        assert "Grund der Sperre" in str(e.value.detail)
-
-        # Mit Grund: erfasst, am Stück hinterlegt.
-        _confirm(db, order, rows[0], values={"grund_der_sperre": "Riss im Lack"})
-        got = db.query(Capture).filter(Capture.order_id == order.id).all()
-        assert [c.values["grund_der_sperre"] for c in got] == ["Riss im Lack"]
-
-        # Verschrotten: keine Erfassung, keine leere Zeile.
-        _, scrap_order, scrap_rows = _make(db, quantity=1, steps=[_disposal_step("scrap")])
-        _confirm(db, scrap_order, scrap_rows[0])
-        assert db.query(Capture).filter(Capture.order_id == scrap_order.id).count() == 0, (
-            "Eine leere Erfassung wäre ein Nachweis über nichts."
-        )
+            assert db.query(Capture).filter(Capture.order_id == order.id).count() == 0, (
+                "Eine leere Erfassung wäre ein Nachweis über nichts."
+            )
+            step = db.query(ProcessStep).filter(ProcessStep.order_id == order.id).one()
+            assert modules.reason_of(step.config) == "Ausschuss aus der Sichtprüfung"
 
         # Und das Verb sagt, was passiert – aus der Registry, nicht aus der Oberfläche.
-        step = db.query(ProcessStep).filter(ProcessStep.order_id == scrap_order.id).one()
-        assert modules.get(step.module_type).action_for(step.config) == "Verschrotten"
-        assert modules.get("aussondern").action_for({"mode": "block"}) == "Sperren"
+        assert modules.get("aussondern").action_for(
+            {"mode": "scrap", "reason": "x"}) == "Verschrotten"
+        assert modules.get("aussondern").action_for(
+            {"mode": "block", "reason": "x"}) == "Sperren"
     finally:
         db.rollback()
         db.close()
@@ -408,7 +458,7 @@ def test_the_stock_view_carries_the_new_states_by_itself():
     db = _db()
     try:
         art, order, rows = _make(db, quantity=4, steps=[_disposal_step("block")])
-        _confirm(db, order, rows[0], values={"grund_der_sperre": "Laborprüfung offen"})
+        _confirm(db, order, rows[0])
 
         blocked = states_of(art)["gesperrt"]
         assert blocked.quantity == 4

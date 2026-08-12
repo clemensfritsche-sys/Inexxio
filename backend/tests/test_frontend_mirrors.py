@@ -1215,10 +1215,13 @@ def test_everything_captured_is_mandatory():
     import sys
     sys.path.insert(0, str(BACKEND))
     from app.domain import capture_types
-    from app.schemas.process import CapturePoint, CapturePointInput
+    from app.schemas.process import CapturePoint, ModuleInput
 
-    assert "required" not in CapturePointInput.model_fields
     assert "required" not in CapturePoint.model_fields
+    # Und die Eingabe kennt gar keine Feldliste mehr: was in einer Konfiguration
+    # stehen darf, entscheidet der **Modultyp** (``Module.clean_config``) – eine
+    # zweite Liste im Schema verwarf stillschweigend, was sie nicht kannte.
+    assert ModuleInput.model_fields["config"].annotation is not None
     # Geprüft wird JEDER Punkt, nicht eine Teilmenge.
     check = _body(_read(BACKEND / "app" / "domain" / "capture_types" / "__init__.py"),
                   "check_values")
@@ -1941,9 +1944,8 @@ def test_an_unfinished_capture_point_is_a_missing_entry_not_a_field_error():
     («Erfassungspunkte → 1 → Bezeichnung: darf nicht leer sein»). Verlangt wird sie darum
     bei der **Freigabe** – mit einem Satz statt einem Feldpfad.
     """
-    schema = _read(BACKEND / "app" / "schemas" / "process.py")
-    point = _code(schema[schema.index("class CapturePointInput"):schema.index("class ModuleConfigInput")])
-    assert "min_length" not in point, (
+    schema = _code(_read(BACKEND / "app" / "schemas" / "process.py"))
+    assert "min_length" not in schema, (
         "Die Bezeichnung ist schema-pflichtig – dann scheitert /validate beim Tippen."
     )
     types = _read(BACKEND / "app" / "domain" / "capture_types" / "__init__.py")
@@ -2766,10 +2768,15 @@ def test_the_scanner_suggests_with_the_feeds_own_search():
 
     dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
     assert "step?.suggest" in dialog, "Der Dialog fragt die Vorschlagsquelle nicht."
-    assert "step?.restrict) { setFound([]); return; }" in dialog, (
-        "Ein eingeschränkter Schritt bekommt breitere Vorschläge – dann bietet er an, "
-        "was er gar nicht annimmt."
+    assert "step?.restrict || step?.expected != null) { setFound([]); return; }" in dialog, (
+        "Ein eingeschränkter oder verifizierender Schritt bekommt breitere Vorschläge – "
+        "dann bietet er an, was er gar nicht annimmt."
     )
+    # **Und jeder Schritt hat eine Vorschlagsmenge**, ohne dass ein Aufrufer sie mitgibt:
+    # sie ist abgeleitet aus dem, was er ANNIMMT. Genau daran fehlte es im Modul – dort
+    # gab es keine Liste, also blieb die Suche leer und nur die volle Nummer ging durch.
+    assert "export function offersFor" in lib, "Die Vorschläge sind wieder eine Bringschuld."
+    assert "offersFor(step)" in dialog, "Der Dialog leitet die Vorschläge nicht ab."
     assert "stale = true" in dialog, "Eine ältere Antwort kann eine neuere überholen."
 
     # Und der Feed gibt seine EIGENE Suche herein, keine nachgebaute.
@@ -2788,9 +2795,16 @@ def test_the_scanner_suggests_with_the_feeds_own_search():
     assert page.count("rowSearchText(") == 2, (
         "Der Suchtext wird ausserhalb der einen Regel gelesen (Definition + 1 Anwendung)."
     )
-    # Der Hardware-Scanner-Pfad bleibt: volle Nummer + Enter geht direkt durch.
-    assert "if (e.key === 'Enter' && typedDirectOk) submitQuery();" in dialog, (
+    # Der Hardware-Scanner-Pfad bleibt: volle Nummer + Enter geht direkt durch – und
+    # zwar **immer**. Er hing einmal an einer Vorprüfung (`typedDirectOk`), und damit
+    # passierte bei einer nicht passenden Nummer gar nichts: kein Sprung, keine Meldung.
+    # Jetzt geht jede Eingabe durch dieselbe Prüfung wie ein Kamerabild und sagt ihren
+    # Grund, wenn sie nicht passt.
+    assert "if (e.key === 'Enter') { e.preventDefault(); submitQuery(); }" in dialog, (
         "Der direkte Weg (volle Nummer + Enter) ist weg."
+    )
+    assert "übernehmen" not in dialog and "Übernehmen" not in dialog, (
+        "Es gibt wieder einen Zwischenschritt zwischen Eingabe und Ergebnis."
     )
 
 
@@ -3031,9 +3045,16 @@ def test_no_entry_without_a_confirmed_instance():
         "Der Scan verifiziert nicht mehr die Instanz – ohne ``expected`` ist er ein "
         "beliebiger Lookup und bestätigt gar nichts."
     )
-    assert "setVerified('manual')" in code, (
-        "Die Tastatur ist keine Alternative mehr – wer keine Kamera hat, kann nicht "
-        "arbeiten."
+    # **Ein Weg, nicht zwei.** Die Tastatur ist die Alternative **im Dialog** (die Leiste
+    # im Bild) – ein zweiter Knopf daneben war ein zweiter Weg zum selben Ziel, und er
+    # umging die Verifikation ganz. Wie bestätigt wurde, sagt der Dialog selbst.
+    assert "setVerified('manual')" not in code, (
+        "Neben dem Scanner steht wieder ein eigener «von Hand»-Weg – zwei Wege zum "
+        "selben Ziel, und der zweite bestätigt gar nichts."
+    )
+    assert "onComplete: (_ids, how) => setVerified(how)" in code, (
+        "Die Art der Bestätigung kommt nicht mehr aus dem Dialog – dann rät der "
+        "Aufrufer, wie die Nummer zustande kam."
     )
     api = _code(_read(FRONTEND / "lib" / "api.ts"))
     call = api[api.index("confirmStep("):][:420]
@@ -3079,15 +3100,23 @@ def test_the_sample_rule_is_written_in_exactly_one_place():
         "Die Antwort trägt die Regel nicht mehr mit."
     )
     designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
-    assert "je Instanz" in designer, (
-        "Die Definition sagt nicht mehr, dass die Regel je **Los** gilt – «10 %» liest "
-        "sich dann als Anteil am ganzen Auftrag."
+    assert "je Instanz" not in designer, (
+        "Die Definition spricht wieder von «je Instanz» – die Bezugsgrösse ist die "
+        "Gesamtmenge dessen, was am Modul wartet."
     )
+    assert "der Gesamtmenge" in designer, "Die Definition nennt ihre Bezugsgrösse nicht."
     mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
-    assert "sample: { mode: m.sample.mode, value: m.sample.value }" in mods, (
+    assert "sample: samplePayload(m.sample)" in mods, (
         "Der Entwurf deutet die Stichprobe selbst – ein halb getipptes Feld würde damit "
         "stillschweigend zu «alle»."
     )
+    # Und die Ziehung selbst zählt über den **Auftrag**, nicht je Instanz: sonst wäre
+    # «die Hälfte» in Wahrheit «die Hälfte aus jeder Kiste».
+    draw = _read(BACKEND / "app" / "services" / "sampling.py")
+    assert "def _population" in draw and "OrderUnit.order_id == order.id" in draw, (
+        "Gezogen wird wieder aus der Welle statt aus dem Bestand des Auftrags."
+    )
+    assert "by_instance" not in draw, "Die Ziehung gruppiert wieder je Instanz."
 
 
 def test_a_failed_capture_creates_nothing_by_itself():
@@ -3228,3 +3257,94 @@ def test_a_terminal_module_is_an_exit_not_a_step():
         "Das terminale Modul läuft ins Ende-Objekt – und löst damit eine Rückführung aus, "
         "die es nicht geben darf."
     )
+
+
+def test_an_exit_is_one_property_with_three_consequences():
+    """**Module, hinter denen nichts mehr kommt — eine Eigenschaft, kein Regelwerk.**
+
+    ``Module.terminal`` sagt, dass ein Modultyp ein **Ausgang** ist. Daraus folgt alles
+    Weitere, ohne dass jemand es dreimal aufschreibt:
+
+    ==========================  ===========================================
+    der Editor                  bietet dahinter nichts mehr an
+    die Freigabe                weist ein Modul dahinter ab (das Netz)
+    das Bild                    endet dort – kein Ende-Objekt
+    ==========================  ===========================================
+
+    Ein neuer Modultyp mit derselben Eigenschaft erbt alle drei. Genau darum ist die
+    Eigenschaft der Prüfgegenstand und nicht «Aussondern»: eine Regel, die den Modulnamen
+    kennt, ist keine Eigenschaft, sondern ein Sonderfall.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules
+
+    # 1 – die Eigenschaft, und sie reist mit (Katalog **und** gespeicherter Schritt).
+    assert modules.get("aussondern").terminal is True
+    assert modules.get("datenerfassung").terminal is False
+    from app.schemas.process import ModuleFacts, ModuleTypeInfo
+    assert "terminal" in ModuleTypeInfo.model_fields
+    assert "terminal" in ModuleFacts.model_computed_fields, (
+        "Ein gespeicherter Schritt sagt nicht, ob er ein Ausgang ist – dann muss es die "
+        "Oberfläche raten."
+    )
+
+    # 2 – die Freigabe liest sie (das Netz, serverseitig).
+    chain = _read(BACKEND / "app" / "domain" / "chain.py")
+    assert ".terminal" in chain, "Die Kettenregel kennt den Ausgang nicht mehr."
+
+    # 3 – das Bild endet dort, auf beiden Seiten: Server (Graph) und Entwurf (Definition).
+    flow = _read(BACKEND / "app" / "services" / "flow.py")
+    assert "terminal" in _body(flow, "build"), "Der Graph hängt hinter den Ausgang ein Ende."
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    assert "s.terminal" in _body(diagram, "definitionGraph", kind="function"), (
+        "Der Entwurf zeichnet hinter dem Ausgang ein Ende-Objekt."
+    )
+
+    # 4 – und der Editor bietet dahinter nichts an. Eine fehlende Schaltfläche ist keine
+    #     Absicherung (dafür ist 2 da) – aber sie erspart die Sackgasse.
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "steps.some((s) => s.terminal)" in designer, (
+        "Die Modul-Palette steht weiterhin hinter einem Ausgang."
+    )
+    mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    assert "export function chainProblems" in mods, (
+        "Ein Modul, das hinter den Ausgang sortiert wurde, wird nicht gemeldet."
+    )
+
+
+def test_a_module_colour_travels_with_the_step_and_is_never_guessed():
+    """**Die Farbfamilie gehört zum Schritt – und Unbekanntes wird gemeldet.**
+
+    Sie kam einmal über einen Rückruf des Rahmens (``ColumnProps.tone``), gefüttert aus
+    dem Modul-Katalog. Den lädt aber nur der Editor: im **freigegebenen** Auftrag kam
+    nichts an, und ein stiller Rückfall auf ``slate`` gab jedem Modul die Farbe der
+    Datenerfassung – die Aussonderung wechselte beim Freigeben ihr Aussehen.
+
+    Zwei Konsequenzen, beide strukturell: die Farbe ist ein **Feld des Schritts** (man
+    kann sie nicht mehr vergessen), und ``moduleTone`` hat **keinen** Rückfall auf eine
+    echte Modulfarbe – eine unbekannte Familie sieht kaputt aus, statt sich als anderes
+    Modul auszugeben.
+    """
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    assert "tone?: (moduleType" not in diagram, (
+        "Die Farbe ist wieder ein Prop des Rahmens – dann kann ein Aufrufer sie vergessen."
+    )
+    assert "moduleTone(step.tone)" in diagram, "Die Farbe kommt nicht vom Schritt."
+    assert "moduleTone(undefined)" not in diagram, "Es wird wieder geraten."
+
+    mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    assert "?? MODULE_TONE.slate" not in mods, (
+        "Ein unbekannter Ton fällt wieder auf eine echte Modulfarbe zurück – der Fehler "
+        "ist dann nicht zu sehen, sondern zu verwechseln."
+    )
+    assert "UNKNOWN_TONE" in mods, "Eine unbekannte Farbfamilie wird nicht gemeldet."
+
+    # Und die Antwort trägt sie – aus derselben Registry wie die Beschriftung.
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.schemas.process import ModuleFacts
+    assert {"label", "tone", "terminal"} <= set(ModuleFacts.model_computed_fields)
+    cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
+    assert "tone: s.tone" in cols, "Der laufende Auftrag reicht die Farbe nicht durch."
+

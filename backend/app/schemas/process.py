@@ -11,45 +11,48 @@ Antwort schon feststeht – und deren falsche einen Prozess ergäbe, der nicht l
 
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from ..domain import modules
 
 
-class CapturePointInput(BaseModel):
-    """Ein Erfassungspunkt, wie ihn die Definition schickt.
+class ModuleFacts(BaseModel):
+    """**Was ein gespeicherter Schritt aus der Registry mitbringt** – für beide Orte.
 
-    ``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet
-    (``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck
-    man erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.
+    Beschriftung, Farbfamilie und «ist das ein Ausgang?» hängen ausschliesslich am
+    Modultyp (``domain/modules``). Sie stehen darum hier und werden **abgeleitet**, nie
+    gespeichert: eine Spalte daneben wäre eine zweite Aussage darüber, was dieses Modul
+    ist, und die erste falsche Eingabe liesse beide auseinanderlaufen.
 
-    ``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche
-    Zusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);
-    dieses Schema ist bewusst die Aussenform und nicht die Regel.
-
-    Ein ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht.
-
-    **Die Bezeichnung ist hier NICHT schema-pflichtig** (Testnotiz #695). Sie ist es
-    fachlich sehr wohl – ohne sie steht im Prozess ein Daumen hoch/runter ohne Frage –,
-    aber ein `min_length=1` an dieser Stelle ist eine Prüfung zur **falschen Zeit**: der
-    Entwurf legt den Punkt beim Klick auf die Palette an und füllt ihn, während man tippt.
-    Jeder Tastendruck ging so durch ``/validate`` und kam als rohe 422 zurück
-    («Erfassungspunkte → 1 → Bezeichnung: darf nicht leer sein»), statt als «das fehlt
-    noch». Es ist derselbe Fehler, den #682/#686 eine Ebene höher am Modulnamen behoben
-    haben – nur war er hier nicht mitgeräumt.
-
-    Verlangt wird sie jetzt dort, wo es zählt: bei der **Freigabe**
-    (``domain/capture_types.clean_points``), mit einem Satz statt einem Feldpfad.
+    **Die Farbe reist mit dem Schritt.** Vorher tat sie das nicht: die Oberfläche holte
+    sie aus dem Modul-Katalog, und den lädt nur der Editor. Im **freigegebenen** Auftrag
+    stand darum keine Farbe zur Verfügung, und ein stiller Rückfall machte jedes Modul zu
+    dem Ton, der zufällig der erste in der Liste war – die Aussonderung sah nach dem
+    Freigeben aus wie eine Datenerfassung. Als Feld der Antwort kann sie nicht mehr
+    fehlen; ein Aufrufer, der sie vergisst, ist nicht mehr möglich.
     """
 
-    label: str = Field(default="", max_length=120)
-    type: str
-    target: Optional[float] = None
-    tolerance: Optional[float] = None
+    model_config = ConfigDict(from_attributes=True)
 
+    module_type: str
 
-class ModuleConfigInput(BaseModel):
-    """Die Konfiguration eines Moduls. Heute genau ein Feld – geprüft wird sie im Modul."""
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def label(self) -> str:
+        """Wie das Modul heisst – aus der Registry, nicht aus einer Spalte."""
+        return modules.label(self.module_type)
 
-    points: list[CapturePointInput] = Field(default_factory=list)
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def tone(self) -> str:
+        """Die Farbfamilie des Modultyps. Ein Wort; die Werte kennt die Oberfläche."""
+        return modules.get(self.module_type).tone
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def terminal(self) -> bool:
+        """Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende."""
+        return modules.get(self.module_type).terminal
 
 
 class ModuleInput(BaseModel):
@@ -63,10 +66,18 @@ class ModuleInput(BaseModel):
 
     Die **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie
     steht hier nicht, weil der Entwurf noch keine hat.
+
+    **Die Konfiguration ist bewusst ein freier Satz Werte.** Was darin stehen darf,
+    entscheidet der Modultyp (``domain/modules.Module.clean_config``) – und *nur* er.
+    Eine Feldliste hier wäre eine zweite Aussage darüber, und sie war es auch: sie kannte
+    ``points`` und sonst nichts, also verwarf Pydantic beim Eintreffen stillschweigend
+    ``mode`` (Verschrotten ↔ Sperren) und ``sample`` (die Stichprobe). Beide Angaben
+    kamen nie an, beide Vorgaben galten immer – ohne eine einzige Fehlermeldung.
+    Geprüft wird jetzt dort, wo die Regel steht, mit einem Satz statt einem Feldpfad.
     """
 
     module_type: str
-    config: Optional[ModuleConfigInput] = None
+    config: Optional[dict[str, Any]] = None
 
 
 class ModuleTypeInfo(BaseModel):
@@ -75,11 +86,18 @@ class ModuleTypeInfo(BaseModel):
     ``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,
     weil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und
     kein Eingriff in die Oberfläche.
+
+    ``terminal`` sagt, dass hinter diesem Modul nichts mehr stehen kann – es ist ein
+    **Ausgang**, kein Durchgang. Es ist dieselbe Eigenschaft, aus der die Freigabe ihren
+    Fehler zieht (``domain/chain``) und das Prozessbild sein Ende; die Oberfläche bietet
+    daraufhin gar nicht erst an, etwas dahinter zu setzen. Eine Regel, drei Wirkungen –
+    ein neuer Modultyp erbt alle drei, ohne eine Zeile dafür.
     """
 
     key: str
     label: str
     tone: str
+    terminal: bool = False
     status_before: str
     status_after: str
 

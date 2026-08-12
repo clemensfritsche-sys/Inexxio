@@ -758,6 +758,7 @@ function ArticleProcess({ articleObjectId, draft, setDraft }: {
   const steps: DiagramStep[] | undefined = frozen
     ? (proc?.steps ?? []).map((s) => ({
       id: s.id, moduleType: s.module_type, label: s.label,
+      tone: s.tone, terminal: s.terminal,
     }))
     : undefined;
 

@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules, sampling
 
-from .process import ModuleInput
+from .process import ModuleFacts, ModuleInput
 
 
 class UnitPick(BaseModel):
@@ -99,20 +99,16 @@ class OrderValidation(BaseModel):
     )
 
 
-class ProcessStepResponse(BaseModel):
+class ProcessStepResponse(ModuleFacts):
     """Ein Modul im laufenden Auftrag.
 
     **Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie
-    und auf nichts sonst. ``label`` ist nur die Beschriftung und **abgeleitet** aus
-    ``domain/modules`` – ein gespeicherter Name wäre eine zweite Aussage darüber, was
-    dieses Modul ist, und die erste falsche Eingabe liesse beide auseinanderlaufen.
+    und auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus
+    ``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert.
     """
-
-    model_config = ConfigDict(from_attributes=True)
 
     id: int
     position: int
-    module_type: str
     status_before: str
     status_after: str
     #: Was der Modultyp braucht – bei der Datenerfassung die Erfassungspunkte.
@@ -129,12 +125,6 @@ class ProcessStepResponse(BaseModel):
     #: (``process.step_work``). Ein Vorgang ist eine Instanz, weil der Scan eine Instanz
     #: verifiziert; die Liste ist damit zugleich die Liste der zu scannenden Dinge.
     work: list["StepWork"] = Field(default_factory=list)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def label(self) -> str:
-        """Wie das Modul heisst – aus der Registry, nicht aus einer Spalte."""
-        return modules.label(self.module_type)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -158,6 +148,19 @@ class ProcessStepResponse(BaseModel):
         sagt ``StepWork`` – das ist die Ziehung, nicht die Regel.
         """
         return sampling.describe(modules.sample_of(self.config))
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def reason(self) -> str:
+        """**Warum** hier ausgesondert wird – aus der Definition, nicht vom Band.
+
+        Der Grund wird beim Modellieren gegeben (``domain/modules.Aussondern``) und
+        gehört damit zum Modul, nicht zum einzelnen Vorgang. Er steht hier, damit die
+        Ausführungsstelle ihn zeigen kann, ohne in ``config`` zu greifen – und damit
+        jedes künftige Modul, das einen mitbringt, ihn ohne eine Zeile Oberfläche erbt.
+        Leer heisst: dieses Modul kennt keinen.
+        """
+        return modules.reason_of(self.config)
 
 
 class StepWork(BaseModel):

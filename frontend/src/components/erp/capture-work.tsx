@@ -87,13 +87,19 @@ function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onCon
 
   /**
    * **Der Verifikationsschritt ist genau der Fall, für den die Sequenz gebaut ist**:
-   * `expected` = diese Objektnummer. Kein eigener Dialog, keine zweite Kamera-Logik –
-   * und die manuelle Eingabe steckt bereits darin (dieselbe Leiste im Bild).
+   * `expected` = diese Objektnummer. Kein eigener Dialog, keine zweite Kamera-Logik.
+   *
+   * **Und kein zweiter Weg daneben.** Es gab einmal einen Knopf «Von Hand bestätigen»,
+   * der das Formular ohne den Dialog öffnete – zwei Wege zu demselben Ziel, und der
+   * zweite nur deshalb, weil das Tippen im Dialog praktisch unmöglich war (er verlangte
+   * die volle neunstellige Nummer). Das ist behoben: die Tastatur wohnt in der Leiste im
+   * Bild, eine Teileingabe genügt, und **wie** bestätigt wurde, sagt der Dialog selbst –
+   * `scan` oder `manual`, so wie es der Server verlangt und protokolliert.
    */
   function verify() {
     scan({
       steps: [{ label: 'Instanz', kind: 'instance', expected: work.instance_object_id }],
-      onComplete: () => setVerified('scan'),
+      onComplete: (_ids, how) => setVerified(how),
     });
   }
 
@@ -124,17 +130,12 @@ function InstanceWork({ orderObjectId, stepId, work, points, action, busy, onCon
           />
         </div>
       ) : (
-        // **Ohne Bestätigung keine Eingabe.** Der Scan ist der Regelweg; wer die Kamera
-        // nicht nutzen kann, tippt die Nummer – im selben Dialog, und ebenso geloggt.
-        <div className="flex flex-wrap items-center gap-2 px-2.5 pb-2.5">
-          <button type="button" className="erp-actbtn erp-actbtn-primary flex-1"
-            style={{ height: 36, minWidth: 180 }} disabled={busy} onClick={verify}>
+        // **Ohne Bestätigung keine Eingabe – und genau EIN Weg dorthin.** Der Dialog
+        // trägt beides: die Kamera und, in der Leiste im Bild, die Tastatur.
+        <div className="px-2.5 pb-2.5">
+          <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
+            style={{ height: 36 }} disabled={busy} onClick={verify}>
             <ScanLine size={15} /> Instanz scannen
-          </button>
-          <button type="button" className="erp-actbtn" style={{ height: 36 }}
-            disabled={busy} onClick={() => setVerified('manual')}
-            data-tip="Alternative zum Scan – wird ebenso als Bestätigung festgehalten">
-            <ShieldCheck size={15} /> Von Hand bestätigen
           </button>
         </div>
       )}

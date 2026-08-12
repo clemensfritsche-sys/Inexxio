@@ -1,13 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Hash, Layers, Lock, Percent, Trash2 } from 'lucide-react';
+import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ModuleCatalog } from '@/types';
 import {
-  CAPTURE_ICON, DISPOSAL_MODES, MODULE_ICON, NEEDS_TARGET, blankModule, moduleTone,
-  type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft,
+  CAPTURE_ICON, DISPOSAL_MODES, MODULE_ICON, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
+  moduleTone,
+  type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
 } from '@/lib/modules';
+
+/** Symbol je Kurzweg. Die Wörter stehen daneben – ein Anteil hat kein Bild (#636). */
+const SAMPLE_ICON: Record<SampleMode, LucideIcon> = {
+  all: Layers, half: Columns2, quarter: Grid2x2, free: Percent,
+};
 import {
   DRAFT_OBJECT_ID, definitionGraph, type DiagramStep,
 } from '@/components/erp/process-diagram';
@@ -68,14 +75,21 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
     return () => { dead = true; };
   }, [frozen]);
 
+  // **Was ein Modul ist, sagt sein Typ** – im Entwurf über den Katalog, gespeichert über
+  // die Antwort des Servers. Beides dieselbe Registry, nur zwei Wege dorthin; **beide**
+  // bringen Beschriftung, Farbfamilie und «Ausgang?» mit, damit keine Ansicht sie
+  // nachschlagen muss und keine sie vergessen kann.
   const steps: DiagramStep[] = readOnlySteps
-    ?? modules.map((m) => ({
-      id: m.id,
-      moduleType: m.moduleType,
-      // Wie das Modul heisst, sagt sein **Typ** – im Entwurf über den Katalog, gespeichert
-      // über das Label der Antwort. Beides dieselbe Registry, nur zwei Wege dorthin.
-      label: catalog?.modules?.find((x) => x.key === m.moduleType)?.label ?? m.moduleType,
-    }));
+    ?? modules.map((m) => {
+      const type = catalog?.modules?.find((x) => x.key === m.moduleType);
+      return {
+        id: m.id,
+        moduleType: m.moduleType,
+        label: type?.label ?? m.moduleType,
+        tone: type?.tone ?? null,
+        terminal: !!type?.terminal,
+      };
+    });
 
   function add(moduleType: string) {
     const id = (modules[modules.length - 1]?.id ?? 0) + 1;
@@ -107,7 +121,6 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
         expandedStepId: justAdded,
         endStatus: END_BEFORE,
         head,
-        tone: (t) => moduleTone(catalog?.modules?.find((m) => m.key === t)?.tone),
         onDelete: frozen ? undefined : (id) => onChange(modules.filter((m) => m.id !== id)),
         onReorder: frozen ? undefined : move,
         dragging: drag,
@@ -125,7 +138,17 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
             </p>
           );
         },
-        tail: frozen ? undefined : <Palette catalog={catalog} onPick={add} />,
+        // ►► **Hinter einem Ausgang gibt es nichts mehr anzubieten.** ◄◄
+        //
+        // Dieselbe Eigenschaft (`Module.terminal`), aus der die Freigabe ihren Fehler
+        // zieht und das Bild sein Ende: was an einem terminalen Modul ankommt, verlässt
+        // den Auftrag – ein Modul dahinter bekäme nie eine Einzelinstanz. Es hier gar
+        // nicht erst anzubieten ist die freundlichere Hälfte derselben Regel; die
+        // Prüfung bei der Freigabe bleibt das Netz (eine fehlende Schaltfläche ist keine
+        // Absicherung, sondern eine Bitte).
+        tail: frozen || steps.some((s) => s.terminal)
+          ? undefined
+          : <Palette catalog={catalog} onPick={add} />,
       }}
       parents={parents}
       onToggleReturn={onToggleReturn}
@@ -177,9 +200,12 @@ function Palette({ catalog, onPick }: {
  * kein Status-Dropdown: der Anwender wählt, was passieren soll, den Zustand leitet das
  * Modul ab (`Aussondern.status_after_for`).
  *
- * Keine Erfassungspunkte, keine Stichprobe. Was ankommt, wird ausgesondert – und der
- * Grund beim Sperren ist die Frage des **Moduls**, nicht des Anwenders; wäre er
- * konfigurierbar, könnte man ihn wegkonfigurieren, und das ist der Sinn der Sperre.
+ * Keine Erfassungspunkte, keine Stichprobe: was ankommt, wird ausgesondert.
+ *
+ * **Der Grund gehört hierher, nicht ans Band.** Warum an dieser Stelle ausgesondert wird,
+ * ist eine Eigenschaft des Ablaufs und lautet bei jedem Stück gleich – am Band wäre es
+ * ein Feld, das immer dasselbe aufnimmt. Ohne ihn lässt sich das Modul nicht anlegen
+ * (`Aussondern.clean_config`); die Meldung hier ist die Bedienung, die Regel steht dort.
  */
 function DisposalFields({ module: m, onChange }: {
   module: ModuleDraft;
@@ -196,13 +222,10 @@ function DisposalFields({ module: m, onChange }: {
           label: o.label, hint: o.hint,
         }))}
       />
-      {m.mode === 'block' && (
-        <p className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--fg-4)' }}>
-          <Lock size={13} />
-          Beim Sperren wird ein Grund erfasst – ohne ihn weiss später niemand, ob die
-          Sperre aufgehoben werden darf.
-        </p>
-      )}
+      <input className={inputCls} value={m.reason} maxLength={200}
+        placeholder="Grund, z. B. Ausschuss aus der Sichtprüfung"
+        aria-label="Grund der Aussonderung"
+        onChange={(e) => onChange({ reason: e.target.value })} />
     </div>
   );
 }
@@ -243,23 +266,25 @@ function SampleRow({ value, onChange }: {
       }}>Stichprobe</span>
       <IconSwitch
         value={value.mode}
-        onChange={(mode) => onChange({ mode, value: mode === 'all' ? '' : value.value })}
-        options={[
-          { value: 'all', icon: Layers, label: 'Alle', hint: 'Jedes wartende Stück wird erfasst' },
-          { value: 'count', icon: Hash, label: 'Anzahl', hint: 'Eine feste Zahl Stücke je Instanz' },
-          { value: 'percent', icon: Percent, label: 'Prozent', hint: 'Ein Anteil je Instanz, aufgerundet' },
-        ]}
+        onChange={(mode: SampleMode) => onChange({ mode, value: mode === 'free' ? value.value : '' })}
+        options={SAMPLE_PRESETS.map((p) => ({
+          value: p.value,
+          icon: SAMPLE_ICON[p.value],
+          label: p.label,
+          hint: p.percent
+            ? `${p.percent} % aller wartenden Einzelinstanzen`
+            : 'Ein frei gewählter Anteil, aufgerundet',
+        }))}
       />
-      {value.mode !== 'all' && (
+      {value.mode === 'free' && (
         <>
           <input className={inputCls} style={{ width: 80 }} value={value.value}
-            {...numericInputProps} placeholder={value.mode === 'count' ? 'z. B. 3' : 'z. B. 10'}
+            {...numericInputProps} placeholder="z. B. 10"
             onChange={(e) => onChange({ ...value, value: numericOnly(e.target.value) })} />
-          <span className="text-xs" style={{ color: 'var(--fg-4)' }}>
-            {value.mode === 'count' ? 'Stück je Instanz' : '% je Instanz'}
-          </span>
+          <span className="text-xs" style={{ color: 'var(--fg-4)' }}>%</span>
         </>
       )}
+      <span className="text-xs" style={{ color: 'var(--fg-4)' }}>der Gesamtmenge</span>
     </div>
   );
 }

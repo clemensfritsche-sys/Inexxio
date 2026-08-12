@@ -3261,6 +3261,10 @@
       },
       "ArticleProcessStepResponse": {
         "properties": {
+          "module_type": {
+            "type": "string",
+            "title": "Module Type"
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -3268,10 +3272,6 @@
           "position": {
             "type": "integer",
             "title": "Position"
-          },
-          "module_type": {
-            "type": "string",
-            "title": "Module Type"
           },
           "status_before": {
             "type": "string",
@@ -3295,21 +3295,35 @@
           "label": {
             "type": "string",
             "title": "Label",
-            "description": "Wie der Typ heisst – **abgeleitet** aus ``domain/modules``, nicht gespeichert.\nSo kann die Beschriftung nicht von der Registry abweichen.",
+            "description": "Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.",
+            "readOnly": true
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone",
+            "description": "Die Farbfamilie des Modultyps. Ein Wort; die Werte kennt die Oberfläche.",
+            "readOnly": true
+          },
+          "terminal": {
+            "type": "boolean",
+            "title": "Terminal",
+            "description": "Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.",
             "readOnly": true
           }
         },
         "type": "object",
         "required": [
+          "module_type",
           "id",
           "position",
-          "module_type",
           "status_before",
           "status_after",
-          "label"
+          "label",
+          "tone",
+          "terminal"
         ],
         "title": "ArticleProcessStepResponse",
-        "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft."
+        "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft.\n\nBeschriftung, Farbfamilie und «Ausgang?» kommen aus ``ModuleFacts`` – derselben\nAbleitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände."
       },
       "ArticleResponse": {
         "properties": {
@@ -3848,48 +3862,6 @@
           "file"
         ],
         "title": "Body_upload_attachment_api_v1_erp_attachments_post"
-      },
-      "CapturePointInput": {
-        "properties": {
-          "label": {
-            "type": "string",
-            "maxLength": 120,
-            "title": "Label",
-            "default": ""
-          },
-          "type": {
-            "type": "string",
-            "title": "Type"
-          },
-          "target": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target"
-          },
-          "tolerance": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tolerance"
-          }
-        },
-        "type": "object",
-        "required": [
-          "type"
-        ],
-        "title": "CapturePointInput",
-        "description": "Ein Erfassungspunkt, wie ihn die Definition schickt.\n\n``key`` fehlt hier mit Absicht: er wird serverseitig aus der Bezeichnung abgeleitet\n(``domain/capture_types._slug``). Ihn eingeben zu lassen wäre ein Feld, dessen Zweck\nman erklären müsste – und dessen Kollisionen der Mensch auflösen müsste.\n\n``target``/``tolerance`` sind nur für den Soll-Ist-Vergleich gefüllt. Welche\nZusatzfelder ein Typ braucht, entscheidet der Typ selbst (``CaptureType.clean``);\ndieses Schema ist bewusst die Aussenform und nicht die Regel.\n\nEin ``required``-Feld gibt es **nicht**: alles, was angelegt ist, ist Pflicht.\n\n**Die Bezeichnung ist hier NICHT schema-pflichtig** (Testnotiz #695). Sie ist es\nfachlich sehr wohl – ohne sie steht im Prozess ein Daumen hoch/runter ohne Frage –,\naber ein `min_length=1` an dieser Stelle ist eine Prüfung zur **falschen Zeit**: der\nEntwurf legt den Punkt beim Klick auf die Palette an und füllt ihn, während man tippt.\nJeder Tastendruck ging so durch ``/validate`` und kam als rohe 422 zurück\n(«Erfassungspunkte → 1 → Bezeichnung: darf nicht leer sein»), statt als «das fehlt\nnoch». Es ist derselbe Fehler, den #682/#686 eine Ebene höher am Modulnamen behoben\nhaben – nur war er hier nicht mitgeräumt.\n\nVerlangt wird sie jetzt dort, wo es zählt: bei der **Freigabe**\n(``domain/capture_types.clean_points``), mit einem Satz statt einem Feldpfad."
       },
       "CaptureTypeInfo": {
         "properties": {
@@ -5764,20 +5736,6 @@
         "title": "ModuleCatalog",
         "description": "Was sich modellieren lässt. **Eine** Antwort für beide Definitionsorte."
       },
-      "ModuleConfigInput": {
-        "properties": {
-          "points": {
-            "items": {
-              "$ref": "#/components/schemas/CapturePointInput"
-            },
-            "type": "array",
-            "title": "Points"
-          }
-        },
-        "type": "object",
-        "title": "ModuleConfigInput",
-        "description": "Die Konfiguration eines Moduls. Heute genau ein Feld – geprüft wird sie im Modul."
-      },
       "ModuleInput": {
         "properties": {
           "module_type": {
@@ -5787,12 +5745,13 @@
           "config": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ModuleConfigInput"
+                "type": "object"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Config"
           }
         },
         "type": "object",
@@ -5800,7 +5759,7 @@
           "module_type"
         ],
         "title": "ModuleInput",
-        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n**Keinen Namen.** Wie ein Modul heisst, sagt sein Typ (``domain/modules``) – ein\nEingabefeld daneben hätte genau eine richtige Antwort und war trotzdem Pflicht\n(Testnotiz #682). Es war zugleich die Quelle der Meldung «String should have at\nleast 1 character»: ein leer gelassenes Feld, das der Anwender gar nicht sehen\nwollte (#686).\n\nDie **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie\nsteht hier nicht, weil der Entwurf noch keine hat."
+        "description": "Ein Prozessschrittmodul, wie es der Entwurf schickt.\n\n**Keinen Namen.** Wie ein Modul heisst, sagt sein Typ (``domain/modules``) – ein\nEingabefeld daneben hätte genau eine richtige Antwort und war trotzdem Pflicht\n(Testnotiz #682). Es war zugleich die Quelle der Meldung «String should have at\nleast 1 character»: ein leer gelassenes Feld, das der Anwender gar nicht sehen\nwollte (#686).\n\nDie **Identität** eines Moduls ist seine ``id``, vergeben beim Anlegen (#687) – sie\nsteht hier nicht, weil der Entwurf noch keine hat.\n\n**Die Konfiguration ist bewusst ein freier Satz Werte.** Was darin stehen darf,\nentscheidet der Modultyp (``domain/modules.Module.clean_config``) – und *nur* er.\nEine Feldliste hier wäre eine zweite Aussage darüber, und sie war es auch: sie kannte\n``points`` und sonst nichts, also verwarf Pydantic beim Eintreffen stillschweigend\n``mode`` (Verschrotten ↔ Sperren) und ``sample`` (die Stichprobe). Beide Angaben\nkamen nie an, beide Vorgaben galten immer – ohne eine einzige Fehlermeldung.\nGeprüft wird jetzt dort, wo die Regel steht, mit einem Satz statt einem Feldpfad."
       },
       "ModuleTypeInfo": {
         "properties": {
@@ -5815,6 +5774,11 @@
           "tone": {
             "type": "string",
             "title": "Tone"
+          },
+          "terminal": {
+            "type": "boolean",
+            "title": "Terminal",
+            "default": false
           },
           "status_before": {
             "type": "string",
@@ -5834,7 +5798,7 @@
           "status_after"
         ],
         "title": "ModuleTypeInfo",
-        "description": "Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut.\n\n``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,\nweil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und\nkein Eingriff in die Oberfläche."
+        "description": "Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut.\n\n``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,\nweil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und\nkein Eingriff in die Oberfläche.\n\n``terminal`` sagt, dass hinter diesem Modul nichts mehr stehen kann – es ist ein\n**Ausgang**, kein Durchgang. Es ist dieselbe Eigenschaft, aus der die Freigabe ihren\nFehler zieht (``domain/chain``) und das Prozessbild sein Ende; die Oberfläche bietet\ndaraufhin gar nicht erst an, etwas dahinter zu setzen. Eine Regel, drei Wirkungen –\nein neuer Modultyp erbt alle drei, ohne eine Zeile dafür."
       },
       "ObjectReference": {
         "properties": {
@@ -6429,6 +6393,10 @@
       },
       "ProcessStepResponse": {
         "properties": {
+          "module_type": {
+            "type": "string",
+            "title": "Module Type"
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -6436,10 +6404,6 @@
           "position": {
             "type": "integer",
             "title": "Position"
-          },
-          "module_type": {
-            "type": "string",
-            "title": "Module Type"
           },
           "status_before": {
             "type": "string",
@@ -6502,6 +6466,18 @@
             "description": "Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.",
             "readOnly": true
           },
+          "tone": {
+            "type": "string",
+            "title": "Tone",
+            "description": "Die Farbfamilie des Modultyps. Ein Wort; die Werte kennt die Oberfläche.",
+            "readOnly": true
+          },
+          "terminal": {
+            "type": "boolean",
+            "title": "Terminal",
+            "description": "Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.",
+            "readOnly": true
+          },
           "action": {
             "type": "string",
             "title": "Action",
@@ -6513,21 +6489,30 @@
             "title": "Sample",
             "description": "Die Stichprobenregel als **Satz** – aus einer Quelle (``sampling.describe``).\n\nSie steht in ``config``, aber die Oberfläche soll sie nicht selbst formulieren:\n«3 je Instanz» ist eine Aussage über das Los, und eine zweite Formulierung\ndaneben liefe der ersten davon. Was zur **Laufzeit** wirklich gezogen wurde,\nsagt ``StepWork`` – das ist die Ziehung, nicht die Regel.",
             "readOnly": true
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "**Warum** hier ausgesondert wird – aus der Definition, nicht vom Band.\n\nDer Grund wird beim Modellieren gegeben (``domain/modules.Aussondern``) und\ngehört damit zum Modul, nicht zum einzelnen Vorgang. Er steht hier, damit die\nAusführungsstelle ihn zeigen kann, ohne in ``config`` zu greifen – und damit\njedes künftige Modul, das einen mitbringt, ihn ohne eine Zeile Oberfläche erbt.\nLeer heisst: dieses Modul kennt keinen.",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
+          "module_type",
           "id",
           "position",
-          "module_type",
           "status_before",
           "status_after",
           "label",
+          "tone",
+          "terminal",
           "action",
-          "sample"
+          "sample",
+          "reason"
         ],
         "title": "ProcessStepResponse",
-        "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. ``label`` ist nur die Beschriftung und **abgeleitet** aus\n``domain/modules`` – ein gespeicherter Name wäre eine zweite Aussage darüber, was\ndieses Modul ist, und die erste falsche Eingabe liesse beide auseinanderlaufen."
+        "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."
       },
       "RelatedOrder": {
         "properties": {

@@ -47,28 +47,92 @@ export const MODULE_TONE: Record<string, { bg: string; fg: string; border: strin
   clay: { bg: '#F3E7E4', fg: '#8C5A50', border: '#E2CBC5' },
 };
 
-/** Die Farbe eines Modultyps. Unbekannt → der neutrale Grundton, nie eine leere Fläche. */
-export function moduleTone(tone: string | undefined): { bg: string; fg: string; border: string } {
-  return MODULE_TONE[tone ?? ''] ?? MODULE_TONE.slate;
+/**
+ * **Eine unbekannte Farbfamilie ist ein Fehler und sieht auch so aus.**
+ *
+ * Hier stand ein stiller Rückfall auf `slate` – und `slate` ist die Farbe der
+ * Datenerfassung. Wo die Farbe nicht ankam (im freigegebenen Auftrag: sie wurde aus dem
+ * Modul-Katalog geholt, und den lädt nur der Editor), trug **jedes** Modul plötzlich die
+ * Farbe eines echten anderen Moduls. Der Fehler war damit nicht zu sehen, sondern zu
+ * verwechseln – die schlimmste Form.
+ *
+ * Die Ursache ist strukturell behoben: die Farbe reist als Feld mit dem Schritt
+ * (`ModuleFacts.tone`), ein Aufrufer kann sie nicht mehr vergessen. Bleibt der Fall, dass
+ * ein **neueres Backend** eine Familie nennt, die diese Oberfläche nicht kennt – und der
+ * gehört gemeldet, nicht überspielt.
+ */
+export function moduleTone(tone: string | undefined | null): { bg: string; fg: string; border: string } {
+  return MODULE_TONE[tone ?? ''] ?? UNKNOWN_TONE;
 }
+
+/** Sichtbar kaputt: keine Modulfarbe, sondern die Warnfarbe des Hauses. */
+const UNKNOWN_TONE = { bg: 'var(--danger-bg)', fg: 'var(--danger)', border: 'var(--danger)' };
 
 /** Typen, die in der Definition einen **Sollwert** brauchen (`Measure.clean`). */
 export const NEEDS_TARGET = 'measure';
 
 /**
- * Die Stichprobenregel im Entwurf (`domain/sampling.py`) — drei Formen, eine Zahl.
+ * **Hinter einem Ausgang kann kein Modul mehr stehen.**
  *
- * `value` ist bewusst ein **String**: es ist ein Eingabefeld, und ein halb getipptes
- * Feld hat keine Zahl. Geprüft wird sie serverseitig (`sampling.clean`), die Antwort
- * kommt als Satz durch `validate` zurück – hier steht keine zweite Regel.
+ * Dieselbe Regel wie serverseitig (`domain/chain.assert_closes`), nur früher: dort weist
+ * sie die Freigabe ab, hier sagt sie es, während man modelliert. Sie steht **hier** und
+ * nicht im Diagramm, weil sie eine Aussage über Modultypen ist – das Bild rendert nur,
+ * was es bekommt.
+ *
+ * Der Normalfall braucht sie gar nicht: die Palette verschwindet hinter einem terminalen
+ * Modul, es lässt sich also keines dahinter setzen. Übrig bleibt das **Umsortieren** –
+ * ein Modul, das hinter den Ausgang gezogen wurde. Es bleibt sichtbar (sonst liesse es
+ * sich nicht mehr löschen), aber das Bild sagt, dass so nichts läuft.
+ */
+export function chainProblems(steps: { label: string; terminal: boolean }[]): string[] {
+  const exit = steps.findIndex((s) => s.terminal);
+  if (exit < 0 || exit === steps.length - 1) return [];
+  return [`Hinter «${steps[exit].label}» kann kein Modul mehr stehen: was hier ankommt, `
+    + `verlässt den Auftrag – Schritt ${exit + 2} bekäme nie ein Stück.`];
+}
+
+/**
+ * **Die Stichprobe ist EINE Zahl: der Anteil an allem, was am Modul wartet.**
+ *
+ * Nicht je Instanz – ein Modul sieht die Summe der Einzelinstanzen vor sich, und «10 %
+ * von drei Chargen» hiesse sonst dreimal eine eigene Ziehung, deren keine mit der Zahl
+ * auf dem Bildschirm übereinstimmt (`domain/sampling.py`).
+ *
+ * Die Kurzwege sind darum **keine eigenen Modi**, sondern Werte derselben Zahl: alle =
+ * 100 %, Hälfte = 50 %, Viertel = 25 %. Frei getippt wird nur, wer etwas anderes will.
+ *
+ * `value` ist bewusst ein **String**: es ist ein Eingabefeld, und ein halb getipptes Feld
+ * hat keine Zahl. Geprüft wird sie serverseitig (`sampling.clean`), die Antwort kommt als
+ * Satz durch `validate` zurück – hier steht keine zweite Regel.
  */
 export interface SampleDraft {
-  mode: 'all' | 'count' | 'percent';
+  /** Der gewählte Kurzweg – oder `free`, dann zählt `value`. */
+  mode: SampleMode;
   value: string;
 }
 
+export type SampleMode = 'all' | 'half' | 'quarter' | 'free';
+
+/** Kurzweg → Anteil. Die eine Zuordnung; `free` hat keinen festen Wert. */
+export const SAMPLE_PRESETS: { value: SampleMode; label: string; percent?: number }[] = [
+  { value: 'all', label: 'Alle', percent: 100 },
+  { value: 'half', label: 'Hälfte', percent: 50 },
+  { value: 'quarter', label: 'Viertel', percent: 25 },
+  { value: 'free', label: 'Anteil' },
+];
+
 /** Was ohne Angabe gilt – **alle**, wie im Backend (`sampling.DEFAULT`). */
 export const SAMPLE_ALL: SampleDraft = { mode: 'all', value: '' };
+
+/**
+ * Entwurfsform → das eine Feld, das der Server kennt. Ein frei getippter Anteil geht
+ * **unverändert** hinaus, auch halb getippt: ihn hier in etwas umzudeuten wäre eine
+ * stille Änderung der Konfiguration – der Server sagt stattdessen, dass die Zahl fehlt.
+ */
+export function samplePayload(s: SampleDraft): { percent: string | number } {
+  const preset = SAMPLE_PRESETS.find((p) => p.value === s.mode)?.percent;
+  return { percent: preset ?? s.value };
+}
 
 /**
  * Ein Erfassungspunkt im Entwurf. `key` fehlt: er wird serverseitig aus der Bezeichnung
@@ -103,6 +167,12 @@ export interface ModuleDraft {
   sample: SampleDraft;
   /** Nur «Aussondern»: verschrotten (endgültig) oder sperren (aufhebbar). */
   mode: DisposalMode;
+  /**
+   * Nur «Aussondern»: **warum** hier ausgesondert wird. Pflicht – aber beim
+   * **Modellieren**, nicht am Band: der Anlass gehört zum Ablauf und lautet bei jedem
+   * Stück gleich. Ohne ihn ist das Modul nicht anlegbar (`Aussondern.clean_config`).
+   */
+  reason: string;
 }
 
 /**
@@ -139,10 +209,7 @@ export const MODULE_FORM: Record<string, {
         target: p.type === NEEDS_TARGET && p.target !== '' ? Number(p.target) : null,
         tolerance: p.type === NEEDS_TARGET && p.tolerance !== '' ? Number(p.tolerance) : null,
       })),
-      // **Unverändert weiterreichen, auch halb getippt.** Ein leeres Feld hier in «alle»
-      // umzudeuten wäre eine stille Änderung der Konfiguration – der Server sagt statt-
-      // dessen, dass die Zahl fehlt, und die Freigabe verweigert bis dahin.
-      sample: { mode: m.sample.mode, value: m.sample.value },
+      sample: samplePayload(m.sample),
     }),
     incomplete: (m) => {
       if (m.points.length === 0) return 'kein Erfassungspunkt';
@@ -150,21 +217,24 @@ export const MODULE_FORM: Record<string, {
       if (m.points.some((p) => p.type === NEEDS_TARGET && !String(p.target ?? '').trim())) {
         return 'Soll-Ist-Vergleich ohne Sollwert';
       }
-      if (m.sample.mode !== 'all' && !m.sample.value.trim()) return 'Stichprobe ohne Zahl';
+      if (m.sample.mode === 'free' && !m.sample.value.trim()) return 'Stichprobe ohne Zahl';
       return null;
     },
   },
   aussondern: {
-    // Die Ausprägung ist die **einzige** Angabe – und sie ist immer gesetzt. Was erfasst
-    // wird (der Grund beim Sperren), entscheidet das Modul selbst, nicht der Anwender.
-    config: (m) => ({ mode: m.mode }),
-    incomplete: () => null,
+    // Zwei Angaben, beide Pflicht: **was** passiert (verschrotten ↔ sperren) und
+    // **warum**. Erfassungspunkte gibt es keine – was ankommt, wird ausgesondert, und
+    // der Grund steht bereits hier statt bei jedem Stück noch einmal.
+    config: (m) => ({ mode: m.mode, reason: m.reason }),
+    incomplete: (m) => (m.reason.trim() ? null : 'Grund fehlt'),
   },
 };
 
 /** Ein frischer Entwurf dieses Modultyps – mit den Vorgaben, die das Backend kennt. */
 export function blankModule(id: number, moduleType: string): ModuleDraft {
-  return { id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap' };
+  return {
+    id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
+  };
 }
 
 /** Entwurfsform → API-Form (`schemas/process.ModuleInput`). */

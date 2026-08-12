@@ -274,10 +274,22 @@ ohne eine einzige Fallunterscheidung im Ablauf:
 
 | Folge | warum |
 |---|---|
+| **Der Editor bietet dahinter nichts an** | die Modul-Palette steht *vor* dem Ende; wo es keines gibt, gibt es sie nicht. Ein Modul, das durch Umsortieren dahinter gerät, wird gemeldet (`lib/modules.chainProblems`) |
 | **Hinter ihm steht kein Modul** (Freigabe-Fehler) | was dort ankommt, verlässt den Auftrag – das nächste Modul bekäme nie ein Stück, und eine tote Definition sieht aus wie ein Prozess |
 | **Die Kette endet dort** | das Ende-Objekt dahinter zu verlangen wäre falsch: es kommt nie ein Stück an |
+| **Das BILD endet dort** (`flow.build`) | kein `end`-Knoten; die ausgesonderten Stücke stehen auf der Kante, die aus dem Modul hinausführt |
 | **Es passiert das Ende-Objekt nicht** (`_finish`) | es ist selbst eines |
 | **Eine geplante Rückführung endet** | die Rückkehr hängt am Ende-Objekt – dorthin kommt das Stück nie |
+
+**Warum das eine EIGENSCHAFT ist und keine Regel im Editor.** Es wird nicht dreimal
+aufgeschrieben, sondern einmal deklariert und dreimal gelesen: der Editor blendet aus, die
+Freigabe weist ab, das Bild endet. Der Editor allein wäre eine **Bitte** (eine fehlende
+Schaltfläche hindert keinen API-Aufruf und keine Artikel-Vorlage); die Freigabe allein
+liesse den Menschen modellieren, was nie laufen kann, und meldete es erst am Schluss. Und
+das Bild ist keine Kosmetik: hängte es hinter den Ausgang ein Ende-Objekt, stünden die
+ausgesonderten Stücke auf einer Kante, die niemand gegangen ist – die Invariantenprüfung
+(§10) meldet das zu Recht. Ein neuer Modultyp mit `terminal = True` erbt alle drei
+Wirkungen, ohne eine Zeile dafür.
 
 **Die letzte Zeile ist der Kern und kostet keine Zeile Wartelogik.** Ein Quell-Auftrag
 zählt seine Ausleihen über die **offene** Zugehörigkeit (`waiting_counts`,
@@ -985,29 +997,35 @@ frei (§3.1).
 **Was ein «nicht bestanden» auslöst, steht in §4.5** — es ist keine Modulregel, sondern
 eine Prozessregel, und jedes künftige Modul erbt sie.
 
-### 9.3 Die Stichprobe — eine Angabe, drei Formen
+### 9.3 Die Stichprobe — EINE Zahl: der Anteil an der Gesamtmenge
 
 Nicht jede Prüfung geht über alle Stücke. Die Regel steht in der **Definition**
-(`domain/sampling.py`), gezogen wird sie zur **Laufzeit**:
+(`domain/sampling.py`), gezogen wird sie zur **Laufzeit**. Sie ist **eine Angabe**, und
+zwar ein Anteil in Prozent; die Kurzwege sind Werte derselben Zahl, keine eigenen Modi:
 
-| Form | Bedeutung |
+| Kurzweg | Anteil |
 |---|---|
-| **alle** | Vorgabe — wer nichts sagt, prüft alles. |
-| **Anzahl n** | n Stücke je Instanz. |
-| **Prozent p** | p % der Instanz, **aufgerundet**. |
+| **alle** | 100 % — Vorgabe: wer nichts sagt, prüft alles. |
+| **Hälfte** | 50 % |
+| **Viertel** | 25 % |
+| **Anteil** | frei getippt, 1–100 % |
 
 Drei Entscheidungen, jede an einer Stelle:
 
-**Die Regel gilt je INSTANZ, nicht je Auftrag.** Eine Stichprobe wird aus einem **Los**
-gezogen (ISO 2859-1), und das Los ist hier die Instanz — die Charge, die physisch als
-eine Kiste dasteht. «10 % von drei Chargen» heisst 10 % **aus jeder**; sonst bliebe eine
-ganze Charge womöglich ungeprüft, und die Aussage der Stichprobe wäre keine. Daraus folgt
-zugleich, dass sie **nie leer** ist: «0 von 5» ist keine Prüfung, sondern ihr Ausfall.
+**Die Bezugsgrösse ist die GESAMTMENGE.** Ein Modul steht im Prozess und sieht, was
+davorsteht: die Summe aller Einzelinstanzen dieses Auftrags. Eine Regel «je Instanz» wäre
+eine Aussage über etwas, das an dieser Stelle niemand fragt — bei drei Chargen ergäbe
+«10 %» dreimal eine eigene Ziehung, und die Zahl auf dem Bildschirm stimmte mit keiner
+davon überein. **Aufgerundet, mindestens eines, höchstens alle**: «0 von 5» ist keine
+Prüfung, sondern ihr Ausfall, und «12 von 5» keine Menge. Beide Grenzen sind die
+konservative Richtung — im Zweifel wird mehr geprüft, nicht weniger.
 
-**Gezogen wird bei der ANKUNFT** — nicht bei der Freigabe. Vorher steht die Menge nicht
-fest: eine Abweichung kann Stücke entzogen, eine Rückführung welche hinzugefügt haben.
-`sampling.ensure` läuft darum genau dann, wenn Stücke an einem Modul ankommen (Start und
-jedes Vorrücken), und ist **idempotent** je (Modul, Instanz).
+**Gezogen wird, wenn das Modul ERREICHT wird** — nicht bei der Freigabe und nicht je
+Welle. Vorher steht die Menge nicht fest: eine Abweichung kann Stücke entzogen haben. Und
+die Stücke kommen in **Wellen** an (ein Vorgang ist eine Instanz, §4.4) — zöge man je
+Welle, wäre «die Hälfte» in Wahrheit «die Hälfte aus jeder Kiste», also wieder die Regel
+je Instanz. `sampling.ensure` zieht darum **einmal je Modul**, über den vollen Bestand
+des Auftrags, und ist **idempotent** je Modul.
 
 **Zufällig, aber eingefroren.** Wer gezogen wurde, entscheidet `random.sample` über die
 nach id sortierte Menge — und das Ergebnis steht als `sample`-Ereignis im Log
@@ -1038,27 +1056,27 @@ zwischen «welchen Zustand willst du?» (eine Eingabe, die man falsch ausfüllen
 | | |
 |---|---|
 | Übergang | `Im Prozess` → `Verschrottet` bzw. `Gesperrt`. **Terminal** (§4.6): das Stück verlässt den Auftrag. |
-| Anlegen | **Eine** Angabe: die Ausprägung. Keine Erfassungspunkte, keine Stichprobe. |
+| Anlegen | **Zwei** Angaben, beide Pflicht: die Ausprägung und der **Grund**. Keine Erfassungspunkte, keine Stichprobe. |
 | Laufzeit | Eine Zeile je Instanz (§4.4) – dieselbe wie überall, inklusive Scan-Pflicht. |
-| **Ausführen** | Verifizieren · beim Sperren den **Grund** erfassen · Zustand setzen · loggen · das Stück verlässt den Auftrag. |
+| **Ausführen** | Verifizieren · Zustand setzen · loggen · das Stück verlässt den Auftrag. **Nichts zu erfassen** – der Grund steht in der Definition. |
 
 **Teilmengen gibt es hier nicht.** Was am Modul ankommt, wird ausgesondert – ohne Auswahl
 und ohne Stichprobenmechanismus. Wer nur einen Teil meint, gibt nur diesen Teil in den
 Auftrag; eine zweite Auswahl daneben wäre ein zweiter Weg zur selben Entscheidung.
 
-**Der Grund ist Pflicht — aber nur beim Sperren.** Eine Sperre ohne Begründung ist in drei
-Monaten wertlos: niemand weiss mehr, ob man sie aufheben darf, und im Zweifel bleibt das
-Teil für immer liegen. Beim **Verschrotten** ist der Scan die Bestätigung – das Teil ist
-weg, ein zweites Feld macht den Fall nicht häufiger richtig, sondern nur länger.
+**Der Grund ist Pflicht — und er wird beim MODELLIEREN gegeben.** Warum an dieser Stelle
+ausgesondert wird, ist eine Eigenschaft des Ablaufs («Ausschuss aus der Sichtprüfung») und
+lautet bei jedem Stück gleich; am Band wäre es ein Feld, das immer dasselbe aufnimmt —
+eine Erfassung ohne Erkenntnis. Ohne Grund ist das Modul **nicht anlegbar**: eine
+Aussonderung, deren Anlass später niemand mehr kennt, ist ein Loch im Nachweis. Er gilt
+für **beide** Ausprägungen — beim Sperren, weil sonst niemand weiss, ob man sie aufheben
+darf; beim Verschrotten, weil es endgültig ist und die Frage «warum» dann gar nicht mehr
+gestellt werden kann.
 
-Der Grund ist dabei **kein neuer Mechanismus**, sondern ein ganz gewöhnlicher
-Erfassungspunkt (`text`) – nur einer, den das **Modul** deklariert statt ihn erfragen zu
-lassen. Wäre er konfigurierbar, könnte man ihn wegkonfigurieren, und genau er ist der
-Sinn der Sperre. Er erbt damit Prüfung, Speicherung am Stück und Anzeige.
-
-*Der Erfassungstyp «Auswahl aus einer Liste» wäre hier die naheliegende Verfeinerung – es
-gibt ihn bewusst nicht (§9.1). Kommt er, ist der Grund-Punkt genau dieselbe Zeile, nur mit
-anderem Typ.*
+*Ein Erfassungspunkt ist er damit **nicht** mehr: das Modul erfasst zur Laufzeit gar
+nichts, der Scan ist die Bestätigung. Er steht in der Definition (`config.reason`) und
+reist als `ProcessStepResponse.reason` an die Ausführungsstelle – als Auskunft, nicht als
+Eingabefeld.*
 
 ---
 
@@ -1575,8 +1593,8 @@ einfachste, die die Regeln erfüllt, und jede ist an einer Stelle änderbar.
 | **Der Auftrag kennt `released` und `completed`** | «Abgeschlossen» ist abgeleitet: alle Stücke sind durch. Kein Feld, das jemand von Hand setzt. |
 | **Ein Modul bewegt alle Stücke einer INSTANZ, die davor stehen** | *(Ersetzt «alle Stücke, die davor stehen».)* Ein Bestätigen je Stück wäre bei 500 Stück unbedienbar — je **Instanz** ist es die richtige Grösse, weil der Scan die Instanz verifiziert (§4.4): eine Charge ist ein Griff, zwölf Einzelteile sind zwölf. Die Historie bleibt **je Stück** ein eigener Eintrag. |
 | **Die Datenerfassung erfasst EINMAL je Instanz** | *(Ersetzt «einmal für alle Davorstehenden» — entschieden über §4.4.)* Nicht die bequemere, sondern die einzig mögliche Grösse: ein Wertesatz gehört zu **einem** Urteil, und verifiziert wird eine Instanz. **Gespeichert wird weiterhin je Einzelinstanz**, damit die Zeile in deren Historie steht. |
-| **Die Stichprobe wird zufällig gezogen, nicht gerechnet** | «Jedes n-te Stück» wäre vorhersagbar und damit als Stichprobe wertlos. Gezogen wird bei der **Ankunft** (vorher steht die Menge nicht fest) und **eingefroren im Log** — sie ändert sich nicht mehr, wenn jemand die Seite neu lädt (§9.3). |
-| **Die Stichprobenregel gilt je Instanz** | Ein Los ist die Instanz (ISO 2859-1). «10 % von drei Chargen» heisst 10 % aus jeder; je Auftrag gerechnet bliebe eine ganze Charge womöglich ungeprüft. |
+| **Die Stichprobe wird zufällig gezogen, nicht gerechnet** | «Jedes n-te Stück» wäre vorhersagbar und damit als Stichprobe wertlos. Gezogen wird, wenn das Modul **erreicht** wird (vorher steht die Menge nicht fest), und **eingefroren im Log** — sie ändert sich nicht mehr, wenn jemand die Seite neu lädt (§9.3). |
+| **Die Stichprobenregel gilt über die GESAMTMENGE** | *(Ersetzt «je Instanz».)* Ein Modul sieht die Summe dessen, was davorsteht – «10 %» heisst 10 % davon. Je Instanz gerechnet stünde «10 %» am Bildschirm, während in Wahrheit aus jeder Kiste einzeln gezogen wird (und aus einer Kiste mit einem Stück immer dieses eine). |
 | **Ein «nicht bestanden» hält die GANZE Instanz an** | Auch die nicht gezogenen Stücke: eine durchgefallene Stichprobe ist nicht mehr repräsentativ, der Rest ist verdächtig (Sortierprüfung). Ihn weiterlaufen zu lassen hiesse, ihn hinterher wieder einzusammeln. |
 | **Die 100 %-Kontrolle ist ein gewöhnlicher Auftrag** | Kein neuer Mechanismus — nur eine andere Vorbelegung (der ungeprüfte Rest statt der Durchfaller). Ihr Umfang ist der Rest **dieser Instanz an diesem Modul**: Stücke, die anderswo laufen oder längst am Lager liegen, hat dieses Modul nie behandelt, und eine Aussage über sie wäre eine über Material, das hier nie war. |
 | **Die Nummern der Entscheidungs-Gruppen kommen erst auf Klick** | Bei einer 6000er-Charge wäre der «Rest» sechstausend Nummern — mitgeliefert bei jedem Öffnen des Auftrags. Eigener Endpunkt (`GET …/steps/{id}/hold`). |

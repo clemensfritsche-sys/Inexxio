@@ -610,6 +610,11 @@ interface Hit {
 export function toDiagramSteps(steps: ProcessStepResponse[] | null | undefined): DiagramStep[] {
   return (steps ?? []).map((s) => ({
     id: s.id, moduleType: s.module_type, label: s.label,
+    // **Farbe und «Ausgang?» reisen mit dem Schritt** – aus derselben Registry, aus der
+    // auch die Beschriftung kommt. Sie hier zu vergessen ist nicht mehr möglich; genau
+    // das war der Grund, warum die Aussonderung nach dem Freigeben die Farbe der
+    // Datenerfassung trug.
+    tone: s.tone, terminal: s.terminal,
     // **Worauf das Modul wartet** – die Sperre wird eine Ebene tiefer gerendert
     // (`StepCard`), damit kein Modul sie selbst kennen muss (#698).
     waitingFor: s.waiting_for ?? [],

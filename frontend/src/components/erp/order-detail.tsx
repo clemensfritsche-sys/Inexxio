@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Layers, PackageX } from 'lucide-react';
+import { ClipboardList, Layers, MessageSquareText, PackageX } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import type {
   ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, RelatedOrder,
@@ -289,6 +289,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
     if (!template) return null;
     return (template.steps ?? []).map((s) => ({
       id: s.id, moduleType: s.module_type, label: s.label,
+      tone: s.tone, terminal: s.terminal,
     }));
   }, [template]);
 
@@ -424,21 +425,25 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
             // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
             // (Scan-Regel §3). Was zu scannen ist, ist dieselbe Liste wie das, was zu
             // tun ist; eine zweite daneben wäre eine zweite Wahrheit.
-            <CaptureWork
-              orderObjectId={order.object_id}
-              stepId={step.id}
-              points={pointsOf(order, step.id)}
-              action={stepInfo(order, step.id)?.action ?? ''}
-              work={workOf(order, step.id)}
-              busy={busy}
-              onDirty={setEntryStarted}
-              onDeviate={onDeviate}
-              onConfirm={(instanceObjectId, verification, values) =>
-                onConfirm(step.id, instanceObjectId, verification, values)}
-            />
+            <div className="flex flex-col gap-2">
+              <Reason text={stepInfo(order, step.id)?.reason} />
+              <CaptureWork
+                orderObjectId={order.object_id}
+                stepId={step.id}
+                points={pointsOf(order, step.id)}
+                action={stepInfo(order, step.id)?.action ?? ''}
+                work={workOf(order, step.id)}
+                busy={busy}
+                onDirty={setEntryStarted}
+                onDeviate={onDeviate}
+                onConfirm={(instanceObjectId, verification, values) =>
+                  onConfirm(step.id, instanceObjectId, verification, values)}
+              />
+            </div>
           ) : (
             <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
-              action={stepInfo(order, step.id)?.action} />
+              action={stepInfo(order, step.id)?.action}
+              reason={stepInfo(order, step.id)?.reason} />
           )),
         }}
         parents={order.parents ?? []}
@@ -459,17 +464,37 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
  * zu lassen. Die erfassten *Werte* eines erledigten Moduls stehen nicht hier, sondern in
  * der Historie – sie sind ein Ereignis, keine Eigenschaft des Moduls.
  */
-function PointList({ points, sample, action }: {
-  points: CapturePoint[]; sample?: string; action?: string;
+/**
+ * **Warum hier ausgesondert wird** – aus der Definition, nicht vom Band.
+ *
+ * Der Grund wird beim Modellieren gegeben (`domain/modules.Aussondern`) und ist damit
+ * für jedes Stück derselbe. Er steht an der Ausführungsstelle, weil dort die Frage
+ * gestellt wird – aber als **Auskunft**, nicht als Eingabefeld.
+ */
+function Reason({ text }: { text?: string | null }) {
+  if (!text) return null;
+  return (
+    <p className="flex items-start gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
+      <MessageSquareText size={13} style={{ flex: 'none', marginTop: 1, color: 'var(--fg-4)' }} />
+      <span>{text}</span>
+    </p>
+  );
+}
+
+function PointList({ points, sample, action, reason }: {
+  points: CapturePoint[]; sample?: string; action?: string; reason?: string | null;
 }) {
   // **Ein Modul ohne Erfassungspunkte hat trotzdem etwas zu sagen.** Das Aussondern
-  // erfasst nichts – was es tut, steht in seinem Verb, und ohne diese Zeile stünde die
-  // Karte leer da.
+  // erfasst nichts – was es tut, steht in seinem Verb und warum in seinem Grund; ohne
+  // diese Zeilen stünde die Karte leer da.
   if (!points.length) {
     return action ? (
-      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
-        <PackageX size={13} style={{ color: 'var(--fg-4)' }} />
-        <span>{action}</span>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
+          <PackageX size={13} style={{ color: 'var(--fg-4)' }} />
+          <span>{action}</span>
+        </div>
+        <Reason text={reason} />
       </div>
     ) : null;
   }
