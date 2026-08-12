@@ -913,7 +913,9 @@ def test_a_sixth_capture_type_is_one_new_file():
 
     pkg = BACKEND / "app" / "domain" / "capture_types"
     files = {p.stem for p in pkg.glob("*.py")} - {"__init__", "base"}
-    assert {t.key for t in ct.ALL} == {"text", "bool", "photo", "signature", "measure"}
+    # **Keine Liste der Typen hier.** Sie wäre genau die zweite Aufzählung, vor der
+    # dieser Test warnt – und der sechste Typ («Objekt scannen») hat gezeigt, dass die
+    # Vorhersage stimmt: er war **eine neue Datei** und sonst nichts.
     assert len(files) == len(ct.ALL), (
         "Jede Datei im Paket ist genau ein Typ – sonst wird die Registry zur Aufzählung."
     )
@@ -3381,10 +3383,19 @@ def test_a_terminal_module_is_an_exit_not_a_step():
 
     proc = _code(_read(BACKEND / "app" / "services" / "process.py"))
     body = _body(proc, "confirm_step")
-    assert "if module.terminal:" in body
-    assert body.index("if module.terminal:") < body.index("_finish("), (
-        "Das terminale Modul läuft ins Ende-Objekt – und löst damit eine Rückführung aus, "
-        "die es nicht geben darf."
+    # **Wer geht, entscheidet das Modul** – die Ausführung teilt nur noch in zwei Gruppen
+    # mit gleichem Ziel (dasselbe Muster wie ``_finish``). Ein Ausgang führt alles
+    # hinaus, also bleibt die Gruppe der Weiterlaufenden leer …
+    assert "_split_at_exit(" in body, "Die Teilung steht nicht mehr an der Ausführung."
+    # … und **nur** sie läuft ins Ende-Objekt. Das ist die Regel, die hier zählt: ein
+    # terminales Modul darf ``_finish`` nie erreichen, sonst löste es eine Rückführung
+    # aus, die es nicht geben darf.
+    assert "if staying:" in body and body.index("if staying:") < body.index("_finish("), (
+        "Das Ende-Objekt hängt nicht mehr an der Gruppe, die weiterläuft."
+    )
+    split = _body(proc, "_split_at_exit")
+    assert "module.terminal" in split, (
+        "Ohne die Eigenschaft entschiede die Teilung nach dem Modulnamen."
     )
 
 

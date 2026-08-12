@@ -43,6 +43,7 @@ Wörter, wo sie dasselbe meinen.
 | `freigegeben` | Freigegeben | Einzelinstanz · Artikel | nein | **ja** | grün | **lebend** |
 | `im_prozess` | Im Prozess | Einzelinstanz · Auftrag | nein | **ja** | gelb | **lebend** |
 | `gesperrt` | Gesperrt | Einzelinstanz | nein | **ja** | gelb | **lebend** |
+| `verbaut` | Verbaut | Einzelinstanz | nein | **ja** | **grün** | historisch |
 | `verschrottet` | Verschrottet | Einzelinstanz | **ja** | **nein** | rot | historisch |
 | `abgeschlossen` | Abgeschlossen | Auftrag | – | – | grün | – |
 | `abgebrochen` | Abgebrochen | Auftrag | – | – | rot | – |
@@ -58,6 +59,11 @@ Wörter, wo sie dasselbe meinen.
 - **`gesperrt`** — Aus dem Verkehr gezogen, **physisch noch da**. Nicht einplanbar,
   solange die Sperre gilt — **aber selektierbar**: das Greifen durch einen Auftrag **ist**
   das Aufheben. Es gibt bewusst keinen «Entsperren»-Endpunkt.
+- **`verbaut`** — **Steckt in einem anderen Stück.** Es hat seinen Zweck erreicht: kein
+  Mangel, kein Verlust – darum grün. Zur **Historie**, weil es nicht im Regal liegt;
+  als Bestand geführt wäre es Material, das niemand greifen kann, ohne vorher etwas
+  auseinanderzunehmen. **Nicht endgültig:** Demontage ist real, und ein Auftrag darf das
+  Stück zurückholen – das Greifen IST der Ausbau, genau wie beim Sperren.
 - **`verschrottet`** — Aus dem Verkehr gezogen und **physisch weg**. Endgültig.
 - **`abgeschlossen`** — Der Auftrag ist **seinen definierten Weg zu Ende gegangen**.
   Nicht «hat das Ende-Objekt passiert»: ein **Ausgang** (terminales Modul) ist ebenfalls
@@ -68,10 +74,15 @@ Wörter, wo sie dasselbe meinen.
 **Nur ein Einzelinstanz-Zustand darf terminal sein.** Er ist der einzige, der gespeichert
 und geändert wird; Auftrags- und Artikelzustände sind abgeleitet bzw. anderswo geführt.
 
-**Alles Weitere ist abgeleitet, nicht zweitgepflegt:** Farbe folgt aus `terminal`
-(endgültig = rot, aufhebbar = gelb), «selektierbar» folgt aus `terminal`, die
-Bestands-Zugehörigkeit ist eine Eigenschaft am Status. Es darf keine zweite Liste geben,
-die jemand nachziehen muss.
+**Alles Weitere ist abgeleitet, nicht zweitgepflegt:** «selektierbar» folgt aus
+`terminal`, der Schutz in der Datenbank ebenso, und die Bestands-Zugehörigkeit ist eine
+Eigenschaft am Status. Es darf keine zweite Liste geben, die jemand nachziehen muss.
+
+**Die Farbe folgt NICHT aus `terminal`.** Hier stand einmal «endgültig = rot, aufhebbar =
+gelb» – das stimmte, solange die einzigen Ausgänge *Verschrottet* und *Gesperrt* hiessen.
+Mit *Verbaut* stimmt es nicht mehr: aufhebbar **und** grün, weil es seinen Zweck erreicht
+hat. Der Ton sagt «gut · offen · Problem», `terminal` sagt «gibt es einen Weg zurück» –
+zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand falsch.
 
 > **Drei Wörter beantworten hier zwei Fragen** (`CONCEPT_REVIEW` §3). Kein Verhalten ist
 > davon falsch — die Kosten trägt, wer neu dazukommt, und `is_active` hat gezeigt, dass
@@ -103,6 +114,8 @@ die jemand nachziehen muss.
 | T5 | `im_prozess` | `im_prozess` | **step** | Modul «Datenerfassung», Urteil **bestanden**. Ein Durchläufer. |
 | T6 | `im_prozess` | `verschrottet` | **step** | Modul «Aussondern», Ausprägung *Verschrotten*. **Terminal.** |
 | T7 | `im_prozess` | `gesperrt` | **step** | Modul «Aussondern», Ausprägung *Sperren*. |
+| T7b | `im_prozess` | `verbaut` | **step** | Modul «Verbrauch», für die **genannten Artikel**. Der Rest passiert dasselbe Modul unverändert (T5) – der Ausgang gilt je Stück, nicht je Modul. |
+| T7c | `verbaut` | `im_prozess` | **start** | Auftragsfreigabe, verbautes Stück wird gegriffen → **Demontage**, ebenfalls eine Abweichung. |
 | T8 | `im_prozess` | `freigegeben` | **end** | Das Stück passiert das Ende-Objekt und kehrt **nirgends** zurück. Der Wert ist der `end_status` des Auftrags (heute immer `freigegeben`, an einer Stelle hinterlegt). |
 | T9 | `im_prozess` | `im_prozess` | **end** | Das Stück passiert das Ende-Objekt und **kehrt in seinen Quell-Auftrag zurück**. Es bleibt im Prozess — es ist ja in einem. |
 
@@ -124,6 +137,7 @@ die jemand nachziehen muss.
 - `freigegeben` → `verschrottet` / `gesperrt` **direkt**. Aussondern ist ein Modul; ein
   Auftrag muss das Stück erst greifen (T2), dann aussondern (T6/T7).
 - `gesperrt` → `verschrottet` **direkt**. Erst greifen (T4), dann aussondern.
+- `verbaut` → `verschrottet` **direkt**. Erst ausbauen (T7c), dann aussondern.
 - Jeder Wechsel **ohne** Log-Eintrag. Es gibt keinen.
 
 **Es gibt keine Umgehung.** Kein Parameter, kein Force-Flag, keine
@@ -312,6 +326,7 @@ Als prüfbare Sätze. Jeder ist so formuliert, dass ein Test ihn widerlegen kön
 | U4 | `im_prozess`, Modul **angehalten** (letztes Urteil «nicht bestanden») | **Erneut erfassen** — das nächste Urteil ersetzt das letzte. Zusätzlich: ein Abweichungsauftrag kann das Stück greifen. **Der Halt ist eine Auskunft, keine Sperre.** |
 | U5 | `im_prozess`, Modul **gesperrt** (wartet auf Rückführung) | Die ausstehende Rückführung abschliessen — dann fällt die Sperre von selbst. Oder: in der Abweichung wird ausgesondert, dann endet die Wartekette. |
 | U6 | `gesperrt`, keine offene Zugehörigkeit — **gesperrter Bestand** | Ein **ganz gewöhnlicher** Auftrag greift es (T4). Das Greifen IST das Aufheben; es gibt bewusst keinen Entsperren-Endpunkt. |
+| U6b | `verbaut` — steckt in einem anderen Stück | Ein **ganz gewöhnlicher** Auftrag greift es (T7c). Das Greifen IST der Ausbau; es gibt bewusst keinen «demontieren»-Endpunkt. **Die Stückliste des Produkts verliert es dabei nicht** – sie kommt aus dem Log, und was verbaut *war*, bleibt verbaut gewesen. |
 | U7 | `verschrottet` | **Kein Ausgang — ausdrücklich terminal.** Das ist die Zusage, keine Sackgasse. |
 
 **Unmögliche Kombinationen** (sie dürfen nicht vorkommen, und ihr Auftreten ist ein
@@ -419,14 +434,16 @@ einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts beh
 4. **Weitere Modultypen.** Zwei sind fertig (Datenerfassung, Aussondern). Was ein Modul
    mit Aussenwirkung (Einkauf, Verkauf) beim Herausnehmen eines Stücks tun muss, ist noch
    nicht entschieden — der Schalter dafür steht an einer Stelle.
-5. **Montage, Teilung, Verbrauch** (§4.6, `CONCEPT_REVIEW` §1.1). Die **wichtigste**
-   offene Entscheidung, und sie steht **vor** dem nächsten Modultyp: er würde sonst auf
-   einem Fundament stehen, das sich noch bewegt. Zu entscheiden ist dreierlei —
-   (a) ein Endzustand `verbaut` im Katalog, (b) ein Modul, das ihn setzt, (c) ob
-   `_assert_single_new` von «eine `Neu`-Zeile und sonst nichts» auf «**höchstens** eine
-   `Neu`-Zeile» präzisiert wird. Der Versionsstempel bleibt dabei eindeutig, denn es gäbe
-   weiterhin nur eine Vorlage. Danach ist die **Stückliste eine Ableitung** über den
-   gemeinsamen Auftrag — kein neues Feld, keine zweite Beziehung.
+5. ~~**Montage, Teilung, Verbrauch.**~~ **Entschieden und gebaut** (Modul «Verbrauch»):
+   der Zustand `verbaut` steht im Katalog (**nicht** terminal – Demontage ist real), das
+   Modul setzt ihn **je Artikel** statt je Modul, und `_assert_single_new` heisst jetzt
+   «höchstens eine `Neu`-Zeile». Die **Stückliste ist eine Ableitung** über den
+   gemeinsamen Auftrag (`services/genealogy`), gelesen aus dem **Log** – darum überlebt
+   sie eine Demontage. Wächter: `tests/test_consumption_module.py`, Matrix S11 · S11b ·
+   S16 · S17 · S18.
+   **Offen bleibt die Teilung** (eine 6-m-Stange in drei Stücke): sie ist die
+   Gegenrichtung derselben Lücke und braucht zusätzlich eine Antwort darauf, wie neue
+   Stücke **ohne** Erzeugungsauftrag entstehen.
 6. **Ort.** Ob und wie ein Halter je Einzelinstanz geführt wird (§4.6). Bis dahin ist
    *«wo ist es»* für freien Bestand unbeantwortbar. Der Vorgänger hatte eine
    Standort-Kette; sie wieder aufzunehmen heisst, ihre Fehler nicht mitzunehmen.

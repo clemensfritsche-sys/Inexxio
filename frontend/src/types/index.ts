@@ -204,6 +204,8 @@ export type StockState = components['schemas']['StockState'];
 export type ArticleStock = components['schemas']['ArticleStock'];
 // Eine Seite Einzelinstanz-Nummern (Ebene 3, auf Klick).
 export type UnitPage = components['schemas']['UnitPage'];
+export type Genealogy = components['schemas']['Genealogy'];
+export type GenealogyPart = components['schemas']['GenealogyPart'];
 
 /**
  * Ein Erfassungspunkt aus der Definition eines Moduls (`process_steps.config`).

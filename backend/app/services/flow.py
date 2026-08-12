@@ -274,7 +274,8 @@ class _Row:
     ==========================  =============================================
     aktiv, Punkt gesetzt        steht hier (geblieben **oder** zurückgekehrt)
     geschlossen, Punkt gesetzt  ausgeschert – gerade in einem anderen Auftrag
-    geschlossen, Punkt ``NULL`` angekommen, hinter dem Ende
+    geschlossen, Punkt ``NULL`` **hinaus** – über das Ende oder über ein Modul,
+                                das Stücke hinausführt (``left_at`` sagt, welches)
     aktiv, Punkt ``NULL``       gibt es nicht (wer das Ende passiert, wird frei)
     ==========================  =============================================
     """
@@ -289,6 +290,9 @@ class _Row:
     returned: bool = False
     #: Kommt es (noch) zurück? Über die ganze Kette gelesen (§3.5).
     coming_back: bool = False
+    #: Nur für Hinausgegangene: das **Modul**, an dem sie den Auftrag verlassen haben
+    #: (Aussondern, Verbrauch). ``None`` heisst: über das Ende-Objekt.
+    left_at: Optional[int] = None
 
 
 def _returned_here(db: Session, order_id: int) -> set[tuple[int, Optional[int]]]:
@@ -322,6 +326,38 @@ def _left_through(db: Session, order_id: int) -> dict[int, int]:
     # Die letzte Zeile je Stück gewinnt: ein Stück kann denselben Auftrag mehrfach
     # verlassen haben, und gemeint ist, wo es **jetzt** hinausgegangen ist.
     return {int(uid): int(to) for uid, to in rows if to is not None}
+
+
+def _exit_points(db: Session, order_id: int) -> dict[int, int]:
+    """Je Stück das **Modul, an dem es diesen Auftrag verlassen hat** — aus dem Log.
+
+    Es gibt genau zwei Arten, einen Auftrag zu verlassen, und der Log unterscheidet sie
+    von selbst: über das **Ende-Objekt** (letzter Eintrag ``end``) oder über ein
+    **Modul**, das ein Stück hinausführt (letzter Eintrag ``step``). Ein Stück, das noch
+    läuft, hat eine offene Zugehörigkeit und kommt hier gar nicht vor.
+
+    **Damit ist der Ausgang eine Regel statt eines Sonderfalls.** Vorher stand im Bild
+    «ist das letzte Modul terminal? dann hängt die Ausgangskante daran» – das trug genau
+    einen Fall (Aussondern am Schluss) und wäre beim **Verbrauch** falsch: der führt
+    einen Teil seiner Stücke mitten im Ablauf hinaus, während der Rest weiterläuft. Ohne
+    diese Ableitung landeten die verbauten Stücke auf der Kante hinter dem Ende – also
+    an einer Stelle, die sie nie passiert haben.
+    """
+    last = (
+        select(
+            ProcessEvent.instance_unit_id.label("unit"),
+            func.max(ProcessEvent.id).label("last_id"),
+        )
+        .where(ProcessEvent.order_id == order_id)
+        .group_by(ProcessEvent.instance_unit_id)
+        .subquery()
+    )
+    rows = db.execute(
+        select(ProcessEvent.instance_unit_id, ProcessEvent.step_id)
+        .join(last, ProcessEvent.id == last.c.last_id)
+        .where(ProcessEvent.kind == KIND_STEP, ProcessEvent.step_id.isnot(None))
+    ).all()
+    return {int(u): int(s) for u, s in rows}
 
 
 def _left_with(db: Session, order_id: int) -> dict[int, str]:
@@ -367,6 +403,7 @@ def _rows(db: Session, order: Order) -> list[_Row]:
     # zählt (§3.5); zweimal gelaufen wären es zwei Antworten auf eine Frage.
     coming = process.returning_home(db, order)
     left_with = _left_with(db, order.id)
+    left_at = _exit_points(db, order.id)
 
     out: list[_Row] = []
     for mid, at, active, status, unit_id in raw:
@@ -398,6 +435,10 @@ def _rows(db: Session, order: Order) -> list[_Row]:
             through=through.get(int(unit_id)),
             returned=(int(unit_id), at) in came_back,
             coming_back=int(unit_id) in coming,
+            # Nur wer draussen ist, ist irgendwo hinausgegangen. Bei einer offenen oder
+            # ausgescherten Zeile wäre der letzte Log-Eintrag eine Zwischenstation.
+            left_at=(left_at.get(int(unit_id))
+                     if not bool(active) and at is None else None),
         ))
     return out
 
@@ -494,30 +535,39 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
             else (lambda r: _here_at(r, at)),
         ))
 
-    # ►► **Ein terminales Modul IST der Ausgang** (``domain/modules.Module.terminal``). ◄◄
+        # ►► **Wer hier hinausgegangen ist, steht hier** – nicht am Ende. ◄◄
+        #
+        # Eine Kante ohne Ziel, wie die hinter dem Ende: der Prozess ist für diese Stücke
+        # zu Ende, es gibt keinen nächsten Knoten. Sie entsteht **aus dem Log** und nicht
+        # aus einer Eigenschaft des Modultyps – damit trägt dieselbe Zeile den Ausgang
+        # (alles geht) und den Verbrauch (ein Teil geht, der Rest läuft weiter).
+        gone = _pick(rows, lambda r: r.left_at == at)
+        if gone:
+            g.edges.append(_edge(
+                f"edge:exit:{at}", module_id(at), None, EDGE_AXIS, True, gone,
+            ))
+
+    # ►► **Hinter einem Ausgang gibt es kein Ende-Objekt** (``modules.Module.terminal``). ◄◄
     #
     # Dieselbe Eigenschaft, aus der ``domain/chain`` seinen Freigabe-Fehler zieht und der
-    # Editor sein «dahinter geht nichts mehr»: hinter ihm gibt es kein Ende-Objekt, weil
-    # dort nie ein Stück ankommt (``process.confirm_step`` überspringt ``_finish``).
+    # Editor sein «dahinter geht nichts mehr»: dort kommt nie ein Stück an
+    # (``process.confirm_step`` überspringt ``_finish``), also wäre das Ende ein Knoten,
+    # den niemand je passiert.
     #
-    # Ein Ende-Objekt trotzdem zu zeichnen war nicht bloss unschön, sondern nachweislich
-    # falsch: die ausgesonderten Stücke landeten auf der Kante **hinter** dem Ende, und
-    # die galt als nicht gegangen (es gab ja kein ``end``-Ereignis). Genau das hat der
-    # Wächter unten gemeldet – zu Recht, und die Ursache war die Zeichnung, nicht er.
-    exit_at = steps[-1] if steps and modules.get(steps[-1].module_type).terminal else None
-    arrived = _pick(rows, lambda r: not r.active and r.at is None)
-    if exit_at is not None:
-        g.edges.append(_edge(
-            "edge:exit:done", module_id(exit_at.id), None, EDGE_AXIS,
-            tally.passed.get(exit_at.id, 0) > 0, arrived,
-        ))
-    else:
+    # **Nur diese eine Frage hängt noch am Modultyp.** Wer wo hinausgegangen ist, steht
+    # oben je Modul und kommt aus dem Log – ein Verbrauchsmodul ist kein Ausgang (hinter
+    # ihm läuft das Produkt weiter) und führt trotzdem Stücke hinaus.
+    if not (steps and modules.get(steps[-1].module_type).terminal):
         g.nodes.append(Node(id=NODE_END, kind=NODE_END))
         _link(g, prev, NODE_END, tally.ended > 0, [])
         # Hinter dem Ende gibt es keinen Knoten mehr – angekommene Stücke stehen trotzdem
         # irgendwo, und «irgendwo» ist die Kante, die aus dem Ende herausführt.
         g.edges.append(_edge(
-            "edge:end:done", NODE_END, None, EDGE_AXIS, tally.ended > 0, arrived,
+            "edge:end:done", NODE_END, None, EDGE_AXIS, tally.ended > 0,
+            # **Angekommen ist, wer über das Ende ging** – nicht, wer irgendwie draussen
+            # ist. Ein verbautes Stück ist ebenfalls geschlossen und ohne Punkt, hat das
+            # Ende aber nie gesehen; es steht an seinem Modul (``left_at``).
+            _pick(rows, lambda r: not r.active and r.at is None and r.left_at is None),
         ))
 
     g.neighbours = _merged(g.neighbours)

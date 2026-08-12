@@ -928,6 +928,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/instances/{object_id}/units/{suffix}/genealogy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unit Genealogy
+         * @description **Woraus besteht dieses Stück – und worin steckt es?**
+         *
+         *     Beides ist eine Ableitung über den Ereignis-Log (``services/genealogy``), kein
+         *     gespeichertes Feld: die Stückliste sind die Stücke, die einen gemeinsamen Auftrag als
+         *     ``Verbaut`` verlassen haben.
+         *
+         *     **Erst auf Klick**, wie die Nummern selbst: eine Baugruppe kann hunderte Teile haben,
+         *     und sie in jede Zeile der Stückliste mitzuliefern hiesse, die Genealogie bei jedem
+         *     Öffnen einer Charge vollständig aufzulösen.
+         */
+        get: operations["unit_genealogy_api_v1_erp_instances__object_id__units__suffix__genealogy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/objects/{object_id}/references": {
         parameters: {
             query?: never;
@@ -1924,6 +1952,63 @@ export interface components {
             /** At Step Id */
             at_step_id?: number | null;
         };
+        /**
+         * Genealogy
+         * @description **Woraus besteht es – und worin steckt es?** Beide Richtungen, eine Antwort.
+         */
+        Genealogy: {
+            /**
+             * Parts
+             * @default []
+             */
+            parts: components["schemas"]["GenealogyPart"][];
+            /**
+             * Built Into
+             * @default []
+             */
+            built_into: components["schemas"]["GenealogyHost"][];
+        };
+        /**
+         * GenealogyHost
+         * @description Ein Auftrag, in dem dieses Stück verbaut wurde, samt dem, was dort entstand.
+         */
+        GenealogyHost: {
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /**
+             * Products
+             * @default []
+             */
+            products: components["schemas"]["GenealogyPart"][];
+        };
+        /**
+         * GenealogyPart
+         * @description Ein Teil in einer Stückliste – **abgeleitet**, nicht gespeichert.
+         *
+         *     ``still_in`` trennt die beiden Fragen, die eine Stückliste beantworten muss: *was
+         *     wurde verbaut* (der Log, unveränderlich) und *was steckt heute noch drin* (der
+         *     Zustand). Ein ausgebautes Teil bleibt in der Liste – die Vergangenheit bekommt eine
+         *     Fortsetzung, sie wird nicht gelöscht.
+         */
+        GenealogyPart: {
+            /** Unit Id */
+            unit_id: number;
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+            /** Article Name */
+            article_name?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /**
+             * Still In
+             * @default true
+             */
+            still_in: boolean;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2041,6 +2126,11 @@ export interface components {
             status: string;
             /** Order Object Id */
             order_object_id?: number | null;
+            /**
+             * Parts Count
+             * @default 0
+             */
+            parts_count: number;
             /**
              * Created At
              * Format: date-time
@@ -4462,6 +4552,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnitPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unit_genealogy_api_v1_erp_instances__object_id__units__suffix__genealogy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                suffix: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Genealogy"];
                 };
             };
             /** @description Validation Error */

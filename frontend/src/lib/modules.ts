@@ -13,7 +13,8 @@
  */
 
 import {
-  Camera, ClipboardCheck, PackageX, PenLine, Ruler, ThumbsUp, Type, type LucideIcon,
+  Blocks, Camera, ClipboardCheck, PackageX, PenLine, Ruler, ScanLine, ThumbsUp, Type,
+  type LucideIcon,
 } from 'lucide-react';
 
 /** Erfassungspunkt-Typen (`domain/capture_types/`). */
@@ -23,12 +24,14 @@ export const CAPTURE_ICON: Record<string, LucideIcon> = {
   photo: Camera,
   signature: PenLine,
   measure: Ruler,
+  object: ScanLine,
 };
 
 /** Prozessschrittmodule (`domain/modules.py`). */
 export const MODULE_ICON: Record<string, LucideIcon> = {
   datenerfassung: ClipboardCheck,
   aussondern: PackageX,
+  verbrauch: Blocks,
 };
 
 /**
@@ -183,6 +186,15 @@ export interface ModuleDraft {
    * Stück gleich. Ohne ihn ist das Modul nicht anlegbar (`Aussondern.clean_config`).
    */
   reason: string;
+  /**
+   * Nur «Verbrauch»: die **Objektnummern der Artikel**, deren Stücke hier verbaut werden.
+   *
+   * Artikel und nicht Definitionszeilen – dasselbe Modul wird auch in der
+   * **Artikel-Vorlage** definiert (der Erzeugungsprozess IST der Montageplan), und dort
+   * gibt es noch gar keine Zeilen. Eine Vorlage kann «Rahmen, Motor» meinen, aber nicht
+   * «Zeile 2».
+   */
+  articles: number[];
 }
 
 /**
@@ -241,12 +253,19 @@ export const MODULE_FORM: Record<string, {
     config: (m) => ({ mode: m.mode, reason: m.reason }),
     incomplete: (m) => (m.reason.trim() ? null : 'Grund fehlt'),
   },
+  verbrauch: {
+    // Eine Angabe, und sie ist Pflicht: **welche Artikel** werden hier verbaut. Ohne sie
+    // wäre das Modul ein Durchgang, der aussieht wie eine Montage.
+    config: (m) => ({ articles: m.articles }),
+    incomplete: (m) => (m.articles.length ? null : 'kein Artikel gewählt'),
+  },
 };
 
 /** Ein frischer Entwurf dieses Modultyps – mit den Vorgaben, die das Backend kennt. */
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
+    articles: [],
   };
 }
 

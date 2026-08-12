@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2 } from 'lucide-react';
+import { Columns2, Grid2x2, Layers, Lock, Percent, Search, Trash2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ModuleCatalog } from '@/types';
+import type { ArticleOption, ModuleCatalog } from '@/types';
 import {
   CAPTURE_ICON, DISPOSAL_MODES, MODULE_ICON, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
   moduleTone,
@@ -238,7 +238,86 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
 }>> = {
   datenerfassung: ModuleFields,
   aussondern: DisposalFields,
+  verbrauch: ConsumptionFields,
 };
+
+/**
+ * **Verbrauch — welche Artikel werden hier verbaut.**
+ *
+ * **Artikel, nicht Zeilen.** Dasselbe Modul wird auch in der Artikel-Vorlage definiert –
+ * der Erzeugungsprozess IST der Montageplan –, und dort gibt es noch keine
+ * Definitionszeilen. Eine Vorlage kann «Rahmen, Motor, Schraube M6» meinen, aber nicht
+ * «Zeile 2». Ob die genannten Artikel im Auftrag wirklich vorkommen, prüft die Freigabe
+ * (`process._assert_consumables_present`) – hier steht keine zweite Regel.
+ *
+ * Gewählte stehen als Chips oben, alles Weitere findet das Suchfeld. Bei tausend Artikeln
+ * ist eine Liste zum Durchklicken keine Auswahl.
+ */
+function ConsumptionFields({ module: m, onChange }: {
+  module: ModuleDraft;
+  types: { key: string; label: string }[];
+  onChange: (next: Partial<ModuleDraft>) => void;
+}) {
+  const [all, setAll] = useState<ArticleOption[]>([]);
+  const [q, setQ] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    api.getArticleOptions()
+      .then((rows) => { if (alive) setAll(rows); })
+      .catch(() => { if (alive) setAll([]); });
+    return () => { alive = false; };
+  }, []);
+
+  const byId = new Map(all.map((a) => [a.object_id, a]));
+  const term = q.trim().toLowerCase();
+  const hits = term
+    ? all.filter((a) => !m.articles.includes(a.object_id)
+        && (a.name.toLowerCase().includes(term) || String(a.object_id).includes(term)))
+      .slice(0, 6)
+    : [];
+
+  const toggle = (id: number, on: boolean) => onChange({
+    articles: on ? [...m.articles, id] : m.articles.filter((x) => x !== id),
+  });
+
+  return (
+    <div className="flex flex-col gap-2">
+      {m.articles.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {m.articles.map((id) => (
+            <span key={id}
+              className="flex items-center gap-1.5 rounded-full border border-border-1
+                         bg-bg-2 py-1 pl-2.5 pr-1.5 text-[12.5px] text-fg-2">
+              <span className="ix-tnum text-fg-3">{id}</span>
+              {byId.get(id)?.name ?? ''}
+              <button type="button" aria-label={`Artikel ${id} entfernen`}
+                onClick={() => toggle(id, false)}
+                className="rounded-full p-0.5 text-fg-4 hover:text-fg-1">
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="relative">
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-4" />
+        <input className={`${inputCls} pl-7`} value={q} onChange={(e) => setQ(e.target.value)}
+          aria-label="Artikel suchen"
+          placeholder={m.articles.length ? 'weiteren Artikel suchen …' : 'Artikel suchen …'} />
+      </div>
+      {hits.map((a) => (
+        <button key={a.object_id} type="button"
+          onClick={() => { toggle(a.object_id, true); setQ(''); }}
+          className="flex items-center gap-2 rounded-ds-md px-2 py-1 text-left text-[12.5px]
+                     text-fg-2 hover:bg-bg-2">
+          <span className="ix-tnum text-fg-4">{a.object_id}</span>
+          {a.name}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * **Die Stichprobe — eine Zeile, keine Maske.**

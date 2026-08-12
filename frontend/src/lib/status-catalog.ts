@@ -32,6 +32,7 @@ export interface StatusEntry {
 export const FREIGEGEBEN = "freigegeben";
 export const IM_PROZESS = "im_prozess";
 export const GESPERRT = "gesperrt";
+export const VERBAUT = "verbaut";
 export const VERSCHROTTET = "verschrottet";
 export const ABGESCHLOSSEN = "abgeschlossen";
 export const ABGEBROCHEN = "abgebrochen";
@@ -42,6 +43,7 @@ export const STATUS_CATALOG: readonly StatusEntry[] = [
   { value: FREIGEGEBEN, label: "Freigegeben", tone: "done", axes: ["unit", "article"], stock: "live", terminal: false },
   { value: IM_PROZESS, label: "Im Prozess", tone: "pending", axes: ["unit", "order"], stock: "live", terminal: false },
   { value: GESPERRT, label: "Gesperrt", tone: "pending", axes: ["unit"], stock: "live", terminal: false },
+  { value: VERBAUT, label: "Verbaut", tone: "done", axes: ["unit"], stock: "history", terminal: false },
   { value: VERSCHROTTET, label: "Verschrottet", tone: "danger", axes: ["unit"], stock: "history", terminal: true },
   { value: ABGESCHLOSSEN, label: "Abgeschlossen", tone: "done", axes: ["order"], stock: null, terminal: false },
   { value: ABGEBROCHEN, label: "Abgebrochen", tone: "danger", axes: ["order"], stock: null, terminal: false },

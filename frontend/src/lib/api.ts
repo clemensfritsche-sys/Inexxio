@@ -17,6 +17,7 @@ import type {
   Instance,
   ArticleStock,
   UnitPage,
+  Genealogy,
   ObjectReference,
   CompanySettings,
   UserProfile,
@@ -489,6 +490,16 @@ class ApiClient {
     p.set('limit', String(opts.limit ?? 60));
     p.set('offset', String(opts.offset ?? 0));
     return this.get(`/api/v1/erp/instances/${objectId}/units?${p}`);
+  }
+
+  /**
+   * **Woraus besteht ein Stück – und worin steckt es?** Beides abgeleitet aus dem
+   * Ereignis-Log (`services/genealogy`), kein gespeichertes Feld.
+   *
+   * Erst auf Klick, wie die Nummern selbst: eine Baugruppe kann hunderte Teile haben.
+   */
+  getUnitGenealogy(objectId: number, suffix: number): Promise<Genealogy> {
+    return this.get(`/api/v1/erp/instances/${objectId}/units/${suffix}/genealogy`);
   }
 
   // ─── Auftrag ───────────────────────────────────────────────────────────────

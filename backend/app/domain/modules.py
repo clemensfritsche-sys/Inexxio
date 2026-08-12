@@ -24,6 +24,7 @@ from . import capture_types, sampling, statuses as st
 
 DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
+VERBRAUCH = "verbrauch"
 
 
 class Module:
@@ -55,14 +56,21 @@ class Module:
     #: die Ausführungsstelle eine Fallunterscheidung bekommt.
     requires_verification: bool = True
 
-    #: **Endet die Reise hier?** Ein terminales Modul ist kein Durchgang, sondern ein
-    #: **Ausgang**: das Stück verlässt den Auftrag an dieser Stelle und geht nicht weiter.
+    #: **Verlassen ALLE ankommenden Stücke den Auftrag hier?** Ein terminales Modul ist
+    #: kein Durchgang, sondern ein **Ausgang**.
     #:
     #: Daraus folgt zweierlei, beides ohne Fallunterscheidung im Ablauf: hinter ihm kann
-    #: kein Modul mehr stehen (es bekäme nie ein Stück – ``_assert_chain`` weist das bei
-    #: der Freigabe ab), und es passiert **nicht** das Ende-Objekt (``_finish``), denn es
-    #: ist selbst eines. Genau das schneidet auch eine geplante Rückführung ab: die
-    #: Rückkehr hängt am Ende-Objekt, und dorthin kommt das Stück nie.
+    #: kein Modul mehr stehen (es bekäme nie ein Stück – ``chain.assert_closes`` weist
+    #: das bei der Freigabe ab), und es passiert **nicht** das Ende-Objekt (``_finish``),
+    #: denn es ist selbst eines. Genau das schneidet auch eine geplante Rückführung ab:
+    #: die Rückkehr hängt am Ende-Objekt, und dorthin kommt das Stück nie.
+    #:
+    #: **Das Wort beantwortet ausdrücklich nur die ALLE-Frage.** «Verlässt *dieses* Stück
+    #: den Auftrag hier?» ist eine zweite, und sie steht in ``leaves``. Beim Verbrauch
+    #: gehen die Antworten auseinander: die Komponenten gehen, das Produkt läuft weiter –
+    #: also ist er **nicht** terminal, und hinter ihm darf sehr wohl etwas stehen. Wären
+    #: es nicht zwei Fragen, müsste die Kettenregel eine Ausnahme bekommen, und eine
+    #: Ausnahme in einer Regel dieser Art ist der Anfang vom Ende der Regel.
     terminal: bool = False
 
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
@@ -98,7 +106,7 @@ class Module:
         return self.action
 
     def status_after_for(self, config: Optional[dict[str, Any]]) -> str:
-        """Auf welchen Zustand setzt dieses Modul? Vorgabe: der des **Typs**.
+        """Auf welchen Zustand setzt dieses Modul ein Stück, das **weiterläuft**?
 
         Der Übergang gehört weiterhin zum Modultyp und nicht zum Anwender (§14) – aber
         der Typ darf seine eigene Konfiguration lesen. Das ist der Unterschied zwischen
@@ -106,6 +114,34 @@ class Module:
         «was soll passieren?» (eine fachliche Wahl, aus der der Status **folgt**).
         """
         return self.status_after
+
+    # ── Wer verlässt den Auftrag hier – und womit? ──────────────────────────
+    #
+    # Zwei Fragen, die ``terminal`` allein nicht mehr beantworten kann, seit es ein Modul
+    # gibt, das **einen Teil** seiner Stücke hinausführt. Die Vorgaben hier sind so
+    # gewählt, dass die beiden bestehenden Module sie erben, ohne eine Zeile zu schreiben:
+    # ein Ausgang führt alles hinaus, ein Durchläufer nichts.
+
+    def leaves(self, config: Optional[dict[str, Any]], *,
+               article_object_id: Optional[int]) -> bool:
+        """**Verlässt DIESES Stück den Auftrag an diesem Modul?**
+
+        Gefragt wird nach dem **Artikel**, nicht nach der Definitionszeile – und das ist
+        kein Zufall, sondern die einzig mögliche Ebene: dasselbe Modul wird auch in der
+        **Artikel-Vorlage** definiert, und dort gibt es noch gar keine Zeilen. Der
+        Erzeugungsprozess eines Artikels IST der Montageplan; er kann «Rahmen, Motor,
+        Schraube M6» nennen, aber nicht «Zeile 2».
+        """
+        return self.terminal
+
+    def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
+        """Auf welchen Zustand setzt dieses Modul ein Stück, das **hier hinausgeht**?
+
+        ``None`` heisst «hier geht niemand hinaus». Bei einem Ausgang ist es derselbe
+        Wert wie ``status_after_for`` – dort gibt es kein Weiterlaufen, also auch keine
+        zwei Zustände.
+        """
+        return self.status_after_for(config) if self.terminal else None
 
 
 class Datenerfassung(Module):
@@ -206,6 +242,78 @@ class Aussondern(Module):
         return self.ACTIONS[self._mode(config)]
 
 
+class Verbrauch(Module):
+    """Einzelinstanzen **in ein anderes Stück einbauen** – der Zwilling des Aussonderns.
+
+    Beide sind Ausgänge aus dem Kreislauf, und sie unterscheiden sich in genau einer
+    Sache: **was aus dem Stück geworden ist.** Verschrottet heisst «gibt es nicht mehr»,
+    verbaut heisst «steckt jetzt in etwas anderem». Der Mechanismus ist derselbe.
+
+    **Der Unterschied zum Aussondern ist die Reichweite.** Dort geht alles, was ankommt;
+    hier gehen die **genannten Artikel**, und alles andere – das Produkt – passiert das
+    Modul unverändert und läuft weiter. Darum ist dieses Modul **nicht** ``terminal``:
+    hinter ihm darf etwas stehen, und die Kettenregel bleibt unangetastet.
+
+    **Kein Standort, keine Menge, keine Stückliste als Tabelle.** Das Vorgängermodul
+    («Ressource») ruhte auf einem Mengenmodell mit Reservierung, Teilentnahme und
+    FIFO-mit-Rest; im Einzelinstanz-Modell fällt das alles weg – ein Stück ist ein Stück,
+    also gibt es nichts zu teilen und nichts zu rechnen. Aus einer 600er-Charge gehen vier
+    Einzelinstanzen auf ``Verbaut``, 596 bleiben stehen.
+
+    **Und die Stückliste ist eine Ableitung** (``services/genealogy``): welche Stücke
+    denselben Auftrag als ``Verbaut`` verlassen haben. Kein Feld, keine Beziehung – und
+    weil sie aus dem Log kommt, überlebt sie eine spätere Demontage.
+    """
+
+    #: Was die Konfiguration trägt: die **Objektnummern** der Artikel, deren Stücke hier
+    #: verbaut werden. Objektnummern und nicht interne Schlüssel – es ist dasselbe, was
+    #: die Oberfläche zeigt und was über die API reist.
+    ARTICLES = "articles"
+
+    #: Das Verb auf dem Knopf. «Erfassen & bestätigen» wäre hier schlicht falsch – erfasst
+    #: wird nichts, der Scan ist die Bestätigung.
+    action = "Verbauen"
+
+    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
+        found = (raw or {}).get(self.ARTICLES) or []
+        if not isinstance(found, (list, tuple)):
+            raise HTTPException(
+                status_code=400,
+                detail="«Verbrauch» erwartet eine Liste von Artikeln.",
+            )
+        articles: list[int] = []
+        for value in found:
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"«{value}» ist keine Artikel-Objektnummer.",
+                )
+            if number not in articles:
+                articles.append(number)
+        if not articles:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "«Verbrauch» braucht mindestens einen Artikel – sonst gibt es nichts "
+                    "zu verbauen, und das Modul wäre ein Durchgang, der so aussieht wie "
+                    "eine Montage."
+                ),
+            )
+        # **Keine Erfassungspunkte, keine Stichprobe.** Was ankommt, wird verbaut; der
+        # Scan ist die Bestätigung. Eine Stichprobe hiesse «bau die Hälfte ein» – das
+        # gibt es nicht: wer nur einen Teil meint, gibt nur diesen Teil in den Auftrag.
+        return {self.ARTICLES: articles, "points": [], "sample": dict(sampling.DEFAULT)}
+
+    def leaves(self, config: Optional[dict[str, Any]], *,
+               article_object_id: Optional[int]) -> bool:
+        return article_object_id in articles_of(config)
+
+    def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
+        return st.VERBAUT
+
+
 MODULES: dict[str, Module] = {
     m.key: m for m in (
         Datenerfassung(
@@ -223,6 +331,17 @@ MODULES: dict[str, Module] = {
             # an der Ausprägung hängt.
             status_after=st.VERSCHROTTET,
             tone="clay",
+        ),
+        Verbrauch(
+            key=VERBRAUCH,
+            label="Verbrauch",
+            status_before=st.IM_PROZESS,
+            # Das Nachher des **Produkts** – es läuft weiter. Was die Komponenten
+            # bekommen, steht in ``exit_status_for``; hier stünde es falsch, weil diese
+            # Spalte den gespeicherten Übergang des Moduls trägt und der gilt für das,
+            # was das Modul passiert.
+            status_after=st.IM_PROZESS,
+            tone="sand",
         ),
     )
 }
@@ -259,6 +378,16 @@ def reason_of(config: Optional[dict[str, Any]]) -> str:
     nicht erst nach einer Fallunterscheidung.
     """
     return str((config or {}).get("reason") or "")
+
+
+def articles_of(config: Optional[dict[str, Any]]) -> list[int]:
+    """Die Artikel, deren Stücke ein Modul verbraucht — die eine Lesestelle.
+
+    Nur der Verbrauch hat welche; überall sonst ist die Liste leer. Ein Modul, das keine
+    kennt, gibt darum nicht ``None`` zurück, sondern nichts – die Aufrufstelle fragt dann
+    gar nicht erst nach einer Fallunterscheidung.
+    """
+    return [int(a) for a in (config or {}).get(Verbrauch.ARTICLES) or []]
 
 
 def sample_of(config: Optional[dict[str, Any]]) -> dict[str, Any]:

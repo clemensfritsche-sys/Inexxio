@@ -342,6 +342,14 @@ Fünf Wurzeln erklären alles oben. Die Sortierung ist nach Schwere.
 
 ## 🔴 Wurzel 1 — Das Modell kennt nur die Zeitachse eines Stücks, keine Beziehung zu anderen
 
+> **Nachtrag: der Kern ist gebaut** (Modul «Verbrauch»). Der Zustand `verbaut` steht im
+> Katalog, das Modul führt die genannten Artikel hinaus, während das Produkt weiterläuft,
+> und `_assert_single_new` heisst jetzt «**höchstens** eine `Neu`-Zeile» – die Montage ist
+> damit ein ganz gewöhnlicher Auftrag. Die **Stückliste ist die vorhergesagte Ableitung**
+> über den gemeinsamen Auftrag, gelesen aus dem **Log**, damit eine Demontage die
+> Vergangenheit nicht umschreibt. Offen bleibt die **Teilung** (eine Stange in drei Stücke):
+> sie braucht zusätzlich eine Antwort darauf, wie Stücke ohne Erzeugungsauftrag entstehen.
+
 **Modellfehler.** Betrifft: Montage · Teilung · Zerlegung · Verbrauch · Stückliste ·
 Genealogie · Bestandswahrheit nach Einbau.
 

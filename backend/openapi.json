@@ -2448,6 +2448,63 @@
         }
       }
     },
+    "/api/v1/erp/instances/{object_id}/units/{suffix}/genealogy": {
+      "get": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Unit Genealogy",
+        "description": "**Woraus besteht dieses Stück – und worin steckt es?**\n\nBeides ist eine Ableitung über den Ereignis-Log (``services/genealogy``), kein\ngespeichertes Feld: die Stückliste sind die Stücke, die einen gemeinsamen Auftrag als\n``Verbaut`` verlassen haben.\n\n**Erst auf Klick**, wie die Nummern selbst: eine Baugruppe kann hunderte Teile haben,\nund sie in jede Zeile der Stückliste mitzuliefern hiesse, die Genealogie bei jedem\nÖffnen einer Charge vollständig aufzulösen.",
+        "operationId": "unit_genealogy_api_v1_erp_instances__object_id__units__suffix__genealogy_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "suffix",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Suffix"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Genealogy"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/objects/{object_id}/references": {
       "get": {
         "tags": [
@@ -5445,6 +5502,117 @@
         "title": "FlowUnits",
         "description": "Stücke an **einer** Position – gezählt, nicht aufgezählt.\n\n``at_step_id`` und ``active`` sind der Schlüssel, mit dem die Oberfläche die\neinzelnen Nummern nachlädt (``GET …/units``)."
       },
+      "Genealogy": {
+        "properties": {
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/GenealogyPart"
+            },
+            "type": "array",
+            "title": "Parts",
+            "default": []
+          },
+          "built_into": {
+            "items": {
+              "$ref": "#/components/schemas/GenealogyHost"
+            },
+            "type": "array",
+            "title": "Built Into",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "Genealogy",
+        "description": "**Woraus besteht es – und worin steckt es?** Beide Richtungen, eine Antwort."
+      },
+      "GenealogyHost": {
+        "properties": {
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/GenealogyPart"
+            },
+            "type": "array",
+            "title": "Products",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "GenealogyHost",
+        "description": "Ein Auftrag, in dem dieses Stück verbaut wurde, samt dem, was dort entstand."
+      },
+      "GenealogyPart": {
+        "properties": {
+          "unit_id": {
+            "type": "integer",
+            "title": "Unit Id"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "still_in": {
+            "type": "boolean",
+            "title": "Still In",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit_id",
+          "number",
+          "status"
+        ],
+        "title": "GenealogyPart",
+        "description": "Ein Teil in einer Stückliste – **abgeleitet**, nicht gespeichert.\n\n``still_in`` trennt die beiden Fragen, die eine Stückliste beantworten muss: *was\nwurde verbaut* (der Log, unveränderlich) und *was steckt heute noch drin* (der\nZustand). Ein ausgebautes Teil bleibt in der Liste – die Vergangenheit bekommt eine\nFortsetzung, sie wird nicht gelöscht."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5673,6 +5841,11 @@
               }
             ],
             "title": "Order Object Id"
+          },
+          "parts_count": {
+            "type": "integer",
+            "title": "Parts Count",
+            "default": 0
           },
           "created_at": {
             "type": "string",

@@ -246,26 +246,81 @@ def resolve_lines(db: Session, raw: list[dict[str, Any]]) -> list[_Line]:
 
 
 def _assert_single_new(lines: list[_Line]) -> None:
-    """**«Neu» ist eine Herkunft für sich allein** (Testnotiz #693).
+    """**Höchstens EINE «Neu»-Zeile** (Testnotiz #693, präzisiert für die Montage).
 
     Ein Erzeugungsauftrag fährt die **Vorlage des Artikels**, als Kopie mit
     Versionsstempel (§2.1). Der Stempel sagt «diese Stücke sind genau so entstanden, wie
-    Artikel X es beschreibt» – und das gilt nur für die Stücke dieses einen Artikels. Eine
-    zweite Zeile liefe durch denselben Prozess, obwohl er nicht ihrer ist: der Stempel
-    wäre für sie eine Behauptung.
+    Artikel X es beschreibt» – und die Frage, *welche* Vorlage gilt, muss eindeutig
+    beantwortbar sein. Bei zwei Erzeugungen ist sie es nicht: zwei Erzeugungen sind zwei
+    Aufträge.
 
-    Die Regel liest sich von beiden Enden gleich: mit «Neu» kommt keine zweite Zeile dazu,
-    und zu einer zweiten Zeile lässt sich «Neu» nicht mehr wählen. Zwei Erzeugungen sind
-    zwei Aufträge.
+    **Die Regel hiess einmal «Neu steht für sich allein»** – und war damit einen Tick zu
+    breit. Sie verbot nicht nur die zweite Vorlage, sondern **jede** weitere Zeile, also
+    ausgerechnet die Auftragsform, die eine **Montage** ist:
+
+    ===================  =======  =====================================
+    Maschine             Neu      das Produkt, fährt seine Vorlage
+    Rahmen · Motor · …   Lager    die Komponenten, werden verbaut
+    ===================  =======  =====================================
+
+    Der ursprüngliche Grund bleibt dabei vollständig gewahrt: es gibt weiterhin genau
+    **eine** Vorlage, und der Stempel gilt für die Stücke, die sie erzeugt hat.
     """
     new_lines = [ln for ln in lines if ln.origin == NEU]
-    if new_lines and len(lines) > 1:
+    if len(new_lines) > 1:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"{new_lines[0].label}: «Neu» steht für sich allein – ein Erzeugungsauftrag "
-                f"fährt die Vorlage genau dieses Artikels. Für den zweiten Artikel einen "
-                f"eigenen Auftrag anlegen."
+                f"{new_lines[1].label}: ein Auftrag hat genau einen Erzeugungsprozess – "
+                f"«Neu» steht schon bei {new_lines[0].label}. Für den zweiten Artikel "
+                f"einen eigenen Auftrag anlegen."
+            ),
+        )
+
+
+def _assert_consumables_present(lines: list[_Line], steps: list[dict[str, Any]]) -> None:
+    """**Was ein Verbrauchsmodul nennt, muss auch im Auftrag stehen.**
+
+    Das Modul nennt Artikel (``domain/modules.Verbrauch``), weil es auch in der
+    Artikel-Vorlage definierbar sein muss – und dort gibt es keine Zeilen. Der Preis
+    dafür ist diese Prüfung: die Vorlage sagt «verbaut werden Rahmen und Motor», und wer
+    den Auftrag anlegt, muss sie als ``Lager``-Zeilen dazunehmen.
+
+    **Ohne die Prüfung wäre ein Verbrauchsmodul, das nichts findet, ein stiller
+    Durchgang** – es sähe aus wie eine Montage und wäre keine. Der Fehler kommt bei der
+    Freigabe, also bevor eine Objektnummer vergeben ist (§6.3).
+
+    Zweitens: ein genannter Artikel darf **nicht** der erzeugte sein. Die Konfiguration
+    trifft Artikel, nicht Zeilen – stünde derselbe Artikel als ``Neu`` und als Verbrauch
+    da, verliesse das Produkt den Auftrag an seinem eigenen Montageschritt.
+    """
+    named: list[int] = []
+    for step in steps:
+        named += modules.articles_of(step.get("config"))
+    if not named:
+        return
+    have = {ln.article.object_id for ln in lines}
+    missing = [n for n in dict.fromkeys(named) if n not in have]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "«Verbrauch» nennt "
+                + ("einen Artikel" if len(missing) == 1 else f"{len(missing)} Artikel")
+                + ", der im Auftrag nicht vorkommt: "
+                + ", ".join(str(n) for n in missing)
+                + ". Ohne eine Zeile dafür gäbe es nichts zu verbauen."
+            ),
+        )
+    produced = {ln.article.object_id for ln in lines if ln.origin == NEU}
+    clash = [n for n in dict.fromkeys(named) if n in produced]
+    if clash:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Artikel {clash[0]} wird in diesem Auftrag erzeugt und soll zugleich "
+                f"verbaut werden. Das Produkt verliesse damit den Auftrag an seinem "
+                f"eigenen Montageschritt."
             ),
         )
 
@@ -568,6 +623,7 @@ def release(
 
     end_status = st.DEFAULT_END_STATUS
     chain.assert_closes(effective)
+    _assert_consumables_present(resolved, effective)
 
     # Bestehende Stücke auflösen: frei übernehmen oder **aus einem laufenden Auftrag**
     # herüberholen. Beides führt durch dasselbe Start-Objekt (§4.1) – der Status eines
@@ -943,42 +999,103 @@ def confirm_step(
         db.flush()
         return {"moved": 0, "held": len(units), "result": result}
 
-    _pass(
-        db, order=order, units=units, membership_ids=membership_ids,
-        kind=KIND_STEP, step=step,
-        status_after=step.status_after,
-        next_step_id=following.id if following else None,
-        actor_id=actor_id,
-        # **Wie wurde bestätigt?** Am Schritt-Ereignis, nicht nur an der Erfassung: ein
-        # Modul ohne Erfassungspunkte (Verschrotten) hat sonst keinen Beleg dafür – und
-        # gerade dort ist er am wichtigsten, weil der Vorgang endgültig ist.
-        payloads={u.id: {"verification": verification} for u in units},
-    )
-    # ►► **Ein terminales Modul IST der Ausgang.** ◄◄
+    # ►► **Wer geht hier hinaus, wer läuft weiter?** ◄◄
     #
-    # ``_pass`` hat die Zugehörigkeit gerade geschlossen (``next_step_id=None``) und den
-    # Zielzustand gesetzt – mehr passiert nicht. Insbesondere **nicht** das Ende-Objekt:
-    # dort hängt die Rückführung, und ein ausgesondertes Stück kehrt nirgends zurück.
+    # Zwei **Gruppen mit gleichem Ziel** – genau das Muster, das ``_finish`` schon
+    # benutzt, nur eine Stufe früher. Ein Ausgang (Aussondern) führt alles hinaus, ein
+    # Durchläufer (Datenerfassung) nichts, der Verbrauch die genannten Artikel: die
+    # Fallunterscheidung steht im **Modul** (``leaves``), hier steht nur die Teilung.
+    leaving, staying = _split_at_exit(db, module=module, step=step, rows=waiting)
+    marks = {u.id: {"verification": verification} for u in units}
+
+    # Die Hinausgehenden. ``_pass`` schliesst die Zugehörigkeit (``next_step_id=None``)
+    # und setzt den Ausgangszustand – mehr passiert nicht. Insbesondere **nicht** das
+    # Ende-Objekt: dort hängt die Rückführung, und ein ausgesondertes oder verbautes
+    # Stück kehrt nirgends zurück.
     #
     # Damit ist §3 des Auftrags erfüllt, ohne eine Zeile Wartelogik: der Quell-Auftrag
     # zählt seine Ausleihen über die **offene** Zeile (``waiting_counts``), und die gibt
     # es nicht mehr. Er wartet nicht, sein Modul ist nicht gesperrt, und bleibt ihm
     # nichts, ist sein Ziel unerreichbar – genau wie bei einer gekappten Rückführung.
-    if module.terminal:
-        db.flush()
-        return {"moved": len(units), "held": 0, "result": result}
+    if leaving:
+        _pass(
+            db, order=order,
+            units=[u for _, u in leaving], membership_ids=[m.id for m, _ in leaving],
+            kind=KIND_STEP, step=step,
+            status_after=module.exit_status_for(step.config),
+            next_step_id=None, actor_id=actor_id, payloads=marks,
+        )
 
-    if following is None:
-        _finish(db, order=order, rows=waiting, actor_id=actor_id)
-    else:
-        # Angekommen am nächsten Modul – dort wird jetzt gezogen (§2: beim Erreichen,
-        # denn vorher steht die Menge nicht fest).
-        sampling.ensure(db, order=order, step=following, actor_id=actor_id)
+    # Die Weiterlaufenden – der gewöhnliche Fall.
+    if staying:
+        _pass(
+            db, order=order,
+            units=[u for _, u in staying], membership_ids=[m.id for m, _ in staying],
+            kind=KIND_STEP, step=step,
+            status_after=step.status_after,
+            next_step_id=following.id if following else None,
+            actor_id=actor_id,
+            # **Wie wurde bestätigt?** Am Schritt-Ereignis, nicht nur an der Erfassung:
+            # ein Modul ohne Erfassungspunkte (Aussondern, Verbrauch) hat sonst keinen
+            # Beleg dafür – und gerade dort ist er am wichtigsten.
+            payloads=marks,
+        )
+        if following is None:
+            _finish(db, order=order, rows=staying, actor_id=actor_id)
+        else:
+            # Angekommen am nächsten Modul – dort wird jetzt gezogen (§2: beim
+            # Erreichen, denn vorher steht die Menge nicht fest).
+            sampling.ensure(db, order=order, step=following, actor_id=actor_id)
     db.flush()
     # **Was hier nicht gezogen wurde, läuft jetzt mit** (§9.3) – siehe ``_run_through``.
     _run_through(db, order=order, step=step, actor_id=actor_id)
     db.flush()
     return {"moved": len(units), "held": 0, "result": result}
+
+
+def _split_at_exit(
+    db: Session, *, module: modules.Module, step: ProcessStep,
+    rows: list[tuple[OrderUnit, InstanceUnit]],
+) -> tuple[list[tuple[OrderUnit, InstanceUnit]], list[tuple[OrderUnit, InstanceUnit]]]:
+    """``(verlassen den Auftrag hier, laufen weiter)`` — die Frage stellt das Modul.
+
+    **Gefragt wird je Artikel, nicht je Stück**: ``Module.leaves`` kennt nur ihn, und
+    Stücke desselben Artikels teilen im selben Auftrag dasselbe Schicksal. Aufgelöst wird
+    darum über die **Instanz** (Stück → Instanz → Artikel) – bei einem Scan ist das genau
+    eine, bei einem Durchlauf über mehrere Instanzen eine Handvoll. Zwei Abfragen,
+    unabhängig von der Stückzahl.
+
+    **Der häufige Fall kostet nichts:** hängt die Antwort gar nicht am Artikel (ein
+    Ausgang führt alles hinaus, ein Durchläufer nichts), wird nicht nachgeschlagen.
+    """
+    if not rows:
+        return [], []
+    if not modules.articles_of(step.config):
+        return (rows, []) if module.terminal else ([], rows)
+
+    numbers = _article_numbers(db, [u for _, u in rows])
+    leaving, staying = [], []
+    for m, u in rows:
+        target = leaving if module.leaves(step.config, article_object_id=numbers.get(u.id)) else staying
+        target.append((m, u))
+    return leaving, staying
+
+
+def _article_numbers(db: Session, units: list[InstanceUnit]) -> dict[int, int]:
+    """Je Stück die **Objektnummer seines Artikels** — über die Instanz, in zwei Abfragen."""
+    by_instance = {u.instance_id for u in units}
+    instances = {
+        i.id: i.article_id
+        for i in db.query(Instance).filter(Instance.id.in_(by_instance)).all()
+    }
+    articles = {
+        a.id: a.object_id
+        for a in db.query(Article).filter(Article.id.in_(set(instances.values()))).all()
+    }
+    return {
+        u.id: articles.get(instances.get(u.instance_id, -1), 0)
+        for u in units
+    }
 
 
 def _following(db: Session, order: Order, step: ProcessStep) -> Optional[ProcessStep]:
