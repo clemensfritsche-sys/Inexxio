@@ -460,6 +460,45 @@
 > `test_a_finished_order_does_not_retell_what_happened_elsewhere`,
 > `test_the_verdict_in_the_log_belongs_to_its_own_piece`.
 >
+> **Audit und Testkampagne – die Regel steht geschrieben, BEVOR sie geprüft wird**
+> (`SYSTEM_LOGIC.md` · `TEST_REPORT.md` · `FINDINGS.md`): Die Prosa in dieser Datei
+> beschreibt, wie das System **geworden** ist; sie ist kein Massstab, gegen den man testen
+> kann. `SYSTEM_LOGIC.md` ist er – die Regeln als **prüfbare Sätze** (vollständige
+> Statusliste mit Übergangsmatrix, die drei Auftragszustände samt Ableitung, sechs
+> Grundregeln, und eine **Sackgassen-Analyse**: jeder Zustand, in dem ein Stück oder ein
+> Auftrag landen kann, mit der Antwort «wie kommt man hier raus?»). Erst danach die Tests –
+> andernfalls prüft man den Code gegen sich selbst, und ein systematisch falscher Code
+> besteht seine eigenen Tests immer.
+> **Die Matrix ist Daten, kein Code** (`tests/matrix.py`, 67 Fälle über sechs Achsen –
+> Herkunft · Serialisierung · Menge · Modultyp · Schachtelung bis drei Ebenen ·
+> Rückführung): jeder Fall trägt sein **vorher notiertes Soll**; `test_scenarios.py` fährt
+> ihn als Wächter, `scripts/scenario_report.py` stellt Soll und Ist nebeneinander. Gefahren
+> wird über die **echten** Dienstpfade gegen echtes PostgreSQL – die interessanten Fehler
+> entstehen zwischen den Schritten, nicht in einem nachgestellten Zustand.
+> **Die Invarianten sind das eigentliche Ergebnis** (`app/services/invariants.py`, 15
+> Prüfungen, rein lesend): ein Szenariotest prüft, woran jemand gedacht hat – eine
+> Invariante prüft, was **wahr sein muss**. Sie halten über 337 Aufträge · 2620
+> Einzelinstanzen · 11 494 Log-Einträge, und ein Gegentest stellt drei Fehlerformen her
+> und verlangt, dass sie gemeldet werden (ein Wächter, der nie anschlägt, ist von einem
+> kaputten nicht zu unterscheiden). Bemerkenswert dabei: die Fehlerform «zwei offene
+> Zugehörigkeiten» liess sich **nicht** herstellen, solange der partielle Unique-Index
+> steht – erst nachdem er im Test kurz weicht. Das ist der beste verfügbare Beweis, dass
+> er trägt.
+> **Ergebnis: kein 🔴.** Zwei 🟠 (ein **inaktiver Artikel** kann weiterhin Aufträge und
+> neue Instanzen erzeugen – geprüft wird `is_active`, gemeint war der fachliche Status;
+> und **es gibt keinen Auftrags-Abbruch**, der einzige Zustand ohne Ausgang, bewusst offen)
+> plus fünf 🟡. Dazu ein Befund im **eigenen Netz**: der Aufräumer der Wächter-Suite
+> löschte über *ein Stück* und die Instanz dazu und liess Geschwister-Stücke verwaist
+> zurück – gefunden von der neuen Invariante, an genau den Daten, die dieser Wächter
+> hinterlässt. Behoben.
+> **Zwei der drei ersten «Befunde» waren Testfehler**, und das steht so im Bericht: ein
+> falsch notiertes Soll (nach der dritten Ebene wartet der oberste Auftrag zu Recht weiter)
+> und ein Helfer, der einen leeren Wertesatz automatisch auffüllte. Ein Bericht, der das
+> verschweigt, ist wertlos.
+> **Ein bekannter Befund kann nicht verrotten** (`Case.open_finding`): die CI wird davon
+> nicht rot, aber der Wächter **meldet**, sobald die Abweichung aufhört – dann ist er
+> behoben und die Markierung muss weg.
+>
 > **`no-unused-vars` ist eingeschaltet** (`frontend/.eslintrc.json`, läuft in der CI): ein
 > Knopf, der einen Zustand setzt, den niemand liest, war nicht auffindbar – `next/core-web-
 > vitals` prüft ungenutzte Variablen nicht, und eine tote `useState`-Destrukturierung ist

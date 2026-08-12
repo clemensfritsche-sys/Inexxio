@@ -327,13 +327,30 @@ def test_the_flow_reports_a_piece_that_left_a_terminal_state():
 
 
 def _cleanup(db, unit) -> None:
+    """Aufräumen **über die Instanz, nicht über das eine Stück**.
+
+    Vorher lief es über ``unit.id`` und löschte die Instanz dazu. Ein Test, der ein
+    zweites Stück an dieselbe Instanz hängt (``…out_of_reach…`` legt ein gesperrtes
+    daneben), liess es damit **verwaist** zurück: Instanz weg, Stück da. Gefunden hat das
+    die Invariante ``I12`` – und zwar ausgerechnet an den Daten, die dieser Wächter
+    hinterlässt. Ein Wächter, der den Bestand kaputt macht, den er bewacht, ist ein
+    schlechter Wächter.
+    """
     from sqlalchemy import text
 
     db.rollback()
-    db.execute(text("DELETE FROM process_events WHERE instance_unit_id=:i"), {"i": unit.id})
-    db.execute(text("DELETE FROM order_units WHERE instance_unit_id=:i"), {"i": unit.id})
-    db.execute(text("DELETE FROM instance_units WHERE id=:i"), {"i": unit.id})
-    db.execute(text("DELETE FROM instances WHERE id=:i"), {"i": unit.instance_id})
+    ids = [
+        int(i) for (i,) in db.execute(
+            text("SELECT id FROM instance_units WHERE instance_id=:n"),
+            {"n": unit.instance_id},
+        ).all()
+    ]
+    for table in ("process_events", "order_units"):
+        db.execute(text(f"DELETE FROM {table} WHERE instance_unit_id = ANY(:ids)"),
+                   {"ids": ids})
+    db.execute(text("DELETE FROM instance_units WHERE instance_id=:n"),
+               {"n": unit.instance_id})
+    db.execute(text("DELETE FROM instances WHERE id=:n"), {"n": unit.instance_id})
     db.commit()
     db.close()
 

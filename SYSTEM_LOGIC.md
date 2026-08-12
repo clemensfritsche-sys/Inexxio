@@ -1,0 +1,363 @@
+# SYSTEM_LOGIC — die Regeln, wie sie sein sollen
+
+> **Was dieses Dokument ist.** Die Prozesslogik als **Sollzustand**, in prüfbaren Sätzen.
+> Nicht «so macht es der Code», sondern «so muss es sein» — damit sich der Code dagegen
+> testen lässt und nicht gegen sich selbst.
+>
+> **Was es nicht ist.** Keine Architekturbeschreibung (die steht in `PROCESS_CORE.md`)
+> und keine Zusammenfassung der Implementierung. Wo Sollzustand und Code auseinandergehen,
+> ist das ein **Befund** und steht in `FINDINGS.md` — nicht hier.
+>
+> Reihenfolge: dieses Dokument entstand **vor** der Testkampagne. Das ist keine Formalie:
+> ein systematisch falscher Code besteht seine eigenen Tests immer.
+
+---
+
+## 0. Das Modell in fünf Zeilen
+
+```
+Artikel     Ordner + Spezifikation + Vorlage des Erzeugungsprozesses. Keine Menge.
+  └─ Instanz      Gruppe mit eigener 9-stelliger Objektnummer. Keine Mengen-Spalte.
+       └─ Einzelinstanz   DAS Arbeitsobjekt. Immer genau 1 Stück. Eigener Status.
+                          Nummer = <Instanznummer>-<Suffix>, nie aus dem Nummernkreis.
+
+Auftrag     geordnete Modul-Liste + Definitionszeilen. Entsteht ERST mit der Freigabe.
+```
+
+Im Prozess wird **ausschliesslich** mit Einzelinstanzen gearbeitet. Jede Ansicht auf
+höherer Ebene (Instanz, Artikel, Bestand) ist Filterung oder Summierung — nie eine eigene
+Datenquelle.
+
+---
+
+## 1. Statuslogik
+
+### 1.1 Alle Status, vollständig
+
+Die Liste ist **geschlossen**. Ein Wert, der hier nicht steht, ist im System nicht
+gültig — weder als Eingabe noch als gespeicherter Wert. Drei Achsen teilen sich die
+Wörter, wo sie dasselbe meinen.
+
+| Wert | Beschriftung | Achsen | terminal | selektierbar | Ton | Bestand |
+|---|---|---|---|---|---|---|
+| `freigegeben` | Freigegeben | Einzelinstanz · Artikel | nein | **ja** | grün | **lebend** |
+| `im_prozess` | Im Prozess | Einzelinstanz · Auftrag | nein | **ja** | gelb | **lebend** |
+| `gesperrt` | Gesperrt | Einzelinstanz | nein | **ja** | gelb | **lebend** |
+| `verschrottet` | Verschrottet | Einzelinstanz | **ja** | **nein** | rot | historisch |
+| `abgeschlossen` | Abgeschlossen | Auftrag | – | – | grün | – |
+| `abgebrochen` | Abgebrochen | Auftrag | – | – | rot | – |
+| `inaktiv` | Inaktiv | Artikel | – | – | rot | – |
+
+**Bedeutung je Wert:**
+
+- **`freigegeben`** — An der Einzelinstanz: sie steckt in **keinem** Auftrag, sie ist
+  einsatzbereit. Am Artikel: er ist freigegeben und auftragsfähig. Dasselbe Wort für
+  «einsatzbereit», auf zwei Achsen.
+- **`im_prozess`** — An der Einzelinstanz: sie ist in **genau einem** Auftrag aktiv. Am
+  Auftrag: es ist noch etwas unterwegs.
+- **`gesperrt`** — Aus dem Verkehr gezogen, **physisch noch da**. Nicht einplanbar,
+  solange die Sperre gilt — **aber selektierbar**: das Greifen durch einen Auftrag **ist**
+  das Aufheben. Es gibt bewusst keinen «Entsperren»-Endpunkt.
+- **`verschrottet`** — Aus dem Verkehr gezogen und **physisch weg**. Endgültig.
+- **`abgeschlossen`** — Der Auftrag ist **seinen definierten Weg zu Ende gegangen**.
+  Nicht «hat das Ende-Objekt passiert»: ein **Ausgang** (terminales Modul) ist ebenfalls
+  ein Ende.
+- **`abgebrochen`** — Das Ziel ist **nicht mehr erreichbar** (siehe §2.2).
+- **`inaktiv`** — Artikel ausser Betrieb. Endgültig, kein Reaktivieren.
+
+**Nur ein Einzelinstanz-Zustand darf terminal sein.** Er ist der einzige, der gespeichert
+und geändert wird; Auftrags- und Artikelzustände sind abgeleitet bzw. anderswo geführt.
+
+**Alles Weitere ist abgeleitet, nicht zweitgepflegt:** Farbe folgt aus `terminal`
+(endgültig = rot, aufhebbar = gelb), «selektierbar» folgt aus `terminal`, die
+Bestands-Zugehörigkeit ist eine Eigenschaft am Status. Es darf keine zweite Liste geben,
+die jemand nachziehen muss.
+
+### 1.2 Die vollständige Übergangsmatrix (Einzelinstanz)
+
+> **Jeder nicht aufgeführte Übergang ist verboten.**
+> Es gibt genau **eine** Schreibstelle für einen Statuswechsel; jeder Wechsel schreibt im
+> selben Atemzug einen Eintrag in den Ereignis-Log. Ein zweiter Schreibweg wäre eine
+> zweite Wahrheit.
+
+| # | von | nach | Ereignis | Auslöser / Bedingung |
+|---|---|---|---|---|
+| T1 | *(entsteht)* | `freigegeben` | Erzeugung | Nur bei der Freigabe eines Auftrags mit `Neu`-Zeile. Die einzige Stelle im System, an der Einzelinstanznummern entstehen. |
+| T2 | `freigegeben` | `im_prozess` | **start** | Auftragsfreigabe. Der **Regelstart**. |
+| T3 | `im_prozess` | `im_prozess` | **start** | Auftragsfreigabe, Stück wird einem **laufenden** Auftrag entzogen → der neue Auftrag ist eine **Abweichung**. |
+| T4 | `gesperrt` | `im_prozess` | **start** | Auftragsfreigabe, gesperrtes Stück wird gegriffen → **Sonderfreigabe**, ebenfalls eine Abweichung. |
+| T5 | `im_prozess` | `im_prozess` | **step** | Modul «Datenerfassung», Urteil **bestanden**. Ein Durchläufer. |
+| T6 | `im_prozess` | `verschrottet` | **step** | Modul «Aussondern», Ausprägung *Verschrotten*. **Terminal.** |
+| T7 | `im_prozess` | `gesperrt` | **step** | Modul «Aussondern», Ausprägung *Sperren*. |
+| T8 | `im_prozess` | `freigegeben` | **end** | Das Stück passiert das Ende-Objekt und kehrt **nirgends** zurück. Der Wert ist der `end_status` des Auftrags (heute immer `freigegeben`, an einer Stelle hinterlegt). |
+| T9 | `im_prozess` | `im_prozess` | **end** | Das Stück passiert das Ende-Objekt und **kehrt in seinen Quell-Auftrag zurück**. Es bleibt im Prozess — es ist ja in einem. |
+
+**Ereignisse ohne Statuswechsel** (sie stehen im Log, ändern aber nichts am Zustand):
+
+| Ereignis | Bedeutung |
+|---|---|
+| **handover** | Das Stück hat *diesen* Auftrag verlassen (geschrieben beim **Quell**-Auftrag). |
+| **return** | Das Stück ist zurückgekehrt (geschrieben beim **Ziel**-Auftrag). |
+| **sample** | Das Stück wurde in die Stichprobe **gezogen**. Gezogen zu sein ist keine Zustandsänderung. |
+| **capture** | Es wurde erfasst, mit Urteil **je Stück**. Gemessen wird, was da ist. |
+
+**Ausdrücklich verboten und auf drei Ebenen geschützt:**
+
+- `verschrottet` → **irgendetwas**. Geschützt an der einen Schreibstelle (409 mit Satz
+  und Stücknummer, bevor irgendetwas geschrieben ist), durch einen **Datenbank-Trigger**
+  (er kennt auch Reparaturskripte, Migrationen und `UPDATE` von Hand) und durch den
+  **Abgleich Log ↔ Zeile** (Widerspruch: der Log sagt Endzustand, die Zeile sagt anderes).
+- `freigegeben` → `verschrottet` / `gesperrt` **direkt**. Aussondern ist ein Modul; ein
+  Auftrag muss das Stück erst greifen (T2), dann aussondern (T6/T7).
+- `gesperrt` → `verschrottet` **direkt**. Erst greifen (T4), dann aussondern.
+- Jeder Wechsel **ohne** Log-Eintrag. Es gibt keinen.
+
+**Es gibt keine Umgehung.** Kein Parameter, kein Force-Flag, keine
+Administrator-Ausnahme. Wer eine bräuchte, hat ein Modellproblem: ein Zustand, den man
+doch verlassen können muss, ist schlicht nicht terminal — und das ist eine Zeile im
+Katalog.
+
+### 1.3 Einheitlichkeitsprüfung
+
+**Gibt es Status, die dasselbe bedeuten?**
+
+- `freigegeben` steht auf **zwei** Achsen (Einzelinstanz, Artikel) mit unterschiedlichem
+  Gegenstand, aber derselben Aussage: *einsatzbereit*. Bewusst dasselbe Wort.
+- `im_prozess` steht auf **zwei** Achsen (Einzelinstanz, Auftrag). Der Auftrag ist im
+  Prozess, solange seine Stücke es sind. Bewusst dasselbe Wort.
+- `gesperrt` und `verschrottet` bedeuten **nicht** dasselbe: beide heissen «aus dem
+  Verkehr gezogen», sie unterscheiden sich in der Umkehrbarkeit — und die ist genau die
+  Eigenschaft `terminal`. Es ist ein Modul mit zwei Ausprägungen, nicht zwei Module.
+- **Kein Duplikat gefunden.** Es gibt keine zwei Wörter für denselben Zustand.
+
+**Gibt es Übergänge, die an zwei Stellen unterschiedlich behandelt werden?**
+
+Der Sollzustand verlangt: **nein.** Konkret sind die Stellen, an denen dieselbe Frage
+zweimal gestellt wird, und wie sie zusammenhängen müssen:
+
+| Frage | Wo sie gestellt wird | Regel |
+|---|---|---|
+| «Darf ein Auftrag dieses Stück greifen?» | Freigabe · Entwurfs-Prüfung · Auswahl-Liste der Oberfläche | **Eine** Ableitung aus `terminal`. Die Auswahl-Liste darf nie mehr anbieten als die Freigabe annimmt — und nie weniger. |
+| «Ist dieser Zustand endgültig?» | Schreibstelle · Datenbank-Trigger · Invariantenprüfung | **Eine** Liste (der Katalog), drei Leser. Der Trigger wird aus dem Katalog **erzeugt**, nicht von Hand geschrieben. |
+| «Wartet dieser Auftrag auf eine Rückführung?» | Auftragsstatus · Modul-Sperre · Prozessbild | **Eine** Ableitung über die offenen rückführenden Verbindungen, entlang der ganzen Kette. |
+| «Wer ist gezogen?» | Erfassungspflicht · Vorschau-Zahlen · Nummern-Liste | **Eine** Quelle: der `sample`-Eintrag im Log. Nie neu gewürfelt, nie aus dem Vorhandensein einer Erfassung abgeleitet. |
+
+---
+
+## 2. Auftragsstatus
+
+### 2.1 Drei Werte, alle abgeleitet
+
+Ein Auftrag hat genau **drei** Zustände, und **keiner** wird gesetzt. Es gibt keine
+Status-Spalte am Auftrag; sie wäre der zweite Ort und liefe beim ersten vergessenen
+Update weg.
+
+«Freigegeben» kommt bewusst **nicht** vor: Freigeben ist die **Aktion**, mit der der
+Auftrag entsteht, kein Zustand, in dem er verweilt.
+
+Die Ableitung braucht genau drei Zahlen:
+
+| Zahl | Definition |
+|---|---|
+| **angekommen** | Zugehörigkeiten, die **geschlossen** sind **und** vor keinem Modul mehr stehen. |
+| **unterwegs** | Zugehörigkeiten, die **offen** sind **und** deren Stück es noch gibt. |
+| **verliehen** | Stücke, die einer Abweichung geliehen sind **und zurückkommen** — über die **ganze Kette** gezählt. |
+
+```
+unterwegs > 0  oder  verliehen > 0   →  Im Prozess
+sonst, angekommen > 0                →  Abgeschlossen
+sonst                                →  Abgebrochen
+```
+
+**Die Reihenfolge ist nicht beliebig.** «Angekommen» darf «noch unterwegs» nicht
+schlagen, sonst gälte ein Auftrag als fertig, sobald das erste Stück durch ist. Solange
+alle Stücke im Gleichschritt laufen, fällt das nie auf — mit Abweichungen sofort.
+
+### 2.2 Was «kann das Ziel nicht mehr erreichen» genau heisst
+
+> **Abgebrochen = es ist nichts mehr unterwegs, nichts kommt zurück, und angekommen ist
+> auch nichts.**
+
+Das ist **keine** eigene Regel und **kein** vierter Wert — es ist der Rest der Ableitung.
+Mit terminalen Modulen (Ausgängen) fällt es so:
+
+| Lage | Auftrag |
+|---|---|
+| Alle Stücke ausgesondert (verschrottet **oder** gesperrt) | **Abgeschlossen** — der Ausgang IST das Ende des Weges. Wer aussondert, hat getan, wozu er da war. |
+| Alle Stücke von Abweichungen **gekappt** übernommen | **Abgebrochen** — sie kommen nie zurück, es bleibt nichts. |
+| Alle Stücke von Abweichungen **rückführend** übernommen | **Im Prozess** — verliehen zählt. |
+| Ein Stück angekommen, eines in einer rückführenden Abweichung | **Im Prozess** — was noch unterwegs ist, gewinnt. |
+| Ein Stück angekommen, eines gekappt übernommen | **Abgeschlossen** — mit reduzierter Menge. |
+| In der Abweichung wurde ausgesondert (Kette bricht) | Der Abweichungsauftrag ist **Abgeschlossen**; der Auftrag darüber verliert das Stück endgültig und ist — wenn ihm nichts bleibt — **Abgebrochen**. |
+
+**Der entscheidende Punkt:** ein Ausgang **schliesst die Zugehörigkeit** genauso wie das
+Ende-Objekt. Damit endet die Warte-Kette von selbst, ohne eine Zeile Wartelogik — gezählt
+wird über die **offene** Verbindung, und die gibt es nicht mehr. Die Absicht «kehrt
+zurück» (`return_to_order_id`) bleibt dabei **unangetastet** stehen: sie war da, und die
+Vergangenheit wird nicht umgeschrieben.
+
+---
+
+## 3. Die unverhandelbaren Grundregeln
+
+Als prüfbare Sätze. Jeder ist so formuliert, dass ein Test ihn widerlegen könnte.
+
+### G1 — Im Prozess wird ausschliesslich mit Einzelinstanzen gearbeitet
+
+1. Jeder Statuswechsel im Prozess betrifft genau eine Einzelinstanz.
+2. Es gibt keinen Prozessschritt, der eine Instanz oder einen Artikel als Ganzes bewegt.
+3. Eine Instanz trägt **keinen** eigenen Status und **keine** Mengen-Spalte; beides wird
+   aus ihren Einzelinstanzen abgeleitet.
+4. Eine Einzelinstanz trägt **keine** Mengen-Spalte. Sie ist genau ein Stück — das ist
+   ihre Definition, keine Einstellung.
+5. Der **Scan** ist die Ausnahme, und sie ist keine: er verifiziert die **Instanz**, weil
+   das Etikett am physischen Ding klebt. Gearbeitet wird trotzdem an ihren
+   Einzelinstanzen. Charge = ein Scan / n Erfassungen; Einzelserialisierung = n Scans.
+
+### G2 — Eine Einzelinstanz ist immer nur in genau einem Auftrag aktiv
+
+1. **Aktiv** heisst: offene Zugehörigkeit zu einem Auftrag. **Referenziert** (Historie,
+   Log, abgeschlossener Auftrag) ist beliebig oft erlaubt.
+2. Der Versuch, ein aktives Stück in einem zweiten Auftrag zu **definieren**, ist ein
+   harter, sprechender Fehler — er nennt das Stück und den Auftrag, in dem es aktiv ist.
+3. Die Regel wird **auf Datenbankebene** erzwungen, nicht nur in der Anwendungslogik.
+   Zwei gleichzeitige Freigaben lesen sonst beide «ist frei» und schreiben beide.
+4. Der **Abweichungsauftrag ist keine Ausnahme**: er **entzieht** das Stück dem laufenden
+   Auftrag (alte Zugehörigkeit schliessen, dann neue anlegen), statt es ein zweites Mal
+   aktiv zu machen.
+5. Reservierung, Anteil und Unterdeckung **entfallen ersatzlos**. Nichts davon wird
+   gebaut, auch nicht vorbereitend.
+
+### G3 — Nichts wird erfunden
+
+1. Fehlende Pflichtdaten ergeben einen **sauberen Fehler mit Namen**, nie einen
+   Platzhalter, Standardwert oder geschätzten Wert.
+2. Eine Menge, die nicht aufgeht, bricht die Transaktion ab — sie wird nicht stillschweigend
+   korrigiert.
+3. Ein unbekannter Status wird **gemeldet**, nicht einsortiert. Eine Bestandsleiste, die
+   ihn stillschweigend mitzählt, verbirgt genau den Fehler, den man sehen müsste.
+4. Eine Zahl, die abgeleitet werden kann, wird **abgeleitet** und nicht gespeichert.
+   Zwei Kopien laufen auseinander.
+5. Ein `except`, das einen Fehler verschluckt, ist ein Fehler. Zulässig ist nur, einen
+   Fehler in einen **sprechenderen** zu übersetzen.
+6. **Ausnahmen, die erlaubt sind — und nur diese:** ein *unbekannter* Wert darf als roher
+   Wert angezeigt werden (damit die Anzeige nicht lügt), und eine *Alt-Definition* darf
+   einen dokumentierten Rückfall haben (siehe §5, Punkt 3). Beides ist ein Rückfall für
+   **Historie**, nie für eine Eingabe.
+
+### G4 — Terminale Status sind endgültig
+
+1. Aus einem terminalen Status heraus gibt es **keinen** Übergang — aus keinem Anlass, an
+   keiner Stelle, durch kein Modul.
+2. Der Schutz gilt auf **drei** Ebenen: die eine Schreibstelle, die Tabelle selbst
+   (Trigger), und der Abgleich Log ↔ Zeile.
+3. Ein Stück in einem terminalen Status ist **überall unerreichbar**: die Auswahl-Liste
+   weist es aus, der Entwurf ist nicht freigebbar, die Freigabe lehnt ab. Nicht erst beim
+   letzten Klick.
+4. **Es gibt keine Umgehung.**
+
+### G5 — Was passiert ist, ist eingefroren
+
+1. Der Ereignis-Log ist **append-only**: kein Update, kein Delete, kein `is_active`, kein
+   `updated_at`. Eine Korrektur ist ein **neuer Eintrag**.
+2. Die **Reihenfolge** ist die `id`, nicht der Zeitstempel — zwei Einträge können dieselbe
+   Sekunde tragen.
+3. Eine gezogene Stichprobe ist eingefroren. Sie wird nie neu gewürfelt.
+4. Eine einmal **gegangene** Kante im Prozessbild wird nie wieder schwach.
+5. Eine Ansicht der Vergangenheit darf **keine bewegliche Grösse lesen**. Was ein anderer
+   Auftrag später mit dem Stück tat, gehört nicht in die Geschichte dieses Auftrags.
+6. Eine Einzelinstanz wird nie gelöscht und nie deaktiviert. Ihre Nummer ist eine
+   Identität, keine Position.
+
+### G6 — Backend ist Master
+
+1. Jede fachliche Ableitung entsteht im Backend. Das Frontend layoutet und zeichnet.
+2. Das Prozessbild wird als **Graph** geliefert (Knoten, Kanten, Positionen,
+   Kantenzustand) — die Oberfläche rechnet keine Prozesslogik.
+3. Eine Regel, die die Oberfläche durchsetzt, aber der Dienst nicht kennt, ist ein
+   **Fehler**: sie ist eine erfundene Sperre, und eine erfundene Sperre hat keinen
+   Schlüssel.
+4. Umgekehrt gilt: eine deaktivierte Schaltfläche ist **keine** Absicherung, sondern eine
+   Bitte. Jede harte Regel liegt zusätzlich serverseitig.
+5. Der Status-Katalog wird ins Frontend **generiert**, nicht gespiegelt. Ein Spiegel, den
+   ein Test vergleicht, *findet* ein Auseinanderlaufen — verhindert es aber nicht.
+
+---
+
+## 4. Sackgassen-Analyse
+
+> **Ein Zustand ohne Ausgang, der nicht ausdrücklich terminal ist, ist ein Fehler.**
+
+### 4.1 Zustände einer Einzelinstanz
+
+| # | Zustand | Wie kommt man hier raus? |
+|---|---|---|
+| U1 | `freigegeben`, keine offene Zugehörigkeit — **freier Bestand** | Ein beliebiger Auftrag greift es (T2). |
+| U2 | `im_prozess`, offene Zugehörigkeit, steht vor Modul X | Modul X bestätigen (T5/T6/T7) **oder** ein anderer Auftrag greift es (T3, Abweichung). |
+| U3 | `im_prozess`, **ausgeschert** — geschlossene Zeile mit Punkt, offene Zeile im Abweichungsauftrag | Der Abweichungsauftrag läuft durch: Rückkehr (T9) an denselben Punkt, oder Ende ohne Rückkehr (T8), oder Aussonderung (T6/T7). |
+| U4 | `im_prozess`, Modul **angehalten** (letztes Urteil «nicht bestanden») | **Erneut erfassen** — das nächste Urteil ersetzt das letzte. Zusätzlich: ein Abweichungsauftrag kann das Stück greifen. **Der Halt ist eine Auskunft, keine Sperre.** |
+| U5 | `im_prozess`, Modul **gesperrt** (wartet auf Rückführung) | Die ausstehende Rückführung abschliessen — dann fällt die Sperre von selbst. Oder: in der Abweichung wird ausgesondert, dann endet die Wartekette. |
+| U6 | `gesperrt`, keine offene Zugehörigkeit — **gesperrter Bestand** | Ein **ganz gewöhnlicher** Auftrag greift es (T4). Das Greifen IST das Aufheben; es gibt bewusst keinen Entsperren-Endpunkt. |
+| U7 | `verschrottet` | **Kein Ausgang — ausdrücklich terminal.** Das ist die Zusage, keine Sackgasse. |
+
+**Unmögliche Kombinationen** (sie dürfen nicht vorkommen, und ihr Auftreten ist ein
+Befund):
+
+- Offene Zugehörigkeit **ohne** Zustandspunkt (`current_step_id NULL`): wer das Ende
+  passiert, wird frei — die Zeile wird geschlossen.
+- Zwei offene Zugehörigkeiten für dasselbe Stück (verletzt G2).
+- `freigegeben` **mit** offener Zugehörigkeit: der Start setzt sofort `im_prozess`.
+- `verschrottet` mit offener Zugehörigkeit: der Ausgang schliesst sie.
+
+### 4.2 Zustände eines Auftrags
+
+| # | Zustand | Wie kommt man hier raus? |
+|---|---|---|
+| O1 | `im_prozess`, ein Modul ist dran | Modul bestätigen. |
+| O2 | `im_prozess`, das aktive Modul ist **gesperrt** (wartet auf Rückführung) | Die Abweichung abschliessen. **Sie kann immer abgeschlossen werden** — sonst ist es eine Sackgasse (siehe Risiko R1). |
+| O3 | `im_prozess`, das aktive Modul ist **angehalten** (Urteil «nicht bestanden») | Erneut erfassen (U4). |
+| O4 | `im_prozess`, alle Stücke ausgeliehen (rückführend) | Die Abweichungen laufen durch. |
+| O5 | `abgeschlossen` | Terminal für den Auftrag — er hat getan, wozu er da war. **Kein Ausgang nötig.** |
+| O6 | `abgebrochen` | Terminal für den Auftrag — sein Ziel ist unerreichbar. **Kein Ausgang nötig.** |
+
+### 4.3 Bekannte Risiken auf dieser Landkarte
+
+Diese Punkte sind **nicht** behauptete Fehler — sie sind die Stellen, an denen die
+Landkarte dünn ist und an denen darum getestet wird.
+
+| Risiko | Frage |
+|---|---|
+| **R1 — die Wartekette** | Wartet ein Auftrag auf eine Abweichung, die ihrerseits wartet: löst sich die Kette bis nach oben auf, wenn ganz unten ausgesondert wird? Und wenn ganz unten nichts passiert — gibt es dann einen Weg? |
+| **R2 — kein Abbruch** | Es gibt **keine** Abbruch-Funktion für einen Auftrag (bewusst offen, `PROCESS_CORE` §13.3). Ein Auftrag, dessen Abweichung nie fertig wird, hat damit nur einen Ausgang: die Abweichung fertigmachen. Ist das immer möglich? |
+| **R3 — Nebenläufigkeit** | Zwei gleichzeitige Freigaben mit demselben freien Stück: bekommt der Verlierer einen **sprechenden** Fehler (G2.2) oder eine rohe Datenbankmeldung? |
+| **R4 — Stichprobe und Rückkehr** | Ein Stück, das zum Ziehungszeitpunkt ausgeschert war, kommt zurück: ist es in der Stichprobe? Kann ein Stück durch eine Abweichung systematisch der Prüfung entgehen? |
+| **R5 — Artikel inaktiv** | Ein Artikel im Zustand `inaktiv`: lässt sich damit noch ein Auftrag anlegen? |
+| **R6 — leere Menge** | Ein Auftrag, dessen Stücke alle ausgesondert sind, ist `abgeschlossen`. Stimmt die Mengenbilanz danach noch? |
+
+---
+
+## 5. Was ausdrücklich (noch) nicht entschieden ist
+
+Diese Punkte gehören zur Grundlogik, sind aber **nicht** entschieden. Sie werden
+einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts behaupten.
+
+1. **Abbruch eines Auftrags** — wer darf ihn abbrechen, was geschieht mit dem Auftrag
+   selbst? (`PROCESS_CORE` §13.3)
+2. **Darf ein Abweichungsauftrag ausgelöst werden, während in einem Modul bereits mit der
+   Eingabe begonnen wurde?** Gebaut ist die restriktivere Variante, **als Eigenschaft des
+   Modultyps**, nicht als globale Regel. Serverseitig ist das nicht erzwingbar: eine nicht
+   bestätigte Eingabe existiert nirgends.
+3. **Stichprobenregel fehlt in einer Alt-Definition** → es gilt «alle». Das ist ein
+   dokumentierter Rückfall für **Historie**, kein Standardwert für neue Eingaben. Eine
+   neue Definition trägt die Regel immer.
+4. **Weitere Modultypen.** Zwei sind fertig (Datenerfassung, Aussondern). Was ein Modul
+   mit Aussenwirkung (Einkauf, Verkauf) beim Herausnehmen eines Stücks tun muss, ist noch
+   nicht entschieden — der Schalter dafür steht an einer Stelle.
+
+---
+
+## 6. Die Testbarkeitsregel
+
+Jeder Satz in §1–§4 muss durch einen automatisierten Test widerlegbar sein. Ein Satz, für
+den es keinen Test gibt, wird in `TEST_REPORT.md` ausdrücklich als **nicht geprüft**
+ausgewiesen — nicht als bestanden.
