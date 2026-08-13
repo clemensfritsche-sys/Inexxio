@@ -517,6 +517,36 @@ def test_waiting_material_is_not_drawn_on_the_axis():
         w.db.close()
 
 
+def test_the_system_invariants_stay_green_with_a_pin():
+    """**Das Netz unter allem darf nicht im Normalbetrieb anschlagen.**
+
+    Zwei Prüfungen zählen «die Stücke eines Auftrags»: das **Bild** (`flow._verify`) und
+    die **Invariante I08** (Bedarf ↔ Zugehörigkeiten). Beide meinen die *Subjekte* – der
+    Bedarf sagt, was ein Auftrag bearbeitet, und Material steht nicht darin: es kommt aus
+    der Stückliste eines Moduls.
+
+    Beide Meldungen sind **gemessen, nicht ausgedacht**: ohne die Bedingung meldet I08
+    «Auftrag #…: Definition 1, Zeilen 2», und zwar dauerhaft – auch nach dem Durchlauf.
+    Ein Wächter, der im Normalbetrieb anschlägt, ist von einem kaputten nicht zu
+    unterscheiden.
+    """
+    from app.services import invariants
+
+    w = _w()
+    try:
+        _, _, _, order = _assembly(w, after=[w.capture()])
+        w.db.flush()
+        bad = [f.check.key for f in invariants.run(w.db) if not f.ok]
+        assert bad == [], f"Invarianten melden mit wartender Vormerkung: {bad}"
+
+        w.run_all(order)
+        w.db.flush()
+        bad = [f.check.key for f in invariants.run(w.db) if not f.ok]
+        assert bad == [], f"Invarianten melden nach dem Durchlauf: {bad}"
+    finally:
+        w.db.close()
+
+
 def test_two_pins_in_one_module():
     """Rahmen **und** Motor – zwei Vormerkungen, ein Modul.
 

@@ -25,6 +25,7 @@ from ..models import (
     Instance, InstanceUnit, Order, OrderLine, OrderUnit, ProcessEvent, ProcessStep,
 )
 from ..models.process_event import KIND_START
+from . import process
 
 #: Wie viele Verstösse eine Prüfung höchstens aufzählt. Ein Deckel, der **ausgewiesen**
 #: wird – eine Liste, die stumm bei 20 aufhört, sieht aus wie die ganze Wahrheit.
@@ -214,10 +215,16 @@ def i08(db: Session) -> list[str]:
             .group_by(OrderLine.order_id)
         ).all()
     }
+    # **Gezählt werden Subjekte.** Der Bedarf sagt, was ein Auftrag *bearbeitet*;
+    # **Material** steht nicht darin – es kommt aus der Stückliste eines Moduls und
+    # tritt dort ein (§9.6a). Zählte es mit, meldete jeder Auftrag mit einer Vormerkung
+    # eine Abweichung, die keine ist – und ein Wächter, der im Normalbetrieb anschlägt,
+    # ist von einem kaputten nicht zu unterscheiden.
     ist = {
         int(oid): int(n)
         for oid, n in db.execute(
             select(OrderUnit.order_id, func.count(OrderUnit.id))
+            .where(process.material_clause())
             .group_by(OrderUnit.order_id)
         ).all()
     }
