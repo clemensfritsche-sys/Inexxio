@@ -18,14 +18,12 @@ import {
 import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import {
-  DefinitionLines, LAGER, NEU, PinPicker, emptyLine, toPayload,
-  type DefinitionLine, type UnitPick,
+  DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
 import { END_BEFORE } from '@/lib/process-status';
-import { formatObjectId } from '@/lib/utils';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { StepRecord } from '@/components/erp/step-record';
-import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
+import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
 // keine weiteren – auch keine leeren oder deaktivierten.
@@ -301,46 +299,6 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
   const articleName = articles.find((a) => a.object_id === sourceArticle)?.name;
 
   /**
-   * **Die Vorlage sagt WAS, dieser Auftrag sagt WELCHES** (Testnotiz #721).
-   *
-   * Der Erzeugungsprozess ist eine Kopie und hier nur zu sehen – aber eine Vormerkung
-   * ändert nichts daran, *wie* etwas entsteht, sondern nur, welches von lauter gleichen
-   * Stücken genommen wird. Genau darum darf sie aus dem Entwurf in die Kopie, und genau
-   * darum steht sie **an der Zeile im Modul** und nicht in einem Feld daneben.
-   *
-   * Gehalten wird sie in denselben `ModuleDraft`s, die ein Lager-Auftrag ohnehin
-   * schickt; der Server ordnet sie über den **Artikel** zu (`process._apply_pins`).
-   */
-  const pinned = useMemo(() => {
-    const found = new Map<number, UnitPick>();
-    for (const s of steps) {
-      for (const l of s.lines) {
-        if (l.articleObjectId !== null && l.units[0]) found.set(l.articleObjectId, l.units[0]);
-      }
-    }
-    return found;
-  }, [steps]);
-
-  const setPin = useCallback((article: number, pick: UnitPick | null) => {
-    const next = new Map(pinned);
-    if (pick) next.set(article, pick); else next.delete(article);
-    setSteps(next.size === 0 ? [] : [{
-      ...blankModule(1, 'verbrauch'),
-      lines: [...next.entries()].map(([a, u], i) => ({
-        key: i + 1, articleObjectId: a, quantity: 1,
-        origin: LAGER as typeof LAGER, units: [u], returns: true,
-      })),
-    }]);
-  }, [pinned, setSteps]);
-
-  /** Die Stücklisten-Zeilen eines Moduls der Vorlage – oder nichts. */
-  const linesOfStep = useCallback((stepId: number) => {
-    const config = (template?.steps ?? []).find((s) => s.id === stepId)?.config as
-      { lines?: { article: number; quantity: number }[] } | null | undefined;
-    return config?.lines ?? [];
-  }, [template]);
-
-  /**
    * **Die Rückführung schaltet man am Ziel** (§5) – und das Ziel ist seit der Vorschau
    * der Quell-Auftrag selbst, nicht mehr eine Ersatz-Pille unter dem Ende.
    *
@@ -374,31 +332,6 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
             mode: 'definition',
             endStatus: END_BEFORE,
             head,
-            // **Die Vormerkung steht an ihrer Zeile** – im Modul, das den Artikel
-            // verbraucht. Alles andere an der Vorlage bleibt, was es ist: Kopie.
-            renderStep: (step) => {
-              const rows = linesOfStep(step.id);
-              if (!rows.length) return null;
-              return (
-                <div className="flex flex-col gap-1.5">
-                  {rows.map((row) => (
-                    <div key={row.article} className="flex flex-col">
-                      <span className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
-                        {row.quantity}× {articles.find((a) => a.object_id === row.article)?.name
-                          ?? formatObjectId(row.article)}
-                      </span>
-                      <PinPicker
-                        articleObjectId={row.article}
-                        quantity={row.quantity}
-                        refreshKey={refreshKey}
-                        chosen={pinned.get(row.article) ?? null}
-                        onChange={(pick) => setPin(row.article, pick)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              );
-            },
           }}
           parents={parents}
           onToggleReturn={toggleReturn}
@@ -410,7 +343,6 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
           parents={parents}
           onToggleReturn={toggleReturn}
           head={head}
-          pinnable
         />
       )}
 

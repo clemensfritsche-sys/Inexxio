@@ -42,7 +42,7 @@ import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
  * einen Endpunkt, der eine freigegebene Definition ändert, gibt es ohnehin nicht.
  */
 export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head,
-  parents, onToggleReturn, pinnable }: {
+  parents, onToggleReturn }: {
   modules: ModuleDraft[];
   onChange: (m: ModuleDraft[]) => void;
   frozen?: boolean;
@@ -59,15 +59,6 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   parents?: RelatedOrder[];
   /** Ein Klick auf den Quell-Auftrag schaltet seine Rückführung an und aus (§5). */
   onToggleReturn?: (parentObjectId: number) => void;
-  /**
-   * **Darf hier ein bestimmtes Stück vorgemerkt werden?** (Testnotiz #721)
-   *
-   * Nur im **Auftrag** – er läuft genau einmal. Die **Artikel-Vorlage** läuft für jeden
-   * künftigen Auftrag erneut; ein dort genanntes Stück wäre nach dem ersten verbaut,
-   * und jeder weitere müsste den Eintrag ignorieren. Der Server weist es ebenso ab
-   * (`Module.template_problem`) – dies ist die Anzeige davon, nicht die Regel.
-   */
-  pinnable?: boolean;
 }) {
   const [catalog, setCatalog] = useState<ModuleCatalog | null>(null);
   const [drag, setDrag] = useState<number | null>(null);
@@ -142,7 +133,6 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
           // nicht als Bedingung im Rumpf. Ein neuer Typ ist ein Eintrag, kein Eingriff.
           const Fields = MODULE_FIELDS[m.moduleType];
           return Fields ? <Fields module={m} types={catalog?.capture_types ?? []}
-            pinnable={!!pinnable}
             onChange={(next) => patch(m.id, next)} /> : (
             <p className="text-xs" style={{ color: 'var(--danger)' }}>
               Modultyp «{m.moduleType}» ist dieser Oberfläche unbekannt.
@@ -245,8 +235,6 @@ function DisposalFields({ module: m, onChange }: {
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
   types: { key: string; label: string }[];
-  /** Darf hier ein bestimmtes Stück vorgemerkt werden? Nur im Auftrag (#721). */
-  pinnable: boolean;
   onChange: (next: Partial<ModuleDraft>) => void;
 }>> = {
   datenerfassung: ModuleFields,
@@ -271,16 +259,14 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
  * **Gerechnet wird beim Erreichen**, nicht hier: wie viele Erzeugnisse ankommen, steht
  * beim Modellieren nicht fest. Ob der Bestand dann reicht, sagt das Modul im Auftrag.
  */
-function ConsumptionFields({ module: m, pinnable, onChange }: {
+function ConsumptionFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
-  pinnable: boolean;
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   return (
     <DefinitionLines
       perUnit
-      pinnable={pinnable}
       lines={m.lines.length ? m.lines : [emptyLine(1)]}
       setLines={(lines) => onChange({ lines })}
     />

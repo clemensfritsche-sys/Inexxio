@@ -83,13 +83,12 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
             StepNeed(
                 article_object_id=n.article_object_id, article_name=n.article_name,
                 per_unit=n.per_unit, required=n.required, available=n.available,
-                pinned=n.pinned, pinned_here=n.pinned_here,
                 sources=[NeedSource(instance_object_id=src.instance_object_id,
                                     free=src.free)
                          for src in n.sources],
             )
             for n in consumption_svc.needs(
-                db, s, pieces=sum(w.waiting for w in row.work), order=order)
+                db, s, pieces=sum(w.waiting for w in row.work))
         ]
         out.append(row)
     return out

@@ -2768,13 +2768,6 @@ export interface components {
             required: number;
             /** Available */
             available: number;
-            /** Pinned */
-            pinned?: string | null;
-            /**
-             * Pinned Here
-             * @default false
-             */
-            pinned_here: boolean;
             /** Sources */
             sources?: components["schemas"]["NeedSource"][];
         };

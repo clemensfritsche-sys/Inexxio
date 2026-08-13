@@ -217,14 +217,6 @@ class StepNeed(BaseModel):
     per_unit: int
     required: int
     available: int
-    #: Die **vorgemerkte** Einzelinstanz dieser Zeile (Testnotiz #721) – oder ``None``.
-    #: Sie gehört dem Auftrag seit seiner Freigabe und ist schlicht **Im Prozess** an
-    #: diesem Modul; einen eigenen Zustand dafür gibt es nicht.
-    pinned: Optional[str] = None
-    #: Steht sie noch hier? ``False`` heisst: sie war vorgemerkt und ist weg – eine
-    #: Abweichung hat sie geholt. Dann sagt die Zeile das, statt still ein anderes Stück
-    #: zu nehmen; genau dafür hat jemand ein bestimmtes genannt.
-    pinned_here: bool = False
     #: Woher genommen werden kann – die Kisten, die der Lagerist scannt.
     sources: list[NeedSource] = Field(default_factory=list)
 

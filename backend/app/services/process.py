@@ -353,66 +353,6 @@ def steps_for(db: Session, lines: list[_Line], submitted: list[dict[str, Any]]) 
                 f"mindestens ein Modul steht."
             ),
         )
-    return _apply_pins(copied, submitted)
-
-
-def _apply_pins(copied: list[dict[str, Any]],
-                submitted: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """**Die Vorlage sagt WAS, der Auftrag sagt WELCHES** (§9.6a).
-
-    Ein Erzeugungsauftrag fährt die Vorlage des Artikels, und daran ändert eine
-    Vormerkung **nichts**: sie sagt nicht, *wie* etwas entsteht, sondern welches von
-    lauter gleichen Stücken genommen wird. Der Versionsstempel bleibt damit wahr – genau
-    deshalb darf diese eine Angabe aus dem Entwurf in die Kopie.
-
-    **In die Kopie, nie in die Vorlage.** Die Vorlage läuft für jeden künftigen Auftrag
-    erneut; ein dort genanntes Stück wäre beim zweiten verbaut (``template_problem``).
-    Die Kopie läuft genau einmal.
-
-    Zugeordnet wird über den **Artikel**, nicht über die Position: der Entwurf schickt
-    für einen Erzeugungsauftrag ohnehin keine passende Modul-Liste, und «das dritte
-    Modul» wäre eine Angabe, die beim nächsten Umsortieren auf etwas anderes zeigt.
-    Verbraucht derselbe Artikel an zwei Modulen, ist die Zuordnung nicht entscheidbar –
-    dann sagt es das, statt zu raten.
-    """
-    pins: dict[int, str] = {}
-    for step in submitted or []:
-        for row in modules.lines_of((step or {}).get("config")):
-            if row.get(modules.Verbrauch.UNIT):
-                pins[row["article"]] = row[modules.Verbrauch.UNIT]
-    if not pins:
-        return copied
-
-    homes: dict[int, list[dict[str, Any]]] = {}
-    for step in copied:
-        for row in modules.lines_of(step.get("config")):
-            homes.setdefault(row["article"], []).append(step)
-    for article, number in pins.items():
-        found = homes.get(article) or []
-        if not found:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"{number} ist für Artikel {article} vorgemerkt, aber der "
-                        f"Erzeugungsprozess verbraucht ihn gar nicht."),
-            )
-        if len(found) > 1:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"Artikel {article} wird an mehreren Modulen verbraucht – dann "
-                        f"ist nicht entscheidbar, wo {number} hingehört."),
-            )
-        step = found[0]
-        rows = [
-            dict(row) | ({modules.Verbrauch.UNIT: number}
-                         if row["article"] == article else {})
-            for row in modules.lines_of(step.get("config"))
-        ]
-        # **Durch dieselbe Prüfung wie jede andere Konfiguration.** Sonst käme über diesen
-        # Weg eine Vormerkung an einer Zeile mit Menge 3 durch – ein Widerspruch, den
-        # ``clean_config`` an jeder anderen Stelle abweist.
-        step["config"] = modules.get(step["module_type"]).clean_config(
-            dict(step.get("config") or {}) | {modules.Verbrauch.LINES: rows},
-        )
     return copied
 
 
@@ -667,10 +607,6 @@ def release(
     end_status = st.DEFAULT_END_STATUS
     chain.assert_closes(effective)
     _assert_no_self_consumption(resolved, effective)
-    # **Die Vormerkungen, bevor irgendetwas kostet** (§9.6a). Sie sind der Grund, aus dem
-    # die Freigabe scheitern darf: ein genanntes Stück, das jemand anders schon hat, ist
-    # ein Fehler mit einer Nummer – hier, und nicht mitten in der Montage in drei Wochen.
-    pinned = _resolve_pins(db, effective, lines=resolved)
 
     # Bestehende Stücke auflösen: frei übernehmen oder **aus einem laufenden Auftrag**
     # herüberholen. Beides führt durch dasselbe Start-Objekt (§4.1) – der Status eines
@@ -789,110 +725,12 @@ def release(
         status_after=st.START_AFTER, next_step_id=rows[0].id, actor_id=actor_id,
     )
 
-    # ── 5b. Vorgemerktes Material tritt an SEINEM Modul ein (§9.6a) ─────────
-    # **Derselbe Eintritt, nur früher.** Nicht am Start-Objekt: das Stück läuft nicht
-    # durch den Prozess, es wird an einer Stelle verbraucht – und genau dort steht es ab
-    # jetzt. Die Bindung ist damit dieselbe wie bei jedem anderen Stück (``Im Prozess`` +
-    # der partielle Unique-Index); ein eigener Zustand daneben entsteht nicht.
-    for position, units in pinned.items():
-        _enter_at_step(db, order=order, step=rows[position], units=units,
-                       actor_id=actor_id)
-
     # ── 6. Das erste Modul ist damit aktiv (abgeleitet: dort stehen die Stücke) ──
     # Und weil die Stücke jetzt davorstehen, wird hier die Stichprobe gezogen: **beim
     # Erreichen des Moduls**, nicht beim Modellieren (§2 – vorher steht die Menge nicht
     # fest). Gezogen wird über die **Gesamtmenge** des Auftrags, nicht je Instanz.
     sampling.ensure(db, order=order, step=rows[0], actor_id=actor_id)
     return order
-
-
-def _resolve_pins(db: Session, steps: list[dict[str, Any]], *,
-                  lines: list["_Line"]) -> dict[int, list[InstanceUnit]]:
-    """Die vorgemerkten Einzelinstanzen — geprüft, **bevor eine Nummer vergeben ist**.
-
-    Zurück kommt ``{Position des Moduls: [Stücke]}``; die Position, weil es die Modul-Zeile
-    zu diesem Zeitpunkt noch nicht gibt (§6.3: jede Prüfung liegt vor der ersten
-    Objektnummer).
-
-    Geprüft wird viererlei, und jedes hat einen Grund:
-
-    * **Das Stück gibt es** – sonst zeigte die Vormerkung ins Leere.
-    * **Es gehört zum genannten Artikel** – sonst verbaute das Modul etwas anderes, als
-      seine Zeile sagt.
-    * **Es ist greifbar** (``pick_problem``) – dieselbe Frage wie bei der Auswahl im
-      Bedarf, und dieselbe Antwort; ein verschrottetes Stück lässt sich nicht vormerken.
-    * **Es ist frei** – wer an einem Modul eintritt, kommt aus dem freien Bestand
-      (``_enter_at_step``). Ein Stück aus einem laufenden Auftrag zu ziehen ist eine
-      Abweichung, und die deklariert man nicht in einer Stückliste.
-
-    Ein Stück kann nicht gleichzeitig Subjekt und Material sein: dieselbe Nummer im
-    Bedarf **und** in einer Stückliste wäre zweimal dasselbe Stück. Der Unique-Index
-    wiese das ohnehin ab – aber erst mitten in der Freigabe und mit einem
-    Datenbankfehler; hier steht der Satz, der sagt, warum.
-    """
-    from .instances import find_unit
-
-    out: dict[int, list[InstanceUnit]] = {}
-    subjects = {n for ln in lines for n, _ in ln.picks}
-    seen: dict[str, int] = {}
-    for position, step in enumerate(steps):
-        for row in modules.lines_of(step.get("config")):
-            number = row.get(modules.Verbrauch.UNIT)
-            if not number:
-                continue
-            if number in seen:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"Einzelinstanz {number} ist zweimal vorgemerkt – ein Stück "
-                            f"kann nur an einer Stelle verbaut werden."),
-                )
-            if number in subjects:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Einzelinstanz {number} steht im Bedarf und ist zugleich "
-                        f"vorgemerkt. Ein Stück kann nicht sein eigenes Material sein."
-                    ),
-                )
-            seen[number] = position
-            unit = find_unit(db, number)
-            if unit is None or not unit.is_active:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Vorgemerkte Einzelinstanz {number} gibt es nicht.",
-                )
-            article = _article_of_unit(db, unit)
-            if article is None or article.object_id != row["article"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"{number} gehört nicht zu Artikel {row['article']} – dann "
-                            f"verbaut das Modul etwas anderes, als seine Zeile sagt."),
-                )
-            problem = pick_problem(unit, number)
-            if problem:
-                raise HTTPException(status_code=409, detail=problem)
-            holder = held_by(db, [unit.id]).get(unit.id)
-            if holder is not None or unit.status != st.START_BEFORE:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"{number} ist nicht frei – vorgemerkt wird aus dem freien "
-                        f"Bestand. Ein Stück aus einem laufenden Auftrag zu holen ist "
-                        f"eine Abweichung, und die gehört nicht in eine Stückliste."
-                    ),
-                )
-            out.setdefault(position, []).append(unit)
-    return out
-
-
-def _article_of_unit(db: Session, unit: InstanceUnit) -> Optional[Article]:
-    """Der Artikel hinter einer Einzelinstanz — über ihre Instanz."""
-    return (
-        db.query(Article)
-        .join(Instance, Instance.article_id == Article.id)
-        .filter(Instance.id == unit.instance_id)
-        .first()
-    )
 
 
 def _enter_at_step(db: Session, *, order: Order, step: ProcessStep,
@@ -1002,14 +840,6 @@ def _hand_over(db: Session, *, order: Order, lines: list[_Line],
         step = db.query(ProcessStep).filter(ProcessStep.id == at).first()
         if src is not None and step is not None:
             _run_through(db, order=src, step=step, actor_id=actor_id)
-
-    # **Nimmt eine Abweichung das letzte Subjekt mit, tritt das Material aus** (§9.6a).
-    # Ohne das bliebe ein vorgemerktes Stück an einem Auftrag hängen, der nie wieder
-    # etwas tut – die Sackgasse, die es nicht geben darf.
-    for src_id in {m.order_id for m, _ in taken}:
-        src = db.query(Order).filter(Order.id == src_id).first()
-        if src is not None:
-            _release_unused_material(db, order=src, actor_id=actor_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1216,31 +1046,14 @@ def confirm_step(
     #
     # Ein Modul ohne Stückliste bekommt eine leere Zuteilung; die Fallunterscheidung nach
     # dem Modultyp gibt es hier so wenig wie bei ``capture_svc.record_for_step``.
-    # **Was vorgemerkt war, ist schon da** (§9.6a) – es trat bei der Freigabe ein und
-    # steht seither an diesem Modul. Es kommt darum aus der bestehenden Zugehörigkeit
-    # und nicht aus dem freien Bestand; ein zweiter Eintritt wäre eine zweite offene
-    # Zeile, und die weist der Unique-Index ab.
-    pins = consumption_svc.pins_of(db, order=order, step=step)
-    built = consumption_svc.plan(db, step=step, products=units, sources=sources,
-                                 pins=pins)
+    built = consumption_svc.plan(db, step=step, products=units, sources=sources)
     if built:
         taken = [c for group in built.values() for c in group]
-        here = {p.unit.id for p in pins.values() if p.unit is not None}
         # **Eintritt und Ausgang in einem Zug** – die beiden Übergänge des Statuswegs
         # ``Freigegeben`` → ``Im Prozess`` → ``Verbaut``. Beide gehen durch ``_pass``,
         # also stehen beide im Log; ein Zustand dazwischen, in dem etwas hängen bleiben
-        # könnte, entsteht nicht. Für ein vorgemerktes Stück ist der Eintritt schon
-        # passiert – dann bleibt nur der Ausgang.
-        _enter_at_step(db, order=order, step=step,
-                       units=[c for c in taken if c.id not in here], actor_id=actor_id)
-        db.flush()
-        ids = [
-            int(i) for (i,) in db.query(OrderUnit.id).filter(
-                OrderUnit.order_id == order.id,
-                OrderUnit.released_at.is_(None),
-                OrderUnit.instance_unit_id.in_([c.id for c in taken]),
-            ).all()
-        ]
+        # könnte, entsteht nicht.
+        ids = _enter_at_step(db, order=order, step=step, units=taken, actor_id=actor_id)
         _pass(
             db, order=order, units=taken, membership_ids=ids,
             kind=KIND_STEP, step=step,
@@ -1289,9 +1102,6 @@ def confirm_step(
     db.flush()
     # **Was hier nicht gezogen wurde, läuft jetzt mit** (§9.3) – siehe ``_run_through``.
     _run_through(db, order=order, step=step, actor_id=actor_id)
-    # **Und was vorgemerkt war und nicht gebraucht wurde, tritt aus** (§9.6a). Hier, weil
-    # dieser Aufruf die letzte Bewegung des Auftrags gewesen sein kann.
-    _release_unused_material(db, order=order, actor_id=actor_id)
     db.flush()
     return {"moved": len(units), "held": 0, "result": result}
 
@@ -1446,61 +1256,6 @@ def _finish(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUn
         _return_home(db, order=order, rows=back, actor_id=actor_id)
 
 
-def _release_unused_material(db: Session, *, order: Order, actor_id: Optional[int]) -> int:
-    """►►► **Was eintritt und nicht verbraucht wird, tritt wieder aus.** ◄◄◄
-
-    Das Gegenstück zur Vormerkung (§9.6a) – und die Antwort auf «kann sich eine Sackgasse
-    bilden?». Ein vorgemerktes Stück gehört dem Auftrag ab der Freigabe. Läuft er zu Ende,
-    ohne es zu brauchen (oder verliert er seine Subjekte an eine Abweichung), bliebe es
-    sonst für immer ``Im Prozess`` an einem Auftrag, der nichts mehr tut: niemand könnte
-    es freigeben, weil es kein Modul mehr passiert.
-
-    **Der Auslöser ist derselbe wie beim Auftragszustand**, nicht ein zweiter: es ist kein
-    Subjekt mehr unterwegs (``alive``) **und** es kommt keines mehr zurück (``lent``).
-    Genau diese beiden Zahlen entscheiden in ``_derive``, ob ein Auftrag noch läuft; hier
-    werden sie dieselben gelesen. Solange eines von beiden offen ist, bleibt das Material
-    liegen – es könnte ja noch gebraucht werden.
-
-    Ausgetreten wird über **dieselbe** Schreibstelle wie jeder andere Übergang, mit
-    ``KIND_END`` und dem Endzustand des Auftrags: das Stück ist wieder frei. Der Eintrag
-    trägt die Modul-``id`` – dort ist es gewesen, und dort hat es den Auftrag verlassen.
-    """
-    material = material_at(db, order)
-    if not material:
-        return 0
-    alive = (
-        db.query(func.count(OrderUnit.id))
-        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
-        .filter(
-            OrderUnit.order_id == order.id,
-            OrderUnit.released_at.is_(None),
-            InstanceUnit.is_active.is_(True),
-            material_clause(),
-        )
-        .scalar()
-    ) or 0
-    if alive or waiting_counts(db, [order.id]).get(order.id, 0):
-        return 0
-    for step_id, rows in _by_step(material).items():
-        step = db.query(ProcessStep).filter(ProcessStep.id == step_id).first()
-        _pass(
-            db, order=order,
-            units=[u for _, u in rows], membership_ids=[m.id for m, _ in rows],
-            kind=KIND_END, step=step,
-            status_after=order.end_status, next_step_id=None, actor_id=actor_id,
-        )
-    db.flush()
-    return len(material)
-
-
-def _by_step(rows: list[tuple[OrderUnit, InstanceUnit]],
-             ) -> dict[Optional[int], list[tuple[OrderUnit, InstanceUnit]]]:
-    out: dict[Optional[int], list[tuple[OrderUnit, InstanceUnit]]] = {}
-    for m, u in rows:
-        out.setdefault(m.current_step_id, []).append((m, u))
-    return out
-
-
 def _return_home(db: Session, *, order: Order, rows: list[tuple[OrderUnit, InstanceUnit]],
                  actor_id: Optional[int]) -> None:
     """Geliehene Stücke kehren an **genau die Stelle** zurück, an der sie ausgeschert sind.
@@ -1623,77 +1378,12 @@ def _captures_for(
     return {by_number[n].id: v for n, v in values.items()}
 
 
-def material_clause():
-    """►►► **Was ist Material und nicht Subjekt?** ◄◄◄ — als SQL-Bedingung, eine Stelle.
-
-    Ein Auftrag hält zweierlei: **Subjekte** (was er bearbeitet – sie laufen den Prozess
-    von oben nach unten durch) und **Material** (was er verbraucht – es tritt an *einem*
-    Modul ein und verlässt den Auftrag dort). Beides sind Zugehörigkeiten, und beides ist
-    exklusiv; der Unterschied ist der Weg.
-
-    **Er ist nicht gespeichert, er steht im Log** – und zwar seit dem Verbrauchsmodul:
-    der ``start``-Eintrag eines Subjekts trägt ``step_id IS NULL`` (das Start-Objekt), der
-    eines eintretenden Stücks die **Modul-id** (``_enter_at_step``). Genau daran
-    unterscheidet der Graph die beiden längst (``flow._tally``). Hier wird dieselbe
-    Tatsache gelesen; eine Spalte daneben wäre eine zweite Achse, die auseinanderlaufen
-    kann.
-
-    Die Bedingung **schliesst Material aus** – sie steht also überall dort, wo «die Stücke
-    dieses Auftrags» die Subjekte meint: die Arbeitsliste (``_units_at``), die Ziehung
-    (``sampling._population``) und der Auftragszustand (``order_statuses`` – Material
-    kommt nirgends an und ist auch nicht unterwegs). Solange Material nur für einen
-    Augenblick eintritt (der Normalfall: Eintritt und Verbau in einem Zug), ändert sie
-    nichts; sie zählt erst, seit eine **Vormerkung** ein Stück ab der Freigabe hält
-    (§9.6a).
-
-    Formuliert als korreliertes ``NOT EXISTS`` auf ``OrderUnit`` – damit gilt sie
-    unverändert für **einen** Auftrag wie für den ganzen Feed.
-    """
-    from sqlalchemy import select
-
-    return ~(
-        select(ProcessEvent.id).where(
-            ProcessEvent.order_id == OrderUnit.order_id,
-            ProcessEvent.instance_unit_id == OrderUnit.instance_unit_id,
-            ProcessEvent.kind == KIND_START,
-            ProcessEvent.step_id.isnot(None),
-        ).exists()
-    )
-
-
-def material_at(db: Session, order: Order,
-                step_id: Optional[int] = None) -> list[tuple[OrderUnit, InstanceUnit]]:
-    """Das **Material** dieses Auftrags, das noch nicht verbraucht ist.
-
-    Die Gegenrichtung zu ``material_clause`` – dieselbe Regel, andere Seite. Zwei Formen
-    einer Regel sind in Ordnung; zwei Regeln wären es nicht. Ohne ``step_id``: das
-    Material aller Module.
-    """
-    q = (
-        db.query(OrderUnit, InstanceUnit)
-        .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
-        .filter(
-            OrderUnit.order_id == order.id,
-            OrderUnit.released_at.is_(None),
-            ~material_clause(),
-        )
-    )
-    if step_id is not None:
-        q = q.filter(OrderUnit.current_step_id == step_id)
-    return q.order_by(OrderUnit.id).all()
-
-
 def _units_at(db: Session, order: Order, step_id: Optional[int],
               *, instance_id: Optional[int] = None):
     """Was steht an diesem Zustandspunkt — wahlweise nur die Stücke **einer** Instanz.
 
     Die Einschränkung ist die Ausführungsseite der Scan-Regel: verifiziert wird eine
     Instanz, also arbeitet ein Vorgang auch nur an ihren Stücken.
-
-    **Material zählt hier nicht** (``material_clause``): es steht zwar vor dem Modul, aber
-    es ist nicht sein Gegenstand – es wird dort verbraucht. Stünde es in der Arbeitsliste,
-    böte die Oberfläche an, es zu scannen und zu bearbeiten, und ``confirm_step`` würde
-    ihm seinerseits Komponenten zuteilen.
     """
     q = (
         db.query(OrderUnit, InstanceUnit)
@@ -1702,7 +1392,6 @@ def _units_at(db: Session, order: Order, step_id: Optional[int],
             OrderUnit.order_id == order.id,
             OrderUnit.released_at.is_(None),
             OrderUnit.current_step_id == step_id,
-            material_clause(),
         )
     )
     if instance_id is not None:
@@ -2159,13 +1848,6 @@ def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
     keinem Modul mehr. Eine geschlossene Zeile allein genügt nicht – sie schliesst sich
     auch, wenn ein Stück ausschert (siehe ``OrderUnit``), und das ist das Gegenteil von
     angekommen.
-
-    **Gezählt werden Subjekte** (``material_clause``). Material kommt nirgends an – es
-    wird verbraucht – und es ist auch nicht «unterwegs»: es steht an seinem Modul und
-    wartet darauf, gebraucht zu werden. Zählte es mit, wäre ein Auftrag, dessen Subjekte
-    alle in eine Abweichung gegangen sind, «Im Prozess» statt «Abgebrochen» – und ein
-    Auftrag mit übrig gebliebenem Material «Abgeschlossen», weil das Material sich als
-    angekommen ausgäbe.
     """
     if not order_ids:
         return {}
@@ -2180,7 +1862,7 @@ def order_statuses(db: Session, order_ids: list[int]) -> dict[int, str]:
             ).label("alive"),
         )
         .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
-        .filter(OrderUnit.order_id.in_(order_ids), material_clause())
+        .filter(OrderUnit.order_id.in_(order_ids))
         .group_by(OrderUnit.order_id)
         .all()
     )

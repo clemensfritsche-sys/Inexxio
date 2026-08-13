@@ -69,7 +69,7 @@ einmal kräftige Kante wird nie wieder schwach» **von selbst**, statt sie zu be
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from sqlalchemy import distinct, func, or_, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from . import process
@@ -389,24 +389,7 @@ def _left_with(db: Session, order_id: int) -> dict[int, str]:
 
 
 def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
-    """Alle Zugehörigkeiten dieses Auftrags, angereichert — **eine** Abfrage plus Log.
-
-    ►►► **Das Bild zeigt den Weg der Subjekte.** ◄◄◄
-
-    **Wartendes Material steht nicht darin** (§9.6a). Eine Vormerkung tritt an *ihrem*
-    Modul ein, nicht am Start-Objekt – sie ist die Kante davor nie gegangen. Sie dort zu
-    zeichnen wäre entweder ein Widerspruch (Stücke auf einer Haarlinie – genau das meldet
-    ``_verify``) oder eine Lüge (die kräftige Linie liefe bis zu einem Modul, das noch
-    kein Erzeugnis erreicht hat).
-
-    Sichtbar wird das Material in dem Moment, in dem es **etwas getan hat**: verbaut, auf
-    der Ausgangskante seines Moduls. Das ist derselbe Platz wie bisher – ohne Vormerkung
-    ist ein Material-Eintritt binnen einer Transaktion wieder geschlossen, und genau
-    diesen Zustand stellt die Bedingung hier wieder her.
-
-    Wo es *vorher* steht, sagt die Stückliste des Moduls («Vorgemerkt 100000123-1») – die
-    Stelle, an der es gebraucht wird.
-    """
+    """Alle Zugehörigkeiten dieses Auftrags, angereichert — **eine** Abfrage plus Log."""
     raw = db.execute(
         select(
             OrderUnit.id,
@@ -416,12 +399,7 @@ def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
             OrderUnit.instance_unit_id,
         )
         .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
-        .where(
-            OrderUnit.order_id == order.id,
-            # Behalte: alles Geschlossene (es ist irgendwo hingegangen) und jedes Subjekt.
-            # Übrig bleibt genau das noch nicht verbaute Material.
-            or_(OrderUnit.released_at.isnot(None), process.material_clause()),
-        )
+        .where(OrderUnit.order_id == order.id)
         .order_by(OrderUnit.id)
     ).all()
     came_back = _returned_here(db, order.id)

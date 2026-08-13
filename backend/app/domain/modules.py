@@ -115,20 +115,6 @@ class Module:
         """
         return self.status_after
 
-    def template_problem(self, config: Optional[dict[str, Any]]) -> Optional[str]:
-        """Was an dieser Konfiguration gilt **nur im Auftrag**, nicht in der Vorlage?
-
-        Eine Artikel-Vorlage ist zeitlos: sie beschreibt, wie etwas entsteht – für jeden
-        künftigen Auftrag, beliebig oft. Eine Angabe, die auf ein **konkretes** Ding
-        zeigt, ist dort nach dem ersten Auftrag falsch, und jeder weitere müsste sie
-        ignorieren. Dann ist sie keine Angabe, sondern eine Notiz.
-
-        Vorgabe: **alles gilt überall.** Ein neuer Modultyp erbt das, ohne eine Zeile –
-        und wer eine solche Angabe einführt, sagt hier, warum sie in der Vorlage nicht
-        stehen kann.
-        """
-        return None
-
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Auf welchen Zustand setzt dieses Modul ein Stück, das **hier hinausgeht**?
 
@@ -279,23 +265,6 @@ class Verbrauch(Module):
     #: Auftragsmenge nennt, wäre bei der zweiten Menge falsch.
     LINES = "lines"
 
-    #: **Optional: eine ganz bestimmte Einzelinstanz** (Testnotiz #721) – ihre Nummer,
-    #: ``<Instanznr>-<Suffix>``. Sie beantwortet den Fall, für den die Stückliste zu grob
-    #: ist: *nicht irgendein Rahmen, sondern dieser* – ein Unikat, eine Vorrichtung, eine
-    #: Kundenbeistellung.
-    #:
-    #: **Sie bindet ab der Freigabe**, nicht erst beim Erreichen des Moduls: sonst
-    #: könnte sie bis dahin jeder andere Auftrag greifen, und die Vormerkung wäre eine
-    #: Absichtserklärung. Gebunden wird dabei über **denselben** Eintritt wie sonst
-    #: (``process._enter_at_step``): das Stück ist schlicht ``Im Prozess`` an diesem
-    #: Modul, exklusiv über den partiellen Unique-Index. Ein eigener Zustand daneben
-    #: entsteht nicht – es gibt genau eine Art, ein Stück zu binden.
-    #:
-    #: Nur im **Auftrags**-Modul (siehe ``template_problem``) und nur bei ``quantity ==
-    #: 1``: eine genannte Einzelinstanz **ist** ein Stück, «4× dieses eine» ist ein
-    #: Widerspruch.
-    UNIT = "unit"
-
     #: Höchstmenge je Zeile. Eine Stückliste nennt Stückzahlen, keine Chargen; wer 5000
     #: Schrauben je Produkt braucht, hat einen Tippfehler oder das falsche Modul.
     MAX_PER_UNIT = 1000
@@ -311,21 +280,10 @@ class Verbrauch(Module):
                 status_code=400,
                 detail="«Verbrauch» erwartet eine Liste aus Artikel und Menge.",
             )
-        lines: list[dict[str, Any]] = []
+        lines: list[dict[str, int]] = []
         seen: set[int] = set()
-        pinned: set[str] = set()
         for row in found:
-            article, quantity, unit = self._one(row)
-            if unit and unit in pinned:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Einzelinstanz {unit} ist zweimal vorgemerkt. Ein Stück kann "
-                        f"nur an einer Stelle verbaut werden."
-                    ),
-                )
-            if unit:
-                pinned.add(unit)
+            article, quantity = self._one(row)
             if article in seen:
                 raise HTTPException(
                     status_code=400,
@@ -336,8 +294,7 @@ class Verbrauch(Module):
                     ),
                 )
             seen.add(article)
-            lines.append({"article": article, "quantity": quantity}
-                        | ({self.UNIT: unit} if unit else {}))
+            lines.append({"article": article, "quantity": quantity})
         if not lines:
             raise HTTPException(
                 status_code=400,
@@ -352,30 +309,9 @@ class Verbrauch(Module):
         # gibt es nicht.
         return {self.LINES: lines, "points": [], "sample": dict(sampling.DEFAULT)}
 
-    def template_problem(self, config: Optional[dict[str, Any]]) -> Optional[str]:
-        """**Eine Vormerkung gibt es nur im Auftrag.**
-
-        Die Artikel-Vorlage läuft beliebig oft. Ein dort genanntes Stück ist nach dem
-        ersten Auftrag verbaut, und jeder weitere müsste den Eintrag ignorieren – dann
-        ist er keine Angabe, sondern eine Notiz. Im Auftrag dagegen läuft das Modul genau
-        einmal, und dort ist «dieses eine Stück» eine Aussage, die trägt.
-        """
-        pinned = [r for r in (config or {}).get(self.LINES) or [] if r.get(self.UNIT)]
-        if not pinned:
-            return None
-        return (
-            "Eine bestimmte Einzelinstanz lässt sich nur im Auftrag vormerken, nicht im "
-            "Erzeugungsprozess des Artikels: der läuft für jeden künftigen Auftrag "
-            f"erneut, und {pinned[0][self.UNIT]} gibt es nur einmal."
-        )
-
     @staticmethod
-    def _one(row: Any) -> tuple[int, int, Optional[str]]:
-        """Eine Zeile prüfen: **Artikel + Menge pro Stück**, beide Pflicht.
-
-        Die **Vormerkung** ist optional und nur bei Menge 1 zulässig – eine genannte
-        Einzelinstanz ist ein Stück.
-        """
+    def _one(row: Any) -> tuple[int, int]:
+        """Eine Zeile prüfen: **Artikel + Menge pro Stück**, beide Pflicht."""
         if not isinstance(row, dict):
             raise HTTPException(
                 status_code=400,
@@ -406,16 +342,7 @@ class Verbrauch(Module):
                     f"{Verbrauch.MAX_PER_UNIT} liegen."
                 ),
             )
-        unit = str(row.get(Verbrauch.UNIT) or "").strip() or None
-        if unit and quantity != 1:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Artikel {article}: {unit} ist **eine** Einzelinstanz – dann ist "
-                    f"die Menge 1. «{quantity}× dieses eine Stück» gibt es nicht."
-                ),
-            )
-        return article, quantity, unit
+        return article, quantity
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Der Zustand der **Komponenten**, die dieses Modul zieht.
@@ -493,23 +420,15 @@ def reason_of(config: Optional[dict[str, Any]]) -> str:
     return str((config or {}).get("reason") or "")
 
 
-def lines_of(config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Die **Stückliste** eines Moduls — je Zeile Artikel, Menge pro Stück, Vormerkung.
+def lines_of(config: Optional[dict[str, Any]]) -> list[dict[str, int]]:
+    """Die **Stückliste** eines Moduls — je Zeile Artikel und Menge pro Stück.
 
     Nur der Verbrauch hat eine; überall sonst ist sie leer. Ein Modul, das keine kennt,
     gibt darum nicht ``None`` zurück, sondern nichts – die Aufrufstelle fragt dann gar
     nicht erst nach einer Fallunterscheidung.
-
-    ``unit`` ist die vorgemerkte Einzelinstanz oder ``None`` (Testnotiz #721) – die eine
-    Lesestelle, damit «gibt es hier eine Vormerkung?» nicht an fünf Orten aus dem rohen
-    Wörterbuch gelesen wird.
     """
     return [
-        {
-            "article": int(row["article"]),
-            "quantity": int(row["quantity"]),
-            Verbrauch.UNIT: str(row.get(Verbrauch.UNIT) or "").strip() or None,
-        }
+        {"article": int(row["article"]), "quantity": int(row["quantity"])}
         for row in (config or {}).get(Verbrauch.LINES) or []
     ]
 

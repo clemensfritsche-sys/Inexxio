@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Boxes, GitBranch, PackagePlus, Pin, ScanLine } from 'lucide-react';
+import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CapturePoint, StepNeed, StepWork } from '@/types';
 import { formatObjectId } from '@/lib/utils';
@@ -243,10 +243,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
   //   reicht nicht, Bestand da   →  «Andere Instanz wählen» – der Plan geht nicht auf,
   //                                 aber im Lager liegt etwas.
   //   gar kein Bestand           →  nur «Nachschub». Wählen liesse sich nichts.
-  //   Vormerkung verloren        →  «Andere Instanz wählen» – das Modul weist sonst ab,
-  //                                 und der gewöhnliche Ausweg ist genau diese Wahl.
-  const lost = !!need.pinned && !need.pinned_here;
-  const enough = need.available >= required && !lost;
+  const enough = need.available >= required;
   const empty = need.available <= 0;
 
   return (
@@ -259,19 +256,6 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
         <span className="text-xs truncate" style={{ color: 'var(--fg-3)' }}>
           {need.article_name}
         </span>
-        {/* **Die Vormerkung steht an ihrer Zeile** (#721) – und sie sagt beides: dass
-            ein bestimmtes Stück gemeint ist, und ob es noch hier steht. Ist es weg
-            (eine Abweichung hat es geholt), wird nicht still ersetzt; das Modul weist
-            die Ausführung ab, und hier steht der Grund davor. */}
-        {need.pinned && (
-          <span className="inline-flex items-center gap-1 text-[11.5px] ix-tnum"
-            style={{ color: need.pinned_here ? 'var(--warning)' : 'var(--danger)' }}
-            data-tip={need.pinned_here
-              ? 'Vorgemerkt – dieses Stück gehört dem Auftrag seit seiner Freigabe'
-              : 'Vorgemerkt, aber nicht mehr hier – wählen Sie eine andere Instanz'}>
-            <Pin size={11} /> {need.pinned}
-          </span>
-        )}
         {!enough && (
           <span className="ml-auto text-[11.5px]" style={{ color: 'var(--danger)' }}
             data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück dieser Instanz`}>

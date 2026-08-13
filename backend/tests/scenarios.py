@@ -215,9 +215,8 @@ class World:
         pieces = sum(row["waiting"] for row in self.work(order, step))
         return [
             {"artikel": n.article_object_id, "je_stück": n.per_unit,
-             "gebraucht": n.required, "verfügbar": n.available, "fehlt": n.missing,
-             "pinned": n.pinned, "pinned_here": n.pinned_here}
-            for n in consumption.needs(self.db, step, pieces=pieces, order=order)
+             "gebraucht": n.required, "verfügbar": n.available, "fehlt": n.missing}
+            for n in consumption.needs(self.db, step, pieces=pieces)
         ]
 
     # ── Auskunft ────────────────────────────────────────────────────────────

@@ -266,14 +266,7 @@ export const MODULE_FORM: Record<string, {
     config: (m) => ({
       lines: m.lines
         .filter((l) => l.articleObjectId !== null)
-        .map((l) => ({
-          article: l.articleObjectId as number,
-          quantity: l.quantity,
-          // **Optional: ein ganz bestimmtes Stück** (Testnotiz #721). Es bindet ab der
-          // Freigabe; im **Erzeugungsprozess des Artikels** weist der Server es ab –
-          // eine Vorlage läuft für jeden künftigen Auftrag erneut.
-          unit: l.units[0]?.number ?? null,
-        })),
+        .map((l) => ({ article: l.articleObjectId as number, quantity: l.quantity })),
     }),
     incomplete: (m) => {
       const rows = m.lines.filter((l) => l.articleObjectId !== null);
