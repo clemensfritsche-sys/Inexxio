@@ -735,13 +735,18 @@
 > `order_units.current_step_id`); kommt es nicht zurück, **wird nicht still ersetzt**: das
 > Modul weist ab und nennt die Nummer, und der Ausweg ist die gewöhnliche Wahl einer
 > anderen Instanz.
-> **Ein Zeichnungsfehler, gefunden statt geahnt:** die Invariantenprüfung des Bildes
-> meldete unmittelbar nach der Freigabe «Kante …: dort stehen Einzelinstanzen, aber sie
-> gilt als nicht gegangen» – wartendes Material stand auf einer Achsen-Kante, die es nie
-> genommen hat. Das Bild zeigt jetzt den **Weg der Subjekte**; Material erscheint dort,
-> wo es etwas **getan** hat (verbaut, auf der Ausgangskante seines Moduls) – derselbe
-> Platz wie bisher. Wo es vorher steht, sagt die Stückliste des Moduls.
-> Wächter: `tests/test_pinned_material.py` (19 Prüfungen über die echten Dienstpfade –
+> **Zwei Wächter haben sich selbst gemeldet – und beide zählten dasselbe falsch.** Das
+> **Bild** (`flow._verify`) meldete unmittelbar nach der Freigabe «Kante …: dort stehen
+> Einzelinstanzen, aber sie gilt als nicht gegangen» (wartendes Material stand auf einer
+> Achsen-Kante, die es nie genommen hat), und die **Invariante I08** meldete dauerhaft
+> «Definition 1, Zeilen 2» (Bedarf ↔ Zugehörigkeiten). Beide meinen die **Subjekte**: der
+> Bedarf sagt, was ein Auftrag bearbeitet, und Material steht nicht darin – es kommt aus
+> der Stückliste eines Moduls. Beide lesen jetzt dieselbe `material_clause`. Im Bild
+> erscheint Material dort, wo es etwas **getan** hat (verbaut, auf der Ausgangskante
+> seines Moduls) – derselbe Platz wie bisher; wo es vorher steht, sagt die Stückliste.
+> *Ein Wächter, der im Normalbetrieb anschlägt, ist von einem kaputten nicht zu
+> unterscheiden* – darum sind beide Meldungen gemessen und gegengeprüft.
+> Wächter: `tests/test_pinned_material.py` (20 Prüfungen über die echten Dienstpfade –
 > darunter zwei Vormerkungen in EINEM Modul und eine dreistufige Abweichungs-Kette;
 > Eintritt · Austritt · Arbeitsliste · Stichprobe je gegen ihre Bug-Form gegengeprüft) +
 > `test_frontend_mirrors.py: test_a_pin_is_offered_only_where_it_is_allowed`.
