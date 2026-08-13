@@ -3511,9 +3511,14 @@ def test_a_shortage_is_shown_not_turned_into_a_state():
     )
 
     # ►► Die Bedingung selbst (#723). ◄◄
-    assert "const enough = need.available >= required;" in work, (
+    assert "need.available >= required" in work, (
         "Der Vergleich «reicht das?» ist weg – ohne ihn steht die Wahl auch dann da, "
         "wenn es nichts zu wählen gibt."
+    )
+    # Und eine **verlorene Vormerkung** zählt wie «reicht nicht» (#721): das Modul weist
+    # die Ausführung ab, und der Ausweg ist genau diese Wahl.
+    assert "&& !lost" in work, (
+        "Eine verlorene Vormerkung bietet keinen Ausweg an – dann steht der Auftrag."
     )
     assert "const empty = need.available <= 0;" in work
     assert "{!enough && !empty && (" in work, (
@@ -3528,6 +3533,51 @@ def test_a_shortage_is_shown_not_turned_into_a_state():
     assert "class StepNeed(" in schema
     for word in ("waiting_for_material", "blocked_by_material", "shortage_status"):
         assert word not in schema, f"«{word}» wäre ein Zustand für eine Zahl."
+
+
+def test_a_pin_is_offered_only_where_it_is_allowed():
+    """**Die Vormerkung steht im Auftrag, nie in der Vorlage** (Testnotiz #721).
+
+    Die Regel gilt serverseitig (``Module.template_problem``); die Oberfläche bietet sie
+    darum gar nicht erst an, wo sie scheitern würde – ein Knopf, der beim Klick abgewiesen
+    wird, ist eine Bitte statt einer Regel.
+
+    Und sie ist **ein** Stück: bei Menge ≠ 1 verschwindet der Picker, denn eine genannte
+    Einzelinstanz *ist* ein Stück.
+    """
+    lines = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    assert "export function PinPicker" in lines, "Die Vormerkung fehlt."
+    assert "if (quantity !== 1) return null;" in lines, (
+        "Die Vormerkung wird auch bei Menge > 1 angeboten – «4× dieses eine» gibt es nicht."
+    )
+    assert "perUnit && pinnable && hasArticle" in lines, (
+        "Der Picker hängt nicht mehr an «darf hier vorgemerkt werden» – dann steht er "
+        "auch in der Artikel-Vorlage."
+    )
+
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "pinnable={!!pinnable}" in designer, "Der Editor reicht die Erlaubnis nicht durch."
+
+    article = _code(_read(FRONTEND / "components" / "erp" / "article-detail.tsx"))
+    assert "pinnable" not in article, (
+        "Der Artikel erlaubt die Vormerkung – seine Vorlage läuft für jeden künftigen "
+        "Auftrag erneut, und das Stück gibt es nur einmal."
+    )
+    order = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    assert "pinnable" in order, "Der Auftrag bietet die Vormerkung nicht an."
+    # **Auch am Erzeugungsauftrag** – dort ist der Prozess die gespiegelte Vorlage, und
+    # die Vormerkung steht an ihrer Zeile IM Modul (`renderStep`), nicht in einem Feld
+    # daneben.
+    assert "<PinPicker" in order, (
+        "Der Erzeugungsauftrag kann nichts vormerken – dann fehlt die Vormerkung genau "
+        "dort, wo sie am häufigsten gebraucht wird (Montage aus Neuteilen)."
+    )
+
+    # Die Konfiguration trägt sie mit; ohne das käme sie nie beim Server an.
+    mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    assert "unit: l.units[0]?.number ?? null" in mods, (
+        "Die Vormerkung reist nicht in der Modul-Konfiguration mit."
+    )
 
 
 def test_the_flow_is_first_where_then_what():

@@ -7042,6 +7042,22 @@
             "type": "integer",
             "title": "Available"
           },
+          "pinned": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned"
+          },
+          "pinned_here": {
+            "type": "boolean",
+            "title": "Pinned Here",
+            "default": false
+          },
           "sources": {
             "items": {
               "$ref": "#/components/schemas/NeedSource"

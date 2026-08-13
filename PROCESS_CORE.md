@@ -1367,6 +1367,72 @@ Automatik sähe man erst am fertigen Erzeugnis.
   Konfiguration trifft Artikel; die eine Stelle, an der diese Körnung zu grob ist, wird
   abgewiesen statt still falsch gerechnet.
 
+### 9.6a Die Vormerkung — «nicht irgendein Rahmen, sondern dieser»
+
+Die Stückliste nennt einen **Artikel**. Manchmal ist aber ein bestimmtes Stück gemeint:
+ein Unikat, eine Vorrichtung, eine Kundenbeistellung, eine zugelassene Charge. Dafür
+trägt eine Zeile optional die **Nummer einer Einzelinstanz** (`config.lines[].unit`).
+
+**Sie bindet ab der FREIGABE, nicht beim Erreichen des Moduls.** Bis dahin läge das Stück
+frei, jeder andere Auftrag könnte es greifen, und die Vormerkung wäre eine
+Absichtserklärung. Das ist der ganze Unterschied — und **der Mechanismus ist derselbe**:
+das Stück tritt am Modul ein (`process._enter_at_step`), ist damit `Im Prozess` und
+exklusiv über den partiellen Unique-Index. Ein eigener Zustand daneben entsteht nicht; es
+gibt genau eine Art, ein Stück zu binden.
+
+**Genau ein Stück, und nur bei Menge 1.** Eine genannte Einzelinstanz *ist* ein Stück;
+«4× dieses eine» ist ein Widerspruch. Reicht sie nicht für alle Erzeugnisse, füllt der
+freie Bestand auf — wer ein Unikat für das erste Stück nennt, hat über die übrigen nichts
+gesagt.
+
+**Nur im Auftrag, nie in der Artikel-Vorlage** (`Module.template_problem`). Die Vorlage
+läuft für jeden künftigen Auftrag erneut; ein dort genanntes Stück wäre nach dem ersten
+verbaut, und jeder weitere müsste den Eintrag ignorieren — dann ist es keine Angabe,
+sondern eine Notiz. Ein **Erzeugungsauftrag** fährt die Vorlage; er darf ihr trotzdem eine
+Vormerkung mitgeben (`process._apply_pins`), denn sie sagt nicht, *wie* etwas entsteht,
+sondern welches von lauter gleichen Stücken genommen wird — der Versionsstempel bleibt
+wahr. Zugeordnet wird über den **Artikel**, nicht über die Position.
+
+#### Der eine neue Zustand: Material, das noch nicht verbaut ist
+
+Ein Auftrag hält damit zweierlei, und der Unterschied ist der **Weg**:
+
+| | tritt ein | Weg | verlässt den Auftrag |
+|---|---|---|---|
+| **Subjekt** | am Start-Objekt | durch alle Module | am Ende-Objekt |
+| **Material** | an *einem* Modul | keiner | an diesem Modul |
+
+Der Unterschied ist **nicht gespeichert, er steht im Log**: der `start`-Eintrag eines
+Subjekts trägt `step_id IS NULL`, der eines eintretenden Stücks die **Modul-id**. Genau
+daran unterscheidet der Graph die beiden längst (`flow._tally`); `process.material_clause`
+liest dieselbe Tatsache. Eine Spalte daneben wäre eine zweite Achse.
+
+Daraus folgt, ohne eine Fallunterscheidung je Stelle: Material steht **nicht** in der
+Arbeitsliste (sonst böte die Oberfläche an, es zu scannen), es kommt **nicht** in die
+Stichprobe (eine Messung, die einem Erzeugnis gilt, ist an einer Schraube sinnlos), und es
+zählt **nicht** beim Auftragszustand (es kommt nirgends an und ist auch nicht unterwegs).
+
+#### Was eintritt und nicht verbraucht wird, tritt wieder aus
+
+Die Antwort auf «kann sich eine Sackgasse bilden?». Läuft der Auftrag zu Ende, ohne das
+Stück zu brauchen — oder verliert er seine Subjekte an eine Abweichung —, bliebe es sonst
+für immer `Im Prozess` an einem Auftrag, der nichts mehr tut.
+
+Der Auslöser ist **derselbe wie beim Auftragszustand**, nicht ein zweiter: kein Subjekt
+mehr unterwegs **und** keines mehr auf dem Rückweg (`_derive`s `alive`/`lent`). Dann geht
+das Material auf `Freigegeben` zurück und ist wieder greifbar.
+
+#### Was passiert, wenn jemand das vorgemerkte Stück doch nimmt?
+
+Nichts Neues: es ist `Im Prozess`, also greift es ein anderer Auftrag als ganz gewöhnliche
+**Abweichung** (§12). Kehrt es zurück, steht es wieder an *seinem* Modul — die Position
+steht in `order_units.current_step_id`, sie braucht kein eigenes Feld. Kommt es **nicht**
+zurück, wird nicht still ersetzt: das Modul weist die Ausführung ab und **nennt die
+Nummer**. Der Ausweg ist der gewöhnliche — eine andere Instanz wählen; dann gilt die Wahl
+von jetzt, und die Vormerkung tritt zurück.
+
+Wächter: `tests/test_pinned_material.py`.
+
 ### 9.7 Das Protokoll — ein abgeschlossenes Modul zeigt lückenlos, was in ihm geschah
 
 > **Feste Regel für ALLE Module, heute und künftig.** Ein abgeschlossenes Modul zeigt auf

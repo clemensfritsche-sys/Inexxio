@@ -76,6 +76,13 @@ def create_steps(db: Session, article: Article, raw: list[dict[str, Any]]) -> li
     for position, data in enumerate(raw, start=1):
         module = modules.get(data.get("module_type"))
         config = module.clean_config(data.get("config"))
+        # **Was nur im Auftrag gilt, gilt hier nicht** (``Module.template_problem``): eine
+        # Vorlage ist zeitlos, und eine Angabe, die auf ein konkretes Ding zeigt, ist beim
+        # zweiten Auftrag falsch. Die Vorgabe ist «alles gilt überall» – ein neuer
+        # Modultyp erbt sie, ohne eine Zeile dafür.
+        problem = module.template_problem(config)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
         step = ArticleProcessStep(
             article_id=article.id,
             position=position,

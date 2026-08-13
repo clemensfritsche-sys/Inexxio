@@ -699,6 +699,45 @@
 > `test_frontend_mirrors.py: test_a_picture_is_taken_never_uploaded` ·
 > `…_the_object_scan_capture_type_is_gone` · `…_the_camera_is_one_layer_and_the_decoder_another` ·
 > `…_the_flow_is_first_where_then_what`.
+>
+> **Die Vormerkung – «nicht irgendein Rahmen, sondern DIESER»** (#721, PROCESS_CORE §9.6a):
+> eine Zeile der Stückliste trägt optional die Nummer **einer** Einzelinstanz, und sie
+> **bindet ab der Freigabe**. Bis dahin läge das Stück frei und jeder andere Auftrag
+> könnte es greifen – dann wäre die Vormerkung eine Absichtserklärung. **Der Mechanismus
+> ist derselbe wie sonst**: das Stück tritt am Modul ein (`_enter_at_step`), ist damit
+> `Im Prozess` und exklusiv über den partiellen Unique-Index; ein eigener Zustand daneben
+> entsteht nicht.
+> **Ehrlich zum eigenen Vorschlag:** «kostet keinen neuen Mechanismus» war zu optimistisch
+> – neu ist der Zeitpunkt, und **daraus** folgt genau ein Zustand, den es vorher nicht gab:
+> *Material, das dem Auftrag gehört und noch nicht verbaut ist* (bisher dauerte er einen
+> Augenblick innerhalb einer Transaktion). Er ist aber **nicht erfunden, sondern gelesen**:
+> ein Subjekt trägt seinen `start`-Eintrag mit `step_id IS NULL`, ein eintretendes Stück
+> mit der **Modul-id** – genau daran unterscheidet `flow._tally` die beiden längst.
+> `process.material_clause` ist dieselbe Tatsache als SQL-Bedingung, und ihre drei Leser
+> ergeben sich daraus ohne Fallunterscheidung: Material steht **nicht** in der Arbeitsliste
+> (sonst böte die Oberfläche an, es zu scannen), **nicht** in der Stichprobe (eine Messung
+> am Erzeugnis ist an einer Schraube sinnlos) und zählt **nicht** beim Auftragszustand.
+> **Die Sackgasse ist geschlossen, und zwar mit derselben Regel statt einer zweiten:**
+> *was eintritt und nicht verbraucht wird, tritt wieder aus* – ausgelöst von denselben
+> zwei Zahlen, aus denen `_derive` den Auftragszustand bildet (kein Subjekt mehr unterwegs
+> **und** keines auf dem Rückweg). Sonst hinge ein vorgemerktes Stück für immer an einem
+> Auftrag, dem eine Abweichung alle Subjekte genommen hat.
+> **Nur im Auftrag, nie in der Artikel-Vorlage** (`Module.template_problem`): die Vorlage
+> läuft für jeden künftigen Auftrag erneut, ein dort genanntes Stück wäre nach dem ersten
+> verbaut. Ein **Erzeugungsauftrag** darf der Vorlage trotzdem eine Vormerkung mitgeben
+> (`_apply_pins`, zugeordnet über den **Artikel**, nicht die Position) – sie sagt nicht,
+> *wie* etwas entsteht, sondern welches von lauter gleichen Stücken genommen wird, und der
+> Versionsstempel bleibt wahr. Ohne das fehlte die Vormerkung ausgerechnet im Hauptfall
+> (Montage aus Neuteilen).
+> **Genau ein Stück, nur bei Menge 1**; reicht es nicht für alle Erzeugnisse, füllt der
+> freie Bestand auf. **Nimmt es jemand weg**, ist das eine ganz gewöhnliche Abweichung –
+> kehrt es zurück, steht es wieder an *seinem* Modul (die Position steht in
+> `order_units.current_step_id`); kommt es nicht zurück, **wird nicht still ersetzt**: das
+> Modul weist ab und nennt die Nummer, und der Ausweg ist die gewöhnliche Wahl einer
+> anderen Instanz.
+> Wächter: `tests/test_pinned_material.py` (16 Prüfungen über die echten Dienstpfade;
+> Eintritt · Austritt · Arbeitsliste · Stichprobe je gegen ihre Bug-Form gegengeprüft) +
+> `test_frontend_mirrors.py: test_a_pin_is_offered_only_where_it_is_allowed`.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

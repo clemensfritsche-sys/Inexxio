@@ -87,7 +87,7 @@ export function toPayload(lines: DefinitionLine[]) {
 }
 
 export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey = 0,
-                                  perUnit = false }: {
+                                  perUnit = false, pinnable = false }: {
   lines: DefinitionLine[];
   setLines: (l: DefinitionLine[]) => void;
   /** Meldet die Artikelliste nach oben – der Entwurf spiegelt daraus die Vorlage. */
@@ -97,12 +97,24 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
    * («4× Schraube M6 pro Getriebe»), und zwei der drei Fragen entfallen:
    *
    * *Herkunft* – eine Stückliste nennt keine Erzeugung; verbaut wird, was es gibt.
-   * *Welche Stücke* – **das ist keine Frage der Definition.** Ein Modul ist eine
-   * Vorlage: es läuft je Auftrag und je Produkt-Stück erneut, und ein hier
-   * festgenageltes Stück wäre nach dem ersten Mal verbraucht. Welche Kiste genommen
-   * wird, sagt der Lagerist beim Ausführen – dort ist es eine echte Wahl (§4).
+   * *Welche Stücke* – im Regelfall keine Frage der Definition: welche Kiste genommen
+   * wird, sagt der Lagerist beim Ausführen, und dort ist es eine echte Wahl (§4).
+   *
+   * **Mit einer Ausnahme, und die ist optional: die Vormerkung** (Testnotiz #721).
+   * Manchmal ist gerade nicht «irgendein Rahmen» gemeint, sondern dieser – ein Unikat,
+   * eine Vorrichtung, eine Kundenbeistellung. Dann steht hier **eine** Einzelinstanz,
+   * und sie gehört dem Auftrag ab seiner Freigabe. Siehe `pinnable`.
    */
   perUnit?: boolean;
+  /**
+   * **Darf hier eine Einzelinstanz vorgemerkt werden?**
+   *
+   * Nur im **Auftrag** – dort läuft das Modul genau einmal. Im Erzeugungsprozess des
+   * **Artikels** nicht: die Vorlage läuft für jeden künftigen Auftrag erneut, und ein
+   * dort genanntes Stück wäre nach dem ersten verbaut. Der Server weist es ebenfalls ab
+   * (`Module.template_problem`) – dies ist die Anzeige davon, nicht die Regel.
+   */
+  pinnable?: boolean;
   /**
    * **Die Auswahl neu gegen die Wirklichkeit halten.** Wird hochgezählt, wenn die
    * Freigabe abbricht, weil ein gewähltes Stück inzwischen woanders läuft: dann holt der
@@ -143,6 +155,7 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
           multi={lines.length > 1}
           refreshKey={refreshKey}
           perUnit={perUnit}
+          pinnable={pinnable}
           onChange={(next) => patch(line.key, next)}
           onRemove={() => setLines(lines.filter((l) => l.key !== line.key))}
         />
@@ -171,7 +184,8 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
 // Eine Zeile
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemove }: {
+function LineRow({ line, articles, multi, refreshKey, perUnit, pinnable, onChange,
+                  onRemove }: {
   line: DefinitionLine;
   articles: ArticleOption[] | null;
   /** Gibt es mehr als eine Zeile? Dann ist «Neu» keine Option mehr (#693). */
@@ -179,6 +193,8 @@ function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemov
   refreshKey: number;
   /** Stückliste: Menge je Einzelinstanz, keine Herkunft, keine Stück-Auswahl. */
   perUnit: boolean;
+  /** Darf hier ein bestimmtes Stück vorgemerkt werden? Nur im Auftrag (#721). */
+  pinnable: boolean;
   onChange: (next: Partial<DefinitionLine>) => void;
   onRemove: () => void;
 }) {
@@ -313,6 +329,117 @@ function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemov
           chosen={line.units}
           onChange={(units) => onChange({ units })}
         />
+      )}
+
+      {perUnit && pinnable && hasArticle && (
+        <PinPicker
+          articleObjectId={article!.object_id}
+          quantity={line.quantity}
+          refreshKey={refreshKey}
+          chosen={line.units[0] ?? null}
+          onChange={(pick) => onChange({ units: pick ? [pick] : [] })}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Die Vormerkung: ein ganz bestimmtes Stück (#721)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * **«Irgendein Rahmen» ↔ «dieser Rahmen».** Optional, und bewusst genau **ein** Stück:
+ * eine genannte Einzelinstanz *ist* ein Stück, «4× dieses eine» gibt es nicht.
+ *
+ * Sie **bindet ab der Freigabe** – bis dahin läge sie frei, und die Vormerkung wäre eine
+ * Absichtserklärung. Gebunden wird über denselben Eintritt wie sonst; einen eigenen
+ * Zustand dafür gibt es nicht (das Stück ist schlicht «Im Prozess» an diesem Modul).
+ *
+ * Zugeklappt steht hier nichts als ein leiser Knopf: der Normalfall ist «irgendeines»,
+ * und ein Feld, das fast immer leer bleibt, wäre eine Frage, die niemand hat.
+ */
+export function PinPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }: {
+  articleObjectId: number; quantity: number; chosen: UnitPick | null; refreshKey: number;
+  onChange: (pick: UnitPick | null) => void;
+}) {
+  const [options, setOptions] = useState<UnitOption[] | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open || options !== null) return;
+    let dead = false;
+    api.getUnitOptions(articleObjectId)
+      .then((o) => { if (!dead) setOptions(o); })
+      .catch(() => { if (!dead) setOptions([]); });
+    return () => { dead = true; };
+  }, [open, options, articleObjectId]);
+
+  // Artikelwechsel verwirft die geladene Liste – sie gehörte zum alten Artikel.
+  useEffect(() => { setOptions(null); }, [articleObjectId, refreshKey]);
+
+  // **Bei Menge > 1 gibt es nichts vorzumerken.** Eine Einzelinstanz ist ein Stück; der
+  // Server weist die Kombination ab, und ein Knopf, der beim Klick scheitert, ist eine
+  // Bitte statt einer Regel.
+  if (quantity !== 1) return null;
+
+  if (chosen) {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ix-tnum"
+          style={{ background: 'var(--warning-bg)', color: 'var(--warning)' }}
+          data-tip="Vorgemerkt – dieses Stück gehört dem Auftrag ab seiner Freigabe">
+          <UnitNumber value={chosen.number} />
+          <button type="button" onClick={() => onChange(null)}
+            style={{ opacity: 0.6 }} aria-label="Vormerkung aufheben">
+            <X size={11} />
+          </button>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <button type="button" onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1 text-[11.5px] px-2 py-1 rounded-full"
+        style={{ border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}
+        data-tip="Statt irgendeines Stücks ein bestimmtes – es gehört dem Auftrag ab seiner Freigabe">
+        <ChevronDown size={12} /> Bestimmtes Stück
+      </button>
+
+      {open && (
+        <div className="mt-2 max-h-56 overflow-auto" style={{ borderTop: '1px solid var(--border-1)' }}>
+          {options === null && <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>Lädt …</p>}
+          {options?.length === 0 && (
+            <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>
+              Von diesem Artikel gibt es keine Einzelinstanzen.
+            </p>
+          )}
+          {options?.map((o) => {
+            // **Vorgemerkt wird aus dem freien Bestand.** Ein Stück aus einem laufenden
+            // Auftrag zu holen ist eine Abweichung, und die deklariert man nicht in
+            // einer Stückliste – der Server weist es ab, hier steht der Grund davor.
+            const free = o.available && !o.in_order;
+            return (
+              <button
+                key={o.number}
+                type="button"
+                disabled={!free}
+                onClick={() => { onChange({ number: o.number, fromOrder: null }); setOpen(false); }}
+                data-tip={free ? undefined : o.in_order
+                  ? `Läuft in Auftrag ${formatObjectId(o.in_order)} – vorgemerkt wird nur, was frei ist`
+                  : `Steht auf «${statusLabel(o.status)}»`}
+                className="w-full flex items-center gap-2 text-left text-xs py-1.5 px-1 disabled:opacity-45"
+                style={{ borderBottom: '1px solid var(--border-1)' }}
+              >
+                <span style={{ minWidth: 110 }}><UnitNumber value={o.number} /></span>
+                <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{o.article_name}</span>
+                <span style={{ color: statusCfg(o.status).color }}>{statusLabel(o.status)}</span>
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );
