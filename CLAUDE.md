@@ -741,7 +741,9 @@
 > Achsen-Kante, die es nie genommen hat), und die **Invariante I08** meldete dauerhaft
 > «Definition 1, Zeilen 2» (Bedarf ↔ Zugehörigkeiten). Beide meinen die **Subjekte**: der
 > Bedarf sagt, was ein Auftrag bearbeitet, und Material steht nicht darin – es kommt aus
-> der Stückliste eines Moduls. Beide lesen jetzt dieselbe `material_clause`. Im Bild
+> der Stückliste eines Moduls. Beide lesen jetzt dieselbe `material_clause`, und **I07**
+> gleich mit: eine Invariante, die eine andere Grundgesamtheit zählt als die Ableitung,
+> die sie prüft, meldet zwangsläufig den Unterschied als Fehler. Im Bild
 > erscheint Material dort, wo es etwas **getan** hat (verbaut, auf der Ausgangskante
 > seines Moduls) – derselbe Platz wie bisher; wo es vorher steht, sagt die Stückliste.
 > *Ein Wächter, der im Normalbetrieb anschlägt, ist von einem kaputten nicht zu
