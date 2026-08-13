@@ -469,6 +469,54 @@ def test_unused_material_leaves_when_the_order_is_over():
         w.db.close()
 
 
+def test_waiting_material_is_not_drawn_on_the_axis():
+    """**Das Bild zeigt den Weg der Subjekte** – wartendes Material steht nicht darin.
+
+    Ein vorgemerktes Stück tritt an *seinem* Modul ein; die Kante davor ist es nie
+    gegangen. Es dort zu zeichnen wäre entweder ein Widerspruch (Stücke auf einer
+    Haarlinie) oder eine Lüge (die kräftige Linie liefe bis zu einem Modul, das noch kein
+    Erzeugnis erreicht hat).
+
+    **Die Bug-Form daneben ist gemessen, nicht ausgedacht:** ohne die Bedingung meldet
+    die Invariantenprüfung unmittelbar nach der Freigabe «Kante …: dort stehen
+    Einzelinstanzen, aber sie gilt als nicht gegangen».
+
+    Sichtbar wird das Material in dem Moment, in dem es etwas getan hat – verbaut, auf
+    der Ausgangskante seines Moduls.
+    """
+    from app.services import flow
+
+    w = _w()
+    try:
+        part, numbers = free_stock(w, serialization="unit", quantity=1)
+        product = w.article(
+            serialization="unit",
+            template=[w.capture(), w.consume((part.object_id, 1))],
+        )
+        order = w.release(
+            lines=[{"article_object_id": product.object_id, "quantity": 1,
+                    "origin": "neu", "units": []}],
+            steps=[_pin(part.object_id, numbers[0])],
+        )
+
+        assert flow.build(w.db, order).problems == [], (
+            "Das Bild widerspricht sich, solange die Vormerkung wartet."
+        )
+        w.run_step(order, w.steps(order)[0])
+        assert flow.build(w.db, order).problems == []
+
+        w.run_all(order)
+        graph = flow.build(w.db, order)
+        assert graph.problems == []
+        # Jetzt steht es im Bild – auf der Ausgangskante seines Moduls.
+        exits = [e for e in graph.edges if e.id.startswith("edge:exit:")]
+        assert exits and sum(len(e.members) for e in exits) == 1, (
+            "Das verbaute Stück steht nicht auf der Ausgangskante seines Moduls."
+        )
+    finally:
+        w.db.close()
+
+
 def test_material_does_not_make_a_lost_order_look_finished():
     """Ein Auftrag ohne Subjekte ist **abgebrochen**, nicht «abgeschlossen».
 
