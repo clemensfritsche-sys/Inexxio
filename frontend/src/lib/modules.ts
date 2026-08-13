@@ -13,7 +13,7 @@
  */
 
 import {
-  Blocks, Camera, ClipboardCheck, PackageX, PenLine, Ruler, ScanLine, ThumbsUp, Type,
+  Blocks, Camera, ClipboardCheck, PackageX, PenLine, Ruler, ThumbsUp, Type,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -26,7 +26,6 @@ export const CAPTURE_ICON: Record<string, LucideIcon> = {
   photo: Camera,
   signature: PenLine,
   measure: Ruler,
-  object: ScanLine,
 };
 
 /** Prozessschrittmodule (`domain/modules.py`). */

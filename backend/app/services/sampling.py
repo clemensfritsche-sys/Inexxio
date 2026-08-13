@@ -57,7 +57,7 @@ def ensure(db: Session, *, order: Order, step: Optional[ProcessStep],
 
     Gibt die Zahl der gezogenen Stücke zurück.
     """
-    if step is None or _drawn_already(db, order=order, step=step):
+    if step is None or was_drawn(db, order=order, step=step):
         return 0
     units = _population(db, order)
     if not units:
@@ -108,8 +108,14 @@ def _population(db: Session, order: Order) -> list[InstanceUnit]:
     ]
 
 
-def _drawn_already(db: Session, *, order: Order, step: ProcessStep) -> bool:
-    """Ist an diesem Modul **schon** gezogen worden?"""
+def was_drawn(db: Session, *, order: Order, step: ProcessStep) -> bool:
+    """Ist an diesem Modul **schon** gezogen worden?
+
+    Zwei Leser, dieselbe Frage: die Ziehung selbst (sie ist idempotent) und das Protokoll
+    (``services/record``) – dort entscheidet sie, ob «nicht gezogen» überhaupt eine
+    mögliche Antwort ist. Ohne sie liesse sich ein Stück, das ohne Erfassung durchlief,
+    nicht von einem unterscheiden, an dem nie gezogen wurde.
+    """
     return db.execute(
         select(ProcessEvent.id).where(
             ProcessEvent.order_id == order.id,

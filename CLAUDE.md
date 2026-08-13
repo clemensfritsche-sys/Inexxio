@@ -654,6 +654,51 @@
 > `setval` eine Alt-Nummer ein zweites Mal.
 > Wächter für das Fundament: `tests/test_frontend_mirrors.py`.
 > Rollback-Punkt: Git-Tag `rollback/basis-20260806`, DB-Dump via `scripts/dump-db.sh`.
+>
+> **Testrunde 13.8.2026 (#717–#724) – drei Regeln in den RAHMEN, zwei Bauteile weniger.**
+> **(1) Ein abgeschlossenes Modul zeigt lückenlos, was in ihm passiert ist** (#717,
+> PROCESS_CORE §9.7): **eine** Ableitung über den Ereignis-Log (`services/record.py` →
+> `GET …/steps/{id}/record`) und **eine** Komponente (`step-record.tsx`) – kein Protokoll je
+> Modultyp, sonst fehlte die (n+1)-te beim nächsten Typ. Gespeichert wird dafür **nichts**:
+> Übergang, Werte, Ziehung und Verbau-Ziel stehen längst da, gefehlt hat die Ansicht.
+> **Ein Eintrag ist ein VORGANG, kein Stück** – nach einem «nicht bestanden» wird erneut
+> erfasst, und **beides** ist passiert; je Stück zusammengefasst überschriebe die
+> Wiederholung ausgerechnet die durchgefallene Messung. Eine Erfassung **ohne** folgendes
+> `step` IST der Halt und steht darum ebenfalls da.
+> **«Nicht gezogen» kommt aus der ZIEHUNG, nicht aus einem Vermerk** – das war der eine
+> Fund beim Bauen: der Vermerk `sampled: False` am Übergang wird nur von **einem** der
+> beiden Wege geschrieben, die ein Stück vorrücken lassen (dem Durchlauf am *nächsten*
+> Modul); die ungezogenen Geschwister einer bestätigten Instanz trugen ihn nie. Gelesen
+> wird jetzt das `sample`-Ereignis (`sampling.was_drawn`, aus `_drawn_already` **eine**
+> Lesestelle geworden). Seitenweise und erst auf Klick, Gesamtzahl daneben.
+> **(2) Ein Bild entsteht in der KAMERA, nicht im Dateidialog** (#718/#720): der Upload ist
+> **ersatzlos entfernt**. Eine Datei aus der Galerie belegt nichts über *diesen* Vorgang;
+> ein Nachweis, der auf beide Arten entstehen kann, ist hinterher keiner – man sieht ihm
+> nicht an, welche es war. **Genau eine Aufnahme je Einzelinstanz**, nicht optional
+> (`Photo.missing` verlangt genau einen nicht-leeren String – eine *Liste* geht nicht mehr
+> durch), neu aufnehmen verwirft die alte. **Kamera und Decoder sind jetzt zwei Bauteile**
+> (`components/scan/use-camera.ts` ↔ `use-barcode-scanner.ts`, Naht = der Rückruf `Attach`):
+> die Trennung ging sauber, weil der Decoder in **einer** inneren Funktion sass – Strom,
+> Linsenwahl (Ultraweitwinkel-Falle), Taschenlampe und Track-Aufräumen mussten nicht
+> verdoppelt werden. Die Aufnahme spricht damit dieselbe Bildsprache wie der Scanner
+> (Fläche = Kamerabild, milchige Chips darin) **ohne eine Zeile Decoder**.
+> **(3) Der Erfassungstyp «Objekt scannen» ist ersatzlos entfernt** (#719) – eine gelöschte
+> Datei, sonst nichts; die Registry hat die Vorhersage «ein neuer Typ ist eine neue Datei»
+> damit in **beide** Richtungen bestätigt. **Er war zugleich der einzige Nachweis für
+> Werkzeug und Prüfmittel**; dass es ihn nicht mehr gibt, steht als bewusst offener Punkt
+> in `SYSTEM_LOGIC.md` §5.9 statt als stille Lücke im Code (G3). Der Weg zurück beginnt bei
+> der **Modellfrage** (Nutzung ohne Exklusivität – eine Fräse steckt real in zwanzig
+> Aufträgen), nicht bei einem Eingabefeld.
+> **Ressourcenmodul:** die Stückliste steht **eingerückt unter ihrer Einzelinstanz** (#724 –
+> «erst wohin, dann was»; bei mehreren Erzeugnissen ist die Einrückung die einzige Stelle,
+> an der die Zugehörigkeit steht) und rechnet auf **deren** Stücke; angeboten wird nur, was
+> Sinn ergibt (#723: Plan geht auf → nichts · reicht nicht, Bestand da → «Andere Instanz
+> wählen» · gar nichts frei → nur «Nachschub»). Der Erklärtext «2 Stück je Einzelinstanz …»
+> ist gelöscht (#722) – «Menge je Stück» als Feldname braucht kein Beispiel.
+> Wächter: `tests/test_step_record.py` (jeder gegen seine Bug-Form gegengeprüft),
+> `test_frontend_mirrors.py: test_a_picture_is_taken_never_uploaded` ·
+> `…_the_object_scan_capture_type_is_gone` · `…_the_camera_is_one_layer_and_the_decoder_another` ·
+> `…_the_flow_is_first_where_then_what`.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

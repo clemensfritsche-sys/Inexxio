@@ -22,6 +22,7 @@ import {
 } from '@/components/erp/definition-lines';
 import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
+import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
@@ -448,9 +449,16 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
               />
             </div>
           ) : (
-            <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
-              action={stepInfo(order, step.id)?.action}
-              reason={stepInfo(order, step.id)?.reason} />
+            // **Ein abgeschlossenes Modul zeigt, was in ihm passiert ist** (#717) – die
+            // Regel gilt für ALLE Module und steht an einer Stelle (`StepRecord`, aus
+            // `services/record`). Ein Modul, das noch nicht dran war, hat nichts zu
+            // zeigen: dann steht dort seine Definition.
+            <div className="flex flex-col gap-2.5">
+              <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
+                action={stepInfo(order, step.id)?.action}
+                reason={stepInfo(order, step.id)?.reason} />
+              <StepRecord orderObjectId={order.object_id} stepId={step.id} />
+            </div>
           )),
         }}
         parents={order.parents ?? []}

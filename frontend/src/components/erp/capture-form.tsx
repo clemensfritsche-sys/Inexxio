@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Check, ThumbsDown, ThumbsUp } from 'lucide-react';
 import type { CapturePoint } from '@/types';
 import { CAPTURE_ICON, NEEDS_TARGET } from '@/lib/modules';
-import { PhotoCapture } from '@/components/erp/photo-capture';
+import { PhotoShot } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 
@@ -155,8 +155,10 @@ function PointInput({ point, value, disabled, onChange }: {
             onClick={() => onChange(false)}><ThumbsDown size={15} /></ThumbChoice>
         </span>
       ) : point.type === 'photo' ? (
-        <PhotoCapture value={asList(value)} disabled={disabled} max={4}
-          onChange={(urls) => onChange(urls.length ? urls : '')} />
+        // **Genau eine Aufnahme, über die Kamera** (#718/#720). Kein Upload, keine Liste:
+        // ein Nachweis, der auf zwei Arten entstehen kann, ist hinterher keiner.
+        <PhotoShot value={typeof value === 'string' && value ? value : null}
+          disabled={disabled} onChange={(url) => onChange(url ?? '')} />
       ) : point.type === 'signature' ? (
         <SignaturePad value={typeof value === 'string' && value ? value : null}
           disabled={disabled} onChange={(url) => onChange(url ?? '')} />
@@ -184,11 +186,6 @@ function PointInput({ point, value, disabled, onChange }: {
       )}
     </label>
   );
-}
-
-function asList(value: unknown): string[] {
-  if (Array.isArray(value)) return value as string[];
-  return typeof value === 'string' && value ? [value] : [];
 }
 
 /** Daumen hoch/runter – **ein Symbol trägt seinen Namen** (Hover + Screenreader). */

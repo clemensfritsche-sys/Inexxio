@@ -238,6 +238,10 @@ export interface CapturePoint {
 export type StepWork = components['schemas']['StepWork'];
 /** Eine Zeile der Stückliste, gegen den Bestand gehalten (`services/consumption`). */
 export type StepNeed = components['schemas']['StepNeed'];
+/** **Was an einem Modul passiert ist** – lückenlos, je Einzelinstanz (`services/record`). */
+export type StepRecord = components['schemas']['StepRecord'];
+export type RecordEntry = components['schemas']['RecordEntry'];
+export type RecordValue = components['schemas']['RecordValue'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
 export type ObjectReference = components['schemas']['ObjectReference'];

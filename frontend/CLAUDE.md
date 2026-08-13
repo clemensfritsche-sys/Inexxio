@@ -163,8 +163,15 @@ Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf
 | Schicht | Datei | weiss nichts von |
 |---|---|---|
 | Logik + **Deutung** | `lib/scan.ts` (`ScanReading`, `objectCodes`) | React, API |
-| Kamera + Decoder | `components/scan/use-barcode-scanner.ts` | dem ERP |
+| **Kamera** | `components/scan/use-camera.ts` (`useCamera`, `pickCamera`) | Codes, Decodern, dem ERP |
+| **Decoder** | `components/scan/use-barcode-scanner.ts` | Strom, Linse, Taschenlampe |
 | Dialog | `components/scan/scan-dialog.tsx` | Decoder, Objektnummern |
+
+**Kamera und Decoder sind getrennt** – die Naht ist ein Rückruf (`Attach`): die
+Kamera-Schicht besitzt Strom, Linsenwahl, Taschenlampe und Aufräumen und reicht das
+laufende `<video>` weiter; wer daraus etwas *lesen* will, hängt sich an. Darum benutzt die
+**Bild-Erfassung** (`components/erp/photo-capture.tsx`) dieselbe Kamera ohne eine Zeile
+Decoder – und ohne die Ultraweitwinkel-Falle und das Track-Leck neu lernen zu müssen.
 
 Aufruf über `useScan()` (eine Instanz am ERP-Layout, lazy). Ein Vorgang ist eine
 **Sequenz**: `steps: [{label, expected?, candidates?, restrict?, exists?, suggest?}]`.

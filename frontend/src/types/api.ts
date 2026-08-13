@@ -862,6 +862,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Step Record
+         * @description ►►► **Was ist an diesem Modul passiert?** ◄◄◄ — lückenlos, je Einzelinstanz.
+         *
+         *     Die Regel gilt für **alle** Module (Testnotiz #717) und steht darum an **einer**
+         *     Stelle (``services/record``): sie liest den Ereignis-Log, und den schreibt jedes
+         *     Modul über dieselbe Schreibstelle. Ein neuer Modultyp erbt sein Protokoll, ohne eine
+         *     Zeile dafür.
+         *
+         *     **Erst auf Klick, nie auf Vorrat**: bei einer 6000er-Charge wären das tausende
+         *     Einträge in jeder Auftrags-Antwort. Gekappt wird seitenweise, die Gesamtzahl steht
+         *     daneben.
+         */
+        get: operations["step_record_api_v1_erp_orders__object_id__steps__step_id__record_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/instances": {
         parameters: {
             query?: never;
@@ -2593,6 +2622,56 @@ export interface components {
             readonly reason: string;
         };
         /**
+         * RecordEntry
+         * @description Ein Vorgang an einem Modul, an **einer** Einzelinstanz.
+         *
+         *     Ein Stück kann dasselbe Modul mehrfach passieren (nach einem «nicht bestanden» wird
+         *     erneut erfasst) – dann stehen hier mehrere Einträge. Zusammengefasst würde die
+         *     Wiederholung die Vergangenheit überschreiben.
+         */
+        RecordEntry: {
+            /** Number */
+            number: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Actor */
+            actor?: string | null;
+            /** Verification */
+            verification?: string | null;
+            /** Status After */
+            status_after?: string | null;
+            /** Result */
+            result?: string | null;
+            /**
+             * Sampled
+             * @default true
+             */
+            sampled: boolean;
+            /** Into */
+            into?: string | null;
+            /** Values */
+            values?: components["schemas"]["RecordValue"][];
+        };
+        /**
+         * RecordValue
+         * @description Ein erfasster Wert — **mit seiner Frage**, nicht nur mit seinem Schlüssel.
+         */
+        RecordValue: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Type */
+            type: string;
+            /** Value */
+            value?: unknown;
+            /** Ok */
+            ok?: boolean | null;
+        };
+        /**
          * RelatedOrder
          * @description Ein **benachbarter Auftrag** – links der übergeordnete, rechts eine Abweichung.
          *
@@ -2691,6 +2770,19 @@ export interface components {
             available: number;
             /** Sources */
             sources?: components["schemas"]["NeedSource"][];
+        };
+        /**
+         * StepRecord
+         * @description **Was an diesem Modul passiert ist** – seitenweise, mit ehrlicher Gesamtzahl.
+         */
+        StepRecord: {
+            /** Entries */
+            entries?: components["schemas"]["RecordEntry"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /**
          * StepWork
@@ -4498,6 +4590,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HoldNumbers"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    step_record_api_v1_erp_orders__object_id__steps__step_id__record_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepRecord"];
                 };
             };
             /** @description Validation Error */

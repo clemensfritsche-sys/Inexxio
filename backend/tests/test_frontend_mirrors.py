@@ -914,8 +914,9 @@ def test_a_sixth_capture_type_is_one_new_file():
     pkg = BACKEND / "app" / "domain" / "capture_types"
     files = {p.stem for p in pkg.glob("*.py")} - {"__init__", "base"}
     # **Keine Liste der Typen hier.** Sie wäre genau die zweite Aufzählung, vor der
-    # dieser Test warnt – und der sechste Typ («Objekt scannen») hat gezeigt, dass die
-    # Vorhersage stimmt: er war **eine neue Datei** und sonst nichts.
+    # dieser Test warnt – und ein Typ hat die Vorhersage in beide Richtungen bestätigt:
+    # «Objekt scannen» war **eine neue Datei**, und sein Rückbau (#719) war **eine
+    # gelöschte** – keine Zeile sonst.
     assert len(files) == len(ct.ALL), (
         "Jede Datei im Paket ist genau ein Typ – sonst wird die Registry zur Aufzählung."
     )
@@ -926,6 +927,77 @@ def test_a_sixth_capture_type_is_one_new_file():
         assert 'type == "' not in hay and "type == '" not in hay, (
             "Ein Typ-Vergleich ist der Anfang der Kette, die es nicht geben soll."
         )
+
+
+def test_a_picture_is_taken_never_uploaded():
+    """**Ein Bild entsteht in der Kamera, nicht im Dateidialog** (Testnotizen #718/#720).
+
+    Eine Datei aus der Galerie belegt nichts über *diesen* Vorgang – sie belegt nur, dass
+    es irgendwann eine Datei gab. Ein Nachweis, der auf **beide** Arten entstehen kann,
+    ist hinterher keiner: man sieht ihm nicht an, welche der beiden es war. Der Upload ist
+    darum ersatzlos entfallen, nicht ausgeblendet.
+
+    **Genau eine Aufnahme je Einzelinstanz**, und nicht optional: bei mehreren bliebe
+    offen, welche die gemeinte ist, und bei null wäre der Punkt ein Vermerk statt eines
+    Belegs. Durchgesetzt wird das **serverseitig** (``Photo.missing``) – ein Formular, das
+    den Knopf ausgraut, ist keine Regel.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import capture_types as ct
+
+    photo = ct.get("photo")
+    point = {"key": "bild", "label": "Bild", "type": "photo"}
+    assert photo.missing(point, None), "Ohne Aufnahme gilt der Punkt als erfasst."
+    assert photo.missing(point, ""), "Ein leerer Wert gilt als Aufnahme."
+    assert photo.missing(point, ["/x/a.jpg", "/x/b.jpg"]), (
+        "Eine Liste geht durch – dann sind wieder mehrere Bilder möglich, und welches "
+        "gemeint ist, steht nirgends."
+    )
+    assert not photo.missing(point, "/x/aufnahme.jpg")
+
+    shot = _code(_read(FRONTEND / "components" / "erp" / "photo-capture.tsx"))
+    assert "useCamera" in shot, (
+        "Die Aufnahme baut sich wieder eine eigene Kamera – dann gibt es sie zweimal."
+    )
+    assert "toBlob" in shot, "Das Einzelbild aus dem Strom fehlt."
+    for leak in ("type=\"file\"", "type='file'", "input type=", "accept=\"image", "<input"):
+        assert leak not in shot, (
+            f"«{leak}» ist zurück – der Dateidialog ist damit ein zweiter Weg zu einem "
+            f"Nachweis, der genau einen haben darf."
+        )
+
+    form = _code(_read(FRONTEND / "components" / "erp" / "capture-form.tsx"))
+    assert "PhotoShot" in form, "Der Erfassungspunkt «Bild» benutzt die Aufnahme nicht."
+    assert "asList(" not in form, (
+        "Der Sammel-Pfad ist zurück – ein Punkt trägt genau ein Bild."
+    )
+
+
+def test_the_object_scan_capture_type_is_gone():
+    """**Ersatzlos entfernt** (Testnotiz #719) – und zwar überall, nicht nur im Menü.
+
+    Ein Typ, den die Registry noch kennt, aber niemand anbietet, ist ein toter Pfad: er
+    steht in jeder Definition, die ihn je getragen hat, und er würde zur Laufzeit wieder
+    auftauchen. Ein Rest im Frontend (Symbol, Beschriftung) wäre dasselbe eine Ebene
+    höher.
+
+    *Der Nachweis für **Werkzeug und Prüfmittel**, den dieser Typ getragen hat, ist damit
+    nirgends mehr abgebildet – bewusst und vermerkt in ``SYSTEM_LOGIC.md``, nicht
+    stillschweigend gestrichen.*
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import capture_types as ct
+
+    assert "object" not in ct.ALL, "Der Typ steht wieder in der Registry."
+    assert not (BACKEND / "app" / "domain" / "capture_types" / "object_scan.py").exists()
+
+    for path in (FRONTEND / "lib" / "modules.ts",
+                 FRONTEND / "components" / "erp" / "capture-form.tsx",
+                 FRONTEND / "components" / "erp" / "process-designer.tsx"):
+        body = _code(_read(path))
+        assert "Objekt scannen" not in body, f"{path.name} bietet den Typ wieder an."
 
 
 def test_the_module_dictates_its_transition():
@@ -2987,33 +3059,57 @@ def test_the_dialog_knows_neither_decoder_nor_object_semantics():
     )
 
 
-def test_the_camera_is_chosen_and_can_light_up():
-    """**In der Halle entscheidet sich das.**
+def test_the_camera_is_one_layer_and_the_decoder_another():
+    """**Die Kamera ist ein Bauteil, das Decodieren ein zweites** (Testnotiz #718).
 
-    `facingMode: 'environment'` überlässt die Wahl dem Browser, und der greift auf
-    Telefonen mit mehreren Rückkameras oft zur Ultraweitwinkel-Linse – die bei 10 cm
-    nicht scharf stellt, also genau dort, wo man ein Etikett hält.
+    Ein Bild aufnehmen und einen Code darin suchen sind zwei verschiedene Dinge – nur die
+    Beschaffung des Bildes ist dieselbe: Linsenwahl, Strom, Taschenlampe, Aufräumen. Sie
+    steht darum in `use-camera.ts` und wird **geteilt** (Scanner *und* Aufnahme); der
+    Decoder hängt sich über einen Rückruf daran (`Attach`).
 
-    Und der native Decoder kommt zuerst: ZXing wird nur noch **dynamisch** geladen, damit
-    die ~112 kB auf Geräten mit `BarcodeDetector` gar nicht erst über die Leitung gehen.
+    Ohne die Naht gäbe es die Kamera zweimal – und die zweite hätte die Ultraweitwinkel-
+    Falle, den Taschenlampen-Pfad und das Track-Aufräumen von neuem lernen müssen.
+
+    **In der Halle entscheidet sich das:** `facingMode: 'environment'` überlässt die Wahl
+    dem Browser, und der greift auf Telefonen mit mehreren Rückkameras oft zur
+    Ultraweitwinkel-Linse – die bei 10 cm nicht scharf stellt, also genau dort, wo man ein
+    Etikett hält.
     """
-    hook = _code(_read(FRONTEND / "components" / "scan" / "use-barcode-scanner.ts"))
-    assert "export function pickCamera" in hook, "Die Linsenwahl fehlt."
-    assert "torch" in hook and "applyConstraints" in hook, "Die Taschenlampe fehlt."
-    assert "BarcodeDetector" in hook, "Der native Schnellpfad fehlt."
-    assert "await import('@zxing/browser')" in hook, (
-        "ZXing wird statisch geladen – dann kostet der Rückfall auch die Geräte, die ihn "
-        "nicht brauchen."
-    )
-    assert "import { BrowserMultiFormatReader" not in hook
+    cam = _code(_read(FRONTEND / "components" / "scan" / "use-camera.ts"))
+    assert "export function pickCamera" in cam, "Die Linsenwahl fehlt."
+    assert "torch" in cam and "applyConstraints" in cam, "Die Taschenlampe fehlt."
+    assert "export function useCamera" in cam, "Die geteilte Kamera-Schicht fehlt."
+
+    # **Die Kamera weiss nichts vom Decodieren.** Sonst wäre die Trennung eine Behauptung.
+    for leak in ("BarcodeDetector", "@zxing", "decode"):
+        assert leak not in cam, (
+            f"«{leak}» steht in der Kamera-Schicht – dann ist sie keine, und die Aufnahme "
+            f"zieht den Decoder mit."
+        )
 
     # **Der Speicherleck-Fix bleibt.** ZXings `stop()` beendet nur die Decode-Schleife;
     # ohne explizites Stoppen der Tracks wächst der Video-Puffer über jeden Scan hinweg.
     # Geprüft wird der **Cleanup**, nicht die Datei: `getTracks` steht auch im Abbruch-
     # Zweig, und der räumt beim Schliessen nichts auf.
-    cleanup = hook.split("return () => {")[-1]
+    cleanup = cam.split("return () => {")[-1]
     assert "getTracks" in cleanup and "t.stop()" in cleanup, (
         "Der Cleanup stoppt die Kamera-Tracks nicht mehr – das Speicherleck ist zurück."
+    )
+
+    # Der Decoder: nativ zuerst, ZXing nur als **dynamischer** Rückfall – sonst kosten die
+    # ~112 kB auch die Geräte, die sie nicht brauchen.
+    dec = _code(_read(FRONTEND / "components" / "scan" / "use-barcode-scanner.ts"))
+    assert "BarcodeDetector" in dec, "Der native Schnellpfad fehlt."
+    assert "await import('@zxing/browser')" in dec, (
+        "ZXing wird statisch geladen – dann kostet der Rückfall auch die Geräte, die ihn "
+        "nicht brauchen."
+    )
+    assert "import { BrowserMultiFormatReader" not in dec
+    assert "useCamera(active, attach)" in dec, (
+        "Der Decoder baut die Kamera wieder selbst – dann gibt es sie zweimal."
+    )
+    assert "getUserMedia" not in dec, (
+        "Der Decoder greift wieder selbst zum Strom – der gehört der Kamera-Schicht."
     )
 
 
@@ -3395,24 +3491,73 @@ def test_a_shortage_is_shown_not_turned_into_a_state():
     """**Nichtverfügbarkeit ist kein Zustand** (§4) – sie ist eine unfertige Zeile.
 
     Es gibt keinen Pausen-Wert, keine Sperre und keine Verknüpfung auf einen
-    Nachschub-Auftrag. Gezeigt wird, was fehlt (Artikel · gebraucht · verfügbar), und
-    angeboten werden die zwei Wege, die es ohnehin gibt: eine andere Instanz wählen
-    (dieselbe Wahl, die der Scan trifft) und ein **ganz gewöhnlicher** Auftragsentwurf.
+    Nachschub-Auftrag. Gezeigt wird, was fehlt, und angeboten werden die zwei Wege, die
+    es ohnehin gibt: eine andere Instanz wählen (dieselbe Wahl, die der Scan trifft) und
+    ein **ganz gewöhnlicher** Auftragsentwurf.
+
+    **Angeboten wird aber nur, was gerade Sinn ergibt** (Testnotiz #723): geht der Plan
+    auf, gibt es nichts zu entscheiden; liegt gar nichts frei, ist «wählen» eine
+    Sackgasse – dann bleibt der Nachschub. Eine Option, die man anklicken kann und die
+    nirgends hinführt, ist schlimmer als keine.
     """
     work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
-    assert "gebraucht · " in work and "verfügbar" in work, (
+    assert "verfügbar" in work, (
         "Die Zeile nennt nicht mehr, was fehlt – dann sucht der Mensch."
     )
     assert "Andere Instanz wählen" in work and "Nachschub" in work
-    assert "onDeviate({ articleObjectId: n.article_object_id })" in work, (
+    assert "onDeviate({ articleObjectId: article })" in work, (
         "Der Nachschub ist kein gewöhnlicher Entwurf mehr – dann gibt es einen zweiten "
         "Anlagepfad."
+    )
+
+    # ►► Die Bedingung selbst (#723). ◄◄
+    assert "const enough = need.available >= required;" in work, (
+        "Der Vergleich «reicht das?» ist weg – ohne ihn steht die Wahl auch dann da, "
+        "wenn es nichts zu wählen gibt."
+    )
+    assert "const empty = need.available <= 0;" in work
+    assert "{!enough && !empty && (" in work, (
+        "«Andere Instanz wählen» hängt nicht mehr an der Lage – entweder es steht immer "
+        "da (auch wenn der Plan aufgeht) oder es führt ins Leere (kein Bestand)."
+    )
+    assert "{empty && onSupply && (" in work, (
+        "Der Nachschub steht wieder unabhängig davon da, ob überhaupt etwas fehlt."
     )
 
     schema = _read(BACKEND / "app" / "schemas" / "order.py")
     assert "class StepNeed(" in schema
     for word in ("waiting_for_material", "blocked_by_material", "shortage_status"):
         assert word not in schema, f"«{word}» wäre ein Zustand für eine Zahl."
+
+
+def test_the_flow_is_first_where_then_what():
+    """**Erst wohin, dann was** (Testnotiz #724) – die Darstellung folgt dem Handgriff.
+
+    Gearbeitet wird so: die Einzelinstanz scannen (das Ding, an dem gleich etwas
+    geschieht), dann das Material dazu holen. Also steht die Instanz **oben** und ihre
+    Stückliste **eingerückt darunter** – die Einrückung ist die Zugehörigkeit, und die
+    braucht man, sobald ein Auftrag mehrere Erzeugnisse hat: sonst stünde eine Liste von
+    Komponenten da, ohne dass sie sagt, zu welchem Stück sie gehört.
+
+    Vorher stand die Stückliste **über** allen Instanzen, einmal für den ganzen Auftrag –
+    das las sich wie eine Bestellung und nicht wie ein Arbeitsschritt.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+
+    # Die Stückliste wird IN der Instanz-Zeile gerendert, nicht daneben.
+    row = work.split("function InstanceRow")[-1]
+    assert "needs.map(" in row, (
+        "Die Stückliste hängt nicht mehr an der Instanz – dann ist die Zugehörigkeit bei "
+        "mehreren Erzeugnissen nicht mehr ablesbar."
+    )
+    assert "borderLeft: '1px solid var(--border-1)'" in row, (
+        "Die Einrückung ist weg – sie IST die Aussage «gehört zu dieser Instanz»."
+    )
+
+    # Und die Menge ist die **dieser** Instanz, nicht die des Auftrags.
+    assert "const required = need.per_unit * pieces;" in work, (
+        "Die Menge wird nicht mehr auf die Stücke dieser Instanz gerechnet."
+    )
 
 
 def test_the_action_verb_comes_from_the_server():

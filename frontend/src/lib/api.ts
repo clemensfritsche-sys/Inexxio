@@ -18,6 +18,7 @@ import type {
   ArticleStock,
   UnitPage,
   Genealogy,
+  StepRecord,
   ObjectReference,
   CompanySettings,
   UserProfile,
@@ -617,6 +618,19 @@ class ApiClient {
     return this.get(
       `/api/v1/erp/orders/${objectId}/steps/${stepId}/hold`
       + `?instance=${instance}&group=${group}`);
+  }
+
+  /**
+   * **Was an diesem Modul passiert ist** – lückenlos, je Einzelinstanz (#717).
+   *
+   * Erst auf Klick: bei einer 6000er-Charge wären es tausende Vorgänge. Die Regel gilt
+   * für **alle** Module und wird serverseitig aus dem Ereignis-Log abgeleitet
+   * (`services/record`) – hier steht keine zweite.
+   */
+  stepRecord(objectId: number, stepId: number, limit = 200, offset = 0): Promise<StepRecord> {
+    return this.get(
+      `/api/v1/erp/orders/${objectId}/steps/${stepId}/record`
+      + `?limit=${limit}&offset=${offset}`);
   }
 
   // Instanz-Feed (server-seitig durchsuchbar/paginierbar, neueste Objektnummer zuerst).
