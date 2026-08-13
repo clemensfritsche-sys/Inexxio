@@ -176,6 +176,10 @@ def i07(db: Session) -> list[str]:
     if not ids:
         return []
     derived = proc.order_statuses(db, ids)
+    # **Dieselbe Grundgesamtheit wie die Ableitung.** Sonst vergliche diese Invariante
+    # zwei verschiedene Mengen und meldete genau den Unterschied als Fehler – Material
+    # gehört dem Auftrag, ist aber nicht sein Gegenstand (§9.6a), und ``order_statuses``
+    # zählt es darum nicht mit.
     lage = {
         int(oid): (int(offen), int(gesamt))
         for oid, offen, gesamt in db.execute(
@@ -183,7 +187,7 @@ def i07(db: Session) -> list[str]:
                 OrderUnit.order_id,
                 func.count(OrderUnit.id).filter(OrderUnit.released_at.is_(None)),
                 func.count(OrderUnit.id),
-            ).group_by(OrderUnit.order_id)
+            ).where(process.material_clause()).group_by(OrderUnit.order_id)
         ).all()
     }
     out: list[str] = []
