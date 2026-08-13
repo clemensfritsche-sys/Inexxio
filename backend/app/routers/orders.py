@@ -20,8 +20,8 @@ from ..models import (
 from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
-    DRAFT_OBJECT_ID, ProcessEventResponse, ProcessStepResponse, RelatedOrder,
-    StepWork, UnitOption,
+    DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
+    RelatedOrder, StepNeed, StepWork, UnitOption,
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, StepConfirm,
@@ -29,6 +29,7 @@ from ..schemas.process import (
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
+from ..services import consumption as consumption_svc
 from ..services import flow as flow_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
@@ -73,6 +74,20 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
         # weil ein Vorgang eine Instanz ist (Scan-Regel §3): was zu scannen ist, ist
         # dieselbe Liste wie das, was zu tun ist.
         row.work = [StepWork(**w) for w in process_svc.step_work(db, order, s)]
+        # **Was das Modul verbraucht** – gerechnet gegen das, was jetzt davorsteht
+        # (``services/consumption``). Die Zahl entsteht beim Erreichen, also hier und
+        # nicht in der Definition; ein Modul ohne Stückliste liefert eine leere Liste.
+        row.needs = [
+            StepNeed(
+                article_object_id=n.article_object_id, article_name=n.article_name,
+                per_unit=n.per_unit, required=n.required, available=n.available,
+                sources=[NeedSource(instance_object_id=src.instance_object_id,
+                                    free=src.free)
+                         for src in n.sources],
+            )
+            for n in consumption_svc.needs(
+                db, s, pieces=sum(w.waiting for w in row.work))
+        ]
         out.append(row)
     return out
 
@@ -524,7 +539,7 @@ def confirm_step(
     outcome = process_svc.confirm_step(
         db, order=order, step_id=step_id, values=data.values,
         instance_object_id=data.instance_object_id, verification=data.verification,
-        actor_id=user.id)
+        sources=data.sources, actor_id=user.id)
     log_audit(db, "process_steps", "confirm",
               f"{outcome['moved']} bewegt, {outcome['held']} angehalten",
               user_id=user.id, object_id=order.object_id)

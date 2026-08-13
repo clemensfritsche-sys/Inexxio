@@ -247,7 +247,12 @@ def _tally(db: Session, order_id: int) -> _Tally:
         n = int(n)
         at = int(step_id) if step_id is not None else None
         if kind == KIND_START:
-            t.started += n
+            # **Das Start-Objekt hat passiert, wer oben hereinkam.** Ein Eintritt an einem
+            # Modul (``process._enter_at_step``) trägt dessen ``id`` und hat das
+            # Start-Objekt nie gesehen; ihn mitzuzählen liesse die erste Kante Material
+            # tragen, das dort nie war.
+            if at is None:
+                t.started += n
         elif kind == KIND_STEP and at is not None:
             t.passed[at] = t.passed.get(at, 0) + n
         elif kind == KIND_END:
@@ -383,7 +388,7 @@ def _left_with(db: Session, order_id: int) -> dict[int, str]:
     return {int(u): s for u, s in rows}
 
 
-def _rows(db: Session, order: Order) -> list[_Row]:
+def _rows(db: Session, order: Order, left_at: dict[int, int]) -> list[_Row]:
     """Alle Zugehörigkeiten dieses Auftrags, angereichert — **eine** Abfrage plus Log."""
     raw = db.execute(
         select(
@@ -403,7 +408,6 @@ def _rows(db: Session, order: Order) -> list[_Row]:
     # zählt (§3.5); zweimal gelaufen wären es zwei Antworten auf eine Frage.
     coming = process.returning_home(db, order)
     left_with = _left_with(db, order.id)
-    left_at = _exit_points(db, order.id)
 
     out: list[_Row] = []
     for mid, at, active, status, unit_id in raw:
@@ -488,7 +492,18 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
             .all()
         )
     tally = _tally(db, order.id)
-    rows = _rows(db, order)
+    # ►► **Wer hier hinausging, ist nicht weitergelaufen.** ◄◄
+    #
+    # ``passed`` zählt die ``step``-Einträge eines Moduls – und die schreibt auch, wer den
+    # Auftrag dort **verlässt**. Ohne diese Korrektur trüge die Kante hinter einem
+    # Verbrauchsmodul die Komponenten mit, die dort ausgetreten sind: bei «3 Getriebe,
+    # 12 Schrauben» stünde die Bilanz auf 15 statt 3, und eine Abweichung, die alle drei
+    # Getriebe mitnimmt, hinterliesse eine **kräftige Linie, auf der niemand steht**.
+    left_at = _exit_points(db, order.id)
+    for at in left_at.values():
+        if at in tally.passed:
+            tally.passed[at] = max(0, tally.passed[at] - 1)
+    rows = _rows(db, order, left_at)
     plan = planned or []
     g = Graph()
 

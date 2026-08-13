@@ -126,10 +126,12 @@ class World:
         return {"module_type": "aussondern", "config": {"mode": mode, "reason": reason}}
 
     @staticmethod
-    def consume(*article_object_ids: int) -> dict[str, Any]:
-        """Ein Verbrauchsmodul – es nennt die **Artikel**, deren Stücke verbaut werden."""
-        return {"module_type": "verbrauch",
-                "config": {"articles": list(article_object_ids)}}
+    def consume(*lines: tuple[int, int]) -> dict[str, Any]:
+        """Ein Verbrauchsmodul – je Zeile **Artikel + Menge pro Einzelinstanz**."""
+        return {
+            "module_type": "verbrauch",
+            "config": {"lines": [{"article": a, "quantity": q} for a, q in lines]},
+        }
 
     # ── Aufträge ────────────────────────────────────────────────────────────
 
@@ -171,7 +173,7 @@ class World:
         return proc.step_work(self.db, order, step)
 
     def confirm(self, order, step, *, instance: int, values: Optional[dict] = None,
-                verification: str = "scan"):
+                verification: str = "scan", sources: Optional[list[int]] = None):
         """Ein Modul für **eine** Instanz bestätigen – mit einem Wertesatz je gezogenem Stück."""
         from app.services import process as proc
         from tests.support import per_unit
@@ -185,17 +187,19 @@ class World:
                                    values=values if values is not None else self.GOOD)
         out = proc.confirm_step(
             self.db, order=order, step_id=step.id, values=payload,
-            instance_object_id=instance, verification=verification, actor_id=None,
+            instance_object_id=instance, verification=verification,
+            sources=sources, actor_id=None,
         )
         self.db.flush()
         return out
 
-    def run_step(self, order, step, *, values: Optional[dict] = None):
+    def run_step(self, order, step, *, values: Optional[dict] = None,
+                 sources: Optional[list[int]] = None):
         """Ein Modul für **alle** wartenden Instanzen bestätigen (ein Vorgang je Instanz)."""
         out = []
         for row in list(self.work(order, step)):
             out.append(self.confirm(order, step, instance=row["instance_object_id"],
-                                    values=values))
+                                    values=values, sources=sources))
         return out
 
     def run_all(self, order, *, values: Optional[dict] = None):
@@ -203,6 +207,17 @@ class World:
         for step in self.steps(order):
             self.run_step(order, step, values=values)
         return self.status(order)
+
+    def needs(self, order, step) -> list[dict[str, Any]]:
+        """Was dieses Modul jetzt braucht — Artikel, Menge, Verfügbarkeit (§4)."""
+        from app.services import consumption
+
+        pieces = sum(row["waiting"] for row in self.work(order, step))
+        return [
+            {"artikel": n.article_object_id, "je_stück": n.per_unit,
+             "gebraucht": n.required, "verfügbar": n.available, "fehlt": n.missing}
+            for n in consumption.needs(self.db, step, pieces=pieces)
+        ]
 
     # ── Auskunft ────────────────────────────────────────────────────────────
 

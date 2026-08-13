@@ -153,11 +153,17 @@ class StepConfirm(BaseModel):
     ``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.
     Beides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die
     Tastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative.
+
+    ``sources`` sind die Instanzen, aus denen ein **Verbrauchsmodul** nehmen soll – die
+    Kisten, die der Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe**: wie
+    viel gebraucht wird, sagt die Stückliste des Moduls, und eine zweite Stelle dafür
+    wäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst».
     """
 
     values: dict[str, dict[str, Any]] = Field(default_factory=dict)
     instance_object_id: Optional[int] = None
     verification: Optional[str] = None
+    sources: list[int] = Field(default_factory=list)
 
 
 class StepConfirmResult(BaseModel):

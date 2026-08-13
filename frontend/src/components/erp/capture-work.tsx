@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, GitBranch, ScanLine } from 'lucide-react';
+import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CapturePoint, StepWork } from '@/types';
+import type { CapturePoint, StepNeed, StepWork } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { useScan } from '@/components/scan/scan-provider';
 import { CaptureForm } from '@/components/erp/capture-form';
@@ -40,16 +40,20 @@ import type { OrderSeed } from '@/components/erp/order-detail';
  * legt nichts an: ein automatischer Folgeauftrag wäre ein leerer Entwurf, den niemand
  * bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass jemand zugestimmt hätte.
  */
-export function CaptureWork({ orderObjectId, stepId, points, action, work, busy, onConfirm, onDeviate, onDirty }: {
+export function CaptureWork({ orderObjectId, stepId, points, action, work, needs = [],
+                              busy, onConfirm, onDeviate, onDirty }: {
   orderObjectId: number;
   stepId: number;
   points: CapturePoint[];
   /** Das Verb des Moduls – vom Server, siehe `CaptureForm`. */
   action: string;
   work: StepWork[];
+  /** **Die Stückliste dieses Moduls**, gegen den Bestand gehalten. Leer = keine. */
+  needs?: StepNeed[];
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
-              values: Record<string, Record<string, unknown>>) => void;
+              values: Record<string, Record<string, unknown>>,
+              sources: number[]) => void;
   /** Die Entscheidung öffnet einen **ganz gewöhnlichen** Auftragsentwurf (§4/§4.1). */
   onDeviate?: (seed: OrderSeed) => void;
   onDirty?: (dirty: boolean) => void;
@@ -63,10 +67,19 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, busy,
    */
   const [verified, setVerified] = useState<Record<number, string>>({});
   const [numbers, setNumbers] = useState<Record<number, string[]>>({});
+  /**
+   * **Aus welchen Kisten genommen wird** – je Artikel. Leer heisst «nach Plan»
+   * (`planBoxes`, die ältesten zuerst); der Mensch kann jede Zeile übersteuern.
+   * Der Server prüft die Wahl, er rät nicht: was hier steht, gilt.
+   */
+  const [boxes, setBoxes] = useState<Record<number, number[]>>({});
 
   if (work.length === 0) {
     return <p className="text-xs" style={{ color: 'var(--fg-3)' }}>Hier steht gerade nichts.</p>;
   }
+
+  /** Wie viele Produkt-Stücke vor dem Modul stehen – die Bezugsgrösse der Stückliste. */
+  const total = work.reduce((n, w) => n + w.waiting, 0);
 
   /**
    * **Was zu scannen ist, ergibt sich aus der Stichprobe** (Testnotiz #714).
@@ -80,6 +93,22 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, busy,
     (points.length === 0 || w.sample > 0) && verified[w.instance_object_id] == null;
   const open = work.filter(needsScan);
 
+  /**
+   * **Welche Kisten dieser Vorgang anfasst** – und damit, was zu scannen ist.
+   *
+   * Der Plan ist die Vorgabe (älteste zuerst, so wie der Server zuteilt), die Wahl des
+   * Menschen sticht ihn. **Es ist dieselbe Liste**, die gescannt und mitgeschickt wird:
+   * was der Lagerist in der Hand hatte, ist das, woraus genommen wird. Zwei Listen wären
+   * zwei Aussagen darüber.
+   */
+  const boxesFor = (w: StepWork): number[] => {
+    const out = needs.flatMap((n) =>
+      boxes[n.article_object_id]?.length
+        ? boxes[n.article_object_id]
+        : planBoxes(n, n.per_unit * w.waiting));
+    return [...new Set(out)];
+  };
+
   /** Die Nummern der gezogenen Stücke – **erst nach dem Scan**, denn erst dann gebraucht. */
   function accept(w: StepWork, how: string) {
     setVerified((s) => ({ ...s, [w.instance_object_id]: how }));
@@ -87,6 +116,20 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, busy,
     void api.stepHold(orderObjectId, stepId, w.instance_object_id, 'sample')
       .then((r) => setNumbers((s) => ({ ...s, [w.instance_object_id]: r.numbers })));
   }
+
+  /** Was ein Vorgang scannt: die Instanz selbst, danach jede Kiste, aus der er nimmt. */
+  const scanSteps = (w: StepWork) => [
+    {
+      label: `Instanz ${formatObjectId(w.instance_object_id)}`,
+      kind: 'instance' as const,
+      expected: w.instance_object_id,
+    },
+    ...boxesFor(w).map((id) => ({
+      label: `Material ${formatObjectId(id)}`,
+      kind: 'instance' as const,
+      expected: id,
+    })),
+  ];
 
   /**
    * **Der Sammel-Scan ist die Scan-Sequenz** (#711) – genau dafür ist sie gebaut: ein
@@ -97,17 +140,23 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, busy,
   function scanAll() {
     if (!open.length) return;
     scan({
-      steps: open.map((w) => ({
-        label: `Instanz ${formatObjectId(w.instance_object_id)}`,
-        kind: 'instance' as const,
-        expected: w.instance_object_id,
-      })),
+      steps: open.flatMap(scanSteps),
       onComplete: (_ids, how) => open.forEach((w) => accept(w, how)),
     });
   }
 
   return (
     <div className="flex flex-col">
+      {/* **Die Stückliste zuerst** – sie sagt, ob dieses Modul überhaupt laufen kann.
+          Ein Scan, der danach an einer Fehlmenge scheitert, wäre eine vergebene Handlung. */}
+      {needs.map((n) => (
+        <NeedRow key={n.article_object_id} need={n} pieces={total}
+          chosen={boxes[n.article_object_id] ?? null}
+          onChoose={(ids) => setBoxes((s) => ({ ...s, [n.article_object_id]: ids }))}
+          onSupply={onDeviate && (() => onDeviate({ articleObjectId: n.article_object_id }))}
+        />
+      ))}
+
       {work.map((w, i) => (
         <InstanceRow
           key={w.instance_object_id}
@@ -119,10 +168,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, busy,
           via={verified[w.instance_object_id] ?? null}
           numbers={numbers[w.instance_object_id] ?? null}
           onScan={() => scan({
-            steps: [{
-              label: `Instanz ${formatObjectId(w.instance_object_id)}`,
-              kind: 'instance', expected: w.instance_object_id,
-            }],
+            steps: scanSteps(w),
             onComplete: (_ids, how) => accept(w, how),
           })}
           onDirty={onDirty}
@@ -132,7 +178,8 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, busy,
           onConfirm={(values) => {
             setVerified(({ [w.instance_object_id]: _gone, ...rest }) => rest);
             setNumbers(({ [w.instance_object_id]: _also, ...rest }) => rest);
-            onConfirm(w.instance_object_id, verified[w.instance_object_id] ?? 'manual', values);
+            onConfirm(w.instance_object_id, verified[w.instance_object_id] ?? 'manual',
+                      values, boxesFor(w));
           }}
         />
       ))}
@@ -145,6 +192,118 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, busy,
           data-tip="Der Reihe nach durch alle Instanzen – ein Schritt je Instanz">
           <ScanLine size={15} /> Alle scannen ({open.length})
         </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * **Der Plan: aus welchen Kisten die Menge kommt** – die ältesten zuerst.
+ *
+ * Es ist **dieselbe Reihenfolge**, in der der Server zuteilt (`consumption._free`); hier
+ * steht sie, damit man **vor** dem Scan weiss, was man holen muss. Entschieden wird sie
+ * nicht hier – wer eine andere Kiste nimmt, sagt es, und dann gilt seine Wahl.
+ */
+function planBoxes(need: StepNeed, want: number): number[] {
+  const out: number[] = [];
+  let left = want;
+  for (const s of need.sources ?? []) {
+    if (left <= 0) break;
+    out.push(s.instance_object_id);
+    left -= s.free;
+  }
+  return out;
+}
+
+/**
+ * **Eine Zeile der Stückliste — was gebraucht wird, und ob es da ist.**
+ *
+ * **Nichtverfügbarkeit ist kein Zustand** (§4). Es gibt keinen Pausen-Wert und keine
+ * Sperre: das Modul ist schlicht nicht fertig, und hier steht in Klartext, woran es
+ * liegt. Was daraus folgt, entscheidet ein Mensch – und zwar zwischen genau zwei Wegen,
+ * die beide schon existieren:
+ *
+ * * **eine andere Kiste nehmen** – dieselbe Wahl, die der Scan ohnehin trifft,
+ * * **Nachschub anlegen** – ein ganz gewöhnlicher Auftragsentwurf mit diesem Artikel.
+ *   Keine Verknüpfung, kein Wartezustand: das Modul fragt beim nächsten Versuch neu.
+ *
+ * Ein automatisches Ausweichen gibt es bewusst nicht. Welches Material verbaut wird, ist
+ * eine Entscheidung, und eine unsichtbare Automatik sähe man erst am fertigen Erzeugnis.
+ */
+function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
+  need: StepNeed;
+  /** Wie viele Produkt-Stücke vor dem Modul stehen – die Bezugsgrösse der Rechnung. */
+  pieces: number;
+  chosen: number[] | null;
+  onChoose: (ids: number[]) => void;
+  onSupply?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const short = need.available < need.required;
+  const plan = chosen ?? planBoxes(need, need.required);
+  const sources = need.sources ?? [];
+
+  return (
+    <div className="flex flex-col gap-1 py-2"
+      style={{ borderBottom: '1px solid var(--border-1)' }}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Boxes size={14} style={{ flex: 'none', color: 'var(--fg-4)' }} />
+        <span style={{ font: '600 12.5px var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>
+          {formatObjectId(need.article_object_id)}
+        </span>
+        <span className="text-xs truncate" style={{ color: 'var(--fg-3)' }}>
+          {need.article_name}
+        </span>
+        <span className="ml-auto text-[11.5px]"
+          style={{ color: short ? 'var(--danger)' : 'var(--fg-3)' }}
+          data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück vor dem Modul`}>
+          {need.required} gebraucht · {need.available} verfügbar
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
+          {plan.length
+            ? <>aus {plan.map((id) => formatObjectId(id)).join(' · ')}</>
+            : 'kein Bestand'}
+        </span>
+        <button type="button" onClick={() => setOpen(!open)}
+          className="text-[11.5px] underline" style={{ color: 'var(--fg-3)' }}
+          data-tip="Aus einer anderen Instanz nehmen – die Wahl gilt, es wird nicht ausgewichen">
+          Andere Instanz wählen
+        </button>
+        {short && onSupply && (
+          <button type="button" className="erp-actbtn ml-auto" style={{ height: 30 }}
+            onClick={onSupply}
+            data-tip="Öffnet einen ganz gewöhnlichen Auftragsentwurf mit diesem Artikel">
+            <PackagePlus size={13} /> Nachschub
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="flex flex-wrap gap-1.5">
+          {sources.length === 0 && (
+            <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
+              Von diesem Artikel liegt nichts frei.
+            </span>
+          )}
+          {sources.map((s) => {
+            const on = plan.includes(s.instance_object_id);
+            return (
+              <button key={s.instance_object_id} type="button"
+                onClick={() => onChoose(on
+                  ? plan.filter((x) => x !== s.instance_object_id)
+                  : [...plan, s.instance_object_id])}
+                className="rounded-full px-2 py-1 text-[11.5px] ix-tnum"
+                style={on
+                  ? { background: 'var(--success-bg)', color: 'var(--success)' }
+                  : { border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}>
+                {formatObjectId(s.instance_object_id)} · {s.free}
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );

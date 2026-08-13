@@ -1255,6 +1255,101 @@ dieselbe Auskunft, aus der auch die Vorauswahl der Entscheidung kommt. Bei 1500 
 Stücken darf diese Liste nicht in jeder Auftrags-Antwort mitreisen; für die **Vorschau**
 genügen die Zahlen aus `step_work`.
 
+### 9.6 Das Modul «Verbrauch» — Montage und Materialverbrauch
+
+> **Der Zwilling des Aussonderns.** Beide führen ein Stück aus dem Kreislauf; der
+> Unterschied ist, was aus ihm geworden ist: `Verschrottet` heisst «gibt es nicht mehr»,
+> `Verbaut` heisst «steckt jetzt in etwas anderem».
+
+**Die Stückliste ist die Konfiguration**: je Zeile ein **Artikel** und eine Menge **pro
+Einzelinstanz** («4× Schraube M6 je Getriebe»). Artikel und nicht Definitionszeilen –
+dasselbe Modul wird auch in der Artikel-Vorlage definiert, und dort gibt es noch keine
+Zeilen. Gerechnet wird beim **Erreichen** (3 Getriebe ⇒ 12 Schrauben), nicht beim
+Definieren: wie viele Produkte ankommen, steht dann noch gar nicht fest.
+
+Im Editor ist es **dieselbe Komponente wie der Bedarf am Auftragsanfang**
+(`DefinitionLines`, `perUnit`), nur mit zwei Fragen weniger. Die *Herkunft* entfällt –
+eine Stückliste erzeugt nichts. Und die *konkreten Stücke* ebenso, und zwar nicht aus
+Bequemlichkeit: ein Modul ist eine **Vorlage**, es läuft je Auftrag und je Produkt-Stück
+erneut; ein hier festgenageltes Stück wäre nach dem ersten Mal verbraucht. Gewählt wird
+beim Ausführen, wo es eine echte Wahl ist.
+
+#### Gebunden wird beim Erreichen — der zweite Eintrittspunkt
+
+Bis hierher hing der Eintritt **fest am Start-Objekt**: `release` legte die
+Zugehörigkeiten an und schrieb den `start`-Eintrag, und es gab keine zweite Stelle, die
+das konnte. Eine Komponente, die schon dort gebunden würde, wäre für jeden anderen
+Auftrag gesperrt, solange die Montage läuft – obwohl sie im Regal liegt. Der Statusweg
+lautet darum:
+
+```
+Freigegeben ──(Scan)──▶ Im Prozess ──(Bestätigen)──▶ Verbaut
+```
+
+Beide Übergänge sind **eigene Einträge im Log**, geschrieben von derselben Stelle wie
+jeder andere (`process._enter_at_step` → `_pass`). Verallgemeinert wurde der **Punkt**,
+nicht der Mechanismus: dieselbe Zeile in `order_units`, dasselbe `start`-Ereignis,
+dieselbe Exklusivität. Nur die Antwort auf «und wo steht es dann?» ist eine andere –
+nicht vor dem ersten Modul, sondern vor **diesem**. Am `start`-Eintrag steht dafür die
+Modul-`id`; genau daran unterscheidet der Graph die beiden (`flow._tally`).
+
+**Genommen wird nur, was frei ist** – Zustand `Freigegeben`, keine offene Zugehörigkeit.
+Das ist keine zusätzliche Regel, sondern dieselbe, aus der auch das Abweichungs-Label
+liest (§12.2): wer am Regelstart steht, war regulär verfügbar. Zwei Folgen, beide
+gewollt: ein Verbrauch macht einen Auftrag **nie** stillschweigend zur Abweichung, und
+ein Stück, das in einem anderen Auftrag läuft, kann nicht unter ihm weggezogen werden.
+
+#### Die Zuordnung steht im Log — je Produkt-Stück
+
+Der Log gibt die Zuordnung nicht von selbst her: zwischen «diese zwölf Schrauben gingen
+in diesem Auftrag hinaus» und «diese vier gingen in dieses Getriebe» liegt genau eine
+Angabe. Sie steht im **Payload** des `verbaut`-Eintrags (`into`), also dort, wo der Log
+ohnehin festhält, was ein Modul festgehalten hat.
+
+Das ist **kein Ersatzfeld**. Ein `into_instance_id` an der Einzelinstanz wäre eine zweite
+Wahrheit, die bei einer Demontage geleert würde – womit die Vergangenheit des Getriebes
+verschwände. Dieselbe Regel wie im Prozessbild (§8.1a): *eine Ansicht der Vergangenheit
+darf keine bewegliche Grösse lesen.*
+
+**Welche Schraube in welches Getriebe geht, ist keine menschliche Entscheidung** –
+Schrauben desselben Artikels sind austauschbar. Entscheidend ist, dass die Zuordnung
+aufgeschrieben wird; darum ist sie deterministisch (der Reihe nach, Produkt für Produkt)
+statt geraten.
+
+#### Nichtverfügbarkeit ist kein Zustand
+
+Reicht der Bestand nicht, passiert dreierlei – und nichts davon ist ein Auftragszustand:
+
+* die **Freigabe geht** (der Bestand ist eine Frage der Laufzeit, keine der Freigabe),
+* das Modul **bewegt nichts**, auch das Produkt nicht,
+* die Meldung nennt **Artikel, Bedarf und Verfügbarkeit** im Klartext.
+
+Das Modul ist schlicht **nicht fertig**. Ein eigener «wartet auf Material»-Wert wäre ein
+Zustand mehr, den jemand wieder verlassen müsste, und eine Verknüpfung auf einen
+Nachschub-Auftrag ein Wartezustand, den niemand auflöst.
+
+Angeboten werden zwei Wege, und **beide gibt es schon**: *eine andere Instanz wählen*
+(dieselbe Wahl, die der Scan ohnehin trifft – sie reist als `sources` mit) und
+*Nachschub anlegen* (ein ganz gewöhnlicher Auftragsentwurf mit diesem Artikel, ohne
+Verknüpfung; das Modul fragt beim nächsten Versuch neu). **Automatisch ausgewichen wird
+nie:** welches Material verbaut wird, ist eine Entscheidung, und eine unsichtbare
+Automatik sähe man erst am fertigen Erzeugnis.
+
+#### Was daraus folgt
+
+* `Module.terminal` bleibt **False**. Es kommt gar nichts an, was ginge: das Produkt
+  läuft weiter, die Komponenten treten hier ein. Die Kettenregel (§4.6) bleibt
+  unangetastet – hinter der Montage darf die Endprüfung stehen.
+* `Verbaut` ist **nicht terminal**: Demontage ist real, und das Greifen IST der Ausbau
+  (wie beim Sperren). `Verschrottet` bleibt der einzige endgültige Zustand.
+* **Die Stückliste ist eine Ableitung** (`services/genealogy`) – kein Feld, keine
+  Tabelle, keine Beziehung. Ein ausgebautes Teil bleibt darum in der Liste und wird als
+  *ausgebaut* gezeigt.
+* Ein Auftrag **verbaut nicht, was er selbst erzeugt** (Freigabe-Fehler). Die
+  Konfiguration trifft Artikel; die eine Stelle, an der diese Körnung zu grob ist, wird
+  abgewiesen statt still falsch gerechnet.
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

@@ -1988,7 +1988,11 @@ def test_new_is_an_origin_on_its_own():
         "Die Regel greift nicht auf dem gemeinsamen Weg von /validate und Freigabe."
     )
     ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
-    assert "hasNew" in ui and "{!hasNew && (" in ui, "Der Knopf «Zeile» bleibt trotz «Neu»."
+    # In der **Stückliste** (`perUnit`) gibt es «Neu» gar nicht – dort ist die Regel
+    # gegenstandslos, und der Knopf bleibt darum stehen.
+    assert "hasNew" in ui and "{(perUnit || !hasNew) && (" in ui, (
+        "Der Knopf «Zeile» bleibt trotz «Neu»."
+    )
     assert "multi" in ui, "«Neu» bleibt wählbar, obwohl es eine zweite Zeile gibt."
 
 
@@ -3266,8 +3270,14 @@ def test_the_collective_scan_is_the_scan_sequence():
     nicht eine zweite Kamera-Logik daneben.
     """
     work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
-    assert "steps: open.map(" in work, (
+    assert "steps: open.flatMap(scanSteps)" in work, (
         "Der Sammel-Scan baut sich seine eigene Mechanik, statt die Sequenz zu benutzen."
+    )
+    # **Und beide Wege bauen ihre Schritte an derselben Stelle.** Der Unterschied ist die
+    # Zahl der Instanzen, nicht die Zusammensetzung eines Vorgangs – sonst scannte der
+    # kleine Knopf die Kisten des Verbrauchsmoduls und der grosse nicht.
+    assert "steps: scanSteps(w)" in work, (
+        "Der Knopf in der Zeile baut seine Schritte selbst zusammen."
     )
     assert "open.length > 1" in work, (
         "Der grosse Knopf steht auch bei einer einzigen Instanz da – dann ist er ein "
@@ -3349,6 +3359,62 @@ def test_a_module_type_brings_its_own_fields_from_one_registry():
     )
 
 
+def test_the_parts_list_uses_the_very_same_component_as_the_demand():
+    """►►► **Die Stückliste ist der Bedarf, nur je Stück.** ◄◄◄
+
+    «Welcher Artikel, wie viele» ist dieselbe Frage wie am Auftragsanfang – also
+    dieselbe Komponente (`DefinitionLines`), kein Nachbau. Zwei Zeilen-Editoren für
+    denselben Satz Angaben liefen beim ersten neuen Feld auseinander.
+
+    Zwei der drei Fragen entfallen, und beide aus einem Grund, nicht aus Bequemlichkeit:
+
+    *Herkunft* – eine Stückliste erzeugt nichts, sie verbaut Vorhandenes.
+    *Welche Stücke* – **das ist keine Frage der Definition.** Ein Modul ist eine Vorlage:
+    es läuft je Auftrag und je Produkt-Stück erneut, und ein hier festgenageltes Stück
+    wäre nach dem ersten Mal verbraucht. Gewählt wird beim Ausführen, wo es eine echte
+    Wahl ist (`StepNeed.sources`).
+    """
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "DefinitionLines" in designer and "perUnit" in designer, (
+        "Der Verbrauch baut sich seinen eigenen Zeilen-Editor."
+    )
+    assert "api.getArticleOptions()" not in designer, (
+        "Der Editor holt die Artikel selbst – dann ist es doch ein zweiter Zeilen-Editor."
+    )
+    ui = _read(FRONTEND / "components" / "erp" / "definition-lines.tsx")
+    assert "{!perUnit && hasArticle && line.origin === LAGER && (" in ui, (
+        "Die Stückliste nagelt konkrete Stücke fest – die sind beim Definieren nicht "
+        "entscheidbar."
+    )
+
+    # Und die Menge heisst, was sie ist.
+    assert "'Menge je Stück'" in ui
+
+
+def test_a_shortage_is_shown_not_turned_into_a_state():
+    """**Nichtverfügbarkeit ist kein Zustand** (§4) – sie ist eine unfertige Zeile.
+
+    Es gibt keinen Pausen-Wert, keine Sperre und keine Verknüpfung auf einen
+    Nachschub-Auftrag. Gezeigt wird, was fehlt (Artikel · gebraucht · verfügbar), und
+    angeboten werden die zwei Wege, die es ohnehin gibt: eine andere Instanz wählen
+    (dieselbe Wahl, die der Scan trifft) und ein **ganz gewöhnlicher** Auftragsentwurf.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    assert "gebraucht · " in work and "verfügbar" in work, (
+        "Die Zeile nennt nicht mehr, was fehlt – dann sucht der Mensch."
+    )
+    assert "Andere Instanz wählen" in work and "Nachschub" in work
+    assert "onDeviate({ articleObjectId: n.article_object_id })" in work, (
+        "Der Nachschub ist kein gewöhnlicher Entwurf mehr – dann gibt es einen zweiten "
+        "Anlagepfad."
+    )
+
+    schema = _read(BACKEND / "app" / "schemas" / "order.py")
+    assert "class StepNeed(" in schema
+    for word in ("waiting_for_material", "blocked_by_material", "shortage_status"):
+        assert word not in schema, f"«{word}» wäre ein Zustand für eine Zahl."
+
+
 def test_the_action_verb_comes_from_the_server():
     """**Was der Knopf sagt, sagt das Modul** (`ProcessStepResponse.action`).
 
@@ -3383,19 +3449,19 @@ def test_a_terminal_module_is_an_exit_not_a_step():
 
     proc = _code(_read(BACKEND / "app" / "services" / "process.py"))
     body = _body(proc, "confirm_step")
-    # **Wer geht, entscheidet das Modul** – die Ausführung teilt nur noch in zwei Gruppen
-    # mit gleichem Ziel (dasselbe Muster wie ``_finish``). Ein Ausgang führt alles
-    # hinaus, also bleibt die Gruppe der Weiterlaufenden leer …
-    assert "_split_at_exit(" in body, "Die Teilung steht nicht mehr an der Ausführung."
-    # … und **nur** sie läuft ins Ende-Objekt. Das ist die Regel, die hier zählt: ein
-    # terminales Modul darf ``_finish`` nie erreichen, sonst löste es eine Rückführung
-    # aus, die es nicht geben darf.
-    assert "if staying:" in body and body.index("if staying:") < body.index("_finish("), (
-        "Das Ende-Objekt hängt nicht mehr an der Gruppe, die weiterläuft."
+    # **Die Ausführung fragt die Eigenschaft, nicht den Modulnamen.** Ein Ausgang setzt
+    # den Ausgangszustand und schliesst die Zugehörigkeit; alles andere läuft weiter.
+    assert "if module.terminal:" in body, (
+        "Die Ausführung liest die Eigenschaft nicht mehr – dann entschiede der Name."
     )
-    split = _body(proc, "_split_at_exit")
-    assert "module.terminal" in split, (
-        "Ohne die Eigenschaft entschiede die Teilung nach dem Modulnamen."
+    # Und **nur** der Zweig der Weiterlaufenden erreicht das Ende-Objekt. Das ist die
+    # Regel, die hier zählt: ein terminales Modul darf ``_finish`` nie erreichen, sonst
+    # löste es eine Rückführung aus, die es nicht geben darf.
+    assert body.index("if module.terminal:") < body.index("_finish("), (
+        "Das Ende-Objekt hängt nicht mehr am Zweig, der weiterläuft."
+    )
+    assert "else:" in body.split("if module.terminal:")[1].split("_finish(")[0], (
+        "Der Ausgang und der Durchgang sind nicht mehr die zwei Zweige einer Frage."
     )
 
 

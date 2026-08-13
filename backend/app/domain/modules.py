@@ -65,12 +65,12 @@ class Module:
     #: denn es ist selbst eines. Genau das schneidet auch eine geplante Rückführung ab:
     #: die Rückkehr hängt am Ende-Objekt, und dorthin kommt das Stück nie.
     #:
-    #: **Das Wort beantwortet ausdrücklich nur die ALLE-Frage.** «Verlässt *dieses* Stück
-    #: den Auftrag hier?» ist eine zweite, und sie steht in ``leaves``. Beim Verbrauch
-    #: gehen die Antworten auseinander: die Komponenten gehen, das Produkt läuft weiter –
-    #: also ist er **nicht** terminal, und hinter ihm darf sehr wohl etwas stehen. Wären
-    #: es nicht zwei Fragen, müsste die Kettenregel eine Ausnahme bekommen, und eine
-    #: Ausnahme in einer Regel dieser Art ist der Anfang vom Ende der Regel.
+    #: **Das Wort beantwortet ausdrücklich nur die ALLE-Frage.** Beim Verbrauch geht
+    #: nichts von dem hinaus, was **ankommt**: das Produkt läuft weiter, und die
+    #: Komponenten kommen gar nicht von oben – sie treten an diesem Modul **ein** und
+    #: verlassen es im selben Zug (``process._enter_at_step``). Er ist darum **nicht**
+    #: terminal, und hinter ihm darf sehr wohl etwas stehen; die Kettenregel bleibt
+    #: unangetastet, ohne eine Ausnahme zu brauchen.
     terminal: bool = False
 
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
@@ -114,25 +114,6 @@ class Module:
         «was soll passieren?» (eine fachliche Wahl, aus der der Status **folgt**).
         """
         return self.status_after
-
-    # ── Wer verlässt den Auftrag hier – und womit? ──────────────────────────
-    #
-    # Zwei Fragen, die ``terminal`` allein nicht mehr beantworten kann, seit es ein Modul
-    # gibt, das **einen Teil** seiner Stücke hinausführt. Die Vorgaben hier sind so
-    # gewählt, dass die beiden bestehenden Module sie erben, ohne eine Zeile zu schreiben:
-    # ein Ausgang führt alles hinaus, ein Durchläufer nichts.
-
-    def leaves(self, config: Optional[dict[str, Any]], *,
-               article_object_id: Optional[int]) -> bool:
-        """**Verlässt DIESES Stück den Auftrag an diesem Modul?**
-
-        Gefragt wird nach dem **Artikel**, nicht nach der Definitionszeile – und das ist
-        kein Zufall, sondern die einzig mögliche Ebene: dasselbe Modul wird auch in der
-        **Artikel-Vorlage** definiert, und dort gibt es noch gar keine Zeilen. Der
-        Erzeugungsprozess eines Artikels IST der Montageplan; er kann «Rahmen, Motor,
-        Schraube M6» nennen, aber nicht «Zeile 2».
-        """
-        return self.terminal
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Auf welchen Zustand setzt dieses Modul ein Stück, das **hier hinausgeht**?
@@ -249,68 +230,127 @@ class Verbrauch(Module):
     Sache: **was aus dem Stück geworden ist.** Verschrottet heisst «gibt es nicht mehr»,
     verbaut heisst «steckt jetzt in etwas anderem». Der Mechanismus ist derselbe.
 
-    **Der Unterschied zum Aussondern ist die Reichweite.** Dort geht alles, was ankommt;
-    hier gehen die **genannten Artikel**, und alles andere – das Produkt – passiert das
-    Modul unverändert und läuft weiter. Darum ist dieses Modul **nicht** ``terminal``:
-    hinter ihm darf etwas stehen, und die Kettenregel bleibt unangetastet.
+    **Der Unterschied zum Aussondern ist die Herkunft.** Dort geht hinaus, was **ankommt**;
+    hier kommt gar nichts an, was ginge: das Produkt läuft weiter, und die Komponenten
+    **treten hier ein** (``process._enter_at_step``) und verlassen den Auftrag im selben
+    Zug. Darum ist dieses Modul **nicht** ``terminal``: hinter ihm darf etwas stehen, und
+    die Kettenregel bleibt unangetastet.
 
-    **Kein Standort, keine Menge, keine Stückliste als Tabelle.** Das Vorgängermodul
-    («Ressource») ruhte auf einem Mengenmodell mit Reservierung, Teilentnahme und
-    FIFO-mit-Rest; im Einzelinstanz-Modell fällt das alles weg – ein Stück ist ein Stück,
-    also gibt es nichts zu teilen und nichts zu rechnen. Aus einer 600er-Charge gehen vier
-    Einzelinstanzen auf ``Verbaut``, 596 bleiben stehen.
+    **Gebunden wird beim Erreichen, nicht bei der Freigabe.** Eine Komponente, die einem
+    Auftrag schon bei der Freigabe gehört, ist wochenlang für jeden anderen gesperrt,
+    obwohl sie im Regal liegt – und wer sie braucht, sieht einen Bestand, den es
+    rechnerisch nicht gibt. Der Statusweg lautet darum
+    ``Freigegeben`` → (Scan) → ``Im Prozess`` → (Bestätigen) → ``Verbaut``, und beide
+    Übergänge stehen als eigene Einträge im Log.
+
+    **Kein Standort, keine Reservierung, keine Stückliste als Tabelle.** Das
+    Vorgängermodul («Ressource») ruhte auf einem Mengenmodell mit Reservierung,
+    Teilentnahme und FIFO-mit-Rest; im Einzelinstanz-Modell fällt das alles weg – ein
+    Stück ist ein Stück. Aus einer 600er-Charge gehen vier Einzelinstanzen auf
+    ``Verbaut``, 596 bleiben stehen.
 
     **Und die Stückliste ist eine Ableitung** (``services/genealogy``): welche Stücke
-    denselben Auftrag als ``Verbaut`` verlassen haben. Kein Feld, keine Beziehung – und
-    weil sie aus dem Log kommt, überlebt sie eine spätere Demontage.
+    denselben Auftrag als ``Verbaut`` verlassen haben, und laut Log **in welches Stück**.
+    Kein Feld, keine Beziehung – und weil sie aus dem Log kommt, überlebt sie eine
+    spätere Demontage.
     """
 
-    #: Was die Konfiguration trägt: die **Objektnummern** der Artikel, deren Stücke hier
-    #: verbaut werden. Objektnummern und nicht interne Schlüssel – es ist dasselbe, was
-    #: die Oberfläche zeigt und was über die API reist.
-    ARTICLES = "articles"
+    #: Was die Konfiguration trägt: je Zeile **Artikel + Menge pro Einzelinstanz**. Die
+    #: Objektnummer und nicht der interne Schlüssel – es ist dasselbe, was die Oberfläche
+    #: zeigt und was über die API reist.
+    #:
+    #: **Die Menge gilt je Produkt-Stück**, nicht je Auftrag: «4× Schraube M6» heisst vier
+    #: Schrauben *pro Getriebe*. Gerechnet wird beim **Erreichen** des Moduls (dort steht
+    #: fest, wie viele Stücke davorstehen), nicht beim Definieren – eine Vorlage, die eine
+    #: Auftragsmenge nennt, wäre bei der zweiten Menge falsch.
+    LINES = "lines"
+
+    #: Höchstmenge je Zeile. Eine Stückliste nennt Stückzahlen, keine Chargen; wer 5000
+    #: Schrauben je Produkt braucht, hat einen Tippfehler oder das falsche Modul.
+    MAX_PER_UNIT = 1000
 
     #: Das Verb auf dem Knopf. «Erfassen & bestätigen» wäre hier schlicht falsch – erfasst
     #: wird nichts, der Scan ist die Bestätigung.
     action = "Verbauen"
 
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
-        found = (raw or {}).get(self.ARTICLES) or []
+        found = (raw or {}).get(self.LINES) or []
         if not isinstance(found, (list, tuple)):
             raise HTTPException(
                 status_code=400,
-                detail="«Verbrauch» erwartet eine Liste von Artikeln.",
+                detail="«Verbrauch» erwartet eine Liste aus Artikel und Menge.",
             )
-        articles: list[int] = []
-        for value in found:
-            try:
-                number = int(value)
-            except (TypeError, ValueError):
+        lines: list[dict[str, int]] = []
+        seen: set[int] = set()
+        for row in found:
+            article, quantity = self._one(row)
+            if article in seen:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"«{value}» ist keine Artikel-Objektnummer.",
+                    detail=(
+                        f"Artikel {article} steht zweimal in der Stückliste. Zwei Zeilen "
+                        f"für denselben Artikel sind eine Menge, die man addieren muss – "
+                        f"und zwei Stellen, an denen sie auseinanderlaufen kann."
+                    ),
                 )
-            if number not in articles:
-                articles.append(number)
-        if not articles:
+            seen.add(article)
+            lines.append({"article": article, "quantity": quantity})
+        if not lines:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "«Verbrauch» braucht mindestens einen Artikel – sonst gibt es nichts "
-                    "zu verbauen, und das Modul wäre ein Durchgang, der so aussieht wie "
+                    "«Verbrauch» braucht mindestens eine Zeile – sonst gibt es nichts zu "
+                    "verbauen, und das Modul wäre ein Durchgang, der so aussieht wie "
                     "eine Montage."
                 ),
             )
-        # **Keine Erfassungspunkte, keine Stichprobe.** Was ankommt, wird verbaut; der
-        # Scan ist die Bestätigung. Eine Stichprobe hiesse «bau die Hälfte ein» – das
-        # gibt es nicht: wer nur einen Teil meint, gibt nur diesen Teil in den Auftrag.
-        return {self.ARTICLES: articles, "points": [], "sample": dict(sampling.DEFAULT)}
+        # **Keine Erfassungspunkte, keine Stichprobe.** Was gebraucht wird, wird verbaut;
+        # der Scan ist die Bestätigung. Eine Stichprobe hiesse «bau die Hälfte ein» – das
+        # gibt es nicht.
+        return {self.LINES: lines, "points": [], "sample": dict(sampling.DEFAULT)}
 
-    def leaves(self, config: Optional[dict[str, Any]], *,
-               article_object_id: Optional[int]) -> bool:
-        return article_object_id in articles_of(config)
+    @staticmethod
+    def _one(row: Any) -> tuple[int, int]:
+        """Eine Zeile prüfen: **Artikel + Menge pro Stück**, beide Pflicht."""
+        if not isinstance(row, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"«{row}» ist keine Stücklisten-Zeile (Artikel und Menge).",
+            )
+        try:
+            article = int(row.get("article"))
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail=f"«{row.get('article')}» ist keine Artikel-Objektnummer.",
+            )
+        try:
+            quantity = int(row.get("quantity"))
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Artikel {article}: die Menge fehlt. Sie gilt **pro Einzelinstanz** – "
+                    f"«4» heisst vier Stück je Produkt, nicht vier im ganzen Auftrag."
+                ),
+            )
+        if not 1 <= quantity <= Verbrauch.MAX_PER_UNIT:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Artikel {article}: die Menge muss zwischen 1 und "
+                    f"{Verbrauch.MAX_PER_UNIT} liegen."
+                ),
+            )
+        return article, quantity
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
+        """Der Zustand der **Komponenten**, die dieses Modul zieht.
+
+        Nicht der der ankommenden Stücke: die laufen weiter (``status_after``). Das ist
+        der ganze Unterschied zum Aussondern – dort ist beides dasselbe, weil dort nichts
+        weiterläuft.
+        """
         return st.VERBAUT
 
 
@@ -380,14 +420,17 @@ def reason_of(config: Optional[dict[str, Any]]) -> str:
     return str((config or {}).get("reason") or "")
 
 
-def articles_of(config: Optional[dict[str, Any]]) -> list[int]:
-    """Die Artikel, deren Stücke ein Modul verbraucht — die eine Lesestelle.
+def lines_of(config: Optional[dict[str, Any]]) -> list[dict[str, int]]:
+    """Die **Stückliste** eines Moduls — je Zeile Artikel und Menge pro Stück.
 
-    Nur der Verbrauch hat welche; überall sonst ist die Liste leer. Ein Modul, das keine
-    kennt, gibt darum nicht ``None`` zurück, sondern nichts – die Aufrufstelle fragt dann
-    gar nicht erst nach einer Fallunterscheidung.
+    Nur der Verbrauch hat eine; überall sonst ist sie leer. Ein Modul, das keine kennt,
+    gibt darum nicht ``None`` zurück, sondern nichts – die Aufrufstelle fragt dann gar
+    nicht erst nach einer Fallunterscheidung.
     """
-    return [int(a) for a in (config or {}).get(Verbrauch.ARTICLES) or []]
+    return [
+        {"article": int(row["article"]), "quantity": int(row["quantity"])}
+        for row in (config or {}).get(Verbrauch.LINES) or []
+    ]
 
 
 def sample_of(config: Optional[dict[str, Any]]) -> dict[str, Any]:

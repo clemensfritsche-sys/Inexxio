@@ -5973,6 +5973,25 @@
         "title": "ModuleTypeInfo",
         "description": "Ein wählbarer Modultyp – für die Oberfläche, damit sie die Liste nicht nachbaut.\n\n``tone`` ist die **Farbfamilie** des Modultyps (``domain/modules``). Sie kommt mit,\nweil sie zum Modul gehört: ein neuer Typ soll ein Eintrag in der Registry sein und\nkein Eingriff in die Oberfläche.\n\n``terminal`` sagt, dass hinter diesem Modul nichts mehr stehen kann – es ist ein\n**Ausgang**, kein Durchgang. Es ist dieselbe Eigenschaft, aus der die Freigabe ihren\nFehler zieht (``domain/chain``) und das Prozessbild sein Ende; die Oberfläche bietet\ndaraufhin gar nicht erst an, etwas dahinter zu setzen. Eine Regel, drei Wirkungen –\nein neuer Modultyp erbt alle drei, ohne eine Zeile dafür."
       },
+      "NeedSource": {
+        "properties": {
+          "instance_object_id": {
+            "type": "integer",
+            "title": "Instance Object Id"
+          },
+          "free": {
+            "type": "integer",
+            "title": "Free"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_object_id",
+          "free"
+        ],
+        "title": "NeedSource",
+        "description": "Eine Instanz, aus der genommen werden könnte — und wie viel dort frei liegt."
+      },
       "ObjectReference": {
         "properties": {
           "kind": {
@@ -6633,6 +6652,13 @@
             "type": "array",
             "title": "Work"
           },
+          "needs": {
+            "items": {
+              "$ref": "#/components/schemas/StepNeed"
+            },
+            "type": "array",
+            "title": "Needs"
+          },
           "label": {
             "type": "string",
             "title": "Label",
@@ -6777,11 +6803,59 @@
               }
             ],
             "title": "Verification"
+          },
+          "sources": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Sources"
           }
         },
         "type": "object",
         "title": "StepConfirm",
-        "description": "«Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.\n\n``values`` ist zweistufig: **Nummer der Einzelinstanz** → (Punkt-``key`` → Wert).\nErwartet wird genau ein Satz je **gezogenem** Stück; zu viele oder zu wenige werden\nabgewiesen (``process._captures_for``).\n\n**Der Scan verifiziert die Instanz, die Erfassung gilt der Einzelinstanz.** Beides\nhier nebeneinander zu haben ist der ganze Punkt: ``instance_object_id`` ist die\nverifizierte Instanz (eine – das Etikett klebt am physischen Ding),\n``values`` sind ihre n Messungen. Wäre es ein flacher Satz, entstünden aus einer\nMessung n gleiche Zeilen, und der Nachweis behauptete Messungen, die niemand gemacht\nhat.\n\nEin Modul ohne Erfassungspunkte (Aussondern) bekommt einen **leeren** Satz – dort ist\nder Scan die Bestätigung, und ein Wert wäre ein Nachweis über nichts.\n\n``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.\nBeides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die\nTastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative."
+        "description": "«Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.\n\n``values`` ist zweistufig: **Nummer der Einzelinstanz** → (Punkt-``key`` → Wert).\nErwartet wird genau ein Satz je **gezogenem** Stück; zu viele oder zu wenige werden\nabgewiesen (``process._captures_for``).\n\n**Der Scan verifiziert die Instanz, die Erfassung gilt der Einzelinstanz.** Beides\nhier nebeneinander zu haben ist der ganze Punkt: ``instance_object_id`` ist die\nverifizierte Instanz (eine – das Etikett klebt am physischen Ding),\n``values`` sind ihre n Messungen. Wäre es ein flacher Satz, entstünden aus einer\nMessung n gleiche Zeilen, und der Nachweis behauptete Messungen, die niemand gemacht\nhat.\n\nEin Modul ohne Erfassungspunkte (Aussondern) bekommt einen **leeren** Satz – dort ist\nder Scan die Bestätigung, und ein Wert wäre ein Nachweis über nichts.\n\n``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.\nBeides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die\nTastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative.\n\n``sources`` sind die Instanzen, aus denen ein **Verbrauchsmodul** nehmen soll – die\nKisten, die der Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe**: wie\nviel gebraucht wird, sagt die Stückliste des Moduls, und eine zweite Stelle dafür\nwäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst»."
+      },
+      "StepNeed": {
+        "properties": {
+          "article_object_id": {
+            "type": "integer",
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "type": "string",
+            "title": "Article Name"
+          },
+          "per_unit": {
+            "type": "integer",
+            "title": "Per Unit"
+          },
+          "required": {
+            "type": "integer",
+            "title": "Required"
+          },
+          "available": {
+            "type": "integer",
+            "title": "Available"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/NeedSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_object_id",
+          "article_name",
+          "per_unit",
+          "required",
+          "available"
+        ],
+        "title": "StepNeed",
+        "description": "Eine Zeile der Stückliste, **gegen den Bestand gehalten**.\n\n``required`` ist die Rechnung dieses Augenblicks: Menge je Stück × Stücke, die vor\ndem Modul stehen. Sie entsteht beim **Erreichen** und nicht beim Definieren – vorher\nweiss niemand, wie viele Produkte ankommen.\n\n**Fehlt etwas, ist das kein Zustand des Auftrags.** Es gibt keinen Pausen-Wert und\nkeine Sperre: das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext,\nworan es liegt (Artikel · gebraucht · verfügbar). Was daraus folgt, entscheidet ein\nMensch – eine andere Instanz wählen oder Nachschub anlegen."
       },
       "StepWork": {
         "properties": {

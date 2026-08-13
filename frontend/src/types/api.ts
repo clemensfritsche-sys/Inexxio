@@ -2222,6 +2222,16 @@ export interface components {
             status_after: string;
         };
         /**
+         * NeedSource
+         * @description Eine Instanz, aus der genommen werden könnte — und wie viel dort frei liegt.
+         */
+        NeedSource: {
+            /** Instance Object Id */
+            instance_object_id: number;
+            /** Free */
+            free: number;
+        };
+        /**
          * ObjectReference
          * @description Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet.
          */
@@ -2534,6 +2544,8 @@ export interface components {
             waiting_for?: number[];
             /** Work */
             work?: components["schemas"]["StepWork"][];
+            /** Needs */
+            needs?: components["schemas"]["StepNeed"][];
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -2635,6 +2647,11 @@ export interface components {
          *     ``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.
          *     Beides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die
          *     Tastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative.
+         *
+         *     ``sources`` sind die Instanzen, aus denen ein **Verbrauchsmodul** nehmen soll – die
+         *     Kisten, die der Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe**: wie
+         *     viel gebraucht wird, sagt die Stückliste des Moduls, und eine zweite Stelle dafür
+         *     wäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst».
          */
         StepConfirm: {
             /** Values */
@@ -2645,6 +2662,35 @@ export interface components {
             instance_object_id?: number | null;
             /** Verification */
             verification?: string | null;
+            /** Sources */
+            sources?: number[];
+        };
+        /**
+         * StepNeed
+         * @description Eine Zeile der Stückliste, **gegen den Bestand gehalten**.
+         *
+         *     ``required`` ist die Rechnung dieses Augenblicks: Menge je Stück × Stücke, die vor
+         *     dem Modul stehen. Sie entsteht beim **Erreichen** und nicht beim Definieren – vorher
+         *     weiss niemand, wie viele Produkte ankommen.
+         *
+         *     **Fehlt etwas, ist das kein Zustand des Auftrags.** Es gibt keinen Pausen-Wert und
+         *     keine Sperre: das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext,
+         *     woran es liegt (Artikel · gebraucht · verfügbar). Was daraus folgt, entscheidet ein
+         *     Mensch – eine andere Instanz wählen oder Nachschub anlegen.
+         */
+        StepNeed: {
+            /** Article Object Id */
+            article_object_id: number;
+            /** Article Name */
+            article_name: string;
+            /** Per Unit */
+            per_unit: number;
+            /** Required */
+            required: number;
+            /** Available */
+            available: number;
+            /** Sources */
+            sources?: components["schemas"]["NeedSource"][];
         };
         /**
          * StepWork

@@ -230,22 +230,21 @@ def s11b(w: World):
 
 
 @case("S16", "MONTAGE: 2 Teile → 1 Baugruppe, Stückliste abgeleitet",
-      {"A": A_MIX, "B": B_EINZEL, "C": C_2, "D": D_VERBRAUCH, "E": E_KEINE, "F": "–"},
+      {"A": A_NEU, "B": B_EINZEL, "C": C_1, "D": D_VERBRAUCH, "E": E_KEINE, "F": "–"},
       {"status": "abgeschlossen", "produkt": "freigegeben",
-       "teile": {"verbaut": 2}, "stückliste": 2},
-      note="Die Stückliste ist kein Feld: sie sind die Stücke, die denselben Auftrag als "
-           "«Verbaut» verlassen haben.")
+       "teile": {"verbaut": 2}, "stückliste": 2, "auftragszeilen": 1},
+      note="Die Teile stehen NICHT im Bedarf: das Modul holt sie sich beim Erreichen. "
+           "Die Stückliste ist kein Feld – sie sind die Stücke, die denselben Auftrag "
+           "als «Verbaut» verlassen haben.")
 def s16(w: World):
-    from app.services import genealogy
+    from app.services import genealogy, process as proc
 
     part, numbers = free_stock(w, serialization="unit", quantity=2)
     product = w.article(serialization="unit",
-                        template=[w.consume(part.object_id), w.capture()])
+                        template=[w.consume((part.object_id, 2)), w.capture()])
     order = w.release(lines=[
         {"article_object_id": product.object_id, "quantity": 1, "origin": "neu",
          "units": []},
-        {"article_object_id": part.object_id, "quantity": 2, "origin": "lager",
-         "units": [{"number": n, "from_order": None} for n in numbers]},
     ])
     w.run_all(order, values=World.GOOD)
     made = [n for n in w.numbers(order) if n not in numbers]
@@ -255,17 +254,82 @@ def s16(w: World):
         "teile": {w.unit_status(numbers[0]): len(
             [n for n in numbers if w.unit_status(n) == w.unit_status(numbers[0])])},
         "stückliste": len(genealogy.parts_of(w.db, w.unit(made[0]))),
+        # **Der Bedarf nennt nur das Produkt.** Die Teile sind keine Auftragszeile mehr –
+        # gebunden wird beim Erreichen des Moduls, nicht bei der Freigabe.
+        "auftragszeilen": len(proc.lines_of(w.db, order)),
     }
 
 
-@case("S17", "Verbrauch nennt einen Artikel, den der Auftrag nicht hat",
+@case("S16b", "Die Menge gilt JE STÜCK: 3 Produkte × 4 Schrauben = 12",
+      {"A": A_NEU, "B": B_EINZEL, "C": C_VIELE, "D": D_VERBRAUCH, "E": E_KEINE, "F": "–"},
+      {"gebraucht": 12, "verbaut": 12, "übrig": 3, "je_stückliste": [4, 4, 4]},
+      note="Gerechnet wird beim ERREICHEN des Moduls – vorher steht die Zahl der "
+           "Produkte nicht fest. Und je Produkt-Stück wird zugeteilt, nicht in einen Topf.")
+def s16b(w: World):
+    from app.services import genealogy
+
+    screw, numbers = free_stock(w, serialization="batch", quantity=15)
+    product = w.article(serialization="unit",
+                        template=[w.consume((screw.object_id, 4))])
+    order = w.release(lines=[
+        {"article_object_id": product.object_id, "quantity": 3, "origin": "neu",
+         "units": []},
+    ])
+    step = w.steps(order)[0]
+    gebraucht = w.needs(order, step)[0]["gebraucht"]
+    w.run_all(order)
+    made = [n for n in w.numbers(order) if n not in numbers]
+    return {
+        "gebraucht": gebraucht,
+        "verbaut": len([n for n in numbers if w.unit_status(n) == "verbaut"]),
+        "übrig": len([n for n in numbers if w.unit_status(n) == "freigegeben"]),
+        "je_stückliste": sorted(
+            len(genealogy.parts_of(w.db, w.unit(n))) for n in made),
+    }
+
+
+@case("S17", "Der Bestand reicht nicht – das Modul ist nicht fertig, es sagt warum",
+      {"A": A_NEU, "B": B_EINZEL, "C": C_1, "D": D_VERBRAUCH, "E": E_KEINE, "F": "–"},
+      {"freigabe": "geht", "gebraucht": 3, "verfügbar": 1, "code": 409, "spricht": True,
+       "unberührt": "freigegeben"},
+      note="Nichtverfügbarkeit ist KEIN Auftragszustand: die Freigabe geht, das Modul "
+           "steht und nennt Artikel, Bedarf und Verfügbarkeit. Und es hat nichts bewegt.")
+def s17(w: World):
+    screw, numbers = free_stock(w, serialization="unit", quantity=1)
+    product = w.article(serialization="unit",
+                        template=[w.consume((screw.object_id, 3))])
+    order = w.release(lines=[
+        {"article_object_id": product.object_id, "quantity": 1, "origin": "neu",
+         "units": []},
+    ])
+    step = w.steps(order)[0]
+    need = w.needs(order, step)[0]
+    row = w.work(order, step)[0]
+    out = _err(w.confirm, order, step, instance=row["instance_object_id"])
+    return {
+        "freigabe": "geht",
+        "gebraucht": need["gebraucht"],
+        "verfügbar": need["verfügbar"],
+        **out,
+        "unberührt": w.unit_status(numbers[0]),
+    }
+
+
+@case("S17b", "Ein Auftrag verbaut nicht, was er selbst erzeugt",
       {"A": A_NEU, "B": B_EINZEL, "C": C_1, "D": D_VERBRAUCH, "E": E_KEINE, "F": "–"},
       {"code": 400, "spricht": True},
-      note="Ein Verbrauchsmodul ohne Material wäre ein stiller Durchgang, der aussieht "
-           "wie eine Montage.")
-def s17(w: World):
-    other, _ = free_stock(w, serialization="unit", quantity=1)
-    product = w.article(serialization="unit", template=[w.consume(other.object_id)])
+      note="Sonst zöge das Modul Stücke desselben Artikels aus dem Lager, während der "
+           "Auftrag ihn gerade herstellt.")
+def s17b(w: World):
+    from app.models import ArticleProcessStep
+    from app.services import article_process as tpl
+
+    product = w.article(serialization="unit")
+    # Die Vorlage nennt **sich selbst** – anders geht es gar nicht: ein Erzeugungsauftrag
+    # fährt den Artikel-Prozess, nicht die mitgeschickten Schritte.
+    w.db.query(ArticleProcessStep).filter_by(article_id=product.id).delete()
+    tpl.create_steps(w.db, product, [w.consume((product.object_id, 1))])
+    w.db.flush()
     return _err(w.release, lines=[
         {"article_object_id": product.object_id, "quantity": 1, "origin": "neu",
          "units": []},
@@ -282,12 +346,11 @@ def s18(w: World):
     from app.services import genealogy
 
     part, numbers = free_stock(w, serialization="unit", quantity=1)
-    product = w.article(serialization="unit", template=[w.consume(part.object_id)])
+    product = w.article(serialization="unit",
+                        template=[w.consume((part.object_id, 1))])
     build = w.release(lines=[
         {"article_object_id": product.object_id, "quantity": 1, "origin": "neu",
          "units": []},
-        {"article_object_id": part.object_id, "quantity": 1, "origin": "lager",
-         "units": [{"number": numbers[0], "from_order": None}]},
     ])
     w.run_all(build, values=World.GOOD)
     made = [n for n in w.numbers(build) if n not in numbers][0]
