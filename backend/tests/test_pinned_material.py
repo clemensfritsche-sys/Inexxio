@@ -517,6 +517,68 @@ def test_waiting_material_is_not_drawn_on_the_axis():
         w.db.close()
 
 
+def test_two_pins_in_one_module():
+    """Rahmen **und** Motor – zwei Vormerkungen, ein Modul.
+
+    Es ist kein Sonderfall, sondern der Normalfall einer Montage: die Stückliste hat
+    mehrere Zeilen, und mehr als eine davon kann ein bestimmtes Stück nennen. Geprüft
+    wird, dass nichts sich in die Quere kommt – beide binden, beide bleiben aus der
+    Arbeitsliste heraus, beide werden verbaut.
+    """
+    w = _w()
+    try:
+        rahmen, rn = free_stock(w, serialization="unit", quantity=1)
+        motor, mn = free_stock(w, serialization="unit", quantity=1)
+        product = w.article(
+            serialization="unit",
+            template=[w.consume((rahmen.object_id, 1), (motor.object_id, 1))],
+        )
+        order = w.release(
+            lines=[{"article_object_id": product.object_id, "quantity": 1,
+                    "origin": "neu", "units": []}],
+            steps=[{"module_type": "verbrauch", "config": {"lines": [
+                {"article": rahmen.object_id, "quantity": 1, "unit": rn[0]},
+                {"article": motor.object_id, "quantity": 1, "unit": mn[0]},
+            ]}}],
+        )
+        assert [w.unit_status(n) for n in (rn[0], mn[0])] == ["im_prozess"] * 2
+        assert sum(r["waiting"] for r in w.work(order, w.steps(order)[0])) == 1, (
+            "Das Material zählt in der Arbeitsliste mit."
+        )
+        w.run_all(order)
+        assert [w.unit_status(n) for n in (rn[0], mn[0])] == ["verbaut"] * 2
+        assert w.status(order) == "abgeschlossen"
+    finally:
+        w.db.close()
+
+
+def test_a_pin_survives_a_chain_of_deviations():
+    """**Geschachtelt ist kein Fall** – die Kette ist der gewöhnliche Mechanismus (§12.3).
+
+    Auftrag → Abweichung → Abweichung, alle drei auf dasselbe vorgemerkte Stück. Die
+    Rückführung hängt an der **Verbindung**, nicht am Auftrag; darum braucht die
+    Vormerkung dafür keine eigene Regel. Am Ende steht das Stück wieder an seinem Modul
+    und wird verbaut.
+    """
+    w = _w()
+    try:
+        part, numbers, _, order = _assembly(w)
+        first = w.take(part, [numbers[0]], from_order=order.object_id,
+                       steps=[w.capture()], returns=True)
+        second = w.take(part, [numbers[0]], from_order=first.object_id,
+                        steps=[w.capture()], returns=True)
+        assert w.is_deviation(second)
+        assert w.waits(order), "Der Hauptauftrag wartet nicht über die Kette hinweg."
+
+        w.run_all(second)
+        w.run_all(first)
+        w.run_all(order)
+        assert w.unit_status(numbers[0]) == "verbaut"
+        assert w.status(order) == "abgeschlossen"
+    finally:
+        w.db.close()
+
+
 def test_material_does_not_make_a_lost_order_look_finished():
     """Ein Auftrag ohne Subjekte ist **abgebrochen**, nicht «abgeschlossen».
 

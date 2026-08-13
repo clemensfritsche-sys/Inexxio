@@ -741,7 +741,8 @@
 > genommen hat. Das Bild zeigt jetzt den **Weg der Subjekte**; Material erscheint dort,
 > wo es etwas **getan** hat (verbaut, auf der Ausgangskante seines Moduls) – derselbe
 > Platz wie bisher. Wo es vorher steht, sagt die Stückliste des Moduls.
-> Wächter: `tests/test_pinned_material.py` (17 Prüfungen über die echten Dienstpfade;
+> Wächter: `tests/test_pinned_material.py` (19 Prüfungen über die echten Dienstpfade –
+> darunter zwei Vormerkungen in EINEM Modul und eine dreistufige Abweichungs-Kette;
 > Eintritt · Austritt · Arbeitsliste · Stichprobe je gegen ihre Bug-Form gegengeprüft) +
 > `test_frontend_mirrors.py: test_a_pin_is_offered_only_where_it_is_allowed`.
 
