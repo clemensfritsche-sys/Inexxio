@@ -586,11 +586,15 @@ class ApiClient {
    * wäre eine Messung, aus der n gleiche würden.
    */
   confirmStep(objectId: number, stepId: number, values: Record<string, Record<string, unknown>> = {},
-              instanceObjectId?: number, verification?: string): Promise<Order> {
+              instanceObjectId?: number, verification?: string,
+              sources: number[] = []): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {
       values,
       instance_object_id: instanceObjectId ?? null,
       verification: verification ?? null,
+      // **Woraus verbaut wird** – die Instanzen, die der Lagerist gescannt hat. Leer
+      // heisst «der ganze freie Bestand, älteste zuerst»; der Server rät nie mehr als das.
+      sources,
     });
   }
 

@@ -25,8 +25,8 @@ from ..models.process_event import (
     KIND_CAPTURE, KIND_END, KIND_HANDOVER, KIND_RETURN, KIND_SAMPLE, KIND_START, KIND_STEP,
 )
 from . import (
-    article_process, articles as articles_svc, capture as capture_svc, materialize,
-    sampling,
+    article_process, articles as articles_svc, capture as capture_svc,
+    consumption as consumption_svc, materialize, sampling,
 )
 from .instances import unit_number
 
@@ -278,49 +278,32 @@ def _assert_single_new(lines: list[_Line]) -> None:
         )
 
 
-def _assert_consumables_present(lines: list[_Line], steps: list[dict[str, Any]]) -> None:
-    """**Was ein Verbrauchsmodul nennt, muss auch im Auftrag stehen.**
+def _assert_no_self_consumption(lines: list[_Line], steps: list[dict[str, Any]]) -> None:
+    """**Ein Auftrag verbaut nicht, was er selbst erzeugt.**
 
-    Das Modul nennt Artikel (``domain/modules.Verbrauch``), weil es auch in der
-    Artikel-Vorlage definierbar sein muss – und dort gibt es keine Zeilen. Der Preis
-    dafür ist diese Prüfung: die Vorlage sagt «verbaut werden Rahmen und Motor», und wer
-    den Auftrag anlegt, muss sie als ``Lager``-Zeilen dazunehmen.
+    Die einzige Prüfung, die eine Stückliste bei der Freigabe braucht. Sie trifft
+    **Artikel**, nicht Zeilen – stünde derselbe Artikel als ``Neu`` und in der Stückliste
+    eines Verbrauchsmoduls, zöge dieses Modul Stücke desselben Artikels aus dem Lager,
+    während der Auftrag ihn gerade herstellt. Was daraus wird, ist nicht mehr entscheidbar.
 
-    **Ohne die Prüfung wäre ein Verbrauchsmodul, das nichts findet, ein stiller
-    Durchgang** – es sähe aus wie eine Montage und wäre keine. Der Fehler kommt bei der
-    Freigabe, also bevor eine Objektnummer vergeben ist (§6.3).
-
-    Zweitens: ein genannter Artikel darf **nicht** der erzeugte sein. Die Konfiguration
-    trifft Artikel, nicht Zeilen – stünde derselbe Artikel als ``Neu`` und als Verbrauch
-    da, verliesse das Produkt den Auftrag an seinem eigenen Montageschritt.
+    **Dass die Komponenten im Auftrag stehen müssten, wird ausdrücklich NICHT geprüft** –
+    sie stehen dort nicht mehr. Gebunden wird beim Erreichen des Moduls
+    (``domain/modules.Verbrauch``), also hat der Auftrag zur Freigabezeit gar keine Zeile
+    dafür. Reicht der Bestand dann nicht, sagt es das Modul (``services/consumption``);
+    das ist eine Frage der Laufzeit und keine der Freigabe.
     """
     named: list[int] = []
     for step in steps:
-        named += modules.articles_of(step.get("config"))
-    if not named:
-        return
-    have = {ln.article.object_id for ln in lines}
-    missing = [n for n in dict.fromkeys(named) if n not in have]
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "«Verbrauch» nennt "
-                + ("einen Artikel" if len(missing) == 1 else f"{len(missing)} Artikel")
-                + ", der im Auftrag nicht vorkommt: "
-                + ", ".join(str(n) for n in missing)
-                + ". Ohne eine Zeile dafür gäbe es nichts zu verbauen."
-            ),
-        )
+        named += [row["article"] for row in modules.lines_of(step.get("config"))]
     produced = {ln.article.object_id for ln in lines if ln.origin == NEU}
     clash = [n for n in dict.fromkeys(named) if n in produced]
     if clash:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Artikel {clash[0]} wird in diesem Auftrag erzeugt und soll zugleich "
-                f"verbaut werden. Das Produkt verliesse damit den Auftrag an seinem "
-                f"eigenen Montageschritt."
+                f"Artikel {clash[0]} wird in diesem Auftrag erzeugt und steht zugleich in "
+                f"der Stückliste eines Verbrauchsmoduls. Ein Auftrag kann nicht verbauen, "
+                f"was er gerade herstellt."
             ),
         )
 
@@ -623,7 +606,7 @@ def release(
 
     end_status = st.DEFAULT_END_STATUS
     chain.assert_closes(effective)
-    _assert_consumables_present(resolved, effective)
+    _assert_no_self_consumption(resolved, effective)
 
     # Bestehende Stücke auflösen: frei übernehmen oder **aus einem laufenden Auftrag**
     # herüberholen. Beides führt durch dasselbe Start-Objekt (§4.1) – der Status eines
@@ -750,6 +733,56 @@ def release(
     return order
 
 
+def _enter_at_step(db: Session, *, order: Order, step: ProcessStep,
+                   units: list[InstanceUnit], actor_id: Optional[int]) -> list[int]:
+    """►►► **Der zweite Eintrittspunkt: ein Stück tritt an einem MODUL in den Auftrag.** ◄◄◄
+
+    Bis hierher hing der Eintritt fest am **Start-Objekt**: ``release`` legte die
+    Zugehörigkeiten an und schrieb den ``start``-Eintrag, und es gab keine zweite Stelle,
+    die das konnte. Für ein Modul, das sich sein Material erst holt, wenn es dran ist,
+    war das genau die eine Stelle, die zu verallgemeinern war.
+
+    **Verallgemeinert wurde der Punkt, nicht der Mechanismus.** Es ist derselbe Eintritt –
+    dieselbe Zeile in ``order_units``, dasselbe ``start``-Ereignis, derselbe Übergang auf
+    ``Im Prozess``, dieselbe Exklusivität (der partielle Unique-Index greift ab jetzt).
+    Nur die Antwort auf «und wo steht es dann?» ist eine andere: nicht vor dem ersten
+    Modul, sondern vor **diesem**.
+
+    Zwei Dinge stehen bewusst nicht hier:
+
+    * **Keine Rückführung.** Wer an einem Modul eintritt, kam aus dem freien Bestand und
+      hat keinen Auftrag, in den er zurückkönnte (``return_to_order_id`` bleibt ``NULL``).
+    * **Kein Schutz gegen einen laufenden Halter.** Den gibt es schon: die Auswahl der
+      Stücke passiert eine Ebene höher und nimmt ausschliesslich freie
+      (``services/consumption``); wäre eines doch gebunden, wiese es der Unique-Index ab.
+
+    Der ``start``-Eintrag trägt hier – anders als am Start-Objekt – die Modul-``id``.
+    Genau daran unterscheidet der Graph die beiden (``flow._tally``): das Start-Objekt hat
+    passiert, wer oben hereinkam; wer an einem Modul eintritt, hat es nie gesehen.
+    """
+    if not units:
+        return []
+    db.execute(
+        insert(OrderUnit),
+        [{"order_id": order.id, "instance_unit_id": u.id, "return_to_order_id": None}
+         for u in units],
+    )
+    db.flush()
+    ids = [
+        int(i) for (i,) in db.query(OrderUnit.id).filter(
+            OrderUnit.order_id == order.id,
+            OrderUnit.instance_unit_id.in_([u.id for u in units]),
+            OrderUnit.released_at.is_(None),
+        ).all()
+    ]
+    _pass(
+        db, order=order, units=units, membership_ids=ids,
+        kind=KIND_START, step=step,
+        status_after=st.START_AFTER, next_step_id=step.id, actor_id=actor_id,
+    )
+    return ids
+
+
 def _hand_over(db: Session, *, order: Order, lines: list[_Line],
                actor_id: Optional[int]) -> None:
     """Übernommene Stücke aus ihrem bisherigen Auftrag herauslösen.
@@ -862,6 +895,7 @@ def confirm_step(
     actor_id: Optional[int],
     instance_object_id: Optional[int] = None,
     verification: Optional[str] = None,
+    sources: Optional[list[int]] = None,
 ) -> dict[str, Any]:
     """«Bestätigen» — der eine Mechanismus, den jedes Modul auslöst.
 
@@ -878,7 +912,9 @@ def confirm_step(
     **Die Erfassung liegt VOR dem Statuswechsel.** Fehlt ein Pflichtpunkt, ist das ein
     Fehler mit Namen – und es hat sich nichts bewegt. Andersherum stünde die Erfassung
     unter Zugzwang: das Stück wäre schon vorgerückt, und der einzige Weg zurück wäre
-    keiner.
+    keiner. Dasselbe gilt für den **Verbrauch**: reicht der Bestand nicht, hat sich nichts
+    bewegt; ``sources`` sind die Instanzen, aus denen genommen werden soll (leer =
+    der ganze freie Bestand, FIFO).
 
     **«Nicht bestanden» rückt NICHT vor** (§4). Die Feststellung ist geloggt und
     eingefroren, die Stücke bleiben an ihrem Zustandspunkt stehen, und was daraus folgt,
@@ -999,38 +1035,55 @@ def confirm_step(
         db.flush()
         return {"moved": 0, "held": len(units), "result": result}
 
-    # ►► **Wer geht hier hinaus, wer läuft weiter?** ◄◄
-    #
-    # Zwei **Gruppen mit gleichem Ziel** – genau das Muster, das ``_finish`` schon
-    # benutzt, nur eine Stufe früher. Ein Ausgang (Aussondern) führt alles hinaus, ein
-    # Durchläufer (Datenerfassung) nichts, der Verbrauch die genannten Artikel: die
-    # Fallunterscheidung steht im **Modul** (``leaves``), hier steht nur die Teilung.
-    leaving, staying = _split_at_exit(db, module=module, step=step, rows=waiting)
     marks = {u.id: {"verification": verification} for u in units}
 
-    # Die Hinausgehenden. ``_pass`` schliesst die Zugehörigkeit (``next_step_id=None``)
-    # und setzt den Ausgangszustand – mehr passiert nicht. Insbesondere **nicht** das
-    # Ende-Objekt: dort hängt die Rückführung, und ein ausgesondertes oder verbautes
-    # Stück kehrt nirgends zurück.
+    # ►► **Was dieses Modul verbraucht, holt es sich JETZT.** ◄◄
     #
-    # Damit ist §3 des Auftrags erfüllt, ohne eine Zeile Wartelogik: der Quell-Auftrag
-    # zählt seine Ausleihen über die **offene** Zeile (``waiting_counts``), und die gibt
-    # es nicht mehr. Er wartet nicht, sein Modul ist nicht gesperrt, und bleibt ihm
-    # nichts, ist sein Ziel unerreichbar – genau wie bei einer gekappten Rückführung.
-    if leaving:
+    # Dieselbe Reihenfolge wie bei der Erfassung: erst prüfen und zuteilen, dann bewegen.
+    # Reicht der Bestand nicht, ist das ein Fehler mit Zahlen – und es hat sich nichts
+    # bewegt (§4). Ein Modul, das die Hälfte verbaut und dann abbricht, hinterlässt einen
+    # Zustand, den niemand gewollt hat.
+    #
+    # Ein Modul ohne Stückliste bekommt eine leere Zuteilung; die Fallunterscheidung nach
+    # dem Modultyp gibt es hier so wenig wie bei ``capture_svc.record_for_step``.
+    built = consumption_svc.plan(db, step=step, products=units, sources=sources)
+    if built:
+        taken = [c for group in built.values() for c in group]
+        # **Eintritt und Ausgang in einem Zug** – die beiden Übergänge des Statuswegs
+        # ``Freigegeben`` → ``Im Prozess`` → ``Verbaut``. Beide gehen durch ``_pass``,
+        # also stehen beide im Log; ein Zustand dazwischen, in dem etwas hängen bleiben
+        # könnte, entsteht nicht.
+        ids = _enter_at_step(db, order=order, step=step, units=taken, actor_id=actor_id)
         _pass(
-            db, order=order,
-            units=[u for _, u in leaving], membership_ids=[m.id for m, _ in leaving],
+            db, order=order, units=taken, membership_ids=ids,
+            kind=KIND_STEP, step=step,
+            status_after=module.exit_status_for(step.config) or st.VERBAUT,
+            next_step_id=None, actor_id=actor_id,
+            # **Worin** – das ist die ganze Genealogie (§3). Kein Feld, kein Ersatz für
+            # ``into_instance_id``: der Log hält fest, was passiert ist.
+            payloads=consumption_svc.payloads(built, verification=verification),
+        )
+
+    # ►► **Wer geht hier hinaus, wer läuft weiter?** ◄◄
+    #
+    # An einem **Ausgang** (``Module.terminal``) geht alles, was ankommt: ``_pass``
+    # schliesst die Zugehörigkeit (``next_step_id=None``) und setzt den Ausgangszustand.
+    # Insbesondere passiert es **nicht** das Ende-Objekt – dort hängt die Rückführung,
+    # und ein ausgesondertes Stück kehrt nirgends zurück.
+    #
+    # Damit ist §3 des Abweichungsauftrags erfüllt, ohne eine Zeile Wartelogik: der
+    # Quell-Auftrag zählt seine Ausleihen über die **offene** Zeile (``waiting_counts``),
+    # und die gibt es nicht mehr.
+    if module.terminal:
+        _pass(
+            db, order=order, units=units, membership_ids=membership_ids,
             kind=KIND_STEP, step=step,
             status_after=module.exit_status_for(step.config),
             next_step_id=None, actor_id=actor_id, payloads=marks,
         )
-
-    # Die Weiterlaufenden – der gewöhnliche Fall.
-    if staying:
+    else:
         _pass(
-            db, order=order,
-            units=[u for _, u in staying], membership_ids=[m.id for m, _ in staying],
+            db, order=order, units=units, membership_ids=membership_ids,
             kind=KIND_STEP, step=step,
             status_after=step.status_after,
             next_step_id=following.id if following else None,
@@ -1041,7 +1094,7 @@ def confirm_step(
             payloads=marks,
         )
         if following is None:
-            _finish(db, order=order, rows=staying, actor_id=actor_id)
+            _finish(db, order=order, rows=waiting, actor_id=actor_id)
         else:
             # Angekommen am nächsten Modul – dort wird jetzt gezogen (§2: beim
             # Erreichen, denn vorher steht die Menge nicht fest).
@@ -1051,51 +1104,6 @@ def confirm_step(
     _run_through(db, order=order, step=step, actor_id=actor_id)
     db.flush()
     return {"moved": len(units), "held": 0, "result": result}
-
-
-def _split_at_exit(
-    db: Session, *, module: modules.Module, step: ProcessStep,
-    rows: list[tuple[OrderUnit, InstanceUnit]],
-) -> tuple[list[tuple[OrderUnit, InstanceUnit]], list[tuple[OrderUnit, InstanceUnit]]]:
-    """``(verlassen den Auftrag hier, laufen weiter)`` — die Frage stellt das Modul.
-
-    **Gefragt wird je Artikel, nicht je Stück**: ``Module.leaves`` kennt nur ihn, und
-    Stücke desselben Artikels teilen im selben Auftrag dasselbe Schicksal. Aufgelöst wird
-    darum über die **Instanz** (Stück → Instanz → Artikel) – bei einem Scan ist das genau
-    eine, bei einem Durchlauf über mehrere Instanzen eine Handvoll. Zwei Abfragen,
-    unabhängig von der Stückzahl.
-
-    **Der häufige Fall kostet nichts:** hängt die Antwort gar nicht am Artikel (ein
-    Ausgang führt alles hinaus, ein Durchläufer nichts), wird nicht nachgeschlagen.
-    """
-    if not rows:
-        return [], []
-    if not modules.articles_of(step.config):
-        return (rows, []) if module.terminal else ([], rows)
-
-    numbers = _article_numbers(db, [u for _, u in rows])
-    leaving, staying = [], []
-    for m, u in rows:
-        target = leaving if module.leaves(step.config, article_object_id=numbers.get(u.id)) else staying
-        target.append((m, u))
-    return leaving, staying
-
-
-def _article_numbers(db: Session, units: list[InstanceUnit]) -> dict[int, int]:
-    """Je Stück die **Objektnummer seines Artikels** — über die Instanz, in zwei Abfragen."""
-    by_instance = {u.instance_id for u in units}
-    instances = {
-        i.id: i.article_id
-        for i in db.query(Instance).filter(Instance.id.in_(by_instance)).all()
-    }
-    articles = {
-        a.id: a.object_id
-        for a in db.query(Article).filter(Article.id.in_(set(instances.values()))).all()
-    }
-    return {
-        u.id: articles.get(instances.get(u.instance_id, -1), 0)
-        for u in units
-    }
 
 
 def _following(db: Session, order: Order, step: ProcessStep) -> Optional[ProcessStep]:

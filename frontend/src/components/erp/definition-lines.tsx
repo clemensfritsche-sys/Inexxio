@@ -86,11 +86,23 @@ export function toPayload(lines: DefinitionLine[]) {
     }));
 }
 
-export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey = 0 }: {
+export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey = 0,
+                                  perUnit = false }: {
   lines: DefinitionLine[];
   setLines: (l: DefinitionLine[]) => void;
   /** Meldet die Artikelliste nach oben – der Entwurf spiegelt daraus die Vorlage. */
   onArticlesLoaded?: (options: ArticleOption[]) => void;
+  /**
+   * **Dieselbe Zeile als Stückliste** – die Menge gilt dann **je Einzelinstanz**
+   * («4× Schraube M6 pro Getriebe»), und zwei der drei Fragen entfallen:
+   *
+   * *Herkunft* – eine Stückliste nennt keine Erzeugung; verbaut wird, was es gibt.
+   * *Welche Stücke* – **das ist keine Frage der Definition.** Ein Modul ist eine
+   * Vorlage: es läuft je Auftrag und je Produkt-Stück erneut, und ein hier
+   * festgenageltes Stück wäre nach dem ersten Mal verbraucht. Welche Kiste genommen
+   * wird, sagt der Lagerist beim Ausführen – dort ist es eine echte Wahl (§4).
+   */
+  perUnit?: boolean;
   /**
    * **Die Auswahl neu gegen die Wirklichkeit halten.** Wird hochgezählt, wenn die
    * Freigabe abbricht, weil ein gewähltes Stück inzwischen woanders läuft: dann holt der
@@ -130,6 +142,7 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
           articles={articles}
           multi={lines.length > 1}
           refreshKey={refreshKey}
+          perUnit={perUnit}
           onChange={(next) => patch(line.key, next)}
           onRemove={() => setLines(lines.filter((l) => l.key !== line.key))}
         />
@@ -140,7 +153,7 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
           Die Regel liest sich von beiden Enden gleich – darum ist hier der Knopf weg, und
           in der Zeile ist «Neu» gesperrt, sobald es eine zweite gibt. Durchgesetzt wird
           sie serverseitig (`process._assert_single_new`); dies ist die Anzeige davon. */}
-      {!hasNew && (
+      {(perUnit || !hasNew) && (
         <button
           type="button"
           onClick={() => setLines([...lines, emptyLine((lines[lines.length - 1]?.key ?? 0) + 1)])}
@@ -158,12 +171,14 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
 // Eine Zeile
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
+function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemove }: {
   line: DefinitionLine;
   articles: ArticleOption[] | null;
   /** Gibt es mehr als eine Zeile? Dann ist «Neu» keine Option mehr (#693). */
   multi: boolean;
   refreshKey: number;
+  /** Stückliste: Menge je Einzelinstanz, keine Herkunft, keine Stück-Auswahl. */
+  perUnit: boolean;
   onChange: (next: Partial<DefinitionLine>) => void;
   onRemove: () => void;
 }) {
@@ -183,7 +198,7 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
       style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 10 }}>
       <div className="flex flex-wrap items-end gap-2">
         {/* 1 — Artikel. Sperrt alles Weitere, bis er steht. */}
-        <label className="flex-1 min-w-[190px]">
+        <label className="flex-1" style={{ minWidth: perUnit ? 140 : 190 }}>
           <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Artikel</span>
           <select
             className={inputCls}
@@ -206,9 +221,11 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
           </select>
         </label>
 
-        {/* 2 — Menge. Immer exakt Einzelinstanzen. */}
-        <label style={{ width: 96 }}>
-          <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Menge</span>
+        {/* 2 — Menge. Immer exakt Einzelinstanzen – in der Stückliste **je Stück**. */}
+        <label style={{ width: perUnit ? 104 : 96 }}>
+          <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>
+            {perUnit ? 'Menge je Stück' : 'Menge'}
+          </span>
           <input
             className={inputCls}
             inputMode="numeric"
@@ -226,7 +243,7 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
             (Testnotiz #694): zwei sich ausschliessende Antworten, und dass sie einander
             ausschliessen, zeigt die Bewegung des Reiters statt zweier gleich aussehender
             Knöpfe. Dieselbe Komponente, nicht nachgebaut. */}
-        <div>
+        <div style={{ display: perUnit ? 'none' : undefined }}>
           <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Herkunft</span>
           <IconSwitch<typeof NEU | typeof LAGER>
             value={line.origin}
@@ -277,7 +294,16 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
       </div>
 
       {/* Was die Menge an Datensätzen bedeutet – gesagt, nicht geraten. */}
-      {hasArticle && line.origin === NEU && line.quantity > 0 && (
+      {perUnit && hasArticle && line.quantity > 0 && (
+        <p className="mt-2 text-[11px]" style={{ color: 'var(--fg-3)' }}>
+          {line.quantity === 1
+            ? 'Ein Stück je Einzelinstanz – bei 3 Erzeugnissen also 3.'
+            : `${line.quantity} Stück je Einzelinstanz – bei 3 Erzeugnissen also `
+              + `${line.quantity * 3}. Gerechnet wird, wenn das Modul dran ist.`}
+        </p>
+      )}
+
+      {!perUnit && hasArticle && line.origin === NEU && line.quantity > 0 && (
         <p className="mt-2 text-[11px]" style={{ color: 'var(--fg-3)' }}>
           {article!.serialization === 'batch'
             ? `Eine Instanz mit ${line.quantity} Einzelinstanzen (${line.quantity === 1 ? '-1' : `-1 … -${line.quantity}`}).`
@@ -285,7 +311,7 @@ function LineRow({ line, articles, multi, refreshKey, onChange, onRemove }: {
         </p>
       )}
 
-      {hasArticle && line.origin === LAGER && (
+      {!perUnit && hasArticle && line.origin === LAGER && (
         <StockPicker
           articleObjectId={article!.object_id}
           quantity={line.quantity}

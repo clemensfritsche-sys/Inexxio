@@ -125,6 +125,10 @@ class ProcessStepResponse(ModuleFacts):
     #: (``process.step_work``). Ein Vorgang ist eine Instanz, weil der Scan eine Instanz
     #: verifiziert; die Liste ist damit zugleich die Liste der zu scannenden Dinge.
     work: list["StepWork"] = Field(default_factory=list)
+    #: **Was dieses Modul verbraucht** – die Stückliste, gegen den Bestand gehalten
+    #: (``services/consumption``). Leer bei jedem Modul ohne Stückliste; die Oberfläche
+    #: braucht damit keine Fallunterscheidung nach dem Modultyp.
+    needs: list["StepNeed"] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -185,6 +189,36 @@ class StepWork(BaseModel):
     #: Hat die letzte Erfassung **nicht bestanden**? Dann rückt hier nichts vor (§4).
     held: bool = False
     failed_numbers: list[str] = Field(default_factory=list)
+
+
+class NeedSource(BaseModel):
+    """Eine Instanz, aus der genommen werden könnte — und wie viel dort frei liegt."""
+
+    instance_object_id: int
+    free: int
+
+
+class StepNeed(BaseModel):
+    """Eine Zeile der Stückliste, **gegen den Bestand gehalten**.
+
+    ``required`` ist die Rechnung dieses Augenblicks: Menge je Stück × Stücke, die vor
+    dem Modul stehen. Sie entsteht beim **Erreichen** und nicht beim Definieren – vorher
+    weiss niemand, wie viele Produkte ankommen.
+
+    **Fehlt etwas, ist das kein Zustand des Auftrags.** Es gibt keinen Pausen-Wert und
+    keine Sperre: das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext,
+    woran es liegt (Artikel · gebraucht · verfügbar). Was daraus folgt, entscheidet ein
+    Mensch – eine andere Instanz wählen oder Nachschub anlegen.
+    """
+
+    article_object_id: int
+    article_name: str
+    #: Menge **je Einzelinstanz** – «4» heisst vier Stück je Produkt, nicht vier im Auftrag.
+    per_unit: int
+    required: int
+    available: int
+    #: Woher genommen werden kann – die Kisten, die der Lagerist scannt.
+    sources: list[NeedSource] = Field(default_factory=list)
 
 
 class OrderLineResponse(BaseModel):

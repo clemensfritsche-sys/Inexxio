@@ -79,11 +79,9 @@
 > einzige neue Regel: `Module.terminal` beantwortet **nur noch** «verlassen ALLE
 > ankommenden Stücke den Auftrag hier?» – beim Verbrauch **nein**, also ist er kein
 > Ausgang und die Kettenregel bleibt unangetastet (hinter ihm darf die Endprüfung stehen).
-> **Wer geht, sagt das Modul je Stück** (`leaves`/`exit_status_for`); die Ausführung teilt
-> nur noch in **zwei Gruppen mit gleichem Ziel** – dasselbe Muster, das `_finish` seit
-> jeher benutzt. **Gefragt wird nach dem ARTIKEL, nicht nach der Definitionszeile**, und
-> das ist keine Bequemlichkeit: dasselbe Modul wird in der **Artikel-Vorlage** definiert
-> (der Erzeugungsprozess IST der Montageplan), und dort gibt es noch keine Zeilen – eine
+> **Gefragt wird nach dem ARTIKEL, nicht nach der Definitionszeile**, und das ist keine
+> Bequemlichkeit: dasselbe Modul wird in der **Artikel-Vorlage** definiert (der
+> Erzeugungsprozess IST der Montageplan), und dort gibt es noch keine Zeilen – eine
 > Vorlage kann «Rahmen, Motor» meinen, aber nicht «Zeile 2». Die eine Stelle, an der diese
 > Körnung zu grob ist (derselbe Artikel erzeugt UND verbraucht), wird bei der Freigabe
 > **abgewiesen** statt still falsch gerechnet.
@@ -112,7 +110,50 @@
 > **Erfassungspunkt «Objekt scannen»** (`capture_types/object_scan.py`, der sechste Typ –
 > und er war genau das, was die Registry versprochen hat: **eine neue Datei**).
 > Wächter: `tests/test_consumption_module.py` (jeder gegen seine Bug-Form gegengeprüft),
-> Matrix S11 · S11b · S16 · S17 · S18.
+> Matrix S11 · S11b · S16 · S16b · S17 · S17b · S18.
+>
+> **Das Ressourcenmodul nachoptimiert: Stückliste, Bindung, Nichtverfügbarkeit**
+> (PROCESS_CORE §9.6). Drei Ausbauten, und **die eine echte Verallgemeinerung ist der
+> Eintrittspunkt**. Der Eintritt hing fest am **Start-Objekt** – genau EINE Stelle legte
+> eine `OrderUnit` an und genau eine schrieb `start`; ein Modul, das sich sein Material
+> erst holt, wenn es dran ist, brauchte darum eine zweite. Verallgemeinert wurde der
+> **Punkt, nicht der Mechanismus** (`process._enter_at_step`): dieselbe Zeile, dasselbe
+> `start`-Ereignis, dieselbe Exklusivität – nur steht das Stück danach vor **diesem**
+> Modul statt vor dem ersten. Am Eintrag steht die Modul-`id`; genau daran unterscheidet
+> der Graph die beiden (`flow._tally` zählt nur `step_id IS NULL` als «gestartet», sonst
+> trüge die erste Kante Material, das dort nie war).
+> **Die Menge gilt JE STÜCK und wird beim ERREICHEN gerechnet** (`config.lines` =
+> `[{article, quantity}]`): «4× Schraube M6» heisst vier je Getriebe; bei drei Getrieben
+> zwölf. Beim Definieren steht die Zahl der Produkte nicht fest – eine Vorlage, die eine
+> Auftragsmenge nennt, ist bei der zweiten Menge falsch, und zwar stillschweigend. Damit
+> stehen die Komponenten **nicht mehr im Bedarf**: `_assert_consumables_present` ist
+> ersatzlos entfallen, geblieben ist nur die Regel, dass ein Auftrag nicht verbaut, was er
+> selbst erzeugt.
+> **Die Zuordnung steht im LOG, je Produkt-Stück** (`payload.into`): das ist die exakte
+> Genealogie **ohne** `into_instance_id`. Der Log gab sie nicht von selbst her – zwischen
+> «diese zwölf gingen in diesem Auftrag hinaus» und «diese vier gingen in dieses Getriebe»
+> liegt genau eine Angabe, und sie gehört dorthin, wo der Log ohnehin festhält, was ein
+> Modul festgehalten hat. Ein Feld am Datensatz wäre die zweite Wahrheit, die bei einer
+> Demontage geleert würde. **Welche Schraube in welches Getriebe geht, ist keine
+> menschliche Entscheidung** (sie sind austauschbar) – entscheidend ist, dass es
+> aufgeschrieben ist; darum deterministisch statt geraten. Altbestand ohne `into` wird
+> tolerant gelesen (Aussage auf Auftragsebene).
+> **Nichtverfügbarkeit ist KEIN Zustand** (`StepNeed`): die Freigabe geht, das Modul
+> bewegt nichts, und die Zeile nennt Artikel · gebraucht · verfügbar. Es gibt keinen
+> Pausen-Wert und keine Verknüpfung auf einen Nachschub-Auftrag – das Modul ist schlicht
+> nicht fertig. Angeboten werden zwei Wege, und **beide gibt es schon**: eine andere
+> Instanz wählen (dieselbe Wahl, die der Scan trifft – sie reist als `sources` mit) und
+> ein **ganz gewöhnlicher** Auftragsentwurf. Automatisch ausgewichen wird nie.
+> **Im Editor ist es dieselbe Komponente wie der Bedarf** (`DefinitionLines perUnit`),
+> nur mit zwei Fragen weniger: die Herkunft entfällt (eine Stückliste erzeugt nichts) und
+> die konkreten Stücke ebenso – ein Modul ist eine **Vorlage**, es läuft je Auftrag und je
+> Produkt-Stück erneut, und ein dort festgenageltes Stück wäre nach dem ersten Mal
+> verbraucht. *Das ist die eine Abweichung vom Wortlaut des Auftrags («optional einzelne
+> Instanzen selektierbar»): die Auswahl steht bei der **Ausführung**, wo derselbe Auftrag
+> sie ohnehin verlangt.*
+> **`Module.leaves` ist entfallen** – seit die Komponenten am Modul **eintreten** statt
+> anzukommen, verlässt kein ankommendes Stück den Verbrauch, und die Ausführung fragt
+> wieder schlicht `module.terminal`. Eine Regel weniger.
 >
 > **Ein Kamerascanmodul für alles – und die Vorschläge kommen aus der Regel, nicht vom
 > Aufrufer** (`lib/scan.ts`, `components/scan/`): Es gab nie zwei Dialoge, aber eine

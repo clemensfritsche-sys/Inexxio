@@ -17,6 +17,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+import type { DefinitionLine } from '@/components/erp/definition-lines';
+
 /** Erfassungspunkt-Typen (`domain/capture_types/`). */
 export const CAPTURE_ICON: Record<string, LucideIcon> = {
   text: Type,
@@ -187,14 +189,19 @@ export interface ModuleDraft {
    */
   reason: string;
   /**
-   * Nur «Verbrauch»: die **Objektnummern der Artikel**, deren Stücke hier verbaut werden.
+   * Nur «Verbrauch»: die **Stückliste** – je Zeile Artikel und Menge **pro Einzelinstanz**.
    *
    * Artikel und nicht Definitionszeilen – dasselbe Modul wird auch in der
    * **Artikel-Vorlage** definiert (der Erzeugungsprozess IST der Montageplan), und dort
-   * gibt es noch gar keine Zeilen. Eine Vorlage kann «Rahmen, Motor» meinen, aber nicht
+   * gibt es noch gar keine Zeilen. Eine Vorlage kann «4× Schraube M6» meinen, aber nicht
    * «Zeile 2».
+   *
+   * Es ist **dieselbe Zeile** wie im Bedarf eines Auftrags (`DefinitionLine`), nur mit
+   * zwei Fragen weniger: die Herkunft entfällt (eine Stückliste erzeugt nichts) und die
+   * konkreten Stücke ebenso – die wählt der Lagerist beim Ausführen, wo es eine echte
+   * Wahl ist.
    */
-  articles: number[];
+  lines: DefinitionLine[];
 }
 
 /**
@@ -254,10 +261,22 @@ export const MODULE_FORM: Record<string, {
     incomplete: (m) => (m.reason.trim() ? null : 'Grund fehlt'),
   },
   verbrauch: {
-    // Eine Angabe, und sie ist Pflicht: **welche Artikel** werden hier verbaut. Ohne sie
-    // wäre das Modul ein Durchgang, der aussieht wie eine Montage.
-    config: (m) => ({ articles: m.articles }),
-    incomplete: (m) => (m.articles.length ? null : 'kein Artikel gewählt'),
+    // Zwei Angaben je Zeile, beide Pflicht: **welcher Artikel** und **wie viele je
+    // Einzelinstanz**. Ohne Zeile wäre das Modul ein Durchgang, der aussieht wie eine
+    // Montage; ohne Menge wäre «Schraube» keine Stückliste.
+    config: (m) => ({
+      lines: m.lines
+        .filter((l) => l.articleObjectId !== null)
+        .map((l) => ({ article: l.articleObjectId as number, quantity: l.quantity })),
+    }),
+    incomplete: (m) => {
+      const rows = m.lines.filter((l) => l.articleObjectId !== null);
+      if (rows.length === 0) return 'kein Artikel gewählt';
+      if (rows.some((l) => l.quantity < 1)) return 'Zeile ohne Menge';
+      const ids = rows.map((l) => l.articleObjectId);
+      if (new Set(ids).size !== ids.length) return 'Artikel steht zweimal';
+      return null;
+    },
   },
 };
 
@@ -265,7 +284,7 @@ export const MODULE_FORM: Record<string, {
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
-    articles: [],
+    lines: [],
   };
 }
 

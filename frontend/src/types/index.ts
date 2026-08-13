@@ -236,6 +236,8 @@ export interface CapturePoint {
 }
 /** Was an einem Modul für **eine Instanz** ansteht (`process.step_work`). */
 export type StepWork = components['schemas']['StepWork'];
+/** Eine Zeile der Stückliste, gegen den Bestand gehalten (`services/consumption`). */
+export type StepNeed = components['schemas']['StepNeed'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
 export type ObjectReference = components['schemas']['ObjectReference'];
