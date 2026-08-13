@@ -1059,9 +1059,13 @@ zweite Art Vorlage trägt. «Prozess» wäre der Behälter, nicht die Sache.*
 
 ## 9. Die Prozessschrittmodule
 
-Es gibt heute **zwei**: die **Datenerfassung** (§9.1–§9.3) und das **Aussondern** (§9.4).
-Das frühere Testmodul war ein Testvehikel für den Mechanismus und ist **ersatzlos
-entfallen** — den Mechanismus gibt es jetzt echt.
+Es gibt heute **drei**: die **Datenerfassung** (§9.1–§9.3), das **Aussondern** (§9.4) und
+den **Verbrauch** (§9.6). Das frühere Testmodul war ein Testvehikel für den Mechanismus
+und ist **ersatzlos entfallen** — den Mechanismus gibt es jetzt echt.
+
+**Was alle drei gemeinsam haben, steht nicht bei ihnen**, sondern im Rahmen: der Halt bei
+«nicht bestanden» (§4.5), die Verifikation vor der Eingabe (§4.4), die Stichprobe (§9.3)
+— und das **Protokoll** (§9.7). Ein vierter Modultyp erbt sie ohne eine eigene Zeile.
 
 ### 9.0 Das Modul «Datenerfassung»
 
@@ -1083,9 +1087,23 @@ hätten eine Entscheidung angeboten, deren einzige richtige Antwort schon festst
 |---|---|---|
 | `text` | Freitext | nein |
 | `bool` | Ja/Nein (Daumen hoch/runter) | **ja** |
-| `photo` | Foto/Upload | nein |
+| `photo` | **genau eine Aufnahme, über die Kamera** (kein Upload) | nein |
 | `signature` | handschriftlich | nein |
 | `measure` | Soll-Ist-Vergleich (Sollwert **Pflicht**, Toleranz optional) | **ja** |
+
+**Das Bild entsteht in der Kamera, nicht im Dateidialog.** Eine Datei aus der Galerie
+belegt nichts über *diesen* Vorgang; sie belegt nur, dass es irgendwann eine Datei gab.
+Ein Nachweis, der auf **beide** Arten entstehen kann, ist hinterher keiner — man sieht ihm
+nicht an, welche der beiden es war. Der Upload ist darum ersatzlos entfallen, nicht
+ausgeblendet, und die Regel steht serverseitig (`Photo.missing`).
+**Genau eine Aufnahme je Einzelinstanz**, und nicht optional: bei mehreren bliebe offen,
+welche die gemeinte ist; bei keiner wäre der Punkt ein Vermerk statt eines Belegs. Neu
+aufnehmen geht (das verwirft die alte) — *sammeln* nicht.
+
+*Ein Typ **«Objekt scannen»** hat existiert und ist ersatzlos entfernt (Testnotiz #719).
+Er war zugleich der einzige Nachweis für **Werkzeug und Prüfmittel**; dass es diesen
+Nachweis damit nicht mehr gibt, steht als bewusst offener Punkt in `SYSTEM_LOGIC.md` §5.9
+— nicht stillschweigend gestrichen.*
 
 Geschlossen wie die Statuswerte (§5.1) — aber ein Typ ist nicht nur ein Wort, sondern
 **Verhalten**: prüfen, wissen was fehlt, bewerten. Darum ist jeder Typ eine eigene Datei
@@ -1348,6 +1366,56 @@ Automatik sähe man erst am fertigen Erzeugnis.
 * Ein Auftrag **verbaut nicht, was er selbst erzeugt** (Freigabe-Fehler). Die
   Konfiguration trifft Artikel; die eine Stelle, an der diese Körnung zu grob ist, wird
   abgewiesen statt still falsch gerechnet.
+
+### 9.7 Das Protokoll — ein abgeschlossenes Modul zeigt lückenlos, was in ihm geschah
+
+> **Feste Regel für ALLE Module, heute und künftig.** Ein abgeschlossenes Modul zeigt auf
+> Klick lückenlos, was in ihm passiert ist — **alle erfassten Daten, je Einzelinstanz**.
+
+Und darum steht sie **hier**, nicht bei einem Modul. Ein Protokoll je Modultyp wäre
+dieselbe Ansicht n-mal, und die (n+1)-te fehlte beim nächsten Typ — genau die Sorte Lücke,
+die man erst bemerkt, wenn jemand einen Nachweis braucht. Gebaut ist sie als **eine**
+Ableitung über den Ereignis-Log (`services/record.py` → `GET …/steps/{id}/record`) und
+**eine** Komponente (`components/erp/step-record.tsx`, gerendert von der Modul-Karte, wenn
+sie nicht die aktive ist).
+
+**Gespeichert wird dafür nichts.** Alles steht schon da: der Übergang im Log, die Werte in
+`captures`, die Ziehung als `sample`-Ereignis, das Ziel einer verbauten Komponente im
+Payload (`into`). Was gefehlt hat, war die Ansicht.
+
+**Ein Eintrag ist ein VORGANG, nicht ein Stück.** Ein Stück kann dasselbe Modul mehrfach
+passieren — nach einem «nicht bestanden» wird erneut erfasst (§4.5), und **beides ist
+passiert**. Der Log ist append-only; je Stück zusammengefasst überschriebe die
+Wiederholung die Vergangenheit, und ausgerechnet der interessante Teil (die durchgefallene
+Messung) verschwände.
+
+Ein Vorgang wird aus zwei Ereignissen gebaut, in der Reihenfolge, in der sie geschrieben
+werden:
+
+| Ereignis | trägt |
+|---|---|
+| `capture` | **erfasst** — Werte, Urteil je Stück, wer, wann |
+| `step` | **passiert** — Nachher-Zustand, Verifikation, ggf. `into` |
+
+Eine Erfassung **ohne** folgendes `step` ist genau das, was «nicht bestanden» heisst: es
+wurde gemessen, und es rückte nichts vor. Sie steht darum ebenfalls als Eintrag da.
+
+**«Nicht gezogen» kommt aus der Ziehung, nicht aus einem Vermerk.** Ein Stück ohne
+`capture` ist nicht automatisch ungezogen — ein Modul ohne Erfassungspunkte hat für *kein*
+Stück einen. Die Aussage steht im `sample`-Ereignis, und das ist die einzige Stelle, an
+der sie steht (`sampling.was_drawn` / `drawn_at`). Ein Vermerk am Übergang wäre der zweite
+Ort, und er wäre unvollständig: ihn schreibt nur **einer** der beiden Wege, die ein Stück
+vorrücken lassen — der Durchlauf am *nächsten* Modul, nicht der Vorgang am eigenen.
+
+**Jeder Wert steht mit seiner Frage** («Länge: 10», nicht «laenge: 10»); die Beschriftung
+kommt aus der Definition, das Urteil je Punkt aus seinem Typ. Ein Wert zu einem Punkt, den
+die Definition nicht mehr kennt, wird **trotzdem** gezeigt — roh und mit seinem Schlüssel.
+Ihn wegzulassen hiesse, aus einem Nachweis etwas zu entfernen, das erfasst wurde.
+
+**Erst auf Klick, seitenweise, und die Gesamtzahl steht daneben.** Bei einer 6000er-Charge
+sind es tausende Vorgänge; in jeder Auftrags-Antwort wären sie ein Vielfaches des
+Auftrags. Ein *stiller* Deckel läse sich wie Vollständigkeit — bei einem Nachweis die
+gefährlichste Form einer Lücke.
 
 
 ## 10. Darstellung

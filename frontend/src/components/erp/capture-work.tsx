@@ -78,9 +78,6 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
     return <p className="text-xs" style={{ color: 'var(--fg-3)' }}>Hier steht gerade nichts.</p>;
   }
 
-  /** Wie viele Produkt-Stücke vor dem Modul stehen – die Bezugsgrösse der Stückliste. */
-  const total = work.reduce((n, w) => n + w.waiting, 0);
-
   /**
    * **Was zu scannen ist, ergibt sich aus der Stichprobe** (Testnotiz #714).
    *
@@ -147,22 +144,18 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
 
   return (
     <div className="flex flex-col">
-      {/* **Die Stückliste zuerst** – sie sagt, ob dieses Modul überhaupt laufen kann.
-          Ein Scan, der danach an einer Fehlmenge scheitert, wäre eine vergebene Handlung. */}
-      {needs.map((n) => (
-        <NeedRow key={n.article_object_id} need={n} pieces={total}
-          chosen={boxes[n.article_object_id] ?? null}
-          onChoose={(ids) => setBoxes((s) => ({ ...s, [n.article_object_id]: ids }))}
-          onSupply={onDeviate && (() => onDeviate({ articleObjectId: n.article_object_id }))}
-        />
-      ))}
-
       {work.map((w, i) => (
         <InstanceRow
           key={w.instance_object_id}
           work={w}
           points={points}
           action={action}
+          // **Die Stückliste steht UNTER ihrer Einzelinstanz** (#724) – in der
+          // Reihenfolge, in der gearbeitet wird: erst wohin, dann was.
+          needs={needs}
+          boxes={boxes}
+          onChoose={(article, ids) => setBoxes((s) => ({ ...s, [article]: ids }))}
+          onSupply={onDeviate && ((article: number) => onDeviate({ articleObjectId: article }))}
           busy={busy}
           first={i === 0}
           via={verified[w.instance_object_id] ?? null}
@@ -232,48 +225,60 @@ function planBoxes(need: StepNeed, want: number): number[] {
  */
 function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
   need: StepNeed;
-  /** Wie viele Produkt-Stücke vor dem Modul stehen – die Bezugsgrösse der Rechnung. */
+  /** Wie viele Stücke **dieser** Instanz vor dem Modul stehen – die Bezugsgrösse. */
   pieces: number;
   chosen: number[] | null;
   onChoose: (ids: number[]) => void;
   onSupply?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const short = need.available < need.required;
-  const plan = chosen ?? planBoxes(need, need.required);
+  // Gerechnet wird auf **diese** Instanz: die Menge gilt je Stück.
+  const required = need.per_unit * pieces;
   const sources = need.sources ?? [];
+  const plan = chosen ?? planBoxes(need, required);
+
+  // ►► **Keine Option anbieten, die gerade keinen Sinn ergibt** (#723). ◄◄
+  //
+  //   geplantes Material reicht  →  nichts. Einfach scannen.
+  //   reicht nicht, Bestand da   →  «Andere Instanz wählen» – der Plan geht nicht auf,
+  //                                 aber im Lager liegt etwas.
+  //   gar kein Bestand           →  nur «Nachschub». Wählen liesse sich nichts.
+  const enough = need.available >= required;
+  const empty = need.available <= 0;
 
   return (
-    <div className="flex flex-col gap-1 py-2"
-      style={{ borderBottom: '1px solid var(--border-1)' }}>
+    <div className="flex flex-col gap-1 py-1.5">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Boxes size={14} style={{ flex: 'none', color: 'var(--fg-4)' }} />
-        <span style={{ font: '600 12.5px var(--font-mono)', fontVariantNumeric: 'tabular-nums' }}>
-          {formatObjectId(need.article_object_id)}
+        <Boxes size={13} style={{ flex: 'none', color: 'var(--fg-4)' }} />
+        <span className="text-xs" style={{ color: 'var(--fg-2)', fontWeight: 600 }}>
+          {required}×
         </span>
         <span className="text-xs truncate" style={{ color: 'var(--fg-3)' }}>
           {need.article_name}
         </span>
-        <span className="ml-auto text-[11.5px]"
-          style={{ color: short ? 'var(--danger)' : 'var(--fg-3)' }}
-          data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück vor dem Modul`}>
-          {need.required} gebraucht · {need.available} verfügbar
-        </span>
+        {!enough && (
+          <span className="ml-auto text-[11.5px]" style={{ color: 'var(--danger)' }}
+            data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück dieser Instanz`}>
+            {need.available} verfügbar
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
+        <span className="text-[11.5px] ix-tnum" style={{ color: 'var(--fg-4)' }}>
           {plan.length
             ? <>aus {plan.map((id) => formatObjectId(id)).join(' · ')}</>
             : 'kein Bestand'}
         </span>
-        <button type="button" onClick={() => setOpen(!open)}
-          className="text-[11.5px] underline" style={{ color: 'var(--fg-3)' }}
-          data-tip="Aus einer anderen Instanz nehmen – die Wahl gilt, es wird nicht ausgewichen">
-          Andere Instanz wählen
-        </button>
-        {short && onSupply && (
-          <button type="button" className="erp-actbtn ml-auto" style={{ height: 30 }}
+        {!enough && !empty && (
+          <button type="button" onClick={() => setOpen(!open)}
+            className="text-[11.5px] underline" style={{ color: 'var(--fg-3)' }}
+            data-tip="Aus einer anderen Instanz nehmen – die Wahl gilt, es wird nicht ausgewichen">
+            Andere Instanz wählen
+          </button>
+        )}
+        {empty && onSupply && (
+          <button type="button" className="erp-actbtn ml-auto" style={{ height: 28 }}
             onClick={onSupply}
             data-tip="Öffnet einen ganz gewöhnlichen Auftragsentwurf mit diesem Artikel">
             <PackagePlus size={13} /> Nachschub
@@ -315,11 +320,17 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
  * Getrennt wird durch eine Haarlinie, nicht durch einen Rahmen: die Zeilen gehören
  * ohnehin zusammen, das sagt schon die Modul-Karte, in der sie stehen.
  */
-function InstanceRow({ work, points, action, busy, first, via, numbers, onScan, onConfirm,
+function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, busy,
+                      first, via, numbers, onScan, onConfirm,
                       onDirty, onDeviate, orderObjectId, stepId }: {
   work: StepWork;
   points: CapturePoint[];
   action: string;
+  /** Die Stückliste dieses Moduls – gerechnet auf **diese** Instanz. */
+  needs: StepNeed[];
+  boxes: Record<number, number[]>;
+  onChoose: (article: number, ids: number[]) => void;
+  onSupply?: (article: number) => void;
   busy?: boolean;
   first: boolean;
   via: string | null;
@@ -361,6 +372,20 @@ function InstanceRow({ work, points, action, busy, first, via, numbers, onScan, 
           </button>
         )}
       </div>
+
+      {/* ── Was hineingeht — eingerückt, denn es gehört zu diesem Stück (#724) ── */}
+      {needs.length > 0 && (
+        <div className="flex flex-col" style={{
+          marginLeft: 10, paddingLeft: 10, borderLeft: '1px solid var(--border-1)',
+        }}>
+          {needs.map((n) => (
+            <NeedRow key={n.article_object_id} need={n} pieces={work.waiting}
+              chosen={boxes[n.article_object_id] ?? null}
+              onChoose={(ids) => onChoose(n.article_object_id, ids)}
+              onSupply={onSupply && (() => onSupply(n.article_object_id))} />
+          ))}
+        </div>
+      )}
 
       {/* ── Ebene 2 · der Auftrag an diese Instanz — oder das Formular ──────── */}
       {via ? (

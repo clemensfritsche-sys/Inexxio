@@ -24,13 +24,15 @@ from ..schemas.order import (
     RelatedOrder, StepNeed, StepWork, UnitOption,
 )
 from ..schemas.process import (
-    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, StepConfirm,
+    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, RecordEntry,
+    RecordValue, StepConfirm, StepRecord,
 )
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
 from ..services import flow as flow_svc
+from ..services import record as record_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
@@ -579,3 +581,48 @@ def hold_numbers(
         raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
     return HoldNumbers(numbers=process_svc.held_numbers(
         db, order, step, instance_object_id=instance, group=group))
+
+
+@router.get("/{object_id}/steps/{step_id}/record", response_model=StepRecord)
+def step_record(
+    object_id: int,
+    step_id: int,
+    limit: int = Query(200, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """►►► **Was ist an diesem Modul passiert?** ◄◄◄ — lückenlos, je Einzelinstanz.
+
+    Die Regel gilt für **alle** Module (Testnotiz #717) und steht darum an **einer**
+    Stelle (``services/record``): sie liest den Ereignis-Log, und den schreibt jedes
+    Modul über dieselbe Schreibstelle. Ein neuer Modultyp erbt sein Protokoll, ohne eine
+    Zeile dafür.
+
+    **Erst auf Klick, nie auf Vorrat**: bei einer 6000er-Charge wären das tausende
+    Einträge in jeder Auftrags-Antwort. Gekappt wird seitenweise, die Gesamtzahl steht
+    daneben.
+    """
+    order = orders_svc.get(db, object_id)
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None:
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    entries, total = record_svc.step_record(db, order, step, limit=limit, offset=offset)
+    return StepRecord(
+        total=total,
+        entries=[
+            RecordEntry(
+                number=e.number, at=e.at, actor=e.actor, verification=e.verification,
+                status_after=e.status_after, result=e.result, sampled=e.sampled,
+                into=e.into,
+                values=[RecordValue(key=v.key, label=v.label, type=v.type,
+                                    value=v.value, ok=v.ok)
+                        for v in e.values],
+            )
+            for e in entries
+        ],
+    )

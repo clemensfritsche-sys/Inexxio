@@ -454,6 +454,23 @@ einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts beh
 8. **Termin und Soll-Dauer** (§4.6). Ohne Soll ist «hängt seit sechs Wochen» nicht von
    «dauert eben so lange» zu unterscheiden — und zwar unabhängig davon, wie gut eine
    Auswertung gebaut wäre.
+9. **Werkzeug- und Prüfmittel-Nachweis — es gibt ihn nicht mehr.** Der Erfassungstyp
+   «Objekt scannen» ist **ersatzlos entfernt** (Testnotiz #719, bewusste Entscheidung).
+   Er war die einzige Stelle, an der «mit welchem Werkzeug wurde gearbeitet» bzw. «mit
+   welchem Prüfmittel wurde gemessen» überhaupt festhaltbar war; damit ist diese Aussage
+   im System **nirgends** mehr abgebildet.
+   Das ist kein Verlust an Bequemlichkeit, sondern an Nachweisbarkeit: bei einer
+   Messmittel-Rückführung (ISO 9001 §7.1.5) lautet die Frage rückwärts – *welche Teile
+   wurden mit dem Gerät geprüft, das jetzt als dejustiert auffällt?* Ohne den Vermerk am
+   Vorgang ist sie unbeantwortbar, und man sperrt im Zweifel alles.
+   **Warum trotzdem ersatzlos:** ein Werkzeug ist **kein Verbrauch** — eine Fräse steckt
+   real in zwanzig Aufträgen gleichzeitig, die Exklusivität der Einzelinstanz liesse
+   genau einen zu. Der Erfassungspunkt war der billige Weg daran vorbei; er hat den
+   Nachweis erfasst, ohne die Nutzung zu modellieren. Wer ihn zurückwill, entscheidet
+   zuerst die Modellfrage (**Nutzung ohne Exklusivität**), nicht die Eingabefrage.
+
+   > Bis dahin gilt: das System **behauptet nicht**, den Nachweis zu führen. Genau darum
+   > steht der Punkt hier und nicht als stille Lücke im Code (G3).
 
 ### 5.5 Setzt die Abweichung nach einem «nicht bestanden» VOR oder NACH dem Modul an?
 

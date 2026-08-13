@@ -9,6 +9,7 @@ beim Anlegen von dort genommen. Ein Feld dafür wäre eine Eingabe, deren einzig
 Antwort schon feststeht – und deren falsche einen Prozess ergäbe, der nicht läuft.
 """
 
+from datetime import datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -177,6 +178,47 @@ class StepConfirmResult(BaseModel):
     moved: int = 0
     held: int = 0
     result: Optional[str] = None
+
+
+class RecordValue(BaseModel):
+    """Ein erfasster Wert — **mit seiner Frage**, nicht nur mit seinem Schlüssel."""
+
+    key: str
+    label: str
+    type: str
+    value: Any = None
+    #: Das Urteil dieses Punktes. ``None`` heisst «hier war nichts zu beurteilen» – ein
+    #: Foto belegt, es bewertet nicht.
+    ok: Optional[bool] = None
+
+
+class RecordEntry(BaseModel):
+    """Ein Vorgang an einem Modul, an **einer** Einzelinstanz.
+
+    Ein Stück kann dasselbe Modul mehrfach passieren (nach einem «nicht bestanden» wird
+    erneut erfasst) – dann stehen hier mehrere Einträge. Zusammengefasst würde die
+    Wiederholung die Vergangenheit überschreiben.
+    """
+
+    number: str
+    at: datetime
+    actor: Optional[str] = None
+    verification: Optional[str] = None
+    #: Der Zustand **nach** dem Vorgang. ``None`` = nichts rückte vor («nicht bestanden»).
+    status_after: Optional[str] = None
+    result: Optional[str] = None
+    #: ``False`` heisst: ausserhalb der Ziehung durchgelaufen, ohne Erfassung.
+    sampled: bool = True
+    #: Nur beim Verbrauch: die Nummer des Stücks, in das hier verbaut wurde.
+    into: Optional[str] = None
+    values: list[RecordValue] = Field(default_factory=list)
+
+
+class StepRecord(BaseModel):
+    """**Was an diesem Modul passiert ist** – seitenweise, mit ehrlicher Gesamtzahl."""
+
+    entries: list[RecordEntry] = Field(default_factory=list)
+    total: int = 0
 
 
 class HoldNumbers(BaseModel):

@@ -2228,6 +2228,85 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/record": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Step Record",
+        "description": "►►► **Was ist an diesem Modul passiert?** ◄◄◄ — lückenlos, je Einzelinstanz.\n\nDie Regel gilt für **alle** Module (Testnotiz #717) und steht darum an **einer**\nStelle (``services/record``): sie liest den Ereignis-Log, und den schreibt jedes\nModul über dieselbe Schreibstelle. Ein neuer Modultyp erbt sein Protokoll, ohne eine\nZeile dafür.\n\n**Erst auf Klick, nie auf Vorrat**: bei einer 6000er-Charge wären das tausende\nEinträge in jeder Auftrags-Antwort. Gekappt wird seitenweise, die Gesamtzahl steht\ndaneben.",
+        "operationId": "step_record_api_v1_erp_orders__object_id__steps__step_id__record_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "default": 200,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/instances": {
       "get": {
         "tags": [
@@ -6713,6 +6792,131 @@
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."
       },
+      "RecordEntry": {
+        "properties": {
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification"
+          },
+          "status_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status After"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "sampled": {
+            "type": "boolean",
+            "title": "Sampled",
+            "default": true
+          },
+          "into": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Into"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/RecordValue"
+            },
+            "type": "array",
+            "title": "Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "at"
+        ],
+        "title": "RecordEntry",
+        "description": "Ein Vorgang an einem Modul, an **einer** Einzelinstanz.\n\nEin Stück kann dasselbe Modul mehrfach passieren (nach einem «nicht bestanden» wird\nerneut erfasst) – dann stehen hier mehrere Einträge. Zusammengefasst würde die\nWiederholung die Vergangenheit überschreiben."
+      },
+      "RecordValue": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "type"
+        ],
+        "title": "RecordValue",
+        "description": "Ein erfasster Wert — **mit seiner Frage**, nicht nur mit seinem Schlüssel."
+      },
       "RelatedOrder": {
         "properties": {
           "object_id": {
@@ -6856,6 +7060,25 @@
         ],
         "title": "StepNeed",
         "description": "Eine Zeile der Stückliste, **gegen den Bestand gehalten**.\n\n``required`` ist die Rechnung dieses Augenblicks: Menge je Stück × Stücke, die vor\ndem Modul stehen. Sie entsteht beim **Erreichen** und nicht beim Definieren – vorher\nweiss niemand, wie viele Produkte ankommen.\n\n**Fehlt etwas, ist das kein Zustand des Auftrags.** Es gibt keinen Pausen-Wert und\nkeine Sperre: das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext,\nworan es liegt (Artikel · gebraucht · verfügbar). Was daraus folgt, entscheidet ein\nMensch – eine andere Instanz wählen oder Nachschub anlegen."
+      },
+      "StepRecord": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/RecordEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "StepRecord",
+        "description": "**Was an diesem Modul passiert ist** – seitenweise, mit ehrlicher Gesamtzahl."
       },
       "StepWork": {
         "properties": {

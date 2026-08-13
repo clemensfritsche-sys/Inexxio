@@ -294,15 +294,9 @@ function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemov
       </div>
 
       {/* Was die Menge an Datensätzen bedeutet – gesagt, nicht geraten. */}
-      {perUnit && hasArticle && line.quantity > 0 && (
-        <p className="mt-2 text-[11px]" style={{ color: 'var(--fg-3)' }}>
-          {line.quantity === 1
-            ? 'Ein Stück je Einzelinstanz – bei 3 Erzeugnissen also 3.'
-            : `${line.quantity} Stück je Einzelinstanz – bei 3 Erzeugnissen also `
-              + `${line.quantity * 3}. Gerechnet wird, wenn das Modul dran ist.`}
-        </p>
-      )}
-
+      {/* **Kein Erklärtext** (#722): «Menge je Stück» steht als Beschriftung am Feld –
+          was die Zahl bedeutet, sagt sie damit selbst. Ein Rechenbeispiel darunter
+          erklärt eine Beschriftung, die keiner Erklärung bedarf. */}
       {!perUnit && hasArticle && line.origin === NEU && line.quantity > 0 && (
         <p className="mt-2 text-[11px]" style={{ color: 'var(--fg-3)' }}>
           {article!.serialization === 'batch'
