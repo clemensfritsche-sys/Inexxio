@@ -735,7 +735,13 @@
 > `order_units.current_step_id`); kommt es nicht zurück, **wird nicht still ersetzt**: das
 > Modul weist ab und nennt die Nummer, und der Ausweg ist die gewöhnliche Wahl einer
 > anderen Instanz.
-> Wächter: `tests/test_pinned_material.py` (16 Prüfungen über die echten Dienstpfade;
+> **Ein Zeichnungsfehler, gefunden statt geahnt:** die Invariantenprüfung des Bildes
+> meldete unmittelbar nach der Freigabe «Kante …: dort stehen Einzelinstanzen, aber sie
+> gilt als nicht gegangen» – wartendes Material stand auf einer Achsen-Kante, die es nie
+> genommen hat. Das Bild zeigt jetzt den **Weg der Subjekte**; Material erscheint dort,
+> wo es etwas **getan** hat (verbaut, auf der Ausgangskante seines Moduls) – derselbe
+> Platz wie bisher. Wo es vorher steht, sagt die Stückliste des Moduls.
+> Wächter: `tests/test_pinned_material.py` (17 Prüfungen über die echten Dienstpfade;
 > Eintritt · Austritt · Arbeitsliste · Stichprobe je gegen ihre Bug-Form gegengeprüft) +
 > `test_frontend_mirrors.py: test_a_pin_is_offered_only_where_it_is_allowed`.
 

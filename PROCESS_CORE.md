@@ -1431,6 +1431,16 @@ zurück, wird nicht still ersetzt: das Modul weist die Ausführung ab und **nenn
 Nummer**. Der Ausweg ist der gewöhnliche — eine andere Instanz wählen; dann gilt die Wahl
 von jetzt, und die Vormerkung tritt zurück.
 
+#### Im Bild steht der Weg der Subjekte
+
+**Wartendes Material steht nicht darin.** Es ist an *seinem* Modul eingetreten – die
+Kante davor hat es nie genommen. Es dort zu zeichnen wäre entweder ein Widerspruch
+(Stücke auf einer Haarlinie, was `flow._verify` zu Recht meldet) oder eine Lüge (die
+kräftige Linie liefe bis zu einem Modul, das noch kein Erzeugnis erreicht hat). Sichtbar
+wird es in dem Moment, in dem es etwas **getan** hat: verbaut, auf der Ausgangskante
+seines Moduls — derselbe Platz wie bisher. Wo es vorher steht, sagt die Stückliste des
+Moduls («Vorgemerkt 100000123-1»), also die Stelle, an der es gebraucht wird.
+
 Wächter: `tests/test_pinned_material.py`.
 
 ### 9.7 Das Protokoll — ein abgeschlossenes Modul zeigt lückenlos, was in ihm geschah
