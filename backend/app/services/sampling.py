@@ -93,7 +93,14 @@ def _population(db: Session, order: Order) -> list[InstanceUnit]:
     Welle, und die Bezugsgrösse hinge daran, wie viele Instanzen zufällig schon durch
     sind. Ein ausgeschertes oder angekommenes Stück zählt nicht mit – es kommt hier nie
     (mehr) vorbei.
+
+    **Und Material zählt nicht mit** (``process.material_clause``): eine vorgemerkte
+    Komponente gehört dem Auftrag, ist aber nicht sein Gegenstand. Sie mitzuziehen hiesse,
+    an einem Erzeugnis eine Messung zu verlangen, die einer Schraube gilt – und die
+    Bezugsgrösse der Stichprobe wäre um sie zu gross.
     """
+    from .process import material_clause
+
     return [
         u
         for (u,) in db.execute(
@@ -103,6 +110,7 @@ def _population(db: Session, order: Order) -> list[InstanceUnit]:
                 OrderUnit.order_id == order.id,
                 OrderUnit.released_at.is_(None),
                 InstanceUnit.is_active.is_(True),
+                material_clause(),
             )
         ).all()
     ]

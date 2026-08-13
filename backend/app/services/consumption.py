@@ -49,6 +49,12 @@ class Need:
     per_unit: int
     required: int
     available: int
+    #: Die **vorgemerkte** Einzelinstanz dieser Zeile (§9.6a) – oder ``None``.
+    pinned: Optional[str] = None
+    #: Steht sie noch hier? ``False`` heisst: sie war vorgemerkt und ist weg (eine
+    #: Abweichung hat sie geholt). Die Zeile sagt das, statt still ein anderes Stück zu
+    #: nehmen – genau dafür hat jemand ein bestimmtes genannt.
+    pinned_here: bool = False
     sources: list[Source] = field(default_factory=list)
 
     @property
@@ -101,13 +107,19 @@ def _free(db: Session, article_object_id: int, *,
     return chosen
 
 
-def needs(db: Session, step: ProcessStep, *, pieces: int) -> list[Need]:
+def needs(db: Session, step: ProcessStep, *, pieces: int,
+          order=None) -> list[Need]:
     """**Was braucht dieses Modul jetzt — und ist es da?**
 
     ``pieces`` ist die Zahl der Produkt-Stücke, für die gerechnet wird. Am Modul ist das
     alles, was davorsteht; in einem einzelnen Vorgang sind es die Stücke der einen
     verifizierten Instanz. Dieselbe Rechnung, anderer Ausschnitt – zwei Formeln wären
     zwei Antworten auf eine Frage.
+
+    **Vorgemerktes zählt als verfügbar** (§9.6a): es liegt nicht mehr im freien Bestand,
+    aber es ist da – es gehört diesem Auftrag und wartet an diesem Modul. Ohne das meldete
+    die Vorschau eine Fehlmenge für ein Stück, das reserviert danebensteht, und böte an,
+    Nachschub für etwas anzulegen, das schon gesichert ist.
 
     Ein Modul ohne Stückliste gibt eine leere Liste zurück; die Aufrufstelle braucht
     darum keine Fallunterscheidung nach dem Modultyp.
@@ -121,9 +133,11 @@ def needs(db: Session, step: ProcessStep, *, pieces: int) -> list[Need]:
         .filter(Article.object_id.in_([r["article"] for r in rows]))
         .all()
     }
+    held = pins_of(db, order=order, step=step) if order is not None else {}
     out: list[Need] = []
     for row in rows:
         free = _free(db, row["article"])
+        pin = held.get(row["article"])
         by_instance: dict[int, int] = {}
         for _, instance in free:
             by_instance[instance.object_id] = by_instance.get(instance.object_id, 0) + 1
@@ -132,15 +146,81 @@ def needs(db: Session, step: ProcessStep, *, pieces: int) -> list[Need]:
             article_name=names.get(row["article"], f"Artikel {row['article']}"),
             per_unit=row["quantity"],
             required=row["quantity"] * pieces,
-            available=len(free),
+            available=len(free) + (1 if pin is not None and pin.unit is not None else 0),
+            pinned=row.get(modules.Verbrauch.UNIT),
+            pinned_here=pin is None or not pin.lost,
             sources=[Source(instance_object_id=nr, free=n)
                      for nr, n in sorted(by_instance.items())],
         ))
     return out
 
 
+@dataclass
+class Pin:
+    """Eine **Vormerkung** und ihr Schicksal (§9.6a) — drei Lagen, drei Antworten.
+
+    ==============  =========================================================
+    ``unit``        Das Stück steht hier und wird als Nächstes genommen.
+    ``spent``       Dieser Auftrag hat es bereits verbaut – die Vormerkung ist
+                    eingelöst. Für weitere Erzeugnisse gilt wieder der freie
+                    Bestand: «dieser eine» sagt über die übrigen nichts.
+    beides ``None`` **Verloren.** Eine Abweichung hat es geholt. Dann wird
+    /``False``      nicht still ersetzt – das Modul sagt es (siehe ``plan``).
+    ==============  =========================================================
+    """
+
+    number: str
+    unit: Optional[InstanceUnit] = None
+    spent: bool = False
+
+    @property
+    def lost(self) -> bool:
+        return self.unit is None and not self.spent
+
+
+def pins_of(db: Session, *, order, step: ProcessStep) -> dict[int, Pin]:
+    """Die Vormerkungen dieses Moduls, je Artikel — **gegen die Wirklichkeit gehalten**.
+
+    Ein vorgemerktes Stück ist bei der Freigabe eingetreten (``process._enter_at_step``)
+    und steht seither an diesem Modul. Gesucht wird es darum **nicht** im freien Bestand:
+    dort ist es nicht mehr, und genau das ist der Zweck der Vormerkung.
+
+    «Schon verbaut» und «verloren» unterscheidet dieselbe Spalte, die auch «angekommen»
+    von «ausgeschert» trennt (``models/order_unit``): eine geschlossene Zeile **ohne**
+    Position ist durch dieses Modul hinausgegangen; eine geschlossene **mit** Position
+    heisst, ein anderer Auftrag hat das Stück von hier weggeholt.
+    """
+    from ..models import OrderUnit
+    from .instances import find_unit
+
+    out: dict[int, Pin] = {}
+    for row in modules.lines_of(step.config):
+        number = row.get(modules.Verbrauch.UNIT)
+        if not number:
+            continue
+        pin = Pin(number=number)
+        out[row["article"]] = pin
+        unit = find_unit(db, number)
+        if unit is None:
+            continue
+        rows = (
+            db.query(OrderUnit)
+            .filter(OrderUnit.order_id == order.id,
+                    OrderUnit.instance_unit_id == unit.id)
+            .all()
+        )
+        for m in rows:
+            if m.released_at is None and m.current_step_id == step.id:
+                pin.unit = unit
+            elif m.released_at is not None and m.current_step_id is None:
+                pin.spent = True
+    return out
+
+
 def plan(db: Session, *, step: ProcessStep, products: list[InstanceUnit],
-         sources: Optional[list[int]] = None) -> dict[int, list[InstanceUnit]]:
+         sources: Optional[list[int]] = None,
+         pins: Optional[dict[int, Pin]] = None,
+         ) -> dict[int, list[InstanceUnit]]:
     """**Welches Stück kommt in welches Produkt?** — ``{Produkt-Stück: [Komponenten]}``.
 
     Zugeteilt wird **je Produkt-Stück** (§3): das ist die Körnung, in der die Genealogie
@@ -153,6 +233,15 @@ def plan(db: Session, *, step: ProcessStep, products: list[InstanceUnit],
     gilt der ganze freie Bestand des Artikels. Es ist **keine Vorgabe von Mengen**: wie
     viel gebraucht wird, sagt die Stückliste, und ein zweiter Weg, das zu bestimmen, wäre
     ein zweiter Massstab.
+
+    ``pins`` sind die **Vormerkungen** (§9.6a) – sie gehören dem Auftrag schon und stehen
+    darum nicht im freien Bestand. Sie kommen **zuerst**: dafür sind sie vorgemerkt.
+    Reicht die Vormerkung nicht für alle Produkte, füllt der freie Bestand auf – wer ein
+    Unikat für das erste Stück nennt, hat über die übrigen nichts gesagt.
+
+    **Ausser der Mensch hat gewählt.** Nennt er ``sources``, gilt seine Wahl, und die
+    Vormerkung tritt zurück: sie ist eine Absicht von früher, seine Wahl die von jetzt.
+    Genau das ist der Ausweg, wenn das vorgemerkte Stück inzwischen woanders ist.
 
     Reicht es nicht, ist das ein Fehler mit Namen und Zahlen – **bevor** irgendetwas
     geschrieben ist. Ein Modul, das die Hälfte verbaut und dann abbricht, hinterlässt
@@ -179,9 +268,25 @@ def plan(db: Session, *, step: ProcessStep, products: list[InstanceUnit],
     out: dict[int, list[InstanceUnit]] = {p.id: [] for p in products}
     for row in rows:
         need = row["quantity"] * len(products)
-        free = [u for u, _ in _free(db, row["article"], instances=sources or None)]
+        name = names.get(row["article"], f"Artikel {row['article']}")
+        pin = None if sources else (pins or {}).get(row["article"])
+        # **Ein verlorenes Stück wird nicht still ersetzt.** Wer eine bestimmte
+        # Einzelinstanz genannt hat, meint sie; ein beliebiges anderes Stück
+        # einzusetzen wäre genau das Gegenteil, und niemand sähe es. Der Ausweg ist der
+        # gewöhnliche: eine andere Instanz **wählen** – dann gilt die Wahl von jetzt,
+        # und die Vormerkung tritt zurück (``sources`` schaltet sie oben ab).
+        if pin is not None and pin.lost:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{name} ({row['article']}): vorgemerkt war {pin.number}, und dieses "
+                    f"Stück steht hier nicht mehr. Wählen Sie eine andere Instanz – "
+                    f"ersetzt wird es nicht von selbst."
+                ),
+            )
+        held = [pin.unit] if pin is not None and pin.unit is not None else []
+        free = held + [u for u, _ in _free(db, row["article"], instances=sources or None)]
         if len(free) < need:
-            name = names.get(row["article"], f"Artikel {row['article']}")
             raise HTTPException(
                 status_code=409,
                 detail=(
