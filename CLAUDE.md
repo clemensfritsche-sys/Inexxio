@@ -699,6 +699,28 @@
 > `test_frontend_mirrors.py: test_a_picture_is_taken_never_uploaded` ·
 > `…_the_object_scan_capture_type_is_gone` · `…_the_camera_is_one_layer_and_the_decoder_another` ·
 > `…_the_flow_is_first_where_then_what`.
+>
+> **Wer vor dem nächsten Modul WARTET, hat den Auftrag nicht verlassen** (gemeldet: die
+> Achse hinter einem Abzweigepunkt war eine Haarlinie, obwohl ein Stück sie gegangen ist).
+> Der Log schreibt für «Modul passiert» und für «Auftrag an diesem Modul verlassen»
+> **denselben** Eintrag (`step`) – `flow._exit_points` las nur den letzten davon und hielt
+> damit jedes wartende Stück für ausgetreten; es wurde von `passed` abgezogen, und warteten
+> alle, stand die Bilanz auf null. Unterschieden werden die beiden allein durch die
+> **Zugehörigkeit** (verlassen = geschlossene Zeile, warten = offene) – die Regel stand
+> wörtlich im Docstring, nur nie in der Abfrage.
+> **Die eigentliche Lehre ist, warum es still passieren konnte.** Die Invariante «wo etwas
+> steht, ist etwas gewesen» prüft die Zeichnung gegen die **Positionen** – und in einem
+> **abgeschlossenen** Auftrag ist jede Zugehörigkeit geschlossen, keine Achsenkante hat
+> mehr Mitglieder, also fällt dort eine falsche Haarlinie durch jedes Netz. Neu prüft
+> `flow._verify_walked` gegen den **Log**: *wer ein Modul passiert hat, ist die Kante davor
+> gegangen* (ausgenommen, wer erst dort eingetreten ist – `_tally.entered`). Zwei
+> Herleitungen derselben Aussage: die Bilanz **muss** rechnen (ein Bypass ist eine
+> Differenz), diese hier kann nur zählen; weichen sie ab, steht es als Problem da statt
+> still gezeichnet zu werden. Dafür bleibt `tally.passed` **roh** – die Korrektur um die
+> Austritte lebt in einer eigenen Grösse (`onward`), sonst prüfte die Invariante die
+> Rechnung gegen sich selbst.
+> Wächter: `tests/test_flow_graph.py: test_a_waiting_piece_is_not_an_exit` (gegen die
+> Bug-Form gegengeprüft) · `…_the_line_strength_is_checked_against_the_log_not_only_the_positions`.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

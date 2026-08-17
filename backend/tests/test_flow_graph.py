@@ -1105,3 +1105,117 @@ def test_a_finished_order_does_not_retell_what_happened_elsewhere():
     finally:
         db.rollback()
         db.close()
+
+
+def test_a_waiting_piece_is_not_an_exit():
+    """►►► **Wer vor dem nächsten Modul wartet, hat den Auftrag nicht verlassen.** ◄◄◄
+
+    Der gemeldete Fall: zwei Stücke passieren Modul 1, eines wird vor Modul 2 in eine
+    Abweichung abgezweigt und dort verschrottet – und die Achse **hinter** dem
+    Abzweigepunkt war eine Haarlinie, obwohl das zweite Stück sie gegangen ist und dort
+    steht.
+
+    Die Ursache lag nicht in der Bilanz, sondern in ihrer Eingangsgrösse: der Log
+    schreibt für «Modul passiert» und für «Auftrag an diesem Modul verlassen» **denselben**
+    Eintrag (``step``). Wer nur den letzten Eintrag las, hielt jedes wartende Stück für
+    ausgetreten und zog es von ``passed`` ab; warteten alle, stand die Bilanz auf null.
+
+    Unterschieden werden die beiden allein durch die **Zugehörigkeit**: verlassen heisst
+    geschlossene Zeile, warten heisst offene.
+    """
+    from app.models import InstanceUnit, OrderUnit, ProcessStep
+    from app.services import article_process as tpl, flow, objects as obj, process as proc
+
+    db = _db()
+    try:
+        art = _article(db, tpl, obj)
+        # Zwei Module, damit es ein «davor warten» überhaupt gibt.
+        tpl.create_steps(db, art, [
+            {"module_type": "datenerfassung", "config": {"points": [{"label": "OK", "type": "bool"}]}},
+            {"module_type": "datenerfassung", "config": {"points": [{"label": "OK", "type": "bool"}]}},
+        ])
+        db.flush()
+        order = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 2, "origin": "neu",
+                    "units": []}],
+            steps=[], actor_id=None,
+        )
+        db.flush()
+        steps = db.query(ProcessStep).filter(
+            ProcessStep.order_id == order.id).order_by(ProcessStep.position).all()
+        _confirm(db, order, steps[0])                 # beide passieren Modul 1
+        db.flush()
+
+        assert flow._exit_points(db, order.id) == {}, (
+            "Ein wartendes Stück gilt als ausgetreten – genau daraus wurde die falsche "
+            "Haarlinie."
+        )
+
+        rows = db.query(OrderUnit).filter(
+            OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None)).all()
+        units = db.query(InstanceUnit).filter(
+            InstanceUnit.id.in_([r.instance_unit_id for r in rows])).all()
+        names = proc.unit_numbers(db, units)
+        dev = proc.release(
+            db,
+            lines=[{"article_object_id": art.object_id, "quantity": 1, "origin": "lager",
+                    "returns": False,
+                    "units": [{"number": names[units[0].id],
+                               "from_order": order.object_id}]}],
+            steps=[{"module_type": "aussondern",
+                    "config": {"mode": "scrap", "reason": "Riss"}}],
+            actor_id=None)
+        db.flush()
+        _confirm(db, dev, db.query(ProcessStep).filter(
+            ProcessStep.order_id == dev.id).one())
+        db.flush()
+
+        g = flow.build(db, order)
+        into = [e for e in g.edges
+                if e.kind == flow.EDGE_AXIS and e.to == flow.module_id(steps[1].id)]
+        assert len(into) == 1, "Die Kante vor dem zweiten Modul gibt es nicht genau einmal."
+        assert into[0].walked, (
+            "Die Achse hinter dem Abzweigepunkt ist eine Haarlinie, obwohl ein Stück sie "
+            "gegangen ist und dort steht – der gemeldete Fehler."
+        )
+        assert g.problems == [], f"Das Bild meldet einen Widerspruch: {g.problems}"
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_line_strength_is_checked_against_the_log_not_only_the_positions():
+    """**Ein abgeschlossener Auftrag hat keine Positionen mehr — die Prüfung muss trotzdem greifen.**
+
+    Die Invariante «wo etwas steht, ist etwas gewesen» trägt nur, solange jemand
+    dortsteht. Ist der Auftrag durch, ist jede Zugehörigkeit geschlossen, keine
+    Achsenkante hat mehr Mitglieder – und eine falsche Haarlinie fällt durch jedes Netz.
+    Genau dort war der gemeldete Fehler unsichtbar.
+
+    Darum prüft ``_verify_walked`` gegen den **Log**: wer ein Modul passiert hat, ist die
+    Kante davor gegangen. Hier wird die Prüfung selbst geprüft – ein Wächter, der nie
+    anschlägt, ist von einem kaputten nicht zu unterscheiden.
+    """
+    from app.services import flow
+
+    g = flow.Graph()
+    at = 4711
+    g.nodes.append(flow.Node(id=flow.NODE_START, kind=flow.NODE_START))
+    g.nodes.append(flow.Node(id=flow.module_id(at), kind=flow.NODE_MODULE, at=at))
+    g.edges.append(flow.Edge(id="edge:start:module", frm=flow.NODE_START,
+                             to=flow.module_id(at), kind=flow.EDGE_AXIS, walked=False))
+
+    tally = flow._Tally(passed={at: 2})
+    flow._verify_walked(g, tally)
+    assert g.problems, "Die Prüfung meldet die falsche Haarlinie nicht."
+
+    # Wer erst am Modul eingetreten ist, hat die Kante davor nie gesehen – kein Fehler.
+    quiet = flow.Graph()
+    quiet.nodes.extend(g.nodes)
+    quiet.edges.append(flow.Edge(id="edge:start:module", frm=flow.NODE_START,
+                                 to=flow.module_id(at), kind=flow.EDGE_AXIS, walked=False))
+    flow._verify_walked(quiet, flow._Tally(passed={at: 2}, entered={at: 2}))
+    assert quiet.problems == [], (
+        "Ein am Modul eingetretenes Stück wird als «Kante gegangen» gewertet."
+    )

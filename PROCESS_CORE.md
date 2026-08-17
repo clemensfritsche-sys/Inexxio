@@ -732,6 +732,25 @@ Gezählt werden dafür **Einzelinstanzen**, nicht Log-Zeilen: ein Stück kann di
 Stelle mehrfach verlassen (Abweichung der Abweichung), und die Bilanz ginge sonst nicht
 auf.
 
+**Wer wartet, hat nichts verlassen.** Die Bilanz beginnt mit «wer ist an diesem Punkt
+angekommen» — und dafür muss der Log zwei Dinge auseinanderhalten, die er gleich
+aufschreibt: *Modul passiert* und *Auftrag an diesem Modul verlassen* sind beide ein
+`step`-Eintrag. Unterschieden werden sie allein durch die **Zugehörigkeit**: verlassen
+heisst geschlossene Zeile, warten heisst offene (`flow._exit_points`). Ohne diese
+Bedingung galt jedes wartende Stück als ausgetreten und wurde abgezogen; warteten alle,
+stand die Bilanz auf null und die Achse hinter dem Abzweigepunkt war eine Haarlinie,
+obwohl die Stücke sie gegangen sind und dort stehen.
+
+**Und die Linienstärke wird gegen den LOG geprüft, nicht nur gegen die Positionen**
+(`flow._verify_walked`): *wer ein Modul passiert hat, ist die Kante davor gegangen* —
+ausgenommen, wer erst dort eingetreten ist (`_enter_at_step`; er hat sie nie gesehen).
+Die Invariante «wo etwas steht, ist etwas gewesen» trägt nur so lange, wie noch jemand
+dortsteht; in einem **abgeschlossenen** Auftrag ist jede Zugehörigkeit geschlossen, keine
+Achsenkante hat mehr Mitglieder, und eine falsche Haarlinie fiele durch jedes Netz.
+Zwei Herleitungen derselben Aussage: die Bilanz **muss** rechnen (ein Bypass ist eine
+Differenz), diese hier kann nur zählen — weichen sie ab, steht es da, statt still
+gezeichnet zu werden.
+
 **Eine Kante über die Auftragsgrenze** (`out`/`back`) nennt den Nachbarn als
 `order:<Objektnummer>`. Das Frontend zeichnet sie, wenn **beide Enden im Bild stehen** –
 darum muss keine Seite wissen, welche Spalten gerade sichtbar sind, und beide Richtungen

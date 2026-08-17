@@ -210,6 +210,11 @@ class _Tally:
     passed: dict[int, int] = field(default_factory=dict)
     #: Wie viele Stücke haben das Ende-Objekt passiert.
     ended: int = 0
+    #: Je Modul: wie viele Stücke sind **dort** in den Auftrag eingetreten
+    #: (``process._enter_at_step``). Sie haben die Kante davor nie gesehen – und genau
+    #: darum steht diese Zahl hier: ohne sie liesse sich «wer hat das Modul von der
+    #: Achse her erreicht?» nicht aus ``passed`` beantworten.
+    entered: dict[int, int] = field(default_factory=dict)
     #: Je Zustandspunkt und Ziel-Auftrag: wie viele Stücke sind ausgeschert.
     out: dict[tuple[Optional[int], int], int] = field(default_factory=dict)
     #: Je Zustandspunkt und Herkunfts-Auftrag: wie viele Stücke sind zurückgekehrt.
@@ -250,9 +255,12 @@ def _tally(db: Session, order_id: int) -> _Tally:
             # **Das Start-Objekt hat passiert, wer oben hereinkam.** Ein Eintritt an einem
             # Modul (``process._enter_at_step``) trägt dessen ``id`` und hat das
             # Start-Objekt nie gesehen; ihn mitzuzählen liesse die erste Kante Material
-            # tragen, das dort nie war.
+            # tragen, das dort nie war. Gezählt wird er trotzdem – an **seinem** Modul,
+            # denn ohne ihn wäre ``passed`` dort nicht mehr lesbar.
             if at is None:
                 t.started += n
+            else:
+                t.entered[at] = t.entered.get(at, 0) + n
         elif kind == KIND_STEP and at is not None:
             t.passed[at] = t.passed.get(at, 0) + n
         elif kind == KIND_END:
@@ -338,8 +346,20 @@ def _exit_points(db: Session, order_id: int) -> dict[int, int]:
 
     Es gibt genau zwei Arten, einen Auftrag zu verlassen, und der Log unterscheidet sie
     von selbst: über das **Ende-Objekt** (letzter Eintrag ``end``) oder über ein
-    **Modul**, das ein Stück hinausführt (letzter Eintrag ``step``). Ein Stück, das noch
-    läuft, hat eine offene Zugehörigkeit und kommt hier gar nicht vor.
+    **Modul**, das ein Stück hinausführt (letzter Eintrag ``step``).
+
+    ►► **Ein Stück, das noch läuft, verlässt nichts.** ◄◄
+
+    Der letzte Eintrag allein beantwortet die Frage **nicht**: er lautet auch dann
+    ``step``, wenn ein Stück das Modul schlicht passiert hat und nun vor dem nächsten
+    **wartet**. Beides sieht im Log gleich aus; unterschieden werden die beiden allein
+    durch die **Zugehörigkeit** – wer den Auftrag verlassen hat, dessen Zeile ist
+    geschlossen (``released_at``), wer wartet, dessen Zeile ist offen.
+
+    Ohne diese Bedingung galt jedes wartende Stück als ausgetreten und wurde von
+    ``passed`` abgezogen. Warteten **alle**, stand die Bilanz auf null – und die Achse
+    hinter dem Punkt war eine Haarlinie, obwohl die Stücke sie gegangen sind und dort
+    stehen. Genau dieses Bild war gemeldet.
 
     **Damit ist der Ausgang eine Regel statt eines Sonderfalls.** Vorher stand im Bild
     «ist das letzte Modul terminal? dann hängt die Ausgangskante daran» – das trug genau
@@ -357,10 +377,19 @@ def _exit_points(db: Session, order_id: int) -> dict[int, int]:
         .group_by(ProcessEvent.instance_unit_id)
         .subquery()
     )
+    gone = (
+        select(OrderUnit.instance_unit_id)
+        .where(OrderUnit.order_id == order_id, OrderUnit.released_at.isnot(None))
+        .scalar_subquery()
+    )
     rows = db.execute(
         select(ProcessEvent.instance_unit_id, ProcessEvent.step_id)
         .join(last, ProcessEvent.id == last.c.last_id)
-        .where(ProcessEvent.kind == KIND_STEP, ProcessEvent.step_id.isnot(None))
+        .where(
+            ProcessEvent.kind == KIND_STEP,
+            ProcessEvent.step_id.isnot(None),
+            ProcessEvent.instance_unit_id.in_(gone),
+        )
     ).all()
     return {int(u): int(s) for u, s in rows}
 
@@ -500,9 +529,14 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
     # 12 Schrauben» stünde die Bilanz auf 15 statt 3, und eine Abweichung, die alle drei
     # Getriebe mitnimmt, hinterliesse eine **kräftige Linie, auf der niemand steht**.
     left_at = _exit_points(db, order.id)
+    # ``onward`` ist die **weitergelaufene** Menge, ``tally.passed`` bleibt roh. Die
+    # Unterscheidung ist keine Kosmetik: die rohe Zahl ist die Aussage des Logs («wer hat
+    # dieses Modul passiert»), und genau gegen sie prüft ``_verify`` die Linienstärke.
+    # Würde sie hier überschrieben, prüfte die Invariante die Rechnung gegen sich selbst.
+    onward = dict(tally.passed)
     for at in left_at.values():
-        if at in tally.passed:
-            tally.passed[at] = max(0, tally.passed[at] - 1)
+        if at in onward:
+            onward[at] = max(0, onward[at] - 1)
     rows = _rows(db, order, left_at)
     plan = planned or []
     g = Graph()
@@ -536,7 +570,7 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
         # ersten Modul über das Start-Objekt, sonst über das Modul davor — und wird in
         # ``_branches`` an jeder Teilung fortgeschrieben. Die Kante **vor** dem Modul trägt
         # damit, was nach allen Abzweigungen und Rückführungen übrig ist.
-        flow = tally.started if index == 0 else tally.passed.get(steps[index - 1].id, 0)
+        flow = tally.started if index == 0 else onward.get(steps[index - 1].id, 0)
         open_here = any(point == at for point, _ in pending)
 
         prev, flow = _branches(g, prev, at, tally, rows, pending, plan, flow)
@@ -587,6 +621,7 @@ def build(db: Session, order: Order, steps: Optional[list[ProcessStep]] = None,
 
     g.neighbours = _merged(g.neighbours)
     _verify(g, rows)
+    _verify_walked(g, tally)
     _verify_history(db, order, g)
     return g
 
@@ -716,6 +751,36 @@ def _edge(eid: str, frm: str, to: Optional[str], kind: str, walked: bool,
 def _link(g: Graph, frm: str, to: str, walked: bool, members: list) -> str:
     g.edges.append(_edge(f"edge:{frm}:{to}", frm, to, EDGE_AXIS, walked, members))
     return to
+
+
+def _verify_walked(g: Graph, tally: _Tally) -> None:
+    """►►► **Die Linienstärke gegen den LOG, nicht gegen die Rechnung.** ◄◄◄
+
+    Die übrigen Invarianten prüfen die Zeichnung gegen die **Positionen**: eine Haarlinie
+    mit Stücken darauf ist ein Widerspruch. Das trägt nur so lange, wie noch jemand
+    dortsteht – in einem **abgeschlossenen** Auftrag ist jede Zugehörigkeit geschlossen,
+    keine Achsenkante hat mehr Mitglieder, und eine falsche Haarlinie fällt durch **jedes**
+    Netz. Genau dort war der gemeldete Fehler unsichtbar.
+
+    Diese Prüfung fragt darum den Log direkt: **wer ein Modul passiert hat, ist die Kante
+    davor gegangen.** Ausgenommen ist nur, wer erst dort eingetreten ist
+    (``process._enter_at_step``) – er hat die Kante nie gesehen.
+
+    Das ist bewusst eine **zweite** Herleitung derselben Aussage. Die Bilanz entlang der
+    Achse kann rechnen (sie muss: der Bypass einer Abzweigung ist eine Differenz); diese
+    hier kann nur zählen. Weichen sie ab, ist die Rechnung schuld – und das steht dann da,
+    statt still gezeichnet zu werden.
+    """
+    for e in g.edges:
+        if e.kind != EDGE_AXIS or not e.to or not e.to.startswith(f"{NODE_MODULE}:"):
+            continue
+        at = int(e.to.split(":")[1])
+        from_axis = tally.passed.get(at, 0) - tally.entered.get(at, 0)
+        if from_axis > 0 and not e.walked:
+            g.problems.append(
+                f"Kante {e.id}: {from_axis} Einzelinstanz(en) haben das Modul passiert, "
+                "die Linie dorthin gilt trotzdem als nicht gegangen."
+            )
 
 
 def _verify(g: Graph, rows: list["_Row"]) -> None:
