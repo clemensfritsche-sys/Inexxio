@@ -15,9 +15,14 @@ Mensch das Angebot im Portal eintippt oder eine API es in zwei Sekunden liefert,
 **Kanal**; die Zeile sieht gleich aus. Genau das ist die Einsicht von ADR 009 –
 Rate-Shopping IST eine Ausschreibung, sie dauert nur kürzer.
 
-Es entsteht **keine neue Spalte auf einer bestehenden Tabelle**; die Ausfallklasse von
-Migration 090 kann hier also nicht auftreten. Fehlende **Tabellen** legt ``create_all()``
-im Lifespan an.
+**Eine Tabelle wird VOLLSTÄNDIG angelegt oder gar nicht.** Das Lifespan-``create_all()``
+legt fehlende **Tabellen** an – es ergänzt aber keine fehlende **Spalte** auf einer
+Tabelle, die es schon gibt. Eine unvollständig angelegte Tabelle ist darum **schlimmer**
+als eine fehlende: das Netz greift bei ihr nicht, und der Fehler zeigt sich erst gegen ein
+aus den Migrationen gebautes Schema. Genau das ist hier passiert – ``is_active`` (aus
+``TimestampMixin``) fehlte, und jede Abfrage auf ``awards`` endete in einem 500, während
+dieselben Tests gegen eine ``create_all``-Datenbank grün liefen.
+Wächter: ``tests/test_schema_from_migrations.py``.
 
 Idempotent: die Migration prüft, was es schon gibt, statt es vorauszusetzen.
 
@@ -68,6 +73,11 @@ def upgrade() -> None:
                       server_default=sa.text("now()")),
             sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
                       server_default=sa.text("now()")),
+            # Aus ``TimestampMixin`` – Soft-Delete gilt im ganzen Haus. Sie zu vergessen
+            # ist die Ausfallklasse dieser Migration (siehe Docstring): ``create_all``
+            # heilt eine fehlende Tabelle, aber nie eine fehlende Spalte darin.
+            sa.Column("is_active", sa.Boolean(), nullable=False,
+                      server_default=sa.text("true")),
         )
     if "ix_awards_subject" not in _index_names(AWARDS):
         op.create_index("ix_awards_subject", AWARDS, ["subject_object_id", "id"])

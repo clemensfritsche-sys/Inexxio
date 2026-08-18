@@ -363,6 +363,29 @@
 > gewöhnlichen Auftragsentwurf vor. Wächter: `tests/test_resource_place.py` (7, R1–R6,
 > jeder gegen seine Bug-Form gegengeprüft); dazu 17 Prüfungen über die echten
 > HTTP-Endpunkte.
+> **⚠ Beim Deploy gefunden: eine Tabelle wird VOLLSTÄNDIG angelegt oder gar nicht.**
+> Migration `112` legte `awards` an und vergass `is_active` (aus `TimestampMixin`). Gegen
+> die per `create_all` gebaute Entwicklungs-Datenbank liefen **alle 397 Tests grün**; gegen
+> ein aus den Migrationen gebautes Schema fielen **20** aus, und im Betrieb hätte **jede**
+> Vergabe-Abfrage einen 500 geworfen – also jede externe Fuhre eines Bewegen-Moduls.
+> **Die Migration hatte ihre eigene Begründung falsch aufgeschrieben**: «hier kann die
+> Ausfallklasse von 090 nicht auftreten, fehlende **Tabellen** legt `create_all()` an».
+> Das stimmt – und trifft den Fall nicht: `create_all` legt an, was **ganz** fehlt, und
+> fasst eine Tabelle, die es schon gibt, **nie** an. Eine halb angelegte Tabelle ist damit
+> **schlimmer** als eine fehlende: sie sieht fertig aus und hat kein Netz. Das ist die
+> schärfere Fassung der 090-Regel, nicht ein zweiter Fall.
+> **Behoben in der Migration selbst** (sie war nie deployt – eine Folge-Migration hätte
+> eine unvollständige Vorlage stehen lassen, die der Nächste kopiert), plus der Eintrag im
+> Lifespan-Netz für Datenbanken, die die alte Fassung schon gefahren haben.
+> **Der dauerhafte Schutz ist ein Wächter, nicht ein Einzelfix**
+> (`tests/test_schema_from_migrations.py`): er baut das Schema **von null** in eine
+> Wegwerf-Datenbank und hält es gegen `Base.metadata` – jede Spalte muss aus ihrer
+> Migration **oder** dem Lifespan-Netz kommen, und jede Tabelle ohne Migration ist
+> **benannt** (`CREATE_ALL_ONLY`, heute genau `objects`) statt still geduldet; ein
+> verrotteter Eintrag wird gemeldet. Die Erwartung ist **abgeleitet, nicht gepflegt** –
+> eine Liste erwarteter Tabellen wäre genau die Form, die beim nächsten Modell vergessen
+> wird. Kosten: ~4 s. Drei Bug-Formen hergestellt, drei gemeldet – darunter der echte
+> Fehler.
 >
 > **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
 > Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,

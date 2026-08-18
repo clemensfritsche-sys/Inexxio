@@ -282,6 +282,27 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > falsch (§15.8). Wächter: `tests/test_resource_place.py` (R1–R6, jeder gegen seine
 > Bug-Form gegengeprüft).
 
+> **Alembic ist die Schema-Wahrheit – und eine Tabelle wird VOLLSTÄNDIG angelegt oder gar
+> nicht** (`tests/test_schema_from_migrations.py`). Die Regel aus Migration 090 lautete:
+> *eine neue Spalte auf einer **bestehenden** Tabelle ist erst fertig, wenn sie in der
+> Migration UND im Lifespan-Netz steht.* Sie ist richtig, aber zu eng – und genau deshalb
+> hat Migration `112` ihre eigene Begründung falsch aufgeschrieben («hier kann die
+> Ausfallklasse von 090 nicht auftreten, fehlende **Tabellen** legt `create_all()` an»).
+> **Das Netz greift bei einer unvollständigen Tabelle nicht.** `create_all()` legt an, was
+> ganz fehlt; eine Tabelle, die es schon gibt, fasst es **nie** an – auch dann nicht, wenn
+> ihr eine Spalte fehlt, die das Modell kennt. Eine halb angelegte Tabelle ist damit
+> **schlimmer** als eine fehlende: sie sieht fertig aus und hat kein Netz. Konkret fehlte
+> `awards.is_active` (aus `TimestampMixin`); gegen eine `create_all`-Datenbank liefen alle
+> Tests grün, gegen ein aus den Migrationen gebautes Schema endete **jede** Vergabe-Abfrage
+> in einem 500.
+> **Der Wächter leitet seine Erwartung aus dem Modell ab, nicht aus einer Liste**: er baut
+> das Schema in eine Wegwerf-Datenbank **von null** aus den Migrationen und vergleicht es
+> mit `Base.metadata` – jede Tabelle, jede Spalte. Ohne PostgreSQL überspringt er **mit
+> Grund**; ein Wächter, der still durchwinkt, ist von einem kaputten nicht zu
+> unterscheiden. Kosten: ~4 s.
+> Damit ist die Regel geprüft statt behauptet – und sie gilt für **jede** künftige
+> Migration, ohne dass jemand daran denken muss.
+
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete
 - UTC Timestamps überall

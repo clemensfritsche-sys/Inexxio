@@ -113,6 +113,12 @@ _COLUMN_SAFETY_NET = (
     ("awards", "unit_ids", "JSONB"),
     ("award_offers", "provider_name", "VARCHAR(160)"),
     ("award_offers", "carrier", "VARCHAR(40)"),
+    # ``is_active`` aus ``TimestampMixin`` – Migration 112 hatte sie beim Anlegen der
+    # Tabelle vergessen (inzwischen dort ergänzt). Der Eintrag bleibt für Datenbanken, die
+    # die alte Fassung schon gefahren haben: eine **unvollständig angelegte** Tabelle ist
+    # schlimmer als eine fehlende, denn ``create_all`` legt fehlende Tabellen an, ergänzt
+    # aber nie eine fehlende Spalte in einer, die es schon gibt.
+    ("awards", "is_active", "BOOLEAN NOT NULL DEFAULT true"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
