@@ -26,7 +26,7 @@ from ..models.process_event import (
 )
 from . import (
     article_process, articles as articles_svc, capture as capture_svc,
-    consumption as consumption_svc, materialize, sampling,
+    consumption as consumption_svc, materialize, moving, sampling,
 )
 from .instances import unit_number
 
@@ -896,6 +896,7 @@ def confirm_step(
     instance_object_id: Optional[int] = None,
     verification: Optional[str] = None,
     sources: Optional[list[int]] = None,
+    from_holder_object_id: Optional[int] = None,
 ) -> dict[str, Any]:
     """«Bestätigen» — der eine Mechanismus, den jedes Modul auslöst.
 
@@ -916,6 +917,13 @@ def confirm_step(
     bewegt; ``sources`` sind die Instanzen, aus denen genommen werden soll (leer =
     der ganze freie Bestand, FIFO).
 
+    **Der Kontext-Scan** (``from_holder_object_id``) ist der erste Scan eines
+    Arbeitsgangs: «wo bin ich». Er hat bewusst **keinen Vorgabewert** – ein gemerkter
+    Ort wäre die stille Fehlerklasse, bei der ein vergessener Wechsel den falschen Ort
+    schreibt und nichts fehlschlägt (§15.3). Verlangt wird er von dem Modul, das ihn
+    braucht (``moving``), nicht von dieser Stelle: ein Modul ohne Ortswirkung soll gar
+    nicht erst danach gefragt werden.
+
     **«Nicht bestanden» rückt NICHT vor** (§4). Die Feststellung ist geloggt und
     eingefroren, die Stücke bleiben an ihrem Zustandspunkt stehen, und was daraus folgt,
     entscheidet ein Mensch. Ein automatisch angelegter Folgeauftrag wäre ein leerer
@@ -923,13 +931,7 @@ def confirm_step(
     jemand zugestimmt hätte. Stilles Weiterlaufen ist der Fehler, den es zu verhindern
     gilt; das Anhalten ist nicht der Nebeneffekt, sondern der Zweck.
     """
-    step = (
-        db.query(ProcessStep)
-        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
-        .first()
-    )
-    if step is None:
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    step = step_of(db, order, step_id)
     if order_status(db, order) != st.IM_PROZESS:
         raise HTTPException(
             status_code=409,
@@ -1036,6 +1038,24 @@ def confirm_step(
         return {"moved": 0, "held": len(units), "result": result}
 
     marks = {u.id: {"verification": verification} for u in units}
+
+    # ►► **Wohin dieses Modul bewegt, schreibt es JETZT.** ◄◄
+    #
+    # Bedingungslos gerufen und für jedes Modul **ohne Ziel** ein No-op – dieselbe Form
+    # wie ``capture_svc.record_for_step`` und ``consumption_svc.plan``. Die
+    # Fallunterscheidung entsteht aus der **Konfiguration**, nicht aus einem ``if``
+    # nach dem Modultyp; ein neuer Modultyp mit Ortswirkung erbt die Stelle.
+    #
+    # Der Ort ändert **nichts** ausser dem Ort (§15.6): kein Status, keine
+    # Zugehörigkeit. Genau darum steht er hier neben dem Übergang und nicht in ihm.
+    moved_to = moving.record_for_step(
+        db, step=step, units=units,
+        from_holder_object_id=from_holder_object_id, actor_id=actor_id,
+    )
+    if moved_to:
+        # **Woher und wohin gehört ins Schritt-Ereignis** – sonst wäre der Ausgangsort
+        # nirgends festgehalten, und der Nachweis sagte nur, wo es hinterher lag.
+        marks = {uid: {**mark, **moved_to} for uid, mark in marks.items()}
 
     # ►► **Was dieses Modul verbraucht, holt es sich JETZT.** ◄◄
     #
@@ -1399,6 +1419,17 @@ def _units_at(db: Session, order: Order, step_id: Optional[int],
     return q.order_by(OrderUnit.id).all()
 
 
+def units_at_step(db: Session, order: Order, step: ProcessStep) -> list[InstanceUnit]:
+    """Die Einzelinstanzen, die vor diesem Modul stehen — **die eine Arbeitsmenge**.
+
+    Sie kommt aus dem Prozess (Zustandspunkt), nie aus dem Ort. Das ist die Regel, an
+    der der Vorgänger gescheitert ist: dort las eine Auswahlfunktion den Verbleib und
+    den Auftragsgrund, um zu entscheiden, woran ein Modul arbeitet – und damit kamen
+    vier Fremdbereiche in der Bewegung an (ADR 009 §2.1, SYSTEM_LOGIC O6).
+    """
+    return [u for _, u in _units_at(db, order, step.id)]
+
+
 def step_work(db: Session, order: Order, step: ProcessStep) -> list[dict[str, Any]]:
     """**Was ist an diesem Modul zu tun — je Instanz?**
 
@@ -1582,6 +1613,23 @@ def _number(db: Session, unit: InstanceUnit) -> str:
             detail=f"Einzelinstanz {unit.id} hat keine Instanz – der Datenbestand ist kaputt.",
         )
     return unit_number(instance, unit)
+
+
+def step_of(db: Session, order: Order, step_id: int) -> ProcessStep:
+    """**Ein** Modul dieses Auftrags – oder 404.
+
+    Die Auflösung stand einmal ausgeschrieben in ``confirm_step``; mit dem zweiten
+    Aufrufer (dem Tarifabruf am Modul) wäre sie zweimal dagestanden – und zwei Fassungen
+    derselben Frage laufen auseinander, sobald eine davon einen Fall dazubekommt.
+    """
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None:
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    return step
 
 
 def steps_of(db: Session, order: Order) -> list[ProcessStep]:

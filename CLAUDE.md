@@ -209,6 +209,184 @@
 > `moduleTone` hat keinen Rückfall mehr auf eine echte Modulfarbe: Unbekanntes sieht
 > kaputt aus, statt sich als anderes Modul auszugeben.
 >
+> **Der Ort ist eine BEOBACHTUNG, kein Zustand** (PROCESS_CORE §15, SYSTEM_LOGIC §7,
+> **ADR 009** – vor jeder Arbeit am Ort lesen). Das System hatte seit dem Basis-Neuaufbau
+> keinen Ortsbegriff; für **freien** Bestand – den Normalzustand eines Lagers – war «wo
+> liegt es» unbeantwortbar. `unit_places` schliesst das: append-only, eine Zeile je
+> Ablage, der aktuelle Ort ist die **letzte** Zeile, die Historie fällt geschenkt an.
+> **Bewusst NICHT im Ereignis-Log**: der hängt an `order_id`/`step_id`, eine Ablage muss
+> aber auch **ohne Auftrag** möglich sein – genau diese Unabhängigkeit ist die Robustheit.
+> **Ein Halter ist eine Objektnummer, mehr nicht**: kein `location_type` daneben, keine
+> Whitelist, **kein neuer Datensatztyp**. Regal · Behälter · Palette · LKW sind
+> **Instanzen**, Werk Nord ist ein **Unternehmen**, Mitarbeiter und DHL sind **Benutzer**;
+> ein Mensch ist ein Halter wie jeder andere (nimmt ein Kollege ein Teil mit, liegt es
+> **bei ihm** – der alte Ort wäre eine Behauptung über etwas, das dort nicht liegt).
+> **Der Ort ändert nie einen Status und nie eine Zugehörigkeit** – konstruktiv statt
+> geprüft: weil eine Ablage nichts anfasst ausser dem Ort, muss keine andere Regel von ihr
+> wissen, und darum darf jedes Stück in **jedem** Zustand abgelegt werden. Umgekehrt
+> **blockiert ein Ort nie**: liegt etwas falsch, ist das eine Auskunft, kein Zustand.
+> Die Aufteilung einer Charge ist ein **`GROUP BY`** – «990 im Regal, 10 am Band» sind
+> zehn Einzelinstanzen mit anderem Halter; eine Mengen-Map (`location_split`) darf nicht
+> wiederkehren. Der **Kontext-Scan** hat keinen Vorgabewert: der erste Scan ist «wo bin
+> ich» (ein gemerkter Ort wäre die stille Fehlerklasse, bei der ein vergessener Wechsel
+> den falschen Ort schreibt und nichts fehlschlägt).
+> **Das Modul «Bewegen»** (§9.8) hat genau **EINE** Einstellung – das **Ziel**. Kein
+> Transportmodus (die **Adresse** entscheidet, und sie wird gerechnet, nie gespeichert),
+> keine Quelle, keine Menge, kein Zeitpunkt. Die **Fuhre** (Ausgangsort → Ziel) ist
+> **abgeleitet**: zwei Ausgangsorte sind zwei Transporte, drei Stücke am selben Ort einer.
+> Es wirkt über einen **generischen** Dienstaufruf (`moving.record_for_step`), der für
+> jedes Modul ohne Ziel ein No-op ist – dieselbe Form wie `capture_svc`/`consumption_svc`,
+> also kein `if` nach dem Modultyp an der Ausführungsstelle. Ein **Versand** (andere
+> Anschrift) wird nicht stillschweigend als interner Weg verbucht, sondern nennt seinen
+> Grund.
+> **Die Vergabe ist EIN Zyklus, und der KANAL ist die einzige Variable** (§15.5,
+> `domain/vergabe.py` + `services/awards.py`, Migration `112`): anfragen · anbieten ·
+> vergeben · abnehmen · ablehnen · scheitern – heute ein Transport, morgen eine
+> Beschaffung, darum **eine** Tabelle und keine je Modul. Der Kanal ändert, *woher* die
+> Angebote kommen (`plattform` aus einer Schnittstelle · `portal` von einem Menschen ·
+> `selbst` gar nicht), **nie**, welche Zustände es gibt: **Rate-Shopping IST eine
+> Ausschreibung**, sie dauert nur 2 Sekunden statt 2 Tage. Ein neuer Kanal ist damit ein
+> Adapter, kein zweiter Zyklus – und er kostet die Oberfläche **keinen Eintrag**, weil der
+> Katalog **generiert** wird (`scripts/dump_vergabe.py` → `lib/vergabe-catalog.ts`, in der
+> CI wie `api.ts` auf Aktualität geprüft).
+> **Das System vergibt nie selbst.** Es darf Angebote holen und das günstigste
+> **vorwählen**; die Wahl trifft ein Mensch – geprüft in beide Richtungen (das teurere
+> lässt sich wählen; wer das verbietet, hat aus der Vorwahl eine Wahl gemacht). Ab
+> `vergeben` rührt es nichts mehr an, es meldet.
+> **Der Ort folgt der Leistung, nicht der Absicht**: eine Ablage entsteht erst mit
+> `erbracht`, und sie wird über `places.record` geschrieben – dieselbe eine Stelle wie
+> überall. Ob etwas **angekommen** ist, fragt das Modul aber am **Ort**, nicht an der
+> Vergabe: eine erbrachte ist terminal und läge Monate später immer noch da; aus einem
+> alten Vorgang zu schliessen, dass heute etwas am Ziel liegt, ist genau die Ableitung,
+> die still falsch wird. Im Normalfall (Kanäle `portal`/`selbst`) **scannt der Mensch am
+> Ziel die Stücke ein** – eine ganz gewöhnliche Ablage –, und damit läuft das Modul weiter.
+> **Die Matrix geht nie rückwärts**, geprüft beim Import. Daraus folgt der einzige nicht
+> offensichtliche Zustand: eine vergebene, aber nie erbrachte Leistung wird
+> **`gescheitert`** (terminal, **Grund Pflicht**), und die Fuhre bekommt eine **ganz
+> normale zweite** Vergabe – dass das geht, folgt von selbst daraus, dass `gescheitert`
+> terminal ist und `open_for` sie nicht mehr findet. Ein «Zurücknehmen» wäre der bequemere
+> Weg und der falsche: eine Korrektur ist im ganzen Haus ein **neuer Eintrag** (G5.1), und
+> rückwärts stünden am Ende zwei Zeilen gleichzeitig auf `vergeben`.
+> **Ein Endpunkt je Vorgang, keiner je Zustand** – ein `PATCH {state: …}` wäre die zweite
+> Stelle, an der die Übergangsmatrix gepflegt wird. Geschrieben wird eine **Handlung**;
+> welcher Zustand daraus folgt, entscheidet die Registry (`assert_transition` ist die eine
+> Prüfstelle, `_move` die eine Schreibstelle – beides als AST-Wächter festgehalten).
+> **Der Fund beim Bauen: der Kanal `selbst` war eine Sackgasse.** Er kommt nie zu einem
+> Angebot, und `vergeben` ging nur aus `angeboten` – er blieb für immer `angefragt`.
+> Behoben nicht mit einem zweiten Ablauf je Kanal, sondern mit **einer Kante mehr in
+> derselben Matrix** (`angefragt → vergeben`); dass ein Kanal **mit** Angeboten sie nicht
+> benutzen kann, folgt aus dem Dienst (dort ist das gewählte Angebot Pflicht, und sobald
+> eines da ist, steht die Vergabe ohnehin auf `angeboten`). Die Matrix sagt, welche
+> Zustandsfolgen es gibt; der Kanal sagt, woher die Angebote kommen.
+> **Der Kanal «Plattform» ist ein Adapter, kein zweiter Zyklus** (§15.5a, Migration `113`,
+> `services/carriers/`): Er beantwortet **drei Fragen** – was kostet ein Transport, wie
+> sieht sein Etikett aus, ist er angekommen – und kennt **weder Auftrag noch Modul noch
+> Ort**. Was er liefert, wird durch **dieselbe** Stelle geschrieben wie ein im Portal
+> getipptes Angebot (`awards.add_offer`); ein Adapter, der selbst `angeboten` schriebe,
+> wäre der zweite Zyklus, den §15.5 gerade verbietet. Ein AST-Wächter hält das fest –
+> und er hat beim Gegenprüfen den eigenen blinden Fleck gemeldet (er las das **Modul**
+> eines Imports, nicht den importierten **Namen**).
+> **Das Paket ist ABGELEITET, nie eingegeben** (`services/parcel.py`): Gewicht und Grösse
+> stehen am Artikel, was eine Fuhre wiegt ist die Summe über ihre Stücke, die Masse
+> werden gestapelt (die einfachste Annahme, die nie kleiner ist als die Wirklichkeit).
+> **Fehlt ein Gewicht, wird nicht geraten** – die Anfrage nennt den Artikel; ein
+> geschätztes Paket ergäbe einen Preis, der beim Wiegen nicht stimmt und erst auf der
+> Rechnung des Frachtführers auffällt. Was »3x40x600« **bedeutet**, entscheidet der
+> Artikel (`schemas/article.parse_size`, neben `normalize_size` – zwei **Formen**
+> derselben Regel, nicht zwei Regeln); der Paket-Dienst rechnet nur mm → cm.
+> **Ohne Schlüssel gibt es den Kanal NICHT** – er ist nicht wählbar, statt zu erscheinen
+> und zu scheitern, und es gibt **keinen Rückfall** auf einen anderen Anbieter: welcher
+> Dritte fährt, ist eine Entscheidung. Der Vorgänger fiel stillschweigend auf «manual»
+> zurück («nie kaputt») – und genau darum merkte niemand, dass nie ein Tarif kam. Gefragt
+> werden darum **alle eingerichteten** Anbieter, nicht ein ausgewählter: eine
+> Ausschreibung fragt mehrere. `services/shipping/` ist **ersatzlos gelöscht**; Shippo und
+> Sendcloud sind **neu geschrieben** und stehen mit ihren Schlüsseln sauber bereit.
+> **Der Tarifabruf steht am MODUL** (`POST …/steps/{id}/quote`), nicht am Vergabe-Router:
+> dort wohnt die Fuhre. Der Vergabe-Router müsste sonst Auftrag und Modul kennen – genau
+> die Kopplung, die ADR 009 vermeidet (eine Vergabe gehört keinem Auftrag; morgen hängt
+> sie an einer Bedarfszeile). **Geholt wird auf Klick**, nie beim Öffnen: das wäre ein
+> Vorgang bei einem Dritten, den niemand bestellt hat, und bei manchen Anbietern kostet er.
+> **Vergeben IST der Kauf**: beim Plattform-Kanal entsteht mit der Vergabe das Etikett.
+> Ein eigener Knopf daneben wäre ein zweiter Weg zu einer Sendung – und dann gäbe es eine
+> vergebene Vergabe ohne Etikett, eine Zusage, die niemand einlösen kann.
+> **Tracking ist eine Beobachtung wie ein Scan**: dieselbe Tabelle, dieselbe eine
+> Schreibstelle (`places.record`), nur `source='tracking'`. Dafür hält die Vergabe **ihre
+> Stücke ab dem Angebot** (`awards.unit_ids`) – wer Tarife holt, beschreibt ein Paket, und
+> ein Paket hat einen Inhalt; gebraucht wird er genau einmal, wenn niemand am Ziel steht.
+> Eine **unzustellbare** Sendung macht die Vergabe **nicht** automatisch «gescheitert»:
+> das ist die Feststellung eines Menschen, mit Pflicht-Grund. Darum heissen die
+> Sendungs-Zustände auch anders (`unterwegs · zugestellt · **unzustellbar**`) – dass
+> beide einmal «gescheitert» hiessen, hat der Registry-Wächter gemeldet.
+> **Ein Frachtführer ist kein ERP-Datensatz**: ein Angebot nennt seinen Anbieter als
+> **Objektnummer ODER als Name**, und ob er ein Datensatz ist, entscheidet, woher es
+> kommt. «Swiss Post» als Lieferanten anzulegen wäre erfundene Daten – und zwar solche,
+> die jemand später pflegen müsste.
+> Wächter: `tests/test_carrier.py` (11) – **jeder gegen seine Bug-Form gegengeprüft**;
+> dazu ein Durchlauf über die echten HTTP-Endpunkte (22 Prüfungen: kein Schlüssel → kein
+> Kanal → Tarife → günstigstes vorgewählt, teureres wählbar → Etikett → unterwegs →
+> zugestellt → Ablage mit `source='tracking'` → Modul läuft).
+> **Die Historie des Scheiterns steht in ADR 009 §2**, belegt am Altcode: `movable_instances`
+> (drei Zweige, vier Ausnahmen – ein Modul las Verbleib und Auftragsgrund, um zu
+> entscheiden, woran es arbeitet), `location_split` (Mengen-Map + denormalisierter Skalar +
+> Umschalter), `provisioning` (legte selbst an, steht auf `AUTO_PROVISIONING = False`),
+> `logistics` (gespeicherte Transportklasse, zwei Migrationen zum Loswerden). Sechs
+> **verbotene Formen** sind als AST-Wächter festgeschrieben.
+> **Offen und benannt statt versteckt** (SYSTEM_LOGIC §7.6): **wer** vergeben darf – jeder
+> Endpunkt hängt heute an `require_employee`, und ab `vergeben` entsteht eine
+> Verpflichtung gegenüber einem Dritten. Das ist die erste Stelle im System, an der eine
+> Rolle je Vorgang zählen könnte; sie auf Verdacht zu bauen wäre die Regel, die niemand
+> bestellt hat.
+> Wächter: `tests/test_place.py` (24) · `tests/test_award.py` (19) – **jeder gegen seine
+> Bug-Form gegengeprüft** (26 Fehlerformen hergestellt, 26 gemeldet); dazu ein Durchlauf
+> über die echten HTTP-Endpunkte (27 Prüfungen: Fuhre → 409 mit Grund → Vergabe →
+> Ankunft am Ziel → Modul läuft → Scheitern → zweite Vergabe).
+> **Und im Ressourcenmodul steht der Ort NEBEN der Verfügbarkeit, nie davor**
+> (SYSTEM_LOGIC §7.3b, ADR 009 §6.3): «200 verfügbar — in Werk 2» ist eine **Auskunft**,
+> kein Abzug – ein Ort blockiert nie, er sagt nur, ob ein Transport daraus folgt. Genau
+> dort ist der Vorgänger gescheitert: er machte aus dem Ort einen Zustand, und ein Zustand
+> blockiert. **Verglichen wird die Anschrift, nicht der Halter** (dieselbe eine Funktion
+> wie beim Bewegen, `places.same_place`) – der unterscheidende Fall ist die Kiste im Werk:
+> anderer Halter, gleiche Anschrift, und die hat sie über die **Kette**; ein
+> Halter-Vergleich machte aus jedem Umräumen einen Transport. **Ohne Beobachtung wird
+> nichts behauptet**: `here` ist dreiwertig, und «nicht bekannt» ist etwas anderes als
+> «woanders» (ein Transport ins Ungewisse wäre schlimmer als keiner) – dasselbe gilt für
+> «gebraucht **wo**?», sobald die wartenden Stücke verteilt stehen.
+> **Der Transport ist ABGELEITET, nicht gespeichert**: gefragt wird, ob ein laufender
+> Auftrag Material **dieses Artikels** an genau diesen Ort bringt – nach dem *Artikel*,
+> nicht nach der freien Quelle, denn sobald der Transport zugreift, ist sie nicht mehr
+> frei und der Verweis verschwände genau dann, wenn er zählt. Ein Zeiger am Auftrag
+> (`origin_step_id`) war gebaut, wurde von den **Basis-Wächtern gemeldet** und ist samt
+> Migration zurückgenommen: eine fünfte Spalte auf einer bewusst vierspaltigen Tabelle,
+> und sie kann veralten. Er ist ein **leichter Verweis, keine Kante** – ein Transport
+> bewegt Stücke, die nie auf dieser Achse waren, und als Abzweig gezeichnet rechnete die
+> Bilanz falsch. Angelegt wird er durch den **Klick**: der Knopf füllt einen ganz
+> gewöhnlichen Auftragsentwurf vor. Wächter: `tests/test_resource_place.py` (7, R1–R6,
+> jeder gegen seine Bug-Form gegengeprüft); dazu 17 Prüfungen über die echten
+> HTTP-Endpunkte.
+> **⚠ Beim Deploy gefunden: eine Tabelle wird VOLLSTÄNDIG angelegt oder gar nicht.**
+> Migration `112` legte `awards` an und vergass `is_active` (aus `TimestampMixin`). Gegen
+> die per `create_all` gebaute Entwicklungs-Datenbank liefen **alle 397 Tests grün**; gegen
+> ein aus den Migrationen gebautes Schema fielen **20** aus, und im Betrieb hätte **jede**
+> Vergabe-Abfrage einen 500 geworfen – also jede externe Fuhre eines Bewegen-Moduls.
+> **Die Migration hatte ihre eigene Begründung falsch aufgeschrieben**: «hier kann die
+> Ausfallklasse von 090 nicht auftreten, fehlende **Tabellen** legt `create_all()` an».
+> Das stimmt – und trifft den Fall nicht: `create_all` legt an, was **ganz** fehlt, und
+> fasst eine Tabelle, die es schon gibt, **nie** an. Eine halb angelegte Tabelle ist damit
+> **schlimmer** als eine fehlende: sie sieht fertig aus und hat kein Netz. Das ist die
+> schärfere Fassung der 090-Regel, nicht ein zweiter Fall.
+> **Behoben in der Migration selbst** (sie war nie deployt – eine Folge-Migration hätte
+> eine unvollständige Vorlage stehen lassen, die der Nächste kopiert), plus der Eintrag im
+> Lifespan-Netz für Datenbanken, die die alte Fassung schon gefahren haben.
+> **Der dauerhafte Schutz ist ein Wächter, nicht ein Einzelfix**
+> (`tests/test_schema_from_migrations.py`): er baut das Schema **von null** in eine
+> Wegwerf-Datenbank und hält es gegen `Base.metadata` – jede Spalte muss aus ihrer
+> Migration **oder** dem Lifespan-Netz kommen, und jede Tabelle ohne Migration ist
+> **benannt** (`CREATE_ALL_ONLY`, heute genau `objects`) statt still geduldet; ein
+> verrotteter Eintrag wird gemeldet. Die Erwartung ist **abgeleitet, nicht gepflegt** –
+> eine Liste erwarteter Tabellen wäre genau die Form, die beim nächsten Modell vergessen
+> wird. Kosten: ~4 s. Drei Bug-Formen hergestellt, drei gemeldet – darunter der echte
+> Fehler.
+>
 > **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
 > Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,
 > jeder Statuswechsel schreibt einen Eintrag im append-only Ereignis-Log; Exklusivität als

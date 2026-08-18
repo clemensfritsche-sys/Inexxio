@@ -62,28 +62,28 @@ class Settings(BaseSettings):
     # Stripe Tax (automatic_tax) am Checkout. NUR aktivieren, wenn im Stripe-Dashboard
     # eingerichtet (Sitz-Adresse + Registrierung) – sonst schlägt die Checkout-Erstellung fehl.
     stripe_tax_enabled: bool = False
-    # ── Logistik / Versand ────────────────────────────────────────────────────────
-    # Carrier-Aggregator (Rate-Shopping + Label-Kauf): 'shippo' aktiviert sich von selbst,
-    # sobald SHIPPO_API_KEY gesetzt ist (Self-Serve wie Stripe: Test-Key sofort sichtbar
-    # nach Registrierung, Pay-per-Label, keine Vertrags-Eintrittsbarriere; solide EU-
-    # Carrier-Abdeckung). Ohne Key läuft der 'manual'-Fallback (Carrier/Tracking von Hand
-    # erfassen) – nie kaputt. Der Anbieter ist hinter dem Gateway austauschbar.
-    shippo_api_key: str = ""
-    shippo_api_url: str = "https://api.goshippo.com"
-    # Sendcloud (europäischer Aggregator MIT nativer Schweiz-Herkunft: Swiss Post, DPD,
-    # DHL … – Shippos Gratis-Carrier können CH-Herkunft NICHT). Zwei Schlüssel (HTTP-Basic:
-    # Public = User, Secret = Passwort), self-serve im Sendcloud-Panel erzeugbar; ohne
-    # eigenen Carrier-Vertrag über Sendclouds Tarife startbar, Test-Labels («Unstamped
-    # letter») kostenlos. Aktiviert sich selbst, sobald beide Keys gesetzt sind.
+    # ── Der Kanal «Plattform»: Frachtführer-Schnittstellen ────────────────────────
+    # **Ohne Schlüssel gibt es den Kanal nicht** (SYSTEM_LOGIC K4) – er ist dann nicht
+    # wählbar, statt zu erscheinen und zu scheitern. Und es gibt **keinen Rückfall** auf
+    # einen anderen Anbieter: welcher Dritte fährt, ist eine Entscheidung, und eine stille
+    # Ersatzwahl ist keine. (Der Vorgänger fiel auf «manual» zurück – «nie kaputt» –, und
+    # genau darum sah niemand, dass nie ein Tarif kam.)
+    #
+    # Sendcloud: europäischer Aggregator MIT nativer Schweiz-Herkunft (Swiss Post, DPD,
+    # DHL). Zwei Schlüssel, HTTP-Basic (Public = Benutzer, Secret = Passwort), im Panel
+    # selbst erzeugbar; Test-Etiketten kostenlos.
     sendcloud_public_key: str = ""
     sendcloud_secret_key: str = ""
     sendcloud_api_url: str = "https://panel.sendcloud.sc/api/v2"
-    # Anzeige-Währung der Sendcloud-Tarife (das Panel liefert nicht immer eine Währung mit).
+    # Das Panel liefert nicht zu jedem Tarif eine Währung mit – diese gilt dann.
     sendcloud_currency: str = "EUR"
-    # Aktiver Versand-Provider: 'auto' (bevorzugt Sendcloud, dann Shippo, dann manual) |
-    # 'sendcloud' | 'shippo' | 'manual'. Erlaubt, beide Adapter im Code zu halten und den
-    # aktiven per Konfiguration zu wählen (heute Sendcloud; Shippo bleibt als Fallback).
-    shipping_provider: str = "auto"
+    # Shippo: US-zentriert, Pay-per-Label, ein Schlüssel. Rechnet in Zoll/Pfund, sofern
+    # nicht anders gesagt – der Adapter schickt darum ausdrücklich cm/kg.
+    shippo_api_key: str = ""
+    shippo_api_url: str = "https://api.goshippo.com"
+    # Wie lange auf einen Frachtführer gewartet wird. Ein Tarifabruf ist eine Anfrage bei
+    # einem Dritten; ohne Grenze hinge die Oberfläche an dessen Verfügbarkeit.
+    carrier_timeout_s: float = 12.0
 
     # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},
     # Basis CHF). Schlägt der Abruf fehl, wird der letzte bekannte Kurs verwendet.

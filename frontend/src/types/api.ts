@@ -832,6 +832,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Haul
+         * @description **Tarife für eine Fuhre holen** (PROCESS_CORE §15.5a).
+         *
+         *     Er steht **hier** und nicht am Vergabe-Router, weil hier die **Fuhre** wohnt: welche
+         *     Stücke von wo nach wo gehen, weiss das Modul. Der Vergabe-Router müsste dafür Auftrag
+         *     und Modul kennen – und das wäre die Kopplung, die ADR 009 gerade vermeidet (eine
+         *     Vergabe gehört keinem Auftrag; morgen hängt sie an einer Bedarfszeile).
+         *
+         *     **Das Paket ist abgeleitet, nie eingegeben** (K3): Gewicht und Grösse stehen am
+         *     Artikel. Fehlt ein Gewicht, wird **nicht geraten** – die Antwort nennt den Artikel.
+         *
+         *     **Geholt wird auf Klick**, nie von selbst (K7/§15.7): ein Abruf beim Öffnen des
+         *     Moduls wäre ein Vorgang bei einem Dritten, den niemand bestellt hat.
+         */
+        post: operations["quote_haul_api_v1_erp_orders__object_id__steps__step_id__quote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/steps/{step_id}/hold": {
         parameters: {
             query?: never;
@@ -979,6 +1010,282 @@ export interface paths {
         get: operations["unit_genealogy_api_v1_erp_instances__object_id__units__suffix__genealogy_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Place Units
+         * @description **Ablegen.** Je Stück eine neue Beobachtung – append-only, kein Update-Pfad.
+         *
+         *     Ändert **nichts** ausser dem Ort: kein Status, keine Zugehörigkeit, kein Eintrag im
+         *     Ereignis-Log (SYSTEM_LOGIC O3). Genau deshalb darf jedes Stück abgelegt werden,
+         *     gleich in welchem Zustand es ist.
+         */
+        post: operations["place_units_api_v1_erp_places_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/places/unit/{unit_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where Is
+         * @description **Wo ist X?** Der aktuelle Ort, die Kette nach aussen und die Historie.
+         *
+         *     Ohne Beobachtung ist ``holder`` leer – «nicht bekannt» ist die ehrliche Antwort,
+         *     ein geratener Ort wäre die Alternative.
+         */
+        get: operations["where_is_api_v1_erp_places_unit__unit_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/places/holder/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What Lies Here
+         * @description **Was liegt hier?** Die Stücke, deren letzte Beobachtung auf diese Nummer zeigt.
+         *
+         *     Seitenweise, mit Gesamtzahl daneben. Ein Halter, den es nicht gibt, wird als solcher
+         *     zurückgegeben (``type = null``) statt als leere Liste – sonst sähe ein Tippfehler
+         *     aus wie ein leeres Regal.
+         */
+        get: operations["what_lies_here_api_v1_erp_places_holder__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Award
+         * @description **Anfragen** (V1) – durch den Klick eines Menschen.
+         *
+         *     Idempotent: gibt es für denselben Anlass schon eine offene, kommt sie zurück. Ein
+         *     Modul wird oft betrachtet, bevor jemand handelt – eine zweite Zeile je Blick wäre
+         *     ein Vorgang, den niemand bestellt hat.
+         */
+        post: operations["request_award_api_v1_erp_awards_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Channels
+         * @description Welche Kanäle **jetzt** wählbar sind.
+         *
+         *     Steht **vor** ``/{award_id}``, sonst läse FastAPI «channels» als Vergabe-Nummer –
+         *     eine Reihenfolge-Falle, die man nur einmal erlebt.
+         */
+        get: operations["channels_api_v1_erp_awards_channels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Award */
+        get: operations["read_award_api_v1_erp_awards__award_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Offer
+         * @description Ein Angebot eintragen (V2) – der Weg des Kanals «Lieferantenportal».
+         *
+         *     Derselbe Vorgang wie beim Plattform-Kanal, nur langsamer: Rate-Shopping IST eine
+         *     Ausschreibung. Darum dieselbe Zeile und kein zweiter Mechanismus.
+         */
+        post: operations["add_offer_api_v1_erp_awards__award_id__offers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant
+         * @description **Vergeben** (V3) – ab hier ist ein Zweiter gebunden.
+         *
+         *     Das System wählt nie selbst: es darf Angebote holen und das günstigste vorwählen,
+         *     die Wahl trifft ein Mensch. Danach rührt es nichts mehr an, es meldet.
+         */
+        post: operations["grant_api_v1_erp_awards__award_id__grant_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/deliver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deliver
+         * @description **Erbracht** (V4) – und erst jetzt entsteht die Ablage.
+         *
+         *     Der Ort ist eine Beobachtung: geschrieben wird er, wenn etwas angekommen ist, nicht
+         *     wenn es bestellt wurde. Über ``places.record``, dieselbe eine Stelle wie überall.
+         */
+        post: operations["deliver_api_v1_erp_awards__award_id__deliver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/track": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track
+         * @description **Wo ist die Sendung?** – und wenn sie da ist, entsteht die Ablage.
+         *
+         *     Tracking ist eine **Beobachtung wie ein Scan**: dieselbe Tabelle, dieselbe eine
+         *     Schreibstelle, nur `source='tracking'`. Gefragt wird auf **Klick** – ein Abruf beim
+         *     Öffnen wäre ein Vorgang bei einem Dritten, den niemand bestellt hat, und bei manchen
+         *     Anbietern kostet er.
+         *
+         *     Ein **gescheiterter** Transport macht die Vergabe nicht automatisch «gescheitert»:
+         *     das ist die Feststellung eines Menschen, mit Pflicht-Grund. Hier wird gemeldet.
+         */
+        post: operations["track_api_v1_erp_awards__award_id__track_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject
+         * @description **Abgelehnt** (V5) – der Vorgang endet ohne Vergabe.
+         */
+        post: operations["reject_api_v1_erp_awards__award_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/fail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fail
+         * @description **Gescheitert** (V6) – vergeben, aber nicht erbracht. **Grund ist Pflicht.**
+         *
+         *     Kein Zurücknehmen: die Matrix geht nie rückwärts, und eine Korrektur ist ein neuer
+         *     Eintrag. Danach bekommt die Sache eine ganz normale **zweite** Vergabe – dass das
+         *     geht, folgt daraus, dass «gescheitert» terminal ist und nicht mehr als offen zählt.
+         */
+        post: operations["fail_api_v1_erp_awards__award_id__fail_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1423,6 +1730,114 @@ export interface components {
              */
             missing?: string[];
         };
+        /**
+         * AwardCreate
+         * @description Eine Vergabe **anfragen** (V1).
+         *
+         *     Sie entsteht durch den Klick eines Menschen – das System legt sie nie selbst an
+         *     (PROCESS_CORE §15.7). Genau daran sind die abgeleitete Bereitstellung und die
+         *     Begleit-Bewegungen des Vorgängers gescheitert.
+         */
+        AwardCreate: {
+            /** Subject Object Id */
+            subject_object_id: number;
+            /** Target Object Id */
+            target_object_id?: number | null;
+            /**
+             * Channel
+             * @default portal
+             */
+            channel: string;
+            /** Provider Object Id */
+            provider_object_id?: number | null;
+        };
+        /**
+         * AwardOfferResponse
+         * @description Ein Angebot. Je Kanal auf anderem Weg entstanden, hier dieselbe Zeile.
+         */
+        AwardOfferResponse: {
+            /** Id */
+            id: number;
+            provider?: components["schemas"]["HolderRef"] | null;
+            /** Provider Name */
+            provider_name?: string | null;
+            /** Carrier */
+            carrier?: string | null;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Days */
+            days?: number | null;
+            /** Label */
+            label?: string | null;
+        };
+        /**
+         * AwardResponse
+         * @description Eine Vergabe mit ihren Angeboten.
+         */
+        AwardResponse: {
+            /** Id */
+            id: number;
+            /** Subject Object Id */
+            subject_object_id: number;
+            target?: components["schemas"]["HolderRef"] | null;
+            /** State */
+            state: string;
+            /** Channel */
+            channel: string;
+            provider?: components["schemas"]["HolderRef"] | null;
+            /** Provider Name */
+            provider_name?: string | null;
+            /** Carrier */
+            carrier?: string | null;
+            /** Amount */
+            amount?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Due At */
+            due_at?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Chosen Offer Id */
+            chosen_offer_id?: number | null;
+            /** Label Url */
+            label_url?: string | null;
+            /** Tracking Number */
+            tracking_number?: string | null;
+            /** Tracking Url */
+            tracking_url?: string | null;
+            /** Offers */
+            offers?: components["schemas"]["AwardOfferResponse"][];
+            /**
+             * State Label
+             * @description Wie der Zustand heisst – **aus der Registry**, nicht aus der Oberfläche.
+             */
+            readonly state_label: string;
+            /**
+             * State Tone
+             * @description Der **Ampelton** – ``pending`` · ``done`` · ``danger``.
+             *
+             *     Er reist mit den Daten, statt in der Oberfläche noch einmal zugeordnet zu werden:
+             *     eine zweite Tabelle veraltet beim ersten neuen Zustand, und sie tut es
+             *     **stillschweigend** (die Lehre aus ``ModuleFacts.tone`` – dort gab ein
+             *     vergessener Rückfall jedem Modul die Farbe der Datenerfassung).
+             */
+            readonly state_tone: string;
+            /**
+             * Open
+             * @description Läuft sie noch? Abgeleitet aus ``terminal`` – keine zweite Liste.
+             */
+            readonly open: boolean;
+            /**
+             * Next States
+             * @description Welche Übergänge von hier aus möglich sind.
+             *
+             *     Die Oberfläche bietet damit genau das an, was der Dienst annimmt – sie rechnet
+             *     die Matrix nicht nach. Eine Schaltfläche, die scheitert, ist schlimmer als keine.
+             */
+            readonly next_states: string[];
+        };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
             /**
@@ -1440,6 +1855,21 @@ export interface components {
             key: string;
             /** Label */
             label: string;
+        };
+        /**
+         * ChannelAvailability
+         * @description Ist dieser Kanal **jetzt** wählbar? Und wenn nicht: warum.
+         *
+         *     Andere Frage als der generierte Katalog (der sagt, welche Kanäle es *gibt*). Eine
+         *     gemeinsame Liste wäre eine statische Datei, die eine Laufzeit-Tatsache behauptet.
+         */
+        ChannelAvailability: {
+            /** Value */
+            value: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * CompanyCreate
@@ -1637,6 +2067,18 @@ export interface components {
              * @default true
              */
             returns: boolean;
+        };
+        /**
+         * DeliverInput
+         * @description **Erbracht** (V4) – und erst jetzt entsteht die Ablage.
+         *
+         *     ``instance_unit_ids`` sind die Stücke, die angekommen sind. Leer heisst «keine» –
+         *     nicht «alle»: welche es waren, weiss der Mensch am Ziel, und ein geratener Satz wäre
+         *     eine Ablage, die niemand beobachtet hat.
+         */
+        DeliverInput: {
+            /** Instance Unit Ids */
+            instance_unit_ids?: number[];
         };
         /**
          * ErpAdminUpdate
@@ -2038,10 +2480,58 @@ export interface components {
              */
             still_in: boolean;
         };
+        /**
+         * GrantInput
+         * @description **Vergeben** (V3) – die Wahl eines Menschen.
+         *
+         *     Bei einem Kanal mit Angeboten ist das gewählte **Angebot** die Grundlage; ein daneben
+         *     getippter Preis wäre eine zweite Wahrheit über dieselbe Vereinbarung. Nur ``selbst``
+         *     nennt Dritten und Preis unmittelbar.
+         */
+        GrantInput: {
+            /** Offer Id */
+            offer_id?: number | null;
+            /** Provider Object Id */
+            provider_object_id?: number | null;
+            /** Amount */
+            amount?: number | string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Due At */
+            due_at?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HaulQuote
+         * @description **Tarife für EINE Fuhre holen** (PROCESS_CORE §15.5a).
+         *
+         *     Genannt wird nur der **Ausgangsort** – welche Stücke von dort weggehen und was sie
+         *     wiegen, leitet der Server ab. Eine Stückliste oder ein Gewicht von aussen wäre die
+         *     zweite Wahrheit über dasselbe Paket, und die stimmt beim Wiegen nicht.
+         */
+        HaulQuote: {
+            /** From Holder Object Id */
+            from_holder_object_id: number;
+        };
+        /**
+         * HeldUnit
+         * @description Ein Stück, das hier liegt.
+         */
+        HeldUnit: {
+            /** Instance Unit Id */
+            instance_unit_id: number;
+            /** Number */
+            number: string;
+            /** Instance Object Id */
+            instance_object_id: number;
+            /** Article Name */
+            article_name?: string | null;
+            /** Status */
+            status: string;
         };
         /**
          * HoldNumbers
@@ -2050,6 +2540,37 @@ export interface components {
         HoldNumbers: {
             /** Numbers */
             numbers?: string[];
+        };
+        /**
+         * HolderContents
+         * @description «Was liegt hier?» – seitenweise, mit Gesamtzahl daneben.
+         *
+         *     Nie alles auf einmal: bei einer 5000er-Charge wäre die volle Liste ein Vielfaches
+         *     des Datensatzes, an dem sie hängt.
+         */
+        HolderContents: {
+            holder: components["schemas"]["HolderRef"];
+            /** Units */
+            units?: components["schemas"]["HeldUnit"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * HolderRef
+         * @description Ein Halter, aufgelöst. ``type``/``name`` sind ``None``, wenn die Nummer ins Leere
+         *     zeigt – das ist dann die Aussage und wird in der Oberfläche **gemeldet**, nicht als
+         *     «kein Ort» gezeigt (SYSTEM_LOGIC O2.4).
+         */
+        HolderRef: {
+            /** Object Id */
+            object_id: number;
+            /** Type */
+            type?: string | null;
+            /** Name */
+            name?: string | null;
         };
         /**
          * InstanceResponse
@@ -2259,6 +2780,9 @@ export interface components {
             instance_object_id: number;
             /** Free */
             free: number;
+            holder?: components["schemas"]["HolderRef"] | null;
+            /** Here */
+            here?: boolean | null;
         };
         /**
          * ObjectReference
@@ -2288,6 +2812,25 @@ export interface components {
             object_id: number;
             /** Object Type */
             object_type: string;
+        };
+        /**
+         * OfferCreate
+         * @description Ein Angebot eintragen (V2) – der Weg des Kanals ``portal``.
+         */
+        OfferCreate: {
+            /** Provider Object Id */
+            provider_object_id: number;
+            /** Amount */
+            amount: number | string;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Days */
+            days?: number | null;
+            /** Label */
+            label?: string | null;
         };
         /**
          * OrderCreate
@@ -2520,6 +3063,72 @@ export interface components {
             last_used_at?: string | null;
         };
         /**
+         * PlaceCreate
+         * @description Die Ablage.
+         *
+         *     **Der Kontext-Scan hat keinen Vorgabewert** (SYSTEM_LOGIC O5): ``holder_object_id``
+         *     ist Pflicht und kommt aus dem ersten Scan des Arbeitsgangs («wo bin ich»). Es gibt
+         *     keinen gemerkten, geerbten oder vorbelegten Ort – wer nicht scannt, legt nicht ab.
+         *
+         *     Ein Auftrag wird **nicht** verlangt: eine Ablage muss auch ohne Prozess möglich sein,
+         *     und genau diese Unabhängigkeit ist die Robustheit (§15.1).
+         */
+        PlaceCreate: {
+            /** Holder Object Id */
+            holder_object_id: number;
+            /** Instance Unit Ids */
+            instance_unit_ids: number[];
+            /**
+             * Source
+             * @default scan
+             */
+            source: string;
+        };
+        /**
+         * PlaceHop
+         * @description Eine Station der Kette. Die **Anschrift** am Ende trägt keine Objektnummer – sie
+         *     ist kein Datensatz und darum nicht anklickbar.
+         */
+        PlaceHop: {
+            /** Object Id */
+            object_id?: number | null;
+            /** Type */
+            type?: string | null;
+            /** Name */
+            name?: string | null;
+        };
+        /**
+         * PlaceObservation
+         * @description Eine Beobachtung – eine Zeile der Historie.
+         */
+        PlaceObservation: {
+            /** Id */
+            id: number;
+            holder: components["schemas"]["HolderRef"];
+            /** Source */
+            source: string;
+            /** Actor Name */
+            actor_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * PlaceResult
+         * @description Die Quittung einer Ablage – bewusst schlank.
+         *
+         *     Sie nennt, was geschah, nicht den ganzen Zustand danach: eine Antwort, die je Stück
+         *     Kette und Historie mitschickte, wäre bei einer 500er-Charge ein Vielfaches des
+         *     Vorgangs. Wer den Ort sehen will, fragt ihn (``GET …/places/unit/{id}``).
+         */
+        PlaceResult: {
+            /** Placed */
+            placed: number;
+            holder: components["schemas"]["HolderRef"];
+        };
+        /**
          * ProcessEventResponse
          * @description Ein Eintrag im Ereignis-Log. Append-only – es gibt keinen Schreib-Pfad hierauf.
          */
@@ -2575,6 +3184,8 @@ export interface components {
             work?: components["schemas"]["StepWork"][];
             /** Needs */
             needs?: components["schemas"]["StepNeed"][];
+            /** Hauls */
+            hauls?: components["schemas"]["StepHaul"][];
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -2620,6 +3231,18 @@ export interface components {
              *     Leer heisst: dieses Modul kennt keinen.
              */
             readonly reason: string;
+        };
+        /**
+         * ReasonInput
+         * @description Ablehnen (V5) oder **Scheitern** (V6). Beim Scheitern ist der Grund **Pflicht** –
+         *     ohne ihn steht später da, dass es nicht geklappt hat, aber nicht warum.
+         */
+        ReasonInput: {
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
         };
         /**
          * RecordEntry
@@ -2731,6 +3354,11 @@ export interface components {
          *     Kisten, die der Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe**: wie
          *     viel gebraucht wird, sagt die Stückliste des Moduls, und eine zweite Stelle dafür
          *     wäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst».
+         *
+         *     ``from_holder_object_id`` ist der **Kontext-Scan**: «wo bin ich». Er hat bewusst
+         *     **keinen Vorgabewert** und wird von dem Modul verlangt, das ihn braucht – ein
+         *     gemerkter Ort wäre die stille Fehlerklasse, bei der ein vergessener Wechsel den
+         *     falschen Ort schreibt und nichts fehlschlägt (PROCESS_CORE §15.3).
          */
         StepConfirm: {
             /** Values */
@@ -2743,6 +3371,38 @@ export interface components {
             verification?: string | null;
             /** Sources */
             sources?: number[];
+            /** From Holder Object Id */
+            from_holder_object_id?: number | null;
+        };
+        /**
+         * StepHaul
+         * @description Eine **Fuhre** des Moduls «Bewegen»: was von einem Ausgangsort ans Ziel geht.
+         *
+         *     Zwei Ausgangsorte sind **zwei** Fuhren, weil es physisch zwei Transporte sind – zwei
+         *     Preise, zwei Etiketten, zwei Ankünfte. Drei Stücke am selben Ort sind **eine**.
+         *
+         *     Sie ist **abgeleitet, nicht eingestellt** (Gruppierung nach heutigem Halter) und
+         *     zugleich nur eine **Vorschau**: massgeblich für die Ausführung ist der Kontext-Scan,
+         *     denn eine Beobachtung kann veraltet sein und ein Scan ist die Gegenwart.
+         *
+         *     ``internal`` ist **gerechnet**, nie gespeichert: gleiche Anschrift → innerbetrieblich,
+         *     sonst Versand (PROCESS_CORE §15.4). Der Vorgänger hat diese Klassifikation gespeichert
+         *     und zwei Migrationen gebraucht, um die Werte wieder loszuwerden.
+         */
+        StepHaul: {
+            from_holder?: components["schemas"]["HolderRef"] | null;
+            to_holder: components["schemas"]["HolderRef"];
+            /**
+             * Pieces
+             * @default 0
+             */
+            pieces: number;
+            /**
+             * Internal
+             * @default true
+             */
+            internal: boolean;
+            award?: components["schemas"]["AwardResponse"] | null;
         };
         /**
          * StepNeed
@@ -2770,6 +3430,9 @@ export interface components {
             available: number;
             /** Sources */
             sources?: components["schemas"]["NeedSource"][];
+            needed_at?: components["schemas"]["HolderRef"] | null;
+            /** Transports */
+            transports?: components["schemas"]["TransportRef"][];
         };
         /**
          * StepRecord
@@ -2908,6 +3571,41 @@ export interface components {
             company_object_id?: number | null;
         };
         /**
+         * TrackingResponse
+         * @description Wo die Sendung ist – und die Vergabe, wie sie danach dasteht.
+         *
+         *     Der **Zustand des Transports** (unterwegs · zugestellt · gescheitert) ist eine
+         *     Auskunft des Frachtführers; er ist bewusst **nicht** der Zustand der Vergabe. Ein
+         *     gescheiterter Transport macht sie nicht automatisch `gescheitert` – das ist die
+         *     Feststellung eines Menschen, mit Pflicht-Grund (V6).
+         */
+        TrackingResponse: {
+            /** State */
+            state: string;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            award: components["schemas"]["AwardResponse"];
+        };
+        /**
+         * TransportRef
+         * @description Ein laufender **Transport-Auftrag** – ein Verweis, mehr nicht.
+         *
+         *     Bewusst **nicht** ``RelatedOrder``: der bringt den vollständigen Ablauf mit, damit
+         *     die Spalte daneben ihn zeichnen kann. Hier gibt es keine Spalte und keine Kante –
+         *     ein Transport bewegt Stücke, die nie auf dieser Achse waren (§15.8). Mehr Beziehung
+         *     zu behaupten, als es gibt, ist der Anfang einer falschen Bilanz.
+         */
+        TransportRef: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name: string;
+            from_holder?: components["schemas"]["HolderRef"] | null;
+        };
+        /**
          * UnitOption
          * @description Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.
          *
@@ -2966,6 +3664,39 @@ export interface components {
             number: string;
             /** From Order */
             from_order?: number | null;
+        };
+        /**
+         * UnitPlaceResponse
+         * @description «Wo ist dieses Stück?» – der aktuelle Ort und seine Kette nach aussen.
+         *
+         *     ``holder is None`` heisst **nicht bekannt**: das Stück hat noch keine Beobachtung.
+         *     Das ist die ehrliche Antwort; ein geratener Ort wäre die Alternative.
+         */
+        UnitPlaceResponse: {
+            /** Instance Unit Id */
+            instance_unit_id: number;
+            /** Number */
+            number: string;
+            holder?: components["schemas"]["HolderRef"] | null;
+            /** Chain */
+            chain?: components["schemas"]["PlaceHop"][];
+            /**
+             * Chain Truncated
+             * @default false
+             */
+            chain_truncated: boolean;
+            /**
+             * Chain Cycle
+             * @default false
+             */
+            chain_cycle: boolean;
+            /** History */
+            history?: components["schemas"]["PlaceObservation"][];
+            /**
+             * History Truncated
+             * @default false
+             */
+            history_truncated: boolean;
         };
         /** UploadResult */
         UploadResult: {
@@ -4566,6 +5297,42 @@ export interface operations {
             };
         };
     };
+    quote_haul_api_v1_erp_orders__object_id__steps__step_id__quote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HaulQuote"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get: {
         parameters: {
             query: {
@@ -4757,6 +5524,394 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Genealogy"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    place_units_api_v1_erp_places_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    where_is_api_v1_erp_places_unit__unit_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitPlaceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    what_lies_here_api_v1_erp_places_holder__object_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolderContents"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_award_api_v1_erp_awards_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AwardCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    channels_api_v1_erp_awards_channels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelAvailability"][];
+                };
+            };
+        };
+    };
+    read_award_api_v1_erp_awards__award_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_offer_api_v1_erp_awards__award_id__offers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfferCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    grant_api_v1_erp_awards__award_id__grant_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deliver_api_v1_erp_awards__award_id__deliver_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliverInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    track_api_v1_erp_awards__award_id__track_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_api_v1_erp_awards__award_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fail_api_v1_erp_awards__award_id__fail_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
                 };
             };
             /** @description Validation Error */

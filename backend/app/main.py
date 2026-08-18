@@ -17,8 +17,8 @@ from .domain import statuses as st
 from .models import UserProfile
 from .core import features
 from .routers import (
-    admin, articles, attachments, auth, contact, erp, events, feedback, health,
-    instances, object_refs, orders, passkey,
+    admin, articles, attachments, auth, awards, contact, erp, events, feedback,
+    health, instances, object_refs, orders, passkey, places,
 )
 # Nicht importiert, weil abgeschaltet (siehe core/features.py): ai, consent, documents,
 # document_files, legal, sales, shop. Ihre Module hängen an der entfernten Prozesslogik
@@ -100,6 +100,25 @@ _COLUMN_SAFETY_NET = (
     # Modell kennt sie, also scheitert ohne sie **jede** Auftrags- und Bestandsabfrage –
     # dieselbe Ausfallklasse wie Migration 090.
     ("order_units", "return_to_order_id", "BIGINT"),
+    # Kanal «Plattform» (Migration 113): NEUE Spalten auf den BESTEHENDEN Tabellen
+    # ``awards``/``award_offers``. Das Modell kennt sie, also endet ohne sie **jede**
+    # Vergabe-Abfrage in einem 500 – und die hängt an jeder externen Fuhre eines
+    # Bewegen-Moduls. Dieselbe Ausfallklasse wie Migration 090.
+    ("awards", "provider_name", "VARCHAR(160)"),
+    ("awards", "carrier", "VARCHAR(40)"),
+    ("awards", "label_url", "VARCHAR(500)"),
+    ("awards", "tracking_number", "VARCHAR(120)"),
+    ("awards", "tracking_url", "VARCHAR(500)"),
+    ("awards", "shipment_ref", "TEXT"),
+    ("awards", "unit_ids", "JSONB"),
+    ("award_offers", "provider_name", "VARCHAR(160)"),
+    ("award_offers", "carrier", "VARCHAR(40)"),
+    # ``is_active`` aus ``TimestampMixin`` – Migration 112 hatte sie beim Anlegen der
+    # Tabelle vergessen (inzwischen dort ergänzt). Der Eintrag bleibt für Datenbanken, die
+    # die alte Fassung schon gefahren haben: eine **unvollständig angelegte** Tabelle ist
+    # schlimmer als eine fehlende, denn ``create_all`` legt fehlende Tabellen an, ergänzt
+    # aber nie eine fehlende Spalte in einer, die es schon gibt.
+    ("awards", "is_active", "BOOLEAN NOT NULL DEFAULT true"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -117,6 +136,14 @@ _NUMERIC_QTY_COLUMNS: tuple[tuple[str, str], ...] = ()
 # ALTER, falls Alembic übersprungen wurde. 'replenishment' (13 Zeichen) scheiterte an
 # der ursprünglichen Breite 12 – jede Auto-Nachbestellung endete im Truncation-Fehler.
 _VARCHAR_WIDEN_COLUMNS: tuple[tuple[str, str, int], ...] = ()
+
+# Spalten, deren **Pflicht** nachträglich entfallen ist (Migration 113): der Anbieter
+# eines Angebots darf ein **Name** sein statt einer Objektnummer – ein Frachtführer ist
+# kein ERP-Datensatz, und einen anzulegen wäre erfundene Daten. Ohne dieses Netz stünde
+# die alte NOT-NULL-Regel weiter da, und jedes Plattform-Angebot scheiterte.
+_NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
+    ("award_offers", "provider_object_id"),
+)
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
 # via create_all() (nicht Alembic) erzeugt – diese NOT-NULL/Alt-Spalten würden
@@ -279,6 +306,14 @@ def _ensure_columns() -> None:
                 if current is not None and current < width:
                     conn.execute(text(
                         f"ALTER TABLE {table} ALTER COLUMN {col} TYPE VARCHAR({width})"
+                    ))
+            # Pflichtangaben, die **gelockert** wurden. Dieselbe Ausfallklasse wie eine
+            # fehlende Spalte: das Modell schreibt NULL, die Tabelle verbietet es, und
+            # jeder Schreibvorgang endet in einem 500 – nur eben erst dann, wenn es zählt.
+            for table, col in _NULLABLE_SAFETY_NET:
+                if table in tables and col in {c["name"] for c in insp.get_columns(table)}:
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ALTER COLUMN {col} DROP NOT NULL"
                     ))
             for table, col in _DROP_COLUMN_SAFETY_NET:
                 if table in tables:
@@ -782,6 +817,8 @@ app.include_router(erp.router)
 app.include_router(articles.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
+app.include_router(places.router)
+app.include_router(awards.router)
 app.include_router(object_refs.router)
 app.include_router(events.router)
 app.include_router(attachments.router)

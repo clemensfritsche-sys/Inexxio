@@ -52,9 +52,17 @@ Nach jeder Änderung an einem Request/Response-Schema:
 ```bash
 cd backend && python -m scripts.dump_openapi     # → backend/openapi.json
 cd backend && python -m scripts.dump_statuses    # → frontend/src/lib/status-catalog.ts
+cd backend && python -m scripts.dump_vergabe     # → frontend/src/lib/vergabe-catalog.ts
 cd ../frontend && npm run generate:types          # → src/types/api.ts
 ```
 
+> **Der Vergabe-Zyklus ebenso.** `app/domain/vergabe.py` ist die eine Quelle für Zustände
+> und Kanäle. Was an einer konkreten Vergabe hängt (Beschriftung, Ampelton, mögliche
+> Handlungen), **reist mit ihren Daten** (`state_label`/`state_tone`/`next_states`);
+> generiert wird nur, was es ohne sie zu wissen gibt – die Liste der **Kanäle** für eine
+> Vergabe, die es noch gar nicht gibt. Ein neuer Kanal ist damit **eine Zeile im Backend**
+> und ohne Zutun in der Oberfläche wählbar.
+>
 > **Die Statusliste gehört dazu.** `app/domain/statuses.py` ist die eine Quelle; das
 > Frontend spiegelt sie nicht, es **bekommt** sie (`scripts/dump_statuses.py`). Ein neuer
 > Status ist **eine Zeile in `CATALOG`** – mit Beschriftung, Ampelton, Achsen und (für
@@ -94,6 +102,18 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | PATCH/DELETE | /api/v1/erp/articles/{object_id}/process-steps/{step_id} | staff | Prozessschritt ändern/entfernen |
 | GET | /api/v1/erp/articles/{object_id}/stock | staff | **Bestand** – Aufstellung (Zustand → Menge → **Block**) über ALLE Stücke + eine Seite Instanzen mit je eigener Aufstellung (PROCESS_CORE §10.3) |
 | GET | /api/v1/erp/instances/{object_id}/units | staff | Die **Nummern** der Einzelinstanzen – seitenweise, optional auf Zustände gefiltert (`status` mehrfach) |
+| POST | /api/v1/erp/places | staff | **Ablegen** – je Stück eine Beobachtung. Verlangt **keinen Auftrag** (freier Bestand ist der Normalzustand) und den **Kontext-Scan** ohne Vorgabewert. Ändert nie Status oder Zugehörigkeit. |
+| GET | /api/v1/erp/places/unit/{unit_id} | staff | **«Wo ist X?»** – aktueller Halter, **Kette** nach aussen (Behälter → Werk → Anschrift, zyklensicher und begrenzt; beides gemeldet statt still gekappt) und Historie. Ohne Beobachtung: leer = «nicht bekannt», nie ein geratener Ort. |
+| GET | /api/v1/erp/places/holder/{object_id} | staff | **«Was liegt hier?»** – die Stücke, deren **letzte** Beobachtung hierher zeigt; seitenweise mit Gesamtzahl. Beide Fragen lesen dieselbe Tabelle aus zwei Richtungen. |
+| POST | /api/v1/erp/awards | staff | **Vergabe anfragen** – EIN Zyklus für Transport und (künftig) Beschaffung. Idempotent je Anlass; der **Kanal** (`plattform`\|`portal`\|`selbst`) ist die einzige Variable. Das System legt **nie** selbst eine an. |
+| GET | /api/v1/erp/awards/{id} | staff | Eine Vergabe lesen – mit `state_label`, `state_tone` und `next_states`: die Oberfläche bietet an, was der Dienst annimmt, statt die Matrix nachzurechnen. |
+| POST | /api/v1/erp/awards/{id}/offers | staff | Ein **Angebot** eintragen. Je Kanal auf anderem Weg entstanden, hier dieselbe Zeile – Rate-Shopping IST eine Ausschreibung. |
+| POST | /api/v1/erp/awards/{id}/grant | staff | **Vergeben** – die Wahl eines Menschen. Bei einem Kanal mit Angeboten ist das gewählte Angebot die Grundlage; nur `selbst` nennt Dritten und Preis unmittelbar. |
+| GET | /api/v1/erp/awards/channels | staff | Welche Kanäle **jetzt** wählbar sind. Andere Frage als der generierte Katalog (der sagt, welche es *gibt*): ohne eingerichteten Frachtführer gibt es «Plattform» nicht. |
+| POST | /api/v1/erp/awards/{id}/track | staff | **Wo ist die Sendung?** Auf Klick, nie von selbst. Zugestellt → die Ablage entsteht über `places.record` (`source='tracking'`). Eine **unzustellbare** Sendung beendet die Vergabe NICHT – das ist die Feststellung eines Menschen. |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/quote | staff | **Tarife für eine Fuhre holen.** Steht am **Modul**, weil dort die Fuhre wohnt; genannt wird nur der Ausgangsort – Stücke und Paket leitet der Server ab. Fehlt ein Gewicht, wird nicht geraten: die Antwort nennt den Artikel. |
+| POST | /api/v1/erp/awards/{id}/deliver | staff | **Erbracht** – und erst jetzt entsteht eine Ablage (über `places.record`, dieselbe eine Stelle). |
+| POST | /api/v1/erp/awards/{id}/reject \| /fail | staff | **Abgelehnt** (ohne Vergabe zu Ende) bzw. **Gescheitert** (vergeben, nicht erbracht – **Grund Pflicht**). Danach bekommt die Sache eine ganz normale **zweite** Vergabe; kein Zurücknehmen, die Matrix geht nie rückwärts. |
 | GET | /api/v1/erp/orders | user | Auftrag-Feed (Lieferant: nur eigene, mit eingebettetem Prozess) |
 | POST | /api/v1/erp/orders | staff | **Auftrag erteilen** – Bedarf + Positionen + Ablauf + Instanz-Auswahl in EINEM Aufruf, anlegen **und** freigeben; erst dabei entsteht die Objektnummer (ein Entwurf existiert nie in der DB) |
 | GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed) |
@@ -238,6 +258,50 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **Die Invariantenprüfung fragt darum nach dem WIDERSPRUCH**, nicht nach dem Log allein
 > (`_verify_history`): ein Schreiber ausserhalb der Prozesslogik hinterlässt gar keinen
 > Eintrag – gefunden wird er nur, wenn Log und Zeile verglichen werden (§5.3).
+
+> **Der Ort steht NEBEN der Verfügbarkeit, nie davor** (`routers/orders._needs`,
+> `SYSTEM_LOGIC` §7.3b, ADR 009 §6.3). Das Ressourcenmodul fragt «ist genug da?»; der Ort
+> fügt «liegt es hier?» hinzu und darf die erste Frage **nicht überschreiben** – «200
+> verfügbar — in Werk 2» ist eine Auskunft, kein Abzug (R1). Ein Ort blockiert nie.
+> **Verglichen wird die Anschrift, nicht der Halter** (R2, `places.same_place` – dieselbe
+> Funktion wie beim Bewegen): der unterscheidende Fall ist die Kiste im Werk, also anderer
+> Halter bei gleicher Anschrift; sie hat ihre über die **Kette**. Ein Halter-Vergleich
+> machte aus jedem Umräumen einen Transport.
+> **`here` ist dreiwertig** (`True`/`False`/`None`): ohne Beobachtung wird **nichts**
+> behauptet (R3) – «nicht bekannt» ist etwas anderes als «woanders», und ein Transport ins
+> Ungewisse wäre schlimmer als keiner. Dasselbe gilt für «gebraucht **wo**?»: stehen die
+> wartenden Stücke verteilt, gibt es keine einzelne richtige Antwort (`common_place`).
+> **Der Transport ist ABGELEITET** (`_transports`, R4/R5): gefragt wird, ob ein laufender
+> Auftrag Material **dieses Artikels** an genau diesen Ort bringt – nach dem Artikel und
+> nicht nach der freien Quelle, denn sobald der Transport zugreift, ist sie nicht mehr
+> frei und der Verweis verschwände genau dann, wenn er zählt. Ein Zeiger am Auftrag
+> (`origin_step_id`) wäre eine fünfte Spalte auf einer bewusst vierspaltigen Tabelle und
+> könnte veralten; er wurde gebaut, von den Basis-Wächtern gemeldet und **zurückgenommen**.
+> Der Verweis ist bewusst leicht (`TransportRef`), **keine Kante**: ein Transport bewegt
+> Stücke, die nie auf dieser Achse waren – als Abzweig gezeichnet rechnete die Bilanz
+> falsch (§15.8). Wächter: `tests/test_resource_place.py` (R1–R6, jeder gegen seine
+> Bug-Form gegengeprüft).
+
+> **Alembic ist die Schema-Wahrheit – und eine Tabelle wird VOLLSTÄNDIG angelegt oder gar
+> nicht** (`tests/test_schema_from_migrations.py`). Die Regel aus Migration 090 lautete:
+> *eine neue Spalte auf einer **bestehenden** Tabelle ist erst fertig, wenn sie in der
+> Migration UND im Lifespan-Netz steht.* Sie ist richtig, aber zu eng – und genau deshalb
+> hat Migration `112` ihre eigene Begründung falsch aufgeschrieben («hier kann die
+> Ausfallklasse von 090 nicht auftreten, fehlende **Tabellen** legt `create_all()` an»).
+> **Das Netz greift bei einer unvollständigen Tabelle nicht.** `create_all()` legt an, was
+> ganz fehlt; eine Tabelle, die es schon gibt, fasst es **nie** an – auch dann nicht, wenn
+> ihr eine Spalte fehlt, die das Modell kennt. Eine halb angelegte Tabelle ist damit
+> **schlimmer** als eine fehlende: sie sieht fertig aus und hat kein Netz. Konkret fehlte
+> `awards.is_active` (aus `TimestampMixin`); gegen eine `create_all`-Datenbank liefen alle
+> Tests grün, gegen ein aus den Migrationen gebautes Schema endete **jede** Vergabe-Abfrage
+> in einem 500.
+> **Der Wächter leitet seine Erwartung aus dem Modell ab, nicht aus einer Liste**: er baut
+> das Schema in eine Wegwerf-Datenbank **von null** aus den Migrationen und vergleicht es
+> mit `Base.metadata` – jede Tabelle, jede Spalte. Ohne PostgreSQL überspringt er **mit
+> Grund**; ein Wächter, der still durchwinkt, ist von einem kaputten nicht zu
+> unterscheiden. Kosten: ~4 s.
+> Damit ist die Regel geprüft statt behauptet – und sie gilt für **jede** künftige
+> Migration, ohne dass jemand daran denken muss.
 
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete
