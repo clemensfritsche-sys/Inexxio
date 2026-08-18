@@ -884,3 +884,119 @@ def test_the_address_rule_lives_in_one_place_and_has_two_readers():
     assert "def same" in source("services/address.py"), (
         "Die Adressregel gehört nach services/address.py."
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# O7/O8 — Ohne Beobachtung wird nicht eingestuft · eine Handlung hat eine Stelle
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_an_unknown_source_is_not_classified_as_internal():
+    """**O7 – «nicht bekannt» ist weder intern noch Versand.**
+
+    Bug-Form (der gemeldete Fehler): ``internal = src is None or same_place(...)``. Ohne
+    Beobachtung wird geraten, und zwar in die falsche Richtung – die Fuhre gilt als
+    innerbetrieblich, trägt darum keine Vergabe, und die Oberfläche zeigt genau die
+    Handlung nicht, die fehlt. Die Ausführung stuft über den **Kontext-Scan** derweil
+    korrekt als Versand ein und verlangt eine Vergabe, die nirgends anzufragen ist:
+    eine Sackgasse.
+    """
+    from app.services import moving, places
+
+    db = session()
+    try:
+        nord = make_company(db, "Werk Nord O7", street="Industriestrasse", street_nr="4",
+                            zip_code="8000", city="Zürich", country="CH")
+        sued = make_company(db, "Werk Süd O7", street="Bahnhofplatz", street_nr="1",
+                            zip_code="3000", city="Bern", country="CH")
+        order, _instances, units = make_units(db, quantity=2)
+        step = make_move_step(db, order, sued.object_id)
+
+        # **Ohne Ablage**: nicht bekannt – und darum keine Einstufung.
+        offen = moving.hauls(db, step=step, units=units)
+        assert len(offen) == 1
+        assert offen[0].from_holder is None
+        assert offen[0].internal is None, (
+            "Ein unbekannter Ausgangsort wurde eingestuft – «nicht bekannt» ist weder "
+            "intern noch Versand (O7).")
+        assert offen[0].award is None, "Ohne Ausgangsort gibt es keinen Anlass."
+
+        # **Mit Ablage**: jetzt steht es fest, und zwar als Versand.
+        places.record(db, [u.id for u in units], nord.object_id, actor_id=None)
+        db.flush()
+        klar = moving.hauls(db, step=step, units=units)
+        assert klar[0].internal is False, (
+            "Andere Anschrift ist ein Versand – erst mit der Beobachtung ist das "
+            "entscheidbar.")
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_human_lays_down_an_instance_not_a_list_of_unit_keys():
+    """**O8 – die Eingabe ist, was ein Mensch scannt.**
+
+    Bug-Form: der Endpunkt verlangt ``instance_unit_ids``. Eine Einzelinstanz trägt gar
+    kein Etikett (§4.4) – diese Schlüssel kann ein Mensch nie haben, und genau daran war
+    der Endpunkt seit Stufe 2 unbenutzbar, obwohl Dienst, Regel und Wächter standen.
+
+    Die **Systemwege** rufen ``places.record`` unmittelbar und kennen ihre Stücke
+    ohnehin; über den Router legt nur ein Mensch ab.
+    """
+    from app.schemas.place import PlaceCreate
+
+    fields = set(PlaceCreate.model_fields)
+    assert "instance_object_id" in fields, (
+        "Die Ablage muss die Instanz nennen – das steht auf dem Etikett.")
+    assert "instance_unit_ids" not in fields, (
+        "Der Endpunkt verlangt wieder Einzelinstanz-Schlüssel; die kann ein Mensch nicht "
+        "scannen (O8).")
+
+    # Und die Systemwege gehen **nicht** über den Router.
+    for rel in ("services/awards.py", "services/moving.py"):
+        assert "places.record(" in source(rel), (
+            f"{rel} soll unmittelbar über den einen Dienst schreiben, nicht über den "
+            f"menschlichen Endpunkt.")
+
+
+def test_laying_down_turns_the_haul_into_a_requestable_shipment():
+    """**Der gemeldete Fall, Ende zu Ende** – über die echten Dienstpfade.
+
+    Vorher: keine Beobachtung ⇒ keine Einstufung ⇒ kein Anlass ⇒ die Vergabe ist
+    nirgends anzufragen, während die Ausführung sie verlangt.
+    Nachher: eine Ablage ⇒ Versand ⇒ der Anlass steht, und die Vergabe ist anfragbar.
+    """
+    from app.domain import vergabe
+    from app.services import awards, moving, places
+
+    db = session()
+    try:
+        nord = make_company(db, "Werk Nord E2E", street="Industriestrasse", street_nr="4",
+                            zip_code="8000", city="Zürich", country="CH")
+        sued = make_company(db, "Werk Süd E2E", street="Bahnhofplatz", street_nr="1",
+                            zip_code="3000", city="Bern", country="CH")
+        order, instances, units = make_units(db, quantity=2)
+        step = make_move_step(db, order, sued.object_id)
+
+        vorher = moving.hauls(db, step=step, units=units)[0]
+        assert vorher.internal is None and vorher.from_holder is None
+
+        # Die Ablage – über den Dienst, den der neue Knopf ruft.
+        places.record(db, [u.id for u in units], nord.object_id, actor_id=None)
+        db.flush()
+
+        fuhre = moving.hauls(db, step=step, units=units)[0]
+        assert fuhre.internal is False and fuhre.from_holder == nord.object_id
+        assert fuhre.award is None, "Das System fragt nie von sich aus an (§15.7)."
+
+        # Und jetzt lässt sie sich anfragen – der Anlass ist der Ausgangsort.
+        award = awards.request(db, subject_object_id=nord.object_id,
+                               target_object_id=sued.object_id,
+                               channel=vergabe.SELBST, actor_id=None)
+        db.flush()
+        assert awards.open_for(db, nord.object_id, sued.object_id) is not None
+        assert award.state == vergabe.ANGEFRAGT
+        assert moving.hauls(db, step=step, units=units)[0].award is not None, (
+            "Die angefragte Vergabe hängt nicht an ihrer Fuhre.")
+    finally:
+        db.rollback()
+        db.close()

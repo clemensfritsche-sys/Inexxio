@@ -274,12 +274,18 @@ class StepHaul(BaseModel):
     und zwei Migrationen gebraucht, um die Werte wieder loszuwerden.
     """
 
-    #: ``None`` = für diese Stücke gibt es noch keine Beobachtung. Kein Fehler – der
-    #: Kontext-Scan stellt den Ausgangsort beim Ausführen fest.
+    #: ``None`` = für diese Stücke gibt es noch keine Beobachtung. Kein Fehler – aber
+    #: auch keine Einstufung: dann fehlt zuerst eine **Ablage**.
     from_holder: Optional[HolderRef] = None
     to_holder: HolderRef
     pieces: int = 0
-    internal: bool = True
+    #: **Dreiwertig** (SYSTEM_LOGIC O7): ``True`` = innerbetrieblich · ``False`` =
+    #: Versand · ``None`` = Ausgangsort nicht bekannt. ``None`` ist keine der beiden
+    #: anderen Antworten – es zu «intern» zu machen versteckte die fehlende Ablage.
+    internal: Optional[bool] = None
+    #: Die Instanzen dieser Fuhre – damit die Ablage genau sie anbieten kann. Nicht die
+    #: Einzelinstanzen: die tragen kein Etikett (§4.4).
+    instance_object_ids: list[int] = Field(default_factory=list)
     #: Die **offene** Vergabe dieser Fuhre – nur bei einem Versand. Sie ist die Auskunft
     #: «woran liegt es», nicht die Regel: ob etwas angekommen ist, sagt der **Ort**.
     award: Optional["AwardResponse"] = None

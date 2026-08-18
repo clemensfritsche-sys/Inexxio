@@ -325,6 +325,33 @@
 > dazu ein Durchlauf über die echten HTTP-Endpunkte (22 Prüfungen: kein Schlüssel → kein
 > Kanal → Tarife → günstigstes vorgewählt, teureres wählbar → Etikett → unterwegs →
 > zugestellt → Ablage mit `source='tracking'` → Modul läuft).
+> **⚠ Beim Testen gefunden: ein Endpunkt ohne Aufrufer ist kein Feature** (SYSTEM_LOGIC
+> O7/O8). Gemeldet als «wo kann ich die Vergabe anfragen???» – und die ehrliche Antwort
+> war: **nirgends**. `POST /erp/places` (Ablegen) stand seit Stufe 2 mit Dienst, Regel und
+> 24 Wächtern, hatte aber **keinen einzigen Aufrufer im Frontend**. Ohne Ablage ist der
+> Ausgangsort «nicht bekannt» – und `moving.hauls` stufte das als **innerbetrieblich** ein
+> (`internal = src is None or same_place(…)`), also erschien kein Versand-Chip und keine
+> Vergabe. Die Ausführung stufte über den **Kontext-Scan** derweil korrekt als Versand ein
+> und verlangte eine Vergabe: eine **Sackgasse**, in der das System etwas fordert, das es
+> nirgends anbietet.
+> **Zwei Regeln daraus, beide allgemeiner als der Einzelfall.** **O7 – ohne Beobachtung
+> wird nicht eingestuft**: `internal` ist dreiwertig (intern · Versand · **nicht
+> bekannt**), genau wie `here` im Ressourcenmodul; die dritte Lage als eine der beiden
+> anderen zu zeigen ist eine Behauptung, und sie versteckt ausgerechnet die fehlende
+> Handlung. **O8 – eine menschliche Handlung hat eine Stelle in der Oberfläche**, und ihre
+> **Eingabe ist, was ein Mensch scannt**: der Halter und die **Instanz**. Eine Liste von
+> Einzelinstanz-Schlüsseln kann er nie haben – eine Einzelinstanz trägt gar kein Etikett
+> (§4.4). Genau daran war der Endpunkt unbenutzbar, obwohl alles darunter stimmte.
+> Der Ablage-Knopf schliesst dabei **beide** Enden: das Anfragen (Ausgangsort) und die
+> **Ankunft** – bei den Kanälen `portal`/`selbst` scannt der Mensch am Ziel ein, und weil
+> das Modul den **Ort** fragt und nicht die Vergabe, läuft es dann weiter.
+> Die Wächter prüften bis dahin die **Dienstpfade**, und die waren in Ordnung; die Kette
+> bis zum Menschen war es nicht – darum liest der neue Wächter jetzt die Oberfläche
+> (`test_every_human_endpoint_has_a_place_in_the_interface`, gerendert statt bloss
+> importiert: an dieser Unterscheidung wäre er beinahe selbst vorbeigelaufen).
+> Gemessen: 6 Bug-Formen hergestellt, 6 gemeldet; dazu 20 Prüfungen über die echten
+> HTTP-Endpunkte – der gemeldete Ablauf Schritt für Schritt.
+>
 > **Die Historie des Scheiterns steht in ADR 009 §2**, belegt am Altcode: `movable_instances`
 > (drei Zweige, vier Ausnahmen – ein Modul las Verbleib und Auftragsgrund, um zu
 > entscheiden, woran es arbeitet), `location_split` (Mengen-Map + denormalisierter Skalar +

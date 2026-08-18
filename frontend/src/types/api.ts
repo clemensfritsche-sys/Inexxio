@@ -1029,9 +1029,14 @@ export interface paths {
          * Place Units
          * @description **Ablegen.** Je Stück eine neue Beobachtung – append-only, kein Update-Pfad.
          *
+         *     Genannt wird die **Instanz** (das Etikett), die Stücke leitet der Server ab
+         *     (SYSTEM_LOGIC O8). Das ist die einzige Stelle, an der ein **Mensch** ablegt; die
+         *     Systemwege (``awards.deliver``, ``moving.record_for_step``) rufen ``places.record``
+         *     unmittelbar und kennen ihre Stücke ohnehin.
+         *
          *     Ändert **nichts** ausser dem Ort: kein Status, keine Zugehörigkeit, kein Eintrag im
-         *     Ereignis-Log (SYSTEM_LOGIC O3). Genau deshalb darf jedes Stück abgelegt werden,
-         *     gleich in welchem Zustand es ist.
+         *     Ereignis-Log (O3). Genau deshalb darf jedes Stück abgelegt werden, gleich in welchem
+         *     Zustand es ist.
          */
         post: operations["place_units_api_v1_erp_places_post"];
         delete?: never;
@@ -3064,11 +3069,20 @@ export interface components {
         };
         /**
          * PlaceCreate
-         * @description Die Ablage.
+         * @description Die Ablage – **was ein Mensch scannt** (SYSTEM_LOGIC O8).
          *
-         *     **Der Kontext-Scan hat keinen Vorgabewert** (SYSTEM_LOGIC O5): ``holder_object_id``
-         *     ist Pflicht und kommt aus dem ersten Scan des Arbeitsgangs («wo bin ich»). Es gibt
-         *     keinen gemerkten, geerbten oder vorbelegten Ort – wer nicht scannt, legt nicht ab.
+         *     **Der Kontext-Scan hat keinen Vorgabewert** (O5): ``holder_object_id`` ist Pflicht
+         *     und kommt aus dem ersten Scan des Arbeitsgangs («wo bin ich»). Es gibt keinen
+         *     gemerkten, geerbten oder vorbelegten Ort – wer nicht scannt, legt nicht ab.
+         *
+         *     **Der zweite Scan ist die Instanz**, nicht eine Liste von Einzelinstanzen: ein
+         *     Vorgang ist eine Instanz (§4.4), und eine Einzelinstanz zieht bewusst keine
+         *     Objektnummer – für sie kann es gar kein Etikett geben. Eine Liste interner Schlüssel
+         *     konnte ein Mensch nie haben; genau daran war dieser Endpunkt unbenutzbar, obwohl er
+         *     seit Stufe 2 steht.
+         *
+         *     Abgelegt wird die **ganze** Instanz. Eine Teilmenge an zwei Orte zu verteilen ist die
+         *     Sache des Moduls «Bewegen» (dort steht die Menge ohnehin), nicht einer Handablage.
          *
          *     Ein Auftrag wird **nicht** verlangt: eine Ablage muss auch ohne Prozess möglich sein,
          *     und genau diese Unabhängigkeit ist die Robustheit (§15.1).
@@ -3076,8 +3090,8 @@ export interface components {
         PlaceCreate: {
             /** Holder Object Id */
             holder_object_id: number;
-            /** Instance Unit Ids */
-            instance_unit_ids: number[];
+            /** Instance Object Id */
+            instance_object_id: number;
             /**
              * Source
              * @default scan
@@ -3397,11 +3411,10 @@ export interface components {
              * @default 0
              */
             pieces: number;
-            /**
-             * Internal
-             * @default true
-             */
-            internal: boolean;
+            /** Internal */
+            internal?: boolean | null;
+            /** Instance Object Ids */
+            instance_object_ids?: number[];
             award?: components["schemas"]["AwardResponse"] | null;
         };
         /**

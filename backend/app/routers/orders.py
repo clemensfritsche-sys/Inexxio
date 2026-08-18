@@ -219,11 +219,17 @@ def _hauls(db: Session, order: Order, step) -> list[StepHaul]:
     Die Arbeitsmenge kommt aus dem **Prozess** (``process.units_at_step``), nie aus dem
     Ort – der bestimmt allein die Gruppierung (SYSTEM_LOGIC O6).
     """
-    rows = moving_svc.hauls(db, step=step, units=process_svc.units_at_step(db, order, step))
+    units = process_svc.units_at_step(db, order, step)
+    rows = moving_svc.hauls(db, step=step, units=units)
     if not rows:
         return []
     wanted = {h.to_holder for h in rows} | {h.from_holder for h in rows if h.known}
     known = places_svc.resolve_holders(db, list(wanted))
+    # **Welche Instanzen trägt eine Fuhre?** Für die Ablage, die ein Mensch scannt – sie
+    # nennt die Instanz, nicht die Einzelinstanz (§4.4/O8). Eine Abfrage, kein N+1.
+    by_unit = {u.id: u.instance_id for u in units}
+    inst_nr = {i.id: i.object_id for i in db.query(Instance).filter(
+        Instance.id.in_(set(by_unit.values()))).all()} if by_unit else {}
 
     def ref(object_id: int) -> HolderRef:
         h = known[object_id]
@@ -235,6 +241,10 @@ def _hauls(db: Session, order: Order, step) -> list[StepHaul]:
             to_holder=ref(h.to_holder),
             pieces=h.pieces_count,
             internal=h.internal,
+            instance_object_ids=sorted({
+                inst_nr[by_unit[u]] for u in h.unit_ids
+                if u in by_unit and by_unit[u] in inst_nr
+            }),
             # Die Vergabe kommt **fertig** aus ihrem Dienst (``awards.to_response``) und
             # wird hier nicht zusammengebaut: sonst bekäme die eine Ansicht ein Feld und
             # die andere nicht – und zwar erst dann, wenn es zählt.

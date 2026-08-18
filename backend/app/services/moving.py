@@ -47,7 +47,9 @@ class Haul:
     #: ``None`` = für diese Stücke gibt es noch keine Beobachtung. Das ist kein Fehler:
     #: der Kontext-Scan stellt den Ausgangsort beim Ausführen fest (§15.3).
     from_holder: Optional[int] = None
-    internal: bool = True
+    #: **Dreiwertig** (O7): intern · Versand · ``None`` = nicht bekannt. Ohne
+    #: Ausgangsort gibt es keine Einstufung – nur die fehlende Ablage.
+    internal: Optional[bool] = None
     #: Die **offene** Vergabe dieser Fuhre – nur bei einem Versand, und nur solange sie
     #: läuft. Sie ist die Auskunft «woran liegt es», nicht die Regel: ob etwas angekommen
     #: ist, sagt der Ort (siehe ``record_for_step``).
@@ -83,13 +85,20 @@ def hauls(db: Session, *, step: ProcessStep, units: list[InstanceUnit]) -> list[
 
     out = []
     for src, ids in groups.items():
-        internal = src is None or places.same_place(db, src, target)
+        # **Ohne Beobachtung wird nicht eingestuft** (O7). ``None`` heisst «nicht
+        # bekannt» – nie «intern» und nie «Versand». Ein unbekannter Ausgangsort als
+        # innerbetrieblich zu zeigen war eine Behauptung, und sie versteckte ausgerechnet
+        # die Handlung, die fehlt: die Ablage. Genau daran war die Vergabe unerreichbar.
+        internal = None if src is None else places.same_place(db, src, target)
         out.append(Haul(
             to_holder=target, unit_ids=ids, from_holder=src, internal=internal,
-            # Nur ein Versand hat eine Vergabe – und nur, solange sie läuft. Eine
+            # **Nur ein Versand hat eine Vergabe** – und nur, solange sie läuft. Eine
             # erbrachte hier zu zeigen wäre eine Aussage über die Vergangenheit an einer
-            # Stelle, die die Gegenwart beschreibt.
-            award=None if internal or src is None else awards.open_for(db, src, target),
+            # Stelle, die die Gegenwart beschreibt. Ausdrücklich ``is False``: ein
+            # unbekannter Ausgangsort ist kein Versand, aber auch kein Grund, ihn wie
+            # einen internen Weg zu behandeln (O7).
+            award=(awards.open_for(db, src, target)
+                   if internal is False and src is not None else None),
         ))
     # Stabile Reihenfolge: bekannte Orte zuerst, aufsteigend – damit zwei Aufrufe
     # dieselbe Liste ergeben und die Oberfläche nicht springt.
@@ -153,14 +162,21 @@ def record_for_step(
     # Solange nichts da ist, ist dieses Modul schlicht **nicht fertig**, und die Zeile
     # sagt warum (§15.6). Das System fragt die Vergabe **nicht von sich aus an** – es
     # bietet sie an, ein Mensch klickt (§15.7).
+    # **Die Meldung nennt den Weg, nicht nur den Mangel** (O8). Ohne ihn ist sie eine
+    # Sackgasse: sie verlangt eine Vergabe und sagt nicht, wo man sie anfragt.
     award = awards.open_for(db, source, target)
-    where = (f"«{vergabe.STATES[award.state].label}»" if award
-             else "noch nicht angefragt")
+    if award:
+        wie = (f"steht auf «{vergabe.STATES[award.state].label}» – der Stand steht am "
+               f"Modul bei dieser Fuhre.")
+    else:
+        wie = ("ist noch nicht angefragt. Sie hängt am Modul an der Fuhre "
+               f"{obj.obj_nr(source)} → {obj.obj_nr(target)}; erscheint sie dort nicht, "
+               "fehlt zuerst die **Ablage** der Stücke am Ausgangsort.")
     raise HTTPException(
         status_code=409,
         detail=(
             f"Von {obj.obj_nr(source)} nach {obj.obj_nr(target)} ist ein Versand "
-            f"(andere Anschrift) – die Vergabe an einen Dritten ist {where}. Erst wenn "
-            f"er sie erbracht hat, liegt dort etwas."
+            f"(andere Anschrift) – die Vergabe an einen Dritten {wie} Erst wenn er sie "
+            f"erbracht hat, liegt dort etwas."
         ),
     )

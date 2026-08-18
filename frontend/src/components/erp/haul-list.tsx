@@ -6,6 +6,7 @@ import type { Award, StepHaul } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { ObjId } from '@/components/erp/obj-id';
 import { AwardPanel } from '@/components/erp/award-panel';
+import { PlaceButton } from '@/components/erp/place-button';
 import { api } from '@/lib/api';
 
 /**
@@ -27,7 +28,7 @@ import { api } from '@/lib/api';
  * **Und sie ist eine Vorschau.** Massgeblich für die Ausführung ist der Kontext-Scan:
  * eine Beobachtung kann veraltet sein, ein Scan ist die Gegenwart.
  */
-export function HaulList({ hauls, orderObjectId, stepId, busy, onQuoted }: {
+export function HaulList({ hauls, orderObjectId, stepId, busy, onQuoted, onPlaced }: {
   hauls: StepHaul[];
   /** Wo diese Fuhren stehen – für den Tarifabruf, der am **Modul** hängt. */
   orderObjectId?: number;
@@ -35,6 +36,12 @@ export function HaulList({ hauls, orderObjectId, stepId, busy, onQuoted }: {
   busy?: boolean;
   /** Der Tarifabruf gibt den ganzen Auftrag zurück; wer ihn hält, lädt neu. */
   onQuoted?: (order: import('@/types').Order) => void;
+  /**
+   * Nach einer **Ablage** neu laden: sie ändert den Ausgangsort, und damit die
+   * Einstufung der Fuhre und ob eine Vergabe daran hängt. Anders als eine
+   * Vergabe-Handlung gibt sie den Auftrag nicht zurück – sie weiss nichts von ihm.
+   */
+  onPlaced?: () => void;
 }) {
   /**
    * Die Vergabe wird hier **überschrieben**, nicht neu geladen: eine Handlung gibt den
@@ -55,34 +62,43 @@ export function HaulList({ hauls, orderObjectId, stepId, busy, onQuoted }: {
                 .then((o) => { onQuoted?.(o); })
             : undefined}
           onAward={(a) => h.from_holder
-            && setFresh((s) => ({ ...s, [h.from_holder!.object_id]: a }))} />
+            && setFresh((s) => ({ ...s, [h.from_holder!.object_id]: a }))}
+          onPlaced={onPlaced} />
       ))}
     </div>
   );
 }
 
-function HaulRow({ haul, award, busy, first, onQuote, onAward }: {
+function HaulRow({ haul, award, busy, first, onQuote, onAward, onPlaced }: {
   haul: StepHaul;
   award: Award | null;
   busy?: boolean;
   first: boolean;
   onQuote?: () => Promise<void>;
   onAward: (a: Award) => void;
+  onPlaced?: () => void;
 }) {
-  const external = !haul.internal && !!haul.from_holder;
+  /**
+   * **Dreiwertig** (SYSTEM_LOGIC O7): `true` innerbetrieblich · `false` Versand ·
+   * `null` **nicht bekannt**. Die letzte Lage ist keine der beiden anderen – sie als
+   * «intern» zu zeichnen versteckte ausgerechnet die Handlung, die fehlt.
+   */
+  const unknown = haul.internal == null || !haul.from_holder;
+  const external = haul.internal === false && !!haul.from_holder;
   return (
     <div className="flex flex-col gap-1 py-1.5"
       style={{ borderTop: first ? undefined : '1px solid var(--border-1)' }}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {external
           ? <Truck size={13} style={{ flex: 'none', color: 'var(--warning)' }} />
-          : <Building2 size={13} style={{ flex: 'none', color: 'var(--fg-4)' }} />}
+          : <Building2 size={13} style={{ flex: 'none',
+              color: unknown ? 'var(--fg-4)' : 'var(--fg-4)' }} />}
         <span className="text-xs" style={{ color: 'var(--fg-2)', fontWeight: 600,
           fontVariantNumeric: 'tabular-nums' }}>
           {haul.pieces}×
         </span>
         {/* **Der Ausgangsort ist eine Beobachtung, keine Behauptung**: ohne Ablage steht
-            hier nichts – der Kontext-Scan stellt ihn beim Ausführen fest (§15.3). */}
+            hier nichts – und dann wird auch nicht eingestuft (O7). */}
         <Holder holder={haul.from_holder} />
         <ArrowRight size={12} style={{ flex: 'none', color: 'var(--fg-4)' }} />
         <Holder holder={haul.to_holder} />
@@ -94,6 +110,19 @@ function HaulRow({ haul, award, busy, first, onQuote, onAward }: {
           </span>
         )}
       </div>
+
+      {/* **Ohne Ablage keine Einstufung – und darum hier der Weg dorthin.** Solange
+          niemand weiss, wo die Stücke liegen, lässt sich weder sagen, ob es ein Versand
+          ist, noch eine Vergabe anfragen: ihr Anlass IST der Ausgangsort. */}
+      {unknown && (
+        <div className="flex flex-wrap items-center gap-2 pl-5">
+          <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
+            Ohne Ausgangsort steht nicht fest, ob das ein Versand ist.
+          </span>
+          <PlaceButton instanceObjectIds={haul.instance_object_ids ?? []}
+            busy={busy} onPlaced={onPlaced} />
+        </div>
+      )}
 
       {/* **Die Vergabe hängt an der externen Fuhre** – und nur dort. Innerbetrieblich
           bewegt jemand etwas zwanzig Meter durch die Halle; dafür braucht es keinen

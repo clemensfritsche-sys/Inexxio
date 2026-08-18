@@ -572,6 +572,28 @@ geprüft** ausgewiesen — nicht als bestanden.
    nach Verbleib, Auftragsgrund, Reservierung oder Sperre.
 2. Der Ort bestimmt allein die **Gruppierung** in Fuhren (§7.2), nie die Auswahl.
 
+**O7 — Ohne Beobachtung wird nicht eingestuft.**
+
+1. Der Ausgangsort einer Fuhre ist dreiwertig: bekannt · bekannt · **nicht bekannt**.
+   Daraus folgt, dass auch «intern ↔ Versand» dreiwertig ist — `internal` ∈
+   {`true`, `false`, `null`}.
+2. `null` heisst **nicht bekannt**, nie «intern» und nie «Versand». Ein unbekannter
+   Ausgangsort als «innerbetrieblich» zu zeigen ist eine Behauptung — und sie versteckt
+   ausgerechnet die Handlung, die fehlt (die Ablage).
+3. Das ist dieselbe Regel wie O4/R3 auf der Ressourcenseite: «nicht bekannt» ist eine
+   eigene Antwort, keine der beiden anderen.
+
+**O8 — Eine menschliche Handlung hat eine Stelle in der Oberfläche.**
+
+1. Der Ablage-Endpunkt ist **kein System-Pfad**: `awards.deliver` und
+   `moving.record_for_step` rufen `places.record` direkt. Über den Router legt nur ein
+   **Mensch** ab.
+2. Also ist seine Eingabe das, was ein Mensch **scannt**: der Halter und die **Instanz**
+   (§4.4 — ein Vorgang ist eine Instanz; eine Einzelinstanz trägt gar kein Etikett).
+   Eine Liste von Einzelinstanz-Schlüsseln kann ein Mensch nicht haben.
+3. Ein Endpunkt ohne Aufrufer ist kein Feature. Fehlt die Stelle, ist die Regel
+   dahinter unerreichbar — und jede Meldung, die sie voraussetzt, eine Sackgasse.
+
 ### 7.2 Das Modul «Bewegen» — prüfbare Sätze
 
 **B1 — Eine Einstellung.** Das Modul trägt genau ein Konfigurationsfeld: das **Ziel** (eine
