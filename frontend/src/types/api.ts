@@ -985,6 +985,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Place Units
+         * @description **Ablegen.** Je Stück eine neue Beobachtung – append-only, kein Update-Pfad.
+         *
+         *     Ändert **nichts** ausser dem Ort: kein Status, keine Zugehörigkeit, kein Eintrag im
+         *     Ereignis-Log (SYSTEM_LOGIC O3). Genau deshalb darf jedes Stück abgelegt werden,
+         *     gleich in welchem Zustand es ist.
+         */
+        post: operations["place_units_api_v1_erp_places_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/places/unit/{unit_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where Is
+         * @description **Wo ist X?** Der aktuelle Ort, die Kette nach aussen und die Historie.
+         *
+         *     Ohne Beobachtung ist ``holder`` leer – «nicht bekannt» ist die ehrliche Antwort,
+         *     ein geratener Ort wäre die Alternative.
+         */
+        get: operations["where_is_api_v1_erp_places_unit__unit_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/places/holder/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What Lies Here
+         * @description **Was liegt hier?** Die Stücke, deren letzte Beobachtung auf diese Nummer zeigt.
+         *
+         *     Seitenweise, mit Gesamtzahl daneben. Ein Halter, den es nicht gibt, wird als solcher
+         *     zurückgegeben (``type = null``) statt als leere Liste – sonst sähe ein Tippfehler
+         *     aus wie ein leeres Regal.
+         */
+        get: operations["what_lies_here_api_v1_erp_places_holder__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/objects/{object_id}/references": {
         parameters: {
             query?: never;
@@ -2044,12 +2115,59 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HeldUnit
+         * @description Ein Stück, das hier liegt.
+         */
+        HeldUnit: {
+            /** Instance Unit Id */
+            instance_unit_id: number;
+            /** Number */
+            number: string;
+            /** Instance Object Id */
+            instance_object_id: number;
+            /** Article Name */
+            article_name?: string | null;
+            /** Status */
+            status: string;
+        };
+        /**
          * HoldNumbers
          * @description Die Nummern einer Entscheidungs-Gruppe – Vorauswahl für einen Auftragsentwurf.
          */
         HoldNumbers: {
             /** Numbers */
             numbers?: string[];
+        };
+        /**
+         * HolderContents
+         * @description «Was liegt hier?» – seitenweise, mit Gesamtzahl daneben.
+         *
+         *     Nie alles auf einmal: bei einer 5000er-Charge wäre die volle Liste ein Vielfaches
+         *     des Datensatzes, an dem sie hängt.
+         */
+        HolderContents: {
+            holder: components["schemas"]["HolderRef"];
+            /** Units */
+            units?: components["schemas"]["HeldUnit"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * HolderRef
+         * @description Ein Halter, aufgelöst. ``type``/``name`` sind ``None``, wenn die Nummer ins Leere
+         *     zeigt – das ist dann die Aussage und wird in der Oberfläche **gemeldet**, nicht als
+         *     «kein Ort» gezeigt (SYSTEM_LOGIC O2.4).
+         */
+        HolderRef: {
+            /** Object Id */
+            object_id: number;
+            /** Type */
+            type?: string | null;
+            /** Name */
+            name?: string | null;
         };
         /**
          * InstanceResponse
@@ -2520,6 +2638,72 @@ export interface components {
             last_used_at?: string | null;
         };
         /**
+         * PlaceCreate
+         * @description Die Ablage.
+         *
+         *     **Der Kontext-Scan hat keinen Vorgabewert** (SYSTEM_LOGIC O5): ``holder_object_id``
+         *     ist Pflicht und kommt aus dem ersten Scan des Arbeitsgangs («wo bin ich»). Es gibt
+         *     keinen gemerkten, geerbten oder vorbelegten Ort – wer nicht scannt, legt nicht ab.
+         *
+         *     Ein Auftrag wird **nicht** verlangt: eine Ablage muss auch ohne Prozess möglich sein,
+         *     und genau diese Unabhängigkeit ist die Robustheit (§15.1).
+         */
+        PlaceCreate: {
+            /** Holder Object Id */
+            holder_object_id: number;
+            /** Instance Unit Ids */
+            instance_unit_ids: number[];
+            /**
+             * Source
+             * @default scan
+             */
+            source: string;
+        };
+        /**
+         * PlaceHop
+         * @description Eine Station der Kette. Die **Anschrift** am Ende trägt keine Objektnummer – sie
+         *     ist kein Datensatz und darum nicht anklickbar.
+         */
+        PlaceHop: {
+            /** Object Id */
+            object_id?: number | null;
+            /** Type */
+            type?: string | null;
+            /** Name */
+            name?: string | null;
+        };
+        /**
+         * PlaceObservation
+         * @description Eine Beobachtung – eine Zeile der Historie.
+         */
+        PlaceObservation: {
+            /** Id */
+            id: number;
+            holder: components["schemas"]["HolderRef"];
+            /** Source */
+            source: string;
+            /** Actor Name */
+            actor_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * PlaceResult
+         * @description Die Quittung einer Ablage – bewusst schlank.
+         *
+         *     Sie nennt, was geschah, nicht den ganzen Zustand danach: eine Antwort, die je Stück
+         *     Kette und Historie mitschickte, wäre bei einer 500er-Charge ein Vielfaches des
+         *     Vorgangs. Wer den Ort sehen will, fragt ihn (``GET …/places/unit/{id}``).
+         */
+        PlaceResult: {
+            /** Placed */
+            placed: number;
+            holder: components["schemas"]["HolderRef"];
+        };
+        /**
          * ProcessEventResponse
          * @description Ein Eintrag im Ereignis-Log. Append-only – es gibt keinen Schreib-Pfad hierauf.
          */
@@ -2966,6 +3150,39 @@ export interface components {
             number: string;
             /** From Order */
             from_order?: number | null;
+        };
+        /**
+         * UnitPlaceResponse
+         * @description «Wo ist dieses Stück?» – der aktuelle Ort und seine Kette nach aussen.
+         *
+         *     ``holder is None`` heisst **nicht bekannt**: das Stück hat noch keine Beobachtung.
+         *     Das ist die ehrliche Antwort; ein geratener Ort wäre die Alternative.
+         */
+        UnitPlaceResponse: {
+            /** Instance Unit Id */
+            instance_unit_id: number;
+            /** Number */
+            number: string;
+            holder?: components["schemas"]["HolderRef"] | null;
+            /** Chain */
+            chain?: components["schemas"]["PlaceHop"][];
+            /**
+             * Chain Truncated
+             * @default false
+             */
+            chain_truncated: boolean;
+            /**
+             * Chain Cycle
+             * @default false
+             */
+            chain_cycle: boolean;
+            /** History */
+            history?: components["schemas"]["PlaceObservation"][];
+            /**
+             * History Truncated
+             * @default false
+             */
+            history_truncated: boolean;
         };
         /** UploadResult */
         UploadResult: {
@@ -4757,6 +4974,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Genealogy"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    place_units_api_v1_erp_places_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    where_is_api_v1_erp_places_unit__unit_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitPlaceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    what_lies_here_api_v1_erp_places_holder__object_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolderContents"];
                 };
             };
             /** @description Validation Error */

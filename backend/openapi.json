@@ -2584,6 +2584,172 @@
         }
       }
     },
+    "/api/v1/erp/places": {
+      "post": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Place Units",
+        "description": "**Ablegen.** Je Stück eine neue Beobachtung – append-only, kein Update-Pfad.\n\nÄndert **nichts** ausser dem Ort: kein Status, keine Zugehörigkeit, kein Eintrag im\nEreignis-Log (SYSTEM_LOGIC O3). Genau deshalb darf jedes Stück abgelegt werden,\ngleich in welchem Zustand es ist.",
+        "operationId": "place_units_api_v1_erp_places_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/places/unit/{unit_id}": {
+      "get": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Where Is",
+        "description": "**Wo ist X?** Der aktuelle Ort, die Kette nach aussen und die Historie.\n\nOhne Beobachtung ist ``holder`` leer – «nicht bekannt» ist die ehrliche Antwort,\nein geratener Ort wäre die Alternative.",
+        "operationId": "where_is_api_v1_erp_places_unit__unit_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitPlaceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/places/holder/{object_id}": {
+      "get": {
+        "tags": [
+          "places"
+        ],
+        "summary": "What Lies Here",
+        "description": "**Was liegt hier?** Die Stücke, deren letzte Beobachtung auf diese Nummer zeigt.\n\nSeitenweise, mit Gesamtzahl daneben. Ein Halter, den es nicht gibt, wird als solcher\nzurückgegeben (``type = null``) statt als leere Liste – sonst sähe ein Tippfehler\naus wie ein leeres Regal.",
+        "operationId": "what_lies_here_api_v1_erp_places_holder__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 60,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolderContents"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/objects/{object_id}/references": {
       "get": {
         "tags": [
@@ -5705,6 +5871,46 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HeldUnit": {
+        "properties": {
+          "instance_unit_id": {
+            "type": "integer",
+            "title": "Instance Unit Id"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "instance_object_id": {
+            "type": "integer",
+            "title": "Instance Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_unit_id",
+          "number",
+          "instance_object_id",
+          "status"
+        ],
+        "title": "HeldUnit",
+        "description": "Ein Stück, das hier liegt."
+      },
       "HoldNumbers": {
         "properties": {
           "numbers": {
@@ -5718,6 +5924,67 @@
         "type": "object",
         "title": "HoldNumbers",
         "description": "Die Nummern einer Entscheidungs-Gruppe – Vorauswahl für einen Auftragsentwurf."
+      },
+      "HolderContents": {
+        "properties": {
+          "holder": {
+            "$ref": "#/components/schemas/HolderRef"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/HeldUnit"
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "holder"
+        ],
+        "title": "HolderContents",
+        "description": "«Was liegt hier?» – seitenweise, mit Gesamtzahl daneben.\n\nNie alles auf einmal: bei einer 5000er-Charge wäre die volle Liste ein Vielfaches\ndes Datensatzes, an dem sie hängt."
+      },
+      "HolderRef": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "HolderRef",
+        "description": "Ein Halter, aufgelöst. ``type``/``name`` sind ``None``, wenn die Nummer ins Leere\nzeigt – das ist dann die Aussage und wird in der Oberfläche **gemeldet**, nicht als\n«kein Ort» gezeigt (SYSTEM_LOGIC O2.4)."
       },
       "InstanceResponse": {
         "properties": {
@@ -6600,6 +6867,132 @@
         "title": "PasskeyResponse",
         "description": "Ein registrierter Passkey (Auflistung/Verwaltung im Konto). Ohne Krypto-Material."
       },
+      "PlaceCreate": {
+        "properties": {
+          "holder_object_id": {
+            "type": "integer",
+            "title": "Holder Object Id"
+          },
+          "instance_unit_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Instance Unit Ids"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "scan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "holder_object_id",
+          "instance_unit_ids"
+        ],
+        "title": "PlaceCreate",
+        "description": "Die Ablage.\n\n**Der Kontext-Scan hat keinen Vorgabewert** (SYSTEM_LOGIC O5): ``holder_object_id``\nist Pflicht und kommt aus dem ersten Scan des Arbeitsgangs («wo bin ich»). Es gibt\nkeinen gemerkten, geerbten oder vorbelegten Ort – wer nicht scannt, legt nicht ab.\n\nEin Auftrag wird **nicht** verlangt: eine Ablage muss auch ohne Prozess möglich sein,\nund genau diese Unabhängigkeit ist die Robustheit (§15.1)."
+      },
+      "PlaceHop": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "title": "PlaceHop",
+        "description": "Eine Station der Kette. Die **Anschrift** am Ende trägt keine Objektnummer – sie\nist kein Datensatz und darum nicht anklickbar."
+      },
+      "PlaceObservation": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "holder": {
+            "$ref": "#/components/schemas/HolderRef"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "holder",
+          "source",
+          "created_at"
+        ],
+        "title": "PlaceObservation",
+        "description": "Eine Beobachtung – eine Zeile der Historie."
+      },
+      "PlaceResult": {
+        "properties": {
+          "placed": {
+            "type": "integer",
+            "title": "Placed"
+          },
+          "holder": {
+            "$ref": "#/components/schemas/HolderRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "placed",
+          "holder"
+        ],
+        "title": "PlaceResult",
+        "description": "Die Quittung einer Ablage – bewusst schlank.\n\nSie nennt, was geschah, nicht den ganzen Zustand danach: eine Antwort, die je Stück\nKette und Historie mitschickte, wäre bei einer 500er-Charge ein Vielfaches des\nVorgangs. Wer den Ort sehen will, fragt ihn (``GET …/places/unit/{id}``)."
+      },
       "ProcessEventResponse": {
         "properties": {
           "id": {
@@ -7413,6 +7806,64 @@
         ],
         "title": "UnitPick",
         "description": "Ein gewähltes Stück — **und wo es lag, als es gewählt wurde.**\n\nEin Entwurf lebt im Browser, die Freigabe passiert später. Dazwischen kann jemand\nanders dasselbe Stück nehmen: die Exklusivität (§3) verhindert, dass beide es halten,\naber ohne diese Angabe **entscheidet die Zeit**, welche Art Auftrag entsteht. Genau das\nist passiert – ein als frei gewähltes Stück, das inzwischen lief, machte die Freigabe\n**still** zur Abweichung und entzog es dem anderen Auftrag, ohne Rückführung und ohne\ndass jemand gefragt wurde.\n\n``from_order`` ist darum keine Zusatzinfo, sondern die **Aussage des Menschen**: «ich\nnehme ein freies Stück» (``None``) oder «ich hole es aus Auftrag N». Stimmt sie bei\nder Freigabe nicht mehr, bricht die Freigabe ab und sagt, was sich geändert hat —\nstatt lautlos etwas anderes zu tun als gewollt.\n\nDamit gibt es **eine** Auswahl-Logik: konkrete Stücke, sichtbar vorher, änderbar, und\nmit der Absicht, in der sie gewählt wurden. Kein zweiter Weg «nur nach Kriterium»."
+      },
+      "UnitPlaceResponse": {
+        "properties": {
+          "instance_unit_id": {
+            "type": "integer",
+            "title": "Instance Unit Id"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "holder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HolderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chain": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceHop"
+            },
+            "type": "array",
+            "title": "Chain"
+          },
+          "chain_truncated": {
+            "type": "boolean",
+            "title": "Chain Truncated",
+            "default": false
+          },
+          "chain_cycle": {
+            "type": "boolean",
+            "title": "Chain Cycle",
+            "default": false
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceObservation"
+            },
+            "type": "array",
+            "title": "History"
+          },
+          "history_truncated": {
+            "type": "boolean",
+            "title": "History Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_unit_id",
+          "number"
+        ],
+        "title": "UnitPlaceResponse",
+        "description": "«Wo ist dieses Stück?» – der aktuelle Ort und seine Kette nach aussen.\n\n``holder is None`` heisst **nicht bekannt**: das Stück hat noch keine Beobachtung.\nDas ist die ehrliche Antwort; ein geratener Ort wäre die Alternative."
       },
       "UploadResult": {
         "properties": {
