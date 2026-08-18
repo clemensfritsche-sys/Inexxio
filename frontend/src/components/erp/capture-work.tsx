@@ -45,7 +45,7 @@ import type { OrderSeed } from '@/components/erp/order-detail';
  * bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass jemand zugestimmt hätte.
  */
 export function CaptureWork({ orderObjectId, stepId, points, action, work, needs = [],
-                              hauls = [], onQuoted, busy, onConfirm, onDeviate,
+                              hauls = [], onQuoted, onPlaced, busy, onConfirm, onDeviate,
                               onDirty }: {
   orderObjectId: number;
   stepId: number;
@@ -64,6 +64,8 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   hauls?: StepHaul[];
   /** Ein Tarifabruf gibt den ganzen Auftrag zurück – wer ihn hält, übernimmt ihn. */
   onQuoted?: (order: Order) => void;
+  /** Nach einer **Ablage** neu laden – sie ändert die Fuhren-Einstufung. */
+  onPlaced?: () => void;
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
@@ -195,7 +197,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
           gruppiert nach heutigem Halter; an einer externen hängt die Vergabe. Der Scan
           bleibt Voraussetzung für die **Eingabe**, nicht für die **Auskunft**. */}
       <HaulList hauls={hauls} orderObjectId={orderObjectId} stepId={stepId} busy={busy}
-        onQuoted={onQuoted} />
+        onQuoted={onQuoted} onPlaced={onPlaced} />
 
       {work.map((w, i) => (
         <InstanceRow

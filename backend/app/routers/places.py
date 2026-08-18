@@ -48,11 +48,27 @@ def place_units(data: PlaceCreate, db: Session = Depends(get_db),
                 user: UserProfile = Depends(require_employee)):
     """**Ablegen.** Je Stück eine neue Beobachtung – append-only, kein Update-Pfad.
 
+    Genannt wird die **Instanz** (das Etikett), die Stücke leitet der Server ab
+    (SYSTEM_LOGIC O8). Das ist die einzige Stelle, an der ein **Mensch** ablegt; die
+    Systemwege (``awards.deliver``, ``moving.record_for_step``) rufen ``places.record``
+    unmittelbar und kennen ihre Stücke ohnehin.
+
     Ändert **nichts** ausser dem Ort: kein Status, keine Zugehörigkeit, kein Eintrag im
-    Ereignis-Log (SYSTEM_LOGIC O3). Genau deshalb darf jedes Stück abgelegt werden,
-    gleich in welchem Zustand es ist.
+    Ereignis-Log (O3). Genau deshalb darf jedes Stück abgelegt werden, gleich in welchem
+    Zustand es ist.
     """
-    rows = places.record(db, data.instance_unit_ids, data.holder_object_id,
+    instance = (db.query(Instance)
+                .filter(Instance.object_id == data.instance_object_id).first())
+    if not instance:
+        raise HTTPException(404, f"Instanz {data.instance_object_id} gibt es nicht.")
+    unit_ids = [u.id for u in db.query(InstanceUnit.id)
+                .filter(InstanceUnit.instance_id == instance.id,
+                        InstanceUnit.is_active.is_(True)).all()]
+    if not unit_ids:
+        raise HTTPException(
+            400, f"Instanz {data.instance_object_id} hat keine Einzelinstanzen.")
+
+    rows = places.record(db, unit_ids, data.holder_object_id,
                          actor_id=user.id, source=data.source)
     db.commit()
     return PlaceResult(placed=len(rows),

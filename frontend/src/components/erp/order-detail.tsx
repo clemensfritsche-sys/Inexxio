@@ -249,7 +249,11 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
           <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate}
-            onQuoted={setLive} />
+            onQuoted={setLive}
+            // Eine **Ablage** weiss nichts vom Auftrag – sie ändert nur den Ort. Was
+            // sich dadurch ändert (Einstufung der Fuhre, ob eine Vergabe daran hängt),
+            // rechnet der Server; also wird er gefragt, statt hier etwas nachzuziehen.
+            onPlaced={() => { if (objectId != null) api.getOrder(objectId).then(setLive); }} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {loading ? 'Lädt …' : null}
@@ -377,7 +381,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // Freigegeben — Modus «ausfuehrung»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RunView({ order, busy, onConfirm, onDeviate, onQuoted }: {
+function RunView({ order, busy, onConfirm, onDeviate, onQuoted, onPlaced }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
@@ -385,6 +389,8 @@ function RunView({ order, busy, onConfirm, onDeviate, onQuoted }: {
   onDeviate?: (seed: OrderSeed) => void;
   /** Ein Tarifabruf liefert den ganzen Auftrag zurück – er ersetzt den gezeigten. */
   onQuoted?: (next: Order) => void;
+  /** Nach einer **Ablage** neu laden – sie gibt den Auftrag nicht zurück. */
+  onPlaced?: () => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
   // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
@@ -460,6 +466,7 @@ function RunView({ order, busy, onConfirm, onDeviate, onQuoted }: {
                 needs={stepInfo(order, step.id)?.needs ?? []}
                 hauls={stepInfo(order, step.id)?.hauls ?? []}
                 onQuoted={onQuoted}
+                onPlaced={onPlaced}
                 busy={busy}
                 onDirty={setEntryStarted}
                 onDeviate={onDeviate}

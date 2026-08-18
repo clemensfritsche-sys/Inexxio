@@ -263,6 +263,8 @@ export type AwardTracking = components['schemas']['TrackingResponse'];
  * welche Kanäle es *gibt*) – ohne Schlüssel gibt es «Plattform» nicht.
  */
 export type ChannelAvailability = components['schemas']['ChannelAvailability'];
+/** Das Ergebnis einer **Ablage**: wie viele Stücke, und bei wem sie jetzt liegen. */
+export type PlaceResult = components['schemas']['PlaceResult'];
 /** **Was an einem Modul passiert ist** – lückenlos, je Einzelinstanz (`services/record`). */
 export type StepRecord = components['schemas']['StepRecord'];
 export type RecordEntry = components['schemas']['RecordEntry'];

@@ -3990,3 +3990,54 @@ def test_rates_are_fetched_at_the_module_and_only_on_click():
     assert "onQuote()" in panel and "quoteHaul" not in panel, (
         "Das Bauteil holt selbst Tarife – dann kennt es Auftrag und Modul, und es ist "
         "nicht mehr für die künftige Beschaffung brauchbar.")
+
+
+def test_every_human_endpoint_has_a_place_in_the_interface():
+    """**O8 – ein Endpunkt ohne Aufrufer ist kein Feature.**
+
+    Das war der teuerste Fehler dieser Runde: `POST /erp/places` stand seit Stufe 2 mit
+    Dienst, Regel und 24 Wächtern – und **keinem einzigen Aufrufer im Frontend**. Damit
+    war der Ausgangsort einer Fuhre in der Praxis nie bekannt, die Fuhre nie als Versand
+    eingestuft und die Vergabe nie erreichbar. Die Wächter prüften die Dienstpfade, und
+    die waren in Ordnung; die Kette bis zum Menschen war es nicht.
+
+    Bug-Form: die Ablage verschwindet wieder aus der Oberfläche (oder wird nie
+    verdrahtet). Dann ist jede Regel dahinter unerreichbar, und jede Meldung, die sie
+    voraussetzt, eine Sackgasse.
+    """
+    api = _read(FRONTEND / "lib" / "api.ts")
+    assert "placeInstance(" in api, (
+        "Die Ablage hat keine API-Methode – dann kann sie niemand aufrufen.")
+    assert "/api/v1/erp/places" in api, "Die Methode ruft den Ablage-Endpunkt nicht."
+
+    button = FRONTEND / "components" / "erp" / "place-button.tsx"
+    assert button.exists(), "Der Ablage-Knopf fehlt (O8)."
+    src = _code(_read(button))
+    assert "api.placeInstance(" in src, "Der Knopf ruft die Ablage nicht."
+    # **Zwei Scans, in dieser Reihenfolge** – und der erste ohne Vorgabewert (O5).
+    assert src.count("label:") >= 2, (
+        "Die Ablage ist EIN Scan-Ablauf mit zwei Schritten: wo stehen Sie, dann die "
+        "Instanz.")
+
+    # …und er hängt wirklich in der Oberfläche, an beiden Stellen.
+    # **Gerendert, nicht bloss importiert**: ein Import allein ist keine Stelle in der
+    # Oberfläche – und genau daran wäre dieser Wächter beinahe vorbeigelaufen.
+    for rel in (("components", "erp", "haul-list.tsx"),
+                ("components", "erp", "instance-detail.tsx")):
+        assert "<PlaceButton" in _read(FRONTEND.joinpath(*rel)), (
+            f"{rel[-1]} rendert die Ablage nicht – dort wird sie gebraucht.")
+
+
+def test_an_unknown_source_is_drawn_as_unknown():
+    """**O7 – die Oberfläche behauptet nicht, was sie nicht weiss.**
+
+    Bug-Form: `!haul.internal` – dann ist `null` (nicht bekannt) dasselbe wie `false`
+    (Versand) bzw. fällt in den Internal-Zweig, und die fehlende Ablage wird als
+    innerbetrieblicher Weg gezeichnet.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "haul-list.tsx"))
+    assert "haul.internal === false" in src, (
+        "Ein Versand ist ausdrücklich `internal === false` – `!haul.internal` zöge "
+        "«nicht bekannt» mit hinein (O7).")
+    assert "haul.internal == null" in src, (
+        "Die dritte Lage («nicht bekannt») wird nicht unterschieden.")

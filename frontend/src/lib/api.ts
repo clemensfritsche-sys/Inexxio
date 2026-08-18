@@ -19,6 +19,7 @@ import type {
   Award,
   AwardTracking,
   ChannelAvailability,
+  PlaceResult,
   UnitPage,
   Genealogy,
   StepRecord,
@@ -720,6 +721,23 @@ class ApiClient {
    */
   trackAward(awardId: number): Promise<AwardTracking> {
     return this.post(`/api/v1/erp/awards/${awardId}/track`, {});
+  }
+
+  /**
+   * **Ablegen** – die eine menschliche Ortsangabe (PROCESS_CORE §15, SYSTEM_LOGIC O8).
+   *
+   * Genannt wird der **Halter** (der Kontext-Scan «wo bin ich», ohne Vorgabewert) und
+   * die **Instanz** – also genau das, was auf den beiden Etiketten steht. Welche
+   * Einzelinstanzen dazugehören, leitet der Server ab: sie tragen kein Etikett, ein
+   * Mensch kann sie gar nicht nennen (§4.4).
+   *
+   * Ändert **nichts** ausser dem Ort – kein Status, keine Zugehörigkeit. Genau darum
+   * darf jedes Stück in jedem Zustand abgelegt werden.
+   */
+  placeInstance(holderObjectId: number, instanceObjectId: number): Promise<PlaceResult> {
+    return this.post('/api/v1/erp/places', {
+      holder_object_id: holderObjectId, instance_object_id: instanceObjectId,
+    });
   }
 
   /**

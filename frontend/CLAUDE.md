@@ -101,6 +101,21 @@ Werte loszuwerden.
 - **Das System legt keine Vergabe an.** Sie entsteht durch einen Klick; die Fuhren-Ansicht
   tut beim Rendern nichts.
 
+## Ablegen (`components/erp/place-button.tsx`)
+Die **eine menschliche Ortsangabe**. Der Endpunkt stand seit Stufe 2 mit Dienst, Regel
+und 24 Wächtern – und hatte **keinen Aufrufer**; damit war der Ausgangsort einer Fuhre in
+der Praxis nie bekannt, die Fuhre nie als Versand eingestuft und die Vergabe nie
+erreichbar. **Ein Endpunkt ohne Stelle ist kein Feature** (SYSTEM_LOGIC O8).
+
+- **Zwei Scans, EIN Ablauf** (kein zweiter Dialog): «wo stehen Sie?» – freier Lookup
+  **ohne Vorgabewert**, mit `exists` – dann die **Instanz**. Nicht die Einzelinstanz: die
+  trägt gar kein Etikett (§4.4), ihre Schlüssel kann ein Mensch nie nennen.
+- **Zwei Stellen, ein Bauteil**: am Instanz-Datensatz («diese Kiste steht jetzt dort») und
+  an einer Fuhre ohne bekannten Ausgangsort. Kennt der Aufrufer die Instanzen, sind sie
+  `expected` – dann genügt eine Teileingabe.
+- Es ändert **nichts** ausser dem Ort, darum ist es in jedem Zustand erlaubt und braucht
+  keinen Auftrag. Danach neu laden: die Ablage entscheidet, wie die Fuhre eingestuft wird.
+
 ## Bedarf und Ort (`capture-work.tsx`, Zeile `NeedRow`)
 Die Bedarfszeile des Ressourcenmoduls sagt **zwei** Dinge nebeneinander: *ist genug da?*
 und *liegt es hier?*. Die zweite darf die erste nie überschreiben.

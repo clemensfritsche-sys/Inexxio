@@ -98,17 +98,27 @@ class PlaceResult(BaseModel):
 
 
 class PlaceCreate(BaseModel):
-    """Die Ablage.
+    """Die Ablage – **was ein Mensch scannt** (SYSTEM_LOGIC O8).
 
-    **Der Kontext-Scan hat keinen Vorgabewert** (SYSTEM_LOGIC O5): ``holder_object_id``
-    ist Pflicht und kommt aus dem ersten Scan des Arbeitsgangs («wo bin ich»). Es gibt
-    keinen gemerkten, geerbten oder vorbelegten Ort – wer nicht scannt, legt nicht ab.
+    **Der Kontext-Scan hat keinen Vorgabewert** (O5): ``holder_object_id`` ist Pflicht
+    und kommt aus dem ersten Scan des Arbeitsgangs («wo bin ich»). Es gibt keinen
+    gemerkten, geerbten oder vorbelegten Ort – wer nicht scannt, legt nicht ab.
+
+    **Der zweite Scan ist die Instanz**, nicht eine Liste von Einzelinstanzen: ein
+    Vorgang ist eine Instanz (§4.4), und eine Einzelinstanz zieht bewusst keine
+    Objektnummer – für sie kann es gar kein Etikett geben. Eine Liste interner Schlüssel
+    konnte ein Mensch nie haben; genau daran war dieser Endpunkt unbenutzbar, obwohl er
+    seit Stufe 2 steht.
+
+    Abgelegt wird die **ganze** Instanz. Eine Teilmenge an zwei Orte zu verteilen ist die
+    Sache des Moduls «Bewegen» (dort steht die Menge ohnehin), nicht einer Handablage.
 
     Ein Auftrag wird **nicht** verlangt: eine Ablage muss auch ohne Prozess möglich sein,
     und genau diese Unabhängigkeit ist die Robustheit (§15.1).
     """
 
     holder_object_id: int
-    instance_unit_ids: list[int] = Field(min_length=1)
+    #: Die Objektnummer der **Instanz** – das, was auf dem Etikett steht.
+    instance_object_id: int
     #: scan (Regelfall) | tracking (ein Dritter hat gemeldet)
     source: str = "scan"
