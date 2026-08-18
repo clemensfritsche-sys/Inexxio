@@ -648,6 +648,22 @@ sagt, welche Zustandsfolgen es gibt, der Kanal sagt, woher die Angebote kommen.
 als Klärung ausgewiesen. Das ist die bestehende Regel (`EventType.binding`), nicht eine
 neue.
 
+### 7.3a Der Kanal «Plattform» — prüfbare Sätze
+
+| # | Satz |
+|---|---|
+| K1 | Ein Adapter **setzt nie einen Zustand**. Was er liefert, geht durch `awards.add_offer` – dieselbe Stelle wie ein im Portal getipptes Angebot. |
+| K2 | Ein Adapter kennt **weder Auftrag noch Modul noch Ort**. Er bekommt zwei Anschriften und ein Paket. |
+| K3 | Das **Paket ist abgeleitet** (Summe über die Artikel der Fuhre), nie eingegeben. Fehlt ein Gewicht, wird **nicht geraten** – die Anfrage nennt den Artikel. |
+| K4 | **Ohne Schlüssel gibt es den Kanal nicht.** Er ist nicht wählbar; es gibt keinen Rückfall auf einen anderen Anbieter. |
+| K5 | Die Vergabe hält ihre **Stücke ab dem Angebot** – der Inhalt des Pakets, dessen Preis sie trägt. |
+| K6 | **Tracking schreibt den Ort über `places.record`** (`source='tracking'`), nie über einen eigenen Weg. |
+| K7 | **Tarife werden nie von selbst geholt.** Der Mensch klickt (§15.7); bei manchen Anbietern kostet ein Abruf. |
+
+**Ausdrücklich verboten:** ein `if provider ==` in der Fachlogik (der Adapter ist die
+Fallunterscheidung), ein gespeicherter Transportmodus (V-4 gilt weiter), ein Rückfall auf
+«manual», wenn der gewählte Anbieter nicht konfiguriert ist.
+
 ### 7.4 Was nicht wiederkommen darf
 
 Aussagen über den **Quelltext** — darum als AST-Wächter geprüft, nicht als Verhalten.

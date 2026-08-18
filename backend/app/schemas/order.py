@@ -253,6 +253,17 @@ class StepHaul(BaseModel):
     award: Optional["AwardResponse"] = None
 
 
+class HaulQuote(BaseModel):
+    """**Tarife für EINE Fuhre holen** (PROCESS_CORE §15.5a).
+
+    Genannt wird nur der **Ausgangsort** – welche Stücke von dort weggehen und was sie
+    wiegen, leitet der Server ab. Eine Stückliste oder ein Gewicht von aussen wäre die
+    zweite Wahrheit über dasselbe Paket, und die stimmt beim Wiegen nicht.
+    """
+
+    from_holder_object_id: int
+
+
 class OrderLineResponse(BaseModel):
     """Eine festgeschriebene Definitionszeile."""
 

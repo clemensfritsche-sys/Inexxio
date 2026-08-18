@@ -22,7 +22,10 @@ import ast
 
 import pytest
 
-from .support import live_sources, make_company, make_units, session, source
+from .support import (
+    StubCarrier, carrier_offer, live_sources, make_company, make_units, session,
+    source, with_carriers,
+)
 
 # Die Hilfen stehen in ``tests/support`` – eine Stelle, mehrere Wächter.
 
@@ -140,11 +143,15 @@ def test_every_channel_runs_the_same_cycle():
     db = session()
     try:
         seen = {}
+        # Der Plattform-Kanal braucht einen eingerichteten Frachtführer (K4) – hier eine
+        # **Teststrecke** statt eines Netzzugangs: geprüft wird der Zyklus, nicht die
+        # Verfügbarkeit einer fremden API.
         for channel in (vergabe.PLATTFORM, vergabe.PORTAL):
             src, dst = _pair(db)
             carrier = _carrier(db, f"Spediteur {channel}")
-            award = awards.request(db, subject_object_id=src, target_object_id=dst,
-                                   channel=channel, actor_id=None)
+            with with_carriers([StubCarrier(offers=[carrier_offer(42)])]):
+                award = awards.request(db, subject_object_id=src, target_object_id=dst,
+                                       channel=channel, actor_id=None)
             states = [award.state]
             offer = awards.add_offer(db, award, provider_object_id=carrier, amount=42)
             states.append(award.state)
@@ -233,8 +240,9 @@ def test_the_system_preselects_but_never_grants():
     try:
         src, dst = _pair(db)
         billig, teuer = _carrier(db, "Billig AG"), _carrier(db, "Teuer AG")
-        award = awards.request(db, subject_object_id=src, target_object_id=dst,
-                               channel=vergabe.PLATTFORM, actor_id=None)
+        with with_carriers([StubCarrier()]):
+            award = awards.request(db, subject_object_id=src, target_object_id=dst,
+                                   channel=vergabe.PLATTFORM, actor_id=None)
         awards.add_offer(db, award, provider_object_id=teuer, amount=90)
         awards.add_offer(db, award, provider_object_id=billig, amount=10)
 

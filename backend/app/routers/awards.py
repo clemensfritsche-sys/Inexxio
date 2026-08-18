@@ -17,7 +17,8 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Award, UserProfile
 from ..schemas.award import (
-    AwardCreate, AwardResponse, DeliverInput, GrantInput, OfferCreate, ReasonInput,
+    AwardCreate, AwardResponse, ChannelAvailability, DeliverInput, GrantInput,
+    OfferCreate, ReasonInput, TrackingResponse,
 )
 from ..services import awards as awards_svc
 from ..services.admin import log_audit
@@ -49,6 +50,17 @@ def request_award(data: AwardCreate, db: Session = Depends(get_db),
               user_id=user.id, object_id=award.subject_object_id)
     db.commit()
     return awards_svc.to_response(db, award)
+
+
+@router.get("/channels", response_model=list[ChannelAvailability])
+def channels(_: UserProfile = Depends(require_employee)):
+    """Welche Kanäle **jetzt** wählbar sind.
+
+    Steht **vor** ``/{award_id}``, sonst läse FastAPI «channels» als Vergabe-Nummer –
+    eine Reihenfolge-Falle, die man nur einmal erlebt.
+    """
+    return [ChannelAvailability(value=k, available=r is None, reason=r)
+            for k, r in awards_svc.channel_availability().items()]
 
 
 @router.get("/{award_id}", response_model=AwardResponse)
@@ -108,6 +120,28 @@ def deliver(award_id: int, data: DeliverInput, db: Session = Depends(get_db),
               user_id=user.id, object_id=award.subject_object_id)
     db.commit()
     return awards_svc.to_response(db, award)
+
+
+@router.post("/{award_id}/track", response_model=TrackingResponse)
+def track(award_id: int, db: Session = Depends(get_db),
+          user: UserProfile = Depends(require_employee)):
+    """**Wo ist die Sendung?** – und wenn sie da ist, entsteht die Ablage.
+
+    Tracking ist eine **Beobachtung wie ein Scan**: dieselbe Tabelle, dieselbe eine
+    Schreibstelle, nur `source='tracking'`. Gefragt wird auf **Klick** – ein Abruf beim
+    Öffnen wäre ein Vorgang bei einem Dritten, den niemand bestellt hat, und bei manchen
+    Anbietern kostet er.
+
+    Ein **gescheiterter** Transport macht die Vergabe nicht automatisch «gescheitert»:
+    das ist die Feststellung eines Menschen, mit Pflicht-Grund. Hier wird gemeldet.
+    """
+    award = _get(db, award_id)
+    state, detail = awards_svc.track(db, award, actor_id=user.id)
+    log_audit(db, "awards", "track", f"Vergabe {award.id}: {state} ({detail})",
+              user_id=user.id, object_id=award.subject_object_id)
+    db.commit()
+    return TrackingResponse(state=state, detail=detail,
+                            award=awards_svc.to_response(db, award))
 
 
 @router.post("/{award_id}/reject", response_model=AwardResponse)

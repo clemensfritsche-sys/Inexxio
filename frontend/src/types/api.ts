@@ -832,6 +832,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Haul
+         * @description **Tarife für eine Fuhre holen** (PROCESS_CORE §15.5a).
+         *
+         *     Er steht **hier** und nicht am Vergabe-Router, weil hier die **Fuhre** wohnt: welche
+         *     Stücke von wo nach wo gehen, weiss das Modul. Der Vergabe-Router müsste dafür Auftrag
+         *     und Modul kennen – und das wäre die Kopplung, die ADR 009 gerade vermeidet (eine
+         *     Vergabe gehört keinem Auftrag; morgen hängt sie an einer Bedarfszeile).
+         *
+         *     **Das Paket ist abgeleitet, nie eingegeben** (K3): Gewicht und Grösse stehen am
+         *     Artikel. Fehlt ein Gewicht, wird **nicht geraten** – die Antwort nennt den Artikel.
+         *
+         *     **Geholt wird auf Klick**, nie von selbst (K7/§15.7): ein Abruf beim Öffnen des
+         *     Moduls wäre ein Vorgang bei einem Dritten, den niemand bestellt hat.
+         */
+        post: operations["quote_haul_api_v1_erp_orders__object_id__steps__step_id__quote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/steps/{step_id}/hold": {
         parameters: {
             query?: never;
@@ -1080,6 +1111,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/awards/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Channels
+         * @description Welche Kanäle **jetzt** wählbar sind.
+         *
+         *     Steht **vor** ``/{award_id}``, sonst läse FastAPI «channels» als Vergabe-Nummer –
+         *     eine Reihenfolge-Falle, die man nur einmal erlebt.
+         */
+        get: operations["channels_api_v1_erp_awards_channels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/awards/{award_id}": {
         parameters: {
             query?: never;
@@ -1160,6 +1214,34 @@ export interface paths {
          *     wenn es bestellt wurde. Über ``places.record``, dieselbe eine Stelle wie überall.
          */
         post: operations["deliver_api_v1_erp_awards__award_id__deliver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/track": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track
+         * @description **Wo ist die Sendung?** – und wenn sie da ist, entsteht die Ablage.
+         *
+         *     Tracking ist eine **Beobachtung wie ein Scan**: dieselbe Tabelle, dieselbe eine
+         *     Schreibstelle, nur `source='tracking'`. Gefragt wird auf **Klick** – ein Abruf beim
+         *     Öffnen wäre ein Vorgang bei einem Dritten, den niemand bestellt hat, und bei manchen
+         *     Anbietern kostet er.
+         *
+         *     Ein **gescheiterter** Transport macht die Vergabe nicht automatisch «gescheitert»:
+         *     das ist die Feststellung eines Menschen, mit Pflicht-Grund. Hier wird gemeldet.
+         */
+        post: operations["track_api_v1_erp_awards__award_id__track_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1677,6 +1759,10 @@ export interface components {
             /** Id */
             id: number;
             provider?: components["schemas"]["HolderRef"] | null;
+            /** Provider Name */
+            provider_name?: string | null;
+            /** Carrier */
+            carrier?: string | null;
             /** Amount */
             amount: string;
             /** Currency */
@@ -1701,6 +1787,10 @@ export interface components {
             /** Channel */
             channel: string;
             provider?: components["schemas"]["HolderRef"] | null;
+            /** Provider Name */
+            provider_name?: string | null;
+            /** Carrier */
+            carrier?: string | null;
             /** Amount */
             amount?: string | null;
             /** Currency */
@@ -1711,6 +1801,12 @@ export interface components {
             reason?: string | null;
             /** Chosen Offer Id */
             chosen_offer_id?: number | null;
+            /** Label Url */
+            label_url?: string | null;
+            /** Tracking Number */
+            tracking_number?: string | null;
+            /** Tracking Url */
+            tracking_url?: string | null;
             /** Offers */
             offers?: components["schemas"]["AwardOfferResponse"][];
             /**
@@ -1759,6 +1855,21 @@ export interface components {
             key: string;
             /** Label */
             label: string;
+        };
+        /**
+         * ChannelAvailability
+         * @description Ist dieser Kanal **jetzt** wählbar? Und wenn nicht: warum.
+         *
+         *     Andere Frage als der generierte Katalog (der sagt, welche Kanäle es *gibt*). Eine
+         *     gemeinsame Liste wäre eine statische Datei, die eine Laufzeit-Tatsache behauptet.
+         */
+        ChannelAvailability: {
+            /** Value */
+            value: string;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * CompanyCreate
@@ -2393,6 +2504,18 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HaulQuote
+         * @description **Tarife für EINE Fuhre holen** (PROCESS_CORE §15.5a).
+         *
+         *     Genannt wird nur der **Ausgangsort** – welche Stücke von dort weggehen und was sie
+         *     wiegen, leitet der Server ab. Eine Stückliste oder ein Gewicht von aussen wäre die
+         *     zweite Wahrheit über dasselbe Paket, und die stimmt beim Wiegen nicht.
+         */
+        HaulQuote: {
+            /** From Holder Object Id */
+            from_holder_object_id: number;
         };
         /**
          * HeldUnit
@@ -3440,6 +3563,25 @@ export interface components {
             pos: number[];
             /** Company Object Id */
             company_object_id?: number | null;
+        };
+        /**
+         * TrackingResponse
+         * @description Wo die Sendung ist – und die Vergabe, wie sie danach dasteht.
+         *
+         *     Der **Zustand des Transports** (unterwegs · zugestellt · gescheitert) ist eine
+         *     Auskunft des Frachtführers; er ist bewusst **nicht** der Zustand der Vergabe. Ein
+         *     gescheiterter Transport macht sie nicht automatisch `gescheitert` – das ist die
+         *     Feststellung eines Menschen, mit Pflicht-Grund (V6).
+         */
+        TrackingResponse: {
+            /** State */
+            state: string;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            award: components["schemas"]["AwardResponse"];
         };
         /**
          * UnitOption
@@ -5133,6 +5275,42 @@ export interface operations {
             };
         };
     };
+    quote_haul_api_v1_erp_orders__object_id__steps__step_id__quote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HaulQuote"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     hold_numbers_api_v1_erp_orders__object_id__steps__step_id__hold_get: {
         parameters: {
             query: {
@@ -5468,6 +5646,26 @@ export interface operations {
             };
         };
     };
+    channels_api_v1_erp_awards_channels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelAvailability"][];
+                };
+            };
+        };
+    };
     read_award_api_v1_erp_awards__award_id__get: {
         parameters: {
             query?: never;
@@ -5591,6 +5789,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    track_api_v1_erp_awards__award_id__track_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackingResponse"];
                 };
             };
             /** @description Validation Error */

@@ -3942,3 +3942,51 @@ def test_the_module_offers_the_award_it_never_creates_one():
         "Der Kontext-Scan fährt nicht mehr mit – dann lehnt der Server jede Bewegung ab, "
         "und die Oberfläche weiss nicht warum."
     )
+
+
+def test_the_platform_channel_disappears_without_a_key():
+    """**Ohne Schlüssel gibt es den Kanal nicht** – auch in der Oberfläche (K4).
+
+    Bug-Form: er steht da und scheitert beim Klick. Der Vorgänger fiel dazu noch
+    stillschweigend auf «manual» zurück – und genau darum merkte niemand, dass nie ein
+    Tarif kam.
+
+    Geprüft wird, dass die Oberfläche die **Laufzeit**-Antwort holt und nicht den
+    statischen Katalog filtert: der sagt, welche Kanäle es *gibt*, nicht welche *gehen*.
+    """
+    panel = _code(_read(FRONTEND / "components" / "erp" / "award-panel.tsx"))
+    assert "awardChannels()" in panel, (
+        "Die Kanal-Auswahl fragt nicht, was jetzt wählbar ist – dann steht «Plattform» "
+        "auch ohne Frachtführer da und scheitert beim Klick.")
+    assert "usable[c.value] === null" in panel, (
+        "Es wird nicht nach der Verfügbarkeit gefiltert.")
+
+    # **Und die Regel steht im Anfrage-Pfad**, nicht bloss irgendwo im Modul: eine
+    # Auskunftsfunktion daneben wäre eine Bitte, keine Sperre. Darum der Rumpf von
+    # ``request`` und nicht die Datei (gegen die Bug-Form geprüft).
+    svc = _read(BACKEND / "app" / "services" / "awards.py")
+    assert "carriers.available()" in _body(svc, "request"), (
+        "Der Dienst lässt den Plattform-Kanal ohne Schlüssel zu – dann ist die "
+        "Oberflächen-Regel eine Bitte.")
+
+
+def test_rates_are_fetched_at_the_module_and_only_on_click():
+    """**Der Tarifabruf steht am Modul** – dort wohnt die Fuhre (§15.5a).
+
+    Bug-Form 1: er hängt am Vergabe-Router; der müsste dann Auftrag und Modul kennen –
+    genau die Kopplung, die ADR 009 vermeidet (eine Vergabe gehört keinem Auftrag).
+    Bug-Form 2: er läuft beim Öffnen des Moduls. Das wäre ein Vorgang bei einem Dritten,
+    den niemand bestellt hat – und bei manchen Anbietern kostet er.
+    """
+    api = _code(_read(FRONTEND / "lib" / "api.ts"))
+    assert "/steps/${stepId}/quote" in api, (
+        "Der Tarifabruf hängt nicht mehr am Modul.")
+
+    hauls = _read(FRONTEND / "components" / "erp" / "haul-list.tsx")
+    assert "useEffect" not in hauls, (
+        "Die Fuhren-Ansicht tut beim Rendern etwas – ein Tarifabruf beim Öffnen kostet "
+        "bei manchen Anbietern Geld.")
+    panel = _code(_read(FRONTEND / "components" / "erp" / "award-panel.tsx"))
+    assert "onQuote()" in panel and "quoteHaul" not in panel, (
+        "Das Bauteil holt selbst Tarife – dann kennt es Auftrag und Modul, und es ist "
+        "nicht mehr für die künftige Beschaffung brauchbar.")

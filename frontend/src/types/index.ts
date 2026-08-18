@@ -256,6 +256,13 @@ export type HolderRef = components['schemas']['HolderRef'];
  */
 export type Award = components['schemas']['AwardResponse'];
 export type AwardOffer = components['schemas']['AwardOfferResponse'];
+/** Wo eine Sendung ist – und die Vergabe, wie sie danach dasteht. */
+export type AwardTracking = components['schemas']['TrackingResponse'];
+/**
+ * Ist ein Kanal **jetzt** wählbar? Andere Frage als der generierte Katalog (der sagt,
+ * welche Kanäle es *gibt*) – ohne Schlüssel gibt es «Plattform» nicht.
+ */
+export type ChannelAvailability = components['schemas']['ChannelAvailability'];
 /** **Was an einem Modul passiert ist** – lückenlos, je Einzelinstanz (`services/record`). */
 export type StepRecord = components['schemas']['StepRecord'];
 export type RecordEntry = components['schemas']['RecordEntry'];

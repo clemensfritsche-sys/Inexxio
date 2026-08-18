@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { Ban, Check, Handshake, PackageCheck, Send, TriangleAlert } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Ban, Check, FileText, Handshake, MapPin, PackageCheck, Send, Tags, TriangleAlert,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Award } from '@/types';
 import { AWARD_CHANNELS, awardChannel } from '@/lib/vergabe-catalog';
@@ -35,7 +37,7 @@ import { PaletteButton, Palette, numericInputProps, numericOnly } from '@/compon
  * hervorgehoben, aber jeder andere genauso anklickbar – sonst wäre es keine Wahl.
  */
 export function AwardPanel({ award, subjectObjectId, targetObjectId, unitIds = [],
-                             busy, onChanged }: {
+                             busy, onQuote, onChanged }: {
   /** Die **offene** Vergabe – `null`, solange niemand angefragt hat. */
   award: Award | null;
   /** Der Anlass. Bei einem Transport der Ausgangsort. */
@@ -44,6 +46,11 @@ export function AwardPanel({ award, subjectObjectId, targetObjectId, unitIds = [
   /** Die Stücke, die bei einer Abnahme **angekommen** sind. */
   unitIds?: number[];
   busy?: boolean;
+  /**
+   * **Tarife holen** – der Aufruf steht am **Modul**, nicht an der Vergabe: dort wohnt
+   * die Fuhre. Fehlt er, gibt es den Knopf nicht (statt eines, der nichts tut).
+   */
+  onQuote?: () => Promise<void>;
   onChanged: (next: Award) => void;
 }) {
   const [pending, setPending] = useState(false);
@@ -83,9 +90,10 @@ export function AwardPanel({ award, subjectObjectId, targetObjectId, unitIds = [
             {channel.label}
           </span>
         )}
-        {award.provider && (
+        {(award.provider || award.provider_name) && (
           <span className="text-[11.5px] truncate" style={{ color: 'var(--fg-3)' }}>
-            {award.provider.name ?? formatObjectId(award.provider.object_id)}
+            {award.provider?.name ?? award.provider_name
+              ?? formatObjectId(award.provider!.object_id)}
             {award.amount != null && ` · ${award.amount} ${award.currency ?? ''}`}
           </span>
         )}
@@ -102,7 +110,43 @@ export function AwardPanel({ award, subjectObjectId, targetObjectId, unitIds = [
           onGrant={(offerId) => act(() => api.grantAward(award.id, offerId))} />
       )}
 
+      {/* Was der Kauf hervorgebracht hat – eine **Tatsache über die Sendung**. */}
+      {(award.label_url || award.tracking_number) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {award.label_url && (
+            <a href={award.label_url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11.5px]"
+              style={{ color: 'var(--accent)' }}>
+              <FileText size={12} /> Etikett
+            </a>
+          )}
+          {award.tracking_number && (
+            <span className="inline-flex items-center gap-1 text-[11.5px]"
+              style={{ color: 'var(--fg-3)' }}>
+              <MapPin size={12} />
+              {award.tracking_url
+                ? <a href={award.tracking_url} target="_blank" rel="noopener noreferrer"
+                    style={{ color: 'var(--accent)' }}>{award.tracking_number}</a>
+                : award.tracking_number}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-1.5">
+        {/* **Tarife werden nie von selbst geholt** (§15.7): ein Abruf beim Öffnen wäre
+            ein Vorgang bei einem Dritten, den niemand bestellt hat – und bei manchen
+            Anbietern kostet er. */}
+        {onQuote && award.channel === 'plattform' && award.open && (
+          <Action icon={Tags} label="Tarife holen" busy={working}
+            hint="Fragt alle eingerichteten Frachtführer – eine Ausschreibung, die 2 Sekunden dauert."
+            onClick={() => { setPending(true); void onQuote().finally(() => setPending(false)); }} />
+        )}
+        {award.tracking_number && award.open && (
+          <Action icon={MapPin} label="Sendung verfolgen" busy={working}
+            hint="Zugestellt? Dann entsteht die Ablage – dieselbe eine Stelle wie ein Scan."
+            onClick={() => act(() => api.trackAward(award.id).then((r) => r.award))} />
+        )}
         {/* «Selbst bestellt» kennt keine Angebote – dort wird unmittelbar vergeben. */}
         {can('vergeben') && !channel?.offers && (
           <DirectGrant awardId={award.id} busy={working}
@@ -146,13 +190,32 @@ function RequestRow({ subjectObjectId, targetObjectId, busy, onRequested }: {
   onRequested: (a: Award) => void;
 }) {
   const [pending, setPending] = useState(false);
+  /**
+   * **Welche Kanäle jetzt wählbar sind.** Der generierte Katalog sagt, welche es *gibt*;
+   * ob einer *heute* benutzbar ist, ist eine Laufzeit-Tatsache – ohne eingerichteten
+   * Frachtführer gibt es «Plattform» nicht, und er erscheint dann **gar nicht**, statt
+   * dazustehen und zu scheitern.
+   */
+  const [usable, setUsable] = useState<Record<string, string | null> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void api.awardChannels()
+      .then((rows) => alive && setUsable(Object.fromEntries(
+        rows.map((r) => [r.value, r.available ? null : (r.reason ?? 'nicht verfügbar')]))))
+      .catch(() => alive && setUsable({}));
+    return () => { alive = false; };
+  }, []);
+
+  // Solange die Antwort aussteht, wird nichts angeboten: ein Knopf, der gleich wieder
+  // verschwindet, ist schlimmer als einer, der kurz später erscheint.
+  const shown = AWARD_CHANNELS.filter((c) => usable && usable[c.value] === null);
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
         Versand – ein Dritter muss das erbringen. Über welchen Weg?
       </span>
       <Palette style={{ justifyContent: 'flex-start' }}>
-        {AWARD_CHANNELS.map((c) => (
+        {shown.map((c) => (
           <PaletteButton key={c.value} icon={Send} label={c.label}
             tone="var(--fg-2)" bg="var(--bg-2)" border="var(--border-1)"
             disabled={busy || pending}
@@ -200,11 +263,17 @@ function OfferList({ award, busy, onGrant }: {
               {o.days} Tage
             </span>
           )}
-          {o.provider && (
-            <span className="text-[11.5px] truncate" style={{ color: 'var(--fg-3)' }}>
-              {o.provider.name ?? <ObjId value={o.provider.object_id} />}
-            </span>
-          )}
+          {/* **Der Anbieter ist ein Datensatz ODER ein Name.** Ein Frachtführer ist
+              keiner – einen anzulegen wäre erfundene Daten. */}
+          {o.provider
+            ? <span className="text-[11.5px] truncate" style={{ color: 'var(--fg-3)' }}>
+                {o.provider.name ?? <ObjId value={o.provider.object_id} />}
+              </span>
+            : o.provider_name && (
+              <span className="text-[11.5px] truncate" style={{ color: 'var(--fg-3)' }}>
+                {o.provider_name}
+              </span>
+            )}
           {i === 0 && offers.length > 1 && (
             <span className="text-[10.5px]" style={{ color: 'var(--fg-4)' }}
               data-tip="Vorgewählt, nicht entschieden – die Wahl trifft ein Mensch.">

@@ -931,13 +931,7 @@ def confirm_step(
     jemand zugestimmt hätte. Stilles Weiterlaufen ist der Fehler, den es zu verhindern
     gilt; das Anhalten ist nicht der Nebeneffekt, sondern der Zweck.
     """
-    step = (
-        db.query(ProcessStep)
-        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
-        .first()
-    )
-    if step is None:
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    step = step_of(db, order, step_id)
     if order_status(db, order) != st.IM_PROZESS:
         raise HTTPException(
             status_code=409,
@@ -1619,6 +1613,23 @@ def _number(db: Session, unit: InstanceUnit) -> str:
             detail=f"Einzelinstanz {unit.id} hat keine Instanz – der Datenbestand ist kaputt.",
         )
     return unit_number(instance, unit)
+
+
+def step_of(db: Session, order: Order, step_id: int) -> ProcessStep:
+    """**Ein** Modul dieses Auftrags – oder 404.
+
+    Die Auflösung stand einmal ausgeschrieben in ``confirm_step``; mit dem zweiten
+    Aufrufer (dem Tarifabruf am Modul) wäre sie zweimal dagestanden – und zwei Fassungen
+    derselben Frage laufen auseinander, sobald eine davon einen Fall dazubekommt.
+    """
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None:
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    return step
 
 
 def steps_of(db: Session, order: Order) -> list[ProcessStep]:

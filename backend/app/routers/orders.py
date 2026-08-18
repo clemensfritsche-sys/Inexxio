@@ -22,7 +22,7 @@ from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
-    RelatedOrder, StepHaul, StepNeed, StepWork, UnitOption,
+    HaulQuote, RelatedOrder, StepHaul, StepNeed, StepWork, UnitOption,
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, RecordEntry,
@@ -32,6 +32,9 @@ from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import awards as awards_svc
+from ..services import carriers
+from ..services import objects as obj_svc
+from ..services import parcel as parcel_svc
 from ..services import consumption as consumption_svc
 from ..services import flow as flow_svc
 from ..services import record as record_svc
@@ -589,6 +592,88 @@ def confirm_step(
     db.commit()
     db.refresh(order)
     return _to_response(db, order)
+
+
+@router.post("/{object_id}/steps/{step_id}/quote", response_model=OrderResponse)
+def quote_haul(
+    object_id: int,
+    step_id: int,
+    data: HaulQuote,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """**Tarife für eine Fuhre holen** (PROCESS_CORE §15.5a).
+
+    Er steht **hier** und nicht am Vergabe-Router, weil hier die **Fuhre** wohnt: welche
+    Stücke von wo nach wo gehen, weiss das Modul. Der Vergabe-Router müsste dafür Auftrag
+    und Modul kennen – und das wäre die Kopplung, die ADR 009 gerade vermeidet (eine
+    Vergabe gehört keinem Auftrag; morgen hängt sie an einer Bedarfszeile).
+
+    **Das Paket ist abgeleitet, nie eingegeben** (K3): Gewicht und Grösse stehen am
+    Artikel. Fehlt ein Gewicht, wird **nicht geraten** – die Antwort nennt den Artikel.
+
+    **Geholt wird auf Klick**, nie von selbst (K7/§15.7): ein Abruf beim Öffnen des
+    Moduls wäre ein Vorgang bei einem Dritten, den niemand bestellt hat.
+    """
+    order = orders_svc.get(db, object_id)
+    step = process_svc.step_of(db, order, step_id)
+    rows = moving_svc.hauls(db, step=step,
+                            units=process_svc.units_at_step(db, order, step))
+    haul = next((h for h in rows if h.from_holder == data.from_holder_object_id), None)
+    if not haul:
+        raise HTTPException(
+            status_code=404,
+            detail=(f"Von {obj_svc.obj_nr(data.from_holder_object_id)} geht an diesem "
+                    f"Modul gerade nichts weg."),
+        )
+    award = awards_svc.open_for(db, haul.from_holder, haul.to_holder)
+    if not award:
+        raise HTTPException(
+            status_code=409,
+            detail="Für diese Fuhre gibt es keine offene Vergabe – zuerst anfragen.",
+        )
+
+    box, problems = parcel_svc.of_units(db, haul.unit_ids)
+    if problems:
+        raise HTTPException(status_code=409, detail=problems[0].message)
+
+    sender = _carrier_address(db, haul.from_holder, "Ausgangsort")
+    receiver = _carrier_address(db, haul.to_holder, "Ziel")
+    messages = awards_svc.quote(db, award, sender=sender, receiver=receiver,
+                                parcel=box, unit_ids=haul.unit_ids)
+    log_audit(db, "awards", "quote",
+              f"Tarife für Vergabe {award.id}: "
+              f"{len(awards_svc.offers(db, award))} Angebote"
+              + (f" – {'; '.join(messages)}" if messages else ""),
+              user_id=user.id, object_id=order.object_id)
+    db.commit()
+    db.refresh(order)
+    return _to_response(db, order)
+
+
+def _carrier_address(db: Session, holder_object_id: int, what: str) -> carriers.Address:
+    """Die Anschrift eines Halters – aus der **einen** Ableitung (``places.address_of``).
+
+    Eine zweite hier wäre die verbotene Form V-6: zwei Antworten auf dieselbe Sache. Was
+    fehlt, wird **gemeldet**, nicht ergänzt – ein geratenes Land ergäbe einen Preis für
+    eine Strecke, die es nicht gibt.
+    """
+    raw = places_svc.address_of(db, holder_object_id)
+    if not raw:
+        raise HTTPException(
+            status_code=409,
+            detail=(f"Zum {what} {obj_svc.obj_nr(holder_object_id)} führt keine "
+                    f"Anschrift – ohne sie kann kein Frachtführer einen Preis nennen."),
+        )
+    # Die kanonische Form heisst ``street1`` (``services/address``) – ``street``+
+    # ``street_nr`` sind darin längst zusammengezogen. Sie hier noch einmal zu lesen wäre
+    # die zweite Auslegung derselben Adresse.
+    return carriers.Address(
+        name=raw.get("name") or "", street=raw.get("street1") or "",
+        zip=raw.get("zip") or "", city=raw.get("city") or "",
+        country=(raw.get("country") or "").upper()[:2],
+        email=raw.get("email") or "", phone=raw.get("phone") or "",
+    )
 
 
 @router.get("/{object_id}/steps/{step_id}/hold", response_model=HoldNumbers)

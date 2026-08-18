@@ -278,6 +278,53 @@
 > benutzen kann, folgt aus dem Dienst (dort ist das gewählte Angebot Pflicht, und sobald
 > eines da ist, steht die Vergabe ohnehin auf `angeboten`). Die Matrix sagt, welche
 > Zustandsfolgen es gibt; der Kanal sagt, woher die Angebote kommen.
+> **Der Kanal «Plattform» ist ein Adapter, kein zweiter Zyklus** (§15.5a, Migration `113`,
+> `services/carriers/`): Er beantwortet **drei Fragen** – was kostet ein Transport, wie
+> sieht sein Etikett aus, ist er angekommen – und kennt **weder Auftrag noch Modul noch
+> Ort**. Was er liefert, wird durch **dieselbe** Stelle geschrieben wie ein im Portal
+> getipptes Angebot (`awards.add_offer`); ein Adapter, der selbst `angeboten` schriebe,
+> wäre der zweite Zyklus, den §15.5 gerade verbietet. Ein AST-Wächter hält das fest –
+> und er hat beim Gegenprüfen den eigenen blinden Fleck gemeldet (er las das **Modul**
+> eines Imports, nicht den importierten **Namen**).
+> **Das Paket ist ABGELEITET, nie eingegeben** (`services/parcel.py`): Gewicht und Grösse
+> stehen am Artikel, was eine Fuhre wiegt ist die Summe über ihre Stücke, die Masse
+> werden gestapelt (die einfachste Annahme, die nie kleiner ist als die Wirklichkeit).
+> **Fehlt ein Gewicht, wird nicht geraten** – die Anfrage nennt den Artikel; ein
+> geschätztes Paket ergäbe einen Preis, der beim Wiegen nicht stimmt und erst auf der
+> Rechnung des Frachtführers auffällt. Was »3x40x600« **bedeutet**, entscheidet der
+> Artikel (`schemas/article.parse_size`, neben `normalize_size` – zwei **Formen**
+> derselben Regel, nicht zwei Regeln); der Paket-Dienst rechnet nur mm → cm.
+> **Ohne Schlüssel gibt es den Kanal NICHT** – er ist nicht wählbar, statt zu erscheinen
+> und zu scheitern, und es gibt **keinen Rückfall** auf einen anderen Anbieter: welcher
+> Dritte fährt, ist eine Entscheidung. Der Vorgänger fiel stillschweigend auf «manual»
+> zurück («nie kaputt») – und genau darum merkte niemand, dass nie ein Tarif kam. Gefragt
+> werden darum **alle eingerichteten** Anbieter, nicht ein ausgewählter: eine
+> Ausschreibung fragt mehrere. `services/shipping/` ist **ersatzlos gelöscht**; Shippo und
+> Sendcloud sind **neu geschrieben** und stehen mit ihren Schlüsseln sauber bereit.
+> **Der Tarifabruf steht am MODUL** (`POST …/steps/{id}/quote`), nicht am Vergabe-Router:
+> dort wohnt die Fuhre. Der Vergabe-Router müsste sonst Auftrag und Modul kennen – genau
+> die Kopplung, die ADR 009 vermeidet (eine Vergabe gehört keinem Auftrag; morgen hängt
+> sie an einer Bedarfszeile). **Geholt wird auf Klick**, nie beim Öffnen: das wäre ein
+> Vorgang bei einem Dritten, den niemand bestellt hat, und bei manchen Anbietern kostet er.
+> **Vergeben IST der Kauf**: beim Plattform-Kanal entsteht mit der Vergabe das Etikett.
+> Ein eigener Knopf daneben wäre ein zweiter Weg zu einer Sendung – und dann gäbe es eine
+> vergebene Vergabe ohne Etikett, eine Zusage, die niemand einlösen kann.
+> **Tracking ist eine Beobachtung wie ein Scan**: dieselbe Tabelle, dieselbe eine
+> Schreibstelle (`places.record`), nur `source='tracking'`. Dafür hält die Vergabe **ihre
+> Stücke ab dem Angebot** (`awards.unit_ids`) – wer Tarife holt, beschreibt ein Paket, und
+> ein Paket hat einen Inhalt; gebraucht wird er genau einmal, wenn niemand am Ziel steht.
+> Eine **unzustellbare** Sendung macht die Vergabe **nicht** automatisch «gescheitert»:
+> das ist die Feststellung eines Menschen, mit Pflicht-Grund. Darum heissen die
+> Sendungs-Zustände auch anders (`unterwegs · zugestellt · **unzustellbar**`) – dass
+> beide einmal «gescheitert» hiessen, hat der Registry-Wächter gemeldet.
+> **Ein Frachtführer ist kein ERP-Datensatz**: ein Angebot nennt seinen Anbieter als
+> **Objektnummer ODER als Name**, und ob er ein Datensatz ist, entscheidet, woher es
+> kommt. «Swiss Post» als Lieferanten anzulegen wäre erfundene Daten – und zwar solche,
+> die jemand später pflegen müsste.
+> Wächter: `tests/test_carrier.py` (11) – **jeder gegen seine Bug-Form gegengeprüft**;
+> dazu ein Durchlauf über die echten HTTP-Endpunkte (22 Prüfungen: kein Schlüssel → kein
+> Kanal → Tarife → günstigstes vorgewählt, teureres wählbar → Etikett → unterwegs →
+> zugestellt → Ablage mit `source='tracking'` → Modul läuft).
 > **Die Historie des Scheiterns steht in ADR 009 §2**, belegt am Altcode: `movable_instances`
 > (drei Zweige, vier Ausnahmen – ein Modul las Verbleib und Auftragsgrund, um zu
 > entscheiden, woran es arbeitet), `location_split` (Mengen-Map + denormalisierter Skalar +

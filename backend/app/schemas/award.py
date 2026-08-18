@@ -23,7 +23,13 @@ class AwardOfferResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    #: Der Anbieter als **Datensatz** (Lieferantenportal) …
     provider: Optional[HolderRef] = None
+    #: … oder als **Name**, wenn ihn eine Schnittstelle nennt («Swiss Post · Economy»).
+    #: Ein Frachtführer ist kein ERP-Datensatz; einen anzulegen wäre erfundene Daten.
+    provider_name: Optional[str] = None
+    #: Über welchen Adapter dieses Angebot kam – und über welchen es gekauft würde.
+    carrier: Optional[str] = None
     amount: Decimal
     currency: str
     #: Zugesagte Dauer in Tagen. ``None`` = nicht genannt, nicht «sofort».
@@ -43,11 +49,17 @@ class AwardResponse(BaseModel):
     state: str
     channel: str
     provider: Optional[HolderRef] = None
+    provider_name: Optional[str] = None
+    carrier: Optional[str] = None
     amount: Optional[Decimal] = None
     currency: Optional[str] = None
     due_at: Optional[datetime] = None
     reason: Optional[str] = None
     chosen_offer_id: Optional[int] = None
+    #: Was der Kauf hervorgebracht hat – eine **Tatsache über die Sendung**.
+    label_url: Optional[str] = None
+    tracking_number: Optional[str] = None
+    tracking_url: Optional[str] = None
     offers: list[AwardOfferResponse] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
@@ -83,6 +95,18 @@ class AwardResponse(BaseModel):
         die Matrix nicht nach. Eine Schaltfläche, die scheitert, ist schlimmer als keine.
         """
         return list(vergabe.TRANSITIONS.get(self.state, ()))
+
+
+class ChannelAvailability(BaseModel):
+    """Ist dieser Kanal **jetzt** wählbar? Und wenn nicht: warum.
+
+    Andere Frage als der generierte Katalog (der sagt, welche Kanäle es *gibt*). Eine
+    gemeinsame Liste wäre eine statische Datei, die eine Laufzeit-Tatsache behauptet.
+    """
+
+    value: str
+    available: bool
+    reason: Optional[str] = None
 
 
 class AwardCreate(BaseModel):
@@ -135,6 +159,20 @@ class DeliverInput(BaseModel):
     """
 
     instance_unit_ids: list[int] = Field(default_factory=list)
+
+
+class TrackingResponse(BaseModel):
+    """Wo die Sendung ist – und die Vergabe, wie sie danach dasteht.
+
+    Der **Zustand des Transports** (unterwegs · zugestellt · gescheitert) ist eine
+    Auskunft des Frachtführers; er ist bewusst **nicht** der Zustand der Vergabe. Ein
+    gescheiterter Transport macht sie nicht automatisch `gescheitert` – das ist die
+    Feststellung eines Menschen, mit Pflicht-Grund (V6).
+    """
+
+    state: str
+    detail: str = ""
+    award: AwardResponse
 
 
 class ReasonInput(BaseModel):

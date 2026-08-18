@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import BigInteger, DateTime, Index, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -54,9 +55,37 @@ class Award(Base, TimestampMixin):
                                        default=vergabe.ANGEFRAGT)
     channel: Mapped[str] = mapped_column(String(20), nullable=False)
 
-    #: Der Dritte – **immer ein Lieferant** (Benutzer-Objektnummer). Steht erst fest,
-    #: wenn vergeben ist; bei ``selbst`` schon vorher.
+    #: Der Dritte – als **Objektnummer**, wenn er ein Datensatz ist (Lieferantenportal:
+    #: er hat sich angemeldet, um sein Angebot einzutippen). Steht erst mit der Vergabe
+    #: fest; bei ``selbst`` schon vorher.
     provider_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
+    #: …oder als **Name**, wenn ihn eine Schnittstelle nennt («Swiss Post», «DPD»). Ein
+    #: Frachtführer ist kein ERP-Datensatz; einen anzulegen wäre erfundene Daten – und
+    #: zwar solche, die jemand später pflegen müsste. Nie beide leer (``awards._who``).
+    provider_name: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+
+    #: Der **Adapter**, über den gekauft und nachverfolgt wird (``sendcloud``/``shippo``).
+    #: Ohne ihn wüsste der Kauf nicht, wen er fragen soll – und Raten wäre eine stille
+    #: Ersatzwahl. Leer bei jedem Kanal ohne Schnittstelle.
+    carrier: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+
+    #: Was der Kauf hervorgebracht hat. Alles drei ist eine **Tatsache über die Sendung**,
+    #: keine Absicht – darum steht es hier und nicht am Angebot.
+    label_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    tracking_number: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    tracking_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    #: Was der Anbieter braucht, um den Kauf abzuschliessen – vom **Adapter** gefüllt und
+    #: vom Aufrufer nur durchgereicht (Shippo legt die Sendung beim Abruf an, Sendcloud
+    #: erst beim Kauf; beide Formen passen darum unter dasselbe Feld).
+    shipment_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    #: **Die Stücke, die diese Vergabe trägt** (PROCESS_CORE §15.5a). Wer Tarife holt,
+    #: beschreibt ein Paket, und ein Paket hat einen Inhalt; vorher steht er nicht fest
+    #: (jemand kann noch etwas herausnehmen). Gebraucht genau einmal: beim **Tracking**,
+    #: das die Ankunft meldet, ohne dass jemand am Ziel steht.
+    unit_ids: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
     #: Der vereinbarte Preis. Erst mit der Vergabe verbindlich.
     amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 2), nullable=True)
@@ -95,8 +124,15 @@ class AwardOffer(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     award_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
-    #: Wer anbietet – immer ein Lieferant (Benutzer-Objektnummer).
-    provider_object_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    #: Wer anbietet – als **Objektnummer** (ein Lieferant, der es selbst eingetippt hat)
+    #: oder als **Name** (ein Frachtführer, den die Schnittstelle nennt). Nie beide leer;
+    #: geprüft im Dienst, wo der Grund danebensteht, statt als Constraint, der nur
+    #: «verletzt» sagt.
+    provider_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    provider_name: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+
+    #: Über welchen **Adapter** dieses Angebot kam – und über welchen es gekauft würde.
+    carrier: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
 
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="CHF")

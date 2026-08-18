@@ -2149,6 +2149,73 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/quote": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Quote Haul",
+        "description": "**Tarife für eine Fuhre holen** (PROCESS_CORE §15.5a).\n\nEr steht **hier** und nicht am Vergabe-Router, weil hier die **Fuhre** wohnt: welche\nStücke von wo nach wo gehen, weiss das Modul. Der Vergabe-Router müsste dafür Auftrag\nund Modul kennen – und das wäre die Kopplung, die ADR 009 gerade vermeidet (eine\nVergabe gehört keinem Auftrag; morgen hängt sie an einer Bedarfszeile).\n\n**Das Paket ist abgeleitet, nie eingegeben** (K3): Gewicht und Grösse stehen am\nArtikel. Fehlt ein Gewicht, wird **nicht geraten** – die Antwort nennt den Artikel.\n\n**Geholt wird auf Klick**, nie von selbst (K7/§15.7): ein Abruf beim Öffnen des\nModuls wäre ein Vorgang bei einem Dritten, den niemand bestellt hat.",
+        "operationId": "quote_haul_api_v1_erp_orders__object_id__steps__step_id__quote_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaulQuote"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/steps/{step_id}/hold": {
       "get": {
         "tags": [
@@ -2797,6 +2864,37 @@
         ]
       }
     },
+    "/api/v1/erp/awards/channels": {
+      "get": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Channels",
+        "description": "Welche Kanäle **jetzt** wählbar sind.\n\nSteht **vor** ``/{award_id}``, sonst läse FastAPI «channels» als Vergabe-Nummer –\neine Reihenfolge-Falle, die man nur einmal erlebt.",
+        "operationId": "channels_api_v1_erp_awards_channels_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelAvailability"
+                  },
+                  "type": "array",
+                  "title": "Response Channels Api V1 Erp Awards Channels Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/erp/awards/{award_id}": {
       "get": {
         "tags": [
@@ -3001,6 +3099,54 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/awards/{award_id}/track": {
+      "post": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Track",
+        "description": "**Wo ist die Sendung?** – und wenn sie da ist, entsteht die Ablage.\n\nTracking ist eine **Beobachtung wie ein Scan**: dieselbe Tabelle, dieselbe eine\nSchreibstelle, nur `source='tracking'`. Gefragt wird auf **Klick** – ein Abruf beim\nÖffnen wäre ein Vorgang bei einem Dritten, den niemand bestellt hat, und bei manchen\nAnbietern kostet er.\n\nEin **gescheiterter** Transport macht die Vergabe nicht automatisch «gescheitert»:\ndas ist die Feststellung eines Menschen, mit Pflicht-Grund. Hier wird gemeldet.",
+        "operationId": "track_api_v1_erp_awards__award_id__track_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "award_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Award Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackingResponse"
                 }
               }
             }
@@ -4592,6 +4738,28 @@
               }
             ]
           },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          },
+          "carrier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carrier"
+          },
           "amount": {
             "type": "string",
             "title": "Amount"
@@ -4670,6 +4838,28 @@
               }
             ]
           },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          },
+          "carrier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carrier"
+          },
           "amount": {
             "anyOf": [
               {
@@ -4725,6 +4915,39 @@
               }
             ],
             "title": "Chosen Offer Id"
+          },
+          "label_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Url"
+          },
+          "tracking_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Number"
+          },
+          "tracking_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Url"
           },
           "offers": {
             "items": {
@@ -4807,6 +5030,36 @@
         ],
         "title": "CaptureTypeInfo",
         "description": "Ein wählbarer Erfassungspunkt-Typ."
+      },
+      "ChannelAvailability": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "available"
+        ],
+        "title": "ChannelAvailability",
+        "description": "Ist dieser Kanal **jetzt** wählbar? Und wenn nicht: warum.\n\nAndere Frage als der generierte Katalog (der sagt, welche Kanäle es *gibt*). Eine\ngemeinsame Liste wäre eine statische Datei, die eine Laufzeit-Tatsache behauptet."
       },
       "CompanyCreate": {
         "properties": {
@@ -6574,6 +6827,20 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HaulQuote": {
+        "properties": {
+          "from_holder_object_id": {
+            "type": "integer",
+            "title": "From Holder Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_holder_object_id"
+        ],
+        "title": "HaulQuote",
+        "description": "**Tarife für EINE Fuhre holen** (PROCESS_CORE §15.5a).\n\nGenannt wird nur der **Ausgangsort** – welche Stücke von dort weggehen und was sie\nwiegen, leitet der Server ab. Eine Stückliste oder ein Gewicht von aussen wäre die\nzweite Wahrheit über dasselbe Paket, und die stimmt beim Wiegen nicht."
       },
       "HeldUnit": {
         "properties": {
@@ -8532,6 +8799,29 @@
         ],
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
+      },
+      "TrackingResponse": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "default": ""
+          },
+          "award": {
+            "$ref": "#/components/schemas/AwardResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "award"
+        ],
+        "title": "TrackingResponse",
+        "description": "Wo die Sendung ist – und die Vergabe, wie sie danach dasteht.\n\nDer **Zustand des Transports** (unterwegs · zugestellt · gescheitert) ist eine\nAuskunft des Frachtführers; er ist bewusst **nicht** der Zustand der Vergabe. Ein\ngescheiterter Transport macht sie nicht automatisch `gescheitert` – das ist die\nFeststellung eines Menschen, mit Pflicht-Grund (V6)."
       },
       "UnitOption": {
         "properties": {

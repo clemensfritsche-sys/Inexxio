@@ -235,7 +235,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
             refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
-          <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate} />
+          <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate}
+            onQuoted={setLive} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {loading ? 'Lädt …' : null}
@@ -363,12 +364,14 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // Freigegeben — Modus «ausfuehrung»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RunView({ order, busy, onConfirm, onDeviate }: {
+function RunView({ order, busy, onConfirm, onDeviate, onQuoted }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
               sources: number[], fromHolder: number | null) => void;
   onDeviate?: (seed: OrderSeed) => void;
+  /** Ein Tarifabruf liefert den ganzen Auftrag zurück – er ersetzt den gezeigten. */
+  onQuoted?: (next: Order) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
   // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
@@ -443,6 +446,7 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
                 work={workOf(order, step.id)}
                 needs={stepInfo(order, step.id)?.needs ?? []}
                 hauls={stepInfo(order, step.id)?.hauls ?? []}
+                onQuoted={onQuoted}
                 busy={busy}
                 onDirty={setEntryStarted}
                 onDeviate={onDeviate}

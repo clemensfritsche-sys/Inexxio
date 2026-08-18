@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CapturePoint, StepHaul, StepNeed, StepWork } from '@/types';
+import type { CapturePoint, Order, StepHaul, StepNeed, StepWork } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { useScan } from '@/components/scan/scan-provider';
 import { CaptureForm } from '@/components/erp/capture-form';
@@ -42,7 +42,8 @@ import type { OrderSeed } from '@/components/erp/order-detail';
  * bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass jemand zugestimmt hätte.
  */
 export function CaptureWork({ orderObjectId, stepId, points, action, work, needs = [],
-                              hauls = [], busy, onConfirm, onDeviate, onDirty }: {
+                              hauls = [], onQuoted, busy, onConfirm, onDeviate,
+                              onDirty }: {
   orderObjectId: number;
   stepId: number;
   points: CapturePoint[];
@@ -58,6 +59,8 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    * einem `if` hier: «Bewegen» liefert Fuhren, alle anderen liefern keine.
    */
   hauls?: StepHaul[];
+  /** Ein Tarifabruf gibt den ganzen Auftrag zurück – wer ihn hält, übernimmt ihn. */
+  onQuoted?: (order: Order) => void;
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
@@ -188,7 +191,8 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
       {/* **Was dieses Modul bewegt – bevor gescannt wird** (§9.8). Eine Zeile je Fuhre,
           gruppiert nach heutigem Halter; an einer externen hängt die Vergabe. Der Scan
           bleibt Voraussetzung für die **Eingabe**, nicht für die **Auskunft**. */}
-      <HaulList hauls={hauls} busy={busy} />
+      <HaulList hauls={hauls} orderObjectId={orderObjectId} stepId={stepId} busy={busy}
+        onQuoted={onQuoted} />
 
       {work.map((w, i) => (
         <InstanceRow

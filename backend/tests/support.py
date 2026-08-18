@@ -12,6 +12,7 @@ import io
 import os
 import pathlib
 import tokenize
+from decimal import Decimal
 from typing import Any, Optional
 
 import pytest
@@ -193,3 +194,63 @@ def live_sources() -> list[tuple[str, str]]:
             continue
         out.append((rel, p.read_text(encoding="utf-8")))
     return out
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Frachtführer: eine Teststrecke statt eines Netzzugangs
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class StubCarrier:
+    """Ein Frachtführer, der nichts kann ausser antworten.
+
+    Er steht hier und nicht als Datei im Code: ein «Test-Anbieter» neben Sendcloud und
+    Shippo wäre ein dritter Adapter, den irgendwann jemand für echt hält.
+    """
+
+    key, label = "stub", "Teststrecke"
+    bought: list[tuple] = []
+
+    def __init__(self, offers=(), messages=(), delivered=False):
+        self._offers, self._messages, self._delivered = list(offers), list(messages), delivered
+
+    def available(self):
+        return True
+
+    def quote(self, sender, receiver, parcel):
+        from app.services.carriers import Quote
+        self.seen = (sender, receiver, parcel)
+        return Quote(offers=self._offers, messages=self._messages, shipment_ref="ship-1")
+
+    def buy(self, offer_ref, *, shipment_ref=""):
+        from app.services.carriers import Label
+        StubCarrier.bought.append((offer_ref, shipment_ref))
+        return Label(label_url="https://etikett/1.pdf", tracking_number="TRK-1",
+                     tracking_url="https://verfolgen/TRK-1", shipment_ref="ship-1")
+
+    def track(self, tracking_number, *, carrier=""):
+        from app.services.carriers import Tracking, UNTERWEGS, ZUGESTELLT
+        return Tracking(ZUGESTELLT if self._delivered else UNTERWEGS, "Teststrecke")
+
+
+def carrier_offer(amount, carrier="Swiss Post", service="Economy", days=2, ref="r1"):
+    from app.services.carriers import CarrierOffer
+    return CarrierOffer(carrier=carrier, service=service, amount=Decimal(str(amount)),
+                        currency="CHF", days=days, ref=ref)
+
+
+def with_carriers(monkey_carriers):
+    """Die aktiven Anbieter für einen Lauf ersetzen – und danach zurück."""
+    from app.services import carriers
+
+    class _Patch:
+        def __enter__(self):
+            self.orig = carriers.active
+            carriers.active = lambda: list(monkey_carriers)
+            self.orig_by = carriers.by_key
+            carriers.by_key = lambda k: next(c for c in monkey_carriers if c.key == k)
+            return self
+
+        def __exit__(self, *_a):
+            carriers.active = self.orig
+            carriers.by_key = self.orig_by
+    return _Patch()

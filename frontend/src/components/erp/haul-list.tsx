@@ -6,6 +6,7 @@ import type { Award, StepHaul } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { ObjId } from '@/components/erp/obj-id';
 import { AwardPanel } from '@/components/erp/award-panel';
+import { api } from '@/lib/api';
 
 /**
  * **Die Fuhren eines Moduls «Bewegen»** (PROCESS_CORE §9.8).
@@ -26,9 +27,14 @@ import { AwardPanel } from '@/components/erp/award-panel';
  * **Und sie ist eine Vorschau.** Massgeblich für die Ausführung ist der Kontext-Scan:
  * eine Beobachtung kann veraltet sein, ein Scan ist die Gegenwart.
  */
-export function HaulList({ hauls, busy }: {
+export function HaulList({ hauls, orderObjectId, stepId, busy, onQuoted }: {
   hauls: StepHaul[];
+  /** Wo diese Fuhren stehen – für den Tarifabruf, der am **Modul** hängt. */
+  orderObjectId?: number;
+  stepId?: number;
   busy?: boolean;
+  /** Der Tarifabruf gibt den ganzen Auftrag zurück; wer ihn hält, lädt neu. */
+  onQuoted?: (order: import('@/types').Order) => void;
 }) {
   /**
    * Die Vergabe wird hier **überschrieben**, nicht neu geladen: eine Handlung gibt den
@@ -44,6 +50,10 @@ export function HaulList({ hauls, busy }: {
         <HaulRow key={`${h.from_holder?.object_id ?? 'offen'}-${i}`} haul={h}
           award={h.from_holder ? fresh[h.from_holder.object_id] ?? h.award ?? null : null}
           busy={busy} first={i === 0}
+          onQuote={orderObjectId && stepId && h.from_holder
+            ? () => api.quoteHaul(orderObjectId, stepId, h.from_holder!.object_id)
+                .then((o) => { onQuoted?.(o); })
+            : undefined}
           onAward={(a) => h.from_holder
             && setFresh((s) => ({ ...s, [h.from_holder!.object_id]: a }))} />
       ))}
@@ -51,11 +61,12 @@ export function HaulList({ hauls, busy }: {
   );
 }
 
-function HaulRow({ haul, award, busy, first, onAward }: {
+function HaulRow({ haul, award, busy, first, onQuote, onAward }: {
   haul: StepHaul;
   award: Award | null;
   busy?: boolean;
   first: boolean;
+  onQuote?: () => Promise<void>;
   onAward: (a: Award) => void;
 }) {
   const external = !haul.internal && !!haul.from_holder;
@@ -90,7 +101,7 @@ function HaulRow({ haul, award, busy, first, onAward }: {
       {external && haul.from_holder && (
         <div className="pl-5">
           <AwardPanel award={award} subjectObjectId={haul.from_holder.object_id}
-            targetObjectId={haul.to_holder.object_id} busy={busy}
+            targetObjectId={haul.to_holder.object_id} busy={busy} onQuote={onQuote}
             onChanged={onAward} />
         </div>
       )}

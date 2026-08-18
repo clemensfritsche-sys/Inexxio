@@ -2207,6 +2207,45 @@ ist keine neue Regel: `EventType.binding` und die Klärungs-Zeile gibt es bereit
 ⇒ Dieses Bauteil wird das künftige **Beschaffungs-Modul mitbenutzen**. Eine Tabelle
 (`awards`), der Anlass als blosse **Objektnummer** — dieselbe Regel wie beim Halter (§15.2).
 
+### 15.5a Der Kanal «Plattform» — ein Adapter, kein zweiter Zyklus
+
+Der Kanal `plattform` holt Angebote aus einer Schnittstelle. **Er ändert nichts am
+Zyklus**: was ein Adapter liefert, wird durch **dieselbe** Stelle geschrieben wie ein
+im Portal getipptes Angebot (`awards.add_offer`). Ein Adapter, der selbst einen Zustand
+setzte, wäre der zweite Zyklus, den §15.5 gerade verbietet.
+
+**Der Adapter beantwortet genau drei Fragen** und kennt weder Auftrag noch Modul:
+
+| Frage | Antwort |
+|---|---|
+| `quote(von, nach, Paket)` | Angebote: Anbieter · Preis · Währung · Tage · Referenz |
+| `buy(Referenz)` | Etikett (PDF-Adresse) · Sendungsnummer · Verfolgungs-Adresse |
+| `track(Sendungsnummer)` | unterwegs ↔ zugestellt ↔ gescheitert |
+
+**Das Paket ist ABGELEITET, nie eingegeben.** Gewicht und Grösse stehen am **Artikel**;
+was eine Fuhre wiegt, ist die Summe über ihre Stücke. Eine Eingabe daneben wäre eine
+zweite Wahrheit über dasselbe Paket — und die, die niemand nachpflegt. Fehlt am Artikel
+das Gewicht, wird **nicht geraten**: die Anfrage sagt, welcher Artikel es schuldig
+bleibt. (Ein geschätztes Paket ergäbe einen Preis, der beim Wiegen nicht stimmt.)
+
+**Ohne Schlüssel gibt es den Kanal NICHT** — er ist dann nicht wählbar, statt zu
+erscheinen und zu scheitern. Kein Rückfall auf einen anderen Anbieter: welcher Dritte
+fährt, ist eine Entscheidung, und eine stille Ersatzwahl ist keine.
+
+**Die Vergabe hält ihre Stücke ab dem Angebot.** Wer Tarife holt, beschreibt ein Paket —
+und ein Paket hat einen Inhalt. Vorher steht er nicht fest (jemand kann noch etwas
+herausnehmen), nachher ist er die Grundlage des Preises. Gebraucht wird er genau einmal:
+beim **Tracking**, das die Ankunft meldet, ohne dass jemand am Ziel steht.
+
+**Tracking ist eine Beobachtung wie ein Scan** — dieselbe Tabelle, dieselbe eine
+Schreibstelle (`places.record`), nur `source='tracking'` statt `'scan'`. Es ist **keine**
+zweite Wahrheit über den Ort: wer sie unterscheiden will, liest das Feld; wer nur wissen
+will, wo etwas liegt, merkt keinen Unterschied.
+
+**Das System fragt keine Tarife von sich aus.** Auch hier gilt §15.7: der Mensch klickt,
+das System bietet an. Ein automatischer Abruf beim Öffnen des Moduls wäre ein Vorgang bei
+einem Dritten, den niemand bestellt hat — und bei manchen Anbietern kostet er.
+
 ### 15.6 Ein Ort BLOCKIERT nie
 
 Fehlt etwas oder liegt es falsch, ist das **kein Zustand**: das Modul ist schlicht nicht

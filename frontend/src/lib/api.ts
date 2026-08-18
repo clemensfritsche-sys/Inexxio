@@ -17,6 +17,8 @@ import type {
   Instance,
   ArticleStock,
   Award,
+  AwardTracking,
+  ChannelAvailability,
   UnitPage,
   Genealogy,
   StepRecord,
@@ -697,6 +699,40 @@ class ApiClient {
   /** **Gescheitert** – vergeben, aber nicht erbracht. Der Grund ist Pflicht. */
   failAward(awardId: number, reason: string): Promise<Award> {
     return this.post(`/api/v1/erp/awards/${awardId}/fail`, { reason });
+  }
+
+  /**
+   * Welche Kanäle **jetzt** wählbar sind.
+   *
+   * Andere Frage als der generierte Katalog (der sagt, welche es *gibt*): ohne
+   * eingerichteten Frachtführer gibt es «Plattform» nicht – er ist dann nicht wählbar,
+   * statt zu erscheinen und zu scheitern.
+   */
+  awardChannels(): Promise<ChannelAvailability[]> {
+    return this.get('/api/v1/erp/awards/channels');
+  }
+
+  /**
+   * **Wo ist die Sendung?** – und wenn sie da ist, entsteht die Ablage.
+   *
+   * Auf **Klick**: ein Abruf beim Öffnen wäre ein Vorgang bei einem Dritten, den niemand
+   * bestellt hat – und bei manchen Anbietern kostet er.
+   */
+  trackAward(awardId: number): Promise<AwardTracking> {
+    return this.post(`/api/v1/erp/awards/${awardId}/track`, {});
+  }
+
+  /**
+   * **Tarife für eine Fuhre holen** (Kanal «Plattform»).
+   *
+   * Der Aufruf steht am **Modul**, nicht an der Vergabe: dort wohnt die Fuhre. Genannt
+   * wird nur der Ausgangsort – welche Stücke von dort weggehen und was sie wiegen,
+   * leitet der Server ab. Ein Gewicht von hier wäre die zweite Wahrheit über dasselbe
+   * Paket, und die stimmt beim Wiegen nicht.
+   */
+  quoteHaul(objectId: number, stepId: number, fromHolder: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/quote`,
+                     { from_holder_object_id: fromHolder });
   }
 
   /**

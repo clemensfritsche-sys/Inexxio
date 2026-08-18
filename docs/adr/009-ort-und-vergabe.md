@@ -299,7 +299,7 @@ Jede Stufe für sich lauffähig und deploybar.
 | 2 | Fundament | **fertig** – Migration `111`, `services/places.py`, `routers/places.py` |
 | 3 | Bewegen, intern | **fertig** – `domain/modules.Bewegen`, `services/moving.py`, Scan-Fluss |
 | 4 | Vergabe | **fertig** – Migration `112`, `domain/vergabe.py`, `services/awards.py`, `AwardPanel` |
-| 5 | Kanal Plattform | offen |
+| 5 | Kanal Plattform | **fertig** – Migration `113`, `services/carriers/`, `services/parcel.py`, Tarifabruf am Modul |
 | 6 | Ressourcenmodul | offen |
 
 **Ein Fund aus Stufe 4, der die Regel geändert hat.** Der Kanal `selbst` war eine
@@ -327,3 +327,36 @@ Sackgassen-Analyse (`SYSTEM_LOGIC` §7.5, V0).
   scannt – das ist der **Tracking**-Weg und gehört zu Stufe 5.
 * **Eine Rücksendung / Reklamation an den Dritten.** Der Zyklus kennt sie nicht; sie wäre
   die Gegenrichtung und braucht ihre eigene Regel, bevor sie Code wird.
+
+
+### 6.2 · Stufe 5: was neu geschrieben und was gelöscht wurde
+
+`services/shipping/` (Gateway + `manual` + Shippo + Sendcloud, 410 Zeilen) ist
+**ersatzlos gelöscht**. An seine Stelle tritt `services/carriers/` – **neu geschrieben**,
+mit denselben zwei Anbietern und ihren Schlüsseln, aber ohne die zwei verbotenen Formen,
+die der Vorgänger trug:
+
+* **Kein Rückfall.** Der alte Gateway wählte einen Anbieter (Sendcloud ≻ Shippo ≻ manual)
+  und fiel stillschweigend auf «manual» zurück, wenn nichts konfiguriert war – «nie
+  kaputt», und genau darum merkte niemand, dass nie ein Tarif kam. Jetzt werden **alle
+  eingerichteten** gefragt (eine Ausschreibung fragt mehrere), und ohne Schlüssel gibt es
+  den Kanal **nicht**.
+* **Keine gespeicherte Transportklasse** (V-4). Ob eine Fuhre innerbetrieblich ist oder
+  ein Versand, wird aus der **Adresse** gerechnet – wie in Stufe 3.
+
+Die Schlüssel stehen unverändert in `core/config.py`
+(`sendcloud_public_key`/`sendcloud_secret_key`/`sendcloud_api_url`/`sendcloud_currency`,
+`shippo_api_key`/`shippo_api_url`) plus `carrier_timeout_s`. Ein **neuer** Anbieter ist
+eine Datei in `services/carriers/` und eine Zeile in `_CARRIERS` – es gibt keine
+Fallunterscheidung nach dem Anbieter in der Fachlogik; der Adapter **ist** sie.
+
+**Was Stufe 5 bewusst NICHT gebaut hat**
+
+* **Webhooks.** Tracking wird auf Klick abgefragt. Ein Webhook wäre ein zweiter
+  Eingangsweg für dieselbe Beobachtung und bräuchte eine eigene Regel dafür, wem er
+  gehört und wie er sich gegen einen Klick verhält.
+* **Mehrere Pakete je Fuhre.** Was zusammen an einem Ort steht, ist **ein** Paket;
+  wie es zerlegt wird, ist eine Frage der Verpackung und keine des Systems. Ein
+  Packalgorithmus wäre eine Behauptung über eine Kiste, die niemand gesehen hat.
+* **Abholtermine, Zolldokumente, Versandkosten-Weiterverrechnung.** Alle drei sind
+  eigene Vorgänge mit eigenen Regeln.
