@@ -23,7 +23,7 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models import CompanySettings, Instance, InstanceUnit, UnitPlace
+from ..models import CompanySettings, Instance, InstanceUnit, UnitPlace, UserProfile
 from ..models.unit_place import SOURCES, SOURCE_SCAN
 from . import address as addr
 from . import objects as obj
@@ -246,6 +246,60 @@ def _append_address(db: Session, company_object_id: int, hops: list[Hop]) -> Non
     line = addr.one_line(addr.of_company(company))
     if line:
         hops.append(Hop(object_id=None, type="address", name=line))
+
+
+# ─── Die Adresse eines Halters ───────────────────────────────────────────────────
+
+def address_of(db: Session, holder_object_id: int) -> Optional[dict]:
+    """Welche **Anschrift** hat dieser Halter? Kanonische Form (``services/address``).
+
+    Ein Behälter hat keine eigene – er hat die seines Halters. Darum wird die **Kette**
+    nach aussen gelesen, bis eine Station eine Anschrift trägt: Behälter → Regal → Werk.
+    Genau dieselbe Ableitung wie ``chain``; eine zweite wäre eine zweite Antwort.
+
+    ``None`` heisst «keine Anschrift hinterlegt» – nicht «dieselbe wie …». Ein Rückfall
+    auf die Firmenadresse wäre hier besonders teuer: er machte aus einem Versand still
+    eine innerbetriebliche Bewegung (G3).
+    """
+    seen: set[int] = set()
+    cur: Optional[int] = int(holder_object_id)
+    for _ in range(MAX_HOPS):
+        if cur is None or cur in seen:
+            return None
+        seen.add(cur)
+        h = resolve_holders(db, [cur])[cur]
+        if h.type == "organization":
+            company = (db.query(CompanySettings)
+                       .filter(CompanySettings.object_id == cur).first())
+            return addr.of_company(company) if company else None
+        if h.type == "user":
+            person = (db.query(UserProfile)
+                      .filter(UserProfile.object_id == cur).first())
+            return addr.of_user(person) if person else None
+        if h.type != "instance":
+            return None
+        cur = _instance_place(db, cur)     # der Behälter liegt seinerseits …
+    return None
+
+
+def same_place(db: Session, a: int, b: int) -> bool:
+    """Liegen zwei Halter an **derselben Anschrift**? (PROCESS_CORE §15.4)
+
+    Verglichen wird die **Adresse**, nicht der Halter – sonst verlangte jeder
+    Regalwechsel einen Transport. Die Regel selbst wohnt in ``services/address.same``;
+    hier steht nur, welche Adressen verglichen werden.
+
+    Derselbe Halter ist trivial derselbe Ort – auch dann, wenn keine Anschrift
+    hinterlegt ist. Kennt einer der beiden keine, ist die Frage **nicht beantwortbar**:
+    dann gilt «nicht dieselbe», denn die teurere Fehlannahme wäre, einen echten Versand
+    als innerbetrieblich durchzuwinken.
+    """
+    if int(a) == int(b):
+        return True
+    left, right = address_of(db, a), address_of(db, b)
+    if not addr.has_content(left) or not addr.has_content(right):
+        return False
+    return addr.same(left, right)
 
 
 # ─── Lesen: was liegt hier ───────────────────────────────────────────────────────

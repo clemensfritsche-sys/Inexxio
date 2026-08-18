@@ -209,6 +209,46 @@
 > `moduleTone` hat keinen Rückfall mehr auf eine echte Modulfarbe: Unbekanntes sieht
 > kaputt aus, statt sich als anderes Modul auszugeben.
 >
+> **Der Ort ist eine BEOBACHTUNG, kein Zustand** (PROCESS_CORE §15, SYSTEM_LOGIC §7,
+> **ADR 009** – vor jeder Arbeit am Ort lesen). Das System hatte seit dem Basis-Neuaufbau
+> keinen Ortsbegriff; für **freien** Bestand – den Normalzustand eines Lagers – war «wo
+> liegt es» unbeantwortbar. `unit_places` schliesst das: append-only, eine Zeile je
+> Ablage, der aktuelle Ort ist die **letzte** Zeile, die Historie fällt geschenkt an.
+> **Bewusst NICHT im Ereignis-Log**: der hängt an `order_id`/`step_id`, eine Ablage muss
+> aber auch **ohne Auftrag** möglich sein – genau diese Unabhängigkeit ist die Robustheit.
+> **Ein Halter ist eine Objektnummer, mehr nicht**: kein `location_type` daneben, keine
+> Whitelist, **kein neuer Datensatztyp**. Regal · Behälter · Palette · LKW sind
+> **Instanzen**, Werk Nord ist ein **Unternehmen**, Mitarbeiter und DHL sind **Benutzer**;
+> ein Mensch ist ein Halter wie jeder andere (nimmt ein Kollege ein Teil mit, liegt es
+> **bei ihm** – der alte Ort wäre eine Behauptung über etwas, das dort nicht liegt).
+> **Der Ort ändert nie einen Status und nie eine Zugehörigkeit** – konstruktiv statt
+> geprüft: weil eine Ablage nichts anfasst ausser dem Ort, muss keine andere Regel von ihr
+> wissen, und darum darf jedes Stück in **jedem** Zustand abgelegt werden. Umgekehrt
+> **blockiert ein Ort nie**: liegt etwas falsch, ist das eine Auskunft, kein Zustand.
+> Die Aufteilung einer Charge ist ein **`GROUP BY`** – «990 im Regal, 10 am Band» sind
+> zehn Einzelinstanzen mit anderem Halter; eine Mengen-Map (`location_split`) darf nicht
+> wiederkehren. Der **Kontext-Scan** hat keinen Vorgabewert: der erste Scan ist «wo bin
+> ich» (ein gemerkter Ort wäre die stille Fehlerklasse, bei der ein vergessener Wechsel
+> den falschen Ort schreibt und nichts fehlschlägt).
+> **Das Modul «Bewegen»** (§9.8) hat genau **EINE** Einstellung – das **Ziel**. Kein
+> Transportmodus (die **Adresse** entscheidet, und sie wird gerechnet, nie gespeichert),
+> keine Quelle, keine Menge, kein Zeitpunkt. Die **Fuhre** (Ausgangsort → Ziel) ist
+> **abgeleitet**: zwei Ausgangsorte sind zwei Transporte, drei Stücke am selben Ort einer.
+> Es wirkt über einen **generischen** Dienstaufruf (`moving.record_for_step`), der für
+> jedes Modul ohne Ziel ein No-op ist – dieselbe Form wie `capture_svc`/`consumption_svc`,
+> also kein `if` nach dem Modultyp an der Ausführungsstelle. Ein **Versand** (andere
+> Anschrift) wird nicht stillschweigend als interner Weg verbucht, sondern nennt seinen
+> Grund; die **Vergabe** dafür ist noch nicht gebaut.
+> **Die Historie des Scheiterns steht in ADR 009 §2**, belegt am Altcode: `movable_instances`
+> (drei Zweige, vier Ausnahmen – ein Modul las Verbleib und Auftragsgrund, um zu
+> entscheiden, woran es arbeitet), `location_split` (Mengen-Map + denormalisierter Skalar +
+> Umschalter), `provisioning` (legte selbst an, steht auf `AUTO_PROVISIONING = False`),
+> `logistics` (gespeicherte Transportklasse, zwei Migrationen zum Loswerden). Sechs
+> **verbotene Formen** sind als AST-Wächter festgeschrieben.
+> **Offen und benannt statt versteckt** (SYSTEM_LOGIC §7.6): was eine **vergebene, aber nie
+> erbrachte** Vergabe auflöst – zu entscheiden, *bevor* das Vergabe-Bauteil gebaut wird.
+> Wächter: `tests/test_place.py` (24, jeder gegen seine Bug-Form gegengeprüft).
+>
 > **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
 > Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,
 > jeder Statuswechsel schreibt einen Eintrag im append-only Ereignis-Log; Exklusivität als

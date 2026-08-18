@@ -7131,6 +7131,13 @@
             "type": "array",
             "title": "Needs"
           },
+          "hauls": {
+            "items": {
+              "$ref": "#/components/schemas/StepHaul"
+            },
+            "type": "array",
+            "title": "Hauls"
+          },
           "label": {
             "type": "string",
             "title": "Label",
@@ -7407,11 +7414,55 @@
             },
             "type": "array",
             "title": "Sources"
+          },
+          "from_holder_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Holder Object Id"
           }
         },
         "type": "object",
         "title": "StepConfirm",
-        "description": "«Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.\n\n``values`` ist zweistufig: **Nummer der Einzelinstanz** → (Punkt-``key`` → Wert).\nErwartet wird genau ein Satz je **gezogenem** Stück; zu viele oder zu wenige werden\nabgewiesen (``process._captures_for``).\n\n**Der Scan verifiziert die Instanz, die Erfassung gilt der Einzelinstanz.** Beides\nhier nebeneinander zu haben ist der ganze Punkt: ``instance_object_id`` ist die\nverifizierte Instanz (eine – das Etikett klebt am physischen Ding),\n``values`` sind ihre n Messungen. Wäre es ein flacher Satz, entstünden aus einer\nMessung n gleiche Zeilen, und der Nachweis behauptete Messungen, die niemand gemacht\nhat.\n\nEin Modul ohne Erfassungspunkte (Aussondern) bekommt einen **leeren** Satz – dort ist\nder Scan die Bestätigung, und ein Wert wäre ein Nachweis über nichts.\n\n``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.\nBeides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die\nTastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative.\n\n``sources`` sind die Instanzen, aus denen ein **Verbrauchsmodul** nehmen soll – die\nKisten, die der Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe**: wie\nviel gebraucht wird, sagt die Stückliste des Moduls, und eine zweite Stelle dafür\nwäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst»."
+        "description": "«Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.\n\n``values`` ist zweistufig: **Nummer der Einzelinstanz** → (Punkt-``key`` → Wert).\nErwartet wird genau ein Satz je **gezogenem** Stück; zu viele oder zu wenige werden\nabgewiesen (``process._captures_for``).\n\n**Der Scan verifiziert die Instanz, die Erfassung gilt der Einzelinstanz.** Beides\nhier nebeneinander zu haben ist der ganze Punkt: ``instance_object_id`` ist die\nverifizierte Instanz (eine – das Etikett klebt am physischen Ding),\n``values`` sind ihre n Messungen. Wäre es ein flacher Satz, entstünden aus einer\nMessung n gleiche Zeilen, und der Nachweis behauptete Messungen, die niemand gemacht\nhat.\n\nEin Modul ohne Erfassungspunkte (Aussondern) bekommt einen **leeren** Satz – dort ist\nder Scan die Bestätigung, und ein Wert wäre ein Nachweis über nichts.\n\n``verification`` sagt **wie** verifiziert wurde – gescannt oder von Hand eingegeben.\nBeides ist eine Bestätigung, und beides steht im Log; ohne den Vermerk wäre die\nTastatur eine stille Umgehung der Scan-Pflicht statt ihrer Alternative.\n\n``sources`` sind die Instanzen, aus denen ein **Verbrauchsmodul** nehmen soll – die\nKisten, die der Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe**: wie\nviel gebraucht wird, sagt die Stückliste des Moduls, und eine zweite Stelle dafür\nwäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst».\n\n``from_holder_object_id`` ist der **Kontext-Scan**: «wo bin ich». Er hat bewusst\n**keinen Vorgabewert** und wird von dem Modul verlangt, das ihn braucht – ein\ngemerkter Ort wäre die stille Fehlerklasse, bei der ein vergessener Wechsel den\nfalschen Ort schreibt und nichts fehlschlägt (PROCESS_CORE §15.3)."
+      },
+      "StepHaul": {
+        "properties": {
+          "from_holder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HolderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to_holder": {
+            "$ref": "#/components/schemas/HolderRef"
+          },
+          "pieces": {
+            "type": "integer",
+            "title": "Pieces",
+            "default": 0
+          },
+          "internal": {
+            "type": "boolean",
+            "title": "Internal",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "to_holder"
+        ],
+        "title": "StepHaul",
+        "description": "Eine **Fuhre** des Moduls «Bewegen»: was von einem Ausgangsort ans Ziel geht.\n\nZwei Ausgangsorte sind **zwei** Fuhren, weil es physisch zwei Transporte sind – zwei\nPreise, zwei Etiketten, zwei Ankünfte. Drei Stücke am selben Ort sind **eine**.\n\nSie ist **abgeleitet, nicht eingestellt** (Gruppierung nach heutigem Halter) und\nzugleich nur eine **Vorschau**: massgeblich für die Ausführung ist der Kontext-Scan,\ndenn eine Beobachtung kann veraltet sein und ein Scan ist die Gegenwart.\n\n``internal`` ist **gerechnet**, nie gespeichert: gleiche Anschrift → innerbetrieblich,\nsonst Versand (PROCESS_CORE §15.4). Der Vorgänger hat diese Klassifikation gespeichert\nund zwei Migrationen gebraucht, um die Werte wieder loszuwerden."
       },
       "StepNeed": {
         "properties": {

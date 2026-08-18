@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules, sampling
 
+from .place import HolderRef
 from .process import ModuleFacts, ModuleInput
 
 
@@ -129,6 +130,10 @@ class ProcessStepResponse(ModuleFacts):
     #: (``services/consumption``). Leer bei jedem Modul ohne Stückliste; die Oberfläche
     #: braucht damit keine Fallunterscheidung nach dem Modultyp.
     needs: list["StepNeed"] = Field(default_factory=list)
+    #: **Was dieses Modul bewegt** – eine Zeile je Fuhre (Ausgangsort → Ziel). Leer bei
+    #: jedem Modul ohne Ziel; die Oberfläche braucht damit keine Fallunterscheidung nach
+    #: dem Modultyp – dieselbe Form wie ``needs``.
+    hauls: list["StepHaul"] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -219,6 +224,29 @@ class StepNeed(BaseModel):
     available: int
     #: Woher genommen werden kann – die Kisten, die der Lagerist scannt.
     sources: list[NeedSource] = Field(default_factory=list)
+
+
+class StepHaul(BaseModel):
+    """Eine **Fuhre** des Moduls «Bewegen»: was von einem Ausgangsort ans Ziel geht.
+
+    Zwei Ausgangsorte sind **zwei** Fuhren, weil es physisch zwei Transporte sind – zwei
+    Preise, zwei Etiketten, zwei Ankünfte. Drei Stücke am selben Ort sind **eine**.
+
+    Sie ist **abgeleitet, nicht eingestellt** (Gruppierung nach heutigem Halter) und
+    zugleich nur eine **Vorschau**: massgeblich für die Ausführung ist der Kontext-Scan,
+    denn eine Beobachtung kann veraltet sein und ein Scan ist die Gegenwart.
+
+    ``internal`` ist **gerechnet**, nie gespeichert: gleiche Anschrift → innerbetrieblich,
+    sonst Versand (PROCESS_CORE §15.4). Der Vorgänger hat diese Klassifikation gespeichert
+    und zwei Migrationen gebraucht, um die Werte wieder loszuwerden.
+    """
+
+    #: ``None`` = für diese Stücke gibt es noch keine Beobachtung. Kein Fehler – der
+    #: Kontext-Scan stellt den Ausgangsort beim Ausführen fest.
+    from_holder: Optional[HolderRef] = None
+    to_holder: HolderRef
+    pieces: int = 0
+    internal: bool = True
 
 
 class OrderLineResponse(BaseModel):

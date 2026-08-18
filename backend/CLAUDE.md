@@ -94,6 +94,9 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | PATCH/DELETE | /api/v1/erp/articles/{object_id}/process-steps/{step_id} | staff | Prozessschritt ändern/entfernen |
 | GET | /api/v1/erp/articles/{object_id}/stock | staff | **Bestand** – Aufstellung (Zustand → Menge → **Block**) über ALLE Stücke + eine Seite Instanzen mit je eigener Aufstellung (PROCESS_CORE §10.3) |
 | GET | /api/v1/erp/instances/{object_id}/units | staff | Die **Nummern** der Einzelinstanzen – seitenweise, optional auf Zustände gefiltert (`status` mehrfach) |
+| POST | /api/v1/erp/places | staff | **Ablegen** – je Stück eine Beobachtung. Verlangt **keinen Auftrag** (freier Bestand ist der Normalzustand) und den **Kontext-Scan** ohne Vorgabewert. Ändert nie Status oder Zugehörigkeit. |
+| GET | /api/v1/erp/places/unit/{unit_id} | staff | **«Wo ist X?»** – aktueller Halter, **Kette** nach aussen (Behälter → Werk → Anschrift, zyklensicher und begrenzt; beides gemeldet statt still gekappt) und Historie. Ohne Beobachtung: leer = «nicht bekannt», nie ein geratener Ort. |
+| GET | /api/v1/erp/places/holder/{object_id} | staff | **«Was liegt hier?»** – die Stücke, deren **letzte** Beobachtung hierher zeigt; seitenweise mit Gesamtzahl. Beide Fragen lesen dieselbe Tabelle aus zwei Richtungen. |
 | GET | /api/v1/erp/orders | user | Auftrag-Feed (Lieferant: nur eigene, mit eingebettetem Prozess) |
 | POST | /api/v1/erp/orders | staff | **Auftrag erteilen** – Bedarf + Positionen + Ablauf + Instanz-Auswahl in EINEM Aufruf, anlegen **und** freigeben; erst dabei entsteht die Objektnummer (ein Entwurf existiert nie in der DB) |
 | GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed) |

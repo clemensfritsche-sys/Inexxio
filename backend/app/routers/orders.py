@@ -17,11 +17,12 @@ from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
+from ..schemas.place import HolderRef
 from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
-    RelatedOrder, StepNeed, StepWork, UnitOption,
+    RelatedOrder, StepHaul, StepNeed, StepWork, UnitOption,
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, RecordEntry,
@@ -34,6 +35,8 @@ from ..services import consumption as consumption_svc
 from ..services import flow as flow_svc
 from ..services import record as record_svc
 from ..services import journey as journey_svc
+from ..services import moving as moving_svc
+from ..services import places as places_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
 from ..services.admin import log_audit
@@ -90,8 +93,40 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
             for n in consumption_svc.needs(
                 db, s, pieces=sum(w.waiting for w in row.work))
         ]
+        # **Was das Modul bewegt** – eine Zeile je Fuhre (Ausgangsort → Ziel), gruppiert
+        # nach dem heutigen Halter. Ein Modul ohne Ziel liefert eine leere Liste; die
+        # Fallunterscheidung nach dem Modultyp entsteht damit aus der Konfiguration und
+        # nicht aus einem ``if`` hier – genau wie bei ``needs``.
+        row.hauls = _hauls(db, order, s)
         out.append(row)
     return out
+
+
+def _hauls(db: Session, order: Order, step) -> list[StepHaul]:
+    """Die Fuhren eines Moduls, mit aufgelösten Haltern.
+
+    Die Arbeitsmenge kommt aus dem **Prozess** (``process.units_at_step``), nie aus dem
+    Ort – der bestimmt allein die Gruppierung (SYSTEM_LOGIC O6).
+    """
+    rows = moving_svc.hauls(db, step=step, units=process_svc.units_at_step(db, order, step))
+    if not rows:
+        return []
+    wanted = {h.to_holder for h in rows} | {h.from_holder for h in rows if h.known}
+    known = places_svc.resolve_holders(db, list(wanted))
+
+    def ref(object_id: int) -> HolderRef:
+        h = known[object_id]
+        return HolderRef(object_id=h.object_id, type=h.type, name=h.name)
+
+    return [
+        StepHaul(
+            from_holder=ref(h.from_holder) if h.known else None,
+            to_holder=ref(h.to_holder),
+            pieces=h.pieces_count,
+            internal=h.internal,
+        )
+        for h in rows
+    ]
 
 
 def _to_response(db: Session, order: Order) -> OrderResponse:
@@ -541,7 +576,8 @@ def confirm_step(
     outcome = process_svc.confirm_step(
         db, order=order, step_id=step_id, values=data.values,
         instance_object_id=data.instance_object_id, verification=data.verification,
-        sources=data.sources, actor_id=user.id)
+        sources=data.sources, from_holder_object_id=data.from_holder_object_id,
+        actor_id=user.id)
     log_audit(db, "process_steps", "confirm",
               f"{outcome['moved']} bewegt, {outcome['held']} angehalten",
               user_id=user.id, object_id=order.object_id)

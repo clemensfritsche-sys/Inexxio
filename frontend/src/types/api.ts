@@ -2759,6 +2759,8 @@ export interface components {
             work?: components["schemas"]["StepWork"][];
             /** Needs */
             needs?: components["schemas"]["StepNeed"][];
+            /** Hauls */
+            hauls?: components["schemas"]["StepHaul"][];
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -2915,6 +2917,11 @@ export interface components {
          *     Kisten, die der Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe**: wie
          *     viel gebraucht wird, sagt die Stückliste des Moduls, und eine zweite Stelle dafür
          *     wäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst».
+         *
+         *     ``from_holder_object_id`` ist der **Kontext-Scan**: «wo bin ich». Er hat bewusst
+         *     **keinen Vorgabewert** und wird von dem Modul verlangt, das ihn braucht – ein
+         *     gemerkter Ort wäre die stille Fehlerklasse, bei der ein vergessener Wechsel den
+         *     falschen Ort schreibt und nichts fehlschlägt (PROCESS_CORE §15.3).
          */
         StepConfirm: {
             /** Values */
@@ -2927,6 +2934,37 @@ export interface components {
             verification?: string | null;
             /** Sources */
             sources?: number[];
+            /** From Holder Object Id */
+            from_holder_object_id?: number | null;
+        };
+        /**
+         * StepHaul
+         * @description Eine **Fuhre** des Moduls «Bewegen»: was von einem Ausgangsort ans Ziel geht.
+         *
+         *     Zwei Ausgangsorte sind **zwei** Fuhren, weil es physisch zwei Transporte sind – zwei
+         *     Preise, zwei Etiketten, zwei Ankünfte. Drei Stücke am selben Ort sind **eine**.
+         *
+         *     Sie ist **abgeleitet, nicht eingestellt** (Gruppierung nach heutigem Halter) und
+         *     zugleich nur eine **Vorschau**: massgeblich für die Ausführung ist der Kontext-Scan,
+         *     denn eine Beobachtung kann veraltet sein und ein Scan ist die Gegenwart.
+         *
+         *     ``internal`` ist **gerechnet**, nie gespeichert: gleiche Anschrift → innerbetrieblich,
+         *     sonst Versand (PROCESS_CORE §15.4). Der Vorgänger hat diese Klassifikation gespeichert
+         *     und zwei Migrationen gebraucht, um die Werte wieder loszuwerden.
+         */
+        StepHaul: {
+            from_holder?: components["schemas"]["HolderRef"] | null;
+            to_holder: components["schemas"]["HolderRef"];
+            /**
+             * Pieces
+             * @default 0
+             */
+            pieces: number;
+            /**
+             * Internal
+             * @default true
+             */
+            internal: boolean;
         };
         /**
          * StepNeed
