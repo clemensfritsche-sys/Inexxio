@@ -401,7 +401,7 @@ Landkarte dünn ist und an denen darum getestet wird.
 | **Montage** (4 Teile → 1 Baugruppe) | Es gibt **keine Beziehung zwischen zwei Einzelinstanzen** — nur die zeitliche (Journey §7.4). Kein «besteht aus», kein «steckt in». Dazu fehlt der Zustand: `verbraucht` ist im Katalog ausdrücklich **nicht angelegt**, und `_assert_single_new` (#693) verbietet die eine Auftragsform, die eine Montage wäre (verbrauchende `Lager`-Zeilen **plus** eine erzeugende `Neu`-Zeile). |
 | **Teilung** (eine 6-m-Stange → 3 Stücke) | Umkehrung derselben Lücke. Zusätzlich hat die Länge im Modell keinen Platz (keine Mengen-Spalte, D1) — sie lässt sich nur als Erfassungswert führen. |
 | **Verbrauch** | Ein Stück verlässt den Bestand heute ausschliesslich über `Verschrottet`. «Verbaut» als Endzustand gibt es nicht — der Bestand enthält damit auch alles, was eingebaut oder ausgeliefert wurde. |
-| **Ort** | Es gibt keinen Halter, keine Standort-Spalte, keine Kette. Solange ein Stück in einem Auftrag läuft, ist «vor Modul X» die Antwort; bei **freiem** Bestand ist sie leer. Das ist die grösste Abweichung zwischen der Absicht (*«wo es ist»*) und dem Modell. |
+| ~~**Ort**~~ | **Entschieden und beschrieben** (§7, `PROCESS_CORE` §15, ADR 009): ein Halter ist eine Objektnummer, der Ort eine append-only **Beobachtung** (`unit_places`) ausserhalb des Ereignis-Logs. Damit ist *«wo es ist»* auch für **freien** Bestand beantwortet — die Lücke, die hier stand. |
 | **Zweck eines Auftrags** | Ein Auftrag trägt Objektnummer, den daraus gebildeten Namen und den Endzustand. Warum es ihn gibt, steht nirgends — bei zwei Aufträgen mit demselben Ablauf ist es nicht einmal erschliessbar. |
 | **Termin / Soll-Dauer** | Der Auftragsstatus hat keine Zeitachse. Ein Auftrag, an dem seit sechs Wochen niemand war, ist von einem laufenden nicht unterscheidbar. |
 
@@ -444,9 +444,12 @@ einzeln nachgetragen — nicht beim Bauen erraten. Ein Test darf hier nichts beh
    **Offen bleibt die Teilung** (eine 6-m-Stange in drei Stücke): sie ist die
    Gegenrichtung derselben Lücke und braucht zusätzlich eine Antwort darauf, wie neue
    Stücke **ohne** Erzeugungsauftrag entstehen.
-6. **Ort.** Ob und wie ein Halter je Einzelinstanz geführt wird (§4.6). Bis dahin ist
-   *«wo ist es»* für freien Bestand unbeantwortbar. Der Vorgänger hatte eine
-   Standort-Kette; sie wieder aufzunehmen heisst, ihre Fehler nicht mitzunehmen.
+6. ~~**Ort.**~~ **Entschieden** (§7, `PROCESS_CORE` §15, **ADR 009**): ein Halter ist eine
+   **Objektnummer** (kein eigener Datensatztyp, kein `location_type` daneben), der Ort eine
+   **append-only Beobachtung** (`unit_places`) ausserhalb des Ereignis-Logs — damit ist
+   eine Ablage auch **ohne Auftrag** möglich, und genau das war die Lücke.
+   Die Fehler des Vorgängers sind in ADR 009 §2 einzeln benannt und stehen als verbotene
+   Formen in §7.4 — sie werden nicht gemieden, sondern geprüft.
 7. **Zweck des Auftrags.** Ein Pflichtfeld «warum gibt es diesen Auftrag» — ein Satz, wie
    ihn das Aussondern-Modul für seinen Grund bereits verlangt, und aus demselben Grund.
    Ohne ihn wirft das abgeleitete Label «Abweichung» acht verschiedene Vorgänge zusammen
@@ -507,6 +510,173 @@ gebaut.
 
 ## 6. Die Testbarkeitsregel
 
-Jeder Satz in §1–§4 muss durch einen automatisierten Test widerlegbar sein. Ein Satz, für
-den es keinen Test gibt, wird in `TEST_REPORT.md` ausdrücklich als **nicht geprüft**
-ausgewiesen — nicht als bestanden.
+Jeder Satz in §1–§4 und §7 muss durch einen automatisierten Test widerlegbar sein. Ein
+Satz, für den es keinen Test gibt, wird in `TEST_REPORT.md` ausdrücklich als **nicht
+geprüft** ausgewiesen — nicht als bestanden.
+
+---
+
+## 7. Der Ort und die Vergabe
+
+> Architektur: `PROCESS_CORE.md` §15 (Ort) und §9.8 (Modul «Bewegen»).
+> Begründung und Historie des Scheiterns: **ADR 009**.
+> Diese Sätze sind der **Sollzustand** — geschrieben, bevor Code entsteht.
+
+### 7.1 Der Ort — prüfbare Sätze
+
+**O1 — Der Ort ist eine Beobachtung, kein Zustand.**
+
+1. Eine Ablage schreibt **genau eine** Zeile in `unit_places` und ändert sonst nichts.
+2. `unit_places` ist append-only: kein Update, kein Delete, kein `is_active`. Eine
+   Korrektur ist eine **neue** Zeile.
+3. Der **aktuelle** Ort eines Stücks ist die Zeile mit der höchsten `id` — nicht mit dem
+   jüngsten Zeitstempel (zwei Zeilen können dieselbe Sekunde tragen).
+4. Es gibt **keine** Ortsspalte an der Einzelinstanz, an der Instanz oder am Artikel.
+5. Eine Ablage ist **ohne Auftrag** möglich. Sie verlangt weder einen Auftrag noch ein
+   Modul noch einen offenen Prozess.
+
+**O2 — Ein Halter ist eine Objektnummer.**
+
+1. `unit_places.holder_object_id` ist eine Objektnummer. Daneben steht **kein** Typfeld.
+2. Jeder Datensatz mit einer Objektnummer darf Halter sein — Instanz, Unternehmen,
+   Benutzer. Es gibt **keinen** eigenen Datensatztyp «Ort» und **keine** Whitelist.
+3. Ein **Mensch** ist ein Halter wie jeder andere.
+4. Zeigt ein Halter auf einen Datensatz, den es nicht (mehr) gibt, wird das **gemeldet**
+   und nicht zu «kein Ort» aufgelöst (G3.3).
+
+**O3 — Der Ort ändert nie einen Status und nie eine Zugehörigkeit.**
+
+1. Keine Ablage verändert `instance_units.status`.
+2. Keine Ablage verändert `order_units` — weder `current_step_id` noch `released_at`.
+3. Keine Ablage schreibt in `process_events`.
+4. Umgekehrt: **jeder** Status darf abgelegt werden. Es gibt keinen Zustand, der eine
+   Ablage verweigert — auch `verschrottet` nicht (wo etwas hingebracht wurde, ist eine
+   Tatsache, unabhängig davon, ob es noch brauchbar ist).
+
+**O4 — Ein Ort blockiert nie.**
+
+1. Kein Ort und keine Ortsabweichung ist ein Zustand des Auftrags oder des Moduls.
+2. Liegt Material falsch, ist das eine **Auskunft** (gedeckt · fehlt · liegt woanders) —
+   dieselbe Form wie `StepNeed`, ein Feld mit drei Lesarten.
+3. Kein Endpunkt lehnt wegen eines Ortes ab.
+
+**O5 — Der Kontext-Scan hat keinen Vorgabewert.**
+
+1. Der erste Scan eines Arbeitsgangs ist der **Ausgangsort**.
+2. Es gibt keinen gemerkten, geerbten oder vorbelegten Ort. Wer nicht scannt, legt nicht ab.
+3. Die Art der Bestätigung steht in der Zeile (`source`) — wie beim Modul-Scan (§14).
+
+**O6 — Kein Modul liest den Ort, um zu entscheiden, WELCHE Stücke es anfasst.**
+
+1. Was vor dem Modul steht, ist was vor dem Modul steht: **null** Fallunterscheidungen
+   nach Verbleib, Auftragsgrund, Reservierung oder Sperre.
+2. Der Ort bestimmt allein die **Gruppierung** in Fuhren (§7.2), nie die Auswahl.
+
+### 7.2 Das Modul «Bewegen» — prüfbare Sätze
+
+**B1 — Eine Einstellung.** Das Modul trägt genau ein Konfigurationsfeld: das **Ziel** (eine
+Halter-Objektnummer). Kein Transportmodus, keine Quelle, keine Menge, kein Zeitpunkt.
+
+**B2 — Die Fuhre ist abgeleitet.** Eine Fuhre ist ein Paar (Ausgangsort → Ziel).
+*n* verschiedene Ausgangsorte ergeben *n* Fuhren; alle Stücke am selben Ausgangsort ergeben
+**eine**. Die Fuhre ist nirgends gespeichert und nirgends einstellbar.
+
+**B3 — Intern erzeugt keine Vergabe.** Ist die Adresse des Ausgangsorts gleich der des
+Ziels, entsteht **keine** Vergabe-Zeile — auch keine leere, auch keine mit Kanal
+«selbst».
+
+**B4 — Das Modul wartet auf niemanden.** Eine offene Fuhre hält die übrigen Stücke nicht
+auf; `confirm_step` bleibt ein **Teil**-Abschluss (§4.4).
+
+**B5 — Richtung und Transportklasse werden gerechnet.** Weder `direction` noch
+`transport_class` noch ein Modus wird gespeichert. Sie sind die Differenz zweier
+Halterorte.
+
+**B6 — Die Adressregel steht an genau EINER Stelle und hat zwei Nutzer:** das Modul
+«Bewegen» und das Ressourcenmodul («liegt die Komponente hier?»).
+
+### 7.3 Die Vergabe — Zustände und Übergänge
+
+Die Liste ist **geschlossen**. Der **Kanal** ist die einzige Variable; er ändert, *woher*
+die Angebote kommen — nie, *welche* Zustände es gibt.
+
+| Wert | Beschriftung | Bedeutung |
+|---|---|---|
+| `angefragt` | Angefragt | Der Bedarf ist draussen. Noch kein Angebot. |
+| `angeboten` | Angeboten | Mindestens ein Angebot liegt vor. |
+| `vergeben` | Vergeben | Ein Dritter ist **gebunden**. |
+| `erbracht` | Erbracht | Die Leistung ist erbracht (angekommen). **Terminal.** |
+| `abgelehnt` | Abgelehnt | Der Vorgang endet ohne Vergabe. **Terminal.** |
+
+| # | von | nach | Auslöser |
+|---|---|---|---|
+| V1 | *(entsteht)* | `angefragt` | Eine **externe** Fuhre erreicht ihr Modul. |
+| V2 | `angefragt` | `angeboten` | Ein Angebot trifft ein — je Kanal auf anderem Weg, mit demselben Ergebnis. |
+| V3 | `angeboten` | `vergeben` | Ein **Mensch** wählt ein Angebot. Nie das System. |
+| V4 | `vergeben` | `erbracht` | Ankunft — gemeldet durch Tracking **oder** durch den Scan am Ziel. |
+| V5 | `angefragt` \| `angeboten` | `abgelehnt` | Ein Mensch bricht ab. |
+
+**Ausdrücklich verboten:** jeder nicht aufgeführte Übergang; insbesondere `vergeben` →
+`angefragt`/`angeboten` (ein Gebundener wird nicht stillschweigend entbunden, §7.5-V3)
+und jede Vergabe **ohne** Menschen bei V3.
+
+**Die Zustände stehen in EINER Registry**, nicht als `if/else` je Kanal. Ein neuer Kanal
+ist ein Adapter, kein neuer Zyklus.
+
+**Ab `vergeben` rührt das System nichts an — es meldet.** Ändert sich die Grundlage
+(Menge, Ziel, Stücke), fällt die Vergabe **nicht** automatisch zurück; die Abweichung wird
+als Klärung ausgewiesen. Das ist die bestehende Regel (`EventType.binding`), nicht eine
+neue.
+
+### 7.4 Was nicht wiederkommen darf
+
+Aussagen über den **Quelltext** — darum als AST-Wächter geprüft, nicht als Verhalten.
+
+| # | Verbotene Form | Warum (ADR 009) |
+|---|---|---|
+| V-1 | Eine Auswahlfunktion mit Fallunterscheidung, welche Stücke ein Modul anfasst (`movable_instances`) | §2.1 — vier Fremdbereiche kamen dort an |
+| V-2 | Eine Mengen-Map je Standort (`location_split`) | §2.2 — zwei Wahrheiten mit einem Umschalter |
+| V-3 | Vom System angelegte Bewegungen, Module oder Unter-Aufträge | §2.3 — dreimal gescheitert |
+| V-4 | Ein gespeichertes `direction` / `transport_class` / `transport_mode` | §2.4 — zwei Migrationen, um die Werte loszuwerden |
+| V-5 | Ein `location_type` neben der Halter-Objektnummer | §3.2 — jede «unbekannter Typ»-Fallunterscheidung folgt daraus |
+| V-6 | Zwei Ableitungen der Adressregel | §3.4 — zwei Antworten auf dieselbe Sache |
+
+### 7.5 Sackgassen-Analyse
+
+> **Ein Zustand ohne Ausgang, der nicht ausdrücklich terminal ist, ist ein Fehler.**
+
+**Der Ort:**
+
+| # | Zustand | Wie kommt man hier raus? |
+|---|---|---|
+| P1 | Stück **ohne jede Beobachtung** — Ort unbekannt | Kein Fehler, sondern eine ehrliche Antwort («nicht bekannt», nie ein geratener Ort). Ausgang: **jede** Ablage, von jedem, jederzeit — sie braucht keinen Auftrag (O1.5). |
+| P2 | Stück liegt **bei einer Person**, die es nicht ablegt | Der Ort ist eine Beobachtung, keine Zuständigkeit: **jeder andere** kann es ablegen. Kein Schlüssel, kein Freigeben, keine Übernahme nötig. |
+| P3 | Der **Halter selbst** ist verschrottet/inaktiv (der Behälter wird ausgesondert, die Stücke nennen ihn noch) | Kein Blockierer: der Ort ändert keinen Status und keine Zugehörigkeit (O3). Die Kette zeigt den Halter weiterhin — er *war* dort. Ausgang: die nächste Ablage. |
+| P4 | **Zyklus** in der Kette (A liegt in B, B liegt in A) | Die Auflösung ist begrenzt und zyklensicher; ein Zyklus wird **gemeldet**, nicht endlos verfolgt (G3.3). |
+| P5 | Halter zeigt auf eine **gelöschte** Objektnummer | Gemeldet, nicht zu «kein Ort» aufgelöst (O2.4). |
+
+**Die Vergabe:**
+
+| # | Zustand | Wie kommt man hier raus? |
+|---|---|---|
+| V1 | `angefragt`, **niemand antwortet** | Ablehnen (V5) und neu anfragen — auch über einen **anderen Kanal**. Der Zyklus ist derselbe, nur die Quelle der Angebote wechselt. |
+| V2 | `angeboten`, **niemand vergibt** | Vergeben (V3) oder ablehnen (V5). Blockiert nichts anderes: das Modul ist nicht fertig, mehr nicht (O4). |
+| V3 | `vergeben`, aber **nie erbracht** (Sendung verschollen) | ⚠ **NOCH NICHT ENTSCHIEDEN** — siehe §7.6. Bis dahin ist dies die einzige bekannte Sackgasse dieses Bereichs, und sie ist **benannt statt versteckt**. |
+| V4 | `erbracht` / `abgelehnt` | Terminal. **Kein Ausgang nötig** — das ist die Zusage, keine Sackgasse. |
+
+### 7.6 Was ausdrücklich (noch) nicht entschieden ist
+
+1. **Was eine vergebene, aber nie erbrachte Vergabe auflöst** (§7.5-V3). Ab `vergeben` ist
+   ein Zweiter gebunden, also darf das System nicht selbst zurücknehmen — es meldet. Was
+   der **Mensch** dann tut, ist offen. Die Kandidaten: ein ausdrücklicher Vorgang
+   «Vergabe zurücknehmen» mit Grund (Vorbild: die Rücknahme der Dokument-Ausstellung), ein
+   sechster Zustand, oder eine ganz gewöhnliche zweite Vergabe daneben.
+   **Zu entscheiden, bevor Stufe 4 gebaut wird** — nicht beim Bauen zu erraten.
+2. **Wer darf vergeben.** Jeder Endpunkt hängt heute an `require_employee`; eine Rolle je
+   Vorgang gibt es nicht (dieselbe offene Frage wie R10 in §4.5). Ab `vergeben` entsteht
+   eine Verpflichtung gegenüber einem Dritten — das ist die erste Stelle im System, an der
+   das wirklich zählt.
+3. **Ob eine Fuhre teilbar ist.** Heute ist eine Fuhre die Gruppierung *aller* Stücke an
+   einem Ausgangsort. Ob jemand sie bewusst aufteilen darf (zwei Pakete statt eines), ist
+   nicht entschieden — und wäre die einzige Stelle, an der die Fuhre doch eine Eingabe
+   bekäme.
