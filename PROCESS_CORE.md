@@ -2179,10 +2179,14 @@ dafür zwei Migrationen gebraucht, um die Werte wieder loszuwerden (ADR 009 §2.
 ### 15.5 Das Bauteil «Vergabe» — der Zyklus, EINMAL
 
 ```
-Angefragt → Angebote (n) → Vergeben → Erbracht        (+ Abgelehnt)
+Angefragt → Angebote (n) → Vergeben → Erbracht    (+ Abgelehnt · Gescheitert)
 ```
 
 Dazu: Dritter (immer ein **Lieferant**) · Kanal · Preis · Termin · Bindungsschwelle.
+
+**Vergeben, aber nie erbracht?** Dann `Gescheitert` – terminal, mit Pflicht-Grund –, und
+die Fuhre bekommt eine **ganz normale zweite** Vergabe. Kein Zurücknehmen: die Matrix geht
+nie rückwärts, und was passiert ist, bleibt stehen (SYSTEM_LOGIC §7.3).
 
 **Der KANAL ist die einzige Variable:**
 

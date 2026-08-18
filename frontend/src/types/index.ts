@@ -238,6 +238,24 @@ export interface CapturePoint {
 export type StepWork = components['schemas']['StepWork'];
 /** Eine Zeile der Stückliste, gegen den Bestand gehalten (`services/consumption`). */
 export type StepNeed = components['schemas']['StepNeed'];
+/**
+ * Eine **Fuhre** des Moduls «Bewegen»: was von einem Ausgangsort ans Ziel geht.
+ *
+ * Abgeleitet, nicht eingestellt – zwei Ausgangsorte sind zwei Fuhren, weil es physisch
+ * zwei Transporte sind. `internal` ist **gerechnet** (gleiche Anschrift), nie gespeichert.
+ */
+export type StepHaul = components['schemas']['StepHaul'];
+/** Ein Halter – eine **Objektnummer** mit aufgelöstem Namen, ohne Typ daneben. */
+export type HolderRef = components['schemas']['HolderRef'];
+/**
+ * **Die Vergabe** – ein Dritter erbringt eine Leistung für uns (`domain/vergabe`).
+ *
+ * Der Zyklus steht **einmal**; der Kanal ändert nur, woher die Angebote kommen. Welche
+ * Handlungen von hier aus möglich sind, sagt `next_states` – die Oberfläche rechnet die
+ * Matrix nicht nach, sie bietet an, was der Dienst annimmt.
+ */
+export type Award = components['schemas']['AwardResponse'];
+export type AwardOffer = components['schemas']['AwardOfferResponse'];
 /** **Was an einem Modul passiert ist** – lückenlos, je Einzelinstanz (`services/record`). */
 export type StepRecord = components['schemas']['StepRecord'];
 export type RecordEntry = components['schemas']['RecordEntry'];

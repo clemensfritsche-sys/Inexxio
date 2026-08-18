@@ -2750,6 +2750,390 @@
         }
       }
     },
+    "/api/v1/erp/awards": {
+      "post": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Request Award",
+        "description": "**Anfragen** (V1) – durch den Klick eines Menschen.\n\nIdempotent: gibt es für denselben Anlass schon eine offene, kommt sie zurück. Ein\nModul wird oft betrachtet, bevor jemand handelt – eine zweite Zeile je Blick wäre\nein Vorgang, den niemand bestellt hat.",
+        "operationId": "request_award_api_v1_erp_awards_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AwardCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/awards/{award_id}": {
+      "get": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Read Award",
+        "operationId": "read_award_api_v1_erp_awards__award_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "award_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Award Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/awards/{award_id}/offers": {
+      "post": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Add Offer",
+        "description": "Ein Angebot eintragen (V2) – der Weg des Kanals «Lieferantenportal».\n\nDerselbe Vorgang wie beim Plattform-Kanal, nur langsamer: Rate-Shopping IST eine\nAusschreibung. Darum dieselbe Zeile und kein zweiter Mechanismus.",
+        "operationId": "add_offer_api_v1_erp_awards__award_id__offers_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "award_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Award Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/awards/{award_id}/grant": {
+      "post": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Grant",
+        "description": "**Vergeben** (V3) – ab hier ist ein Zweiter gebunden.\n\nDas System wählt nie selbst: es darf Angebote holen und das günstigste vorwählen,\ndie Wahl trifft ein Mensch. Danach rührt es nichts mehr an, es meldet.",
+        "operationId": "grant_api_v1_erp_awards__award_id__grant_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "award_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Award Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/awards/{award_id}/deliver": {
+      "post": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Deliver",
+        "description": "**Erbracht** (V4) – und erst jetzt entsteht die Ablage.\n\nDer Ort ist eine Beobachtung: geschrieben wird er, wenn etwas angekommen ist, nicht\nwenn es bestellt wurde. Über ``places.record``, dieselbe eine Stelle wie überall.",
+        "operationId": "deliver_api_v1_erp_awards__award_id__deliver_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "award_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Award Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliverInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/awards/{award_id}/reject": {
+      "post": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Reject",
+        "description": "**Abgelehnt** (V5) – der Vorgang endet ohne Vergabe.",
+        "operationId": "reject_api_v1_erp_awards__award_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "award_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Award Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/awards/{award_id}/fail": {
+      "post": {
+        "tags": [
+          "awards"
+        ],
+        "summary": "Fail",
+        "description": "**Gescheitert** (V6) – vergeben, aber nicht erbracht. **Grund ist Pflicht.**\n\nKein Zurücknehmen: die Matrix geht nie rückwärts, und eine Korrektur ist ein neuer\nEintrag. Danach bekommt die Sache eine ganz normale **zweite** Vergabe – dass das\ngeht, folgt daraus, dass «gescheitert» terminal ist und nicht mehr als offen zählt.",
+        "operationId": "fail_api_v1_erp_awards__award_id__fail_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "award_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Award Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/objects/{object_id}/references": {
       "get": {
         "tags": [
@@ -4151,6 +4535,246 @@
         "title": "ArticleValidation",
         "description": "Antwort auf «wäre dieser Entwurf freigebbar?» – ohne etwas anzulegen."
       },
+      "AwardCreate": {
+        "properties": {
+          "subject_object_id": {
+            "type": "integer",
+            "title": "Subject Object Id"
+          },
+          "target_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Object Id"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel",
+            "default": "portal"
+          },
+          "provider_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_object_id"
+        ],
+        "title": "AwardCreate",
+        "description": "Eine Vergabe **anfragen** (V1).\n\nSie entsteht durch den Klick eines Menschen – das System legt sie nie selbst an\n(PROCESS_CORE §15.7). Genau daran sind die abgeleitete Bereitstellung und die\nBegleit-Bewegungen des Vorgängers gescheitert."
+      },
+      "AwardOfferResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HolderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "amount",
+          "currency"
+        ],
+        "title": "AwardOfferResponse",
+        "description": "Ein Angebot. Je Kanal auf anderem Weg entstanden, hier dieselbe Zeile."
+      },
+      "AwardResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "subject_object_id": {
+            "type": "integer",
+            "title": "Subject Object Id"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HolderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HolderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "chosen_offer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chosen Offer Id"
+          },
+          "offers": {
+            "items": {
+              "$ref": "#/components/schemas/AwardOfferResponse"
+            },
+            "type": "array",
+            "title": "Offers"
+          },
+          "state_label": {
+            "type": "string",
+            "title": "State Label",
+            "description": "Wie der Zustand heisst – **aus der Registry**, nicht aus der Oberfläche.",
+            "readOnly": true
+          },
+          "state_tone": {
+            "type": "string",
+            "title": "State Tone",
+            "description": "Der **Ampelton** – ``pending`` · ``done`` · ``danger``.\n\nEr reist mit den Daten, statt in der Oberfläche noch einmal zugeordnet zu werden:\neine zweite Tabelle veraltet beim ersten neuen Zustand, und sie tut es\n**stillschweigend** (die Lehre aus ``ModuleFacts.tone`` – dort gab ein\nvergessener Rückfall jedem Modul die Farbe der Datenerfassung).",
+            "readOnly": true
+          },
+          "open": {
+            "type": "boolean",
+            "title": "Open",
+            "description": "Läuft sie noch? Abgeleitet aus ``terminal`` – keine zweite Liste.",
+            "readOnly": true
+          },
+          "next_states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next States",
+            "description": "Welche Übergänge von hier aus möglich sind.\n\nDie Oberfläche bietet damit genau das an, was der Dienst annimmt – sie rechnet\ndie Matrix nicht nach. Eine Schaltfläche, die scheitert, ist schlimmer als keine.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "subject_object_id",
+          "state",
+          "channel",
+          "state_label",
+          "state_tone",
+          "open",
+          "next_states"
+        ],
+        "title": "AwardResponse",
+        "description": "Eine Vergabe mit ihren Angeboten."
+      },
       "Body_upload_attachment_api_v1_erp_attachments_post": {
         "properties": {
           "file": {
@@ -4856,6 +5480,20 @@
         ],
         "title": "DefinitionLine",
         "description": "Eine Definitionszeile: Artikel · Menge · Herkunft.\n\n``quantity`` referenziert **immer exakt Einzelinstanzen** – nie Instanzen und nie\neine Artikelmenge. Bei ``origin='lager'`` müssen genau so viele ``units``\ndabeistehen; bei ``origin='neu'`` bleiben sie leer, weil die Stücke erst bei der\nFreigabe entstehen."
+      },
+      "DeliverInput": {
+        "properties": {
+          "instance_unit_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Instance Unit Ids"
+          }
+        },
+        "type": "object",
+        "title": "DeliverInput",
+        "description": "**Erbracht** (V4) – und erst jetzt entsteht die Ablage.\n\n``instance_unit_ids`` sind die Stücke, die angekommen sind. Leer heisst «keine» –\nnicht «alle»: welche es waren, weiss der Mensch am Ziel, und ein geratener Satz wäre\neine Ablage, die niemand beobachtet hat."
       },
       "ErpAdminUpdate": {
         "properties": {
@@ -5858,6 +6496,72 @@
         "title": "GenealogyPart",
         "description": "Ein Teil in einer Stückliste – **abgeleitet**, nicht gespeichert.\n\n``still_in`` trennt die beiden Fragen, die eine Stückliste beantworten muss: *was\nwurde verbaut* (der Log, unveränderlich) und *was steckt heute noch drin* (der\nZustand). Ein ausgebautes Teil bleibt in der Liste – die Vergangenheit bekommt eine\nFortsetzung, sie wird nicht gelöscht."
       },
+      "GrantInput": {
+        "properties": {
+          "offer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Id"
+          },
+          "provider_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Object Id"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          }
+        },
+        "type": "object",
+        "title": "GrantInput",
+        "description": "**Vergeben** (V3) – die Wahl eines Menschen.\n\nBei einem Kanal mit Angeboten ist das gewählte **Angebot** die Grundlage; ein daneben\ngetippter Preis wäre eine zweite Wahrheit über dieselbe Vereinbarung. Nur ``selbst``\nnennt Dritten und Preis unmittelbar."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -6391,6 +7095,59 @@
         ],
         "title": "ObjectResolution",
         "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
+      },
+      "OfferCreate": {
+        "properties": {
+          "provider_object_id": {
+            "type": "integer",
+            "title": "Provider Object Id"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_object_id",
+          "amount"
+        ],
+        "title": "OfferCreate",
+        "description": "Ein Angebot eintragen (V2) – der Weg des Kanals ``portal``."
       },
       "OrderCreate": {
         "properties": {
@@ -7192,6 +7949,18 @@
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."
       },
+      "ReasonInput": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ReasonInput",
+        "description": "Ablehnen (V5) oder **Scheitern** (V6). Beim Scheitern ist der Grund **Pflicht** –\nohne ihn steht später da, dass es nicht geklappt hat, aber nicht warum."
+      },
       "RecordEntry": {
         "properties": {
           "number": {
@@ -7455,6 +8224,16 @@
             "type": "boolean",
             "title": "Internal",
             "default": true
+          },
+          "award": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AwardResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

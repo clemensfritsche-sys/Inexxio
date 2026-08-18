@@ -31,6 +31,7 @@ from ..schemas.process import (
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
+from ..services import awards as awards_svc
 from ..services import consumption as consumption_svc
 from ..services import flow as flow_svc
 from ..services import record as record_svc
@@ -124,6 +125,10 @@ def _hauls(db: Session, order: Order, step) -> list[StepHaul]:
             to_holder=ref(h.to_holder),
             pieces=h.pieces_count,
             internal=h.internal,
+            # Die Vergabe kommt **fertig** aus ihrem Dienst (``awards.to_response``) und
+            # wird hier nicht zusammengebaut: sonst bekäme die eine Ansicht ein Feld und
+            # die andere nicht – und zwar erst dann, wenn es zählt.
+            award=awards_svc.to_response(db, h.award) if h.award else None,
         )
         for h in rows
     ]

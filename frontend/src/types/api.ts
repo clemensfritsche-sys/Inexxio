@@ -1056,6 +1056,160 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/awards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Award
+         * @description **Anfragen** (V1) – durch den Klick eines Menschen.
+         *
+         *     Idempotent: gibt es für denselben Anlass schon eine offene, kommt sie zurück. Ein
+         *     Modul wird oft betrachtet, bevor jemand handelt – eine zweite Zeile je Blick wäre
+         *     ein Vorgang, den niemand bestellt hat.
+         */
+        post: operations["request_award_api_v1_erp_awards_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Award */
+        get: operations["read_award_api_v1_erp_awards__award_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Offer
+         * @description Ein Angebot eintragen (V2) – der Weg des Kanals «Lieferantenportal».
+         *
+         *     Derselbe Vorgang wie beim Plattform-Kanal, nur langsamer: Rate-Shopping IST eine
+         *     Ausschreibung. Darum dieselbe Zeile und kein zweiter Mechanismus.
+         */
+        post: operations["add_offer_api_v1_erp_awards__award_id__offers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant
+         * @description **Vergeben** (V3) – ab hier ist ein Zweiter gebunden.
+         *
+         *     Das System wählt nie selbst: es darf Angebote holen und das günstigste vorwählen,
+         *     die Wahl trifft ein Mensch. Danach rührt es nichts mehr an, es meldet.
+         */
+        post: operations["grant_api_v1_erp_awards__award_id__grant_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/deliver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deliver
+         * @description **Erbracht** (V4) – und erst jetzt entsteht die Ablage.
+         *
+         *     Der Ort ist eine Beobachtung: geschrieben wird er, wenn etwas angekommen ist, nicht
+         *     wenn es bestellt wurde. Über ``places.record``, dieselbe eine Stelle wie überall.
+         */
+        post: operations["deliver_api_v1_erp_awards__award_id__deliver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject
+         * @description **Abgelehnt** (V5) – der Vorgang endet ohne Vergabe.
+         */
+        post: operations["reject_api_v1_erp_awards__award_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/awards/{award_id}/fail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fail
+         * @description **Gescheitert** (V6) – vergeben, aber nicht erbracht. **Grund ist Pflicht.**
+         *
+         *     Kein Zurücknehmen: die Matrix geht nie rückwärts, und eine Korrektur ist ein neuer
+         *     Eintrag. Danach bekommt die Sache eine ganz normale **zweite** Vergabe – dass das
+         *     geht, folgt daraus, dass «gescheitert» terminal ist und nicht mehr als offen zählt.
+         */
+        post: operations["fail_api_v1_erp_awards__award_id__fail_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/objects/{object_id}/references": {
         parameters: {
             query?: never;
@@ -1494,6 +1648,100 @@ export interface components {
              */
             missing?: string[];
         };
+        /**
+         * AwardCreate
+         * @description Eine Vergabe **anfragen** (V1).
+         *
+         *     Sie entsteht durch den Klick eines Menschen – das System legt sie nie selbst an
+         *     (PROCESS_CORE §15.7). Genau daran sind die abgeleitete Bereitstellung und die
+         *     Begleit-Bewegungen des Vorgängers gescheitert.
+         */
+        AwardCreate: {
+            /** Subject Object Id */
+            subject_object_id: number;
+            /** Target Object Id */
+            target_object_id?: number | null;
+            /**
+             * Channel
+             * @default portal
+             */
+            channel: string;
+            /** Provider Object Id */
+            provider_object_id?: number | null;
+        };
+        /**
+         * AwardOfferResponse
+         * @description Ein Angebot. Je Kanal auf anderem Weg entstanden, hier dieselbe Zeile.
+         */
+        AwardOfferResponse: {
+            /** Id */
+            id: number;
+            provider?: components["schemas"]["HolderRef"] | null;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Days */
+            days?: number | null;
+            /** Label */
+            label?: string | null;
+        };
+        /**
+         * AwardResponse
+         * @description Eine Vergabe mit ihren Angeboten.
+         */
+        AwardResponse: {
+            /** Id */
+            id: number;
+            /** Subject Object Id */
+            subject_object_id: number;
+            target?: components["schemas"]["HolderRef"] | null;
+            /** State */
+            state: string;
+            /** Channel */
+            channel: string;
+            provider?: components["schemas"]["HolderRef"] | null;
+            /** Amount */
+            amount?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Due At */
+            due_at?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Chosen Offer Id */
+            chosen_offer_id?: number | null;
+            /** Offers */
+            offers?: components["schemas"]["AwardOfferResponse"][];
+            /**
+             * State Label
+             * @description Wie der Zustand heisst – **aus der Registry**, nicht aus der Oberfläche.
+             */
+            readonly state_label: string;
+            /**
+             * State Tone
+             * @description Der **Ampelton** – ``pending`` · ``done`` · ``danger``.
+             *
+             *     Er reist mit den Daten, statt in der Oberfläche noch einmal zugeordnet zu werden:
+             *     eine zweite Tabelle veraltet beim ersten neuen Zustand, und sie tut es
+             *     **stillschweigend** (die Lehre aus ``ModuleFacts.tone`` – dort gab ein
+             *     vergessener Rückfall jedem Modul die Farbe der Datenerfassung).
+             */
+            readonly state_tone: string;
+            /**
+             * Open
+             * @description Läuft sie noch? Abgeleitet aus ``terminal`` – keine zweite Liste.
+             */
+            readonly open: boolean;
+            /**
+             * Next States
+             * @description Welche Übergänge von hier aus möglich sind.
+             *
+             *     Die Oberfläche bietet damit genau das an, was der Dienst annimmt – sie rechnet
+             *     die Matrix nicht nach. Eine Schaltfläche, die scheitert, ist schlimmer als keine.
+             */
+            readonly next_states: string[];
+        };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
             /**
@@ -1708,6 +1956,18 @@ export interface components {
              * @default true
              */
             returns: boolean;
+        };
+        /**
+         * DeliverInput
+         * @description **Erbracht** (V4) – und erst jetzt entsteht die Ablage.
+         *
+         *     ``instance_unit_ids`` sind die Stücke, die angekommen sind. Leer heisst «keine» –
+         *     nicht «alle»: welche es waren, weiss der Mensch am Ziel, und ein geratener Satz wäre
+         *     eine Ablage, die niemand beobachtet hat.
+         */
+        DeliverInput: {
+            /** Instance Unit Ids */
+            instance_unit_ids?: number[];
         };
         /**
          * ErpAdminUpdate
@@ -2109,6 +2369,26 @@ export interface components {
              */
             still_in: boolean;
         };
+        /**
+         * GrantInput
+         * @description **Vergeben** (V3) – die Wahl eines Menschen.
+         *
+         *     Bei einem Kanal mit Angeboten ist das gewählte **Angebot** die Grundlage; ein daneben
+         *     getippter Preis wäre eine zweite Wahrheit über dieselbe Vereinbarung. Nur ``selbst``
+         *     nennt Dritten und Preis unmittelbar.
+         */
+        GrantInput: {
+            /** Offer Id */
+            offer_id?: number | null;
+            /** Provider Object Id */
+            provider_object_id?: number | null;
+            /** Amount */
+            amount?: number | string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Due At */
+            due_at?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2406,6 +2686,25 @@ export interface components {
             object_id: number;
             /** Object Type */
             object_type: string;
+        };
+        /**
+         * OfferCreate
+         * @description Ein Angebot eintragen (V2) – der Weg des Kanals ``portal``.
+         */
+        OfferCreate: {
+            /** Provider Object Id */
+            provider_object_id: number;
+            /** Amount */
+            amount: number | string;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Days */
+            days?: number | null;
+            /** Label */
+            label?: string | null;
         };
         /**
          * OrderCreate
@@ -2808,6 +3107,18 @@ export interface components {
             readonly reason: string;
         };
         /**
+         * ReasonInput
+         * @description Ablehnen (V5) oder **Scheitern** (V6). Beim Scheitern ist der Grund **Pflicht** –
+         *     ohne ihn steht später da, dass es nicht geklappt hat, aber nicht warum.
+         */
+        ReasonInput: {
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+        };
+        /**
          * RecordEntry
          * @description Ein Vorgang an einem Modul, an **einer** Einzelinstanz.
          *
@@ -2965,6 +3276,7 @@ export interface components {
              * @default true
              */
             internal: boolean;
+            award?: components["schemas"]["AwardResponse"] | null;
         };
         /**
          * StepNeed
@@ -5110,6 +5422,245 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HolderContents"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_award_api_v1_erp_awards_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AwardCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_award_api_v1_erp_awards__award_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_offer_api_v1_erp_awards__award_id__offers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfferCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    grant_api_v1_erp_awards__award_id__grant_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deliver_api_v1_erp_awards__award_id__deliver_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliverInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_api_v1_erp_awards__award_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fail_api_v1_erp_awards__award_id__fail_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                award_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AwardResponse"];
                 };
             };
             /** @description Validation Error */

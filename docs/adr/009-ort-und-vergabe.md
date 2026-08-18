@@ -191,10 +191,16 @@ Das Modul **wartet auf niemanden**: jedes Stück läuft in seiner Welle weiter.
 ### 3.6 Das Bauteil «Vergabe» — der Zyklus, EINMAL
 
 ```
-Angefragt → Angebote (n) → Vergeben → Erbracht        (+ Abgelehnt)
+Angefragt → Angebote (n) → Vergeben → Erbracht    (+ Abgelehnt · Gescheitert)
 ```
 
 mit: Dritter (immer ein Lieferant) · Kanal · Preis · Termin · Bindungsschwelle.
+
+**`Gescheitert` ist der Ausgang aus «vergeben, aber nie erbracht»** (Nutzer-Entscheid,
+August 2026): terminal, mit Pflicht-Grund; die Fuhre bekommt danach eine **ganz normale
+zweite** Vergabe. Kein Zurücknehmen — die Matrix geht nie rückwärts, und eine Korrektur
+ist im ganzen Haus ein **neuer Eintrag**, nie eine geänderte Zeile. Damit steht auch nie
+mehr als eine Vergabe je Fuhre auf `vergeben`.
 
 **Der Kanal ist die einzige Variable:**
 
@@ -284,3 +290,40 @@ Jede Stufe für sich lauffähig und deploybar.
 | 4 | **Vergabe** | das Bauteil + Kanäle `selbst`/`portal` → die externe Fuhre |
 | 5 | **Kanal Plattform** | Adapter neu geschrieben, Rate-Shopping, Label, Tracking |
 | 6 | **Ressourcenmodul** | Adressprüfung + die zwei Angebote + der Verweis |
+
+### 6.1 · Stand
+
+| # | Stufe | Stand |
+|---|---|---|
+| 1 | Regeln | **fertig** – dieses ADR, `PROCESS_CORE` §9.8/§15, `SYSTEM_LOGIC` §7 |
+| 2 | Fundament | **fertig** – Migration `111`, `services/places.py`, `routers/places.py` |
+| 3 | Bewegen, intern | **fertig** – `domain/modules.Bewegen`, `services/moving.py`, Scan-Fluss |
+| 4 | Vergabe | **fertig** – Migration `112`, `domain/vergabe.py`, `services/awards.py`, `AwardPanel` |
+| 5 | Kanal Plattform | offen |
+| 6 | Ressourcenmodul | offen |
+
+**Ein Fund aus Stufe 4, der die Regel geändert hat.** Der Kanal `selbst` war eine
+**Sackgasse**: er kommt nie zu einem Angebot, und `vergeben` ging nur aus `angeboten` –
+er blieb für immer `angefragt`. Behoben nicht mit einem zweiten Ablauf je Kanal, sondern
+mit **einer Kante mehr in derselben Matrix** (`angefragt → vergeben`, §7.3-V3). Sie bleibt
+monoton, und sie öffnet nichts, was sie nicht öffnen soll: dass ein Kanal **mit** Angeboten
+sie nicht benutzen kann, folgt aus dem Dienst (dort ist das gewählte Angebot Pflicht, und
+sobald eines eingetroffen ist, steht die Vergabe ohnehin auf `angeboten`). Zwei Aussagen,
+jede an ihrem Ort: die **Matrix** sagt, welche Zustandsfolgen es gibt, der **Kanal** sagt,
+woher die Angebote kommen.
+
+Gefunden hat ihn der Wächter, nicht der Bildschirm – er steht als eigene Zeile in der
+Sackgassen-Analyse (`SYSTEM_LOGIC` §7.5, V0).
+
+**Was Stufe 4 bewusst NICHT gebaut hat**
+
+* **Wer vergeben darf.** Jeder Endpunkt hängt an `require_employee`; ab `vergeben` entsteht
+  eine Verpflichtung gegenüber einem Dritten, und das ist die erste Stelle im System, an
+  der eine Rolle je Vorgang zählen könnte. Auf Verdacht gebaut wäre sie die Regel, die
+  niemand bestellt hat (`SYSTEM_LOGIC` §7.6-2).
+* **Eine Ankunft, die das Modul selbst meldet.** Der Ort ist eine **Beobachtung**: im
+  Normalfall scannt der Mensch am Ziel die Stücke ein, und das ist die ganz gewöhnliche
+  Ablage aus Stufe 2. `awards.deliver` schreibt den Ort für den Fall, in dem niemand
+  scannt – das ist der **Tracking**-Weg und gehört zu Stufe 5.
+* **Eine Rücksendung / Reklamation an den Dritten.** Der Zyklus kennt sie nicht; sie wäre
+  die Gegenrichtung und braucht ihre eigene Regel, bevor sie Code wird.

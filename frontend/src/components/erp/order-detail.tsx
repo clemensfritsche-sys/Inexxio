@@ -172,12 +172,13 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const confirmStep = useCallback(async (stepId: number, instanceObjectId: number,
                                          verification: string,
                                          values: Record<string, Record<string, unknown>>,
-                                         sources: number[] = []) => {
+                                         sources: number[] = [],
+                                         fromHolder: number | null = null) => {
     if (!live) return;
     setBusy(true); setError(null);
     try {
       setLive(await api.confirmStep(live.object_id, stepId, values,
-                                    instanceObjectId, verification, sources));
+                                    instanceObjectId, verification, sources, fromHolder));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -366,7 +367,7 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
-              sources: number[]) => void;
+              sources: number[], fromHolder: number | null) => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
@@ -441,11 +442,13 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
                 action={stepInfo(order, step.id)?.action ?? ''}
                 work={workOf(order, step.id)}
                 needs={stepInfo(order, step.id)?.needs ?? []}
+                hauls={stepInfo(order, step.id)?.hauls ?? []}
                 busy={busy}
                 onDirty={setEntryStarted}
                 onDeviate={onDeviate}
-                onConfirm={(instanceObjectId, verification, values, sources) =>
-                  onConfirm(step.id, instanceObjectId, verification, values, sources)}
+                onConfirm={(instanceObjectId, verification, values, sources, fromHolder) =>
+                  onConfirm(step.id, instanceObjectId, verification, values, sources,
+                            fromHolder)}
               />
             </div>
           ) : (

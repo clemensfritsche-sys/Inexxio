@@ -52,9 +52,17 @@ Nach jeder Änderung an einem Request/Response-Schema:
 ```bash
 cd backend && python -m scripts.dump_openapi     # → backend/openapi.json
 cd backend && python -m scripts.dump_statuses    # → frontend/src/lib/status-catalog.ts
+cd backend && python -m scripts.dump_vergabe     # → frontend/src/lib/vergabe-catalog.ts
 cd ../frontend && npm run generate:types          # → src/types/api.ts
 ```
 
+> **Der Vergabe-Zyklus ebenso.** `app/domain/vergabe.py` ist die eine Quelle für Zustände
+> und Kanäle. Was an einer konkreten Vergabe hängt (Beschriftung, Ampelton, mögliche
+> Handlungen), **reist mit ihren Daten** (`state_label`/`state_tone`/`next_states`);
+> generiert wird nur, was es ohne sie zu wissen gibt – die Liste der **Kanäle** für eine
+> Vergabe, die es noch gar nicht gibt. Ein neuer Kanal ist damit **eine Zeile im Backend**
+> und ohne Zutun in der Oberfläche wählbar.
+>
 > **Die Statusliste gehört dazu.** `app/domain/statuses.py` ist die eine Quelle; das
 > Frontend spiegelt sie nicht, es **bekommt** sie (`scripts/dump_statuses.py`). Ein neuer
 > Status ist **eine Zeile in `CATALOG`** – mit Beschriftung, Ampelton, Achsen und (für
@@ -97,6 +105,12 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | POST | /api/v1/erp/places | staff | **Ablegen** – je Stück eine Beobachtung. Verlangt **keinen Auftrag** (freier Bestand ist der Normalzustand) und den **Kontext-Scan** ohne Vorgabewert. Ändert nie Status oder Zugehörigkeit. |
 | GET | /api/v1/erp/places/unit/{unit_id} | staff | **«Wo ist X?»** – aktueller Halter, **Kette** nach aussen (Behälter → Werk → Anschrift, zyklensicher und begrenzt; beides gemeldet statt still gekappt) und Historie. Ohne Beobachtung: leer = «nicht bekannt», nie ein geratener Ort. |
 | GET | /api/v1/erp/places/holder/{object_id} | staff | **«Was liegt hier?»** – die Stücke, deren **letzte** Beobachtung hierher zeigt; seitenweise mit Gesamtzahl. Beide Fragen lesen dieselbe Tabelle aus zwei Richtungen. |
+| POST | /api/v1/erp/awards | staff | **Vergabe anfragen** – EIN Zyklus für Transport und (künftig) Beschaffung. Idempotent je Anlass; der **Kanal** (`plattform`\|`portal`\|`selbst`) ist die einzige Variable. Das System legt **nie** selbst eine an. |
+| GET | /api/v1/erp/awards/{id} | staff | Eine Vergabe lesen – mit `state_label`, `state_tone` und `next_states`: die Oberfläche bietet an, was der Dienst annimmt, statt die Matrix nachzurechnen. |
+| POST | /api/v1/erp/awards/{id}/offers | staff | Ein **Angebot** eintragen. Je Kanal auf anderem Weg entstanden, hier dieselbe Zeile – Rate-Shopping IST eine Ausschreibung. |
+| POST | /api/v1/erp/awards/{id}/grant | staff | **Vergeben** – die Wahl eines Menschen. Bei einem Kanal mit Angeboten ist das gewählte Angebot die Grundlage; nur `selbst` nennt Dritten und Preis unmittelbar. |
+| POST | /api/v1/erp/awards/{id}/deliver | staff | **Erbracht** – und erst jetzt entsteht eine Ablage (über `places.record`, dieselbe eine Stelle). |
+| POST | /api/v1/erp/awards/{id}/reject \| /fail | staff | **Abgelehnt** (ohne Vergabe zu Ende) bzw. **Gescheitert** (vergeben, nicht erbracht – **Grund Pflicht**). Danach bekommt die Sache eine ganz normale **zweite** Vergabe; kein Zurücknehmen, die Matrix geht nie rückwärts. |
 | GET | /api/v1/erp/orders | user | Auftrag-Feed (Lieferant: nur eigene, mit eingebettetem Prozess) |
 | POST | /api/v1/erp/orders | staff | **Auftrag erteilen** – Bedarf + Positionen + Ablauf + Instanz-Auswahl in EINEM Aufruf, anlegen **und** freigeben; erst dabei entsteht die Objektnummer (ein Entwurf existiert nie in der DB) |
 | GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed) |

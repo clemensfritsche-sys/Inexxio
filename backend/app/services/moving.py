@@ -28,9 +28,9 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..domain import modules
-from ..models import InstanceUnit, ProcessStep
-from . import objects as obj, places
+from ..domain import modules, vergabe
+from ..models import Award, InstanceUnit, ProcessStep
+from . import awards, objects as obj, places
 
 
 @dataclass
@@ -48,6 +48,10 @@ class Haul:
     #: der Kontext-Scan stellt den Ausgangsort beim Ausführen fest (§15.3).
     from_holder: Optional[int] = None
     internal: bool = True
+    #: Die **offene** Vergabe dieser Fuhre – nur bei einem Versand, und nur solange sie
+    #: läuft. Sie ist die Auskunft «woran liegt es», nicht die Regel: ob etwas angekommen
+    #: ist, sagt der Ort (siehe ``record_for_step``).
+    award: Optional["Award"] = None
 
     @property
     def known(self) -> bool:
@@ -77,11 +81,16 @@ def hauls(db: Session, *, step: ProcessStep, units: list[InstanceUnit]) -> list[
     for u in units:
         groups.setdefault(current.get(u.id), []).append(u.id)
 
-    out = [
-        Haul(to_holder=target, unit_ids=ids, from_holder=src,
-             internal=src is None or places.same_place(db, src, target))
-        for src, ids in groups.items()
-    ]
+    out = []
+    for src, ids in groups.items():
+        internal = src is None or places.same_place(db, src, target)
+        out.append(Haul(
+            to_holder=target, unit_ids=ids, from_holder=src, internal=internal,
+            # Nur ein Versand hat eine Vergabe – und nur, solange sie läuft. Eine
+            # erbrachte hier zu zeigen wäre eine Aussage über die Vergangenheit an einer
+            # Stelle, die die Gegenwart beschreibt.
+            award=None if internal or src is None else awards.open_for(db, src, target),
+        ))
     # Stabile Reihenfolge: bekannte Orte zuerst, aufsteigend – damit zwei Aufrufe
     # dieselbe Liste ergeben und die Oberfläche nicht springt.
     out.sort(key=lambda h: (h.from_holder is None, h.from_holder or 0))
@@ -122,16 +131,36 @@ def record_for_step(
 
     # **Die Adresse entscheidet, nicht der Halter** (§15.4). Ein Regalwechsel innerhalb
     # desselben Werks ist kein Transport; ein Weg an eine andere Anschrift ist einer –
-    # und der braucht eine Vergabe, bevor irgendetwas als «dort angekommen» gilt.
-    if not places.same_place(db, source, target):
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Von {obj.obj_nr(source)} nach {obj.obj_nr(target)} ist ein **Versand** "
-                f"(andere Anschrift). Dafür braucht es eine Vergabe an einen Dritten – "
-                f"sie ist noch nicht gebaut. Innerbetriebliche Wege gehen bereits."
-            ),
-        )
+    # und der ist erst dann angekommen, wenn ein Dritter ihn erbracht hat.
+    if places.same_place(db, source, target):
+        places.record(db, [u.id for u in units], target, actor_id=actor_id)
+        return {"from": source, "to": target}
 
-    places.record(db, [u.id for u in units], target, actor_id=actor_id)
-    return {"from": source, "to": target}
+    # ►► **Extern: der Ort folgt der Leistung, nicht der Absicht.** ◄◄
+    #
+    # Gefragt wird die **Beobachtung**, nicht die Vergabe: liegen die Stücke am Ziel?
+    # Dorthin gebracht hat sie die Vergabe bei ``erbracht`` (``awards.deliver``) – hier
+    # wird darum nichts noch einmal geschrieben.
+    #
+    # Das ist bewusst nicht «gibt es eine erbrachte Vergabe»: eine erbrachte ist terminal
+    # und läge Monate später immer noch da; sie zu befragen hiesse, aus einem alten
+    # Vorgang zu schliessen, dass heute etwas angekommen ist. Der Ort weiss es genau.
+    at_target = places.current(db, [u.id for u in units])
+    waiting = [u for u in units if at_target.get(u.id) != target]
+    if not waiting:
+        return {"from": source, "to": target}
+
+    # Solange nichts da ist, ist dieses Modul schlicht **nicht fertig**, und die Zeile
+    # sagt warum (§15.6). Das System fragt die Vergabe **nicht von sich aus an** – es
+    # bietet sie an, ein Mensch klickt (§15.7).
+    award = awards.open_for(db, source, target)
+    where = (f"«{vergabe.STATES[award.state].label}»" if award
+             else "noch nicht angefragt")
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"Von {obj.obj_nr(source)} nach {obj.obj_nr(target)} ist ein Versand "
+            f"(andere Anschrift) – die Vergabe an einen Dritten ist {where}. Erst wenn "
+            f"er sie erbracht hat, liegt dort etwas."
+        ),
+    )

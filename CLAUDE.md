@@ -238,16 +238,61 @@
 > jedes Modul ohne Ziel ein No-op ist – dieselbe Form wie `capture_svc`/`consumption_svc`,
 > also kein `if` nach dem Modultyp an der Ausführungsstelle. Ein **Versand** (andere
 > Anschrift) wird nicht stillschweigend als interner Weg verbucht, sondern nennt seinen
-> Grund; die **Vergabe** dafür ist noch nicht gebaut.
+> Grund.
+> **Die Vergabe ist EIN Zyklus, und der KANAL ist die einzige Variable** (§15.5,
+> `domain/vergabe.py` + `services/awards.py`, Migration `112`): anfragen · anbieten ·
+> vergeben · abnehmen · ablehnen · scheitern – heute ein Transport, morgen eine
+> Beschaffung, darum **eine** Tabelle und keine je Modul. Der Kanal ändert, *woher* die
+> Angebote kommen (`plattform` aus einer Schnittstelle · `portal` von einem Menschen ·
+> `selbst` gar nicht), **nie**, welche Zustände es gibt: **Rate-Shopping IST eine
+> Ausschreibung**, sie dauert nur 2 Sekunden statt 2 Tage. Ein neuer Kanal ist damit ein
+> Adapter, kein zweiter Zyklus – und er kostet die Oberfläche **keinen Eintrag**, weil der
+> Katalog **generiert** wird (`scripts/dump_vergabe.py` → `lib/vergabe-catalog.ts`, in der
+> CI wie `api.ts` auf Aktualität geprüft).
+> **Das System vergibt nie selbst.** Es darf Angebote holen und das günstigste
+> **vorwählen**; die Wahl trifft ein Mensch – geprüft in beide Richtungen (das teurere
+> lässt sich wählen; wer das verbietet, hat aus der Vorwahl eine Wahl gemacht). Ab
+> `vergeben` rührt es nichts mehr an, es meldet.
+> **Der Ort folgt der Leistung, nicht der Absicht**: eine Ablage entsteht erst mit
+> `erbracht`, und sie wird über `places.record` geschrieben – dieselbe eine Stelle wie
+> überall. Ob etwas **angekommen** ist, fragt das Modul aber am **Ort**, nicht an der
+> Vergabe: eine erbrachte ist terminal und läge Monate später immer noch da; aus einem
+> alten Vorgang zu schliessen, dass heute etwas am Ziel liegt, ist genau die Ableitung,
+> die still falsch wird. Im Normalfall (Kanäle `portal`/`selbst`) **scannt der Mensch am
+> Ziel die Stücke ein** – eine ganz gewöhnliche Ablage –, und damit läuft das Modul weiter.
+> **Die Matrix geht nie rückwärts**, geprüft beim Import. Daraus folgt der einzige nicht
+> offensichtliche Zustand: eine vergebene, aber nie erbrachte Leistung wird
+> **`gescheitert`** (terminal, **Grund Pflicht**), und die Fuhre bekommt eine **ganz
+> normale zweite** Vergabe – dass das geht, folgt von selbst daraus, dass `gescheitert`
+> terminal ist und `open_for` sie nicht mehr findet. Ein «Zurücknehmen» wäre der bequemere
+> Weg und der falsche: eine Korrektur ist im ganzen Haus ein **neuer Eintrag** (G5.1), und
+> rückwärts stünden am Ende zwei Zeilen gleichzeitig auf `vergeben`.
+> **Ein Endpunkt je Vorgang, keiner je Zustand** – ein `PATCH {state: …}` wäre die zweite
+> Stelle, an der die Übergangsmatrix gepflegt wird. Geschrieben wird eine **Handlung**;
+> welcher Zustand daraus folgt, entscheidet die Registry (`assert_transition` ist die eine
+> Prüfstelle, `_move` die eine Schreibstelle – beides als AST-Wächter festgehalten).
+> **Der Fund beim Bauen: der Kanal `selbst` war eine Sackgasse.** Er kommt nie zu einem
+> Angebot, und `vergeben` ging nur aus `angeboten` – er blieb für immer `angefragt`.
+> Behoben nicht mit einem zweiten Ablauf je Kanal, sondern mit **einer Kante mehr in
+> derselben Matrix** (`angefragt → vergeben`); dass ein Kanal **mit** Angeboten sie nicht
+> benutzen kann, folgt aus dem Dienst (dort ist das gewählte Angebot Pflicht, und sobald
+> eines da ist, steht die Vergabe ohnehin auf `angeboten`). Die Matrix sagt, welche
+> Zustandsfolgen es gibt; der Kanal sagt, woher die Angebote kommen.
 > **Die Historie des Scheiterns steht in ADR 009 §2**, belegt am Altcode: `movable_instances`
 > (drei Zweige, vier Ausnahmen – ein Modul las Verbleib und Auftragsgrund, um zu
 > entscheiden, woran es arbeitet), `location_split` (Mengen-Map + denormalisierter Skalar +
 > Umschalter), `provisioning` (legte selbst an, steht auf `AUTO_PROVISIONING = False`),
 > `logistics` (gespeicherte Transportklasse, zwei Migrationen zum Loswerden). Sechs
 > **verbotene Formen** sind als AST-Wächter festgeschrieben.
-> **Offen und benannt statt versteckt** (SYSTEM_LOGIC §7.6): was eine **vergebene, aber nie
-> erbrachte** Vergabe auflöst – zu entscheiden, *bevor* das Vergabe-Bauteil gebaut wird.
-> Wächter: `tests/test_place.py` (24, jeder gegen seine Bug-Form gegengeprüft).
+> **Offen und benannt statt versteckt** (SYSTEM_LOGIC §7.6): **wer** vergeben darf – jeder
+> Endpunkt hängt heute an `require_employee`, und ab `vergeben` entsteht eine
+> Verpflichtung gegenüber einem Dritten. Das ist die erste Stelle im System, an der eine
+> Rolle je Vorgang zählen könnte; sie auf Verdacht zu bauen wäre die Regel, die niemand
+> bestellt hat.
+> Wächter: `tests/test_place.py` (24) · `tests/test_award.py` (19) – **jeder gegen seine
+> Bug-Form gegengeprüft** (26 Fehlerformen hergestellt, 26 gemeldet); dazu ein Durchlauf
+> über die echten HTTP-Endpunkte (27 Prüfungen: Fuhre → 409 mit Grund → Vergabe →
+> Ankunft am Ziel → Modul läuft → Scheitern → zweite Vergabe).
 >
 > **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
 > Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,

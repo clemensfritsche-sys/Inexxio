@@ -607,21 +607,41 @@ die Angebote kommen — nie, *welche* Zustände es gibt.
 | `vergeben` | Vergeben | Ein Dritter ist **gebunden**. |
 | `erbracht` | Erbracht | Die Leistung ist erbracht (angekommen). **Terminal.** |
 | `abgelehnt` | Abgelehnt | Der Vorgang endet ohne Vergabe. **Terminal.** |
+| `gescheitert` | Gescheitert | Vergeben, aber **nicht** erbracht (Sendung verschollen, Spediteur fährt nicht). **Terminal**, mit Pflicht-Grund. |
 
 | # | von | nach | Auslöser |
 |---|---|---|---|
 | V1 | *(entsteht)* | `angefragt` | Eine **externe** Fuhre erreicht ihr Modul. |
 | V2 | `angefragt` | `angeboten` | Ein Angebot trifft ein — je Kanal auf anderem Weg, mit demselben Ergebnis. |
-| V3 | `angeboten` | `vergeben` | Ein **Mensch** wählt ein Angebot. Nie das System. |
+| V3 | `angefragt` \| `angeboten` | `vergeben` | Ein **Mensch** wählt. Nie das System. Ohne Angebot nur beim Kanal `selbst` — dort gibt es keine (siehe unten). |
 | V4 | `vergeben` | `erbracht` | Ankunft — gemeldet durch Tracking **oder** durch den Scan am Ziel. |
 | V5 | `angefragt` \| `angeboten` | `abgelehnt` | Ein Mensch bricht ab. |
+| V6 | `vergeben` | `gescheitert` | Ein **Mensch** stellt fest, dass nichts kommt. **Grund ist Pflicht.** |
 
 **Ausdrücklich verboten:** jeder nicht aufgeführte Übergang; insbesondere `vergeben` →
-`angefragt`/`angeboten` (ein Gebundener wird nicht stillschweigend entbunden, §7.5-V3)
-und jede Vergabe **ohne** Menschen bei V3.
+`angefragt`/`angeboten` (ein Gebundener wird nicht stillschweigend entbunden) und jede
+Vergabe **ohne** Menschen bei V3.
+
+**Die Matrix ist monoton — sie geht nie rückwärts.** Das ist der Grund, warum V6 ein
+eigener Zustand ist und kein Zurücknehmen: eine Korrektur ist im ganzen Haus ein **neuer
+Eintrag**, nie eine geänderte Zeile (G5.1). Eine gescheiterte Vergabe bleibt darum stehen
+und sagt, dass **dieser** Versuch gescheitert ist; die Fuhre bekommt eine **ganz normale
+zweite** Vergabe (V1). Damit steht auch nie mehr als eine Vergabe je Fuhre auf
+`vergeben` — die Frage «welche gilt?» entsteht gar nicht erst.
 
 **Die Zustände stehen in EINER Registry**, nicht als `if/else` je Kanal. Ein neuer Kanal
 ist ein Adapter, kein neuer Zyklus.
+
+**Der Kanal `selbst` überspringt `angeboten` — und das ist keine Ausnahme, sondern die
+Folge der Definition.** Wo es keine Angebote gibt, kann es den Zustand «es liegen welche
+vor» nicht geben; die erste Fassung liess `vergeben` nur aus `angeboten` zu und machte
+`selbst` damit zur **Sackgasse** (angefragt, für immer). Der Ausweg ist nicht ein zweiter
+Ablauf je Kanal, sondern die **eine** Kante mehr in derselben Matrix: V3 geht aus
+`angefragt` **und** aus `angeboten`. Sie bleibt monoton, und sie öffnet nichts, was sie
+nicht öffnen soll — dass ein Kanal **mit** Angeboten sie nicht benutzen kann, folgt aus
+dem Dienst: dort ist das gewählte Angebot Pflicht, und sobald eines eingetroffen ist,
+steht die Vergabe ohnehin auf `angeboten`. Zwei Aussagen, jede an ihrem Ort: die Matrix
+sagt, welche Zustandsfolgen es gibt, der Kanal sagt, woher die Angebote kommen.
 
 **Ab `vergeben` rührt das System nichts an — es meldet.** Ändert sich die Grundlage
 (Menge, Ziel, Stücke), fällt die Vergabe **nicht** automatisch zurück; die Abweichung wird
@@ -659,19 +679,23 @@ Aussagen über den **Quelltext** — darum als AST-Wächter geprüft, nicht als 
 
 | # | Zustand | Wie kommt man hier raus? |
 |---|---|---|
+| V0 | `angefragt` beim Kanal **`selbst`** — dort kommt nie ein Angebot | Vergeben (V3) **ohne** Angebot; Dritter und Preis stehen dort von Anfang an fest. *Ohne die zweite V3-Kante wäre das die einzige echte Sackgasse des Zyklus gewesen — gefunden vom Wächter, nicht am Bildschirm.* |
 | V1 | `angefragt`, **niemand antwortet** | Ablehnen (V5) und neu anfragen — auch über einen **anderen Kanal**. Der Zyklus ist derselbe, nur die Quelle der Angebote wechselt. |
 | V2 | `angeboten`, **niemand vergibt** | Vergeben (V3) oder ablehnen (V5). Blockiert nichts anderes: das Modul ist nicht fertig, mehr nicht (O4). |
-| V3 | `vergeben`, aber **nie erbracht** (Sendung verschollen) | ⚠ **NOCH NICHT ENTSCHIEDEN** — siehe §7.6. Bis dahin ist dies die einzige bekannte Sackgasse dieses Bereichs, und sie ist **benannt statt versteckt**. |
-| V4 | `erbracht` / `abgelehnt` | Terminal. **Kein Ausgang nötig** — das ist die Zusage, keine Sackgasse. |
+| V3 | `vergeben`, aber **nie erbracht** (Sendung verschollen) | **Gescheitert** (V6, Grund Pflicht) – danach eine ganz normale **zweite** Vergabe für dieselbe Fuhre. Kein Zurücknehmen: die Matrix geht nie rückwärts, und was passiert ist, bleibt stehen. |
+| V4 | `erbracht` / `abgelehnt` / `gescheitert` | Terminal. **Kein Ausgang nötig** — das ist die Zusage, keine Sackgasse. Die **Fuhre** ist dabei nicht in der Sackgasse: sie bekommt eine neue Vergabe. |
 
 ### 7.6 Was ausdrücklich (noch) nicht entschieden ist
 
-1. **Was eine vergebene, aber nie erbrachte Vergabe auflöst** (§7.5-V3). Ab `vergeben` ist
-   ein Zweiter gebunden, also darf das System nicht selbst zurücknehmen — es meldet. Was
-   der **Mensch** dann tut, ist offen. Die Kandidaten: ein ausdrücklicher Vorgang
-   «Vergabe zurücknehmen» mit Grund (Vorbild: die Rücknahme der Dokument-Ausstellung), ein
-   sechster Zustand, oder eine ganz gewöhnliche zweite Vergabe daneben.
-   **Zu entscheiden, bevor Stufe 4 gebaut wird** — nicht beim Bauen zu erraten.
+1. ~~**Was eine vergebene, aber nie erbrachte Vergabe auflöst.**~~ **Entschieden**
+   (August 2026, Nutzer-Entscheid): ein sechster Zustand **`gescheitert`** — terminal,
+   mit **Pflicht-Grund** —, und die Fuhre bekommt danach eine **ganz normale zweite**
+   Vergabe (§7.3-V6).
+   Verworfen wurde das naheliegende «Vergabe zurücknehmen» (Vorbild: die Rücknahme der
+   Dokument-Ausstellung): es verlässt einen Zustand **rückwärts** und widerspricht damit
+   sowohl der monotonen Matrix als auch G5.1 («eine Korrektur ist ein neuer Eintrag»).
+   Ebenso verworfen: nur eine zweite Vergabe danebenzustellen — dann stünden zwei Zeilen
+   gleichzeitig auf `vergeben`, und es bräuchte doch eine Regel, welche gilt.
 2. **Wer darf vergeben.** Jeder Endpunkt hängt heute an `require_employee`; eine Rolle je
    Vorgang gibt es nicht (dieselbe offene Frage wie R10 in §4.5). Ab `vergeben` entsteht
    eine Verpflichtung gegenüber einem Dritten — das ist die erste Stelle im System, an der

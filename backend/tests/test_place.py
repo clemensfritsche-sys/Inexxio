@@ -10,159 +10,18 @@ Die andere Hälfte läuft über die **echten** Dienstpfade gegen echtes PostgreS
 nachgestellter Zustand würde genau das nicht finden, was hier zählt: dass eine Ablage
 nichts anfasst ausser dem Ort.
 """
-
 import ast
-import os
-import pathlib
 
 import pytest
 
-BACKEND = pathlib.Path(__file__).resolve().parents[1]
-APP = BACKEND / "app"
+from .support import (
+    APP, code_only, live_sources, make_company, make_move_step, make_units, session,
+    source,
+)
 
-
-def _db():
-    """Eine Sitzung gegen echtes PostgreSQL – oder ein Skip **mit Grund**."""
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    os.environ.setdefault("FIREBASE_PROJECT_ID", "test")
-    try:
-        from app.core.database import Base, SessionLocal, engine
-        import app.main as main
-        Base.metadata.create_all(engine)
-        main._ensure_columns()
-        return SessionLocal()
-    except Exception as exc:  # pragma: no cover - reine Umgebungsfrage
-        pytest.skip(f"Kein PostgreSQL erreichbar ({type(exc).__name__}: {exc}) – "
-                    f"DATABASE_URL setzen, damit diese Regeln wirklich laufen.")
-
-
-def _units(db, *, quantity: int = 2, serialization: str = "unit"):
-    """Echte Einzelinstanzen über den echten Weg: ein freigegebener Erzeugungsauftrag.
-
-    Sie von Hand einzufügen wäre schneller und würde genau die Fehler verstecken, die
-    zwischen den Schritten entstehen.
-    """
-    from app.models import Article, Instance, InstanceUnit, OrderUnit
-    from app.services import article_process as tpl, objects as obj, process as proc
-
-    art = Article(object_id=obj.next_object_id(db), name="Ortstück", unit="stk",
-                  serialization=serialization)
-    db.add(art)
-    db.flush()
-    # Ein Erzeugungsauftrag fährt die Vorlage des Artikels – ohne sie gibt es keinen
-    # Prozess und damit keine Freigabe (§6.2). Das Modul ist hier Beiwerk.
-    tpl.create_steps(db, art, [{"module_type": "datenerfassung",
-                                "config": {"points": [{"label": "OK", "type": "bool"}]}}])
-    db.flush()
-    order = proc.release(
-        db,
-        lines=[{"article_object_id": art.object_id, "quantity": quantity,
-                "origin": "neu", "units": []}],
-        steps=[], actor_id=None,
-    )
-    db.flush()
-    # Die Stücke des Auftrags über die Zugehörigkeit – Instance kennt den Auftrag nicht.
-    units = (db.query(InstanceUnit)
-             .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
-             .filter(OrderUnit.order_id == order.id)
-             .order_by(InstanceUnit.id).all())
-    instances = db.query(Instance).filter(
-        Instance.id.in_({u.instance_id for u in units})).all()
-    return order, instances, units
-
-
-def _company(db, name: str, **address):
-    """Eine Gesellschaft – **ohne Commit**, damit der Test sauber zurückrollt.
-
-    ``company_settings.id`` trägt keine Sequence (die Tabelle war einmal ein Singleton)
-    und hat den Vorgabewert 1; der Schlüssel wird darum wie in ``sites.create`` vergeben.
-    ``sites.create`` selbst committet – hier wäre das ein Rest, der die nächste Prüfung
-    beeinflusst.
-    """
-    from sqlalchemy import func
-    from app.models import CompanySettings
-    from app.services import objects as obj
-
-    next_id = (db.query(func.max(CompanySettings.id)).scalar() or 0) + 1
-    company = CompanySettings(id=next_id, object_id=obj.next_object_id(db),
-                              company_name=name, **address)
-    db.add(company)
-    db.flush()
-    return company
-
-
-def _move_step(db, order, target_object_id: int):
-    """Ein **Bewegen**-Modul an einem laufenden Auftrag – über den echten Anlege-Pfad.
-
-    Es wird ans Ende gehängt; für die Fuhren-Vorschau zählt allein seine Konfiguration,
-    nicht seine Position.
-    """
-    from app.models import ProcessStep
-    from app.domain import modules
-
-    last = (db.query(ProcessStep).filter(ProcessStep.order_id == order.id)
-            .order_by(ProcessStep.position.desc()).first())
-    mod = modules.get(modules.BEWEGEN)
-    step = ProcessStep(
-        order_id=order.id, position=(last.position if last else 0) + 1,
-        module_type=modules.BEWEGEN,
-        config=mod.clean_config({"target": target_object_id}),
-        status_before=mod.status_before, status_after=mod.status_after,
-    )
-    db.add(step)
-    db.flush()
-    return step
-
-
-def _source(rel: str) -> str:
-    return (APP / rel).read_text(encoding="utf-8")
-
-
-def _code_only(src: str) -> str:
-    """Nur der **ausgeführte** Quelltext – ohne Kommentare und ohne Zeichenketten.
-
-    Die verbotenen Formen sind Aussagen über **Code**. Ein roher Textvergleich verböte
-    dem Projekt, seine eigene Historie zu dokumentieren: ADR 009 nennt
-    ``location_split`` und ``movable_instances`` beim Namen, und mehrere Docstrings
-    verweisen zu Recht darauf, was es einmal gab. Ein Wächter, der daran anschlägt,
-    erzieht zum Verschweigen – und das ist die teurere Sorte Fehler.
-    """
-    import io
-    import tokenize
-
-    out = []
-    try:
-        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
-            if tok.type in (tokenize.COMMENT, tokenize.STRING):
-                continue
-            out.append(tok.string)
-    except tokenize.TokenError:  # pragma: no cover - defekte Datei wäre ein anderer Test
-        return src
-    return " ".join(out)
-
-
-def _live_sources() -> list[tuple[str, str]]:
-    """Der **aktive** Quelltext. Abgeschaltete Module (`core/features.py`) bleiben als
-    Historie liegen und dürfen die Aussage nicht verfälschen."""
-    from app.core import features  # noqa: F401  (nur zur Existenzprüfung)
-    disabled = ("services/ai/", "services/payments/", "services/shipping/",
-                "services/sale.py", "services/selling.py", "services/refund.py",
-                "services/customer_returns.py", "services/pricing.py", "services/tax.py",
-                "services/fx.py", "services/operating_costs.py", "services/document",
-                "services/consent.py", "services/legal.py",
-                "routers/sales.py", "routers/shop.py", "routers/document",
-                "routers/ai.py", "routers/consent.py", "routers/legal.py",
-                "schemas/sale", "schemas/shop.py", "schemas/document",
-                "schemas/consent.py", "schemas/ai.py")
-    out = []
-    for p in APP.rglob("*.py"):
-        rel = p.relative_to(APP).as_posix()
-        if any(rel.startswith(d) for d in disabled):
-            continue
-        out.append((rel, p.read_text(encoding="utf-8")))
-    return out
-
+# Die Hilfen stehen in ``tests/support`` – **eine** Stelle, mehrere Wächter. Zwei Kopien
+# von ``make_units`` wären zwei Aufbauten desselben Zustands, und sobald sie
+# auseinanderlaufen, prüfen zwei Dateien gegen zwei verschiedene Welten.
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # O1 — Der Ort ist eine Beobachtung, kein Zustand
@@ -178,9 +37,9 @@ def test_a_place_is_an_observation_not_a_state():
     from app.models import UnitPlace
     from app.services import objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        _, instances, units = _units(db, quantity=1)
+        _, instances, units = make_units(db, quantity=1)
         u = units[0]
         a, b = obj.next_object_id(db), obj.next_object_id(db)
         from app.models import Instance
@@ -236,7 +95,7 @@ def test_the_place_table_has_no_update_path():
     korrigiert, statt eine neue Zeile zu schreiben. Ein Verhaltenstest fände es erst,
     wenn jemand genau diesen Pfad ruft — der Quelltext sagt es sofort.
     """
-    for rel, src in _live_sources():
+    for rel, src in live_sources():
         if "UnitPlace" not in src:
             continue
         tree = ast.parse(src)
@@ -270,8 +129,8 @@ def test_a_holder_is_an_object_number_without_a_type_field():
     assert not [c for c in cols if "type" in c or c.endswith("_kind")], (
         f"unit_places trägt ein Typfeld neben der Objektnummer: {cols}"
     )
-    for rel, src in _live_sources():
-        assert "location_type" not in _code_only(src), (
+    for rel, src in live_sources():
+        assert "location_type" not in code_only(src), (
             f"{rel}: `location_type` ist die verbotene Form V-5 (ADR 009 §3.2)."
         )
 
@@ -286,15 +145,15 @@ def test_every_kind_of_record_can_be_a_holder():
     from app.models import CompanySettings, Instance, UserProfile
     from app.services import objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        _, instances, units = _units(db, quantity=3)
+        _, instances, units = make_units(db, quantity=3)
         u = units[0]
 
         container = Instance(object_id=obj.next_object_id(db),
                              article_id=instances[0].article_id, kind="einzeln",
                              label="Behälter A")
-        company = _company(db, "Werk Nord")
+        company = make_company(db, "Werk Nord")
         person = UserProfile(object_id=obj.next_object_id(db), firebase_uid=f"t{obj.obj_nr(1)}",
                              email="lager@example.com", first_name="Max", last_name="Müller")
         db.add_all([container, person])
@@ -325,9 +184,9 @@ def test_an_unresolvable_holder_is_reported_not_swallowed():
     from fastapi import HTTPException
     from app.services import places
 
-    db = _db()
+    db = session()
     try:
-        _, _, units = _units(db, quantity=1)
+        _, _, units = make_units(db, quantity=1)
         ghost = 999_999_999
 
         holder = places.resolve_holder(db, ghost)
@@ -359,9 +218,9 @@ def test_a_place_never_changes_status_or_belonging():
     from app.models import Instance, OrderUnit, ProcessEvent, UnitPlace
     from app.services import objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        _, instances, units = _units(db, quantity=2)
+        _, instances, units = make_units(db, quantity=2)
         u = units[0]
         before_status = u.status
         before_units = db.query(OrderUnit).count()
@@ -397,7 +256,7 @@ def test_the_place_service_touches_only_its_own_table():
     Bug-Form: irgendwo in `services/places.py` ein Schreibzugriff auf `InstanceUnit`,
     `OrderUnit` oder `ProcessEvent`.
     """
-    src = _source("services/places.py")
+    src = source("services/places.py")
     tree = ast.parse(src)
     written = set()
     for node in ast.walk(tree):
@@ -434,7 +293,7 @@ def test_the_context_scan_has_no_default():
         "holder_object_id muss Pflicht sein – ein Vorgabewert wäre ein Ort, den "
         "niemand gescannt hat."
     )
-    src = _source("services/places.py") + _source("routers/places.py")
+    src = source("services/places.py") + source("routers/places.py")
     for smell in ("last_place", "remembered", "session_place", "default_holder"):
         assert smell not in src, f"Ein gemerkter Ort ({smell}) widerspricht O5."
 
@@ -452,9 +311,9 @@ def test_the_chain_is_cycle_safe_and_reports_it():
     from app.models import Instance, InstanceUnit
     from app.services import objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        _, instances, _ = _units(db, quantity=1)
+        _, instances, _ = make_units(db, quantity=1)
         art = instances[0].article_id
         a = Instance(object_id=obj.next_object_id(db), article_id=art, kind="einzeln", label="A")
         b = Instance(object_id=obj.next_object_id(db), article_id=art, kind="einzeln", label="B")
@@ -486,11 +345,11 @@ def test_the_chain_ends_in_an_address_without_an_object_number():
     from app.models import CompanySettings, Instance, InstanceUnit
     from app.services import objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        _, instances, units = _units(db, quantity=1)
+        _, instances, units = make_units(db, quantity=1)
         art = instances[0].article_id
-        werk = _company(db, "Werk Nord", street="Industriestrasse", street_nr="4",
+        werk = make_company(db, "Werk Nord", street="Industriestrasse", street_nr="4",
                         zip_code="8000", city="Zürich", country="Schweiz")
         box = Instance(object_id=obj.next_object_id(db), article_id=art,
                        kind="einzeln", label="Behälter A")
@@ -530,9 +389,9 @@ def test_what_lies_here_is_the_other_reading_of_the_same_table():
     from app.models import Instance
     from app.services import objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        _, instances, units = _units(db, quantity=3)
+        _, instances, units = make_units(db, quantity=3)
         art = instances[0].article_id
         regal = Instance(object_id=obj.next_object_id(db), article_id=art,
                          kind="einzeln", label="Regal C1")
@@ -577,9 +436,9 @@ def test_a_split_batch_is_a_group_by_not_a_quantity_map():
         f"unit_places trägt eine Mengenspalte: {cols}. Eine Ablage gilt für EIN Stück."
     )
 
-    db = _db()
+    db = session()
     try:
-        _, instances, units = _units(db, quantity=4)
+        _, instances, units = make_units(db, quantity=4)
         art = instances[0].article_id
         regal = Instance(object_id=obj.next_object_id(db), article_id=art,
                          kind="einzeln", label="Regal")
@@ -617,8 +476,8 @@ def test_the_forbidden_forms_do_not_come_back():
         "location_type": "V-5: ein Typfeld neben der Objektnummer (§3.2)",
     }
     hits = []
-    for rel, src in _live_sources():
-        code = _code_only(src)
+    for rel, src in live_sources():
+        code = code_only(src)
         for needle, why in forbidden.items():
             if needle in code:
                 hits.append(f"{rel}: '{needle}' – {why}")
@@ -639,7 +498,7 @@ def test_the_system_never_creates_a_transport_by_itself():
     creators = ("Order(", "ProcessStep(", "create_order", "release(", "ensure_supply",
                 "ensure_provisioning")
     for rel in ("services/places.py", "routers/places.py"):
-        src = _code_only(_source(rel))
+        src = code_only(source(rel))
         for c in creators:
             assert c not in src, (
                 f"{rel} legt selbst etwas an ('{c}'). Ein Transport entsteht nur durch "
@@ -663,7 +522,7 @@ def test_no_module_reads_the_place_to_decide_which_units_it_touches():
     from app.services import moving
 
     for rel in ("services/process.py", "domain/modules.py"):
-        src = _code_only(_source(rel))
+        src = code_only(source(rel))
         assert "places" not in src and "unit_place" not in src.lower(), (
             f"{rel} liest den Ort. Ein Modul entscheidet nie anhand des Ortes, WELCHE "
             f"Stücke es anfasst (O6)."
@@ -674,7 +533,7 @@ def test_no_module_reads_the_place_to_decide_which_units_it_touches():
         assert "units" in inspect.signature(fn).parameters, (
             f"moving.{fn.__name__} muss seine Stücke bekommen, nicht suchen (O6)."
         )
-    body = _code_only(inspect.getsource(moving))
+    body = code_only(inspect.getsource(moving))
     assert "_units_at" not in body and "query ( InstanceUnit )" not in body, (
         "moving sucht sich seine Arbeitsmenge selbst – das ist die Form, an der der "
         "Vorgänger gescheitert ist (ADR 009 §2.1)."
@@ -715,7 +574,7 @@ def test_the_module_has_exactly_one_setting():
         assert e.value.status_code == 400
 
     # Und ein Modus wird nirgends gespeichert.
-    assert "transport" not in _code_only(_source("domain/modules.py"))
+    assert "transport" not in code_only(source("domain/modules.py"))
 
 
 def test_two_source_places_are_two_hauls_one_is_one():
@@ -730,9 +589,9 @@ def test_two_source_places_are_two_hauls_one_is_one():
     from app.models import Instance
     from app.services import moving, objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        order, instances, units = _units(db, quantity=3)
+        order, instances, units = make_units(db, quantity=3)
         art = instances[0].article_id
         regal = Instance(object_id=obj.next_object_id(db), article_id=art,
                          kind="einzeln", label="Regal C1")
@@ -742,7 +601,7 @@ def test_two_source_places_are_two_hauls_one_is_one():
                         kind="einzeln", label="Versandzone")
         db.add_all([regal, band, ziel])
         db.flush()
-        step = _move_step(db, order, ziel.object_id)
+        step = make_move_step(db, order, ziel.object_id)
 
         # Alle drei am selben Ort → EINE Fuhre.
         places.record(db, [u.id for u in units], regal.object_id, actor_id=None)
@@ -775,11 +634,11 @@ def test_internal_creates_no_award_line():
     from app.models import CompanySettings, Instance, InstanceUnit
     from app.services import moving, objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        order, instances, units = _units(db, quantity=2)
+        order, instances, units = make_units(db, quantity=2)
         art = instances[0].article_id
-        werk = _company(db, "Werk Süd", street="Industriestrasse", street_nr="4",
+        werk = make_company(db, "Werk Süd", street="Industriestrasse", street_nr="4",
                         zip_code="8000", city="Zürich", country="Schweiz")
         # Zwei Behälter im SELBEN Werk – verschiedene Halter, gleiche Anschrift.
         regal, band = [Instance(object_id=obj.next_object_id(db), article_id=art,
@@ -798,7 +657,7 @@ def test_internal_creates_no_award_line():
             "Zwei Behälter im selben Werk sind derselbe Ort – verglichen wird die "
             "ADRESSE, nicht der Halter."
         )
-        step = _move_step(db, order, band.object_id)
+        step = make_move_step(db, order, band.object_id)
         haul = moving.hauls(db, step=step, units=units)[0]
         assert haul.internal, "Gleiche Anschrift ⇒ innerbetrieblich, keine Vergabe."
     finally:
@@ -819,14 +678,14 @@ def test_a_move_needs_the_context_scan():
     from app.models import Instance
     from app.services import moving, objects as obj
 
-    db = _db()
+    db = session()
     try:
-        order, instances, units = _units(db, quantity=1)
+        order, instances, units = make_units(db, quantity=1)
         ziel = Instance(object_id=obj.next_object_id(db),
                         article_id=instances[0].article_id, kind="einzeln", label="Ziel")
         db.add(ziel)
         db.flush()
-        step = _move_step(db, order, ziel.object_id)
+        step = make_move_step(db, order, ziel.object_id)
 
         with pytest.raises(HTTPException) as e:
             moving.record_for_step(db, step=step, units=units,
@@ -849,9 +708,9 @@ def test_the_module_effect_is_a_no_op_for_every_other_module():
     """
     from app.services import moving
 
-    db = _db()
+    db = session()
     try:
-        order, _, units = _units(db, quantity=1)
+        order, _, units = make_units(db, quantity=1)
         from app.models import ProcessStep
         capture = db.query(ProcessStep).filter(ProcessStep.order_id == order.id).first()
         assert moving.record_for_step(db, step=capture, units=units,
@@ -862,7 +721,7 @@ def test_the_module_effect_is_a_no_op_for_every_other_module():
         db.rollback()
         db.close()
 
-    src = _code_only(_source("services/process.py"))
+    src = code_only(source("services/process.py"))
     for smell in ("== 'bewegen'", '== "bewegen"', "modules.BEWEGEN"):
         assert smell not in src, (
             f"process.py verzweigt nach dem Modultyp ({smell}) – die Wirkung eines "
@@ -889,9 +748,9 @@ def test_moving_end_to_end_through_the_real_execution_point():
     )
     from app.models import Article
 
-    db = _db()
+    db = session()
     try:
-        werk = _company(db, "Werk Ost", street="Bahnhofstrasse", street_nr="1",
+        werk = make_company(db, "Werk Ost", street="Bahnhofstrasse", street_nr="1",
                         zip_code="9000", city="St. Gallen", country="Schweiz")
         art = Article(object_id=obj.next_object_id(db), name="Wanderstück", unit="stk",
                       serialization="unit")
@@ -971,13 +830,13 @@ def test_an_external_haul_says_why_it_cannot_run_yet():
     from app.models import Instance, InstanceUnit
     from app.services import moving, objects as obj, places
 
-    db = _db()
+    db = session()
     try:
-        order, instances, units = _units(db, quantity=1)
+        order, instances, units = make_units(db, quantity=1)
         art = instances[0].article_id
-        nord = _company(db, "Werk Nord", street="Industriestrasse", street_nr="4",
+        nord = make_company(db, "Werk Nord", street="Industriestrasse", street_nr="4",
                         zip_code="8000", city="Zürich", country="Schweiz")
-        sued = _company(db, "Werk Süd", street="Seestrasse", street_nr="9",
+        sued = make_company(db, "Werk Süd", street="Seestrasse", street_nr="9",
                         zip_code="6000", city="Luzern", country="Schweiz")
         ziel = Instance(object_id=obj.next_object_id(db), article_id=art,
                         kind="einzeln", label="Halle Süd")
@@ -991,7 +850,7 @@ def test_an_external_haul_says_why_it_cannot_run_yet():
         assert not places.same_place(db, nord.object_id, ziel.object_id), (
             "Zwei verschiedene Anschriften sind nicht derselbe Ort."
         )
-        step = _move_step(db, order, ziel.object_id)
+        step = make_move_step(db, order, ziel.object_id)
         with pytest.raises(HTTPException) as e:
             moving.record_for_step(db, step=step, units=units,
                                    from_holder_object_id=nord.object_id, actor_id=None)
@@ -1015,13 +874,13 @@ def test_the_address_rule_lives_in_one_place_and_has_two_readers():
     Bug-Form: `moving` (oder später das Ressourcenmodul) baut sich einen eigenen
     Vergleich – etwa über PLZ-Gleichheit.
     """
-    src = _code_only(_source("services/moving.py"))
+    src = code_only(source("services/moving.py"))
     assert "same_place" in src, "moving muss die eine Regel benutzen."
     for smell in ("zip", "postal", "city", "street"):
         assert smell not in src, (
             f"moving vergleicht Adressteile selbst ('{smell}') statt die eine Regel zu "
             f"fragen (V-6)."
         )
-    assert "def same" in _source("services/address.py"), (
+    assert "def same" in source("services/address.py"), (
         "Die Adressregel gehört nach services/address.py."
     )

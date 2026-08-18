@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules, sampling
 
+from .award import AwardResponse
 from .place import HolderRef
 from .process import ModuleFacts, ModuleInput
 
@@ -247,6 +248,9 @@ class StepHaul(BaseModel):
     to_holder: HolderRef
     pieces: int = 0
     internal: bool = True
+    #: Die **offene** Vergabe dieser Fuhre – nur bei einem Versand. Sie ist die Auskunft
+    #: «woran liegt es», nicht die Regel: ob etwas angekommen ist, sagt der **Ort**.
+    award: Optional["AwardResponse"] = None
 
 
 class OrderLineResponse(BaseModel):
