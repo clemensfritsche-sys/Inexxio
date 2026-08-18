@@ -23,7 +23,7 @@ import {
 import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { StepRecord } from '@/components/erp/step-record';
-import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
+import { blankModule, CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
 // keine weiteren – auch keine leeren oder deaktivierten.
@@ -68,6 +68,14 @@ export interface OrderSeed {
    * statt still etwas anderes zu tun (`UnitPick.from_order`).
    */
   fromOrder?: number | null;
+  /**
+   * **Ein Transport** – wohin das Material soll (PROCESS_CORE §15.7).
+   *
+   * Er ist kein Sondertyp: der Entwurf bekommt ein ganz gewöhnliches **Bewegen**-Modul
+   * mit diesem Ziel, und was daraus wird, entscheidet der Mensch wie bei jedem Auftrag.
+   * Das System legt nichts an – es füllt vor.
+   */
+  moveTo?: number | null;
 }
 
 export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
@@ -95,7 +103,12 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
            returns: true }]
       : [{ ...emptyLine(1), articleObjectId: seed.articleObjectId }];
   });
-  const [steps, setSteps] = useState<ModuleDraft[]>([]);
+  /**
+   * **Ein Transport bringt sein Modul mit** (§15.7): ein Bewegen-Modul mit dem Ziel, an
+   * dem das Material gebraucht wird. Vorgefüllt, nicht angelegt – der Mensch klickt.
+   */
+  const [steps, setSteps] = useState<ModuleDraft[]>(
+    () => (seed?.moveTo ? [{ ...blankModule(1, 'bewegen'), target: seed.moveTo }] : []));
   const [missing, setMissing] = useState<string[] | null>(null);
   /**
    * **Die Vorschau der Quell-Aufträge** (Auftrag §2). Sie kommt aus derselben Ableitung

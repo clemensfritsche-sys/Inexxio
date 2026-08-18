@@ -101,6 +101,25 @@ Werte loszuwerden.
 - **Das System legt keine Vergabe an.** Sie entsteht durch einen Klick; die Fuhren-Ansicht
   tut beim Rendern nichts.
 
+## Bedarf und Ort (`capture-work.tsx`, Zeile `NeedRow`)
+Die Bedarfszeile des Ressourcenmoduls sagt **zwei** Dinge nebeneinander: *ist genug da?*
+und *liegt es hier?*. Die zweite darf die erste nie überschreiben.
+
+- **Die Verfügbarkeit ist die echte Zahl** (`need.available`). Eine zweite «hier
+  verfügbar» ist verboten – zwei Zahlen für dieselbe Frage sind eine zu viel; der Ort
+  steht daneben («200 verfügbar — in Werk 2»), er zieht nichts ab.
+- **Die Oberfläche rechnet die Lage nicht aus**, sie liest sie je Quelle
+  (`src.here === true` / `=== false`). `null` heisst «nicht bekannt» – dann wird nichts
+  behauptet und kein Transport angeboten. Verglichen wird im Server die **Anschrift**
+  (`places.same_place`), nicht der Halter.
+- **Angeboten wird nur, was Sinn ergibt**: reicht es hier → nichts · liegt es woanders →
+  «Andere Instanz wählen» + «Transport» · gibt es nichts → «Nachschub». Drei Knöpfe, die
+  immer dastehen, sagen nichts mehr aus.
+- **Der Transport-Knopf legt nichts an**: er öffnet einen ganz gewöhnlichen
+  Auftragsentwurf, vorbelegt mit dem Ziel (`OrderSeed.moveTo`) – dieselbe Regel wie bei
+  jeder anderen Abkürzung (§15.7). Was schon **unterwegs** ist, steht als klickbarer
+  Verweis daneben (`need.transports`), nie als Kante im Bild.
+
 ## Bestand (`components/erp/stock-view.tsx`)
 EIN Modul, zwei Umfänge – am **Artikel** (Zeilen = seine Instanzen) und an der **Instanz**
 (Zeilen = ihre Einzelinstanzen). Der Unterschied ist der Umfang der Daten, nie die

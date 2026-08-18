@@ -2780,6 +2780,9 @@ export interface components {
             instance_object_id: number;
             /** Free */
             free: number;
+            holder?: components["schemas"]["HolderRef"] | null;
+            /** Here */
+            here?: boolean | null;
         };
         /**
          * ObjectReference
@@ -3427,6 +3430,9 @@ export interface components {
             available: number;
             /** Sources */
             sources?: components["schemas"]["NeedSource"][];
+            needed_at?: components["schemas"]["HolderRef"] | null;
+            /** Transports */
+            transports?: components["schemas"]["TransportRef"][];
         };
         /**
          * StepRecord
@@ -3582,6 +3588,22 @@ export interface components {
              */
             detail: string;
             award: components["schemas"]["AwardResponse"];
+        };
+        /**
+         * TransportRef
+         * @description Ein laufender **Transport-Auftrag** – ein Verweis, mehr nicht.
+         *
+         *     Bewusst **nicht** ``RelatedOrder``: der bringt den vollständigen Ablauf mit, damit
+         *     die Spalte daneben ihn zeichnen kann. Hier gibt es keine Spalte und keine Kante –
+         *     ein Transport bewegt Stücke, die nie auf dieser Achse waren (§15.8). Mehr Beziehung
+         *     zu behaupten, als es gibt, ist der Anfang einer falschen Bilanz.
+         */
+        TransportRef: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name: string;
+            from_holder?: components["schemas"]["HolderRef"] | null;
         };
         /**
          * UnitOption

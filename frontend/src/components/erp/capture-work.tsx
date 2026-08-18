@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine } from 'lucide-react';
+import {
+  AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine, Truck,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CapturePoint, Order, StepHaul, StepNeed, StepWork } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { useScan } from '@/components/scan/scan-provider';
 import { CaptureForm } from '@/components/erp/capture-form';
 import { HaulList } from '@/components/erp/haul-list';
+import { ObjId } from '@/components/erp/obj-id';
 import type { OrderSeed } from '@/components/erp/order-detail';
 
 /**
@@ -206,6 +209,17 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
           boxes={boxes}
           onChoose={(article, ids) => setBoxes((s) => ({ ...s, [article]: ids }))}
           onSupply={onDeviate && ((article: number) => onDeviate({ articleObjectId: article }))}
+          // **Der Transport ist ein ganz gewöhnlicher Auftrag** – vorausgefüllt mit der
+          // Quell-Instanz und einem Bewegen-Modul zum Ort, an dem es gebraucht wird.
+          // Angelegt wird er erst durch den Klick des Menschen (§15.7).
+          // **Vorgemerkt wird der Artikel und das Ziel, mehr nicht** (#608): welche
+          // Instanz und wie viel, entscheidet der Mensch im Entwurf – wie bei jedem
+          // anderen Shortcut auch. Ein festgenagelter Anteil wäre eine Entscheidung,
+          // die niemand getroffen hat.
+          onTransport={onDeviate && ((n: StepNeed) => onDeviate({
+            articleObjectId: n.article_object_id,
+            moveTo: n.needed_at?.object_id ?? null,
+          }))}
           busy={busy}
           first={i === 0}
           via={verified[w.instance_object_id] ?? null}
@@ -272,14 +286,27 @@ function planBoxes(need: StepNeed, want: number): number[] {
  *
  * Ein automatisches Ausweichen gibt es bewusst nicht. Welches Material verbaut wird, ist
  * eine Entscheidung, und eine unsichtbare Automatik sähe man erst am fertigen Erzeugnis.
+ *
+ * ## Und seit dem Ort eine dritte Lage (PROCESS_CORE §15.7)
+ *
+ * Es ist genug da – **aber woanders**. Der Ort **reduziert die Verfügbarkeit nicht**
+ * («200 verfügbar — in Werk 2» ist eine Auskunft, kein Abzug); er sagt nur, dass daraus
+ * ein Transport folgt. Angeboten wird dann ein **Transport**: ein vorausgefüllter,
+ * ganz gewöhnlicher Auftragsentwurf mit einem Bewegen-Modul. Das System legt ihn nie
+ * selbst an – genau daran sind die Begleit-Bewegungen des Vorgängers gescheitert.
+ *
+ * Und **ohne Beobachtung wird nichts behauptet**: ein Stück ohne Ort ist nicht
+ * «woanders», sondern «nicht bekannt» – daraus folgt kein Transport.
  */
-function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
+function NeedRow({ need, pieces, chosen, onChoose, onSupply, onTransport }: {
   need: StepNeed;
   /** Wie viele Stücke **dieser** Instanz vor dem Modul stehen – die Bezugsgrösse. */
   pieces: number;
   chosen: number[] | null;
   onChoose: (ids: number[]) => void;
   onSupply?: () => void;
+  /** Öffnet einen vorausgefüllten Entwurf, der das Material herbringt. */
+  onTransport?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   // Gerechnet wird auf **diese** Instanz: die Menge gilt je Stück.
@@ -295,6 +322,18 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
   //   gar kein Bestand           →  nur «Nachschub». Wählen liesse sich nichts.
   const enough = need.available >= required;
   const empty = need.available <= 0;
+  // **Was hier liegt** – der Ort zieht nichts ab, er teilt die Quellen. ``here === null``
+  // heisst «nicht bekannt» und zählt darum weder zum einen noch zum anderen.
+  const hereFree = sources.filter((s2) => s2.here === true)
+    .reduce((n, s2) => n + s2.free, 0);
+  const awayFree = sources.filter((s2) => s2.here === false)
+    .reduce((n, s2) => n + s2.free, 0);
+  // Genug da, aber woanders → **Transport**. Der nächstliegende Ausgangsort ist der mit
+  // dem meisten Material; gewählt wird trotzdem vom Menschen (der Entwurf ist offen).
+  const away = sources.filter((s2) => s2.here === false)
+                      .sort((a, b) => b.free - a.free)[0];
+  const needsTransport = hereFree < required && awayFree > 0 && !!need.needed_at;
+  const moving = need.transports ?? [];
 
   return (
     <div className="flex flex-col gap-1 py-1.5">
@@ -309,6 +348,13 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
         {!enough && (
           <span className="ml-auto text-[11.5px]" style={{ color: 'var(--danger)' }}
             data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück dieser Instanz`}>
+            {need.available} verfügbar
+          </span>
+        )}
+        {/* **Der Ort steht NEBEN der Verfügbarkeit** – er zieht nichts ab (R1). */}
+        {enough && needsTransport && (
+          <span className="ml-auto text-[11.5px]" style={{ color: 'var(--warning)' }}
+            data-tip="Genug da – aber an einer anderen Anschrift. Ein Ort blockiert nie.">
             {need.available} verfügbar
           </span>
         )}
@@ -327,6 +373,22 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
             Andere Instanz wählen
           </button>
         )}
+        {/* **Wo es liegt und wo es gebraucht wird** – nur, wenn es einen Unterschied
+            macht. Ohne Beobachtung steht hier nichts (R3). */}
+        {needsTransport && away?.holder && need.needed_at && (
+          <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
+            in {away.holder.name ?? formatObjectId(away.holder.object_id)}
+            {' · gebraucht in '}
+            {need.needed_at.name ?? formatObjectId(need.needed_at.object_id)}
+          </span>
+        )}
+        {needsTransport && onTransport && away && (
+          <button type="button" className="erp-actbtn ml-auto" style={{ height: 28 }}
+            onClick={onTransport}
+            data-tip="Öffnet einen vorausgefüllten Auftragsentwurf mit einem Bewegen-Modul – ein ganz gewöhnlicher Auftrag">
+            <Truck size={13} /> Transport
+          </button>
+        )}
         {empty && onSupply && (
           <button type="button" className="erp-actbtn ml-auto" style={{ height: 28 }}
             onClick={onSupply}
@@ -335,6 +397,17 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
           </button>
         )}
       </div>
+
+      {/* **Zwei klickbare Verweise, keine Kante** (§15.8): ein Transport bewegt Stücke,
+          die nie auf dieser Achse waren – als Abzweig gezeichnet rechnete die Bilanz
+          falsch. */}
+      {moving.map((t) => (
+        <span key={t.object_id} className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
+          unterwegs{t.from_holder && ` aus ${t.from_holder.name
+            ?? formatObjectId(t.from_holder.object_id)}`} ·{' '}
+          <ObjId value={t.object_id} />
+        </span>
+      ))}
 
       {open && (
         <div className="flex flex-wrap gap-1.5">
@@ -370,7 +443,8 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
  * Getrennt wird durch eine Haarlinie, nicht durch einen Rahmen: die Zeilen gehören
  * ohnehin zusammen, das sagt schon die Modul-Karte, in der sie stehen.
  */
-function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, busy,
+function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply,
+                      onTransport, busy,
                       first, via, numbers, onScan, onConfirm,
                       onDirty, onDeviate, orderObjectId, stepId }: {
   work: StepWork;
@@ -381,6 +455,8 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, b
   boxes: Record<number, number[]>;
   onChoose: (article: number, ids: number[]) => void;
   onSupply?: (article: number) => void;
+  /** Öffnet einen vorausgefüllten Transport-Entwurf (Instanz → Zielort). */
+  onTransport?: (need: StepNeed) => void;
   busy?: boolean;
   first: boolean;
   via: string | null;
@@ -432,7 +508,8 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, b
             <NeedRow key={n.article_object_id} need={n} pieces={work.waiting}
               chosen={boxes[n.article_object_id] ?? null}
               onChoose={(ids) => onChoose(n.article_object_id, ids)}
-              onSupply={onSupply && (() => onSupply(n.article_object_id))} />
+              onSupply={onSupply && (() => onSupply(n.article_object_id))}
+              onTransport={onTransport && (() => onTransport(n))} />
           ))}
         </div>
       )}

@@ -22,7 +22,8 @@ from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
-    HaulQuote, RelatedOrder, StepHaul, StepNeed, StepWork, UnitOption,
+    HaulQuote, RelatedOrder, StepHaul, StepNeed, StepWork, TransportRef,
+    UnitOption,
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, RecordEntry,
@@ -86,17 +87,7 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
         # **Was das Modul verbraucht** – gerechnet gegen das, was jetzt davorsteht
         # (``services/consumption``). Die Zahl entsteht beim Erreichen, also hier und
         # nicht in der Definition; ein Modul ohne Stückliste liefert eine leere Liste.
-        row.needs = [
-            StepNeed(
-                article_object_id=n.article_object_id, article_name=n.article_name,
-                per_unit=n.per_unit, required=n.required, available=n.available,
-                sources=[NeedSource(instance_object_id=src.instance_object_id,
-                                    free=src.free)
-                         for src in n.sources],
-            )
-            for n in consumption_svc.needs(
-                db, s, pieces=sum(w.waiting for w in row.work))
-        ]
+        row.needs = _needs(db, order, s, pieces=sum(w.waiting for w in row.work))
         # **Was das Modul bewegt** – eine Zeile je Fuhre (Ausgangsort → Ziel), gruppiert
         # nach dem heutigen Halter. Ein Modul ohne Ziel liefert eine leere Liste; die
         # Fallunterscheidung nach dem Modultyp entsteht damit aus der Konfiguration und
@@ -104,6 +95,122 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
         row.hauls = _hauls(db, order, s)
         out.append(row)
     return out
+
+
+def _needs(db: Session, order: Order, step, *, pieces: int) -> list[StepNeed]:
+    """Die Stückliste eines Moduls – **und wo das Material liegt**.
+
+    Der Ort steht **neben** der Verfügbarkeit, er zieht nichts ab (R1): «200 verfügbar —
+    in Werk 2» ist eine Auskunft, kein Abzug. Ein Ort blockiert nie; er sagt nur, ob
+    daraus ein Transport folgt.
+
+    Verglichen wird die **Adresse**, nicht der Halter – über dieselbe eine Funktion wie
+    beim Bewegen (``places.same_place``). Und ohne Beobachtung wird **nichts behauptet**:
+    ein Stück ohne Ort ist nicht «woanders», sondern «nicht bekannt» (R3).
+    """
+    rows = consumption_svc.needs(db, step, pieces=pieces)
+    if not rows:
+        return []
+    # **Wo es gebraucht wird**: der gemeinsame Ort dessen, was vor dem Modul steht.
+    # Stehen die Stücke verteilt, gibt es keine einzelne richtige Antwort – dann bleibt
+    # die Frage offen, statt einen der Orte zu behaupten.
+    here = places_svc.common_place(
+        db, [u.id for u in process_svc.units_at_step(db, order, step)])
+    where = {src.instance_object_id: places_svc.instance_place(db, src.instance_object_id)
+             for n in rows for src in n.sources}
+    known = places_svc.resolve_holders(
+        db, [o for o in {*where.values(), here} if o])
+    moving_in = _transports(db, order, here, {n.article_object_id for n in rows}, known)
+
+    def ref(object_id):
+        h = known.get(object_id) if object_id else None
+        return HolderRef(object_id=h.object_id, type=h.type, name=h.name) if h else None
+
+    def at_hand(place):
+        # ``None`` ist keine Antwort, sondern das Fehlen einer – hier wie dort.
+        if place is None or here is None:
+            return None
+        # **Beide Anschriften müssen auflösbar sein.** Sonst ist die Frage nicht
+        # beantwortbar – und «nicht beantwortbar» ist etwas anderes als «woanders»:
+        # ein Transport ins Ungewisse wäre schlimmer als keiner (R3). Gefragt wird
+        # dieselbe eine Ableitung, die auch ``same_place`` benutzt.
+        if not places_svc.address_of(db, place) or not places_svc.address_of(db, here):
+            return None
+        return places_svc.same_place(db, place, here)
+
+    return [
+        StepNeed(
+            article_object_id=n.article_object_id, article_name=n.article_name,
+            per_unit=n.per_unit, required=n.required, available=n.available,
+            needed_at=ref(here),
+            sources=[
+                NeedSource(instance_object_id=src.instance_object_id, free=src.free,
+                           holder=ref(where.get(src.instance_object_id)),
+                           here=at_hand(where.get(src.instance_object_id)))
+                for src in n.sources
+            ],
+            transports=moving_in,
+        )
+        for n in rows
+    ]
+
+
+def _transports(db: Session, order: Order, here: Optional[int],
+                articles: set[int], known) -> list[TransportRef]:
+    """**Was schon unterwegs ist** – laufende Aufträge, die Material hierher bringen.
+
+    **Abgeleitet, nicht gespeichert.** Ein Zeiger am Auftrag («aus welchem Modul kam
+    ich?») wäre eine fünfte Spalte auf einer Tabelle, die bewusst vier hat – und er
+    könnte veralten. Gefragt wird darum, was ohnehin wahr sein muss: *läuft ein Auftrag,
+    der Material meines Artikels an genau meinen Ort bringt?*
+
+    Das ist zugleich **ehrlicher**: ein Transport, den jemand von Hand angelegt hat,
+    erscheint hier genauso – die Zeile beschreibt die Wirklichkeit und nicht die
+    Herkunft eines Klicks.
+
+    Zwei klickbare Verweise, **keine Kante**: ein Transport bewegt Stücke, die nie auf
+    der Achse dieses Auftrags waren; als Abzweig gezeichnet rechnete die Bilanz falsch
+    (§15.8). Darum ein leichter Verweis und nicht ``RelatedOrder``.
+    """
+    if here is None or not articles:
+        return []
+    # **Gefragt wird nach dem ARTIKEL, nicht nach der freien Quelle.** Sobald ein
+    # Transport das Material greift, ist es nicht mehr frei – es stünde dann in keiner
+    # Quellen-Liste mehr, und die Zeile verlöre den Verweis genau in dem Moment, in dem
+    # er gebraucht wird.
+    unit_rows = (db.query(OrderUnit.order_id, InstanceUnit.id)
+                 .join(InstanceUnit, InstanceUnit.id == OrderUnit.instance_unit_id)
+                 .join(Instance, Instance.id == InstanceUnit.instance_id)
+                 .join(Article, Article.id == Instance.article_id)
+                 .filter(Article.object_id.in_(articles),
+                         OrderUnit.released_at.is_(None),
+                         OrderUnit.order_id != order.id).all())
+    if not unit_rows:
+        return []
+    by_order: dict[int, list[int]] = {}
+    for oid, unit_id in unit_rows:
+        by_order.setdefault(oid, []).append(unit_id)
+
+    out: list[TransportRef] = []
+    for candidate in (db.query(Order).filter(Order.id.in_(by_order)).all()):
+        # Bringt er es **hierher**? Ein Bewegen-Modul mit genau diesem Ziel sagt es.
+        targets = {
+            modules.target_of(st_row.config)
+            for st_row in process_svc.steps_of(db, candidate)
+            if st_row.module_type == modules.BEWEGEN
+        }
+        if here not in targets:
+            continue
+        src = places_svc.common_place(db, by_order[candidate.id])
+        h = known.get(src) if src else None
+        if src and not h:
+            h = places_svc.resolve_holder(db, src)
+        out.append(TransportRef(
+            object_id=candidate.object_id, name=candidate.name,
+            from_holder=HolderRef(object_id=h.object_id, type=h.type, name=h.name)
+            if h else None,
+        ))
+    return sorted(out, key=lambda t: t.object_id)
 
 
 def _hauls(db: Session, order: Order, step) -> list[StepHaul]:

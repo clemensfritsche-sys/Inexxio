@@ -202,6 +202,30 @@ class NeedSource(BaseModel):
 
     instance_object_id: int
     free: int
+    #: **Wo sie liegt** – ``None`` heisst «nicht bekannt», nie «hier» und nie «woanders».
+    #: Ohne Beobachtung wird nichts behauptet (R3).
+    holder: Optional[HolderRef] = None
+    #: Liegt sie an **derselben Anschrift** wie das, was das Modul bearbeitet?
+    #:
+    #: ``True`` = hier · ``False`` = ein Transport · ``None`` = einer der beiden Orte ist
+    #: unbekannt, und dann wird nicht geraten. Verglichen wird die **Adresse**, nicht der
+    #: Halter – sonst verlangte jeder Regalwechsel einen Transport (R2).
+    here: Optional[bool] = None
+
+
+class TransportRef(BaseModel):
+    """Ein laufender **Transport-Auftrag** – ein Verweis, mehr nicht.
+
+    Bewusst **nicht** ``RelatedOrder``: der bringt den vollständigen Ablauf mit, damit
+    die Spalte daneben ihn zeichnen kann. Hier gibt es keine Spalte und keine Kante –
+    ein Transport bewegt Stücke, die nie auf dieser Achse waren (§15.8). Mehr Beziehung
+    zu behaupten, als es gibt, ist der Anfang einer falschen Bilanz.
+    """
+
+    object_id: int
+    name: str
+    #: Woher es kommt – die Beschriftung des Verweises («unterwegs aus Werk 2»).
+    from_holder: Optional[HolderRef] = None
 
 
 class StepNeed(BaseModel):
@@ -225,6 +249,14 @@ class StepNeed(BaseModel):
     available: int
     #: Woher genommen werden kann – die Kisten, die der Lagerist scannt.
     sources: list[NeedSource] = Field(default_factory=list)
+    #: **Wo es gebraucht wird** – der Ort der Stücke, die vor dem Modul stehen.
+    #: ``None`` = unbekannt; dann ist auch nichts «woanders».
+    needed_at: Optional[HolderRef] = None
+    #: **Was schon unterwegs ist** – laufende Transport-Aufträge zu diesem Modul.
+    #:
+    #: Zwei klickbare Verweise, **keine Kante**: ein Transport bewegt Stücke, die nie auf
+    #: dieser Achse waren; als Abzweig gezeichnet rechnete die Bilanz falsch (R5/§15.8).
+    transports: list["TransportRef"] = Field(default_factory=list)
 
 
 class StepHaul(BaseModel):

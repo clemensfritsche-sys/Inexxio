@@ -664,6 +664,24 @@ neue.
 Fallunterscheidung), ein gespeicherter Transportmodus (V-4 gilt weiter), ein Rückfall auf
 «manual», wenn der gewählte Anbieter nicht konfiguriert ist.
 
+### 7.3b Das Ressourcenmodul und der Ort — prüfbare Sätze
+
+Das Ressourcenmodul fragt «ist genug da?». Mit dem Ort kommt eine **zweite** Frage dazu —
+«liegt es hier?» —, und sie darf die erste nicht überschreiben.
+
+| # | Satz |
+|---|---|
+| R1 | Der Ort **reduziert die Verfügbarkeit nicht**. «200 verfügbar — in Werk 2» ist eine Auskunft, kein Abzug: ein Ort blockiert nie (§7.2-O4). |
+| R2 | Verglichen wird die **Adresse**, nicht der Halter – **dieselbe** Funktion wie beim Bewegen (`places.same_place`). Zwei Ableitungen wären zwei Antworten (V-6). |
+| R3 | Ohne Beobachtung wird **nichts behauptet**: ein Stück ohne Ort ist nicht «woanders», sondern «nicht bekannt» – und ein unbekannter Ort löst keinen Transport aus. |
+| R4 | Ein Transport entsteht durch den **Klick** auf einen vorausgefüllten Entwurf. Das System legt nichts an (§7.2-B6/§15.7). |
+| R5 | Der Transport-Auftrag ist **kein Abzweig**: zwei klickbare Verweise, keine Kante – als Abzweig gezeichnet rechnete die Bilanz falsch (§15.8). |
+| R6 | Angeboten wird nur, was **Sinn ergibt**: reicht es hier → nichts · liegt es woanders → «Andere Instanz wählen» + «Transport» · gibt es nichts → «Nachschub». |
+
+**Ausdrücklich verboten:** eine zweite Verfügbarkeits-Zahl «hier verfügbar» neben der
+echten (dann stünden zwei Zahlen für dieselbe Frage), ein automatisch angelegter
+Transport, und eine Abzweig-Kante für ihn.
+
 ### 7.4 Was nicht wiederkommen darf
 
 Aussagen über den **Quelltext** — darum als AST-Wächter geprüft, nicht als Verhalten.

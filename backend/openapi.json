@@ -7299,6 +7299,27 @@
           "free": {
             "type": "integer",
             "title": "Free"
+          },
+          "holder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HolderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "here": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Here"
           }
         },
         "type": "object",
@@ -8538,6 +8559,23 @@
             },
             "type": "array",
             "title": "Sources"
+          },
+          "needed_at": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HolderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transports": {
+            "items": {
+              "$ref": "#/components/schemas/TransportRef"
+            },
+            "type": "array",
+            "title": "Transports"
           }
         },
         "type": "object",
@@ -8822,6 +8860,35 @@
         ],
         "title": "TrackingResponse",
         "description": "Wo die Sendung ist – und die Vergabe, wie sie danach dasteht.\n\nDer **Zustand des Transports** (unterwegs · zugestellt · gescheitert) ist eine\nAuskunft des Frachtführers; er ist bewusst **nicht** der Zustand der Vergabe. Ein\ngescheiterter Transport macht sie nicht automatisch `gescheitert` – das ist die\nFeststellung eines Menschen, mit Pflicht-Grund (V6)."
+      },
+      "TransportRef": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "from_holder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HolderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "name"
+        ],
+        "title": "TransportRef",
+        "description": "Ein laufender **Transport-Auftrag** – ein Verweis, mehr nicht.\n\nBewusst **nicht** ``RelatedOrder``: der bringt den vollständigen Ablauf mit, damit\ndie Spalte daneben ihn zeichnen kann. Hier gibt es keine Spalte und keine Kante –\nein Transport bewegt Stücke, die nie auf dieser Achse waren (§15.8). Mehr Beziehung\nzu behaupten, als es gibt, ist der Anfang einer falschen Bilanz."
       },
       "UnitOption": {
         "properties": {

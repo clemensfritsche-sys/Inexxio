@@ -300,7 +300,7 @@ Jede Stufe für sich lauffähig und deploybar.
 | 3 | Bewegen, intern | **fertig** – `domain/modules.Bewegen`, `services/moving.py`, Scan-Fluss |
 | 4 | Vergabe | **fertig** – Migration `112`, `domain/vergabe.py`, `services/awards.py`, `AwardPanel` |
 | 5 | Kanal Plattform | **fertig** – Migration `113`, `services/carriers/`, `services/parcel.py`, Tarifabruf am Modul |
-| 6 | Ressourcenmodul | offen |
+| 6 | Ressourcenmodul | **fertig** – `SYSTEM_LOGIC` §7.3b (R1–R6), `_needs`/`_transports`, `NeedSource.here`, `StepNeed.transports` |
 
 **Ein Fund aus Stufe 4, der die Regel geändert hat.** Der Kanal `selbst` war eine
 **Sackgasse**: er kommt nie zu einem Angebot, und `vergeben` ging nur aus `angeboten` –
@@ -360,3 +360,59 @@ Fallunterscheidung nach dem Anbieter in der Fachlogik; der Adapter **ist** sie.
   Packalgorithmus wäre eine Behauptung über eine Kiste, die niemand gesehen hat.
 * **Abholtermine, Zolldokumente, Versandkosten-Weiterverrechnung.** Alle drei sind
   eigene Vorgänge mit eigenen Regeln.
+
+
+### 6.3 · Stufe 6: der Ort steht NEBEN der Verfügbarkeit
+
+Das Ressourcenmodul fragte bisher genau eine Frage: *ist genug da?* Mit dem Ort kommt eine
+zweite dazu — *liegt es hier?* —, und der ganze schwierige Teil ist, dass sie die erste
+**nicht überschreiben darf**. Die Regeln stehen als prüfbare Sätze in `SYSTEM_LOGIC` §7.3b
+(R1–R6), und sie standen dort, **bevor** eine Zeile Code entstand.
+
+**Der Ort zieht nichts ab** (R1). «200 verfügbar — in Werk 2» ist eine Auskunft. Genau das
+ist die Stelle, an der der Vorgänger gescheitert ist: er hat aus einem Ort einen Zustand
+gemacht, und ein Zustand blockiert. Hier senkt er keine Zahl, er sagt nur, dass ein
+Transport daraus folgen **könnte** — die Entscheidung trifft ein Mensch.
+
+**Verglichen wird die Anschrift, nicht der Halter** (R2), über **dieselbe** Funktion, die
+auch die Fuhre klassifiziert (`places.same_place`). Der unterscheidende Fall ist die Kiste
+im Werk: anderer Halter, gleiche Anschrift. Ein Halter-Vergleich könnte das nie sehen, und
+jedes Umräumen im selben Werk stünde als Transport da. Die Anschrift einer Kiste hat sie
+über die **Kette** — es gibt keine zweite Auflösung dafür.
+
+**«Nicht bekannt» ist nicht «woanders»** (R3). `here` ist darum dreiwertig (`True` · `False`
+· `None`), und `None` heisst: einer der beiden Orte ist unbekannt, es wird nicht geraten.
+Ein Transport ins Ungewisse wäre schlimmer als keiner. Aus demselben Grund ist auch die
+Frage «gebraucht **wo**?» offen, sobald die wartenden Stücke verteilt stehen — es gibt
+dann keine einzelne richtige Antwort (`places.common_place`).
+
+**Der Transport wird ABGELEITET, nicht gespeichert** (R4/R5). Die erste Fassung trug einen
+Zeiger am Auftrag («aus welchem Modul kam ich?») — und die beiden Wächter aus dem
+Basis-Neuaufbau haben ihn sofort gemeldet: eine fünfte Spalte auf einer Tabelle, die
+bewusst vier hat, und sie kann veralten. Die Spalte ist samt Migration **zurückgenommen**;
+gefragt wird stattdessen, was ohnehin wahr sein muss: *läuft ein Auftrag, der Material
+dieses Artikels an genau meinen Ort bringt?* Das ist zugleich ehrlicher — ein von Hand
+angelegter Transport erscheint genauso. **Gefragt wird nach dem ARTIKEL**, nicht nach der
+freien Quell-Instanz: sobald der Transport das Material greift, ist es nicht mehr frei,
+und der Verweis verschwände genau in dem Moment, in dem er gebraucht wird.
+
+Er ist ein **leichter Verweis** (`TransportRef`), kein `RelatedOrder` und keine Kante: ein
+Transport bewegt Stücke, die nie auf dieser Achse waren — jeder `fork` zieht ab und jeder
+`join` addiert, also rechnete die Bilanz falsch (§15.8).
+
+**Angeboten wird nur, was Sinn ergibt** (R6), und die Fallunterscheidung steht in der
+**Oberfläche** — sie zeigt Knöpfe. Rechnen tut sie nicht: was hier liegt und was nicht,
+sagt der Server je Quelle. Eine zweite Zahl «hier verfügbar» ist ausdrücklich verboten;
+sie stünde neben der echten und beantwortete dieselbe Frage anders.
+
+**Was Stufe 6 bewusst NICHT gebaut hat**
+
+* **Einen Transport, den das System anlegt.** Der Knopf füllt einen ganz gewöhnlichen
+  Auftragsentwurf vor (`OrderSeed.moveTo`) — angelegt wird er durch den Klick des Menschen.
+  Genau daran sind die Begleit-Bewegungen und die abgeleitete Bereitstellung gescheitert.
+* **Automatisches Ausweichen auf eine andere Instanz.** Die Auswahl ist dieselbe, die der
+  Scan ohnehin trifft; sie zu erraten hiesse, eine Entscheidung zu treffen, deren Folgen
+  physisch sind.
+* **Eine Reservierung des unterwegs befindlichen Materials.** Der Verweis sagt, dass etwas
+  kommt — er verspricht nicht, dass es für dieses Modul bestimmt ist. Ein Anspruch auf
+  fremdes Material wäre eine Zusage, die niemand gegeben hat.

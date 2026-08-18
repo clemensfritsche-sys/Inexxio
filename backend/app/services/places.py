@@ -191,20 +191,29 @@ def resolve_holder(db: Session, object_id: int) -> Holder:
 
 # ─── Lesen: die Kette ────────────────────────────────────────────────────────────
 
-def _instance_place(db: Session, instance_object_id: int) -> Optional[int]:
-    """Wo liegt dieser Behälter selbst? Ein Behälter ist eine **Instanz**; sein Ort ist
-    der seiner Einzelinstanzen.
+def common_place(db: Session, unit_ids: Iterable[int]) -> Optional[int]:
+    """Der **gemeinsame** Ort dieser Stücke – oder ``None``.
 
-    Stehen sie an verschiedenen Orten, gibt es **keine** einzelne richtige Antwort – dann
-    endet die Kette hier, statt einen der Orte zu behaupten (G3.1).
+    Stehen sie an verschiedenen Orten, gibt es **keine** einzelne richtige Antwort; dann
+    wird keiner davon behauptet (G3.1). ``None`` heisst darum «nicht bekannt» – nie
+    «nirgends» und nie «hier».
+
+    Zwei Nutzer, eine Regel: der Ort eines **Behälters** (seine Einzelinstanzen) und der
+    Ort dessen, **was ein Modul bearbeitet**. Zwei Fassungen liefen beim ersten geteilten
+    Bestand auseinander.
     """
-    unit_ids = [u.id for u in db.query(InstanceUnit.id)
-                .join(Instance, Instance.id == InstanceUnit.instance_id)
-                .filter(Instance.object_id == int(instance_object_id)).all()]
-    if not unit_ids:
+    ids = [int(u) for u in unit_ids]
+    if not ids:
         return None
-    holders = set(current(db, unit_ids).values())
+    holders = set(current(db, ids).values())
     return holders.pop() if len(holders) == 1 else None
+
+
+def instance_place(db: Session, instance_object_id: int) -> Optional[int]:
+    """Wo liegt diese Instanz? Ihr Ort ist der ihrer Einzelinstanzen (``common_place``)."""
+    return common_place(db, [u.id for u in db.query(InstanceUnit.id)
+                             .join(Instance, Instance.id == InstanceUnit.instance_id)
+                             .filter(Instance.object_id == int(instance_object_id)).all()])
 
 
 def chain(db: Session, holder_object_id: int) -> Chain:
@@ -227,7 +236,7 @@ def chain(db: Session, holder_object_id: int) -> Chain:
         hops.append(Hop(object_id=h.object_id, type=h.type, name=h.name))
 
         if h.type == "instance":
-            cur = _instance_place(db, cur)          # der Behälter liegt seinerseits …
+            cur = instance_place(db, cur)          # der Behälter liegt seinerseits …
         elif h.type == "organization":
             _append_address(db, cur, hops)          # … das Werk endet in seiner Anschrift
             cur = None
@@ -278,7 +287,7 @@ def address_of(db: Session, holder_object_id: int) -> Optional[dict]:
             return addr.of_user(person) if person else None
         if h.type != "instance":
             return None
-        cur = _instance_place(db, cur)     # der Behälter liegt seinerseits …
+        cur = instance_place(db, cur)     # der Behälter liegt seinerseits …
     return None
 
 

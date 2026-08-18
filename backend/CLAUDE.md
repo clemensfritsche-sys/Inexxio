@@ -259,6 +259,29 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > (`_verify_history`): ein Schreiber ausserhalb der Prozesslogik hinterlässt gar keinen
 > Eintrag – gefunden wird er nur, wenn Log und Zeile verglichen werden (§5.3).
 
+> **Der Ort steht NEBEN der Verfügbarkeit, nie davor** (`routers/orders._needs`,
+> `SYSTEM_LOGIC` §7.3b, ADR 009 §6.3). Das Ressourcenmodul fragt «ist genug da?»; der Ort
+> fügt «liegt es hier?» hinzu und darf die erste Frage **nicht überschreiben** – «200
+> verfügbar — in Werk 2» ist eine Auskunft, kein Abzug (R1). Ein Ort blockiert nie.
+> **Verglichen wird die Anschrift, nicht der Halter** (R2, `places.same_place` – dieselbe
+> Funktion wie beim Bewegen): der unterscheidende Fall ist die Kiste im Werk, also anderer
+> Halter bei gleicher Anschrift; sie hat ihre über die **Kette**. Ein Halter-Vergleich
+> machte aus jedem Umräumen einen Transport.
+> **`here` ist dreiwertig** (`True`/`False`/`None`): ohne Beobachtung wird **nichts**
+> behauptet (R3) – «nicht bekannt» ist etwas anderes als «woanders», und ein Transport ins
+> Ungewisse wäre schlimmer als keiner. Dasselbe gilt für «gebraucht **wo**?»: stehen die
+> wartenden Stücke verteilt, gibt es keine einzelne richtige Antwort (`common_place`).
+> **Der Transport ist ABGELEITET** (`_transports`, R4/R5): gefragt wird, ob ein laufender
+> Auftrag Material **dieses Artikels** an genau diesen Ort bringt – nach dem Artikel und
+> nicht nach der freien Quelle, denn sobald der Transport zugreift, ist sie nicht mehr
+> frei und der Verweis verschwände genau dann, wenn er zählt. Ein Zeiger am Auftrag
+> (`origin_step_id`) wäre eine fünfte Spalte auf einer bewusst vierspaltigen Tabelle und
+> könnte veralten; er wurde gebaut, von den Basis-Wächtern gemeldet und **zurückgenommen**.
+> Der Verweis ist bewusst leicht (`TransportRef`), **keine Kante**: ein Transport bewegt
+> Stücke, die nie auf dieser Achse waren – als Abzweig gezeichnet rechnete die Bilanz
+> falsch (§15.8). Wächter: `tests/test_resource_place.py` (R1–R6, jeder gegen seine
+> Bug-Form gegengeprüft).
+
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete
 - UTC Timestamps überall

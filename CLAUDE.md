@@ -340,6 +340,29 @@
 > Bug-Form gegengeprüft** (26 Fehlerformen hergestellt, 26 gemeldet); dazu ein Durchlauf
 > über die echten HTTP-Endpunkte (27 Prüfungen: Fuhre → 409 mit Grund → Vergabe →
 > Ankunft am Ziel → Modul läuft → Scheitern → zweite Vergabe).
+> **Und im Ressourcenmodul steht der Ort NEBEN der Verfügbarkeit, nie davor**
+> (SYSTEM_LOGIC §7.3b, ADR 009 §6.3): «200 verfügbar — in Werk 2» ist eine **Auskunft**,
+> kein Abzug – ein Ort blockiert nie, er sagt nur, ob ein Transport daraus folgt. Genau
+> dort ist der Vorgänger gescheitert: er machte aus dem Ort einen Zustand, und ein Zustand
+> blockiert. **Verglichen wird die Anschrift, nicht der Halter** (dieselbe eine Funktion
+> wie beim Bewegen, `places.same_place`) – der unterscheidende Fall ist die Kiste im Werk:
+> anderer Halter, gleiche Anschrift, und die hat sie über die **Kette**; ein
+> Halter-Vergleich machte aus jedem Umräumen einen Transport. **Ohne Beobachtung wird
+> nichts behauptet**: `here` ist dreiwertig, und «nicht bekannt» ist etwas anderes als
+> «woanders» (ein Transport ins Ungewisse wäre schlimmer als keiner) – dasselbe gilt für
+> «gebraucht **wo**?», sobald die wartenden Stücke verteilt stehen.
+> **Der Transport ist ABGELEITET, nicht gespeichert**: gefragt wird, ob ein laufender
+> Auftrag Material **dieses Artikels** an genau diesen Ort bringt – nach dem *Artikel*,
+> nicht nach der freien Quelle, denn sobald der Transport zugreift, ist sie nicht mehr
+> frei und der Verweis verschwände genau dann, wenn er zählt. Ein Zeiger am Auftrag
+> (`origin_step_id`) war gebaut, wurde von den **Basis-Wächtern gemeldet** und ist samt
+> Migration zurückgenommen: eine fünfte Spalte auf einer bewusst vierspaltigen Tabelle,
+> und sie kann veralten. Er ist ein **leichter Verweis, keine Kante** – ein Transport
+> bewegt Stücke, die nie auf dieser Achse waren, und als Abzweig gezeichnet rechnete die
+> Bilanz falsch. Angelegt wird er durch den **Klick**: der Knopf füllt einen ganz
+> gewöhnlichen Auftragsentwurf vor. Wächter: `tests/test_resource_place.py` (7, R1–R6,
+> jeder gegen seine Bug-Form gegengeprüft); dazu 17 Prüfungen über die echten
+> HTTP-Endpunkte.
 >
 > **Die neue Prozesslogik steht in `PROCESS_CORE.md`** – verbindlich, vor jeder Arbeit am
 > Prozess lesen. Kurzform: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie,
