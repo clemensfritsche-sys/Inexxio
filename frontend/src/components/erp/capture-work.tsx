@@ -1,16 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine, Truck,
-} from 'lucide-react';
+import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CapturePoint, Order, StepHaul, StepNeed, StepWork } from '@/types';
+import type { CapturePoint, StepNeed, StepWork } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { useScan } from '@/components/scan/scan-provider';
 import { CaptureForm } from '@/components/erp/capture-form';
-import { HaulList } from '@/components/erp/haul-list';
-import { ObjId } from '@/components/erp/obj-id';
 import type { OrderSeed } from '@/components/erp/order-detail';
 
 /**
@@ -45,8 +41,7 @@ import type { OrderSeed } from '@/components/erp/order-detail';
  * bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass jemand zugestimmt hätte.
  */
 export function CaptureWork({ orderObjectId, stepId, points, action, work, needs = [],
-                              hauls = [], onQuoted, onPlaced, busy, onConfirm, onDeviate,
-                              onDirty }: {
+                              busy, onConfirm, onDeviate, onDirty }: {
   orderObjectId: number;
   stepId: number;
   points: CapturePoint[];
@@ -55,21 +50,10 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   work: StepWork[];
   /** **Die Stückliste dieses Moduls**, gegen den Bestand gehalten. Leer = keine. */
   needs?: StepNeed[];
-  /**
-   * **Die Fuhren dieses Moduls** – leer bei jedem Modul ohne Ziel.
-   *
-   * Die Fallunterscheidung nach dem Modultyp entsteht damit aus den **Daten**, nicht aus
-   * einem `if` hier: «Bewegen» liefert Fuhren, alle anderen liefern keine.
-   */
-  hauls?: StepHaul[];
-  /** Ein Tarifabruf gibt den ganzen Auftrag zurück – wer ihn hält, übernimmt ihn. */
-  onQuoted?: (order: Order) => void;
-  /** Nach einer **Ablage** neu laden – sie ändert die Fuhren-Einstufung. */
-  onPlaced?: () => void;
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
-              sources: number[], fromHolder: number | null) => void;
+              sources: number[]) => void;
   /** Die Entscheidung öffnet einen **ganz gewöhnlichen** Auftragsentwurf (§4/§4.1). */
   onDeviate?: (seed: OrderSeed) => void;
   onDirty?: (dirty: boolean) => void;
@@ -89,15 +73,6 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    * Der Server prüft die Wahl, er rät nicht: was hier steht, gilt.
    */
   const [boxes, setBoxes] = useState<Record<number, number[]>>({});
-  /**
-   * **Wo ich stehe** – der Kontext-Scan (PROCESS_CORE §15.3).
-   *
-   * Er hat **keinen Vorgabewert**: ein gemerkter Ort ist die stille Fehlerklasse, bei der
-   * ein vergessener Wechsel den falschen Ort schreibt und nichts fehlschlägt. Darum steht
-   * er nicht in der Fuhren-Vorschau (die ist eine Beobachtung und kann veraltet sein),
-   * sondern wird bei **jedem** Vorgang neu gescannt.
-   */
-  const [here, setHere] = useState<number | null>(null);
 
   if (work.length === 0) {
     return <p className="text-xs" style={{ color: 'var(--fg-3)' }}>Hier steht gerade nichts.</p>;
@@ -131,40 +106,16 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
     return [...new Set(out)];
   };
 
-  /**
-   * Die Nummern der gezogenen Stücke – **erst nach dem Scan**, denn erst dann gebraucht.
-   *
-   * `ids` ist die Folge der gescannten Objektnummern. Steht der Ort voran (Modul mit
-   * Fuhren), ist die erste davon «wo ich stehe» – gelesen wird sie aus **derselben**
-   * Sequenz, damit es keine zweite Quelle für den Ausgangsort gibt.
-   */
-  function accept(w: StepWork, how: string, ids: number[] = []) {
-    if (hauls.length && ids.length) setHere(ids[0]);
+  /** Die Nummern der gezogenen Stücke – **erst nach dem Scan**, denn erst dann gebraucht. */
+  function accept(w: StepWork, how: string) {
     setVerified((s) => ({ ...s, [w.instance_object_id]: how }));
     if (!points.length) { setNumbers((s) => ({ ...s, [w.instance_object_id]: [] })); return; }
     void api.stepHold(orderObjectId, stepId, w.instance_object_id, 'sample')
       .then((r) => setNumbers((s) => ({ ...s, [w.instance_object_id]: r.numbers })));
   }
 
-  /**
-   * **Immer Ort zuerst.** Bei einem Modul, das etwas bewegt, ist der erste Schritt «wo
-   * bin ich» – ein freier Lookup ohne Vorgabewert: ein Halter ist eine Objektnummer, mehr
-   * nicht (§15.2), also gibt es keine Kandidatenliste; dass es das Objekt gibt, fragt
-   * `exists` nach.
-   *
-   * Er steht in **derselben** Sequenz und nicht in einem zweiten Dialog: ein Vorgang ist
-   * ein Scan-Ablauf, und zwei Dialoge wären zwei Wege zu einer Bestätigung.
-   */
-  const placeStep = {
-    label: 'Wo stehen Sie? Ort scannen',
-    kind: 'instance' as const,
-    exists: (id: number) =>
-      api.resolveObject(id).then((o) => !!o?.object_type).catch(() => false),
-  };
-
-  /** Was ein Vorgang scannt: der Ort, die Instanz, danach jede Kiste, aus der er nimmt. */
+  /** Was ein Vorgang scannt: die Instanz selbst, danach jede Kiste, aus der er nimmt. */
   const scanSteps = (w: StepWork) => [
-    ...(hauls.length ? [placeStep] : []),
     {
       label: `Instanz ${formatObjectId(w.instance_object_id)}`,
       kind: 'instance' as const,
@@ -187,18 +138,12 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
     if (!open.length) return;
     scan({
       steps: open.flatMap(scanSteps),
-      onComplete: (ids, how) => open.forEach((w) => accept(w, how, ids)),
+      onComplete: (_ids, how) => open.forEach((w) => accept(w, how)),
     });
   }
 
   return (
     <div className="flex flex-col">
-      {/* **Was dieses Modul bewegt – bevor gescannt wird** (§9.8). Eine Zeile je Fuhre,
-          gruppiert nach heutigem Halter; an einer externen hängt die Vergabe. Der Scan
-          bleibt Voraussetzung für die **Eingabe**, nicht für die **Auskunft**. */}
-      <HaulList hauls={hauls} orderObjectId={orderObjectId} stepId={stepId} busy={busy}
-        onQuoted={onQuoted} onPlaced={onPlaced} />
-
       {work.map((w, i) => (
         <InstanceRow
           key={w.instance_object_id}
@@ -211,24 +156,13 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
           boxes={boxes}
           onChoose={(article, ids) => setBoxes((s) => ({ ...s, [article]: ids }))}
           onSupply={onDeviate && ((article: number) => onDeviate({ articleObjectId: article }))}
-          // **Der Transport ist ein ganz gewöhnlicher Auftrag** – vorausgefüllt mit der
-          // Quell-Instanz und einem Bewegen-Modul zum Ort, an dem es gebraucht wird.
-          // Angelegt wird er erst durch den Klick des Menschen (§15.7).
-          // **Vorgemerkt wird der Artikel und das Ziel, mehr nicht** (#608): welche
-          // Instanz und wie viel, entscheidet der Mensch im Entwurf – wie bei jedem
-          // anderen Shortcut auch. Ein festgenagelter Anteil wäre eine Entscheidung,
-          // die niemand getroffen hat.
-          onTransport={onDeviate && ((n: StepNeed) => onDeviate({
-            articleObjectId: n.article_object_id,
-            moveTo: n.needed_at?.object_id ?? null,
-          }))}
           busy={busy}
           first={i === 0}
           via={verified[w.instance_object_id] ?? null}
           numbers={numbers[w.instance_object_id] ?? null}
           onScan={() => scan({
             steps: scanSteps(w),
-            onComplete: (ids, how) => accept(w, how, ids),
+            onComplete: (_ids, how) => accept(w, how),
           })}
           onDirty={onDirty}
           onDeviate={onDeviate}
@@ -238,7 +172,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
             setVerified(({ [w.instance_object_id]: _gone, ...rest }) => rest);
             setNumbers(({ [w.instance_object_id]: _also, ...rest }) => rest);
             onConfirm(w.instance_object_id, verified[w.instance_object_id] ?? 'manual',
-                      values, boxesFor(w), here);
+                      values, boxesFor(w));
           }}
         />
       ))}
@@ -288,27 +222,14 @@ function planBoxes(need: StepNeed, want: number): number[] {
  *
  * Ein automatisches Ausweichen gibt es bewusst nicht. Welches Material verbaut wird, ist
  * eine Entscheidung, und eine unsichtbare Automatik sähe man erst am fertigen Erzeugnis.
- *
- * ## Und seit dem Ort eine dritte Lage (PROCESS_CORE §15.7)
- *
- * Es ist genug da – **aber woanders**. Der Ort **reduziert die Verfügbarkeit nicht**
- * («200 verfügbar — in Werk 2» ist eine Auskunft, kein Abzug); er sagt nur, dass daraus
- * ein Transport folgt. Angeboten wird dann ein **Transport**: ein vorausgefüllter,
- * ganz gewöhnlicher Auftragsentwurf mit einem Bewegen-Modul. Das System legt ihn nie
- * selbst an – genau daran sind die Begleit-Bewegungen des Vorgängers gescheitert.
- *
- * Und **ohne Beobachtung wird nichts behauptet**: ein Stück ohne Ort ist nicht
- * «woanders», sondern «nicht bekannt» – daraus folgt kein Transport.
  */
-function NeedRow({ need, pieces, chosen, onChoose, onSupply, onTransport }: {
+function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
   need: StepNeed;
   /** Wie viele Stücke **dieser** Instanz vor dem Modul stehen – die Bezugsgrösse. */
   pieces: number;
   chosen: number[] | null;
   onChoose: (ids: number[]) => void;
   onSupply?: () => void;
-  /** Öffnet einen vorausgefüllten Entwurf, der das Material herbringt. */
-  onTransport?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   // Gerechnet wird auf **diese** Instanz: die Menge gilt je Stück.
@@ -324,18 +245,6 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onTransport }: {
   //   gar kein Bestand           →  nur «Nachschub». Wählen liesse sich nichts.
   const enough = need.available >= required;
   const empty = need.available <= 0;
-  // **Was hier liegt** – der Ort zieht nichts ab, er teilt die Quellen. ``here === null``
-  // heisst «nicht bekannt» und zählt darum weder zum einen noch zum anderen.
-  const hereFree = sources.filter((s2) => s2.here === true)
-    .reduce((n, s2) => n + s2.free, 0);
-  const awayFree = sources.filter((s2) => s2.here === false)
-    .reduce((n, s2) => n + s2.free, 0);
-  // Genug da, aber woanders → **Transport**. Der nächstliegende Ausgangsort ist der mit
-  // dem meisten Material; gewählt wird trotzdem vom Menschen (der Entwurf ist offen).
-  const away = sources.filter((s2) => s2.here === false)
-                      .sort((a, b) => b.free - a.free)[0];
-  const needsTransport = hereFree < required && awayFree > 0 && !!need.needed_at;
-  const moving = need.transports ?? [];
 
   return (
     <div className="flex flex-col gap-1 py-1.5">
@@ -350,13 +259,6 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onTransport }: {
         {!enough && (
           <span className="ml-auto text-[11.5px]" style={{ color: 'var(--danger)' }}
             data-tip={`${need.per_unit} je Einzelinstanz × ${pieces} Stück dieser Instanz`}>
-            {need.available} verfügbar
-          </span>
-        )}
-        {/* **Der Ort steht NEBEN der Verfügbarkeit** – er zieht nichts ab (R1). */}
-        {enough && needsTransport && (
-          <span className="ml-auto text-[11.5px]" style={{ color: 'var(--warning)' }}
-            data-tip="Genug da – aber an einer anderen Anschrift. Ein Ort blockiert nie.">
             {need.available} verfügbar
           </span>
         )}
@@ -375,22 +277,6 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onTransport }: {
             Andere Instanz wählen
           </button>
         )}
-        {/* **Wo es liegt und wo es gebraucht wird** – nur, wenn es einen Unterschied
-            macht. Ohne Beobachtung steht hier nichts (R3). */}
-        {needsTransport && away?.holder && need.needed_at && (
-          <span className="text-[11.5px]" style={{ color: 'var(--fg-4)' }}>
-            in {away.holder.name ?? formatObjectId(away.holder.object_id)}
-            {' · gebraucht in '}
-            {need.needed_at.name ?? formatObjectId(need.needed_at.object_id)}
-          </span>
-        )}
-        {needsTransport && onTransport && away && (
-          <button type="button" className="erp-actbtn ml-auto" style={{ height: 28 }}
-            onClick={onTransport}
-            data-tip="Öffnet einen vorausgefüllten Auftragsentwurf mit einem Bewegen-Modul – ein ganz gewöhnlicher Auftrag">
-            <Truck size={13} /> Transport
-          </button>
-        )}
         {empty && onSupply && (
           <button type="button" className="erp-actbtn ml-auto" style={{ height: 28 }}
             onClick={onSupply}
@@ -399,17 +285,6 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onTransport }: {
           </button>
         )}
       </div>
-
-      {/* **Zwei klickbare Verweise, keine Kante** (§15.8): ein Transport bewegt Stücke,
-          die nie auf dieser Achse waren – als Abzweig gezeichnet rechnete die Bilanz
-          falsch. */}
-      {moving.map((t) => (
-        <span key={t.object_id} className="text-[11.5px]" style={{ color: 'var(--fg-3)' }}>
-          unterwegs{t.from_holder && ` aus ${t.from_holder.name
-            ?? formatObjectId(t.from_holder.object_id)}`} ·{' '}
-          <ObjId value={t.object_id} />
-        </span>
-      ))}
 
       {open && (
         <div className="flex flex-wrap gap-1.5">
@@ -445,8 +320,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply, onTransport }: {
  * Getrennt wird durch eine Haarlinie, nicht durch einen Rahmen: die Zeilen gehören
  * ohnehin zusammen, das sagt schon die Modul-Karte, in der sie stehen.
  */
-function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply,
-                      onTransport, busy,
+function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, busy,
                       first, via, numbers, onScan, onConfirm,
                       onDirty, onDeviate, orderObjectId, stepId }: {
   work: StepWork;
@@ -457,8 +331,6 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply,
   boxes: Record<number, number[]>;
   onChoose: (article: number, ids: number[]) => void;
   onSupply?: (article: number) => void;
-  /** Öffnet einen vorausgefüllten Transport-Entwurf (Instanz → Zielort). */
-  onTransport?: (need: StepNeed) => void;
   busy?: boolean;
   first: boolean;
   via: string | null;
@@ -510,8 +382,7 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply,
             <NeedRow key={n.article_object_id} need={n} pieces={work.waiting}
               chosen={boxes[n.article_object_id] ?? null}
               onChoose={(ids) => onChoose(n.article_object_id, ids)}
-              onSupply={onSupply && (() => onSupply(n.article_object_id))}
-              onTransport={onTransport && (() => onTransport(n))} />
+              onSupply={onSupply && (() => onSupply(n.article_object_id))} />
           ))}
         </div>
       )}

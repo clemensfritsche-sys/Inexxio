@@ -231,74 +231,6 @@ function DisposalFields({ module: m, onChange }: {
   );
 }
 
-/**
- * **Bewegen — genau eine Angabe: das Ziel.**
- *
- * Ein Halter ist eine **Objektnummer**, mehr nicht (PROCESS_CORE §15.2): ein Regal und
- * ein Behälter sind Instanzen, ein Werk ist ein Unternehmen, ein Mitarbeiter und DHL sind
- * Benutzer. Darum steht hier ein Nummernfeld und keine Typ-Auswahl – ein Dropdown
- * «Instanz ↔ Unternehmen ↔ Person» wäre genau die Fallunterscheidung, die das Modell
- * bewusst nicht hat.
- *
- * **Aufgelöst wird live**, damit niemand eine Nummer ins Leere tippt: die Antwort nennt
- * den Typ. Die **Regel** bleibt serverseitig (`places.record` weist einen Halter ab, den
- * es nicht gibt) – dieser Hinweis ist die Bedienung, nicht die Absicherung.
- *
- * Kein Transportmodus: ob es ein Versand ist, entscheidet die **Adresse** und wird
- * gerechnet, nie gespeichert (§15.4).
- */
-function MoveFields({ module: m, onChange }: {
-  module: ModuleDraft;
-  types: { key: string; label: string }[];
-  onChange: (next: Partial<ModuleDraft>) => void;
-}) {
-  const [found, setFound] = useState<string | null>(null);
-  const [missing, setMissing] = useState(false);
-
-  useEffect(() => {
-    if (!m.target) { setFound(null); setMissing(false); return; }
-    let stale = false;
-    api.resolveObject(m.target)
-      .then((o) => { if (!stale) { setFound(o.object_type); setMissing(false); } })
-      .catch(() => { if (!stale) { setFound(null); setMissing(true); } });
-    return () => { stale = true; };
-  }, [m.target]);
-
-  return (
-    <div className="flex flex-col gap-1">
-      <input
-        className={inputCls}
-        value={m.target ?? ''}
-        inputMode="numeric"
-        maxLength={9}
-        placeholder="Ziel – Objektnummer des Halters, z. B. 100000123"
-        aria-label="Ziel der Bewegung"
-        onChange={(e) => {
-          const digits = e.target.value.replace(/\D/g, '');
-          onChange({ target: digits ? Number(digits) : null });
-        }}
-      />
-      {found && (
-        <p className="text-xs" style={{ color: 'var(--fg-3)' }}>
-          {HOLDER_LABEL[found] ?? found}
-        </p>
-      )}
-      {missing && (
-        <p className="text-xs" style={{ color: 'var(--danger)' }}>
-          Diese Objektnummer gibt es nicht.
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** Wie ein Halter-Typ heisst. Die Liste steht im Backend – hier nur das Wort. */
-const HOLDER_LABEL: Record<string, string> = {
-  instance: 'Instanz – ein Regal, ein Behälter, eine Palette',
-  organization: 'Unternehmen – ein Werk, der Hauptsitz',
-  user: 'Person – Mitarbeiter, Kunde, Spediteur',
-};
-
 /** Welcher Feldsatz gehört zu welchem Modultyp. Eine Zuordnung, keine Bedingung. */
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
@@ -308,7 +240,6 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   datenerfassung: ModuleFields,
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
-  bewegen: MoveFields,
 };
 
 /**

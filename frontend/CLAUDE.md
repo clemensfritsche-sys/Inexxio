@@ -67,73 +67,12 @@ ERP-Seiten prüfen Firebase Auth. Nicht eingeloggt → Redirect zu /login.
   Backend, und Beschriftung/Ampelton/Achsen/Bestands-Zugehörigkeit kommen von selbst
   hier an. `lib/process-status.ts` liegt daneben und trägt nur das **Symbol** – eine
   Gestaltungsfrage, die aus dem Fachmodell nicht kommen kann.
-- **`src/lib/vergabe-catalog.ts` ebenso** – aus `backend/app/domain/vergabe.py`. Was an
-  einer konkreten Vergabe hängt (Beschriftung, Ampelton, mögliche Handlungen), **reist mit
-  ihren Daten** (`state_label` · `state_tone` · `next_states`) und wird hier NICHT
-  nachgeschlagen; generiert ist nur, was es ohne Daten zu wissen gibt – die Liste der
-  **Kanäle** für eine Vergabe, die es noch gar nicht gibt.
 - Neu generieren nach Backend-Schema-Änderung:
   ```bash
   cd backend && python -m scripts.dump_openapi   # → backend/openapi.json
   cd backend && python -m scripts.dump_statuses  # → frontend/src/lib/status-catalog.ts
-  cd backend && python -m scripts.dump_vergabe   # → frontend/src/lib/vergabe-catalog.ts
   cd frontend && npm run generate:types          # → src/types/api.ts
   ```
-
-## Bewegen & Vergabe (`components/erp/haul-list.tsx` + `award-panel.tsx`)
-Die **Fuhre** ist abgeleitet, nicht eingestellt: eine Zeile je Ausgangsort, gruppiert nach
-heutigem Halter. `internal` ist **gerechnet** (gleiche Anschrift), nie gespeichert – der
-Vorgänger hat diese Klassifikation gespeichert und zwei Migrationen gebraucht, um die
-Werte loszuwerden.
-
-- **Immer Ort zuerst**: bei einem Modul mit Fuhren ist der erste Schritt derselben
-  Scan-Sequenz «wo stehen Sie?» – ein freier Lookup mit `exists`, **ohne Vorgabewert**
-  (ein gemerkter Ort ist die stille Fehlerklasse, bei der ein vergessener Wechsel den
-  falschen Ort schreibt und nichts fehlschlägt). Kein zweiter Dialog: ein Vorgang ist EIN
-  Scan-Ablauf.
-- **Die Vergabe hängt an der externen Fuhre** und nur dort. `AwardPanel` ist EIN Bauteil
-  für den ganzen Zyklus (Transport heute, Beschaffung morgen) – der Anlass ist eine
-  Objektnummer, mehr muss es nicht wissen.
-- **Angeboten wird, was der Dienst annimmt** (`next_states`). Die Oberfläche rechnet die
-  Übergangsmatrix nicht nach; ein Knopf, der scheitert, ist schlimmer als keiner.
-- **Das System vergibt nie selbst**: das günstigste Angebot steht oben und ist markiert –
-  das ist die **Vorwahl**. Jedes andere ist genauso anklickbar, sonst wäre es keine Wahl.
-- **Das System legt keine Vergabe an.** Sie entsteht durch einen Klick; die Fuhren-Ansicht
-  tut beim Rendern nichts.
-
-## Ablegen (`components/erp/place-button.tsx`)
-Die **eine menschliche Ortsangabe**. Der Endpunkt stand seit Stufe 2 mit Dienst, Regel
-und 24 Wächtern – und hatte **keinen Aufrufer**; damit war der Ausgangsort einer Fuhre in
-der Praxis nie bekannt, die Fuhre nie als Versand eingestuft und die Vergabe nie
-erreichbar. **Ein Endpunkt ohne Stelle ist kein Feature** (SYSTEM_LOGIC O8).
-
-- **Zwei Scans, EIN Ablauf** (kein zweiter Dialog): «wo stehen Sie?» – freier Lookup
-  **ohne Vorgabewert**, mit `exists` – dann die **Instanz**. Nicht die Einzelinstanz: die
-  trägt gar kein Etikett (§4.4), ihre Schlüssel kann ein Mensch nie nennen.
-- **Zwei Stellen, ein Bauteil**: am Instanz-Datensatz («diese Kiste steht jetzt dort») und
-  an einer Fuhre ohne bekannten Ausgangsort. Kennt der Aufrufer die Instanzen, sind sie
-  `expected` – dann genügt eine Teileingabe.
-- Es ändert **nichts** ausser dem Ort, darum ist es in jedem Zustand erlaubt und braucht
-  keinen Auftrag. Danach neu laden: die Ablage entscheidet, wie die Fuhre eingestuft wird.
-
-## Bedarf und Ort (`capture-work.tsx`, Zeile `NeedRow`)
-Die Bedarfszeile des Ressourcenmoduls sagt **zwei** Dinge nebeneinander: *ist genug da?*
-und *liegt es hier?*. Die zweite darf die erste nie überschreiben.
-
-- **Die Verfügbarkeit ist die echte Zahl** (`need.available`). Eine zweite «hier
-  verfügbar» ist verboten – zwei Zahlen für dieselbe Frage sind eine zu viel; der Ort
-  steht daneben («200 verfügbar — in Werk 2»), er zieht nichts ab.
-- **Die Oberfläche rechnet die Lage nicht aus**, sie liest sie je Quelle
-  (`src.here === true` / `=== false`). `null` heisst «nicht bekannt» – dann wird nichts
-  behauptet und kein Transport angeboten. Verglichen wird im Server die **Anschrift**
-  (`places.same_place`), nicht der Halter.
-- **Angeboten wird nur, was Sinn ergibt**: reicht es hier → nichts · liegt es woanders →
-  «Andere Instanz wählen» + «Transport» · gibt es nichts → «Nachschub». Drei Knöpfe, die
-  immer dastehen, sagen nichts mehr aus.
-- **Der Transport-Knopf legt nichts an**: er öffnet einen ganz gewöhnlichen
-  Auftragsentwurf, vorbelegt mit dem Ziel (`OrderSeed.moveTo`) – dieselbe Regel wie bei
-  jeder anderen Abkürzung (§15.7). Was schon **unterwegs** ist, steht als klickbarer
-  Verweis daneben (`need.transports`), nie als Kante im Bild.
 
 ## Bestand (`components/erp/stock-view.tsx`)
 EIN Modul, zwei Umfänge – am **Artikel** (Zeilen = seine Instanzen) und an der **Instanz**

@@ -13,8 +13,6 @@ from .article_process_step import ArticleProcessStep
 from .process_event import ProcessEvent
 from .instance import Instance
 from .instance_unit import InstanceUnit
-from .unit_place import UnitPlace
-from .award import Award, AwardOffer
 from .capture import Capture
 from .document_signoff import DocumentSignoff
 from .document_acknowledgement import DocumentAcknowledgement
@@ -33,7 +31,7 @@ __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "FxRate",
     "Order", "OrderLine", "OrderUnit", "ProcessStep", "ArticleProcessStep", "ProcessEvent",
-    "Instance", "InstanceUnit", "UnitPlace", "Award", "AwardOffer", "Capture",
+    "Instance", "InstanceUnit", "Capture",
     "DocumentSignoff", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
     "Attachment",
     "WebAuthnCredential", "WebAuthnChallenge",

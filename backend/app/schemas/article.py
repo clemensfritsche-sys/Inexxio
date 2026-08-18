@@ -74,35 +74,6 @@ def normalize_size(raw: str) -> str:
     return s
 
 
-def parse_size(raw: Optional[str]) -> Optional[tuple[Decimal, Decimal, Decimal]]:
-    """»3x40x600« → drei Masse in **Millimetern**, aufsteigend – oder ``None``.
-
-    Zweite **Form** derselben Regel, nicht zweite Regel (wie
-    ``inventory.in_stock_clauses``/``is_in_stock``): ``normalize_size`` prüft eine
-    **Eingabe** und sagt, was daran falsch ist; hier wird ein **gespeicherter** Wert
-    gelesen, und die einzige Antwort auf Unleserliches ist «kein Mass».
-
-    Sie steht neben ``normalize_size`` und nicht bei dem, der sie braucht: was
-    »3x40x600« bedeutet, ist eine Aussage über den **Artikel**. Zwei Ausleger an zwei
-    Orten hiessen, dass ein Preis davon abhängt, wer gerade rechnet.
-
-    Streng im Ergebnis: entweder drei Zahlen oder gar keine – zwei Drittel eines Masses
-    sind kein Mass.
-    """
-    if not raw:
-        return None
-    parts = [p.strip() for p in str(raw).lower().replace("×", "x").split("x")]
-    if len(parts) != 3:
-        return None
-    try:
-        mm = sorted(Decimal(p) for p in parts)
-    except (InvalidOperation, TypeError, ValueError):
-        return None
-    if any(v <= 0 for v in mm):
-        return None
-    return (mm[0], mm[1], mm[2])
-
-
 def validate_weight(value: Decimal) -> Decimal:
     """Gewicht: grösser als 0, höchstens 3 Nachkommastellen."""
     try:

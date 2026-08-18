@@ -23,7 +23,7 @@ import {
 import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { StepRecord } from '@/components/erp/step-record';
-import { blankModule, CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
+import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
 // keine weiteren – auch keine leeren oder deaktivierten.
@@ -68,14 +68,6 @@ export interface OrderSeed {
    * statt still etwas anderes zu tun (`UnitPick.from_order`).
    */
   fromOrder?: number | null;
-  /**
-   * **Ein Transport** – wohin das Material soll (PROCESS_CORE §15.7).
-   *
-   * Er ist kein Sondertyp: der Entwurf bekommt ein ganz gewöhnliches **Bewegen**-Modul
-   * mit diesem Ziel, und was daraus wird, entscheidet der Mensch wie bei jedem Auftrag.
-   * Das System legt nichts an – es füllt vor.
-   */
-  moveTo?: number | null;
 }
 
 export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
@@ -103,12 +95,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
            returns: true }]
       : [{ ...emptyLine(1), articleObjectId: seed.articleObjectId }];
   });
-  /**
-   * **Ein Transport bringt sein Modul mit** (§15.7): ein Bewegen-Modul mit dem Ziel, an
-   * dem das Material gebraucht wird. Vorgefüllt, nicht angelegt – der Mensch klickt.
-   */
-  const [steps, setSteps] = useState<ModuleDraft[]>(
-    () => (seed?.moveTo ? [{ ...blankModule(1, 'bewegen'), target: seed.moveTo }] : []));
+  const [steps, setSteps] = useState<ModuleDraft[]>([]);
   const [missing, setMissing] = useState<string[] | null>(null);
   /**
    * **Die Vorschau der Quell-Aufträge** (Auftrag §2). Sie kommt aus derselben Ableitung
@@ -185,13 +172,12 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const confirmStep = useCallback(async (stepId: number, instanceObjectId: number,
                                          verification: string,
                                          values: Record<string, Record<string, unknown>>,
-                                         sources: number[] = [],
-                                         fromHolder: number | null = null) => {
+                                         sources: number[] = []) => {
     if (!live) return;
     setBusy(true); setError(null);
     try {
       setLive(await api.confirmStep(live.object_id, stepId, values,
-                                    instanceObjectId, verification, sources, fromHolder));
+                                    instanceObjectId, verification, sources));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -248,12 +234,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
             refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
-          <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate}
-            onQuoted={setLive}
-            // Eine **Ablage** weiss nichts vom Auftrag – sie ändert nur den Ort. Was
-            // sich dadurch ändert (Einstufung der Fuhre, ob eine Vergabe daran hängt),
-            // rechnet der Server; also wird er gefragt, statt hier etwas nachzuziehen.
-            onPlaced={() => { if (objectId != null) api.getOrder(objectId).then(setLive); }} />
+          <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {loading ? 'Lädt …' : null}
@@ -381,16 +362,12 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // Freigegeben — Modus «ausfuehrung»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RunView({ order, busy, onConfirm, onDeviate, onQuoted, onPlaced }: {
+function RunView({ order, busy, onConfirm, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
-              sources: number[], fromHolder: number | null) => void;
+              sources: number[]) => void;
   onDeviate?: (seed: OrderSeed) => void;
-  /** Ein Tarifabruf liefert den ganzen Auftrag zurück – er ersetzt den gezeigten. */
-  onQuoted?: (next: Order) => void;
-  /** Nach einer **Ablage** neu laden – sie gibt den Auftrag nicht zurück. */
-  onPlaced?: () => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
   // Die einzelnen Nummern kommen erst beim Aufklappen – bei 5000 Stück ist das der
@@ -464,15 +441,11 @@ function RunView({ order, busy, onConfirm, onDeviate, onQuoted, onPlaced }: {
                 action={stepInfo(order, step.id)?.action ?? ''}
                 work={workOf(order, step.id)}
                 needs={stepInfo(order, step.id)?.needs ?? []}
-                hauls={stepInfo(order, step.id)?.hauls ?? []}
-                onQuoted={onQuoted}
-                onPlaced={onPlaced}
                 busy={busy}
                 onDirty={setEntryStarted}
                 onDeviate={onDeviate}
-                onConfirm={(instanceObjectId, verification, values, sources, fromHolder) =>
-                  onConfirm(step.id, instanceObjectId, verification, values, sources,
-                            fromHolder)}
+                onConfirm={(instanceObjectId, verification, values, sources) =>
+                  onConfirm(step.id, instanceObjectId, verification, values, sources)}
               />
             </div>
           ) : (

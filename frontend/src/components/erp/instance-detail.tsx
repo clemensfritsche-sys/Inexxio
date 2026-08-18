@@ -10,7 +10,6 @@ import { DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/fields
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
-import { PlaceButton } from '@/components/erp/place-button';
 
 /**
  * Instanz-Detail – eine **Gruppe** und ihre Einzelinstanzen.
@@ -33,8 +32,6 @@ import { PlaceButton } from '@/components/erp/place-button';
 export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?: () => void }) {
   const [rec, setRec] = useState<Instance | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Nach einer Ablage neu lesen: der Bestand darunter zeigt je Stück, wo es liegt.
-  const [bump, setBump] = useState(0);
 
   useEffect(() => {
     let dead = false;
@@ -42,7 +39,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
       .then((r) => { if (!dead) { setRec(r); setError(null); } })
       .catch((e) => { if (!dead) setError(e instanceof Error ? e.message : String(e)); });
     return () => { dead = true; };
-  }, [objectId, bump]);
+  }, [objectId]);
 
   if (error) return <div className="p-6 text-sm" style={{ color: 'var(--danger)' }}>{error}</div>;
   if (!rec) return null;
@@ -53,16 +50,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
         type="instance"
         title={instanceName(rec)}
         objectId={rec.object_id}
-        actions={
-          <>
-            <LabelButton objectId={rec.object_id} title={rec.article_name} kind="Instanz" />
-            {/* **Ablegen** – die eine menschliche Ortsangabe (§15, O8). Sie steht hier,
-                weil man sie hier sucht: «diese Kiste steht jetzt dort». Sie ändert
-                **nichts** ausser dem Ort, darum ist sie in jedem Zustand erlaubt und
-                braucht keinen Auftrag. */}
-            <PlaceButton instanceObjectIds={[rec.object_id]} onPlaced={() => setBump((n) => n + 1)} />
-          </>
-        }
+        actions={<LabelButton objectId={rec.object_id} title={rec.article_name} kind="Instanz" />}
         onBack={onBack}
       />
 
