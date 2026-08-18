@@ -159,18 +159,12 @@ class StepConfirm(BaseModel):
     Kisten, die der Lagerist gescannt hat. Es ist bewusst **keine Mengenangabe**: wie
     viel gebraucht wird, sagt die Stückliste des Moduls, und eine zweite Stelle dafür
     wäre ein zweiter Massstab. Leer heisst «der ganze freie Bestand, älteste zuerst».
-
-    ``from_holder_object_id`` ist der **Kontext-Scan**: «wo bin ich». Er hat bewusst
-    **keinen Vorgabewert** und wird von dem Modul verlangt, das ihn braucht – ein
-    gemerkter Ort wäre die stille Fehlerklasse, bei der ein vergessener Wechsel den
-    falschen Ort schreibt und nichts fehlschlägt (PROCESS_CORE §15.3).
     """
 
     values: dict[str, dict[str, Any]] = Field(default_factory=dict)
     instance_object_id: Optional[int] = None
     verification: Optional[str] = None
     sources: list[int] = Field(default_factory=list)
-    from_holder_object_id: Optional[int] = None
 
 
 class StepConfirmResult(BaseModel):

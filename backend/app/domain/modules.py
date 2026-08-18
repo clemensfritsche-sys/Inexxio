@@ -25,7 +25,6 @@ from . import capture_types, sampling, statuses as st
 DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
 VERBRAUCH = "verbrauch"
-BEWEGEN = "bewegen"
 
 
 class Module:
@@ -355,55 +354,6 @@ class Verbrauch(Module):
         return st.VERBAUT
 
 
-class Bewegen(Module):
-    """Einzelinstanzen an einen **Halter** bringen (PROCESS_CORE §9.8, ADR 009).
-
-    **Ein Durchläufer**: vorher wie nachher ``Im Prozess``. Ein Ort ist kein Zustand –
-    er ändert nie den Status und nie die Zugehörigkeit (§15.6). Genau deshalb muss keine
-    andere Regel im System von diesem Modul wissen.
-
-    **Genau EINE Einstellung: das Ziel.** Kein Transportmodus, keine Quelle, keine Menge,
-    kein Zeitpunkt. Der Modus ist **abgeleitet** (gleiche Adresse → intern, sonst Versand),
-    und Quelle, Menge und Zeitpunkt gehören zur Laufzeit: ein Modul ist eine **Vorlage**,
-    und was es beim Definieren nicht wissen kann, darf es nicht behaupten. Der Vorgänger
-    hat den Modus gespeichert und zwei Migrationen gebraucht, um die Werte wieder
-    loszuwerden (ADR 009 §2.4).
-
-    **Das Ziel ist Pflicht** – aus demselben Grund wie der Grund beim Aussondern: ein
-    «leer = frei wählbar» wäre ein zweiter Betriebsmodus desselben Moduls, und niemand
-    sähe der Definition an, welcher gilt.
-
-    **Geprüft wird hier nur die FORM** (eine Objektnummer), nicht die Existenz – diese
-    Stelle hat keine Datenbanksitzung. Dass es den Halter wirklich gibt, weist
-    ``services/places.record`` bei der Ausführung ab (streng schreiben). Eine
-    Existenzprüfung im Anlege-Pfad wäre eine Fallunterscheidung nach Modultyp an einer
-    Stelle, die bewusst keine hat.
-    """
-
-    #: Der Schlüssel der einen Einstellung.
-    TARGET = "target"
-
-    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
-        value = (raw or {}).get(self.TARGET)
-        try:
-            target = int(value)
-        except (TypeError, ValueError):
-            target = 0
-        if target <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "«Bewegen» braucht ein Ziel – die Objektnummer des Halters, an den "
-                    "die Stücke gebracht werden (ein Regal, ein Werk, eine Person)."
-                ),
-            )
-        # Keine Erfassungspunkte und keine Stichprobe: bewegt wird, was ankommt. Die
-        # Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
-        return {self.TARGET: target, "points": [], "sample": dict(sampling.DEFAULT)}
-
-    action: str = "Scannen & bewegen"
-
-
 MODULES: dict[str, Module] = {
     m.key: m for m in (
         Datenerfassung(
@@ -432,15 +382,6 @@ MODULES: dict[str, Module] = {
             # was das Modul passiert.
             status_after=st.IM_PROZESS,
             tone="sand",
-        ),
-        Bewegen(
-            key=BEWEGEN,
-            label="Bewegen",
-            # Ein Durchläufer: der Ort ist kein Zustand. Ein Stück, das bewegt wird,
-            # bleibt genau das, was es war.
-            status_before=st.IM_PROZESS,
-            status_after=st.IM_PROZESS,
-            tone="moss",
         ),
     )
 }
@@ -490,19 +431,6 @@ def lines_of(config: Optional[dict[str, Any]]) -> list[dict[str, int]]:
         {"article": int(row["article"]), "quantity": int(row["quantity"])}
         for row in (config or {}).get(Verbrauch.LINES) or []
     ]
-
-
-def target_of(config: Optional[dict[str, Any]]) -> int:
-    """Das **Ziel** eines Moduls — die Objektnummer des Halters. Die eine Lesestelle.
-
-    Nur «Bewegen» hat eines; überall sonst ist es ``0``. Ein Modul, das keines kennt,
-    gibt darum nicht ``None`` zurück, sondern nichts – die Aufrufstelle fragt dann gar
-    nicht erst nach einer Fallunterscheidung nach dem Modultyp (wie ``lines_of``).
-    """
-    try:
-        return int((config or {}).get(Bewegen.TARGET) or 0)
-    except (TypeError, ValueError):
-        return 0
 
 
 def sample_of(config: Optional[dict[str, Any]]) -> dict[str, Any]:

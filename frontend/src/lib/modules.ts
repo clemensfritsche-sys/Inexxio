@@ -13,8 +13,8 @@
  */
 
 import {
-  ArrowRightLeft, Blocks, Camera, ClipboardCheck, PackageX, PenLine, Ruler, ThumbsUp,
-  Type, type LucideIcon,
+  Blocks, Camera, ClipboardCheck, PackageX, PenLine, Ruler, ThumbsUp, Type,
+  type LucideIcon,
 } from 'lucide-react';
 
 import type { DefinitionLine } from '@/components/erp/definition-lines';
@@ -33,9 +33,6 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   datenerfassung: ClipboardCheck,
   aussondern: PackageX,
   verbrauch: Blocks,
-  // Bewusst KEIN Lastwagen: der Regelfall ist der Weg durch die Halle, und ein
-  // Transportsymbol behauptete einen Versand, wo meist keiner ist (PROCESS_CORE §15.4).
-  bewegen: ArrowRightLeft,
 };
 
 /**
@@ -204,16 +201,6 @@ export interface ModuleDraft {
    * Wahl ist.
    */
   lines: DefinitionLine[];
-  /**
-   * Nur «Bewegen»: das **Ziel** – die Objektnummer des Halters, an den die Stücke
-   * gebracht werden (ein Regal, ein Werk, eine Person).
-   *
-   * Es ist die **einzige** Einstellung dieses Moduls. Kein Transportmodus: ob es ein
-   * Versand ist, entscheidet die **Adresse** und wird gerechnet, nie gespeichert
-   * (PROCESS_CORE §15.4). Keine Quelle, keine Menge, kein Zeitpunkt: ein Modul ist eine
-   * Vorlage, und was es beim Definieren nicht wissen kann, darf es nicht behaupten.
-   */
-  target: number | null;
 }
 
 /**
@@ -290,21 +277,13 @@ export const MODULE_FORM: Record<string, {
       return null;
     },
   },
-  bewegen: {
-    // **Genau eine Angabe: das Ziel.** Kein Modus, keine Quelle, keine Menge – ob es
-    // ein Versand ist, entscheidet die Adresse und wird gerechnet (PROCESS_CORE §15.4).
-    config: (m) => ({ target: m.target }),
-    // Pflicht aus demselben Grund wie der Grund beim Aussondern: «leer = frei wählbar»
-    // wäre ein zweiter Betriebsmodus, dem niemand ansieht, welcher gerade gilt.
-    incomplete: (m) => (m.target ? null : 'Ziel fehlt'),
-  },
 };
 
 /** Ein frischer Entwurf dieses Modultyps – mit den Vorgaben, die das Backend kennt. */
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
-    lines: [], target: null,
+    lines: [],
   };
 }
 

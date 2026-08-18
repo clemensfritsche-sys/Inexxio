@@ -101,10 +101,9 @@ jobs:
         run: |
           (cd backend && python -m scripts.dump_openapi)
           (cd backend && python -m scripts.dump_statuses)
-          (cd backend && python -m scripts.dump_vergabe)
           (cd frontend && npm run generate:types)
-          git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts frontend/src/lib/vergabe-catalog.ts || \
-            (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses', 'python -m scripts.dump_vergabe' und 'npm run generate:types' ausführen und committen" && exit 1)
+          git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts || \
+            (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses' und 'npm run generate:types' ausführen und committen" && exit 1)
 
   deploy-backend:
     name: Backend → Cloud Run (dev)

@@ -13,8 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules, sampling
 
-from .award import AwardResponse
-from .place import HolderRef
 from .process import ModuleFacts, ModuleInput
 
 
@@ -131,10 +129,6 @@ class ProcessStepResponse(ModuleFacts):
     #: (``services/consumption``). Leer bei jedem Modul ohne Stückliste; die Oberfläche
     #: braucht damit keine Fallunterscheidung nach dem Modultyp.
     needs: list["StepNeed"] = Field(default_factory=list)
-    #: **Was dieses Modul bewegt** – eine Zeile je Fuhre (Ausgangsort → Ziel). Leer bei
-    #: jedem Modul ohne Ziel; die Oberfläche braucht damit keine Fallunterscheidung nach
-    #: dem Modultyp – dieselbe Form wie ``needs``.
-    hauls: list["StepHaul"] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -202,30 +196,6 @@ class NeedSource(BaseModel):
 
     instance_object_id: int
     free: int
-    #: **Wo sie liegt** – ``None`` heisst «nicht bekannt», nie «hier» und nie «woanders».
-    #: Ohne Beobachtung wird nichts behauptet (R3).
-    holder: Optional[HolderRef] = None
-    #: Liegt sie an **derselben Anschrift** wie das, was das Modul bearbeitet?
-    #:
-    #: ``True`` = hier · ``False`` = ein Transport · ``None`` = einer der beiden Orte ist
-    #: unbekannt, und dann wird nicht geraten. Verglichen wird die **Adresse**, nicht der
-    #: Halter – sonst verlangte jeder Regalwechsel einen Transport (R2).
-    here: Optional[bool] = None
-
-
-class TransportRef(BaseModel):
-    """Ein laufender **Transport-Auftrag** – ein Verweis, mehr nicht.
-
-    Bewusst **nicht** ``RelatedOrder``: der bringt den vollständigen Ablauf mit, damit
-    die Spalte daneben ihn zeichnen kann. Hier gibt es keine Spalte und keine Kante –
-    ein Transport bewegt Stücke, die nie auf dieser Achse waren (§15.8). Mehr Beziehung
-    zu behaupten, als es gibt, ist der Anfang einer falschen Bilanz.
-    """
-
-    object_id: int
-    name: str
-    #: Woher es kommt – die Beschriftung des Verweises («unterwegs aus Werk 2»).
-    from_holder: Optional[HolderRef] = None
 
 
 class StepNeed(BaseModel):
@@ -249,57 +219,6 @@ class StepNeed(BaseModel):
     available: int
     #: Woher genommen werden kann – die Kisten, die der Lagerist scannt.
     sources: list[NeedSource] = Field(default_factory=list)
-    #: **Wo es gebraucht wird** – der Ort der Stücke, die vor dem Modul stehen.
-    #: ``None`` = unbekannt; dann ist auch nichts «woanders».
-    needed_at: Optional[HolderRef] = None
-    #: **Was schon unterwegs ist** – laufende Transport-Aufträge zu diesem Modul.
-    #:
-    #: Zwei klickbare Verweise, **keine Kante**: ein Transport bewegt Stücke, die nie auf
-    #: dieser Achse waren; als Abzweig gezeichnet rechnete die Bilanz falsch (R5/§15.8).
-    transports: list["TransportRef"] = Field(default_factory=list)
-
-
-class StepHaul(BaseModel):
-    """Eine **Fuhre** des Moduls «Bewegen»: was von einem Ausgangsort ans Ziel geht.
-
-    Zwei Ausgangsorte sind **zwei** Fuhren, weil es physisch zwei Transporte sind – zwei
-    Preise, zwei Etiketten, zwei Ankünfte. Drei Stücke am selben Ort sind **eine**.
-
-    Sie ist **abgeleitet, nicht eingestellt** (Gruppierung nach heutigem Halter) und
-    zugleich nur eine **Vorschau**: massgeblich für die Ausführung ist der Kontext-Scan,
-    denn eine Beobachtung kann veraltet sein und ein Scan ist die Gegenwart.
-
-    ``internal`` ist **gerechnet**, nie gespeichert: gleiche Anschrift → innerbetrieblich,
-    sonst Versand (PROCESS_CORE §15.4). Der Vorgänger hat diese Klassifikation gespeichert
-    und zwei Migrationen gebraucht, um die Werte wieder loszuwerden.
-    """
-
-    #: ``None`` = für diese Stücke gibt es noch keine Beobachtung. Kein Fehler – aber
-    #: auch keine Einstufung: dann fehlt zuerst eine **Ablage**.
-    from_holder: Optional[HolderRef] = None
-    to_holder: HolderRef
-    pieces: int = 0
-    #: **Dreiwertig** (SYSTEM_LOGIC O7): ``True`` = innerbetrieblich · ``False`` =
-    #: Versand · ``None`` = Ausgangsort nicht bekannt. ``None`` ist keine der beiden
-    #: anderen Antworten – es zu «intern» zu machen versteckte die fehlende Ablage.
-    internal: Optional[bool] = None
-    #: Die Instanzen dieser Fuhre – damit die Ablage genau sie anbieten kann. Nicht die
-    #: Einzelinstanzen: die tragen kein Etikett (§4.4).
-    instance_object_ids: list[int] = Field(default_factory=list)
-    #: Die **offene** Vergabe dieser Fuhre – nur bei einem Versand. Sie ist die Auskunft
-    #: «woran liegt es», nicht die Regel: ob etwas angekommen ist, sagt der **Ort**.
-    award: Optional["AwardResponse"] = None
-
-
-class HaulQuote(BaseModel):
-    """**Tarife für EINE Fuhre holen** (PROCESS_CORE §15.5a).
-
-    Genannt wird nur der **Ausgangsort** – welche Stücke von dort weggehen und was sie
-    wiegen, leitet der Server ab. Eine Stückliste oder ein Gewicht von aussen wäre die
-    zweite Wahrheit über dasselbe Paket, und die stimmt beim Wiegen nicht.
-    """
-
-    from_holder_object_id: int
 
 
 class OrderLineResponse(BaseModel):

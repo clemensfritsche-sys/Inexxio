@@ -238,33 +238,6 @@ export interface CapturePoint {
 export type StepWork = components['schemas']['StepWork'];
 /** Eine Zeile der Stückliste, gegen den Bestand gehalten (`services/consumption`). */
 export type StepNeed = components['schemas']['StepNeed'];
-/**
- * Eine **Fuhre** des Moduls «Bewegen»: was von einem Ausgangsort ans Ziel geht.
- *
- * Abgeleitet, nicht eingestellt – zwei Ausgangsorte sind zwei Fuhren, weil es physisch
- * zwei Transporte sind. `internal` ist **gerechnet** (gleiche Anschrift), nie gespeichert.
- */
-export type StepHaul = components['schemas']['StepHaul'];
-/** Ein Halter – eine **Objektnummer** mit aufgelöstem Namen, ohne Typ daneben. */
-export type HolderRef = components['schemas']['HolderRef'];
-/**
- * **Die Vergabe** – ein Dritter erbringt eine Leistung für uns (`domain/vergabe`).
- *
- * Der Zyklus steht **einmal**; der Kanal ändert nur, woher die Angebote kommen. Welche
- * Handlungen von hier aus möglich sind, sagt `next_states` – die Oberfläche rechnet die
- * Matrix nicht nach, sie bietet an, was der Dienst annimmt.
- */
-export type Award = components['schemas']['AwardResponse'];
-export type AwardOffer = components['schemas']['AwardOfferResponse'];
-/** Wo eine Sendung ist – und die Vergabe, wie sie danach dasteht. */
-export type AwardTracking = components['schemas']['TrackingResponse'];
-/**
- * Ist ein Kanal **jetzt** wählbar? Andere Frage als der generierte Katalog (der sagt,
- * welche Kanäle es *gibt*) – ohne Schlüssel gibt es «Plattform» nicht.
- */
-export type ChannelAvailability = components['schemas']['ChannelAvailability'];
-/** Das Ergebnis einer **Ablage**: wie viele Stücke, und bei wem sie jetzt liegen. */
-export type PlaceResult = components['schemas']['PlaceResult'];
 /** **Was an einem Modul passiert ist** – lückenlos, je Einzelinstanz (`services/record`). */
 export type StepRecord = components['schemas']['StepRecord'];
 export type RecordEntry = components['schemas']['RecordEntry'];

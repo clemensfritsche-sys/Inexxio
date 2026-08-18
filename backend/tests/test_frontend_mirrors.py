@@ -3204,20 +3204,12 @@ def test_no_entry_without_a_confirmed_instance():
         "Neben dem Scanner steht wieder ein eigener «von Hand»-Weg – zwei Wege zum "
         "selben Ziel, und der zweite bestätigt gar nichts."
     )
-    # Geprüft wird die **Aussage**, nicht die Aufrufform: die Art der Bestätigung
-    # kommt aus dem Dialog (`onComplete(ids, how)`) und wird durchgereicht. Die
-    # Argumentliste ist Bedienung – hinge der Wächter an ihr, bräche er bei jeder
-    # inneren Umstellung, ohne dass sich die Regel geändert hätte.
-    assert "onComplete: (ids, how) =>" in code and "accept(w, how" in code, (
+    assert "onComplete: (_ids, how) =>" in code and "accept(w, how)" in code, (
         "Die Art der Bestätigung kommt nicht mehr aus dem Dialog – dann rät der "
         "Aufrufer, wie die Nummer zustande kam."
     )
     api = _code(_read(FRONTEND / "lib" / "api.ts"))
-    # Bis zum Ende **dieser** Methode statt bis zu einer Zeichenzahl: ein Fenster fester
-    # Grösse verschiebt sich, sobald die Signatur einen Parameter dazubekommt – und meldet
-    # dann eine Regelverletzung, die keine ist.
-    call = api[api.index("confirmStep("):]
-    call = call[:call.index("\n  }")]
+    call = api[api.index("confirmStep("):][:420]
     assert "verification: verification ?? null" in call, (
         "Die Art der Bestätigung fährt nicht mehr mit – von Hand wäre damit eine stille "
         "Umgehung statt einer protokollierten Alternative."
@@ -3784,7 +3776,7 @@ def test_the_capture_is_per_piece_and_the_scan_is_per_instance():
     assert "'sample'" in _body(work, "accept", kind="function"), (
         "Die Nummern werden nicht (mehr) nach dem Scan geholt."
     )
-    assert work.count("accept(w, how") == 2, (
+    assert work.count("accept(w, how)") == 2, (
         "Die Nummern werden ausserhalb des Scan-Abschlusses geholt – bei 6000 Stück ist "
         "das die Liste, die niemand braucht. (Zweimal: der Knopf in der Zeile und der "
         "Sammel-Scan – beide gehen durch dieselbe Stelle.)"
@@ -3860,184 +3852,3 @@ def test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it():
         "Der Dienst lehnt bei einem Halt ab – dann ist die Wiederholungsprüfung "
         "unmöglich, und der Halt hat wieder keinen Ausgang."
     )
-
-
-def test_the_award_cycle_is_generated_not_mirrored():
-    """**Der Vergabe-Zyklus ist eine Quelle, kein Spiegel** (SYSTEM_LOGIC §7.3).
-
-    Zustände und Kanäle stehen in ``domain/vergabe.py``. Was an einer konkreten Vergabe
-    hängt (Beschriftung, Ampelton, mögliche Handlungen), **reist mit ihren Daten**;
-    gebraucht wird im Frontend nur, was es ohne sie zu wissen gibt – die Liste der Kanäle
-    für eine Vergabe, die es noch gar nicht gibt.
-
-    Bug-Form: eine von Hand gepflegte Kanalliste. Stufe 5 fügt genau einen Kanal hinzu
-    (``plattform``); ein Spiegel kostete dann zwei Einträge, und wer den zweiten
-    vergisst, merkt es erst, wenn der Kanal in der Oberfläche fehlt.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.domain import vergabe
-    from scripts.dump_vergabe import build
-
-    path = FRONTEND / "lib" / "vergabe-catalog.ts"
-    current = _read(path)
-    assert "GENERIERT" in current, "Der Katalog behauptet nicht mehr, generiert zu sein."
-    assert current == build(), (
-        "Der Vergabe-Katalog ist veraltet – neu erzeugen: "
-        "cd backend && python -m scripts.dump_vergabe"
-    )
-
-    # **Keine zweite Matrix in der Oberfläche.** Welche Handlungen möglich sind, sagt
-    # ``next_states``; ein nachgerechneter Übergang wäre die Stelle, die beim nächsten
-    # Zustand veraltet – und zwar zu einem Knopf, der scheitert.
-    panel = _code(_read(FRONTEND / "components" / "erp" / "award-panel.tsx"))
-    assert "next_states" in panel, (
-        "Das Bauteil fragt nicht mehr, was der Dienst annimmt – dann rechnet es die "
-        "Übergangsmatrix nach."
-    )
-    for src, targets in vergabe.TRANSITIONS.items():
-        if targets:
-            assert f"'{src}' ?" not in panel and f'"{src}" ?' not in panel, (
-                f"Die Oberfläche verzweigt über den Zustand «{src}» – die Matrix gehört "
-                f"in die Registry."
-            )
-    assert "state_tone" in panel and "state_label" in panel, (
-        "Ampelton oder Beschriftung werden wieder in der Oberfläche zugeordnet – eine "
-        "zweite Tabelle veraltet beim ersten neuen Zustand, und zwar stillschweigend."
-    )
-
-
-def test_the_module_offers_the_award_it_never_creates_one():
-    """**Das System legt keine Vergabe an – es bietet sie an** (PROCESS_CORE §15.7).
-
-    Bug-Form: die Fuhren-Ansicht fragt beim Rendern an. Genau daran sind die abgeleitete
-    Bereitstellung und die Begleit-Bewegungen des Vorgängers gescheitert: es entstanden
-    Vorgänge, die niemand bestellt hatte.
-
-    Und die **Ankunft ist eine Beobachtung**: der Kontext-Scan steht als erster Schritt
-    derselben Sequenz («immer Ort zuerst») und hat **keinen Vorgabewert** – ein gemerkter
-    Ort ist die stille Fehlerklasse, bei der ein vergessener Wechsel den falschen Ort
-    schreibt und nichts fehlschlägt.
-    """
-    hauls = _code(_read(FRONTEND / "components" / "erp" / "haul-list.tsx"))
-    assert "requestAward" not in hauls, (
-        "Die Fuhren-Ansicht fragt selbst an – das System bietet an, ein Mensch klickt."
-    )
-    assert "useEffect" not in hauls, (
-        "Die Fuhren-Ansicht tut beim Rendern etwas – dabei zeigt sie nur, was der Server "
-        "geliefert hat."
-    )
-
-    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
-    assert "const placeStep" in work and "hauls.length ? [placeStep]" in work, (
-        "Der Kontext-Scan steht nicht mehr als erster Schritt der Sequenz – dann ist er "
-        "entweder ein zweiter Dialog oder er fehlt."
-    )
-    assert "useState<number | null>(null)" in work, (
-        "Der Kontext-Ort hat einen Vorgabewert – dann schreibt ein vergessener Wechsel "
-        "den falschen Ort, und nichts schlägt fehl."
-    )
-    api = _code(_read(FRONTEND / "lib" / "api.ts"))
-    assert "from_holder_object_id: fromHolder" in api, (
-        "Der Kontext-Scan fährt nicht mehr mit – dann lehnt der Server jede Bewegung ab, "
-        "und die Oberfläche weiss nicht warum."
-    )
-
-
-def test_the_platform_channel_disappears_without_a_key():
-    """**Ohne Schlüssel gibt es den Kanal nicht** – auch in der Oberfläche (K4).
-
-    Bug-Form: er steht da und scheitert beim Klick. Der Vorgänger fiel dazu noch
-    stillschweigend auf «manual» zurück – und genau darum merkte niemand, dass nie ein
-    Tarif kam.
-
-    Geprüft wird, dass die Oberfläche die **Laufzeit**-Antwort holt und nicht den
-    statischen Katalog filtert: der sagt, welche Kanäle es *gibt*, nicht welche *gehen*.
-    """
-    panel = _code(_read(FRONTEND / "components" / "erp" / "award-panel.tsx"))
-    assert "awardChannels()" in panel, (
-        "Die Kanal-Auswahl fragt nicht, was jetzt wählbar ist – dann steht «Plattform» "
-        "auch ohne Frachtführer da und scheitert beim Klick.")
-    assert "usable[c.value] === null" in panel, (
-        "Es wird nicht nach der Verfügbarkeit gefiltert.")
-
-    # **Und die Regel steht im Anfrage-Pfad**, nicht bloss irgendwo im Modul: eine
-    # Auskunftsfunktion daneben wäre eine Bitte, keine Sperre. Darum der Rumpf von
-    # ``request`` und nicht die Datei (gegen die Bug-Form geprüft).
-    svc = _read(BACKEND / "app" / "services" / "awards.py")
-    assert "carriers.available()" in _body(svc, "request"), (
-        "Der Dienst lässt den Plattform-Kanal ohne Schlüssel zu – dann ist die "
-        "Oberflächen-Regel eine Bitte.")
-
-
-def test_rates_are_fetched_at_the_module_and_only_on_click():
-    """**Der Tarifabruf steht am Modul** – dort wohnt die Fuhre (§15.5a).
-
-    Bug-Form 1: er hängt am Vergabe-Router; der müsste dann Auftrag und Modul kennen –
-    genau die Kopplung, die ADR 009 vermeidet (eine Vergabe gehört keinem Auftrag).
-    Bug-Form 2: er läuft beim Öffnen des Moduls. Das wäre ein Vorgang bei einem Dritten,
-    den niemand bestellt hat – und bei manchen Anbietern kostet er.
-    """
-    api = _code(_read(FRONTEND / "lib" / "api.ts"))
-    assert "/steps/${stepId}/quote" in api, (
-        "Der Tarifabruf hängt nicht mehr am Modul.")
-
-    hauls = _read(FRONTEND / "components" / "erp" / "haul-list.tsx")
-    assert "useEffect" not in hauls, (
-        "Die Fuhren-Ansicht tut beim Rendern etwas – ein Tarifabruf beim Öffnen kostet "
-        "bei manchen Anbietern Geld.")
-    panel = _code(_read(FRONTEND / "components" / "erp" / "award-panel.tsx"))
-    assert "onQuote()" in panel and "quoteHaul" not in panel, (
-        "Das Bauteil holt selbst Tarife – dann kennt es Auftrag und Modul, und es ist "
-        "nicht mehr für die künftige Beschaffung brauchbar.")
-
-
-def test_every_human_endpoint_has_a_place_in_the_interface():
-    """**O8 – ein Endpunkt ohne Aufrufer ist kein Feature.**
-
-    Das war der teuerste Fehler dieser Runde: `POST /erp/places` stand seit Stufe 2 mit
-    Dienst, Regel und 24 Wächtern – und **keinem einzigen Aufrufer im Frontend**. Damit
-    war der Ausgangsort einer Fuhre in der Praxis nie bekannt, die Fuhre nie als Versand
-    eingestuft und die Vergabe nie erreichbar. Die Wächter prüften die Dienstpfade, und
-    die waren in Ordnung; die Kette bis zum Menschen war es nicht.
-
-    Bug-Form: die Ablage verschwindet wieder aus der Oberfläche (oder wird nie
-    verdrahtet). Dann ist jede Regel dahinter unerreichbar, und jede Meldung, die sie
-    voraussetzt, eine Sackgasse.
-    """
-    api = _read(FRONTEND / "lib" / "api.ts")
-    assert "placeInstance(" in api, (
-        "Die Ablage hat keine API-Methode – dann kann sie niemand aufrufen.")
-    assert "/api/v1/erp/places" in api, "Die Methode ruft den Ablage-Endpunkt nicht."
-
-    button = FRONTEND / "components" / "erp" / "place-button.tsx"
-    assert button.exists(), "Der Ablage-Knopf fehlt (O8)."
-    src = _code(_read(button))
-    assert "api.placeInstance(" in src, "Der Knopf ruft die Ablage nicht."
-    # **Zwei Scans, in dieser Reihenfolge** – und der erste ohne Vorgabewert (O5).
-    assert src.count("label:") >= 2, (
-        "Die Ablage ist EIN Scan-Ablauf mit zwei Schritten: wo stehen Sie, dann die "
-        "Instanz.")
-
-    # …und er hängt wirklich in der Oberfläche, an beiden Stellen.
-    # **Gerendert, nicht bloss importiert**: ein Import allein ist keine Stelle in der
-    # Oberfläche – und genau daran wäre dieser Wächter beinahe vorbeigelaufen.
-    for rel in (("components", "erp", "haul-list.tsx"),
-                ("components", "erp", "instance-detail.tsx")):
-        assert "<PlaceButton" in _read(FRONTEND.joinpath(*rel)), (
-            f"{rel[-1]} rendert die Ablage nicht – dort wird sie gebraucht.")
-
-
-def test_an_unknown_source_is_drawn_as_unknown():
-    """**O7 – die Oberfläche behauptet nicht, was sie nicht weiss.**
-
-    Bug-Form: `!haul.internal` – dann ist `null` (nicht bekannt) dasselbe wie `false`
-    (Versand) bzw. fällt in den Internal-Zweig, und die fehlende Ablage wird als
-    innerbetrieblicher Weg gezeichnet.
-    """
-    src = _code(_read(FRONTEND / "components" / "erp" / "haul-list.tsx"))
-    assert "haul.internal === false" in src, (
-        "Ein Versand ist ausdrücklich `internal === false` – `!haul.internal` zöge "
-        "«nicht bekannt» mit hinein (O7).")
-    assert "haul.internal == null" in src, (
-        "Die dritte Lage («nicht bekannt») wird nicht unterschieden.")

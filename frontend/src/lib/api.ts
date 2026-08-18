@@ -16,10 +16,6 @@ import type {
   ArticleNameSuggestion,
   Instance,
   ArticleStock,
-  Award,
-  AwardTracking,
-  ChannelAvailability,
-  PlaceResult,
   UnitPage,
   Genealogy,
   StepRecord,
@@ -592,7 +588,7 @@ class ApiClient {
    */
   confirmStep(objectId: number, stepId: number, values: Record<string, Record<string, unknown>> = {},
               instanceObjectId?: number, verification?: string,
-              sources: number[] = [], fromHolder: number | null = null): Promise<Order> {
+              sources: number[] = []): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {
       values,
       instance_object_id: instanceObjectId ?? null,
@@ -600,11 +596,6 @@ class ApiClient {
       // **Woraus verbaut wird** – die Instanzen, die der Lagerist gescannt hat. Leer
       // heisst «der ganze freie Bestand, älteste zuerst»; der Server rät nie mehr als das.
       sources,
-      // **Der Kontext-Scan: «wo bin ich»** (PROCESS_CORE §15.3). Er hat bewusst keinen
-      // Vorgabewert – ein gemerkter Ort ist die stille Fehlerklasse, bei der ein
-      // vergessener Wechsel den falschen Ort schreibt und nichts fehlschlägt. Ein Modul
-      // ohne Ziel braucht ihn nicht und schickt `null`.
-      from_holder_object_id: fromHolder,
     });
   }
 
@@ -627,130 +618,6 @@ class ApiClient {
     return this.get(
       `/api/v1/erp/orders/${objectId}/steps/${stepId}/hold`
       + `?instance=${instance}&group=${group}`);
-  }
-
-  /* ── Die Vergabe ─────────────────────────────────────────────────────────────
-   *
-   * **Ein Aufruf je Vorgang, keiner je Zustand.** Geschrieben wird nie ein Zustand,
-   * sondern eine Handlung; welcher daraus folgt, entscheidet die Registry im Backend.
-   * Ein `updateAward({state})` wäre die zweite Stelle, an der die Übergangsmatrix
-   * gepflegt wird – und das ist die, die man vergisst.
-   */
-
-  /**
-   * **Anfragen** – durch den Klick eines Menschen (PROCESS_CORE §15.7).
-   *
-   * Idempotent: gibt es für denselben Anlass schon eine offene, kommt sie zurück. Genau
-   * darum darf die Oberfläche den Knopf zeigen, ohne vorher zu prüfen.
-   */
-  requestAward(subjectObjectId: number, targetObjectId: number | null,
-               channel: string, providerObjectId?: number | null): Promise<Award> {
-    return this.post('/api/v1/erp/awards', {
-      subject_object_id: subjectObjectId,
-      target_object_id: targetObjectId,
-      channel,
-      provider_object_id: providerObjectId ?? null,
-    });
-  }
-
-  /** Ein Angebot eintragen – der Weg des Kanals «Lieferantenportal». */
-  addAwardOffer(awardId: number, providerObjectId: number, amount: number,
-                opts: { currency?: string; days?: number | null; label?: string } = {},
-  ): Promise<Award> {
-    return this.post(`/api/v1/erp/awards/${awardId}/offers`, {
-      provider_object_id: providerObjectId,
-      amount,
-      currency: opts.currency ?? 'CHF',
-      days: opts.days ?? null,
-      label: opts.label ?? null,
-    });
-  }
-
-  /**
-   * **Vergeben** – die Wahl eines Menschen, nie des Systems.
-   *
-   * Bei einem Kanal mit Angeboten ist das gewählte **Angebot** die Grundlage; nur
-   * «selbst bestellt» nennt Dritten und Preis unmittelbar.
-   */
-  grantAward(awardId: number, offerId: number | null,
-             direct: { providerObjectId?: number; amount?: number } = {}): Promise<Award> {
-    return this.post(`/api/v1/erp/awards/${awardId}/grant`, {
-      offer_id: offerId,
-      provider_object_id: direct.providerObjectId ?? null,
-      amount: direct.amount ?? null,
-    });
-  }
-
-  /**
-   * **Erbracht** – und erst jetzt entsteht die Ablage.
-   *
-   * `unitIds` sind die Stücke, die **angekommen** sind. Leer heisst «keine», nicht
-   * «alle»: welche es waren, weiss der Mensch am Ziel.
-   */
-  deliverAward(awardId: number, unitIds: number[]): Promise<Award> {
-    return this.post(`/api/v1/erp/awards/${awardId}/deliver`,
-                     { instance_unit_ids: unitIds });
-  }
-
-  /** **Abgelehnt** – der Vorgang endet ohne Vergabe. */
-  rejectAward(awardId: number, reason: string): Promise<Award> {
-    return this.post(`/api/v1/erp/awards/${awardId}/reject`, { reason });
-  }
-
-  /** **Gescheitert** – vergeben, aber nicht erbracht. Der Grund ist Pflicht. */
-  failAward(awardId: number, reason: string): Promise<Award> {
-    return this.post(`/api/v1/erp/awards/${awardId}/fail`, { reason });
-  }
-
-  /**
-   * Welche Kanäle **jetzt** wählbar sind.
-   *
-   * Andere Frage als der generierte Katalog (der sagt, welche es *gibt*): ohne
-   * eingerichteten Frachtführer gibt es «Plattform» nicht – er ist dann nicht wählbar,
-   * statt zu erscheinen und zu scheitern.
-   */
-  awardChannels(): Promise<ChannelAvailability[]> {
-    return this.get('/api/v1/erp/awards/channels');
-  }
-
-  /**
-   * **Wo ist die Sendung?** – und wenn sie da ist, entsteht die Ablage.
-   *
-   * Auf **Klick**: ein Abruf beim Öffnen wäre ein Vorgang bei einem Dritten, den niemand
-   * bestellt hat – und bei manchen Anbietern kostet er.
-   */
-  trackAward(awardId: number): Promise<AwardTracking> {
-    return this.post(`/api/v1/erp/awards/${awardId}/track`, {});
-  }
-
-  /**
-   * **Ablegen** – die eine menschliche Ortsangabe (PROCESS_CORE §15, SYSTEM_LOGIC O8).
-   *
-   * Genannt wird der **Halter** (der Kontext-Scan «wo bin ich», ohne Vorgabewert) und
-   * die **Instanz** – also genau das, was auf den beiden Etiketten steht. Welche
-   * Einzelinstanzen dazugehören, leitet der Server ab: sie tragen kein Etikett, ein
-   * Mensch kann sie gar nicht nennen (§4.4).
-   *
-   * Ändert **nichts** ausser dem Ort – kein Status, keine Zugehörigkeit. Genau darum
-   * darf jedes Stück in jedem Zustand abgelegt werden.
-   */
-  placeInstance(holderObjectId: number, instanceObjectId: number): Promise<PlaceResult> {
-    return this.post('/api/v1/erp/places', {
-      holder_object_id: holderObjectId, instance_object_id: instanceObjectId,
-    });
-  }
-
-  /**
-   * **Tarife für eine Fuhre holen** (Kanal «Plattform»).
-   *
-   * Der Aufruf steht am **Modul**, nicht an der Vergabe: dort wohnt die Fuhre. Genannt
-   * wird nur der Ausgangsort – welche Stücke von dort weggehen und was sie wiegen,
-   * leitet der Server ab. Ein Gewicht von hier wäre die zweite Wahrheit über dasselbe
-   * Paket, und die stimmt beim Wiegen nicht.
-   */
-  quoteHaul(objectId: number, stepId: number, fromHolder: number): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/quote`,
-                     { from_holder_object_id: fromHolder });
   }
 
   /**
