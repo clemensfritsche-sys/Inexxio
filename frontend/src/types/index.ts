@@ -243,6 +243,24 @@ export type StepRecord = components['schemas']['StepRecord'];
 export type RecordEntry = components['schemas']['RecordEntry'];
 export type RecordValue = components['schemas']['RecordValue'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
+/**
+ * **Ein Halter** – Objektnummer, Typ, Name (`services/places`).
+ *
+ * Dieselbe Form für alle drei Fragen, die einen Ort nennen: das Ziel eines
+ * Bewegungsmoduls, der Halter einer Einzelinstanz und jede Station ihrer Kette.
+ */
+export type PlaceRef = components['schemas']['PlaceRef'];
+/**
+ * **Wo ein Stück liegt** – unmittelbarer Halter plus die Kette darüber.
+ *
+ * `chain` steht von innen nach aussen (Behälter › Regal › Werk Nord) und **enthält den
+ * Halter als erstes Element**; `holder` ist nur ihre erste Station, herausgezogen, weil
+ * die Liste sie meist verkürzt zeigt. Leer heisst **standortlos** – ein regulärer
+ * Zustand, kein fehlender Wert.
+ */
+export type UnitPlace = components['schemas']['UnitPlace'];
+/** **Womit bewegt wird** – ein Kanal und seine Verfügbarkeit (`Bewegen.TRANSPORTS`). */
+export type Transport = components['schemas']['Transport'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
 export type ObjectReference = components['schemas']['ObjectReference'];
 export type SalesVisibility = 'public' | 'private';

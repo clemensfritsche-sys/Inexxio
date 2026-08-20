@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Layers, MessageSquareText, PackageX } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import type {
-  ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, RelatedOrder,
-  StepWork,
+  ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, PlaceRef,
+  RelatedOrder, StepWork,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
 import { DetailHeader, HeaderAction } from '@/components/erp/fields';
@@ -22,6 +22,8 @@ import {
 } from '@/components/erp/definition-lines';
 import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
+import { PlaceTrail } from '@/components/erp/place-trail';
+import { MODULE_ICON } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
@@ -172,12 +174,15 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
   const confirmStep = useCallback(async (stepId: number, instanceObjectId: number,
                                          verification: string,
                                          values: Record<string, Record<string, unknown>>,
-                                         sources: number[] = []) => {
+                                         sources: number[] = [],
+                                         place: number | null = null,
+                                         transport: string = '') => {
     if (!live) return;
     setBusy(true); setError(null);
     try {
       setLive(await api.confirmStep(live.object_id, stepId, values,
-                                    instanceObjectId, verification, sources));
+                                    instanceObjectId, verification, sources,
+                                    place, transport));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -366,7 +371,7 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
-              sources: number[]) => void;
+              sources: number[], place: number | null, transport: string) => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
@@ -441,11 +446,18 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
                 action={stepInfo(order, step.id)?.action ?? ''}
                 work={workOf(order, step.id)}
                 needs={stepInfo(order, step.id)?.needs ?? []}
+                // **Wohin und womit** – beides kommt vom Server mit dem Schritt.
+                // `target` ist das Ziel aus der Definition (`null` = beim Ausführen
+                // wählen), `transports` zugleich das Bit, ob dieses Modul überhaupt
+                // bewegt: bei jedem anderen Modultyp ist die Liste leer.
+                target={stepInfo(order, step.id)?.target ?? null}
+                transports={stepInfo(order, step.id)?.transports ?? []}
                 busy={busy}
                 onDirty={setEntryStarted}
                 onDeviate={onDeviate}
-                onConfirm={(instanceObjectId, verification, values, sources) =>
-                  onConfirm(step.id, instanceObjectId, verification, values, sources)}
+                onConfirm={(instanceObjectId, verification, values, sources, place, transport) =>
+                  onConfirm(step.id, instanceObjectId, verification, values, sources,
+                            place, transport)}
               />
             </div>
           ) : (
@@ -456,7 +468,11 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
             <div className="flex flex-col gap-2.5">
               <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
                 action={stepInfo(order, step.id)?.action}
-                reason={stepInfo(order, step.id)?.reason} />
+                reason={stepInfo(order, step.id)?.reason}
+                moduleType={step.moduleType}
+                target={(stepInfo(order, step.id)?.transports ?? []).length > 0
+                  ? (stepInfo(order, step.id)?.target ?? null)
+                  : undefined} />
               <StepRecord orderObjectId={order.object_id} stepId={step.id} />
             </div>
           )),
@@ -496,19 +512,43 @@ function Reason({ text }: { text?: string | null }) {
   );
 }
 
-function PointList({ points, sample, action, reason }: {
+function PointList({ points, sample, action, reason, moduleType, target }: {
   points: CapturePoint[]; sample?: string; action?: string; reason?: string | null;
+  /** Für das Symbol – aus derselben Zuordnung, aus der es auch die Palette nimmt. */
+  moduleType?: string;
+  /**
+   * **Wohin dieses Modul bringt** – aus der Definition, bereits aufgelöst.
+   *
+   * `null` heisst bei einem Bewegungsmodul *nicht* «vergessen», sondern «wird beim
+   * Ausführen gewählt». Beides muss dastehen: ein offenes Ziel, das aussieht wie eine
+   * Lücke, liest sich als Fehler in der Definition.
+   */
+  target?: PlaceRef | null;
 }) {
   // **Ein Modul ohne Erfassungspunkte hat trotzdem etwas zu sagen.** Das Aussondern
-  // erfasst nichts – was es tut, steht in seinem Verb und warum in seinem Grund; ohne
-  // diese Zeilen stünde die Karte leer da.
+  // erfasst nichts – was es tut, steht in seinem Verb und warum in seinem Grund; das
+  // Bewegen sagt zusätzlich, wohin. Ohne diese Zeilen stünde die Karte leer da.
   if (!points.length) {
+    const Icon = MODULE_ICON[moduleType ?? ''] ?? PackageX;
     return action ? (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
-          <PackageX size={13} style={{ color: 'var(--fg-4)' }} />
+          <Icon size={13} style={{ color: 'var(--fg-4)' }} />
           <span>{action}</span>
         </div>
+        {target !== undefined && (
+          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
+            <span style={{ color: 'var(--fg-4)' }}>nach</span>
+            {target
+              ? <PlaceTrail place={{ holder: target, chain: [target] }} />
+              : (
+                <span className="text-fg-4"
+                  data-tip="Dieses Modul hat kein festes Ziel – der Ausführende scannt, wohin die Stücke gehen.">
+                  wird beim Ausführen gescannt
+                </span>
+              )}
+          </div>
+        )}
         <Reason text={reason} />
       </div>
     ) : null;

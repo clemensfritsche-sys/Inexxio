@@ -15,6 +15,7 @@ from typing import Mapping, Optional
 from pydantic import BaseModel, ConfigDict
 
 from ..domain import statuses as st
+from .place import PlaceRef, UnitPlace
 
 
 class InstanceUnitResponse(BaseModel):
@@ -34,6 +35,12 @@ class InstanceUnitResponse(BaseModel):
     #: überhaupt etwas aufzuklappen gibt; ein Pfeil an jeder von 5000 Zeilen, hinter dem
     #: nichts liegt, ist ein Versprechen, das die Liste nicht halten kann.
     parts_count: int = 0
+    #: **Wo dieses Stück liegt** – unmittelbarer Halter plus die Kette darüber
+    #: (``services/places``). ``None`` heisst **standortlos**, und das ist ein regulärer
+    #: Zustand: ein frisch erzeugtes Stück liegt nirgends, bis ein Modul es irgendwohin
+    #: bringt. Aufgelöst wird die Kette je **Halter**, nicht je Stück – 60 Schrauben in
+    #: einem Regal sind eine Kette, nicht sechzig.
+    place: Optional[UnitPlace] = None
     created_at: datetime
 
 

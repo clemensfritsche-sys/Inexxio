@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CapturePoint, StepNeed, StepWork } from '@/types';
+import type { CapturePoint, PlaceRef, StepNeed, StepWork, Transport } from '@/types';
+import { TRANSPORT_ICON } from '@/lib/modules';
+import { IconSwitch } from '@/components/erp/fields';
 import { formatObjectId } from '@/lib/utils';
 import { useScan } from '@/components/scan/scan-provider';
 import { CaptureForm } from '@/components/erp/capture-form';
@@ -41,6 +43,7 @@ import type { OrderSeed } from '@/components/erp/order-detail';
  * bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass jemand zugestimmt hätte.
  */
 export function CaptureWork({ orderObjectId, stepId, points, action, work, needs = [],
+                              target = null, transports = [],
                               busy, onConfirm, onDeviate, onDirty }: {
   orderObjectId: number;
   stepId: number;
@@ -50,10 +53,23 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   work: StepWork[];
   /** **Die Stückliste dieses Moduls**, gegen den Bestand gehalten. Leer = keine. */
   needs?: StepNeed[];
+  /**
+   * **Wohin dieses Modul bringt** – aus der Definition, bereits aufgelöst. `null` heisst
+   * bei einem Bewegungsmodul «beim Ausführen wählen», nicht «keines».
+   */
+  target?: PlaceRef | null;
+  /**
+   * **Womit bewegt werden kann** – und was davon heute geht (`available`).
+   *
+   * Diese Liste ist zugleich das **Bit**, ob dieses Modul überhaupt bewegt: sie ist leer
+   * bei jedem anderen Modultyp. Die Oberfläche braucht damit keine Fallunterscheidung
+   * nach dem Modultyp – dieselbe Bauart wie `needs` bei der Stückliste.
+   */
+  transports?: Transport[];
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
-              sources: number[]) => void;
+              sources: number[], place: number | null, transport: string) => void;
   /** Die Entscheidung öffnet einen **ganz gewöhnlichen** Auftragsentwurf (§4/§4.1). */
   onDeviate?: (seed: OrderSeed) => void;
   onDirty?: (dirty: boolean) => void;
@@ -73,6 +89,25 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    * Der Server prüft die Wahl, er rät nicht: was hier steht, gilt.
    */
   const [boxes, setBoxes] = useState<Record<number, number[]>>({});
+  /**
+   * **Wohin es geht** – je Instanz die gescannte Ziel-Objektnummer, und **womit**.
+   *
+   * Beides steht hier oben, weil es zum **Vorgang** gehört und nicht zur Zeile: der
+   * Sammel-Scan bringt alles an denselben Ort, und die Transportart gilt für die Fuhre.
+   * Ist das Ziel in der Definition festgelegt, ist der Scan trotzdem nötig – er ist dann
+   * die Verifikation, dass wirklich dort abgelegt wurde.
+   */
+  const [placed, setPlaced] = useState<Record<number, number>>({});
+  const [transport, setTransport] = useState<string>(
+    () => transports.find((t) => t.available)?.key ?? 'manuell',
+  );
+
+  /**
+   * **Bewegt dieses Modul?** Die Antwort ist die Transportliste selbst – sie ist bei
+   * jedem anderen Modultyp leer. Ein `moduleType === 'bewegen'` daneben wäre eine zweite
+   * Stelle, an der die Oberfläche über Modultypen Bescheid wissen müsste.
+   */
+  const moves = transports.length > 0;
 
   if (work.length === 0) {
     return <p className="text-xs" style={{ color: 'var(--fg-3)' }}>Hier steht gerade nichts.</p>;
@@ -107,15 +142,16 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   };
 
   /** Die Nummern der gezogenen Stücke – **erst nach dem Scan**, denn erst dann gebraucht. */
-  function accept(w: StepWork, how: string) {
+  function accept(w: StepWork, how: string, place: number | null) {
     setVerified((s) => ({ ...s, [w.instance_object_id]: how }));
+    if (place) setPlaced((s) => ({ ...s, [w.instance_object_id]: place }));
     if (!points.length) { setNumbers((s) => ({ ...s, [w.instance_object_id]: [] })); return; }
     void api.stepHold(orderObjectId, stepId, w.instance_object_id, 'sample')
       .then((r) => setNumbers((s) => ({ ...s, [w.instance_object_id]: r.numbers })));
   }
 
-  /** Was ein Vorgang scannt: die Instanz selbst, danach jede Kiste, aus der er nimmt. */
-  const scanSteps = (w: StepWork) => [
+  /** Was ein Vorgang an der Ware scannt: die Instanz, danach jede Kiste, aus der er nimmt. */
+  const goodsSteps = (w: StepWork) => [
     {
       label: `Instanz ${formatObjectId(w.instance_object_id)}`,
       kind: 'instance' as const,
@@ -129,6 +165,35 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
   ];
 
   /**
+   * **Der Zielort – zuletzt, und das ist keine Geschmacksfrage.**
+   *
+   * So arbeitet jedes Lagersystem beim Ein- und Umlagern: erst die Ware, dann der Platz.
+   * Der Ziel-Scan ist die **Quittung der Ablage** – man hat das Stück in der Hand, geht
+   * hin, legt ab, scannt. Zuerst gescannt wäre er eine Absichtserklärung: zwischen «Ziel
+   * gescannt» und «hingelegt» kann alles passieren, und der Nachweis behauptete dann
+   * etwas, das niemand gesehen hat.
+   *
+   * Steht das Ziel in der Definition, ist dieser Schritt eine **Verifikation** dagegen
+   * (`expected`) – eine andere Nummer weist schon der Dialog ab, und der Server ein
+   * zweites Mal. Steht dort keines, ist er ein **freier Lookup** mit Existenzprüfung:
+   * ohne sie käme jede neunstellige Zahl durch, der Rahmen würde grün, und beim
+   * Bestätigen passierte stillschweigend nichts.
+   */
+  const placeStep = () => (target
+    ? {
+      label: `Zielort ${formatObjectId(target.object_id)}`,
+      expected: target.object_id,
+    }
+    : {
+      label: 'Zielort',
+      exists: (id: number) => api.getPlace(id).then(() => true).catch(() => false),
+    });
+
+  const scanSteps = (w: StepWork) => [
+    ...goodsSteps(w), ...(moves ? [placeStep()] : []),
+  ];
+
+  /**
    * **Der Sammel-Scan ist die Scan-Sequenz** (#711) – genau dafür ist sie gebaut: ein
    * Dialog, ein Schritt je Instanz, der Reihe nach. Kein zweiter Mechanismus, keine
    * zweite Kamera-Logik; der Unterschied zum Knopf in der Zeile ist die Zahl der
@@ -136,14 +201,39 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    */
   function scanAll() {
     if (!open.length) return;
+    // **Der Zielort wird EINMAL gescannt, nicht je Instanz.** Eine Fuhre geht an einen
+    // Ort; ihn n-mal zu quittieren wäre dieselbe Aussage n-mal. Wer verschiedene Ziele
+    // hat, bestätigt die Zeilen einzeln – dafür ist der kleine Knopf da.
     scan({
-      steps: open.flatMap(scanSteps),
-      onComplete: (_ids, how) => open.forEach((w) => accept(w, how)),
+      steps: [...open.flatMap(goodsSteps), ...(moves ? [placeStep()] : [])],
+      onComplete: (ids, how) => {
+        const to = moves ? Number(ids[ids.length - 1]) || null : null;
+        open.forEach((w) => accept(w, how, to));
+      },
     });
   }
 
   return (
     <div className="flex flex-col">
+      {/* **Womit gebracht wird – eine Wahl für die Fuhre, nicht je Stück.**
+          Paket und Fracht stehen sichtbar da und sind gesperrt: sie kommen, sind aber
+          nicht gebaut. Den Grund sagt der Hover; der Server weist sie ebenfalls ab –
+          eine Sperre, die nur hier steht, wäre eine Bitte. */}
+      {moves && (
+        <div className="pb-2">
+          <IconSwitch
+            value={transport}
+            onChange={setTransport}
+            options={transports.map((t) => ({
+              value: t.key,
+              icon: TRANSPORT_ICON[t.key] ?? Boxes,
+              label: t.label,
+              hint: t.hint,
+              disabled: !t.available,
+            }))}
+          />
+        </div>
+      )}
       {work.map((w, i) => (
         <InstanceRow
           key={w.instance_object_id}
@@ -162,7 +252,8 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
           numbers={numbers[w.instance_object_id] ?? null}
           onScan={() => scan({
             steps: scanSteps(w),
-            onComplete: (_ids, how) => accept(w, how),
+            onComplete: (ids, how) =>
+              accept(w, how, moves ? Number(ids[ids.length - 1]) || null : null),
           })}
           onDirty={onDirty}
           onDeviate={onDeviate}
@@ -172,7 +263,8 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
             setVerified(({ [w.instance_object_id]: _gone, ...rest }) => rest);
             setNumbers(({ [w.instance_object_id]: _also, ...rest }) => rest);
             onConfirm(w.instance_object_id, verified[w.instance_object_id] ?? 'manual',
-                      values, boxesFor(w));
+                      values, boxesFor(w),
+                      placed[w.instance_object_id] ?? null, transport);
           }}
         />
       ))}

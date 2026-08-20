@@ -13,8 +13,8 @@
  */
 
 import {
-  Blocks, Camera, ClipboardCheck, PackageX, PenLine, Ruler, ThumbsUp, Type,
-  type LucideIcon,
+  Blocks, Camera, ClipboardCheck, Hand, MoveRight, Package, PackageX, PenLine, Ruler,
+  ThumbsUp, Truck, Type, type LucideIcon,
 } from 'lucide-react';
 
 import type { DefinitionLine } from '@/components/erp/definition-lines';
@@ -33,6 +33,22 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   datenerfassung: ClipboardCheck,
   aussondern: PackageX,
   verbrauch: Blocks,
+  // Von hier nach dort – bewusst **kein** Transportmittel (kein Lastwagen, kein
+  // Gabelstapler): womit bewegt wird, entscheidet sich erst bei der Ausführung.
+  bewegen: MoveRight,
+};
+
+/**
+ * **Symbol je Transportart** (`Bewegen.TRANSPORTS`).
+ *
+ * Wie bei den Modulen steht die **Liste** im Backend – hier nur, was eine Antwort nicht
+ * transportieren kann. Ein neuer Kanal ist damit ein Eintrag in der Registry plus ein
+ * Symbol; `test_frontend_mirrors` hält beide Seiten deckungsgleich.
+ */
+export const TRANSPORT_ICON: Record<string, LucideIcon> = {
+  manuell: Hand,
+  paket: Package,
+  fracht: Truck,
 };
 
 /**
@@ -201,6 +217,18 @@ export interface ModuleDraft {
    * Wahl ist.
    */
   lines: DefinitionLine[];
+  /**
+   * Nur «Bewegen»: **wohin** die Stücke gebracht werden – die Objektnummer eines Halters
+   * (Regal, Behälter, Person, Unternehmen).
+   *
+   * **Optional, und das ist eine Aussage**: leer heisst «wird beim Ausführen gewählt»,
+   * nicht «vergessen». Beim Modellieren steht oft noch nicht fest, wo Platz sein wird –
+   * eine Vorlage, die das behauptet, ist beim zweiten Durchlauf falsch. Damit die beiden
+   * Fälle unterscheidbar bleiben, sagt die Karte im Fluss ausdrücklich, welcher gilt.
+   *
+   * Ein **String**, weil es ein Eingabefeld ist: ein halb getipptes Feld hat keine Zahl.
+   */
+  target: string;
 }
 
 /**
@@ -259,6 +287,16 @@ export const MODULE_FORM: Record<string, {
     config: (m) => ({ mode: m.mode, reason: m.reason }),
     incomplete: (m) => (m.reason.trim() ? null : 'Grund fehlt'),
   },
+  bewegen: {
+    // **Eine Angabe, und die ist optional.** Leer geht als `null` hinaus – nicht als
+    // fehlendes Feld: der Server unterscheidet «kein Ziel definiert» von «Feld nicht
+    // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
+    config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
+    // **Nie unvollständig.** Ein Bewegungsmodul ohne Ziel ist kein halbes Modul, sondern
+    // eines, das beim Ausführen fragt. Es hier als unvollständig zu melden hiesse, den
+    // zweiten gültigen Fall zu verbieten.
+    incomplete: () => null,
+  },
   verbrauch: {
     // Zwei Angaben je Zeile, beide Pflicht: **welcher Artikel** und **wie viele je
     // Einzelinstanz**. Ohne Zeile wäre das Modul ein Durchgang, der aussieht wie eine
@@ -283,7 +321,7 @@ export const MODULE_FORM: Record<string, {
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
-    lines: [],
+    lines: [], target: '',
   };
 }
 

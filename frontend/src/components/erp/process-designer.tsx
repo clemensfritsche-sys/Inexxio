@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2 } from 'lucide-react';
+import { Columns2, Grid2x2, Layers, Lock, Percent, ScanLine, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ModuleCatalog } from '@/types';
@@ -23,6 +23,8 @@ import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
 import { IconSwitch, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
+import { useScan } from '@/components/scan/scan-provider';
+import type { PlaceRef } from '@/types';
 
 /**
  * **Den Prozess definieren — dieselbe Komponente am Artikel wie im Auftrag.**
@@ -231,6 +233,83 @@ function DisposalFields({ module: m, onChange }: {
   );
 }
 
+/**
+ * **Bewegen — eine Frage: wohin?**
+ *
+ * Und sie darf **offen bleiben**. Das ist der einzige Unterschied zu jedem anderen
+ * Pflichtfeld im Editor, und er ist fachlich: beim Modellieren steht oft nicht fest, wo
+ * in drei Wochen Platz sein wird. Eine Vorlage, die dann trotzdem ein Regal nennt, ist
+ * beim zweiten Durchlauf falsch — und zwar stillschweigend.
+ *
+ * Damit «leer» nicht wie «vergessen» aussieht, sagt das Feld selbst, was dann passiert.
+ * Steht eine Nummer da, wird sie **aufgelöst**: man sieht den Namen des Halters, nicht
+ * nur seine Ziffern — sonst prüft niemand nach, ob es das richtige Regal ist.
+ *
+ * Der Scan-Knopf ist die Abkürzung dafür: am Regal steht man ohnehin, und sein Etikett
+ * trägt die Nummer. Er nutzt denselben Dialog wie die Ausführung, nur mit einem freien
+ * Lookup statt einer Verifikation.
+ */
+function MoveFields({ module: m, onChange }: {
+  module: ModuleDraft;
+  types: { key: string; label: string }[];
+  onChange: (next: Partial<ModuleDraft>) => void;
+}) {
+  const scan = useScan();
+  const [place, setPlace] = useState<PlaceRef | null>(null);
+  const [unknown, setUnknown] = useState(false);
+  const target = m.target.trim();
+
+  // **Auflösen, was dasteht.** Entprellt, mit Veralterungs-Schutz: wer weitertippt,
+  // bekommt nicht die Antwort auf die vorherige Nummer.
+  useEffect(() => {
+    if (target === '') { setPlace(null); setUnknown(false); return; }
+    let stale = false;
+    const t = setTimeout(() => {
+      api.getPlace(Number(target))
+        .then((p) => { if (!stale) { setPlace(p); setUnknown(false); } })
+        .catch(() => { if (!stale) { setPlace(null); setUnknown(true); } });
+    }, 300);
+    return () => { stale = true; clearTimeout(t); };
+  }, [target]);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <input
+          className={inputCls}
+          value={m.target}
+          aria-label="Zielort (Objektnummer)"
+          placeholder="Objektnummer des Ziels – leer lassen für «beim Ausführen wählen»"
+          {...numericInputProps}
+          onChange={(e) => onChange({ target: numericOnly(e.target.value) })}
+        />
+        <button
+          type="button"
+          className="erp-idbtn"
+          data-tip="Zielort scannen"
+          aria-label="Zielort scannen"
+          onClick={() => scan({
+            steps: [{
+              label: 'Zielort',
+              exists: (id: number) => api.getPlace(id).then(() => true).catch(() => false),
+            }],
+            onComplete: (ids) => onChange({ target: String(ids[0] ?? '') }),
+          })}
+        >
+          <ScanLine size={15} />
+        </button>
+      </div>
+      <p className="text-[12px]" style={{ color: unknown ? 'var(--danger)' : 'var(--fg-3)' }}>
+        {target === ''
+          ? 'Ohne Ziel wird beim Ausführen gescannt, wohin die Stücke gehen.'
+          : unknown
+            ? 'Diese Nummer ist kein Ort – ein Ziel ist ein Regal, eine Person oder ein Unternehmen.'
+            : place?.label ?? '…'}
+      </p>
+    </div>
+  );
+}
+
 /** Welcher Feldsatz gehört zu welchem Modultyp. Eine Zuordnung, keine Bedingung. */
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
@@ -240,6 +319,7 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   datenerfassung: ModuleFields,
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
+  bewegen: MoveFields,
 };
 
 /**

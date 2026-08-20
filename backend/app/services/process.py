@@ -26,7 +26,7 @@ from ..models.process_event import (
 )
 from . import (
     article_process, articles as articles_svc, capture as capture_svc,
-    consumption as consumption_svc, materialize, sampling,
+    consumption as consumption_svc, materialize, places as places_svc, sampling,
 )
 from .instances import unit_number
 
@@ -896,6 +896,8 @@ def confirm_step(
     instance_object_id: Optional[int] = None,
     verification: Optional[str] = None,
     sources: Optional[list[int]] = None,
+    place: Optional[int] = None,
+    transport: Optional[str] = None,
 ) -> dict[str, Any]:
     """«Bestätigen» — der eine Mechanismus, den jedes Modul auslöst.
 
@@ -1035,7 +1037,20 @@ def confirm_step(
         db.flush()
         return {"moved": 0, "held": len(units), "result": result}
 
-    marks = {u.id: {"verification": verification} for u in units}
+    # ►► **Wohin geht es?** ◄◄
+    #
+    # Derselbe Aufruf für **jedes** Modul, ohne Frage nach dem Typ: was nichts bewegt,
+    # gibt nichts zurück (wie ``consumption.plan``). Der Ort wird **vor** dem
+    # Statuswechsel gesetzt – ist das Ziel ungültig oder bildet es einen Kreis, hat sich
+    # nichts bewegt, und die Prüfung steht nicht unter Zugzwang (§4).
+    #
+    # Was dabei passiert ist, reist als Payload in den Log: Herkunft, Ziel, Transportart.
+    # Damit steht die Bewegung dort, wo die Historie ohnehin steht (§7.2) – eine zweite
+    # Tabelle daneben wäre eine zweite Wahrheit über denselben Vorgang.
+    moved = places_svc.apply_for_step(
+        db, step=step, units=units, target=place, transport=transport,
+    )
+    marks = {u.id: {"verification": verification, **moved.get(u.id, {})} for u in units}
 
     # ►► **Was dieses Modul verbraucht, holt es sich JETZT.** ◄◄
     #

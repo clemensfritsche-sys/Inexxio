@@ -17,6 +17,25 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 from ..domain import modules
 
 
+class Transport(BaseModel):
+    """**Womit bewegt wird** — ein Kanal und seine Verfügbarkeit.
+
+    Die Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute geht.
+    Nur die verfügbaren zu schicken hiesse, die Oberfläche müsste die Roadmap erfinden,
+    um sie zu zeigen – und ein Kanal, der später dazukommt, wäre ein Umbau statt eines
+    Wertes.
+    """
+
+    key: str
+    label: str
+    #: Läuft dieser Kanal heute? Ist er es nicht, weist ihn **der Server** ab
+    #: (``Bewegen._clean_transport``); die gesperrte Schaltfläche ist die Anzeige davon,
+    #: nicht die Regel.
+    available: bool
+    #: Warum gesperrt bzw. was der Kanal bedeutet – der Text im Hover.
+    hint: str = ""
+
+
 class ModuleFacts(BaseModel):
     """**Was ein gespeicherter Schritt aus der Registry mitbringt** – für beide Orte.
 
@@ -54,6 +73,25 @@ class ModuleFacts(BaseModel):
     def terminal(self) -> bool:
         """Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende."""
         return modules.get(self.module_type).terminal
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def transports(self) -> list[Transport]:
+        """**Die Transportarten dieses Modultyps** – mit ihrer Verfügbarkeit.
+
+        Leer bei jedem Modul, das nichts bewegt; die Oberfläche braucht damit keine
+        Fallunterscheidung nach dem Typ. Sie reisen **mit dem Schritt** und nicht über den
+        Modul-Katalog, denn den lädt nur der Editor – im freigegebenen Auftrag wäre die
+        Liste sonst leer, genau wie es der Farbe einmal ergangen ist.
+
+        Die Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute
+        geht. Nur die verfügbaren zu schicken hiesse, die Oberfläche könnte die Roadmap
+        nicht zeigen, ohne sie zu erfinden.
+        """
+        return [
+            Transport(**t)
+            for t in getattr(modules.get(self.module_type), "TRANSPORTS", ())
+        ]
 
 
 class ModuleInput(BaseModel):
@@ -165,6 +203,16 @@ class StepConfirm(BaseModel):
     instance_object_id: Optional[int] = None
     verification: Optional[str] = None
     sources: list[int] = Field(default_factory=list)
+    #: **Der gescannte Zielort** eines Bewegungsmoduls – die Objektnummer des Halters.
+    #: Steht in der Definition bereits ein Ziel, ist dieser Scan die **Verifikation**
+    #: dagegen: eine andere Nummer wird abgewiesen (``Bewegen.movement_for``), hier und
+    #: nicht nur im Dialog. Steht dort keines, ist er die **Wahl** – und dann Pflicht,
+    #: denn ohne ihn wüsste niemand, wohin die Stücke gebracht wurden.
+    place: Optional[int] = None
+    #: **Womit gebracht wurde.** Zur Laufzeit gewählt, nicht in der Definition: beim
+    #: Modellieren steht nicht fest, ob das Stück nebenan liegt oder in Werk Nord.
+    #: Leer heisst «manuell» – die einzige Art, die es heute wirklich gibt.
+    transport: Optional[str] = None
 
 
 class StepConfirmResult(BaseModel):

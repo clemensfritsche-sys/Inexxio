@@ -16,6 +16,7 @@ Das Testmodul ist **ersatzlos entfallen**. Es war ein Testvehikel für den Mecha
 den gibt es jetzt echt.
 """
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from fastapi import HTTPException
@@ -25,6 +26,7 @@ from . import capture_types, sampling, statuses as st
 DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
 VERBRAUCH = "verbrauch"
+BEWEGEN = "bewegen"
 
 
 class Module:
@@ -114,6 +116,17 @@ class Module:
         «was soll passieren?» (eine fachliche Wahl, aus der der Status **folgt**).
         """
         return self.status_after
+
+    def movement_for(self, config: Optional[dict[str, Any]], *,
+                     target: Optional[int], transport: Optional[str]) -> Optional["Move"]:
+        """**Bringt dieses Modul die Stücke woandershin?** Vorgabe: nein.
+
+        Eine Methode und eine Antwort, statt zweier Fragen («hat es ein Ziel?», «welche
+        Transportart?») an zwei Stellen. Die Ausführungsstelle bekommt damit entweder
+        eine vollständige Absicht oder ``None`` – und braucht in keinem Fall zu wissen,
+        welcher Modultyp vor ihr steht (dieselbe Bauart wie ``consumption.plan``).
+        """
+        return None
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Auf welchen Zustand setzt dieses Modul ein Stück, das **hier hinausgeht**?
@@ -354,6 +367,123 @@ class Verbrauch(Module):
         return st.VERBAUT
 
 
+@dataclass(frozen=True)
+class Move:
+    """Was ein Modul am Ort ändern will: wohin, und womit gebracht."""
+
+    target: int
+    transport: str
+
+
+class Bewegen(Module):
+    """Einzelinstanzen an einen **Halter** bringen (``services/places``).
+
+    **Ein Durchläufer**: vorher wie nachher ``Im Prozess``. Ein Ort ist kein Zustand – er
+    ändert nie den Status und nie die Zugehörigkeit. Genau deshalb muss keine andere Regel
+    im System von diesem Modul wissen, und genau deshalb ist es das einfachste von allen.
+
+    **Das Ziel ist optional.** Steht es in der Definition, ist der Ziel-Scan eine
+    **Verifikation** dagegen – eine andere Nummer wird abgewiesen, hier und nicht nur im
+    Dialog. Fehlt es, wählt der Ausführende zur Laufzeit; das ist der Fall «bring es
+    dorthin, wo gerade Platz ist», den eine Vorlage nicht vorwegnehmen kann. Beide Fälle
+    sind gültig, aber sie müssen **sichtbar** verschieden sein: ein offenes Ziel darf
+    nicht wie ein vergessenes aussehen (``ModuleFacts.target``).
+
+    **Die Transportart gehört zur LAUFZEIT, nicht in die Definition.** Beim Modellieren
+    weiss niemand, ob das Stück nebenan liegt oder in Werk Nord – und ein gespeicherter
+    Modus wäre bei der zweiten Ausführung falsch. Heute ist nur ``manuell`` wirksam;
+    ``paket`` und ``fracht`` stehen als Liste **mit** ihrer Verfügbarkeit da, damit das
+    Freischalten später ein Wert ist und kein Umbau. Der Server weist eine gesperrte Art
+    ab – wäre sie nur in der Oberfläche gesperrt, wäre die Sperre eine Bitte.
+
+    **Geprüft wird hier nur die FORM** (eine Objektnummer), nicht die Existenz: diese
+    Stelle hat keine Datenbanksitzung. Dass es den Halter gibt und dass er keinen Kreis
+    bildet, weist ``places.assert_placeable`` bei der Ausführung ab – streng schreiben,
+    tolerant lesen.
+    """
+
+    #: Der Schlüssel der einen Einstellung. ``None`` heisst «wird beim Ausführen gewählt».
+    TARGET = "target"
+
+    #: Die Transportarten – **Liste mit Verfügbarkeit**, nicht Liste der verfügbaren.
+    #: Was es geben wird, steht hier; was heute geht, sagt ``available``. Eine Oberfläche
+    #: kann damit die Roadmap zeigen, ohne sie zu erfinden.
+    TRANSPORTS: tuple[dict[str, Any], ...] = (
+        {"key": "manuell", "label": "Manuell", "available": True,
+         "hint": "Jemand bringt es hin – kein Dienstleister, kein Beleg."},
+        {"key": "paket", "label": "Paket", "available": False,
+         "hint": "Versand als Paket – noch nicht gebaut."},
+        {"key": "fracht", "label": "Fracht", "available": False,
+         "hint": "Stückgut oder Palette – noch nicht gebaut."},
+    )
+    DEFAULT_TRANSPORT = "manuell"
+
+    action: str = "Scannen & bewegen"
+
+    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
+        value = (raw or {}).get(self.TARGET)
+        target = self._as_object_id(value)
+        # Keine Erfassungspunkte und keine Stichprobe: bewegt wird, was ankommt. Die
+        # Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
+        return {self.TARGET: target, "points": [], "sample": dict(sampling.DEFAULT)}
+
+    @staticmethod
+    def _as_object_id(value: Any) -> Optional[int]:
+        """Eine Objektnummer – oder ``None``. Alles andere ist ein Fehler mit Namen."""
+        if value in (None, "", 0):
+            return None
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail=(f"«{value}» ist keine Objektnummer. Das Ziel von «Bewegen» ist "
+                        f"ein Regal, eine Person oder ein Unternehmen – oder es bleibt "
+                        f"leer und wird beim Ausführen gewählt."),
+            )
+        if number <= 0:
+            raise HTTPException(status_code=400, detail="Eine Objektnummer ist positiv.")
+        return number
+
+    def movement_for(self, config: Optional[dict[str, Any]], *,
+                     target: Optional[int], transport: Optional[str]) -> Move:
+        """Wohin geht es – und ist das mit der Definition vereinbar?"""
+        planned = (config or {}).get(self.TARGET)
+        scanned = self._as_object_id(target)
+        if planned and scanned and int(scanned) != int(planned):
+            raise HTTPException(
+                status_code=400,
+                detail=(f"Dieses Modul bringt die Stücke zu {planned}, gescannt wurde "
+                        f"{scanned}. Wer woanders hinlegt, ändert den Ablauf – dafür gibt "
+                        f"es den Abweichungsauftrag, nicht den Scanner."),
+            )
+        goal = planned or scanned
+        if not goal:
+            raise HTTPException(
+                status_code=400,
+                detail=("Dieses Modul hat kein festes Ziel – ohne gescannten Zielort "
+                        "steht nicht fest, wohin die Stücke gebracht wurden."),
+            )
+        return Move(target=int(goal), transport=self._clean_transport(transport))
+
+    def _clean_transport(self, value: Optional[str]) -> str:
+        key = (value or self.DEFAULT_TRANSPORT).strip()
+        known = {t["key"]: t for t in self.TRANSPORTS}
+        if key not in known:
+            raise HTTPException(
+                status_code=400,
+                detail=f"«{key}» ist keine Transportart. Bekannt: "
+                       + ", ".join(known) + ".",
+            )
+        if not known[key]["available"]:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"«{known[key]['label']}» ist noch nicht gebaut – heute wird "
+                        f"manuell bewegt."),
+            )
+        return key
+
+
 MODULES: dict[str, Module] = {
     m.key: m for m in (
         Datenerfassung(
@@ -371,6 +501,14 @@ MODULES: dict[str, Module] = {
             # an der Ausprägung hängt.
             status_after=st.VERSCHROTTET,
             tone="clay",
+        ),
+        Bewegen(
+            key=BEWEGEN,
+            label="Bewegen",
+            # Ein Ort ist kein Zustand: das Stück läuft weiter, wie es angekommen ist.
+            status_before=st.IM_PROZESS,
+            status_after=st.IM_PROZESS,
+            tone="moss",
         ),
         Verbrauch(
             key=VERBRAUCH,

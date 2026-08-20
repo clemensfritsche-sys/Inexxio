@@ -17,6 +17,7 @@ from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
+from ..schemas.place import PlaceRef
 from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
@@ -32,6 +33,7 @@ from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
 from ..services import flow as flow_svc
+from ..services import places as places_svc
 from ..services import record as record_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
@@ -59,6 +61,21 @@ RELATED_LIMIT = 3
 # ---------------------------------------------------------------------------
 # Antwort zusammensetzen
 # ---------------------------------------------------------------------------
+
+def _place_ref(db: Session, object_id) -> Optional[PlaceRef]:
+    """Eine Objektnummer → ihr Halter. ``None`` bleibt ``None``.
+
+    Ein Halter, den es nicht mehr gibt, ergibt ebenfalls ``None``: die Anzeige zeigt dann
+    nichts statt eines Namens, den sie nicht kennt – tolerant lesen, streng schreiben.
+    """
+    if not object_id:
+        return None
+    station = places_svc.station_of(db, int(object_id))
+    return (
+        PlaceRef(object_id=station.object_id, kind=station.kind, label=station.label)
+        if station else None
+    )
+
 
 def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
     """Die Module eines Auftrags – **mit ihrer Sperre**.
@@ -90,6 +107,9 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
             for n in consumption_svc.needs(
                 db, s, pieces=sum(w.waiting for w in row.work))
         ]
+        # **Wohin es geht** – aufgelöst, nicht als nackte Zahl. Die Oberfläche zeigt den
+        # Namen des Halters; ihn dort nachzuschlagen wäre eine Abfrage je Schritt.
+        row.target = _place_ref(db, (s.config or {}).get("target"))
         out.append(row)
     return out
 
@@ -541,7 +561,8 @@ def confirm_step(
     outcome = process_svc.confirm_step(
         db, order=order, step_id=step_id, values=data.values,
         instance_object_id=data.instance_object_id, verification=data.verification,
-        sources=data.sources, actor_id=user.id)
+        sources=data.sources, place=data.place, transport=data.transport,
+        actor_id=user.id)
     log_audit(db, "process_steps", "confirm",
               f"{outcome['moved']} bewegt, {outcome['held']} angehalten",
               user_id=user.id, object_id=order.object_id)

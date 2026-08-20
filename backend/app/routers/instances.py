@@ -23,7 +23,8 @@ from ..schemas.instance import (
     Genealogy, GenealogyHost, GenealogyPart, InstanceResponse, InstanceSummary,
     InstanceUnitResponse, UnitPage, stock_states,
 )
-from ..services import genealogy, instances as inst_svc, process
+from ..schemas.place import PlaceRef, UnitPlace
+from ..services import genealogy, instances as inst_svc, places as places_svc, process
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -32,8 +33,17 @@ def _article(db: Session, instance: Instance) -> Article | None:
     return db.query(Article).filter(Article.id == instance.article_id).first()
 
 
+def _place_out(chain: list) -> UnitPlace | None:
+    """Eine aufgelöste Kette → die Antwortform. Leer heisst **standortlos**."""
+    if not chain:
+        return None
+    refs = [PlaceRef(object_id=s.object_id, kind=s.kind, label=s.label) for s in chain]
+    return UnitPlace(holder=refs[0], chain=refs)
+
+
 def _unit_out(instance: Instance, unit: InstanceUnit,
-              holders: dict[int, int], parts: dict[int, int]) -> InstanceUnitResponse:
+              holders: dict[int, int], parts: dict[int, int],
+              places: dict[int, list]) -> InstanceUnitResponse:
     return InstanceUnitResponse(
         id=unit.id,
         suffix=unit.suffix,
@@ -41,6 +51,7 @@ def _unit_out(instance: Instance, unit: InstanceUnit,
         status=unit.status,
         order_object_id=holders.get(unit.id),
         parts_count=parts.get(unit.id, 0),
+        place=_place_out(places.get(unit.id, [])),
         created_at=unit.created_at,
     )
 
@@ -145,8 +156,13 @@ def instance_units(
     # Nur die **Zahl** – zwei Abfragen für die ganze Seite. Die Stückliste selbst kommt
     # auf Klick; sie ist je Stück eine eigene Geschichte und gehört in keine Liste.
     parts = genealogy.parts_counts(db, [u.id for u in rows])
+    # **Wo sie liegen** – aufgelöst je Halter, nicht je Stück (``places.for_units``).
+    # 60 Schrauben in einem Regal sind eine Kette; je Zeile aufzulösen wäre die
+    # N+1-Falle, an der die Ortsanzeige des Vorgängers hing.
+    places = places_svc.for_units(db, rows)
     return UnitPage(
-        units=[_unit_out(instance, u, holders, parts) for u in rows], total=total)
+        units=[_unit_out(instance, u, holders, parts, places) for u in rows],
+        total=total)
 
 
 @router.get("/{object_id}/units/{suffix}/genealogy", response_model=Genealogy)

@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules, sampling
 
+from .place import PlaceRef
 from .process import ModuleFacts, ModuleInput
 
 
@@ -129,6 +130,12 @@ class ProcessStepResponse(ModuleFacts):
     #: (``services/consumption``). Leer bei jedem Modul ohne Stückliste; die Oberfläche
     #: braucht damit keine Fallunterscheidung nach dem Modultyp.
     needs: list["StepNeed"] = Field(default_factory=list)
+    #: **Wohin dieses Modul bringt** – das Ziel aus der Definition, aufgelöst auf seinen
+    #: Namen (``services/places``). ``None`` heisst bei einem Bewegungsmodul *nicht*
+    #: «vergessen», sondern «wird beim Ausführen gewählt» – die Oberfläche muss die
+    #: beiden Fälle auseinanderhalten, sonst sieht ein offenes Ziel aus wie ein Fehler.
+    #: Bei jedem anderen Modultyp schlicht leer.
+    target: Optional[PlaceRef] = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

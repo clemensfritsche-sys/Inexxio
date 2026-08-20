@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy import BigInteger, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,4 +56,24 @@ class InstanceUnit(Base, TimestampMixin):
     # Noch ohne Bedeutung: das Feld steht, die Logik folgt (siehe Klassen-Docstring).
     status: Mapped[str] = mapped_column(
         String(30), default=INITIAL_UNIT_STATUS, nullable=False,
+    )
+
+    #: **Wo dieses Stück liegt** – die Objektnummer seines Halters (``services/places``).
+    #:
+    #: Der Ort hängt am **Stück** und nicht an der Instanz: zwei Schrauben derselben
+    #: Charge dürfen an zwei Orten liegen. Genau das konnte das Vorgängersystem nicht –
+    #: es führte eine Standort→Menge-Map an der Instanz plus einen denormalisierten
+    #: Skalar daneben, mit einem Umschalter dazwischen. Im Einzelinstanz-Modell fällt das
+    #: ersatzlos weg: ein Stück, ein Ort.
+    #:
+    #: **Kein Typfeld daneben.** Objektnummern sind systemweit eindeutig, der Typ ist
+    #: daraus ableitbar (``objects.resolve_object_type``). Halter ist alles, was eine
+    #: Nummer hat: eine **Instanz** (Regal, Behälter, Palette), ein **Benutzer** oder ein
+    #: **Unternehmen**. Eine Einzelinstanz kann es nicht sein – sie zieht bewusst keine
+    #: Objektnummer, es gäbe für sie kein Etikett zu scannen.
+    #:
+    #: **``NULL`` ist ein regulärer Zustand**, kein fehlender Wert: ein frisch erzeugtes
+    #: Stück liegt nirgends, bis ein Modul es irgendwohin bringt.
+    place_object_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, index=True,
     )

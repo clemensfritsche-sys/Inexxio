@@ -3204,12 +3204,24 @@ def test_no_entry_without_a_confirmed_instance():
         "Neben dem Scanner steht wieder ein eigener «von Hand»-Weg – zwei Wege zum "
         "selben Ziel, und der zweite bestätigt gar nichts."
     )
-    assert "onComplete: (_ids, how) =>" in code and "accept(w, how)" in code, (
+    # Geprüft wird die **Aussage**, nicht ihr Wortlaut: der Dialog liefert ``how``, und
+    # der Aufrufer reicht genau das an ``accept`` weiter. Ob daneben noch die gescannten
+    # Nummern gebraucht werden (der Zielort einer Bewegung), ist eine Frage des Moduls
+    # und darf diesen Wächter nicht brechen.
+    assert "onComplete: (ids, how)" in code or "onComplete: (_ids, how)" in code, (
         "Die Art der Bestätigung kommt nicht mehr aus dem Dialog – dann rät der "
         "Aufrufer, wie die Nummer zustande kam."
     )
+    assert "accept(w, how" in code, (
+        "Die Bestätigung geht nicht mehr durch ``accept`` – dann gibt es einen zweiten "
+        "Weg, eine Instanz als bestätigt zu markieren."
+    )
     api = _code(_read(FRONTEND / "lib" / "api.ts"))
-    call = api[api.index("confirmStep("):][:420]
+    # **Der ganze Rumpf, nicht die ersten n Zeichen.** Ein Fenster fester Grösse bricht,
+    # sobald die Signatur wächst – und sagt dann etwas über die Zeichenzahl statt über
+    # die Sache.
+    start = api.index("confirmStep(")
+    call = api[start:][: api[start:].index("\n  }")]
     assert "verification: verification ?? null" in call, (
         "Die Art der Bestätigung fährt nicht mehr mit – von Hand wäre damit eine stille "
         "Umgehung statt einer protokollierten Alternative."
@@ -3366,7 +3378,10 @@ def test_the_collective_scan_is_the_scan_sequence():
     nicht eine zweite Kamera-Logik daneben.
     """
     work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
-    assert "steps: open.flatMap(scanSteps)" in work, (
+    # **Dieselbe Quelle, andere Zahl der Schritte.** Wie die Bausteine heissen, ist
+    # gleichgültig – dass der Sammel-Scan sie aus derselben Funktion nimmt wie der
+    # Einzel-Scan, ist die Regel.
+    assert "open.flatMap(goodsSteps)" in work or "open.flatMap(scanSteps)" in work, (
         "Der Sammel-Scan baut sich seine eigene Mechanik, statt die Sequenz zu benutzen."
     )
     # **Und beide Wege bauen ihre Schritte an derselben Stelle.** Der Unterschied ist die
@@ -3776,7 +3791,7 @@ def test_the_capture_is_per_piece_and_the_scan_is_per_instance():
     assert "'sample'" in _body(work, "accept", kind="function"), (
         "Die Nummern werden nicht (mehr) nach dem Scan geholt."
     )
-    assert work.count("accept(w, how)") == 2, (
+    assert work.count("accept(w, how") == 2, (
         "Die Nummern werden ausserhalb des Scan-Abschlusses geholt – bei 6000 Stück ist "
         "das die Liste, die niemand braucht. (Zweimal: der Knopf in der Zeile und der "
         "Sammel-Scan – beide gehen durch dieselbe Stelle.)"
@@ -3851,4 +3866,80 @@ def test_a_hold_is_shown_beside_the_way_forward_not_instead_of_it():
     assert "held_units(" not in body, (
         "Der Dienst lehnt bei einem Halt ab – dann ist die Wiederholungsprüfung "
         "unmöglich, und der Halt hat wieder keinen Ausgang."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bewegen — Ware zuerst, Ziel zuletzt
+# ---------------------------------------------------------------------------
+
+def test_the_goods_are_scanned_before_the_destination():
+    """**Der Ziel-Scan ist die Quittung der Ablage — also kommt er zuletzt.**
+
+    So arbeitet jedes Lagersystem beim Ein- und Umlagern: erst die Ware, dann der Platz.
+    Man hat das Stück in der Hand, geht hin, legt ab, scannt. Zuerst gescannt wäre der
+    Zielort eine **Absichtserklärung**: zwischen «Ziel gescannt» und «hingelegt» kann
+    alles passieren, und der Nachweis behauptete dann etwas, das niemand gesehen hat.
+
+    Geprüft wird die **Reihenfolge in der Sequenz**, nicht ein Kommentar darüber.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    seq = _body(work, "scanSteps", kind="const")
+    assert "goodsSteps(w)" in seq and "placeStep()" in seq, (
+        "Die Sequenz setzt sich nicht mehr aus Ware und Ziel zusammen."
+    )
+    assert seq.index("goodsSteps(w)") < seq.index("placeStep()"), (
+        "Der Zielort wird vor der Ware gescannt – dann quittiert er eine Ablage, die "
+        "noch gar nicht stattgefunden hat."
+    )
+    # Auch im Sammel-Scan: alle Waren, dann EIN Ziel. Eine Fuhre geht an einen Ort.
+    collective = _body(work, "scanAll", kind="function")
+    assert collective.index("goodsSteps") < collective.index("placeStep"), (
+        "Der Sammel-Scan quittiert das Ziel, bevor die Ware gescannt ist."
+    )
+
+
+def test_the_transport_list_is_the_bit_not_a_module_type_check():
+    """**«Bewegt dieses Modul?» beantwortet die Transportliste, nicht ein Typvergleich.**
+
+    Sie ist bei jedem anderen Modultyp leer – dieselbe Bauart wie `needs` bei der
+    Stückliste. Ein `moduleType === 'bewegen'` in der Oberfläche wäre eine zweite Stelle,
+    an der sie über Modultypen Bescheid wissen müsste; die erste, die man beim nächsten
+    Modul vergisst.
+    """
+    work = _read(FRONTEND / "components" / "erp" / "capture-work.tsx")
+    assert "transports.length > 0" in _code(work), (
+        "Das Bit «bewegt dieses Modul» kommt nicht mehr aus der Transportliste."
+    )
+    for surface in ("capture-work.tsx", "order-detail.tsx"):
+        code = _code(_read(FRONTEND / "components" / "erp" / surface))
+        assert "'bewegen'" not in code and '"bewegen"' not in code, (
+            f"{surface} fragt nach dem Modultyp «bewegen» – die Oberfläche soll ihn "
+            f"nicht kennen müssen, sie soll sehen, was das Modul mitbringt."
+        )
+
+
+def test_the_place_is_shown_per_piece_and_resolved_by_the_server():
+    """**Der Ort hängt am Stück – und die Kette kommt fertig vom Server.**
+
+    Zwei Schrauben derselben Charge dürfen an zwei Orten liegen; darum steht der Ort in
+    der **Zeile** des Stücks und nicht am Kopf der Instanz. Und die Kette wird **nicht**
+    je Zeile nachgeschlagen: sechzig Zeilen wären sechzig Abfragen mal Kettentiefe – die
+    N+1-Falle, an der die Ortsanzeige des Vorgängers hing.
+    """
+    units = _read(FRONTEND / "components" / "erp" / "unit-numbers.tsx")
+    assert "PlaceTrail" in units and "place={u.place}" in _code(units), (
+        "Der Ort steht nicht mehr an der Zeile des Stücks."
+    )
+    assert "getPlace" not in _code(units), (
+        "Die Liste löst Orte selbst auf – der Server liefert sie fertig mit der Seite."
+    )
+    trail = _code(_read(FRONTEND / "components" / "erp" / "place-trail.tsx"))
+    assert "TYPE_META" in trail, (
+        "Das Symbol des Halters kommt aus einer zweiten Zuordnung statt aus der einen, "
+        "aus der es auch der Feed nimmt."
+    )
+    assert "data-tip" in trail, (
+        "Die Kette steht nicht mehr im Hover – ausgeschrieben ist sie bei sechzig Zeilen "
+        "eine Wand aus Text, in der die eigentliche Angabe untergeht."
     )
