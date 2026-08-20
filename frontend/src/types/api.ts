@@ -1005,6 +1005,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/places/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve Place
+         * @description Kann diese Objektnummer etwas halten? Dann: was ist sie und wie heisst sie.
+         *
+         *     **404 heisst «kein gültiger Halter»** und ist eine Antwort, keine Panne: eine
+         *     Artikelnummer, eine Auftragsnummer oder eine Zahl, die es nicht gibt, sind kein Ort.
+         *     Genau daran erkennt der Scanner einen Fehlgriff, bevor er ihn quittiert.
+         */
+        get: operations["resolve_place_api_v1_erp_places__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -1267,6 +1291,20 @@ export interface components {
              * @description Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.
              */
             readonly terminal: boolean;
+            /**
+             * Transports
+             * @description **Die Transportarten dieses Modultyps** – mit ihrer Verfügbarkeit.
+             *
+             *     Leer bei jedem Modul, das nichts bewegt; die Oberfläche braucht damit keine
+             *     Fallunterscheidung nach dem Typ. Sie reisen **mit dem Schritt** und nicht über den
+             *     Modul-Katalog, denn den lädt nur der Editor – im freigegebenen Auftrag wäre die
+             *     Liste sonst leer, genau wie es der Farbe einmal ergangen ist.
+             *
+             *     Die Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute
+             *     geht. Nur die verfügbaren zu schicken hiesse, die Oberfläche könnte die Roadmap
+             *     nicht zeigen, ohne sie zu erfinden.
+             */
+            readonly transports: components["schemas"]["Transport"][];
         };
         /** ArticleResponse */
         ArticleResponse: {
@@ -2160,6 +2198,7 @@ export interface components {
              * @default 0
              */
             parts_count: number;
+            place?: components["schemas"]["UnitPlace"] | null;
             /**
              * Created At
              * Format: date-time
@@ -2520,6 +2559,22 @@ export interface components {
             last_used_at?: string | null;
         };
         /**
+         * PlaceRef
+         * @description Ein Halter: Objektnummer, Typ, Name.
+         *
+         *     ``kind`` ist **abgeleitet** (``objects.resolve_object_type``) und nicht gespeichert –
+         *     es sagt der Oberfläche nur, welches Symbol sie zeichnet. ``label`` ist der Name des
+         *     Datensatzes, nicht seine Nummer: die steht daneben und ist klickbar.
+         */
+        PlaceRef: {
+            /** Object Id */
+            object_id: number;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * ProcessEventResponse
          * @description Ein Eintrag im Ereignis-Log. Append-only – es gibt keinen Schreib-Pfad hierauf.
          */
@@ -2575,6 +2630,7 @@ export interface components {
             work?: components["schemas"]["StepWork"][];
             /** Needs */
             needs?: components["schemas"]["StepNeed"][];
+            target?: components["schemas"]["PlaceRef"] | null;
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -2590,6 +2646,20 @@ export interface components {
              * @description Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.
              */
             readonly terminal: boolean;
+            /**
+             * Transports
+             * @description **Die Transportarten dieses Modultyps** – mit ihrer Verfügbarkeit.
+             *
+             *     Leer bei jedem Modul, das nichts bewegt; die Oberfläche braucht damit keine
+             *     Fallunterscheidung nach dem Typ. Sie reisen **mit dem Schritt** und nicht über den
+             *     Modul-Katalog, denn den lädt nur der Editor – im freigegebenen Auftrag wäre die
+             *     Liste sonst leer, genau wie es der Farbe einmal ergangen ist.
+             *
+             *     Die Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute
+             *     geht. Nur die verfügbaren zu schicken hiesse, die Oberfläche könnte die Roadmap
+             *     nicht zeigen, ohne sie zu erfinden.
+             */
+            readonly transports: components["schemas"]["Transport"][];
             /**
              * Action
              * @description Wie die Ausführung dieses Moduls heisst – das Verb auf dem Knopf.
@@ -2743,6 +2813,10 @@ export interface components {
             verification?: string | null;
             /** Sources */
             sources?: number[];
+            /** Place */
+            place?: number | null;
+            /** Transport */
+            transport?: string | null;
         };
         /**
          * StepNeed
@@ -2908,6 +2982,28 @@ export interface components {
             company_object_id?: number | null;
         };
         /**
+         * Transport
+         * @description **Womit bewegt wird** — ein Kanal und seine Verfügbarkeit.
+         *
+         *     Die Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute geht.
+         *     Nur die verfügbaren zu schicken hiesse, die Oberfläche müsste die Roadmap erfinden,
+         *     um sie zu zeigen – und ein Kanal, der später dazukommt, wäre ein Umbau statt eines
+         *     Wertes.
+         */
+        Transport: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Available */
+            available: boolean;
+            /**
+             * Hint
+             * @default
+             */
+            hint: string;
+        };
+        /**
          * UnitOption
          * @description Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.
          *
@@ -2966,6 +3062,25 @@ export interface components {
             number: string;
             /** From Order */
             from_order?: number | null;
+        };
+        /**
+         * UnitPlace
+         * @description **Wo ein Stück liegt** – unmittelbarer Halter plus die Kette darüber.
+         *
+         *     ``chain`` steht von innen nach aussen (Behälter › Regal › Werk Nord) und **enthält
+         *     den unmittelbaren Halter als erstes Element**. Sie ist damit die vollständige Antwort;
+         *     ``holder`` ist nur ihre erste Station, herausgezogen, weil die Liste sie meistens
+         *     verkürzt zeigt.
+         *
+         *     Eine leere Kette heisst **standortlos**, und das ist ein regulärer Zustand.
+         */
+        UnitPlace: {
+            holder?: components["schemas"]["PlaceRef"] | null;
+            /**
+             * Chain
+             * @default []
+             */
+            chain: components["schemas"]["PlaceRef"][];
         };
         /** UploadResult */
         UploadResult: {
@@ -4788,6 +4903,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObjectReference"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_place_api_v1_erp_places__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceRef"];
                 };
             };
             /** @description Validation Error */

@@ -722,6 +722,60 @@
 > Wächter: `tests/test_flow_graph.py: test_a_waiting_piece_is_not_an_exit` (gegen die
 > Bug-Form gegengeprüft) · `…_the_line_strength_is_checked_against_the_log_not_only_the_positions`.
 
+> **Das vierte Modul ist «Bewegen» — und darunter liegt der ORT** (PROCESS_CORE §9.8,
+> Migration `111`). Der Vorgängerversuch wurde zurückgerollt, und der Grund steht im
+> Revert: nicht die Ortslogik war falsch, sondern ihr **Umfang** — Ortsfundament, Modul,
+> Bauteil «Vergabe», Kanal «Plattform» und Frachtführer-Adapter in einem Deploy, mit drei
+> Migrationen. Diesmal nur das Fundament und das Modul.
+> **Der Ort ist ein ZEIGER, kein Zustand**: `instance_units.place_object_id`, die
+> Objektnummer des Halters. Er ändert nie den Status und nie die Zugehörigkeit — genau
+> deshalb muss keine andere Regel im System von diesem Modul wissen (Robustheit
+> konstruktiv statt geprüft). **Kein Typfeld daneben**: Objektnummern sind eindeutig, der
+> Typ ist ableitbar; der Vorgänger führte `location_type` daneben und musste einen
+> entfallenen Wert tolerant zu `None` auflösen, weil er sonst jede Ansicht zerlegte.
+> **Gehalten wird die Einzelinstanz, Halter ist eine Objektnummer** — die Asymmetrie ist
+> die einzig mögliche Aussage: eine Einzelinstanz zieht bewusst keine Objektnummer, es
+> kann für sie gar kein Etikett geben. Halter ist damit **Instanz** (Regal, Behälter,
+> LKW), **Benutzer** oder **Unternehmen**; kein neuer Datensatztyp, keine Whitelist.
+> **Der Ort hängt am STÜCK**, nicht an der Gruppe: zwei Schrauben derselben Charge dürfen
+> an zwei Orten liegen. Genau das konnte der Vorgänger nicht (Standort→Menge-Map an der
+> Instanz **plus** denormalisierter Skalar, mit Umschalter dazwischen). **`NULL` ist
+> regulär** – ein frisch erzeugtes Stück liegt nirgends.
+> **Eine Spalte statt einer append-only Tabelle**, weil die Vergangenheit schon woanders
+> steht: jede Bewegung läuft über `confirm_step` und schreibt Herkunft, Ziel und
+> Transportart in `process_events`. *Die Grenze ist benannt* – ein späteres Ablegen
+> **ausserhalb** eines Auftrags hätte dort keine Historie; dann kommt sie dort dazu.
+> **Die eine Regel des sonst dummen Feldes: keine Zyklen** – verhindert beim Schreiben
+> (`places.assert_placeable`), gekappt beim Lesen (`seen` + `MAX_STATIONS`); zwei Netze,
+> weil das erste Altbestand nicht sieht.
+> **Die Kette** (`Schraube › Behälter › Regal › Werk Nord`) endet beim Halter mit
+> **Anschrift**. Aufgelöst wird sie **je Halter, nie je Stück** (`chains_for`,
+> stufenweise in Batches): 60 Schrauben in einem Regal sind EINE Kette — je Zeile wären
+> es 60 × Tiefe, die N+1-Falle, an der die Ortsanzeige des Vorgängers hing. **Gemessen,
+> nicht behauptet**: der Wächter zählt die Abfragen (11 statt 660). In der Zeile steht
+> der unmittelbare Halter, die volle Kette im **Hover** – ausgeschrieben wäre sie bei
+> sechzig Zeilen eine Wand aus Text.
+> **Das Ziel ist optional, und das ist eine Aussage**: definiert → der Scan ist die
+> **Verifikation** dagegen (serverseitig, nicht nur im Dialog); offen → er ist die
+> **Wahl**. Ein offenes Ziel, das aussieht wie eine Lücke, läse sich als Fehler – die
+> Karte sagt darum «wird beim Ausführen gescannt».
+> **Ware zuerst, Ziel zuletzt** (Standard jedes WMS beim Ein-/Umlagern): der Ziel-Scan ist
+> die **Quittung der Ablage** und passiert zuletzt, weil das Hinlegen zuletzt passiert.
+> Zuerst gescannt wäre er eine Absichtserklärung. Kein neuer Mechanismus – ein Schritt
+> mehr in der bestehenden Scan-Sequenz; der Sammel-Scan quittiert das Ziel **einmal**.
+> **Die Transportart gehört zur LAUFZEIT** (beim Modellieren steht nicht fest, ob das
+> Stück nebenan liegt oder in Werk Nord). Nur **Manuell** ist wirksam; **Paket** und
+> **Fracht** stehen sichtbar-gesperrt da, mit Grund im Hover – die eine bewusste
+> Abweichung von «ein Knopf, der nie etwas tun kann, ist kein Angebot», weil er hier keine
+> tote Funktion zeigt, sondern die Roadmap. Tragfähig macht sie zweierlei: die Liste nennt
+> **alles mit seiner Verfügbarkeit** (Freischalten = ein Wert, kein Umbau), und **der
+> Server weist einen gesperrten Kanal ab** – wäre die Sperre nur ausgegraut, wäre sie eine
+> Bitte. **Die Transportliste ist zugleich das Bit** «bewegt dieses Modul?»: leer bei
+> jedem anderen Typ, also braucht die Oberfläche keine Fallunterscheidung nach dem
+> Modultyp (dieselbe Bauart wie `needs`).
+> Wächter: `tests/test_move_module.py` (10 Prüfungen, **jede gegen ihre Bug-Form
+> gegengeprüft**) + drei in `test_frontend_mirrors.py`.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

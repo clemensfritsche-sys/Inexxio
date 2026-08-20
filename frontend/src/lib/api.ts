@@ -28,6 +28,7 @@ import type {
   FeedbackNote,
   FeedbackCreateInput,
   FeedbackUpdateInput,
+  PlaceRef,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -588,7 +589,8 @@ class ApiClient {
    */
   confirmStep(objectId: number, stepId: number, values: Record<string, Record<string, unknown>> = {},
               instanceObjectId?: number, verification?: string,
-              sources: number[] = []): Promise<Order> {
+              sources: number[] = [], place: number | null = null,
+              transport = ''): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {
       values,
       instance_object_id: instanceObjectId ?? null,
@@ -596,6 +598,12 @@ class ApiClient {
       // **Woraus verbaut wird** – die Instanzen, die der Lagerist gescannt hat. Leer
       // heisst «der ganze freie Bestand, älteste zuerst»; der Server rät nie mehr als das.
       sources,
+      // **Wohin bewegt wurde** – die gescannte Ziel-Objektnummer. Bei einem Modul mit
+      // festgelegtem Ziel ist sie die Verifikation, sonst die Wahl; bei jedem anderen
+      // Modultyp bleibt sie `null` und wird verworfen.
+      place,
+      // **Womit.** Leer heisst «manuell» – die einzige Art, die es heute wirklich gibt.
+      transport: transport || null,
     });
   }
 
@@ -647,6 +655,17 @@ class ApiClient {
   // Universelle Objektnummer serverseitig auf ihren Typ auflösen (Scan/Navigation)
   resolveObject(objectId: number): Promise<{ object_id: number; object_type: string }> {
     return this.get(`/api/v1/erp/objects/${objectId}`);
+  }
+
+  /**
+   * **Kann diese Objektnummer etwas halten?** Dann: was sie ist und wie sie heisst.
+   *
+   * Ein 404 ist hier eine **Antwort** («das ist kein Ort»), kein Ausfall – Artikel und
+   * Aufträge tragen ebenfalls Objektnummern, sind aber keine Halter. Genau daran
+   * erkennt der Scanner einen Fehlgriff, bevor er ihn quittiert.
+   */
+  getPlace(objectId: number): Promise<PlaceRef> {
+    return this.get(`/api/v1/erp/places/${objectId}`);
   }
 
   getInstance(objectId: number): Promise<Instance> {

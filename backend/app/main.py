@@ -18,7 +18,7 @@ from .models import UserProfile
 from .core import features
 from .routers import (
     admin, articles, attachments, auth, contact, erp, events, feedback, health,
-    instances, object_refs, orders, passkey,
+    instances, object_refs, orders, passkey, places,
 )
 # Nicht importiert, weil abgeschaltet (siehe core/features.py): ai, consent, documents,
 # document_files, legal, sales, shop. Ihre Module hängen an der entfernten Prozesslogik
@@ -100,6 +100,11 @@ _COLUMN_SAFETY_NET = (
     # Modell kennt sie, also scheitert ohne sie **jede** Auftrags- und Bestandsabfrage –
     # dieselbe Ausfallklasse wie Migration 090.
     ("order_units", "return_to_order_id", "BIGINT"),
+    # Der Ort (Migration 111): eine NEUE Spalte auf der BESTEHENDEN Tabelle
+    # ``instance_units``. Das Modell kennt sie, also scheitert ohne sie **jede** Abfrage
+    # auf Einzelinstanzen – und die trägt der halbe ERP-Feed. Dieselbe Ausfallklasse wie
+    # Migration 090, und der Grund, warum dieses Netz existiert.
+    ("instance_units", "place_object_id", "BIGINT"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -783,6 +788,7 @@ app.include_router(articles.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(object_refs.router)
+app.include_router(places.router)
 app.include_router(events.router)
 app.include_router(attachments.router)
 app.include_router(feedback.router)

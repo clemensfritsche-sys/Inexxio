@@ -2636,6 +2636,54 @@
         }
       }
     },
+    "/api/v1/erp/places/{object_id}": {
+      "get": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Resolve Place",
+        "description": "Kann diese Objektnummer etwas halten? Dann: was ist sie und wie heisst sie.\n\n**404 heisst «kein gültiger Halter»** und ist eine Antwort, keine Panne: eine\nArtikelnummer, eine Auftragsnummer oder eine Zahl, die es nicht gibt, sind kein Ort.\nGenau daran erkennt der Scanner einen Fehlgriff, bevor er ihn quittiert.",
+        "operationId": "resolve_place_api_v1_erp_places__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceRef"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/events": {
       "get": {
         "tags": [
@@ -3456,6 +3504,15 @@
             "title": "Terminal",
             "description": "Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.",
             "readOnly": true
+          },
+          "transports": {
+            "items": {
+              "$ref": "#/components/schemas/Transport"
+            },
+            "type": "array",
+            "title": "Transports",
+            "description": "**Die Transportarten dieses Modultyps** – mit ihrer Verfügbarkeit.\n\nLeer bei jedem Modul, das nichts bewegt; die Oberfläche braucht damit keine\nFallunterscheidung nach dem Typ. Sie reisen **mit dem Schritt** und nicht über den\nModul-Katalog, denn den lädt nur der Editor – im freigegebenen Auftrag wäre die\nListe sonst leer, genau wie es der Farbe einmal ergangen ist.\n\nDie Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute\ngeht. Nur die verfügbaren zu schicken hiesse, die Oberfläche könnte die Roadmap\nnicht zeigen, ohne sie zu erfinden.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -3467,7 +3524,8 @@
           "status_after",
           "label",
           "tone",
-          "terminal"
+          "terminal",
+          "transports"
         ],
         "title": "ArticleProcessStepResponse",
         "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft.\n\nBeschriftung, Farbfamilie und «Ausgang?» kommen aus ``ModuleFacts`` – derselben\nAbleitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände."
@@ -5926,6 +5984,16 @@
             "title": "Parts Count",
             "default": 0
           },
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnitPlace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -6600,6 +6668,30 @@
         "title": "PasskeyResponse",
         "description": "Ein registrierter Passkey (Auflistung/Verwaltung im Konto). Ohne Krypto-Material."
       },
+      "PlaceRef": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "kind",
+          "label"
+        ],
+        "title": "PlaceRef",
+        "description": "Ein Halter: Objektnummer, Typ, Name.\n\n``kind`` ist **abgeleitet** (``objects.resolve_object_type``) und nicht gespeichert –\nes sagt der Oberfläche nur, welches Symbol sie zeichnet. ``label`` ist der Name des\nDatensatzes, nicht seine Nummer: die steht daneben und ist klickbar."
+      },
       "ProcessEventResponse": {
         "properties": {
           "id": {
@@ -6738,6 +6830,16 @@
             "type": "array",
             "title": "Needs"
           },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "label": {
             "type": "string",
             "title": "Label",
@@ -6754,6 +6856,15 @@
             "type": "boolean",
             "title": "Terminal",
             "description": "Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.",
+            "readOnly": true
+          },
+          "transports": {
+            "items": {
+              "$ref": "#/components/schemas/Transport"
+            },
+            "type": "array",
+            "title": "Transports",
+            "description": "**Die Transportarten dieses Modultyps** – mit ihrer Verfügbarkeit.\n\nLeer bei jedem Modul, das nichts bewegt; die Oberfläche braucht damit keine\nFallunterscheidung nach dem Typ. Sie reisen **mit dem Schritt** und nicht über den\nModul-Katalog, denn den lädt nur der Editor – im freigegebenen Auftrag wäre die\nListe sonst leer, genau wie es der Farbe einmal ergangen ist.\n\nDie Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute\ngeht. Nur die verfügbaren zu schicken hiesse, die Oberfläche könnte die Roadmap\nnicht zeigen, ohne sie zu erfinden.",
             "readOnly": true
           },
           "action": {
@@ -6785,6 +6896,7 @@
           "label",
           "tone",
           "terminal",
+          "transports",
           "action",
           "sample",
           "reason"
@@ -7014,6 +7126,28 @@
             },
             "type": "array",
             "title": "Sources"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place"
+          },
+          "transport": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transport"
           }
         },
         "type": "object",
@@ -7310,6 +7444,35 @@
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
       },
+      "Transport": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "available"
+        ],
+        "title": "Transport",
+        "description": "**Womit bewegt wird** — ein Kanal und seine Verfügbarkeit.\n\nDie Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute geht.\nNur die verfügbaren zu schicken hiesse, die Oberfläche müsste die Roadmap erfinden,\num sie zu zeigen – und ein Kanal, der später dazukommt, wäre ein Umbau statt eines\nWertes."
+      },
       "UnitOption": {
         "properties": {
           "number": {
@@ -7413,6 +7576,31 @@
         ],
         "title": "UnitPick",
         "description": "Ein gewähltes Stück — **und wo es lag, als es gewählt wurde.**\n\nEin Entwurf lebt im Browser, die Freigabe passiert später. Dazwischen kann jemand\nanders dasselbe Stück nehmen: die Exklusivität (§3) verhindert, dass beide es halten,\naber ohne diese Angabe **entscheidet die Zeit**, welche Art Auftrag entsteht. Genau das\nist passiert – ein als frei gewähltes Stück, das inzwischen lief, machte die Freigabe\n**still** zur Abweichung und entzog es dem anderen Auftrag, ohne Rückführung und ohne\ndass jemand gefragt wurde.\n\n``from_order`` ist darum keine Zusatzinfo, sondern die **Aussage des Menschen**: «ich\nnehme ein freies Stück» (``None``) oder «ich hole es aus Auftrag N». Stimmt sie bei\nder Freigabe nicht mehr, bricht die Freigabe ab und sagt, was sich geändert hat —\nstatt lautlos etwas anderes zu tun als gewollt.\n\nDamit gibt es **eine** Auswahl-Logik: konkrete Stücke, sichtbar vorher, änderbar, und\nmit der Absicht, in der sie gewählt wurden. Kein zweiter Weg «nur nach Kriterium»."
+      },
+      "UnitPlace": {
+        "properties": {
+          "holder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chain": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceRef"
+            },
+            "type": "array",
+            "title": "Chain",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "UnitPlace",
+        "description": "**Wo ein Stück liegt** – unmittelbarer Halter plus die Kette darüber.\n\n``chain`` steht von innen nach aussen (Behälter › Regal › Werk Nord) und **enthält\nden unmittelbaren Halter als erstes Element**. Sie ist damit die vollständige Antwort;\n``holder`` ist nur ihre erste Station, herausgezogen, weil die Liste sie meistens\nverkürzt zeigt.\n\nEine leere Kette heisst **standortlos**, und das ist ein regulärer Zustand."
       },
       "UploadResult": {
         "properties": {

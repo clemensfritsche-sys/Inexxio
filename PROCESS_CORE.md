@@ -1437,6 +1437,114 @@ Auftrags. Ein *stiller* Deckel läse sich wie Vollständigkeit — bei einem Nac
 gefährlichste Form einer Lücke.
 
 
+### 9.8 Das Modul «Bewegen» — und der Ort darunter
+
+Einzelinstanzen von A nach B bringen. Ein **Durchläufer**: `Im Prozess` → `Im Prozess`,
+nicht terminal. Ein Ort ist kein Zustand — er ändert nie den Status und nie die
+Zugehörigkeit, und **genau deshalb muss keine andere Regel im System von diesem Modul
+wissen.** Das ist die Robustheitsgarantie, konstruktiv statt geprüft.
+
+#### Der Ort: ein Zeiger, sonst nichts
+
+`instance_units.place_object_id` — die Objektnummer des **Halters**. Kein Typfeld
+daneben: Objektnummern sind systemweit eindeutig, der Typ ist ableitbar
+(`objects.resolve_object_type`). Der Vorgänger führte `location_type` neben
+`location_id` und musste einen entfallenen Wert tolerant zu `None` auflösen, weil er
+sonst jede Ansicht zerlegt hätte. Was es nicht gibt, kann nicht veralten.
+
+**Gehalten wird die Einzelinstanz, Halter ist eine Objektnummer.** Diese Asymmetrie ist
+kein Kompromiss, sondern die einzig mögliche Aussage: eine Einzelinstanz zieht bewusst
+keine Objektnummer (§2.2), es kann für sie gar kein Etikett geben — also kann sie weder
+gescannt noch als Ziel gewählt werden. Was man scannt, ist das physische Ding, und das
+ist die **Instanz**: die Kiste, das Regal, die Palette. Halter ist damit alles mit einer
+Nummer: **Instanz** (Regal, Behälter, LKW), **Benutzer** (Mitarbeiter, Kunde, Spediteur),
+**Unternehmen** (Werk Nord, Hauptsitz). Kein neuer Datensatztyp, keine Whitelist.
+
+**Der Ort hängt am Stück, nicht an der Gruppe.** Zwei Schrauben derselben Charge dürfen an
+zwei Orten liegen. Genau das konnte der Vorgänger nicht: er führte eine Standort→Menge-Map
+an der Instanz **plus** einen denormalisierten Skalar daneben, mit einem Umschalter
+dazwischen. Im Einzelinstanz-Modell fällt das ersatzlos weg — ein Stück, ein Ort.
+
+**`NULL` ist ein regulärer Zustand**, kein fehlender Wert: ein frisch erzeugtes Stück liegt
+nirgends, bis ein Modul es irgendwohin bringt.
+
+**Eine Spalte, keine append-only Tabelle** — weil die Vergangenheit schon woanders steht:
+jede Bewegung läuft über `confirm_step` und schreibt dort ihren Eintrag in
+`process_events`, mit Herkunft, Ziel und Transportart. Eine zweite Tabelle daneben wäre
+eine zweite Wahrheit über denselben Vorgang. *Die Grenze ist benannt:* käme später ein
+Ablegen **ausserhalb** eines Auftrags dazu, hätte genau dieser Weg keine Historie — dann
+kommt sie dort dazu, und diese Spalte bleibt richtig.
+
+#### Die eine Regel des sonst dummen Feldes: keine Zyklen
+
+Läge Regal A im Behälter B und B im Regal A, liefe die Kette im Kreis — und mit ihr jede
+Bestandsansicht. Zwei Netze, weil das erste nicht alles sieht: **verhindert beim
+Schreiben** (`places.assert_placeable`: das Ziel darf nicht in dem liegen, was bewegt
+wird, und nichts liegt in sich selbst) und **gekappt beim Lesen** (`seen` + `MAX_STATIONS`
+— für Altbestand und alles, was an der Prüfung vorbei entstanden ist).
+
+#### Die Kette
+
+`Schraube › Behälter › Regal › Werk Nord` — von innen nach aussen, bis ein Halter eine
+**Anschrift** trägt (Benutzer oder Unternehmen). Dort endet sie: das ist der Ort in der
+Welt, alles davor ist die Verschachtelung darin. Eine Instanz gilt dabei als verortet,
+wenn **alle** ihre Stücke am selben Halter liegen — das deckt den Normalfall (ein
+serialisiertes Regal = ein Stück) mit ab, ohne ihn als Sonderfall zu behandeln, und
+erfindet keine Antwort, wo es keine gibt.
+
+**Aufgelöst wird je Halter, nie je Stück** (`places.chains_for`, stufenweise in Batches).
+Sechzig Schrauben in einem Regal sind **eine** Kette; je Zeile aufzulösen wären es sechzig
+mal Kettentiefe — die N+1-Falle, an der die Ortsanzeige des Vorgängers hing. Gemessen
+statt behauptet: `test_move_module.test_the_chain_is_resolved_per_holder_not_per_piece`
+zählt die Abfragen (11 statt 660).
+
+**Die Kette ist Dekoration, nie der Datensatz.** Scheitert ihre Auflösung (Altdaten,
+gelöschter Halter), kostet das die Kette — die Ansicht bleibt lesbar.
+
+#### Das Ziel ist optional — und das ist eine Aussage
+
+Steht es in der Definition, ist der Ziel-Scan eine **Verifikation** dagegen: eine andere
+Nummer wird abgewiesen, an der Ausführungsstelle und nicht nur im Dialog. Fehlt es, ist er
+die **Wahl** — der Fall «bring es dorthin, wo gerade Platz ist», den eine Vorlage nicht
+vorwegnehmen kann. Beide sind gültig, aber sie müssen **sichtbar** verschieden sein: ein
+offenes Ziel, das aussieht wie eine Lücke, liest sich als Fehler in der Definition. Die
+Karte sagt darum «wird beim Ausführen gescannt» statt gar nichts.
+
+#### Ware zuerst, Ziel zuletzt
+
+So arbeitet jedes Lagersystem beim Ein- und Umlagern (*scan item → scan destination bin*),
+und der Grund ist physisch: **der Ziel-Scan ist die Quittung der Ablage.** Man hat das
+Stück in der Hand, geht hin, legt ab, scannt — er passiert zuletzt, weil das Hinlegen
+zuletzt passiert. Zuerst gescannt wäre er eine Absichtserklärung: zwischen «Ziel gescannt»
+und «hingelegt» kann alles passieren, und der Nachweis behauptete etwas, das niemand
+gesehen hat. (Beim **Kommissionieren** ist es umgekehrt — erst der Platz, dann die Ware.
+Andere Operation: sie sucht, statt abzulegen.)
+
+Kein neuer Mechanismus: die Scan-Sequenz ist genau dafür gebaut, und der Ziel-Schritt ist
+einer mehr in derselben Liste. Der **Sammel-Scan** quittiert das Ziel **einmal** — eine
+Fuhre geht an einen Ort; wer verschiedene Ziele hat, bestätigt einzeln.
+
+#### Die Transportart gehört zur Laufzeit
+
+Beim Modellieren weiss niemand, ob das Stück nebenan liegt oder in Werk Nord — ein
+gespeicherter Modus wäre bei der zweiten Ausführung falsch (der Vorgänger brauchte zwei
+Migrationen, um solche Werte wieder loszuwerden). Heute ist nur **Manuell** wirksam;
+**Paket** und **Fracht** stehen sichtbar da und sind gesperrt, mit dem Grund im Hover.
+
+Zwei Dinge machen das tragfähig statt kosmetisch: die Liste nennt **alles, was es geben
+wird, mit seiner Verfügbarkeit** (`Bewegen.TRANSPORTS`) — Freischalten ist damit ein Wert,
+kein Umbau; und **der Server weist einen gesperrten Kanal ab**. Wäre die Sperre nur ein
+ausgegrauter Knopf, wäre sie eine Bitte, an der ein direkter Aufruf vorbeigeht.
+
+*Das ist die eine bewusste Abweichung von «ein Knopf, der nie etwas tun kann, ist kein
+Angebot» (§9.4): hier zeigt er keine tote Funktion, sondern die Roadmap — und er sagt das
+auch.*
+
+**Die Transportliste ist zugleich das Bit** «bewegt dieses Modul?»: sie ist bei jedem
+anderen Modultyp leer. Die Oberfläche braucht damit keine Fallunterscheidung nach dem
+Modultyp — dieselbe Bauart wie `needs` bei der Stückliste.
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

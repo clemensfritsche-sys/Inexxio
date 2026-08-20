@@ -8,6 +8,7 @@ import type { Genealogy, GenealogyPart, InstanceUnit } from '@/types';
 import { statusCfg } from '@/lib/process-status';
 import { ObjId } from '@/components/erp/obj-id';
 import { UnitNumber } from '@/components/erp/unit-number';
+import { PlaceTrail } from '@/components/erp/place-trail';
 
 const PAGE = 60;
 
@@ -174,6 +175,10 @@ export function UnitNumbers({ objectId, statuses, quantity, dense }: {
                   <ObjId value={u.order_object_id} />
                 </span>
               ) : null}
+              {/* **Wo es liegt** – der Halter, die Kette im Hover. Der Ort hängt am
+                  Stück, nicht an der Gruppe: zwei Schrauben derselben Charge dürfen an
+                  zwei Orten liegen, und genau darum steht er hier und nicht oben. */}
+              <PlaceTrail place={u.place} />
               {(statuses ?? []).length !== 1 && (
                 <span
                   className="ml-auto flex items-center gap-1.5 text-[12.5px]"
