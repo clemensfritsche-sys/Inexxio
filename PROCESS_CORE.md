@@ -373,7 +373,7 @@ Achsenlisten, Anzeige-Reihenfolge, Gruppierung im Bestand, Farbe, Frontend-Katal
 | `Verschrottet` | Rot | Stück | history | Aus dem Verkehr gezogen und **physisch weg**. Endgültig. |
 | `Abgeschlossen` | Grün | Auftrag | — | **Den definierten Weg zu Ende gegangen.** |
 | `Abgebrochen` | Rot | Auftrag | — | Ziel nicht mehr erreichbar. |
-| `Inaktiv` | Rot | Artikel | — | Ausser Betrieb, endgültig. |
+| `Inaktiv` | Rot | Artikel | — | Ausser Betrieb: erzeugt nichts Neues. **Umkehrbar** (§5.5). |
 
 **«Abgeschlossen» heisst nicht «hat das Ende-Objekt passiert».** Ein **Ausgang** (§4.6)
 ist ebenfalls ein Ende: wer dort ausgesondert wird, ist seinen Weg zu Ende gegangen.
@@ -490,6 +490,95 @@ skaliert die Darstellung nicht: derselbe Zustand sähe an zwei Stellen verschied
 
 Prozessmodule tragen eine eigene, davon getrennte Farbfamilie — sie sind keine Zustände
 und dürfen nicht wie welche aussehen.
+
+---
+
+### 5.5 Ausser Betrieb nehmen und ersetzen — der Lebenszyklus des Artikels
+
+**«Inaktiv» ist ein Zustand, kein Ende.** ``Status.terminal`` gibt es ausschliesslich auf
+der **Stück**-Achse (§5.3); ein Artikel trägt es nie. Der Weg zurück ist darum derselbe
+Knopf in der anderen Richtung — **«Inaktiv setzen» ↔ «Aktiv setzen»**, ein gewöhnlicher
+Statuswechsel, keine Sonderaktion. Vorher stand in der Oberfläche «Inaktiv ist endgültig»,
+und daraus folgte, dass es keine Gegenaktion gab: ein versehentlich stillgelegter Artikel
+war für immer verloren, und der einzige Ausweg hiess «dieselbe Sache noch einmal anlegen»
+— also eine zweite Nummer für ein Ding.
+
+**Die Wirkung ist eine einzige und steht an einer Stelle** (``articles.may_create``): ein
+Artikel ausser Betrieb **erzeugt nichts Neues**. Alles andere bleibt: bestehende Stücke
+laufen weiter, laufende Aufträge laufen zu Ende (ihr Prozess ist eine eingefrorene Kopie,
+§6.5), und ein Auftrag «ab Lager» darf sie weiterhin greifen — sonst würde jedes Stück
+eines ausgelaufenen Artikels zur Leiche, die sich nicht einmal mehr aussondern liesse.
+
+#### Was das für die Stücklisten ringsum heisst: **melden, nicht erzwingen**
+
+Ein Artikel, dessen Stückliste einen ausser Betrieb genommenen nennt, bleibt
+**erzeugbar**, solange Restbestand da ist — das ist die Wirklichkeit, und sie zu verbieten
+wäre eine Regel gegen den Betrieb. Er **sagt es aber selbst**: die Auskunft steht am
+Datensatz (``services/bom.py`` → ``ArticleResponse.bom``), transitiv über beliebig viele
+Stufen, mit dem **Weg** dorthin und — falls es einen gibt — dem **Nachfolger**. Die Kaskade
+entsteht damit beim **Lesen** und reicht genau so weit, wie jemand hinschaut; markiert oder
+gespeichert wird nichts.
+
+Dieselbe Ableitung beantwortet die Gegenrichtung: **wer verbaut mich?** Das ist die Antwort
+auf «was mache ich kaputt, wenn ich diesen Artikel ausser Betrieb nehme» — und sie steht
+**am Datensatz, nicht in einem Dialog**: ein Dialog zeigt sie einmal, dem, der klickt; der
+Datensatz zeigt sie immer, allen. Deshalb gibt es zur Statusaktion **keine Rückfrage**.
+
+> Gelesen werden ausschliesslich die **Artikel-Vorlagen**
+> (``article_process_steps.config.lines``), nie die eingefrorenen Kopien eines laufenden
+> Auftrags: ihn von aussen zu bewerten hiesse, eine Definition zu beurteilen, die längst
+> festgeschrieben ist. Gefiltert wird in der Datenbank (JSONB-Containment ``@>``) —
+> im Python nachzufiltern hiesse, für jede Artikel-Anzeige sämtliche Vorlagen zu laden.
+
+#### Ersetzen ist eine Angabe an der Anlage des NACHFOLGERS
+
+Ein Artikel wird nicht versioniert, er wird **ersetzt** («Kein Ersetzen zur
+Laufzeit», §2.2, gilt für die Einzelinstanzen eines laufenden Auftrags – nicht für die
+Stammdaten). Eine Änderung an Spezifikation
+oder Prozess ist ein *anderer* Artikel; der alte bleibt stehen, weil seine Stücke, seine
+Aufträge und seine Nachweise auf ihn zeigen. Was die beiden verbindet, ist genau eine
+Angabe: ``articles.replaced_by_id`` (alt → neu).
+
+Gesetzt wird sie bei der **Anlage des Nachfolgers** (``ArticleCreate.replaces_object_id``)
+— dort hat sie ihren einen Moment, und dort wird sie auch gedacht: man legt den neuen an
+und sagt dabei, welchen er ablöst. Ein Feld am Vorgänger («wer löst mich ab?») wäre
+jederzeit änderbar und damit eine zweite Wahrheit über dieselbe Kette.
+
+**Ersetzen nimmt ausser Betrieb** — das ist keine zusätzliche Wirkung, sondern die
+Bedeutung: wer abgelöst ist, erzeugt nichts Neues mehr. Ein Vorgang, ein Aufruf, eine
+Transaktion; zwei Klicks wären zwei Gelegenheiten, den zweiten zu vergessen.
+
+Drei Ablehnungen, jede mit ihrem Grund im Satz (``articles.assert_replaceable``):
+
+| Lage | Antwort |
+|---|---|
+| Ein Artikel ersetzt **sich selbst** | abgewiesen — eine Kette im Kreis hat keinen neuesten Stand |
+| Der Vorgänger ist **bereits ersetzt** | abgewiesen, **unter Nennung** des bestehenden Nachfolgers |
+| Der Nachfolger führt über seine Kette **zum Vorgänger zurück** | abgewiesen — daraus entstünde ein Kreis |
+
+Gelesen wird die Kette **zyklensicher und gekappt** (``chain_of``, ``MAX_CHAIN``) — dasselbe
+zweite Netz wie beim Lesen einer Stückliste oder einer Ortskette: was in den Daten nicht
+vorkommen darf, fängt man beim Lesen ab und nicht erst, wenn eine Ansicht hängt.
+
+**Die Gegenrichtung ist eine Abfrage, keine zweite Spalte** (``predecessor_of``): der
+Rückweg ist die Umkehrung derselben Kante, und eine gespiegelte Spalte wäre die zweite
+Stelle, an der die Kette auseinanderläuft.
+
+#### Darstellung
+
+Reihe (ersetzt / ersetzt durch), «wird verbaut in» und die gemeldeten Lücken stehen als
+**ein schmaler Streifen über der Spezifikation** — drei Zeilen mit Versalien-Mikro-Label,
+Haarlinie, gedämpfte Schrift: nicht zu prominent, aber ohne Klick sichtbar. Im
+**Anlage-Modus** steht an derselben Stelle die Auswahl «Ersetzt Artikel»; es ist dieselbe
+Frage, nur vor statt nach der Freigabe.
+
+Der Streifen **lädt sich selbst** (wie der Erzeugungsprozess und der Bestand daneben) —
+genau **ein** Pfad liefert das Umfeld, das ``GET``-Detail. Es an die Schreibpfade zu
+hängen hiesse, dieselbe Auskunft zweimal zu rechnen und sie trotzdem nur dort zu haben,
+wo zufällig gerade geschrieben wurde.
+
+Wächter: ``tests/test_article_lifecycle.py`` (13 Prüfungen, jede gegen ihre Bug-Form
+gegengeprüft).
 
 ---
 

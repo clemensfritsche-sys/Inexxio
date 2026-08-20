@@ -87,9 +87,9 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | POST | /api/v1/auth/terms-accept | user | AGB akzeptieren |
 | GET | /api/v1/erp/records | staff | Benutzer-Feed (Master-Detail) – **auch deaktivierte**: «inaktiv» ist ein Zustand, kein Verschwinden |
 | GET/PATCH | /api/v1/erp/records/{object_id} | staff/admin | Datensatz lesen/ändern |
-| GET/POST | /api/v1/erp/articles | staff | Artikel-Feed / Artikel anlegen (Status 'draft') |
+| GET/POST | /api/v1/erp/articles | staff | Artikel-Feed (`search`/`limit`) / Artikel anlegen – Anlegen **ist** Freigeben; `replaces_object_id` löst dabei einen Vorgänger ab (er geht im selben Zug ausser Betrieb) |
 | GET | /api/v1/erp/articles/name-suggestions | staff | Intelligente Namensvorschläge (frei + Fuzzy, ohne KI) |
-| GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern |
+| GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern. **Ausser Betrieb nehmen ist ein Statuswechsel** (`status`), in beide Richtungen – kein eigener Endpunkt, kein Dialog. Das **Detail** trägt zusätzlich die Reihe (`replaces`/`replaced_by`) und die geplante Stückliste (`bom`: wer verbaut mich · was in mir ist ausser Betrieb, transitiv); im Feed bleibt `bom` `null` = «nicht geladen» |
 | GET/POST | /api/v1/erp/articles/{object_id}/process-steps | staff | Prozessschritte (Purchase) lesen/anlegen |
 | PATCH/DELETE | /api/v1/erp/articles/{object_id}/process-steps/{step_id} | staff | Prozessschritt ändern/entfernen |
 | GET | /api/v1/erp/articles/{object_id}/stock | staff | **Bestand** – Aufstellung (Zustand → Menge → **Block**) über ALLE Stücke + eine Seite Instanzen mit je eigener Aufstellung (PROCESS_CORE §10.3) |

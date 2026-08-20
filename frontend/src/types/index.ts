@@ -54,18 +54,17 @@ export interface ArticleInput {
   supplier_article_number?: string | null;
   min_order_qty?: string | null;
   safety_stock?: string | null;
-  reorder_target?: string | null;      // Zielbestand nach Nachbestellung (E)
-  // Fixierter Standort (optional): GPS + Adresse, rein deskriptiv.
-  fixed_location_lat?: string | null;
-  fixed_location_lng?: string | null;
-  fixed_location_street?: string | null;
-  fixed_location_zip?: string | null;
-  fixed_location_city?: string | null;
-  fixed_location_country?: string | null;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (vom purchase-Schritt geerbt)
   procurement_mode?: ProcessStepMode | null;
   default_supplier_id?: number | null;
   default_webshop_url?: string | null;
+  /**
+   * **Welchen Artikel löst dieser hier ab?** (Objektnummer) — nur bei der Anlage.
+   *
+   * Die Angabe steht am Nachfolger, weil sie genau einen Moment hat. Wirkung: der
+   * Vorgänger zeigt hierher UND geht ausser Betrieb – ein Vorgang, ein Aufruf.
+   */
+  replaces_object_id?: number | null;
 }
 
 export type ArticleUpdateInput = Partial<ArticleInput> & {
@@ -76,6 +75,12 @@ export type ArticleUpdateInput = Partial<ArticleInput> & {
 
 // Namensvorschlag beim Anlegen (freie Namensgebung + intelligente Dubletten-Vermeidung).
 export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
+
+// Die **geplante** Stückliste in beide Richtungen (`services/bom.py`) – nur am Detail.
+// `Article.bom === null` heisst «nicht geladen», nicht «nichts gefunden».
+export type ArticleLink = components['schemas']['ArticleLink'];
+export type ArticleBom = components['schemas']['ArticleBom'];
+export type RetiredInput = components['schemas']['RetiredInput'];
 export type TerritoryMap = components['schemas']['TerritoryMapResponse'];
 export type TerritoryRegion = components['schemas']['TerritoryRegion'];
 export type TerritoryCompany = components['schemas']['TerritoryCompany'];

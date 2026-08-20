@@ -5,10 +5,10 @@ import {
   Package, FileText, Boxes, Trash2, Tag, AlertTriangle,
   Ruler, Box, Square, Scale, Droplet, Fingerprint, Layers,
   Scaling, Hash, Link2, Weight, Sparkles, Plus, Shield, Ban,
-  ClipboardPlus,
+  ClipboardPlus, RotateCcw, ArrowRight, Blocks,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleProcess as ArticleProcessType, Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile } from '@/types';
+import type { ArticleProcess as ArticleProcessType, Article, ArticleBom, ArticleInput, ArticleLink, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion } from '@/types';
 import type { ModuleDraft } from '@/lib/modules';
 import { toModulePayload } from '@/lib/modules';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
@@ -17,13 +17,13 @@ import {
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
 import { articleStatus } from '@/lib/record-status';
-import type { StatusAction } from '@/lib/status-flow';
 import type { DiagramStep } from '@/components/erp/process-diagram';
 import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN, INAKTIV } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
-import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SearchSelect, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
+import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
@@ -32,12 +32,16 @@ import { LabelButton } from '@/components/scan/object-label';
 // entsteht erst mit seiner Freigabe (services/articles.py), und die verlangt beides –
 // vollständige Spezifikation UND mindestens ein Prozessschrittmodul. Damit ist jeder
 // vorhandene Artikel freigegeben und eingefroren.
-// **Inaktiv ist endgültig** – kein Reaktivieren (Neustart = neuer Artikel).
-function articleActions(status: string): StatusAction[] {
-  if (status === FREIGEGEBEN)
-    return [{ label: 'Deaktivieren', target: INAKTIV, tone: 'danger' }];
-  return [];   // inaktiv → keine Aktionen (endgültig)
-}
+//
+// **Ausser Betrieb ist ein Zustand, kein Ende.** Hier stand «Inaktiv ist endgültig – kein
+// Reaktivieren», und daraus folgte, dass es keine Gegenaktion gab. Es widersprach der
+// Statusliste: `Status.terminal` gibt es nur auf der Stück-Achse, und «Inaktiv» trägt es
+// nicht. Ein versehentlich stillgelegter Artikel wäre sonst für immer verloren – und der
+// einzige Ausweg hiesse «dieselbe Sache noch einmal anlegen», also eine zweite Nummer.
+//
+// Es ist darum **ein Knopf in zwei Richtungen**, kein Dialog: was ein Ausserbetriebnehmen
+// anrichtet, steht dauerhaft im Streifen über der Spezifikation («wird verbaut in») – und
+// nicht in einem Fenster, das es einmal zeigt, dem, der klickt.
 
 type TabKey = 'spezifikation' | 'bestand';
 
@@ -101,26 +105,24 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh,
-  onCreateOrder }: {
+export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrder }: {
   record: Article | null;          // null ⇒ Anlage-Modus
-  suppliers?: UserProfile[];
   onSaved: (a: Article) => void;
-  onCancel: () => void;
   onBack: () => void;
-  onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
+  /**
+   * Den Feed neu laden. Nötig, weil eine **Ersetzung zwei** Datensätze verändert: der
+   * Nachfolger entsteht, und der Vorgänger geht ausser Betrieb. `onSaved` meldet nur den
+   * einen – ohne diesen Aufruf stünde der andere im Feed noch als freigegeben da.
+   */
+  onRefresh?: () => void;
   /** Shortcut «Auftrag» (#690): öffnet den Auftragsentwurf mit diesem Artikel vorgewählt. */
   onCreateOrder?: (articleObjectId: number) => void;
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('spezifikation');
-  // ⚠ **Bekannte Lücke, gemeldet statt versteckt.** `setDialog` wird beim Klick auf
-  // «Deaktivieren» gerufen (unten), aber der zugehörige Dialog wurde beim Basis-Neuaufbau
-  // entfernt – der Knopf tut also nichts. Genau die Bauform, die auch der Scan-Knopf im
-  // Feed hatte. Nicht im Vorbeigehen repariert: Deaktivieren ist **endgültig** (kein
-  // Reaktivieren), und was es an Wirkungsanalyse braucht, ist eine eigene Entscheidung.
-  // eslint-disable-next-line no-unused-vars
-  const [dialog, setDialog] = useState<'deactivate' | null>(null);
+  // **Welchen Artikel löst dieser hier ab?** Nur im Anlage-Modus – die Angabe hat genau
+  // einen Moment (siehe `ArticleCreate.replaces_object_id`).
+  const [replaces, setReplaces] = useState<Article | null>(null);
 
   // Shortcut «Auftrag»: das Anlage-Fenster mit diesem Artikel vorgewählt öffnen. Es
   // entsteht dabei **kein** Datensatz – einen Auftrag gibt es erst mit der Freigabe
@@ -202,8 +204,11 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
       ? Number(form.default_supplier_id) : null,
     default_webshop_url: form.procurement_mode === 'webshop'
       ? (form.default_webshop_url.trim() || null) : null,
+    // **Ersetzen ist Teil der Anlage** – ein Vorgang, ein Aufruf: der Vorgänger zeigt
+    // danach hierher UND ist ausser Betrieb.
+    replaces_object_id: replaces?.object_id ?? null,
     steps: steps.map(toModulePayload),
-  }), [form, steps]);
+  }), [form, steps, replaces]);
 
   // Freigebbarkeit beim Server erfragen, nicht selbst behaupten.
   useEffect(() => {
@@ -244,13 +249,11 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
     }
   }
 
-  // Deaktivieren läuft über den Dialog (Wirkungsanalyse + Auftrags-Wahl + optional Nachfolger).
-  function onStatusAction(target: string) {
-    if (target === INAKTIV) { setDialog('deactivate'); return; }
-    changeStatus(target);   // Freigeben / Reaktivieren
-  }
-
-  // EIN kombinierter Knopf: optional einen Nachfolger anlegen («Ersetzen») oder nur deaktivieren.
+  // Welche Richtung der Lebenszyklus-Knopf zeigt. **Der Klick IST die Ausführung**
+  // (Notiz #152): keine Rückfrage, weil es nichts Endgültiges zu bestätigen gibt –
+  // derselbe Knopf führt zurück, und was der Wechsel ringsum bedeutet, steht dauerhaft im
+  // Streifen darüber.
+  const inactive = record?.status === INAKTIV;
 
   /**
    * **Freigeben = Anlegen.** Ein Aufruf, eine Transaktion: erst hier entsteht der
@@ -262,6 +265,8 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
     setError(null);
     try {
       onSaved(await api.createArticle(payload));
+      // Eine Ersetzung ändert **zwei** Datensätze – der Vorgänger ist jetzt inaktiv.
+      if (replaces) onRefresh?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Freigabe fehlgeschlagen';
       setError(isTransient(msg) ? `${msg} – bitte erneut versuchen.` : msg);
@@ -274,7 +279,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   // eine Behauptung über einen Datensatz, den die Datenbank nicht kennt; früher stand
   // dafür «Entwurf», was genau diesen Datensatz voraussetzte.
   const statusCfg = record ? articleStatus({ status: record.status }) : undefined;
-  const actions = isCreate || !record ? [] : articleActions(record.status);
   const blocked = missing != null && missing.length > 0;
 
   return (
@@ -313,24 +317,22 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                 <ClipboardPlus size={15} />
               </button>
             )}
-            {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer. */}
-            {record.status === FREIGEGEBEN && (
-              <button className="erp-idbtn erp-idbtn-danger" data-tip="Deaktivieren / ersetzen" data-tip-pos="bottom"
-                aria-label="Artikel deaktivieren oder ersetzen" disabled={statusBusy}
-                onClick={() => onStatusAction(INAKTIV)}>
+            {/* **Ein Knopf, zwei Richtungen** – wie am Benutzer-Datensatz. Der Zustand
+                steht rechts als Badge; hier steht, was man tun kann. */}
+            {inactive ? (
+              <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
+                data-tip="Aktiv setzen – der Artikel erzeugt danach wieder neue Einzelinstanzen"
+                aria-label="Aktiv setzen" disabled={statusBusy}
+                onClick={() => changeStatus(FREIGEGEBEN)}>
+                <RotateCcw size={15} />
+              </button>
+            ) : (
+              <button className="erp-idbtn erp-idbtn-danger" data-tip-pos="bottom"
+                data-tip="Inaktiv setzen – erzeugt keine neuen Einzelinstanzen mehr; bestehende laufen weiter"
+                aria-label="Inaktiv setzen" disabled={statusBusy}
+                onClick={() => changeStatus(INAKTIV)}>
                 <Ban size={15} />
               </button>
-            )}
-            {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen – genau wie
-                am Auftrag (#167): rechts steht nur der Zustand. */}
-            {actions.some((a) => a.tone !== 'danger') && (
-              <>
-                <HeaderSep />
-                {actions.filter((a) => a.tone !== 'danger').map((a) => (
-                  <HeaderAction key={a.target} label={a.label} tone={a.tone} hint={a.hint}
-                    disabled={statusBusy || a.disabled} onClick={() => onStatusAction(a.target)} />
-                ))}
-              </>
             )}
           </>
         ) : undefined}
@@ -345,6 +347,16 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
         {tab === 'spezifikation' && (
           <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
+            {/* **Wie steht dieser Artikel im Netz der anderen?** — Reihe (ersetzt /
+                ersetzt durch), wer ihn verbaut, und was in seiner Stückliste ausser
+                Betrieb ist. Bewusst ein schmaler Streifen **über** der Spezifikation:
+                nicht zu prominent, aber ohne Klick sichtbar – und dieselbe Stelle, an
+                der man bei der Anlage sagt, welchen Artikel dieser hier ablöst. */}
+            {isCreate ? (
+              <ReplacesPicker value={replaces} onChange={setReplaces} />
+            ) : (
+              <ContextStrip objectId={record.object_id} version={record.updated_at} />
+            )}
             {locked ? (
               <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
             ) : (
@@ -706,6 +718,199 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
           )}
         </SpecSection>
       )}
+    </div>
+  );
+}
+
+// ─── Umfeld: Reihe · wer verbaut mich · was fehlt mir ────────────────────────
+//
+// **Drei Auskünfte, eine Frage:** wie steht dieser Artikel im Netz der anderen? Sie
+// gehören an den Datensatz und nicht in einen Dialog – ein Dialog zeigt sie einmal, dem,
+// der klickt; der Datensatz zeigt sie immer, allen. Und sie sind **Auskünfte, keine
+// Sperren**: ein Artikel mit einem ausser Betrieb genommenen Teil in der Stückliste
+// bleibt erzeugbar, solange Restbestand da ist.
+//
+// Gestaltet als schmaler Streifen: Haarlinie, gedämpfte Schrift, Versalien-Mikro-Label –
+// «nicht zu prominent, aber so, dass man es trotzdem sieht».
+
+const STRIP: React.CSSProperties = {
+  border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', background: 'var(--bg-1)',
+  padding: '11px 14px', marginBottom: 18,
+  display: 'flex', flexDirection: 'column', gap: 11,
+};
+const STRIP_LABEL: React.CSSProperties = {
+  font: '700 10px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em',
+  color: 'var(--fg-4)', flex: 'none',
+};
+// **Innen enger als aussen.** Bricht eine Zeile auf einem Telefon um, muss man ihre
+// Fortsetzung von der nächsten Zeile unterscheiden können – wären beide Abstände gleich,
+// läse sich «100000318 Antriebseinheit» wie eine neue Auskunft statt wie der Rest der
+// vorigen.
+const STRIP_ROW: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', columnGap: 10, rowGap: 3,
+  flexWrap: 'wrap', minHeight: 20,
+};
+
+/** Ein anderer Artikel, wie ihn eine Auskunft nennt: Nummer + Name, Nummer klickbar. */
+function LinkChip({ link, muted }: { link: ArticleLink; muted?: boolean }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <ObjId value={link.object_id} />
+      <span style={{
+        font: '500 12px var(--font-body)', color: muted ? 'var(--fg-4)' : 'var(--fg-3)',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180,
+      }}>{link.name}</span>
+    </span>
+  );
+}
+
+function Arrow() {
+  return <ArrowRight size={13} style={{ color: 'var(--fg-4)', flex: 'none' }} />;
+}
+
+/**
+ * **Die Auskunft lädt sich selbst.** Der Feed liefert den Artikel ohne Umfeld (`bom` ist
+ * dort `null` = «nicht geladen»), und das ist richtig so: zwei Abfragen je Artikel wären
+ * im Feed zweihundert. Also holt der Streifen das Detail, wenn er gebraucht wird – wie
+ * `ArticleProcess` und `StockView` daneben.
+ *
+ * `version` ist der `updated_at`-Stand: nach einem Statuswechsel ändert sich das Umfeld
+ * (wer diesen Artikel verbaut, sieht ihn ab jetzt als Lücke), also wird neu gelesen.
+ */
+function ContextStrip({ objectId, version }: { objectId: number | null; version?: string }) {
+  const [full, setFull] = useState<Article | null>(null);
+  useEffect(() => {
+    if (objectId == null) { setFull(null); return; }
+    let dead = false;
+    api.getArticle(objectId)
+      .then((a) => { if (!dead) setFull(a); })
+      .catch(() => { if (!dead) setFull(null); });
+    return () => { dead = true; };
+  }, [objectId, version]);
+
+  if (!full) return null;
+  const bom: ArticleBom | null | undefined = full.bom;
+  const before = full.replaces ?? null;
+  const after = full.replaced_by ?? null;
+  const usedIn = bom?.used_in ?? [];
+  const gaps = bom?.retired_inputs ?? [];
+  if (!before && !after && usedIn.length === 0 && gaps.length === 0) return null;
+
+  return (
+    <div style={STRIP}>
+      {/* **Die Reihe** – wen dieser Artikel ablöst und wer ihn ablöst. Eine Zeile, weil
+          es eine Kette ist: das Bild sagt die Richtung, ohne dass ein Wort sie erklärt. */}
+      {(before || after) && (
+        <div style={STRIP_ROW}>
+          <span style={STRIP_LABEL}>Reihe</span>
+          {before && (<><LinkChip link={before} muted /><Arrow /></>)}
+          <span style={{ font: '700 12px var(--font-body)', color: 'var(--fg-1)' }}
+            data-tip="Dieser Artikel">dieser</span>
+          {after && (<><Arrow /><LinkChip link={after} /></>)}
+        </div>
+      )}
+
+      {/* **Wer mich verbaut** – die Antwort auf «was mache ich kaputt, wenn ich diesen
+          Artikel inaktiv setze». Sie steht darum bei der Aktion, nicht hinter ihr. */}
+      {usedIn.length > 0 && (
+        <div style={STRIP_ROW}>
+          <span style={STRIP_LABEL} data-tip="Artikel, deren Stückliste diesen hier nennt">
+            Wird verbaut in
+          </span>
+          {usedIn.map((a) => <LinkChip key={a.object_id} link={a} />)}
+        </div>
+      )}
+
+      {/* **Was mir fehlt** – transitiv, mit dem Weg dorthin und dem Nachfolger, falls es
+          einen gibt. Warnfarbe, aber keine Sperre: der Artikel bleibt erzeugbar. */}
+      {gaps.map((g) => {
+        const via = g.via ?? [];
+        return (
+        <div key={g.article.object_id} style={STRIP_ROW}>
+          <span style={{ ...STRIP_LABEL, color: 'var(--warning)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <AlertTriangle size={12} /> Ausser Betrieb
+          </span>
+          <LinkChip link={g.article} />
+          {via.length > 0 && (
+            <span style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+              data-tip="Der Weg durch die Stückliste bis dorthin">
+              <Blocks size={12} />
+              {via.map((v) => v.name).join(' › ')}
+            </span>
+          )}
+          {g.replaced_by && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              data-tip="Nachfolger – die Stückliste eines neuen Artikels nennt ihn">
+              <Arrow /><LinkChip link={g.replaced_by} />
+            </span>
+          )}
+        </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** **Welchen Artikel löst dieser hier ab?** – nur bei der Anlage, an derselben Stelle,
+ *  an der später die Reihe steht.
+ *
+ *  Die Angabe steht am **Nachfolger**, weil sie genau einen Moment hat. Wirkung: der
+ *  gewählte Artikel zeigt danach hierher UND geht ausser Betrieb – ein Vorgang, ein
+ *  Aufruf, keine zweite Gelegenheit, die Hälfte zu vergessen.
+ */
+function ReplacesPicker({ value, onChange }: {
+  value: Article | null; onChange: (a: Article | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!open && !value) {
+    return (
+      <button type="button" onClick={() => setOpen(true)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 18,
+          border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+          font: '600 12px var(--font-body)', color: 'var(--accent)',
+        }}
+        data-tip="Der abgelöste Artikel geht dabei ausser Betrieb">
+        <Plus size={13} /> Ersetzt einen Artikel
+      </button>
+    );
+  }
+  return (
+    <div style={{ ...STRIP, gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <SearchSelect
+            label="Ersetzt Artikel"
+            value={value ? String(value.object_id) : ''}
+            options={value ? [{ value: String(value.object_id), label: `${value.object_id} · ${value.name}` }] : []}
+            placeholder="Nummer oder Name suchen…"
+            search={async (q) => {
+              const rows = await api.getArticles(q, 20);
+              // **Angeboten wird nur, was auch abgelöst werden kann** – ein bereits
+              // ersetzter Artikel würde von der Freigabe abgewiesen, und eine Auswahl,
+              // die danach scheitert, ist keine.
+              return rows
+                .filter((a) => a.object_id != null && !a.replaced_by_id)
+                .map((a) => ({ value: String(a.object_id), label: `${a.object_id} · ${a.name}` }));
+            }}
+            onChange={async (v) => {
+              if (!v) { onChange(null); return; }
+              try { onChange(await api.getArticle(Number(v))); } catch { onChange(null); }
+            }}
+          />
+        </div>
+        {/* Zurücknehmen – solange nichts freigegeben ist, ist es eine Angabe wie jede
+            andere und muss sich löschen lassen. */}
+        <button type="button" className="erp-idbtn" data-tip="Ohne Vorgänger anlegen"
+          aria-label="Vorgänger entfernen"
+          onClick={() => { onChange(null); setOpen(false); }}>
+          <Trash2 size={14} />
+        </button>
+      </div>
+      <span style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>
+        Der abgelöste Artikel geht mit der Freigabe ausser Betrieb – er erzeugt danach
+        nichts Neues mehr, seine Stücke laufen weiter.
+      </span>
     </div>
   );
 }

@@ -150,6 +150,13 @@ class ArticleCreate(BaseModel):
     default_webshop_url: Optional[str] = None
     #: Der Erzeugungsprozess. **Pflicht** – ein Artikel ohne ihn kann nichts erzeugen.
     steps: list[ModuleInput] = Field(default_factory=list)
+    #: **Welchen Artikel löst dieser hier ab?** (Objektnummer, optional.)
+    #:
+    #: Die Angabe steht am **Nachfolger**, weil sie genau einen Moment hat: die Anlage.
+    #: Ein Feld am Vorgänger («wer löst mich ab?») wäre jederzeit änderbar und damit eine
+    #: zweite Wahrheit über dieselbe Kette. Wirkung: ``predecessor.replaced_by_id`` zeigt
+    #: hierher, **und** der Vorgänger geht ausser Betrieb – ein Vorgang, ein Aufruf.
+    replaces_object_id: Optional[int] = None
 
     @field_validator(*_OPTIONAL_TEXT_FIELDS)
     @classmethod
@@ -321,6 +328,47 @@ class ArticleUpdate(BaseModel):
         return validate_weight(v)
 
 
+class ArticleLink(BaseModel):
+    """Ein Artikel, wie ihn eine andere Antwort **nennt**: Nummer, Name, Zustand.
+
+    Der Zustand reist mit, weil er die Aussage trägt: «Schraube M6 (ausser Betrieb)» ist
+    eine Warnung, «Schraube M6» ist eine Angabe. Ihn beim Empfänger nachzuladen hiesse,
+    je Zeile eine Abfrage zu fahren.
+    """
+
+    object_id: int
+    name: str
+    status: str
+
+
+class RetiredInput(BaseModel):
+    """Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."""
+
+    article: ArticleLink
+    #: Der Weg dorthin – die Artikel dazwischen, von mir aus gesehen. Leer heisst:
+    #: er steht **direkt** in meiner Stückliste.
+    via: list[ArticleLink] = Field(default_factory=list)
+    #: Der Nachfolger, wenn es einen gibt – die **Lösung** steht dort, wo das Problem
+    #: gemeldet wird.
+    replaced_by: Optional[ArticleLink] = None
+
+
+class ArticleBom(BaseModel):
+    """Die **geplante** Stückliste in beide Richtungen (``services/bom.py``).
+
+    Nur am Detail gefüllt, nie im Feed: sie kostet zwei Abfragen je Artikel, und im Feed
+    wären das zweihundert. ``None`` an der Antwort heisst darum «nicht geladen», nicht
+    «nichts gefunden» – die beiden zu verwechseln hiesse, im Feed jedem Artikel eine
+    leere Stückliste zu attestieren.
+    """
+
+    #: Wer nennt mich in seiner Stückliste? Die Antwort auf «was mache ich kaputt, wenn
+    #: ich diesen Artikel ausser Betrieb nehme».
+    used_in: list[ArticleLink] = Field(default_factory=list)
+    #: Was in meiner Stückliste steckt und ausser Betrieb ist – direkt oder über Stufen.
+    retired_inputs: list[RetiredInput] = Field(default_factory=list)
+
+
 class ArticleResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -352,9 +400,18 @@ class ArticleResponse(BaseModel):
     sales_visibility: str = "public"
     sales_fulfillment: str = "make"
     # Die Erfassungsmaske der Datenerfassung: was an einer Einzelinstanz dieses
-    # Ersetzen (Nachvollziehbarkeit): Nachfolger bzw. Vorgänger (Objektnummern).
+    # ── Ersetzen: die Kette in beide Richtungen ────────────────────────────────
+    #: Die rohe Kante, wie sie in der Zeile steht (``articles.replaced_by_id``).
     replaced_by_id: Optional[int] = None
-    replaces_id: Optional[int] = None  # vom Router gesetzt (Vorgänger)
+    #: Aufgelöst – Nummer **und** Name **und** Zustand. Vom Router gefüllt; die rohe
+    #: Nummer allein zwänge jede Anzeige zu einer eigenen Abfrage, nur um ein Wort
+    #: danebenzuschreiben.
+    replaced_by: Optional[ArticleLink] = None
+    #: Die Gegenrichtung: wen löst dieser Artikel ab? **Abgefragt, nicht gespiegelt** –
+    #: eine zweite Spalte wäre die zweite Stelle, an der die Kette auseinanderläuft.
+    replaces: Optional[ArticleLink] = None
+    #: Die geplante Stückliste – **nur am Detail** (``None`` = nicht geladen).
+    bom: Optional[ArticleBom] = None
     # Einstandspreis und Durchlaufzeit sind entfallen: beide wurden aus abgeschlossenen
     # Aufträgen abgeleitet, und Aufträge gibt es nicht mehr. Eine Zahl ohne Grundlage
     # wäre schlechter als keine.

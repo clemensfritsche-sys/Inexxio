@@ -171,7 +171,6 @@ export default function ErpPage() {
   const loadMoreRef = useRef<() => void>(() => {});
   const lastLoadRef = useRef<number>(0);   // Zeitpunkt des letzten Feed-Ladens (Rückkehr-Refresh)
 
-  const suppliers = users.filter((u) => u.role === 'supplier');
   const scan = useScan();
 
   useEffect(() => {
@@ -627,7 +626,9 @@ export default function ErpPage() {
             onReset={() => { setSel(null); setCreating(null); setMobileView('list'); }}
           >
           {creating === 'article' && (
-            <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+            <ArticleDetail key="new-article" record={null} onSaved={handleArticleSaved}
+              onRefresh={() => api.getArticles().then(setArticles).catch(() => {})}
+              onBack={cancelCreate} />
           )}
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} seed={orderSeed} onSaved={handleOrderSaved} onBack={cancelCreate} />
@@ -645,14 +646,14 @@ export default function ErpPage() {
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'article' && (
-            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers}
+            <ArticleDetail key={activeRow.key} record={activeRow.data}
               onSaved={handleArticleSaved}
               onRefresh={() => api.getArticles().then(setArticles).catch(() => {})}
               // **Ein reiner Shortcut, kein zweiter Anlagepfad** (#690): derselbe Entwurf
               // wie über «+», nur mit vorbelegtem Artikel. Angelegt wird nichts – einen
               // Auftrag gibt es erst mit der Freigabe (#386).
               onCreateOrder={(articleObjectId) => startCreate('order', { articleObjectId })}
-              onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+              onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'instance' && (
             <InstanceDetail key={`i-${sel.objectId}`} objectId={sel.objectId} onBack={() => setMobileView('list')} />

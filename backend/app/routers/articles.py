@@ -4,9 +4,16 @@ Der Artikel trägt seine Stammdaten und die Erfassungsmaske der Datenerfassung. 
 **keine Menge und keinen Bestand**: was es von ihm gibt, sind seine Instanzen, und deren
 Menge ist die Anzahl ihrer Einzelinstanzen.
 
-Entfallen sind mit der Prozesslogik: Prozessschritte, Freigabe-Gate, Ersetzen samt
-Wirkungsanalyse, Einstandspreis und Durchlaufzeit (beide aus abgeschlossenen Aufträgen
-abgeleitet) sowie das aufsummierte Gewicht (aus verbauten Ressourcen).
+Entfallen sind mit der Prozesslogik: Freigabe-Gate, Einstandspreis und Durchlaufzeit
+(beide aus abgeschlossenen Aufträgen abgeleitet) sowie das aufsummierte Gewicht (aus
+verbauten Ressourcen).
+
+**Ausser Betrieb nehmen ist ein Statuswechsel und sonst nichts** – ``PATCH`` mit
+``status``, in beide Richtungen. Es gibt dafür keinen eigenen Endpunkt und keine
+Wirkungsanalyse in einem Dialog: was ein Ausserbetriebnehmen anrichtet, steht als
+**Auskunft am Datensatz** (``bom``) und ist damit immer sichtbar, nicht nur dem, der
+klickt. **Ersetzen** wiederum ist keine Aktion am Vorgänger, sondern eine Angabe an der
+**Anlage des Nachfolgers** (``ArticleCreate.replaces_object_id``).
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,13 +24,15 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, UserProfile
 from ..schemas.article import (
-    ArticleProcess, ArticleProcessStepResponse,
+    ArticleBom, ArticleLink, ArticleProcess, ArticleProcessStepResponse,
     ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate, ArticleValidation,
+    RetiredInput,
 )
 from ..schemas.instance import ArticleStock, InstanceSummary, stock_states
 from ..services import article_names
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
+from ..services import bom as bom_svc
 from ..services import instances as inst_svc
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_version
@@ -32,7 +41,52 @@ router = APIRouter(prefix="/api/v1/erp/articles", tags=["articles"])
 
 
 def _out(article: Article) -> ArticleResponse:
+    """Die Antwort **ohne** Kette und Stückliste – für Feed und Schreibpfade.
+
+    Die Stückliste kostet Abfragen; im Feed wären es zweihundertmal welche. ``bom``
+    bleibt darum ``None``, und das heisst «nicht geladen» – nicht «nichts gefunden».
+
+    **Auch die Schreibpfade antworten so.** Das Umfeld eines Artikels (wen löse ich ab,
+    wer verbaut mich, was fehlt mir) ist eine eigene Frage mit einer eigenen Antwort, und
+    die stellt die Oberfläche, wenn sie den Datensatz öffnet – am ``GET``. Sie hier
+    mitzuliefern hiesse, sie zweimal zu rechnen und trotzdem nur an den Stellen zu haben,
+    an denen zufällig gerade geschrieben wurde.
+    """
     return ArticleResponse.model_validate(article)
+
+
+def _link(article: Article | None) -> ArticleLink | None:
+    """Einen Artikel so nennen, wie eine andere Antwort ihn nennt: Nummer · Name · Zustand."""
+    if article is None or article.object_id is None:
+        return None
+    return ArticleLink(object_id=article.object_id, name=article.name, status=article.status)
+
+
+def _ref(ref: bom_svc.ArticleRef) -> ArticleLink:
+    return ArticleLink(object_id=ref.object_id, name=ref.name, status=ref.status)
+
+
+def _detail(db: Session, article: Article) -> ArticleResponse:
+    """Die Antwort **mit** Kette und Stückliste – nur am Detail.
+
+    Beides sind Auskünfte über die **Umgebung** des Artikels: wen er ablöst, wer ihn
+    ablöst, wer ihn verbaut, was in ihm ausser Betrieb ist. Sie stehen am Datensatz und
+    nicht in einem Dialog – ein Dialog zeigt sie einmal, dem, der klickt; der Datensatz
+    zeigt sie immer, allen.
+    """
+    out = _out(article)
+    out.replaces = _link(articles_svc.predecessor_of(db, article))
+    chain = articles_svc.chain_of(db, article)
+    out.replaced_by = _link(chain[0]) if chain else None
+    out.bom = ArticleBom(
+        used_in=[_ref(r) for r in bom_svc.used_in(db, article)],
+        retired_inputs=[
+            RetiredInput(article=_ref(r.article), via=[_ref(v) for v in r.via],
+                         replaced_by=_ref(r.replaced_by) if r.replaced_by else None)
+            for r in bom_svc.retired_inputs(db, article)
+        ],
+    )
+    return out
 
 
 def _get(db: Session, object_id: int) -> Article:
@@ -98,6 +152,11 @@ def create_article(
         db, data.model_dump(exclude_unset=True), actor_id=user.id)
     log_audit(db, "articles", "release", article.name,
               user_id=user.id, object_id=article.object_id)
+    # Die Ersetzung wird beim **Vorgänger** protokolliert: dort ist sie die Änderung, und
+    # dort sucht sie jemand, der wissen will, warum ein Artikel ausser Betrieb ging.
+    if data.replaces_object_id:
+        log_audit(db, "articles", "replaced_by", str(article.object_id),
+                  user_id=user.id, object_id=data.replaces_object_id)
     db.commit()
     db.refresh(article)
     return _out(article)
@@ -109,7 +168,7 @@ def get_article(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    return _out(_get(db, object_id))
+    return _detail(db, _get(db, object_id))
 
 
 @router.patch("/{object_id}", response_model=ArticleResponse)

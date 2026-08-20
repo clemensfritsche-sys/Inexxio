@@ -1178,6 +1178,21 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * ArticleBom
+         * @description Die **geplante** Stückliste in beide Richtungen (``services/bom.py``).
+         *
+         *     Nur am Detail gefüllt, nie im Feed: sie kostet zwei Abfragen je Artikel, und im Feed
+         *     wären das zweihundert. ``None`` an der Antwort heisst darum «nicht geladen», nicht
+         *     «nichts gefunden» – die beiden zu verwechseln hiesse, im Feed jedem Artikel eine
+         *     leere Stückliste zu attestieren.
+         */
+        ArticleBom: {
+            /** Used In */
+            used_in?: components["schemas"]["ArticleLink"][];
+            /** Retired Inputs */
+            retired_inputs?: components["schemas"]["RetiredInput"][];
+        };
+        /**
          * ArticleCreate
          * @description Der Artikel-Entwurf, so wie ihn die Oberfläche schickt – Spezifikation **und**
          *     Erzeugungsprozess in einem Aufruf.
@@ -1225,6 +1240,24 @@ export interface components {
             default_webshop_url?: string | null;
             /** Steps */
             steps?: components["schemas"]["ModuleInput"][];
+            /** Replaces Object Id */
+            replaces_object_id?: number | null;
+        };
+        /**
+         * ArticleLink
+         * @description Ein Artikel, wie ihn eine andere Antwort **nennt**: Nummer, Name, Zustand.
+         *
+         *     Der Zustand reist mit, weil er die Aussage trägt: «Schraube M6 (ausser Betrieb)» ist
+         *     eine Warnung, «Schraube M6» ist eine Angabe. Ihn beim Empfänger nachzuladen hiesse,
+         *     je Zeile eine Abfrage zu fahren.
+         */
+        ArticleLink: {
+            /** Object Id */
+            object_id: number;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
         };
         /**
          * ArticleNameSuggestion
@@ -1400,8 +1433,9 @@ export interface components {
             sales_fulfillment: string;
             /** Replaced By Id */
             replaced_by_id?: number | null;
-            /** Replaces Id */
-            replaces_id?: number | null;
+            replaced_by?: components["schemas"]["ArticleLink"] | null;
+            replaces?: components["schemas"]["ArticleLink"] | null;
+            bom?: components["schemas"]["ArticleBom"] | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -2811,6 +2845,16 @@ export interface components {
              * @default false
              */
             returns: boolean;
+        };
+        /**
+         * RetiredInput
+         * @description Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels.
+         */
+        RetiredInput: {
+            article: components["schemas"]["ArticleLink"];
+            /** Via */
+            via?: components["schemas"]["ArticleLink"][];
+            replaced_by?: components["schemas"]["ArticleLink"] | null;
         };
         /**
          * StepConfirm

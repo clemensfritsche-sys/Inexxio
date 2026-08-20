@@ -879,6 +879,58 @@
 > ganze Szene end-to-end über die echten Dienstpfade (40 verfügbar/0 hier → Transport →
 > 12 hier → verbaut, Schraube liegt in `…-1` auf Werkbank 5).
 
+> **Der Artikel-Lebenszyklus: «Inaktiv» ist ein ZUSTAND, kein Ende — und Ersetzen ist eine
+> Angabe am NACHFOLGER** (PROCESS_CORE §5.5). Der Knopf «Deaktivieren / ersetzen» war eine
+> **Attrappe**: er rief `setDialog('deactivate')`, aber den Dialog gab es seit dem
+> Basis-Neuaufbau nicht mehr — er tat also nichts, und ein `eslint-disable` schleuste den
+> toten Zustand am Wächter vorbei. «Ersetzen» war überhaupt nie gebaut.
+> **Die Behauptung daneben war ebenfalls falsch:** «Inaktiv ist endgültig – kein
+> Reaktivieren» widerspricht der Statusliste (`Status.terminal` gibt es **nur** auf der
+> Stück-Achse), und daraus folgte, dass es keine Gegenaktion gab: ein versehentlich
+> stillgelegter Artikel war für immer verloren, der einzige Ausweg hiess «dieselbe Sache
+> noch einmal anlegen» – eine zweite Nummer für ein Ding. Jetzt **ein Knopf in zwei
+> Richtungen**: «Inaktiv setzen» ↔ «Aktiv setzen», ein gewöhnlicher Statuswechsel.
+> **Die Wirkung ist EINE und steht an EINER Stelle** (`articles.may_create`): ausser Betrieb
+> heisst **erzeugt nichts Neues**. Alles andere bleibt – bestehende Stücke laufen weiter,
+> laufende Aufträge zu Ende (eingefrorene Kopie), «ab Lager» bleibt erlaubt.
+> **Die Kaskade wird GEMELDET, nicht erzwungen** (`services/bom.py`): wer einen ausser
+> Betrieb genommenen Artikel verbaut, bleibt erzeugbar, solange Restbestand da ist – und
+> **sagt es selbst**, transitiv über beliebig viele Stufen, mit dem **Weg** dorthin und dem
+> **Nachfolger**, falls es einen gibt. Die Kaskade entsteht beim **Lesen** und reicht so
+> weit, wie jemand hinschaut; markiert oder gespeichert wird nichts. Ein Erzwingen risse ein
+> einzelnes ausgelaufenes Teil einen ganzen Baum mit, und niemand könnte die Restbestände
+> aufbrauchen. Dieselbe Ableitung beantwortet die Gegenrichtung – **wer verbaut mich?** –,
+> also «was mache ich kaputt, wenn ich das hier abschalte»: sie steht **am Datensatz, nicht
+> in einem Dialog** (ein Dialog zeigt sie einmal, dem, der klickt), und **darum gibt es zur
+> Statusaktion keine Rückfrage**. Gelesen werden nur die **Artikel-Vorlagen**, nie die
+> eingefrorenen Kopien laufender Aufträge; gefiltert wird in der **Datenbank**
+> (JSONB-Containment `@>`) – im Python nachzufiltern hiesse, für jede Artikel-Anzeige
+> sämtliche Vorlagen des Hauses zu laden. Gemessen: **8 Abfragen** für ein dreistufiges Detail.
+> **Ersetzen steht am Nachfolger, weil es genau EINEN Moment hat**
+> (`ArticleCreate.replaces_object_id`): man legt den neuen Artikel an und sagt dabei,
+> welchen er ablöst. Ein Feld am Vorgänger wäre jederzeit änderbar und damit eine zweite
+> Wahrheit über dieselbe Kette. **Und es NIMMT ausser Betrieb** – keine zusätzliche Wirkung,
+> sondern die Bedeutung; zwei Klicks wären zwei Gelegenheiten, den zweiten zu vergessen.
+> Drei Ablehnungen mit Grund im Satz: sich selbst · bereits ersetzt (**unter Nennung** des
+> bestehenden Nachfolgers) · Kreis. Die Kreisprüfung fragt **vorwärts ab dem Nachfolger** –
+> die Kette des Vorgängers ist definitionsgemäss leer, dort zu suchen träfe nie zu (im
+> Gegentest gefunden). Die Gegenrichtung «wen löse ich ab?» ist eine **Abfrage, keine zweite
+> Spalte**.
+> **Dargestellt als schmaler Streifen über der Spezifikation** – Reihe · wird verbaut in ·
+> gemeldete Lücken, je eine Zeile mit Versalien-Mikro-Label und Haarlinie: nicht zu
+> prominent, aber ohne Klick sichtbar. Im **Anlage-Modus** steht an derselben Stelle die
+> Auswahl «Ersetzt Artikel» – dieselbe Frage, nur vorher. Gemessen in Chromium: 1440 · 1024 ·
+> 375 px, **0 px** waagrechter Überlauf; innen enger als aussen (`rowGap 3` ↔ `gap 11`),
+> damit eine umgebrochene Zeile auf dem Telefon nicht wie eine neue Auskunft aussieht.
+> **Nebenbei entfallen:** `lifecycle.ensure_mutable` (null Aufrufer, verglich mit dem
+> abgeschafften `"draft"` – sie hätte **jeden** Datensatz für gesperrt gehalten, sobald sie
+> jemand gerufen hätte) und drei tote Props am Artikel-Fenster (`suppliers`, `onCancel`,
+> `dialog`); `onRefresh` hat jetzt eine echte Aufgabe – eine Ersetzung ändert **zwei**
+> Datensätze.
+> Wächter: `tests/test_article_lifecycle.py` (13 Prüfungen, **jede gegen ihre Bug-Form
+> gegengeprüft**). Gemessen, nicht behauptet: die ganze Szene end-to-end über die echten
+> Router-Pfade (Maschine › Getriebe › Schraube, 20/20).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

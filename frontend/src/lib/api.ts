@@ -361,8 +361,14 @@ class ApiClient {
 
   // ─── ERP Articles ──────────────────────────────────────────────────────────
 
-  getArticles(): Promise<Article[]> {
-    return this.get('/api/v1/erp/articles');
+  /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
+   *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
+  getArticles(search?: string, limit?: number): Promise<Article[]> {
+    const params = new URLSearchParams();
+    if (search?.trim()) params.set('search', search.trim());
+    if (limit) params.set('limit', String(limit));
+    const q = params.toString();
+    return this.get(`/api/v1/erp/articles${q ? `?${q}` : ''}`);
   }
 
   getArticle(objectId: number): Promise<Article> {
