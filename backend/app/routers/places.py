@@ -10,7 +10,7 @@ ist ein Regal, eine Person oder ein Unternehmen, das gerade etwas trägt. Wer su
 sucht im Feed – dort stehen sie alle.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -20,6 +20,28 @@ from ..schemas.place import PlaceRef
 from ..services import places as places_svc
 
 router = APIRouter(prefix="/api/v1/erp/places", tags=["places"])
+
+
+@router.get("", response_model=list[PlaceRef])
+async def search_places(
+    search: str = Query("", description="Objektnummer-Teil oder Name"),
+    limit: int = Query(places_svc.SEARCH_LIMIT, ge=1, le=50),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """**Halter suchen** – nach Nummer oder Namen, für jede Zielort-Eingabe.
+
+    Es ist die **Vorschlagsquelle** für das Zielfeld im Editor und für den Zielort-Scan
+    zur Laufzeit. Beide fragen dieselbe Stelle: eine Liste, die etwas anbietet, das die
+    Prüfung danach abweist, wäre schlimmer als keine.
+
+    Ohne Suchbegriff kommt nichts – eine Vorschlagsliste ist eine Abkürzung beim Tippen,
+    kein Katalog zum Durchblättern.
+    """
+    return [
+        PlaceRef(object_id=s.object_id, kind=s.kind, label=s.label)
+        for s in places_svc.search(db, search, limit=limit)
+    ]
 
 
 @router.get("/{object_id}", response_model=PlaceRef)

@@ -254,6 +254,10 @@ class RecordEntry(BaseModel):
     verification: Optional[str] = None
     #: Der Zustand **nach** dem Vorgang. ``None`` = nichts rückte vor («nicht bestanden»).
     status_after: Optional[str] = None
+    #: Der Zustand **vor** dem Vorgang – erst mit ihm ist ablesbar, ob sich etwas geändert
+    #: hat. Ein Durchläufer führt ``Im Prozess`` → ``Im Prozess``; ihn anzuzeigen hiesse,
+    #: in jeder Zeile dasselbe Wort zu wiederholen (Testnotiz #726).
+    status_before: Optional[str] = None
     result: Optional[str] = None
     #: ``False`` heisst: ausserhalb der Ziehung durchgelaufen, ohne Erfassung.
     sampled: bool = True

@@ -67,7 +67,12 @@ export function StepRecord({ orderObjectId, stepId }: {
 
 /** Ein Vorgang: **wer, wann, womit bestätigt** – und darunter jede erfasste Angabe. */
 function Row({ entry, first }: { entry: RecordEntry; first: boolean }) {
-  const cfg = entry.status_after ? statusCfg(entry.status_after) : null;
+  // **Nur eine Änderung ist eine Aussage** (Testnotiz #726). Ein Durchläufer
+  // (Datenerfassung, Bewegen) führt «Im Prozess» → «Im Prozess»; in jeder Zeile stünde
+  // dasselbe Wort. Gefragt wird nach den **Daten**, nicht nach dem Modultyp – die
+  // Oberfläche muss nicht wissen, welcher Typ was tut.
+  const changed = !!entry.status_after && entry.status_after !== entry.status_before;
+  const cfg = changed && entry.status_after ? statusCfg(entry.status_after) : null;
   const values = entry.values ?? [];
   return (
     <div className="flex flex-col gap-1 py-1.5"

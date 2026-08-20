@@ -187,6 +187,13 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
     : {
       label: 'Zielort',
       exists: (id: number) => api.getPlace(id).then(() => true).catch(() => false),
+      // **Ein freier Schritt muss seine Vorschlagsquelle mitbringen** (#730/#731/#732).
+      // Bei einer Verifikation ist sie abgeleitet (`offersFor` = die erwartete Nummer);
+      // hier gibt es keine, also fragt der Scanner dieselbe Suche wie das Zielfeld im
+      // Editor. Ohne sie tippt man «00292» und sieht nichts, obwohl es die Nummer gibt.
+      suggest: (q: string) => api.searchPlaces(q)
+        .then((rows) => rows.map((p) => ({ objectId: p.object_id, label: p.label })))
+        .catch(() => []),
     });
 
   const scanSteps = (w: StepWork) => [

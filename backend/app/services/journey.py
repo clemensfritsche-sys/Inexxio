@@ -43,11 +43,43 @@ from ..models import Order, OrderUnit, ProcessEvent
 from ..models.process_event import KIND_START
 
 
+def _walked_the_process(order_id: int):
+    """Die Stücke, die diesen Auftrag **von vorne** durchlaufen — sein Subjekt.
+
+    Es gibt zwei Eintrittspunkte (PROCESS_CORE.md §9.6): am **Start-Objekt** treten die
+    Stücke ein, um die es geht; an einem **Modul** tritt Material ein, das dort verbraucht
+    wird und den Auftrag im selben Zug wieder verlässt. Beide schreiben denselben
+    ``start``-Eintrag – unterschieden werden sie durch die Modul-``id`` daran.
+
+    Genau diese Unterscheidung braucht die Journey, und ihr Fehlen war ihr einziger
+    Fehler (Testnotiz #729): eine Schraube, die in einem anderen Auftrag entstand und hier
+    verbaut wurde, machte jenen Auftrag zum **vorgelagerten Auftrag** dieses Prozesses –
+    über dem Start, wo das Subjekt herkommt. Dort hat sie nie gestanden.
+
+    Es ist dieselbe Bedingung, aus der auch das Prozessbild liest (``flow._tally`` zählt
+    nur ``step_id IS NULL`` als «gestartet»). Eine zweite Formulierung davon wäre eine
+    zweite Antwort auf «wer läuft hier durch».
+    """
+    return (
+        select(ProcessEvent.instance_unit_id)
+        .where(
+            ProcessEvent.order_id == order_id,
+            ProcessEvent.kind == KIND_START,
+            ProcessEvent.step_id.is_(None),
+        )
+        .scalar_subquery()
+    )
+
+
 def _span(order_id: int):
     """Je Stück: sein erstes und letztes Ereignis **in diesem Auftrag**.
 
     Das ist die Klammer, ausserhalb derer der Nachbar liegt. Zwei Grenzen statt einer,
     weil ein Stück den Auftrag betritt und wieder verlässt – und beides zählt.
+
+    Gerechnet wird nur über das **Subjekt** (``_walked_the_process``): Material, das an
+    einem Modul eintritt, durchläuft diesen Prozess nicht, und woher es kam, ist keine
+    Aussage über seinen Anfang.
     """
     return (
         select(
@@ -55,7 +87,10 @@ def _span(order_id: int):
             func.min(ProcessEvent.id).label("first_id"),
             func.max(ProcessEvent.id).label("last_id"),
         )
-        .where(ProcessEvent.order_id == order_id)
+        .where(
+            ProcessEvent.order_id == order_id,
+            ProcessEvent.instance_unit_id.in_(_walked_the_process(order_id)),
+        )
         .group_by(ProcessEvent.instance_unit_id)
         .subquery()
     )

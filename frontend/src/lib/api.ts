@@ -668,6 +668,18 @@ class ApiClient {
     return this.get(`/api/v1/erp/places/${objectId}`);
   }
 
+  /**
+   * **Halter suchen** – nach Objektnummer-Teil oder Namen («001», «Clemens», «Regal»).
+   *
+   * Die eine Vorschlagsquelle für jede Zielort-Eingabe: das Feld im Editor und der
+   * Zielort-Scan zur Laufzeit fragen dieselbe Stelle. Angeboten wird nur, was auch
+   * Halter sein **kann** – eine Liste, die etwas vorschlägt, das die Prüfung danach
+   * abweist, wäre schlimmer als keine.
+   */
+  searchPlaces(query: string): Promise<PlaceRef[]> {
+    return this.get(`/api/v1/erp/places?search=${encodeURIComponent(query)}`);
+  }
+
   getInstance(objectId: number): Promise<Instance> {
     return this.get(`/api/v1/erp/instances/${objectId}`);
   }

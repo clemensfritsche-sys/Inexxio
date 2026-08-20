@@ -508,3 +508,59 @@ def test_the_chain_is_resolved_per_holder_not_per_piece():
     finally:
         db.rollback()
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #730/#731/#732 – ein freier Schritt braucht eine Vorschlagsquelle
+# ---------------------------------------------------------------------------
+
+def test_holders_are_searchable_by_number_and_by_name():
+    """**«001» oder «Clemens» – beides muss einen Vorschlag ergeben.**
+
+    Ein **Verifikationsschritt** braucht keine Suche: was er annimmt, ist seine
+    Vorschlagsliste (``scan.offersFor``). Ein **freier** Schritt hat diese Ableitung
+    nicht – und hatte darum gar keine Vorschläge: wer «00292» tippte, sah nichts, obwohl
+    es die Nummer gibt. Das ist die eine Quelle, aus der beide Zielort-Eingaben schöpfen
+    (das Feld im Editor und der Scan zur Laufzeit).
+
+    **Angeboten wird nur, was auch Halter sein kann.** Ein Artikel trägt eine
+    Objektnummer, ist aber eine Gattung – ihn vorzuschlagen hiesse, eine Wahl anzubieten,
+    die ``assert_placeable`` danach abweist.
+    """
+    from app.models import CompanySettings, UserProfile
+    from app.services import objects as obj, places as places_svc
+
+    db = _db()
+    try:
+        art = _article(db, steps=[], name="Hochregal", serialization="einzeln")
+        shelf = _holder_instance(db, name="Behälter")
+        # Die Objektnummer macht Mail und uid eindeutig – die Test-Datenbank ist
+        # gemeinsam, und ein fester Wert kollidiert mit dem vorherigen Lauf.
+        uid = obj.next_object_id(db)
+        user = UserProfile(object_id=uid, email=f"probe-{uid}@example.com",
+                           first_name="Clemens", last_name="Fritsche",
+                           firebase_uid=f"probe-{uid}")
+        co = CompanySettings(object_id=obj.next_object_id(db), company_name="Werk Nord")
+        db.add_all([user, co])
+        db.flush()
+
+        def found(q):
+            return {s.object_id for s in places_svc.search(db, q)}
+
+        # Nach der Nummer – auch als Teilstring, so wie man tippt.
+        assert shelf.object_id in found(str(shelf.object_id)[-5:])
+        assert user.object_id in found(str(user.object_id)[-4:])
+        # Nach dem Namen – Person, Firma und der Artikelname der Halter-Instanz.
+        assert user.object_id in found("Clemens")
+        assert co.object_id in found("Werk")
+        assert shelf.object_id in found("Behälter")
+        # Und ein Artikel ist kein Ort.
+        assert art.object_id not in found(str(art.object_id)), (
+            "Ein Artikel wird als Zielort vorgeschlagen – die Prüfung weist ihn danach ab."
+        )
+        assert places_svc.search(db, "  ") == [], (
+            "Ohne Suchbegriff kommt ein Katalog statt einer Abkürzung."
+        )
+    finally:
+        db.rollback()
+        db.close()

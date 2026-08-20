@@ -224,7 +224,7 @@ function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemov
         {/* 2 — Menge. Immer exakt Einzelinstanzen – in der Stückliste **je Stück**. */}
         <label style={{ width: perUnit ? 104 : 96 }}>
           <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>
-            {perUnit ? 'Menge je Stück' : 'Menge'}
+            {perUnit ? 'Menge je Einzelinstanz' : 'Menge'}
           </span>
           <input
             className={inputCls}
@@ -294,7 +294,7 @@ function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemov
       </div>
 
       {/* Was die Menge an Datensätzen bedeutet – gesagt, nicht geraten. */}
-      {/* **Kein Erklärtext** (#722): «Menge je Stück» steht als Beschriftung am Feld –
+      {/* **Kein Erklärtext** (#722): «Menge je Einzelinstanz» steht als Beschriftung am Feld –
           was die Zahl bedeutet, sagt sie damit selbst. Ein Rechenbeispiel darunter
           erklärt eine Beschriftung, die keiner Erklärung bedarf. */}
       {!perUnit && hasArticle && line.origin === NEU && line.quantity > 0 && (

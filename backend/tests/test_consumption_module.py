@@ -679,3 +679,77 @@ def test_at_most_one_new_line_not_new_alone():
     finally:
         w.db.rollback()
         w.db.close()
+
+
+# ---------------------------------------------------------------------------
+# Testnotiz #729 – wer am Modul eintritt, steht nicht am ANFANG des Prozesses
+# ---------------------------------------------------------------------------
+
+def test_a_component_does_not_become_a_preceding_order():
+    """**Die vorgelagerten Aufträge sind die Herkunft des SUBJEKTS, nicht des Materials.**
+
+    Gemeldet an einem Erzeugungsauftrag mit Verbrauchsmodul: der Auftrag, in dem die
+    fehlenden Komponenten produziert wurden, erschien über dem **Start** als vorgelagerter
+    Auftrag. Dort hat er nichts zu suchen – seine Stücke haben diesen Prozess nie
+    durchlaufen; sie sind am Verbrauchsmodul eingetreten und im selben Zug wieder hinaus.
+
+    Die Unterscheidung musste nicht erfunden werden, sie stand längst im Log: der
+    ``start``-Eintrag trägt am Modul-Eintritt die Modul-``id``, am Start-Objekt nicht.
+    Dieselbe Bedingung liest das Prozessbild (``flow._tally``); die Journey las sie nicht.
+    """
+    from app.services import journey
+
+    w = _w()
+    try:
+        part, _numbers, _product, order = _assembly(w, parts=2, per_unit=2)
+        # Der Auftrag, aus dem die Komponenten stammen – er hat sie erzeugt.
+        supply_id = w.db.execute(
+            __import__("sqlalchemy").text(
+                "SELECT DISTINCT o.object_id FROM orders o "
+                "JOIN process_events e ON e.order_id = o.id "
+                "JOIN instance_units u ON u.id = e.instance_unit_id "
+                "JOIN instances i ON i.id = u.instance_id "
+                "WHERE i.article_id = :art"
+            ), {"art": part.id},
+        ).scalar()
+        assert supply_id, "Der Aufbau stimmt nicht – die Komponenten haben keinen Auftrag."
+
+        w.run_all(order)
+        before, _after = journey.neighbours(w.db, order)
+        assert supply_id not in [r["object_id"] for r in before], (
+            f"Auftrag {supply_id} hat nur das MATERIAL geliefert und steht trotzdem als "
+            f"vorgelagerter Auftrag über dem Start."
+        )
+    finally:
+        w.db.rollback()
+        w.db.close()
+
+
+def test_the_real_journey_survives():
+    """**Die Gegenprobe** – wer sein Subjekt aus einem Auftrag holt, nennt ihn weiterhin.
+
+    Ohne sie wäre die Korrektur oben nicht von «die Journey abgeschaltet» zu
+    unterscheiden. Ein Wächter, der nur die eine Richtung prüft, deckt genau die
+    Übertreibung nicht ab, zu der eine Einschränkung neigt.
+    """
+    from app.services import journey
+
+    w = _w()
+    try:
+        part, numbers = free_stock(w, serialization="unit", quantity=2)
+        # `free_stock` lässt seine Stücke einen echten Auftrag durchlaufen – der ist der
+        # Vorgänger, den ein Folgeauftrag nennen muss.
+        follow = w.release(
+            lines=[{"article_object_id": part.object_id, "quantity": 2,
+                    "origin": "lager",
+                    "units": [{"number": n, "from_order": None} for n in numbers]}],
+            steps=[w.capture()],
+        )
+        before, _after = journey.neighbours(w.db, follow)
+        assert before, (
+            "Ein Auftrag, der seine Stücke aus einem anderen greift, hat seinen "
+            "Vorgänger verloren – die Journey ist damit unbrauchbar."
+        )
+    finally:
+        w.db.rollback()
+        w.db.close()

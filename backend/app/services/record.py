@@ -85,6 +85,18 @@ class Entry:
     #: Der Zustand **nach** dem Vorgang. ``None`` heisst: nichts rückte vor (der Fall
     #: «nicht bestanden»).
     status_after: Optional[str] = None
+    #: Der Zustand **vor** dem Vorgang – erst damit ist ablesbar, ob sich überhaupt etwas
+    #: geändert hat.
+    #:
+    #: Ein **Durchläufer** (Datenerfassung, Bewegen) führt ``Im Prozess`` → ``Im Prozess``;
+    #: in jeder Zeile stünde derselbe Wert, und was in jeder Zeile gleich lautet, ist keine
+    #: Information (Testnotiz #726). Bei einem **Ausgang** ist der Zustand dagegen genau
+    #: das, was der Vorgang bewirkt hat.
+    #:
+    #: Der Dienst entscheidet das **nicht** – er liefert beide Werte, und die Anzeige
+    #: fragt, ob sie verschieden sind. Ein hier weggelassener Zustand hiesse, «vorgerückt»
+    #: und «nichts geändert» wären dasselbe; sie sind es nicht.
+    status_before: Optional[str] = None
     #: Das Urteil der Erfassung: ``passed`` · ``failed`` · ``None`` (nichts Bewertbares).
     result: Optional[str] = None
     #: Lief dieses Stück **ohne** Erfassung durch (ausserhalb der Ziehung)?
@@ -179,6 +191,7 @@ def step_record(db: Session, order: Order, step: ProcessStep, *,
             actor=actors.get(int(ev.actor_id)) if ev.actor_id else None,
         )
         entry.status_after = ev.status_after
+        entry.status_before = ev.status_before
         entry.verification = payload.get("verification") or entry.verification
         entry.sampled = drawn is None or unit_id in drawn
         into = payload.get("into")

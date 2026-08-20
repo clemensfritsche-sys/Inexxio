@@ -418,7 +418,11 @@ class Bewegen(Module):
     )
     DEFAULT_TRANSPORT = "manuell"
 
-    action: str = "Scannen & bewegen"
+    #: Was der Knopf sagt. **«Bestätigen», nicht «scannen»**: gescannt ist zu diesem
+    #: Zeitpunkt längst – Ware und Zielort –, und was der Knopf auslöst, ist die Buchung
+    #: der Ablage. Ein Verb, das den vorherigen Schritt benennt, beschreibt nicht, was
+    #: passiert (Testnotiz #733).
+    action: str = "Bewegung bestätigen"
 
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
         value = (raw or {}).get(self.TARGET)

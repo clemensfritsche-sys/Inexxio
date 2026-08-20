@@ -801,15 +801,44 @@ function newestFirst(options: { value: string; label: string }[]): { value: stri
   return [...others, ...numeric.sort((a, b) => Number(b.value) - Number(a.value))];
 }
 
-export function SearchSelect({ label, value, onChange, options, required, placeholder }: {
+export function SearchSelect({ label, value, onChange, options, required, placeholder,
+                               search }: {
   label?: string; value: string; onChange: (v: string) => void;
   options: { value: string; label: string }[]; required?: boolean; placeholder?: string;
+  /**
+   * **Wo die Auswahl zu gross für eine Liste ist: suchen statt mitgeben.**
+   *
+   * Ohne diese Angabe bleibt alles wie bisher – die Optionen kommen fertig, gefiltert
+   * wird im Browser. Mit ihr fragt das Feld beim Tippen den Server; `options` trägt dann
+   * nur noch die **gewählte** Option, damit die Anzeige stimmt.
+   *
+   * Dieselbe Bauart wie beim Scanner (`candidates` ↔ `suggest`): eine Komponente, zwei
+   * Quellen. Ein zweites Auswahlfeld «mit Suche» wäre ein zweiter Weg zu derselben Sache
+   * – und der erste, der beim nächsten Feld auseinanderläuft.
+   */
+  search?: (query: string) => Promise<{ value: string; label: string }[]>;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [found, setFound] = useState<{ value: string; label: string }[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
   const ordered = newestFirst(options);
+
+  // Entprellt, mit Veralterungs-Schutz: wer weitertippt, bekommt nicht die Antwort auf
+  // die vorherige Eingabe. Dieselbe Regel wie im Scan-Dialog.
+  useEffect(() => {
+    if (!search) return;
+    const q = query.trim();
+    if (!q) { setFound([]); return; }
+    let stale = false;
+    const t = window.setTimeout(() => {
+      search(q)
+        .then((r) => { if (!stale) setFound(r); })
+        .catch(() => { if (!stale) setFound([]); });
+    }, 250);
+    return () => { stale = true; window.clearTimeout(t); };
+  }, [query, search]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -820,9 +849,13 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
   }, []);
 
   const q = query.trim().toLowerCase();
-  const filtered = q ? ordered.filter((o) => o.label.toLowerCase().includes(q)) : ordered;
+  // Sucht das Feld serverseitig, ist die Antwort die Liste – ein zweiter Filter darüber
+  // würde wegwerfen, was der Server gerade als Treffer benannt hat.
+  const filtered = search
+    ? (q ? found : ordered)
+    : (q ? ordered.filter((o) => o.label.toLowerCase().includes(q)) : ordered);
 
-  function pick(v: string) { onChange(v); setOpen(false); setQuery(''); }
+  function pick(v: string) { onChange(v); setOpen(false); setQuery(''); setFound([]); }
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -843,7 +876,9 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
       {open && (
         <div style={{ position: 'absolute', zIndex: 40, top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: 240, overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
           {filtered.length === 0 ? (
-            <div style={{ padding: '10px 12px', fontSize: 13, color: '#94a3b8' }}>Keine Treffer</div>
+            <div style={{ padding: '10px 12px', fontSize: 13, color: '#94a3b8' }}>
+              {search && !q ? 'Nummer oder Name eingeben' : 'Keine Treffer'}
+            </div>
           ) : filtered.map((o) => (
             <button key={o.value} type="button" onClick={() => pick(o.value)}
               style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, border: 'none',

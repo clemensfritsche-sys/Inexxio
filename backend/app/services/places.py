@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import String, func, or_
 from sqlalchemy.orm import Session
 
 from ..domain import modules
@@ -94,6 +94,86 @@ def stations_for(db: Session, object_ids: Iterable[int]) -> dict[int, Station]:
         out[co.object_id] = Station(co.object_id, "organization", co.company_name)
 
     return out
+
+
+#: Wie viele Treffer eine Suche höchstens liefert. Eine Vorschlagsliste ist eine
+#: Abkürzung, kein Katalog – wer scrollen muss, tippt schneller weiter.
+SEARCH_LIMIT = 8
+
+
+def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Station]:
+    """**Halter suchen — nach Nummer oder nach Namen.**
+
+    Die Frage, die jede Zielort-Eingabe stellt: «001» soll die Objektnummer treffen,
+    «Clemens» die Person, «Regal» den Behälter. Beides in einer Abfrage je Typ, statt
+    den Aufrufer wählen zu lassen, wonach er sucht – er weiss es nicht, er tippt.
+
+    **Gesucht wird nur, was auch Halter sein kann.** Das ist dieselbe Menge, die
+    ``station_of`` auflöst und die ``assert_placeable`` durchlässt: eine Vorschlagsliste,
+    die etwas anbietet, das die Prüfung danach abweist, wäre schlimmer als keine.
+
+    Artikel und Aufträge stehen darum nicht darin, obwohl sie Objektnummern tragen.
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    like = f"%{q.lower()}%"
+    out: list[Station] = []
+
+    rows = (
+        db.query(Instance.object_id, Instance.label, Article.name)
+        .join(Article, Article.id == Instance.article_id)
+        .filter(
+            Instance.is_active.is_(True),
+            or_(
+                func.cast(Instance.object_id, String).like(f"%{q}%"),
+                func.lower(func.coalesce(Instance.label, "")).like(like),
+                func.lower(Article.name).like(like),
+            ),
+        )
+        .order_by(Instance.object_id.desc())
+        .limit(limit)
+        .all()
+    )
+    for object_id, label, article_name in rows:
+        out.append(Station(object_id, "instance", label or article_name or "Instanz"))
+
+    users = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.object_id.isnot(None),
+            UserProfile.is_active.is_(True),
+            or_(
+                func.cast(UserProfile.object_id, String).like(f"%{q}%"),
+                func.lower(func.coalesce(UserProfile.first_name, "")).like(like),
+                func.lower(func.coalesce(UserProfile.last_name, "")).like(like),
+                func.lower(func.coalesce(UserProfile.company_name, "")).like(like),
+                func.lower(func.coalesce(UserProfile.email, "")).like(like),
+            ),
+        )
+        .order_by(UserProfile.object_id.desc())
+        .limit(limit)
+        .all()
+    )
+    out.extend(Station(u.object_id, "user", u.display_name) for u in users)
+
+    companies = (
+        db.query(CompanySettings)
+        .filter(
+            CompanySettings.object_id.isnot(None),
+            CompanySettings.is_active.is_(True),
+            or_(
+                func.cast(CompanySettings.object_id, String).like(f"%{q}%"),
+                func.lower(func.coalesce(CompanySettings.company_name, "")).like(like),
+            ),
+        )
+        .order_by(CompanySettings.object_id.desc())
+        .limit(limit)
+        .all()
+    )
+    out.extend(Station(c.object_id, "organization", c.company_name) for c in companies)
+
+    return out[:limit]
 
 
 def station_of(db: Session, object_id: int) -> Optional[Station]:

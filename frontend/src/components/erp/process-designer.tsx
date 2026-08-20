@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Columns2, Grid2x2, Layers, Lock, Percent, ScanLine, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Columns2, Grid2x2, Layers, Lock, Percent, ScanLine, Trash2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
+import { formatObjectId } from '@/lib/utils';
 import type { ModuleCatalog } from '@/types';
 import {
   CAPTURE_ICON, DISPOSAL_MODES, MODULE_ICON, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
@@ -21,7 +22,7 @@ import {
 import { ProcessColumns } from '@/components/erp/process-columns';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
-import { IconSwitch, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { IconSwitch, SearchSelect, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { useScan } from '@/components/scan/scan-provider';
 import type { PlaceRef } from '@/types';
@@ -256,33 +257,48 @@ function MoveFields({ module: m, onChange }: {
 }) {
   const scan = useScan();
   const [place, setPlace] = useState<PlaceRef | null>(null);
-  const [unknown, setUnknown] = useState(false);
   const target = m.target.trim();
 
-  // **Auflösen, was dasteht.** Entprellt, mit Veralterungs-Schutz: wer weitertippt,
-  // bekommt nicht die Antwort auf die vorherige Nummer.
+  // Den **gewählten** Halter benennen, damit im Feld sein Name steht und nicht seine
+  // Ziffern. Nur diesen einen – die Vorschläge holt `search`, wenn getippt wird.
   useEffect(() => {
-    if (target === '') { setPlace(null); setUnknown(false); return; }
+    if (target === '') { setPlace(null); return; }
     let stale = false;
-    const t = setTimeout(() => {
-      api.getPlace(Number(target))
-        .then((p) => { if (!stale) { setPlace(p); setUnknown(false); } })
-        .catch(() => { if (!stale) { setPlace(null); setUnknown(true); } });
-    }, 300);
-    return () => { stale = true; clearTimeout(t); };
+    api.getPlace(Number(target))
+      .then((p) => { if (!stale) setPlace(p); })
+      .catch(() => { if (!stale) setPlace(null); });
+    return () => { stale = true; };
   }, [target]);
+
+  const label = (p: PlaceRef) => `${formatObjectId(p.object_id)} · ${p.label}`;
+  const findPlaces = useCallback(
+    (q: string) => api.searchPlaces(q)
+      .then((rows) => rows.map((p) => ({ value: String(p.object_id), label: label(p) })))
+      .catch(() => []),
+    [],
+  );
 
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
-        <input
-          className={inputCls}
-          value={m.target}
-          aria-label="Zielort (Objektnummer)"
-          placeholder="Objektnummer des Ziels – leer lassen für «beim Ausführen wählen»"
-          {...numericInputProps}
-          onChange={(e) => onChange({ target: numericOnly(e.target.value) })}
-        />
+        <div className="flex-1 min-w-0">
+          <SearchSelect
+            value={target}
+            onChange={(v) => onChange({ target: v })}
+            // **Nur die gewählte Option steht fest** – alles andere kommt aus der Suche.
+            // Eine vollständige Liste wäre bei Haltern das halbe ERP.
+            options={place ? [{ value: String(place.object_id), label: label(place) }] : []}
+            search={findPlaces}
+            placeholder="Objektnummer oder Name – leer lassen für «beim Ausführen wählen»"
+          />
+        </div>
+        {target !== '' && (
+          <button type="button" className="erp-idbtn" aria-label="Ziel entfernen"
+            data-tip="Ziel entfernen – dann wird beim Ausführen gescannt"
+            onClick={() => onChange({ target: '' })}>
+            <X size={15} />
+          </button>
+        )}
         <button
           type="button"
           className="erp-idbtn"
@@ -292,6 +308,12 @@ function MoveFields({ module: m, onChange }: {
             steps: [{
               label: 'Zielort',
               exists: (id: number) => api.getPlace(id).then(() => true).catch(() => false),
+              // **Dieselbe Suche wie im Feld daneben** (Testnotizen #730/#732). Ein freier
+              // Scan-Schritt ohne Vorschlagsquelle bietet nichts an – wer «00292» tippt,
+              // sieht nichts, obwohl die Nummer existiert.
+              suggest: (q: string) => api.searchPlaces(q)
+                .then((rows) => rows.map((p) => ({ objectId: p.object_id, label: p.label })))
+                .catch(() => []),
             }],
             onComplete: (ids) => onChange({ target: String(ids[0] ?? '') }),
           })}
@@ -299,13 +321,11 @@ function MoveFields({ module: m, onChange }: {
           <ScanLine size={15} />
         </button>
       </div>
-      <p className="text-[12px]" style={{ color: unknown ? 'var(--danger)' : 'var(--fg-3)' }}>
-        {target === ''
-          ? 'Ohne Ziel wird beim Ausführen gescannt, wohin die Stücke gehen.'
-          : unknown
-            ? 'Diese Nummer ist kein Ort – ein Ziel ist ein Regal, eine Person oder ein Unternehmen.'
-            : place?.label ?? '…'}
-      </p>
+      {target === '' && (
+        <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
+          Ohne Ziel wird beim Ausführen gescannt, wohin die Stücke gehen.
+        </p>
+      )}
     </div>
   );
 }

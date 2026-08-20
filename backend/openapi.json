@@ -2636,6 +2636,73 @@
         }
       }
     },
+    "/api/v1/erp/places": {
+      "get": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Search Places",
+        "description": "**Halter suchen** – nach Nummer oder Namen, für jede Zielort-Eingabe.\n\nEs ist die **Vorschlagsquelle** für das Zielfeld im Editor und für den Zielort-Scan\nzur Laufzeit. Beide fragen dieselbe Stelle: eine Liste, die etwas anbietet, das die\nPrüfung danach abweist, wäre schlimmer als keine.\n\nOhne Suchbegriff kommt nichts – eine Vorschlagsliste ist eine Abkürzung beim Tippen,\nkein Katalog zum Durchblättern.",
+        "operationId": "search_places_api_v1_erp_places_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Objektnummer-Teil oder Name",
+              "default": "",
+              "title": "Search"
+            },
+            "description": "Objektnummer-Teil oder Name"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 8,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceRef"
+                  },
+                  "title": "Response Search Places Api V1 Erp Places Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/places/{object_id}": {
       "get": {
         "tags": [
@@ -6947,6 +7014,17 @@
               }
             ],
             "title": "Status After"
+          },
+          "status_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Before"
           },
           "result": {
             "anyOf": [

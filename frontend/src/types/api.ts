@@ -1005,6 +1005,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Places
+         * @description **Halter suchen** – nach Nummer oder Namen, für jede Zielort-Eingabe.
+         *
+         *     Es ist die **Vorschlagsquelle** für das Zielfeld im Editor und für den Zielort-Scan
+         *     zur Laufzeit. Beide fragen dieselbe Stelle: eine Liste, die etwas anbietet, das die
+         *     Prüfung danach abweist, wäre schlimmer als keine.
+         *
+         *     Ohne Suchbegriff kommt nichts – eine Vorschlagsliste ist eine Abkürzung beim Tippen,
+         *     kein Katalog zum Durchblättern.
+         */
+        get: operations["search_places_api_v1_erp_places_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/places/{object_id}": {
         parameters: {
             query?: never;
@@ -2713,6 +2740,8 @@ export interface components {
             verification?: string | null;
             /** Status After */
             status_after?: string | null;
+            /** Status Before */
+            status_before?: string | null;
             /** Result */
             result?: string | null;
             /**
@@ -4903,6 +4932,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObjectReference"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_places_api_v1_erp_places_get: {
+        parameters: {
+            query?: {
+                /** @description Objektnummer-Teil oder Name */
+                search?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceRef"][];
                 };
             };
             /** @description Validation Error */

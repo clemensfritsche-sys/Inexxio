@@ -3498,8 +3498,9 @@ def test_the_parts_list_uses_the_very_same_component_as_the_demand():
         "entscheidbar."
     )
 
-    # Und die Menge heisst, was sie ist.
-    assert "'Menge je Stück'" in ui
+    # Und die Menge heisst, was sie ist – **die Einzelinstanz**, denn das ist das
+    # Arbeitsobjekt des Systems (Testnotiz #725). «Stück» war das Wort daneben.
+    assert "'Menge je Einzelinstanz'" in ui
 
 
 def test_a_shortage_is_shown_not_turned_into_a_state():
@@ -3942,4 +3943,96 @@ def test_the_place_is_shown_per_piece_and_resolved_by_the_server():
     assert "data-tip" in trail, (
         "Die Kette steht nicht mehr im Hover – ausgeschrieben ist sie bei sechzig Zeilen "
         "eine Wand aus Text, in der die eigentliche Angabe untergeht."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #726–#733 – die Runde nach dem Bewegen-Modul
+# ---------------------------------------------------------------------------
+
+def test_a_free_scan_step_brings_its_own_suggestions():
+    """**Der Scanner bietet an, was er annimmt — auch beim freien Lookup** (#730–#732).
+
+    Bei einer **Verifikation** ist die Vorschlagsliste abgeleitet (`offersFor` = die
+    erwartete Nummer); dort braucht niemand etwas mitzugeben. Ein **freier** Schritt hat
+    diese Ableitung nicht: ohne `suggest` bleibt seine Liste für immer leer, und wer
+    «00292» tippt, sieht nichts – obwohl es die Nummer gibt.
+
+    Geprüft wird darum, dass jeder freie Schritt eine Quelle mitbringt. Genau daran
+    scheiterte es dreimal: der Feed hatte eine, der Zielort nicht.
+    """
+    for surface, opener in (
+        ("capture-work.tsx", 'label: \'Zielort\''),
+        ("process-designer.tsx", 'label: \'Zielort\''),
+    ):
+        code = _code(_read(FRONTEND / "components" / "erp" / surface))
+        assert opener in code, f"{surface} öffnet keinen Zielort-Schritt mehr."
+        step = code[code.index(opener):][:600]
+        assert "suggest:" in step, (
+            f"Der Zielort-Schritt in {surface} hat keine Vorschlagsquelle – wer eine "
+            f"Teilnummer tippt, sieht nichts."
+        )
+        assert "exists:" in step, (
+            f"Der Zielort-Schritt in {surface} prüft nicht, ob es die Nummer gibt – "
+            f"dann meldet der Dialog Erfolg und beim Aufrufer passiert nichts."
+        )
+
+
+def test_the_target_field_is_a_searchable_reference():
+    """**«001» oder «Clemens» muss reichen** (#732) – wie bei jeder Referenz im Haus.
+
+    Ein reines Nummernfeld verlangt, dass man die Objektnummer auswendig weiss. Das Haus
+    hat dafür `SearchSelect`; hier sucht es serverseitig, weil die Menge der Halter das
+    halbe ERP ist. Kein zweites Auswahlfeld – dieselbe Komponente, andere Quelle.
+    """
+    code = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "SearchSelect" in code and "searchPlaces" in code, (
+        "Das Zielfeld ist wieder ein reines Nummernfeld – dann muss man die "
+        "Objektnummer auswendig wissen."
+    )
+
+
+def test_the_active_module_opens_even_when_it_becomes_active_later():
+    """**Wird ein Modul zum aktiven, klappt es auf** (#727).
+
+    `defaultOpen` war ein reiner Startwert: wer den Auftrag öffnete, bevor die Stücke
+    ankamen, bekam `false` – und dabei blieb es. Als das Modul dann dran war, blieb es
+    zu, ohne blockiert zu sein.
+
+    Der Effekt hängt an `defaultOpen` und nur daran: er läuft beim **Wechsel** des
+    aktiven Moduls, nicht bei jedem Rendern. Wer selbst zuklappt, bleibt zugeklappt.
+    """
+    code = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    assert "useEffect(() => { setOpen(!!defaultOpen); }, [defaultOpen]);" in code, (
+        "Der Öffnungszustand zieht nicht mehr nach – ein Modul, das erst später dran "
+        "wird, bleibt zu."
+    )
+
+
+def test_the_order_shortcut_wears_the_order_icon():
+    """**Ein Auftrags-Knopf sieht aus wie ein Auftrag** (#728).
+
+    Er legt einen ganz gewöhnlichen Auftrag an; was daraus wird, entscheidet die Auswahl
+    (#608) und nicht das Symbol. Es kommt aus derselben Zuordnung wie überall –
+    `TYPE_META.order` –, nicht aus einer zweiten Liste daneben.
+    """
+    code = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    assert "TYPE_META.order.icon" in code, (
+        "Der Auftrags-Knopf am Stück trägt wieder ein eigenes Symbol statt des einen, "
+        "das jeder Auftrag im Haus trägt."
+    )
+
+
+def test_the_record_shows_a_state_only_when_it_changed():
+    """**Ein Zustand, der sich nicht ändert, ist keine Aussage** (#726).
+
+    Ein Durchläufer führt «Im Prozess» → «Im Prozess»; in jeder Zeile des Protokolls
+    stünde dasselbe Wort. Gefragt wird nach den **Daten** (`status_before` ≠
+    `status_after`), nicht nach dem Modultyp – die Oberfläche muss nicht wissen, welcher
+    Typ was tut, und der Dienst liefert weiterhin beide Werte.
+    """
+    code = _code(_read(FRONTEND / "components" / "erp" / "step-record.tsx"))
+    assert "entry.status_after !== entry.status_before" in code, (
+        "Das Protokoll zeigt den Nachher-Zustand wieder unbedingt – beim Durchläufer "
+        "ist das in jeder Zeile dasselbe Wort."
     )

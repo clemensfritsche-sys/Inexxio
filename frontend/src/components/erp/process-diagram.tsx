@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Blocks, ChevronDown, ChevronUp, CornerUpLeft, Flag, GitBranch, GripVertical, Lock,
   MoreHorizontal, Play, Scissors, Sprout, Trash2,
 } from 'lucide-react';
 import { MODULE_ICON, chainProblems, moduleTone } from '@/lib/modules';
+import { TYPE_META } from '@/lib/erp-record';
 import {
   BEND, FLOW_GAP, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
 } from './process-flow';
@@ -942,10 +943,14 @@ function StateRow({ units, edgeId, away: outward = false, onExpand, onDeviate,
                   disabled={!!deviateBlocked}
                   className="flex items-center disabled:opacity-40"
                   style={{ color: 'var(--warning)' }}
-                  aria-label={`Abweichung für ${u.number}`}
-                  data-tip={deviateBlocked ?? 'Abweichung: Auftrag auf genau dieses Stück'}
+                  aria-label={`Auftrag auf ${u.number}`}
+                  data-tip={deviateBlocked ?? 'Auftrag auf genau dieses Stück'}
                 >
-                  <GitBranch size={11} />
+                  {/* **Das reguläre Auftragssymbol** (Testnotiz #728) – aus derselben
+                      Zuordnung wie überall (`TYPE_META.order`). Der Knopf legt einen ganz
+                      gewöhnlichen Auftrag an; was daraus wird, entscheidet die Auswahl
+                      (#608), nicht das Symbol. */}
+                  <TYPE_META.order.icon size={11} />
                 </button>
               )}
             </span>
@@ -992,6 +997,17 @@ function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, history,
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(!!defaultOpen);
+
+  // ►► **Wird ein Modul zum aktiven, klappt es auf** (Testnotiz #727). ◄◄
+  //
+  // `defaultOpen` war ein reiner **Startwert**: wer den Auftrag öffnete, bevor die Stücke
+  // ankamen, bekam `false` – und dabei blieb es. Als das Modul dann an der Reihe war,
+  // blieb es zu, ohne blockiert zu sein. Genau so wurde es gemeldet.
+  //
+  // Der Effekt hängt an `defaultOpen` und **nur** daran: er läuft, wenn das aktive Modul
+  // wechselt, nicht bei jedem Rendern. Wer selbst zuklappt, bleibt darum zugeklappt –
+  // eine Entscheidung des Menschen wird nicht bei der nächsten Antwort überschrieben.
+  useEffect(() => { setOpen(!!defaultOpen); }, [defaultOpen]);
   // **Die Sperre gehört hierher, nicht ins Modul** (Testnotiz #698). Ein Modul fragt
   // nicht, ob es darf – ihm wird gesagt, dass es nicht darf. `fieldset[disabled]` schaltet
   // JEDE Eingabe und JEDEN Knopf darin ab, ganz gleich, was das Modul rendert; ein

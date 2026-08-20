@@ -284,3 +284,55 @@ def test_the_record_is_paged_and_says_how_many_there_are():
         )
     finally:
         w.db.close()
+
+
+# ---------------------------------------------------------------------------
+# Testnotiz #726 – ein Zustand, der sich nicht ändert, ist keine Aussage
+# ---------------------------------------------------------------------------
+
+def test_a_pass_through_module_shows_no_state_but_an_exit_does():
+    """**Der Nachher-Zustand steht da, wenn er ein ANDERER ist – sonst nicht.**
+
+    Ein Durchläufer (Datenerfassung, Bewegen) führt ``Im Prozess`` → ``Im Prozess``: in
+    jeder Zeile des Protokolls stand dasselbe Wort, und was in jeder Zeile gleich lautet,
+    ist keine Information. Bei einem **Ausgang** ist es umgekehrt – dort ist der Zustand
+    genau das, was der Vorgang bewirkt hat.
+
+    Beides ist **eine** Regel, nicht zwei: ``status_after`` trägt die Änderung. Damit
+    fällt der Fall «nicht bestanden» (nichts rückte vor) ohne Zutun in dieselbe Antwort.
+    """
+    w = _w()
+    try:
+        # (a) Durchläufer – kein Zustand im Protokoll.
+        art = w.article(serialization="unit", template=[w.capture()])
+        order = w.produce(art, 2)
+        step = w.steps(order)[0]
+        w.run_step(order, step)
+        entries, _total = _record(w, order, step)
+        assert entries, "Ohne Einträge prüft der Wächter nichts."
+        assert all(e.status_before == e.status_after for e in entries), (
+            "Die Datenerfassung verändert den Zustand – dann ist die Prämisse dieses "
+            "Wächters falsch."
+        )
+        # **Beide Werte stehen da.** Die Anzeige bildet die Differenz; nur den einen zu
+        # liefern hiesse, «vorgerückt» und «nichts geändert» wären dasselbe.
+        assert all(e.status_after for e in entries), (
+            "Der Nachher-Zustand fehlt – dann ist im Protokoll nicht mehr ablesbar, ob "
+            "der Vorgang durchging."
+        )
+
+        # (b) Ausgang – dort ist der Zustand die Aussage und bleibt.
+        art2 = w.article(serialization="unit",
+                         template=[w.dispose("scrap", "Sichtprüfung")])
+        order2 = w.produce(art2, 1)
+        step2 = w.steps(order2)[0]
+        w.run_step(order2, step2)
+        entries2, _t2 = _record(w, order2, step2)
+        assert {e.status_after for e in entries2} == {"verschrottet"}, (
+            "Beim Aussondern ist der Zustand die Aussage – er darf nicht mitentfallen."
+        )
+        assert all(e.status_before != e.status_after for e in entries2), (
+            "Ein Ausgang ändert den Zustand – sonst wäre er keiner."
+        )
+    finally:
+        w.db.close()

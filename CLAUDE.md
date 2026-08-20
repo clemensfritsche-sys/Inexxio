@@ -776,6 +776,61 @@
 > Wächter: `tests/test_move_module.py` (10 Prüfungen, **jede gegen ihre Bug-Form
 > gegengeprüft**) + drei in `test_frontend_mirrors.py`.
 
+> **Testnotizen-Runde 46 (#725–#733) — drei Notizen, EINE Ursache; und die Journey
+> lernt den zweiten Eintrittspunkt.**
+> **(1) Ein freier Scan-Schritt hatte keine Vorschlagsquelle** (#730/#731/#732). Gemessen,
+> nicht vermutet: ein **Verifikations**-Schritt liefert bei «00825» sehr wohl einen
+> Vorschlag (`offersFor` leitet ihn aus `expected` ab); ein **freier** Lookup liefert
+> **null** — seine Quelle (`ScanStep.suggest`) ist eine Angabe je Aufrufer, und die hatte
+> genau einer: der Feed. Genau daraus kamen alle drei Meldungen. #731 sah nur deshalb wie
+> ein Instanz-Scan aus, weil im damaligen Build der **erste** Schritt der freie Ortsscan
+> war («Wo stehen Sie?») – der Knopf hiess anders als das, was der Dialog fragte.
+> Die Quelle ist jetzt eine **Halter-Suche** im Backend (`places.search`,
+> `GET /erp/places?search=`): Objektnummer-Teilstring **oder** Name, über Instanz ·
+> Benutzer · Unternehmen. **Angeboten wird nur, was auch Halter sein kann** — ein Artikel
+> trägt eine Objektnummer, ist aber eine Gattung; ihn vorzuschlagen hiesse, eine Wahl
+> anzubieten, die `assert_placeable` danach abweist. Drei Aufrufstellen, eine Antwort:
+> das Zielfeld im Editor, der Zielort-Scan dort und der zur Laufzeit.
+> **Das Zielfeld ist jetzt `SearchSelect`** — dieselbe Komponente wie jede Referenz im
+> Haus, um ein **optionales `search`** erweitert: ohne es bleibt alles wie bisher
+> (Optionen fertig, Filter im Browser), mit ihm kommen sie vom Server und `options` trägt
+> nur noch die gewählte. Dieselbe Bauart wie beim Scanner (`candidates` ↔ `suggest`); ein
+> zweites Auswahlfeld «mit Suche» wäre der erste Weg, der beim nächsten Feld ausläuft.
+> **(2) Wer am MODUL eintritt, steht nicht am ANFANG des Prozesses** (#729 — die
+> Logikfrage, und der Nutzer hatte recht). Ein Verbrauchsmodul holt sein Material beim
+> Erreichen; der Auftrag, in dem es entstand, erschien darum als **vorgelagerter Auftrag**
+> über dem Start — dort, wo die Herkunft des **Subjekts** steht. Nachgestellt und
+> reproduziert. Die Unterscheidung musste nicht erfunden werden, sie stand längst im Log:
+> der `start`-Eintrag trägt am Modul-Eintritt die Modul-`id`, am Start-Objekt nicht
+> (`_enter_at_step`). Dieselbe Bedingung liest das Prozessbild seit jeher (`flow._tally`
+> zählt nur `step_id IS NULL` als «gestartet») — die Journey las sie nicht.
+> `journey._walked_the_process` ist jetzt die eine Stelle, und die **Gegenprobe steht
+> daneben**: wer sein Subjekt aus einem anderen Auftrag greift, nennt ihn weiterhin. Ohne
+> sie wäre die Korrektur von «die Journey abgeschaltet» nicht zu unterscheiden.
+> **(3) Ein Zustand, der sich nicht ändert, ist keine Aussage** (#726). Im Modul-Protokoll
+> stand je Eintrag der Nachher-Zustand — bei einem **Durchläufer** (Datenerfassung,
+> Bewegen: `Im Prozess` → `Im Prozess`) in jeder Zeile dasselbe Wort. *Der erste Anlauf
+> war zu grob und wurde von zwei bestehenden Wächtern gemeldet:* `status_after` trug
+> zugleich «ist vorgerückt», und es wegzulassen machte «vorgerückt» und «nichts geändert»
+> ununterscheidbar. Jetzt liefert der Dienst **beide** Zustände unverfälscht, und die
+> Anzeige bildet die Differenz — sie fragt die **Daten**, nicht den Modultyp.
+> **(4) Ein Modul, das an die Reihe kommt, klappt auf** (#727). `defaultOpen` war ein
+> reiner `useState`-Startwert: wer den Auftrag öffnete, **bevor** die Stücke ankamen,
+> bekam `false` — und dabei blieb es, auch als das Modul dran war. Der Effekt hängt an
+> `defaultOpen` und nur daran: er läuft beim **Wechsel** des aktiven Moduls, nicht bei
+> jedem Rendern; wer selbst zuklappt, bleibt zugeklappt.
+> **(5) Kleineres, jedes an genau einer Stelle:** der Auftrags-Knopf am Stück trägt das
+> **reguläre Auftragssymbol** (#728, `TYPE_META.order` — was daraus wird, entscheidet die
+> Auswahl, nicht das Symbol); «Menge je Stück» heisst **«Menge je Einzelinstanz»** (#725 —
+> das ist das Arbeitsobjekt des Systems); der Knopf des Bewegen-Moduls heisst **«Bewegung
+> bestätigen»** (#733 — gescannt ist zu diesem Zeitpunkt längst, was der Knopf auslöst,
+> ist die Buchung der Ablage).
+> Wächter: `test_move_module.test_holders_are_searchable_by_number_and_by_name`,
+> `test_consumption_module.test_a_component_does_not_become_a_preceding_order` +
+> `…_the_real_journey_survives`, `test_step_record.test_a_pass_through_module_shows_no_
+> state_but_an_exit_does`, dazu fünf in `test_frontend_mirrors.py` — jeder gegen seine
+> Bug-Form gegengeprüft.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
