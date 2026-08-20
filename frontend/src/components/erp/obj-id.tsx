@@ -15,9 +15,21 @@ export function useErpNav(): ((objectId: number) => void) | null {
  * (ERP-Feed) und ist die Nummer vorhanden, wird sie zum klickbaren Link, der den
  * referenzierten Datensatz öffnet.
  */
-export function ObjId({ value, mono = true }: { value: number | null | undefined; mono?: boolean }) {
+export function ObjId({ value, mono = true, label }: {
+  value: number | null | undefined;
+  mono?: boolean;
+  /**
+   * **Wie die Nummer heisst**, wenn sie genauer ist als der Datensatz, auf den sie
+   * führt: die Nummer einer Einzelinstanz (`100000123-3`) meint ein Stück, aber
+   * geöffnet wird ihre Instanz – ein Stück hat keinen eigenen Datensatz.
+   *
+   * Kein zweiter Weg, eine Nummer zu schreiben: dieselbe Komponente, dieselbe Grösse,
+   * dieselbe Tabellenziffer – nur der Text ist präziser.
+   */
+  label?: string;
+}) {
   const nav = useErpNav();
-  const text = formatObjectId(value);
+  const text = label ?? formatObjectId(value);
   // **Eine Objektnummer sieht überall gleich aus** (Notiz #282): sie erbte bisher die
   // Schriftgrösse ihrer Umgebung und wurde in einem grossen Lesefeld zur dominantesten
   // Angabe der Zeile – obwohl sie eine Kennung ist, keine Aussage. Eigene, feste Grösse

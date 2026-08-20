@@ -291,13 +291,14 @@ def test_the_chain_reads_from_inside_out_and_stops_at_an_address():
         places_svc.place(db, units=[screw], target=box.object_id)
         db.flush()
 
-        chain = places_svc.chain(db, screw.place_object_id)
+        chain = places_svc.chain(db, places_svc.place_of(screw))
         assert [s.object_id for s in chain] == [
             box.object_id, shelf.object_id, works.object_id,
         ]
         assert [s.kind for s in chain] == ["instance", "instance", "organization"]
         assert chain[-1].label == "Werk Nord"
         assert places_svc.chain(db, None) == [], "Standortlos ist eine leere Kette."
+        assert places_svc.place_of(unit_of(shelf)) == (places_svc.OBJECT, works.object_id)
     finally:
         db.rollback()
         db.close()
@@ -326,7 +327,7 @@ def test_a_broken_chain_is_capped_not_endless():
         unit_of(b).place_object_id = a.object_id
         db.flush()
 
-        chain = places_svc.chain(db, a.object_id)
+        chain = places_svc.chain(db, (places_svc.OBJECT, a.object_id))
         # **Scharf, nicht nur endlich**: zwei Stationen im Kreis dürfen genau zweimal
         # erscheinen. Eine Obergrenze allein liesse zehn Wiederholungen durchgehen –
         # gekappt wäre es dann zwar, aber gelogen.

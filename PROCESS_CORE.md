@@ -1372,6 +1372,50 @@ Verknüpfung; das Modul fragt beim nächsten Versuch neu). **Automatisch ausgewi
 nie:** welches Material verbaut wird, ist eine Entscheidung, und eine unsichtbare
 Automatik sähe man erst am fertigen Erzeugnis.
 
+#### Material am richtigen Ort — dieselbe Aussage, eine Spalte weiter
+
+Bestand reicht nicht nur zahlenmässig: er muss **dort** liegen, wo verbaut wird. Bis
+hierher war `instance_units.place_*` ein Zeiger, den **keine Regel liest** (§9.8) — mit
+diesem Modul wird er zur **Voraussetzung**, und zwar nur hier.
+
+**Wo das Material liegen muss, ist abgeleitet, nicht konfiguriert.** Der Modultyp
+deklariert die Frage (`Module.material_place = AT_PRODUCT`), beantwortet wird sie aus dem
+**Ort der Produkte**: die Komponenten müssen dorthin, wo verbaut wird. Ein eigenes
+Ortsfeld am Verbrauchsmodul wäre eine zweite Ortsangabe neben dem Ziel des
+Bewegen-Moduls, und zwei können sich widersprechen; so entsteht die Anforderung von
+selbst und niemand modelliert sie.
+
+**«Am Ort» heisst in der KETTE, nicht «identische Nummer».** Die Schraube in der Kiste,
+die auf Werkbank 5 steht, **ist** auf Werkbank 5 (`places.at_holder`). Die naive Lesart
+wäre in der Praxis fast immer falsch: Material steht in Behältern, und der Behälter steht
+am Arbeitsplatz.
+
+**Wo nichts steht, wird nichts verlangt.** Liegen die Produkte nirgends — oder an
+*verschiedenen* Orten — gibt es keine Anforderung. Eine erfundene sperrte das Modul auf
+einen Ort, den nur ein Teil der Stücke teilt; und ohne diese Regel hielte die Änderung
+jeden bestehenden Ablauf an, denn ein frisch erzeugtes Stück liegt nirgends.
+
+**Nichtverfügbarkeit bleibt kein Zustand.** «Am falschen Ort» ist dieselbe Aussage wie
+«zu wenig da», eine Spalte weiter: `StepNeed` nennt jetzt *gebraucht · verfügbar ·
+**davon hier*** und den Arbeitsort dazu. Zwei Formen einer Regel — `needs` als Auskunft,
+`plan` als Riegel (409 mit dem Ort im Text, bevor etwas geschrieben ist). Ein milderer
+Riegel wäre eine Zeile, die «0 hier» meldet, und ein Modul, das trotzdem verbaut.
+
+**Der Weg dorthin ist ein ganz gewöhnlicher Auftrag** mit einem Bewegen-Modul, dessen
+Ziel der Arbeitsort ist — vorgewählt angeboten, **nie automatisch angelegt**. Dieselbe
+Mechanik wie §4.5 bei «nicht bestanden»: das System bietet an, es legt nicht an. Es kann
+nicht wissen, ob man lieber eine andere Kiste nimmt, das Werkstück zur Maschine bringt
+oder die zwanzig Meter selbst läuft.
+
+**Und die Sperre fällt heraus, statt gebaut zu werden.** Solange der Transportauftrag
+läuft, ist das Stück `Im Prozess` mit offener Zugehörigkeit — der Verbrauch nimmt nur,
+was frei ist, kann es also gar nicht greifen. Ist der Transport durch, ist es frei **und**
+liegt richtig, und das Modul fragt beim nächsten Versuch neu. Keine Verknüpfung, kein
+Wartezustand, keine Zeile Wartelogik: die bestehende Exklusivität tut es.
+
+Drei Wege stehen damit an der Zeile, und alle drei gibt es schon: *eine andere Instanz
+wählen* · *holen lassen* · *Nachschub anlegen*. Angeboten wird nur, was gerade Sinn ergibt.
+
 #### Was daraus folgt
 
 * `Module.terminal` bleibt **False**. Es kommt gar nichts an, was ginge: das Produkt
@@ -1459,6 +1503,44 @@ gescannt noch als Ziel gewählt werden. Was man scannt, ist das physische Ding, 
 ist die **Instanz**: die Kiste, das Regal, die Palette. Halter ist damit alles mit einer
 Nummer: **Instanz** (Regal, Behälter, LKW), **Benutzer** (Mitarbeiter, Kunde, Spediteur),
 **Unternehmen** (Werk Nord, Hauptsitz). Kein neuer Datensatztyp, keine Whitelist.
+
+#### Zwei Arten von Halter — die Genauigkeit ist die der Quelle
+
+`place_object_id` trägt einen **gescannten** Halter (Instanz · Benutzer · Unternehmen);
+`place_unit_id` einen **Träger**: das eine Stück, in dem dieses Stück steckt. Ein `CHECK`
+erzwingt, dass höchstens eines gesetzt ist — der Ort bleibt **eine** Aussage, sie hat nur
+zwei mögliche Formen.
+
+Das ist keine Doppelung, sondern die einzig ehrliche Aufteilung: **was man scannt, ist ein
+Etikett, und ein Etikett hat die Instanz** — feiner geht es nicht, ohne zu raten, welches
+Stück der Charge gemeint war. Beim **Verbauen** dagegen kennt das Modul das Stück genau
+(`consumption.plan` teilt je Produkt-Stück zu), und diese Genauigkeit wegzuwerfen wäre
+eine erfundene Unschärfe: «in Instanz 100000123» wären bei einer Charge sechshundert
+Getriebe, also eine Gruppe und kein Ort.
+
+**Und weil das Stück auf den Träger zeigt und nicht auf dessen Anschrift, wandert es
+mit**: wird das Getriebe bewegt, ist die Schraube darin automatisch mitbewegt — genau wie
+eine Schraube in einer Kiste. Ein eingefrorener Ort wäre in dem Moment gelogen, in dem
+das Getriebe die Werkbank verlässt.
+
+**Nicht die Genealogie.** Der Log sagt, *worin* verbaut wurde (`payload.into`) —
+unveränderlich, überlebt die Demontage. Diese Spalten sagen, *wo es jetzt liegt*, und
+werden beim Ausbau geräumt. Dass die beiden auseinander laufen können, ist der Beweis,
+dass es zwei Fragen sind (§9.6).
+
+#### Wer zur Historie zählt, verliert seinen Ort
+
+`Status.stock` heisst im Katalog wörtlich *liegt im Regal*. Daraus folgt die Regel für
+**jedes** Modul, ohne dass eines sie kennt (`process._pass`):
+
+| Zustand | Ort |
+|---|---|
+| **Verschrottet** (Historie) | keiner — es gibt das Ding nicht mehr; der Status IST die Wo-Antwort |
+| **Verbaut** (Historie) | sein **Träger** — es liegt nicht im Regal, sondern in einem anderen Stück |
+| **Gesperrt** (Bestand) | **bleibt** — es liegt im Regal, nur unbenutzbar |
+
+Die Regel hängt am **Status** und steht an der einen Stelle, an der ein Status geschrieben
+wird. Wer einen *neuen* Ort hat, setzt ihn im selben Zug — der Verbrauch seinen Träger.
 
 **Der Ort hängt am Stück, nicht an der Gruppe.** Zwei Schrauben derselben Charge dürfen an
 zwei Orten liegen. Genau das konnte der Vorgänger nicht: er führte eine Standort→Menge-Map

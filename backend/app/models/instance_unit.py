@@ -69,11 +69,32 @@ class InstanceUnit(Base, TimestampMixin):
     #: **Kein Typfeld daneben.** Objektnummern sind systemweit eindeutig, der Typ ist
     #: daraus ableitbar (``objects.resolve_object_type``). Halter ist alles, was eine
     #: Nummer hat: eine **Instanz** (Regal, Behälter, Palette), ein **Benutzer** oder ein
-    #: **Unternehmen**. Eine Einzelinstanz kann es nicht sein – sie zieht bewusst keine
-    #: Objektnummer, es gäbe für sie kein Etikett zu scannen.
+    #: **Unternehmen**. Ein *Stück* kann es hier nicht sein – es zieht bewusst keine
+    #: Objektnummer; dafür steht ``place_unit_id`` daneben.
     #:
     #: **``NULL`` ist ein regulärer Zustand**, kein fehlender Wert: ein frisch erzeugtes
     #: Stück liegt nirgends, bis ein Modul es irgendwohin bringt.
     place_object_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, index=True,
+    )
+
+    #: **Der Träger** – das *Stück*, in dem dieses Stück steckt (``services/places``).
+    #:
+    #: Die zweite Art, einen Halter zu nennen, und sie ist nötig, weil eine Einzelinstanz
+    #: keine Objektnummer trägt: eine verbaute Schraube liegt nicht «in Instanz
+    #: 100000123» (das wären 600 Getriebe), sondern **in diesem einen** Getriebe.
+    #:
+    #: **Zwei Spalten, zwei Arten von Halter – nicht zwei Antworten auf eine Frage.** Die
+    #: Genauigkeit des Ortes ist die Genauigkeit seiner Quelle: **gescannt** wird ein
+    #: Etikett, und ein Etikett hat die Instanz (``place_object_id``); beim **Verbauen**
+    #: kennt das Modul das Stück genau (``consumption.plan``), und diese Genauigkeit
+    #: wegzuwerfen wäre eine erfundene Unschärfe. Ein ``CHECK`` erzwingt, dass höchstens
+    #: eines von beiden gesetzt ist (Migration 112).
+    #:
+    #: **Nicht die Genealogie.** Der Log sagt, *worin* ein Stück verbaut wurde
+    #: (``payload.into``) – unveränderlich, überlebt die Demontage. Diese Spalte sagt,
+    #: *wo es jetzt liegt*, und wird beim Ausbau geräumt. Dass die beiden auseinander
+    #: laufen können, ist der Beweis, dass es zwei Fragen sind (PROCESS_CORE §9.6).
+    place_unit_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, nullable=True, index=True,
     )

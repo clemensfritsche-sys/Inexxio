@@ -126,6 +126,37 @@ class World:
         return {"module_type": "aussondern", "config": {"mode": mode, "reason": reason}}
 
     @staticmethod
+    def move(target: Optional[int] = None) -> dict[str, Any]:
+        """Ein Bewegen-Modul. Ohne Ziel wird es beim Ausführen gescannt."""
+        return {"module_type": "bewegen", "config": {"target": target}}
+
+    def holder(self, *, name: str = "Werkbank"):
+        """Ein physischer Halter – ein Regal, eine Werkbank, ein Behälter.
+
+        Es ist eine ganz gewöhnliche **Instanz**: kein neuer Datensatztyp, keine
+        Whitelist. Sie steht schon da, also braucht sie keinen Erzeugungsprozess –
+        erzeugt wird sie hier direkt.
+        """
+        from app.models import Article
+        from app.services import instances as inst_svc, objects as obj
+
+        art = Article(object_id=obj.next_object_id(self.db), name=name, unit="stk",
+                      serialization="einzeln", status="freigegeben")
+        self.db.add(art)
+        self.db.flush()
+        made = inst_svc.create_instances(
+            self.db, article=art, kind="einzeln", instance_count=1, units_each=1)
+        self.db.flush()
+        return made[0]
+
+    def put(self, numbers: list[str], target: int) -> None:
+        """Stücke an einen Halter legen – über die EINE Schreibstelle."""
+        from app.services import instances as inst_svc, places
+        places.place(self.db, units=[inst_svc.find_unit(self.db, n) for n in numbers],
+                     target=target)
+        self.db.flush()
+
+    @staticmethod
     def consume(*lines: tuple[int, int]) -> dict[str, Any]:
         """Ein Verbrauchsmodul – je Zeile **Artikel + Menge pro Einzelinstanz**."""
         return {
@@ -173,7 +204,8 @@ class World:
         return proc.step_work(self.db, order, step)
 
     def confirm(self, order, step, *, instance: int, values: Optional[dict] = None,
-                verification: str = "scan", sources: Optional[list[int]] = None):
+                verification: str = "scan", sources: Optional[list[int]] = None,
+                place: Optional[int] = None, transport: Optional[str] = None):
         """Ein Modul für **eine** Instanz bestätigen – mit einem Wertesatz je gezogenem Stück."""
         from app.services import process as proc
         from tests.support import per_unit
@@ -188,18 +220,18 @@ class World:
         out = proc.confirm_step(
             self.db, order=order, step_id=step.id, values=payload,
             instance_object_id=instance, verification=verification,
-            sources=sources, actor_id=None,
+            sources=sources, place=place, transport=transport, actor_id=None,
         )
         self.db.flush()
         return out
 
     def run_step(self, order, step, *, values: Optional[dict] = None,
-                 sources: Optional[list[int]] = None):
+                 sources: Optional[list[int]] = None, place: Optional[int] = None):
         """Ein Modul für **alle** wartenden Instanzen bestätigen (ein Vorgang je Instanz)."""
         out = []
         for row in list(self.work(order, step)):
             out.append(self.confirm(order, step, instance=row["instance_object_id"],
-                                    values=values, sources=sources))
+                                    values=values, sources=sources, place=place))
         return out
 
     def run_all(self, order, *, values: Optional[dict] = None):
@@ -209,14 +241,15 @@ class World:
         return self.status(order)
 
     def needs(self, order, step) -> list[dict[str, Any]]:
-        """Was dieses Modul jetzt braucht — Artikel, Menge, Verfügbarkeit (§4)."""
-        from app.services import consumption
+        """Was dieses Modul jetzt braucht — Artikel, Menge, Verfügbarkeit, **Ort** (§4)."""
+        from app.services import consumption, process as proc
 
-        pieces = sum(row["waiting"] for row in self.work(order, step))
         return [
             {"artikel": n.article_object_id, "je_stück": n.per_unit,
-             "gebraucht": n.required, "verfügbar": n.available, "fehlt": n.missing}
-            for n in consumption.needs(self.db, step, pieces=pieces)
+             "gebraucht": n.required, "verfügbar": n.available, "fehlt": n.missing,
+             "hier": n.here, "am_falschen_ort": n.misplaced}
+            for n in consumption.needs(
+                self.db, step, products=proc.units_before(self.db, order, step))
         ]
 
     # ── Auskunft ────────────────────────────────────────────────────────────

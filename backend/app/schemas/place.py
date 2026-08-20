@@ -6,9 +6,12 @@ Frage («welche Objektnummer, welcher Typ, wie heisst sie»), also tragen sie di
 Form – eine zweite wäre eine zweite Art, denselben Ort zu schreiben.
 """
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:  # pragma: no cover - nur für die Typprüfung
+    from ..services.places import Station
 
 
 class PlaceRef(BaseModel):
@@ -20,8 +23,24 @@ class PlaceRef(BaseModel):
     """
 
     object_id: int
-    kind: str          # instance | user | organization
+    kind: str          # instance | user | organization | unit
     label: str
+    #: **Die Stück-Nummer**, wenn der Halter ein *Träger* ist (``100000123-3``). Ein Stück
+    #: hat keinen eigenen Datensatz, aber einen eindeutigen Namen; ``object_id`` führt
+    #: dann auf seine **Instanz**. Die Anzeige zieht diese Nummer vor, weil sie die
+    #: genauere Aussage ist.
+    number: Optional[str] = None
+
+    @classmethod
+    def of(cls, station: "Station | None") -> "Optional[PlaceRef]":
+        """Station → Antwortform. **Die eine Umwandlung** – drei Aufrufstellen teilen sie.
+
+        Ein Halter, den es nicht mehr gibt (``None``), bleibt ``None``: die Anzeige zeigt
+        dann nichts statt eines Namens, den sie nicht kennt – tolerant lesen, streng
+        schreiben.
+        """
+        return cls(object_id=station.object_id, kind=station.kind,
+                   label=station.label, number=station.number) if station else None
 
 
 class UnitPlace(BaseModel):

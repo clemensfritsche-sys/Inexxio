@@ -831,6 +831,54 @@
 > state_but_an_exit_does`, dazu fünf in `test_frontend_mirrors.py` — jeder gegen seine
 > Bug-Form gegengeprüft.
 
+> **Material am richtigen Ort — der Ort wird zur VORAUSSETZUNG, und nur dort**
+> (PROCESS_CORE §9.6/§9.8, Migration `112`). Bis hierher war `instance_units.place_*` ein
+> Zeiger, den **keine Regel liest**. Sobald ein Modul Material an einem bestimmten Ort
+> *braucht*, wird er zur Voraussetzung — und das ist **dieselbe Frage, die längst
+> beantwortet ist**: der Verbrauch meldet fehlende **Menge** als `StepNeed`
+> («Artikel · gebraucht · verfügbar», Nichtverfügbarkeit ist kein Zustand). **«Am
+> falschen Ort» ist dieselbe Aussage, eine Spalte weiter**: *davon hier*. Kein neuer
+> Status, kein Pausenwert, keine Wartelogik.
+> **Wo das Material liegen muss, ist ABGELEITET** (`Module.material_place = AT_PRODUCT`
+> → `consumption.required_place`): dort, wo das **Produkt** liegt. Ein eigenes Ortsfeld am
+> Verbrauchsmodul wäre eine zweite Ortsangabe neben dem Ziel des Bewegen-Moduls, und zwei
+> können sich widersprechen; so entsteht die Anforderung von selbst und niemand
+> modelliert sie. **«Am Ort» heisst in der KETTE**, nicht «identische Nummer»: die
+> Schraube in der Kiste, die auf Werkbank 5 steht, **ist** auf Werkbank 5
+> (`places.at_holder`) — die naive Lesart wäre in der Praxis fast immer falsch. Und **wo
+> nichts steht, wird nichts verlangt**: liegen die Produkte nirgends oder an
+> *verschiedenen* Orten, gibt es keine Anforderung — ohne diese Regel hielte die Änderung
+> jeden bestehenden Ablauf an.
+> **Der Weg dorthin ist ein ganz gewöhnlicher Auftrag** mit einem Bewegen-Modul auf den
+> Arbeitsort — **vorgewählt angeboten, nie automatisch angelegt** (dieselbe Mechanik wie
+> §4.5 bei «nicht bestanden»; das Vorgängersystem hatte die Automatik gebaut und wieder
+> abgeschaltet). **Und die Sperre fällt heraus, statt gebaut zu werden**: solange der
+> Transport läuft, ist das Stück `Im Prozess` und damit gar nicht greifbar; danach ist es
+> frei **und** liegt richtig. Drei Wege an der Zeile, alle drei gibt es schon: *andere
+> Instanz wählen* · *holen lassen* · *Nachschub*.
+> **Zwei Arten von Halter — die Genauigkeit ist die der QUELLE** (`place_object_id` ↔
+> `place_unit_id`, `CHECK` = höchstens eines): was man **scannt**, ist ein Etikett, und
+> ein Etikett hat die **Instanz**; beim **Verbauen** kennt das Modul das **Stück** genau,
+> und diese Genauigkeit wegzuwerfen wäre eine erfundene Unschärfe («in 100000123» wären
+> bei einer Charge 600 Getriebe — eine Gruppe, kein Ort). Weil das Stück auf den **Träger**
+> zeigt und nicht auf dessen Anschrift, **wandert es mit**, wenn das Getriebe bewegt wird.
+> *Nicht die Genealogie:* der Log sagt **worin** verbaut wurde (`payload.into`,
+> unveränderlich, überlebt die Demontage), die Spalte sagt **wo es jetzt liegt** und wird
+> beim Ausbau geräumt — dass beide auseinanderlaufen können, ist der Beweis, dass es zwei
+> Fragen sind.
+> **Wer zur Historie zählt, verliert seinen Ort** (`Status.stock` heisst wörtlich «liegt
+> im Regal»): **Verschrottet** → keiner (der Status IST die Wo-Antwort), **Verbaut** →
+> sein Träger, **Gesperrt** → **bleibt** (es liegt im Regal, nur unbenutzbar). Die Regel
+> hängt am **Status** und steht an der einen Stelle, an der ein Status geschrieben wird
+> (`process._pass`) — jedes künftige Modul erbt sie ohne eine Zeile.
+> **`places` bleibt die EINE Schreibstelle** (`place` · `place_in` · `forget`,
+> Quelltext-Wächter); die Kette läuft über beide Halter-Arten in **einem** Lauf
+> (`_walk`, batchweise je Halter — 60 Schrauben in einem Regal sind eine Kette).
+> Wächter: `tests/test_material_place.py` (11 Prüfungen, **jede gegen ihre Bug-Form
+> gegengeprüft**) + vier in `test_frontend_mirrors.py`. Gemessen, nicht behauptet: die
+> ganze Szene end-to-end über die echten Dienstpfade (40 verfügbar/0 hier → Transport →
+> 12 hier → verbaut, Schraube liegt in `…-1` auf Werkbank 5).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

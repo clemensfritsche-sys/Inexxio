@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine } from 'lucide-react';
+import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine, Truck } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CapturePoint, PlaceRef, StepNeed, StepWork, Transport } from '@/types';
-import { TRANSPORT_ICON } from '@/lib/modules';
+import { MOVE_MODULE, TRANSPORT_ICON } from '@/lib/modules';
 import { IconSwitch } from '@/components/erp/fields';
 import { formatObjectId } from '@/lib/utils';
 import { useScan } from '@/components/scan/scan-provider';
@@ -253,6 +253,14 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
           boxes={boxes}
           onChoose={(article, ids) => setBoxes((s) => ({ ...s, [article]: ids }))}
           onSupply={onDeviate && ((article: number) => onDeviate({ articleObjectId: article }))}
+          // **«Holen lassen» ist kein zweiter Anlagepfad** – es ist derselbe Entwurf wie
+          // «Nachschub», nur mit Menge und einem Bewegen-Modul auf den Arbeitsort. Was
+          // daraus wird, entscheidet weiterhin die Auswahl im Entwurf.
+          onHaul={onDeviate && ((need, quantity) => onDeviate({
+            articleObjectId: need.article_object_id,
+            quantity,
+            steps: [{ moduleType: MOVE_MODULE, target: need.place?.object_id }],
+          }))}
           busy={busy}
           first={i === 0}
           via={verified[w.instance_object_id] ?? null}
@@ -296,13 +304,25 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
  * steht sie, damit man **vor** dem Scan weiss, was man holen muss. Entschieden wird sie
  * nicht hier – wer eine andere Kiste nimmt, sagt es, und dann gilt seine Wahl.
  */
+/**
+ * **Welche Kisten der Server nehmen würde** – die Vorschau seiner eigenen Zuteilung.
+ *
+ * **Was am Arbeitsort liegt, kommt zuerst**: der Server nimmt ohnehin nur das (§9.6),
+ * und eine Vorschau, die eine Kiste aus Regal A vorschlägt, während das Modul nur die
+ * auf der Werkbank verbauen kann, wäre eine Anleitung zum Fehlschlag. Ob eine Kiste
+ * «hier» ist, kann die Oberfläche dabei nicht selbst ausrechnen – «am Ort» ist eine
+ * Aussage über die *Kette*; darum sagt es der Server je Quelle (``NeedSource.here``).
+ */
 function planBoxes(need: StepNeed, want: number): number[] {
   const out: number[] = [];
   let left = want;
-  for (const s of need.sources ?? []) {
+  const byPlace = [...(need.sources ?? [])].sort((a, b) => (b.here ?? 0) - (a.here ?? 0));
+  for (const s of byPlace) {
     if (left <= 0) break;
+    const usable = need.place ? (s.here ?? 0) : s.free;
+    if (usable <= 0) continue;
     out.push(s.instance_object_id);
-    left -= s.free;
+    left -= usable;
   }
   return out;
 }
@@ -312,23 +332,28 @@ function planBoxes(need: StepNeed, want: number): number[] {
  *
  * **Nichtverfügbarkeit ist kein Zustand** (§4). Es gibt keinen Pausen-Wert und keine
  * Sperre: das Modul ist schlicht nicht fertig, und hier steht in Klartext, woran es
- * liegt. Was daraus folgt, entscheidet ein Mensch – und zwar zwischen genau zwei Wegen,
- * die beide schon existieren:
+ * liegt. **«Am falschen Ort» ist dabei dieselbe Aussage wie «zu wenig da», eine Spalte
+ * weiter** – und daraus folgen drei Wege, die alle schon existieren:
  *
  * * **eine andere Kiste nehmen** – dieselbe Wahl, die der Scan ohnehin trifft,
- * * **Nachschub anlegen** – ein ganz gewöhnlicher Auftragsentwurf mit diesem Artikel.
- *   Keine Verknüpfung, kein Wartezustand: das Modul fragt beim nächsten Versuch neu.
+ * * **holen lassen** – ein ganz gewöhnlicher Auftrag mit einem Bewegen-Modul, dessen
+ *   Ziel der Arbeitsort ist. Angelegt wird nichts: der Entwurf lebt im Browser (#386),
+ * * **Nachschub anlegen** – derselbe Entwurf ohne Ziel, wenn es wirklich zu wenig ist.
  *
- * Ein automatisches Ausweichen gibt es bewusst nicht. Welches Material verbaut wird, ist
- * eine Entscheidung, und eine unsichtbare Automatik sähe man erst am fertigen Erzeugnis.
+ * Angeboten wird nur, was gerade Sinn ergibt (#723): reicht das Material am Arbeitsort,
+ * steht hier nichts. Ein automatisches Ausweichen gibt es bewusst nicht – welches
+ * Material verbaut wird, ist eine Entscheidung, und eine unsichtbare Automatik sähe man
+ * erst am fertigen Erzeugnis.
  */
-function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
+function NeedRow({ need, pieces, chosen, onChoose, onSupply, onHaul }: {
   need: StepNeed;
   /** Wie viele Stücke **dieser** Instanz vor dem Modul stehen – die Bezugsgrösse. */
   pieces: number;
   chosen: number[] | null;
   onChoose: (ids: number[]) => void;
   onSupply?: () => void;
+  /** «Holen lassen» – ein Auftragsentwurf mit Bewegen-Modul auf den Arbeitsort. */
+  onHaul?: (quantity: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   // Gerechnet wird auf **diese** Instanz: die Menge gilt je Stück.
@@ -338,12 +363,16 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
 
   // ►► **Keine Option anbieten, die gerade keinen Sinn ergibt** (#723). ◄◄
   //
-  //   geplantes Material reicht  →  nichts. Einfach scannen.
-  //   reicht nicht, Bestand da   →  «Andere Instanz wählen» – der Plan geht nicht auf,
-  //                                 aber im Lager liegt etwas.
-  //   gar kein Bestand           →  nur «Nachschub». Wählen liesse sich nichts.
+  //   am Arbeitsort genug         →  nichts. Einfach scannen.
+  //   genug da, liegt nur woanders →  «Holen lassen» – die Handlung ist ein Transport,
+  //                                  keine Beschaffung.
+  //   reicht nicht, Bestand da    →  «Andere Instanz wählen».
+  //   gar kein Bestand            →  nur «Nachschub». Wählen liesse sich nichts.
   const enough = need.available >= required;
   const empty = need.available <= 0;
+  const here = need.place ? (need.here ?? 0) : need.available;
+  // Die Menge ist da, nur nicht hier. Der einzige Fall, den ein Transport löst.
+  const misplaced = enough && here < required;
 
   return (
     <div className="flex flex-col gap-1 py-1.5">
@@ -361,6 +390,16 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
             {need.available} verfügbar
           </span>
         )}
+        {/* **Der Ort ist das Problem, nicht die Menge** – und die Zeile sagt beides:
+            wie viel hier liegt, und wo der Rest steht. «0 verfügbar» wäre hier schlicht
+            falsch: es sind vierzig da. */}
+        {enough && misplaced && need.place && (
+          <span className="ml-auto text-[11.5px]" style={{ color: 'var(--danger)' }}
+            data-tip={`Gebraucht bei ${need.place.label} · ${need.available - here} `
+              + `${need.available - here === 1 ? 'liegt' : 'liegen'} woanders`}>
+            {here} bei {need.place.label}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -369,11 +408,19 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
             ? <>aus {plan.map((id) => formatObjectId(id)).join(' · ')}</>
             : 'kein Bestand'}
         </span>
-        {!enough && !empty && (
+        {(misplaced || (!enough && !empty)) && (
           <button type="button" onClick={() => setOpen(!open)}
             className="text-[11.5px] underline" style={{ color: 'var(--fg-3)' }}
             data-tip="Aus einer anderen Instanz nehmen – die Wahl gilt, es wird nicht ausgewichen">
             Andere Instanz wählen
+          </button>
+        )}
+        {misplaced && onHaul && (
+          <button type="button" className="erp-actbtn ml-auto" style={{ height: 28 }}
+            onClick={() => onHaul(required - here)}
+            data-tip={"Öffnet einen ganz gewöhnlichen Auftragsentwurf: dieses Material "
+              + "holen und hierher bringen. Angelegt wird nichts."}>
+            <Truck size={13} /> Holen lassen
           </button>
         )}
         {empty && onSupply && (
@@ -404,6 +451,9 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
                   ? { background: 'var(--success-bg)', color: 'var(--success)' }
                   : { border: '1px dashed var(--border-2)', color: 'var(--fg-3)' }}>
                 {formatObjectId(s.instance_object_id)} · {s.free}
+                {need.place && s.place ? (
+                  <span style={{ opacity: 0.75 }}> · {s.place.label}</span>
+                ) : null}
               </button>
             );
           })}
@@ -419,7 +469,7 @@ function NeedRow({ need, pieces, chosen, onChoose, onSupply }: {
  * Getrennt wird durch eine Haarlinie, nicht durch einen Rahmen: die Zeilen gehören
  * ohnehin zusammen, das sagt schon die Modul-Karte, in der sie stehen.
  */
-function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, busy,
+function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, onHaul, busy,
                       first, via, numbers, onScan, onConfirm,
                       onDirty, onDeviate, orderObjectId, stepId }: {
   work: StepWork;
@@ -430,6 +480,7 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, b
   boxes: Record<number, number[]>;
   onChoose: (article: number, ids: number[]) => void;
   onSupply?: (article: number) => void;
+  onHaul?: (need: StepNeed, quantity: number) => void;
   busy?: boolean;
   first: boolean;
   via: string | null;
@@ -481,7 +532,8 @@ function InstanceRow({ work, points, action, needs, boxes, onChoose, onSupply, b
             <NeedRow key={n.article_object_id} need={n} pieces={work.waiting}
               chosen={boxes[n.article_object_id] ?? null}
               onChoose={(ids) => onChoose(n.article_object_id, ids)}
-              onSupply={onSupply && (() => onSupply(n.article_object_id))} />
+              onSupply={onSupply && (() => onSupply(n.article_object_id))}
+              onHaul={onHaul && ((quantity) => onHaul(n, quantity))} />
           ))}
         </div>
       )}

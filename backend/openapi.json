@@ -6196,6 +6196,21 @@
           "free": {
             "type": "integer",
             "title": "Free"
+          },
+          "here": {
+            "type": "integer",
+            "title": "Here",
+            "default": 0
+          },
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6748,6 +6763,17 @@
           "label": {
             "type": "string",
             "title": "Label"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
           }
         },
         "type": "object",
@@ -7254,6 +7280,21 @@
             "type": "integer",
             "title": "Available"
           },
+          "here": {
+            "type": "integer",
+            "title": "Here",
+            "default": 0
+          },
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "sources": {
             "items": {
               "$ref": "#/components/schemas/NeedSource"
@@ -7271,7 +7312,7 @@
           "available"
         ],
         "title": "StepNeed",
-        "description": "Eine Zeile der Stückliste, **gegen den Bestand gehalten**.\n\n``required`` ist die Rechnung dieses Augenblicks: Menge je Stück × Stücke, die vor\ndem Modul stehen. Sie entsteht beim **Erreichen** und nicht beim Definieren – vorher\nweiss niemand, wie viele Produkte ankommen.\n\n**Fehlt etwas, ist das kein Zustand des Auftrags.** Es gibt keinen Pausen-Wert und\nkeine Sperre: das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext,\nworan es liegt (Artikel · gebraucht · verfügbar). Was daraus folgt, entscheidet ein\nMensch – eine andere Instanz wählen oder Nachschub anlegen."
+        "description": "Eine Zeile der Stückliste, **gegen den Bestand gehalten**.\n\n``required`` ist die Rechnung dieses Augenblicks: Menge je Stück × Stücke, die vor\ndem Modul stehen. Sie entsteht beim **Erreichen** und nicht beim Definieren – vorher\nweiss niemand, wie viele Produkte ankommen.\n\n**Fehlt etwas, ist das kein Zustand des Auftrags.** Es gibt keinen Pausen-Wert und\nkeine Sperre: das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext,\nworan es liegt (Artikel · gebraucht · verfügbar · **davon hier**). Was daraus folgt,\nentscheidet ein Mensch – eine andere Instanz wählen, holen lassen oder Nachschub\nanlegen.\n\n**«Am falschen Ort» ist dieselbe Aussage wie «zu wenig da», eine Spalte weiter.** Kein\nneuer Zustand, keine Wartelogik: fehlt nur der Ort, ist die Handlung ein Transport;\nfehlt die Menge, eine Beschaffung."
       },
       "StepRecord": {
         "properties": {

@@ -63,18 +63,8 @@ RELATED_LIMIT = 3
 # ---------------------------------------------------------------------------
 
 def _place_ref(db: Session, object_id) -> Optional[PlaceRef]:
-    """Eine Objektnummer → ihr Halter. ``None`` bleibt ``None``.
-
-    Ein Halter, den es nicht mehr gibt, ergibt ebenfalls ``None``: die Anzeige zeigt dann
-    nichts statt eines Namens, den sie nicht kennt – tolerant lesen, streng schreiben.
-    """
-    if not object_id:
-        return None
-    station = places_svc.station_of(db, int(object_id))
-    return (
-        PlaceRef(object_id=station.object_id, kind=station.kind, label=station.label)
-        if station else None
-    )
+    """Eine Objektnummer → ihr Halter. ``None`` bleibt ``None``."""
+    return PlaceRef.of(places_svc.station_of(db, int(object_id))) if object_id else None
 
 
 def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
@@ -100,12 +90,15 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
             StepNeed(
                 article_object_id=n.article_object_id, article_name=n.article_name,
                 per_unit=n.per_unit, required=n.required, available=n.available,
-                sources=[NeedSource(instance_object_id=src.instance_object_id,
-                                    free=src.free)
-                         for src in n.sources],
+                here=n.here, place=PlaceRef.of(places_svc.describe(db, n.place)),
+                sources=[NeedSource(
+                    instance_object_id=src.instance_object_id, free=src.free,
+                    here=src.here,
+                    place=PlaceRef.of(places_svc.describe(db, src.place)))
+                    for src in n.sources],
             )
             for n in consumption_svc.needs(
-                db, s, pieces=sum(w.waiting for w in row.work))
+                db, s, products=process_svc.units_before(db, order, s))
         ]
         # **Wohin es geht** – aufgelöst, nicht als nackte Zahl. Die Oberfläche zeigt den
         # Namen des Halters; ihn dort nachzuschlagen wäre eine Abfrage je Schritt.

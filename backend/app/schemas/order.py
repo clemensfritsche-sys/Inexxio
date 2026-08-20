@@ -203,6 +203,12 @@ class NeedSource(BaseModel):
 
     instance_object_id: int
     free: int
+    #: **Davon am Arbeitsort.** Die Oberfläche kann «am Ort» nicht selbst ausrechnen –
+    #: es ist eine Aussage über die Kette. Ohne Ortsanforderung gleich ``free``.
+    here: int = 0
+    #: **Wo diese Kiste liegt.** Die Antwort auf «warum sind sie nicht hier» – eine Zahl
+    #: ohne den Ort daneben nennt das Problem und verschweigt seine Ursache.
+    place: Optional[PlaceRef] = None
 
 
 class StepNeed(BaseModel):
@@ -214,8 +220,13 @@ class StepNeed(BaseModel):
 
     **Fehlt etwas, ist das kein Zustand des Auftrags.** Es gibt keinen Pausen-Wert und
     keine Sperre: das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext,
-    woran es liegt (Artikel · gebraucht · verfügbar). Was daraus folgt, entscheidet ein
-    Mensch – eine andere Instanz wählen oder Nachschub anlegen.
+    woran es liegt (Artikel · gebraucht · verfügbar · **davon hier**). Was daraus folgt,
+    entscheidet ein Mensch – eine andere Instanz wählen, holen lassen oder Nachschub
+    anlegen.
+
+    **«Am falschen Ort» ist dieselbe Aussage wie «zu wenig da», eine Spalte weiter.** Kein
+    neuer Zustand, keine Wartelogik: fehlt nur der Ort, ist die Handlung ein Transport;
+    fehlt die Menge, eine Beschaffung.
     """
 
     article_object_id: int
@@ -223,7 +234,16 @@ class StepNeed(BaseModel):
     #: Menge **je Einzelinstanz** – «4» heisst vier Stück je Produkt, nicht vier im Auftrag.
     per_unit: int
     required: int
+    #: Frei – **egal wo**.
     available: int
+    #: Davon **am Arbeitsort**. Ohne Ortsanforderung (``place is None``) gleich
+    #: ``available``; darunter heisst: es ist da, nur nicht hier.
+    here: int = 0
+    #: **Wo das Material liegen muss** – der Ort des Produkts, abgeleitet und nicht
+    #: konfiguriert (``consumption.required_place``). ``None`` heisst: dieses Modul
+    #: verlangt keinen Ort – weil sein Typ keinen kennt, oder weil die Produkte nirgends
+    #: bzw. an verschiedenen Orten liegen. Wo nichts steht, wird nichts verlangt.
+    place: Optional[PlaceRef] = None
     #: Woher genommen werden kann – die Kisten, die der Lagerist scannt.
     sources: list[NeedSource] = Field(default_factory=list)
 

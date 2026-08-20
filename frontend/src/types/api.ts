@@ -2325,6 +2325,12 @@ export interface components {
             instance_object_id: number;
             /** Free */
             free: number;
+            /**
+             * Here
+             * @default 0
+             */
+            here: number;
+            place?: components["schemas"]["PlaceRef"] | null;
         };
         /**
          * ObjectReference
@@ -2600,6 +2606,8 @@ export interface components {
             kind: string;
             /** Label */
             label: string;
+            /** Number */
+            number?: string | null;
         };
         /**
          * ProcessEventResponse
@@ -2857,8 +2865,13 @@ export interface components {
          *
          *     **Fehlt etwas, ist das kein Zustand des Auftrags.** Es gibt keinen Pausen-Wert und
          *     keine Sperre: das Modul ist schlicht nicht fertig, und diese Zeile sagt in Klartext,
-         *     woran es liegt (Artikel · gebraucht · verfügbar). Was daraus folgt, entscheidet ein
-         *     Mensch – eine andere Instanz wählen oder Nachschub anlegen.
+         *     woran es liegt (Artikel · gebraucht · verfügbar · **davon hier**). Was daraus folgt,
+         *     entscheidet ein Mensch – eine andere Instanz wählen, holen lassen oder Nachschub
+         *     anlegen.
+         *
+         *     **«Am falschen Ort» ist dieselbe Aussage wie «zu wenig da», eine Spalte weiter.** Kein
+         *     neuer Zustand, keine Wartelogik: fehlt nur der Ort, ist die Handlung ein Transport;
+         *     fehlt die Menge, eine Beschaffung.
          */
         StepNeed: {
             /** Article Object Id */
@@ -2871,6 +2884,12 @@ export interface components {
             required: number;
             /** Available */
             available: number;
+            /**
+             * Here
+             * @default 0
+             */
+            here: number;
+            place?: components["schemas"]["PlaceRef"] | null;
             /** Sources */
             sources?: components["schemas"]["NeedSource"][];
         };

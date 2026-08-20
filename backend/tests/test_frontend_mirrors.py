@@ -3532,7 +3532,9 @@ def test_a_shortage_is_shown_not_turned_into_a_state():
         "wenn es nichts zu wählen gibt."
     )
     assert "const empty = need.available <= 0;" in work
-    assert "{!enough && !empty && (" in work, (
+    at = work.index("Andere Instanz wählen")
+    guard = work[max(0, at - 700):at]
+    assert "!empty" in guard and ("!enough" in guard or "misplaced" in guard), (
         "«Andere Instanz wählen» hängt nicht mehr an der Lage – entweder es steht immer "
         "da (auch wenn der Plan aufgeht) oder es führt ins Leere (kein Bestand)."
     )
@@ -4035,4 +4037,88 @@ def test_the_record_shows_a_state_only_when_it_changed():
     assert "entry.status_after !== entry.status_before" in code, (
         "Das Protokoll zeigt den Nachher-Zustand wieder unbedingt – beim Durchläufer "
         "ist das in jeder Zeile dasselbe Wort."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Material am richtigen Ort — die Oberfläche rechnet ihn nicht selbst aus
+# ---------------------------------------------------------------------------
+
+def test_the_place_requirement_is_derived_not_configured():
+    """**Kein Ortsfeld am Verbrauchsmodul.**
+
+    Wo das Material liegen muss, folgt aus dem Ort des Produkts. Ein eigenes Feld daneben
+    wäre eine zweite Ortsangabe neben dem Ziel des Bewegen-Moduls – und zwei können sich
+    widersprechen. Der Editor darf also gar nicht danach fragen.
+    """
+    from app.domain import modules
+
+    src = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    form = _body(src, "MODULE_FORM", kind="const")
+    consume = form[form.index("verbrauch:"):]
+    consume = consume[:consume.index("},")]
+    assert "target" not in consume, (
+        "Der Verbrauch konfiguriert keinen Ort – er erbt ihn vom Produkt "
+        "(``consumption.required_place``)."
+    )
+    assert modules.MODULES[modules.VERBRAUCH].material_place == modules.AT_PRODUCT, (
+        "Die Deklaration steht in der Registry, nicht in einem Dienst: ein künftiges "
+        "Modul mit Ortsbedarf ist eine Zeile, kein Umbau."
+    )
+
+
+def test_the_ui_never_computes_where_a_piece_lies():
+    """«Am Ort» ist eine Aussage über die **Kette** — die kann nur der Server auflösen.
+
+    Die Oberfläche darf darum weder Halter-Nummern vergleichen noch aus ``sources``
+    ableiten, was «hier» liegt: sie bekommt beides als Zahl (``here``). Ein Vergleich
+    von Objektnummern wäre in genau dem Fall falsch, der in der Praxis der Normalfall
+    ist – Material steht in Behältern, und der Behälter steht am Arbeitsplatz.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    assert "need.here" in src and "s.here" in src, (
+        "Die Zahlen kommen vom Server (``StepNeed.here`` / ``NeedSource.here``)."
+    )
+    assert "place.object_id ===" not in src and "place?.object_id ===" not in src, (
+        "Ein Vergleich von Halter-Nummern in der Oberfläche wäre die naive Lesart von "
+        "«am Ort» – und bei einer Kiste auf der Werkbank schlicht falsch."
+    )
+
+
+def test_hauling_is_an_ordinary_order_draft():
+    """**«Holen lassen» ist kein zweiter Anlagepfad.**
+
+    Es ist derselbe Entwurf wie «Nachschub» (``onDeviate``), nur mit Menge und einem
+    vorbelegten Bewegen-Modul. Angelegt wird nichts – der Entwurf lebt im Browser
+    (Testnotiz #386), und was daraus wird, entscheidet weiterhin die Auswahl.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    haul = src[src.index("onHaul={"):]
+    haul = haul[:haul.index("}))}") + 4]
+    assert "onDeviate({" in haul, "Derselbe Weg wie jeder andere Entwurf."
+    assert "MOVE_MODULE" in haul and "need.place?.object_id" in haul, (
+        "Der Entwurf bringt das Bewegen-Modul mit dem Arbeitsort als Ziel mit – und den "
+        "Modulschlüssel aus ``lib/modules``, nicht als Zeichenkette im Panel."
+    )
+    assert "api." not in haul, (
+        "Kein eigener Endpunkt: ein «Holen lassen», das anlegt, wäre ein Auftrag, den "
+        "niemand bestellt hat."
+    )
+
+    seed = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    assert "seed?.steps" in seed, "Der Entwurf nimmt den vorbelegten Ablauf auf."
+
+
+def test_a_carrier_is_named_by_its_piece_number():
+    """Ein **Träger** heisst nach seinem Stück, führt aber auf seine Instanz.
+
+    Ein Stück hat keinen eigenen Datensatz – geöffnet wird die Instanz. Sein *Name* ist
+    trotzdem genauer (``100000123-3``), und die Anzeige zieht ihn vor: «in 100000123»
+    wären bei einer Charge sechshundert Getriebe, also eine Gruppe und kein Ort.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "place-trail.tsx"))
+    assert "holder.number" in src, "Die Zeile nennt die Stück-Nummer."
+    assert "'unit'" in src and "'instance'" in src, (
+        "Ein Träger trägt das Symbol seiner Instanz – eine zweite Symbol-Zuordnung wäre "
+        "dieselbe Aussage ein zweites Mal (``TYPE_META``)."
     )

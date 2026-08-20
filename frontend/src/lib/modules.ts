@@ -89,6 +89,14 @@ export function moduleTone(tone: string | undefined | null): { bg: string; fg: s
 const UNKNOWN_TONE = { bg: 'var(--danger-bg)', fg: 'var(--danger)', border: 'var(--danger)' };
 
 /** Typen, die in der Definition einen **Sollwert** brauchen (`Measure.clean`). */
+/**
+ * **Der Schlüssel des Bewegen-Moduls.** Er steht hier, weil Modul-Wissen hier wohnt –
+ * eine Oberfläche, die ihn selbst hinschreibt, kennt einen Modultyp, den sie nicht
+ * kennen müsste. Gebraucht wird er an genau einer Stelle: ein «Holen lassen» **baut**
+ * ein Bewegen-Modul, es fragt nicht danach.
+ */
+export const MOVE_MODULE = 'bewegen';
+
 export const NEEDS_TARGET = 'measure';
 
 /**

@@ -23,6 +23,11 @@ from fastapi import HTTPException
 
 from . import capture_types, sampling, statuses as st
 
+#: Der eine Ortsbedarf, den es heute gibt: **beim Produkt**. Eine geschlossene Liste
+#: wie ``Aussondern.MODES`` – ein künftiges Modul («an meinem konfigurierten Ort»)
+#: bekommt einen zweiten Wert, keine zweite Mechanik.
+AT_PRODUCT = "product"
+
 DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
 VERBRAUCH = "verbrauch"
@@ -57,6 +62,22 @@ class Module:
     #: Rechenschritt, eine Freigabe am Schreibtisch) sie abschalten kann, **ohne** dass
     #: die Ausführungsstelle eine Fallunterscheidung bekommt.
     requires_verification: bool = True
+
+    #: **Wo muss das Material dieses Moduls liegen?** Vorgabe: nirgends.
+    #:
+    #: Der Ort ist im System ein Zeiger, den keine Regel liest (``services/places``) —
+    #: bis ein Modul Material an einem bestimmten Ort *braucht*. Dann wird er zur
+    #: **Voraussetzung**, und zwar nur dort.
+    #:
+    #: Die Antwort ist **abgeleitet, nicht konfiguriert**: ``AT_PRODUCT`` heisst «dort,
+    #: wo mein Produkt liegt». Ein eigenes Ortsfeld am Modul wäre eine zweite Ortsangabe
+    #: neben dem Ziel des Bewegen-Moduls, und zwei können sich widersprechen; so entsteht
+    #: die Anforderung von selbst und niemand muss sie modellieren.
+    #:
+    #: **Nichtverfügbarkeit bleibt kein Zustand** (§9.6): «am falschen Ort» ist dieselbe
+    #: Aussage wie «zu wenig da», eine Spalte weiter in ``StepNeed``. Das Modul ist
+    #: schlicht nicht fertig.
+    material_place: Optional[str] = None
 
     #: **Verlassen ALLE ankommenden Stücke den Auftrag hier?** Ein terminales Modul ist
     #: kein Durchgang, sondern ein **Ausgang**.
@@ -285,6 +306,10 @@ class Verbrauch(Module):
     #: Das Verb auf dem Knopf. «Erfassen & bestätigen» wäre hier schlicht falsch – erfasst
     #: wird nichts, der Scan ist die Bestätigung.
     action = "Verbauen"
+
+    #: **Die Komponenten müssen dort liegen, wo das Produkt liegt.** Sonst kann niemand
+    #: sie verbauen – und der Prozess arbeitete mit Material, das gar nicht da ist.
+    material_place = AT_PRODUCT
 
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
         found = (raw or {}).get(self.LINES) or []

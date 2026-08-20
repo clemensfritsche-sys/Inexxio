@@ -25,7 +25,7 @@ import { CaptureWork } from '@/components/erp/capture-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
 import { MODULE_ICON } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
-import { CAPTURE_ICON, toModulePayload, type ModuleDraft } from '@/lib/modules';
+import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
 // Genau EIN Reiter. Er steht hier oben, weil es dabei bleibt: der Auftrag bekommt
 // keine weiteren – auch keine leeren oder deaktivierten.
@@ -70,6 +70,19 @@ export interface OrderSeed {
    * statt still etwas anderes zu tun (`UnitPick.from_order`).
    */
   fromOrder?: number | null;
+  /**
+   * **Wie viel** – nur, wo die Menge aus der Sache folgt und nicht aus einer Vermutung:
+   * «12 Schrauben holen» weiss, dass es zwölf sind. Der Shortcut am Artikel merkt sie
+   * bewusst NICHT vor (#690) – dort ist sie eine Entscheidung.
+   */
+  quantity?: number;
+  /**
+   * **Ein vorbelegter Ablauf.** Ein «Holen lassen» ist ein ganz gewöhnlicher Auftrag mit
+   * einem Bewegen-Modul – der Entwurf bringt es mit, statt es den Menschen ein zweites
+   * Mal eintippen zu lassen. Änderbar wie jedes andere Modul; es ist eine Eingabehilfe,
+   * keine Festlegung.
+   */
+  steps?: { moduleType: string; target?: number }[];
 }
 
 export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
@@ -90,14 +103,23 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     // Mit Stück: es steht schon in der Definition, Herkunft «Lager» folgt daraus.
     // Ohne Stück (Artikel-Shortcut): nur der Artikel – Menge und Herkunft bleiben offen.
     const picked = seed.unitNumbers ?? [];
-    return picked.length
-      ? [{ key: 1, articleObjectId: seed.articleObjectId, quantity: picked.length,
-           origin: LAGER,
-           units: picked.map((number) => ({ number, fromOrder: seed.fromOrder ?? null })),
-           returns: true }]
+    if (picked.length) {
+      return [{ key: 1, articleObjectId: seed.articleObjectId, quantity: picked.length,
+                origin: LAGER,
+                units: picked.map((n) => ({ number: n, fromOrder: seed.fromOrder ?? null })),
+                returns: true }];
+    }
+    // Mit Menge, ohne Stücke: «hol mir zwölf davon» – woher, entscheidet FIFO.
+    return seed.quantity
+      ? [{ ...emptyLine(1), articleObjectId: seed.articleObjectId,
+           quantity: seed.quantity, origin: LAGER }]
       : [{ ...emptyLine(1), articleObjectId: seed.articleObjectId }];
   });
-  const [steps, setSteps] = useState<ModuleDraft[]>([]);
+  const [steps, setSteps] = useState<ModuleDraft[]>(() =>
+    (seed?.steps ?? []).map((m, i) => ({
+      ...blankModule(i + 1, m.moduleType),
+      target: m.target ? String(m.target) : '',
+    })));
   const [missing, setMissing] = useState<string[] | null>(null);
   /**
    * **Die Vorschau der Quell-Aufträge** (Auftrag §2). Sie kommt aus derselben Ableitung

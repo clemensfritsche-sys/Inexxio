@@ -157,6 +157,19 @@ def _pass(
         )
     for u in units:
         u.status = status_after
+
+    # ►► **Wer zur Historie zählt, verliert seinen Ort.** ◄◄
+    #
+    # «Historie» heisst im Katalog wörtlich *liegt nicht im Regal* (``Status.stock``) –
+    # ein verschrottetes Stück ist physisch weg, ein verbautes steckt in einem anderen.
+    # Der alte Halter wäre in beiden Fällen eine Behauptung über etwas, das dort nicht
+    # mehr ist; **Gesperrt** dagegen behält seinen Ort, denn es liegt im Regal.
+    #
+    # Die Regel hängt am **Status** und steht an der EINEN Stelle, an der ein Status
+    # geschrieben wird – jedes künftige Modul erbt sie, ohne eine Zeile dafür. Wer einen
+    # *neuen* Ort hat, setzt ihn im selben Zug (der Verbrauch seinen Träger).
+    if st.stock_kind(status_after) == st.HISTORY:
+        places_svc.forget(db, units)
     return len(units)
 
 
@@ -1078,6 +1091,19 @@ def confirm_step(
             # ``into_instance_id``: der Log hält fest, was passiert ist.
             payloads=consumption_svc.payloads(built, verification=verification),
         )
+        # ►► **Der Träger ist der neue Ort.** ◄◄
+        #
+        # ``_pass`` hat den alten gerade geräumt (Verbaut zählt zur Historie) – jetzt
+        # steht fest, wohin: in **dieses** Stück. Nicht in seine Instanz: das wären bei
+        # einer Charge 600 Getriebe, also eine Gruppe und kein Ort.
+        #
+        # **Das ist nicht die Genealogie.** Die steht im Log (``payload.into``), ist
+        # unveränderlich und überlebt die Demontage; dieser Zeiger sagt, *wo es jetzt
+        # liegt*, und wird beim Ausbau geräumt. Dass beide auseinander laufen können, ist
+        # der Beweis, dass es zwei Fragen sind (§9.6).
+        by_product = {p.id: p for p in units}
+        for product_id, components in built.items():
+            places_svc.place_in(db, units=components, carrier=by_product[product_id])
 
     # ►► **Wer geht hier hinaus, wer läuft weiter?** ◄◄
     #
@@ -1412,6 +1438,16 @@ def _units_at(db: Session, order: Order, step_id: Optional[int],
     if instance_id is not None:
         q = q.filter(InstanceUnit.instance_id == instance_id)
     return q.order_by(OrderUnit.id).all()
+
+
+def units_before(db: Session, order: Order, step: ProcessStep) -> list[InstanceUnit]:
+    """**Was steht vor diesem Modul?** — die eine öffentliche Antwort.
+
+    Gebraucht von jedem, der über das rechnet, was ankommt: die Stückliste
+    (``consumption.needs``) braucht die Zahl *und* den Ort, die Arbeitsliste die Instanzen.
+    Zwei Abfragen wären zwei Stände desselben Augenblicks.
+    """
+    return [u for _, u in _units_at(db, order, step.id)]
 
 
 def step_work(db: Session, order: Order, step: ProcessStep) -> list[dict[str, Any]]:

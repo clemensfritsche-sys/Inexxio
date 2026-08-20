@@ -37,7 +37,7 @@ def _place_out(chain: list) -> UnitPlace | None:
     """Eine aufgelöste Kette → die Antwortform. Leer heisst **standortlos**."""
     if not chain:
         return None
-    refs = [PlaceRef(object_id=s.object_id, kind=s.kind, label=s.label) for s in chain]
+    refs = [PlaceRef.of(s) for s in chain]
     return UnitPlace(holder=refs[0], chain=refs)
 
 

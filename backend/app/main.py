@@ -105,6 +105,8 @@ _COLUMN_SAFETY_NET = (
     # auf Einzelinstanzen – und die trägt der halbe ERP-Feed. Dieselbe Ausfallklasse wie
     # Migration 090, und der Grund, warum dieses Netz existiert.
     ("instance_units", "place_object_id", "BIGINT"),
+    # Der Träger (Migration 112) – dieselbe Tabelle, dieselbe Ausfallklasse.
+    ("instance_units", "place_unit_id", "BIGINT"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -197,6 +199,18 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE table_name='order_units' AND column_name='return_to_order_id') THEN "
     "CREATE INDEX IF NOT EXISTS ix_order_units_return_to_order_id "
     "ON order_units (return_to_order_id); END IF; END $$;",
+    # ►► **Der Ort ist EINE Aussage** (Migration 112). Ohne diesen Riegel könnte ein
+    #    Stück gleichzeitig im Regal und in einem Getriebe liegen – und welche der beiden
+    #    Angaben gilt, entschiede die Lesestelle. Er steht hier und nicht nur in der
+    #    Migration, weil ``create_all`` ihn nicht kennt: dasselbe Netz, dieselbe Lehre
+    #    aus Migration 090, nur für einen ``CHECK`` statt eine Spalte.
+    "DO $$ BEGIN IF to_regclass('public.instance_units') IS NOT NULL "
+    "AND EXISTS (SELECT 1 FROM information_schema.columns "
+    "WHERE table_name='instance_units' AND column_name='place_unit_id') "
+    "AND NOT EXISTS (SELECT 1 FROM pg_constraint "
+    "WHERE conname='ck_instance_units_one_place') THEN "
+    "ALTER TABLE instance_units ADD CONSTRAINT ck_instance_units_one_place "
+    "CHECK (place_object_id IS NULL OR place_unit_id IS NULL); END IF; END $$;",
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.

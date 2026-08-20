@@ -12,6 +12,12 @@ from tests.runner import session
 from tests.scenarios import World, free_stock
 
 
+def _before(w: World, order, step):
+    """Die Stücke vor dem Modul — dieselbe Quelle wie im Dienst (``units_before``)."""
+    from app.services import process as proc
+    return proc.units_before(w.db, order, step)
+
+
 def _w() -> World:
     try:
         return World(session())
@@ -188,7 +194,7 @@ def test_the_quantity_is_per_piece_and_counted_when_the_module_is_reached():
              "units": []},
         ])
         step = w.steps(order)[0]
-        need = consumption.needs(w.db, step, pieces=3)[0]
+        need = consumption.needs(w.db, step, products=_before(w, order, step))[0]
         assert (need.per_unit, need.required) == (4, 12)
 
         w.run_all(order)
@@ -284,7 +290,7 @@ def test_a_shortage_is_not_a_state_it_is_an_unfinished_module():
              "units": []},
         ])
         step = w.steps(order)[0]
-        need = consumption.needs(w.db, step, pieces=1)[0]
+        need = consumption.needs(w.db, step, products=_before(w, order, step))[0]
         assert (need.required, need.available, need.missing) == (3, 1, 2)
 
         row = w.work(order, step)[0]

@@ -41,8 +41,15 @@ export function PlaceTrail({ place }: { place?: UnitPlace | null }) {
 
   // Ein Halter-Typ, den diese Oberfläche nicht kennt, käme aus einem neueren Backend
   // und bekommt schlicht kein Symbol – die Nummer und der Name tragen die Aussage.
-  const Icon = TYPE_META[holder.kind as ErpRecordType]?.icon;
+  //
+  // **Ein Träger ist ein Stück einer Instanz**, also trägt er deren Symbol: geöffnet
+  // wird die Instanz, denn ein Stück hat keinen eigenen Datensatz. Nur sein *Name* ist
+  // genauer (`100000123-3`) – und den zieht die Anzeige der Objektnummer vor.
+  const kind = (holder.kind === 'unit' ? 'instance' : holder.kind) as ErpRecordType;
+  const Icon = TYPE_META[kind]?.icon;
   const chain = place?.chain ?? [holder];
+  const name = (s: { object_id: number; number?: string | null }) =>
+    s.number ?? formatObjectId(s.object_id);
 
   return (
     <span
@@ -50,10 +57,10 @@ export function PlaceTrail({ place }: { place?: UnitPlace | null }) {
       // Die **ganze** Kette, von innen nach aussen. Sie endet bei dem Halter, der eine
       // Anschrift trägt – dort ist der Ort in der Welt, alles davor ist die
       // Verschachtelung darin.
-      data-tip={chain.map((s) => `${s.label} ${formatObjectId(s.object_id)}`).join('  ›  ')}
+      data-tip={chain.map((s) => `${s.label} ${name(s)}`).join('  ›  ')}
     >
       {Icon ? <Icon size={13} className="flex-none text-fg-4" /> : null}
-      <ObjId value={holder.object_id} />
+      <ObjId value={holder.object_id} label={holder.number ?? undefined} />
       <span className="truncate">{holder.label}</span>
       {chain.length > 1 ? <span className="flex-none text-fg-4">›&nbsp;…</span> : null}
     </span>
