@@ -1282,6 +1282,33 @@ def test_the_module_colour_comes_from_the_registry():
         )
 
 
+def test_an_unknown_module_looks_unknown_not_like_another_one():
+    """**Unbekanntes borgt sich kein fremdes Symbol** – dieselbe Regel wie bei der Farbe.
+
+    Ein Browser-Stand, der älter ist als das Backend, ist nach **jedem** Deploy mit einem
+    neuen Modultyp der Normalfall. Der Ton sagt dann längst «kaputt» (``UNKNOWN_TONE``),
+    das Symbol log: es gab **drei** Rückfälle, und jeder zeigte ein anderes echtes Modul –
+    ``Blocks`` den **Verbrauch**, ``PackageX`` das **Aussondern**, ``CAPTURE_ICON.text``
+    den Erfassungspunkt «Text», also ein schlichtes **T** (genau das gemeldete Symbol).
+
+    Bug-Form: ein Aufrufer liest ``MODULE_ICON`` selbst und hängt ein ``??`` daran.
+    """
+    lib = _read(FRONTEND / "lib" / "modules.ts")
+    assert "export function moduleIcon" in lib, (
+        "Die Auflösung des Symbols steht nicht an einer Stelle."
+    )
+    assert "?? CircleHelp" in lib, (
+        "Der Rückfall zeigt kein Fragezeichen – ein unbekanntes Modul gibt sich damit "
+        "als ein bekanntes aus."
+    )
+    for name in ("process-diagram.tsx", "process-designer.tsx", "order-detail.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        assert "MODULE_ICON[" not in src, (
+            f"{name} greift am ``moduleIcon`` vorbei in die Tabelle – und wählt damit "
+            f"seinen eigenen Rückfall."
+        )
+
+
 def test_everything_captured_is_mandatory():
     """**Das Feld «Pflicht ja/nein» ist gelöscht** – Modell, Migration, UI, Validierung.
 

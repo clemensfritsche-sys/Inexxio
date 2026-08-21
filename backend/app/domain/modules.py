@@ -677,7 +677,7 @@ MODULES: dict[str, Module] = {
             # Ein Durchläufer: das Modul verändert das Stück nicht, es hält es auf.
             status_before=st.IM_PROZESS,
             status_after=st.IM_PROZESS,
-            tone="ink",
+            tone="plum",
         ),
         Datenerfassung(
             key=DATENERFASSUNG,

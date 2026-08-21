@@ -133,6 +133,11 @@ deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
   Modul-Katalog – und den lädt nur der Editor: im freigegebenen Auftrag kam nichts an, und
   ein stiller Rückfall gab jedem Modul die Farbe der Datenerfassung. `moduleTone` hat
   darum **keinen** Rückfall auf eine echte Modulfarbe mehr; Unbekanntes sieht kaputt aus.
+- **Symbol und Farbe haben je EINE Auflösung** (`moduleIcon` / `moduleTone`), und beide
+  fallen auf **sichtbar unbekannt** zurück: ein Fragezeichen bzw. die Warnfarbe. Nie auf
+  das Symbol eines anderen Moduls – vorher gab es drei Rückfälle (`Blocks` = Verbrauch,
+  `PackageX` = Aussondern, `CAPTURE_ICON.text` = ein blosses **T**), und ein Browser-Stand,
+  der älter ist als das Backend, liess ein neues Modul damit wie ein bekanntes aussehen.
 - **Hinter einem terminalen Modul bietet der Editor nichts an** – dieselbe Eigenschaft,
   aus der die Freigabe ihren Fehler zieht und das Bild sein Ende (`chainProblems` meldet
   ein Modul, das durch Umsortieren dahinter geraten ist).

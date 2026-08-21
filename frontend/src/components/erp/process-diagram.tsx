@@ -2,10 +2,10 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import {
-  Blocks, ChevronDown, ChevronUp, CornerUpLeft, Flag, GitBranch, GripVertical, Lock,
+  ChevronDown, ChevronUp, CornerUpLeft, Flag, GitBranch, GripVertical, Lock,
   MoreHorizontal, Play, Scissors, Sprout, Trash2,
 } from 'lucide-react';
-import { MODULE_ICON, chainProblems, moduleTone } from '@/lib/modules';
+import { moduleIcon, chainProblems, moduleTone } from '@/lib/modules';
 import { TYPE_META } from '@/lib/erp-record';
 import {
   BEND, FLOW_GAP, FlowNode, LANE, POINT, polyPath, port, type FlowAnchor,
@@ -1019,7 +1019,7 @@ function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, history,
   // jedes Modul derselbe (Durchläufer) – ihn hinzuschreiben wäre eine Zeile, die bei
   // jeder Karte dasselbe sagt. Was die Karten unterscheidet, ist ihre **Art**, und die
   // trägt das Symbol.
-  const Icon = MODULE_ICON[step.moduleType] ?? Blocks;
+  const Icon = moduleIcon(step.moduleType);
   // **Die Farbe kommt vom Schritt, nicht von einem Aufrufer.** Wer sie nicht kennt, malt
   // nicht irgendetwas: `moduleTone` meldet eine unbekannte Familie sichtbar (Warnfarbe),
   // statt sie stillschweigend zur Datenerfassung zu machen.

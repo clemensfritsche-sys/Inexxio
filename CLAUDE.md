@@ -1104,6 +1104,22 @@
 > er ist gegen seine Bug-Form gegengeprüft. **Die Arbeitsregel daraus:** die Suite läuft
 > einmal gegen die gewachsene Datenbank **und** einmal gegen ein Schema, das nur aus den
 > Migrationen kommt – nur die zweite ist die, die die CI fährt.
+> **Nachtrag aus dem ersten Test: ein unbekanntes Modul gab sich als ein anderes aus.**
+> Gemeldet wurden drei Dinge – «Modultyp «beschaffen» ist dieser Oberfläche unbekannt», ein
+> **«T»** als Symbol und eine **rote** Modulfarbe. Es war **ein** Befund: ein Browser-Stand,
+> der älter ist als das Backend (nach jedem Deploy mit einem neuen Modul der Normalfall).
+> Der Ton sagte dabei korrekt «kaputt» (`UNKNOWN_TONE`, so gewollt) – das **Symbol** log:
+> es gab **drei** Rückfälle, und jeder zeigte ein echtes anderes Modul (`Blocks` = Verbrauch,
+> `PackageX` = Aussondern, `CAPTURE_ICON.text` = der Erfassungspunkt «Text», also das
+> gemeldete T). Jetzt gilt für das Symbol dieselbe Regel wie für die Farbe: **eine**
+> Auflösung (`moduleIcon`), Rückfall ist ein **Fragezeichen** – Unbekanntes sieht unbekannt
+> aus. Wächter `test_an_unknown_module_looks_unknown_not_like_another_one` (gegengeprüft).
+> **Und die Farbe war unabhängig davon falsch gewählt**: `ink` (kühles Graublau) stand im
+> Fluss neben der **Datenerfassung** und war von ihr nicht zu trennen – gemessen an den
+> echten Karten, nicht geschätzt. Beschaffen trägt jetzt **`plum`** (gedämpftes Violett):
+> Slate=Blau · Clay=Rotbraun · Moss=Grün · Sand=Gelbbraun – Violett ist die einzige
+> Familie, die kein anderes Modul besetzt. Blaugrün rückte nur an **Bewegen** heran, ein
+> warmes Grau las sich neben vier farbigen Karten wie **deaktiviert**.
 > Wächter: `tests/test_purchase_module.py` (14 Prüfungen, jede gegen ihre Bug-Form
 > gegengeprüft) + drei in `test_frontend_mirrors.py`. Gemessen in Chromium: 1440 · 1024 ·
 > 834 · 375 · 320 px, **0 px** waagrechter Überlauf über alle fünf Stufen-Zustände.
