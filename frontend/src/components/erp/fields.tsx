@@ -620,7 +620,7 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
     <div onClick={onClose}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 'var(--r-lg)', width: `min(${width}px, 100%)`, maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-md)' }}>
+        style={{ background: '#fff', borderRadius: 'var(--r-lg)', width: `min(${width}px, 100%)`, maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
           {Icon && <Icon size={18} style={{ color: tone }} />}
           <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)' }}>{title}</span>
@@ -782,6 +782,22 @@ export function TextField({ label, value, onChange, error, placeholder, required
   );
 }
 
+/**
+ * **Eine Zeile der Auswahl – und ihre Form ist die des Scanners.**
+ *
+ * `label` ist die Hauptangabe (bei einem Datensatz seine Objektnummer), `name` die leise
+ * daneben. Getrennt, weil dieselbe Zeile in **beiden** Oberflächen gleich aussehen soll:
+ * `100000123 · Regal B`, die Nummer tabellarisch, der Name gedämpft. Als ein fertiger
+ * String liesse sich das nicht auszeichnen – und der Dialog sähe anders aus als das Feld,
+ * aus dem er kommt.
+ *
+ * Ohne `name` bleibt alles wie bisher: eine schlichte Zeile (Aufzählungen, «nichts»).
+ */
+export interface SelectOption { value: string; label: string; name?: string }
+
+/** Wie eine Zeile als **Text** aussieht – im geschlossenen Feld und beim Filtern. */
+const optionText = (o: SelectOption) => (o.name ? `${o.label} · ${o.name}` : o.label);
+
 /** Durchsuchbare Referenz-Auswahl (Combobox). Filtert Optionen per Tippen –
  *  z. B. «003» findet die Objektnummer 100000003. */
 /**
@@ -790,7 +806,7 @@ export function TextField({ label, value, onChange, error, placeholder, required
  * der zuletzt angelegten, nicht den ältesten von tausend. Greift nur, wenn ALLE Werte
  * Zahlen sind (sonst bleibt die vom Aufrufer gewählte Reihenfolge unangetastet).
  */
-function newestFirst(options: { value: string; label: string }[]): { value: string; label: string }[] {
+function newestFirst(options: SelectOption[]): SelectOption[] {
   const isNum = (v: string) => v !== '' && Number.isFinite(Number(v));
   const numeric = options.filter((o) => isNum(o.value));
   // Nicht-numerische Einträge sind Platzhalter («— wählen —», «Standard erben») und
@@ -802,9 +818,20 @@ function newestFirst(options: { value: string; label: string }[]): { value: stri
 }
 
 export function SearchSelect({ label, value, onChange, options, required, placeholder,
-                               search, emptyOption }: {
+                               search, emptyOption, action }: {
   label?: string; value: string; onChange: (v: string) => void;
-  options: { value: string; label: string }[]; required?: boolean; placeholder?: string;
+  options: SelectOption[]; required?: boolean; placeholder?: string;
+  /**
+   * **Eine Handlung AM Feld, nicht daneben.**
+   *
+   * Sie sitzt am rechten Innenrand und ersetzt dort das Zierzeichen (Chevron ↔ Lupe):
+   * ein Bedienelement mit zwei Eingängen statt zweier Bedienelemente für eine Frage. Der
+   * Chevron sagt «hier ist eine Liste» – dasselbe sagt der Klick, und er sagt es beim
+   * Ausprobieren; eine echte Aktion ist der Platz wert.
+   *
+   * Ohne die Angabe bleibt alles wie bisher.
+   */
+  action?: { icon: ReactNode; label: string; onClick: () => void; disabled?: boolean };
   /**
    * **«Nichts» ist eine Wahl – also steht sie in der Liste.**
    *
@@ -831,11 +858,11 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
    * Quellen. Ein zweites Auswahlfeld «mit Suche» wäre ein zweiter Weg zu derselben Sache
    * – und der erste, der beim nächsten Feld auseinanderläuft.
    */
-  search?: (query: string) => Promise<{ value: string; label: string }[]>;
+  search?: (query: string) => Promise<SelectOption[]>;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [found, setFound] = useState<{ value: string; label: string }[]>([]);
+  const [found, setFound] = useState<SelectOption[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   // Die Leer-Zeile steht **vor** der Sortierung und bleibt vorn: `newestFirst` lässt
   // nicht-numerische Werte ohnehin an Ort und Stelle.
@@ -875,7 +902,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
     // würde wegwerfen, was der Server gerade als Treffer benannt hat. Die Leer-Zeile ist
     // keine Server-Antwort und bleibt darum immer erreichbar: sie ist die Rücknahme.
     ? (q ? [...empty, ...found] : ordered)
-    : (q ? ordered.filter((o) => o.label.toLowerCase().includes(q)) : ordered);
+    : (q ? ordered.filter((o) => optionText(o).toLowerCase().includes(q)) : ordered);
 
   function pick(v: string) { onChange(v); setOpen(false); setQuery(''); setFound([]); }
 
@@ -884,28 +911,44 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
       {label && <Label required={required}>{label}</Label>}
       <div style={{ position: 'relative' }}>
         <input
-          value={open ? query : (selected?.label ?? '')}
+          value={open ? query : (selected ? optionText(selected) : '')}
           placeholder={placeholder ?? '— wählen —'}
           onFocus={() => { setOpen(true); setQuery(''); }}
           onChange={(e) => { setQuery(e.target.value); if (!open) setOpen(true); }}
           className={inputCls}
-          style={{ borderColor: '#e2e8f0', paddingRight: 28 }}
+          style={{ borderColor: 'var(--border-2)', paddingRight: action ? 34 : 28 }}
         />
-        {open
-          ? <Search size={14} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
-          : <ChevronDown size={14} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />}
+        {action ? (
+          // Der Klick gehört der Aktion, nicht dem Feld: `onMouseDown` verhindert, dass
+          // der Fokus ins Eingabefeld springt (das öffnete sonst die Liste, während sich
+          // der Dialog davorlegt), und die Liste schliesst, bevor die Aktion läuft – sie
+          // steht INNERHALB des Feldes, also greift der Klick-daneben-Schliesser nicht.
+          <button
+            type="button"
+            className="erp-fieldaction"
+            data-tip={action.label}
+            aria-label={action.label}
+            disabled={action.disabled}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { setOpen(false); setQuery(''); action.onClick(); }}
+          >
+            {action.icon}
+          </button>
+        ) : open
+          ? <Search size={14} style={glyph} />
+          : <ChevronDown size={14} style={glyph} />}
       </div>
       {open && (
-        <div style={{ position: 'absolute', zIndex: 40, top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: 240, overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+        <div style={{ position: 'absolute', zIndex: 40, top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: 240, overflowY: 'auto', background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-sm)', boxShadow: 'var(--shadow-lg)' }}>
           {filtered.length === 0 ? (
-            <div style={{ padding: '10px 12px', fontSize: 13, color: '#94a3b8' }}>
+            <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--fg-4)' }}>
               {search && !q ? 'Nummer oder Name eingeben' : 'Keine Treffer'}
             </div>
           ) : filtered.map((o) => (
             <button key={o.value} type="button" onClick={() => pick(o.value)}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, border: 'none',
-                background: o.value === value ? 'var(--accent-soft)' : '#fff', color: o.value === value ? 'var(--accent-ink)' : 'var(--fg-1)', cursor: 'pointer' }}>
-              {o.label}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, border: 'none',
+                background: o.value === value ? 'var(--accent-soft)' : 'var(--bg-1)', color: o.value === value ? 'var(--accent-ink)' : 'var(--fg-1)', cursor: 'pointer' }}>
+              <OptionRow option={o} />
             </button>
           ))}
         </div>
@@ -913,6 +956,31 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
     </div>
   );
 }
+
+/**
+ * **Die eine Zeilenform einer Datensatz-Auswahl.**
+ *
+ * Nummer tabellarisch und kräftig, Name leise daneben – identisch im Feld und in der
+ * Suchleiste des Scanners (`components/scan/scan-dialog.tsx`). Wer hier etwas ändert,
+ * ändert es dort mit; deshalb steht sie als Bauteil da und nicht zweimal als JSX.
+ *
+ * Ohne `name` ist es eine schlichte Zeile – die «nichts»-Wahl etwa ist keine Nummer und
+ * sieht darum auch nicht wie eine aus.
+ */
+export function OptionRow({ option }: { option: SelectOption }) {
+  if (!option.name) return <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{option.label}</span>;
+  return (
+    <>
+      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontVariantNumeric: 'tabular-nums', flex: 'none' }}>{option.label}</span>
+      <span style={{ opacity: .75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{option.name}</span>
+    </>
+  );
+}
+
+const glyph: React.CSSProperties = {
+  position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)',
+  color: 'var(--fg-4)', pointerEvents: 'none',
+};
 
 export function Segmented({ label, value, onChange, options, required }: {
   label: string; value: string; onChange: (v: string) => void;

@@ -228,7 +228,7 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
       <div className="flex flex-wrap items-end gap-2">
         {/* 1 — Artikel. Sperrt alles Weitere, bis er steht.
             **Dasselbe Referenzfeld wie überall** (`ObjectSelect`, #738): tippen sucht auf
-            dem Server – Nummer oder Name –, und die Kamera steht daneben. */}
+            dem Server – Nummer oder Name –, und die Kamera sitzt IM Feld. */}
         <div className="flex-1" style={{ minWidth: perUnit ? 190 : 240 }}>
           <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Artikel</span>
           <ObjectSelect<ArticleOption>

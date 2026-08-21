@@ -723,6 +723,21 @@
 .erp-idbtn:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
 .erp-idbtn-flag:disabled, .erp-idbtn-flag:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
 
+/* ── Aktion AM Referenzfeld (Kamera) ──
+   Sie sitzt am rechten Innenrand und ersetzt dort das Zierzeichen (Chevron/Lupe): ein
+   Bedienelement mit zwei Eingängen statt zweier nebeneinander. Ruhend flächenlos –
+   «Struktur vor Fläche» –, beim Hover eine dezente Tönung, damit sie sich als Knopf zu
+   erkennen gibt, ohne im Formular lauter zu sein als die Eingabe daneben. */
+.erp-fieldaction {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border-radius: var(--r-sm); border: none; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-3);
+  cursor: pointer; padding: 0; transition: background .15s, color .15s;
+}
+.erp-fieldaction:hover { background: var(--bg-3); color: var(--fg-1); }
+.erp-fieldaction:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.erp-fieldaction:disabled, .erp-fieldaction:disabled:hover { background: transparent; color: var(--fg-4); cursor: not-allowed; }
+
 
 /* ── «Auf einen Blick»-Kachel ── */
 .erp-tile { transition: background .15s; }

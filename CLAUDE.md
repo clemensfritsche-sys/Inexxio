@@ -998,6 +998,48 @@
 > gegengeprüft** – eine davon war stumpf und musste nachgeschärft werden) + vier in
 > `test_frontend_mirrors.py`.
 
+> **Ein Bedienelement mit zwei Eingängen – und der Dialog ist sichtbar dasselbe Feld,
+> nur gross** (`components/erp/object-select.tsx`, `components/scan/scan-dialog.tsx`):
+> Zur Debatte stand, das Suchfeld ganz zu streichen und nur noch den Scan-Knopf zu
+> zeigen – der Dialog trägt ja selbst eine Eingabe. **Verworfen, und der Grund ist ein
+> Befund im Code**: die Trennung existierte längst und liegt an der richtigen Naht – die
+> **Ausführung** (Erfassung, Bewegen zur Laufzeit, freier Lookup im Feed) hat schon heute
+> kein Feld, dort IST der Scan die Wahl; `ObjectSelect` steht ausschliesslich an
+> **Definitions**flächen (Modul-Ziel, Bedarfszeile, «Ersetzt Artikel»). Scan-only hätte
+> also nicht zwei Wege zu einem gemacht, sondern die Band-Oberfläche in den Schreibtisch
+> gezogen. Dazu drei harte Punkte: das Feld **verschwindet gar nicht** (es ist auch eine
+> Anzeige – «100000292 · Regal B» bzw. «Beim Ausführen scannen» muss ohne Öffnen lesbar
+> sein), die **Kamera beantwortet eine andere Frage** (ein Artikel ist eine Gattung, und
+> eine **Einzelinstanz zieht bewusst keine Objektnummer** – eine scan-first-Welt kann für
+> das zentrale Arbeitsobjekt nie vollständig sein), und die **Robustheit ginge rückwärts**
+> (heute null Fehlerquellen, danach vier: Erlaubnis · Linse · Licht · Etikett; die Tastatur
+> im Dialog ist ein Umweg durch den scheiternden Weg, kein Netz).
+> **Die Doppelung war eine andere** – dieselbe Frage in zwei Formensprachen. Beide riefen
+> seit #738 dieselbe Suche und lieferten dieselben Treffer; man sah es ihnen nur nicht an.
+> Also: **EIN Bedienelement** – die Kamera sitzt am rechten **Innenrand** des Feldes
+> (`SearchSelect.action`) und ersetzt dort das Zierzeichen (dass es eine Liste gibt, sagt
+> der Klick; eine echte Aktion ist den Platz wert) –, und **drei Träger aus je einer
+> Quelle**: der Platzhalter (`scan.LOOKUP_HINT`), die Zeilenform (`fields.OptionRow` –
+> buchstäblich dasselbe Bauteil, Nummer tabellarisch, Name gedämpft) und die
+> **«nichts»-Zeile** (`ScanStep.emptyOption`; vorher musste man den Dialog schliessen, um
+> eine Entscheidung zu treffen, die er selbst anbietet).
+> **`objectCodes.prompt` ist damit der Platzhalter, kein Handlungsauftrag mehr**: «scannen»
+> war das Einzige, was die beiden Sätze auseinanderhielt, und in einem Textfeld ist das Verb
+> falsch – dass gescannt wird, sagen Zielrahmen und Suchstrahl. Die **Sorte** wandert dafür
+> aus dem Platzhalter in eine **Beschriftung** über der Leiste (dieselbe Typografie wie
+> `fields.Label`): ein Platzhalter verschwindet beim ersten Zeichen, und im Vollbild bliebe
+> dann nichts mehr, das sagt, wonach man sucht. Sie trägt denselben milchigen Grund wie
+> Eingabe und Vorschläge – hier liegt Text auf einem Foto, «Struktur vor Fläche» setzt eine
+> Fläche voraus, die ihn hält; ein Chip im Sinne von #126 ist sie nicht (der stand **neben**
+> dem Platzhalter und sagte dasselbe zweimal).
+> **Gemessen, nicht behauptet:** 29 Prüfungen in Chromium an den echten Komponenten – Kamera
+> innerhalb des Feldes (kein zweiter Knopf, 4 px Luft, Text läuft nicht darunter), Liste zu
+> beim Öffnen des Dialogs, Platzhalter Feld == Dialog, Zeilenform hier wie dort,
+> «nichts» im Dialog wirkt und schliesst, Verifikation zeigt die erwartete Nummer **genau
+> einmal**, Teileingabe schlägt weiterhin vor, **0 px** waagrechter Überlauf bei 1440 · 1024 ·
+> 834 · 375 · 320 px. Wächter: `test_the_camera_lives_in_the_field_not_beside_it` ·
+> `test_the_dialog_is_the_same_field_only_big` – **acht Bug-Formen gegengeprüft**, jede meldet.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

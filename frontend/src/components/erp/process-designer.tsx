@@ -279,10 +279,15 @@ function MoveFields({ module: m, onChange }: {
 
   return (
     <ObjectSelect<PlaceRef & { name: string }>
+      // **Das Feld nennt seine Sorte, der Scanner nennt dieselbe** – im Feld als
+      // Beschriftung, im Dialog als Zeile über der Suchleiste. Ohne sie stünde nur
+      // «Nummer oder Name» da, und im Vollbild-Dialog bliebe nach dem ersten Zeichen
+      // gar nichts mehr, das sagt, wonach gesucht wird. `scanLabel` ist damit
+      // überflüssig geworden: die Beschriftung IST die Sorte.
+      label="Zielort"
       value={target === '' ? null : Number(target)}
       selected={place ? { ...place, name: place.label } : null}
       find={findPlaces}
-      scanLabel="Zielort"
       onChange={(nr) => onChange({ target: nr == null ? '' : String(nr) })}
       // **«Kein Ziel» ist eine Wahl, keine Lücke** (#734–#736): sie steht als erste Zeile
       // in derselben Liste und im Feld, sobald sie gilt. Vorher stand dieselbe Aussage an
