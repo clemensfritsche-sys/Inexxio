@@ -1844,6 +1844,73 @@
         }
       }
     },
+    "/api/v1/erp/orders/supplier-options": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Supplier Options",
+        "description": "**Wer kommt als Lieferant in Frage?** – gesucht, nicht als ganze Liste geladen.\n\nDieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und\ndieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach\nauch annimmt. Ein Kunde in dieser Liste wäre eine Wahl, die das Modul abweist.",
+        "operationId": "supplier_options_api_v1_erp_orders_supplier_options_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Objektnummer-Teilstring oder Name",
+              "default": "",
+              "title": "Search"
+            },
+            "description": "Objektnummer-Teilstring oder Name"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SupplierOption"
+                  },
+                  "title": "Response Supplier Options Api V1 Erp Orders Supplier Options Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/module-catalog": {
       "get": {
         "tags": [
@@ -2218,6 +2285,73 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StepConfirm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/purchase": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Purchase",
+        "description": "**Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sieben Verben.\n\n**``POST``, nicht ``PATCH``**: das hier ist ein Befehl, kein Feld-Update. Im\nAuftrags-Router gibt es keinen Änderungspfad – was passiert, passiert als Handlung\nund hinterlässt einen Eintrag (derselbe Grund wie bei ``/confirm``).\n\nAnfragen · Offerieren · Ablehnen · Bestellen · Zurücknehmen · Klären. Die\n**Gegenhandlung steht am selben Ort wie die Handlung** (``revoke``): ein Modul räumt\nselbst auf, es gibt keinen Storno-Endpunkt daneben. Was ``revoke`` bewirkt, sagt die\nStufe – vor der Bestellung nimmt es die Anfrage zurück, danach storniert es.\n\nWas **Stücke** betrifft, entscheidet dagegen ein Mensch: dieses Modul legt keinen\nAuftrag an und keine Abweichung.\n\n**Die Tür steht heute nur dem Personal offen** (``require_employee``) – wie jeder\nEndpunkt dieses Routers. Die Regel «ein Lieferant trifft nur seine eigene Zeile»\nsteht trotzdem im Dienst (``purchase.apply``/``_target``), denn sie gehört dorthin:\nwer sie erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\nEin **eigener Zugang für Lieferanten** kommt mit ihrer Sicht auf den Auftrag – und\ndie ist mehr als ein weiterer ``Depends``: ohne einen Sichtbarkeitsfilter auf der\nAntwort (``_to_response`` gibt heute den **ganzen** Auftrag zurück) wäre die offene\nTür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.",
+        "operationId": "update_purchase_api_v1_erp_orders__object_id__steps__step_id__purchase_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseUpdate"
               }
             }
           }
@@ -7105,6 +7239,16 @@
               }
             ]
           },
+          "purchase": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PurchaseEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "label": {
             "type": "string",
             "title": "Label",
@@ -7168,6 +7312,299 @@
         ],
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."
+      },
+      "PurchaseEmbed": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseStage"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "article_object_id": {
+            "type": "integer",
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "type": "string",
+            "title": "Article Name",
+            "default": ""
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": ""
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity",
+            "default": 0
+          },
+          "allowed": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseQuote"
+            },
+            "type": "array",
+            "title": "Allowed"
+          },
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseQuote"
+            },
+            "type": "array",
+            "title": "Quotes"
+          },
+          "supplier_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Object Id"
+          },
+          "supplier_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Name"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "clarify_quantity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clarify Quantity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "article_object_id"
+        ],
+        "title": "PurchaseEmbed",
+        "description": "**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.\n\nLeer bei jedem anderen Modultyp – die Oberfläche braucht damit keine\nFallunterscheidung nach dem Modul, genau wie bei ``transports`` und ``needs``.\n\n**Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt\neiner Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche."
+      },
+      "PurchaseQuote": {
+        "properties": {
+          "supplier_object_id": {
+            "type": "integer",
+            "title": "Supplier Object Id"
+          },
+          "supplier_name": {
+            "type": "string",
+            "title": "Supplier Name",
+            "default": ""
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "supplier_object_id",
+          "state"
+        ],
+        "title": "PurchaseQuote",
+        "description": "Eine Zeile der Anfrage: **ein Lieferant, ein Preis**.\n\nDer Angebotsspiegel des Einkaufs – und zugleich der Tarifvergleich, wenn das Modul\neinen Transport einkauft. Es ist derselbe Vorgang, also dieselbe Zeile."
+      },
+      "PurchaseStage": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "verb": {
+            "type": "string",
+            "title": "Verb",
+            "default": ""
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "default": false
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "PurchaseStage",
+        "description": "Eine Stufe des Belegs – Schlüssel, Beschriftung und das Verb, wenn sie dran ist."
+      },
+      "PurchaseUpdate": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "suppliers": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Suppliers"
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "PurchaseUpdate",
+        "description": "Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.\n\n``ask``       bei wem angefragt wird (``suppliers``, optional ``quantity``)\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days``)\n``decline``   ein Lieferant sagt ab (``supplier``)\n``order``     bestellen (``supplier``, ``amount``, optional ``reference``/``due_date``)\n``note``      nachtragen, was der Lieferant zurückgibt (``reference``, ``due_date``)\n``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren\n``clarified`` der Lieferant hat der geänderten Menge zugestimmt"
       },
       "RecordEntry": {
         "properties": {
@@ -7610,6 +8047,25 @@
         ],
         "title": "StockState",
         "description": "Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.\n\nDie Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese\nInstanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess».\n\n``stock`` sagt, in welchen Block das Segment gehört – ``live`` (aktueller Bestand),\n``history`` (nur noch Datensatz) oder ``unknown``. **Die Zuordnung kommt vom\nServer**, weil sie eine Eigenschaft des Status ist (``domain/statuses.Status.stock``)\nund keine Liste, die eine Oberfläche pflegt. Ein neuer Status wird damit an genau\neiner Stelle ergänzt, und die Bestandsansicht folgt ohne Änderung."
+      },
+      "SupplierOption": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "SupplierOption",
+        "description": "Ein wählbarer Lieferant – **Objektnummer und Name**, sonst nichts.\n\nDieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die\nOberfläche kein zweites Auswahlfeld braucht.\n\n**Angeboten wird nur, wer Lieferant ist** – dieselbe Haltung wie bei\n``places.search``: eine Auswahl, die der Dienst danach abweist, ist keine."
       },
       "TerritoryAssign": {
         "properties": {

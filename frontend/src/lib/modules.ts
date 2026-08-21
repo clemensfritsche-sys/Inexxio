@@ -14,7 +14,7 @@
 
 import {
   Blocks, Camera, ClipboardCheck, Hand, MoveRight, Package, PackageX, PenLine, Ruler,
-  ThumbsUp, Truck, Type, type LucideIcon,
+  ShoppingCart, ThumbsUp, Truck, Type, type LucideIcon,
 } from 'lucide-react';
 
 import type { DefinitionLine } from '@/components/erp/definition-lines';
@@ -36,6 +36,9 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // Von hier nach dort – bewusst **kein** Transportmittel (kein Lastwagen, kein
   // Gabelstapler): womit bewegt wird, entscheidet sich erst bei der Ausführung.
   bewegen: MoveRight,
+  // Einkaufen – bewusst **kein** Lastwagen und kein Paket: das Modul kauft, es liefert
+  // nicht. Womit die Ware kommt, entscheidet der Lieferant.
+  beschaffen: ShoppingCart,
 };
 
 /**
@@ -65,6 +68,9 @@ export const MODULE_TONE: Record<string, { bg: string; fg: string; border: strin
   sand: { bg: '#F4EBDD', fg: '#9A7238', border: '#E4D2B8' },
   moss: { bg: '#E9EFE6', fg: '#5A7048', border: '#CBD9C2' },
   clay: { bg: '#F3E7E4', fg: '#8C5A50', border: '#E2CBC5' },
+  // Beschaffen: kühles Graublau. Die vier älteren Familien waren vergeben, und ein
+  // Modul, das sich eine teilt, ist im Fluss von seinem Nachbarn nicht zu unterscheiden.
+  ink: { bg: '#E7EAEF', fg: '#4E5A6B', border: '#CBD3DD' },
 };
 
 /**
@@ -237,6 +243,24 @@ export interface ModuleDraft {
    * Ein **String**, weil es ein Eingabefeld ist: ein halb getipptes Feld hat keine Zahl.
    */
   target: string;
+  /**
+   * Nur «Beschaffen»: die **zugelassenen Lieferanten** – Objektnummern, mindestens einer.
+   *
+   * Eine Liste, auch wenn fast immer einer drinsteht: **n statt 1**. Wer nur bei Würth
+   * kauft, hat eine Liste mit Würth; wer vergleichen will, nennt drei – und der
+   * Angebotsvergleich ist damit kein zweiter Mechanismus, sondern dieselbe Liste, eine
+   * Zeile länger. Fachlich ist es die Lieferantenfreigabe.
+   */
+  suppliers: number[];
+  /**
+   * Nur «Beschaffen»: **was** bestellt wird (Objektnummer eines Artikels).
+   *
+   * Beim Zukaufteil derselbe Artikel, an dem der Prozess hängt (die Oberfläche belegt
+   * ihn vor); bei einer Leistung ein anderer («Härten», «Paketversand»). Immer genannt
+   * und nie erraten: eine Vorlage, die «der eigene» meint, ist beim ersten Lohnauftrag
+   * falsch.
+   */
+  purchaseArticle: number | null;
 }
 
 /**
@@ -305,6 +329,18 @@ export const MODULE_FORM: Record<string, {
     // zweiten gültigen Fall zu verbieten.
     incomplete: () => null,
   },
+  beschaffen: {
+    // **Zwei Angaben, mehr nicht**: bei wem und was. Keine Menge – die steht beim
+    // Modellieren nicht fest (dieselbe Regel wie beim Verbrauch) und wird auf dem Beleg
+    // erfasst; kein Modus «Webshop» – wo jemand seinen Shop hat, ist eine Eigenschaft
+    // des Lieferanten und nicht dieser Bestellung.
+    config: (m) => ({ suppliers: m.suppliers, article: m.purchaseArticle }),
+    incomplete: (m) => {
+      if (m.purchaseArticle === null) return 'kein Artikel gewählt';
+      if (m.suppliers.length === 0) return 'kein Lieferant zugelassen';
+      return null;
+    },
+  },
   verbrauch: {
     // Zwei Angaben je Zeile, beide Pflicht: **welcher Artikel** und **wie viele je
     // Einzelinstanz**. Ohne Zeile wäre das Modul ein Durchgang, der aussieht wie eine
@@ -329,7 +365,7 @@ export const MODULE_FORM: Record<string, {
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
-    lines: [], target: '',
+    lines: [], target: '', suppliers: [], purchaseArticle: null,
   };
 }
 

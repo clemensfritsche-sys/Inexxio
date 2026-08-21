@@ -156,6 +156,29 @@ deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
   Vorauswahl lässt es fallen (`o.available`). Dafür muss der Zustand **mitreisen**: ihn beim
   Einlesen wegzuwerfen war die Ursache, dass die Ansicht gar nicht prüfen konnte.
 
+## Beschaffen (`components/erp/purchase-work.tsx`)
+Der Beleg an der Ausführungsstelle: `Anfrage → Bestellung → Wareneingang` als **eine
+Kette**, immer dieselbe – ob im Webshop gekauft oder beim Lieferanten bestellt wird. Der
+Unterschied ist nur, **wer den Preis einträgt**; ein zweiter Ablauf wäre dieselbe Angabe
+ein zweites Mal.
+
+- **Zeilen, keine Modul-Karten.** Eine Stufe ist kein Modul – sähe sie aus wie eines,
+  stünden im selben Bild zwei Massstäbe. Geteilt wird die **Regel**, nicht die Form:
+  kräftige Linie bis zur offenen Stelle, Haarlinie danach (wie die Hauptachse).
+- **Die Stufen kommen vom Server** (`PurchaseEmbed.stages` – Schlüssel · Beschriftung ·
+  `verb` · `done` · `active`). Die Oberfläche zeichnet sie, sie erfindet sie nicht; das
+  Verb auf dem Knopf («Bestellen», «Wareneingang buchen») gehört der aktiven Stufe.
+- **Storniert ist keine Stufe**: keine ist aktiv, kein Verb wird angeboten – die Kette
+  bleibt aber gegangen, wo sie war, und ein Satz daneben sagt, dass nichts mehr ankommt.
+- **Das Modul räumt selbst auf**: EINE Gegenhandlung (`revoke`), deren Wirkung die Stufe
+  bestimmt. Was **Stücke** betrifft, legt es nie selbst an – dafür gibt es den ganz
+  gewöhnlichen Auftragsentwurf mit vorgewählten Stücken.
+- **Der Wareneingang ist der Scan**, den jedes Modul kennt: `CaptureWork` steht als
+  `children` in der Stufe «Bestellung» – kein zweiter Bestätigungsweg daneben.
+- **Beträge über `formatAmount`** (`lib/utils`), nicht mit einer eigenen `toLocaleString`-
+  Zeile: eine zweite Kopie weicht in den Nachkommastellen ab, und ihre Zahl sieht
+  trotzdem richtig aus.
+
 ## Referenz-Eingabe (`components/erp/object-select.tsx`)
 **«Welchen Datensatz meinst du?» hat EINE Bauart** (#738). `ObjectSelect` ist **auf**
 `SearchSelect` gebaut – kein zweites Auswahlfeld daneben – und trägt zusätzlich die

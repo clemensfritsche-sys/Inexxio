@@ -26,7 +26,8 @@ from ..models.process_event import (
 )
 from . import (
     article_process, articles as articles_svc, capture as capture_svc,
-    consumption as consumption_svc, materialize, places as places_svc, sampling,
+    consumption as consumption_svc, materialize, places as places_svc,
+    purchase as purchase_svc, sampling,
 )
 from .instances import unit_number
 
@@ -743,6 +744,13 @@ def release(
     # Erreichen des Moduls**, nicht beim Modellieren (§2 – vorher steht die Menge nicht
     # fest). Gezogen wird über die **Gesamtmenge** des Auftrags, nicht je Instanz.
     sampling.ensure(db, order=order, step=rows[0], actor_id=actor_id)
+
+    # ── 7. Und jedes Beschaffungs-Modul bekommt seinen Beleg ────────────────
+    # **Hier und nicht beim Erreichen**: was bestellt wird, steht in der Definition, und
+    # der Einkauf beginnt, sobald der Auftrag läuft – wer erst beim Erreichen bestellt,
+    # wartet die Lieferfrist ab, nachdem alles andere schon fertig ist. Idempotent, ohne
+    # Beschaffungs-Modul ein No-op (``services/purchase``).
+    purchase_svc.instantiate_for_order(db, order)
     return order
 
 
@@ -952,6 +960,11 @@ def confirm_step(
                     f"es gibt nichts mehr zu bestätigen."),
         )
     module = modules.get(step.module_type)
+    # ►► **Kann hier überhaupt etwas ankommen?** ◄◄
+    #
+    # Dieselbe Bauart wie ``consumption.plan``: wer nichts zu sagen hat, sagt nichts.
+    # Nur ein Beschaffungs-Modul hat einen Beleg – und nur bestellte Ware trifft ein.
+    purchase_svc.assert_receivable(db, step=step)
     instance = _verified_instance(
         db, order=order, step=step,
         instance_object_id=instance_object_id, verification=verification,
@@ -1143,6 +1156,15 @@ def confirm_step(
     db.flush()
     # **Was hier nicht gezogen wurde, läuft jetzt mit** (§9.3) – siehe ``_run_through``.
     _run_through(db, order=order, step=step, actor_id=actor_id)
+    db.flush()
+    # ►► **Das Modul räumt selbst auf.** ◄◄
+    #
+    # Steht nichts mehr vor dem Beschaffungs-Modul, ist die Ware da (Teillieferung
+    # braucht keine eigene Regel – ``confirm_step`` ist ein Teilabschluss). Und hat der
+    # Auftrag Stücke verloren (ein Aussondern eine Zeile weiter oben), zieht der Beleg
+    # nach bzw. meldet, dass zu klären ist. Beides no-op ohne Beschaffungs-Modul.
+    purchase_svc.note_receipt(db, order=order, step=step)
+    purchase_svc.rebase(db, order)
     db.flush()
     return {"moved": len(units), "held": 0, "result": result}
 

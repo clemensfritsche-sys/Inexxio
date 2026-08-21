@@ -253,6 +253,18 @@ export type RecordEntry = components['schemas']['RecordEntry'];
 export type RecordValue = components['schemas']['RecordValue'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 /**
+ * **Der Beschaffungs-Beleg** eines Moduls – Stufe, Angebotszeilen, Bestellung
+ * (`services/purchase`). `null` bei jedem anderen Modultyp: die Oberfläche braucht damit
+ * keine Fallunterscheidung nach dem Modultyp, genau wie bei `transports` und `needs`.
+ */
+export type PurchaseEmbed = components['schemas']['PurchaseEmbed'];
+/** Eine Stufe des Belegs – Anfrage · Bestellung · Wareneingang. */
+export type PurchaseStage = components['schemas']['PurchaseStage'];
+/** Eine Zeile der Anfrage: ein Lieferant, ein Preis. */
+export type PurchaseQuote = components['schemas']['PurchaseQuote'];
+/** Ein wählbarer Lieferant – dieselbe Form wie jede Referenz (`ObjectSelect`). */
+export type SupplierOption = components['schemas']['SupplierOption'];
+/**
  * **Ein Halter** – Objektnummer, Typ, Name (`services/places`).
  *
  * Dieselbe Form für alle drei Fragen, die einen Ort nennen: das Ziel eines

@@ -24,11 +24,12 @@ from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
+    SupplierOption,
     RelatedOrder, StepNeed, StepWork, UnitOption, UnitChoices,
 )
 from ..schemas.process import (
-    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, RecordEntry,
-    RecordValue, StepConfirm, StepRecord,
+    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PurchaseEmbed,
+    PurchaseUpdate, RecordEntry, RecordValue, StepConfirm, StepRecord,
 )
 from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
@@ -41,6 +42,7 @@ from ..services import record as record_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
+from ..services import purchase as purchase_svc
 from ..services.admin import log_audit
 from ..services.instances import find_unit, unit_number, unit_number_matches
 
@@ -70,7 +72,8 @@ def _place_ref(db: Session, object_id) -> Optional[PlaceRef]:
     return PlaceRef.of(places_svc.station_of(db, int(object_id))) if object_id else None
 
 
-def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
+def _steps(db: Session, order: Order, *,
+           viewer: Optional[UserProfile] = None) -> list[ProcessStepResponse]:
     """Die Module eines Auftrags – **mit ihrer Sperre**.
 
     Ob ein Modul laufen darf, entscheidet nicht das Modul: es steht hier als Auskunft am
@@ -106,6 +109,11 @@ def _steps(db: Session, order: Order) -> list[ProcessStepResponse]:
         # **Wohin es geht** – aufgelöst, nicht als nackte Zahl. Die Oberfläche zeigt den
         # Namen des Halters; ihn dort nachzuschlagen wäre eine Abfrage je Schritt.
         row.target = _place_ref(db, (s.config or {}).get("target"))
+        # **Der Beschaffungs-Beleg** – Stufe, Angebotszeilen, Bestellung. ``None`` bei
+        # jedem anderen Modultyp; ein Lieferant sieht nur seine eigene Zeile, und zwar
+        # weil sie hier gefiltert wird und nicht in der Oberfläche.
+        facts = purchase_svc.embed_data(db, order=order, step=s, viewer=viewer)
+        row.purchase = PurchaseEmbed(**facts) if facts else None
         out.append(row)
     return out
 
@@ -332,6 +340,36 @@ def article_options(
         )
         for a in rows
     ]
+
+
+@router.get("/supplier-options", response_model=list[SupplierOption])
+def supplier_options(
+    search: str = Query("", description="Objektnummer-Teilstring oder Name"),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """**Wer kommt als Lieferant in Frage?** – gesucht, nicht als ganze Liste geladen.
+
+    Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
+    dieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach
+    auch annimmt. Ein Kunde in dieser Liste wäre eine Wahl, die das Modul abweist.
+    """
+    rows = (
+        db.query(UserProfile)
+        .filter(
+            UserProfile.object_id.isnot(None),
+            UserProfile.is_active.is_(True),
+            UserProfile.role == "supplier",
+            lookup.matches(search, UserProfile.object_id, UserProfile.company_name,
+                           UserProfile.first_name, UserProfile.last_name,
+                           UserProfile.email),
+        )
+        .order_by(UserProfile.object_id.desc())
+        .limit(limit)
+        .all()
+    )
+    return [SupplierOption(object_id=u.object_id, name=u.display_name) for u in rows]
 
 
 @router.get("/module-catalog", response_model=ModuleCatalog)
@@ -656,6 +694,58 @@ def confirm_step(
         actor_id=user.id)
     log_audit(db, "process_steps", "confirm",
               f"{outcome['moved']} bewegt, {outcome['held']} angehalten",
+              user_id=user.id, object_id=order.object_id)
+    db.commit()
+    db.refresh(order)
+    return _to_response(db, order)
+
+
+@router.post("/{object_id}/steps/{step_id}/purchase", response_model=OrderResponse)
+def update_purchase(
+    object_id: int,
+    step_id: int,
+    data: PurchaseUpdate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """**Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sieben Verben.
+
+    **``POST``, nicht ``PATCH``**: das hier ist ein Befehl, kein Feld-Update. Im
+    Auftrags-Router gibt es keinen Änderungspfad – was passiert, passiert als Handlung
+    und hinterlässt einen Eintrag (derselbe Grund wie bei ``/confirm``).
+
+    Anfragen · Offerieren · Ablehnen · Bestellen · Zurücknehmen · Klären. Die
+    **Gegenhandlung steht am selben Ort wie die Handlung** (``revoke``): ein Modul räumt
+    selbst auf, es gibt keinen Storno-Endpunkt daneben. Was ``revoke`` bewirkt, sagt die
+    Stufe – vor der Bestellung nimmt es die Anfrage zurück, danach storniert es.
+
+    Was **Stücke** betrifft, entscheidet dagegen ein Mensch: dieses Modul legt keinen
+    Auftrag an und keine Abweichung.
+
+    **Die Tür steht heute nur dem Personal offen** (``require_employee``) – wie jeder
+    Endpunkt dieses Routers. Die Regel «ein Lieferant trifft nur seine eigene Zeile»
+    steht trotzdem im Dienst (``purchase.apply``/``_target``), denn sie gehört dorthin:
+    wer sie erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.
+    Ein **eigener Zugang für Lieferanten** kommt mit ihrer Sicht auf den Auftrag – und
+    die ist mehr als ein weiterer ``Depends``: ohne einen Sichtbarkeitsfilter auf der
+    Antwort (``_to_response`` gibt heute den **ganzen** Auftrag zurück) wäre die offene
+    Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
+    """
+    order = orders_svc.get(db, object_id)
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None:
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    row = purchase_svc.apply(
+        db, order=order, step=step, action=data.action,
+        payload=data.model_dump(exclude={"action"}), actor=user,
+    )
+    log_audit(db, "purchases", data.action,
+              f"Beleg zu Modul {step.id}: «{modules.label(step.module_type)}» "
+              f"→ {row.stage}",
               user_id=user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)

@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2 } from 'lucide-react';
+import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ModuleCatalog } from '@/types';
+import type { ModuleCatalog, SupplierOption } from '@/types';
 import {
   CAPTURE_ICON, DISPOSAL_MODES, MODULE_ICON, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
   moduleTone,
@@ -19,6 +19,7 @@ import {
   DRAFT_OBJECT_ID, definitionGraph, type DiagramStep,
 } from '@/components/erp/process-diagram';
 import { ProcessColumns } from '@/components/erp/process-columns';
+import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
 import { IconSwitch, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
@@ -298,6 +299,95 @@ function MoveFields({ module: m, onChange }: {
   );
 }
 
+/**
+ * **Beschaffen: bei wem — und was.** Zwei Angaben, mehr braucht ein Einkauf nicht.
+ *
+ * Die Lieferanten sind eine **Liste**, auch wenn fast immer einer drinsteht: wer
+ * vergleichen will, nennt drei, und der Angebotsvergleich ist damit kein zweiter
+ * Mechanismus, sondern dieselbe Liste eine Zeile länger. Fachlich die Lieferantenfreigabe.
+ *
+ * **Keine Menge und kein «Webshop»-Modus**: die Menge steht beim Modellieren nicht fest
+ * (dieselbe Regel wie beim Verbrauch), und wo jemand seinen Shop hat, ist eine
+ * Eigenschaft des Lieferanten – nicht dieser Bestellung.
+ */
+function PurchaseFields({ module: m, onChange }: {
+  module: ModuleDraft;
+  types: { key: string; label: string }[];
+  onChange: (next: Partial<ModuleDraft>) => void;
+}) {
+  const [article, setArticle] = useState<{ object_id: number; name: string } | null>(null);
+  const [known, setKnown] = useState<Record<number, string>>({});
+
+  // Die gewählten Lieferanten benennen – sonst stünden dort nur Ziffern. Eine Abfrage
+  // je Modul, nicht je Zeile.
+  useEffect(() => {
+    const missing = m.suppliers.filter((n) => !(n in known));
+    if (missing.length === 0) return;
+    let stale = false;
+    void Promise.all(missing.map((n) => api.searchSuppliers(String(n), 1)))
+      .then((groups) => {
+        if (stale) return;
+        const found: Record<number, string> = {};
+        groups.flat().forEach((o) => { found[o.object_id] = o.name; });
+        setKnown((k) => ({ ...k, ...found }));
+      })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, [m.suppliers, known]);
+
+  const findSuppliers = useCallback((q: string) => api.searchSuppliers(q).catch(() => []), []);
+  const findArticles = useCallback(
+    (q: string) => api.getArticles(q, 20)
+      .then((rows) => rows.flatMap((a) => (
+        a.object_id == null ? [] : [{ object_id: a.object_id, name: a.name }])))
+      .catch((): { object_id: number; name: string }[] => []),
+    [],
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ObjectSelect<{ object_id: number; name: string }>
+        label="Was bestellt wird"
+        kind="article"
+        scanLabel="Artikel"
+        value={m.purchaseArticle}
+        selected={article}
+        find={findArticles}
+        onChange={(nr, opt) => { setArticle(opt); onChange({ purchaseArticle: nr }); }}
+      />
+      <div className="flex flex-col gap-1.5">
+        <ObjectSelect<SupplierOption>
+          label="Zugelassene Lieferanten"
+          value={null}
+          selected={null}
+          find={findSuppliers}
+          scanLabel="Lieferant"
+          placeholder="Nummer oder Name"
+          onChange={(nr, opt) => {
+            if (nr === null || m.suppliers.includes(nr)) return;
+            if (opt) setKnown((k) => ({ ...k, [nr]: opt.name }));
+            onChange({ suppliers: [...m.suppliers, nr] });
+          }}
+        />
+        {m.suppliers.map((nr) => (
+          <div key={nr} className="flex items-center gap-2 text-[13px]"
+            style={{ borderTop: '1px solid var(--border-1)', paddingTop: 5 }}>
+            <ObjId value={nr} />
+            <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{known[nr] ?? ''}</span>
+            <button type="button" className="erp-fieldaction" aria-label="Entfernen"
+              data-tip="Nicht mehr zugelassen"
+              onClick={() => onChange({ suppliers: m.suppliers.filter((x) => x !== nr) })}
+              style={{ position: 'static', transform: 'none' }}>
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 /** Welcher Feldsatz gehört zu welchem Modultyp. Eine Zuordnung, keine Bedingung. */
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
@@ -305,6 +395,7 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   onChange: (next: Partial<ModuleDraft>) => void;
 }>> = {
   datenerfassung: ModuleFields,
+  beschaffen: PurchaseFields,
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
   bewegen: MoveFields,
