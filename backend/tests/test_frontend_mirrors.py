@@ -4267,3 +4267,102 @@ def test_the_search_condition_is_number_or_name_everywhere():
             f"{path} schreibt seine Suchbedingung selbst aus – genau die Stelle, an der "
             f"sie beim nächsten Mal abweicht."
         )
+
+
+def test_the_camera_lives_in_the_field_not_beside_it():
+    """**EIN Bedienelement mit zwei Eingängen, nicht zwei Bedienelemente.**
+
+    Bug-Form: das Referenzfeld und daneben ein eigener Scan-Knopf (`erp-idbtn`) – zwei
+    Flächen für **eine** Frage («welchen Datensatz meinst du?»). Die Kamera sitzt jetzt am
+    rechten Innenrand des Feldes und ersetzt dort das Zierzeichen: dass es eine Liste
+    gibt, sagt der Klick, und eine echte Aktion ist den Platz wert.
+
+    Geprüft wird die **Regel**, nicht die Optik: `SearchSelect` muss eine Aktion **im**
+    Feld tragen können, und `ObjectSelect` darf keinen Knopf daneben mehr stellen.
+    """
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    assert "action?: {" in fields and "erp-fieldaction" in fields, (
+        "`SearchSelect` kann keine Aktion am rechten Innenrand tragen – dann wächst der "
+        "zweite Knopf daneben wieder nach."
+    )
+    # Der Klick gehört der Aktion: er darf weder den Fokus ins Feld ziehen noch die Liste
+    # offen stehen lassen (sie liegt INNERHALB des Feldes, der Klick-daneben-Schliesser
+    # greift dort nicht).
+    assert "onMouseDown={(e) => e.preventDefault()}" in fields, (
+        "Der Klick auf die Aktion zieht den Fokus ins Eingabefeld – die Liste klappt auf, "
+        "während sich der Dialog davorlegt."
+    )
+
+    picker = _code(_read(FRONTEND / "components" / "erp" / "object-select.tsx"))
+    assert "action={{" in picker, "`ObjectSelect` reicht die Kamera nicht als Feld-Aktion durch."
+    assert "erp-idbtn" not in picker, (
+        "Der eigene Scan-Knopf neben dem Feld ist zurück – zwei Bedienelemente für eine "
+        "Frage."
+    )
+    # Und der Platz dafür kommt aus dem Feld, nicht aus einem Umbruch daneben.
+    assert "paddingRight: action ? 34 : 28" in fields, (
+        "Das Feld macht der Aktion keinen Platz – der Text läuft unter das Symbol."
+    )
+
+
+def test_the_dialog_is_the_same_field_only_big():
+    """**Feld und Scanner sind sichtbar dieselbe Sache.**
+
+    Bug-Form: dieselbe Frage in zwei Formensprachen – hier ein Dropdown mit einem
+    fertigen String je Zeile, dort ein Vollbild mit eigener Zeilenform, eigenem
+    Platzhalter und ohne die «nichts»-Wahl, die daneben im Feld steht. Beide riefen
+    seit #738 dieselbe Suche und lieferten dieselben Treffer – man sah es ihnen nur nicht
+    an, und die Frage «warum gibt es das zweimal» blieb.
+
+    Drei Träger, alle drei aus **einer** Quelle: Platzhalter · Zeilenform · «nichts».
+    """
+    lib = _code(_read(FRONTEND / "lib" / "scan.ts"))
+    picker = _code(_read(FRONTEND / "components" / "erp" / "object-select.tsx"))
+    dialog = _code(_read(FRONTEND / "components" / "scan" / "scan-dialog.tsx"))
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+
+    # (1) EIN Platzhalter, eine Quelle – und er ist kein Handlungsauftrag mehr: «scannen»
+    #     wäre in einem Textfeld falsch, und genau das Verb war das Einzige, was die
+    #     beiden Oberflächen daran hinderte, denselben Satz zu tragen.
+    assert "export const LOOKUP_HINT" in lib, "Der gemeinsame Platzhalter fehlt."
+    assert "LOOKUP_HINT" in picker, (
+        "Das Referenzfeld schreibt seinen Platzhalter selbst aus – dann läuft er beim "
+        "nächsten Wort vom Dialog weg."
+    )
+    prompt = _body(lib, "prompt", kind="function") if "function prompt" in lib else lib[
+        lib.index("prompt(step) {"):lib.index("prompt(step) {") + 260]
+    assert "LOOKUP_HINT" in prompt and "scannen" not in prompt, (
+        "`objectCodes.prompt` ist wieder ein Handlungsauftrag statt eines Platzhalters – "
+        "in einem Textfeld steht dann «scannen»."
+    )
+
+    # (2) EINE Zeilenform – buchstäblich dasselbe Bauteil, nicht dieselbe Absicht.
+    assert "export function OptionRow" in fields, "Die eine Zeilenform fehlt."
+    assert "OptionRow" in dialog, (
+        "Der Scanner baut seine Vorschlagszeile wieder selbst – dann sieht dieselbe "
+        "Auswahl je nach Oberfläche anders aus."
+    )
+    assert "fontFamily: 'var(--font-mono)'" not in dialog, (
+        "Im Dialog steht wieder eine eigene Zeilen-Auszeichnung neben `OptionRow`."
+    )
+
+    # (3) «Nichts» steht auch im Dialog – sonst müsste man ihn schliessen, um eine
+    #     Entscheidung zu treffen, die er selbst anbietet.
+    assert "emptyOption?: { label: string; pick: () => void }" in lib, (
+        "Der Scan-Schritt kennt keine «nichts»-Wahl."
+    )
+    assert "empty.pick()" in dialog, "Der Dialog bietet die «nichts»-Wahl nicht an."
+    assert "emptyOption: emptyOption ?" in picker, (
+        "Das Feld reicht seine «nichts»-Wahl nicht an den Scanner durch."
+    )
+
+    # (4) Dieselbe Anatomie: die SORTE steht als Beschriftung, nicht im Platzhalter –
+    #     der verschwindet beim ersten Zeichen, und im Vollbild bliebe dann nichts mehr,
+    #     das sagt, wonach gesucht wird.
+    assert "<div style={kindLine}>{kind}</div>" in dialog, (
+        "Der Dialog nennt die Sorte nicht mehr als Beschriftung über der Leiste."
+    )
+    assert "textTransform: 'uppercase', letterSpacing: '0.05em'" in dialog, (
+        "Die Beschriftung im Dialog trägt nicht die Typografie von `fields.Label` – dann "
+        "ist es eine zweite Formensprache."
+    )

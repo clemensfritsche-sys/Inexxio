@@ -6,6 +6,7 @@ import {
   objectCodes, offersFor, type ScanCandidate, type ScanStep, type ScanRequest, type ScanVia,
 } from '@/lib/scan';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
+import { OptionRow } from '@/components/erp/fields';
 import { formatObjectId } from '@/lib/utils';
 
 export type { ScanRequest };
@@ -192,8 +193,19 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
     return [...known, ...found.filter((c) => !seen.has(c.objectId))].slice(0, SUGGEST_MAX);
   }, [known, found]);
 
-  // Was im Bild steht, sagt die Deutung – der Dialog weiss nicht, was ein Schritt meint.
-  const actionText = reading.prompt(step);
+  /**
+   * **Dieselbe Anatomie wie das Referenzfeld, aus dem der Dialog kommt**: die **Sorte**
+   * als Beschriftung darüber, der **Platzhalter** darin – und der Platzhalter ist
+   * wortgleich derselbe (`objectCodes.prompt` ↔ {@link LOOKUP_HINT}).
+   *
+   * Getrennt, weil ein Platzhalter beim ersten Zeichen verschwindet: stand die Sorte
+   * darin, wusste man ab dem ersten Buchstaben nicht mehr, wonach man sucht. Eine
+   * Beschriftung bleibt stehen. Was der Dialog TUT, sagt er nur noch der Vorlesehilfe –
+   * im Bild sagen es Zielrahmen und Suchstrahl.
+   */
+  const kind = step?.label ?? 'Objekt';
+  const hint = reading.prompt(step);
+  const empty = step?.emptyOption;
 
   /**
    * **Enter geht durch – oder sagt, warum nicht.** Es gibt keinen Zwischenschritt.
@@ -225,7 +237,7 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        aria-label={actionText}
+        aria-label={`${kind} scannen oder suchen`}
         tabIndex={-1}
         style={sheet}
         onClick={(e) => e.stopPropagation()}
@@ -283,8 +295,10 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
           )}
         </div>
 
-        {/* Suche – im Bild statt darunter: eine milchige Leiste am unteren Rand. */}
+        {/* Suche – im Bild statt darunter: eine milchige Leiste am unteren Rand, mit
+            derselben Anatomie wie das Referenzfeld: Beschriftung · Eingabe · Liste. */}
         <div style={searchBar}>
+          <div style={kindLine}>{kind}</div>
           <div style={{ position: 'relative' }}>
             <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.7)', pointerEvents: 'none' }} />
             <input
@@ -292,10 +306,11 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
               value={query}
               onChange={(e) => { setQuery(e.target.value); setFeedback(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitQuery(); } }}
-              // Die Zielangabe («Instanz 100000479») lebt HIER statt zusätzlich als Chip im
-              // Bild – eine Aussage, eine Stelle (Notiz #126).
-              placeholder={actionText}
-              aria-label={actionText}
+              // Der Platzhalter sagt, was man EINGIBT – wortgleich mit dem des Feldes,
+              // aus dem dieser Dialog kommt. Die Sorte steht als Beschriftung darüber,
+              // nicht zusätzlich als Chip im Bild (Notiz #126): eine Aussage, eine Stelle.
+              placeholder={hint}
+              aria-label={`${kind} – ${hint}`}
               style={input}
             />
           </div>
@@ -303,12 +318,27 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
           {/* **Ein Klick genügt.** Die Auswahl IST die Eingabe – es gibt keinen zweiten
               Knopf, der sie noch einmal bestätigt. Gescrollt wird weiterhin, nur der
               Balken bleibt weg (Notiz #146). */}
-          {suggestions.length > 0 && (
+          {(empty || suggestions.length > 0) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 152, overflowY: 'auto' }}>
+              {/* **«Nichts» steht auch hier zur Wahl** – als erste Zeile, wie im Feld.
+                  Ohne sie müsste man den Dialog schliessen, um eine Entscheidung zu
+                  treffen, die er selbst anbietet. Der Scanner erfindet dafür keine
+                  Nummer: der Aufrufer sagt, was «nichts» bedeutet. */}
+              {empty && (
+                <button
+                  type="button"
+                  onClick={() => { if (lock.current || completed.current) return; empty.pick(); onClose(); }}
+                  style={suggestionBtn}
+                >
+                  <OptionRow option={{ value: '', label: empty.label }} />
+                </button>
+              )}
+              {/* **Dieselbe Zeile wie im Feld** – buchstäblich dasselbe Bauteil
+                  (`fields.OptionRow`), nicht dieselbe Absicht: Nummer tabellarisch,
+                  Name leise daneben. Ein Klick genügt, die Auswahl IST die Eingabe. */}
               {suggestions.map((c) => (
-                <button key={c.objectId} onClick={() => void handle(c.objectId, 'manual')} style={suggestionBtn}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{formatObjectId(c.objectId)}</span>
-                  <span style={{ opacity: .8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
+                <button key={c.objectId} type="button" onClick={() => void handle(c.objectId, 'manual')} style={suggestionBtn}>
+                  <OptionRow option={{ value: String(c.objectId), label: formatObjectId(c.objectId), name: c.label }} />
                 </button>
               ))}
             </div>
@@ -362,6 +392,24 @@ const reasonBox: React.CSSProperties = {
   position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center',
   justifyContent: 'center', gap: 7, padding: '10px 12px', textAlign: 'center',
   background: 'var(--danger)', color: '#fff', fontSize: 12.5, fontWeight: 600, lineHeight: 1.35,
+};
+/**
+ * Die Beschriftung über der Leiste – **dieselbe Typografie wie `fields.Label`** (11 px,
+ * 600, Versalien, 0.05em), damit der Dialog sichtbar dasselbe Feld ist.
+ *
+ * Sie trägt denselben milchigen Grund wie Eingabe und Vorschläge, und zwar aus dem
+ * Grund, aus dem die es tun: hier liegt Text auf einem **Foto**. «Struktur vor Fläche»
+ * setzt eine Fläche voraus, die es hält – vor einem hellen Regal wäre weisse Schrift
+ * schlicht weg. Sie ist damit auch kein Chip im Sinne von Notiz #126: der stand neben
+ * dem Platzhalter und sagte dasselbe zweimal – diese Angabe steht nur hier.
+ */
+const kindLine: React.CSSProperties = {
+  alignSelf: 'flex-start', maxWidth: '100%', padding: '3px 10px',
+  fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em',
+  color: 'rgba(255,255,255,.92)', borderRadius: 999,
+  border: '1px solid rgba(255,255,255,.18)', background: 'rgba(15,23,42,.5)',
+  backdropFilter: 'blur(10px)',
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 const searchBar: React.CSSProperties = {
   position: 'absolute', left: 14, right: 14, bottom: 14, display: 'flex', flexDirection: 'column', gap: 6,

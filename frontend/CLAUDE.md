@@ -165,6 +165,15 @@ Scanner bekommt dieselbe Suche mit (`suggest`).
 
 - **Kamera und Tastatur stehen nebeneinander.** Der Scanner zuerst und die Eingabe
   darunter wäre am Band richtig und am Schreibtisch ein Umweg; umgekehrt genauso.
+- **Nebeneinander heisst aber EIN Bedienelement**: die Kamera sitzt am rechten
+  **Innenrand des Feldes** (`SearchSelect.action`) und ersetzt dort das Zierzeichen –
+  dass es eine Liste gibt, sagt der Klick, und eine echte Aktion ist den Platz wert. Ein
+  eigener Knopf daneben waren zwei Flächen für **eine** Frage.
+- **Und der Dialog ist sichtbar dasselbe Feld, nur gross**: derselbe Platzhalter
+  (`scan.LOOKUP_HINT`), dieselbe Zeilenform (`fields.OptionRow` – buchstäblich dasselbe
+  Bauteil, Nummer tabellarisch, Name gedämpft) und dieselbe «nichts»-Zeile. Die **Sorte**
+  steht in beiden als Beschriftung darüber, nicht im Platzhalter: der verschwindet beim
+  ersten Zeichen, und im Vollbild bliebe dann nichts mehr, das sagt, wonach man sucht.
 - **Der Aufrufer besitzt die Wahl**: `value` ist die Nummer, `selected` der bekannte
   Datensatz dazu, `onChange(nr, option)` gibt die frisch gewählte Option mit. Wer ohnehin
   mehr über ihn wissen muss (Serialisierung, Vorlage, Grund), lädt ihn **einmal**.
@@ -199,10 +208,19 @@ Aufruf über `useScan()` (eine Instanz am ERP-Layout, lazy). Ein Vorgang ist ein
 `expected` = Verifikation · `restrict`+`candidates` = eingeschränkte Wahl · sonst freier
 Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
 
-- **`label` ist die SORTE, nie eine Nummer** («Instanz», «Material», «Zielort»). Die
-  Nummer hängt der Scanner selbst an (`objectCodes.prompt` aus `expected`); steht sie auch
-  im Label, sagt der Platzhalter sie zweimal – «Instanz 100000825 100000825 scannen»
-  (#737). Ein Wächter prüft die Regel, nicht den Einzelfall.
+- **`label` ist die SORTE, nie eine Nummer** («Instanz», «Material», «Zielort»). Sie
+  steht als **Beschriftung über der Suchleiste** – dieselbe Anatomie wie das `Label` über
+  dem Referenzfeld. Die Nummer baut der Scanner selbst (`objectCodes.prompt` aus
+  `expected`); steht sie auch im Label, sagt der Dialog sie zweimal (#737). Ein Wächter
+  prüft die Regel, nicht den Einzelfall.
+- **`objectCodes.prompt` ist der PLATZHALTER, kein Handlungsauftrag.** «scannen» stand
+  darin, solange der Satz nur im Kamerabild vorkam – in einem Textfeld wäre das Verb
+  falsch, und es war das Einzige, was Feld und Dialog daran hinderte, denselben Satz zu
+  tragen. Dass gescannt wird, sagen Zielrahmen und Suchstrahl.
+- **`emptyOption` gibt es auch im Scanner**: wo «nichts» eine gültige Wahl ist, steht sie
+  als erste Zeile – sonst müsste man den Dialog schliessen, um eine Entscheidung zu
+  treffen, die er selbst anbietet. Was «nichts» bedeutet, sagt der Aufrufer (`pick()`);
+  der Scanner erfindet dafür keine Nummer.
 
 - **Vorschläge: der Scanner bietet an, was er ANNIMMT** (`offersFor`). Ein
   Verifikationsschritt braucht dafür keine Suche – seine Vorschlagsmenge *ist* `expected`,

@@ -52,16 +52,31 @@ export interface ScanCandidate {
 // («was muss ich jetzt scannen?»).
 export type ScanKind = 'user' | 'instance' | 'company' | 'article' | 'process' | 'object';
 
+/**
+ * **Der eine Satz, mit dem eine Datensatz-Suche fragt.**
+ *
+ * Er steht im Referenzfeld (`ObjectSelect`) UND in der Suchleiste des Scanners – dieselbe
+ * Frage, also derselbe Wortlaut. Zwei Formulierungen wären zwei Massstäbe, und der Dialog
+ * sähe aus wie ein zweites Bauteil statt wie dasselbe Feld, nur gross.
+ *
+ * Er nennt bewusst **nicht** die Sorte: die steht als Beschriftung darüber – im Feld als
+ * `Label`, im Scanner als Zeile über der Leiste. Ein Platzhalter verschwindet, sobald man
+ * tippt; was man sucht, darf nicht mit dem ersten Zeichen verschwinden.
+ */
+export const LOOKUP_HINT = 'Nummer oder Name';
+
 export interface ScanStep {
   /**
    * **Was gerade gescannt werden soll – die SORTE, nie die Nummer.**
    *
-   * «Instanz», «Material», «Zielort». Die Nummer hängt der Scanner selbst an, wenn der
+   * «Instanz», «Material», «Zielort». Die Nummer baut der Scanner selbst, wenn der
    * Schritt eine erwartet (`objectCodes.prompt` aus {@link expected}) – steht sie auch
-   * hier, sagt sie der Platzhalter zweimal: «Instanz 100000825 100000825 scannen»
-   * (Testnotiz #737). Das ist die eine Angabe, die der Scanner im Bild zeigt; ein
-   * zusätzlicher Erklärtext (früher `hint`) und ein Dialog-Titel sind entfallen, weil der
-   * ganze Container die Kamera ist.
+   * hier, sagt sie der Dialog zweimal: «Instanz 100000825 100000825» (Testnotiz #737).
+   *
+   * Sie steht als **Beschriftung über der Suchleiste**, genau wie das `Label` über dem
+   * Referenzfeld – dieselbe Anatomie, damit der Dialog sichtbar dasselbe Feld ist, nur
+   * gross. Ein zusätzlicher Erklärtext (früher `hint`) und ein Dialog-Titel sind
+   * entfallen, weil der ganze Container die Kamera ist.
    */
   label: string;
   kind?: ScanKind;                            // erwarteter Objekttyp → Symbol im Scanner
@@ -94,6 +109,18 @@ export interface ScanStep {
    * nichts. Wer die Frage beantworten kann, reicht sie hier herein.
    */
   exists?: (objectId: number) => Promise<boolean>;
+  /**
+   * **«Nichts» ist auch hier eine Wahl.**
+   *
+   * Wo ein leerer Wert gültig ist (ein Bewegen-Modul ohne festes Ziel), führt das
+   * Referenzfeld ihn als erste Zeile seiner Liste (`SearchSelect.emptyOption`). Der
+   * Scanner IST dieses Feld, nur gross – also führt er dieselbe Zeile. Ohne sie müsste
+   * man ihn schliessen, um eine Entscheidung zu treffen, die er selbst anbietet.
+   *
+   * Was «nichts» bedeutet, weiss nur der Aufrufer – der Scanner erfindet dafür keine
+   * Nummer, er ruft `pick()` und schliesst.
+   */
+  emptyOption?: { label: string; pick: () => void };
 }
 
 /**
@@ -196,9 +223,21 @@ export const objectCodes: ScanReading = {
     return null;
   },
 
-  // «Instanz 100000479 scannen» – der Platzhalter sagt, was zu TUN ist (Notiz #145).
+  /**
+   * **Der Platzhalter der Suchleiste – wortgleich mit dem des Referenzfelds.**
+   *
+   * Er sagt, was man EINGIBT, nicht was man tun soll. «scannen» stand hier, solange der
+   * Satz nur im Kamerabild vorkam; in einem Textfeld wäre das Verb falsch – und es war
+   * das Einzige, was die beiden Oberflächen daran hinderte, denselben Satz zu tragen.
+   * Dass gescannt wird, sagen Zielrahmen und Suchstrahl; **was** gesucht wird, steht als
+   * Beschriftung darüber ({@link ScanStep.label}) statt im Platzhalter, der beim ersten
+   * Zeichen verschwindet.
+   *
+   * Bei einer Verifikation ist es die erwartete Nummer selbst – genau das, was man
+   * tippen würde, und weiterhin **hier** gebaut statt an der Aufrufstelle (Notiz #737).
+   */
   prompt(step) {
-    if (!step) return 'Objektnummer scannen';
-    return `${step.label}${typeof step.expected === 'number' ? ` ${nr(step.expected)}` : ''} scannen`;
+    if (step && typeof step.expected === 'number') return nr(step.expected);
+    return LOOKUP_HINT;
   },
 };
