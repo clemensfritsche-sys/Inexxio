@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules, sampling
 
+from .instance import StockState
 from .place import PlaceRef
 from .process import ModuleFacts, ModuleInput
 
@@ -522,12 +523,24 @@ class ArticleOption(BaseModel):
 class UnitOption(BaseModel):
     """Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.
 
+    **Zwei Fragen, zwei Felder – und sie sind nicht dieselbe.** Der Statuskatalog trägt
+    beide Antworten seit jeher; die Auswahl las nur eine davon (Testnotiz #739):
+
+    ``available``   «lässt sich das überhaupt nehmen?» – aus ``Status.terminal``. Ein
+                    **verbautes** Stück ja: das Greifen IST der Ausbau. Ein
+                    **verschrottetes** nein: es gibt es physisch nicht mehr.
+    ``in_stock``    «liegt es im Regal?» – aus ``Status.stock``. Ein verbautes Stück
+                    **nein**: es steckt in einem anderen. Genau das ist die Frage, die
+                    FIFO stellt, wenn es die ältesten Stücke vorschlägt.
+
+    Ein Stück ist also greifbar **und trotzdem kein Lagerbestand** – die erste Kombination
+    dieser Art, und der Beleg, dass es zwei Eigenschaften sind. Die **Farbe** ist eine
+    dritte Frage («hat es sein Ziel erreicht?») und bleibt bei Verbaut grün.
+
     ``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein
-    Hindernis mehr**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine
+    Hindernis**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine
     Abweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was
     beim Wählen passiert – statt es geschehen zu lassen.
-
-    ``available`` heisst darum nur noch: dieses Stück lässt sich überhaupt nehmen.
     """
 
     number: str
@@ -535,4 +548,30 @@ class UnitOption(BaseModel):
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     available: bool
+    #: **Liegt es im Regal?** Die Frage, die FIFO stellt – siehe Klassen-Docstring.
+    in_stock: bool = False
     in_order: Optional[int] = None
+
+
+class UnitChoices(BaseModel):
+    """Eine **Seite** wählbarer Einzelinstanzen – plus das, was die Seite nicht weiss.
+
+    Bei zehntausend Schrauben ist eine flache Liste keine Antwort mehr (Testnotiz #740).
+    Drei Angaben machen aus der Seite trotzdem eine vollständige Auskunft:
+
+    ``states``    wie viele Stücke es **je Zustand** gibt – über den ganzen Artikel, nicht
+                  über die geladene Seite. Eine aus der Seite gezählte Zahl zeigte «300»,
+                  wo fünfzigtausend liegen.
+    ``preselect`` die FIFO-Vorauswahl, **vom Server**. Sie aus einer gekappten Liste zu
+                  ziehen war der eigentliche Fehler: sind die ersten 300 Stücke verbaut,
+                  findet die Oberfläche **nichts** – obwohl freie da sind.
+    ``total``     wie viele Stücke die aktuelle Auswahl (Filter/Suche) trifft.
+    """
+
+    units: list[UnitOption] = Field(default_factory=list)
+    total: int = 0
+    states: list[StockState] = Field(default_factory=list)
+    #: Die Nummern der FIFO-Vorauswahl – älteste zuerst, nur was **im Regal liegt** und
+    #: in keinem laufenden Auftrag steckt. Ein gebundenes Stück zu nehmen ist eine
+    #: Entscheidung (daraus wird eine Abweichung) und darf nie die Voreinstellung sein.
+    preselect: list[str] = Field(default_factory=list)

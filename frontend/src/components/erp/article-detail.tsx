@@ -22,7 +22,8 @@ import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN, INAKTIV } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
-import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SearchSelect, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
+import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { DetailTabs } from '@/components/erp/detail-tabs';
@@ -877,36 +878,28 @@ function ReplacesPicker({ value, onChange }: {
   }
   return (
     <div style={{ ...STRIP, gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <SearchSelect
-            label="Ersetzt Artikel"
-            value={value ? String(value.object_id) : ''}
-            options={value ? [{ value: String(value.object_id), label: `${value.object_id} · ${value.name}` }] : []}
-            placeholder="Nummer oder Name suchen…"
-            search={async (q) => {
-              const rows = await api.getArticles(q, 20);
-              // **Angeboten wird nur, was auch abgelöst werden kann** – ein bereits
-              // ersetzter Artikel würde von der Freigabe abgewiesen, und eine Auswahl,
-              // die danach scheitert, ist keine.
-              return rows
-                .filter((a) => a.object_id != null && !a.replaced_by_id)
-                .map((a) => ({ value: String(a.object_id), label: `${a.object_id} · ${a.name}` }));
-            }}
-            onChange={async (v) => {
-              if (!v) { onChange(null); return; }
-              try { onChange(await api.getArticle(Number(v))); } catch { onChange(null); }
-            }}
-          />
-        </div>
-        {/* Zurücknehmen – solange nichts freigegeben ist, ist es eine Angabe wie jede
-            andere und muss sich löschen lassen. */}
-        <button type="button" className="erp-idbtn" data-tip="Ohne Vorgänger anlegen"
-          aria-label="Vorgänger entfernen"
-          onClick={() => { onChange(null); setOpen(false); }}>
-          <Trash2 size={14} />
-        </button>
-      </div>
+      {/* **Dasselbe Referenzfeld wie überall** (`ObjectSelect`, #738) – inklusive Kamera,
+          und das Zurücknehmen steht als Zeile IN der Liste statt als Knopf daneben
+          (#736): «nichts» ist hier eine gültige Wahl, also gehört sie dorthin, wo man
+          wählt. */}
+      {/* `Article.object_id` ist nullbar (ein Entwurf hat noch keine) – hier steht immer
+          ein angelegter Artikel, also verengt die Auswahl den Typ. */}
+      <ObjectSelect<Article & { object_id: number }>
+        label="Ersetzt Artikel"
+        value={value?.object_id ?? null}
+        selected={value?.object_id != null ? (value as Article & { object_id: number }) : null}
+        kind="article"
+        scanLabel="Artikel"
+        emptyOption="Ohne Vorgänger anlegen"
+        find={(q) => api.getArticles(q, 20)
+          // **Angeboten wird nur, was auch abgelöst werden kann** – ein bereits ersetzter
+          // Artikel würde von der Freigabe abgewiesen (`articles.replaceable_problem`),
+          // und eine Auswahl, die danach scheitert, ist keine.
+          .then((rows) => rows.filter(
+            (a): a is Article & { object_id: number } => a.object_id != null && !a.replaced_by_id))
+          .catch(() => [])}
+        onChange={(_nr, opt) => { onChange(opt); if (!opt) setOpen(false); }}
+      />
       <span style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>
         Der abgelöste Artikel geht mit der Freigabe ausser Betrieb – er erzeugt danach
         nichts Neues mehr, seine Stücke laufen weiter.

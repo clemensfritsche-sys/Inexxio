@@ -199,6 +199,12 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE table_name='order_units' AND column_name='return_to_order_id') THEN "
     "CREATE INDEX IF NOT EXISTS ix_order_units_return_to_order_id "
     "ON order_units (return_to_order_id); END IF; END $$;",
+    # ►► **Die Vorauswahl der Stück-Auswahl** (Migration 113): «die ältesten Stücke
+    #    dieser Instanz, die im Regal liegen» – genau die Form, für die ein
+    #    zusammengesetzter Index gebaut ist. Gemessen bei 50 000 Stücken: 15,3 → 1,2 ms.
+    "DO $$ BEGIN IF to_regclass('public.instance_units') IS NOT NULL THEN "
+    "CREATE INDEX IF NOT EXISTS ix_instance_units_instance_status "
+    "ON instance_units (instance_id, status, id); END IF; END $$;",
     # ►► **Der Ort ist EINE Aussage** (Migration 112). Ohne diesen Riegel könnte ein
     #    Stück gleichzeitig im Regal und in einem Getriebe liegen – und welche der beiden
     #    Angaben gilt, entschiede die Lesestelle. Er steht hier und nicht nur in der

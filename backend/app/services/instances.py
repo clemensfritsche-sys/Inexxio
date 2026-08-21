@@ -55,6 +55,40 @@ def parse_unit_number(text: str) -> Optional[tuple[int, int]]:
     return int(head), int(tail)
 
 
+def unit_number_matches(query: str, instance_object_id, suffix):
+    """SQL-Bedingung «diese Stücknummer passt zur Eingabe» — ``<instanznr>-<suffix>``.
+
+    **Die Trennung IST die Aussage.** Die Nummer hat zwei Teile, und wer einen davon
+    tippt, meint auch nur ihn:
+
+    ``100000123-7``  beide Teile – die Instanz enthält «100000123», der Suffix ist 7
+    ``-7``           nur der Suffix: «das siebte Stück»
+    ``00123``        die Instanz – oder, wenn die Zahl klein genug ist, ein Suffix
+
+    Ohne die Trennung trifft «9» jede Instanz, deren **Nummer** irgendwo eine 9 enthält –
+    also fast alle. Sie steht hier und nicht im Endpunkt, weil sie zur Form der Nummer
+    gehört, und die wird genau hier gebildet (``unit_number``).
+    """
+    from sqlalchemy import String, and_, func, or_
+
+    q = (query or "").strip()
+    if not q:
+        return True
+    head, sep, tail = q.partition(SEP)
+    head, tail = head.strip(), tail.strip()
+    if sep:
+        # Ausdrücklich getrennt: der Suffix ist gemeint, die Instanz nur, wenn genannt.
+        by_suffix = func.cast(suffix, String) == tail if tail.isdigit() else False
+        if not head:
+            return by_suffix
+        by_head = func.cast(instance_object_id, String).like(f"%{head}%")
+        return and_(by_head, by_suffix) if tail.isdigit() else by_head
+    tests = [func.cast(instance_object_id, String).like(f"%{q}%")]
+    if q.isdigit():
+        tests.append(func.cast(suffix, String) == q)
+    return or_(*tests)
+
+
 def find_unit(db: Session, text: str) -> Optional[InstanceUnit]:
     """Einzelinstanz zu einer Nummer ``<instanznr>-<suffix>`` (oder ``None``)."""
     parsed = parse_unit_number(text)

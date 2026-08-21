@@ -343,7 +343,7 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 
   const head = (
     <DefinitionLines lines={lines} setLines={setLines} refreshKey={refreshKey}
-      onArticlesLoaded={setArticles} />
+      onArticlesChosen={setArticles} />
   );
 
   // Bringt eine Zeile «Neu» mit, ist der Prozess die **Vorlage des Artikels** – dann nur

@@ -53,9 +53,16 @@ export interface ScanCandidate {
 export type ScanKind = 'user' | 'instance' | 'company' | 'article' | 'process' | 'object';
 
 export interface ScanStep {
-  // Was gerade gescannt werden soll – die EINE Angabe, die der Scanner im Bild zeigt.
-  // Ein zusätzlicher Erklärtext (früher ``hint``) und ein Dialog-Titel sind entfallen: der
-  // ganze Container ist die Kamera, und was zu tun ist, steht im Zielrahmen.
+  /**
+   * **Was gerade gescannt werden soll – die SORTE, nie die Nummer.**
+   *
+   * «Instanz», «Material», «Zielort». Die Nummer hängt der Scanner selbst an, wenn der
+   * Schritt eine erwartet (`objectCodes.prompt` aus {@link expected}) – steht sie auch
+   * hier, sagt sie der Platzhalter zweimal: «Instanz 100000825 100000825 scannen»
+   * (Testnotiz #737). Das ist die eine Angabe, die der Scanner im Bild zeigt; ein
+   * zusätzlicher Erklärtext (früher `hint`) und ein Dialog-Titel sind entfallen, weil der
+   * ganze Container die Kamera ist.
+   */
   label: string;
   kind?: ScanKind;                            // erwarteter Objekttyp → Symbol im Scanner
   expected?: number | number[] | null;        // exakt zu treffende Objektnummer(n)

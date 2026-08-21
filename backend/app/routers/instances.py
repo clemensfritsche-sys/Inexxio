@@ -12,7 +12,6 @@ Ereignis in die Welt kam und wieder verschwand.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -24,7 +23,8 @@ from ..schemas.instance import (
     InstanceUnitResponse, UnitPage, stock_states,
 )
 from ..schemas.place import PlaceRef, UnitPlace
-from ..services import genealogy, instances as inst_svc, places as places_svc, process
+from ..services import (genealogy, instances as inst_svc, lookup,
+                        places as places_svc, process)
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -97,12 +97,16 @@ def list_instances(
     zu derselben Frage sind auch dann einer zu viel, wenn der zweite niemanden hat –
     dieser hatte keinen einzigen Aufrufer.
     """
-    q = db.query(Instance).filter(Instance.is_active.is_(True))
-    if search and search.strip():
-        like = f"%{search.strip()}%"
-        q = q.join(Article, Article.id == Instance.article_id, isouter=True).filter(
-            or_(cast(Instance.object_id, String).ilike(like), Article.name.ilike(like))
+    q = (
+        db.query(Instance)
+        .join(Article, Article.id == Instance.article_id, isouter=True)
+        .filter(
+            Instance.is_active.is_(True),
+            # **Dieselbe Bedingung wie überall** (`services/lookup`) – vorher hier
+            # ausgeschrieben, und damit die Stelle, an der die Artikel-Suche abwich.
+            lookup.matches(search or "", Instance.object_id, Article.name, Instance.label),
         )
+    )
     rows = q.order_by(Instance.object_id.desc()).limit(limit).offset(offset).all()
 
     by_instance = inst_svc.states(db, [i.id for i in rows])

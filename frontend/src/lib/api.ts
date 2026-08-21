@@ -3,7 +3,7 @@ import type {
   OrderSummary,
   OrderDraft,
   OrderValidation,
-  UnitOption,
+  UnitChoices,
   ArticleOption,
   OrderUnitPage,
   ArticleProcess,
@@ -540,15 +540,38 @@ class ApiClient {
 
   /** Welche Einzelinstanzen kann die Definition aufnehmen? Gesperrte kommen MIT –
    *  die Oberfläche soll den Grund zeigen, statt eine Zeile stumm verschwinden zu lassen. */
-  getUnitOptions(articleObjectId?: number): Promise<UnitOption[]> {
-    const qs = articleObjectId ? `?article=${articleObjectId}` : '';
-    return this.get(`/api/v1/erp/orders/unit-options${qs}`);
+  /** **Eine Seite wählbarer Einzelinstanzen** (#740) – nicht die Liste.
+   *
+   *  `preselect` bittet den Server um die FIFO-Vorauswahl: sie aus einer gekappten Seite
+   *  zu ziehen war der Fehler – sind die ersten Stücke verbaut, fände die Oberfläche
+   *  nichts, obwohl freie da sind. */
+  getUnitOptions(opts: {
+    articleObjectId?: number; search?: string; status?: string[];
+    preselect?: number; limit?: number; offset?: number;
+  } = {}): Promise<UnitChoices> {
+    const p = new URLSearchParams();
+    if (opts.articleObjectId) p.set('article', String(opts.articleObjectId));
+    if (opts.search?.trim()) p.set('search', opts.search.trim());
+    (opts.status ?? []).forEach((s) => p.append('status', s));
+    if (opts.preselect) p.set('preselect', String(opts.preselect));
+    if (opts.limit) p.set('limit', String(opts.limit));
+    if (opts.offset) p.set('offset', String(opts.offset));
+    const q = p.toString();
+    return this.get(`/api/v1/erp/orders/unit-options${q ? `?${q}` : ''}`);
   }
 
   /** Welche Artikel kann eine Definitionszeile aufnehmen? `template_steps` fährt mit,
    *  damit «Neu» gesperrt UND begründet werden kann, ohne einen zweiten Aufruf. */
-  getArticleOptions(): Promise<ArticleOption[]> {
-    return this.get('/api/v1/erp/orders/article-options');
+  /** **Gesucht, nicht geladen** (#738): entweder passend zur Eingabe, oder genau der
+   *  eine gewählte Artikel (`objectId`) – damit im Feld sein Name steht. */
+  getArticleOptions(opts: { search?: string; objectId?: number; limit?: number } = {}):
+    Promise<ArticleOption[]> {
+    const p = new URLSearchParams();
+    if (opts.objectId != null) p.set('object_id', String(opts.objectId));
+    else if (opts.search?.trim()) p.set('search', opts.search.trim());
+    if (opts.limit) p.set('limit', String(opts.limit));
+    const q = p.toString();
+    return this.get(`/api/v1/erp/orders/article-options${q ? `?${q}` : ''}`);
   }
 
   /** Die einzelnen Stücke einer Gruppe – erst wenn jemand aufklappt. Das Diagramm

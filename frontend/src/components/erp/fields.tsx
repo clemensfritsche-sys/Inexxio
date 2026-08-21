@@ -802,9 +802,24 @@ function newestFirst(options: { value: string; label: string }[]): { value: stri
 }
 
 export function SearchSelect({ label, value, onChange, options, required, placeholder,
-                               search }: {
+                               search, emptyOption }: {
   label?: string; value: string; onChange: (v: string) => void;
   options: { value: string; label: string }[]; required?: boolean; placeholder?: string;
+  /**
+   * **«Nichts» ist eine Wahl – also steht sie in der Liste.**
+   *
+   * Ist dieser Text gesetzt, führt die Liste ihn als **erste Zeile** mit dem Wert `''`,
+   * und ein leeres Feld zeigt ihn an, statt einen Platzhalter zu zeigen. Damit steht die
+   * getroffene Entscheidung da, nicht ihr Fehlen.
+   *
+   * Es ersetzt drei Notbehelfe, die sonst nebeneinander wachsen: einen erklärenden
+   * Platzhalter («leer lassen für …»), einen Erklärsatz darunter und einen
+   * X-Knopf daneben, mit dem man eine Wahl wieder wegnimmt. Drei Stellen für eine
+   * Aussage – und keine davon ist die Liste, in der man wählt (Testnotizen #734–#736).
+   *
+   * Ohne die Angabe bleibt alles wie bisher: leer heisst «noch nicht gewählt».
+   */
+  emptyOption?: string;
   /**
    * **Wo die Auswahl zu gross für eine Liste ist: suchen statt mitgeben.**
    *
@@ -822,8 +837,11 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<{ value: string; label: string }[]>([]);
   const ref = useRef<HTMLDivElement>(null);
-  const selected = options.find((o) => o.value === value);
-  const ordered = newestFirst(options);
+  // Die Leer-Zeile steht **vor** der Sortierung und bleibt vorn: `newestFirst` lässt
+  // nicht-numerische Werte ohnehin an Ort und Stelle.
+  const all = emptyOption ? [{ value: '', label: emptyOption }, ...options] : options;
+  const selected = all.find((o) => o.value === value);
+  const ordered = newestFirst(all);
 
   // Entprellt, mit Veralterungs-Schutz: wer weitertippt, bekommt nicht die Antwort auf
   // die vorherige Eingabe. Dieselbe Regel wie im Scan-Dialog.
@@ -851,8 +869,12 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
   const q = query.trim().toLowerCase();
   // Sucht das Feld serverseitig, ist die Antwort die Liste – ein zweiter Filter darüber
   // würde wegwerfen, was der Server gerade als Treffer benannt hat.
+  const empty = emptyOption ? [{ value: '', label: emptyOption }] : [];
   const filtered = search
-    ? (q ? found : ordered)
+    // Sucht das Feld serverseitig, ist die Antwort die Liste – ein zweiter Filter darüber
+    // würde wegwerfen, was der Server gerade als Treffer benannt hat. Die Leer-Zeile ist
+    // keine Server-Antwort und bleibt darum immer erreichbar: sie ist die Rücknahme.
+    ? (q ? [...empty, ...found] : ordered)
     : (q ? ordered.filter((o) => o.label.toLowerCase().includes(q)) : ordered);
 
   function pick(v: string) { onChange(v); setOpen(false); setQuery(''); setFound([]); }

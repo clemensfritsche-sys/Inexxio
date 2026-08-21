@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, GitBranch, Package, Plus, Sprout, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { ChevronDown, GitBranch, Package, Plus, ScanLine, Sprout, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleOption, UnitOption } from '@/types';
+import type { ArticleOption, UnitChoices, UnitOption } from '@/types';
 import { formatObjectId } from '@/lib/utils';
 import { IconSwitch, inputCls } from '@/components/erp/fields';
+import { ObjectSelect } from '@/components/erp/object-select';
 import { UnitNumber } from '@/components/erp/unit-number';
+import { useScan } from '@/components/scan/scan-provider';
 import { statusCfg, statusLabel } from '@/lib/process-status';
 
 /**
@@ -22,6 +24,10 @@ import { statusCfg, statusLabel } from '@/lib/process-status';
  * genau 3 Einzelinstanzen im Prozess. Was das an Datensätzen bedeutet, entscheidet die
  * Serialisierung des Artikels und steht als Satz unter der Zeile – geraten wird nichts.
  */
+
+/** Wie viele Stücke eine Seite trägt. Genug, um zu blättern statt zu suchen – und
+ *  wenig genug, dass eine 50 000er-Charge kein Problem der Oberfläche wird (#740). */
+const PAGE = 60;
 
 export const NEU = 'neu';
 export const LAGER = 'lager';
@@ -86,12 +92,14 @@ export function toPayload(lines: DefinitionLine[]) {
     }));
 }
 
-export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey = 0,
+export function DefinitionLines({ lines, setLines, onArticlesChosen, refreshKey = 0,
                                   perUnit = false }: {
   lines: DefinitionLine[];
   setLines: (l: DefinitionLine[]) => void;
   /** Meldet die Artikelliste nach oben – der Entwurf spiegelt daraus die Vorlage. */
-  onArticlesLoaded?: (options: ArticleOption[]) => void;
+  /** Die **gewählten** Artikel – nicht mehr alle: der Entwurf lädt keine Liste mehr,
+   *  er sucht (#738). Wer den Namen des Erzeugungs-Artikels braucht, findet ihn hier. */
+  onArticlesChosen?: (options: ArticleOption[]) => void;
   /**
    * **Dieselbe Zeile als Stückliste** – die Menge gilt dann **je Einzelinstanz**
    * («4× Schraube M6 pro Getriebe»), und zwei der drei Fragen entfallen:
@@ -112,15 +120,18 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
    */
   refreshKey?: number;
 }) {
-  const [articles, setArticles] = useState<ArticleOption[] | null>(null);
+  // **Nur die GEWÄHLTEN Artikel, nicht alle.** Hier stand ein Vorab-Laden von bis zu 300
+  // Artikeln, aus dem ein natives Dropdown wurde: nicht durchsuchbar, und bei tausend
+  // Artikeln tausend Knoten je Zeile (Testnotiz #738). Gesucht wird jetzt beim Tippen
+  // (`ObjectSelect`); was hier liegt, ist, was eine Zeile bereits gewählt hat – die
+  // Angaben, die «Neu» sperren und begründen (`template_steps`, `create_problem`).
+  const [chosen, setChosen] = useState<Record<number, ArticleOption>>({});
 
-  useEffect(() => {
-    api.getArticleOptions()
-      .then((a) => { setArticles(a); onArticlesLoaded?.(a); })
-      .catch(() => setArticles([]));
-    // Absichtlich nur beim Mounten: die Liste ändert sich während einer Anlage nicht.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const remember = useCallback((o: ArticleOption) => {
+    setChosen((prev) => (prev[o.object_id] ? prev : { ...prev, [o.object_id]: o }));
   }, []);
+
+  useEffect(() => { onArticlesChosen?.(Object.values(chosen)); }, [chosen, onArticlesChosen]);
 
   const patch = useCallback((key: number, next: Partial<DefinitionLine>) => {
     setLines(lines.map((l) => (l.key === key ? { ...l, ...next } : l)));
@@ -139,7 +150,8 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
         <LineRow
           key={line.key}
           line={line}
-          articles={articles}
+          article={line.articleObjectId != null ? chosen[line.articleObjectId] ?? null : null}
+          onArticle={remember}
           multi={lines.length > 1}
           refreshKey={refreshKey}
           perUnit={perUnit}
@@ -171,9 +183,12 @@ export function DefinitionLines({ lines, setLines, onArticlesLoaded, refreshKey 
 // Eine Zeile
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemove }: {
+function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChange, onRemove }: {
   line: DefinitionLine;
-  articles: ArticleOption[] | null;
+  /** Der gewählte Artikel, soweit bekannt – er trägt die Angaben, aus denen «Neu» folgt. */
+  article: ArticleOption | null;
+  /** Ein neu aufgelöster Artikel wandert nach oben: dort liegt die eine Ablage. */
+  onArticle: (o: ArticleOption) => void;
   /** Gibt es mehr als eine Zeile? Dann ist «Neu» keine Option mehr (#693). */
   multi: boolean;
   refreshKey: number;
@@ -182,10 +197,24 @@ function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemov
   onChange: (next: Partial<DefinitionLine>) => void;
   onRemove: () => void;
 }) {
-  const article = useMemo(
-    () => articles?.find((a) => a.object_id === line.articleObjectId) ?? null,
-    [articles, line.articleObjectId],
+  // **Eine vorbelegte Nummer muss aufgelöst werden** – der Shortcut am Artikel öffnet den
+  // Entwurf mit einer Nummer, ohne dass jemand gesucht hat. Genau einmal, und nur, wenn
+  // die Angaben noch fehlen.
+  useEffect(() => {
+    const nr = line.articleObjectId;
+    if (nr == null || article) return;
+    let dead = false;
+    api.getArticleOptions({ objectId: nr })
+      .then((rows) => { if (!dead && rows[0]) onArticle(rows[0]); })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [line.articleObjectId, article, onArticle]);
+
+  const findArticles = useCallback(
+    (q: string) => api.getArticleOptions({ search: q, limit: 20 }).catch(() => []),
+    [],
   );
+
   const hasArticle = article !== null;
   const hasTemplate = (article?.template_steps ?? 0) > 0;
   // **Warum «Neu» nicht geht, sagt der Server** (`articles.may_create`) – die Oberfläche
@@ -197,29 +226,30 @@ function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemov
     <div className="rounded-ds-lg"
       style={{ border: '1px solid var(--border-1)', background: 'var(--bg-1)', padding: 10 }}>
       <div className="flex flex-wrap items-end gap-2">
-        {/* 1 — Artikel. Sperrt alles Weitere, bis er steht. */}
-        <label className="flex-1" style={{ minWidth: perUnit ? 140 : 190 }}>
+        {/* 1 — Artikel. Sperrt alles Weitere, bis er steht.
+            **Dasselbe Referenzfeld wie überall** (`ObjectSelect`, #738): tippen sucht auf
+            dem Server – Nummer oder Name –, und die Kamera steht daneben. */}
+        <div className="flex-1" style={{ minWidth: perUnit ? 190 : 240 }}>
           <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>Artikel</span>
-          <select
-            className={inputCls}
-            value={line.articleObjectId ?? ''}
-            onChange={(e) => onChange({
-              articleObjectId: e.target.value ? Number(e.target.value) : null,
-              // Artikelwechsel verwirft die **Auswahl** – sie gehörte zum alten Artikel.
-              // Die **Herkunft** bleibt: sie ist eine Entscheidung über diese Zeile, nicht
-              // über den Artikel, und sie zurückzusetzen hiesse den Regler auf einen Wert
-              // zu stellen, den es nicht gibt.
-              units: [],
-            })}
-          >
-            <option value="">— wählen —</option>
-            {articles?.map((a) => (
-              <option key={a.object_id} value={a.object_id}>
-                {formatObjectId(a.object_id)} · {a.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <ObjectSelect<ArticleOption>
+            value={line.articleObjectId}
+            selected={article}
+            find={findArticles}
+            kind="article"
+            scanLabel="Artikel"
+            onChange={(nr, opt) => {
+              if (opt) onArticle(opt);
+              onChange({
+                articleObjectId: nr,
+                // Artikelwechsel verwirft die **Auswahl** – sie gehörte zum alten Artikel.
+                // Die **Herkunft** bleibt: sie ist eine Entscheidung über diese Zeile, nicht
+                // über den Artikel, und sie zurückzusetzen hiesse den Regler auf einen Wert
+                // zu stellen, den es nicht gibt.
+                units: [],
+              });
+            }}
+          />
+        </div>
 
         {/* 2 — Menge. Immer exakt Einzelinstanzen – in der Stückliste **je Stück**. */}
         <label style={{ width: perUnit ? 104 : 96 }}>
@@ -323,70 +353,82 @@ function LineRow({ line, articles, multi, refreshKey, perUnit, onChange, onRemov
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * **FIFO als Vorschlag, nicht als Zwang.** Die ältesten `quantity` Stücke sind
- * vorausgewählt – sichtbar und einzeln abwählbar. Eine unsichtbare Automatik wäre hier
- * das Schlimmste: man sähe erst nach der Freigabe, welche Stücke es getroffen hat.
+ * **FIFO als Vorschlag, nicht als Zwang.** Die ältesten Stücke, **die im Regal liegen**,
+ * sind vorausgewählt – sichtbar und einzeln abwählbar. Eine unsichtbare Automatik wäre
+ * hier das Schlimmste: man sähe erst nach der Freigabe, welche Stücke es getroffen hat.
  *
- * Gesperrte Stücke werden **gezeigt**, nicht weggefiltert, und nennen den Grund.
+ * **Die Vorauswahl kommt vom Server** (Testnotiz #740). Sie aus der geladenen Seite zu
+ * ziehen war der eigentliche Fehler: sind die ersten Stücke verbaut, findet die
+ * Oberfläche **nichts**, obwohl freie da sind. FIFO ist eine Regel, keine Anzeige.
+ *
+ * **Zwei Fragen, nicht eine** (#739): `available` heisst «lässt sich nehmen» (ein
+ * verbautes Stück ja – das Greifen IST der Ausbau), `in_stock` heisst «liegt im Regal»
+ * (ein verbautes Stück nein). Vorgeschlagen wird nur, was **beides** erlaubt und in
+ * keinem laufenden Auftrag steckt.
+ *
+ * **Gruppiert wie der Bestand** (PROCESS_CORE §10.3): eine Gruppe je vorkommendem
+ * Zustand, Reihenfolge = Lebenszyklus, was zur Historie zählt startet zugeklappt. Damit
+ * steht die Aussage im Bild statt in der Farbe – Verbaut bleibt grün, es hat sein Ziel
+ * erreicht.
  */
 function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }: {
   articleObjectId: number; quantity: number; chosen: UnitPick[]; refreshKey: number;
   onChange: (picks: UnitPick[]) => void;
 }) {
-  const [options, setOptions] = useState<UnitOption[] | null>(null);
+  const [page, setPage] = useState<UnitChoices | null>(null);
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [group, setGroup] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const scan = useScan();
 
+  // **Eine Seite, nicht die Liste.** `preselect` bittet den Server um die FIFO-Auswahl –
+  // er kennt die Ordnung und den Filter, die Seite kennt beides nicht.
   useEffect(() => {
     let dead = false;
-    setOptions(null);
-    api.getUnitOptions(articleObjectId)
-      .then((o) => { if (!dead) setOptions(o); })
-      .catch(() => { if (!dead) setOptions([]); });
+    api.getUnitOptions({
+      articleObjectId, preselect: quantity, limit: PAGE,
+      offset, search: query || undefined, status: group ? [group] : undefined,
+    })
+      .then((p) => { if (!dead) setPage(p); })
+      .catch(() => { if (!dead) setPage({ units: [], total: 0, states: [], preselect: [] }); });
     return () => { dead = true; };
-  }, [articleObjectId, refreshKey]);
+  }, [articleObjectId, refreshKey, quantity, offset, query, group]);
 
-  // **Der Vorschlag hängt an seiner Grundlage, nicht an einem Ereignis.**
-  //
-  // Er lief nur beim Eintreffen der Liste. Änderte man danach die Menge – was die
-  // Auswahl verwirft, weil sie zur alten Menge gehörte –, kam kein neuer Vorschlag:
-  // «0 von 3», und jedes Stück musste von Hand gewählt werden. Seine Grundlage sind
-  // die vorhandenen Stücke UND die verlangte Menge; ändert sich eine davon, wird neu
-  // vorgeschlagen. Was der Mensch gewählt hat, wird dabei nie überschrieben (`chosen`
-  // ist bewusst keine Abhängigkeit): ein Vorschlag entsteht nur ins Leere.
+  // Filter/Suche fangen wieder vorn an – eine Seite 3 einer anderen Menge ist keine.
+  useEffect(() => { setOffset(0); }, [query, group]);
+
+  // **Der Vorschlag hängt an seiner Grundlage, nicht an einem Ereignis.** Er entsteht nur
+  // ins Leere: was der Mensch gewählt hat, wird nie überschrieben (`chosen` ist bewusst
+  // keine Abhängigkeit).
+  const preselect = page?.preselect;
   useEffect(() => {
-    if (!options || chosen.length) return;
-    // **Nie ein Stück, das in einem anderen Auftrag läuft.** Es zu nehmen ist eine
-    // Entscheidung – daraus wird eine Abweichung, die einem laufenden Auftrag sein
-    // Material entzieht. Das darf nie die Voreinstellung sein.
-    const free = options.filter((o) => o.available && !o.in_order);
-    const fifo = free.slice(0, quantity).map((o) => ({ number: o.number, fromOrder: null }));
-    if (fifo.length) onChange(fifo);
+    if (!preselect?.length || chosen.length) return;
+    onChange(preselect.map((number) => ({ number, fromOrder: null })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options, quantity]);
+  }, [preselect]);
 
-  // **Die beobachtete Herkunft wird nachgezogen, die Auswahl nicht.** Kommt die Liste
-  // neu (Artikelwechsel oder nach einem Freigabe-Abbruch), kann ein gewähltes Stück
-  // inzwischen woanders laufen. Dann ändert sich, was der Klick bewirken WÜRDE – und das
-  // gehört vor den Klick. Was der Mensch gewählt hat, bleibt; nur was es nicht mehr gibt,
-  // fällt weg.
+  // **Die beobachtete Herkunft wird nachgezogen, die Auswahl nicht.** Kommt die Seite neu
+  // (Artikelwechsel, Freigabe-Abbruch), kann ein gewähltes Stück inzwischen woanders
+  // laufen. Dann ändert sich, was der Klick bewirken WÜRDE – und das gehört vor den Klick.
   //
-  // **Und was kein Auftrag greifen kann, bleibt auch nicht gewählt.** Die Liste enthält
-  // absichtlich auch die nicht greifbaren Stücke (sie sollen sichtbar sein, mit Grund) –
-  // eine Vorauswahl darf aber nie eines davon führen. `available` ist die Antwort des
-  // Servers auf genau diese Frage (`statuses.is_selectable`), also fragt die Oberfläche
-  // sie und baut sich keine eigene.
+  // **Nur was auf dieser Seite steht**: was gerade weggefiltert ist, ist nicht
+  // verschwunden. Die frühere Fassung sah die ganze Liste und durfte darum fallen lassen,
+  // was fehlte; seit es Seiten gibt, wäre das ein stilles Verwerfen der Auswahl.
+  const units = page?.units;
   useEffect(() => {
-    if (!options || !chosen.length) return;
-    const holder = new Map(options.map((o) => [o.number, o.in_order ?? null]));
-    const usable = new Set(options.filter((o) => o.available).map((o) => o.number));
+    if (!units || !chosen.length) return;
+    const here = new Map(units.map((o) => [o.number, o]));
     const next = chosen
-      .filter((u) => holder.has(u.number) && usable.has(u.number))
-      .map((u) => ({ number: u.number, fromOrder: holder.get(u.number) ?? null }));
+      .filter((u) => !here.has(u.number) || here.get(u.number)!.available)
+      .map((u) => (here.has(u.number)
+        ? { number: u.number, fromOrder: here.get(u.number)!.in_order ?? null }
+        : u));
     const same = next.length === chosen.length
       && next.every((u, i) => u.number === chosen[i].number && u.fromOrder === chosen[i].fromOrder);
     if (!same) onChange(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options]);
+  }, [units]);
 
   const picked = new Set(chosen.map((u) => u.number));
   const enough = chosen.length === quantity;
@@ -394,6 +436,14 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
   // Stück kommt aus keinem Auftrag – eine Wahl anzubieten, die nichts bewirkt, wäre eine
   // Behauptung, hier passiere etwas.
   const borrowed = chosen.filter((u) => u.fromOrder !== null);
+  const states = page?.states ?? [];
+  const total = page?.total ?? 0;
+
+  function toggle(o: UnitOption) {
+    onChange(picked.has(o.number)
+      ? chosen.filter((c) => c.number !== o.number)
+      : [...chosen, { number: o.number, fromOrder: o.in_order ?? null }]);
+  }
 
   return (
     <div className="mt-2">
@@ -445,47 +495,122 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
       )}
 
       {open && (
-        <div className="mt-2 max-h-56 overflow-auto" style={{ borderTop: '1px solid var(--border-1)' }}>
-          {options === null && <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>Lädt …</p>}
-          {options?.length === 0 && (
-            <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>
-              Von diesem Artikel gibt es keine Einzelinstanzen. Lege im Reiter «Bestand»
-              des Artikels eine Instanz an – oder wähle «Neu».
-            </p>
+        <div className="mt-2" style={{ borderTop: '1px solid var(--border-1)' }}>
+          {/* **Suchen und scannen stehen nebeneinander** – dieselbe Haltung wie im
+              Referenzfeld (`ObjectSelect`). Gescannt wird die **Instanz**: eine
+              Einzelinstanz zieht bewusst keine Objektnummer, es kann für sie gar kein
+              Etikett geben (PROCESS_CORE, Einzelinstanz-Regel). Der Treffer setzt die
+              Suche – die Stücke der Instanz stehen dann untereinander. */}
+          <div className="flex items-center gap-2 py-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Nummer suchen…"
+              className={inputCls}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <button type="button" className="erp-idbtn" data-tip="Instanz scannen"
+              aria-label="Instanz scannen"
+              onClick={() => scan({
+                steps: [{
+                  label: 'Instanz',
+                  kind: 'instance',
+                  suggest: (q: string) => api.getInstances(8, 0, q)
+                    .then((rows) => rows
+                      .filter((i) => i.object_id != null)
+                      .map((i) => ({ objectId: i.object_id as number, label: i.article_name ?? '' })))
+                    .catch(() => []),
+                  exists: (id: number) => api.getInstances(5, 0, String(id))
+                    .then((rows) => rows.some((i) => i.object_id === id))
+                    .catch(() => false),
+                }],
+                onComplete: (ids) => { if (ids[0] != null) setQuery(String(ids[0])); },
+              })}>
+              <ScanLine size={15} />
+            </button>
+          </div>
+
+          {/* **Eine Gruppe je Zustand, mit der Menge aus dem Aggregat** – nicht aus der
+              Seite: eine gezählte Seite zeigte «60», wo fünfzigtausend liegen. Ein Klick
+              filtert; ein zweiter nimmt den Filter zurück. */}
+          {states.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 pb-2">
+              {states.map((s) => (
+                <button key={s.status} type="button"
+                  onClick={() => setGroup(group === s.status ? null : s.status)}
+                  className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-full"
+                  style={{
+                    border: `1px solid ${group === s.status ? statusCfg(s.status).color : 'var(--border-2)'}`,
+                    background: group === s.status ? statusCfg(s.status).bg : 'transparent',
+                    color: statusCfg(s.status).color,
+                  }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 999, background: statusCfg(s.status).color }} />
+                  {statusLabel(s.status)} <span className="ix-tnum">{s.quantity}</span>
+                </button>
+              ))}
+            </div>
           )}
-          {options?.map((o) => {
-            const taken = picked.has(o.number);
-            // **Ein laufendes Stück ist wählbar** – daraus wird eine Abweichung
-            // (Abweichungsauftrag §3.5). Gesagt wird es trotzdem: was der Klick bewirkt,
-            // gehört vor den Klick, nicht danach.
-            const why = o.in_order
-              ? `Läuft in Auftrag ${formatObjectId(o.in_order)} – daraus wird eine Abweichung`
-              : !o.available ? `Steht auf «${statusLabel(o.status)}»` : undefined;
-            return (
-              <button
-                key={o.number}
-                type="button"
-                disabled={!o.available}
-                onClick={() => onChange(taken
-                  ? chosen.filter((c) => c.number !== o.number)
-                  : [...chosen, { number: o.number, fromOrder: o.in_order ?? null }])}
-                data-tip={why}
-                className="w-full flex items-center gap-2 text-left text-xs py-1.5 px-1 disabled:opacity-45"
-                style={{ borderBottom: '1px solid var(--border-1)',
-                         background: taken ? 'var(--success-bg)' : undefined }}
-              >
-                <span style={{ minWidth: 110 }}><UnitNumber value={o.number} /></span>
-                <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{o.article_name}</span>
-                <span style={{ color: statusCfg(o.status).color }}>{statusLabel(o.status)}</span>
-                {o.in_order && (
-                  <span className="inline-flex items-center gap-1 ix-tnum"
-                    style={{ color: 'var(--warning)' }}>
-                    <GitBranch size={11} />{formatObjectId(o.in_order)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+
+          <div className="max-h-56 overflow-auto">
+            {page === null && <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>Lädt …</p>}
+            {page !== null && (page.units ?? []).length === 0 && (
+              <p className="text-xs py-2" style={{ color: 'var(--fg-4)' }}>
+                {query || group
+                  ? 'Keine Treffer – Suche oder Gruppe ändern.'
+                  : 'Von diesem Artikel gibt es keine Einzelinstanzen. Lege im Reiter «Bestand» des Artikels eine Instanz an – oder wähle «Neu».'}
+              </p>
+            )}
+            {(page?.units ?? []).map((o) => {
+              const taken = picked.has(o.number);
+              // **Ein laufendes Stück ist wählbar** – daraus wird eine Abweichung
+              // (Abweichungsauftrag §3.5). **Ein verbautes ebenso** – das Greifen IST der
+              // Ausbau. Gesagt wird es trotzdem: was der Klick bewirkt, gehört vor den
+              // Klick, nicht danach.
+              const why = o.in_order
+                ? `Läuft in Auftrag ${formatObjectId(o.in_order)} – daraus wird eine Abweichung`
+                : !o.available ? `Steht auf «${statusLabel(o.status)}»`
+                  : !o.in_stock ? `Steht auf «${statusLabel(o.status)}» – liegt nicht im Regal und müsste erst ausgebaut werden`
+                    : undefined;
+              return (
+                <button
+                  key={o.number}
+                  type="button"
+                  disabled={!o.available}
+                  onClick={() => toggle(o)}
+                  data-tip={why}
+                  className="w-full flex items-center gap-2 text-left text-xs py-1.5 px-1 disabled:opacity-45"
+                  style={{ borderBottom: '1px solid var(--border-1)',
+                           background: taken ? 'var(--success-bg)' : undefined }}
+                >
+                  <span style={{ minWidth: 110 }}><UnitNumber value={o.number} /></span>
+                  <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{o.article_name}</span>
+                  <span style={{ color: statusCfg(o.status).color }}>{statusLabel(o.status)}</span>
+                  {o.in_order && (
+                    <span className="inline-flex items-center gap-1 ix-tnum"
+                      style={{ color: 'var(--warning)' }}>
+                      <GitBranch size={11} />{formatObjectId(o.in_order)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* **Blättern statt scrollen ins Nichts** – die Gesamtzahl sagt, wie weit es geht. */}
+          {total > PAGE && (
+            <div className="flex items-center justify-between py-1.5 text-[11px]"
+              style={{ color: 'var(--fg-3)' }}>
+              <button type="button" disabled={offset === 0}
+                onClick={() => setOffset(Math.max(0, offset - PAGE))}
+                className="px-2 py-1 rounded disabled:opacity-40"
+                style={{ border: '1px solid var(--border-2)' }}>Zurück</button>
+              <span className="ix-tnum">{offset + 1}–{Math.min(offset + PAGE, total)} von {total}</span>
+              <button type="button" disabled={offset + PAGE >= total}
+                onClick={() => setOffset(offset + PAGE)}
+                className="px-2 py-1 rounded disabled:opacity-40"
+                style={{ border: '1px solid var(--border-2)' }}>Weiter</button>
+            </div>
+          )}
         </div>
       )}
     </div>
