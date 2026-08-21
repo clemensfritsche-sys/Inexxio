@@ -9,6 +9,7 @@ anzulegen und ohne eine Nummer zu ziehen.
 from typing import Optional, Sequence, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -17,12 +18,13 @@ from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
+from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
 from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
-    RelatedOrder, StepNeed, StepWork, UnitOption,
+    RelatedOrder, StepNeed, StepWork, UnitOption, UnitChoices,
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, RecordEntry,
@@ -33,13 +35,14 @@ from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
 from ..services import flow as flow_svc
+from ..services import lookup
 from ..services import places as places_svc
 from ..services import record as record_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
 from ..services.admin import log_audit
-from ..services.instances import find_unit, unit_number
+from ..services.instances import find_unit, unit_number, unit_number_matches
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
@@ -289,7 +292,9 @@ def list_orders(
 
 @router.get("/article-options", response_model=list[ArticleOption])
 def article_options(
-    limit: int = Query(300, le=1000),
+    search: Optional[str] = Query(None, description="Objektnummer-Teil oder Name"),
+    object_id: Optional[int] = Query(None, description="Genau diesen Artikel auflösen"),
+    limit: int = Query(20, le=300),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
@@ -298,14 +303,21 @@ def article_options(
     ``template_steps`` fährt mit, damit die Oberfläche «Neu» sperren **und begründen**
     kann. Sie in zwei Aufrufen zu holen hiesse, die Zeile erst leer und dann korrigiert
     zu zeigen.
+
+    **Gesucht wird, nicht geladen** (Testnotiz #738). Vorher lieferte dieser Endpunkt bis
+    zu 300 Artikel am Stück, und die Oberfläche machte daraus ein natives Dropdown: nicht
+    durchsuchbar, und bei tausend Artikeln tausend Knoten je Zeile. Jetzt liefert er, was
+    zur Eingabe passt (`services/lookup` – dieselbe Bedingung wie überall), plus auf
+    Wunsch genau **den einen** gewählten (``object_id``), damit im Feld sein Name steht
+    und nicht seine Ziffern.
     """
-    rows = (
-        db.query(Article)
-        .filter(Article.is_active.is_(True), Article.object_id.isnot(None))
-        .order_by(Article.object_id.desc())
-        .limit(limit)
-        .all()
-    )
+    q = db.query(Article).filter(
+        Article.is_active.is_(True), Article.object_id.isnot(None))
+    if object_id is not None:
+        q = q.filter(Article.object_id == object_id)
+    else:
+        q = q.filter(lookup.matches(search or "", Article.object_id, Article.name))
+    rows = q.order_by(Article.object_id.desc()).limit(limit).all()
     counts = tpl_svc.step_counts(db, [a.id for a in rows])
     return [
         ArticleOption(
@@ -341,38 +353,95 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
     )
 
 
-@router.get("/unit-options", response_model=list[UnitOption])
+@router.get("/unit-options", response_model=UnitChoices)
 def unit_options(
     article: Optional[int] = Query(None, description="Objektnummer des Artikels"),
-    limit: int = Query(300, le=1000),
+    search: Optional[str] = Query(None, description="Teil einer Stück- oder Instanznummer"),
+    status: Optional[list[str]] = Query(None, description="Nur diese Zustände"),
+    preselect: int = Query(0, ge=0, le=500, description="Wie viele FIFO vorschlagen"),
+    limit: int = Query(60, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
     """Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?
 
-    **FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,
-    kein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.
+    **Eine Seite, nicht die Liste** (Testnotiz #740). Vorher lieferte dieser Endpunkt bis
+    zu 300 Stücke am Stück, und die Oberfläche machte daraus alles Weitere. Bei
+    zehntausend Schrauben war das an drei Stellen falsch:
 
-    **Ein Stück im Prozess ist wählbar** (Abweichungsauftrag §3.5): genau daraus entsteht
-    eine Abweichung. ``in_order`` sagt, wo es gerade läuft – damit die Oberfläche nennen
-    kann, was beim Wählen passiert, statt es geschehen zu lassen.
+    * die **Vorauswahl** kam aus der gekappten Liste – sind die ersten 300 verbaut, findet
+      sie nichts, obwohl freie da sind. Sie kommt jetzt von hier (``preselect``): FIFO ist
+      eine Regel, keine Anzeige.
+    * die **Zähler** kamen aus der Seite und zeigten «300», wo fünfzigtausend liegen. Sie
+      kommen jetzt aus einem Aggregat über den ganzen Artikel (``states``).
+    * die **Herkunfts-Map** las **alle** offenen Zugehörigkeiten des Systems, um bei 300
+      Zeilen nachzuschlagen. Sie ist jetzt auf die Seite eingeschränkt.
+
+    **FIFO fragt «liegt es im Regal?»**, nicht «lässt es sich nehmen?» – zwei
+    Eigenschaften, die der Katalog getrennt führt (``UnitOption``). Ein **verbautes**
+    Stück steht darum weiterhin in der Liste (das Greifen IST der Ausbau), aber nie im
+    Vorschlag: es steckt in etwas anderem und müsste erst ausgebaut werden.
     """
-    q = (
+    mine = (
+        InstanceUnit.is_active.is_(True),
+        Instance.is_active.is_(True),
+    )
+    base = (
         db.query(InstanceUnit, Instance, Article)
         .join(Instance, Instance.id == InstanceUnit.instance_id)
         .outerjoin(Article, Article.id == Instance.article_id)
-        .filter(InstanceUnit.is_active.is_(True), Instance.is_active.is_(True))
+        .filter(*mine)
     )
     if article is not None:
-        q = q.filter(Article.object_id == article)
-    rows = q.order_by(InstanceUnit.id).limit(limit).all()
+        base = base.filter(Article.object_id == article)
+
+    # ── Die Aufstellung: über ALLE Stücke dieses Artikels, nicht über die Seite ──
+    counts = {
+        s: int(n)
+        for s, n in db.query(InstanceUnit.status, func.count(InstanceUnit.id))
+        .join(Instance, Instance.id == InstanceUnit.instance_id)
+        .outerjoin(Article, Article.id == Instance.article_id)
+        .filter(*mine, *( (Article.object_id == article,) if article is not None else () ))
+        .group_by(InstanceUnit.status)
+        .all()
+    }
+
+    q = base
+    if status:
+        q = q.filter(InstanceUnit.status.in_(status))
+    if search and search.strip():
+        # **Die Form der Nummer kennt `services/instances`**, nicht dieser Endpunkt:
+        # «-7» meint den Suffix, «00123» die Instanz, «100000123-7» beides. Hier
+        # ausgeschrieben träfe «9» jede Instanz mit einer 9 in der Nummer.
+        q = q.filter(unit_number_matches(search, Instance.object_id, InstanceUnit.suffix))
+
+    total = q.with_entities(func.count(InstanceUnit.id)).order_by(None).scalar() or 0
+    rows = q.order_by(InstanceUnit.id).limit(limit).offset(offset).all()
+
+    return UnitChoices(
+        units=_unit_options(db, rows),
+        total=int(total),
+        states=stock_states(counts),
+        preselect=_fifo(db, base, preselect),
+    )
+
+
+def _unit_options(db: Session, rows: Sequence[tuple]) -> list[UnitOption]:
+    """Die geladenen Stücke als Antwort – **eine** Zusatzabfrage für die Seite.
+
+    Die Herkunfts-Map war die schwerste Stelle des alten Endpunkts: sie las jede offene
+    Zugehörigkeit des Systems. Sie fragt jetzt nach genau den Stücken, die auf dieser
+    Seite stehen (``ix_order_units_instance_unit_id``).
+    """
+    ids = [u.id for u, _i, _a in rows]
     running = {
         m.instance_unit_id: o.object_id
         for m, o in db.query(OrderUnit, Order)
         .join(Order, Order.id == OrderUnit.order_id)
-        .filter(OrderUnit.released_at.is_(None))
+        .filter(OrderUnit.released_at.is_(None), OrderUnit.instance_unit_id.in_(ids))
         .all()
-    }
+    } if ids else {}
     return [
         UnitOption(
             number=unit_number(instance, unit),
@@ -380,14 +449,43 @@ def unit_options(
             article_object_id=art.object_id if art else None,
             article_name=art.name if art else None,
             # **Dieselbe Frage wie in der Freigabe** (``statuses.is_selectable``): frei,
-            # in einem laufenden Auftrag oder gesperrt – all das lässt sich nehmen. Nicht
-            # nehmen lässt sich, was es physisch nicht mehr gibt. Zwei Listen für dieselbe
-            # Regel liefen auseinander, und die Oberfläche böte an, was der Server abweist.
+            # in einem laufenden Auftrag, gesperrt oder verbaut – all das lässt sich
+            # nehmen. Nicht nehmen lässt sich, was es physisch nicht mehr gibt.
             available=st.is_selectable(unit.status),
+            # **Und die zweite, die FIFO stellt**: liegt es im Regal? Verbaut heisst nein.
+            in_stock=st.stock_kind(unit.status) == st.LIVE,
             in_order=running.get(unit.id),
         )
         for unit, instance, art in rows
     ]
+
+
+def _fifo(db: Session, base, want: int) -> list[str]:
+    """Die **Vorauswahl**: die ältesten Stücke, die im Regal liegen und frei sind.
+
+    Älteste zuerst heisst aufsteigende ``id`` – Nummern werden aufsteigend vergeben, und
+    ein Stück entsteht mit seiner Instanz; ein zweites Datum gibt es nicht.
+
+    **Gebunden ist nicht frei**: ein Stück, das in einem laufenden Auftrag läuft, lässt
+    sich zwar nehmen – daraus wird eine Abweichung, die einem anderen Auftrag sein
+    Material entzieht. Das darf nie die Voreinstellung sein, also steht es hier nicht.
+
+    **Sie ignoriert Suche und Zustandsfilter** – bewusst: ``base`` trägt nur den Artikel.
+    Der Vorschlag ist eine Aussage über den Bestand, keine über den gerade gewählten
+    Ausschnitt; wer nach «verbaut» filtert, bekäme sonst eine Vorauswahl, die sich beim
+    Zurücksetzen des Filters wieder ändert.
+    """
+    if want <= 0:
+        return []
+    busy = db.query(OrderUnit.instance_unit_id).filter(OrderUnit.released_at.is_(None))
+    rows = (
+        base.filter(InstanceUnit.status.in_(st.IN_STOCK_UNIT_STATUSES),
+                    InstanceUnit.id.notin_(busy))
+        .order_by(InstanceUnit.id)
+        .limit(want)
+        .all()
+    )
+    return [unit_number(instance, unit) for unit, instance, _a in rows]
 
 
 @router.post("/validate", response_model=OrderValidation)

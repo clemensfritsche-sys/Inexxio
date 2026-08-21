@@ -100,6 +100,10 @@ export type ProcessStepResponse = components['schemas']['ProcessStepResponse'];
 export type OrderUnitResponse = components['schemas']['OrderUnitResponse'];
 export type ProcessEventResponse = components['schemas']['ProcessEventResponse'];
 export type UnitOption = components['schemas']['UnitOption'];
+// Die **Auswahl**: eine Seite wählbarer Einzelinstanzen samt Aggregat und
+// FIFO-Vorauswahl (#740). Nicht zu verwechseln mit `UnitPage` – das ist eine Seite
+// blosser Nummern am Instanz-Datensatz.
+export type UnitChoices = components['schemas']['UnitChoices'];
 /** Ein Nachbar-Auftrag in der Journey einer Einzelinstanz – gruppiert, mit Stückzahl. */
 export type JourneyStop = components['schemas']['JourneyNeighbour'];
 /** Ein Nachbar-Auftrag mit seinem **vollständigen** Ablauf – links übergeordnet, rechts

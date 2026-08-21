@@ -931,6 +931,73 @@
 > gegengeprüft**). Gemessen, nicht behauptet: die ganze Szene end-to-end über die echten
 > Router-Pfade (Maschine › Getriebe › Schraube, 20/20).
 
+> **Testnotizen #734–#740 — «nichts» ist eine Wahl, ein Referenzfeld für alle, und die
+> Auswahl fragt die richtige Frage.** Sieben Notizen, drei Themen.
+> **(1) «Kein Ziel» stand an DREI Stellen und war an keiner wählbar** (#734/#735/#736):
+> ein erklärender Platzhalter («leer lassen für …»), ein Erklärsatz darunter und ein
+> X-Knopf daneben, mit dem man eine getroffene Wahl wieder wegnimmt. Keine davon ist die
+> **Liste**, in der man wählt. `SearchSelect.emptyOption` führt sie jetzt als erste Zeile
+> mit dem Wert `''`, und ein leeres Feld **zeigt sie an** statt eines Platzhalters – die
+> getroffene Entscheidung steht da, nicht ihr Fehlen. Ein generisches Bauteil-Feature,
+> kein Sonderfall des Bewegen-Moduls: jedes Referenzfeld, bei dem «nichts» gültig ist,
+> erbt es (und der «Vorgänger entfernen»-Knopf am Artikel ist damit ebenfalls entfallen).
+> **(2) Das Scan-Label nennt die SORTE, die Nummer hängt der Scanner an** (#737 —
+> «Instanz 100000825 100000825 scannen»). Die Regel steht seit #145 im Haus
+> (`objectCodes.prompt` setzt `expected` hinter das Label); drei Aufrufstellen schrieben
+> sie trotzdem selbst hinein. Sie ist jetzt am **Typ** dokumentiert (`ScanStep.label`) und
+> als Wächter formuliert: **kein** Scan-Label darf eine Objektnummer bauen. *Der erste
+> Wächter dafür war zu eng (`^label:`) und liess die Bug-Form durch – die Zeile war ein
+> einzeiliges Objektliteral; gemessen, nachgeschärft und gegen die Bug-Form gegengeprüft.*
+> **(3) EIN Referenzfeld, überall** (#738, `components/erp/object-select.tsx`): «welchen
+> Datensatz meinst du?» gab es in **vier** Bauarten – ein Auswahlfeld mit Server-Suche,
+> eines mit fertigen Optionen, ein natives `<select>` über **alle** Artikel des Hauses
+> und den Scanner mit eigener Suche. Wer «100000743» tippte, fand je nach Stelle etwas
+> oder nichts. `ObjectSelect` ist **auf** `SearchSelect` gebaut (kein zweites Auswahlfeld
+> daneben) und trägt die **Kamera im Feld**: tippen sucht, scannen trifft – beides führt
+> zur selben Wahl, und der Scanner bekommt dieselbe Suche (`suggest`), damit auch dort
+> eine Teileingabe etwas findet. *Der Scanner zuerst und die Eingabe darunter wäre am Band
+> richtig und am Schreibtisch ein Umweg; umgekehrt genauso – darum nebeneinander.*
+> **Die Suchbedingung selbst ist EINE** (`services/lookup.matches` – Nummer-Teilstring
+> ODER Name): sie stand dreimal ausgeschrieben, und an der vierten Stelle – der
+> Artikel-Suche – trug sie nur den Namen. **Kein generischer «suche irgendwas»-Endpunkt**:
+> was eine Stelle anbieten darf, ist eine fachliche Frage (`places.search` liefert
+> bewusst keine Artikel, weil `assert_placeable` sie danach abwiese). **Gemessen:** ein
+> Auftragsentwurf bei 1151 Artikeln lud 300 Zeilen und rendete 300 `<option>`; jetzt
+> höchstens 20, und die Objektnummer-Suche trifft überhaupt erst.
+> **(4) Die Stück-Auswahl fragt die richtige Frage** (#739): sie schlug **verbaute**
+> Stücke vor. Kein Zielkonflikt – der Katalog führt seit jeher **zwei** Antworten, und die
+> Auswahl las die falsche: *«gibt es einen Weg zurück?»* (`Status.terminal` – Verbaut:
+> **ja**, das Greifen IST der Ausbau) und *«liegt es im Regal?»* (`Status.stock` –
+> Verbaut: **nein**, es steckt in einem anderen). Die Farbe ist eine **dritte** Frage und
+> bleibt grün. `UnitOption` trägt darum beide (`available` · `in_stock`), und die
+> Ableitung wohnt im Katalog (`statuses.IN_STOCK_UNIT_STATUSES`), nicht im Endpunkt – ein
+> neuer Zustand gehört ihr automatisch an oder nicht. Verbautes verschwindet **nicht** aus
+> der Liste; es steht in seiner Zustandsgruppe und nennt im Hover, was der Klick bedeutet.
+> **(5) Und sie skaliert** (#740, `UnitChoices`, Migration `113`): bei zehntausend
+> Schrauben war die flache Liste an **drei** Stellen falsch. Die **Vorauswahl** kam aus
+> einer bei 300 gekappten Seite – sind die ersten Stücke verbaut, findet die Oberfläche
+> **nichts**, obwohl freie da sind; sie kommt jetzt vom Server (`preselect`), denn FIFO ist
+> eine Regel, keine Anzeige. Die **Zähler** kamen aus derselben Seite («300», wo
+> fünfzigtausend liegen) und kommen jetzt aus einem Aggregat über den ganzen Artikel. Die
+> **Herkunfts-Map** las **jede** offene Zugehörigkeit des Systems, um bei einer Seite
+> nachzuschlagen – die schwerste Stelle, und die einzige, die bei kleinen Datenmengen
+> unauffällig bleibt. Dazu Suche, Zustandsgruppen und Blättern.
+> **Die Stücknummer wird gelesen, wie sie gebaut ist** (`instances.unit_number_matches`):
+> «-7» meint den **Suffix**, «00123» die Instanz, «100000123-7» beides. Ohne die Trennung
+> träfe «9» jede Instanz mit einer 9 in der Nummer – also fast alle.
+> **Gescannt wird die INSTANZ, nie das Stück**: eine Einzelinstanz zieht bewusst keine
+> Objektnummer, es kann für sie gar kein Etikett geben. Der Treffer setzt die Suche; die
+> Stücke der Instanz stehen dann untereinander. Das ist keine Einschränkung, sondern die
+> Einzelinstanz-Regel – und steht als Satz im Code, damit es niemand «nachrüstet».
+> **Gemessen, nicht behauptet:** 50 000 Einzelinstanzen eines Artikels → **5 Abfragen**
+> und ~100 ms je Seite; die Vorauswahl fällt mit dem Index von **15,3 auf 1,2 ms**
+> (Migration `113` + Lifespan-Netz, beides gegen echtes PostgreSQL vierfach verifiziert:
+> von null · idempotent · downgrade · über das Netz). Die neue Zeile in Chromium bei
+> 1440 · 1180 · 1024 · 834 · 375 px: **0 px** waagrechter Überlauf.
+> Wächter: `tests/test_unit_choices.py` (9 Prüfungen, **jede gegen ihre Bug-Form
+> gegengeprüft** – eine davon war stumpf und musste nachgeschärft werden) + vier in
+> `test_frontend_mirrors.py`.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

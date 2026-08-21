@@ -46,13 +46,14 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import String, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..domain import modules
 from ..models import (
     Article, CompanySettings, Instance, InstanceUnit, ProcessStep, UserProfile,
 )
+from . import lookup
 from .instances import unit_number
 
 #: Wie viele Stationen eine Kette höchstens hat. Die Grenze ist ein **Netz**, keine
@@ -203,19 +204,16 @@ def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Statio
     q = (query or "").strip()
     if not q:
         return []
-    like = f"%{q.lower()}%"
     out: list[Station] = []
 
+    # **Dieselbe Bedingung wie jedes andere Referenzfeld** (``services/lookup``) – hier
+    # nur dreimal angewandt, weil ein Halter dreierlei sein kann.
     rows = (
         db.query(Instance.object_id, Instance.label, Article.name)
         .join(Article, Article.id == Instance.article_id)
         .filter(
             Instance.is_active.is_(True),
-            or_(
-                func.cast(Instance.object_id, String).like(f"%{q}%"),
-                func.lower(func.coalesce(Instance.label, "")).like(like),
-                func.lower(Article.name).like(like),
-            ),
+            lookup.matches(q, Instance.object_id, Instance.label, Article.name),
         )
         .order_by(Instance.object_id.desc())
         .limit(limit)
@@ -229,13 +227,9 @@ def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Statio
         .filter(
             UserProfile.object_id.isnot(None),
             UserProfile.is_active.is_(True),
-            or_(
-                func.cast(UserProfile.object_id, String).like(f"%{q}%"),
-                func.lower(func.coalesce(UserProfile.first_name, "")).like(like),
-                func.lower(func.coalesce(UserProfile.last_name, "")).like(like),
-                func.lower(func.coalesce(UserProfile.company_name, "")).like(like),
-                func.lower(func.coalesce(UserProfile.email, "")).like(like),
-            ),
+            lookup.matches(q, UserProfile.object_id, UserProfile.first_name,
+                           UserProfile.last_name, UserProfile.company_name,
+                           UserProfile.email),
         )
         .order_by(UserProfile.object_id.desc())
         .limit(limit)
@@ -248,10 +242,7 @@ def search(db: Session, query: str, *, limit: int = SEARCH_LIMIT) -> list[Statio
         .filter(
             CompanySettings.object_id.isnot(None),
             CompanySettings.is_active.is_(True),
-            or_(
-                func.cast(CompanySettings.object_id, String).like(f"%{q}%"),
-                func.lower(func.coalesce(CompanySettings.company_name, "")).like(like),
-            ),
+            lookup.matches(q, CompanySettings.object_id, CompanySettings.company_name),
         )
         .order_by(CompanySettings.object_id.desc())
         .limit(limit)

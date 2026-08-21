@@ -239,6 +239,21 @@ TERMINAL_UNIT_STATUSES: tuple[str, ...] = tuple(
     s.value for s in CATALOG if UNIT in s.axes and s.terminal
 )
 
+#: **Die Zustände, in denen ein Stück im Regal liegt** – die Antwort auf «woraus darf sich
+#: FIFO bedienen?».
+#:
+#: Sie ist **nicht** dasselbe wie ``is_selectable``. Das sind zwei Fragen, und der Katalog
+#: führt sie getrennt: *«gibt es einen Weg zurück?»* (``terminal``) und *«liegt es im
+#: Regal?»* (``stock``). Ein **verbautes** Stück lässt sich nehmen – das Greifen IST der
+#: Ausbau – und ist trotzdem kein Lagerbestand: es steckt in einem anderen Stück.
+#:
+#: Genau diese Verwechslung war Testnotiz #739: die Vorauswahl fragte nach ``terminal``
+#: und schlug damit verbaute Stücke vor. Sie steht hier und nicht im Router, weil sie eine
+#: Eigenschaft des Katalogs ist – ein neuer Zustand gehört ihr automatisch an oder nicht.
+IN_STOCK_UNIT_STATUSES: tuple[str, ...] = tuple(
+    s.value for s in CATALOG if UNIT in s.axes and s.stock == LIVE and not s.terminal
+)
+
 #: **Welche Stücke darf ein Auftrag greifen?** Abgeleitet aus derselben Eigenschaft –
 #: keine zweite Liste, die jemand nachzieht, wenn ein Zustand dazukommt.
 SELECTABLE_UNIT_STATUSES: tuple[str, ...] = tuple(

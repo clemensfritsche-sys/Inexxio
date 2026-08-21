@@ -2291,18 +2291,21 @@ def test_the_origin_has_no_state_that_only_a_detour_can_reach():
     )
     assert "origin: null" not in code, "Die Zeile startet wieder ohne Herkunft."
 
-    # Der Vorschlag hängt an seiner Grundlage (Stücke UND Menge), nicht an einem Ereignis.
-    effect = re.search(r"useEffect\(\(\) => \{\s*if \(!options \|\| chosen\.length\)[\s\S]*?\}, \[([^\]]*)\]\);", code)
-    assert effect, "Die FIFO-Vorauswahl ist nicht mehr auffindbar."
-    deps = {d.strip() for d in effect.group(1).split(",") if d.strip()}
-    assert deps == {"options", "quantity"}, (
-        f"Die Vorauswahl hängt an {sorted(deps)}. Ihre Grundlage sind die vorhandenen "
-        f"Stücke UND die verlangte Menge – ändert sich eine davon ohne neuen Vorschlag, "
-        f"steht dort «0 von 3»."
+    # **Der Vorschlag kommt vom Server** (Testnotiz #740). Er aus der geladenen Seite zu
+    # ziehen war der Fehler: sind die ersten Stücke verbaut, findet die Oberfläche
+    # nichts, obwohl freie da sind. FIFO ist eine Regel, keine Anzeige.
+    assert "preselect: quantity" in code, (
+        "Die Oberfläche bittet nicht mehr um die Vorauswahl – dann baut sie sie wieder "
+        "selbst, aus einer gekappten Seite."
     )
-    assert "!o.in_order" in code, (
-        "Die Vorauswahl schlägt wieder Stücke vor, die in einem anderen Auftrag laufen – "
-        "daraus würde still eine Abweichung."
+    effect = re.search(
+        r"useEffect\(\(\) => \{\s*if \(!preselect\?\.length \|\| chosen\.length\)"
+        r"[\s\S]*?\}, \[([^\]]*)\]\);", code)
+    assert effect, "Die Übernahme der Vorauswahl ist nicht mehr auffindbar."
+    deps = {d.strip() for d in effect.group(1).split(",") if d.strip()}
+    assert deps == {"preselect"}, (
+        f"Die Übernahme hängt an {sorted(deps)}. Sie entsteht nur ins Leere: was der "
+        f"Mensch gewählt hat, darf sie nie überschreiben."
     )
 
 
@@ -3758,7 +3761,7 @@ def test_a_terminal_piece_is_not_offered_anywhere_in_the_interface():
     )
 
     # 4. Die Vorauswahl führt nichts, was kein Auftrag greifen kann.
-    assert "o.available" in lines and "usable.has(u.number)" in lines, (
+    assert "o.available" in lines and "!.available" in lines, (
         "Eine vorgewählte Einzelinstanz bleibt stehen, auch wenn sie unerreichbar ist."
     )
 
@@ -3963,12 +3966,14 @@ def test_a_free_scan_step_brings_its_own_suggestions():
     Geprüft wird darum, dass jeder freie Schritt eine Quelle mitbringt. Genau daran
     scheiterte es dreimal: der Feed hatte eine, der Zielort nicht.
     """
+    # Der Editor öffnet seinen Zielort-Scan seit #738 über das gemeinsame Referenzfeld
+    # (`ObjectSelect`) – die Regel gilt dort, für **jede** Referenz, nicht nur für den Ort.
     for surface, opener in (
         ("capture-work.tsx", 'label: \'Zielort\''),
-        ("process-designer.tsx", 'label: \'Zielort\''),
+        ("object-select.tsx", "label: scanLabel"),
     ):
         code = _code(_read(FRONTEND / "components" / "erp" / surface))
-        assert opener in code, f"{surface} öffnet keinen Zielort-Schritt mehr."
+        assert opener in code, f"{surface} öffnet keinen freien Scan-Schritt mehr."
         step = code[code.index(opener):][:600]
         assert "suggest:" in step, (
             f"Der Zielort-Schritt in {surface} hat keine Vorschlagsquelle – wer eine "
@@ -3988,7 +3993,7 @@ def test_the_target_field_is_a_searchable_reference():
     halbe ERP ist. Kein zweites Auswahlfeld – dieselbe Komponente, andere Quelle.
     """
     code = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
-    assert "SearchSelect" in code and "searchPlaces" in code, (
+    assert "ObjectSelect" in code and "searchPlaces" in code, (
         "Das Zielfeld ist wieder ein reines Nummernfeld – dann muss man die "
         "Objektnummer auswendig wissen."
     )
@@ -4122,3 +4127,143 @@ def test_a_carrier_is_named_by_its_piece_number():
         "Ein Träger trägt das Symbol seiner Instanz – eine zweite Symbol-Zuordnung wäre "
         "dieselbe Aussage ein zweites Mal (``TYPE_META``)."
     )
+
+
+# ---------------------------------------------------------------------------
+# «Leer» ist eine Wahl, und der Scanner nennt die Nummer (Testnotizen #734–#737)
+# ---------------------------------------------------------------------------
+
+def test_nothing_is_a_choice_not_three_workarounds():
+    """**«Kein Ziel» steht in der Liste, in der man wählt.**
+
+    Bug-Form: dieselbe Aussage an drei Stellen – ein erklärender Platzhalter («leer lassen
+    für …»), ein Erklärsatz darunter und ein X-Knopf daneben. Keine davon war die Liste,
+    und der Knopf war eine Rücknahme, keine Wahl (Testnotizen #734/#735/#736).
+    """
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    assert "emptyOption" in fields, (
+        "`SearchSelect` muss «nichts» als erste Zeile der Liste anbieten können – sonst "
+        "wächst der Notbehelf beim nächsten Feld wieder nach."
+    )
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "emptyOption" in designer, "Das Bewegen-Ziel nennt seine Leer-Wahl nicht."
+    assert "Ziel entfernen" not in designer, (
+        "Der X-Knopf ist eine Rücknahme neben der Liste – die Wahl gehört hinein."
+    )
+    assert "leer lassen" not in designer.lower(), (
+        "Der Platzhalter erklärt wieder, was die Liste sagen soll."
+    )
+    assert "Ohne Ziel wird beim Ausführen gescannt" not in _read(
+        FRONTEND / "components" / "erp" / "process-designer.tsx"), (
+        "Der Erklärsatz unter dem Feld ist zurück – dritte Stelle für eine Aussage."
+    )
+
+
+def test_a_scan_label_names_the_kind_not_the_number():
+    """**Das Label nennt die Sorte, die Nummer hängt der Scanner an.**
+
+    Bug-Form: «Instanz 100000825 100000825 scannen» (Testnotiz #737). `objectCodes.prompt`
+    setzt die erwartete Nummer hinter das Label – schreibt eine Aufrufstelle sie auch
+    hinein, steht sie zweimal da.
+
+    Geprüft wird die **Regel**, nicht der Einzelfall: kein `ScanStep`-Label darf eine
+    Objektnummer bauen.
+    """
+    scan = _code(_read(FRONTEND / "lib" / "scan.ts"))
+    assert "prompt(step)" in scan or "prompt(" in scan, "Der Platzhalter wird nicht mehr zentral gebaut."
+
+    # **Jede** `label:`-Zuweisung, nicht nur die am Zeilenanfang: die Bug-Form stand in
+    # einer einzeiligen Objektliteral-Zeile (`{ label: \`Instanz ${…}\`, kind: … }`), und
+    # ein Wächter, der nur `^label:` sieht, lässt sie durch – geprüft und korrigiert.
+    #
+    # Geprüft wird nur, was ein **Scan-Schritt** ist: eine Auswahl-Option darf ihre Nummer
+    # sehr wohl anzeigen – dort ist sie die Zeile, nicht der Auftrag an den Menschen.
+    bad: list[str] = []
+    for path in sorted((FRONTEND / "components").rglob("*.tsx")) + [FRONTEND / "lib" / "scan.ts"]:
+        code = _code(_read(path))
+        for m in re.finditer(r"\blabel:", code):
+            window = code[m.start():m.start() + 320]
+            if not re.search(r"\b(expected|suggest|restrict|exists|kind):", window):
+                continue                      # kein ScanStep – z. B. eine Options-Zeile
+            if "formatObjectId" in _expr(window) or re.search(r"\bobject_id\b", _expr(window)):
+                bad.append(f"{path.name}: {_expr(window).strip()[:90]}")
+    assert not bad, (
+        "Ein Scan-Label baut eine Objektnummer ein – der Scanner hängt sie selbst an "
+        "(`objectCodes.prompt` aus `expected`), und dann steht sie zweimal im "
+        "Platzhalter:\n  " + "\n  ".join(bad)
+    )
+
+
+def _expr(window: str) -> str:
+    """Der **Wert** einer `label:`-Zuweisung – bis zum Komma auf gleicher Klammerebene.
+
+    Ohne diese Abgrenzung liest ein Wächter das Nachbarfeld mit und meldet
+    `label: 'Zielort', expected: target.object_id` als Fehler, obwohl das Label sauber ist.
+    """
+    body = window[window.index(":") + 1:]
+    depth = 0
+    for i, ch in enumerate(body):
+        if ch in "([{`":
+            depth += 1
+        elif ch in ")]}`":
+            depth -= 1
+            if depth < 0:
+                return body[:i]
+        elif ch == "," and depth == 0:
+            return body[:i]
+    return body
+
+
+# ---------------------------------------------------------------------------
+# EIN Referenzfeld, überall (Testnotiz #738)
+# ---------------------------------------------------------------------------
+
+def test_a_record_reference_is_always_the_same_field():
+    """**«Welchen Datensatz meinst du?» hat EINE Bauart.**
+
+    Bug-Form: vier – ein Auswahlfeld mit Server-Suche, eines mit fertigen Optionen, ein
+    natives `<select>` über alle Artikel des Hauses (nicht durchsuchbar, tausend Knoten je
+    Zeile) und der Scanner mit eigener Suche. Wer «100000743» tippte, fand je nach Stelle
+    etwas oder nichts.
+    """
+    picker = FRONTEND / "components" / "erp" / "object-select.tsx"
+    assert picker.exists(), "Das eine Referenzfeld (`ObjectSelect`) fehlt."
+    code = _code(_read(picker))
+    assert "SearchSelect" in code, (
+        "`ObjectSelect` muss AUF `SearchSelect` bauen – ein zweites Auswahlfeld daneben "
+        "wäre der erste Weg, der beim nächsten Feld ausläuft."
+    )
+    assert "useScan" in code and "suggest" in code, (
+        "Kamera und Tastatur stehen nebeneinander – und der Scanner bekommt dieselbe "
+        "Suche wie das Feld, sonst findet er bei einer Teileingabe nichts."
+    )
+
+    # **Kein natives Dropdown über Datensätze mehr.** Aufzählungen (Währung, Land,
+    # Ja/Nein) bleiben erlaubt – sie sind endlich und keine Referenz.
+    for path in sorted((FRONTEND / "components" / "erp").rglob("*.tsx")):
+        code = _code(_read(path))
+        for m in re.finditer(r"<select\b", code):
+            window = code[m.start():m.start() + 900]
+            assert "object_id" not in window, (
+                f"{path.name} wählt einen Datensatz über ein natives <select> – "
+                f"nicht durchsuchbar, und bei tausend Artikeln tausend Knoten je Zeile. "
+                f"Dafür gibt es `ObjectSelect`."
+            )
+
+
+def test_the_search_condition_is_number_or_name_everywhere():
+    """**Nummer ODER Name – eine Bedingung, ein Modul.**
+
+    Bug-Form: dreimal ausgeschrieben und an der vierten Stelle nur der Name. Wer
+    «100000743» in die Artikel-Auswahl tippte, fand nichts, obwohl die Nummer im Dropdown
+    darunter stand (#738). Ein Weg, der an drei Stellen richtig ist, ist keine Regel.
+    """
+    src = _read(BACKEND / "app" / "services" / "lookup.py")
+    assert "def matches(" in src, "Die eine Suchbedingung (`services/lookup`) fehlt."
+    for path in ("routers/articles.py", "routers/instances.py", "routers/orders.py",
+                 "services/places.py"):
+        code = _read(BACKEND / "app" / path)
+        assert "lookup.matches(" in code, (
+            f"{path} schreibt seine Suchbedingung selbst aus – genau die Stelle, an der "
+            f"sie beim nächsten Mal abweicht."
+        )

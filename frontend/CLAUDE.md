@@ -156,6 +156,27 @@ deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
   Vorauswahl lässt es fallen (`o.available`). Dafür muss der Zustand **mitreisen**: ihn beim
   Einlesen wegzuwerfen war die Ursache, dass die Ansicht gar nicht prüfen konnte.
 
+## Referenz-Eingabe (`components/erp/object-select.tsx`)
+**«Welchen Datensatz meinst du?» hat EINE Bauart** (#738). `ObjectSelect` ist **auf**
+`SearchSelect` gebaut – kein zweites Auswahlfeld daneben – und trägt zusätzlich die
+**Kamera im Feld**: tippen sucht auf dem Server (Nummer **oder** Name, dieselbe Bedingung
+wie im Backend: `services/lookup`), scannen trifft. Beides führt zur selben Wahl, und der
+Scanner bekommt dieselbe Suche mit (`suggest`).
+
+- **Kamera und Tastatur stehen nebeneinander.** Der Scanner zuerst und die Eingabe
+  darunter wäre am Band richtig und am Schreibtisch ein Umweg; umgekehrt genauso.
+- **Der Aufrufer besitzt die Wahl**: `value` ist die Nummer, `selected` der bekannte
+  Datensatz dazu, `onChange(nr, option)` gibt die frisch gewählte Option mit. Wer ohnehin
+  mehr über ihn wissen muss (Serialisierung, Vorlage, Grund), lädt ihn **einmal**.
+- **`ObjectOption` trägt die API-Form** (`object_id`/`name`) – eine eigene Schreibweise
+  wäre eine Übersetzung an jeder Aufrufstelle. Wer sein Namensfeld anders nennt
+  (`PlaceRef.label`), reicht es in `find` als `name` durch.
+- **«Nichts» ist eine Wahl**, kein X-Knopf daneben: `emptyOption` führt sie als erste
+  Zeile der Liste, und ein leeres Feld **zeigt sie an** (#734–#736).
+- **Kein natives `<select>` über Datensätze** – nicht durchsuchbar, und bei tausend
+  Artikeln tausend Knoten je Zeile. Aufzählungen (Währung, Land, Ja/Nein) bleiben
+  erlaubt: sie sind endlich und keine Referenz. Wächter in `test_frontend_mirrors.py`.
+
 ## Kamera-Scan (`lib/scan.ts` + `components/scan/`)
 Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf
 (`GET /erp/objects/{id}`). Drei Schichten, strikt getrennt:
@@ -177,6 +198,11 @@ Aufruf über `useScan()` (eine Instanz am ERP-Layout, lazy). Ein Vorgang ist ein
 **Sequenz**: `steps: [{label, expected?, candidates?, restrict?, exists?, suggest?}]`.
 `expected` = Verifikation · `restrict`+`candidates` = eingeschränkte Wahl · sonst freier
 Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
+
+- **`label` ist die SORTE, nie eine Nummer** («Instanz», «Material», «Zielort»). Die
+  Nummer hängt der Scanner selbst an (`objectCodes.prompt` aus `expected`); steht sie auch
+  im Label, sagt der Platzhalter sie zweimal – «Instanz 100000825 100000825 scannen»
+  (#737). Ein Wächter prüft die Regel, nicht den Einzelfall.
 
 - **Vorschläge: der Scanner bietet an, was er ANNIMMT** (`offersFor`). Ein
   Verifikationsschritt braucht dafür keine Suche – seine Vorschlagsmenge *ist* `expected`,

@@ -150,17 +150,15 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
       .then((r) => setNumbers((s) => ({ ...s, [w.instance_object_id]: r.numbers })));
   }
 
-  /** Was ein Vorgang an der Ware scannt: die Instanz, danach jede Kiste, aus der er nimmt. */
+  /** Was ein Vorgang an der Ware scannt: die Instanz, danach jede Kiste, aus der er nimmt.
+   *
+   * **Das Label nennt die Sorte, die Nummer hängt der Scanner an** (`objectCodes.prompt`
+   * aus `expected`). Stand sie auch hier, las der Platzhalter «Instanz 100000825
+   * 100000825 scannen» – zwei Stellen sagten dasselbe (Testnotiz #737). */
   const goodsSteps = (w: StepWork) => [
-    {
-      label: `Instanz ${formatObjectId(w.instance_object_id)}`,
-      kind: 'instance' as const,
-      expected: w.instance_object_id,
-    },
+    { label: 'Instanz', kind: 'instance' as const, expected: w.instance_object_id },
     ...boxesFor(w).map((id) => ({
-      label: `Material ${formatObjectId(id)}`,
-      kind: 'instance' as const,
-      expected: id,
+      label: 'Material', kind: 'instance' as const, expected: id,
     })),
   ];
 
@@ -180,10 +178,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    * Bestätigen passierte stillschweigend nichts.
    */
   const placeStep = () => (target
-    ? {
-      label: `Zielort ${formatObjectId(target.object_id)}`,
-      expected: target.object_id,
-    }
+    ? { label: 'Zielort', expected: target.object_id }
     : {
       label: 'Zielort',
       exists: (id: number) => api.getPlace(id).then(() => true).catch(() => false),

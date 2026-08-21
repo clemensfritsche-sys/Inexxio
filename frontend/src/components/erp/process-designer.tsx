@@ -1,10 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Columns2, Grid2x2, Layers, Lock, Percent, ScanLine, Trash2, X } from 'lucide-react';
+import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatObjectId } from '@/lib/utils';
 import type { ModuleCatalog } from '@/types';
 import {
   CAPTURE_ICON, DISPOSAL_MODES, MODULE_ICON, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
@@ -22,9 +21,9 @@ import {
 import { ProcessColumns } from '@/components/erp/process-columns';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
-import { IconSwitch, SearchSelect, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { IconSwitch, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
-import { useScan } from '@/components/scan/scan-provider';
+import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';
 
 /**
@@ -255,12 +254,11 @@ function MoveFields({ module: m, onChange }: {
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
-  const scan = useScan();
   const [place, setPlace] = useState<PlaceRef | null>(null);
   const target = m.target.trim();
 
   // Den **gewählten** Halter benennen, damit im Feld sein Name steht und nicht seine
-  // Ziffern. Nur diesen einen – die Vorschläge holt `search`, wenn getippt wird.
+  // Ziffern. Nur diesen einen – die Vorschläge holt die Suche, wenn getippt wird.
   useEffect(() => {
     if (target === '') { setPlace(null); return; }
     let stale = false;
@@ -270,63 +268,28 @@ function MoveFields({ module: m, onChange }: {
     return () => { stale = true; };
   }, [target]);
 
-  const label = (p: PlaceRef) => `${formatObjectId(p.object_id)} · ${p.label}`;
+  // `PlaceRef` nennt sein Namensfeld `label`; hier wird es zu `name` – ein Mapping an der
+  // Stelle, an der der Unterschied entsteht, statt einer zweiten Feld-Konvention.
   const findPlaces = useCallback(
     (q: string) => api.searchPlaces(q)
-      .then((rows) => rows.map((p) => ({ value: String(p.object_id), label: label(p) })))
+      .then((rows) => rows.map((p) => ({ ...p, name: p.label })))
       .catch(() => []),
     [],
   );
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <div className="flex-1 min-w-0">
-          <SearchSelect
-            value={target}
-            onChange={(v) => onChange({ target: v })}
-            // **Nur die gewählte Option steht fest** – alles andere kommt aus der Suche.
-            // Eine vollständige Liste wäre bei Haltern das halbe ERP.
-            options={place ? [{ value: String(place.object_id), label: label(place) }] : []}
-            search={findPlaces}
-            placeholder="Objektnummer oder Name – leer lassen für «beim Ausführen wählen»"
-          />
-        </div>
-        {target !== '' && (
-          <button type="button" className="erp-idbtn" aria-label="Ziel entfernen"
-            data-tip="Ziel entfernen – dann wird beim Ausführen gescannt"
-            onClick={() => onChange({ target: '' })}>
-            <X size={15} />
-          </button>
-        )}
-        <button
-          type="button"
-          className="erp-idbtn"
-          data-tip="Zielort scannen"
-          aria-label="Zielort scannen"
-          onClick={() => scan({
-            steps: [{
-              label: 'Zielort',
-              exists: (id: number) => api.getPlace(id).then(() => true).catch(() => false),
-              // **Dieselbe Suche wie im Feld daneben** (Testnotizen #730/#732). Ein freier
-              // Scan-Schritt ohne Vorschlagsquelle bietet nichts an – wer «00292» tippt,
-              // sieht nichts, obwohl die Nummer existiert.
-              suggest: (q: string) => api.searchPlaces(q)
-                .then((rows) => rows.map((p) => ({ objectId: p.object_id, label: p.label })))
-                .catch(() => []),
-            }],
-            onComplete: (ids) => onChange({ target: String(ids[0] ?? '') }),
-          })}
-        >
-          <ScanLine size={15} />
-        </button>
-      </div>
-      {target === '' && (
-        <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
-          Ohne Ziel wird beim Ausführen gescannt, wohin die Stücke gehen.
-        </p>
-      )}
-    </div>
+    <ObjectSelect<PlaceRef & { name: string }>
+      value={target === '' ? null : Number(target)}
+      selected={place ? { ...place, name: place.label } : null}
+      find={findPlaces}
+      scanLabel="Zielort"
+      onChange={(nr) => onChange({ target: nr == null ? '' : String(nr) })}
+      // **«Kein Ziel» ist eine Wahl, keine Lücke** (#734–#736): sie steht als erste Zeile
+      // in derselben Liste und im Feld, sobald sie gilt. Vorher stand dieselbe Aussage an
+      // drei Stellen – im Platzhalter, in einem Erklärsatz darunter und in einem X-Knopf
+      // daneben – und an keiner davon konnte man sie wählen.
+      emptyOption="Beim Ausführen scannen"
+    />
   );
 }
 

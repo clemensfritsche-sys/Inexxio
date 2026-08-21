@@ -34,6 +34,7 @@ from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import bom as bom_svc
 from ..services import instances as inst_svc
+from ..services import lookup
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_version
 
@@ -114,9 +115,9 @@ def list_articles(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    q = db.query(Article)
-    if search and search.strip():
-        q = q.filter(Article.name.ilike(f"%{search.strip()}%"))
+    # **Nummer ODER Name** – die eine Suchbedingung des Hauses (`services/lookup`).
+    # Hier stand nur der Name: wer «100000743» tippte, fand nichts (Testnotiz #738).
+    q = db.query(Article).filter(lookup.matches(search or "", Article.object_id, Article.name))
     rows = q.order_by(Article.object_id.desc()).limit(limit).offset(offset).all()
     return [_out(a) for a in rows]
 

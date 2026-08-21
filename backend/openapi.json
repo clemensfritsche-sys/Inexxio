@@ -1760,7 +1760,7 @@
           "orders"
         ],
         "summary": "Article Options",
-        "description": "Welche Artikel kann ich in eine Definitionszeile nehmen?\n\n``template_steps`` fährt mit, damit die Oberfläche «Neu» sperren **und begründen**\nkann. Sie in zwei Aufrufen zu holen hiesse, die Zeile erst leer und dann korrigiert\nzu zeigen.",
+        "description": "Welche Artikel kann ich in eine Definitionszeile nehmen?\n\n``template_steps`` fährt mit, damit die Oberfläche «Neu» sperren **und begründen**\nkann. Sie in zwei Aufrufen zu holen hiesse, die Zeile erst leer und dann korrigiert\nzu zeigen.\n\n**Gesucht wird, nicht geladen** (Testnotiz #738). Vorher lieferte dieser Endpunkt bis\nzu 300 Artikel am Stück, und die Oberfläche machte daraus ein natives Dropdown: nicht\ndurchsuchbar, und bei tausend Artikeln tausend Knoten je Zeile. Jetzt liefert er, was\nzur Eingabe passt (`services/lookup` – dieselbe Bedingung wie überall), plus auf\nWunsch genau **den einen** gewählten (``object_id``), damit im Feld sein Name steht\nund nicht seine Ziffern.",
         "operationId": "article_options_api_v1_erp_orders_article_options_get",
         "security": [
           {
@@ -1769,13 +1769,49 @@
         ],
         "parameters": [
           {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Objektnummer-Teil oder Name",
+              "title": "Search"
+            },
+            "description": "Objektnummer-Teil oder Name"
+          },
+          {
+            "name": "object_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Genau diesen Artikel auflösen",
+              "title": "Object Id"
+            },
+            "description": "Genau diesen Artikel auflösen"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 1000,
-              "default": 300,
+              "maximum": 300,
+              "default": 20,
               "title": "Limit"
             }
           }
@@ -1841,7 +1877,7 @@
           "orders"
         ],
         "summary": "Unit Options",
-        "description": "Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?\n\n**FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,\nkein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.\n\n**Ein Stück im Prozess ist wählbar** (Abweichungsauftrag §3.5): genau daraus entsteht\neine Abweichung. ``in_order`` sagt, wo es gerade läuft – damit die Oberfläche nennen\nkann, was beim Wählen passiert, statt es geschehen zu lassen.",
+        "description": "Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?\n\n**Eine Seite, nicht die Liste** (Testnotiz #740). Vorher lieferte dieser Endpunkt bis\nzu 300 Stücke am Stück, und die Oberfläche machte daraus alles Weitere. Bei\nzehntausend Schrauben war das an drei Stellen falsch:\n\n* die **Vorauswahl** kam aus der gekappten Liste – sind die ersten 300 verbaut, findet\n  sie nichts, obwohl freie da sind. Sie kommt jetzt von hier (``preselect``): FIFO ist\n  eine Regel, keine Anzeige.\n* die **Zähler** kamen aus der Seite und zeigten «300», wo fünfzigtausend liegen. Sie\n  kommen jetzt aus einem Aggregat über den ganzen Artikel (``states``).\n* die **Herkunfts-Map** las **alle** offenen Zugehörigkeiten des Systems, um bei 300\n  Zeilen nachzuschlagen. Sie ist jetzt auf die Seite eingeschränkt.\n\n**FIFO fragt «liegt es im Regal?»**, nicht «lässt es sich nehmen?» – zwei\nEigenschaften, die der Katalog getrennt führt (``UnitOption``). Ein **verbautes**\nStück steht darum weiterhin in der Liste (das Greifen IST der Ausbau), aber nie im\nVorschlag: es steckt in etwas anderem und müsste erst ausgebaut werden.",
         "operationId": "unit_options_api_v1_erp_orders_unit_options_get",
         "security": [
           {
@@ -1868,14 +1904,79 @@
             "description": "Objektnummer des Artikels"
           },
           {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Teil einer Stück- oder Instanznummer",
+              "title": "Search"
+            },
+            "description": "Teil einer Stück- oder Instanznummer"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Nur diese Zustände",
+              "title": "Status"
+            },
+            "description": "Nur diese Zustände"
+          },
+          {
+            "name": "preselect",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 0,
+              "description": "Wie viele FIFO vorschlagen",
+              "default": 0,
+              "title": "Preselect"
+            },
+            "description": "Wie viele FIFO vorschlagen"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 1000,
-              "default": 300,
+              "maximum": 200,
+              "minimum": 1,
+              "default": 60,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
             }
           }
         ],
@@ -1885,11 +1986,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UnitOption"
-                  },
-                  "title": "Response Unit Options Api V1 Erp Orders Unit Options Get"
+                  "$ref": "#/components/schemas/UnitChoices"
                 }
               }
             }
@@ -7697,6 +7794,39 @@
         "title": "Transport",
         "description": "**Womit bewegt wird** — ein Kanal und seine Verfügbarkeit.\n\nDie Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute geht.\nNur die verfügbaren zu schicken hiesse, die Oberfläche müsste die Roadmap erfinden,\num sie zu zeigen – und ein Kanal, der später dazukommt, wäre ein Umbau statt eines\nWertes."
       },
+      "UnitChoices": {
+        "properties": {
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/UnitOption"
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "states": {
+            "items": {
+              "$ref": "#/components/schemas/StockState"
+            },
+            "type": "array",
+            "title": "States"
+          },
+          "preselect": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Preselect"
+          }
+        },
+        "type": "object",
+        "title": "UnitChoices",
+        "description": "Eine **Seite** wählbarer Einzelinstanzen – plus das, was die Seite nicht weiss.\n\nBei zehntausend Schrauben ist eine flache Liste keine Antwort mehr (Testnotiz #740).\nDrei Angaben machen aus der Seite trotzdem eine vollständige Auskunft:\n\n``states``    wie viele Stücke es **je Zustand** gibt – über den ganzen Artikel, nicht\n              über die geladene Seite. Eine aus der Seite gezählte Zahl zeigte «300»,\n              wo fünfzigtausend liegen.\n``preselect`` die FIFO-Vorauswahl, **vom Server**. Sie aus einer gekappten Liste zu\n              ziehen war der eigentliche Fehler: sind die ersten 300 Stücke verbaut,\n              findet die Oberfläche **nichts** – obwohl freie da sind.\n``total``     wie viele Stücke die aktuelle Auswahl (Filter/Suche) trifft."
+      },
       "UnitOption": {
         "properties": {
           "number": {
@@ -7733,6 +7863,11 @@
             "type": "boolean",
             "title": "Available"
           },
+          "in_stock": {
+            "type": "boolean",
+            "title": "In Stock",
+            "default": false
+          },
           "in_order": {
             "anyOf": [
               {
@@ -7752,7 +7887,7 @@
           "available"
         ],
         "title": "UnitOption",
-        "description": "Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.\n\n``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein\nHindernis mehr**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine\nAbweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was\nbeim Wählen passiert – statt es geschehen zu lassen.\n\n``available`` heisst darum nur noch: dieses Stück lässt sich überhaupt nehmen."
+        "description": "Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.\n\n**Zwei Fragen, zwei Felder – und sie sind nicht dieselbe.** Der Statuskatalog trägt\nbeide Antworten seit jeher; die Auswahl las nur eine davon (Testnotiz #739):\n\n``available``   «lässt sich das überhaupt nehmen?» – aus ``Status.terminal``. Ein\n                **verbautes** Stück ja: das Greifen IST der Ausbau. Ein\n                **verschrottetes** nein: es gibt es physisch nicht mehr.\n``in_stock``    «liegt es im Regal?» – aus ``Status.stock``. Ein verbautes Stück\n                **nein**: es steckt in einem anderen. Genau das ist die Frage, die\n                FIFO stellt, wenn es die ältesten Stücke vorschlägt.\n\nEin Stück ist also greifbar **und trotzdem kein Lagerbestand** – die erste Kombination\ndieser Art, und der Beleg, dass es zwei Eigenschaften sind. Die **Farbe** ist eine\ndritte Frage («hat es sein Ziel erreicht?») und bleibt bei Verbaut grün.\n\n``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein\nHindernis**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine\nAbweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was\nbeim Wählen passiert – statt es geschehen zu lassen."
       },
       "UnitPage": {
         "properties": {

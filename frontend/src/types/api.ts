@@ -678,6 +678,13 @@ export interface paths {
          *     ``template_steps`` fährt mit, damit die Oberfläche «Neu» sperren **und begründen**
          *     kann. Sie in zwei Aufrufen zu holen hiesse, die Zeile erst leer und dann korrigiert
          *     zu zeigen.
+         *
+         *     **Gesucht wird, nicht geladen** (Testnotiz #738). Vorher lieferte dieser Endpunkt bis
+         *     zu 300 Artikel am Stück, und die Oberfläche machte daraus ein natives Dropdown: nicht
+         *     durchsuchbar, und bei tausend Artikeln tausend Knoten je Zeile. Jetzt liefert er, was
+         *     zur Eingabe passt (`services/lookup` – dieselbe Bedingung wie überall), plus auf
+         *     Wunsch genau **den einen** gewählten (``object_id``), damit im Feld sein Name steht
+         *     und nicht seine Ziffern.
          */
         get: operations["article_options_api_v1_erp_orders_article_options_get"];
         put?: never;
@@ -724,12 +731,22 @@ export interface paths {
          * Unit Options
          * @description Welche Einzelinstanzen kann ich in eine ``Lager``-Zeile nehmen?
          *
-         *     **FIFO**: älteste zuerst (aufsteigende Nummer). Das ist eine Vorauswahl-Reihenfolge,
-         *     kein Zwang – die Oberfläche schlägt die ersten N vor und lässt jede davon abwählen.
+         *     **Eine Seite, nicht die Liste** (Testnotiz #740). Vorher lieferte dieser Endpunkt bis
+         *     zu 300 Stücke am Stück, und die Oberfläche machte daraus alles Weitere. Bei
+         *     zehntausend Schrauben war das an drei Stellen falsch:
          *
-         *     **Ein Stück im Prozess ist wählbar** (Abweichungsauftrag §3.5): genau daraus entsteht
-         *     eine Abweichung. ``in_order`` sagt, wo es gerade läuft – damit die Oberfläche nennen
-         *     kann, was beim Wählen passiert, statt es geschehen zu lassen.
+         *     * die **Vorauswahl** kam aus der gekappten Liste – sind die ersten 300 verbaut, findet
+         *       sie nichts, obwohl freie da sind. Sie kommt jetzt von hier (``preselect``): FIFO ist
+         *       eine Regel, keine Anzeige.
+         *     * die **Zähler** kamen aus der Seite und zeigten «300», wo fünfzigtausend liegen. Sie
+         *       kommen jetzt aus einem Aggregat über den ganzen Artikel (``states``).
+         *     * die **Herkunfts-Map** las **alle** offenen Zugehörigkeiten des Systems, um bei 300
+         *       Zeilen nachzuschlagen. Sie ist jetzt auf die Seite eingeschränkt.
+         *
+         *     **FIFO fragt «liegt es im Regal?»**, nicht «lässt es sich nehmen?» – zwei
+         *     Eigenschaften, die der Katalog getrennt führt (``UnitOption``). Ein **verbautes**
+         *     Stück steht darum weiterhin in der Liste (das Greifen IST der Ausbau), aber nie im
+         *     Vorschlag: es steckt in etwas anderem und müsste erst ausgebaut werden.
          */
         get: operations["unit_options_api_v1_erp_orders_unit_options_get"];
         put?: never;
@@ -3096,15 +3113,55 @@ export interface components {
             hint: string;
         };
         /**
+         * UnitChoices
+         * @description Eine **Seite** wählbarer Einzelinstanzen – plus das, was die Seite nicht weiss.
+         *
+         *     Bei zehntausend Schrauben ist eine flache Liste keine Antwort mehr (Testnotiz #740).
+         *     Drei Angaben machen aus der Seite trotzdem eine vollständige Auskunft:
+         *
+         *     ``states``    wie viele Stücke es **je Zustand** gibt – über den ganzen Artikel, nicht
+         *                   über die geladene Seite. Eine aus der Seite gezählte Zahl zeigte «300»,
+         *                   wo fünfzigtausend liegen.
+         *     ``preselect`` die FIFO-Vorauswahl, **vom Server**. Sie aus einer gekappten Liste zu
+         *                   ziehen war der eigentliche Fehler: sind die ersten 300 Stücke verbaut,
+         *                   findet die Oberfläche **nichts** – obwohl freie da sind.
+         *     ``total``     wie viele Stücke die aktuelle Auswahl (Filter/Suche) trifft.
+         */
+        UnitChoices: {
+            /** Units */
+            units?: components["schemas"]["UnitOption"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /** States */
+            states?: components["schemas"]["StockState"][];
+            /** Preselect */
+            preselect?: string[];
+        };
+        /**
          * UnitOption
          * @description Eine wählbare Einzelinstanz für eine ``Lager``-Zeile.
          *
+         *     **Zwei Fragen, zwei Felder – und sie sind nicht dieselbe.** Der Statuskatalog trägt
+         *     beide Antworten seit jeher; die Auswahl las nur eine davon (Testnotiz #739):
+         *
+         *     ``available``   «lässt sich das überhaupt nehmen?» – aus ``Status.terminal``. Ein
+         *                     **verbautes** Stück ja: das Greifen IST der Ausbau. Ein
+         *                     **verschrottetes** nein: es gibt es physisch nicht mehr.
+         *     ``in_stock``    «liegt es im Regal?» – aus ``Status.stock``. Ein verbautes Stück
+         *                     **nein**: es steckt in einem anderen. Genau das ist die Frage, die
+         *                     FIFO stellt, wenn es die ältesten Stücke vorschlägt.
+         *
+         *     Ein Stück ist also greifbar **und trotzdem kein Lagerbestand** – die erste Kombination
+         *     dieser Art, und der Beleg, dass es zwei Eigenschaften sind. Die **Farbe** ist eine
+         *     dritte Frage («hat es sein Ziel erreicht?») und bleibt bei Verbaut grün.
+         *
          *     ``in_order`` nennt den Auftrag, in dem das Stück gerade läuft. Das ist **kein
-         *     Hindernis mehr**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine
+         *     Hindernis**: ein Stück im Prozess lässt sich nehmen, und genau daraus wird eine
          *     Abweichung (§2/§3.5). Die Angabe steht hier, damit die Oberfläche sagen kann, was
          *     beim Wählen passiert – statt es geschehen zu lassen.
-         *
-         *     ``available`` heisst darum nur noch: dieses Stück lässt sich überhaupt nehmen.
          */
         UnitOption: {
             /** Number */
@@ -3117,6 +3174,11 @@ export interface components {
             article_name?: string | null;
             /** Available */
             available: boolean;
+            /**
+             * In Stock
+             * @default false
+             */
+            in_stock: boolean;
             /** In Order */
             in_order?: number | null;
         };
@@ -4556,6 +4618,10 @@ export interface operations {
     article_options_api_v1_erp_orders_article_options_get: {
         parameters: {
             query?: {
+                /** @description Objektnummer-Teil oder Name */
+                search?: string | null;
+                /** @description Genau diesen Artikel auflösen */
+                object_id?: number | null;
                 limit?: number;
             };
             header?: never;
@@ -4609,7 +4675,14 @@ export interface operations {
             query?: {
                 /** @description Objektnummer des Artikels */
                 article?: number | null;
+                /** @description Teil einer Stück- oder Instanznummer */
+                search?: string | null;
+                /** @description Nur diese Zustände */
+                status?: string[] | null;
+                /** @description Wie viele FIFO vorschlagen */
+                preselect?: number;
                 limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -4623,7 +4696,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UnitOption"][];
+                    "application/json": components["schemas"]["UnitChoices"];
                 };
             };
             /** @description Validation Error */
