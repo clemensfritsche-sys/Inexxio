@@ -1090,6 +1090,20 @@
 > dass nichts mehr ankommt (dieselbe Regel wie «die Linie sagt die Vergangenheit», §8.1a).
 > Die erste Fassung setzte bei `storniert` alle Stufen auf grau; ein stornierter Beleg sah
 > damit aus wie einer, bei dem nie etwas geschehen war.
+> **Und eine NEUE Tabelle fiel zwischen die Netze** (`purchases.is_active`): Es gibt drei,
+> und sie fangen Verschiedenes – die **Migration** ist die Wahrheit, `create_all` legt eine
+> fehlende **Tabelle** an (nie eine fehlende Spalte), `_COLUMN_SAFETY_NET` zieht fehlende
+> **Spalten** nach. Dazwischen liegt genau eine Lücke: eine Tabelle, die es gibt, der aber
+> eine Spalte des Modells fehlt. Das Modell erbt `is_active` von `Base`, die Migration
+> nannte sie nicht – **lokal grün** (dort hatte `create_all` die Tabelle einmal vollständig
+> angelegt), gegen ein frisches Schema fielen **140 Prüfungen** aus, weil jeder Lesezugriff
+> auf den Beleg scheiterte. Die Ausfallklasse von Migration 090, eine Ebene tiefer.
+> Der Wächter **baut das Schema wirklich** statt es zu glauben
+> (`tests/test_schema_is_built_by_the_migrations.py`: Wegwerf-Datenbank, `alembic upgrade
+> head`, dann Modell ↔ Schema für **jede** Tabelle; Netz-Spalten zählen als gedeckt) – und
+> er ist gegen seine Bug-Form gegengeprüft. **Die Arbeitsregel daraus:** die Suite läuft
+> einmal gegen die gewachsene Datenbank **und** einmal gegen ein Schema, das nur aus den
+> Migrationen kommt – nur die zweite ist die, die die CI fährt.
 > Wächter: `tests/test_purchase_module.py` (14 Prüfungen, jede gegen ihre Bug-Form
 > gegengeprüft) + drei in `test_frontend_mirrors.py`. Gemessen in Chromium: 1440 · 1024 ·
 > 834 · 375 · 320 px, **0 px** waagrechter Überlauf über alle fünf Stufen-Zustände.

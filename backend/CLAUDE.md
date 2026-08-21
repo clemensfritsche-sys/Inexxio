@@ -266,6 +266,28 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > (`_verify_history`): ein Schreiber ausserhalb der Prozesslogik hinterlässt gar keinen
 > Eintrag – gefunden wird er nur, wenn Log und Zeile verglichen werden (§5.3).
 
+## Eine neue Tabelle ist erst fertig, wenn sie ALLE Spalten des Modells anlegt
+
+Drei Netze, drei verschiedene Fänge: die **Migration** ist die Wahrheit · `create_all` im
+Lifespan legt eine fehlende **Tabelle** an, **nie** eine fehlende Spalte · `main.
+_COLUMN_SAFETY_NET` zieht fehlende **Spalten** nach. Dazwischen bleibt genau eine Lücke –
+eine Tabelle, die es gibt, der aber eine Spalte des Modells fehlt.
+
+Genau dort ist `purchases.is_active` gelandet (Migration 114): das Modell erbt sie von
+`Base`, die Migration nannte sie nicht. **Lokal grün**, weil `create_all` die Tabelle dort
+einmal vollständig angelegt hatte; gegen ein Schema, das nur aus den Migrationen kommt,
+scheiterte danach **jeder** Lesezugriff auf den Beleg (140 Prüfungen).
+
+- **Neue Tabelle:** die Migration muss den **vollständigen** Spaltensatz des Modells
+  anlegen – inklusive der geerbten (`is_active`, `created_at`, `updated_at`).
+- **Neue Spalte auf bestehender Tabelle:** Migration **und** `_COLUMN_SAFETY_NET`
+  (die Lehre aus 090 – beim Ausfall zählt nur der zweite Weg).
+- **Geprüft, nicht geglaubt:** `tests/test_schema_is_built_by_the_migrations.py` baut eine
+  Wegwerf-Datenbank, fährt `alembic upgrade head` und vergleicht Modell ↔ Schema für jede
+  Tabelle.
+- **Und lokal testen wie die CI:** einmal gegen die gewachsene Datenbank, einmal gegen ein
+  frisch aus den Migrationen gebautes Schema. Nur die zweite ist die, die deployt wird.
+
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete
 - UTC Timestamps überall

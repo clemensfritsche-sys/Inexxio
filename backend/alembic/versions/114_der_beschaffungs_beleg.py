@@ -35,10 +35,20 @@ def upgrade() -> None:
             due_date        DATE,
             quotes          JSONB         NOT NULL DEFAULT '[]',
             ordered_for     NUMERIC(14,3),
+            -- Soft-Delete wie überall (``Base``): das Modell liest die Spalte bei JEDER
+            -- Abfrage. Sie zu vergessen fällt lokal nicht auf – dort legt das
+            -- Lifespan-``create_all`` sie aus dem Modell an; gegen ein Schema, das nur
+            -- aus den Migrationen kommt, scheitert danach jeder Lesezugriff auf den
+            -- Beleg. Die Ausfallklasse von Migration 090, eine Tabelle weiter.
+            is_active       BOOLEAN       NOT NULL DEFAULT TRUE,
             created_at      TIMESTAMPTZ   NOT NULL DEFAULT now(),
             updated_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
         )
     """)
+    # Und für eine Datenbank, in der ``create_all`` die Tabelle **ohne** sie angelegt hat
+    # (jede Umgebung, die vor diesem Fix lief), wird sie nachgezogen.
+    op.execute("ALTER TABLE purchases ADD COLUMN IF NOT EXISTS "
+               "is_active BOOLEAN NOT NULL DEFAULT TRUE")
     # Ein Beleg je Modul — die Regel steht in der Datenbank, nicht nur im Dienst:
     # `instantiate_for_order` ist idempotent, aber zwei gleichzeitige Freigaben sind es
     # nicht, und der Index ist die einzige Stelle, die das je Anweisung prüft.
