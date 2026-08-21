@@ -15,7 +15,7 @@ from ..domain import modules, sampling
 
 from .instance import StockState
 from .place import PlaceRef
-from .process import ModuleFacts, ModuleInput
+from .process import ModuleFacts, ModuleInput, PurchaseEmbed
 
 
 class UnitPick(BaseModel):
@@ -101,6 +101,20 @@ class OrderValidation(BaseModel):
     )
 
 
+class SupplierOption(BaseModel):
+    """Ein wählbarer Lieferant – **Objektnummer und Name**, sonst nichts.
+
+    Dieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die
+    Oberfläche kein zweites Auswahlfeld braucht.
+
+    **Angeboten wird nur, wer Lieferant ist** – dieselbe Haltung wie bei
+    ``places.search``: eine Auswahl, die der Dienst danach abweist, ist keine.
+    """
+
+    object_id: int
+    name: str = ""
+
+
 class ProcessStepResponse(ModuleFacts):
     """Ein Modul im laufenden Auftrag.
 
@@ -137,6 +151,11 @@ class ProcessStepResponse(ModuleFacts):
     #: beiden Fälle auseinanderhalten, sonst sieht ein offenes Ziel aus wie ein Fehler.
     #: Bei jedem anderen Modultyp schlicht leer.
     target: Optional[PlaceRef] = None
+    #: **Der Beschaffungs-Beleg** – Stufe, Angebotszeilen, Bestellung
+    #: (``services/purchase``). ``None`` bei jedem anderen Modultyp; die Oberfläche
+    #: braucht damit keine Fallunterscheidung nach dem Modul, genau wie bei
+    #: ``transports`` und ``needs``.
+    purchase: Optional[PurchaseEmbed] = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

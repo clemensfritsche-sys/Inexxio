@@ -6,6 +6,7 @@ import { api, type ApiError } from '@/lib/api';
 import type {
   ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, PlaceRef,
   RelatedOrder, StepWork,
+  PurchaseEmbed,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
 import { DetailHeader, HeaderAction } from '@/components/erp/fields';
@@ -22,6 +23,7 @@ import {
 } from '@/components/erp/definition-lines';
 import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
+import { PurchaseWork } from '@/components/erp/purchase-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
 import { MODULE_ICON } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
@@ -212,6 +214,25 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     }
   }, [live]);
 
+  /**
+   * **Eine Handlung am Beschaffungs-Beleg** – derselbe Weg wie das Bestätigen: ein
+   * Aufruf, die Antwort IST der neue Auftrag. Kein eigener Zustand daneben, der
+   * veralten könnte.
+   */
+  const runPurchase = useCallback(async (
+    stepId: number, body: { action: string } & Record<string, unknown>,
+  ) => {
+    if (!live) return;
+    setBusy(true); setError(null);
+    try {
+      setLive(await api.updatePurchase(live.object_id, stepId, body));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [live]);
+
   const blocked = missing != null && missing.length > 0;
   const shown = live;
 
@@ -261,7 +282,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
           <DraftView lines={lines} setLines={setLines} steps={steps} setSteps={setSteps}
             refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
-          <RunView order={shown} busy={busy} onConfirm={confirmStep} onDeviate={onDeviate} />
+          <RunView order={shown} busy={busy} onConfirm={confirmStep}
+            onPurchase={runPurchase} onDeviate={onDeviate} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {loading ? 'Lädt …' : null}
@@ -389,11 +411,34 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // Freigegeben — Modus «ausfuehrung»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RunView({ order, busy, onConfirm, onDeviate }: {
+/**
+ * **Der Beschaffungs-Beleg umschliesst den Scan — oder es gibt ihn nicht.**
+ *
+ * Ein Bauteil statt einer Bedingung an der Aufrufstelle: `purchase` ist bei jedem
+ * anderen Modultyp leer, und dann steht hier schlicht der Scan. Dieselbe Bauart wie
+ * `transports` und `needs` – die Oberfläche fragt nie nach dem Modultyp.
+ */
+function Wrapped({ purchase, busy, onAction, children }: {
+  purchase: PurchaseEmbed | null;
+  busy: boolean;
+  onAction: (body: { action: string } & Record<string, unknown>) => void;
+  children: React.ReactNode;
+}) {
+  if (!purchase) return <>{children}</>;
+  return (
+    <PurchaseWork purchase={purchase} busy={busy} onAction={onAction}>
+      {children}
+    </PurchaseWork>
+  );
+}
+
+
+function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
               sources: number[], place: number | null, transport: string) => void;
+  onPurchase: (stepId: number, body: { action: string } & Record<string, unknown>) => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
@@ -461,6 +506,12 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
             // tun ist; eine zweite daneben wäre eine zweite Wahrheit.
             <div className="flex flex-col gap-2">
               <Reason text={stepInfo(order, step.id)?.reason} />
+              {/* **Der Beschaffungs-Beleg umschliesst den Scan.** Er ist kein zweites
+                  Panel daneben: der Wareneingang IST die Bestätigung, die jedes Modul
+                  abschliesst – sie steht darum als Inhalt der dritten Stufe. Bei jedem
+                  anderen Modultyp ist `purchase` leer und es bleibt beim Scan allein. */}
+              <Wrapped purchase={stepInfo(order, step.id)?.purchase ?? null} busy={busy}
+                onAction={(body) => onPurchase(step.id, body)}>
               <CaptureWork
                 orderObjectId={order.object_id}
                 stepId={step.id}
@@ -481,6 +532,7 @@ function RunView({ order, busy, onConfirm, onDeviate }: {
                   onConfirm(step.id, instanceObjectId, verification, values, sources,
                             place, transport)}
               />
+              </Wrapped>
             </div>
           ) : (
             // **Ein abgeschlossenes Modul zeigt, was in ihm passiert ist** (#717) – die

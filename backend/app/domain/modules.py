@@ -32,6 +32,7 @@ DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
 VERBRAUCH = "verbrauch"
 BEWEGEN = "bewegen"
+BESCHAFFEN = "beschaffen"
 
 
 class Module:
@@ -513,8 +514,171 @@ class Bewegen(Module):
         return key
 
 
+class Beschaffen(Module):
+    """Etwas **einkaufen** – und die Stücke warten, bis es da ist.
+
+    **Ein Tor, kein Vorgang am Stück.** Alle anderen Module tun etwas *mit* der
+    Einzelinstanz: sie messen, bewegen, sondern aus, verbauen. Dieses hier tut mit ihr
+    gar nichts – es hält sie auf, bis die Ware eingetroffen ist. Darum ist es ein
+    **Durchläufer** (``Im Prozess`` → ``Im Prozess``) und braucht keine Zeile in der
+    Prozess-Engine.
+
+    **Es erzeugt keine Einzelinstanzen.** Die entstehen ausschliesslich bei der Freigabe
+    eines Erzeugungsauftrags (``serialization``); dieses Modul lässt sie passieren. Ein
+    Zukaufteil ist deshalb ein ganz gewöhnlicher Erzeugungsauftrag, dessen Prozess aus
+    einem Beschaffen-Modul besteht – die Charge steht ab der Freigabe als ``Im Prozess``
+    da und wird beim Wareneingang freigegeben.
+
+    **Und eine Leistung taucht nie im Bestand auf** – nicht weil ein Feld sie ausschliesst,
+    sondern weil dieses Modul nichts erzeugt. Wer «Härten» bestellt, kauft eine
+    Dienstleistung an einem Stück, das es schon gibt; der Artikel steht auf dem Beleg und
+    nirgends sonst.
+
+    ## Zwei Angaben, mehr nicht
+
+    ``suppliers``  die **zugelassenen** Lieferanten (mindestens einer).
+    ``article``    **was** bestellt wird.
+
+    **Eine Liste mit einem Eintrag ist der Normalfall** – kein Modus, keine Verzweigung.
+    Wer nur bei Würth kauft, hat eine Liste mit Würth; wer vergleichen will, nennt drei.
+    Fachlich ist das die **Lieferantenfreigabe**: wer für dieses Teil in Frage kommt.
+    Ein Einzelwert hätte den Vergleich zu einem zweiten Mechanismus gemacht.
+
+    **Keine Menge in der Konfiguration.** Beim Modellieren steht nicht fest, wie viele
+    Stücke ankommen – dieselbe Regel wie beim Verbrauch. Vorgeschlagen wird sie beim
+    Anlegen des Belegs (die Stücke des Auftrags, aufgerundet auf die Mindestbestellmenge
+    des Artikels) und dort auch erfasst.
+
+    **Kein Modus «Webshop».** Jeder, bei dem man kauft, *ist* ein Lieferant – ob per
+    Shop-Link, Telefon oder Portal, ist eine Eigenschaft **von ihm** und nicht dieser
+    Bestellung. Ein zweiter Ablauf für dieselben drei Stufen wäre dieselbe Angabe ein
+    zweites Mal, und die zweite läuft irgendwann weg.
+
+    ## Drei Stufen — und sie gehören dem BELEG
+
+    ``Anfrage → Bestellung → Wareneingang``. Die Einzelinstanz trägt davon **nichts**:
+    sie ist von der ersten bis zur letzten Stufe ``Im Prozess``. «Preis steht» ist keine
+    Stufe, sondern der Inhalt der Anfrage – sie ist fertig, wenn ein Preis angenommen
+    ist; beim Shop-Kauf trägt man ihn selbst ein.
+
+    **``storniert`` ist ein Ausgang, keine Stufe.**
+
+    Ab ``BINDING`` ist eine **zweite Partei** gebunden: dort liegt eine Bestellung beim
+    Lieferanten. Verliert der Beleg danach seine Grundlage, ändert das System ihn nicht
+    still, sondern **meldet** und wartet auf die Bestätigung (``services/purchase``).
+    """
+
+    SUPPLIERS = "suppliers"
+    ARTICLE = "article"
+
+    #: Wie viele Lieferanten eine Freigabe höchstens nennt. Mehr ist keine Auswahl mehr,
+    #: sondern eine Adressliste – und niemand fragt zwanzig Lieferanten je Schraube an.
+    MAX_SUPPLIERS = 10
+
+    #: **Die drei Stufen, in ihrer Reihenfolge.** Sie stehen hier, weil sie zum Modultyp
+    #: gehören: die Oberfläche fragt danach, statt sie nachzubauen.
+    STAGES: tuple[str, ...] = ("anfrage", "bestellung", "wareneingang")
+
+    #: Der Ausgang. Keine Stufe – man kommt dort an, statt hindurchzugehen.
+    CANCELLED = "storniert"
+
+    #: **Ab hier ist eine zweite Partei gebunden.** Vor dieser Stufe darf das System die
+    #: Grundlage still nachziehen; ab ihr liegt eine Bestellung beim Lieferanten, und
+    #: eine stille Änderung wäre ein Beleg, der nicht mehr stimmt.
+    BINDING = "bestellung"
+
+    STAGE_LABELS: dict[str, str] = {
+        "anfrage": "Anfrage", "bestellung": "Bestellung",
+        "wareneingang": "Wareneingang", CANCELLED: "Storniert",
+    }
+
+    #: Das Verb der **aktiven** Stufe – was man dort tut, nicht wie sie heisst
+    #: (Testnotizen #271/#275). Die letzte Stufe löst ``confirm_step`` aus und trägt
+    #: darum ``action``.
+    STAGE_VERBS: dict[str, str] = {"anfrage": "Bestellen", "bestellung": "Wareneingang buchen"}
+
+    #: Was der Knopf sagt, der das Modul abschliesst. Erfasst wird nichts – der Scan ist
+    #: die Bestätigung, dass genau diese Ware angekommen ist.
+    action = "Wareneingang buchen"
+
+    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
+        data = raw or {}
+        suppliers = self._suppliers(data.get(self.SUPPLIERS))
+        article = self._object_id(data.get(self.ARTICLE))
+        if article is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "«Beschaffen» braucht den Artikel, der bestellt wird. Bei einem "
+                    "Zukaufteil ist das der Artikel des Prozesses; bei einer Leistung "
+                    "(Härten, Versand) ein anderer."
+                ),
+            )
+        # Keine Erfassungspunkte und keine Stichprobe: was ankommt, kommt an. Die Felder
+        # stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
+        return {self.SUPPLIERS: suppliers, self.ARTICLE: article,
+                "points": [], "sample": dict(sampling.DEFAULT)}
+
+    def _suppliers(self, value: Any) -> list[int]:
+        if value in (None, ""):
+            value = []
+        if not isinstance(value, (list, tuple)):
+            raise HTTPException(
+                status_code=400,
+                detail="«Beschaffen» erwartet eine Liste zugelassener Lieferanten.",
+            )
+        found: list[int] = []
+        for entry in value:
+            number = self._object_id(entry)
+            if number is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"«{entry}» ist keine Lieferanten-Objektnummer.",
+                )
+            if number in found:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"Lieferant {number} steht zweimal in der Freigabe – zweimal "
+                            f"derselbe ist keine zweite Wahl."),
+                )
+            found.append(number)
+        if not found:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "«Beschaffen» braucht mindestens einen zugelassenen Lieferanten – "
+                    "ohne ihn steht beim Ausführen niemand da, bei dem man bestellen "
+                    "könnte."
+                ),
+            )
+        if len(found) > self.MAX_SUPPLIERS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Höchstens {self.MAX_SUPPLIERS} Lieferanten je Modul.",
+            )
+        return found
+
+    @staticmethod
+    def _object_id(value: Any) -> Optional[int]:
+        if value in (None, "", 0):
+            return None
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return None
+        return number if number > 0 else None
+
+
 MODULES: dict[str, Module] = {
     m.key: m for m in (
+        Beschaffen(
+            key=BESCHAFFEN,
+            label="Beschaffen",
+            # Ein Durchläufer: das Modul verändert das Stück nicht, es hält es auf.
+            status_before=st.IM_PROZESS,
+            status_after=st.IM_PROZESS,
+            tone="ink",
+        ),
         Datenerfassung(
             key=DATENERFASSUNG,
             label="Datenerfassung",

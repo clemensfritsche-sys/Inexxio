@@ -172,6 +172,90 @@ class CapturePoint(BaseModel):
     unit: Optional[str] = None
 
 
+class PurchaseQuote(BaseModel):
+    """Eine Zeile der Anfrage: **ein Lieferant, ein Preis**.
+
+    Der Angebotsspiegel des Einkaufs – und zugleich der Tarifvergleich, wenn das Modul
+    einen Transport einkauft. Es ist derselbe Vorgang, also dieselbe Zeile.
+    """
+
+    supplier_object_id: int
+    supplier_name: str = ""
+    #: Netto, für die ganze Menge. ``None``, solange nichts offeriert ist.
+    amount: Optional[float] = None
+    lead_days: Optional[int] = None
+    #: ``angefragt`` · ``offeriert`` · ``abgelehnt`` · ``gewaehlt``
+    state: str
+
+
+class PurchaseStage(BaseModel):
+    """Eine Stufe des Belegs – Schlüssel, Beschriftung und das Verb, wenn sie dran ist."""
+
+    key: str
+    label: str
+    #: Was man **tut**, wenn diese Stufe aktiv ist. Leer bei den übrigen: der Zustand
+    #: steht bereits als Beschriftung da (Testnotizen #271/#275).
+    verb: str = ""
+    done: bool = False
+    active: bool = False
+
+
+class PurchaseEmbed(BaseModel):
+    """**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.
+
+    Leer bei jedem anderen Modultyp – die Oberfläche braucht damit keine
+    Fallunterscheidung nach dem Modul, genau wie bei ``transports`` und ``needs``.
+
+    **Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt
+    einer Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche.
+    """
+
+    #: ``anfrage`` · ``bestellung`` · ``wareneingang`` · ``storniert``
+    stage: str
+    #: Die drei Stufen in ihrer Reihenfolge, mit Beschriftung – die Oberfläche zeichnet
+    #: sie, sie erfindet sie nicht (``Beschaffen.STAGES``).
+    stages: list["PurchaseStage"] = Field(default_factory=list)
+    article_object_id: int
+    article_name: str = ""
+    unit: str = ""
+    quantity: float = 0
+    #: Die **zugelassenen** Lieferanten dieses Moduls (aus der Definition).
+    allowed: list["PurchaseQuote"] = Field(default_factory=list)
+    quotes: list[PurchaseQuote] = Field(default_factory=list)
+    supplier_object_id: Optional[int] = None
+    supplier_name: Optional[str] = None
+    amount: Optional[float] = None
+    currency: str = "CHF"
+    reference: Optional[str] = None
+    due_date: Optional[str] = None
+    #: **Womit gerechnet wurde ↔ was heute gilt.** Gesetzt, wenn der Beleg seine Grundlage
+    #: verloren hat und eine zweite Partei bereits gebunden ist: dann ändert das System
+    #: nichts, sondern wartet auf die Bestätigung des Menschen.
+    clarify_quantity: Optional[float] = None
+
+
+class PurchaseUpdate(BaseModel):
+    """Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.
+
+    ``ask``       bei wem angefragt wird (``suppliers``, optional ``quantity``)
+    ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days``)
+    ``decline``   ein Lieferant sagt ab (``supplier``)
+    ``order``     bestellen (``supplier``, ``amount``, optional ``reference``/``due_date``)
+    ``note``      nachtragen, was der Lieferant zurückgibt (``reference``, ``due_date``)
+    ``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren
+    ``clarified`` der Lieferant hat der geänderten Menge zugestimmt
+    """
+
+    action: str
+    suppliers: list[int] = Field(default_factory=list)
+    supplier: Optional[int] = None
+    amount: Optional[float] = None
+    lead_days: Optional[int] = None
+    quantity: Optional[int] = None
+    reference: Optional[str] = None
+    due_date: Optional[str] = None
+
+
 class StepConfirm(BaseModel):
     """«Bestätigen» an einem Modul — **ein Wertesatz je Einzelinstanz**.
 

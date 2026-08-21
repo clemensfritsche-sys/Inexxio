@@ -1716,6 +1716,93 @@ anderen Modultyp leer. Die Oberfläche braucht damit keine Fallunterscheidung na
 Modultyp — dieselbe Bauart wie `needs` bei der Stückliste.
 
 
+### 9.9 Das Modul «Beschaffen» — das Tor nach draussen
+
+Die Stelle, an der etwas von aussen in den Prozess kommt: gekaufte **Ware**, eine
+gekaufte **Leistung** («Härten» an einem Stück, das es schon gibt) und — sobald ein Kanal
+dazukommt — der **Transport**. Ein **Durchläufer**: `Im Prozess` → `Im Prozess`, nicht
+terminal. Ein Beschaffungsmodul darf mehrfach in einem Prozess stehen, auch am **Ende**
+(Fremdfertigung).
+
+**Paket und Fracht sind kein Systembegriff.** Eine Sendung zu buchen IST ein Einkauf: man
+holt Tarife ein, vergibt den Auftrag, bekommt eine Sendungsnummer, die Ware kommt an.
+Ein eigenes «Versand»-Modul hätte den Einkauf ein zweites Mal gebaut, nur mit anderen
+Wörtern; ein Anbieter (Shippo, EasyPost) ist damit ein **Offerten-Lieferant**, kein
+Konzept. Genau daran hing die Bindung an einen Anbieter: sie entsteht nicht durch die
+Integration, sondern durch ein Modell, das ohne sie nichts sagen kann.
+
+#### Das Modul erzeugt nichts
+
+Einzelinstanzen entstehen bei der **Freigabe eines Erzeugungsauftrags** (§4.1), sonst
+nirgends. Ein Beschaffungsmodul lässt sie passieren, wie jedes andere.
+
+Daraus fällt die Antwort auf «taucht eine gekaufte Leistung im Bestand auf?» von selbst
+heraus: **nein** — nicht weil ein Feld sie ausschliesst, sondern weil hier nichts
+entsteht. Der Artikel «Härten» steht auf dem Beleg und sonst nirgends. Ein Modul, das
+Stücke anlegte, wäre ein zweiter Erzeugungsweg — und der erste Ort, an dem Bestand ohne
+Herkunft entstünde.
+
+#### Die Stufen gehören dem Beleg, nicht dem Stück
+
+`Anfrage → Bestellung → Wareneingang`. Die Einzelinstanz steht durchgehend auf
+`Im Prozess`: sie wartet, sie ändert sich nicht. «Angefragt» oder «Bestellt» an ihr wären
+Zustände, die **keine Aussage über das Material** sind — und die trotzdem die Statusliste,
+FIFO und die Bestandsanzeige beantworten müssten (§5).
+
+Der Beleg ist darum eine ganz gewöhnliche **Fachzeile ohne eigene Objektnummer**
+(`purchases`, eine je Modul), wie jede andere im Prozess.
+
+**Drei Stufen, weil drei Dinge unumkehrbar sind:** nichts zugesagt · zugesagt · erfüllt.
+«Preis steht» ist keine vierte — das ist der **Inhalt** der Anfrage, kein anderer Zustand
+der Welt.
+
+**Und sie erscheinen immer.** Ob im Webshop gekauft oder beim Lieferanten bestellt wird,
+ist kein Unterschied im Ablauf, sondern nur darin, **wer den Preis einträgt** (du, nachdem
+du im Shop nachgeschaut hast — oder er). Ein «Webshop-Modus» wäre derselbe Ablauf ein
+zweites Mal, und der zweite veraltet.
+
+#### Mehrere Lieferanten sind eine Liste
+
+Die **Definition** sagt, bei wem bestellt werden *darf* (`config.suppliers`); die
+**Ausführung**, bei wem bestellt *wurde*. Zwei verschiedene Fragen, also zwei Orte. Je
+angefragtem Lieferanten eine Zeile mit Preis und Lieferfrist (`purchases.quotes`) — der
+Angebotsspiegel des Einkaufs und der Tarifvergleich des Transports sind dieselbe Zeile.
+
+**Ein Lieferant füllt ausschliesslich seine eigene.** Wessen Zeile gemeint ist, liest die
+Ausführung aus dem **Handelnden**, nicht aus der Nutzlast; fremde Preise fallen beim
+Aufbau der Antwort weg, nicht in der Oberfläche. Eine Sichtbarkeitsregel, die erst in der
+Anzeige greift, ist eine Bitte.
+
+#### Ein Modul räumt selbst auf — die Rahmenregel
+
+**Jede Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle.** Und es ist genau
+**eine**: was sie bewirkt, sagt die **Stufe** — vor der Bestellung nimmt sie die Anfrage
+zurück (es war nichts zugesagt), ab ihr storniert sie (dort liegt eine Bestellung beim
+Lieferanten, und «zurück» heisst, ihm abzusagen). Zwei Verben für dieselbe Sache hiessen,
+dass der Aufrufer entscheidet, welches gerade gilt — und irgendwann falsch.
+
+**Was aber Stücke betrifft, entscheidet ein Mensch.** Das Modul darf einen Auftrag
+**vorschlagen** — mit vorgewählten Stücken, wie §4.5 bei «nicht bestanden» —, es legt
+keinen an. Automatik an dieser Stelle war im Vorgängersystem gebaut und wieder
+abgeschaltet: ein Auftrag, den niemand erteilt hat, taucht im Prozess eines anderen auf
+und niemand weiss, warum.
+
+**Teillieferung ist Teilabschluss** — kein eigener Mechanismus: `confirm_step` ist seit
+§4.4 ein Teilabschluss. Solange etwas davorsteht, bleibt der Beleg in «Bestellung»; steht
+nichts mehr davor, rückt er von selbst weiter.
+
+**Vor der Bestellung zieht die Menge still nach, ab ihr wird geklärt.** Ab «Bestellung»
+ist eine zweite Partei gebunden — eine stille Änderung wäre ein Beleg, der nicht mehr
+stimmt. Das System meldet dann die Abweichung («bestellt für 240, gebraucht 180») und
+wartet auf die Bestätigung des Menschen.
+
+**Der stornierte Beleg behält seinen Weg.** Die Kette steht still da, wo sie
+stehengeblieben ist: angefragt und bestellt **wurde**, und daran ändert ein Storno
+nichts — er sagt nur, dass nichts mehr ankommt. Dieselbe Regel wie «die Linie sagt die
+Vergangenheit» (§8.1a). Eine Kette, die beim Stornieren komplett auf grau fällt, macht
+einen stornierten Beleg ununterscheidbar von einem, bei dem nie etwas geschehen ist.
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

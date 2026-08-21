@@ -695,6 +695,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/supplier-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Supplier Options
+         * @description **Wer kommt als Lieferant in Frage?** – gesucht, nicht als ganze Liste geladen.
+         *
+         *     Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
+         *     dieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach
+         *     auch annimmt. Ein Kunde in dieser Liste wäre eine Wahl, die das Modul abweist.
+         */
+        get: operations["supplier_options_api_v1_erp_orders_supplier_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/module-catalog": {
         parameters: {
             query?: never;
@@ -843,6 +867,47 @@ export interface paths {
          *     zweite Stelle, an der ein Statuswechsel geschrieben wird.
          */
         post: operations["confirm_step_api_v1_erp_orders__object_id__steps__step_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/purchase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update Purchase
+         * @description **Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sieben Verben.
+         *
+         *     **``POST``, nicht ``PATCH``**: das hier ist ein Befehl, kein Feld-Update. Im
+         *     Auftrags-Router gibt es keinen Änderungspfad – was passiert, passiert als Handlung
+         *     und hinterlässt einen Eintrag (derselbe Grund wie bei ``/confirm``).
+         *
+         *     Anfragen · Offerieren · Ablehnen · Bestellen · Zurücknehmen · Klären. Die
+         *     **Gegenhandlung steht am selben Ort wie die Handlung** (``revoke``): ein Modul räumt
+         *     selbst auf, es gibt keinen Storno-Endpunkt daneben. Was ``revoke`` bewirkt, sagt die
+         *     Stufe – vor der Bestellung nimmt es die Anfrage zurück, danach storniert es.
+         *
+         *     Was **Stücke** betrifft, entscheidet dagegen ein Mensch: dieses Modul legt keinen
+         *     Auftrag an und keine Abweichung.
+         *
+         *     **Die Tür steht heute nur dem Personal offen** (``require_employee``) – wie jeder
+         *     Endpunkt dieses Routers. Die Regel «ein Lieferant trifft nur seine eigene Zeile»
+         *     steht trotzdem im Dienst (``purchase.apply``/``_target``), denn sie gehört dorthin:
+         *     wer sie erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.
+         *     Ein **eigener Zugang für Lieferanten** kommt mit ihrer Sicht auf den Auftrag – und
+         *     die ist mehr als ein weiterer ``Depends``: ohne einen Sichtbarkeitsfilter auf der
+         *     Antwort (``_to_response`` gibt heute den **ganzen** Auftrag zurück) wäre die offene
+         *     Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
+         */
+        post: operations["update_purchase_api_v1_erp_orders__object_id__steps__step_id__purchase_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2717,6 +2782,7 @@ export interface components {
             /** Needs */
             needs?: components["schemas"]["StepNeed"][];
             target?: components["schemas"]["PlaceRef"] | null;
+            purchase?: components["schemas"]["PurchaseEmbed"] | null;
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -2776,6 +2842,137 @@ export interface components {
              *     Leer heisst: dieses Modul kennt keinen.
              */
             readonly reason: string;
+        };
+        /**
+         * PurchaseEmbed
+         * @description **Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.
+         *
+         *     Leer bei jedem anderen Modultyp – die Oberfläche braucht damit keine
+         *     Fallunterscheidung nach dem Modul, genau wie bei ``transports`` und ``needs``.
+         *
+         *     **Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt
+         *     einer Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche.
+         */
+        PurchaseEmbed: {
+            /** Stage */
+            stage: string;
+            /** Stages */
+            stages?: components["schemas"]["PurchaseStage"][];
+            /** Article Object Id */
+            article_object_id: number;
+            /**
+             * Article Name
+             * @default
+             */
+            article_name: string;
+            /**
+             * Unit
+             * @default
+             */
+            unit: string;
+            /**
+             * Quantity
+             * @default 0
+             */
+            quantity: number;
+            /** Allowed */
+            allowed?: components["schemas"]["PurchaseQuote"][];
+            /** Quotes */
+            quotes?: components["schemas"]["PurchaseQuote"][];
+            /** Supplier Object Id */
+            supplier_object_id?: number | null;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Amount */
+            amount?: number | null;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Reference */
+            reference?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Clarify Quantity */
+            clarify_quantity?: number | null;
+        };
+        /**
+         * PurchaseQuote
+         * @description Eine Zeile der Anfrage: **ein Lieferant, ein Preis**.
+         *
+         *     Der Angebotsspiegel des Einkaufs – und zugleich der Tarifvergleich, wenn das Modul
+         *     einen Transport einkauft. Es ist derselbe Vorgang, also dieselbe Zeile.
+         */
+        PurchaseQuote: {
+            /** Supplier Object Id */
+            supplier_object_id: number;
+            /**
+             * Supplier Name
+             * @default
+             */
+            supplier_name: string;
+            /** Amount */
+            amount?: number | null;
+            /** Lead Days */
+            lead_days?: number | null;
+            /** State */
+            state: string;
+        };
+        /**
+         * PurchaseStage
+         * @description Eine Stufe des Belegs – Schlüssel, Beschriftung und das Verb, wenn sie dran ist.
+         */
+        PurchaseStage: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Verb
+             * @default
+             */
+            verb: string;
+            /**
+             * Done
+             * @default false
+             */
+            done: boolean;
+            /**
+             * Active
+             * @default false
+             */
+            active: boolean;
+        };
+        /**
+         * PurchaseUpdate
+         * @description Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.
+         *
+         *     ``ask``       bei wem angefragt wird (``suppliers``, optional ``quantity``)
+         *     ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days``)
+         *     ``decline``   ein Lieferant sagt ab (``supplier``)
+         *     ``order``     bestellen (``supplier``, ``amount``, optional ``reference``/``due_date``)
+         *     ``note``      nachtragen, was der Lieferant zurückgibt (``reference``, ``due_date``)
+         *     ``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren
+         *     ``clarified`` der Lieferant hat der geänderten Menge zugestimmt
+         */
+        PurchaseUpdate: {
+            /** Action */
+            action: string;
+            /** Suppliers */
+            suppliers?: number[];
+            /** Supplier */
+            supplier?: number | null;
+            /** Amount */
+            amount?: number | null;
+            /** Lead Days */
+            lead_days?: number | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Reference */
+            reference?: string | null;
+            /** Due Date */
+            due_date?: string | null;
         };
         /**
          * RecordEntry
@@ -3017,6 +3214,25 @@ export interface components {
             quantity: number;
             /** Stock */
             stock: string;
+        };
+        /**
+         * SupplierOption
+         * @description Ein wählbarer Lieferant – **Objektnummer und Name**, sonst nichts.
+         *
+         *     Dieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die
+         *     Oberfläche kein zweites Auswahlfeld braucht.
+         *
+         *     **Angeboten wird nur, wer Lieferant ist** – dieselbe Haltung wie bei
+         *     ``places.search``: eine Auswahl, die der Dienst danach abweist, ist keine.
+         */
+        SupplierOption: {
+            /** Object Id */
+            object_id: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
         };
         /**
          * TerritoryAssign
@@ -4650,6 +4866,39 @@ export interface operations {
             };
         };
     };
+    supplier_options_api_v1_erp_orders_supplier_options_get: {
+        parameters: {
+            query?: {
+                /** @description Objektnummer-Teilstring oder Name */
+                search?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierOption"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     module_catalog_api_v1_erp_orders_module_catalog_get: {
         parameters: {
             query?: never;
@@ -4823,6 +5072,42 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["StepConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_purchase_api_v1_erp_orders__object_id__steps__step_id__purchase_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseUpdate"];
             };
         };
         responses: {

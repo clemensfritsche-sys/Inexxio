@@ -571,7 +571,10 @@ def test_a_status_change_always_writes_the_log():
     router = _read(BACKEND / "app" / "routers" / "orders.py")
     assert "@router.delete" not in router and "@router.patch" not in router, (
         "Der Auftrags-Router bietet einen Änderungs-/Löschpfad an – die Historie ist "
-        "append-only, und die Struktur ist nach der Freigabe eingefroren."
+        "append-only, und die Struktur ist nach der Freigabe eingefroren. Was an einem "
+        "Auftrag geschieht, ist eine **Handlung** und damit ein `POST` (wie `/confirm` "
+        "oder `/steps/{id}/purchase`): sie hinterlässt einen Eintrag, statt ein Feld zu "
+        "überschreiben."
     )
 
 

@@ -1040,6 +1040,60 @@
 > 834 · 375 · 320 px. Wächter: `test_the_camera_lives_in_the_field_not_beside_it` ·
 > `test_the_dialog_is_the_same_field_only_big` – **acht Bug-Formen gegengeprüft**, jede meldet.
 
+> **Das fünfte Modul ist «Beschaffen» – EIN Tor nach draussen, drei Stufen, und das Modul
+> räumt selbst auf** (PROCESS_CORE §9.9, Migration `114`). Es ist die Stelle, an der etwas
+> von aussen kommt: gekaufte Ware, eine **Leistung** («Härten»), und – sobald ein Kanal
+> dazukommt – auch der **Transport**. Denn Paket und Fracht sind kein Systembegriff: eine
+> Sendung zu buchen IST ein Einkauf, und der Tarifvergleich IST ein Angebotsspiegel. Wer
+> dafür ein eigenes Modul baute, hätte den Einkauf ein zweites Mal gebaut; Shippo ist damit
+> ein **Offerten-Lieferant**, kein Konzept.
+> **Es erzeugt keine Einzelinstanzen – und darum taucht eine Leistung nie im Bestand auf.**
+> Stücke entstehen bei der Freigabe eines Erzeugungsauftrags, sonst nirgends. Das ist keine
+> Regel, die dieses Modul einhält, sondern eine, die es gar nicht brechen kann: es legt
+> nichts an. «Härten» steht auf dem Beleg und sonst nirgends – es braucht kein Feld, das
+> einen Artikel aus dem Bestand ausschliesst.
+> **Die Stufen gehören dem BELEG, nicht dem Stück** (`Anfrage → Bestellung → Wareneingang`):
+> die Einzelinstanz steht von der Anfrage bis zum Wareneingang durchgehend auf `Im Prozess` –
+> sie wartet, sie ändert sich nicht. «Angefragt» oder «Bestellt» an ihr wären Zustände, die
+> gar keine Aussage über das Material sind (und in der Statusliste, in FIFO und im Bestand
+> beantwortet werden müssten). Der Beleg ist damit eine ganz gewöhnliche Fachzeile **ohne
+> eigene Objektnummer** (`purchases`), wie jede andere im Prozess.
+> **Drei Stufen, weil drei Dinge unumkehrbar sind** – nichts zugesagt · zugesagt · erfüllt.
+> «Preis steht» ist keine vierte: das ist der **Inhalt** der Anfrage, kein anderer Zustand
+> der Welt. Und sie erscheinen **immer**, ob im Webshop gekauft oder beim Lieferanten
+> bestellt wird; der Unterschied ist allein, **wer den Preis einträgt** (du oder er), nicht
+> was passiert. Ein «Webshop-Modus» wäre derselbe Ablauf ein zweites Mal.
+> **Mehrere Lieferanten sind eine LISTE, kein zweiter Mechanismus** (`config.suppliers`):
+> die Definition sagt, bei wem bestellt werden **darf**, die Ausführung, bei wem bestellt
+> **wurde** – zwei verschiedene Fragen. Je Zeile ein Preis und eine Lieferfrist
+> (`purchases.quotes`); der Angebotsspiegel des Einkaufs und der Tarifvergleich des
+> Transports sind dieselbe Zeile. **Ein Lieferant füllt ausschliesslich SEINE Zeile**, und
+> fremde Preise sind kein Nebeneffekt einer Ansicht: gefiltert wird beim **Aufbau der
+> Antwort**, nicht in der Oberfläche.
+> **Ein Modul räumt selbst auf – die neue Rahmenregel.** Jede Zusage nach aussen hat ihre
+> Gegenhandlung an derselben Stelle, und es ist **eine**: was `revoke` bewirkt, sagt die
+> **Stufe** – vor der Bestellung nimmt es die Anfrage zurück (es war nichts zugesagt),
+> ab ihr storniert es (dort liegt eine Bestellung beim Lieferanten). Zwei Verben für
+> dieselbe Sache hiessen, dass der Aufrufer entscheidet, welches gerade gilt.
+> **Was aber STÜCKE betrifft, entscheidet ein Mensch**: das Modul darf einen Auftrag
+> **vorschlagen** (mit vorgewählten Stücken, wie §4.5 bei «nicht bestanden»), es legt
+> keinen an. Automatik an dieser Stelle war im Vorgängersystem gebaut und wieder
+> abgeschaltet.
+> **Teillieferung ist Teilabschluss – kein eigener Mechanismus**: `confirm_step` ist seit
+> §4.4 ein Teilabschluss, also bleibt der Beleg in «Bestellung», solange noch etwas
+> davorsteht, und rückt von selbst weiter, wenn nichts mehr wartet.
+> **Vor der Bestellung zieht die Menge still nach, ab ihr wird GEKLÄRT** – dieselbe Regel
+> wie beim Beleg-Rebase: bis zur Zusage entscheidet das System, ab der Zusage der Mensch
+> (`clarify_quantity` nennt «bestellt für N, gebraucht M»).
+> **Und der stornierte Beleg behält seinen Weg**: die Kette steht still da, wo sie
+> stehengeblieben ist – ein Storno macht die Bestellung nicht ungeschehen, er sagt nur,
+> dass nichts mehr ankommt (dieselbe Regel wie «die Linie sagt die Vergangenheit», §8.1a).
+> Die erste Fassung setzte bei `storniert` alle Stufen auf grau; ein stornierter Beleg sah
+> damit aus wie einer, bei dem nie etwas geschehen war.
+> Wächter: `tests/test_purchase_module.py` (14 Prüfungen, jede gegen ihre Bug-Form
+> gegengeprüft) + drei in `test_frontend_mirrors.py`. Gemessen in Chromium: 1440 · 1024 ·
+> 834 · 375 · 320 px, **0 px** waagrechter Überlauf über alle fünf Stufen-Zustände.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

@@ -9,6 +9,7 @@ from .order import Order
 from .order_line import OrderLine
 from .order_unit import OrderUnit
 from .process_step import ProcessStep
+from .purchase import Purchase
 from .article_process_step import ArticleProcessStep
 from .process_event import ProcessEvent
 from .instance import Instance
@@ -31,6 +32,7 @@ __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "FxRate",
     "Order", "OrderLine", "OrderUnit", "ProcessStep", "ArticleProcessStep", "ProcessEvent",
+    "Purchase",
     "Instance", "InstanceUnit", "Capture",
     "DocumentSignoff", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
     "Attachment",

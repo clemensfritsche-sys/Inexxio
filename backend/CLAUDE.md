@@ -100,8 +100,9 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed) |
 | GET | /api/v1/erp/orders/{object_id}/diagnostics | staff | **Systemprotokoll** (Fehlersuche): Befund (abgeleiteter Zustand + Drift-Prüfung) + Chronologie aus Audit · Ereignissen · Material-Journal – on demand, keine eigene Wahrheit |
 | PATCH | /api/v1/erp/orders/{object_id} | staff | Auftrag ändern (Freigabe stösst Prozess an); `picks` = gewählte **Anteile** (Instanz · Menge · Halter) |
-| PATCH | /api/v1/erp/orders/{object_id}/purchase | user | Beschaffungsschritt (Offerte/Status, rollenabhängig) |
+| GET | /api/v1/erp/orders/supplier-options | staff | Zugelassene Lieferanten suchen (Nummer **oder** Name, dieselbe Bedingung wie überall: `services/lookup`) |
 | POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/confirm | staff | **Ein Modul bestätigen – für EINE Instanz.** `instance_object_id` + `verification` (`scan`\|`manual`) sind Pflicht (§4.4); ohne sie 400. `values` ist **zweistufig** – Nummer der Einzelinstanz → (Punkt → Wert), je gezogenem Stück ein Satz (§9.5). Die Art kommt aus dem **Scan-Dialog** (Kamera ↔ Tastatur), nicht von einem zweiten Knopf daneben. Bestanden → die Stücke rücken vor, nicht bestanden → sie bleiben stehen (§4.5). Antwort: der Auftrag; die Wirkung steht im Audit. |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/purchase | staff | **Den Beschaffungs-Beleg bewegen** – `action` ∈ `ask`·`quote`·`decline`·`order`·`note`·`revoke`·`clarified`. Ein **Befehl**, kein Feld-Update, darum POST wie `confirm` (der Wächter `test_a_status_change_always_writes_the_log` verbietet `PATCH` in diesem Router). Die Regel «ein **Lieferant** darf nur `quote`/`decline`, und nur auf **seiner** Zeile» steht im Dienst – die Tür ist heute Personal-only, weil ein Lieferant im Neuaufbau (noch) keine Sicht auf einen Auftrag hat; wer sie öffnet, baut zuerst den Sichtbarkeitsfilter auf der Antwort. |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/record | staff | **Was ist an diesem Modul passiert?** Je Vorgang (= eine Einzelinstanz, ein Durchgang): Nummer · wer · wann · wie bestätigt · Nachher-Zustand · Urteil · gezogen? · verbaut in? · **jeder erfasste Wert mit seiner Frage**. Eine Ableitung über den Ereignis-Log (`services/record.py`) – **zentral, kein Protokoll je Modultyp**; ein neuer Modultyp erbt es ohne eine Zeile. Seitenweise (`limit`/`offset`, Gesamtzahl daneben) und **erst auf Klick**: bei einer 6000er-Charge wären es tausende Zeilen in jeder Auftrags-Antwort. |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/hold?instance=&group= | staff | Die **Nummern** einer Gruppe dieser Instanz an diesem Modul: `sample` (die gezogenen – für jede ist ein Wertesatz zu erfassen, §9.5) \| `failed` \| `rest` (Vorauswahl der Entscheidung). **Erst auf Klick**: der «Rest» einer 6000er-Charge wären sechstausend Nummern in jeder Auftrags-Antwort. |
 | GET/PATCH | /api/v1/erp/articles/{object_id}/sales | staff | Verkaufs-Profil (publiziert/Sichtbarkeit/Inhalt) – immer editierbar |
@@ -185,6 +186,31 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Aufgerundet, mindestens eines, höchstens alle. Der ungezogene Rest läuft ohne Erfassung
 > durch – sichtbar.
 > Alle drei stehen an der EINEN Ausführungsstelle; jedes künftige Modul erbt sie.
+
+> **Beschaffen – das Tor nach draussen** (PROCESS_CORE §9.9, `services/purchase.py`,
+> Tabelle `purchases`): drei Stufen (`Anfrage → Bestellung → Wareneingang`), **eine
+> Fachzeile je Modul** (partieller Unique-Index auf `step_id` – `instantiate_for_order`
+> ist idempotent, zwei gleichzeitige Freigaben sind es nicht).
+> **Es erzeugt nichts.** Einzelinstanzen entstehen bei der Freigabe eines
+> Erzeugungsauftrags; hier passieren sie nur. Daraus fällt heraus, dass eine **Leistung**
+> nie im Bestand steht – ohne ein Feld, das sie ausschliesst.
+> **Die Stufen gehören dem Beleg, das Stück bleibt `Im Prozess`.** Ein Bestellzustand an
+> der Einzelinstanz wäre ein Zustand, der nichts über das Material aussagt – und den
+> Statusliste, FIFO und Bestand beantworten müssten.
+> **Eine Handlung ist ein Befehl, kein Feld-Update** (`purchase.apply`, sieben Aktionen –
+> `ask`·`quote`·`decline`·`order`·`note`·`revoke`·`clarified`). Ein **Lieferant** trifft
+> nur seine eigene Zeile (`_target` liest `actor.object_id`, nicht die Nutzlast), und
+> fremde Preise fallen beim **Aufbau der Antwort** weg, nicht in der Oberfläche.
+> **Eine Angebotszeile wird durch NEUBAU geändert, nie an Ort** (`_write`): der geladene
+> JSONB-Wert darf nicht mutiert werden – sonst sind geladener und aktueller Wert gleich,
+> die Spalte fällt aus dem `UPDATE`, und die Offerte ist stillschweigend weg (dieselbe
+> Falle wie `units._runs`, Testnotizen #560–#562).
+> **Eine Gegenhandlung, die Stufe sagt was sie tut** (`revoke`): vor der Bestellung
+> zurückziehen, ab ihr stornieren. Was **Stücke** betrifft, entscheidet ein Mensch – das
+> Modul schlägt vor, es legt keinen Auftrag an.
+> **`_stages` liest die ZEILE, nicht nur ihren Stand**: ein stornierter Beleg behält
+> seinen gegangenen Weg (angefragt und bestellt WURDE), keine Stufe ist aktiv, kein Verb
+> wird angeboten. Wächter: `tests/test_purchase_module.py`.
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

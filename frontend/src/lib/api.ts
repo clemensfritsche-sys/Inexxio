@@ -3,6 +3,7 @@ import type {
   OrderSummary,
   OrderDraft,
   OrderValidation,
+  SupplierOption,
   UnitChoices,
   ArticleOption,
   OrderUnitPage,
@@ -363,6 +364,27 @@ class ApiClient {
 
   /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
    *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
+  /**
+   * **Wer kommt als Lieferant in Frage?** – gesucht, nicht als ganze Liste geladen.
+   * Dieselbe Suchbedingung wie überall (Nummer **oder** Name), und angeboten wird nur,
+   * wen das Modul danach auch annimmt.
+   */
+  searchSuppliers(search?: string, limit = 20): Promise<SupplierOption[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (search?.trim()) params.set('search', search.trim());
+    return this.get(`/api/v1/erp/orders/supplier-options?${params}`);
+  }
+
+  /**
+   * **Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sechs Verben. Die
+   * Gegenhandlung (`revoke`) steht am selben Ort wie die Handlung: ein Modul räumt
+   * selbst auf.
+   */
+  updatePurchase(orderObjectId: number, stepId: number,
+                 body: { action: string } & Record<string, unknown>): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/purchase`, body);
+  }
+
   getArticles(search?: string, limit?: number): Promise<Article[]> {
     const params = new URLSearchParams();
     if (search?.trim()) params.set('search', search.trim());
