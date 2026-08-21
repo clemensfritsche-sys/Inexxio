@@ -6,7 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ModuleCatalog, SupplierOption } from '@/types';
 import {
-  CAPTURE_ICON, DISPOSAL_MODES, MODULE_ICON, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
+  CAPTURE_ICON, DISPOSAL_MODES, moduleIcon, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
   moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
 } from '@/lib/modules';
@@ -176,7 +176,7 @@ function Palette({ catalog, onPick }: {
   return (
     <div className="flex flex-wrap justify-center gap-1.5">
       {mods.map((m) => {
-        const Icon = MODULE_ICON[m.key] ?? CAPTURE_ICON.text;
+        const Icon = moduleIcon(m.key);
         const tone = moduleTone(m.tone);
         return (
           <button

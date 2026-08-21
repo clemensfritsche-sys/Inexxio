@@ -13,8 +13,8 @@
  */
 
 import {
-  Blocks, Camera, ClipboardCheck, Hand, MoveRight, Package, PackageX, PenLine, Ruler,
-  ShoppingCart, ThumbsUp, Truck, Type, type LucideIcon,
+  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, MoveRight, Package, PackageX,
+  PenLine, Ruler, ShoppingCart, ThumbsUp, Truck, Type, type LucideIcon,
 } from 'lucide-react';
 
 import type { DefinitionLine } from '@/components/erp/definition-lines';
@@ -68,9 +68,13 @@ export const MODULE_TONE: Record<string, { bg: string; fg: string; border: strin
   sand: { bg: '#F4EBDD', fg: '#9A7238', border: '#E4D2B8' },
   moss: { bg: '#E9EFE6', fg: '#5A7048', border: '#CBD9C2' },
   clay: { bg: '#F3E7E4', fg: '#8C5A50', border: '#E2CBC5' },
-  // Beschaffen: kühles Graublau. Die vier älteren Familien waren vergeben, und ein
+  // Beschaffen: gedämpftes Violett. Die vier älteren Familien waren vergeben, und ein
   // Modul, das sich eine teilt, ist im Fluss von seinem Nachbarn nicht zu unterscheiden.
-  ink: { bg: '#E7EAEF', fg: '#4E5A6B', border: '#CBD3DD' },
+  // **Gemessen, nicht geraten**: der erste Anlauf (kühles Graublau) stand neben der
+  // Datenerfassung und war von ihr nicht zu trennen; Blaugrün rückt nur näher an
+  // Bewegen, und ein warmes Grau liest sich neben vier farbigen Karten wie deaktiviert.
+  // Slate=Blau · Clay=Rotbraun · Moss=Grün · Sand=Gelbbraun – Violett schliesst den Kreis.
+  plum: { bg: '#EFEAF2', fg: '#6B5A78', border: '#DCD2E2' },
 };
 
 /**
@@ -87,6 +91,20 @@ export const MODULE_TONE: Record<string, { bg: string; fg: string; border: strin
  * ein **neueres Backend** eine Familie nennt, die diese Oberfläche nicht kennt – und der
  * gehört gemeldet, nicht überspielt.
  */
+/**
+ * **Das Symbol eines Moduls — und was ein unbekanntes zeigt.**
+ *
+ * Dieselbe Regel wie bei `moduleTone`: Unbekanntes sieht **unbekannt** aus. Es borgt
+ * nicht das Symbol eines anderen Moduls – vorher gab es drei Rückfälle, und jeder log
+ * etwas anderes: `Blocks` ist der **Verbrauch**, `PackageX` das **Aussondern**, und
+ * `CAPTURE_ICON.text` ist der Erfassungspunkt «Text» – ein schlichtes **T**, das
+ * gemeldete Symbol. Ein Modul, dessen Typ die Oberfläche nicht kennt (alter Browser-
+ * Stand nach einem Deploy), gab sich damit als ein anderes aus.
+ */
+export function moduleIcon(type: string | undefined | null): LucideIcon {
+  return MODULE_ICON[type ?? ''] ?? CircleHelp;
+}
+
 export function moduleTone(tone: string | undefined | null): { bg: string; fg: string; border: string } {
   return MODULE_TONE[tone ?? ''] ?? UNKNOWN_TONE;
 }

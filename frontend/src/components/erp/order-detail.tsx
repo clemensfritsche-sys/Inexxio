@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Layers, MessageSquareText, PackageX } from 'lucide-react';
+import { ClipboardList, Layers, MessageSquareText } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import type {
   ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, PlaceRef,
@@ -25,7 +25,7 @@ import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { PurchaseWork } from '@/components/erp/purchase-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
-import { MODULE_ICON } from '@/lib/modules';
+import { moduleIcon } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
@@ -603,7 +603,7 @@ function PointList({ points, sample, action, reason, moduleType, target }: {
   // erfasst nichts – was es tut, steht in seinem Verb und warum in seinem Grund; das
   // Bewegen sagt zusätzlich, wohin. Ohne diese Zeilen stünde die Karte leer da.
   if (!points.length) {
-    const Icon = MODULE_ICON[moduleType ?? ''] ?? PackageX;
+    const Icon = moduleIcon(moduleType);
     return action ? (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
