@@ -208,10 +208,20 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **Eine Gegenhandlung, die Stufe sagt was sie tut** (`revoke`): vor der Bestellung
 > zurückziehen, ab ihr stornieren. Was **Stücke** betrifft, entscheidet ein Mensch – das
 > Modul schlägt vor, es legt keinen Auftrag an.
-> **Die Bestellmenge ist keine Eingabe** (`quantity_of`): sie ist ``unit_count`` – die
-> Einzelinstanzen, die vor dem Modul stehen –, und friert mit der Bestellung in
-> ``ordered_for`` ein. Eine getippte Menge daneben wäre eine zweite Aussage über dieselbe
-> Sache. **Ohne Lieferfrist keine Offerte**: aus ihr kommt der Liefertermin.
+> **Was und wie viel sind keine Eingaben** (`process_lines`/`lines_of`): die Zeilen des
+> Belegs sind die Artikel der Einzelinstanzen, die vor dem Modul stehen, und ihre Zahl –
+> gruppiert je Artikel, also sind **zwei Artikel zwei Zeilen auf EINEM Beleg**. Mit der
+> Bestellung frieren sie in ``ordered_lines`` ein; davor gibt es sie gar nicht. Eine
+> getippte Menge oder ein Artikelfeld daneben wären zweite Aussagen über dieselbe Sache.
+> **Ohne Lieferfrist keine Offerte**: aus ihr kommt der Liefertermin.
+> **Drei Schichten, jede an ihrem Ort**: die **Sache** aus der Artikel-Spezifikation (sie
+> reist mit dem Beleg, `services/article_fields` – sie wird nicht ausgewählt), der
+> **Auftrag** aus `config.instruction` (Pflicht – «Härten auf 58 HRC» gehört dem Schritt,
+> nicht dem Artikel), die **Nummer** an der Angebotszeile bzw. `reference`. Die
+> Lieferanten-Artikelnummer reist bewusst **nicht** mit: sie gehört genau einem.
+> **Der Einstandspreis braucht genau EINE Zeile** (`_write_landed_cost`) – bei zwei
+> Artikeln ist die Bestellsumme eine gemeinsame, und ihre Aufteilung ist eine menschliche
+> Entscheidung.
 > **Die Lieferanten-Sicht ist EINE Frage** (`purchase.mine`, ``None`` = Personal): woran
 > ist dieser Betrachter beteiligt? Feed und Detail lesen dieselbe Antwort; verengt wird
 > **in** `orders._to_response` (`_mine_only` blankt `_INTERNAL_FIELDS`), damit kein

@@ -188,6 +188,34 @@ class PurchaseQuote(BaseModel):
     state: str
 
 
+class SpecEntry(BaseModel):
+    """Eine Zeile der Artikel-Spezifikation – Beschriftung und Wert, sonst nichts.
+
+    Sie **reist mit dem Beleg** (``services/article_fields``) und wird nicht ausgewählt:
+    eine Spezifikation, die je nach Empfänger anders lautet, ist keine.
+    """
+
+    label: str
+    value: str
+
+
+class PurchaseLine(BaseModel):
+    """Eine Position des Belegs: **welcher Artikel, wie viele Stücke, und was er ist.**
+
+    Artikel und Menge sind **abgeleitet** – die Einzelinstanzen vor dem Modul tragen
+    ihren Artikel, und ihre Zahl ist die Menge (``purchase.process_lines``). Mit der
+    Bestellung frieren sie ein.
+    """
+
+    article_object_id: int
+    article_name: str = ""
+    unit: str = ""
+    quantity: float = 0
+    #: Die Spezifikation des Artikels – die eine Auskunft, die der Lieferant über die
+    #: Sache bekommt.
+    spec: list[SpecEntry] = Field(default_factory=list)
+
+
 class PurchaseStage(BaseModel):
     """Eine Stufe des Belegs – Schlüssel, Beschriftung und das Verb, wenn sie dran ist."""
 
@@ -215,10 +243,13 @@ class PurchaseEmbed(BaseModel):
     #: Die drei Stufen in ihrer Reihenfolge, mit Beschriftung – die Oberfläche zeichnet
     #: sie, sie erfindet sie nicht (``Beschaffen.STAGES``).
     stages: list["PurchaseStage"] = Field(default_factory=list)
-    article_object_id: int
-    article_name: str = ""
-    unit: str = ""
-    quantity: float = 0
+    #: **Was beschafft wird – abgeleitet, nicht getippt.** Je Artikel, dessen
+    #: Einzelinstanzen vor dem Modul stehen, eine Zeile. Mehrere sind der Normalfall:
+    #: EINE Bestellung mit zwei Positionen, wie im echten Leben.
+    lines: list["PurchaseLine"] = Field(default_factory=list)
+    #: **Was zu tun ist** – der Satz aus der Definition. Die Spezifikation beschreibt die
+    #: Sache, dieser Satz den Auftrag («Härten auf 58 HRC»).
+    instruction: str = ""
     #: Die **zugelassenen** Lieferanten dieses Moduls (aus der Definition).
     allowed: list["PurchaseQuote"] = Field(default_factory=list)
     quotes: list[PurchaseQuote] = Field(default_factory=list)

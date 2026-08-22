@@ -2865,23 +2865,13 @@ export interface components {
             stage: string;
             /** Stages */
             stages?: components["schemas"]["PurchaseStage"][];
-            /** Article Object Id */
-            article_object_id: number;
+            /** Lines */
+            lines?: components["schemas"]["PurchaseLine"][];
             /**
-             * Article Name
+             * Instruction
              * @default
              */
-            article_name: string;
-            /**
-             * Unit
-             * @default
-             */
-            unit: string;
-            /**
-             * Quantity
-             * @default 0
-             */
-            quantity: number;
+            instruction: string;
             /** Allowed */
             allowed?: components["schemas"]["PurchaseQuote"][];
             /** Quotes */
@@ -2901,6 +2891,35 @@ export interface components {
             reference?: string | null;
             /** Clarify Quantity */
             clarify_quantity?: number | null;
+        };
+        /**
+         * PurchaseLine
+         * @description Eine Position des Belegs: **welcher Artikel, wie viele Stücke, und was er ist.**
+         *
+         *     Artikel und Menge sind **abgeleitet** – die Einzelinstanzen vor dem Modul tragen
+         *     ihren Artikel, und ihre Zahl ist die Menge (``purchase.process_lines``). Mit der
+         *     Bestellung frieren sie ein.
+         */
+        PurchaseLine: {
+            /** Article Object Id */
+            article_object_id: number;
+            /**
+             * Article Name
+             * @default
+             */
+            article_name: string;
+            /**
+             * Unit
+             * @default
+             */
+            unit: string;
+            /**
+             * Quantity
+             * @default 0
+             */
+            quantity: number;
+            /** Spec */
+            spec?: components["schemas"]["SpecEntry"][];
         };
         /**
          * PurchaseQuote
@@ -3070,6 +3089,19 @@ export interface components {
             /** Via */
             via?: components["schemas"]["ArticleLink"][];
             replaced_by?: components["schemas"]["ArticleLink"] | null;
+        };
+        /**
+         * SpecEntry
+         * @description Eine Zeile der Artikel-Spezifikation – Beschriftung und Wert, sonst nichts.
+         *
+         *     Sie **reist mit dem Beleg** (``services/article_fields``) und wird nicht ausgewählt:
+         *     eine Spezifikation, die je nach Empfänger anders lautet, ist keine.
+         */
+        SpecEntry: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
         };
         /**
          * StepConfirm

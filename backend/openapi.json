@@ -7327,24 +7327,17 @@
             "type": "array",
             "title": "Stages"
           },
-          "article_object_id": {
-            "type": "integer",
-            "title": "Article Object Id"
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseLine"
+            },
+            "type": "array",
+            "title": "Lines"
           },
-          "article_name": {
+          "instruction": {
             "type": "string",
-            "title": "Article Name",
+            "title": "Instruction",
             "default": ""
-          },
-          "unit": {
-            "type": "string",
-            "title": "Unit",
-            "default": ""
-          },
-          "quantity": {
-            "type": "number",
-            "title": "Quantity",
-            "default": 0
           },
           "allowed": {
             "items": {
@@ -7423,11 +7416,46 @@
         },
         "type": "object",
         "required": [
-          "stage",
-          "article_object_id"
+          "stage"
         ],
         "title": "PurchaseEmbed",
         "description": "**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.\n\nLeer bei jedem anderen Modultyp – die Oberfläche braucht damit keine\nFallunterscheidung nach dem Modul, genau wie bei ``transports`` und ``needs``.\n\n**Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt\neiner Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche."
+      },
+      "PurchaseLine": {
+        "properties": {
+          "article_object_id": {
+            "type": "integer",
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "type": "string",
+            "title": "Article Name",
+            "default": ""
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": ""
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity",
+            "default": 0
+          },
+          "spec": {
+            "items": {
+              "$ref": "#/components/schemas/SpecEntry"
+            },
+            "type": "array",
+            "title": "Spec"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_object_id"
+        ],
+        "title": "PurchaseLine",
+        "description": "Eine Position des Belegs: **welcher Artikel, wie viele Stücke, und was er ist.**\n\nArtikel und Menge sind **abgeleitet** – die Einzelinstanzen vor dem Modul tragen\nihren Artikel, und ihre Zahl ist die Menge (``purchase.process_lines``). Mit der\nBestellung frieren sie ein."
       },
       "PurchaseQuote": {
         "properties": {
@@ -7799,6 +7827,25 @@
         ],
         "title": "RetiredInput",
         "description": "Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."
+      },
+      "SpecEntry": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "SpecEntry",
+        "description": "Eine Zeile der Artikel-Spezifikation – Beschriftung und Wert, sonst nichts.\n\nSie **reist mit dem Beleg** (``services/article_fields``) und wird nicht ausgewählt:\neine Spezifikation, die je nach Empfänger anders lautet, ist keine."
       },
       "StepConfirm": {
         "properties": {

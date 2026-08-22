@@ -107,6 +107,11 @@ _COLUMN_SAFETY_NET = (
     ("instance_units", "place_object_id", "BIGINT"),
     # Der Träger (Migration 112) – dieselbe Tabelle, dieselbe Ausfallklasse.
     ("instance_units", "place_unit_id", "BIGINT"),
+    # Was beschafft wird, sagt der Prozess (Migration 116): die Zeilen des Belegs stehen
+    # an der BESTEHENDEN Tabelle ``purchases``. Das Modell kennt sie, also scheitert ohne
+    # sie **jeder** Lesezugriff auf einen Beschaffungs-Beleg – dieselbe Ausfallklasse wie
+    # ``purchases.is_active`` (Migration 114), nur eine Spalte weiter.
+    ("purchases", "ordered_lines", "JSONB"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -136,6 +141,8 @@ _VARCHAR_WIDEN_COLUMNS: tuple[tuple[str, str, int], ...] = ()
 _NULLABLE_SAFETY_NET = (
     # Migration 115: die Bestellmenge ist abgeleitet, nicht eingegeben.
     ("purchases", "quantity"),
+    # Migration 116: **was** beschafft wird, sagt der Prozess – nicht ein Artikelfeld.
+    ("purchases", "article_id"),
 )
 
 _DROP_COLUMN_SAFETY_NET = (

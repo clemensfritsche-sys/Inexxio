@@ -72,10 +72,17 @@ def _article(db, name: str, *, steps: list[dict] | None = None,
     return art
 
 
-def _buy_step(article, suppliers):
+def _buy_step(suppliers, instruction: str = "liefern"):
+    """Ein Beschaffungs-Modul – **ohne Artikel**: den sagt der Prozess."""
     return {"module_type": "beschaffen",
-            "config": {"article": article.object_id,
+            "config": {"instruction": instruction,
                        "suppliers": [s.object_id for s in suppliers]}}
+
+
+def _total(db, order, row) -> int:
+    """Die Gesamtmenge des Belegs – die Summe seiner (abgeleiteten) Zeilen."""
+    from app.services import purchase as svc
+    return sum(int(line["quantity"]) for line in svc.lines_of(db, order, row))
 
 
 def _make(db, *, quantity: int, article, steps=None):
@@ -107,13 +114,22 @@ def _staff(db):
 
 
 def _confirm_all(db, order, step):
-    """Wareneingang für jede wartende Instanz – ein Vorgang je Instanz (Scan-Regel)."""
+    """Wareneingang, bis nichts mehr davorsteht – **nach jedem Vorgang neu gefragt**.
+
+    Ein Vorgang ist EINE Instanz (Scan-Regel); was dabei sonst noch vorrückt (der
+    ungezogene Rest einer Stichprobe), entscheidet der Prozess. Eine vorab genommene
+    Liste abzuarbeiten hiesse, den zweiten Vorgang auf einem Stand zu fahren, den es
+    nach dem ersten nicht mehr gibt.
+    """
     from app.services import process as proc
-    for row in proc.step_work(db, order, step):
+    while True:
+        work = proc.step_work(db, order, step)
+        if not work:
+            return
         proc.confirm_step(db, order=order, step_id=step.id, actor_id=None, values={},
-                          instance_object_id=row["instance_object_id"],
+                          instance_object_id=work[0]["instance_object_id"],
                           verification="scan")
-    db.flush()
+        db.flush()
 
 
 # ---------------------------------------------------------------------------
@@ -131,11 +147,8 @@ def test_the_module_never_creates_a_single_unit():
     db = _db()
     try:
         wuerth = _supplier(db, "Würth AG")
-        screw = _article(db, "Schraube M6")
         # Der Prozess des Artikels: eine einzige Beschaffung.
-        screw2 = _article(db, "Schraube M6 (Vorlage)")
-        steps = [_buy_step(screw2, [wuerth])]
-        art = _article(db, "Schraube M6 (Zukauf)", steps=steps)
+        art = _article(db, "Schraube M6 (Zukauf)", steps=[_buy_step([wuerth])])
 
         before = db.query(InstanceUnit).count()
         order, rows = _make(db, quantity=5, article=art)
@@ -157,35 +170,49 @@ def test_the_module_never_creates_a_single_unit():
             "Das Beschaffungs-Modul hat Einzelinstanzen erzeugt – der einzige Weg dorthin "
             "ist die Freigabe eines Erzeugungsauftrags."
         )
-        assert screw is not None
     finally:
         db.rollback(); db.close()
 
 
-def test_a_service_never_shows_up_in_stock():
-    """**Eine Leistung erzeugt nichts** – also steht sie nirgends im Bestand.
+def test_a_service_is_an_instruction_not_an_article():
+    """**Eine Leistung braucht keinen Artikel** – sie ist der Auftrag an den Lieferanten.
 
-    «Härten» wird an einem Stück gekauft, das es schon gibt. Der Artikel steht auf dem
-    Beleg und sonst nirgends; es braucht kein Feld, das ihn aus dem Bestand ausschliesst.
+    «Härten» wird an einem Stück gekauft, das es schon gibt: auf dem Beleg steht die
+    **Welle** (sie steht vor dem Modul), und was mit ihr geschehen soll, steht als Satz
+    daneben. Vorher war «Härten» ein eigener Artikel – ein Datensatz, der nie Material
+    wird, in Bestand, Stückliste und Auswahl aber wie einer aussieht.
+
+    Bug-Form: der Beleg nennt einen anderen Artikel als den, dessen Stücke davorstehen.
+    Dann bestellt man etwas, das mit dem Auftrag nichts zu tun hat.
     """
     from app.models import Instance
     from app.services import purchase as svc
     db = _db()
     try:
         hardener = _supplier(db, "Härterei Meier")
-        service = _article(db, "Härten")
-        shaft = _article(db, "Welle", steps=[_buy_step(service, [hardener])])
+        shaft = _article(db, "Welle",
+                         steps=[_buy_step([hardener], "Härten auf 58 HRC")])
         order, rows = _make(db, quantity=3, article=shaft)
         staff = _staff(db)
+
+        facts = svc.embed_data(db, order=order, step=rows[0])
+        assert [l["article_object_id"] for l in facts["lines"]] == [shaft.object_id], (
+            "Der Beleg nennt einen anderen Artikel als den, dessen Stücke davorstehen."
+        )
+        assert facts["instruction"] == "Härten auf 58 HRC", (
+            "Was der Lieferant tun soll, steht nirgends – die Spezifikation beschreibt "
+            "die Sache, nicht den Auftrag."
+        )
+
         svc.apply(db, order=order, step=rows[0], action="ask",
                   payload={"suppliers": [hardener.object_id]}, actor=staff)
         svc.apply(db, order=order, step=rows[0], action="order",
                   payload={"supplier": hardener.object_id, "amount": 150}, actor=staff)
         _confirm_all(db, order, rows[0])
 
-        assert db.query(Instance).filter(Instance.article_id == service.id).count() == 0, (
-            "Für die gekaufte Leistung ist Bestand entstanden – sie ist aber kein "
-            "Material, sondern eine Zeile auf dem Beleg."
+        assert db.query(Instance).filter(Instance.article_id == shaft.id).count() == 1, (
+            "Das Härten hat Bestand erzeugt – es ist aber eine Leistung an einem Stück, "
+            "das es schon gibt."
         )
     finally:
         db.rollback(); db.close()
@@ -208,7 +235,7 @@ def test_the_stages_belong_to_the_document_not_to_the_piece():
     try:
         wuerth = _supplier(db, "Würth AG")
         target = _article(db, "Schraube M6")
-        art = _article(db, "Schraube", steps=[_buy_step(target, [wuerth])])
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
         order, rows = _make(db, quantity=4, article=art)
         staff = _staff(db)
 
@@ -248,8 +275,7 @@ def test_a_partial_delivery_is_a_partial_confirmation():
     db = _db()
     try:
         wuerth = _supplier(db, "Würth AG")
-        target = _article(db, "Schraube M6")
-        art = _article(db, "Schraube", steps=[_buy_step(target, [wuerth])],
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])],
                        serialization="unit")
         order, rows = _make(db, quantity=3, article=art)
         staff = _staff(db)
@@ -273,7 +299,7 @@ def test_a_partial_delivery_is_a_partial_confirmation():
                               verification="scan")
         db.flush()
         assert svc.of_step(db, rows[0].id).stage == "wareneingang"
-        assert target.landed_unit_cost is not None, (
+        assert art.landed_unit_cost is not None, (
             "Der Einstandspreis wandert beim Abschluss an den Artikel – Summe ÷ Menge."
         )
     finally:
@@ -288,7 +314,7 @@ def test_nothing_arrives_before_it_was_ordered():
     try:
         wuerth = _supplier(db, "Würth AG")
         target = _article(db, "Schraube M6")
-        art = _article(db, "Schraube", steps=[_buy_step(target, [wuerth])])
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
         order, rows = _make(db, quantity=2, article=art)
         work = proc.step_work(db, order, rows[0])
         with pytest.raises(HTTPException) as err:
@@ -317,7 +343,7 @@ def test_one_counter_action_and_the_stage_says_what_it_does():
     try:
         wuerth = _supplier(db, "Würth AG")
         target = _article(db, "Schraube M6")
-        art = _article(db, "Schraube", steps=[_buy_step(target, [wuerth])])
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
         order, rows = _make(db, quantity=2, article=art)
         staff = _staff(db)
 
@@ -356,7 +382,7 @@ def test_a_cancelled_document_keeps_the_way_it_walked():
     db = _db()
     try:
         wuerth = _supplier(db, "Würth AG")
-        art = _article(db, "Schraube", steps=[_buy_step(_article(db, "Rohling"), [wuerth])])
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
         order, rows = _make(db, quantity=2, article=art)
         staff = _staff(db)
 
@@ -400,11 +426,11 @@ def test_before_the_order_the_quantity_follows_after_it_we_ask():
     try:
         wuerth = _supplier(db, "Würth AG")
         target = _article(db, "Schraube M6")
-        art = _article(db, "Schraube", steps=[_buy_step(target, [wuerth])])
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
         order, rows = _make(db, quantity=5, article=art)
         staff = _staff(db)
         row = svc.of_step(db, rows[0].id)
-        assert int(svc.quantity_of(db, order, row)) == 5
+        assert _total(db, order, row) == 5
 
         # Ein Stück verlässt den Auftrag (eine Abweichung greift zu) – noch nicht bestellt.
         from app.models import OrderUnit
@@ -415,7 +441,7 @@ def test_before_the_order_the_quantity_follows_after_it_we_ask():
         taken.released_at = datetime.now(timezone.utc)
         db.flush()
         svc.rebase(db, order)
-        assert int(svc.quantity_of(db, order, svc.of_step(db, rows[0].id))) == 4, (
+        assert _total(db, order, svc.of_step(db, rows[0].id)) == 4, (
             "Vor der Bestellung ist niemand ausser uns beteiligt – die Menge zieht nach."
         )
 
@@ -432,7 +458,7 @@ def test_before_the_order_the_quantity_follows_after_it_we_ask():
         db.flush()
         svc.rebase(db, order)
         row = svc.of_step(db, rows[0].id)
-        assert int(svc.quantity_of(db, order, row)) == 4, (
+        assert _total(db, order, row) == 4, (
             "Die Menge hat sich nach der Bestellung still geändert – der Beleg beim "
             "Lieferanten sagt etwas anderes."
         )
@@ -440,7 +466,7 @@ def test_before_the_order_the_quantity_follows_after_it_we_ask():
 
         svc.apply(db, order=order, step=rows[0], action="clarified", payload={}, actor=staff)
         row = svc.of_step(db, rows[0].id)
-        assert int(svc.quantity_of(db, order, row)) == 3
+        assert _total(db, order, row) == 3
         assert svc.mismatch(db, order, row) is None
     finally:
         db.rollback(); db.close()
@@ -476,7 +502,7 @@ def test_a_supplier_never_sees_a_foreign_quote():
         a = _supplier(db, "Würth AG")
         b = _supplier(db, "Bossard AG")
         target = _article(db, "Schraube M6")
-        art = _article(db, "Schraube", steps=[_buy_step(target, [a, b])])
+        art = _article(db, "Schraube", steps=[_buy_step([a, b])])
         order, rows = _make(db, quantity=2, article=art)
         staff = _staff(db)
         svc.apply(db, order=order, step=rows[0], action="ask",
@@ -509,7 +535,7 @@ def test_a_supplier_offers_and_the_buyer_orders():
         a = _supplier(db, "Würth AG")
         b = _supplier(db, "Bossard AG")
         target = _article(db, "Schraube M6")
-        art = _article(db, "Schraube", steps=[_buy_step(target, [a, b])])
+        art = _article(db, "Schraube", steps=[_buy_step([a, b])])
         order, rows = _make(db, quantity=2, article=art)
         staff = _staff(db)
         svc.apply(db, order=order, step=rows[0], action="ask",
@@ -558,7 +584,7 @@ def test_a_supplier_sees_his_module_and_nothing_else():
         wuerth = _supplier(db, "Würth AG")
         other = _supplier(db, "Fremd AG")
         art = _article(db, "Schraube", steps=[
-            _buy_step(_article(db, "Rohling"), [wuerth]),
+            _buy_step([wuerth]),
             {"module_type": "datenerfassung",
              "config": {"points": [{"key": "t", "type": "text", "label": "Notiz"}]}},
         ])
@@ -617,17 +643,22 @@ def test_one_supplier_is_a_list_with_one_entry():
     from app.domain import modules
 
     m = modules.get("beschaffen")
-    one = m.clean_config({"suppliers": [100000001], "article": 100000002})
+    one = m.clean_config({"suppliers": [100000001], "instruction": "liefern"})
     assert one["suppliers"] == [100000001]
-    three = m.clean_config({"suppliers": [1, 2, 3], "article": 9})
+    three = m.clean_config({"suppliers": [1, 2, 3], "instruction": "liefern"})
     assert three["suppliers"] == [1, 2, 3]
 
     with pytest.raises(HTTPException):
-        m.clean_config({"suppliers": [], "article": 9})
+        m.clean_config({"suppliers": [], "instruction": "liefern"})
     with pytest.raises(HTTPException):
-        m.clean_config({"suppliers": [1], "article": None})
-    with pytest.raises(HTTPException):
-        m.clean_config({"suppliers": [1, 1], "article": 9})
+        m.clean_config({"suppliers": [1, 1], "instruction": "liefern"})
+
+    # **Kein Artikelfeld – und es kommt auch nicht durch die Hintertür zurück.**
+    assert "article" not in m.clean_config({"suppliers": [1], "instruction": "x",
+                                            "article": 42}), (
+        "Die Konfiguration nimmt wieder einen Artikel entgegen – damit gibt es zwei "
+        "Aussagen darüber, was bestellt wird."
+    )
 
 
 def test_the_module_is_a_pass_through_and_not_an_exit():
@@ -669,13 +700,12 @@ def test_the_quantity_is_never_an_input():
     db = _db()
     try:
         wuerth = _supplier(db, "Würth AG")
-        target = _article(db, "Schraube M6", moq=Decimal(100))
-        art = _article(db, "Schraube", steps=[_buy_step(target, [wuerth])])
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])], moq=Decimal(100))
         order, rows = _make(db, quantity=5, article=art)
         staff = _staff(db)
         row = svc.of_step(db, rows[0].id)
 
-        assert int(svc.quantity_of(db, order, row)) == 5, (
+        assert _total(db, order, row) == 5, (
             "Die Menge ist die Zahl der Einzelinstanzen, die vor dem Modul stehen."
         )
         assert "quantity" not in PurchaseUpdate.model_fields, (
@@ -687,16 +717,16 @@ def test_the_quantity_is_never_an_input():
         # Schema nicht kennt – die Regel steht im Schema, nicht in einer Prüfung daneben.
         svc.apply(db, order=order, step=rows[0], action="ask",
                   payload={"suppliers": [wuerth.object_id], "quantity": 100}, actor=staff)
-        assert int(svc.quantity_of(db, order, svc.of_step(db, rows[0].id))) == 5
+        assert _total(db, order, svc.of_step(db, rows[0].id)) == 5
 
         svc.apply(db, order=order, step=rows[0], action="order",
                   payload={"supplier": wuerth.object_id, "amount": 50, "quantity": 100},
                   actor=staff)
         after = svc.of_step(db, rows[0].id)
-        assert int(svc.quantity_of(db, order, after)) == 5, (
+        assert _total(db, order, after) == 5, (
             "Beim Bestellen wird die Menge des PROZESSES eingefroren, nicht eine getippte."
         )
-        assert int(after.ordered_for) == 5
+        assert [int(l["quantity"]) for l in after.ordered_lines] == [5]
     finally:
         db.rollback(); db.close()
 
@@ -713,7 +743,7 @@ def test_an_offer_without_a_lead_time_is_not_an_offer():
     db = _db()
     try:
         wuerth = _supplier(db, "Würth AG")
-        art = _article(db, "Schraube", steps=[_buy_step(_article(db, "Rohling"), [wuerth])])
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
         order, rows = _make(db, quantity=2, article=art)
         staff = _staff(db)
         svc.apply(db, order=order, step=rows[0], action="ask",
@@ -734,5 +764,213 @@ def test_an_offer_without_a_lead_time_is_not_an_offer():
                   actor=staff)
         quote = svc.of_step(db, rows[0].id).quotes[0]
         assert quote["state"] == "offeriert" and quote["lead_days"] == 5
+    finally:
+        db.rollback(); db.close()
+
+
+# ---------------------------------------------------------------------------
+# §7 – was beschafft wird, sagt der Prozess
+# ---------------------------------------------------------------------------
+
+def test_what_is_bought_comes_from_the_process():
+    """**Kein Artikelfeld – der Beleg liest, was vor dem Modul steht.**
+
+    Und daraus fällt der Mehrartikel-Fall von selbst heraus: stehen Stücke zweier Artikel
+    davor, hat der Beleg **zwei Zeilen** – EINE Bestellung mit zwei Positionen, wie im
+    echten Leben. Es braucht dafür keine Regel, nur eine Gruppierung.
+
+    Bug-Formen: (a) der Beleg nennt einen von Hand gewählten Artikel; (b) bei zwei
+    Artikeln nennt er nur einen – dann bestellt man die Hälfte, ohne es zu merken.
+    """
+    from app.services import purchase as svc
+    db = _db()
+    try:
+        wuerth = _supplier(db, "Würth AG")
+        screw = _article(db, "Schraube M6", steps=[_buy_step([wuerth])])
+        nut = _article(db, "Mutter M6")
+        order, rows = _make(db, quantity=4, article=screw)
+
+        facts = svc.embed_data(db, order=order, step=rows[0])
+        assert [(l["article_object_id"], l["quantity"]) for l in facts["lines"]] == [
+            (screw.object_id, 4.0)
+        ], "Die Zeile des Belegs stimmt nicht mit dem überein, was davorsteht."
+
+        # Ein zweiter Artikel tritt am Modul ein – dieselbe Bestellung, eine Zeile mehr.
+        from app.models import Instance, InstanceUnit, OrderUnit
+        from app.domain import statuses as st
+        from app.services import objects as obj
+        inst = Instance(object_id=obj.next_object_id(db), article_id=nut.id, kind="batch")
+        db.add(inst)
+        db.flush()
+        for suffix in (1, 2):
+            unit = InstanceUnit(instance_id=inst.id, suffix=suffix, status=st.IM_PROZESS)
+            db.add(unit)
+            db.flush()
+            db.add(OrderUnit(order_id=order.id, instance_unit_id=unit.id,
+                             current_step_id=rows[0].id))
+        db.flush()
+
+        two = svc.embed_data(db, order=order, step=rows[0])
+        got = {l["article_object_id"]: l["quantity"] for l in two["lines"]}
+        assert got == {screw.object_id: 4.0, nut.object_id: 2.0}, (
+            f"Zwei Artikel vor dem Modul sind ZWEI Zeilen auf EINEM Beleg – gesehen: {got}"
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_specification_travels_with_the_document():
+    """**Der Lieferant sieht die Sache – ohne dass jemand Felder auswählt.**
+
+    Die Spezifikation beschreibt das Teil und gilt für jeden Lieferanten; eine
+    Konfiguration «welche Felder sieht er?» wäre eine vierte Stelle für dieselbe Frage
+    und müsste bei zwei zugelassenen Lieferanten zweimal beantwortet werden.
+
+    **Die Lieferanten-Artikelnummer reist NICHT mit**: sie gehört genau einem Lieferanten,
+    und sie allen zu zeigen wäre genau der Fehler, den die dritte Schicht vermeidet.
+
+    Bug-Formen: (a) der Beleg trägt keine Spezifikation – dann weiss der Lieferant nicht,
+    was das Teil ist; (b) er trägt eine fremde Bestellnummer mit.
+    """
+    from decimal import Decimal
+    from app.services import article_fields, purchase as svc
+    db = _db()
+    try:
+        wuerth = _supplier(db, "Würth AG")
+        art = _article(db, "Welle", steps=[_buy_step([wuerth], "Härten auf 58 HRC")])
+        art.size = "12x12x300"
+        art.weight_kg = Decimal("2.500")
+        art.material = "1.4301"
+        art.supplier_article_number = "W-4711"
+        db.flush()
+
+        order, rows = _make(db, quantity=1, article=art)
+        spec = svc.embed_data(db, order=order, step=rows[0])["lines"][0]["spec"]
+        seen = {f["label"]: f["value"] for f in spec}
+        assert seen.get("Grösse") == "12x12x300 mm", seen
+        assert seen.get("Gewicht") == "2.5 kg", seen
+        assert seen.get("Werkstoff") == "1.4301", seen
+        assert "W-4711" not in str(seen), (
+            "Die Lieferanten-Artikelnummer reist mit – sie gehört EINEM Lieferanten."
+        )
+        # Leere Felder fallen weg: eine Zeile «Oberfläche: —» sagt weniger als keine.
+        assert "Oberfläche" not in seen, seen
+
+        # Und es gibt keine Auswahl mehr, welche Felder gezeigt werden.
+        assert not hasattr(article_fields, "normalize_shared_fields"), (
+            "Die Feld-Auswahl ist zurück – eine Spezifikation, die je nach Empfänger "
+            "anders lautet, ist keine."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_landed_cost_needs_exactly_one_line():
+    """**Summe ÷ Menge nur, wenn es EINE Zeile gibt.**
+
+    Bug-Form: die Bestellsumme wird durch die Gesamtmenge geteilt und beiden Artikeln als
+    Einstandspreis geschrieben. Dann steht an zwei Artikeln dieselbe Zahl, und für beide
+    ist sie falsch – mit ihr wird danach kalkuliert.
+    """
+    from app.services import purchase as svc
+    db = _db()
+    try:
+        wuerth = _supplier(db, "Würth AG")
+        screw = _article(db, "Schraube M6", steps=[_buy_step([wuerth])])
+        nut = _article(db, "Mutter M6")
+        order, rows = _make(db, quantity=4, article=screw)
+        staff = _staff(db)
+
+        # Erst der einfache Fall: eine Zeile, 4 Stück, 84.– → 21.– je Stück.
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [wuerth.object_id]}, actor=staff)
+        svc.apply(db, order=order, step=rows[0], action="order",
+                  payload={"supplier": wuerth.object_id, "amount": 84}, actor=staff)
+        _confirm_all(db, order, rows[0])
+        assert screw.landed_unit_cost is not None
+        assert float(screw.landed_unit_cost) == 21.0, screw.landed_unit_cost
+
+        # Und der gemischte: zwei Zeilen, nichts wird geschrieben.
+        second = _article(db, "Welle", steps=[_buy_step([wuerth])])
+        order2, rows2 = _make(db, quantity=2, article=second)
+        from app.models import Instance, InstanceUnit, OrderUnit
+        from app.domain import statuses as st
+        from app.services import objects as obj
+        inst = Instance(object_id=obj.next_object_id(db), article_id=nut.id, kind="batch")
+        db.add(inst)
+        db.flush()
+        unit = InstanceUnit(instance_id=inst.id, suffix=1, status=st.IM_PROZESS)
+        db.add(unit)
+        db.flush()
+        db.add(OrderUnit(order_id=order2.id, instance_unit_id=unit.id,
+                         current_step_id=rows2[0].id))
+        db.flush()
+
+        svc.apply(db, order=order2, step=rows2[0], action="ask",
+                  payload={"suppliers": [wuerth.object_id]}, actor=staff)
+        svc.apply(db, order=order2, step=rows2[0], action="order",
+                  payload={"supplier": wuerth.object_id, "amount": 300}, actor=staff)
+        _confirm_all(db, order2, rows2[0])
+        assert second.landed_unit_cost is None and nut.landed_unit_cost is None, (
+            "Bei zwei Zeilen wurde ein Einstandspreis erfunden – die Bestellsumme ist "
+            "eine gemeinsame, ihre Aufteilung muss ein Mensch vornehmen."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_instruction_is_mandatory_and_reaches_the_supplier():
+    """**Ohne den Satz ist das Modul nicht anlegbar** – und er steht auf dem Beleg.
+
+    Die Spezifikation beschreibt die Sache, nicht was mit ihr geschehen soll. Ein Beleg
+    ohne Auftrag ist eine Bestellung, aus der niemand liest, was verlangt ist.
+
+    Bug-Form: ``instruction`` ist optional oder wird beim Aufbau der Antwort vergessen.
+    """
+    from fastapi import HTTPException
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules
+
+    m = modules.get("beschaffen")
+    with pytest.raises(HTTPException) as caught:
+        m.clean_config({"suppliers": [1]})
+    assert caught.value.status_code == 400
+    with pytest.raises(HTTPException):
+        m.clean_config({"suppliers": [1], "instruction": "   "})
+    with pytest.raises(HTTPException):
+        m.clean_config({"suppliers": [1], "instruction": "x" * (m.MAX_INSTRUCTION + 1)})
+
+    clean = m.clean_config({"suppliers": [1], "instruction": "  Härten auf 58 HRC  "})
+    assert clean["instruction"] == "Härten auf 58 HRC", "Der Satz wird nicht getrimmt."
+
+
+def test_a_supplier_sees_the_specification_but_no_foreign_number():
+    """Die Spiegelung nimmt weg, sie erfindet nichts – der Auftrag bleibt lesbar.
+
+    Bug-Form: die Verengung auf «sein Modul» nimmt ihm auch die Sache und den Auftrag.
+    Dann sieht er eine Bestellung, ohne zu wissen, was er tun soll.
+    """
+    from app.services import purchase as svc
+    db = _db()
+    try:
+        a = _supplier(db, "Würth AG")
+        b = _supplier(db, "Bossard AG")
+        art = _article(db, "Welle", steps=[_buy_step([a, b], "Härten auf 58 HRC")])
+        art.size = "12x12x300"
+        db.flush()
+        order, rows = _make(db, quantity=2, article=art)
+        staff = _staff(db)
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [a.object_id, b.object_id]}, actor=staff)
+
+        mine = svc.embed_data(db, order=order, step=rows[0], viewer=b)
+        assert mine["instruction"] == "Härten auf 58 HRC", (
+            "Der Lieferant sieht nicht, was er tun soll."
+        )
+        assert [l["article_object_id"] for l in mine["lines"]] == [art.object_id]
+        assert any(f["label"] == "Grösse" for f in mine["lines"][0]["spec"]), (
+            "Der Lieferant sieht die Sache nicht – die Spezifikation reist mit dem Beleg."
+        )
     finally:
         db.rollback(); db.close()

@@ -33,6 +33,11 @@ class Purchase(Base, TimestampMixin):
     ausmacht: eine Bestellung hat genau einen Lieferanten und genau eine Summe, und
     danach fragt jede Auswertung.
 
+    ``ordered_lines`` ist, **was** bestellt wurde – abgeleitet aus dem Prozess und mit der
+    Bestellung eingefroren (siehe unten). Ein ``article_id`` gibt es nicht: der Beleg kann
+    zwei Artikel führen, und welche es sind, sagen die Einzelinstanzen, die vor dem Modul
+    stehen.
+
     ``reference`` ist, was der Lieferant zurückgibt – Bestellnummer, Link,
     Sendungsnummer. **Ein** Feld, weil es **eine** Frage ist: «woran erkennt er den
     Vorgang?». Drei Felder für drei Bestellarten wären dieselbe Angabe dreimal.
@@ -52,8 +57,6 @@ class Purchase(Base, TimestampMixin):
     #: mehrere Belege denselben Schritt – jede Beschaffung schreitet eigenständig fort.
     step_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
 
-    #: **Was** bestellt wird (interner Schlüssel des Artikels).
-    article_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     #: ``anfrage`` · ``bestellung`` · ``wareneingang`` · ``storniert``
     #: (``domain/modules.Beschaffen.STAGES``).
     stage: Mapped[str] = mapped_column(String(20), nullable=False, default="anfrage")
@@ -72,17 +75,22 @@ class Purchase(Base, TimestampMixin):
     quotes: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]")
 
-    #: **Die Menge des Belegs – und die einzige, die es gibt.**
+    #: **Die Zeilen des Belegs – und sie sind die einzige Aussage über Was und Wieviel.**
     #:
-    #: ``NULL``, solange nichts bestellt ist: dann IST die Menge, was vor dem Modul steht
-    #: (``purchase.quantity_of`` → ``unit_count``). Eine getippte Menge daneben wäre eine
-    #: zweite Aussage über dieselbe Sache, und die getippte gewönne auch dann, wenn sie
-    #: falsch ist.
+    #: ``[{"article": <interner Schlüssel>, "quantity": 4}, …]``. ``NULL``, solange nichts
+    #: bestellt ist: dann SIND die Zeilen, was vor dem Modul steht (``purchase.
+    #: process_lines`` – Einzelinstanz → Instanz → Artikel). Ein Artikelfeld daneben wäre
+    #: eine zweite Aussage über dieselbe Sache, und die getippte gewönne auch dann, wenn
+    #: sie falsch ist.
     #:
-    #: Mit der Bestellung wird sie **eingefroren**: dort ist eine zweite Partei gebunden.
-    #: Verliert der Beleg danach seine Grundlage (ein Stück wird
-    #: ausgesondert, eine Abweichung greift), vergleicht ``services/purchase`` diese Zahl
-    #: mit der heutigen: vor der Bestellung zieht er still nach, ab ihr **meldet** er und
-    #: wartet auf die Bestätigung des Menschen. Ohne den Vermerk wüsste niemand, dass es
-    #: einmal fünf waren.
-    ordered_for: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 3), nullable=True)
+    #: **Mehrere Zeilen sind der Normalfall, kein Sonderfall**: stehen Stücke zweier
+    #: Artikel vor dem Modul, ist das EINE Bestellung mit zwei Positionen – wie im echten
+    #: Leben. Darum eine Liste und nicht ein Artikel mit einer Menge.
+    #:
+    #: Mit der Bestellung frieren sie **ein**: dort ist eine zweite Partei gebunden.
+    #: Verliert der Beleg danach seine Grundlage (ein Stück wird ausgesondert, eine
+    #: Abweichung greift), vergleicht ``services/purchase`` diese Zeilen mit den heutigen:
+    #: vor der Bestellung zieht er still nach, ab ihr **meldet** er und wartet auf die
+    #: Bestätigung des Menschen. Ohne den Vermerk wüsste niemand, dass es einmal fünf waren.
+    ordered_lines: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(
+        JSONB, nullable=True)
