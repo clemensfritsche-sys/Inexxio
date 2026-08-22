@@ -536,18 +536,46 @@ class Beschaffen(Module):
 
     ## Zwei Angaben, mehr nicht
 
-    ``suppliers``  die **zugelassenen** Lieferanten (mindestens einer).
-    ``article``    **was** bestellt wird.
+    ``suppliers``    die **zugelassenen** Lieferanten (mindestens einer).
+    ``instruction``  **was zu tun ist** – ein Satz, Pflicht.
 
     **Eine Liste mit einem Eintrag ist der Normalfall** – kein Modus, keine Verzweigung.
     Wer nur bei Würth kauft, hat eine Liste mit Würth; wer vergleichen will, nennt drei.
     Fachlich ist das die **Lieferantenfreigabe**: wer für dieses Teil in Frage kommt.
     Ein Einzelwert hätte den Vergleich zu einem zweiten Mechanismus gemacht.
 
+    **Kein Artikelfeld.** *Was* beschafft wird, sagt der **Prozess**: die Einzelinstanzen,
+    die vor dem Modul stehen, tragen ihren Artikel – ihn daneben zu tippen wäre eine
+    zweite Aussage über dieselbe Sache, und die getippte gewinnt auch dann, wenn sie
+    falsch ist. Daraus fällt der Mehrartikel-Fall von selbst heraus: stehen Stücke
+    zweier Artikel davor, hat der Beleg **zwei Zeilen** – EINE Bestellung, wie im echten
+    Leben (``purchase.process_lines``).
+
     **Keine Menge in der Konfiguration.** Beim Modellieren steht nicht fest, wie viele
-    Stücke ankommen – dieselbe Regel wie beim Verbrauch. Vorgeschlagen wird sie beim
-    Anlegen des Belegs (die Stücke des Auftrags, aufgerundet auf die Mindestbestellmenge
-    des Artikels) und dort auch erfasst.
+    Stücke ankommen – dieselbe Regel wie beim Verbrauch. Sie ist die Zahl der
+    Einzelinstanzen je Zeile und friert mit der Bestellung ein.
+
+    ## Woher der Lieferant weiss, was zu tun ist — drei Schichten, jede an ihrem Ort
+
+    ============ ===================================== ==============================
+    Was          Woher                                  Warum dort
+    ============ ===================================== ==============================
+    Die Sache    Artikel-Spezifikation (eingefroren)    Sie beschreibt das Teil und
+                                                        gilt für jeden Lieferanten.
+    Der Auftrag  ``instruction`` am Modul               «Härten auf 58 HRC» ist eine
+                                                        Eigenschaft dieses Schritts,
+                                                        nicht des Artikels – und ein
+                                                        Artikel hat mehrere Schritte.
+    Die Nummer   Angebotszeile bzw. ``reference``       Eine Bestellnummer gehört dem
+                                                        Lieferanten, nicht dem Teil.
+    ============ ===================================== ==============================
+
+    Die **Spezifikation reist mit dem Beleg** (``purchase.embed_data``), sie wird nicht
+    ausgewählt: eine «welche Felder sieht der Lieferant»-Konfiguration wäre eine vierte
+    Stelle für dieselbe Frage – und bei zwei Lieferanten müsste sie zweimal beantwortet
+    werden. Der Lieferant sieht die Sache; **was er damit tun soll**, steht in einem Satz
+    daneben. Ohne diesen Satz ist das Modul nicht anlegbar: eine Bestellung, aus der
+    niemand liest, was verlangt ist, ist keine.
 
     **Kein Modus «Webshop».** Jeder, bei dem man kauft, *ist* ein Lieferant – ob per
     Shop-Link, Telefon oder Portal, ist eine Eigenschaft **von ihm** und nicht dieser
@@ -569,7 +597,11 @@ class Beschaffen(Module):
     """
 
     SUPPLIERS = "suppliers"
-    ARTICLE = "article"
+    INSTRUCTION = "instruction"
+
+    #: Wie lang der Auftrag an den Lieferanten höchstens ist. Ein Satz, kein Pflichtenheft
+    #: – wer mehr braucht, hängt ein Dokument an den Artikel.
+    MAX_INSTRUCTION = 400
 
     #: Wie viele Lieferanten eine Freigabe höchstens nennt. Mehr ist keine Auswahl mehr,
     #: sondern eine Adressliste – und niemand fragt zwanzig Lieferanten je Schraube an.
@@ -604,19 +636,24 @@ class Beschaffen(Module):
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
         data = raw or {}
         suppliers = self._suppliers(data.get(self.SUPPLIERS))
-        article = self._object_id(data.get(self.ARTICLE))
-        if article is None:
+        instruction = str(data.get(self.INSTRUCTION) or "").strip()
+        if not instruction:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "«Beschaffen» braucht den Artikel, der bestellt wird. Bei einem "
-                    "Zukaufteil ist das der Artikel des Prozesses; bei einer Leistung "
-                    "(Härten, Versand) ein anderer."
+                    "«Beschaffen» braucht einen Satz, was der Lieferant tun soll – die "
+                    "Artikel-Spezifikation beschreibt die Sache, nicht den Auftrag "
+                    "(«Härten auf 58 HRC», «gemäss Zeichnung fertigen», «liefern»)."
                 ),
+            )
+        if len(instruction) > self.MAX_INSTRUCTION:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Der Auftrag ist zu lang (max. {self.MAX_INSTRUCTION} Zeichen).",
             )
         # Keine Erfassungspunkte und keine Stichprobe: was ankommt, kommt an. Die Felder
         # stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
-        return {self.SUPPLIERS: suppliers, self.ARTICLE: article,
+        return {self.SUPPLIERS: suppliers, self.INSTRUCTION: instruction,
                 "points": [], "sample": dict(sampling.DEFAULT)}
 
     def _suppliers(self, value: Any) -> list[int]:

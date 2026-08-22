@@ -1174,6 +1174,53 @@
 > Chromium: 1440 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über sechs
 > Beleg-Zustände; der abgeschlossene Beleg zeigt alles und hat **0** bedienbare Knöpfe.
 
+> **Was beschafft wird, sagt der PROZESS; was zu tun ist, sagt das MODUL** (Migration
+> `116`): Das Artikelfeld am Beschaffungs-Modul ist entfallen. Es war eine **zweite
+> Aussage über dieselbe Sache** – die Einzelinstanzen, die vor dem Modul stehen, tragen
+> ihren Artikel; die Zeilen des Belegs sind darum eine Ableitung (offene Zugehörigkeit →
+> Einzelinstanz → Instanz → Artikel, gruppiert und gezählt). **Mehrere Artikel sind der
+> Normalfall, kein Sonderfall**: stehen Stücke zweier Artikel davor, hat der Beleg zwei
+> Zeilen – EINE Bestellung mit zwei Positionen, wie im echten Leben; es braucht dafür
+> keine Regel, nur eine Gruppierung. Mit der Bestellung frieren sie ein
+> (`purchases.ordered_lines` ersetzt `ordered_for`), davor gibt es sie gar nicht – sie
+> **sind** der Prozess und ziehen von selbst nach. *Die eine Grenze, benannt statt
+> versteckt: zwei Artikel bei **verschiedenen** Lieferanten sind zwei Bestellungen, also
+> zwei Module – ein Beleg hat einen Lieferanten.*
+> **Woher der Lieferant weiss, was zu tun ist – drei Schichten, jede an ihrem Ort:** die
+> **Sache** aus der Artikel-Spezifikation (eingefroren, gilt für jeden Lieferanten), der
+> **Auftrag** aus `config.instruction` am Modul («Härten auf 58 HRC» ist eine Eigenschaft
+> *dieses* Schritts, nicht des Artikels – und ein Artikel hat mehrere Schritte), die
+> **Nummer** an der Angebotszeile bzw. `reference` (sie gehört dem Lieferanten, nicht dem
+> Teil). **Die Spezifikation reist mit dem Beleg, sie wird nicht ausgewählt**
+> (`services/article_fields` – der alte Katalog «welche Felder sieht der Lieferant?» hatte
+> null Aufrufer und kommt nicht zurück: bei zwei zugelassenen Lieferanten müsste dieselbe
+> Frage zweimal beantwortet werden, und eine Spezifikation, die je nach Empfänger anders
+> lautet, ist keine; wer etwas nicht zeigen will, schreibt es nicht hinein). Bewusst
+> **nicht** dabei: `serialization` (sagt, wie *wir* zählen), MOQ/Sicherheitsbestand
+> (unsere Dispositionsgrössen) und die **Lieferanten-Artikelnummer** – sie gehört genau
+> einem, und sie allen zu zeigen wäre genau der Fehler, den die dritte Schicht vermeidet.
+> **Der Auftrag ist Pflicht**, und er löst zugleich das Problem, das den Vorgänger zum
+> Artikelfeld gezwungen hatte: eine gekaufte **Leistung** braucht keinen eigenen Artikel
+> «Härten» mehr (einen Datensatz, der nie Material wird, in Bestand, Stückliste und
+> Auswahl aber wie einer aussieht) – auf dem Beleg steht die **Welle**, die davorsteht.
+> **Der Einstandspreis braucht genau EINE Zeile**: bei zwei Artikeln ist die Bestellsumme
+> eine gemeinsame, sie durch die Gesamtmenge zu teilen ergäbe für beide denselben – und
+> für beide falschen – Preis; die Aufteilung müsste ein Mensch vornehmen, also wird nichts
+> geschrieben statt eine Zahl zu erfinden, mit der danach kalkuliert wird.
+> **Zwei-Schritte-Regel wie gehabt:** `article_id` verliert in `116` nur seine
+> `NOT NULL`-Sperre (`_NULLABLE_SAFETY_NET`), `ordered_lines` kommt ins
+> `_COLUMN_SAFETY_NET`; gedroppt wird im **Folge-Deploy**, zusammen mit `quantity`,
+> `due_date` und `ordered_for`.
+> Wächter: `tests/test_purchase_module.py` (21 Prüfungen) + fünf in
+> `test_frontend_mirrors.py` – **sechs Bug-Formen gegengeprüft** (nur die erste Zeile ·
+> Einstandspreis bei zwei Zeilen · Lieferanten-Nummer reist mit · Spezifikation reist gar
+> nicht · Auftrag optional · Auftrag erreicht den Beleg nicht). Die Suite läuft grün gegen
+> die gewachsene Datenbank **und** gegen ein Schema, das nur aus den Migrationen kommt;
+> Migration `116` von null · idempotent · downgrade · über das Lifespan-Netz verifiziert.
+> Gemessen in Chromium: 1440 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf
+> über sieben Beleg-Zustände (inkl. Zwei-Zeilen-Beleg); der abgeschlossene Beleg zeigt
+> Zeilen, Spezifikation und Auftrag und hat **0** bedienbare Knöpfe.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

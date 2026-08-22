@@ -20,11 +20,16 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..domain import modules
 from ..domain.modules import Beschaffen
-from ..models import Article, Order, OrderUnit, ProcessStep, Purchase, UserProfile
+from ..models import (
+    Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, Purchase,
+    UserProfile,
+)
+from . import article_fields
 
 #: Die Zustände einer Angebotszeile. ``gewaehlt`` entsteht nicht durch Tippen, sondern
 #: dadurch, dass bei dieser Zeile bestellt wurde – ein Zustand ist eine Folge.
@@ -79,38 +84,39 @@ def steps_of(db: Session, order: Order) -> list[ProcessStep]:
     )
 
 
-def unit_count(db: Session, order: Order) -> int:
-    """**Wie viele Einzelinstanzen gehören diesem Auftrag gerade?**
+def process_lines(db: Session, order: Order) -> list[tuple[int, int]]:
+    """**Was steht vor dem Modul?** – je Artikel eine Zeile ``(article_id, Stück)``.
 
-    Die offene Zugehörigkeit – dieselbe Grösse, aus der der Prozess überall rechnet. Sie
-    ist die Grundlage der Bestellmenge und zugleich das, wogegen ``rebase`` prüft.
+    Der Weg ist derselbe, aus dem der Prozess überall rechnet: offene Zugehörigkeit →
+    Einzelinstanz → Instanz → Artikel. Sortiert nach Objektnummer, damit die Reihenfolge
+    des Belegs nicht von der Datenbank abhängt.
     """
-    return (
-        db.query(OrderUnit)
+    rows = (
+        db.query(Instance.article_id, func.count(OrderUnit.id))
+        .join(InstanceUnit, InstanceUnit.instance_id == Instance.id)
+        .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
         .filter(OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None))
-        .count()
+        .group_by(Instance.article_id)
+        .all()
     )
+    return sorted(((int(a), int(n)) for a, n in rows), key=lambda r: r[0])
 
 
-def quantity_of(db: Session, order: Order, row: Purchase) -> Decimal:
-    """**Die Bestellmenge ist keine Eingabe – sie ist, was vor dem Modul steht.**
+def lines_of(db: Session, order: Order, row: Purchase) -> list[dict[str, Any]]:
+    """**Die Zeilen des Belegs** – Artikel · Menge, und beides abgeleitet.
 
-    Ein Beschaffungs-Modul sitzt in einem Prozess: wie viel bestellt wird, sagen die
-    Einzelinstanzen, die diesem Auftrag gehören (``unit_count``). Sie zusätzlich tippen zu
-    lassen wäre eine **zweite Aussage über dieselbe Sache** – und die getippte gewinnt,
-    auch wenn sie falsch ist.
+    Ein Beschaffungs-Modul sitzt in einem Prozess: **was** bestellt wird, sind die
+    Einzelinstanzen, die davorstehen – also ihre Artikel; **wie viel**, ist ihre Zahl.
+    Beides von Hand zu wählen wären zwei Aussagen über dieselbe Sache, und die gewählte
+    gewinnt auch dann, wenn sie falsch ist.
 
-    **Ab der Bestellung ist sie eingefroren** (``ordered_for``): dort ist eine zweite
-    Partei gebunden, und was bestellt wurde, ändert sich nicht mehr dadurch, dass der
-    Auftrag später Stücke verliert. Genau diese Differenz meldet ``mismatch``.
-
-    *Eine Mindestbestellmenge wird hier bewusst nicht aufgeschlagen*: das Modul erzeugt
-    keine Einzelinstanzen (§9.9), für die Übermenge gäbe es also gar keine Stücke – sie
-    käme an und existierte im System nicht.
+    **Mit der Bestellung frieren die Zeilen ein** (``ordered_lines``): dort ist eine
+    zweite Partei gebunden, und was bestellt wurde, ändert sich nicht mehr dadurch, dass
+    der Auftrag später Stücke verliert. Genau diese Differenz meldet ``mismatch``.
     """
-    if row.ordered_for is not None:
-        return Decimal(row.ordered_for)
-    return Decimal(unit_count(db, order))
+    if row.ordered_lines:
+        return [dict(line) for line in row.ordered_lines]
+    return [{"article": a, "quantity": n} for a, n in process_lines(db, order)]
 
 
 def instantiate_for_order(db: Session, order: Order) -> list[Purchase]:
@@ -127,20 +133,8 @@ def instantiate_for_order(db: Session, order: Order) -> list[Purchase]:
     for step in steps_of(db, order):
         if db.query(Purchase).filter(Purchase.step_id == step.id).first():
             continue
-        wanted = (step.config or {}).get(Beschaffen.ARTICLE)
-        article = (
-            db.query(Article).filter(Article.object_id == wanted).first() if wanted else None
-        )
-        if article is None:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"«Beschaffen» verweist auf Artikel {wanted} – den gibt es nicht. "
-                        f"Ohne ihn steht nicht fest, was bestellt werden soll."),
-            )
-        row = Purchase(
-            order_id=order.id, step_id=step.id, article_id=article.id,
-            stage=Beschaffen.STAGES[0], quotes=[],
-        )
+        row = Purchase(order_id=order.id, step_id=step.id,
+                       stage=Beschaffen.STAGES[0], quotes=[])
         db.add(row)
         made.append(row)
     if made:
@@ -180,25 +174,29 @@ def of_step(db: Session, step_id: int) -> Optional[Purchase]:
 
 
 def mismatch(db: Session, order: Order, row: Purchase) -> Optional[int]:
-    """**Rechnet dieser Beleg noch mit der richtigen Menge?** ``None`` = ja.
+    """**Rechnet dieser Beleg noch mit der richtigen Grundlage?** ``None`` = ja.
 
-    Verglichen wird, womit **bestellt** wurde (``ordered_for``), mit dem, was der Auftrag
-    heute hält. Vor der Bestellung gibt es kein ``ordered_for`` – dort gibt es auch nichts
-    zu klären, weil ``rebase`` die Zahl still nachzieht.
+    Verglichen wird, womit **bestellt** wurde (``ordered_lines``), mit dem, was heute vor
+    dem Modul steht. Vor der Bestellung gibt es nichts zu klären – dort zieht der Beleg
+    still nach, weil ausser uns niemand beteiligt ist.
+
+    Zurück kommt die **heutige Gesamtmenge**; welche Zeile sich geändert hat, steht in
+    den Zeilen selbst.
     """
-    if row.stage != Beschaffen.BINDING or row.ordered_for is None:
+    if row.stage != Beschaffen.BINDING or not row.ordered_lines:
         return None
-    now = unit_count(db, order)
-    return now if Decimal(now) != Decimal(row.ordered_for) else None
+    now = process_lines(db, order)
+    ordered = [(int(l["article"]), int(l["quantity"])) for l in row.ordered_lines]
+    return sum(n for _, n in now) if now != ordered else None
 
 
 def rebase(db: Session, order: Order) -> None:
     """**Die Grundlage hat sich geändert** – was folgt, hängt an der Stufe.
 
-    *Vor* der Bestellung ist niemand ausser uns beteiligt: die Menge zieht **still** nach.
-    *Ab* der Bestellung liegt sie beim Lieferanten – dann ändert das System nichts,
-    sondern **meldet** (``mismatch``) und wartet auf ``clarified``. Eine stille Änderung
-    wäre ein Beleg, der nicht mehr stimmt, und niemand hätte es gemerkt.
+    *Vor* der Bestellung ist niemand ausser uns beteiligt: die Zeilen werden gar nicht
+    gespeichert, sie **sind** der Prozess (``lines_of``) und ziehen damit von selbst nach.
+    *Ab* der Bestellung liegen sie beim Lieferanten – dann ändert das System nichts,
+    sondern **meldet** (``mismatch``) und wartet auf ``clarified``.
 
     Bleibt **nichts** übrig, ist der Beleg gegenstandslos: ``storniert``. Das ist keine
     zusätzliche Regel, sondern dieselbe eine Stufe weiter – man bestellt nichts für null
@@ -210,20 +208,45 @@ def rebase(db: Session, order: Order) -> None:
     rows = db.query(Purchase).filter(Purchase.order_id == order.id).all()
     if not rows:
         return
-    now = unit_count(db, order)
+    empty = not process_lines(db, order)
     for row in rows:
         if row.stage in (Beschaffen.STAGES[-1], Beschaffen.CANCELLED):
             continue                      # Vergangenheit wird nicht umgeschrieben
-        if now == 0:
+        if empty:
             row.stage = Beschaffen.CANCELLED
     db.flush()
 
 
-def _article(db: Session, row: Purchase) -> Optional[Article]:
-    return db.query(Article).filter(Article.id == row.article_id).first()
+def _articles(db: Session, ids: list[int]) -> dict[int, Article]:
+    """Die Artikel der Beleg-Zeilen – **eine** Abfrage, nicht eine je Zeile."""
+    if not ids:
+        return {}
+    return {a.id: a for a in db.query(Article).filter(Article.id.in_(ids)).all()}
 
 
 # ─── Was die Ausführungsstelle sieht ─────────────────────────────────────────
+
+
+def _line_facts(db: Session, lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Die Zeilen des Belegs als Auskunft – **mit der Spezifikation ihres Artikels**.
+
+    Sie reist mit, statt ausgewählt zu werden (``services/article_fields``): der
+    Lieferant sieht die Sache; **was er damit tun soll**, steht als ein Satz daneben.
+    Ein Artikel, den es nicht mehr gibt, lässt die Zeile stehen (die Menge wurde
+    bestellt) – tolerant lesen, streng schreiben.
+    """
+    found = _articles(db, [int(line["article"]) for line in lines])
+    out: list[dict[str, Any]] = []
+    for line in lines:
+        article = found.get(int(line["article"]))
+        out.append({
+            "article_object_id": article.object_id if article else 0,
+            "article_name": article.name if article else "",
+            "unit": getattr(article, "unit", "") or "",
+            "quantity": float(line.get("quantity") or 0),
+            "spec": article_fields.specification(article),
+        })
+    return out
 
 
 def embed_data(db: Session, *, order: Order, step: ProcessStep,
@@ -237,8 +260,8 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     row = of_step(db, step.id)
     if row is None:
         return None
-    article = _article(db, row)
-    allowed = (step.config or {}).get(Beschaffen.SUPPLIERS) or []
+    config = step.config or {}
+    allowed = config.get(Beschaffen.SUPPLIERS) or []
     names = _names(db, allowed + [q["supplier"] for q in row.quotes or []])
     mine = viewer.object_id if viewer is not None and viewer.role == "supplier" else None
 
@@ -250,10 +273,8 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     return {
         "stage": row.stage,
         "stages": _stages(row),
-        "article_object_id": article.object_id if article else 0,
-        "article_name": article.name if article else "",
-        "unit": getattr(article, "unit", "") or "",
-        "quantity": float(quantity_of(db, order, row)),
+        "lines": _line_facts(db, lines_of(db, order, row)),
+        "instruction": config.get(Beschaffen.INSTRUCTION) or "",
         "allowed": [
             {"supplier_object_id": n, "supplier_name": names.get(n, ""), "state": ASKED}
             for n in allowed if mine is None or n == mine
@@ -354,12 +375,28 @@ def note_receipt(db: Session, *, order: Order, step: ProcessStep) -> None:
     if waiting:
         return
     row.stage = Beschaffen.STAGES[-1]
-    article = _article(db, row)
-    ordered = quantity_of(db, order, row)
-    if article is not None and row.amount is not None and ordered:
-        article.landed_unit_cost = (Decimal(row.amount) / ordered
-                                    ).quantize(Decimal("0.0001"))
+    _write_landed_cost(db, row)
     db.flush()
+
+
+def _write_landed_cost(db: Session, row: Purchase) -> None:
+    """Summe ÷ Menge → Einstandspreis am Artikel – **nur bei EINER Zeile**.
+
+    Bei zwei Artikeln auf einem Beleg ist die Bestellsumme eine gemeinsame; sie durch die
+    Gesamtmenge zu teilen ergäbe für beide denselben Preis, und das wäre für beide falsch.
+    Eine Aufteilung müsste jemand vornehmen – also wird hier nichts geschrieben, statt
+    eine Zahl zu erfinden, mit der später kalkuliert wird.
+    """
+    lines = row.ordered_lines or []
+    if len(lines) != 1 or row.amount is None:
+        return
+    quantity = Decimal(str(lines[0].get("quantity") or 0))
+    if not quantity:
+        return
+    article = db.query(Article).filter(Article.id == int(lines[0]["article"])).first()
+    if article is not None:
+        article.landed_unit_cost = (Decimal(row.amount) / quantity).quantize(
+            Decimal("0.0001"))
 
 
 # ─── Die sechs Handlungen ────────────────────────────────────────────────────
@@ -481,9 +518,10 @@ def _order(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     row.reference = (payload.get("reference") or "").strip() or None
     row.stage = Beschaffen.BINDING
     # **Womit bestellt wurde** – aus dem Prozess gelesen, im Moment der Zusage
-    # eingefroren. Ab hier ist es die Menge des Belegs; ``mismatch`` vergleicht sie mit
-    # dem, was der Auftrag heute hält.
-    row.ordered_for = Decimal(unit_count(db, order))
+    # eingefroren. Ab hier sind es die Zeilen des Belegs; ``mismatch`` vergleicht sie mit
+    # dem, was heute vor dem Modul steht.
+    row.ordered_lines = [{"article": a, "quantity": n}
+                         for a, n in process_lines(db, order)]
     row.quotes = [
         {**q, "state": CHOSEN if q["supplier"] == number else q["state"]}
         for q in (row.quotes or [])
@@ -522,13 +560,13 @@ def _revoke(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any]
 def _clarified(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
                allowed: list[int], actor: UserProfile) -> None:
     """«Der Lieferant hat zugestimmt» – jetzt darf die Menge nachziehen."""
-    now = mismatch(db, order, row)
-    if now is None:
+    if mismatch(db, order, row) is None:
         raise HTTPException(
             status_code=409,
             detail="An diesem Beleg gibt es nichts zu klären – die Menge stimmt.",
         )
-    row.ordered_for = Decimal(now)
+    row.ordered_lines = [{"article": a, "quantity": n}
+                         for a, n in process_lines(db, order)]
 
 
 def _only_in(row: Purchase, stage: str, message: str) -> None:

@@ -1364,6 +1364,46 @@ def test_the_purchase_panel_asks_for_nothing_the_process_already_knows():
     )
 
 
+def test_the_purchase_module_has_no_article_field():
+    """**Was beschafft wird, sagt der Prozess; was zu tun ist, sagt das Modul.**
+
+    Das Artikelfeld am Beschaffungs-Modul war eine zweite Aussage über dieselbe Sache –
+    die Einzelinstanzen vor dem Modul tragen ihren Artikel. Was fehlte, war der
+    **Auftrag** an den Lieferanten: die Spezifikation beschreibt die Sache, nicht was mit
+    ihr geschehen soll.
+
+    Bug-Formen: (a) der Editor fragt wieder nach einem Artikel; (b) der Beleg zeigt einen
+    einzelnen Artikel statt seiner Zeilen; (c) der Auftrag ist optional.
+    """
+    designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
+    assert "Was bestellt wird" not in designer and "purchaseArticle" not in designer, (
+        "Der Editor fragt wieder nach einem Artikel – der steht im Prozess."
+    )
+    assert "Auftrag an den Lieferanten" in designer, (
+        "Der Auftrag an den Lieferanten fehlt – ohne ihn weiss er, WAS das Teil ist, "
+        "aber nicht, was er tun soll."
+    )
+
+    modules_ts = _read(FRONTEND / "lib" / "modules.ts")
+    assert "purchaseArticle" not in modules_ts, "Der Entwurf trägt wieder einen Artikel."
+    assert "kein Auftrag an den Lieferanten" in modules_ts, (
+        "Ein Beschaffungs-Modul ohne Auftrag gilt wieder als vollständig."
+    )
+
+    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
+    assert "p.article_name" not in panel and "p.quantity" not in panel, (
+        "Der Beleg zeigt wieder EINEN Artikel mit EINER Menge – zwei Artikel vor dem "
+        "Modul sind aber zwei Zeilen auf einem Beleg."
+    )
+    assert "p.lines.map" in panel and "p.instruction" in panel, (
+        "Der Beleg zeigt seine Zeilen oder seinen Auftrag nicht."
+    )
+    assert "l.spec" in panel, (
+        "Die Spezifikation steht nicht auf dem Beleg – sie ist die eine Auskunft, die "
+        "der Lieferant über die Sache bekommt."
+    )
+
+
 def test_a_supplier_sees_his_module_without_the_process_picture():
     """**Die Lieferanten-Sicht ist eine Spiegelung** (Testnotiz #747).
 

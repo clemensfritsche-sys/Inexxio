@@ -31,11 +31,17 @@ import { formatAmount } from '@/lib/utils';
  * dagegen ein Mensch; dieses Modul legt keinen Auftrag an.
  */
 /** Derselbe Beleg, nur mit gefüllten Listen – siehe `PurchaseWork`. */
-type Filled = Omit<PurchaseEmbed, 'stages' | 'quotes' | 'allowed'> & {
+type Filled = Omit<PurchaseEmbed, 'stages' | 'quotes' | 'allowed' | 'lines'> & {
   stages: NonNullable<PurchaseEmbed['stages']>;
   quotes: NonNullable<PurchaseEmbed['quotes']>;
   allowed: NonNullable<PurchaseEmbed['allowed']>;
+  lines: NonNullable<PurchaseEmbed['lines']>;
 };
+
+/** Die Gesamtmenge des Belegs – die Summe seiner Zeilen, an EINER Stelle gerechnet. */
+function total(p: Filled): number {
+  return p.lines.reduce((sum, l) => sum + (l.quantity ?? 0), 0);
+}
 
 export function PurchaseWork({ purchase, busy, active = true, onAction, children }: {
   purchase: PurchaseEmbed;
@@ -58,12 +64,13 @@ export function PurchaseWork({ purchase, busy, active = true, onAction, children
   // weil Pydantic-Defaults dort so ankommen. Einmal hier vereinheitlicht statt an jeder
   // Lesestelle ein `?? []`.
   const p = { ...purchase, stages: purchase.stages ?? [], quotes: purchase.quotes ?? [],
-              allowed: purchase.allowed ?? [] };
+              allowed: purchase.allowed ?? [], lines: purchase.lines ?? [] };
   const cancelled = p.stage === 'storniert';
   const live = active && !cancelled;
 
   return (
     <div className="flex flex-col">
+      <Subject p={p} />
       {p.stages.map((stage, i) => {
         const last = i === p.stages.length - 1;
         // **Die Regel der Hauptachse, eine Ebene tiefer**: kräftig bis zur offenen
@@ -87,7 +94,7 @@ export function PurchaseWork({ purchase, busy, active = true, onAction, children
                   color: stage.active && !cancelled ? 'var(--fg-1)'
                     : stage.done ? 'var(--fg-2)' : 'var(--fg-4)',
                 }}>{stage.label}</span>
-                {i === 0 && <Summary p={p} />}
+
               </div>
               {/* **Eine Stufe zeigt, was sie trägt – auch wenn sie vorbei ist.**
                   Gehandelt wird nur an der Stufe, die dran ist UND deren Modul dran ist. */}
@@ -126,13 +133,51 @@ function Dot({ done, active }: { done: boolean; active: boolean }) {
   );
 }
 
-/** Was gekauft wird – einmal, an der ersten Stufe. Nicht in jeder Zeile wiederholt. */
-function Summary({ p }: { p: Filled }) {
+/**
+ * **Was beschafft wird — und was damit zu tun ist.** Der Gegenstand des Belegs, über der
+ * Kette und in **jedem** Zustand: er gehört dem ganzen Vorgang, nicht seiner ersten Stufe.
+ *
+ * **Die Zeilen sind abgeleitet, nicht getippt**: es sind die Artikel der Einzelinstanzen,
+ * die vor dem Modul stehen. Mehrere sind der Normalfall und kein Sonderfall – eine
+ * Bestellung mit zwei Positionen ist im echten Leben eine Bestellung.
+ *
+ * **Drei Schichten, jede an ihrem Ort**: die *Spezifikation* beschreibt die Sache (sie
+ * reist mit, sie wird nicht ausgewählt), der *Auftrag* sagt, was damit geschehen soll
+ * («Härten auf 58 HRC»), und die *Nummer* des Lieferanten steht an seiner Zeile. Ohne die
+ * mittlere Schicht wüsste ein Lieferant, **was** das Teil ist, aber nicht, was er tun soll.
+ */
+function Subject({ p }: { p: Filled }) {
+  if (p.lines.length === 0 && !p.instruction) return null;
   return (
-    <span className="truncate text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
-      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{p.quantity}</span>
-      {p.unit ? ` ${p.unit}` : ''} · {p.article_name}
-    </span>
+    <div className="flex flex-col gap-1.5"
+      style={{ paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid var(--border-1)' }}>
+      {p.lines.map((l) => (
+        <div key={l.article_object_id} className="flex flex-col gap-0.5">
+          <div className="flex flex-wrap items-baseline gap-2 text-[13px]">
+            <ObjId value={l.article_object_id} />
+            <span className="truncate" style={{ fontWeight: 600 }}>{l.article_name}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)' }}>
+              {l.quantity}{l.unit ? ` ${l.unit}` : ''}
+            </span>
+          </div>
+          {(l.spec ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[12px]"
+              style={{ color: 'var(--fg-3)' }}>
+              {(l.spec ?? []).map((f) => (
+                <span key={f.label}>
+                  <span style={{ color: 'var(--fg-4)' }}>{f.label}</span> {f.value}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      {p.instruction && (
+        <div className="text-[12.5px]" style={{ color: 'var(--fg-2)' }}>
+          <span style={{ color: 'var(--fg-4)' }}>Auftrag</span> {p.instruction}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -325,7 +370,7 @@ function Ordered({ p, busy, active, onAction }: {
         <div className="flex flex-wrap items-center gap-2 text-[12.5px]"
           style={{ color: 'var(--warning)' }}>
           <span>
-            Bestellt für <b style={{ fontVariantNumeric: 'tabular-nums' }}>{p.quantity}</b>,
+            Bestellt für <b style={{ fontVariantNumeric: 'tabular-nums' }}>{total(p)}</b>,
             gebraucht <b style={{ fontVariantNumeric: 'tabular-nums' }}>{p.clarify_quantity}</b>
             {' '}– mit Lieferant klären.
           </span>

@@ -22,7 +22,7 @@ import { ProcessColumns } from '@/components/erp/process-columns';
 import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
-import { IconSwitch, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { IconSwitch, Label, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';
@@ -300,22 +300,31 @@ function MoveFields({ module: m, onChange }: {
 }
 
 /**
- * **Beschaffen: bei wem — und was.** Zwei Angaben, mehr braucht ein Einkauf nicht.
+ * **Beschaffen: bei wem — und was zu tun ist.** Zwei Angaben, mehr braucht ein Einkauf nicht.
+ *
+ * **Kein Artikelfeld.** *Was* beschafft wird, sagt der Prozess: die Einzelinstanzen, die
+ * vor dem Modul stehen, tragen ihren Artikel. Es daneben zu tippen wäre eine zweite
+ * Aussage über dieselbe Sache – und die getippte gewinnt auch dann, wenn sie falsch ist.
+ * Stehen Stücke zweier Artikel davor, hat der Beleg zwei Zeilen: EINE Bestellung mit
+ * zwei Positionen, wie im echten Leben.
+ *
+ * **Dafür der Auftrag an den Lieferanten.** Die Artikel-Spezifikation beschreibt die
+ * Sache und reist mit dem Beleg; was mit ihr geschehen soll, steht dort nicht – «Härten
+ * auf 58 HRC» ist eine Eigenschaft *dieses* Schritts, und ein Artikel hat mehrere.
  *
  * Die Lieferanten sind eine **Liste**, auch wenn fast immer einer drinsteht: wer
  * vergleichen will, nennt drei, und der Angebotsvergleich ist damit kein zweiter
  * Mechanismus, sondern dieselbe Liste eine Zeile länger. Fachlich die Lieferantenfreigabe.
  *
- * **Keine Menge und kein «Webshop»-Modus**: die Menge steht beim Modellieren nicht fest
- * (dieselbe Regel wie beim Verbrauch), und wo jemand seinen Shop hat, ist eine
- * Eigenschaft des Lieferanten – nicht dieser Bestellung.
+ * **Keine Menge und kein «Webshop»-Modus**: die Menge ist die Zahl der Stücke vor dem
+ * Modul, und wo jemand seinen Shop hat, ist eine Eigenschaft des Lieferanten – nicht
+ * dieser Bestellung.
  */
 function PurchaseFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
-  const [article, setArticle] = useState<{ object_id: number; name: string } | null>(null);
   const [known, setKnown] = useState<Record<number, string>>({});
 
   // Die gewählten Lieferanten benennen – sonst stünden dort nur Ziffern. Eine Abfrage
@@ -336,25 +345,22 @@ function PurchaseFields({ module: m, onChange }: {
   }, [m.suppliers, known]);
 
   const findSuppliers = useCallback((q: string) => api.searchSuppliers(q).catch(() => []), []);
-  const findArticles = useCallback(
-    (q: string) => api.getArticles(q, 20)
-      .then((rows) => rows.flatMap((a) => (
-        a.object_id == null ? [] : [{ object_id: a.object_id, name: a.name }])))
-      .catch((): { object_id: number; name: string }[] => []),
-    [],
-  );
 
   return (
     <div className="flex flex-col gap-3">
-      <ObjectSelect<{ object_id: number; name: string }>
-        label="Was bestellt wird"
-        kind="article"
-        scanLabel="Artikel"
-        value={m.purchaseArticle}
-        selected={article}
-        find={findArticles}
-        onChange={(nr, opt) => { setArticle(opt); onChange({ purchaseArticle: nr }); }}
-      />
+      <div className="flex flex-col gap-1.5">
+        <Label>Auftrag an den Lieferanten</Label>
+        <textarea
+          className={inputCls}
+          rows={2}
+          maxLength={400}
+          value={m.instruction}
+          placeholder="z. B. Härten auf 58 HRC · gemäss Zeichnung fertigen · liefern"
+          aria-label="Auftrag an den Lieferanten"
+          onChange={(e) => onChange({ instruction: e.target.value })}
+          style={{ resize: 'vertical', minHeight: 54 }}
+        />
+      </div>
       <div className="flex flex-col gap-1.5">
         <ObjectSelect<SupplierOption>
           label="Zugelassene Lieferanten"

@@ -271,14 +271,15 @@ export interface ModuleDraft {
    */
   suppliers: number[];
   /**
-   * Nur «Beschaffen»: **was** bestellt wird (Objektnummer eines Artikels).
+   * Nur «Beschaffen»: **was der Lieferant tun soll** – ein Satz, Pflicht.
    *
-   * Beim Zukaufteil derselbe Artikel, an dem der Prozess hängt (die Oberfläche belegt
-   * ihn vor); bei einer Leistung ein anderer («Härten», «Paketversand»). Immer genannt
-   * und nie erraten: eine Vorlage, die «der eigene» meint, ist beim ersten Lohnauftrag
-   * falsch.
+   * *Was* beschafft wird, steht hier bewusst nicht: das sagen die Einzelinstanzen, die
+   * vor dem Modul stehen (sie tragen ihren Artikel). Was fehlte, war der **Auftrag** –
+   * die Spezifikation beschreibt die Sache, nicht was mit ihr geschehen soll («Härten
+   * auf 58 HRC»). Er gehört an das Modul und nicht an den Artikel: ein Artikel hat
+   * mehrere Schritte, und jeder verlangt etwas anderes.
    */
-  purchaseArticle: number | null;
+  instruction: string;
 }
 
 /**
@@ -348,13 +349,13 @@ export const MODULE_FORM: Record<string, {
     incomplete: () => null,
   },
   beschaffen: {
-    // **Zwei Angaben, mehr nicht**: bei wem und was. Keine Menge – die steht beim
-    // Modellieren nicht fest (dieselbe Regel wie beim Verbrauch) und wird auf dem Beleg
-    // erfasst; kein Modus «Webshop» – wo jemand seinen Shop hat, ist eine Eigenschaft
-    // des Lieferanten und nicht dieser Bestellung.
-    config: (m) => ({ suppliers: m.suppliers, article: m.purchaseArticle }),
+    // **Zwei Angaben, mehr nicht**: bei wem und was zu tun ist. Kein Artikel – den sagen
+    // die Einzelinstanzen vor dem Modul; keine Menge – die steht beim Modellieren nicht
+    // fest (dieselbe Regel wie beim Verbrauch); kein Modus «Webshop» – wo jemand seinen
+    // Shop hat, ist eine Eigenschaft des Lieferanten und nicht dieser Bestellung.
+    config: (m) => ({ suppliers: m.suppliers, instruction: m.instruction.trim() }),
     incomplete: (m) => {
-      if (m.purchaseArticle === null) return 'kein Artikel gewählt';
+      if (!m.instruction.trim()) return 'kein Auftrag an den Lieferanten';
       if (m.suppliers.length === 0) return 'kein Lieferant zugelassen';
       return null;
     },
@@ -383,7 +384,7 @@ export const MODULE_FORM: Record<string, {
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
-    lines: [], target: '', suppliers: [], purchaseArticle: null,
+    lines: [], target: '', suppliers: [], instruction: '',
   };
 }
 

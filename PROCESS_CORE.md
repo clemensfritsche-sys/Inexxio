@@ -1738,9 +1738,56 @@ nirgends. Ein Beschaffungsmodul lässt sie passieren, wie jedes andere.
 
 Daraus fällt die Antwort auf «taucht eine gekaufte Leistung im Bestand auf?» von selbst
 heraus: **nein** — nicht weil ein Feld sie ausschliesst, sondern weil hier nichts
-entsteht. Der Artikel «Härten» steht auf dem Beleg und sonst nirgends. Ein Modul, das
-Stücke anlegte, wäre ein zweiter Erzeugungsweg — und der erste Ort, an dem Bestand ohne
-Herkunft entstünde.
+entsteht. Ein Modul, das Stücke anlegte, wäre ein zweiter Erzeugungsweg — und der erste
+Ort, an dem Bestand ohne Herkunft entstünde.
+
+#### Was beschafft wird, sagt der PROZESS
+
+**Es gibt kein Artikelfeld am Modul.** Die Einzelinstanzen, die vor ihm stehen, tragen
+ihren Artikel — den daneben zu tippen wäre eine zweite Aussage über dieselbe Sache, und
+die getippte gewinnt auch dann, wenn sie falsch ist. Die Zeilen des Belegs sind darum
+eine **Ableitung**: offene Zugehörigkeit → Einzelinstanz → Instanz → Artikel, gruppiert
+und gezählt (`purchase.process_lines`).
+
+**Mehrere Artikel sind der Normalfall, kein Sonderfall.** Stehen Stücke zweier Artikel
+davor, hat der Beleg **zwei Zeilen** — EINE Bestellung mit zwei Positionen, wie im echten
+Leben. Es braucht dafür keine Regel, nur eine Gruppierung; die Alternative («ein Modul je
+Artikel») hätte den Menschen gezwungen, den Prozess nach der Beschaffung zu formen statt
+nach der Fertigung.
+
+**Mit der Bestellung frieren die Zeilen ein** (`purchases.ordered_lines`): dort ist eine
+zweite Partei gebunden. Davor gibt es sie gar nicht — sie *sind* der Prozess und ziehen
+damit von selbst nach.
+
+*Die eine Grenze, benannt statt versteckt:* zwei Artikel bei **verschiedenen** Lieferanten
+sind zwei Bestellungen, also zwei Module. Das Modell kann es nicht anders sagen, und das
+ist richtig so — ein Beleg hat einen Lieferanten.
+
+#### Woher der Lieferant weiss, was zu tun ist — drei Schichten, jede an ihrem Ort
+
+| Was | Woher | Warum dort |
+|-----|-------|------------|
+| **Die Sache** | Artikel-Spezifikation (eingefroren) | Sie beschreibt das Teil und gilt für jeden Lieferanten. |
+| **Der Auftrag** | `config.instruction` am Modul | «Härten auf 58 HRC» ist eine Eigenschaft *dieses* Schritts, nicht des Artikels — und ein Artikel hat mehrere Schritte. |
+| **Die Nummer** | Angebotszeile bzw. `purchases.reference` | Eine Bestellnummer gehört dem Lieferanten, nicht dem Teil. |
+
+**Die Spezifikation reist mit dem Beleg, sie wird nicht ausgewählt**
+(`services/article_fields`). Eine Konfiguration «welche Felder sieht der Lieferant?» wäre
+eine vierte Stelle für dieselbe Frage — und bei zwei zugelassenen Lieferanten müsste sie
+zweimal beantwortet werden. Eine Spezifikation, die je nach Empfänger anders lautet, ist
+keine; wer etwas nicht zeigen will, schreibt es nicht hinein.
+
+**Der Auftrag ist Pflicht.** Ohne ihn ist das Modul nicht anlegbar: eine Bestellung, aus
+der niemand liest, was verlangt ist, ist keine. Und er löst zugleich das Problem, das den
+Vorgänger zum Artikelfeld gezwungen hatte — eine gekaufte **Leistung** braucht keinen
+eigenen Artikel «Härten» (einen Datensatz, der nie Material wird, in Bestand, Stückliste
+und Auswahl aber wie einer aussieht): auf dem Beleg steht die **Welle**, die davorsteht,
+und was mit ihr geschehen soll, steht als Satz daneben.
+
+**Der Einstandspreis braucht genau EINE Zeile.** Bei zwei Artikeln ist die Bestellsumme
+eine gemeinsame; sie durch die Gesamtmenge zu teilen ergäbe für beide denselben Preis, und
+er wäre für beide falsch. Eine Aufteilung müsste ein Mensch vornehmen — also wird nichts
+geschrieben, statt eine Zahl zu erfinden, mit der danach kalkuliert wird.
 
 #### Die Stufen gehören dem Beleg, nicht dem Stück
 
@@ -1791,7 +1838,7 @@ und niemand weiss, warum.
 §4.4 ein Teilabschluss. Solange etwas davorsteht, bleibt der Beleg in «Bestellung»; steht
 nichts mehr davor, rückt er von selbst weiter.
 
-**Vor der Bestellung zieht die Menge still nach, ab ihr wird geklärt.** Ab «Bestellung»
+**Vor der Bestellung ziehen die Zeilen still nach, ab ihr wird geklärt.** Ab «Bestellung»
 ist eine zweite Partei gebunden — eine stille Änderung wäre ein Beleg, der nicht mehr
 stimmt. Das System meldet dann die Abweichung («bestellt für 240, gebraucht 180») und
 wartet auf die Bestätigung des Menschen.
