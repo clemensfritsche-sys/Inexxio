@@ -208,6 +208,14 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **Eine Gegenhandlung, die Stufe sagt was sie tut** (`revoke`): vor der Bestellung
 > zurückziehen, ab ihr stornieren. Was **Stücke** betrifft, entscheidet ein Mensch – das
 > Modul schlägt vor, es legt keinen Auftrag an.
+> **Die Bestellmenge ist keine Eingabe** (`quantity_of`): sie ist ``unit_count`` – die
+> Einzelinstanzen, die vor dem Modul stehen –, und friert mit der Bestellung in
+> ``ordered_for`` ein. Eine getippte Menge daneben wäre eine zweite Aussage über dieselbe
+> Sache. **Ohne Lieferfrist keine Offerte**: aus ihr kommt der Liefertermin.
+> **Die Lieferanten-Sicht ist EINE Frage** (`purchase.mine`, ``None`` = Personal): woran
+> ist dieser Betrachter beteiligt? Feed und Detail lesen dieselbe Antwort; verengt wird
+> **in** `orders._to_response` (`_mine_only` blankt `_INTERNAL_FIELDS`), damit kein
+> Aufrufer es vergessen kann. Nicht beteiligt → **404**, nicht 403.
 > **`_stages` liest die ZEILE, nicht nur ihren Stand**: ein stornierter Beleg behält
 > seinen gegangenen Weg (angefragt und bestellt WURDE), keine Stufe ist aktiv, kein Verb
 > wird angeboten. Wächter: `tests/test_purchase_module.py`.

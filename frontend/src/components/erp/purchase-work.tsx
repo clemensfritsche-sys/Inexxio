@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useAutosave } from '@/lib/use-autosave';
 import { Check, CircleSlash, Minus, Undo2 } from 'lucide-react';
 import type { PurchaseEmbed, PurchaseQuote } from '@/types';
 import { ObjId } from '@/components/erp/obj-id';
-import { Label, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { Label, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { formatAmount } from '@/lib/utils';
 
 /**
@@ -36,9 +37,19 @@ type Filled = Omit<PurchaseEmbed, 'stages' | 'quotes' | 'allowed'> & {
   allowed: NonNullable<PurchaseEmbed['allowed']>;
 };
 
-export function PurchaseWork({ purchase, busy, onAction, children }: {
+export function PurchaseWork({ purchase, busy, active = true, onAction, children }: {
   purchase: PurchaseEmbed;
   busy?: boolean;
+  /**
+   * **Ist dieses Modul an der Reihe?**
+   *
+   * Der Beleg steht in **jedem** Zustand da – was in ihm passiert ist, gehört zum Modul
+   * und nicht zum Moment, in dem man es bedienen darf (dieselbe Regel wie «ein
+   * abgeschlossenes Modul zeigt lückenlos, was in ihm geschah»). Abhängig ist allein,
+   * ob **gehandelt** werden kann: ohne `active` bleiben die Knöpfe aus und die Felder
+   * gesperrt.
+   */
+  active?: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
   /** Der Wareneingang selbst – der Scan, der jedes Modul abschliesst. */
   children?: React.ReactNode;
@@ -49,6 +60,7 @@ export function PurchaseWork({ purchase, busy, onAction, children }: {
   const p = { ...purchase, stages: purchase.stages ?? [], quotes: purchase.quotes ?? [],
               allowed: purchase.allowed ?? [] };
   const cancelled = p.stage === 'storniert';
+  const live = active && !cancelled;
 
   return (
     <div className="flex flex-col">
@@ -77,13 +89,15 @@ export function PurchaseWork({ purchase, busy, onAction, children }: {
                 }}>{stage.label}</span>
                 {i === 0 && <Summary p={p} />}
               </div>
-              {stage.key === 'anfrage' && stage.active && !cancelled && (
-                <Ask p={p} busy={busy} onAction={onAction} />
+              {/* **Eine Stufe zeigt, was sie trägt – auch wenn sie vorbei ist.**
+                  Gehandelt wird nur an der Stufe, die dran ist UND deren Modul dran ist. */}
+              {stage.key === 'anfrage' && (stage.active || stage.done) && (
+                <Ask p={p} busy={busy} active={live && stage.active} onAction={onAction} />
               )}
-              {stage.key === 'bestellung' && stage.active && !cancelled && (
-                <Ordered p={p} busy={busy} onAction={onAction} />
+              {stage.key === 'bestellung' && (stage.active || stage.done) && (
+                <Ordered p={p} busy={busy} active={live && stage.active} onAction={onAction} />
               )}
-              {stage.key === 'wareneingang' && p.stage === 'bestellung' && !cancelled && (
+              {stage.key === 'wareneingang' && p.stage === 'bestellung' && live && (
                 <div className="mt-1.5">{children}</div>
               )}
             </div>
@@ -131,54 +145,61 @@ function Summary({ p }: { p: Filled }) {
  * jede Zeile ein Angebot: der Preis kommt entweder vom Lieferanten selbst (Portal) oder
  * wird hier eingetragen – bei einem Shop-Kauf ist das der Katalogpreis.
  */
-function Ask({ p, busy, onAction }: {
-  p: Filled; busy?: boolean;
+function Ask({ p, busy, active, onAction }: {
+  p: Filled; busy?: boolean; active: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
 }) {
   const asked = p.quotes.length > 0;
   const [picked, setPicked] = useState<number[]>(p.allowed.map((a) => a.supplier_object_id));
-  const [qty, setQty] = useState(String(p.quantity));
   const [prices, setPrices] = useState<Record<number, string>>({});
   const [days, setDays] = useState<Record<number, string>>({});
 
   return (
     <div className="flex flex-col gap-2 mt-1.5">
-      {!asked && (
-        <>
-          <div style={{ maxWidth: 150 }}>
-            <Label>Menge</Label>
-            <input className={inputCls} {...numericInputProps} value={qty}
-              onChange={(e) => setQty(numericOnly(e.target.value))} />
-          </div>
-          {p.allowed.map((a) => (
-            <label key={a.supplier_object_id} className="flex items-center gap-2 text-[13px]">
-              <input type="checkbox" checked={picked.includes(a.supplier_object_id)}
-                onChange={(e) => setPicked((cur) => (e.target.checked
-                  ? [...cur, a.supplier_object_id]
-                  : cur.filter((n) => n !== a.supplier_object_id)))} />
-              <ObjId value={a.supplier_object_id} />
-              <span className="truncate" style={{ color: 'var(--fg-3)' }}>{a.supplier_name}</span>
-            </label>
-          ))}
-          <button type="button" className="erp-actbtn erp-actbtn-primary self-start"
-            style={{ height: 32 }} disabled={busy || picked.length === 0}
-            onClick={() => onAction({
-              action: 'ask', suppliers: picked, quantity: Number(qty) || undefined,
-            })}>
-            Anfragen
+      {!asked && p.allowed.map((a) => {
+        // **Die Zeile IST der Schalter** – kein Häkchen daneben. Gewählt heisst getönt
+        // mit Haken, abgewählt heisst blass; dieselbe Geste wie überall im Haus, wo ein
+        // Klick die Entscheidung ist.
+        const on = picked.includes(a.supplier_object_id);
+        return (
+          <button key={a.supplier_object_id} type="button" disabled={!active}
+            className="flex items-center gap-2 text-[13px] rounded-ds-sm w-full"
+            style={{
+              padding: '5px 8px', textAlign: 'left',
+              border: `1px solid ${on ? 'var(--border-2)' : 'transparent'}`,
+              background: on ? 'var(--bg-1)' : 'transparent',
+              opacity: on ? 1 : 0.5, cursor: active ? 'pointer' : 'default',
+            }}
+            onClick={() => setPicked((cur) => (on
+              ? cur.filter((n) => n !== a.supplier_object_id)
+              : [...cur, a.supplier_object_id]))}>
+            <Check size={13} style={{ flex: 'none', color: on ? 'var(--success)' : 'var(--fg-4)',
+                                      opacity: on ? 1 : 0.35 }} />
+            <ObjId value={a.supplier_object_id} />
+            <span className="truncate" style={{ color: 'var(--fg-3)' }}>{a.supplier_name}</span>
           </button>
-        </>
+        );
+      })}
+      {!asked && active && (
+        <button type="button" className="erp-actbtn erp-actbtn-primary self-start"
+          style={{ height: 32 }} disabled={busy || picked.length === 0}
+          onClick={() => onAction({ action: 'ask', suppliers: picked })}>
+          {picked.length === p.allowed.length
+            ? 'Anfragen'
+            : `Bei ${picked.length} anfragen`}
+        </button>
       )}
 
       {asked && p.quotes.map((q) => (
-        <QuoteRow key={q.supplier_object_id} q={q} p={p} busy={busy} onAction={onAction}
+        <QuoteRow key={q.supplier_object_id} q={q} p={p} busy={busy} active={active}
+          onAction={onAction}
           price={prices[q.supplier_object_id] ?? ''}
           onPrice={(v) => setPrices((c) => ({ ...c, [q.supplier_object_id]: v }))}
           lead={days[q.supplier_object_id] ?? ''}
           onLead={(v) => setDays((c) => ({ ...c, [q.supplier_object_id]: v }))} />
       ))}
 
-      {asked && (
+      {asked && active && (
         <button type="button" className="erp-actbtn erp-actbtn-neutral self-start"
           style={{ height: 28 }} disabled={busy}
           onClick={() => onAction({ action: 'revoke' })}>
@@ -190,13 +211,17 @@ function Ask({ p, busy, onAction }: {
 }
 
 /** Eine Angebotszeile: Lieferant · Preis · Frist – und was man damit tun kann. */
-function QuoteRow({ q, p, busy, price, lead, onPrice, onLead, onAction }: {
-  q: PurchaseQuote; p: Filled; busy?: boolean;
+function QuoteRow({ q, p, busy, active, price, lead, onPrice, onLead, onAction }: {
+  q: PurchaseQuote; p: Filled; busy?: boolean; active: boolean;
   price: string; lead: string;
   onPrice: (v: string) => void; onLead: (v: string) => void;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
 }) {
   const declined = q.state === 'abgelehnt';
+  // **Ohne Lieferfrist keine Offerte** – dieselbe Regel wie im Dienst
+  // (``purchase._quote``). Hier ist sie die freundliche Hälfte: der Knopf bleibt zu,
+  // statt die Eingabe erst am Server scheitern zu lassen.
+  const ready = price.trim() !== '' && lead.trim() !== '';
   return (
     <div className="flex flex-wrap items-center gap-2 text-[13px]"
       style={{ borderTop: '1px solid var(--border-1)', paddingTop: 6 }}>
@@ -214,15 +239,17 @@ function QuoteRow({ q, p, busy, price, lead, onPrice, onLead, onAction }: {
           {q.lead_days != null && (
             <span style={{ color: 'var(--fg-4)' }}>{q.lead_days} Tage</span>
           )}
-          <button type="button" className="erp-actbtn erp-actbtn-primary ml-auto"
-            style={{ height: 28 }} disabled={busy}
-            onClick={() => onAction({
-              action: 'order', supplier: q.supplier_object_id, amount: q.amount,
-            })}>
-            Bestellen
-          </button>
+          {active && (
+            <button type="button" className="erp-actbtn erp-actbtn-primary ml-auto"
+              style={{ height: 28 }} disabled={busy}
+              onClick={() => onAction({
+                action: 'order', supplier: q.supplier_object_id, amount: q.amount,
+              })}>
+              Bestellen
+            </button>
+          )}
         </>
-      ) : (
+      ) : active ? (
         <>
           <input className={inputCls} {...numericInputProps} placeholder="Betrag netto"
             style={{ width: 120 }} value={price}
@@ -230,20 +257,29 @@ function QuoteRow({ q, p, busy, price, lead, onPrice, onLead, onAction }: {
           <input className={inputCls} {...numericInputProps} placeholder="Tage"
             style={{ width: 74 }} value={lead}
             onChange={(e) => onLead(numericOnly(e.target.value))} />
+          {/* **Symbol, Erklärung im Hover** – wie überall dort, wo eine Aktion neben
+              Eingabefeldern steht: zwei ausgeschriebene Wörter in einer Zeile aus
+              Feldern sind der lauteste Teil, obwohl sie der kleinste sind. */}
           <button type="button" className="erp-actbtn erp-actbtn-neutral"
-            style={{ height: 28 }} disabled={busy || !price.trim()}
+            style={{ height: 28, width: 30, padding: 0 }} disabled={busy || !ready}
+            aria-label="Offerte übernehmen"
+            data-tip={ready ? 'Offerte übernehmen'
+              : 'Betrag und Lieferfrist – ohne Frist gibt es keinen Liefertermin'}
             onClick={() => onAction({
               action: 'quote', supplier: q.supplier_object_id,
-              amount: Number(price), lead_days: lead ? Number(lead) : undefined,
+              amount: Number(price), lead_days: Number(lead),
             })}>
-            <Check size={13} /> Offerte
+            <Check size={14} />
           </button>
           <button type="button" className="erp-actbtn erp-actbtn-neutral"
-            style={{ height: 28 }} disabled={busy}
+            style={{ height: 28, width: 30, padding: 0 }} disabled={busy}
+            aria-label="Absage" data-tip="Dieser Lieferant liefert nicht"
             onClick={() => onAction({ action: 'decline', supplier: q.supplier_object_id })}>
-            Absage
+            <Minus size={14} />
           </button>
         </>
+      ) : (
+        <span style={{ color: 'var(--fg-4)' }}>angefragt</span>
       )}
     </div>
   );
@@ -260,13 +296,18 @@ function QuoteRow({ q, p, busy, price, lead, onPrice, onLead, onAction }: {
  * **gemeldet** und auf die Bestätigung gewartet, statt still eine andere Menge zu
  * behaupten.
  */
-function Ordered({ p, busy, onAction }: {
-  p: Filled; busy?: boolean;
+function Ordered({ p, busy, active, onAction }: {
+  p: Filled; busy?: boolean; active: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
 }) {
   const [ref, setRef] = useState(p.reference ?? '');
-  const [due, setDue] = useState(p.due_date ?? '');
-  const dirty = ref !== (p.reference ?? '') || due !== (p.due_date ?? '');
+  // **Auto-Save wie überall im Haus** – kein Speichern-Knopf. Er war die einzige Stelle
+  // im ERP mit einem, und er tat scheinbar nichts: der getippte Wert stand ja schon da,
+  // gespeichert wurde still, und sichtbar änderte sich nur, dass der Knopf ausgraute.
+  const flush = useAutosave(
+    ref, active && !busy && ref !== (p.reference ?? ''),
+    () => onAction({ action: 'note', reference: ref }),
+  );
 
   return (
     <div className="flex flex-col gap-2 mt-1.5">
@@ -288,37 +329,44 @@ function Ordered({ p, busy, onAction }: {
             gebraucht <b style={{ fontVariantNumeric: 'tabular-nums' }}>{p.clarify_quantity}</b>
             {' '}– mit Lieferant klären.
           </span>
-          <button type="button" className="erp-actbtn erp-actbtn-neutral"
-            style={{ height: 28 }} disabled={busy}
-            onClick={() => onAction({ action: 'clarified' })}>
-            Lieferant hat zugestimmt
-          </button>
+          {active && (
+            <button type="button" className="erp-actbtn erp-actbtn-neutral"
+              style={{ height: 28 }} disabled={busy}
+              onClick={() => onAction({ action: 'clarified' })}>
+              Lieferant hat zugestimmt
+            </button>
+          )}
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-2">
-        <div style={{ flex: 1, minWidth: 160 }}>
+      {/* **Eine Angabe, ein Feld.** Der Termin ist hier entfallen: er ist aus
+          Bestelldatum und Lieferfrist ableitbar, sobald er gebraucht wird – ihn tippen
+          zu lassen wäre eine zweite Aussage über dieselbe Sache. */}
+      {/* **Gesperrt ist keine Lese-Anzeige.** Ein ausgegrautes Eingabefeld lädt zum
+          Klicken ein und tut dann nichts; was feststeht, steht als Wert da – dieselbe
+          Form wie in jeder anderen Lese-Ansicht des Hauses (`ReadField`). */}
+      {active ? (
+        <div style={{ maxWidth: 340 }}>
           <Label>Referenz</Label>
-          <input className={inputCls} value={ref} placeholder="Bestellnummer, Link, Sendungsnummer"
-            onChange={(e) => setRef(e.target.value)} />
+          <input className={inputCls} value={ref}
+            placeholder="Bestellnummer, Link, Sendungsnummer"
+            onChange={(e) => setRef(e.target.value)}
+            onBlur={flush}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }} />
         </div>
-        <div style={{ width: 150 }}>
-          <Label>Termin</Label>
-          <input className={inputCls} type="date" value={due}
-            onChange={(e) => setDue(e.target.value)} />
+      ) : p.reference ? (
+        <div style={{ maxWidth: 340 }}>
+          <ReadField label="Referenz" value={p.reference} mono />
         </div>
-        <button type="button" className="erp-actbtn erp-actbtn-neutral" style={{ height: 34 }}
-          disabled={busy || !dirty}
-          onClick={() => onAction({ action: 'note', reference: ref, due_date: due || null })}>
-          Übernehmen
-        </button>
-      </div>
+      ) : null}
 
-      <button type="button" className="erp-actbtn erp-actbtn-danger self-start"
-        style={{ height: 28 }} disabled={busy}
-        onClick={() => onAction({ action: 'revoke' })}>
-        <Undo2 size={13} /> Bestellung stornieren
-      </button>
+      {active && (
+        <button type="button" className="erp-actbtn erp-actbtn-danger self-start"
+          style={{ height: 28 }} disabled={busy}
+          onClick={() => onAction({ action: 'revoke' })}>
+          <Undo2 size={13} /> Bestellung stornieren
+        </button>
+      )}
     </div>
   );
 }

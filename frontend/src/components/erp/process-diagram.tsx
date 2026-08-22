@@ -985,7 +985,7 @@ interface DragProps {
   onDrop: (from: number) => void;
 }
 
-function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, history,
+export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, history,
   children }: {
   step: DiagramStep; active: boolean; dimmed: boolean;
   /** Was an diesem Modul passiert ist – der Ereignis-Log, an seinem Ort (§5). */

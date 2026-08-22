@@ -128,6 +128,16 @@ _VARCHAR_WIDEN_COLUMNS: tuple[tuple[str, str, int], ...] = ()
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
 # via create_all() (nicht Alembic) erzeugt – diese NOT-NULL/Alt-Spalten würden
 # sonst INSERTs brechen (z. B. purchase_orders.transport_included). Idempotent.
+#: **Spalten, die ihre ``NOT NULL``-Sperre verlieren.** Das Gegenstück zum Drop-Netz:
+#: eine Spalte, die das Modell nicht mehr kennt, deren Sperre aber noch steht, lässt
+#: **jedes** Insert auflaufen – und zwar sofort und für alle. Sie zu lösen ist der erste
+#: von zwei Schritten (der Drop folgt im nächsten Deploy, wenn keine Vorgänger-Revision
+#: sie mehr schreibt). Idempotent.
+_NULLABLE_SAFETY_NET = (
+    # Migration 115: die Bestellmenge ist abgeleitet, nicht eingegeben.
+    ("purchases", "quantity"),
+)
+
 _DROP_COLUMN_SAFETY_NET = (
     # Gesellschaften (Migration 091): der «Betreiber» ist WÄHLBAR (``is_operator`` mit eigenem
     # Unique-Index) statt das starre «Hauptsitz»-Flag. ``is_primary`` ist tot – auch im Netz
@@ -304,6 +314,11 @@ def _ensure_columns() -> None:
                 if current is not None and current < width:
                     conn.execute(text(
                         f"ALTER TABLE {table} ALTER COLUMN {col} TYPE VARCHAR({width})"
+                    ))
+            for table, col in _NULLABLE_SAFETY_NET:
+                if table in tables and col in {c["name"] for c in insp.get_columns(table)}:
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ALTER COLUMN {col} DROP NOT NULL"
                     ))
             for table, col in _DROP_COLUMN_SAFETY_NET:
                 if table in tables:

@@ -16,7 +16,6 @@ und keine Abweichung.
 bis zum Wareneingang durchgehend ``Im Prozess``.
 """
 
-from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
@@ -93,17 +92,25 @@ def unit_count(db: Session, order: Order) -> int:
     )
 
 
-def suggested_quantity(db: Session, order: Order, article: Optional[Article]) -> Decimal:
-    """Die vorgeschlagene Bestellmenge: die Stücke des Auftrags, mindestens die MOQ.
+def quantity_of(db: Session, order: Order, row: Purchase) -> Decimal:
+    """**Die Bestellmenge ist keine Eingabe – sie ist, was vor dem Modul steht.**
 
-    **Nicht konfiguriert, sondern gerechnet** – beim Modellieren steht nicht fest, wie
-    viele Stücke ankommen (dieselbe Regel wie beim Verbrauch). Die Mindestbestellmenge
-    steht am Artikel und ist genau hier die richtige Frage: bestellt wird, was der
-    Lieferant überhaupt liefert.
+    Ein Beschaffungs-Modul sitzt in einem Prozess: wie viel bestellt wird, sagen die
+    Einzelinstanzen, die diesem Auftrag gehören (``unit_count``). Sie zusätzlich tippen zu
+    lassen wäre eine **zweite Aussage über dieselbe Sache** – und die getippte gewinnt,
+    auch wenn sie falsch ist.
+
+    **Ab der Bestellung ist sie eingefroren** (``ordered_for``): dort ist eine zweite
+    Partei gebunden, und was bestellt wurde, ändert sich nicht mehr dadurch, dass der
+    Auftrag später Stücke verliert. Genau diese Differenz meldet ``mismatch``.
+
+    *Eine Mindestbestellmenge wird hier bewusst nicht aufgeschlagen*: das Modul erzeugt
+    keine Einzelinstanzen (§9.9), für die Übermenge gäbe es also gar keine Stücke – sie
+    käme an und existierte im System nicht.
     """
-    pieces = Decimal(unit_count(db, order) or 1)
-    moq = getattr(article, "min_order_qty", None) if article else None
-    return max(pieces, Decimal(moq)) if moq else pieces
+    if row.ordered_for is not None:
+        return Decimal(row.ordered_for)
+    return Decimal(unit_count(db, order))
 
 
 def instantiate_for_order(db: Session, order: Order) -> list[Purchase]:
@@ -132,7 +139,6 @@ def instantiate_for_order(db: Session, order: Order) -> list[Purchase]:
             )
         row = Purchase(
             order_id=order.id, step_id=step.id, article_id=article.id,
-            quantity=suggested_quantity(db, order, article),
             stage=Beschaffen.STAGES[0], quotes=[],
         )
         db.add(row)
@@ -140,6 +146,30 @@ def instantiate_for_order(db: Session, order: Order) -> list[Purchase]:
     if made:
         db.flush()
     return made
+
+
+def mine(db: Session, viewer: Optional[UserProfile]) -> Optional[list[Purchase]]:
+    """**Woran ist dieser Betrachter beteiligt?** ``None`` = an allem (Personal).
+
+    Die eine Frage, aus der die ganze Lieferanten-Sicht folgt – Feed *und* Detail lesen
+    sie, und beide bekommen dieselbe Antwort. Ein Lieferant ist genau dort beteiligt, wo
+    er **angefragt** wurde: seine Objektnummer steht in ``quotes``.
+
+    Gefiltert wird in der **Datenbank** (JSONB-Containment ``@>``), nicht im Python: die
+    Alternative wäre, für jede Feed-Anzeige sämtliche Belege des Hauses zu laden.
+
+    Wer weder Personal noch angefragter Lieferant ist, ist an **nichts** beteiligt – die
+    leere Liste ist die richtige Antwort, nicht ein Sonderfall.
+    """
+    if viewer is None or viewer.role in ("admin", "employee"):
+        return None
+    if viewer.role != "supplier" or viewer.object_id is None:
+        return []
+    return (
+        db.query(Purchase)
+        .filter(Purchase.quotes.contains([{"supplier": viewer.object_id}]))
+        .all()
+    )
 
 
 def of_step(db: Session, step_id: int) -> Optional[Purchase]:
@@ -186,9 +216,6 @@ def rebase(db: Session, order: Order) -> None:
             continue                      # Vergangenheit wird nicht umgeschrieben
         if now == 0:
             row.stage = Beschaffen.CANCELLED
-            continue
-        if row.stage != Beschaffen.BINDING:
-            row.quantity = suggested_quantity(db, order, _article(db, row))
     db.flush()
 
 
@@ -226,7 +253,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "article_object_id": article.object_id if article else 0,
         "article_name": article.name if article else "",
         "unit": getattr(article, "unit", "") or "",
-        "quantity": float(row.quantity or 0),
+        "quantity": float(quantity_of(db, order, row)),
         "allowed": [
             {"supplier_object_id": n, "supplier_name": names.get(n, ""), "state": ASKED}
             for n in allowed if mine is None or n == mine
@@ -243,7 +270,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "amount": float(row.amount) if row.amount is not None else None,
         "currency": row.currency,
         "reference": row.reference,
-        "due_date": row.due_date.isoformat() if row.due_date else None,
         "clarify_quantity": mismatch(db, order, row),
     }
 
@@ -329,8 +355,9 @@ def note_receipt(db: Session, *, order: Order, step: ProcessStep) -> None:
         return
     row.stage = Beschaffen.STAGES[-1]
     article = _article(db, row)
-    if article is not None and row.amount is not None and row.quantity:
-        article.landed_unit_cost = (Decimal(row.amount) / Decimal(row.quantity)
+    ordered = quantity_of(db, order, row)
+    if article is not None and row.amount is not None and ordered:
+        article.landed_unit_cost = (Decimal(row.amount) / ordered
                                     ).quantize(Decimal("0.0001"))
     db.flush()
 
@@ -392,11 +419,6 @@ def _ask(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
             )
         if number not in numbers:
             numbers.append(number)
-    quantity = _int(payload.get("quantity"), field="Menge")
-    if quantity is not None:
-        if quantity < 1:
-            raise HTTPException(status_code=400, detail="Die Bestellmenge ist mindestens 1.")
-        row.quantity = Decimal(quantity)
     known = {q["supplier"]: dict(q) for q in row.quotes or []}
     row.quotes = [
         known.get(n) or {"supplier": n, "amount": None, "lead_days": None, "state": ASKED}
@@ -413,10 +435,19 @@ def _quote(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     """
     _only_in(row, Beschaffen.STAGES[0], "Offeriert wird vor der Bestellung.")
     number = _target(row, payload, actor)
-    _write(row, number,
-           amount=str(_money(payload.get("amount"), field="Offerte") or 0),
-           lead_days=_int(payload.get("lead_days"), field="Lieferfrist"),
-           state=QUOTED)
+    amount = _money(payload.get("amount"), field="Offerte")
+    if amount is None:
+        raise HTTPException(status_code=400, detail="Eine Offerte ohne Betrag ist keine.")
+    # **Ohne Lieferfrist keine Offerte.** Sie ist nicht die Kür, sondern die halbe
+    # Aussage: aus ihr kommt der Liefertermin, und ohne sie gibt es kein «überfällig» –
+    # zwei Angebote, von denen nur eines eine Frist nennt, sind nicht vergleichbar.
+    lead = _int(payload.get("lead_days"), field="Lieferfrist")
+    if lead is None or lead < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Ohne Lieferfrist keine Offerte – aus ihr kommt der Liefertermin.",
+        )
+    _write(row, number, amount=str(amount), lead_days=lead, state=QUOTED)
 
 
 def _decline(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
@@ -442,20 +473,16 @@ def _order(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
             detail=("Ohne Bestellsumme keine Bestellung – aus ihr kommt der "
                     "Einstandspreis, und ein Beleg ohne Betrag sagt später nichts."),
         )
-    quantity = _int(payload.get("quantity"), field="Menge")
-    if quantity is not None:
-        if quantity < 1:
-            raise HTTPException(status_code=400, detail="Die Bestellmenge ist mindestens 1.")
-        row.quantity = Decimal(quantity)
     supplier = db.query(UserProfile).filter(UserProfile.object_id == number).first()
     if supplier is None:
         raise HTTPException(status_code=404, detail=f"Lieferant {number} gibt es nicht.")
     row.supplier_id = supplier.id
     row.amount = amount
     row.reference = (payload.get("reference") or "").strip() or None
-    row.due_date = _date(payload.get("due_date"))
     row.stage = Beschaffen.BINDING
-    # **Womit gerechnet wurde** – der Vergleichswert für ``rebase``.
+    # **Womit bestellt wurde** – aus dem Prozess gelesen, im Moment der Zusage
+    # eingefroren. Ab hier ist es die Menge des Belegs; ``mismatch`` vergleicht sie mit
+    # dem, was der Auftrag heute hält.
     row.ordered_for = Decimal(unit_count(db, order))
     row.quotes = [
         {**q, "state": CHOSEN if q["supplier"] == number else q["state"]}
@@ -475,10 +502,7 @@ def _note(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     Vorgang? Drei Felder für drei Bestellarten wären dieselbe Angabe dreimal.
     """
     _only_in(row, Beschaffen.BINDING, "Ergänzt wird an der Bestellung.")
-    if "reference" in payload:
-        row.reference = (payload.get("reference") or "").strip() or None
-    if "due_date" in payload:
-        row.due_date = _date(payload.get("due_date"))
+    row.reference = (payload.get("reference") or "").strip() or None
 
 
 def _revoke(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
@@ -504,7 +528,6 @@ def _clarified(db: Session, *, order: Order, row: Purchase, payload: dict[str, A
             status_code=409,
             detail="An diesem Beleg gibt es nichts zu klären – die Menge stimmt.",
         )
-    row.quantity = Decimal(now)
     row.ordered_for = Decimal(now)
 
 
@@ -542,12 +565,3 @@ def _write(row: Purchase, number: int, **fields: Any) -> None:
     ]
 
 
-def _date(value: Any) -> Optional[date]:
-    if value in (None, ""):
-        return None
-    if isinstance(value, date):
-        return value
-    try:
-        return date.fromisoformat(str(value)[:10])
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"«{value}» ist kein Datum.")

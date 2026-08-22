@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..core.auth import require_employee
+from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..domain import statuses as st
 from ..models import (
@@ -118,7 +118,56 @@ def _steps(db: Session, order: Order, *,
     return out
 
 
-def _to_response(db: Session, order: Order) -> OrderResponse:
+#: **Was nur das Personal sieht** – der interne Lauf des Auftrags.
+#:
+#: Ein Lieferant sieht **seinen Beleg**, nicht die Reise des Materials: nicht den
+#: Prozess-Graphen, nicht die Historie, nicht die Nachbar-Aufträge, nicht die Positionen.
+#: Als **Liste** und nicht als Bedingungskette, damit die Antwort für ihn buchstäblich
+#: die des Personals ist, aus der etwas herausgenommen wurde – zwei getrennt gebaute
+#: Antworten liefen beim ersten neuen Feld auseinander.
+_INTERNAL_FIELDS = (
+    "lines", "flow", "events", "event_count", "journey_in", "journey_out",
+    "parents", "deviations", "deviation_total", "waiting_for_return",
+)
+
+
+def _mine_only(resp: OrderResponse, steps: set[int]) -> OrderResponse:
+    """Derselbe Auftrag – **nur sein Teil davon** (``purchase.mine``)."""
+    blank = {
+        name: OrderResponse.model_fields[name].get_default(call_default_factory=True)
+        for name in _INTERNAL_FIELDS
+    }
+    return resp.model_copy(update={
+        **blank,
+        "steps": [s for s in resp.steps if s.id in steps],
+        "active_step_id": resp.active_step_id if resp.active_step_id in steps else None,
+    })
+
+
+def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int]]:
+    """Die Module dieses Auftrags, die der Betrachter sehen darf. ``None`` = alle.
+
+    Ist er an diesem Auftrag gar nicht beteiligt, gibt es ihn für ihn nicht – **404**,
+    nicht 403: ein «du darfst nicht» bestätigt, dass es ihn gibt.
+    """
+    rows = purchase_svc.mine(db, viewer)
+    if rows is None:
+        return None
+    steps = {r.step_id for r in rows if r.order_id == order.id}
+    if not steps:
+        raise HTTPException(status_code=404, detail=f"Auftrag {order.object_id} nicht gefunden.")
+    return steps
+
+
+def _to_response(db: Session, order: Order, *,
+                 viewer: Optional[UserProfile] = None) -> OrderResponse:
+    """Der Auftrag als Antwort – **und für einen Lieferanten derselbe, nur sein Teil**.
+
+    Die Verengung steht hier und nicht an den Aufrufstellen: wer sie dort formulierte,
+    hätte sie beim zweiten Endpunkt nicht. ``viewer=None`` heisst «interner Aufruf»
+    (Personal-only-Endpunkte) und ändert nichts.
+    """
+    mine = _visible(db, order, viewer) if viewer is not None else None
     lines = process_svc.lines_of(db, order)
     articles = {
         a.id: a
@@ -135,7 +184,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
     graph = flow_svc.build(db, order)
     branches = graph.neighbours
 
-    return OrderResponse(
+    resp = OrderResponse(
         id=order.id,
         object_id=order.object_id,
         name=order.name,
@@ -155,7 +204,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
             )
             for ln in lines
         ],
-        steps=_steps(db, order),
+        steps=_steps(db, order, viewer=viewer),
         flow=FlowGraph(**flow_svc.as_dict(graph)),
         events=[
             ProcessEventResponse(
@@ -180,6 +229,7 @@ def _to_response(db: Session, order: Order) -> OrderResponse:
         deviation_total=len(branches),
         waiting_for_return=process_svc.waiting_counts(db, [order.id]).get(order.id, 0),
     )
+    return resp if mine is None else _mine_only(resp, mine)
 
 
 def _related(db: Session, order: Order,
@@ -274,18 +324,22 @@ def list_orders(
     limit: int = Query(200, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
+    user: UserProfile = Depends(get_current_user),
 ):
     """Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
+
+    **Ein Lieferant sieht die Aufträge, in denen er angefragt ist** – dieselbe eine
+    Frage wie im Detail (``purchase.mine``), damit Liste und Datensatz nicht
+    auseinanderlaufen können.
 
     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
     gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
     """
-    rows = (
-        db.query(Order)
-        .order_by(Order.object_id.desc())
-        .limit(limit).offset(offset).all()
-    )
+    query = db.query(Order)
+    involved = purchase_svc.mine(db, user)
+    if involved is not None:
+        query = query.filter(Order.id.in_({r.order_id for r in involved} or {0}))
+    rows = query.order_by(Order.object_id.desc()).limit(limit).offset(offset).all()
     states = process_svc.order_statuses(db, [o.id for o in rows])
     flags = process_svc.deviation_flags(db, [o.id for o in rows])
     return [
@@ -627,9 +681,10 @@ def create_order(
 def get_order(
     object_id: int,
     db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
+    user: UserProfile = Depends(get_current_user),
 ):
-    return _to_response(db, orders_svc.get(db, object_id))
+    """Der Auftrag – und für einen Lieferanten **derselbe, nur sein Modul**."""
+    return _to_response(db, orders_svc.get(db, object_id), viewer=user)
 
 
 @router.get("/{object_id}/units", response_model=OrderUnitPage)
@@ -706,7 +761,7 @@ def update_purchase(
     step_id: int,
     data: PurchaseUpdate,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(require_employee),
+    user: UserProfile = Depends(get_current_user),
 ):
     """**Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sieben Verben.
 
@@ -732,12 +787,15 @@ def update_purchase(
     Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
     """
     order = orders_svc.get(db, object_id)
+    # **Dieselbe eine Frage wie beim Lesen**: wer den Auftrag nicht sieht, handelt auch
+    # nicht an ihm – und wer nur sein Modul sieht, nur an diesem.
+    mine = _visible(db, order, user)
     step = (
         db.query(ProcessStep)
         .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
         .first()
     )
-    if step is None:
+    if step is None or (mine is not None and step.id not in mine):
         raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
     row = purchase_svc.apply(
         db, order=order, step=step, action=data.action,
@@ -749,7 +807,7 @@ def update_purchase(
               user_id=user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)
-    return _to_response(db, order)
+    return _to_response(db, order, viewer=user)
 
 
 @router.get("/{object_id}/steps/{step_id}/hold", response_model=HoldNumbers)

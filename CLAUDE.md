@@ -1124,6 +1124,56 @@
 > gegengeprüft) + drei in `test_frontend_mirrors.py`. Gemessen in Chromium: 1440 · 1024 ·
 > 834 · 375 · 320 px, **0 px** waagrechter Überlauf über alle fünf Stufen-Zustände.
 
+> **Testnotizen #741–#749 — drei Wurzeln, neun Symptome** (Migration `115`):
+> **(1) Ein Modul zeigt seine Sache in JEDEM Zustand – nur die Aktionen hängen daran, ob
+> es dran ist** (#749, die eigentliche Wurzel). Die Ausführungsstelle hatte **zwei**
+> Körper: aktiv das Formular, sonst eine hand-gepflegte **Aufzählung** dessen, was ein
+> Modul tragen kann (Punkte · Umfang · Verb · Grund · Ziel). Diese Liste muss mit jedem
+> neuen Modul-Fakt wachsen – und der Beschaffungs-Beleg stand nicht darin: ein
+> abgeschlossenes Modul zeigte von ihm **nichts**. Jetzt ist es EIN Körper (`stepBody`),
+> und `isActive` entscheidet allein über das **Handeln**; dieselbe Regel eine Ebene
+> tiefer im Beleg selbst (`stage.active || stage.done`). Ein gesperrtes Eingabefeld ist
+> dabei **keine** Lese-Anzeige – was feststeht, steht als Wert da (`ReadField`).
+> **(2) Die Bestellmenge ist keine Eingabe** (#741): ein Beschaffungs-Modul sitzt in
+> einem Prozess, und **wie viel bestellt wird, sagen die Einzelinstanzen, die davorstehen**
+> (`purchase.quantity_of` → `unit_count`). Eine getippte Menge daneben war eine zweite
+> Aussage über dieselbe Sache – und die getippte gewinnt, auch wenn sie falsch ist. Aus
+> zwei Spalten wurde **eine**: `ordered_for` ist `NULL`, solange nichts bestellt ist, und
+> friert mit der Bestellung ein (dort ist eine zweite Partei gebunden). *Die
+> **Mindestbestellmenge** wird bewusst nicht aufgeschlagen: das Modul erzeugt keine
+> Einzelinstanzen – für die Übermenge gäbe es gar keine Stücke.* Ebenso entfallen: der
+> **Termin** (#745 – ableitbar aus Bestelldatum + Lieferfrist, also kein Feld) und der
+> **Speichern-Knopf** (#748 – Auto-Save wie überall; er war die einzige Stelle im ERP mit
+> einem und sah aus, als täte er nichts, weil der getippte Wert ja schon dastand).
+> **Ohne Lieferfrist keine Offerte** (#743, im **Dienst**, nicht nur am Knopf): aus ihr
+> kommt der Liefertermin, und zwei Angebote ohne Frist sind nicht vergleichbar. Die
+> Lieferantenwahl ist eine **Zeile, die man anklickt** (#742 – kein Häkchen daneben), und
+> Offerte/Absage sind **Symbole mit Erklärung im Hover** (#744).
+> **(3) Die Lieferanten-Sicht ist eine Spiegelung, keine zweite Antwort** (#747): *Ein
+> Lieferant sieht die Aufträge, in denen er **angefragt** ist – und von jedem nur sein
+> eigenes Modul.* Das ist **eine** Frage (`purchase.mine`, JSONB-Containment in der
+> Datenbank), die Feed **und** Detail lesen; die Verengung steht **in** der
+> Antwort-Funktion (`orders._mine_only`), nicht an den Aufrufstellen – wer sie dort
+> formulierte, hätte sie beim zweiten Endpunkt nicht. Blank ist eine **Liste** von
+> Feldern (`_INTERNAL_FIELDS`), keine Bedingungskette: die Antwort für ihn ist
+> buchstäblich die des Personals, aus der etwas herausgenommen wurde. Wer nicht beteiligt
+> ist, bekommt **404** (403 bestätigt, dass es den Auftrag gibt). Die Oberfläche zeichnet
+> ohne Prozessbild **dieselbe** Modul-Karte (`StepCard`), nur ohne Achse.
+> **Nebenbei, gemessen statt vermutet:** `toLocaleString('de-CH')` liefert je nach
+> ICU-Fassung `1’284.50` (Browser) oder `1'284.50` (Node). Das Design-System schreibt den
+> **geraden** Apostroph fest, und dieselbe Zahl darf nicht je nach Laufzeit anders
+> aussehen – server- und clientseitig gerendert wirft React die Seite weg. `formatAmount`
+> schreibt den Trenner jetzt fest.
+> **Und eine Spalte kann man nicht einfach abhängen**: `purchases.quantity` war `NOT NULL`
+> **ohne** DB-Default (der Default war Python-seitig) – sie aus dem Modell zu nehmen liess
+> jedes Insert auflaufen. Migration `115` löst zuerst die Sperre (beide Revisionen laufen
+> damit), gedroppt wird im **Folge-Deploy**, zusammen mit `due_date`. Dafür gibt es jetzt
+> ein `_NULLABLE_SAFETY_NET` neben dem Drop-Netz.
+> Wächter: `tests/test_purchase_module.py` (18 Prüfungen) + vier in
+> `test_frontend_mirrors.py`, jeder gegen seine Bug-Form gegengeprüft. Gemessen in
+> Chromium: 1440 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über sechs
+> Beleg-Zustände; der abgeschlossene Beleg zeigt alles und hat **0** bedienbare Knöpfe.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

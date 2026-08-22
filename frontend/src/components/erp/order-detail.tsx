@@ -13,7 +13,8 @@ import { DetailHeader, HeaderAction } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
 import {
-  DRAFT_OBJECT_ID, EMPTY_GRAPH, definitionGraph, type DiagramStep,
+  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, StepCard, definitionGraph,
+  type DiagramStep,
   type JourneyOrigin,
 } from '@/components/erp/process-diagram';
 import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
@@ -418,15 +419,16 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
  * anderen Modultyp leer, und dann steht hier schlicht der Scan. Dieselbe Bauart wie
  * `transports` und `needs` – die Oberfläche fragt nie nach dem Modultyp.
  */
-function Wrapped({ purchase, busy, onAction, children }: {
+function Wrapped({ purchase, busy, active, onAction, children }: {
   purchase: PurchaseEmbed | null;
   busy: boolean;
+  active: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
   children: React.ReactNode;
 }) {
   if (!purchase) return <>{children}</>;
   return (
-    <PurchaseWork purchase={purchase} busy={busy} onAction={onAction}>
+    <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}>
       {children}
     </PurchaseWork>
   );
@@ -475,6 +477,71 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
     }));
   }, [order.object_id]);
 
+  // ►► **Ein Modul-Körper, zwei Wege dorthin.** ◄◄
+  //
+  // Er hängt hier und nicht im Diagramm, weil ihn zwei Ansichten brauchen: der volle
+  // Prozess in der Mitte – und die **Lieferanten-Sicht**, die kein Prozessbild bekommt
+  // (sein Beleg ist seine Sache, der Lauf des Auftrags nicht). Zwei Körper wären zwei
+  // Darstellungen desselben Moduls, und die laufen auseinander.
+  const stepBody = (step: DiagramStep, isActive: boolean) => (
+    <div className="flex flex-col gap-2.5">
+      <Reason text={stepInfo(order, step.id)?.reason} />
+      {/* Der Beschaffungs-Beleg umschliesst den Scan: der Wareneingang IST die
+          Bestätigung, die jedes Modul abschliesst. Bei jedem anderen Modultyp ist
+          `purchase` leer und es bleibt beim Inhalt allein. */}
+      <Wrapped purchase={stepInfo(order, step.id)?.purchase ?? null} busy={busy}
+        active={isActive} onAction={(body) => onPurchase(step.id, body)}>
+        {isActive ? (
+          // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
+          // (Scan-Regel §3).
+          <CaptureWork
+            orderObjectId={order.object_id}
+            stepId={step.id}
+            points={pointsOf(order, step.id)}
+            action={stepInfo(order, step.id)?.action ?? ''}
+            work={workOf(order, step.id)}
+            needs={stepInfo(order, step.id)?.needs ?? []}
+            // **Wohin und womit** – beides kommt vom Server mit dem Schritt.
+            target={stepInfo(order, step.id)?.target ?? null}
+            transports={stepInfo(order, step.id)?.transports ?? []}
+            busy={busy}
+            onDirty={setEntryStarted}
+            onDeviate={onDeviate}
+            onConfirm={(instanceObjectId, verification, values, sources, place, transport) =>
+              onConfirm(step.id, instanceObjectId, verification, values, sources,
+                        place, transport)}
+          />
+        ) : (
+          <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
+            action={stepInfo(order, step.id)?.action}
+            reason={stepInfo(order, step.id)?.reason}
+            moduleType={step.moduleType}
+            target={(stepInfo(order, step.id)?.transports ?? []).length > 0
+              ? (stepInfo(order, step.id)?.target ?? null)
+              : undefined} />
+        )}
+      </Wrapped>
+      {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp. */}
+      {!isActive && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
+    </div>
+  );
+
+  // **Ohne Prozessbild: die Module allein** – dieselbe Karte, nur ohne Achse. Der Graph
+  // fehlt genau dann, wenn die Antwort für einen Lieferanten verengt wurde
+  // (`orders._mine_only`); gezeichnet wird trotzdem `StepCard`, nicht ein Nachbau.
+  if (!(order.flow?.nodes ?? []).length) {
+    return (
+      <div className="flex flex-col gap-3" style={{ maxWidth: PROCESS_MAXW, margin: '0 auto' }}>
+        {steps.map((step) => (
+          <StepCard key={step.id} step={step} dimmed={false} defaultOpen
+            active={step.id === order.active_step_id}>
+            {stepBody(step, step.id === order.active_step_id)}
+          </StepCard>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <>
       <ProcessColumns
@@ -500,56 +567,15 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
           // die übrigen als das, was in ihnen definiert ist. Ob die Karte auf- oder
           // zugeklappt startet und ob sie gesperrt ist, entscheidet das Diagramm; hier
           // steht nur der Inhalt.
-          renderStep: (step, isActive) => (isActive ? (
-            // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
-            // (Scan-Regel §3). Was zu scannen ist, ist dieselbe Liste wie das, was zu
-            // tun ist; eine zweite daneben wäre eine zweite Wahrheit.
-            <div className="flex flex-col gap-2">
-              <Reason text={stepInfo(order, step.id)?.reason} />
-              {/* **Der Beschaffungs-Beleg umschliesst den Scan.** Er ist kein zweites
-                  Panel daneben: der Wareneingang IST die Bestätigung, die jedes Modul
-                  abschliesst – sie steht darum als Inhalt der dritten Stufe. Bei jedem
-                  anderen Modultyp ist `purchase` leer und es bleibt beim Scan allein. */}
-              <Wrapped purchase={stepInfo(order, step.id)?.purchase ?? null} busy={busy}
-                onAction={(body) => onPurchase(step.id, body)}>
-              <CaptureWork
-                orderObjectId={order.object_id}
-                stepId={step.id}
-                points={pointsOf(order, step.id)}
-                action={stepInfo(order, step.id)?.action ?? ''}
-                work={workOf(order, step.id)}
-                needs={stepInfo(order, step.id)?.needs ?? []}
-                // **Wohin und womit** – beides kommt vom Server mit dem Schritt.
-                // `target` ist das Ziel aus der Definition (`null` = beim Ausführen
-                // wählen), `transports` zugleich das Bit, ob dieses Modul überhaupt
-                // bewegt: bei jedem anderen Modultyp ist die Liste leer.
-                target={stepInfo(order, step.id)?.target ?? null}
-                transports={stepInfo(order, step.id)?.transports ?? []}
-                busy={busy}
-                onDirty={setEntryStarted}
-                onDeviate={onDeviate}
-                onConfirm={(instanceObjectId, verification, values, sources, place, transport) =>
-                  onConfirm(step.id, instanceObjectId, verification, values, sources,
-                            place, transport)}
-              />
-              </Wrapped>
-            </div>
-          ) : (
-            // **Ein abgeschlossenes Modul zeigt, was in ihm passiert ist** (#717) – die
-            // Regel gilt für ALLE Module und steht an einer Stelle (`StepRecord`, aus
-            // `services/record`). Ein Modul, das noch nicht dran war, hat nichts zu
-            // zeigen: dann steht dort seine Definition.
-            <div className="flex flex-col gap-2.5">
-              <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
-                action={stepInfo(order, step.id)?.action}
-                reason={stepInfo(order, step.id)?.reason}
-                moduleType={step.moduleType}
-                target={(stepInfo(order, step.id)?.transports ?? []).length > 0
-                  ? (stepInfo(order, step.id)?.target ?? null)
-                  : undefined} />
-              <StepRecord orderObjectId={order.object_id} stepId={step.id} />
-            </div>
-          )),
+          // ►► **Ein Modul zeigt seine Sache in JEDEM Zustand.** ◄◄
+          //
+          // Vorher standen hier zwei völlig verschiedene Körper – aktiv das Formular,
+          // sonst eine **Aufzählung** dessen, was ein Modul tragen kann (Punkte, Umfang,
+          // Verb, Grund, Ziel). Diese Liste musste mit jedem neuen Modul-Fakt wachsen,
+          // und der Beschaffungs-Beleg stand nicht darin: ein abgeschlossenes Modul zeigte
+          // von ihm **nichts**. Jetzt ist es EIN Körper, und `isActive` entscheidet allein,
+          // ob **gehandelt** werden darf – nicht, ob etwas zu sehen ist.
+          renderStep: stepBody,
         }}
         parents={order.parents ?? []}
         deviations={order.deviations ?? []}

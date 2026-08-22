@@ -180,6 +180,15 @@ ein zweites Mal.
   gewöhnlichen Auftragsentwurf mit vorgewählten Stücken.
 - **Der Wareneingang ist der Scan**, den jedes Modul kennt: `CaptureWork` steht als
   `children` in der Stufe «Bestellung» – kein zweiter Bestätigungsweg daneben.
+- **Der Beleg steht in JEDEM Zustand da**, nur die Aktionen hängen an `active`
+  (Testnotiz #749). Eine Stufe zeigt, was sie trägt, sobald sie dran **oder** vorbei ist
+  (`stage.active || stage.done`) – ein abgeschlossenes Modul zeigte sonst von seinem
+  Beleg nichts. Ein **gesperrtes Eingabefeld ist keine Lese-Anzeige**: was feststeht,
+  steht als Wert da (`ReadField`).
+- **Gefragt wird nur, was der Prozess nicht schon weiss**: keine Menge (sie ist die Zahl
+  der Einzelinstanzen davor), kein Termin (ableitbar), kein Speichern-Knopf (Auto-Save).
+  Ohne **Lieferfrist** keine Offerte – die Regel steht im Dienst, der Knopf ist die
+  freundliche Hälfte.
 - **Beträge über `formatAmount`** (`lib/utils`), nicht mit einer eigenen `toLocaleString`-
   Zeile: eine zweite Kopie weicht in den Nachkommastellen ab, und ihre Zahl sieht
   trotzdem richtig aus.

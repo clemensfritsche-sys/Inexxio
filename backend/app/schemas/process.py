@@ -227,7 +227,6 @@ class PurchaseEmbed(BaseModel):
     amount: Optional[float] = None
     currency: str = "CHF"
     reference: Optional[str] = None
-    due_date: Optional[str] = None
     #: **Womit gerechnet wurde ↔ was heute gilt.** Gesetzt, wenn der Beleg seine Grundlage
     #: verloren hat und eine zweite Partei bereits gebunden ist: dann ändert das System
     #: nichts, sondern wartet auf die Bestätigung des Menschen.
@@ -237,11 +236,11 @@ class PurchaseEmbed(BaseModel):
 class PurchaseUpdate(BaseModel):
     """Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.
 
-    ``ask``       bei wem angefragt wird (``suppliers``, optional ``quantity``)
-    ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days``)
+    ``ask``       bei wem angefragt wird (``suppliers``)
+    ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)
     ``decline``   ein Lieferant sagt ab (``supplier``)
-    ``order``     bestellen (``supplier``, ``amount``, optional ``reference``/``due_date``)
-    ``note``      nachtragen, was der Lieferant zurückgibt (``reference``, ``due_date``)
+    ``order``     bestellen (``supplier``, ``amount``, optional ``reference``)
+    ``note``      nachtragen, was der Lieferant zurückgibt (``reference``)
     ``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren
     ``clarified`` der Lieferant hat der geänderten Menge zugestimmt
     """
@@ -251,9 +250,7 @@ class PurchaseUpdate(BaseModel):
     supplier: Optional[int] = None
     amount: Optional[float] = None
     lead_days: Optional[int] = None
-    quantity: Optional[int] = None
     reference: Optional[str] = None
-    due_date: Optional[str] = None
 
 
 class StepConfirm(BaseModel):

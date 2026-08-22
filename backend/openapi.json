@@ -1650,7 +1650,7 @@
           "orders"
         ],
         "summary": "List Orders",
-        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
+        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\n**Ein Lieferant sieht die Aufträge, in denen er angefragt ist** – dieselbe eine\nFrage wie im Detail (``purchase.mine``), damit Liste und Datensatz nicht\nauseinanderlaufen können.\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
         "operationId": "list_orders_api_v1_erp_orders_get",
         "security": [
           {
@@ -2124,6 +2124,7 @@
           "orders"
         ],
         "summary": "Get Order",
+        "description": "Der Auftrag – und für einen Lieferanten **derselbe, nur sein Modul**.",
         "operationId": "get_order_api_v1_erp_orders__object_id__get",
         "security": [
           {
@@ -7408,17 +7409,6 @@
             ],
             "title": "Reference"
           },
-          "due_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due Date"
-          },
           "clarify_quantity": {
             "anyOf": [
               {
@@ -7565,17 +7555,6 @@
             ],
             "title": "Lead Days"
           },
-          "quantity": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quantity"
-          },
           "reference": {
             "anyOf": [
               {
@@ -7586,17 +7565,6 @@
               }
             ],
             "title": "Reference"
-          },
-          "due_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due Date"
           }
         },
         "type": "object",
@@ -7604,7 +7572,7 @@
           "action"
         ],
         "title": "PurchaseUpdate",
-        "description": "Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.\n\n``ask``       bei wem angefragt wird (``suppliers``, optional ``quantity``)\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days``)\n``decline``   ein Lieferant sagt ab (``supplier``)\n``order``     bestellen (``supplier``, ``amount``, optional ``reference``/``due_date``)\n``note``      nachtragen, was der Lieferant zurückgibt (``reference``, ``due_date``)\n``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren\n``clarified`` der Lieferant hat der geänderten Menge zugestimmt"
+        "description": "Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.\n\n``ask``       bei wem angefragt wird (``suppliers``)\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)\n``decline``   ein Lieferant sagt ab (``supplier``)\n``order``     bestellen (``supplier``, ``amount``, optional ``reference``)\n``note``      nachtragen, was der Lieferant zurückgibt (``reference``)\n``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren\n``clarified`` der Lieferant hat der geänderten Menge zugestimmt"
       },
       "RecordEntry": {
         "properties": {
