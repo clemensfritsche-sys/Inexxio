@@ -1282,6 +1282,103 @@ def test_the_module_colour_comes_from_the_registry():
         )
 
 
+def test_the_swiss_thousands_separator_is_pinned():
+    """**Ein Betrag sieht überall gleich aus** – auch in verschiedenen Laufzeiten.
+
+    ``toLocaleString('de-CH')`` liefert je nach ICU-Fassung ein typografisches ``’``
+    (U+2019, so im Browser) oder ein gerades ``'`` (U+0027, so in Node) – gemessen. Das
+    Design-System schreibt den geraden fest (``9'999 CHF``); und dieselbe Zahl darf nicht
+    je nach Laufzeit anders aussehen: server- und clientseitig gerendert wären das zwei
+    Texte an derselben Stelle, und React wirft die Seite weg (Hydrations-Fehler).
+
+    Bug-Form: ein Aufrufer formatiert selbst statt über ``formatAmount``.
+    """
+    utils = _read(FRONTEND / "lib" / "utils.ts")
+    assert "\\u2019" in utils and "formatAmount" in utils, (
+        "Der Tausender-Trenner ist nicht festgeschrieben."
+    )
+    for name in ("purchase-work.tsx",):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        assert "toLocaleString" not in src, (
+            f"{name} formatiert selbst – dann gilt die Regel dort nicht."
+        )
+
+
+def test_a_module_shows_its_own_matter_in_every_state():
+    """**Ein Modul zeigt seine Sache in jedem Zustand** – nur die Aktionen hängen daran,
+    ob es an der Reihe ist.
+
+    Vorher hatte die Ausführungsstelle **zwei** Körper: aktiv das Formular, sonst eine
+    hand-gepflegte **Aufzählung** dessen, was ein Modul tragen kann (Punkte, Umfang, Verb,
+    Grund, Ziel). Diese Liste musste mit jedem neuen Modul-Fakt wachsen – und der
+    Beschaffungs-Beleg stand nicht darin: ein abgeschlossenes Modul zeigte von ihm
+    **nichts** (Testnotiz #749).
+
+    Bug-Form: ``renderStep`` verzweigt wieder oben in zwei Körper.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "renderStep: (step, isActive) => (isActive ?" not in src, (
+        "Die Ausführungsstelle hat wieder zwei Körper – dann fehlt beim nächsten "
+        "Modul-Fakt genau er im nicht-aktiven Zustand."
+    )
+    assert "const stepBody = (step: DiagramStep, isActive: boolean)" in src, (
+        "Es gibt keinen EINEN Modul-Körper mehr."
+    )
+    # Der Beleg steht ausserhalb der Verzweigung – er gehört zum Modul, nicht zum Moment.
+    body = src[src.index("const stepBody ="):src.index("// **Ohne Prozessbild")]
+    assert body.index("<Wrapped") < body.index("{isActive ?"), (
+        "Der Beleg steht wieder innerhalb der Aktiv-Verzweigung."
+    )
+
+    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
+    assert "(stage.active || stage.done)" in panel, (
+        "Eine Stufe zeigt ihren Inhalt nur, solange sie dran ist – danach steht dort "
+        "nichts mehr, obwohl genau dort steht, was passiert ist."
+    )
+
+
+def test_the_purchase_panel_asks_for_nothing_the_process_already_knows():
+    """**Menge und Termin sind keine Eingaben** (Testnotizen #741/#745).
+
+    Die Menge sagen die Einzelinstanzen vor dem Modul; der Termin ist aus Bestelldatum
+    und Lieferfrist ableitbar. Beide zu tippen wären zweite Aussagen über dieselbe Sache.
+
+    Und **ohne Lieferfrist keine Offerte** (#743) – die Regel steht im Dienst, hier ist
+    sie die freundliche Hälfte: der Knopf bleibt zu.
+    """
+    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
+    for gone in ("<Label>Menge</Label>", "<Label>Termin</Label>", "type=\"date\"",
+                 "due_date", "quantity: Number("):
+        assert gone not in panel, f"«{gone}» ist wieder da – der Prozess weiss das schon."
+    assert "const ready = price.trim() !== '' && lead.trim() !== ''" in panel, (
+        "Eine Offerte lässt sich wieder ohne Lieferfrist abschicken."
+    )
+    # #748: Auto-Save wie überall im Haus – der Speichern-Knopf war die einzige Stelle
+    # im ERP mit einem, und er sah aus, als täte er nichts.
+    assert "useAutosave" in panel and "Übernehmen" not in panel, (
+        "Der Beleg hat wieder einen Speichern-Knopf statt Auto-Save."
+    )
+    # #742: die Zeile ist der Schalter, kein Häkchen daneben.
+    assert 'type="checkbox"' not in panel, (
+        "Die Lieferantenwahl ist wieder eine Häkchen-Liste."
+    )
+
+
+def test_a_supplier_sees_his_module_without_the_process_picture():
+    """**Die Lieferanten-Sicht ist eine Spiegelung** (Testnotiz #747).
+
+    Der Server verengt die Antwort (``orders._mine_only``); die Oberfläche zeichnet
+    darum **dieselbe** Modul-Karte, nur ohne Achse. Ein Nachbau wäre eine zweite
+    Darstellung desselben Moduls.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "StepCard" in src and "stepBody(step" in src, (
+        "Die Modul-Karte wird nachgebaut statt wiederverwendet."
+    )
+    diagram = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    assert "export function StepCard(" in diagram
+
+
 def test_an_unknown_module_looks_unknown_not_like_another_one():
     """**Unbekanntes borgt sich kein fremdes Symbol** – dieselbe Regel wie bei der Farbe.
 

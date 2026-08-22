@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Any, Optional
 
-from sqlalchemy import BigInteger, Date, Index, Numeric, String
+from sqlalchemy import BigInteger, Index, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,9 +54,6 @@ class Purchase(Base, TimestampMixin):
 
     #: **Was** bestellt wird (interner Schlüssel des Artikels).
     article_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    #: **Wie viel.** Vorgeschlagen aus den Stücken des Auftrags, erfasst auf dem Beleg.
-    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False, default=1)
-
     #: ``anfrage`` · ``bestellung`` · ``wareneingang`` · ``storniert``
     #: (``domain/modules.Beschaffen.STAGES``).
     stage: Mapped[str] = mapped_column(String(20), nullable=False, default="anfrage")
@@ -70,14 +67,20 @@ class Purchase(Base, TimestampMixin):
 
     #: Bestellnummer beim Lieferanten, Link, Sendungsnummer – was er zurückgibt.
     reference: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    #: Zugesagter Liefertermin.
-    due_date: Mapped[Optional[Any]] = mapped_column(Date, nullable=True)
 
     #: Eine Zeile je angefragtem Lieferanten – siehe Klassen-Docstring.
     quotes: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]")
 
-    #: **Womit der Beleg gerechnet hat.** Verliert er seine Grundlage (ein Stück wird
+    #: **Die Menge des Belegs – und die einzige, die es gibt.**
+    #:
+    #: ``NULL``, solange nichts bestellt ist: dann IST die Menge, was vor dem Modul steht
+    #: (``purchase.quantity_of`` → ``unit_count``). Eine getippte Menge daneben wäre eine
+    #: zweite Aussage über dieselbe Sache, und die getippte gewönne auch dann, wenn sie
+    #: falsch ist.
+    #:
+    #: Mit der Bestellung wird sie **eingefroren**: dort ist eine zweite Partei gebunden.
+    #: Verliert der Beleg danach seine Grundlage (ein Stück wird
     #: ausgesondert, eine Abweichung greift), vergleicht ``services/purchase`` diese Zahl
     #: mit der heutigen: vor der Bestellung zieht er still nach, ab ihr **meldet** er und
     #: wartet auf die Bestätigung des Menschen. Ohne den Vermerk wüsste niemand, dass es

@@ -404,7 +404,7 @@ def test_before_the_order_the_quantity_follows_after_it_we_ask():
         order, rows = _make(db, quantity=5, article=art)
         staff = _staff(db)
         row = svc.of_step(db, rows[0].id)
-        assert int(row.quantity) == 5
+        assert int(svc.quantity_of(db, order, row)) == 5
 
         # Ein Stück verlässt den Auftrag (eine Abweichung greift zu) – noch nicht bestellt.
         from app.models import OrderUnit
@@ -415,7 +415,7 @@ def test_before_the_order_the_quantity_follows_after_it_we_ask():
         taken.released_at = datetime.now(timezone.utc)
         db.flush()
         svc.rebase(db, order)
-        assert int(svc.of_step(db, rows[0].id).quantity) == 4, (
+        assert int(svc.quantity_of(db, order, svc.of_step(db, rows[0].id))) == 4, (
             "Vor der Bestellung ist niemand ausser uns beteiligt – die Menge zieht nach."
         )
 
@@ -432,7 +432,7 @@ def test_before_the_order_the_quantity_follows_after_it_we_ask():
         db.flush()
         svc.rebase(db, order)
         row = svc.of_step(db, rows[0].id)
-        assert int(row.quantity) == 4, (
+        assert int(svc.quantity_of(db, order, row)) == 4, (
             "Die Menge hat sich nach der Bestellung still geändert – der Beleg beim "
             "Lieferanten sagt etwas anderes."
         )
@@ -440,7 +440,8 @@ def test_before_the_order_the_quantity_follows_after_it_we_ask():
 
         svc.apply(db, order=order, step=rows[0], action="clarified", payload={}, actor=staff)
         row = svc.of_step(db, rows[0].id)
-        assert int(row.quantity) == 3 and svc.mismatch(db, order, row) is None
+        assert int(svc.quantity_of(db, order, row)) == 3
+        assert svc.mismatch(db, order, row) is None
     finally:
         db.rollback(); db.close()
 
@@ -481,9 +482,9 @@ def test_a_supplier_never_sees_a_foreign_quote():
         svc.apply(db, order=order, step=rows[0], action="ask",
                   payload={"suppliers": [a.object_id, b.object_id]}, actor=staff)
         svc.apply(db, order=order, step=rows[0], action="quote",
-                  payload={"supplier": a.object_id, "amount": 84}, actor=staff)
+                  payload={"supplier": a.object_id, "amount": 84, "lead_days": 3}, actor=staff)
         svc.apply(db, order=order, step=rows[0], action="quote",
-                  payload={"supplier": b.object_id, "amount": 79}, actor=staff)
+                  payload={"supplier": b.object_id, "amount": 79, "lead_days": 6}, actor=staff)
 
         full = svc.embed_data(db, order=order, step=rows[0])
         assert len(full["quotes"]) == 2, "Das Personal sieht den Angebotsspiegel."
@@ -516,7 +517,7 @@ def test_a_supplier_offers_and_the_buyer_orders():
 
         # Der Lieferant füllt SEINE Zeile – ohne sie zu benennen, er ist sie.
         svc.apply(db, order=order, step=rows[0], action="quote",
-                  payload={"amount": 84, "supplier": b.object_id}, actor=a)
+                  payload={"amount": 84, "lead_days": 3, "supplier": b.object_id}, actor=a)
         quotes = {q["supplier"]: q for q in svc.of_step(db, rows[0].id).quotes}
         assert quotes[a.object_id]["state"] == "offeriert", (
             "Der Lieferant hat die Zeile eines anderen gefüllt."
@@ -534,6 +535,79 @@ def test_a_supplier_offers_and_the_buyer_orders():
 # ---------------------------------------------------------------------------
 # §6 – die Definition
 # ---------------------------------------------------------------------------
+
+def test_a_supplier_sees_his_module_and_nothing_else():
+    """**Die Lieferanten-Sicht ist eine Spiegelung, keine zweite Antwort.**
+
+    Ein Lieferant sieht die Aufträge, in denen er **angefragt** ist – und von jedem nur
+    sein eigenes Modul. Alles andere ist der interne Lauf: der Prozess-Graph, die
+    Historie, die Nachbar-Aufträge, die Positionen.
+
+    Geprüft wird über die **echten Router-Funktionen**, denn genau dort sitzt die Regel.
+
+    Bug-Formen: (a) die Antwort trägt den internen Lauf mit (Datenleck); (b) sie zeigt
+    fremde Module; (c) ein Lieferant kommt an einen Auftrag, in dem er nicht angefragt
+    ist; (d) er kann an einem fremden Modul handeln.
+    """
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.routers import orders as router
+    from app.services import purchase as svc
+    db = _db()
+    try:
+        wuerth = _supplier(db, "Würth AG")
+        other = _supplier(db, "Fremd AG")
+        art = _article(db, "Schraube", steps=[
+            _buy_step(_article(db, "Rohling"), [wuerth]),
+            {"module_type": "datenerfassung",
+             "config": {"points": [{"key": "t", "type": "text", "label": "Notiz"}]}},
+        ])
+        order, rows = _make(db, quantity=2, article=art)
+        staff = _staff(db)
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [wuerth.object_id]}, actor=staff)
+        db.flush()
+
+        full = router._to_response(db, order, viewer=staff)
+        assert len(full.steps) == 2 and full.flow is not None
+
+        seen = router._to_response(db, order, viewer=wuerth)
+        assert [s.id for s in seen.steps] == [rows[0].id], (
+            "Der Lieferant sieht ein Modul, das ihn nichts angeht."
+        )
+        # **Leer heisst: der Vorgabewert** – dasselbe, was ``_mine_only`` setzt. Auf
+        # «falsy» zu prüfen ginge daneben: ein leerer Graph ist ein Objekt und damit wahr.
+        from app.schemas.order import OrderResponse as _Resp
+        for field in router._INTERNAL_FIELDS:
+            empty = _Resp.model_fields[field].get_default(call_default_factory=True)
+            assert getattr(seen, field) == empty, (
+                f"«{field}» verrät den internen Lauf des Auftrags: {getattr(seen, field)!r}"
+            )
+        # **Und die Prüfung muss etwas sagen können**: diese vier tragen in genau dieser
+        # Szene beim Personal wirklich Inhalt. Ohne sie wäre «beim Lieferanten leer» auch
+        # dann erfüllt, wenn die Verengung gar nicht liefe.
+        for field in ("lines", "flow", "events", "event_count"):
+            empty = _Resp.model_fields[field].get_default(call_default_factory=True)
+            assert getattr(full, field) != empty, (
+                f"«{field}» ist auch beim Personal leer – die Prüfung sagt dann nichts."
+            )
+        assert seen.object_id == order.object_id and seen.name == full.name, (
+            "Es ist derselbe Auftrag – nur sein Teil davon."
+        )
+
+        # (c) Ein Lieferant, der nicht angefragt ist, sieht den Auftrag gar nicht.
+        with _pytest.raises(HTTPException) as caught:
+            router._to_response(db, order, viewer=other)
+        assert caught.value.status_code == 404, (
+            "403 bestätigt, dass es den Auftrag gibt – 404 sagt nichts."
+        )
+
+        # (d) Und er handelt nur an seinem Modul.
+        assert router._visible(db, order, wuerth) == {rows[0].id}
+        assert router._visible(db, order, staff) is None
+    finally:
+        db.rollback(); db.close()
+
 
 def test_one_supplier_is_a_list_with_one_entry():
     """**n statt 1**: der Angebotsvergleich ist kein zweiter Mechanismus."""
@@ -575,9 +649,22 @@ def test_the_module_is_a_pass_through_and_not_an_exit():
     )
 
 
-def test_the_suggested_quantity_respects_the_minimum_order():
-    """Bestellt wird, was der Lieferant überhaupt liefert."""
+def test_the_quantity_is_never_an_input():
+    """**Die Bestellmenge kommt aus dem Prozess** – sie lässt sich nicht eintragen.
+
+    Ein Beschaffungs-Modul sitzt in einem Ablauf: wie viel bestellt wird, sagen die
+    Einzelinstanzen, die davorstehen. Eine getippte Menge daneben wäre eine zweite
+    Aussage über dieselbe Sache – und die getippte gewinnt, auch wenn sie falsch ist.
+
+    Bug-Form: ``ask``/``order`` nehmen eine Menge aus der Nutzlast entgegen. Dann steht
+    auf dem Beleg eine Zahl, die mit dem Auftrag nichts zu tun hat.
+
+    *Die Mindestbestellmenge des Artikels wird hier bewusst NICHT aufgeschlagen*: das
+    Modul erzeugt keine Einzelinstanzen (§9.9) – für die Übermenge gäbe es also gar keine
+    Stücke, sie käme an und existierte im System nicht.
+    """
     from decimal import Decimal
+    from app.schemas.process import PurchaseUpdate
     from app.services import purchase as svc
     db = _db()
     try:
@@ -585,8 +672,67 @@ def test_the_suggested_quantity_respects_the_minimum_order():
         target = _article(db, "Schraube M6", moq=Decimal(100))
         art = _article(db, "Schraube", steps=[_buy_step(target, [wuerth])])
         order, rows = _make(db, quantity=5, article=art)
-        assert int(svc.of_step(db, rows[0].id).quantity) == 100, (
-            "Die Mindestbestellmenge des Artikels wird übergangen."
+        staff = _staff(db)
+        row = svc.of_step(db, rows[0].id)
+
+        assert int(svc.quantity_of(db, order, row)) == 5, (
+            "Die Menge ist die Zahl der Einzelinstanzen, die vor dem Modul stehen."
         )
+        assert "quantity" not in PurchaseUpdate.model_fields, (
+            "Der Beleg nimmt wieder eine Menge entgegen – damit gibt es zwei Zahlen für "
+            "dieselbe Sache."
+        )
+
+        # Auch wer sie trotzdem mitschickt, ändert nichts: Pydantic verwirft, was das
+        # Schema nicht kennt – die Regel steht im Schema, nicht in einer Prüfung daneben.
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [wuerth.object_id], "quantity": 100}, actor=staff)
+        assert int(svc.quantity_of(db, order, svc.of_step(db, rows[0].id))) == 5
+
+        svc.apply(db, order=order, step=rows[0], action="order",
+                  payload={"supplier": wuerth.object_id, "amount": 50, "quantity": 100},
+                  actor=staff)
+        after = svc.of_step(db, rows[0].id)
+        assert int(svc.quantity_of(db, order, after)) == 5, (
+            "Beim Bestellen wird die Menge des PROZESSES eingefroren, nicht eine getippte."
+        )
+        assert int(after.ordered_for) == 5
+    finally:
+        db.rollback(); db.close()
+
+
+def test_an_offer_without_a_lead_time_is_not_an_offer():
+    """**Ohne Lieferfrist keine Offerte** – aus ihr kommt der Liefertermin.
+
+    Bug-Form: ``lead_days`` ist optional. Dann steht ein Preis da, zu dem niemand sagen
+    kann, wann die Ware kommt – und zwei Angebote sind nicht mehr vergleichbar.
+    """
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.services import purchase as svc
+    db = _db()
+    try:
+        wuerth = _supplier(db, "Würth AG")
+        art = _article(db, "Schraube", steps=[_buy_step(_article(db, "Rohling"), [wuerth])])
+        order, rows = _make(db, quantity=2, article=art)
+        staff = _staff(db)
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [wuerth.object_id]}, actor=staff)
+
+        with _pytest.raises(HTTPException) as caught:
+            svc.apply(db, order=order, step=rows[0], action="quote",
+                      payload={"supplier": wuerth.object_id, "amount": 20}, actor=staff)
+        assert caught.value.status_code == 400
+        assert "Lieferfrist" in caught.value.detail
+
+        with _pytest.raises(HTTPException):
+            svc.apply(db, order=order, step=rows[0], action="quote",
+                      payload={"supplier": wuerth.object_id, "lead_days": 5}, actor=staff)
+
+        svc.apply(db, order=order, step=rows[0], action="quote",
+                  payload={"supplier": wuerth.object_id, "amount": 20, "lead_days": 5},
+                  actor=staff)
+        quote = svc.of_step(db, rows[0].id).quotes[0]
+        assert quote["state"] == "offeriert" and quote["lead_days"] == 5
     finally:
         db.rollback(); db.close()

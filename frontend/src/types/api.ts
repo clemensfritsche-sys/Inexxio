@@ -648,6 +648,10 @@ export interface paths {
          * List Orders
          * @description Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
          *
+         *     **Ein Lieferant sieht die Aufträge, in denen er angefragt ist** – dieselbe eine
+         *     Frage wie im Detail (``purchase.mine``), damit Liste und Datensatz nicht
+         *     auseinanderlaufen können.
+         *
          *     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
          *     gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
          */
@@ -813,7 +817,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Order */
+        /**
+         * Get Order
+         * @description Der Auftrag – und für einen Lieferanten **derselbe, nur sein Modul**.
+         */
         get: operations["get_order_api_v1_erp_orders__object_id__get"];
         put?: never;
         post?: never;
@@ -2892,8 +2899,6 @@ export interface components {
             currency: string;
             /** Reference */
             reference?: string | null;
-            /** Due Date */
-            due_date?: string | null;
             /** Clarify Quantity */
             clarify_quantity?: number | null;
         };
@@ -2948,11 +2953,11 @@ export interface components {
          * PurchaseUpdate
          * @description Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.
          *
-         *     ``ask``       bei wem angefragt wird (``suppliers``, optional ``quantity``)
-         *     ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days``)
+         *     ``ask``       bei wem angefragt wird (``suppliers``)
+         *     ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)
          *     ``decline``   ein Lieferant sagt ab (``supplier``)
-         *     ``order``     bestellen (``supplier``, ``amount``, optional ``reference``/``due_date``)
-         *     ``note``      nachtragen, was der Lieferant zurückgibt (``reference``, ``due_date``)
+         *     ``order``     bestellen (``supplier``, ``amount``, optional ``reference``)
+         *     ``note``      nachtragen, was der Lieferant zurückgibt (``reference``)
          *     ``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren
          *     ``clarified`` der Lieferant hat der geänderten Menge zugestimmt
          */
@@ -2967,12 +2972,8 @@ export interface components {
             amount?: number | null;
             /** Lead Days */
             lead_days?: number | null;
-            /** Quantity */
-            quantity?: number | null;
             /** Reference */
             reference?: string | null;
-            /** Due Date */
-            due_date?: string | null;
         };
         /**
          * RecordEntry

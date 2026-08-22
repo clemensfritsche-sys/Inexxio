@@ -5,11 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Betrag im Schweizer Zahlenformat, 2 Nachkommastellen – OHNE Währung («12'345.60»).
-// EINE Formatier-Wahrheit (vorher in 7 Komponenten je eine eigene Kopie).
+/**
+ * Betrag im Schweizer Zahlenformat, 2 Nachkommastellen – OHNE Währung («12'345.60»).
+ * EINE Formatier-Wahrheit (vorher in 7 Komponenten je eine eigene Kopie).
+ *
+ * **Der Tausender-Trenner wird festgeschrieben.** `toLocaleString('de-CH')` liefert je
+ * nach ICU-Fassung ein typografisches `’` (U+2019, so im Browser) oder ein gerades `'`
+ * (U+0027, so in Node) – gemessen, nicht vermutet. Das Design-System schreibt den
+ * geraden fest (`9'999 CHF`), und dieselbe Zahl darf nicht je nach Laufzeit anders
+ * aussehen: server- und clientseitig gerendert ergäbe das zwei verschiedene Texte an
+ * derselben Stelle (React meldet es als Hydrations-Fehler und wirft die Seite weg).
+ */
 export function formatAmount(v: string | number | null | undefined): string {
   if (v == null || v === '') return '—';
-  return Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return Number(v)
+    .toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .replace(/\u2019/g, "'");
 }
 
 // Betrag MIT Währungspräfix («CHF 12'345.60»).
