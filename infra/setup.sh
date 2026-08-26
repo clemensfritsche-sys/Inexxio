@@ -34,11 +34,26 @@ GITHUB_REPO="Inexxio"         # Replace with your GitHub repo name
 WI_POOL="github-pool"
 WI_PROVIDER="github-provider"
 
-# Cloud SQL tier: db-f1-micro for dev, db-g1-small for staging, db-n1-standard-2 for prod
+# Cloud SQL tier — die EINE Stelle, an der die Grösse der Datenbank entschieden wird.
+#
+# **Eine laufende Cloud-SQL-Instanz kostet, ob sie jemand benutzt oder nicht.** Das ist
+# der Unterschied zu Cloud Run, das bei Nichtgebrauch auf null skaliert. Die prod-Zeile
+# stand darum auf ``db-custom-2-7680`` (2 dedizierte vCPU, 7,5 GB RAM) — eine Maschine
+# für echten Produktivbetrieb, und in europe-west6 (Zürich, teuerste EU-Region) rund
+# 100 CHF/Monat. Sie lief von Juni bis August 2026 ungenutzt durch und war damit ~80 %
+# der gesamten Cloud-Rechnung, während entwickelt wurde nur auf dev.
+#
+# Massstab ist der reale Betrieb: ~10 Mitarbeitende, ~1000 Artikel. Dafür genügt
+# ``db-g1-small`` bei weitem. Hochskalieren ist ein Befehl und ein Neustart:
+#
+#   gcloud sql instances patch inexxio-prod-db --tier=db-custom-2-7680 \
+#     --project=inexxio-prod
+#
+# Zu gross zu starten ist dagegen ein Dauerauftrag, der niemandem auffällt.
 case "$ENV" in
-  dev)     SQL_TIER="db-f1-micro"      ;;
-  staging) SQL_TIER="db-g1-small"      ;;
-  prod)    SQL_TIER="db-custom-2-7680"  ;;
+  dev)     SQL_TIER="db-f1-micro"  ;;
+  staging) SQL_TIER="db-g1-small"  ;;
+  prod)    SQL_TIER="db-g1-small"  ;;
 esac
 
 echo "============================================================"
