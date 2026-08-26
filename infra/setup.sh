@@ -271,6 +271,10 @@ GITHUB_ROLES=(
   roles/iam.serviceAccountUser
   roles/firebase.admin
   roles/storage.admin
+  # Nur LESEN (viewer, nicht client/admin): der Prod-Workflow prüft vor dem Build, ob
+  # die Datenbank überhaupt läuft — ein Deploy gegen eine stillgelegte Instanz täuscht
+  # Erfolg vor und fällt erst beim ersten Request um.
+  roles/cloudsql.viewer
 )
 for ROLE in "${GITHUB_ROLES[@]}"; do
   gcloud projects add-iam-policy-binding "$GCP_PROJECT" \
