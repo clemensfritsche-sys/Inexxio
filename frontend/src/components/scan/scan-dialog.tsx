@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CameraOff, AlertTriangle, Flashlight, Search } from 'lucide-react';
 import {
-  objectCodes, offersFor, type ScanCandidate, type ScanStep, type ScanRequest, type ScanVia,
+  objectCodes, offersFor, scanKindLabel,
+  type ScanCandidate, type ScanStep, type ScanRequest, type ScanVia,
 } from '@/lib/scan';
+import { SCAN_RECORD_TYPE, TYPE_META } from '@/lib/erp-record';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
 import { OptionRow } from '@/components/erp/fields';
 import { formatObjectId } from '@/lib/utils';
@@ -203,7 +205,9 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
    * Beschriftung bleibt stehen. Was der Dialog TUT, sagt er nur noch der Vorlesehilfe –
    * im Bild sagen es Zielrahmen und Suchstrahl.
    */
-  const kind = step?.label ?? 'Objekt';
+  const kind = scanKindLabel(step);
+  const kindType = step?.kind ? SCAN_RECORD_TYPE[step.kind] : undefined;
+  const KindIcon = kindType ? TYPE_META[kindType].icon : null;
   const hint = reading.prompt(step);
   const empty = step?.emptyOption;
 
@@ -298,7 +302,15 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
         {/* Suche – im Bild statt darunter: eine milchige Leiste am unteren Rand, mit
             derselben Anatomie wie das Referenzfeld: Beschriftung · Eingabe · Liste. */}
         <div style={searchBar}>
-          <div style={kindLine}>{kind}</div>
+          {/* **Die Sorte mit ihrem Symbol** (#754) – demselben, das der Feed und jeder
+              Detail-Kopf trägt (`TYPE_META`). Ein Wort allein sagt, wonach gesucht wird;
+              das Symbol sagt es auf einen Blick, und es ist dasselbe wie überall.
+              `process`/`object` sind kein Datensatztyp – dort steht nur das Wort, statt
+              ein fremdes Symbol auszuleihen. */}
+          <div style={kindLine}>
+            {KindIcon && <KindIcon size={13} style={{ flex: 'none', opacity: 0.9 }} />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{kind}</span>
+          </div>
           <div style={{ position: 'relative' }}>
             <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.7)', pointerEvents: 'none' }} />
             <input
@@ -405,6 +417,7 @@ const reasonBox: React.CSSProperties = {
  */
 const kindLine: React.CSSProperties = {
   alignSelf: 'flex-start', maxWidth: '100%', padding: '3px 10px',
+  display: 'flex', alignItems: 'center', gap: 6,
   fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em',
   color: 'rgba(255,255,255,.92)', borderRadius: 999,
   border: '1px solid rgba(255,255,255,.18)', background: 'rgba(15,23,42,.5)',

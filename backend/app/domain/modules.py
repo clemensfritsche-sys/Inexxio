@@ -536,13 +536,21 @@ class Beschaffen(Module):
 
     ## Zwei Angaben, mehr nicht
 
-    ``suppliers``    die **zugelassenen** Lieferanten (mindestens einer).
+    ``suppliers``    die **zugelassenen** Lieferanten (mindestens einer), je Eintrag
+                     ``{"supplier": <Objektnr>, "ref": "<Artikelnummer oder Link>"}``.
     ``instruction``  **was zu tun ist** – ein Satz, Pflicht.
 
     **Eine Liste mit einem Eintrag ist der Normalfall** – kein Modus, keine Verzweigung.
     Wer nur bei Würth kauft, hat eine Liste mit Würth; wer vergleichen will, nennt drei.
     Fachlich ist das die **Lieferantenfreigabe**: wer für dieses Teil in Frage kommt.
     Ein Einzelwert hätte den Vergleich zu einem zweiten Mechanismus gemacht.
+
+    **Die Bestellangabe gehört zur PAARUNG, nicht zum Beleg** (``ref``): «wie bestelle ich
+    bei *ihm* dieses Teil» – seine Artikelnummer oder der Shop-Link. Sie ist bekannt,
+    wenn man festlegt, wer in Frage kommt, und sie ändert sich nicht je Bestellung. Am
+    Beleg wäre sie eine Angabe, die man bei jedem Vorgang neu abschreibt; am **Artikel**
+    (``supplier_article_number``) ist sie ein einzelner Wert ohne Lieferanten – genau
+    darum war sie dort nie brauchbar. Frei und kurz: eine Nummer, eine URL oder beides.
 
     **Kein Artikelfeld.** *Was* beschafft wird, sagt der **Prozess**: die Einzelinstanzen,
     die vor dem Modul stehen, tragen ihren Artikel – ihn daneben zu tippen wäre eine
@@ -599,6 +607,9 @@ class Beschaffen(Module):
     SUPPLIERS = "suppliers"
     INSTRUCTION = "instruction"
 
+    #: Wie lang eine Bestellangabe höchstens ist – eine Nummer oder eine URL.
+    MAX_REF = 200
+
     #: Wie lang der Auftrag an den Lieferanten höchstens ist. Ein Satz, kein Pflichtenheft
     #: – wer mehr braucht, hängt ein Dokument an den Artikel.
     MAX_INSTRUCTION = 400
@@ -636,6 +647,7 @@ class Beschaffen(Module):
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
         data = raw or {}
         suppliers = self._suppliers(data.get(self.SUPPLIERS))
+
         instruction = str(data.get(self.INSTRUCTION) or "").strip()
         if not instruction:
             raise HTTPException(
@@ -656,7 +668,30 @@ class Beschaffen(Module):
         return {self.SUPPLIERS: suppliers, self.INSTRUCTION: instruction,
                 "points": [], "sample": dict(sampling.DEFAULT)}
 
-    def _suppliers(self, value: Any) -> list[int]:
+    @classmethod
+    def suppliers_of(cls, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+        """**Die zugelassenen Lieferanten – die EINE Lesestelle.**
+
+        Sie liest **beide** Formen: die heutige (``{"supplier": …, "ref": …}``) und die
+        alte, blosse Objektnummer. Ein Auftrag friert seinen Prozess bei der Freigabe
+        ein – die alte Form steht also in laufenden Aufträgen und wird sie überleben.
+        Tolerant lesen, streng schreiben.
+        """
+        out: list[dict[str, Any]] = []
+        for entry in (config or {}).get(cls.SUPPLIERS) or []:
+            row = entry if isinstance(entry, dict) else {"supplier": entry}
+            number = cls._object_id(row.get("supplier"))
+            if number is None:
+                continue
+            out.append({"supplier": number, "ref": str(row.get("ref") or "").strip()})
+        return out
+
+    @classmethod
+    def allowed_numbers(cls, config: Optional[dict[str, Any]]) -> list[int]:
+        """Nur die Objektnummern – dieselbe Liste, andere Form (für die Prüfungen)."""
+        return [row["supplier"] for row in cls.suppliers_of(config)]
+
+    def _suppliers(self, value: Any) -> list[dict[str, Any]]:
         if value in (None, ""):
             value = []
         if not isinstance(value, (list, tuple)):
@@ -664,21 +699,28 @@ class Beschaffen(Module):
                 status_code=400,
                 detail="«Beschaffen» erwartet eine Liste zugelassener Lieferanten.",
             )
-        found: list[int] = []
+        found: list[dict[str, Any]] = []
         for entry in value:
-            number = self._object_id(entry)
+            row = entry if isinstance(entry, dict) else {"supplier": entry}
+            number = self._object_id(row.get("supplier"))
             if number is None:
                 raise HTTPException(
                     status_code=400,
                     detail=f"«{entry}» ist keine Lieferanten-Objektnummer.",
                 )
-            if number in found:
+            if any(r["supplier"] == number for r in found):
                 raise HTTPException(
                     status_code=400,
                     detail=(f"Lieferant {number} steht zweimal in der Freigabe – zweimal "
                             f"derselbe ist keine zweite Wahl."),
                 )
-            found.append(number)
+            ref = str(row.get("ref") or "").strip()
+            if len(ref) > self.MAX_REF:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Die Bestellangabe ist zu lang (max. {self.MAX_REF} Zeichen).",
+                )
+            found.append({"supplier": number, "ref": ref})
         if not found:
             raise HTTPException(
                 status_code=400,

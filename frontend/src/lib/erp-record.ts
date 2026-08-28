@@ -29,6 +29,22 @@ export const TYPE_META: Record<ErpRecordType, TypeMeta> = {
   organization:     { label: 'Unternehmen', icon: Building2,     bg: '#F3E5DD', fg: '#A65A3C' },
 };
 
+/**
+ * **Ein Scan sucht einen Datensatz – also trägt er dessen Symbol** (#754).
+ *
+ * `ScanKind` ist die Sicht des Scanners auf einen Typ, `ErpRecordType` die des ERP; wo
+ * beide dasselbe meinen, steht es hier – an EINER Stelle, neben der Zuordnung selbst.
+ * `process`/`object` bleiben ohne Eintrag: sie sind kein Datensatztyp, und ein
+ * ausgeliehenes Symbol wäre eine Behauptung (dieselbe Lehre wie `moduleIcon`, wo ein
+ * Rückfall drei fremde Module vortäuschte).
+ */
+export const SCAN_RECORD_TYPE: Record<string, ErpRecordType> = {
+  user: 'user',
+  instance: 'instance',
+  article: 'article',
+  company: 'organization',
+};
+
 // 'organization' erscheint nur für Admins als Chip (displayCount blendet 0-Zähler aus).
 export const FILTER_TYPES: ErpRecordType[] = [
   'user', 'article', 'order', 'instance', 'organization',

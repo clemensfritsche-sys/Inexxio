@@ -513,7 +513,8 @@ function StockPicker({ articleObjectId, quantity, chosen, refreshKey, onChange }
               aria-label="Instanz scannen"
               onClick={() => scan({
                 steps: [{
-                  label: 'Instanz',
+                  // Kein `label`: die Sorte kommt aus dem Typ (`scanKindLabel` →
+                  // `TYPE_META`), derselben Quelle wie Symbol und Feed-Wort.
                   kind: 'instance',
                   suggest: (q: string) => api.getInstances(8, 0, q)
                     .then((rows) => rows

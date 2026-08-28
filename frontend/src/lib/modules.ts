@@ -262,14 +262,20 @@ export interface ModuleDraft {
    */
   target: string;
   /**
-   * Nur «Beschaffen»: die **zugelassenen Lieferanten** – Objektnummern, mindestens einer.
+   * Nur «Beschaffen»: die **zugelassenen Lieferanten**, mindestens einer – je Eintrag
+   * seine Objektnummer und die **Bestellangabe**.
    *
    * Eine Liste, auch wenn fast immer einer drinsteht: **n statt 1**. Wer nur bei Würth
    * kauft, hat eine Liste mit Würth; wer vergleichen will, nennt drei – und der
    * Angebotsvergleich ist damit kein zweiter Mechanismus, sondern dieselbe Liste, eine
    * Zeile länger. Fachlich ist es die Lieferantenfreigabe.
+   *
+   * **`ref` ist «wie bestelle ich bei ihm»** – seine Artikelnummer oder der Shop-Link.
+   * Sie gehört der **Paarung** Modul × Lieferant: bekannt, wenn man festlegt, wer in
+   * Frage kommt, und unverändert über alle Bestellungen. Am Beleg wäre sie eine Angabe,
+   * die man bei jedem Vorgang neu abschreibt.
    */
-  suppliers: number[];
+  suppliers: SupplierRule[];
   /**
    * Nur «Beschaffen»: **was der Lieferant tun soll** – ein Satz, Pflicht.
    *
@@ -280,6 +286,13 @@ export interface ModuleDraft {
    * mehrere Schritte, und jeder verlangt etwas anderes.
    */
   instruction: string;
+}
+
+/** Ein zugelassener Lieferant und die Angabe, wie man bei ihm bestellt (#753). */
+export interface SupplierRule {
+  supplier: number;
+  /** Seine Artikelnummer oder der Shop-Link – frei, weil es beides sein kann. */
+  ref: string;
 }
 
 /**
@@ -353,7 +366,10 @@ export const MODULE_FORM: Record<string, {
     // die Einzelinstanzen vor dem Modul; keine Menge – die steht beim Modellieren nicht
     // fest (dieselbe Regel wie beim Verbrauch); kein Modus «Webshop» – wo jemand seinen
     // Shop hat, ist eine Eigenschaft des Lieferanten und nicht dieser Bestellung.
-    config: (m) => ({ suppliers: m.suppliers, instruction: m.instruction.trim() }),
+    config: (m) => ({
+      suppliers: m.suppliers.map((r) => ({ supplier: r.supplier, ref: r.ref.trim() })),
+      instruction: m.instruction.trim(),
+    }),
     incomplete: (m) => {
       if (!m.instruction.trim()) return 'kein Auftrag an den Lieferanten';
       if (m.suppliers.length === 0) return 'kein Lieferant zugelassen';

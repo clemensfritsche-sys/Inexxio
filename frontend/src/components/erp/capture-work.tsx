@@ -156,7 +156,8 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    * aus `expected`). Stand sie auch hier, las der Platzhalter «Instanz 100000825
    * 100000825 scannen» – zwei Stellen sagten dasselbe (Testnotiz #737). */
   const goodsSteps = (w: StepWork) => [
-    { label: 'Instanz', kind: 'instance' as const, expected: w.instance_object_id },
+    // Ohne `label`: die Sorte kommt aus dem Typ, nicht aus einem hingeschriebenen Wort.
+    { kind: 'instance' as const, expected: w.instance_object_id },
     ...boxesFor(w).map((id) => ({
       label: 'Material', kind: 'instance' as const, expected: id,
     })),

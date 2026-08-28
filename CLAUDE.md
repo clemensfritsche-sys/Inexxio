@@ -1221,6 +1221,59 @@
 > über sieben Beleg-Zustände (inkl. Zwei-Zeilen-Beleg); der abgeschlossene Beleg zeigt
 > Zeilen, Spezifikation und Auftrag und hat **0** bedienbare Knöpfe.
 
+> **Testnotizen #750–#754 — eine Ansicht für zwei Rollen, und `can` ist das Tor**
+> (Migration `117`): **(1)** Der Beschaffungs-Beleg rendete jede Aktion, sobald die Stufe
+> aktiv war. Ein **Lieferant** sah damit «Anfrage zurückziehen», «Bestellen»,
+> «Stornieren» und den **Wareneingangs-Scan** – vier Knöpfe, die der Server mit 403
+> abweist (`SUPPLIER_ACTIONS`; `confirm_step` ist `require_employee`). Die Lösung ist EIN
+> Feld statt Rollenabfragen: **`PurchaseEmbed.can`** – was *dieser* Betrachter an *diesem*
+> Beleg tun darf, abgeleitet an der einen Stelle, an der die Regel wohnt (`_can`:
+> Stufe × Rolle). Die Oberfläche fragt `may(...)` und weiss danach nicht mehr, was ein
+> Lieferant ist. **Und `can` ist nicht bloss eine Auskunft, sondern das Tor**: dieselbe
+> Tabelle weist in `apply` ab – wäre es nur ein Anzeige-Hinweis, liefen Knopf und Tür beim
+> nächsten Verb auseinander; `_only_in` ist darin aufgegangen (**eine Regel weniger**).
+> Der **Wareneingang** steht mit in der Liste, obwohl er über `confirm_step` läuft: aus
+> Sicht des Belegs ist er das Verb seiner dritten Stufe, und zwei Listen wären zwei
+> Massstäbe. **Ein Datenleck nebenbei**: `quotes` war gefiltert, die getroffene Wahl
+> nicht – ein angefragter, **nicht** gewählter Lieferant las Namen und Bestellsumme
+> seines Konkurrenten. **Die Wörter sind allgemein** statt je Rolle formuliert («Offerte
+> erfassen» – er gibt seine ab, wir schreiben seine auf; «Absage · liefert nicht»), und
+> der Bestell-Knopf liest sein Wort aus `stage.verb` – dem Feld, das der Server längst
+> liefert und das **niemand** las. Das **Modul-Protokoll** ist keine Modul-, sondern eine
+> Ansichtsfrage: `stepBody(step, isActive, internal)` – die beiden Aufrufstellen sagen,
+> was sie sind, kein `if role` irgendwo.
+> **(2) Die Referenz sind ZWEI Dinge zu zwei Zeitpunkten** (#753, vom Nutzer selbst
+> hergeleitet): *wie bestelle ich bei ihm* (seine Artikelnummer, der Shop-Link) ist eine
+> Eigenschaft der **Paarung** Modul × Lieferant und gehört dorthin, wo man festlegt, wer
+> in Frage kommt (`config.suppliers[].ref` – JSONB, keine Migration; die alte Form
+> `[nr]` wird tolerant gelesen, `Beschaffen.suppliers_of` ist die eine Lesestelle); *wo
+> ist die Sendung* entsteht erst **nach** der Bestellung und kommt vom Lieferanten –
+> darum `purchases.tracking`, und `note` kommt zu den Lieferanten-Handlungen. Umbenannt
+> statt weiterverwendet, weil daneben künftig `suppliers[].ref` steht: zwei Dinge, die
+> «ref» heissen und Verschiedenes meinen, sind genau die Verwechslung, aus der die Notiz
+> entstand. Ein `http`-Wert wird zum Link.
+> **(3) Die Angebotszeile ist eine kleine Karte** (#752): bei ~460 px Spurbreite drängten
+> sich Nummer, Name, zwei Eingaben und zwei 30-px-Quadrate in EINE Flexzeile. Neu zwei
+> Zeilen mit Haarlinie – oben wer und wie viel, darunter (nur wenn offen **und** erlaubt)
+> Eingaben und Aktionen; `CircleSlash` für die Absage, dasselbe Zeichen, mit dem das Haus
+> «storniert» schreibt. **(4)** «Anfragen» ↔ «Bei 2 anfragen» waren zwei Beschriftungen
+> für denselben Knopf – die Zahl fiel ausgerechnet weg, wenn sie am grössten ist (#750).
+> **(5) Der Scan-Chip trägt das globale Symbol** (#754): `ScanStep.kind` versprach seit
+> jeher «erwarteter Objekttyp → **Symbol** im Scanner», gerendert wurde nie eines. Symbol
+> **und Wort** kommen jetzt aus `TYPE_META` (`SCAN_RECORD_TYPE` daneben, `scanKindLabel`
+> als die eine Auflösung); zwei Aufrufstellen hören auf, «Instanz» von Hand hinzuschreiben.
+> `process`/`object` bleiben ohne Symbol – sie sind kein Datensatztyp, und ein
+> ausgeliehenes wäre eine Behauptung (die Lehre aus `moduleIcon`).
+> Wächter: `tests/test_purchase_module.py` (24) + drei in `test_frontend_mirrors.py` –
+> **acht Bug-Formen gegengeprüft**; *zwei Wächter waren dabei stumpf und liessen ihre
+> eigene Bug-Form durch* (sie fragten nach dem **Vorkommen** eines Wortes statt nach der
+> **Form** des Tors bzw. nach dem Rendern) – gemessen, nachgeschärft, erneut
+> gegengeprüft. Suite grün gegen die gewachsene DB **und** gegen ein Schema nur aus den
+> Migrationen; Migration `117` von null · idempotent · downgrade · über das Lifespan-Netz.
+> Gemessen in Chromium: 1440 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf
+> über zehn Beleg-Zustände – sechs aus Personal-, vier aus **Lieferantensicht**; der
+> unterlegene Lieferant sieht 0 fremde Angaben, der abgeschlossene Beleg 0 Knöpfe.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
