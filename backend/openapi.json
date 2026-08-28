@@ -3717,13 +3717,23 @@
             "description": "Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.",
             "readOnly": true
           },
-          "transports": {
-            "items": {
-              "$ref": "#/components/schemas/Transport"
-            },
-            "type": "array",
-            "title": "Transports",
-            "description": "**Die Transportarten dieses Modultyps** – mit ihrer Verfügbarkeit.\n\nLeer bei jedem Modul, das nichts bewegt; die Oberfläche braucht damit keine\nFallunterscheidung nach dem Typ. Sie reisen **mit dem Schritt** und nicht über den\nModul-Katalog, denn den lädt nur der Editor – im freigegebenen Auftrag wäre die\nListe sonst leer, genau wie es der Farbe einmal ergangen ist.\n\nDie Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute\ngeht. Nur die verfügbaren zu schicken hiesse, die Oberfläche könnte die Roadmap\nnicht zeigen, ohne sie zu erfinden.",
+          "moves": {
+            "type": "boolean",
+            "title": "Moves",
+            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»\naus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht\nals das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt\nnur der Editor.",
+            "readOnly": true
+          },
+          "buys": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buys",
+            "description": "**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.\n\n``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau\ndarum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der\nEigenschaft und nie nach dem Modultyp.",
             "readOnly": true
           }
         },
@@ -3737,7 +3747,8 @@
           "label",
           "tone",
           "terminal",
-          "transports"
+          "moves",
+          "buys"
         ],
         "title": "ArticleProcessStepResponse",
         "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft.\n\nBeschriftung, Farbfamilie und «Ausgang?» kommen aus ``ModuleFacts`` – derselben\nAbleitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände."
@@ -7090,13 +7101,23 @@
             "description": "Ist dies ein **Ausgang**? Dann steht dahinter nichts mehr – und kein Ende.",
             "readOnly": true
           },
-          "transports": {
-            "items": {
-              "$ref": "#/components/schemas/Transport"
-            },
-            "type": "array",
-            "title": "Transports",
-            "description": "**Die Transportarten dieses Modultyps** – mit ihrer Verfügbarkeit.\n\nLeer bei jedem Modul, das nichts bewegt; die Oberfläche braucht damit keine\nFallunterscheidung nach dem Typ. Sie reisen **mit dem Schritt** und nicht über den\nModul-Katalog, denn den lädt nur der Editor – im freigegebenen Auftrag wäre die\nListe sonst leer, genau wie es der Farbe einmal ergangen ist.\n\nDie Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute\ngeht. Nur die verfügbaren zu schicken hiesse, die Oberfläche könnte die Roadmap\nnicht zeigen, ohne sie zu erfinden.",
+          "moves": {
+            "type": "boolean",
+            "title": "Moves",
+            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»\naus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht\nals das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt\nnur der Editor.",
+            "readOnly": true
+          },
+          "buys": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buys",
+            "description": "**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.\n\n``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau\ndarum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der\nEigenschaft und nie nach dem Modultyp.",
             "readOnly": true
           },
           "action": {
@@ -7128,7 +7149,8 @@
           "label",
           "tone",
           "terminal",
-          "transports",
+          "moves",
+          "buys",
           "action",
           "sample",
           "reason"
@@ -7248,7 +7270,7 @@
           "stage"
         ],
         "title": "PurchaseEmbed",
-        "description": "**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.\n\nLeer bei jedem anderen Modultyp – die Oberfläche braucht damit keine\nFallunterscheidung nach dem Modul, genau wie bei ``transports`` und ``needs``.\n\n**Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt\neiner Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche."
+        "description": "**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.\n\n**Der Beleg gehört keinem Modul** (``domain/procurement``): er hängt am Schritt, und\nwelches Modul einen bekommt, sagt dessen ``buys``. Ein **Bewegen**-Modul, bei dem\njemand «eingekauft» gewählt hat, trägt darum buchstäblich denselben – dieselben\nStufen, dieselben Verben, dieselbe Komponente. Leer, wo keiner existiert; die\nOberfläche braucht damit keine Fallunterscheidung nach dem Modul (wie ``needs``).\n\n**Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt\neiner Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche."
       },
       "PurchaseLine": {
         "properties": {
@@ -7729,17 +7751,6 @@
               }
             ],
             "title": "Place"
-          },
-          "transport": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transport"
           }
         },
         "type": "object",
@@ -8069,35 +8080,6 @@
         ],
         "title": "TerritoryRegion",
         "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
-      },
-      "Transport": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "available": {
-            "type": "boolean",
-            "title": "Available"
-          },
-          "hint": {
-            "type": "string",
-            "title": "Hint",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "label",
-          "available"
-        ],
-        "title": "Transport",
-        "description": "**Womit bewegt wird** — ein Kanal und seine Verfügbarkeit.\n\nDie Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute geht.\nNur die verfügbaren zu schicken hiesse, die Oberfläche müsste die Roadmap erfinden,\num sie zu zeigen – und ein Kanal, der später dazukommt, wäre ein Umbau statt eines\nWertes."
       },
       "UnitChoices": {
         "properties": {

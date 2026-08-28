@@ -186,6 +186,26 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > durch – sichtbar.
 > Alle drei stehen an der EINEN Ausführungsstelle; jedes künftige Modul erbt sie.
 
+> **Der Beleg gehört keinem Modul** (`domain/procurement.py`): Stufen, Ausgang, Schwelle
+> und Verben beschreiben den **Vorgang**, nicht den Modultyp, der ihn ausgelöst hat. Im
+> Datenmodell war das immer so – `purchases` trägt eine `step_id` und keinen Modultyp,
+> `_can` liest Stufe × Rolle, `assert_receivable`/`note_receipt` fragen nur, ob es zu
+> diesem Schritt einen Beleg gibt. Gebunden war er an «Beschaffen» durch genau **zwei
+> Fäden**: er las dessen `suppliers` und dessen `instruction`. Beide sind jetzt Fragen an
+> das **Modul** (`Module.suppliers_of` – leer heisst **frei**, nicht «niemand»;
+> `Module.instruction_for` – beim Bewegen **abgeleitet**, «von A nach B»).
+> **Vier Deklarationen, jede mit einer offensichtlichen Vorgabe:** `moves` (bewegt es?),
+> `buys` (`BUY_ALWAYS` ↔ `BUY_IF_CHOSEN` ↔ `None`), `landed_cost` (ist die Summe der Preis
+> der **Ware**? beim Transport **nein** – derselbe Artikel, zweimal verschickt, hätte sonst
+> den Frachttarif als Einstandspreis) und die beiden Fäden. `steps_of` filtert über
+> `modules.buying_types()`, nie über einen Namen.
+> **`buy` ist eine Handlung des MODULS, nicht des Belegs** – sie steht bewusst nicht in
+> `ACTIONS` (dort sind die Verben eines Belegs, und `_can` ist ihr Tor); sie legt ihn an.
+> Ihre Gegenhandlung ist dieselbe wie überall (`revoke`): war der Einkauf eine **Wahl**,
+> verschwindet der Beleg (Soft-Delete, partieller Unique-Index seit Migration `119`) –
+> sonst bliebe ein leerer stehen, und «wurde eingekauft?» beantwortete sich mit «ja».
+> Wächter: `tests/test_purchase_module.py`.
+
 > **Beschaffen – das Tor nach draussen** (PROCESS_CORE §9.9, `services/purchase.py`,
 > Tabelle `purchases`): drei Stufen (`Anfrage → Bestellung → Wareneingang`), **eine
 > Fachzeile je Modul** (partieller Unique-Index auf `step_id` – `instantiate_for_order`

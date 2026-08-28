@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import { AlertTriangle, Boxes, GitBranch, PackagePlus, ScanLine, Truck } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CapturePoint, PlaceRef, StepNeed, StepWork, Transport } from '@/types';
-import { MOVE_MODULE, TRANSPORT_ICON } from '@/lib/modules';
-import { IconSwitch } from '@/components/erp/fields';
+import type { CapturePoint, PlaceRef, StepNeed, StepWork } from '@/types';
+import { MOVE_MODULE } from '@/lib/modules';
 import { formatObjectId } from '@/lib/utils';
 import { useScan } from '@/components/scan/scan-provider';
 import { CaptureForm } from '@/components/erp/capture-form';
@@ -43,7 +42,7 @@ import type { OrderSeed } from '@/components/erp/order-detail';
  * bestellt hat – und er zöge Stücke aus dem Auftrag, ohne dass jemand zugestimmt hätte.
  */
 export function CaptureWork({ orderObjectId, stepId, points, action, work, needs = [],
-                              target = null, transports = [],
+                              target = null, moves = false,
                               busy, onConfirm, onDeviate, onDirty }: {
   orderObjectId: number;
   stepId: number;
@@ -65,11 +64,11 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    * bei jedem anderen Modultyp. Die Oberfläche braucht damit keine Fallunterscheidung
    * nach dem Modultyp – dieselbe Bauart wie `needs` bei der Stückliste.
    */
-  transports?: Transport[];
+  moves?: boolean;
   busy?: boolean;
   onConfirm: (instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
-              sources: number[], place: number | null, transport: string) => void;
+              sources: number[], place: number | null) => void;
   /** Die Entscheidung öffnet einen **ganz gewöhnlichen** Auftragsentwurf (§4/§4.1). */
   onDeviate?: (seed: OrderSeed) => void;
   onDirty?: (dirty: boolean) => void;
@@ -98,16 +97,6 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
    * die Verifikation, dass wirklich dort abgelegt wurde.
    */
   const [placed, setPlaced] = useState<Record<number, number>>({});
-  const [transport, setTransport] = useState<string>(
-    () => transports.find((t) => t.available)?.key ?? 'manuell',
-  );
-
-  /**
-   * **Bewegt dieses Modul?** Die Antwort ist die Transportliste selbst – sie ist bei
-   * jedem anderen Modultyp leer. Ein `moduleType === 'bewegen'` daneben wäre eine zweite
-   * Stelle, an der die Oberfläche über Modultypen Bescheid wissen müsste.
-   */
-  const moves = transports.length > 0;
 
   if (work.length === 0) {
     return <p className="text-xs" style={{ color: 'var(--fg-3)' }}>Hier steht gerade nichts.</p>;
@@ -218,25 +207,11 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
 
   return (
     <div className="flex flex-col">
-      {/* **Womit gebracht wird – eine Wahl für die Fuhre, nicht je Stück.**
-          Paket und Fracht stehen sichtbar da und sind gesperrt: sie kommen, sind aber
-          nicht gebaut. Den Grund sagt der Hover; der Server weist sie ebenfalls ab –
-          eine Sperre, die nur hier steht, wäre eine Bitte. */}
-      {moves && (
-        <div className="pb-2">
-          <IconSwitch
-            value={transport}
-            onChange={setTransport}
-            options={transports.map((t) => ({
-              value: t.key,
-              icon: TRANSPORT_ICON[t.key] ?? Boxes,
-              label: t.label,
-              hint: t.hint,
-              disabled: !t.available,
-            }))}
-          />
-        </div>
-      )}
+      {/* **Kein «womit» mehr.** Selbst gebracht oder eingekauft ist keine Eigenschaft
+          der Fuhre, sondern die Frage, ob ein Dritter dafür bezahlt wird – und die
+          beantwortet der **Beleg** eine Ebene höher (`Wrapped`). Die frühere Liste
+          `manuell · paket · fracht` ist entfallen: Paket und Fracht sind keine zwei
+          Arten, sondern zwei Angebote desselben Einkaufs. */}
       {work.map((w, i) => (
         <InstanceRow
           key={w.instance_object_id}
@@ -275,7 +250,7 @@ export function CaptureWork({ orderObjectId, stepId, points, action, work, needs
             setNumbers(({ [w.instance_object_id]: _also, ...rest }) => rest);
             onConfirm(w.instance_object_id, verified[w.instance_object_id] ?? 'manual',
                       values, boxesFor(w),
-                      placed[w.instance_object_id] ?? null, transport);
+                      placed[w.instance_object_id] ?? null);
           }}
         />
       ))}

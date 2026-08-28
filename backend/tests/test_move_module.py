@@ -149,7 +149,7 @@ def test_a_move_sets_the_place_and_nothing_else():
             "Ein frisch erzeugtes Stück liegt nirgends – standortlos ist der Startwert."
         )
 
-        _confirm(db, order, steps[0], place=shelf.object_id, transport="manuell")
+        _confirm(db, order, steps[0], place=shelf.object_id)
 
         after = _units(db, order)
         assert [u.place_object_id for u in after] == [shelf.object_id] * 3
@@ -385,7 +385,9 @@ def test_without_a_target_nothing_moves():
         assert moved, "Die Bewegung steht nicht im Ereignis-Log."
         assert moved[0].payload["place"]["to"] == shelf3.object_id
         assert moved[0].payload["place"]["from"] is None
-        assert moved[0].payload["transport"] == "manuell"
+        # **Selbst gebracht** – und das steht im Log als abgeleitete Tatsache, nicht
+        # als getippte Transportart: es gibt keinen Beleg, also wurde nichts eingekauft.
+        assert moved[0].payload["bought"] is False
     finally:
         db.rollback()
         db.close()
@@ -395,60 +397,83 @@ def test_without_a_target_nothing_moves():
 # 6 – ein gesperrter Kanal ist SERVERSEITIG gesperrt
 # ---------------------------------------------------------------------------
 
-def test_a_locked_transport_is_refused_by_the_server():
-    """**Paket und Fracht stehen da, aber sie gehen nicht.**
+def test_a_module_that_may_not_buy_gets_no_document():
+    """**Der Server weist ab, nicht die Oberfläche.**
 
-    Sie sichtbar zu lassen ist eine Entscheidung über die Oberfläche – dass sie nicht
-    laufen, ist eine Entscheidung über das System. Wäre die Sperre nur ein
-    ausgegrauter Knopf, käme ein direkter Aufruf daran vorbei.
+    Die frühere Fassung prüfte gesperrte Transportarten («Paket», «Fracht» standen
+    sichtbar da und liefen nicht). Die Liste gibt es nicht mehr: *Paket* und *Fracht*
+    sind keine zwei Arten, sondern zwei **Angebote** desselben Einkaufs. Geblieben ist
+    die Aussage, um die es ging – **eine Sperre, die nur ausgegraut ist, ist eine
+    Bitte**: wer keinen Beleg tragen darf, bekommt auch über einen direkten Aufruf
+    keinen.
+
+    Bug-Form: ``ensure`` legt für jeden Schritt einen Beleg an. Dann hätte jedes Modul
+    eine Hintertür zu einem Einkauf, und ``Module.buys`` wäre eine Empfehlung.
     """
     from fastapi import HTTPException
     from app.domain import modules
+    from app.services import purchase as purchase_svc
 
     db = _db()
     try:
         shelf = _holder_instance(db)
-        _art, order, steps = _make(db, quantity=1, steps=[_move_step(shelf.object_id)])
+        _art, order, steps = _make(db, quantity=1, steps=[
+            _move_step(shelf.object_id),
+            {"module_type": "datenerfassung",
+             "config": {"points": [{"label": "OK", "type": "bool"}]}},
+        ])
 
-        for locked in ("paket", "fracht"):
-            with pytest.raises(HTTPException) as refused:
-                _confirm(db, order, steps[0], place=shelf.object_id, transport=locked)
-            assert refused.value.status_code == 400
+        # Das Bewegen-Modul darf – der Beleg entsteht mit der Wahl.
+        row = purchase_svc.ensure(db, order=order, step=steps[0])
+        assert row.stage == "anfrage" and row.step_id == steps[0].id
+        # …und zweimal wählen legt keinen zweiten an.
+        assert purchase_svc.ensure(db, order=order, step=steps[0]).id == row.id
 
-        with pytest.raises(HTTPException) as unknown:
-            _confirm(db, order, steps[0], place=shelf.object_id, transport="beamen")
-        assert unknown.value.status_code == 400
+        # Die Datenerfassung darf nicht – und sie wird abgewiesen, nicht ausgegraut.
+        with pytest.raises(HTTPException) as refused:
+            purchase_svc.ensure(db, order=order, step=steps[1])
+        assert refused.value.status_code == 400
+        assert "einkaufen" in refused.value.detail
 
-        # Die Liste nennt **alles**, was es geben wird – nicht nur das Verfügbare.
-        catalogue = modules.get("bewegen").TRANSPORTS
-        assert [t["key"] for t in catalogue] == ["manuell", "paket", "fracht"]
-        assert [t["available"] for t in catalogue] == [True, False, False]
+        # Und die Deklaration ist die eine Quelle – kein Modultyp-Vergleich daneben.
+        assert modules.get("bewegen").buys == modules.BUY_IF_CHOSEN
+        assert modules.get("beschaffen").buys == modules.BUY_ALWAYS
+        assert modules.get("datenerfassung").buys is None
     finally:
         db.rollback()
         db.close()
 
 
-def test_only_a_moving_module_carries_transports():
-    """**Die Transportliste IST das Bit** «bewegt dieses Modul?».
+def test_moving_is_a_declaration_not_a_list():
+    """**«Bewegt dieses Modul?» ist eine Zeile, keine Liste mit einem Flag.**
 
-    Sie ist bei jedem anderen Modultyp leer – darum braucht die Oberfläche keine
-    Fallunterscheidung nach dem Modultyp, und ein neuer Kanal ist ein Eintrag in der
-    Registry statt eines Eingriffs in eine Komponente.
+    Vorher beantwortete das die Transportart-Liste, indem sie bei jedem anderen Modultyp
+    leer war – eine Liste als Bit, mit einem ``available``-Feld als Roadmap darin. Die
+    Aussage bleibt (die Oberfläche fragt nie nach dem Modultyp), die Form ist ehrlich
+    geworden.
+
+    Bug-Form: die Liste kommt zurück, oder ``moves`` und ``movement_for`` laufen
+    auseinander – dann sagt die Karte «hier wird bewegt» und die Ausführung tut nichts.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
     from app.domain import modules
 
     for key in modules.MODULES:
-        has = bool(getattr(modules.get(key), "TRANSPORTS", ()))
-        assert has == (key == "bewegen"), (
-            f"«{key}» trägt Transportarten, obwohl es nichts bewegt – oder umgekehrt."
+        module = modules.get(key)
+        assert not hasattr(module, "TRANSPORTS"), (
+            f"«{key}» trägt wieder eine Transportart-Liste – das Bit ist `moves`."
         )
-        moves = modules.get(key).movement_for({}, target=None, transport=None) \
-            if key != "bewegen" else True
-        assert bool(moves) == (key == "bewegen"), (
-            f"«{key}» beantwortet die Bewegungsfrage nicht mit «nein»."
+        assert module.moves == (key == "bewegen"), (
+            f"«{key}» beantwortet die Bewegungsfrage falsch."
         )
+        # **Die Deklaration und die Ausführung müssen dasselbe sagen.** `movement_for`
+        # eines nicht bewegenden Moduls gibt `None` – ein Modul, das `moves` behauptet
+        # und nichts tut, wäre ein Ziel-Scan ohne Wirkung.
+        if not module.moves:
+            assert module.movement_for({}, target=None) is None, (
+                f"«{key}» bewegt doch etwas, sagt aber `moves = False`."
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -631,8 +631,7 @@ class ApiClient {
    */
   confirmStep(objectId: number, stepId: number, values: Record<string, Record<string, unknown>> = {},
               instanceObjectId?: number, verification?: string,
-              sources: number[] = [], place: number | null = null,
-              transport = ''): Promise<Order> {
+              sources: number[] = [], place: number | null = null): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {
       values,
       instance_object_id: instanceObjectId ?? null,
@@ -644,8 +643,8 @@ class ApiClient {
       // festgelegtem Ziel ist sie die Verifikation, sonst die Wahl; bei jedem anderen
       // Modultyp bleibt sie `null` und wird verworfen.
       place,
-      // **Womit.** Leer heisst «manuell» – die einzige Art, die es heute wirklich gibt.
-      transport: transport || null,
+      // **Kein «womit».** Ob eingekauft wurde, sagt der Beleg an diesem Modul – eine
+      // Eingabe daneben wäre eine zweite Angabe über dieselbe Sache.
     });
   }
 

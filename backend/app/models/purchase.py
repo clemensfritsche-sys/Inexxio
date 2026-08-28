@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Any, Optional
 
-from sqlalchemy import BigInteger, Index, Numeric, String
+from sqlalchemy import BigInteger, Index, Numeric, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,7 +54,12 @@ class Purchase(Base, TimestampMixin):
         # **Ein Beleg je Modul** – die Regel in der Datenbank, nicht nur im Dienst:
         # ``instantiate_for_order`` ist idempotent, zwei gleichzeitige Freigaben sind es
         # nicht, und ein Index prüft je Anweisung.
-        Index("uq_purchases_step", "step_id", unique=True),
+        # **Ein AKTIVER Beleg je Modul.** Partiell, weil ein zurückgenommener weiterhin
+        # als Zeile steht (Soft-Delete) – ein voller Unique-Index liesse danach keinen
+        # neuen mehr zu, und «eingekauft ↔ doch selbst ↔ dann doch eingekauft» wäre eine
+        # Sackgasse. Migration 119.
+        Index("uq_purchases_step", "step_id", unique=True,
+              postgresql_where=text("is_active")),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

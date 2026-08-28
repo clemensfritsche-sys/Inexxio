@@ -17,25 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 from ..domain import modules
 
 
-class Transport(BaseModel):
-    """**Womit bewegt wird** — ein Kanal und seine Verfügbarkeit.
-
-    Die Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute geht.
-    Nur die verfügbaren zu schicken hiesse, die Oberfläche müsste die Roadmap erfinden,
-    um sie zu zeigen – und ein Kanal, der später dazukommt, wäre ein Umbau statt eines
-    Wertes.
-    """
-
-    key: str
-    label: str
-    #: Läuft dieser Kanal heute? Ist er es nicht, weist ihn **der Server** ab
-    #: (``Bewegen._clean_transport``); die gesperrte Schaltfläche ist die Anzeige davon,
-    #: nicht die Regel.
-    available: bool
-    #: Warum gesperrt bzw. was der Kanal bedeutet – der Text im Hover.
-    hint: str = ""
-
-
 class ModuleFacts(BaseModel):
     """**Was ein gespeicherter Schritt aus der Registry mitbringt** – für beide Orte.
 
@@ -76,22 +57,27 @@ class ModuleFacts(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def transports(self) -> list[Transport]:
-        """**Die Transportarten dieses Modultyps** – mit ihrer Verfügbarkeit.
+    def moves(self) -> bool:
+        """**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
 
-        Leer bei jedem Modul, das nichts bewegt; die Oberfläche braucht damit keine
-        Fallunterscheidung nach dem Typ. Sie reisen **mit dem Schritt** und nicht über den
-        Modul-Katalog, denn den lädt nur der Editor – im freigegebenen Auftrag wäre die
-        Liste sonst leer, genau wie es der Farbe einmal ergangen ist.
-
-        Die Liste nennt **alles, was es geben wird**, und sagt je Eintrag, ob es heute
-        geht. Nur die verfügbaren zu schicken hiesse, die Oberfläche könnte die Roadmap
-        nicht zeigen, ohne sie zu erfinden.
+        Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
+        anderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»
+        aus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht
+        als das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt
+        nur der Editor.
         """
-        return [
-            Transport(**t)
-            for t in getattr(modules.get(self.module_type), "TRANSPORTS", ())
-        ]
+        return modules.get(self.module_type).moves
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def buys(self) -> Optional[str]:
+        """**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.
+
+        ``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau
+        darum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der
+        Eigenschaft und nie nach dem Modultyp.
+        """
+        return modules.get(self.module_type).buys
 
 
 class ModuleInput(BaseModel):
@@ -235,8 +221,11 @@ class PurchaseStage(BaseModel):
 class PurchaseEmbed(BaseModel):
     """**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.
 
-    Leer bei jedem anderen Modultyp – die Oberfläche braucht damit keine
-    Fallunterscheidung nach dem Modul, genau wie bei ``transports`` und ``needs``.
+    **Der Beleg gehört keinem Modul** (``domain/procurement``): er hängt am Schritt, und
+    welches Modul einen bekommt, sagt dessen ``buys``. Ein **Bewegen**-Modul, bei dem
+    jemand «eingekauft» gewählt hat, trägt darum buchstäblich denselben – dieselben
+    Stufen, dieselben Verben, dieselbe Komponente. Leer, wo keiner existiert; die
+    Oberfläche braucht damit keine Fallunterscheidung nach dem Modul (wie ``needs``).
 
     **Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt
     einer Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche.
@@ -333,10 +322,9 @@ class StepConfirm(BaseModel):
     #: nicht nur im Dialog. Steht dort keines, ist er die **Wahl** – und dann Pflicht,
     #: denn ohne ihn wüsste niemand, wohin die Stücke gebracht wurden.
     place: Optional[int] = None
-    #: **Womit gebracht wurde.** Zur Laufzeit gewählt, nicht in der Definition: beim
-    #: Modellieren steht nicht fest, ob das Stück nebenan liegt oder in Werk Nord.
-    #: Leer heisst «manuell» – die einzige Art, die es heute wirklich gibt.
-    transport: Optional[str] = None
+    # **Kein «womit».** Ob eingekauft wurde, sagt der Beleg (``Module.buys``) – eine
+    # Eingabe daneben wäre eine zweite Angabe über dieselbe Sache, und die getippte
+    # gewänne auch dann, wenn niemand eine Spedition beauftragt hat.
 
 
 class StepConfirmResult(BaseModel):

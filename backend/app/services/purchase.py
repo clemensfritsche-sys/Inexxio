@@ -23,13 +23,12 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..domain import modules
-from ..domain.modules import Beschaffen
+from ..domain import modules, procurement
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, Purchase,
     UserProfile,
 )
-from . import article_fields
+from . import article_fields, places
 
 #: Die Zustände einer Angebotszeile. ``gewaehlt`` entsteht nicht durch Tippen, sondern
 #: dadurch, dass bei dieser Zeile bestellt wurde – ein Zustand ist eine Folge.
@@ -38,6 +37,15 @@ ASKED, QUOTED, DECLINED, CHOSEN = "angefragt", "offeriert", "abgelehnt", "gewaeh
 #: Was ein Aufrufer tun kann. **Eine Gegenhandlung** (``revoke``) statt zweier: was sie
 #: bewirkt, sagt die Stufe – vor der Bestellung zieht sie die Anfrage zurück, danach
 #: storniert sie. Zwei Verben für «zurück» wären zwei Wege zu derselben Sache.
+#: **Der Beleg entsteht** – die Handlung des **Moduls**, nicht des Belegs.
+#:
+#: Sie steht darum bewusst **nicht** in ``ACTIONS``: dort sind die Verben eines Belegs,
+#: und die hängen an seiner Stufe (``_can`` ist ihr Tor). «Kaufe ich das überhaupt ein?»
+#: ist eine Frage davor – sie hat keine Stufe, sondern eine Deklaration (``Module.buys``),
+#: und die Oberfläche liest sie als ``ModuleFacts.buys``. Derselbe Endpunkt bedient
+#: beides: ein zweiter wäre ein zweiter Weg zu einer Sache, die der Beleg verwaltet.
+BUY = "buy"
+
 ACTIONS = ("ask", "quote", "decline", "order", "note", "revoke", "clarified")
 
 #: Was ein **Lieferant** selbst darf: seine eigene Zeile füllen oder ablehnen – und,
@@ -87,12 +95,20 @@ def _int(value: Any, *, field: str) -> Optional[int]:
     return number
 
 
-def steps_of(db: Session, order: Order) -> list[ProcessStep]:
-    """Die Beschaffungs-Module dieses Auftrags, in ihrer Reihenfolge."""
+def steps_of(db: Session, order: Order,
+             *, buys: Optional[str] = None) -> list[ProcessStep]:
+    """Die Module dieses Auftrags, die einen **Beleg** tragen können – in ihrer Folge.
+
+    **Nicht mehr EIN Modultyp.** Gefragt wird die Deklaration (``Module.buys``), nicht
+    der Name: seit auch das Bewegen-Modul einkaufen kann, wäre ``module_type ==
+    'beschaffen'`` die Stelle, an der ein zweiter Typ vergessen wird. ``buys`` verengt
+    zusätzlich auf eine Art – ``BUY_ALWAYS`` sind die, die bei der Freigabe einen
+    bekommen.
+    """
     return (
         db.query(ProcessStep)
         .filter(ProcessStep.order_id == order.id,
-                ProcessStep.module_type == modules.BESCHAFFEN)
+                ProcessStep.module_type.in_(modules.buying_types(buys=buys)))
         .order_by(ProcessStep.position)
         .all()
     )
@@ -134,26 +150,59 @@ def lines_of(db: Session, order: Order, row: Purchase) -> list[dict[str, Any]]:
 
 
 def instantiate_for_order(db: Session, order: Order) -> list[Purchase]:
-    """Bei der Freigabe: je Beschaffungs-Modul **einen** Beleg.
+    """Bei der Freigabe: je Modul, das **immer** einkauft, einen Beleg.
 
-    **Ein Beleg je Modul, nicht je Position.** Was bestellt wird, steht in der
-    Konfiguration des Moduls – es gibt also genau einen Artikel je Modul. Wer zwei Dinge
-    einkauft, modelliert zwei Module; das ist dieselbe Antwort wie überall, wo eine Liste
-    dieselbe Frage n-mal stellt.
+    **Ein Beleg je Modul, nicht je Position** – was bestellt wird, sagt der Prozess
+    (``lines_of``), und ein Beleg kann zwei Zeilen tragen.
+
+    **Nur ``BUY_ALWAYS``.** Ein Modul, das seine Arbeit auch selbst erledigen kann
+    (Bewegen), bekommt hier keinen: ein Beleg ohne Lieferant, den niemand wollte, wäre
+    eine Bestellung, die es nicht gibt – und er würde ausserdem die Frage «wurde das
+    eingekauft?» mit «ja» beantworten. Dort entsteht er erst mit der Wahl (``ensure``).
 
     Idempotent: gibt es den Beleg schon, passiert nichts.
     """
     made: list[Purchase] = []
-    for step in steps_of(db, order):
-        if db.query(Purchase).filter(Purchase.step_id == step.id).first():
-            continue
-        row = Purchase(order_id=order.id, step_id=step.id,
-                       stage=Beschaffen.STAGES[0], quotes=[])
-        db.add(row)
-        made.append(row)
+    for step in steps_of(db, order, buys=modules.BUY_ALWAYS):
+        row = _create(db, order=order, step=step)
+        if row is not None:
+            made.append(row)
     if made:
         db.flush()
     return made
+
+
+def _create(db: Session, *, order: Order, step: ProcessStep) -> Optional[Purchase]:
+    """Einen Beleg anlegen, wenn es noch keinen gibt. ``None`` = gab es schon."""
+    if of_step(db, step.id) is not None:
+        return None
+    row = Purchase(order_id=order.id, step_id=step.id,
+                   stage=procurement.STAGES[0], quotes=[])
+    db.add(row)
+    return row
+
+
+def ensure(db: Session, *, order: Order, step: ProcessStep) -> Purchase:
+    """►►► **«Das kaufe ich ein.»** ◄◄◄ – der Beleg entsteht mit der Wahl.
+
+    Die eine Stelle, an der ein Modul zur Laufzeit einen Beleg bekommt. Sie ist der
+    Gegenpart zu ``instantiate_for_order``: dort entsteht er, weil das Modul zum Kaufen
+    da ist; hier, weil jemand entschieden hat, es nicht selbst zu tun.
+
+    **Nur ein Modul, das das darf** – sonst hätte jeder Schritt eine Hintertür zu einem
+    Beleg, und die Deklaration wäre eine Empfehlung.
+    """
+    module = modules.get(step.module_type)
+    if module.buys != modules.BUY_IF_CHOSEN:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"«{module.label}» kann nichts einkaufen – ein Beleg entsteht nur "
+                    f"dort, wo die Arbeit auch selbst erledigt werden könnte."),
+        )
+    row = _create(db, order=order, step=step) or of_step(db, step.id)
+    db.flush()
+    assert row is not None
+    return row
 
 
 def mine(db: Session, viewer: Optional[UserProfile]) -> Optional[list[Purchase]]:
@@ -202,7 +251,18 @@ def _can(row: Purchase, viewer: Optional[UserProfile]) -> list[str]:
 
 
 def of_step(db: Session, step_id: int) -> Optional[Purchase]:
-    return db.query(Purchase).filter(Purchase.step_id == step_id).first()
+    """**Der Beleg dieses Moduls** – oder ``None``.
+
+    Nur der **aktive**: ein zurückgenommener steht als Zeile weiter da (Soft-Delete),
+    aber er ist keine Bestellung mehr. Und weil «gibt es einen Beleg?» zugleich die
+    Antwort auf «wurde das eingekauft?» ist, wäre er hier eine falsche Aussage über die
+    Wirklichkeit.
+    """
+    return (
+        db.query(Purchase)
+        .filter(Purchase.step_id == step_id, Purchase.is_active.is_(True))
+        .first()
+    )
 
 
 # ─── Was sich ändert, wenn die Grundlage kleiner wird ────────────────────────
@@ -218,7 +278,7 @@ def mismatch(db: Session, order: Order, row: Purchase) -> Optional[int]:
     Zurück kommt die **heutige Gesamtmenge**; welche Zeile sich geändert hat, steht in
     den Zeilen selbst.
     """
-    if row.stage != Beschaffen.BINDING or not row.ordered_lines:
+    if row.stage != procurement.BINDING or not row.ordered_lines:
         return None
     now = process_lines(db, order)
     ordered = [(int(l["article"]), int(l["quantity"])) for l in row.ordered_lines]
@@ -245,10 +305,10 @@ def rebase(db: Session, order: Order) -> None:
         return
     empty = not process_lines(db, order)
     for row in rows:
-        if row.stage in (Beschaffen.STAGES[-1], Beschaffen.CANCELLED):
+        if row.stage in (procurement.STAGES[-1], procurement.CANCELLED):
             continue                      # Vergangenheit wird nicht umgeschrieben
         if empty:
-            row.stage = Beschaffen.CANCELLED
+            row.stage = procurement.CANCELLED
     db.flush()
 
 
@@ -296,7 +356,12 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     if row is None:
         return None
     config = step.config or {}
-    allowed = Beschaffen.suppliers_of(config)
+    # **Beide Fäden hängen jetzt am Modul**, nicht an einer Klasse: wer zugelassen ist
+    # und was zu tun ist. Beim Beschaffen steht beides in der Definition, beim Bewegen
+    # ist das eine leer (der Spediteur wird zur Laufzeit benannt) und das andere
+    # **abgeleitet** («von A nach B»).
+    module = modules.get(step.module_type)
+    allowed = module.suppliers_of(config)
     refs = {r["supplier"]: r["ref"] for r in allowed}
     names = _names(db, [r["supplier"] for r in allowed]
                    + [q["supplier"] for q in row.quotes or []])
@@ -317,7 +382,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "stages": _stages(row),
         "can": _can(row, viewer),
         "lines": _line_facts(db, lines_of(db, order, row)),
-        "instruction": config.get(Beschaffen.INSTRUCTION) or "",
+        "instruction": module.instruction_for(config, facts=_route(db, step=step)),
         "allowed": [
             {"supplier_object_id": r["supplier"],
              "supplier_name": names.get(r["supplier"], ""),
@@ -341,6 +406,33 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     }
 
 
+def _route(db: Session, *, step: ProcessStep) -> dict[str, Any]:
+    """**Woher, wohin** – die Fakten, aus denen ein Modul seinen Auftrag formulieren kann.
+
+    Der Dienst holt sie (er hat die Sitzung), das Modul formuliert (dort steht die
+    Regel). Ein Modul, das nichts bewegt, fragt gar nicht danach – die Antwort ist dann
+    ein leerer Satz, keine Fallunterscheidung.
+
+    Die **Herkunft** ist der gemeinsame Halter der Stücke, die davorstehen; liegen sie
+    nirgends oder an verschiedenen Orten, gibt es keine – dann sagt der Satz nur, wohin.
+    Dieselbe Regel wie ``consumption.required_place``: wo nichts steht, wird nichts
+    behauptet.
+    """
+    if not modules.get(step.module_type).moves:
+        return {}
+    units = (
+        db.query(InstanceUnit)
+        .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
+        .filter(OrderUnit.released_at.is_(None), OrderUnit.current_step_id == step.id)
+        .all()
+    )
+    here = places.common_holder(units)
+    target = (step.config or {}).get(modules.Bewegen.TARGET)
+    goal = places.station_of(db, int(target)) if target else None
+    where = places.describe(db, here) if here else None
+    return {"from": where.label if where else None, "to": goal.label if goal else None}
+
+
 def _stages(row: Purchase) -> list[dict[str, Any]]:
     """Die drei Stufen mit ihrem Zustand.
 
@@ -350,16 +442,16 @@ def _stages(row: Purchase) -> list[dict[str, Any]]:
     Storniert wird ausschliesslich aus der Bestellung heraus (davor nimmt ``revoke`` die
     Anfrage zurück), also ist das die Stelle, an der die Kette endet.
     """
-    order_of = {key: i for i, key in enumerate(Beschaffen.STAGES)}
-    cancelled = row.stage == Beschaffen.CANCELLED
-    here = order_of.get(row.stage, order_of[Beschaffen.BINDING] if cancelled else -1)
-    ends_here = (Beschaffen.STAGES[-1], ) if not cancelled else Beschaffen.STAGES
+    order_of = {key: i for i, key in enumerate(procurement.STAGES)}
+    cancelled = row.stage == procurement.CANCELLED
+    here = order_of.get(row.stage, order_of[procurement.BINDING] if cancelled else -1)
+    ends_here = (procurement.STAGES[-1], ) if not cancelled else procurement.STAGES
     return [
-        {"key": key, "label": Beschaffen.STAGE_LABELS[key],
-         "verb": Beschaffen.STAGE_VERBS.get(key, "") if i == here and not cancelled else "",
+        {"key": key, "label": procurement.STAGE_LABELS[key],
+         "verb": procurement.STAGE_VERBS.get(key, "") if i == here and not cancelled else "",
          "done": i < here or (i == here and key in ends_here),
-         "active": i == here and not cancelled and key != Beschaffen.STAGES[-1]}
-        for i, key in enumerate(Beschaffen.STAGES)
+         "active": i == here and not cancelled and key != procurement.STAGES[-1]}
+        for i, key in enumerate(procurement.STAGES)
     ]
 
 
@@ -387,12 +479,12 @@ def assert_receivable(db: Session, *, step: ProcessStep) -> None:
     row = of_step(db, step.id)
     if row is None:
         return
-    if row.stage == Beschaffen.CANCELLED:
+    if row.stage == procurement.CANCELLED:
         raise HTTPException(
             status_code=409,
             detail="Diese Bestellung ist storniert – es kommt nichts mehr an.",
         )
-    if row.stage == Beschaffen.STAGES[0]:
+    if row.stage == procurement.STAGES[0]:
         raise HTTPException(
             status_code=409,
             detail=("Es ist noch nichts bestellt. Erst bestellen, dann kann Ware "
@@ -410,7 +502,7 @@ def note_receipt(db: Session, *, order: Order, step: ProcessStep) -> None:
     Menge, an genau einer Stelle gerechnet.
     """
     row = of_step(db, step.id)
-    if row is None or row.stage != Beschaffen.BINDING:
+    if row is None or row.stage != procurement.BINDING:
         return
     waiting = (
         db.query(OrderUnit)
@@ -420,19 +512,27 @@ def note_receipt(db: Session, *, order: Order, step: ProcessStep) -> None:
     )
     if waiting:
         return
-    row.stage = Beschaffen.STAGES[-1]
-    _write_landed_cost(db, row)
+    row.stage = procurement.STAGES[-1]
+    _write_landed_cost(db, step=step, row=row)
     db.flush()
 
 
-def _write_landed_cost(db: Session, row: Purchase) -> None:
+def _write_landed_cost(db: Session, *, step: ProcessStep, row: Purchase) -> None:
     """Summe ÷ Menge → Einstandspreis am Artikel – **nur bei EINER Zeile**.
 
     Bei zwei Artikeln auf einem Beleg ist die Bestellsumme eine gemeinsame; sie durch die
     Gesamtmenge zu teilen ergäbe für beide denselben Preis, und das wäre für beide falsch.
     Eine Aufteilung müsste jemand vornehmen – also wird hier nichts geschrieben, statt
     eine Zahl zu erfinden, mit der später kalkuliert wird.
+
+    **Und nur, wo der Beleg für die WARE zahlt** (``Module.landed_cost``). Beim Einkauf
+    ist er das – auch bei einer Leistung am Teil, denn die erhöht dessen Kosten. Bei
+    einem **Transport** ist er es nicht: derselbe Artikel, zweimal verschickt, hätte als
+    Einstandspreis den Frachttarif, und damit würde danach kalkuliert. Ein stiller
+    Datenfehler, und darum eine Deklaration statt eines ``if module_type``.
     """
+    if not modules.get(step.module_type).landed_cost:
+        return
     lines = row.ordered_lines or []
     if len(lines) != 1 or row.amount is None:
         return
@@ -451,17 +551,23 @@ def _write_landed_cost(db: Session, row: Purchase) -> None:
 def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
           payload: dict[str, Any], actor: UserProfile) -> Purchase:
     """**Eine Handlung am Beleg.** Was erlaubt ist, hängt an der Stufe und an der Rolle."""
+    if action not in ACTIONS and action != BUY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"«{action}» ist keine Handlung. Bekannt: "
+                   + ", ".join((BUY, ) + ACTIONS) + ".",
+        )
+    # ►► **«Das kaufe ich ein.»** ◄◄ Die eine Handlung, die *vor* dem Beleg kommt – sie
+    # legt ihn an. Danach ist es derselbe Vorgang wie jeder Einkauf. Sie geht nicht durch
+    # ``_can``, weil sie keine Stufe hat: was sie erlaubt, ist die Deklaration des Moduls.
+    if action == BUY:
+        return ensure(db, order=order, step=step)
     row = of_step(db, step.id)
     if row is None:
         raise HTTPException(status_code=404, detail="Dieses Modul hat keinen Beleg.")
-    if action not in ACTIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"«{action}» ist keine Handlung. Bekannt: " + ", ".join(ACTIONS) + ".",
-        )
-    if row.stage == Beschaffen.CANCELLED:
+    if row.stage == procurement.CANCELLED:
         raise HTTPException(status_code=409, detail="Dieser Beleg ist storniert.")
-    if row.stage == Beschaffen.STAGES[-1]:
+    if row.stage == procurement.STAGES[-1]:
         raise HTTPException(
             status_code=409,
             detail="Die Ware ist eingetroffen – daran ist nichts mehr zu ändern.",
@@ -480,21 +586,44 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
         raise HTTPException(
             status_code=409,
             detail=(f"«{action}» geht an dieser Stelle nicht – der Beleg steht auf "
-                    f"«{Beschaffen.STAGE_LABELS[row.stage]}»."),
+                    f"«{procurement.STAGE_LABELS[row.stage]}»."),
         )
 
-    allowed = Beschaffen.allowed_numbers(step.config)
+    # **Wer zugelassen ist, sagt das Modul** – der erste der beiden Fäden, die den Beleg
+    # einmal an «Beschaffen» banden. Leer heisst frei (``Module.suppliers_of``).
+    allowed = modules.get(step.module_type).allowed_numbers(step.config)
     handler = {
         "ask": _ask, "quote": _quote, "decline": _decline,
         "order": _order, "note": _note, "revoke": _revoke, "clarified": _clarified,
     }[action]
-    handler(db, order=order, row=row, payload=payload, allowed=allowed, actor=actor)
+    handler(db, order=order, step=step, row=row, payload=payload,
+            allowed=allowed, actor=actor)
     db.flush()
     return row
 
 
-def _ask(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
-         allowed: list[int], actor: UserProfile) -> None:
+def _assert_allowed(number: Optional[int], allowed: list[int]) -> None:
+    """**Darf bei diesem hier bestellt werden?** – die EINE Prüfung, zwei Aufrufer.
+
+    **Leer heisst frei, nicht «niemand».** Beim Beschaffen steht immer mindestens ein
+    Lieferant da (``clean_config`` verlangt es); beim **Bewegen** entscheidet sich der
+    Spediteur zur Laufzeit – genau wie dort das offene Ziel. Ohne diese Unterscheidung
+    könnte man an einem Transport nirgends anfragen.
+
+    Sie steht hier und nicht zweimal ausgeschrieben: Anfragen und Bestellen fragen
+    dasselbe, und zwei Formulierungen wären zwei Massstäbe.
+    """
+    if allowed and number not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Lieferant {number} ist für dieses Modul nicht zugelassen. "
+                    f"Zugelassen: " + ", ".join(str(n) for n in allowed) + "."),
+        )
+
+
+def _ask(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
+         payload: dict[str, Any], allowed: list[int],
+         actor: UserProfile) -> None:
     """Bei wem wird angefragt? Eine Zeile je genanntem Lieferanten."""
     wanted = payload.get("suppliers") or []
     if not isinstance(wanted, (list, tuple)) or not wanted:
@@ -502,12 +631,7 @@ def _ask(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     numbers: list[int] = []
     for entry in wanted:
         number = _int(entry, field="Lieferant")
-        if number not in allowed:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"Lieferant {number} ist für dieses Modul nicht zugelassen. "
-                        f"Zugelassen: " + ", ".join(str(n) for n in allowed) + "."),
-            )
+        _assert_allowed(number, allowed)
         if number not in numbers:
             numbers.append(number)
     known = {q["supplier"]: dict(q) for q in row.quotes or []}
@@ -517,8 +641,9 @@ def _ask(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     ]
 
 
-def _quote(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
-           allowed: list[int], actor: UserProfile) -> None:
+def _quote(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
+           payload: dict[str, Any], allowed: list[int],
+           actor: UserProfile) -> None:
     """Ein Preis kommt herein – **von dir getippt oder vom Lieferanten selbst**.
 
     Derselbe Weg, andere Hand: genau das ist der Grund, warum es keinen «Webshop-Modus»
@@ -540,20 +665,18 @@ def _quote(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     _write(row, number, amount=str(amount), lead_days=lead, state=QUOTED)
 
 
-def _decline(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
-             allowed: list[int], actor: UserProfile) -> None:
+def _decline(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
+             payload: dict[str, Any], allowed: list[int],
+             actor: UserProfile) -> None:
     _write(row, _target(row, payload, actor), amount=None, state=DECLINED)
 
 
-def _order(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
-           allowed: list[int], actor: UserProfile) -> None:
+def _order(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
+           payload: dict[str, Any], allowed: list[int],
+           actor: UserProfile) -> None:
     """**Die Zusage nach aussen.** Ab hier ist eine zweite Partei gebunden."""
     number = _int(payload.get("supplier"), field="Lieferant")
-    if number not in allowed:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Lieferant {number} ist für dieses Modul nicht zugelassen.",
-        )
+    _assert_allowed(number, allowed)
     amount = _money(payload.get("amount"), field="Bestellsumme")
     if amount is None:
         raise HTTPException(
@@ -566,7 +689,7 @@ def _order(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
         raise HTTPException(status_code=404, detail=f"Lieferant {number} gibt es nicht.")
     row.supplier_id = supplier.id
     row.amount = amount
-    row.stage = Beschaffen.BINDING
+    row.stage = procurement.BINDING
     # **Womit bestellt wurde** – aus dem Prozess gelesen, im Moment der Zusage
     # eingefroren. Ab hier sind es die Zeilen des Belegs; ``mismatch`` vergleicht sie mit
     # dem, was heute vor dem Modul steht.
@@ -578,8 +701,9 @@ def _order(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     ] or [{"supplier": number, "amount": str(amount), "lead_days": None, "state": CHOSEN}]
 
 
-def _note(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
-          allowed: list[int], actor: UserProfile) -> None:
+def _note(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
+          payload: dict[str, Any], allowed: list[int],
+          actor: UserProfile) -> None:
     """**Die Sendungsnummer.**
 
     Eine eigene Handlung, weil sie einen eigenen Moment hat: sie entsteht **nach** der
@@ -594,22 +718,33 @@ def _note(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     row.tracking = (payload.get("tracking") or "").strip() or None
 
 
-def _revoke(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
-            allowed: list[int], actor: UserProfile) -> None:
+def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
+            payload: dict[str, Any], allowed: list[int], actor: UserProfile) -> None:
     """**Die eine Gegenhandlung.** Was sie bewirkt, sagt die Stufe.
 
     Vor der Bestellung nimmt sie die Anfrage zurück (es war nichts zugesagt); ab ihr
     storniert sie – dort liegt eine Bestellung beim Lieferanten, und «zurück» heisst
     dann, ihm abzusagen.
+
+    **Und was «die Anfrage zurücknehmen» heisst, sagt das Modul.** Wo der Einkauf der
+    Zweck ist, bleibt der Beleg stehen und verliert seine Angebote. Wo er eine **Wahl**
+    war (``BUY_IF_CHOSEN``), verschwindet er – sonst bliebe ein leerer Beleg zurück, und
+    die Frage «wurde das eingekauft?» beantwortete sich mit «ja», obwohl es die Wahl
+    nicht mehr gibt. Das ist keine zweite Regel, sondern dieselbe eine Ebene tiefer:
+    zurückgenommen wird, was zugesagt war.
     """
-    if row.stage == Beschaffen.STAGES[0]:
-        row.quotes = []
+    if row.stage != procurement.STAGES[0]:
+        row.stage = procurement.CANCELLED
         return
-    row.stage = Beschaffen.CANCELLED
+    if modules.get(step.module_type).buys == modules.BUY_IF_CHOSEN:
+        row.is_active = False
+        return
+    row.quotes = []
 
 
-def _clarified(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
-               allowed: list[int], actor: UserProfile) -> None:
+def _clarified(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
+               payload: dict[str, Any], allowed: list[int],
+               actor: UserProfile) -> None:
     """«Der Lieferant hat zugestimmt» – jetzt darf die Menge nachziehen."""
     if mismatch(db, order, row) is None:
         raise HTTPException(

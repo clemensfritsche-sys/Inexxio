@@ -1695,28 +1695,68 @@ Kein neuer Mechanismus: die Scan-Sequenz ist genau dafür gebaut, und der Ziel-S
 einer mehr in derselben Liste. Der **Sammel-Scan** quittiert das Ziel **einmal** — eine
 Fuhre geht an einen Ort; wer verschiedene Ziele hat, bestätigt einzeln.
 
-#### Die Transportart gehört zur Laufzeit
+#### Selbst gebracht oder eingekauft — EIN Bit, und es ist abgeleitet
 
 Beim Modellieren weiss niemand, ob das Stück nebenan liegt oder in Werk Nord — ein
 gespeicherter Modus wäre bei der zweiten Ausführung falsch (der Vorgänger brauchte zwei
-Migrationen, um solche Werte wieder loszuwerden). Heute ist nur **Manuell** wirksam;
-**Paket** und **Fracht** stehen sichtbar da und sind gesperrt, mit dem Grund im Hover.
+Migrationen, um solche Werte wieder loszuwerden). Die Frage gehört darum zur **Laufzeit**,
+und sie hat genau zwei Antworten: *selbst* ↔ *eingekauft*. Ein Roboter, der es fährt, ist
+«selbst» — unser Gerät, keine Rechnung.
 
-Zwei Dinge machen das tragfähig statt kosmetisch: die Liste nennt **alles, was es geben
-wird, mit seiner Verfügbarkeit** (`Bewegen.TRANSPORTS`) — Freischalten ist damit ein Wert,
-kein Umbau; und **der Server weist einen gesperrten Kanal ab**. Wäre die Sperre nur ein
-ausgegrauter Knopf, wäre sie eine Bitte, an der ein direkter Aufruf vorbeigeht.
+**Wer «eingekauft» wählt, bekommt einen ganz gewöhnlichen Einkaufs-Beleg**
+(`Module.buys = BUY_IF_CHOSEN`): dieselben drei Stufen, dieselben Verben, dieselbe
+Komponente wie beim Beschaffen (§9.9). Denn **eine Sendung aufzugeben IST ein Einkauf** —
+der Spediteur ist ein Lieferant, der Tarifvergleich ist der Angebotsspiegel, die
+Sendungsnummer ist `purchases.tracking`. Wer dafür ein eigenes Modul baute, hätte den
+Einkauf ein zweites Mal gebaut, und das zweite veraltet beim ersten neuen Verb.
 
-*Das ist die eine bewusste Abweichung von «ein Knopf, der nie etwas tun kann, ist kein
-Angebot» (§9.4): hier zeigt er keine tote Funktion, sondern die Roadmap — und er sagt das
-auch.*
+**Die frühere Liste `manuell · paket · fracht` ist ersatzlos entfallen** — samt ihres
+`available`-Flags, das die Roadmap zeigen sollte, und samt der Server-Sperre gegen
+gesperrte Kanäle. *Paket* und *Fracht* sind keine zwei Arten, sondern zwei **Angebote**
+desselben Einkaufs: das entscheidet der Tarif, nicht der Modellierer.
 
-**Die Transportliste ist zugleich das Bit** «bewegt dieses Modul?»: sie ist bei jedem
-anderen Modultyp leer. Die Oberfläche braucht damit keine Fallunterscheidung nach dem
-Modultyp — dieselbe Bauart wie `needs` bei der Stückliste.
+**Und die Antwort ist abgeleitet, nicht eingegeben**: eingekauft wurde genau dann, wenn es
+einen Beleg gibt. Zwei Angaben könnten sich widersprechen — eine getippte Transportart
+gewönne auch dann, wenn niemand eine Spedition beauftragt hat; eine abgeleitete kann es
+nicht. Der Log hält sie als Tatsache fest (`payload.bought`), nicht als Wahl.
+
+**Der Ziel-Scan schliesst den Beleg.** Ankunft und Ablage sind ein Ereignis, also eine
+Bestätigung: `assert_receivable` lässt vorher nichts eintreffen, `note_receipt` setzt
+danach die letzte Stufe — beide fragen nur, ob es zu diesem Schritt einen Beleg gibt, und
+mussten dafür **nicht angefasst** werden.
+
+*Und die eine Falle, die still gewesen wäre:* der Preis eines Transport-Belegs ist **nicht**
+der Preis der Ware (`Module.landed_cost`). Derselbe Artikel, zweimal verschickt, hätte
+sonst den Frachttarif als Einstandspreis — und damit würde danach kalkuliert.
+
+**«Bewegt dieses Modul?» ist seither eine Zeile** (`Module.moves`) statt einer Liste, die
+bei jedem anderen Typ leer ist. Die Oberfläche braucht weiterhin keine Fallunterscheidung
+nach dem Modultyp — dieselbe Bauart wie `needs` bei der Stückliste.
+
+**Was der Spediteur zu tun hat, wird abgeleitet** («von A nach B», `Module.instruction_for`):
+beide Hälften stehen fest, und ein Eingabefeld daneben wäre eine zweite Aussage über
+dieselbe Sache. **Wer** fährt, entscheidet sich dagegen zur Laufzeit — genau wie das offene
+Ziel; die Lieferanten-Freigabe des Beschaffungs-Moduls bleibt dort, wo sie hingehört
+(`Module.suppliers_of`, leer = frei).
+
+*Kopffreiheit für einen Aggregator wie Shippo, heute bewusst nicht gebaut:* er wäre ein
+**Lieferant, dessen Angebotszeilen eine Anbindung füllt** statt eines Menschen. Das ist
+eine Eigenschaft von ihm, kein Modul und kein Konzept — es gibt hier nichts, was es
+ausschlösse.
 
 
 ### 9.9 Das Modul «Beschaffen» — das Tor nach draussen
+
+> **Der Beleg gehört keinem Modul.** Er hängt am **Schritt** (`purchases.step_id`, kein
+> Modultyp), seine Vokabel steht in `domain/procurement` und der Dienst fragt die
+> Deklaration `Module.buys` statt einen Namen. Es waren genau **zwei Fäden**, die ihn
+> einmal an dieses Modul banden — `suppliers` und `instruction`; beide sind heute Fragen
+> **an das Modul** (`suppliers_of` / `instruction_for`). Darum trägt ein **Bewegen**-Modul
+> mit eingekauftem Transport buchstäblich denselben Beleg (§9.8), ohne dass hier eine
+> Zeile dafür steht. Was dieses Modul auszeichnet, ist nicht der Beleg, sondern dass der
+> Einkauf sein **Zweck** ist (`BUY_ALWAYS`: er entsteht mit der Freigabe) — und dass seine
+> Summe der **Preis der Ware** ist (`landed_cost`).
+
 
 Die Stelle, an der etwas von aussen in den Prozess kommt: gekaufte **Ware**, eine
 gekaufte **Leistung** («Härten» an einem Stück, das es schon gibt) und — sobald ein Kanal

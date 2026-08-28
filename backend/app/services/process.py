@@ -918,7 +918,6 @@ def confirm_step(
     verification: Optional[str] = None,
     sources: Optional[list[int]] = None,
     place: Optional[int] = None,
-    transport: Optional[str] = None,
 ) -> dict[str, Any]:
     """«Bestätigen» — der eine Mechanismus, den jedes Modul auslöst.
 
@@ -1073,8 +1072,12 @@ def confirm_step(
     # Was dabei passiert ist, reist als Payload in den Log: Herkunft, Ziel, Transportart.
     # Damit steht die Bewegung dort, wo die Historie ohnehin steht (§7.2) – eine zweite
     # Tabelle daneben wäre eine zweite Wahrheit über denselben Vorgang.
+    # **Eingekauft oder selbst gebracht? Das sagt der Beleg.** Es gibt keine Eingabe
+    # dafür: eine Transportart im Formular wäre eine zweite Angabe neben der Tatsache,
+    # dass jemand eine Spedition beauftragt hat – und die getippte gewänne.
     moved = places_svc.apply_for_step(
-        db, step=step, units=units, target=place, transport=transport,
+        db, step=step, units=units, target=place,
+        bought=purchase_svc.of_step(db, step.id) is not None,
     )
     marks = {u.id: {"verification": verification, **moved.get(u.id, {})} for u in units}
 

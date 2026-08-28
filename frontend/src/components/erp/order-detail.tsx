@@ -9,7 +9,7 @@ import type {
   PurchaseEmbed,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { DetailHeader, HeaderAction } from '@/components/erp/fields';
+import { DetailHeader, HeaderAction, IconSwitch } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
 import {
@@ -26,7 +26,7 @@ import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { PurchaseWork } from '@/components/erp/purchase-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
-import { moduleIcon } from '@/lib/modules';
+import { HAULAGE, moduleIcon } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
@@ -200,14 +200,12 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
                                          verification: string,
                                          values: Record<string, Record<string, unknown>>,
                                          sources: number[] = [],
-                                         place: number | null = null,
-                                         transport: string = '') => {
+                                         place: number | null = null) => {
     if (!live) return;
     setBusy(true); setError(null);
     try {
       setLive(await api.confirmStep(live.object_id, stepId, values,
-                                    instanceObjectId, verification, sources,
-                                    place, transport));
+                                    instanceObjectId, verification, sources, place));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -413,24 +411,55 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * **Der Beschaffungs-Beleg umschliesst den Scan — oder es gibt ihn nicht.**
+ * **Der Einkaufs-Beleg umschliesst den Scan — oder er entsteht hier.**
  *
- * Ein Bauteil statt einer Bedingung an der Aufrufstelle: `purchase` ist bei jedem
- * anderen Modultyp leer, und dann steht hier schlicht der Scan. Dieselbe Bauart wie
- * `transports` und `needs` – die Oberfläche fragt nie nach dem Modultyp.
+ * Ein Bauteil statt einer Bedingung an der Aufrufstelle: gibt es keinen Beleg und kann
+ * das Modul auch keinen bekommen, steht hier schlicht der Scan. Die Oberfläche fragt nie
+ * nach dem Modultyp – sie liest zwei Eigenschaften (`buys`, `purchase`), dieselbe Bauart
+ * wie bei `needs`.
+ *
+ * **Der Beleg gehört keinem Modul.** Ein **Bewegen**-Schritt, bei dem jemand «Transport
+ * einkaufen» gewählt hat, rendert buchstäblich dieselbe Komponente wie ein
+ * Beschaffungs-Schritt: dieselben drei Stufen, dieselben Verben, dieselben Knöpfe. Denn
+ * eine Sendung aufzugeben IST ein Einkauf – der Spediteur ist ein Lieferant, der
+ * Tarifvergleich ist der Angebotsspiegel, die Sendungsnummer ist `tracking`.
+ *
+ * **Und die Wahl steht dort, wo ihre Folge steht.** Sie erscheint nur, solange es keinen
+ * Beleg gibt: danach ist sie beantwortet, und «zurück» ist die Gegenhandlung des Belegs
+ * (`revoke`) – nicht ein zweiter Schalter daneben.
  */
-function Wrapped({ purchase, busy, active, onAction, children }: {
+function Wrapped({ purchase, buys, busy, active, onAction, children }: {
   purchase: PurchaseEmbed | null;
+  buys: string | null;
   busy: boolean;
   active: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
   children: React.ReactNode;
 }) {
-  if (!purchase) return <>{children}</>;
+  if (purchase) {
+    return (
+      <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}>
+        {children}
+      </PurchaseWork>
+    );
+  }
+  if (buys !== 'if_chosen') return <>{children}</>;
   return (
-    <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}>
+    <div className="flex flex-col gap-2.5">
+      {active && (
+        <IconSwitch
+          value="self"
+          onChange={(v) => { if (v === 'bought') onAction({ action: 'buy' }); }}
+          options={[
+            { value: 'self', icon: HAULAGE.self.icon, label: HAULAGE.self.label,
+              hint: HAULAGE.self.hint },
+            { value: 'bought', icon: HAULAGE.bought.icon, label: HAULAGE.bought.label,
+              hint: HAULAGE.bought.hint },
+          ]}
+        />
+      )}
       {children}
-    </PurchaseWork>
+    </div>
   );
 }
 
@@ -439,7 +468,7 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
-              sources: number[], place: number | null, transport: string) => void;
+              sources: number[], place: number | null) => void;
   onPurchase: (stepId: number, body: { action: string } & Record<string, unknown>) => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
@@ -495,7 +524,8 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
       {/* Der Beschaffungs-Beleg umschliesst den Scan: der Wareneingang IST die
           Bestätigung, die jedes Modul abschliesst. Bei jedem anderen Modultyp ist
           `purchase` leer und es bleibt beim Inhalt allein. */}
-      <Wrapped purchase={stepInfo(order, step.id)?.purchase ?? null} busy={busy}
+      <Wrapped purchase={stepInfo(order, step.id)?.purchase ?? null}
+        buys={step.buys ?? null} busy={busy}
         active={isActive} onAction={(body) => onPurchase(step.id, body)}>
         {isActive ? (
           // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
@@ -509,22 +539,19 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
             needs={stepInfo(order, step.id)?.needs ?? []}
             // **Wohin und womit** – beides kommt vom Server mit dem Schritt.
             target={stepInfo(order, step.id)?.target ?? null}
-            transports={stepInfo(order, step.id)?.transports ?? []}
+            moves={step.moves}
             busy={busy}
             onDirty={setEntryStarted}
             onDeviate={onDeviate}
-            onConfirm={(instanceObjectId, verification, values, sources, place, transport) =>
-              onConfirm(step.id, instanceObjectId, verification, values, sources,
-                        place, transport)}
+            onConfirm={(instanceObjectId, verification, values, sources, place) =>
+              onConfirm(step.id, instanceObjectId, verification, values, sources, place)}
           />
         ) : (
           <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
             action={stepInfo(order, step.id)?.action}
             reason={stepInfo(order, step.id)?.reason}
             moduleType={step.moduleType}
-            target={(stepInfo(order, step.id)?.transports ?? []).length > 0
-              ? (stepInfo(order, step.id)?.target ?? null)
-              : undefined} />
+            target={step.moves ? (stepInfo(order, step.id)?.target ?? null) : undefined} />
         )}
       </Wrapped>
       {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp. */}
