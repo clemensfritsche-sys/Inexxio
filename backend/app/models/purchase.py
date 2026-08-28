@@ -38,9 +38,15 @@ class Purchase(Base, TimestampMixin):
     zwei Artikel führen, und welche es sind, sagen die Einzelinstanzen, die vor dem Modul
     stehen.
 
-    ``reference`` ist, was der Lieferant zurückgibt – Bestellnummer, Link,
-    Sendungsnummer. **Ein** Feld, weil es **eine** Frage ist: «woran erkennt er den
-    Vorgang?». Drei Felder für drei Bestellarten wären dieselbe Angabe dreimal.
+    ``tracking`` ist die **Sendungsnummer** – und sonst nichts.
+
+    Das Feld hiess einmal ``reference`` und sammelte drei Dinge: Bestellnummer beim
+    Lieferanten, Shop-Link und Sendungsnummer. Das waren aber **zwei Fragen zu zwei
+    Zeitpunkten**: *wie bestelle ich bei ihm* ist eine Eigenschaft der Paarung
+    Modul × Lieferant und steht seither in der Definition
+    (``Beschaffen.suppliers_of`` → ``ref``); *wo ist die Sendung* entsteht erst **nach**
+    der Bestellung und kommt vom Lieferanten – er darf sie darum selbst eintragen.
+    ``reference`` wird nicht mehr geschrieben und im Folge-Deploy gedroppt.
     """
 
     __tablename__ = "purchases"
@@ -68,8 +74,8 @@ class Purchase(Base, TimestampMixin):
     amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="CHF")
 
-    #: Bestellnummer beim Lieferanten, Link, Sendungsnummer – was er zurückgibt.
-    reference: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    #: **Die Sendungsnummer** – die eine Angabe, die erst nach der Bestellung entsteht.
+    tracking: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     #: Eine Zeile je angefragtem Lieferanten – siehe Klassen-Docstring.
     quotes: Mapped[list[dict[str, Any]]] = mapped_column(

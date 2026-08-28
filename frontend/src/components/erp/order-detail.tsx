@@ -483,7 +483,13 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
   // Prozess in der Mitte – und die **Lieferanten-Sicht**, die kein Prozessbild bekommt
   // (sein Beleg ist seine Sache, der Lauf des Auftrags nicht). Zwei Körper wären zwei
   // Darstellungen desselben Moduls, und die laufen auseinander.
-  const stepBody = (step: DiagramStep, isActive: boolean) => (
+  //
+  // `internal` sagt, ob dies die **volle** Ansicht ist – und das ist keine Rollenabfrage,
+  // sondern die Aussage der Aufrufstelle über sich selbst: das Modul-Protokoll
+  // (`StepRecord`) ist der interne Lauf, sein Endpunkt ist Personal-only, und in einer
+  // verengten Antwort hat er nichts zu suchen. Was ein Lieferant im Modul **tun** darf,
+  // entscheidet dagegen der Beleg selbst (`purchase.can`).
+  const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean) => (
     <div className="flex flex-col gap-2.5">
       <Reason text={stepInfo(order, step.id)?.reason} />
       {/* Der Beschaffungs-Beleg umschliesst den Scan: der Wareneingang IST die
@@ -522,7 +528,7 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
         )}
       </Wrapped>
       {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp. */}
-      {!isActive && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
+      {internal && !isActive && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
     </div>
   );
 
@@ -535,7 +541,7 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
         {steps.map((step) => (
           <StepCard key={step.id} step={step} dimmed={false} defaultOpen
             active={step.id === order.active_step_id}>
-            {stepBody(step, step.id === order.active_step_id)}
+            {stepBody(step, step.id === order.active_step_id, false)}
           </StepCard>
         ))}
       </div>
@@ -575,7 +581,7 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
           // und der Beschaffungs-Beleg stand nicht darin: ein abgeschlossenes Modul zeigte
           // von ihm **nichts**. Jetzt ist es EIN Körper, und `isActive` entscheidet allein,
           // ob **gehandelt** werden darf – nicht, ob etwas zu sehen ist.
-          renderStep: stepBody,
+          renderStep: (step, isActive) => stepBody(step, isActive, true),
         }}
         parents={order.parents ?? []}
         deviations={order.deviations ?? []}

@@ -1321,7 +1321,7 @@ def test_a_module_shows_its_own_matter_in_every_state():
         "Die Ausführungsstelle hat wieder zwei Körper – dann fehlt beim nächsten "
         "Modul-Fakt genau er im nicht-aktiven Zustand."
     )
-    assert "const stepBody = (step: DiagramStep, isActive: boolean)" in src, (
+    assert "const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean)" in src, (
         "Es gibt keinen EINEN Modul-Körper mehr."
     )
     # Der Beleg steht ausserhalb der Verzweigung – er gehört zum Modul, nicht zum Moment.
@@ -1402,6 +1402,110 @@ def test_the_purchase_module_has_no_article_field():
         "Die Spezifikation steht nicht auf dem Beleg – sie ist die eine Auskunft, die "
         "der Lieferant über die Sache bekommt."
     )
+
+
+def test_the_module_looks_the_same_for_both_roles():
+    """►►► **Eine Ansicht, zwei Rollen – und keine Rollenabfrage.** ◄◄◄ (Testnotiz #751)
+
+    Personal und Lieferant sehen dieselbe Karte; was sie unterscheidet, ist einzig, **was
+    man hier tun darf** – und das sagt der Beleg (`purchase.can`). Die Oberfläche fragt
+    `may(...)`, nicht die Rolle: eine Rollenabfrage dort wäre die zweite Stelle für
+    dieselbe Regel, und sie würde beim nächsten Verb vergessen.
+
+    Bug-Formen: (a) `purchase-work` fragt nach der Rolle; (b) eine Aktion rendert wieder
+    ungeprüft, sobald die Stufe aktiv ist; (c) das interne Modul-Protokoll steht in der
+    verengten Ansicht.
+    """
+    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
+    # **Die Bug-Form ist ein Rollenvergleich**, nicht das Wort «Lieferant» in der Prosa:
+    # `q.supplier_object_id` ist eine Objektnummer, `role === 'supplier'` wäre die zweite
+    # Stelle für dieselbe Regel.
+    for role in ("role", "'supplier'", '"supplier"', "isSupplier", "isStaff"):
+        assert role not in panel, (
+            f"«{role}» steht wieder im Beleg – was jemand darf, sagt `can`, nicht seine Rolle."
+        )
+    assert "function may(" in panel, "Die eine Rechte-Frage der Komponente fehlt."
+    for verb in ("'ask'", "'revoke'", "'order'", "'quote'", "'note'",
+                 "'clarified'", "'receive'"):
+        assert f"may(p, active, {verb})" in panel, (
+            f"Die Aktion {verb} wird nirgends geprüft – für einen Lieferanten wäre sie "
+            f"ein Knopf, der nie etwas tun kann."
+        )
+    # **Und `active` allein ist NIE das Tor.** Der erste Anlauf dieses Wächters prüfte
+    # bloss, ob jedes Verb *irgendwo* in der Datei geprüft wird – er liess damit genau
+    # die Bug-Form durch, gegen die er gebaut war (eine Aktion zurück auf `active`, das
+    # Verb steht ja noch anderswo). Gemessen und nachgeschärft: gefragt wird nach der
+    # **Form des Tors**, nicht nach dem Vorkommen eines Wortes.
+    for gate in ("&& active && (", "{active && ("):
+        assert gate not in panel, (
+            f"«{gate}» rendert eine Aktion nur danach, ob das Modul dran ist – ob man "
+            f"sie tun DARF, sagt `can`."
+        )
+    # #750: ein Wort, immer dasselbe – die Zahl fiel ausgerechnet dann weg, wenn sie am
+    # grössten ist.
+    assert "Bei {picked.length} anfragen" in panel and "? 'Anfragen'" not in panel, (
+        "Der Anfrage-Knopf hat wieder zwei Beschriftungen."
+    )
+    # Das Verb der Stufe kommt vom Server – `PurchaseStage.verb` war sonst ein Feld,
+    # das niemand liest.
+    assert "verbOf(p)" in panel, "Der Bestell-Knopf erfindet sein Wort wieder selbst."
+
+    src = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
+    assert "{internal && !isActive && <StepRecord" in src, (
+        "Das Modul-Protokoll steht wieder in jeder Ansicht – sein Endpunkt ist "
+        "Personal-only, ein Lieferant bekäme dort einen Fehler."
+    )
+
+
+def test_the_order_reference_moved_into_the_definition():
+    """**Zwei Fragen, zwei Orte** (Testnotiz #753).
+
+    Wie man bei einem Lieferanten bestellt, steht bei ihm in der **Definition**; die
+    Sendungsnummer entsteht erst nach der Bestellung.
+
+    Bug-Form: das alte Sammelfeld «Bestellnummer, Link, Sendungsnummer» ist zurück.
+    """
+    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
+    assert "Bestellnummer, Link, Sendungsnummer" not in panel, (
+        "Das Sammelfeld ist zurück – es beantwortete zwei Fragen zu zwei Zeitpunkten."
+    )
+    assert "<Label>Sendungsnummer</Label>" in panel, "Die Sendungsnummer fehlt am Beleg."
+    assert "q.ref" in panel, (
+        "Die Bestellangabe erreicht die Angebotszeile nicht – dann steht nirgends, unter "
+        "welcher Nummer man bei ihm bestellt."
+    )
+    designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
+    assert "Artikelnummer oder Link beim Lieferanten" in designer, (
+        "Die Bestellangabe lässt sich nicht mehr definieren."
+    )
+
+
+def test_the_scan_chip_carries_the_global_symbol():
+    """**Ein Scan sucht einen Datensatz – also trägt er dessen Symbol** (Testnotiz #754).
+
+    `ScanStep.kind` versprach seit jeher «erwarteter Objekttyp → Symbol im Scanner»;
+    gerendert wurde nie eines. Symbol **und Wort** kommen jetzt aus `TYPE_META` – der
+    Quelle, aus der auch der Feed und jeder Detail-Kopf sie nehmen.
+
+    Bug-Formen: (a) der Chip bleibt reiner Text; (b) eine Aufrufstelle schreibt die Sorte
+    wieder von Hand hin.
+    """
+    lib = _read(FRONTEND / "lib" / "erp-record.ts")
+    assert "SCAN_RECORD_TYPE" in lib, "Die Zuordnung Scan-Sorte → Datensatztyp fehlt."
+    scan = _read(FRONTEND / "lib" / "scan.ts")
+    assert "export function scanKindLabel" in scan, "Die eine Auflösung der Sorte fehlt."
+    dialog = _read(FRONTEND / "components" / "scan" / "scan-dialog.tsx")
+    # Nach dem **Rendern** gefragt, nicht nach der Deklaration: die erste Fassung prüfte
+    # nur, ob der Name vorkommt – und liess damit die Bug-Form durch (Symbol berechnet,
+    # aber nicht gezeichnet).
+    assert "<KindIcon size=" in dialog and "TYPE_META" in dialog, (
+        "Der Scan-Chip zeichnet kein Symbol – `kind` verspricht seit jeher eines."
+    )
+    for name in ("capture-work.tsx", "definition-lines.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        assert "label: 'Instanz'" not in src, (
+            f"{name} schreibt die Sorte wieder von Hand hin – sie steht in `TYPE_META`."
+        )
 
 
 def test_a_supplier_sees_his_module_without_the_process_picture():
@@ -4526,7 +4630,7 @@ def test_the_dialog_is_the_same_field_only_big():
     # (4) Dieselbe Anatomie: die SORTE steht als Beschriftung, nicht im Platzhalter –
     #     der verschwindet beim ersten Zeichen, und im Vollbild bliebe dann nichts mehr,
     #     das sagt, wonach gesucht wird.
-    assert "<div style={kindLine}>{kind}</div>" in dialog, (
+    assert "style={kindLine}" in dialog and "{kind}</span>" in dialog, (
         "Der Dialog nennt die Sorte nicht mehr als Beschriftung über der Leiste."
     )
     assert "textTransform: 'uppercase', letterSpacing: '0.05em'" in dialog, (

@@ -225,7 +225,15 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **Die Lieferanten-Sicht ist EINE Frage** (`purchase.mine`, ``None`` = Personal): woran
 > ist dieser Betrachter beteiligt? Feed und Detail lesen dieselbe Antwort; verengt wird
 > **in** `orders._to_response` (`_mine_only` blankt `_INTERNAL_FIELDS`), damit kein
-> Aufrufer es vergessen kann. Nicht beteiligt → **404**, nicht 403.
+> Aufrufer es vergessen kann. Nicht beteiligt → **404**, nicht 403. **Wer nicht den
+> Zuschlag hat, sieht ihn auch nicht**: Name, Summe und Sendungsnummer des Gewählten
+> fallen für die übrigen Angefragten beim Aufbau der Antwort weg.
+> **Was man DARF, sagt der Beleg – nicht die Rolle** (`_can` → `PurchaseEmbed.can`,
+> Stufe × Rolle): die Oberfläche rendert eine Aktion genau dann, wenn ihr Verb dort steht,
+> und **dieselbe Tabelle weist in `apply` ab** – wäre `can` nur ein Anzeige-Hinweis,
+> liefen Knopf und Tür beim nächsten Verb auseinander. Der `receive`-Eintrag (Wareneingang
+> über `confirm_step`) steht mit drin: zwei Listen wären zwei Massstäbe. `_only_in` ist
+> darin aufgegangen.
 > **`_stages` liest die ZEILE, nicht nur ihren Stand**: ein stornierter Beleg behält
 > seinen gegangenen Weg (angefragt und bestellt WURDE), keine Stufe ist aktiv, kein Verb
 > wird angeboten. Wächter: `tests/test_purchase_module.py`.

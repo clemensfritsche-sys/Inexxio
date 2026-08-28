@@ -644,9 +644,9 @@ def test_one_supplier_is_a_list_with_one_entry():
 
     m = modules.get("beschaffen")
     one = m.clean_config({"suppliers": [100000001], "instruction": "liefern"})
-    assert one["suppliers"] == [100000001]
+    assert m.allowed_numbers(one) == [100000001]
     three = m.clean_config({"suppliers": [1, 2, 3], "instruction": "liefern"})
-    assert three["suppliers"] == [1, 2, 3]
+    assert m.allowed_numbers(three) == [1, 2, 3]
 
     with pytest.raises(HTTPException):
         m.clean_config({"suppliers": [], "instruction": "liefern"})
@@ -971,6 +971,164 @@ def test_a_supplier_sees_the_specification_but_no_foreign_number():
         assert [l["article_object_id"] for l in mine["lines"]] == [art.object_id]
         assert any(f["label"] == "Grösse" for f in mine["lines"][0]["spec"]), (
             "Der Lieferant sieht die Sache nicht – die Spezifikation reist mit dem Beleg."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+# ---------------------------------------------------------------------------
+# §8 – eine Ansicht, zwei Rollen
+# ---------------------------------------------------------------------------
+
+def test_the_document_says_what_this_viewer_may_do():
+    """►►► **Was man darf, sagt der BELEG – nicht die Rolle des Betrachters.** ◄◄◄
+
+    Die Regel stand nur im Dienst (er wies mit 403 ab); die Oberfläche rendete jede
+    Aktion, sobald die Stufe aktiv war. Ein Lieferant sah damit «Anfrage zurückziehen»,
+    «Bestellen», «Stornieren» und den Wareneingangs-Scan – vier Knöpfe, die nie etwas tun
+    konnten. `can` ist dieselbe Regel als **Auskunft**, damit die Oberfläche sie nicht
+    nachbauen muss (dieselbe Bauart wie ``articles.may_create``/``process.pick_problem``).
+
+    Bug-Formen: (a) ein Lieferant bekommt eine Handlung des Bestellers; (b) das Personal
+    verliert eine; (c) ein abgeschlossener oder stornierter Beleg bietet noch etwas an.
+    """
+    from app.services import purchase as svc
+    db = _db()
+    try:
+        wuerth = _supplier(db, "Würth AG")
+        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
+        order, rows = _make(db, quantity=2, article=art)
+        staff = _staff(db)
+
+        mine = svc.embed_data(db, order=order, step=rows[0], viewer=wuerth)["can"]
+        full = svc.embed_data(db, order=order, step=rows[0], viewer=staff)["can"]
+        assert set(mine) <= set(svc.SUPPLIER_ACTIONS), (
+            f"Der Lieferant darf mehr, als ihm zusteht: {mine}"
+        )
+        for verb in ("ask", "order", "revoke", svc.RECEIVE):
+            assert verb not in mine, f"«{verb}» ist eine Handlung des Bestellers."
+        assert "quote" in mine and "decline" in mine, "Er kann gar nicht offerieren."
+        assert {"ask", "order", "revoke"} <= set(full), f"Das Personal verliert etwas: {full}"
+
+        # Nach der Bestellung: er trägt die Sendungsnummer nach – sonst nichts.
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [wuerth.object_id]}, actor=staff)
+        svc.apply(db, order=order, step=rows[0], action="order",
+                  payload={"supplier": wuerth.object_id, "amount": 40}, actor=staff)
+        mine = svc.embed_data(db, order=order, step=rows[0], viewer=wuerth)["can"]
+        assert mine == ["note"], f"Nach der Bestellung darf er: {mine}"
+        assert svc.RECEIVE in svc.embed_data(db, order=order, step=rows[0],
+                                             viewer=staff)["can"]
+
+        # ►► **Und `can` ist nicht bloss eine Auskunft – es ist das Tor.** ◄◄
+        # Wäre es nur ein Hinweis für die Oberfläche, liefen die beiden beim nächsten
+        # Verb auseinander: der Knopf verschwände, die Tür bliebe offen (oder umgekehrt).
+        from fastapi import HTTPException as _Err
+        for verb in svc.ACTIONS:
+            if verb in mine:
+                continue
+            with pytest.raises(_Err) as caught:
+                svc.apply(db, order=order, step=rows[0], action=verb,
+                          payload={"suppliers": [wuerth.object_id],
+                                   "supplier": wuerth.object_id, "amount": 5},
+                          actor=wuerth)
+            assert caught.value.status_code in (403, 409), (
+                f"«{verb}» steht nicht in `can`, wird aber ausgeführt – dann ist `can` "
+                f"eine Behauptung neben der Regel."
+            )
+
+        # Und ein stornierter Beleg bietet niemandem mehr etwas an.
+        svc.apply(db, order=order, step=rows[0], action="revoke", payload={}, actor=staff)
+        for who in (staff, wuerth):
+            assert svc.embed_data(db, order=order, step=rows[0], viewer=who)["can"] == [], (
+                "Ein stornierter Beleg bietet noch eine Handlung an."
+            )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_supplier_never_learns_who_won():
+    """**Wer nicht den Zuschlag hat, sieht ihn auch nicht.**
+
+    ``quotes`` war gefiltert, die getroffene Wahl nicht: ein angefragter, aber nicht
+    gewählter Lieferant las Namen und Bestellsumme seines Konkurrenten.
+
+    Bug-Form: ``supplier_name``/``amount``/``tracking`` reisen ungefiltert mit.
+    """
+    from app.services import purchase as svc
+    db = _db()
+    try:
+        a = _supplier(db, "Würth AG")
+        b = _supplier(db, "Bossard AG")
+        art = _article(db, "Schraube", steps=[_buy_step([a, b])])
+        order, rows = _make(db, quantity=2, article=art)
+        staff = _staff(db)
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [a.object_id, b.object_id]}, actor=staff)
+        svc.apply(db, order=order, step=rows[0], action="order",
+                  payload={"supplier": a.object_id, "amount": 84}, actor=staff)
+        svc.apply(db, order=order, step=rows[0], action="note",
+                  payload={"tracking": "TRK-9"}, actor=staff)
+
+        lost = svc.embed_data(db, order=order, step=rows[0], viewer=b)
+        assert lost["supplier_object_id"] is None and lost["supplier_name"] is None, (
+            "Der unterlegene Lieferant sieht, wer den Zuschlag bekam."
+        )
+        assert lost["amount"] is None, "Er sieht den Preis seines Konkurrenten."
+        assert lost["tracking"] is None, "Er sieht eine fremde Sendungsnummer."
+
+        won = svc.embed_data(db, order=order, step=rows[0], viewer=a)
+        assert won["amount"] == 84 and won["tracking"] == "TRK-9", (
+            "Der gewählte Lieferant sieht seine eigene Bestellung nicht mehr."
+        )
+        assert svc.embed_data(db, order=order, step=rows[0], viewer=staff)["amount"] == 84
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_order_reference_lives_in_the_definition_the_tracking_on_the_document():
+    """**Zwei Fragen, zwei Zeitpunkte, zwei Orte** (Testnotiz #753).
+
+    *Wie bestelle ich bei ihm* (seine Artikelnummer, der Shop-Link) ist eine Eigenschaft
+    der **Paarung** Modul × Lieferant und steht in der Definition; *wo ist die Sendung*
+    entsteht erst nach der Bestellung und kommt vom Lieferanten.
+
+    Bug-Formen: (a) die Bestellangabe erreicht die Angebotszeile nicht – dann weiss
+    niemand, unter welcher Nummer bestellt wird; (b) der Lieferant darf die
+    Sendungsnummer nicht eintragen, obwohl nur er sie kennt.
+    """
+    from app.domain import modules
+    from app.services import purchase as svc
+    db = _db()
+    try:
+        wuerth = _supplier(db, "Würth AG")
+        step = {"module_type": "beschaffen",
+                "config": {"instruction": "liefern",
+                           "suppliers": [{"supplier": wuerth.object_id,
+                                          "ref": "04711-M6"}]}}
+        art = _article(db, "Schraube", steps=[step])
+        order, rows = _make(db, quantity=2, article=art)
+        staff = _staff(db)
+
+        facts = svc.embed_data(db, order=order, step=rows[0])
+        assert facts["allowed"][0]["ref"] == "04711-M6", (
+            "Die Bestellangabe erreicht die Lieferanten-Zeile nicht."
+        )
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [wuerth.object_id]}, actor=staff)
+        assert svc.embed_data(db, order=order, step=rows[0])["quotes"][0]["ref"] == "04711-M6"
+
+        svc.apply(db, order=order, step=rows[0], action="order",
+                  payload={"supplier": wuerth.object_id, "amount": 40}, actor=staff)
+        # **Der Lieferant trägt sie selbst ein** – er verschickt, er kennt sie.
+        svc.apply(db, order=order, step=rows[0], action="note",
+                  payload={"tracking": "CH-77"}, actor=wuerth)
+        assert svc.of_step(db, rows[0].id).tracking == "CH-77"
+
+        # Und die alte Form der Definition wird weiter gelesen (eingefrorene Prozesse).
+        m = modules.get("beschaffen")
+        assert m.allowed_numbers({"suppliers": [wuerth.object_id]}) == [wuerth.object_id], (
+            "Ein laufender Auftrag mit der alten Lieferantenliste ist unlesbar geworden."
         )
     finally:
         db.rollback(); db.close()

@@ -1769,7 +1769,7 @@ ist richtig so — ein Beleg hat einen Lieferanten.
 |-----|-------|------------|
 | **Die Sache** | Artikel-Spezifikation (eingefroren) | Sie beschreibt das Teil und gilt für jeden Lieferanten. |
 | **Der Auftrag** | `config.instruction` am Modul | «Härten auf 58 HRC» ist eine Eigenschaft *dieses* Schritts, nicht des Artikels — und ein Artikel hat mehrere Schritte. |
-| **Die Nummer** | Angebotszeile bzw. `purchases.reference` | Eine Bestellnummer gehört dem Lieferanten, nicht dem Teil. |
+| **Die Nummer** | `config.suppliers[].ref` bzw. `purchases.tracking` | Eine Bestellnummer gehört dem Lieferanten, nicht dem Teil — und die Sendungsnummer entsteht erst nach der Bestellung. |
 
 **Die Spezifikation reist mit dem Beleg, sie wird nicht ausgewählt**
 (`services/article_fields`). Eine Konfiguration «welche Felder sieht der Lieferant?» wäre
@@ -1818,7 +1818,38 @@ Angebotsspiegel des Einkaufs und der Tarifvergleich des Transports sind dieselbe
 **Ein Lieferant füllt ausschliesslich seine eigene.** Wessen Zeile gemeint ist, liest die
 Ausführung aus dem **Handelnden**, nicht aus der Nutzlast; fremde Preise fallen beim
 Aufbau der Antwort weg, nicht in der Oberfläche. Eine Sichtbarkeitsregel, die erst in der
-Anzeige greift, ist eine Bitte.
+Anzeige greift, ist eine Bitte. **Und wer nicht den Zuschlag hat, sieht ihn auch nicht** —
+Name, Bestellsumme und Sendungsnummer des Gewählten sind für die übrigen Angefragten leer.
+
+**Die Bestellangabe gehört der PAARUNG Modul × Lieferant** (`config.suppliers[].ref`):
+seine Artikelnummer oder der Shop-Link — «wie bestelle ich bei *ihm* dieses Teil». Sie ist
+bekannt, wenn man festlegt, wer in Frage kommt, und ändert sich nicht je Bestellung; am
+Beleg wäre sie eine Angabe, die man bei jedem Vorgang neu abschreibt. Am **Artikel** war
+sie ein einzelner Wert ohne Lieferanten — genau darum dort nie brauchbar.
+
+#### Eine Ansicht, zwei Rollen — und keine Rollenabfrage
+
+Personal und Lieferant sehen **dieselbe** Karte: dieselben Stufen, dieselbe Sache,
+dieselben Wörter. Was sie unterscheidet, ist einzig, **was man hier tun darf** — und das
+sagt der Beleg (`purchase._can` → `PurchaseEmbed.can`, Stufe × Rolle an der einen Stelle,
+an der die Regel wohnt). Die Oberfläche rendert eine Aktion genau dann, wenn ihr Verb dort
+steht; sie weiss nicht, was ein Lieferant ist.
+
+**`can` ist dabei nicht bloss eine Auskunft, sondern das Tor:** dieselbe Tabelle weist in
+`apply` ab. Wäre es nur ein Hinweis für die Anzeige, liefen die beiden beim nächsten Verb
+auseinander — der Knopf verschwände, die Tür bliebe offen.
+
+Der **Wareneingang** steht in derselben Liste, obwohl er über `confirm_step` läuft: aus
+Sicht des Belegs ist er das Verb seiner dritten Stufe, und zwei Listen für «was darf ich
+hier» wären zwei Massstäbe.
+
+**Die Wörter sind allgemein gehalten**, nicht je Rolle formuliert: «Offerte erfassen»
+stimmt für beide (er gibt seine ab, wir schreiben seine auf), «Absage · liefert nicht»
+ebenso. Eine Beschriftung je Rolle wäre ein `if` in Textform.
+
+*Was ein Lieferant NICHT sieht, ist keine Frage des Moduls, sondern der Ansicht:* das
+Modul-Protokoll (`GET …/record`, Personal-only) gehört zum internen Lauf und rendert nur
+in der vollen Ansicht.
 
 #### Ein Modul räumt selbst auf — die Rahmenregel
 

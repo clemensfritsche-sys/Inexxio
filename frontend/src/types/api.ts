@@ -2865,6 +2865,8 @@ export interface components {
             stage: string;
             /** Stages */
             stages?: components["schemas"]["PurchaseStage"][];
+            /** Can */
+            can?: string[];
             /** Lines */
             lines?: components["schemas"]["PurchaseLine"][];
             /**
@@ -2887,8 +2889,8 @@ export interface components {
              * @default CHF
              */
             currency: string;
-            /** Reference */
-            reference?: string | null;
+            /** Tracking */
+            tracking?: string | null;
             /** Clarify Quantity */
             clarify_quantity?: number | null;
         };
@@ -2936,6 +2938,11 @@ export interface components {
              * @default
              */
             supplier_name: string;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
             /** Amount */
             amount?: number | null;
             /** Lead Days */
@@ -2975,8 +2982,8 @@ export interface components {
          *     ``ask``       bei wem angefragt wird (``suppliers``)
          *     ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)
          *     ``decline``   ein Lieferant sagt ab (``supplier``)
-         *     ``order``     bestellen (``supplier``, ``amount``, optional ``reference``)
-         *     ``note``      nachtragen, was der Lieferant zurückgibt (``reference``)
+         *     ``order``     bestellen (``supplier``, ``amount``)
+         *     ``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten
          *     ``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren
          *     ``clarified`` der Lieferant hat der geänderten Menge zugestimmt
          */
@@ -2991,8 +2998,8 @@ export interface components {
             amount?: number | null;
             /** Lead Days */
             lead_days?: number | null;
-            /** Reference */
-            reference?: string | null;
+            /** Tracking */
+            tracking?: string | null;
         };
         /**
          * RecordEntry

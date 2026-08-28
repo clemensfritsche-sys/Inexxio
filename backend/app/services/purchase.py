@@ -40,9 +40,23 @@ ASKED, QUOTED, DECLINED, CHOSEN = "angefragt", "offeriert", "abgelehnt", "gewaeh
 #: storniert sie. Zwei Verben für «zurück» wären zwei Wege zu derselben Sache.
 ACTIONS = ("ask", "quote", "decline", "order", "note", "revoke", "clarified")
 
-#: Was ein **Lieferant** selbst darf: seine eigene Zeile füllen oder ablehnen. Bestellen
-#: tut der Besteller – die Verantwortungstrennung ist der Sinn des Portals.
-SUPPLIER_ACTIONS = ("quote", "decline")
+#: Was ein **Lieferant** selbst darf: seine eigene Zeile füllen oder ablehnen – und,
+#: sobald bestellt ist, die **Sendungsnummer** nachtragen (er verschickt, er kennt sie).
+#: Bestellen tut der Besteller – die Verantwortungstrennung ist der Sinn des Portals.
+SUPPLIER_ACTIONS = ("quote", "decline", "note")
+
+#: **Der Wareneingang.** Keine ``apply``-Handlung – er läuft über ``confirm_step`` –, aber
+#: aus Sicht des Belegs das Verb seiner dritten Stufe. Er steht in derselben Liste wie die
+#: übrigen (``_can``), weil «was darf ich hier tun» **eine** Frage ist; zwei Listen wären
+#: zwei Massstäbe, und die Oberfläche müsste entscheiden, welcher gerade gilt.
+RECEIVE = "receive"
+
+#: Welche Handlungen eine Stufe überhaupt zulässt. Nach dem Wareneingang und nach einem
+#: Storno ist es **keine** – dort ist der Beleg Vergangenheit.
+STAGE_ACTIONS: dict[str, tuple[str, ...]] = {
+    "anfrage": ("ask", "quote", "decline", "order", "revoke"),
+    "bestellung": ("note", "revoke", "clarified", RECEIVE),
+}
 
 
 def _money(value: Any, *, field: str) -> Optional[Decimal]:
@@ -166,6 +180,27 @@ def mine(db: Session, viewer: Optional[UserProfile]) -> Optional[list[Purchase]]
     )
 
 
+def _can(row: Purchase, viewer: Optional[UserProfile]) -> list[str]:
+    """►►► **Was darf DIESER Betrachter an DIESEM Beleg tun?** ◄◄◄
+
+    Die eine Antwort – Stufe **mal** Rolle –, und sie reist mit der Antwort mit
+    (``PurchaseEmbed.can``). Die Oberfläche rendert eine Aktion genau dann, wenn ihr Verb
+    hier steht; sie weiss danach nicht mehr, was ein Lieferant ist.
+
+    Vorher stand die Regel nur im **Dienst** (er wies mit 403 ab) – die Oberfläche zeigte
+    einem Lieferanten trotzdem «Anfrage zurückziehen», «Bestellen», «Stornieren» und den
+    Wareneingangs-Scan. Ein Knopf, der nie etwas tun kann, ist kein Angebot; und eine
+    Rollenabfrage in der Oberfläche wäre die zweite Stelle, an der dieselbe Regel steht.
+
+    Dieselbe Bauart wie ``articles.may_create`` und ``process.pick_problem``: die Regel
+    gibt zurück, **was gilt** – nicht, wer fragt.
+    """
+    allowed = list(STAGE_ACTIONS.get(row.stage, ()))
+    if viewer is not None and viewer.role == "supplier":
+        allowed = [a for a in allowed if a in SUPPLIER_ACTIONS]
+    return allowed
+
+
 def of_step(db: Session, step_id: int) -> Optional[Purchase]:
     return db.query(Purchase).filter(Purchase.step_id == step_id).first()
 
@@ -261,8 +296,10 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     if row is None:
         return None
     config = step.config or {}
-    allowed = config.get(Beschaffen.SUPPLIERS) or []
-    names = _names(db, allowed + [q["supplier"] for q in row.quotes or []])
+    allowed = Beschaffen.suppliers_of(config)
+    refs = {r["supplier"]: r["ref"] for r in allowed}
+    names = _names(db, [r["supplier"] for r in allowed]
+                   + [q["supplier"] for q in row.quotes or []])
     mine = viewer.object_id if viewer is not None and viewer.role == "supplier" else None
 
     quotes = [q for q in (row.quotes or []) if mine is None or q["supplier"] == mine]
@@ -270,27 +307,36 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         db.query(UserProfile).filter(UserProfile.id == row.supplier_id).first()
         if row.supplier_id else None
     )
+    # **Wer nicht den Zuschlag hat, sieht ihn auch nicht.** ``quotes`` war gefiltert, die
+    # getroffene Wahl nicht – ein angefragter, nicht gewählter Lieferant las damit Namen
+    # und Preis seines Konkurrenten. Gefiltert wird beim Aufbau der Antwort; in der
+    # Oberfläche wäre es eine Bitte.
+    won = mine is None or (chosen is not None and chosen.object_id == mine)
     return {
         "stage": row.stage,
         "stages": _stages(row),
+        "can": _can(row, viewer),
         "lines": _line_facts(db, lines_of(db, order, row)),
         "instruction": config.get(Beschaffen.INSTRUCTION) or "",
         "allowed": [
-            {"supplier_object_id": n, "supplier_name": names.get(n, ""), "state": ASKED}
-            for n in allowed if mine is None or n == mine
+            {"supplier_object_id": r["supplier"],
+             "supplier_name": names.get(r["supplier"], ""),
+             "ref": r["ref"], "state": ASKED}
+            for r in allowed if mine is None or r["supplier"] == mine
         ],
         "quotes": [
             {"supplier_object_id": q["supplier"],
              "supplier_name": names.get(q["supplier"], ""),
+             "ref": refs.get(q["supplier"], ""),
              "amount": float(q["amount"]) if q.get("amount") not in (None, "") else None,
              "lead_days": q.get("lead_days"), "state": q.get("state", ASKED)}
             for q in quotes
         ],
-        "supplier_object_id": chosen.object_id if chosen else None,
-        "supplier_name": chosen.display_name if chosen else None,
-        "amount": float(row.amount) if row.amount is not None else None,
+        "supplier_object_id": chosen.object_id if chosen and won else None,
+        "supplier_name": chosen.display_name if chosen and won else None,
+        "amount": float(row.amount) if row.amount is not None and won else None,
         "currency": row.currency,
-        "reference": row.reference,
+        "tracking": row.tracking if won else None,
         "clarify_quantity": mismatch(db, order, row),
     }
 
@@ -413,13 +459,6 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
             status_code=400,
             detail=f"«{action}» ist keine Handlung. Bekannt: " + ", ".join(ACTIONS) + ".",
         )
-    is_supplier = actor.role == "supplier"
-    if is_supplier and action not in SUPPLIER_ACTIONS:
-        raise HTTPException(
-            status_code=403,
-            detail=("Ein Lieferant offeriert oder lehnt ab – bestellt wird beim "
-                    "Besteller."),
-        )
     if row.stage == Beschaffen.CANCELLED:
         raise HTTPException(status_code=409, detail="Dieser Beleg ist storniert.")
     if row.stage == Beschaffen.STAGES[-1]:
@@ -427,8 +466,24 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
             status_code=409,
             detail="Die Ware ist eingetroffen – daran ist nichts mehr zu ändern.",
         )
+    # **Dieselbe Tabelle, die es der Oberfläche sagt, weist hier ab.** Sonst wäre ``can``
+    # eine Behauptung neben der Regel – und die beiden liefen beim nächsten Verb
+    # auseinander. Der Unterschied ist nur, **warum** es nicht geht: die Stufe (409) oder
+    # die Rolle (403).
+    if action not in _can(row, actor):
+        if action in STAGE_ACTIONS.get(row.stage, ()):
+            raise HTTPException(
+                status_code=403,
+                detail=("Ein Lieferant offeriert oder lehnt ab und trägt die "
+                        "Sendungsnummer nach – bestellt wird beim Besteller."),
+            )
+        raise HTTPException(
+            status_code=409,
+            detail=(f"«{action}» geht an dieser Stelle nicht – der Beleg steht auf "
+                    f"«{Beschaffen.STAGE_LABELS[row.stage]}»."),
+        )
 
-    allowed = (step.config or {}).get(Beschaffen.SUPPLIERS) or []
+    allowed = Beschaffen.allowed_numbers(step.config)
     handler = {
         "ask": _ask, "quote": _quote, "decline": _decline,
         "order": _order, "note": _note, "revoke": _revoke, "clarified": _clarified,
@@ -441,7 +496,6 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
 def _ask(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
          allowed: list[int], actor: UserProfile) -> None:
     """Bei wem wird angefragt? Eine Zeile je genanntem Lieferanten."""
-    _only_in(row, Beschaffen.STAGES[0], "Angefragt wird vor der Bestellung.")
     wanted = payload.get("suppliers") or []
     if not isinstance(wanted, (list, tuple)) or not wanted:
         raise HTTPException(status_code=400, detail="Bei wem soll angefragt werden?")
@@ -470,7 +524,6 @@ def _quote(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
     Derselbe Weg, andere Hand: genau das ist der Grund, warum es keinen «Webshop-Modus»
     gibt. Ein Lieferant füllt ausschliesslich **seine** Zeile.
     """
-    _only_in(row, Beschaffen.STAGES[0], "Offeriert wird vor der Bestellung.")
     number = _target(row, payload, actor)
     amount = _money(payload.get("amount"), field="Offerte")
     if amount is None:
@@ -489,14 +542,12 @@ def _quote(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
 
 def _decline(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
              allowed: list[int], actor: UserProfile) -> None:
-    _only_in(row, Beschaffen.STAGES[0], "Abgelehnt wird vor der Bestellung.")
     _write(row, _target(row, payload, actor), amount=None, state=DECLINED)
 
 
 def _order(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
            allowed: list[int], actor: UserProfile) -> None:
     """**Die Zusage nach aussen.** Ab hier ist eine zweite Partei gebunden."""
-    _only_in(row, Beschaffen.STAGES[0], "Bestellt wird aus der Anfrage heraus.")
     number = _int(payload.get("supplier"), field="Lieferant")
     if number not in allowed:
         raise HTTPException(
@@ -515,7 +566,6 @@ def _order(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
         raise HTTPException(status_code=404, detail=f"Lieferant {number} gibt es nicht.")
     row.supplier_id = supplier.id
     row.amount = amount
-    row.reference = (payload.get("reference") or "").strip() or None
     row.stage = Beschaffen.BINDING
     # **Womit bestellt wurde** – aus dem Prozess gelesen, im Moment der Zusage
     # eingefroren. Ab hier sind es die Zeilen des Belegs; ``mismatch`` vergleicht sie mit
@@ -530,17 +580,18 @@ def _order(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
 
 def _note(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
           allowed: list[int], actor: UserProfile) -> None:
-    """**Was der Lieferant zurückgibt** – Bestellnummer, Link, Sendungsnummer, Termin.
+    """**Die Sendungsnummer.**
 
-    Eine eigene Handlung, weil sie einen eigenen Moment hat: die Nummer kommt **nach** der
+    Eine eigene Handlung, weil sie einen eigenen Moment hat: sie entsteht **nach** der
     Bestellung. Sie am Bestellen mitzugeben hiesse, sie zu erfinden oder das Bestellen zu
     verzögern, bis sie da ist.
 
-    **Ein** Feld für die Referenz, weil es **eine** Frage ist: woran erkennt er den
-    Vorgang? Drei Felder für drei Bestellarten wären dieselbe Angabe dreimal.
+    Und sie ist die eine Angabe, die ein **Lieferant** nach der Bestellung beisteuert –
+    er verschickt, er kennt sie. Wo man bei ihm bestellt (seine Artikelnummer, der
+    Shop-Link), steht dagegen in der **Definition**: das ist eine Eigenschaft der Paarung
+    Modul × Lieferant und ändert sich nicht je Bestellung.
     """
-    _only_in(row, Beschaffen.BINDING, "Ergänzt wird an der Bestellung.")
-    row.reference = (payload.get("reference") or "").strip() or None
+    row.tracking = (payload.get("tracking") or "").strip() or None
 
 
 def _revoke(db: Session, *, order: Order, row: Purchase, payload: dict[str, Any],
@@ -567,14 +618,6 @@ def _clarified(db: Session, *, order: Order, row: Purchase, payload: dict[str, A
         )
     row.ordered_lines = [{"article": a, "quantity": n}
                          for a, n in process_lines(db, order)]
-
-
-def _only_in(row: Purchase, stage: str, message: str) -> None:
-    if row.stage != stage:
-        raise HTTPException(
-            status_code=409,
-            detail=f"{message} Dieser Beleg steht auf «{Beschaffen.STAGE_LABELS[row.stage]}».",
-        )
 
 
 def _target(row: Purchase, payload: dict[str, Any], actor: UserProfile) -> int:

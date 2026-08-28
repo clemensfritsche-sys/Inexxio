@@ -181,6 +181,10 @@ class PurchaseQuote(BaseModel):
 
     supplier_object_id: int
     supplier_name: str = ""
+    #: **Wie man bei ihm bestellt** – seine Artikelnummer oder der Shop-Link, aus der
+    #: Definition (``Beschaffen.suppliers_of`` → ``ref``). Sie gehört der Paarung
+    #: Modul × Lieferant, nicht dem einzelnen Beleg.
+    ref: str = ""
     #: Netto, für die ganze Menge. ``None``, solange nichts offeriert ist.
     amount: Optional[float] = None
     lead_days: Optional[int] = None
@@ -243,6 +247,12 @@ class PurchaseEmbed(BaseModel):
     #: Die drei Stufen in ihrer Reihenfolge, mit Beschriftung – die Oberfläche zeichnet
     #: sie, sie erfindet sie nicht (``Beschaffen.STAGES``).
     stages: list["PurchaseStage"] = Field(default_factory=list)
+    #: ►►► **Was DIESER Betrachter hier tun darf** (``purchase._can``). ◄◄◄
+    #:
+    #: Die Oberfläche rendert eine Aktion genau dann, wenn ihr Verb hier steht – sie
+    #: fragt nicht nach der Rolle. Eine Rollenabfrage dort wäre die zweite Stelle, an der
+    #: dieselbe Regel steht, und ein Knopf, der nie etwas tun kann, ist kein Angebot.
+    can: list[str] = Field(default_factory=list)
     #: **Was beschafft wird – abgeleitet, nicht getippt.** Je Artikel, dessen
     #: Einzelinstanzen vor dem Modul stehen, eine Zeile. Mehrere sind der Normalfall:
     #: EINE Bestellung mit zwei Positionen, wie im echten Leben.
@@ -257,7 +267,9 @@ class PurchaseEmbed(BaseModel):
     supplier_name: Optional[str] = None
     amount: Optional[float] = None
     currency: str = "CHF"
-    reference: Optional[str] = None
+    #: Die **Sendungsnummer** – sie entsteht erst nach der Bestellung. Wo man bei einem
+    #: Lieferanten bestellt, steht dagegen an seiner Zeile (``PurchaseQuote.ref``).
+    tracking: Optional[str] = None
     #: **Womit gerechnet wurde ↔ was heute gilt.** Gesetzt, wenn der Beleg seine Grundlage
     #: verloren hat und eine zweite Partei bereits gebunden ist: dann ändert das System
     #: nichts, sondern wartet auf die Bestätigung des Menschen.
@@ -270,8 +282,8 @@ class PurchaseUpdate(BaseModel):
     ``ask``       bei wem angefragt wird (``suppliers``)
     ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)
     ``decline``   ein Lieferant sagt ab (``supplier``)
-    ``order``     bestellen (``supplier``, ``amount``, optional ``reference``)
-    ``note``      nachtragen, was der Lieferant zurückgibt (``reference``)
+    ``order``     bestellen (``supplier``, ``amount``)
+    ``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten
     ``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren
     ``clarified`` der Lieferant hat der geänderten Menge zugestimmt
     """
@@ -281,7 +293,7 @@ class PurchaseUpdate(BaseModel):
     supplier: Optional[int] = None
     amount: Optional[float] = None
     lead_days: Optional[int] = None
-    reference: Optional[str] = None
+    tracking: Optional[str] = None
 
 
 class StepConfirm(BaseModel):

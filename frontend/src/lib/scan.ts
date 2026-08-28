@@ -10,6 +10,8 @@
 // einmal gedruckte Etiketten dauerhaft gültig, auch wenn wir die Kodierung
 // später auf URLs umstellen.
 
+import { SCAN_RECORD_TYPE, TYPE_META } from '@/lib/erp-record';
+
 export const OBJECT_ID_MIN = 100_000_001;
 export const OBJECT_ID_MAX = 999_999_999;
 
@@ -53,6 +55,20 @@ export interface ScanCandidate {
 export type ScanKind = 'user' | 'instance' | 'company' | 'article' | 'process' | 'object';
 
 /**
+ * **Wie die Sorte heisst – aus EINER Quelle.**
+ *
+ * Nennt ein Aufrufer die Sorte nicht, kommt sie aus dem Typ (`TYPE_META`) – derselben
+ * Zuordnung, aus der der Feed und jeder Detail-Kopf ihr Wort und ihr Symbol nehmen. Vier
+ * Aufrufstellen schrieben «Instanz» von Hand hin; ein hingeschriebenes Wort ist die
+ * Stelle, an der die Umbenennung von morgen hängenbleibt.
+ */
+export function scanKindLabel(step?: ScanStep | null): string {
+  if (step?.label) return step.label;
+  const type = step?.kind ? SCAN_RECORD_TYPE[step.kind] : undefined;
+  return type ? TYPE_META[type].label : 'Objekt';
+}
+
+/**
  * **Der eine Satz, mit dem eine Datensatz-Suche fragt.**
  *
  * Er steht im Referenzfeld (`ObjectSelect`) UND in der Suchleiste des Scanners – dieselbe
@@ -78,7 +94,7 @@ export interface ScanStep {
    * gross. Ein zusätzlicher Erklärtext (früher `hint`) und ein Dialog-Titel sind
    * entfallen, weil der ganze Container die Kamera ist.
    */
-  label: string;
+  label?: string;
   kind?: ScanKind;                            // erwarteter Objekttyp → Symbol im Scanner
   expected?: number | number[] | null;        // exakt zu treffende Objektnummer(n)
   candidates?: ScanCandidate[];               // Vorschläge für die manuelle Suche
@@ -176,7 +192,7 @@ export function offersFor(step: ScanStep | undefined): ScanCandidate[] {
   if (step.candidates?.length) return step.candidates;
   if (step.expected == null) return [];
   const wanted = Array.isArray(step.expected) ? step.expected : [step.expected];
-  return wanted.map((objectId) => ({ objectId, label: step.label }));
+  return wanted.map((objectId) => ({ objectId, label: scanKindLabel(step) }));
 }
 
 // ─── Die Deutung – austauschbar, heute genau eine ────────────────────────────

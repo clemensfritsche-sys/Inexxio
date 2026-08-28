@@ -7327,6 +7327,13 @@
             "type": "array",
             "title": "Stages"
           },
+          "can": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Can"
+          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/PurchaseLine"
@@ -7391,7 +7398,7 @@
             "title": "Currency",
             "default": "CHF"
           },
-          "reference": {
+          "tracking": {
             "anyOf": [
               {
                 "type": "string"
@@ -7400,7 +7407,7 @@
                 "type": "null"
               }
             ],
-            "title": "Reference"
+            "title": "Tracking"
           },
           "clarify_quantity": {
             "anyOf": [
@@ -7466,6 +7473,11 @@
           "supplier_name": {
             "type": "string",
             "title": "Supplier Name",
+            "default": ""
+          },
+          "ref": {
+            "type": "string",
+            "title": "Ref",
             "default": ""
           },
           "amount": {
@@ -7583,7 +7595,7 @@
             ],
             "title": "Lead Days"
           },
-          "reference": {
+          "tracking": {
             "anyOf": [
               {
                 "type": "string"
@@ -7592,7 +7604,7 @@
                 "type": "null"
               }
             ],
-            "title": "Reference"
+            "title": "Tracking"
           }
         },
         "type": "object",
@@ -7600,7 +7612,7 @@
           "action"
         ],
         "title": "PurchaseUpdate",
-        "description": "Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.\n\n``ask``       bei wem angefragt wird (``suppliers``)\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)\n``decline``   ein Lieferant sagt ab (``supplier``)\n``order``     bestellen (``supplier``, ``amount``, optional ``reference``)\n``note``      nachtragen, was der Lieferant zurückgibt (``reference``)\n``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren\n``clarified`` der Lieferant hat der geänderten Menge zugestimmt"
+        "description": "Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.\n\n``ask``       bei wem angefragt wird (``suppliers``)\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)\n``decline``   ein Lieferant sagt ab (``supplier``)\n``order``     bestellen (``supplier``, ``amount``)\n``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten\n``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren\n``clarified`` der Lieferant hat der geänderten Menge zugestimmt"
       },
       "RecordEntry": {
         "properties": {

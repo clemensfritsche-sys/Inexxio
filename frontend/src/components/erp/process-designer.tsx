@@ -330,10 +330,10 @@ function PurchaseFields({ module: m, onChange }: {
   // Die gewählten Lieferanten benennen – sonst stünden dort nur Ziffern. Eine Abfrage
   // je Modul, nicht je Zeile.
   useEffect(() => {
-    const missing = m.suppliers.filter((n) => !(n in known));
+    const missing = m.suppliers.filter((r) => !(r.supplier in known));
     if (missing.length === 0) return;
     let stale = false;
-    void Promise.all(missing.map((n) => api.searchSuppliers(String(n), 1)))
+    void Promise.all(missing.map((r) => api.searchSuppliers(String(r.supplier), 1)))
       .then((groups) => {
         if (stale) return;
         const found: Record<number, string> = {};
@@ -370,22 +370,40 @@ function PurchaseFields({ module: m, onChange }: {
           scanLabel="Lieferant"
           placeholder="Nummer oder Name"
           onChange={(nr, opt) => {
-            if (nr === null || m.suppliers.includes(nr)) return;
+            if (nr === null || m.suppliers.some((r) => r.supplier === nr)) return;
             if (opt) setKnown((k) => ({ ...k, [nr]: opt.name }));
-            onChange({ suppliers: [...m.suppliers, nr] });
+            onChange({ suppliers: [...m.suppliers, { supplier: nr, ref: '' }] });
           }}
         />
-        {m.suppliers.map((nr) => (
-          <div key={nr} className="flex items-center gap-2 text-[13px]"
+        {/* **Wer liefern darf – und wie man bei ihm bestellt.** Die Bestellangabe steht
+            hier und nicht am Beleg: sie ist eine Eigenschaft der Paarung Modul ×
+            Lieferant («seine Artikelnummer», «sein Shop-Link») und ändert sich nicht je
+            Bestellung. Am Beleg wäre sie eine Angabe, die man jedes Mal neu abschreibt
+            – genau das war das alte Referenz-Feld (#753). */}
+        {m.suppliers.map((row) => (
+          <div key={row.supplier} className="flex flex-col gap-1"
             style={{ borderTop: '1px solid var(--border-1)', paddingTop: 5 }}>
-            <ObjId value={nr} />
-            <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>{known[nr] ?? ''}</span>
-            <button type="button" className="erp-fieldaction" aria-label="Entfernen"
-              data-tip="Nicht mehr zugelassen"
-              onClick={() => onChange({ suppliers: m.suppliers.filter((x) => x !== nr) })}
-              style={{ position: 'static', transform: 'none' }}>
-              <X size={14} />
-            </button>
+            <div className="flex items-center gap-2 text-[13px]">
+              <ObjId value={row.supplier} />
+              <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>
+                {known[row.supplier] ?? ''}
+              </span>
+              <button type="button" className="erp-fieldaction" aria-label="Entfernen"
+                data-tip="Nicht mehr zugelassen"
+                onClick={() => onChange({
+                  suppliers: m.suppliers.filter((x) => x.supplier !== row.supplier),
+                })}
+                style={{ position: 'static', transform: 'none' }}>
+                <X size={14} />
+              </button>
+            </div>
+            <input className={inputCls} value={row.ref} maxLength={200}
+              placeholder="Artikelnummer oder Link beim Lieferanten"
+              aria-label={`Bestellangabe für ${row.supplier}`}
+              onChange={(e) => onChange({
+                suppliers: m.suppliers.map((x) => (
+                  x.supplier === row.supplier ? { ...x, ref: e.target.value } : x)),
+              })} />
           </div>
         ))}
       </div>

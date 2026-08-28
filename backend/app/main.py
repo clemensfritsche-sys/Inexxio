@@ -112,6 +112,8 @@ _COLUMN_SAFETY_NET = (
     # sie **jeder** Lesezugriff auf einen Beschaffungs-Beleg – dieselbe Ausfallklasse wie
     # ``purchases.is_active`` (Migration 114), nur eine Spalte weiter.
     ("purchases", "ordered_lines", "JSONB"),
+    # Die Sendungsnummer (Migration 117) – dieselbe Tabelle, dieselbe Ausfallklasse.
+    ("purchases", "tracking", "VARCHAR(200)"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
