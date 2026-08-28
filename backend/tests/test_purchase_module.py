@@ -76,7 +76,8 @@ def _buy_step(suppliers, instruction: str = "liefern"):
     """Ein Beschaffungs-Modul – **ohne Artikel**: den sagt der Prozess."""
     return {"module_type": "beschaffen",
             "config": {"instruction": instruction,
-                       "suppliers": [s.object_id for s in suppliers]}}
+                       "suppliers": [{"supplier": s.object_id, "ref": f"REF-{s.object_id}"}
+                                     for s in suppliers]}}
 
 
 def _total(db, order, row) -> int:
@@ -643,19 +644,22 @@ def test_one_supplier_is_a_list_with_one_entry():
     from app.domain import modules
 
     m = modules.get("beschaffen")
-    one = m.clean_config({"suppliers": [100000001], "instruction": "liefern"})
+    one = m.clean_config({"suppliers": [{"supplier": 100000001, "ref": "A"}],
+                          "instruction": "liefern"})
     assert m.allowed_numbers(one) == [100000001]
-    three = m.clean_config({"suppliers": [1, 2, 3], "instruction": "liefern"})
+    three = m.clean_config({"suppliers": [{"supplier": n, "ref": "A"} for n in (1, 2, 3)],
+                            "instruction": "liefern"})
     assert m.allowed_numbers(three) == [1, 2, 3]
 
     with pytest.raises(HTTPException):
         m.clean_config({"suppliers": [], "instruction": "liefern"})
     with pytest.raises(HTTPException):
-        m.clean_config({"suppliers": [1, 1], "instruction": "liefern"})
+        m.clean_config({"suppliers": [{"supplier": 1, "ref": "A"}] * 2,
+                        "instruction": "liefern"})
 
     # **Kein Artikelfeld – und es kommt auch nicht durch die Hintertür zurück.**
-    assert "article" not in m.clean_config({"suppliers": [1], "instruction": "x",
-                                            "article": 42}), (
+    assert "article" not in m.clean_config({"suppliers": [{"supplier": 1, "ref": "A"}],
+                                            "instruction": "x", "article": 42}), (
         "Die Konfiguration nimmt wieder einen Artikel entgegen – damit gibt es zwei "
         "Aussagen darüber, was bestellt wird."
     )
@@ -934,14 +938,16 @@ def test_the_instruction_is_mandatory_and_reaches_the_supplier():
 
     m = modules.get("beschaffen")
     with pytest.raises(HTTPException) as caught:
-        m.clean_config({"suppliers": [1]})
+        m.clean_config({"suppliers": [{"supplier": 1, "ref": "A"}]})
     assert caught.value.status_code == 400
     with pytest.raises(HTTPException):
-        m.clean_config({"suppliers": [1], "instruction": "   "})
+        m.clean_config({"suppliers": [{"supplier": 1, "ref": "A"}], "instruction": "   "})
     with pytest.raises(HTTPException):
-        m.clean_config({"suppliers": [1], "instruction": "x" * (m.MAX_INSTRUCTION + 1)})
+        m.clean_config({"suppliers": [{"supplier": 1, "ref": "A"}],
+                        "instruction": "x" * (m.MAX_INSTRUCTION + 1)})
 
-    clean = m.clean_config({"suppliers": [1], "instruction": "  Härten auf 58 HRC  "})
+    clean = m.clean_config({"suppliers": [{"supplier": 1, "ref": "A"}],
+                           "instruction": "  Härten auf 58 HRC  "})
     assert clean["instruction"] == "Härten auf 58 HRC", "Der Satz wird nicht getrimmt."
 
 

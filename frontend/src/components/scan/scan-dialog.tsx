@@ -302,27 +302,26 @@ export function ScanDialog({ steps, onComplete, onClose, reading = objectCodes }
         {/* Suche – im Bild statt darunter: eine milchige Leiste am unteren Rand, mit
             derselben Anatomie wie das Referenzfeld: Beschriftung · Eingabe · Liste. */}
         <div style={searchBar}>
-          {/* **Die Sorte mit ihrem Symbol** (#754) – demselben, das der Feed und jeder
-              Detail-Kopf trägt (`TYPE_META`). Ein Wort allein sagt, wonach gesucht wird;
-              das Symbol sagt es auf einen Blick, und es ist dasselbe wie überall.
-              `process`/`object` sind kein Datensatztyp – dort steht nur das Wort, statt
-              ein fremdes Symbol auszuleihen. */}
-          <div style={kindLine}>
-            {KindIcon && <KindIcon size={13} style={{ flex: 'none', opacity: 0.9 }} />}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{kind}</span>
-          </div>
+          {/* **Ein Bauteil statt zweier** (Notiz #758). Die Sorte stand als eigener Chip
+              über der Leiste, der Platzhalter trug nur die nackte Nummer – zwei Stellen
+              für EINE Auskunft. Jetzt sagt der Platzhalter beides («Instanz 100000825
+              suchen»), und das **Symbol** sitzt am Innenrand des Feldes: dass gesucht
+              wird, sagt das Feld selbst; *was* gesucht wird, sagt das Symbol – dasselbe,
+              das der Feed und jeder Detail-Kopf trägt (`TYPE_META`).
+
+              Ohne bekannten Datensatztyp (`process`/`object`) bleibt die Lupe: ein
+              ausgeliehenes Symbol wäre eine Behauptung. */}
           <div style={{ position: 'relative' }}>
-            <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.7)', pointerEvents: 'none' }} />
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.7)', pointerEvents: 'none', display: 'flex' }}>
+              {KindIcon ? <KindIcon size={15} /> : <Search size={15} />}
+            </span>
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => { setQuery(e.target.value); setFeedback(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitQuery(); } }}
-              // Der Platzhalter sagt, was man EINGIBT – wortgleich mit dem des Feldes,
-              // aus dem dieser Dialog kommt. Die Sorte steht als Beschriftung darüber,
-              // nicht zusätzlich als Chip im Bild (Notiz #126): eine Aussage, eine Stelle.
               placeholder={hint}
-              aria-label={`${kind} – ${hint}`}
+              aria-label={hint}
               style={input}
             />
           </div>
@@ -404,25 +403,6 @@ const reasonBox: React.CSSProperties = {
   position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center',
   justifyContent: 'center', gap: 7, padding: '10px 12px', textAlign: 'center',
   background: 'var(--danger)', color: '#fff', fontSize: 12.5, fontWeight: 600, lineHeight: 1.35,
-};
-/**
- * Die Beschriftung über der Leiste – **dieselbe Typografie wie `fields.Label`** (11 px,
- * 600, Versalien, 0.05em), damit der Dialog sichtbar dasselbe Feld ist.
- *
- * Sie trägt denselben milchigen Grund wie Eingabe und Vorschläge, und zwar aus dem
- * Grund, aus dem die es tun: hier liegt Text auf einem **Foto**. «Struktur vor Fläche»
- * setzt eine Fläche voraus, die es hält – vor einem hellen Regal wäre weisse Schrift
- * schlicht weg. Sie ist damit auch kein Chip im Sinne von Notiz #126: der stand neben
- * dem Platzhalter und sagte dasselbe zweimal – diese Angabe steht nur hier.
- */
-const kindLine: React.CSSProperties = {
-  alignSelf: 'flex-start', maxWidth: '100%', padding: '3px 10px',
-  display: 'flex', alignItems: 'center', gap: 6,
-  fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em',
-  color: 'rgba(255,255,255,.92)', borderRadius: 999,
-  border: '1px solid rgba(255,255,255,.18)', background: 'rgba(15,23,42,.5)',
-  backdropFilter: 'blur(10px)',
-  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 const searchBar: React.CSSProperties = {
   position: 'absolute', left: 14, right: 14, bottom: 14, display: 'flex', flexDirection: 'column', gap: 6,

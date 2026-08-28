@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type {CompanySettings } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { Card, ChoiceButton, DetailHeader, Dialog } from '@/components/erp/fields';
+import { DetailBody, Card, ChoiceButton, DetailHeader, Dialog } from '@/components/erp/fields';
 import { organizationStatus } from '@/lib/record-status';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
@@ -390,7 +390,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           </QueryClientProvider>
         )}
         {tab === 'stamm' && (
-        <div style={{ maxWidth: 760, marginInline: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <DetailBody gap={16}>
           {/* ── 1. Allgemeine Angaben ────────────────────────────────────────── */}
           <Card title="Allgemeine Angaben" right={saveIndicator}>
             <AField label="Unternehmensname" value={form.company_name} onChange={str('company_name')}
@@ -510,7 +510,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Card title="Gebiete">
             <TerritoryMap highlight={record.object_id} embedded />
           </Card>
-        </div>
+        </DetailBody>
         )}
       </div>
     </div>

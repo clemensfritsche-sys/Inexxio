@@ -252,8 +252,19 @@ export const objectCodes: ScanReading = {
    * Bei einer Verifikation ist es die erwartete Nummer selbst – genau das, was man
    * tippen würde, und weiterhin **hier** gebaut statt an der Aufrufstelle (Notiz #737).
    */
+  /**
+   * **Der Platzhalter sagt die SORTE und die Nummer** (Testnotiz #758).
+   *
+   * Vorher stand die Sorte als eigener Chip über der Leiste und der Platzhalter trug nur
+   * die nackte Nummer – zwei Bauteile für eine Auskunft. Jetzt trägt sie das Feld, in
+   * das man ohnehin schaut («Instanz 100000825 suchen»), und das **Symbol** sitzt an
+   * seinem Innenrand: dass gesucht wird, sagt das Feld; *was*, sagt das Symbol.
+   *
+   * Die Regel aus #737 bleibt: die Nummer hängt **hier** an, keine Aufrufstelle baut sie.
+   */
   prompt(step) {
-    if (step && typeof step.expected === 'number') return nr(step.expected);
-    return LOOKUP_HINT;
+    const kind = scanKindLabel(step);
+    if (step && typeof step.expected === 'number') return `${kind} ${nr(step.expected)} suchen`;
+    return `${kind} – ${LOOKUP_HINT}`;
   },
 };

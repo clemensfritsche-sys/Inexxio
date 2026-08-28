@@ -20,7 +20,6 @@ import type {
   UnitPage,
   Genealogy,
   StepRecord,
-  ObjectReference,
   CompanySettings,
   UserProfile,
   TerritoryMap,
@@ -277,15 +276,7 @@ class ApiClient {
     return this.get('/api/v1/admin/users');
   }
 
-  deactivateUser(userId: number): Promise<{ deactivated: boolean }> {
-    return this.delete(`/api/v1/admin/users/${userId}`);
-  }
 
-  /** Deaktivierten Benutzer reaktivieren – die bewusste Admin-Umkehr des Soft-Delete
-   *  (die Identität/Objektnummer bleibt; beim Login wird ein Deaktivierter abgewiesen). */
-  reactivateUser(userId: number): Promise<{ reactivated: boolean }> {
-    return this.post(`/api/v1/admin/users/${userId}/reactivate`, {});
-  }
 
   // ─── Admin: Settings ───────────────────────────────────────────────────────
 
@@ -735,11 +726,6 @@ class ApiClient {
     return this.get(`/api/v1/erp/instances/${objectId}`);
   }
 
-
-  // Generischer Rückverweis je Objektnummer («wer zeigt auf mich» – verortet/Ziel).
-  getObjectReferences(objectId: number): Promise<ObjectReference[]> {
-    return this.get(`/api/v1/erp/objects/${objectId}/references`);
-  }
 
   // ─── Verkauf (ERP, Reiter «Verkauf» am Artikel) ─────────────────────────────
   // Verkaufs-Daten sind IMMER editierbar (auch bei freigegebenem Artikel).
