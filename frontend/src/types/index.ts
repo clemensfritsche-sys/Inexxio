@@ -280,8 +280,6 @@ export type PlaceRef = components['schemas']['PlaceRef'];
  * Zustand, kein fehlender Wert.
  */
 export type UnitPlace = components['schemas']['UnitPlace'];
-/** **Womit bewegt wird** – ein Kanal und seine Verfügbarkeit (`Bewegen.TRANSPORTS`). */
-export type Transport = components['schemas']['Transport'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
 export type SalesVisibility = 'public' | 'private';
 export type SalesFulfillment = 'make' | 'stock';

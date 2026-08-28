@@ -205,7 +205,7 @@ class World:
 
     def confirm(self, order, step, *, instance: int, values: Optional[dict] = None,
                 verification: str = "scan", sources: Optional[list[int]] = None,
-                place: Optional[int] = None, transport: Optional[str] = None):
+                place: Optional[int] = None):
         """Ein Modul für **eine** Instanz bestätigen – mit einem Wertesatz je gezogenem Stück."""
         from app.services import process as proc
         from tests.support import per_unit
@@ -220,7 +220,7 @@ class World:
         out = proc.confirm_step(
             self.db, order=order, step_id=step.id, values=payload,
             instance_object_id=instance, verification=verification,
-            sources=sources, place=place, transport=transport, actor_id=None,
+            sources=sources, place=place, actor_id=None,
         )
         self.db.flush()
         return out

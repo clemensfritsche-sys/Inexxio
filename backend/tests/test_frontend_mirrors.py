@@ -4176,18 +4176,28 @@ def test_the_goods_are_scanned_before_the_destination():
     )
 
 
-def test_the_transport_list_is_the_bit_not_a_module_type_check():
-    """**«Bewegt dieses Modul?» beantwortet die Transportliste, nicht ein Typvergleich.**
+def test_moving_and_buying_are_properties_not_module_type_checks():
+    """**«Bewegt es?» und «kauft es ein?» kommen vom Schritt, nicht aus einem Vergleich.**
 
-    Sie ist bei jedem anderen Modultyp leer – dieselbe Bauart wie `needs` bei der
-    Stückliste. Ein `moduleType === 'bewegen'` in der Oberfläche wäre eine zweite Stelle,
-    an der sie über Modultypen Bescheid wissen müsste; die erste, die man beim nächsten
+    Die frühere Fassung prüfte, dass das Bit aus der **Transportliste** kommt (sie war
+    bei jedem anderen Modultyp leer – eine Liste als Bit). Die Liste gibt es nicht mehr;
+    die Aussage bleibt und ist ehrlicher geworden: zwei Eigenschaften, `moves` und
+    `buys`, beide aus derselben Registry wie Beschriftung und Farbe.
+
+    Bug-Form: ein `moduleType === 'bewegen'` in der Oberfläche – die zweite Stelle, an
+    der sie über Modultypen Bescheid wissen müsste, und die erste, die man beim nächsten
     Modul vergisst.
     """
-    work = _read(FRONTEND / "components" / "erp" / "capture-work.tsx")
-    assert "transports.length > 0" in _code(work), (
-        "Das Bit «bewegt dieses Modul» kommt nicht mehr aus der Transportliste."
+    cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
+    assert "moves: s.moves" in cols and "buys: s.buys" in cols, (
+        "Der Schritt bringt «bewegt es?» / «kauft es ein?» nicht mehr mit – dann muss "
+        "die Oberfläche es wieder aus dem Modultyp erraten."
     )
+    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    assert "step.moves" in detail and "step.buys" in detail, (
+        "Die Ausführungsstelle liest die beiden Eigenschaften nicht."
+    )
+    assert "transports" not in detail, "Die Transportart-Liste ist zurück."
     for surface in ("capture-work.tsx", "order-detail.tsx"):
         code = _code(_read(FRONTEND / "components" / "erp" / surface))
         assert "'bewegen'" not in code and '"bewegen"' not in code, (
@@ -4908,4 +4918,70 @@ def test_the_order_reference_is_a_mandatory_field():
     assert "Bestellangabe" in suppliers, (
         "Der Server nimmt eine leere Bestellangabe an – dann ist die Prüfung in der "
         "Oberfläche eine Bitte."
+    )
+
+
+def test_a_bought_transport_is_the_ordinary_purchase_document():
+    """**1:1 derselbe Beleg – keine Kopie, auch nicht in der Oberfläche.**
+
+    Eine Sendung aufzugeben IST ein Einkauf: der Spediteur ist ein Lieferant, der
+    Tarifvergleich ist der Angebotsspiegel, die Sendungsnummer ist `tracking`. Wer dafür
+    ein zweites Bauteil baute, hätte den Einkauf ein zweites Mal gebaut – und das zweite
+    veraltet beim nächsten neuen Verb.
+
+    Bug-Form: eine eigene «Versand»-Komponente neben `PurchaseWork`, oder ein
+    Modultyp-Vergleich, der entscheidet, welche gerendert wird.
+    """
+    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    # (1) Es gibt genau EINE Beleg-Komponente, und sie hängt am Vorhandensein des Belegs
+    #     – nicht am Modultyp.
+    assert detail.count("<PurchaseWork") == 1, (
+        "Der Beleg wird an mehr als einer Stelle gerendert – dann gibt es ihn zweimal."
+    )
+    body = _body(detail, "Wrapped", kind="function")
+    assert "if (purchase)" in body, (
+        "Der Beleg wird nicht mehr allein daran erkannt, dass es ihn gibt."
+    )
+
+    # (2) Die Wahl «selbst ↔ eingekauft» steht dort, wo ihre Folge steht – und nur,
+    #     solange es keinen Beleg gibt. Danach ist sie beantwortet.
+    assert "buys !== 'if_chosen'" in body, (
+        "Die Wahl hängt nicht an der Deklaration des Moduls."
+    )
+    assert "action: 'buy'" in body, "Die Wahl legt keinen Beleg an."
+
+    # (3) Und es gibt keine zweite Versand-Oberfläche daneben.
+    for name in ("shipment", "versand-panel", "transport-panel"):
+        assert not (FRONTEND / "components" / "erp" / f"{name}.tsx").exists(), (
+            f"{name}.tsx ist ein zweites Bauteil für dieselbe Sache."
+        )
+
+
+def test_the_haulage_choice_is_one_bit_not_a_roadmap_list():
+    """**Ein Bit, kein Katalog** – und es ist abgeleitet.
+
+    Vorher stand eine Liste `manuell · paket · fracht` mit einem `available`-Flag da,
+    damit die Oberfläche die Roadmap zeigen konnte. *Paket* und *Fracht* sind aber keine
+    zwei Arten, sondern zwei **Angebote** desselben Einkaufs – das entscheidet der Tarif,
+    nicht der Modellierer.
+
+    Bug-Form: die Liste kommt zurück, oder «womit» wird wieder mitgeschickt – dann gibt
+    es zwei Angaben über dieselbe Sache, und die getippte gewinnt.
+    """
+    mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    assert "TRANSPORT_ICON" not in mods, "Die Transportart-Liste ist zurück."
+    assert "export const HAULAGE" in mods, "Das eine Bit fehlt."
+
+    api = _code(_read(FRONTEND / "lib" / "api.ts"))
+    confirm = api[api.index("confirmStep("):]
+    confirm = confirm[: confirm.index("\n  }")]
+    assert "transport" not in confirm, (
+        "«Womit» wird wieder mitgeschickt – ob eingekauft wurde, sagt der Beleg."
+    )
+    # **Geprüft wird der Code, nicht die Prosa** (`_code` wirft Kommentare weg – dort
+    # steht «die Handlung ist ein Transport», und das ist eine Erklärung, keine Variable).
+    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
+    assert "transport" not in work.lower(), (
+        "Die Ausführungsstelle kennt wieder eine Transportart – die Frage ist eine "
+        "Ebene höher beantwortet (gibt es einen Beleg?)."
     )

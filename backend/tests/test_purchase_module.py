@@ -1138,3 +1138,211 @@ def test_the_order_reference_lives_in_the_definition_the_tracking_on_the_documen
         )
     finally:
         db.rollback(); db.close()
+
+
+# ---------------------------------------------------------------------------
+# Der Beleg gehört keinem Modul — eine Sendung ist ein Einkauf
+# ---------------------------------------------------------------------------
+
+def _move_step(target: int):
+    """Ein Bewegen-Modul mit festem Ziel – **ohne** jede Einkaufs-Angabe."""
+    return {"module_type": "bewegen", "config": {"target": target}}
+
+
+def _shelf(db, name: str = "Regal B"):
+    """Ein physischer Halter – ein Regal ist eine **Instanz**, kein neuer Datensatztyp."""
+    from app.services import instances as inst_svc
+    art = _article(db, name, serialization="einzeln")
+    made = inst_svc.create_instances(db, article=art, kind="einzeln",
+                                     instance_count=1, units_each=1)
+    db.flush()
+    return made[0]
+
+
+def _first_instance(db, order) -> int:
+    from app.models import Instance, InstanceUnit, OrderUnit
+    row = (db.query(Instance)
+           .join(InstanceUnit, InstanceUnit.instance_id == Instance.id)
+           .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
+           .filter(OrderUnit.order_id == order.id).first())
+    return row.object_id
+
+
+def test_the_document_belongs_to_no_module():
+    """►►► **Der Beleg hängt am Schritt, nicht an «Beschaffen».** ◄◄◄
+
+    Das ist die Umdeutung, aus der alles Übrige folgt: ``purchases`` trug nie einen
+    Modultyp (nur eine ``step_id``), ``_can`` liest Stufe × Rolle, ``assert_receivable``
+    und ``note_receipt`` fragen nur, ob es zu diesem Schritt einen Beleg gibt. Es waren
+    genau **zwei Fäden**, die ihn an ein Modul banden – ``suppliers`` und ``instruction``.
+    Sind die gekappt, trägt jedes Modul denselben Beleg.
+
+    Bug-Form: die Stufen-Vokabel wandert zurück an eine Modul-Klasse, oder der Dienst
+    sucht wieder ``module_type == 'beschaffen'``. Dann ist der zweite Modultyp der, den
+    man vergisst.
+    """
+    from app.domain import modules, procurement
+    from app.services import purchase as svc
+
+    src = (BACKEND / "app" / "services" / "purchase.py").read_text(encoding="utf-8")
+    assert "modules.BESCHAFFEN" not in src, (
+        "Der Dienst sucht wieder EINEN Modultyp statt der Deklaration «trägt einen "
+        "Beleg» – ein zweiter Typ fiele stillschweigend heraus."
+    )
+    assert "Beschaffen." not in src, (
+        "Die Stufen kommen wieder von einer Modul-Klasse. Sie beschreiben den Beleg."
+    )
+    for name in ("STAGES", "BINDING", "CANCELLED", "STAGE_LABELS", "STAGE_VERBS"):
+        assert hasattr(procurement, name), f"«{name}» fehlt in der Beleg-Vokabel."
+        assert not hasattr(modules.get("beschaffen"), name), (
+            f"«{name}» steht wieder an der Modul-Klasse."
+        )
+    # Die Werte sind unverändert – es ist eine Verschiebung, keine Neudefinition.
+    assert procurement.STAGES == ("anfrage", "bestellung", "wareneingang")
+    assert procurement.BINDING == "bestellung"
+    # Wer einen Beleg tragen kann, ist abgeleitet – keine gepflegte Liste.
+    assert set(modules.buying_types()) == {"beschaffen", "bewegen"}
+    assert modules.buying_types(buys=modules.BUY_ALWAYS) == ["beschaffen"]
+    assert svc.BUY not in svc.ACTIONS, (
+        "«buy» ist eine Handlung des MODULS, nicht des Belegs – in `ACTIONS` stünde sie "
+        "in der `can`-Tabelle, und die hat für sie keine Stufe."
+    )
+
+
+def test_a_transport_is_bought_with_the_same_document():
+    """**Eine Sendung aufzugeben IST ein Einkauf** – dieselben Stufen, kein Nachbau.
+
+    Bug-Form: ein zweiter Vorgang für dasselbe (eigene Stufen, eigene Verben, eigene
+    Tabelle). Er veraltet beim ersten neuen Verb – und «wo steht die Sendung» hätte
+    zwei Antworten.
+    """
+    from app.domain import procurement
+    from app.services import purchase as svc
+
+    db = _db()
+    try:
+        shelf = _shelf(db)
+        # Der Ablauf steht am **Artikel** – so entsteht ein gewöhnlicher
+        # Erzeugungsauftrag, der genau dieses eine Modul durchläuft.
+        art = _article(db, "Getriebe", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=4, article=art)
+        me = _staff(db)
+
+        # Bei der Freigabe gibt es keinen – die Wahl ist noch nicht getroffen.
+        assert svc.of_step(db, steps[0].id) is None
+        row = svc.apply(db, order=order, step=steps[0], action=svc.BUY,
+                        payload={}, actor=me)
+        assert row.stage == procurement.STAGES[0]
+
+        facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
+        assert [s["key"] for s in facts["stages"]] == list(procurement.STAGES), (
+            "Die Sendung läuft nicht über dieselben drei Stufen."
+        )
+        assert facts["lines"] and facts["lines"][0]["quantity"] == 4, (
+            "Die Zeilen des Belegs sind nicht die Ware, die davorsteht – bei einer "
+            "Sendung ist das der Inhalt des Frachtbriefs."
+        )
+        assert facts["allowed"] == [], (
+            "Der Spediteur ist keine Freigabe der Definition – er wird zur Laufzeit "
+            "benannt, genau wie das offene Ziel."
+        )
+        assert facts["instruction"].startswith("Transport nach"), (
+            f"Der Auftrag an den Spediteur ist nicht abgeleitet: {facts['instruction']!r}"
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_freight_price_is_never_the_price_of_the_article():
+    """**Die Falle, die still gewesen wäre.**
+
+    ``_write_landed_cost`` schreibt *Summe ÷ Menge* auf den Artikel. Bei einem
+    Transport-Beleg wäre das der **Frachttarif als Einstandspreis** – derselbe Artikel,
+    zweimal verschickt, hätte danach den Tarif als Kosten, und damit würde kalkuliert.
+
+    Bug-Form: der Riegel fehlt (oder er ist ein ``if module_type ==``, das der nächste
+    Typ nicht erbt).
+    """
+    from app.domain import modules
+    from app.models import Article
+    from app.services import process as proc, purchase as svc
+
+    assert modules.get("beschaffen").landed_cost is True
+    assert modules.get("bewegen").landed_cost is False
+
+    db = _db()
+    try:
+        shelf = _shelf(db)
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=2, article=art)
+        me, carrier = _staff(db), _supplier(db, "Spedition Meier")
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="ask",
+                  payload={"suppliers": [carrier.object_id]}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="order",
+                  payload={"supplier": carrier.object_id, "amount": "180.00"}, actor=me)
+        proc.confirm_step(db, order=order, step_id=steps[0].id, values={},
+                          instance_object_id=_first_instance(db, order),
+                          verification="scan", place=shelf.object_id, actor_id=None)
+        db.flush()
+        assert svc.of_step(db, steps[0].id).stage == "wareneingang", (
+            "Der Ziel-Scan schliesst den Beleg nicht – Ankunft und Ablage sind ein "
+            "Ereignis, also eine Bestätigung."
+        )
+        fresh = db.query(Article).filter(Article.id == art.id).first()
+        assert fresh.landed_unit_cost is None, (
+            f"Der Frachttarif steht als Einstandspreis am Artikel "
+            f"({fresh.landed_unit_cost}) – damit wird danach kalkuliert."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_taking_back_the_choice_removes_the_document():
+    """**«Doch selbst» muss wieder wahr werden können.**
+
+    «Eingekauft» ist abgeleitet: *gibt es einen Beleg?*. Bleibt nach dem Zurücknehmen
+    ein leerer stehen, beantwortet sich die Frage mit «ja», obwohl die Wahl weg ist.
+    Beim **Beschaffen** ist es umgekehrt: dort ist der Einkauf der Zweck, der Beleg
+    bleibt und verliert seine Angebote.
+
+    Bug-Form: eine Regel für beide – dann ist entweder das Bewegen-Modul für immer
+    «eingekauft», oder ein Beschaffungs-Modul verliert seinen Beleg und hat nichts mehr.
+    """
+    from app.services import purchase as svc
+
+    db = _db()
+    try:
+        shelf = _shelf(db)
+        me, sup = _staff(db), _supplier(db, "Würth")
+
+        art = _article(db, "Schraube", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=1, article=art)
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        assert svc.of_step(db, steps[0].id) is not None
+        svc.apply(db, order=order, step=steps[0], action="revoke", payload={}, actor=me)
+        db.flush()
+        assert svc.of_step(db, steps[0].id) is None, (
+            "Die Wahl lässt sich nicht zurücknehmen – «selbst gebracht» wird nie wieder "
+            "wahr."
+        )
+        # …und danach geht es wieder (der Unique-Index ist partiell, Migration 119).
+        again = svc.apply(db, order=order, step=steps[0], action=svc.BUY,
+                          payload={}, actor=me)
+        assert again is not None and again.stage == "anfrage"
+
+        art2 = _article(db, "Mutter", steps=[_buy_step([sup])])
+        o2, s2 = _make(db, quantity=1, article=art2)
+        svc.apply(db, order=o2, step=s2[0], action="ask",
+                  payload={"suppliers": [sup.object_id]}, actor=me)
+        svc.apply(db, order=o2, step=s2[0], action="revoke", payload={}, actor=me)
+        db.flush()
+        kept = svc.of_step(db, s2[0].id)
+        assert kept is not None and kept.quotes == [], (
+            "Beim Beschaffen verschwindet der Beleg – dort ist der Einkauf der Zweck."
+        )
+    finally:
+        db.rollback()
+        db.close()

@@ -13,7 +13,7 @@
  */
 
 import {
-  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, MoveRight, Package, PackageX,
+  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, MoveRight, PackageX,
   PenLine, Ruler, ShoppingCart, ThumbsUp, Truck, Type, type LucideIcon,
 } from 'lucide-react';
 
@@ -48,11 +48,24 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
  * transportieren kann. Ein neuer Kanal ist damit ein Eintrag in der Registry plus ein
  * Symbol; `test_frontend_mirrors` hält beide Seiten deckungsgleich.
  */
-export const TRANSPORT_ICON: Record<string, LucideIcon> = {
-  manuell: Hand,
-  paket: Package,
-  fracht: Truck,
-};
+/**
+ * **Selbst gebracht ↔ eingekauft** – das eine Bit einer Bewegung.
+ *
+ * Die frühere Liste `manuell · paket · fracht` (mit einem `available`-Flag als Roadmap)
+ * ist entfallen: *Paket* und *Fracht* sind keine zwei Arten, sondern zwei **Angebote**
+ * desselben Einkaufs – das entscheidet der Tarif, nicht der Modellierer. Ein Roboter,
+ * der es fährt, ist «selbst»: unser Gerät, keine Rechnung.
+ *
+ * Und die Antwort ist **abgeleitet**: eingekauft wurde genau dann, wenn es einen Beleg
+ * gibt. Zwei Angaben könnten sich widersprechen, eine abgeleitete kann es nicht.
+ */
+export const HAULAGE = {
+  self: { icon: Hand, label: 'Selbst',
+          hint: 'Jemand von uns bringt es hin – kein Dienstleister, kein Beleg.' },
+  bought: { icon: Truck, label: 'Einkaufen',
+            hint: 'Eine Spedition beauftragen – dafür entsteht ein ganz gewöhnlicher '
+                + 'Einkaufs-Beleg: anfragen, vergleichen, bestellen.' },
+} as const;
 
 /**
  * **Die Farbfamilien der Module — die eine Stelle.**

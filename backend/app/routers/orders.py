@@ -745,7 +745,7 @@ def confirm_step(
     outcome = process_svc.confirm_step(
         db, order=order, step_id=step_id, values=data.values,
         instance_object_id=data.instance_object_id, verification=data.verification,
-        sources=data.sources, place=data.place, transport=data.transport,
+        sources=data.sources, place=data.place,
         actor_id=user.id)
     log_audit(db, "process_steps", "confirm",
               f"{outcome['moved']} bewegt, {outcome['held']} angehalten",

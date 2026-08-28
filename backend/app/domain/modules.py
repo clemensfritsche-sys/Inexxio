@@ -21,12 +21,24 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 
-from . import capture_types, sampling, statuses as st
+from . import capture_types, procurement, sampling, statuses as st
 
 #: Der eine Ortsbedarf, den es heute gibt: **beim Produkt**. Eine geschlossene Liste
 #: wie ``Aussondern.MODES`` – ein künftiges Modul («an meinem konfigurierten Ort»)
 #: bekommt einen zweiten Wert, keine zweite Mechanik.
 AT_PRODUCT = "product"
+
+#: **Wann ein Modul einen Einkaufs-Beleg trägt** (``Module.buys``).
+#:
+#: ``BUY_ALWAYS``    das Modul existiert, **um** einzukaufen – der Beleg entsteht mit der
+#:                   Freigabe und ist von Anfang an da (Beschaffen).
+#: ``BUY_IF_CHOSEN`` das Modul kann seine Arbeit auch **selbst** erledigen – der Beleg
+#:                   entsteht erst, wenn jemand «eingekauft» wählt (Bewegen). Genau
+#:                   deshalb ist «gibt es einen Beleg?» zugleich die Antwort auf «wurde
+#:                   das eingekauft?»: zwei Angaben könnten sich widersprechen, eine
+#:                   abgeleitete kann es nicht.
+BUY_ALWAYS = "always"
+BUY_IF_CHOSEN = "if_chosen"
 
 DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
@@ -97,6 +109,29 @@ class Module:
     #: unangetastet, ohne eine Ausnahme zu brauchen.
     terminal: bool = False
 
+    #: **Bewegt dieses Modul die Stücke?** Vorgabe: nein.
+    #:
+    #: Vorher beantwortete das die Transportart-Liste, indem sie bei jedem anderen
+    #: Modultyp leer war – eine Liste als Bit. Seit die Transportart abgeleitet ist
+    #: (siehe ``buys``), gibt es die Liste nicht mehr, also steht die Frage hier: ehrlich,
+    #: als eine Zeile. Die Oberfläche fragt danach und nie nach dem Modultyp.
+    moves: bool = False
+
+    #: **Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.
+    #:
+    #: Der Beleg (``domain/procurement`` + ``services/purchase``) gehört keinem Modul; er
+    #: hängt am **Schritt**. Ein Modul sagt hier nur, ob es einen bekommt. Damit ist eine
+    #: Sendung kein zweites Konzept: sie ist derselbe Beleg an einem anderen Modul.
+    buys: Optional[str] = None
+
+    #: **Ist die Summe dieses Belegs der Preis der WARE?**
+    #:
+    #: Beim Einkauf ja – auch bei einer Leistung am Teil, denn die erhöht seine Kosten.
+    #: Beim **Transport** nein: derselbe Artikel, zweimal verschickt, überschriebe seinen
+    #: Einstandspreis mit dem Frachttarif. Das wäre ein stiller Datenfehler, mit dem
+    #: danach kalkuliert wird – darum eine Deklaration und kein ``if module_type``.
+    landed_cost: bool = False
+
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
                  tone: str):
         self.key = key
@@ -140,15 +175,52 @@ class Module:
         return self.status_after
 
     def movement_for(self, config: Optional[dict[str, Any]], *,
-                     target: Optional[int], transport: Optional[str]) -> Optional["Move"]:
+                     target: Optional[int]) -> Optional["Move"]:
         """**Bringt dieses Modul die Stücke woandershin?** Vorgabe: nein.
 
-        Eine Methode und eine Antwort, statt zweier Fragen («hat es ein Ziel?», «welche
-        Transportart?») an zwei Stellen. Die Ausführungsstelle bekommt damit entweder
-        eine vollständige Absicht oder ``None`` – und braucht in keinem Fall zu wissen,
-        welcher Modultyp vor ihr steht (dieselbe Bauart wie ``consumption.plan``).
+        Eine Methode und eine Antwort. Die Ausführungsstelle bekommt damit entweder eine
+        vollständige Absicht oder ``None`` – und braucht in keinem Fall zu wissen, welcher
+        Modultyp vor ihr steht (dieselbe Bauart wie ``consumption.plan``).
+
+        **Die Transportart ist hier entfallen.** Sie war die zweite Frage an derselben
+        Stelle, und sie ist heute keine Eingabe mehr: eingekauft wurde genau dann, wenn
+        es einen Beleg gibt (``buys``).
         """
         return None
+
+    def suppliers_of(self, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+        """**Bei wem darf dieses Modul einkaufen?** Vorgabe: **keine Einschränkung**.
+
+        Der erste der beiden Fäden, die den Beleg einmal an «Beschaffen» banden. Dort ist
+        die Liste eine **Freigabe** (wer für dieses Teil in Frage kommt, vorab
+        entschieden, mindestens einer); beim **Bewegen** ist sie leer – welcher Spediteur
+        fährt, entscheidet sich zur Laufzeit, genau wie das offene Ziel.
+
+        **Leer heisst frei, nicht «niemand».** Die Prüfung im Dienst (``_ask``) schränkt
+        nur ein, wenn hier etwas steht – sonst wäre ein Modul ohne Liste eines, bei dem
+        man nirgends anfragen kann.
+        """
+        return []
+
+    def allowed_numbers(self, config: Optional[dict[str, Any]]) -> list[int]:
+        """Nur die Objektnummern – dieselbe Liste, andere Form (für die Prüfungen)."""
+        return [row["supplier"] for row in self.suppliers_of(config)]
+
+    def instruction_for(self, config: Optional[dict[str, Any]], *,
+                        facts: Optional[dict[str, Any]] = None) -> str:
+        """**Was soll der Lieferant tun?** Vorgabe: nichts zu sagen.
+
+        Der zweite Faden. Beim **Beschaffen** ist der Satz eine Pflichtangabe der
+        Definition («Härten auf 58 HRC») – er gehört dem Schritt, nicht dem Artikel. Beim
+        **Bewegen** ist er **abgeleitet** («von A nach B»): wo es herkommt und wo es
+        hinsoll, weiss der Vorgang bereits, und wer es abtippen müsste, könnte es falsch
+        abtippen. Darum braucht das Bewegen-Modul für seinen Beleg **keine einzige**
+        zusätzliche Konfiguration.
+
+        ``facts`` liefert der Dienst (Herkunft, Ziel) – das Modul formuliert daraus. So
+        bleibt die Regel im Modul und die Datenbank-Abfrage im Dienst.
+        """
+        return ""
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Auf welchen Zustand setzt dieses Modul ein Stück, das **hier hinausgeht**?
@@ -395,10 +467,13 @@ class Verbrauch(Module):
 
 @dataclass(frozen=True)
 class Move:
-    """Was ein Modul am Ort ändern will: wohin, und womit gebracht."""
+    """Was ein Modul am Ort ändern will: **wohin**.
+
+    Das «womit» stand hier einmal daneben. Es ist entfallen, weil es keine zweite Angabe
+    ist: eingekauft wurde genau dann, wenn es einen Beleg gibt (``Module.buys``).
+    """
 
     target: int
-    transport: str
 
 
 class Bewegen(Module):
@@ -415,12 +490,25 @@ class Bewegen(Module):
     sind gültig, aber sie müssen **sichtbar** verschieden sein: ein offenes Ziel darf
     nicht wie ein vergessenes aussehen (``ModuleFacts.target``).
 
-    **Die Transportart gehört zur LAUFZEIT, nicht in die Definition.** Beim Modellieren
-    weiss niemand, ob das Stück nebenan liegt oder in Werk Nord – und ein gespeicherter
-    Modus wäre bei der zweiten Ausführung falsch. Heute ist nur ``manuell`` wirksam;
-    ``paket`` und ``fracht`` stehen als Liste **mit** ihrer Verfügbarkeit da, damit das
-    Freischalten später ein Wert ist und kein Umbau. Der Server weist eine gesperrte Art
-    ab – wäre sie nur in der Oberfläche gesperrt, wäre die Sperre eine Bitte.
+    **Selbst gebracht oder eingekauft – das ist EIN Bit, und es ist abgeleitet.** Beim
+    Modellieren weiss niemand, ob das Stück nebenan liegt oder in Werk Nord; die Frage
+    gehört darum zur **Laufzeit**. Wer sie mit «eingekauft» beantwortet, bekommt einen
+    ganz gewöhnlichen **Einkaufs-Beleg** (``buys = BUY_IF_CHOSEN``) – dieselben drei
+    Stufen, dieselben Verben, dieselbe Oberfläche wie beim Beschaffen. Denn eine Sendung
+    aufzugeben IST ein Einkauf: der Spediteur ist ein Lieferant, der Tarifvergleich ist
+    der Angebotsspiegel, die Sendungsnummer ist ``tracking``.
+
+    Die Antwort auf «wurde das eingekauft?» ist damit **«gibt es einen Beleg?»** – und
+    kann der Wirklichkeit nicht widersprechen. Die frühere Liste ``manuell · paket ·
+    fracht`` (mit einem ``available``-Flag als Roadmap) ist ersatzlos entfallen: *Paket*
+    und *Fracht* sind keine zwei Arten, sondern zwei **Angebote** desselben Einkaufs –
+    das entscheidet der Tarif, nicht der Modellierer. Ein Roboter, der es fährt, ist
+    «selbst»: unser Gerät, keine Rechnung.
+
+    **Und der Ziel-Scan schliesst den Beleg.** Ankunft und Ablage sind ein Ereignis, also
+    eine Bestätigung: ``assert_receivable`` lässt vorher nichts eintreffen, ``note_receipt``
+    setzt danach die letzte Stufe. Beide fragen nur, ob es zu diesem Schritt einen Beleg
+    gibt – sie mussten dafür **nicht angefasst** werden.
 
     **Geprüft wird hier nur die FORM** (eine Objektnummer), nicht die Existenz: diese
     Stelle hat keine Datenbanksitzung. Dass es den Halter gibt und dass er keinen Kreis
@@ -431,18 +519,15 @@ class Bewegen(Module):
     #: Der Schlüssel der einen Einstellung. ``None`` heisst «wird beim Ausführen gewählt».
     TARGET = "target"
 
-    #: Die Transportarten – **Liste mit Verfügbarkeit**, nicht Liste der verfügbaren.
-    #: Was es geben wird, steht hier; was heute geht, sagt ``available``. Eine Oberfläche
-    #: kann damit die Roadmap zeigen, ohne sie zu erfinden.
-    TRANSPORTS: tuple[dict[str, Any], ...] = (
-        {"key": "manuell", "label": "Manuell", "available": True,
-         "hint": "Jemand bringt es hin – kein Dienstleister, kein Beleg."},
-        {"key": "paket", "label": "Paket", "available": False,
-         "hint": "Versand als Paket – noch nicht gebaut."},
-        {"key": "fracht", "label": "Fracht", "available": False,
-         "hint": "Stückgut oder Palette – noch nicht gebaut."},
-    )
-    DEFAULT_TRANSPORT = "manuell"
+    #: Es bewegt – daraus folgt in der Oberfläche der Ziel-Scan.
+    moves = True
+
+    #: Es **kann** einkaufen: ein Transport wird eingekauft oder selbst erledigt.
+    buys = BUY_IF_CHOSEN
+
+    #: Aber sein Preis ist **nicht** der Preis der Ware: derselbe Artikel, zweimal
+    #: verschickt, überschriebe seinen Einstandspreis mit dem Frachttarif.
+    landed_cost = False
 
     #: Was der Knopf sagt. **«Bestätigen», nicht «scannen»**: gescannt ist zu diesem
     #: Zeitpunkt längst – Ware und Zielort –, und was der Knopf auslöst, ist die Buchung
@@ -476,7 +561,7 @@ class Bewegen(Module):
         return number
 
     def movement_for(self, config: Optional[dict[str, Any]], *,
-                     target: Optional[int], transport: Optional[str]) -> Move:
+                     target: Optional[int]) -> Move:
         """Wohin geht es – und ist das mit der Definition vereinbar?"""
         planned = (config or {}).get(self.TARGET)
         scanned = self._as_object_id(target)
@@ -494,24 +579,26 @@ class Bewegen(Module):
                 detail=("Dieses Modul hat kein festes Ziel – ohne gescannten Zielort "
                         "steht nicht fest, wohin die Stücke gebracht wurden."),
             )
-        return Move(target=int(goal), transport=self._clean_transport(transport))
+        return Move(target=int(goal))
 
-    def _clean_transport(self, value: Optional[str]) -> str:
-        key = (value or self.DEFAULT_TRANSPORT).strip()
-        known = {t["key"]: t for t in self.TRANSPORTS}
-        if key not in known:
-            raise HTTPException(
-                status_code=400,
-                detail=f"«{key}» ist keine Transportart. Bekannt: "
-                       + ", ".join(known) + ".",
-            )
-        if not known[key]["available"]:
-            raise HTTPException(
-                status_code=400,
-                detail=(f"«{known[key]['label']}» ist noch nicht gebaut – heute wird "
-                        f"manuell bewegt."),
-            )
-        return key
+    def instruction_for(self, config: Optional[dict[str, Any]], *,
+                        facts: Optional[dict[str, Any]] = None) -> str:
+        """**«von A nach B»** – abgeleitet, nie getippt.
+
+        Der Spediteur braucht genau diesen einen Satz, und beide Hälften stehen bereits
+        fest: die Herkunft ist der heutige Halter der Stücke, das Ziel ist das Ziel
+        dieses Moduls. Ein Eingabefeld daneben wäre eine zweite Aussage über dieselbe
+        Sache – und die getippte gewinnt auch dann, wenn sie falsch ist.
+
+        Was nicht bekannt ist, wird **weggelassen** statt geraten: liegen die Stücke
+        nirgends (ein frisch erzeugtes Stück liegt nirgends, §9.8), heisst es schlicht
+        «Transport nach ‹Ziel›».
+        """
+        where = (facts or {}).get("from")
+        goal = (facts or {}).get("to")
+        if not goal:
+            return "Transport"
+        return f"Transport von {where} nach {goal}" if where else f"Transport nach {goal}"
 
 
 class Beschaffen(Module):
@@ -618,27 +705,14 @@ class Beschaffen(Module):
     #: sondern eine Adressliste – und niemand fragt zwanzig Lieferanten je Schraube an.
     MAX_SUPPLIERS = 10
 
-    #: **Die drei Stufen, in ihrer Reihenfolge.** Sie stehen hier, weil sie zum Modultyp
-    #: gehören: die Oberfläche fragt danach, statt sie nachzubauen.
-    STAGES: tuple[str, ...] = ("anfrage", "bestellung", "wareneingang")
+    #: **Die Stufen stehen nicht mehr hier** (``domain/procurement``). Sie beschreiben
+    #: den *Beleg*, nicht diesen Modultyp – und seit auch das Bewegen-Modul einen tragen
+    #: kann, wäre eine Klasse als ihr Eigentümer die Stelle, an der sie schief hängen.
+    #: Dieses Modul kauft **immer** ein; das ist sein Zweck, nicht eine seiner Optionen.
+    buys = BUY_ALWAYS
 
-    #: Der Ausgang. Keine Stufe – man kommt dort an, statt hindurchzugehen.
-    CANCELLED = "storniert"
-
-    #: **Ab hier ist eine zweite Partei gebunden.** Vor dieser Stufe darf das System die
-    #: Grundlage still nachziehen; ab ihr liegt eine Bestellung beim Lieferanten, und
-    #: eine stille Änderung wäre ein Beleg, der nicht mehr stimmt.
-    BINDING = "bestellung"
-
-    STAGE_LABELS: dict[str, str] = {
-        "anfrage": "Anfrage", "bestellung": "Bestellung",
-        "wareneingang": "Wareneingang", CANCELLED: "Storniert",
-    }
-
-    #: Das Verb der **aktiven** Stufe – was man dort tut, nicht wie sie heisst
-    #: (Testnotizen #271/#275). Die letzte Stufe löst ``confirm_step`` aus und trägt
-    #: darum ``action``.
-    STAGE_VERBS: dict[str, str] = {"anfrage": "Bestellen", "bestellung": "Wareneingang buchen"}
+    #: Und seine Summe **ist** der Preis der Ware – auch bei einer Leistung am Teil.
+    landed_cost = True
 
     #: Was der Knopf sagt, der das Modul abschliesst. Erfasst wird nichts – der Scan ist
     #: die Bestätigung, dass genau diese Ware angekommen ist.
@@ -668,8 +742,7 @@ class Beschaffen(Module):
         return {self.SUPPLIERS: suppliers, self.INSTRUCTION: instruction,
                 "points": [], "sample": dict(sampling.DEFAULT)}
 
-    @classmethod
-    def suppliers_of(cls, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+    def suppliers_of(self, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
         """**Die zugelassenen Lieferanten – die EINE Lesestelle.**
 
         Sie liest **beide** Formen: die heutige (``{"supplier": …, "ref": …}``) und die
@@ -678,18 +751,24 @@ class Beschaffen(Module):
         Tolerant lesen, streng schreiben.
         """
         out: list[dict[str, Any]] = []
-        for entry in (config or {}).get(cls.SUPPLIERS) or []:
+        for entry in (config or {}).get(self.SUPPLIERS) or []:
             row = entry if isinstance(entry, dict) else {"supplier": entry}
-            number = cls._object_id(row.get("supplier"))
+            number = self._object_id(row.get("supplier"))
             if number is None:
                 continue
             out.append({"supplier": number, "ref": str(row.get("ref") or "").strip()})
         return out
 
-    @classmethod
-    def allowed_numbers(cls, config: Optional[dict[str, Any]]) -> list[int]:
-        """Nur die Objektnummern – dieselbe Liste, andere Form (für die Prüfungen)."""
-        return [row["supplier"] for row in cls.suppliers_of(config)]
+    def instruction_for(self, config: Optional[dict[str, Any]], *,
+                        facts: Optional[dict[str, Any]] = None) -> str:
+        """Der Satz aus der Definition – hier eine **Pflichtangabe**, keine Ableitung.
+
+        «Härten auf 58 HRC» ist eine Eigenschaft *dieses Schritts* und nicht des
+        Artikels; ein Artikel hat mehrere Schritte. Ohne ihn ist das Modul nicht
+        anlegbar (``clean_config``): eine Bestellung, aus der niemand liest, was verlangt
+        ist, ist keine.
+        """
+        return str((config or {}).get(self.INSTRUCTION) or "")
 
     def _suppliers(self, value: Any) -> list[dict[str, Any]]:
         if value in (None, ""):
@@ -809,6 +888,15 @@ MODULES: dict[str, Module] = {
 }
 
 KEYS: tuple[str, ...] = tuple(MODULES)
+
+#: **Welche Modultypen einen Einkaufs-Beleg tragen können** – abgeleitet, nie gepflegt.
+#: Der Dienst fragt danach statt nach einem Namen; ein neuer Typ mit ``buys`` ist damit
+#: eine Zeile in seiner Klasse und kein zweiter Ort, den jemand vergisst.
+def buying_types(*, buys: Optional[str] = None) -> list[str]:
+    return [key for key, mod in MODULES.items()
+            if mod.buys is not None and (buys is None or mod.buys == buys)]
+
+
 LABELS: dict[str, str] = {k: m.label for k, m in MODULES.items()}
 TONES: dict[str, str] = {k: m.tone for k, m in MODULES.items()}
 

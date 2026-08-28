@@ -198,6 +198,24 @@ ein zweites Mal.
   Zeile: eine zweite Kopie weicht in den Nachkommastellen ab, und ihre Zahl sieht
   trotzdem richtig aus.
 
+## Bewegen: selbst gebracht oder eingekauft (`order-detail.Wrapped`)
+Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – also
+trägt das Bewegen-Modul denselben Einkaufs-Beleg wie das Beschaffen-Modul: dieselben drei
+Stufen, dieselben Verben, **dieselbe Komponente** (`PurchaseWork` wird an genau einer
+Stelle gerendert). Ein zweites «Versand»-Bauteil daneben wäre der Einkauf ein zweites Mal,
+und das zweite veraltet beim ersten neuen Verb.
+
+- **Die Oberfläche fragt zwei Eigenschaften, nie den Modultyp**: `step.moves` (Ziel-Scan?)
+  und `step.buys` (`'if_chosen'` → die Wahl anbieten). Beide reisen mit dem Schritt, wie
+  Farbe und Beschriftung – den Modul-Katalog lädt nur der Editor.
+- **Die Wahl steht dort, wo ihre Folge steht** (`Wrapped`), und nur, solange es keinen
+  Beleg gibt: danach ist sie beantwortet, und «zurück» ist die Gegenhandlung des Belegs
+  (`revoke`), nicht ein zweiter Schalter daneben.
+- **Kein «womit» mehr.** Die Liste `manuell · paket · fracht` ist entfallen: *Paket* und
+  *Fracht* sind zwei **Angebote** desselben Einkaufs. Übrig bleibt ein Bit (`HAULAGE`),
+  und die Antwort ist abgeleitet – eingekauft wurde, wenn es einen Beleg gibt.
+  `confirmStep` schickt darum keine Transportart mehr mit.
+
 ## Referenz-Eingabe (`components/erp/object-select.tsx`)
 **«Welchen Datensatz meinst du?» hat EINE Bauart** (#738). `ObjectSelect` ist **auf**
 `SearchSelect` gebaut – kein zweites Auswahlfeld daneben – und trägt zusätzlich die

@@ -68,6 +68,22 @@ export interface DiagramStep {
    */
   terminal: boolean;
   /**
+   * **Bewegt dieses Modul die Stücke?** Daraus folgt der Ziel-Scan.
+   *
+   * Vorher beantwortete das die Transportart-Liste, indem sie bei jedem anderen Modultyp
+   * leer war – eine Liste als Bit. Seit «selbst oder eingekauft» aus dem Beleg folgt,
+   * gibt es die Liste nicht mehr, und die Frage steht als das da, was sie ist.
+   */
+  moves?: boolean;
+  /**
+   * **Trägt dieses Modul einen Einkaufs-Beleg – und wann?** `null` = nie.
+   *
+   * `'if_chosen'` heisst: die Arbeit kann auch selbst erledigt werden, und genau darum
+   * darf die Ausführungsstelle hier die Wahl anbieten. Sie fragt damit nach der
+   * Eigenschaft und nie nach dem Modultyp.
+   */
+  buys?: string | null;
+  /**
    * **Worauf dieses Modul wartet** (Testnotiz #698) – Objektnummern der Abweichungen,
    * deren Rückführung aussteht. Nicht leer heisst: gesperrt.
    *

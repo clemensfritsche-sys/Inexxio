@@ -1359,6 +1359,66 @@
 > Migrationen; Migration `118` von null · idempotent · downgrade · über das Lifespan-Netz,
 > und ihre **Wirkung** gemessen (1 deaktivierte Zeile → 0).
 
+> **Eine Sendung ist ein EINKAUF — der Beleg gehört keinem Modul** (PROCESS_CORE
+> §9.8/§9.9, `domain/procurement.py`, Migration `119`): Es gibt mehrere Arten, etwas zu
+> bewegen — selbst tragen, ein Roboter, oder eine Spedition beauftragen. Die letzte ist
+> eine **Leistung, die man einkauft**, und dafür gibt es den Einkauf bereits.
+> **Die Umdeutung, aus der alles folgt:** der Beleg war nie Teil des Beschaffen-Moduls. Im
+> Datenmodell hängt er am **Schritt** (`purchases.step_id`, kein Modultyp), `_can` liest
+> Stufe × Rolle, `assert_receivable`/`note_receipt` fragen nur, ob es zu diesem Schritt
+> einen Beleg gibt. Gebunden war er durch genau **zwei Fäden**: er las `config.suppliers`
+> und `config.instruction`. Sind die gekappt (`Module.suppliers_of` / `instruction_for`),
+> trägt **jedes** Modul denselben Beleg — dieselben drei Stufen, dieselben Verben,
+> **dieselbe Komponente**. «1:1 übernehmen» war damit keine Kopie, sondern das Wegnehmen
+> der letzten zwei Fäden; `purchase-work.tsx` ist unangetastet geblieben.
+> **Verworfen wurden drei Alternativen, je aus einem Grund:** *zwei Module hintereinander*
+> («Speditionsleistung kaufen» → «Bewegen») — beim Modellieren weiss niemand, ob getragen
+> oder verschifft wird, und ein vorgeplantes Modul wäre bei der Hälfte der Ausführungen
+> sinnlos; *Transport als eigener Auftrag* — zirkulär, der Unterauftrag enthielte wieder
+> ein Bewegen-Modul; *Beschaffen bekommt ein Ziel* — falsch herum: **jede** Bewegung hat
+> ein Ziel, nur **manche** haben einen Beleg, und das Optionale gehört zu dem Modul, das
+> immer da ist.
+> **Selbst ↔ eingekauft ist EIN Bit, und es ist abgeleitet**: eingekauft wurde genau dann,
+> wenn es einen Beleg gibt. Die Liste `manuell · paket · fracht` (mit `available`-Flag als
+> Roadmap und einer Server-Sperre für gesperrte Kanäle) ist **ersatzlos entfallen** —
+> *Paket* und *Fracht* sind keine zwei Arten, sondern zwei **Angebote** desselben
+> Einkaufs; das entscheidet der Tarif, nicht der Modellierer. Ein Roboter ist «selbst»:
+> unser Gerät, keine Rechnung. Die Transportart ist damit auch **keine Eingabe** mehr —
+> eine getippte gewänne auch dann, wenn niemand eine Spedition beauftragt hat.
+> **Der Ziel-Scan schliesst den Beleg** (Ankunft und Ablage sind ein Ereignis, also eine
+> Bestätigung) — und dafür musste **keine Zeile** geändert werden: `assert_receivable`
+> und `note_receipt` fragten schon immer nur `of_step`.
+> **Vier Deklarationen am Modul, jede mit offensichtlicher Vorgabe:** `moves` (die Zeile,
+> die die Liste als Bit ablöst), `buys` (`BUY_ALWAYS` = der Einkauf ist der Zweck, der
+> Beleg entsteht mit der Freigabe ↔ `BUY_IF_CHOSEN` = er entsteht mit der Wahl),
+> `landed_cost` und die beiden Fäden. **Die Falle, die still gewesen wäre:**
+> `_write_landed_cost` schrieb *Summe ÷ Menge* auf den Artikel — bei einem Transport wäre
+> das der **Frachttarif als Einstandspreis**, und damit würde danach kalkuliert (im
+> Gegentest gemessen: 90.00 CHF am Artikel). Darum eine Deklaration statt eines
+> `if module_type`.
+> **`buy` ist eine Handlung des MODULS, nicht des Belegs** — bewusst nicht in `ACTIONS`
+> (dort stehen die Verben eines Belegs, und `_can` ist ihr Tor; `buy` hat keine Stufe).
+> Ein bestehender Wächter hat genau das gemeldet, als sie zuerst darin stand. Ihre
+> Gegenhandlung ist dieselbe wie überall (`revoke`), und **was sie bewirkt, sagt das
+> Modul**: wo der Einkauf der Zweck ist, bleibt der Beleg und verliert seine Angebote; wo
+> er eine **Wahl** war, verschwindet er — sonst beantwortete sich «wurde eingekauft?» mit
+> «ja», obwohl die Wahl weg ist. Dafür ist der Unique-Index **partiell** geworden
+> (Migration `119`: ein *aktiver* Beleg je Modul), sonst wäre «eingekauft ↔ doch selbst ↔
+> dann doch eingekauft» eine Sackgasse.
+> **Shippo & Co. fallen heraus, statt gebaut zu werden** (heute bewusst nichts davon): ein
+> Frachtführer ist ein **Lieferant**, ein Tarifvergleich ist der **Angebotsspiegel**, den
+> der Beleg hat, die Sendungsnummer ist `purchases.tracking` (seit Migration 117). Später
+> kommt genau **eine** Sache dazu: eine Angebotszeile, die eine Anbindung füllt statt ein
+> Mensch — eine Eigenschaft des Lieferanten, kein Modul und kein Konzept.
+> Wächter: vier in `tests/test_purchase_module.py`, drei in `test_frontend_mirrors.py`,
+> zwei umgeschriebene in `test_move_module.py` — **jeder gegen seine Bug-Form
+> gegengeprüft** (u. a. Frachttarif am Artikel · Beleg-Vokabel zurück an der Modul-Klasse ·
+> Dienst sucht wieder EINEN Modultyp · Wahl nicht zurücknehmbar). Suite grün gegen die
+> gewachsene Datenbank **und** gegen ein Schema nur aus den Migrationen; Migration `119`
+> von null · idempotent · downgrade · über das Lifespan-Netz. Gemessen in Chromium:
+> 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf, beide Optionen
+> exakt gleich breit (Δ 0.00 px — die erste Wortwahl ergab bei 320 px 10.6 px Differenz).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

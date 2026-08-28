@@ -508,7 +508,7 @@ def forget(db: Session, units: list[InstanceUnit]) -> None:
 
 def apply_for_step(
     db: Session, *, step: ProcessStep, units: list[InstanceUnit],
-    target: Optional[int], transport: Optional[str],
+    target: Optional[int], bought: bool = False,
 ) -> dict[int, dict[str, object]]:
     """**Was dieses Modul am Ort ändert** — und nichts, wenn es keiner ist, der bewegt.
 
@@ -520,10 +520,13 @@ def apply_for_step(
     Zurück kommt, **was passiert ist** – je Stück Herkunft und Ziel. Das reist als
     Payload in den Ereignis-Log, und damit steht die Bewegung dort, wo die Historie
     ohnehin steht (§7.2), statt in einer zweiten Tabelle daneben.
+
+    ``bought`` ist **abgeleitet** (gibt es einen Einkaufs-Beleg an diesem Modul?) und
+    steht im Log, weil er dort Geschichte ist. Er ist keine Eingabe: die frühere
+    Transportart war eine, und eine Eingabe kann dem widersprechen, was wirklich
+    geschehen ist.
     """
-    move = modules.get(step.module_type).movement_for(
-        step.config, target=target, transport=transport,
-    )
+    move = modules.get(step.module_type).movement_for(step.config, target=target)
     if move is None:
         return {}
     # **Erst lesen, dann schreiben**: die Herkunft gibt es nach dem Setzen nicht mehr.
@@ -534,7 +537,7 @@ def apply_for_step(
     return {
         u.id: {
             "place": {"from": before[u.id], "to": move.target, "label": station.label},
-            "transport": move.transport,
+            "bought": bought,
         }
         for u in units
     }

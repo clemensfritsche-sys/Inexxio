@@ -615,6 +615,10 @@ export function toDiagramSteps(steps: ProcessStepResponse[] | null | undefined):
     // das war der Grund, warum die Aussonderung nach dem Freigeben die Farbe der
     // Datenerfassung trug.
     tone: s.tone, terminal: s.terminal,
+    // **Und ebenso «bewegt es?» und «kauft es ein?»** – beides Eigenschaften des
+    // Modultyps, beide aus derselben Registry. Die Ausführungsstelle liest sie und
+    // fragt darum nie nach `moduleType === 'bewegen'`.
+    moves: s.moves, buys: s.buys ?? null,
     // **Worauf das Modul wartet** – die Sperre wird eine Ebene tiefer gerendert
     // (`StepCard`), damit kein Modul sie selbst kennen muss (#698).
     waitingFor: s.waiting_for ?? [],
