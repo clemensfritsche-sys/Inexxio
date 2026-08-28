@@ -715,6 +715,18 @@ class Beschaffen(Module):
                             f"derselbe ist keine zweite Wahl."),
                 )
             ref = str(row.get("ref") or "").strip()
+            # **Pflicht** (Testnotiz #756): ohne sie steht beim Bestellen nicht da, unter
+            # welcher Nummer bzw. über welchen Link man bei *ihm* bestellt – und genau
+            # das war der Grund, warum die Angabe früher am Beleg landete, wo man sie bei
+            # jedem Vorgang neu abschreiben musste. Gelesen wird weiterhin tolerant: ein
+            # laufender Auftrag trägt seinen Prozess eingefroren.
+            if not ref:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"Lieferant {number} braucht eine Bestellangabe – seine "
+                            f"Artikelnummer oder den Link, unter dem man bei ihm "
+                            f"bestellt."),
+                )
             if len(ref) > self.MAX_REF:
                 raise HTTPException(
                     status_code=400,

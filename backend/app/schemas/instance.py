@@ -178,12 +178,3 @@ class ArticleStock(BaseModel):
     instance_total: int
     instances: list[InstanceSummary]
 
-
-class ObjectReference(BaseModel):
-    """Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet."""
-
-    kind: str          # menschenlesbare Rolle des Verweises
-    ref_type: str      # instance | article | user | organization
-    object_id: int
-    label: str
-    at: datetime

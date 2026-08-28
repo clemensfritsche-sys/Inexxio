@@ -123,8 +123,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/POST | /api/v1/admin/companies | admin | **Unternehmen** (Gesellschaften): alle lesen (Betreiber/ältestes zuerst) / neues anlegen |
 | GET/PATCH | /api/v1/admin/companies/{object_id} | admin | Ein Unternehmen lesen / Entitäts-Felder ändern (voller Feldsatz inkl. Rechtsidentität + Währung – **derselbe Pfad für jede** Gesellschaft; Plattform-Config bleibt bei `/admin/settings`) |
 | POST | /api/v1/admin/companies/{object_id}/operator | admin | Diese Gesellschaft zum **Betreiber der Website** machen (genau EINE trägt den Titel) |
-| GET | /api/v1/admin/users | staff | Benutzerliste |
-| DELETE · POST …/reactivate | /api/v1/admin/users/{id} | admin | Benutzer deaktivieren / reaktivieren (Aktionen am **ERP-Benutzer-Datensatz**; die Rolle wird über `PATCH /erp/records/{object_id}` gepflegt – EIN Schreibpfad) |
+| GET | /api/v1/admin/users | staff | Benutzerliste. **Deaktivieren gibt es nicht** (Testnotiz #755): wer das Unternehmen verlässt, wechselt die **Rolle** (`PATCH /erp/records/{object_id}`) – ein Mensch hört nicht auf zu existieren, und einkaufen darf er weiterhin |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
 | POST | /api/v1/contact | – | Kontaktformular |
 | GET | /api/v1/ai/config | user | KI-Verfügbarkeit (Text/Bild) fürs Frontend |

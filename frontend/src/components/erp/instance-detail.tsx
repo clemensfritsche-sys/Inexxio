@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import type { Instance } from '@/types';
 import { instanceName } from '@/lib/record-name';
 import { kindLabel } from '@/lib/record-status';
-import { DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/fields';
+import { DetailBody, DetailHeader, ReadField, SPEC, SpecHead } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
 import { LabelButton } from '@/components/scan/object-label';
@@ -55,7 +55,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
       />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
-        <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 22 }}>
+        <DetailBody gap={22}>
           {/* **Woher stammt diese Gruppe?** Der Artikel, dessen Erzeugungsprozess sie
               durchlaufen hat – als **verlinkte Objektnummer**, nicht als abgeschriebener
               Name: die Spezifikation liegt einen Klick entfernt und ist dort immer
@@ -84,7 +84,7 @@ export function InstanceDetail({ objectId, onBack }: { objectId: number; onBack?
           {/* **Dasselbe Bestandsmodul wie am Artikel** – kein Nachbau, nur der kleinere
               Umfang: die Aufstellung dieser Gruppe und darunter ihre Nummern. */}
           <StockView scope={{ kind: 'instance', record: rec }} />
-        </div>
+        </DetailBody>
       </div>
     </div>
   );

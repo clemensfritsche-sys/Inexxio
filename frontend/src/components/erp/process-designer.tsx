@@ -364,6 +364,7 @@ function PurchaseFields({ module: m, onChange }: {
       <div className="flex flex-col gap-1.5">
         <ObjectSelect<SupplierOption>
           label="Zugelassene Lieferanten"
+          required
           value={null}
           selected={null}
           find={findSuppliers}
@@ -397,7 +398,7 @@ function PurchaseFields({ module: m, onChange }: {
                 <X size={14} />
               </button>
             </div>
-            <input className={inputCls} value={row.ref} maxLength={200}
+            <input className={inputCls} value={row.ref} maxLength={200} required
               placeholder="Artikelnummer oder Link beim Lieferanten"
               aria-label={`Bestellangabe für ${row.supplier}`}
               onChange={(e) => onChange({

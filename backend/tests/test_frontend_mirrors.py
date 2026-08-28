@@ -786,15 +786,15 @@ def test_the_article_process_stands_under_the_specification():
     """
     detail = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
     assert "'prozess'" not in detail, "Der Reiter «Erzeugungsprozess» ist wieder da."
-    tabs = detail.split("const TABS")[1].split("];")[0]
-    assert "Erzeugungsprozess" not in tabs, (
-        "Der Prozess steht wieder als eigener Reiter in der Reiterzeile."
+    # **Seit Testnotiz #760 hat der Artikel gar keine Reiter mehr** – der Bestand ist in
+    # dieselbe Ansicht gerückt, und damit blieb nichts, was einen zweiten rechtfertigt.
+    # Der Wächter prüft darum die Aussage, nicht die frühere Bauform: alles steht in
+    # EINER Ansicht, und der Prozess ist Teil davon.
+    assert "const TABS" not in detail and "DetailTabs" not in detail, (
+        "Der Artikel hat wieder Reiter – dann ist die Freigabebedingung erneut auf zwei "
+        "Ansichten verteilt."
     )
-    # Er steht im Spezifikations-Zweig, nicht in einem eigenen.
-    spec = detail.split("{tab === 'spezifikation' && (")[1].split("{tab === 'bestand'")[0]
-    assert "<ArticleProcess" in spec, (
-        "Der Erzeugungsprozess steht nicht im Reiter «Spezifikation»."
-    )
+    assert "<ArticleProcess" in detail, "Der Erzeugungsprozess wird nicht gerendert."
     assert "confirmStep" not in detail, "Der Artikel führt einen Schritt aus."
     assert "getArticleProcess" in detail
 
@@ -4627,13 +4627,285 @@ def test_the_dialog_is_the_same_field_only_big():
         "Das Feld reicht seine «nichts»-Wahl nicht an den Scanner durch."
     )
 
-    # (4) Dieselbe Anatomie: die SORTE steht als Beschriftung, nicht im Platzhalter –
-    #     der verschwindet beim ersten Zeichen, und im Vollbild bliebe dann nichts mehr,
-    #     das sagt, wonach gesucht wird.
-    assert "style={kindLine}" in dialog and "{kind}</span>" in dialog, (
-        "Der Dialog nennt die Sorte nicht mehr als Beschriftung über der Leiste."
+    # (4) **Die Sorte steht im Platzhalter, ihr Symbol im Feld** (Testnotiz #758).
+    #
+    #     Vorher trug sie ein eigener Chip über der Leiste – zwei Bauteile für EINE
+    #     Auskunft. Der damalige Einwand («ein Platzhalter verschwindet beim ersten
+    #     Zeichen, dann sagt nichts mehr, wonach man sucht») ist nicht ignoriert, sondern
+    #     beantwortet: das **Symbol** am Innenrand bleibt stehen, auch wenn man tippt.
+    assert "kindLine" not in dialog, (
+        "Der Sorten-Chip ist zurück – die Sorte steht im Platzhalter, ihr Symbol im Feld."
     )
-    assert "textTransform: 'uppercase', letterSpacing: '0.05em'" in dialog, (
-        "Die Beschriftung im Dialog trägt nicht die Typografie von `fields.Label` – dann "
-        "ist es eine zweite Formensprache."
+    assert "placeholder={hint}" in dialog, "Der Platzhalter kommt nicht mehr aus der Deutung."
+    assert "`${kind} ${nr(step.expected)} suchen`" in lib, (
+        "Der Platzhalter nennt die Sorte nicht – dann steht dort nur eine nackte Nummer."
+    )
+    #     Die Beschriftung, deren Typografie hier einmal geprüft wurde, gibt es nicht
+    #     mehr – geblieben ist das Feld, und das war ohnehin die Anatomie, um die es ging.
+
+
+def test_the_login_is_a_popup_over_the_page_behind_it():
+    """**Ein Pop-up ist ein Pop-up** – und es gibt genau EINEN Anmelde-Dialog.
+
+    Bug-Form (die gemeldete): das Anmelden war eine **Seite** mit eigener, deckender
+    Fläche – die Seite dahinter verschwand, also brauchte es einen Knopf «Zurück zur
+    Startseite», um wieder herauszukommen. Genau das ist der Umweg, den ein Pop-up nicht
+    hat: daneben klicken beendet es, und was man vorher tat, steht noch da.
+
+    Die zweite Bug-Form wäre die naheliegende Abkürzung: den Dialog in der Navbar
+    **nachbauen** und die Route so lassen. Dann gäbe es zwei Anmeldungen, und die zweite
+    veraltet beim ersten neuen Anmeldeweg – darum ist ``LoginDialog`` **ein** Bauteil,
+    das beide benutzen.
+    """
+    dialog = _code(_read(FRONTEND / "components" / "auth" / "login-dialog.tsx"))
+    page = _code(_read(FRONTEND / "app" / "(auth)" / "login" / "page.tsx"))
+    navbar = _code(_read(FRONTEND / "components" / "layout" / "navbar.tsx"))
+    css = _read(FRONTEND / "app" / "globals.css")
+
+    # (1) Die Fläche dahinter bleibt sichtbar – ein Schleier, keine Wand.
+    assert ".ix-login-scrim" in css, "Der Schleier über der Seite fehlt."
+    # **Ohne die Erklärung gelesen** – der Kommentar in der Regel nennt die Bug-Form beim
+    # Namen, und ein Wächter, der ihn mitliest, schlägt an, weil jemand den Fehler
+    # *beschreibt*, den er verhindern soll. Genau das ist hier beim Schreiben passiert.
+    rules = re.sub(r"/\*[\s\S]*?\*/", "", css)
+    scrim = rules[rules.index(".ix-login-scrim"):]
+    scrim = scrim[: scrim.index("}") + 1]
+    assert "rgba(" in scrim, (
+        "Der Hintergrund des Pop-ups ist wieder deckend – dann ist es keines, sondern "
+        "eine Seite, und man braucht einen Weg zurück."
+    )
+    assert "position: fixed" in scrim and "inset: 0" in scrim, (
+        "Der Schleier liegt nicht über der ganzen Seite."
+    )
+    # **Zentriert wird über `margin: auto`, nicht über `align-items`** – die klassische
+    # Flexbox-Falle. Gemessen in Chromium (375x420): mit `align-items: center` steht der
+    # Kopf einer zu hohen Karte bei −74 px, und in einem Scroll-Container ist alles vor
+    # der Startkante unerreichbar; auf einem Telefon im Querformat wäre das E-Mail-Feld
+    # schlicht weg. Mit `margin: auto` steht er bei +31 px.
+    assert "align-items: center" not in scrim, (
+        "Der Schleier zentriert wieder über `align-items` – eine Karte, die höher ist "
+        "als das Fenster, wird dann oben abgeschnitten und lässt sich nicht hinscrollen."
+    )
+    card = rules[rules.index(".ix-login-card {"):]
+    card = card[: card.index("}") + 1]
+    assert "margin: auto" in card, (
+        "Die Karte zentriert sich nicht mehr selbst – dann greift wieder die Falle."
+    )
+    assert ".ix-login-bg" not in css, (
+        "Die alte, deckende Anmelde-Fläche ist zurück."
+    )
+
+    # (2) Daneben klicken beendet – und `Esc` ebenso; beides ist üblich, und wer nur
+    #     eines baut, zwingt Tastatur- oder Mausnutzer in den jeweils anderen Weg.
+    assert "e.target === e.currentTarget" in dialog, (
+        "Ein Klick neben das Pop-up schliesst es nicht – dann ist der einzige Ausweg "
+        "wieder ein Knopf."
+    )
+    assert "'Escape'" in dialog, "`Esc` schliesst das Pop-up nicht."
+    assert 'aria-modal="true"' in dialog, (
+        "Ohne `aria-modal` ist es für Hilfsmittel kein Dialog, sondern Seiteninhalt."
+    )
+
+    # (3) Der Weg zurück ist das Danebenklicken – der Knopf ist damit entfallen.
+    # Gelesen wird der **Code**: die Erklärung darüber nennt den Knopf, den es nicht
+    # mehr gibt – ein Wächter, der Kommentare liest, schlägt an, weil jemand den Fehler
+    # *beschreibt*, den er verhindern soll.
+    assert "Zurück zur Startseite" not in dialog, (
+        "Der Knopf «Zurück zur Startseite» ist zurück – in einem Pop-up ist er der "
+        "Umweg, den es gerade nicht braucht."
+    )
+
+    # (4) EIN Dialog, zwei Aufrufer: die Navbar öffnet ihn an Ort und Stelle, die Route
+    #     ist der zweite Weg (Umleitung/Lesezeichen) und sagt, was «daneben» dort heisst.
+    assert "export function LoginDialog" in dialog, "Der Dialog ist kein eigenes Bauteil."
+    # **Geprüft wird das Rendern, nicht der Name.** Gemessen: mit `"LoginDialog" in
+    # navbar` liess der Wächter seine eigene Bug-Form durch – der Name kommt auch im
+    # Import vor, und importiert ist noch nicht gezeichnet.
+    assert "<LoginDialog" in navbar and "setLoginOpen(true)" in navbar, (
+        "Die Navbar öffnet das Pop-up nicht – sie verlinkt wieder auf eine Seite."
+    )
+    assert 'href={loginHref}' not in navbar and "const loginHref" not in navbar, (
+        "Der alte Link auf die Anmelde-Seite steht wieder in der Navbar."
+    )
+    assert "<LoginDialog" in page, (
+        "Die Route baut die Anmeldung wieder selbst – dann gibt es sie zweimal."
+    )
+    assert "fallback={pathname}" in navbar, (
+        "Nach dem Anmelden muss man dort landen, wo man war – sonst ist das Pop-up nur "
+        "eine hübschere Umleitung."
+    )
+
+
+def test_a_record_has_exactly_one_width():
+    """**Eine Regel für alle Detail-Ansichten** (Testnotiz #763).
+
+    Bug-Form (die gemeldete): jede Ansicht brachte ihre eigene Breite mit – der Artikel
+    war begrenzt, Instanz und Unternehmen liefen über die volle Fläche, das Unternehmen
+    hatte sogar eine dritte Zahl (760). Auf einem breiten Schirm las sich derselbe
+    Datensatztyp damit je nach Reiter anders, und eine Zeile wurde beliebig lang.
+
+    Die Breite ist eine Eigenschaft der **Gattung** «Detail-Ansicht», nicht der einzelnen
+    Ansicht – also steht sie einmal (`DETAIL_MAXW`) und wird über ein Bauteil geerbt
+    (`DetailBody`), nicht an fünf Stellen abgeschrieben.
+    """
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    assert "export const DETAIL_MAXW" in fields, "Die eine Breite fehlt."
+    assert "export function DetailBody" in fields, "Das Bauteil dazu fehlt."
+    assert "maxWidth: DETAIL_MAXW" in fields, (
+        "`DetailBody` liest die Konstante nicht – dann sind es wieder zwei Zahlen."
+    )
+
+    views = ["article-detail.tsx", "instance-detail.tsx", "organization-detail.tsx",
+             "user-detail.tsx"]
+    for name in views:
+        src = _code(_read(FRONTEND / "components" / "erp" / name))
+        assert "<DetailBody" in src, (
+            f"{name} bringt seine Breite selbst mit statt sie zu erben."
+        )
+        # **Geprüft wird die Tat, nicht das Wort**: eine eigene Zahl daneben ist genau
+        # die Form, in der die zweite Wahrheit zurückkommt. Gemeint ist die **Satzbreite**
+        # – eine Kürzungsgrenze an einer Zeile (`maxWidth: 180` mit `ellipsis`) ist eine
+        # andere Sache und bleibt erlaubt; die Schwelle trennt beide.
+        stray = [n for n in re.findall(r"maxWidth:\s*(\d+)", src) if int(n) >= 400]
+        assert not stray, (
+            f"{name} setzt wieder eine eigene Breite ({stray}) – die Regel steht in "
+            "`DETAIL_MAXW`, sonst laufen die Ansichten wieder auseinander."
+        )
+
+
+def test_the_article_name_is_said_once():
+    """**Eine Sache, eine Stelle** – auch auf dem Bildschirm (Testnotizen #761/#760).
+
+    Bug-Form: der Name stand im Kopf **und** als erstes Lesefeld der Spezifikation. Zwei
+    Anzeigen derselben Angabe sind nicht doppelt so klar, sondern erzeugen die Frage,
+    welche gilt (der Kopf ist die Antwort – dort steht er bei **jedem** Datensatztyp).
+
+    Und der **Bestand** steht nicht mehr hinter einem Reiter: «wie viel habe ich davon»
+    wird an einem Artikel öfter gefragt als alles andere, und ein Klick dafür ist einer
+    zu viel.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "article-detail.tsx"))
+
+    read = _body(src, "SpecRead", kind="function")
+    assert 'label="Artikelname"' not in read, (
+        "Der Name steht wieder als Lesefeld in der Spezifikation – im Kopf steht er "
+        "ohnehin."
+    )
+
+    assert "<StockView" in src, "Der Bestand steht nicht mehr am Artikel."
+    assert "DetailTabs" not in src, (
+        "Der Artikel hat wieder Reiter – der Bestand gehört in dieselbe Ansicht, und "
+        "damit bleibt nichts, was einen zweiten Reiter rechtfertigt."
+    )
+
+
+def test_a_section_head_carries_its_own_hairline():
+    """**Die Haarlinie gehört zum Kopf** (Testnotiz #762).
+
+    Bug-Form: jede Karte zog ihren Trennstrich selbst – mal mit, mal ohne, mit
+    unterschiedlichem Abstand. Eine Anatomie, die man an der Aufrufstelle zusammensetzt,
+    ist an der nächsten Aufrufstelle anders.
+    """
+    fields = _code(_read(FRONTEND / "components" / "erp" / "fields.tsx"))
+    head = _body(fields, "SpecHead", kind="function")
+    assert "borderBottom" in head, (
+        "Der Karten-Kopf trägt seine Haarlinie nicht selbst – dann fehlt sie dort, wo "
+        "jemand sie vergisst."
+    )
+
+
+def test_a_person_is_never_deactivated_only_re_roled():
+    """**Man deaktiviert keine Menschen** (Testnotiz #755).
+
+    Wer das Unternehmen verlässt, hört nicht auf zu existieren – er wird vom Mitarbeiter
+    zum gewöhnlichen Benutzer und darf weiterhin bei uns einkaufen. «Deaktivieren» war
+    damit eine Aktion ohne fachliche Begründung, und sie hatte eine echte Folge: der
+    Betroffene kam nicht mehr herein.
+
+    Bug-Form: die Aktion bleibt (oder kommt als «löschen» zurück). Geprüft wird darum
+    **die Tür, nicht das Wort** – die beiden Endpunkte dürfen es nicht mehr geben, und
+    kein Knopf darf sie rufen.
+    """
+    admin = _code(_read(BACKEND / "app" / "routers" / "admin.py"))
+    assert "def deactivate_user" not in admin, (
+        "Der Deaktivieren-Endpunkt ist zurück – ein Benutzer wechselt die Rolle."
+    )
+    assert "def reactivate_user" not in admin, (
+        "Ohne Deaktivieren braucht es auch keine Gegenaktion."
+    )
+
+    api = _code(_read(FRONTEND / "lib" / "api.ts"))
+    assert "deactivateUser" not in api and "reactivateUser" not in api, (
+        "Der Client ruft die Türen wieder, die es nicht mehr gibt."
+    )
+    user = _code(_read(FRONTEND / "components" / "erp" / "user-detail.tsx"))
+    assert "Deaktivieren" not in user and "Reaktivieren" not in user, (
+        "Der Knopf ist zurück – die Rolle ist der Weg, nicht der Aus-Schalter."
+    )
+
+
+def test_the_usage_tab_is_gone():
+    """**«Wer zeigt auf mich» ist ersatzlos entfallen** (Testnotiz #764).
+
+    Bug-Form wäre, den Reiter nur auszublenden und die Ableitung stehen zu lassen: dann
+    lebt ein Endpunkt weiter, den niemand ruft, und der nächste Umbau muss ihn mitziehen.
+    """
+    for gone in [
+        BACKEND / "app" / "services" / "references.py",
+        BACKEND / "app" / "routers" / "object_refs.py",
+        FRONTEND / "components" / "erp" / "object-references.tsx",
+    ]:
+        assert not gone.exists(), f"{gone.name} ist zurück – die Logik war zu löschen."
+
+    main = _code(_read(BACKEND / "app" / "main.py"))
+    assert "object_refs" not in main, "Der Router ist wieder registriert."
+    api = _code(_read(FRONTEND / "lib" / "api.ts"))
+    assert "getObjectReferences" not in api, "Der Client ruft die Ableitung wieder."
+
+
+def test_an_icon_button_is_centred_by_its_class():
+    """**Der Symbol-Knopf besitzt seine Form in der Klasse** (Testnotiz #757).
+
+    Bug-Form (die Ursache, dreimal gemeldet): `.erp-actbtn` zentrierte allein über seine
+    **Polsterung** – es gab kein `justify-content`. Ein Text-Knopf sah damit richtig aus,
+    und genau die Polsterung nimmt ein Symbol-Knopf weg (`padding: 0`): das Symbol klebte
+    links. Wer das an der Aufrufstelle mit einer Inline-Breite «repariert», verschiebt es
+    nur – darum steht die Form in der Klasse.
+    """
+    css = _read(FRONTEND / "app" / "globals.css")
+    base = css[css.index(".erp-actbtn {"):]
+    base = base[: base.index("}") + 1]
+    assert "justify-content: center" in base, (
+        "`.erp-actbtn` zentriert wieder nur über die Polsterung – dann sitzt jedes "
+        "Symbol ohne Polsterung links."
+    )
+    assert ".erp-actbtn-icon" in css, (
+        "Die Symbol-Ausprägung fehlt – dann setzt sie jede Aufrufstelle wieder inline."
+    )
+    work = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
+    assert "erp-actbtn-icon" in work, (
+        "Der Beleg baut seine Symbol-Knöpfe wieder selbst."
+    )
+    assert not re.search(r"erp-actbtn[^\"]*\"[^>]*style=\{\{[^}]*width:", work), (
+        "Eine Inline-Breite am Symbol-Knopf ist zurück – genau daran verschob sich das "
+        "Symbol, statt zentriert zu sein."
+    )
+
+
+def test_the_order_reference_is_a_mandatory_field():
+    """**Ohne Bestellangabe weiss der Lieferant nicht, was zu bestellen ist** (#756).
+
+    Bug-Form: die Angabe ist optional, das Modul lässt sich freigeben, und beim Bestellen
+    steht eine leere Zeile. Geprüft wird **beides** – der Server weist sie ab (die Regel)
+    und die Oberfläche meldet sie vor der Freigabe (die freundliche Hälfte).
+    """
+    mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
+    assert "Bestellangabe fehlt" in mods, (
+        "Die Oberfläche lässt ein Beschaffungs-Modul ohne Bestellangabe durchgehen."
+    )
+    back = _code(_read(BACKEND / "app" / "domain" / "modules.py"))
+    suppliers = _body(back, "_suppliers")
+    assert "Bestellangabe" in suppliers, (
+        "Der Server nimmt eine leere Bestellangabe an – dann ist die Prüfung in der "
+        "Oberfläche eine Bitte."
     )

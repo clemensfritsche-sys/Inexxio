@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Package, FileText, Boxes, Trash2, Tag, AlertTriangle,
+  Package, FileText, Trash2, AlertTriangle,
   Ruler, Box, Square, Scale, Droplet, Fingerprint, Layers,
   Scaling, Hash, Link2, Weight, Sparkles, Plus, Shield, Ban,
   ClipboardPlus, RotateCcw, ArrowRight, Blocks,
@@ -22,11 +22,10 @@ import { ProcessDesigner } from '@/components/erp/process-designer';
 import { FREIGEGEBEN, INAKTIV } from '@/lib/process-status';
 import { isVersionConflict } from '@/lib/optimistic';
 
-import { ErrorText, SaveIndicator, IconSwitch, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { ObjId } from '@/components/erp/obj-id';
 import { StockView } from '@/components/erp/stock-view';
-import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
 
 // Artikel-Lebenszyklus. **Es gibt keinen gespeicherten Entwurf mehr**: der Artikel
@@ -44,12 +43,10 @@ import { LabelButton } from '@/components/scan/object-label';
 // anrichtet, steht dauerhaft im Streifen über der Spezifikation («wird verbaut in») – und
 // nicht in einem Fenster, das es einmal zeigt, dem, der klickt.
 
-type TabKey = 'spezifikation' | 'bestand';
 
-const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
-  { key: 'spezifikation', label: 'Spezifikation', icon: FileText },
-  { key: 'bestand', label: 'Bestand', icon: Boxes },
-];
+// **Keine Reiter mehr** (Notiz #760): der Bestand steht im ersten Container der
+// Spezifikation, wo man ohnehin hinschaut – ein eigener Reiter dafür war ein Klick für
+// eine Zahl. Und damit hat der Artikel überhaupt keine zweite Ansicht mehr.
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'is_hazmat';
 // Der frühere «Fixierte Standort» (GPS + Adresse am Artikel) ist ersatzlos entfallen
@@ -120,7 +117,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
   onCreateOrder?: (articleObjectId: number) => void;
 }) {
   const isCreate = record === null;
-  const [tab, setTab] = useState<TabKey>('spezifikation');
   // **Welchen Artikel löst dieser hier ab?** Nur im Anlage-Modus – die Angabe hat genau
   // einen Moment (siehe `ArticleCreate.replaces_object_id`).
   const [replaces, setReplaces] = useState<Article | null>(null);
@@ -337,7 +333,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
             )}
           </>
         ) : undefined}
-        tabs={<DetailTabs<TabKey> active={tab} onChange={setTab} tabs={TABS} />}
       >
       </DetailHeader>
 
@@ -346,8 +341,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
           Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
           Zeilenumbruch. Textareas ausnehmen. */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)' }}>
-        {tab === 'spezifikation' && (
-          <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
+        <DetailBody>
             {/* **Wie steht dieser Artikel im Netz der anderen?** — Reihe (ersetzt /
                 ersetzt durch), wer ihn verbaut, und was in seiner Stückliste ausser
                 Betrieb ist. Bewusst ein schmaler Streifen **über** der Spezifikation:
@@ -357,6 +351,15 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
               <ReplacesPicker value={replaces} onChange={setReplaces} />
             ) : (
               <ContextStrip objectId={record.object_id} version={record.updated_at} />
+            )}
+            {/* **Der Bestand steht ganz oben** (Notiz #760): die Frage «wie viel habe ich
+                davon» wird an einem Artikel öfter gestellt als jede andere, und sie kostet
+                jetzt keinen Klick mehr. Ohne Objektnummer gibt es den Artikel noch nicht –
+                dann steht hier nichts, statt einer Null, die es nicht gibt. */}
+            {record?.object_id != null && (
+              <div style={{ marginBottom: 22 }}>
+                <StockView scope={{ kind: 'article', objectId: record.object_id }} />
+              </div>
             )}
             {locked ? (
               <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
@@ -418,23 +421,7 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
                 setDraft={setSteps}
               />
             </div>
-          </div>
-        )}
-
-        {/* **Derselbe Bestand wie an der Instanz** – EIN Modul, zwei Umfänge
-            (`stock-view.tsx`). Ohne Objektnummer gibt es den Artikel noch nicht, also
-            auch nichts von ihm. */}
-        {tab === 'bestand' && (
-          <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
-            {record?.object_id != null ? (
-              <StockView scope={{ kind: 'article', objectId: record.object_id }} />
-            ) : (
-              <p className="text-sm text-fg-3">
-                Noch kein Bestand – der Artikel entsteht mit seiner Freigabe.
-              </p>
-            )}
-          </div>
-        )}
+        </DetailBody>
 
       </div>
     </div>
@@ -699,7 +686,9 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
       {/* Basis-Gruppe ohne eigenen Unter-Kopf – der Karten-Kopf trägt sie (Design `.rsec` #1). */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ ...SPEC.grid, paddingTop: 2 }}>
-          <ReadField icon={Tag} label="Artikelname" value={record.name} full />
+          {/* **Kein «Artikelname»** (Notiz #761): der Kopf trägt ihn bereits, gross und
+              als Titel des Fensters. Ihn hier zu wiederholen wäre eine zweite Anzeige
+              derselben Tatsache – im **Entwurf** bleibt das Feld, dort entsteht er. */}
           <ReadField icon={Ruler} label="Mengeneinheit" value={unitLabel(record.unit)} />
           <ReadField icon={Fingerprint} label="Serialisierung" value={serializationLabel(record.serialization)} />
           {has('surface') && <ReadField icon={Sparkles} label="Oberfläche" value={form.surface} />}
@@ -871,7 +860,7 @@ function ReplacesPicker({ value, onChange }: {
           border: 'none', background: 'none', padding: 0, cursor: 'pointer',
           font: '600 12px var(--font-body)', color: 'var(--accent)',
         }}
-        data-tip="Der abgelöste Artikel geht dabei ausser Betrieb">
+        data-tip="Der abgelöste Artikel geht dabei ausser Betrieb – umkehrbar, die Reihe bleibt">
         <Plus size={13} /> Ersetzt einen Artikel
       </button>
     );
@@ -900,9 +889,16 @@ function ReplacesPicker({ value, onChange }: {
           .catch(() => [])}
         onChange={(_nr, opt) => { onChange(opt); if (!opt) setOpen(false); }}
       />
+      {/* **Der Satz nennt beide Hälften** (Notiz #766). Er sagte nur, dass der Vorgänger
+          ausser Betrieb geht – und genau daraus entstand die Sorge, das sei endgültig.
+          «Ausser Betrieb» ist am Artikel ein **gewöhnlicher Zustand** in beide
+          Richtungen (`Status`), und die Reihe (`replaced_by_id`) hängt nicht daran: wer
+          den Vorgänger als Ersatzteil weiterlaufen lässt, setzt ihn schlicht wieder
+          aktiv. Was fehlte, war nicht die Möglichkeit, sondern ihr Satz. */}
       <span style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)' }}>
         Der abgelöste Artikel geht mit der Freigabe ausser Betrieb – er erzeugt danach
-        nichts Neues mehr, seine Stücke laufen weiter.
+        nichts Neues mehr, seine Stücke laufen weiter. Als Ersatzteil lässt er sich
+        jederzeit wieder aktiv setzen; die Reihe bleibt dabei bestehen.
       </span>
     </div>
   );

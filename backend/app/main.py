@@ -18,7 +18,7 @@ from .models import UserProfile
 from .core import features
 from .routers import (
     admin, articles, attachments, auth, contact, erp, events, feedback, health,
-    instances, object_refs, orders, passkey, places,
+    instances, orders, passkey, places,
 )
 # Nicht importiert, weil abgeschaltet (siehe core/features.py): ai, consent, documents,
 # document_files, legal, sales, shop. Ihre Module hängen an der entfernten Prozesslogik
@@ -831,7 +831,6 @@ app.include_router(erp.router)
 app.include_router(articles.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
-app.include_router(object_refs.router)
 app.include_router(places.router)
 app.include_router(events.router)
 app.include_router(attachments.router)

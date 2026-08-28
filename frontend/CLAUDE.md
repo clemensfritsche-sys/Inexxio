@@ -79,6 +79,11 @@ EIN Modul, zwei Umfänge – am **Artikel** (Zeilen = seine Instanzen) und an de
 (Zeilen = ihre Einzelinstanzen). Der Unterschied ist der Umfang der Daten, nie die
 Darstellung; eine zweite Fassung liefe beim ersten neuen Zustand auseinander.
 
+**Am Artikel steht er zuoberst in derselben Ansicht, nicht hinter einem Reiter**
+(Testnotiz #760): «wie viel habe ich davon» wird dort öfter gefragt als alles andere.
+Damit hat der Artikel **gar keine Reiter mehr** – es blieb nichts, was einen zweiten
+rechtfertigt.
+
 **Eine Gruppe je Zustand – und die Ansicht zählt keinen einzigen auf.** Gruppiert wird über
 die gelieferten `states`; Reihenfolge = Position im `CATALOG` (= Lebenszyklus, dieselbe wie
 Leiste und Legende), Farbe = Ampelton, **zugeklappt** startet, was zur Historie zählt
@@ -222,6 +227,34 @@ Scanner bekommt dieselbe Suche mit (`suggest`).
 - **Kein natives `<select>` über Datensätze** – nicht durchsuchbar, und bei tausend
   Artikeln tausend Knoten je Zeile. Aufzählungen (Währung, Land, Ja/Nein) bleiben
   erlaubt: sie sind endlich und keine Referenz. Wächter in `test_frontend_mirrors.py`.
+
+## Eine Detail-Ansicht hat EINE Breite (`fields.DETAIL_MAXW` / `DetailBody`)
+Die Satzbreite ist eine Eigenschaft der **Gattung** «Detail-Ansicht», nicht der einzelnen
+Ansicht: sie steht einmal und wird über `<DetailBody>` geerbt. Vorher brachte jede Ansicht
+ihre eigene mit (Artikel begrenzt, Instanz und Unternehmen über die volle Fläche, das
+Unternehmen mit einer dritten Zahl) – auf einem breiten Schirm las sich derselbe
+Datensatztyp je nach Reiter anders. Ein Wächter verbietet jede eigene Satzbreite daneben;
+eine **Kürzungs**grenze an einer Zeile (`maxWidth: 180` mit `ellipsis`) bleibt erlaubt –
+das ist eine andere Sache.
+
+## Anmelden ist ein Pop-up (`components/auth/login-dialog.tsx`)
+EIN Bauteil, zwei Aufrufer: die **Navbar** öffnet es über der Seite, auf der man steht
+(`fallback={pathname}` – nach dem Anmelden landet man dort wieder), die Route `/login` ist
+der zweite Weg (Umleitung, Lesezeichen) und sagt, was «daneben klicken» dort heisst: zur
+Startseite. Der Knopf «Zurück zur Startseite» ist damit entfallen – daneben klicken und
+`Esc` sind der Ausweg.
+
+**Zentriert wird über `margin: auto` an der Karte, nie über `align-items` am Schleier.**
+Gemessen in Chromium (375×420): mit `align-items: center` wird eine Karte, die höher als
+das Fenster ist, oben **abgeschnitten**, und in einem Scroll-Container ist alles vor der
+Startkante unerreichbar – im Querformat wäre das E-Mail-Feld weg.
+
+## Symbol-Knöpfe (`.erp-actbtn` / `.erp-actbtn-icon`)
+Ein Knopf besitzt seine Form in der **Klasse**, nicht an der Aufrufstelle. `.erp-actbtn`
+zentriert über `justify-content` – nicht über die Polsterung: die nimmt die
+Symbol-Ausprägung ja gerade weg (`padding: 0`), und ohne die Zeile sass das Symbol 16 px
+daneben (gemessen). Eine Inline-Breite am Knopf verschiebt es nur; ein Wächter verbietet
+sie.
 
 ## Kamera-Scan (`lib/scan.ts` + `components/scan/`)
 Der QR trägt **nur die 9-stellige Objektnummer**; den Typ löst der Server auf

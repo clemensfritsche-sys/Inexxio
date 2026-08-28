@@ -391,45 +391,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/users/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Deactivate User */
-        delete: operations["deactivate_user_api_v1_admin_users__user_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/users/{user_id}/reactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reactivate User
-         * @description Einen deaktivierten Benutzer **reaktivieren** – die bewusste Admin-Umkehr des
-         *     Soft-Delete. Die Identität (Objektnummer, Historie, Referenzen) bleibt dieselbe;
-         *     ein deaktivierter Benutzer wird beim Login abgewiesen statt still neu angelegt.
-         */
-        post: operations["reactivate_user_api_v1_admin_users__user_id__reactivate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -1066,26 +1027,6 @@ export interface paths {
          *     Öffnen einer Charge vollständig aufzulösen.
          */
         get: operations["unit_genealogy_api_v1_erp_instances__object_id__units__suffix__genealogy_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/objects/{object_id}/references": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Object References
-         * @description Verwendung einer Objektnummer: verortete Instanzen + referenzierende Prozessschritte.
-         */
-        get: operations["list_object_references_api_v1_erp_objects__object_id__references_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2454,25 +2395,6 @@ export interface components {
              */
             here: number;
             place?: components["schemas"]["PlaceRef"] | null;
-        };
-        /**
-         * ObjectReference
-         * @description Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet.
-         */
-        ObjectReference: {
-            /** Kind */
-            kind: string;
-            /** Ref Type */
-            ref_type: string;
-            /** Object Id */
-            object_id: number;
-            /** Label */
-            label: string;
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
         };
         /**
          * ObjectResolution
@@ -4332,68 +4254,6 @@ export interface operations {
             };
         };
     };
-    deactivate_user_api_v1_admin_users__user_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reactivate_user_api_v1_admin_users__user_id__reactivate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_audit_log_api_v1_admin_audit_log_get: {
         parameters: {
             query?: {
@@ -5362,37 +5222,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Genealogy"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_object_references_api_v1_erp_objects__object_id__references_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ObjectReference"][];
                 };
             };
             /** @description Validation Error */

@@ -851,97 +851,6 @@
         ]
       }
     },
-    "/api/v1/admin/users/{user_id}": {
-      "delete": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Deactivate User",
-        "operationId": "deactivate_user_api_v1_admin_users__user_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "User Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/users/{user_id}/reactivate": {
-      "post": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Reactivate User",
-        "description": "Einen deaktivierten Benutzer **reaktivieren** – die bewusste Admin-Umkehr des\nSoft-Delete. Die Identität (Objektnummer, Historie, Referenzen) bleibt dieselbe;\nein deaktivierter Benutzer wird beim Login abgewiesen statt still neu angelegt.",
-        "operationId": "reactivate_user_api_v1_admin_users__user_id__reactivate_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "User Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/admin/audit-log": {
       "get": {
         "tags": [
@@ -2799,58 +2708,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Genealogy"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/objects/{object_id}/references": {
-      "get": {
-        "tags": [
-          "objects"
-        ],
-        "summary": "List Object References",
-        "description": "Verwendung einer Objektnummer: verortete Instanzen + referenzierende Prozessschritte.",
-        "operationId": "list_object_references_api_v1_erp_objects__object_id__references_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ObjectReference"
-                  },
-                  "title": "Response List Object References Api V1 Erp Objects  Object Id  References Get"
                 }
               }
             }
@@ -6527,41 +6384,6 @@
         ],
         "title": "NeedSource",
         "description": "Eine Instanz, aus der genommen werden könnte — und wie viel dort frei liegt."
-      },
-      "ObjectReference": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "ref_type": {
-            "type": "string",
-            "title": "Ref Type"
-          },
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind",
-          "ref_type",
-          "object_id",
-          "label",
-          "at"
-        ],
-        "title": "ObjectReference",
-        "description": "Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet."
       },
       "ObjectResolution": {
         "properties": {

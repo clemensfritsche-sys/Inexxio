@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
+import { LoginDialog } from '@/components/auth/login-dialog';
 import { api } from '@/lib/api';
 import type { User } from 'firebase/auth';
 
@@ -28,6 +29,7 @@ export function Navbar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [profileName, setProfileName] = useState('');
+  const [loginOpen, setLoginOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -103,9 +105,17 @@ export function Navbar() {
     router.push('/');
   }
 
-  const loginHref = pathname.startsWith('/login')
-    ? '/login'
-    : `/login?from=${encodeURIComponent(pathname)}`;
+  /**
+   * **Anmelden öffnet ein Pop-up, es navigiert nicht** (Notiz vom 28.8.).
+   *
+   * Vorher führte der Knopf auf `/login` – man verlor die Seite, auf der man stand, und
+   * fand nur über einen eigenen Link zurück. Jetzt legt sich der Dialog darüber; ein
+   * Klick daneben bringt einen zurück, ohne dass es dafür ein Bedienelement braucht.
+   *
+   * Nach der Anmeldung bleibt man, wo man war (`fallback`) – die Route dagegen schickt
+   * zur Startseite, weil hinter ihr nichts steht.
+   */
+  const openLogin = () => setLoginOpen(true);
 
   const nameForDisplay = profileName || user?.displayName || '';
   const initials = nameForDisplay
@@ -285,14 +295,15 @@ export function Navbar() {
                     </div>
                   </div>
                 ) : (
-                  <Link
-                    href={loginHref}
+                  <button
+                    type="button"
+                    onClick={openLogin}
                     className="ix-btn ix-btn-primary"
                     style={{ padding: '10px 20px', fontSize: 14 }}
                   >
                     <LogIn style={{ width: 15, height: 15 }} />
                     Anmelden
-                  </Link>
+                  </button>
                 )
               )}
             </div>
@@ -415,10 +426,12 @@ export function Navbar() {
                     </button>
                   </div>
                 ) : (
-                  <Link href={loginHref} className="ix-btn ix-btn-primary" style={{ justifyContent: 'center' }}>
+                  <button type="button" className="ix-btn ix-btn-primary"
+                    style={{ justifyContent: 'center' }}
+                    onClick={() => { setMobileOpen(false); openLogin(); }}>
                     <LogIn style={{ width: 16, height: 16 }} />
                     Anmelden
-                  </Link>
+                  </button>
                 )
               )}
             </div>
@@ -461,6 +474,12 @@ export function Navbar() {
         >
           <X style={{ width: 18, height: 18 }} />
         </button>
+      )}
+
+      {/* **Dasselbe Fenster wie auf `/login`** – nur schliesst es hier, statt zur
+          Startseite zu gehen: die Seite dahinter ist ja noch da. */}
+      {loginOpen && (
+        <LoginDialog onClose={() => setLoginOpen(false)} fallback={pathname} />
       )}
     </>
   );

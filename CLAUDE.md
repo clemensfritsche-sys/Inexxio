@@ -1274,6 +1274,91 @@
 > über zehn Beleg-Zustände – sechs aus Personal-, vier aus **Lieferantensicht**; der
 > unterlegene Lieferant sieht 0 fremde Angaben, der abgeschlossene Beleg 0 Knöpfe.
 
+> **Ein Pop-up ist ein Pop-up — und ein Datensatz hat EINE Breite** (Testnotizen
+> #755–#766, Migration `118`): Elf Notizen, und der rote Faden ist zweimal derselbe —
+> **eine Form, die ihre eigene Regel mitbringt, statt sie zu erben.**
+> **(1) Angemeldet wird ÜBER der Seite, auf der man steht** (`components/auth/login-dialog.
+> tsx`). Das Anmelden war eine **Seite** mit deckender Fläche: die Seite dahinter
+> verschwand, also brauchte es einen Knopf «Zurück zur Startseite», um wieder
+> herauszukommen — genau den Umweg, den ein Pop-up nicht hat. Jetzt ein halbtransparenter
+> Schleier (`rgba(24, 20, 17, 0.42)` + `blur(3px)`), daneben klicken **und** `Esc`
+> schliessen, und nach dem Anmelden landet man dort, wo man war (`fallback={pathname}`).
+> **EIN Bauteil, zwei Aufrufer**: die Navbar öffnet es an Ort und Stelle, die Route
+> `/login` bleibt als zweiter Weg (Umleitung, Lesezeichen) und sagt, was «daneben» dort
+> heisst — zur Startseite. Nachgebaut wäre die zweite Anmeldung beim ersten neuen
+> Anmeldeweg veraltet. *Next.js «intercepting routes» wären der modische Weg und hier
+> der falsche: sie müssten die Gruppen `(public)` → `(auth)` überbrücken, und ein
+> Zustandswechsel im Router ist kein Ersatz für einen Zustand in einer Komponente.*
+> **Gemessen, nicht geglaubt** — und die Messung hat einen echten Fehler gefunden: mit
+> `align-items: center` wird eine Karte, die **höher als das Fenster** ist, oben
+> abgeschnitten, und in einem Scroll-Container ist alles vor der Startkante
+> **unerreichbar** (375×420: Kopf bei −74 px, `scrollTop = 0` half nicht — auf einem
+> Telefon im Querformat wäre das E-Mail-Feld schlicht weg). Zentriert wird darum über
+> `margin: auto` an der Karte (Kopf bei +31 px). Dazu 1440 · 1280 · 1024 · 834 · 375 ·
+> 320 px: **0 px** waagrechter Überlauf, Karte symmetrisch, Klick daneben schliesst,
+> Klick **hinein** nicht.
+> **(2) Ein Datensatz hat EINE Breite** (#763, `fields.DETAIL_MAXW` + `DetailBody`): die
+> Artikel-Spezifikation war begrenzt, Instanz und Unternehmen liefen über die volle
+> Fläche, das Unternehmen trug sogar eine dritte Zahl (760). Auf einem breiten Schirm las
+> sich derselbe Datensatztyp je nach Reiter anders. Die Breite ist eine Eigenschaft der
+> **Gattung** «Detail-Ansicht», nicht der einzelnen Ansicht — also steht sie einmal und
+> wird geerbt; der Wächter verbietet jede eigene Satzbreite daneben (eine
+> **Kürzungs**grenze an einer Zeile bleibt erlaubt, sie ist eine andere Sache).
+> **(3) Der Artikel hat gar keine Reiter mehr** (#760/#761): der **Bestand** steht zuoberst
+> in derselben Ansicht — «wie viel habe ich davon» wird an einem Artikel öfter gefragt als
+> alles andere, und ein Klick dafür ist einer zu viel. Damit blieb nichts, was einen
+> zweiten Reiter rechtfertigt. Und der **Name** steht nur noch im Kopf: er stand dort
+> **und** als erstes Lesefeld der Spezifikation — zwei Anzeigen derselben Angabe sind
+> nicht doppelt klar, sondern erzeugen die Frage, welche gilt. Die **Haarlinie** gehört
+> seither dem Karten-Kopf (`SpecHead`, #762) statt jeder Aufrufstelle einzeln.
+> **(4) Man deaktiviert keine Menschen** (#755, Migration `118`): «man wechselt höchstens
+> die nutzerrolle. wenn jemand das unternehmen verlässt, dann wird er zum normalen user
+> statt als mitarbeiter. er soll ja trotzdem weiterhin bei uns einkaufen dürfen gehen.»
+> Beide Endpunkte sind ersatzlos entfallen. **Die Falle dabei:** damit könnte niemand mehr
+> aufheben, was heute gesetzt ist — ein deaktivierter Benutzer wäre für immer ausgesperrt;
+> Migration `118` hebt darum jede bestehende Deaktivierung auf. Die **Abweisung beim
+> Login** bleibt trotzdem stehen, denn ihr eigentlicher Zweck ist ein anderer: sie
+> verhindert, dass eine deaktivierte Zeile still als **neuer** Benutzer mit neuer
+> Objektnummer wiederaufersteht. *Nebenbei gefunden und entfallen: der Reiter
+> «Bestellungen» am Benutzer rendete **gar nichts** — seine Karte hängt am Verkaufs-Modul,
+> und das ist im Basis-Neuaufbau abgeschaltet. Er kommt mit dem Verkauf zurück.*
+> **(5) «Verwendung» ist vollständig gelöscht** (#764): Reiter, Ableitung
+> (`services/references.py`), Router und Client-Aufruf — drei Dateien weniger. Den Reiter
+> nur auszublenden hiesse, einen Endpunkt am Leben zu lassen, den niemand ruft.
+> **(6) Der Symbol-Knopf besitzt seine Form in der KLASSE** (#757, dreimal gemeldet — und
+> die Ursache war eine fehlende Zeile): `.erp-actbtn` zentrierte allein über seine
+> **Polsterung**, es gab kein `justify-content`. Ein Text-Knopf sah damit richtig aus, und
+> genau die Polsterung nimmt ein Symbol-Knopf weg (`padding: 0`). **Gemessen in Chromium:**
+> das Symbol sass 1 px vom linken und 17 px vom rechten Rand — 16 px daneben; mit der
+> Zeile 9/9, Δ 0.00 px, und der Text-Knopf unverändert. Wer das an der Aufrufstelle mit
+> einer Inline-Breite «repariert», verschiebt es nur — darum eine eigene Ausprägung
+> `.erp-actbtn-icon` und ein Wächter gegen die Inline-Breite.
+> **(7) Die Bestellangabe ist Pflicht** (#756) — im **Dienst** (`Beschaffen._suppliers`
+> weist eine leere ab und nennt den Lieferanten), nicht nur am Feld: ohne sie weiss der
+> Lieferant nicht, was zu bestellen ist. **Der Scan-Chip ist entfallen** (#758): die Sorte
+> steht im **Platzhalter**, ihr **Symbol** am Innenrand des Feldes — der frühere Einwand
+> («ein Platzhalter verschwindet beim ersten Zeichen») ist damit beantwortet, nicht
+> ignoriert. Und «Storniert» sagt nur noch das Wort (#759 — dass nichts mehr ankommt,
+> steht in der Kette darunter).
+> **(8) #766 war eine Frage, keine Meldung — und die Antwort war ein Satz.** Ob «Ersetzt
+> Artikel» robust sei, ob nur inaktive Artikel wählbar sein sollten, und ob ein ersetzter
+> Artikel als **Ersatzteil** wieder aktiv werden dürfe. Geprüft: die Logik stimmt.
+> Ersetzen **bedeutet** ausser Betrieb nehmen (zwei Klicks wären zwei Gelegenheiten, den
+> zweiten zu vergessen), und nur inaktive anzubieten machte den Normalfall zweistufig.
+> Der Ersatzteil-Fall funktioniert längst — **ohne eigene Regel**: «ausser Betrieb» ist am
+> Artikel ein gewöhnlicher Zustand in beide Richtungen, und `replaced_by_id` weiss davon
+> nichts. Was fehlte, war der **Satz**: der Hinweis nannte nur die erste Hälfte, und genau
+> daraus entstand die Sorge. Ergänzt, und mit einem Wächter festgehalten statt beim
+> nächsten Umbau neu hergeleitet.
+> Wächter: zehn neue in `test_frontend_mirrors.py` + zwei in `test_article_lifecycle.py`,
+> **jeder gegen seine Bug-Form gegengeprüft** — *drei waren dabei stumpf und liessen ihre
+> eigene Form durch* (ein Name statt des Renderns, eine Kürzungsbreite als Satzbreite
+> gelesen, und ein Wächter, der seinen eigenen **Kommentar** mitlas und darum anschlug,
+> weil jemand den Fehler *beschreibt*). Gemessen, nachgeschärft, erneut gegengeprüft.
+> Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den
+> Migrationen; Migration `118` von null · idempotent · downgrade · über das Lifespan-Netz,
+> und ihre **Wirkung** gemessen (1 deaktivierte Zeile → 0).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

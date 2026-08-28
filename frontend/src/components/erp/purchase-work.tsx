@@ -151,7 +151,7 @@ export function PurchaseWork({ purchase, busy, active = true, onAction, children
       {cancelled && (
         <div className="flex items-center gap-1.5 mt-1 text-[12.5px]"
           style={{ color: 'var(--danger)' }}>
-          <CircleSlash size={13} /> Storniert – hier kommt nichts mehr an.
+          <CircleSlash size={13} /> Storniert
         </div>
       )}
     </div>
@@ -361,8 +361,8 @@ function QuoteRow({ q, p, busy, active, price, lead, onPrice, onLead, onAction }
           {/* **Symbol, Erklärung im Hover** – und die Wörter gelten für beide Rollen:
               er gibt seine Offerte ab, wir schreiben seine auf. Ein Wort, das nur eine
               der beiden Seiten meint, wäre ein `if` in Textform. */}
-          <button type="button" className="erp-actbtn erp-actbtn-primary"
-            style={{ height: 30, width: 32, padding: 0 }} disabled={busy || !ready}
+          <button type="button" className="erp-actbtn erp-actbtn-primary erp-actbtn-icon"
+            style={{ height: 30 }} disabled={busy || !ready}
             aria-label="Offerte erfassen"
             data-tip={ready ? 'Offerte erfassen'
               : 'Betrag und Lieferfrist – ohne Frist gibt es keinen Liefertermin'}
@@ -372,8 +372,8 @@ function QuoteRow({ q, p, busy, active, price, lead, onPrice, onLead, onAction }
             })}>
             <Check size={14} />
           </button>
-          <button type="button" className="erp-actbtn erp-actbtn-neutral"
-            style={{ height: 30, width: 32, padding: 0 }} disabled={busy}
+          <button type="button" className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
+            style={{ height: 30 }} disabled={busy}
             aria-label="Absage" data-tip="Liefert nicht"
             onClick={() => onAction({ action: 'decline', supplier: q.supplier_object_id })}>
             <CircleSlash size={14} />

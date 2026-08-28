@@ -81,8 +81,11 @@ def _resolve_user(db: Session, uid: str, email: str, decoded: dict, request: Req
     beim Re-Login KEIN frisches Profil mehr, sondern 403. Vorher entstand still ein neues
     Profil mit NEUER Objektnummer – sämtliche objektnummern-basierten Referenzen der alten
     Identität (Signoffs, Publikum, Kunde/Lieferant von Aufträgen) verwaisten und der
-    «gelöschte» Benutzer war einfach wieder drin. Reaktivieren ist eine bewusste
-    Admin-Aktion (POST /admin/users/{id}/reactivate)."""
+    «gelöschte» Benutzer war einfach wieder drin.
+
+    **Setzen kann diesen Zustand nichts mehr** (Testnotiz #755): man deaktiviert keinen
+    Benutzer, man wechselt seine Rolle. Die Abweisung bleibt trotzdem stehen – sie ist
+    genau der Schutz gegen das stille Wiederauferstehen, und sie kostet eine Zeile."""
     user = db.query(UserProfile).filter(UserProfile.firebase_uid == uid).first()
     if user is None and email:
         # Firebase was reset: same email, new UID → reattach existing profile

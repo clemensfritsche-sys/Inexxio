@@ -373,6 +373,9 @@ export const MODULE_FORM: Record<string, {
     incomplete: (m) => {
       if (!m.instruction.trim()) return 'kein Auftrag an den Lieferanten';
       if (m.suppliers.length === 0) return 'kein Lieferant zugelassen';
+      // #756: ohne Bestellangabe steht beim Bestellen nicht da, unter welcher Nummer
+      // bzw. über welchen Link man bei ihm bestellt.
+      if (m.suppliers.some((r) => !r.ref.trim())) return 'Bestellangabe fehlt';
       return null;
     },
   },

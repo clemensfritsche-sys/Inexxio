@@ -15,7 +15,8 @@ gegen seine **Bug-Form**:
    sämtliche Vorlagen des Hauses.
 6. **Ersetzen ist eine Angabe an der Anlage des Nachfolgers**, kein zweiter Aufruf – und
    es nimmt den Vorgänger im selben Zug ausser Betrieb.
-7. **Ein Vorgänger hat genau einen Nachfolger.**
+7. **Ein Vorgänger hat genau einen Nachfolger** – und er lässt sich als Ersatzteil
+   wieder aktiv setzen, ohne dass die Reihe zerfällt.
 8. **Zyklensicher** in beide Richtungen (Stückliste und Ersetzungskette).
 9. **Die Stückliste steht nur am Detail** – ``None`` heisst «nicht geladen».
 
@@ -324,6 +325,90 @@ def test_the_successor_takes_the_predecessor_out_of_service():
     finally:
         db.rollback()
         db.close()
+
+
+def test_a_replaced_predecessor_can_be_set_active_again():
+    """**Der Vorgänger bleibt als Ersatzteil lieferbar** – und die Reihe bleibt stehen.
+
+    Die Frage aus Testnotiz #766: darf man einen abgelösten Artikel wieder aktiv setzen,
+    ohne dass die Ersetzung verlorengeht? Ja – und zwar **ohne eine eigene Regel**: am
+    Artikel ist «ausser Betrieb» ein gewöhnlicher Zustand in beide Richtungen (Wächter 1),
+    und ``replaced_by_id`` ist eine **andere** Angabe, die davon nichts weiss. Genau
+    dieser Zusammenhang war die Sorge, und er wird hier festgehalten, statt ihn beim
+    nächsten Umbau neu herleiten zu müssen.
+
+    Bug-Form: eine Kopplung «Status → Reihe» (der Statuswechsel räumt ``replaced_by_id``,
+    oder ``may_create`` fragt zusätzlich nach der Reihe). Dann wäre das Reaktivieren
+    entweder wirkungslos oder es zerrisse die Kette – und das Ersatzteilgeschäft ginge
+    nur noch über eine zweite Nummer für dasselbe Ding.
+    """
+    from app.domain import statuses as st
+    from app.services import articles as svc
+
+    db = _db()
+    try:
+        old = _article(db, "Fassung 1")
+        new_art = svc.create_article(
+            db, {"name": "Fassung 2", "unit": "Stk", "serialization": "unit",
+                 "size": "10x20", "weight_kg": 1,
+                 "steps": [{"module_type": "datenerfassung",
+                            "config": {"points": [{"label": "OK", "type": "bool"}]}}],
+                 "replaces_object_id": old.object_id},
+            actor_id=None)
+        db.flush()
+        assert old.status == st.INAKTIV and old.replaced_by_id == new_art.object_id
+
+        # Der ganz gewöhnliche Statuswechsel – dasselbe, was der Knopf im Kopf tut.
+        old.status = st.FREIGEGEBEN
+        db.flush()
+
+        assert svc.may_create(old) is None, (
+            "Wieder aktiv heisst wieder erzeugbar – genau darum geht es beim Ersatzteil. "
+            "Wer hier zusätzlich nach der Reihe fragt, macht das Reaktivieren wirkungslos."
+        )
+        # **Nach** der Frage geprüft: eine Kopplung «Status → Reihe» räumt die Kante
+        # genau dann, wenn jemand hinschaut – der Wächter muss den Zustand also danach
+        # lesen, sonst prüft er einen Moment, den es so nicht mehr gibt.
+        assert old.replaced_by_id == new_art.object_id, (
+            "Die Reihe hängt nicht am Status – ein reaktivierter Vorgänger bleibt "
+            "abgelöst, sonst gäbe es zwei neueste Fassungen."
+        )
+        detail = _detail(db, old)
+        assert detail.replaced_by is not None and detail.replaced_by.object_id == new_art.object_id, (
+            "Und die Antwort sagt weiterhin, wer ihn abgelöst hat."
+        )
+        # Zweimal ersetzen bleibt trotzdem verboten – die Reihe steht ja noch.
+        assert svc.replaceable_problem(old) is not None, (
+            "Ein reaktivierter Vorgänger ist kein unbeschriebenes Blatt: er hat seinen "
+            "Nachfolger, und ein zweiter wäre eine zweite «neueste Fassung»."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_replacement_hint_says_both_halves():
+    """**Was fehlte, war der Satz** – nicht die Möglichkeit (Testnotiz #766).
+
+    Der Hinweis am Auswahlfeld sagte nur, dass der Vorgänger ausser Betrieb geht. Wer ihn
+    liest, hält das für endgültig und traut sich nicht – obwohl der Weg zurück ein Klick
+    ist. Bug-Form: die halbe Aussage, die formal stimmt und in der Praxis abschreckt.
+    """
+    src = (BACKEND.parent / "frontend" / "src" / "components" / "erp"
+           / "article-detail.tsx").read_text(encoding="utf-8")
+    # **Gelesen wird die Komponente, nicht die Datei.** Ein Satz irgendwo sonst in
+    # `article-detail.tsx` würde den Wächter sonst beruhigen, ohne dass er dort steht,
+    # wo man wählt – gemessen: mit dem Dateiende als Grenze geht genau das durch.
+    body = src[src.index("function ReplacesPicker"):]
+    hint = body[:body.index("\n}\n") + 3]
+    assert "wieder aktiv setzen" in hint, (
+        "Der Hinweis muss die zweite Hälfte nennen: der Vorgänger lässt sich als "
+        "Ersatzteil wieder aktiv setzen."
+    )
+    assert "Reihe bleibt" in hint, (
+        "…und dass die Ersetzung dabei bestehen bleibt – sonst klingt Reaktivieren wie "
+        "ein Zurücknehmen der Ablösung."
+    )
 
 
 def test_an_article_is_replaced_at_most_once():

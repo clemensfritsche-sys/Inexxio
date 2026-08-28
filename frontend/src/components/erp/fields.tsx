@@ -108,6 +108,42 @@ export const TILE: Record<string, React.CSSProperties> = {
 // (Notiz #267). Jetzt teilen sich beide dieselbe Anatomie – Karte + Werteraster +
 // Lesefeld – damit die Spezifikation eines Auftrags aussieht wie die eines Artikels.
 
+/**
+ * ►►► **Die Breite eines Datensatz-Fensters — EINE Zahl für alle.** ◄◄◄ (Notiz #763)
+ *
+ * Vorher gab es drei Antworten: Artikel und Instanz begrenzten auf 880, das Unternehmen
+ * auf 760, der **Benutzer auf gar nichts** – sein Formular lief auf einem breiten Schirm
+ * über die volle Fensterbreite auseinander, und eine Zeile wurde unlesbar lang.
+ *
+ * Die einzige Ausnahme ist das **Prozessbild**: es hat drei Spuren und misst seine Breite
+ * selbst (`flow-line.metricsFor`). Das ist kein Ausrutscher, sondern eine andere Sache –
+ * ein Formular liest man in einer Spalte, ein Diagramm braucht seine Bahnen.
+ */
+export const DETAIL_MAXW = 880;
+
+/**
+ * Der Inhalt eines Datensatz-Reiters: **zentriert, auf {@link DETAIL_MAXW} begrenzt**.
+ *
+ * Eine Komponente statt eines wiederholten `style` – sonst ist die nächste Ansicht wieder
+ * die, die es vergisst.
+ */
+export function DetailBody({ children, gap, style }: {
+  children: ReactNode;
+  /** Abstand zwischen den Karten; ohne ihn stapelt der Aufrufer selbst. */
+  gap?: number;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div style={{
+      maxWidth: DETAIL_MAXW, marginInline: 'auto', width: '100%',
+      ...(gap ? { display: 'flex', flexDirection: 'column', gap } : null),
+      ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
 export const SPEC = {
   card: {
     background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
@@ -129,8 +165,14 @@ export const SPEC = {
 export function SpecHead({ icon: Icon, title, right }: {
   icon: ElementType; title: string; right?: ReactNode;
 }) {
+  // **Auf jede Überschrift folgt eine Haarlinie** (Notiz #762). Vorher trug nur der
+  // Abschnitts-Kopf eine, der Karten-Kopf nicht – dieselbe Sache in zwei Formen, und man
+  // sah der Karte an, dass ihre Gliederung aus zwei Zeiten stammt.
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      paddingBottom: 14, marginBottom: 22, borderBottom: '1px solid var(--border-1)',
+    }}>
       <span style={SPEC_ICO}><Icon size={17} /></span>
       <h2 style={{ font: '800 18px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>{title}</h2>
       {right && <span style={{ flex: 'none' }}>{right}</span>}

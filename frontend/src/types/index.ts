@@ -283,7 +283,6 @@ export type UnitPlace = components['schemas']['UnitPlace'];
 /** **Womit bewegt wird** – ein Kanal und seine Verfügbarkeit (`Bewegen.TRANSPORTS`). */
 export type Transport = components['schemas']['Transport'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
-export type ObjectReference = components['schemas']['ObjectReference'];
 export type SalesVisibility = 'public' | 'private';
 export type SalesFulfillment = 'make' | 'stock';
 export type PriceKind = 'one_time' | 'subscription';

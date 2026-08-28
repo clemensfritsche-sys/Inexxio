@@ -19,35 +19,30 @@
 }
 
 /* ── Login Page ──────────────────────────────────────────── */
-.ix-login-bg {
+/* ── Anmeldung: ein Pop-up über dem, was man ansieht ──────────────────────────
+   Vorher lag hier ein deckender, animierter Farbverlauf über der ganzen Seite – man
+   verliess damit die Seite, auf der man war. Ein Scrim sagt das Richtige: darunter geht
+   es weiter, und ein Klick daneben bringt einen zurück. */
+.ix-login-scrim {
   position: fixed;
   inset: 0;
-  background: linear-gradient(135deg, #f5ede4 0%, #e8ddd2 50%, #f0ebe3 100%);
-  z-index: 40;
-}
-.ix-login-bg::before {
-  content: "";
-  position: absolute;
-  width: 200%; height: 200%;
-  background:
-    radial-gradient(circle at 20% 50%, rgba(229,26,20,0.04) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(201,162,122,0.03) 0%, transparent 50%);
-  animation: ix-drift 20s ease-in-out infinite;
-}
-@keyframes ix-drift {
-  0%,100% { transform: translate(0,0); }
-  50%      { transform: translate(20px,-20px); }
-}
-
-.ix-login-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
+  z-index: 60;
   display: flex;
-  align-items: center;
+  /* **Zentriert wird über `margin: auto` an der Karte, nicht über `align-items`.**
+     Gemessen in Chromium (375x420): mit `align-items: center` wird eine Karte, die
+     höher ist als das Fenster, oben **abgeschnitten** – und in einem Scroll-Container
+     ist der Teil vor der Startkante unerreichbar (`scrollTop = 0` liess ihren Kopf bei
+     −74 px stehen). Auf einem Telefon im Querformat wäre damit ausgerechnet das
+     E-Mail-Feld weg. `margin: auto` zentriert genauso und respektiert die Kante. */
   justify-content: center;
   padding: 16px;
+  background: rgba(24, 20, 17, 0.42);
+  backdrop-filter: blur(3px);
+  animation: ix-scrim-in 0.18s ease-out;
+  overflow-y: auto;
 }
+@keyframes ix-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ix-login-scrim { animation: none; } }
 
 .ix-login-card {
   background: var(--bg-1);
@@ -55,6 +50,7 @@
   box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0,0,0,0.06);
   width: 100%;
   max-width: 460px;
+  margin: auto;
   padding: 56px 48px;
   animation: ix-slide-up 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
   position: relative;
@@ -772,10 +768,17 @@
 
 /* ── Detail-Kopf: Status-Aktionsknöpfe (Freigeben/Deaktivieren …) ── */
 .erp-actbtn {
-  display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 15px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 38px; padding: 0 15px;
   border-radius: var(--r-md); font: 700 13.5px var(--font-body); cursor: pointer; white-space: nowrap;
   transition: background .15s, border-color .15s, color .15s; border: 1px solid transparent;
 }
+/* **Der Symbol-Knopf besitzt seine Form hier, nicht an der Aufrufstelle** (Notiz #757).
+   Ohne `justify-content` zentrierte allein die Polsterung – und genau die nimmt ein
+   Symbol-Knopf weg (`padding: 0`), womit das Symbol links im Kasten klebte. Zentriert
+   wird jetzt in der Klasse; die quadratische Form ist eine eigene, und damit kann keine
+   Aufrufstelle mehr `width`/`padding` von Hand setzen und es erneut verschieben. */
+.erp-actbtn-icon { width: 32px; padding: 0; gap: 0; }
 .erp-actbtn:disabled { opacity: .5; cursor: not-allowed; }
 .erp-actbtn-primary { background: var(--inexxio-black); color: #fff; box-shadow: var(--shadow-sm); }
 .erp-actbtn-primary:not(:disabled):hover { background: #26262A; }

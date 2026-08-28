@@ -257,69 +257,20 @@ async def list_users(
             db.query(UserProfile).order_by(UserProfile.email).all()]
 
 
-@router.delete("/users/{user_id}")
-async def deactivate_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
-):
-    if user_id == current_user.id:
-        raise HTTPException(400, detail="Cannot deactivate yourself")
-    user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
-    if not user:
-        raise HTTPException(404, detail="User not found")
-    if user.role == "ai":
-        raise HTTPException(409, detail="Die System-KI kann nicht deaktiviert werden (Abschalten via KI-Konfiguration)")
-    # Deadlock-Schutz: hat der Benutzer noch OFFENE Dokument-Freigaben (pending/rejected
-    # Signoffs auf ausgestellten, nicht abgeschlossenen Dokumenten), würde seine
-    # Deaktivierung diese Aufträge dauerhaft blockieren – nur die benannte Person darf
-    # unterschreiben, und eine deaktivierte kann sich nie mehr anmelden. Erst die
-    # Unterschriften klären (signieren / Ausstellung zurücknehmen), dann deaktivieren.
-    if user.object_id is not None:
-        from ..models import Document, DocumentSignoff
-        blocking = (
-            db.query(DocumentSignoff.id)
-            .join(Document, DocumentSignoff.document_id == Document.id)
-            .filter(DocumentSignoff.signer_object_id == user.object_id,
-                    DocumentSignoff.is_active == True,
-                    DocumentSignoff.status.in_(("pending", "rejected")),
-                    Document.is_active == True, Document.issued == True,
-                    Document.done == False)
-            .count()
-        )
-        if blocking:
-            raise HTTPException(
-                409,
-                detail=f"Benutzer hat noch {blocking} offene Dokument-Freigabe(n) "
-                       "(Unterschrift/Bestätigung ausstehend) – zuerst klären (signieren oder "
-                       "die Ausstellung zurücknehmen), sonst blockieren diese Aufträge für immer.",
-            )
-    log_audit(db, "user_profiles", "is_active", "false", current_user.id,
-              object_id=user_id, old_value="true")
-    user.is_active = False
-    db.commit()
-    return {"deactivated": True}
-
-
-@router.post("/users/{user_id}/reactivate")
-async def reactivate_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
-):
-    """Einen deaktivierten Benutzer **reaktivieren** – die bewusste Admin-Umkehr des
-    Soft-Delete. Die Identität (Objektnummer, Historie, Referenzen) bleibt dieselbe;
-    ein deaktivierter Benutzer wird beim Login abgewiesen statt still neu angelegt."""
-    user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
-    if not user:
-        raise HTTPException(404, detail="User not found")
-    if user.is_active:
-        return {"reactivated": False}   # bereits aktiv (idempotent)
-    log_audit(db, "user_profiles", "is_active", "true", current_user.id,
-              object_id=user_id, old_value="false")
-    user.is_active = True
-    db.commit()
-    return {"reactivated": True}
+# **Ein Benutzer wird nicht deaktiviert – er wechselt die Rolle** (Testnotiz #755).
+#
+# Wer das Unternehmen verlässt, hört nicht auf zu existieren: er wird vom Mitarbeiter zum
+# Kunden und darf weiter einkaufen. Ein Soft-Delete an der Person beantwortete eine Frage,
+# die niemand stellt – und er hatte Folgen, die niemand wollte (die Anmeldung sperren,
+# offene Dokument-Freigaben blockieren, eine Identität stilllegen, auf die Aufträge,
+# Instanzen und Belege zeigen). Beide Endpunkte (`DELETE /users/{id}` und
+# `POST /users/{id}/reactivate`) sind darum ersatzlos entfallen; gepflegt wird die Rolle,
+# und das an der einen Stelle, an der jeder Datensatz gepflegt wird
+# (`PATCH /erp/records/{object_id}`).
+#
+# Die Abweisung beim Login (`core/auth`) bleibt: sie verhindert, dass eine deaktivierte
+# Alt-Zeile still als **neuer** Benutzer wiederaufersteht. Setzen kann diesen Zustand
+# nichts mehr; Migration 118 hat die bestehenden aufgehoben.
 
 
 # ─── Audit log ────────────────────────────────────────────────────────────────
