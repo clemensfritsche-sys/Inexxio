@@ -50,9 +50,6 @@ KIND_SAMPLE = "sample"
 #: der interessantesten Stelle ab.
 KIND_CAPTURE = "capture"
 
-EVENT_KINDS = (KIND_START, KIND_STEP, KIND_END, KIND_HANDOVER, KIND_RETURN,
-               KIND_SAMPLE, KIND_CAPTURE)
-
 
 class ProcessEvent(Base):
     """Ebene 3 – der **Ereignis-Log**. Die Quelle der Wahrheit (PROCESS_CORE.md §10.3).

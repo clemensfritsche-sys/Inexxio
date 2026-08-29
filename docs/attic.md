@@ -116,3 +116,27 @@ stimmt – `404` ist die richtige Antwort. Der frontend-seitige Spiegel las ohne
 von den Backend-Beschriftungen abgewichen: ein Spiegel, den nur ein Test vergleicht.
 
 Wer einen dieser Bereiche neu baut, schreibt seinen Router – er legt keinen Schalter um.
+
+## Die Adress-Helfer für Etikett, Briefkopf und Bezahlung
+
+`services/address.py`: `of_user` · `one_line` · `lines` · `same` (+ `person_name`, `_norm`)
+
+`address.py` war die eine Übersetzung zwischen den historisch verschiedenen Spaltennamen
+(`address_line1`/`postal_code` an der Person ↔ `street`+`street_nr`/`zip_code` am
+Unternehmen) – gebaut für Versand-Etiketten, den PDF-Briefkopf und den Zahlungsanbieter.
+Diese drei Leser sind mit ihren Bereichen gegangen; die Funktionen blieben stehen und
+hatten danach **null** Aufrufer, auch keinen modulinternen.
+
+Zwei Entscheidungen stecken darin und sind es wert, nicht neu hergeleitet zu werden:
+
+* **`of_user` kapselt den Rückfall** «Lieferadresse, sonst Wohnadresse» (`ship_*` ≻ `*`).
+  Er stand vorher an jeder Aufrufstelle einzeln ausgeschrieben – genau die Form, in der
+  eine Adresse je nach Herkunft anders aussieht. Wer den Versand zurückbaut, holt die
+  Funktion aus dem Tag, statt den Rückfall wieder zu verteilen.
+* **`same` wertet zwei Adressen als denselben Ort** (normalisiert, ohne Sonderzeichen) –
+  und **ohne echte Ortsangabe bewusst NICHT als gleich**, sonst gingen zwei leere
+  Adressen als derselbe Ort durch. Daran hing die Transportklasse (ADR 005): «zwei
+  interne Orte mit unterschiedlicher Adresse → Versand».
+
+Geblieben ist, was heute wirklich jemand liest: `iso2` (Gebietskarte, Währung je
+Gesellschaft), `of_company` + `has_content` (Impressum, Halter-Anschrift) und `make`.

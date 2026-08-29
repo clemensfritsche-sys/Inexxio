@@ -1,25 +1,30 @@
-"""Adressen – **EINE** Darstellung für Person und Unternehmen.
+"""Adressen – **EINE** Darstellung, egal woher sie kommen.
 
-Eine Adresse ist am Ende überall dasselbe, egal ob sie an einer Person (Liefer-/
-Rechnungs-/Wohnadresse) oder am Unternehmen (Firmensitz) hängt.
-Die Spaltennamen sind historisch **unterschiedlich** gewachsen
+Eine Adresse ist am Ende überall dasselbe, egal ob sie an einer Person oder am
+Unternehmen hängt. Die Spaltennamen sind historisch **unterschiedlich** gewachsen
 (``address_line1``/``postal_code`` an der Person vs. ``street``+``street_nr``/``zip_code``
 am Unternehmen) – dieses Modul ist die eine Stelle, die das übersetzt.
 
-**Kanonische Form** – ein Satz Schlüssel, den jede Anzeige, jedes Etikett und jeder
-Briefkopf gleich liest::
+**Kanonische Form** – ein Satz Schlüssel, den jede Anzeige gleich liest::
 
-    {name, street1, street2, zip, city, country, email, phone}
+    {name, street1, street2, zip, city, state, country, email, phone}
 
-Vorher baute **jede** Stelle ihre Adresse selbst zusammen, mit je eigener Fallback-Logik
-(``ship_* or *``) und eigenem Strassen-Join. Genau diese Duplikate holt dieses Modul
-zusammen; ``country`` wird dabei konsequent nach ISO-2 normalisiert.
+**Warum es klein ist.** Es war einmal grösser: Versand-Etiketten, PDF-Briefkopf und der
+Zahlungsanbieter lasen hier ihre Adressen, jeder mit eigenem Rückfall. Diese Bereiche
+sind entfernt (``docs/attic.md``), und mit ihnen die Funktionen, die nur sie riefen
+(``of_user``, ``one_line``, ``lines``, ``same``, ``person_name``). Sie stehen im Tag
+``attic/pre-cleanup-2026-08``; wer den Versand zurückbaut, holt sie von dort, statt sie
+neu zu erfinden – der Rückfall «Lieferadresse, sonst Wohnadresse» ist die eine Regel,
+die man dabei leicht wieder an jeder Aufrufstelle einzeln ausschreibt.
+
+Heute liest die **Anschrift des Unternehmens** (Impressum, Halter-Kette) und die
+**Länder-Normalisierung** (Gebietskarte, Währung je Gesellschaft) hier.
 """
 
-import re
 from typing import Optional
 
-# Ländername → ISO-2 (tolerant; Carrier-APIs verlangen Codes).
+# Ländername → ISO-2 (tolerant). Die Gebietskarte und die Währung je Gesellschaft
+# rechnen mit Codes; eingetippt wird «Schweiz».
 _COUNTRY_ISO2 = {
     "schweiz": "CH", "switzerland": "CH", "suisse": "CH", "svizzera": "CH", "ch": "CH",
     "deutschland": "DE", "germany": "DE", "de": "DE",
@@ -34,7 +39,8 @@ _COUNTRY_ISO2 = {
     "spanien": "ES", "spain": "ES", "es": "ES",
 }
 
-# Platzhalter für «keine Strasse hinterlegt» – Carrier-Adapter erwarten ein Feld.
+#: Platzhalter für «keine Strasse hinterlegt» – ein Adressfeld bleibt damit belegt,
+#: und ``has_content`` erkennt es als *nicht* ausgefüllt.
 DASH = "—"
 
 
@@ -59,7 +65,7 @@ def _join(*parts) -> str:
 
 def make(*, name: str = "", street1: str = "", street2: str = "", zip: str = "",
          city: str = "", state: str = "", country=None, email=None, phone=None) -> dict:
-    """Kanonische Adresse bauen (leere Strasse → ``—``, damit Carrier-Felder belegt sind)."""
+    """Kanonische Adresse bauen (leere Strasse → ``—``, damit das Feld belegt ist)."""
     return {
         "name": _txt(name),
         "street1": _txt(street1) or DASH,
@@ -71,43 +77,6 @@ def make(*, name: str = "", street1: str = "", street2: str = "", zip: str = "",
         "email": _txt(email) or None,
         "phone": _txt(phone) or None,
     }
-
-
-# ─── Herkünfte ────────────────────────────────────────────────────────────────────
-
-def person_name(u) -> str:
-    """Anzeigename einer Person für eine Adresse: Firma ≻ Vor-/Nachname ≻ E-Mail."""
-    return (
-        _txt(getattr(u, "company_name", None))
-        or _join(getattr(u, "first_name", None), getattr(u, "last_name", None))
-        or _txt(getattr(u, "email", None))
-        or "Empfänger"
-    )
-
-
-def of_user(u, kind: str = "ship") -> dict:
-    """Adresse einer Person. ``kind`` wählt den Block, mit Rückfall auf die Wohnadresse:
-
-    * ``ship``    – Lieferadresse (Standard: wohin Ware geht)
-    * ``invoice`` – Rechnungsadresse
-    * ``home``    – Wohn-/Kontaktadresse (kein Rückfall nötig)
-
-    Der Rückfall war bisher an jeder Aufrufstelle einzeln ausgeschrieben
-    (``u.ship_postal_code or u.postal_code`` …) – hier steht er genau einmal."""
-    prefix = {"ship": "ship_", "invoice": "invoice_", "home": ""}.get(kind, "ship_")
-
-    def pick(field: str):
-        """Feld aus dem gewählten Block, sonst aus der Wohnadresse."""
-        val = getattr(u, f"{prefix}{field}", None) if prefix else None
-        return val if _txt(val) else getattr(u, field, None)
-
-    return make(
-        name=person_name(u),
-        street1=pick("address_line1"), street2=pick("address_line2"),
-        zip=pick("postal_code"), city=pick("city"),
-        state=pick("state_region"), country=pick("country"),
-        email=getattr(u, "email", None), phone=getattr(u, "phone", None),
-    )
 
 
 def of_company(s) -> dict:
@@ -122,44 +91,8 @@ def of_company(s) -> dict:
     )
 
 
-# ─── Darstellung & Vergleich ──────────────────────────────────────────────────────
-
 def has_content(a: Optional[dict]) -> bool:
     """Trägt die Adresse echte Ortsangaben (PLZ oder Ort)? ``—``/leer zählt nicht."""
     if not a:
         return False
     return bool(_txt(a.get("zip")) or _txt(a.get("city")))
-
-
-def one_line(a: Optional[dict]) -> Optional[str]:
-    """Einzeilige Anzeige: «Name · Strasse · PLZ Ort · Land» (leere Teile entfallen)."""
-    if not a:
-        return None
-    bits = [a.get("name"), a.get("street1"), _join(a.get("zip"), a.get("city")), a.get("country")]
-    return " · ".join(b for b in (_txt(x) for x in bits) if b and b != DASH) or None
-
-
-def lines(a: Optional[dict]) -> list[str]:
-    """Mehrzeilige Anzeige (Briefkopf/Etikett): Name / Strasse / Zusatz / PLZ Ort / Land."""
-    if not a:
-        return []
-    out = [_txt(a.get("name")), _txt(a.get("street1")), _txt(a.get("street2")),
-           _join(a.get("zip"), a.get("city")), _txt(a.get("country"))]
-    return [x for x in out if x and x != DASH]
-
-
-def _norm(v) -> str:
-    """Bestandteil normalisieren (klein, ohne Sonderzeichen) für den Vergleich."""
-    return re.sub(r"[^a-z0-9]", "", _txt(v).lower())
-
-
-def same(a: Optional[dict], b: Optional[dict]) -> bool:
-    """Zwei Adressen als **gleicher Ort** werten (Strasse+PLZ+Ort+Land normalisiert).
-
-    Ohne echte Ortsangabe (siehe ``has_content``) gilt bewusst *nicht* «gleich» – sonst
-    würden zwei leere Adressen als derselbe Ort durchgehen."""
-    if not has_content(a) or not has_content(b):
-        return False
-    key = lambda x: (_norm(x.get("street1")), _norm(x.get("zip")),
-                     _norm(x.get("city")), _norm(x.get("country")))
-    return key(a) == key(b)

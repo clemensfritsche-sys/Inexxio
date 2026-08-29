@@ -327,19 +327,6 @@ class StepConfirm(BaseModel):
     # gewänne auch dann, wenn niemand eine Spedition beauftragt hat.
 
 
-class StepConfirmResult(BaseModel):
-    """Was das Bestätigen bewirkt hat – die Antwort auf «und jetzt?».
-
-    ``held`` ist der Fall, den es vorher nicht gab: erfasst, **nicht bestanden**, nichts
-    vorgerückt. Die Zahl daneben ist die Auskunft, dass genau so viele Stücke jetzt an
-    diesem Modul warten, bis jemand entscheidet.
-    """
-
-    moved: int = 0
-    held: int = 0
-    result: Optional[str] = None
-
-
 class RecordValue(BaseModel):
     """Ein erfasster Wert — **mit seiner Frage**, nicht nur mit seinem Schlüssel."""
 
