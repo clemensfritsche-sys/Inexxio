@@ -122,3 +122,26 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
+
+## Folge-Deploy: Spalten droppen (Aufräumen August 2026)
+
+Die Zwei-Deploy-Regel: **erst** verliert eine Spalte ihr Mapping (dieser Deploy), **dann**
+wird sie gedroppt. Beides in einem Deploy trifft die während des Cloud-Run-Rollouts noch
+laufende Vorgänger-Revision, die sie noch liest – die Ausfallklasse von Migration 090.
+
+Alle unten genannten Spalten sind seit dem Aufräumen **nicht mehr gemappt**; keine trägt
+eine `NOT NULL`-Sperre ohne DB-Default (geprüft), Inserts laufen also unverändert. Der
+Drop ist eine gewöhnliche Migration im **nächsten** Deploy – nicht dringend, aber fällig.
+
+| Tabelle | Spalten |
+|---|---|
+| `articles` | `procurement_mode`, `default_supplier_id`, `default_webshop_url`, `sales_published`, `sales_visibility`, `sales_fulfillment`, `sales_content` |
+| `company_settings` | `logo_path`, `stripe_publishable_key`, `hcaptcha_site_key`, `shop_currencies`, `shop_country_currency`, `shop_default_currency`, `payments_provider`, `pricing_zone_factors`, `infra_monthly_chf`, `legal_documents`, `default_receiving_location_id` |
+| `user_profiles` | `stripe_customer_id` |
+| `purchases` | `reference`, `quantity`, `article_id`, `due_date`, `ordered_for` |
+
+Dazu die **Tabellen** der entfernten Bereiche, die nur noch Daten halten:
+`events`, `article_prices`, `article_sales_audience`, `fx_rates`, `ai_actions`,
+`document_files`, `document_links`, `document_blobs`, `document_signoffs`,
+`document_acknowledgements`. Vor dem Drop sichern (`scripts/dump-db.sh`) – die Historie
+darin ist der einzige Grund, warum sie noch stehen.

@@ -56,8 +56,6 @@ type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
   is_hazmat: string;
-  // Beschaffungsquelle (Spezifikation): Modus + Lieferant (id als String für die Auswahl) / Webshop-Link
-  procurement_mode: string; default_supplier_id: string; default_webshop_url: string;
 };
 
 // Optionale Stammdaten – dynamische Feldliste (nur bei Bedarf hinzufügen).
@@ -78,8 +76,7 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?
 function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
-    is_hazmat: '',
-    procurement_mode: 'supplier', default_supplier_id: '', default_webshop_url: '' };
+    is_hazmat: '' };
   if (!record) return base;
   return {
     ...base,
@@ -90,9 +87,6 @@ function seedFrom(record: Article | null): Form {
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
     is_hazmat: record.is_hazmat ? 'ja' : '',
-    procurement_mode: record.procurement_mode ?? 'supplier',
-    default_supplier_id: record.default_supplier_id != null ? String(record.default_supplier_id) : '',
-    default_webshop_url: record.default_webshop_url ?? '',
   };
 }
 
@@ -195,12 +189,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
     min_order_qty: form.min_order_qty.trim() || null,
     safety_stock: form.safety_stock.trim() || null,
     is_hazmat: form.is_hazmat === 'ja',
-    // Beschaffungsquelle: nur das zum Modus passende Quellfeld senden.
-    procurement_mode: (form.procurement_mode as 'supplier' | 'webshop') || 'supplier',
-    default_supplier_id: form.procurement_mode === 'supplier' && form.default_supplier_id
-      ? Number(form.default_supplier_id) : null,
-    default_webshop_url: form.procurement_mode === 'webshop'
-      ? (form.default_webshop_url.trim() || null) : null,
     // **Ersetzen ist Teil der Anlage** – ein Vorgang, ein Aufruf: der Vorgänger zeigt
     // danach hierher UND ist ausser Betrieb.
     replaces_object_id: replaces?.object_id ?? null,
@@ -674,11 +662,11 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
 }) {
   const has = (k: OptKey) => form[k].trim() !== '';
   const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
-  // KEIN Abschnitt «Beschaffung» mehr: WIE beschafft wird (Quelle, Lieferant, Webshop),
-  // steht ausschliesslich am Beschaffungs-Schritt im Reiter «Prozess» – eine Überschrift
-  // hier las sich, als würde es auch an zwei Stellen gepflegt. Was bleibt, sind zwei
-  // ehrlich getrennte Dinge: **abgeleitete Kennzahlen** (aus der Historie gerechnet) und
-  // die restlichen optionalen Angaben, die zur Spezifikation selbst gehören.
+  // **Wo beschafft wird, steht am Modul – hier nicht.** Der Artikel trägt die
+  // Spezifikation, das Beschaffen-Modul im Reiter «Prozess» trägt seine zugelassenen
+  // Lieferanten. Zwei Stellen für dieselbe Frage wären zwei Wahrheiten. Geblieben sind
+  // zwei ehrlich getrennte Dinge: **abgeleitete Kennzahlen** (aus der Historie gerechnet)
+  // und die optionalen Angaben, die zur Spezifikation selbst gehören.
   return (
     <div style={SPEC.card}>
       {/* Karten-Kopf «Spezifikation» (ohne «+»-Knopf – freigegeben ist read-only). */}

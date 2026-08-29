@@ -67,7 +67,6 @@ _COLUMN_SAFETY_NET = (
     ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
     ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false"),
     ("company_settings", "currency", "VARCHAR(3) NOT NULL DEFAULT 'CHF'"),
-    ("company_settings", "legal_documents", "JSONB"),
     ("company_settings", "is_active", "BOOLEAN NOT NULL DEFAULT true"),
     ("company_settings", "object_id", "BIGINT"),
     # Artikel-Spezifikation (optionale Felder, nachträglich ergänzt).
@@ -234,15 +233,6 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "CHECK (place_object_id IS NULL OR place_unit_id IS NULL); END IF; END $$;",
 )
 
-# Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
-# Die Fixes für purchase_orders / documents / article_process_steps / instances sind mit
-# ihren Tabellen bzw. Spalten entfallen (Migration 102).
-
-# Verkaufs-Sichtbarkeit 'unlisted' wird nicht mehr unterstützt → auf 'private' normalisieren.
-_ARTICLE_DATA_FIXES = (
-    "UPDATE articles SET sales_visibility='private' WHERE sales_visibility='unlisted'",
-)
-
 # Gesellschaften (Migration 091): genau EIN Betreiber. Wurde die Spalte gerade erst vom
 # Sicherheitsnetz ergänzt (Default ``false``), trüge sonst KEINE Zeile die Markierung –
 # lesend fiele ``sites.find_operator`` zwar auf die kleinste ``id`` zurück, aber der
@@ -352,9 +342,6 @@ def _ensure_columns() -> None:
             # zweite Weg, und beim Ausfall zählt nur der zweite Weg. Eine Daten-Reparatur
             # darf ihn nicht mitreissen.
             conn.commit()
-            if "articles" in tables:
-                for stmt in _ARTICLE_DATA_FIXES:
-                    conn.execute(text(stmt))
             for stmt in _ARTICLE_STATUS_FIXES:
                 if stmt.split()[1] in tables:
                     conn.execute(text(stmt))

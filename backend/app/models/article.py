@@ -67,10 +67,11 @@ class Article(Base, TimestampMixin):
     cad_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # CAD-Link
     surface: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Oberfläche
     min_order_qty: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # MOQ
-    safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand = Meldebestand (E)
+    safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand
     supplier_article_number: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Lieferanten-Artikelnummer
-    # Gefahrgut (optionales Spezifikationsfeld): fliesst als Warnung in den Versand (ADR 005)
-    # – ein Paket mit Gefahrgut braucht Spezialbehandlung beim Carrier.
+    # Gefahrgut: ein Spezifikationsfeld wie jedes andere – es reist mit dem
+    # Beschaffungs-Beleg zum Lieferanten (``services/article_fields``), damit er weiss,
+    # was er in die Hand nimmt.
     is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Die frühere Erfassungsmaske am Artikel (``capture_fields``) ist entfallen: was
@@ -78,47 +79,9 @@ class Article(Base, TimestampMixin):
     # war sie eine zweite Stelle für dieselbe Frage – und sie hing an keinem Prozess, man
     # konnte also an einem Stück erfassen, ohne dass es irgendwo davorstand.
 
-    # ── Sicherheitsbestand / Auto-Nachbestellung (E) ───────────────────────────────
-    # «Nicht die Zeit soll bestellen, sondern der Bestand»: fällt der freie Bestand unter
-    # ``safety_stock``, legt das System einen Nachschub-Auftrag an, der **genau auf diese
-    # Menge auffüllt**. Ein separater «Zielbestand» ist mit Migration 089 entfallen (Notiz
-    # #221): zwei Zahlen für dieselbe Frage, von denen die zweite fast immer leer blieb.
-    # Setzt einen freigegebenen Artikel-Prozess voraus (produzierbar/beschaffbar).
-
-    # ── Beschaffungsquelle (Teil der Spezifikation, friert bei Freigabe ein) ───────────
-    # WO dieser Artikel beschafft wird, gehört zur Produktspezifikation – nicht in jeden
-    # einzelnen Beschaffungs-Prozessschritt. Der ``purchase``-Schritt bleibt der Auslöser und
-    # **erbt diese Quelle als Default** (pro Fall am Schritt überschreibbar). Zwei Modi:
-    #   supplier → Bestellung bei ``default_supplier_id`` (UserProfile, Rolle 'supplier')
-    #   webshop  → Beschaffung über ``default_webshop_url`` (kein externer Lieferant)
-    procurement_mode: Mapped[str] = mapped_column(
-        String(20), default="supplier", server_default="supplier", nullable=False)
-    default_supplier_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    default_webshop_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-
-    # Einstandspreis netto/Stück – read-only, aus der zuletzt freigegebenen
-    # Bestellung (Purchase Order) automatisch zurückgeschrieben.
+    # Einstandspreis netto/Stück – read-only, aus dem zuletzt bestellten
+    # Beschaffungs-Beleg automatisch zurückgeschrieben (``services/purchase``).
     landed_unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
 
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Artikels (alt → neu).
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
-
-    # ── Verkauf / Shop (dritte, bewusst LEBENDE Ebene am Artikel) ───────────────────
-    # Anders als Spezifikation + Prozess (die mit der Freigabe einfrieren) bleibt die
-    # Verkaufs-Ebene in JEDEM Status editierbar (analog ``landed_unit_cost``): Preise,
-    # Texte/Bilder, Sichtbarkeit und Zielgruppe ändern sich, während der Artikel
-    # produktiv verkauft wird. Kein eigenes «Angebot»-Objekt, keine Objektnummer.
-    sales_published: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false", nullable=False)
-    # Sichtbarkeit: public (im Shop gelistet) | private (nur zugewiesene Kunden).
-    sales_visibility: Mapped[str] = mapped_column(
-        String(10), default="public", server_default="public", nullable=False)
-    # **Verfügbarkeit (Achse B)** – unabhängig vom Preismodell (Einmalkauf/Abo):
-    #   make  → «auf Bestellung gefertigt» (Made-to-Order): der Kauf löst einen
-    #           Produktions-Auftrag aus, der den **Artikel-Prozess** fährt (kein Lager nötig).
-    #   stock → «ab Lager / limitierte Auflage»: der Kauf bedient sich FIFO aus dem
-    #           Bestand, bis dieser erschöpft ist.
-    sales_fulfillment: Mapped[str] = mapped_column(
-        String(10), default="make", server_default="make", nullable=False)
-    # Lokalisierter Inhalt: {"de": {title, subtitle, description, images: [url]}, "en": {…}}.
-    sales_content: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

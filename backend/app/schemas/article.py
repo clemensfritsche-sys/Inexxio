@@ -2,7 +2,6 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
-from urllib.parse import urlparse
 
 from pydantic import (BaseModel, ConfigDict, Field, field_validator,
                       model_validator)
@@ -17,21 +16,6 @@ ALLOWED_SERIALIZATION = ("unit", "batch")
 #: Aus der EINEN Statusliste (``domain/statuses.ARTICLE_STATUSES``) – hier nicht noch
 #: einmal aufgezählt: eine zweite Liste liefe beim ersten neuen Wert auseinander.
 ALLOWED_STATUS = st.ARTICLE_STATUSES
-# Beschaffungsquelle (Teil der Spezifikation): Lieferant ODER Webshop-Link.
-ALLOWED_PROCUREMENT_MODES = ("supplier", "webshop")
-
-
-def _clean_webshop_url(v: Optional[str]) -> Optional[str]:
-    """Webshop-Link säubern + auf ein gültiges http(s)-URL prüfen (leer → None)."""
-    if v is None:
-        return None
-    v = v.strip()
-    if not v:
-        return None
-    parsed = urlparse(v)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc or "." not in parsed.netloc:
-        raise ValueError("Bitte einen gültigen Link angeben (z. B. https://shop.example.com/…)")
-    return v
 
 # Artikelnamen sind frei wählbar, aber bewusst KURZ gehalten (Feed/Etiketten/Listen bleiben
 # lesbar). Der Wert wird zentral hier gekappt – das Frontend begrenzt die Eingabe zusätzlich.
@@ -142,12 +126,7 @@ class ArticleCreate(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
-    is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
-    # Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (alle optional –
-    # kann später ergänzt werden; der purchase-Schritt erbt sie als Default).
-    procurement_mode: Optional[str] = None   # Default 'supplier'
-    default_supplier_id: Optional[int] = None
-    default_webshop_url: Optional[str] = None
+    is_hazmat: Optional[bool] = None            # Gefahrgut (reist mit dem Beschaffungs-Beleg)
     #: Der Erzeugungsprozess. **Pflicht** – ein Artikel ohne ihn kann nichts erzeugen.
     steps: list[ModuleInput] = Field(default_factory=list)
     #: **Welchen Artikel löst dieser hier ab?** (Objektnummer, optional.)
@@ -167,20 +146,6 @@ class ArticleCreate(BaseModel):
     @classmethod
     def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         return _opt_qty(v)
-
-    @field_validator("procurement_mode")
-    @classmethod
-    def _proc_mode_ok(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if v not in ALLOWED_PROCUREMENT_MODES:
-            raise ValueError("Beschaffungsmodus muss 'supplier' (Lieferant) oder 'webshop' sein")
-        return v
-
-    @field_validator("default_webshop_url")
-    @classmethod
-    def _proc_url_ok(cls, v: Optional[str]) -> Optional[str]:
-        return _clean_webshop_url(v)
 
     @field_validator("name")
     @classmethod
@@ -225,7 +190,6 @@ class ArticleCreate(BaseModel):
         # optional (leer, wenn nicht angegeben – z. B. bei einem Dokument-Artikel).
         self.unit = self.unit or "Stk"
         self.serialization = self.serialization or "unit"
-        self.procurement_mode = self.procurement_mode or "supplier"
         return self
 
 
@@ -244,11 +208,8 @@ class ArticleUpdate(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
-    is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
+    is_hazmat: Optional[bool] = None            # Gefahrgut (reist mit dem Beschaffungs-Beleg)
     # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
-    procurement_mode: Optional[str] = None
-    default_supplier_id: Optional[int] = None
-    default_webshop_url: Optional[str] = None
     # **``is_active`` steht hier bewusst NICHT.** Ein Artikel wird über genau EINE Achse
     # ausser Betrieb genommen: seinen fachlichen ``status`` (Freigegeben ↔ Inaktiv).
     # ``is_active`` ist der Soft-Delete des Datensatzes und gehört keinem Formular –
@@ -266,20 +227,6 @@ class ArticleUpdate(BaseModel):
     @classmethod
     def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         return _opt_qty(v)
-
-    @field_validator("procurement_mode")
-    @classmethod
-    def _proc_mode_ok(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if v not in ALLOWED_PROCUREMENT_MODES:
-            raise ValueError("Beschaffungsmodus muss 'supplier' (Lieferant) oder 'webshop' sein")
-        return v
-
-    @field_validator("default_webshop_url")
-    @classmethod
-    def _proc_url_ok(cls, v: Optional[str]) -> Optional[str]:
-        return _clean_webshop_url(v)
 
     @field_validator("status")
     @classmethod
@@ -387,18 +334,8 @@ class ArticleResponse(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
-    is_hazmat: bool = False                     # Gefahrgut (Versand-Warnung, ADR 005)
-    # Beschaffungsquelle (Spezifikation) + denormalisierter Lieferantenname (Router)
-    procurement_mode: str = "supplier"
-    default_supplier_id: Optional[int] = None
-    default_supplier_name: Optional[str] = None
-    default_supplier_object_id: Optional[int] = None
-    default_webshop_url: Optional[str] = None
-    landed_unit_cost: Optional[Decimal] = None  # read-only, aus letzter Freigabe
-    # Verkauf/Shop (bewusst lebende Ebene – auch nach der Freigabe editierbar)
-    sales_published: bool = False
-    sales_visibility: str = "public"
-    sales_fulfillment: str = "make"
+    is_hazmat: bool = False                     # Gefahrgut (reist mit dem Beschaffungs-Beleg)
+    landed_unit_cost: Optional[Decimal] = None  # read-only, aus der letzten Bestellung
     # Die Erfassungsmaske der Datenerfassung: was an einer Einzelinstanz dieses
     # ── Ersetzen: die Kette in beide Richtungen ────────────────────────────────
     #: Die rohe Kante, wie sie in der Zeile steht (``articles.replaced_by_id``).

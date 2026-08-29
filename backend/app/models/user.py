@@ -89,9 +89,6 @@ class UserProfile(Base, TimestampMixin):
     notification_inapp: Mapped[bool] = mapped_column(Boolean, default=True)
     newsletter_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    # Stripe: gemappter Stripe-Customer (für Checkout, Abos, Customer Portal).
-    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(64), index=True)
-
     # Auth / compliance
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     terms_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

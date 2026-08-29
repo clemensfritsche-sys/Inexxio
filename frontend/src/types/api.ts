@@ -1239,12 +1239,6 @@ export interface components {
             safety_stock?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
-            /** Procurement Mode */
-            procurement_mode?: string | null;
-            /** Default Supplier Id */
-            default_supplier_id?: number | null;
-            /** Default Webshop Url */
-            default_webshop_url?: string | null;
             /** Steps */
             steps?: components["schemas"]["ModuleInput"][];
             /** Replaces Object Id */
@@ -1414,36 +1408,8 @@ export interface components {
              * @default false
              */
             is_hazmat: boolean;
-            /**
-             * Procurement Mode
-             * @default supplier
-             */
-            procurement_mode: string;
-            /** Default Supplier Id */
-            default_supplier_id?: number | null;
-            /** Default Supplier Name */
-            default_supplier_name?: string | null;
-            /** Default Supplier Object Id */
-            default_supplier_object_id?: number | null;
-            /** Default Webshop Url */
-            default_webshop_url?: string | null;
             /** Landed Unit Cost */
             landed_unit_cost?: string | null;
-            /**
-             * Sales Published
-             * @default false
-             */
-            sales_published: boolean;
-            /**
-             * Sales Visibility
-             * @default public
-             */
-            sales_visibility: string;
-            /**
-             * Sales Fulfillment
-             * @default make
-             */
-            sales_fulfillment: string;
             /** Replaced By Id */
             replaced_by_id?: number | null;
             replaced_by?: components["schemas"]["ArticleLink"] | null;
@@ -1513,12 +1479,6 @@ export interface components {
             safety_stock?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
-            /** Procurement Mode */
-            procurement_mode?: string | null;
-            /** Default Supplier Id */
-            default_supplier_id?: number | null;
-            /** Default Webshop Url */
-            default_webshop_url?: string | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
         };
@@ -1618,33 +1578,10 @@ export interface components {
              * @default
              */
             website: string;
-            /** Logo Path */
-            logo_path: string | null;
-            /** Stripe Publishable Key */
-            stripe_publishable_key: string | null;
             /** Plausible Domain */
             plausible_domain: string | null;
-            /** Hcaptcha Site Key */
-            hcaptcha_site_key: string | null;
             /** Google Maps Api Key */
             google_maps_api_key: string | null;
-            /** Shop Currencies */
-            shop_currencies?: string[] | null;
-            /** Shop Country Currency */
-            shop_country_currency?: Record<string, never> | null;
-            /**
-             * Shop Default Currency
-             * @default CHF
-             */
-            shop_default_currency: string;
-            /** Payments Provider */
-            payments_provider?: string | null;
-            /** Pricing Zone Factors */
-            pricing_zone_factors?: Record<string, never> | null;
-            /** Infra Monthly Chf */
-            infra_monthly_chf?: string | null;
-            /** Legal Documents */
-            legal_documents?: Record<string, never> | null;
         };
         /**
          * CompanySettingsUpdate
@@ -1687,28 +1624,10 @@ export interface components {
             email?: string | null;
             /** Phone */
             phone?: string | null;
-            /** Stripe Publishable Key */
-            stripe_publishable_key?: string | null;
             /** Plausible Domain */
             plausible_domain?: string | null;
-            /** Hcaptcha Site Key */
-            hcaptcha_site_key?: string | null;
             /** Google Maps Api Key */
             google_maps_api_key?: string | null;
-            /** Shop Currencies */
-            shop_currencies?: string[] | null;
-            /** Shop Country Currency */
-            shop_country_currency?: Record<string, never> | null;
-            /** Shop Default Currency */
-            shop_default_currency?: string | null;
-            /** Payments Provider */
-            payments_provider?: string | null;
-            /** Pricing Zone Factors */
-            pricing_zone_factors?: Record<string, never> | null;
-            /** Infra Monthly Chf */
-            infra_monthly_chf?: number | string | null;
-            /** Legal Documents */
-            legal_documents?: Record<string, never> | null;
         };
         /** ContactRequest */
         ContactRequest: {

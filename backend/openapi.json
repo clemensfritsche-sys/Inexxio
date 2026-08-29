@@ -3365,39 +3365,6 @@
             ],
             "title": "Is Hazmat"
           },
-          "procurement_mode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Procurement Mode"
-          },
-          "default_supplier_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Supplier Id"
-          },
-          "default_webshop_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Webshop Url"
-          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/ModuleInput"
@@ -3757,55 +3724,6 @@
             "title": "Is Hazmat",
             "default": false
           },
-          "procurement_mode": {
-            "type": "string",
-            "title": "Procurement Mode",
-            "default": "supplier"
-          },
-          "default_supplier_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Supplier Id"
-          },
-          "default_supplier_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Supplier Name"
-          },
-          "default_supplier_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Supplier Object Id"
-          },
-          "default_webshop_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Webshop Url"
-          },
           "landed_unit_cost": {
             "anyOf": [
               {
@@ -3816,21 +3734,6 @@
               }
             ],
             "title": "Landed Unit Cost"
-          },
-          "sales_published": {
-            "type": "boolean",
-            "title": "Sales Published",
-            "default": false
-          },
-          "sales_visibility": {
-            "type": "string",
-            "title": "Sales Visibility",
-            "default": "public"
-          },
-          "sales_fulfillment": {
-            "type": "string",
-            "title": "Sales Fulfillment",
-            "default": "make"
           },
           "replaced_by_id": {
             "anyOf": [
@@ -4091,39 +3994,6 @@
             ],
             "title": "Is Hazmat"
           },
-          "procurement_mode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Procurement Mode"
-          },
-          "default_supplier_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Supplier Id"
-          },
-          "default_webshop_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Webshop Url"
-          },
           "expected_updated_at": {
             "anyOf": [
               {
@@ -4356,28 +4226,6 @@
             "title": "Website",
             "default": ""
           },
-          "logo_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Logo Path"
-          },
-          "stripe_publishable_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stripe Publishable Key"
-          },
           "plausible_domain": {
             "anyOf": [
               {
@@ -4389,17 +4237,6 @@
             ],
             "title": "Plausible Domain"
           },
-          "hcaptcha_site_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hcaptcha Site Key"
-          },
           "google_maps_api_key": {
             "anyOf": [
               {
@@ -4410,80 +4247,6 @@
               }
             ],
             "title": "Google Maps Api Key"
-          },
-          "shop_currencies": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shop Currencies"
-          },
-          "shop_country_currency": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shop Country Currency"
-          },
-          "shop_default_currency": {
-            "type": "string",
-            "title": "Shop Default Currency",
-            "default": "CHF"
-          },
-          "payments_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payments Provider"
-          },
-          "pricing_zone_factors": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pricing Zone Factors"
-          },
-          "infra_monthly_chf": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Infra Monthly Chf"
-          },
-          "legal_documents": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Legal Documents"
           }
         },
         "type": "object",
@@ -4500,10 +4263,7 @@
           "vat_number",
           "email",
           "phone",
-          "logo_path",
-          "stripe_publishable_key",
           "plausible_domain",
-          "hcaptcha_site_key",
           "google_maps_api_key"
         ],
         "title": "CompanySettingsResponse"
@@ -4653,17 +4413,6 @@
             ],
             "title": "Phone"
           },
-          "stripe_publishable_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stripe Publishable Key"
-          },
           "plausible_domain": {
             "anyOf": [
               {
@@ -4675,17 +4424,6 @@
             ],
             "title": "Plausible Domain"
           },
-          "hcaptcha_site_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hcaptcha Site Key"
-          },
           "google_maps_api_key": {
             "anyOf": [
               {
@@ -4696,89 +4434,6 @@
               }
             ],
             "title": "Google Maps Api Key"
-          },
-          "shop_currencies": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shop Currencies"
-          },
-          "shop_country_currency": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shop Country Currency"
-          },
-          "shop_default_currency": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shop Default Currency"
-          },
-          "payments_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payments Provider"
-          },
-          "pricing_zone_factors": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pricing Zone Factors"
-          },
-          "infra_monthly_chf": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Infra Monthly Chf"
-          },
-          "legal_documents": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Legal Documents"
           }
         },
         "type": "object",

@@ -30,18 +30,8 @@ class CompanySettingsUpdate(BaseModel):
     iban: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    stripe_publishable_key: Optional[str] = None
     plausible_domain: Optional[str] = None
-    hcaptcha_site_key: Optional[str] = None
     google_maps_api_key: Optional[str] = None
-    # Shop / Verkauf
-    shop_currencies: Optional[list[str]] = None
-    shop_country_currency: Optional[dict] = None
-    shop_default_currency: Optional[str] = None
-    payments_provider: Optional[str] = None
-    pricing_zone_factors: Optional[dict] = None
-    infra_monthly_chf: Optional[Decimal] = None
-    legal_documents: Optional[dict] = None
 
 
 class CompanyCreate(BaseModel):
@@ -82,21 +72,8 @@ class CompanySettingsResponse(BaseModel):
     # Installation läuft (``FRONTEND_BASE_URL``). Sie steht im Impressum und auf dem
     # Beleg-Briefkopf – und wäre als Eingabefeld eine zweite Wahrheit neben dem Deployment.
     website: str = ""
-    logo_path: Optional[str]
-    stripe_publishable_key: Optional[str]
     plausible_domain: Optional[str]
-    hcaptcha_site_key: Optional[str]
     google_maps_api_key: Optional[str]
-    # Shop / Verkauf
-    shop_currencies: Optional[list[str]] = None
-    shop_country_currency: Optional[dict] = None
-    shop_default_currency: str = "CHF"
-    payments_provider: Optional[str] = None
-    pricing_zone_factors: Optional[dict] = None
-    infra_monthly_chf: Optional[Decimal] = None
-    # Öffentliche Rechtsdokumente (D): {"agb": <Artikel-Objektnr>, "datenschutz": …}
-    legal_documents: Optional[dict] = None
-    # Bestätigungspflicht je Dokument-Art: {"agb": ["all"], …} (Consent-Gate)
 
 
 class TerritoryRegion(BaseModel):
@@ -296,29 +273,3 @@ class ErpAdminUpdate(UserProfileUpdate):
     job_title: Optional[str] = None
     employment_start_date: Optional[date] = None
     weekly_hours: Optional[Decimal] = None
-
-
-# ─── Betriebskosten (Monat-bis-heute, tatsächlich wo messbar) ────────────────────
-class CostItem(BaseModel):
-    label: str
-    value_chf: float
-    hint: Optional[str] = None
-
-
-class CostGroup(BaseModel):
-    key: str            # ai | payments | infrastructure
-    label: str
-    total_chf: float    # Monat-bis-heute
-    basis: str          # 'actual' (gemessen) | 'estimate' (geschätzt)
-    items: list[CostItem] = []
-
-
-class OperatingCostsResponse(BaseModel):
-    """Betriebskosten des laufenden Monats bis heute (tatsächlich, wo messbar) +
-    Hochrechnung aufs Monatsende."""
-    period_label: str          # z. B. «Juli 2026»
-    day_of_month: int
-    days_in_month: int
-    groups: list[CostGroup] = []
-    total_mtd_chf: float
-    projected_month_chf: float

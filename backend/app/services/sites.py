@@ -97,12 +97,7 @@ def website_url() -> str:
 # ausschliesslich über ``PATCH /admin/settings`` (Systemkonfiguration) gepflegt. ``apply_update``
 # schreibt sie NIE, damit ein Nebenstandort keinen Stripe-Key o. ä. setzen kann. Die ``iban``
 # ist Entität, wird aber gesondert behandelt (verschlüsselte Spalte).
-PLATFORM_FIELDS = (
-    "stripe_publishable_key", "plausible_domain", "hcaptcha_site_key", "google_maps_api_key",
-    "shop_currencies", "shop_country_currency", "shop_default_currency", "payments_provider",
-    "pricing_zone_factors", "legal_documents", "default_receiving_location_id",
-    "infra_monthly_chf",
-)
+PLATFORM_FIELDS = ("plausible_domain", "google_maps_api_key")
 
 
 def _assign_object_id(db: Session, company: CompanySettings) -> None:

@@ -1,8 +1,6 @@
-from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Integer, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, Boolean, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -93,45 +91,11 @@ class CompanySettings(Base):
     iban_encrypted: Mapped[Optional[str]] = mapped_column(Text)
     email: Mapped[str] = mapped_column(String(255), default="info@inexxio.com")
     phone: Mapped[Optional[str]] = mapped_column(String(50))
-    logo_path: Mapped[Optional[str]] = mapped_column(String(500))
-
-    # API Keys / Integrations
-    stripe_publishable_key: Mapped[Optional[str]] = mapped_column(String(255))
+    # ── Plattform-Konfiguration (die EINE Website, nicht je Gesellschaft) ─────────
+    # Sie steht als Spalten auf dem Betreiber-Datensatz und wird ausschliesslich über
+    # die Systemkonfiguration gepflegt (``services/sites.PLATFORM_FIELDS``).
     plausible_domain: Mapped[Optional[str]] = mapped_column(String(255))
-    hcaptcha_site_key: Mapped[Optional[str]] = mapped_column(String(255))
     google_maps_api_key: Mapped[Optional[str]] = mapped_column(String(255))
-
-    # ── Shop / Verkauf ──────────────────────────────────────────────────────────
-    # Im Shop wählbare Währungen (Default CHF/EUR/USD) sowie die Zuordnung
-    # Land → Default-Währung (editierbar) und die Fallback-Währung.
-    shop_currencies: Mapped[Optional[list]] = mapped_column(JSONB)
-    shop_country_currency: Mapped[Optional[dict]] = mapped_column(JSONB)
-    shop_default_currency: Mapped[str] = mapped_column(
-        String(3), default="CHF", server_default="CHF", nullable=False)
-    # Zahlungs-Provider (überschreibt die Env ``PAYMENTS_PROVIDER``): 'manual' | 'stripe'.
-    payments_provider: Mapped[Optional[str]] = mapped_column(String(16))
-    # Optionale Preis-Pipeline-Stufe ② (PPP/Kaufkraft): Land → Faktor, z. B.
-    # {"Deutschland": 1.1, "USA": 0.9}. Leer/NULL = Stufe abgeschaltet (Default).
-    pricing_zone_factors: Mapped[Optional[dict]] = mapped_column(JSONB)
-
-    # **Infrastruktur-Kosten / Monat (CHF)** – der reale, fixe Google-Cloud-Monatsbetrag aus
-    # der Abrechnung (Notiz #293). Ist er gesetzt, zeigt die Betriebskosten-Übersicht ihn als
-    # **fix** statt als geschätzt (der Code-Default ist nur der Spannen-Mittelwert). Plattform-
-    # Feld (die eine Website/Infrastruktur), nur über die Systemkonfiguration.
-    infra_monthly_chf: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-
-    # ── Öffentliche Rechtsdokumente (D): Zeiger auf einen **Artikel** ───────────────
-    # Je Rechtsdokument-Art (AGB/Datenschutz/…) die **Objektnummer eines Artikels**. Die
-    # Website zieht dessen erste freigegebene Instanz (den ausgestellten Dokument-Beleg).
-    # Map ``{"agb": 100000123, "datenschutz": …}`` (Wert = Artikel-Objektnummer). Neue
-    # Fassung = neuer Artikel + «Ersetzen» (``replaced_by_id``): die Auflösung folgt der
-    # Kette automatisch auf die neueste Fassung mit freigegebenem Beleg; alte Fassungen
-    # bleiben über ihre Instanz-Objektnummer archiviert (``services/legal.py``).
-    legal_documents: Mapped[Optional[dict]] = mapped_column(JSONB)
-
-    # (``legal_ack_config`` – die frühere konfigurierbare Bestätigungspflicht – ist
-    # entfernt: die Pflicht ist HART verdrahtet (``consent.MUST_ACKNOWLEDGE_KINDS``),
-    # Rollen-Publikum läuft über die Dokument-Schritte (``doc_audience``). Migration 075.)
 
 
 class CompanyTerritory(Base):

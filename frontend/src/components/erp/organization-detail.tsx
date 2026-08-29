@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Building2, Server, FolderOpen, Star, Pencil, Ban } from 'lucide-react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type {CompanySettings } from '@/types';
 import { DetailTabs } from '@/components/erp/detail-tabs';
@@ -118,12 +117,6 @@ const TAX_IDS_DEFAULT: TaxIds = {
 function taxIds(country: string | undefined): TaxIds {
   return TAX_IDS_BY_ISO2[toIso2(country)] ?? TAX_IDS_DEFAULT;
 }
-
-// EIN QueryClient für den System-Reiter (die Plattform-Konfiguration nutzt React Query,
-// wie zuvor die – jetzt entfallene – Seite Admin → Einstellungen).
-const systemQueryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 60_000 } },
-});
 
 /** «Musterstrasse 12» → ('Musterstrasse', '12'). Das Unternehmen führt Strasse und
  *  Hausnummer getrennt; Google (und jede andere Quelle) liefert sie als eine Zeile. */
@@ -385,9 +378,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
         {tab === 'system' && isOperator && (
-          <QueryClientProvider client={systemQueryClient}>
-            <SystemConfigSection onSaved={(s) => onSaved({ ...base, ...s })} />
-          </QueryClientProvider>
+          <SystemConfigSection settings={base} onSaved={(s) => onSaved({ ...base, ...s })} />
         )}
         {tab === 'stamm' && (
         <DetailBody gap={16}>

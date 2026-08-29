@@ -842,21 +842,10 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     phone: (s.phone as string | null) ?? null,
     // Abgeleitet aus dem Deployment (read-only, #309) – keine Eingabe, kein Rückweg.
     website: (s.website as string) ?? '',
-    logo_url: (s.logo_path as string | null) ?? null,
     iban: null,
     iban_masked: (s.iban_masked as string | null) ?? null,
-    stripe_publishable_key: (s.stripe_publishable_key as string | null) ?? null,
     plausible_domain: (s.plausible_domain as string | null) ?? null,
-    hcaptcha_site_key: (s.hcaptcha_site_key as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
-    default_receiving_location_id: (s.default_receiving_location_id as number | null) ?? null,
-    shop_currencies: (s.shop_currencies as string[] | null) ?? ['CHF', 'EUR', 'USD'],
-    shop_country_currency: (s.shop_country_currency as Record<string, string> | null) ?? null,
-    shop_default_currency: (s.shop_default_currency as string | null) ?? 'CHF',
-    payments_provider: (s.payments_provider as string | null) ?? null,
-    pricing_zone_factors: (s.pricing_zone_factors as Record<string, number> | null) ?? null,
-    infra_monthly_chf: (s.infra_monthly_chf as number | null) ?? null,
-    legal_documents: (s.legal_documents as Record<string, number> | null) ?? null,
   };
 }
 
@@ -868,7 +857,7 @@ function mapSettingsToBackend(s: Partial<CompanySettings>): Record<string, unkno
   };
   // `website` ist abgeleitet (Deployment-Adresse, #309) – es zurückzuschicken hiesse,
   // eine zweite Wahrheit anzulegen; das Backend nähme es ohnehin nicht an.
-  const skip = new Set(['iban_masked', 'logo_url', 'website', 'is_operator', 'has_address', 'is_active']);
+  const skip = new Set(['iban_masked', 'website', 'is_operator', 'has_address', 'is_active']);
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(s)) {
     if (skip.has(k)) continue;

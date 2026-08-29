@@ -370,24 +370,12 @@ export interface CompanySettings {
   phone: string | null;
   /** **Abgeleitet** (read-only): die Adresse, unter der diese Installation läuft (#309). */
   website: string;
-  logo_url: string | null;
   iban: string | null;
   iban_masked: string | null;
-  stripe_publishable_key: string | null;
+  // Plattform-Konfiguration: gilt der EINEN Website, steht darum nur am Betreiber – und
+  // nur, was auch einen Leser hat (Analytics-Skript bzw. die Adress-Suche).
   plausible_domain: string | null;
-  hcaptcha_site_key: string | null;
   google_maps_api_key: string | null;
-  default_receiving_location_id: number | null;
-  // Shop / Verkauf
-  shop_currencies: string[];
-  shop_country_currency: Record<string, string> | null;
-  shop_default_currency: string;
-  payments_provider: string | null;
-  pricing_zone_factors: Record<string, number> | null;
-  // Realer Infrastruktur-Monatsbetrag (CHF) – gesetzt = «fix» in den Betriebskosten (#293).
-  infra_monthly_chf: number | null;
-  // Öffentliche Rechtsdokumente (D): {"agb": <Artikel-Objektnr>, "datenschutz": …}
-  legal_documents: Record<string, number> | null;
 }
 
 // Es gibt genau EINEN Datensatztyp für Unternehmen/Gesellschaften: `CompanySettings`
