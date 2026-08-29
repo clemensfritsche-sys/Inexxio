@@ -42,11 +42,11 @@ export class ErrorBoundary extends Component<
             Bei diesem Datensatz ist ein Anzeige-Fehler aufgetreten. Du kannst zurück zur Liste und einen
             anderen Datensatz öffnen – deine Daten sind nicht verloren.
           </div>
-          <code style={{ fontSize: 11, color: '#94a3b8', maxWidth: 360, wordBreak: 'break-word' }}>
+          <code style={{ fontSize: 11, color: 'var(--fg-4)', maxWidth: 360, wordBreak: 'break-word' }}>
             {this.state.error.message}
           </code>
           <button onClick={() => { this.setState({ error: null }); this.props.onReset?.(); }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#2563eb', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border-2)', background: 'var(--bg-1)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             <RotateCcw size={14} /> Zurück
           </button>
         </div>

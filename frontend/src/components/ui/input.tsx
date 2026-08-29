@@ -16,14 +16,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-slate-700 mb-1.5">
+          <label htmlFor={inputId} className="block text-sm font-medium text-fg-2 mb-1.5">
             {label}
             {props.required && <span className="ml-1 text-red-500">*</span>}
           </label>
         )}
         <div className="relative flex items-center">
           {leftAddon && (
-            <div className="absolute left-3 flex items-center pointer-events-none text-slate-400">
+            <div className="absolute left-3 flex items-center pointer-events-none text-fg-4">
               {leftAddon}
             </div>
           )}
@@ -31,9 +31,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              'w-full border rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400',
+              'w-full border rounded-lg px-3 py-2.5 text-sm text-fg-1 placeholder-fg-4',
               'focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-shadow',
-              error ? 'border-red-300 focus:ring-red-500' : 'border-slate-300',
+              error ? 'border-red-300 focus:ring-red-500' : 'border-border-2',
               leftAddon && 'pl-10',
               rightAddon && 'pr-10',
               className,
@@ -41,13 +41,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           {rightAddon && (
-            <div className="absolute right-3 flex items-center pointer-events-none text-slate-400">
+            <div className="absolute right-3 flex items-center pointer-events-none text-fg-4">
               {rightAddon}
             </div>
           )}
         </div>
         {error && <p className="mt-1.5 text-sm text-red-600">{error}</p>}
-        {helperText && !error && <p className="mt-1.5 text-sm text-slate-500">{helperText}</p>}
+        {helperText && !error && <p className="mt-1.5 text-sm text-fg-3">{helperText}</p>}
       </div>
     );
   },

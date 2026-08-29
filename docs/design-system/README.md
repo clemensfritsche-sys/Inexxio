@@ -61,24 +61,32 @@ Komponenten hart kodieren.
   Schatten weich, warm, zurückhaltend. Roter Glow (`shadow-ds-red`/`shadow-glow-*`)
   nur als Hover/Press-Akzent, **nie** als Ruhezustand.
 
-## 4. Migration der Bestands-Komponenten (inkrementell)
+## 4. Migration der Bestands-Komponenten — **abgeschlossen** (August 2026)
 
-Viele bestehende ERP-Komponenten nutzen noch `slate-*` / `blue-600` (Alt-Marke) und
-`fields.tsx: tone='#2563eb'`. Das bleibt **kompilierbar** (deprecated `brand-*` in
-Tailwind), ist aber **nicht mehr Zielbild**. Beim Anfassen einer Komponente:
+Die Alt-Palette ist aus dem Code verschwunden: `slate-*`, `blue-*`, `gray-*`, das
+hartkodierte `#2563eb` und der `brand-*`-Vorrat in `tailwind.config.js` sind entfernt
+(**0 Vorkommen**, geprüft). Was hier stand, war der Migrationspfad; er ist gegangen.
+
+Die Zuordnung bleibt als **Lesehilfe** für alten Code aus der Historie:
 
 | alt (deprecated) | neu (Design System) |
 |---|---|
 | `bg-slate-50` / `bg-white` | `bg-bg-2` / `bg-bg-1` |
-| `text-slate-900` / `-600` / `-400` | `text-fg-1` / `text-fg-3` / `text-fg-4` |
+| `bg-slate-900` (Inverse-Sektion) | `bg-bg-dark` (Achtung: Farbgruppe **und** Wert heissen `bg`) |
+| `text-slate-900` / `-700` / `-600` / `-400` | `text-fg-1` / `-2` / `-3` / `-4` |
 | `border-slate-200` | `border-border-1` |
-| `blue-600` (info/aktiv) | `accent` (Slate) |
-| `text-blue-600` als Marke | `text-inexxio` (Rot, nur echter Akzent) |
+| `blue-600` (Info/aktiv/Link) | `accent` (Slate) |
+| `bg-blue-50/100` (Info-Fläche, Symbol-Chip) | `bg-accent-soft` + `text-accent-ink` |
+| `bg-blue-600` als **CTA-Fläche** | `bg-inexxio` (Rot = der EINE laute Akzent) |
 | `focus:ring-blue-500` | `focus:ring-accent` |
 | `rounded-xl` (Karte) | `rounded-ds-lg` |
 
-Keine Big-Bang-Umfärbung – **beim nächsten Edit einer Datei mitziehen**, so
-konvergiert die App verlustfrei aufs System.
+> **Gemessen, nicht geglaubt.** Die Umstellung der öffentlichen Seiten wurde in Chromium
+> geprüft (Screenshot + eine Suche nach Text, dessen Farbe der Hintergrundfarbe
+> entspricht). Genau das hat den einen echten Fehler gefunden: `bg-dark` gibt es nicht –
+> die Farbgruppe heisst `bg`, die Klasse also `bg-bg-dark`. Ohne die Prüfung wären fünf
+> dunkle Hero-Sektionen weiss auf weiss gewesen, und der Build hätte nichts gemeldet:
+> eine unbekannte Tailwind-Klasse ist kein Fehler, sie erzeugt schlicht kein CSS.
 
 ## 5. Neuen Claude-Design-Export übernehmen (Re-Sync)
 

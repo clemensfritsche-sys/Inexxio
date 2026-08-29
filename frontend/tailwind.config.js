@@ -73,17 +73,6 @@ module.exports = {
           2: 'var(--border-2)',
           strong: 'var(--border-strong)',
         },
-        // DEPRECATED — legacy blue brand. Do not use in new UI: brand = inexxio
-        // (red), informational/active = accent (slate). Kept only so existing
-        // `brand-*` usages keep compiling during the incremental migration.
-        brand: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          900: '#1e3a8a',
-        },
       },
       borderRadius: {
         // DS radii — namespaced `ds-*` so Tailwind's own rounded-{sm,md,lg,…}

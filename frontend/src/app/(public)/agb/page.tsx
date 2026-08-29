@@ -12,10 +12,10 @@ export default function AGBPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero */}
-      <section className="bg-slate-900 py-16">
+      <section className="bg-bg-dark py-16">
         <div className="container">
           <h1 className="text-4xl font-bold text-white">Allgemeine Geschäftsbedingungen</h1>
-          <p className="mt-2 text-slate-400">
+          <p className="mt-2 text-fg-4">
             Version {VERSION} | Gültig ab {VALID_FROM}
           </p>
         </div>
@@ -26,13 +26,13 @@ export default function AGBPage() {
                     <>
           {/* Tab Navigation */}
           <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+            <div className="flex rounded-xl border border-border-1 bg-bg-2 p-1">
               <button
                 onClick={() => setActiveTab('b2b')}
                 className={`rounded-lg px-5 py-2 text-sm font-medium transition-all ${
                   activeTab === 'b2b'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-fg-1 shadow-sm'
+                    : 'text-fg-3 hover:text-fg-1'
                 }`}
               >
                 Für Geschäftskunden (B2B)
@@ -41,8 +41,8 @@ export default function AGBPage() {
                 onClick={() => setActiveTab('b2c')}
                 className={`rounded-lg px-5 py-2 text-sm font-medium transition-all ${
                   activeTab === 'b2c'
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-fg-1 shadow-sm'
+                    : 'text-fg-3 hover:text-fg-1'
                 }`}
               >
                 Für Endkunden (B2C)
@@ -50,7 +50,7 @@ export default function AGBPage() {
             </div>
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 print:hidden"
+              className="flex items-center gap-2 text-sm text-fg-3 hover:text-fg-1 print:hidden"
             >
               <Printer className="h-4 w-4" />
               Drucken
@@ -60,8 +60,8 @@ export default function AGBPage() {
           {/* B2B Terms */}
           {activeTab === 'b2b' && (
             <div className="prose prose-slate max-w-none">
-              <div className="mb-6 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-                <p className="text-sm text-blue-800 font-medium">
+              <div className="mb-6 rounded-lg bg-accent-soft border border-border-1 px-4 py-3">
+                <p className="text-sm text-accent-ink font-medium">
                   Diese Allgemeinen Verkaufsbedingungen gelten für alle Lieferungen und Leistungen
                   der Inexxio AG an Geschäftskunden.
                 </p>
@@ -215,7 +215,7 @@ export default function AGBPage() {
                 <p>
                   Die Verarbeitung personenbezogener Daten von Kontaktpersonen des Käufers erfolgt
                   gemäss unserer Datenschutzerklärung unter{' '}
-                  <a href="/datenschutz" className="text-blue-600 hover:underline">
+                  <a href="/datenschutz" className="text-accent hover:underline">
                     inexxio.com/datenschutz
                   </a>
                   . Grundlage der Verarbeitung sind das Schweizer DSG (01.09.2023) und die DSGVO.
@@ -243,7 +243,7 @@ export default function AGBPage() {
                   Änderungen und Ergänzungen zu diesen AVB bedürfen zu ihrer Wirksamkeit der
                   Schriftform.
                 </p>
-                <p className="mt-4 text-sm text-slate-500">
+                <p className="mt-4 text-sm text-fg-3">
                   Version {VERSION} | Gültig ab {VALID_FROM} | Inexxio AG
                 </p>
               </Section>
@@ -253,8 +253,8 @@ export default function AGBPage() {
           {/* B2C Terms */}
           {activeTab === 'b2c' && (
             <div className="prose prose-slate max-w-none">
-              <div className="mb-6 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-                <p className="text-sm text-blue-800 font-medium">
+              <div className="mb-6 rounded-lg bg-accent-soft border border-border-1 px-4 py-3">
+                <p className="text-sm text-accent-ink font-medium">
                   Diese Allgemeinen Geschäftsbedingungen gelten für alle Käufe über den
                   Online-Shop von Inexxio AG durch Endverbraucher.
                 </p>
@@ -389,7 +389,7 @@ export default function AGBPage() {
               <Section title="§ 8 Datenschutz">
                 <p>
                   Die Verarbeitung Ihrer personenbezogenen Daten erfolgt gemäss unserer{' '}
-                  <a href="/datenschutz" className="text-blue-600 hover:underline">
+                  <a href="/datenschutz" className="text-accent hover:underline">
                     Datenschutzerklärung
                   </a>
                   , die Sie unter www.inexxio.com/datenschutz einsehen können.
@@ -411,7 +411,7 @@ export default function AGBPage() {
                   Sollten einzelne Bestimmungen dieser AGB unwirksam sein, berührt dies die
                   Wirksamkeit der übrigen Bestimmungen nicht. Es gilt Schweizer Recht.
                 </p>
-                <p className="mt-4 text-sm text-slate-500">
+                <p className="mt-4 text-sm text-fg-3">
                   Version {VERSION} | Gültig ab {VALID_FROM} | Inexxio AG
                 </p>
               </Section>
@@ -434,9 +434,9 @@ function Section({
   isLast?: boolean;
 }) {
   return (
-    <div className={`${isLast ? '' : 'mb-8 pb-8 border-b border-slate-100'}`}>
-      <h2 className="mb-3 text-lg font-bold text-slate-900">{title}</h2>
-      <div className="text-sm text-slate-700 leading-relaxed space-y-0">{children}</div>
+    <div className={`${isLast ? '' : 'mb-8 pb-8 border-b border-border-1'}`}>
+      <h2 className="mb-3 text-lg font-bold text-fg-1">{title}</h2>
+      <div className="text-sm text-fg-2 leading-relaxed space-y-0">{children}</div>
     </div>
   );
 }

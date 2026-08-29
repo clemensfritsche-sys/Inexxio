@@ -23,12 +23,6 @@ export function formatAmount(v: string | number | null | undefined): string {
     .replace(/\u2019/g, "'");
 }
 
-// Betrag MIT Währungspräfix («CHF 12'345.60»).
-export function formatMoney(amount: string | number | null | undefined, currency: string): string {
-  if (amount == null || amount === '') return '—';
-  return `${currency} ${formatAmount(amount)}`;
-}
-
 // ISO-Timestamp → Schweizer Datum («03.07.2026»), leer → «—».
 export function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
@@ -37,38 +31,6 @@ export function localDate(iso: string | null | undefined): string {
 /** Datum **und** Uhrzeit («31.07.26, 21:52») – die Form der Wer/Wann-Angaben. */
 export function localDateTime(iso: string | null | undefined): string | undefined {
   return iso ? new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' }) : undefined;
-}
-
-/**
- * **Wer/Wann als eine Zeile** – «Clemens Fritsche · 31.07.26, 21:52».
- *
- * Die ERP-Konvention ist, dass eine erledigte Sache im **Hover** sagt, wer sie wann getan
- * hat (Notizen #276/#88). Diese eine Zeichenkette entstand an vier Stellen einzeln; hier
- * steht sie einmal. `undefined`, wenn nichts zu sagen ist – dann gibt es auch keinen Hover.
- */
-export function actorHint(by: string | null | undefined, at: string | null | undefined): string | undefined {
-  const when = localDateTime(at);
-  const parts = [by, when].filter(Boolean);
-  return parts.length ? parts.join(' · ') : undefined;
-}
-
-// Relative Zeitangabe («gerade eben», «vor 2 Std», «vor 1 Tag») – für Detail-Kacheln.
-export function timeAgo(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
-  if (s < 60) return 'gerade eben';
-  const m = Math.floor(s / 60);
-  if (m < 60) return `vor ${m} Min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `vor ${h} Std`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return d === 1 ? 'vor 1 Tag' : `vor ${d} Tagen`;
-  const mo = Math.floor(d / 30);
-  if (mo < 12) return mo === 1 ? 'vor 1 Monat' : `vor ${mo} Monaten`;
-  const y = Math.floor(d / 365);
-  return y === 1 ? 'vor 1 Jahr' : `vor ${y} Jahren`;
 }
 
 /**

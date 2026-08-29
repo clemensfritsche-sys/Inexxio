@@ -15,19 +15,6 @@ export interface StatusCfg {
   icon?: ElementType;
 }
 
-/**
- * Status → Anzeige-Konfiguration, mit Rückfall auf den Anfangszustand.
- *
- * Dieser Dreizeiler lag fünfmal identisch im Code (Artikel, Auftrag, Beschaffung,
- * Verkauf, Instanz) – gleiche Bedeutung, fünf Funktionen. Die fachlichen Karten
- * bleiben je Domäne, die *Auflösung* ist jetzt eine.
- */
-export function pickCfg<T extends string>(
-  map: Record<T, StatusCfg>, status: string, fallback: T,
-): StatusCfg {
-  return map[status as T] ?? map[fallback];
-}
-
 export interface StatusAction {
   label: string;
   target: string;
@@ -51,16 +38,4 @@ export const TONE: Record<'pending' | 'done' | 'danger', { color: string; bg: st
   done:     { color: 'var(--success)', bg: 'var(--success-bg)' },
   danger:   { color: 'var(--danger)',  bg: 'var(--danger-bg)' },
 };
-
-/**
- * Trägt dieser Zustand den **gelben** Ton – «offen, gebunden, noch nicht fertig»?
- *
- * Die Frage stellt sich, wo eine Oberfläche sich nach dem Zustand richten soll, ohne ihn
- * ein zweites Mal zu bestimmen (z. B. der Auftrag-Shortcut an der Instanz, der gelb wird,
- * sobald daraus eine Abweichung würde – Testnotiz #380). Der Vergleich läuft über die EINE
- * Ton-Tabelle: so kann die Oberfläche nicht anders urteilen als die Badge daneben.
- */
-export function isPending(cfg: StatusCfg): boolean {
-  return cfg.color === TONE.pending.color;
-}
 

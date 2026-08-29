@@ -557,7 +557,7 @@
 }
 
 @layer base {
-  * { @apply border-slate-200; }
+  * { @apply border-border-1; }
   body {
     @apply bg-white antialiased;
     font-family: var(--font-body);

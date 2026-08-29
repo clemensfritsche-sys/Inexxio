@@ -44,11 +44,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const [activeSection, setActiveSection] = useState<SectionId>('profile');
   const isMobile = useIsMobile(768);
 
-  // Die Dokument-Pflichten sind entfallen: das Dokument-Modul ist abgeschaltet
-  // (backend/app/core/features.py), es gibt derzeit nichts zu unterschreiben.
-  const openDocs = 0;
-
-  const completion = useProfileCompletion(profile, openDocs);
+  const completion = useProfileCompletion(profile);
 
   const isEmployee = profile?.role === 'employee';
   const isSupplier = profile?.role === 'supplier';
@@ -79,12 +75,8 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
 
   const totalMissing = completion.totalCount - completion.completedCount;
   const pctColor = completion.percentage === 100 ? '#16a34a' : completion.percentage >= 60 ? '#f59e0b' : '#E51A14';
-  const docMissing = completion.missingBySection.documents ?? 0;
-  const fieldMissing = totalMissing - docMissing;
-  const missingParts: string[] = [];
-  if (fieldMissing > 0) missingParts.push(`${fieldMissing} Pflichtfeld${fieldMissing !== 1 ? 'er' : ''}`);
-  if (docMissing > 0) missingParts.push(`${docMissing} Dokument${docMissing !== 1 ? 'e' : ''}`);
-  const missingLabel = missingParts.length ? `${missingParts.join(' · ')} offen` : '';
+  const missingLabel = totalMissing > 0
+    ? `${totalMissing} Pflichtfeld${totalMissing !== 1 ? 'er' : ''} offen` : '';
 
   if (isMobile) {
     return (

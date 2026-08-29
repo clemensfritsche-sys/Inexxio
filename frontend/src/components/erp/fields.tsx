@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
-import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
+import { AlertCircle, ArrowLeft, ChevronDown, GitBranch, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
+import type { StatusTone, StatusCfg } from '@/lib/status-flow';
 import { TYPE_META } from '@/lib/erp-record';
 import type { ErpRecordType } from '@/types';
 import { formatObjectId } from '@/lib/utils';
@@ -34,43 +34,6 @@ export function Card({ icon: Icon, title, right, children }: {
       </div>
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>{children}</div>
     </div>
-  );
-}
-
-// ─── Kachel: die Grundform der Detail-Ansichten ──────────────────────────────
-
-/**
- * Symbol-Kasten links, Versalien-Label, Inhalt darunter – die EINE Kachel-Optik, die
- * sich die Kennzahlen und die Standort-Karten der Instanz teilen. Vorher stand dieselbe
- * Anatomie dreimal im Code, weshalb die Standort-Karte neben den Kacheln fremd wirkte.
- *
- * Jede Kachel trägt ihre eigene Haarlinie (Weissraum dazwischen) statt in einem
- * durchgefärbten Raster zu sitzen: so bleibt eine unvollständige letzte Reihe einfach
- * leer, statt als grauer Block zu erscheinen.
- */
-export function TileShell({ icon: Icon, label, hint, right, style, onClick, children }: {
-  icon: ElementType; label: string; hint?: string; right?: ReactNode;
-  style?: React.CSSProperties; onClick?: () => void; children: ReactNode;
-}) {
-  const clickable = !!onClick;
-  const Comp: ElementType = clickable ? 'button' : 'div';
-  return (
-    <Comp
-      onClick={onClick}
-      className={clickable ? 'erp-tile erp-tile-link' : 'erp-tile'}
-      style={{ ...TILE.box, ...(clickable ? { cursor: 'pointer' } : null), ...style }}
-    >
-      <div style={TILE.ico}><Icon size={19} /></div>
-      <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
-        <div style={TILE.k}>
-          {label}
-          {hint && <span style={TILE.hint} data-tip={hint}><Info size={13} /></span>}
-          {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
-        </div>
-        {children}
-      </div>
-      {clickable && <span style={TILE.goto}><ArrowUpRight size={18} /></span>}
-    </Comp>
   );
 }
 
@@ -291,7 +254,7 @@ export function SectionTitle({ icon: Icon, info, right, children }: {
       data-fb-section={typeof children === 'string' ? children : undefined}
       style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}
     >
-      {Icon && <Icon size={13} style={{ color: '#94a3b8' }} />}
+      {Icon && <Icon size={13} style={{ color: 'var(--fg-4)' }} />}
       <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748b' }}>{children}</span>
       {info && <InfoHint text={info} />}
       {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
@@ -301,7 +264,7 @@ export function SectionTitle({ icon: Icon, info, right, children }: {
 
 /** Einheitlicher Prozessschritt-Kopf: getöntes Symbol + Titel + optional ⓘ-Hover + rechter
  *  Slot (z. B. Status). EIN Look über alle Schritt-Panels (Bewegung/Ressource/…). */
-export function PanelHeader({ icon: Icon, title, tone = '#2563eb', info, right }: {
+export function PanelHeader({ icon: Icon, title, tone = 'var(--accent)', info, right }: {
   icon: ElementType; title: string; tone?: string; info?: string; right?: ReactNode;
 }) {
   return (
@@ -674,42 +637,6 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
 }
 
 /**
- * **Ein Weg als Symbol – der Name klappt beim Hover auf** (`.erp-palette`).
- *
- * Die etablierte Geste für «wähle etwas aus einer offenen Palette»: die Symbole stehen
- * sichtbar da, ein Klick führt aus, der Name erscheint beim Hover und die ausführliche
- * Erklärung im Tooltip. Prozessschritt-Module (Notiz #223), Erfassungsfelder (#229) und die
- * Antworten auf eine Unterdeckung (#376) benutzen dieselbe Geste – also dieselbe
- * Implementierung, statt sie ein drittes Mal abzuschreiben.
- */
-export function PaletteButton({ icon: Icon, label, tone, bg, border, size = 19, disabled, onClick }: {
-  icon: ElementType;
-  /** Der Name – er erscheint im Hover (#518); eine längere Erklärung gibt es nicht mehr. */
-  label: string;
-  tone?: string; bg?: string; border?: string; size?: number;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  // **Der Name steht im Hover ÜBER dem Symbol** (Testnotiz #630, nach #518/#624). Wuchs er
-  // aus dem Knopf nach rechts heraus, verdeckte er den Nachbarn – und wuchs der Knopf
-  // selbst, brach die Reihe um und zog sich unter dem Cursor weg (#502/#503). Der Name
-  // gehört darum dorthin, wo im ganzen Haus jede Erklärung steht: in die Hover-Blase
-  // (`data-tip`). Sie schwebt über der Zeile, kostet keinen Platz im Layout und bleibt
-  // damit auch dann richtig, wenn die Palette umbricht.
-  return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      aria-label={label} data-tip={label} className="erp-palette"
-      style={{
-        background: bg ?? 'var(--bg-2)', borderColor: border ?? 'var(--border-1)',
-        color: tone ?? 'var(--fg-2)', opacity: disabled ? .5 : 1,
-        cursor: disabled ? 'default' : 'pointer',
-      }}>
-      <Icon size={size} />
-    </button>
-  );
-}
-
-/**
  * **Eine Palette: Symbole in einer Reihe.** Mehr nicht – der Name steht im Hover des
  * einzelnen Symbols (#518). Der Baustein bleibt, damit dieselbe Geste an allen drei
  * Stellen (Module · Erfassungsfelder · Unterdeckung) gleich aussieht.
@@ -783,7 +710,7 @@ export const numericInputProps = { inputMode: 'decimal' as const, autoComplete: 
 
 export function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 4 }}>
+    <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-4)', marginBottom: 4 }}>
       {children}{required && <span style={{ color: '#dc2626' }}> *</span>}
     </div>
   );
@@ -793,33 +720,6 @@ export function ErrorText({ msg }: { msg: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: '#dc2626' }}>
       <AlertCircle size={11} /> {msg}
-    </div>
-  );
-}
-
-export function TextField({ label, value, onChange, error, placeholder, required, hint,
-                           onBlur, onKeyDown }: {
-  label: string; value: string; onChange: (v: string) => void;
-  error?: string | null; placeholder?: string; required?: boolean; hint?: string;
-  /** Auto-Save beim Verlassen: nicht jeder Tastendruck ist eine Entscheidung. */
-  onBlur?: () => void;
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div>
-      <Label required={required}>{label}</Label>
-      <input
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        onKeyDown={onKeyDown}
-        className={inputCls}
-        style={{ borderColor: error ? '#fca5a5' : '#e2e8f0' }}
-      />
-      {error ? <ErrorText msg={error} /> : hint ? (
-        <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>{hint}</div>
-      ) : null}
     </div>
   );
 }
@@ -1076,83 +976,11 @@ export function StatusBadge({ cfg, size = 10 }: { cfg: StatusCfg; size?: number 
   );
 }
 
-function statusActionStyle(tone: StatusTone = 'neutral', disabled?: boolean): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
-  };
-  // Design-System: Rot = der EINE laute CTA-Akzent (Primär, gefüllt). Destruktiv bleibt
-  // bewusst leise (rote Outline, nicht gefüllt), Neutral = graue Outline. Kein Blau mehr.
-  if (tone === 'primary') return { ...base, border: 'none', background: 'var(--inexxio-red)', color: '#fff' };
-  if (tone === 'danger') return { ...base, border: '1px solid var(--danger-bg)', background: 'var(--bg-1)', color: 'var(--danger)' };
-  return { ...base, border: '1px solid var(--border-2)', background: 'var(--bg-1)', color: 'var(--fg-3)' };
-}
-
-/** Status-Badge + Prozess-Buttons (Freigeben / Deaktivieren / Reaktivieren). */
-export function StatusFlow({ cfg, actions = [], busy, onAction }: {
-  cfg: StatusCfg;
-  actions?: StatusAction[];
-  busy?: boolean;
-  onAction?: (target: string) => void;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <StatusBadge cfg={cfg} />
-      {actions.map((a) => (
-        <button
-          key={a.target}
-          type="button"
-          title={a.hint}
-          disabled={busy || a.disabled}
-          onClick={() => onAction?.(a.target)}
-          style={statusActionStyle(a.tone, busy || a.disabled)}
-        >
-          {a.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Grosse, eindeutige Hauptaktion (touch-first, volle Breite, ≥44 px). Ein
- *  klarer «Was jetzt?»-Button je Prozessschritt – statt mehrerer kleiner Knöpfe. */
-export function PrimaryButton({ icon: Icon, children, onClick, disabled, tone = 'primary' }: {
-  icon?: React.ElementType; children: React.ReactNode; onClick: () => void;
-  disabled?: boolean; tone?: 'primary' | 'success';
-}) {
-  // **Ruhige Hauptaktion.** Rot ist im Design-System der EINE laute Akzent – er gehört zur
-  // Entscheidung über den Datensatz («Freigeben»), nicht zur alltäglichen Arbeit im Schritt.
-  // «Scannen & bewegen» in Rot las sich wie ein Fehler; die Aktion ist aber Routine. Darum
-  // Schwarz (dieselbe Stimme wie ``.erp-actbtn-primary``); GRÜN bleibt der Abschluss.
-  return (
-    <button onClick={onClick} disabled={disabled}
-      style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
-        minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none',
-        background: tone === 'success' ? 'var(--success)' : 'var(--inexxio-black)', color: '#fff',
-        fontSize: 14, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.55 : 1,
-      }}>
-      {Icon && <Icon size={18} />} {children}
-    </button>
-  );
-}
-
-export function Placeholder({ icon: Icon, title, text }: { icon: React.ElementType; title: string; text: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', padding: 24 }}>
-      <Icon size={40} strokeWidth={1} style={{ color: '#CBD5E1' }} />
-      <p style={{ marginTop: 12, fontSize: 14, fontWeight: 600, color: '#64748b' }}>{title}</p>
-      <p style={{ marginTop: 4, fontSize: 13, color: '#94a3b8', maxWidth: 280 }}>{text}</p>
-    </div>
-  );
-}
-
 // Autosave-Statusanzeige («Speichert… / Gespeichert») – geteilt von allen Detailfenstern
 // (vorher 3 identische Kopien in Artikel-/Auftrag-/Lagerplatz-Detail).
 export function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
-  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
-  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
+  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--fg-4)' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
+  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--success)' }}><CheckCircle2 size={12} /> Gespeichert</span>;
   return null;
 }
 
@@ -1178,41 +1006,6 @@ export function Row({ k, v, icon: Icon, hint }: {
         {Icon && <Icon size={12} />}{k}
       </span>
       <span style={{ color: 'var(--fg-1)', fontWeight: 600, textAlign: 'right' }}>{v}</span>
-    </div>
-  );
-}
-
-/**
- * **Eine lange Liste, die scrollt – ohne Balken, aber sichtbar** (Testnotiz #473).
- *
- * Ein Scrollbalken ist ein Fremdkörper in einer Oberfläche aus Haarlinien und Weissraum;
- * ihn wegzulassen darf aber nicht heissen, dass niemand merkt, dass es weitergeht. Die
- * Kante, an der noch etwas liegt, **blasst darum aus** – oben wie unten, und jede nur
- * dann, wenn dort wirklich noch etwas ist. Das ist dieselbe Sprache, in der auch die
- * Nachbar-Prozesse im Fluss zurücktreten (``.ix-flow-aside``).
- */
-export function ScrollFade({ max, children }: { max: number; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [edge, setEdge] = useState({ top: false, bottom: false });
-  function measure() {
-    const el = ref.current;
-    if (!el) return;
-    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight > 2;
-    const top = el.scrollTop > 2;
-    setEdge((e) => (e.top === top && e.bottom === bottom ? e : { top, bottom }));
-  }
-  useEffect(measure);
-  const FADE = 26;
-  const stops = [
-    edge.top ? `transparent 0, #000 ${FADE}px` : '#000 0',
-    edge.bottom ? `#000 calc(100% - ${FADE}px), transparent 100%` : '#000 100%',
-  ].join(', ');
-  const mask = `linear-gradient(to bottom, ${stops})`;
-  return (
-    <div ref={ref} onScroll={measure}
-      style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: max,
-        overflowY: 'auto', WebkitMaskImage: mask, maskImage: mask }}>
-      {children}
     </div>
   );
 }

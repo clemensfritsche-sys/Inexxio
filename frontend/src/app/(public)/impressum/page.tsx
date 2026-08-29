@@ -56,10 +56,10 @@ export default async function ImpressumPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero */}
-      <section className="bg-slate-900 py-16">
+      <section className="bg-bg-dark py-16">
         <div className="container">
           <h1 className="text-4xl font-bold text-white">Impressum</h1>
-          <p className="mt-2 text-slate-400">
+          <p className="mt-2 text-fg-4">
             Angaben gemäss Art. 11 UWG und Art. 13 DSG
           </p>
         </div>
@@ -85,10 +85,10 @@ export default async function ImpressumPage() {
 
           {/* Section 1: Unternehmensangaben */}
           <div className="mb-10">
-            <h2 className="mb-4 text-2xl font-bold text-slate-900">
+            <h2 className="mb-4 text-2xl font-bold text-fg-1">
               Angaben gemäss Art. 11 UWG
             </h2>
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-border-1">
               <table className="w-full text-sm">
                 <tbody>
                   <Row label="Firma">
@@ -116,21 +116,21 @@ export default async function ImpressumPage() {
 
           {/* Section 2: Kontakt */}
           <div className="mb-10">
-            <h2 className="mb-4 text-2xl font-bold text-slate-900">Kontakt</h2>
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <h2 className="mb-4 text-2xl font-bold text-fg-1">Kontakt</h2>
+            <div className="overflow-x-auto rounded-xl border border-border-1">
               <table className="w-full text-sm">
                 <tbody>
                   <Row label="E-Mail">
                     <a
                       href={`mailto:${settings?.email || 'info@inexxio.com'}`}
-                      className="text-blue-600 hover:underline"
+                      className="text-accent hover:underline"
                     >
                       {settings?.email || 'info@inexxio.com'}
                     </a>
                   </Row>
                   {settings?.phone && (
                     <Row label="Telefon">
-                      <a href={`tel:${settings.phone}`} className="text-blue-600 hover:underline">
+                      <a href={`tel:${settings.phone}`} className="text-accent hover:underline">
                         {settings.phone}
                       </a>
                     </Row>
@@ -140,7 +140,7 @@ export default async function ImpressumPage() {
                       href={settings?.website || 'https://inexxio.com'}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                      className="inline-flex items-center gap-1 text-accent hover:underline"
                     >
                       {settings?.website || 'https://inexxio.com'}
                       <ExternalLink className="h-3 w-3" />
@@ -153,10 +153,10 @@ export default async function ImpressumPage() {
 
           {/* Section 3: Verantwortlich */}
           <div className="mb-10">
-            <h2 className="mb-4 text-2xl font-bold text-slate-900">
+            <h2 className="mb-4 text-2xl font-bold text-fg-1">
               Verantwortlich für den Inhalt
             </h2>
-            <p className="text-slate-700">
+            <p className="text-fg-2">
               {fullName}
               {address && (
                 <>
@@ -229,7 +229,7 @@ export default async function ImpressumPage() {
           <LegalSection title="Datenschutz" isLast>
             <p>
               Informationen zur Verarbeitung Ihrer personenbezogenen Daten finden Sie in unserer{' '}
-              <Link href="/datenschutz" className="text-blue-600 hover:underline">
+              <Link href="/datenschutz" className="text-accent hover:underline">
                 Datenschutzerklärung
               </Link>
               .
@@ -243,9 +243,9 @@ export default async function ImpressumPage() {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <tr className="border-b border-slate-100 last:border-0">
-      <td className="w-48 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">{label}</td>
-      <td className="px-4 py-3 text-slate-900">{children}</td>
+    <tr className="border-b border-border-1 last:border-0">
+      <td className="w-48 bg-bg-2 px-4 py-3 text-sm font-medium text-fg-3">{label}</td>
+      <td className="px-4 py-3 text-fg-1">{children}</td>
     </tr>
   );
 }
@@ -261,8 +261,8 @@ function LegalSection({
 }) {
   return (
     <div className={isLast ? '' : 'mb-8'}>
-      <h2 className="mb-3 text-xl font-bold text-slate-900">{title}</h2>
-      <div className="text-slate-700 leading-relaxed">{children}</div>
+      <h2 className="mb-3 text-xl font-bold text-fg-1">{title}</h2>
+      <div className="text-fg-2 leading-relaxed">{children}</div>
     </div>
   );
 }

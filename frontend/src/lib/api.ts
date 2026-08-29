@@ -23,7 +23,6 @@ import type {
   CompanySettings,
   UserProfile,
   TerritoryMap,
-  ShopConfig,
   Passkey,
   FeedbackNote,
   FeedbackCreateInput,
@@ -289,12 +288,6 @@ class ApiClient {
   }
 
 
-
-  // Lagerwartung (E): Meldebestand prüfen (Auto-Nachbestellung).
-  runMaintenanceSweep(): Promise<{ reordered: number }> {
-    return this.post('/api/v1/erp/maintenance/sweep', {});
-  }
-
   updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {
     return this.patch<Record<string, unknown>>('/api/v1/admin/settings', mapSettingsToBackend(data)).then(mapSettingsFromBackend);
   }
@@ -422,34 +415,6 @@ class ApiClient {
     return this.delete(`/api/v1/erp/${owner}/${objectId}/steps/${stepId}`);
   }
 
-
-
-  // ─── Dokumente (hochgeladene Belege/Anleitungen – KI-Aufnahme + Reiter «Dokumente») ─
-
-
-
-
-  // Vorschlag ablehnen (Datei wird aus der Ablage entfernt)
-  rejectDocument(actionId: number): Promise<{ rejected: boolean }> {
-    return this.post(`/api/v1/ai/documents/${actionId}/reject`, {});
-  }
-
-
-  // Datei-Bytes authentifiziert holen und als lokale Object-URL bereitstellen (Inline-Vorschau
-  // von PDF/Bild – ein <iframe>/<img> kann den Bearer-Token nicht selbst mitsenden). Der Aufrufer
-  // gibt die URL per URL.revokeObjectURL wieder frei.
-  async documentPreviewUrl(downloadPath: string): Promise<{ url: string; mime: string }> {
-    const headers: Record<string, string> = {};
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-    const res = await fetch(`${API_BASE}${downloadPath}`, { headers });
-    if (!res.ok) throw await this.apiError(res);
-    const blob = await res.blob();
-    return { url: URL.createObjectURL(blob), mime: blob.type || 'application/octet-stream' };
-  }
-
-  deleteDocumentFile(docId: number): Promise<{ deleted: boolean }> {
-    return this.delete(`/api/v1/erp/document-files/${docId}`);
-  }
 
   // ─── Foto-/Bild-Upload (multipart) ──────────────────────────────────────────
   // Gibt eine relative URL (Token) zurück; die speichern die Verbraucher als String.
@@ -724,60 +689,6 @@ class ApiClient {
   getInstance(objectId: number): Promise<Instance> {
     return this.get(`/api/v1/erp/instances/${objectId}`);
   }
-
-
-  // ─── Verkauf (ERP, Reiter «Verkauf» am Artikel) ─────────────────────────────
-  // Verkaufs-Daten sind IMMER editierbar (auch bei freigegebenem Artikel).
-
-
-
-
-
-  deleteArticlePrice(objectId: number, priceId: number): Promise<{ deleted: boolean }> {
-    return this.delete(`/api/v1/erp/articles/${objectId}/sales/prices/${priceId}`);
-  }
-
-
-  removeArticleAudience(objectId: number, rowId: number): Promise<{ removed: boolean }> {
-    return this.delete(`/api/v1/erp/articles/${objectId}/sales/audience/${rowId}`);
-  }
-
-  // ─── Shop (öffentlich / Kunde) ──────────────────────────────────────────────
-
-  getShopConfig(): Promise<ShopConfig> {
-    return this.get('/api/v1/shop/config');
-  }
-
-
-
-
-
-  // Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten)
-  openCustomerPortal(): Promise<{ url: string }> {
-    return this.post('/api/v1/shop/portal', {});
-  }
-
-
-  // Abo on-site kündigen (kündigt zuerst bei Stripe, dann lokal)
-  cancelSubscription(orderObjectId: number): Promise<{ cancelled: boolean; subscription_active: boolean }> {
-    return this.post(`/api/v1/shop/orders/${orderObjectId}/cancel-subscription`, {});
-  }
-
-  // Retoure/Rückgabe einer abgeschlossenen Bestellung anfragen (Online-Shop-Logik) – legt einen
-  // Retoure-Auftrag an (Personal verarbeitet ihn im ERP: Wareneingang + Gutschrift/Stripe-Refund).
-  requestReturn(orderObjectId: number, reason: string | null): Promise<{ return_object_id: number; status: string }> {
-    return this.post(`/api/v1/shop/orders/${orderObjectId}/return`, { reason });
-  }
-
-
-
-
-  // ─── KI-Layer (ADR 004) ─────────────────────────────────────────────────────
-
-
-
-
-
 
 
   // ─── Testnotizen (in-app Feedback, nur Testumgebung) ────────────────────────

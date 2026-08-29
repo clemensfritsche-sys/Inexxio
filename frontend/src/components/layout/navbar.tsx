@@ -201,7 +201,7 @@ export function Navbar() {
                           cursor: 'pointer',
                           transition: 'background 0.15s',
                         }}
-                        className="hover:bg-slate-50"
+                        className="hover:bg-bg-2"
                       >
                         {user.photoURL ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
@@ -263,7 +263,7 @@ export function Navbar() {
                               color: 'var(--fg-2)',
                               textDecoration: 'none',
                             }}
-                            className="hover:bg-slate-50"
+                            className="hover:bg-bg-2"
                           >
                             <Settings style={{ width: 14, height: 14 }} />
                             Kontoeinstellungen
@@ -285,7 +285,7 @@ export function Navbar() {
                               color: 'var(--fg-2)',
                               textAlign: 'left',
                             }}
-                            className="hover:bg-slate-50"
+                            className="hover:bg-bg-2"
                           >
                             <LogOut style={{ width: 14, height: 14 }} />
                             Abmelden

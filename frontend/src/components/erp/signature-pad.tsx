@@ -117,7 +117,7 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
           <Eraser size={13} /> Löschen
         </button>
         <button type="button" onClick={accept} disabled={disabled || busy}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 13px', borderRadius: 8, border: 'none', background: 'var(--fg-1)', color: 'var(--bg-1)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
           {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Übernehmen
         </button>
       </div>

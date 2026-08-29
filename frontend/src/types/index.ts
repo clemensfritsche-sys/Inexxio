@@ -55,7 +55,6 @@ export interface ArticleInput {
   min_order_qty?: string | null;
   safety_stock?: string | null;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (vom purchase-Schritt geerbt)
-  procurement_mode?: ProcessStepMode | null;
   default_supplier_id?: number | null;
   default_webshop_url?: string | null;
   /**
@@ -128,77 +127,7 @@ export type ArticleProcessStep = components['schemas']['ArticleProcessStepRespon
 export type OrderDraft = Record<string, unknown>;
 
 
-export type DocAudienceRole = 'customer' | 'supplier' | 'employee' | 'admin';
-
-export type DocumentFileType = 'invoice' | 'delivery_note' | 'manual' | 'datasheet' | 'certificate' | 'contract' | 'receipt' | 'other';
-
 export type Passkey = components['schemas']['PasskeyResponse'];
-export interface ResourceToolPickInput {
-  article_id: number;
-  instance_ids: number[];
-}
-
-export interface ResourceUpdateInput {
-  tools: ResourceToolPickInput[];
-  note?: string | null;
-  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
-}
-
-export type LocationType = 'user' | 'instance' | 'company';
-
-export interface MovementTargetInput {
-  instance_id: number;       // object_id der Instanz
-  location_type: LocationType;
-  location_id: number;       // object_id des Zielobjekts
-}
-
-export interface MovementUpdateInput {
-  targets: MovementTargetInput[];
-  note?: string | null;
-  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
-}
-
-export type TransportMode = 'internal' | 'parcel' | 'freight';
-export interface ShipmentUpdateInput {
-  step_id?: number | null;
-  transport_mode?: TransportMode | null;
-  carrier?: string | null;
-  tracking_number?: string | null;
-  cost_amount?: number | null;
-  cost_currency?: string | null;
-  note?: string | null;
-  // Fracht (Modus 'freight'): Last/Incoterm/Abholtermin verfeinern.
-  load?: Record<string, unknown> | null;
-  incoterm?: string | null;
-  pickup_date?: string | null;
-}
-
-// Verschrotten: zu verschrottende Instanzen + optionale Notiz. ``items`` erlaubt je Instanz
-// eine Teilmenge (Charge teilverschrotten); ``instance_ids`` bleibt die Kurzform (ganze Instanz).
-export interface ScrapItemInput {
-  instance_id: number;
-  quantity?: number | null;   // weglassen = ganze (Rest-)Menge
-}
-export interface ScrapUpdateInput {
-  instance_ids?: number[];
-  items?: ScrapItemInput[];
-  note?: string | null;
-  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
-}
-
-
-export interface InspectionSampleInput {
-  instance_id: number;
-  slot: number;
-  values: Record<string, unknown>;
-}
-
-export interface InspectionUpdateInput {
-  samples: InspectionSampleInput[];
-  note?: string | null;
-  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)   // digitale Unterschrift (Freigabe), falls verlangt       // Schritt-Foto (Bilderfassung), falls verlangt
-}
-
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
@@ -281,66 +210,6 @@ export type PlaceRef = components['schemas']['PlaceRef'];
  */
 export type UnitPlace = components['schemas']['UnitPlace'];
 export type ArticleValidation = components['schemas']['ArticleValidation'];
-export type SalesVisibility = 'public' | 'private';
-export type SalesFulfillment = 'make' | 'stock';
-export type PriceKind = 'one_time' | 'subscription';
-export type PriceInterval = 'month' | 'year';
-export type PriceSubType = 'usage' | 'product';   // Nutzungsabo | Produktabo
-
-export interface SalesContentBlock {
-  title?: string;
-  subtitle?: string;
-  description?: string;
-  images?: string[];
-}
-export interface SalesContent {
-  de?: SalesContentBlock;
-  en?: SalesContentBlock;
-}
-
-export interface ArticleSalesUpdateInput {
-  sales_published?: boolean;
-  sales_visibility?: SalesVisibility;
-  sales_fulfillment?: SalesFulfillment;
-  sales_content?: SalesContent | null;
-}
-
-export interface ArticlePriceInput {
-  kind: PriceKind;
-  interval?: PriceInterval | null;
-  sub_type?: PriceSubType | null;
-  amount_chf: number | string;
-  compare_at_chf?: number | string | null;
-  is_primary?: boolean;
-}
-
-// Warenkorb-Position (lokaler State) – konkretes Produkt + gewählte Preis-Option.
-export interface CartItem {
-  article_object_id: number;
-  price_id: number;
-  quantity: number;
-  title: string;
-  unit?: string | null;
-  fulfillment: SalesFulfillment;
-  kind: PriceKind;
-  interval?: PriceInterval | null;
-  sub_type?: PriceSubType | null;
-  currency: string;
-  gross: number;          // Stück-Bruttopreis (indikativ, CHF)
-  image?: string | null;
-}
-
-export type ArticlePriceUpdateInput = Partial<ArticlePriceInput> & { is_active?: boolean };
-
-export interface ShopConfig {
-  currencies: string[];
-  default_currency: string;
-  provider: string;                       // 'stripe' | 'manual'
-  stripe_publishable_key: string | null;  // öffentlich – für die eingebettete Kasse
-}
-
-export type ProcessStepMode = 'supplier' | 'webshop';
-
 export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization';
 
 export interface CompanySettings {

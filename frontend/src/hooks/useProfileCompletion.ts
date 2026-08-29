@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
-// Adresse + Rechnungsadresse liegen jetzt gemeinsam im Reiter «Mein Profil» – darum
-// zählen ihre Pflichtfelder auf denselben Abschnitt (das Badge erscheint am Profil-Reiter).
-type SectionId = 'profile' | 'documents';
+// Adresse + Rechnungsadresse liegen gemeinsam im Reiter «Mein Profil» – darum zählen
+// ihre Pflichtfelder auf denselben Abschnitt (das Badge erscheint am Profil-Reiter).
+type SectionId = 'profile';
 
 interface RequiredField {
   section: SectionId;
@@ -45,23 +45,17 @@ export interface ProfileCompletion {
   missingBySection: Partial<Record<SectionId, number>>;
 }
 
-/**
- * ``openDocuments`` = Anzahl **ausstehender** Dokument-Pflichten des Nutzers (offene
- * Unterschriften/Bestätigungen + zu bestätigende Anerkennungen). Sie zählen wie fehlende
- * Pflichtangaben: solange etwas aussteht, ist das Profil **nicht vollständig** (der Nutzer
- * ist damit ohnehin blockiert, bis er handelt). Sie erscheinen als Fehlbetrag im Abschnitt
- * «documents» («Meine Dokumente»).
- */
-export function useProfileCompletion(profile: UserProfile | null, openDocuments = 0): ProfileCompletion {
+/** Wie weit ist das Profil ausgefüllt? Gezählt werden **nur** die Pflichtangaben, die
+ *  für diese Rolle gelten – ein Feld, das für einen Kunden gar nicht erscheint, fehlt ihm
+ *  auch nicht. */
+export function useProfileCompletion(profile: UserProfile | null): ProfileCompletion {
   return useMemo(() => {
     if (!profile) return { percentage: 0, completedCount: 0, totalCount: 0, missingBySection: {} };
 
     const applicable = REQUIRED.filter((r) => !r.condition || r.condition(profile));
-    const open = Math.max(0, openDocuments);
-    const totalCount = applicable.length + open;
-    // Ausstehende Dokumente sind per Definition NICHT erledigt → nur die Felder zählen als erledigt.
     const completedCount = applicable.filter((r) => isFilled(profile, r.field)).length;
-    const percentage = totalCount === 0 ? 100 : Math.round((completedCount / totalCount) * 100);
+    const percentage = applicable.length === 0 ? 100
+      : Math.round((completedCount / applicable.length) * 100);
 
     const missingBySection: Partial<Record<SectionId, number>> = {};
     for (const r of applicable) {
@@ -69,8 +63,6 @@ export function useProfileCompletion(profile: UserProfile | null, openDocuments 
         missingBySection[r.section] = (missingBySection[r.section] ?? 0) + 1;
       }
     }
-    if (open > 0) missingBySection['documents'] = open;
-
-    return { percentage, completedCount, totalCount, missingBySection };
-  }, [profile, openDocuments]);
+    return { percentage, completedCount, totalCount: applicable.length, missingBySection };
+  }, [profile]);
 }
