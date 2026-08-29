@@ -145,3 +145,25 @@ Dazu die **Tabellen** der entfernten Bereiche, die nur noch Daten halten:
 `document_files`, `document_links`, `document_blobs`, `document_signoffs`,
 `document_acknowledgements`. Vor dem Drop sichern (`scripts/dump-db.sh`) – die Historie
 darin ist der einzige Grund, warum sie noch stehen.
+
+## Aus der Aufräumrunde August 2026 (gemessen, bewusst nicht behoben)
+
+Beides steht ausführlich in `docs/cleanup-2026-08.md` §5 – hier nur, damit es nicht
+verloren geht.
+
+**1. Die «freundliche Hälfte» der Modul-Prüfung läuft nicht.**
+`lib/modules.ts: moduleIncomplete` hat keinen Aufrufer. Der Wächter
+`test_the_order_reference_is_a_mandatory_field` verspricht sie ausdrücklich, prüft aber
+nur, ob die Zeichenkette in der Datei steht – er schlägt darum nicht an, obwohl die
+Hälfte fehlt. **Zu entscheiden:** entweder verdrahten (dann stimmt der Wächter) oder den
+Wächter auf die Server-Regel zeigen lassen und den Browser-Zwilling löschen. Kein
+Mittelweg: zwei Antworten auf «ist das vollständig?» laufen beim nächsten Feld
+auseinander.
+
+**2. Die Startseite scrollt auf schmalen Telefonen seitwärts.**
+Gemessen: 62 px Überlauf bei 320 px, 7 px bei 375 px (alle anderen Seiten: 0 bei jeder
+Breite). Ursache ist `.ix-section-head` mit `grid-template-columns: auto 1fr` – eine
+`1fr`-Spalte ist `minmax(auto, 1fr)` und schrumpft nicht unter ihren Inhalt. Der Fix
+gehört in die **Track-Definition** (`minmax(0, 1fr)`); ein `min-width: 0` an den Kindern
+ist gemessen **nicht** die Lösung (verschlechterte es auf 68 px). Danach mit derselben
+Messung über 1440/1280/1024/834/375/320 px gegenprüfen.

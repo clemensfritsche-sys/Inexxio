@@ -377,7 +377,7 @@
           "admin"
         ],
         "summary": "Get Settings",
-        "description": "Der **Betreiber** – Trägerin der Plattform-/Systemkonfiguration (Stripe, Shop,\nRechtstexte). Die Systemkonfigurations-Seite liest/schreibt genau diesen Datensatz.",
+        "description": "Der **Betreiber** – Trägerin der Plattform-Konfiguration der einen Website. Der\nReiter «System» am Unternehmens-Datensatz liest und schreibt genau diese Zeile.",
         "operationId": "get_settings_api_v1_admin_settings_get",
         "responses": {
           "200": {
@@ -590,7 +590,7 @@
           "admin"
         ],
         "summary": "Update Company",
-        "description": "Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den\nBetreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.\n\nPlattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier\ngesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über\n``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.",
+        "description": "Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den\nBetreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.\n\nDie **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``\nignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe\nnicht an zwei Stellen editierbar ist.",
         "operationId": "update_company_api_v1_admin_companies__object_id__patch",
         "security": [
           {

@@ -202,8 +202,8 @@ export interface paths {
         };
         /**
          * Get Settings
-         * @description Der **Betreiber** – Trägerin der Plattform-/Systemkonfiguration (Stripe, Shop,
-         *     Rechtstexte). Die Systemkonfigurations-Seite liest/schreibt genau diesen Datensatz.
+         * @description Der **Betreiber** – Trägerin der Plattform-Konfiguration der einen Website. Der
+         *     Reiter «System» am Unternehmens-Datensatz liest und schreibt genau diese Zeile.
          */
         get: operations["get_settings_api_v1_admin_settings_get"];
         put?: never;
@@ -300,9 +300,9 @@ export interface paths {
          * @description Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
          *     Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
          *
-         *     Plattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier
-         *     gesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über
-         *     ``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.
+         *     Die **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``
+         *     ignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe
+         *     nicht an zwei Stellen editierbar ist.
          */
         patch: operations["update_company_api_v1_admin_companies__object_id__patch"];
         trace?: never;
