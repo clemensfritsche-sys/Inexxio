@@ -1,7 +1,10 @@
 # Frontend – Next.js 14 (TypeScript)
 
 ## Technologie
-Next.js 14, TypeScript, Tailwind CSS, App Router, React Query (punktuell), react-hook-form + zod
+Next.js 14 (statischer Export), TypeScript strict, Tailwind CSS, App Router.
+Dazu **punktuell**, nicht flächendeckend: React Query (nur `konto/page.tsx`),
+react-hook-form + zod (nur das Kontaktformular), ZXing (nur als dynamisch geladener
+Rückfall des Scanners).
 
 ## Starten
 ```bash
@@ -23,11 +26,16 @@ src/app/
 │   ├── agb/        ← AGB (B2B + B2C Tabs)
 │   └── datenschutz/← Datenschutzerklärung
 ├── (auth)/
-│   └── login/      ← Magic Link + Google Sign-In
+│   └── login/      ← Magic Link + Google SSO + Passkey (als Pop-up ODER als Route)
+│       └── verify/ ← Rückkehr aus dem Magic Link
+├── (account)/
+│   └── konto/      ← «Mein Profil» + «Sicherheit» (Passkeys) – der Spiegel des
+│                   #   eigenen Benutzer-Datensatzes, kein zweiter Ort der Wahrheit.
 └── (erp)/          ← Auth-geschützte ERP-Seiten
     └── erp/        ← Universal Feed (Master-Detail) – EINZIGE ERP-Oberfläche.
                     #   Benutzer, Artikel, Aufträge, Instanzen und Unternehmen werden
-                    #   ausschliesslich hier gepflegt (Detailfenster je Datensatz).
+                    #   ausschliesslich hier gepflegt (Detailfenster je Datensatz);
+                    #   die Plattform-Konfiguration ist ein Reiter am Betreiber.
                     #   Die früheren Admin-Seiten (`einstellungen`, `benutzer`) waren
                     #   nicht verlinkte Zweitoberflächen und sind aufgelöst.
 ```
@@ -44,8 +52,13 @@ src/app/
   Akzent** (CTA/aktiv/Fehler) · **Slate (`accent`) = Info/aktiv/Links** im ERP.
 - **ERP:** Haarlinien + Weissraum statt Schatten; Status = Punkt+Wort; Lucide-Icons
   funktional/sparsam; Karten `rounded-ds-lg`, 8px-Grid, `max-w-7xl mx-auto`.
-- **Deprecated (Altlast, nicht neu verwenden):** `slate-*`, `blue-600`, `brand-*`
-  (blau). Beim Editieren einer Datei auf Tokens migrieren (`docs/design-system/README.md §4`).
+- **Die Alt-Palette ist weg** (August 2026): `slate-*`, `blue-*`, `gray-*`, `#2563eb` und
+  der `brand-*`-Vorrat sind aus dem Code entfernt – **0 Vorkommen**. Wer sie wieder
+  einführt, führt eine zweite Farbsprache ein; die Zuordnung steht als Lesehilfe in
+  `docs/design-system/README.md §4`.
+- **Eine unbekannte Tailwind-Klasse ist kein Fehler** – sie erzeugt schlicht kein CSS, und
+  der Build schweigt. Farbgruppe und Wert können gleich heissen (`bg-bg-dark`); nach einer
+  Farbänderung an einer Fläche **hinsehen**, nicht nur bauen.
 
 ## i18n
 Aktuell **einsprachig Deutsch**. Das frühere next-intl-Konzept (inkl. `/messages/*.json`)
@@ -338,9 +351,15 @@ Lookup – dann **`exists` mitgeben**, sonst gilt jede 9-stellige Zahl.
 - **`no-unused-vars` ist scharf** (`.eslintrc.json`, läuft in der CI): eine ungenutzte
   `useState`-Destrukturierung ist die Form, in der ein Knopf ohne Wirkung auftritt.
 - Server Components für statische Seiten
-- react-hook-form + zod für alle Formulare
+- **Im ERP wird nicht abgeschickt, sondern gespeichert** (`use-autosave`, debounced, grüner
+  Rahmen-Flash): ein Detailfenster hat keinen Speichern-Knopf. react-hook-form + zod gelten
+  nur dort, wo es ein echtes **Absenden** gibt – heute allein das Kontaktformular.
 - Lucide React für alle Icons
 - TypeScript strict: kein 'any'
+- **Eine Abhängigkeit ohne Import ist Altlast** (`npm ls <name>` sagt nichts darüber, ob sie
+  jemand *benutzt*): mit dem entfernten Bereich geht sein Paket. Vorsicht bei zwei Formen,
+  die ein naives `from '<name>'` übersieht – der **Unterpfad** (`@hookform/resolvers/zod`)
+  und der **dynamische** Import (`await import('@zxing/browser')`); beide sind echte Nutzung.
 
 ## Rechtliche Seiten
 - Impressum: Daten dynamisch von /api/v1/admin/settings/public

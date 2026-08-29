@@ -8,7 +8,7 @@ einen Firebase **Custom Token** aus. Das Frontend meldet sich damit via
 
 RP-ID (Domain-Bindung des Passkeys) und erwartete Origin werden pro Request aus dem
 ``Origin``-Header abgeleitet und gegen die erlaubten Origins geprüft – dasselbe
-Deployment läuft damit auf localhost, inexxio-dev.web.app und inexxio.com.
+Deployment läuft damit auf localhost, inexxio-dev.web.app und inexxio-prod.web.app.
 
 Custom-Token-Signierung (Deployment-Hinweis): Läuft das Backend ohne Service-Account-
 Key (nur ADC, z. B. Cloud Run), muss der Laufzeit-Service-Account die Rolle

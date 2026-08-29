@@ -1,5 +1,16 @@
 # ADR 007 – Das Material-Journal: drei Fragen, ein Modell
 
+> ## Kopfstatus (August 2026): **historisch – das Modell existiert nicht mehr**
+> Das Material-Journal (`material_moves`, `services/ledger.py`) ist mit dem
+> Basis-Neuaufbau entfallen. Seine Rolle – **die Vergangenheit ist eine Buchung, keine
+> Ableitung aus dem heutigen Zustand** – trägt heute der Ereignis-Log
+> (`process_events`, PROCESS_CORE.md §8.1a).
+> **Der Grund, warum dieses Dokument bleibt**, ist seine Analyse: fast alle Mengen-Fehler
+> des Vorgängers kamen aus drei Wurzeln (Zustand als Skalar an einer Menge · «wer hält wie
+> viel» an vier Stellen · Vergangenheit aus der Gegenwart rekonstruiert). Wer eine
+> Mengen-Frage neu beantwortet, liest sie vorher.
+
+
 Status: **angenommen** (August 2026) · Vorleistung: Migration `097` (`instance_order_links.quantity`)
 
 ## Die drei Fragen (das SOLL)

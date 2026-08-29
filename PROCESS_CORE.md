@@ -2158,10 +2158,13 @@ Der Log trägt damit **zwei** Fragen, nicht eine: was ist mit diesem Auftrag pas
 (§7.2) und **wo war dieses Stück vorher bzw. nachher** (§7.4). Für die zweite steht ein
 Index `(instance_unit_id, id)` daneben — dieselbe Tabelle, nur eine zweite Leserichtung.
 
-**Eigene Tabelle, nicht der bestehende `events`-Strom.** Der ist ein Beobachtungs-Outbox
-für KI und Analytik mit freier Payload; hier geht es um die Quelle der Wahrheit für den
-Zustand. Beides in einer Tabelle hiesse, eine «nice to have»-Spur und eine verbindliche
-Buchführung in denselben Zeilen zu führen — und die schwächere Garantie gewinnt immer.
+**Eine eigene Tabelle, und zwar die EINZIGE.** Daneben stand einmal ein zweiter,
+allgemeiner `events`-Strom — eine Beobachtungs-Outbox mit freier Payload für Analytik.
+Er ist entfernt (`docs/attic.md`), und die Begründung dafür ist dieselbe, aus der er nie
+mit diesem hier verschmolzen werden durfte: eine «nice to have»-Spur und eine
+verbindliche Buchführung in denselben Zeilen zu führen heisst, dass die schwächere
+Garantie gewinnt. Wer Analytik braucht, liest **diesen** Log — er ist die Wahrheit über
+das Material; ein zweiter daneben wäre eine zweite Antwort auf dieselbe Frage.
 
 ---
 

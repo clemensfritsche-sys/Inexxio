@@ -1,7 +1,10 @@
 # Backend – FastAPI (Python 3.12)
 
 ## Technologie
-Python 3.12, FastAPI 0.109, SQLAlchemy 2.0, Pydantic v2, Alembic, PostgreSQL 15
+Python 3.12, FastAPI 0.115, SQLAlchemy 2.0, Pydantic v2, Alembic, PostgreSQL 16.
+Die Versionen stehen gepinnt in `requirements.txt` – **mit diesen** generieren (siehe
+«OpenAPI → Frontend-Typen»), sonst produziert eine neuere Umgebung einen Diff, der lokal
+unsichtbar ist und erst die CI rot macht.
 
 ## Pflichtregeln – vor jeder Änderung
 
@@ -28,22 +31,30 @@ alembic revision --autogenerate -m "description"  # Neue Migration erstellen
 ## Struktur
 ```
 app/
-├── main.py           ← FastAPI App, Router-Registrierung, CORS
+├── main.py           ← FastAPI App, Router-Registrierung, CORS, Lifespan-Sicherheitsnetze
 ├── core/
-│   ├── config.py     ← Pydantic Settings (env vars)
-│   ├── database.py   ← SQLAlchemy Engine + Session
-│   └── auth.py       ← Firebase JWT-Verifikation, require_admin/require_staff
+│   ├── config.py     ← Pydantic Settings (nur, was der Code auch liest)
+│   ├── database.py   ← SQLAlchemy Engine + Session (json_safe an der DB-Grenze)
+│   └── auth.py       ← Firebase JWT-Verifikation, require_admin/require_employee
+├── domain/           ← der fachliche Kern: KEINE DB, KEINE Services
+│   ├── statuses.py   ← jeder Zustand mit Beschriftung, Ampelton, Achsen, Endgültigkeit
+│   ├── modules.py    ← die Prozessschrittmodule und was jedes deklariert
+│   ├── capture_types/← die Erfassungspunkt-Typen (ein neuer Typ = eine neue Datei)
+│   ├── sampling.py   ← die Stichprobe als EINE Zahl
+│   ├── chain.py      ← die Kettenregel (was darf hinter was stehen)
+│   └── procurement.py← die Stufen eines Belegs, unabhängig vom auslösenden Modul
 ├── models/           ← SQLAlchemy 2.0 Modelle (je ein File pro Entität)
-│   ├── user.py       ← UserProfile
-│   ├── audit.py      ← AuditLog
-│   ├── notification.py ← Notification
-│   ├── admin.py      ← CompanySettings
 │   └── __init__.py   ← Re-Export aller Modelle (immer von hier importieren)
 ├── schemas/          ← Pydantic v2 Request/Response Schemas
 ├── routers/          ← FastAPI Router (je ein File pro Ressource)
-├── services/         ← Business Logic (DB-unabhängig testbar)
-└── scripts/
-    └── dump_openapi.py ← OpenAPI-Schema → backend/openapi.json (SSOT für FE-Typen)
+└── services/         ← Fachlogik (die Router bleiben dünn)
+
+scripts/
+├── dump_openapi.py   ← OpenAPI-Schema → backend/openapi.json (Quelle der FE-Typen)
+├── dump_statuses.py  ← domain/statuses.py → frontend/src/lib/status-catalog.ts
+├── deadcode.py       ← «was liest eigentlich niemand mehr?» (beide Seiten)
+├── invariant_report.py
+└── scenario_report.py
 ```
 
 ## OpenAPI → Frontend-Typen (Single Source of Truth)
@@ -90,71 +101,67 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/POST | /api/v1/erp/articles | staff | Artikel-Feed (`search`/`limit`) / Artikel anlegen – Anlegen **ist** Freigeben; `replaces_object_id` löst dabei einen Vorgänger ab (er geht im selben Zug ausser Betrieb) |
 | GET | /api/v1/erp/articles/name-suggestions | staff | Intelligente Namensvorschläge (frei + Fuzzy, ohne KI) |
 | GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern. **Ausser Betrieb nehmen ist ein Statuswechsel** (`status`), in beide Richtungen – kein eigener Endpunkt, kein Dialog. Das **Detail** trägt zusätzlich die Reihe (`replaces`/`replaced_by`) und die geplante Stückliste (`bom`: wer verbaut mich · was in mir ist ausser Betrieb, transitiv); im Feed bleibt `bom` `null` = «nicht geladen» |
-| GET/POST | /api/v1/erp/articles/{object_id}/process-steps | staff | Prozessschritte (Purchase) lesen/anlegen |
-| PATCH/DELETE | /api/v1/erp/articles/{object_id}/process-steps/{step_id} | staff | Prozessschritt ändern/entfernen |
+| GET | /api/v1/erp/articles/{object_id}/process | staff | Die **eingefrorene** Modul-Liste des Artikels – nur lesen. Ein Prozess wird nicht Schritt für Schritt gepflegt: er entsteht als Ganzes mit der Freigabe des Artikels (`POST /erp/articles`) und ist danach unveränderlich, weil laufende Aufträge eine Kopie davon fahren. Ein Schritt-CRUD gäbe es dafür gar nicht – die frühere Fassung stammt aus der Zeit vor dem Basis-Neuaufbau |
+| POST | /api/v1/erp/articles/validate | staff | Den **Entwurf** prüfen, ohne ihn anzulegen – dieselbe Ableitung wie die Freigabe (u. a. Kettenregel `domain/chain`), damit die Oberfläche denselben Massstab anlegt wie der Dienst |
+| GET | /api/v1/erp/articles/{object_id}/stock | staff | Bestand des Artikels in drei Ebenen (Leiste → Instanzen → Nummern), seitenweise |
+| GET | /api/v1/erp/articles/name-suggestions | staff | Ähnliche/bereits verwendete Artikelnamen – rein lexikalisch (Trigramm), **ohne KI** |
 | GET | /api/v1/erp/articles/{object_id}/stock | staff | **Bestand** – Aufstellung (Zustand → Menge → **Block**) über ALLE Stücke + eine Seite Instanzen mit je eigener Aufstellung (PROCESS_CORE §10.3) |
 | GET | /api/v1/erp/orders/unit-options | staff | **Wählbare Einzelinstanzen – eine SEITE, nicht die Liste.** `search` (die Stücknummer, wie sie gebaut ist: «-7» = Suffix, «00123» = Instanz, «100000123-7» = beides) · `status` · `limit`/`offset` · `preselect=N` für die **FIFO-Vorauswahl vom Server**. Die Antwort trägt daneben die Aufstellung je Zustand über den **ganzen** Artikel und die Gesamtzahl – eine aus der Seite gezählte Zahl zeigte «60», wo fünfzigtausend liegen. Zwei Eigenschaften je Stück: `available` («lässt sich nehmen», aus `Status.terminal`) und `in_stock` («liegt im Regal», aus `Status.stock`) – FIFO fragt die zweite. |
+| GET | /api/v1/erp/instances | staff | Instanz-Feed (Suche über Nummer **oder** Name, seitenweise) |
+| GET | /api/v1/erp/instances/{object_id} | staff | Eine Instanz – Zustand je Menge, Ort je Stück, Spezifikation ihres Artikels |
 | GET | /api/v1/erp/instances/{object_id}/units | staff | Die **Nummern** der Einzelinstanzen – seitenweise, optional auf Zustände gefiltert (`status` mehrfach) |
+| GET | /api/v1/erp/instances/{object_id}/units/{suffix}/genealogy | staff | **Woraus besteht dieses Stück – und worin steckt es?** Eine Ableitung über den Ereignis-Log (`services/genealogy`), kein Feld: die Stückliste sind die Stücke, die einen gemeinsamen Auftrag als `Verbaut` verlassen haben. **Erst auf Klick** – eine Baugruppe kann hunderte Teile haben |
+| GET | /api/v1/erp/objects/{object_id} | user | **Was ist diese Objektnummer?** Die eine Auflösung hinter dem QR-Scan – der Code trägt nur die Nummer, den Typ sagt der Server |
+| GET | /api/v1/erp/places | staff | **Halter suchen** (Nummer oder Name) – die Vorschlagsquelle für jede Zielort-Eingabe, im Editor wie im Scan. Angeboten wird nur, was auch Halter sein *kann*: eine Liste, die etwas anbietet, das `assert_placeable` danach abweist, wäre schlimmer als keine |
+| GET | /api/v1/erp/places/{object_id} | staff | Kann diese Nummer etwas halten? **404 ist eine Antwort, keine Panne** – ein Artikel ist eine Gattung, kein Ort; genau daran erkennt der Scanner den Fehlgriff, bevor er ihn quittiert |
+| GET | /api/v1/erp/orders/article-options | staff | Artikel, die ein Auftrag greifen darf – je Artikel mit dem **Grund**, falls «Neu» gesperrt ist (`articles.may_create`), damit Auswahl und Freigabe denselben Satz sagen |
+| GET | /api/v1/erp/orders/module-catalog | staff | Die Modultypen für den Editor (Symbol, Farbe, Felder) – **nur** der Editor lädt ihn; was ein laufender Auftrag braucht, reist mit dem Schritt |
+| POST | /api/v1/erp/orders/validate | staff | Den Auftrags-**Entwurf** prüfen, ohne ihn anzulegen: dieselbe Ableitung wie die Freigabe, inkl. Vorschau des Prozessbildes (`flow.build(..., planned=…)`) – geprüft wird die **Gleichheit** Vorschau ↔ echter Graph |
+| GET | /api/v1/erp/orders/{object_id}/units?edge= | staff | Die Stücke **einer Kante** des Prozessbildes – erst wenn jemand aufklappt |
+| POST | /api/v1/erp/attachments | staff | Bild aus der **Kamera** hochladen (Datenerfassung). Es gibt keinen Datei-Upload: eine Datei aus der Galerie belegt nichts über *diesen* Vorgang |
+| GET | /api/v1/attachments/{token} | – | Ein Bild ausliefern (Token im Pfad, kein Login) |
+| GET/PUT | /api/v1/admin/territories · /{region} | admin | **Gebietskarte**: welche Gesellschaft fakturiert in welcher Region/welchem Land. Gespeichert wird nur, was **abweicht**; eine Zuweisung an den ohnehin Zuständigen löscht die Zeile |
+| GET/POST/DELETE | /api/v1/auth/passkeys · /{id} · /register/options\|verify · /login/options\|verify | user | **Passkeys** (WebAuthn/FIDO2): Zeremonien im Backend, bei Erfolg ein Firebase **Custom Token** – ab da eine ganz normale Firebase-Session. RP-ID und Origin kommen **pro Request** aus dem `Origin`-Header (geprüft gegen `cors_origins`), damit dasselbe Deployment auf localhost, dev und prod läuft |
 | GET | /api/v1/erp/orders | user | Auftrag-Feed (Lieferant: nur eigene, mit eingebettetem Prozess) |
 | POST | /api/v1/erp/orders | staff | **Auftrag erteilen** – Bedarf + Positionen + Ablauf + Instanz-Auswahl in EINEM Aufruf, anlegen **und** freigeben; erst dabei entsteht die Objektnummer (ein Entwurf existiert nie in der DB) |
-| GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed) |
-| GET | /api/v1/erp/orders/{object_id}/diagnostics | staff | **Systemprotokoll** (Fehlersuche): Befund (abgeleiteter Zustand + Drift-Prüfung) + Chronologie aus Audit · Ereignissen · Material-Journal – on demand, keine eigene Wahrheit |
-| PATCH | /api/v1/erp/orders/{object_id} | staff | Auftrag ändern (Freigabe stösst Prozess an); `picks` = gewählte **Anteile** (Instanz · Menge · Halter) |
+| GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed). Für einen **Lieferanten derselbe Auftrag, nur sein Modul** – die Verengung steht in `_to_response`/`_visible`, nicht an den Aufrufstellen (wer sie dort formulierte, hätte sie beim zweiten Endpunkt nicht). Wer nicht beteiligt ist, bekommt **404**, nicht 403: ein «du darfst nicht» bestätigt, dass es ihn gibt |
 | GET | /api/v1/erp/orders/supplier-options | staff | Zugelassene Lieferanten suchen (Nummer **oder** Name, dieselbe Bedingung wie überall: `services/lookup`) |
 | POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/confirm | staff | **Ein Modul bestätigen – für EINE Instanz.** `instance_object_id` + `verification` (`scan`\|`manual`) sind Pflicht (§4.4); ohne sie 400. `values` ist **zweistufig** – Nummer der Einzelinstanz → (Punkt → Wert), je gezogenem Stück ein Satz (§9.5). Die Art kommt aus dem **Scan-Dialog** (Kamera ↔ Tastatur), nicht von einem zweiten Knopf daneben. Bestanden → die Stücke rücken vor, nicht bestanden → sie bleiben stehen (§4.5). Antwort: der Auftrag; die Wirkung steht im Audit. |
-| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/purchase | staff | **Den Beschaffungs-Beleg bewegen** – `action` ∈ `ask`·`quote`·`decline`·`order`·`note`·`revoke`·`clarified`. Ein **Befehl**, kein Feld-Update, darum POST wie `confirm` (der Wächter `test_a_status_change_always_writes_the_log` verbietet `PATCH` in diesem Router). Die Regel «ein **Lieferant** darf nur `quote`/`decline`, und nur auf **seiner** Zeile» steht im Dienst – die Tür ist heute Personal-only, weil ein Lieferant im Neuaufbau (noch) keine Sicht auf einen Auftrag hat; wer sie öffnet, baut zuerst den Sichtbarkeitsfilter auf der Antwort. |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/purchase | staff | **Den Beschaffungs-Beleg bewegen** – `action` ∈ `ask`·`quote`·`decline`·`order`·`note`·`revoke`·`clarified`. Ein **Befehl**, kein Feld-Update, darum POST wie `confirm` (der Wächter `test_a_status_change_always_writes_the_log` verbietet `PATCH` in diesem Router). **Auch für den Lieferanten offen** (`get_current_user`): was er darf, sagt `purchase._can` (Stufe × Rolle, `SUPPLIER_ACTIONS` = `quote`·`decline`·`note`) – dieselbe Tabelle ist Auskunft **und** Tor, ein Anzeige-Hinweis allein liefe beim nächsten Verb auseinander. |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/record | staff | **Was ist an diesem Modul passiert?** Je Vorgang (= eine Einzelinstanz, ein Durchgang): Nummer · wer · wann · wie bestätigt · Nachher-Zustand · Urteil · gezogen? · verbaut in? · **jeder erfasste Wert mit seiner Frage**. Eine Ableitung über den Ereignis-Log (`services/record.py`) – **zentral, kein Protokoll je Modultyp**; ein neuer Modultyp erbt es ohne eine Zeile. Seitenweise (`limit`/`offset`, Gesamtzahl daneben) und **erst auf Klick**: bei einer 6000er-Charge wären es tausende Zeilen in jeder Auftrags-Antwort. |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/hold?instance=&group= | staff | Die **Nummern** einer Gruppe dieser Instanz an diesem Modul: `sample` (die gezogenen – für jede ist ein Wertesatz zu erfassen, §9.5) \| `failed` \| `rest` (Vorauswahl der Entscheidung). **Erst auf Klick**: der «Rest» einer 6000er-Charge wären sechstausend Nummern in jeder Auftrags-Antwort. |
-| GET/PATCH | /api/v1/erp/articles/{object_id}/sales | staff | Verkaufs-Profil (publiziert/Sichtbarkeit/Inhalt) – immer editierbar |
-| GET/POST | /api/v1/erp/articles/{object_id}/sales/prices | staff | Verkaufspreise (1:n) lesen/anlegen |
-| PATCH/DELETE | /api/v1/erp/articles/{object_id}/sales/prices/{price_id} | staff | Preis ändern/entfernen |
-| POST | /api/v1/erp/articles/{object_id}/sales/audience | staff | Zielgruppe (private) zuweisen (Lesen: eingebettet im Sales-Profil) |
-| DELETE | /api/v1/erp/articles/{object_id}/sales/audience/{row_id} | staff | Kunden-Zuweisung entfernen |
-| GET | /api/v1/shop/config | – | Shop-Währungen + Default + Provider + **Publishable Key** (eingebettete Kasse) |
-| GET | /api/v1/shop/products | optional | Publizierte Produkte (public + private des Kunden), inkl. Preis-Optionen |
-| GET | /api/v1/shop/products/{object_id} | optional | Produktdetail (kanonisch über replaced_by_id) inkl. `prices[]` |
-| POST | /api/v1/shop/checkout | user | **Warenkorb** (`items[]`) → CheckoutIntent → Stripe-Embedded (`client_secret`) / manual; Auftrag entsteht aufgeschoben bei Zahlung |
-| POST | /api/v1/shop/portal | user | Stripe Customer Portal (Abo/Zahlungsmittel verwalten) → URL |
-| POST | /api/v1/shop/payments/webhook | – | Stripe-Webhook (signaturgeprüft): Zahlung/Abo spiegeln |
-| GET | /api/v1/shop/payment/{token} | user | Zahlungsstatus (manueller Fallback-Provider) |
-| POST | /api/v1/shop/payments/simulate | user | Manueller Provider: Zahlung simulieren (nur ohne Stripe) |
-| GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen des **Hauptsitzes** (Rechtsidentität + Systemkonfiguration, inkl. Shop-Währungen/Provider) |
-| GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos (immer der Hauptsitz – das Impressum nennt die Rechtsperson) |
+| GET/PATCH | /api/v1/admin/settings | admin | Die **Plattform-Konfiguration** der einen Website (Plausible-Domain, Google-Maps-Schlüssel) – sie hängt am Betreiber. Entitäts-Felder laufen über `/admin/companies/{object_id}` |
+| GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos für das Impressum – **immer der Betreiber**: das Impressum nennt die Rechtsperson hinter der Website, und die wechselt nicht nach Besucherland |
+| DELETE | /api/v1/admin/companies/{object_id} | admin | Gesellschaft **schliessen** – endgültig, keine Reaktivierung (eine Wiedereröffnung ist rechtlich eine neue Gesellschaft) |
 | GET/POST | /api/v1/admin/companies | admin | **Unternehmen** (Gesellschaften): alle lesen (Betreiber/ältestes zuerst) / neues anlegen |
 | GET/PATCH | /api/v1/admin/companies/{object_id} | admin | Ein Unternehmen lesen / Entitäts-Felder ändern (voller Feldsatz inkl. Rechtsidentität + Währung – **derselbe Pfad für jede** Gesellschaft; Plattform-Config bleibt bei `/admin/settings`) |
 | POST | /api/v1/admin/companies/{object_id}/operator | admin | Diese Gesellschaft zum **Betreiber der Website** machen (genau EINE trägt den Titel) |
 | GET | /api/v1/admin/users | staff | Benutzerliste. **Deaktivieren gibt es nicht** (Testnotiz #755): wer das Unternehmen verlässt, wechselt die **Rolle** (`PATCH /erp/records/{object_id}`) – ein Mensch hört nicht auf zu existieren, und einkaufen darf er weiterhin |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
 | POST | /api/v1/contact | – | Kontaktformular |
-| GET | /api/v1/ai/config | user | KI-Verfügbarkeit (Text/Bild) fürs Frontend |
-| POST | /api/v1/ai/chat | user | Rechte-geschützter Assistent (Tools rollen-gescopt, ADR 004) |
-| POST | /api/v1/ai/write | staff | KI-Schreibhilfe (Dokumente-Modul, Structured Output) |
-| POST | /api/v1/ai/image-edit | staff | Shop-Bild mit Gemini bearbeiten → neues Attachment |
-| POST | /api/v1/ai/actions/{id}/confirm · /reject | staff | KI-Vorschlag bestätigen/ablehnen (kritische Aktionen) |
 | GET/POST | /api/v1/feedback | user | Testnotizen der Oberfläche (JEDE Rolle; eigene bzw. alle für Personal) – nur Testumgebung, sonst 404 |
 | PATCH | /api/v1/feedback/{id} | user | Notiz erledigt/verworfen setzen bzw. wieder öffnen |
-| DELETE | /api/v1/feedback/{id} · ?scope=done\|all | user | Notiz löschen bzw. aufräumen/zurücksetzen (weich, nur eigene sichtbare) |
+| DELETE | /api/v1/feedback/{id} | user | Eine Notiz löschen (weich, nur eigene sichtbare) |
+| DELETE | /api/v1/feedback?scope=done\|all | user | Aufräumen (`done`) bzw. zurücksetzen (`all`) – weich, und über `visible_query` gescopt, damit niemand fremde Notizen wegräumt |
 
-> Artikel: **Stammdaten**, **Prozess** (Purchase-Schritt) und **Bestand** implementiert. Der
-> Bestand ist reine Summierung über Einzelinstanzen, in drei Ebenen und **ohne Filter** (die
-> Aufteilung selbst ist das Bedienelement) – PROCESS_CORE §10.3.
-> Prozessschritt-Modul «Purchase»: Auftrag (Artikel+Menge) → Freigabe instanziiert
-> die Bestellung. Diese läuft **unter der Auftragsnummer** (Tabelle `purchase_orders` OHNE eigene
-> Objektnummer, eingebettet als `purchase` in der OrderResponse). Status requested→quoted→
-> approved/rejected→confirmed→received; Einstandspreis netto/Stück wird auf den Artikel zurück-
-> geschrieben; der Auftrag wird automatisch `completed`, wenn alle Schritte erledigt sind
-> (`services/purchase.py`, `services/orders.py`). E-Mail-Versand ist nur als TODO vermerkt.
-> Seriennummern/Eingangskontrolle, BOM/Arbeitspläne, Stripe sind Phase 2+ und **noch nicht** implementiert.
+> **Der Auftrag entsteht als GANZES.** Es gibt kein `PATCH /orders/{id}`: Bedarf,
+> Positionen, Ablauf und Instanz-Auswahl kommen in EINEM `POST`, und erst dabei entsteht
+> die Objektnummer. Ein Entwurf lebt ausschliesslich im Browser – wer ihn verwirft, lässt
+> keine Spur (PROCESS_CORE §8, Testnotiz #386).
 >
-> Objektnummern (9-stellig) werden objekttyp-übergreifend in `app/services/objects.py`
-> vergeben (Maximum über alle Objekttabellen + 1).
+> **Bewegt wird ein Auftrag über zwei Befehle**, nie über ein Feld-Update: `confirm` (ein
+> Modul bestätigen) und `purchase` (den Beleg bewegen). Beide sind POST – ein Wächter
+> (`test_a_status_change_always_writes_the_log`) verbietet `PATCH` in diesem Router, damit
+> jede Zustandsänderung durch die eine Stelle geht, die auch den Log schreibt.
 >
 > **Unternehmen (Gesellschaften):** `company_settings` trägt **mehrere** gleichrangige
 > Zeilen (je eine vollständige juristische Einheit, Typ `organization`, eigene Objektnummer,
-> **eigene** Rechtsidentität). Der **Betreiber** (vertritt die eine Website, trägt die
-> Plattform-Config) = das **älteste** Unternehmen, **abgeleitet** (kein `is_primary` mehr).
-> Die EINE Auflösung ist `services/sites.py`: `operator()`/`primary()` schreibend,
-> `find_operator()`/`find_primary()` rein lesend (in fremden Transaktionen Pflicht),
+> **eigene** Rechtsidentität). Der **Betreiber** – wer die eine Website nach aussen
+> vertritt – ist **gewählt** (`is_operator`, partieller Unique-Index: genau eine trägt ihn);
+> ohne Markierung gilt tolerant das älteste Unternehmen, damit es nie «keinen Betreiber»
+> gibt.
+> Die EINE Auflösung ist `services/sites.py`: `operator()` schreibend, `find_operator()`
+> rein lesend (Pflicht überall, wo schon jemand anderes eine Transaktion führt),
 > `by_object_id()` für «genau diese Gesellschaft», `all_companies()` für den Feed. **Nie**
 > `CompanySettings.id == 1` oder ein blosses `.first()` – das wählt ab der zweiten Zeile
 > willkürlich; `tests/test_sites.py` erzwingt es. `ENTITY_FIELDS` (je Gesellschaft) vs.
@@ -334,7 +341,10 @@ scheiterte danach **jeder** Lesezugriff auf den Beleg (140 Prüfungen).
   frisch aus den Migrationen gebautes Schema. Nur die zweite ist die, die deployt wird.
 
 ## Konventionen
-- Soft-Delete überall: is_active=false, KEIN hard delete
+- Soft-Delete überall: `is_active=false`, KEIN hard delete. **Zwei Achsen, die beide
+  «aktiv» heissen, meinen Verschiedenes**: `is_active` ist der Soft-Delete («den Datensatz
+  gibt es nicht»), `status` der fachliche Zustand – wer sie verwechselt, baut eine Prüfung,
+  die nichts abweisen kann (`services/articles.may_create`).
 - UTC Timestamps überall
 - Pydantic v2: `model_validate()`, `model_dump()`, `ConfigDict(from_attributes=True)`
 - SQLAlchemy 2.0: `Mapped[T]`, `mapped_column()`
@@ -342,5 +352,15 @@ scheiterte danach **jeder** Lesezugriff auf den Beleg (140 Prüfungen).
 - Audit-Log bei jedem Update schreiben
 
 ## Env-Variablen
-Siehe /.env.example für vollständige Liste.
-Pflicht lokal: DATABASE_URL, FIREBASE_PROJECT_ID
+`/.env.example` nennt **nur, was der Code auch liest** – eine Variable auf Vorrat sieht aus
+wie eine Stellschraube und dreht an nichts. Pflicht lokal: `DATABASE_URL`,
+`FIREBASE_PROJECT_ID`.
+
+## Tote Stellen finden
+```bash
+cd backend && python -m scripts.deadcode              # beide Seiten
+cd backend && python -m scripts.deadcode --backend    # nur das Backend
+```
+Erreichbarkeit ab `app.main` (bzw. ab den Next-Einstiegen) und öffentliche Namen ohne
+fremden Leser. Jede Fundstelle ist ein **Hinweis**, kein Urteil: ein Endpunkt wird über den
+Router aufgerufen, ein Wächter über den Test – der Report weist beides getrennt aus.

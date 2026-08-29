@@ -333,16 +333,14 @@ ORM- und Server-Default stehen ausdrücklich nebeneinander in derselben Zeile �
 nicht mehr getrennt veralten. Die Testhelfer schrieben denselben Literal-Wert und tun es
 nicht mehr; sie benutzen jetzt den Standardwert und prüfen ihn damit gleich mit.
 
-**Offen und ausdrücklich gemeldet:** in den **abgeschalteten** Bereichen steht die alte
-Sprache noch — `services/ai/actions.py` (`a.status = "released"`),
-`services/ai/tools.py` (2×, dazu zwei Tool-Schemas mit `enum: [draft, released, inactive]`)
-und `services/selling.py` (`article.status != "released"`). Sie sind heute nicht
-importierbar; **wer `sales` oder `ai` wieder einschaltet, muss sie mitziehen** — sonst
-legt die KI Artikel in einem Zustand an, den das System nicht kennt.
+**Nachtrag (August 2026): der offene Rest ist erledigt.** Gemeldet war, dass die alte
+Sprache in den abgeschalteten Bereichen (`services/ai`, `services/selling`) noch stand und
+beim Wiedereinschalten mitzuziehen wäre. Diese Dateien sind gelöscht (`docs/attic.md`) —
+damit ist die Ausnahmeliste im Wächter entfallen, und er gilt **ohne Ausnahme**.
 
 Wächter: `test_the_article_status_has_exactly_one_vocabulary` — prüft die **Quelle** des
 Standardwerts (nicht seinen heutigen Wert), die Gleichheit von ORM- und Server-Default und
-dass kein aktives Modul die alte Sprache spricht. Gegen die Bug-Form gegengeprüft.
+dass **kein** Modul die alte Sprache spricht. Gegen die Bug-Form gegengeprüft.
 
 ## Zur Frage «hilft eine Umbenennung?»
 

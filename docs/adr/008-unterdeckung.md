@@ -1,5 +1,14 @@
 # ADR 008 – Unterdeckung, Ausleihe und Pause: die Regel steht im Code
 
+> ## Kopfstatus (August 2026): **historisch – die Regel-Tabelle existiert nicht mehr**
+> `backend/tests/rules/table.py` und die Mechanik aus Ausleihe/Rückgabe/Pause sind mit dem
+> Basis-Neuaufbau entfallen; die heutige Prozesslogik steht in `PROCESS_CORE.md`.
+> **Gültig bleibt die Arbeitsweise**, die dieses ADR eingeführt hat und die das Projekt
+> weiterführt: eine Regel wird **geschrieben, bevor sie geprüft wird** – sonst prüft man
+> den Code gegen sich selbst, und ein systematisch falscher Code besteht seine eigenen
+> Tests immer.
+
+
 Status: **angenommen** (August 2026) · Tabelle: `backend/tests/rules/table.py`
 
 ## Warum es diesen Eintrag gibt

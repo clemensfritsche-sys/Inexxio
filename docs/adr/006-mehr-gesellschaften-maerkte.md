@@ -1,5 +1,14 @@
 # ADR 006 – Mehr-Gesellschaften & Weltmärkte: «wer fakturiert wird abgeleitet, nicht gewählt»
 
+> ## Kopfstatus (August 2026): **teilweise gültig**
+> **Gültig**: die Gebietskarte (`company_territories`, `services/geography.py`, die
+> Weltkarte am Unternehmens-Datensatz) und die Auflösung Land → Region → Besitzer.
+> **Entfallen**: alles, was am Verkauf hing – die fakturierende Gesellschaft am Beleg
+> (`sales.seller_company_object_id`), der Versand-Absender und die Steuer-Anbindung. Die
+> Gebietskarte beantwortet damit heute eine Frage, deren Konsequenz erst wieder entsteht,
+> wenn es Belege gibt; sie steht bewusst weiter, weil sie die Aufteilung selbst hält.
+
+
 Status: umgesetzt (Slice 1: Gebietskarte + Auflösung · Slice 2: Beleg-/Versand-Identität ·
 Slice 3: Land-Ausnahmen + «Fakturiert durch» am Auftrag) · Datum: 2026-07-30
 

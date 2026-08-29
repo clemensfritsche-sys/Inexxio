@@ -53,9 +53,12 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 function getActionCodeSettings() {
+  // Unter welcher Adresse die Oberfläche läuft, weiss das Deployment – nicht eine
+  // fest verdrahtete Domain hier (die stand auf `inexxio.web.app`, also auf keinem
+  // der beiden Ziele). Im Browser gilt ohnehin die Adresse, auf der man steht.
   const baseUrl = typeof window !== 'undefined'
     ? window.location.origin
-    : 'https://inexxio.web.app';
+    : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
   return {
     url: `${baseUrl}/login/verify`,
     handleCodeInApp: true,

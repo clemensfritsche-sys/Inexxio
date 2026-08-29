@@ -1,5 +1,14 @@
 # ADR 003: Bedarf → Nachschub als EIN Unter-Auftrag-Mechanismus (MRP-light)
 
+> ## Kopfstatus (August 2026): **historisch – der Mechanismus existiert nicht mehr**
+> `services/supply.py`, die Nachschub-Unteraufträge und das Pegging sind mit dem
+> Basis-Neuaufbau entfallen. Ein ungedeckter Bedarf wird heute als **`StepNeed`** am Modul
+> gemeldet («Artikel · gebraucht · verfügbar»); der Weg dorthin ist ein ganz gewöhnlicher
+> Auftrag, den ein Mensch anlegt – automatisch ausgewichen wird nie.
+> **Wertvoll bleibt die Frage**, die dieses ADR beantwortet hat: was passiert, wenn nicht
+> genug da ist? Die heutige Antwort steht in `PROCESS_CORE.md` §9.6.
+
+
 **Status:** Accepted
 **Date:** 2026-06-30
 **Deciders:** Inexxio AG

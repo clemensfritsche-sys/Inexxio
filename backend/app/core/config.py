@@ -26,18 +26,23 @@ class Settings(BaseSettings):
     #
     # RP-ID (die Domain, an die ein Passkey gebunden ist) und die erwartete Origin werden
     # pro Request aus dem ``Origin``-Header abgeleitet – so funktioniert dasselbe Deployment
-    # auf localhost, inexxio-dev.web.app und inexxio.com, ohne Domain fest zu verdrahten.
+    # auf localhost, inexxio-dev.web.app und inexxio-prod.web.app, ohne eine Domain fest
+    # zu verdrahten.
     # Die Origin wird gegen die erlaubten Origins (``cors_origins`` + ``webauthn_extra_origins``)
     # geprüft; ``webauthn_rp_id`` kann die abgeleitete RP-ID bei Bedarf überschreiben.
     webauthn_rp_name: str = "Inexxio AG"
     webauthn_rp_id: str = ""                    # leer → aus Origin-Host abgeleitet
     webauthn_extra_origins: list[str] = []      # zusätzliche erlaubte Origins
 
+    #: Die erlaubten Origins sind zugleich die erlaubten WebAuthn-Origins (siehe oben) –
+    #: was hier fehlt, kann sich nicht anmelden. Darum stehen hier genau die Adressen,
+    #: unter denen die Oberfläche wirklich läuft (`.github/workflows/deploy-*.yml`);
+    #: keine der beiden Bereitstellungen setzt CORS_ORIGINS, dieser Default IST also der
+    #: Betrieb. Frühere Einträge (`inexxio.web.app`, `inexxio.com`) waren nie ein Ziel.
     cors_origins: list[str] = [
         "http://localhost:3000",
         "https://inexxio-dev.web.app",
-        "https://inexxio.web.app",
-        "https://inexxio.com",
+        "https://inexxio-prod.web.app",
     ]
 
     initial_admin_email: str = "clemens.fritsche@gmail.com"

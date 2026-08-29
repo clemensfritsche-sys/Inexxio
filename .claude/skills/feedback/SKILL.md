@@ -41,18 +41,30 @@ Format je Notiz:
 ## Vorgehen je Notiz
 
 1. **Code-Stelle finden – in dieser Reihenfolge.**
-   - **Ansicht + Abschnitt zuerst:** «Auftrag · Ablauf / Bewegung» führt direkt zu
-     `components/erp/movement-panel.tsx`. Der Abschnitt ist der Titel eines
-     `PanelHeader`/`SectionTitle` – `rg -n 'title="Bewegung"' frontend/src` bzw.
-     `rg -n 'PanelHeader' frontend/src`. Bei Prozess-Notizen ist das der zuverlässigste
-     Einstieg, weil die Schrittliste sortierbar ist und der Selektor mitwandert.
+   - **Ansicht + Abschnitt zuerst:** «Auftrag · Prozess / Beschaffen» führt direkt zu
+     `components/erp/purchase-work.tsx`. Der Abschnitt ist der Titel eines
+     `PanelHeader`/`SectionTitle` – `rg -n 'PanelHeader|SectionTitle' frontend/src`.
+     Bei Prozess-Notizen ist das der zuverlässigste Einstieg, weil die Modulliste
+     sortierbar ist und der Selektor mitwandert.
+     **Ein Modul ist keine eigene Datei.** Die Ausführung aller Module läuft über
+     `capture-work.tsx` (Erfassung, Aussondern, Verbrauch, Bewegen) bzw.
+     `purchase-work.tsx` (Beschaffen, und der Einkaufs-Beleg des Bewegens); was ein
+     Modultyp mitbringt, steht als Zuordnung in `lib/modules.ts`, nicht als Datei.
    - **Dann der sichtbare Text:** die Oberfläche ist deutschsprachig, Beschriftungen
      stehen meist genau einmal im Repository: `rg -n "Freigeben" frontend/src`.
    - **Route als Eingrenzung:** `/erp` → `frontend/src/app/(erp)/` und
-     `components/erp/`, `/konto` → `components/account/`, `/shop` → `(public)/shop/`.
+     `components/erp/`, `/konto` → `components/account/`. Andere Routen gibt es im
+     angemeldeten Bereich nicht – der Feed ist EINE Route (`?open=` ist nur der
+     Deep-Link von aussen), darum trägt die Notiz die Objektnummer statt eines Pfades.
    - Hilft nichts davon (Icon-Knopf), das `outerHTML` und den Selektor heranziehen.
 2. **Rolle beachten.** `Rolle customer` heisst: der Befund gilt für die Kundensicht –
-   nicht in ERP-Komponenten suchen, sondern in Shop/Konto.
+   und die reicht heute nur bis zur öffentlichen Website und zum eigenen Konto
+   (`app/(public)/`, `components/account/`), nicht ins ERP. `Rolle supplier` sieht einen
+   Auftrag **durch sein eigenes Beschaffungs-Modul** – dieselben Komponenten wie das
+   Personal, nur ein anderer Ausschnitt. Die Verengung steht im **Backend**
+   (`services/purchase.mine`, gelesen beim Aufbau der Antwort), nicht in der Oberfläche:
+   ein Filter dort wäre eine Bitte, keine Grenze. Wer «sieht zu viel» meldet, sucht
+   darum im Dienst, nicht in der Komponente.
 3. **Fehlerzeile ernst nehmen.** Steht unter `**Fehler:**` etwas, ist das meist die
    eigentliche Ursache und nicht bloss Begleitrauschen.
 4. **Datensatz nutzen.** `**Datensatz:** 100000123` nennt das Objekt, an dem es passiert

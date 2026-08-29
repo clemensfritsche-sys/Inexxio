@@ -1,4 +1,4 @@
-"""Cleanup & Härtung (Juli 2026) – siehe docs/cleanup-2026-07.md.
+"""Cleanup & Härtung (Juli 2026) – siehe docs/history/2026-07-cleanup.md.
 
 1. **Bugfix Meldebestand (B1)**: ``orders.reason`` von VARCHAR(12) auf VARCHAR(20) –
    ``reason='replenishment'`` hat 13 Zeichen; jede Auto-Nachbestellung scheiterte mit

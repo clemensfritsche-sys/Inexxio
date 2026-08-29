@@ -103,8 +103,8 @@ jobs:
             --no-allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}" \
-            --set-env-vars "APP_ENV=production,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-prod" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest" \
+            --set-env-vars "APP_ENV=production,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-prod,FRONTEND_BASE_URL=https://inexxio-prod.web.app" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest" \
             --min-instances 1 \
             --max-instances 10 \
             --memory 1Gi \
