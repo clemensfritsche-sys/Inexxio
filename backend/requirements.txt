@@ -9,16 +9,11 @@ email-validator==2.2.0
 firebase-admin==6.6.0
 # Passkeys / WebAuthn (FIDO2): serverseitige Register-/Login-Zeremonien.
 webauthn==2.5.2
+# httpx: Starlettes TestClient fährt darauf – ohne ihn läuft kein einziger Wächter.
 httpx==0.28.0
+# python-multipart: FastAPI braucht es für UploadFile (Bild-Anhänge der Datenerfassung).
 python-multipart==0.0.17
+# pillow: verkleinert und normalisiert die aufgenommenen Bilder (services/attachments).
 pillow==11.0.0
-pypdf==5.1.0
-weasyprint==69.0
-markdown==3.10.2
-google-cloud-storage==2.19.0
-google-cloud-secret-manager==2.21.1
-stripe==11.2.0
-# KI-Layer (ADR 004): Claude via Vertex AI (EU) – [vertex] bringt google-auth für ADC.
-anthropic[vertex]==0.116.0
 pytest==8.3.4
 pytest-asyncio==0.24.0

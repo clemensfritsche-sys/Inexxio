@@ -24,34 +24,13 @@ import symtable
 
 APP = pathlib.Path(__file__).resolve().parents[1] / "app"
 
-# Module ABGESCHALTETER Bereiche (``app/core/features.py``: sales · documents · ai).
-#
-# Sie hängen an der entfernten Prozesslogik und sind derzeit **nicht importierbar** – so
-# beauftragt: der Basis-Neuaufbau entfernt die Prozesslogik ersatzlos, und was nur darauf
-# aufsetzt, bleibt liegen statt mit Workarounds am Leben gehalten zu werden. ``main.py``
-# importiert nichts davon; ihre Prefixe beantwortet ein Stub mit 503.
-#
-# Diese Liste ist die **Aufstellung des Kaputten**, nicht ein Freibrief: wer einen dieser
-# Bereiche wieder aufbaut, streicht ihn hier – und der Wächter greift sofort wieder.
-DISABLED_PREFIXES = (
-    "app/services/sale.py", "app/services/selling.py", "app/services/refund.py",
-    "app/services/customer_returns.py", "app/services/pricing.py", "app/services/tax.py",
-    "app/services/fx.py", "app/services/operating_costs.py",
-    "app/services/document.py", "app/services/document_render.py",
-    "app/services/consent.py", "app/services/legal.py",
-    "app/services/ai/", "app/services/payments/", "app/services/shipping/",
-    "app/routers/sales.py", "app/routers/shop.py", "app/routers/documents.py",
-    "app/routers/document_files.py", "app/routers/ai.py", "app/routers/consent.py",
-    "app/routers/legal.py",
-    "app/schemas/sale.py", "app/schemas/sales.py", "app/schemas/shop.py",
-    "app/schemas/document.py", "app/schemas/document_file.py",
-    "app/schemas/consent.py", "app/schemas/ai.py",
-)
-
-
-def _is_disabled(path: pathlib.Path) -> bool:
-    rel = path.relative_to(APP.parent).as_posix()
-    return any(rel == p or rel.startswith(p) for p in DISABLED_PREFIXES)
+# **Es gibt keine Ausnahmeliste mehr.** Sie führte einmal die Module der abgeschalteten
+# Bereiche (sales · documents · ai), die auf der entfernten Prozesslogik standen und
+# darum nicht einmal importierbar waren – eine Aufstellung des Kaputten, an der der
+# Wächter vorbeisah. Mit dem Aufräumen im August 2026 sind diese Dateien gelöscht: was
+# nicht importierbar ist, gibt es nicht mehr, und damit gilt der Wächter wieder für
+# **jedes** Modul unter ``app/``. Eine Ausnahme wieder einzuführen hiesse, sich für einen
+# Teil des Codes stillzulegen.
 
 
 def _collect(table: symtable.SymbolTable, read: set[str], written: set[str]) -> None:
@@ -83,8 +62,6 @@ def test_no_undefined_global_names_in_backend():
     findings: list[str] = []
 
     for path in sorted(APP.rglob("*.py")):
-        if _is_disabled(path):
-            continue
         mod_name = _module_name(path)
         try:
             mod = importlib.import_module(mod_name)

@@ -60,58 +60,6 @@ def _body(source: str, name: str, *, kind: str = "def") -> str:
 
 
 # ---------------------------------------------------------------------------
-# Der zentrale Schalter
-# ---------------------------------------------------------------------------
-
-def test_the_one_switch_says_the_same_on_both_sides():
-    """``core/features.ACTIVE`` und ``lib/features.ACTIVE`` sind EINE Entscheidung.
-
-    Ein Modul, das nur auf einer Seite abgeschaltet ist, wäre genau die zweite Wahrheit,
-    die dieser Umbau loswerden wollte: die Oberfläche böte etwas an, das der Server mit
-    503 abweist – oder schlimmer, umgekehrt.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.core import features
-
-    ts = _read(FRONTEND / "lib" / "features.ts")
-
-    m = re.search(r"export const ACTIVE: readonly FeatureModule\[\] = \[([^\]]*)\]", ts)
-    assert m, "ACTIVE fehlt in lib/features.ts"
-    ts_active = {x.strip().strip("'\"") for x in m.group(1).split(",") if x.strip()}
-    assert ts_active == set(features.ACTIVE), (
-        f"Aktive Module laufen auseinander: Backend {sorted(features.ACTIVE)} "
-        f"≠ Frontend {sorted(ts_active)}"
-    )
-
-    ts_modules = set(re.findall(r"^  (\w+): '", ts, re.M))
-    assert ts_modules == set(features.MODULES), (
-        f"Modul-Liste läuft auseinander: Backend {sorted(features.MODULES)} "
-        f"≠ Frontend {sorted(ts_modules)}"
-    )
-
-
-def test_a_disabled_module_answers_instead_of_disappearing():
-    """«Nicht da» und «abgeschaltet» sind verschiedene Aussagen.
-
-    Ein 404 sieht aus wie ein Tippfehler in der URL. Darum bekommt jedes abgeschaltete
-    Modul mit eigenem Prefix einen Stub, der 503 und den Grund liefert.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.core import features
-    from app.main import app
-
-    paths = {r.path for r in app.routes if hasattr(r, "path")}
-    for module in features.disabled():
-        for prefix in features.MODULES[module][1]:
-            assert prefix in paths, (
-                f"Abgeschaltetes Modul «{module}» beantwortet {prefix} nicht – "
-                f"der Aufrufer bekäme 404 statt des Grundes."
-            )
-
-
-# ---------------------------------------------------------------------------
 # Das Datenmodell
 # ---------------------------------------------------------------------------
 
@@ -3438,16 +3386,22 @@ def test_the_scanner_lies_above_the_detail_and_below_the_notes():
 def test_the_object_registry_claims_only_what_it_can_serve():
     """Ein Typ, den kein Endpunkt liefern kann, ist eine Behauptung.
 
-    ``document`` stammt aus dem abgeschalteten Dokumentmodul – jede Auflösung einer
-    unbekannten Nummer durchsuchte eine Tabelle, die immer leer ist. **Der Nummernraum
-    ist davon getrennt**: die Spalte speist ``current_max_object_id`` → ``setval``, und
-    eine Alt-Zeile mit der höchsten Nummer würde sonst ein zweites Mal vergeben.
+    ``document`` stammt aus dem entfernten Dokumentmodul – jede Auflösung einer unbekannten
+    Nummer durchsuchte eine Tabelle, die es nicht mehr gibt. **Der Nummernraum ist davon
+    getrennt**: er speist ``current_max_object_id`` → ``setval``, und eine Alt-Zeile mit der
+    höchsten Nummer würde sonst ein zweites Mal vergeben.
+
+    Beantwortet wird das seit dem Aufräumen von der **Registry** statt von einer einzeln
+    genannten Alt-Tabelle: sie hält jede je vergebene Nummer, auch die eines Typs, den es
+    nicht mehr gibt. Die schwächere Fassung musste beim nächsten entfallenden Typ erneut
+    ergänzt werden – und genau das vergisst man.
     """
     src = _read(BACKEND / "app" / "services" / "objects.py")
     models = src.split("_TYPE_MODELS = {")[1].split("}")[0]
     assert '"document"' not in models, "Der Scan löst wieder auf ein totes Modul auf."
-    assert "DocumentFile.object_id" in src.split("_OBJECT_ID_COLUMNS")[1][:300], (
-        "Die Alt-Nummern fallen aus dem Nummernraum – die Sequence kann sie neu vergeben."
+    assert "ObjectRef.object_id" in src.split("_OBJECT_ID_COLUMNS")[1][:300], (
+        "Die Registry fällt aus dem Nummernraum – Nummern entfallener Typen könnten "
+        "ein zweites Mal vergeben werden."
     )
 
 

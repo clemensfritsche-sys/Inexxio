@@ -15,14 +15,10 @@ from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .domain import statuses as st
 from .models import UserProfile
-from .core import features
 from .routers import (
-    admin, articles, attachments, auth, contact, erp, events, feedback, health,
+    admin, articles, attachments, auth, contact, erp, feedback, health,
     instances, orders, passkey, places,
 )
-# Nicht importiert, weil abgeschaltet (siehe core/features.py): ai, consent, documents,
-# document_files, legal, sales, shop. Ihre Module hängen an der entfernten Prozesslogik
-# und sind derzeit nicht importierbar – ihre Prefixe beantwortet ein Stub mit 503.
 
 settings = get_settings()
 
@@ -659,8 +655,6 @@ async def lifespan(app: FastAPI):
         _bootstrap_admin()
     except Exception as e:
         print(f"WARNING: _bootstrap_admin() failed: {e}", flush=True)
-    # Die KI-Identität wird NICHT mehr geseedet: das Modul ``ai`` ist abgeschaltet
-    # (core/features.py) und hängt an der entfernten Prozesslogik.
     yield
 
 
@@ -832,15 +826,8 @@ app.include_router(articles.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(places.router)
-app.include_router(events.router)
 app.include_router(attachments.router)
 app.include_router(feedback.router)
-
-# Abgeschaltete Module antworten unter ihren eigenen Prefixen mit 503 und Grund –
-# «nicht da» und «abgeschaltet» sind verschiedene Aussagen. ZULETZT registriert, damit
-# kein Stub einen aktiven Nachbarn verdeckt.
-for _stub in features.stub_routers():
-    app.include_router(_stub)
 
 
 @app.get("/")

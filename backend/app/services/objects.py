@@ -11,9 +11,7 @@ sowie der Backfill-Logik für Altdaten.
 from sqlalchemy import func, select, text, union_all
 from sqlalchemy.orm import Session
 
-from ..models import (
-    Article, CompanySettings, DocumentFile, Instance, ObjectRef, Order, UserProfile,
-)
+from ..models import Article, CompanySettings, Instance, ObjectRef, Order, UserProfile
 
 OBJ_ID_START = 100_000_001
 
@@ -27,10 +25,9 @@ OBJECT_ID_SEQUENCE = "object_id_seq"
 # Objekttyp ↔ Modell (für Registry-Backfill und -Pflege). Prozesse sind KEINE
 # eigenständigen Objekte mehr (Schritte hängen am Artikel/Auftrag, ohne Nummer).
 #
-# ``document`` steht hier **nicht mehr**: das Dokumentmodul ist abgeschaltet
-# (``core/features.ACTIVE``), sein Router wird gar nicht erst importiert. Ein Typ, den
-# kein Endpunkt liefern kann, ist eine Behauptung – und sie kostet: jede Auflösung einer
-# unbekannten Nummer durchsuchte eine Tabelle, die immer leer ist.
+# Hier steht **nur, was ein Endpunkt auch liefern kann**. Ein Typ ohne Ansicht ist eine
+# Behauptung – und sie kostet: jede Auflösung einer unbekannten Nummer durchsuchte eine
+# Tabelle, die es gar nicht mehr gibt.
 _TYPE_MODELS = {
     "user": UserProfile,
     "article": Article,
@@ -41,16 +38,17 @@ _TYPE_MODELS = {
 }
 
 # Alle Spalten, die Objektnummern aus dem gemeinsamen Kreis vergeben.
-# Bestellungen/Eingangskontrollen bekommen KEINE eigene Nummer (laufen unter dem
-# Auftrag); Instanzen hingegen sind eigenständige Objekte. Abweichungen sind
-# Unteraufträge (parent_order_id) und laufen daher als Auftrag mit Objektnummer.
+# Bestellungen/Erfassungen bekommen KEINE eigene Nummer (laufen unter dem Auftrag);
+# Instanzen hingegen sind eigenständige Objekte. Abweichungen sind Unteraufträge
+# (parent_order_id) und laufen daher als Auftrag mit Objektnummer.
 #
-# **Der Nummernraum ist eine andere Aussage als der Typ.** ``DocumentFile`` bleibt hier
-# aufgeführt, obwohl es oben fehlt: die Spalte speist über ``current_max_object_id`` das
-# ``setval`` beim Start. Trägt eine Alt-Zeile die höchste Nummer und fiele sie hier
-# heraus, vergäbe die Sequence sie ein zweites Mal. «Nicht mehr auflösbar» heisst nicht
-# «nie vergeben gewesen».
-_OBJECT_ID_COLUMNS = tuple(m.object_id for m in _TYPE_MODELS.values()) + (DocumentFile.object_id,)
+# **Der Nummernraum ist eine andere Aussage als der Typ.** Ein Typ kann verschwinden,
+# eine vergebene Nummer nie – sie ein zweites Mal auszugeben hiesse, zwei Dinge unter
+# derselben Kennung zu führen. Darum steht hier die **Registry** neben den Fachtabellen:
+# sie hält jede je vergebene Nummer, auch die eines Typs, den es nicht mehr gibt. Eine
+# einzelne Alt-Tabelle zu nennen wäre die schwächere Antwort – man müsste sie beim
+# nächsten entfallenden Typ erneut nennen und würde es vergessen.
+_OBJECT_ID_COLUMNS = tuple(m.object_id for m in _TYPE_MODELS.values()) + (ObjectRef.object_id,)
 
 
 def _register(db: Session, ids: list[int], object_type: str | None) -> None:

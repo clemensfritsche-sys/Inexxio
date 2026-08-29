@@ -150,8 +150,10 @@ def test_the_website_address_is_derived_not_typed():
     assert "website" not in CompanySettingsUpdate.model_fields, \
         "Die Website-Adresse darf nicht wieder einsendbar werden"
     assert website_url() and not website_url().endswith("/")
-    for rel in ("routers/admin.py", "routers/documents.py"):
-        assert "website_url" in _source(rel), f"{rel} muss die eine Ableitung lesen"
+    # Der zweite Leser (Beleg-Briefkopf) ist mit dem Dokumentmodul entfallen; die Regel
+    # gilt unverändert für den, der geblieben ist.
+    assert "website_url" in _source("routers/admin.py"), \
+        "routers/admin.py muss die eine Ableitung lesen"
 
 
 def test_a_company_never_loses_its_name():

@@ -42,76 +42,10 @@ class Settings(BaseSettings):
 
     initial_admin_email: str = "clemens.fritsche@gmail.com"
 
-    # ── Datei-Ablage (Belege/Dokumente) ──────────────────────────────────────────
-    # Google Cloud Storage für hochgeladene Dokumente (PDF/Bilder). Ist ``gcs_bucket``
-    # gesetzt, landen Dateien im Bucket (Cloud-Run-ADC-Auth, kein Key); sonst als
-    # Fallback in der DB (``document_blobs``) – sofort lauffähig ohne Bucket/IAM-Setup.
-    gcs_bucket: str = ""
-    gcs_document_prefix: str = "documents"
-
-    # ── Shop / Verkauf ───────────────────────────────────────────────────────────
-    # Zahlungs-Provider: 'manual' (Default, kein externer Call – überbrückbar für Tests)
-    # oder 'stripe' (Gerüst; ohne STRIPE_SECRET_KEY niemals aktiv, kein Crash).
-    payments_provider: str = "manual"
-    stripe_secret_key: str = ""
-    stripe_webhook_secret: str = ""
-    # Stripe Tax: Default-Steuercode (physische Güter). Pro Artikel überschreibbar (später).
-    stripe_default_tax_code: str = "txcd_99999999"   # General - Tangible Goods
-    # Preisauszeichnung: Basispreise sind brutto (inkl. MWST). Bei False: netto (MWST oben drauf).
-    prices_tax_inclusive: bool = True
-    # Stripe Tax (automatic_tax) am Checkout. NUR aktivieren, wenn im Stripe-Dashboard
-    # eingerichtet (Sitz-Adresse + Registrierung) – sonst schlägt die Checkout-Erstellung fehl.
-    stripe_tax_enabled: bool = False
-    # ── Logistik / Versand ────────────────────────────────────────────────────────
-    # Carrier-Aggregator (Rate-Shopping + Label-Kauf): 'shippo' aktiviert sich von selbst,
-    # sobald SHIPPO_API_KEY gesetzt ist (Self-Serve wie Stripe: Test-Key sofort sichtbar
-    # nach Registrierung, Pay-per-Label, keine Vertrags-Eintrittsbarriere; solide EU-
-    # Carrier-Abdeckung). Ohne Key läuft der 'manual'-Fallback (Carrier/Tracking von Hand
-    # erfassen) – nie kaputt. Der Anbieter ist hinter dem Gateway austauschbar.
-    shippo_api_key: str = ""
-    shippo_api_url: str = "https://api.goshippo.com"
-    # Sendcloud (europäischer Aggregator MIT nativer Schweiz-Herkunft: Swiss Post, DPD,
-    # DHL … – Shippos Gratis-Carrier können CH-Herkunft NICHT). Zwei Schlüssel (HTTP-Basic:
-    # Public = User, Secret = Passwort), self-serve im Sendcloud-Panel erzeugbar; ohne
-    # eigenen Carrier-Vertrag über Sendclouds Tarife startbar, Test-Labels («Unstamped
-    # letter») kostenlos. Aktiviert sich selbst, sobald beide Keys gesetzt sind.
-    sendcloud_public_key: str = ""
-    sendcloud_secret_key: str = ""
-    sendcloud_api_url: str = "https://panel.sendcloud.sc/api/v2"
-    # Anzeige-Währung der Sendcloud-Tarife (das Panel liefert nicht immer eine Währung mit).
-    sendcloud_currency: str = "EUR"
-    # Aktiver Versand-Provider: 'auto' (bevorzugt Sendcloud, dann Shippo, dann manual) |
-    # 'sendcloud' | 'shippo' | 'manual'. Erlaubt, beide Adapter im Code zu halten und den
-    # aktiven per Konfiguration zu wählen (heute Sendcloud; Shippo bleibt als Fallback).
-    shipping_provider: str = "auto"
-
-    # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},
-    # Basis CHF). Schlägt der Abruf fehl, wird der letzte bekannte Kurs verwendet.
-    fx_source_url: str = "https://api.exchangerate.host/latest"
-    # Öffentliche Basis-URL des Frontends (für interne Zahl-/Bestätigungs-Links).
+    #: Öffentliche Basis-URL des Frontends. Unter welcher Adresse die Website läuft, weiss
+    #: das **Deployment** – kein Eingabefeld daneben, das beim ersten Domain-Wechsel still
+    #: falsch wird (``services/sites.website_url`` ist die eine Ableitung daraus).
     frontend_base_url: str = "http://localhost:3000"
-
-    # ── KI-Layer (ADR 004) ────────────────────────────────────────────────────────
-    # Anbieter hinter dem AI-Gateway – Wechsel an EINER Stelle, ohne Fachlogik:
-    #   'vertex'    → Claude via Google Vertex AI (EU-Datenresidenz, GCP-ADC-Auth) – Default
-    #   'anthropic' → Claude direkt (ANTHROPIC_API_KEY nötig)
-    #   'disabled'  → KI aus; alle KI-Endpunkte antworten 503, das ERP läuft normal.
-    # Ohne konfiguriertes Projekt/Key ist die KI automatisch inaktiv (kein Crash).
-    ai_provider: str = "vertex"
-    vertex_project_id: str = ""                 # GCP-Projekt (leer = KI inaktiv bei 'vertex')
-    # Vertex-Standort: 'eu' = EU-Multi-Region-Endpunkt (Datenresidenz CH/EU, breite
-    # Modellabdeckung inkl. Opus 4.6) | eine feste Region (europe-west1/-west4) | 'global'
-    # (keine EU-Garantie). Für DSGVO/CH-DSG bewusst 'eu' als Default.
-    vertex_region: str = "eu"
-    anthropic_api_key: str = ""                 # nur für ai_provider='anthropic'
-    # Modell-IDs – konfigurierbar, Registry in services/ai/registry.py.
-    # Dynamische Modellwahl (Kosten/Latenz): einfache Anfragen laufen auf dem leichten,
-    # schnellen Modell; nur komplexe/mehrstufige Aufgaben nutzen das starke Modell.
-    ai_chat_model: str = "claude-opus-4-8"                    # stark (komplex/Aktionen)
-    ai_chat_model_light: str = "claude-haiku-4-5-20251001"   # leicht/günstig/schnell (einfache Reads)
-    ai_image_model: str = "gemini-3.1-flash-image"   # «Nano Banana 2» (Shop-Bildbearbeitung)
-    ai_max_output_tokens: int = 2048
-    ai_request_timeout: float = 55.0            # Sekunden je Modell-Aufruf
 
     class Config:
         env_file = ".env"

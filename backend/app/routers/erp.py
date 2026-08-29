@@ -100,9 +100,6 @@ async def get_erp_record(
     return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
 
 
-# Die Karte «Bestellungen» am Benutzer-Datensatz ist entfallen: sie las Verkaufsaufträge,
-# und der Verkauf ist abgeschaltet (core/features.py).
-
 @router.patch("/records/{object_id}", response_model=UserProfileResponse)
 async def update_erp_record(
     object_id: int,

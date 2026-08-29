@@ -1086,29 +1086,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Events
-         * @description Domain-Event-Strom (Outbox) – chronologisch vorwärts, lückenlos paginierbar.
-         *
-         *     KI-/Automatisierungs-Konsumenten lesen ab ``after_id`` (zuletzt verarbeitete
-         *     Event-id) und merken sich die höchste zurückgegebene id als nächsten Cursor.
-         */
-        get: operations["list_events_api_v1_events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/attachments": {
         parameters: {
             query?: never;
@@ -1855,29 +1832,6 @@ export interface components {
             employment_start_date?: string | null;
             /** Weekly Hours */
             weekly_hours?: number | string | null;
-        };
-        /**
-         * EventResponse
-         * @description Ein Domain-Event aus dem Outbox-Strom (read-only, unveränderlich).
-         */
-        EventResponse: {
-            /** Id */
-            id: number;
-            /** Object Id */
-            object_id?: number | null;
-            /** Object Type */
-            object_type: string;
-            /** Event Type */
-            event_type: string;
-            /** Payload */
-            payload?: Record<string, never> | null;
-            /** Actor Id */
-            actor_id?: number | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
         };
         /**
          * FeedbackAnchor
@@ -5277,45 +5231,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlaceRef"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_events_api_v1_events_get: {
-        parameters: {
-            query?: {
-                /** @description Nur Events mit id > after_id (Vorwärts-Cursor für Konsumenten) */
-                after_id?: number;
-                /** @description Nur Events zu dieser Objektnummer */
-                object_id?: number | null;
-                /** @description z. B. order | instance | article */
-                object_type?: string | null;
-                /** @description z. B. order.completed */
-                event_type?: string | null;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EventResponse"][];
                 };
             };
             /** @description Validation Error */
