@@ -110,7 +110,9 @@ async def update_erp_record(
     user = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
-    # System-KI-Identität (ADR 004): Rolle ist fix – der Rest (Anzeige-Daten) bleibt editierbar.
+    # Eine System-Identität behält ihre Rolle. Das KI-Modul ist entfernt (docs/attic.md),
+    # aber eine so angelegte Zeile kann in gewachsenen Datenbanken stehen – ihr eine
+    # menschliche Rolle zu geben hiesse, ihre Historie einer Person zuzuschreiben.
     if user.role == "ai" and data.model_dump(exclude_unset=True).get("role") not in (None, "ai"):
         raise HTTPException(409, detail="Die System-KI-Identität kann keine andere Rolle erhalten")
     people.apply_profile_update(db, user, data, current_user.id)

@@ -16,7 +16,7 @@ from ..schemas.admin import (
     UserProfileResponse,
 )
 from ..services import sites
-from ..services.admin import get_or_create_settings, log_audit
+from ..services.admin import log_audit
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -50,9 +50,9 @@ async def get_settings(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_admin),
 ):
-    """Der **Betreiber** – Trägerin der Plattform-/Systemkonfiguration (Stripe, Shop,
-    Rechtstexte). Die Systemkonfigurations-Seite liest/schreibt genau diesen Datensatz."""
-    return _company_response(db, get_or_create_settings(db))
+    """Der **Betreiber** – Trägerin der Plattform-Konfiguration der einen Website. Der
+    Reiter «System» am Unternehmens-Datensatz liest und schreibt genau diese Zeile."""
+    return _company_response(db, sites.operator(db))
 
 
 @router.patch("/settings", response_model=CompanySettingsResponse)
@@ -61,7 +61,7 @@ async def update_settings(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_admin),
 ):
-    s = get_or_create_settings(db)
+    s = sites.operator(db)
     for key, value in data.model_dump(exclude_unset=True).items():
         if key == "iban":
             s.iban_encrypted = value
@@ -151,9 +151,9 @@ async def update_company(
     """Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
     Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
 
-    Plattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier
-    gesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über
-    ``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist."""
+    Die **Plattform-Konfiguration** wird bewusst NICHT hier gesetzt – ``sites.apply_update``
+    ignoriert diese Felder; sie laufen über ``PATCH /admin/settings``, damit dieselbe Angabe
+    nicht an zwei Stellen editierbar ist."""
     company = sites.require(db, object_id)
     sites.apply_update(db, company, data.model_dump(exclude_unset=True), current_user.id)
     return _company_response(db, company)
@@ -243,9 +243,6 @@ async def assign_territory(
     sites.set_territory(db, area, data.company_object_id, current_user.id)
     return _territory_map_response(db)
 
-
-# Die Betriebskosten-Übersicht ist entfallen: sie summierte KI-Ereignisse und
-# Stripe-Gebühren bezahlter Verkäufe – beide Module sind abgeschaltet.
 
 @router.get("/users", response_model=list[UserProfileResponse])
 async def list_users(

@@ -6,15 +6,13 @@ Die Spaltennamen sind historisch **unterschiedlich** gewachsen
 (``address_line1``/``postal_code`` an der Person vs. ``street``+``street_nr``/``zip_code``
 am Unternehmen) – dieses Modul ist die eine Stelle, die das übersetzt.
 
-**Kanonische Form** (identisch mit dem Versand-Adress-Snapshot, damit Carrier-Adapter,
-Etiketten und Briefköpfe dieselben Schlüssel sehen)::
+**Kanonische Form** – ein Satz Schlüssel, den jede Anzeige, jedes Etikett und jeder
+Briefkopf gleich liest::
 
     {name, street1, street2, zip, city, country, email, phone}
 
-Vorher baute **jede** Stelle ihre Adresse selbst zusammen – mit je eigener
-Fallback-Logik (``ship_* or *``) und eigenem Strassen-Join: ``services/logistics``,
-``services/document_render`` (Briefkopf), ``services/payments/stripe_provider``,
-``services/ai/tools`` und die Settings-Router. Genau diese Duplikate holt dieses Modul
+Vorher baute **jede** Stelle ihre Adresse selbst zusammen, mit je eigener Fallback-Logik
+(``ship_* or *``) und eigenem Strassen-Join. Genau diese Duplikate holt dieses Modul
 zusammen; ``country`` wird dabei konsequent nach ISO-2 normalisiert.
 """
 

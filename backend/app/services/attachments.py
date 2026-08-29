@@ -1,8 +1,8 @@
 """Bild-Uploads (Fotos) – Speicherung in der DB, Auslieferung per Token.
 
 Bewusst ohne Cloud-Bucket: sofort lauffähig auf Cloud Run, ohne IAM/Bucket-Setup. Der
-Schnitt ist so gelegt, dass später NUR dieser Service auf GCS umgestellt werden müsste
-(die Verbraucher speichern eine URL, keinen Blob). Bilder werden beim Upload normalisiert:
+Schnitt ist so gelegt, dass später NUR dieser Service auf einen Bucket umgestellt werden
+müsste (die Verbraucher speichern eine URL, keinen Blob). Bilder werden beim Upload normalisiert:
 EXIF-Rotation angewandt, auf eine vernünftige Kantenlänge begrenzt und als JPEG re-kodiert –
 so bleibt die DB-Grösse beschränkt und die Anzeige schnell."""
 
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Attachment
 
-_MAX_EDGE = 1600          # längste Kante in px (Foto-Doku / Shop reicht das dicke)
+_MAX_EDGE = 1600          # längste Kante in px (für eine Foto-Doku reicht das dicke)
 _JPEG_QUALITY = 82
 _MAX_UPLOAD_BYTES = 20 * 1024 * 1024   # 20 MB Rohupload-Limit (vor Verkleinerung)
 _MAX_PIXELS = 40_000_000   # ~40 MP – Schutz vor Decompression-Bombs (kleine Datei, riesige Fläche)

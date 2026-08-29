@@ -31,7 +31,6 @@ REGIONS: tuple[dict, ...] = (
 )
 
 REGION_CODES: tuple[str, ...] = tuple(r["code"] for r in REGIONS)
-REGION_LABELS: dict[str, str] = {r["code"]: r["label"] for r in REGIONS}
 
 
 # ─── ISO-2-Land → Region ─────────────────────────────────────────────────────────
@@ -75,7 +74,6 @@ COUNTRY_REGION: dict[str, str] = {
     cc: region for region, countries in _BY_REGION.items() for cc in countries
 }
 
-COUNTRY_CODES: tuple[str, ...] = tuple(sorted(COUNTRY_REGION))
 
 
 def region_of_country(country: str | None) -> str | None:

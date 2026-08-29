@@ -179,7 +179,7 @@ const nn = (s: string): string | null => (s.trim() === '' ? null : s);
  * sind, dürfen sie Pflicht sein. Zwei davon füllt das System selbst: die **Währung** folgt
  * dem Land (#304) und die **Website-Adresse** dem Deployment (#309).
  *
- * Die **Plattform-/Systemkonfiguration** (Stripe, Shop, Rechtstexte) gilt der EINEN
+ * Die **Plattform-Konfiguration** (Analytics- und Karten-Schlüssel) gilt der EINEN
  * Website, nicht je Gesellschaft – sie steht im Reiter «System» am **Betreiber**.
  */
 export function OrganizationDetail({ record, onSaved, onBack }: {
@@ -508,9 +508,3 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   );
 }
 
-// ─── Betriebskosten-Übersicht – tatsächliche Zahlen Monat-bis-heute ───────────
-// KI (Tokens × Tarif) und Zahlungen (Stripe-Gebühren) sind GEMESSEN; die Infrastruktur
-// ist eine anteilige Schätzung der fixen Google-Cloud-Grundkosten. Kompakt gruppiert,
-// mit grosser Summe und Monats-Hochrechnung.
-// Die Betriebskosten-Karte ist entfallen: sie summierte KI-Ereignisse und
-// Stripe-Gebühren – beide Module sind abgeschaltet (core/features.py).

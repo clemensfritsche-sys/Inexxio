@@ -216,7 +216,6 @@ _BY_VALUE: dict[str, Status] = {s.value: s for s in CATALOG}
 #: Wert → Beschriftung. Die Reihenfolge ist die Anzeige-Reihenfolge.
 STATUS_LABELS: dict[str, str] = {s.value: s.label for s in CATALOG}
 
-STATUSES: tuple[str, ...] = tuple(STATUS_LABELS)
 
 
 def _on(axis: str) -> tuple[str, ...]:

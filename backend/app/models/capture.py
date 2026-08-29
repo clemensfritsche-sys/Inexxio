@@ -50,4 +50,3 @@ class Capture(Base, TimestampMixin):
     note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
 
-RESULTS = ("passed", "failed")

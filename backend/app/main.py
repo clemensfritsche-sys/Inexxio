@@ -60,10 +60,10 @@ def _bootstrap_admin() -> None:
 # Spalten, die nach dem Initial-Schema ergänzt wurden (Tabelle, Spalte, DDL-Typ).
 # create_all() legt nur fehlende TABELLEN an – KEINE neuen Spalten auf bestehenden.
 _COLUMN_SAFETY_NET = (
-    # ``company_settings`` wird von JEDER Standort-Anzeige und von den öffentlichen
-    # Endpunkten (Impressum, Shop-Konfiguration) gelesen. Fehlt hier eine Spalte, die das
-    # Modell kennt, endet jede dieser Abfragen in einem 500 – das nimmt ERP **und** Website
-    # mit. Genau das ist mit ``is_primary`` passiert (Migration 090), als sie hier fehlte.
+    # ``company_settings`` liest JEDE Halter-Anzeige (ein Unternehmen ist ein Standort)
+    # und der öffentliche Impressum-Endpunkt. Fehlt hier eine Spalte, die das Modell kennt,
+    # endet jede dieser Abfragen in einem 500 – das nimmt ERP **und** Website mit. Genau
+    # das ist mit ``is_primary`` passiert (Migration 090), als sie hier fehlte.
     ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
     ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false"),
     ("company_settings", "currency", "VARCHAR(3) NOT NULL DEFAULT 'CHF'"),
@@ -117,19 +117,6 @@ _COLUMN_SAFETY_NET = (
 # resource_usages / documents / inspections / article_process_steps / material_moves /
 # instance_order_links sind mit ihren Tabellen entfallen.
 
-_NUMERIC_QTY_COLUMNS: tuple[tuple[str, str], ...] = ()
-# Leer, seit es keine gespeicherten Mengen mehr gibt: die Menge einer Instanz ist die
-# Anzahl ihrer Einzelinstanzen und wird gezählt. Die Schleife bleibt stehen, weil die
-# nächste Bruchmengen-Spalte hier hinein gehört – nicht in einen neuen Mechanismus.
-
-# VARCHAR-Spalten, die nachträglich verbreitert wurden (Migration 060): idempotentes
-# ALTER, falls Alembic übersprungen wurde. 'replenishment' (13 Zeichen) scheiterte an
-# der ursprünglichen Breite 12 – jede Auto-Nachbestellung endete im Truncation-Fehler.
-_VARCHAR_WIDEN_COLUMNS: tuple[tuple[str, str, int], ...] = ()
-
-# Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
-# via create_all() (nicht Alembic) erzeugt – diese NOT-NULL/Alt-Spalten würden
-# sonst INSERTs brechen (z. B. purchase_orders.transport_included). Idempotent.
 #: **Spalten, die ihre ``NOT NULL``-Sperre verlieren.** Das Gegenstück zum Drop-Netz:
 #: eine Spalte, die das Modell nicht mehr kennt, deren Sperre aber noch steht, lässt
 #: **jedes** Insert auflaufen – und zwar sofort und für alle. Sie zu lösen ist der erste
@@ -284,31 +271,6 @@ def _ensure_columns() -> None:
                 if col not in {c["name"] for c in insp.get_columns(table)}:
                     conn.execute(text(
                         f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}"
-                    ))
-            # Bruchmengen: ganzzahlige Mengen-Spalten auf NUMERIC(14,3) heben (idempotent).
-            for table, col in _NUMERIC_QTY_COLUMNS:
-                if table not in tables or col not in {c["name"] for c in insp.get_columns(table)}:
-                    continue
-                dtype = conn.execute(text(
-                    "SELECT data_type FROM information_schema.columns "
-                    "WHERE table_name = :t AND column_name = :c"
-                ), {"t": table, "c": col}).scalar()
-                if dtype and dtype.lower() != "numeric":
-                    conn.execute(text(
-                        f"ALTER TABLE {table} ALTER COLUMN {col} "
-                        f"TYPE NUMERIC(14,3) USING {col}::numeric(14,3)"
-                    ))
-            # Zu schmale VARCHAR-Spalten idempotent verbreitern (nur vergrössern).
-            for table, col, width in _VARCHAR_WIDEN_COLUMNS:
-                if table not in tables or col not in {c["name"] for c in insp.get_columns(table)}:
-                    continue
-                current = conn.execute(text(
-                    "SELECT character_maximum_length FROM information_schema.columns "
-                    "WHERE table_name = :t AND column_name = :c"
-                ), {"t": table, "c": col}).scalar()
-                if current is not None and current < width:
-                    conn.execute(text(
-                        f"ALTER TABLE {table} ALTER COLUMN {col} TYPE VARCHAR({width})"
                     ))
             for table, col in _NULLABLE_SAFETY_NET:
                 if table in tables and col in {c["name"] for c in insp.get_columns(table)}:
@@ -481,10 +443,10 @@ def _ensure_company_object_id() -> None:
     fehlt die Objektnummer, wird sie hier EINMALIG beim Start vergeben – deploy-
     deterministisch und unabhängig davon, ob jemand die Admin-Einstellungen öffnet
     (der öffentliche Settings-Endpoint vergibt bewusst keine Nummern)."""
-    from .services.admin import get_or_create_settings
+    from .services.sites import operator
     db = SessionLocal()
     try:
-        get_or_create_settings(db)   # legt Settings an + vergibt object_id (committet)
+        operator(db)   # legt die erste Gesellschaft an + vergibt die Objektnummer
     except Exception as e:
         db.rollback()
         print(f"WARNING: _ensure_company_object_id() failed: {e}", flush=True)

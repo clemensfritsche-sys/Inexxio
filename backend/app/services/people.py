@@ -34,14 +34,6 @@ def name_by_id(db: Session, user_id: Optional[int]) -> Optional[str]:
     return name(db.query(UserProfile).filter(UserProfile.id == user_id).first())
 
 
-def name_by_object_id(db: Session, object_id: Optional[int]) -> Optional[str]:
-    """Anzeigename über die **9-stellige Objektnummer** (Standort-Ziele, Dokument-
-    Parteien, gescannte Nummern – überall dort, wo Objekte global adressiert werden)."""
-    if not object_id:
-        return None
-    return name(db.query(UserProfile).filter(UserProfile.object_id == object_id).first())
-
-
 def apply_profile_update(db: Session, user: UserProfile, data, actor_id: int) -> UserProfile:
     """Profil-Felder schreiben – **EIN** Pfad für beide Oberflächen.
 

@@ -7,24 +7,24 @@ juristische Einheit** mit eigener Objektnummer: eigener Name, Anschrift, Rechtsi
 «Hauptsitz vs. Standort»-Unterschied (eine Zeile privilegiert, die übrigen kastriert) ist
 ersatzlos entfallen.
 
-**Die eine verbleibende Asymmetrie ist KEIN Rang, sondern eine abgeleitete Rolle.**
-Genau eine Frage braucht trotz N Gesellschaften **eine** Antwort: *wer vertritt die eine
-Website nach aussen* (Impressum, Rechtstexte, Fallback, Systemkonfiguration). Diese Rolle
-– der **Betreiber** – wird **abgeleitet, nicht markiert**: es ist das **älteste**
-Unternehmen (kleinste ``id`` = Ursprung, existierte vor jeder Aussenstelle). Kein Flag,
-kein Unique-Index, kein Badge – nichts, was eine Zeile über eine andere stellt.
+**Die eine verbleibende Asymmetrie ist kein Rang, sondern eine Rolle.** Genau eine Frage
+braucht trotz N Gesellschaften **eine** Antwort: *wer vertritt die eine Website nach
+aussen* (Impressum, Fallback, Plattform-Konfiguration). Diese Rolle – der **Betreiber** –
+ist **wählbar** (``is_operator``, partieller Unique-Index: genau eine trägt sie,
+``set_operator`` nimmt sie allen anderen ab). Gelesen wird sie **tolerant**: ist keine
+markiert (frische Datenbank, Migration 091 noch nicht gelaufen), gilt das **älteste**
+Unternehmen – so gibt es nie «keinen Betreiber», und jeder Beleg hat einen Absender.
 
 **Warum es dieses Modul gibt.** Zehn Stellen im Code holten sich früher «die Firma» selbst
 – mal ``id == 1``, mal ein blosses ``.first()``. Bei einer Zeile war beides dasselbe; ab
 der zweiten ist ``.first()`` eine **willkürliche Wahl**. Deshalb läuft die Auflösung nur
 hier:
 
-  * ``operator(db)`` → der **Betreiber** (Website/Impressum/Systemkonfiguration/Fallback).
-    Schreib-Form: legt ihn an, falls die DB leer ist. Alias ``primary`` – dieselbe Sache,
-    alter Name, damit die vielen Aufrufer von ``get_or_create_settings`` unverändert bleiben.
-  * ``find_operator(db)`` → dieselbe Rolle als **reines Lesen** (Pflicht in fremden
-    Transaktionen – Preis-Pipeline, Shop-Konfig, PDF-Briefkopf: ein ``commit`` dort würde
-    die halbfertige Arbeit des Aufrufers festschreiben).
+  * ``operator(db)`` → der **Betreiber** (Website, Impressum, Plattform-Konfiguration,
+    Fallback). Schreib-Form: legt ihn an, falls die Datenbank leer ist.
+  * ``find_operator(db)`` → dieselbe Rolle als **reines Lesen** – Pflicht überall, wo
+    schon jemand anderes eine Transaktion führt: ein ``commit`` dort schriebe dessen
+    halbfertige Arbeit fest.
   * ``all_companies(db)`` → **alle** Unternehmen, Betreiber (ältestes) zuerst.
   * ``by_object_id(db, oid)`` → **genau dieses** Unternehmen. Für jede Stelle, die schon
     weiss, welche sie meint (Adresse eines Bewegungs-Ziels, Label eines Halters, künftig
@@ -92,11 +92,11 @@ def website_url() -> str:
     from ..core.config import get_settings
     return get_settings().frontend_base_url.rstrip("/")
 
-# Die **Plattform-Konfiguration** – sie gilt für die EINE Website/Integration, nicht je
-# Gesellschaft. Sie lebt (vorerst als Spalten auf dem Betreiber-Datensatz) und wird
-# ausschliesslich über ``PATCH /admin/settings`` (Systemkonfiguration) gepflegt. ``apply_update``
-# schreibt sie NIE, damit ein Nebenstandort keinen Stripe-Key o. ä. setzen kann. Die ``iban``
-# ist Entität, wird aber gesondert behandelt (verschlüsselte Spalte).
+# Die **Plattform-Konfiguration** – sie gilt für die EINE Website, nicht je Gesellschaft,
+# und lebt als Spalten auf dem Betreiber-Datensatz. Gepflegt wird sie ausschliesslich über
+# ``PATCH /admin/settings``; ``apply_update`` schreibt sie NIE, damit eine Tochter-
+# gesellschaft nicht die Schlüssel der gemeinsamen Website setzen kann. Die ``iban`` ist
+# Entität, wird aber gesondert behandelt (verschlüsselte Spalte).
 PLATFORM_FIELDS = ("plausible_domain", "google_maps_api_key")
 
 
@@ -149,13 +149,6 @@ def operator(db: Session) -> CompanySettings:
         db.refresh(company)
     _assign_object_id(db, company)
     return company
-
-
-# Rückwärts-kompatible Namen: der halbe Code ruft ``get_or_create_settings`` → das delegiert
-# auf ``primary``. Beide meinen jetzt den Betreiber; die Namen bleiben, damit kein Aufrufer
-# angefasst werden muss.
-primary = operator
-find_primary = find_operator
 
 
 def all_companies(db: Session) -> list[CompanySettings]:
@@ -283,11 +276,11 @@ def company_for_country(db: Session, country: str | None) -> CompanySettings | N
     abweichen (Ausnahme: «Europa gehört der GmbH, Liechtenstein aber der Schweizer AG») –
     beides sind Ansprüche in derselben Tabelle (``company_territories``), der Unterschied
     ist aus der Form des Codes abgeleitet (ISO-2 = Land). Rein lesend (kein commit) –
-    Pflicht in fremden Transaktionen (Verkauf/Beleg/Versand).
+    Pflicht überall, wo schon jemand anderes eine Transaktion führt.
 
-    Ausschlaggebend ist die **Rechnungsadresse** des Kunden (sein rechtlicher Sitz), NICHT die
-    Lieferadresse – die richtet nur die Steuer (Stripe Tax). Ein unbekanntes/unzugeordnetes
-    Land fällt auf den Betreiber (Totalität: jeder Fleck gehört jemandem)."""
+    Ausschlaggebend ist die **Rechnungsadresse** des Kunden (sein rechtlicher Sitz), nicht
+    die Lieferadresse – die richtet die Steuer. Ein unbekanntes/unzugeordnetes Land fällt
+    auf den Betreiber (Totalität: jeder Fleck gehört jemandem)."""
     from . import address
     if not (country or "").strip():
         return find_operator(db)          # kein Land → Betreiber (nicht raten)
@@ -453,9 +446,8 @@ def create(db: Session, data: dict, actor_id: int | None) -> CompanySettings:
 
 def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: int | None) -> CompanySettings:
     """Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
-    Betreiber). Plattform-Felder (Stripe/Shop/Rechtstexte) werden ignoriert; die laufen
-    über ``PATCH /admin/settings`` (Systemkonfiguration), damit dieselbe Angabe nicht an
-    zwei Stellen editierbar ist.
+    Betreiber). **Plattform-Felder werden ignoriert** – die laufen über
+    ``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.
 
     **Der Name ist hart erforderlich** (Testnotiz #301) – nicht als Formular-Kosmetik,
     sondern weil er zugleich das **Halter-Label** ist: ``locations.location_label`` gibt

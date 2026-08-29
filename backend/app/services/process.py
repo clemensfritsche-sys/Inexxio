@@ -499,8 +499,8 @@ def _assert_may_leave(db: Session, membership: OrderUnit, number: str) -> None:
 
     **Darf das Stück den Modultyp verlassen, vor dem es gerade steht?** Die Antwort
     steht am **Modultyp** (``domain/modules.Module.units_may_leave``), nicht hier: eine
-    globale Regel wäre für die reversible Datenerfassung zu streng und für einen
-    künftigen Einkauf/Verkauf zu lasch.
+    globale Regel wäre für die reversible Datenerfassung zu streng und für ein Modul mit
+    Aussenwirkung zu lasch.
 
     Solange die Entscheidung aussteht, ist dies die **einzige** Stelle, die sie liest –
     ein neuer Modultyp mit Aussenwirkung setzt das Flag und bekommt die Sperre geschenkt.

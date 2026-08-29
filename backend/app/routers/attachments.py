@@ -1,6 +1,6 @@
 """Foto-/Bild-Uploads. Upload nur für Personal; Auslieferung öffentlich über einen
-unerratbaren Token (der Shop zeigt Produktbilder öffentlich, das ERP nutzt denselben
-Weg – die Sensitivität von Fotos ist gering und der Token nicht aufzählbar)."""
+unerratbaren Token – eine Aufnahme hängt an keinem Datensatz, ihre URL IST der Zugriffsweg
+(die Sensitivität ist gering, und der Token ist nicht aufzählbar)."""
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import Response

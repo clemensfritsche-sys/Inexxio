@@ -24,15 +24,15 @@ class CompanySettings(Base):
         Die US-Gesellschaft hat ihre EIGENE EIN/Steuer/Bank – deshalb ist Rechtsidentität
         hier bewusst dabei. Der Satz ist bewusst **klein**: jedes Feld hier ist ein Feld,
         das jemand für JEDE Gesellschaft pflegen muss.
-      * **die eine Website/Integration** (``sites.PLATFORM_FIELDS``): Stripe-Key,
-        Shop-Währungen, ``pricing_zone_factors``, ``legal_documents``, Plausible, Maps.
-        Diese gibt es genau EINMAL; sie liegen (vorerst) als Spalten auf dem **Betreiber**
-        (dem ältesten Unternehmen) und werden nur über die Systemkonfiguration gepflegt.
+      * **die eine Website** (``sites.PLATFORM_FIELDS``): die Plausible-Domain und der
+        Google-Maps-Schlüssel. Diese gibt es genau EINMAL; sie liegen als Spalten auf dem
+        **Betreiber** und werden nur über die Systemkonfiguration gepflegt.
 
-    **Der «Betreiber» ist abgeleitet, kein Flag** (``sites.operator`` = ältestes
-    Unternehmen). Das frühere ``is_primary`` ist entfallen: es stellte eine Zeile über die
-    anderen und war die Ursache eines Deploy-Ausfalls. Die Rolle «wer vertritt die eine
-    Website» braucht keine Markierung – die kleinste ``id`` (der Ursprung) ist die Antwort.
+    **Der «Betreiber» ist gewählt, nicht gemarkert** (``is_operator``, partieller
+    Unique-Index: genau eine trägt den Titel). Gelesen wird tolerant – ohne Markierung
+    gilt das älteste Unternehmen, damit eine ausstehende Migration nie zu «kein Betreiber»
+    führt. Das frühere ``is_primary`` ist entfallen: es stellte eine Zeile über die anderen
+    und war die Ursache eines Deploy-Ausfalls.
     """
 
     __tablename__ = "company_settings"
@@ -80,7 +80,7 @@ class CompanySettings(Base):
     country: Mapped[str] = mapped_column(String(100), default="Schweiz")
     # **Rechtsidentität – auf das Minimum reduziert** (Testnotizen #307/#313/#314/#319/#321):
     # Was die Gesellschaft ausweist, sind UID/Steuernummer und MWST-Nummer – sie stehen auf
-    # dem Beleg-Briefkopf (``document_render``) und im Impressum. Die Handelsregister-Nummer
+    # dem Beleg-Briefkopf und im Impressum. Die Handelsregister-Nummer
     # ist in der Schweiz seit 2016 die UID selbst, der HR-Kanton steht im Register und das
     # Aktienkapital ist nirgends vorgeschrieben – drei Felder, die nur abschrieben, was die
     # UID ohnehin sagt.

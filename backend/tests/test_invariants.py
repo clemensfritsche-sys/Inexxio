@@ -251,22 +251,20 @@ def test_the_article_status_has_exactly_one_vocabulary():
         "sie dürfen nicht auseinanderlaufen."
     )
 
-    # Und kein aktives Modul spricht die alte **Artikel**-Status-Sprache. Gesucht wird
+    # Und **kein** Modul spricht die alte **Artikel**-Status-Sprache. Gesucht wird
     # ausdrücklich nach dem Subjekt: ``draft`` ist als *Auftrags*-Zustand weiterhin ein
     # gültiges Wort, und ein Wächter, der beides in einen Topf wirft, meldet Falsches und
-    # wird dafür stillgelegt. (Die abgeschalteten Bereiche ``ai``/``selling`` sprechen sie
-    # noch – dort ist es totes Holz, das mit ihrer Wiederbelebung mitzuziehen ist;
-    # ``FINDINGS.md`` nennt die Stellen.)
+    # wird dafür stillgelegt.
+    #
+    # Die frühere Ausnahmeliste (die abgeschalteten Bereiche sprachen die alte Sprache
+    # noch) ist mit ihnen entfallen – der Wächter gilt jetzt ohne Ausnahme.
     app = pathlib.Path(__file__).resolve().parents[1] / "app"
-    dead = ("services/ai", "services/selling.py")
     pattern = re.compile(
         r"""\b(?:article|art|Article)\.status\s*(?:=|==|!=)\s*["'](released|inactive|draft)["']"""
     )
     hits: list[str] = []
     for path in sorted(app.rglob("*.py")):
         rel = str(path.relative_to(app))
-        if any(rel.startswith(d) for d in dead):
-            continue
         for m in pattern.finditer(path.read_text(encoding="utf-8")):
             hits.append(f"{rel}: {m.group(0)}")
     assert not hits, (

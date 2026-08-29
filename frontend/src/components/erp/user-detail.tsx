@@ -24,9 +24,9 @@ import { SaveStatusIndicator } from '@/components/account/save-status';
 import type {UserProfile, UserRole } from '@/types';
 
 // **«Bestellungen» ist entfallen** – nicht als Entscheidung, sondern als Befund: der
-// Reiter rendete **gar nichts**. Seine Karte hing am Verkaufs-Modul, und das ist im
-// Basis-Neuaufbau abgeschaltet (`features.ACTIVE`); geblieben war ein Knopf, der eine
-// leere Fläche öffnet. Kommt der Verkauf zurück, kommt der Reiter mit ihm.
+// Reiter rendete **gar nichts**. Seine Karte hing am Verkaufs-Modul, und das ist mit dem
+// Basis-Neuaufbau entfallen (docs/attic.md); geblieben war ein Knopf, der eine leere
+// Fläche öffnet. Kommt der Verkauf zurück, kommt der Reiter mit ihm.
 type UserTab = 'profil' | 'docs';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -473,7 +473,7 @@ function passkeyLabel(count: number | null | undefined): string {
 
 // ─── Bestellungen (Reiter) ─────────────────────────────────────────────────────
 
-// Die Karte «Bestellungen» ist entfallen: der Verkauf ist abgeschaltet.
+// Die Karte «Bestellungen» ist mit dem Verkaufs-Modul entfallen (docs/attic.md).
 
 export function UserDetail({ record, onSave, isAdmin, onBack }: {
   record: UserProfile;

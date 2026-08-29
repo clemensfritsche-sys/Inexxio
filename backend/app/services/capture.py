@@ -29,7 +29,6 @@ from ..models import Capture, InstanceUnit, Order, ProcessStep
 
 #: Erfassungspunkte, die eine **Datei** tragen. Sie werden wie jeder andere Wert erfasst;
 #: der Unterschied ist nur die Eingabe (Kamera/Zeichenfläche statt Tastatur).
-MEDIA = ("photo", "signature")
 
 
 def points_of(step: ProcessStep) -> list[dict[str, Any]]:

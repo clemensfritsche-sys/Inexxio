@@ -8,6 +8,11 @@ Jede Prüfung ist ein Satz aus ``SYSTEM_LOGIC.md`` und gibt die **Verstösse** z
 True/False: eine Verletzung ohne Nennung des betroffenen Datensatzes ist eine Meldung, mit
 der niemand etwas anfangen kann.
 
+**Dieses Modul hängt bewusst an keinem Router.** Es ist ein Prüfwerkzeug, kein
+Endpunkt – gelesen von ``tests/test_invariants.py`` und ``scripts/invariant_report.py``.
+Wer die Erreichbarkeit ab ``app.main`` misst (``scripts/deadcode.py``), findet es darum
+als «nicht erreichbar»; das ist richtig so und kein Grund, es zu löschen.
+
 **Sie sind absichtlich unabhängig von der Fachlogik formuliert.** Wo möglich wird gegen
 die *Tabellen* geprüft, nicht gegen die Ableitung, die geprüft werden soll — sonst
 bestätigte die Ableitung sich selbst. Die zwei Ausnahmen sind benannt (``I05``, ``I07``):

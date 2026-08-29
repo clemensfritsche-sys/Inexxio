@@ -15,8 +15,10 @@ import type { User } from 'firebase/auth';
 const ROLE_KEY = 'inexxio_user_role';
 const NAME_KEY = 'inexxio_user_fullname';
 
+// Nur Seiten, die es wirklich gibt. «Shop» stand hier als erster Eintrag und führte ins
+// Leere – der Shop ist mit dem Verkaufs-Modul entfallen (docs/attic.md), und ein Link auf
+// eine Route, die der statische Export gar nicht kennt, ist ein 404 an prominentester Stelle.
 const navLinks = [
-  { href: '/shop', label: 'Shop' },
   { href: '/ueber-uns', label: 'Über uns' },
   { href: '/kontakt', label: 'Kontakt' },
 ];

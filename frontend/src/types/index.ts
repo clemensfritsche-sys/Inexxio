@@ -10,7 +10,7 @@ import type { components } from './api';
 // ─── User ─────────────────────────────────────────────────────────────────────
 
 // Von Menschen belegbare Rollen (Rollen-Dropdown). Die System-KI (role='ai',
-// ADR 004) ist bewusst NICHT wählbar – sie erscheint nur als Anzeige.
+// entferntes KI-Modul) ist bewusst NICHT wählbar – sie erscheint nur als Anzeige.
 export type UserPlatformRole = 'admin' | 'employee' | 'supplier' | 'customer';
 export type UserRole = UserPlatformRole | 'ai';
 
@@ -54,9 +54,6 @@ export interface ArticleInput {
   supplier_article_number?: string | null;
   min_order_qty?: string | null;
   safety_stock?: string | null;
-  // Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (vom purchase-Schritt geerbt)
-  default_supplier_id?: number | null;
-  default_webshop_url?: string | null;
   /**
    * **Welchen Artikel löst dieser hier ab?** (Objektnummer) — nur bei der Anlage.
    *
