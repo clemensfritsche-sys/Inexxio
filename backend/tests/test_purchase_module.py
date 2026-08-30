@@ -1346,3 +1346,190 @@ def test_taking_back_the_choice_removes_the_document():
     finally:
         db.rollback()
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Testnotiz #775 – der Weg zurück, die freie Wahl und die Identität des Vorgangs
+# ---------------------------------------------------------------------------
+
+def test_the_way_back_exists_before_anything_is_promised():
+    """►►► **«Zurück» gibt es, BEVOR etwas zugesagt ist — und es hat ein Wort.** ◄◄◄
+
+    Gemeldet: «sobald ich einmal eingekauft habe, kann ich nicht mehr zurück». Genau
+    davor ist am wenigsten zugesagt – da liegt weder eine Anfrage noch eine Bestellung
+    beim Lieferanten.
+
+    Es bleibt bei **einer** Gegenhandlung (``revoke``); was sie bewirkt, sagt die Stufe,
+    und **wie sie heisst**, sagt der Beleg (``undo``). Ein Satz in der Oberfläche wäre die
+    zweite Stelle für dieselbe Regel – und beim nächsten Fall stünde dort ein Wort, das
+    keine Regel deckt.
+
+    Bug-Form: ``undo`` ist ``None``, solange nichts angefragt ist (dann hat die Oberfläche
+    nichts zu rendern), oder alle drei Fälle heissen gleich.
+    """
+    from app.services import purchase as svc
+
+    db = _db()
+    try:
+        me = _staff(db)
+        carrier = _supplier(db, "Spedition Meier")
+        shelf = _shelf(db)
+
+        # (a) Ein Modul, das auch selbst kann: «zurück» heisst «doch selbst».
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=2, article=art)
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
+        assert "revoke" in facts["can"], (
+            "Ohne Anfrage gibt es keine Gegenhandlung – dann ist die Wahl eine Falle."
+        )
+        assert facts["undo"] == "Doch selbst erledigen", (
+            f"Der Weg zurück heisst nicht nach seiner Wirkung: {facts['undo']!r}"
+        )
+
+        # (b) Ein Modul, dessen Zweck der Einkauf ist: dort bleibt der Beleg.
+        wuerth = _supplier(db, "Würth AG")
+        art2 = _article(db, "Schraube", steps=[_buy_step([wuerth])])
+        order2, steps2 = _make(db, quantity=3, article=art2)
+        facts2 = svc.embed_data(db, order=order2, step=steps2[0], viewer=me)
+        assert facts2["undo"] == "Anfrage zurückziehen", (
+            f"Wo der Einkauf der Zweck ist, verschwindet er nicht: {facts2['undo']!r}"
+        )
+
+        # (c) Ab der Zusage ist eine zweite Partei gebunden – dann heisst es stornieren.
+        svc.apply(db, order=order, step=steps[0], action="ask",
+                  payload={"suppliers": [carrier.object_id]}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="order",
+                  payload={"supplier": carrier.object_id, "amount": "180.00"}, actor=me)
+        facts3 = svc.embed_data(db, order=order, step=steps[0], viewer=me)
+        assert facts3["undo"] == "Bestellung stornieren", (
+            f"Ab der Bestellung ist «zurück» eine Absage: {facts3['undo']!r}"
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_cancelled_document_frees_a_module_that_can_do_it_itself():
+    """►►► **Wer auch selbst kann, ist mit einem Storno wieder bei «selbst».** ◄◄◄
+
+    Die **Sackgasse**, die dabei aufgefallen ist: nach einem Storno hatte die Stufe
+    ``storniert`` keine Handlung mehr (``can`` leer), ``assert_receivable`` wies den
+    Ziel-Scan mit 409 ab, und ``ensure`` fand die tote Zeile wieder. Ein Transport,
+    dessen Spedition abgesagt wurde, konnte damit **nie** mehr stattfinden – auch nicht
+    zu Fuss –, und der Auftrag stand für immer.
+
+    Die Absage bleibt als Zeile stehen (ein Storno macht die Bestellung nicht ungeschehen);
+    sie ist nur nicht mehr *der* Beleg dieses Moduls. Wo der Einkauf der **Zweck** ist,
+    bleibt er aktiv – dort ist ein Storno wirklich das Ende des Vorgangs.
+
+    Bug-Form: ``is_active`` bleibt stehen → derselbe 409 wie vorher (gegengeprüft).
+    """
+    from app.models import Purchase
+    from app.services import purchase as svc
+
+    db = _db()
+    try:
+        me = _staff(db)
+        carrier = _supplier(db, "Spedition Meier")
+        shelf = _shelf(db)
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=1, article=art)
+
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="ask",
+                  payload={"suppliers": [carrier.object_id]}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="order",
+                  payload={"supplier": carrier.object_id, "amount": "90.00"}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="revoke", payload={}, actor=me)
+        db.flush()
+
+        gone = (db.query(Purchase).filter(Purchase.step_id == steps[0].id)
+                .order_by(Purchase.id.desc()).first())
+        assert gone is not None and gone.stage == "storniert", (
+            "Die Absage muss als Historie stehen bleiben – sie ist passiert."
+        )
+        assert gone.is_active is False, (
+            "Der stornierte Beleg ist weiterhin *der* Beleg des Moduls – damit ist das "
+            "Modul für immer blockiert."
+        )
+        assert svc.of_step(db, steps[0].id) is None
+        # Der Ziel-Scan geht wieder: das Stück wird eben selbst gebracht.
+        svc.assert_receivable(db, step=steps[0])
+        # …und ein zweiter Anlauf ist möglich (partieller Unique-Index seit 119).
+        again = svc.ensure(db, order=order, step=steps[0])
+        assert again.id != gone.id and again.stage == "anfrage"
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_free_supplier_list_is_not_anyone():
+    """**Frei heisst nicht «irgendwer»** – gefragt werden kann nur ein Lieferant.
+
+    Wo die Definition niemanden nennt (ein Transport: den Spediteur wählt man, wenn man
+    weiss, wohin), wird zur Laufzeit **gesucht** – und die Suche bietet nur Lieferanten
+    an. Der Dienst muss dasselbe verlangen, sonst wäre die Auswahlliste eine Bitte:
+    dieselbe Haltung wie bei ``places.search``.
+
+    Bug-Form: ``_assert_allowed`` prüft bei leerer Liste gar nichts – dann geht jede
+    Objektnummer durch, und der Fehler fällt erst beim Bestellen auf (404).
+    """
+    from fastapi import HTTPException
+    from app.services import purchase as svc
+
+    db = _db()
+    try:
+        me = _staff(db)
+        carrier = _supplier(db, "Spedition Meier")
+        shelf = _shelf(db)
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=1, article=art)
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+
+        with pytest.raises(HTTPException) as bad:
+            svc.apply(db, order=order, step=steps[0], action="ask",
+                      payload={"suppliers": [me.object_id]}, actor=me)
+        assert bad.value.status_code == 400 and "kein Lieferant" in str(bad.value.detail)
+
+        svc.apply(db, order=order, step=steps[0], action="ask",
+                  payload={"suppliers": [carrier.object_id]}, actor=me)
+        facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
+        assert [q["supplier_object_id"] for q in facts["quotes"]] == [carrier.object_id]
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_purchase_carries_its_own_identity():
+    """**Ein Einkauf sieht überall gleich aus** – und sagt selbst, wie er heisst.
+
+    Name und Farbfamilie beschreiben den **Vorgang**, nicht den Modultyp, der ihn
+    ausgelöst hat. Sie stehen darum in ``domain/procurement`` und reisen **mit dem Beleg**
+    (``label``/``tone``) – die Ausführungsstelle schlägt nichts im Modul-Katalog nach, den
+    nur der Editor lädt.
+
+    Bug-Form: zwei Literale (eines am Modul, eines am Beleg). Sie stimmen am ersten Tag
+    überein und laufen beim ersten Umbenennen auseinander.
+    """
+    from app.domain import modules, procurement
+    from app.services import purchase as svc
+
+    assert modules.get("beschaffen").label == procurement.LABEL
+    assert modules.get("beschaffen").tone == procurement.TONE
+
+    db = _db()
+    try:
+        me = _staff(db)
+        shelf = _shelf(db)
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=1, article=art)
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
+        assert facts["label"] == procurement.LABEL and facts["tone"] == procurement.TONE, (
+            "Der Beleg trägt seine Identität nicht mit – dann muss die Oberfläche sie "
+            "sich beim Modul-Katalog borgen, und der ist dort nicht geladen."
+        )
+    finally:
+        db.rollback()
+        db.close()

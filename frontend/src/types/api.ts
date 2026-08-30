@@ -1453,8 +1453,6 @@ export interface components {
          * @description Teil-Update aus dem Detailfenster. Alle Felder optional.
          */
         ArticleUpdate: {
-            /** Status */
-            status?: string | null;
             /** Name */
             name?: string | null;
             /** Unit */
@@ -2673,6 +2671,18 @@ export interface components {
         PurchaseEmbed: {
             /** Stage */
             stage: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Tone
+             * @default
+             */
+            tone: string;
+            /** Undo */
+            undo?: string | null;
             /** Stages */
             stages?: components["schemas"]["PurchaseStage"][];
             /** Can */

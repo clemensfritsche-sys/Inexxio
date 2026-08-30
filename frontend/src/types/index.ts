@@ -23,8 +23,9 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
 
 // ─── Article ────────────────────────────────────────────────────────────────
 
-// Aus der EINEN Statusliste (`domain/statuses.ARTICLE_STATUSES`) – einen Entwurf gibt es
-// nicht: der Artikel entsteht erst mit seiner Freigabe.
+// Aus der EINEN Statusliste (`domain/statuses`) – einen Entwurf gibt es nicht: der Artikel
+// entsteht erst mit seiner Freigabe. **Gesetzt wird er von niemandem**: er ist die
+// Projektion von `replaced_by_id` (Testnotiz #773).
 export type ArticleStatus = 'freigegeben' | 'inaktiv';
 export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'm3' | 'kg' | 'l';
 export type ArticleSerialization = 'unit' | 'batch';
@@ -63,9 +64,11 @@ export interface ArticleInput {
   replaces_object_id?: number | null;
 }
 
+// **Kein `status`, kein `is_active`.** Ausser Betrieb geht ein Artikel dadurch, dass ein
+// Nachfolger ihn ablöst (`replaces_object_id` an der Anlage) – der Zustand ist die
+// Projektion davon (Testnotiz #773); `is_active` ist der Soft-Delete des Datensatzes und
+// gehört keinem Formular.
 export type ArticleUpdateInput = Partial<ArticleInput> & {
-  status?: ArticleStatus;
-  is_active?: boolean;
   expected_updated_at?: string | null;   // Optimistic Locking
 };
 

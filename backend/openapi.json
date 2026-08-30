@@ -3842,17 +3842,6 @@
       },
       "ArticleUpdate": {
         "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          },
           "name": {
             "anyOf": [
               {
@@ -6633,6 +6622,27 @@
           "stage": {
             "type": "string",
             "title": "Stage"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone",
+            "default": ""
+          },
+          "undo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo"
           },
           "stages": {
             "items": {

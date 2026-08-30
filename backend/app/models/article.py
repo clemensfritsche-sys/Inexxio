@@ -13,14 +13,22 @@ from .base import TimestampMixin
 class Article(Base, TimestampMixin):
     """Stammdaten-Datensatz für einen Artikel (Phase 2 – Produktion).
 
-    Statuswerte (``status``) — **aus der EINEN Liste** (``domain/statuses``):
-        ``freigegeben``  → angelegt heisst freigegeben (siehe unten)
-        ``inaktiv``      → auslaufend/gesperrt
+    **«Ausser Betrieb» ist keine eigene Angabe** (Testnotiz #773). Ein Artikel wird nicht
+    versioniert, er wird **ersetzt** – und wer abgelöst ist, erzeugt nichts Neues mehr.
+    Das ist keine zweite Wirkung des Ersetzens, sondern seine Bedeutung; also gibt es
+    dafür auch keine zweite Spalte, keinen Schalter und keinen Endpunkt. Der Zustand ist
+    die **Projektion** von ``replaced_by_id`` (siehe ``status``).
 
-    **Zwei Achsen, die beide «aktiv» heissen — und sie meinen Verschiedenes:**
-    ``is_active`` ist der **Soft-Delete** («den Datensatz gibt es nicht»), ``status``
-    der **fachliche** Zustand. Ausser Betrieb genommen wird über ``status``; darum nimmt
-    ``ArticleUpdate`` ``is_active`` gar nicht mehr entgegen.
+    *Vorher stand er als Spalte daneben, und das war genau die Falle, aus der schon
+    einmal ein Fehler kam:* zwei Angaben über dieselbe Sache, von denen die eine gesetzt
+    wurde und die andere gelesen – und sie konnten auseinanderlaufen, ohne dass es jemand
+    merkte (ein von Hand inaktiv gesetzter Artikel ohne Nachfolger war für immer
+    stillgelegt, denn den Weg zurück gab es nur über denselben Schalter).
+
+    **``is_active`` ist etwas anderes** und bleibt: der **Soft-Delete** («den Datensatz
+    gibt es nicht»). Er wird im Prozessbereich nirgends gesetzt und ist von aussen nicht
+    setzbar – zwei Achsen, die beide «aktiv» heissen, waren einmal die Ursache dafür,
+    dass eine Freigabe-Prüfung gar nichts abweisen konnte.
     """
 
     __tablename__ = "articles"
@@ -30,19 +38,11 @@ class Article(Base, TimestampMixin):
         BigInteger, unique=True, nullable=True, index=True
     )
 
-    # ``freigegeben`` | ``inaktiv``. **``draft`` kommt nicht mehr vor**: ein Artikel
-    # entsteht erst mit seiner Freigabe (services/articles.py), und bis dahin gibt es
-    # keine Zeile. Der Wert bleibt als Spalte, weil «inaktiv» ein Zustand ist.
-    #
-    # **Der Standardwert kommt aus dem Katalog, nicht aus einem Literal.** Migration
-    # ``107`` hat die Daten und den *Server*-Default auf die deutsche Liste gezogen – der
-    # *ORM*-Default blieb auf ``"released"`` stehen und gewinnt gegen den Server-Default:
-    # jede Zeile, die ohne ausdrücklichen Status entsteht, hätte das alte Wort
-    # zurückgebracht. Aufgefallen ist es erst, als mit ``articles.may_create`` der erste
-    # Leser kam, der die Frage «ist dieser Artikel freigegeben?» wirklich beantworten muss.
-    status: Mapped[str] = mapped_column(
-        String(20), default=st.FREIGEGEBEN, server_default=st.FREIGEGEBEN, nullable=False,
-    )
+    # **Die Spalte ``status`` ist entfallen** (Testnotiz #773, Migration ``121``). Sie war
+    # die zweite Aussage über dieselbe Sache; jetzt gibt es nur noch ``replaced_by_id``,
+    # und der Zustand fällt daraus heraus – siehe die Eigenschaft ``status`` unten. Nach
+    # der Zwei-Deploy-Regel verliert sie in ``121`` erst ihre ``NOT NULL``-Sperre und
+    # fällt im Folge-Deploy (die Vorgänger-Revision schreibt sie währenddessen noch).
 
     # Versionsstempel des **Erzeugungsprozesses** (``article_process_steps``). Er zählt
     # bei jeder Änderung der Vorlage hoch und wird auf die Kopie im Auftrag geschrieben.
@@ -85,3 +85,18 @@ class Article(Base, TimestampMixin):
 
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Artikels (alt → neu).
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+
+    @property
+    def status(self) -> str:
+        """►►► **Der fachliche Zustand — ABGELEITET, nicht gespeichert.** ◄◄◄
+
+        ``Freigegeben``, solange dieser Artikel die neueste Fassung ist; ``Inaktiv``,
+        sobald ein Nachfolger ihn abgelöst hat. Das ist die **ganze** Regel: ausser
+        Betrieb geht ein Artikel dadurch, dass ein anderer seinen Platz einnimmt.
+
+        Als Spalte war es die zweite Wahrheit neben ``replaced_by_id`` – und die zweite
+        ist die, die man beim nächsten Schreibpfad vergisst. Als Eigenschaft kann sie
+        gar nicht abweichen; ``articles.may_create`` liest darum die **Tatsache**
+        (``replaced_by_id``) und nicht dieses Wort.
+        """
+        return st.INAKTIV if self.replaced_by_id else st.FREIGEGEBEN

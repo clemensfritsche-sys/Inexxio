@@ -14,10 +14,10 @@
 
 import {
   Blocks, Camera, CircleHelp, ClipboardCheck, Hand, MoveRight, PackageX,
-  PenLine, Ruler, ShoppingCart, ThumbsUp, Truck, Type, type LucideIcon,
+  PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
 
-import type { DefinitionLine } from '@/components/erp/definition-lines';
+import { emptyLine, type DefinitionLine } from '@/components/erp/definition-lines';
 
 /** Erfassungspunkt-Typen (`domain/capture_types/`). */
 export const CAPTURE_ICON: Record<string, LucideIcon> = {
@@ -28,6 +28,27 @@ export const CAPTURE_ICON: Record<string, LucideIcon> = {
   measure: Ruler,
 };
 
+/**
+ * ►►► **Der Einkaufs-Vorgang — Name, Farbe, Symbol.** ◄◄◄
+ *
+ * Er gehört **keinem Modul** (`domain/procurement`): ein Einkauf sieht überall gleich aus,
+ * ob ihn ein Beschaffen-Modul auslöst (dort ist er der Zweck) oder ein Bewegen-Modul
+ * (dort war er eine Wahl). Darum steht seine Identität hier und nicht als Eintrag «des
+ * Moduls beschaffen» – die Karte des Moduls liest sie ebenso, und beide können nicht
+ * auseinanderlaufen.
+ *
+ * Gespiegelt von `backend/app/domain/procurement.py`; `test_frontend_mirrors` hält Wort
+ * und Farbfamilie deckungsgleich. Das **Symbol** kann eine Antwort nicht transportieren –
+ * es steht wie bei den Modulen nur hier.
+ */
+export const PROCUREMENT = {
+  label: 'Beschaffen',
+  tone: 'plum',
+  // Ein Einkaufswagen – bewusst **kein** Lastwagen und kein Paket: der Vorgang kauft, er
+  // liefert nicht. Womit die Ware kommt, entscheidet der Lieferant.
+  icon: ShoppingCart,
+} as const;
+
 /** Prozessschrittmodule (`domain/modules.py`). */
 export const MODULE_ICON: Record<string, LucideIcon> = {
   datenerfassung: ClipboardCheck,
@@ -36,9 +57,8 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // Von hier nach dort – bewusst **kein** Transportmittel (kein Lastwagen, kein
   // Gabelstapler): womit bewegt wird, entscheidet sich erst bei der Ausführung.
   bewegen: MoveRight,
-  // Einkaufen – bewusst **kein** Lastwagen und kein Paket: das Modul kauft, es liefert
-  // nicht. Womit die Ware kommt, entscheidet der Lieferant.
-  beschaffen: ShoppingCart,
+  // **Aus derselben Quelle wie der Vorgang** – ein Einkauf sieht überall gleich aus.
+  beschaffen: PROCUREMENT.icon,
 };
 
 /**
@@ -62,9 +82,13 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
 export const HAULAGE = {
   self: { icon: Hand, label: 'Selbst',
           hint: 'Jemand von uns bringt es hin – kein Dienstleister, kein Beleg.' },
-  bought: { icon: Truck, label: 'Einkaufen',
-            hint: 'Eine Spedition beauftragen – dafür entsteht ein ganz gewöhnlicher '
-                + 'Einkaufs-Beleg: anfragen, vergleichen, bestellen.' },
+  // **Der Name ist der des Vorgangs, nicht einer des Transports** (#775): «Einkaufen»
+  // war ein zweites Wort für dieselbe Sache, und im Haus heisst sie «Beschaffen». Symbol
+  // und Wort kommen darum aus `PROCUREMENT` – dieselbe Quelle, aus der auch die Karte
+  // des Beschaffen-Moduls sie nimmt.
+  bought: { icon: PROCUREMENT.icon, label: PROCUREMENT.label,
+            hint: 'Eine Spedition beauftragen – daraus wird ein ganz gewöhnlicher '
+                + 'Beschaffungs-Vorgang: anfragen, vergleichen, bestellen.' },
 } as const;
 
 /**
@@ -341,8 +365,29 @@ export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string 
  */
 export const MODULE_FORM: Record<string, {
   config: (m: ModuleDraft) => Record<string, unknown>;
+  /**
+   * **Die Umkehrform — gespeicherte Konfiguration → Entwurf** (Testnotiz #771).
+   *
+   * Sie steht **neben** ihrem Gegenstück und trägt denselben Namensstamm: zwei Formen
+   * einer Regel sind in Ordnung, zwei Regeln nicht. Gebraucht wird sie, damit ein
+   * **freigegebener** Prozess dieselben Felder zeigt wie ein Entwurf – nur gesperrt.
+   * Vorher rendete der Editor dort **gar nichts**: wer ein Modul anklickte, sah, dass es
+   * aufklappt, und darin war nichts. Ein zweiter, nur-lesender Feldsatz wäre die
+   * Alternative gewesen – und die (n+1)-te Angabe hätte darin gefehlt.
+   */
+  draft: (config: Record<string, unknown>) => Partial<ModuleDraft>;
 }> = {
   datenerfassung: {
+    draft: (c) => ({
+      points: asRows(c.points).map((p) => ({
+        label: String(p.label ?? ''),
+        type: String(p.type ?? 'text'),
+        target: p.target == null ? '' : String(p.target),
+        tolerance: p.tolerance == null ? '' : String(p.tolerance),
+        unit: p.unit == null ? '' : String(p.unit),
+      })),
+      sample: sampleDraft(c.sample),
+    }),
     config: (m) => ({
       points: m.points.map((p) => ({
         label: p.label,
@@ -357,18 +402,32 @@ export const MODULE_FORM: Record<string, {
     }),
   },
   aussondern: {
+    draft: (c) => ({
+      mode: (c.mode === 'block' ? 'block' : 'scrap') as DisposalMode,
+      reason: String(c.reason ?? ''),
+    }),
     // Zwei Angaben, beide Pflicht: **was** passiert (verschrotten ↔ sperren) und
     // **warum**. Erfassungspunkte gibt es keine – was ankommt, wird ausgesondert, und
     // der Grund steht bereits hier statt bei jedem Stück noch einmal.
     config: (m) => ({ mode: m.mode, reason: m.reason }),
   },
   bewegen: {
+    draft: (c) => ({ target: c.target == null ? '' : String(c.target) }),
     // **Eine Angabe, und die ist optional.** Leer geht als `null` hinaus – nicht als
     // fehlendes Feld: der Server unterscheidet «kein Ziel definiert» von «Feld nicht
     // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
     config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
   },
   beschaffen: {
+    draft: (c) => ({
+      // Tolerant gelesen wie im Backend (`Beschaffen.suppliers_of`): die alte Form war
+      // die blosse Objektnummer, und ein freigegebener Prozess ist eingefroren – sie
+      // steht also in laufenden Aufträgen und wird sie überleben.
+      suppliers: asRows(c.suppliers).map((r) => ({
+        supplier: Number(r.supplier ?? r), ref: String(r.ref ?? ''),
+      })).filter((r) => Number.isFinite(r.supplier)),
+      instruction: String(c.instruction ?? ''),
+    }),
     // **Zwei Angaben, mehr nicht**: bei wem und was zu tun ist. Kein Artikel – den sagen
     // die Einzelinstanzen vor dem Modul; keine Menge – die steht beim Modellieren nicht
     // fest (dieselbe Regel wie beim Verbrauch); kein Modus «Webshop» – wo jemand seinen
@@ -379,6 +438,13 @@ export const MODULE_FORM: Record<string, {
     }),
   },
   verbrauch: {
+    draft: (c) => ({
+      lines: asRows(c.lines).map((r, i) => ({
+        ...emptyLine(i + 1),
+        articleObjectId: Number(r.article),
+        quantity: Number(r.quantity ?? 1),
+      })).filter((l) => Number.isFinite(l.articleObjectId as number)),
+    }),
     // Zwei Angaben je Zeile, beide Pflicht: **welcher Artikel** und **wie viele je
     // Einzelinstanz**. Ohne Zeile wäre das Modul ein Durchgang, der aussieht wie eine
     // Montage; ohne Menge wäre «Schraube» keine Stückliste.
@@ -389,6 +455,38 @@ export const MODULE_FORM: Record<string, {
     }),
   },
 };
+
+/** Eine gespeicherte Liste als Zeilen lesen – tolerant, denn sie kommt aus JSONB. */
+function asRows(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((v) => (v && typeof v === 'object' ? v as Record<string, unknown> : { supplier: v }));
+}
+
+/**
+ * **Der gespeicherte Anteil zurück in seine Eingabeform.** Die Kurzwege sind Werte
+ * derselben Zahl (`SAMPLE_PRESETS`) – trifft die Zahl einen, steht der Regler dort;
+ * sonst ist es ein frei getippter Anteil.
+ */
+function sampleDraft(value: unknown): SampleDraft {
+  const percent = Number((value as { percent?: unknown } | null)?.percent ?? NaN);
+  if (!Number.isFinite(percent)) return { ...SAMPLE_ALL };
+  const preset = SAMPLE_PRESETS.find((p) => p.percent === percent);
+  return preset ? { mode: preset.value, value: '' } : { mode: 'free', value: String(percent) };
+}
+
+/**
+ * **Ein gespeichertes Modul als Entwurf** – dieselbe Form, aus der die Oberfläche auch
+ * ein neues baut. Damit zeigt ein **freigegebener** Prozess seine Felder mit demselben
+ * Bauteil wie ein Entwurf, nur gesperrt (Testnotiz #771): eine Ansicht, ein Feldsatz.
+ *
+ * Ein Typ, den diese Oberfläche nicht kennt, liefert den leeren Entwurf – die Karte sagt
+ * dann, dass sie ihn nicht kennt, statt Felder zu erfinden.
+ */
+export function moduleFromConfig(id: number, moduleType: string,
+                                 config: Record<string, unknown> | null | undefined): ModuleDraft {
+  return { ...blankModule(id, moduleType),
+           ...(MODULE_FORM[moduleType]?.draft(config ?? {}) ?? {}) };
+}
 
 /** Ein frischer Entwurf dieses Modultyps – mit den Vorgaben, die das Backend kennt. */
 export function blankModule(id: number, moduleType: string): ModuleDraft {

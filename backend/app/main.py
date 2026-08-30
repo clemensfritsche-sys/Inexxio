@@ -123,13 +123,18 @@ _COLUMN_SAFETY_NET = (
 #: von zwei Schritten (der Drop folgt im nächsten Deploy, wenn keine Vorgänger-Revision
 #: sie mehr schreibt). Idempotent.
 #:
-#: **Zurzeit leer, und das ist der Normalzustand.** Ein Eintrag hier lebt genau einen
-#: Deploy lang: er entsteht, wenn eine Spalte ihr Mapping verliert, und geht mit ihrem
-#: Drop wieder (``purchases.quantity``/``article_id`` – Migrationen 115/116, gedroppt
-#: von 120). Das Netz bleibt trotzdem stehen: es ist der erste von zwei Schritten der
-#: Zwei-Deploy-Regel, kein einmaliger Fix – wer es entfernt, erfindet es beim nächsten
-#: unmapped gewordenen Pflichtfeld neu, und bis dahin laufen alle Inserts auf.
-_NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = ()
+#: Ein Eintrag hier lebt genau einen Deploy lang: er entsteht, wenn eine Spalte ihr
+#: Mapping verliert, und geht mit ihrem Drop wieder (``purchases.quantity``/``article_id``
+#: – Migrationen 115/116, gedroppt von 120). Das Netz bleibt trotzdem stehen: es ist der
+#: erste von zwei Schritten der Zwei-Deploy-Regel, kein einmaliger Fix – wer es entfernt,
+#: erfindet es beim nächsten unmapped gewordenen Pflichtfeld neu, und bis dahin laufen
+#: alle Inserts auf.
+_NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
+    # **«Ausser Betrieb» ist keine eigene Angabe mehr** (Testnotiz #773, Migration 121):
+    # der Zustand eines Artikels ist die Projektion von ``replaced_by_id``. Die Spalte hat
+    # ihr Mapping verloren; gedroppt wird sie im Folge-Deploy.
+    ("articles", "status"),
+)
 
 _DROP_COLUMN_SAFETY_NET = (
     # Gesellschaften (Migration 091): der «Betreiber» ist WÄHLBAR (``is_operator`` mit eigenem
@@ -260,9 +265,15 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
 #: Statuswerte auf die EINE Liste ziehen (Migration 107), falls Alembic nicht durchlief.
 #: Ein Artikel mit ``released`` wäre sonst ein Wert, den die Anzeige nicht kennt – und
 #: der Feed zeigte den rohen Schlüssel statt eines Wortes.
+#: **Der Artikel-Status ist abgeleitet** (Testnotiz #773) – die Spalte trägt nur noch
+#: Altbestand. Geheilt wird darum genau das, was ohne den entfernten Schalter für immer
+#: stillgelegt bliebe: ein «inaktiv», das **kein** Nachfolger erklärt. Wo einer steht,
+#: bleibt der Wert stehen; er stimmt dann mit der Ableitung überein.
 _ARTICLE_STATUS_FIXES = (
-    "UPDATE articles SET status = 'freigegeben' WHERE status IN ('released', 'draft')",
-    "UPDATE articles SET status = 'inaktiv' WHERE status = 'inactive'",
+    "UPDATE articles SET status = 'freigegeben' "
+    "WHERE status <> 'freigegeben' AND replaced_by_id IS NULL",
+    "UPDATE articles SET status = 'inaktiv' "
+    "WHERE status <> 'inaktiv' AND replaced_by_id IS NOT NULL",
     "UPDATE orders SET name = 'Auftrag ' || object_id WHERE name IS NULL OR name = ''",
 )
 
@@ -336,8 +347,17 @@ def _ensure_columns() -> None:
             # zweite Weg, und beim Ausfall zählt nur der zweite Weg. Eine Daten-Reparatur
             # darf ihn nicht mitreissen.
             conn.commit()
+            # **Auch die Spalte wird geprüft, nicht nur die Tabelle.** ``articles.status``
+            # hat ihr Mapping verloren (Testnotiz #773) und fällt im Folge-Deploy – eine
+            # Reparatur, die nur nach der Tabelle fragt, wäre danach die Anweisung, die
+            # das ganze Netz reisst.
             for stmt in _ARTICLE_STATUS_FIXES:
-                if stmt.split()[1] in tables:
+                table = stmt.split()[1]
+                if table not in tables:
+                    continue
+                columns = {c["name"] for c in insp.get_columns(table)}
+                if all(word in columns for word in ("status", "replaced_by_id")) \
+                        or table != "articles":
                     conn.execute(text(stmt))
             if "instance_units" in tables:
                 # Der Platzhalter-Status ``new`` aus dem Basis-Neuaufbau gibt es mit der
