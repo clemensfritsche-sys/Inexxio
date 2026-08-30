@@ -150,50 +150,82 @@ Versionsunterschied, der erst im Deploy auffällt.
 
 ---
 
-## 5. Gefunden, bewusst NICHT behoben
+## 5. Der Nachtrag: die drei offenen Punkte sind erledigt
 
-> Diese Punkte sind gemessen und reproduzierbar. Sie zu ändern hiesse, Verhalten zu
-> ändern – das ist eine Entscheidung, keine Aufräumarbeit.
+> Die erste Runde hat drei Dinge gemessen und liegen gelassen, weil sie **Verhalten**
+> ändern statt aufzuräumen. Sie sind in einem Folge-Deploy nachgezogen – und bei zweien
+> war die im ersten Bericht vermutete Lösung **falsch**. Das steht hier so, weil eine
+> Vermutung, die man nicht nachprüft, beim nächsten Mal als Tatsache gelesen wird.
 
-**(a) Die «freundliche Hälfte» der Modul-Prüfung läuft gar nicht.**
-`lib/modules.ts: moduleIncomplete` (und die fünf `incomplete`-Closures) hat **keinen
-Aufrufer**. Der Wächter `test_the_order_reference_is_a_mandatory_field` verspricht in
-seinem Docstring ausdrücklich *beides* – «der Server weist sie ab (die Regel) und die
-Oberfläche meldet sie vor der Freigabe (die freundliche Hälfte)» –, prüft aber nur, ob
-die **Zeichenkette** in der Datei steht. Er schlägt also nicht an, obwohl die Hälfte
-fehlt; und er schlägt an, wenn man den toten Code entfernt.
-*Der Code wurde testweise gelöscht, gemessen und wieder hergestellt.* Zu entscheiden:
-entweder `moduleIncomplete` im Designer verdrahten (dann stimmt der Wächter), oder den
-Wächter auf die Server-Regel zeigen lassen und den Browser-Zwilling löschen.
+### 5.1 Die toten Spalten sind gedroppt (Migration `120`)
 
-**(b) Die Startseite scrollt auf schmalen Telefonen seitwärts.**
-Gemessen in Chromium: **62 px** Überlauf bei 320 px, **7 px** bei 375 px; ab 834 px
-sauber, alle anderen Seiten bei jeder Breite 0. Ursache ist `.ix-section-head`
-(`grid-template-columns: auto 1fr`): eine `1fr`-Spalte ist `minmax(auto, 1fr)` und
-schrumpft **nicht** unter ihren Inhalt – 100 px Meta-Spalte + 28 px Lücke + das längste
-Wort («Kernkompetenzen») passen nicht in 320 px. *Ein `min-width: 0` an den Kindern ist
-**nicht** die Lösung (gemessen: verschlechterte es auf 68 px) – die Track-Definition muss
-`minmax(0, 1fr)` heissen.* Vorbestehend: die Startseite wurde in dieser Runde nicht
-angefasst, und die einzige Änderung an `globals.css` war ein Rahmen**farb**-Token.
+Die **Zwei-Deploy-Regel** ist damit einmal komplett durchlaufen: 22 Spalten verloren im
+Aufräum-Deploy ihr Mapping und fallen jetzt. Vorbedingung geprüft statt angenommen –
+keine stand mehr in `Base.metadata`. Verifiziert von null · idempotent · downgrade ·
+**und über das Lifespan-Netz** (eine Datenbank, auf der Alembic nie lief: 10 tote
+Spalten vor dem Start, 0 danach, alle Endpunkte 200).
 
-**(c) Zwei Funktionen überschreiten die 80-Zeilen-Regel deutlich:**
-`process.confirm_step` (259 Zeilen, davon **132 Code**) und `process.release` (166/109).
-Sie sind nicht Teil dieser Runde – der einzige Eingriff in `process.py` war eine
-Kommentarzeile –, und `confirm_step` ist die **eine** Ausführungsstelle, durch die jedes
-Modul läuft. Sie hier zu zerlegen wäre ein Refactoring auf Verdacht am bestgeschützten
-Stück des Systems. Die Nähte sind vorgezeichnet (die ►►◄◄-Überschriften im Code:
-Vorbedingungen · Erfassung · Bewegung/Verbrauch · Übergang · Nachlauf) – eine eigene
-Runde mit eigener Messung wert.
+Die **Tabellen** der entfernten Bereiche bleiben stehen, und das ist eine Entscheidung,
+keine Vergesslichkeit: eine Spalte, die niemand liest, kostet nichts – ein Tabellen-Drop
+kostet die Vergangenheit und ist unumkehrbar. `document_blobs` hält die Dateien selbst.
+Der Drop verlangt vorher eine Sicherung der **produktiven** Datenbank, und die kann nur
+jemand mit Zugriff darauf ziehen. Reihenfolge in `docs/backlog.md`.
 
-**(d) `main._ensure_columns` (104 Zeilen)** bleibt ebenfalls: das Lifespan-Netz für
-Kosmetik anzufassen ist nach dem Vorfall zu Migration `090` das falsche Risiko. Es ist
-ohnehin tabellengetrieben.
+### 5.2 Die Modul-Vollständigkeitsprüfung im Browser ist gelöscht
 
-**(e) Die AGB beschreiben einen «Online-Shop www.inexxio.com».** Den gibt es nicht mehr.
-Ein Rechtstext wird nicht nebenbei umgeschrieben – das ist eine geschäftliche
-Entscheidung, zumal der Shop in Phase 2 zurückkommen soll.
+**Die Diagnose der ersten Runde war falsch.** Dort stand, die «freundliche Hälfte» laufe
+gar nicht. Sie lief – nur über den **Server**: beide Entwürfe fragen `POST …/validate`,
+dessen `missing` im Hinweis des Freigabe-Knopfes steht, und `validate_draft` schickt die
+Modul-Konfiguration durch dieselbe `Module.clean_config`, an der auch die Freigabe
+abweist. Gemessen an den echten Dienstpfaden:
 
----
+| Fall | Antwort des Servers |
+|---|---|
+| Beschaffen ohne Bestellangabe | «Lieferant 100000001 braucht eine Bestellangabe – seine Artikelnummer oder den Link, unter dem man bei ihm bestellt.» |
+| Datenerfassung ohne Punkt | «Eine Datenerfassung ohne Erfassungspunkt erfasst nichts. Mindestens ein Punkt ist Pflicht.» |
+| Aussondern ohne Grund | «‹Aussondern› braucht einen Grund – ohne ihn steht später da, dass Stücke ausgesondert wurden, aber nicht warum.» |
+
+Die Browser-Fassung sagte dazu «Bestellangabe fehlt». Sie war also nicht nur doppelt,
+sondern **schlechter** – und beim nächsten Feld wäre sie die mildere von zweien gewesen.
+`moduleIncomplete` und die fünf `incomplete`-Closures sind darum weg.
+
+**Die Wächter zeigen jetzt auf die Regel statt auf eine Zeichenkette.** Vorher prüften
+sie, ob «Bestellangabe fehlt» in `modules.ts` *vorkommt* – das ist die Anwesenheit einer
+toten Kopie, nicht das Verhalten: der Wächter schlug nicht an, obwohl die Kopie keinen
+Aufrufer hatte, und er hätte angeschlagen, wenn man sie entfernt. Beide sind gegen ihre
+Bug-Form gegengeprüft, und **einer war dabei stumpf**: `assert problems` war schon von
+der ohnehin gemeldeten fehlenden Einzelinstanz erfüllt und liess die Bug-Form durch. Er
+prüft jetzt die **Differenz** (mit Auftrag ↔ ohne).
+
+### 5.3 Der seitliche Überlauf der Startseite ist behoben
+
+**Auch hier war die vermutete Lösung falsch.** Der erste Bericht nannte `minmax(0, 1fr)`
+für die Track-Definition. Das lässt die Spalte schrumpfen – aber «Kernkompetenzen» ist
+bei `--h2` (`clamp(28px, 3.2vw, 44px)`, dort also 28 px) ein **unteilbares Wort von
+~234 px**; der Überlauf wäre nur vom Raster in den Text gewandert. Zweispaltig blieben
+dem Titel bei 320 px genau `280 − 100 (Meta) − 28 (Lücke) = 152 px`.
+
+Der Kopf steht darum unter 640 px **einspaltig** – dieselbe Grenze, die `.ix-wrap`
+ohnehin benutzt; ein zweiter Wert wäre ein zweiter Umbruchpunkt, den man beim nächsten
+Abschnitt vergisst. Gemessen in Chromium: **0 px** Überlauf bei 1440 · 1280 · 1024 ·
+834 · 375 · 320 px, und ab 640 px ist das Bild unverändert zweispaltig (geprüft: die
+Meta-Spalte sitzt bei 1440 px und 700 px an derselben Stelle wie zuvor).
+
+### 5.4 Was weiterhin bewusst steht
+
+**`process.confirm_step` (259 Zeilen, davon 132 Code)** und `process.release` (166/109)
+überschreiten die 80-Zeilen-Regel. Sie sind nicht Teil dieser Runde – der einzige
+Eingriff in `process.py` war eine Kommentarzeile –, und `confirm_step` ist die **eine**
+Ausführungsstelle, durch die jedes Modul läuft. Die Nähte sind vorgezeichnet (die
+►►◄◄-Überschriften: Vorbedingungen · Erfassung · Bewegung/Verbrauch · Übergang ·
+Nachlauf); eine eigene Runde mit eigener Messung wert.
+
+**`main._ensure_columns` (104 Zeilen)** bleibt: das Lifespan-Netz für Kosmetik
+anzufassen ist nach dem Vorfall zu Migration `090` das falsche Risiko.
+
+**Die AGB beschreiben einen «Online-Shop www.inexxio.com».** Ein Rechtstext wird nicht
+nebenbei umgeschrieben – das ist eine geschäftliche Entscheidung, zumal der Shop in
+Phase 2 zurückkommen soll.
 
 ## 6. Verifikation
 
@@ -207,7 +239,8 @@ Entscheidung, zumal der Shop in Phase 2 zurückkommen soll.
 | `next build` | 12 Routen, alle statisch |
 | Generierte Dateien neu erzeugt (`openapi.json`, `status-catalog.ts`, `api.ts`) | nur Docstring-Text geändert, **kein Schema-Unterschied** |
 | Chromium, 7 öffentliche Seiten | 0 unsichtbare Texte, 0 JS-Fehler |
-| Chromium, Überlauf bei 1440/1280/1024/834/375/320 px | 0 – ausser der Startseite (siehe 5b) |
+| Chromium, Überlauf bei 1440/1280/1024/834/375/320 px | **0 px, alle Seiten, alle Breiten** |
+| Migration `120` | von null · idempotent · downgrade · **über das Lifespan-Netz** (10 tote Spalten vor dem Start, 0 danach) |
 
 **Die Sichtprüfung war kein Ritual.** Sie hat in dieser Runde einen echten Fehler
 gefunden, den der Build nicht meldet: eine unbekannte Tailwind-Klasse ist **kein**
@@ -220,6 +253,12 @@ Element Text- und Hintergrundfarbe vergleicht.
 
 ## 7. Was als Nächstes ansteht
 
-1. **Der Folge-Deploy mit den Spalten-Drops** – Liste in `docs/backlog.md`.
-2. Eine Entscheidung zu **5a** (Modul-Prüfung verdrahten oder Zwilling löschen).
-3. **5b** beheben (`minmax(0, 1fr)`), gemessen wie oben.
+Die drei Punkte, mit denen dieser Bericht ursprünglich endete, sind erledigt (§5).
+Offen bleibt genau einer, und er braucht einen Menschen mit Produktionszugriff:
+
+**Die Tabellen der entfernten Bereiche droppen** – `events`, `document_*`,
+`article_prices`, `ai_actions`, `fx_rates`, `article_sales_audience`. Kein Modell
+verweist mehr auf sie, sie kosten nichts, und der Nummernraum hängt seit dem Aufräumen
+an der Registry statt an einer Modellspalte. Der Drop ist aber unumkehrbar und verlangt
+vorher eine Sicherung der produktiven Datenbank (`scripts/dump-db.sh`): **sichern →
+Sicherung lesen → droppen**. Reihenfolge und Begründung in `docs/backlog.md`.

@@ -123,47 +123,55 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
-## Folge-Deploy: Spalten droppen (Aufräumen August 2026)
+## Erledigt: die toten Spalten sind gedroppt (Migration `120`)
 
-Die Zwei-Deploy-Regel: **erst** verliert eine Spalte ihr Mapping (dieser Deploy), **dann**
-wird sie gedroppt. Beides in einem Deploy trifft die während des Cloud-Run-Rollouts noch
-laufende Vorgänger-Revision, die sie noch liest – die Ausfallklasse von Migration 090.
+Die **Zwei-Deploy-Regel** ist damit einmal komplett durchlaufen: im Aufräum-Deploy
+verloren 22 Spalten ihr ORM-Mapping, im Folge-Deploy sind sie gefallen. Beides in einem
+Deploy hätte die während des Cloud-Run-Rollouts noch laufende Vorgänger-Revision
+getroffen – die Ausfallklasse von Migration `090`.
 
-Alle unten genannten Spalten sind seit dem Aufräumen **nicht mehr gemappt**; keine trägt
-eine `NOT NULL`-Sperre ohne DB-Default (geprüft), Inserts laufen also unverändert. Der
-Drop ist eine gewöhnliche Migration im **nächsten** Deploy – nicht dringend, aber fällig.
+Betroffen waren `articles` (Beschaffungs-/Verkaufsfelder), `company_settings`
+(Zahlungsanbieter, Shop-Währungen, hCaptcha, Rechtstexte, Infrastruktur-Kosten,
+Wareneingangs-Ort), `user_profiles.stripe_customer_id` und `purchases` (Reste der
+Umbauten 115/116). Geprüft statt angenommen: keine stand mehr in `Base.metadata`.
+Verifiziert von null · idempotent · downgrade · über das Lifespan-Netz.
 
-| Tabelle | Spalten |
-|---|---|
-| `articles` | `procurement_mode`, `default_supplier_id`, `default_webshop_url`, `sales_published`, `sales_visibility`, `sales_fulfillment`, `sales_content` |
-| `company_settings` | `logo_path`, `stripe_publishable_key`, `hcaptcha_site_key`, `shop_currencies`, `shop_country_currency`, `shop_default_currency`, `payments_provider`, `pricing_zone_factors`, `infra_monthly_chf`, `legal_documents`, `default_receiving_location_id` |
-| `user_profiles` | `stripe_customer_id` |
-| `purchases` | `reference`, `quantity`, `article_id`, `due_date`, `ordered_for` |
+### Offen: die Tabellen der entfernten Bereiche
 
-Dazu die **Tabellen** der entfernten Bereiche, die nur noch Daten halten:
 `events`, `article_prices`, `article_sales_audience`, `fx_rates`, `ai_actions`,
 `document_files`, `document_links`, `document_blobs`, `document_signoffs`,
-`document_acknowledgements`. Vor dem Drop sichern (`scripts/dump-db.sh`) – die Historie
-darin ist der einzige Grund, warum sie noch stehen.
+`document_acknowledgements`.
 
-## Aus der Aufräumrunde August 2026 (gemessen, bewusst nicht behoben)
+**Bewusst nicht mitgedroppt.** Eine Spalte, die niemand liest, kostet nichts; ein
+Tabellen-Drop kostet die Vergangenheit, und er ist unumkehrbar. Diese Tabellen halten
+Historie (in `document_blobs` liegen die Dateien selbst), und der Drop verlangt vorher
+eine Sicherung der **produktiven** Datenbank (`scripts/dump-db.sh`) – die kann nur
+jemand mit Zugriff darauf ziehen, nicht eine Migration.
 
-Beides steht ausführlich in `docs/cleanup-2026-08.md` §5 – hier nur, damit es nicht
-verloren geht.
+**Reihenfolge, wenn es soweit ist:** sichern → prüfen, dass die Sicherung lesbar ist →
+droppen. Kein Modell verweist mehr auf sie (geprüft), der Nummernraum hängt seit dem
+Aufräumen an der **Registry** statt an einer Modellspalte – ein Drop kann also keine
+Objektnummer ein zweites Mal vergeben lassen.
 
-**1. Die «freundliche Hälfte» der Modul-Prüfung läuft nicht.**
-`lib/modules.ts: moduleIncomplete` hat keinen Aufrufer. Der Wächter
-`test_the_order_reference_is_a_mandatory_field` verspricht sie ausdrücklich, prüft aber
-nur, ob die Zeichenkette in der Datei steht – er schlägt darum nicht an, obwohl die
-Hälfte fehlt. **Zu entscheiden:** entweder verdrahten (dann stimmt der Wächter) oder den
-Wächter auf die Server-Regel zeigen lassen und den Browser-Zwilling löschen. Kein
-Mittelweg: zwei Antworten auf «ist das vollständig?» laufen beim nächsten Feld
-auseinander.
+## Erledigt: die beiden Befunde der Aufräumrunde
 
-**2. Die Startseite scrollt auf schmalen Telefonen seitwärts.**
-Gemessen: 62 px Überlauf bei 320 px, 7 px bei 375 px (alle anderen Seiten: 0 bei jeder
-Breite). Ursache ist `.ix-section-head` mit `grid-template-columns: auto 1fr` – eine
-`1fr`-Spalte ist `minmax(auto, 1fr)` und schrumpft nicht unter ihren Inhalt. Der Fix
-gehört in die **Track-Definition** (`minmax(0, 1fr)`); ein `min-width: 0` an den Kindern
-ist gemessen **nicht** die Lösung (verschlechterte es auf 68 px). Danach mit derselben
-Messung über 1440/1280/1024/834/375/320 px gegenprüfen.
+**1. Die Modul-Vollständigkeitsprüfung im Browser ist gelöscht.**
+Entschieden wurde nach dem Messen, nicht nach dem Gefühl: die «freundliche Hälfte» lief
+längst – nur über den **Server**. Beide Entwürfe (Artikel wie Auftrag) fragen
+`POST …/validate`, dessen `missing` im Hinweis des Freigabe-Knopfes steht, und
+`validate_draft` schickt die Modul-Konfiguration durch dieselbe `Module.clean_config`,
+die auch die Freigabe abweist. Gemessen antwortet der Server dort «Lieferant 100000001
+braucht eine Bestellangabe – seine Artikelnummer oder den Link…», wo die Browser-Fassung
+«Bestellangabe fehlt» sagte: die zweite war also nicht nur doppelt, sondern **schlechter**.
+Die beiden Wächter zeigen jetzt auf die **Server**-Regel und sind gegen ihre Bug-Form
+gegengeprüft – einer war dabei stumpf (`assert problems` war schon von der ohnehin
+gemeldeten fehlenden Einzelinstanz erfüllt) und prüft jetzt die **Differenz**.
+
+**2. Der seitliche Überlauf der Startseite ist behoben.**
+Gemessen 0 px bei 1440 · 1280 · 1024 · 834 · 375 · 320 px (vorher 62 px bei 320, 7 px bei
+375). Die im letzten Bericht vermutete Lösung `minmax(0, 1fr)` war **nicht** die richtige:
+sie lässt die Spalte schrumpfen, aber «Kernkompetenzen» ist bei `--h2` (dort 28 px) ein
+unteilbares Wort von ~234 px – der Überlauf wäre nur vom Raster in den Text gewandert.
+Der Kopf steht jetzt unter 640 px **einspaltig** (dieselbe Grenze wie `.ix-wrap`), damit
+der Titel die vollen 280 px bekommt. Ab 640 px ist das Bild unverändert zweispaltig.
+

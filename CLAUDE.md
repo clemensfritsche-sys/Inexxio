@@ -1471,6 +1471,35 @@
 > und liegen unverändert in `docs/history/2026-06-vorgaenger-system.md`. Sie beschrieben
 > ein System, das es nicht mehr gibt – und `CLAUDE.md` liest **jede** Sitzung als Erstes.
 
+> **Der Folge-Deploy – und zwei Vermutungen, die falsch waren** (Migration `120`,
+> `docs/cleanup-2026-08.md` §5). Die Aufräumrunde hatte drei Punkte gemessen und liegen
+> gelassen, weil sie **Verhalten** ändern statt aufzuräumen. Alle drei sind nachgezogen,
+> und bei zweien war die im Bericht notierte Lösung **falsch** – das steht dort so, weil
+> eine ungeprüfte Vermutung beim nächsten Mal als Tatsache gelesen wird.
+> **(1) Die Zwei-Deploy-Regel ist einmal komplett durchlaufen**: 22 Spalten verloren im
+> Aufräum-Deploy ihr Mapping und fallen jetzt. Die **Tabellen** der entfernten Bereiche
+> bleiben bewusst stehen – eine Spalte, die niemand liest, kostet nichts; ein
+> Tabellen-Drop kostet die Vergangenheit (`document_blobs` hält die Dateien selbst) und
+> verlangt vorher eine Sicherung der **produktiven** Datenbank, die keine Migration
+> ziehen kann.
+> **(2) Die «freundliche Hälfte» lief doch** – nur über den Server. Der Befund «sie läuft
+> gar nicht» war falsch: beide Entwürfe fragen `POST …/validate`, und `validate_draft`
+> schickt die Modul-Konfiguration durch dieselbe `Module.clean_config`, an der auch die
+> Freigabe abweist. Gemessen antwortet der Server «Lieferant 100000001 braucht eine
+> Bestellangabe – seine Artikelnummer oder den Link…», wo die Browser-Fassung
+> «Bestellangabe fehlt» sagte: die zweite war nicht nur doppelt, sondern **schlechter**.
+> `moduleIncomplete` ist darum weg, und die zwei Wächter zeigen auf die **Regel** statt
+> auf eine Zeichenkette – vorher prüften sie die *Anwesenheit einer toten Kopie*, schlugen
+> also nicht an, obwohl sie keinen Aufrufer hatte, und hätten angeschlagen, wenn man sie
+> entfernt. Einer war beim Gegenprüfen **stumpf** (`assert problems` war schon von der
+> ohnehin gemeldeten fehlenden Einzelinstanz erfüllt) und prüft jetzt die **Differenz**.
+> **(3) `minmax(0, 1fr)` war nicht der Fix** für den seitlichen Überlauf der Startseite:
+> es lässt die Spalte schrumpfen, aber «Kernkompetenzen» ist bei `--h2` (dort 28 px) ein
+> **unteilbares Wort von ~234 px** – der Überlauf wäre nur vom Raster in den Text
+> gewandert. Der Abschnitts-Kopf steht jetzt unter 640 px **einspaltig** (dieselbe Grenze
+> wie `.ix-wrap`; ein zweiter Wert wäre ein zweiter Umbruchpunkt, den man vergisst).
+> Gemessen: **0 px** bei 1440 · 1280 · 1024 · 834 · 375 · 320 px, ab 640 px unverändert.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -1717,9 +1746,12 @@ Zahlungen, Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent, Ve
 Anbindung, der Ereignis-Strom als Outbox. Ebenfalls nie gebaut: E-Mail (Gmail API),
 Typesense-Suche, Buchhaltung, HR.
 
-**Nächste Aufgabe**: der Folge-Deploy mit den Spalten-Drops (`docs/backlog.md`), danach
-Prozess-Module nach Bedarf. Der Wiederaufbau eines entfernten Bereichs beginnt bei der
-Modellfrage in `docs/attic.md`, nicht bei der alten Datei.
+**Nächste Aufgabe**: Prozess-Module nach Bedarf. Der Wiederaufbau eines entfernten
+Bereichs beginnt bei der Modellfrage in `docs/attic.md`, nicht bei der alten Datei.
+Am Datenmodell ist **eines offen und es braucht einen Menschen**: die Tabellen der
+entfernten Bereiche (`events`, `document_*`, `article_prices`, `ai_actions` …) stehen
+noch. Kein Modell verweist auf sie, sie kosten nichts – aber ihr Drop ist unumkehrbar
+und verlangt vorher eine Sicherung der **produktiven** Datenbank (`docs/backlog.md`).
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

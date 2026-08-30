@@ -393,6 +393,18 @@
   padding-top: 22px;
   margin-bottom: 56px;
 }
+/* **Auf schmalen Schirmen steht der Kopf untereinander.**
+   Zweispaltig blieben dem Titel 280 − 100 (Meta) − 28 (Lücke) = 152 px, und «Unsere
+   Kernkompetenzen» ist bei `--h2` (dort 28 px) ein unteilbares Wort von ~234 px:
+   die Seite scrollte seitwärts (gemessen 62 px bei 320, 7 px bei 375).
+   `minmax(0, 1fr)` allein hilft hier NICHT – es lässt die Spalte schrumpfen, aber das
+   Wort bleibt gleich breit; der Überlauf wandert nur vom Raster in den Text (gemessen:
+   wurde damit schlechter, 62 → 68 px). Einspaltig bekommt der Titel die vollen 280 px
+   und passt. Dieselbe Grenze wie `.ix-wrap` – ein zweiter Wert wäre ein zweiter
+   Umbruchpunkt, den man beim nächsten Abschnitt vergisst. */
+@media (max-width: 640px) {
+  .ix-section-head { grid-template-columns: 1fr; gap: 16px; }
+}
 .ix-section-head-meta {
   display: flex;
   flex-direction: column;

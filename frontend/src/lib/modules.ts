@@ -323,16 +323,24 @@ export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string 
 /**
  * **Was ein Modultyp im Entwurf ausmacht — je Typ ein Eintrag, nicht je Stelle ein `if`.**
  *
- * Zwei Fragen hängen am Typ und sonst an nichts: *was schickt er als Konfiguration* und
- * *wann ist er vollständig*. Beide stehen hier zusammen; verteilt über `toModulePayload`
- * und `moduleIncomplete` wären es zwei Ketten, die beim dritten Modultyp auseinanderlaufen.
+ * Eine Frage hängt am Typ und sonst an nichts: *was schickt er als Konfiguration*.
+ * Verteilt über `toModulePayload` und den Editor wären es Ketten, die beim dritten
+ * Modultyp auseinanderlaufen.
+ *
+ * **«Wann ist er vollständig» steht hier NICHT** (Aufräumrunde August 2026). Es stand
+ * einmal daneben (`incomplete` je Typ + `moduleIncomplete`) und hatte **keinen einzigen
+ * Aufrufer** – die freundliche Hälfte lief längst über den Server: beide Entwürfe fragen
+ * `POST …/validate`, und dessen `missing` steht im Hinweis des Freigabe-Knopfes.
+ * Gemessen, nicht vermutet: der Server antwortet dort «Lieferant 100000001 braucht eine
+ * Bestellangabe – seine Artikelnummer oder den Link…», wo hier «Bestellangabe fehlt»
+ * stand. Die zweite Fassung war also nicht nur doppelt, sondern **schlechter** – und
+ * beim nächsten Feld wäre sie die mildere von zweien gewesen.
  *
  * Es ist bewusst **kein** Spiegel des Backends: die Regel gilt dort (`Module.clean_config`),
  * hier steht nur die Form der Eingabe. `test_frontend_mirrors` hält die Schlüssel deckungsgleich.
  */
 export const MODULE_FORM: Record<string, {
   config: (m: ModuleDraft) => Record<string, unknown>;
-  incomplete: (m: ModuleDraft) => string | null;
 }> = {
   datenerfassung: {
     config: (m) => ({
@@ -347,32 +355,18 @@ export const MODULE_FORM: Record<string, {
       })),
       sample: samplePayload(m.sample),
     }),
-    incomplete: (m) => {
-      if (m.points.length === 0) return 'kein Erfassungspunkt';
-      if (m.points.some((p) => !p.label.trim())) return 'Erfassungspunkt ohne Bezeichnung';
-      if (m.points.some((p) => p.type === NEEDS_TARGET && !String(p.target ?? '').trim())) {
-        return 'Soll-Ist-Vergleich ohne Sollwert';
-      }
-      if (m.sample.mode === 'free' && !m.sample.value.trim()) return 'Stichprobe ohne Zahl';
-      return null;
-    },
   },
   aussondern: {
     // Zwei Angaben, beide Pflicht: **was** passiert (verschrotten ↔ sperren) und
     // **warum**. Erfassungspunkte gibt es keine – was ankommt, wird ausgesondert, und
     // der Grund steht bereits hier statt bei jedem Stück noch einmal.
     config: (m) => ({ mode: m.mode, reason: m.reason }),
-    incomplete: (m) => (m.reason.trim() ? null : 'Grund fehlt'),
   },
   bewegen: {
     // **Eine Angabe, und die ist optional.** Leer geht als `null` hinaus – nicht als
     // fehlendes Feld: der Server unterscheidet «kein Ziel definiert» von «Feld nicht
     // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
     config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
-    // **Nie unvollständig.** Ein Bewegungsmodul ohne Ziel ist kein halbes Modul, sondern
-    // eines, das beim Ausführen fragt. Es hier als unvollständig zu melden hiesse, den
-    // zweiten gültigen Fall zu verbieten.
-    incomplete: () => null,
   },
   beschaffen: {
     // **Zwei Angaben, mehr nicht**: bei wem und was zu tun ist. Kein Artikel – den sagen
@@ -383,14 +377,6 @@ export const MODULE_FORM: Record<string, {
       suppliers: m.suppliers.map((r) => ({ supplier: r.supplier, ref: r.ref.trim() })),
       instruction: m.instruction.trim(),
     }),
-    incomplete: (m) => {
-      if (!m.instruction.trim()) return 'kein Auftrag an den Lieferanten';
-      if (m.suppliers.length === 0) return 'kein Lieferant zugelassen';
-      // #756: ohne Bestellangabe steht beim Bestellen nicht da, unter welcher Nummer
-      // bzw. über welchen Link man bei ihm bestellt.
-      if (m.suppliers.some((r) => !r.ref.trim())) return 'Bestellangabe fehlt';
-      return null;
-    },
   },
   verbrauch: {
     // Zwei Angaben je Zeile, beide Pflicht: **welcher Artikel** und **wie viele je
@@ -401,14 +387,6 @@ export const MODULE_FORM: Record<string, {
         .filter((l) => l.articleObjectId !== null)
         .map((l) => ({ article: l.articleObjectId as number, quantity: l.quantity })),
     }),
-    incomplete: (m) => {
-      const rows = m.lines.filter((l) => l.articleObjectId !== null);
-      if (rows.length === 0) return 'kein Artikel gewählt';
-      if (rows.some((l) => l.quantity < 1)) return 'Zeile ohne Menge';
-      const ids = rows.map((l) => l.articleObjectId);
-      if (new Set(ids).size !== ids.length) return 'Artikel steht zweimal';
-      return null;
-    },
   },
 };
 
@@ -423,16 +401,4 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
 /** Entwurfsform → API-Form (`schemas/process.ModuleInput`). */
 export function toModulePayload(m: ModuleDraft) {
   return { module_type: m.moduleType, config: MODULE_FORM[m.moduleType]?.config(m) ?? {} };
-}
-
-/**
- * Ist dieses Modul vollständig? **Erst dann ist es angelegt** – vorher steht es zwar im
- * Fluss, aber die Freigabe verlangt es vollständig (der Server prüft dasselbe).
- *
- * Einen Typ, den diese Oberfläche nicht kennt, meldet sie – statt ihn durchzulassen: er
- * käme aus einem neueren Backend, und was er braucht, weiss sie nicht.
- */
-export function moduleIncomplete(m: ModuleDraft): string | null {
-  const form = MODULE_FORM[m.moduleType];
-  return form ? form.incomplete(m) : `Modultyp «${m.moduleType}» ist hier unbekannt`;
 }

@@ -1334,8 +1334,27 @@ def test_the_purchase_module_has_no_article_field():
 
     modules_ts = _read(FRONTEND / "lib" / "modules.ts")
     assert "purchaseArticle" not in modules_ts, "Der Entwurf trägt wieder einen Artikel."
-    assert "kein Auftrag an den Lieferanten" in modules_ts, (
-        "Ein Beschaffungs-Modul ohne Auftrag gilt wieder als vollständig."
+
+    # **Dass der Auftrag Pflicht ist, prüft der Dienst** – nicht eine Zeichenkette in der
+    # Oberfläche. Der Entwurf fragt ``validate``, und was dort fehlt, steht am Knopf.
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import orders as orders_svc
+
+    def beschaffen(instruction: str) -> set[str]:
+        return set(orders_svc.validate_draft(None, {"lines": [], "steps": [{
+            "module_type": "beschaffen",
+            "config": {"suppliers": [{"supplier": 100000001, "ref": "X-1"}],
+                       "instruction": instruction},
+        }]}))
+
+    # **Die Differenz, nicht die Menge.** Ein leerer Entwurf bemängelt ohnehin die
+    # fehlende Einzelinstanz – ein blosses ``assert problems`` wäre davon schon erfüllt
+    # und liesse die Bug-Form durch (gemessen: tat es).
+    only_without = beschaffen("") - beschaffen("Härten auf 58 HRC")
+    assert only_without, (
+        "Ein Beschaffungs-Modul ohne Auftrag gilt wieder als vollständig – der "
+        "Lieferant wüsste, WAS das Teil ist, aber nicht, was er tun soll."
     )
 
     panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
@@ -4861,17 +4880,26 @@ def test_the_order_reference_is_a_mandatory_field():
 
     Bug-Form: die Angabe ist optional, das Modul lässt sich freigeben, und beim Bestellen
     steht eine leere Zeile. Geprüft wird **beides** – der Server weist sie ab (die Regel)
-    und die Oberfläche meldet sie vor der Freigabe (die freundliche Hälfte).
+    und der Mensch erfährt es vor der Freigabe (die freundliche Hälfte).
+
+    **Die freundliche Hälfte ist keine zweite Prüfung**, sondern dieselbe: der Entwurf
+    fragt ``POST …/validate``, und was dort fehlt, steht im Hinweis des Knopfes. Vorher
+    stand hier eine Zeichenketten-Suche in ``modules.ts`` – die prüfte die **Anwesenheit**
+    einer toten Kopie, nicht das Verhalten: sie schlug nicht an, obwohl die Kopie keinen
+    Aufrufer hatte, und sie hätte angeschlagen, wenn man sie entfernt.
     """
-    mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
-    assert "Bestellangabe fehlt" in mods, (
-        "Die Oberfläche lässt ein Beschaffungs-Modul ohne Bestellangabe durchgehen."
-    )
-    back = _code(_read(BACKEND / "app" / "domain" / "modules.py"))
-    suppliers = _body(back, "_suppliers")
-    assert "Bestellangabe" in suppliers, (
-        "Der Server nimmt eine leere Bestellangabe an – dann ist die Prüfung in der "
-        "Oberfläche eine Bitte."
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.services import orders as orders_svc
+
+    problems = orders_svc.validate_draft(None, {"lines": [], "steps": [{
+        "module_type": "beschaffen",
+        "config": {"suppliers": [{"supplier": 100000001, "ref": ""}],
+                   "instruction": "Härten auf 58 HRC"},
+    }]})
+    assert any("Bestellangabe" in p for p in problems), (
+        "Der Entwurf gilt ohne Bestellangabe als freigebbar – dann steht ein Knopf "
+        f"bereit, der beim Klick scheitert. Gemeldet wurde: {problems}"
     )
 
 

@@ -122,12 +122,14 @@ _COLUMN_SAFETY_NET = (
 #: **jedes** Insert auflaufen – und zwar sofort und für alle. Sie zu lösen ist der erste
 #: von zwei Schritten (der Drop folgt im nächsten Deploy, wenn keine Vorgänger-Revision
 #: sie mehr schreibt). Idempotent.
-_NULLABLE_SAFETY_NET = (
-    # Migration 115: die Bestellmenge ist abgeleitet, nicht eingegeben.
-    ("purchases", "quantity"),
-    # Migration 116: **was** beschafft wird, sagt der Prozess – nicht ein Artikelfeld.
-    ("purchases", "article_id"),
-)
+#:
+#: **Zurzeit leer, und das ist der Normalzustand.** Ein Eintrag hier lebt genau einen
+#: Deploy lang: er entsteht, wenn eine Spalte ihr Mapping verliert, und geht mit ihrem
+#: Drop wieder (``purchases.quantity``/``article_id`` – Migrationen 115/116, gedroppt
+#: von 120). Das Netz bleibt trotzdem stehen: es ist der erste von zwei Schritten der
+#: Zwei-Deploy-Regel, kein einmaliger Fix – wer es entfernt, erfindet es beim nächsten
+#: unmapped gewordenen Pflichtfeld neu, und bis dahin laufen alle Inserts auf.
+_NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = ()
 
 _DROP_COLUMN_SAFETY_NET = (
     # Gesellschaften (Migration 091): der «Betreiber» ist WÄHLBAR (``is_operator`` mit eigenem
@@ -155,6 +157,36 @@ _DROP_COLUMN_SAFETY_NET = (
     # Am Artikel war es eine zweite Stelle für dieselbe Frage – und sie hing an keinem
     # Prozess. Auch im Netz gedroppt, falls Alembic 106 nicht durchlief.
     ("articles", "capture_fields"),
+    # ►► **Der Folge-Deploy der Aufräumrunde (Migration 120).** ◄◄
+    #
+    # Zweiter Schritt der Zwei-Deploy-Regel: im Aufräum-Deploy verloren diese Spalten ihr
+    # Mapping, jetzt fallen sie. Jede gehört zu einem Bereich, den es nicht mehr gibt
+    # (``docs/attic.md``) – Verkauf/Shop, Zahlungen, Dokumente – bzw. zu einem Umbau am
+    # Beschaffungs-Beleg (die Menge ist abgeleitet, 115; die Zeilen sagen was, 116).
+    ("articles", "procurement_mode"),
+    ("articles", "default_supplier_id"),
+    ("articles", "default_webshop_url"),
+    ("articles", "sales_published"),
+    ("articles", "sales_visibility"),
+    ("articles", "sales_fulfillment"),
+    ("articles", "sales_content"),
+    ("company_settings", "logo_path"),
+    ("company_settings", "stripe_publishable_key"),
+    ("company_settings", "hcaptcha_site_key"),
+    ("company_settings", "shop_currencies"),
+    ("company_settings", "shop_country_currency"),
+    ("company_settings", "shop_default_currency"),
+    ("company_settings", "payments_provider"),
+    ("company_settings", "pricing_zone_factors"),
+    ("company_settings", "infra_monthly_chf"),
+    ("company_settings", "legal_documents"),
+    ("company_settings", "default_receiving_location_id"),
+    ("user_profiles", "stripe_customer_id"),
+    ("purchases", "reference"),
+    ("purchases", "quantity"),
+    ("purchases", "article_id"),
+    ("purchases", "due_date"),
+    ("purchases", "ordered_for"),
 )
 # Die Einträge für orders / order_lines / purchase_orders / sales / shipments / documents /
 # inspections / article_process_steps sind mit ihren Tabellen entfallen (Migration 102).
