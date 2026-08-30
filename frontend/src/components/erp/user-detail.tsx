@@ -2,13 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, MapPin, Building2, Briefcase,
-  FolderOpen, Bell, Check, CreditCard, Cog,
+  User, MapPin, Building2, Briefcase, Bell, Check, CreditCard, Cog,
 } from 'lucide-react';
 import { userDisplayName, localDate } from '@/lib/utils';
 import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
-import { DetailTabs } from '@/components/erp/detail-tabs';
 import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
@@ -23,11 +21,16 @@ import { useAutosave } from '@/components/account/use-autosave';
 import { SaveStatusIndicator } from '@/components/account/save-status';
 import type {UserProfile, UserRole } from '@/types';
 
-// **«Bestellungen» ist entfallen** – nicht als Entscheidung, sondern als Befund: der
-// Reiter rendete **gar nichts**. Seine Karte hing am Verkaufs-Modul, und das ist mit dem
-// Basis-Neuaufbau entfallen (docs/attic.md); geblieben war ein Knopf, der eine leere
-// Fläche öffnet. Kommt der Verkauf zurück, kommt der Reiter mit ihm.
-type UserTab = 'profil' | 'docs';
+// **Der Benutzer hat keine Reiter mehr** – aus demselben Befund, zweimal.
+//
+// «Bestellungen» rendete **gar nichts**: seine Karte hing am Verkaufs-Modul, und das ist
+// mit dem Basis-Neuaufbau entfallen (docs/attic.md). «Dokumente» ebenso (Testnotiz #772):
+// zwei Überschriften über leeren Flächen, denn das Dokumentenmodul gibt es nicht mehr.
+// Übrig blieb genau ein Reiter, und der trägt das ganze Formular: es gibt hier nichts
+// mehr zu wählen. Dieselbe Auflösung wie am Artikel (Notiz #760/#761) – dort war es
+// dieselbe Ursache und nicht eine Regel über Reiter.
+//
+// Kommen die Bereiche zurück, kommen ihre Reiter mit ihnen.
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -481,8 +484,6 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
   isAdmin: boolean;
   onBack: () => void;
 }) {
-  const [tab, setTab] = useState<UserTab>('profil');
-
   const rc       = userStatus(record);
   const name     = userDisplayName(record);
   const hasName  = !!name && name !== record.email;
@@ -506,10 +507,6 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
         objectId={record.object_id} onBack={onBack}
         status={rc}
         photoUrl={record.photo_url} initials={initials}
-        tabs={<DetailTabs<UserTab> active={tab} onChange={setTab} tabs={[
-          { key: 'profil', label: 'Profil', icon: User },
-          { key: 'docs', label: 'Dokumente', icon: FolderOpen },
-        ]} />}
       />
 
       {/* Content */}
@@ -518,21 +515,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
             Formular auf einem breiten Schirm über die volle Fensterbreite auseinander –
             und eine Zeile wurde unlesbar lang. */}
         <DetailBody>
-        {tab === 'profil' && <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />}
-        {tab === 'docs' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-            <div>
-              <div style={{ font: '700 13px var(--font-body)', color: 'var(--fg-1)', marginBottom: 2 }}>Freigaben & Anerkennungen</div>
-              <div style={{ fontSize: 12, color: 'var(--fg-4)', marginBottom: 10 }}>
-                Dokumente, die diese Person unterschreibt/bestätigt (als Partei) oder anerkennt (als Publikum).
-                Die Ansicht «Meine Dokumente» im Konto der Person spiegelt genau diese Daten.
-              </div>
-            </div>
-            <div>
-              <div style={{ font: '700 13px var(--font-body)', color: 'var(--fg-1)', marginBottom: 10 }}>Abgelegte Dokumente</div>
-            </div>
-          </div>
-        )}
+        <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />
         </DetailBody>
       </div>
     </div>

@@ -8,12 +8,15 @@ Entfallen sind mit der Prozesslogik: Freigabe-Gate, Einstandspreis und Durchlauf
 (beide aus abgeschlossenen Aufträgen abgeleitet) sowie das aufsummierte Gewicht (aus
 verbauten Ressourcen).
 
-**Ausser Betrieb nehmen ist ein Statuswechsel und sonst nichts** – ``PATCH`` mit
-``status``, in beide Richtungen. Es gibt dafür keinen eigenen Endpunkt und keine
-Wirkungsanalyse in einem Dialog: was ein Ausserbetriebnehmen anrichtet, steht als
-**Auskunft am Datensatz** (``bom``) und ist damit immer sichtbar, nicht nur dem, der
-klickt. **Ersetzen** wiederum ist keine Aktion am Vorgänger, sondern eine Angabe an der
-**Anlage des Nachfolgers** (``ArticleCreate.replaces_object_id``).
+**Ausser Betrieb nehmen ist keine eigene Handlung** (Testnotiz #773). Es gibt keinen
+Endpunkt dafür, kein Feld und keinen Knopf: ein Artikel geht dadurch ausser Betrieb, dass
+ein **Nachfolger** ihn ablöst (``ArticleCreate.replaces_object_id``) – und der Zustand ist
+die Projektion davon (``Article.status``). Was das anrichtet, steht als **Auskunft am
+Datensatz** (``bom``) und ist damit immer sichtbar, nicht nur dem, der klickt.
+
+*Vorher gab es beides:* einen Statuswechsel per ``PATCH`` **und** das Ersetzen. Zwei Wege
+zu derselben Aussage, und der erste hatte eine Falle – ein von Hand stillgelegter Artikel
+ohne Nachfolger hing an genau dem Schalter, der ihn stillgelegt hatte.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query

@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   ChevronDown, ChevronUp, CornerUpLeft, Flag, GitBranch, GripVertical, Lock,
-  MoreHorizontal, Play, Scissors, Sprout, Trash2,
+  MoreHorizontal, Play, Scissors, Sprout, Trash2, type LucideIcon,
 } from 'lucide-react';
 import { moduleIcon, chainProblems, moduleTone } from '@/lib/modules';
 import { TYPE_META } from '@/lib/erp-record';
@@ -1001,6 +1001,35 @@ interface DragProps {
   onDrop: (from: number) => void;
 }
 
+/**
+ * **Das Zeichen eines Moduls** – getöntes Quadrat mit seinem Symbol.
+ *
+ * Es steht hier als eigenes Bauteil, weil es zwei Träger hat: die **Modul-Karte** und der
+ * **Einkaufs-Vorgang**, der in einem Modul stattfinden kann (`ProcurementHead`). Ein
+ * Einkauf sieht überall gleich aus; nachgebaut wäre er beim ersten Massänderung ein
+ * zweiter Massstab.
+ *
+ * **Die Historie hängt am Symbol** (§5) – wie bei Start und Ende, die dieselbe Blase auf
+ * ihrem Kreis tragen. Sie hing einmal an der Beschriftung, und die trägt `truncate`
+ * (`overflow: hidden`): das **schneidet die Blase weg**, denn sie ist ein `::after` dieses
+ * Elements.
+ */
+export function ModuleMark({ icon: Icon, tone, history, size = 32 }: {
+  icon: LucideIcon; tone: string; history?: string; size?: number;
+}) {
+  return (
+    <span
+      className="flex items-center justify-center rounded-md flex-none"
+      style={{ width: size, height: size, background: 'var(--bg-1)', color: tone }}
+      tabIndex={history ? 0 : undefined}
+      onClick={history ? (e) => e.stopPropagation() : undefined}
+      data-tip={history} data-tip-list={history ? '' : undefined}
+    >
+      <Icon size={Math.round(size * 0.53)} />
+    </span>
+  );
+}
+
 export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, history,
   children }: {
   step: DiagramStep; active: boolean; dimmed: boolean;
@@ -1099,15 +1128,7 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
             trägt `truncate` (`overflow: hidden`): das **schneidet die Blase weg**, denn
             sie ist ein `::after` dieses Elements. Sichtbar war der Log darum nur an den
             beiden Objekten ohne Textkürzung – genau der gemeldete Fall. */}
-        <span
-          className="flex items-center justify-center rounded-md flex-none"
-          style={{ width: 32, height: 32, background: 'var(--bg-1)', color: c.fg }}
-          tabIndex={history ? 0 : undefined}
-          onClick={history ? (e) => e.stopPropagation() : undefined}
-          data-tip={history} data-tip-list={history ? '' : undefined}
-        >
-          <Icon size={17} />
-        </span>
+        <ModuleMark icon={Icon} tone={c.fg} history={history} />
         <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: c.fg }}>
           {step.label}
         </span>

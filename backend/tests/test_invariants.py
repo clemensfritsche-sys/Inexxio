@@ -215,22 +215,23 @@ def test_a_record_goes_out_of_service_on_exactly_one_axis():
     )
 
 
-def test_the_article_status_has_exactly_one_vocabulary():
-    """►►► **Ein Zustand, ein Wort — auch im Standardwert der Spalte.** ◄◄◄
+def test_the_article_status_has_exactly_one_source():
+    """►►► **Der Artikel-Zustand ist ABGELEITET — es gibt keine zweite Angabe.** ◄◄◄
 
-    Der zweite Fund derselben Klasse wie oben, nur eine Ebene tiefer: der Artikel-Status
-    gab es in **zwei Sprachen**. Migration ``107`` hat die Daten und den *Server*-Default
-    auf die deutsche Liste gezogen — der *ORM*-Default blieb auf ``"released"`` stehen.
-    Und der ORM-Default **gewinnt**: jede Zeile, die ohne ausdrücklichen Status entsteht,
-    hätte das alte Wort zurückgebracht.
+    «Ausser Betrieb» ist keine eigene Aussage, sondern die Folge des Ersetzens (Testnotiz
+    #773): ``Freigegeben``, solange dieser Artikel die neueste Fassung ist, ``Inaktiv``,
+    sobald ein Nachfolger ihn abgelöst hat. Genau **eine** Angabe trägt das –
+    ``replaced_by_id``.
 
-    **Warum es niemand gemerkt hat:** es gab schlicht keinen Leser. ``services/articles``
-    setzt den Status ausdrücklich, und sonst fragte niemand danach. Erst ``may_create``
-    muss die Frage «ist dieser Artikel freigegeben?» wirklich beantworten — und beantwortete
-    sie für jede so entstandene Zeile mit **nein**.
+    **Die Bug-Form, gegen die dieser Wächter steht**, ist die Rückkehr der Spalte: eine
+    ``status``-Spalte am Modell wäre wieder die zweite Wahrheit, sie würde von zwei
+    Stellen gesetzt (dem Ersetzen und einem Knopf) und von ``may_create`` gelesen. Genau
+    daraus entstand der Artikel, der «inaktiv» hiess, ohne dass ihn jemand abgelöst hatte
+    – und der nur über denselben Knopf wieder zurückkam, den es nicht mehr gibt.
 
-    Geprüft wird darum die **Quelle des Standardwerts**, nicht sein heutiger Wert: ein
-    Literal ist genau die Form, die beim nächsten Umbenennen stehen bleibt.
+    *Der Vorgänger dieses Wächters prüfte den **Standardwert** der Spalte gegen die
+    Statusliste (ORM- und Server-Default waren einmal auseinandergelaufen). Diese Frage
+    stellt sich nicht mehr: ohne Spalte gibt es keinen Default, der veralten könnte.*
     """
     import pathlib
     import re
@@ -238,26 +239,27 @@ def test_the_article_status_has_exactly_one_vocabulary():
     from app.domain import statuses as st
     from app.models import Article
 
-    column = Article.__table__.c.status
-    default = column.default.arg if column.default is not None else None
-    assert default in st.ARTICLE_STATUSES, (
-        f"Der Standardwert der Spalte ({default!r}) steht nicht in der Statusliste "
-        f"{st.ARTICLE_STATUSES} – ein Artikel entstünde in einem Zustand, den das System "
-        f"nicht kennt."
+    assert "status" not in Article.__table__.c, (
+        "``articles.status`` ist wieder eine Spalte – damit gibt es die zweite Aussage "
+        "über dieselbe Sache zurück. Der Zustand gehört als Projektion an "
+        "``replaced_by_id`` (``Article.status``)."
     )
-    assert str(column.server_default.arg) == default, (
-        "ORM- und Server-Default sagen Verschiedenes. Der ORM-Default gewinnt, der "
-        "Server-Default ist die Wahrheit für alles, was an SQLAlchemy vorbeischreibt – "
-        "sie dürfen nicht auseinanderlaufen."
+    assert isinstance(getattr(Article, "status", None), property), (
+        "``Article.status`` ist keine Ableitung mehr – ohne sie beantwortet jede Ansicht "
+        "die Frage «ausser Betrieb?» selbst, und beim nächsten Leser anders."
     )
+
+    class _Fake:
+        replaced_by_id = None
+
+    assert Article.status.fget(_Fake()) == st.FREIGEGEBEN
+    _Fake.replaced_by_id = 100000001
+    assert Article.status.fget(_Fake()) == st.INAKTIV
 
     # Und **kein** Modul spricht die alte **Artikel**-Status-Sprache. Gesucht wird
     # ausdrücklich nach dem Subjekt: ``draft`` ist als *Auftrags*-Zustand weiterhin ein
     # gültiges Wort, und ein Wächter, der beides in einen Topf wirft, meldet Falsches und
     # wird dafür stillgelegt.
-    #
-    # Die frühere Ausnahmeliste (die abgeschalteten Bereiche sprachen die alte Sprache
-    # noch) ist mit ihnen entfallen – der Wächter gilt jetzt ohne Ausnahme.
     app = pathlib.Path(__file__).resolve().parents[1] / "app"
     pattern = re.compile(
         r"""\b(?:article|art|Article)\.status\s*(?:=|==|!=)\s*["'](released|inactive|draft)["']"""
@@ -269,5 +271,45 @@ def test_the_article_status_has_exactly_one_vocabulary():
             hits.append(f"{rel}: {m.group(0)}")
     assert not hits, (
         "Ein aktives Modul spricht wieder die alte Artikel-Status-Sprache:\n  "
+        + "\n  ".join(hits)
+    )
+
+
+def test_out_of_service_is_written_at_exactly_one_place():
+    """►►► **Ausser Betrieb geht ein Artikel auf genau EINEM Weg: durch Ersetzen.** ◄◄◄
+
+    Es gibt keinen Schalter, kein Feld und keinen Endpunkt dafür. Der Wächter liest den
+    Quelltext, weil genau das die Form ist, in der ein zweiter Weg zurückkommt: eine
+    Zuweisung an ``status`` irgendwo, ein ``status``-Feld in ``ArticleUpdate``, ein
+    ``PATCH``, der ihn durchreicht.
+
+    Bug-Form: mit dem alten Knopf meldet er ``ArticleUpdate`` **und** die Zuweisung in
+    ``apply_replacement`` – gegengeprüft.
+    """
+    import pathlib
+    import re
+
+    from app.schemas.article import ArticleUpdate
+
+    assert "status" not in ArticleUpdate.model_fields, (
+        "``ArticleUpdate`` nimmt wieder einen Status entgegen – damit gibt es den zweiten "
+        "Weg zurück, ausser Betrieb zu nehmen."
+    )
+
+    # **Gesucht wird in den Dateien, die den Artikel besitzen** – und nach der *Form*
+    # einer Zuweisung, nicht nach einem Variablennamen. Der Vorgänger fragte nach
+    # ``*article*.status =`` und liess damit ausgerechnet die Zeile durch, um die es geht:
+    # sie heisst ``predecessor.status = …`` (gemessen, gegengeprüft, nachgeschärft).
+    app = pathlib.Path(__file__).resolve().parents[1] / "app"
+    owners = ("services/articles.py", "routers/articles.py", "services/bom.py",
+              "models/article.py")
+    setter = re.compile(r"^\s*\w+\.status\s*=\s*[^=]", re.M)
+    hits = [
+        f"{rel}: {m.group(0).strip()}"
+        for rel in owners
+        for m in setter.finditer((app / rel).read_text(encoding="utf-8"))
+    ]
+    assert not hits, (
+        "Der Artikel-Zustand wird wieder geschrieben – er ist abgeleitet:\n  "
         + "\n  ".join(hits)
     )

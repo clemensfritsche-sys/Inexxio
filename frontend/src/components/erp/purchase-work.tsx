@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useAutosave } from '@/lib/use-autosave';
 import { ArrowUpRight, Check, CircleSlash, Undo2 } from 'lucide-react';
-import type { PurchaseEmbed, PurchaseQuote } from '@/types';
+import { api } from '@/lib/api';
+import type { PurchaseEmbed, PurchaseQuote, SupplierOption } from '@/types';
 import { ObjId } from '@/components/erp/obj-id';
+import { ObjectSelect } from '@/components/erp/object-select';
 import { Label, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { formatAmount } from '@/lib/utils';
 
@@ -222,37 +224,63 @@ function Subject({ p }: { p: Filled }) {
 /**
  * **Die Anfrage — bei wem, und was kostet es.**
  *
- * Solange nichts angefragt ist, stehen die **zugelassenen** Lieferanten da (die
- * Lieferantenfreigabe aus der Definition) und man wählt, bei wem man fragt. Danach ist
- * jede Zeile ein Angebot: der Preis kommt entweder vom Lieferanten selbst (Portal) oder
- * wird hier eingetragen – bei einem Shop-Kauf ist das der Katalogpreis.
+ * Solange nichts angefragt ist, wird gewählt, bei wem man fragt. **Woher die Kandidaten
+ * kommen, ist der einzige Unterschied zwischen zwei Fällen** – nicht der Ablauf:
+ *
+ * - Die Definition nennt **zugelassene** Lieferanten (Beschaffen: Lieferantenfreigabe) →
+ *   sie stehen als Liste da, und die Zeile IST der Schalter.
+ * - Sie nennt **keinen** (ein Transport: den Spediteur wählt man, wenn man weiss, wohin) →
+ *   dann wird **gesucht** (`/orders/supplier-options`, dieselbe Bedingung wie überall:
+ *   Nummer oder Name).
+ *
+ * Genau dieser zweite Fall fehlte: die Liste war leer, also stand nichts zum Anklicken da
+ * und der Knopf blieb für immer gesperrt – man konnte «Beschaffen» wählen und danach
+ * **nichts** tun (Testnotiz #775). Dieselbe Auflösung wie bei `SearchSelect` (#730):
+ * derselbe Knopf, dieselbe Aktion, nur eine andere Quelle. Und die Regel dahinter steht
+ * im **Dienst** (`purchase._assert_allowed`) – frei heisst nicht «irgendwer», gefragt
+ * werden kann nur, wer als Lieferant geführt ist.
+ *
+ * Danach ist jede Zeile ein Angebot: der Preis kommt entweder vom Lieferanten selbst
+ * (Portal) oder wird hier eingetragen – bei einem Shop-Kauf ist das der Katalogpreis.
  */
 function Ask({ p, busy, active, onAction }: {
   p: Filled; busy?: boolean; active: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
 }) {
   const asked = p.quotes.length > 0;
+  const free = p.allowed.length === 0;
   const [picked, setPicked] = useState<number[]>(p.allowed.map((a) => a.supplier_object_id));
+  // Die frei gesuchten tragen ihren Namen mit: die Antwort der Suche ist die einzige
+  // Stelle, an der er hier bekannt ist.
+  const [found, setFound] = useState<SupplierOption[]>([]);
   const [prices, setPrices] = useState<Record<number, string>>({});
   const [days, setDays] = useState<Record<number, string>>({});
+  const mayAsk = may(p, active, 'ask');
+
+  const findSuppliers = useCallback(
+    (q: string) => api.searchSuppliers(q).catch(() => []), []);
+
+  const rows = free
+    ? found.map((f) => ({ supplier_object_id: f.object_id, supplier_name: f.name }))
+    : p.allowed;
 
   return (
     <div className="flex flex-col gap-2 mt-1.5">
-      {!asked && p.allowed.map((a) => {
+      {!asked && rows.map((a) => {
         // **Die Zeile IST der Schalter** – kein Häkchen daneben. Gewählt heisst getönt
         // mit Haken, abgewählt heisst blass; dieselbe Geste wie überall im Haus, wo ein
         // Klick die Entscheidung ist.
         const on = picked.includes(a.supplier_object_id);
         return (
           <button key={a.supplier_object_id} type="button"
-            disabled={!may(p, active, 'ask')}
+            disabled={!mayAsk}
             className="flex items-center gap-2 text-[13px] rounded-ds-sm w-full"
             style={{
               padding: '5px 8px', textAlign: 'left',
               border: `1px solid ${on ? 'var(--border-2)' : 'transparent'}`,
               background: on ? 'var(--bg-1)' : 'transparent',
               opacity: on ? 1 : 0.5,
-              cursor: may(p, active, 'ask') ? 'pointer' : 'default',
+              cursor: mayAsk ? 'pointer' : 'default',
             }}
             onClick={() => setPicked((cur) => (on
               ? cur.filter((n) => n !== a.supplier_object_id)
@@ -264,12 +292,33 @@ function Ask({ p, busy, active, onAction }: {
           </button>
         );
       })}
+
+      {/* **Dasselbe Referenzfeld wie überall** (`ObjectSelect`, #738): tippen sucht auf
+          dem Server, die Kamera sitzt im Feld. Es steht nur da, wo die Definition
+          niemanden nennt – wo sie es tut, ist die Liste die Wahl. */}
+      {!asked && free && mayAsk && (
+        <ObjectSelect<SupplierOption>
+          value={null}
+          find={findSuppliers}
+          kind="user"
+          scanLabel="Lieferant"
+          placeholder="Lieferant suchen"
+          onChange={(nr, opt) => {
+            if (nr == null) return;
+            if (opt) setFound((cur) => (cur.some((f) => f.object_id === nr) ? cur : [...cur, opt]));
+            setPicked((cur) => (cur.includes(nr) ? cur : [...cur, nr]));
+          }}
+        />
+      )}
+
       {/* **Ein Wort, immer dasselbe** (#750). «Anfragen» ↔ «Bei 2 anfragen» waren zwei
           Beschriftungen für denselben Knopf – und die Zahl fiel ausgerechnet dann weg,
           wenn sie am grössten ist. */}
-      {!asked && may(p, active, 'ask') && (
+      {!asked && mayAsk && (
         <button type="button" className="erp-actbtn erp-actbtn-primary self-start"
           style={{ height: 32 }} disabled={busy || picked.length === 0}
+          data-tip={picked.length === 0 && free
+            ? 'Erst suchen, bei wem angefragt werden soll.' : undefined}
           onClick={() => onAction({ action: 'ask', suppliers: picked })}>
           Bei {picked.length} anfragen
         </button>
@@ -284,11 +333,16 @@ function Ask({ p, busy, active, onAction }: {
           onLead={(v) => setDays((c) => ({ ...c, [q.supplier_object_id]: v }))} />
       ))}
 
-      {asked && may(p, active, 'revoke') && (
+      {/* ►► **Der Weg zurück gibt es, BEVOR etwas angefragt ist** (Testnotiz #775). ◄◄
+          Er hing an `asked` – wer «Beschaffen» gewählt hatte, kam damit erst wieder
+          heraus, nachdem er angefragt hatte. Dabei ist genau davor am wenigsten zugesagt.
+          Was «zurück» hier heisst, sagt der Beleg (`undo`): vor der Bestellung nimmt es
+          die Anfrage zurück – und wo der Einkauf eine **Wahl** war, ist es die Wahl. */}
+      {may(p, active, 'revoke') && (
         <button type="button" className="erp-actbtn erp-actbtn-neutral self-start"
           style={{ height: 28 }} disabled={busy}
           onClick={() => onAction({ action: 'revoke' })}>
-          <Undo2 size={13} /> Anfrage zurückziehen
+          <Undo2 size={13} /> {p.undo}
         </button>
       )}
     </div>
@@ -513,11 +567,15 @@ function Ordered({ p, busy, active, onAction }: {
         </div>
       ) : null}
 
+      {/* **Das Wort kommt vom Beleg** (`undo`): ab der Bestellung heisst «zurück»
+          stornieren – dort liegt eine Bestellung beim Lieferanten. Wo der Einkauf eine
+          Wahl war, ist das Modul danach wieder frei und kann selbst bringen; wo er der
+          Zweck war, bleibt der Beleg als Absage stehen. */}
       {may(p, active, 'revoke') && (
         <button type="button" className="erp-actbtn erp-actbtn-danger self-start"
           style={{ height: 28 }} disabled={busy}
           onClick={() => onAction({ action: 'revoke' })}>
-          <Undo2 size={13} /> Bestellung stornieren
+          <Undo2 size={13} /> {p.undo}
         </button>
       )}
     </div>

@@ -890,8 +890,8 @@
 > Reaktivieren» widerspricht der Statusliste (`Status.terminal` gibt es **nur** auf der
 > Stück-Achse), und daraus folgte, dass es keine Gegenaktion gab: ein versehentlich
 > stillgelegter Artikel war für immer verloren, der einzige Ausweg hiess «dieselbe Sache
-> noch einmal anlegen» – eine zweite Nummer für ein Ding. Jetzt **ein Knopf in zwei
-> Richtungen**: «Inaktiv setzen» ↔ «Aktiv setzen», ein gewöhnlicher Statuswechsel.
+> noch einmal anlegen» – eine zweite Nummer für ein Ding. Damals wurde daraus **ein Knopf
+> in zwei Richtungen**; *mit #773 ist auch der entfallen – siehe unten.*
 > **Die Wirkung ist EINE und steht an EINER Stelle** (`articles.may_create`): ausser Betrieb
 > heisst **erzeugt nichts Neues**. Alles andere bleibt – bestehende Stücke laufen weiter,
 > laufende Aufträge zu Ende (eingefrorene Kopie), «ab Lager» bleibt erlaubt.
@@ -1499,6 +1499,78 @@
 > gewandert. Der Abschnitts-Kopf steht jetzt unter 640 px **einspaltig** (dieselbe Grenze
 > wie `.ix-wrap`; ein zweiter Wert wäre ein zweiter Umbruchpunkt, den man vergisst).
 > Gemessen: **0 px** bei 1440 · 1280 · 1024 · 834 · 375 · 320 px, ab 640 px unverändert.
+
+> **Der Einkauf im Bewegen-Modul: 1:1 sichtbar, mit Weg zurück — und «ausser Betrieb» ist
+> keine eigene Angabe mehr** (Testnotizen #770–#775, PROCESS_CORE §9.8/§5.5,
+> Migration `121`).
+> **(1) Der Vorgang trägt seine eigene Identität** (`domain/procurement.LABEL`/`TONE`).
+> Der Beleg war seit der Vorrunde 1:1 derselbe – **nur sah man es ihm nicht an**: er
+> entstand im Hintergrund, und die Karte hiess weiter «Bewegen». Name und Farbe gehören
+> darum dem **Vorgang**, nicht dem Modul, das ihn auslöst; das Modul «Beschaffen» **liest**
+> sie, und der Beleg trägt sie mit sich (`PurchaseEmbed.label`/`tone`). Damit können die
+> beiden nicht auseinanderlaufen, und die Ausführungsstelle schlägt nichts im Modul-Katalog
+> nach – den lädt nur der Editor. Im Bewegen-Modul steht der Einkauf jetzt unter **seiner**
+> Überschrift (getöntes Symbol · «Beschaffen» · Haarlinie – dieselbe Anatomie wie eine
+> Modul-Karte, `ModuleMark` aus **einer** Quelle). **Nur wo der Einkauf nicht der Zweck
+> ist** (`buys == BUY_IF_CHOSEN`): wo er es ist, sagt die Karte den Namen schon. Kein
+> zweiter Rahmen – eine Karte in der Karte wäre die dritte Fläche. Und die Wahl heisst
+> **«Selbst ↔ Beschaffen»**: «Einkaufen» war ein zweites Wort für dieselbe Sache.
+> **(2) «Zurück» gibt es, BEVOR etwas zugesagt ist.** Der Knopf hing an `asked` – wer
+> «Beschaffen» gewählt hatte, kam erst wieder heraus, **nachdem** er angefragt hatte, also
+> ausgerechnet nicht dort, wo am wenigsten zugesagt ist. Es bleibt bei **einer**
+> Gegenhandlung (`revoke`); was sie bewirkt, sagt die Stufe, und **wie sie heisst**, sagt
+> der Beleg (`undo`: «Doch selbst erledigen» · «Anfrage zurückziehen» · «Bestellung
+> stornieren»). **Dabei fiel eine Sackgasse auf:** nach einem **Storno** hatte die Stufe
+> keine Handlung mehr, `assert_receivable` wies den Ziel-Scan mit 409 ab, und `ensure`
+> fand die tote Zeile wieder – ein Transport, dessen Spedition absagte, konnte **nie** mehr
+> stattfinden, auch nicht zu Fuss. Wer auch selbst kann, ist mit einem Storno wieder bei
+> «selbst»: die Absage bleibt als Zeile stehen, sie ist nur nicht mehr *der* Beleg
+> (`is_active = False`). **Eine** Ableitung (`_optional`), zwei Leser, kein zweiter Pfad –
+> `assert_receivable` musste dafür nicht angefasst werden.
+> **(3) Den Spediteur wählt man, wenn man weiss, wohin.** Die Lieferanten-Freigabe ist bei
+> einem Transport **leer** («leer heisst frei»), und `Ask` rendete nur diese Liste: es stand
+> **nichts** zum Anklicken da, der Knopf blieb gesperrt. Wo niemand zugelassen ist, wird
+> jetzt gesucht (`/orders/supplier-options`, dasselbe `ObjectSelect` wie überall) – derselbe
+> Knopf, dieselbe Aktion, nur eine andere Quelle. **Frei heisst nicht «irgendwer»**:
+> `_assert_allowed` verlangt dort einen aktiven Lieferanten, sonst wäre die Liste eine Bitte.
+> **(4) «Ausser Betrieb» ist die FOLGE des Ersetzens** (#773, Migration `121`): der Schalter
+> ist entfallen, `Article.status` ist eine **Projektion** von `replaced_by_id` statt einer
+> Spalte, und `may_create` liest die Tatsache. Die Spalte wurde von **zwei** Stellen gesetzt
+> und von einer gelesen – ein von Hand stillgelegter Artikel **ohne** Nachfolger hing damit
+> an genau dem Schalter, der ihn stillgelegt hatte. Die Migration heilt genau diese Zeilen
+> (gemessen: von Hand inaktiv → freigegeben, abgelöst → bleibt inaktiv). **Der eine Preis,
+> ausdrücklich abgenommen:** ein abgelöster Artikel erzeugt nichts Neues mehr – auch nicht
+> als Ersatzteil (#766 ist damit zurückgenommen); wer den Vorgänger weiterbauen will,
+> ersetzt ihn nicht. «Ab Lager» bleibt erlaubt. *Nebenbei geschlossen:*
+> `articles.replaced_by_id` gab es in **keiner** Migration – sie kam nur über das
+> Lifespan-Netz; `121` legt sie an, denn die Migration ist die Wahrheit.
+> **(5) Ein Modul zeigt seine Sache in JEDEM Zustand – jetzt auch am Artikel** (#771):
+> `renderStep: frozen ? undefined` liess im freigegebenen Prozess **gar keinen** Körper
+> übrig – der Kopf klappte auf, und darin war nichts. Es ist derselbe Feldsatz, nur gesperrt
+> (`fieldset[disabled]`, eine Zeile statt eines zweiten Layouts); möglich durch die
+> **Umkehrform** derselben Zuordnung (`MODULE_FORM[…].draft`), die neben ihrem Gegenstück
+> steht. Gemessen: der Weg `config → Entwurf → config` ist für **alle fünf** Modultypen die
+> Identität, inklusive tolerantem Lesen der alten Lieferanten-Form.
+> **(6) Die Menge kann nicht mehr null werden** (#774): ein geleertes Feld hiess `0` – also
+> genau der Wert, den der Server als «ist zu klein» abweist; die Meldung kam nicht aus einem
+> Fehler, sondern aus dem Tippen. Jetzt lebt die Eingabe während des Tippens lokal (leer ist
+> ein Zwischenzustand), übernommen wird beim Verlassen, Untergrenze 1. **Nur** die
+> Untergrenze: eine zu grosse Zahl ist eine Entscheidung, und dazu gehört der Satz des
+> Servers. Gemessen: leer → 1, «7» → 7, «0» → 1.
+> **(7) Kleineres:** der Bestand steht am Artikel **zwischen Spezifikation und Prozess**
+> (#770 – erst was er ist, dann was es davon gibt, dann wie er entsteht); der Reiter
+> «Dokumente» am Benutzer ist **vollständig entfernt** (#772 – zwei Überschriften über
+> leeren Flächen; übrig blieb ein Reiter, der das ganze Formular trägt, also gibt es nichts
+> mehr zu wählen).
+> Wächter: `tests/test_purchase_module.py` (4 neue), `test_invariants.py` (2 neu
+> formuliert), `test_article_lifecycle.py` (3 auf die neue Regel gezogen),
+> `test_frontend_mirrors.py` (7 neue) – **jeder gegen seine Bug-Form gegengeprüft**; einer
+> war dabei stumpf (er fragte nach `*article*.status =` und liess ausgerechnet
+> `predecessor.status = …` durch) – gemessen, nachgeschärft, erneut gegengeprüft. Suite
+> grün gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den Migrationen
+> (458); Migration `121` von null · idempotent · downgrade · über das Lifespan-Netz, ihre
+> **Wirkung** gemessen. Gemessen in Chromium: 1440 · 1280 · 1024 · 834 · 375 · 320 px,
+> **0 px** waagrechter Überlauf, nichts ragt aus der Prozessspur.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

@@ -995,7 +995,7 @@ def s90(w: World):
     from app.services import objects as obj
 
     art = Article(object_id=obj.next_object_id(w.db), name="Ohne Vorlage", unit="stk",
-                  serialization="unit", status="freigegeben")
+                  serialization="unit")
     w.db.add(art)
     w.db.flush()
     return _err(w.produce, art, 1)
@@ -1100,8 +1100,7 @@ def s97(w: World):
       note="Nur ein freigegebener Artikel erzeugt Neues (articles.may_create).")
 def s98(w: World):
     art = w.article(serialization="unit")
-    art.status = "inaktiv"
-    w.db.flush()
+    w.retire(art)
     return _err(w.produce, art, 1)
 
 
@@ -1332,8 +1331,7 @@ def s59(w: World):
            "nicht einmal mehr aussondern liesse.")
 def s98b(w: World):
     art, numbers = free_stock(w, serialization="unit", quantity=1)
-    art.status = "inaktiv"
-    w.db.flush()
+    w.retire(art)
     order = w.take(art, numbers, steps=[w.dispose("scrap", "Auslauf")])
     w.run_all(order)
     return {"status": w.status(order), "states": w.states(order)}

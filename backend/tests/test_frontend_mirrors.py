@@ -2756,8 +2756,16 @@ def test_the_history_hangs_where_nothing_clips_it():
         assert "data-tip" not in block, (
             "Die Historie hängt wieder an einem kürzenden Element – dort ist sie unsichtbar."
         )
-    assert "data-tip={history} data-tip-list={history ? '' : undefined}" in head, (
-        "Das Modul trägt die Historie gar nicht mehr."
+    # **Das Zeichen ist ein eigenes Bauteil** (`ModuleMark`), weil es zwei Träger hat: die
+    # Modul-Karte und der Einkaufs-Vorgang, der in einem Modul stattfinden kann. Die Regel
+    # bleibt dieselbe – gesucht wird darum dort, wo das Symbol steht, nicht in einer Datei.
+    mark = src.split("export function ModuleMark(")[1].split("\nexport function ")[0]
+    assert "data-tip={history} data-tip-list={history ? '' : undefined}" in mark, (
+        "Das Zeichen trägt die Historie gar nicht mehr."
+    )
+    assert "<ModuleMark" in head and "history={history}" in head, (
+        "Die Modul-Karte reicht ihre Historie nicht an das Zeichen weiter – dann hängt "
+        "sie wieder nirgends."
     )
 
 
@@ -4925,14 +4933,33 @@ def test_a_bought_transport_is_the_ordinary_purchase_document():
         "Der Beleg wird nicht mehr allein daran erkannt, dass es ihn gibt."
     )
 
-    # (2) Die Wahl «selbst ↔ eingekauft» steht dort, wo ihre Folge steht – und nur,
+    # (2) Die Wahl «selbst ↔ beschaffen» steht dort, wo ihre Folge steht – und nur,
     #     solange es keinen Beleg gibt. Danach ist sie beantwortet.
-    assert "buys !== 'if_chosen'" in body, (
+    assert "buys === 'if_chosen'" in body, (
         "Die Wahl hängt nicht an der Deklaration des Moduls."
     )
     assert "action: 'buy'" in body, "Die Wahl legt keinen Beleg an."
 
-    # (3) Und es gibt keine zweite Versand-Oberfläche daneben.
+    # (3) **Und man sieht, dass es ein Einkauf ist** (Testnotiz #775): wo er nicht der
+    #     Zweck des Moduls ist, trägt er seine eigene Überschrift – mit der Identität, die
+    #     **mit dem Beleg reist** (`label`/`tone`), nicht aus dem Modul-Katalog geholt.
+    #     Bug-Form: der Beleg entsteht nur im Hintergrund, und die Karte sieht aus wie
+    #     vorher.
+    assert "<ProcurementHead" in body, (
+        "Der Einkaufs-Vorgang trägt keine Überschrift – dann sieht man ihm nicht an, "
+        "dass hier eine Leistung eingekauft wird."
+    )
+    head = _body(detail, "ProcurementHead", kind="function")
+    assert "purchase.tone" in head and "purchase.label" in head, (
+        "Die Identität wird nicht vom Beleg gelesen – wer sie beim Modul-Katalog holt, "
+        "borgt sich die eines Moduls, das hier gar nicht steht (und den Katalog lädt nur "
+        "der Editor)."
+    )
+    assert "<ModuleMark" in head, (
+        "Das Zeichen ist nachgebaut statt geteilt – ein Einkauf sieht überall gleich aus."
+    )
+
+    # (4) Und es gibt keine zweite Versand-Oberfläche daneben.
     for name in ("shipment", "versand-panel", "transport-panel"):
         assert not (FRONTEND / "components" / "erp" / f"{name}.tsx").exists(), (
             f"{name}.tsx ist ein zweites Bauteil für dieselbe Sache."
@@ -4966,4 +4993,185 @@ def test_the_haulage_choice_is_one_bit_not_a_roadmap_list():
     assert "transport" not in work.lower(), (
         "Die Ausführungsstelle kennt wieder eine Transportart – die Frage ist eine "
         "Ebene höher beantwortet (gibt es einen Beleg?)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #770–#775
+# ---------------------------------------------------------------------------
+
+def test_the_procurement_identity_is_mirrored_from_one_source():
+    """**Ein Einkauf heisst überall gleich** – auch über die API-Grenze hinweg.
+
+    Name und Farbfamilie beschreiben den **Vorgang** (``domain/procurement``), nicht den
+    Modultyp, der ihn auslöst. Der Spiegel hier trägt zusätzlich das Symbol – das kann
+    eine Antwort nicht transportieren.
+
+    Bug-Form: die Oberfläche schreibt «Einkaufen» hin, während der Beleg «Beschaffen»
+    sagt; oder der Modul-Eintrag bekommt ein eigenes Symbol. Dann steht dasselbe an zwei
+    Stellen und wird beim ersten Umbenennen zu zweierlei.
+    """
+    from app.domain import procurement
+
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    block = _body(src, "PROCUREMENT", kind="const")
+    assert f"label: '{procurement.LABEL}'" in block, (
+        f"Die Oberfläche nennt den Vorgang anders als das Backend ({procurement.LABEL})."
+    )
+    assert f"tone: '{procurement.TONE}'" in block, (
+        f"Die Farbfamilie weicht ab – erwartet «{procurement.TONE}»."
+    )
+    # Das Modul-Symbol kommt aus derselben Quelle – nicht ein zweites daneben.
+    icons = _body(src, "MODULE_ICON", kind="const")
+    assert "beschaffen: PROCUREMENT.icon" in icons, (
+        "Das Modul «Beschaffen» hat wieder ein eigenes Symbol – ein Einkauf sieht "
+        "überall gleich aus."
+    )
+    haulage = _body(src, "HAULAGE", kind="const")
+    assert "PROCUREMENT.label" in haulage and "PROCUREMENT.icon" in haulage, (
+        "Die Wahl «selbst ↔ beschaffen» schreibt ihr Wort wieder selbst hin – «Einkaufen» "
+        "war genau dieser zweite Name (#775)."
+    )
+
+
+def test_a_supplier_can_be_chosen_when_the_definition_names_none():
+    """►►► **Wo niemand zugelassen ist, wird gesucht — statt gar nichts anzubieten.** ◄◄◄
+
+    Gemeldet: «Ich konnte nicht einmal einen Lieferanten auswählen». Die Liste der
+    zugelassenen Lieferanten ist bei einem Transport **leer** (den Spediteur wählt man,
+    wenn man weiss, wohin) – und `Ask` rendete nur diese Liste. Es stand also nichts zum
+    Anklicken da, und der Knopf blieb für immer gesperrt.
+
+    Dieselbe Auflösung wie bei `SearchSelect` (#730): derselbe Knopf, dieselbe Aktion, nur
+    eine andere Quelle. Und es ist **dasselbe Referenzfeld wie überall** (`ObjectSelect`),
+    kein zweites Auswahlfeld daneben.
+
+    Bug-Form: die Suche fehlt (nichts zu wählen) oder es entsteht ein eigenes Bauteil.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
+    body = _body(src, "Ask", kind="function")
+    assert "p.allowed.length === 0" in body, (
+        "Der freie Fall wird nicht unterschieden – dann bleibt die Auswahl leer."
+    )
+    assert "api.searchSuppliers" in body, (
+        "Es wird nicht gesucht – die Kandidaten müssen vom Server kommen."
+    )
+    assert "<ObjectSelect" in body, (
+        "Ein eigenes Auswahlfeld statt des einen Referenzfeldes (#738)."
+    )
+    # Und die Liste der Zugelassenen bleibt, wo es sie gibt – ein Fall, zwei Quellen.
+    assert "p.allowed" in body and "found" in body, (
+        "Die zugelassene Liste ist verschwunden – dann hätte die Lieferantenfreigabe "
+        "keine Wirkung mehr."
+    )
+
+
+def test_the_way_back_is_not_hidden_behind_asking():
+    """**«Zurück» steht nicht hinter «anfragen»** – und sein Wort kommt vom Server.
+
+    Bug-Form (die gemeldete): der Knopf hängt an ``asked`` – wer «Beschaffen» gewählt
+    hat, kommt erst wieder heraus, nachdem er angefragt hat. Zweite Bug-Form: die
+    Oberfläche schreibt «Anfrage zurückziehen» hin, obwohl es hier «doch selbst» heisst.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
+    body = _body(src, "Ask", kind="function")
+    assert "asked && may(p, active, 'revoke')" not in body, (
+        "Der Weg zurück hängt wieder am Anfragen – dann gibt es ihn genau dann nicht, "
+        "wenn am wenigsten zugesagt ist."
+    )
+    assert "may(p, active, 'revoke')" in body, "Es gibt gar keinen Weg zurück mehr."
+    assert src.count("{p.undo}") == 2, (
+        "Das Wort für «zurück» wird wieder hingeschrieben statt gelesen – es hängt an "
+        "Stufe × Deklaration und gehört dorthin, wo die Wirkung entschieden wird."
+    )
+
+
+def test_the_frozen_process_shows_the_same_fields_only_locked():
+    """►►► **Ein Modul zeigt seine Sache in JEDEM Zustand** (Testnotiz #771). ◄◄◄
+
+    Gemeldet: «hier im Artikel haben wir das Abbild des hinterlegten Prozesses. wenn ich
+    drauf klicke, dann sollen sich alle Prozessdetails öffnen – überall sonst funktioniert
+    es, nur hier wieder nicht.» Der Editor rendete im eingefrorenen Zustand **gar keinen**
+    Körper (``renderStep: frozen ? undefined : …``): der Kopf klappte auf, und darin war
+    nichts.
+
+    Es ist **derselbe Feldsatz**, nur gesperrt – ein zweiter, nur-lesender wäre die
+    Stelle, an der die nächste Angabe fehlt. Möglich wird das durch die **Umkehrform**
+    derselben Zuordnung (``MODULE_FORM[…].draft``), die neben ihrem Gegenstück steht.
+
+    Bug-Form: die Bedingung kommt zurück, oder die Umkehrform fehlt (dann sind die Felder
+    leer, was schlimmer ist als gar keine).
+    """
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "renderStep: frozen ? undefined" not in designer, (
+        "Der eingefrorene Prozess zeigt wieder nichts – genau die gemeldete Form."
+    )
+    assert "<fieldset disabled={frozen}" in designer, (
+        "Gesperrt wird nicht über `fieldset[disabled]` – dann ist es entweder editierbar "
+        "oder ein zweites Layout."
+    )
+
+    mods = _read(FRONTEND / "lib" / "modules.ts")
+    form = _body(mods, "MODULE_FORM", kind="const")
+    keys = set(re.findall(r"^  (\w+): \{", form, re.M))
+    for key in keys:
+        entry = form.split(f"  {key}: {{", 1)[1]
+        assert "draft: (" in entry.split("\n  },", 1)[0], (
+            f"«{key}» hat keine Umkehrform – sein Feldsatz bliebe im eingefrorenen "
+            f"Prozess leer."
+        )
+    assert "export function moduleFromConfig" in mods, (
+        "Die eine Stelle, die eine gespeicherte Konfiguration zum Entwurf macht, fehlt."
+    )
+    detail = _code(_read(FRONTEND / "components" / "erp" / "article-detail.tsx"))
+    assert "moduleFromConfig" in detail, (
+        "Der Artikel reicht seinen eingefrorenen Stand nicht als Entwurf durch."
+    )
+
+
+def test_a_quantity_can_never_reach_zero():
+    """**Der Fehler entsteht gar nicht erst** (Testnotiz #774).
+
+    Ein geleertes Feld hiess ``0`` – also genau der Wert, den der Server als «ist zu
+    klein» abweist. Das Löschen einer Ziffer ist aber ein ganz normaler Schritt beim
+    Ändern einer Zahl: die Meldung kam nicht aus einem Fehler, sondern aus dem Tippen.
+
+    Bug-Form: `onChange` schickt jeden Tastendruck weiter und macht aus «leer» eine Null.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "definition-lines.tsx"))
+    assert "quantity: raw ? Number(raw) : 0" not in src, (
+        "Ein geleertes Mengenfeld wird wieder zur Null – und die Null meldet der Server."
+    )
+    assert "Math.max(1" in src, "Ohne Untergrenze kann die Null wieder entstehen."
+    assert "<QuantityInput" in src and "onBlur={commit}" in src, (
+        "Übernommen wird nicht beim Verlassen – dann kann der Zwischenzustand «leer» gar "
+        "nicht existieren, und man kann die Zahl nicht mehr ändern."
+    )
+
+
+def test_the_stock_stands_between_specification_and_process():
+    """**Erst was er ist, dann was es davon gibt, dann wie er entsteht** (#770)."""
+    src = _read(FRONTEND / "components" / "erp" / "article-detail.tsx")
+    body = src[src.index("<DetailBody>"):src.index("</DetailBody>")]
+    spec = body.index("SpecRead")
+    stock = body.index("<StockView")
+    process = body.index("<ArticleProcess")
+    assert spec < stock < process, (
+        "Die Reihenfolge stimmt nicht: Spezifikation → Bestand → Prozess."
+    )
+
+
+def test_the_user_has_no_empty_document_tab():
+    """**Kein Reiter über einer leeren Fläche** (Testnotiz #772).
+
+    «Dokumente» rendete zwei Überschriften und sonst nichts – seine Karten hingen am
+    Dokumentenmodul, und das gibt es nicht mehr. Übrig blieb ein Reiter, der das ganze
+    Formular trägt: dann gibt es nichts zu wählen.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "user-detail.tsx")
+    assert "Freigaben & Anerkennungen" not in src and "Abgelegte Dokumente" not in src, (
+        "Die leeren Überschriften stehen wieder da."
+    )
+    assert "DetailTabs" not in src, (
+        "Der Benutzer hat wieder eine Reiterleiste – mit genau einem Reiter darin."
     )

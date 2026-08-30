@@ -47,7 +47,7 @@ Wörter, wo sie dasselbe meinen.
 | `verschrottet` | Verschrottet | Einzelinstanz | **ja** | **nein** | rot | historisch |
 | `abgeschlossen` | Abgeschlossen | Auftrag | – | – | grün | – |
 | `abgebrochen` | Abgebrochen | Auftrag | – | – | rot | – |
-| `inaktiv` | Inaktiv | Artikel | – | – | rot | – |
+| `inaktiv` | Inaktiv | Artikel | – | – | rot | – |  ← **abgeleitet** aus `replaced_by_id`
 
 **Bedeutung je Wert:**
 
@@ -69,7 +69,11 @@ Wörter, wo sie dasselbe meinen.
   Nicht «hat das Ende-Objekt passiert»: ein **Ausgang** (terminales Modul) ist ebenfalls
   ein Ende.
 - **`abgebrochen`** — Das Ziel ist **nicht mehr erreichbar** (siehe §2.2).
-- **`inaktiv`** — Artikel ausser Betrieb. Endgültig, kein Reaktivieren.
+- **`inaktiv`** — Artikel ausser Betrieb: er **erzeugt nichts Neues**. Bestehende
+  Stücke laufen weiter, «ab Lager» bleibt erlaubt. **Abgeleitet, nicht gesetzt**:
+  er gilt genau dann, wenn ein Nachfolger den Artikel abgelöst hat
+  (`replaced_by_id`, PROCESS_CORE §5.5). Es gibt keinen Schalter dafür – und damit
+  auch keinen Weg zurück: wer den Vorgänger weiterbauen will, ersetzt ihn nicht.
 
 **Nur ein Einzelinstanz-Zustand darf terminal sein.** Er ist der einzige, der gespeichert
 und geändert wird; Auftrags- und Artikelzustände sind abgeleitet bzw. anderswo geführt.

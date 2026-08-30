@@ -67,10 +67,18 @@ def _article(db, name: str, *, consumes: list[tuple[int, int]] | None = None):
 
 
 def _retire(db, article):
-    """Ausser Betrieb nehmen — genau das, was der Knopf tut: ein Statuswechsel."""
-    from app.domain import statuses as st
-    article.status = st.INAKTIV
+    """Ausser Betrieb nehmen — **das ist Ersetzen** (Testnotiz #773).
+
+    Einen Schalter dafür gibt es nicht mehr: ausser Betrieb geht ein Artikel dadurch, dass
+    ein Nachfolger ihn ablöst, und der Zustand ist die Projektion davon. Wer ihn hier von
+    Hand setzte, prüfte eine Angabe, die es im Betrieb gar nicht gibt.
+    """
+    from app.services import articles as svc
+
+    successor = _article(db, "Nachfolger")
+    svc.apply_replacement(db, predecessor=article, successor=successor)
     db.flush()
+    return successor
 
 
 def _detail(db, article):
@@ -84,35 +92,65 @@ def _source(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 1 · Ausser Betrieb ist ein Zustand, kein Ende
+# 1 · Ausser Betrieb ist die FOLGE des Ersetzens – keine eigene Angabe
 # ---------------------------------------------------------------------------
 
-def test_out_of_service_is_a_state_not_an_end():
-    """**Der Weg zurück ist derselbe Knopf.**
+def test_out_of_service_is_the_consequence_of_being_replaced():
+    """►►► **Es gibt genau EINE Angabe, und der Zustand fällt aus ihr heraus.** ◄◄◄
 
-    Bug-Form: «Inaktiv ist endgültig – kein Reaktivieren». Das stand als Kommentar in der
-    Oberfläche und war die Begründung dafür, dass es keine Gegenaktion gab. Es widerspricht
-    aber der Statusliste: ``Status.terminal`` gibt es nur auf der Stück-Achse
-    (``domain/statuses``), und ``Inaktiv`` trägt es nicht. Ein Artikel, den man versehentlich
-    ausser Betrieb genommen hat, wäre sonst für immer verloren – und der einzige Ausweg
-    hiesse «denselben Artikel noch einmal anlegen», also eine zweite Nummer für dieselbe Sache.
+    «soll man das inaktiv setzen gänzlich eleminieren und die inaktivität indirekt über
+    den ersetzungsartikel steuern?» (Testnotiz #773) – ja, und zwar so: ein Artikel geht
+    dadurch ausser Betrieb, dass ein **Nachfolger** ihn ablöst. Der Zustand ist die
+    Projektion von ``replaced_by_id``; einen Schalter gibt es nicht mehr.
+
+    **Bug-Form, gegen die das steht:** die Spalte ``status`` daneben. Sie wurde von zwei
+    Stellen gesetzt (dem Ersetzen und einem Knopf) und von ``may_create`` gelesen – ein
+    von Hand stillgelegter Artikel **ohne** Nachfolger hing damit an genau dem Knopf, der
+    ihn stillgelegt hatte, und wer ihn nicht fand, hatte den Artikel verloren.
+
+    **Der eine Preis, ausdrücklich abgenommen:** ein abgelöster Artikel erzeugt nichts
+    Neues mehr – auch nicht als Ersatzteil. Das war unter dem Zwei-Achsen-Modell möglich
+    (#766) und ist es nicht mehr; wer den Vorgänger weiterbauen will, ersetzt ihn nicht.
+    Bestehende Stücke bleiben unberührt: «ab Lager» ist weiterhin erlaubt (S98b).
+    """
+    from app.services import articles as svc
+
+    db = _db()
+    try:
+        art = _article(db, "Rückweg")
+        assert svc.may_create(art) is None, "Wer nicht abgelöst ist, erzeugt."
+
+        successor = _retire(db, art)
+        assert art.replaced_by_id == successor.object_id
+        problem = svc.may_create(art)
+        assert problem and str(successor.object_id) in problem, (
+            "Der Grund muss den **Nachfolger** nennen – dort entsteht das Neue; ein "
+            f"blosses «ist inaktiv» liesse den Menschen suchen. Gefunden: {problem!r}"
+        )
+        assert svc.may_create(successor) is None, "Der Nachfolger erzeugt weiterhin."
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_state_follows_the_link_and_nothing_else():
+    """**Die Projektion ist die einzige Verbindung** – und sie ist keine Kopie.
+
+    Bug-Form: eine zweite Angabe, die dasselbe behauptet. Sie liefe auseinander, sobald
+    jemand nur eine der beiden schreibt – genau das war der Fall.
     """
     from app.domain import statuses as st
 
     db = _db()
     try:
-        art = _article(db, "Rückweg")
-        assert not st.is_terminal(st.INAKTIV), (
-            "«Inaktiv» darf nicht terminal sein – sonst gäbe es keinen Weg zurück, und "
-            "genau das behauptete die Oberfläche."
-        )
-        _retire(db, art)
+        art = _article(db, "Projektion")
+        assert art.status == st.FREIGEGEBEN
+        successor = _retire(db, art)
         assert art.status == st.INAKTIV
-        # …und zurück, über denselben gewöhnlichen Statuswechsel.
-        art.status = st.FREIGEGEBEN
-        db.flush()
-        from app.services import articles as svc
-        assert svc.may_create(art) is None, "Wieder aktiv heisst wieder erzeugbar."
+        assert successor.status == st.FREIGEGEBEN
+        # Und der Zustand ist **nirgends gespeichert**: er kann nicht abweichen.
+        from app.models import Article
+        assert "status" not in Article.__table__.c
     finally:
         db.rollback()
         db.close()
@@ -327,20 +365,20 @@ def test_the_successor_takes_the_predecessor_out_of_service():
         db.close()
 
 
-def test_a_replaced_predecessor_can_be_set_active_again():
-    """**Der Vorgänger bleibt als Ersatzteil lieferbar** – und die Reihe bleibt stehen.
+def test_a_replaced_predecessor_stays_in_the_chain_and_produces_nothing():
+    """**Abgelöst heisst abgelöst** – die Reihe bleibt lesbar, die Erzeugung nicht.
 
-    Die Frage aus Testnotiz #766: darf man einen abgelösten Artikel wieder aktiv setzen,
-    ohne dass die Ersetzung verlorengeht? Ja – und zwar **ohne eine eigene Regel**: am
-    Artikel ist «ausser Betrieb» ein gewöhnlicher Zustand in beide Richtungen (Wächter 1),
-    und ``replaced_by_id`` ist eine **andere** Angabe, die davon nichts weiss. Genau
-    dieser Zusammenhang war die Sorge, und er wird hier festgehalten, statt ihn beim
-    nächsten Umbau neu herleiten zu müssen.
+    Testnotiz #766 fragte, ob ein ersetzter Artikel als **Ersatzteil** wieder aktiv werden
+    dürfe. Unter dem Zwei-Achsen-Modell ging das (Status und Reihe wussten nichts
+    voneinander); mit #773 ist der Zustand die **Projektion** der Reihe, und damit ist der
+    Weg fort – **ausdrücklich abgenommen** («soll man das inaktiv setzen gänzlich
+    eleminieren und die inaktivität indirekt über den ersetzungsartikel steuern?»). Wer
+    den Vorgänger weiterbauen will, ersetzt ihn nicht.
 
-    Bug-Form: eine Kopplung «Status → Reihe» (der Statuswechsel räumt ``replaced_by_id``,
-    oder ``may_create`` fragt zusätzlich nach der Reihe). Dann wäre das Reaktivieren
-    entweder wirkungslos oder es zerrisse die Kette – und das Ersatzteilgeschäft ginge
-    nur noch über eine zweite Nummer für dasselbe Ding.
+    Was **bleibt**, hält dieser Wächter fest, denn es ist die Hälfte, die immer noch
+    zählt: die Reihe ist in beide Richtungen lesbar, ein zweiter Nachfolger bleibt
+    verboten, und die **bestehenden Stücke** sind unberührt – «ab Lager» ist weiterhin
+    erlaubt (S98b). Bug-Form wäre, aus «erzeugt nichts» ein «gibt es nicht» zu machen.
     """
     from app.domain import statuses as st
     from app.services import articles as svc
@@ -356,43 +394,38 @@ def test_a_replaced_predecessor_can_be_set_active_again():
                  "replaces_object_id": old.object_id},
             actor_id=None)
         db.flush()
-        assert old.status == st.INAKTIV and old.replaced_by_id == new_art.object_id
+        assert old.replaced_by_id == new_art.object_id
+        assert old.status == st.INAKTIV, "Der Zustand folgt der Reihe – ohne zweite Angabe."
 
-        # Der ganz gewöhnliche Statuswechsel – dasselbe, was der Knopf im Kopf tut.
-        old.status = st.FREIGEGEBEN
-        db.flush()
-
-        assert svc.may_create(old) is None, (
-            "Wieder aktiv heisst wieder erzeugbar – genau darum geht es beim Ersatzteil. "
-            "Wer hier zusätzlich nach der Reihe fragt, macht das Reaktivieren wirkungslos."
-        )
-        # **Nach** der Frage geprüft: eine Kopplung «Status → Reihe» räumt die Kante
-        # genau dann, wenn jemand hinschaut – der Wächter muss den Zustand also danach
-        # lesen, sonst prüft er einen Moment, den es so nicht mehr gibt.
-        assert old.replaced_by_id == new_art.object_id, (
-            "Die Reihe hängt nicht am Status – ein reaktivierter Vorgänger bleibt "
-            "abgelöst, sonst gäbe es zwei neueste Fassungen."
+        problem = svc.may_create(old)
+        assert problem and str(new_art.object_id) in problem, (
+            "Der Grund nennt den Nachfolger: dort entsteht das Neue."
         )
         detail = _detail(db, old)
         assert detail.replaced_by is not None and detail.replaced_by.object_id == new_art.object_id, (
-            "Und die Antwort sagt weiterhin, wer ihn abgelöst hat."
+            "Und die Antwort sagt weiterhin, wer ihn abgelöst hat – abgelöst ist nicht "
+            "gelöscht."
         )
-        # Zweimal ersetzen bleibt trotzdem verboten – die Reihe steht ja noch.
         assert svc.replaceable_problem(old) is not None, (
-            "Ein reaktivierter Vorgänger ist kein unbeschriebenes Blatt: er hat seinen "
-            "Nachfolger, und ein zweiter wäre eine zweite «neueste Fassung»."
+            "Ein zweiter Nachfolger bleibt verboten – sonst gäbe es zwei «neueste "
+            "Fassungen», und keine Auflösung könnte sagen, welche gilt."
         )
     finally:
         db.rollback()
         db.close()
 
 
-def test_the_replacement_hint_says_both_halves():
-    """**Was fehlte, war der Satz** – nicht die Möglichkeit (Testnotiz #766).
+def test_the_replacement_hint_says_what_it_costs_and_what_stays():
+    """**Der Satz muss beide Hälften nennen** – die Wirkung *und* was bleibt.
 
-    Der Hinweis am Auswahlfeld sagte nur, dass der Vorgänger ausser Betrieb geht. Wer ihn
-    liest, hält das für endgültig und traut sich nicht – obwohl der Weg zurück ein Klick
-    ist. Bug-Form: die halbe Aussage, die formal stimmt und in der Praxis abschreckt.
+    Ersetzen ist seit #773 die **einzige** Art, einen Artikel ausser Betrieb zu nehmen –
+    und sie ist nicht umkehrbar. Ein Hinweis, der nur «geht ausser Betrieb» sagt, klingt
+    darum nach «weg», und das schreckt zu Recht ab: bestehende Stücke bleiben ja, sie
+    lassen sich weiter ab Lager abwickeln, und Neues entsteht beim Nachfolger.
+
+    Bug-Form: die halbe Aussage, die formal stimmt und in der Praxis abschreckt – hier
+    einmal in die eine Richtung («umkehrbar», was nicht mehr gilt) und einmal in die
+    andere («ausser Betrieb», ohne zu sagen, was bleibt).
     """
     src = (BACKEND.parent / "frontend" / "src" / "components" / "erp"
            / "article-detail.tsx").read_text(encoding="utf-8")
@@ -401,13 +434,17 @@ def test_the_replacement_hint_says_both_halves():
     # wo man wählt – gemessen: mit dem Dateiende als Grenze geht genau das durch.
     body = src[src.index("function ReplacesPicker"):]
     hint = body[:body.index("\n}\n") + 3]
-    assert "wieder aktiv setzen" in hint, (
-        "Der Hinweis muss die zweite Hälfte nennen: der Vorgänger lässt sich als "
-        "Ersatzteil wieder aktiv setzen."
+    assert "erzeugt nichts Neues" in hint, (
+        "Der Hinweis muss die **Wirkung** nennen – das ist die eine Sache, die das "
+        "Ersetzen am Vorgänger ändert."
     )
-    assert "Reihe bleibt" in hint, (
-        "…und dass die Ersetzung dabei bestehen bleibt – sonst klingt Reaktivieren wie "
-        "ein Zurücknehmen der Ablösung."
+    assert "ab Lager" in hint, (
+        "…und was bleibt: bestehende Stücke laufen weiter. Ohne diese Hälfte liest sich "
+        "«ausser Betrieb» wie «gelöscht», und niemand traut sich."
+    )
+    assert "umkehrbar" not in hint, (
+        "Umkehrbar ist es seit #773 nicht mehr – ein Satz, der es behauptet, ist die "
+        "gefährlichere Hälfte."
     )
 
 
@@ -556,13 +593,17 @@ def test_the_dead_deactivate_dialog_is_gone():
     assert "eslint-disable-next-line no-unused-vars" not in src, (
         "Kein Wächter mehr, an dem vorbeigeschleust wird."
     )
-    # **Geprüft wird die Tat, nicht das Wort.** «Inaktiv ist endgültig» stand als
-    # Begründung dafür, dass es keine Gegenaktion gibt – widerlegt ist sie nicht dadurch,
-    # dass der Satz verschwindet, sondern dadurch, dass der Weg zurück da ist.
-    assert re.search(r"changeStatus\(FREIGEGEBEN\)", src), (
-        "Es muss einen Weg zurück geben – sonst ist «ausser Betrieb» faktisch endgültig, "
-        "egal was daneben steht."
+    # ►► **Und den Statuswechsel gibt es gar nicht mehr** (Testnotiz #773). ◄◄
+    #
+    # Er war der zweite Weg zu einer Aussage, die das Ersetzen schon macht – mit einer
+    # eigenen Falle: ein von Hand stillgelegter Artikel **ohne** Nachfolger hing an genau
+    # dem Knopf, der ihn stillgelegt hatte. Geprüft wird die Tat, nicht das Wort: weder
+    # der Aufruf noch die beiden Beschriftungen dürfen zurückkommen.
+    assert "changeStatus" not in src, (
+        "Der Statuswechsel am Artikel ist entfallen – ausser Betrieb geht ein Artikel "
+        "dadurch, dass ein Nachfolger ihn ablöst."
     )
-    assert re.search(r"data-tip=\"Inaktiv setzen", src) and re.search(r"data-tip=\"Aktiv setzen", src), (
-        "Die beiden Richtungen heissen «Inaktiv setzen» ↔ «Aktiv setzen»."
+    assert not re.search(r"data-tip=\"(Inaktiv|Aktiv) setzen", src), (
+        "Kein Knopf «Inaktiv setzen»/«Aktiv setzen» mehr – die eine Angabe steht an der "
+        "Anlage des Nachfolgers."
     )

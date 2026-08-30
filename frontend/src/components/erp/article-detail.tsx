@@ -4,13 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Package, FileText, Trash2, AlertTriangle,
   Ruler, Box, Square, Scale, Droplet, Fingerprint, Layers,
-  Scaling, Hash, Link2, Weight, Sparkles, Plus, Shield, Ban,
-  ClipboardPlus, RotateCcw, ArrowRight, Blocks,
+  Scaling, Hash, Link2, Weight, Sparkles, Plus, Shield,
+  ClipboardPlus, ArrowRight, Blocks,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleProcess as ArticleProcessType, Article, ArticleBom, ArticleInput, ArticleLink, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion } from '@/types';
+import type { ArticleProcess as ArticleProcessType, Article, ArticleBom, ArticleInput, ArticleLink, ArticleUnit, ArticleSerialization, ArticleNameSuggestion } from '@/types';
 import type { ModuleDraft } from '@/lib/modules';
-import { toModulePayload } from '@/lib/modules';
+import { moduleFromConfig, toModulePayload } from '@/lib/modules';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
@@ -19,8 +19,7 @@ import {
 import { articleStatus } from '@/lib/record-status';
 import type { DiagramStep } from '@/components/erp/process-diagram';
 import { ProcessDesigner } from '@/components/erp/process-designer';
-import { FREIGEGEBEN, INAKTIV } from '@/lib/process-status';
-import { isVersionConflict } from '@/lib/optimistic';
+import { FREIGEGEBEN } from '@/lib/process-status';
 
 import { ErrorText, SaveIndicator, IconSwitch, DetailBody, DetailHeader, HeaderAction, HeaderSep, SPEC, SpecHead, SpecSection, ReadField } from '@/components/erp/fields';
 import { ObjectSelect } from '@/components/erp/object-select';
@@ -127,11 +126,8 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
     if (isCreate || record?.object_id == null || record.status !== FREIGEGEBEN) return;
     onCreateOrder?.(record.object_id);
   }
-  // Optimistic Locking: zuletzt bekannter Stand (nur für den Statuswechsel).
-  const verRef = useRef<string | null>(record?.updated_at ?? null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
   const [saving, setSaving] = useState(false);
-  const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // **Der Entwurf lebt hier, nicht in der Datenbank.** Spezifikation und Prozess sind
@@ -208,37 +204,15 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
   }, [isCreate, payload]);
 
   // Bei Versions-Konflikt frischen Stand laden (Version aktualisieren, Feed melden).
-  async function resyncVersion() {
-    if (!record) return;
-    try {
-      const fresh = await api.getArticle(record.object_id as number);
-      verRef.current = fresh.updated_at;
-      onSaved(fresh);
-    } catch { /* ignore */ }
-  }
 
-  async function changeStatus(target: string) {
-    if (!record) return;
-    setStatusBusy(true);
-    setError(null);
-    try {
-      const saved = await api.updateArticle(record.object_id as number,
-        { status: target as ArticleStatus, expected_updated_at: verRef.current });
-      verRef.current = saved.updated_at;
-      onSaved(saved);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
-      if (isVersionConflict(e)) await resyncVersion();
-    } finally {
-      setStatusBusy(false);
-    }
-  }
-
-  // Welche Richtung der Lebenszyklus-Knopf zeigt. **Der Klick IST die Ausführung**
-  // (Notiz #152): keine Rückfrage, weil es nichts Endgültiges zu bestätigen gibt –
-  // derselbe Knopf führt zurück, und was der Wechsel ringsum bedeutet, steht dauerhaft im
-  // Streifen darüber.
-  const inactive = record?.status === INAKTIV;
+  // ►► **Ausser Betrieb nehmen gibt es nicht mehr** (Testnotiz #773). ◄◄
+  //
+  // Ein Artikel geht dadurch ausser Betrieb, dass ein **Nachfolger** ihn ablöst – der
+  // Zustand rechts im Kopf ist die Projektion davon (`Article.status`). Die beiden Knöpfe
+  // «Inaktiv setzen»/«Aktiv setzen» und der Aufruf dahinter sind ersatzlos entfallen: sie
+  // waren der zweite Weg zu derselben Aussage, und der hatte eine Falle – ein von Hand
+  // stillgelegter Artikel ohne Nachfolger hing an genau dem Knopf, der ihn stillgelegt
+  // hatte. Wer ablösen will, legt den Nachfolger an und sagt dort, wen er ersetzt.
 
   /**
    * **Freigeben = Anlegen.** Ein Aufruf, eine Transaktion: erst hier entsteht der
@@ -302,23 +276,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
                 <ClipboardPlus size={15} />
               </button>
             )}
-            {/* **Ein Knopf, zwei Richtungen** – wie am Benutzer-Datensatz. Der Zustand
-                steht rechts als Badge; hier steht, was man tun kann. */}
-            {inactive ? (
-              <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
-                data-tip="Aktiv setzen – der Artikel erzeugt danach wieder neue Einzelinstanzen"
-                aria-label="Aktiv setzen" disabled={statusBusy}
-                onClick={() => changeStatus(FREIGEGEBEN)}>
-                <RotateCcw size={15} />
-              </button>
-            ) : (
-              <button className="erp-idbtn erp-idbtn-danger" data-tip-pos="bottom"
-                data-tip="Inaktiv setzen – erzeugt keine neuen Einzelinstanzen mehr; bestehende laufen weiter"
-                aria-label="Inaktiv setzen" disabled={statusBusy}
-                onClick={() => changeStatus(INAKTIV)}>
-                <Ban size={15} />
-              </button>
-            )}
           </>
         ) : undefined}
       >
@@ -339,15 +296,6 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
               <ReplacesPicker value={replaces} onChange={setReplaces} />
             ) : (
               <ContextStrip objectId={record.object_id} version={record.updated_at} />
-            )}
-            {/* **Der Bestand steht ganz oben** (Notiz #760): die Frage «wie viel habe ich
-                davon» wird an einem Artikel öfter gestellt als jede andere, und sie kostet
-                jetzt keinen Klick mehr. Ohne Objektnummer gibt es den Artikel noch nicht –
-                dann steht hier nichts, statt einer Null, die es nicht gibt. */}
-            {record?.object_id != null && (
-              <div style={{ marginBottom: 22 }}>
-                <StockView scope={{ kind: 'article', objectId: record.object_id }} />
-              </div>
             )}
             {locked ? (
               <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
@@ -393,6 +341,19 @@ export function ArticleDetail({ record, onSaved, onBack, onRefresh, onCreateOrde
                     {error}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* **Der Bestand steht zwischen Spezifikation und Prozess** (Notiz #770).
+                Zuerst, was dieser Artikel **ist**, dann, was es davon **gibt**, dann, wie
+                er **entsteht** – die Reihenfolge, in der man einen Artikel liest. Er stand
+                ganz oben (Notiz #760), weil «wie viel habe ich davon» die häufigste Frage
+                ist; sichtbar ohne Klick ist er auch hier, nur nicht mehr vor der Angabe,
+                auf die er sich bezieht. Ohne Objektnummer gibt es den Artikel noch nicht –
+                dann steht hier nichts, statt einer Null, die es nicht gibt. */}
+            {record?.object_id != null && (
+              <div style={{ marginTop: 22 }}>
+                <StockView scope={{ kind: 'article', objectId: record.object_id }} />
               </div>
             )}
 
@@ -848,7 +809,7 @@ function ReplacesPicker({ value, onChange }: {
           border: 'none', background: 'none', padding: 0, cursor: 'pointer',
           font: '600 12px var(--font-body)', color: 'var(--accent)',
         }}
-        data-tip="Der abgelöste Artikel geht dabei ausser Betrieb – umkehrbar, die Reihe bleibt">
+        data-tip="Der abgelöste Artikel geht dabei ausser Betrieb: er erzeugt nichts Neues mehr. Bestehende Stücke bleiben und lassen sich weiter ab Lager abwickeln – Neues entsteht hier.">
         <Plus size={13} /> Ersetzt einen Artikel
       </button>
     );
@@ -918,6 +879,9 @@ const MENU_ICON: Record<string, React.ElementType> = {
  * Endpunkt, der sie nachträglich ändert, gibt es nicht – die Eingefrorenheit ist also
  * kein bewachtes Verbot, sondern ein fehlendes Bedienelement.
  */
+/** Eingefroren nimmt niemand eine Änderung entgegen – eine Stelle, kein Literal je Aufruf. */
+const NO_CHANGE = () => {};
+
 function ArticleProcess({ articleObjectId, draft, setDraft }: {
   articleObjectId: number | null;
   draft: ModuleDraft[];
@@ -944,6 +908,19 @@ function ArticleProcess({ articleObjectId, draft, setDraft }: {
     }))
     : undefined;
 
+  // ►► **Der eingefrorene Stand ist derselbe Entwurf, nur unveränderlich** (#771). ◄◄
+  //
+  // Die gespeicherte Konfiguration kommt über die Umkehrform derselben Zuordnung zurück
+  // in die Eingabeform (`moduleFromConfig`) – damit zeigt der Editor hier **denselben**
+  // Feldsatz wie beim Anlegen, gesperrt. Ein zweiter, nur-lesender wäre die Stelle, an
+  // der die nächste Angabe fehlt; und gar keiner war der gemeldete Fehler.
+  const frozenModules: ModuleDraft[] = useMemo(
+    () => (proc?.steps ?? []).map(
+      (s) => moduleFromConfig(s.id, s.module_type,
+                              s.config as Record<string, unknown> | null)),
+    [proc],
+  );
+
   return (
     <div>
       {err && (
@@ -951,8 +928,11 @@ function ArticleProcess({ articleObjectId, draft, setDraft }: {
           style={{ color: 'var(--danger)', background: 'var(--danger-bg)' }}>{err}</p>
       )}
       <ProcessDesigner
-        modules={draft}
-        onChange={setDraft}
+        modules={frozen ? frozenModules : draft}
+        // Eingefroren gibt es niemanden, der eine Änderung entgegennimmt – es gibt auch
+        // keinen Endpunkt dafür. Das `fieldset[disabled]` im Editor sorgt dafür, dass
+        // gar nichts erst gemeldet wird.
+        onChange={frozen ? NO_CHANGE : setDraft}
         frozen={frozen}
         readOnlySteps={steps}
       />

@@ -843,11 +843,14 @@ MODULES: dict[str, Module] = {
     m.key: m for m in (
         Beschaffen(
             key=BESCHAFFEN,
-            label="Beschaffen",
+            # **Name und Farbe kommen vom Vorgang, nicht von dieser Zeile**
+            # (``domain/procurement``). Ein Einkauf sieht überall gleich aus – auch dort,
+            # wo ihn ein Bewegen-Modul auslöst; zwei Literale wären zwei Stände.
+            label=procurement.LABEL,
             # Ein Durchläufer: das Modul verändert das Stück nicht, es hält es auf.
             status_before=st.IM_PROZESS,
             status_after=st.IM_PROZESS,
-            tone="plum",
+            tone=procurement.TONE,
         ),
         Datenerfassung(
             key=DATENERFASSUNG,

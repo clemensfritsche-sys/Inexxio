@@ -70,14 +70,17 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
   // übrigen sind zu; ihr Kopf klappt sie auf.
   const [justAdded, setJustAdded] = useState<number | null>(null);
 
+  // **Auch der eingefrorene Stand braucht ihn** (Testnotiz #771): die Felder eines Moduls
+  // nennen ihre Erfassungspunkte beim Namen, und die Namen stehen im Katalog. Er wurde
+  // hier übersprungen, solange ein freigegebener Prozess gar keinen Feldsatz zeigte; die
+  // Palette bleibt trotzdem weg – die hängt an `frozen`, nicht am Katalog.
   useEffect(() => {
-    if (frozen) return;
     let dead = false;
     api.getModuleCatalog()
       .then((c) => { if (!dead) setCatalog(c); })
       .catch(() => { /* ohne Katalog bleibt die Palette leer – kein erfundener Typ */ });
     return () => { dead = true; };
-  }, [frozen]);
+  }, []);
 
   // **Was ein Modul ist, sagt sein Typ** – im Entwurf über den Katalog, gespeichert über
   // die Antwort des Servers. Beides dieselbe Registry, nur zwei Wege dorthin; **beide**
@@ -129,17 +132,37 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
         onReorder: frozen ? undefined : move,
         dragging: drag,
         onDragState: setDrag,
-        renderStep: frozen ? undefined : (step) => {
+        // ►► **Ein Modul zeigt seine Sache in JEDEM Zustand** (Testnotiz #771). ◄◄
+        //
+        // Hier stand `frozen ? undefined : …` – im **freigegebenen** Artikel bekam ein
+        // Modul damit gar keinen Körper: der Kopf klappte auf, und darin war nichts.
+        // Genau so wurde es gemeldet («überall sonst funktioniert es, nur hier nicht»),
+        // und «überall sonst» stimmt: der laufende Auftrag zeigt seine Module längst in
+        // jedem Zustand (#749).
+        //
+        // Es ist **derselbe Feldsatz**, nicht ein zweiter zum Lesen – gesperrt über
+        // `fieldset[disabled]`, dieselbe eine Zeile, mit der auch eine wartende Modul-
+        // Karte stillgelegt wird (#698). Ein eigener Lese-Feldsatz daneben wäre die
+        // Stelle, an der die (n+1)-te Angabe fehlt.
+        renderStep: (step) => {
           const m = modules.find((x) => x.id === step.id);
           if (!m) return null;
           // **Welche Felder ein Modul hat, sagt sein Typ** – die Zuordnung steht hier,
           // nicht als Bedingung im Rumpf. Ein neuer Typ ist ein Eintrag, kein Eingriff.
           const Fields = MODULE_FIELDS[m.moduleType];
-          return Fields ? <Fields module={m} types={catalog?.capture_types ?? []}
-            onChange={(next) => patch(m.id, next)} /> : (
-            <p className="text-xs" style={{ color: 'var(--danger)' }}>
-              Modultyp «{m.moduleType}» ist dieser Oberfläche unbekannt.
-            </p>
+          if (!Fields) {
+            return (
+              <p className="text-xs" style={{ color: 'var(--danger)' }}>
+                Modultyp «{m.moduleType}» ist dieser Oberfläche unbekannt.
+              </p>
+            );
+          }
+          return (
+            <fieldset disabled={frozen}
+              style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+              <Fields module={m} types={catalog?.capture_types ?? []}
+                onChange={(next) => patch(m.id, next)} />
+            </fieldset>
           );
         },
         // ►► **Hinter einem Ausgang gibt es nichts mehr anzubieten.** ◄◄

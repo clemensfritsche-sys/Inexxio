@@ -250,6 +250,30 @@ def _can(row: Purchase, viewer: Optional[UserProfile]) -> list[str]:
     return allowed
 
 
+def _optional(step: ProcessStep) -> bool:
+    """►►► **Kann dieses Modul seine Arbeit auch OHNE Beleg erledigen?** ◄◄◄
+
+    Die eine Ableitung über ``Module.buys`` – und sie hat zwei Leser, die dieselbe Sache
+    verschieden anwenden: ``_revoke`` (was «zurück» bewirkt) und ``_undo`` (wie es heisst).
+    Zweimal ausgeschrieben wären es zwei Massstäbe, und der zweite wäre der, den man beim
+    nächsten Modul vergisst.
+    """
+    return modules.get(step.module_type).buys == modules.BUY_IF_CHOSEN
+
+
+def _undo(row: Purchase, step: ProcessStep) -> str:
+    """**Wie heisst hier «zurück»?** – ein Wort aus Stufe × Deklaration.
+
+    Es gibt genau **eine** Gegenhandlung (``revoke``); was sie bewirkt, hängt daran, ob
+    schon etwas zugesagt ist und ob der Einkauf überhaupt der Zweck war. Das Wort dafür
+    gehört darum an dieselbe Stelle wie die Wirkung – die Oberfläche schreibt es nicht
+    selbst hin, sonst stünde beim nächsten Fall ein Satz da, den keine Regel deckt.
+    """
+    if row.stage != procurement.STAGES[0]:
+        return "Bestellung stornieren"
+    return "Doch selbst erledigen" if _optional(step) else "Anfrage zurückziehen"
+
+
 def of_step(db: Session, step_id: int) -> Optional[Purchase]:
     """**Der Beleg dieses Moduls** – oder ``None``.
 
@@ -377,10 +401,19 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     # und Preis seines Konkurrenten. Gefiltert wird beim Aufbau der Antwort; in der
     # Oberfläche wäre es eine Bitte.
     won = mine is None or (chosen is not None and chosen.object_id == mine)
+    can = _can(row, viewer)
     return {
         "stage": row.stage,
         "stages": _stages(row),
-        "can": _can(row, viewer),
+        "can": can,
+        # **Die Identität des Vorgangs reist mit ihm** – wie Farbe und Beschriftung eines
+        # Moduls (``ModuleFacts``). Die Ausführungsstelle schlägt nichts in einem Katalog
+        # nach, den nur der Editor lädt; und weil beide dieselbe Quelle lesen, sieht ein
+        # Einkauf im Bewegen-Modul aus wie einer im Beschaffen-Modul.
+        "label": procurement.LABEL,
+        "tone": procurement.TONE,
+        # **Ein Wort für die eine Gegenhandlung** – oder keines, wenn sie hier nicht geht.
+        "undo": _undo(row, step) if "revoke" in can else None,
         "lines": _line_facts(db, lines_of(db, order, row)),
         "instruction": module.instruction_for(config, facts=_route(db, step=step)),
         "allowed": [
@@ -602,7 +635,7 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
     return row
 
 
-def _assert_allowed(number: Optional[int], allowed: list[int]) -> None:
+def _assert_allowed(db: Session, number: Optional[int], allowed: list[int]) -> None:
     """**Darf bei diesem hier bestellt werden?** – die EINE Prüfung, zwei Aufrufer.
 
     **Leer heisst frei, nicht «niemand».** Beim Beschaffen steht immer mindestens ein
@@ -613,11 +646,31 @@ def _assert_allowed(number: Optional[int], allowed: list[int]) -> None:
     Sie steht hier und nicht zweimal ausgeschrieben: Anfragen und Bestellen fragen
     dasselbe, und zwei Formulierungen wären zwei Massstäbe.
     """
-    if allowed and number not in allowed:
+    if allowed:
+        if number not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"Lieferant {number} ist für dieses Modul nicht zugelassen. "
+                        f"Zugelassen: " + ", ".join(str(n) for n in allowed) + "."),
+            )
+        return
+    # **Frei heisst nicht «irgendwer».** Wo die Definition niemanden nennt, wird zur
+    # Laufzeit gesucht (``/orders/supplier-options``) – und die Suche bietet nur
+    # Lieferanten an. Der Dienst muss dasselbe verlangen, sonst wäre die Auswahlliste eine
+    # Bitte: dieselbe Haltung wie bei ``places.search``.
+    found = (
+        db.query(UserProfile)
+        .filter(UserProfile.object_id == number,
+                UserProfile.is_active.is_(True),
+                UserProfile.role == "supplier")
+        .first()
+    )
+    if found is None:
         raise HTTPException(
             status_code=400,
-            detail=(f"Lieferant {number} ist für dieses Modul nicht zugelassen. "
-                    f"Zugelassen: " + ", ".join(str(n) for n in allowed) + "."),
+            detail=(f"{number} ist kein Lieferant – bei diesem Modul ist niemand vorab "
+                    f"zugelassen, gefragt werden kann trotzdem nur, wer als Lieferant "
+                    f"geführt ist."),
         )
 
 
@@ -631,7 +684,7 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
     numbers: list[int] = []
     for entry in wanted:
         number = _int(entry, field="Lieferant")
-        _assert_allowed(number, allowed)
+        _assert_allowed(db, number, allowed)
         if number not in numbers:
             numbers.append(number)
     known = {q["supplier"]: dict(q) for q in row.quotes or []}
@@ -676,7 +729,7 @@ def _order(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
            actor: UserProfile) -> None:
     """**Die Zusage nach aussen.** Ab hier ist eine zweite Partei gebunden."""
     number = _int(payload.get("supplier"), field="Lieferant")
-    _assert_allowed(number, allowed)
+    _assert_allowed(db, number, allowed)
     amount = _money(payload.get("amount"), field="Bestellsumme")
     if amount is None:
         raise HTTPException(
@@ -735,8 +788,14 @@ def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
     """
     if row.stage != procurement.STAGES[0]:
         row.stage = procurement.CANCELLED
-        return
-    if modules.get(step.module_type).buys == modules.BUY_IF_CHOSEN:
+    if _optional(step):
+        # ►► **Wer auch selbst kann, ist damit wieder bei «selbst».** ◄◄
+        #
+        # Der Vorgang ist beendet: die Absage bleibt als Zeile stehen (ein Storno macht
+        # die Bestellung nicht ungeschehen), aber sie ist nicht mehr *der* Beleg dieses
+        # Moduls – ``of_step`` liest nur den aktiven. Ohne das war ein storniertes
+        # Bewegen-Modul eine **Sackgasse**: ``can`` leer, ``assert_receivable`` weist mit
+        # 409 ab, und ``ensure`` fand die tote Zeile wieder. Der Auftrag stand für immer.
         row.is_active = False
         return
     row.quotes = []

@@ -20,14 +20,13 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..domain import statuses as st
 from ..models import Article
 from . import article_process
 from .objects import next_object_id
 
-#: Status eines angelegten Artikels – aus der EINEN Statusliste (``domain/statuses``).
-#: Es gibt nur diesen einen Einstieg: **angelegt heisst freigegeben**.
-RELEASED = st.FREIGEGEBEN
+# **Angelegt heisst freigegeben** – und das ist keine Zuweisung mehr, sondern eine
+# Ableitung: ein frischer Artikel hat keinen Nachfolger, also ist er die neueste Fassung
+# (``Article.status``). Es gibt nur diesen einen Einstieg, und er setzt nichts.
 
 #: Pflichtfelder der Spezifikation (Feldname → Beschriftung). Sie stehen hier und nicht
 #: im Formular: eine deaktivierte Schaltfläche ist keine Absicherung, sondern eine Bitte.
@@ -46,34 +45,41 @@ MAX_CHAIN = 100
 def may_create(article: Article) -> Optional[str]:
     """►►► **Darf dieser Artikel NEUE Einzelinstanzen erzeugen?** ◄◄◄ ``None`` = ja.
 
-    Die Regel in einem Satz: *nur ein Artikel im Zustand «Freigegeben» erzeugt Neues.*
+    Die Regel in einem Satz: *ein abgelöster Artikel erzeugt nichts Neues mehr.*
     Sie sperrt damit ausschliesslich die Herkunft **Neu** — **Lager bleibt erlaubt**, und
     zwar mit Absicht: sonst würde jedes Stück eines ausgelaufenen Artikels zur Leiche, die
     sich nicht einmal mehr aussondern liesse.
 
-    **Warum die Funktion nach der Regel heisst und nicht nach dem Zustand.** Der Fehler,
+    **Gefragt wird nach der Tatsache, nicht nach einem Wort** (Testnotiz #773). Früher
+    stand hier ``article.status != FREIGEGEBEN`` – und der Status war eine **Spalte**, die
+    an zwei Stellen gesetzt wurde: vom Ersetzen und von einem Knopf «Inaktiv setzen». Zwei
+    Angaben über dieselbe Sache, und ein von Hand stillgelegter Artikel ohne Nachfolger
+    hing an genau einem Schalter. Jetzt gibt es nur ``replaced_by_id``; der Zustand ist
+    seine Projektion (``Article.status``), und diese Prüfung liest die Quelle.
+
+    **Warum die Funktion nach der Regel heisst und nicht nach einem Zustand.** Der Fehler,
     aus dem sie entstanden ist, war eine Verwechslung zweier Achsen, die beide «aktiv»
-    heissen: ``is_active`` ist der **Soft-Delete** (Datensatz ausgeblendet),
-    ``status`` ist der **fachliche** Zustand (Freigegeben ↔ Inaktiv). Geprüft wurde die
-    erste, gemeint war die zweite — und weil die erste im ganzen Prozessbereich **nie**
-    gesetzt wird, konnte die Prüfung gar nichts abweisen. Ein Name wie ``is_article_active``
-    hätte dieselbe Falle nur eine Ebene weiter aufgestellt; ``may_create`` benennt die
-    Frage, und die kann man nicht verwechseln.
+    heissen: ``is_active`` ist der **Soft-Delete** (Datensatz ausgeblendet), ``status``
+    war der **fachliche** Zustand. Geprüft wurde die erste, gemeint war die zweite — und
+    weil die erste im ganzen Prozessbereich **nie** gesetzt wird, konnte die Prüfung gar
+    nichts abweisen. Ein Name wie ``is_article_active`` hätte dieselbe Falle nur eine
+    Ebene weiter aufgestellt; ``may_create`` benennt die Frage.
 
     **Zwei Formen derselben Regel** (wie ``process.pick_problem``/``unpickable``): sie gibt
     den Grund zurück, statt zu werfen. Die Freigabe bricht damit ab, die Auswahl-Liste
     sperrt damit «Neu» und nennt denselben Satz. Zwei Formulierungen wären zwei Massstäbe.
 
     **Geprüft wird bei der Freigabe, nicht laufend.** Ein bereits laufender Auftrag läuft
-    zu Ende, auch wenn der Artikel zwischenzeitlich inaktiv gesetzt wird — sein Prozess ist
-    eine eingefrorene Kopie (§6.5), und ihn von aussen anzuhalten hiesse, die Vergangenheit
+    zu Ende, auch wenn der Artikel zwischenzeitlich abgelöst wird — sein Prozess ist eine
+    eingefrorene Kopie (§6.5), und ihn von aussen anzuhalten hiesse, die Vergangenheit
     umzuschreiben.
     """
-    if article.status != st.FREIGEGEBEN:
+    if article.replaced_by_id:
         return (
-            f"Artikel {article.object_id} ist «{st.label(article.status)}» – ein Artikel "
-            f"ausser Betrieb erzeugt keine neuen Einzelinstanzen. Bestehende Stücke "
-            f"lassen sich weiterhin über «Lager» abwickeln."
+            f"Artikel {article.object_id} ist durch {article.replaced_by_id} ersetzt – "
+            f"ein abgelöster Artikel erzeugt keine neuen Einzelinstanzen. Bestehende "
+            f"Stücke lassen sich weiterhin über «Lager» abwickeln, und Neues entsteht "
+            f"beim Nachfolger."
         )
     return None
 
@@ -157,7 +163,7 @@ def create_article(db: Session, draft: dict[str, Any], *, actor_id: int | None) 
     predecessor = _predecessor_for(db, replaces)
 
     # ── Ab hier wird eine Nummer vergeben ────────────────────────────────────
-    article = Article(object_id=next_object_id(db, "article"), status=RELEASED, **draft)
+    article = Article(object_id=next_object_id(db, "article"), **draft)
     db.add(article)
     db.flush()
     article_process.create_steps(db, article, steps)
@@ -258,14 +264,19 @@ def assert_replaceable(db: Session, predecessor: Article, successor: Article) ->
 
 
 def apply_replacement(db: Session, *, predecessor: Article, successor: Article) -> None:
-    """Den Vorgänger ablösen: Nachfolger eintragen **und** ausser Betrieb nehmen.
+    """Den Vorgänger ablösen — **eine** Angabe, und ausser Betrieb ist ihre Bedeutung.
 
-    Beides in einem Zug, weil es ein Vorgang ist. Der Aufrufer schreibt das Audit – er
-    weiss, wer geklickt hat; dieser Dienst kennt nur die Regel.
+    Früher standen hier zwei Zeilen: der Nachfolger *und* ein Statuswechsel. Die zweite
+    ist entfallen, nicht weil sie falsch war, sondern weil sie überflüssig ist – der
+    Zustand fällt aus der ersten heraus (``Article.status``). Zwei Zuweisungen für einen
+    Vorgang wären zwei Gelegenheiten, die zweite zu vergessen; und genau in dieser Lücke
+    entstand ein Artikel, der «inaktiv» hiess, ohne dass ihn jemand abgelöst hatte.
+
+    Der Aufrufer schreibt das Audit – er weiss, wer geklickt hat; dieser Dienst kennt nur
+    die Regel.
     """
     assert_replaceable(db, predecessor, successor)
     predecessor.replaced_by_id = successor.object_id
-    predecessor.status = st.INAKTIV
 
 
 def chain_of(db: Session, article: Article) -> list[Article]:

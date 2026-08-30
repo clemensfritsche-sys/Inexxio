@@ -138,9 +138,16 @@ Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnumme
 
 ## Prozessschrittmodule im Entwurf (`lib/modules.ts`)
 **Was ein Modultyp mitbringt, steht als Zuordnung, nicht als `if`-Kette**: `MODULE_FORM`
-(Nutzlast + Vollständigkeit) und `MODULE_FIELDS` im Designer (der Feldsatz). Ein neuer
+(Nutzlast **und ihre Umkehrform**) und `MODULE_FIELDS` im Designer (der Feldsatz). Ein neuer
 Typ ist je ein Eintrag; `test_frontend_mirrors` hält die Schlüssel mit `domain/modules.py`
 deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
+
+- **Ein Modul zeigt seine Sache in JEDEM Zustand** (#771): der Editor rendert seinen
+  Feldsatz auch im **eingefrorenen** Prozess – gesperrt über `fieldset[disabled]`, eine
+  Zeile statt eines zweiten Layouts. Vorher stand dort `renderStep: frozen ? undefined`:
+  der Kopf klappte auf, und darin war nichts. Möglich macht es `MODULE_FORM[…].draft`, die
+  **Umkehrform** neben ihrem Gegenstück (`moduleFromConfig`) – zwei Formen einer Regel, ein
+  Namensstamm; ein eigener Lese-Feldsatz wäre die Stelle, an der die nächste Angabe fehlt.
 
 - **Aussondern** hat zwei Angaben, beide Pflicht: Verschrotten ↔ Sperren
   (`DISPOSAL_MODES`, Liste im Backend) und der **Grund**. Keine Erfassungspunkte, keine
@@ -223,7 +230,19 @@ und das zweite veraltet beim ersten neuen Verb.
   Farbe und Beschriftung – den Modul-Katalog lädt nur der Editor.
 - **Die Wahl steht dort, wo ihre Folge steht** (`Wrapped`), und nur, solange es keinen
   Beleg gibt: danach ist sie beantwortet, und «zurück» ist die Gegenhandlung des Belegs
-  (`revoke`), nicht ein zweiter Schalter daneben.
+  (`revoke`), nicht ein zweiter Schalter daneben. Sie heisst **«Selbst ↔ Beschaffen»** –
+  dasselbe Wort wie das Modul, das es sonst tut, aus **einer** Quelle (`PROCUREMENT`,
+  gespiegelt von `domain/procurement`).
+- **Und man sieht, dass es ein Einkauf ist** (#775): über dem Beleg steht seine eigene
+  Überschrift (`ProcurementHead` – getöntes Symbol · Name · Haarlinie, dieselbe Anatomie
+  wie eine Modul-Karte, `ModuleMark` aus einer Quelle). Nur wo der Einkauf **nicht** der
+  Zweck des Moduls ist: wo er es ist, sagt die Karte den Namen schon. Name und Farbe kommen
+  vom **Beleg** (`label`/`tone`) – der Modul-Katalog ist an der Ausführungsstelle nicht
+  geladen, und die Identität eines Moduls, das dort gar nicht steht, wäre geborgt.
+- **Der Weg zurück steht ab der ersten Stufe da** und trägt das Wort des Belegs (`undo`) –
+  er hing an «schon angefragt», also ausgerechnet nicht dort, wo am wenigsten zugesagt ist.
+- **Wo kein Lieferant zugelassen ist, wird gesucht** (`ObjectSelect` + `api.searchSuppliers`)
+  statt eine leere Liste zu zeigen; die zugelassene Liste bleibt, wo es sie gibt.
 - **Kein «womit» mehr.** Die Liste `manuell · paket · fracht` ist entfallen: *Paket* und
   *Fracht* sind zwei **Angebote** desselben Einkaufs. Übrig bleibt ein Bit (`HAULAGE`),
   und die Antwort ist abgeleitet – eingekauft wurde, wenn es einen Beleg gibt.

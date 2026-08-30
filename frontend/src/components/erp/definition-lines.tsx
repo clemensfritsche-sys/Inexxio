@@ -183,6 +183,54 @@ export function DefinitionLines({ lines, setLines, onArticlesChosen, refreshKey 
 // Eine Zeile
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * **Eine Menge, die nicht null werden kann** (Testnotiz #774).
+ *
+ * Das Feld schickte jeden Tastendruck weiter, und ein **geleertes** Feld hiess `0` – also
+ * genau der Wert, den der Server als «ist zu klein» abweist. Das Löschen einer Ziffer ist
+ * aber ein ganz normaler Schritt beim Ändern einer Zahl: die Meldung entstand nicht aus
+ * einem Fehler, sondern aus dem Tippen.
+ *
+ * Statt die Meldung freundlicher zu formulieren, kann der Wert gar nicht mehr entstehen:
+ * **während des Tippens lebt die Eingabe lokal** (leer ist erlaubt – es ist ein
+ * Zwischenzustand, keine Aussage), **übernommen wird beim Verlassen**, und dabei gilt die
+ * Untergrenze 1. Dieselbe Bauart wie überall im Haus, wo eine Zahl gekappt statt gemeldet
+ * wird.
+ *
+ * **Nur die Untergrenze, keine Obergrenze.** Sie ist die, die man versehentlich trifft;
+ * eine zu grosse Zahl ist eine Entscheidung, und dazu gehört der Satz des Servers
+ * (`Verbrauch.MAX_PER_UNIT`). Eine zweite Grenze hier wäre der zweite Massstab – und der
+ * mildere von beiden entschiede.
+ */
+function QuantityInput({ value, disabled, onChange }: {
+  value: number; disabled: boolean; onChange: (n: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  // Der Aufrufer ist die Wahrheit: ändert sich die Zeile von aussen (Artikelwechsel,
+  // vorbelegter Entwurf), folgt die Anzeige. Während des Tippens tut sie das nicht – dann
+  // stimmen beide ohnehin überein.
+  useEffect(() => { setText(String(value)); }, [value]);
+
+  function commit() {
+    const n = Math.max(1, Number(text.replace(/[^0-9]/g, '')) || 0);
+    setText(String(n));
+    if (n !== value) onChange(n);
+  }
+
+  return (
+    <input
+      className={inputCls}
+      inputMode="numeric"
+      value={text}
+      disabled={disabled}
+      data-tip={disabled ? 'Zuerst den Artikel wählen – ohne ihn ist die Menge nicht deutbar.' : undefined}
+      onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+    />
+  );
+}
+
 function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChange, onRemove }: {
   line: DefinitionLine;
   /** Der gewählte Artikel, soweit bekannt – er trägt die Angaben, aus denen «Neu» folgt. */
@@ -256,16 +304,10 @@ function LineRow({ line, article, onArticle, multi, refreshKey, perUnit, onChang
           <span className="block text-[11px] mb-1" style={{ color: 'var(--fg-3)' }}>
             {perUnit ? 'Menge je Einzelinstanz' : 'Menge'}
           </span>
-          <input
-            className={inputCls}
-            inputMode="numeric"
+          <QuantityInput
             value={line.quantity}
             disabled={!hasArticle}
-            data-tip={hasArticle ? undefined : 'Zuerst den Artikel wählen – ohne ihn ist die Menge nicht deutbar.'}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/[^0-9]/g, '');
-              onChange({ quantity: raw ? Number(raw) : 0, units: [] });
-            }}
+            onChange={(n) => onChange({ quantity: n, units: [] })}
           />
         </label>
 

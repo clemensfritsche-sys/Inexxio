@@ -13,7 +13,7 @@ import { DetailHeader, HeaderAction, IconSwitch } from '@/components/erp/fields'
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
 import {
-  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, StepCard, definitionGraph,
+  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, ModuleMark, StepCard, definitionGraph,
   type DiagramStep,
   type JourneyOrigin,
 } from '@/components/erp/process-diagram';
@@ -26,7 +26,7 @@ import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { PurchaseWork } from '@/components/erp/purchase-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
-import { HAULAGE, moduleIcon } from '@/lib/modules';
+import { HAULAGE, PROCUREMENT, moduleIcon, moduleTone } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
@@ -411,22 +411,33 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * **Der Einkaufs-Beleg umschliesst den Scan — oder er entsteht hier.**
+ * **Der Einkaufs-Vorgang umschliesst den Scan — oder er entsteht hier.**
  *
  * Ein Bauteil statt einer Bedingung an der Aufrufstelle: gibt es keinen Beleg und kann
  * das Modul auch keinen bekommen, steht hier schlicht der Scan. Die Oberfläche fragt nie
  * nach dem Modultyp – sie liest zwei Eigenschaften (`buys`, `purchase`), dieselbe Bauart
  * wie bei `needs`.
  *
- * **Der Beleg gehört keinem Modul.** Ein **Bewegen**-Schritt, bei dem jemand «Transport
- * einkaufen» gewählt hat, rendert buchstäblich dieselbe Komponente wie ein
+ * **Der Beleg gehört keinem Modul.** Ein **Bewegen**-Schritt, bei dem jemand
+ * «Beschaffen» gewählt hat, rendert buchstäblich dieselbe Komponente wie ein
  * Beschaffungs-Schritt: dieselben drei Stufen, dieselben Verben, dieselben Knöpfe. Denn
  * eine Sendung aufzugeben IST ein Einkauf – der Spediteur ist ein Lieferant, der
  * Tarifvergleich ist der Angebotsspiegel, die Sendungsnummer ist `tracking`.
  *
- * **Und die Wahl steht dort, wo ihre Folge steht.** Sie erscheint nur, solange es keinen
- * Beleg gibt: danach ist sie beantwortet, und «zurück» ist die Gegenhandlung des Belegs
- * (`revoke`) – nicht ein zweiter Schalter daneben.
+ * **Und man sieht es auch** (Testnotiz #775). Wo der Einkauf **nicht** der Zweck des
+ * Moduls ist, trägt er seine eigene Überschrift: getöntes Symbol, sein Name, eine
+ * Haarlinie – die Anatomie einer Modul-Karte, eine Ebene tiefer. Damit steht im Bewegen-
+ * Modul sichtbar «hier wird eine Leistung eingekauft, die am Ende eine Bewegung
+ * vollzieht», statt dass nur im Hintergrund ein Beleg entsteht.
+ *
+ * Wo der Einkauf **der** Zweck ist (Beschaffen), bleibt sie weg: dort sagt die Karte den
+ * Namen schon, und zweimal wäre dasselbe Wort zweimal. Das ist keine Abfrage nach dem
+ * Modultyp, sondern dieselbe Deklaration, aus der auch die Wahl folgt (`buys`).
+ *
+ * **Die Wahl steht dort, wo ihre Folge steht**, und nur, solange es keinen Beleg gibt:
+ * danach ist sie beantwortet, und «zurück» ist die Gegenhandlung des Belegs (`revoke`) –
+ * ein zweiter Schalter daneben wäre der zweite Weg zu einer Sache, die der Beleg
+ * verwaltet.
  */
 function Wrapped({ purchase, buys, busy, active, onAction, children }: {
   purchase: PurchaseEmbed | null;
@@ -436,14 +447,18 @@ function Wrapped({ purchase, buys, busy, active, onAction, children }: {
   onAction: (body: { action: string } & Record<string, unknown>) => void;
   children: React.ReactNode;
 }) {
+  const optional = buys === 'if_chosen';
   if (purchase) {
     return (
-      <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}>
-        {children}
-      </PurchaseWork>
+      <div className="flex flex-col">
+        {optional && <ProcurementHead purchase={purchase} />}
+        <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}>
+          {children}
+        </PurchaseWork>
+      </div>
     );
   }
-  if (buys !== 'if_chosen') return <>{children}</>;
+  if (!optional) return <>{children}</>;
   return (
     <div className="flex flex-col gap-2.5">
       {active && (
@@ -459,6 +474,32 @@ function Wrapped({ purchase, buys, busy, active, onAction, children }: {
         />
       )}
       {children}
+    </div>
+  );
+}
+
+/**
+ * **Die Überschrift des Einkaufs — seine Identität, aus seiner eigenen Quelle.**
+ *
+ * Name und Farbfamilie reisen **mit dem Beleg** (`PurchaseEmbed.label`/`.tone`, aus
+ * `domain/procurement`), nicht aus dem Modul-Katalog: den lädt nur der Editor, und ein
+ * Rückgriff auf den Eintrag «des Moduls beschaffen» wäre die Identität eines Moduls, das
+ * hier gar nicht steht. Dasselbe Zeichen wie auf einer Modul-Karte (`ModuleMark`) – ein
+ * Einkauf sieht überall gleich aus.
+ *
+ * Bewusst **kein zweiter Rahmen**: die Modul-Karte ist bereits eine Fläche in ihrer Farbe,
+ * und eine Karte in der Karte wäre die dritte (#100/#104). Die Zugehörigkeit sagt die
+ * Haarlinie darunter, wie bei jedem Karten-Kopf im Haus.
+ */
+function ProcurementHead({ purchase }: { purchase: PurchaseEmbed }) {
+  const c = moduleTone(purchase.tone);
+  return (
+    <div className="flex items-center gap-2.5"
+      style={{ paddingBottom: 9, marginBottom: 11, borderBottom: `1px solid ${c.border}` }}>
+      <ModuleMark icon={PROCUREMENT.icon} tone={c.fg} size={28} />
+      <span className="text-sm font-semibold" style={{ color: c.fg }}>
+        {purchase.label || PROCUREMENT.label}
+      </span>
     </div>
   );
 }

@@ -100,7 +100,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/PATCH | /api/v1/erp/records/{object_id} | staff/admin | Datensatz lesen/ändern |
 | GET/POST | /api/v1/erp/articles | staff | Artikel-Feed (`search`/`limit`) / Artikel anlegen – Anlegen **ist** Freigeben; `replaces_object_id` löst dabei einen Vorgänger ab (er geht im selben Zug ausser Betrieb) |
 | GET | /api/v1/erp/articles/name-suggestions | staff | Intelligente Namensvorschläge (frei + Fuzzy, ohne KI) |
-| GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern. **Ausser Betrieb nehmen ist ein Statuswechsel** (`status`), in beide Richtungen – kein eigener Endpunkt, kein Dialog. Das **Detail** trägt zusätzlich die Reihe (`replaces`/`replaced_by`) und die geplante Stückliste (`bom`: wer verbaut mich · was in mir ist ausser Betrieb, transitiv); im Feed bleibt `bom` `null` = «nicht geladen» |
+| GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern. **Ausser Betrieb nehmen gibt es nicht als Handlung** (#773): ein Artikel geht dadurch ausser Betrieb, dass ein **Nachfolger** ihn ablöst – der Zustand ist die Projektion von `replaced_by_id`, und `ArticleUpdate` nimmt keinen `status` mehr entgegen. Das **Detail** trägt zusätzlich die Reihe (`replaces`/`replaced_by`) und die geplante Stückliste (`bom`: wer verbaut mich · was in mir ist ausser Betrieb, transitiv); im Feed bleibt `bom` `null` = «nicht geladen» |
 | GET | /api/v1/erp/articles/{object_id}/process | staff | Die **eingefrorene** Modul-Liste des Artikels – nur lesen. Ein Prozess wird nicht Schritt für Schritt gepflegt: er entsteht als Ganzes mit der Freigabe des Artikels (`POST /erp/articles`) und ist danach unveränderlich, weil laufende Aufträge eine Kopie davon fahren. Ein Schritt-CRUD gäbe es dafür gar nicht – die frühere Fassung stammt aus der Zeit vor dem Basis-Neuaufbau |
 | POST | /api/v1/erp/articles/validate | staff | Den **Entwurf** prüfen, ohne ihn anzulegen – dieselbe Ableitung wie die Freigabe (u. a. Kettenregel `domain/chain`), damit die Oberfläche denselben Massstab anlegt wie der Dienst |
 | GET | /api/v1/erp/articles/{object_id}/stock | staff | Bestand des Artikels in drei Ebenen (Leiste → Instanzen → Nummern), seitenweise |
@@ -211,6 +211,17 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Ihre Gegenhandlung ist dieselbe wie überall (`revoke`): war der Einkauf eine **Wahl**,
 > verschwindet der Beleg (Soft-Delete, partieller Unique-Index seit Migration `119`) –
 > sonst bliebe ein leerer stehen, und «wurde eingekauft?» beantwortete sich mit «ja».
+> **Und ein Storno verschwindet dort ebenso** (Testnotiz #775): die Absage bleibt als Zeile
+> stehen, ist aber nicht mehr *der* Beleg – sonst war ein Modul, dessen Spedition absagte,
+> **für immer blockiert** (`can` leer, `assert_receivable` 409, `ensure` fand die tote
+> Zeile). EINE Ableitung dafür (`_optional`), zwei Leser.
+> **Der Vorgang trägt seine Identität mit sich**: `LABEL`/`TONE` stehen in
+> `domain/procurement`, das Modul «Beschaffen» **liest** sie, und `PurchaseEmbed.label`/
+> `tone` reisen mit dem Beleg – die Ausführungsstelle schlägt nichts im Modul-Katalog nach.
+> Dasselbe gilt für das Wort der Gegenhandlung (`undo`, Stufe × Deklaration).
+> **Leer heisst frei, aber nicht «irgendwer»**: wo die Definition keinen Lieferanten nennt,
+> verlangt `_assert_allowed` einen **aktiven Lieferanten** – die Oberfläche sucht dort
+> (`/orders/supplier-options`), und der Dienst muss dasselbe verlangen wie die Liste anbietet.
 > Wächter: `tests/test_purchase_module.py`.
 
 > **Beschaffen – das Tor nach draussen** (PROCESS_CORE §9.9, `services/purchase.py`,

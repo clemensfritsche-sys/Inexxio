@@ -233,6 +233,21 @@ class PurchaseEmbed(BaseModel):
 
     #: ``anfrage`` · ``bestellung`` · ``wareneingang`` · ``storniert``
     stage: str
+    #: ►►► **Wie der Vorgang heisst und wie er aussieht** (``domain/procurement``). ◄◄◄
+    #:
+    #: Ein Einkauf sieht überall gleich aus – auch dort, wo ihn ein **Bewegen**-Modul
+    #: auslöst. Er trägt darum seine Identität mit sich, wie ein Modul seine Farbe
+    #: (``ModuleFacts.tone``): die Ausführungsstelle schlägt sie nicht in einem Katalog
+    #: nach, den nur der Editor lädt, und sie borgt sie sich auch nicht bei einem
+    #: Modultyp, der hier gar nicht steht.
+    label: str = ""
+    tone: str = ""
+    #: **Das Wort für die eine Gegenhandlung** (``revoke``) – oder ``None``, wenn sie an
+    #: dieser Stufe nicht geht. «Doch selbst erledigen» · «Anfrage zurückziehen» ·
+    #: «Bestellung stornieren»: dieselbe Handlung, und was sie bewirkt, sagt die Stufe.
+    #: Es steht neben der Wirkung und nicht in der Oberfläche – sonst stünde beim nächsten
+    #: Fall ein Satz da, den keine Regel deckt.
+    undo: Optional[str] = None
     #: Die drei Stufen in ihrer Reihenfolge, mit Beschriftung – die Oberfläche zeichnet
     #: sie, sie erfindet sie nicht (``Beschaffen.STAGES``).
     stages: list["PurchaseStage"] = Field(default_factory=list)

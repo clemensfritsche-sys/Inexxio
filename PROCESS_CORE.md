@@ -373,7 +373,7 @@ Achsenlisten, Anzeige-Reihenfolge, Gruppierung im Bestand, Farbe, Frontend-Katal
 | `Verschrottet` | Rot | Stück | history | Aus dem Verkehr gezogen und **physisch weg**. Endgültig. |
 | `Abgeschlossen` | Grün | Auftrag | — | **Den definierten Weg zu Ende gegangen.** |
 | `Abgebrochen` | Rot | Auftrag | — | Ziel nicht mehr erreichbar. |
-| `Inaktiv` | Rot | Artikel | — | Ausser Betrieb: erzeugt nichts Neues. **Umkehrbar** (§5.5). |
+| `Inaktiv` | Rot | Artikel | — | Ausser Betrieb: erzeugt nichts Neues. **Abgeleitet** aus `replaced_by_id` (§5.5). |
 
 **«Abgeschlossen» heisst nicht «hat das Ende-Objekt passiert».** Ein **Ausgang** (§4.6)
 ist ebenfalls ein Ende: wer dort ausgesondert wird, ist seinen Weg zu Ende gegangen.
@@ -495,13 +495,28 @@ und dürfen nicht wie welche aussehen.
 
 ### 5.5 Ausser Betrieb nehmen und ersetzen — der Lebenszyklus des Artikels
 
-**«Inaktiv» ist ein Zustand, kein Ende.** ``Status.terminal`` gibt es ausschliesslich auf
-der **Stück**-Achse (§5.3); ein Artikel trägt es nie. Der Weg zurück ist darum derselbe
-Knopf in der anderen Richtung — **«Inaktiv setzen» ↔ «Aktiv setzen»**, ein gewöhnlicher
-Statuswechsel, keine Sonderaktion. Vorher stand in der Oberfläche «Inaktiv ist endgültig»,
-und daraus folgte, dass es keine Gegenaktion gab: ein versehentlich stillgelegter Artikel
-war für immer verloren, und der einzige Ausweg hiess «dieselbe Sache noch einmal anlegen»
-— also eine zweite Nummer für ein Ding.
+> ►►► **«Ausser Betrieb» ist keine eigene Angabe — es ist die Folge des Ersetzens.** ◄◄◄
+>
+> «Soll man das Inaktiv-Setzen gänzlich eliminieren und die Inaktivität indirekt über den
+> Ersetzungsartikel steuern?» (Testnotiz #773) — ja. Es gibt genau **eine** Angabe,
+> ``articles.replaced_by_id``, und der Zustand fällt aus ihr heraus (``Article.status`` ist
+> eine **Projektion**, keine Spalte mehr; Migration ``121``).
+>
+> **Warum das mehr ist als ein Knopf weniger.** Die Spalte daneben wurde von *zwei* Stellen
+> gesetzt — vom Ersetzen und von einem Schalter — und von ``may_create`` gelesen. Ein von
+> Hand stillgelegter Artikel **ohne** Nachfolger hing damit an genau dem Schalter, der ihn
+> stillgelegt hatte; wer ihn nicht fand, hatte den Artikel verloren. Zwei Angaben über
+> dieselbe Sache sind die Form, in der so etwas entsteht.
+>
+> **Der eine Preis, ausdrücklich abgenommen:** ein abgelöster Artikel erzeugt nichts Neues
+> mehr — auch nicht als **Ersatzteil**. Das war unter dem Zwei-Achsen-Modell möglich
+> (#766) und ist es nicht mehr; wer den Vorgänger weiterbauen will, ersetzt ihn nicht.
+> Bestehende Stücke bleiben unberührt: «ab Lager» ist weiterhin erlaubt.
+>
+> Migration ``121`` **heilt die Altdaten**: was von Hand «inaktiv» gesetzt wurde, ohne dass
+> ein Nachfolger es erklärt, wird wieder freigegeben — sonst wäre es für immer stillgelegt.
+> Dieselbe Falle wie beim deaktivierten Benutzer (``118``), und sie ist beim **Wegnehmen**
+> des Schalters zu schliessen, nicht danach.
 
 **Die Wirkung ist eine einzige und steht an einer Stelle** (``articles.may_create``): ein
 Artikel ausser Betrieb **erzeugt nichts Neues**. Alles andere bleibt: bestehende Stücke
@@ -545,8 +560,9 @@ und sagt dabei, welchen er ablöst. Ein Feld am Vorgänger («wer löst mich ab?
 jederzeit änderbar und damit eine zweite Wahrheit über dieselbe Kette.
 
 **Ersetzen nimmt ausser Betrieb** — das ist keine zusätzliche Wirkung, sondern die
-Bedeutung: wer abgelöst ist, erzeugt nichts Neues mehr. Ein Vorgang, ein Aufruf, eine
-Transaktion; zwei Klicks wären zwei Gelegenheiten, den zweiten zu vergessen.
+Bedeutung: wer abgelöst ist, erzeugt nichts Neues mehr. Und es ist seit #773 nicht einmal
+mehr eine zweite Zuweisung: der Zustand **ist** die Projektion dieser einen Angabe. Ein
+Vorgang, ein Aufruf, eine Transaktion.
 
 Drei Ablehnungen, jede mit ihrem Grund im Satz (``articles.assert_replaceable``):
 
@@ -1743,6 +1759,56 @@ Ziel; die Lieferanten-Freigabe des Beschaffungs-Moduls bleibt dort, wo sie hinge
 **Lieferant, dessen Angebotszeilen eine Anbindung füllt** statt eines Menschen. Das ist
 eine Eigenschaft von ihm, kein Modul und kein Konzept — es gibt hier nichts, was es
 ausschlösse.
+
+#### Und man sieht es: der Vorgang trägt seine eigene Identität
+
+«Man soll nicht nur im Hintergrund, sondern auch **visuell** sehen: das ist jetzt nicht
+wirklich eine Bewegung, sondern ich kaufe eine Leistung ein, die dann eine Bewegung
+vollzieht» (Testnotiz #775). Der Beleg war 1:1 derselbe — nur sah man es ihm nicht an.
+
+**Name und Farbfamilie gehören darum dem Vorgang** (`domain/procurement.LABEL`/`TONE`) und
+nicht dem Modul, das ihn auslöst: das Modul «Beschaffen» **liest** sie, und der Beleg
+trägt sie mit sich (`PurchaseEmbed.label`/`tone`). Damit können die beiden nicht
+auseinanderlaufen, und die Ausführungsstelle schlägt nichts im Modul-Katalog nach — den
+lädt nur der Editor. Ein Einkauf im Bewegen-Modul bekommt so **dieselbe** Überschrift wie
+eine Beschaffungs-Karte: getöntes Symbol, sein Name, eine Haarlinie.
+
+**Sie erscheint nur, wo der Einkauf nicht der Zweck ist** (`buys == BUY_IF_CHOSEN`). Wo er
+es ist, sagt die Modul-Karte den Namen schon; zweimal wäre dasselbe Wort zweimal. Das ist
+keine Abfrage nach dem Modultyp, sondern dieselbe Deklaration, aus der auch die Wahl
+folgt. **Kein zweiter Rahmen**: die Modul-Karte ist bereits eine Fläche in ihrer Farbe,
+eine Karte in der Karte wäre die dritte.
+
+#### Der Weg zurück — eine Gegenhandlung, und sie hat ein Wort
+
+«Sobald ich einmal eingekauft habe, kann ich nicht mehr zurück» (#775). Es gab die
+Gegenhandlung, sie wurde nur erst **nach** dem Anfragen angeboten — also ausgerechnet
+nicht dort, wo am wenigsten zugesagt ist. Sie steht jetzt ab der ersten Stufe da.
+
+Es bleibt bei **einer** (`revoke`); was sie bewirkt, sagt die Stufe, und **wie sie heisst**,
+sagt der Beleg (`PurchaseEmbed.undo`): «Doch selbst erledigen» · «Anfrage zurückziehen» ·
+«Bestellung stornieren». Ein Satz in der Oberfläche wäre die zweite Stelle für dieselbe
+Regel.
+
+**Dabei ist eine Sackgasse aufgefallen und geschlossen:** nach einem **Storno** hatte die
+Stufe `storniert` keine Handlung mehr, `assert_receivable` wies den Ziel-Scan mit 409 ab,
+und `ensure` fand die tote Zeile wieder — ein Transport, dessen Spedition abgesagt wurde,
+konnte damit **nie** mehr stattfinden, auch nicht zu Fuss. Wer auch **selbst** kann, ist
+mit einem Storno wieder bei «selbst»: die Absage bleibt als Zeile stehen (ein Storno macht
+die Bestellung nicht ungeschehen), sie ist nur nicht mehr *der* Beleg dieses Moduls
+(`is_active = False`, `of_step` liest nur den aktiven). Es ist **eine** Ableitung
+(`purchase._optional`) mit zwei Lesern, kein zweiter Pfad — und `assert_receivable` musste
+dafür nicht angefasst werden.
+
+#### Den Spediteur wählt man, wenn man weiss, wohin
+
+Die Lieferanten-Freigabe der Definition ist bei einem Transport **leer** — und «leer heisst
+frei» (`Module.suppliers_of`). Die Anfrage bot darum **nichts** zum Anklicken an: man
+konnte «Beschaffen» wählen und danach nichts tun. Wo niemand zugelassen ist, wird jetzt
+**gesucht** (`GET /erp/orders/supplier-options`, dieselbe Bedingung wie überall: Nummer
+oder Name) — derselbe Knopf, dieselbe Aktion, nur eine andere Quelle; dieselbe Auflösung
+wie bei `SearchSelect`. **Und frei heisst nicht «irgendwer»**: `purchase._assert_allowed`
+verlangt dort einen aktiven Lieferanten, sonst wäre die Auswahlliste eine Bitte.
 
 
 ### 9.9 Das Modul «Beschaffen» — das Tor nach draussen

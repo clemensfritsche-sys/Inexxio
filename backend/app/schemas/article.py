@@ -6,16 +6,16 @@ from typing import Optional
 from pydantic import (BaseModel, ConfigDict, Field, field_validator,
                       model_validator)
 
-from ..domain import statuses as st
 from .process import ModuleFacts, ModuleInput
 
 # ─── Erlaubte Werte ──────────────────────────────────────────────────────────
 
 ALLOWED_UNITS = ("Stk", "mm", "m2", "m3", "kg", "l")
 ALLOWED_SERIALIZATION = ("unit", "batch")
-#: Aus der EINEN Statusliste (``domain/statuses.ARTICLE_STATUSES``) – hier nicht noch
-#: einmal aufgezählt: eine zweite Liste liefe beim ersten neuen Wert auseinander.
-ALLOWED_STATUS = st.ARTICLE_STATUSES
+#: **Eine Status-Whitelist gibt es nicht mehr** (Testnotiz #773): der Zustand eines
+#: Artikels ist abgeleitet (``Article.status`` ← ``replaced_by_id``), also kommt er nicht
+#: von aussen herein und muss auch nicht geprüft werden. Die Wörter selbst stehen
+#: unverändert in ``domain/statuses`` – gelesen wird von dort, gesetzt von niemandem.
 
 # Artikelnamen sind frei wählbar, aber bewusst KURZ gehalten (Feed/Etiketten/Listen bleiben
 # lesbar). Der Wert wird zentral hier gekappt – das Frontend begrenzt die Eingabe zusätzlich.
@@ -196,7 +196,10 @@ class ArticleCreate(BaseModel):
 class ArticleUpdate(BaseModel):
     """Teil-Update aus dem Detailfenster. Alle Felder optional."""
 
-    status: Optional[str] = None
+    # **``status`` steht hier nicht.** Ausser Betrieb geht ein Artikel dadurch, dass ein
+    # Nachfolger ihn ablöst (``ArticleCreate.replaces_object_id``) – ein Feld daneben wäre
+    # die zweite Aussage über dieselbe Sache, und es gab sie: ein von Hand inaktiv
+    # gesetzter Artikel ohne Nachfolger hing an genau einem Schalter (Testnotiz #773).
     name: Optional[str] = None
     unit: Optional[str] = None
     serialization: Optional[str] = None
@@ -227,15 +230,6 @@ class ArticleUpdate(BaseModel):
     @classmethod
     def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         return _opt_qty(v)
-
-    @field_validator("status")
-    @classmethod
-    def _status_allowed(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if v not in ALLOWED_STATUS:
-            raise ValueError(f"Status muss eine von {', '.join(ALLOWED_STATUS)} sein")
-        return v
 
     @field_validator("name")
     @classmethod

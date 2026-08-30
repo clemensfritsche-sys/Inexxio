@@ -105,13 +105,28 @@ class World:
 
         art = Article(
             object_id=obj.next_object_id(self.db), name="Prüfstück", unit="stk",
-            serialization=serialization, status="freigegeben",
+            serialization=serialization,
         )
         self.db.add(art)
         self.db.flush()
         tpl.create_steps(self.db, art, template or [self.capture()])
         self.db.flush()
         return art
+
+    def retire(self, article):
+        """**Ausser Betrieb nehmen — das ist Ersetzen** (Testnotiz #773).
+
+        Es gibt keinen Schalter mehr: ein Artikel geht dadurch ausser Betrieb, dass ein
+        Nachfolger ihn ablöst. Genau darum steht das hier als Helfer und nicht als
+        Zuweisung an jeder Aufrufstelle – wer den Zustand von Hand setzte, prüfte am Ende
+        eine Angabe, die es im Betrieb gar nicht gibt.
+        """
+        from app.services import articles as svc
+
+        successor = self.article()
+        svc.apply_replacement(self.db, predecessor=article, successor=successor)
+        self.db.flush()
+        return successor
 
     @staticmethod
     def capture(sample: Optional[dict[str, Any]] = None,
@@ -141,7 +156,7 @@ class World:
         from app.services import instances as inst_svc, objects as obj
 
         art = Article(object_id=obj.next_object_id(self.db), name=name, unit="stk",
-                      serialization="einzeln", status="freigegeben")
+                      serialization="einzeln")
         self.db.add(art)
         self.db.flush()
         made = inst_svc.create_instances(

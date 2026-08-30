@@ -20,6 +20,19 @@ die Sendungsnummer ist das ``tracking``-Feld, das es längst gibt (§9.8/§9.9).
 «Preis steht» ist keine vierte: das ist der *Inhalt* der Anfrage.
 """
 
+#: ►►► **Wie der Vorgang heisst und wie er aussieht.** ◄◄◄
+#:
+#: Sie stehen hier und nicht an einer Modul-Klasse, weil sie den **Vorgang** beschreiben:
+#: ein Einkauf sieht überall gleich aus, ob ihn ein Beschaffen-Modul auslöst (dort ist er
+#: der Zweck) oder ein Bewegen-Modul (dort war er eine Wahl). Das Modul ``Beschaffen``
+#: liest sie ebenso – damit können die beiden gar nicht auseinanderlaufen, und ein
+#: Bewegen-Modul mit Beleg trägt buchstäblich dieselbe Identität statt einer nachgebauten.
+#:
+#: Die Farbfamilie ist ein **Name**, kein Wert: welcher Ton dahintersteht, entscheidet die
+#: Oberfläche (``lib/modules.MODULE_TONE``) – hier steht nur, welcher gemeint ist.
+LABEL = "Beschaffen"
+TONE = "plum"
+
 #: Die Stufen in ihrer Reihenfolge. Die Oberfläche fragt danach, statt sie nachzubauen.
 STAGES: tuple[str, ...] = ("anfrage", "bestellung", "wareneingang")
 
