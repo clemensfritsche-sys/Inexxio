@@ -1533,3 +1533,132 @@ def test_the_purchase_carries_its_own_identity():
     finally:
         db.rollback()
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Was ein Beleg beim DEFINIEREN braucht – eine Bauart, zwei Ausprägungen (#777)
+# ---------------------------------------------------------------------------
+
+def test_every_buying_module_defines_its_document_the_same_way():
+    """►►► **Ein Muster, überall** (Testnotiz #777). ◄◄◄
+
+    Gemeldet am Transport-Beleg: «den Auftrag hast du jetzt vordefiniert und gleich
+    bestätigt» – man konnte nichts hinzufügen. Dahinter die grössere Frage: beim
+    Beschaffen definiert man Dinge **vorab**, beim Bewegen gar nichts; wir wollen aber
+    dasselbe Bild überall statt «ständig if else».
+
+    Die Antwort ist **nicht**, den abgeleiteten Satz editierbar zu machen: «Transport von
+    A nach B» kennt der Vorgang selbst, und ein Eingabefeld daneben wäre die zweite
+    Aussage über dieselbe Sache. Die Antwort ist: **beide Module tragen dieselben zwei
+    Beleg-Angaben**, und der Unterschied ist eine **Deklaration** – ob sie Pflicht sind.
+
+    Bug-Formen: (a) die Angaben hängen wieder an der Beschaffen-Klasse; (b) das
+    Bewegen-Modul verwirft sie stillschweigend; (c) die Pflicht wird über den Modultyp
+    entschieden statt über die Deklaration.
+    """
+    from app.domain import modules
+
+    # (a) Die Angaben gehören dem **Beleg** – jedes Modul kennt sie, auch die, die nie
+    #     einkaufen. Sonst stünden sie an einer Klasse und wären beim zweiten Einkäufer
+    #     nicht da.
+    for module in modules.MODULES.values():
+        assert hasattr(module, "SUPPLIERS") and hasattr(module, "INSTRUCTION"), (
+            f"«{module.label}» kennt die Beleg-Angaben nicht – sie hängen wieder an "
+            f"einem Modultyp statt am Beleg."
+        )
+
+    buying = [m for m in modules.MODULES.values() if m.buys]
+    assert len(buying) >= 2, "Der Test prüft die Gleichbehandlung – dafür braucht es zwei."
+
+    # (b) **Beide nehmen beide Angaben an.** Das ist der Kern der Notiz: beim Bewegen gab
+    #     es sie gar nicht, also konnte niemand «Hebebühne nötig» hinterlegen.
+    for module in buying:
+        config = module.clean_config({
+            "target": 100000002,
+            "suppliers": [{"supplier": 100000001, "ref": "SP-7"}],
+            "instruction": "Hebebühne nötig",
+        })
+        assert module.suppliers_of(config) == [{"supplier": 100000001, "ref": "SP-7"}], (
+            f"«{module.label}» verwirft die zugelassenen Lieferanten."
+        )
+        assert "Hebebühne nötig" in module.instruction_for(config), (
+            f"«{module.label}» verwirft den Auftrag an den Lieferanten – genau das war "
+            f"die Meldung: der Beleg stand vordefiniert da und liess sich nicht ergänzen."
+        )
+
+
+def test_the_derived_sentence_stays_derived_and_the_addition_is_added():
+    """**Abgeleitet PLUS ergänzt** – zwei Summanden, eine Formel.
+
+    Der abgeleitete Teil sagt, *was* der Vorgang ist (Herkunft und Ziel kennt das System);
+    die Ergänzung sagt, was daran besonders ist – und das kann kein System wissen. Wo
+    einer fehlt, bleibt der andere übrig.
+
+    Bug-Formen: (a) die Ergänzung ersetzt den abgeleiteten Satz; (b) sie wird ignoriert;
+    (c) bei leerer Ergänzung steht ein Trennzeichen ohne Inhalt da.
+    """
+    from app.domain import modules
+
+    move = modules.get(modules.BEWEGEN)
+    facts = {"from": "Werk Nord", "to": "Regal B"}
+
+    plain = move.instruction_for({}, facts=facts)
+    assert plain == "Transport von Werk Nord nach Regal B", (
+        f"Der abgeleitete Satz stimmt nicht mehr: {plain!r}"
+    )
+    assert not plain.endswith("·") and " ·" not in plain, (
+        "Ohne Ergänzung steht ein Trennzeichen ohne Inhalt da."
+    )
+
+    both = move.instruction_for({"instruction": "Hebebühne nötig"}, facts=facts)
+    assert both.startswith("Transport von Werk Nord nach Regal B"), (
+        "Die Ergänzung hat den abgeleiteten Satz ERSETZT – dann steht die Herkunft "
+        "nirgends mehr, und genau die kann der Mensch nicht zuverlässig abtippen."
+    )
+    assert "Hebebühne nötig" in both, "Die Ergänzung kommt nicht an."
+
+    # Wo nichts abgeleitet wird, ist der getippte Satz der ganze Auftrag.
+    buy = modules.get(modules.BESCHAFFEN)
+    assert buy.instruction_for({"instruction": "Härten auf 58 HRC"}) == "Härten auf 58 HRC"
+
+
+def test_whether_the_document_fields_are_mandatory_is_a_declaration():
+    """**Der Unterschied ist eine Zeile, keine Abfrage nach dem Modultyp.**
+
+    Beim Beschaffen sind beide Angaben Pflicht (nichts ist ableitbar, und ohne Lieferant
+    steht beim Ausführen niemand da). Beim Bewegen sind beide freiwillig: wer fährt,
+    entscheidet sich zur Laufzeit, und *was* zu tun ist, steht im abgeleiteten Satz.
+
+    Bug-Form: die Pflicht steht wieder als `if module_type` im Dienst – dann ist sie beim
+    dritten einkaufenden Modul vergessen.
+    """
+    import pathlib
+    from fastapi import HTTPException
+    from app.domain import modules
+
+    assert modules.get(modules.BESCHAFFEN).suppliers_required is True
+    assert modules.get(modules.BESCHAFFEN).instruction_required is True
+    assert modules.get(modules.BEWEGEN).suppliers_required is False
+    assert modules.get(modules.BEWEGEN).instruction_required is False
+
+    # Und die Deklaration **wirkt**: leer geht beim einen durch und beim anderen nicht.
+    assert modules.get(modules.BEWEGEN).clean_config({"target": 1})["instruction"] == ""
+    try:
+        modules.get(modules.BESCHAFFEN).clean_config({})
+        raise AssertionError("Beschaffen nimmt einen leeren Beleg an.")
+    except HTTPException as exc:
+        assert exc.status_code == 400
+
+    # Die Prüfung steht an **einer** Stelle und liest die Deklaration.
+    src = pathlib.Path(modules.__file__).read_text(encoding="utf-8")
+    assert src.count("def clean_purchase_config") == 1, (
+        "Die Beleg-Prüfung gibt es mehr als einmal – zwei Massstäbe für eine Frage."
+    )
+    body = src.split("def clean_purchase_config")[1].split("\n    def ")[0]
+    assert "suppliers_required" in body and "instruction_required" in body, (
+        "Die Prüfung liest die Deklarationen nicht – dann entscheidet wieder der Typ."
+    )
+    for key in ('"beschaffen"', "'beschaffen'", '"bewegen"', "'bewegen'"):
+        assert key not in body, (
+            f"Die Beleg-Prüfung nennt einen Modultyp ({key}) – genau das sollte sie nicht."
+        )

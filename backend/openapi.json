@@ -5808,6 +5808,32 @@
           "status_after": {
             "type": "string",
             "title": "Status After"
+          },
+          "buys": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buys"
+          },
+          "suppliers_required": {
+            "type": "boolean",
+            "title": "Suppliers Required",
+            "default": false
+          },
+          "instruction_required": {
+            "type": "boolean",
+            "title": "Instruction Required",
+            "default": false
+          },
+          "derived_instruction": {
+            "type": "string",
+            "title": "Derived Instruction",
+            "default": ""
           }
         },
         "type": "object",

@@ -125,6 +125,21 @@ class ModuleTypeInfo(BaseModel):
     terminal: bool = False
     status_before: str
     status_after: str
+    #: **Trägt dieser Typ einen Einkaufs-Beleg – und wann?** ``None`` = nie.
+    #:
+    #: Daraus folgt im Editor der Beleg-Block (zugelassene Lieferanten + Auftrag an den
+    #: Lieferanten): er hängt an *dieser* Eigenschaft und nicht an einer Liste von
+    #: Modultypen in der Oberfläche. Ein neuer einkaufender Modultyp bekommt ihn damit,
+    #: ohne dass jemand das Frontend anfasst (Testnotiz #777).
+    buys: Optional[str] = None
+    #: Ob die beiden Angaben dort **Pflicht** sind. Der Unterschied zwischen Beschaffen
+    #: und Bewegen ist genau das – nicht, ob es die Felder gibt.
+    suppliers_required: bool = False
+    instruction_required: bool = False
+    #: **Steht daneben ein abgeleiteter Satz?** Dann ist die Eingabe eine *Ergänzung*,
+    #: und das Feld sagt das auch. Ein Beispiel statt eines Ja/Nein: die Oberfläche zeigt
+    #: es als Platzhalter, damit sichtbar ist, was ohnehin schon dasteht.
+    derived_instruction: str = ""
 
 
 class CaptureTypeInfo(BaseModel):

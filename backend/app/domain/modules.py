@@ -188,39 +188,192 @@ class Module:
         """
         return None
 
-    def suppliers_of(self, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
-        """**Bei wem darf dieses Modul einkaufen?** Vorgabe: **keine Einschränkung**.
+    # ►►► **Was ein Einkaufs-Beleg beim DEFINIEREN braucht** ◄◄◄
+    #
+    # Beide Angaben gehören dem **Beleg**, nicht einem Modultyp – seit auch das
+    # Bewegen-Modul einen tragen kann, stünden sie an der Beschaffen-Klasse schief. Sie
+    # stehen darum hier, und der Unterschied zwischen den Modulen ist **nicht**, ob es
+    # die Felder gibt, sondern ob sie **Pflicht** sind (Testnotiz #777).
 
-        Der erste der beiden Fäden, die den Beleg einmal an «Beschaffen» banden. Dort ist
-        die Liste eine **Freigabe** (wer für dieses Teil in Frage kommt, vorab
-        entschieden, mindestens einer); beim **Bewegen** ist sie leer – welcher Spediteur
-        fährt, entscheidet sich zur Laufzeit, genau wie das offene Ziel.
+    #: Der Schlüssel der zugelassenen Lieferanten in der Konfiguration.
+    SUPPLIERS = "suppliers"
+    #: Der Schlüssel des Auftrags an den Lieferanten.
+    INSTRUCTION = "instruction"
+
+    #: Wie lang eine Bestellangabe höchstens ist – eine Nummer oder eine URL.
+    MAX_REF = 200
+    #: Wie lang der Auftrag an den Lieferanten höchstens ist. Ein Satz, kein
+    #: Pflichtenheft – wer mehr braucht, hängt ein Dokument an den Artikel.
+    MAX_INSTRUCTION = 400
+    #: Wie viele Lieferanten eine Freigabe höchstens nennt. Mehr ist keine Auswahl mehr,
+    #: sondern eine Adressliste – und niemand fragt zwanzig Lieferanten je Schraube an.
+    MAX_SUPPLIERS = 10
+
+    #: **Muss beim Definieren mindestens ein Lieferant zugelassen sein?**
+    #:
+    #: Nur dort sinnvoll, wo der Einkauf der **Zweck** ist: die Liste ist dann eine
+    #: Freigabeentscheidung, die vorab fällt («für dieses Teil kommen diese drei in
+    #: Frage»). Wo der Einkauf eine **Wahl** ist, entscheidet sich erst zur Laufzeit, ob
+    #: überhaupt jemand beauftragt wird – eine Pflichtliste wäre dort eine Hürde ohne
+    #: Gegenwert. Angeboten wird das Feld trotzdem: «wir fahren nur mit diesen drei
+    #: Speditionen» ist eine echte Hausregel.
+    suppliers_required: bool = False
+
+    #: **Muss beim Definieren ein Auftrag an den Lieferanten stehen?**
+    #:
+    #: Pflicht ist er, wo **nichts** ableitbar ist (Beschaffen: die Artikel-Spezifikation
+    #: beschreibt die Sache, nicht den Auftrag). Wo ein Satz abgeleitet wird
+    #: (``derived_instruction``), ist die Eingabe eine **Ergänzung** – und freiwillig.
+    instruction_required: bool = False
+
+    def suppliers_of(self, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+        """**Bei wem darf dieses Modul einkaufen?** – die EINE Lesestelle.
+
+        Sie liest **beide** Formen: die heutige (``{"supplier": …, "ref": …}``) und die
+        alte, blosse Objektnummer. Ein Auftrag friert seinen Prozess bei der Freigabe
+        ein – die alte Form steht also in laufenden Aufträgen und wird sie überleben.
+        Tolerant lesen, streng schreiben.
 
         **Leer heisst frei, nicht «niemand».** Die Prüfung im Dienst (``_ask``) schränkt
         nur ein, wenn hier etwas steht – sonst wäre ein Modul ohne Liste eines, bei dem
         man nirgends anfragen kann.
         """
-        return []
+        out: list[dict[str, Any]] = []
+        for entry in (config or {}).get(self.SUPPLIERS) or []:
+            row = entry if isinstance(entry, dict) else {"supplier": entry}
+            number = self._object_id(row.get("supplier"))
+            if number is None:
+                continue
+            out.append({"supplier": number, "ref": str(row.get("ref") or "").strip()})
+        return out
 
     def allowed_numbers(self, config: Optional[dict[str, Any]]) -> list[int]:
         """Nur die Objektnummern – dieselbe Liste, andere Form (für die Prüfungen)."""
         return [row["supplier"] for row in self.suppliers_of(config)]
 
-    def instruction_for(self, config: Optional[dict[str, Any]], *,
-                        facts: Optional[dict[str, Any]] = None) -> str:
-        """**Was soll der Lieferant tun?** Vorgabe: nichts zu sagen.
+    def derived_instruction(self, facts: Optional[dict[str, Any]] = None) -> str:
+        """**Was weiss der Vorgang selbst schon?** Vorgabe: nichts.
 
-        Der zweite Faden. Beim **Beschaffen** ist der Satz eine Pflichtangabe der
-        Definition («Härten auf 58 HRC») – er gehört dem Schritt, nicht dem Artikel. Beim
-        **Bewegen** ist er **abgeleitet** («von A nach B»): wo es herkommt und wo es
-        hinsoll, weiss der Vorgang bereits, und wer es abtippen müsste, könnte es falsch
-        abtippen. Darum braucht das Bewegen-Modul für seinen Beleg **keine einzige**
-        zusätzliche Konfiguration.
+        Beim **Bewegen** ist es «von A nach B» – Herkunft und Ziel stehen bereits fest,
+        und wer sie abtippen müsste, könnte sie falsch abtippen. Genau darum bleibt
+        dieser Teil abgeleitet und ist **kein** Eingabefeld.
 
-        ``facts`` liefert der Dienst (Herkunft, Ziel) – das Modul formuliert daraus. So
+        ``facts`` liefert der Dienst (Herkunft, Ziel); das Modul formuliert daraus. So
         bleibt die Regel im Modul und die Datenbank-Abfrage im Dienst.
         """
         return ""
+
+    def instruction_for(self, config: Optional[dict[str, Any]], *,
+                        facts: Optional[dict[str, Any]] = None) -> str:
+        """**Was soll der Lieferant tun?** – abgeleitet **plus** das, was nur ein Mensch weiss.
+
+        Beides in dieser Reihenfolge, an dieser einen Stelle. Der abgeleitete Teil sagt,
+        *was* der Vorgang ist («Transport von Werk Nord nach Regal B»); die Ergänzung
+        sagt, was daran besonders ist («Hebebühne nötig», «nur werktags») – und das kann
+        kein System wissen.
+
+        Vorher gab es dafür zwei Fassungen: Beschaffen nahm **nur** den getippten Satz,
+        Bewegen **nur** den abgeleiteten und bot gar kein Feld an. Damit war der
+        Transport-Beleg vordefiniert und sofort bestätigt, ohne dass jemand etwas
+        hinzufügen konnte (Testnotiz #777). Eine Formel, zwei Summanden – wo einer leer
+        ist, bleibt der andere übrig.
+        """
+        derived = self.derived_instruction(facts).strip()
+        added = str((config or {}).get(self.INSTRUCTION) or "").strip()
+        return " · ".join(part for part in (derived, added) if part)
+
+    def clean_purchase_config(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Die beiden Beleg-Angaben prüfen – **einmal**, für jedes Modul, das einkauft.
+
+        Ob sie Pflicht sind, sagen die Deklarationen (``suppliers_required`` /
+        ``instruction_required``), nicht eine Abfrage nach dem Modultyp. Ein Modul, das
+        gar nicht einkauft, ruft das hier nicht auf – und trägt die Felder folglich auch
+        nicht mit sich herum.
+        """
+        suppliers = self._suppliers(data.get(self.SUPPLIERS))
+        if self.suppliers_required and not suppliers:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"«{self.label}» braucht mindestens einen zugelassenen "
+                        f"Lieferanten – bei wem sonst sollte bestellt werden?"),
+            )
+        instruction = str(data.get(self.INSTRUCTION) or "").strip()
+        if self.instruction_required and not instruction:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"«{self.label}» braucht einen Satz, was der Lieferant tun soll – die "
+                    f"Artikel-Spezifikation beschreibt die Sache, nicht den Auftrag "
+                    f"(«Härten auf 58 HRC», «gemäss Zeichnung fertigen», «liefern»)."
+                ),
+            )
+        if len(instruction) > self.MAX_INSTRUCTION:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Der Auftrag ist zu lang (max. {self.MAX_INSTRUCTION} Zeichen).",
+            )
+        return {self.SUPPLIERS: suppliers, self.INSTRUCTION: instruction}
+
+    def _suppliers(self, value: Any) -> list[dict[str, Any]]:
+        """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt – ob sie es sein darf,
+        entscheidet ``suppliers_required``, nicht diese Funktion."""
+        if value in (None, ""):
+            value = []
+        if not isinstance(value, (list, tuple)):
+            raise HTTPException(
+                status_code=400,
+                detail=f"«{self.label}» erwartet eine Liste zugelassener Lieferanten.",
+            )
+        found: list[dict[str, Any]] = []
+        for entry in value:
+            row = entry if isinstance(entry, dict) else {"supplier": entry}
+            number = self._object_id(row.get("supplier"))
+            if number is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"«{entry}» ist keine Lieferanten-Objektnummer.",
+                )
+            if any(r["supplier"] == number for r in found):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"Lieferant {number} steht zweimal in der Freigabe – zweimal "
+                            f"derselbe ist keine zweite Wahl."),
+                )
+            ref = str(row.get("ref") or "").strip()
+            # **Pflicht** (Testnotiz #756): ohne sie steht beim Bestellen nicht da, unter
+            # welcher Nummer bzw. über welchen Link man bei *ihm* bestellt – und genau
+            # das war der Grund, warum die Angabe früher am Beleg landete, wo man sie bei
+            # jedem Vorgang neu abschreiben musste. Gelesen wird weiterhin tolerant: ein
+            # laufender Auftrag trägt seinen Prozess eingefroren.
+            if not ref:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"Lieferant {number} braucht eine Bestellangabe – seine "
+                            f"Artikelnummer oder den Link, unter dem man bei ihm "
+                            f"bestellt."),
+                )
+            if len(ref) > self.MAX_REF:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Die Bestellangabe ist zu lang (max. {self.MAX_REF} Zeichen).",
+                )
+            found.append({"supplier": number, "ref": ref})
+        if len(found) > self.MAX_SUPPLIERS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Höchstens {self.MAX_SUPPLIERS} Lieferanten je Modul.",
+            )
+        return found
+
+    @staticmethod
+    def _object_id(value: Any) -> Optional[int]:
+        if value in (None, "", 0):
+            return None
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return None
+        return number if number > 0 else None
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Auf welchen Zustand setzt dieses Modul ein Stück, das **hier hinausgeht**?
@@ -536,11 +689,20 @@ class Bewegen(Module):
     action: str = "Bewegung bestätigen"
 
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
-        value = (raw or {}).get(self.TARGET)
-        target = self._as_object_id(value)
+        data = raw or {}
+        target = self._as_object_id(data.get(self.TARGET))
+        # ►► **Auch dieses Modul kann einkaufen – also trägt es dieselben Beleg-Angaben.**
+        #
+        # Beide sind hier **freiwillig** (die Deklarationen oben): welcher Spediteur
+        # fährt, entscheidet sich zur Laufzeit, und *was* zu tun ist, steht schon im
+        # abgeleiteten Satz. Dass die Felder trotzdem da sind, ist der Punkt: «wir fahren
+        # nur mit diesen drei Speditionen» und «Hebebühne nötig» sind echte Angaben, und
+        # sie gehören dorthin, wo auch das Beschaffen-Modul sie hat (Testnotiz #777).
+        #
         # Keine Erfassungspunkte und keine Stichprobe: bewegt wird, was ankommt. Die
         # Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
-        return {self.TARGET: target, "points": [], "sample": dict(sampling.DEFAULT)}
+        return {self.TARGET: target, **self.clean_purchase_config(data),
+                "points": [], "sample": dict(sampling.DEFAULT)}
 
     @staticmethod
     def _as_object_id(value: Any) -> Optional[int]:
@@ -581,14 +743,17 @@ class Bewegen(Module):
             )
         return Move(target=int(goal))
 
-    def instruction_for(self, config: Optional[dict[str, Any]], *,
-                        facts: Optional[dict[str, Any]] = None) -> str:
+    def derived_instruction(self, facts: Optional[dict[str, Any]] = None) -> str:
         """**«von A nach B»** – abgeleitet, nie getippt.
 
-        Der Spediteur braucht genau diesen einen Satz, und beide Hälften stehen bereits
-        fest: die Herkunft ist der heutige Halter der Stücke, das Ziel ist das Ziel
-        dieses Moduls. Ein Eingabefeld daneben wäre eine zweite Aussage über dieselbe
-        Sache – und die getippte gewinnt auch dann, wenn sie falsch ist.
+        Beide Hälften stehen bereits fest: die Herkunft ist der heutige Halter der
+        Stücke, das Ziel ist das Ziel dieses Moduls. Ein Eingabefeld **für diesen Satz**
+        wäre eine zweite Aussage über dieselbe Sache – und die getippte gewinnt auch
+        dann, wenn sie falsch ist. Das bleibt so.
+
+        Was daneben eingegeben werden **darf**, ist etwas anderes: was nur ein Mensch
+        weiss («Hebebühne nötig», «nur werktags»). Das hängt der Rahmen an
+        (``Module.instruction_for``) – hier steht ausschliesslich das Ableitbare.
 
         Was nicht bekannt ist, wird **weggelassen** statt geraten: liegen die Stücke
         nirgends (ein frisch erzeugtes Stück liegt nirgends, §9.8), heisst es schlicht
@@ -691,19 +856,14 @@ class Beschaffen(Module):
     still, sondern **meldet** und wartet auf die Bestätigung (``services/purchase``).
     """
 
-    SUPPLIERS = "suppliers"
-    INSTRUCTION = "instruction"
-
-    #: Wie lang eine Bestellangabe höchstens ist – eine Nummer oder eine URL.
-    MAX_REF = 200
-
-    #: Wie lang der Auftrag an den Lieferanten höchstens ist. Ein Satz, kein Pflichtenheft
-    #: – wer mehr braucht, hängt ein Dokument an den Artikel.
-    MAX_INSTRUCTION = 400
-
-    #: Wie viele Lieferanten eine Freigabe höchstens nennt. Mehr ist keine Auswahl mehr,
-    #: sondern eine Adressliste – und niemand fragt zwanzig Lieferanten je Schraube an.
-    MAX_SUPPLIERS = 10
+    #: **Die Beleg-Angaben stehen nicht mehr hier**, sondern an ``Module`` – seit auch
+    #: das Bewegen-Modul einen Beleg tragen kann, beschreiben sie den *Beleg* und nicht
+    #: diesen Modultyp. Was diese Klasse dazu sagt, sind die zwei Zeilen darunter: hier
+    #: sind **beide Pflicht**, denn es ist nichts ableitbar. Der Artikel beschreibt die
+    #: Sache, nicht den Auftrag; und ohne zugelassenen Lieferanten steht beim Ausführen
+    #: niemand da, bei dem man bestellen könnte.
+    suppliers_required = True
+    instruction_required = True
 
     #: **Die Stufen stehen nicht mehr hier** (``domain/procurement``). Sie beschreiben
     #: den *Beleg*, nicht diesen Modultyp – und seit auch das Bewegen-Modul einen tragen
@@ -719,124 +879,12 @@ class Beschaffen(Module):
     action = "Wareneingang buchen"
 
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
-        data = raw or {}
-        suppliers = self._suppliers(data.get(self.SUPPLIERS))
-
-        instruction = str(data.get(self.INSTRUCTION) or "").strip()
-        if not instruction:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "«Beschaffen» braucht einen Satz, was der Lieferant tun soll – die "
-                    "Artikel-Spezifikation beschreibt die Sache, nicht den Auftrag "
-                    "(«Härten auf 58 HRC», «gemäss Zeichnung fertigen», «liefern»)."
-                ),
-            )
-        if len(instruction) > self.MAX_INSTRUCTION:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Der Auftrag ist zu lang (max. {self.MAX_INSTRUCTION} Zeichen).",
-            )
-        # Keine Erfassungspunkte und keine Stichprobe: was ankommt, kommt an. Die Felder
-        # stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
-        return {self.SUPPLIERS: suppliers, self.INSTRUCTION: instruction,
+        # Beide Angaben sind hier **Pflicht** – das sagen die Deklarationen oben, geprüft
+        # wird im gemeinsamen Block. Keine Erfassungspunkte und keine Stichprobe: was
+        # ankommt, kommt an. Die Felder stehen trotzdem, damit jede Lesestelle dieselbe
+        # Form vorfindet.
+        return {**self.clean_purchase_config(raw or {}),
                 "points": [], "sample": dict(sampling.DEFAULT)}
-
-    def suppliers_of(self, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
-        """**Die zugelassenen Lieferanten – die EINE Lesestelle.**
-
-        Sie liest **beide** Formen: die heutige (``{"supplier": …, "ref": …}``) und die
-        alte, blosse Objektnummer. Ein Auftrag friert seinen Prozess bei der Freigabe
-        ein – die alte Form steht also in laufenden Aufträgen und wird sie überleben.
-        Tolerant lesen, streng schreiben.
-        """
-        out: list[dict[str, Any]] = []
-        for entry in (config or {}).get(self.SUPPLIERS) or []:
-            row = entry if isinstance(entry, dict) else {"supplier": entry}
-            number = self._object_id(row.get("supplier"))
-            if number is None:
-                continue
-            out.append({"supplier": number, "ref": str(row.get("ref") or "").strip()})
-        return out
-
-    def instruction_for(self, config: Optional[dict[str, Any]], *,
-                        facts: Optional[dict[str, Any]] = None) -> str:
-        """Der Satz aus der Definition – hier eine **Pflichtangabe**, keine Ableitung.
-
-        «Härten auf 58 HRC» ist eine Eigenschaft *dieses Schritts* und nicht des
-        Artikels; ein Artikel hat mehrere Schritte. Ohne ihn ist das Modul nicht
-        anlegbar (``clean_config``): eine Bestellung, aus der niemand liest, was verlangt
-        ist, ist keine.
-        """
-        return str((config or {}).get(self.INSTRUCTION) or "")
-
-    def _suppliers(self, value: Any) -> list[dict[str, Any]]:
-        if value in (None, ""):
-            value = []
-        if not isinstance(value, (list, tuple)):
-            raise HTTPException(
-                status_code=400,
-                detail="«Beschaffen» erwartet eine Liste zugelassener Lieferanten.",
-            )
-        found: list[dict[str, Any]] = []
-        for entry in value:
-            row = entry if isinstance(entry, dict) else {"supplier": entry}
-            number = self._object_id(row.get("supplier"))
-            if number is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"«{entry}» ist keine Lieferanten-Objektnummer.",
-                )
-            if any(r["supplier"] == number for r in found):
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"Lieferant {number} steht zweimal in der Freigabe – zweimal "
-                            f"derselbe ist keine zweite Wahl."),
-                )
-            ref = str(row.get("ref") or "").strip()
-            # **Pflicht** (Testnotiz #756): ohne sie steht beim Bestellen nicht da, unter
-            # welcher Nummer bzw. über welchen Link man bei *ihm* bestellt – und genau
-            # das war der Grund, warum die Angabe früher am Beleg landete, wo man sie bei
-            # jedem Vorgang neu abschreiben musste. Gelesen wird weiterhin tolerant: ein
-            # laufender Auftrag trägt seinen Prozess eingefroren.
-            if not ref:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(f"Lieferant {number} braucht eine Bestellangabe – seine "
-                            f"Artikelnummer oder den Link, unter dem man bei ihm "
-                            f"bestellt."),
-                )
-            if len(ref) > self.MAX_REF:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Die Bestellangabe ist zu lang (max. {self.MAX_REF} Zeichen).",
-                )
-            found.append({"supplier": number, "ref": ref})
-        if not found:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "«Beschaffen» braucht mindestens einen zugelassenen Lieferanten – "
-                    "ohne ihn steht beim Ausführen niemand da, bei dem man bestellen "
-                    "könnte."
-                ),
-            )
-        if len(found) > self.MAX_SUPPLIERS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Höchstens {self.MAX_SUPPLIERS} Lieferanten je Modul.",
-            )
-        return found
-
-    @staticmethod
-    def _object_id(value: Any) -> Optional[int]:
-        if value in (None, "", 0):
-            return None
-        try:
-            number = int(value)
-        except (TypeError, ValueError):
-            return None
-        return number if number > 0 else None
 
 
 MODULES: dict[str, Module] = {

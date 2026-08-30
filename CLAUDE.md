@@ -1572,6 +1572,44 @@
 > **Wirkung** gemessen. Gemessen in Chromium: 1440 · 1280 · 1024 · 834 · 375 · 320 px,
 > **0 px** waagrechter Überlauf, nichts ragt aus der Prozessspur.
 
+> **Testnotizen #775–#777: der Einkauf ist EIN Vorgang – überall gleich.** Drei Notizen,
+> und der rote Faden ist derselbe: der Beleg am **Bewegen**-Modul verhielt sich anders
+> als der am **Beschaffen**-Modul – er sah anders aus, liess sich nicht zurücknehmen wie
+> er entstand, und wurde an einer anderen Stelle definiert, nämlich gar nicht.
+> **(1) Ein Schalter hat zwei Richtungen** (#775): er stand fest auf `self` und
+> **verschwand**, sobald ein Beleg entstand – das Bedienelement, mit dem man die
+> Entscheidung getroffen hat, war weg, und der Weg zurück lag woanders (`revoke` **im**
+> Beleg). Der Dienst konnte das längst: `buy → revoke → buy` läuft über die echten Pfade
+> fehlerfrei durch (der partielle Unique-Index aus Migration 119 trägt), es war
+> ausschliesslich die Oberfläche. Jetzt ist der Wert **abgeleitet**
+> (`purchase ? 'bought' : 'self'`), beide Richtungen sind verdrahtet, und **ob es
+> zurückgeht, sagt der Server** (`revoke ∈ purchase.can` – dieselbe Tabelle Stufe × Rolle,
+> die auch das Tor ist). Eine Heuristik «hat hier schon jemand etwas eingegeben?» wäre die
+> zweite, mildere Antwort. Ist die Wahl nicht mehr umkehrbar, **bleibt der Schalter
+> stehen** – gesperrt, mit Grund im Hover: sonst beantwortet nichts mehr, was gewählt war.
+> **(2) Der ganze Bereich trägt die Farbe seines Vorgangs** (#776) – als **Haarlinie**,
+> nicht als Fläche: eine getönte Karte wäre die dritte (Modul-Karte → Beleg-Karte →
+> Stufen-Zeile), und «Struktur vor Fläche» ist die ERP-Regel des Hauses.
+> **(3) Was ein Beleg beim Definieren braucht, deklariert das Modul** (#777) – und die
+> Antwort ist **nicht**, den abgeleiteten Satz editierbar zu machen: «Transport von A nach
+> B» kennt der Vorgang selbst (Herkunft = heutiger Halter, Ziel = Modul-Ziel), ein
+> Eingabefeld daneben wäre die zweite Aussage, und die getippte gewänne auch falsch. Was
+> fehlte, ist das, was **nur ein Mensch weiss** («Hebebühne nötig», «nur werktags») – und
+> dafür hat das Beschaffen-Modul längst ein Feld. Also tragen **beide** Module dieselben
+> zwei Beleg-Angaben (`suppliers`, `instruction`); sie sind an `Module` gewandert, nicht an
+> eine Klasse, und der Unterschied ist eine **Deklaration**: `suppliers_required` /
+> `instruction_required` (Beschaffen: beide Pflicht, nichts ist ableitbar · Bewegen: beide
+> freiwillig – wer fährt, entscheidet sich zur Laufzeit, und *was* zu tun ist, steht im
+> abgeleiteten Satz). Zur Laufzeit ist der Auftrag **abgeleitet · ergänzt**, eine Formel
+> mit zwei Summanden (`instruction_for` ← `derived_instruction`). Im Editor hängt der
+> Block an **`buys`** statt an einer Liste von Modultypen: ein neuer einkaufender Typ
+> bekommt ihn, ohne dass jemand das Frontend anfasst. `MODULE_FIELDS` trägt darum
+> `beschaffen: null` – ausser seinem Beleg hat es nichts zu konfigurieren.
+> Wächter: `test_purchase_module` (3 neue) + `test_frontend_mirrors` (2 neue, einer
+> umgeschrieben) – **jeder gegen seine Bug-Form gegengeprüft**. Der umgeschriebene suchte
+> wörtlich nach `if (purchase)` und prüfte damit die **Form** des Codes statt die Regel;
+> er fragt jetzt, ob die Oberfläche wieder einen Modultyp nennt.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

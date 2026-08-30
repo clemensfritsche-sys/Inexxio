@@ -142,6 +142,15 @@ Etikett klebt am physischen Ding, und eine Einzelinstanz zieht keine Objektnumme
 Typ ist je ein Eintrag; `test_frontend_mirrors` hält die Schlüssel mit `domain/modules.py`
 deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
 
+- **Der Einkaufs-Block hängt an `buys`, nicht am Modultyp** (#777). Zugelassene
+  Lieferanten und Auftrag an den Lieferanten gehören dem **Beleg**; jedes Modul, das
+  einkaufen kann, bekommt sie – und ob sie Pflicht sind, sagt derselbe Katalog-Eintrag
+  (`suppliers_required` / `instruction_required`). `MODULE_FIELDS` trägt darum
+  `beschaffen: null`: ausser seinem Beleg hat es nichts zu konfigurieren. Ein neuer
+  einkaufender Typ bekommt den Block, ohne dass jemand diese Datei anfasst.
+  **Was abgeleitet ist, steht als Auskunft da, nicht als Vorschlag im Feld**: beim
+  Bewegen heisst das Feld «Ergänzung zum Auftrag», weil «Transport von A nach B» schon
+  daneben steht – eintippbar wäre es die zweite Aussage über dieselbe Sache.
 - **Ein Modul zeigt seine Sache in JEDEM Zustand** (#771): der Editor rendert seinen
   Feldsatz auch im **eingefrorenen** Prozess – gesperrt über `fieldset[disabled]`, eine
   Zeile statt eines zweiten Layouts. Vorher stand dort `renderStep: frozen ? undefined`:
@@ -228,9 +237,17 @@ und das zweite veraltet beim ersten neuen Verb.
 - **Die Oberfläche fragt zwei Eigenschaften, nie den Modultyp**: `step.moves` (Ziel-Scan?)
   und `step.buys` (`'if_chosen'` → die Wahl anbieten). Beide reisen mit dem Schritt, wie
   Farbe und Beschriftung – den Modul-Katalog lädt nur der Editor.
-- **Die Wahl steht dort, wo ihre Folge steht** (`Wrapped`), und nur, solange es keinen
-  Beleg gibt: danach ist sie beantwortet, und «zurück» ist die Gegenhandlung des Belegs
-  (`revoke`), nicht ein zweiter Schalter daneben. Sie heisst **«Selbst ↔ Beschaffen»** –
+- **Die Wahl steht dort, wo ihre Folge steht** (`Wrapped`) – und **derselbe Schalter
+  nimmt sie zurück** (#775). Der Wert ist **abgeleitet** (`purchase ? 'bought' : 'self'`),
+  beide Richtungen sind verdrahtet (`buy` ↔ `revoke`), und **ob es zurückgeht, sagt der
+  Server** (`revoke ∈ purchase.can`). Vorher stand er fest auf `self` und verschwand,
+  sobald ein Beleg entstand: das Bedienelement, mit dem man gewählt hat, war weg, und der
+  Weg zurück lag im Beleg – zwei Gesten für eine Sache. Ist die Wahl nicht mehr umkehrbar,
+  bleibt der Schalter **stehen** (gesperrt, Grund im Hover): sonst beantwortet nichts mehr,
+  was gewählt war.
+- **Der ganze Einkaufs-Bereich trägt seinen Ton** (`ProcurementBlock`, #776) – als
+  Haarlinie an der Kante, nicht als Fläche: eine getönte Karte wäre die dritte
+  (Modul-Karte → Beleg-Karte → Stufen-Zeile). Sie heisst **«Selbst ↔ Beschaffen»** –
   dasselbe Wort wie das Modul, das es sonst tut, aus **einer** Quelle (`PROCUREMENT`,
   gespiegelt von `domain/procurement`).
 - **Und man sieht, dass es ein Einkauf ist** (#775): über dem Beleg steht seine eigene

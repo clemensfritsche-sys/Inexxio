@@ -2256,6 +2256,23 @@ export interface components {
             status_before: string;
             /** Status After */
             status_after: string;
+            /** Buys */
+            buys?: string | null;
+            /**
+             * Suppliers Required
+             * @default false
+             */
+            suppliers_required: boolean;
+            /**
+             * Instruction Required
+             * @default false
+             */
+            instruction_required: boolean;
+            /**
+             * Derived Instruction
+             * @default
+             */
+            derived_instruction: string;
         };
         /**
          * NeedSource

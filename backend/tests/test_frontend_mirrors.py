@@ -4929,7 +4929,15 @@ def test_a_bought_transport_is_the_ordinary_purchase_document():
         "Der Beleg wird an mehr als einer Stelle gerendert – dann gibt es ihn zweimal."
     )
     body = _body(detail, "Wrapped", kind="function")
-    assert "if (purchase)" in body, (
+    # **Erkannt wird er allein daran, DASS es ihn gibt** – nie am Modultyp. Geprüft wird
+    # die Regel, nicht die Form: eine frühere Fassung suchte wörtlich nach `if (purchase)`
+    # und schlug an, sobald jemand denselben Gedanken anders schrieb.
+    for key in ("'bewegen'", '"bewegen"', "'beschaffen'", '"beschaffen"'):
+        assert key not in body, (
+            f"Die Oberfläche fragt wieder nach dem Modultyp ({key}) – sie liest zwei "
+            f"Eigenschaften (`buys`, `purchase`) und sonst nichts."
+        )
+    assert "purchase ?" in body, (
         "Der Beleg wird nicht mehr allein daran erkannt, dass es ihn gibt."
     )
 
@@ -4945,11 +4953,11 @@ def test_a_bought_transport_is_the_ordinary_purchase_document():
     #     **mit dem Beleg reist** (`label`/`tone`), nicht aus dem Modul-Katalog geholt.
     #     Bug-Form: der Beleg entsteht nur im Hintergrund, und die Karte sieht aus wie
     #     vorher.
-    assert "<ProcurementHead" in body, (
+    assert "<ProcurementBlock" in body, (
         "Der Einkaufs-Vorgang trägt keine Überschrift – dann sieht man ihm nicht an, "
         "dass hier eine Leistung eingekauft wird."
     )
-    head = _body(detail, "ProcurementHead", kind="function")
+    head = _body(detail, "ProcurementBlock", kind="function")
     assert "purchase.tone" in head and "purchase.label" in head, (
         "Die Identität wird nicht vom Beleg gelesen – wer sie beim Modul-Katalog holt, "
         "borgt sich die eines Moduls, das hier gar nicht steht (und den Katalog lädt nur "
@@ -5174,4 +5182,65 @@ def test_the_user_has_no_empty_document_tab():
     )
     assert "DetailTabs" not in src, (
         "Der Benutzer hat wieder eine Reiterleiste – mit genau einem Reiter darin."
+    )
+
+
+def test_the_haulage_switch_has_two_directions():
+    """►►► **Ein Schalter zeigt die Wahl UND nimmt sie zurück** (Testnotiz #775). ◄◄◄
+
+    Gemeldet: «wenn ich einmal auf beschaffen geklickt habe, dann kann ich nicht mehr
+    über das gleiche button UI hin und her wechseln». Genau so war es gebaut – der Wert
+    stand fest auf ``self``, und sobald ein Beleg entstand, wurde der ganze Schalter
+    durch den Beleg **ersetzt**. Das Bedienelement, mit dem man die Entscheidung
+    getroffen hat, war weg; der Weg zurück lag woanders (``revoke`` im Beleg). Zwei
+    Gesten für eine Sache.
+
+    Der Weg zurück existierte dabei im Dienst längst: ``buy → revoke → buy`` läuft über
+    die echten Pfade fehlerfrei durch (der partielle Unique-Index aus Migration 119
+    trägt). Es war ausschliesslich eine Frage der Oberfläche.
+
+    **Und ob es zurückgeht, sagt der Server** – ``revoke ∈ purchase.can``, dieselbe
+    Tabelle (Stufe × Rolle), die auch das Tor ist. Eine Frontend-Heuristik «hat hier
+    schon jemand etwas eingegeben?» wäre die zweite Antwort auf dieselbe Frage, und die
+    mildere von beiden.
+
+    Bug-Formen: (a) fester Wert statt abgeleitetem; (b) nur eine Richtung verdrahtet;
+    (c) die Umkehrbarkeit im Browser geraten statt vom Beleg gelesen.
+    """
+    body = _body(_code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx")),
+                 "Wrapped", kind="function")
+
+    assert "value=\"self\"" not in body and "value={'self'}" not in body, (
+        "Der Schalter steht auf einem festen Wert – dann zeigt er nicht, was gilt."
+    )
+    assert "purchase ? 'bought' : 'self'" in body, (
+        "Der Wert des Schalters ist nicht aus dem Beleg abgeleitet."
+    )
+    assert "action: 'buy'" in body and "action: 'revoke'" in body, (
+        "Der Schalter verdrahtet nur eine Richtung – zurück käme man nur woanders."
+    )
+    assert "can" in body and "revoke" in body, (
+        "Die Umkehrbarkeit wird nicht am Beleg gelesen (`purchase.can`) – im Browser "
+        "geraten wäre sie die zweite, mildere Antwort."
+    )
+
+
+def test_the_procurement_block_carries_its_tone_as_a_line_not_a_surface():
+    """**Der ganze Einkaufs-Bereich trägt die Farbe seines Vorgangs** (Testnotiz #776).
+
+    Vorher tat das nur die Kopfzeile; darunter lief der Beleg in der Grundfarbe weiter,
+    und die Zugehörigkeit endete nach zwei Zentimetern.
+
+    **Als Linie, nicht als Fläche.** Eine getönte Karte wäre die dritte Fläche
+    (Modul-Karte → Beleg-Karte → Stufen-Zeile) – «Struktur vor Fläche» ist die ERP-Regel
+    des Hauses. Bug-Form: ein `background` in der Modulfarbe.
+    """
+    block = _body(_code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx")),
+                  "ProcurementBlock", kind="function")
+    assert "borderLeft" in block, (
+        "Der Bereich trägt seine Farbe nicht über die Kopfzeile hinaus."
+    )
+    assert "background" not in block, (
+        "Der Einkaufs-Bereich ist eine getönte FLÄCHE – das ist die dritte Karte in der "
+        "Karte; die Zugehörigkeit trägt im ERP die Haarlinie."
     )

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ModuleCatalog, SupplierOption } from '@/types';
+import type { ModuleCatalog, ModuleTypeInfo, SupplierOption } from '@/types';
 import {
   CAPTURE_ICON, DISPOSAL_MODES, moduleIcon, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
   moduleTone,
@@ -149,8 +149,10 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
           if (!m) return null;
           // **Welche Felder ein Modul hat, sagt sein Typ** – die Zuordnung steht hier,
           // nicht als Bedingung im Rumpf. Ein neuer Typ ist ein Eintrag, kein Eingriff.
+          const known = m.moduleType in MODULE_FIELDS;
           const Fields = MODULE_FIELDS[m.moduleType];
-          if (!Fields) {
+          const info = (catalog?.modules ?? []).find((x) => x.key === m.moduleType);
+          if (!known) {
             return (
               <p className="text-xs" style={{ color: 'var(--danger)' }}>
                 Modultyp «{m.moduleType}» ist dieser Oberfläche unbekannt.
@@ -160,8 +162,23 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
           return (
             <fieldset disabled={frozen}
               style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-              <Fields module={m} types={catalog?.capture_types ?? []}
-                onChange={(next) => patch(m.id, next)} />
+              <div className="flex flex-col gap-3">
+                {Fields && (
+                  <Fields module={m} types={catalog?.capture_types ?? []}
+                    onChange={(next) => patch(m.id, next)} />
+                )}
+                {/* ►► **Wer einkaufen kann, definiert seinen Beleg – hier, wie jeder
+                    andere auch.** ◄◄
+                    Der Block hängt an `buys` und nicht an einer Liste von Modultypen in
+                    dieser Datei: ein neuer einkaufender Typ bekommt ihn, ohne dass
+                    jemand das Frontend anfasst. Ob die Angaben Pflicht sind und ob
+                    daneben etwas Abgeleitetes steht, sagt derselbe Eintrag – die
+                    Oberfläche fragt nie nach dem Modultyp (#777). */}
+                {info?.buys && (
+                  <ProcurementFields module={m} info={info}
+                    onChange={(next) => patch(m.id, next)} />
+                )}
+              </div>
             </fieldset>
           );
         },
@@ -343,9 +360,9 @@ function MoveFields({ module: m, onChange }: {
  * Modul, und wo jemand seinen Shop hat, ist eine Eigenschaft des Lieferanten – nicht
  * dieser Bestellung.
  */
-function PurchaseFields({ module: m, onChange }: {
+function ProcurementFields({ module: m, info, onChange }: {
   module: ModuleDraft;
-  types: { key: string; label: string }[];
+  info: ModuleTypeInfo;
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   const [known, setKnown] = useState<Record<number, string>>({});
@@ -372,14 +389,31 @@ function PurchaseFields({ module: m, onChange }: {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <Label>Auftrag an den Lieferanten</Label>
+        <Label>
+          {info.derived_instruction ? 'Ergänzung zum Auftrag' : 'Auftrag an den Lieferanten'}
+        </Label>
+        {/* **Was abgeleitet ist, steht als Wert da – nicht als Vorschlag im Feld.**
+            «Transport von A nach B» kennt der Vorgang selbst; ihn hier eintippbar zu
+            machen wäre die zweite Aussage über dieselbe Sache, und die getippte gewänne
+            auch falsch. Die Eingabe daneben ist das, was NUR ein Mensch weiss
+            («Hebebühne nötig») – darum heisst sie dort «Ergänzung» (#777). */}
+        {info.derived_instruction && (
+          <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
+            Steht bereits im Auftrag: «{info.derived_instruction} …» – abgeleitet aus
+            Herkunft und Ziel.
+          </p>
+        )}
         <textarea
           className={inputCls}
           rows={2}
           maxLength={400}
           value={m.instruction}
-          placeholder="z. B. Härten auf 58 HRC · gemäss Zeichnung fertigen · liefern"
-          aria-label="Auftrag an den Lieferanten"
+          required={info.instruction_required}
+          placeholder={info.derived_instruction
+            ? 'z. B. Hebebühne nötig · nur werktags · Gefahrgut'
+            : 'z. B. Härten auf 58 HRC · gemäss Zeichnung fertigen · liefern'}
+          aria-label={info.derived_instruction
+            ? 'Ergänzung zum Auftrag' : 'Auftrag an den Lieferanten'}
           onChange={(e) => onChange({ instruction: e.target.value })}
           style={{ resize: 'vertical', minHeight: 54 }}
         />
@@ -387,7 +421,7 @@ function PurchaseFields({ module: m, onChange }: {
       <div className="flex flex-col gap-1.5">
         <ObjectSelect<SupplierOption>
           label="Zugelassene Lieferanten"
-          required
+          required={info.suppliers_required}
           value={null}
           selected={null}
           find={findSuppliers}
@@ -399,6 +433,16 @@ function PurchaseFields({ module: m, onChange }: {
             onChange({ suppliers: [...m.suppliers, { supplier: nr, ref: '' }] });
           }}
         />
+        {/* **Leer heisst frei, nicht «niemand»** – dieselbe Regel wie im Dienst
+            (`Module.suppliers_of`). Wo der Einkauf nur eine Möglichkeit ist, entscheidet
+            sich erst zur Laufzeit, wer fährt; eine Pflichtliste wäre dort eine Hürde
+            ohne Gegenwert. Dass man sie trotzdem füllen KANN, ist der Punkt: «wir fahren
+            nur mit diesen drei» ist eine echte Hausregel. */}
+        {!info.suppliers_required && m.suppliers.length === 0 && (
+          <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
+            Leer: freie Wahl beim Ausführen.
+          </p>
+        )}
         {/* **Wer liefern darf – und wie man bei ihm bestellt.** Die Bestellangabe steht
             hier und nicht am Beleg: sie ist eine Eigenschaft der Paarung Modul ×
             Lieferant («seine Artikelnummer», «sein Shop-Link») und ändert sich nicht je
@@ -436,14 +480,24 @@ function PurchaseFields({ module: m, onChange }: {
 }
 
 
-/** Welcher Feldsatz gehört zu welchem Modultyp. Eine Zuordnung, keine Bedingung. */
+/**
+ * **Was ein Modultyp ZUSÄTZLICH hat.** Eine Zuordnung, keine Bedingung – und jeder Typ
+ * steht darin, auch der mit `null`: die Liste beantwortet «kennt die Oberfläche diesen
+ * Typ?», und ein fehlender Schlüssel ist die Antwort «nein».
+ *
+ * **Der Einkaufs-Block steht bewusst NICHT hier.** Er hängt an `ModuleTypeInfo.buys`
+ * (siehe `renderStep`), denn er gehört dem **Beleg** und nicht einem Modultyp – seit
+ * auch das Bewegen-Modul einen tragen kann, wäre ein Eintrag je Typ die Stelle, an der
+ * man den nächsten vergisst. `beschaffen` trägt darum `null`: ausser seinem Beleg hat es
+ * nichts zu konfigurieren.
+ */
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
   types: { key: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
-}>> = {
+}> | null> = {
   datenerfassung: ModuleFields,
-  beschaffen: PurchaseFields,
+  beschaffen: null,
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
   bewegen: MoveFields,

@@ -434,10 +434,26 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
  * Namen schon, und zweimal wäre dasselbe Wort zweimal. Das ist keine Abfrage nach dem
  * Modultyp, sondern dieselbe Deklaration, aus der auch die Wahl folgt (`buys`).
  *
- * **Die Wahl steht dort, wo ihre Folge steht**, und nur, solange es keinen Beleg gibt:
- * danach ist sie beantwortet, und «zurück» ist die Gegenhandlung des Belegs (`revoke`) –
- * ein zweiter Schalter daneben wäre der zweite Weg zu einer Sache, die der Beleg
- * verwaltet.
+ * ►►► **Ein Schalter hat zwei Richtungen** (Testnotiz #775). ◄◄◄
+ *
+ * Er blieb früher bei `value="self"` stehen und **verschwand**, sobald ein Beleg
+ * entstand: das Bedienelement, mit dem man die Entscheidung getroffen hat, war weg, und
+ * der Weg zurück lag woanders (`revoke` **im** Beleg). Zwei Gesten für eine Sache – und
+ * für den Benutzer eine Einbahnstrasse.
+ *
+ * Jetzt zeigt derselbe Schalter die Wahl **und** nimmt sie zurück: `bought` → `buy`,
+ * `self` → `revoke`. Der Wert ist **abgeleitet** (`purchase ? 'bought' : 'self'`), nie
+ * gesetzt – eine zweite Aussage darüber, was gewählt ist, könnte der Wirklichkeit
+ * widersprechen.
+ *
+ * **Und ob es zurückgeht, sagt der Server** – `revoke ∈ purchase.can`, dieselbe Tabelle
+ * (Stufe × Rolle), die auch das Tor ist. Keine Heuristik «hat hier schon jemand etwas
+ * eingegeben?»: die gäbe es dann zweimal, und die im Browser wäre die mildere.
+ *
+ * Ist die Wahl nicht mehr umkehrbar (angefragt, bestellt), **bleibt der Schalter
+ * stehen** – gesperrt, mit dem Grund im Hover. Er verschwindet nicht: sonst beantwortet
+ * nichts mehr die Frage «was habe ich hier eigentlich gewählt». Dieselbe Form wie bei
+ * jeder anderen gesperrten Option im Haus.
  */
 function Wrapped({ purchase, buys, busy, active, onAction, children }: {
   purchase: PurchaseEmbed | null;
@@ -448,32 +464,46 @@ function Wrapped({ purchase, buys, busy, active, onAction, children }: {
   children: React.ReactNode;
 }) {
   const optional = buys === 'if_chosen';
-  if (purchase) {
-    return (
-      <div className="flex flex-col">
-        {optional && <ProcurementHead purchase={purchase} />}
-        <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}>
-          {children}
-        </PurchaseWork>
-      </div>
-    );
-  }
-  if (!optional) return <>{children}</>;
+
+  // **EINE Beleg-Komponente**, erkannt allein daran, dass es einen Beleg gibt – nie am
+  // Modultyp. Ein Bewegen-Schritt, bei dem jemand «Beschaffen» gewählt hat, rendert
+  // buchstäblich dieselben Zeilen wie ein Beschaffungs-Schritt.
+  const document = purchase ? (
+    <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}>
+      {children}
+    </PurchaseWork>
+  ) : children;
+
+  // Wo der Einkauf der Zweck ist, gibt es nichts zu wählen – der Beleg ist das Modul.
+  if (!optional) return <>{document}</>;
+
+  // **Zurück kann man, solange der Beleg es hergibt.** Ohne Beleg ist «selbst» ohnehin
+  // der Zustand, und der Weg nach vorn steht offen.
+  const reversible = purchase ? (purchase.can ?? []).includes('revoke') : true;
+  const locked = 'Hier ist bereits etwas zugesagt – zurück geht es über die '
+    + 'Gegenhandlung am Beleg.';
+
   return (
     <div className="flex flex-col gap-2.5">
       {active && (
         <IconSwitch
-          value="self"
-          onChange={(v) => { if (v === 'bought') onAction({ action: 'buy' }); }}
+          value={purchase ? 'bought' : 'self'}
+          onChange={(v) => {
+            if (busy || !reversible) return;
+            if (v === 'bought' && !purchase) onAction({ action: 'buy' });
+            if (v === 'self' && purchase) onAction({ action: 'revoke' });
+          }}
           options={[
             { value: 'self', icon: HAULAGE.self.icon, label: HAULAGE.self.label,
-              hint: HAULAGE.self.hint },
+              hint: reversible ? HAULAGE.self.hint : locked, disabled: !reversible },
             { value: 'bought', icon: HAULAGE.bought.icon, label: HAULAGE.bought.label,
-              hint: HAULAGE.bought.hint },
+              hint: reversible ? HAULAGE.bought.hint : locked, disabled: !reversible },
           ]}
         />
       )}
-      {children}
+      {purchase
+        ? <ProcurementBlock purchase={purchase}>{document}</ProcurementBlock>
+        : document}
     </div>
   );
 }
@@ -491,15 +521,31 @@ function Wrapped({ purchase, buys, busy, active, onAction, children }: {
  * und eine Karte in der Karte wäre die dritte (#100/#104). Die Zugehörigkeit sagt die
  * Haarlinie darunter, wie bei jedem Karten-Kopf im Haus.
  */
-function ProcurementHead({ purchase }: { purchase: PurchaseEmbed }) {
+function ProcurementBlock({ purchase, children }: {
+  purchase: PurchaseEmbed; children: React.ReactNode;
+}) {
   const c = moduleTone(purchase.tone);
   return (
-    <div className="flex items-center gap-2.5"
-      style={{ paddingBottom: 9, marginBottom: 11, borderBottom: `1px solid ${c.border}` }}>
-      <ModuleMark icon={PROCUREMENT.icon} tone={c.fg} size={28} />
-      <span className="text-sm font-semibold" style={{ color: c.fg }}>
-        {purchase.label || PROCUREMENT.label}
-      </span>
+    // ►► **Der ganze Bereich trägt die Farbe seines Vorgangs** (Testnotiz #776) ◄◄
+    //
+    // Vorher tat das nur die Kopfzeile – darunter lief der Beleg in der Grundfarbe
+    // weiter, und die Zugehörigkeit endete nach zwei Zentimetern. Jetzt läuft eine
+    // Haarlinie in seinem Ton am ganzen Block entlang.
+    //
+    // **Eine Linie, keine Fläche.** Eine getönte Karte hier wäre die dritte Fläche
+    // (Modul-Karte → Beleg-Karte → Stufen-Zeile, #100/#104), und «Struktur vor Fläche»
+    // ist die ERP-Regel des Hauses: Haarlinien und Weissraum tragen die Zugehörigkeit,
+    // nicht Rahmen und Schatten.
+    <div className="flex flex-col"
+      style={{ borderLeft: `2px solid ${c.border}`, paddingLeft: 11 }}>
+      <div className="flex items-center gap-2.5"
+        style={{ paddingBottom: 9, marginBottom: 11, borderBottom: `1px solid ${c.border}` }}>
+        <ModuleMark icon={PROCUREMENT.icon} tone={c.fg} size={28} />
+        <span className="text-sm font-semibold" style={{ color: c.fg }}>
+          {purchase.label || PROCUREMENT.label}
+        </span>
+      </div>
+      {children}
     </div>
   );
 }

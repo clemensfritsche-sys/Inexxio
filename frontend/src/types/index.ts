@@ -182,6 +182,12 @@ export type RecordEntry = components['schemas']['RecordEntry'];
 export type RecordValue = components['schemas']['RecordValue'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 /**
+ * **Ein wählbarer Modultyp mit allem, was er deklariert** – inkl. `buys` und der Frage,
+ * ob die Beleg-Angaben dort Pflicht sind. Der Editor liest daraus, welche Felder ein
+ * Modul mitbringt; er fragt nie nach dem Modultyp (#777).
+ */
+export type ModuleTypeInfo = components['schemas']['ModuleTypeInfo'];
+/**
  * **Der Beschaffungs-Beleg** eines Moduls – Stufe, Angebotszeilen, Bestellung
  * (`services/purchase`). `null` bei jedem anderen Modultyp: die Oberfläche braucht damit
  * keine Fallunterscheidung nach dem Modultyp, genau wie bei `transports` und `needs`.

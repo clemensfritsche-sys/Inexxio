@@ -438,7 +438,15 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
     return ModuleCatalog(
         modules=[
             ModuleTypeInfo(key=m.key, label=m.label, tone=m.tone, terminal=m.terminal,
-                           status_before=m.status_before, status_after=m.status_after)
+                           status_before=m.status_before, status_after=m.status_after,
+                           buys=m.buys,
+                           suppliers_required=m.suppliers_required,
+                           instruction_required=m.instruction_required,
+                           # **Ohne Tatsachen** – hier gibt es noch keinen Auftrag und
+                           # keinen Halter. Der Satz zeigt die *Form* («Transport»),
+                           # damit im Editor sichtbar ist, dass daneben schon etwas
+                           # steht; die Herkunft füllt sich erst zur Laufzeit.
+                           derived_instruction=m.derived_instruction())
             for m in modules.MODULES.values()
         ],
         capture_types=[CaptureTypeInfo(key=t.key, label=t.label) for t in capture_types.ALL],
