@@ -125,9 +125,9 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/erp/orders | user | Auftrag-Feed (Lieferant: nur eigene, mit eingebettetem Prozess) |
 | POST | /api/v1/erp/orders | staff | **Auftrag erteilen** – Bedarf + Positionen + Ablauf + Instanz-Auswahl in EINEM Aufruf, anlegen **und** freigeben; erst dabei entsteht die Objektnummer (ein Entwurf existiert nie in der DB) |
 | GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed). Für einen **Lieferanten derselbe Auftrag, nur sein Modul** – die Verengung steht in `_to_response`/`_visible`, nicht an den Aufrufstellen (wer sie dort formulierte, hätte sie beim zweiten Endpunkt nicht). Wer nicht beteiligt ist, bekommt **404**, nicht 403: ein «du darfst nicht» bestätigt, dass es ihn gibt |
-| GET | /api/v1/erp/orders/supplier-options | staff | Zugelassene Lieferanten suchen (Nummer **oder** Name, dieselbe Bedingung wie überall: `services/lookup`) |
+| GET | /api/v1/erp/orders/party-options?role= | staff | **Gegenpartei** suchen – `supplier` beim Einkauf, `customer` beim Verkauf (Nummer **oder** Name, dieselbe Bedingung wie überall: `services/lookup`). Welche Rolle gemeint ist, sagt der Beleg (`PurchaseEmbed.party_role`) bzw. der Katalog (`ModuleTypeInfo.party_role`) – ein zweiter Endpunkt je Rolle wäre dieselbe Abfrage zweimal |
 | POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/confirm | staff | **Ein Modul bestätigen – für EINE Instanz.** `instance_object_id` + `verification` (`scan`\|`manual`) sind Pflicht (§4.4); ohne sie 400. `values` ist **zweistufig** – Nummer der Einzelinstanz → (Punkt → Wert), je gezogenem Stück ein Satz (§9.5). Die Art kommt aus dem **Scan-Dialog** (Kamera ↔ Tastatur), nicht von einem zweiten Knopf daneben. Bestanden → die Stücke rücken vor, nicht bestanden → sie bleiben stehen (§4.5). Antwort: der Auftrag; die Wirkung steht im Audit. |
-| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/purchase | staff | **Den Beschaffungs-Beleg bewegen** – `action` ∈ `ask`·`quote`·`decline`·`order`·`note`·`revoke`·`clarified`. Ein **Befehl**, kein Feld-Update, darum POST wie `confirm` (der Wächter `test_a_status_change_always_writes_the_log` verbietet `PATCH` in diesem Router). **Auch für den Lieferanten offen** (`get_current_user`): was er darf, sagt `purchase._can` (Stufe × Rolle, `SUPPLIER_ACTIONS` = `quote`·`decline`·`note`) – dieselbe Tabelle ist Auskunft **und** Tor, ein Anzeige-Hinweis allein liefe beim nächsten Verb auseinander. |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/purchase | staff | **Den Beleg bewegen** – `action` ∈ `ask`·`quote`·`decline`·`order`·`note`·`revoke`·`clarified` (Stufen-Verben) plus `buy` und `pay` (**ohne** Stufe – der eine legt den Beleg an, der andere bucht Geld). Ein **Befehl**, kein Feld-Update, darum POST wie `confirm` (der Wächter `test_a_status_change_always_writes_the_log` verbietet `PATCH` in diesem Router). **Auch für den Lieferanten offen** (`get_current_user`): was er darf, sagt `purchase._can` (Stufe × Rolle, `SUPPLIER_ACTIONS` = `quote`·`decline`·`note`) – dieselbe Tabelle ist Auskunft **und** Tor, ein Anzeige-Hinweis allein liefe beim nächsten Verb auseinander. |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/record | staff | **Was ist an diesem Modul passiert?** Je Vorgang (= eine Einzelinstanz, ein Durchgang): Nummer · wer · wann · wie bestätigt · Nachher-Zustand · Urteil · gezogen? · verbaut in? · **jeder erfasste Wert mit seiner Frage**. Eine Ableitung über den Ereignis-Log (`services/record.py`) – **zentral, kein Protokoll je Modultyp**; ein neuer Modultyp erbt es ohne eine Zeile. Seitenweise (`limit`/`offset`, Gesamtzahl daneben) und **erst auf Klick**: bei einer 6000er-Charge wären es tausende Zeilen in jeder Auftrags-Antwort. |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/hold?instance=&group= | staff | Die **Nummern** einer Gruppe dieser Instanz an diesem Modul: `sample` (die gezogenen – für jede ist ein Wertesatz zu erfassen, §9.5) \| `failed` \| `rest` (Vorauswahl der Entscheidung). **Erst auf Klick**: der «Rest» einer 6000er-Charge wären sechstausend Nummern in jeder Auftrags-Antwort. |
 | GET/PATCH | /api/v1/admin/settings | admin | Die **Plattform-Konfiguration** der einen Website (Plausible-Domain, Google-Maps-Schlüssel) – sie hängt am Betreiber. Entitäts-Felder laufen über `/admin/companies/{object_id}` |
@@ -139,6 +139,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/admin/users | staff | Benutzerliste. **Deaktivieren gibt es nicht** (Testnotiz #755): wer das Unternehmen verlässt, wechselt die **Rolle** (`PATCH /erp/records/{object_id}`) – ein Mensch hört nicht auf zu existieren, und einkaufen darf er weiterhin |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
 | POST | /api/v1/contact | – | Kontaktformular |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/payment-link | staff | **Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts. Kein Verb am Beleg (sie ändert nichts): gebucht wird erst, wenn das Geld da ist, und das meldet der Webhook. Ohne eingerichteten Dienst **404** – der Knopf erscheint dann gar nicht (`can` führt `link` nicht) |
+| POST | /api/v1/payments/webhook | – | **Die eine Tür des Zahlungsdienstes.** Signaturgeprüft über den **rohen** Rumpf, schreibt **eine Zeile Geld** und sonst nichts (kein Auftrag, keine Freigabe, keine Stufe). Idempotent über die Referenz; fremde Ereignisse werden mit `200 {"status":"ignored"}` quittiert – ein Fehlercode brächte den Dienst nur dazu, sie endlos erneut zuzustellen |
 | GET/POST | /api/v1/feedback | user | Testnotizen der Oberfläche (JEDE Rolle; eigene bzw. alle für Personal) – nur Testumgebung, sonst 404 |
 | PATCH | /api/v1/feedback/{id} | user | Notiz erledigt/verworfen setzen bzw. wieder öffnen |
 | DELETE | /api/v1/feedback/{id} | user | Eine Notiz löschen (weich, nur eigene sichtbare) |
@@ -274,6 +276,83 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **`_stages` liest die ZEILE, nicht nur ihren Stand**: ein stornierter Beleg behält
 > seinen gegangenen Weg (angefragt und bestellt WURDE), keine Stufe ist aktiv, kein Verb
 > wird angeboten. Wächter: `tests/test_purchase_module.py`.
+
+> **Verkauf – dasselbe Tor, andere Richtung** (PROCESS_CORE §9.10, `domain/procurement.
+> FLOWS`): Einkauf und Verkauf sind **ein** Geschäft aus zwei Blickwinkeln – dieselben
+> drei Stufen, dieselbe Schwelle, derselbe Storno, **derselbe Dienst**. Was sie
+> unterscheidet, steht als **Daten** im `Flow` (Wörter · Gegenpartei-Rolle · wer den Preis
+> nennt), nicht als `if direction ==`: die erste Verzweigung wäre eine Beschriftung, die
+> zweite eine Regel, und ab der dritten gäbe es zwei Belege, die nur so tun, als wären sie
+> einer. Ein `services/sales.py` gibt es darum nicht (Quelltext-Wächter).
+> **Die Stufen sind neutral** (`offer` · `commitment` · `fulfilment` · `cancelled`,
+> Migration `122`): «Wareneingang» an einem Verkaufs-Beleg wäre kein Name, sondern ein
+> Irrtum mit Bestand. `procurement.normalize` liest die alten Werte weiter – Migration
+> und Alias sind zwei Netze für dieselbe Umschrift.
+> **Die Richtung steht am BELEG, nicht am Modultyp** (`purchases.direction`,
+> geschrieben in `_create` aus `Module.direction`): ein laufender Auftrag trägt seinen
+> Prozess eingefroren, und ein Beleg soll auch dann noch sagen können, was er war, wenn
+> sein Modul längst anders deklariert ist.
+> **Der eine echte Unterschied ist der AUSGANG**: der Einkauf endet mit dem Wareneingang
+> und ist ein Durchläufer; der Verkauf endet mit der Lieferung, und was geliefert ist,
+> ist weg (`terminal`, Status **`Verkauft`**). Alles Weitere folgt daraus ohne eine
+> Fallunterscheidung (§4.6).
+> **`Verkauft` ist grün, historisch und NICHT endgültig** – wie `Verbaut`: eine Retoure
+> ist real. Ein ganz gewöhnlicher Auftrag greift das Stück, **das Greifen IST die
+> Rücknahme**, und weil sein Start vom Regelstart abweicht, ist er **automatisch** eine
+> dokumentierte Abweichung. **Die Farbe spielt dabei keine Rolle** – `deviation_flags`
+> vergleicht mit `START_BEFORE` und nennt weder Farbe noch Status; eine Regel, die nach
+> der Farbe fragte, liesse ausgerechnet die Retoure aus dem Nachweis fallen.
+> **Der Ort fällt weg, ohne eine Zeile im Modul**: `process._pass` räumt ihn für jeden
+> Zustand mit `stock = HISTORY`.
+> **In der Definition steht nichts**: wer kauft, weiss beim Modellieren eines Artikels
+> niemand – die Liste bleibt möglich (leer heisst frei), Pflicht ist sie nicht. Und
+> `landed_cost = False`: was ein Kunde zahlt, ist verhandelt und sagt nichts über unsere
+> Kosten. **Beschaffen und Verkauf erben ihre gemeinsame Hälfte von `Handel`** – dort steht
+> auch, dass der Knopf des Moduls das Verb der Schwellen-Stufe trägt (zwei Literale wären
+> zwei Wörter für dieselbe Handlung).
+> **`Module.suppliers_of` heisst `parties_of`**: beim Verkauf steht dort ein **Kunde**,
+> und ein Name, der die halbe Wahrheit sagt, ist die Stelle, an der jemand später die
+> falsche Regel schreibt. Der JSONB-Schlüssel bleibt `supplier` – er steht in laufenden
+> Aufträgen, und eine Umschrift wäre ein Risiko ohne einen einzigen neuen Leser.
+> Wächter: `tests/test_sales_module.py` (19 Prüfungen, jede gegen ihre Bug-Form
+> gegengeprüft).
+
+> **Das Geld – eine Zeile am Beleg, keine vierte Stufe** (PROCESS_CORE §9.11,
+> `domain/money.py` · `services/payments.py`, Tabelle `payments`):
+> **Es gibt keine Forderungs-Tabelle.** *Offen* = Belegsumme − Gutschriften − Zahlungen,
+> *fällig* = Zusagedatum (`purchases.committed_on`) + Zahlungsfrist (an der **gewählten**
+> Angebotszeile), *überfällig* = beides. Drei Ableitungen, null Spalten – eine Spalte
+> «offener Betrag» wäre die zweite Wahrheit, die bei jeder Zahlung, jeder Gutschrift und
+> jeder Mengenklärung nachgezogen werden müsste. Ein **negativer** offener Betrag ist kein
+> Fehler, sondern eine Aussage: dann schulden **wir**.
+> **Zwei Arten**: `payment` (Geld ist geflossen, negativ = Erstattung) und `credit` (die
+> Forderung wird gemindert, ohne dass Geld fliesst). Ohne die Unterscheidung liesse sich
+> «wie viel hat der Kunde wirklich gezahlt» nicht beantworten – und eine Retoure sähe aus
+> wie eine offene Rechnung. Ein Zahlweg an einer Gutschrift ist darum **verboten**.
+> **Ware und Geld sind entkoppelt**: Gutschrift ohne Rücknahme = Kulanz, Rücknahme ohne
+> Gutschrift = Garantie. Gekoppelt wäre keines von beiden abbildbar.
+> **`payments.record` ist die EINE Schreibstelle** – Überweisung und Karte gehen beide
+> hier durch (ein Mensch bzw. der Webhook), **idempotent über die Referenz**: dieselbe
+> Referenz ist dieselbe Zahlung, und zurück kommt die bereits gebuchte Zeile statt eines
+> Fehlers. Der Dienst kennt den Anbieter nicht (Quelltext-Wächter).
+> **`pay` hat keine Stufe** – wie `buy`: Geld fliesst, sobald zugesagt ist, und auch noch
+> nach einem Storno (eine Anzahlung muss erstattet werden können). Es steht darum nicht in
+> `STAGE_ACTIONS`, aber sehr wohl in `can`: «was darf ich hier tun» ist EINE Frage.
+
+> **Stripe – dünn, und in die richtige Richtung** (`services/stripe_pay.py`,
+> `docs/stripe-setup.md`): **Das ERP nennt Betrag und Währung, Stripe kassiert.** Im
+> Vorgängersystem stand es umgekehrt («Stripe ist Quelle der Wahrheit»), und daraus kam
+> fast die ganze Komplexität – Snapshot-Spalten an vier Tabellen, ein Webhook, der
+> Aufträge erzeugte, ein `CheckoutIntent` mit Reservierungen und ein Aufräumer für
+> verlassene Warenkörbe. Hier schreibt der Webhook **eine Zeile Geld**.
+> **Ohne Schlüssel gibt es den Dienst nicht** – kein Stub, kein 503, kein Knopf
+> (`available()` ist eine Ableitung aus `settings.stripe_secret_key`). Eine **Überweisung
+> ist kein Fallback**, sondern der B2B-Normalfall; der alte `manual`-Provider simulierte
+> einen Zahlungsdienstleister samt Bezahlseite und kommt nicht zurück.
+> **Adaptive Pricing bleibt aus** (die eine Lehre, die unverändert gilt): sonst rechnete
+> Stripe unseren Betrag mit seinem Kurs erneut um – angezeigt 11.80, belastet 11.82.
+> Bewusst **nicht**: Stripe Tax · Customer Portal · Subscriptions · `stripe_*`-Spalten
+> (die Id steht in `payments.reference`, derselben Spalte wie ein Zahlungszweck).
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

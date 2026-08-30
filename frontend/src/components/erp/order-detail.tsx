@@ -26,7 +26,7 @@ import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { PurchaseWork } from '@/components/erp/purchase-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
-import { HAULAGE, PROCUREMENT, moduleIcon, moduleTone } from '@/lib/modules';
+import { HAULAGE, flowOf, moduleIcon, moduleTone } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
@@ -455,12 +455,14 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
  * nichts mehr die Frage «was habe ich hier eigentlich gewählt». Dieselbe Form wie bei
  * jeder anderen gesperrten Option im Haus.
  */
-function Wrapped({ purchase, buys, busy, active, onAction, children }: {
+function Wrapped({ purchase, buys, busy, active, onAction, onLink, children }: {
   purchase: PurchaseEmbed | null;
   buys: string | null;
   busy: boolean;
   active: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
+  /** Eine Zahlungsaufforderung erzeugen – die Route kennt der Aufrufer, nicht der Beleg. */
+  onLink: () => Promise<string>;
   children: React.ReactNode;
 }) {
   const optional = buys === 'if_chosen';
@@ -469,7 +471,8 @@ function Wrapped({ purchase, buys, busy, active, onAction, children }: {
   // Modultyp. Ein Bewegen-Schritt, bei dem jemand «Beschaffen» gewählt hat, rendert
   // buchstäblich dieselben Zeilen wie ein Beschaffungs-Schritt.
   const document = purchase ? (
-    <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}>
+    <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}
+      onLink={onLink}>
       {children}
     </PurchaseWork>
   ) : children;
@@ -525,6 +528,11 @@ function ProcurementBlock({ purchase, children }: {
   purchase: PurchaseEmbed; children: React.ReactNode;
 }) {
   const c = moduleTone(purchase.tone);
+  // **Die Richtung sagt der Beleg** – Name und Farbe reisen mit ihm (`label`/`tone`), das
+  // Symbol kann eine Antwort nicht transportieren und kommt darum aus derselben
+  // Zuordnung wie im Backend. Keine Abfrage nach dem Modultyp: hier steht ein Vorgang,
+  // kein Modul.
+  const flow = flowOf(purchase.direction);
   return (
     // ►► **Der ganze Bereich trägt die Farbe seines Vorgangs** (Testnotiz #776) ◄◄
     //
@@ -540,9 +548,9 @@ function ProcurementBlock({ purchase, children }: {
       style={{ borderLeft: `2px solid ${c.border}`, paddingLeft: 11 }}>
       <div className="flex items-center gap-2.5"
         style={{ paddingBottom: 9, marginBottom: 11, borderBottom: `1px solid ${c.border}` }}>
-        <ModuleMark icon={PROCUREMENT.icon} tone={c.fg} size={28} />
+        <ModuleMark icon={flow.icon} tone={c.fg} size={28} />
         <span className="text-sm font-semibold" style={{ color: c.fg }}>
-          {purchase.label || PROCUREMENT.label}
+          {purchase.label || flow.label}
         </span>
       </div>
       {children}
@@ -613,7 +621,8 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
           `purchase` leer und es bleibt beim Inhalt allein. */}
       <Wrapped purchase={stepInfo(order, step.id)?.purchase ?? null}
         buys={step.buys ?? null} busy={busy}
-        active={isActive} onAction={(body) => onPurchase(step.id, body)}>
+        active={isActive} onAction={(body) => onPurchase(step.id, body)}
+        onLink={() => api.paymentLink(order.object_id, step.id).then((r) => r.url)}>
         {isActive ? (
           // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
           // (Scan-Regel §3).

@@ -136,6 +136,13 @@ class ModuleTypeInfo(BaseModel):
     #: und Bewegen ist genau das – nicht, ob es die Felder gibt.
     suppliers_required: bool = False
     instruction_required: bool = False
+    #: **Mit wem handelt dieser Typ?** ``supplier`` · ``customer``
+    #: (``domain/procurement.Flow``). Der Editor braucht sie, um die Auswahlliste zu
+    #: füllen – dort gibt es noch keinen Beleg, der sie mitbringen könnte, und ein
+    #: ``if module_type`` in der Oberfläche wäre die zweite Stelle für dieselbe Regel.
+    party_role: str = "supplier"
+    #: Wie sie im Feld heisst («Lieferant» ↔ «Kunde»).
+    party_word: str = "Lieferant"
     #: **Steht daneben ein abgeleiteter Satz?** Dann ist die Eingabe eine *Ergänzung*,
     #: und das Feld sagt das auch. Ein Beispiel statt eines Ja/Nein: die Oberfläche zeigt
     #: es als Platzhalter, damit sichtbar ist, was ohnehin schon dasteht.
@@ -174,23 +181,59 @@ class CapturePoint(BaseModel):
 
 
 class PurchaseQuote(BaseModel):
-    """Eine Zeile der Anfrage: **ein Lieferant, ein Preis**.
+    """Eine Zeile der Anfrage: **eine Gegenpartei, ein Preis**.
 
-    Der Angebotsspiegel des Einkaufs – und zugleich der Tarifvergleich, wenn das Modul
-    einen Transport einkauft. Es ist derselbe Vorgang, also dieselbe Zeile.
+    Der Angebotsspiegel des Einkaufs – zugleich der Tarifvergleich, wenn das Modul einen
+    Transport einkauft, und das Angebot an den Kunden, wenn es verkauft. Es ist derselbe
+    Vorgang, also dieselbe Zeile.
     """
 
     supplier_object_id: int
     supplier_name: str = ""
     #: **Wie man bei ihm bestellt** – seine Artikelnummer oder der Shop-Link, aus der
-    #: Definition (``Beschaffen.suppliers_of`` → ``ref``). Sie gehört der Paarung
-    #: Modul × Lieferant, nicht dem einzelnen Beleg.
+    #: Definition (``Module.parties_of`` → ``ref``). Sie gehört der Paarung
+    #: Modul × Gegenpartei, nicht dem einzelnen Beleg.
     ref: str = ""
     #: Netto, für die ganze Menge. ``None``, solange nichts offeriert ist.
     amount: Optional[float] = None
     lead_days: Optional[int] = None
+    #: **Die Zahlungsfrist in Tagen** – dieselbe Art Angabe wie die Lieferfrist, nur für
+    #: das Geld: aus ihr folgt die Fälligkeit (``payments.due_on``). Freiwillig; ohne sie
+    #: gibt es kein Fälligkeitsdatum und damit kein «überfällig», und das ist ehrlicher
+    #: als ein geratenes Datum, aus dem gemahnt würde.
+    payment_days: Optional[int] = None
     #: ``angefragt`` · ``offeriert`` · ``abgelehnt`` · ``gewaehlt``
     state: str
+
+
+class PaymentLink(BaseModel):
+    """**Die Adresse einer Zahlungsaufforderung** – und sonst nichts.
+
+    Kein Beleg-Zustand: der Link ändert am Beleg nichts. Gebucht wird erst, wenn das Geld
+    wirklich da ist, und das meldet der Webhook – nicht der Browser des Kunden.
+    """
+
+    url: str
+
+
+class PaymentEntry(BaseModel):
+    """**Eine Zeile Geld** an einem Beleg – Zahlung oder Gutschrift.
+
+    Überweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch
+    oder der Webhook), ändert nichts an dem, was er ist.
+    """
+
+    id: int
+    #: ``payment`` (Geld ist geflossen) · ``credit`` (die Forderung wurde gemindert)
+    kind: str
+    kind_label: str
+    #: **Darf negativ sein** – eine Erstattung ist eine Zahlung rückwärts.
+    amount: float
+    method: Optional[str] = None
+    method_label: str = ""
+    reference: Optional[str] = None
+    paid_at: Optional[str] = None
+    note: Optional[str] = None
 
 
 class SpecEntry(BaseModel):
@@ -294,17 +337,52 @@ class PurchaseEmbed(BaseModel):
     #: nichts, sondern wartet auf die Bestätigung des Menschen.
     clarify_quantity: Optional[float] = None
 
+    # ─── Die Richtung, und was aus ihr folgt ─────────────────────────────────────
+    #: ``buy`` · ``sell`` (``domain/procurement``). Die Oberfläche braucht sie für kein
+    #: einziges ``if`` – Wörter, Verben und Zustände reisen fertig mit. Sie steht hier,
+    #: damit eine **Liste** von Belegen sortiert werden kann, ohne jeden zu befragen.
+    direction: str = "buy"
+    #: Welche Rolle die Auswahl anbieten darf (``/orders/party-options``) und wie sie im
+    #: Satz heisst. Beides kommt aus derselben Regel, die ``apply`` durchsetzt.
+    party_role: str = "supplier"
+    party_word: str = "Lieferant"
+
+    # ─── Das Geld: drei Ableitungen, keine Spalte ────────────────────────────────
+    #: Was tatsächlich geflossen ist (netto – Erstattungen zählen negativ).
+    paid: Optional[float] = None
+    #: Was gar nicht mehr geschuldet wird (Gutschriften).
+    credited: Optional[float] = None
+    #: **Belegsumme − Gutschriften − Zahlungen.** Darf negativ sein: dann schulden **wir**.
+    #: ``None``, solange keine Summe zugesagt ist – dort gibt es nichts zu rechnen.
+    open: Optional[float] = None
+    #: Zusagedatum + Zahlungsfrist. ``None`` heisst «steht nicht fest», nicht «heute».
+    due_on: Optional[str] = None
+    #: Fällig **und** noch etwas offen. Beides zusammen, sonst nicht.
+    overdue: bool = False
+    entries: list["PaymentEntry"] = Field(default_factory=list)
+
 
 class PurchaseUpdate(BaseModel):
-    """Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.
+    """Eine Handlung am Beleg – **ein** Endpunkt, in beide Richtungen dieselben Verben.
 
-    ``ask``       bei wem angefragt wird (``suppliers``)
-    ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)
-    ``decline``   ein Lieferant sagt ab (``supplier``)
-    ``order``     bestellen (``supplier``, ``amount``)
+    ``ask``       mit wem gehandelt wird (``suppliers``) – anfragen bzw. anbieten
+    ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – Pflicht;
+                  ``payment_days`` freiwillig)
+    ``decline``   die Gegenpartei sagt ab (``supplier``)
+    ``order``     zusagen (``supplier``, ``amount``)
     ``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten
-    ``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren
-    ``clarified`` der Lieferant hat der geänderten Menge zugestimmt
+    ``revoke``    **die** Gegenhandlung – vor der Zusage zurückziehen, danach stornieren
+    ``clarified`` die Gegenpartei hat der geänderten Menge zugestimmt
+    ``buy``       «das kaufe ich ein» – legt den Beleg an (nur wo er eine Wahl ist)
+    ``pay``       **eine Zeile Geld** (``amount``, ``kind``, ``method``, ``reference``,
+                  ``paid_at``, ``note_text``)
+
+    ``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine
+    Stufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld
+    fliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein
+    anderes (``Module.buys`` bzw. ``payments.assert_payable``), aber der **Weg** ist
+    derselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg
+    verwaltet.
     """
 
     action: str
@@ -312,7 +390,23 @@ class PurchaseUpdate(BaseModel):
     supplier: Optional[int] = None
     amount: Optional[float] = None
     lead_days: Optional[int] = None
+    #: Die Zahlungsfrist in Tagen (bei ``quote``) – freiwillig.
+    payment_days: Optional[int] = None
     tracking: Optional[str] = None
+
+    # ─── nur für ``pay`` ─────────────────────────────────────────────────────────
+    #: ``payment`` (Geld ist geflossen) · ``credit`` (die Forderung wird gemindert).
+    kind: Optional[str] = None
+    #: ``transfer`` · ``card`` · ``cash`` – Pflicht bei einer Zahlung, **verboten** bei
+    #: einer Gutschrift: dort fliesst kein Geld.
+    method: Optional[str] = None
+    #: Zahlungszweck, Bankbeleg – oder die Id des Zahlungsdienstes. **Dieselbe Referenz
+    #: ist dieselbe Zahlung**: ein zweiter Aufruf gibt die bereits gebuchte Zeile zurück.
+    reference: Optional[str] = None
+    #: Wann das Geld geflossen ist (``YYYY-MM-DD``). Ohne Angabe: heute.
+    paid_at: Optional[str] = None
+    #: Ein Satz dazu. Heisst nicht ``note`` – das ist bereits ein **Verb** dieses Belegs.
+    note_text: Optional[str] = None
 
 
 class StepConfirm(BaseModel):

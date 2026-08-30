@@ -367,13 +367,23 @@ function ProcurementFields({ module: m, info, onChange }: {
 }) {
   const [known, setKnown] = useState<Record<number, string>>({});
 
-  // Die gewählten Lieferanten benennen – sonst stünden dort nur Ziffern. Eine Abfrage
+  // **Mit wem gehandelt wird, sagt der Katalog** (`party_role`) – ein Lieferant beim
+  // Einkauf, ein Kunde beim Verkauf. Die Oberfläche fragt nie nach dem Modultyp: ein
+  // `if` hier wäre die zweite Stelle für dieselbe Regel, und der Dienst wiese danach ab.
+  const role = info.party_role;
+  // **Und wie sie im Satz heisst, kommt aus derselben Quelle.** «Auftrag an den
+  // Lieferanten» wäre am Verkaufs-Modul falsch; ein zweiter Text daneben, gewählt über
+  // den Modultyp, wäre die dritte Stelle für dieselbe Angabe.
+  const orderLabel = info.derived_instruction
+    ? 'Ergänzung zum Auftrag' : `Auftrag an den ${info.party_word}en`;
+
+  // Die gewählten Gegenparteien benennen – sonst stünden dort nur Ziffern. Eine Abfrage
   // je Modul, nicht je Zeile.
   useEffect(() => {
     const missing = m.suppliers.filter((r) => !(r.supplier in known));
     if (missing.length === 0) return;
     let stale = false;
-    void Promise.all(missing.map((r) => api.searchSuppliers(String(r.supplier), 1)))
+    void Promise.all(missing.map((r) => api.searchParties(role, String(r.supplier), 1)))
       .then((groups) => {
         if (stale) return;
         const found: Record<number, string> = {};
@@ -382,16 +392,15 @@ function ProcurementFields({ module: m, info, onChange }: {
       })
       .catch(() => {});
     return () => { stale = true; };
-  }, [m.suppliers, known]);
+  }, [m.suppliers, known, role]);
 
-  const findSuppliers = useCallback((q: string) => api.searchSuppliers(q).catch(() => []), []);
+  const findSuppliers = useCallback(
+    (q: string) => api.searchParties(role, q).catch(() => []), [role]);
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <Label>
-          {info.derived_instruction ? 'Ergänzung zum Auftrag' : 'Auftrag an den Lieferanten'}
-        </Label>
+        <Label>{orderLabel}</Label>
         {/* **Was abgeleitet ist, steht als Wert da – nicht als Vorschlag im Feld.**
             «Transport von A nach B» kennt der Vorgang selbst; ihn hier eintippbar zu
             machen wäre die zweite Aussage über dieselbe Sache, und die getippte gewänne
@@ -412,20 +421,19 @@ function ProcurementFields({ module: m, info, onChange }: {
           placeholder={info.derived_instruction
             ? 'z. B. Hebebühne nötig · nur werktags · Gefahrgut'
             : 'z. B. Härten auf 58 HRC · gemäss Zeichnung fertigen · liefern'}
-          aria-label={info.derived_instruction
-            ? 'Ergänzung zum Auftrag' : 'Auftrag an den Lieferanten'}
+          aria-label={orderLabel}
           onChange={(e) => onChange({ instruction: e.target.value })}
           style={{ resize: 'vertical', minHeight: 54 }}
         />
       </div>
       <div className="flex flex-col gap-1.5">
         <ObjectSelect<SupplierOption>
-          label="Zugelassene Lieferanten"
+          label={`Zugelassene ${info.party_word}en`}
           required={info.suppliers_required}
           value={null}
           selected={null}
           find={findSuppliers}
-          scanLabel="Lieferant"
+          scanLabel={info.party_word}
           placeholder="Nummer oder Name"
           onChange={(nr, opt) => {
             if (nr === null || m.suppliers.some((r) => r.supplier === nr)) return;
@@ -466,7 +474,7 @@ function ProcurementFields({ module: m, info, onChange }: {
               </button>
             </div>
             <input className={inputCls} value={row.ref} maxLength={200} required
-              placeholder="Artikelnummer oder Link beim Lieferanten"
+              placeholder={`Artikelnummer oder Link beim ${info.party_word}en`}
               aria-label={`Bestellangabe für ${row.supplier}`}
               onChange={(e) => onChange({
                 suppliers: m.suppliers.map((x) => (
@@ -497,7 +505,10 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   onChange: (next: Partial<ModuleDraft>) => void;
 }> | null> = {
   datenerfassung: ModuleFields,
+  // Beide handelnden Module tragen `null`: ausser ihrem Beleg haben sie nichts zu
+  // konfigurieren, und den rendert `renderStep` über `buys` – für jedes Modul gleich.
   beschaffen: null,
+  verkauf: null,
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
   bewegen: MoveFields,

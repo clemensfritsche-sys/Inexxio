@@ -13,7 +13,7 @@
  */
 
 import {
-  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, MoveRight, PackageX,
+  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, Handshake, MoveRight, PackageX,
   PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
 
@@ -29,24 +29,64 @@ export const CAPTURE_ICON: Record<string, LucideIcon> = {
 };
 
 /**
- * ►►► **Der Einkaufs-Vorgang — Name, Farbe, Symbol.** ◄◄◄
+ * ►►► **Die Handels-Vorgänge — Name, Farbe, Symbol, je Richtung.** ◄◄◄
  *
- * Er gehört **keinem Modul** (`domain/procurement`): ein Einkauf sieht überall gleich aus,
- * ob ihn ein Beschaffen-Modul auslöst (dort ist er der Zweck) oder ein Bewegen-Modul
- * (dort war er eine Wahl). Darum steht seine Identität hier und nicht als Eintrag «des
- * Moduls beschaffen» – die Karte des Moduls liest sie ebenso, und beide können nicht
- * auseinanderlaufen.
+ * Ein Beleg gehört **keinem Modul** (`domain/procurement`): ein Einkauf sieht überall
+ * gleich aus, ob ihn ein Beschaffen-Modul auslöst (dort ist er der Zweck) oder ein
+ * Bewegen-Modul (dort war er eine Wahl). Darum steht die Identität hier und nicht als
+ * Eintrag «des Moduls beschaffen» – die Karte des Moduls liest sie ebenso, und beide
+ * können nicht auseinanderlaufen.
+ *
+ * **Und dieselbe Maschine trägt den Verkauf** – nur in die andere Richtung. Was sie
+ * unterscheidet, sind Wörter, Farbe und Symbol; alles andere (Stufen, Verben, Zustände)
+ * reist fertig mit dem Beleg (`PurchaseEmbed`), damit die Oberfläche für keine einzige
+ * Zeile wissen muss, in welche Richtung sie gerade zeichnet.
  *
  * Gespiegelt von `backend/app/domain/procurement.py`; `test_frontend_mirrors` hält Wort
- * und Farbfamilie deckungsgleich. Das **Symbol** kann eine Antwort nicht transportieren –
- * es steht wie bei den Modulen nur hier.
+ * und Farbfamilie beider Richtungen deckungsgleich. Das **Symbol** kann eine Antwort
+ * nicht transportieren – es steht wie bei den Modulen nur hier.
  */
-export const PROCUREMENT = {
-  label: 'Beschaffen',
-  tone: 'plum',
-  // Ein Einkaufswagen – bewusst **kein** Lastwagen und kein Paket: der Vorgang kauft, er
-  // liefert nicht. Womit die Ware kommt, entscheidet der Lieferant.
-  icon: ShoppingCart,
+export const FLOW: Record<string, { label: string; tone: string; icon: LucideIcon }> = {
+  buy: {
+    label: 'Beschaffen',
+    tone: 'plum',
+    // Ein Einkaufswagen – bewusst **kein** Lastwagen und kein Paket: der Vorgang kauft,
+    // er liefert nicht. Womit die Ware kommt, entscheidet der Lieferant.
+    icon: ShoppingCart,
+  },
+  sell: {
+    label: 'Verkauf',
+    tone: 'teal',
+    // Ein Handschlag – **kein** Geldschein und kein Preisschild: was den Verkauf
+    // ausmacht, ist die Zusage zwischen zwei Parteien, nicht der Betrag. (Ein zweiter
+    // Einkaufswagen wäre ohnehin falsch herum.)
+    icon: Handshake,
+  },
+};
+
+/** Der Vorgang zu einer Richtung. Unbekannt → der Einkauf, wie im Backend (`of`). */
+export function flowOf(direction: string | undefined | null) {
+  return FLOW[direction ?? ''] ?? FLOW.buy;
+}
+
+/**
+ * **Die Stufen eines Belegs — als Schlüssel, nicht als Wort.**
+ *
+ * Wie sie *heissen*, sagt der Server (`PurchaseEmbed.stages[].label`) – und das ist gut
+ * so, denn es hängt an der Richtung. Was die Oberfläche trotzdem braucht, ist die
+ * **Identität** einer Stufe: an welcher der Angebotsspiegel steht, an welcher der Scan.
+ *
+ * Sie stehen darum hier als Konstanten und nicht dreimal als Zeichenkette im Rumpf –
+ * `test_frontend_mirrors` hält sie mit `domain/procurement.STAGES` deckungsgleich. Vorher
+ * standen dort die deutschen Einkaufs-Wörter (`'anfrage'`, `'wareneingang'`), und ein
+ * Verkaufs-Beleg hätte an **keiner** Stufe etwas gezeigt: die Vergleiche wären alle
+ * falsch gewesen, still und ohne Fehlermeldung.
+ */
+export const STAGE = {
+  offer: 'offer',
+  commitment: 'commitment',
+  fulfilment: 'fulfilment',
+  cancelled: 'cancelled',
 } as const;
 
 /** Prozessschrittmodule (`domain/modules.py`). */
@@ -57,8 +97,10 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // Von hier nach dort – bewusst **kein** Transportmittel (kein Lastwagen, kein
   // Gabelstapler): womit bewegt wird, entscheidet sich erst bei der Ausführung.
   bewegen: MoveRight,
-  // **Aus derselben Quelle wie der Vorgang** – ein Einkauf sieht überall gleich aus.
-  beschaffen: PROCUREMENT.icon,
+  // **Aus derselben Quelle wie der Vorgang** – ein Handel sieht überall gleich aus, und
+  // die beiden Module sind genau seine zwei Richtungen.
+  beschaffen: FLOW.buy.icon,
+  verkauf: FLOW.sell.icon,
 };
 
 /**
@@ -84,9 +126,10 @@ export const HAULAGE = {
           hint: 'Jemand von uns bringt es hin – kein Dienstleister, kein Beleg.' },
   // **Der Name ist der des Vorgangs, nicht einer des Transports** (#775): «Einkaufen»
   // war ein zweites Wort für dieselbe Sache, und im Haus heisst sie «Beschaffen». Symbol
-  // und Wort kommen darum aus `PROCUREMENT` – dieselbe Quelle, aus der auch die Karte
-  // des Beschaffen-Moduls sie nimmt.
-  bought: { icon: PROCUREMENT.icon, label: PROCUREMENT.label,
+  // und Wort kommen darum aus `FLOW.buy` – dieselbe Quelle, aus der auch die Karte des
+  // Beschaffen-Moduls sie nimmt. Eine Spedition wird **gekauft**, nie verkauft; darum
+  // steht hier die Richtung fest und nicht `flowOf(…)`.
+  bought: { icon: FLOW.buy.icon, label: FLOW.buy.label,
             hint: 'Eine Spedition beauftragen – daraus wird ein ganz gewöhnlicher '
                 + 'Beschaffungs-Vorgang: anfragen, vergleichen, bestellen.' },
 } as const;
@@ -112,6 +155,14 @@ export const MODULE_TONE: Record<string, { bg: string; fg: string; border: strin
   // Bewegen, und ein warmes Grau liest sich neben vier farbigen Karten wie deaktiviert.
   // Slate=Blau · Clay=Rotbraun · Moss=Grün · Sand=Gelbbraun – Violett schliesst den Kreis.
   plum: { bg: '#EFEAF2', fg: '#6B5A78', border: '#DCD2E2' },
+  // Verkauf: gedämpftes Blaugrün. Es ist die **Nachbarfamilie von Plum** über die kalte
+  // Seite – und das ist Absicht: Ein- und Verkauf sind derselbe Vorgang in zwei
+  // Richtungen, also sollen sie verwandt aussehen und trotzdem unterscheidbar sein.
+  // Beim Beschaffen war Blaugrün einmal verworfen, weil es an **Moss** (Bewegen)
+  // heranrückte; hier trägt es, weil der Ton deutlich kühler und dunkler sitzt als das
+  // grünliche Moss – und weil die beiden Handelsmodule ohnehin selten nebeneinander in
+  // einer Kette stehen, Moss dagegen oft neben beiden.
+  teal: { bg: '#E4EEEE', fg: '#4A6E70', border: '#C8DCDC' },
 };
 
 /**
@@ -345,6 +396,37 @@ export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string 
 ];
 
 /**
+ * ►►► **Die beiden Beleg-Angaben — für jedes Modul, das handelt.** ◄◄◄
+ *
+ * Bei wem und was zu tun ist. Sie gehören dem **Beleg**, nicht einem Modultyp – also
+ * steht der Eintrag einmal da und wird von beiden Richtungen referenziert. Zwei Kopien
+ * wären am ersten Tag gleich und beim ersten neuen Feld nicht mehr.
+ *
+ * Kein Artikel – den sagen die Einzelinstanzen vor dem Modul; keine Menge – die steht
+ * beim Modellieren nicht fest (dieselbe Regel wie beim Verbrauch); kein Modus «Webshop» –
+ * wo jemand seinen Shop hat, ist eine Eigenschaft von **ihm** und nicht dieses Belegs.
+ *
+ * Ob die Angaben **Pflicht** sind, steht hier bewusst nicht: das sagt der Katalog des
+ * Backends (`suppliers_required` / `instruction_required`), und die Freigabe ist die
+ * eine Regel dazu.
+ */
+const TRADE_FORM = {
+  draft: (c: Record<string, unknown>) => ({
+    // Tolerant gelesen wie im Backend (`Module.parties_of`): die alte Form war die
+    // blosse Objektnummer, und ein freigegebener Prozess ist eingefroren – sie steht
+    // also in laufenden Aufträgen und wird sie überleben.
+    suppliers: asRows(c.suppliers).map((r) => ({
+      supplier: Number(r.supplier ?? r), ref: String(r.ref ?? ''),
+    })).filter((r) => Number.isFinite(r.supplier)),
+    instruction: String(c.instruction ?? ''),
+  }),
+  config: (m: ModuleDraft) => ({
+    suppliers: m.suppliers.map((r) => ({ supplier: r.supplier, ref: r.ref.trim() })),
+    instruction: m.instruction.trim(),
+  }),
+};
+
+/**
  * **Was ein Modultyp im Entwurf ausmacht — je Typ ein Eintrag, nicht je Stelle ein `if`.**
  *
  * Eine Frage hängt am Typ und sonst an nichts: *was schickt er als Konfiguration*.
@@ -418,25 +500,12 @@ export const MODULE_FORM: Record<string, {
     // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
     config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
   },
-  beschaffen: {
-    draft: (c) => ({
-      // Tolerant gelesen wie im Backend (`Beschaffen.suppliers_of`): die alte Form war
-      // die blosse Objektnummer, und ein freigegebener Prozess ist eingefroren – sie
-      // steht also in laufenden Aufträgen und wird sie überleben.
-      suppliers: asRows(c.suppliers).map((r) => ({
-        supplier: Number(r.supplier ?? r), ref: String(r.ref ?? ''),
-      })).filter((r) => Number.isFinite(r.supplier)),
-      instruction: String(c.instruction ?? ''),
-    }),
-    // **Zwei Angaben, mehr nicht**: bei wem und was zu tun ist. Kein Artikel – den sagen
-    // die Einzelinstanzen vor dem Modul; keine Menge – die steht beim Modellieren nicht
-    // fest (dieselbe Regel wie beim Verbrauch); kein Modus «Webshop» – wo jemand seinen
-    // Shop hat, ist eine Eigenschaft des Lieferanten und nicht dieser Bestellung.
-    config: (m) => ({
-      suppliers: m.suppliers.map((r) => ({ supplier: r.supplier, ref: r.ref.trim() })),
-      instruction: m.instruction.trim(),
-    }),
-  },
+  // **Ein Eintrag, zwei Module** – kein zweiter daneben: Ein- und Verkauf tragen
+  // denselben Beleg, also dieselben zwei Angaben. Was sie unterscheidet, ist nicht ihre
+  // Form, sondern ob sie **Pflicht** sind – und das sagt der Katalog des Backends
+  // (`suppliers_required` / `instruction_required`), nicht diese Datei.
+  beschaffen: TRADE_FORM,
+  verkauf: TRADE_FORM,
   verbrauch: {
     draft: (c) => ({
       lines: asRows(c.lines).map((r, i) => ({

@@ -349,14 +349,27 @@ class ApiClient {
   /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
    *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
   /**
-   * **Wer kommt als Lieferant in Frage?** – gesucht, nicht als ganze Liste geladen.
+   * **Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als ganze Liste geladen.
    * Dieselbe Suchbedingung wie überall (Nummer **oder** Name), und angeboten wird nur,
    * wen das Modul danach auch annimmt.
+   *
+   * **Welche Rolle gemeint ist, sagt der Beleg** (`PurchaseEmbed.party_role`) – beim
+   * Einkauf ein Lieferant, beim Verkauf ein Kunde. Die Oberfläche reicht durch, was sie
+   * bekommen hat; eine eigene Entscheidung hier wäre die zweite Stelle, an der dieselbe
+   * Regel steht.
    */
-  searchSuppliers(search?: string, limit = 20): Promise<SupplierOption[]> {
-    const params = new URLSearchParams({ limit: String(limit) });
+  searchParties(role: string, search?: string, limit = 20): Promise<SupplierOption[]> {
+    const params = new URLSearchParams({ role, limit: String(limit) });
     if (search?.trim()) params.set('search', search.trim());
-    return this.get(`/api/v1/erp/orders/supplier-options?${params}`);
+    return this.get(`/api/v1/erp/orders/party-options?${params}`);
+  }
+
+  /**
+   * **Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
+   * Sie ändert am Beleg nichts; gebucht wird erst, wenn das Geld da ist.
+   */
+  paymentLink(objectId: number, stepId: number): Promise<{ url: string }> {
+    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/payment-link`, {});
   }
 
   /**

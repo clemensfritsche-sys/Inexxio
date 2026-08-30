@@ -1384,10 +1384,16 @@ def test_the_module_looks_the_same_for_both_roles():
     verengten Ansicht.
     """
     panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
-    # **Die Bug-Form ist ein Rollenvergleich**, nicht das Wort «Lieferant» in der Prosa:
-    # `q.supplier_object_id` ist eine Objektnummer, `role === 'supplier'` wäre die zweite
-    # Stelle für dieselbe Regel.
-    for role in ("role", "'supplier'", '"supplier"', "isSupplier", "isStaff"):
+    # **Die Bug-Form ist ein Rollen-VERGLEICH**, nicht das Wort «Rolle» irgendwo:
+    # `q.supplier_object_id` ist eine Objektnummer, und `p.party_role` sagt, **wen man
+    # wählen darf** (Lieferant ↔ Kunde) – eine ganz andere Frage als «darf ich das».
+    # Sie wird durchgereicht, nicht ausgewertet; ein `=== 'supplier'` daneben wäre die
+    # zweite Stelle für dieselbe Regel.
+    #
+    # Vorher stand hier `"role" not in panel` und traf damit auch die durchgereichte
+    # Angabe. Ein Wächter, der die einzig richtige Lösung verbietet, drängt zur falschen.
+    for role in ("role ===", "role !==", "role ==", "'supplier'", '"supplier"',
+                 "'customer'", '"customer"', "isSupplier", "isStaff"):
         assert role not in panel, (
             f"«{role}» steht wieder im Beleg – was jemand darf, sagt `can`, nicht seine Rolle."
         )
@@ -1442,7 +1448,9 @@ def test_the_order_reference_moved_into_the_definition():
         "welcher Nummer man bei ihm bestellt."
     )
     designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
-    assert "Artikelnummer oder Link beim Lieferanten" in designer, (
+    # **Der Satz nennt die Gegenpartei aus dem Katalog** (`party_word`) – beim Verkauf
+    # steht dort ein Kunde. Geprüft wird darum die Form, nicht das eingesetzte Wort.
+    assert "Artikelnummer oder Link beim ${info.party_word}en" in designer, (
         "Die Bestellangabe lässt sich nicht mehr definieren."
     )
 
@@ -3706,8 +3714,18 @@ def test_a_module_type_brings_its_own_fields_from_one_registry():
     from app.domain import modules
 
     ts = _read(FRONTEND / "lib" / "modules.ts")
-    form = ts.split("export const MODULE_FORM")[1].split("\n};")[0]
-    assert set(re.findall(r"^  (\w+): \{", form, re.M)) == set(modules.KEYS)
+    # Ab dem Zuweisungs-`{`, sonst fängt die **Typ-Signatur** mit (dort stehen `config`
+    # und `draft` auf derselben Einrückung) – dieselbe Vorsichtsmassnahme wie bei
+    # `MODULE_FIELDS` ein paar Zeilen tiefer.
+    form = ts.split("export const MODULE_FORM")[1].split("}> = {", 1)[1].split("\n};")[0]
+    # **Ein Eintrag je Typ – gleich, ob er ein Literal ist oder auf einen geteilten
+    # zeigt.** Die Regel ist «jeder Modultyp hat genau einen»; wie er geschrieben ist,
+    # gehört nicht dazu. Vorher stand hier ``(\w+): \{`` und verlangte damit ein
+    # Inline-Objekt – zwei Module, die sich denselben Eintrag teilen (Ein- und Verkauf
+    # tragen denselben Beleg), fielen als «fehlend» heraus, und die naheliegende
+    # Reparatur wäre gewesen, den Eintrag zu **kopieren**. Ein Wächter, der zur Doppelung
+    # drängt, prüft die falsche Sache.
+    assert set(re.findall(r"^  (\w+): ", form, re.M)) == set(modules.KEYS)
 
     designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
     # Ab dem Zuweisungs-`{`, sonst fängt die Typ-Signatur der Props mit.
@@ -5009,11 +5027,15 @@ def test_the_haulage_choice_is_one_bit_not_a_roadmap_list():
 # ---------------------------------------------------------------------------
 
 def test_the_procurement_identity_is_mirrored_from_one_source():
-    """**Ein Einkauf heisst überall gleich** – auch über die API-Grenze hinweg.
+    """**Ein Handel heisst überall gleich** – in beide Richtungen, über die API-Grenze.
 
-    Name und Farbfamilie beschreiben den **Vorgang** (``domain/procurement``), nicht den
-    Modultyp, der ihn auslöst. Der Spiegel hier trägt zusätzlich das Symbol – das kann
+    Name und Farbfamilie beschreiben den **Vorgang** (``domain/procurement.FLOWS``), nicht
+    den Modultyp, der ihn auslöst. Der Spiegel hier trägt zusätzlich das Symbol – das kann
     eine Antwort nicht transportieren.
+
+    **Und jede Richtung wird geprüft, nicht nur die erste.** Ein dritter Vorgang (kommt er
+    je) fällt damit automatisch in diesen Wächter, statt in eine Zeile, die ihn nicht
+    kennt.
 
     Bug-Form: die Oberfläche schreibt «Einkaufen» hin, während der Beleg «Beschaffen»
     sagt; oder der Modul-Eintrag bekommt ein eigenes Symbol. Dann steht dasselbe an zwei
@@ -5022,23 +5044,27 @@ def test_the_procurement_identity_is_mirrored_from_one_source():
     from app.domain import procurement
 
     src = _read(FRONTEND / "lib" / "modules.ts")
-    block = _body(src, "PROCUREMENT", kind="const")
-    assert f"label: '{procurement.LABEL}'" in block, (
-        f"Die Oberfläche nennt den Vorgang anders als das Backend ({procurement.LABEL})."
-    )
-    assert f"tone: '{procurement.TONE}'" in block, (
-        f"Die Farbfamilie weicht ab – erwartet «{procurement.TONE}»."
-    )
-    # Das Modul-Symbol kommt aus derselben Quelle – nicht ein zweites daneben.
+    block = _body(src, "FLOW", kind="const")
+    for key, flow in procurement.FLOWS.items():
+        assert f"{key}: {{" in block, f"Die Oberfläche kennt die Richtung «{key}» nicht."
+        assert f"label: '{flow.label}'" in block, (
+            f"Die Oberfläche nennt «{key}» anders als das Backend ({flow.label})."
+        )
+        assert f"tone: '{flow.tone}'" in block, (
+            f"Die Farbfamilie von «{key}» weicht ab – erwartet «{flow.tone}»."
+        )
+    # Die Modul-Symbole kommen aus derselben Quelle – nicht je Modul ein zweites daneben.
     icons = _body(src, "MODULE_ICON", kind="const")
-    assert "beschaffen: PROCUREMENT.icon" in icons, (
-        "Das Modul «Beschaffen» hat wieder ein eigenes Symbol – ein Einkauf sieht "
-        "überall gleich aus."
-    )
+    for key, expected in (("beschaffen", "FLOW.buy.icon"), ("verkauf", "FLOW.sell.icon")):
+        assert f"{key}: {expected}" in icons, (
+            f"Das Modul «{key}» hat wieder ein eigenes Symbol – ein Handel sieht in "
+            f"seiner Richtung überall gleich aus."
+        )
     haulage = _body(src, "HAULAGE", kind="const")
-    assert "PROCUREMENT.label" in haulage and "PROCUREMENT.icon" in haulage, (
+    assert "FLOW.buy.label" in haulage and "FLOW.buy.icon" in haulage, (
         "Die Wahl «selbst ↔ beschaffen» schreibt ihr Wort wieder selbst hin – «Einkaufen» "
-        "war genau dieser zweite Name (#775)."
+        "war genau dieser zweite Name (#775). Und sie ist **immer** ein Einkauf: eine "
+        "Spedition wird beauftragt, nie verkauft."
     )
 
 
@@ -5061,7 +5087,10 @@ def test_a_supplier_can_be_chosen_when_the_definition_names_none():
     assert "p.allowed.length === 0" in body, (
         "Der freie Fall wird nicht unterschieden – dann bleibt die Auswahl leer."
     )
-    assert "api.searchSuppliers" in body, (
+    # **Gesucht wird nach der Rolle, die der Vorgang nennt** (`party_role`) – ein
+    # Lieferant beim Einkauf, ein Kunde beim Verkauf. Der Name des Aufrufs sagt seither
+    # «Gegenpartei» statt «Lieferant»; die Regel ist dieselbe geblieben.
+    assert "api.searchParties" in body, (
         "Es wird nicht gesucht – die Kandidaten müssen vom Server kommen."
     )
     assert "<ObjectSelect" in body, (
@@ -5243,4 +5272,82 @@ def test_the_procurement_block_carries_its_tone_as_a_line_not_a_surface():
     assert "background" not in block, (
         "Der Einkaufs-Bereich ist eine getönte FLÄCHE – das ist die dritte Karte in der "
         "Karte; die Zugehörigkeit trägt im ERP die Haarlinie."
+    )
+
+
+def test_the_stage_keys_are_mirrored_not_written_out():
+    """**Die Stufen-Schlüssel stehen an EINER Stelle** – und decken das Backend genau ab.
+
+    Wie eine Stufe *heisst*, sagt der Server (`PurchaseEmbed.stages[].label`) – das hängt
+    an der Richtung. Was die Oberfläche braucht, ist ihre **Identität**: an welcher der
+    Angebotsspiegel steht, an welcher der Scan.
+
+    Bug-Form: die deutschen Einkaufs-Wörter im Rumpf (`stage.key === 'wareneingang'`).
+    Ein Verkaufs-Beleg hätte an **keiner** Stufe etwas gezeigt – alle Vergleiche falsch,
+    still und ohne Fehlermeldung.
+    """
+    from app.domain import procurement
+
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    block = _body(src, "STAGE", kind="const")
+    for key in (*procurement.STAGES, procurement.CANCELLED):
+        assert f"{key}: '{key}'" in block, f"Die Stufe «{key}» fehlt in der Zuordnung."
+
+    work = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
+    for old in ("'anfrage'", "'bestellung'", "'wareneingang'", "'storniert'"):
+        assert old not in work, (
+            f"Die Karte vergleicht wieder gegen {old} – das ist der **Einkauf** in Worten, "
+            f"und an einem Verkaufs-Beleg schlicht falsch."
+        )
+    assert "STAGE.offer" in work and "STAGE.fulfilment" in work, (
+        "Die Karte liest die Stufen nicht aus der Zuordnung."
+    )
+
+
+def test_money_is_shown_beside_the_stages_not_as_a_fourth_one():
+    """**Das Geld ist keine vierte Stufe** – es steht daneben.
+
+    Eine Zahlung macht aus einem Angebot keine Zusage; und nach einem Storno ist eine
+    Erstattung der Normalfall. Bug-Form: eine vierte Zeile in der Stufen-Kette – dann
+    verschwände sie mit ihr, und «bezahlt» sähe aus wie ein Zustand des Materials.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
+    money = _body(work, "Money", kind="function")
+    assert "p.open == null" in money, (
+        "Die Zahlungszeile erscheint auch ohne zugesagte Summe – dort gibt es nichts zu "
+        "rechnen, und «offen: 0.00» wäre eine erfundene Aussage."
+    )
+    # Sie liest die Ableitungen des Servers, sie rechnet sie nicht nach.
+    for field in ("p.open", "p.overdue", "p.due_on"):
+        assert field in money, f"«{field}» wird nicht gelesen – im Browser gerechnet?"
+    assert "p.amount -" not in money and "reduce(" not in money, (
+        "Die Oberfläche rechnet den offenen Betrag selbst – das wäre die zweite Formel, "
+        "und die zweite weicht ab."
+    )
+    # Und die Knöpfe hängen an `can`, nicht an einer Rollen- oder Stufenabfrage.
+    for verb in ("'pay'", "'link'"):
+        assert f"may(p, active, {verb})" in money, (
+            f"Der Knopf für {verb} hängt nicht an `can` – dann laufen Knopf und Tür "
+            f"beim nächsten Verb auseinander."
+        )
+
+
+def test_the_counterparty_role_comes_from_the_catalogue():
+    """**Wer als Gegenpartei in Frage kommt, sagt das Backend** – nicht der Modultyp.
+
+    Bug-Form: `moduleType === 'verkauf' ? 'customer' : 'supplier'` in der Oberfläche.
+    Das wäre die zweite Stelle für dieselbe Regel – und der Dienst wiese danach ab, was
+    die Liste angeboten hat.
+    """
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "info.party_role" in designer, (
+        "Der Editor liest die Rolle nicht aus dem Katalog."
+    )
+    assert "'customer'" not in designer and "'supplier'" not in designer, (
+        "Die Oberfläche schreibt eine Gegenpartei-Rolle selbst hin."
+    )
+    work = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
+    assert "p.party_role" in work, "Die Karte liest die Rolle nicht aus dem Beleg."
+    assert "'customer'" not in work and "'supplier'" not in work, (
+        "Die Karte kennt wieder Rollen – sie soll `can` und `party_role` fragen."
     )

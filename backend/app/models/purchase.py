@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Any, Optional
 
-from sqlalchemy import BigInteger, Index, Numeric, String, text
+from sqlalchemy import BigInteger, Date, Index, Numeric, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,7 +10,13 @@ from .base import TimestampMixin
 
 
 class Purchase(Base, TimestampMixin):
-    """Der **Beleg** eines Beschaffungs-Moduls: was bestellt wird, bei wem, wie weit.
+    """Der **Beleg** eines Handelsvorgangs: was gehandelt wird, mit wem, wie weit.
+
+    **Er trägt eine Richtung** (``direction``, ``domain/procurement``). Einkauf und
+    Verkauf sind dasselbe Geschäft aus zwei Blickwinkeln – jemand fragt, jemand nennt einen
+    Preis, jemand sagt zu, jemand erfüllt. Dieselben drei Stufen, dieselbe Schwelle,
+    derselbe Storno; verschieden sind die Wörter, die Gegenpartei und die Hand, die den
+    Preis einträgt. Zwei Tabellen wären zwei Orte für dieselbe Regel.
 
     **Keine eigene Objektnummer.** Er läuft unter der Auftragsnummer – dasselbe Muster
     wie jede andere Fachzeile des Prozesses (Erfassung, Ereignis). Eine zweite Nummer
@@ -22,11 +28,18 @@ class Purchase(Base, TimestampMixin):
     nicht. Wer den Bestellzustand an den Zustand des Stücks hängte, hätte Zustände
     erfunden, die keine Aussage über das Material sind.
 
-    ``quotes`` ist die **Anfrage** – eine Zeile je angefragtem Lieferanten:
-    ``{"supplier": <Objektnr>, "amount": "84.00", "lead_days": 5, "state": "offeriert"}``.
-    Als JSONB und nicht als Tabelle, aus demselben Grund wie ``instances.reservations``:
-    es ist eine Liste **an** diesem Beleg, keine eigene Sache. Beträge stehen als
-    **String** – wo es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet.
+    ``quotes`` ist die **Anfrage** – eine Zeile je Gegenpartei:
+    ``{"supplier": <Objektnr>, "amount": "84.00", "lead_days": 5, "payment_days": 30,
+    "state": "offeriert"}``. Als JSONB und nicht als Tabelle, aus demselben Grund wie
+    ``instances.reservations``: es ist eine Liste **an** diesem Beleg, keine eigene Sache.
+    Beträge stehen als **String** – wo es auf den Rappen ankommt, wird nicht durch
+    ``float`` gerechnet.
+
+    Der Schlüssel heisst weiterhin ``supplier``, obwohl dort beim Verkauf ein **Kunde**
+    steht. Das ist Absicht: es ist eine Objektnummer in einem JSONB-Wert, den laufende
+    Aufträge bereits tragen, und eine Umschrift wäre ein Risiko ohne einen einzigen neuen
+    Leser. Wie die Gegenpartei **heisst**, sagt der ``Flow`` (``party_word``) – dort, wo
+    es einen Unterschied macht: im Satz, den ein Mensch liest.
 
     ``supplier_id``/``amount`` sind die **getroffene Wahl** (die bestellte Zeile). Sie
     stehen als Spalten und nicht nur in ``quotes``, weil sie das sind, was den Beleg
@@ -68,11 +81,21 @@ class Purchase(Base, TimestampMixin):
     #: mehrere Belege denselben Schritt – jede Beschaffung schreitet eigenständig fort.
     step_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
 
-    #: ``anfrage`` · ``bestellung`` · ``wareneingang`` · ``storniert``
-    #: (``domain/modules.Beschaffen.STAGES``).
-    stage: Mapped[str] = mapped_column(String(20), nullable=False, default="anfrage")
+    #: ``offer`` · ``commitment`` · ``fulfilment`` · ``cancelled``
+    #: (``domain/procurement.STAGES``). **Neutral**, weil dieselben drei Stufen in beide
+    #: Richtungen gelten; wie sie heissen, sagt der ``Flow``.
+    stage: Mapped[str] = mapped_column(String(20), nullable=False, default="offer")
 
-    #: Der **gewählte** Lieferant – ``NULL``, solange nicht bestellt ist.
+    #: ►►► **Kaufen oder verkaufen?** ◄◄◄ ``buy`` · ``sell`` (``domain/procurement``).
+    #:
+    #: Die eine Angabe, aus der jede Beschriftung, die Gegenpartei-Rolle und das Vorzeichen
+    #: des Geldes folgen. Sie steht am **Beleg** und nicht am Modul, weil sie den Vorgang
+    #: beschreibt – und weil ein laufender Auftrag seinen Prozess eingefroren trägt: käme
+    #: sie aus dem Modultyp, änderte ein künftiger Umbau die Bedeutung alter Belege.
+    direction: Mapped[str] = mapped_column(String(10), nullable=False, default="buy",
+                                           server_default="buy")
+
+    #: Die **gewählte** Gegenpartei – ``NULL``, solange nichts zugesagt ist.
     supplier_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     #: Bestellsumme **netto**, für die ganze Menge. Der Stückpreis ist Summe ÷ Menge –
     #: eine abgeleitete Zahl gehört nicht als zweite Spalte daneben.
@@ -81,6 +104,15 @@ class Purchase(Base, TimestampMixin):
 
     #: **Die Sendungsnummer** – die eine Angabe, die erst nach der Bestellung entsteht.
     tracking: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+    #: **Wann zugesagt wurde** – der Tag, an dem der Beleg die Schwelle überschritten hat.
+    #:
+    #: Ab hier läuft die Zahlungsfrist, und daraus folgt die Fälligkeit
+    #: (``payments.due_on``). Sie steht als eigene Angabe, weil sie sonst nirgends steht:
+    #: ``created_at`` ist die Anlage des Belegs (oft Wochen früher), und ``updated_at``
+    #: verschiebt sich bei jeder Sendungsnummer. Ein Datum, das sich bewegt, taugt nicht
+    #: als Beginn einer Frist.
+    committed_on: Mapped[Optional[object]] = mapped_column(Date, nullable=True)
 
     #: Eine Zeile je angefragtem Lieferanten – siehe Klassen-Docstring.
     quotes: Mapped[list[dict[str, Any]]] = mapped_column(

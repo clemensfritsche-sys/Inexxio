@@ -7,6 +7,7 @@ from .order_line import OrderLine
 from .order_unit import OrderUnit
 from .process_step import ProcessStep
 from .purchase import Purchase
+from .payment import Payment
 from .article_process_step import ArticleProcessStep
 from .process_event import ProcessEvent
 from .instance import Instance
@@ -21,7 +22,7 @@ from .object_ref import ObjectRef
 __all__ = [
     "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Article",
     "Order", "OrderLine", "OrderUnit", "ProcessStep", "ArticleProcessStep", "ProcessEvent",
-    "Purchase",
+    "Purchase", "Payment",
     "Instance", "InstanceUnit", "Capture",
     "Attachment",
     "WebAuthnCredential", "WebAuthnChallenge",

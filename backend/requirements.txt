@@ -15,5 +15,9 @@ httpx==0.28.0
 python-multipart==0.0.17
 # pillow: verkleinert und normalisiert die aufgenommenen Bilder (services/attachments).
 pillow==11.0.0
+# stripe: der eine Zahlungsdienst (services/stripe_pay). **Optional zur Laufzeit** – ohne
+# STRIPE_SECRET_KEY wird das Modul nie importiert, und alles andere läuft unverändert:
+# eine Überweisung ist kein Fallback, sondern der B2B-Normalfall.
+stripe==11.2.0
 pytest==8.3.4
 pytest-asyncio==0.24.0

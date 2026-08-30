@@ -1987,6 +1987,122 @@ Vergangenheit» (§8.1a). Eine Kette, die beim Stornieren komplett auf grau fäl
 einen stornierten Beleg ununterscheidbar von einem, bei dem nie etwas geschehen ist.
 
 
+### 9.10 Das Modul «Verkauf» — dasselbe Tor, andere Richtung
+
+**Verkauf ist kein neues Konzept.** Einkauf und Verkauf sind *dasselbe Geschäft aus zwei
+Blickwinkeln*: jemand fragt, jemand nennt einen Preis, jemand sagt zu, jemand erfüllt.
+Drei Stufen, eine Schwelle, ein Storno — Wort für Wort dieselbe Maschine
+(`services/purchase`, ein Dienst für beide Richtungen).
+
+Verschieden sind nur drei Dinge, und alle drei stehen als **Daten** im `Flow`
+(`domain/procurement.FLOWS`), nicht als Verzweigung im Dienst:
+
+| | Beschaffen (`buy`) | Verkauf (`sell`) |
+|---|---|---|
+| Stufen | Anfrage → Bestellung → Wareneingang | Angebot → Zusage → Geliefert |
+| Gegenpartei | Lieferant, **vorab freigegeben** | Kunde, **zur Laufzeit gewählt** |
+| Den Preis nennt | die Gegenpartei | **wir** |
+
+> Ein `if direction ==` im Dienst wäre die Stelle, an der die beiden auseinanderlaufen:
+> die erste Verzweigung ist eine Beschriftung, die zweite eine Regel, und ab der dritten
+> gibt es zwei Belege, die nur noch so tun, als wären sie einer.
+
+**Die Stufen sind darum neutral** (`offer` · `commitment` · `fulfilment` · `cancelled`).
+Sie hiessen einmal deutsch und einkaufsspezifisch; ein «Wareneingang», bei dem Ware das
+Haus verlässt, ist kein Name, sondern ein Irrtum mit Bestand.
+
+#### Der eine echte Unterschied: der Verkauf ist ein AUSGANG
+
+Der Einkauf endet mit dem Wareneingang und ist ein **Durchläufer** — das Stück läuft
+danach weiter. Der Verkauf endet mit der Lieferung, und was geliefert ist, ist weg:
+`Module.terminal`. Daraus folgt alles Weitere ohne eine Fallunterscheidung (§4.6) — der
+Editor bietet dahinter nichts an, die Freigabe weist ein Modul dahinter ab, das Bild endet
+dort.
+
+**Der Zustand ist `Verkauft`: grün, Historie, nicht endgültig.**
+
+* **Grün**, weil das Stück sein Ziel erreicht hat — derselbe Grund wie bei `Verbaut`.
+* **Historie**, weil es nicht mehr in unserem Regal liegt: FIFO schlägt es nicht vor,
+  der Bestand zählt es nicht mit. Wählbar bleibt es trotzdem — das sind zwei Fragen, und
+  der Katalog führt sie getrennt (`stock` ↔ `terminal`).
+* **Der Ort fällt weg**, ohne eine Zeile im Modul: `process._pass` räumt ihn für jeden
+  Zustand, der zur Historie zählt. Wo das Stück beim Kunden liegt, ist nicht unsere
+  Auskunft.
+
+#### Die Retoure ist ein ganz gewöhnlicher Auftrag
+
+Es gibt **keinen** «Retoure annehmen»-Endpunkt und kein Retouren-Modul. Ein Auftrag greift
+die verkauften Stücke — **das Greifen IST die Rücknahme**, genau wie beim Sperren und beim
+Verbauen. Und weil sein Start vom **Regelstart** abweicht (`Freigegeben`), ist er
+**automatisch** eine dokumentierte Abweichung (§12.2), ohne dass jemand ein Feld setzt.
+
+> **Farbe und Abweichung sind zwei Fragen.** `deviation_flags` vergleicht mit
+> `START_BEFORE` und nennt weder Farbe noch Status. `Verkauft` ist grün **und** löst eine
+> Abweichung aus — `Verbaut` beweist seit dem Verbrauchsmodul, dass das kein Widerspruch
+> ist. Eine Regel, die nach der Farbe fragt, liesse ausgerechnet die Retoure aus dem
+> Nachweis fallen.
+
+#### In der Definition steht nichts
+
+**Der Kunde steht zur Laufzeit fest.** Beim Einkauf ist die Liste eine
+Freigabeentscheidung, die vorab fällt («für dieses Teil kommen diese drei in Frage») —
+beim Verkauf weiss beim Modellieren eines Artikels niemand, wer ihn einmal kauft. Die
+Liste bleibt trotzdem *möglich* (leer heisst frei): «diese Charge geht ausschliesslich an
+Meier» ist eine echte Hausregel.
+
+**Und der Preis ist NICHT der Einstandspreis** (`landed_cost = False`): was ein Kunde
+zahlt, ist verhandelt und sagt nichts über unsere Kosten. Ihn an den Artikel zu schreiben
+hiesse, mit dem eigenen Verkaufspreis zu kalkulieren — derselbe stille Datenfehler wie
+beim Frachttarif (§9.8), nur teurer.
+
+### 9.11 Das Geld — eine Zeile am Beleg, keine vierte Stufe
+
+**Es gibt keine Forderungs-Tabelle.** *Offen* ist eine Subtraktion, *fällig* eine Addition,
+*überfällig* beides zusammen (`services/payments`):
+
+```
+offen      = Belegsumme − Gutschriften − Zahlungen
+fällig     = Zusagedatum + Zahlungsfrist
+überfällig = fällig verstrichen  UND  offen > 0
+```
+
+Eine Spalte «offener Betrag» wäre die zweite Wahrheit: sie müsste bei jeder Zahlung, jeder
+Gutschrift und jeder Mengenklärung nachgezogen werden, und die eine vergessene Stelle
+fällt erst auf, wenn jemand mahnt.
+
+**Ein negativer offener Betrag ist kein Fehler, sondern eine Aussage**: dann schulden
+**wir**.
+
+**Zwei Arten, weil zwei Dinge Verschiedenes bedeuten:** eine `payment`-Zeile heisst «Geld
+ist geflossen» (negativ = zurück, also eine Erstattung), eine `credit`-Zeile «die Forderung
+wird gemindert, ohne dass Geld fliesst» (Gutschrift, Kulanz). Ohne die Unterscheidung
+liesse sich «wie viel hat der Kunde wirklich gezahlt» nicht mehr beantworten — und eine
+Retoure sähe aus wie eine offene Rechnung.
+
+**Ware und Geld bleiben entkoppelt**, und das ist keine Nachlässigkeit: eine Gutschrift
+ohne Rücknahme ist Kulanz, eine Rücknahme ohne Gutschrift ist Garantie. Gekoppelt wäre
+weder das eine noch das andere abbildbar.
+
+**Der Weg des Geldes ist ein Feld, kein Modell.** Überweisung und Karte schreiben denselben
+Datensatz über dieselbe Funktion (`payments.record`) — bei der einen ruft ein Mensch, bei
+der anderen der Webhook des Zahlungsdienstes. Ein Provider-Rahmen mit zwei
+Implementierungen wäre eine Abstraktion über einer Zeile.
+
+**`pay` hat darum keine Stufe** (wie `buy`, §9.9): Geld fliesst, sobald zugesagt ist — und
+auch noch, wenn längst geliefert **oder storniert** ist. Eine Anzahlung auf eine stornierte
+Bestellung muss erstattet werden können; wer das verbietet, baut eine Sackgasse.
+
+> **Und das ERP nennt Betrag und Währung, der Dienst kassiert.** Im Vorgängersystem stand
+> es umgekehrt («Stripe ist Quelle der Wahrheit»), und daraus kam fast die ganze
+> Komplexität: Snapshot-Spalten an vier Tabellen, ein Webhook, der Aufträge erzeugte, ein
+> `CheckoutIntent` mit Reservierungen und ein Aufräumer für verlassene Warenkörbe. Hier
+> schreibt der Webhook **eine Zeile Geld** und sonst nichts.
+
+**Keine Reservierung, nirgends.** Ein Shop-Kauf ist nichts anderes als eine
+**Auftragsfreigabe**: derselbe Aufruf, den der Vertrieb macht. Sind die Stücke im selben
+Moment weg, meldet die Freigabe es — wie immer.
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln
@@ -2525,6 +2641,14 @@ nachgetragen — nicht beim Bauen erraten.
 6. **Die Vorlage im Entwurf abweichen lassen.** Heute nicht möglich — der Stempel wäre
    sonst eine Behauptung. Falls es gebraucht wird, ist es ein eigener Vorgang
    («Prozess dieses Auftrags von der Vorlage lösen»), kein stilles Editieren.
+7. **Wiederkehrende Aufträge — eine Schlaufe mit Intervall im Prozess.** Wartung,
+   Kalibrierung, monatliche Lieferung und ein Abo sind **derselbe** Fall: eine Regel, die
+   in einem Takt einen ganz gewöhnlichen Auftrag erzeugt. Bewusst **nicht** als
+   «Abo»-Objekt am Verkauf gebaut: das Vorgängersystem hatte es dort
+   (`article_prices.kind` → `orders.recurrence_kind` → `_spawn_recurrence` →
+   Auto-Fulfillment im Webhook → «Abos lassen sich nicht mischen»), und die ganze Kette
+   hing an einer Eigenschaft des **Preises**. Steht die Wiederkehr im Prozess, muss der
+   Verkauf von ihr nichts wissen — und jedes andere Modul erbt sie.
 
 ---
 

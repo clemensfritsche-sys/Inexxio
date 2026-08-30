@@ -1421,6 +1421,92 @@
 > 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf, beide Optionen
 > exakt gleich breit (Δ 0.00 px — die erste Wortwahl ergab bei 320 px 10.6 px Differenz).
 
+> **Das sechste Modul ist «Verkauf» — dasselbe Tor, andere Richtung** (PROCESS_CORE §9.10/
+> §9.11, Migration `122`). **Verkauf ist kein neues Konzept**: Einkauf und Verkauf sind
+> *dasselbe Geschäft aus zwei Blickwinkeln* – jemand fragt, jemand nennt einen Preis,
+> jemand sagt zu, jemand erfüllt. Drei Stufen, eine Schwelle, ein Storno, **ein Dienst**
+> (`services/purchase`). Verschieden sind nur Wörter, Gegenpartei und die Hand, die den
+> Preis einträgt – und alle drei stehen als **Daten** im `Flow` (`domain/procurement.
+> FLOWS`), nicht als `if direction ==`: die erste Verzweigung ist eine Beschriftung, die
+> zweite eine Regel, und ab der dritten gibt es zwei Belege, die nur so tun, als wären sie
+> einer. Ein `services/sales.py` gibt es darum nicht, und ein Quelltext-Wächter hält es so.
+> **Die Stufen wurden dafür neutral** (`offer · commitment · fulfilment · cancelled`) –
+> «Wareneingang» an einem Verkaufs-Beleg wäre kein Name, sondern ein Irrtum mit Bestand;
+> die alten Werte bleiben lesbar (`normalize`), Migration und Alias sind zwei Netze für
+> dieselbe Umschrift. **Die Richtung steht am BELEG**, nicht am Modultyp: ein laufender
+> Auftrag trägt seinen Prozess eingefroren, und ein Beleg soll auch dann noch sagen können,
+> was er war, wenn sein Modul längst anders deklariert ist.
+> **Der eine echte Unterschied ist der AUSGANG.** Der Einkauf endet mit dem Wareneingang
+> und ist ein Durchläufer; der Verkauf endet mit der Lieferung, und was geliefert ist, ist
+> weg (`terminal`, Status **`Verkauft`**). Alles Weitere folgt daraus ohne eine
+> Fallunterscheidung – der Editor bietet dahinter nichts an, die Freigabe weist ab, das
+> Bild endet dort (§4.6).
+> **Die Retoure ist ein ganz gewöhnlicher Auftrag** – kein Retouren-Modul, kein «Retoure
+> annehmen»-Endpunkt: er greift die verkauften Stücke, **das Greifen IST die Rücknahme**
+> (wie beim Sperren und beim Verbauen). Und weil sein Start vom Regelstart abweicht, ist er
+> **automatisch** eine dokumentierte Abweichung. **Die Farbe spielt dabei keine Rolle** –
+> das war die Frage beim Entwurf: `Verkauft` ist **grün** (es hat sein Ziel erreicht) und
+> löst trotzdem eine Abweichung aus, denn `deviation_flags` vergleicht mit dem *Regelstart*
+> und nennt weder Farbe noch Status. `Verbaut` beweist das seit dem Verbrauchsmodul; eine
+> Regel, die nach der Farbe fragte, liesse ausgerechnet die Retoure aus dem Nachweis fallen.
+> **Und der Ort fällt weg, ohne eine Zeile im Modul**: `process._pass` räumt ihn für jeden
+> Zustand mit `stock = HISTORY`. Wo das Stück beim Kunden liegt, ist nicht unsere Auskunft.
+> **In der Definition steht nichts** – wer kauft, weiss beim Modellieren eines Artikels
+> niemand (die Liste bleibt *möglich*, Pflicht ist sie nicht); und `landed_cost = False`,
+> denn was ein Kunde zahlt, ist verhandelt und sagt nichts über unsere Kosten. **Ein
+> Namensteppich blieb aus**: `Module.suppliers_of` heisst jetzt `parties_of` (beim Verkauf
+> steht dort ein Kunde), der JSONB-Schlüssel `supplier` bleibt – er steht in laufenden
+> Aufträgen, und eine Umschrift wäre ein Risiko ohne einen einzigen neuen Leser.
+>
+> **Das Geld ist eine ZEILE am Beleg, keine vierte Stufe** (`domain/money.py`,
+> `services/payments.py`). **Es gibt keine Forderungs-Tabelle**: *offen* = Belegsumme −
+> Gutschriften − Zahlungen, *fällig* = Zusagedatum + Zahlungsfrist, *überfällig* = beides.
+> Drei Ableitungen, null Spalten – eine Spalte «offener Betrag» wäre die zweite Wahrheit,
+> und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt. Ein
+> **negativer** offener Betrag ist kein Fehler, sondern eine Aussage: dann schulden wir.
+> **Zwei Arten, weil zwei Dinge Verschiedenes bedeuten**: `payment` (Geld ist geflossen,
+> negativ = Erstattung) und `credit` (die Forderung wird gemindert, ohne dass Geld
+> fliesst). Ohne sie liesse sich «wie viel hat der Kunde wirklich gezahlt» nicht mehr
+> beantworten, und eine Retoure sähe aus wie eine offene Rechnung. **Ware und Geld sind
+> entkoppelt**: Gutschrift ohne Rücknahme = Kulanz, Rücknahme ohne Gutschrift = Garantie –
+> gekoppelt wäre keines von beiden abbildbar.
+> **Der Weg des Geldes ist ein FELD, kein Modell**: Überweisung und Karte schreiben
+> denselben Datensatz über dieselbe Funktion (`payments.record`, idempotent über die
+> Referenz) – bei der einen ruft ein Mensch, bei der anderen der Webhook. Ein
+> Provider-Rahmen mit zwei Implementierungen wäre eine Abstraktion über einer Zeile.
+> **`pay` hat darum keine Stufe** (wie `buy`): Geld fliesst, sobald zugesagt ist – und auch
+> noch nach einem Storno, denn eine Anzahlung muss erstattet werden können.
+>
+> **Stripe ist zurück – dünn, und in die richtige Richtung** (`services/stripe_pay.py`,
+> `docs/stripe-setup.md`). **Das ERP nennt Betrag und Währung, Stripe kassiert.** Im
+> Vorgängersystem stand es wörtlich umgekehrt («Stripe ist Quelle der Wahrheit»), und
+> daraus kam fast die ganze Komplexität: `stripe_*`-Snapshot-Spalten an vier Tabellen, ein
+> Webhook, der **Aufträge erzeugte**, ein `CheckoutIntent` mit Reservierungen und ein
+> Aufräumer für verlassene Warenkörbe. Heute schreibt der Webhook **eine Zeile Geld** und
+> sonst nichts – kein Auftrag, keine Freigabe, keine Stufe. **Keine Reservierung, nirgends**:
+> ein Shop-Kauf ist nichts anderes als eine Auftragsfreigabe, und sind die Stücke im selben
+> Moment weg, meldet sie es – wie immer. **Ohne Schlüssel gibt es den Dienst nicht** (kein
+> Stub, kein 503, kein Knopf); eine Überweisung ist kein Fallback, sondern der
+> B2B-Normalfall. **Adaptive Pricing bleibt aus** – die eine Lehre, die unverändert gilt:
+> sonst rechnete Stripe unseren Betrag mit seinem Kurs erneut um (angezeigt 11.80, belastet
+> 11.82). Bewusst nicht: Stripe Tax · Customer Portal · Subscriptions · eingebettete Kasse.
+> **Wiederkehr ist bewusst NICHT hier gebaut** (PROCESS_CORE §13.7): Wartung, Kalibrierung,
+> monatliche Lieferung und ein Abo sind derselbe Fall – eine **Schlaufe mit Intervall im
+> Prozess**. Im Vorgängersystem hing sie am *Preis* (`article_prices.kind` →
+> `orders.recurrence_kind` → `_spawn_recurrence` → Auto-Fulfillment im Webhook → «Abos
+> lassen sich nicht mischen»); steht sie im Prozess, muss der Verkauf von ihr nichts wissen
+> und jedes andere Modul erbt sie.
+> Wächter: `tests/test_sales_module.py` (19 Prüfungen, **jede gegen ihre Bug-Form
+> gegengeprüft** – eine war dabei stumpf und liess ihre eigene Form durch: sie prüfte
+> «ohne Zusage keine Fälligkeit», nicht «ohne **Frist** keine Fälligkeit»; gemessen,
+> nachgeschärft, erneut gegengeprüft) + sieben in `test_frontend_mirrors.py`; zwei
+> bestehende Wächter waren zu grob geworden und verboten die einzig richtige Lösung
+> (ein geteilter `MODULE_FORM`-Eintrag, die durchgereichte `party_role`) – präzisiert und
+> gegengeprüft. Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema, das nur
+> aus den Migrationen kommt; Migration `122` von null · idempotent · downgrade · über das
+> Lifespan-Netz. Gemessen in Chromium: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px**
+> waagrechter Überlauf über fünf Zustände der Zahlungszeile.
+
 > **Altlasten-Bereinigung (August 2026) – was nicht gebraucht wird, ist WEG**
 > (`docs/cleanup-2026-08.md`, `docs/attic.md`, Tag `attic/pre-cleanup-2026-08`).
 > Der Basis-Neuaufbau hatte vier Bereiche liegen lassen (Verkauf/Shop · Dokumente · KI ·
@@ -1633,11 +1719,13 @@ Bilder:    in der Datenbank, ausgeliefert über einen unerratbaren Token
 Karten:    Google Places (Adress-Suche in jedem Adressfeld)
 Infra:     Google Cloud Run + Firebase Hosting
 Analytics: Plausible (DSGVO-konform, lädt erst mit Einwilligung)
+Zahlung:   Stripe (Checkout-Link + Webhook) – **optional**: ohne Schlüssel gibt es den
+           Dienst nicht, und bezahlt wird per Überweisung (`docs/stripe-setup.md`)
 ```
 
 **Geplant, aber NICHT verdrahtet** – hier steht heute keine Zeile Code:
-Stripe (Zahlungen) · Gmail API (E-Mail) · Typesense (Suche) · Claude API (KI) ·
-Cloud Storage (Datei-Ablage) · Carrier-Anbindung (Versand). Was davon einmal gebaut und
+Gmail API (E-Mail) · Typesense (Suche) · Claude API (KI) · Cloud Storage (Datei-Ablage) ·
+Carrier-Anbindung (Versand). Was davon einmal gebaut und
 wieder entfernt wurde, steht mit seinen Entscheidungen in `docs/attic.md`.
 
 ## Monorepo-Struktur
@@ -1844,15 +1932,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   ohne KI), Bestand in drei Ebenen, Reihe (ersetzt/ersetzt durch) und die gemeldete
   Stückliste – ausser Betrieb nehmen ist ein Statuswechsel in beide Richtungen.
 - **Prozess**: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie; jeder
-  Statuswechsel schreibt in den append-only Ereignis-Log. Fünf Module (Datenerfassung ·
-  Aussondern · Verbrauch · Bewegen · Beschaffen), Abweichungen als ganz gewöhnliche
-  Aufträge, Prozessbild als serverseitig gerechneter Graph.
+  Statuswechsel schreibt in den append-only Ereignis-Log. **Sechs Module** (Datenerfassung ·
+  Aussondern · Verbrauch · Bewegen · Beschaffen · **Verkauf**), Abweichungen als ganz
+  gewöhnliche Aufträge, Prozessbild als serverseitig gerechneter Graph.
+- **Verkauf und Geld**: derselbe Beleg wie der Einkauf, nur in die andere Richtung
+  (Angebot → Zusage → Geliefert); Zahlungen und Gutschriften als Zeilen daneben, *offen*
+  und *fällig* als Ableitung. **Stripe** angebunden (Zahllink + Webhook), optional – ohne
+  Schlüssel bleibt die Überweisung, und die ist der B2B-Normalfall.
 - **Unternehmen**: mehrere gleichrangige Gesellschaften mit eigener Rechtsidentität,
   Gebietskarte, ein gewählter Betreiber für die eine Website.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung), als Markdown kopierbar.
 
-**Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): Verkauf/Shop,
-Zahlungen, Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent, Versand-
+**Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): der **Shop**
+(die Verkaufs-*Logik* gibt es wieder, §9.10), Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent, Versand-
 Anbindung, der Ereignis-Strom als Outbox. Ebenfalls nie gebaut: E-Mail (Gmail API),
 Typesense-Suche, Buchhaltung, HR.
 

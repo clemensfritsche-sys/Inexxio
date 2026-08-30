@@ -425,7 +425,7 @@ def test_a_module_that_may_not_buy_gets_no_document():
 
         # Das Bewegen-Modul darf – der Beleg entsteht mit der Wahl.
         row = purchase_svc.ensure(db, order=order, step=steps[0])
-        assert row.stage == "anfrage" and row.step_id == steps[0].id
+        assert row.stage == "offer" and row.step_id == steps[0].id
         # …und zweimal wählen legt keinen zweiten an.
         assert purchase_svc.ensure(db, order=order, step=steps[0]).id == row.id
 

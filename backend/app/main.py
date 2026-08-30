@@ -17,7 +17,7 @@ from .domain import statuses as st
 from .models import UserProfile
 from .routers import (
     admin, articles, attachments, auth, contact, erp, feedback, health,
-    instances, orders, passkey, places,
+    instances, orders, passkey, payments, places,
 )
 
 settings = get_settings()
@@ -109,6 +109,13 @@ _COLUMN_SAFETY_NET = (
     ("purchases", "ordered_lines", "JSONB"),
     # Die Sendungsnummer (Migration 117) – dieselbe Tabelle, dieselbe Ausfallklasse.
     ("purchases", "tracking", "VARCHAR(200)"),
+    # Die Richtung des Belegs (Migration 122): ``buy`` · ``sell``. Ohne sie scheitert
+    # jeder Lesezugriff auf einen Beleg, und damit jede Auftrags-Anzeige, die eines der
+    # handelnden Module enthält. Der Default macht aus jedem bestehenden einen Einkauf –
+    # was er ist.
+    ("purchases", "direction", "VARCHAR(10) NOT NULL DEFAULT 'buy'"),
+    # Der Tag der Zusage (Migration 122) – aus ihm folgt die Fälligkeit.
+    ("purchases", "committed_on", "DATE"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -828,6 +835,7 @@ app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(places.router)
 app.include_router(attachments.router)
+app.include_router(payments.router)
 app.include_router(feedback.router)
 
 

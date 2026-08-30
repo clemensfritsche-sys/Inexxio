@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     #: falsch wird (``services/sites.website_url`` ist die eine Ableitung daraus).
     frontend_base_url: str = "http://localhost:3000"
 
+    # ── Zahlungsdienst (``services/stripe_pay``) ─────────────────────────────────
+    #: **Leer heisst: es gibt keinen.** Kein Schalter daneben, der ohne Schlüssel auf «an»
+    #: stünde – ``stripe_pay.available()`` ist eine Ableitung aus genau dieser Zeile. Ohne
+    #: sie erscheint der Zahllink-Knopf gar nicht erst, und alles andere läuft unverändert:
+    #: eine Überweisung ist kein Fallback, sondern der B2B-Normalfall.
+    #:
+    #: Beide Werte kommen aus dem Google Secret Manager (``docs/stripe-setup.md``), nie
+    #: aus dem Repo. Sandbox-Schlüssel beginnen mit ``sk_test_`` bzw. ``whsec_``.
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

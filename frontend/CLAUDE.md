@@ -227,6 +227,37 @@ ein zweites Mal.
   Zeile: eine zweite Kopie weicht in den Nachkommastellen ab, und ihre Zahl sieht
   trotzdem richtig aus.
 
+## Verkauf und Geld (`purchase-work.tsx`)
+**Dieselbe Karte, andere Richtung.** Ein Verkaufs-Beleg rendert buchstäblich dieselbe
+Komponente wie ein Einkauf: dieselben drei Zeilen, dieselben Knöpfe. Was sie
+unterscheidet, **reist fertig mit** – Wörter und Verben in `stages[]`, Name und Farbe in
+`label`/`tone`, das Wort für «zurück» in `undo`. Die Oberfläche braucht dafür **kein
+einziges `if`**; das Symbol kommt aus `FLOW` (`lib/modules`), weil eine Antwort es nicht
+transportieren kann.
+
+- **Die Stufen-Schlüssel stehen an EINER Stelle** (`lib/modules.STAGE`) und decken das
+  Backend genau ab. Vorher standen die deutschen Einkaufs-Wörter im Rumpf
+  (`stage.key === 'wareneingang'`) – ein Verkaufs-Beleg hätte an **keiner** Stufe etwas
+  gezeigt: alle Vergleiche falsch, still und ohne Fehlermeldung.
+- **Die Gegenpartei-Rolle kommt vom Server** (`party_role` am Beleg, `ModuleTypeInfo` im
+  Editor) und wird **durchgereicht, nicht ausgewertet**. `moduleType === 'verkauf' ?
+  'customer' : 'supplier'` wäre die zweite Stelle für dieselbe Regel – und der Dienst
+  wiese danach ab, was die Liste angeboten hat. Dasselbe gilt für das **Wort**
+  (`party_word`): «Auftrag an den Lieferanten» ist an einem Verkaufs-Modul falsch.
+- **Das Geld steht NEBEN den Stufen** (`Money`), nicht als vierte in der Kette: eine
+  Zahlung macht aus einem Angebot keine Zusage, und nach einem Storno ist eine Erstattung
+  der Normalfall. Ob es überhaupt etwas zu zeigen gibt, sagt der Beleg (`open` ist `null`,
+  solange nichts zugesagt ist) – «offen: 0.00» wäre eine erfundene Aussage.
+- **Gerechnet wird nichts im Browser.** *Offen*, *fällig* und *überfällig* sind
+  Ableitungen des Servers (`services/payments`); eine zweite Formel hier wiche ab, und
+  ihre Zahl sähe trotzdem richtig aus. **Punkt + Wort** wie jeder Zustand im Haus, Beträge
+  über `formatAmount` und `.ix-tnum`.
+- **Die Knöpfe hängen an `can`** – auch `pay` und `link`, obwohl sie keine Stufe haben.
+  Der Zahllink erscheint nur, wo es einen Dienst **und** einen offenen Betrag gibt: ein
+  Knopf, der nie etwas tun kann, ist kein Angebot, und ein ausgegrauter wäre eine Bitte.
+- **Die Route kennt der Aufrufer, nicht die Karte** (`onLink`): dieselbe Bauart wie
+  `onAction`. Fehlt der Rückruf, gibt es den Knopf nicht.
+
 ## Bewegen: selbst gebracht oder eingekauft (`order-detail.Wrapped`)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – also
 trägt das Bewegen-Modul denselben Einkaufs-Beleg wie das Beschaffen-Modul: dieselben drei
@@ -248,8 +279,9 @@ und das zweite veraltet beim ersten neuen Verb.
 - **Der ganze Einkaufs-Bereich trägt seinen Ton** (`ProcurementBlock`, #776) – als
   Haarlinie an der Kante, nicht als Fläche: eine getönte Karte wäre die dritte
   (Modul-Karte → Beleg-Karte → Stufen-Zeile). Sie heisst **«Selbst ↔ Beschaffen»** –
-  dasselbe Wort wie das Modul, das es sonst tut, aus **einer** Quelle (`PROCUREMENT`,
-  gespiegelt von `domain/procurement`).
+  dasselbe Wort wie das Modul, das es sonst tut, aus **einer** Quelle (`FLOW.buy`,
+  gespiegelt von `domain/procurement`). Eine Spedition wird **gekauft**, nie verkauft –
+  darum steht dort die Richtung fest und nicht `flowOf(…)`.
 - **Und man sieht, dass es ein Einkauf ist** (#775): über dem Beleg steht seine eigene
   Überschrift (`ProcurementHead` – getöntes Symbol · Name · Haarlinie, dieselbe Anatomie
   wie eine Modul-Karte, `ModuleMark` aus einer Quelle). Nur wo der Einkauf **nicht** der

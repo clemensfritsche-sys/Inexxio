@@ -44,6 +44,7 @@ Wörter, wo sie dasselbe meinen.
 | `im_prozess` | Im Prozess | Einzelinstanz · Auftrag | nein | **ja** | gelb | **lebend** |
 | `gesperrt` | Gesperrt | Einzelinstanz | nein | **ja** | gelb | **lebend** |
 | `verbaut` | Verbaut | Einzelinstanz | nein | **ja** | **grün** | historisch |
+| `verkauft` | Verkauft | Einzelinstanz | nein | **ja** | **grün** | historisch |
 | `verschrottet` | Verschrottet | Einzelinstanz | **ja** | **nein** | rot | historisch |
 | `abgeschlossen` | Abgeschlossen | Auftrag | – | – | grün | – |
 | `abgebrochen` | Abgebrochen | Auftrag | – | – | rot | – |
@@ -56,6 +57,9 @@ Wörter, wo sie dasselbe meinen.
   «einsatzbereit», auf zwei Achsen.
 - **`im_prozess`** — An der Einzelinstanz: sie ist in **genau einem** Auftrag aktiv. Am
   Auftrag: es ist noch etwas unterwegs.
+- **`verkauft`** — An einen Kunden gegangen. **Grün**, weil es sein Ziel erreicht hat;
+  **historisch**, weil es nicht mehr in unserem Regal liegt; **nicht terminal**, weil eine
+  Retoure real ist. Der Ort fällt weg — wo es beim Kunden liegt, ist nicht unsere Auskunft.
 - **`gesperrt`** — Aus dem Verkehr gezogen, **physisch noch da**. Nicht einplanbar,
   solange die Sperre gilt — **aber selektierbar**: das Greifen durch einen Auftrag **ist**
   das Aufheben. Es gibt bewusst keinen «Entsperren»-Endpunkt.
@@ -120,6 +124,8 @@ zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand
 | T7 | `im_prozess` | `gesperrt` | **step** | Modul «Aussondern», Ausprägung *Sperren*. |
 | T7b | `im_prozess` | `verbaut` | **step** | Modul «Verbrauch», für die **genannten Artikel**. Der Rest passiert dasselbe Modul unverändert (T5) – der Ausgang gilt je Stück, nicht je Modul. |
 | T7c | `verbaut` | `im_prozess` | **start** | Auftragsfreigabe, verbautes Stück wird gegriffen → **Demontage**, ebenfalls eine Abweichung. |
+| T7d | `im_prozess` | `verkauft` | **step** | Modul «Verkauf». Ein **Ausgang**: was hier ankommt, verlässt den Auftrag und das Haus. Der Ort fällt dabei weg (`stock = historisch`). |
+| T7e | `verkauft` | `im_prozess` | **start** | Auftragsfreigabe, verkauftes Stück wird gegriffen → **Retoure**, ebenfalls eine Abweichung. |
 | T8 | `im_prozess` | `freigegeben` | **end** | Das Stück passiert das Ende-Objekt und kehrt **nirgends** zurück. Der Wert ist der `end_status` des Auftrags (heute immer `freigegeben`, an einer Stelle hinterlegt). |
 | T9 | `im_prozess` | `im_prozess` | **end** | Das Stück passiert das Ende-Objekt und **kehrt in seinen Quell-Auftrag zurück**. Es bleibt im Prozess — es ist ja in einem. |
 
@@ -331,6 +337,7 @@ Als prüfbare Sätze. Jeder ist so formuliert, dass ein Test ihn widerlegen kön
 | U5 | `im_prozess`, Modul **gesperrt** (wartet auf Rückführung) | Die ausstehende Rückführung abschliessen — dann fällt die Sperre von selbst. Oder: in der Abweichung wird ausgesondert, dann endet die Wartekette. |
 | U6 | `gesperrt`, keine offene Zugehörigkeit — **gesperrter Bestand** | Ein **ganz gewöhnlicher** Auftrag greift es (T4). Das Greifen IST das Aufheben; es gibt bewusst keinen Entsperren-Endpunkt. |
 | U6b | `verbaut` — steckt in einem anderen Stück | Ein **ganz gewöhnlicher** Auftrag greift es (T7c). Das Greifen IST der Ausbau; es gibt bewusst keinen «demontieren»-Endpunkt. **Die Stückliste des Produkts verliert es dabei nicht** – sie kommt aus dem Log, und was verbaut *war*, bleibt verbaut gewesen. |
+| U6c | `verkauft` — beim Kunden | Ein **ganz gewöhnlicher** Auftrag greift es (T7e). Das Greifen IST die Rücknahme; es gibt bewusst keinen «Retoure annehmen»-Endpunkt. Der Auftrag ist dabei automatisch eine Abweichung – **die Farbe spielt keine Rolle**, verglichen wird mit dem Regelstart. |
 | U7 | `verschrottet` | **Kein Ausgang — ausdrücklich terminal.** Das ist die Zusage, keine Sackgasse. |
 
 **Unmögliche Kombinationen** (sie dürfen nicht vorkommen, und ihr Auftreten ist ein

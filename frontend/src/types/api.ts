@@ -660,7 +660,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/supplier-options": {
+    "/api/v1/erp/orders/party-options": {
         parameters: {
             query?: never;
             header?: never;
@@ -668,14 +668,19 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Supplier Options
-         * @description **Wer kommt als Lieferant in Frage?** – gesucht, nicht als ganze Liste geladen.
+         * Party Options
+         * @description **Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als ganze Liste geladen.
          *
          *     Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
          *     dieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach
-         *     auch annimmt. Ein Kunde in dieser Liste wäre eine Wahl, die das Modul abweist.
+         *     auch annimmt (``purchase._assert_allowed``). Ein Kunde in der Lieferantenliste wäre
+         *     eine Wahl, die das Modul abweist – und umgekehrt.
+         *
+         *     **Welche Rolle gemeint ist, sagt der Beleg** (``PurchaseEmbed.party_role``), nicht die
+         *     Oberfläche: sie reicht durch, was sie bekommen hat. Ein zweiter Endpunkt je Rolle wäre
+         *     dieselbe Abfrage zweimal, und die zweite bekäme den nächsten Filter nicht mit.
          */
-        get: operations["supplier_options_api_v1_erp_orders_supplier_options_get"];
+        get: operations["party_options_api_v1_erp_orders_party_options_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -941,6 +946,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/payment-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Payment Link
+         * @description **Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
+         *
+         *     Kein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim
+         *     Zahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich
+         *     da ist – und das meldet der Webhook, nicht der Browser des Kunden.
+         *
+         *     Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in
+         *     der Oberfläche gar nicht erst (``PurchaseEmbed.can``), und ein 503 hier wäre die
+         *     Behauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.
+         */
+        post: operations["payment_link_api_v1_erp_orders__object_id__steps__step_id__payment_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/instances": {
         parameters: {
             query?: never;
@@ -1114,6 +1147,35 @@ export interface paths {
         get: operations["serve_attachment_api_v1_attachments__token__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Webhook
+         * @description **Eine Rückmeldung des Zahlungsdienstes.**
+         *
+         *     Der **rohe** Rumpf wird geprüft, nicht das geparste JSON: die Signatur gilt für die
+         *     Bytes, und wer sie über ein neu serialisiertes Objekt prüfte, prüfte etwas anderes.
+         *
+         *     Die Antwort ist immer ``200`` mit einem Wort, was geschehen ist – auch bei einem
+         *     Ereignis, das uns nicht betrifft. Ein Fehlercode auf eine Meldung, die wir schlicht
+         *     nicht lesen wollen, brächte den Dienst nur dazu, sie endlos erneut zuzustellen.
+         *     Ungültige Signaturen sind davon ausgenommen (400): das ist kein fremdes Ereignis,
+         *     sondern ein fremder Absender.
+         */
+        post: operations["webhook_api_v1_payments_webhook_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2269,6 +2331,16 @@ export interface components {
              */
             instruction_required: boolean;
             /**
+             * Party Role
+             * @default supplier
+             */
+            party_role: string;
+            /**
+             * Party Word
+             * @default Lieferant
+             */
+            party_word: string;
+            /**
              * Derived Instruction
              * @default
              */
@@ -2531,6 +2603,47 @@ export interface components {
             last_used_at?: string | null;
         };
         /**
+         * PaymentEntry
+         * @description **Eine Zeile Geld** an einem Beleg – Zahlung oder Gutschrift.
+         *
+         *     Überweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch
+         *     oder der Webhook), ändert nichts an dem, was er ist.
+         */
+        PaymentEntry: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Kind Label */
+            kind_label: string;
+            /** Amount */
+            amount: number;
+            /** Method */
+            method?: string | null;
+            /**
+             * Method Label
+             * @default
+             */
+            method_label: string;
+            /** Reference */
+            reference?: string | null;
+            /** Paid At */
+            paid_at?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * PaymentLink
+         * @description **Die Adresse einer Zahlungsaufforderung** – und sonst nichts.
+         *
+         *     Kein Beleg-Zustand: der Link ändert am Beleg nichts. Gebucht wird erst, wenn das Geld
+         *     wirklich da ist, und das meldet der Webhook – nicht der Browser des Kunden.
+         */
+        PaymentLink: {
+            /** Url */
+            url: string;
+        };
+        /**
          * PlaceRef
          * @description Ein Halter: Objektnummer, Typ, Name.
          *
@@ -2730,6 +2843,36 @@ export interface components {
             tracking?: string | null;
             /** Clarify Quantity */
             clarify_quantity?: number | null;
+            /**
+             * Direction
+             * @default buy
+             */
+            direction: string;
+            /**
+             * Party Role
+             * @default supplier
+             */
+            party_role: string;
+            /**
+             * Party Word
+             * @default Lieferant
+             */
+            party_word: string;
+            /** Paid */
+            paid?: number | null;
+            /** Credited */
+            credited?: number | null;
+            /** Open */
+            open?: number | null;
+            /** Due On */
+            due_on?: string | null;
+            /**
+             * Overdue
+             * @default false
+             */
+            overdue: boolean;
+            /** Entries */
+            entries?: components["schemas"]["PaymentEntry"][];
         };
         /**
          * PurchaseLine
@@ -2762,10 +2905,11 @@ export interface components {
         };
         /**
          * PurchaseQuote
-         * @description Eine Zeile der Anfrage: **ein Lieferant, ein Preis**.
+         * @description Eine Zeile der Anfrage: **eine Gegenpartei, ein Preis**.
          *
-         *     Der Angebotsspiegel des Einkaufs – und zugleich der Tarifvergleich, wenn das Modul
-         *     einen Transport einkauft. Es ist derselbe Vorgang, also dieselbe Zeile.
+         *     Der Angebotsspiegel des Einkaufs – zugleich der Tarifvergleich, wenn das Modul einen
+         *     Transport einkauft, und das Angebot an den Kunden, wenn es verkauft. Es ist derselbe
+         *     Vorgang, also dieselbe Zeile.
          */
         PurchaseQuote: {
             /** Supplier Object Id */
@@ -2784,6 +2928,8 @@ export interface components {
             amount?: number | null;
             /** Lead Days */
             lead_days?: number | null;
+            /** Payment Days */
+            payment_days?: number | null;
             /** State */
             state: string;
         };
@@ -2814,15 +2960,26 @@ export interface components {
         };
         /**
          * PurchaseUpdate
-         * @description Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.
+         * @description Eine Handlung am Beleg – **ein** Endpunkt, in beide Richtungen dieselben Verben.
          *
-         *     ``ask``       bei wem angefragt wird (``suppliers``)
-         *     ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)
-         *     ``decline``   ein Lieferant sagt ab (``supplier``)
-         *     ``order``     bestellen (``supplier``, ``amount``)
+         *     ``ask``       mit wem gehandelt wird (``suppliers``) – anfragen bzw. anbieten
+         *     ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – Pflicht;
+         *                   ``payment_days`` freiwillig)
+         *     ``decline``   die Gegenpartei sagt ab (``supplier``)
+         *     ``order``     zusagen (``supplier``, ``amount``)
          *     ``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten
-         *     ``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren
-         *     ``clarified`` der Lieferant hat der geänderten Menge zugestimmt
+         *     ``revoke``    **die** Gegenhandlung – vor der Zusage zurückziehen, danach stornieren
+         *     ``clarified`` die Gegenpartei hat der geänderten Menge zugestimmt
+         *     ``buy``       «das kaufe ich ein» – legt den Beleg an (nur wo er eine Wahl ist)
+         *     ``pay``       **eine Zeile Geld** (``amount``, ``kind``, ``method``, ``reference``,
+         *                   ``paid_at``, ``note_text``)
+         *
+         *     ``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine
+         *     Stufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld
+         *     fliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein
+         *     anderes (``Module.buys`` bzw. ``payments.assert_payable``), aber der **Weg** ist
+         *     derselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg
+         *     verwaltet.
          */
         PurchaseUpdate: {
             /** Action */
@@ -2835,8 +2992,20 @@ export interface components {
             amount?: number | null;
             /** Lead Days */
             lead_days?: number | null;
+            /** Payment Days */
+            payment_days?: number | null;
             /** Tracking */
             tracking?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** Method */
+            method?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Paid At */
+            paid_at?: string | null;
+            /** Note Text */
+            note_text?: string | null;
         };
         /**
          * RecordEntry
@@ -4657,9 +4826,11 @@ export interface operations {
             };
         };
     };
-    supplier_options_api_v1_erp_orders_supplier_options_get: {
+    party_options_api_v1_erp_orders_party_options_get: {
         parameters: {
             query?: {
+                /** @description supplier | customer */
+                role?: string;
                 /** @description Objektnummer-Teilstring oder Name */
                 search?: string;
                 limit?: number;
@@ -4994,6 +5165,38 @@ export interface operations {
             };
         };
     };
+    payment_link_api_v1_erp_orders__object_id__steps__step_id__payment_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_instances_api_v1_erp_instances_get: {
         parameters: {
             query?: {
@@ -5230,6 +5433,37 @@ export interface operations {
             path: {
                 token: string;
             };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webhook_api_v1_payments_webhook_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Stripe-Signature"?: string;
+            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;

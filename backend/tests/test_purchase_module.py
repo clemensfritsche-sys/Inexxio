@@ -158,7 +158,7 @@ def test_the_module_never_creates_a_single_unit():
 
         row = svc.of_step(db, rows[0].id)
         assert row is not None, "Die Freigabe legt den Beleg an."
-        assert row.stage == "anfrage"
+        assert row.stage == "offer"
 
         # Bestellen und Ware buchen – dabei entsteht **kein einziges** neues Stück.
         staff = _staff(db)
@@ -257,7 +257,7 @@ def test_the_stages_belong_to_the_document_not_to_the_piece():
 
         # Und die Stufen selbst sind drei, immer dieselben.
         facts = svc.embed_data(db, order=order, step=rows[0])
-        assert [s["key"] for s in facts["stages"]] == ["anfrage", "bestellung", "wareneingang"]
+        assert [s["key"] for s in facts["stages"]] == ["offer", "commitment", "fulfilment"]
     finally:
         db.rollback(); db.close()
 
@@ -291,7 +291,7 @@ def test_a_partial_delivery_is_a_partial_confirmation():
                           instance_object_id=work[0]["instance_object_id"],
                           verification="scan")
         db.flush()
-        assert svc.of_step(db, rows[0].id).stage == "bestellung", (
+        assert svc.of_step(db, rows[0].id).stage == "commitment", (
             "Der Beleg gilt schon als geliefert, obwohl noch etwas davorsteht."
         )
         for row in proc.step_work(db, order, rows[0]):
@@ -299,7 +299,7 @@ def test_a_partial_delivery_is_a_partial_confirmation():
                               values={}, instance_object_id=row["instance_object_id"],
                               verification="scan")
         db.flush()
-        assert svc.of_step(db, rows[0].id).stage == "wareneingang"
+        assert svc.of_step(db, rows[0].id).stage == "fulfilment"
         assert art.landed_unit_cost is not None, (
             "Der Einstandspreis wandert beim Abschluss an den Artikel – Summe ÷ Menge."
         )
@@ -323,8 +323,13 @@ def test_nothing_arrives_before_it_was_ordered():
                               values={}, instance_object_id=work[0]["instance_object_id"],
                               verification="scan")
         assert err.value.status_code == 409
-        assert "bestellt" in err.value.detail.lower()
-        assert svc.of_step(db, rows[0].id).stage == "anfrage"
+        # Der Satz **nennt die Stufe**, auf der der Beleg steht – er sagt nicht bloss
+        # «geht nicht». Und er tut es in der Sprache seiner Richtung: «Anfrage» beim
+        # Einkauf, «Angebot» beim Verkauf (``Flow.label_of``).
+        from app.domain import procurement
+        first = procurement.of(procurement.BUY).label_of(procurement.STAGES[0])
+        assert first.lower() in err.value.detail.lower()
+        assert svc.of_step(db, rows[0].id).stage == "offer"
     finally:
         db.rollback(); db.close()
 
@@ -353,7 +358,7 @@ def test_one_counter_action_and_the_stage_says_what_it_does():
         assert len(svc.of_step(db, rows[0].id).quotes) == 1
         svc.apply(db, order=order, step=rows[0], action="revoke", payload={}, actor=staff)
         assert svc.of_step(db, rows[0].id).quotes == [], "Die Anfrage steht noch."
-        assert svc.of_step(db, rows[0].id).stage == "anfrage", (
+        assert svc.of_step(db, rows[0].id).stage == "offer", (
             "Zurückziehen hat storniert – vor der Bestellung war aber nichts zugesagt."
         )
 
@@ -362,7 +367,7 @@ def test_one_counter_action_and_the_stage_says_what_it_does():
         svc.apply(db, order=order, step=rows[0], action="order",
                   payload={"supplier": wuerth.object_id, "amount": 20}, actor=staff)
         svc.apply(db, order=order, step=rows[0], action="revoke", payload={}, actor=staff)
-        assert svc.of_step(db, rows[0].id).stage == "storniert", (
+        assert svc.of_step(db, rows[0].id).stage == "cancelled", (
             "Nach der Bestellung muss «zurück» eine Stornierung sein – dort liegt eine "
             "Bestellung beim Lieferanten."
         )
@@ -391,7 +396,7 @@ def test_a_cancelled_document_keeps_the_way_it_walked():
             data = svc.embed_data(db, order=order, step=rows[0], viewer=staff)
             return {s["key"]: s for s in data["stages"]}
 
-        assert stages()["anfrage"]["active"] is True
+        assert stages()["offer"]["active"] is True
 
         svc.apply(db, order=order, step=rows[0], action="ask",
                   payload={"suppliers": [wuerth.object_id]}, actor=staff)
@@ -400,11 +405,11 @@ def test_a_cancelled_document_keeps_the_way_it_walked():
         svc.apply(db, order=order, step=rows[0], action="revoke", payload={}, actor=staff)
 
         after = stages()
-        assert after["anfrage"]["done"] and after["bestellung"]["done"], (
+        assert after["offer"]["done"] and after["commitment"]["done"], (
             "Der stornierte Beleg hat seine Vergangenheit verloren: angefragt und "
             "bestellt WURDE, das bleibt gegangen."
         )
-        assert not after["wareneingang"]["done"], "Angekommen ist nichts."
+        assert not after["fulfilment"]["done"], "Angekommen ist nichts."
         assert not any(s["active"] for s in after.values()), (
             "Storniert ist keine Stufe – es ist keine mehr an der Reihe."
         )
@@ -1043,11 +1048,19 @@ def test_the_document_says_what_this_viewer_may_do():
                 f"eine Behauptung neben der Regel."
             )
 
-        # Und ein stornierter Beleg bietet niemandem mehr etwas an.
+        # Und ein stornierter Beleg bietet keine **Stufen**-Handlung mehr an: dort ist er
+        # Vergangenheit, und was gegangen ist, wird nicht umgeschrieben.
+        #
+        # **Das Geld läuft weiter** (``svc.PAY``), und das ist keine Ausnahme, sondern der
+        # Grund, warum es nicht in ``STAGE_ACTIONS`` steht: eine Anzahlung auf eine
+        # stornierte Bestellung muss erstattet werden können. Wer das verbietet, baut
+        # genau die Sackgasse, die Testnotiz #775 schon einmal aufgemacht hat – nur mit
+        # Geld statt mit einem Modul.
         svc.apply(db, order=order, step=rows[0], action="revoke", payload={}, actor=staff)
         for who in (staff, wuerth):
-            assert svc.embed_data(db, order=order, step=rows[0], viewer=who)["can"] == [], (
-                "Ein stornierter Beleg bietet noch eine Handlung an."
+            left = svc.embed_data(db, order=order, step=rows[0], viewer=who)["can"]
+            assert not (set(left) & set(svc.ACTIONS)), (
+                "Ein stornierter Beleg bietet noch eine Stufen-Handlung an."
             )
     finally:
         db.rollback(); db.close()
@@ -1192,17 +1205,25 @@ def test_the_document_belongs_to_no_module():
     assert "Beschaffen." not in src, (
         "Die Stufen kommen wieder von einer Modul-Klasse. Sie beschreiben den Beleg."
     )
-    for name in ("STAGES", "BINDING", "CANCELLED", "STAGE_LABELS", "STAGE_VERBS"):
+    for name in ("STAGES", "BINDING", "CANCELLED", "FLOWS"):
         assert hasattr(procurement, name), f"«{name}» fehlt in der Beleg-Vokabel."
         assert not hasattr(modules.get("beschaffen"), name), (
             f"«{name}» steht wieder an der Modul-Klasse."
         )
-    # Die Werte sind unverändert – es ist eine Verschiebung, keine Neudefinition.
-    assert procurement.STAGES == ("anfrage", "bestellung", "wareneingang")
-    assert procurement.BINDING == "bestellung"
+    # **Die Stufen sind neutral** – sie gelten in beide Richtungen. Wie sie *heissen*,
+    # sagt der ``Flow``, und jede Richtung nennt alle drei: eine halb gefüllte Zuordnung
+    # wäre eine Stufe ohne Wort, und die Karte zeigte einen rohen Schlüssel.
+    assert procurement.STAGES == ("offer", "commitment", "fulfilment")
+    assert procurement.BINDING == "commitment"
+    for flow in procurement.FLOWS.values():
+        for stage in procurement.STAGES:
+            assert flow.label_of(stage) != stage, (
+                f"«{flow.direction}» hat für «{stage}» kein Wort – die Karte zeigte "
+                f"einen rohen Schlüssel."
+            )
     # Wer einen Beleg tragen kann, ist abgeleitet – keine gepflegte Liste.
-    assert set(modules.buying_types()) == {"beschaffen", "bewegen"}
-    assert modules.buying_types(buys=modules.BUY_ALWAYS) == ["beschaffen"]
+    assert set(modules.buying_types()) == {"beschaffen", "verkauf", "bewegen"}
+    assert set(modules.buying_types(buys=modules.BUY_ALWAYS)) == {"beschaffen", "verkauf"}
     assert svc.BUY not in svc.ACTIONS, (
         "«buy» ist eine Handlung des MODULS, nicht des Belegs – in `ACTIONS` stünde sie "
         "in der `can`-Tabelle, und die hat für sie keine Stufe."
@@ -1286,7 +1307,7 @@ def test_a_freight_price_is_never_the_price_of_the_article():
                           instance_object_id=_first_instance(db, order),
                           verification="scan", place=shelf.object_id, actor_id=None)
         db.flush()
-        assert svc.of_step(db, steps[0].id).stage == "wareneingang", (
+        assert svc.of_step(db, steps[0].id).stage == "fulfilment", (
             "Der Ziel-Scan schliesst den Beleg nicht – Ankunft und Ablage sind ein "
             "Ereignis, also eine Bestätigung."
         )
@@ -1331,7 +1352,7 @@ def test_taking_back_the_choice_removes_the_document():
         # …und danach geht es wieder (der Unique-Index ist partiell, Migration 119).
         again = svc.apply(db, order=order, step=steps[0], action=svc.BUY,
                           payload={}, actor=me)
-        assert again is not None and again.stage == "anfrage"
+        assert again is not None and again.stage == "offer"
 
         art2 = _article(db, "Mutter", steps=[_buy_step([sup])])
         o2, s2 = _make(db, quantity=1, article=art2)
@@ -1446,7 +1467,7 @@ def test_a_cancelled_document_frees_a_module_that_can_do_it_itself():
 
         gone = (db.query(Purchase).filter(Purchase.step_id == steps[0].id)
                 .order_by(Purchase.id.desc()).first())
-        assert gone is not None and gone.stage == "storniert", (
+        assert gone is not None and gone.stage == "cancelled", (
             "Die Absage muss als Historie stehen bleiben – sie ist passiert."
         )
         assert gone.is_active is False, (
@@ -1458,7 +1479,7 @@ def test_a_cancelled_document_frees_a_module_that_can_do_it_itself():
         svc.assert_receivable(db, step=steps[0])
         # …und ein zweiter Anlauf ist möglich (partieller Unique-Index seit 119).
         again = svc.ensure(db, order=order, step=steps[0])
-        assert again.id != gone.id and again.stage == "anfrage"
+        assert again.id != gone.id and again.stage == "offer"
     finally:
         db.rollback()
         db.close()
@@ -1515,8 +1536,16 @@ def test_the_purchase_carries_its_own_identity():
     from app.domain import modules, procurement
     from app.services import purchase as svc
 
-    assert modules.get("beschaffen").label == procurement.LABEL
-    assert modules.get("beschaffen").tone == procurement.TONE
+    # **Jedes handelnde Modul liest seine Identität aus seinem Vorgang** – nicht nur das
+    # eine. Ein zweites Literal wäre am ersten Tag richtig und beim ersten Umbenennen
+    # nicht mehr; und seit es zwei Richtungen gibt, wären es zwei Paare statt einem.
+    for key in modules.buying_types(buys=modules.BUY_ALWAYS):
+        module = modules.get(key)
+        flow = procurement.of(module.direction)
+        assert module.label == flow.label and module.tone == flow.tone, (
+            f"«{key}» trägt einen eigenen Namen oder eine eigene Farbe neben seinem "
+            f"Vorgang – zwei Literale für dieselbe Sache."
+        )
 
     db = _db()
     try:
@@ -1526,7 +1555,8 @@ def test_the_purchase_carries_its_own_identity():
         order, steps = _make(db, quantity=1, article=art)
         svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
         facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
-        assert facts["label"] == procurement.LABEL and facts["tone"] == procurement.TONE, (
+        buy = procurement.of(procurement.BUY)
+        assert facts["label"] == buy.label and facts["tone"] == buy.tone, (
             "Der Beleg trägt seine Identität nicht mit – dann muss die Oberfläche sie "
             "sich beim Modul-Katalog borgen, und der ist dort nicht geladen."
         )
@@ -1578,7 +1608,7 @@ def test_every_buying_module_defines_its_document_the_same_way():
             "suppliers": [{"supplier": 100000001, "ref": "SP-7"}],
             "instruction": "Hebebühne nötig",
         })
-        assert module.suppliers_of(config) == [{"supplier": 100000001, "ref": "SP-7"}], (
+        assert module.parties_of(config) == [{"supplier": 100000001, "ref": "SP-7"}], (
             f"«{module.label}» verwirft die zugelassenen Lieferanten."
         )
         assert "Hebebühne nötig" in module.instruction_for(config), (

@@ -1753,20 +1753,32 @@
         }
       }
     },
-    "/api/v1/erp/orders/supplier-options": {
+    "/api/v1/erp/orders/party-options": {
       "get": {
         "tags": [
           "orders"
         ],
-        "summary": "Supplier Options",
-        "description": "**Wer kommt als Lieferant in Frage?** – gesucht, nicht als ganze Liste geladen.\n\nDieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und\ndieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach\nauch annimmt. Ein Kunde in dieser Liste wäre eine Wahl, die das Modul abweist.",
-        "operationId": "supplier_options_api_v1_erp_orders_supplier_options_get",
+        "summary": "Party Options",
+        "description": "**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als ganze Liste geladen.\n\nDieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und\ndieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach\nauch annimmt (``purchase._assert_allowed``). Ein Kunde in der Lieferantenliste wäre\neine Wahl, die das Modul abweist – und umgekehrt.\n\n**Welche Rolle gemeint ist, sagt der Beleg** (``PurchaseEmbed.party_role``), nicht die\nOberfläche: sie reicht durch, was sie bekommen hat. Ein zweiter Endpunkt je Rolle wäre\ndieselbe Abfrage zweimal, und die zweite bekäme den nächsten Filter nicht mit.",
+        "operationId": "party_options_api_v1_erp_orders_party_options_get",
         "security": [
           {
             "HTTPBearer": []
           }
         ],
         "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "supplier | customer",
+              "default": "supplier",
+              "title": "Role"
+            },
+            "description": "supplier | customer"
+          },
           {
             "name": "search",
             "in": "query",
@@ -1802,7 +1814,7 @@
                   "items": {
                     "$ref": "#/components/schemas/SupplierOption"
                   },
-                  "title": "Response Supplier Options Api V1 Erp Orders Supplier Options Get"
+                  "title": "Response Party Options Api V1 Erp Orders Party Options Get"
                 }
               }
             }
@@ -2448,6 +2460,63 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/payment-link": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Payment Link",
+        "description": "**Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.\n\nKein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim\nZahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich\nda ist – und das meldet der Webhook, nicht der Browser des Kunden.\n\nOhne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in\nder Oberfläche gar nicht erst (``PurchaseEmbed.can``), und ein 503 hier wäre die\nBehauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.",
+        "operationId": "payment_link_api_v1_erp_orders__object_id__steps__step_id__payment_link_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentLink"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/instances": {
       "get": {
         "tags": [
@@ -2901,6 +2970,48 @@
             "schema": {
               "type": "string",
               "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/webhook": {
+      "post": {
+        "tags": [
+          "payments"
+        ],
+        "summary": "Webhook",
+        "description": "**Eine Rückmeldung des Zahlungsdienstes.**\n\nDer **rohe** Rumpf wird geprüft, nicht das geparste JSON: die Signatur gilt für die\nBytes, und wer sie über ein neu serialisiertes Objekt prüfte, prüfte etwas anderes.\n\nDie Antwort ist immer ``200`` mit einem Wort, was geschehen ist – auch bei einem\nEreignis, das uns nicht betrifft. Ein Fehlercode auf eine Meldung, die wir schlicht\nnicht lesen wollen, brächte den Dienst nur dazu, sie endlos erneut zuzustellen.\nUngültige Signaturen sind davon ausgenommen (400): das ist kein fremdes Ereignis,\nsondern ein fremder Absender.",
+        "operationId": "webhook_api_v1_payments_webhook_post",
+        "parameters": [
+          {
+            "name": "Stripe-Signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Stripe-Signature"
             }
           }
         ],
@@ -5830,6 +5941,16 @@
             "title": "Instruction Required",
             "default": false
           },
+          "party_role": {
+            "type": "string",
+            "title": "Party Role",
+            "default": "supplier"
+          },
+          "party_word": {
+            "type": "string",
+            "title": "Party Word",
+            "default": "Lieferant"
+          },
           "derived_instruction": {
             "type": "string",
             "title": "Derived Instruction",
@@ -6375,6 +6496,98 @@
         "title": "PasskeyResponse",
         "description": "Ein registrierter Passkey (Auflistung/Verwaltung im Konto). Ohne Krypto-Material."
       },
+      "PaymentEntry": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "method_label": {
+            "type": "string",
+            "title": "Method Label",
+            "default": ""
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "kind_label",
+          "amount"
+        ],
+        "title": "PaymentEntry",
+        "description": "**Eine Zeile Geld** an einem Beleg – Zahlung oder Gutschrift.\n\nÜberweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch\noder der Webhook), ändert nichts an dem, was er ist."
+      },
+      "PaymentLink": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "PaymentLink",
+        "description": "**Die Adresse einer Zahlungsaufforderung** – und sonst nichts.\n\nKein Beleg-Zustand: der Link ändert am Beleg nichts. Gebucht wird erst, wenn das Geld\nwirklich da ist, und das meldet der Webhook – nicht der Browser des Kunden."
+      },
       "PlaceRef": {
         "properties": {
           "object_id": {
@@ -6769,6 +6982,77 @@
               }
             ],
             "title": "Clarify Quantity"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction",
+            "default": "buy"
+          },
+          "party_role": {
+            "type": "string",
+            "title": "Party Role",
+            "default": "supplier"
+          },
+          "party_word": {
+            "type": "string",
+            "title": "Party Word",
+            "default": "Lieferant"
+          },
+          "paid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid"
+          },
+          "credited": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credited"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue",
+            "default": false
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentEntry"
+            },
+            "type": "array",
+            "title": "Entries"
           }
         },
         "type": "object",
@@ -6852,6 +7136,17 @@
             ],
             "title": "Lead Days"
           },
+          "payment_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Days"
+          },
           "state": {
             "type": "string",
             "title": "State"
@@ -6863,7 +7158,7 @@
           "state"
         ],
         "title": "PurchaseQuote",
-        "description": "Eine Zeile der Anfrage: **ein Lieferant, ein Preis**.\n\nDer Angebotsspiegel des Einkaufs – und zugleich der Tarifvergleich, wenn das Modul\neinen Transport einkauft. Es ist derselbe Vorgang, also dieselbe Zeile."
+        "description": "Eine Zeile der Anfrage: **eine Gegenpartei, ein Preis**.\n\nDer Angebotsspiegel des Einkaufs – zugleich der Tarifvergleich, wenn das Modul einen\nTransport einkauft, und das Angebot an den Kunden, wenn es verkauft. Es ist derselbe\nVorgang, also dieselbe Zeile."
       },
       "PurchaseStage": {
         "properties": {
@@ -6945,6 +7240,17 @@
             ],
             "title": "Lead Days"
           },
+          "payment_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Days"
+          },
           "tracking": {
             "anyOf": [
               {
@@ -6955,6 +7261,61 @@
               }
             ],
             "title": "Tracking"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "note_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Text"
           }
         },
         "type": "object",
@@ -6962,7 +7323,7 @@
           "action"
         ],
         "title": "PurchaseUpdate",
-        "description": "Eine Handlung am Beleg – **ein** Endpunkt, sechs Verben.\n\n``ask``       bei wem angefragt wird (``suppliers``)\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – beide Pflicht)\n``decline``   ein Lieferant sagt ab (``supplier``)\n``order``     bestellen (``supplier``, ``amount``)\n``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten\n``revoke``    **die** Gegenhandlung – vor der Bestellung zurückziehen, danach stornieren\n``clarified`` der Lieferant hat der geänderten Menge zugestimmt"
+        "description": "Eine Handlung am Beleg – **ein** Endpunkt, in beide Richtungen dieselben Verben.\n\n``ask``       mit wem gehandelt wird (``suppliers``) – anfragen bzw. anbieten\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – Pflicht;\n              ``payment_days`` freiwillig)\n``decline``   die Gegenpartei sagt ab (``supplier``)\n``order``     zusagen (``supplier``, ``amount``)\n``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten\n``revoke``    **die** Gegenhandlung – vor der Zusage zurückziehen, danach stornieren\n``clarified`` die Gegenpartei hat der geänderten Menge zugestimmt\n``buy``       «das kaufe ich ein» – legt den Beleg an (nur wo er eine Wahl ist)\n``pay``       **eine Zeile Geld** (``amount``, ``kind``, ``method``, ``reference``,\n              ``paid_at``, ``note_text``)\n\n``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine\nStufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld\nfliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein\nanderes (``Module.buys`` bzw. ``payments.assert_payable``), aber der **Weg** ist\nderselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg\nverwaltet."
       },
       "RecordEntry": {
         "properties": {

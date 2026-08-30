@@ -2,13 +2,14 @@
 
 import { useCallback, useState } from 'react';
 import { useAutosave } from '@/lib/use-autosave';
-import { ArrowUpRight, Check, CircleSlash, Undo2 } from 'lucide-react';
+import { ArrowUpRight, Check, CircleSlash, Coins, CreditCard, Undo2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { PurchaseEmbed, PurchaseQuote, SupplierOption } from '@/types';
 import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { Label, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
-import { formatAmount } from '@/lib/utils';
+import { STAGE } from '@/lib/modules';
+import { formatAmount, localDate } from '@/lib/utils';
 
 /**
  * **Der Beschaffungs-Beleg an der Ausführungsstelle — drei Stufen, eine Kette.**
@@ -79,7 +80,8 @@ function total(p: Filled): number {
   return p.lines.reduce((sum, l) => sum + (l.quantity ?? 0), 0);
 }
 
-export function PurchaseWork({ purchase, busy, active = true, onAction, children }: {
+export function PurchaseWork({ purchase, busy, active = true, onAction, onLink,
+  children }: {
   purchase: PurchaseEmbed;
   busy?: boolean;
   /**
@@ -93,6 +95,12 @@ export function PurchaseWork({ purchase, busy, active = true, onAction, children
    */
   active?: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
+  /**
+   * **Eine Zahlungsaufforderung erzeugen** – der Aufrufer weiss, an welchem Auftrag und
+   * Modul er steht; diese Komponente kennt keine Routen. Fehlt der Rückruf, gibt es den
+   * Knopf nicht: derselbe Massstab wie `can`.
+   */
+  onLink?: () => Promise<string>;
   /** Der Wareneingang selbst – der Scan, der jedes Modul abschliesst. */
   children?: React.ReactNode;
 }) {
@@ -102,7 +110,7 @@ export function PurchaseWork({ purchase, busy, active = true, onAction, children
   const p = { ...purchase, stages: purchase.stages ?? [], quotes: purchase.quotes ?? [],
               allowed: purchase.allowed ?? [], lines: purchase.lines ?? [],
               can: purchase.can ?? [] };
-  const cancelled = p.stage === 'storniert';
+  const cancelled = p.stage === STAGE.cancelled;
 
   return (
     <div className="flex flex-col">
@@ -134,16 +142,16 @@ export function PurchaseWork({ purchase, busy, active = true, onAction, children
               </div>
               {/* **Eine Stufe zeigt, was sie trägt – auch wenn sie vorbei ist.**
                   Gehandelt wird nur an der Stufe, die dran ist UND deren Modul dran ist. */}
-              {stage.key === 'anfrage' && (stage.active || stage.done) && (
+              {stage.key === STAGE.offer && (stage.active || stage.done) && (
                 <Ask p={p} busy={busy} active={active && stage.active} onAction={onAction} />
               )}
-              {stage.key === 'bestellung' && (stage.active || stage.done) && (
+              {stage.key === STAGE.commitment && (stage.active || stage.done) && (
                 <Ordered p={p} busy={busy} active={active && stage.active} onAction={onAction} />
               )}
               {/* **Auch der Wareneingang ist ein Verb dieses Belegs** – er läuft über
                   `confirm_step`, aber wer ihn buchen darf, steht in derselben Liste.
                   Zwei Listen wären zwei Massstäbe. */}
-              {stage.key === 'wareneingang' && may(p, active, 'receive') && (
+              {stage.key === STAGE.fulfilment && may(p, active, 'receive') && (
                 <div className="mt-1.5">{children}</div>
               )}
             </div>
@@ -155,6 +163,227 @@ export function PurchaseWork({ purchase, busy, active = true, onAction, children
           style={{ color: 'var(--danger)' }}>
           <CircleSlash size={13} /> Storniert
         </div>
+      )}
+      {/* **Das Geld steht NEBEN den Stufen, nicht in ihnen** – es ist keine vierte.
+          Eine Zahlung macht aus einem Angebot keine Zusage, und eine ausbleibende macht
+          aus einer Lieferung keine Nicht-Lieferung; und **nach** einem Storno ist eine
+          Erstattung der Normalfall, nicht die Ausnahme. Ob es überhaupt etwas zu zeigen
+          gibt, sagt der Beleg (`open` ist `null`, solange nichts zugesagt ist). */}
+      <Money p={p} busy={busy} active={active} onAction={onAction} onLink={onLink} />
+    </div>
+  );
+}
+
+/**
+ * ►►► **Das Geld an diesem Beleg — offen, fällig, und was geflossen ist.** ◄◄◄
+ *
+ * **Drei Ableitungen, keine Spalte** (`services/payments`): *offen* ist Belegsumme minus
+ * Gutschriften minus Zahlungen, *fällig* ist Zusagedatum plus Zahlungsfrist, *überfällig*
+ * ist beides zusammen. Die Oberfläche rechnet nichts nach – sie zeigt, was der Beleg sagt.
+ *
+ * **Ein negativer offener Betrag ist kein Fehler**, sondern eine Aussage: dann schulden
+ * **wir**. Das Wort wechselt, die Zahl bleibt dieselbe – eine zweite Anzeige daneben wäre
+ * dieselbe Information ein zweites Mal.
+ *
+ * **Überweisung und Karte sind dieselbe Zeile.** Der Unterschied ist, wer sie schreibt:
+ * ein Mensch hier oder der Webhook des Zahlungsdienstes. Darum gibt es hier auch kein
+ * «Stripe» – nur einen Zahllink, und ob es ihn gibt, sagt `can`.
+ */
+function Money({ p, busy, active, onAction, onLink }: {
+  p: Filled; busy?: boolean; active: boolean;
+  onAction: (body: { action: string } & Record<string, unknown>) => void;
+  onLink?: () => Promise<string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const entries = p.entries ?? [];
+  // Solange nichts zugesagt ist, gibt es keine Summe – und damit nichts zu zeigen.
+  if (p.open == null) return null;
+
+  const owed = p.open < 0;
+  const settled = p.open === 0;
+  return (
+    <div className="flex flex-col gap-2" style={{
+      marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-1)',
+    }}>
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* **Punkt + Wort**, wie jeder Zustand im Haus – nicht als gefüllte Plakette. */}
+        <span style={{
+          width: 6, height: 6, borderRadius: 999, flex: 'none',
+          background: settled ? 'var(--success)'
+            : p.overdue ? 'var(--danger)' : 'var(--warning)',
+        }} />
+        <span className="text-[12.5px]" style={{ color: 'var(--fg-2)' }}>
+          {settled ? 'Bezahlt' : owed ? 'Wir schulden' : 'Offen'}
+        </span>
+        {!settled && (
+          <span className="ix-tnum text-[12.5px] font-semibold"
+            style={{ color: p.overdue ? 'var(--danger)' : 'var(--fg-1)' }}>
+            {formatAmount(Math.abs(p.open))} {p.currency}
+          </span>
+        )}
+        {p.due_on && !settled && (
+          <span className="text-[12px]" style={{
+            color: p.overdue ? 'var(--danger)' : 'var(--fg-3)',
+          }}>
+            {p.overdue ? 'überfällig seit' : 'fällig'} {localDate(p.due_on)}
+          </span>
+        )}
+        {entries.length > 0 && (
+          <button type="button" className="text-[12px] underline"
+            style={{ color: 'var(--accent)' }}
+            onClick={() => setOpen((v) => !v)}>
+            {entries.length} {entries.length === 1 ? 'Buchung' : 'Buchungen'}
+          </button>
+        )}
+      </div>
+
+      {/* **Erst auf Klick** – dieselbe Regel wie beim Modul-Protokoll: eine Liste, die
+          bei jeder Anzeige mitläuft, ist bei zwanzig Teilzahlungen eine Wand. */}
+      {open && entries.map((e) => (
+        <div key={e.id} className="flex items-baseline gap-2 text-[12px]"
+          style={{ color: 'var(--fg-3)', paddingLeft: 14 }}>
+          <span className="ix-tnum" style={{ color: 'var(--fg-2)', minWidth: 78 }}>
+            {formatAmount(e.amount)}
+          </span>
+          <span>{e.kind_label}</span>
+          {e.method_label && <span>· {e.method_label}</span>}
+          {e.paid_at && <span>· {localDate(e.paid_at)}</span>}
+          {e.reference && (
+            <span className="font-mono truncate" style={{ maxWidth: 180 }}>
+              · {e.reference}
+            </span>
+          )}
+        </div>
+      ))}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {may(p, active, 'pay') && (
+          <PayForm p={p} busy={busy} onAction={onAction} />
+        )}
+        {/* **Der Zahllink erscheint nur, wo es einen Dienst gibt UND etwas offen ist.**
+            Beides entscheidet der Server (`can`); ein Knopf, der nie etwas tun kann, ist
+            kein Angebot – und ein ausgegrauter wäre eine Bitte. */}
+        {may(p, active, 'link') && onLink && <PayLink onLink={onLink} busy={busy} />}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * **Eine Zeile Geld erfassen** – Betrag, Art, Weg, Referenz.
+ *
+ * Kein eigener Endpunkt: `pay` ist eine Handlung am Beleg wie jede andere (`onAction`).
+ * Sie hat nur keine **Stufe** – Geld fliesst, sobald zugesagt ist, und auch noch nach
+ * einem Storno.
+ *
+ * **Der Weg ist Pflicht bei einer Zahlung und verboten bei einer Gutschrift**: dort
+ * fliesst kein Geld, und ein Weg daneben wäre eine Angabe über etwas, das nicht
+ * stattgefunden hat. Die Regel steht im Dienst (`money.assert_method`); hier folgt ihr
+ * das Formular, damit man gar nicht erst etwas eingibt, das abgewiesen würde.
+ */
+function PayForm({ p, busy, onAction }: {
+  p: Filled; busy?: boolean;
+  onAction: (body: { action: string } & Record<string, unknown>) => void;
+}) {
+  const [show, setShow] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [kind, setKind] = useState<'payment' | 'credit'>('payment');
+  const [method, setMethod] = useState('transfer');
+  const [reference, setReference] = useState('');
+
+  if (!show) {
+    return (
+      <button type="button" className="erp-actbtn self-start" style={{ height: 28 }}
+        disabled={busy} onClick={() => {
+          // **Vorbelegt mit dem, was offen ist** – der Normalfall ist «voll bezahlt».
+          setAmount(p.open != null && p.open > 0 ? String(p.open) : '');
+          setShow(true);
+        }}>
+        <Coins size={13} /> Zahlung erfassen
+      </button>
+    );
+  }
+  const credit = kind === 'credit';
+  return (
+    <div className="flex items-end gap-2 flex-wrap">
+      <div style={{ width: 108 }}>
+        <Label>Betrag</Label>
+        <input className={inputCls} {...numericInputProps} value={amount}
+          onChange={(e) => setAmount(numericOnly(e.target.value))} />
+      </div>
+      <div style={{ width: 128 }}>
+        <Label>Art</Label>
+        <select className={inputCls} value={kind}
+          onChange={(e) => setKind(e.target.value as 'payment' | 'credit')}>
+          <option value="payment">Zahlung</option>
+          <option value="credit">Gutschrift</option>
+        </select>
+      </div>
+      {/* Eine **Aufzählung** und keine Referenz – ein natives `select` ist hier richtig
+          (endlich, nicht durchsuchbar nötig); die Regel gilt Datensätzen. */}
+      {!credit && (
+        <div style={{ width: 128 }}>
+          <Label>Weg</Label>
+          <select className={inputCls} value={method}
+            onChange={(e) => setMethod(e.target.value)}>
+            <option value="transfer">Überweisung</option>
+            <option value="card">Karte</option>
+            <option value="cash">Bar</option>
+          </select>
+        </div>
+      )}
+      <div style={{ width: 180 }}>
+        <Label>Referenz</Label>
+        <input className={inputCls} value={reference}
+          placeholder={credit ? 'Gutschrift-Nr.' : 'Zahlungszweck'}
+          onChange={(e) => setReference(e.target.value)} />
+      </div>
+      <button type="button" className="erp-actbtn erp-actbtn-primary"
+        style={{ height: 30 }} disabled={busy || amount.trim() === ''}
+        onClick={() => {
+          onAction({ action: 'pay', amount: Number(amount), kind,
+                     method: credit ? null : method, reference });
+          setShow(false); setAmount(''); setReference('');
+        }}>
+        <Check size={13} /> Buchen
+      </button>
+      <button type="button" className="erp-actbtn" style={{ height: 30 }}
+        onClick={() => setShow(false)}>Abbrechen</button>
+    </div>
+  );
+}
+
+/**
+ * **Eine Zahlungsaufforderung erzeugen** – und die Adresse zeigen.
+ *
+ * Sie ändert am Beleg **nichts**: gebucht wird erst, wenn das Geld wirklich da ist, und
+ * das meldet der Webhook. Ein Browser, der nach der Zahlung geschlossen wird, darf keine
+ * Buchung verschlucken.
+ */
+function PayLink({ onLink, busy }: { onLink: () => Promise<string>; busy?: boolean }) {
+  const [url, setUrl] = useState('');
+  const [failed, setFailed] = useState('');
+  if (url) {
+    return (
+      <a className="erp-actbtn self-start" style={{ height: 28 }} href={url}
+        target="_blank" rel="noreferrer">
+        <ArrowUpRight size={13} /> Zahlungsseite öffnen
+      </a>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button" className="erp-actbtn self-start" style={{ height: 28 }}
+        disabled={busy}
+        onClick={() => {
+          setFailed('');
+          onLink().then(setUrl).catch((e) => setFailed(
+            e instanceof Error ? e.message : 'Der Zahllink liess sich nicht erzeugen.'));
+        }}>
+        <CreditCard size={13} /> Zahllink erzeugen
+      </button>
+      {failed && (
+        <span className="text-[12px]" style={{ color: 'var(--danger)' }}>{failed}</span>
       )}
     </div>
   );
@@ -258,7 +487,7 @@ function Ask({ p, busy, active, onAction }: {
   const mayAsk = may(p, active, 'ask');
 
   const findSuppliers = useCallback(
-    (q: string) => api.searchSuppliers(q).catch(() => []), []);
+    (q: string) => api.searchParties(p.party_role, q).catch(() => []), [p.party_role]);
 
   const rows = free
     ? found.map((f) => ({ supplier_object_id: f.object_id, supplier_name: f.name }))

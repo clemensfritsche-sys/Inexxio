@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from fastapi import HTTPException
 
 # ---------------------------------------------------------------------------
-# Die Werte — fünf Wörter für drei Achsen
+# Die Werte — so wenige wie möglich, geteilt über drei Achsen
 # ---------------------------------------------------------------------------
 
 #: Einsatzbereit. An der **Einzelinstanz**: sie steckt in keinem Auftrag. Am **Artikel**:
@@ -65,6 +65,25 @@ VERSCHROTTET = "verschrottet"
 #: Aus dem Verkehr gezogen, aber **physisch noch da** (**Einzelinstanz**). Nicht mehr
 #: einplanbar, solange die Sperre gilt – aufhebbar, indem ein Auftrag das Stück greift.
 GESPERRT = "gesperrt"
+
+#: **An einen Kunden gegangen** (**Einzelinstanz**). Es hat seinen Zweck erreicht – darum
+#: grün, aus demselben Grund wie ``VERBAUT``.
+#:
+#: **Nicht endgültig**, und das ist dieselbe Entscheidung wie dort: eine Retoure ist real.
+#: Ein Auftrag darf das Stück greifen – **das Greifen IST die Rücknahme**, es gibt keinen
+#: «Retoure annehmen»-Endpunkt. Und weil sein Start damit vom Regelstart abweicht, ist der
+#: Vorgang **automatisch** eine Abweichung (``process.deviation_flags``) und steht im
+#: Nachweis, ohne dass jemand ihn einträgt.
+#:
+#: **Historie**, denn es liegt nicht mehr in unserem Regal: FIFO schlägt es nicht vor, der
+#: Bestand zählt es nicht mit – wählbar bleibt es trotzdem. Genau diese beiden Fragen führt
+#: der Katalog getrennt (``stock`` ↔ ``terminal``), und dieser Wert ist der zweite Beleg
+#: dafür, dass sie unabhängig sind.
+#:
+#: **Der Ort fällt weg** – ohne eine Zeile dafür: ``process._pass`` räumt ihn für jeden
+#: Zustand, der zur Historie zählt. Wo das Stück beim Kunden liegt, ist nicht unsere
+#: Auskunft; die Lieferadresse steht am Beleg.
+VERKAUFT = "verkauft"
 
 #: **Steckt in einem anderen Stück** (**Einzelinstanz**). Es hat seinen Zweck erreicht:
 #: kein Mangel, kein Verlust – darum grün und nicht gelb.
@@ -155,6 +174,11 @@ CATALOG: tuple[Status, ...] = (
     # und «gibt es einen Weg zurück» sind zwei Fragen. Nachgemessen: nichts im System
     # koppelt sie.
     Status(VERBAUT, "Verbaut", "done", (UNIT,), stock=HISTORY),
+    # **Verkauft steht neben Verbaut, nicht neben Verschrottet.** Beide haben ihr Ziel
+    # erreicht (grün), beide liegen nicht mehr im Regal (Historie), und aus beiden führt
+    # ein Weg zurück – Demontage dort, Retoure hier. Der einzige Unterschied ist, wo das
+    # Stück gelandet ist, und das ist keine Eigenschaft des Zustands.
+    Status(VERKAUFT, "Verkauft", "done", (UNIT,), stock=HISTORY),
     Status(VERSCHROTTET, "Verschrottet", "danger", (UNIT,), stock=HISTORY, terminal=True),
     Status(ABGESCHLOSSEN, "Abgeschlossen", "done", (ORDER,)),
     Status(ABGEBROCHEN, "Abgebrochen", "danger", (ORDER,)),

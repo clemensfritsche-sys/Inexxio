@@ -28,10 +28,10 @@ from ..schemas.order import (
     RelatedOrder, StepNeed, StepWork, UnitOption, UnitChoices,
 )
 from ..schemas.process import (
-    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PurchaseEmbed,
-    PurchaseUpdate, RecordEntry, RecordValue, StepConfirm, StepRecord,
+    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentLink,
+    PurchaseEmbed, PurchaseUpdate, RecordEntry, RecordValue, StepConfirm, StepRecord,
 )
-from ..domain import capture_types, modules
+from ..domain import capture_types, modules, procurement
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
@@ -42,7 +42,9 @@ from ..services import record as record_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
+from ..services import payments as payments_svc
 from ..services import purchase as purchase_svc
+from ..services import stripe_pay
 from ..services.admin import log_audit
 from ..services.instances import find_unit, unit_number, unit_number_matches
 
@@ -396,25 +398,39 @@ def article_options(
     ]
 
 
-@router.get("/supplier-options", response_model=list[SupplierOption])
-def supplier_options(
+@router.get("/party-options", response_model=list[SupplierOption])
+def party_options(
+    role: str = Query(procurement.FLOWS[procurement.BUY].party_role,
+                      description="supplier | customer"),
     search: str = Query("", description="Objektnummer-Teilstring oder Name"),
     limit: int = Query(20, ge=1, le=50),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """**Wer kommt als Lieferant in Frage?** – gesucht, nicht als ganze Liste geladen.
+    """**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als ganze Liste geladen.
 
     Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
     dieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach
-    auch annimmt. Ein Kunde in dieser Liste wäre eine Wahl, die das Modul abweist.
+    auch annimmt (``purchase._assert_allowed``). Ein Kunde in der Lieferantenliste wäre
+    eine Wahl, die das Modul abweist – und umgekehrt.
+
+    **Welche Rolle gemeint ist, sagt der Beleg** (``PurchaseEmbed.party_role``), nicht die
+    Oberfläche: sie reicht durch, was sie bekommen hat. Ein zweiter Endpunkt je Rolle wäre
+    dieselbe Abfrage zweimal, und die zweite bekäme den nächsten Filter nicht mit.
     """
+    known = {flow.party_role for flow in procurement.FLOWS.values()}
+    if role not in known:
+        raise HTTPException(
+            status_code=400,
+            detail=f"«{role}» ist keine Gegenpartei-Rolle. Erlaubt: "
+                   + ", ".join(sorted(known)) + ".",
+        )
     rows = (
         db.query(UserProfile)
         .filter(
             UserProfile.object_id.isnot(None),
             UserProfile.is_active.is_(True),
-            UserProfile.role == "supplier",
+            UserProfile.role == role,
             lookup.matches(search, UserProfile.object_id, UserProfile.company_name,
                            UserProfile.first_name, UserProfile.last_name,
                            UserProfile.email),
@@ -442,6 +458,8 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
                            buys=m.buys,
                            suppliers_required=m.suppliers_required,
                            instruction_required=m.instruction_required,
+                           party_role=m.flow.party_role,
+                           party_word=m.flow.party_word,
                            # **Ohne Tatsachen** – hier gibt es noch keinen Auftrag und
                            # keinen Halter. Der Satz zeigt die *Form* («Transport»),
                            # damit im Editor sichtbar ist, dass daneben schon etwas
@@ -894,3 +912,36 @@ def step_record(
             for e in entries
         ],
     )
+
+
+@router.post("/{object_id}/steps/{step_id}/payment-link", response_model=PaymentLink)
+def payment_link(
+    object_id: int,
+    step_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """**Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
+
+    Kein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim
+    Zahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich
+    da ist – und das meldet der Webhook, nicht der Browser des Kunden.
+
+    Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in
+    der Oberfläche gar nicht erst (``PurchaseEmbed.can``), und ein 503 hier wäre die
+    Behauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.
+    """
+    order = orders_svc.get(db, object_id)
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None:
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    row = purchase_svc.of_step(db, step.id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Dieses Modul hat keinen Beleg.")
+    payments_svc.assert_payable(row)
+    return PaymentLink(url=stripe_pay.checkout_url(
+        db, purchase=row, label=f"{order.name or 'Auftrag'} {order.object_id}"))
