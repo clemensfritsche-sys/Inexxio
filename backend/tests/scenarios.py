@@ -103,9 +103,16 @@ class World:
         from app.models import Article
         from app.services import article_process as tpl, objects as obj
 
+        # **Mit Typ vergeben** – dann steht die Nummer auch in der Registry (``objects``),
+        # genau wie im echten Dienst (`articles.create_article`). Ohne den Typ trägt
+        # ``_register`` nichts ein, und der FK ``fk_articles_replaced_by`` (den
+        # ``objects.ensure_foreign_keys`` beim Start anlegt) weist jede Ersetzung ab:
+        # «Key (replaced_by_id)=… is not present in table objects». Der Fehler war hier
+        # latent – er zeigt sich nur gegen eine Datenbank, in der die App einmal
+        # gestartet ist.
         art = Article(
-            object_id=obj.next_object_id(self.db), name="Prüfstück", unit="stk",
-            serialization=serialization,
+            object_id=obj.next_object_id(self.db, "article"), name="Prüfstück",
+            unit="stk", serialization=serialization,
         )
         self.db.add(art)
         self.db.flush()

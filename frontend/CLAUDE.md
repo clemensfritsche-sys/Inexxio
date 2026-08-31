@@ -267,44 +267,29 @@ transportieren kann.
 - **Die Route kennt der Aufrufer, nicht die Karte** (`onLink`): dieselbe Bauart wie
   `onAction`. Fehlt der Rückruf, gibt es den Knopf nicht.
 
-## Bewegen: selbst gebracht oder eingekauft (`order-detail.Wrapped`)
-Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – also
-trägt das Bewegen-Modul denselben Einkaufs-Beleg wie das Beschaffen-Modul: dieselben drei
-Stufen, dieselben Verben, **dieselbe Komponente** (`PurchaseWork` wird an genau einer
-Stelle gerendert). Ein zweites «Versand»-Bauteil daneben wäre der Einkauf ein zweites Mal,
-und das zweite veraltet beim ersten neuen Verb.
+## Der Handel ist ein Modul in der Kette (`lib/modules`, `order-detail.TradeDocument`)
+Ein Transport, den eine Spedition fährt, ist eine Leistung, die man **einkauft** – also
+steht dafür ein **Einkaufs-Modul in der Kette**, kein Beleg *in* dem Bewegen-Modul:
 
-- **Die Oberfläche fragt zwei Eigenschaften, nie den Modultyp**: `step.moves` (Ziel-Scan?)
-  und `step.buys` (`'if_chosen'` → die Wahl anbieten). Beide reisen mit dem Schritt, wie
-  Farbe und Beschriftung – den Modul-Katalog lädt nur der Editor.
-- **Die Wahl steht dort, wo ihre Folge steht** (`Wrapped`) – und **derselbe Schalter
-  nimmt sie zurück** (#775). Der Wert ist **abgeleitet** (`purchase ? 'bought' : 'self'`),
-  beide Richtungen sind verdrahtet (`buy` ↔ `revoke`), und **ob es zurückgeht, sagt der
-  Server** (`revoke ∈ purchase.can`). Vorher stand er fest auf `self` und verschwand,
-  sobald ein Beleg entstand: das Bedienelement, mit dem man gewählt hat, war weg, und der
-  Weg zurück lag im Beleg – zwei Gesten für eine Sache. Ist die Wahl nicht mehr umkehrbar,
-  bleibt der Schalter **stehen** (gesperrt, Grund im Hover): sonst beantwortet nichts mehr,
-  was gewählt war.
-- **Der ganze Einkaufs-Bereich trägt seinen Ton** (`ProcurementBlock`, #776) – als
-  Haarlinie an der Kante, nicht als Fläche: eine getönte Karte wäre die dritte
-  (Modul-Karte → Beleg-Karte → Stufen-Zeile). Sie heisst **«Selbst ↔ Beschaffen»** –
-  dasselbe Wort wie das Modul, das es sonst tut, aus **einer** Quelle (`FLOW.buy`,
-  gespiegelt von `domain/procurement`). Eine Spedition wird **gekauft**, nie verkauft –
-  darum steht dort die Richtung fest und nicht `flowOf(…)`.
-- **Und man sieht, dass es ein Einkauf ist** (#775): über dem Beleg steht seine eigene
-  Überschrift (`ProcurementHead` – getöntes Symbol · Name · Haarlinie, dieselbe Anatomie
-  wie eine Modul-Karte, `ModuleMark` aus einer Quelle). Nur wo der Einkauf **nicht** der
-  Zweck des Moduls ist: wo er es ist, sagt die Karte den Namen schon. Name und Farbe kommen
-  vom **Beleg** (`label`/`tone`) – der Modul-Katalog ist an der Ausführungsstelle nicht
-  geladen, und die Identität eines Moduls, das dort gar nicht steht, wäre geborgt.
-- **Der Weg zurück steht ab der ersten Stufe da** und trägt das Wort des Belegs (`undo`) –
-  er hing an «schon angefragt», also ausgerechnet nicht dort, wo am wenigsten zugesagt ist.
-- **Wo kein Lieferant zugelassen ist, wird gesucht** (`ObjectSelect` + `api.searchSuppliers`)
-  statt eine leere Liste zu zeigen; die zugelassene Liste bleibt, wo es sie gibt.
-- **Kein «womit» mehr.** Die Liste `manuell · paket · fracht` ist entfallen: *Paket* und
-  *Fracht* sind zwei **Angebote** desselben Einkaufs. Übrig bleibt ein Bit (`HAULAGE`),
-  und die Antwort ist abgeleitet – eingekauft wurde, wenn es einen Beleg gibt.
-  `confirmStep` schickt darum keine Transportart mehr mit.
+```
+Verkauf mit Versand:      Fertigen → Verkauf → Einkauf (Spedition) → Bewegen (Kunde)
+Verkauf, selbst gebracht: Fertigen → Verkauf → Bewegen (Kunde)
+```
+
+- **`Wrapped`, `ProcurementBlock` und `HAULAGE` sind entfallen.** Der Schalter «Selbst ↔
+  Beschaffen», der Beleg in der Modul-Karte und der Karten-Kopf darin waren die
+  Oberfläche eines Moduls im Modul. Geblieben ist `TradeDocument`: gibt es einen Beleg,
+  rendert es ihn (`PurchaseWork`, unverändert), sonst den Inhalt allein – **nie** eine
+  Frage nach dem Modultyp.
+- **Ein Modul im Code, zwei Kacheln in der Palette.** `einkauf` und `verkauf` sind
+  dieselbe Klasse im Backend; hier sind es zwei Einträge in `MODULE_ICON`, `MODULE_FORM`
+  (beide auf `TRADE_FORM`) und `MODULE_FIELDS`. Symbol und Wort kommen aus `FLOW`,
+  gespiegelt von `domain/procurement` – kein zweites Literal.
+- **Der Einstandspreis ist ein Schalter am Einkauf** (`config.landed_cost`, Vorgabe ja):
+  «Kosten des Teils» ↔ «Nebenkosten». Er hängt an `info.landed_cost` und steht darum am
+  Verkauf gar nicht – was ein Kunde zahlt, sind nicht unsere Kosten.
+- **Der Schritt bringt `moves` mit, aber kein `buys` mehr.** Ob ein Schritt einen Beleg
+  *hat*, sagt der Beleg selbst; das kann der Wirklichkeit nicht widersprechen.
 
 ## Referenz-Eingabe (`components/erp/object-select.tsx`)
 **«Welchen Datensatz meinst du?» hat EINE Bauart** (#738). `ObjectSelect` ist **auf**

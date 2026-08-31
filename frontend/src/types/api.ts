@@ -1419,21 +1419,11 @@ export interface components {
              * @description **Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
              *
              *     Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
-             *     anderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»
-             *     aus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht
-             *     als das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt
-             *     nur der Editor.
+             *     anderen Modultyp leer war – eine Liste als Bit. Die Liste gibt es nicht mehr, und
+             *     die Frage steht als das da, was sie ist. Sie reist **mit dem Schritt**: den
+             *     Modul-Katalog lädt nur der Editor.
              */
             readonly moves: boolean;
-            /**
-             * Buys
-             * @description **Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.
-             *
-             *     ``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau
-             *     darum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der
-             *     Eigenschaft und nie nach dem Modultyp.
-             */
-            readonly buys: string | null;
         };
         /** ArticleResponse */
         ArticleResponse: {
@@ -2344,8 +2334,16 @@ export interface components {
             status_before: string;
             /** Status After */
             status_after: string;
-            /** Buys */
-            buys?: string | null;
+            /**
+             * Landed Cost
+             * @default false
+             */
+            landed_cost: boolean;
+            /**
+             * Trades
+             * @default false
+             */
+            trades: boolean;
             /**
              * Parties
              * @default optional
@@ -2774,21 +2772,11 @@ export interface components {
              * @description **Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
              *
              *     Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
-             *     anderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»
-             *     aus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht
-             *     als das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt
-             *     nur der Editor.
+             *     anderen Modultyp leer war – eine Liste als Bit. Die Liste gibt es nicht mehr, und
+             *     die Frage steht als das da, was sie ist. Sie reist **mit dem Schritt**: den
+             *     Modul-Katalog lädt nur der Editor.
              */
             readonly moves: boolean;
-            /**
-             * Buys
-             * @description **Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.
-             *
-             *     ``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau
-             *     darum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der
-             *     Eigenschaft und nie nach dem Modultyp.
-             */
-            readonly buys: string | null;
             /**
              * Action
              * @description Wie die Ausführung dieses Moduls heisst – das Verb auf dem Knopf.
@@ -2825,10 +2813,10 @@ export interface components {
          * @description **Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.
          *
          *     **Der Beleg gehört keinem Modul** (``domain/procurement``): er hängt am Schritt, und
-         *     welches Modul einen bekommt, sagt dessen ``buys``. Ein **Bewegen**-Modul, bei dem
-         *     jemand «eingekauft» gewählt hat, trägt darum buchstäblich denselben – dieselben
-         *     Stufen, dieselben Verben, dieselbe Komponente. Leer, wo keiner existiert; die
-         *     Oberfläche braucht damit keine Fallunterscheidung nach dem Modul (wie ``needs``).
+         *     welches Modul einen bekommt, sagt dessen ``trades``. Ein- und Verkauf tragen darum
+         *     buchstäblich denselben – dieselben Stufen, dieselben Verben, dieselbe Komponente,
+         *     nur in die andere Richtung. Leer, wo keiner existiert; die Oberfläche braucht damit
+         *     keine Fallunterscheidung nach dem Modul (wie ``needs``).
          *
          *     **Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt
          *     einer Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche.
@@ -3023,7 +3011,7 @@ export interface components {
          *     ``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine
          *     Stufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld
          *     fliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein
-         *     anderes (``Module.buys`` bzw. ``payments.assert_payable``), aber der **Weg** ist
+         *     anderes (``Module.trades`` bzw. ``payments.assert_payable``), aber der **Weg** ist
          *     derselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg
          *     verwaltet.
          */

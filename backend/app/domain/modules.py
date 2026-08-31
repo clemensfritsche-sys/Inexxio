@@ -28,23 +28,16 @@ from . import capture_types, procurement, sampling, statuses as st
 #: bekommt einen zweiten Wert, keine zweite Mechanik.
 AT_PRODUCT = "product"
 
-#: **Wann ein Modul einen Einkaufs-Beleg trägt** (``Module.buys``).
-#:
-#: ``BUY_ALWAYS``    das Modul existiert, **um** einzukaufen – der Beleg entsteht mit der
-#:                   Freigabe und ist von Anfang an da (Beschaffen).
-#: ``BUY_IF_CHOSEN`` das Modul kann seine Arbeit auch **selbst** erledigen – der Beleg
-#:                   entsteht erst, wenn jemand «eingekauft» wählt (Bewegen). Genau
-#:                   deshalb ist «gibt es einen Beleg?» zugleich die Antwort auf «wurde
-#:                   das eingekauft?»: zwei Angaben könnten sich widersprechen, eine
-#:                   abgeleitete kann es nicht.
-BUY_ALWAYS = "always"
-BUY_IF_CHOSEN = "if_chosen"
-
 DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
 VERBRAUCH = "verbrauch"
 BEWEGEN = "bewegen"
-BESCHAFFEN = "beschaffen"
+#: **Zwei Kacheln, EINE Klasse** (``Handel``). Der Schlüssel bleibt die Identität eines
+#: gespeicherten Schritts – daran hängen Beschriftung, Farbe und Symbol, und die reisen
+#: mit dem Schritt statt aus einem Katalog nachgeladen zu werden. Ein einziger Schlüssel
+#: mit der Richtung in der ``config`` hätte jede dieser Lesestellen gezwungen, die
+#: Konfiguration mitzuschleppen, um zu wissen, *was* das Modul ist.
+EINKAUF = "einkauf"
 VERKAUF = "verkauf"
 
 
@@ -113,17 +106,22 @@ class Module:
     #: **Bewegt dieses Modul die Stücke?** Vorgabe: nein.
     #:
     #: Vorher beantwortete das die Transportart-Liste, indem sie bei jedem anderen
-    #: Modultyp leer war – eine Liste als Bit. Seit die Transportart abgeleitet ist
-    #: (siehe ``buys``), gibt es die Liste nicht mehr, also steht die Frage hier: ehrlich,
-    #: als eine Zeile. Die Oberfläche fragt danach und nie nach dem Modultyp.
+    #: Modultyp leer war – eine Liste als Bit. Die Liste gibt es nicht mehr, also steht
+    #: die Frage hier: ehrlich, als eine Zeile. Die Oberfläche fragt danach und nie nach
+    #: dem Modultyp.
     moves: bool = False
 
-    #: **Trägt dieses Modul einen Beleg – und wann?** ``None`` = nie.
+    #: **Trägt dieses Modul einen Beleg?** Vorgabe: nein.
     #:
     #: Der Beleg (``domain/procurement`` + ``services/purchase``) gehört keinem Modul; er
-    #: hängt am **Schritt**. Ein Modul sagt hier nur, ob es einen bekommt. Damit ist eine
-    #: Sendung kein zweites Konzept: sie ist derselbe Beleg an einem anderen Modul.
-    buys: Optional[str] = None
+    #: hängt am **Schritt**. Ein Modul sagt hier nur, ob es einen bekommt.
+    #:
+    #: **Es war einmal eine Dreiwert-Angabe** (``nie · immer · falls gewählt``): das
+    #: Bewegen-Modul trug einen Beleg, sobald jemand «eingekauft» wählte – ein Einkauf
+    #: **im** Transport, also ein Modul im Modul. Wer einkauft, setzt jetzt ein
+    #: Einkaufs-Modul in die Kette; damit bleibt hier ein Bit, und die Kette sagt, was
+    #: passiert.
+    trades: bool = False
 
     #: **In welche Richtung handelt dieses Modul?** ``buy`` · ``sell``
     #: (``domain/procurement.FLOWS``).
@@ -134,8 +132,8 @@ class Module:
     #: Beleg die Richtung stattdessen bei jeder Anzeige aus dem Modultyp, änderte ein
     #: künftiger Umbau rückwirkend die Bedeutung alter Belege.
     #:
-    #: Für ein Modul ohne ``buys`` ist sie bedeutungslos – aber nicht falsch: es fragt
-    #: schlicht nie danach.
+    #: Für ein Modul ohne Beleg (``trades``) ist sie bedeutungslos – aber nicht falsch:
+    #: es fragt schlicht nie danach.
     direction: str = procurement.BUY
 
     @property
@@ -143,13 +141,17 @@ class Module:
         """Der Vorgang dieses Moduls – Wörter, Gegenpartei, Verben. Eine Auflösung."""
         return procurement.of(self.direction)
 
-    #: **Ist die Summe dieses Belegs der Preis der WARE?**
+    #: **KANN die Summe dieses Belegs zu den Kosten des Teils zählen?**
     #:
-    #: Beim Einkauf ja – auch bei einer Leistung am Teil, denn die erhöht seine Kosten.
-    #: Beim **Transport** nein: derselbe Artikel, zweimal verschickt, überschriebe seinen
-    #: Einstandspreis mit dem Frachttarif. Das wäre ein stiller Datenfehler, mit dem
-    #: danach kalkuliert wird – darum eine Deklaration und kein ``if module_type``.
+    #: Eine Aussage der **Richtung**: beim Einkauf ja, beim Verkauf nie (was ein Kunde
+    #: zahlt, ist verhandelt und sagt nichts über unsere Kosten). Ob sie es im Einzelfall
+    #: **tut**, sagt die Definition – gefragt wird darum überall ``landed_cost_for``, nie
+    #: dieses Feld.
     landed_cost: bool = False
+
+    def landed_cost_for(self, config: Optional[dict[str, Any]]) -> bool:
+        """Vorgabe: nein. Ein Modul ohne Beleg zahlt für gar nichts."""
+        return False
 
     def __init__(self, key: str, label: str, status_before: str, status_after: str,
                  tone: str):
@@ -202,8 +204,8 @@ class Module:
         Modultyp vor ihr steht (dieselbe Bauart wie ``consumption.plan``).
 
         **Die Transportart ist hier entfallen.** Sie war die zweite Frage an derselben
-        Stelle, und sie ist heute keine Eingabe mehr: eingekauft wurde genau dann, wenn
-        es einen Beleg gibt (``buys``).
+        Stelle – und wer den Transport einkauft, setzt dafür ein Einkaufs-Modul in die
+        Kette, statt die Bewegung um eine kaufmännische Angabe zu erweitern.
         """
         return None
 
@@ -436,6 +438,22 @@ class Module:
         except (TypeError, ValueError):
             return None
         return number if number > 0 else None
+
+    def rest_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
+        """►►► **In welchem Zustand RUHT ein Stück, das diesen Prozess durchlaufen hat?**
+
+        ``None`` = in keinem besonderen; dann gilt der Regelfall «zurück in den Bestand».
+
+        Das ist der Ersatz für ``Verkauf.terminal``. Ein Verkauf schloss einmal die Kette,
+        weil er ``Verkauft`` schrieb und danach kein Modul mehr folgen konnte – und genau
+        deshalb liess sich hinter ihm nicht ausliefern. Jetzt läuft das Stück weiter, und
+        **der Auftrag** trägt den Zustand, in dem es am Ende zur Ruhe kommt
+        (``orders.end_status``, abgeleitet in ``process.release``).
+
+        Damit schreibt das Ende-Objekt denselben Wert, den der Prozess ohnehin meint: es
+        gibt nichts zu überschreiben und keine Ausnahme dafür.
+        """
+        return None
 
     def exit_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
         """Auf welchen Zustand setzt dieses Modul ein Stück, das **hier hinausgeht**?
@@ -684,8 +702,9 @@ class Verbrauch(Module):
 class Move:
     """Was ein Modul am Ort ändern will: **wohin**.
 
-    Das «womit» stand hier einmal daneben. Es ist entfallen, weil es keine zweite Angabe
-    ist: eingekauft wurde genau dann, wenn es einen Beleg gibt (``Module.buys``).
+    Das «womit» stand hier einmal daneben. Es ist entfallen, weil es keine Eigenschaft
+    der Bewegung ist: wer den Transport einkauft, setzt ein **Einkaufs-Modul** in die
+    Kette – die Kette sagt dann, was passiert.
     """
 
     target: int
@@ -705,25 +724,19 @@ class Bewegen(Module):
     sind gültig, aber sie müssen **sichtbar** verschieden sein: ein offenes Ziel darf
     nicht wie ein vergessenes aussehen (``ModuleFacts.target``).
 
-    **Selbst gebracht oder eingekauft – das ist EIN Bit, und es ist abgeleitet.** Beim
-    Modellieren weiss niemand, ob das Stück nebenan liegt oder in Werk Nord; die Frage
-    gehört darum zur **Laufzeit**. Wer sie mit «eingekauft» beantwortet, bekommt einen
-    ganz gewöhnlichen **Einkaufs-Beleg** (``buys = BUY_IF_CHOSEN``) – dieselben drei
-    Stufen, dieselben Verben, dieselbe Oberfläche wie beim Beschaffen. Denn eine Sendung
-    aufzugeben IST ein Einkauf: der Spediteur ist ein Lieferant, der Tarifvergleich ist
-    der Angebotsspiegel, die Sendungsnummer ist ``tracking``.
+    ►►► **Es trägt keinen Beleg mehr.** ◄◄◄ Ein Transport, den eine Spedition fährt, ist
+    eine Leistung, die man **einkauft** – und dafür gibt es das Einkaufs-Modul. Es stand
+    einmal *in* diesem hier (``buys = if_chosen``): ein Modul im Modul, und damit die
+    Stelle, an der ein physisches Modul plötzlich eine kaufmännische Frage stellte.
 
-    Die Antwort auf «wurde das eingekauft?» ist damit **«gibt es einen Beleg?»** – und
-    kann der Wirklichkeit nicht widersprechen. Die frühere Liste ``manuell · paket ·
-    fracht`` (mit einem ``available``-Flag als Roadmap) ist ersatzlos entfallen: *Paket*
-    und *Fracht* sind keine zwei Arten, sondern zwei **Angebote** desselben Einkaufs –
-    das entscheidet der Tarif, nicht der Modellierer. Ein Roboter, der es fährt, ist
-    «selbst»: unser Gerät, keine Rechnung.
+    «Kaufen statt selbst machen» gilt für **alles** – Härten, Montieren, Fahren –, und
+    für alles ausser dem Transport war es längst ein eigenes Modul. Jetzt auch hier:
 
-    **Und der Ziel-Scan schliesst den Beleg.** Ankunft und Ablage sind ein Ereignis, also
-    eine Bestätigung: ``assert_receivable`` lässt vorher nichts eintreffen, ``note_receipt``
-    setzt danach die letzte Stufe. Beide fragen nur, ob es zu diesem Schritt einen Beleg
-    gibt – sie mussten dafür **nicht angefasst** werden.
+    ``… → Einkauf (Spedition) → Bewegen (Kunde) → …``
+
+    Wer selbst fährt, lässt das erste Modul weg. Die Kette sagt damit, was passiert,
+    statt es in einer Karte zu verstecken – und «diesmal doch anders» ist das, was es im
+    ganzen System ist: eine **Abweichung**.
 
     **Geprüft wird hier nur die FORM** (eine Objektnummer), nicht die Existenz: diese
     Stelle hat keine Datenbanksitzung. Dass es den Halter gibt und dass er keinen Kreis
@@ -737,13 +750,6 @@ class Bewegen(Module):
     #: Es bewegt – daraus folgt in der Oberfläche der Ziel-Scan.
     moves = True
 
-    #: Es **kann** einkaufen: ein Transport wird eingekauft oder selbst erledigt.
-    buys = BUY_IF_CHOSEN
-
-    #: Aber sein Preis ist **nicht** der Preis der Ware: derselbe Artikel, zweimal
-    #: verschickt, überschriebe seinen Einstandspreis mit dem Frachttarif.
-    landed_cost = False
-
     #: Was der Knopf sagt. **«Bestätigen», nicht «scannen»**: gescannt ist zu diesem
     #: Zeitpunkt längst – Ware und Zielort –, und was der Knopf auslöst, ist die Buchung
     #: der Ablage. Ein Verb, das den vorherigen Schritt benennt, beschreibt nicht, was
@@ -753,18 +759,15 @@ class Bewegen(Module):
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
         data = raw or {}
         target = self._as_object_id(data.get(self.TARGET))
-        # ►► **Auch dieses Modul kann einkaufen – also trägt es dieselben Beleg-Angaben.**
-        #
-        # Beide sind hier **freiwillig** (die Deklarationen oben): welcher Spediteur
-        # fährt, entscheidet sich zur Laufzeit, und *was* zu tun ist, steht schon im
-        # abgeleiteten Satz. Dass die Felder trotzdem da sind, ist der Punkt: «wir fahren
-        # nur mit diesen drei Speditionen» und «Hebebühne nötig» sind echte Angaben, und
-        # sie gehören dorthin, wo auch das Beschaffen-Modul sie hat (Testnotiz #777).
+        # ►► **Kein Beleg mehr.** Ein Transport, den eine Spedition fährt, ist ein
+        # Einkauf – und den setzt man als **Einkaufs-Modul** in die Kette, nicht als
+        # Beleg *in* dieses Modul. Ein Modul im Modul war die Stelle, an der ein
+        # physisches Modul plötzlich eine kaufmännische Frage stellte; und «kaufen statt
+        # selbst machen» gilt für alles, nicht nur für den Transport.
         #
         # Keine Erfassungspunkte und keine Stichprobe: bewegt wird, was ankommt. Die
         # Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
-        return {self.TARGET: target, **self.clean_purchase_config(data),
-                "points": [], "sample": dict(sampling.DEFAULT)}
+        return {self.TARGET: target, "points": [], "sample": dict(sampling.DEFAULT)}
 
     @staticmethod
     def _as_object_id(value: Any) -> Optional[int]:
@@ -829,233 +832,121 @@ class Bewegen(Module):
 
 
 class Handel(Module):
-    """**Ein Modul, dessen Zweck ein Beleg ist** – die gemeinsame Hälfte von Ein- und Verkauf.
+    """►►► **Das eine Handelsmodul — Ein- und Verkauf sind dieselbe Sache.** ◄◄◄
 
-    Beide sind ein **Tor nach draussen**: alle anderen Module tun etwas *mit* der
-    Einzelinstanz – sie messen, bewegen, sondern aus, verbauen. Diese hier halten sie auf,
-    bis eine zweite Partei ihren Teil getan hat. Und beide erzeugen **nichts**:
-    Einzelinstanzen entstehen ausschliesslich bei der Freigabe eines Erzeugungsauftrags.
+    Es gab dafür zwei Klassen. Sie unterschieden sich in **vier Werten** und in keiner
+    einzigen Zeile Verhalten – und alle vier beschreiben nicht den Modultyp, sondern die
+    **Richtung** (``domain/procurement.Flow``). Also stehen sie dort, und hier steht die
+    Klasse: eine Implementierung, zwei Kacheln in der Palette.
 
-    Was sie unterscheidet, ist die **Richtung** (``Module.direction``) – und die steht als
-    Daten im ``Flow``, nicht als Verzweigung. Was hier steht, gilt darum für beide:
+    ## Ein Tor nach draussen
 
-    * Der Beleg entsteht mit der Freigabe (``BUY_ALWAYS``) – er ist der Zweck, keine Option.
-    * Der Knopf des Moduls trägt das Verb der **Schwellen-Stufe**: was das Modul
-      abschliesst, ist genau das, was der Beleg an seiner zweiten Stufe zu tun hat
-      («Wareneingang buchen» ↔ «Lieferung buchen»). Zwei Literale wären zwei Wörter für
-      dieselbe Handlung, und das zweite ändert irgendwann jemand allein.
+    Alle anderen Module tun etwas *mit* der Einzelinstanz – sie messen, bewegen, sondern
+    aus, verbauen. Dieses hier hält sie auf, bis eine zweite Partei ihren Teil getan hat.
+    Und es erzeugt **nichts**: Einzelinstanzen entstehen ausschliesslich bei der Freigabe
+    eines Erzeugungsauftrags. Eine gekaufte oder verkaufte **Leistung** taucht darum nie
+    im Bestand auf – nicht weil ein Feld sie ausschliesst, sondern weil hier nichts
+    entsteht.
+
+    ## Ein DURCHLÄUFER, auch beim Verkauf
+
+    ``Im Prozess`` → ``Im Prozess``, in beide Richtungen. Der Verkauf war einmal ein
+    **Ausgang** (``terminal``), und das war eine Notlüge: verkaufen heisst *Eigentum
+    wechselt*, nicht *Ort wechselt*. Das Stück steht danach noch im Regal, bis jemand es
+    hinausfährt – und weil ``terminal`` die Kette schloss, konnte hinter dem Verkauf kein
+    **Bewegen** mehr stehen. Genau daran scheiterte der Normalfall «verkaufen und
+    liefern».
+
+    Was das Stück am Ende **ist**, sagt darum nicht mehr dieses Modul, sondern der
+    Auftrag: ``rest_status_for`` deklariert den Ruhezustand, und ``orders.end_status``
+    wird bei der Freigabe daraus abgeleitet (``services/process.release``). Das Ende
+    schreibt damit denselben Wert, den der Prozess ohnehin meint – keine Ausnahme, kein
+    Überschreiben, kein ``if``.
+
+    ## Was hier steht, gilt für beide Richtungen
+
+    * Der Beleg entsteht mit der Freigabe – er ist der Zweck, keine Option (``trades``).
+    * Der Knopf trägt das Verb der **Schwellen-Stufe**: was das Modul abschliesst, ist
+      genau das, was der Beleg an seiner zweiten Stufe zu tun hat («Wareneingang buchen»
+      ↔ «Lieferung buchen»). Zwei Literale wären zwei Wörter für dieselbe Handlung.
     * Erfasst wird nichts, gezogen wird nichts: der Scan ist die Bestätigung.
     """
 
-    buys = BUY_ALWAYS
+    #: Es handelt – also trägt es einen Beleg, immer.
+    trades = True
+
+    #: ►► **Zählt die Summe zu den Kosten des Teils?** – der Schlüssel der einen Angabe.
+    #:
+    #: Sie war einmal eine Eigenschaft des **Modultyps**: «Beschaffen» ja, «Bewegen»
+    #: (der Transport) nein. Seit der Transport ein ganz gewöhnliches Einkaufs-Modul ist,
+    #: kann der Typ die Frage nicht mehr beantworten – beide sind Einkäufe, und nur der
+    #: Modellierer weiss, welcher wofür zahlt.
+    #:
+    #: Sie steht damit dort, wo das Wissen ist. Vorgabe **ja**: der Normalfall ist
+    #: Material oder eine Leistung am Teil, und beides erhöht seine Kosten. Wer Fracht
+    #: oder Versicherung einkauft, nimmt sie heraus – sonst hätte derselbe Artikel,
+    #: zweimal verschickt, den **Frachttarif als Einstandspreis**, und damit würde
+    #: danach kalkuliert.
+    LANDED = "landed_cost"
+
+    def __init__(self, key: str, *, direction: str) -> None:
+        """**Alles, was diesen Eintrag ausmacht, kommt aus der Richtung.**
+
+        Beschriftung, Farbe, Pflichtfelder und «ist die Summe der Warenpreis?» stehen im
+        ``Flow``. Zwei Literale hier wären zwei Stände, und der zweite veraltet still.
+        """
+        flow = procurement.of(procurement.assert_direction(direction))
+        super().__init__(key=key, label=flow.label, tone=flow.tone,
+                         # Durchläufer – das Modul verändert das Stück nicht, es hält es auf.
+                         status_before=st.IM_PROZESS, status_after=st.IM_PROZESS)
+        self.direction = direction
+        self.parties = flow.parties
+        self.instruction = flow.instruction
+        self.landed_cost = flow.landed_cost
 
     def action_for(self, config: Optional[dict[str, Any]]) -> str:
         return self.flow.stage_verbs[procurement.BINDING]
 
+    def rest_status_for(self, config: Optional[dict[str, Any]]) -> Optional[str]:
+        """**Der Ruhezustand nach diesem Modul** – beim Verkauf ``Verkauft``, sonst keiner.
+
+        Ein Einkauf ändert am Stück nichts: was hereinkommt, ist danach ganz gewöhnliches
+        Material. Ein Verkauf schon – es gehört uns nicht mehr, und darum zählt es zur
+        Historie statt zum Bestand.
+        """
+        return st.VERKAUFT if self.direction == procurement.SELL else None
+
+    def landed_cost_for(self, config: Optional[dict[str, Any]]) -> bool:
+        """**Zählt die Summe dieses Belegs zu den Kosten des Teils?**
+
+        Beim **Verkauf** nie; beim Einkauf sagt es die Definition (``LANDED``).
+        """
+        if not self.landed_cost:
+            return False
+        return bool((config or {}).get(self.LANDED, True))
+
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
-        # Ob die beiden Beleg-Angaben Pflicht sind, sagen die Deklarationen der Unterklasse
-        # (``parties`` / ``instruction``), geprüft wird im gemeinsamen
-        # Block. Keine Erfassungspunkte und keine Stichprobe: was ankommt, kommt an. Die
-        # Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
-        return {**self.clean_purchase_config(raw or {}),
+        # Ob die beiden Beleg-Angaben Pflicht sind, sagt die Richtung (``Flow``), geprüft
+        # wird im gemeinsamen Block. Keine Erfassungspunkte und keine Stichprobe: was
+        # ankommt, kommt an. Die Felder stehen trotzdem, damit jede Lesestelle dieselbe
+        # Form vorfindet.
+        raw = raw or {}
+        return {**self.clean_purchase_config(raw),
+                # Tolerant gelesen (eine ältere Definition kennt den Schlüssel nicht),
+                # streng geschrieben: ein Bit, keine Zeichenkette.
+                self.LANDED: bool(raw.get(self.LANDED, True)),
                 "points": [], "sample": dict(sampling.DEFAULT)}
 
-
-class Beschaffen(Handel):
-    """Etwas **einkaufen** – und die Stücke warten, bis es da ist.
-
-    **Ein Tor, kein Vorgang am Stück.** Alle anderen Module tun etwas *mit* der
-    Einzelinstanz: sie messen, bewegen, sondern aus, verbauen. Dieses hier tut mit ihr
-    gar nichts – es hält sie auf, bis die Ware eingetroffen ist. Darum ist es ein
-    **Durchläufer** (``Im Prozess`` → ``Im Prozess``) und braucht keine Zeile in der
-    Prozess-Engine.
-
-    **Es erzeugt keine Einzelinstanzen.** Die entstehen ausschliesslich bei der Freigabe
-    eines Erzeugungsauftrags (``serialization``); dieses Modul lässt sie passieren. Ein
-    Zukaufteil ist deshalb ein ganz gewöhnlicher Erzeugungsauftrag, dessen Prozess aus
-    einem Beschaffen-Modul besteht – die Charge steht ab der Freigabe als ``Im Prozess``
-    da und wird beim Wareneingang freigegeben.
-
-    **Und eine Leistung taucht nie im Bestand auf** – nicht weil ein Feld sie ausschliesst,
-    sondern weil dieses Modul nichts erzeugt. Wer «Härten» bestellt, kauft eine
-    Dienstleistung an einem Stück, das es schon gibt; der Artikel steht auf dem Beleg und
-    nirgends sonst.
-
-    ## Zwei Angaben, mehr nicht
-
-    ``suppliers``    die **zugelassenen** Lieferanten (mindestens einer), je Eintrag
-                     ``{"supplier": <Objektnr>, "ref": "<Artikelnummer oder Link>"}``.
-    ``instruction``  **was zu tun ist** – ein Satz, Pflicht.
-
-    **Eine Liste mit einem Eintrag ist der Normalfall** – kein Modus, keine Verzweigung.
-    Wer nur bei Würth kauft, hat eine Liste mit Würth; wer vergleichen will, nennt drei.
-    Fachlich ist das die **Lieferantenfreigabe**: wer für dieses Teil in Frage kommt.
-    Ein Einzelwert hätte den Vergleich zu einem zweiten Mechanismus gemacht.
-
-    **Die Bestellangabe gehört zur PAARUNG, nicht zum Beleg** (``ref``): «wie bestelle ich
-    bei *ihm* dieses Teil» – seine Artikelnummer oder der Shop-Link. Sie ist bekannt,
-    wenn man festlegt, wer in Frage kommt, und sie ändert sich nicht je Bestellung. Am
-    Beleg wäre sie eine Angabe, die man bei jedem Vorgang neu abschreibt; am **Artikel**
-    (``supplier_article_number``) ist sie ein einzelner Wert ohne Lieferanten – genau
-    darum war sie dort nie brauchbar. Frei und kurz: eine Nummer, eine URL oder beides.
-
-    **Kein Artikelfeld.** *Was* beschafft wird, sagt der **Prozess**: die Einzelinstanzen,
-    die vor dem Modul stehen, tragen ihren Artikel – ihn daneben zu tippen wäre eine
-    zweite Aussage über dieselbe Sache, und die getippte gewinnt auch dann, wenn sie
-    falsch ist. Daraus fällt der Mehrartikel-Fall von selbst heraus: stehen Stücke
-    zweier Artikel davor, hat der Beleg **zwei Zeilen** – EINE Bestellung, wie im echten
-    Leben (``purchase.process_lines``).
-
-    **Keine Menge in der Konfiguration.** Beim Modellieren steht nicht fest, wie viele
-    Stücke ankommen – dieselbe Regel wie beim Verbrauch. Sie ist die Zahl der
-    Einzelinstanzen je Zeile und friert mit der Bestellung ein.
-
-    ## Woher der Lieferant weiss, was zu tun ist — drei Schichten, jede an ihrem Ort
-
-    ============ ===================================== ==============================
-    Was          Woher                                  Warum dort
-    ============ ===================================== ==============================
-    Die Sache    Artikel-Spezifikation (eingefroren)    Sie beschreibt das Teil und
-                                                        gilt für jeden Lieferanten.
-    Der Auftrag  ``instruction`` am Modul               «Härten auf 58 HRC» ist eine
-                                                        Eigenschaft dieses Schritts,
-                                                        nicht des Artikels – und ein
-                                                        Artikel hat mehrere Schritte.
-    Die Nummer   Angebotszeile bzw. ``reference``       Eine Bestellnummer gehört dem
-                                                        Lieferanten, nicht dem Teil.
-    ============ ===================================== ==============================
-
-    Die **Spezifikation reist mit dem Beleg** (``purchase.embed_data``), sie wird nicht
-    ausgewählt: eine «welche Felder sieht der Lieferant»-Konfiguration wäre eine vierte
-    Stelle für dieselbe Frage – und bei zwei Lieferanten müsste sie zweimal beantwortet
-    werden. Der Lieferant sieht die Sache; **was er damit tun soll**, steht in einem Satz
-    daneben. Ohne diesen Satz ist das Modul nicht anlegbar: eine Bestellung, aus der
-    niemand liest, was verlangt ist, ist keine.
-
-    **Kein Modus «Webshop».** Jeder, bei dem man kauft, *ist* ein Lieferant – ob per
-    Shop-Link, Telefon oder Portal, ist eine Eigenschaft **von ihm** und nicht dieser
-    Bestellung. Ein zweiter Ablauf für dieselben drei Stufen wäre dieselbe Angabe ein
-    zweites Mal, und die zweite läuft irgendwann weg.
-
-    ## Drei Stufen — und sie gehören dem BELEG
-
-    ``Anfrage → Bestellung → Wareneingang``. Die Einzelinstanz trägt davon **nichts**:
-    sie ist von der ersten bis zur letzten Stufe ``Im Prozess``. «Preis steht» ist keine
-    Stufe, sondern der Inhalt der Anfrage – sie ist fertig, wenn ein Preis angenommen
-    ist; beim Shop-Kauf trägt man ihn selbst ein.
-
-    **``storniert`` ist ein Ausgang, keine Stufe.**
-
-    Ab ``BINDING`` ist eine **zweite Partei** gebunden: dort liegt eine Bestellung beim
-    Lieferanten. Verliert der Beleg danach seine Grundlage, ändert das System ihn nicht
-    still, sondern **meldet** und wartet auf die Bestätigung (``services/purchase``).
-    """
-
-    #: **Die Beleg-Angaben stehen nicht mehr hier**, sondern an ``Module`` – seit auch
-    #: das Bewegen-Modul einen Beleg tragen kann, beschreiben sie den *Beleg* und nicht
-    #: diesen Modultyp. Was diese Klasse dazu sagt, sind die zwei Zeilen darunter: hier
-    #: sind **beide Pflicht**, denn es ist nichts ableitbar. Der Artikel beschreibt die
-    #: Sache, nicht den Auftrag; und ohne zugelassenen Lieferanten steht beim Ausführen
-    #: niemand da, bei dem man bestellen könnte.
-    #: **Beides Pflicht.** Beim Beschaffen ist nichts ableitbar: bei wem bestellt wird,
-    #: ist eine Freigabeentscheidung, und was zu tun ist, sagt kein Artikel.
-    parties = Module.REQUIRED
-    instruction = Module.REQUIRED
-
-    #: Wir kaufen: es kommt herein, und wir zahlen.
-    direction = procurement.BUY
-
-    #: Und seine Summe **ist** der Preis der Ware – auch bei einer Leistung am Teil.
-    landed_cost = True
-
-
-class Verkauf(Handel):
-    """Etwas **verkaufen** – und das Stück verlässt hier das Haus.
-
-    Der Zwilling des Beschaffens: dieselben drei Stufen, dieselbe Schwelle, derselbe
-    Storno, dieselbe Oberfläche. Der Unterschied ist die **Richtung**, und daraus folgt
-    alles Weitere, ohne dass es jemand aufschreibt – die Stufen heissen «Angebot ·
-    Zusage · Geliefert», die Gegenpartei ist ein **Kunde**, und den Preis nennen **wir**.
-
-    ## Der eine echte Unterschied: es ist ein AUSGANG
-
-    Der Einkauf endet mit dem Wareneingang und ist darum ein **Durchläufer** – das Stück
-    läuft danach weiter. Der Verkauf endet mit der Lieferung, und was geliefert ist, ist
-    weg: ``terminal``. Daraus fällt alles Übrige heraus (§4.6) – hinter ihm kann kein
-    Modul stehen, es passiert das Ende-Objekt nicht, das Bild endet dort.
-
-    **Der Zustand ist ``Verkauft``, und er ist nicht endgültig.** Eine Retoure ist real:
-    ein ganz gewöhnlicher Auftrag darf das Stück greifen – **das Greifen IST die
-    Rücknahme**, genau wie beim Sperren und beim Verbauen. Es gibt keinen «Retoure
-    annehmen»-Endpunkt, und weil der Start eines solchen Auftrags vom Regelstart abweicht,
-    ist er **automatisch** eine dokumentierte Abweichung.
-
-    ## Was in der Definition steht: nichts
-
-    **Der Kunde steht zur Laufzeit fest.** Beim Einkauf ist die Liste eine
-    Freigabeentscheidung, die vorab fällt («für dieses Teil kommen diese drei in Frage») –
-    beim Verkauf weiss beim Modellieren eines Artikels niemand, wer ihn einmal kauft. Die
-    Liste bleibt trotzdem *möglich* (``parties = OPTIONAL``): «diese Charge geht
-    ausschliesslich an Meier» ist eine echte Hausregel. Leer heisst frei – und frei heisst
-    hier wirklich **jeder**: die Rolle sagt, was jemand *für uns* tut, nicht ob er *bei
-    uns* kaufen darf (``Flow.party_roles`` ist beim Verkauf leer, Testnotiz #779).
-
-    **Und einen Auftrag an die Gegenpartei gibt es hier gar nicht** (``instruction =
-    OFF``, Testnotizen #780/#781): ein Kunde tut nichts, er kauft. Was er bekommt, sagt
-    die Artikel-Spezifikation, die mit dem Beleg reist; ein Lieferhinweis («Anlieferung
-    nur werktags») gehört an das **Bewegen**-Modul, das die Lieferung *ist*.
-
-    Es stand einmal als freiwilliges Feld da – «falls jemand es braucht». Genau das ist
-    die Form, die eine Beschriftung trägt, die nirgends passt («Auftrag an den Kundeen»),
-    und die zu einer Eingabe einlädt, die niemand liest. Ein Feld als Vielleicht ist
-    schlimmer als keines.
-
-    ## Und der Preis ist NICHT der Einstandspreis
-
-    ``landed_cost = False``: was ein Kunde zahlt, ist verhandelt und sagt nichts über
-    unsere Kosten. Ihn an den Artikel zu schreiben hiesse, mit dem eigenen Verkaufspreis
-    zu kalkulieren – derselbe stille Datenfehler wie beim Frachttarif (§9.8), nur teurer.
-    """
-
-    #: Wir verkaufen: es geht hinaus, und wir werden bezahlt.
-    direction = procurement.SELL
-
-    #: **Ein Ausgang.** Was hier ankommt, verlässt den Auftrag – und das Haus.
-    terminal = True
-
-    #: Der Kunde steht zur Laufzeit fest – die Liste bleibt möglich (die Vorgabe von
-    #: ``Module``), aber sie ist nie Pflicht.
-    #: **Einen Auftrag an ihn gibt es hier gar nicht**: ein Kunde tut nichts, er kauft.
-    instruction = Module.OFF
-
-    def status_after_for(self, config: Optional[dict[str, Any]]) -> str:
-        """**Verkauft.** Bei einem Ausgang ist das zugleich ``exit_status_for`` – dort
-        läuft nichts weiter, also gibt es auch keine zwei Zustände (``Module``)."""
-        return st.VERKAUFT
 
 
 MODULES: dict[str, Module] = {
     m.key: m for m in (
-        Beschaffen(
-            key=BESCHAFFEN,
-            # **Name und Farbe kommen vom Vorgang, nicht von dieser Zeile**
-            # (``domain/procurement``). Ein Einkauf sieht überall gleich aus – auch dort,
-            # wo ihn ein Bewegen-Modul auslöst; zwei Literale wären zwei Stände.
-            label=procurement.of(procurement.BUY).label,
-            # Ein Durchläufer: das Modul verändert das Stück nicht, es hält es auf.
-            status_before=st.IM_PROZESS,
-            status_after=st.IM_PROZESS,
-            tone=procurement.of(procurement.BUY).tone,
-        ),
-        Verkauf(
-            key=VERKAUF,
-            label=procurement.of(procurement.SELL).label,
-            status_before=st.IM_PROZESS,
-            # Ein **Ausgang**: das Stück verlässt hier den Auftrag. Der Wert steht
-            # zusätzlich in ``status_after_for``, weil jede Lesestelle dort fragt.
-            status_after=st.VERKAUFT,
-            tone=procurement.of(procurement.SELL).tone,
-        ),
+        # ►►► **Zwei Einträge, EINE Klasse.** Name, Farbe, Pflichtfelder und
+        # Ruhezustand kommen aus der Richtung (``domain/procurement.FLOWS``); hier steht
+        # nur, dass es sie beide gibt. Ein dritter Vorgang wäre ein Eintrag dort und eine
+        # Zeile hier – keine Klasse.
+        Handel(key=EINKAUF, direction=procurement.BUY),
+        Handel(key=VERKAUF, direction=procurement.SELL),
         Datenerfassung(
             key=DATENERFASSUNG,
             label="Datenerfassung",
@@ -1096,12 +987,11 @@ MODULES: dict[str, Module] = {
 
 KEYS: tuple[str, ...] = tuple(MODULES)
 
-#: **Welche Modultypen einen Einkaufs-Beleg tragen können** – abgeleitet, nie gepflegt.
-#: Der Dienst fragt danach statt nach einem Namen; ein neuer Typ mit ``buys`` ist damit
-#: eine Zeile in seiner Klasse und kein zweiter Ort, den jemand vergisst.
-def buying_types(*, buys: Optional[str] = None) -> list[str]:
-    return [key for key, mod in MODULES.items()
-            if mod.buys is not None and (buys is None or mod.buys == buys)]
+#: **Welche Modultypen einen Beleg tragen** – abgeleitet, nie gepflegt. Der Dienst fragt
+#: danach statt nach einem Namen; ein neuer handelnder Typ ist damit eine Zeile in seiner
+#: Klasse und kein zweiter Ort, den jemand vergisst.
+def trading_types() -> list[str]:
+    return [key for key, mod in MODULES.items() if mod.trades]
 
 
 LABELS: dict[str, str] = {k: m.label for k, m in MODULES.items()}

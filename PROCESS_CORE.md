@@ -1987,12 +1987,78 @@ Vergangenheit» (§8.1a). Eine Kette, die beim Stornieren komplett auf grau fäl
 einen stornierten Beleg ununterscheidbar von einem, bei dem nie etwas geschehen ist.
 
 
-### 9.10 Das Modul «Verkauf» — dasselbe Tor, andere Richtung
+### 9.10 Das Handelsmodul — Einkauf und Verkauf sind dasselbe Tor
 
 **Verkauf ist kein neues Konzept.** Einkauf und Verkauf sind *dasselbe Geschäft aus zwei
 Blickwinkeln*: jemand fragt, jemand nennt einen Preis, jemand sagt zu, jemand erfüllt.
 Drei Stufen, eine Schwelle, ein Storno — Wort für Wort dieselbe Maschine
 (`services/purchase`, ein Dienst für beide Richtungen).
+
+> ►►► **EINE Klasse, ZWEI Kacheln.** ◄◄◄
+>
+> Es gab dafür zwei Klassen (`Beschaffen` / `Verkauf`). Sie unterschieden sich in **vier
+> Werten** und in keiner einzigen Zeile Verhalten — und alle vier beschreiben nicht den
+> Modultyp, sondern die **Richtung**. Geblieben ist `domain/modules.Handel`; die vier
+> Werte stehen im `Flow`.
+>
+> In der Palette bleiben es **zwei** Kacheln: «Einkauf» und «Verkauf» sind die Wörter,
+> die jeder benutzt. Ein Oberbegriff müsste auf dem Bildschirm stehen und wäre dort für
+> alle ein Fremdwort — man braucht ihn nicht, wenn niemand ihn liest.
+>
+> **Zwei Schlüssel und nicht einer mit der Richtung in der `config`:** der Schlüssel ist
+> die Identität eines gespeicherten Schritts. Daran hängen Beschriftung, Farbe und
+> Symbol, und die reisen **mit dem Schritt** (§8.1a) — ein einziger Schlüssel zwänge jede
+> dieser Lesestellen, die Konfiguration mitzuschleppen, um zu wissen, *was* das Modul ist.
+
+#### Der Verkauf ist ein DURCHLÄUFER — verkaufen ≠ ausliefern
+
+Der Verkauf war einmal ein **Ausgang** (`terminal`), und das war eine Notlüge: verkaufen
+heisst *Eigentum wechselt*, nicht *Ort wechselt*. Das Stück steht danach noch im Regal,
+bis jemand es hinausfährt. Weil `terminal` die Kette schloss, konnte hinter dem Verkauf
+**kein Bewegen-Modul** stehen — und damit scheiterte ausgerechnet der Normalfall
+«verkaufen und liefern».
+
+Was ein Stück am Ende **ist**, sagt darum nicht mehr das Modul, sondern der Auftrag:
+
+| | |
+|---|---|
+| `Module.rest_status_for(config)` | der Ruhezustand, den dieses Modul meint (`Verkauft` beim Verkauf, sonst keiner) |
+| `orders.end_status` | bei der Freigabe daraus abgeleitet — der **letzte** deklarierte gewinnt |
+
+Das Ende-Objekt schreibt damit denselben Wert, den der Prozess ohnehin meint: es gibt
+nichts zu überschreiben, keine Ausnahme und kein `if module_type`.
+
+**Und ein Statuswechsel räumt keinen Ort mehr** (§9.8): *wo liegt es* und *was ist damit*
+sind zwei Fragen. Den Ort ändert ausschliesslich, wer ihn kennt — das Bewegen-Modul (den
+Halter) und der Verbrauch (den Träger).
+
+#### Der eingekaufte Transport ist ein Modul, kein Beleg im Modul
+
+Ein Transport, den eine Spedition fährt, ist eine Leistung, die man **einkauft**. Er
+steckte einmal *im* Bewegen-Modul (`buys = if_chosen`): die Stelle, an der ein physisches
+Modul plötzlich eine kaufmännische Frage stellte — ein Modul im Modul.
+
+«Kaufen statt selbst machen» gilt aber für **alles** (Härten, Montieren, Fahren), und für
+alles ausser dem Transport war es längst ein eigenes Modul. Jetzt auch hier:
+
+```
+Verkauf mit Versand:      Fertigen → Verkauf → Einkauf (Spedition) → Bewegen (Kunde)
+Verkauf, selbst gebracht: Fertigen → Verkauf → Bewegen (Kunde)
+Zukaufteil:               Einkauf (Lieferant) → Prüfen
+Lohnarbeit (Härten):      Bewegen (Lieferant) → Einkauf (Härten) → Bewegen (zurück)
+Retoure:                  Bewegen (zu uns) → Verkauf mit negativer Rechnung
+```
+
+Fünf Szenarien, ein Baukasten, **keine Verschachtelung**. Wer selbst fährt, lässt das
+Einkaufs-Modul weg; ist es *diesmal* anders, ist das eine **Abweichung** (§12) — der
+Mechanismus, den es dafür ohnehin gibt.
+
+**Der Einstandspreis ist damit eine Angabe des Schritts** (`config.landed_cost`, Vorgabe
+ja). Die Frage «zählt die Summe zu den Kosten des Teils?» hing am **Modultyp**
+(«Beschaffen» ja, «Bewegen» nein); seit der Transport ein gewöhnliches Einkaufs-Modul ist,
+kann der Typ sie nicht mehr beantworten — beide sind Einkäufe, und nur der Modellierer
+weiss, welcher wofür zahlt. Ohne die Angabe hätte derselbe Artikel, zweimal verschickt,
+den **Frachttarif als Einstandspreis**, und damit würde danach kalkuliert.
 
 Verschieden sind nur drei Dinge, und alle drei stehen als **Daten** im `Flow`
 (`domain/procurement.FLOWS`), nicht als Verzweigung im Dienst:

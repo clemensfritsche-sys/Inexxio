@@ -203,20 +203,22 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Fäden**: er las dessen `suppliers` und dessen `instruction`. Beide sind jetzt Fragen an
 > das **Modul** (`Module.suppliers_of` – leer heisst **frei**, nicht «niemand»;
 > `Module.instruction_for` – beim Bewegen **abgeleitet**, «von A nach B»).
-> **Vier Deklarationen, jede mit einer offensichtlichen Vorgabe:** `moves` (bewegt es?),
-> `buys` (`BUY_ALWAYS` ↔ `BUY_IF_CHOSEN` ↔ `None`), `landed_cost` (ist die Summe der Preis
-> der **Ware**? beim Transport **nein** – derselbe Artikel, zweimal verschickt, hätte sonst
-> den Frachttarif als Einstandspreis) und die beiden Fäden. `steps_of` filtert über
-> `modules.buying_types()`, nie über einen Namen.
-> **`buy` ist eine Handlung des MODULS, nicht des Belegs** – sie steht bewusst nicht in
-> `ACTIONS` (dort sind die Verben eines Belegs, und `_can` ist ihr Tor); sie legt ihn an.
-> Ihre Gegenhandlung ist dieselbe wie überall (`revoke`): war der Einkauf eine **Wahl**,
-> verschwindet der Beleg (Soft-Delete, partieller Unique-Index seit Migration `119`) –
-> sonst bliebe ein leerer stehen, und «wurde eingekauft?» beantwortete sich mit «ja».
-> **Und ein Storno verschwindet dort ebenso** (Testnotiz #775): die Absage bleibt als Zeile
-> stehen, ist aber nicht mehr *der* Beleg – sonst war ein Modul, dessen Spedition absagte,
-> **für immer blockiert** (`can` leer, `assert_receivable` 409, `ensure` fand die tote
-> Zeile). EINE Ableitung dafür (`_optional`), zwei Leser.
+> **Drei Deklarationen, jede mit einer offensichtlichen Vorgabe:** `moves` (bewegt es?),
+> `trades` (trägt es einen Beleg?) und `landed_cost` (**kann** die Summe zu den Kosten des
+> Teils zählen? beim Verkauf nie). `steps_of` filtert über `modules.trading_types()`, nie
+> über einen Namen.
+> **Ob die Summe es im Einzelfall TUT, sagt die Definition** (`config.landed_cost`,
+> Vorgabe ja, `Module.landed_cost_for`). Die Frage hing am **Modultyp** («Beschaffen» ja,
+> «Bewegen» nein); seit ein eingekaufter Transport ein gewöhnliches Einkaufs-Modul ist,
+> kann der Typ sie nicht mehr beantworten – beide sind Einkäufe, und nur der Modellierer
+> weiss, welcher wofür zahlt. Ohne sie hätte derselbe Artikel, zweimal verschickt, den
+> **Frachttarif als Einstandspreis**.
+> **Die Handlung `buy` gibt es nicht mehr.** Sie legte einen Beleg *in* einem Modul an,
+> das auch selbst hätte können – ein Modul im Modul. Wer einkauft, setzt ein
+> Einkaufs-Modul in die Kette; ein Modul wählt man nicht, man setzt es. Mit ihr sind
+> `ensure`, `_optional` und die dritte Fassung von `undo` («Doch selbst erledigen»)
+> entfallen. `revoke` bleibt die eine Gegenhandlung: der Beleg bleibt stehen und verliert
+> seine Angebote.
 > **Der Vorgang trägt seine Identität mit sich**: `LABEL`/`TONE` stehen in
 > `domain/procurement`, das Modul «Beschaffen» **liest** sie, und `PurchaseEmbed.label`/
 > `tone` reisen mit dem Beleg – die Ausführungsstelle schlägt nichts im Modul-Katalog nach.
@@ -292,24 +294,41 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > geschrieben in `_create` aus `Module.direction`): ein laufender Auftrag trägt seinen
 > Prozess eingefroren, und ein Beleg soll auch dann noch sagen können, was er war, wenn
 > sein Modul längst anders deklariert ist.
-> **Der eine echte Unterschied ist der AUSGANG**: der Einkauf endet mit dem Wareneingang
-> und ist ein Durchläufer; der Verkauf endet mit der Lieferung, und was geliefert ist,
-> ist weg (`terminal`, Status **`Verkauft`**). Alles Weitere folgt daraus ohne eine
-> Fallunterscheidung (§4.6).
+> **Der Verkauf ist ein DURCHLÄUFER** (seit Migration `124`). Er war einmal ein Ausgang
+> (`terminal`), und das war eine Notlüge: verkaufen heisst *Eigentum wechselt*, nicht *Ort
+> wechselt* – das Stück steht danach noch im Regal, bis jemand es hinausfährt. Weil
+> `terminal` die Kette schloss, konnte hinter ihm **kein Bewegen** stehen, und damit
+> scheiterte der Normalfall «verkaufen und liefern».
+> **Was ein Stück am Ende IST, sagt der Auftrag**: `Module.rest_status_for` deklariert den
+> Ruhezustand, `orders.end_status` wird bei der Freigabe daraus abgeleitet
+> (`process._rest_status`, der letzte gewinnt). Das Ende schreibt damit denselben Wert,
+> den der Prozess ohnehin meint – nichts zu überschreiben, keine Ausnahme, kein
+> `if module_type`. Die **Statuskette bleibt unangetastet**: ein Durchläufer schliesst sie
+> wie jeder andere.
 > **`Verkauft` ist grün, historisch und NICHT endgültig** – wie `Verbaut`: eine Retoure
 > ist real. Ein ganz gewöhnlicher Auftrag greift das Stück, **das Greifen IST die
 > Rücknahme**, und weil sein Start vom Regelstart abweicht, ist er **automatisch** eine
 > dokumentierte Abweichung. **Die Farbe spielt dabei keine Rolle** – `deviation_flags`
 > vergleicht mit `START_BEFORE` und nennt weder Farbe noch Status; eine Regel, die nach
 > der Farbe fragte, liesse ausgerechnet die Retoure aus dem Nachweis fallen.
-> **Der Ort fällt weg, ohne eine Zeile im Modul**: `process._pass` räumt ihn für jeden
-> Zustand mit `stock = HISTORY`.
+> **Und ein Statuswechsel räumt keinen Ort mehr**: «wer zur Historie zählt, verliert
+> seinen Ort» war richtig, solange der einzige historische Zustand ein Stück meinte, das
+> physisch verschwindet – und wurde beim Verkauf falsch. *Wo liegt es* und *was ist damit*
+> sind zwei Fragen; den Ort ändert ausschliesslich, wer ihn kennt (Bewegen den Halter,
+> Verbrauch den Träger).
 > **In der Definition steht nichts**: wer kauft, weiss beim Modellieren eines Artikels
 > niemand – die Liste bleibt möglich (leer heisst frei), Pflicht ist sie nicht. Und
 > `landed_cost = False`: was ein Kunde zahlt, ist verhandelt und sagt nichts über unsere
-> Kosten. **Beschaffen und Verkauf erben ihre gemeinsame Hälfte von `Handel`** – dort steht
-> auch, dass der Knopf des Moduls das Verb der Schwellen-Stufe trägt (zwei Literale wären
-> zwei Wörter für dieselbe Handlung).
+> Kosten. **Einkauf und Verkauf SIND `Handel`** (Migration `124`) – eine Klasse, zwei
+> Registry-Einträge, zwei Kacheln in der Palette. Sie unterschieden sich in vier Werten
+> (`direction` · `parties` · `instruction` · `landed_cost`) und in keiner Zeile Verhalten,
+> und alle vier beschreiben die **Richtung**: sie stehen darum im `Flow`. Dort steht auch,
+> dass der Knopf des Moduls das Verb der Schwellen-Stufe trägt (zwei Literale wären zwei
+> Wörter für dieselbe Handlung).
+> *Bewusst zwei **Schlüssel** statt eines mit der Richtung in der `config`: der Schlüssel
+> ist die Identität eines gespeicherten Schritts – daran hängen Name, Farbe und Symbol,
+> und die reisen mit dem Schritt. Ein einziger zwänge jede Lesestelle, die Konfiguration
+> mitzuschleppen, um zu wissen, **was** das Modul ist.*
 > **`Module.suppliers_of` heisst `parties_of`**: beim Verkauf steht dort ein **Kunde**,
 > und ein Name, der die halbe Wahrheit sagt, ist die Stelle, an der jemand später die
 > falsche Regel schreibt. Der JSONB-Schlüssel bleibt `supplier` – er steht in laufenden

@@ -47,18 +47,10 @@ CHOSEN = procurement.CHOSEN
 #: Was ein Aufrufer tun kann. **Eine Gegenhandlung** (``revoke``) statt zweier: was sie
 #: bewirkt, sagt die Stufe – vor der Bestellung zieht sie die Anfrage zurück, danach
 #: storniert sie. Zwei Verben für «zurück» wären zwei Wege zu derselben Sache.
-#: **Der Beleg entsteht** – die Handlung des **Moduls**, nicht des Belegs.
+#: ►►► **«Da ist Geld geflossen.»** ◄◄◄ – eine Handlung ohne Stufe.
 #:
-#: Sie steht darum bewusst **nicht** in ``ACTIONS``: dort sind die Verben eines Belegs,
-#: und die hängen an seiner Stufe (``_can`` ist ihr Tor). «Kaufe ich das überhaupt ein?»
-#: ist eine Frage davor – sie hat keine Stufe, sondern eine Deklaration (``Module.buys``),
-#: und die Oberfläche liest sie als ``ModuleFacts.buys``. Derselbe Endpunkt bedient
-#: beides: ein zweiter wäre ein zweiter Weg zu einer Sache, die der Beleg verwaltet.
-BUY = "buy"
-
-#: ►►► **«Da ist Geld geflossen.»** ◄◄◄ – die zweite Handlung ohne Stufe.
-#:
-#: Sie steht aus demselben Grund nicht in ``ACTIONS`` wie ``BUY``: sie hat keine Stufe.
+#: Sie steht bewusst **nicht** in ``ACTIONS``: dort sind die Verben eines Belegs, und die
+#: hängen an seiner Stufe (``_can`` ist ihr Tor). Diese hier hat keine.
 #: Geld fliesst, **nachdem** zugesagt wurde – und auch noch, wenn längst geliefert oder
 #: storniert ist (eine Erstattung nach einer Stornierung ist der Normalfall). Ihr Tor ist
 #: darum ``payments.assert_payable`` statt ``_can``.
@@ -143,20 +135,17 @@ def _int(value: Any, *, field: str) -> Optional[int]:
     return number
 
 
-def steps_of(db: Session, order: Order,
-             *, buys: Optional[str] = None) -> list[ProcessStep]:
-    """Die Module dieses Auftrags, die einen **Beleg** tragen können – in ihrer Folge.
+def steps_of(db: Session, order: Order) -> list[ProcessStep]:
+    """Die Module dieses Auftrags, die einen **Beleg** tragen – in ihrer Folge.
 
-    **Nicht mehr EIN Modultyp.** Gefragt wird die Deklaration (``Module.buys``), nicht
-    der Name: seit auch das Bewegen-Modul einkaufen kann, wäre ``module_type ==
-    'beschaffen'`` die Stelle, an der ein zweiter Typ vergessen wird. ``buys`` verengt
-    zusätzlich auf eine Art – ``BUY_ALWAYS`` sind die, die bei der Freigabe einen
-    bekommen.
+    **Nicht EIN Modultyp.** Gefragt wird die Deklaration (``Module.trades``), nicht der
+    Name: ``module_type == 'einkauf'`` wäre die Stelle, an der der Verkauf vergessen
+    wird – und der nächste handelnde Typ ebenso.
     """
     return (
         db.query(ProcessStep)
         .filter(ProcessStep.order_id == order.id,
-                ProcessStep.module_type.in_(modules.buying_types(buys=buys)))
+                ProcessStep.module_type.in_(modules.trading_types()))
         .order_by(ProcessStep.position)
         .all()
     )
@@ -203,15 +192,15 @@ def instantiate_for_order(db: Session, order: Order) -> list[Purchase]:
     **Ein Beleg je Modul, nicht je Position** – was bestellt wird, sagt der Prozess
     (``lines_of``), und ein Beleg kann zwei Zeilen tragen.
 
-    **Nur ``BUY_ALWAYS``.** Ein Modul, das seine Arbeit auch selbst erledigen kann
-    (Bewegen), bekommt hier keinen: ein Beleg ohne Lieferant, den niemand wollte, wäre
-    eine Bestellung, die es nicht gibt – und er würde ausserdem die Frage «wurde das
-    eingekauft?» mit «ja» beantworten. Dort entsteht er erst mit der Wahl (``ensure``).
+    **Jedes handelnde Modul bekommt einen** (``Module.trades``): ein Handel *ist* sein
+    Beleg – es gibt hier nichts zu wählen. Die frühere Unterscheidung «immer ↔ falls
+    gewählt» gehörte zum Beleg **im** Bewegen-Modul, und den gibt es nicht mehr: wer
+    einkauft, setzt ein Einkaufs-Modul in die Kette.
 
     Idempotent: gibt es den Beleg schon, passiert nichts.
     """
     made: list[Purchase] = []
-    for step in steps_of(db, order, buys=modules.BUY_ALWAYS):
+    for step in steps_of(db, order):
         row = _create(db, order=order, step=step)
         if row is not None:
             made.append(row)
@@ -234,29 +223,6 @@ def _create(db: Session, *, order: Order, step: ProcessStep) -> Optional[Purchas
                        modules.get(step.module_type).direction),
                    stage=procurement.STAGES[0], quotes=[])
     db.add(row)
-    return row
-
-
-def ensure(db: Session, *, order: Order, step: ProcessStep) -> Purchase:
-    """►►► **«Das kaufe ich ein.»** ◄◄◄ – der Beleg entsteht mit der Wahl.
-
-    Die eine Stelle, an der ein Modul zur Laufzeit einen Beleg bekommt. Sie ist der
-    Gegenpart zu ``instantiate_for_order``: dort entsteht er, weil das Modul zum Kaufen
-    da ist; hier, weil jemand entschieden hat, es nicht selbst zu tun.
-
-    **Nur ein Modul, das das darf** – sonst hätte jeder Schritt eine Hintertür zu einem
-    Beleg, und die Deklaration wäre eine Empfehlung.
-    """
-    module = modules.get(step.module_type)
-    if module.buys != modules.BUY_IF_CHOSEN:
-        raise HTTPException(
-            status_code=400,
-            detail=(f"«{module.label}» kann nichts einkaufen – ein Beleg entsteht nur "
-                    f"dort, wo die Arbeit auch selbst erledigt werden könnte."),
-        )
-    row = _create(db, order=order, step=step) or of_step(db, step.id)
-    db.flush()
-    assert row is not None
     return row
 
 
@@ -328,33 +294,22 @@ def _can(db: Optional[Session], row: Purchase,
     return allowed
 
 
-def _optional(step: ProcessStep) -> bool:
-    """►►► **Kann dieses Modul seine Arbeit auch OHNE Beleg erledigen?** ◄◄◄
-
-    Die eine Ableitung über ``Module.buys`` – und sie hat zwei Leser, die dieselbe Sache
-    verschieden anwenden: ``_revoke`` (was «zurück» bewirkt) und ``_undo`` (wie es heisst).
-    Zweimal ausgeschrieben wären es zwei Massstäbe, und der zweite wäre der, den man beim
-    nächsten Modul vergisst.
-    """
-    return modules.get(step.module_type).buys == modules.BUY_IF_CHOSEN
-
-
-def _undo(row: Purchase, step: ProcessStep) -> str:
-    """**Wie heisst hier «zurück»?** – ein Wort aus Stufe × Richtung × Deklaration.
+def _undo(row: Purchase) -> str:
+    """**Wie heisst hier «zurück»?** – ein Wort aus Stufe × Richtung.
 
     Es gibt genau **eine** Gegenhandlung (``revoke``); was sie bewirkt, hängt daran, ob
-    schon etwas zugesagt ist und ob der Handel überhaupt der Zweck war. Das Wort dafür
-    gehört darum an dieselbe Stelle wie die Wirkung – die Oberfläche schreibt es nicht
-    selbst hin, sonst stünde beim nächsten Fall ein Satz da, den keine Regel deckt.
+    schon etwas zugesagt ist. Das Wort dafür gehört an dieselbe Stelle wie die Wirkung –
+    die Oberfläche schreibt es nicht selbst hin, sonst stünde beim nächsten Fall ein Satz
+    da, den keine Regel deckt.
 
-    Die beiden richtungsabhängigen Wörter stehen im ``Flow`` («Anfrage zurückziehen» ↔
-    «Angebot zurückziehen»); das dritte ist es nicht: «doch selbst erledigen» sagt
-    dasselbe, egal in welche Richtung nicht gehandelt wird.
+    Die dritte Fassung ist entfallen: «Doch selbst erledigen» gab es, solange ein
+    Bewegen-Modul einen Beleg *wählen* konnte. Wer einkauft, setzt jetzt ein
+    Einkaufs-Modul in die Kette – und ein Modul nimmt man nicht zurück, man löscht es.
     """
     flow = flow_of(row)
     if stage_of(row) != procurement.STAGES[0]:
         return flow.undo_after
-    return "Doch selbst erledigen" if _optional(step) else flow.undo_before
+    return flow.undo_before
 
 
 def of_step(db: Session, step_id: int) -> Optional[Purchase]:
@@ -509,7 +464,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "party_role": flow.party_role,
         "party_word": flow.party_word,
         # **Ein Wort für die eine Gegenhandlung** – oder keines, wenn sie hier nicht geht.
-        "undo": _undo(row, step) if "revoke" in can else None,
+        "undo": _undo(row) if "revoke" in can else None,
         "lines": _line_facts(db, lines_of(db, order, row)),
         "instruction": module.instruction_for(config, facts=_route(db, step=step)),
         "allowed": [
@@ -687,13 +642,15 @@ def _write_landed_cost(db: Session, *, step: ProcessStep, row: Purchase) -> None
     Eine Aufteilung müsste jemand vornehmen – also wird hier nichts geschrieben, statt
     eine Zahl zu erfinden, mit der später kalkuliert wird.
 
-    **Und nur, wo der Beleg für die WARE zahlt** (``Module.landed_cost``). Beim Einkauf
-    ist er das – auch bei einer Leistung am Teil, denn die erhöht dessen Kosten. Bei
-    einem **Transport** ist er es nicht: derselbe Artikel, zweimal verschickt, hätte als
-    Einstandspreis den Frachttarif, und damit würde danach kalkuliert. Ein stiller
-    Datenfehler, und darum eine Deklaration statt eines ``if module_type``.
+    **Und nur, wo der Beleg für das TEIL zahlt** (``Module.landed_cost_for``). Beim
+    Verkauf nie; beim Einkauf sagt es die Definition. Die Frage hing einmal am
+    **Modultyp** – «Beschaffen» ja, «Bewegen» (der Transport) nein –, und seit der
+    Transport ein ganz gewöhnliches Einkaufs-Modul ist, kann der Typ sie nicht mehr
+    beantworten: beide sind Einkäufe. Ohne die Angabe hätte derselbe Artikel, zweimal
+    verschickt, den **Frachttarif als Einstandspreis** – ein stiller Datenfehler, mit dem
+    danach kalkuliert wird.
     """
-    if not modules.get(step.module_type).landed_cost:
+    if not modules.get(step.module_type).landed_cost_for(step.config):
         return
     lines = row.ordered_lines or []
     if len(lines) != 1 or row.amount is None:
@@ -713,17 +670,12 @@ def _write_landed_cost(db: Session, *, step: ProcessStep, row: Purchase) -> None
 def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
           payload: dict[str, Any], actor: UserProfile) -> Purchase:
     """**Eine Handlung am Beleg.** Was erlaubt ist, hängt an der Stufe und an der Rolle."""
-    if action not in ACTIONS and action not in (BUY, PAY, INVOICE):
+    if action not in ACTIONS and action not in (PAY, INVOICE):
         raise HTTPException(
             status_code=400,
             detail=f"«{action}» ist keine Handlung. Bekannt: "
-                   + ", ".join((BUY, PAY, INVOICE) + ACTIONS) + ".",
+                   + ", ".join((PAY, INVOICE) + ACTIONS) + ".",
         )
-    # ►► **«Das kaufe ich ein.»** ◄◄ Die eine Handlung, die *vor* dem Beleg kommt – sie
-    # legt ihn an. Danach ist es derselbe Vorgang wie jeder Einkauf. Sie geht nicht durch
-    # ``_can``, weil sie keine Stufe hat: was sie erlaubt, ist die Deklaration des Moduls.
-    if action == BUY:
-        return ensure(db, order=order, step=step)
     # ►► **«Da ist Geld geflossen.»** ◄◄ Die Handlung, die *neben* den Stufen läuft. Sie
     # geht aus demselben Grund nicht durch ``_can``: Geld fliesst auch noch, wenn längst
     # geliefert oder storniert ist. Ihr Tor ist, ob überhaupt eine Summe zugesagt wurde.
@@ -1033,25 +985,13 @@ def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Purchase,
     storniert sie – dort liegt eine Bestellung beim Lieferanten, und «zurück» heisst
     dann, ihm abzusagen.
 
-    **Und was «die Anfrage zurücknehmen» heisst, sagt das Modul.** Wo der Einkauf der
-    Zweck ist, bleibt der Beleg stehen und verliert seine Angebote. Wo er eine **Wahl**
-    war (``BUY_IF_CHOSEN``), verschwindet er – sonst bliebe ein leerer Beleg zurück, und
-    die Frage «wurde das eingekauft?» beantwortete sich mit «ja», obwohl es die Wahl
-    nicht mehr gibt. Das ist keine zweite Regel, sondern dieselbe eine Ebene tiefer:
-    zurückgenommen wird, was zugesagt war.
+    **Der Beleg bleibt stehen und verliert seine Angebote.** Er ist der Zweck des Moduls –
+    ihn zu löschen hiesse, den Schritt seiner Sache zu berauben; wer gar nicht handeln
+    will, entfernt das Modul aus der Kette. (Die frühere zweite Fassung – der Beleg
+    verschwindet – gehörte zum Beleg *im* Bewegen-Modul, wo der Handel eine Wahl war.)
     """
     if row.stage != procurement.STAGES[0]:
         row.stage = procurement.CANCELLED
-    if _optional(step):
-        # ►► **Wer auch selbst kann, ist damit wieder bei «selbst».** ◄◄
-        #
-        # Der Vorgang ist beendet: die Absage bleibt als Zeile stehen (ein Storno macht
-        # die Bestellung nicht ungeschehen), aber sie ist nicht mehr *der* Beleg dieses
-        # Moduls – ``of_step`` liest nur den aktiven. Ohne das war ein storniertes
-        # Bewegen-Modul eine **Sackgasse**: ``can`` leer, ``assert_receivable`` weist mit
-        # 409 ab, und ``ensure`` fand die tote Zeile wieder. Der Auftrag stand für immer.
-        row.is_active = False
-        return
     row.quotes = []
 
 

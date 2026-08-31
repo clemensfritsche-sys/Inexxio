@@ -150,31 +150,44 @@ def _deliver(db, order, step):
 # §1 – der Verkauf ist ein Ausgang
 # ---------------------------------------------------------------------------
 
-def test_a_sale_is_an_exit_not_a_step_on_the_way():
-    """**Was geliefert ist, ist weg** – und hinter einem Ausgang steht kein Modul.
+def test_a_sale_is_a_step_on_the_way_not_an_exit():
+    """►►► **Verkaufen heisst Eigentum wechselt – nicht Ort wechselt.** ◄◄◄
 
-    Bug-Form: der Verkauf als Durchläufer. Dann liefe das Stück nach der Lieferung weiter,
-    und am Ende stünde es wieder auf ``Freigegeben`` – verkauft und im Lager zugleich.
+    Der Verkauf war einmal ein **Ausgang** (``terminal``), und das war eine Notlüge: das
+    Stück steht danach noch im Regal, bis jemand es hinausfährt. Weil ``terminal`` die
+    Kette schloss, konnte hinter dem Verkauf kein **Bewegen** stehen – und damit
+    scheiterte ausgerechnet der Normalfall «verkaufen und liefern».
+
+    Was das Stück am Ende **ist**, sagt jetzt nicht mehr das Modul, sondern der Auftrag
+    (``Module.rest_status_for`` → ``orders.end_status``). Das Ende schreibt denselben
+    Wert, den der Prozess ohnehin meint: nichts zu überschreiben, keine Ausnahme.
+
+    Bug-Formen: (a) der Verkauf ist wieder ein Ausgang; (b) er schreibt ``Verkauft`` an
+    seinem eigenen Schritt – dann bricht die Statuskette beim nächsten Modul; (c) der
+    Ruhezustand ist nicht deklariert, dann endet ein Verkaufsauftrag auf «Freigegeben».
     """
     from app.domain import chain, modules, statuses as st
-    from fastapi import HTTPException
 
     sale = modules.get("verkauf")
-    assert sale.terminal, "Der Verkauf ist kein Durchgang – was hier ankommt, geht hinaus."
-    assert sale.exit_status_for(None) == st.VERKAUFT
-    assert sale.status_after_for(None) == st.VERKAUFT, (
-        "Bei einem Ausgang gibt es kein Weiterlaufen, also auch keine zwei Zustände."
+    assert not sale.terminal, (
+        "Der Verkauf ist wieder ein Ausgang – dann lässt sich dahinter nicht mehr "
+        "ausliefern, und genau das war der gemeldete Fall."
     )
-    # Und die Kettenregel zieht daraus ihren Fehler – an **beiden** Definitionsorten.
-    with pytest.raises(HTTPException) as err:
-        chain.assert_closes([
-            {"module_type": "verkauf", "status_before": st.IM_PROZESS,
-             "status_after": st.VERKAUFT},
-            {"module_type": "datenerfassung", "status_before": st.IM_PROZESS,
-             "status_after": st.IM_PROZESS},
-        ])
-    assert err.value.status_code == 400
-    assert "verkauf" in err.value.detail.lower()
+    assert sale.status_after_for(None) == st.IM_PROZESS, (
+        "Ein Durchläufer verändert das Stück nicht: der Zustand kommt am ENDE."
+    )
+    assert sale.rest_status_for(None) == st.VERKAUFT, (
+        "Ohne deklarierten Ruhezustand endet ein Verkaufsauftrag auf «Freigegeben» – "
+        "verkauft und im Lager zugleich."
+    )
+    # Und die Kette schliesst mit einem Bewegen dahinter – an **beiden**
+    # Definitionsorten dieselbe Prüfung.
+    chain.assert_closes([
+        {"module_type": "verkauf", "status_before": st.IM_PROZESS,
+         "status_after": st.IM_PROZESS},
+        {"module_type": "bewegen", "status_before": st.IM_PROZESS,
+         "status_after": st.IM_PROZESS},
+    ])
 
 
 def test_the_piece_leaves_as_sold_and_the_order_is_done():
@@ -275,15 +288,17 @@ def test_taking_back_a_sold_piece_is_automatically_a_deviation():
         db.rollback(); db.close()
 
 
-def test_a_sold_piece_forgets_where_it_lay():
-    """**Wer zur Historie zählt, verliert seinen Ort** – ohne eine Zeile im Modul.
+def test_a_sold_piece_keeps_its_place_until_someone_moves_it():
+    """►►► **Ort und Zustand sind zwei Fragen.** ◄◄◄
 
-    Die Regel hängt am ``Status`` und steht an der einen Stelle, an der ein Status
-    geschrieben wird (``process._pass``). Ein **gesperrtes** Stück behält seinen Ort: es
-    liegt im Regal, nur unbenutzbar.
+    Hier stand einmal «wer zur Historie zählt, verliert seinen Ort». Das war richtig,
+    solange der einzige historische Zustand ein Stück meinte, das physisch verschwindet –
+    und es wurde falsch, als der Verkauf dazukam: **ein verkauftes Stück steht noch im
+    Regal, bis jemand es hinausfährt.** Genau dafür gibt es das Bewegen-Modul, und genau
+    deshalb darf der Verkauf kein Ausgang sein.
 
-    Bug-Form: das Verkaufsmodul räumt den Ort selbst. Dann erbt der nächste Zustand mit
-    ``stock=HISTORY`` die Regel nicht – und behauptet, das Stück liege noch bei uns.
+    Bug-Form: ein Statuswechsel räumt wieder den Ort. Dann ist ein verkauftes Stück
+    nirgends, obwohl es noch bei uns liegt – und die Kommissionierung findet es nicht.
     """
     from app.domain import statuses as st
     from app.models import Instance
@@ -310,9 +325,9 @@ def test_a_sold_piece_forgets_where_it_lay():
         _deliver(db, order, rows[0])
         db.refresh(unit)
         assert unit.status == st.VERKAUFT
-        assert unit.place_object_id is None, (
-            "Ein verkauftes Stück liegt nicht mehr bei uns – der alte Halter wäre eine "
-            "Behauptung über etwas, das dort nicht ist."
+        assert unit.place_object_id == shelf.object_id, (
+            "Der Verkauf hat den Ort geräumt – das Stück liegt aber noch im Regal, bis "
+            "es jemand hinausfährt. Wo es liegt, sagt das Bewegen-Modul."
         )
     finally:
         db.rollback(); db.close()
@@ -400,7 +415,7 @@ def test_anyone_may_buy_from_us_but_being_a_supplier_is_a_permission():
         # (b) Beim **Einkauf** bleibt sie eine: ein Kunde ist kein Lieferant.
         kunde = _customer(db, "Meier Privat")
         buy_art = _article(db, "Rohteil D", steps=[{
-            "module_type": "beschaffen",
+            "module_type": "einkauf",
             "config": {"instruction": "liefern",
                        "suppliers": [{"supplier": lieferant.object_id, "ref": "W-1"}]}}])
         buy_order, buy_rows = _make(db, quantity=1, article=buy_art)

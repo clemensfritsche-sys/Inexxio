@@ -98,7 +98,7 @@ def _scene(db, *, quantity=1, amount=1000, days=None, direction="sell"):
     db.add(art)
     db.flush()
     tpl.create_steps(db, art, [{
-        "module_type": "beschaffen" if direction == "buy" else "verkauf",
+        "module_type": "einkauf" if direction == "buy" else "verkauf",
         "config": config}])
     db.flush()
     order = proc.release(db, lines=[{"article_object_id": art.object_id,
@@ -383,9 +383,9 @@ def test_a_shop_checkout_needs_no_new_endpoint():
         assert payments.balance(db, doc).settled
 
         # **Kein Shop-eigener Endpunkt** – geprüft an der Liste der Handlungen.
-        assert set(svc.ACTIONS) | {svc.BUY, svc.PAY, svc.INVOICE} == {
+        assert set(svc.ACTIONS) | {svc.PAY, svc.INVOICE} == {
             "ask", "quote", "decline", "order", "note", "revoke", "clarified",
-            "buy", "pay", "invoice"}, (
+            "pay", "invoice"}, (
             "Die Liste der Handlungen ist gewachsen – wofür? Ein Shop braucht keine."
         )
     finally:

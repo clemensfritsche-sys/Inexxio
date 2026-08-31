@@ -75,14 +75,13 @@ export interface DiagramStep {
    * gibt es die Liste nicht mehr, und die Frage steht als das da, was sie ist.
    */
   moves?: boolean;
-  /**
-   * **Trägt dieses Modul einen Einkaufs-Beleg – und wann?** `null` = nie.
-   *
-   * `'if_chosen'` heisst: die Arbeit kann auch selbst erledigt werden, und genau darum
-   * darf die Ausführungsstelle hier die Wahl anbieten. Sie fragt damit nach der
-   * Eigenschaft und nie nach dem Modultyp.
+  /*
+   * **Kein `buys`/`trades` mehr am Schritt.** Es sagte der Ausführungsstelle, ob sie die
+   * Wahl «selbst ↔ beschaffen» anbieten darf – eine Wahl, die es nicht mehr gibt: wer
+   * einkauft, setzt ein Einkaufs-Modul in die Kette. Ob ein Schritt einen Beleg **hat**,
+   * sagt der Beleg selbst (`purchase`), und das kann der Wirklichkeit nicht
+   * widersprechen. Der Editor fragt weiterhin den Katalog (`ModuleTypeInfo.trades`).
    */
-  buys?: string | null;
   /**
    * **Worauf dieses Modul wartet** (Testnotiz #698) – Objektnummern der Abweichungen,
    * deren Rückführung aussteht. Nicht leer heisst: gesperrt.

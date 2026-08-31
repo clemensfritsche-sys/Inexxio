@@ -159,18 +159,17 @@ def _pass(
     for u in units:
         u.status = status_after
 
-    # ►► **Wer zur Historie zählt, verliert seinen Ort.** ◄◄
+    # ►►► **Ein Statuswechsel räumt keinen Ort mehr.** ◄◄◄
     #
-    # «Historie» heisst im Katalog wörtlich *liegt nicht im Regal* (``Status.stock``) –
-    # ein verschrottetes Stück ist physisch weg, ein verbautes steckt in einem anderen.
-    # Der alte Halter wäre in beiden Fällen eine Behauptung über etwas, das dort nicht
-    # mehr ist; **Gesperrt** dagegen behält seinen Ort, denn es liegt im Regal.
+    # Hier stand «wer zur Historie zählt, verliert seinen Ort». Das war richtig, solange
+    # der einzige historische Zustand ein Stück meinte, das physisch verschwindet – und
+    # es wurde falsch, als der **Verkauf** dazukam: ein verkauftes Stück steht noch im
+    # Regal, bis jemand es hinausfährt. Genau dafür gibt es das Bewegen-Modul.
     #
-    # Die Regel hängt am **Status** und steht an der EINEN Stelle, an der ein Status
-    # geschrieben wird – jedes künftige Modul erbt sie, ohne eine Zeile dafür. Wer einen
-    # *neuen* Ort hat, setzt ihn im selben Zug (der Verbrauch seinen Träger).
-    if st.stock_kind(status_after) == st.HISTORY:
-        places_svc.forget(db, units)
+    # **Ort und Zustand sind zwei Fragen** (§9.8): *wo liegt es* ↔ *was ist damit*. Wer
+    # sie koppelt, braucht für jeden neuen Zustand eine Entscheidung darüber – und die
+    # erste falsche ist still. Den Ort ändert darum ausschliesslich, wer ihn kennt: das
+    # Bewegen-Modul (den Halter) und der Verbrauch (den Träger).
     return len(units)
 
 
@@ -586,6 +585,18 @@ def _assert_as_picked(
     )
 
 
+def _rest_status(steps: list[dict[str, Any]]) -> str:
+    """**Der Zustand, in dem ein Stück nach diesem Prozess zur Ruhe kommt.**
+
+    Der **letzte** deklarierte gewinnt: ein Prozess, der erst verkauft und danach etwas
+    anderes täte, endete in dem, was zuletzt geschah. Deklariert keiner einen, gilt der
+    Regelfall – zurück in den Bestand.
+    """
+    resting = [rest for step in steps
+               if (rest := modules.get(step["module_type"]).rest_status_for(step.get("config")))]
+    return resting[-1] if resting else st.DEFAULT_END_STATUS
+
+
 def release(
     db: Session,
     *,
@@ -618,7 +629,17 @@ def release(
         st.assert_known(step["status_before"], field="Vorher-Status")
         st.assert_known(step["status_after"], field="Nachher-Status")
 
-    end_status = st.DEFAULT_END_STATUS
+    # ►►► **Worin das Stück am Ende RUHT, sagt der Prozess.** ◄◄◄
+    #
+    # Bisher stand hier eine Konstante, und der Verkauf musste darum ein **Ausgang**
+    # sein: er schrieb ``Verkauft`` an seinem eigenen Schritt und schloss die Kette,
+    # damit das Ende-Objekt ihn nicht wieder auf ``Freigegeben`` setzt. Der Preis war,
+    # dass hinter einem Verkauf nichts mehr stehen konnte – ausgerechnet die Lieferung.
+    #
+    # Jetzt deklariert jedes Modul seinen Ruhezustand (``Module.rest_status_for``), und
+    # der letzte gewinnt. Das Ende schreibt damit denselben Wert, den der Prozess ohnehin
+    # meint: es gibt nichts zu überschreiben, keine Ausnahme und kein ``if module_type``.
+    end_status = _rest_status(effective)
     chain.assert_closes(effective)
     _assert_no_self_consumption(resolved, effective)
 

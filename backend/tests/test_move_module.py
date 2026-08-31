@@ -397,48 +397,45 @@ def test_without_a_target_nothing_moves():
 # 6 – ein gesperrter Kanal ist SERVERSEITIG gesperrt
 # ---------------------------------------------------------------------------
 
-def test_a_module_that_may_not_buy_gets_no_document():
-    """**Der Server weist ab, nicht die Oberfläche.**
+def test_moving_never_carries_a_document():
+    """►►► **Ein Transport ist eine Bewegung – kein Einkauf.** ◄◄◄
 
-    Die frühere Fassung prüfte gesperrte Transportarten («Paket», «Fracht» standen
-    sichtbar da und liefen nicht). Die Liste gibt es nicht mehr: *Paket* und *Fracht*
-    sind keine zwei Arten, sondern zwei **Angebote** desselben Einkaufs. Geblieben ist
-    die Aussage, um die es ging – **eine Sperre, die nur ausgegraut ist, ist eine
-    Bitte**: wer keinen Beleg tragen darf, bekommt auch über einen direkten Aufruf
-    keinen.
+    Das Bewegen-Modul trug einmal einen Einkaufs-Beleg, sobald jemand «eingekauft»
+    wählte: ein Modul im Modul, und damit die Stelle, an der ein physisches Modul
+    plötzlich eine kaufmännische Frage stellte. «Kaufen statt selbst machen» gilt aber
+    für **alles** – Härten, Montieren, Fahren –, und für alles ausser dem Transport war
+    es längst ein eigenes Modul.
 
-    Bug-Form: ``ensure`` legt für jeden Schritt einen Beleg an. Dann hätte jedes Modul
-    eine Hintertür zu einem Einkauf, und ``Module.buys`` wäre eine Empfehlung.
+    Wer die Spedition beauftragt, setzt jetzt ein **Einkaufs-Modul** davor. Die Kette
+    sagt damit, was passiert, statt es in einer Karte zu verstecken.
+
+    Bug-Formen: (a) das Modul deklariert wieder einen Beleg; (b) es nimmt wieder
+    Beleg-Angaben in seiner Konfiguration an (eine Hintertür zu einem Feld, das die
+    Oberfläche nicht anbietet); (c) ein Beleg entsteht trotzdem an einem Bewegen-Schritt.
     """
-    from fastapi import HTTPException
     from app.domain import modules
     from app.services import purchase as purchase_svc
+
+    move = modules.get("bewegen")
+    assert not move.trades, (
+        "Das Bewegen-Modul trägt wieder einen Beleg – ein Modul im Modul."
+    )
+    assert set(move.clean_config({"target": 100000002})) == {"target", "points", "sample"}, (
+        "Es nimmt wieder Beleg-Angaben an – ein Feld, das die Oberfläche nicht anbietet, "
+        "der Dienst aber speichert, ist eine Hintertür."
+    )
+    assert "bewegen" not in modules.trading_types()
 
     db = _db()
     try:
         shelf = _holder_instance(db)
-        _art, order, steps = _make(db, quantity=1, steps=[
-            _move_step(shelf.object_id),
-            {"module_type": "datenerfassung",
-             "config": {"points": [{"label": "OK", "type": "bool"}]}},
-        ])
-
-        # Das Bewegen-Modul darf – der Beleg entsteht mit der Wahl.
-        row = purchase_svc.ensure(db, order=order, step=steps[0])
-        assert row.stage == "offer" and row.step_id == steps[0].id
-        # …und zweimal wählen legt keinen zweiten an.
-        assert purchase_svc.ensure(db, order=order, step=steps[0]).id == row.id
-
-        # Die Datenerfassung darf nicht – und sie wird abgewiesen, nicht ausgegraut.
-        with pytest.raises(HTTPException) as refused:
-            purchase_svc.ensure(db, order=order, step=steps[1])
-        assert refused.value.status_code == 400
-        assert "einkaufen" in refused.value.detail
-
-        # Und die Deklaration ist die eine Quelle – kein Modultyp-Vergleich daneben.
-        assert modules.get("bewegen").buys == modules.BUY_IF_CHOSEN
-        assert modules.get("beschaffen").buys == modules.BUY_ALWAYS
-        assert modules.get("datenerfassung").buys is None
+        _art, order, steps = _make(db, quantity=1, steps=[_move_step(shelf.object_id)])
+        assert purchase_svc.of_step(db, steps[0].id) is None, (
+            "An einem Bewegen-Schritt ist ein Beleg entstanden."
+        )
+        assert purchase_svc.steps_of(db, order) == [], (
+            "Der Dienst hält ein Bewegen-Modul für einen Beleg-Träger."
+        )
     finally:
         db.rollback()
         db.close()

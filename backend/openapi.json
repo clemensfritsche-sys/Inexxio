@@ -3676,20 +3676,7 @@
           "moves": {
             "type": "boolean",
             "title": "Moves",
-            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»\naus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht\nals das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt\nnur der Editor.",
-            "readOnly": true
-          },
-          "buys": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Buys",
-            "description": "**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.\n\n``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau\ndarum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der\nEigenschaft und nie nach dem Modultyp.",
+            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Die Liste gibt es nicht mehr, und\ndie Frage steht als das da, was sie ist. Sie reist **mit dem Schritt**: den\nModul-Katalog lädt nur der Editor.",
             "readOnly": true
           }
         },
@@ -3703,8 +3690,7 @@
           "label",
           "tone",
           "terminal",
-          "moves",
-          "buys"
+          "moves"
         ],
         "title": "ArticleProcessStepResponse",
         "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft.\n\nBeschriftung, Farbfamilie und «Ausgang?» kommen aus ``ModuleFacts`` – derselben\nAbleitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände."
@@ -5988,16 +5974,15 @@
             "type": "string",
             "title": "Status After"
           },
-          "buys": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Buys"
+          "landed_cost": {
+            "type": "boolean",
+            "title": "Landed Cost",
+            "default": false
+          },
+          "trades": {
+            "type": "boolean",
+            "title": "Trades",
+            "default": false
           },
           "parties": {
             "type": "string",
@@ -6877,20 +6862,7 @@
           "moves": {
             "type": "boolean",
             "title": "Moves",
-            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»\naus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht\nals das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt\nnur der Editor.",
-            "readOnly": true
-          },
-          "buys": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Buys",
-            "description": "**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.\n\n``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau\ndarum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der\nEigenschaft und nie nach dem Modultyp.",
+            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Die Liste gibt es nicht mehr, und\ndie Frage steht als das da, was sie ist. Sie reist **mit dem Schritt**: den\nModul-Katalog lädt nur der Editor.",
             "readOnly": true
           },
           "action": {
@@ -6923,7 +6895,6 @@
           "tone",
           "terminal",
           "moves",
-          "buys",
           "action",
           "sample",
           "reason"
@@ -7169,7 +7140,7 @@
           "stage"
         ],
         "title": "PurchaseEmbed",
-        "description": "**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.\n\n**Der Beleg gehört keinem Modul** (``domain/procurement``): er hängt am Schritt, und\nwelches Modul einen bekommt, sagt dessen ``buys``. Ein **Bewegen**-Modul, bei dem\njemand «eingekauft» gewählt hat, trägt darum buchstäblich denselben – dieselben\nStufen, dieselben Verben, dieselbe Komponente. Leer, wo keiner existiert; die\nOberfläche braucht damit keine Fallunterscheidung nach dem Modul (wie ``needs``).\n\n**Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt\neiner Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche."
+        "description": "**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.\n\n**Der Beleg gehört keinem Modul** (``domain/procurement``): er hängt am Schritt, und\nwelches Modul einen bekommt, sagt dessen ``trades``. Ein- und Verkauf tragen darum\nbuchstäblich denselben – dieselben Stufen, dieselben Verben, dieselbe Komponente,\nnur in die andere Richtung. Leer, wo keiner existiert; die Oberfläche braucht damit\nkeine Fallunterscheidung nach dem Modul (wie ``needs``).\n\n**Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt\neiner Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche."
       },
       "PurchaseLine": {
         "properties": {
@@ -7432,7 +7403,7 @@
           "action"
         ],
         "title": "PurchaseUpdate",
-        "description": "Eine Handlung am Beleg – **ein** Endpunkt, in beide Richtungen dieselben Verben.\n\n``ask``       mit wem gehandelt wird (``suppliers``) – anfragen bzw. anbieten\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – Pflicht;\n              ``payment_days`` freiwillig)\n``decline``   die Gegenpartei sagt ab (``supplier``)\n``order``     zusagen (``supplier``, ``amount``)\n``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten\n``revoke``    **die** Gegenhandlung – vor der Zusage zurückziehen, danach stornieren\n``clarified`` die Gegenpartei hat der geänderten Menge zugestimmt\n``buy``       «das kaufe ich ein» – legt den Beleg an (nur wo er eine Wahl ist)\n``pay``       **eine Zeile Geld** (``amount``, ``kind``, ``method``, ``reference``,\n              ``paid_at``, ``note_text``)\n\n``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine\nStufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld\nfliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein\nanderes (``Module.buys`` bzw. ``payments.assert_payable``), aber der **Weg** ist\nderselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg\nverwaltet."
+        "description": "Eine Handlung am Beleg – **ein** Endpunkt, in beide Richtungen dieselben Verben.\n\n``ask``       mit wem gehandelt wird (``suppliers``) – anfragen bzw. anbieten\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – Pflicht;\n              ``payment_days`` freiwillig)\n``decline``   die Gegenpartei sagt ab (``supplier``)\n``order``     zusagen (``supplier``, ``amount``)\n``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten\n``revoke``    **die** Gegenhandlung – vor der Zusage zurückziehen, danach stornieren\n``clarified`` die Gegenpartei hat der geänderten Menge zugestimmt\n``buy``       «das kaufe ich ein» – legt den Beleg an (nur wo er eine Wahl ist)\n``pay``       **eine Zeile Geld** (``amount``, ``kind``, ``method``, ``reference``,\n              ``paid_at``, ``note_text``)\n\n``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine\nStufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld\nfliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein\nanderes (``Module.trades`` bzw. ``payments.assert_payable``), aber der **Weg** ist\nderselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg\nverwaltet."
       },
       "RecordEntry": {
         "properties": {
