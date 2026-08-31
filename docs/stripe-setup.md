@@ -46,8 +46,13 @@ Das ist die Adresse der **Website**, und sie ist trotzdem richtig: Firebase Host
 `/api/**` an den Cloud-Run-Dienst weiter (`firebase.json`, Rewrite auf
 `inexxio-backend-dev` in `europe-west6`). Die direkte Cloud-Run-URL des Dienstes ginge
 ebenso — sie ist nur nirgends aufgeschrieben, während diese hier stabil und bekannt ist.
-Der Rewrite reicht Rumpf und Kopfzeilen unverändert durch; die **Signatur** wird über den
-**rohen** Rumpf geprüft, ein Zwischenstück, das ihn neu kodierte, würde sie brechen.
+
+> **Woran man merkt, ob der Umweg trägt:** die Signatur gilt für die **rohen Bytes**.
+> Käme der Rumpf verändert an, wäre die Antwort `400 {"detail":"Ungültige Signatur."}` —
+> im Stripe-Dashboard sofort sichtbar, ohne dass jemand raten muss. Die erste Testzahlung
+> (§6) beantwortet das also mit. Bleibt es dabei, **direkt auf die Cloud-Run-URL** zeigen
+> (`gcloud run services describe inexxio-backend-dev --region europe-west6
+> --format='value(status.url)'`) — das ist derselbe Dienst, nur ein Hop weniger.
 
 **Im Dashboard:**
 
