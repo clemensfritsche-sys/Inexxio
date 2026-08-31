@@ -25,7 +25,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..domain import money, procurement
-from ..models import Payment, Purchase
+from ..models import Order, Payment, Purchase
 
 
 def _bad(exc: ValueError) -> HTTPException:
@@ -33,16 +33,51 @@ def _bad(exc: ValueError) -> HTTPException:
     return HTTPException(status_code=400, detail=str(exc))
 
 
+def _elsewhere(db: Session, ref: str, seen: Payment) -> HTTPException:
+    """**Diese Referenz ist schon vergeben — und zwar dort.**
+
+    Der Satz nennt den **Auftrag**, nicht nur die Referenz: «ist bereits gebucht» liesse
+    den Menschen suchen, und genau dieses Suchen ist die Arbeit, die eine Fehlermeldung
+    abnehmen soll. Der Beleg selbst hat keine eigene Objektnummer – er läuft unter der
+    seines Auftrags –, also ist die Auftragsnummer die einzige, die es zu nennen gibt.
+
+    Zu lesen gibt es hier nichts Fremdes: ``pay`` ist eine Handlung des **Personals**
+    (``SUPPLIER_ACTIONS`` filtert sie weg), und Personal sieht jeden Auftrag ohnehin.
+    """
+    order_no = (
+        db.query(Order.object_id)
+        .join(Purchase, Purchase.order_id == Order.id)
+        .filter(Purchase.id == seen.purchase_id)
+        .scalar()
+    )
+    where = f"am Auftrag {order_no}" if order_no else "an einem anderen Beleg"
+    return HTTPException(
+        status_code=409,
+        detail=f"Die Referenz «{ref}» ist bereits {where} gebucht. Eine Referenz gehört "
+               f"zu genau einer Zahlung – bitte eine andere angeben oder leer lassen.",
+    )
+
+
 def record(db: Session, *, purchase: Purchase, amount: Any, kind: str = money.PAYMENT,
            method: Optional[str] = None, reference: Optional[str] = None,
            paid_at: Optional[date] = None, note: Optional[str] = None) -> Payment:
     """►►► **Die eine Stelle, an der Geld gebucht wird.** ◄◄◄
 
-    **Idempotent über die Referenz.** Dieselbe Referenz ist dieselbe Zahlung – der
-    Zahlungsdienst stellt seine Meldungen mehrfach zu (das ist zugesichert, nicht die
-    Ausnahme), und ein Mensch erfasst denselben Kontoauszug auch schon mal zweimal. Statt
-    einer Fehlermeldung kommt die **bereits gebuchte Zeile** zurück: der Aufrufer hat
-    bekommen, was er wollte, und muss keinen Sonderfall behandeln.
+    **Idempotent über die Referenz — am SELBEN Beleg.** Dieselbe Referenz ist dieselbe
+    Zahlung: der Zahlungsdienst stellt seine Meldungen mehrfach zu (das ist zugesichert,
+    nicht die Ausnahme), und ein Mensch erfasst denselben Kontoauszug auch schon mal
+    zweimal. Statt einer Fehlermeldung kommt die **bereits gebuchte Zeile** zurück – der
+    Aufrufer hat bekommen, was er wollte, und muss keinen Sonderfall behandeln.
+
+    **An einem ANDEREN Beleg ist dieselbe Referenz dagegen ein Irrtum, und er wird
+    genannt.** Eine Referenz identifiziert genau eine Zahlung im ganzen Haus – so ist der
+    Unique-Index gebaut, und so sind die beiden echten Quellen: ein ``payment_intent`` ist
+    global eindeutig, eine QR-Referenz ebenso. Ohne die Unterscheidung fand die Prüfung
+    die **fremde** Zeile und gab sie zurück: der Aufrufer bekam ``200``, an *seinem* Beleg
+    war nichts gebucht, der offene Betrag stand unverändert da – und nichts sagte, warum.
+    Ein stiller Nicht-Effekt ist schlimmer als ein Fehler; wer wirklich zweimal buchen
+    muss, unterscheidet die Referenzen oder lässt sie leer (dann greift die Idempotenz
+    gar nicht).
 
     Der Betrag darf **negativ** sein – eine Erstattung ist eine Zahlung rückwärts. Eine
     eigene Art dafür hiesse, dasselbe zweimal zu erklären.
@@ -67,6 +102,8 @@ def record(db: Session, *, purchase: Purchase, amount: Any, kind: str = money.PA
             .first()
         )
         if seen is not None:
+            if seen.purchase_id != purchase.id:
+                raise _elsewhere(db, ref, seen)
             return seen
 
     row = Payment(

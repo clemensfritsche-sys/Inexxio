@@ -522,6 +522,66 @@ def test_the_same_reference_is_the_same_payment():
         db.rollback(); db.close()
 
 
+def test_the_same_reference_at_another_document_is_named_not_swallowed():
+    """►►► **Dieselbe Referenz an einem ANDEREN Beleg ist ein Irrtum – und er wird
+    genannt.** ◄◄◄
+
+    Die Idempotenz oben schützt gegen die doppelte Zustellung **desselben** Vorgangs. Sie
+    suchte die Referenz aber im ganzen Haus und gab zurück, was sie fand – auch die Zeile
+    eines **fremden** Belegs. Der Aufrufer bekam ``200``, an *seinem* Beleg war nichts
+    gebucht, der offene Betrag stand unverändert da, und nichts sagte, warum.
+
+    Ein stiller Nicht-Effekt ist schlimmer als ein Fehler: die Zahl auf dem Bildschirm
+    sieht aus wie eine Auskunft und ist keine. Eine Referenz gehört zu genau einer Zahlung
+    im Haus – so ist der Unique-Index gebaut, und so sind die beiden echten Quellen
+    (``payment_intent``, QR-Referenz). Also: **409 mit dem Auftrag**, an dem sie schon
+    hängt, damit der Mensch nicht suchen muss.
+
+    Bug-Form: die fremde Zeile wird zurückgegeben. Dann bucht der zweite Beleg nichts und
+    meldet nichts.
+    """
+    from app.domain import money
+    from app.models import Payment
+    from app.services import payments, purchase as svc
+    from fastapi import HTTPException
+    db = _db()
+    try:
+        kunde = _customer(db)
+        ref = f"ZE-{uuid.uuid4()}"
+
+        first_order, first_rows = _make(
+            db, quantity=1, article=_article(db, "Welle R1", steps=[_sell_step()]))
+        _commit(db, first_order, first_rows[0], kunde, amount=99)
+        first_doc = svc.of_step(db, first_rows[0].id)
+        payments.record(db, purchase=first_doc, amount=99, method=money.TRANSFER,
+                        reference=ref)
+
+        second_order, second_rows = _make(
+            db, quantity=1, article=_article(db, "Welle R2", steps=[_sell_step()]))
+        _commit(db, second_order, second_rows[0], kunde, amount=250)
+        second_doc = svc.of_step(db, second_rows[0].id)
+
+        with pytest.raises(HTTPException) as caught:
+            payments.record(db, purchase=second_doc, amount=250, method=money.TRANSFER,
+                            reference=ref)
+        assert caught.value.status_code == 409, "Eine Kollision ist kein Eingabefehler."
+        # **Der Satz muss den fremden Auftrag nennen** – sonst bleibt das Suchen beim
+        # Menschen, und genau das soll eine Fehlermeldung abnehmen.
+        assert str(first_order.object_id) in caught.value.detail, caught.value.detail
+        assert ref in caught.value.detail, caught.value.detail
+        # Und der zweite Beleg hat **nichts** – weder die fremde Zeile noch eine eigene.
+        assert db.query(Payment).filter(Payment.purchase_id == second_doc.id).count() == 0
+
+        # Am **eigenen** Beleg bleibt es idempotent: die Regel ist nicht verschärft
+        # worden, sie ist nur genau geworden.
+        same = payments.record(db, purchase=first_doc, amount=99, method=money.TRANSFER,
+                               reference=ref)
+        assert same.purchase_id == first_doc.id
+        assert db.query(Payment).filter(Payment.purchase_id == first_doc.id).count() == 1
+    finally:
+        db.rollback(); db.close()
+
+
 def test_money_flows_beside_the_stages_even_after_a_cancellation():
     """►►► **Geld ist keine vierte Stufe.** ◄◄◄
 

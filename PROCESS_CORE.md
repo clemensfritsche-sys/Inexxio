@@ -2088,6 +2088,19 @@ Datensatz über dieselbe Funktion (`payments.record`) — bei der einen ruft ein
 der anderen der Webhook des Zahlungsdienstes. Ein Provider-Rahmen mit zwei
 Implementierungen wäre eine Abstraktion über einer Zeile.
 
+**Eine Referenz gehört zu genau EINER Zahlung im Haus.** Am selben Beleg ist sie darum
+**idempotent** — der Zahlungsdienst stellt seine Meldungen mehrfach zu, und ein Mensch
+erfasst denselben Kontoauszug auch schon mal zweimal; zurück kommt die bereits gebuchte
+Zeile, kein Fehler. An einem **anderen** Beleg ist sie dagegen ein Irrtum, und er wird
+**genannt** (409 mit der Auftragsnummer, an der sie schon hängt).
+
+Die Unterscheidung fehlte, und ohne sie fand die Prüfung die **fremde** Zeile und gab sie
+zurück: der Aufrufer bekam `200`, an *seinem* Beleg war nichts gebucht, der offene Betrag
+stand unverändert da — und nichts sagte, warum. Ein stiller Nicht-Effekt ist schlimmer als
+ein Fehler: die Zahl auf dem Bildschirm sieht aus wie eine Auskunft und ist keine. Wer
+wirklich zweimal buchen muss, unterscheidet die Referenzen oder lässt sie leer — dann
+greift die Idempotenz gar nicht.
+
 **`pay` hat darum keine Stufe** (wie `buy`, §9.9): Geld fliesst, sobald zugesagt ist — und
 auch noch, wenn längst geliefert **oder storniert** ist. Eine Anzahlung auf eine stornierte
 Bestellung muss erstattet werden können; wer das verbietet, baut eine Sackgasse.

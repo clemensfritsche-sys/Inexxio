@@ -332,9 +332,17 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **Ware und Geld sind entkoppelt**: Gutschrift ohne Rücknahme = Kulanz, Rücknahme ohne
 > Gutschrift = Garantie. Gekoppelt wäre keines von beiden abbildbar.
 > **`payments.record` ist die EINE Schreibstelle** – Überweisung und Karte gehen beide
-> hier durch (ein Mensch bzw. der Webhook), **idempotent über die Referenz**: dieselbe
-> Referenz ist dieselbe Zahlung, und zurück kommt die bereits gebuchte Zeile statt eines
-> Fehlers. Der Dienst kennt den Anbieter nicht (Quelltext-Wächter).
+> hier durch (ein Mensch bzw. der Webhook), **idempotent über die Referenz am SELBEN
+> Beleg**: dieselbe Referenz ist dieselbe Zahlung, und zurück kommt die bereits gebuchte
+> Zeile statt eines Fehlers. Der Dienst kennt den Anbieter nicht (Quelltext-Wächter).
+> **An einem ANDEREN Beleg ist sie ein Irrtum, und er wird genannt** (409 mit der
+> Auftragsnummer, an der sie schon hängt). Die Prüfung suchte die Referenz im ganzen Haus
+> und gab zurück, was sie fand – auch die Zeile eines fremden Belegs: der Aufrufer bekam
+> `200`, an *seinem* Beleg war nichts gebucht, der offene Betrag stand unverändert da, und
+> nichts sagte, warum. Ein stiller Nicht-Effekt ist schlimmer als ein Fehler; gefunden
+> beim Messen, nicht beim Lesen. Eine Referenz gehört zu genau einer Zahlung im Haus – so
+> ist der Unique-Index gebaut, und so sind die beiden echten Quellen (`payment_intent`,
+> QR-Referenz). Wer doch zweimal buchen muss, unterscheidet sie oder lässt sie leer.
 > **`pay` hat keine Stufe** – wie `buy`: Geld fliesst, sobald zugesagt ist, und auch noch
 > nach einem Storno (eine Anzahlung muss erstattet werden können). Es steht darum nicht in
 > `STAGE_ACTIONS`, aber sehr wohl in `can`: «was darf ich hier tun» ist EINE Frage.

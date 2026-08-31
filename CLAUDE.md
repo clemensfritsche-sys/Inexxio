@@ -1471,9 +1471,18 @@
 > entkoppelt**: Gutschrift ohne Rücknahme = Kulanz, Rücknahme ohne Gutschrift = Garantie –
 > gekoppelt wäre keines von beiden abbildbar.
 > **Der Weg des Geldes ist ein FELD, kein Modell**: Überweisung und Karte schreiben
-> denselben Datensatz über dieselbe Funktion (`payments.record`, idempotent über die
-> Referenz) – bei der einen ruft ein Mensch, bei der anderen der Webhook. Ein
-> Provider-Rahmen mit zwei Implementierungen wäre eine Abstraktion über einer Zeile.
+> denselben Datensatz über dieselbe Funktion (`payments.record`) – bei der einen ruft ein
+> Mensch, bei der anderen der Webhook. Ein Provider-Rahmen mit zwei Implementierungen
+> wäre eine Abstraktion über einer Zeile.
+> **Eine Referenz gehört zu genau EINER Zahlung im Haus**: am selben Beleg idempotent
+> (der Dienst stellt mehrfach zu, ein Mensch erfasst denselben Auszug zweimal – zurück
+> kommt die gebuchte Zeile), an einem **anderen** ein Irrtum mit **409 und der
+> Auftragsnummer**, an der sie hängt. Ohne die Unterscheidung fand die Prüfung die fremde
+> Zeile und gab sie zurück: `200`, nichts gebucht, der offene Betrag unverändert – und
+> nichts sagte, warum. **Gefunden beim Messen, nicht beim Lesen** (die Fixtures des
+> zweiten Messlaufs trugen die Referenzen des ersten). Ein stiller Nicht-Effekt ist
+> schlimmer als ein Fehler; wer doch zweimal buchen muss, unterscheidet die Referenzen
+> oder lässt sie leer.
 > **`pay` hat darum keine Stufe** (wie `buy`): Geld fliesst, sobald zugesagt ist – und auch
 > noch nach einem Storno, denn eine Anzahlung muss erstattet werden können.
 >
