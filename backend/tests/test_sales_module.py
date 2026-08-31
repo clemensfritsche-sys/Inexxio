@@ -880,6 +880,66 @@ def test_the_webhook_writes_one_line_and_nothing_else(monkeypatch):
         get_settings.cache_clear()
 
 
+def test_the_route_hands_over_the_raw_bytes_not_a_reserialised_object(monkeypatch):
+    """►►► **Der Webhook wird über die ROUTE geprüft, nicht nur über den Dienst.** ◄◄◄
+
+    Der Wächter darüber ruft ``handle_webhook`` unmittelbar – er prüft die Regel, aber
+    nicht die Schicht davor: das Lesen des **rohen** Rumpfs, den Kopfzeilen-Alias
+    ``Stripe-Signature`` und die Statuscodes. Genau dort sitzt die Fehlerklasse «ein Feld,
+    das nie ankommt».
+
+    **Der Rumpf trägt darum Leerraum, den kein Serialisierer so erzeugt.** Wer den Rumpf
+    parst und neu schreibt (``await request.json()``), signiert danach *andere* Bytes –
+    die Prüfung schlägt fehl, und der Wächter meldet `400` statt `200`. Mit einem
+    gewöhnlich formatierten Rumpf käme eine solche Fassung durch, und der Wächter wäre
+    stumpf.
+
+    **Es wird nichts gebucht**: ein fremdes Ereignis kommt bis zur Signaturprüfung und
+    keinen Schritt weiter. Der Wächter braucht darum keinen Beleg, keine Datenbank und
+    kein Aufräumen – die Buchung selbst prüft der Wächter darüber.
+
+    Bug-Formen: (a) der Rumpf wird neu serialisiert; (b) die Kopfzeile heisst anders und
+    kommt nie an; (c) ein fremdes Ereignis wird zum Fehlercode – dann stellt der Dienst
+    es endlos erneut zu.
+    """
+    import hashlib
+    import hmac
+    import time
+    from fastapi.testclient import TestClient
+    from app.core.config import get_settings
+    import app.main as main
+
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_testsecret")
+    get_settings.cache_clear()
+    try:
+        # Ungewöhnlicher Leerraum: dieselben Daten, andere Bytes – daran scheitert jede
+        # Fassung, die den Rumpf durch einen Serialisierer schickt.
+        raw = b'{"type":   "invoice.paid",\n  "data": {"object": {}}}'
+        ts = int(time.time())
+        mac = hmac.new(b"whsec_testsecret", f"{ts}.".encode() + raw,
+                       hashlib.sha256).hexdigest()
+
+        client = TestClient(main.app)
+        good = client.post("/api/v1/payments/webhook", content=raw,
+                           headers={"Stripe-Signature": f"t={ts},v1={mac}"})
+        assert good.status_code == 200, good.text
+        assert good.json() == {"status": "ignored"}, (
+            "Ein fremdes Ereignis wird quittiert, nicht abgelehnt."
+        )
+
+        # Ein fremder Absender ist etwas anderes als ein fremdes Ereignis.
+        bad = client.post("/api/v1/payments/webhook", content=raw,
+                          headers={"Stripe-Signature": "t=1,v1=deadbeef"})
+        assert bad.status_code == 400, bad.text
+
+        # Und ganz ohne Kopfzeile erst recht – nicht etwa 500.
+        none = client.post("/api/v1/payments/webhook", content=raw)
+        assert none.status_code == 400, none.text
+    finally:
+        get_settings.cache_clear()
+
+
 def test_without_a_key_there_is_no_payment_service_at_all():
     """**Ohne Schlüssel gibt es den Dienst nicht** – kein Stub, kein 503, kein Knopf.
 

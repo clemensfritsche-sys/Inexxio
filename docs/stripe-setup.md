@@ -36,15 +36,57 @@ Umkehrung des Grundsatzes oben. Die Steuer gehört an den Beleg, wenn die Rechnu
 
 ## 3. Webhook-Endpoint
 
+**Die Adresse für `inexxio-dev` lautet:**
+
+```
+https://inexxio-dev.web.app/api/v1/payments/webhook
+```
+
+Das ist die Adresse der **Website**, und sie ist trotzdem richtig: Firebase Hosting leitet
+`/api/**` an den Cloud-Run-Dienst weiter (`firebase.json`, Rewrite auf
+`inexxio-backend-dev` in `europe-west6`). Die direkte Cloud-Run-URL des Dienstes ginge
+ebenso — sie ist nur nirgends aufgeschrieben, während diese hier stabil und bekannt ist.
+Der Rewrite reicht Rumpf und Kopfzeilen unverändert durch; die **Signatur** wird über den
+**rohen** Rumpf geprüft, ein Zwischenstück, das ihn neu kodierte, würde sie brechen.
+
+**Im Dashboard:**
+
 1. **Developers → Webhooks → Add endpoint**
-2. **Endpoint URL**: `https://<backend-host>/api/v1/payments/webhook`
+2. **Endpoint URL**: die Adresse oben
 3. **Events** — genau diese zwei, mehr liest der Code nicht:
    - `checkout.session.completed`
    - `charge.refunded`
 4. Speichern → **Signing secret** (`whsec_…`) kopieren.
 
+**Oder in einem Aufruf** (dasselbe, nur ohne Klicks — die Antwort enthält das `secret`,
+und zwar **nur bei der Anlage**):
+
+```bash
+curl -sS https://api.stripe.com/v1/webhook_endpoints \
+  -u "sk_test_DEIN_KEY:" \
+  -d url="https://inexxio-dev.web.app/api/v1/payments/webhook" \
+  -d "enabled_events[]=checkout.session.completed" \
+  -d "enabled_events[]=charge.refunded" \
+  -d description="Inexxio dev" | python3 -m json.tool
+```
+
 Jedes andere Ereignis wird mit `200 {"status":"ignored"}` quittiert. Ein Fehlercode darauf
 brächte Stripe nur dazu, es endlos erneut zuzustellen.
+
+> **Bis der Endpoint steht, ist der Zahllink eine Einbahnstrasse**: die Kasse öffnet und
+> kassiert, aber die Buchung entsteht erst mit der Rückmeldung — der Beleg bliebe auf
+> «offen» stehen. Der Rückweg läuft bewusst über den Webhook und nicht über die
+> Rückkehr-URL: ein Browser, den jemand nach der Zahlung schliesst, darf keine Buchung
+> verschlucken.
+
+> **Das neue Signing Secret muss danach nach Secret Manager** (§4) — und der Dienst
+> **neu starten**, sonst prüft er gegen das alte. Ein Secret aus einer früheren
+> Einrichtung passt **nicht**: es gehört zu *jenem* Endpoint, und jede Meldung liefe in
+> «Ungültige Signatur» (400). Das ist die richtige Antwort und sieht trotzdem aus wie ein
+> kaputter Webhook — darum hier genannt.
+>
+> Bei der Gelegenheit: **alte Endpoints im Dashboard löschen**. Einer, der auf eine
+> Adresse des Vorgängersystems zeigt, stellt weiter zu und sammelt Fehlversuche.
 
 ## 4. Secrets im Google Secret Manager (`inexxio-dev`)
 
