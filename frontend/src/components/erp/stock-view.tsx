@@ -23,13 +23,13 @@ const PAGE = 50;
  *   - an der **Instanz** → diese eine Gruppe; die Zeilen sind direkt ihre Einzelinstanzen
  *
  * Die Ansicht an der Instanz ist damit exakt der Teilbaum, den man am Artikel aufklappt –
- * dieselbe Leiste, dieselbe Legende, dieselbe Aufteilung in Bestand/Historie, dasselbe
- * Verhalten beim Klick auf ein Segment. Eine zweite Fassung «nur für die Instanz» hätte
- * beim ersten neuen Zustand anders ausgesehen.
+ * dieselbe Leiste, dieselben Beschriftungen, dasselbe Verhalten beim Klick auf ein
+ * Segment. Eine zweite Fassung «nur für die Instanz» hätte beim ersten neuen Zustand
+ * anders ausgesehen.
  *
  * **Kein Filter.** Ein Filter versteckt, was er nicht zeigt; hier ist die Aufteilung
  * selbst das Bedienelement – ein Segment anklicken heisst «zeig mir diese Nummern», der
- * Rest bleibt sichtbar.
+ * Rest bleibt in der Leiste sichtbar.
  *
  * **Niemals alles auf einmal.** Instanzen kommen seitenweise, Nummern erst auf Klick und
  * auch dann seitenweise. Die Leiste oben gilt trotzdem für den **ganzen** Umfang: sie
@@ -54,6 +54,15 @@ export function StockView({ scope }: { scope: StockScope }) {
   const [rows, setRows] = useState<InstanceSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /**
+   * **Welcher Zustand offen ist – genau einer, und keiner zu Beginn** (#716/#789). Eine
+   * Gruppe, die von selbst offensteht, entscheidet für den Betrachter, was ihn
+   * interessiert; die Mengen in der Leiste sagen ihm, ob sich das Öffnen lohnt. Ein
+   * zweiter Klick schliesst wieder – dasselbe Bedienelement, beide Richtungen.
+   */
+  const [picked, setPicked] = useState<string | null>(null);
+  const toggle = (status: string) =>
+    setPicked((cur) => (cur === status ? null : status));
 
   const load = useCallback((offset: number) => {
     if (articleId == null) return;
@@ -94,35 +103,42 @@ export function StockView({ scope }: { scope: StockScope }) {
 
   // **Ein Zustand ohne Zuordnung ist ein Fehler** und wird gemeldet, nicht einsortiert.
   const unknown = states.filter((s) => s.stock !== 'live' && s.stock !== 'history');
+  const open = states.find((s) => s.status === picked) ?? null;
 
   return (
     <Card>
-      {/* **Die Leiste, und darunter ihre Legende — das sind die Gruppen selbst.**
-          Eine eigene Legende stand einmal dazwischen: Punkt, Wort, Menge je Zustand –
-          und drei Zeilen tiefer noch einmal dasselbe, nur anklickbar. Zwei Anzeigen
-          derselben Zahl auf so engem Raum sind keine zwei Auskünfte (Testnotiz #716).
-          Geblieben ist die, mit der man arbeitet. */}
-      <div className="pb-1">
-        <StockBar states={states} height={10} />
-      </div>
+      {/* ►►► **Die Leiste IST das Bedienelement** (Testnotiz #789). ◄◄◄
 
-      {unknown.length > 0 && <UnknownStates states={unknown} />}
+          Darunter stand eine aufklappbare Sektion je Zustand – jede mit Chevron, Punkt,
+          Wort und Menge im Kopf, also Zeile für Zeile das, was die Leiste eine Zeile
+          höher schon zeigte, nur zwanzigmal höher. Bei vier Zuständen war der halbe
+          Bildschirm Kopfzeilen ohne Inhalt.
 
-      {states.map((s) => (
-        <Block key={s.status} state={s}>
+          Geblieben ist **eine** Fassung: die Leiste mit ihren Beschriftungen (die die
+          Farbe allein nicht leisten kann – drei Ampeltöne für sechs Zustände), und genau
+          **ein** Ausschnitt darunter. Kein Filter: was man nicht anklickt, steht
+          weiterhin in der Leiste. */}
+      <StockBar states={states} height={10} onPick={toggle} active={picked} />
+
+      {unknown.length > 0 && (
+        <div className="pt-3"><UnknownStates states={unknown} /></div>
+      )}
+
+      {open && (
+        <section className="mt-3 flex flex-col border-t border-border-1 pt-1">
           {scope.kind === 'instance' ? (
             // An der Instanz sind die Zeilen direkt die Einzelinstanzen – dieselbe
             // Komponente, die am Artikel eine Instanz-Zeile aufklappt.
             <UnitNumbers
               objectId={scope.record.object_id}
-              statuses={[s.status]}
-              quantity={s.quantity}
+              statuses={[open.status]}
+              quantity={open.quantity}
             />
           ) : (
             <>
               {rows
-                .filter((r) => r.states.some((x) => x.status === s.status))
-                .map((r) => <InstanceRow key={r.id} row={r} status={s.status} />)}
+                .filter((r) => r.states.some((x) => x.status === open.status))
+                .map((r) => <InstanceRow key={r.id} row={r} status={open.status} />)}
               {stock != null && rows.length < stock.instance_total && (
                 <button
                   type="button"
@@ -135,8 +151,8 @@ export function StockView({ scope }: { scope: StockScope }) {
               )}
             </>
           )}
-        </Block>
-      ))}
+        </section>
+      )}
     </Card>
   );
 }
@@ -183,55 +199,24 @@ function UnknownStates({ states }: { states: StockState[] }) {
   );
 }
 
-/**
- * **Eine Gruppe je Zustand** — Punkt, Wort, Menge; darunter, was darin liegt.
+/*
+ * **Es gibt hier keine Gruppen-Sektionen mehr** (Testnotiz #789).
  *
- * Dieses Werkzeug **zählt keinen Status auf**, weder für die Gruppierung noch für die
- * Reihenfolge noch für die Farbe. Alles drei kommt vom Status selbst:
+ * Sie standen untereinander – je Zustand ein Kopf mit Chevron, Punkt, Wort und Menge,
+ * darunter der aufgeklappte Inhalt. Der Kopf sagte damit dasselbe wie das Segment der
+ * Leiste eine Zeile höher, nur zwanzigmal höher; bei vier Zuständen war der halbe
+ * Bildschirm Kopfzeilen ohne Inhalt.
  *
- *   Welche Gruppen  die Zustände, die wirklich vorkommen (`states` vom Server)
- *   Reihenfolge     die Position im `CATALOG` – dieselbe, die Leiste und Legende ordnet
- *   Farbe           der Ampelton des Status (`statusCfg`)
- *   Zugeklappt      ob er zur **Historie** zählt (`stock`)
+ * Was sie konnten, kann jetzt die Leiste selbst: sie **nennt** ihre Zustände (Punkt,
+ * Wort, Menge – die Farbe allein kann es nicht, drei Ampeltöne tragen sechs Zustände)
+ * und ist zugleich die Auswahl. Was sie **nicht** konnte und weiterhin niemand kann:
+ * zwei Zustände gleichzeitig offen halten – das war der Grund, warum es Sektionen gab,
+ * und es war nie eine Frage, die jemand hatte.
  *
- * Kommt morgen ein Zustand dazu, erscheint er hier ohne eine Zeile Code – an seiner
- * Stelle im Lebenszyklus, in seiner Farbe. Vorher waren es zwei feste Blöcke («Bestand»
- * und «Historie»); ein neuer Zustand verschwand darin, statt sich zu zeigen.
- *
- * **Die Reihenfolge ist die des Lebenszyklus**, weil der Katalog sie so führt:
- * Freigegeben → Im Prozess → Gesperrt → Verschrottet. Sie steht dort einmal und gilt für
- * jede Ansicht, die Zustände nebeneinander zeigt.
+ * **Kein Status wird dabei aufgezählt.** Welche Zustände es gibt, sagt `states` vom
+ * Server; die Reihenfolge ist die des `CATALOG` (= Lebenszyklus), die Farbe der
+ * Ampelton. Ein neuer Zustand erscheint ohne eine Zeile Code an seiner Stelle.
  */
-function Block({ state, children }: { state: StockState; children: React.ReactNode }) {
-  const cfg = statusCfg(state.status);
-  // **Zugeklappt startet ALLES** (Testnotiz #716) – dieselbe Regel wie beim
-  // Prozessschrittmodul. Eine Gruppe, die von selbst offensteht, entscheidet für den
-  // Betrachter, was ihn interessiert; die Zahl im Kopf sagt ihm ohnehin, ob sich das
-  // Aufklappen lohnt. (Vorher hing es an `stock`: der lebende Bestand stand offen, die
-  // Historie zu – bei einem Artikel mit genau einem Zustand also immer offen.)
-  const [shown, setShown] = useState(false);
-  return (
-    <section className="border-t border-border-1">
-      <button
-        type="button"
-        onClick={() => setShown((v) => !v)}
-        className="flex w-full items-center gap-2 py-2.5 text-left"
-      >
-        <ChevronRight
-          size={14}
-          className="text-fg-4 transition-transform"
-          style={{ transform: shown ? 'rotate(90deg)' : 'none', flex: 'none' }}
-        />
-        <span aria-hidden className="rounded-full" style={{
-          width: 7, height: 7, flex: 'none', background: cfg.color,
-        }} />
-        <span className="text-[13px] font-medium">{cfg.label}</span>
-        <span className="ix-tnum text-[13px] text-fg-3">{state.quantity}</span>
-      </button>
-      {shown && <div className="flex flex-col pb-4">{children}</div>}
-    </section>
-  );
-}
 
 /**
  * Eine Zeile je Instanz **innerhalb einer Zustands-Gruppe**: Objektnummer, Menge.

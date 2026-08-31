@@ -41,15 +41,26 @@ export function ObjId({ value, mono = true, label }: {
   if (!nav || value == null) {
     return <span style={baseStyle}>{text}</span>;
   }
+  // ►►► **Sie sieht aus wie eine Nummer, nicht wie ein Hyperlink** (Testnotiz #784). ◄◄◄
+  //
+  // Blau + fett + unterstrichen sind die drei Marker, an denen man im Web einen Link
+  // erkennt – und im ERP steht diese Nummer in fast jeder Zeile: das Raster las sich als
+  // Linkliste, und die Kennung war die lauteste Angabe darin. Im Ruhezustand trägt sie
+  // darum die Farbe ihres Textes; dass sie etwas tut, sagt der Zeiger und – sobald er
+  // darauf steht – Farbe **und** Unterstreichung (`.erp-objid`, `:focus-visible` deckt
+  // den Tastaturweg ab).
+  //
+  // **Die Form bleibt dieselbe wie bei einer Nummer ohne Ziel** (#282): `baseStyle` ist
+  // geteilt, die Auszeichnung kommt allein aus der Klasse. Zwei Grössen für dieselbe
+  // Kennung wären der erste Schritt zurück zu «Nummern sehen je nach Ort anders aus».
+  // Fett bleibt beides: es ist die Auszeichnung der **Kennung**, kein Link-Marker.
   return (
     <button
       type="button"
+      className="erp-objid"
       onClick={(e) => { e.stopPropagation(); nav(value); }}
       title="Datensatz öffnen"
-      style={{
-        ...baseStyle, border: 'none', background: 'none', padding: 0, cursor: 'pointer',
-        color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 2,
-      }}
+      style={baseStyle}
     >
       {text}
     </button>

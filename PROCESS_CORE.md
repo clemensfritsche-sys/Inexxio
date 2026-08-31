@@ -2281,34 +2281,53 @@ hatte drei Ebenen mit Leiste und Legende, die Instanz eine schlichte Liste.
 
 | Ebene | Zeigt | Kommt von |
 |---|---|---|
-| 1 | gestapelte Leiste + **eine Gruppe je Zustand** | `GET /erp/articles/{id}/stock` → `states` |
-| 2 | in jeder Gruppe eine Zeile je Instanz: Nummer · Menge **in diesem Zustand** | dieselbe Antwort, `instances` (seitenweise) |
+| 1 | die **beschriftete Leiste**: ein Segment je Zustand, darunter Punkt · Wort · Menge | `GET /erp/articles/{id}/stock` → `states` |
+| 2 | zum **gewählten** Zustand eine Zeile je Instanz: Nummer · Menge **in diesem Zustand** | dieselbe Antwort, `instances` (seitenweise) |
 | 3 | die Nummern der Stücke, je mit Zustand und Auftrag | `GET /erp/instances/{id}/units` (erst auf Klick) |
 
 **Kein Filter.** Ein Filter ist meistens das Eingeständnis, dass die Standardansicht zu
 viel Rauschen enthält; und er versteckt, was er nicht zeigt. Stattdessen ist die
-**Aufteilung selbst das Bedienelement**: eine Gruppe aufklappen heisst «zeig mir diese
-Nummern», der Rest bleibt sichtbar.
+**Aufteilung selbst das Bedienelement**: ein Segment anklicken heisst «zeig mir diese
+Nummern», und der Rest bleibt in der Leiste sichtbar.
 
-**Eine Gruppe je Zustand — und die Ansicht zählt keinen einzigen auf.** Gruppiert wird
-über die Zustände, die wirklich vorkommen (`states`); alles Weitere folgt aus dem Status
-selbst (§5.2):
+**Die Leiste NENNT ihre Zustände — die Farbe allein kann es nicht** (Testnotiz #789).
+Der Katalog kennt **drei** Ampeltöne für **sechs** Zustände eines Stücks: *Freigegeben*,
+*Verbaut* und *Verkauft* sind alle grün, *Im Prozess* und *Gesperrt* beide gelb. Zwei
+gleichfarbige Segmente nebeneinander sind damit **strukturell** nicht unterscheidbar, und
+keine Feinabstimmung des Tons ändert daran etwas — das Wort ist die Unterscheidung.
+Also stehen Punkt, Wort und Menge **unter der Leiste, als Teil von ihr**, eine Haarlinie
+trennt die Segmente, und die Beschriftung ist zugleich die Auswahl.
+
+Damit ist die frühere **Liste von Sektionen** ersatzlos entfallen — je Zustand ein Kopf
+mit Chevron, Punkt, Wort und Menge, darunter der Inhalt: Zeile für Zeile dasselbe, was
+die Leiste eine Zeile höher schon zeigte, nur zwanzigmal höher. *Das ist kein Rückschritt
+hinter #716, sondern sein zweiter Schritt:* damals stand eine Legende **neben** den
+Gruppen und sagte dasselbe zweimal; entfernt wurde die Doppelung, nicht die Beschriftung.
+Jetzt gibt es nur noch **eine** Fassung.
+
+**Und genau EINER ist offen.** Zwei Zustände gleichzeitig zu betrachten war der Grund,
+warum es Sektionen gab — und nie eine Frage, die jemand hatte. Zu Beginn ist keiner
+offen (dieselbe Regel wie #716): eine Gruppe, die von selbst offensteht, entscheidet für
+den Betrachter, was ihn interessiert; die Mengen in der Leiste sagen ihm, ob sich das
+Öffnen lohnt.
+
+**Die Ansicht zählt dabei keinen einzigen Status auf.** Alles folgt aus dem Status selbst
+(§5.2):
 
 | Frage | Antwort kommt von |
 |---|---|
-| Welche Gruppen gibt es? | den gelieferten `states` – nie einer Liste in der Ansicht |
-| In welcher **Reihenfolge**? | der Position im `CATALOG` = **Lebenszyklus** (Freigegeben → Im Prozess → Gesperrt → Verschrottet), dieselbe wie Leiste und Legende |
+| Welche Segmente gibt es? | den gelieferten `states` – nie einer Liste in der Ansicht |
+| In welcher **Reihenfolge**? | der Position im `CATALOG` = **Lebenszyklus** (Freigegeben → Im Prozess → Gesperrt → Verschrottet) |
 | Welche **Farbe**? | dem Ampelton des Status |
-| **Zugeklappt** oder offen? | `stock`: was zur **Historie** zählt, startet zu |
+| Zählt es zum Bestand? | `stock` – heute eine gelesene Eigenschaft, keine Gruppierung mehr |
 
 Ein neuer Zustand erscheint damit **ohne eine Zeile Änderung** an seiner Stelle im
-Lebenszyklus, in seiner Farbe. Vorher waren es zwei feste Blöcke (Bestand/Historie) – eine
-Aufteilung, in der ein neuer Zustand verschwand, statt sich zu zeigen. Ein Zustand **ohne**
-Zuordnung wird **gemeldet** statt einsortiert.
+Lebenszyklus, in seiner Farbe, mit seinem Wort. Ein Zustand **ohne** Zuordnung wird
+**gemeldet** statt einsortiert.
 
 **Keine Gesamtzahl im Kopf.** Sie summierte alles – auch Verschrottetes – und war damit
 zugleich irreführend (das ist kein Bestand) und uninformativ (sie sagte nicht, wovon). Die
-Zahlen stehen an den Gruppen, je eine je Zustand.
+Zahlen stehen an der Leiste, je eine je Zustand.
 
 **Die Karte ist die der Spezifikation** (`SPEC.card` + `SpecHead` aus `fields.tsx`) – die
 Anatomie jeder Detail-Ansicht, nicht die des Artikels. Sie stand lokal im Artikel und war

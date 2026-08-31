@@ -471,6 +471,8 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
                            party_roles=list(m.flow.party_roles),
                            party_role=m.flow.party_role,
                            party_word=m.flow.party_word,
+                           party_plural=m.flow.party_plural,
+                           party_ref=m.flow.party_ref,
                            # **Ohne Tatsachen** – hier gibt es noch keinen Auftrag und
                            # keinen Halter. Der Satz zeigt die *Form* («Transport»),
                            # damit im Editor sichtbar ist, dass daneben schon etwas

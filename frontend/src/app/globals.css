@@ -799,6 +799,32 @@
 .erp-actbtn-neutral { background: #fff; border-color: var(--border-2); color: var(--fg-2); }
 .erp-actbtn-neutral:not(:disabled):hover { background: var(--bg-2); }
 
+/* ── Objektnummer: eine KENNUNG, die sich anfassen lässt ──────────────────────
+   Testnotiz #784. Sie stand als blauer, unterstrichener Text da – die drei Marker,
+   an denen man im Web einen Hyperlink erkennt. Im dichten ERP steht sie in fast jeder
+   Zeile: das ganze Raster las sich als Linkliste, und die Nummer wurde zur lautesten
+   Angabe der Zeile, obwohl sie eine Kennung ist und keine Aussage.
+
+   Die Regel dahinter ist die des Hauses – **Struktur vor Fläche**: im Ruhezustand ist
+   sie schlicht die Nummer (Tabellenziffern, gleiche Farbe wie ihr Text), und erst wenn
+   der Zeiger darauf steht, sagt sie, dass sie etwas tut. Das ist keine versteckte
+   Funktion: der Zeiger wechselt ohnehin (`cursor: pointer`), und der Tastaturweg
+   bekommt dieselbe Auszeichnung über `:focus-visible`.
+
+   Die Unterstreichung bleibt der **Hover-Marker** statt eines Farbwechsels allein –
+   Farbe allein ist kein zugängliches Signal (WCAG 1.4.1). `text-underline-offset`
+   hält sie von den Ziffern weg; ohne ihn schneidet sie die 4 und die 9. */
+.erp-objid {
+  border: none; background: none; padding: 0; cursor: pointer;
+  color: inherit; text-decoration: none; text-underline-offset: 2px;
+  transition: color .12s;
+}
+.erp-objid:hover, .erp-objid:focus-visible {
+  color: var(--accent); text-decoration: underline;
+}
+/* Touch kennt kein Hover – dort ist der Fingerdruck die Probe, und eine dauerhaft
+   unterstrichene Nummer wäre wieder die Linkliste von oben. */
+
 /* Google-Places-Autovervollständigung: Vorschlagsliste über Dialoge/Panels legen
    (Google rendert .pac-container an document.body; Default-z-index reicht nicht in Modals). */
 .pac-container { z-index: 100000 !important; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 8px 24px rgba(16,14,12,0.12); font-family: inherit; }

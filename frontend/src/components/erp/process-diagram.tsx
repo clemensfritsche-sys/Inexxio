@@ -1014,16 +1014,13 @@ interface DragProps {
  * (`overflow: hidden`): das **schneidet die Blase weg**, denn sie ist ein `::after` dieses
  * Elements.
  */
-export function ModuleMark({ icon: Icon, tone, history, size = 32 }: {
-  icon: LucideIcon; tone: string; history?: string; size?: number;
+export function ModuleMark({ icon: Icon, tone, size = 32 }: {
+  icon: LucideIcon; tone: string; size?: number;
 }) {
   return (
     <span
       className="flex items-center justify-center rounded-md flex-none"
       style={{ width: size, height: size, background: 'var(--bg-1)', color: tone }}
-      tabIndex={history ? 0 : undefined}
-      onClick={history ? (e) => e.stopPropagation() : undefined}
-      data-tip={history} data-tip-list={history ? '' : undefined}
     >
       <Icon size={Math.round(size * 0.53)} />
     </span>
@@ -1060,9 +1057,27 @@ export function ModuleShell({ tone, icon, label, active, lead, trail, head, body
   head?: React.HTMLAttributes<HTMLDivElement>;
   /** Zusätzliche Eigenschaften am äusseren Rahmen – z. B. Ziehen. */
   body?: React.HTMLAttributes<HTMLDivElement>;
-  /** **Die Historie hängt am Symbol** (§5) – wie bei Start und Ende, die dieselbe Blase
-   *  auf ihrem Kreis tragen. Nie an der Beschriftung: die trägt `truncate`
-   *  (`overflow: hidden`), und das **schneidet die Blase weg** – sie ist ein `::after`. */
+  /**
+   * ►►► **Die Historie hängt an der KOPFZEILE, nicht am Symbol** (Testnotiz #790). ◄◄◄
+   *
+   * Sie hing am 32-px-Quadrat links – man musste sie also treffen, um zu erfahren, was
+   * an diesem Modul passiert ist. Gemeldet wurde genau das: «die Hover-Historie sollte
+   * für den ganzen Prozessschritt-Container gelten».
+   *
+   * Die Kopfzeile ist dieser Container: sie läuft über die ganze Kartenbreite, und
+   * zugeklappt – der Normalfall – **ist** sie die Karte. Die Blase steht damit auch
+   * dort, wo man hinsieht: mittig über der Karte statt über einem Symbol am Rand.
+   *
+   * **Nicht am äusseren Rahmen**, obwohl der wörtlich «der ganze Container» wäre: darin
+   * steht der aufgeklappte Feldsatz, und eine Historien-Blase, die beim Tippen in einem
+   * Eingabefeld aufgeht, ist keine Auskunft, sondern Störung.
+   *
+   * Was **darin** eine eigene Blase trägt (Ziehgriff, Schloss, Löschen), gewinnt
+   * weiterhin – die Regel dafür steht in `globals.css` (`:has`), nicht hier.
+   *
+   * Und sie darf **nie an der Beschriftung** hängen: die trägt `truncate`
+   * (`overflow: hidden`), und das **schneidet die Blase weg** – sie ist ein `::after`.
+   */
   history?: string;
   children?: ReactNode;
 }) {
@@ -1074,9 +1089,15 @@ export function ModuleShell({ tone, icon, label, active, lead, trail, head, body
         padding: '11px 14px',
         ...(body?.style ?? {}),
       }}>
-      <div className="flex items-center gap-2.5" {...head}>
+      <div className="flex items-center gap-2.5"
+        // Fokussierbar, damit die Blase auch **ohne Hover** erscheint – auf dem
+        // Touchgerät per Tipp, an der Tastatur per Tab. Wo der Kopf ohnehin aufklappt,
+        // ist er längst fokussierbar; `head` steht darum danach und gewinnt.
+        tabIndex={history ? 0 : undefined}
+        {...(history ? { 'data-tip': history, 'data-tip-list': '' } : {})}
+        {...head}>
         {lead}
-        <ModuleMark icon={icon} tone={tone.fg} history={history} />
+        <ModuleMark icon={icon} tone={tone.fg} />
         <span className="text-sm font-semibold flex-1 min-w-0 truncate"
           style={{ color: tone.fg }}>{label}</span>
         {trail}

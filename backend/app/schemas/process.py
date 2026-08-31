@@ -149,8 +149,14 @@ class ModuleTypeInfo(BaseModel):
     #: füllen – dort gibt es noch keinen Beleg, der sie mitbringen könnte, und ein
     #: ``if module_type`` in der Oberfläche wäre die zweite Stelle für dieselbe Regel.
     party_role: str = "supplier"
-    #: Wie sie im Feld heisst («Lieferant» ↔ «Kunde»).
+    #: Wie sie im Feld heisst («Lieferant» ↔ «Kunde») – und im **Plural**. Der wurde
+    #: einmal durch Anhängen von «en» gebaut; beim Verkauf kam «Kundeen» heraus
+    #: (Testnotiz #787). Deutsche Plurale sind nicht ableitbar.
     party_word: str = "Lieferant"
+    party_plural: str = "Lieferanten"
+    #: **Gibt es eine Bestellangabe je Gegenpartei?** Nur wo wir bestellen – beim Verkauf
+    #: liefern wir, da ist nichts nachzuschlagen.
+    party_ref: bool = True
     #: **Steht daneben ein abgeleiteter Satz?** Dann ist die Eingabe eine *Ergänzung*,
     #: und das Feld sagt das auch. Ein Beispiel statt eines Ja/Nein: die Oberfläche zeigt
     #: es als Platzhalter, damit sichtbar ist, was ohnehin schon dasteht.

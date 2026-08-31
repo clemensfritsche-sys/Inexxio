@@ -1623,9 +1623,24 @@ def test_every_buying_module_defines_its_document_the_same_way():
                 f"an – eine Hintertür zu einer Angabe, die niemand liest."
             )
         else:
-            assert parties == [{"supplier": 100000001, "ref": "SP-7"}], (
+            assert [p["supplier"] for p in parties] == [100000001], (
                 f"«{module.label}» verwirft die zugelassenen Gegenparteien."
             )
+            # **Die Bestellangabe folgt derselben Regel eine Ebene tiefer** (#787):
+            # sie beantwortet «wie bestelle ich bei ihm» und gibt es nur, wo wir
+            # bestellen. Geprüft wird die **Deklaration**, nicht der Modultyp – und in
+            # beide Richtungen, sonst wäre «immer leer» ebenso grün wie «immer da».
+            kept = parties[0]["ref"]
+            if module.flow.party_ref:
+                assert kept == "SP-7", (
+                    f"«{module.label}» verwirft die Bestellangabe – dann steht beim "
+                    f"Bestellen nicht da, unter welcher Nummer man bei ihm bestellt."
+                )
+            else:
+                assert kept == "", (
+                    f"«{module.label}» speichert eine Bestellangabe, obwohl es das Feld "
+                    f"dort nicht gibt – eine Hintertür zu einer Angabe, die niemand liest."
+                )
         added = "Hebebühne nötig" in module.instruction_for(config)
         if module.instruction == module.OFF:
             assert not added, (

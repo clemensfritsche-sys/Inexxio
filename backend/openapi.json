@@ -6026,6 +6026,16 @@
             "title": "Party Word",
             "default": "Lieferant"
           },
+          "party_plural": {
+            "type": "string",
+            "title": "Party Plural",
+            "default": "Lieferanten"
+          },
+          "party_ref": {
+            "type": "boolean",
+            "title": "Party Ref",
+            "default": true
+          },
           "derived_instruction": {
             "type": "string",
             "title": "Derived Instruction",

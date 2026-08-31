@@ -1448,9 +1448,10 @@ def test_the_order_reference_moved_into_the_definition():
         "welcher Nummer man bei ihm bestellt."
     )
     designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
-    # **Der Satz nennt die Gegenpartei aus dem Katalog** (`party_word`) – beim Verkauf
-    # steht dort ein Kunde. Geprüft wird darum die Form, nicht das eingesetzte Wort.
-    assert "Artikelnummer oder Link beim ${info.party_word}en" in designer, (
+    # **Gefragt wird nach der REGEL, nicht nach dem Satz.** Die frühere Fassung suchte
+    # den Platzhalter wörtlich – und schlug an, als aus «Lieferanten» ein Wert aus dem
+    # Katalog wurde (Testnotiz #787), obwohl die Regel besser erfüllt war als vorher.
+    assert 'aria-label={`Bestellangabe für ${row.supplier}`}' in designer, (
         "Die Bestellangabe lässt sich nicht mehr definieren."
     )
 
@@ -2764,13 +2765,6 @@ def test_the_history_hangs_where_nothing_clips_it():
         assert "data-tip" not in block, (
             "Die Historie hängt wieder an einem kürzenden Element – dort ist sie unsichtbar."
         )
-    # **Das Zeichen ist ein eigenes Bauteil** (`ModuleMark`), weil es zwei Träger hat: die
-    # Modul-Karte und der Einkaufs-Vorgang, der in einem Modul stattfinden kann. Die Regel
-    # bleibt dieselbe – gesucht wird darum dort, wo das Symbol steht, nicht in einer Datei.
-    mark = src.split("export function ModuleMark(")[1].split("\nexport function ")[0]
-    assert "data-tip={history} data-tip-list={history ? '' : undefined}" in mark, (
-        "Das Zeichen trägt die Historie gar nicht mehr."
-    )
     # **Gefragt wird nach der WEITERGABE, nicht nach dem Bauteil.** Seit die Hülle
     # geteilt ist (`ModuleShell`, #783), rendert die Karte das Zeichen nicht mehr selbst –
     # sie reicht die Historie durch, und die Hülle hängt sie an. Ein Wächter, der hier
@@ -2779,10 +2773,45 @@ def test_the_history_hangs_where_nothing_clips_it():
     assert "history={history}" in head, (
         "Die Modul-Karte reicht ihre Historie nicht weiter – dann hängt sie nirgends."
     )
+
+
+def test_the_history_belongs_to_the_whole_head_not_to_the_symbol():
+    """►►► **Die Historie gilt für die Kopfzeile, nicht für das Symbol** (Testnotiz #790).
+
+    Sie hing am 32-px-Quadrat links in der Karte – man musste es also treffen, um zu
+    erfahren, was an diesem Modul passiert ist. Gemeldet wurde genau das: «die
+    Hover-Historie sollte für den ganzen Prozessschritt-Container gelten und nicht nur
+    beim Symbol-Bereich».
+
+    Die Kopfzeile **ist** dieser Container: sie läuft über die ganze Kartenbreite, und
+    zugeklappt – der Normalfall – ist sie die Karte. Bewusst **nicht** der äussere
+    Rahmen: darin steht der aufgeklappte Feldsatz, und eine Blase, die beim Tippen in
+    einem Eingabefeld aufgeht, ist Störung statt Auskunft.
+
+    Bug-Formen, alle drei geprüft:
+      (a) `data-tip` sitzt wieder am `ModuleMark` (dem Symbol);
+      (b) die Kopfzeile trägt sie gar nicht;
+      (c) sie ist einzeilig (ohne `data-tip-list` bleiben die Zeilenumbrüche aus
+          `attr()` unwirksam – die Liste stünde als ein Wortband da).
+    """
+    src = _read(FRONTEND / "components" / "erp" / "process-diagram.tsx")
+    mark = src.split("export function ModuleMark(")[1].split("\nexport function ")[0]
+    assert "data-tip" not in mark, (
+        "Die Historie hängt wieder am Symbol – dann muss man ein 32-px-Quadrat treffen, "
+        "um zu erfahren, was an diesem Modul passiert ist (#790)."
+    )
     shell = src.split("export function ModuleShell(")[1].split("\nexport function ")[0]
-    assert "<ModuleMark" in shell and "history={history}" in shell, (
-        "Die Hülle hängt die Historie nicht an das Zeichen – dort und nur dort gehört sie "
-        "hin (an der Beschriftung schneidet `truncate` sie weg)."
+    # Der Kopf ist die Zeile mit `ModuleMark` darin – gesucht wird das Element, das sie
+    # öffnet, nicht eine Zeilennummer.
+    head_tag = shell.split("<ModuleMark")[0].split("<div")[-1]
+    assert "'data-tip': history" in head_tag, (
+        "Die Kopfzeile trägt die Historie nicht – dann gibt es sie nirgends mehr."
+    )
+    assert "'data-tip-list': ''" in head_tag, (
+        "Ohne `data-tip-list` ist die Blase einzeilig – die Historie ist eine Liste."
+    )
+    assert "tabIndex={history ? 0 : undefined}" in head_tag, (
+        "Ohne Fokus gibt es die Historie auf dem Touchgerät und an der Tastatur nicht."
     )
 
 
@@ -5481,3 +5510,206 @@ def test_the_deal_shows_all_three_axes_and_none_of_them_is_a_stage():
     money_block = _body(src, "Money", kind="function")
     for word in ("'invoice'", "'pay'", "'link'"):
         assert word in money_block, f"{word} fehlt neben den Stufen."
+
+
+def test_the_plural_of_the_counterparty_is_a_value_not_a_calculation():
+    """►►► **«Kundeen» — der Plural ist eine ANGABE** (Testnotiz #787). ◄◄◄
+
+    Er wurde aus ``party_word`` gebaut: «Lieferant» + «en» = «Lieferanten» ✓, und beim
+    Verkauf «Kundeen». Eine Regel, die bei einem Wort zufällig stimmt, ist keine Regel –
+    deutsche Beugung ist keine Zeichenkettenoperation.
+
+    Bug-Formen: (a) irgendwo im Frontend wird wieder ein «en» angehängt; (b) der Wert
+    reist gar nicht mit, dann muss ihn die Oberfläche zwangsläufig rechnen.
+    """
+    from app.domain.procurement import FLOWS
+
+    for flow in FLOWS.values():
+        assert flow.party_plural, f"«{flow.direction}» nennt seinen Plural nicht."
+    # Der Verkauf ist der Beleg dafür, dass die Rechnung nicht geht.
+    assert FLOWS["sell"].party_plural != FLOWS["sell"].party_word + "en", (
+        "Der Plural ist wieder die angehängte Endung – genau die Form, die «Kundeen» ergab."
+    )
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "party_word}en" not in designer, (
+        "Der Plural wird wieder gerechnet statt gelesen (#787)."
+    )
+    assert "info.party_plural" in designer, (
+        "Der mitgereiste Plural wird nicht benutzt – dann steht er umsonst in der Antwort."
+    )
+
+
+def test_the_order_reference_exists_only_where_we_order():
+    """**Beim Verkauf gibt es keine Bestellangabe** (Testnotiz #787).
+
+    Sie beantwortet «wie bestelle ich bei ihm» – seine Artikelnummer, sein Shop-Link.
+    Beim Verkauf liefern **wir**; das Feld stünde dort als Pflichtangabe da, die niemand
+    ausfüllen kann. Die Angabe hängt an der **Richtung** (``Flow.party_ref``), nicht am
+    Modultyp: jeder künftige Typ derselben Richtung erbt sie.
+
+    Bug-Formen: (a) der Dienst verlangt sie auch beim Verkauf; (b) er nimmt sie dort
+    still an und speichert eine Angabe, die niemand liest; (c) die Oberfläche rendet das
+    Feld unabhängig von der Deklaration.
+    """
+    from app.domain.modules import MODULES
+    from app.domain.procurement import BUY, SELL, FLOWS
+
+    assert FLOWS[BUY].party_ref is True and FLOWS[SELL].party_ref is False, (
+        "Die Richtung sagt nicht mehr, ob es eine Bestellangabe gibt."
+    )
+    sell = next(m for m in MODULES.values() if getattr(m, "flow", None)
+                and m.flow.direction == SELL)
+    # (a) Ohne Angabe muss es durchgehen …
+    cleaned = sell.clean_purchase_config({"suppliers": [{"supplier": 100000001}],
+                                          "instruction": ""})
+    assert cleaned["suppliers"] == [{"supplier": 100000001, "ref": ""}], (
+        "Der Verkauf verlangt eine Bestellangabe – dort gibt es nichts zu bestellen."
+    )
+    # (b) … und eine mitgeschickte darf nicht liegen bleiben.
+    smuggled = sell.clean_purchase_config(
+        {"suppliers": [{"supplier": 100000001, "ref": "ABC-1"}], "instruction": ""})
+    assert smuggled["suppliers"][0]["ref"] == "", (
+        "Eine Bestellangabe wird beim Verkauf gespeichert, obwohl es das Feld nicht gibt "
+        "– eine Hintertür zu einer Angabe, die niemand liest."
+    )
+    # (c) Die Oberfläche fragt die Deklaration, nicht den Modultyp.
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "info.party_ref &&" in designer, (
+        "Das Feld hängt nicht an `party_ref` – dann steht es am Verkauf als "
+        "Pflichtangabe da, die niemand ausfüllen kann."
+    )
+
+
+def test_the_runtime_choice_is_one_sentence_in_one_place():
+    """►►► **«Beim Ausführen definieren» — ein Satz, eine Stelle** (#785/#786). ◄◄◄
+
+    Zwei Fassungen derselben Aussage standen nebeneinander: am Ziel des Bewegen-Moduls
+    ein Platzhalter «Beim Ausführen **scannen**», unter der Gegenpartei-Liste ein
+    Erklärsatz «Leer: freie Wahl beim Ausführen» – und der zweite war nicht einmal
+    anklickbar.
+
+    *Scannen* ist dabei nur **einer** von zwei Wegen zur selben Wahl (daneben steht die
+    Tastatur, und bei den zugelassenen Gegenparteien wird gar nicht gescannt): ein Wort,
+    das den Weg nennt statt den Zeitpunkt, ist an der Hälfte der Stellen falsch.
+
+    Bug-Formen: (a) eine Aufrufstelle schreibt ihren eigenen Satz; (b) der Erklärsatz ist
+    zurück; (c) das Wort «scannen» steht wieder im Satz; (d) die Wahl steht nirgends in
+    einer Liste, ist also nicht wählbar.
+    """
+    scan = _read(FRONTEND / "lib" / "scan.ts")
+    assert "export const RUNTIME_CHOICE = 'Beim Ausführen definieren'" in scan, (
+        "Der eine Satz fehlt – dann erfindet ihn jede Aufrufstelle neu."
+    )
+    for name in ("process-designer.tsx", "order-detail.tsx"):
+        src = _code(_read(FRONTEND / "components" / "erp" / name))
+        assert "Beim Ausführen" not in src, (
+            f"{name} schreibt den Satz selbst hin, statt ihn zu lesen (#786)."
+        )
+        assert "freie Wahl beim Ausführen" not in src, (
+            f"{name} erklärt die leere Wahl wieder in einem Satz daneben – das ist die "
+            f"eine Form, in der man sie nicht wählen kann (#786)."
+        )
+        assert "RUNTIME_CHOICE" in src, f"{name} benutzt den geteilten Satz nicht."
+    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
+    assert "emptyOption={RUNTIME_CHOICE}" in designer, (
+        "Die Wahl steht nicht als Zeile in der Liste – dann ist sie keine Wahl (#734–#736)."
+    )
+
+
+def test_the_object_number_reads_as_a_number_until_you_point_at_it():
+    """►►► **Eine Objektnummer ist eine KENNUNG, kein Hyperlink** (Testnotiz #784). ◄◄◄
+
+    Sie stand als blauer, unterstrichener Text da – die drei Marker, an denen man im Web
+    einen Link erkennt. Im ERP steht sie in fast jeder Zeile: das ganze Raster las sich
+    als Linkliste, und die Kennung war die lauteste Angabe darin.
+
+    Im Ruhezustand trägt sie darum die Farbe ihres Textes; dass sie etwas tut, sagt der
+    Zeiger und – sobald er darauf steht – Farbe **und** Unterstreichung. Der Tastaturweg
+    bekommt dieselbe Auszeichnung (`:focus-visible`); Farbe allein wäre kein zugängliches
+    Signal.
+
+    Bug-Formen: (a) die Ruhe-Auszeichnung ist zurück (Farbe/Unterstreichung inline am
+    Knopf); (b) es gibt gar keinen Hover-Zustand mehr, dann sieht man der Nummer nicht
+    an, dass sie führt; (c) der Tastaturweg fehlt.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "obj-id.tsx")
+    code = _code(src)
+    assert "className=\"erp-objid\"" in code, (
+        "Die Nummer trägt ihre Auszeichnung nicht mehr in der Klasse – inline greift "
+        "kein `:hover`."
+    )
+    assert "'var(--accent)'" not in code and "textDecoration" not in code, (
+        "Die Ruhe-Auszeichnung ist zurück: blau und unterstrichen ist ein Hyperlink, "
+        "keine Kennung (#784)."
+    )
+    css = _read(FRONTEND / "app" / "globals.css")
+    rule = css.split(".erp-objid {")[1].split("\n}")[1]
+    assert ".erp-objid:hover" in css and ":focus-visible" in rule, (
+        "Die Nummer sagt bei Hover/Fokus nicht mehr, dass sie führt – dann ist sie eine "
+        "versteckte Funktion."
+    )
+    assert "text-decoration: underline" in rule, (
+        "Farbe allein ist kein zugängliches Signal (WCAG 1.4.1)."
+    )
+
+
+def test_the_stock_bar_names_its_states_and_is_the_control():
+    """►►► **Die Leiste nennt, was sie zeigt — und ist die Auswahl** (Testnotiz #789). ◄◄◄
+
+    Die Farbe allein kann es nicht: der Katalog kennt **drei** Ampeltöne für **sechs**
+    Zustände eines Stücks – *Freigegeben*, *Verbaut* und *Verkauft* sind alle grün. Zwei
+    gleichfarbige Segmente nebeneinander sind damit strukturell nicht unterscheidbar,
+    und keine Feinabstimmung der Farbe ändert daran etwas.
+
+    Darunter stand ausserdem eine aufklappbare Sektion je Zustand – jede mit Chevron,
+    Punkt, Wort und Menge im Kopf, also das, was die Leiste eine Zeile höher schon
+    zeigte, nur zwanzigmal höher.
+
+    Bug-Formen: (a) die Leiste nennt ihre Zustände wieder nicht; (b) sie zeigt keine
+    Mengen; (c) die Sektionen sind zurück; (d) die Leiste ist wieder reine Anzeige, dann
+    braucht es die Sektionen erneut; (e) mehr als einer ist offen.
+    """
+    from app.domain.statuses import CATALOG
+
+    tones = {s.tone for s in CATALOG if "unit" in s.axes}
+    units = [s for s in CATALOG if "unit" in s.axes]
+    assert len(tones) < len(units), (
+        "Der Grund dieses Wächters ist entfallen: jeder Zustand hätte jetzt seinen "
+        "eigenen Ton. Dann prüfe, ob die Beschriftung noch nötig ist."
+    )
+    bar = _read(FRONTEND / "components" / "erp" / "stock-bar.tsx")
+    code = _code(bar)
+    # **Gefragt wird nach dem GERENDERTEN Wort, nicht nach seinem Vorkommen.** Die erste
+    # Fassung prüfte `"cfg.label" in code` – und war damit schon durch den Hover-Text
+    # erfüllt (`${s.quantity} × ${cfg.label}`), den es vorher auch gab. Sie liess also
+    # genau den Zustand durch, den sie verhindern soll: eine Leiste, die ihre Zustände
+    # nur im Hover nennt. Gemessen, nachgeschärft, erneut gegengeprüft.
+    mark = _body(bar, "StateMark", kind="function")
+    assert ">{cfg.label}</span>" in _code(mark).replace("\n", "").replace("  ", ""), (
+        "Die Leiste schreibt ihre Zustände nicht hin – bei drei Tönen auf sechs Zustände "
+        "ist die Farbe allein keine Auskunft, und ein Hover ist keine Anzeige (#789)."
+    )
+    assert ">{state.quantity}</span>" in mark, (
+        "Die Leiste nennt die Menge je Zustand nicht (#789)."
+    )
+    assert "aria-pressed={active}" in code, (
+        "Die Beschriftung ist kein Bedienelement – dann ist sie eine Legende, und die "
+        "Sektionen darunter kommen zurück."
+    )
+    view = _read(FRONTEND / "components" / "erp" / "stock-view.tsx")
+    vcode = _code(view)
+    assert "onPick={toggle}" in vcode and "active={picked}" in vcode, (
+        "Die Leiste ist wieder reine Anzeige (#789)."
+    )
+    assert "function Block(" not in vcode, (
+        "Die Gruppen-Sektionen sind zurück – sie sagen Zeile für Zeile das, was die "
+        "Leiste schon zeigt."
+    )
+    # **Genau einer offen** – ein `Record<string, boolean>` wäre die alte Sektionsliste
+    # unter anderem Namen. Gefragt wird nach **dieser** Zustandsvariable, nicht nach der
+    # Form irgendeiner: `useState<string | null>(null)` steht in derselben Datei auch für
+    # die Fehlermeldung, und damit war die erste Fassung schon erfüllt, bevor `picked`
+    # überhaupt existierte. Gemessen, nachgeschärft, erneut gegengeprüft.
+    assert "const [picked, setPicked] = useState<string | null>(null)" in vcode, (
+        "Es ist wieder mehr als ein Zustand gleichzeitig offen."
+    )

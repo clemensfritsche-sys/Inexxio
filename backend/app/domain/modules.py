@@ -335,13 +335,14 @@ class Module:
         annimmt, wäre eine Hintertür zu einer Angabe, die niemand liest.
         """
         who = self.flow.party_word
+        many = self.flow.party_plural
         suppliers = ([] if self.parties == self.OFF
                      else self._suppliers(data.get(self.SUPPLIERS)))
         if self.parties == self.REQUIRED and not suppliers:
             raise HTTPException(
                 status_code=400,
-                detail=(f"«{self.label}» braucht mindestens einen zugelassenen "
-                        f"{who}en – bei wem sonst sollte bestellt werden?"),
+                detail=(f"«{self.label}» braucht mindestens einen zugelassenen {many} – "
+                        f"mit wem sonst sollte gehandelt werden?"),
             )
         instruction = ("" if self.instruction == self.OFF
                        else str(data.get(self.INSTRUCTION) or "").strip())
@@ -365,12 +366,13 @@ class Module:
         """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt – ob sie es sein darf,
         entscheidet ``parties``, nicht diese Funktion."""
         who = self.flow.party_word
+        many = self.flow.party_plural
         if value in (None, ""):
             value = []
         if not isinstance(value, (list, tuple)):
             raise HTTPException(
                 status_code=400,
-                detail=f"«{self.label}» erwartet eine Liste zugelassener {who}en.",
+                detail=f"«{self.label}» erwartet eine Liste zugelassener {many}.",
             )
         found: list[dict[str, Any]] = []
         for entry in value:
@@ -379,7 +381,7 @@ class Module:
             if number is None:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"«{entry}» ist keine {who}en-Objektnummer.",
+                    detail=f"«{entry}» ist keine Objektnummer ({who}).",
                 )
             if any(r["supplier"] == number for r in found):
                 raise HTTPException(
@@ -387,13 +389,25 @@ class Module:
                     detail=(f"{who} {number} steht zweimal in der Freigabe – zweimal "
                             f"derselbe ist keine zweite Wahl."),
                 )
-            ref = str(row.get("ref") or "").strip()
-            # **Pflicht** (Testnotiz #756): ohne sie steht beim Bestellen nicht da, unter
-            # welcher Nummer bzw. über welchen Link man bei *ihm* bestellt – und genau
-            # das war der Grund, warum die Angabe früher am Beleg landete, wo man sie bei
-            # jedem Vorgang neu abschreiben musste. Gelesen wird weiterhin tolerant: ein
-            # laufender Auftrag trägt seinen Prozess eingefroren.
-            if not ref:
+            # ►►► **Die Bestellangabe gibt es nur, wo wir BESTELLEN.** ◄◄◄
+            #
+            # Sie beantwortet «wie bestelle ich bei ihm» – seine Artikelnummer, sein
+            # Shop-Link. Beim **Verkauf** liefern wir; es gibt nichts nachzuschlagen, und
+            # die Bestellnummer des Kunden entsteht zur Laufzeit, nicht beim Modellieren
+            # (Testnotiz #787). Die Angabe hängt darum an der **Richtung**
+            # (``Flow.party_ref``) und nicht am Modultyp: jeder künftige Typ derselben
+            # Richtung erbt sie, ohne dass jemand hier etwas anfasst.
+            #
+            # Ein Wert, der ankommt, obwohl es das Feld nicht gibt, wird **verworfen** –
+            # ein Feld, das die Oberfläche nicht anbietet, der Dienst aber annimmt, wäre
+            # eine Hintertür zu einer Angabe, die niemand liest.
+            ref = (str(row.get("ref") or "").strip() if self.flow.party_ref else "")
+            # **Wo es sie gibt, ist sie Pflicht** (Testnotiz #756): ohne sie steht beim
+            # Bestellen nicht da, unter welcher Nummer bzw. über welchen Link man bei
+            # *ihm* bestellt – genau der Grund, warum die Angabe früher am Beleg landete,
+            # wo man sie bei jedem Vorgang neu abschreiben musste. Gelesen wird weiterhin
+            # tolerant: ein laufender Auftrag trägt seinen Prozess eingefroren.
+            if self.flow.party_ref and not ref:
                 raise HTTPException(
                     status_code=400,
                     detail=(f"{who} {number} braucht eine Bestellangabe – seine "
@@ -409,7 +423,7 @@ class Module:
         if len(found) > self.MAX_SUPPLIERS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Höchstens {self.MAX_SUPPLIERS} {who}en je Modul.",
+                detail=f"Höchstens {self.MAX_SUPPLIERS} {many} je Modul.",
             )
         return found
 

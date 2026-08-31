@@ -97,13 +97,22 @@ Darstellung; eine zweite Fassung liefe beim ersten neuen Zustand auseinander.
 Damit hat der Artikel **gar keine Reiter mehr** – es blieb nichts, was einen zweiten
 rechtfertigt.
 
-**Eine Gruppe je Zustand – und die Ansicht zählt keinen einzigen auf.** Gruppiert wird über
-die gelieferten `states`; Reihenfolge = Position im `CATALOG` (= Lebenszyklus, dieselbe wie
-Leiste und Legende), Farbe = Ampelton, **zugeklappt** startet, was zur Historie zählt
-(`stock`). Ein neuer Zustand erscheint damit ohne eine Zeile Änderung an seiner Stelle;
-die früheren zwei festen Blöcke waren die Form, in der er verschwand. Ein Zustand ohne
-Zuordnung wird **gemeldet**, nicht geraten. **Keine Gesamtzahl im Kopf** – sie summierte
-auch Verschrottetes.
+**Die Leiste IST das Bedienelement – und sie nennt, was sie zeigt** (Testnotiz #789).
+Die Farbe allein kann es nicht: der Katalog kennt **drei** Ampeltöne für **sechs**
+Zustände eines Stücks (*Freigegeben*, *Verbaut*, *Verkauft* sind alle grün). Zwei
+gleichfarbige Segmente nebeneinander sind darum strukturell nicht unterscheidbar – also
+stehen Punkt, Wort und Menge **unter der Leiste, als Teil von ihr** (`StockBar`), eine
+Haarlinie trennt die Segmente, und ein Klick öffnet **genau einen** Ausschnitt darunter.
+Die frühere Liste aufklappbarer Sektionen ist damit entfallen: ihr Kopf sagte Zeile für
+Zeile das, was die Leiste eine Zeile höher schon zeigte, nur zwanzigmal höher. *Kein
+Rückschritt hinter #716 – dort wurde eine Legende **neben** den Gruppen entfernt, also
+die Doppelung; hier bleibt nur noch eine Fassung übrig.*
+
+**Und die Ansicht zählt keinen einzigen Status auf.** Welche Segmente es gibt, sagen die
+gelieferten `states`; Reihenfolge = Position im `CATALOG` (= Lebenszyklus), Farbe =
+Ampelton. Ein neuer Zustand erscheint ohne eine Zeile Änderung an seiner Stelle. Ein
+Zustand ohne Zuordnung wird **gemeldet**, nicht geraten. **Keine Gesamtzahl im Kopf** –
+sie summierte auch Verschrottetes.
 
 Karte + Kopf + Werteraster kommen aus `fields.tsx` (`SPEC`, `SpecHead`, `SpecSection`,
 `ReadField`) – die Anatomie **jeder** Detail-Ansicht.
@@ -323,6 +332,12 @@ Scanner bekommt dieselbe Suche mit (`suggest`).
   (`PlaceRef.label`), reicht es in `find` als `name` durch.
 - **«Nichts» ist eine Wahl**, kein X-Knopf daneben: `emptyOption` führt sie als erste
   Zeile der Liste, und ein leeres Feld **zeigt sie an** (#734–#736).
+- **Und wo «nichts» heisst «das entscheidet sich erst am Band», ist der Satz geteilt**:
+  `scan.RUNTIME_CHOICE` = «Beim Ausführen definieren» (#785/#786). Nicht «scannen» – das
+  ist einer von zwei Wegen zur selben Wahl, und bei den zugelassenen Gegenparteien wird
+  gar nicht gescannt; ein Wort, das den Weg nennt statt den Zeitpunkt, ist an der Hälfte
+  der Stellen falsch. Ein **Erklärsatz darunter** («Leer: freie Wahl beim Ausführen») ist
+  ersatzlos entfallen: das ist die eine Form, in der man die Wahl nicht wählen kann.
 - **Kein natives `<select>` über Datensätze** – nicht durchsuchbar, und bei tausend
   Artikeln tausend Knoten je Zeile. Aufzählungen (Währung, Land, Ja/Nein) bleiben
   erlaubt: sie sind endlich und keine Referenz. Wächter in `test_frontend_mirrors.py`.
@@ -347,6 +362,16 @@ Startseite. Der Knopf «Zurück zur Startseite» ist damit entfallen – daneben
 Gemessen in Chromium (375×420): mit `align-items: center` wird eine Karte, die höher als
 das Fenster ist, oben **abgeschnitten**, und in einem Scroll-Container ist alles vor der
 Startkante unerreichbar – im Querformat wäre das E-Mail-Feld weg.
+
+## Die Objektnummer ist eine Kennung, kein Hyperlink (`.erp-objid`)
+Sie stand als blauer, unterstrichener Text da – die drei Marker, an denen man im Web
+einen Link erkennt. Im ERP steht sie in fast **jeder** Zeile: das Raster las sich als
+Linkliste, und die Kennung war die lauteste Angabe darin (Testnotiz #784). Im
+Ruhezustand trägt sie darum die Farbe ihres Textes; dass sie führt, sagt der Zeiger und –
+sobald er darauf steht – Farbe **und** Unterstreichung (Farbe allein ist kein
+zugängliches Signal). Der Tastaturweg bekommt dieselbe Auszeichnung über
+`:focus-visible`. Die **Form** bleibt die einer Nummer ohne Ziel (#282): `baseStyle` ist
+geteilt, die Auszeichnung kommt allein aus der Klasse – inline greift kein `:hover`.
 
 ## Symbol-Knöpfe (`.erp-actbtn` / `.erp-actbtn-icon`)
 Ein Knopf besitzt seine Form in der **Klasse**, nicht an der Aufrufstelle. `.erp-actbtn`

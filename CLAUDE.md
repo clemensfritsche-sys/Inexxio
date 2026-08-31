@@ -304,9 +304,10 @@
 > **Eine Blase, und zwar die unter dem Zeiger** (`globals.css`): geschachtelte Hinweise –
 > die innere gewinnt (`:has`); und der Fokus-Weg (Touch/Tastatur) gilt **mit Maus nur für
 > `:focus-visible`** – ein Klick liess seine Blase sonst stehen, während der Zeiger längst
-> woanders war. Die **Historie** hängt am **Symbol** des Prozessobjekts, nie an einer
-> gekürzten Beschriftung: `truncate` ist `overflow: hidden` und schneidet das `::after`
-> weg – genau daran war sie am Modul unsichtbar und an Start/Ende sichtbar.
+> woanders war. Die **Historie** hängt an der **Kopfzeile** des Prozessobjekts (#790 – am
+> Symbol war sie ein 32-px-Ziel), nie an einer gekürzten Beschriftung: `truncate` ist
+> `overflow: hidden` und schneidet das `::after` weg – genau daran war sie am Modul
+> unsichtbar und an Start/Ende sichtbar.
 > **Herkunft und Verbleib sind ÄSTE desselben Strangs** (PROCESS_CORE §8.1a, §6): über dem
 > Start und unter dem Ende verzweigt die Linie zu den Nachbar-Aufträgen – je Nachbar ein
 > Ast mit Anzahl, alle auf **einer** Waagrechten zusammengeführt (ein Bus wie im Stammbaum,
@@ -1778,6 +1779,86 @@
 > umgeschrieben) – **jeder gegen seine Bug-Form gegengeprüft**. Der umgeschriebene suchte
 > wörtlich nach `if (purchase)` und prüfte damit die **Form** des Codes statt die Regel;
 > er fragt jetzt, ob die Oberfläche wieder einen Modultyp nennt.
+
+> **Testnotizen #784–#790 — was etwas IST, sagt es selbst; was es TUT, sagt es beim
+> Hinsehen.** Sechs Notizen, und dreimal war die Ursache dieselbe: eine Angabe, die eine
+> Oberfläche sich **ausrechnete** oder **danebenschrieb**, statt sie zu lesen.
+> **(1) «Kundeen» — der Plural ist eine ANGABE, keine Rechnung** (#787,
+> `Flow.party_plural`). Er wurde aus `party_word` gebaut: «Lieferant» + «en» =
+> «Lieferanten» ✓, und beim Verkauf kam «Kundeen» heraus. Deutsche Beugung ist keine
+> Zeichenkettenoperation – eine Regel, die bei **einem** Wort zufällig stimmt, ist keine.
+> Er steht jetzt da, wo die übrigen Wörter dieser Richtung stehen, und reist mit.
+> **Und die Bestellangabe gibt es nur, wo wir bestellen** (`Flow.party_ref`): sie
+> beantwortet «wie bestelle ich bei ihm» – seine Artikelnummer, sein Shop-Link. Beim
+> **Verkauf** liefern **wir**; das Feld stand dort als **Pflicht**angabe da, die niemand
+> ausfüllen kann. Eine Eigenschaft der **Richtung**, nicht des Modultyps – jeder künftige
+> Typ derselben Richtung erbt sie. Ein Wert, der trotzdem ankommt, wird **verworfen**:
+> ein Feld, das die Oberfläche nicht anbietet, der Dienst aber annimmt, wäre eine
+> Hintertür zu einer Angabe, die niemand liest.
+> **(2) «Beim Ausführen definieren» — ein Satz, eine Stelle** (#785/#786,
+> `scan.RUNTIME_CHOICE`). Dieselbe Aussage stand in zwei Fassungen nebeneinander: am Ziel
+> des Bewegen-Moduls als Listen-Zeile «Beim Ausführen **scannen**», unter der
+> Gegenpartei-Liste als Erklärsatz «Leer: freie Wahl beim Ausführen» – und der zweite war
+> nicht einmal anklickbar, also genau die Form, in der man eine Wahl nicht wählen kann
+> (#734–#736). *Scannen* ist zudem nur **einer** von zwei Wegen zur selben Wahl (daneben
+> steht die Tastatur, und bei den zugelassenen Gegenparteien wird gar nicht gescannt):
+> ein Wort, das den **Weg** nennt statt den **Zeitpunkt**, ist an der Hälfte der Stellen
+> falsch. Auch die Laufzeit-Anzeige liest jetzt denselben Satz – ein Zustand, zwei
+> Formulierungen wären zwei Aussagen.
+> **(3) Eine Objektnummer ist eine KENNUNG, kein Hyperlink** (#784, `.erp-objid`). Blau,
+> fett und unterstrichen sind die drei Marker, an denen man im Web einen Link erkennt –
+> und im ERP steht diese Nummer in fast **jeder** Zeile: das Raster las sich als
+> Linkliste, und die Kennung war die lauteste Angabe darin. Im Ruhezustand trägt sie
+> darum die Farbe ihres Textes; dass sie führt, sagt der Zeiger und – sobald er darauf
+> steht – Farbe **und** Unterstreichung (Farbe allein ist kein zugängliches Signal, WCAG
+> 1.4.1), `:focus-visible` deckt den Tastaturweg. **Fett bleibt beides**: das ist die
+> Auszeichnung der Kennung, kein Link-Marker – die Form ist dieselbe wie bei einer Nummer
+> ohne Ziel (#282), und die Auszeichnung kommt allein aus der Klasse, denn inline greift
+> kein `:hover`.
+> **(4) Die Historie gilt für die KOPFZEILE, nicht für das Symbol** (#790). Sie hing am
+> 32-px-Quadrat links – man musste es treffen, um zu erfahren, was an diesem Modul
+> passiert ist. Die Kopfzeile ist der Container: sie läuft über die ganze Kartenbreite,
+> und zugeklappt – der Normalfall – **ist** sie die Karte (gemessen: 1386 px statt 32 px
+> Zielfläche bei 1440 px Fenster). Bewusst **nicht** der äussere Rahmen, obwohl der
+> wörtlich «der ganze Container» wäre: darin steht der aufgeklappte Feldsatz, und eine
+> Blase, die beim Tippen in einem Eingabefeld aufgeht, ist Störung statt Auskunft. Was
+> **darin** eine eigene Blase trägt (Ziehgriff, Schloss, Löschen), gewinnt weiterhin –
+> die Regel dafür steht in `globals.css` (`:has`), nicht am Bauteil. Die alte Warnung
+> gilt unverändert: **nie an der Beschriftung**, die trägt `truncate`, und
+> `overflow: hidden` schneidet ein `::after` weg.
+> **(5) Die Bestandsleiste NENNT ihre Zustände – und ist das Bedienelement** (#789,
+> PROCESS_CORE §10.3). Gemeldet war zweierlei: die Leiste zeigt nicht, wie viele Stücke
+> je Kategorie – «gerade bei gleichfarbigen Status» –, und die Liste darunter ist zu
+> lang. Es ist **ein** Befund. Der Katalog kennt **drei** Ampeltöne für **sechs**
+> Zustände eines Stücks (*Freigegeben*, *Verbaut*, *Verkauft* sind alle grün, *Im
+> Prozess* und *Gesperrt* beide gelb): zwei gleichfarbige Segmente nebeneinander sind
+> **strukturell** nicht unterscheidbar, und keine Feinabstimmung des Tons ändert daran
+> etwas – das **Wort** ist die Unterscheidung. Also stehen Punkt, Wort und Menge unter
+> der Leiste **als Teil von ihr**, eine Haarlinie trennt die Segmente, und die
+> Beschriftung ist zugleich die Auswahl. Damit ist die Liste aufklappbarer Sektionen
+> **ersatzlos entfallen**: ihr Kopf sagte Zeile für Zeile das, was die Leiste eine Zeile
+> höher schon zeigte, nur zwanzigmal höher. *Das ist kein Rückschritt hinter #716,
+> sondern sein zweiter Schritt* – dort wurde eine Legende **neben** den Gruppen entfernt,
+> also die Doppelung, nicht die Beschriftung; jetzt gibt es nur noch eine Fassung.
+> **Genau EINER ist offen**, und zu Beginn keiner (dieselbe Regel wie #716): zwei
+> Zustände gleichzeitig zu betrachten war der Grund, warum es Sektionen gab – und nie
+> eine Frage, die jemand hatte. **Kein Filter**: was man nicht anklickt, steht weiterhin
+> in der Leiste.
+> **Nicht umgesetzt und bewusst offen: #788** (die Kettenregel beim Verkauf-Modul mit
+> nachfolgendem Bewegen). Ausdrücklich zurückgestellt – die bestehende Logik bleibt.
+> Wächter: fünf neue in `test_frontend_mirrors.py`, zwei umgeschriebene, einer in
+> `test_purchase_module.py` präzisiert – **15 Bug-Formen gegengeprüft**, jede meldet.
+> *Zwei der neuen waren dabei stumpf und liessen ihre eigene Form durch*: einer fragte
+> nach dem **Vorkommen** von `cfg.label` und war schon durch den Hover-Text erfüllt, den
+> es vorher auch gab; der andere prüfte `useState<string | null>(null)`, was in derselben
+> Datei auch für die Fehlermeldung dasteht. Gemessen, nachgeschärft, erneut gegengeprüft.
+> Suite grün gegen die gewachsene Datenbank (497) **und** gegen ein Schema nur aus den
+> Migrationen (505). Gemessen in Chromium an den **echten** Komponenten: 1440 · 1280 ·
+> 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf, sechs Zustände in der Leiste,
+> nie zwei Ausschnitte offen, Blase an der Kopfzeile, Nummer ruhend unausgezeichnet und
+> beim Zeigen `#2C6E8F` + Unterstreichung. *Die Messung hat sich dabei einmal selbst
+> getäuscht: `transition: color .12s` – wer sofort misst, misst den Startwert des
+> Übergangs.*
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

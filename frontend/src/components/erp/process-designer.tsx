@@ -26,6 +26,7 @@ import { IconSwitch, Label, inputCls, numericInputProps, numericOnly } from '@/c
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';
+import { RUNTIME_CHOICE } from '@/lib/scan';
 
 /**
  * **Den Prozess definieren — dieselbe Komponente am Artikel wie im Auftrag.**
@@ -334,7 +335,7 @@ function MoveFields({ module: m, onChange }: {
       // in derselben Liste und im Feld, sobald sie gilt. Vorher stand dieselbe Aussage an
       // drei Stellen – im Platzhalter, in einem Erklärsatz darunter und in einem X-Knopf
       // daneben – und an keiner davon konnte man sie wählen.
-      emptyOption="Beim Ausführen scannen"
+      emptyOption={RUNTIME_CHOICE}
     />
   );
 }
@@ -374,8 +375,13 @@ function ProcurementFields({ module: m, info, onChange }: {
   // **Und wie sie im Satz heisst, kommt aus derselben Quelle.** «Auftrag an den
   // Lieferanten» wäre am Verkaufs-Modul falsch; ein zweiter Text daneben, gewählt über
   // den Modultyp, wäre die dritte Stelle für dieselbe Angabe.
+  //
+  // **Die gebeugte Form ist eine ANGABE, keine Rechnung** (`party_plural`, #787). Sie
+  // wurde hier aus `party_word` gebaut – «Lieferant» + «en» = «Lieferanten» ✓, und beim
+  // Verkauf «Kundeen». Deutsche Beugung ist keine Zeichenkettenoperation; wer sie rechnet,
+  // hat den nächsten Fall schon falsch. Also steht sie im `Flow` und reist mit.
   const orderLabel = info.derived_instruction
-    ? 'Ergänzung zum Auftrag' : `Auftrag an den ${info.party_word}en`;
+    ? 'Ergänzung zum Auftrag' : `Auftrag an den ${info.party_plural}`;
 
   // Die gewählten Gegenparteien benennen – sonst stünden dort nur Ziffern. Eine Abfrage
   // je Modul, nicht je Zeile.
@@ -436,13 +442,24 @@ function ProcurementFields({ module: m, info, onChange }: {
       )}
       {info.parties !== 'off' && (
       <div className="flex flex-col gap-1.5">
+        {/* **«Leer heisst frei» steht in der LISTE, nicht als Satz darunter** (#786).
+            Vorher stand unter dem Feld «Leer: freie Wahl beim Ausführen» – dieselbe
+            Aussage wie am Ziel des Bewegen-Moduls, nur in einem zweiten Wortlaut und in
+            der einen Form, in der man sie nicht wählen kann. Sie ist jetzt die erste
+            Zeile derselben Liste, mit demselben Satz (`RUNTIME_CHOICE`).
+
+            **Und sie steht nur da, solange sie gilt**: sobald jemand zugelassen ist,
+            wäre «Beim Ausführen definieren» im leeren Zufügen-Feld eine Behauptung, die
+            die Zeilen darunter widerlegen. Zurück führt der Mülleimer an der Zeile. */}
         <ObjectSelect<SupplierOption>
-          label={`Zugelassene ${info.party_word}en`}
+          label={`Zugelassene ${info.party_plural}`}
           required={info.parties === 'required'}
           value={null}
           selected={null}
           find={findSuppliers}
           scanLabel={info.party_word}
+          emptyOption={info.parties !== 'required' && m.suppliers.length === 0
+            ? RUNTIME_CHOICE : undefined}
           placeholder="Nummer oder Name"
           onChange={(nr, opt) => {
             if (nr === null || m.suppliers.some((r) => r.supplier === nr)) return;
@@ -450,21 +467,16 @@ function ProcurementFields({ module: m, info, onChange }: {
             onChange({ suppliers: [...m.suppliers, { supplier: nr, ref: '' }] });
           }}
         />
-        {/* **Leer heisst frei, nicht «niemand»** – dieselbe Regel wie im Dienst
-            (`Module.suppliers_of`). Wo der Einkauf nur eine Möglichkeit ist, entscheidet
-            sich erst zur Laufzeit, wer fährt; eine Pflichtliste wäre dort eine Hürde
-            ohne Gegenwert. Dass man sie trotzdem füllen KANN, ist der Punkt: «wir fahren
-            nur mit diesen drei» ist eine echte Hausregel. */}
-        {info.parties !== 'required' && m.suppliers.length === 0 && (
-          <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
-            Leer: freie Wahl beim Ausführen.
-          </p>
-        )}
         {/* **Wer liefern darf – und wie man bei ihm bestellt.** Die Bestellangabe steht
             hier und nicht am Beleg: sie ist eine Eigenschaft der Paarung Modul ×
             Lieferant («seine Artikelnummer», «sein Shop-Link») und ändert sich nicht je
             Bestellung. Am Beleg wäre sie eine Angabe, die man jedes Mal neu abschreibt
-            – genau das war das alte Referenz-Feld (#753). */}
+            – genau das war das alte Referenz-Feld (#753).
+
+            **Ob es sie überhaupt gibt, sagt der `Flow`** (`party_ref`, #787): sie
+            beantwortet «wie bestelle ich bei ihm» – eine Frage, die es nur beim Einkauf
+            gibt. Beim Verkauf bestellt der Kunde bei UNS; ein Feld dafür stünde dort als
+            Pflichtangabe da, die niemand ausfüllen kann. */}
         {m.suppliers.map((row) => (
           <div key={row.supplier} className="flex flex-col gap-1"
             style={{ borderTop: '1px solid var(--border-1)', paddingTop: 5 }}>
@@ -482,13 +494,15 @@ function ProcurementFields({ module: m, info, onChange }: {
                 <X size={14} />
               </button>
             </div>
-            <input className={inputCls} value={row.ref} maxLength={200} required
-              placeholder={`Artikelnummer oder Link beim ${info.party_word}en`}
-              aria-label={`Bestellangabe für ${row.supplier}`}
-              onChange={(e) => onChange({
-                suppliers: m.suppliers.map((x) => (
-                  x.supplier === row.supplier ? { ...x, ref: e.target.value } : x)),
-              })} />
+            {info.party_ref && (
+              <input className={inputCls} value={row.ref} maxLength={200} required
+                placeholder={`Artikelnummer oder Link beim ${info.party_plural}`}
+                aria-label={`Bestellangabe für ${row.supplier}`}
+                onChange={(e) => onChange({
+                  suppliers: m.suppliers.map((x) => (
+                    x.supplier === row.supplier ? { ...x, ref: e.target.value } : x)),
+                })} />
+            )}
           </div>
         ))}
       </div>

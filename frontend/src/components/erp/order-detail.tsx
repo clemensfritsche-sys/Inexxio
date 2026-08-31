@@ -27,6 +27,7 @@ import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { PurchaseWork } from '@/components/erp/purchase-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
+import { RUNTIME_CHOICE } from '@/lib/scan';
 import { HAULAGE, flowOf, moduleIcon, moduleTone } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
@@ -758,17 +759,23 @@ function PointList({ points, sample, action, reason, moduleType, target }: {
           <Icon size={13} style={{ color: 'var(--fg-4)' }} />
           <span>{action}</span>
         </div>
+        {/* **Dasselbe Wort wie im Editor** (`RUNTIME_CHOICE`, #785/#786): dort steht die
+            Wahl in der Liste, hier ihr Ergebnis – zwei Formulierungen für einen Zustand
+            wären zwei Aussagen, und die zweite («wird beim Ausführen gescannt») nannte
+            ausserdem den Weg statt den Zeitpunkt. */}
         {target !== undefined && (
           <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--fg-3)' }}>
-            <span style={{ color: 'var(--fg-4)' }}>nach</span>
-            {target
-              ? <PlaceTrail place={{ holder: target, chain: [target] }} />
-              : (
-                <span className="text-fg-4"
-                  data-tip="Dieses Modul hat kein festes Ziel – der Ausführende scannt, wohin die Stücke gehen.">
-                  wird beim Ausführen gescannt
-                </span>
-              )}
+            {target ? (
+              <>
+                <span style={{ color: 'var(--fg-4)' }}>nach</span>
+                <PlaceTrail place={{ holder: target, chain: [target] }} />
+              </>
+            ) : (
+              <span className="text-fg-4"
+                data-tip="Dieses Modul hat kein festes Ziel – wohin die Stücke gehen, bestimmt der Ausführende.">
+                {RUNTIME_CHOICE}
+              </span>
+            )}
           </div>
         )}
         <Reason text={reason} />

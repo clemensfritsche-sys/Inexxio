@@ -2369,6 +2369,16 @@ export interface components {
              */
             party_word: string;
             /**
+             * Party Plural
+             * @default Lieferanten
+             */
+            party_plural: string;
+            /**
+             * Party Ref
+             * @default true
+             */
+            party_ref: boolean;
+            /**
              * Derived Instruction
              * @default
              */

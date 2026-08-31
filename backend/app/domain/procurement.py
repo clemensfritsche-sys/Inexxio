@@ -112,6 +112,23 @@ class Flow:
     party_role: str
     #: Wie sie im Satz heisst («Lieferant 100000001 ist nicht zugelassen»).
     party_word: str
+    #: ►► **Der Plural — als eigener Wert, nicht als angehängtes «en».** ◄◄
+    #:
+    #: Er wurde aus ``party_word`` gebaut («Lieferant» + «en» = «Lieferanten» ✓), und beim
+    #: Verkauf kam **«Kundeen»** heraus (Testnotiz #787). Deutsche Plurale sind nicht
+    #: ableitbar – eine Regel, die bei einem Wort zufällig stimmt, ist keine Regel.
+    #: Darum steht er da, wo die übrigen Wörter dieser Richtung stehen.
+    party_plural: str
+    #: ►► **Gibt es eine Bestellangabe zur Gegenpartei?** ◄◄
+    #:
+    #: Sie beantwortet «wie bestelle ich bei ihm» – seine Artikelnummer, sein Shop-Link.
+    #: Beim **Verkauf** gibt es das nicht: dort liefern **wir**, und die Bestellnummer des
+    #: Kunden entsteht zur Laufzeit, nicht beim Modellieren (Testnotiz #787).
+    #:
+    #: Eine Eigenschaft der **Richtung**, nicht des Moduls: damit erbt sie jeder künftige
+    #: Modultyp derselben Richtung, ohne dass jemand etwas anfasst. Wo es sie gibt, bleibt
+    #: sie Pflicht (Testnotiz #756).
+    party_ref: bool
     #: ►► **Welche Rollen kommen als Gegenpartei in Frage? Leer heisst FREI.** ◄◄
     #:
     #: Beim Einkauf ist «Lieferant» eine Beziehung, die wir vergeben – dort ist die Rolle
@@ -155,6 +172,9 @@ FLOWS: dict[str, Flow] = {
         tone="plum",
         party_role="supplier",
         party_word="Lieferant",
+        party_plural="Lieferanten",
+        # **Wir bestellen bei ihm** – also brauchen wir seine Nummer bzw. seinen Link.
+        party_ref=True,
         # Lieferant zu sein ist eine **Zulassung**, die wir vergeben – hier ist die Rolle
         # eine echte Bedingung.
         party_roles=("supplier",),
@@ -176,6 +196,10 @@ FLOWS: dict[str, Flow] = {
         tone="teal",
         party_role="customer",
         party_word="Kunde",
+        party_plural="Kunden",
+        # **Wir liefern ihm** – es gibt nichts nachzuschlagen. Seine Bestellnummer
+        # entsteht zur Laufzeit, nicht beim Modellieren.
+        party_ref=False,
         # **Leer: jeder darf bei uns kaufen** (Testnotiz #779) – auch ein Mitarbeiter, auch
         # ein Lieferant. Es gibt keinen Grund, warum nicht.
         party_roles=(),

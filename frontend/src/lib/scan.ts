@@ -81,6 +81,27 @@ export function scanKindLabel(step?: ScanStep | null): string {
  */
 export const LOOKUP_HINT = 'Nummer oder Name';
 
+/**
+ * **Die eine Wahl «das entscheidet sich erst am Band».**
+ *
+ * Ein Referenzfeld in einer **Definition** hat immer zwei sinnvolle Antworten: einen
+ * bestimmten Datensatz – oder bewusst keinen, weil er beim Modellieren noch gar nicht
+ * feststeht. Die zweite ist eine Entscheidung, keine Lücke, also steht sie als **erste
+ * Zeile der Liste** (`SearchSelect.emptyOption`) und im leeren Feld.
+ *
+ * Sie heisst **nicht** «Beim Ausführen scannen» (Testnotiz #785): *scannen* ist einer von
+ * zwei Wegen zur selben Wahl – daneben steht die Tastatur, und bei den zugelassenen
+ * Gegenparteien wird gar nicht gescannt. Ein Wort, das den Weg nennt statt den Zeitpunkt,
+ * ist an der Hälfte der Stellen falsch. *Definiert* wird an allen.
+ *
+ * **Und sie steht an EINER Stelle** (#786). Vorher trug jedes Feld seine eigene Fassung:
+ * das Ziel des Bewegen-Moduls einen Platzhalter, die Lieferantenliste einen Erklärsatz
+ * darunter («Leer: freie Wahl beim Ausführen») – zwei Wortlaute für dieselbe Aussage, und
+ * der Erklärsatz war nicht einmal anklickbar. Wer das nächste solche Feld baut, erbt den
+ * Satz, statt einen dritten zu erfinden.
+ */
+export const RUNTIME_CHOICE = 'Beim Ausführen definieren';
+
 export interface ScanStep {
   /**
    * **Was gerade gescannt werden soll – die SORTE, nie die Nummer.**
