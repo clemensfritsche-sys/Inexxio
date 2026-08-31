@@ -238,8 +238,12 @@ function InstanceRow({ row, status }: { row: InstanceSummary; status: string }) 
 
   const toggle = () => setShown((v) => !v);
 
+  // **Die Trennlinie schliesst die Zeile ab, sie eröffnet sie nicht** – die eröffnende
+  // gehört dem Ausschnitt selbst (`section`). Mit `border-t` an der Zeile stünden am
+  // Anfang der Liste zwei Haarlinien 4 px übereinander; solange darüber noch ein
+  // Gruppen-Kopf stand, fiel das nicht auf.
   return (
-    <div className="border-t border-border-1">
+    <div className="border-b border-border-1">
       <div
         role="button"
         tabIndex={0}
