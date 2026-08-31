@@ -5823,6 +5823,74 @@
         "title": "InstanceUnitResponse",
         "description": "Eine Einzelinstanz – das Arbeitsobjekt."
       },
+      "InvoiceEntry": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "number_label": {
+            "type": "string",
+            "title": "Number Label",
+            "default": ""
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "issued_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued On"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "amount"
+        ],
+        "title": "InvoiceEntry",
+        "description": "**Eine Forderung** an einem Beleg – die dritte Achse neben Ware und Geld.\n\nEin **negativer** Betrag ist eine Gutschrift. Eine eigene Art dafür gibt es nicht:\ndieselbe Zeile, dasselbe Feld, ein anderes Vorzeichen (PROCESS_CORE §9.11)."
+      },
       "JourneyNeighbour": {
         "properties": {
           "object_id": {
@@ -5931,15 +5999,22 @@
             ],
             "title": "Buys"
           },
-          "suppliers_required": {
-            "type": "boolean",
-            "title": "Suppliers Required",
-            "default": false
+          "parties": {
+            "type": "string",
+            "title": "Parties",
+            "default": "optional"
           },
-          "instruction_required": {
-            "type": "boolean",
-            "title": "Instruction Required",
-            "default": false
+          "instruction": {
+            "type": "string",
+            "title": "Instruction",
+            "default": "optional"
+          },
+          "party_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Party Roles"
           },
           "party_role": {
             "type": "string",
@@ -6502,14 +6577,6 @@
             "type": "integer",
             "title": "Id"
           },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "kind_label": {
-            "type": "string",
-            "title": "Kind Label"
-          },
           "amount": {
             "type": "number",
             "title": "Amount"
@@ -6567,12 +6634,10 @@
         "type": "object",
         "required": [
           "id",
-          "kind",
-          "kind_label",
           "amount"
         ],
         "title": "PaymentEntry",
-        "description": "**Eine Zeile Geld** an einem Beleg – Zahlung oder Gutschrift.\n\nÜberweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch\noder der Webhook), ändert nichts an dem, was er ist."
+        "description": "**Eine Zeile Geld** an einem Beleg.\n\nÜberweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch\noder der Webhook), ändert nichts an dem, was er ist. Eine **Gutschrift** steht hier\nnicht mehr – sie ist eine negative **Rechnung**, denn dabei fliesst kein Geld."
       },
       "PaymentLink": {
         "properties": {
@@ -7009,7 +7074,7 @@
             ],
             "title": "Paid"
           },
-          "credited": {
+          "charged": {
             "anyOf": [
               {
                 "type": "number"
@@ -7018,7 +7083,18 @@
                 "type": "null"
               }
             ],
-            "title": "Credited"
+            "title": "Charged"
+          },
+          "uncharged": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncharged"
           },
           "open": {
             "anyOf": [
@@ -7053,6 +7129,29 @@
             },
             "type": "array",
             "title": "Entries"
+          },
+          "invoices": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceEntry"
+            },
+            "type": "array",
+            "title": "Invoices"
+          },
+          "next_invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Invoice Number"
+          },
+          "invoice_verb": {
+            "type": "string",
+            "title": "Invoice Verb",
+            "default": "Rechnung stellen"
           }
         },
         "type": "object",

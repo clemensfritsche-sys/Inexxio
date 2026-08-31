@@ -1600,21 +1600,44 @@ def test_every_buying_module_defines_its_document_the_same_way():
     buying = [m for m in modules.MODULES.values() if m.buys]
     assert len(buying) >= 2, "Der Test prüft die Gleichbehandlung – dafür braucht es zwei."
 
-    # (b) **Beide nehmen beide Angaben an.** Das ist der Kern der Notiz: beim Bewegen gab
-    #     es sie gar nicht, also konnte niemand «Hebebühne nötig» hinterlegen.
+    # (b) **Was ein Modul DEKLARIERT, nimmt es auch an – und nur das.**
+    #
+    #     Das war einmal «beide nehmen beide Angaben an» (der Kern von #777: beim Bewegen
+    #     gab es sie gar nicht, also konnte niemand «Hebebühne nötig» hinterlegen). Seit
+    #     es die dritte Stufe ``OFF`` gibt (#780/#781), ist der Satz zu breit: der
+    #     **Verkauf** hat keinen Auftrag an die Gegenpartei, und ihn dort anzunehmen wäre
+    #     genau die Hintertür, die die Deklaration abschaffen soll.
+    #
+    #     Die schärfere Regel gilt für jedes künftige Modul ohne eine weitere Zeile:
+    #     ``OFF`` → verworfen, sonst → angenommen.
     for module in buying:
         config = module.clean_config({
             "target": 100000002,
             "suppliers": [{"supplier": 100000001, "ref": "SP-7"}],
             "instruction": "Hebebühne nötig",
         })
-        assert module.parties_of(config) == [{"supplier": 100000001, "ref": "SP-7"}], (
-            f"«{module.label}» verwirft die zugelassenen Lieferanten."
-        )
-        assert "Hebebühne nötig" in module.instruction_for(config), (
-            f"«{module.label}» verwirft den Auftrag an den Lieferanten – genau das war "
-            f"die Meldung: der Beleg stand vordefiniert da und liess sich nicht ergänzen."
-        )
+        parties = module.parties_of(config)
+        if module.parties == module.OFF:
+            assert parties == [], (
+                f"«{module.label}» deklariert keine Gegenparteien und nimmt sie trotzdem "
+                f"an – eine Hintertür zu einer Angabe, die niemand liest."
+            )
+        else:
+            assert parties == [{"supplier": 100000001, "ref": "SP-7"}], (
+                f"«{module.label}» verwirft die zugelassenen Gegenparteien."
+            )
+        added = "Hebebühne nötig" in module.instruction_for(config)
+        if module.instruction == module.OFF:
+            assert not added, (
+                f"«{module.label}» deklariert keinen Auftrag an die Gegenpartei und nimmt "
+                f"ihn trotzdem an – genau das Feld-als-Vielleicht, das gemeldet wurde."
+            )
+        else:
+            assert added, (
+                f"«{module.label}» verwirft den Auftrag an die Gegenpartei – genau das war "
+                f"die Meldung: der Beleg stand vordefiniert da und liess sich nicht "
+                f"ergänzen."
+            )
 
 
 def test_the_derived_sentence_stays_derived_and_the_addition_is_added():
@@ -1655,27 +1678,43 @@ def test_the_derived_sentence_stays_derived_and_the_addition_is_added():
 def test_whether_the_document_fields_are_mandatory_is_a_declaration():
     """**Der Unterschied ist eine Zeile, keine Abfrage nach dem Modultyp.**
 
-    Beim Beschaffen sind beide Angaben Pflicht (nichts ist ableitbar, und ohne Lieferant
-    steht beim Ausführen niemand da). Beim Bewegen sind beide freiwillig: wer fährt,
-    entscheidet sich zur Laufzeit, und *was* zu tun ist, steht im abgeleiteten Satz.
+    **EIN Wert, DREI Stufen** (``OFF`` · ``OPTIONAL`` · ``REQUIRED``). Vorher waren es
+    zwei Booleans je Feld – vier Zustände, von denen einer fehlte: «gibt es hier gar
+    nicht». Genau daraus wurde ein Feld, das freiwillig dastand, weil man es *vielleicht*
+    braucht, mit einer Beschriftung, die nirgends passt (Testnotizen #780/#781).
 
-    Bug-Form: die Pflicht steht wieder als `if module_type` im Dienst – dann ist sie beim
-    dritten einkaufenden Modul vergessen.
+    Beim Beschaffen ist beides Pflicht (nichts ist ableitbar, und ohne Lieferant steht
+    beim Ausführen niemand da). Beim Bewegen ist beides freiwillig: wer fährt, entscheidet
+    sich zur Laufzeit, und *was* zu tun ist, steht im abgeleiteten Satz. Beim **Verkauf**
+    gibt es den Auftrag gar nicht: ein Kunde tut nichts, er kauft.
+
+    Bug-Formen: (a) die Pflicht steht wieder als `if module_type` im Dienst – dann ist sie
+    beim vierten einkaufenden Modul vergessen; (b) ``OFF`` wirkt nicht und das Feld wird
+    doch angenommen.
     """
     import pathlib
     from fastapi import HTTPException
     from app.domain import modules
 
-    assert modules.get(modules.BESCHAFFEN).suppliers_required is True
-    assert modules.get(modules.BESCHAFFEN).instruction_required is True
-    assert modules.get(modules.BEWEGEN).suppliers_required is False
-    assert modules.get(modules.BEWEGEN).instruction_required is False
+    buy = modules.get(modules.BESCHAFFEN)
+    move = modules.get(modules.BEWEGEN)
+    sell = modules.get(modules.VERKAUF)
+    assert (buy.parties, buy.instruction) == (buy.REQUIRED, buy.REQUIRED)
+    assert (move.parties, move.instruction) == (move.OPTIONAL, move.OPTIONAL)
+    assert (sell.parties, sell.instruction) == (sell.OPTIONAL, sell.OFF)
 
-    # Und die Deklaration **wirkt**: leer geht beim einen durch und beim anderen nicht.
-    assert modules.get(modules.BEWEGEN).clean_config({"target": 1})["instruction"] == ""
+    # Und die Deklaration **wirkt** – alle drei Stufen, jede an ihrer Wirkung gemessen.
+    assert move.clean_config({"target": 1})["instruction"] == "", (
+        "OPTIONAL: leer geht durch."
+    )
+    assert sell.clean_config({"instruction": "Bitte werktags"})["instruction"] == "", (
+        "OFF wirkt nicht – der Wert wird gespeichert, obwohl es das Feld nicht gibt. "
+        "Ein Feld, das die Oberfläche nicht anbietet, der Dienst aber annimmt, ist eine "
+        "Hintertür zu einer Angabe, die niemand liest."
+    )
     try:
-        modules.get(modules.BESCHAFFEN).clean_config({})
-        raise AssertionError("Beschaffen nimmt einen leeren Beleg an.")
+        buy.clean_config({})
+        raise AssertionError("REQUIRED wirkt nicht – Beschaffen nimmt einen leeren Beleg an.")
     except HTTPException as exc:
         assert exc.status_code == 400
 
@@ -1685,7 +1724,7 @@ def test_whether_the_document_fields_are_mandatory_is_a_declaration():
         "Die Beleg-Prüfung gibt es mehr als einmal – zwei Massstäbe für eine Frage."
     )
     body = src.split("def clean_purchase_config")[1].split("\n    def ")[0]
-    assert "suppliers_required" in body and "instruction_required" in body, (
+    assert "self.parties" in body and "self.instruction" in body, (
         "Die Prüfung liest die Deklarationen nicht – dann entscheidet wieder der Typ."
     )
     for key in ('"beschaffen"', "'beschaffen'", '"bewegen"', "'bewegen'"):

@@ -123,6 +123,21 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
+## Folge-Deploy: `payments.kind` droppen
+
+Migration `123` hat die Spalte nur von ihrer `NOT NULL`-Sperre befreit; das ORM-Mapping ist
+weg (`models/payment.py`), gelesen wird sie von niemandem mehr. Sie fällt im **nächsten**
+Deploy — jetzt liefe die während des Cloud-Run-Rollouts noch laufende Vorgänger-Revision
+gegen eine Tabelle ohne sie (die Ausfallklasse von Migration `090`).
+
+```sql
+ALTER TABLE payments DROP COLUMN IF EXISTS kind;
+```
+
+Der Grund für den Wegfall steht in PROCESS_CORE §9.11: eine **Gutschrift ist eine negative
+Rechnung**, keine Zahlung, bei der kein Geld fliesst. Migration `123` hat die bestehenden
+`credit`-Zeilen bereits umgezogen und deaktiviert.
+
 ## Erledigt: die toten Spalten sind gedroppt (Migration `120`)
 
 Die **Zwei-Deploy-Regel** ist damit einmal komplett durchlaufen: im Aufräum-Deploy

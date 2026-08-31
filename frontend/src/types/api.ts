@@ -2236,6 +2236,32 @@ export interface components {
             created_at: string;
         };
         /**
+         * InvoiceEntry
+         * @description **Eine Forderung** an einem Beleg – die dritte Achse neben Ware und Geld.
+         *
+         *     Ein **negativer** Betrag ist eine Gutschrift. Eine eigene Art dafür gibt es nicht:
+         *     dieselbe Zeile, dasselbe Feld, ein anderes Vorzeichen (PROCESS_CORE §9.11).
+         */
+        InvoiceEntry: {
+            /** Id */
+            id: number;
+            /** Number */
+            number?: string | null;
+            /**
+             * Number Label
+             * @default
+             */
+            number_label: string;
+            /** Amount */
+            amount: number;
+            /** Issued On */
+            issued_on?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
          * JourneyNeighbour
          * @description Ein Nachbar-Auftrag in der Journey – **gruppiert**, nicht je Stück.
          *
@@ -2321,15 +2347,17 @@ export interface components {
             /** Buys */
             buys?: string | null;
             /**
-             * Suppliers Required
-             * @default false
+             * Parties
+             * @default optional
              */
-            suppliers_required: boolean;
+            parties: string;
             /**
-             * Instruction Required
-             * @default false
+             * Instruction
+             * @default optional
              */
-            instruction_required: boolean;
+            instruction: string;
+            /** Party Roles */
+            party_roles?: string[];
             /**
              * Party Role
              * @default supplier
@@ -2604,18 +2632,15 @@ export interface components {
         };
         /**
          * PaymentEntry
-         * @description **Eine Zeile Geld** an einem Beleg – Zahlung oder Gutschrift.
+         * @description **Eine Zeile Geld** an einem Beleg.
          *
          *     Überweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch
-         *     oder der Webhook), ändert nichts an dem, was er ist.
+         *     oder der Webhook), ändert nichts an dem, was er ist. Eine **Gutschrift** steht hier
+         *     nicht mehr – sie ist eine negative **Rechnung**, denn dabei fliesst kein Geld.
          */
         PaymentEntry: {
             /** Id */
             id: number;
-            /** Kind */
-            kind: string;
-            /** Kind Label */
-            kind_label: string;
             /** Amount */
             amount: number;
             /** Method */
@@ -2860,8 +2885,10 @@ export interface components {
             party_word: string;
             /** Paid */
             paid?: number | null;
-            /** Credited */
-            credited?: number | null;
+            /** Charged */
+            charged?: number | null;
+            /** Uncharged */
+            uncharged?: number | null;
             /** Open */
             open?: number | null;
             /** Due On */
@@ -2873,6 +2900,15 @@ export interface components {
             overdue: boolean;
             /** Entries */
             entries?: components["schemas"]["PaymentEntry"][];
+            /** Invoices */
+            invoices?: components["schemas"]["InvoiceEntry"][];
+            /** Next Invoice Number */
+            next_invoice_number?: string | null;
+            /**
+             * Invoice Verb
+             * @default Rechnung stellen
+             */
+            invoice_verb: string;
         };
         /**
          * PurchaseLine

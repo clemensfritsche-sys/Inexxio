@@ -76,6 +76,13 @@ BUY, SELL = "buy", "sell"
 #: lesen, und ein zweites Literal dort wäre die Stelle, an der beide auseinanderlaufen.
 ASKED, QUOTED, DECLINED, CHOSEN = "angefragt", "offeriert", "abgelehnt", "gewaehlt"
 
+#: ►►► **Wer vergibt die Rechnungsnummer?** ◄◄◄
+#:
+#: Der eine echte Unterschied zwischen einer Ausgangs- und einer Eingangsrechnung. Beim
+#: **Verkauf** nummerieren wir (``OWN``), beim **Einkauf** erfassen wir seine (``THEIRS``).
+#: Ein Wert im ``Flow``, eine Lesestelle – kein ``if direction ==``.
+OWN_NUMBER, THEIR_NUMBER = "own", "theirs"
+
 
 @dataclass(frozen=True)
 class Flow:
@@ -105,6 +112,22 @@ class Flow:
     party_role: str
     #: Wie sie im Satz heisst («Lieferant 100000001 ist nicht zugelassen»).
     party_word: str
+    #: ►► **Welche Rollen kommen als Gegenpartei in Frage? Leer heisst FREI.** ◄◄
+    #:
+    #: Beim Einkauf ist «Lieferant» eine Beziehung, die wir vergeben – dort ist die Rolle
+    #: eine echte Bedingung. Beim **Verkauf** nicht: die Rolle sagt, was jemand *für uns*
+    #: tut, nicht ob er *bei uns* kaufen darf. Ein Mitarbeiter, der eine Schraube kauft,
+    #: ist ein Kunde (Testnotiz #779).
+    #:
+    #: Dieselbe Bauart wie ``Module.parties_of`` («leer heisst frei») – und dieselbe
+    #: Angabe wird an **zwei** Stellen gelesen: die Auswahlliste
+    #: (``/orders/party-options``) bietet an, was ``purchase._assert_allowed`` danach
+    #: auch annimmt. Zwei Listen wären zwei Massstäbe.
+    party_roles: tuple[str, ...]
+    #: Wer die Rechnungsnummer vergibt – ``OWN_NUMBER`` ↔ ``THEIR_NUMBER``.
+    invoice_number: str
+    #: Wie die Rechnung in dieser Richtung heisst – das Wort auf dem Knopf.
+    invoice_verb: str
     #: Die drei Stufen, wie sie in dieser Richtung heissen.
     stage_labels: dict[str, str]
     #: **Was man an der AKTIVEN Stufe tut, um sie zu verlassen** – das Wort auf dem Knopf.
@@ -132,6 +155,12 @@ FLOWS: dict[str, Flow] = {
         tone="plum",
         party_role="supplier",
         party_word="Lieferant",
+        # Lieferant zu sein ist eine **Zulassung**, die wir vergeben – hier ist die Rolle
+        # eine echte Bedingung.
+        party_roles=("supplier",),
+        # Seine Rechnung, seine Nummer. Wir erfassen sie.
+        invoice_number=THEIR_NUMBER,
+        invoice_verb="Rechnung erfassen",
         stage_labels={STAGES[0]: "Anfrage", STAGES[1]: "Bestellung",
                       STAGES[2]: "Wareneingang"},
         stage_verbs={STAGES[0]: "Bestellen", STAGES[1]: "Wareneingang buchen"},
@@ -147,6 +176,12 @@ FLOWS: dict[str, Flow] = {
         tone="teal",
         party_role="customer",
         party_word="Kunde",
+        # **Leer: jeder darf bei uns kaufen** (Testnotiz #779) – auch ein Mitarbeiter, auch
+        # ein Lieferant. Es gibt keinen Grund, warum nicht.
+        party_roles=(),
+        # Unsere Rechnung, unsere Nummer.
+        invoice_number=OWN_NUMBER,
+        invoice_verb="Rechnung stellen",
         # **«Zusage» statt «Auftragsbestätigung».** Beides meint dasselbe, aber «Auftrag»
         # ist im System bereits vergeben – für den Datensatz, in dem dieses Modul steckt.
         stage_labels={STAGES[0]: "Angebot", STAGES[1]: "Zusage", STAGES[2]: "Geliefert"},

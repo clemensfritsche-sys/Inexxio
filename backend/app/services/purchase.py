@@ -35,7 +35,7 @@ from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, Purchase,
     UserProfile,
 )
-from . import article_fields, payments, places, stripe_pay
+from . import article_fields, invoices, payments, places, stripe_pay
 
 #: Die Zustände einer Angebotszeile – **sie stehen im Kern** (``domain/procurement``),
 #: weil auch ``services/payments`` sie liest. Hier nur die vertrauten Namen.
@@ -66,6 +66,15 @@ BUY = "buy"
 #: **Ein Weg, zwei Hände**: eine Überweisung trägt ein Mensch hier ein, eine Kartenzahlung
 #: der Webhook des Zahlungsdienstes – über dieselbe Funktion (``payments.record``).
 PAY = "pay"
+
+#: ►►► **«Das wird jetzt gefordert.»** ◄◄◄ – die dritte Handlung ohne Stufe.
+#:
+#: Die Rechnung ist die **dritte Achse** neben Ware und Geld (PROCESS_CORE §9.11). Sie hat
+#: aus demselben Grund keine Stufe wie ``PAY``: sie darf **vor** der Lieferung stehen
+#: (Vorauszahlung) und danach (Zahlungsziel), und beides ist derselbe Vorgang zu einem
+#: anderen Zeitpunkt. Ein Modus «Vorkasse ja/nein» wäre die Reihenfolge als Einstellung –
+#: und ab der zweiten Einstellung hat man eine Verzweigungs-Landschaft statt einer Regel.
+INVOICE = "invoice"
 
 ACTIONS = ("ask", "quote", "decline", "order", "note", "revoke", "clarified")
 
@@ -306,6 +315,10 @@ def _can(db: Optional[Session], row: Purchase,
     if db is not None and row.amount is not None \
             and stage_of(row) != procurement.STAGES[0]:
         allowed.append(PAY)
+        # **Die Forderung läuft ebenso neben den Stufen** – und aus demselben Grund: sie
+        # darf vor der Lieferung stehen (Vorauszahlung) und danach (Zahlungsziel). Wer
+        # sie an die Stufe hängte, machte aus der Reihenfolge eine Regel.
+        allowed.append(INVOICE)
         # Der Zahllink zusätzlich nur, wo es einen Dienst gibt **und** etwas offen ist.
         # Ein Knopf, der nie etwas tun kann, ist kein Angebot.
         if stripe_pay.available() and payments.balance(db, row).open > 0:
@@ -474,6 +487,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     won = mine is None or (chosen is not None and chosen.object_id == mine)
     can = _can(db, row, viewer)
     balance = payments.balance(db, row)
+    due = invoices.due_on(db, row)
     return {
         "stage": stage_of(row),
         "stages": _stages(row),
@@ -520,18 +534,33 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "currency": row.currency,
         "tracking": row.tracking if won else None,
         "clarify_quantity": mismatch(db, order, row),
-        # ►►► **Das Geld – drei Ableitungen, keine Spalte.** ◄◄◄
+        # ►►► **Forderung und Geld – lauter Ableitungen, keine Spalte.** ◄◄◄
         #
-        # ``open`` ist Belegsumme − Gutschriften − Zahlungen und darf **negativ** sein
-        # (dann schulden wir). ``due_on`` folgt aus Zusagedatum + Zahlungsfrist, und
-        # ``overdue`` ist beides zusammen. Wer nicht den Zuschlag hat, sieht davon nichts:
-        # was ein anderer zahlt, geht ihn nichts an.
+        # ``open`` ist **Forderungen − Zahlungen** und darf negativ sein (dann schulden
+        # wir). ``uncharged`` ist «zugesagt, noch nicht berechnet» – die Zahl, die es vor
+        # der dritten Achse gar nicht geben konnte, und zugleich die Vorgabe für die
+        # nächste Rechnung. ``due_on`` ist die **früheste offene** Fälligkeit, nicht mehr
+        # eine Rechnung aus dem Zusagedatum: zwei Rechnungen haben zwei Fälligkeiten.
+        # Wer nicht den Zuschlag hat, sieht davon nichts – was ein anderer zahlt, geht ihn
+        # nichts an.
         "paid": float(balance.paid) if won else None,
-        "credited": float(balance.credited) if won else None,
+        "charged": float(balance.charged) if won else None,
+        "uncharged": float(balance.uncharged)
+        if won and balance.uncharged is not None else None,
         "open": float(balance.open) if won and balance.total is not None else None,
-        "due_on": payments.due_on(row).isoformat() if won and payments.due_on(row) else None,
-        "overdue": payments.is_overdue(db, row) if won else False,
+        "due_on": due.isoformat() if won and due else None,
+        "overdue": invoices.is_overdue(db, row) if won else False,
         "entries": payments.entries(db, row) if won else [],
+        "invoices": invoices.entries(db, row) if won else [],
+        # **Die Vorgabe für die nächste Nummer** – sie kommt vom Server, weil dort die
+        # Regel wohnt (``<Auftragsnummer>-<laufend>``, beim Einkauf ``None``: dort
+        # nummeriert die Gegenpartei). Eine im Browser gebaute Nummer wäre die zweite
+        # Fassung desselben Formats.
+        "next_invoice_number": invoices.next_number(db, row) if won else None,
+        # **Das Wort auf dem Knopf kommt vom Flow**, wie jedes andere: «Rechnung stellen»
+        # ↔ «Rechnung erfassen». Wir stellen unsere, seine erfassen wir – und das ist
+        # derselbe Unterschied wie bei der Nummer, nur in Worten.
+        "invoice_verb": flow.invoice_verb,
     }
 
 
@@ -684,11 +713,11 @@ def _write_landed_cost(db: Session, *, step: ProcessStep, row: Purchase) -> None
 def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
           payload: dict[str, Any], actor: UserProfile) -> Purchase:
     """**Eine Handlung am Beleg.** Was erlaubt ist, hängt an der Stufe und an der Rolle."""
-    if action not in ACTIONS and action not in (BUY, PAY):
+    if action not in ACTIONS and action not in (BUY, PAY, INVOICE):
         raise HTTPException(
             status_code=400,
             detail=f"«{action}» ist keine Handlung. Bekannt: "
-                   + ", ".join((BUY, PAY) + ACTIONS) + ".",
+                   + ", ".join((BUY, PAY, INVOICE) + ACTIONS) + ".",
         )
     # ►► **«Das kaufe ich ein.»** ◄◄ Die eine Handlung, die *vor* dem Beleg kommt – sie
     # legt ihn an. Danach ist es derselbe Vorgang wie jeder Einkauf. Sie geht nicht durch
@@ -700,6 +729,11 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
     # geliefert oder storniert ist. Ihr Tor ist, ob überhaupt eine Summe zugesagt wurde.
     if action == PAY:
         return _pay(db, step=step, payload=payload)
+    # ►► **«Das wird jetzt gefordert.»** ◄◄ Die dritte Handlung neben den Stufen, aus
+    # demselben Grund ohne Tor in ``_can``: eine Rechnung darf vor der Lieferung stehen
+    # und danach. Ihr Tor ist dasselbe wie beim Geld – es muss eine Summe zugesagt sein.
+    if action == INVOICE:
+        return _invoice(db, step=step, payload=payload)
     row = of_step(db, step.id)
     if row is None:
         raise HTTPException(status_code=404, detail="Dieses Modul hat keinen Beleg.")
@@ -758,10 +792,52 @@ def _pay(db: Session, *, step: ProcessStep, payload: dict[str, Any]) -> Purchase
     payments.record(
         db, purchase=row,
         amount=payload.get("amount"),
-        kind=payload.get("kind") or money.PAYMENT,
         method=payload.get("method"),
         reference=payload.get("reference"),
         paid_at=_as_date(payload.get("paid_at")),
+        note=payload.get("note_text"),
+        # ►► **Die Menschentür ist enger als die Tabelle** (Testnotiz #782). ◄◄
+        #
+        # Eine Kartenzahlung tippt niemand ab – sie entsteht beim Zahlungsdienst und kommt
+        # über den Webhook, der ``payments.record`` **ohne** diese Verengung ruft. Wer sie
+        # hier von Hand erfassen könnte, öffnete eine zweite Quelle für dieselbe Buchung:
+        # die eine aus der Wirklichkeit, die andere aus einer Erinnerung.
+        manual=True,
+    )
+    return row
+
+
+def _invoice(db: Session, *, step: ProcessStep, payload: dict[str, Any]) -> Purchase:
+    """►►► **Eine Forderung stellen** – die dritte Achse neben Ware und Geld. ◄◄◄
+
+    **Sie hat keine Stufe** (wie ``pay`` und ``buy``): eine Rechnung macht aus einem
+    Angebot keine Zusage und aus nicht gelieferter Ware keine gelieferte. Sie darf
+    **vor** der Lieferung stehen (Vorauszahlung) oder danach (Zahlungsziel) – und genau
+    deshalb gibt es keinen Modus, keinen Schalter und keine Einstellung dafür. Wer zuerst
+    Geld sehen will, stellt zuerst die Rechnung; das System hält fest, in welcher
+    Reihenfolge gehandelt wurde, statt eine vorzuschreiben (PROCESS_CORE §9.11).
+
+    **Die Automatik steckt in den Vorgaben, nicht in einem Modus:** der Betrag ist
+    vorbelegt mit *zugesagt − bereits berechnet*, die Fälligkeit mit *heute + vereinbarte
+    Zahlungsfrist*, die Nummer mit ``<Auftragsnummer>-<laufend>`` (beim Einkauf mit
+    nichts – dort nummeriert die Gegenpartei). Der Normalfall ist damit ein Klick, und
+    jede Abweichung ist eine Eingabe statt eines zweiten Wegs.
+    """
+    row = of_step(db, step.id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Dieses Modul hat keinen Beleg.")
+    payments.assert_payable(row)
+    issued = _as_date(payload.get("issued_on")) or date.today()
+    amount = payload.get("amount")
+    if amount in (None, ""):
+        amount = payments.balance(db, row).uncharged
+    invoices.record(
+        db, purchase=row,
+        amount=amount,
+        number=payload.get("number") or invoices.next_number(db, row),
+        issued_on=issued,
+        due_on=_as_date(payload.get("due_on"))
+        or invoices.default_due(row, issued=issued),
         note=payload.get("note_text"),
     )
     return row
@@ -785,7 +861,7 @@ def _assert_allowed(db: Session, row: Purchase, number: Optional[int],
     """**Darf mit diesem hier gehandelt werden?** – die EINE Prüfung, zwei Aufrufer.
 
     **Leer heisst frei, nicht «niemand».** Beim Beschaffen steht immer mindestens ein
-    Lieferant da (``suppliers_required``); beim **Bewegen** entscheidet sich der Spediteur
+    Lieferant da (``parties = REQUIRED``); beim **Bewegen** entscheidet sich der Spediteur
     zur Laufzeit – genau wie dort das offene Ziel –, und beim **Verkauf** weiss beim
     Modellieren niemand, wer einmal kauft. Ohne diese Unterscheidung könnte man an einem
     Transport nirgends anfragen und nichts verkaufen.
@@ -803,23 +879,25 @@ def _assert_allowed(db: Session, row: Purchase, number: Optional[int],
                         + ", ".join(str(n) for n in allowed) + "."),
             )
         return
-    # **Frei heisst nicht «irgendwer».** Wo die Definition niemanden nennt, wird zur
-    # Laufzeit gesucht (``/orders/party-options``) – und die Suche bietet genau die Rolle
-    # an, die der ``Flow`` nennt. Der Dienst muss dasselbe verlangen, sonst wäre die
-    # Auswahlliste eine Bitte: dieselbe Haltung wie bei ``places.search``.
-    found = (
-        db.query(UserProfile)
-        .filter(UserProfile.object_id == number,
-                UserProfile.is_active.is_(True),
-                UserProfile.role == flow.party_role)
-        .first()
-    )
-    if found is None:
+    # **Wo die Definition niemanden nennt, wird zur Laufzeit gesucht**
+    # (``/orders/party-options``) – und die Suche liest **dieselbe** Angabe wie diese
+    # Prüfung (``Flow.party_roles``). Zwei Listen wären zwei Massstäbe, und die Auswahl
+    # böte an, was der Dienst danach abweist.
+    #
+    # **Leer heisst frei** (Testnotiz #779): beim Verkauf darf jeder kaufen – auch ein
+    # Mitarbeiter, auch ein Lieferant. Beim Einkauf ist «Lieferant» dagegen eine
+    # Zulassung, die wir vergeben; dort bleibt die Rolle eine echte Bedingung.
+    query = db.query(UserProfile).filter(UserProfile.object_id == number,
+                                         UserProfile.is_active.is_(True))
+    if flow.party_roles:
+        query = query.filter(UserProfile.role.in_(flow.party_roles))
+    if query.first() is None:
+        who = f"ist kein {flow.party_word}" if flow.party_roles else "gibt es nicht"
         raise HTTPException(
             status_code=400,
-            detail=(f"{number} ist kein {flow.party_word} – bei diesem Modul ist niemand "
-                    f"vorab zugelassen, gehandelt werden kann trotzdem nur mit "
-                    f"jemandem, der als {flow.party_word} geführt ist."),
+            detail=(f"{number} {who} – bei diesem Modul ist niemand vorab zugelassen, "
+                    f"gehandelt werden kann trotzdem nur mit einem Datensatz, den es "
+                    f"gibt."),
         )
 
 

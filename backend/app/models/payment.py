@@ -11,16 +11,15 @@ from .base import TimestampMixin
 class Payment(Base, TimestampMixin):
     """**Eine Zeile Geld an einem Beleg** – und mehr braucht es dafür nicht.
 
-    ## Es gibt keine Forderungs-Tabelle
+    ## Offen ist eine Ableitung, keine Spalte
 
-    *Offen* ist eine **Subtraktion**: Belegsumme − Gutschriften − Zahlungen
-    (``services/payments.balance``). *Fällig* ist eine **Addition**: Zusagedatum +
-    Zahlungsfrist. *Überfällig* ist beides zusammen. Drei Ableitungen, null Spalten – und
-    damit gibt es keine Zahl, die stillschweigend von der Wirklichkeit abweichen kann.
+    *Offen* ist eine **Subtraktion**: Forderungen − Zahlungen
+    (``services/payments.balance``). *Fällig* steht an der **Rechnung**, nicht hier – eine
+    Zahlung hat keine Fälligkeit. Beides sind Ableitungen, und damit gibt es keine Zahl,
+    die stillschweigend von der Wirklichkeit abweichen kann.
 
-    Eine Spalte «offener Betrag» wäre die zweite Wahrheit: sie müsste bei jeder Zahlung,
-    jeder Gutschrift und jeder Mengenklärung nachgezogen werden, und die eine vergessene
-    Stelle fällt erst auf, wenn jemand mahnt.
+    Eine Spalte «offener Betrag» wäre die zweite Wahrheit: sie müsste bei jeder Buchung
+    nachgezogen werden, und die eine vergessene Stelle fällt erst auf, wenn jemand mahnt.
 
     ## Der Weg des Geldes ist ein FELD, kein Modell
 
@@ -34,21 +33,19 @@ class Payment(Base, TimestampMixin):
     Aufträge erzeugte, und einem Aufräumer für verlassene Warenkörbe. Hier nennt das ERP
     Betrag und Währung, und der Webhook schreibt **eine Zeile**.
 
-    ## Zwei Arten, weil zwei Dinge Verschiedenes bedeuten
+    ## Eine Zeile: Geld ist geflossen
 
-    ``payment``  Geld ist geflossen. Positiv = es kam an (bzw. wir haben gezahlt),
-                 **negativ** = es ging zurück (Erstattung).
-    ``credit``   Die **Forderung** wird gemindert, ohne dass Geld fliesst: Gutschrift nach
-                 einer Retoure, Kulanz, ein nachträglicher Abzug.
+    Positiv = es kam an (bzw. wir haben gezahlt), **negativ** = es ging zurück
+    (Erstattung). Eine eigene Art für die Erstattung hiesse, dasselbe zweimal zu erklären.
 
-    Ohne diese Unterscheidung liesse sich «wie viel hat der Kunde wirklich gezahlt» nicht
-    mehr beantworten – und eine Retoure sähe aus wie eine offene Rechnung. Mit ihr geht
-    jeder Fall in **einer** Formel auf: 1 400 zugesagt, 1 400 bezahlt, 2 Stück zurück
-    (140 Gutschrift, 140 erstattet) → 1 400 − 140 − 1 260 = **0**.
+    Eine **Gutschrift** steht hier nicht: sie mindert die Forderung, ohne dass Geld
+    fliesst – also ist sie eine **negative Rechnung** (``models/invoice``). Als
+    Zahlungs-Art brauchte sie eine eigene Regel («hat keinen Zahlweg»); als Vorzeichen an
+    der richtigen Achse braucht sie keine.
 
-    **Ware und Geld bleiben entkoppelt**, und das ist keine Nachlässigkeit: eine Gutschrift
-    ohne Rücknahme ist Kulanz, eine Rücknahme ohne Gutschrift ist Garantie. Gekoppelt wäre
-    weder das eine noch das andere abbildbar.
+    **Ware, Forderung und Geld bleiben entkoppelt**, und das ist keine Nachlässigkeit:
+    eine Gutschrift ohne Rücknahme ist Kulanz, eine Rücknahme ohne Gutschrift ist
+    Garantie. Gekoppelt wäre weder das eine noch das andere abbildbar.
     """
 
     __tablename__ = "payments"
@@ -69,8 +66,13 @@ class Payment(Base, TimestampMixin):
     #: wie beim Beleg selbst: sie läuft unter der Auftragsnummer.
     purchase_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
-    #: ``payment`` · ``credit`` (``domain/money.KINDS``).
-    kind: Mapped[str] = mapped_column(String(10), nullable=False, default="payment")
+    # ►► **``kind`` ist entfallen** (Migration 123). Eine Gutschrift war damit eine
+    #    Zahlung, bei der kein Geld fliesst – ein Widerspruch, den eine eigene Regel
+    #    zusammenhalten musste («eine Gutschrift hat keinen Zahlweg»). Als **negative
+    #    Rechnung** ist sie schlicht richtig, und beide Regeln sind weg.
+    #
+    #    Die Spalte steht noch (Zwei-Deploy-Regel, ``docs/backlog.md``): fiele sie jetzt,
+    #    liefe der noch laufende alte Code im Deploy-Fenster gegen eine Tabelle ohne sie.
 
     #: Der Betrag. **Darf negativ sein** – eine Erstattung ist eine Zahlung rückwärts, und
     #: sie als eigene Art zu führen hiesse, dasselbe zweimal zu erklären.

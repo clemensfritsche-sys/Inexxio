@@ -2771,9 +2771,18 @@ def test_the_history_hangs_where_nothing_clips_it():
     assert "data-tip={history} data-tip-list={history ? '' : undefined}" in mark, (
         "Das Zeichen trägt die Historie gar nicht mehr."
     )
-    assert "<ModuleMark" in head and "history={history}" in head, (
-        "Die Modul-Karte reicht ihre Historie nicht an das Zeichen weiter – dann hängt "
-        "sie wieder nirgends."
+    # **Gefragt wird nach der WEITERGABE, nicht nach dem Bauteil.** Seit die Hülle
+    # geteilt ist (`ModuleShell`, #783), rendert die Karte das Zeichen nicht mehr selbst –
+    # sie reicht die Historie durch, und die Hülle hängt sie an. Ein Wächter, der hier
+    # `<ModuleMark` verlangt, prüfte die **Form** der alten Lösung und verböte die
+    # geteilte: er schlüge an, obwohl die Regel besser erfüllt ist als vorher.
+    assert "history={history}" in head, (
+        "Die Modul-Karte reicht ihre Historie nicht weiter – dann hängt sie nirgends."
+    )
+    shell = src.split("export function ModuleShell(")[1].split("\nexport function ")[0]
+    assert "<ModuleMark" in shell and "history={history}" in shell, (
+        "Die Hülle hängt die Historie nicht an das Zeichen – dort und nur dort gehört sie "
+        "hin (an der Beschriftung schneidet `truncate` sie weg)."
     )
 
 
@@ -4981,8 +4990,13 @@ def test_a_bought_transport_is_the_ordinary_purchase_document():
         "borgt sich die eines Moduls, das hier gar nicht steht (und den Katalog lädt nur "
         "der Editor)."
     )
-    assert "<ModuleMark" in head, (
-        "Das Zeichen ist nachgebaut statt geteilt – ein Einkauf sieht überall gleich aus."
+    # **Geteilt, nicht nachgebaut** – und zwar die ganze Hülle (`ModuleShell`), nicht nur
+    # das Zeichen: ein Einkauf **in** einem Modul ist nichts anderes als ein Modul, also
+    # sieht er auch so aus (#783, «container im container»). Ein eigener Nachbau daneben
+    # wiche beim ersten Karten-Detail ab.
+    assert "<ModuleShell" in head, (
+        "Der Beleg-Block baut die Modul-Karte nach, statt sie zu teilen – ein Einkauf "
+        "sieht dann nicht überall gleich aus."
     )
 
     # (4) Und es gibt keine zweite Versand-Oberfläche daneben.
@@ -5254,25 +5268,36 @@ def test_the_haulage_switch_has_two_directions():
     )
 
 
-def test_the_procurement_block_carries_its_tone_as_a_line_not_a_surface():
-    """**Der ganze Einkaufs-Bereich trägt die Farbe seines Vorgangs** (Testnotiz #776).
+def test_the_procurement_block_is_a_module_card_in_a_module_card():
+    """►►► **Der ganze Einkaufs-Bereich ist eine Modul-Karte** (Testnotizen #776/#783). ◄◄◄
 
-    Vorher tat das nur die Kopfzeile; darunter lief der Beleg in der Grundfarbe weiter,
-    und die Zugehörigkeit endete nach zwei Zentimetern.
+    Er trug seine Farbe zuerst nur in der Kopfzeile (#776), dann als Haarlinie an der
+    Kante – aus Sorge vor der «dritten Fläche» (#100/#104). Gemeldet wurde daraufhin das
+    Gegenteil: *«es sollte wirklich wie ein Container im Container sein, und der Container
+    ist ein 1:1 Abbild eines regulären Moduls – ist ja auch nichts anderes; auch der ganze
+    Container soll die entsprechende Farbe und das Design tragen.»* Das ist die Ansage,
+    und sie trägt: ein Einkauf **in** einem Bewegen-Modul ist ein Vorgang mit eigener
+    Identität, keine Fussnote am Rand.
 
-    **Als Linie, nicht als Fläche.** Eine getönte Karte wäre die dritte Fläche
-    (Modul-Karte → Beleg-Karte → Stufen-Zeile) – «Struktur vor Fläche» ist die ERP-Regel
-    des Hauses. Bug-Form: ein `background` in der Modulfarbe.
+    **Die Regel ist «geteilt», nicht «so aussehen wie»**: dieselbe Hülle wie eine
+    Modul-Karte (`ModuleShell` in `process-diagram`), damit die beiden nicht beim ersten
+    Karten-Detail auseinanderlaufen. **Wie** eine Karte aussieht, entscheidet dann die
+    Hülle – hier steht dazu nichts mehr.
+
+    Bug-Formen: (a) der Block baut die Karte nach; (b) er bringt einen eigenen Rahmen,
+    eine eigene Fläche oder eine eigene Polsterung mit.
     """
     block = _body(_code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx")),
                   "ProcurementBlock", kind="function")
-    assert "borderLeft" in block, (
-        "Der Bereich trägt seine Farbe nicht über die Kopfzeile hinaus."
+    assert "<ModuleShell" in block, (
+        "Der Beleg-Block ist keine geteilte Modul-Karte – dann sieht ein Einkauf hier "
+        "anders aus als überall sonst."
     )
-    assert "background" not in block, (
-        "Der Einkaufs-Bereich ist eine getönte FLÄCHE – das ist die dritte Karte in der "
-        "Karte; die Zugehörigkeit trägt im ERP die Haarlinie."
-    )
+    for own in ("borderLeft", "border:", "background", "padding", "rounded-ds"):
+        assert own not in block, (
+            f"«{own}» steht im Beleg-Block – die Form gehört der Hülle. Wer sie hier "
+            f"noch einmal beschreibt, hat zwei Fassungen derselben Karte."
+        )
 
 
 def test_the_stage_keys_are_mirrored_not_written_out():
@@ -5351,3 +5376,108 @@ def test_the_counterparty_role_comes_from_the_catalogue():
     assert "'customer'" not in work and "'supplier'" not in work, (
         "Die Karte kennt wieder Rollen – sie soll `can` und `party_role` fragen."
     )
+
+
+def test_the_payment_methods_a_human_may_pick_mirror_the_service():
+    """►►► **Karte tippt niemand ab** (Testnotiz #782). ◄◄◄
+
+    Eine Kartenzahlung entsteht beim Zahlungsdienst und kommt über den Webhook. Sie im
+    Formular anzubieten wäre eine **zweite Quelle** für dieselbe Buchung – die eine aus
+    der Wirklichkeit, die andere aus einer Erinnerung.
+
+    **Zwei Formen einer Regel, ein Namensstamm**: ``METHODS`` sagt, was es *gibt* (der
+    Webhook schreibt dagegen durch), ``MANUAL_METHODS`` was man *eintragen* darf. Die
+    Oberfläche spiegelt die zweite – durchgesetzt wird sie im Dienst, hier steht die
+    freundliche Hälfte.
+
+    **Und zwei Werte sind ein Schieber, keine Auswahlliste**: dieselbe Form wie überall im
+    Haus (`IconSwitch`).
+
+    Bug-Formen: (a) die Karte ist wieder wählbar; (b) die Liste läuft vom Backend weg;
+    (c) es ist wieder ein `<select>`.
+    """
+    from app.domain import money
+
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    # Am **Deklarations**-Kopf ansetzen, nicht am ersten Vorkommen: das steht im
+    # Erklärtext darüber, und die Liste danach wäre leer – ein Wächter, der versehentlich
+    # nichts prüft.
+    listed = re.findall(r"\{ value: '([a-z]+)', icon:",
+                        src.split("export const MANUAL_METHODS")[1])
+    assert listed, "Die Liste wurde nicht gefunden – der Wächter prüft nichts."
+    assert tuple(listed) == money.MANUAL_METHODS, (
+        f"Die wählbaren Zahlwege laufen auseinander: {listed} ≠ "
+        f"{list(money.MANUAL_METHODS)}"
+    )
+    assert money.CARD not in listed, (
+        "Die Karte ist wieder von Hand wählbar – dann gibt es zwei Quellen für dieselbe "
+        "Buchung."
+    )
+
+    form = _body(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"),
+                 "PayForm", kind="function")
+    assert "IconSwitch" in form and "MANUAL_METHODS" in form, (
+        "Der Zahlweg ist kein Schieber aus der einen Liste."
+    )
+    assert "<select" not in form, (
+        "Der Zahlweg ist wieder eine Auswahlliste – bei zwei Werten sind das drei Klicks "
+        "für einen."
+    )
+    # **Und keine «Art» mehr**: eine Gutschrift ist eine negative RECHNUNG.
+    assert "'credit'" not in form and "Gutschrift" not in form, (
+        "Die Art ist zurück im Zahlungsformular – eine Gutschrift gehört auf die "
+        "Forderungs-Achse, dort fliesst kein Geld."
+    )
+
+
+def test_the_invoice_is_offered_by_can_and_its_word_comes_from_the_server():
+    """**Die Forderung ist eine Handlung wie jede andere** – und ihr Wort gehört dem Flow.
+
+    «Rechnung stellen» ↔ «Rechnung erfassen»: wir stellen unsere, seine erfassen wir. Ein
+    Literal in der Oberfläche wäre die zweite Aussage darüber, in welche Richtung dieser
+    Beleg zeigt – genau der Fehler, den die Stufen-Schlüssel schon einmal hatten.
+
+    **Und die Nummer kommt vom Server** (`next_invoice_number`): eine im Browser gebaute
+    wäre die zweite Fassung desselben Formats.
+
+    Bug-Formen: (a) der Knopf hängt an einem Modultyp statt an `can`; (b) das Wort steht
+    fest im Rumpf; (c) die Nummer wird hier zusammengesetzt.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
+    money_block = _body(src, "Money", kind="function")
+    assert "may(p, active, 'invoice')" in money_block, (
+        "Der Rechnungs-Knopf hängt nicht an `can` – dann steht er da, wo der Server "
+        "abweist."
+    )
+    form = _body(src, "InvoiceForm", kind="function")
+    assert "p.invoice_verb" in form, "Das Wort auf dem Knopf kommt nicht vom Server."
+    assert "Rechnung stellen" not in form and "Rechnung erfassen" not in form, (
+        "Das Verb steht fest im Rumpf – an einem Einkaufs-Beleg ist es damit falsch."
+    )
+    assert "p.next_invoice_number" in form, "Die Nummer kommt nicht vom Server."
+    assert "-1" not in form.split("next_invoice_number")[1][:400], (
+        "Die Nummer wird im Browser zusammengesetzt – zwei Fassungen desselben Formats."
+    )
+
+
+def test_the_deal_shows_all_three_axes_and_none_of_them_is_a_stage():
+    """►►► **Ware · Forderung · Geld — drei Achsen, keine vierte Stufe.** ◄◄◄
+
+    Die Stufen-Kette bleibt dreigliedrig; Forderung und Zahlung stehen **daneben**
+    (`Money`). Eine Rechnung macht aus einem Angebot keine Zusage, und eine Zahlung macht
+    aus nicht gelieferter Ware keine gelieferte.
+
+    Bug-Form: `invoice` oder `pay` taucht in der Stufen-Schleife auf. Dann ist die
+    Reihenfolge Ware → Forderung → Geld vorgeschrieben, und Vorauszahlung braucht einen
+    zweiten Weg.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
+    stages = src.split("{p.stages.map(")[1].split("})}")[0]
+    for word in ("'invoice'", "'pay'", "'link'"):
+        assert word not in stages, (
+            f"{word} steht in der Stufen-Schleife – dann hängt es an einer Stufe, und die "
+            f"Reihenfolge ist eine Regel geworden."
+        )
+    money_block = _body(src, "Money", kind="function")
+    for word in ("'invoice'", "'pay'", "'link'"):
+        assert word in money_block, f"{word} fehlt neben den Stufen."

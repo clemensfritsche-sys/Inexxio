@@ -13,12 +13,13 @@ import { DetailHeader, HeaderAction, IconSwitch } from '@/components/erp/fields'
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
 import {
-  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, ModuleMark, StepCard, definitionGraph,
+  DRAFT_OBJECT_ID, EMPTY_GRAPH, PROCESS_MAXW, StepCard, definitionGraph,
   type DiagramStep,
   type JourneyOrigin,
 } from '@/components/erp/process-diagram';
 import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
+import { ModuleShell } from '@/components/erp/process-diagram';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
@@ -533,28 +534,20 @@ function ProcurementBlock({ purchase, children }: {
   // Zuordnung wie im Backend. Keine Abfrage nach dem Modultyp: hier steht ein Vorgang,
   // kein Modul.
   const flow = flowOf(purchase.direction);
+  // ►►► **Container im Container — und der innere IST eine Modul-Karte** (#783). ◄◄◄
+  //
+  // Nicht nachgebaut, sondern **geteilt**: `ModuleShell` ist dasselbe Bauteil, das auch
+  // `StepCard` trägt (Rahmen in der Modulfarbe, getönte Fläche, Kopf mit `ModuleMark`,
+  // Haarlinie vor dem Körper). Ein Einkauf in einem Bewegen-Modul ist ja nichts anderes
+  // als ein Modul – also sieht er auch so aus, in seiner eigenen Farbe.
+  //
+  // *Die frühere Fassung war eine Haarlinie an der Kante, aus der Sorge vor der «dritten
+  // Fläche» (#100/#104). Sie beantwortete die Frage «wozu gehört das hier?» erst auf den
+  // zweiten Blick – und war nicht das, was gemeldet wurde.*
   return (
-    // ►► **Der ganze Bereich trägt die Farbe seines Vorgangs** (Testnotiz #776) ◄◄
-    //
-    // Vorher tat das nur die Kopfzeile – darunter lief der Beleg in der Grundfarbe
-    // weiter, und die Zugehörigkeit endete nach zwei Zentimetern. Jetzt läuft eine
-    // Haarlinie in seinem Ton am ganzen Block entlang.
-    //
-    // **Eine Linie, keine Fläche.** Eine getönte Karte hier wäre die dritte Fläche
-    // (Modul-Karte → Beleg-Karte → Stufen-Zeile, #100/#104), und «Struktur vor Fläche»
-    // ist die ERP-Regel des Hauses: Haarlinien und Weissraum tragen die Zugehörigkeit,
-    // nicht Rahmen und Schatten.
-    <div className="flex flex-col"
-      style={{ borderLeft: `2px solid ${c.border}`, paddingLeft: 11 }}>
-      <div className="flex items-center gap-2.5"
-        style={{ paddingBottom: 9, marginBottom: 11, borderBottom: `1px solid ${c.border}` }}>
-        <ModuleMark icon={flow.icon} tone={c.fg} size={28} />
-        <span className="text-sm font-semibold" style={{ color: c.fg }}>
-          {purchase.label || flow.label}
-        </span>
-      </div>
+    <ModuleShell tone={c} icon={flow.icon} label={purchase.label || flow.label}>
       {children}
-    </div>
+    </ModuleShell>
   );
 }
 

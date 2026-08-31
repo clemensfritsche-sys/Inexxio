@@ -2,13 +2,13 @@
 
 import { useCallback, useState } from 'react';
 import { useAutosave } from '@/lib/use-autosave';
-import { ArrowUpRight, Check, CircleSlash, Coins, CreditCard, Undo2 } from 'lucide-react';
+import { ArrowUpRight, Check, CircleSlash, Coins, CreditCard, FileText, Undo2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { PurchaseEmbed, PurchaseQuote, SupplierOption } from '@/types';
 import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
-import { Label, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
-import { STAGE } from '@/lib/modules';
+import { IconSwitch, Label, ReadField, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { MANUAL_METHODS, STAGE, type Method } from '@/lib/modules';
 import { formatAmount, localDate } from '@/lib/utils';
 
 /**
@@ -194,13 +194,21 @@ function Money({ p, busy, active, onAction, onLink }: {
   onAction: (body: { action: string } & Record<string, unknown>) => void;
   onLink?: () => Promise<string>;
 }) {
-  const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState<'' | 'invoices' | 'payments'>('');
   const entries = p.entries ?? [];
+  const bills = p.invoices ?? [];
   // Solange nichts zugesagt ist, gibt es keine Summe – und damit nichts zu zeigen.
   if (p.open == null) return null;
 
   const owed = p.open < 0;
   const settled = p.open === 0;
+  // ►►► **«Bezahlt» heisst «gefordert UND beglichen».** ◄◄◄
+  //
+  // Ohne die Unterscheidung stand direkt nach der Zusage «Bezahlt» da – offen ist dort
+  // null, weil noch **nichts gefordert** wurde. Das ist dieselbe Zahl und eine ganz
+  // andere Aussage; wer sie liest, hält den Beleg für erledigt. Gemessen an der echten
+  // Karte, nicht am Code.
+  const nothingYet = !p.charged && !p.paid;
   return (
     <div className="flex flex-col gap-2" style={{
       marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-1)',
@@ -209,13 +217,15 @@ function Money({ p, busy, active, onAction, onLink }: {
         {/* **Punkt + Wort**, wie jeder Zustand im Haus – nicht als gefüllte Plakette. */}
         <span style={{
           width: 6, height: 6, borderRadius: 999, flex: 'none',
-          background: settled ? 'var(--success)'
+          background: nothingYet ? 'var(--border-2)'
+            : settled ? 'var(--success)'
             : p.overdue ? 'var(--danger)' : 'var(--warning)',
         }} />
         <span className="text-[12.5px]" style={{ color: 'var(--fg-2)' }}>
-          {settled ? 'Bezahlt' : owed ? 'Wir schulden' : 'Offen'}
+          {nothingYet ? 'Nichts berechnet'
+            : settled ? 'Bezahlt' : owed ? 'Wir schulden' : 'Offen'}
         </span>
-        {!settled && (
+        {!settled && !nothingYet && (
           <span className="ix-tnum text-[12.5px] font-semibold"
             style={{ color: p.overdue ? 'var(--danger)' : 'var(--fg-1)' }}>
             {formatAmount(Math.abs(p.open))} {p.currency}
@@ -228,25 +238,60 @@ function Money({ p, busy, active, onAction, onLink }: {
             {p.overdue ? 'überfällig seit' : 'fällig'} {localDate(p.due_on)}
           </span>
         )}
+        {/* **Zugesagt, noch nicht berechnet** – die Zahl, die es vor der dritten Achse
+            gar nicht geben konnte, und zugleich die Vorgabe für die nächste Rechnung.
+            Sie steht nur da, wenn sie etwas sagt: bei null ist alles berechnet. */}
+        {!!p.uncharged && (
+          <span className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
+            · {formatAmount(p.uncharged)} noch nicht berechnet
+          </span>
+        )}
+        {bills.length > 0 && (
+          <button type="button" className="text-[12px] underline"
+            style={{ color: 'var(--accent)' }}
+            onClick={() => setShown((v) => (v === 'invoices' ? '' : 'invoices'))}>
+            {bills.length} {bills.length === 1 ? 'Rechnung' : 'Rechnungen'}
+          </button>
+        )}
         {entries.length > 0 && (
           <button type="button" className="text-[12px] underline"
             style={{ color: 'var(--accent)' }}
-            onClick={() => setOpen((v) => !v)}>
+            onClick={() => setShown((v) => (v === 'payments' ? '' : 'payments'))}>
             {entries.length} {entries.length === 1 ? 'Buchung' : 'Buchungen'}
           </button>
         )}
       </div>
 
+      {/* **Die Rechnungen – die dritte Achse.** Ein negativer Betrag ist eine
+          Gutschrift; eine eigene Art dafür gibt es nicht. */}
+      {shown === 'invoices' && bills.map((b) => (
+        <div key={b.id} className="flex items-baseline gap-2 text-[12px]"
+          style={{ color: 'var(--fg-3)', paddingLeft: 14 }}>
+          <span className="ix-tnum" style={{
+            color: b.amount < 0 ? 'var(--success)' : 'var(--fg-2)', minWidth: 78,
+          }}>
+            {formatAmount(b.amount)}
+          </span>
+          {b.number_label && (
+            <span className="font-mono truncate" style={{ maxWidth: 180 }}>
+              {b.number_label}
+            </span>
+          )}
+          {b.issued_on && <span>· {localDate(b.issued_on)}</span>}
+          {b.due_on && <span>· fällig {localDate(b.due_on)}</span>}
+          {b.note && <span className="truncate" style={{ maxWidth: 220 }}>· {b.note}</span>}
+        </div>
+      ))}
+
       {/* **Erst auf Klick** – dieselbe Regel wie beim Modul-Protokoll: eine Liste, die
           bei jeder Anzeige mitläuft, ist bei zwanzig Teilzahlungen eine Wand. */}
-      {open && entries.map((e) => (
+      {shown === 'payments' && entries.map((e) => (
         <div key={e.id} className="flex items-baseline gap-2 text-[12px]"
           style={{ color: 'var(--fg-3)', paddingLeft: 14 }}>
           <span className="ix-tnum" style={{ color: 'var(--fg-2)', minWidth: 78 }}>
             {formatAmount(e.amount)}
           </span>
-          <span>{e.kind_label}</span>
-          {e.method_label && <span>· {e.method_label}</span>}
+          {e.method_label && <span>{e.method_label}</span>}
           {e.paid_at && <span>· {localDate(e.paid_at)}</span>}
           {e.reference && (
             <span className="font-mono truncate" style={{ maxWidth: 180 }}>
@@ -257,6 +302,12 @@ function Money({ p, busy, active, onAction, onLink }: {
       ))}
 
       <div className="flex items-center gap-2 flex-wrap">
+        {/* **Die Forderung steht VOR dem Geld** – nicht als Reihenfolge-Regel, sondern
+            weil man nicht kassiert, was niemand gefordert hat. Wann sie entsteht,
+            entscheidet der Mensch: vorher (Vorauszahlung) oder nachher (Zahlungsziel). */}
+        {may(p, active, 'invoice') && (
+          <InvoiceForm p={p} busy={busy} onAction={onAction} />
+        )}
         {may(p, active, 'pay') && (
           <PayForm p={p} busy={busy} onAction={onAction} />
         )}
@@ -270,16 +321,24 @@ function Money({ p, busy, active, onAction, onLink }: {
 }
 
 /**
- * **Eine Zeile Geld erfassen** – Betrag, Art, Weg, Referenz.
+ * **Eine Zeile Geld erfassen** – Betrag, Weg, Referenz.
  *
  * Kein eigener Endpunkt: `pay` ist eine Handlung am Beleg wie jede andere (`onAction`).
  * Sie hat nur keine **Stufe** – Geld fliesst, sobald zugesagt ist, und auch noch nach
  * einem Storno.
  *
- * **Der Weg ist Pflicht bei einer Zahlung und verboten bei einer Gutschrift**: dort
- * fliesst kein Geld, und ein Weg daneben wäre eine Angabe über etwas, das nicht
- * stattgefunden hat. Die Regel steht im Dienst (`money.assert_method`); hier folgt ihr
- * das Formular, damit man gar nicht erst etwas eingibt, das abgewiesen würde.
+ * **Keine «Art» mehr.** Eine Gutschrift ist eine negative **Rechnung**: dabei fliesst
+ * kein Geld, also gehört sie auf die andere Achse. Als Zahlungs-Art brauchte sie eine
+ * eigene Regel («hat keinen Zahlweg») – jetzt braucht sie keine.
+ *
+ * **Und keine Karte** (#782): eine Kartenzahlung entsteht beim Zahlungsdienst und kommt
+ * über den Webhook. Sie hier abzutippen wäre eine zweite Quelle für dieselbe Buchung –
+ * die eine aus der Wirklichkeit, die andere aus einer Erinnerung. Die Regel steht im
+ * Dienst (`money.MANUAL_METHODS`, durchgesetzt in `purchase._pay`); hier folgt ihr das
+ * Formular, damit man gar nicht erst etwas eingibt, das abgewiesen würde.
+ *
+ * **Zwei Werte sind ein Schieber, keine Liste** – dieselbe Form wie überall im Haus
+ * (`IconSwitch`): man sieht, was gilt, und wechselt mit einem Klick statt mit dreien.
  */
 function PayForm({ p, busy, onAction }: {
   p: Filled; busy?: boolean;
@@ -287,8 +346,7 @@ function PayForm({ p, busy, onAction }: {
 }) {
   const [show, setShow] = useState(false);
   const [amount, setAmount] = useState('');
-  const [kind, setKind] = useState<'payment' | 'credit'>('payment');
-  const [method, setMethod] = useState('transfer');
+  const [method, setMethod] = useState<Method>('transfer');
   const [reference, setReference] = useState('');
 
   if (!show) {
@@ -303,7 +361,6 @@ function PayForm({ p, busy, onAction }: {
       </button>
     );
   }
-  const credit = kind === 'credit';
   return (
     <div className="flex items-end gap-2 flex-wrap">
       <div style={{ width: 108 }}>
@@ -311,38 +368,24 @@ function PayForm({ p, busy, onAction }: {
         <input className={inputCls} {...numericInputProps} value={amount}
           onChange={(e) => setAmount(numericOnly(e.target.value))} />
       </div>
-      <div style={{ width: 128 }}>
-        <Label>Art</Label>
-        <select className={inputCls} value={kind}
-          onChange={(e) => setKind(e.target.value as 'payment' | 'credit')}>
-          <option value="payment">Zahlung</option>
-          <option value="credit">Gutschrift</option>
-        </select>
+      <div>
+        <Label>Weg</Label>
+        <IconSwitch<Method>
+          value={method} onChange={setMethod}
+          options={MANUAL_METHODS.map((m) => ({
+            value: m.value, icon: m.icon, label: m.label, hint: m.hint,
+          }))}
+        />
       </div>
-      {/* Eine **Aufzählung** und keine Referenz – ein natives `select` ist hier richtig
-          (endlich, nicht durchsuchbar nötig); die Regel gilt Datensätzen. */}
-      {!credit && (
-        <div style={{ width: 128 }}>
-          <Label>Weg</Label>
-          <select className={inputCls} value={method}
-            onChange={(e) => setMethod(e.target.value)}>
-            <option value="transfer">Überweisung</option>
-            <option value="card">Karte</option>
-            <option value="cash">Bar</option>
-          </select>
-        </div>
-      )}
       <div style={{ width: 180 }}>
         <Label>Referenz</Label>
-        <input className={inputCls} value={reference}
-          placeholder={credit ? 'Gutschrift-Nr.' : 'Zahlungszweck'}
+        <input className={inputCls} value={reference} placeholder="Zahlungszweck"
           onChange={(e) => setReference(e.target.value)} />
       </div>
       <button type="button" className="erp-actbtn erp-actbtn-primary"
         style={{ height: 30 }} disabled={busy || amount.trim() === ''}
         onClick={() => {
-          onAction({ action: 'pay', amount: Number(amount), kind,
-                     method: credit ? null : method, reference });
+          onAction({ action: 'pay', amount: Number(amount), method, reference });
           setShow(false); setAmount(''); setReference('');
         }}>
         <Check size={13} /> Buchen
@@ -352,6 +395,86 @@ function PayForm({ p, busy, onAction }: {
     </div>
   );
 }
+
+
+/**
+ * ►►► **Eine Forderung stellen — die dritte Achse neben Ware und Geld.** ◄◄◄
+ *
+ * **Alles ist vorbelegt**, und das ist die ganze Automatik: der Betrag mit *zugesagt −
+ * bereits berechnet*, die Fälligkeit mit *heute + vereinbarte Frist*, die Nummer mit
+ * `<Auftragsnummer>-<laufend>`. Der Normalfall ist damit ein Klick – und jede Abweichung
+ * eine Eingabe statt eines zweiten Wegs.
+ *
+ * **Es gibt keinen Modus.** Ob die Rechnung vor der Lieferung steht (Vorauszahlung) oder
+ * danach (Zahlungsziel), ist die Reihenfolge, in der ein Mensch handelt – kein Schalter,
+ * keine Einstellung. Eine negative Zahl ist eine **Gutschrift**; auch dafür braucht es
+ * keine zweite Handlung.
+ *
+ * **Die Nummer kommt vom Server** (`next_invoice_number`) – beim Einkauf leer, denn dort
+ * nummeriert die Gegenpartei. Eine im Browser gebaute Nummer wäre die zweite Fassung
+ * desselben Formats.
+ *
+ * **Und kein Fälligkeits-Feld** (dieselbe Regel wie beim Liefertermin, #745): sie ist
+ * *Rechnungsdatum + vereinbarte Zahlungsfrist*, und die Frist ist die Vereinbarung. Ein
+ * abweichendes Datum wäre eine Neuverhandlung – die ändert die Frist, nicht diese eine
+ * Zeile. Der Dienst nimmt `due_on` trotzdem entgegen: dort ist es die Naht, über die die
+ * Migration bestehende Belege setzt.
+ */
+function InvoiceForm({ p, busy, onAction }: {
+  p: Filled; busy?: boolean;
+  onAction: (body: { action: string } & Record<string, unknown>) => void;
+}) {
+  const [show, setShow] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [number, setNumber] = useState('');
+  const [note, setNote] = useState('');
+
+  if (!show) {
+    return (
+      <button type="button" className="erp-actbtn self-start" style={{ height: 28 }}
+        disabled={busy} onClick={() => {
+          setAmount(p.uncharged ? String(p.uncharged) : '');
+          setNumber(p.next_invoice_number ?? '');
+          setShow(true);
+        }}>
+        <FileText size={13} /> {p.invoice_verb}
+      </button>
+    );
+  }
+  return (
+    <div className="flex items-end gap-2 flex-wrap">
+      <div style={{ width: 108 }}>
+        <Label>Betrag</Label>
+        <input className={inputCls} {...numericInputProps} value={amount}
+          onChange={(e) => setAmount(numericOnly(e.target.value, { signed: true }))} />
+      </div>
+      <div style={{ width: 150 }}>
+        <Label>Nummer</Label>
+        <input className={inputCls} value={number} maxLength={60}
+          placeholder="Nummer der Gegenpartei"
+          onChange={(e) => setNumber(e.target.value)} />
+      </div>
+      <div style={{ width: 180 }}>
+        <Label>Notiz</Label>
+        <input className={inputCls} value={note} maxLength={400}
+          placeholder="z. B. Anzahlung 30 %"
+          onChange={(e) => setNote(e.target.value)} />
+      </div>
+      <button type="button" className="erp-actbtn erp-actbtn-primary"
+        style={{ height: 30 }} disabled={busy || amount.trim() === ''}
+        onClick={() => {
+          onAction({ action: 'invoice', amount: Number(amount), number,
+                     note_text: note });
+          setShow(false); setAmount(''); setNumber(''); setNote('');
+        }}>
+        <Check size={13} /> {p.invoice_verb}
+      </button>
+      <button type="button" className="erp-actbtn" style={{ height: 30 }}
+        onClick={() => setShow(false)}>Abbrechen</button>
+    </div>
+  );
+}
+
 
 /**
  * **Eine Zahlungsaufforderung erzeugen** – und die Adresse zeigen.

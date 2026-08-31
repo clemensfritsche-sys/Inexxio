@@ -361,27 +361,63 @@ def test_the_words_come_from_the_flow_not_from_a_literal():
     assert p.normalize("storniert") == p.CANCELLED
 
 
-def test_the_counterparty_of_a_sale_is_a_customer():
-    """**Wer kaufen darf, sagt der Flow** – nicht ein ``if`` im Dienst.
+def test_anyone_may_buy_from_us_but_being_a_supplier_is_a_permission():
+    """►►► **Jeder darf Kunde sein. «Lieferant» ist dagegen eine Zulassung.** ◄◄◄
 
-    Bug-Form: der Verkauf verlangt einen *Lieferanten*. Dann liesse sich an niemanden
-    verkaufen, den man als Kunden führt – und die Auswahlliste böte Leute an, die der
-    Dienst danach abweist.
+    Die Rolle sagt, was jemand **für uns** tut – nicht, ob er **bei uns** kaufen darf. Ein
+    Mitarbeiter, der eine Schraube kauft, ist ein Kunde; ein Lieferant, der etwas bestellt,
+    auch. Es gibt keinen Grund, sie auszuschliessen (Testnotiz #779).
+
+    Beim **Einkauf** ist es umgekehrt: dort ist «Lieferant» eine Beziehung, die wir
+    vergeben, und die Rolle bleibt eine echte Bedingung.
+
+    Der Unterschied steht als **Daten** im ``Flow`` (``party_roles`` – leer heisst frei),
+    nicht als ``if role == 'customer'``. Und **dieselbe** Angabe lesen beide Seiten: die
+    Auswahlliste (``/orders/party-options``) und die Prüfung im Dienst
+    (``_assert_allowed``) – sonst böte die Liste an, was der Dienst danach abweist.
+
+    Bug-Formen: (a) der Verkauf verlangt eine Rolle; (b) der Einkauf verlangt keine mehr;
+    (c) Liste und Dienst lesen zwei verschiedene Angaben.
     """
     from fastapi import HTTPException
+    from app.domain import procurement
     from app.services import purchase as svc
     db = _db()
     try:
+        # (a) **An einen Lieferanten verkaufen geht** – er ist auch nur jemand.
         lieferant = _user(db, "Würth AG", "supplier")
         art = _article(db, "Welle D", steps=[_sell_step()])
         order, rows = _make(db, quantity=1, article=art)
         staff = _staff(db)
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"suppliers": [lieferant.object_id]}, actor=staff)
+        db.flush()
+        assert svc.of_step(db, rows[0].id).quotes, (
+            "An einen Lieferanten liess sich nicht verkaufen – die Rolle wurde als "
+            "Bedingung gelesen, obwohl sie beim Verkauf keine ist."
+        )
+
+        # (b) Beim **Einkauf** bleibt sie eine: ein Kunde ist kein Lieferant.
+        kunde = _customer(db, "Meier Privat")
+        buy_art = _article(db, "Rohteil D", steps=[{
+            "module_type": "beschaffen",
+            "config": {"instruction": "liefern",
+                       "suppliers": [{"supplier": lieferant.object_id, "ref": "W-1"}]}}])
+        buy_order, buy_rows = _make(db, quantity=1, article=buy_art)
         with pytest.raises(HTTPException) as err:
-            svc.apply(db, order=order, step=rows[0], action="ask",
-                      payload={"suppliers": [lieferant.object_id]}, actor=staff)
+            svc.apply(db, order=buy_order, step=buy_rows[0], action="ask",
+                      payload={"suppliers": [kunde.object_id]}, actor=staff)
         assert err.value.status_code == 400
-        assert "kunde" in err.value.detail.lower(), (
-            f"Der Satz nennt die falsche Gegenpartei: {err.value.detail}"
+
+        # (c) **Eine Angabe, zwei Leser.** Der Flow sagt es, und die Prüfung liest ihn.
+        assert procurement.FLOWS[procurement.SELL].party_roles == ()
+        assert procurement.FLOWS[procurement.BUY].party_roles == ("supplier",)
+        import pathlib
+        src = pathlib.Path(svc.__file__).read_text(encoding="utf-8")
+        body = src.split("def _assert_allowed")[1].split("\ndef ")[0]
+        assert "flow.party_roles" in body, (
+            "Der Dienst liest die Angabe nicht – dann kann die Auswahlliste anbieten, "
+            "was er danach abweist."
         )
     finally:
         db.rollback(); db.close()
@@ -449,22 +485,33 @@ def test_a_partial_delivery_keeps_the_document_open():
 # ---------------------------------------------------------------------------
 
 def test_open_and_due_are_derivations_not_columns():
-    """**Offen = Summe − Gutschriften − Zahlungen.** Eine Formel, jeder Fall darin.
+    """**Offen = Forderungen − Zahlungen.** Eine Formel, jeder Fall darin.
 
-    Bug-Form: eine Spalte «offener Betrag». Sie müsste bei jeder Zahlung, jeder Gutschrift
-    und jeder Mengenklärung nachgezogen werden – und die eine vergessene Stelle fällt erst
-    auf, wenn jemand mahnt.
+    Und **eine Gutschrift ist eine negative Rechnung**, keine Zahlung: dabei fliesst kein
+    Geld. Vorher war sie eine ``payment``-Zeile der Art ``credit`` – mit einer eigenen
+    Regel dafür und einer dritten Summe in der Formel.
+
+    Bug-Formen: (a) eine Spalte «offener Betrag» – sie müsste bei jeder Buchung nachgezogen
+    werden, und die eine vergessene Stelle fällt erst auf, wenn jemand mahnt; (b) die
+    Formel liest wieder die **Zusage** statt der Forderung; (c) die Gutschrift ist wieder
+    eine Zahlung.
     """
     from decimal import Decimal
     from app.domain import money
-    from app.models import Payment
-    from app.services import payments, purchase as svc
+    from app.models import Invoice, Payment
+    from app.services import invoices, payments, purchase as svc
     db = _db()
     try:
-        # Keine Spalte darf das Ergebnis vorwegnehmen.
-        columns = set(Payment.__table__.columns.keys())
-        assert not columns & {"open", "balance", "outstanding", "due_on"}, (
-            "Am Zahlungs-Datensatz steht eine gerechnete Grösse als Spalte."
+        # (a) Keine Spalte darf das Ergebnis vorwegnehmen.
+        for model in (Payment, Invoice):
+            assert not set(model.__table__.columns.keys()) & {
+                "open", "balance", "outstanding", "paid", "charged"}, (
+                f"An «{model.__tablename__}» steht eine gerechnete Grösse als Spalte."
+            )
+        # (c) Und es gibt keine Art mehr – eine Gutschrift ist ein Vorzeichen.
+        assert "kind" not in Payment.__table__.columns.keys(), (
+            "Die Art ist zurück. Eine Gutschrift ist eine negative RECHNUNG; als "
+            "Zahlungs-Art brauchte sie eine eigene Regel («hat keinen Zahlweg»)."
         )
 
         kunde = _customer(db)
@@ -473,14 +520,24 @@ def test_open_and_due_are_derivations_not_columns():
         _commit(db, order, rows[0], kunde, amount=1400)
         row = svc.of_step(db, rows[0].id)
 
+        # (b) **Zugesagt ist nicht gefordert.** Vor der Rechnung ist nichts offen – und
+        #     genau das konnte die alte Formel nicht sagen.
+        assert payments.balance(db, row).open == Decimal("0.00"), (
+            "Ohne Rechnung ist etwas offen – dann liest die Formel wieder die Zusage."
+        )
+        assert payments.balance(db, row).uncharged == Decimal("1400.00"), (
+            "«zugesagt, noch nicht berechnet» stimmt nicht."
+        )
+
+        invoices.record(db, purchase=row, amount=1400, number="R-1")
         assert payments.balance(db, row).open == Decimal("1400.00")
         payments.record(db, purchase=row, amount=1400, method=money.TRANSFER,
                         reference="ZE-1")
         assert payments.balance(db, row).settled, "Voll bezahlt ist offen null."
 
-        # Zwei Stück zurück: 140 gutgeschrieben, 140 erstattet → wieder null.
-        payments.record(db, purchase=row, amount=140, kind=money.CREDIT,
-                        reference="GS-1")
+        # Zwei Stück zurück: 140 gutgeschrieben (negative Rechnung), 140 erstattet
+        # (negative Zahlung) → wieder null.
+        invoices.record(db, purchase=row, amount=-140, number="R-2")
         assert payments.balance(db, row).open == Decimal("-140.00"), (
             "Nach der Gutschrift schulden WIR – ein negativer Betrag ist eine Aussage."
         )
@@ -599,8 +656,12 @@ def test_money_flows_beside_the_stages_even_after_a_cancellation():
         assert svc.PAY not in svc.ACTIONS, (
             "«pay» steht unter den Beleg-Verben – dort hängt alles an einer Stufe."
         )
+        assert svc.INVOICE not in svc.ACTIONS, (
+            "«invoice» steht unter den Beleg-Verben – dort hängt alles an einer Stufe, "
+            "und damit wäre die Reihenfolge Ware→Forderung vorgeschrieben."
+        )
         for verbs in svc.STAGE_ACTIONS.values():
-            assert svc.PAY not in verbs
+            assert svc.PAY not in verbs and svc.INVOICE not in verbs
 
         kunde = _customer(db)
         art = _article(db, "Welle I", steps=[_sell_step()])
@@ -608,9 +669,15 @@ def test_money_flows_beside_the_stages_even_after_a_cancellation():
         staff = _commit(db, order, rows[0], kunde, amount=200)
         row = svc.of_step(db, rows[0].id)
         assert svc.PAY in svc._can(db, row, staff), "Nach der Zusage lässt sich zahlen."
+        assert svc.INVOICE in svc._can(db, row, staff), (
+            "Die Forderung läuft ebenso neben den Stufen – sie darf vor der Lieferung "
+            "stehen (Vorauszahlung) und danach (Zahlungsziel)."
+        )
 
+        svc.apply(db, order=order, step=rows[0], action=svc.INVOICE,
+                  payload={}, actor=staff)
         svc.apply(db, order=order, step=rows[0], action=svc.PAY,
-                  payload={"amount": 200, "kind": "payment", "method": "transfer",
+                  payload={"amount": 200, "method": "transfer",
                            "reference": "ZE-9"}, actor=staff)
         assert payments.balance(db, row).settled
 
@@ -621,7 +688,7 @@ def test_money_flows_beside_the_stages_even_after_a_cancellation():
             "Nach einem Storno lässt sich nichts mehr erstatten – das ist eine Sackgasse."
         )
         svc.apply(db, order=order, step=rows[0], action=svc.PAY,
-                  payload={"amount": -200, "kind": "payment", "method": "transfer",
+                  payload={"amount": -200, "method": "transfer",
                            "reference": "ZE-9R"}, actor=staff)
         assert payments.balance(db, row).paid == 0
     finally:
@@ -654,40 +721,68 @@ def test_nothing_is_payable_before_something_was_promised():
         db.rollback(); db.close()
 
 
-def test_a_credit_has_no_payment_method():
-    """**Bei einer Gutschrift fliesst kein Geld** – ein Weg daneben wäre erfunden.
+def test_a_credit_is_a_negative_invoice_and_needs_no_rule_of_its_own():
+    """►►► **Die Regel «eine Gutschrift hat keinen Zahlweg» ist ERSATZLOS weg.** ◄◄◄
 
-    Bug-Form: ``method`` bleibt erlaubt. Dann sieht eine Gutschrift wie eine Überweisung
-    aus, und «wie viel hat der Kunde wirklich gezahlt» ist nicht mehr zu beantworten.
+    Sie war nötig, solange die Gutschrift eine **Zahlung** war, bei der kein Geld fliesst –
+    ein Widerspruch, den eine Ausnahme zusammenhalten musste. Als **negative Rechnung** ist
+    sie schlicht richtig: eine Rechnung hat gar kein Feld für einen Zahlweg, also gibt es
+    nichts zu verbieten. Eine Regel weniger, statt einer Ausnahme mehr.
+
+    Und die Aussage bleibt erhalten: «wie viel hat der Kunde wirklich gezahlt» ist die
+    Summe der Zahlungen, «was schuldet er noch» die Differenz zu den Forderungen.
+
+    Bug-Formen: (a) die Art ist zurück (dann braucht es die Ausnahme wieder); (b) die
+    Rechnung bekommt einen Zahlweg (dann sieht eine Gutschrift wie eine Überweisung aus);
+    (c) die Gutschrift zählt nicht in die Forderung.
     """
-    from fastapi import HTTPException
+    from decimal import Decimal
     from app.domain import money
-    from app.services import payments, purchase as svc
+    from app.models import Invoice
+    from app.services import invoices, payments, purchase as svc
     db = _db()
     try:
+        # (a) + (b): weder eine Art noch ein Zahlweg – und keine Ausnahme, die das regelt.
+        assert not hasattr(money, "CREDIT") and not hasattr(money, "KINDS"), (
+            "Die Art ist zurück – dann ist die Gutschrift wieder eine Zahlung, bei der "
+            "kein Geld fliesst, und die Ausnahme dafür muss auch zurück."
+        )
+        assert "method" not in Invoice.__table__.columns.keys(), (
+            "Eine Rechnung hat einen Zahlweg bekommen – dann sieht eine Gutschrift wie "
+            "eine Überweisung aus."
+        )
+
+        # (c) Und sie **wirkt**: sie mindert die Forderung, ohne dass Geld fliesst.
         kunde = _customer(db)
         art = _article(db, "Welle K", steps=[_sell_step()])
         order, rows = _make(db, quantity=1, article=art)
         _commit(db, order, rows[0], kunde, amount=50)
         row = svc.of_step(db, rows[0].id)
-        with pytest.raises(HTTPException) as err:
-            payments.record(db, purchase=row, amount=10, kind=money.CREDIT,
-                            method=money.TRANSFER)
-        assert err.value.status_code == 400
-        assert "kein geld" in err.value.detail.lower()
+        invoices.record(db, purchase=row, amount=50, number="RK-1")
+        invoices.record(db, purchase=row, amount=-10, number="RK-2", note="Kulanz")
+        state = payments.balance(db, row)
+        assert state.charged == Decimal("40.00"), "Die Gutschrift mindert die Forderung."
+        assert state.paid == Decimal("0"), "Dabei ist kein Geld geflossen."
+        assert state.open == Decimal("40.00")
     finally:
         db.rollback(); db.close()
 
 
-def test_the_due_date_follows_from_the_agreed_terms():
-    """**Fällig = Zusagedatum + Zahlungsfrist** – und ohne Frist gibt es keine Fälligkeit.
+def test_the_due_date_belongs_to_the_invoice_not_to_the_deal():
+    """►►► **Fällig ist die RECHNUNG, nicht der Beleg.** ◄◄◄
 
-    Ein geratenes Datum wäre schlimmer als keines: daraus würde gemahnt.
+    Vorher war es eine Ableitung aus dem Zusagedatum plus Frist. Das konnte genau einen
+    Fall: **eine** Rechnung. Eine Zusage hat gar keine Fälligkeit – eine Rechnung schon,
+    und **zwei Rechnungen haben zwei** (Anzahlung + Schlussrechnung).
 
-    Bug-Form: ein Termin als Eingabefeld daneben. Er ist bei der ersten Verschiebung
-    falsch – dieselbe Regel wie beim Liefertermin (Testnotiz #745).
+    Die Frist bleibt als **Vorgabe** (``invoices.default_due``); gültig ist, was an der
+    Rechnung steht. Und ohne Frist gibt es keine Fälligkeit – ein geratenes Datum wäre
+    schlimmer als keines: daraus würde gemahnt.
+
+    Bug-Formen: (a) die Fälligkeit hängt wieder am Beleg; (b) ohne Frist wird eine
+    erfunden; (c) bei zwei Rechnungen gilt die **späteste** statt der frühesten offenen.
     """
-    from app.services import payments, purchase as svc
+    from app.services import invoices, payments, purchase as svc
     db = _db()
     try:
         kunde = _customer(db)
@@ -697,7 +792,7 @@ def test_the_due_date_follows_from_the_agreed_terms():
         svc.apply(db, order=order, step=rows[0], action="ask",
                   payload={"suppliers": [kunde.object_id]}, actor=staff)
         row = svc.of_step(db, rows[0].id)
-        assert payments.due_on(row) is None, "Ohne Zusage gibt es keinen Beginn."
+        assert invoices.due_on(db, row) is None, "Ohne Rechnung gibt es keinen Beginn."
 
         # ►► **Und ohne Frist gibt es keine Dauer** – auch wenn zugesagt ist. ◄◄
         #
@@ -710,12 +805,17 @@ def test_the_due_date_follows_from_the_agreed_terms():
                   payload={"supplier": kunde.object_id, "amount": 100}, actor=staff)
         row = svc.of_step(db, rows[0].id)
         assert row.committed_on is not None, "Die Zusage hält ihren Tag fest."
-        assert payments.payment_days(row) is None
-        assert payments.due_on(row) is None, (
+        assert invoices.payment_days(row) is None
+        assert invoices.default_due(row) is None, (
             "Ohne vereinbarte Frist wird eine Fälligkeit erfunden – ein geratenes Datum "
             "ist schlimmer als keines."
         )
-        assert payments.is_overdue(
+        svc.apply(db, order=order, step=rows[0], action=svc.INVOICE, payload={},
+                  actor=staff)
+        assert invoices.due_on(db, row) is None, (
+            "Die Rechnung hat eine Fälligkeit bekommen, obwohl keine Frist vereinbart ist."
+        )
+        assert invoices.is_overdue(
             db, row, today=datetime.date.today() + datetime.timedelta(days=365)) is False, (
             "Ein Beleg ohne Frist wird überfällig – dort ist nichts vereinbart, was "
             "verstreichen könnte."
@@ -733,14 +833,24 @@ def test_the_due_date_follows_from_the_agreed_terms():
                   payload={"supplier": kunde.object_id, "amount": 100}, actor=staff)
         order, rows = order2, rows2
         row = svc.of_step(db, rows[0].id)
-        assert payments.payment_days(row) == 30
-        assert payments.due_on(row) == datetime.date.today() + datetime.timedelta(days=30)
-        assert payments.is_overdue(db, row) is False, "Heute + 30 ist nicht überfällig."
+        assert invoices.payment_days(row) == 30
+        svc.apply(db, order=order, step=rows[0], action=svc.INVOICE, payload={},
+                  actor=staff)
+        assert invoices.due_on(db, row) == datetime.date.today() + datetime.timedelta(days=30)
+        assert invoices.is_overdue(db, row) is False, "Heute + 30 ist nicht überfällig."
         # Ein Beleg, der bezahlt ist, wird nicht überfällig – auch wenn das Datum vergeht.
-        assert payments.is_overdue(
+        assert invoices.is_overdue(
             db, row, today=datetime.date.today() + datetime.timedelta(days=60)) is True
-        payments.record(db, purchase=row, amount=100, method="transfer", reference="Z-1")
-        assert payments.is_overdue(
+        # ►► (c) **Die FRÜHESTE offene Fälligkeit zählt**, nicht die späteste. ◄◄
+        #    Eine zweite Rechnung mit späterem Datum darf die erste nicht verdecken –
+        #    sonst mahnte niemand für die Anzahlung, die längst überfällig ist.
+        invoices.record(db, purchase=row, amount=1, number="R-spaet",
+                        due_on=datetime.date.today() + datetime.timedelta(days=90))
+        assert invoices.due_on(db, row) == datetime.date.today() + datetime.timedelta(days=30), (
+            "Die spätere Rechnung hat die frühere verdeckt."
+        )
+        payments.record(db, purchase=row, amount=101, method="transfer", reference="Z-1")
+        assert invoices.is_overdue(
             db, row, today=datetime.date.today() + datetime.timedelta(days=60)) is False
     finally:
         db.rollback(); db.close()
@@ -814,8 +924,8 @@ def test_the_webhook_writes_one_line_and_nothing_else(monkeypatch):
     """
     from fastapi import HTTPException
     from app.core.config import get_settings
-    from app.models import Payment
-    from app.services import payments, purchase as svc, stripe_pay
+    from app.models import Invoice, Payment
+    from app.services import invoices, payments, purchase as svc, stripe_pay
 
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_testsecret")
@@ -826,6 +936,11 @@ def test_the_webhook_writes_one_line_and_nothing_else(monkeypatch):
     # zweiten Lauf die alte Buchung wieder – genau das, wogegen die Idempotenz schützt,
     # nur diesmal gegen den Test selbst.
     intent = f"pi_{uuid.uuid4().hex[:16]}"
+    # **Auch die Rechnungsnummer je Lauf eindeutig** – aus demselben Grund: der Webhook
+    # committet, also überlebt alles in dieser Szene den Rollback am Testende. Eine feste
+    # Nummer fiele beim zweiten Lauf in die eigene 409-Regel («gibt es bereits am
+    # Auftrag …») – gemessen, nicht vermutet.
+    number = f"RW-{uuid.uuid4().hex[:10]}"
     db = _db()
     try:
         assert stripe_pay.available(), "Mit Schlüssel ist der Dienst eingerichtet."
@@ -834,8 +949,16 @@ def test_the_webhook_writes_one_line_and_nothing_else(monkeypatch):
         order, rows = _make(db, quantity=2, article=art)
         staff = _commit(db, order, rows[0], kunde, amount=250)
         row = svc.of_step(db, rows[0].id)
+        # ►► **Ohne Forderung kein Zahllink** – und das ist keine Hürde, sondern die
+        #    Disziplin, die die dritte Achse bringt: man kassiert nicht, was niemand
+        #    gefordert hat. Vorher lud der Link die **Zusage** ein, auch wenn nie eine
+        #    Rechnung entstand.
+        assert svc.LINK not in svc._can(db, row, staff), (
+            "Der Zahllink erscheint, bevor überhaupt etwas gefordert wurde."
+        )
+        invoices.record(db, purchase=row, amount=250, number=number)
         assert svc.LINK in svc._can(db, row, staff), (
-            "Mit eingerichtetem Dienst und offenem Betrag gibt es den Zahllink."
+            "Mit eingerichtetem Dienst und offener Forderung gibt es den Zahllink."
         )
 
         paid = {"type": stripe_pay.PAID, "data": {"object": {
@@ -874,6 +997,8 @@ def test_the_webhook_writes_one_line_and_nothing_else(monkeypatch):
         # die Wächter-Datenbank mit jedem Lauf um Buchungen, die niemand mehr liest.
         db.rollback()
         db.query(Payment).filter(Payment.reference.like(f"{intent}%")).delete(
+            synchronize_session=False)
+        db.query(Invoice).filter(Invoice.number == number).delete(
             synchronize_session=False)
         db.commit()
         db.close()

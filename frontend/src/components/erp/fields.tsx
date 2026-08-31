@@ -697,12 +697,18 @@ export function ChoiceButton({ icon: Icon, tone, title, text, disabled, onClick 
  * `type="number"` liefert bei ungültiger Eingabe einen LEEREN Wert, wodurch getippte
  * Zeichen spurlos verschwinden. Hier bleibt der Wert immer sichtbar und sauber.
  */
-export function numericOnly(raw: string, opts: { decimals?: boolean } = {}): string {
-  const { decimals = true } = opts;
+export function numericOnly(
+  raw: string, opts: { decimals?: boolean; signed?: boolean } = {},
+): string {
+  const { decimals = true, signed = false } = opts;
+  // **Ein Minus ist an genau einer Stelle richtig: ganz vorn.** Wo negative Beträge eine
+  // Aussage sind (eine Gutschrift ist eine negative Rechnung), muss man es tippen können
+  // – aber nicht mittendrin, und nicht zweimal.
+  const minus = signed && raw.trimStart().startsWith('-') ? '-' : '';
   const cleaned = raw.replace(',', '.').replace(/[^\d.]/g, '');
-  if (!decimals) return cleaned.replace(/\./g, '');
+  if (!decimals) return minus + cleaned.replace(/\./g, '');
   const [head, ...rest] = cleaned.split('.');       // höchstens EIN Trenner
-  return rest.length ? `${head}.${rest.join('')}` : head;
+  return minus + (rest.length ? `${head}.${rest.join('')}` : head);
 }
 
 /** Tastatur/Verhalten passend zum Zahlenfeld (Mobile: Ziffernblock). */

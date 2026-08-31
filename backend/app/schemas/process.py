@@ -132,10 +132,18 @@ class ModuleTypeInfo(BaseModel):
     #: Modultypen in der Oberfläche. Ein neuer einkaufender Modultyp bekommt ihn damit,
     #: ohne dass jemand das Frontend anfasst (Testnotiz #777).
     buys: Optional[str] = None
-    #: Ob die beiden Angaben dort **Pflicht** sind. Der Unterschied zwischen Beschaffen
-    #: und Bewegen ist genau das – nicht, ob es die Felder gibt.
-    suppliers_required: bool = False
-    instruction_required: bool = False
+    #: ►► **Was der Beleg beim Definieren braucht — je Feld EIN Wert, DREI Stufen.** ◄◄
+    #:
+    #: ``off`` · ``optional`` · ``required`` (``domain/modules.Module``). Vorher waren es
+    #: zwei Booleans, und der Zustand «gibt es hier gar nicht» fehlte darin – daraus wurde
+    #: ein Feld, das freiwillig dastand, weil man es *vielleicht* braucht (Testnotizen
+    #: #780/#781). Der Editor rendert ein Feld genau dann, wenn es hier nicht ``off`` ist.
+    parties: str = "optional"
+    instruction: str = "optional"
+    #: **Welche Rollen kommen als Gegenpartei in Frage? Leer heisst FREI.** Beim Verkauf
+    #: ist sie leer: jeder darf bei uns kaufen, auch ein Mitarbeiter (Testnotiz #779).
+    #: Die Auswahlliste (``/orders/party-options``) liest dieselbe Angabe.
+    party_roles: list[str] = Field(default_factory=list)
     #: **Mit wem handelt dieser Typ?** ``supplier`` · ``customer``
     #: (``domain/procurement.Flow``). Der Editor braucht sie, um die Auswahlliste zu
     #: füllen – dort gibt es noch keinen Beleg, der sie mitbringen könnte, und ein
@@ -216,17 +224,36 @@ class PaymentLink(BaseModel):
     url: str
 
 
-class PaymentEntry(BaseModel):
-    """**Eine Zeile Geld** an einem Beleg – Zahlung oder Gutschrift.
+class InvoiceEntry(BaseModel):
+    """**Eine Forderung** an einem Beleg – die dritte Achse neben Ware und Geld.
 
-    Überweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch
-    oder der Webhook), ändert nichts an dem, was er ist.
+    Ein **negativer** Betrag ist eine Gutschrift. Eine eigene Art dafür gibt es nicht:
+    dieselbe Zeile, dasselbe Feld, ein anderes Vorzeichen (PROCESS_CORE §9.11).
     """
 
     id: int
-    #: ``payment`` (Geld ist geflossen) · ``credit`` (die Forderung wurde gemindert)
-    kind: str
-    kind_label: str
+    #: Wie sie gespeichert ist – ``<Auftragsnummer>-<laufend>`` bzw. die der Gegenpartei.
+    number: Optional[str] = None
+    #: Wie sie **angezeigt** wird: das ``-1`` der ersten fällt weg (``invoices.display``).
+    #: Zwei Felder, damit niemand die Nummer im Browser zurechtschneidet.
+    number_label: str = ""
+    #: **Darf negativ sein** – das ist die Gutschrift.
+    amount: float
+    issued_on: Optional[str] = None
+    #: **Ihre eigene** Fälligkeit. Zwei Rechnungen haben zwei.
+    due_on: Optional[str] = None
+    note: Optional[str] = None
+
+
+class PaymentEntry(BaseModel):
+    """**Eine Zeile Geld** an einem Beleg.
+
+    Überweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch
+    oder der Webhook), ändert nichts an dem, was er ist. Eine **Gutschrift** steht hier
+    nicht mehr – sie ist eine negative **Rechnung**, denn dabei fliesst kein Geld.
+    """
+
+    id: int
     #: **Darf negativ sein** – eine Erstattung ist eine Zahlung rückwärts.
     amount: float
     method: Optional[str] = None
@@ -347,19 +374,36 @@ class PurchaseEmbed(BaseModel):
     party_role: str = "supplier"
     party_word: str = "Lieferant"
 
-    # ─── Das Geld: drei Ableitungen, keine Spalte ────────────────────────────────
+    # ─── Forderung und Geld: lauter Ableitungen, keine Spalte ────────────────────
     #: Was tatsächlich geflossen ist (netto – Erstattungen zählen negativ).
     paid: Optional[float] = None
-    #: Was gar nicht mehr geschuldet wird (Gutschriften).
-    credited: Optional[float] = None
-    #: **Belegsumme − Gutschriften − Zahlungen.** Darf negativ sein: dann schulden **wir**.
+    #: Was **gefordert** wird – die Summe der Rechnungen. Gutschriften zählen negativ,
+    #: weil sie negative Rechnungen sind.
+    charged: Optional[float] = None
+    #: **Zugesagt, noch nicht berechnet** – und damit die Vorgabe für die nächste
+    #: Rechnung. Die Zahl, die es vor der dritten Achse gar nicht geben konnte.
+    uncharged: Optional[float] = None
+    #: **Forderungen − Zahlungen.** Darf negativ sein: dann schulden **wir**.
     #: ``None``, solange keine Summe zugesagt ist – dort gibt es nichts zu rechnen.
     open: Optional[float] = None
-    #: Zusagedatum + Zahlungsfrist. ``None`` heisst «steht nicht fest», nicht «heute».
+    #: Die **früheste offene** Fälligkeit unter den Rechnungen. ``None`` heisst «steht
+    #: nicht fest», nicht «heute». Sie war einmal ``Zusagedatum + Frist`` – das konnte nur
+    #: den Fall «eine Rechnung» und wurde bei einer Anzahlung stillschweigend falsch.
     due_on: Optional[str] = None
     #: Fällig **und** noch etwas offen. Beides zusammen, sonst nicht.
     overdue: bool = False
     entries: list["PaymentEntry"] = Field(default_factory=list)
+    #: Die **Rechnungen** – die dritte Achse. Eine mit negativem Betrag ist eine
+    #: Gutschrift; eine eigene Art dafür gibt es nicht.
+    invoices: list["InvoiceEntry"] = Field(default_factory=list)
+    #: Die Vorgabe für die nächste Nummer (``<Auftragsnummer>-<laufend>``) – oder ``None``
+    #: beim Einkauf: dort nummeriert die Gegenpartei, und eine erfundene Vorgabe wäre eine
+    #: Behauptung über ein fremdes Dokument.
+    next_invoice_number: Optional[str] = None
+    #: Das Wort auf dem Knopf: «Rechnung stellen» ↔ «Rechnung erfassen». Wie jedes Verb
+    #: kommt es vom Server – ein Literal in der Oberfläche wäre die zweite Aussage darüber,
+    #: in welche Richtung dieser Beleg zeigt.
+    invoice_verb: str = "Rechnung stellen"
 
 
 class PurchaseUpdate(BaseModel):

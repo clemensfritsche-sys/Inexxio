@@ -399,6 +399,13 @@ function ProcurementFields({ module: m, info, onChange }: {
 
   return (
     <div className="flex flex-col gap-3">
+      {/* ►►► **Ein Feld gibt es genau dann, wenn das Modul es DEKLARIERT.** ◄◄◄
+          `off` · `optional` · `required` (`ModuleTypeInfo.parties` / `.instruction`).
+          Vorher waren es zwei Booleans, und der Zustand «gibt es hier gar nicht» fehlte
+          darin – daraus wurde ein Feld, das freiwillig dastand, weil man es *vielleicht*
+          braucht, mit einer Beschriftung, die nirgends passt («Auftrag an den Kundeen»,
+          #780/#781). Ein Feld als Vielleicht ist schlimmer als keines. */}
+      {info.instruction !== 'off' && (
       <div className="flex flex-col gap-1.5">
         <Label>{orderLabel}</Label>
         {/* **Was abgeleitet ist, steht als Wert da – nicht als Vorschlag im Feld.**
@@ -417,7 +424,7 @@ function ProcurementFields({ module: m, info, onChange }: {
           rows={2}
           maxLength={400}
           value={m.instruction}
-          required={info.instruction_required}
+          required={info.instruction === 'required'}
           placeholder={info.derived_instruction
             ? 'z. B. Hebebühne nötig · nur werktags · Gefahrgut'
             : 'z. B. Härten auf 58 HRC · gemäss Zeichnung fertigen · liefern'}
@@ -426,10 +433,12 @@ function ProcurementFields({ module: m, info, onChange }: {
           style={{ resize: 'vertical', minHeight: 54 }}
         />
       </div>
+      )}
+      {info.parties !== 'off' && (
       <div className="flex flex-col gap-1.5">
         <ObjectSelect<SupplierOption>
           label={`Zugelassene ${info.party_word}en`}
-          required={info.suppliers_required}
+          required={info.parties === 'required'}
           value={null}
           selected={null}
           find={findSuppliers}
@@ -446,7 +455,7 @@ function ProcurementFields({ module: m, info, onChange }: {
             sich erst zur Laufzeit, wer fährt; eine Pflichtliste wäre dort eine Hürde
             ohne Gegenwert. Dass man sie trotzdem füllen KANN, ist der Punkt: «wir fahren
             nur mit diesen drei» ist eine echte Hausregel. */}
-        {!info.suppliers_required && m.suppliers.length === 0 && (
+        {info.parties !== 'required' && m.suppliers.length === 0 && (
           <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
             Leer: freie Wahl beim Ausführen.
           </p>
@@ -483,6 +492,7 @@ function ProcurementFields({ module: m, info, onChange }: {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

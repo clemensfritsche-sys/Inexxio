@@ -228,22 +228,37 @@ class Module:
     #: sondern eine Adressliste – und niemand fragt zwanzig Lieferanten je Schraube an.
     MAX_SUPPLIERS = 10
 
-    #: **Muss beim Definieren mindestens ein Lieferant zugelassen sein?**
+    #: ►►► **Was ein Beleg beim Definieren braucht — EIN Wert, DREI Stufen.** ◄◄◄
     #:
-    #: Nur dort sinnvoll, wo der Einkauf der **Zweck** ist: die Liste ist dann eine
+    #: Vorher standen hier zwei Booleans (``suppliers_required`` / ``instruction_
+    #: required``). Zwei Booleans für zwei Felder ergeben vier Zustände, und **einer
+    #: fehlte**: «es gibt das Feld hier gar nicht». Genau daraus wurde ein Feld, das
+    #: freiwillig dastand, weil man es *vielleicht* braucht – mit einer Beschriftung, die
+    #: nirgends passt («Auftrag an den Kundeen», Testnotizen #780/#781). Ein Feld als
+    #: Vielleicht ist schlimmer als keines: es lädt zu einer Eingabe ein, die niemand
+    #: liest.
+    #:
+    #: ``OFF``       gibt es hier nicht – der Editor rendert es nicht, der Dienst nimmt es
+    #:               nicht entgegen.
+    #: ``OPTIONAL``  darf stehen, muss nicht.
+    #: ``REQUIRED``  ohne sie ist das Modul nicht anlegbar.
+    OFF, OPTIONAL, REQUIRED = "off", "optional", "required"
+
+    #: **Die zugelassenen Gegenparteien** (und mit ihnen die Bestellangabe ``ref``).
+    #:
+    #: ``REQUIRED`` nur dort, wo der Einkauf der **Zweck** ist: die Liste ist dann eine
     #: Freigabeentscheidung, die vorab fällt («für dieses Teil kommen diese drei in
     #: Frage»). Wo der Einkauf eine **Wahl** ist, entscheidet sich erst zur Laufzeit, ob
-    #: überhaupt jemand beauftragt wird – eine Pflichtliste wäre dort eine Hürde ohne
-    #: Gegenwert. Angeboten wird das Feld trotzdem: «wir fahren nur mit diesen drei
-    #: Speditionen» ist eine echte Hausregel.
-    suppliers_required: bool = False
+    #: überhaupt jemand beauftragt wird.
+    parties: str = OPTIONAL
 
-    #: **Muss beim Definieren ein Auftrag an den Lieferanten stehen?**
+    #: **Der Auftrag an die Gegenpartei.**
     #:
-    #: Pflicht ist er, wo **nichts** ableitbar ist (Beschaffen: die Artikel-Spezifikation
+    #: ``REQUIRED``, wo **nichts** ableitbar ist (Beschaffen: die Artikel-Spezifikation
     #: beschreibt die Sache, nicht den Auftrag). Wo ein Satz abgeleitet wird
-    #: (``derived_instruction``), ist die Eingabe eine **Ergänzung** – und freiwillig.
-    instruction_required: bool = False
+    #: (``derived_instruction``), ist die Eingabe eine **Ergänzung**. Und ``OFF``, wo es
+    #: ihn schlicht nicht gibt: ein Kunde tut nichts, er kauft.
+    instruction: str = OPTIONAL
 
     def parties_of(self, config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
         """**Wer kommt für dieses Modul als Gegenpartei in Frage?** – die EINE Lesestelle.
@@ -310,21 +325,27 @@ class Module:
     def clean_purchase_config(self, data: dict[str, Any]) -> dict[str, Any]:
         """Die beiden Beleg-Angaben prüfen – **einmal**, für jedes Modul, das einkauft.
 
-        Ob sie Pflicht sind, sagen die Deklarationen (``suppliers_required`` /
-        ``instruction_required``), nicht eine Abfrage nach dem Modultyp. Ein Modul, das
-        gar nicht einkauft, ruft das hier nicht auf – und trägt die Felder folglich auch
-        nicht mit sich herum.
+        Ob es sie überhaupt gibt und ob sie Pflicht sind, sagen die Deklarationen
+        (``parties`` / ``instruction``), nicht eine Abfrage nach dem Modultyp. Ein Modul,
+        das gar nicht einkauft, ruft das hier nicht auf – und trägt die Felder folglich
+        auch nicht mit sich herum.
+
+        **``OFF`` heisst: gibt es hier nicht.** Der Wert wird dann verworfen statt
+        gespeichert – ein Feld, das die Oberfläche nicht anbietet, aber der Dienst
+        annimmt, wäre eine Hintertür zu einer Angabe, die niemand liest.
         """
         who = self.flow.party_word
-        suppliers = self._suppliers(data.get(self.SUPPLIERS))
-        if self.suppliers_required and not suppliers:
+        suppliers = ([] if self.parties == self.OFF
+                     else self._suppliers(data.get(self.SUPPLIERS)))
+        if self.parties == self.REQUIRED and not suppliers:
             raise HTTPException(
                 status_code=400,
                 detail=(f"«{self.label}» braucht mindestens einen zugelassenen "
                         f"{who}en – bei wem sonst sollte bestellt werden?"),
             )
-        instruction = str(data.get(self.INSTRUCTION) or "").strip()
-        if self.instruction_required and not instruction:
+        instruction = ("" if self.instruction == self.OFF
+                       else str(data.get(self.INSTRUCTION) or "").strip())
+        if self.instruction == self.REQUIRED and not instruction:
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -342,7 +363,7 @@ class Module:
 
     def _suppliers(self, value: Any) -> list[dict[str, Any]]:
         """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt – ob sie es sein darf,
-        entscheidet ``suppliers_required``, nicht diese Funktion."""
+        entscheidet ``parties``, nicht diese Funktion."""
         who = self.flow.party_word
         if value in (None, ""):
             value = []
@@ -819,7 +840,7 @@ class Handel(Module):
 
     def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
         # Ob die beiden Beleg-Angaben Pflicht sind, sagen die Deklarationen der Unterklasse
-        # (``suppliers_required`` / ``instruction_required``), geprüft wird im gemeinsamen
+        # (``parties`` / ``instruction``), geprüft wird im gemeinsamen
         # Block. Keine Erfassungspunkte und keine Stichprobe: was ankommt, kommt an. Die
         # Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
         return {**self.clean_purchase_config(raw or {}),
@@ -922,8 +943,10 @@ class Beschaffen(Handel):
     #: sind **beide Pflicht**, denn es ist nichts ableitbar. Der Artikel beschreibt die
     #: Sache, nicht den Auftrag; und ohne zugelassenen Lieferanten steht beim Ausführen
     #: niemand da, bei dem man bestellen könnte.
-    suppliers_required = True
-    instruction_required = True
+    #: **Beides Pflicht.** Beim Beschaffen ist nichts ableitbar: bei wem bestellt wird,
+    #: ist eine Freigabeentscheidung, und was zu tun ist, sagt kein Artikel.
+    parties = Module.REQUIRED
+    instruction = Module.REQUIRED
 
     #: Wir kaufen: es kommt herein, und wir zahlen.
     direction = procurement.BUY
@@ -958,12 +981,20 @@ class Verkauf(Handel):
     **Der Kunde steht zur Laufzeit fest.** Beim Einkauf ist die Liste eine
     Freigabeentscheidung, die vorab fällt («für dieses Teil kommen diese drei in Frage») –
     beim Verkauf weiss beim Modellieren eines Artikels niemand, wer ihn einmal kauft. Die
-    Liste bleibt trotzdem *möglich* (``suppliers_required = False``): «diese Charge geht
-    ausschliesslich an Meier» ist eine echte Hausregel. Leer heisst frei.
+    Liste bleibt trotzdem *möglich* (``parties = OPTIONAL``): «diese Charge geht
+    ausschliesslich an Meier» ist eine echte Hausregel. Leer heisst frei – und frei heisst
+    hier wirklich **jeder**: die Rolle sagt, was jemand *für uns* tut, nicht ob er *bei
+    uns* kaufen darf (``Flow.party_roles`` ist beim Verkauf leer, Testnotiz #779).
 
-    **Und ein Auftrag an die Gegenpartei ergibt hier keinen Sinn**: ein Kunde tut nichts,
-    er kauft. Was er bekommt, sagt die Artikel-Spezifikation, die mit dem Beleg reist.
-    Freiwillig bleibt das Feld – als Lieferhinweis («Anlieferung nur werktags»).
+    **Und einen Auftrag an die Gegenpartei gibt es hier gar nicht** (``instruction =
+    OFF``, Testnotizen #780/#781): ein Kunde tut nichts, er kauft. Was er bekommt, sagt
+    die Artikel-Spezifikation, die mit dem Beleg reist; ein Lieferhinweis («Anlieferung
+    nur werktags») gehört an das **Bewegen**-Modul, das die Lieferung *ist*.
+
+    Es stand einmal als freiwilliges Feld da – «falls jemand es braucht». Genau das ist
+    die Form, die eine Beschriftung trägt, die nirgends passt («Auftrag an den Kundeen»),
+    und die zu einer Eingabe einlädt, die niemand liest. Ein Feld als Vielleicht ist
+    schlimmer als keines.
 
     ## Und der Preis ist NICHT der Einstandspreis
 
@@ -978,8 +1009,10 @@ class Verkauf(Handel):
     #: **Ein Ausgang.** Was hier ankommt, verlässt den Auftrag – und das Haus.
     terminal = True
 
-    #: Beide Angaben sind hier **freiwillig** (die Vorgabe von ``Module``): der Kunde steht
-    #: zur Laufzeit fest, und ein Auftrag an ihn ergibt keinen Sinn.
+    #: Der Kunde steht zur Laufzeit fest – die Liste bleibt möglich (die Vorgabe von
+    #: ``Module``), aber sie ist nie Pflicht.
+    #: **Einen Auftrag an ihn gibt es hier gar nicht**: ein Kunde tut nichts, er kauft.
+    instruction = Module.OFF
 
     def status_after_for(self, config: Optional[dict[str, Any]]) -> str:
         """**Verkauft.** Bei einem Ausgang ist das zugleich ``exit_status_for`` – dort

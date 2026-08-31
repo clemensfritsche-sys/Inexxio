@@ -176,7 +176,7 @@ def _note_payment(db: Session, data: dict[str, Any]) -> str:
         return "unknown"
     amount = Decimal(str(data.get("amount_total") or 0)) / 100
     payments.record(
-        db, purchase=purchase, amount=amount, kind=money.PAYMENT, method=money.ONLINE,
+        db, purchase=purchase, amount=amount, method=money.ONLINE,
         reference=str(data.get("payment_intent") or data.get("id") or "") or None,
         note="Zahlungsdienst",
     )
@@ -188,8 +188,8 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     """``charge.refunded`` → eine **negative** Zahlung über den erstatteten Betrag.
 
     Keine Gutschrift: es ist Geld geflossen, nur rückwärts. Ob die **Forderung** gemindert
-    wird, ist eine andere Frage und eine menschliche Entscheidung (``kind=credit``) –
-    genau darum führt der Katalog beide getrennt.
+    wird, ist eine andere Frage und eine menschliche Entscheidung (eine **negative
+    Rechnung**) – genau darum sind Forderung und Geld zwei Achsen.
     """
     intent = str(data.get("payment_intent") or "")
     purchase = _purchase_of_reference(db, intent)
@@ -199,7 +199,7 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     if amount <= 0:
         return "ignored"
     payments.record(
-        db, purchase=purchase, amount=-amount, kind=money.PAYMENT, method=money.ONLINE,
+        db, purchase=purchase, amount=-amount, method=money.ONLINE,
         # **Eine eigene Referenz** – sonst fiele die Erstattung mit der Zahlung zusammen,
         # und die Idempotenz würfe sie weg.
         reference=f"{intent}:refund",

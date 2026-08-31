@@ -13,6 +13,7 @@
  */
 
 import {
+  Banknote, Landmark,
   Blocks, Camera, CircleHelp, ClipboardCheck, Hand, Handshake, MoveRight, PackageX,
   PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
@@ -82,6 +83,27 @@ export function flowOf(direction: string | undefined | null) {
  * Verkaufs-Beleg hätte an **keiner** Stufe etwas gezeigt: die Vergleiche wären alle
  * falsch gewesen, still und ohne Fehlermeldung.
  */
+/**
+ * ►►► **Was ein MENSCH als Zahlweg eintragen darf** – der Spiegel von
+ * `money.MANUAL_METHODS`. ◄◄◄
+ *
+ * Die Karte fehlt mit Absicht (#782): eine Kartenzahlung entsteht beim Zahlungsdienst und
+ * kommt über den Webhook. Sie hier anzubieten wäre eine zweite Quelle für dieselbe
+ * Buchung – die eine aus der Wirklichkeit, die andere aus einer Erinnerung. Durchgesetzt
+ * wird es im **Dienst** (`purchase._pay`), nicht hier; diese Liste ist die freundliche
+ * Hälfte. Ein Wächter hält sie mit `domain/money` deckungsgleich.
+ */
+export type Method = 'transfer' | 'cash';
+
+export const MANUAL_METHODS: {
+  value: Method; icon: LucideIcon; label: string; hint: string;
+}[] = [
+  { value: 'transfer', icon: Landmark, label: 'Überweisung',
+    hint: 'Der B2B-Normalfall – vom Kontoauszug erfasst.' },
+  { value: 'cash', icon: Banknote, label: 'Bar',
+    hint: 'Bar oder am Schalter.' },
+];
+
 export const STAGE = {
   offer: 'offer',
   commitment: 'commitment',

@@ -2055,7 +2055,80 @@ zahlt, ist verhandelt und sagt nichts über unsere Kosten. Ihn an den Artikel zu
 hiesse, mit dem eigenen Verkaufspreis zu kalkulieren — derselbe stille Datenfehler wie
 beim Frachttarif (§9.8), nur teurer.
 
-### 9.11 Das Geld — eine Zeile am Beleg, keine vierte Stufe
+### 9.11 Ware · Forderung · Geld — drei Achsen, keine Reihenfolge
+
+> **Die Regel, aus der alles Weitere folgt: das System schreibt keine Reihenfolge vor.**
+
+Ein Geschäft hat drei **unabhängige** Achsen:
+
+* **Ware** — die Einzelinstanzen im Prozess (§4)
+* **Forderung** — die Rechnung (`invoices`)
+* **Geld** — die Zahlung (`payments`)
+
+Jedes Zahlungs-Szenario ist eine andere **Folge** derselben drei Grundhandlungen:
+
+| Szenario | Folge | neuer Mechanismus |
+|---|---|---|
+| Rechnung mit Zahlungsziel | Ware → Forderung → Geld | keiner |
+| **Vorauszahlung** | Forderung → Geld → Ware | keiner |
+| **Anzahlung + Schlussrechnung** | Forderung → Geld → Ware → Forderung → Geld | keiner |
+| Nachnahme | Ware → Forderung + Geld | keiner |
+| **Shop, sofort bezahlt** | Forderung → Zahllink → Webhook bucht | keiner |
+| Retoure mit Gutschrift | Ware zurück → negative Forderung | keiner |
+| Garantie (Rücknahme ohne Geld) | nur Ware | keiner |
+| Kulanz (Geld ohne Rücknahme) | nur negative Forderung | keiner |
+
+**Wer eine Folge festschreibt, bekommt für jede Abweichung ein `if`.** Das System hält
+darum fest, was geschehen ist, und **bietet** den naheliegenden nächsten Schritt an. Es
+gibt keinen Modus «Vorkasse», keinen Schalter und keine Einstellung: wer zuerst Geld
+sehen will, stellt zuerst die Rechnung.
+
+**Die Automatik steckt in den Vorgaben, nicht in einem Modus** (`purchase._invoice`):
+Betrag = *zugesagt − bereits berechnet*, Fälligkeit = *heute + vereinbarte Zahlungsfrist*,
+Nummer = `<Auftragsnummer>-<laufend>`. Der Normalfall ist damit **ein Klick**, und jede
+Abweichung ist eine Eingabe statt eines zweiten Wegs.
+
+#### Die Forderung war die fehlende Achse
+
+Vorher las `balance` die **Zusage** (`purchases.amount`) als wäre sie die **Forderung**.
+Solange beides dasselbe ist, geht das gut. An drei Stellen bricht es, und zwar still:
+**Anzahlung** (zwei Forderungen zu einer Zusage) · **Teilrechnung** (3 von 10 geliefert,
+3 berechnet) · **zwei Fälligkeiten** (eine Zusage hat keine, eine Rechnung schon).
+
+#### Eine Gutschrift ist eine NEGATIVE Rechnung
+
+Sie war einmal eine Zahlung der Art `credit` — eine Zahlung, bei der kein Geld fliesst,
+zusammengehalten von einer eigenen Regel («eine Gutschrift hat keinen Zahlweg»). Als
+negative Rechnung ist sie schlicht richtig, und **zwei Regeln entfallen**: `payments.kind`
+und die Ausnahme im Zahlweg. Eine **Erstattung** bleibt dagegen eine negative **Zahlung** —
+dort fliesst Geld, nur rückwärts.
+
+#### Die Nummer
+
+Beim **Verkauf** vergeben wir sie, beim **Einkauf** erfassen wir seine
+(`Flow.invoice_number` — ein Wert, keine Verzweigung). Unsere lautet
+`<Auftragsnummer>-<laufend>`: dieselbe Regel wie beim Suffix der Einzelinstanz
+(kumulierend, **nicht** aus `object_id_seq`). Eine Rechnung ist zum Auftrag, was die
+Einzelinstanz zur Instanz ist — sie braucht einen Namen, aber keine eigene
+Objektidentität, und damit weder eine Feed-Zeile noch einen sechsten Datensatztyp. Das
+`-1` der ersten fällt **nach aussen** weg (`invoices.display`); gespeichert bleibt es,
+sonst wäre die zweite Rechnung eines Auftrags nicht von der ersten zu unterscheiden.
+
+#### Der Shop greift ohne einen einzigen neuen Endpunkt an
+
+Ein Kauf im Shop ist eine **Auftragsfreigabe** plus die Handlungen, die es schon gibt:
+`ask` → `order` → `invoice` → Zahllink → Webhook. Keine Reservierung, kein
+`CheckoutIntent`, kein Shop-eigener Pfad. Sind die Stücke im Moment der Freigabe weg,
+meldet sie es — wie bei jedem anderen Auftrag (§12.6a).
+
+#### Wo die übrigen Schritte des Order-to-Cash stehen
+
+**Kommissionierung und Versand sind Bewegen-Module** *vor* dem Verkauf-Modul (§9.8); eine
+Spedition ist ein **Einkauf** (§9.9). Das Verkauf-Modul bekommt dafür **keine** Stufe.
+**ATP** gibt es bewusst nicht: die Freigabe *ist* die Verfügbarkeitsprüfung, und
+Reservierungen gibt es im System nirgends.
+
+### 9.11a Das Geld — eine Zeile am Beleg, keine vierte Stufe
 
 **Es gibt keine Forderungs-Tabelle.** *Offen* ist eine Subtraktion, *fällig* eine Addition,
 *überfällig* beides zusammen (`services/payments`):

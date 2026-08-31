@@ -141,6 +141,11 @@ _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
     # der Zustand eines Artikels ist die Projektion von ``replaced_by_id``. Die Spalte hat
     # ihr Mapping verloren; gedroppt wird sie im Folge-Deploy.
     ("articles", "status"),
+    # **Eine Gutschrift ist eine negative Rechnung** (Migration 123): ``payments.kind`` hat
+    # sein Mapping verloren, gedroppt wird es im Folge-Deploy. Solange die Spalte steht und
+    # ``NOT NULL`` ist, liefe **jedes** Insert auf – der Python-Default ist mit dem Feld
+    # gegangen. Dieselbe Falle wie bei ``purchases.quantity`` (Migration 115).
+    ("payments", "kind"),
 )
 
 _DROP_COLUMN_SAFETY_NET = (
@@ -262,6 +267,29 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE conname='ck_instance_units_one_place') THEN "
     "ALTER TABLE instance_units ADD CONSTRAINT ck_instance_units_one_place "
     "CHECK (place_object_id IS NULL OR place_unit_id IS NULL); END IF; END $$;",
+    # ►►► **EIN AKTIVER Beleg je Modul** (Migration 119) – und die Lehre daraus. ◄◄◄
+    #
+    # Migration 114 legte ``uq_purchases_step`` als **vollen** Unique-Index an, 119 machte
+    # ihn **partiell** (``WHERE is_active``), weil ein zurückgenommener Beleg als Zeile
+    # stehenbleibt. Genau dieser Wechsel erreichte eine gewachsene Datenbank **nie**:
+    # ``create_all`` legt Indizes nur mit einer *neuen* Tabelle an, und der Deploy fährt
+    # kein ``alembic upgrade`` – dort stand also weiter der volle Index. Wer zwischen
+    # «Beschaffen» und «Selbst» hin- und herschaltete, bekam beim zweiten Mal «Dieser Wert
+    # ist bereits vergeben» (Testnotiz #778); gegen ein migrationsgebautes Schema war es
+    # nicht nachstellbar.
+    #
+    # **Die Regel, die daraus folgt:** jeder Index und jeder CHECK, den eine Migration
+    # *nach* dem Entstehen der Tabelle geändert hat, gehört in dieses Netz – sonst gilt er
+    # ausschliesslich dort, wo Alembic läuft.
+    #
+    # Ersetzt wird **nur, wenn er noch nicht partiell ist**: ein bedingungsloser DROP
+    # nähme den Exklusivitäts-Riegel für die Dauer der Anweisung weg.
+    "DO $$ BEGIN IF to_regclass('public.purchases') IS NOT NULL "
+    "AND EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='uq_purchases_step' "
+    "AND indexdef NOT ILIKE '%%WHERE%%is_active%%') THEN "
+    "DROP INDEX uq_purchases_step; "
+    "CREATE UNIQUE INDEX uq_purchases_step ON purchases (step_id) WHERE is_active; "
+    "END IF; END $$;",
 )
 
 # Gesellschaften (Migration 091): genau EIN Betreiber. Wurde die Spalte gerade erst vom

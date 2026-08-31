@@ -1030,6 +1030,67 @@ export function ModuleMark({ icon: Icon, tone, history, size = 32 }: {
   );
 }
 
+/**
+ * ►►► **Die Hülle einer Modul-Karte — EIN Bauteil, zwei Träger.** ◄◄◄
+ *
+ * Rahmen in der Modulfarbe, getönte Fläche, `rounded-ds-lg`, Kopf mit `ModuleMark` und
+ * Beschriftung, Haarlinie vor dem Körper. Genau das ist die Anatomie, an der man eine
+ * Modul-Karte erkennt – und sie steht **einmal**.
+ *
+ * Getragen wird sie von `StepCard` (dem Modul selbst) und vom `ProcurementBlock` (dem
+ * Einkaufs-Beleg **in** einem Modul, Testnotiz #783): «container im container, und der
+ * innere ist ein 1:1 Abbild eines regulären Moduls – ist ja auch nichts anderes».
+ *
+ * Ein Nachbau daneben sähe heute gleich aus und wiche beim ersten Karten-Detail ab; ein
+ * Wächter verbietet darum jeden eigenen Rahmen im Beleg-Block.
+ *
+ * `lead` und `trail` sind die Stellen, an denen ein Träger Eigenes einhängt (Ziehgriff,
+ * Schloss, Chevron, Löschen) – der Rahmen selbst kennt davon nichts.
+ */
+export function ModuleShell({ tone, icon, label, active, lead, trail, head, body,
+  history, children }: {
+  tone: { fg: string; bg: string; border: string };
+  icon: LucideIcon;
+  label: string;
+  /** Ist dieses Modul an der Reihe? Dann trägt der Rahmen die kräftige Farbe. */
+  active?: boolean;
+  lead?: ReactNode;
+  trail?: ReactNode;
+  /** Zusätzliche Eigenschaften am Kopf-Element – z. B. Aufklappen. */
+  head?: React.HTMLAttributes<HTMLDivElement>;
+  /** Zusätzliche Eigenschaften am äusseren Rahmen – z. B. Ziehen. */
+  body?: React.HTMLAttributes<HTMLDivElement>;
+  /** **Die Historie hängt am Symbol** (§5) – wie bei Start und Ende, die dieselbe Blase
+   *  auf ihrem Kreis tragen. Nie an der Beschriftung: die trägt `truncate`
+   *  (`overflow: hidden`), und das **schneidet die Blase weg** – sie ist ein `::after`. */
+  history?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="rounded-ds-lg" {...body}
+      style={{
+        border: `1px solid ${active ? tone.fg : tone.border}`,
+        background: tone.bg,
+        padding: '11px 14px',
+        ...(body?.style ?? {}),
+      }}>
+      <div className="flex items-center gap-2.5" {...head}>
+        {lead}
+        <ModuleMark icon={icon} tone={tone.fg} history={history} />
+        <span className="text-sm font-semibold flex-1 min-w-0 truncate"
+          style={{ color: tone.fg }}>{label}</span>
+        {trail}
+      </div>
+      {children && (
+        <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border-1)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, history,
   children }: {
   step: DiagramStep; active: boolean; dimmed: boolean;
@@ -1070,98 +1131,99 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
   // statt sie stillschweigend zur Datenerfassung zu machen.
   const c = moduleTone(step.tone);
   return (
-    <div
-      className="rounded-ds-lg"
-      // **Gezogen wird am Griff, nicht an der Karte.** Ein `draggable` auf der Karte
-      // macht ihren ganzen Inhalt zum Ziehgriff – und damit lässt sich in ihren
-      // Eingabefeldern kein Text mehr markieren. Das fällt bei einem Modul kaum auf und
-      // bei zwanzig sofort.
-      onDragEnd={drag ? drag.onEnd : undefined}
-      onDragOver={drag ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } : undefined}
-      onDrop={drag ? (e) => {
-        e.preventDefault();
-        const from = Number(e.dataTransfer.getData('text/plain'));
-        if (Number.isInteger(from)) drag.onDrop(from);
-      } : undefined}
-      style={{
-        border: `1px solid ${active ? c.fg : c.border}`,
-        background: c.bg,
-        opacity: dimmed ? 0.55 : 1,
-        padding: '11px 14px',
-        // Die Zielkarte zeigt sich beim Ziehen – ohne das rät man, wo es landet.
-        outline: drag?.over ? `2px dashed ${c.fg}` : undefined,
-        outlineOffset: 2,
+    // **Die Hülle ist geteilt** (`ModuleShell`) – dasselbe Bauteil trägt den Einkaufs-
+    // Beleg *in* einem Modul (#783). Was hier dazukommt, hängt in `lead`/`trail`: der
+    // Ziehgriff, das Schloss, der Chevron, das Löschen. Der Rahmen kennt davon nichts.
+    <ModuleShell
+      tone={c} icon={Icon} label={step.label} active={active}
+      body={{
+        // **Gezogen wird am Griff, nicht an der Karte.** Ein `draggable` auf der Karte
+        // macht ihren ganzen Inhalt zum Ziehgriff – und damit lässt sich in ihren
+        // Eingabefeldern kein Text mehr markieren. Das fällt bei einem Modul kaum auf
+        // und bei zwanzig sofort.
+        onDragEnd: drag ? drag.onEnd : undefined,
+        onDragOver: drag
+          ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+          : undefined,
+        onDrop: drag ? (e) => {
+          e.preventDefault();
+          const from = Number(e.dataTransfer.getData('text/plain'));
+          if (Number.isInteger(from)) drag.onDrop(from);
+        } : undefined,
+        style: {
+          opacity: dimmed ? 0.55 : 1,
+          // Die Zielkarte zeigt sich beim Ziehen – ohne das rät man, wo es landet.
+          outline: drag?.over ? `2px dashed ${c.fg}` : undefined,
+          outlineOffset: 2,
+        },
       }}
-    >
-      {/* **Der Kopf klappt auf** (#696) – eine Stelle, jedes Modul. Ohne Inhalt gibt es
-          nichts aufzuklappen, dann ist er auch kein Knopf. */}
-      <div
-        className="flex items-center gap-2.5"
-        role={children ? 'button' : undefined}
-        tabIndex={children ? 0 : undefined}
-        aria-expanded={children ? open : undefined}
-        style={{ cursor: children ? 'pointer' : undefined }}
-        onClick={children ? () => setOpen(!open) : undefined}
-        onKeyDown={children ? (e) => {
+      // **Der Kopf klappt auf** (#696) – eine Stelle, jedes Modul. Ohne Inhalt gibt es
+      // nichts aufzuklappen, dann ist er auch kein Knopf.
+      head={{
+        role: children ? 'button' : undefined,
+        tabIndex: children ? 0 : undefined,
+        'aria-expanded': children ? open : undefined,
+        style: { cursor: children ? 'pointer' : undefined },
+        onClick: children ? () => setOpen(!open) : undefined,
+        onKeyDown: children ? (e) => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(!open); }
-        } : undefined}
-      >
-        {drag && (
-          <span className="flex items-center justify-center flex-none"
-            style={{ width: 16, color: c.fg, opacity: 0.5, cursor: 'grab' }}
-            draggable
-            onClick={(e) => e.stopPropagation()}
-            onDragStart={(e) => {
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/plain', String(drag.index));
-              drag.onStart();
-            }}
-            onDragEnd={drag.onEnd}
-            role="button"
-            aria-label={`${step.label} verschieben`}
-            data-tip="Ziehen, um die Reihenfolge zu ändern">
-            <GripVertical size={15} />
-          </span>
-        )}
-        {/* **Die Historie hängt am Symbol** (§5) – wie bei Start und Ende, die dieselbe
-            Blase auf ihrem Kreis tragen. Sie hing hier an der Beschriftung, und die
-            trägt `truncate` (`overflow: hidden`): das **schneidet die Blase weg**, denn
-            sie ist ein `::after` dieses Elements. Sichtbar war der Log darum nur an den
-            beiden Objekten ohne Textkürzung – genau der gemeldete Fall. */}
-        <ModuleMark icon={Icon} tone={c.fg} history={history} />
-        <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: c.fg }}>
-          {step.label}
+        } : undefined,
+      }}
+      lead={drag ? (
+        <span className="flex items-center justify-center flex-none"
+          style={{ width: 16, color: c.fg, opacity: 0.5, cursor: 'grab' }}
+          draggable
+          onClick={(e) => e.stopPropagation()}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(drag.index));
+            drag.onStart();
+          }}
+          onDragEnd={drag.onEnd}
+          role="button"
+          aria-label={`${step.label} verschieben`}
+          data-tip="Ziehen, um die Reihenfolge zu ändern">
+          <GripVertical size={15} />
         </span>
-        {locked && (
-          <Lock size={13} className="flex-none" style={{ color: 'var(--warning)' }}
-            data-tip={lockReason(waiting)} />
-        )}
-        {children && (open
-          ? <ChevronUp size={14} className="flex-none" style={{ color: c.fg, opacity: 0.55 }} />
-          : <ChevronDown size={14} className="flex-none" style={{ color: c.fg, opacity: 0.55 }} />)}
-        {onDelete && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="flex items-center justify-center rounded"
-            style={{ width: 26, height: 26, color: 'var(--danger)' }}
-            data-tip="Modul entfernen. Ändern geht nicht – eine gesetzte Definition rastet ein."
-            aria-label={`${step.label} entfernen`}
-          >
-            <Trash2 size={14} />
-          </button>
-        )}
-      </div>
-      {children && open && (
-        <div className="mt-2.5 pt-2.5" style={{ borderTop: '1px solid var(--border-1)' }}>
-          <fieldset disabled={locked}
-            style={{ border: 0, padding: 0, margin: 0, minWidth: 0,
-                     opacity: locked ? 0.65 : 1 }}>
-            {children}
-          </fieldset>
-        </div>
+      ) : undefined}
+      trail={(
+        <>
+          {locked && (
+            <Lock size={13} className="flex-none" style={{ color: 'var(--warning)' }}
+              data-tip={lockReason(waiting)} />
+          )}
+          {children && (open
+            ? <ChevronUp size={14} className="flex-none"
+                style={{ color: c.fg, opacity: 0.55 }} />
+            : <ChevronDown size={14} className="flex-none"
+                style={{ color: c.fg, opacity: 0.55 }} />)}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="flex items-center justify-center rounded"
+              style={{ width: 26, height: 26, color: 'var(--danger)' }}
+              data-tip="Modul entfernen. Ändern geht nicht – eine gesetzte Definition rastet ein."
+              aria-label={`${step.label} entfernen`}
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </>
       )}
-    </div>
+      history={history}
+    >
+      {children && open && (
+        // **Die Sperre gehört hierher, nicht ins Modul** (#698). Ein Modul fragt nicht,
+        // ob es darf – ihm wird gesagt, dass es nicht darf. `fieldset[disabled]` schaltet
+        // JEDE Eingabe und JEDEN Knopf darin ab, ganz gleich, was das Modul rendert.
+        <fieldset disabled={locked}
+          style={{ border: 0, padding: 0, margin: 0, minWidth: 0,
+                   opacity: locked ? 0.65 : 1 }}>
+          {children}
+        </fieldset>
+      )}
+    </ModuleShell>
   );
 }
 

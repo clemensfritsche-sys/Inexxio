@@ -1458,6 +1458,80 @@
 > steht dort ein Kunde), der JSONB-Schlüssel `supplier` bleibt – er steht in laufenden
 > Aufträgen, und eine Umschrift wäre ein Risiko ohne einen einzigen neuen Leser.
 >
+> **Testnotizen #778–#783 und der Order-to-Cash: die Forderung ist die DRITTE ACHSE**
+> (PROCESS_CORE §9.11, Migration `123`). Gegen die üblichen ERP-Schritte geprüft, stand
+> genau **ein** Loch: die **Fakturierung**. Angebot und Kundenauftrag sind die Stufen des
+> Belegs, Kommissionierung und Versand sind **Bewegen-Module vor dem Verkauf-Modul**, der
+> Zahlungseingang ist die Zahlungszeile – und **ATP gibt es bewusst nicht**: die Freigabe
+> *ist* die Verfügbarkeitsprüfung, Reservierungen gibt es im System nirgends.
+> **Die Antwort auf «eine Logik, die in allen Umständen passt» lautet: schreib die
+> Reihenfolge nicht auf.** Ware · Forderung · Geld sind drei **unabhängige** Achsen, und
+> jedes Szenario ist eine andere **Folge** derselben drei Grundhandlungen – Zahlungsziel,
+> **Vorauszahlung**, **Anzahlung + Schlussrechnung**, Nachnahme, Shop, Retoure, Garantie,
+> Kulanz. Für keines davon gibt es einen neuen Mechanismus und für keines einen Modus:
+> wer eine Folge festschreibt, bekommt für jede Abweichung ein `if`. Wer zuerst Geld sehen
+> will, stellt zuerst die Rechnung.
+> **Und das System wurde dabei kleiner.** Die alte `credit`-Zahlung war eine Zahlung, bei
+> der kein Geld fliesst – zusammengehalten von einer eigenen Regel («hat keinen
+> Zahlweg»). Als **negative Rechnung** ist sie schlicht richtig: `payments.kind` und die
+> Ausnahme sind **beide** entfallen. Eine Erstattung bleibt eine negative **Zahlung**.
+> **Die Automatik steckt in den Vorgaben**, nicht in einem Modus: Betrag = *zugesagt −
+> berechnet* (die Zahl `uncharged`, die es vorher gar nicht geben konnte), Fälligkeit =
+> *heute + Frist*, Nummer = **`<Auftragsnummer>-<laufend>`** – dieselbe Regel wie beim
+> Suffix der Einzelinstanz, und aus demselben Grund: eine Rechnung braucht einen Namen,
+> aber keine eigene Objektidentität. Das `-1` der ersten fällt nach aussen weg, gespeichert
+> bleibt es (sonst hiessen zwei Rechnungen gleich). Wer nummeriert, sagt der `Flow`.
+> **Der Shop greift ohne einen einzigen neuen Endpunkt an** – gemessen, nicht behauptet
+> (`test_a_shop_checkout_needs_no_new_endpoint`): Freigabe → `ask` → `order` → `invoice` →
+> Zahllink → Webhook. **Und ohne Rechnung kein Zahllink**: man kassiert nicht, was niemand
+> gefordert hat.
+> **Ein Fehler, der beim Messen auffiel**: direkt nach der Zusage stand «Bezahlt» – offen
+> ist dort null, weil noch **nichts gefordert** wurde. Dieselbe Zahl, eine ganz andere
+> Aussage. Die Karte sagt jetzt «Nichts berechnet».
+>
+> **#778 war strukturell, nicht lokal.** «Dieser Wert ist bereits vergeben» beim Umschalten
+> zwischen Beschaffen und Selbst war gegen ein migrationsgebautes Schema **nicht
+> nachstellbar** (gemessen: 4× hin und her, fehlerfrei). Ursache: **der Deploy fährt kein
+> `alembic upgrade head` gegen die dev-Datenbank** – sie lebt von `create_all` (fehlende
+> *Tabellen*) + `_COLUMN_SAFETY_NET` (fehlende *Spalten*) + `_RAW_INDEX_SAFETY_NET`.
+> Migration `119` machte `uq_purchases_step` **partiell**; dort stand darum weiter der
+> volle Index aus `114`, und der zweite `buy` verletzte ihn. Das Netz hat für genau diesen
+> Fall schon zwei Einträge – dieser fehlte. **Die Lehre ist grösser als die Notiz:** jede
+> Index- oder Constraint-Änderung, die nur in einer Migration steht, erreicht dev nie.
+> **#779 – jeder darf Kunde sein.** Die Rolle sagt, was jemand *für uns* tut, nicht ob er
+> *bei uns* kaufen darf; ein Mitarbeiter, der eine Schraube kauft, ist ein Kunde. Kein
+> `if role == 'customer'`, sondern `Flow.party_roles` (**leer heisst frei**, wie bei
+> `parties_of`) – und **dieselbe** Angabe lesen Auswahlliste und Dienst. Beim Einkauf
+> bleibt «Lieferant» eine Zulassung, die wir vergeben.
+> **#780/#781 – ein Feld als Vielleicht ist schlimmer als keines.** «Auftrag an den
+> Kundeen» und «Bestellangabe» standen am Verkauf, weil man sie *vielleicht* braucht.
+> Aus zwei Booleans je Feld (vier Zustände, einer fehlte: «gibt es hier gar nicht») wurde
+> **ein Wert mit drei Stufen** – `OFF` · `OPTIONAL` · `REQUIRED`. Verkauf: `instruction =
+> OFF`. Ein Lieferhinweis gehört an das **Bewegen**-Modul, das die Lieferung *ist*.
+> *Und zur Frage dahinter, gemessen statt behauptet: `if direction ==` gibt es **null
+> Mal** – nicht im Beleg-Dienst, nicht in `payments`, nicht im Frontend.*
+> **#782 – die Karte tippt niemand ab.** Sie entsteht beim Zahlungsdienst und kommt über
+> den Webhook; sie von Hand zu erfassen wäre eine zweite Quelle für dieselbe Buchung.
+> `money.MANUAL_METHODS` neben `METHODS` (zwei Formen einer Regel), durchgesetzt an der
+> **Menschentür** (`purchase._pay`), nicht nur im Formular – und zwei Werte sind ein
+> **Schieber**, keine Auswahlliste.
+> **#783 – Container im Container, und der innere IST eine Modul-Karte.** Nicht
+> nachgebaut, sondern **geteilt**: `ModuleShell` ist dasselbe Bauteil, das auch `StepCard`
+> trägt. *Meine frühere Begründung («die dritte Fläche», #100/#104) ist damit überstimmt –
+> ein Einkauf in einem Bewegen-Modul ist ein Vorgang mit eigener Identität, keine Fussnote
+> am Rand.*
+> **Drei Wächter mussten dabei umgeschrieben werden**, weil sie die **Form** der alten
+> Lösung prüften (`<ModuleMark` in *dieser* Funktion, `borderLeft`) und damit angeschlagen
+> hätten, obwohl die Regel besser erfüllt ist als vorher. Ein vierter las seinen eigenen
+> Erklärtext mit (`_code_of` liest jetzt den **Code**, nicht die Prosa) und ein fünfter
+> teilte am ersten Vorkommen eines Namens, das im Kommentar stand – er prüfte damit **gar
+> nichts**. Alle nachgeschärft und gegen ihre Bug-Form gegengeprüft.
+> Wächter: `tests/test_invoices.py` (9 Prüfungen, **jede gegen ihre Bug-Form
+> gegengeprüft**) + fünf in `test_frontend_mirrors.py`; Suite grün gegen die gewachsene
+> Datenbank **und** gegen ein Schema nur aus den Migrationen. Gemessen in Chromium an der
+> **echten** Komponente: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter
+> Überlauf über **acht** Beleg-Zustände (inkl. Anzahlung und Zwei-Rechnungen-Fall).
+
 > **Das Geld ist eine ZEILE am Beleg, keine vierte Stufe** (`domain/money.py`,
 > `services/payments.py`). **Es gibt keine Forderungs-Tabelle**: *offen* = Belegsumme −
 > Gutschriften − Zahlungen, *fällig* = Zusagedatum + Zahlungsfrist, *überfällig* = beides.

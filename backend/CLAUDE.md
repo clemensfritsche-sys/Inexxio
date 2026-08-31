@@ -317,20 +317,40 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Wächter: `tests/test_sales_module.py` (19 Prüfungen, jede gegen ihre Bug-Form
 > gegengeprüft).
 
-> **Das Geld – eine Zeile am Beleg, keine vierte Stufe** (PROCESS_CORE §9.11,
-> `domain/money.py` · `services/payments.py`, Tabelle `payments`):
-> **Es gibt keine Forderungs-Tabelle.** *Offen* = Belegsumme − Gutschriften − Zahlungen,
-> *fällig* = Zusagedatum (`purchases.committed_on`) + Zahlungsfrist (an der **gewählten**
-> Angebotszeile), *überfällig* = beides. Drei Ableitungen, null Spalten – eine Spalte
-> «offener Betrag» wäre die zweite Wahrheit, die bei jeder Zahlung, jeder Gutschrift und
-> jeder Mengenklärung nachgezogen werden müsste. Ein **negativer** offener Betrag ist kein
-> Fehler, sondern eine Aussage: dann schulden **wir**.
-> **Zwei Arten**: `payment` (Geld ist geflossen, negativ = Erstattung) und `credit` (die
-> Forderung wird gemindert, ohne dass Geld fliesst). Ohne die Unterscheidung liesse sich
-> «wie viel hat der Kunde wirklich gezahlt» nicht beantworten – und eine Retoure sähe aus
-> wie eine offene Rechnung. Ein Zahlweg an einer Gutschrift ist darum **verboten**.
-> **Ware und Geld sind entkoppelt**: Gutschrift ohne Rücknahme = Kulanz, Rücknahme ohne
-> Gutschrift = Garantie. Gekoppelt wäre keines von beiden abbildbar.
+> **Ware · Forderung · Geld – drei Achsen, keine Reihenfolge** (PROCESS_CORE §9.11,
+> `domain/money.py` · `services/invoices.py` · `services/payments.py`, Tabellen
+> `invoices` + `payments`, Migration `123`):
+> **Das System schreibt keine Reihenfolge vor.** Jedes Zahlungs-Szenario ist eine andere
+> **Folge** derselben drei Grundhandlungen – Zahlungsziel (Ware → Forderung → Geld),
+> **Vorauszahlung** (Forderung → Geld → Ware), **Anzahlung + Schlussrechnung**, Nachnahme,
+> Shop, Retoure, Garantie, Kulanz. Für **keines** davon gibt es einen neuen Mechanismus,
+> und für keines einen Modus: wer eine Folge festschreibt, bekommt für jede Abweichung ein
+> `if`. Wer zuerst Geld sehen will, stellt zuerst die Rechnung.
+> **Die Forderung war die fehlende Achse.** Vorher las `balance` die **Zusage**
+> (`purchases.amount`) als wäre sie die **Forderung** – gut, solange beides dasselbe ist,
+> und still falsch bei Anzahlung, Teilrechnung und zwei Fälligkeiten. Jetzt: *offen* =
+> Forderungen − Zahlungen, *`uncharged`* = zugesagt − berechnet (die Zahl, die es vorher
+> gar nicht geben konnte), *fällig* = die **früheste offene** Fälligkeit **je Rechnung**.
+> Lauter Ableitungen, null Spalten. Ein **negativer** offener Betrag ist kein Fehler,
+> sondern eine Aussage: dann schulden **wir**.
+> **Eine Gutschrift ist eine NEGATIVE Rechnung**, keine Zahlung – dabei fliesst kein Geld.
+> Als Zahlungs-Art (`kind='credit'`) brauchte sie eine eigene Regel («hat keinen
+> Zahlweg»); als Vorzeichen an der richtigen Achse braucht sie keine. **Zwei Regeln
+> entfallen**, `payments.kind` ist mitgegangen. Eine **Erstattung** bleibt eine negative
+> **Zahlung**.
+> **Die Automatik steckt in den Vorgaben, nicht in einem Modus** (`purchase._invoice`):
+> Betrag = zugesagt − berechnet, Fälligkeit = heute + Frist, Nummer =
+> `<Auftragsnummer>-<laufend>` (`Flow.invoice_number` sagt, wer nummeriert – beim Einkauf
+> die Gegenpartei). Das `-1` der ersten fällt nach aussen weg (`invoices.display`),
+> gespeichert bleibt es. Der Normalfall ist **ein Klick**.
+> **Der Shop braucht keinen eigenen Endpunkt**: ein Kauf ist eine Auftragsfreigabe plus
+> `ask` → `order` → `invoice` → Zahllink → Webhook. Keine Reservierung, kein
+> `CheckoutIntent`, kein zweiter Weg (Wächter `test_a_shop_checkout_needs_no_new_endpoint`).
+> **Ware, Forderung und Geld sind entkoppelt**: Gutschrift ohne Rücknahme = Kulanz,
+> Rücknahme ohne Gutschrift = Garantie. Gekoppelt wäre keines von beiden abbildbar.
+> **Und der Rest des Order-to-Cash steht längst da**: Kommissionierung und Versand sind
+> **Bewegen-Module vor dem Verkauf-Modul**, die Spedition ist ein Einkauf. **ATP** gibt es
+> bewusst nicht – die Freigabe *ist* die Prüfung, Reservierungen gibt es nirgends.
 > **`payments.record` ist die EINE Schreibstelle** – Überweisung und Karte gehen beide
 > hier durch (ein Mensch bzw. der Webhook), **idempotent über die Referenz am SELBEN
 > Beleg**: dieselbe Referenz ist dieselbe Zahlung, und zurück kommt die bereits gebuchte
@@ -343,9 +363,13 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > beim Messen, nicht beim Lesen. Eine Referenz gehört zu genau einer Zahlung im Haus – so
 > ist der Unique-Index gebaut, und so sind die beiden echten Quellen (`payment_intent`,
 > QR-Referenz). Wer doch zweimal buchen muss, unterscheidet sie oder lässt sie leer.
-> **`pay` hat keine Stufe** – wie `buy`: Geld fliesst, sobald zugesagt ist, und auch noch
-> nach einem Storno (eine Anzahlung muss erstattet werden können). Es steht darum nicht in
+> **`pay` und `invoice` haben keine Stufe** – wie `buy`: Geld fliesst, sobald zugesagt
+> ist, und auch noch nach einem Storno (eine Anzahlung muss erstattet werden können); eine
+> Rechnung darf **vor** der Lieferung stehen und danach. Beide stehen darum nicht in
 > `STAGE_ACTIONS`, aber sehr wohl in `can`: «was darf ich hier tun» ist EINE Frage.
+> **Und die Menschentür ist enger als die Tabelle** (`money.MANUAL_METHODS`, Testnotiz
+> #782): eine Kartenzahlung tippt niemand ab – sie kommt über den Webhook, der
+> `payments.record` **ohne** die Verengung ruft. Zwei Formen einer Regel, ein Namensstamm.
 
 > **Stripe – dünn, und in die richtige Richtung** (`services/stripe_pay.py`,
 > `docs/stripe-setup.md`): **Das ERP nennt Betrag und Währung, Stripe kassiert.** Im

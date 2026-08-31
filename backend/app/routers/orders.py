@@ -418,27 +418,37 @@ def party_options(
     Oberfläche: sie reicht durch, was sie bekommen hat. Ein zweiter Endpunkt je Rolle wäre
     dieselbe Abfrage zweimal, und die zweite bekäme den nächsten Filter nicht mit.
     """
-    known = {flow.party_role for flow in procurement.FLOWS.values()}
+    known = {flow.party_role: flow for flow in procurement.FLOWS.values()}
     if role not in known:
         raise HTTPException(
             status_code=400,
             detail=f"«{role}» ist keine Gegenpartei-Rolle. Erlaubt: "
                    + ", ".join(sorted(known)) + ".",
         )
-    rows = (
+    query = (
         db.query(UserProfile)
         .filter(
             UserProfile.object_id.isnot(None),
             UserProfile.is_active.is_(True),
-            UserProfile.role == role,
             lookup.matches(search, UserProfile.object_id, UserProfile.company_name,
                            UserProfile.first_name, UserProfile.last_name,
                            UserProfile.email),
         )
-        .order_by(UserProfile.object_id.desc())
-        .limit(limit)
-        .all()
     )
+    # ►►► **Leer heisst frei** (Testnotiz #779). ◄◄◄
+    #
+    # Beim **Einkauf** ist «Lieferant» eine Beziehung, die wir vergeben – dort ist die
+    # Rolle eine echte Bedingung. Beim **Verkauf** nicht: die Rolle sagt, was jemand *für
+    # uns* tut, nicht ob er *bei uns* kaufen darf. Ein Mitarbeiter, der eine Schraube
+    # kauft, ist ein Kunde; es gibt keinen Grund, ihn auszuschliessen.
+    #
+    # Die Angabe steht im ``Flow`` und nicht als ``if role == 'customer'`` hier – dieselbe
+    # Liste liest ``purchase._assert_allowed``, damit die Auswahl nicht anbietet, was der
+    # Dienst danach abweist.
+    roles = known[role].party_roles
+    if roles:
+        query = query.filter(UserProfile.role.in_(roles))
+    rows = query.order_by(UserProfile.object_id.desc()).limit(limit).all()
     return [SupplierOption(object_id=u.object_id, name=u.display_name) for u in rows]
 
 
@@ -456,8 +466,9 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
             ModuleTypeInfo(key=m.key, label=m.label, tone=m.tone, terminal=m.terminal,
                            status_before=m.status_before, status_after=m.status_after,
                            buys=m.buys,
-                           suppliers_required=m.suppliers_required,
-                           instruction_required=m.instruction_required,
+                           parties=m.parties,
+                           instruction=m.instruction,
+                           party_roles=list(m.flow.party_roles),
                            party_role=m.flow.party_role,
                            party_word=m.flow.party_word,
                            # **Ohne Tatsachen** – hier gibt es noch keinen Auftrag und

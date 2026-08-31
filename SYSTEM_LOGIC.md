@@ -514,6 +514,36 @@ ohne stilles Weiterlaufen zu erlauben — und sie kehrt eine ausdrückliche Ents
 (§13: «weder Status noch automatischer Folgeauftrag»). Darum steht sie hier und ist nicht
 gebaut.
 
+### 5.6 Was am Order-to-Cash bewusst NICHT gebaut ist
+
+Die Forderung ist als dritte Achse da (PROCESS_CORE §9.11); fünf Dinge daneben sind
+**benannt und nicht gebaut** – benannt, damit sie nicht als stille Lücke im Code stehen:
+
+**Rabatte.** Es gibt keine Preisliste (`article_prices` ist mit dem Basis-Neuaufbau
+entfallen, `docs/attic.md`). Ein Rabatt ohne Listenpreis ist eine Zahl ohne Bezug; der
+vereinbarte Betrag **ist** der Preis. Ein Feld daneben liesse sich füllen und von nichts
+prüfen.
+
+**ATP (Available-to-Promise).** Bewusst nicht — und nicht aus Aufwandsgründen: das System
+kennt **keine Reservierungen**. Die Auftragsfreigabe *ist* die Verfügbarkeitsprüfung, und
+sind die Stücke im selben Moment weg, meldet sie es (§12.6a). Ein ATP-Wert daneben wäre
+eine Aussage über einen Zustand, den niemand hält.
+
+**Mahnwesen.** *Überfällig* ist eine Ableitung und sichtbar (`invoices.is_overdue`); eine
+**Mahnung** ist eine Mitteilung, und es gibt keinen Versandweg (kein E-Mail, `CLAUDE.md`).
+Was fehlt, ist der Kanal, nicht die Logik.
+
+**Rechnungs-PDF und -Positionen.** Die Rechnung trägt Betrag und Notiz. Positionen gehören
+zum **Ausdruck**, und den gibt es nicht (das Dokumentmodul ist entfernt); die Zeilen des
+Belegs stehen ohnehin in `purchases.ordered_lines`. Beides kommt zusammen oder gar nicht —
+Positionen ohne Ausdruck wären Daten ohne Leser.
+
+**Übergabe an die Buchhaltung.** Es gibt keine. Der Standard-Schritt «automatische
+Weitergabe ans Finanzwesen» hat hier kein Gegenüber.
+
+*Nicht auf dieser Liste, weil es sie längst gibt:* **Kommissionierung** und **Versand**
+sind Bewegen-Module vor dem Verkauf-Modul (§9.8), die Spedition ist ein Einkauf (§9.9).
+
 ---
 
 ## 6. Die Testbarkeitsregel
