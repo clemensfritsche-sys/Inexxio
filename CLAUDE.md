@@ -1860,69 +1860,6 @@
 > getäuscht: `transition: color .12s` – wer sofort misst, misst den Startwert des
 > Übergangs.*
 
-> **Ein Handelsmodul — und der Verkauf ist kein Ausgang mehr** (PROCESS_CORE §9.10,
-> Migration `124`). Drei Module standen zur Debatte (Bewegen · Beschaffen · Verkauf), und
-> die Diagnose war **eine**: jedes beantwortete zwei Fragen – *was passiert mit dem Stück*
-> und *wer ist die Gegenpartei* –, und jedes eine andere Teilmenge. Daraus kamen beide
-> Schmerzen, in zwei Verkleidungen.
-> **(1) Ein Modul im Modul war die Antwort auf «Transport kann man kaufen»** – die Stelle,
-> an der ein physisches Modul plötzlich eine kaufmännische Frage stellte. «Kaufen statt
-> selbst machen» gilt aber für **alles** (Härten, Montieren, Fahren), und für alles ausser
-> dem Transport war es längst ein eigenes Modul. Jetzt auch hier: `… → Einkauf (Spedition)
-> → Bewegen (Kunde) → …`. Wer selbst fährt, lässt das Modul weg; ist es *diesmal* anders,
-> ist das eine **Abweichung** – der Mechanismus dafür existiert. `Module.buys` (`nie ·
-> immer · falls gewählt`) ist zu einem Bit geworden (`trades`), der Schalter «Selbst ↔
-> Beschaffen», `HAULAGE`, `ProcurementBlock`, `Wrapped` und die Handlung `buy` sind
-> **ersatzlos entfallen**.
-> **(2) `Verkauf.terminal = True` war eine Notlüge.** Verkaufen heisst *Eigentum wechselt*,
-> nicht *Ort wechselt* – das Stück steht danach noch im Regal, bis jemand es hinausfährt.
-> Weil `terminal` die Kette schloss, konnte hinter dem Verkauf **kein Bewegen** stehen, und
-> damit scheiterte ausgerechnet der Normalfall «verkaufen und liefern». Der Verkauf ist
-> jetzt ein **Durchläufer**; was ein Stück am Ende **ist**, sagt der Auftrag
-> (`Module.rest_status_for` → `orders.end_status`, bei der Freigabe abgeleitet). Das Ende
-> schreibt denselben Wert, den der Prozess ohnehin meint: nichts zu überschreiben, keine
-> Ausnahme, kein `if module_type`.
-> **Die Statuskette bleibt dabei unangetastet** – das war die ausdrückliche Vorgabe. Sie
-> trägt, weil das Handelsmodul ein Durchläufer ist (`Im Prozess → Im Prozess`): `chain.
-> assert_closes` musste **nicht angefasst** werden.
-> **(3) Ein Statuswechsel räumt keinen Ort mehr** (`process._pass`). «Wer zur Historie
-> zählt, verliert seinen Ort» war richtig, solange der einzige historische Zustand ein
-> Stück meinte, das physisch verschwindet – und wurde beim Verkauf falsch. *Wo liegt es*
-> und *was ist damit* sind zwei Fragen; eine Regel, die für jeden neuen Zustand eine
-> Entscheidung verlangt, ist die Stelle, an der die erste still falsch ausfällt.
-> **(4) Ein Modul im Code, zwei Kacheln in der Palette.** `Beschaffen` und `Verkauf` waren
-> zwei Klassen, die sich in **vier Werten** und in keiner Zeile Verhalten unterschieden –
-> und alle vier beschreiben die **Richtung**, nicht den Modultyp. Geblieben ist
-> `domain/modules.Handel`; die Werte stehen im `Flow`. In der Palette bleiben es zwei
-> Kacheln («Einkauf» / «Verkauf» sind die Wörter, die jeder benutzt – einen Oberbegriff
-> braucht niemand, wenn ihn niemand liest). *Bewusst zwei **Schlüssel** statt eines mit der
-> Richtung in der `config`: der Schlüssel ist die Identität eines gespeicherten Schritts,
-> daran hängen Name, Farbe und Symbol, und die reisen mit dem Schritt – ein einziger
-> Schlüssel zwänge jede Lesestelle, die Konfiguration mitzuschleppen, um zu wissen, **was**
-> das Modul ist.*
-> **Und eine Falle, die still gewesen wäre:** `landed_cost` hing am Modultyp («Beschaffen»
-> ja, «Bewegen» nein). Seit der Transport ein gewöhnliches Einkaufs-Modul ist, kann der Typ
-> das nicht mehr beantworten – beide sind Einkäufe. Ohne eine Angabe hätte derselbe
-> Artikel, zweimal verschickt, den **Frachttarif als Einstandspreis**. Sie steht jetzt am
-> **Schritt** (`config.landed_cost`, Vorgabe ja, Schalter im Editor), dort, wo das Wissen
-> ist – und beim Verkauf gibt es sie gar nicht: was ein Kunde zahlt, ist verhandelt.
-> **Retouren brauchen nichts Neues**: ein gewöhnlicher Auftrag greift die verkauften
-> Stücke, und die **negative Rechnung** (§9.11) gibt es seit der Forderungs-Achse.
-> Wächter: fünf neue, sechs umgeschriebene, sieben entfernte (sie beschrieben einen
-> Mechanismus, den es nicht mehr gibt) – **14 Bug-Formen gegengeprüft**, jede meldet. Einer
-> war dabei stumpf und las seinen **eigenen Erklärtext** mit (`HAULAGE` steht im Kommentar,
-> der das Entfernen begründet) – auf `_code()` nachgeschärft. Suite grün gegen die
-> gewachsene Datenbank (492) **und** gegen ein Schema nur aus den Migrationen (502);
-> Migration `124` von null · idempotent · downgrade, ihre **Wirkung gemessen** (3 Schritte
-> umgeschrieben, 0 aktive Belege am Bewegen, 30 Aufträge auf `end_status = verkauft`).
-> Gemessen in Chromium am **echten** Editor: 1440 · 1280 · 1024 · 834 · 375 · 320 px,
-> **0 px** waagrechter Überlauf, die Kette `Verkauf → Einkauf → Bewegen` mit Ende dahinter,
-> Einstandspreis-Schalter am Einkauf und **nicht** am Verkauf, **0** Beleg-Felder am
-> Bewegen-Modul.
-> *Offen und bewusst nicht angefasst: die Statuskette selbst (`status_before`/`END_BEFORE`
-> als Kettenglieder). Sie trägt heute; ob sie auf «ein terminaler Zustand muss letzter
-> sein» eindampfen kann, ist die nächste Frage – nicht diese.*
-
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -2159,10 +2096,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   ohne KI), Bestand in drei Ebenen, Reihe (ersetzt/ersetzt durch) und die gemeldete
   Stückliste – ausser Betrieb nehmen ist ein Statuswechsel in beide Richtungen.
 - **Prozess**: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie; jeder
-  Statuswechsel schreibt in den append-only Ereignis-Log. **Fünf Modultypen** in **sechs
-  Paletten-Kacheln** (Datenerfassung · Aussondern · Verbrauch · Bewegen · **Handel** in
-  den Richtungen Einkauf und Verkauf), Abweichungen als ganz gewöhnliche Aufträge,
-  Prozessbild als serverseitig gerechneter Graph.
+  Statuswechsel schreibt in den append-only Ereignis-Log. **Sechs Module** (Datenerfassung ·
+  Aussondern · Verbrauch · Bewegen · Beschaffen · **Verkauf**), Abweichungen als ganz
+  gewöhnliche Aufträge, Prozessbild als serverseitig gerechneter Graph.
 - **Verkauf und Geld**: derselbe Beleg wie der Einkauf, nur in die andere Richtung
   (Angebot → Zusage → Geliefert); Zahlungen und Gutschriften als Zeilen daneben, *offen*
   und *fällig* als Ableitung. **Stripe** angebunden (Zahllink + Webhook), optional – ohne

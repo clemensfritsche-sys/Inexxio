@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Coins, Columns2, Grid2x2, Layers, Lock, Percent, Trash2, Truck, X } from 'lucide-react';
+import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ModuleCatalog, ModuleTypeInfo, SupplierOption } from '@/types';
@@ -170,12 +170,12 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
                 )}
                 {/* ►► **Wer einkaufen kann, definiert seinen Beleg – hier, wie jeder
                     andere auch.** ◄◄
-                    Der Block hängt an `trades` und nicht an einer Liste von Modultypen in
+                    Der Block hängt an `buys` und nicht an einer Liste von Modultypen in
                     dieser Datei: ein neuer einkaufender Typ bekommt ihn, ohne dass
                     jemand das Frontend anfasst. Ob die Angaben Pflicht sind und ob
                     daneben etwas Abgeleitetes steht, sagt derselbe Eintrag – die
                     Oberfläche fragt nie nach dem Modultyp (#777). */}
-                {info?.trades && (
+                {info?.buys && (
                   <ProcurementFields module={m} info={info}
                     onChange={(next) => patch(m.id, next)} />
                 )}
@@ -405,28 +405,6 @@ function ProcurementFields({ module: m, info, onChange }: {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ►►► **Zählt die Summe zu den Kosten des Teils?** ◄◄◄
-          Die Frage hing einmal am **Modultyp**: «Beschaffen» ja, «Bewegen» (der
-          Transport) nein. Seit der Transport ein ganz gewöhnliches Einkaufs-Modul ist,
-          kann der Typ sie nicht mehr beantworten – beide sind Einkäufe, und nur der
-          Modellierer weiss, welcher wofür zahlt.
-          Nur wo es überhaupt möglich ist (`landed_cost` der Richtung): was ein Kunde
-          zahlt, ist verhandelt und sagt nichts über unsere Kosten. */}
-      {info.landed_cost && (
-        <IconSwitch
-          value={m.landedCost ? 'yes' : 'no'}
-          onChange={(v) => onChange({ landedCost: v === 'yes' })}
-          options={[
-            { value: 'yes', icon: Coins, label: 'Kosten des Teils',
-              hint: 'Material oder eine Leistung am Teil – die Summe wird sein '
-                  + 'Einstandspreis (Bestellsumme ÷ Menge).' },
-            { value: 'no', icon: Truck, label: 'Nebenkosten',
-              hint: 'Fracht, Versicherung, Gebühren – sie gehören nicht zum Teil. '
-                  + 'Sonst hätte derselbe Artikel, zweimal verschickt, den Frachttarif '
-                  + 'als Einstandspreis.' },
-          ]}
-        />
-      )}
       {/* ►►► **Ein Feld gibt es genau dann, wenn das Modul es DEKLARIERT.** ◄◄◄
           `off` · `optional` · `required` (`ModuleTypeInfo.parties` / `.instruction`).
           Vorher waren es zwei Booleans, und der Zustand «gibt es hier gar nicht» fehlte
@@ -539,10 +517,10 @@ function ProcurementFields({ module: m, info, onChange }: {
  * steht darin, auch der mit `null`: die Liste beantwortet «kennt die Oberfläche diesen
  * Typ?», und ein fehlender Schlüssel ist die Antwort «nein».
  *
- * **Der Beleg-Block steht bewusst NICHT hier.** Er hängt an `ModuleTypeInfo.trades`
+ * **Der Einkaufs-Block steht bewusst NICHT hier.** Er hängt an `ModuleTypeInfo.buys`
  * (siehe `renderStep`), denn er gehört dem **Beleg** und nicht einem Modultyp – seit
  * auch das Bewegen-Modul einen tragen kann, wäre ein Eintrag je Typ die Stelle, an der
- * man den nächsten vergisst. `einkauf` trägt darum `null`: ausser seinem Beleg hat es
+ * man den nächsten vergisst. `beschaffen` trägt darum `null`: ausser seinem Beleg hat es
  * nichts zu konfigurieren.
  */
 const MODULE_FIELDS: Record<string, React.ComponentType<{
@@ -552,8 +530,8 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
 }> | null> = {
   datenerfassung: ModuleFields,
   // Beide handelnden Module tragen `null`: ausser ihrem Beleg haben sie nichts zu
-  // konfigurieren, und den rendert `renderStep` über `trades` – für jedes Modul gleich.
-  einkauf: null,
+  // konfigurieren, und den rendert `renderStep` über `buys` – für jedes Modul gleich.
+  beschaffen: null,
   verkauf: null,
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,

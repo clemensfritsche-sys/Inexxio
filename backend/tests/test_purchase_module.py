@@ -74,7 +74,7 @@ def _article(db, name: str, *, steps: list[dict] | None = None,
 
 def _buy_step(suppliers, instruction: str = "liefern"):
     """Ein Beschaffungs-Modul – **ohne Artikel**: den sagt der Prozess."""
-    return {"module_type": "einkauf",
+    return {"module_type": "beschaffen",
             "config": {"instruction": instruction,
                        "suppliers": [{"supplier": s.object_id, "ref": f"REF-{s.object_id}"}
                                      for s in suppliers]}}
@@ -648,7 +648,7 @@ def test_one_supplier_is_a_list_with_one_entry():
     sys.path.insert(0, str(BACKEND))
     from app.domain import modules
 
-    m = modules.get("einkauf")
+    m = modules.get("beschaffen")
     one = m.clean_config({"suppliers": [{"supplier": 100000001, "ref": "A"}],
                           "instruction": "liefern"})
     assert m.allowed_numbers(one) == [100000001]
@@ -676,7 +676,7 @@ def test_the_module_is_a_pass_through_and_not_an_exit():
     sys.path.insert(0, str(BACKEND))
     from app.domain import modules, statuses as st
 
-    m = modules.get("einkauf")
+    m = modules.get("beschaffen")
     assert m.status_before == st.IM_PROZESS and m.status_after == st.IM_PROZESS
     assert not m.terminal, (
         "Ein terminales Beschaffungs-Modul wäre ein Ausgang – dahinter dürfte kein Modul "
@@ -941,7 +941,7 @@ def test_the_instruction_is_mandatory_and_reaches_the_supplier():
     sys.path.insert(0, str(BACKEND))
     from app.domain import modules
 
-    m = modules.get("einkauf")
+    m = modules.get("beschaffen")
     with pytest.raises(HTTPException) as caught:
         m.clean_config({"suppliers": [{"supplier": 1, "ref": "A"}]})
     assert caught.value.status_code == 400
@@ -1121,7 +1121,7 @@ def test_the_order_reference_lives_in_the_definition_the_tracking_on_the_documen
     db = _db()
     try:
         wuerth = _supplier(db, "Würth AG")
-        step = {"module_type": "einkauf",
+        step = {"module_type": "beschaffen",
                 "config": {"instruction": "liefern",
                            "suppliers": [{"supplier": wuerth.object_id,
                                           "ref": "04711-M6"}]}}
@@ -1145,7 +1145,7 @@ def test_the_order_reference_lives_in_the_definition_the_tracking_on_the_documen
         assert svc.of_step(db, rows[0].id).tracking == "CH-77"
 
         # Und die alte Form der Definition wird weiter gelesen (eingefrorene Prozesse).
-        m = modules.get("einkauf")
+        m = modules.get("beschaffen")
         assert m.allowed_numbers({"suppliers": [wuerth.object_id]}) == [wuerth.object_id], (
             "Ein laufender Auftrag mit der alten Lieferantenliste ist unlesbar geworden."
         )
@@ -1191,14 +1191,14 @@ def test_the_document_belongs_to_no_module():
     Sind die gekappt, trägt jedes Modul denselben Beleg.
 
     Bug-Form: die Stufen-Vokabel wandert zurück an eine Modul-Klasse, oder der Dienst
-    sucht wieder ``module_type == 'einkauf'``. Dann ist der zweite Modultyp der, den
+    sucht wieder ``module_type == 'beschaffen'``. Dann ist der zweite Modultyp der, den
     man vergisst.
     """
     from app.domain import modules, procurement
     from app.services import purchase as svc
 
     src = (BACKEND / "app" / "services" / "purchase.py").read_text(encoding="utf-8")
-    assert "modules.EINKAUF" not in src, (
+    assert "modules.BESCHAFFEN" not in src, (
         "Der Dienst sucht wieder EINEN Modultyp statt der Deklaration «trägt einen "
         "Beleg» – ein zweiter Typ fiele stillschweigend heraus."
     )
@@ -1207,7 +1207,7 @@ def test_the_document_belongs_to_no_module():
     )
     for name in ("STAGES", "BINDING", "CANCELLED", "FLOWS"):
         assert hasattr(procurement, name), f"«{name}» fehlt in der Beleg-Vokabel."
-        assert not hasattr(modules.get("einkauf"), name), (
+        assert not hasattr(modules.get("beschaffen"), name), (
             f"«{name}» steht wieder an der Modul-Klasse."
         )
     # **Die Stufen sind neutral** – sie gelten in beide Richtungen. Wie sie *heissen*,
@@ -1221,137 +1221,152 @@ def test_the_document_belongs_to_no_module():
                 f"«{flow.direction}» hat für «{stage}» kein Wort – die Karte zeigte "
                 f"einen rohen Schlüssel."
             )
-    # Wer einen Beleg trägt, ist abgeleitet – keine gepflegte Liste. Und es sind genau
-    # die handelnden: das **Bewegen** trug einmal einen (ein Modul im Modul), und genau
-    # das ist die Bug-Form, die hier zurückkäme.
-    assert set(modules.trading_types()) == {"einkauf", "verkauf"}
-    assert not modules.get("bewegen").trades, (
-        "Das Bewegen-Modul trägt wieder einen Beleg – ein Einkauf IM Transport ist ein "
-        "Modul im Modul. Wer einkauft, setzt ein Einkaufs-Modul in die Kette."
-    )
-    assert not hasattr(svc, "BUY") and not hasattr(svc, "ensure"), (
-        "Die Handlung «buy» ist zurück. Sie gab es, solange ein Modul seinen Beleg "
-        "wählen konnte – ein Modul wählt man nicht, man setzt es."
+    # Wer einen Beleg tragen kann, ist abgeleitet – keine gepflegte Liste.
+    assert set(modules.buying_types()) == {"beschaffen", "verkauf", "bewegen"}
+    assert set(modules.buying_types(buys=modules.BUY_ALWAYS)) == {"beschaffen", "verkauf"}
+    assert svc.BUY not in svc.ACTIONS, (
+        "«buy» ist eine Handlung des MODULS, nicht des Belegs – in `ACTIONS` stünde sie "
+        "in der `can`-Tabelle, und die hat für sie keine Stufe."
     )
 
 
-def test_a_freight_price_is_never_the_price_of_the_article():
-    """►►► **Die Falle, die still gewesen wäre – und ihr neuer Ort.** ◄◄◄
+def test_a_transport_is_bought_with_the_same_document():
+    """**Eine Sendung aufzugeben IST ein Einkauf** – dieselben Stufen, kein Nachbau.
 
-    ``_write_landed_cost`` schreibt *Summe ÷ Menge* auf den Artikel. Bei einem **Transport**
-    wäre das der Frachttarif als Einstandspreis – derselbe Artikel, zweimal verschickt,
-    hätte danach den Tarif als Kosten, und damit würde kalkuliert.
-
-    Die Frage hing einmal am **Modultyp** («Beschaffen» ja, «Bewegen» nein). Seit der
-    Transport ein ganz gewöhnliches Einkaufs-Modul ist, kann der Typ sie nicht mehr
-    beantworten: beide sind Einkäufe. Sie steht darum in der **Definition**, dort, wo das
-    Wissen ist – mit der Vorgabe **ja**, denn der Normalfall ist Material am Teil.
-
-    Bug-Formen: (a) die Angabe wirkt nicht (der Tarif landet am Artikel); (b) sie wirkt
-    immer (dann bekommt kein Einkauf mehr einen Einstandspreis); (c) der Verkauf schreibt
-    einen – was ein Kunde zahlt, sind nicht unsere Kosten.
+    Bug-Form: ein zweiter Vorgang für dasselbe (eigene Stufen, eigene Verben, eigene
+    Tabelle). Er veraltet beim ersten neuen Verb – und «wo steht die Sendung» hätte
+    zwei Antworten.
     """
-    from app.domain import modules
-
-    buy, sell = modules.get("einkauf"), modules.get("verkauf")
-    lines = [{"supplier": 100000001, "ref": "R"}]
-    material = buy.clean_config({"suppliers": lines, "instruction": "Härten"})
-    freight = buy.clean_config({"suppliers": lines, "instruction": "Transport",
-                                "landed_cost": False})
-
-    assert buy.landed_cost_for(material) is True, (
-        "Ein Einkauf am Teil zählt zu seinen Kosten – das ist der Normalfall."
-    )
-    assert buy.landed_cost_for(freight) is False, (
-        "Die Angabe wirkt nicht: der Frachttarif landet als Einstandspreis am Artikel, "
-        "und damit wird danach kalkuliert."
-    )
-    assert buy.landed_cost_for({}) is True, (
-        "Eine Definition ohne den Schlüssel (Altbestand) muss den Normalfall meinen."
-    )
-    assert sell.landed_cost_for({"landed_cost": True}) is False, (
-        "Ein Verkauf schreibt einen Einstandspreis – was ein Kunde zahlt, ist verhandelt "
-        "und sagt nichts über unsere Kosten."
-    )
-
-
-def test_a_transport_is_a_purchase_module_in_the_chain_not_a_document_inside_the_move():
-    """►►► **Kein Modul im Modul: der Transport-Einkauf steht in der KETTE.** ◄◄◄
-
-    Ein Transport, den eine Spedition fährt, ist eine Leistung, die man einkauft – und
-    dafür gibt es das Einkaufs-Modul. Es stand einmal *in* dem Bewegen-Modul
-    (``buys = if_chosen``): die Stelle, an der ein physisches Modul plötzlich eine
-    kaufmännische Frage stellte. «Kaufen statt selbst machen» gilt aber für alles, und
-    für alles ausser dem Transport war es längst ein eigenes Modul.
-
-    Gemessen wird die Kette, die daraus entsteht – und dass der Beleg **derselbe** ist:
-    dieselben Stufen, dieselben Verben, kein Nachbau.
-
-    Bug-Formen: (a) das Bewegen-Modul trägt wieder einen Beleg; (b) die Kette lässt sich
-    nicht bilden (dann bekäme man den Transport-Einkauf nirgends unter).
-    """
-    from app.domain import chain, modules, procurement, statuses as st
+    from app.domain import procurement
     from app.services import purchase as svc
-
-    assert not modules.get("bewegen").trades, (
-        "Das Bewegen-Modul trägt wieder einen Beleg – ein Modul im Modul."
-    )
-    assert modules.get("bewegen").clean_config({"target": 100000002}).keys() == {
-        "target", "points", "sample"}, (
-        "Das Bewegen-Modul nimmt wieder Beleg-Angaben an – ein Feld, das die Oberfläche "
-        "nicht anbietet und der Dienst speichert, ist eine Hintertür."
-    )
 
     db = _db()
     try:
         shelf = _shelf(db)
-        carrier = _supplier(db, "Spedition Meier")
+        # Der Ablauf steht am **Artikel** – so entsteht ein gewöhnlicher
+        # Erzeugungsauftrag, der genau dieses eine Modul durchläuft.
+        art = _article(db, "Getriebe", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=4, article=art)
         me = _staff(db)
-        # ►► Die Kette, um die es geht: erst den Transport kaufen, dann bewegen.
-        art = _article(db, "Welle", steps=[_buy_step([carrier], "Transport nach Werk 2"),
-                                           _move_step(shelf.object_id)])
-        order, steps = _make(db, quantity=2, article=art)
 
-        row = svc.of_step(db, steps[0].id)
-        assert row is not None and row.direction == procurement.BUY, (
-            "Der Einkauf in der Kette bekommt keinen Beleg – dann gibt es den Transport "
-            "nirgends."
+        # Bei der Freigabe gibt es keinen – die Wahl ist noch nicht getroffen.
+        assert svc.of_step(db, steps[0].id) is None
+        row = svc.apply(db, order=order, step=steps[0], action=svc.BUY,
+                        payload={}, actor=me)
+        assert row.stage == procurement.STAGES[0]
+
+        facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
+        assert [s["key"] for s in facts["stages"]] == list(procurement.STAGES), (
+            "Die Sendung läuft nicht über dieselben drei Stufen."
         )
-        assert svc.of_step(db, steps[1].id) is None, (
-            "Das Bewegen-Modul hat einen eigenen Beleg – genau die Verschachtelung, die "
-            "hier verschwinden sollte."
+        assert facts["lines"] and facts["lines"][0]["quantity"] == 4, (
+            "Die Zeilen des Belegs sind nicht die Ware, die davorsteht – bei einer "
+            "Sendung ist das der Inhalt des Frachtbriefs."
         )
-        # Und es ist derselbe Beleg wie jeder andere Einkauf: dieselben Stufen.
-        svc.apply(db, order=order, step=steps[0], action="ask",
-                  payload={"suppliers": [carrier.object_id]}, actor=me)
-        svc.apply(db, order=order, step=steps[0], action="order",
-                  payload={"supplier": carrier.object_id, "amount": "180.00"}, actor=me)
-        assert svc.of_step(db, steps[0].id).stage == procurement.BINDING
+        assert facts["allowed"] == [], (
+            "Der Spediteur ist keine Freigabe der Definition – er wird zur Laufzeit "
+            "benannt, genau wie das offene Ziel."
+        )
+        assert facts["instruction"].startswith("Transport nach"), (
+            f"Der Auftrag an den Spediteur ist nicht abgeleitet: {facts['instruction']!r}"
+        )
     finally:
         db.rollback()
         db.close()
 
 
-def test_the_chain_may_sell_and_then_deliver():
-    """►►► **Der Normalfall, an dem der Verkauf einmal scheiterte.** ◄◄◄
+def test_a_freight_price_is_never_the_price_of_the_article():
+    """**Die Falle, die still gewesen wäre.**
 
-    ``Verkauf`` war ein **Ausgang**, also konnte hinter ihm kein Modul stehen – und damit
-    ausgerechnet nicht die Lieferung. Gemeldet als «die Kettenregel blockiert den
-    Standardfall verkaufen-dann-versenden».
+    ``_write_landed_cost`` schreibt *Summe ÷ Menge* auf den Artikel. Bei einem
+    Transport-Beleg wäre das der **Frachttarif als Einstandspreis** – derselbe Artikel,
+    zweimal verschickt, hätte danach den Tarif als Kosten, und damit würde kalkuliert.
 
-    Bug-Form: der Verkauf ist wieder terminal, oder er schreibt seinen Zustand am eigenen
-    Schritt (dann bricht die Kette beim nächsten Modul).
+    Bug-Form: der Riegel fehlt (oder er ist ein ``if module_type ==``, das der nächste
+    Typ nicht erbt).
     """
-    from app.domain import chain, statuses as st
+    from app.domain import modules
+    from app.models import Article
+    from app.services import process as proc, purchase as svc
 
-    chain.assert_closes([
-        {"module_type": "verkauf", "status_before": st.IM_PROZESS,
-         "status_after": st.IM_PROZESS},
-        {"module_type": "einkauf", "status_before": st.IM_PROZESS,
-         "status_after": st.IM_PROZESS},
-        {"module_type": "bewegen", "status_before": st.IM_PROZESS,
-         "status_after": st.IM_PROZESS},
-    ])
+    assert modules.get("beschaffen").landed_cost is True
+    assert modules.get("bewegen").landed_cost is False
+
+    db = _db()
+    try:
+        shelf = _shelf(db)
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=2, article=art)
+        me, carrier = _staff(db), _supplier(db, "Spedition Meier")
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="ask",
+                  payload={"suppliers": [carrier.object_id]}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="order",
+                  payload={"supplier": carrier.object_id, "amount": "180.00"}, actor=me)
+        proc.confirm_step(db, order=order, step_id=steps[0].id, values={},
+                          instance_object_id=_first_instance(db, order),
+                          verification="scan", place=shelf.object_id, actor_id=None)
+        db.flush()
+        assert svc.of_step(db, steps[0].id).stage == "fulfilment", (
+            "Der Ziel-Scan schliesst den Beleg nicht – Ankunft und Ablage sind ein "
+            "Ereignis, also eine Bestätigung."
+        )
+        fresh = db.query(Article).filter(Article.id == art.id).first()
+        assert fresh.landed_unit_cost is None, (
+            f"Der Frachttarif steht als Einstandspreis am Artikel "
+            f"({fresh.landed_unit_cost}) – damit wird danach kalkuliert."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_taking_back_the_choice_removes_the_document():
+    """**«Doch selbst» muss wieder wahr werden können.**
+
+    «Eingekauft» ist abgeleitet: *gibt es einen Beleg?*. Bleibt nach dem Zurücknehmen
+    ein leerer stehen, beantwortet sich die Frage mit «ja», obwohl die Wahl weg ist.
+    Beim **Beschaffen** ist es umgekehrt: dort ist der Einkauf der Zweck, der Beleg
+    bleibt und verliert seine Angebote.
+
+    Bug-Form: eine Regel für beide – dann ist entweder das Bewegen-Modul für immer
+    «eingekauft», oder ein Beschaffungs-Modul verliert seinen Beleg und hat nichts mehr.
+    """
+    from app.services import purchase as svc
+
+    db = _db()
+    try:
+        shelf = _shelf(db)
+        me, sup = _staff(db), _supplier(db, "Würth")
+
+        art = _article(db, "Schraube", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=1, article=art)
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        assert svc.of_step(db, steps[0].id) is not None
+        svc.apply(db, order=order, step=steps[0], action="revoke", payload={}, actor=me)
+        db.flush()
+        assert svc.of_step(db, steps[0].id) is None, (
+            "Die Wahl lässt sich nicht zurücknehmen – «selbst gebracht» wird nie wieder "
+            "wahr."
+        )
+        # …und danach geht es wieder (der Unique-Index ist partiell, Migration 119).
+        again = svc.apply(db, order=order, step=steps[0], action=svc.BUY,
+                          payload={}, actor=me)
+        assert again is not None and again.stage == "offer"
+
+        art2 = _article(db, "Mutter", steps=[_buy_step([sup])])
+        o2, s2 = _make(db, quantity=1, article=art2)
+        svc.apply(db, order=o2, step=s2[0], action="ask",
+                  payload={"suppliers": [sup.object_id]}, actor=me)
+        svc.apply(db, order=o2, step=s2[0], action="revoke", payload={}, actor=me)
+        db.flush()
+        kept = svc.of_step(db, s2[0].id)
+        assert kept is not None and kept.quotes == [], (
+            "Beim Beschaffen verschwindet der Beleg – dort ist der Einkauf der Zweck."
+        )
+    finally:
+        db.rollback()
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1371,17 +1386,27 @@ def test_the_way_back_exists_before_anything_is_promised():
     keine Regel deckt.
 
     Bug-Form: ``undo`` ist ``None``, solange nichts angefragt ist (dann hat die Oberfläche
-    nichts zu rendern), oder beide Fälle heissen gleich.
-
-    *Eine dritte Fassung («Doch selbst erledigen») gab es, solange ein Bewegen-Modul
-    seinen Beleg wählen konnte. Ein Modul wählt man nicht, man setzt es – und man
-    entfernt es wieder.*
+    nichts zu rendern), oder alle drei Fälle heissen gleich.
     """
     from app.services import purchase as svc
 
     db = _db()
     try:
         me = _staff(db)
+        carrier = _supplier(db, "Spedition Meier")
+        shelf = _shelf(db)
+
+        # (a) Ein Modul, das auch selbst kann: «zurück» heisst «doch selbst».
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=2, article=art)
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
+        assert "revoke" in facts["can"], (
+            "Ohne Anfrage gibt es keine Gegenhandlung – dann ist die Wahl eine Falle."
+        )
+        assert facts["undo"] == "Doch selbst erledigen", (
+            f"Der Weg zurück heisst nicht nach seiner Wirkung: {facts['undo']!r}"
+        )
 
         # (b) Ein Modul, dessen Zweck der Einkauf ist: dort bleibt der Beleg.
         wuerth = _supplier(db, "Würth AG")
@@ -1393,11 +1418,11 @@ def test_the_way_back_exists_before_anything_is_promised():
         )
 
         # (c) Ab der Zusage ist eine zweite Partei gebunden – dann heisst es stornieren.
-        svc.apply(db, order=order2, step=steps2[0], action="ask",
-                  payload={"suppliers": [wuerth.object_id]}, actor=me)
-        svc.apply(db, order=order2, step=steps2[0], action="order",
-                  payload={"supplier": wuerth.object_id, "amount": "180.00"}, actor=me)
-        facts3 = svc.embed_data(db, order=order2, step=steps2[0], viewer=me)
+        svc.apply(db, order=order, step=steps[0], action="ask",
+                  payload={"suppliers": [carrier.object_id]}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="order",
+                  payload={"supplier": carrier.object_id, "amount": "180.00"}, actor=me)
+        facts3 = svc.embed_data(db, order=order, step=steps[0], viewer=me)
         assert facts3["undo"] == "Bestellung stornieren", (
             f"Ab der Bestellung ist «zurück» eine Absage: {facts3['undo']!r}"
         )
@@ -1406,13 +1431,67 @@ def test_the_way_back_exists_before_anything_is_promised():
         db.close()
 
 
-def test_a_free_party_list_is_not_anyone():
-    """**Frei heisst nicht «irgendwer»** – gefragt werden kann nur, wer in Frage kommt.
+def test_a_cancelled_document_frees_a_module_that_can_do_it_itself():
+    """►►► **Wer auch selbst kann, ist mit einem Storno wieder bei «selbst».** ◄◄◄
 
-    Wo die Definition niemanden nennt (beim **Verkauf** der Normalfall: wer kauft, weiss
-    beim Modellieren eines Artikels niemand), wird zur Laufzeit **gesucht** – und die
-    Suche bietet nur an, was der Dienst danach auch annimmt. Sonst wäre die Auswahlliste
-    eine Bitte: dieselbe Haltung wie bei ``places.search``.
+    Die **Sackgasse**, die dabei aufgefallen ist: nach einem Storno hatte die Stufe
+    ``storniert`` keine Handlung mehr (``can`` leer), ``assert_receivable`` wies den
+    Ziel-Scan mit 409 ab, und ``ensure`` fand die tote Zeile wieder. Ein Transport,
+    dessen Spedition abgesagt wurde, konnte damit **nie** mehr stattfinden – auch nicht
+    zu Fuss –, und der Auftrag stand für immer.
+
+    Die Absage bleibt als Zeile stehen (ein Storno macht die Bestellung nicht ungeschehen);
+    sie ist nur nicht mehr *der* Beleg dieses Moduls. Wo der Einkauf der **Zweck** ist,
+    bleibt er aktiv – dort ist ein Storno wirklich das Ende des Vorgangs.
+
+    Bug-Form: ``is_active`` bleibt stehen → derselbe 409 wie vorher (gegengeprüft).
+    """
+    from app.models import Purchase
+    from app.services import purchase as svc
+
+    db = _db()
+    try:
+        me = _staff(db)
+        carrier = _supplier(db, "Spedition Meier")
+        shelf = _shelf(db)
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
+        order, steps = _make(db, quantity=1, article=art)
+
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="ask",
+                  payload={"suppliers": [carrier.object_id]}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="order",
+                  payload={"supplier": carrier.object_id, "amount": "90.00"}, actor=me)
+        svc.apply(db, order=order, step=steps[0], action="revoke", payload={}, actor=me)
+        db.flush()
+
+        gone = (db.query(Purchase).filter(Purchase.step_id == steps[0].id)
+                .order_by(Purchase.id.desc()).first())
+        assert gone is not None and gone.stage == "cancelled", (
+            "Die Absage muss als Historie stehen bleiben – sie ist passiert."
+        )
+        assert gone.is_active is False, (
+            "Der stornierte Beleg ist weiterhin *der* Beleg des Moduls – damit ist das "
+            "Modul für immer blockiert."
+        )
+        assert svc.of_step(db, steps[0].id) is None
+        # Der Ziel-Scan geht wieder: das Stück wird eben selbst gebracht.
+        svc.assert_receivable(db, step=steps[0])
+        # …und ein zweiter Anlauf ist möglich (partieller Unique-Index seit 119).
+        again = svc.ensure(db, order=order, step=steps[0])
+        assert again.id != gone.id and again.stage == "offer"
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_free_supplier_list_is_not_anyone():
+    """**Frei heisst nicht «irgendwer»** – gefragt werden kann nur ein Lieferant.
+
+    Wo die Definition niemanden nennt (ein Transport: den Spediteur wählt man, wenn man
+    weiss, wohin), wird zur Laufzeit **gesucht** – und die Suche bietet nur Lieferanten
+    an. Der Dienst muss dasselbe verlangen, sonst wäre die Auswahlliste eine Bitte:
+    dieselbe Haltung wie bei ``places.search``.
 
     Bug-Form: ``_assert_allowed`` prüft bei leerer Liste gar nichts – dann geht jede
     Objektnummer durch, und der Fehler fällt erst beim Bestellen auf (404).
@@ -1423,22 +1502,21 @@ def test_a_free_party_list_is_not_anyone():
     db = _db()
     try:
         me = _staff(db)
-        wuerth = _supplier(db, "Würth AG")
-        # **Ein Einkaufs-Modul ohne zugelassene Liste** – die Liste ist dort Pflicht,
-        # also nimmt der Wächter den Weg über die Laufzeit-Suche: angefragt wird jemand,
-        # der die Rolle gar nicht hat.
-        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
+        carrier = _supplier(db, "Spedition Meier")
+        shelf = _shelf(db)
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
         order, steps = _make(db, quantity=1, article=art)
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
 
         with pytest.raises(HTTPException) as bad:
             svc.apply(db, order=order, step=steps[0], action="ask",
                       payload={"suppliers": [me.object_id]}, actor=me)
-        assert bad.value.status_code == 400
+        assert bad.value.status_code == 400 and "kein Lieferant" in str(bad.value.detail)
 
         svc.apply(db, order=order, step=steps[0], action="ask",
-                  payload={"suppliers": [wuerth.object_id]}, actor=me)
+                  payload={"suppliers": [carrier.object_id]}, actor=me)
         facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
-        assert [q["supplier_object_id"] for q in facts["quotes"]] == [wuerth.object_id]
+        assert [q["supplier_object_id"] for q in facts["quotes"]] == [carrier.object_id]
     finally:
         db.rollback()
         db.close()
@@ -1461,7 +1539,7 @@ def test_the_purchase_carries_its_own_identity():
     # **Jedes handelnde Modul liest seine Identität aus seinem Vorgang** – nicht nur das
     # eine. Ein zweites Literal wäre am ersten Tag richtig und beim ersten Umbenennen
     # nicht mehr; und seit es zwei Richtungen gibt, wären es zwei Paare statt einem.
-    for key in modules.trading_types():
+    for key in modules.buying_types(buys=modules.BUY_ALWAYS):
         module = modules.get(key)
         flow = procurement.of(module.direction)
         assert module.label == flow.label and module.tone == flow.tone, (
@@ -1472,9 +1550,10 @@ def test_the_purchase_carries_its_own_identity():
     db = _db()
     try:
         me = _staff(db)
-        wuerth = _supplier(db, "Würth AG")
-        art = _article(db, "Schraube", steps=[_buy_step([wuerth])])
+        shelf = _shelf(db)
+        art = _article(db, "Welle", steps=[_move_step(shelf.object_id)])
         order, steps = _make(db, quantity=1, article=art)
+        svc.apply(db, order=order, step=steps[0], action=svc.BUY, payload={}, actor=me)
         facts = svc.embed_data(db, order=order, step=steps[0], viewer=me)
         buy = procurement.of(procurement.BUY)
         assert facts["label"] == buy.label and facts["tone"] == buy.tone, (
@@ -1518,7 +1597,7 @@ def test_every_buying_module_defines_its_document_the_same_way():
             f"einem Modultyp statt am Beleg."
         )
 
-    buying = [m for m in modules.MODULES.values() if m.trades]
+    buying = [m for m in modules.MODULES.values() if m.buys]
     assert len(buying) >= 2, "Der Test prüft die Gleichbehandlung – dafür braucht es zwei."
 
     # (b) **Was ein Modul DEKLARIERT, nimmt es auch an – und nur das.**
@@ -1607,7 +1686,7 @@ def test_the_derived_sentence_stays_derived_and_the_addition_is_added():
     assert "Hebebühne nötig" in both, "Die Ergänzung kommt nicht an."
 
     # Wo nichts abgeleitet wird, ist der getippte Satz der ganze Auftrag.
-    buy = modules.get(modules.EINKAUF)
+    buy = modules.get(modules.BESCHAFFEN)
     assert buy.instruction_for({"instruction": "Härten auf 58 HRC"}) == "Härten auf 58 HRC"
 
 
@@ -1632,20 +1711,16 @@ def test_whether_the_document_fields_are_mandatory_is_a_declaration():
     from fastapi import HTTPException
     from app.domain import modules
 
-    buy = modules.get(modules.EINKAUF)
+    buy = modules.get(modules.BESCHAFFEN)
     move = modules.get(modules.BEWEGEN)
     sell = modules.get(modules.VERKAUF)
     assert (buy.parties, buy.instruction) == (buy.REQUIRED, buy.REQUIRED)
+    assert (move.parties, move.instruction) == (move.OPTIONAL, move.OPTIONAL)
     assert (sell.parties, sell.instruction) == (sell.OPTIONAL, sell.OFF)
 
-    # Und die Deklaration **wirkt** – jede Stufe an ihrer Wirkung gemessen.
-    assert buy.clean_config({"suppliers": [{"supplier": 100000001, "ref": "R"}],
-                             "instruction": "Härten"})["instruction"] == "Härten", (
-        "REQUIRED: der Wert kommt an."
-    )
-    # Und das **Bewegen**-Modul hat gar keine Beleg-Felder mehr: es handelt nicht.
-    assert set(move.clean_config({"target": 1})) == {"target", "points", "sample"}, (
-        "Das Bewegen-Modul trägt wieder Beleg-Angaben – ein Modul im Modul."
+    # Und die Deklaration **wirkt** – alle drei Stufen, jede an ihrer Wirkung gemessen.
+    assert move.clean_config({"target": 1})["instruction"] == "", (
+        "OPTIONAL: leer geht durch."
     )
     assert sell.clean_config({"instruction": "Bitte werktags"})["instruction"] == "", (
         "OFF wirkt nicht – der Wert wird gespeichert, obwohl es das Feld nicht gibt. "
@@ -1667,7 +1742,7 @@ def test_whether_the_document_fields_are_mandatory_is_a_declaration():
     assert "self.parties" in body and "self.instruction" in body, (
         "Die Prüfung liest die Deklarationen nicht – dann entscheidet wieder der Typ."
     )
-    for key in ('"einkauf"', "'einkauf'", '"bewegen"', "'bewegen'"):
+    for key in ('"beschaffen"', "'beschaffen'", '"bewegen"', "'bewegen'"):
         assert key not in body, (
             f"Die Beleg-Prüfung nennt einen Modultyp ({key}) – genau das sollte sie nicht."
         )

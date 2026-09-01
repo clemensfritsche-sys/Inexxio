@@ -14,7 +14,7 @@
 
 import {
   Banknote, Landmark,
-  Blocks, Camera, CircleHelp, ClipboardCheck, Handshake, MoveRight, PackageX,
+  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, Handshake, MoveRight, PackageX,
   PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
 
@@ -49,7 +49,7 @@ export const CAPTURE_ICON: Record<string, LucideIcon> = {
  */
 export const FLOW: Record<string, { label: string; tone: string; icon: LucideIcon }> = {
   buy: {
-    label: 'Einkauf',
+    label: 'Beschaffen',
     tone: 'plum',
     // Ein Einkaufswagen – bewusst **kein** Lastwagen und kein Paket: der Vorgang kauft,
     // er liefert nicht. Womit die Ware kommt, entscheidet der Lieferant.
@@ -121,22 +121,40 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   bewegen: MoveRight,
   // **Aus derselben Quelle wie der Vorgang** – ein Handel sieht überall gleich aus, und
   // die beiden Module sind genau seine zwei Richtungen.
-  einkauf: FLOW.buy.icon,
+  beschaffen: FLOW.buy.icon,
   verkauf: FLOW.sell.icon,
 };
 
-/*
- * ►►► **Es gibt kein `HAULAGE` mehr — «selbst ↔ beschaffen» ist keine Angabe.** ◄◄◄
+/**
+ * **Symbol je Transportart** (`Bewegen.TRANSPORTS`).
  *
- * Ein Transport, den eine Spedition fährt, ist eine Leistung, die man **einkauft**, und
- * dafür gibt es das Einkaufs-Modul. Der Schalter am Bewegen-Modul war die Oberfläche
- * eines Belegs *in* einem Modul; wer einkauft, setzt jetzt ein Modul in die Kette:
- *
- *   ``… → Einkauf (Spedition) → Bewegen (Kunde) → …``
- *
- * Damit sagt die Kette, was passiert – und «diesmal doch anders» ist das, was es im
- * ganzen System ist: eine **Abweichung**.
+ * Wie bei den Modulen steht die **Liste** im Backend – hier nur, was eine Antwort nicht
+ * transportieren kann. Ein neuer Kanal ist damit ein Eintrag in der Registry plus ein
+ * Symbol; `test_frontend_mirrors` hält beide Seiten deckungsgleich.
  */
+/**
+ * **Selbst gebracht ↔ eingekauft** – das eine Bit einer Bewegung.
+ *
+ * Die frühere Liste `manuell · paket · fracht` (mit einem `available`-Flag als Roadmap)
+ * ist entfallen: *Paket* und *Fracht* sind keine zwei Arten, sondern zwei **Angebote**
+ * desselben Einkaufs – das entscheidet der Tarif, nicht der Modellierer. Ein Roboter,
+ * der es fährt, ist «selbst»: unser Gerät, keine Rechnung.
+ *
+ * Und die Antwort ist **abgeleitet**: eingekauft wurde genau dann, wenn es einen Beleg
+ * gibt. Zwei Angaben könnten sich widersprechen, eine abgeleitete kann es nicht.
+ */
+export const HAULAGE = {
+  self: { icon: Hand, label: 'Selbst',
+          hint: 'Jemand von uns bringt es hin – kein Dienstleister, kein Beleg.' },
+  // **Der Name ist der des Vorgangs, nicht einer des Transports** (#775): «Einkaufen»
+  // war ein zweites Wort für dieselbe Sache, und im Haus heisst sie «Beschaffen». Symbol
+  // und Wort kommen darum aus `FLOW.buy` – dieselbe Quelle, aus der auch die Karte des
+  // Beschaffen-Moduls sie nimmt. Eine Spedition wird **gekauft**, nie verkauft; darum
+  // steht hier die Richtung fest und nicht `flowOf(…)`.
+  bought: { icon: FLOW.buy.icon, label: FLOW.buy.label,
+            hint: 'Eine Spedition beauftragen – daraus wird ein ganz gewöhnlicher '
+                + 'Beschaffungs-Vorgang: anfragen, vergleichen, bestellen.' },
+} as const;
 
 /**
  * **Die Farbfamilien der Module — die eine Stelle.**
@@ -378,16 +396,6 @@ export interface ModuleDraft {
    * mehrere Schritte, und jeder verlangt etwas anderes.
    */
   instruction: string;
-  /**
-   * **Zählt die Summe dieses Belegs zu den Kosten des Teils?** Vorgabe: ja.
-   *
-   * Die Frage hing einmal am **Modultyp** («Beschaffen» ja, «Bewegen» – der Transport –
-   * nein). Seit der Transport ein ganz gewöhnliches Einkaufs-Modul ist, kann der Typ sie
-   * nicht mehr beantworten: beide sind Einkäufe, und nur der Modellierer weiss, welcher
-   * wofür zahlt. Wer Fracht einkauft, nimmt sie heraus – sonst hätte derselbe Artikel,
-   * zweimal verschickt, den Frachttarif als Einstandspreis.
-   */
-  landedCost: boolean;
 }
 
 /** Ein zugelassener Lieferant und die Angabe, wie man bei ihm bestellt (#753). */
@@ -433,14 +441,10 @@ const TRADE_FORM = {
       supplier: Number(r.supplier ?? r), ref: String(r.ref ?? ''),
     })).filter((r) => Number.isFinite(r.supplier)),
     instruction: String(c.instruction ?? ''),
-    // **Tolerant gelesen**: eine Definition aus der Zeit davor kennt den Schlüssel nicht
-    // und meint den Normalfall – genau wie das Backend (`Handel.landed_cost_for`).
-    landedCost: c.landed_cost !== false,
   }),
   config: (m: ModuleDraft) => ({
     suppliers: m.suppliers.map((r) => ({ supplier: r.supplier, ref: r.ref.trim() })),
     instruction: m.instruction.trim(),
-    landed_cost: m.landedCost,
   }),
 };
 
@@ -518,11 +522,11 @@ export const MODULE_FORM: Record<string, {
     // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
     config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
   },
-  // **Ein Eintrag, zwei Module** – kein zweiter daneben: Ein- und Verkauf sind dieselbe
-  // Klasse im Backend (`domain/modules.Handel`) und tragen denselben Beleg. Was sie
-  // unterscheidet, ist nicht ihre Form, sondern ihre **Richtung** – und was daraus folgt
-  // (Pflichtfelder, Wörter, Farbe), sagt der Katalog, nicht diese Datei.
-  einkauf: TRADE_FORM,
+  // **Ein Eintrag, zwei Module** – kein zweiter daneben: Ein- und Verkauf tragen
+  // denselben Beleg, also dieselben zwei Angaben. Was sie unterscheidet, ist nicht ihre
+  // Form, sondern ob sie **Pflicht** sind – und das sagt der Katalog des Backends
+  // (`suppliers_required` / `instruction_required`), nicht diese Datei.
+  beschaffen: TRADE_FORM,
   verkauf: TRADE_FORM,
   verbrauch: {
     draft: (c) => ({
@@ -579,7 +583,7 @@ export function moduleFromConfig(id: number, moduleType: string,
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
-    lines: [], target: '', suppliers: [], instruction: '', landedCost: true,
+    lines: [], target: '', suppliers: [], instruction: '',
   };
 }
 

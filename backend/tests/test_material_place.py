@@ -291,36 +291,28 @@ def test_a_consumed_piece_lies_in_its_carrier():
         w.db.close()
 
 
-def test_a_status_change_never_moves_a_piece():
-    """►►► **Ort und Zustand sind zwei Fragen** – und nur eine davon bewegt etwas. ◄◄◄
+def test_history_loses_its_place_but_blocked_keeps_it():
+    """**Wer zur Historie zählt, verliert seinen Ort** – und wer im Regal liegt, nicht.
 
-    Hier stand einmal «wer zur Historie zählt, verliert seinen Ort». Das koppelte die
-    beiden Achsen, und die Kopplung wurde beim **Verkauf** falsch: ein verkauftes Stück
-    steht noch im Regal, bis jemand es hinausfährt. Eine Regel, die für jeden neuen
-    Zustand eine Entscheidung verlangt, ist die Stelle, an der die erste falsch ausfällt
-    – und zwar still.
-
-    Den Ort ändert darum ausschliesslich, wer ihn **kennt**: das Bewegen-Modul (den
-    Halter) und der Verbrauch (den Träger). Ein Aussondern bewegt nichts – wo das Stück
-    verschrottet oder gesperrt wurde, dort liegt es auch danach.
-
-    Bug-Form: ``process._pass`` räumt wieder anhand des Zustands.
+    Die Regel hängt am **Status** (``Status.stock`` heisst wörtlich «liegt im Regal»),
+    nicht am Modul. Damit erbt sie jedes künftige Modul, und **Gesperrt** fällt ohne
+    Sonderregel richtig heraus: es ist physisch noch da.
     """
     from app.services import instances as inst_svc
 
     w = _w()
     try:
         shelf = w.holder(name="Regal A")
-        for mode in ("scrap", "block"):
+        for mode, expect_place in (("scrap", False), ("block", True)):
             article, numbers = free_stock(w, serialization="unit", quantity=1)
             w.put(numbers, shelf.object_id)
             order = w.take(article, numbers, steps=[World.dispose(mode)])
             w.run_all(order)
 
             unit = inst_svc.find_unit(w.db, numbers[0])
-            assert unit.place_object_id == shelf.object_id, (
-                f"«{mode}»: der Zustandswechsel hat den Ort geräumt. Wo ein Stück liegt, "
-                f"sagt das Bewegen-Modul – nicht sein Status."
+            assert (unit.place_object_id is not None) is expect_place, (
+                f"«{mode}»: ein verschrottetes Stück liegt nirgends, ein gesperrtes "
+                f"liegt weiterhin im Regal."
             )
             assert unit.place_unit_id is None
     finally:

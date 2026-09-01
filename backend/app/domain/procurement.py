@@ -156,21 +156,6 @@ class Flow:
     #: keine Regel deckt.
     undo_before: str
     undo_after: str
-    #: ►► **Was der Beleg beim Definieren verlangt — je Feld eine der drei Stufen.** ◄◄
-    #:
-    #: ``off`` · ``optional`` · ``required``. Sie hingen einmal an zwei Modul-Klassen
-    #: (``Beschaffen`` / ``Verkauf``); seit es nur noch **eine** gibt, beschreiben sie
-    #: das, was sie schon immer beschrieben haben: die **Richtung**. Beim Einkauf ist
-    #: nichts ableitbar (bei wem bestellt wird, ist eine Freigabeentscheidung; was zu tun
-    #: ist, sagt kein Artikel) – beim Verkauf weiss beim Modellieren niemand, wer kauft,
-    #: und ein Auftrag an den Kunden ergibt gar keinen Sinn: er tut nichts, er kauft.
-    parties: str
-    instruction: str
-    #: **Ist die Summe dieses Belegs der Preis der WARE?** Beim Einkauf ja – auch bei
-    #: einer Leistung am Teil, denn die erhöht seine Kosten. Beim Verkauf nein: was ein
-    #: Kunde zahlt, ist verhandelt und sagt nichts über unsere Kosten. Ihn an den Artikel
-    #: zu schreiben hiesse, mit dem eigenen Verkaufspreis zu kalkulieren.
-    landed_cost: bool
 
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst. Der Ausgang gehört zu beiden Richtungen gleich."""
@@ -183,7 +168,7 @@ class Flow:
 FLOWS: dict[str, Flow] = {
     BUY: Flow(
         direction=BUY,
-        label="Einkauf",
+        label="Beschaffen",
         tone="plum",
         party_role="supplier",
         party_word="Lieferant",
@@ -201,11 +186,6 @@ FLOWS: dict[str, Flow] = {
         stage_verbs={STAGES[0]: "Bestellen", STAGES[1]: "Wareneingang buchen"},
         undo_before="Anfrage zurückziehen",
         undo_after="Bestellung stornieren",
-        # **Beides Pflicht.** Ohne zugelassenen Lieferanten steht beim Ausführen niemand
-        # da, bei dem man bestellen könnte; und was zu tun ist, sagt kein Artikel.
-        parties="required",
-        instruction="required",
-        landed_cost=True,
     ),
     SELL: Flow(
         direction=SELL,
@@ -232,13 +212,6 @@ FLOWS: dict[str, Flow] = {
         stage_verbs={STAGES[0]: "Zusage erfassen", STAGES[1]: "Lieferung buchen"},
         undo_before="Angebot zurückziehen",
         undo_after="Zusage stornieren",
-        # **Die Liste bleibt möglich, Pflicht ist sie nicht**: «diese Charge geht
-        # ausschliesslich an Meier» ist eine echte Hausregel, aber beim Modellieren eines
-        # Artikels weiss niemand, wer ihn kauft. Einen Auftrag an den Kunden gibt es
-        # **gar nicht** – er tut nichts, er kauft (Testnotizen #780/#781).
-        parties="optional",
-        instruction="off",
-        landed_cost=False,
     ),
 }
 

@@ -9,7 +9,7 @@ import type {
   PurchaseEmbed,
 } from '@/types';
 import { orderStatus } from '@/lib/record-status';
-import { DetailHeader, HeaderAction } from '@/components/erp/fields';
+import { DetailHeader, HeaderAction, IconSwitch } from '@/components/erp/fields';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { LabelButton } from '@/components/scan/object-label';
 import {
@@ -19,6 +19,7 @@ import {
 } from '@/components/erp/process-diagram';
 import { ProcessColumns, toDiagramSteps } from '@/components/erp/process-columns';
 import { ProcessDesigner } from '@/components/erp/process-designer';
+import { ModuleShell } from '@/components/erp/process-diagram';
 import {
   DefinitionLines, LAGER, NEU, emptyLine, toPayload, type DefinitionLine,
 } from '@/components/erp/definition-lines';
@@ -27,7 +28,7 @@ import { CaptureWork } from '@/components/erp/capture-work';
 import { PurchaseWork } from '@/components/erp/purchase-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
 import { RUNTIME_CHOICE } from '@/lib/scan';
-import { moduleIcon } from '@/lib/modules';
+import { HAULAGE, flowOf, moduleIcon, moduleTone } from '@/lib/modules';
 import { StepRecord } from '@/components/erp/step-record';
 import { CAPTURE_ICON, blankModule, toModulePayload, type ModuleDraft } from '@/lib/modules';
 
@@ -412,15 +413,53 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * **Der Beleg umschliesst den Scan – oder es bleibt beim Scan.**
+ * **Der Einkaufs-Vorgang umschliesst den Scan — oder er entsteht hier.**
  *
- * Ein Bauteil statt einer Bedingung an der Aufrufstelle, und es fragt **nie** nach dem
- * Modultyp: gibt es einen Beleg, rendert es ihn; gibt es keinen, den Inhalt allein.
- * Ein Einkauf und ein Verkauf sind dabei buchstäblich dieselbe Komponente – dieselben
- * drei Stufen, dieselben Knöpfe, nur in die andere Richtung.
+ * Ein Bauteil statt einer Bedingung an der Aufrufstelle: gibt es keinen Beleg und kann
+ * das Modul auch keinen bekommen, steht hier schlicht der Scan. Die Oberfläche fragt nie
+ * nach dem Modultyp – sie liest zwei Eigenschaften (`buys`, `purchase`), dieselbe Bauart
+ * wie bei `needs`.
+ *
+ * **Der Beleg gehört keinem Modul.** Ein **Bewegen**-Schritt, bei dem jemand
+ * «Beschaffen» gewählt hat, rendert buchstäblich dieselbe Komponente wie ein
+ * Beschaffungs-Schritt: dieselben drei Stufen, dieselben Verben, dieselben Knöpfe. Denn
+ * eine Sendung aufzugeben IST ein Einkauf – der Spediteur ist ein Lieferant, der
+ * Tarifvergleich ist der Angebotsspiegel, die Sendungsnummer ist `tracking`.
+ *
+ * **Und man sieht es auch** (Testnotiz #775). Wo der Einkauf **nicht** der Zweck des
+ * Moduls ist, trägt er seine eigene Überschrift: getöntes Symbol, sein Name, eine
+ * Haarlinie – die Anatomie einer Modul-Karte, eine Ebene tiefer. Damit steht im Bewegen-
+ * Modul sichtbar «hier wird eine Leistung eingekauft, die am Ende eine Bewegung
+ * vollzieht», statt dass nur im Hintergrund ein Beleg entsteht.
+ *
+ * Wo der Einkauf **der** Zweck ist (Beschaffen), bleibt sie weg: dort sagt die Karte den
+ * Namen schon, und zweimal wäre dasselbe Wort zweimal. Das ist keine Abfrage nach dem
+ * Modultyp, sondern dieselbe Deklaration, aus der auch die Wahl folgt (`buys`).
+ *
+ * ►►► **Ein Schalter hat zwei Richtungen** (Testnotiz #775). ◄◄◄
+ *
+ * Er blieb früher bei `value="self"` stehen und **verschwand**, sobald ein Beleg
+ * entstand: das Bedienelement, mit dem man die Entscheidung getroffen hat, war weg, und
+ * der Weg zurück lag woanders (`revoke` **im** Beleg). Zwei Gesten für eine Sache – und
+ * für den Benutzer eine Einbahnstrasse.
+ *
+ * Jetzt zeigt derselbe Schalter die Wahl **und** nimmt sie zurück: `bought` → `buy`,
+ * `self` → `revoke`. Der Wert ist **abgeleitet** (`purchase ? 'bought' : 'self'`), nie
+ * gesetzt – eine zweite Aussage darüber, was gewählt ist, könnte der Wirklichkeit
+ * widersprechen.
+ *
+ * **Und ob es zurückgeht, sagt der Server** – `revoke ∈ purchase.can`, dieselbe Tabelle
+ * (Stufe × Rolle), die auch das Tor ist. Keine Heuristik «hat hier schon jemand etwas
+ * eingegeben?»: die gäbe es dann zweimal, und die im Browser wäre die mildere.
+ *
+ * Ist die Wahl nicht mehr umkehrbar (angefragt, bestellt), **bleibt der Schalter
+ * stehen** – gesperrt, mit dem Grund im Hover. Er verschwindet nicht: sonst beantwortet
+ * nichts mehr die Frage «was habe ich hier eigentlich gewählt». Dieselbe Form wie bei
+ * jeder anderen gesperrten Option im Haus.
  */
-function TradeDocument({ purchase, busy, active, onAction, onLink, children }: {
+function Wrapped({ purchase, buys, busy, active, onAction, onLink, children }: {
   purchase: PurchaseEmbed | null;
+  buys: string | null;
   busy: boolean;
   active: boolean;
   onAction: (body: { action: string } & Record<string, unknown>) => void;
@@ -428,32 +467,90 @@ function TradeDocument({ purchase, busy, active, onAction, onLink, children }: {
   onLink: () => Promise<string>;
   children: React.ReactNode;
 }) {
-  if (!purchase) return <>{children}</>;
-  return (
+  const optional = buys === 'if_chosen';
+
+  // **EINE Beleg-Komponente**, erkannt allein daran, dass es einen Beleg gibt – nie am
+  // Modultyp. Ein Bewegen-Schritt, bei dem jemand «Beschaffen» gewählt hat, rendert
+  // buchstäblich dieselben Zeilen wie ein Beschaffungs-Schritt.
+  const document = purchase ? (
     <PurchaseWork purchase={purchase} busy={busy} active={active} onAction={onAction}
       onLink={onLink}>
       {children}
     </PurchaseWork>
+  ) : children;
+
+  // Wo der Einkauf der Zweck ist, gibt es nichts zu wählen – der Beleg ist das Modul.
+  if (!optional) return <>{document}</>;
+
+  // **Zurück kann man, solange der Beleg es hergibt.** Ohne Beleg ist «selbst» ohnehin
+  // der Zustand, und der Weg nach vorn steht offen.
+  const reversible = purchase ? (purchase.can ?? []).includes('revoke') : true;
+  const locked = 'Hier ist bereits etwas zugesagt – zurück geht es über die '
+    + 'Gegenhandlung am Beleg.';
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {active && (
+        <IconSwitch
+          value={purchase ? 'bought' : 'self'}
+          onChange={(v) => {
+            if (busy || !reversible) return;
+            if (v === 'bought' && !purchase) onAction({ action: 'buy' });
+            if (v === 'self' && purchase) onAction({ action: 'revoke' });
+          }}
+          options={[
+            { value: 'self', icon: HAULAGE.self.icon, label: HAULAGE.self.label,
+              hint: reversible ? HAULAGE.self.hint : locked, disabled: !reversible },
+            { value: 'bought', icon: HAULAGE.bought.icon, label: HAULAGE.bought.label,
+              hint: reversible ? HAULAGE.bought.hint : locked, disabled: !reversible },
+          ]}
+        />
+      )}
+      {purchase
+        ? <ProcurementBlock purchase={purchase}>{document}</ProcurementBlock>
+        : document}
+    </div>
   );
 }
 
-/*
- * ►►► **Es gibt kein `Wrapped` und keinen `ProcurementBlock` mehr.** ◄◄◄
+/**
+ * **Die Überschrift des Einkaufs — seine Identität, aus seiner eigenen Quelle.**
  *
- * Hier stand ein Bauteil, das den Scan in einen Einkaufs-Beleg einwickelte, wenn jemand
- * am **Bewegen**-Modul «Beschaffen» gewählt hatte – ein Schalter, ein Beleg *in* der
- * Modul-Karte, und darin noch einmal ein Karten-Kopf mit eigener Farbe. Ein Modul im
- * Modul.
+ * Name und Farbfamilie reisen **mit dem Beleg** (`PurchaseEmbed.label`/`.tone`, aus
+ * `domain/procurement`), nicht aus dem Modul-Katalog: den lädt nur der Editor, und ein
+ * Rückgriff auf den Eintrag «des Moduls beschaffen» wäre die Identität eines Moduls, das
+ * hier gar nicht steht. Dasselbe Zeichen wie auf einer Modul-Karte (`ModuleMark`) – ein
+ * Einkauf sieht überall gleich aus.
  *
- * Ein Transport, den eine Spedition fährt, ist eine Leistung, die man **einkauft** – und
- * dafür gibt es das Einkaufs-Modul. Es steht jetzt als eigenes Modul in der Kette:
- *
- *   ``… → Einkauf (Spedition) → Bewegen (Kunde) → …``
- *
- * Damit sagt die Kette, was passiert, statt es in einer Karte zu verstecken. Und der
- * Beleg wird zu dem, was er immer war: der Inhalt **eines** Moduls (`PurchaseWork`,
- * unverändert) – gerendert genau dort, wo der Schritt einen hat.
+ * Bewusst **kein zweiter Rahmen**: die Modul-Karte ist bereits eine Fläche in ihrer Farbe,
+ * und eine Karte in der Karte wäre die dritte (#100/#104). Die Zugehörigkeit sagt die
+ * Haarlinie darunter, wie bei jedem Karten-Kopf im Haus.
  */
+function ProcurementBlock({ purchase, children }: {
+  purchase: PurchaseEmbed; children: React.ReactNode;
+}) {
+  const c = moduleTone(purchase.tone);
+  // **Die Richtung sagt der Beleg** – Name und Farbe reisen mit ihm (`label`/`tone`), das
+  // Symbol kann eine Antwort nicht transportieren und kommt darum aus derselben
+  // Zuordnung wie im Backend. Keine Abfrage nach dem Modultyp: hier steht ein Vorgang,
+  // kein Modul.
+  const flow = flowOf(purchase.direction);
+  // ►►► **Container im Container — und der innere IST eine Modul-Karte** (#783). ◄◄◄
+  //
+  // Nicht nachgebaut, sondern **geteilt**: `ModuleShell` ist dasselbe Bauteil, das auch
+  // `StepCard` trägt (Rahmen in der Modulfarbe, getönte Fläche, Kopf mit `ModuleMark`,
+  // Haarlinie vor dem Körper). Ein Einkauf in einem Bewegen-Modul ist ja nichts anderes
+  // als ein Modul – also sieht er auch so aus, in seiner eigenen Farbe.
+  //
+  // *Die frühere Fassung war eine Haarlinie an der Kante, aus der Sorge vor der «dritten
+  // Fläche» (#100/#104). Sie beantwortete die Frage «wozu gehört das hier?» erst auf den
+  // zweiten Blick – und war nicht das, was gemeldet wurde.*
+  return (
+    <ModuleShell tone={c} icon={flow.icon} label={purchase.label || flow.label}>
+      {children}
+    </ModuleShell>
+  );
+}
 
 
 function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
@@ -513,11 +610,11 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
   const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean) => (
     <div className="flex flex-col gap-2.5">
       <Reason text={stepInfo(order, step.id)?.reason} />
-      {/* **Der Beleg umschliesst den Scan** – der Wareneingang bzw. die Lieferung IST
-          die Bestätigung, die das Modul abschliesst. Erkannt allein daran, dass es
-          einen Beleg gibt: nie am Modultyp. Bei jedem anderen Modul ist `purchase` leer
-          und es bleibt beim Inhalt allein. */}
-      <TradeDocument purchase={stepInfo(order, step.id)?.purchase ?? null} busy={busy}
+      {/* Der Beschaffungs-Beleg umschliesst den Scan: der Wareneingang IST die
+          Bestätigung, die jedes Modul abschliesst. Bei jedem anderen Modultyp ist
+          `purchase` leer und es bleibt beim Inhalt allein. */}
+      <Wrapped purchase={stepInfo(order, step.id)?.purchase ?? null}
+        buys={step.buys ?? null} busy={busy}
         active={isActive} onAction={(body) => onPurchase(step.id, body)}
         onLink={() => api.paymentLink(order.object_id, step.id).then((r) => r.url)}>
         {isActive ? (
@@ -546,7 +643,7 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
             moduleType={step.moduleType}
             target={step.moves ? (stepInfo(order, step.id)?.target ?? null) : undefined} />
         )}
-      </TradeDocument>
+      </Wrapped>
       {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp. */}
       {internal && !isActive && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
     </div>

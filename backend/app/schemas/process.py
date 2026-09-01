@@ -61,11 +61,24 @@ class ModuleFacts(BaseModel):
         """**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
 
         Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
-        anderen Modultyp leer war – eine Liste als Bit. Die Liste gibt es nicht mehr, und
-        die Frage steht als das da, was sie ist. Sie reist **mit dem Schritt**: den
-        Modul-Katalog lädt nur der Editor.
+        anderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»
+        aus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht
+        als das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt
+        nur der Editor.
         """
         return modules.get(self.module_type).moves
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def buys(self) -> Optional[str]:
+        """**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.
+
+        ``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau
+        darum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der
+        Eigenschaft und nie nach dem Modultyp.
+        """
+        return modules.get(self.module_type).buys
+
 
 class ModuleInput(BaseModel):
     """Ein Prozessschrittmodul, wie es der Entwurf schickt.
@@ -112,14 +125,13 @@ class ModuleTypeInfo(BaseModel):
     terminal: bool = False
     status_before: str
     status_after: str
-    #: **KANN die Summe eines Belegs dieses Typs zu den Kosten des Teils zählen?**
-    #: Beim Einkauf ja (dann steht im Editor der Schalter), beim Verkauf nie. Ob sie es
-    #: im Einzelfall **tut**, sagt die Definition (``config.landed_cost``).
-    landed_cost: bool = False
-    #: **Trägt dieser Typ einen Beleg?** Daraus folgt im Editor der Beleg-Block
-    #: (zugelassene Gegenparteien + Auftrag an sie): er hängt an *dieser* Eigenschaft und
-    #: nicht an einer Liste von Modultypen in der Oberfläche.
-    trades: bool = False
+    #: **Trägt dieser Typ einen Einkaufs-Beleg – und wann?** ``None`` = nie.
+    #:
+    #: Daraus folgt im Editor der Beleg-Block (zugelassene Lieferanten + Auftrag an den
+    #: Lieferanten): er hängt an *dieser* Eigenschaft und nicht an einer Liste von
+    #: Modultypen in der Oberfläche. Ein neuer einkaufender Modultyp bekommt ihn damit,
+    #: ohne dass jemand das Frontend anfasst (Testnotiz #777).
+    buys: Optional[str] = None
     #: ►► **Was der Beleg beim Definieren braucht — je Feld EIN Wert, DREI Stufen.** ◄◄
     #:
     #: ``off`` · ``optional`` · ``required`` (``domain/modules.Module``). Vorher waren es
@@ -301,10 +313,10 @@ class PurchaseEmbed(BaseModel):
     """**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.
 
     **Der Beleg gehört keinem Modul** (``domain/procurement``): er hängt am Schritt, und
-    welches Modul einen bekommt, sagt dessen ``trades``. Ein- und Verkauf tragen darum
-    buchstäblich denselben – dieselben Stufen, dieselben Verben, dieselbe Komponente,
-    nur in die andere Richtung. Leer, wo keiner existiert; die Oberfläche braucht damit
-    keine Fallunterscheidung nach dem Modul (wie ``needs``).
+    welches Modul einen bekommt, sagt dessen ``buys``. Ein **Bewegen**-Modul, bei dem
+    jemand «eingekauft» gewählt hat, trägt darum buchstäblich denselben – dieselben
+    Stufen, dieselben Verben, dieselbe Komponente. Leer, wo keiner existiert; die
+    Oberfläche braucht damit keine Fallunterscheidung nach dem Modul (wie ``needs``).
 
     **Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt
     einer Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche.
@@ -418,7 +430,7 @@ class PurchaseUpdate(BaseModel):
     ``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine
     Stufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld
     fliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein
-    anderes (``Module.trades`` bzw. ``payments.assert_payable``), aber der **Weg** ist
+    anderes (``Module.buys`` bzw. ``payments.assert_payable``), aber der **Weg** ist
     derselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg
     verwaltet.
     """
@@ -484,7 +496,7 @@ class StepConfirm(BaseModel):
     #: nicht nur im Dialog. Steht dort keines, ist er die **Wahl** – und dann Pflicht,
     #: denn ohne ihn wüsste niemand, wohin die Stücke gebracht wurden.
     place: Optional[int] = None
-    # **Kein «womit».** Ob eingekauft wurde, sagt der Beleg – eine
+    # **Kein «womit».** Ob eingekauft wurde, sagt der Beleg (``Module.buys``) – eine
     # Eingabe daneben wäre eine zweite Angabe über dieselbe Sache, und die getippte
     # gewänne auch dann, wenn niemand eine Spedition beauftragt hat.
 

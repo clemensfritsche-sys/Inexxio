@@ -465,8 +465,7 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
         modules=[
             ModuleTypeInfo(key=m.key, label=m.label, tone=m.tone, terminal=m.terminal,
                            status_before=m.status_before, status_after=m.status_after,
-                           trades=m.trades,
-                           landed_cost=m.landed_cost,
+                           buys=m.buys,
                            parties=m.parties,
                            instruction=m.instruction,
                            party_roles=list(m.flow.party_roles),
