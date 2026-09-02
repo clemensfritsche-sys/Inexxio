@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules, sampling
 
+from .deal import DealEmbed
 from .instance import StockState
 from .place import PlaceRef
 from .process import ModuleFacts, ModuleInput, PurchaseEmbed
@@ -156,6 +157,14 @@ class ProcessStepResponse(ModuleFacts):
     #: braucht damit keine Fallunterscheidung nach dem Modul, genau wie bei
     #: ``transports`` und ``needs``.
     purchase: Optional[PurchaseEmbed] = None
+    #: **Der Geldvorgang** – Richtung, Stufen, Zusage und die Geld-Zeilen
+    #: (``services/deal``). ``None`` bei jedem anderen Modultyp; die Oberfläche braucht
+    #: damit keine Fallunterscheidung nach dem Modul, genau wie bei ``needs``.
+    #:
+    #: **Bewusst neben ``purchase`` und ohne Bezug zu ihm**: das Modul «Zahlung» hat
+    #: seine eigene Maschine, damit «Beschaffen» und «Verkauf» eines Tages ersatzlos
+    #: gelöscht werden können, ohne dass hier eine Zeile fällt.
+    deal: Optional[DealEmbed] = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 
-from . import capture_types, procurement, sampling, statuses as st
+from . import capture_types, deal, procurement, sampling, statuses as st
 
 #: Der eine Ortsbedarf, den es heute gibt: **beim Produkt**. Eine geschlossene Liste
 #: wie ``Aussondern.MODES`` – ein künftiges Modul («an meinem konfigurierten Ort»)
@@ -46,6 +46,7 @@ VERBRAUCH = "verbrauch"
 BEWEGEN = "bewegen"
 BESCHAFFEN = "beschaffen"
 VERKAUF = "verkauf"
+ZAHLUNG = "zahlung"
 
 
 class Module:
@@ -828,6 +829,175 @@ class Bewegen(Module):
         return f"Transport von {where} nach {goal}" if where else f"Transport nach {goal}"
 
 
+class Zahlung(Module):
+    """►►► **Geld mit einer zweiten Partei** – ein Modul für beide Richtungen. ◄◄◄
+
+    Es ist die Antwort auf die Frage, was Einkauf, Verkauf, eine eingekaufte Spedition,
+    eine Leistung ohne Artikel und eine Vorauszahlung gemeinsam haben. Nicht die
+    **Ware** – die ist in jedem Fall eine andere. Sondern: **es fliesst Geld, und eine
+    zweite Partei ist beteiligt.**
+
+    ## Was hier eingestellt wird: vier Dinge
+
+    ``direction``  **Kommt Geld herein oder geht es hinaus?** (``domain/deal``). Daraus
+                   folgt jedes Wort – wie die Stufen heissen, wie die Gegenpartei heisst,
+                   wer die Rechnung stellt. Als **Daten**, nicht als Verzweigung.
+    ``parties``    Die **zugelassenen** Gegenparteien. **Leer heisst frei** – dann wird
+                   beim Ausführen gesucht. Eine Liste mit einem Eintrag ist der
+                   Normalfall; wer vergleichen will, nennt drei.
+    ``subject``    **Worum es geht** – ein Satz, Pflicht («Härten auf 58 HRC»,
+                   «Fertigung nach Zeichnung», «Transport Werk Nord → Kunde»). Er ist
+                   das, was auf dem Beleg steht.
+    ``prepaid``    **Erst weiter, wenn bezahlt.** Der einzige Schalter – und er schreibt
+                   keine Reihenfolge vor, er hält nur an (``deal.Balance.settled``).
+
+    Es gibt **keine Menge** (die steht als Zahl der Einzelinstanzen davor), **keinen
+    Artikel** (den tragen die Stücke), **keinen Termin** (ableitbar) und **keine
+    Bestellangabe** – wer bei wem unter welcher Nummer bestellt, ist eine Eigenschaft
+    des Artikels bzw. der Gegenpartei und nicht dieses Schritts.
+
+    ## Die eine Regel, die es robust macht: es bewegt keine Stücke
+
+    Ein **Durchläufer** (``Im Prozess`` → ``Im Prozess``), ``terminal = False``,
+    ``moves = False``, kein Ortswechsel, kein neuer Status. Es hält die Stücke auf, bis
+    die zweite Partei ihren Teil getan hat, und lässt sie dann weiterlaufen.
+
+    Daraus folgt, dass **keine andere Regel im System von diesem Modul wissen muss**:
+    keine Kettenregel, keine Statusliste, keine Bestandsansicht, keine Zeile in der
+    Prozess-Engine. Was physisch passiert, sagen die Nachbarn – kommissioniert und
+    ausgeliefert wird mit «Bewegen», ausgesondert mit «Aussondern».
+
+    *Ein Verkauf besteht damit aus zwei Modulen statt aus einem, und das ist der Preis.
+    Er ist der richtige: sobald dieses Modul auch Ware bewegte, bräuchte es für jede
+    Kombination aus Geld und Ware wieder einen eigenen Fall.*
+
+    ## Und es trägt bewusst KEINEN ``buys``-Beleg
+
+    ``Module.buys`` bindet ein Modul an ``services/purchase`` – an dieselbe Maschine, aus
+    der «Beschaffen» und «Verkauf» bestehen. Dieses Modul hat seine eigene
+    (``services/deal``), und zwar vollständig: eigene Tabelle, eigener Dienst, eigene
+    Vokabel. Das ist Absicht und keine Doppelung auf Zeit – wer die beiden alten Module
+    löscht, soll dabei keine Zeile hier anfassen müssen.
+    """
+
+    #: Die vier Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
+    DIRECTION = "direction"
+    PARTIES = "parties"
+    SUBJECT = "subject"
+    PREPAID = "prepaid"
+
+    #: Ein Satz, kein Pflichtenheft – wer mehr braucht, hängt ein Dokument an den Artikel.
+    MAX_SUBJECT = 400
+    #: Mehr ist keine Auswahl mehr, sondern eine Adressliste.
+    MAX_PARTIES = 10
+
+    #: **Erfasst wird nichts** – der Scan ist die Bestätigung. Was der Knopf auslöst, ist
+    #: das Abschliessen des Geldvorgangs; wie es heisst, sagt die Richtung.
+    def action_for(self, config: Optional[dict[str, Any]]) -> str:
+        return deal.of(self.direction_of(config)).stage_verbs[deal.AGREED]
+
+    def direction_of(self, config: Optional[dict[str, Any]]) -> str:
+        """**Die Richtung dieses Schritts** – die eine Lesestelle.
+
+        Sie steht in der ``config`` und nicht als zweiter Modul-Schlüssel: es ist EIN
+        Modul, und die Richtung ist seine Einstellung. Die ``config`` friert mit der
+        Freigabe ein und reist mit dem Schritt – sie ist damit genauso haltbar wie ein
+        Schlüssel und kostet keine zweite Kachel in der Palette.
+
+        Tolerant gelesen: ein fehlender Wert ist eine **Ausgabe** (``deal.of``), damit
+        eine alte Zeile keine Anzeige zerlegt. Geschrieben wird streng.
+        """
+        return str((config or {}).get(self.DIRECTION) or deal.OUT)
+
+    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
+        data = raw or {}
+        try:
+            direction = deal.assert_direction(data.get(self.DIRECTION))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        flow = deal.of(direction)
+        subject = str(data.get(self.SUBJECT) or "").strip()
+        if not subject:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"«{flow.label}» braucht einen Satz, worum es geht – ohne ihn steht "
+                    f"auf dem Beleg ein Betrag und sonst nichts («Härten auf 58 HRC», "
+                    f"«Fertigung nach Zeichnung», «Transport nach Werk Nord»)."
+                ),
+            )
+        if len(subject) > self.MAX_SUBJECT:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Der Satz ist zu lang (max. {self.MAX_SUBJECT} Zeichen).",
+            )
+        # **Keine Erfassungspunkte, keine Stichprobe.** Geld ist keine Messung am Stück;
+        # die Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
+        return {
+            self.DIRECTION: direction,
+            self.PARTIES: self._parties(data.get(self.PARTIES), flow),
+            self.SUBJECT: subject,
+            self.PREPAID: bool(data.get(self.PREPAID)),
+            "points": [], "sample": dict(sampling.DEFAULT),
+        }
+
+    def _parties(self, value: Any, flow: "deal.Direction") -> list[int]:
+        """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt und heisst **frei**.
+
+        Blosse Objektnummern, keine Zeilen mit Zusatzangaben: «wie bestelle ich bei ihm»
+        ist eine Eigenschaft der Gegenpartei bzw. des Artikels und ändert sich nicht je
+        Vorgang – am Schritt wäre sie eine Angabe, die man überall neu abschreibt.
+        """
+        if value in (None, ""):
+            value = []
+        if not isinstance(value, (list, tuple)):
+            raise HTTPException(
+                status_code=400,
+                detail=f"«{flow.label}» erwartet eine Liste zugelassener "
+                       f"{flow.party_plural}.",
+            )
+        found: list[int] = []
+        for entry in value:
+            number = self._object_id(entry)
+            if number is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"«{entry}» ist keine Objektnummer ({flow.party_word}).",
+                )
+            if number in found:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"{flow.party_word} {number} steht zweimal – zweimal "
+                            f"derselbe ist keine zweite Wahl."),
+                )
+            found.append(number)
+        if len(found) > self.MAX_PARTIES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Höchstens {self.MAX_PARTIES} {flow.party_plural} je Modul.",
+            )
+        return found
+
+
+def parties_allowed(config: Optional[dict[str, Any]]) -> list[int]:
+    """Die zugelassenen Gegenparteien eines «Zahlung»-Schritts – die eine Lesestelle.
+
+    **Leer heisst frei, nicht «niemand».** Der Dienst schränkt nur ein, wenn hier etwas
+    steht; sonst wäre ein Modul ohne Liste eines, bei dem man mit niemandem handeln kann.
+    """
+    return [int(n) for n in (config or {}).get(Zahlung.PARTIES) or []]
+
+
+def subject_of(config: Optional[dict[str, Any]]) -> str:
+    """**Worum es bei diesem Geldvorgang geht** – die eine Lesestelle."""
+    return str((config or {}).get(Zahlung.SUBJECT) or "")
+
+
+def prepaid(config: Optional[dict[str, Any]]) -> bool:
+    """**Erst weiter, wenn bezahlt?** – die eine Lesestelle."""
+    return bool((config or {}).get(Zahlung.PREPAID))
+
+
 class Handel(Module):
     """**Ein Modul, dessen Zweck ein Beleg ist** – die gemeinsame Hälfte von Ein- und Verkauf.
 
@@ -1079,6 +1249,20 @@ MODULES: dict[str, Module] = {
             status_before=st.IM_PROZESS,
             status_after=st.IM_PROZESS,
             tone="moss",
+        ),
+        Zahlung(
+            key=ZAHLUNG,
+            label="Zahlung",
+            # Ein **Durchläufer**: das Modul hält die Stücke auf, es verändert sie nicht.
+            # Genau daraus folgt, dass keine andere Regel im System von ihm wissen muss.
+            status_before=st.IM_PROZESS,
+            status_after=st.IM_PROZESS,
+            # Gedämpftes Altrosa. Die sechs bestehenden Familien sind vergeben (Slate=Blau ·
+            # Sand=Gelbbraun · Moss=Grün · Clay=Rotbraun · Plum=Violett · Teal=Blaugrün),
+            # und ein Modul, das sich eine teilt, ist im Fluss von seinem Nachbarn nicht
+            # zu unterscheiden. Magenta/Rosa ist die einzige unbesetzte Familie – und sie
+            # sitzt deutlich pinker als das orange-braune Clay.
+            tone="rose",
         ),
         Verbrauch(
             key=VERBRAUCH,

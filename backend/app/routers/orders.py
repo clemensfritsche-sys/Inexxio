@@ -18,6 +18,7 @@ from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
+from ..schemas.deal import DealEmbed, DealParty, DealUpdate
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
 from ..schemas.order import (
@@ -35,6 +36,7 @@ from ..domain import capture_types, modules, procurement
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
+from ..services import deal as deal_svc
 from ..services import flow as flow_svc
 from ..services import lookup
 from ..services import places as places_svc
@@ -72,6 +74,12 @@ RELATED_LIMIT = 3
 def _place_ref(db: Session, object_id) -> Optional[PlaceRef]:
     """Eine Objektnummer → ihr Halter. ``None`` bleibt ``None``."""
     return PlaceRef.of(places_svc.station_of(db, int(object_id))) if object_id else None
+
+
+#: **Wer den Geldvorgang sehen darf.** Heute nur das Personal – eine Gegenpartei hat für
+#: dieses Modul noch keine eigene Sicht, und ein Zugang ohne Sichtbarkeitsfilter wäre ein
+#: Datenleck (dieselbe Überlegung wie beim Beschaffungs-Beleg, nur ohne den Filter).
+_MONEY_ROLES = ("admin", "employee")
 
 
 def _steps(db: Session, order: Order, *,
@@ -116,6 +124,12 @@ def _steps(db: Session, order: Order, *,
         # weil sie hier gefiltert wird und nicht in der Oberfläche.
         facts = purchase_svc.embed_data(db, order=order, step=s, viewer=viewer)
         row.purchase = PurchaseEmbed(**facts) if facts else None
+        # **Der Geldvorgang** – dieselbe Bauart, eigene Maschine (``services/deal``).
+        # ``None`` bei jedem anderen Modultyp, und ``None`` für jeden, der kein Personal
+        # ist: gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche.
+        money = (deal_svc.embed_data(db, order=order, step=s)
+                 if viewer is None or viewer.role in _MONEY_ROLES else None)
+        row.deal = DealEmbed(**money) if money else None
         out.append(row)
     return out
 
@@ -395,6 +409,33 @@ def article_options(
             create_problem=articles_svc.may_create(a),
         )
         for a in rows
+    ]
+
+
+@router.get("/deal-parties", response_model=list[DealParty])
+def deal_parties(
+    search: str = Query("", description="Objektnummer-Teilstring oder Name"),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """**Wer kommt als Gegenpartei eines Geldvorgangs in Frage?**
+
+    Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
+    **ohne Rollenfilter**: eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit
+    ihm Geld austauschen dürfen. Wer einschränken will, nennt die zugelassenen
+    Gegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort
+    gilt sie dann auch beim Ausführen (``deal._party``).
+
+    Ein eigener Endpunkt und nicht ``/party-options``: der fragt nach einer Rolle aus
+    ``domain/procurement``, und dieses Modul soll bestehen, wenn es die nicht mehr gibt.
+
+    **Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und
+    die Suche endet als «100000xyz ist keine Zahl».
+    """
+    return [
+        DealParty(object_id=u.object_id, name=u.display_name)
+        for u in deal_svc.search_parties(db, search=search, limit=limit)
     ]
 
 
@@ -843,6 +884,47 @@ def update_purchase(
     log_audit(db, "purchases", data.action,
               f"Beleg zu Modul {step.id}: «{modules.label(step.module_type)}» "
               f"→ {row.stage}",
+              user_id=user.id, object_id=order.object_id)
+    db.commit()
+    db.refresh(order)
+    return _to_response(db, order, viewer=user)
+
+
+@router.post("/{object_id}/steps/{step_id}/deal", response_model=OrderResponse)
+def update_deal(
+    object_id: int,
+    step_id: int,
+    data: DealUpdate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """**Eine Handlung am Geldvorgang** – ein Endpunkt, sechs Verben.
+
+    ``quote`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` · ``void``.
+
+    **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
+    wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe erlaubt ist, sagt
+    ``services/deal.ACTIONS``, und dieselbe Tabelle ist Auskunft (``can``) und Tor.
+
+    **Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll
+    nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
+
+    **Personal-only.** Eine eigene Sicht für die Gegenpartei kommt mit ihrem Portal – und
+    die ist mehr als ein anderer ``Depends``: ohne Sichtbarkeitsfilter auf der Antwort
+    wäre die offene Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
+    """
+    order = orders_svc.get(db, object_id)
+    step = (
+        db.query(ProcessStep)
+        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
+        .first()
+    )
+    if step is None:
+        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
+    row = deal_svc.apply(db, order=order, step=step, action=data.action,
+                         payload=data.changes())
+    log_audit(db, "deals", data.action,
+              f"Geldvorgang zu Modul {step.id} → {row.stage}",
               user_id=user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)

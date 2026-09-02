@@ -267,6 +267,34 @@ transportieren kann.
 - **Die Route kennt der Aufrufer, nicht die Karte** (`onLink`): dieselbe Bauart wie
   `onAction`. Fehlt der Rückruf, gibt es den Knopf nicht.
 
+## Zahlung (`components/erp/deal-work.tsx`)
+Der Geldvorgang an der Ausführungsstelle: `Angebot → Zusage → Abgeschlossen`, in **beide**
+Richtungen dieselben Zeilen. Was Einnahme von Ausgabe unterscheidet, **reist fertig mit**
+(`DealEmbed.label`, `stages[].label/verb`, `party_word`, `charge_word`, `undo`) – die Karte
+braucht dafür **kein einziges `if` auf die Richtung**; ein Wächter zählt sie.
+
+- **Dieselbe Bildsprache wie der Beschaffungs-Beleg**, aber **kein geteilter Code**: das
+  Modul soll bestehen, wenn «Beschaffen»/«Verkauf» gelöscht werden. Zeilen statt
+  Modul-Karten, kräftige Linie bis zur offenen Stelle, Haarlinie danach.
+- **Die Knöpfe hängen an `can`** (`services/deal.ACTIONS`) – nie an der Rolle und nie an
+  der Stufe: dieselbe Tabelle ist Auskunft **und** Tor.
+- **Das Geld steht NEBEN den Stufen**, nicht als vierte: eine Zahlung macht aus einem
+  Angebot keine Zusage, und nach einem Storno ist eine Erstattung der Normalfall.
+- **Gerechnet wird nichts im Browser** – *berechnet · bezahlt · offen · noch nicht
+  berechnet* kommen vom Server. «Bezahlt» heisst «gefordert UND beglichen»; ohne die
+  Unterscheidung stünde direkt nach der Zusage «Bezahlt» da, weil *offen* null ist.
+- **Die Referenz nimmt den Rest und wird gekappt, das Datum nicht.** Umgekehrt war es
+  falsch: das Datum bekam `flex-1` und behielt bei einer 227 px breiten QR-Referenz 39 px –
+  «20.8.2026» hat keine Umbruchstelle und malte sich über seine Box hinaus (gemessen
+  380,1 px bei 375 px; **kein Element-Rahmen zeigte es, nur der Text selbst**). Wer auf
+  Überlauf misst, muss darum auch **Textknoten** messen, nicht nur `getBoundingClientRect`.
+- **Im Editor** (`MoneyFields`) vier Angaben: Richtung (Schieber), «Worum geht es?»
+  (Pflicht), zugelassene Gegenparteien (`ObjectSelect`, leer = `RUNTIME_CHOICE`) und die
+  Sperre. **Kein Betragsfeld** – beim Modellieren steht er nicht fest.
+- **Die Wörter der Richtung stehen in `lib/modules.DEAL_DIRECTION`** (Symbol, Label, Hinweis,
+  Singular **und** Plural als eigener Wert) – der Editor braucht sie, bevor es einen Vorgang
+  gibt. `test_frontend_mirrors` hält sie mit `domain/deal.DIRECTIONS` deckungsgleich.
+
 ## Bewegen: selbst gebracht oder eingekauft (`order-detail.Wrapped`)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – also
 trägt das Bewegen-Modul denselben Einkaufs-Beleg wie das Beschaffen-Modul: dieselben drei

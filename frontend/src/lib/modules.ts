@@ -13,9 +13,9 @@
  */
 
 import {
-  Banknote, Landmark,
-  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, Handshake, MoveRight, PackageX,
-  PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
+  ArrowDownLeft, ArrowUpRight, Banknote, Landmark,
+  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, HandCoins, Handshake, MoveRight,
+  PackageX, PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
 
 import { emptyLine, type DefinitionLine } from '@/components/erp/definition-lines';
@@ -123,7 +123,60 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // die beiden Module sind genau seine zwei Richtungen.
   beschaffen: FLOW.buy.icon,
   verkauf: FLOW.sell.icon,
+  // **Geld wechselt die Hand** – in beide Richtungen dasselbe Symbol, denn es ist
+  // dasselbe Modul. Welche Richtung gilt, sagt das Zeichen **im** Vorgang
+  // (`DEAL_DIRECTION`), nicht die Kachel: eine Palette mit zwei fast gleichen Symbolen
+  // wäre wieder die Trennung, die dieses Modul gerade aufhebt.
+  zahlung: HandCoins,
 };
+
+/**
+ * ►►► **Die beiden Richtungen eines Geldvorgangs — Symbol und Satz.** ◄◄◄
+ *
+ * Alles Übrige zur Richtung (Wörter, Stufen, Verben) **reist mit dem Vorgang**
+ * (`DealEmbed`); hier steht nur, was eine Antwort nicht transportieren kann. Gespiegelt
+ * von `backend/app/domain/deal.py`, deckungsgleich gehalten von `test_frontend_mirrors`.
+ *
+ * **Zwei Pfeile und keine zwei Farben**: die Richtung ist eine Aussage über den Fluss,
+ * kein Zustand – und Farbe ist im ERP für die Ampel reserviert.
+ */
+export const DEAL_DIRECTION: Record<string, {
+  icon: LucideIcon; label: string; hint: string; party: string; parties: string;
+}> = {
+  in: {
+    icon: ArrowDownLeft, label: 'Einnahme',
+    hint: 'Wir stellen Rechnung – Geld kommt herein.',
+    party: 'Kunde', parties: 'Kunden',
+  },
+  out: {
+    icon: ArrowUpRight, label: 'Ausgabe',
+    hint: 'Wir bekommen Rechnung – Geld geht hinaus.',
+    // **Der Plural als eigener Wert**, nicht als angehängtes «en»: «Kunde» + «en» ergäbe
+    // «Kundeen» (#787). Deutsche Beugung ist keine Zeichenkettenoperation.
+    party: 'Lieferant', parties: 'Lieferanten',
+  },
+};
+
+/** Die Richtung zu einem Schlüssel. Unbekannt → Ausgabe, wie im Backend (`deal.of`). */
+export function dealDirection(direction: string | undefined | null) {
+  return DEAL_DIRECTION[direction ?? ''] ?? DEAL_DIRECTION.out;
+}
+
+/**
+ * **Die Stufen eines Geldvorgangs — als Schlüssel, nicht als Wort.**
+ *
+ * Wie sie *heissen*, sagt der Server (`DealEmbed.stages[].label`) – das hängt an der
+ * Richtung. Was die Oberfläche braucht, ist die **Identität**: an welcher Stufe die
+ * Zusage steht und an welcher der Scan. `test_frontend_mirrors` hält sie mit
+ * `domain/deal.STAGES` deckungsgleich; deutsche Wörter im Rumpf wären an einem Vorgang
+ * der anderen Richtung still falsch.
+ */
+export const DEAL_STAGE = {
+  offer: 'offer',
+  agreed: 'agreed',
+  done: 'done',
+  cancelled: 'cancelled',
+} as const;
 
 /**
  * **Symbol je Transportart** (`Bewegen.TRANSPORTS`).
@@ -185,6 +238,12 @@ export const MODULE_TONE: Record<string, { bg: string; fg: string; border: strin
   // grünliche Moss – und weil die beiden Handelsmodule ohnehin selten nebeneinander in
   // einer Kette stehen, Moss dagegen oft neben beiden.
   teal: { bg: '#E4EEEE', fg: '#4A6E70', border: '#C8DCDC' },
+  // Zahlung: gedämpftes Altrosa. Die sechs übrigen Familien sind vergeben (Slate=Blau ·
+  // Sand=Gelbbraun · Moss=Grün · Clay=Rotbraun · Plum=Violett · Teal=Blaugrün), und ein
+  // Modul, das sich eine teilt, ist im Fluss von seinem Nachbarn nicht zu unterscheiden.
+  // Magenta/Rosa ist die einzige unbesetzte Familie – und sie sitzt deutlich pinker als
+  // das orange-braune Clay, mit dem sie sich sonst die Helligkeit teilte.
+  rose: { bg: '#F7E9EE', fg: '#8A4F66', border: '#EBD3DC' },
 };
 
 /**
@@ -396,6 +455,34 @@ export interface ModuleDraft {
    * mehrere Schritte, und jeder verlangt etwas anderes.
    */
   instruction: string;
+  /**
+   * Nur «Zahlung»: **kommt Geld herein oder geht es hinaus?** (`in` ↔ `out`).
+   *
+   * Das eine Feld, aus dem jedes Wort dieses Moduls folgt – wie die Stufen heissen, wie
+   * die Gegenpartei heisst, wer die Rechnung stellt. Es steht in der Konfiguration und
+   * nicht als zweiter Modul-Schlüssel: es ist EIN Modul, und die Richtung ist seine
+   * Einstellung. Zwei Kacheln in der Palette wären wieder die Trennung, die dieses Modul
+   * gerade aufhebt.
+   */
+  direction: string;
+  /**
+   * Nur «Zahlung»: die **zugelassenen Gegenparteien** – blosse Objektnummern.
+   *
+   * **Leer heisst frei**, nicht «niemand»: dann wird beim Ausführen gesucht. Keine
+   * Bestellangabe je Zeile – «wie bestelle ich bei ihm» ist eine Eigenschaft von *ihm*
+   * bzw. des Artikels und ändert sich nicht je Vorgang.
+   */
+  parties: number[];
+  /**
+   * Nur «Zahlung»: **worum es geht** – ein Satz, Pflicht. Er ist das, was auf dem Beleg
+   * steht («Härten auf 58 HRC», «Fertigung nach Zeichnung», «Transport nach Werk Nord»).
+   */
+  subject: string;
+  /**
+   * Nur «Zahlung»: **erst weiter, wenn bezahlt.** Der einzige Schalter dieses Moduls –
+   * und er schreibt keine Reihenfolge vor, er hält nur an.
+   */
+  prepaid: boolean;
 }
 
 /** Ein zugelassener Lieferant und die Angabe, wie man bei ihm bestellt (#753). */
@@ -528,6 +615,24 @@ export const MODULE_FORM: Record<string, {
   // (`suppliers_required` / `instruction_required`), nicht diese Datei.
   beschaffen: TRADE_FORM,
   verkauf: TRADE_FORM,
+  zahlung: {
+    draft: (c) => ({
+      // Tolerant gelesen: eine fehlende Richtung ist eine **Ausgabe**, wie im Backend
+      // (`deal.of`) – ein freigegebener Prozess ist eingefroren, und eine alte Zeile
+      // darf keine Anzeige zerlegen.
+      direction: c.direction === 'in' ? 'in' : 'out',
+      parties: (Array.isArray(c.parties) ? c.parties : [])
+        .map((n) => Number(n)).filter((n) => Number.isFinite(n)),
+      subject: String(c.subject ?? ''),
+      prepaid: Boolean(c.prepaid),
+    }),
+    // Vier Angaben, eine davon Pflicht (`subject`). Keine Erfassungspunkte und keine
+    // Stichprobe: Geld ist keine Messung am Stück.
+    config: (m) => ({
+      direction: m.direction, parties: m.parties,
+      subject: m.subject.trim(), prepaid: m.prepaid,
+    }),
+  },
   verbrauch: {
     draft: (c) => ({
       lines: asRows(c.lines).map((r, i) => ({
@@ -584,6 +689,10 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
     lines: [], target: '', suppliers: [], instruction: '',
+    // **Die Richtung hat eine Vorgabe und ist trotzdem Pflicht**: der Server verlangt
+    // sie ausdrücklich (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt –
+    // hier steht sie, damit der Schieber von Anfang an einen Zustand hat.
+    direction: 'out', parties: [], subject: '', prepaid: false,
   };
 }
 

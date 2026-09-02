@@ -26,6 +26,7 @@ import {
 import { END_BEFORE } from '@/lib/process-status';
 import { CaptureWork } from '@/components/erp/capture-work';
 import { PurchaseWork } from '@/components/erp/purchase-work';
+import { DealWork } from '@/components/erp/deal-work';
 import { PlaceTrail } from '@/components/erp/place-trail';
 import { RUNTIME_CHOICE } from '@/lib/scan';
 import { HAULAGE, flowOf, moduleIcon, moduleTone } from '@/lib/modules';
@@ -234,6 +235,27 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     }
   }, [live]);
 
+  /**
+   * **Eine Handlung am Geldvorgang** – derselbe Weg, andere Maschine (`services/deal`).
+   *
+   * Bewusst ein eigener Rückruf und kein Parameter an `runPurchase`: die beiden Module
+   * teilen sich keine Zeile, damit «Beschaffen» und «Verkauf» eines Tages ersatzlos
+   * gelöscht werden können.
+   */
+  const runDeal = useCallback(async (
+    stepId: number, body: { action: string } & Record<string, unknown>,
+  ) => {
+    if (!live) return;
+    setBusy(true); setError(null);
+    try {
+      setLive(await api.updateDeal(live.object_id, stepId, body));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [live]);
+
   const blocked = missing != null && missing.length > 0;
   const shown = live;
 
@@ -284,7 +306,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
           <RunView order={shown} busy={busy} onConfirm={confirmStep}
-            onPurchase={runPurchase} onDeviate={onDeviate} />
+            onPurchase={runPurchase} onDeal={runDeal} onDeviate={onDeviate} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {loading ? 'Lädt …' : null}
@@ -553,12 +575,14 @@ function ProcurementBlock({ purchase, children }: {
 }
 
 
-function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
+function RunView({ order, busy, onConfirm, onPurchase, onDeal, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number, verification: string,
               values: Record<string, Record<string, unknown>>,
               sources: number[], place: number | null) => void;
   onPurchase: (stepId: number, body: { action: string } & Record<string, unknown>) => void;
+  /** Eine Handlung am Geldvorgang («Zahlung») – eigene Maschine, eigener Rückruf. */
+  onDeal: (stepId: number, body: { action: string } & Record<string, unknown>) => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
@@ -607,7 +631,39 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
   // (`StepRecord`) ist der interne Lauf, sein Endpunkt ist Personal-only, und in einer
   // verengten Antwort hat er nichts zu suchen. Was ein Lieferant im Modul **tun** darf,
   // entscheidet dagegen der Beleg selbst (`purchase.can`).
-  const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean) => (
+  const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean) => {
+    const work = isActive ? (
+      // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
+      // (Scan-Regel §3).
+      <CaptureWork
+        orderObjectId={order.object_id}
+        stepId={step.id}
+        points={pointsOf(order, step.id)}
+        action={stepInfo(order, step.id)?.action ?? ''}
+        work={workOf(order, step.id)}
+        needs={stepInfo(order, step.id)?.needs ?? []}
+        // **Wohin und womit** – beides kommt vom Server mit dem Schritt.
+        target={stepInfo(order, step.id)?.target ?? null}
+        moves={step.moves}
+        busy={busy}
+        onDirty={setEntryStarted}
+        onDeviate={onDeviate}
+        onConfirm={(instanceObjectId, verification, values, sources, place) =>
+          onConfirm(step.id, instanceObjectId, verification, values, sources, place)}
+      />
+    ) : (
+      <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
+        action={stepInfo(order, step.id)?.action}
+        reason={stepInfo(order, step.id)?.reason}
+        moduleType={step.moduleType}
+        target={step.moves ? (stepInfo(order, step.id)?.target ?? null) : undefined} />
+    );
+    // **Der Geldvorgang umschliesst den Scan** – genau wie der Beschaffungs-Beleg, und
+    // aus demselben Grund: die Bestätigung, die jedes Modul abschliesst, passiert *in*
+    // ihm. Erkannt allein daran, dass es einen gibt – nie am Modultyp; bei jedem anderen
+    // ist `deal` leer, und es bleibt beim Inhalt allein.
+    const money = stepInfo(order, step.id)?.deal ?? null;
+    return (
     <div className="flex flex-col gap-2.5">
       <Reason text={stepInfo(order, step.id)?.reason} />
       {/* Der Beschaffungs-Beleg umschliesst den Scan: der Wareneingang IST die
@@ -617,37 +673,18 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeviate }: {
         buys={step.buys ?? null} busy={busy}
         active={isActive} onAction={(body) => onPurchase(step.id, body)}
         onLink={() => api.paymentLink(order.object_id, step.id).then((r) => r.url)}>
-        {isActive ? (
-          // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
-          // (Scan-Regel §3).
-          <CaptureWork
-            orderObjectId={order.object_id}
-            stepId={step.id}
-            points={pointsOf(order, step.id)}
-            action={stepInfo(order, step.id)?.action ?? ''}
-            work={workOf(order, step.id)}
-            needs={stepInfo(order, step.id)?.needs ?? []}
-            // **Wohin und womit** – beides kommt vom Server mit dem Schritt.
-            target={stepInfo(order, step.id)?.target ?? null}
-            moves={step.moves}
-            busy={busy}
-            onDirty={setEntryStarted}
-            onDeviate={onDeviate}
-            onConfirm={(instanceObjectId, verification, values, sources, place) =>
-              onConfirm(step.id, instanceObjectId, verification, values, sources, place)}
-          />
-        ) : (
-          <PointList points={pointsOf(order, step.id)} sample={sampleOf(order, step.id)}
-            action={stepInfo(order, step.id)?.action}
-            reason={stepInfo(order, step.id)?.reason}
-            moduleType={step.moduleType}
-            target={step.moves ? (stepInfo(order, step.id)?.target ?? null) : undefined} />
-        )}
+        {money ? (
+          <DealWork deal={money} busy={busy} active={isActive}
+            onAction={(body) => onDeal(step.id, body)}>
+            {work}
+          </DealWork>
+        ) : work}
       </Wrapped>
       {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp. */}
       {internal && !isActive && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
     </div>
-  );
+    );
+  };
 
   // **Ohne Prozessbild: die Module allein** – dieselbe Karte, nur ohne Achse. Der Graph
   // fehlt genau dann, wenn die Antwort für einen Lieferanten verengt wurde

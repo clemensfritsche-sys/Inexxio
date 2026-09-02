@@ -1753,6 +1753,73 @@
         }
       }
     },
+    "/api/v1/erp/orders/deal-parties": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Deal Parties",
+        "description": "**Wer kommt als Gegenpartei eines Geldvorgangs in Frage?**\n\nDieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und\n**ohne Rollenfilter**: eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit\nihm Geld austauschen dürfen. Wer einschränken will, nennt die zugelassenen\nGegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort\ngilt sie dann auch beim Ausführen (``deal._party``).\n\nEin eigener Endpunkt und nicht ``/party-options``: der fragt nach einer Rolle aus\n``domain/procurement``, und dieses Modul soll bestehen, wenn es die nicht mehr gibt.\n\n**Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und\ndie Suche endet als «100000xyz ist keine Zahl».",
+        "operationId": "deal_parties_api_v1_erp_orders_deal_parties_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Objektnummer-Teilstring oder Name",
+              "default": "",
+              "title": "Search"
+            },
+            "description": "Objektnummer-Teilstring oder Name"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DealParty"
+                  },
+                  "title": "Response Deal Parties Api V1 Erp Orders Deal Parties Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/party-options": {
       "get": {
         "tags": [
@@ -2274,6 +2341,73 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PurchaseUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Deal",
+        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, sechs Verben.\n\n``quote`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` · ``void``.\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe erlaubt ist, sagt\n``services/deal.ACTIONS``, und dieselbe Tabelle ist Auskunft (``can``) und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Personal-only.** Eine eigene Sicht für die Gegenpartei kommt mit ihrem Portal – und\ndie ist mehr als ein anderer ``Depends``: ohne Sichtbarkeitsfilter auf der Antwort\nwäre die offene Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.",
+        "operationId": "update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DealUpdate"
               }
             }
           }
@@ -4587,6 +4721,467 @@
         ],
         "title": "ContactRequest"
       },
+      "DealEmbed": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "title": "Direction",
+            "default": "out"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "party_word": {
+            "type": "string",
+            "title": "Party Word",
+            "default": ""
+          },
+          "party_plural": {
+            "type": "string",
+            "title": "Party Plural",
+            "default": ""
+          },
+          "charge_word": {
+            "type": "string",
+            "title": "Charge Word",
+            "default": ""
+          },
+          "payment_word": {
+            "type": "string",
+            "title": "Payment Word",
+            "default": ""
+          },
+          "open_word": {
+            "type": "string",
+            "title": "Open Word",
+            "default": "Offen"
+          },
+          "undo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "default": "offer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/DealStage"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "can": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Can"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject",
+            "default": ""
+          },
+          "prepaid": {
+            "type": "boolean",
+            "title": "Prepaid",
+            "default": false
+          },
+          "allowed": {
+            "items": {
+              "$ref": "#/components/schemas/DealParty"
+            },
+            "type": "array",
+            "title": "Allowed"
+          },
+          "party_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Object Id"
+          },
+          "party_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Name"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "due_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Days"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "agreed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreed On"
+          },
+          "charged": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charged"
+          },
+          "paid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "uncharged": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncharged"
+          },
+          "settled": {
+            "type": "boolean",
+            "title": "Settled",
+            "default": false
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/DealEntryOut"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "title": "DealEmbed",
+        "description": "**Der Geldvorgang**, wie ihn die Ausführungsstelle braucht.\n\n``None`` bei jedem anderen Modultyp – die Oberfläche braucht damit keine\nFallunterscheidung nach dem Modul (wie ``needs`` und ``target``).\n\n**Alles zum Zeichnen reist mit**: Wörter, Stufen, Verben, Zahlen und was man tun\ndarf. Die Oberfläche fragt für kein einziges ``if`` nach der Richtung."
+      },
+      "DealEntryOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "booked_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked On"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "amount"
+        ],
+        "title": "DealEntryOut",
+        "description": "Eine Zeile Geld – eine Forderung oder eine Zahlung.\n\n``kind`` sagt, welche Achse. Ein **negativer** Betrag ist keine Ausnahme, sondern die\nGutschrift bzw. die Erstattung – dafür gibt es keine dritte Art."
+      },
+      "DealParty": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "DealParty",
+        "description": "Eine wählbare Gegenpartei – **Objektnummer und Name**, sonst nichts.\n\nDieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die\nOberfläche kein zweites Auswahlfeld braucht."
+      },
+      "DealStage": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "verb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verb"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "default": false
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "DealStage",
+        "description": "Eine Stufe – Schlüssel, Beschriftung und das Verb, wenn sie dran ist."
+      },
+      "DealUpdate": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "party": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "due_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Days"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "booked_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked On"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "DealUpdate",
+        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, sechs Verben.\n\n``quote``   die Angaben erfassen (``party``, ``amount``, ``due_days``,\n            ``reference``, ``note``) – solange noch nichts zugesagt ist\n``agree``   zusagen bzw. beauftragen; ``party`` und ``amount`` sind dabei Pflicht\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe *zugesagt − berechnet*;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe der offene Betrag)\n``void``    eine Geld-Zeile zurücknehmen (``entry``)\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
+      },
       "DefinitionLine": {
         "properties": {
           "article_object_id": {
@@ -6850,6 +7445,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/PurchaseEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DealEmbed"
               },
               {
                 "type": "null"

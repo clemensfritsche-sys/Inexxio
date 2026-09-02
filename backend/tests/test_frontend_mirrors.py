@@ -1272,10 +1272,20 @@ def test_a_module_shows_its_own_matter_in_every_state():
     assert "const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean)" in src, (
         "Es gibt keinen EINEN Modul-Körper mehr."
     )
-    # Der Beleg steht ausserhalb der Verzweigung – er gehört zum Modul, nicht zum Moment.
+    # ►► **Der Beleg steht ausserhalb der Verzweigung** – er gehört zum Modul, nicht zum
+    #    Moment. Gefragt wird nach dem **gerenderten Baum**, nicht nach der Reihenfolge im
+    #    Quelltext: die erste Fassung verglich die Position von `<Wrapped` mit der von
+    #    `{isActive ?` über den ganzen Rumpf und prüfte damit die **Form** der damaligen
+    #    Lösung. Wer die Aktiv-Verzweigung in eine eigene Konstante zieht (und den Beleg
+    #    damit *noch* eindeutiger davor stellt), liess sie anschlagen, obwohl die Regel
+    #    besser erfüllt ist als vorher. Gemessen, nachgeschärft, gegengeprüft.
     body = src[src.index("const stepBody ="):src.index("// **Ohne Prozessbild")]
-    assert body.index("<Wrapped") < body.index("{isActive ?"), (
-        "Der Beleg steht wieder innerhalb der Aktiv-Verzweigung."
+    tree = body[body.index("return ("):]
+    assert "<Wrapped" in tree, "Der Beleg steht nicht mehr im gerenderten Baum."
+    ahead = tree[:tree.index("<Wrapped")]
+    assert "isActive ?" not in ahead and "isActive &&" not in ahead, (
+        "Der Beleg steht wieder innerhalb der Aktiv-Verzweigung – dann zeigt ein "
+        "abgeschlossenes Modul von ihm nichts."
     )
 
     panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
@@ -5713,3 +5723,116 @@ def test_the_stock_bar_names_its_states_and_is_the_control():
     assert "const [picked, setPicked] = useState<string | null>(null)" in vcode, (
         "Es ist wieder mehr als ein Zustand gleichzeitig offen."
     )
+
+
+# ---------------------------------------------------------------------------
+# ►►► Das Geldmodul «Zahlung» — eigenständig, und die Spiegel decken sich ◄◄◄
+# ---------------------------------------------------------------------------
+
+def test_the_money_directions_mirror_the_backend():
+    """**Die beiden Richtungen und ihre Wörter decken sich mit `domain/deal`.**
+
+    Alles Übrige (Stufen-Beschriftungen, Verben, Zustände) **reist mit dem Vorgang**;
+    hier steht nur, was eine Antwort nicht transportieren kann – Symbol und die Wörter,
+    die schon der **Editor** braucht, bevor es einen Vorgang gibt.
+
+    Bug-Form: der Plural wird aus dem Singular gerechnet («Kunde» + «en» = «Kundeen»,
+    #787) oder eine Richtung fehlt – dann steht im Editor ein Wort, das der Server nie
+    sagt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import deal as dm
+
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    block = _body(src, "DEAL_DIRECTION", kind="const")
+    keys = set(re.findall(r"^\s{2}(\w+):\s*\{", block, re.M))
+    assert keys == set(dm.DIRECTIONS), (
+        f"Die Richtungen laufen auseinander: Oberfläche {sorted(keys)}, "
+        f"Backend {sorted(dm.DIRECTIONS)}."
+    )
+    for key, flow in dm.DIRECTIONS.items():
+        row = block.split(f"  {key}: {{", 1)[1].split("},", 1)[0]
+        for field, value in (("label", flow.label), ("party", flow.party_word),
+                             ("parties", flow.party_plural)):
+            assert f"{field}: '{value}'" in row, (
+                f"«{key}.{field}» heisst in der Oberfläche anders als im Backend "
+                f"(erwartet «{value}») – und der Editor zeigt es, bevor der Server "
+                f"überhaupt gefragt wurde."
+            )
+
+
+def test_the_money_stage_keys_are_mirrored_not_written_out():
+    """**Die Stufen des Geldvorgangs stehen an EINER Stelle.**
+
+    Bug-Form: deutsche Wörter im Rumpf (`stage.key === 'zusage'`). An einem Vorgang der
+    anderen Richtung wären alle Vergleiche falsch – still und ohne Fehlermeldung, genau
+    wie beim Beschaffungs-Beleg vor #751.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import deal as dm
+
+    block = _body(_read(FRONTEND / "lib" / "modules.ts"), "DEAL_STAGE", kind="const")
+    for key in (*dm.STAGES, dm.CANCELLED):
+        assert f"{key}: '{key}'" in block, f"Die Stufe «{key}» fehlt in der Zuordnung."
+
+    work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "DEAL_STAGE.offer" in work and "DEAL_STAGE.agreed" in work, (
+        "Die Karte liest die Stufen nicht aus der Zuordnung."
+    )
+    for german in ("'angebot'", "'zusage'", "'abgeschlossen'", "'storniert'"):
+        assert german not in work, (
+            f"Die Karte vergleicht gegen {german} – das ist eine **Beschriftung**, und "
+            f"die hängt an der Richtung."
+        )
+
+
+def test_the_money_card_never_asks_for_the_direction():
+    """►►► **Die Wörter reisen mit — die Karte hat kein `if` auf die Richtung.** ◄◄◄
+
+    Bug-Form: `direction === 'in' ? 'Kunde' : 'Lieferant'`. Das ist die zweite Stelle für
+    eine Regel, die im `Flow` schon steht – und die erste Verzweigung ist eine
+    Beschriftung, die zweite eine Regel, und ab der dritten gibt es zwei Vorgänge, die
+    nur so tun, als wären sie einer.
+
+    **Die eine erlaubte Ausnahme ist der Platzhalter der Rechnungsnummer**: ob *wir*
+    nummerieren, ist eine Aussage über das Formular, nicht über den Vorgang – und sie
+    steht ausdrücklich als Platzhalter da, nicht als Wort des Vorgangs.
+    """
+    work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    hits = [line for line in work.splitlines()
+            if "direction ===" in line or "direction !==" in line]
+    assert len(hits) <= 1, (
+        "Die Karte fragt mehrfach nach der Richtung: " + " | ".join(hits)
+        + " – Wörter und Verben kommen fertig vom Server (`DealEmbed`)."
+    )
+    for word in ("'Kunde'", "'Lieferant'", "'Einnahme'", "'Ausgabe'"):
+        assert word not in work, (
+            f"{word} steht als Literal in der Karte – es ist ein Wort der Richtung und "
+            f"gehört in `domain/deal.DIRECTIONS`."
+        )
+    assert "d.party_word" in work and "d.charge_word" in work, (
+        "Die Karte liest die Wörter des Vorgangs nicht – dann hat sie eigene."
+    )
+
+
+def test_the_money_module_is_a_pass_through_in_the_editor_too():
+    """**Vier Angaben, und keine davon ist eine Menge, ein Artikel oder ein Betrag.**
+
+    Bug-Form: ein Betragsfeld in der Definition. Beim Modellieren steht der Preis nicht
+    fest – ein hier getippter wäre bei der zweiten Ausführung falsch, und zwar
+    stillschweigend (dieselbe Regel wie «keine Menge» beim Verbrauch).
+    """
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    form = _body(src, "MODULE_FORM", kind="const")
+    row = form.split("  zahlung: {", 1)[1].split("\n  },", 1)[0]
+    for field in ("direction", "parties", "subject", "prepaid"):
+        assert field in row, f"«{field}» fehlt in der Entwurfsform des Geldmoduls."
+    fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                   "MoneyFields", kind="function")
+    for forbidden in ("Betrag", "Menge", "Artikel"):
+        assert f">{forbidden}<" not in fields, (
+            f"Der Editor fragt nach «{forbidden}» – das steht beim Modellieren nicht "
+            f"fest und wäre bei der zweiten Ausführung falsch."
+        )

@@ -1,13 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Columns2, Grid2x2, Layers, Lock, Percent, Trash2, X } from 'lucide-react';
+import {
+  Columns2, Grid2x2, Layers, Lock, LockOpen, Percent, Trash2, X,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ModuleCatalog, ModuleTypeInfo, SupplierOption } from '@/types';
+import type { DealParty, ModuleCatalog, ModuleTypeInfo, SupplierOption } from '@/types';
 import {
-  CAPTURE_ICON, DISPOSAL_MODES, moduleIcon, NEEDS_TARGET, SAMPLE_PRESETS, blankModule,
-  moduleTone,
+  CAPTURE_ICON, DEAL_DIRECTION, DISPOSAL_MODES, dealDirection, moduleIcon, NEEDS_TARGET,
+  SAMPLE_PRESETS, blankModule, moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
 } from '@/lib/modules';
 
@@ -536,7 +538,143 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
   bewegen: MoveFields,
+  zahlung: MoneyFields,
 };
+
+/**
+ * ►►► **Zahlung — vier Angaben, und die erste entscheidet alles.** ◄◄◄
+ *
+ * *Kommt Geld herein oder geht es hinaus?* Daraus folgt jedes Wort des Moduls: wie die
+ * Stufen heissen, wie die Gegenpartei heisst, wer die Rechnung stellt. Als **Schieber**
+ * und nicht als zwei Kacheln in der Palette – es ist EIN Modul, und die Richtung ist
+ * seine Einstellung; zwei Kacheln wären wieder die Trennung, die es gerade aufhebt.
+ *
+ * **Worum es geht** ist Pflicht (`subject`): ohne den Satz steht auf dem Beleg ein Betrag
+ * und sonst nichts. Er gehört an das **Modul** und nicht an den Artikel – «Härten auf 58
+ * HRC» ist eine Eigenschaft dieses Schritts, und ein Artikel hat mehrere.
+ *
+ * **Keine Menge, kein Artikel, kein Termin**: die Menge ist die Zahl der Einzelinstanzen
+ * vor dem Modul, den Artikel tragen sie selbst, und der Termin ist ableitbar. Und **kein
+ * Betrag**: der steht beim Modellieren nicht fest – ein hier getippter wäre bei der
+ * zweiten Ausführung falsch, und zwar stillschweigend.
+ *
+ * **Der einzige Schalter ist die Sperre** (`prepaid`). Er schreibt keine Reihenfolge vor:
+ * Vorauszahlung, Zahlungsziel, Anzahlung und Nachnahme sind dieselbe Mechanik in anderer
+ * Folge. Er sagt nur, dass dieses Modul nicht abschliesst, bevor das Geld da ist.
+ */
+function MoneyFields({ module: m, onChange }: {
+  module: ModuleDraft;
+  types: { key: string; label: string }[];
+  onChange: (next: Partial<ModuleDraft>) => void;
+}) {
+  const [known, setKnown] = useState<Record<number, string>>({});
+  const dir = dealDirection(m.direction);
+
+  // Die gewählten Gegenparteien benennen – sonst stünden dort nur Ziffern. Eine Abfrage
+  // je fehlender Nummer, nicht je Rendern.
+  useEffect(() => {
+    const missing = m.parties.filter((n) => !(n in known));
+    if (missing.length === 0) return;
+    let stale = false;
+    void Promise.all(missing.map((n) => api.searchDealParties(String(n), 1)))
+      .then((groups) => {
+        if (stale) return;
+        const found: Record<number, string> = {};
+        groups.flat().forEach((o) => { found[o.object_id] = o.name; });
+        setKnown((k) => ({ ...k, ...found }));
+      })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, [m.parties, known]);
+
+  const find = useCallback((q: string) => api.searchDealParties(q).catch(() => []), []);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <Label required>Richtung</Label>
+        <IconSwitch
+          value={m.direction === 'in' ? 'in' : 'out'}
+          onChange={(v) => onChange({ direction: v })}
+          options={[
+            { value: 'in', icon: DEAL_DIRECTION.in.icon,
+              label: DEAL_DIRECTION.in.label, hint: DEAL_DIRECTION.in.hint },
+            { value: 'out', icon: DEAL_DIRECTION.out.icon,
+              label: DEAL_DIRECTION.out.label, hint: DEAL_DIRECTION.out.hint },
+          ]}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label required>Worum geht es?</Label>
+        <textarea
+          className={inputCls}
+          rows={2}
+          maxLength={400}
+          required
+          value={m.subject}
+          aria-label="Worum geht es?"
+          placeholder={m.direction === 'in'
+            ? 'z. B. Fertigung nach Zeichnung · Reparatur Getriebe'
+            : 'z. B. Härten auf 58 HRC · Transport nach Werk Nord'}
+          onChange={(e) => onChange({ subject: e.target.value })}
+          style={{ resize: 'vertical', minHeight: 54 }}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {/* **«Leer heisst frei» steht in der LISTE, nicht als Satz darunter** (#786) –
+            und nur, solange sie gilt: sobald jemand zugelassen ist, wäre «Beim Ausführen
+            definieren» eine Behauptung, die die Zeilen darunter widerlegen. */}
+        <ObjectSelect<DealParty>
+          label={`Zugelassene ${dir.parties}`}
+          value={null}
+          selected={null}
+          find={find}
+          scanLabel={dir.party}
+          emptyOption={m.parties.length === 0 ? RUNTIME_CHOICE : undefined}
+          placeholder="Nummer oder Name"
+          onChange={(nr, opt) => {
+            if (nr === null || m.parties.includes(nr)) return;
+            if (opt) setKnown((k) => ({ ...k, [nr]: opt.name }));
+            onChange({ parties: [...m.parties, nr] });
+          }}
+        />
+        {m.parties.map((nr) => (
+          <div key={nr} className="flex items-center gap-2 py-1"
+            style={{ borderTop: '1px solid var(--border-1)' }}>
+            <ObjId value={nr} />
+            <span className="flex-1 min-w-0 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
+              {known[nr] ?? ''}
+            </span>
+            <button type="button" className="erp-actbtn erp-actbtn-icon"
+              aria-label="Entfernen" data-tip="Aus der Freigabe nehmen"
+              onClick={() => onChange({ parties: m.parties.filter((x) => x !== nr) })}>
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div>
+        <Label>Abschluss</Label>
+        <IconSwitch
+          value={m.prepaid ? 'prepaid' : 'open'}
+          onChange={(v) => onChange({ prepaid: v === 'prepaid' })}
+          options={[
+            { value: 'open', icon: LockOpen, label: 'Jederzeit',
+              hint: 'Das Modul schliesst ab, sobald zugesagt ist – gezahlt wird nach '
+                + 'Vereinbarung.' },
+            { value: 'prepaid', icon: Lock, label: 'Erst zahlen',
+              hint: 'Das Modul schliesst erst ab, wenn der zugesagte Betrag bezahlt ist '
+                + '(Vorauszahlung).' },
+          ]}
+        />
+      </div>
+      <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
+        {dir.hint} Betrag und {dir.party} stehen beim Ausführen fest – beim Modellieren
+        wäre eine Zahl bei der zweiten Ausführung falsch, und zwar stillschweigend.
+      </p>
+    </div>
+  );
+}
 
 /**
  * **Verbrauch — die Stückliste: Artikel und Menge JE Einzelinstanz.**

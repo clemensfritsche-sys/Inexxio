@@ -4,6 +4,7 @@ import type {
   OrderDraft,
   OrderValidation,
   SupplierOption,
+  DealParty,
   UnitChoices,
   ArticleOption,
   OrderUnitPage,
@@ -380,6 +381,30 @@ class ApiClient {
   updatePurchase(orderObjectId: number, stepId: number,
                  body: { action: string } & Record<string, unknown>): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/purchase`, body);
+  }
+
+  /**
+   * **Eine Handlung am Geldvorgang** (`zahlung`) – ein Endpunkt, sechs Verben.
+   *
+   * Bewusst neben `updatePurchase` und ohne Bezug zu ihm: das Modul «Zahlung» hat seine
+   * eigene Maschine, damit «Beschaffen» und «Verkauf» eines Tages ersatzlos gelöscht
+   * werden können.
+   */
+  updateDeal(orderObjectId: number, stepId: number,
+             body: { action: string } & Record<string, unknown>): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/deal`, body);
+  }
+
+  /**
+   * **Gegenparteien eines Geldvorgangs suchen** – Nummer **oder** Name, ohne Rollenfilter.
+   *
+   * Wer einschränken will, nennt die zugelassenen Gegenparteien in der Definition; das
+   * ist die Stelle, an der eine solche Freigabe hingehört.
+   */
+  searchDealParties(search?: string, limit = 20): Promise<DealParty[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (search?.trim()) params.set('search', search.trim());
+    return this.get(`/api/v1/erp/orders/deal-parties?${params}`);
   }
 
   getArticles(search?: string, limit?: number): Promise<Article[]> {

@@ -660,6 +660,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/deal-parties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Deal Parties
+         * @description **Wer kommt als Gegenpartei eines Geldvorgangs in Frage?**
+         *
+         *     Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
+         *     **ohne Rollenfilter**: eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit
+         *     ihm Geld austauschen dürfen. Wer einschränken will, nennt die zugelassenen
+         *     Gegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort
+         *     gilt sie dann auch beim Ausführen (``deal._party``).
+         *
+         *     Ein eigener Endpunkt und nicht ``/party-options``: der fragt nach einer Rolle aus
+         *     ``domain/procurement``, und dieses Modul soll bestehen, wenn es die nicht mehr gibt.
+         *
+         *     **Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und
+         *     die Suche endet als «100000xyz ist keine Zahl».
+         */
+        get: operations["deal_parties_api_v1_erp_orders_deal_parties_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/party-options": {
         parameters: {
             query?: never;
@@ -881,6 +913,39 @@ export interface paths {
          *     Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
          */
         post: operations["update_purchase_api_v1_erp_orders__object_id__steps__step_id__purchase_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update Deal
+         * @description **Eine Handlung am Geldvorgang** – ein Endpunkt, sechs Verben.
+         *
+         *     ``quote`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` · ``void``.
+         *
+         *     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
+         *     wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe erlaubt ist, sagt
+         *     ``services/deal.ACTIONS``, und dieselbe Tabelle ist Auskunft (``can``) und Tor.
+         *
+         *     **Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll
+         *     nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
+         *
+         *     **Personal-only.** Eine eigene Sicht für die Gegenpartei kommt mit ihrem Portal – und
+         *     die ist mehr als ein anderer ``Depends``: ohne Sichtbarkeitsfilter auf der Antwort
+         *     wäre die offene Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
+         */
+        post: operations["update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1704,6 +1769,212 @@ export interface components {
             subject: string;
             /** Message */
             message: string;
+        };
+        /**
+         * DealEmbed
+         * @description **Der Geldvorgang**, wie ihn die Ausführungsstelle braucht.
+         *
+         *     ``None`` bei jedem anderen Modultyp – die Oberfläche braucht damit keine
+         *     Fallunterscheidung nach dem Modul (wie ``needs`` und ``target``).
+         *
+         *     **Alles zum Zeichnen reist mit**: Wörter, Stufen, Verben, Zahlen und was man tun
+         *     darf. Die Oberfläche fragt für kein einziges ``if`` nach der Richtung.
+         */
+        DealEmbed: {
+            /**
+             * Direction
+             * @default out
+             */
+            direction: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Party Word
+             * @default
+             */
+            party_word: string;
+            /**
+             * Party Plural
+             * @default
+             */
+            party_plural: string;
+            /**
+             * Charge Word
+             * @default
+             */
+            charge_word: string;
+            /**
+             * Payment Word
+             * @default
+             */
+            payment_word: string;
+            /**
+             * Open Word
+             * @default Offen
+             */
+            open_word: string;
+            /** Undo */
+            undo?: string | null;
+            /**
+             * Stage
+             * @default offer
+             */
+            stage: string;
+            /** Stages */
+            stages?: components["schemas"]["DealStage"][];
+            /** Can */
+            can?: string[];
+            /**
+             * Subject
+             * @default
+             */
+            subject: string;
+            /**
+             * Prepaid
+             * @default false
+             */
+            prepaid: boolean;
+            /** Allowed */
+            allowed?: components["schemas"]["DealParty"][];
+            /** Party Object Id */
+            party_object_id?: number | null;
+            /** Party Name */
+            party_name?: string | null;
+            /** Amount */
+            amount?: string | null;
+            /** Due Days */
+            due_days?: number | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Agreed On */
+            agreed_on?: string | null;
+            /** Charged */
+            charged?: string | null;
+            /** Paid */
+            paid?: string | null;
+            /** Open */
+            open?: string | null;
+            /** Uncharged */
+            uncharged?: string | null;
+            /**
+             * Settled
+             * @default false
+             */
+            settled: boolean;
+            /** Entries */
+            entries?: components["schemas"]["DealEntryOut"][];
+        };
+        /**
+         * DealEntryOut
+         * @description Eine Zeile Geld – eine Forderung oder eine Zahlung.
+         *
+         *     ``kind`` sagt, welche Achse. Ein **negativer** Betrag ist keine Ausnahme, sondern die
+         *     Gutschrift bzw. die Erstattung – dafür gibt es keine dritte Art.
+         */
+        DealEntryOut: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Amount */
+            amount: string;
+            /** Booked On */
+            booked_on?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Overdue
+             * @default false
+             */
+            overdue: boolean;
+        };
+        /**
+         * DealParty
+         * @description Eine wählbare Gegenpartei – **Objektnummer und Name**, sonst nichts.
+         *
+         *     Dieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die
+         *     Oberfläche kein zweites Auswahlfeld braucht.
+         */
+        DealParty: {
+            /** Object Id */
+            object_id: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /**
+         * DealStage
+         * @description Eine Stufe – Schlüssel, Beschriftung und das Verb, wenn sie dran ist.
+         */
+        DealStage: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Verb */
+            verb?: string | null;
+            /**
+             * Done
+             * @default false
+             */
+            done: boolean;
+            /**
+             * Active
+             * @default false
+             */
+            active: boolean;
+        };
+        /**
+         * DealUpdate
+         * @description Eine Handlung am Geldvorgang – **ein** Endpunkt, sechs Verben.
+         *
+         *     ``quote``   die Angaben erfassen (``party``, ``amount``, ``due_days``,
+         *                 ``reference``, ``note``) – solange noch nichts zugesagt ist
+         *     ``agree``   zusagen bzw. beauftragen; ``party`` und ``amount`` sind dabei Pflicht
+         *     ``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle
+         *     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe *zugesagt − berechnet*;
+         *                 ``booked_on``, ``due_on``, ``reference``, ``note``)
+         *     ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe der offene Betrag)
+         *     ``void``    eine Geld-Zeile zurücknehmen (``entry``)
+         *
+         *     **``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und
+         *     auch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen
+         *     trotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.
+         *
+         *     **Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,
+         *     bleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich
+         *     wiederholt.
+         */
+        DealUpdate: {
+            /** Action */
+            action: string;
+            /** Party */
+            party?: number | null;
+            /** Amount */
+            amount?: string | null;
+            /** Due Days */
+            due_days?: number | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Booked On */
+            booked_on?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /** Entry */
+            entry?: number | null;
         };
         /**
          * DefinitionLine
@@ -2754,6 +3025,7 @@ export interface components {
             needs?: components["schemas"]["StepNeed"][];
             target?: components["schemas"]["PlaceRef"] | null;
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
+            deal?: components["schemas"]["DealEmbed"] | null;
             /**
              * Label
              * @description Wie das Modul heisst – aus der Registry, nicht aus einer Spalte.
@@ -4872,6 +5144,39 @@ export interface operations {
             };
         };
     };
+    deal_parties_api_v1_erp_orders_deal_parties_get: {
+        parameters: {
+            query?: {
+                /** @description Objektnummer-Teilstring oder Name */
+                search?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DealParty"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     party_options_api_v1_erp_orders_party_options_get: {
         parameters: {
             query?: {
@@ -5116,6 +5421,42 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PurchaseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DealUpdate"];
             };
         };
         responses: {

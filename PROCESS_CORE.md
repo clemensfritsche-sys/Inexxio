@@ -2189,6 +2189,116 @@ Bestellung muss erstattet werden können; wer das verbietet, baut eine Sackgasse
 Moment weg, meldet die Freigabe es — wie immer.
 
 
+### 9.12 Das Modul «Zahlung» — Geld mit einer zweiten Partei
+
+> **Status: gebaut, eigenständig, und bewusst NEBEN «Beschaffen»/«Verkauf».** Es teilt mit
+> ihnen keine Zeile Code — weder Tabelle noch Dienst noch Vokabel. Wer die beiden alten
+> Module eines Tages ersatzlos löscht, fasst hier nichts an; ein Quelltext-Wächter hält es
+> so (`test_deal_module.test_the_money_module_shares_no_line_with_the_purchase_document`).
+
+#### Die Frage, aus der es entstand
+
+Einkauf und Verkauf waren zwei Module, und daneben standen Fälle, die in keines von beiden
+passten: eine Spedition, die man beauftragt (ein Einkauf **im** Bewegen-Modul), eine
+Leistung ohne Artikel, eine Vorauszahlung. Jeder Fall bekam ein eigenes Stück Mechanik —
+und die Mechanik wuchs schneller als die Fälle.
+
+**Der kleinste gemeinsame Nenner ist nicht die Ware, sondern das Geld.** Ein Vorgang hat
+genau eine Richtung — es kommt herein oder es geht hinaus —, und alles Weitere ist in
+beiden dieselbe Maschine: jemand nennt einen Preis, beide sagen zu, es wird gefordert, es
+wird gezahlt.
+
+#### Die eine Regel, die es robust macht
+
+> **Dieses Modul bewegt keine Stücke.**
+
+Ein **Durchläufer** (`Im Prozess` → `Im Prozess`), `terminal = False`, `moves = False`,
+kein Ortswechsel, kein neuer Status, `buys = None`. Es hält die Stücke auf, bis die zweite
+Partei ihren Teil getan hat, und lässt sie dann weiterlaufen.
+
+Daraus folgt die Robustheit **konstruktiv statt geprüft**: keine andere Regel im System
+muss von ihm wissen — keine Kettenregel, keine Statusliste, keine Bestandsansicht, keine
+Zeile in der Prozess-Engine. Was physisch geschieht, sagen die Nachbarn: kommissioniert
+und ausgeliefert wird mit «Bewegen», ausgesondert mit «Aussondern».
+
+*Ein Verkauf besteht damit aus zwei Modulen statt aus einem, und das ist der Preis. Er ist
+der richtige: sobald dieses Modul auch Ware bewegte, bräuchte es für jede Kombination aus
+Geld und Ware wieder einen eigenen Fall — genau die Lage, aus der es entstanden ist.*
+
+#### Vier Angaben beim Definieren (`domain/modules.Zahlung`)
+
+| | |
+|---|---|
+| `direction` | **Geld kommt** (`in`) ↔ **Geld geht** (`out`). Daraus folgt jedes Wort. |
+| `parties` | Die **zugelassenen** Gegenparteien. **Leer heisst frei** — dann wird beim Ausführen gesucht. |
+| `subject` | **Worum es geht** — ein Satz, Pflicht. Das, was auf dem Beleg steht. |
+| `prepaid` | **Erst weiter, wenn bezahlt.** Der einzige Schalter. |
+
+**Keine Menge** (sie ist die Zahl der Einzelinstanzen davor), **kein Artikel** (den tragen
+die Stücke), **kein Termin** (ableitbar), **kein Betrag** (beim Modellieren steht er nicht
+fest — ein hier getippter wäre bei der zweiten Ausführung falsch, und zwar stillschweigend)
+und **keine Bestellangabe** (wer bei wem unter welcher Nummer bestellt, ist eine
+Eigenschaft der Gegenpartei bzw. des Artikels, nicht dieses Schritts).
+
+**Die Richtung ist eine Einstellung, kein zweiter Modul-Schlüssel.** Es ist EIN Modul, eine
+Kachel in der Palette; die `config` friert mit der Freigabe ein und reist mit dem Schritt,
+ist also genauso haltbar wie ein Schlüssel. Am **Vorgang** wird sie zusätzlich eingefroren
+(`deals.direction`): läse er sie bei jeder Anzeige neu, änderte ein späterer Umbau
+**rückwirkend**, was ein alter Vorgang bedeutet.
+
+#### Drei Stufen, weil drei Dinge unumkehrbar sind
+
+`Angebot → Zusage → Abgeschlossen`, dazu `Storniert` als **Ausgang** (keine Stufe). Wie sie
+in einer Richtung *heissen*, sagt `domain/deal.DIRECTIONS` — als **Daten**, nicht als
+Verzweigung: die erste Verzweigung ist eine Beschriftung, die zweite eine Regel, und ab der
+dritten gibt es zwei Vorgänge, die nur so tun, als wären sie einer.
+
+**Die dritte Stufe IST die Bestätigung des Moduls** (der Scan): steht nichts mehr davor,
+ist der Vorgang erledigt (`deal.finish`). Teilabschluss braucht dafür keine eigene Regel —
+`confirm_step` ist einer.
+
+#### Zwei Achsen, und darum kein einziger Modus
+
+`deals` trägt die **Zusage**, `deal_entries` die **Forderungen** und die **Zahlungen**
+(`kind`: `charge` ↔ `payment`, Betrag **darf negativ sein**). Alles Weitere ist abgeleitet:
+*berechnet*, *bezahlt*, *offen* = berechnet − bezahlt, *noch nicht berechnet* = zugesagt −
+berechnet. **Null Spalten** — eine gespeicherte «offen»-Spalte wäre die zweite Wahrheit,
+und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
+
+| Szenario | Folge | neuer Mechanismus |
+|---|---|---|
+| Zahlungsziel | zusagen → abschliessen → fordern → zahlen | keiner |
+| **Vorauszahlung** | zusagen → fordern → zahlen → abschliessen | keiner |
+| Anzahlung + Schluss | zusagen → fordern → zahlen → … → fordern | keiner |
+| Gutschrift / Kulanz | **negative** Forderung, ohne Ware | keiner |
+| Erstattung | **negative** Zahlung, auch nach dem Storno | keiner |
+
+**`prepaid` fragt nach der ZUSAGE, nicht nach dem offenen Betrag.** Direkt nach der Zusage
+ist *offen* null — weil noch **nichts gefordert** wurde. Dieselbe Zahl, eine ganz andere
+Aussage; wer sie liest, hielte den Vorgang für bezahlt (`Balance.settled`).
+
+#### `can` ist Auskunft UND Tor
+
+Was an welcher Stufe erlaubt ist, steht in **einer** Tabelle (`services/deal.ACTIONS`):
+die Oberfläche rendert einen Knopf genau dann, wenn sein Verb in `can` steht, und `apply`
+weist ab, was nicht darin steht. Wäre `can` nur ein Anzeige-Hinweis, liefen Knopf und Tür
+beim nächsten Verb auseinander.
+
+**Geld darf ab der Zusage in jeder Stufe fliessen — auch nach dem Storno**: eine Anzahlung
+muss erstattet werden können, und eine Rechnung darf vor der Lieferung stehen und danach.
+Ein **Storno behält seinen Weg**: er macht die Zusage nicht ungeschehen, er sagt nur, dass
+nichts mehr kommt.
+
+#### Die Nummer
+
+`<Auftragsnummer>[-n]`, wo **wir** nummerieren (`direction = in`) — dieselbe Regel wie beim
+Suffix der Einzelinstanz. Bei einer **Ausgabe** steht dort die Nummer der Gegenpartei; eine
+erfundene wäre eine Behauptung über ein fremdes Dokument. *Gezählt wird nur, was wir selbst
+nummerieren: in einem Auftrag, der zuerst eine Lieferantenrechnung erfasst, hiess die erste
+eigene sonst «…-2» — eine Nummernserie mit Lücken ist buchhalterisch keine (gemessen beim
+Durchspielen der Szene, nicht gelesen).*
+
+
 ## 10. Darstellung
 
 ### 10.1 Regeln

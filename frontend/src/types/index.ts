@@ -200,6 +200,20 @@ export type PurchaseQuote = components['schemas']['PurchaseQuote'];
 /** Ein wählbarer Lieferant – dieselbe Form wie jede Referenz (`ObjectSelect`). */
 export type SupplierOption = components['schemas']['SupplierOption'];
 /**
+ * **Der Geldvorgang** eines «Zahlung»-Moduls – Richtung, Stufen, Zusage, Geld-Zeilen
+ * (`services/deal`). `null` bei jedem anderen Modultyp.
+ *
+ * Bewusst ohne Bezug zu `PurchaseEmbed`: das Modul hat seine eigene Maschine, damit
+ * «Beschaffen» und «Verkauf» eines Tages ersatzlos gelöscht werden können.
+ */
+export type DealEmbed = components['schemas']['DealEmbed'];
+/** Eine Stufe des Geldvorgangs – Angebot · Zusage · Abgeschlossen. */
+export type DealStage = components['schemas']['DealStage'];
+/** Eine Zeile Geld – eine Forderung (`charge`) oder eine Zahlung (`payment`). */
+export type DealEntryOut = components['schemas']['DealEntryOut'];
+/** Eine wählbare Gegenpartei – dieselbe Form wie jede Referenz (`ObjectSelect`). */
+export type DealParty = components['schemas']['DealParty'];
+/**
  * **Ein Halter** – Objektnummer, Typ, Name (`services/places`).
  *
  * Dieselbe Form für alle drei Fragen, die einen Ort nennen: das Ziel eines

@@ -26,8 +26,8 @@ from ..models.process_event import (
 )
 from . import (
     article_process, articles as articles_svc, capture as capture_svc,
-    consumption as consumption_svc, materialize, places as places_svc,
-    purchase as purchase_svc, sampling,
+    consumption as consumption_svc, deal as deal_svc, materialize,
+    places as places_svc, purchase as purchase_svc, sampling,
 )
 from .instances import unit_number
 
@@ -751,6 +751,11 @@ def release(
     # wartet die Lieferfrist ab, nachdem alles andere schon fertig ist. Idempotent, ohne
     # Beschaffungs-Modul ein No-op (``services/purchase``).
     purchase_svc.instantiate_for_order(db, order)
+    # ── 8. Und jedes «Zahlung»-Modul bekommt seinen Geldvorgang ─────────────
+    # Dieselbe Regel, andere Maschine (``services/deal``): mit wem und worüber gehandelt
+    # wird, steht in der Definition, und ein Angebot einzuholen dauert. Idempotent, ohne
+    # ein solches Modul ein No-op.
+    deal_svc.instantiate_for_order(db, order)
     return order
 
 
@@ -964,6 +969,12 @@ def confirm_step(
     # Dieselbe Bauart wie ``consumption.plan``: wer nichts zu sagen hat, sagt nichts.
     # Nur ein Beschaffungs-Modul hat einen Beleg – und nur bestellte Ware trifft ein.
     purchase_svc.assert_receivable(db, step=step)
+    # ►► **Und ist der Geldvorgang so weit?** ◄◄
+    #
+    # Dieselbe Bauart: wer nichts zu sagen hat, sagt nichts. Nur ein «Zahlung»-Modul hat
+    # einen – und dort heisst «noch nicht zugesagt» bzw. «noch nicht bezahlt», dass es
+    # hier nichts abzuschliessen gibt. Kein Zustand am Stück, kein Pausenwert.
+    deal_svc.assert_completable(db, step=step)
     instance = _verified_instance(
         db, order=order, step=step,
         instance_object_id=instance_object_id, verification=verification,
@@ -1168,6 +1179,10 @@ def confirm_step(
     # nach bzw. meldet, dass zu klären ist. Beides no-op ohne Beschaffungs-Modul.
     purchase_svc.note_receipt(db, order=order, step=step)
     purchase_svc.rebase(db, order)
+    # Und dasselbe für den Geldvorgang: steht nichts mehr davor, ist er erledigt. **Nur
+    # er** – Forderungen und Zahlungen laufen weiter, denn ein Zahlungsziel endet nicht
+    # mit der Ware.
+    deal_svc.finish(db, order=order, step=step)
     db.flush()
     return {"moved": len(units), "held": 0, "result": result}
 

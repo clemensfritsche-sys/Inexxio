@@ -1860,6 +1860,70 @@
 > getäuscht: `transition: color .12s` – wer sofort misst, misst den Startwert des
 > Übergangs.*
 
+> **Das siebte Modul ist «Zahlung» — Geld mit einer zweiten Partei, und es steht KOMPLETT
+> für sich** (PROCESS_CORE §9.12, Migration `124`). Die Frage dahinter war nicht «wie baue
+> ich den Verkauf besser», sondern: **was haben Einkauf, Verkauf, eine eingekaufte
+> Spedition, eine Leistung ohne Artikel und eine Vorauszahlung gemeinsam?** Nicht die
+> **Ware** – die ist in jedem Fall eine andere. Sondern: **es fliesst Geld, und eine zweite
+> Partei ist beteiligt.**
+> **Die eine Regel, aus der die Robustheit folgt: das Modul bewegt keine Stücke.** Ein
+> Durchläufer (`Im Prozess` → `Im Prozess`), `terminal = False`, `moves = False`,
+> `buys = None`, kein Ortswechsel, kein neuer Status. Damit muss **keine andere Regel im
+> System von ihm wissen** – keine Kettenregel, keine Statusliste, keine Bestandsansicht,
+> keine Zeile in der Prozess-Engine; die Robustheit ist konstruktiv statt geprüft. Was
+> physisch geschieht, sagen die Nachbarn: kommissioniert und ausgeliefert wird mit
+> «Bewegen», ausgesondert mit «Aussondern». *Ein Verkauf besteht damit aus zwei Modulen
+> statt aus einem, und das ist der Preis – der richtige: sobald dieses Modul auch Ware
+> bewegte, bräuchte jede Kombination aus Geld und Ware wieder einen eigenen Fall, also
+> genau die Lage, aus der es entstanden ist.*
+> **Vier Angaben, und die erste entscheidet alles**: `direction` (Geld kommt ↔ Geld geht –
+> daraus folgt **jedes Wort**), `parties` (zugelassene Gegenparteien, **leer heisst frei**),
+> `subject` (worum es geht – Pflicht) und `prepaid` (erst weiter, wenn bezahlt). **Keine
+> Menge** (die Zahl der Einzelinstanzen davor), **kein Artikel** (den tragen die Stücke),
+> **kein Termin** (ableitbar) und **kein Betrag**: beim Modellieren steht er nicht fest, ein
+> hier getippter wäre bei der zweiten Ausführung falsch – und zwar stillschweigend.
+> **Die Richtung ist eine EINSTELLUNG, kein zweiter Modul-Schlüssel** – EIN Modul, EINE
+> Kachel. Sie friert mit der Freigabe ein und reist mit dem Schritt, ist also so haltbar wie
+> ein Schlüssel; am **Vorgang** wird sie zusätzlich festgeschrieben (`deals.direction`), denn
+> läse er sie bei jeder Anzeige neu, änderte ein späterer Umbau **rückwirkend**, was ein
+> alter Vorgang bedeutet.
+> **Zwei Achsen, und darum kein einziger Modus** (`deals` = die Zusage, `deal_entries` =
+> Forderungen **und** Zahlungen, Betrag darf negativ sein): Vorauszahlung, Anzahlung,
+> Teilzahlung, Gutschrift und Erstattung sind dieselbe Mechanik in anderer **Folge**.
+> *berechnet · bezahlt · offen · noch nicht berechnet* sind Ableitungen, **null Spalten** –
+> eine gespeicherte «offen»-Spalte wäre die zweite Wahrheit. Und **`prepaid` fragt nach der
+> ZUSAGE, nicht nach dem offenen Betrag**: direkt nach der Zusage ist *offen* null, weil
+> noch **nichts gefordert** wurde – dieselbe Zahl, eine ganz andere Aussage.
+> **`can` ist Auskunft UND Tor** (`services/deal.ACTIONS`): dieselbe Tabelle zeigt die
+> Knöpfe und weist in `apply` ab. Geld darf ab der Zusage in **jeder** Stufe fliessen, auch
+> nach dem Storno – eine Anzahlung muss erstattet werden können; und der Storno **behält
+> seinen Weg**: er macht die Zusage nicht ungeschehen, er sagt nur, dass nichts mehr kommt.
+> **Vollständig eigenständig, und das ist die Anforderung**: eigene Vokabel
+> (`domain/deal`), eigener Dienst (`services/deal`), eigene Tabellen, eigene Endpunkte –
+> **kein Import** aus `procurement`/`purchase`/`invoices`/`payments`. Wer «Beschaffen» und
+> «Verkauf» eines Tages ersatzlos löscht, fasst hier keine Zeile an; ein Quelltext-Wächter
+> hält es so. Die drei Berührungspunkte im Rahmen sind je **eine Zeile** und alle
+> no-op ohne dieses Modul: Anlage bei der Freigabe, Sperre vor `confirm_step`, Abschluss
+> danach.
+> **Zwei Funde beim MESSEN, nicht beim Lesen:** (1) unsere Rechnungsnummern zählten fremde
+> Belege mit – die erste eigene hiess «…-2», und eine Nummernserie mit Lücken ist
+> buchhalterisch keine; (2) in der Beleg-Zeile war die **falsche Zelle flexibel**: das Datum
+> bekam den Rest und behielt bei einer 227 px breiten QR-Referenz **39 px** – «20.8.2026»
+> hat keine Umbruchstelle und malte sich 17 px über seine Box hinaus (gemessen 380,1 px bei
+> 375 px Fenster, und **kein Element-Rahmen zeigte es, nur der Text selbst** – die
+> Messung musste dafür nachgeschärft werden). Jetzt nimmt die **Referenz** den Rest und wird
+> gekappt (voller Wert im Hover), das Datum nie.
+> Wächter: `tests/test_deal_module.py` (14 Prüfungen, **elf Bug-Formen gegengeprüft** – eine
+> war dabei stumpf und prüfte die *Spalte* statt der *Antwort*; nachgeschärft und erneut
+> gegengeprüft) + vier in `test_frontend_mirrors.py`; ein bestehender Wächter prüfte die
+> **Form** der alten Lösung (Position von `<Wrapped` gegen `{isActive ?` im ganzen Rumpf)
+> und schlug an, obwohl die Regel besser erfüllt war – er fragt jetzt den **gerenderten
+> Baum**. Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den
+> Migrationen; Migration `124` von null · idempotent · downgrade · über das Lifespan-Netz
+> verifiziert. Gemessen in Chromium an der **echten** Komponente: 1440 · 1280 · 1024 · 834 ·
+> 375 · 320 px, **0 px** waagrechter Überlauf über fünf Vorgangs-Zustände; der abgeschlossene
+> Vorgang zeigt alles und hat **0** bedienbare Elemente.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -2096,9 +2160,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   ohne KI), Bestand in drei Ebenen, Reihe (ersetzt/ersetzt durch) und die gemeldete
   Stückliste – ausser Betrieb nehmen ist ein Statuswechsel in beide Richtungen.
 - **Prozess**: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie; jeder
-  Statuswechsel schreibt in den append-only Ereignis-Log. **Sechs Module** (Datenerfassung ·
-  Aussondern · Verbrauch · Bewegen · Beschaffen · **Verkauf**), Abweichungen als ganz
-  gewöhnliche Aufträge, Prozessbild als serverseitig gerechneter Graph.
+  Statuswechsel schreibt in den append-only Ereignis-Log. **Sieben Module** (Datenerfassung ·
+  Aussondern · Verbrauch · Bewegen · Beschaffen · Verkauf · **Zahlung**), Abweichungen als
+  ganz gewöhnliche Aufträge, Prozessbild als serverseitig gerechneter Graph.
+- **Zahlung** (§9.12): Geld mit einer zweiten Partei, in beide Richtungen dasselbe Modul –
+  und es bewegt **keine Stücke**. Vollständig eigenständig neben Beschaffen/Verkauf, damit
+  die beiden eines Tages ersatzlos gelöscht werden können.
 - **Verkauf und Geld**: derselbe Beleg wie der Einkauf, nur in die andere Richtung
   (Angebot → Zusage → Geliefert); Zahlungen und Gutschriften als Zeilen daneben, *offen*
   und *fällig* als Ableitung. **Stripe** angebunden (Zahllink + Webhook), optional – ohne

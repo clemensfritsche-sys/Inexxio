@@ -386,6 +386,42 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Bewusst **nicht**: Stripe Tax · Customer Portal · Subscriptions · `stripe_*`-Spalten
 > (die Id steht in `payments.reference`, derselben Spalte wie ein Zahlungszweck).
 
+> **Zahlung – Geld mit einer zweiten Partei, und KOMPLETT eigenständig** (PROCESS_CORE
+> §9.12, `domain/deal.py` · `services/deal.py` · Tabellen `deals` + `deal_entries`,
+> Migration `124`): der kleinste gemeinsame Nenner von Einkauf, Verkauf, eingekaufter
+> Spedition, Leistung ohne Artikel und Vorauszahlung ist nicht die **Ware**, sondern
+> **Geld mit einer zweiten Partei**.
+> **Es bewegt keine Stücke** – ein Durchläufer (`Im Prozess` → `Im Prozess`),
+> `terminal = False`, `moves = False`, `buys = None`, kein Ortswechsel, kein neuer Status.
+> Daraus folgt, dass **keine andere Regel im System von ihm wissen muss**: Robustheit
+> konstruktiv statt geprüft. Was physisch geschieht, sagen die Nachbarn.
+> **Vier Angaben** (`domain/modules.Zahlung`): `direction` (`in` ↔ `out` – daraus folgt
+> jedes Wort), `parties` (**leer heisst frei**), `subject` (Pflicht) und `prepaid`. Keine
+> Menge, kein Artikel, kein Termin, **kein Betrag** – der steht beim Modellieren nicht fest.
+> **Die Richtung ist eine Einstellung, kein zweiter Modul-Schlüssel** – und sie wird am
+> **Vorgang** eingefroren (`deals.direction`): läse er sie bei jeder Anzeige aus der
+> `config`, änderte ein Umbau rückwirkend die Bedeutung alter Vorgänge.
+> **Zwei Achsen, kein Modus**: `deals` = die Zusage, `deal_entries` = Forderungen **und**
+> Zahlungen (`kind`, Betrag darf negativ sein – das ist Gutschrift bzw. Erstattung).
+> *berechnet · bezahlt · offen · uncharged* sind Ableitungen (`domain/deal.balance`), null
+> Spalten. **`prepaid` fragt nach der ZUSAGE** (`Balance.settled`), nicht nach dem offenen
+> Betrag: direkt nach der Zusage ist *offen* null, weil noch nichts gefordert wurde.
+> **`can` ist Auskunft UND Tor** (`ACTIONS`, Stufe → Verben): dieselbe Tabelle rendert die
+> Knöpfe und weist in `apply` ab. Geld fliesst ab der Zusage in **jeder** Stufe, auch nach
+> dem Storno; der Storno **behält seinen Weg**.
+> **Nur gesendete Felder wirken** (`DealUpdate.changes` → `exclude_unset`): wer den Betrag
+> ändert, verliert nicht die Notiz.
+> **Die Nummer** ist `<Auftragsnummer>[-n]`, wo **wir** nummerieren – gezählt wird nur, was
+> `direction = in` ist: sonst verbraucht eine erfasste Lieferantenrechnung die Zählung, und
+> unsere erste eigene hiesse «…-2» (gemessen). **Kein Unique-Index** darüber: zwei
+> Lieferanten dürfen beide eine «2026-001» schicken.
+> **Die Unabhängigkeit ist die Anforderung** – kein Import aus `procurement`, `purchase`,
+> `invoices`, `payments`, `money`, `stripe_pay`; ein Quelltext-Wächter hält es so. Die drei
+> Berührungspunkte im Rahmen sind je eine Zeile und no-op ohne dieses Modul:
+> `instantiate_for_order` (Freigabe) · `assert_completable` (vor `confirm_step`) ·
+> `finish` (danach). Personal-only, bis eine Gegenpartei-Sicht mit Filter gebaut ist.
+> Wächter: `tests/test_deal_module.py` (14 Prüfungen, elf Bug-Formen gegengeprüft).
+
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,
 > physisch noch da) tun dasselbe – das Stück verlässt den Auftrag; der Unterschied ist
