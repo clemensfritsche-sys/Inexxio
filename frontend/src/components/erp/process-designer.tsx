@@ -604,18 +604,21 @@ function MoneyFields({ module: m, onChange }: {
           ]}
         />
       </div>
+      {/* ►►► **Was an den Teilen zu tun ist — freiwillig** (#796). ◄◄◄
+          *Was* gehandelt wird, sagt der Prozess: die Einzelinstanzen tragen ihren Artikel,
+          und der Artikel seine Spezifikation – beides reist mit dem Vorgang. Dieser Satz
+          sagt, was **daran** zu tun ist, und das gibt es nicht bei jedem Vorgang. Ein
+          Pflichtfeld, das oft nichts aufzunehmen hat, lädt zu einer Eingabe ein, die
+          niemand liest. */}
       <div className="flex flex-col gap-1.5">
-        <Label required>Worum geht es?</Label>
+        <Label>Was ist daran zu tun?</Label>
         <textarea
           className={inputCls}
           rows={2}
           maxLength={400}
-          required
           value={m.subject}
-          aria-label="Worum geht es?"
-          placeholder={m.direction === 'in'
-            ? 'z. B. Fertigung nach Zeichnung · Reparatur Getriebe'
-            : 'z. B. Härten auf 58 HRC · Transport nach Werk Nord'}
+          aria-label="Was ist daran zu tun?"
+          placeholder="z. B. Härten auf 58 HRC · Oberfläche veredeln · zertifizieren"
           onChange={(e) => onChange({ subject: e.target.value })}
           style={{ resize: 'vertical', minHeight: 54 }}
         />
@@ -668,10 +671,11 @@ function MoneyFields({ module: m, onChange }: {
           ]}
         />
       </div>
-      <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
-        {dir.hint} Betrag und {dir.party} stehen beim Ausführen fest – beim Modellieren
-        wäre eine Zahl bei der zweiten Ausführung falsch, und zwar stillschweigend.
-      </p>
+      {/* **Kein Erklärtext** (#792). Was die Richtung bedeutet, sagt der Hover am
+          Schieber; was hier nicht gefragt wird (Betrag, Artikel, Termin), muss niemand
+          erklärt bekommen – man vermisst kein Feld, das nie dastand. Ein Absatz, der
+          begründet, warum etwas fehlt, ist die Form, in der Dokumentation in die
+          Oberfläche rutscht. */}
     </div>
   );
 }

@@ -633,7 +633,7 @@ class ApiClient {
    * wäre eine Messung, aus der n gleiche würden.
    */
   confirmStep(objectId: number, stepId: number, values: Record<string, Record<string, unknown>> = {},
-              instanceObjectId?: number, verification?: string,
+              instanceObjectId?: number | null, verification?: string,
               sources: number[] = [], place: number | null = null): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/confirm`, {
       values,

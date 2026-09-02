@@ -79,6 +79,23 @@ class ModuleFacts(BaseModel):
         """
         return modules.get(self.module_type).buys
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def verifies(self) -> bool:
+        """**Muss die Instanz vor der Eingabe gescannt werden?**
+
+        Ein Scan beantwortet «habe ich das richtige physische Ding vor mir» – er gilt dem
+        Etikett am Ding, bevor jemand etwas **damit** tut. Ein Modul ohne physischen
+        Bezug (ein reiner Rechenschritt, eine Freigabe am Schreibtisch) tut mit dem Stück
+        gar nichts; dort wäre der Scan eine Geste ohne Aussage.
+
+        Durchgesetzt wird es serverseitig (``process._verified_instance``) – diese Angabe
+        ist die **freundliche Hälfte**: sie sagt der Oberfläche, ob sie ein Scan-Tor oder
+        schlicht eine Bestätigung zeigt. Sie reist **mit dem Schritt**, wie Farbe und
+        Beschriftung: den Modul-Katalog lädt nur der Editor.
+        """
+        return modules.get(self.module_type).requires_verification
+
 
 class ModuleInput(BaseModel):
     """Ein Prozessschrittmodul, wie es der Entwurf schickt.

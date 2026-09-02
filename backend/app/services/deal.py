@@ -5,13 +5,23 @@ kein Import aus ``services/purchase``, ``services/invoices``, ``services/payment
 ``domain/procurement``. Wer die Module «Beschaffen» und «Verkauf» eines Tages ersatzlos
 löscht, fasst hier keine Zeile an.
 
+## Ein Vorgang hat ZWEI Parteien
+
+Ein Geldvorgang ist kein Formular, das eine Seite ausfüllt: jemand fragt, der andere
+nennt einen Preis, einer sagt zu. Darum der **Angebotsspiegel** (``deals.quotes``, je
+Gegenpartei eine Zeile) und darum bekommt die Gegenpartei einen eigenen, sehr engen
+Zugang – sie sieht **ihre** Zeile und sonst nichts (``mine`` → ``orders._to_response``).
+
+**Wer ohnehin ins ERP darf, braucht diese enge Sicht nicht**: für Personal gibt ``mine``
+``None`` zurück – «an allem beteiligt». Ein Mitarbeiter, der zufällig Gegenpartei ist,
+arbeitet weiter in der vollen Ansicht.
+
 ## Eine Handlung ist ein Befehl, kein Feld-Update
 
-Sechs Verben, ein Endpunkt (``POST …/steps/{id}/deal``). Was an einer Stufe erlaubt ist,
-steht in **einer** Tabelle (``ACTIONS``) – und dieselbe Tabelle ist **Auskunft und Tor**:
-die Oberfläche rendert einen Knopf genau dann, wenn sein Verb in ``can`` steht, und
-``apply`` weist ab, was nicht darin steht. Wäre ``can`` nur ein Anzeige-Hinweis, liefen
-Knopf und Tür beim nächsten Verb auseinander.
+Neun Verben, ein Endpunkt (``POST …/steps/{id}/deal``). Was an einer Stufe erlaubt ist,
+steht in **einer** Tabelle (``ACTIONS`` × ``PARTY_ACTIONS``) – und dieselbe Tabelle ist
+**Auskunft und Tor**: die Oberfläche rendert einen Knopf genau dann, wenn sein Verb in
+``can`` steht, und ``apply`` weist ab, was nicht darin steht.
 
 ## Was hier NICHT passiert
 
@@ -30,30 +40,45 @@ from sqlalchemy.orm import Session
 
 from ..domain import deal as dm
 from ..domain import modules
-from ..models import Deal, DealEntry, Order, ProcessStep, UserProfile
-from ..models.order_unit import OrderUnit
-from . import lookup
+from ..models import (
+    Article, Deal, DealEntry, Instance, InstanceUnit, Order, OrderUnit, ProcessStep,
+    UserProfile,
+)
+from . import article_fields, lookup
+
+#: **Wer ohnehin alles sieht.** Für sie gibt es keine verengte Sicht – sie arbeiten im
+#: ERP, und dort steht der ganze Auftrag.
+STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 
 #: ►►► **Was an welcher Stufe erlaubt ist — Auskunft UND Tor.** ◄◄◄
 #:
-#: ``quote``   Gegenpartei, Betrag, Frist, Nummer, Notiz erfassen (noch nichts zugesagt).
-#: ``agree``   zusagen bzw. beauftragen – ab hier ist eine zweite Partei gebunden.
-#: ``revoke``  stornieren. **Nur ab der Schwelle**: davor gibt es nichts zurückzunehmen,
-#:             dort ändert man einfach die Angaben.
-#: ``charge``  eine **Forderung** buchen (negativ = Gutschrift).
-#: ``pay``     eine **Zahlung** buchen (negativ = Erstattung).
+#: ``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten
+#: ``quote``   einen Preis an **einer** Angebotszeile eintragen
+#: ``decline`` eine Angebotszeile absagen
+#: ``agree``   den Zuschlag geben – ab hier ist eine zweite Partei gebunden
+#: ``note``    Referenz und Notiz nachtragen
+#: ``revoke``  stornieren. **Nur ab der Schwelle**: davor gibt es nichts zurückzunehmen.
+#: ``charge``  eine **Forderung** buchen (negativ = Gutschrift)
+#: ``pay``     eine **Zahlung** buchen (negativ = Erstattung)
 #:
 #: **Geld darf in jeder Stufe ab der Zusage fliessen** – auch nach dem Storno: eine
-#: Anzahlung muss erstattet werden können, und eine Rechnung darf vor der Lieferung
+#: Anzahlung muss erstattet werden können, und eine Rechnung darf vor der Erfüllung
 #: stehen und danach. Wer das an die Stufe bände, hätte für jedes Szenario ein ``if``.
 ACTIONS: dict[str, tuple[str, ...]] = {
-    dm.OFFER: ("quote", "agree"),
-    dm.AGREED: ("revoke", "charge", "pay"),
-    dm.DONE: ("charge", "pay"),
+    dm.OFFER: ("ask", "quote", "decline", "agree", "note"),
+    dm.AGREED: ("note", "revoke", "charge", "pay"),
+    dm.DONE: ("note", "charge", "pay"),
     dm.CANCELLED: ("charge", "pay"),
 }
 
-#: **Stornieren einer Zeile geht immer** – ein Tippfehler ist keine Stufe. Es steht
+#: ►►► **Was die GEGENPARTEI darf.** ◄◄◄
+#:
+#: Sie nennt ihren Preis oder sagt ab – mehr nicht. Der Zuschlag, das Geld und der Storno
+#: gehören uns. Als **Schnittmenge** mit der Stufe und nicht als eigene Tabelle: zwei
+#: Tabellen wären zwei Massstäbe, und der zweite bekäme das nächste Verb nicht mit.
+PARTY_ACTIONS: tuple[str, ...] = ("quote", "decline")
+
+#: **Stornieren einer Geld-Zeile geht immer** – ein Tippfehler ist keine Stufe. Es steht
 #: getrennt, weil es keine Handlung am *Vorgang* ist, sondern an einer seiner Zeilen.
 VOID = "void"
 
@@ -86,6 +111,74 @@ def balance_of(db: Session, row: Deal) -> dm.Balance:
     return dm.balance(row.amount, [(e.kind, e.amount) for e in _entries(db, row.id)])
 
 
+def process_lines(db: Session, order: Order) -> list[tuple[int, int]]:
+    """**Was steht im Auftrag?** – je Artikel eine Zeile ``(article_id, Stück)``.
+
+    Derselbe Weg, aus dem der Prozess überall rechnet: offene Zugehörigkeit →
+    Einzelinstanz → Instanz → Artikel. Sortiert, damit die Reihenfolge des Vorgangs nicht
+    von der Datenbank abhängt.
+
+    **Über den ganzen Auftrag und nicht über den einzelnen Schritt.** Ein Angebot entsteht,
+    **bevor** die Stücke am Modul ankommen – ein Verkaufs-Vorgang am Ende der Kette hätte
+    sonst bis zuletzt eine leere Zeile, und man könnte nichts anbieten. Und es ist auch
+    fachlich richtig: dieselben sechs Wellen sind es, für die ich das Härten einkaufe und
+    die ich danach verkaufe.
+    """
+    rows = (
+        db.query(Instance.article_id, func.count(OrderUnit.id))
+        .join(InstanceUnit, InstanceUnit.instance_id == Instance.id)
+        .join(OrderUnit, OrderUnit.instance_unit_id == InstanceUnit.id)
+        .filter(OrderUnit.order_id == order.id, OrderUnit.released_at.is_(None))
+        .group_by(Instance.article_id)
+        .all()
+    )
+    return sorted(((int(a), int(n)) for a, n in rows), key=lambda r: r[0])
+
+
+def lines_of(db: Session, order: Order, row: Deal) -> list[dict[str, Any]]:
+    """**Die Zeilen des Vorgangs** – Artikel · Menge, und beides abgeleitet.
+
+    Ein Geldvorgang sitzt in einem Prozess: **worum** es geht, sind die Einzelinstanzen
+    des Auftrags – also ihre Artikel; **wie viele**, ist ihre Zahl. Beides von Hand zu
+    wählen wären zwei Aussagen über dieselbe Sache.
+
+    **Mit der Zusage frieren die Zeilen ein** (``agreed_lines``): dort ist eine zweite
+    Partei gebunden, und was zugesagt wurde, ändert sich nicht mehr dadurch, dass der
+    Auftrag später Stücke verliert.
+    """
+    if row.agreed_lines:
+        return [dict(line) for line in row.agreed_lines]
+    return [{"article": a, "quantity": n} for a, n in process_lines(db, order)]
+
+
+def embed_lines(db: Session, order: Order, row: Deal) -> list[dict[str, Any]]:
+    """Die Zeilen **mit Namen und Spezifikation** – das, was die Gegenpartei liest.
+
+    Die Spezifikation **reist mit**, sie wird nicht ausgewählt (``article_fields``): eine
+    Spezifikation, die je nach Empfänger anders lautet, ist keine. Sie beschreibt die
+    Sache; **was daran zu tun ist**, steht im Satz daneben (``config.subject``).
+
+    Eine Abfrage für alle Zeilen, nicht eine je Zeile.
+    """
+    lines = lines_of(db, order, row)
+    found = {
+        a.id: a
+        for a in db.query(Article).filter(
+            Article.id.in_([int(line["article"]) for line in lines])).all()
+    } if lines else {}
+    out: list[dict[str, Any]] = []
+    for line in lines:
+        art = found.get(int(line["article"]))
+        out.append({
+            "article_id": int(line["article"]),
+            "article_object_id": art.object_id if art else None,
+            "article_name": art.name if art else "",
+            "quantity": int(line["quantity"]),
+            "spec": article_fields.specification(art),
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # ►► ANLAGE — mit der Freigabe, idempotent
 # ---------------------------------------------------------------------------
@@ -111,26 +204,63 @@ def instantiate_for_order(db: Session, order: Order) -> None:
                 order_id=order.id, step_id=step.id,
                 direction=dm.assert_direction(
                     modules.get(step.module_type).direction_of(step.config)),
-                stage=dm.OFFER,
+                stage=dm.OFFER, quotes=[],
             ))
     if rows:
         db.flush()
 
 
 # ---------------------------------------------------------------------------
-# ►► DAS TOR — dieselbe Tabelle, die auch die Knöpfe zeigt
+# ►► WER SIEHT WAS — und wer darf was
 # ---------------------------------------------------------------------------
 
-def can(row: Deal, *, entries: int = 0) -> list[str]:
-    """Was an diesem Vorgang **jetzt** möglich ist."""
-    found = list(ACTIONS.get(row.stage, ()))
-    if entries:
-        found.append(VOID)
-    return found
+def mine(db: Session, viewer: Optional[UserProfile]) -> Optional[list[Deal]]:
+    """**Woran ist dieser Betrachter beteiligt?** ``None`` = an allem.
+
+    Die eine Frage, aus der die ganze Gegenpartei-Sicht folgt. Beteiligt ist, wer
+    **angefragt** wurde: seine Objektnummer steht in ``quotes``.
+
+    **Personal bekommt ``None``** – wer ohnehin ins ERP darf, braucht keine verengte
+    Sicht: er sieht den ganzen Auftrag und trägt dort ein, was einzutragen ist. Ein
+    Mitarbeiter, der zufällig Gegenpartei ist, arbeitet weiter in der vollen Ansicht.
+
+    **Sonst fragt diese Funktion nicht nach der Rolle.** Jeder darf Gegenpartei sein –
+    die Rolle sagt, was jemand *für uns* tut, nicht ob wir mit ihm Geld austauschen.
+    Gefiltert wird in der **Datenbank** (JSONB-Containment): die Alternative wäre, für
+    jede Feed-Anzeige sämtliche Vorgänge des Hauses zu laden.
+    """
+    if viewer is None or viewer.role in STAFF_ROLES:
+        return None
+    if viewer.object_id is None:
+        return []
+    return (
+        db.query(Deal)
+        .filter(Deal.quotes.contains([{"party": viewer.object_id}]))
+        .all()
+    )
 
 
-def _assert_allowed(row: Deal, action: str, *, entries: int) -> None:
-    if action not in can(row, entries=entries):
+def can(db: Session, row: Deal, viewer: Optional[UserProfile]) -> list[str]:
+    """►►► **Was darf DIESER Betrachter an DIESEM Vorgang tun?** ◄◄◄
+
+    Stufe **mal** Rolle, an einer Stelle – und dieselbe Antwort reist mit der Antwort mit
+    (``DealEmbed.can``) und weist in ``apply`` ab.
+    """
+    stage = list(ACTIONS.get(row.stage, ()))
+    if viewer is not None and viewer.role not in STAFF_ROLES:
+        # Die Gegenpartei nennt ihren Preis oder sagt ab – und nur, solange sie
+        # tatsächlich angefragt ist.
+        if _quote_of(row, viewer.object_id) is None:
+            return []
+        return [a for a in stage if a in PARTY_ACTIONS]
+    if _entries(db, row.id):
+        stage.append(VOID)
+    return stage
+
+
+def _assert_allowed(db: Session, row: Deal, action: str,
+                    viewer: Optional[UserProfile]) -> None:
+    if action not in can(db, row, viewer):
         flow = dm.of(row.direction)
         raise HTTPException(
             status_code=409,
@@ -144,71 +274,126 @@ def _assert_allowed(row: Deal, action: str, *, entries: int) -> None:
 # ---------------------------------------------------------------------------
 
 def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
-          payload: dict[str, Any]) -> Deal:
-    """**Eine Handlung am Geldvorgang** – ein Endpunkt, sechs Verben."""
+          payload: dict[str, Any], actor: Optional[UserProfile] = None) -> Deal:
+    """**Eine Handlung am Geldvorgang** – ein Endpunkt, neun Verben."""
     row = of_step(db, step.id)
     if row is None:
         raise HTTPException(
             status_code=404,
             detail="Zu diesem Modul gibt es keinen Geldvorgang.",
         )
-    _assert_allowed(row, action, entries=len(_entries(db, row.id)))
+    _assert_allowed(db, row, action, actor)
     handler = {
-        "quote": _quote, "agree": _agree, "revoke": _revoke,
+        "ask": _ask, "quote": _quote, "decline": _decline, "agree": _agree,
+        "note": _note, "revoke": _revoke,
         "charge": _charge, "pay": _pay, VOID: _void,
     }[action]
-    handler(db, order=order, step=step, row=row, data=payload)
+    handler(db, order=order, step=step, row=row, data=payload, actor=actor)
     db.flush()
     return row
 
 
-def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-           data: dict[str, Any]) -> None:
-    """Die Angaben erfassen – **bevor** irgendjemand gebunden ist.
+def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+         data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """Die Gegenparteien **anfragen** bzw. ihnen **anbieten**.
 
-    Alles in einem Aufruf, weil es eine Sache ist: mit wem, über wie viel, zu welcher
-    Frist, unter welcher Nummer. Ein Feld-Update je Angabe wäre derselbe Vorgang
-    fünfmal – und vier Gelegenheiten, den fünften zu vergessen.
+    **Ohne Angabe sind es alle zugelassenen.** Steht in der Definition genau eine, ist
+    die Wahl zur Laufzeit keine Wahl – dann heisst der Knopf «Anbieten» und fragt nicht
+    nach dem Kunden (Testnotiz #793). Nur wo mehrere zugelassen sind, ist die Auswahl
+    eine echte Frage – und genau dort ist der Angebotsspiegel der Punkt.
+
+    Wo die Definition **niemanden** nennt, heisst das **frei**: dann muss die Nutzlast
+    sagen, wen man fragt.
     """
     flow = dm.of(row.direction)
-    if "party" in data:
-        row.party_id = _party(db, step=step, value=data.get("party"), flow=flow)
-    if "amount" in data:
-        row.amount = _amount(data.get("amount"))
-    if "due_days" in data:
-        row.due_days = _days(data.get("due_days"))
+    allowed = modules.parties_allowed(step.config)
+    wanted = [n for n in (data.get("parties") or [])] or allowed
+    if not wanted:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Ohne {flow.party_word} gibt es nichts anzufragen – dieses Modul "
+                    f"lässt jeden zu, also muss hier stehen, wen es betrifft."),
+        )
+    lines = list(row.quotes or [])
+    for value in wanted:
+        number = _party(db, step=step, value=value, flow=flow)
+        if number is None or any(q.get("party") == number for q in lines):
+            continue
+        lines.append({"party": number, "amount": None, "lead_days": None,
+                      "payment_days": None, "state": dm.ASKED})
+    _write_quotes(row, lines)
+
+
+def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """Einen Preis an **einer** Angebotszeile eintragen.
+
+    **Wer eintragen darf, entscheidet nicht die Nutzlast**: eine Gegenpartei trifft
+    ausschliesslich ihre eigene Zeile (``_target`` liest ``actor.object_id``). Wer sie
+    erst an der Tür formulierte, hätte die Regel beim zweiten Aufrufer nicht.
+    """
+    party = _target(row, data, actor)
+    amount = _amount(data.get("amount"))
+    if amount is None:
+        raise HTTPException(status_code=400,
+                            detail="Ohne Betrag ist es keine Offerte.")
+    _patch_quote(row, party, {
+        "amount": f"{amount:.2f}",
+        "lead_days": _days(data.get("lead_days")),
+        "payment_days": _days(data.get("payment_days")),
+        "state": dm.QUOTED,
+    })
+
+
+def _decline(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """Eine Angebotszeile absagen – «kommt für uns nicht in Frage» bzw. «liefert nicht»."""
+    _patch_quote(row, _target(row, data, actor), {"amount": None, "state": dm.DECLINED})
+
+
+def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+           data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """Den **Zuschlag** geben – die Schwelle. Ab hier ist eine zweite Partei gebunden.
+
+    Der Betrag kommt aus der **gewählten Zeile**; ein Wert in der Nutzlast übersteuert ihn
+    (verhandelt wird auch am Telefon). Beides ist Pflicht: eine Zusage ohne Gegenpartei ist
+    keine, und eine ohne Betrag ist eine, über die sich später niemand einig ist.
+
+    **Und hier frieren die Zeilen ein**: was zugesagt wurde, ändert sich nicht mehr
+    dadurch, dass der Auftrag später Stücke verliert.
+    """
+    flow = dm.of(row.direction)
+    party = _target(row, data, actor)
+    line = _quote_of(row, party) or {}
+    amount = _amount(data.get("amount")) if data.get("amount") is not None \
+        else _amount(line.get("amount"))
+    if amount is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"{flow.party_word} {party} hat keinen Preis genannt – ohne Betrag "
+                    f"gibt es keine Zusage. (0.00 ist erlaubt und heisst «kostenlos».)"),
+        )
+    _patch_quote(row, party, {"state": dm.CHOSEN})
+    row.party_id = party
+    row.amount = amount
+    row.due_days = _days(data.get("payment_days")) or _days(line.get("payment_days"))
+    row.stage = dm.AGREED
+    row.agreed_on = date.today()
+    row.agreed_lines = lines_of(db, order, row)
+    _note(db, order=order, step=step, row=row, data=data, actor=actor)
+
+
+def _note(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """Referenz und Notiz – was **nur ein Mensch weiss**, und erst zur Laufzeit."""
     if "reference" in data:
         row.reference = _text(data.get("reference"), 120)
     if "note" in data:
         row.note = _text(data.get("note"), 400)
 
 
-def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-           data: dict[str, Any]) -> None:
-    """Zusagen – **die Schwelle**. Ab hier ist eine zweite Partei gebunden.
-
-    Beides ist Pflicht: **mit wem** und **über wie viel**. Eine Zusage ohne Gegenpartei
-    ist keine, und eine ohne Betrag ist eine, über die sich später niemand einig ist.
-    """
-    _quote(db, order=order, step=step, row=row, data=data)
-    flow = dm.of(row.direction)
-    if row.party_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ohne {flow.party_word} gibt es keine Zusage – mit wem sonst?",
-        )
-    if row.amount is None:
-        raise HTTPException(
-            status_code=400,
-            detail=("Ohne Betrag gibt es keine Zusage – über wie viel sonst? "
-                    "(0.00 ist erlaubt und heisst «kostenlos».)"),
-        )
-    row.stage = dm.AGREED
-    row.agreed_on = date.today()
-
-
 def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-            data: dict[str, Any]) -> None:
+            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """Stornieren – und der Vorgang **behält seinen Weg**.
 
     Ein Storno macht die Zusage nicht ungeschehen, er sagt nur, dass nichts mehr kommt.
@@ -219,17 +404,15 @@ def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Deal,
 
 
 def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-            data: dict[str, Any]) -> None:
+            data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """Eine **Forderung** buchen. Negativ ist die Gutschrift.
 
     **Die Automatik steckt in den Vorgaben, nicht in einem Modus**: Betrag = *zugesagt −
-    berechnet*, Fälligkeit = *heute + Frist*, Nummer = ``<Auftragsnummer>[-n]``, wo wir
-    nummerieren. Der Normalfall ist damit ein Klick, und eine Anzahlung ist derselbe
-    Klick mit einer anderen Zahl – kein Schalter «Teilrechnung».
+    berechnet* (nie negativ, ``Balance.next_charge``), Fälligkeit = *heute + Frist*,
+    Nummer = ``<Auftragsnummer>[-n]``, wo wir nummerieren.
     """
-    rest = balance_of(db, row).uncharged
     given = _amount(data.get("amount"), allow_negative=True)
-    value = given if given is not None else rest
+    value = given if given is not None else balance_of(db, row).next_charge
     if value is None:
         raise HTTPException(status_code=400, detail="Ohne Betrag keine Rechnung.")
     booked = _day(data.get("booked_on")) or date.today()
@@ -244,14 +427,16 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
 
 
 def _pay(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-         data: dict[str, Any]) -> None:
+         data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """Eine **Zahlung** buchen. Negativ ist die Erstattung.
 
-    Vorgabe ist der **offene** Betrag – das ist, was in aller Regel eintrifft. Eine
-    Teilzahlung ist dieselbe Handlung mit einer kleineren Zahl.
+    Vorgabe ist der **offene** Betrag, und auch er nie negativ: ist mehr gezahlt als
+    gefordert, gibt es nichts vorzuschlagen – die Erstattung tippt ein Mensch.
     """
     given = _amount(data.get("amount"), allow_negative=True)
-    value = given if given is not None else balance_of(db, row).open
+    value = given if given is not None else balance_of(db, row).next_payment
+    if value is None:
+        raise HTTPException(status_code=400, detail="Ohne Betrag keine Zahlung.")
     db.add(DealEntry(
         deal_id=row.id, kind=dm.PAYMENT, amount=value,
         booked_on=_day(data.get("booked_on")) or date.today(),
@@ -261,7 +446,7 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Deal,
 
 
 def _void(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-          data: dict[str, Any]) -> None:
+          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """Eine Geld-Zeile zurücknehmen – **weich**, sie bleibt lesbar.
 
     Ein Tippfehler ist keine Buchung und braucht keine Gegenbuchung; wer eine echte
@@ -279,6 +464,59 @@ def _void(db: Session, *, order: Order, step: ProcessStep, row: Deal,
             detail="Diese Zeile gehört nicht zu diesem Vorgang.",
         )
     entry.is_active = False
+
+
+# ---------------------------------------------------------------------------
+# ►► DER ANGEBOTSSPIEGEL — geschrieben wird immer NEU, nie an Ort
+# ---------------------------------------------------------------------------
+
+def _write_quotes(row: Deal, lines: list[dict[str, Any]]) -> None:
+    """Die Liste **ersetzen**, nie mutieren.
+
+    Der geladene JSONB-Wert darf nicht an Ort geändert werden: sonst sind geladener und
+    aktueller Wert gleich, die Spalte fällt aus dem ``UPDATE``, und die Offerte ist
+    stillschweigend weg (dieselbe Falle wie ``purchase._write`` und ``units._runs``).
+    """
+    row.quotes = [dict(line) for line in lines]
+
+
+def _quote_of(row: Deal, party: Optional[int]) -> Optional[dict[str, Any]]:
+    """Die Zeile dieser Gegenpartei – oder ``None``. Die eine Lesestelle."""
+    if party is None:
+        return None
+    return next((dict(q) for q in (row.quotes or []) if q.get("party") == party), None)
+
+
+def _patch_quote(row: Deal, party: int, changes: dict[str, Any]) -> None:
+    """Eine Zeile ändern – über Neubau der ganzen Liste."""
+    lines = [dict(q) for q in (row.quotes or [])]
+    for line in lines:
+        if line.get("party") == party:
+            line.update(changes)
+            _write_quotes(row, lines)
+            return
+    raise HTTPException(
+        status_code=404,
+        detail=f"{party} ist an diesem Vorgang nicht angefragt.",
+    )
+
+
+def _target(row: Deal, data: dict[str, Any],
+            actor: Optional[UserProfile]) -> int:
+    """**Wessen Zeile ist gemeint?**
+
+    Eine Gegenpartei trifft ausschliesslich ihre eigene – gelesen aus ``actor``, nie aus
+    der Nutzlast. Das Personal nennt sie in der Nutzlast.
+    """
+    if actor is not None and actor.role not in STAFF_ROLES:
+        return int(actor.object_id)
+    try:
+        return int(data["party"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail="Es fehlt die Angabe, um wessen Angebotszeile es geht.",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -301,8 +539,8 @@ def assert_completable(db: Session, *, step: ProcessStep) -> None:
     if row.stage == dm.OFFER:
         raise HTTPException(
             status_code=409,
-            detail=(f"«{flow.label}» ist noch nicht zugesagt – bis dahin steht kein "
-                    f"Betrag fest, und es gibt nichts abzuschliessen."),
+            detail=(f"«{flow.label}»: der Auftrag ist noch nicht bestätigt – bis dahin "
+                    f"steht kein Betrag fest, und es gibt nichts zu erledigen."),
         )
     if row.stage == dm.CANCELLED:
         raise HTTPException(
@@ -324,12 +562,11 @@ def assert_completable(db: Session, *, step: ProcessStep) -> None:
 
 
 def finish(db: Session, *, order: Order, step: ProcessStep) -> None:
-    """Nach ``confirm_step``: steht nichts mehr davor, ist der Vorgang **erledigt**.
+    """Nach ``confirm_step``: steht nichts mehr davor, ist der Auftrag **erledigt**.
 
-    Teilabschluss braucht dafür keine eigene Regel – ``confirm_step`` ist einer, und
-    solange noch Stücke warten, bleibt der Vorgang zugesagt. **Nur das Geld ist damit
-    nicht erledigt**: Forderungen und Zahlungen laufen weiter, denn ein Zahlungsziel
-    endet nicht mit der Ware.
+    Teilabschluss braucht dafür keine eigene Regel – ``confirm_step`` ist einer. **Nur
+    der Auftrag ist damit erledigt, nicht das Geld**: Forderungen und Zahlungen laufen
+    weiter, denn ein Zahlungsziel endet nicht mit der Ware.
     """
     row = of_step(db, step.id)
     if row is None or row.stage != dm.AGREED:
@@ -431,7 +668,7 @@ def _days(value: Any) -> Optional[int]:
                             detail=f"«{value}» ist keine Anzahl Tage.")
     if not 0 <= found <= 365:
         raise HTTPException(status_code=400,
-                            detail="Eine Zahlungsfrist liegt zwischen 0 und 365 Tagen.")
+                            detail="Eine Frist liegt zwischen 0 und 365 Tagen.")
     return found
 
 
@@ -464,21 +701,15 @@ def _our_number(db: Session, order: Order) -> str:
     """``<Auftragsnummer>`` für die erste Rechnung, dann ``-2``, ``-3`` …
 
     Dieselbe Regel wie beim Suffix der Einzelinstanz: eine Rechnung braucht einen Namen,
-    aber keine eigene Objektidentität. Gezählt wird über den **Auftrag** und nicht über
-    den einzelnen Vorgang – zwei «Zahlung»-Module in einem Auftrag vergäben sonst
-    dieselbe Nummer zweimal. Auch stornierte Zeilen zählen mit: eine einmal vergebene
-    Nummer wird nicht erneut vergeben.
-
-    **Gezählt wird nur, was WIR nummerieren** (``direction == IN``). Gemessen, nicht
-    gelesen: in einem Auftrag, der zuerst eine Lieferantenrechnung erfasst und danach
-    eine eigene stellt, hiess die erste eigene ``…-2`` – die fremde Nummer hatte die
-    Zählung verbraucht. Eine Nummernserie mit Lücken ist buchhalterisch keine, und die
-    Lücke wäre erst bei der Prüfung aufgefallen.
+    aber keine eigene Objektidentität. Gezählt wird über den **Auftrag** (zwei Module in
+    einem Auftrag vergäben sonst dieselbe Nummer zweimal) und **nur, was WIR
+    nummerieren** – sonst verbraucht eine erfasste Lieferantenrechnung die Zählung, und
+    unsere erste eigene hiesse «…-2». Auch stornierte Zeilen zählen mit: eine einmal
+    vergebene Nummer wird nicht erneut vergeben.
 
     *Die bewusste Grenze: es gibt dafür keinen Unique-Index. Bei einer **Ausgabe** steht
-    hier die Nummer der Gegenpartei, und zwei Lieferanten dürfen sehr wohl beide eine
-    «2026-001» schicken – ein Index darüber wiese eine richtige Eingabe ab. Bleibt der
-    Doppelklick, und der erzeugt eine doppelte Anzeigenummer, keinen Datenfehler.*
+    dort die Nummer der Gegenpartei, und zwei Lieferanten dürfen beide eine «2026-001»
+    schicken – ein Index darüber wiese eine richtige Eingabe ab.*
     """
     used = (
         db.query(func.count(DealEntry.id))
@@ -494,14 +725,16 @@ def _our_number(db: Session, order: Order) -> str:
 # ►► DIE ANTWORT
 # ---------------------------------------------------------------------------
 
-def embed_data(db: Session, *, order: Order,
-               step: ProcessStep) -> Optional[dict[str, Any]]:
+def embed_data(db: Session, *, order: Order, step: ProcessStep,
+               viewer: Optional[UserProfile] = None) -> Optional[dict[str, Any]]:
     """Der Geldvorgang, wie ihn die Ausführungsstelle braucht – oder ``None``.
 
     **Alles, was die Oberfläche zum Zeichnen braucht, reist mit**: Wörter, Stufen,
     Verben, Zahlen und was man tun darf. Sie fragt damit nie nach der Richtung und nie
-    nach dem Modultyp – ein ``if direction ===`` dort wäre die zweite Stelle für eine
-    Regel, die hier schon steht.
+    nach dem Modultyp.
+
+    **Und eine Gegenpartei sieht nur ihre eigene Zeile.** Fremde Preise sind kein
+    Nebeneffekt einer Ansicht: gefiltert wird hier, beim Aufbau der Antwort.
     """
     row = of_step(db, step.id)
     if row is None:
@@ -510,21 +743,27 @@ def embed_data(db: Session, *, order: Order,
     entries = _entries(db, row.id)
     money = balance_of(db, row)
     today = date.today()
+    internal = viewer is None or viewer.role in STAFF_ROLES
     return {
         "direction": row.direction,
         "label": flow.label,
         "party_word": flow.party_word,
         "party_plural": flow.party_plural,
+        "ask_verb": flow.ask_verb,
         "charge_word": flow.charge_word,
         "payment_word": flow.payment_word,
         "open_word": flow.open_word,
+        "money_label": flow.money_label,
         "undo": flow.undo if "revoke" in ACTIONS.get(row.stage, ()) else None,
         "stage": row.stage,
+        "stage_label": flow.label_of(row.stage),
         "stages": _stages(row, flow),
-        "can": can(row, entries=len(entries)),
+        "can": can(db, row, viewer),
         "subject": modules.subject_of(step.config),
         "prepaid": modules.prepaid(step.config),
         "allowed": _named(db, modules.parties_allowed(step.config)),
+        "quotes": _quotes(db, row, viewer=viewer, internal=internal),
+        "lines": embed_lines(db, order, row),
         "party_object_id": row.party_id,
         "party_name": (_named(db, [row.party_id])[0]["name"]
                        if row.party_id else None),
@@ -533,11 +772,15 @@ def embed_data(db: Session, *, order: Order,
         "reference": row.reference,
         "note": row.note,
         "agreed_on": row.agreed_on,
-        "charged": _money(money.charged),
-        "paid": _money(money.paid),
-        "open": _money(money.open),
-        "uncharged": _money(money.uncharged),
-        "settled": money.settled,
+        # ►► **Forderung und Geld sieht nur das Personal.** Was ein Kunde uns schuldet,
+        #    geht einen angefragten Dritten nichts an.
+        "charged": _money(money.charged) if internal else None,
+        "paid": _money(money.paid) if internal else None,
+        "open": _money(money.open) if internal else None,
+        "uncharged": _money(money.uncharged) if internal else None,
+        "next_charge": _money(money.next_charge) if internal else None,
+        "next_payment": _money(money.next_payment) if internal else None,
+        "settled": money.settled if internal else False,
         "entries": [
             {
                 "id": e.id, "kind": e.kind, "amount": _money(e.amount),
@@ -548,30 +791,56 @@ def embed_data(db: Session, *, order: Order,
                 "overdue": bool(e.kind == dm.CHARGE and e.due_on and e.due_on < today
                                 and money.open > 0),
             }
-            for e in entries
+            for e in (entries if internal else [])
         ],
     }
 
 
-def _stages(row: Deal, flow: dm.Direction) -> list[dict[str, Any]]:
-    """Die drei Stufen mit Beschriftung, Verb und Zustand.
+def _quotes(db: Session, row: Deal, *, viewer: Optional[UserProfile],
+            internal: bool) -> list[dict[str, Any]]:
+    """Der Angebotsspiegel – **für die Gegenpartei nur ihre eigene Zeile**.
 
-    **Ein Storno ist keine Stufe**: keine ist dann aktiv, kein Verb wird angeboten – die
-    gegangene Kette bleibt aber stehen, wo sie stand. Eine Fassung, die bei «storniert»
-    alles grau setzt, liesse einen stornierten Vorgang aussehen wie einen, bei dem nie
-    etwas geschehen ist.
+    Wer nicht den Zuschlag hat, sieht weder Namen noch Preis der übrigen: gefiltert wird
+    beim Aufbau der Antwort, nicht in der Oberfläche.
+    """
+    lines = [dict(q) for q in (row.quotes or [])]
+    if not internal:
+        own = viewer.object_id if viewer else None
+        lines = [q for q in lines if q.get("party") == own]
+    names = {n["object_id"]: n["name"]
+             for n in _named(db, [q.get("party") for q in lines])}
+    return [
+        {
+            "party_object_id": q.get("party"),
+            "party_name": names.get(q.get("party"), ""),
+            "amount": q.get("amount"),
+            "lead_days": q.get("lead_days"),
+            "payment_days": q.get("payment_days"),
+            "state": q.get("state") or dm.ASKED,
+        }
+        for q in lines
+    ]
+
+
+def _stages(row: Deal, flow: dm.Direction) -> list[dict[str, Any]]:
+    """Die **zwei** Stufen mit Beschriftung, Verb und Zustand.
+
+    **Ein Storno ist keine Stufe**, und «erledigt» auch nicht: keine ist dann aktiv, kein
+    Verb wird angeboten – die gegangene Kette bleibt aber stehen, wo sie stand. Eine
+    Fassung, die bei «storniert» alles grau setzt, liesse einen stornierten Vorgang
+    aussehen wie einen, bei dem nie etwas geschehen ist.
     """
     order = list(dm.STAGES)
-    # Storniert wird erst ab der Zusage – so weit war er also, und so weit bleibt die
-    # Kette gegangen.
-    reached = order.index(dm.AGREED if row.stage == dm.CANCELLED else row.stage)
+    # Storniert und erledigt wird erst ab der Zusage – so weit war er also.
+    reached = (order.index(row.stage) if row.stage in order
+               else order.index(dm.AGREED) + (1 if row.stage == dm.DONE else 0))
     return [
         {
             "key": key,
             "label": flow.label_of(key),
             "verb": flow.stage_verbs.get(key),
             "done": i < reached,
-            "active": row.stage != dm.CANCELLED and i == reached,
+            "active": row.stage in order and i == reached,
         }
         for i, key in enumerate(order)
     ]

@@ -67,20 +67,40 @@ IN = "in"
 OUT = "out"
 
 # ---------------------------------------------------------------------------
-# ►►► DIE STUFEN — drei, weil drei Dinge unumkehrbar sind ◄◄◄
+# ►►► DIE STUFEN — ZWEI, weil zwei Dinge unumkehrbar sind ◄◄◄
 # ---------------------------------------------------------------------------
 #
-# nichts zugesagt · zugesagt · erledigt. «Preis steht» ist keine vierte – das ist der
-# *Inhalt* der ersten Stufe. Und die **Zahlung** ist auch keine: sie steht als eigene
-# Zeile daneben, ist reversibel (Teilzahlung, Erstattung) und darf in **jeder** Stufe
-# passieren, auch nach einem Storno.
+# **nichts zugesagt · zugesagt.** Das ist die ganze Verpflichtungskette; alles andere ist
+# eine Folge davon.
+#
+# ``DONE`` und ``CANCELLED`` sind **Ausgänge, keine Stufen** – man kommt dort an, statt
+# hindurchzugehen. «Abgeschlossen» stand einmal als dritte Stufe da und war genau das
+# Missverständnis: ein **Zustand** in einer Reihe von **Schritten**.
+#
+# Und die dritte Zeile in der Karte ist das **Geld** – aber es ist keine Stufe: eine
+# Zahlung macht aus einem Angebot keine Zusage, sie ist reversibel (Teilzahlung,
+# Erstattung), und sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach
+# (Zahlungsziel). Wer sie als dritte Stufe führte, hätte für die Vorauszahlung ein ``if``.
 
 OFFER = "offer"
 AGREED = "agreed"
 DONE = "done"
 CANCELLED = "cancelled"
 
-STAGES: tuple[str, ...] = (OFFER, AGREED, DONE)
+STAGES: tuple[str, ...] = (OFFER, AGREED)
+
+# ---------------------------------------------------------------------------
+# ►►► DIE ANGEBOTSZEILEN — der Vorgang hat ZWEI Parteien ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Ein Geldvorgang ist kein Formular, das eine Seite ausfüllt: jemand fragt, der andere
+# nennt einen Preis, einer sagt zu. Je zugelassener Gegenpartei eine Zeile.
+#
+# ``gewaehlt`` entsteht **nicht durch Tippen**, sondern dadurch, dass bei dieser Zeile
+# zugesagt wurde – ein Zustand ist eine Folge.
+ASKED, QUOTED, DECLINED, CHOSEN = "angefragt", "offeriert", "abgelehnt", "gewaehlt"
+
+QUOTE_STATES: tuple[str, ...] = (ASKED, QUOTED, DECLINED, CHOSEN)
 
 #: **Ab hier ist eine zweite Partei gebunden.** Davor darf man frei ändern; ab hier ist
 #: eine Änderung ein Storno – draussen liegt eine Zusage, die jemand gelesen hat.
@@ -127,12 +147,20 @@ class Direction:
     #: Der Plural – als **eigener Wert**, nicht als angehängtes «en». «Kunde» + «en»
     #: ergäbe «Kundeen»; deutsche Plurale sind nicht ableitbar.
     party_plural: str
-    #: Die drei Stufen, wie sie in dieser Richtung heissen.
+    #: Die beiden Stufen, wie sie in dieser Richtung heissen.
     stage_labels: dict[str, str]
     #: **Was man an der aktiven Stufe tut, um sie zu verlassen** – das Wort auf dem
     #: Knopf. Getrennt von der Beschriftung, weil der Zustand daneben steht
-    #: («Zusagen» ↔ «Zugesagt»). Die letzte Stufe trägt keines: dort ist man angekommen.
+    #: («Auftrag bestätigen» ↔ «Auftrag»).
+    #:
+    #: **Beide Wörter gelten in beiden Richtungen**, und das ist Absicht: «Auftrag
+    #: bestätigen» passt auf den, der bestellt, wie auf den, der zusagt – zwei Wörter für
+    #: dieselbe Handlung wären eines zu viel, und das zweite ändert irgendwann jemand
+    #: allein. Verschieden ist, wen man **fragt** (``ask_verb``), nicht was man **tut**.
     stage_verbs: dict[str, str]
+    #: **Wie man auf die Gegenpartei zugeht** – der eine Punkt, an dem die Richtung eine
+    #: echte Handlung unterscheidet: beim Einkauf fragt man an, beim Verkauf bietet man an.
+    ask_verb: str
     #: Wie der Storno heisst.
     undo: str
     #: Die beiden Geld-Zeilen, in der Sprache dieser Richtung.
@@ -140,11 +168,16 @@ class Direction:
     payment_word: str
     #: Das Wort für den offenen Betrag aus **unserer** Sicht.
     open_word: str
+    #: Die Überschrift des Geld-Bereichs – die dritte Zeile der Karte.
+    money_label: str = "Rechnung & Zahlung"
 
     def label_of(self, stage: str) -> str:
-        """Wie diese Stufe heisst. Der Storno gehört beiden Richtungen gleich."""
+        """Wie diese Stufe heisst. Die beiden **Ausgänge** gehören beiden Richtungen
+        gleich – sie sind keine Stufen, aber sie brauchen ein Wort."""
         if stage == CANCELLED:
             return "Storniert"
+        if stage == DONE:
+            return "Erledigt"
         return self.stage_labels.get(stage, stage)
 
 
@@ -156,9 +189,11 @@ DIRECTIONS: dict[str, Direction] = {
         hint="Wir stellen Rechnung – Geld kommt herein.",
         party_word="Kunde",
         party_plural="Kunden",
-        stage_labels={OFFER: "Angebot", AGREED: "Zusage", DONE: "Abgeschlossen"},
-        stage_verbs={OFFER: "Zusagen", AGREED: "Abschliessen"},
-        undo="Zusage stornieren",
+        stage_labels={OFFER: "Angebot", AGREED: "Auftrag"},
+        stage_verbs={OFFER: "Auftrag bestätigen", AGREED: "Auftrag erledigt"},
+        # Wir **bieten** dem Kunden an; er fragt nicht bei uns an.
+        ask_verb="Anbieten",
+        undo="Auftrag stornieren",
         charge_word="Rechnung stellen",
         payment_word="Zahlungseingang",
         open_word="Offen",
@@ -169,8 +204,10 @@ DIRECTIONS: dict[str, Direction] = {
         hint="Wir bekommen Rechnung – Geld geht hinaus.",
         party_word="Lieferant",
         party_plural="Lieferanten",
-        stage_labels={OFFER: "Anfrage", AGREED: "Beauftragt", DONE: "Abgeschlossen"},
-        stage_verbs={OFFER: "Beauftragen", AGREED: "Abschliessen"},
+        stage_labels={OFFER: "Anfrage", AGREED: "Auftrag"},
+        stage_verbs={OFFER: "Auftrag bestätigen", AGREED: "Auftrag erledigt"},
+        # Wir **fragen** beim Lieferanten an; er bietet uns an.
+        ask_verb="Anfragen",
         undo="Auftrag stornieren",
         charge_word="Rechnung erfassen",
         payment_word="Zahlung",
@@ -266,6 +303,27 @@ class Balance:
     open: Decimal
     #: zugesagt − berechnet (``None``, solange nichts zugesagt ist)
     uncharged: Optional[Decimal]
+
+    @property
+    def next_charge(self) -> Optional[Decimal]:
+        """**Was als nächstes zu fordern wäre** – und niemals ein negativer Vorschlag.
+
+        ``uncharged`` darf negativ sein (es wurde mehr berechnet als zugesagt) – das ist
+        eine gültige Aussage. Als **Vorgabe** in einem Eingabefeld ist sie es nicht: sie
+        stand dort als «−250.00», und niemand will eine Rechnung über minus 250 stellen
+        (Testnotiz #795). ``None`` heisst «nichts vorzuschlagen», nicht «null».
+
+        Eine Gutschrift bleibt davon unberührt: negative Beträge sind **eingebbar**, sie
+        werden nur nie **vorgeschlagen**.
+        """
+        if self.uncharged is None or self.uncharged <= 0:
+            return None
+        return self.uncharged
+
+    @property
+    def next_payment(self) -> Optional[Decimal]:
+        """**Was als nächstes zu zahlen wäre** – dieselbe Regel wie ``next_charge``."""
+        return self.open if self.open > 0 else None
 
     @property
     def settled(self) -> bool:

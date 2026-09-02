@@ -68,6 +68,19 @@ export interface DiagramStep {
    */
   terminal: boolean;
   /**
+   * **Muss die Instanz vor der Eingabe gescannt werden?**
+   *
+   * Ein Scan beantwortet «habe ich das richtige physische Ding vor mir». Ein Modul ohne
+   * physischen Bezug (ein Geldvorgang stellt etwas in Rechnung) tut mit dem Stück gar
+   * nichts – dort wäre er eine Geste ohne Aussage, und die Ausführungsstelle zeigt
+   * schlicht eine Bestätigung. Eine Eigenschaft des Modultyps
+   * (`Module.requires_verification`), die mit dem Schritt reist wie Farbe und Ausgang.
+   *
+   * Optional wie `moves` und `buys`: der **Editor** baut seine Schritte aus dem
+   * Modul-Katalog und rendert nie eine Ausführung – dort gibt es die Frage nicht.
+   */
+  verifies?: boolean;
+  /**
    * **Bewegt dieses Modul die Stücke?** Daraus folgt der Ziel-Scan.
    *
    * Vorher beantwortete das die Transportart-Liste, indem sie bei jedem anderen Modultyp

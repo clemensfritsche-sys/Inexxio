@@ -268,32 +268,58 @@ transportieren kann.
   `onAction`. Fehlt der Rückruf, gibt es den Knopf nicht.
 
 ## Zahlung (`components/erp/deal-work.tsx`)
-Der Geldvorgang an der Ausführungsstelle: `Angebot → Zusage → Abgeschlossen`, in **beide**
-Richtungen dieselben Zeilen. Was Einnahme von Ausgabe unterscheidet, **reist fertig mit**
-(`DealEmbed.label`, `stages[].label/verb`, `party_word`, `charge_word`, `undo`) – die Karte
-braucht dafür **kein einziges `if` auf die Richtung**; ein Wächter zählt sie.
+Der Geldvorgang an der Ausführungsstelle: **drei Zeilen** – `Angebot → Auftrag →
+Rechnung & Zahlung`, in **beide** Richtungen dieselben. Was Einnahme von Ausgabe
+unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `party_word`,
+`ask_verb`, `charge_word`, `money_label`, `stage_label`, `undo`) – die Karte braucht dafür
+**kein einziges `if` auf die Richtung**; ein Wächter zählt sie.
 
+- **Zwei Stufen, und die dritte Zeile ist KEINE.** Unumkehrbar sind zwei Dinge: nichts
+  zugesagt · zugesagt. «Abgeschlossen» stand einmal als dritte Stufe da und war genau das
+  Missverständnis – ein **Zustand** in einer Reihe von **Schritten**. Die dritte Zeile ist
+  das **Geld**: eine Zahlung macht aus einem Angebot keine Zusage, sie ist reversibel, und
+  sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach. Sie steht dort, wo man
+  sie erwartet, und ist ab der Zusage bedienbar.
 - **Dieselbe Bildsprache wie der Beschaffungs-Beleg**, aber **kein geteilter Code**: das
   Modul soll bestehen, wenn «Beschaffen»/«Verkauf» gelöscht werden. Zeilen statt
   Modul-Karten, kräftige Linie bis zur offenen Stelle, Haarlinie danach.
+- **Der Angebotsspiegel ist der Kern der ersten Zeile** (`quotes`): je angefragter
+  Gegenpartei eine Zeile mit Preis, Lieferfrist und Zahlungsfrist. **Wo niemand zugelassen
+  ist, wird gesucht** (`ObjectSelect` + `api.searchDealParties`); wo genau einer steht, gibt
+  es nichts zu wählen und der Knopf heisst schlicht `ask_verb` (#793).
+- **Worum es geht, steht oben und ist abgeleitet** (`lines`) – Menge, Name, Objektnummer je
+  Artikel; die **Spezifikation erst auf Klick**. Sie wird nicht getippt und nicht ausgewählt.
 - **Die Knöpfe hängen an `can`** (`services/deal.ACTIONS`) – nie an der Rolle und nie an
-  der Stufe: dieselbe Tabelle ist Auskunft **und** Tor.
-- **Das Geld steht NEBEN den Stufen**, nicht als vierte: eine Zahlung macht aus einem
-  Angebot keine Zusage, und nach einem Storno ist eine Erstattung der Normalfall.
+  der Stufe: dieselbe Tabelle ist Auskunft **und** Tor. Eine **Gegenpartei** bekommt
+  dieselbe Komponente; dass sie weniger sieht, entscheidet die **Antwort**, nicht die
+  Oberfläche (`open == null` → die Geld-Zeile rendert nichts).
 - **Gerechnet wird nichts im Browser** – *berechnet · bezahlt · offen · noch nicht
   berechnet* kommen vom Server. «Bezahlt» heisst «gefordert UND beglichen»; ohne die
   Unterscheidung stünde direkt nach der Zusage «Bezahlt» da, weil *offen* null ist.
+- **EINE naheliegende Handlung, und der Server sagt welche** (`next_charge` ↔
+  `next_payment`): erst fordern, dann kassieren – alles Übrige liegt unter «Weitere». Die
+  Freiheit bleibt, aber sie steht nicht mehr als drei gleich laute Knöpfe da.
+- **Die Richtung ist ein SYMBOL mit Hover, kein Dauertext** (#797): Plus und Minus sind die
+  Buchhaltungssprache selbst – ein Wort daneben sagt dieselbe Sache ein zweites Mal.
 - **Die Referenz nimmt den Rest und wird gekappt, das Datum nicht.** Umgekehrt war es
   falsch: das Datum bekam `flex-1` und behielt bei einer 227 px breiten QR-Referenz 39 px –
   «20.8.2026» hat keine Umbruchstelle und malte sich über seine Box hinaus (gemessen
   380,1 px bei 375 px; **kein Element-Rahmen zeigte es, nur der Text selbst**). Wer auf
-  Überlauf misst, muss darum auch **Textknoten** messen, nicht nur `getBoundingClientRect`.
-- **Im Editor** (`MoneyFields`) vier Angaben: Richtung (Schieber), «Worum geht es?»
-  (Pflicht), zugelassene Gegenparteien (`ObjectSelect`, leer = `RUNTIME_CHOICE`) und die
-  Sperre. **Kein Betragsfeld** – beim Modellieren steht er nicht fest.
+  Überlauf misst, muss darum auch **Textknoten** messen – **und sie an jedem `overflow:
+  hidden`-Vorfahren kappen**: ein `truncate`-Text ist wirklich abgeschnitten, und eine
+  Messung, die die Lösung als Fehler meldet, ist so falsch wie eine, die ihn übersieht.
+- **Im Editor** (`MoneyFields`) vier Angaben: Richtung (Schieber, Vorgabe **Einnahme**,
+  #791), «Was ist daran zu tun?» (**freiwillig**, #796), zugelassene Gegenparteien
+  (`ObjectSelect`, leer = `RUNTIME_CHOICE`) und die Sperre. **Kein Betragsfeld** – beim
+  Modellieren steht er nicht fest. **Kein Erklärsatz darunter** (#792): er sagte, was das
+  Feld darüber zeigt.
 - **Die Wörter der Richtung stehen in `lib/modules.DEAL_DIRECTION`** (Symbol, Label, Hinweis,
   Singular **und** Plural als eigener Wert) – der Editor braucht sie, bevor es einen Vorgang
   gibt. `test_frontend_mirrors` hält sie mit `domain/deal.DIRECTIONS` deckungsgleich.
+- **Ohne Verifikation kein Scan-Tor** (`step.verifies`, aus `Module.requires_verification`):
+  ein Modul, das keine Stücke bewegt, wird mit **einem** Knopf bestätigt. Die
+  Ausführungsstelle fragt die **Eigenschaft**, nie den Modultyp – sonst fehlt beim nächsten
+  Modul derselben Art die Zeile.
 
 ## Bewegen: selbst gebracht oder eingekauft (`order-detail.Wrapped`)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – also

@@ -76,12 +76,6 @@ def _place_ref(db: Session, object_id) -> Optional[PlaceRef]:
     return PlaceRef.of(places_svc.station_of(db, int(object_id))) if object_id else None
 
 
-#: **Wer den Geldvorgang sehen darf.** Heute nur das Personal – eine Gegenpartei hat für
-#: dieses Modul noch keine eigene Sicht, und ein Zugang ohne Sichtbarkeitsfilter wäre ein
-#: Datenleck (dieselbe Überlegung wie beim Beschaffungs-Beleg, nur ohne den Filter).
-_MONEY_ROLES = ("admin", "employee")
-
-
 def _steps(db: Session, order: Order, *,
            viewer: Optional[UserProfile] = None) -> list[ProcessStepResponse]:
     """Die Module eines Auftrags – **mit ihrer Sperre**.
@@ -125,10 +119,10 @@ def _steps(db: Session, order: Order, *,
         facts = purchase_svc.embed_data(db, order=order, step=s, viewer=viewer)
         row.purchase = PurchaseEmbed(**facts) if facts else None
         # **Der Geldvorgang** – dieselbe Bauart, eigene Maschine (``services/deal``).
-        # ``None`` bei jedem anderen Modultyp, und ``None`` für jeden, der kein Personal
-        # ist: gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche.
-        money = (deal_svc.embed_data(db, order=order, step=s)
-                 if viewer is None or viewer.role in _MONEY_ROLES else None)
+        # ``None`` bei jedem anderen Modultyp. Eine **Gegenpartei** sieht ihn, aber nur
+        # ihre eigene Angebotszeile und keine Zahl über Forderung und Geld: gefiltert
+        # wird beim Aufbau der Antwort, nicht in der Oberfläche.
+        money = deal_svc.embed_data(db, order=order, step=s, viewer=viewer)
         row.deal = DealEmbed(**money) if money else None
         out.append(row)
     return out
@@ -166,10 +160,16 @@ def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int
     Ist er an diesem Auftrag gar nicht beteiligt, gibt es ihn für ihn nicht – **404**,
     nicht 403: ein «du darfst nicht» bestätigt, dass es ihn gibt.
     """
-    rows = purchase_svc.mine(db, viewer)
-    if rows is None:
+    # **Zwei Module mit Aussenwirkung, EINE Frage.** Beschaffungs-Beleg und Geldvorgang
+    # beantworten sie getrennt (sie teilen bewusst keine Zeile Code); sichtbar ist die
+    # **Vereinigung** – wer an einem der beiden beteiligt ist, sieht dieses Modul.
+    # Gibt eines ``None`` zurück, ist der Betrachter Personal und sieht alles.
+    docs = purchase_svc.mine(db, viewer)
+    deals = deal_svc.mine(db, viewer)
+    if docs is None or deals is None:
         return None
-    steps = {r.step_id for r in rows if r.order_id == order.id}
+    steps = {r.step_id for r in docs if r.order_id == order.id}
+    steps |= {r.step_id for r in deals if r.order_id == order.id}
     if not steps:
         raise HTTPException(status_code=404, detail=f"Auftrag {order.object_id} nicht gefunden.")
     return steps
@@ -896,33 +896,39 @@ def update_deal(
     step_id: int,
     data: DealUpdate,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(require_employee),
+    user: UserProfile = Depends(get_current_user),
 ):
-    """**Eine Handlung am Geldvorgang** – ein Endpunkt, sechs Verben.
+    """**Eine Handlung am Geldvorgang** – ein Endpunkt, neun Verben.
 
-    ``quote`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` · ``void``.
+    ``ask`` · ``quote`` · ``decline`` · ``agree`` · ``note`` · ``revoke`` · ``charge`` ·
+    ``pay`` · ``void``.
 
     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
-    wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe erlaubt ist, sagt
-    ``services/deal.ACTIONS``, und dieselbe Tabelle ist Auskunft (``can``) und Tor.
+    wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**
+    erlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.
 
     **Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll
     nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
 
-    **Personal-only.** Eine eigene Sicht für die Gegenpartei kommt mit ihrem Portal – und
-    die ist mehr als ein anderer ``Depends``: ohne Sichtbarkeitsfilter auf der Antwort
-    wäre die offene Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
+    **Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit
+    die Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``
+    nur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**
+    darf, sagt ``can`` (``PARTY_ACTIONS``: offerieren oder absagen), und ``apply`` weist
+    alles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.
     """
     order = orders_svc.get(db, object_id)
+    # **Dieselbe eine Frage wie beim Lesen**: wer den Auftrag nicht sieht, handelt auch
+    # nicht an ihm – und wer nur sein Modul sieht, nur an diesem.
+    mine = _visible(db, order, user)
     step = (
         db.query(ProcessStep)
         .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
         .first()
     )
-    if step is None:
+    if step is None or (mine is not None and step.id not in mine):
         raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
     row = deal_svc.apply(db, order=order, step=step, action=data.action,
-                         payload=data.changes())
+                         payload=data.changes(), actor=user)
     log_audit(db, "deals", data.action,
               f"Geldvorgang zu Modul {step.id} → {row.stage}",
               user_id=user.id, object_id=order.object_id)

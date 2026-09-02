@@ -34,6 +34,44 @@ class DealParty(BaseModel):
     name: str = ""
 
 
+class DealQuote(BaseModel):
+    """**Eine Zeile des Angebotsspiegels** – eine Gegenpartei, ein Preis.
+
+    ``state``: ``angefragt`` · ``offeriert`` · ``abgelehnt`` · ``gewaehlt``. «gewählt»
+    entsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt wurde –
+    ein Zustand ist eine Folge.
+
+    **Eine Gegenpartei sieht nur ihre eigene Zeile.** Fremde Preise fallen beim Aufbau
+    der Antwort weg, nicht in der Oberfläche.
+    """
+
+    party_object_id: int
+    party_name: str = ""
+    #: Als **String** – wo es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet.
+    amount: Optional[str] = None
+    lead_days: Optional[int] = None
+    payment_days: Optional[int] = None
+    state: str = "angefragt"
+
+
+class DealLine(BaseModel):
+    """**Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.
+
+    Je Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der
+    Normalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.
+
+    Die **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die
+    Sache, damit die Gegenpartei weiss, worum es geht. Was **daran** zu tun ist, steht im
+    Satz daneben (``subject``).
+    """
+
+    article_id: int
+    article_object_id: Optional[int] = None
+    article_name: str = ""
+    quantity: int
+    spec: list[dict[str, str]] = Field(default_factory=list)
+
+
 class DealEntryOut(BaseModel):
     """Eine Zeile Geld – eine Forderung oder eine Zahlung.
 
@@ -75,11 +113,21 @@ class DealEmbed(BaseModel):
     charge_word: str = ""
     payment_word: str = ""
     open_word: str = "Offen"
+    #: **Wie man auf die Gegenpartei zugeht**: «Anfragen» ↔ «Anbieten» – der eine Punkt,
+    #: an dem die Richtung eine echte Handlung unterscheidet.
+    ask_verb: str = ""
+    #: Die Überschrift des Geld-Bereichs – der dritten Zeile der Karte.
+    money_label: str = "Rechnung & Zahlung"
     #: Das Wort für die eine Gegenhandlung – oder ``None``, wo sie nicht geht.
     undo: Optional[str] = None
 
     # ─── Wo er steht, und was man tun darf ───────────────────────────────────────
     stage: str = "offer"
+    #: Wie der aktuelle Zustand heisst – auch dort, wo er **keine Stufe** ist
+    #: («Erledigt», «Storniert»). Sonst müsste die Oberfläche das Wort erfinden.
+    stage_label: str = ""
+    #: **Zwei** Stufen: nichts zugesagt · zugesagt. «Erledigt» und «Storniert» sind
+    #: Ausgänge, keine Stufen – man kommt dort an, statt hindurchzugehen.
     stages: list[DealStage] = Field(default_factory=list)
     #: ►►► **Was hier JETZT möglich ist** (``services/deal.ACTIONS``). ◄◄◄
     #:
@@ -89,12 +137,18 @@ class DealEmbed(BaseModel):
     can: list[str] = Field(default_factory=list)
 
     # ─── Was in der Definition steht ─────────────────────────────────────────────
-    #: **Worum es geht** – der Satz aus der Definition, Pflicht beim Modellieren.
+    #: **Was an den Teilen zu tun ist** – der Satz aus der Definition, freiwillig.
+    #: *Was* gehandelt wird, sagen die ``lines``; die gibt es immer.
     subject: str = ""
     #: **Erst weiter, wenn bezahlt?** Der einzige Schalter dieses Moduls.
     prepaid: bool = False
     #: Die **zugelassenen** Gegenparteien. Leer heisst frei – dann wird gesucht.
     allowed: list[DealParty] = Field(default_factory=list)
+    #: **Der Angebotsspiegel** – je angefragter Gegenpartei eine Zeile.
+    quotes: list[DealQuote] = Field(default_factory=list)
+    #: **Worum es geht** – abgeleitet aus den Einzelinstanzen des Auftrags, mit der
+    #: Spezifikation des Artikels. Nie getippt.
+    lines: list[DealLine] = Field(default_factory=list)
 
     # ─── Die Zusage ──────────────────────────────────────────────────────────────
     party_object_id: Optional[int] = None
@@ -114,6 +168,15 @@ class DealEmbed(BaseModel):
     #: **Zugesagt − berechnet** – und damit die Vorgabe der nächsten Rechnung. Die Zahl,
     #: die es ohne die Trennung der beiden Achsen gar nicht geben könnte.
     uncharged: Optional[str] = None
+    #: ►►► **Die Vorgaben der nächsten Handlung — und sie sind NIE negativ.** ◄◄◄
+    #:
+    #: ``uncharged`` und ``open`` dürfen negativ sein (überberechnet bzw. überzahlt) –
+    #: das ist eine gültige Aussage. Als **Vorschlag** in einem Eingabefeld ist sie es
+    #: nicht: dort stand «−250.00», und niemand stellt eine Rechnung über minus 250
+    #: (Testnotiz #795). ``None`` heisst «nichts vorzuschlagen», nicht «null» – und
+    #: zugleich: diese Handlung ist gerade nicht die naheliegende.
+    next_charge: Optional[str] = None
+    next_payment: Optional[str] = None
     #: Ist bezahlt, was zugesagt wurde? Die eine Frage, die ``prepaid`` stellt – und
     #: sie fragt nach der **Zusage**, nicht nach dem offenen Betrag: wer nichts
     #: berechnet hat, hat null offen, und das hiesse sonst «bezahlt».
@@ -122,20 +185,28 @@ class DealEmbed(BaseModel):
 
 
 class DealUpdate(BaseModel):
-    """Eine Handlung am Geldvorgang – **ein** Endpunkt, sechs Verben.
+    """Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.
 
-    ``quote``   die Angaben erfassen (``party``, ``amount``, ``due_days``,
-                ``reference``, ``note``) – solange noch nichts zugesagt ist
-    ``agree``   zusagen bzw. beauftragen; ``party`` und ``amount`` sind dabei Pflicht
+    ``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten
+                (``parties`` – ohne Angabe **alle** zugelassenen)
+    ``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,
+                ``lead_days``, ``payment_days``) – auch von der Gegenpartei
+    ``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei
+    ``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)
+    ``note``    Referenz und Notiz nachtragen
     ``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle
-    ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe *zugesagt − berechnet*;
+    ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
                 ``booked_on``, ``due_on``, ``reference``, ``note``)
-    ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe der offene Betrag)
+    ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)
     ``void``    eine Geld-Zeile zurücknehmen (``entry``)
 
     **``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und
     auch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen
     trotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.
+
+    **Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr
+    **verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die
+    Regel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.
 
     **Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,
     bleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich
@@ -143,12 +214,17 @@ class DealUpdate(BaseModel):
     """
 
     action: str
-    #: Die Objektnummer der Gegenpartei. ``None`` heisst «niemand» – das ist eine Wahl.
+    #: Die Objektnummer der Gegenpartei, deren Zeile gemeint ist.
     party: Optional[int] = None
+    #: Wen anfragen (``ask``). Leer heisst: **alle zugelassenen**.
+    parties: list[int] = Field(default_factory=list)
+    #: Die Lieferfrist einer Offerte – wie lange **er** braucht.
+    lead_days: Optional[int] = None
+    #: Die Zahlungsfrist einer Offerte – daraus kommt die Fälligkeit der Rechnung.
+    payment_days: Optional[int] = None
     #: Als **String**, weil es ein Eingabefeld ist: ein halb getipptes Feld hat keine
     #: Zahl, und ein Komma ist ein Dezimaltrennzeichen, kein Fehler.
     amount: Optional[str] = None
-    due_days: Optional[int] = None
     reference: Optional[str] = None
     note: Optional[str] = None
     booked_on: Optional[date] = None

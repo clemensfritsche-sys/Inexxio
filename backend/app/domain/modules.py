@@ -845,16 +845,34 @@ class Zahlung(Module):
     ``parties``    Die **zugelassenen** Gegenparteien. **Leer heisst frei** – dann wird
                    beim Ausführen gesucht. Eine Liste mit einem Eintrag ist der
                    Normalfall; wer vergleichen will, nennt drei.
-    ``subject``    **Worum es geht** – ein Satz, Pflicht («Härten auf 58 HRC»,
-                   «Fertigung nach Zeichnung», «Transport Werk Nord → Kunde»). Er ist
-                   das, was auf dem Beleg steht.
+    ``subject``    **Was an den Teilen zu tun ist** – ein Satz, **freiwillig** («Härten
+                   auf 58 HRC», «Oberfläche veredeln», «zertifizieren»).
     ``prepaid``    **Erst weiter, wenn bezahlt.** Der einzige Schalter – und er schreibt
                    keine Reihenfolge vor, er hält nur an (``deal.Balance.settled``).
 
-    Es gibt **keine Menge** (die steht als Zahl der Einzelinstanzen davor), **keinen
-    Artikel** (den tragen die Stücke), **keinen Termin** (ableitbar) und **keine
-    Bestellangabe** – wer bei wem unter welcher Nummer bestellt, ist eine Eigenschaft
-    des Artikels bzw. der Gegenpartei und nicht dieses Schritts.
+    ## Was gehandelt wird, sagt der PROZESS – nicht ein Feld
+
+    Es gibt **keinen Artikel** in der Definition: die Einzelinstanzen, die vor dem Modul
+    stehen, tragen ihren Artikel, und der Artikel trägt seine **Spezifikation**. Beides
+    reist mit dem Vorgang (``deal.lines_of`` / ``services/article_fields``), damit die
+    Gegenpartei weiss, worum es geht. Ein getipptes Artikelfeld daneben wäre eine zweite
+    Aussage über dieselbe Sache – und die getippte gewinnt auch dann, wenn sie falsch ist.
+
+    Daraus folgt, warum der Satz **freiwillig** ist: Zeilen und Satz sind zusammen die
+    Aussage, und die Zeilen gibt es immer.
+
+    ==========================  ====================================================
+    Zeilen **ohne** Satz        wir kaufen bzw. verkaufen **diese Teile**
+    Zeilen **mit** Satz         an **diesen Teilen** ist **das** zu tun
+    ==========================  ====================================================
+
+    Genau deshalb braucht es **keine Templates** und keinen Modus «Sache ↔ Leistung»: die
+    Unterscheidung fällt aus zwei Angaben heraus, die es ohnehin gibt. Ein Template wäre
+    ein Konzept für eine Frage, die sich von selbst beantwortet.
+
+    Ebenso gibt es **keine Menge** (die Zahl der Einzelinstanzen), **keinen Termin**
+    (ableitbar) und **keine Bestellangabe** – wer bei wem unter welcher Nummer bestellt,
+    ist eine Eigenschaft der Gegenpartei bzw. des Artikels, nicht dieses Schritts.
 
     ## Die eine Regel, die es robust macht: es bewegt keine Stücke
 
@@ -891,8 +909,22 @@ class Zahlung(Module):
     #: Mehr ist keine Auswahl mehr, sondern eine Adressliste.
     MAX_PARTIES = 10
 
-    #: **Erfasst wird nichts** – der Scan ist die Bestätigung. Was der Knopf auslöst, ist
-    #: das Abschliessen des Geldvorgangs; wie es heisst, sagt die Richtung.
+    #: ►►► **Kein Scan.** ◄◄◄
+    #:
+    #: Ein Scan beantwortet «habe ich das richtige physische Ding vor mir» – er verifiziert
+    #: das Etikett am Ding, bevor jemand etwas **damit** tut. Dieses Modul tut mit dem
+    #: Stück gar nichts: es stellt etwas in Rechnung, mit Referenz auf die Einzelinstanzen.
+    #: Ein Etikett zu scannen, um eine Rechnung zu stellen, ist eine Geste ohne Aussage.
+    #:
+    #: Die Deklaration gibt es im Rahmen genau für diesen Fall («ein reiner Rechenschritt,
+    #: eine Freigabe am Schreibtisch»); ``process._verified_instance`` trägt sie seit
+    #: jeher, und ohne Instanz bewegt ``confirm_step`` **alles**, was davorsteht – ein
+    #: Vorgang statt einer je Instanz. Das ist hier genau richtig: ein Auftrag wird einmal
+    #: erledigt, nicht je Kiste.
+    requires_verification = False
+
+    #: **Erfasst wird nichts.** Was der Knopf auslöst, ist das Erledigen des Auftrags;
+    #: wie es heisst, sagt die Richtung (in beiden dasselbe Wort – siehe ``stage_verbs``).
     def action_for(self, config: Optional[dict[str, Any]]) -> str:
         return deal.of(self.direction_of(config)).stage_verbs[deal.AGREED]
 
@@ -916,16 +948,11 @@ class Zahlung(Module):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         flow = deal.of(direction)
+        # **Freiwillig** (Testnotiz #796): *was* gehandelt wird, sagen die Zeilen, und die
+        # gibt es immer. Dieser Satz sagt, was **an** den Teilen zu tun ist – und das gibt
+        # es nicht bei jedem Vorgang. Ein Pflichtfeld, das oft nichts aufzunehmen hat,
+        # lädt zu einer Eingabe ein, die niemand liest.
         subject = str(data.get(self.SUBJECT) or "").strip()
-        if not subject:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"«{flow.label}» braucht einen Satz, worum es geht – ohne ihn steht "
-                    f"auf dem Beleg ein Betrag und sonst nichts («Härten auf 58 HRC», "
-                    f"«Fertigung nach Zeichnung», «Transport nach Werk Nord»)."
-                ),
-            )
         if len(subject) > self.MAX_SUBJECT:
             raise HTTPException(
                 status_code=400,

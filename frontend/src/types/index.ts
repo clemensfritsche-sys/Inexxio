@@ -211,6 +211,14 @@ export type DealEmbed = components['schemas']['DealEmbed'];
 export type DealStage = components['schemas']['DealStage'];
 /** Eine Zeile Geld – eine Forderung (`charge`) oder eine Zahlung (`payment`). */
 export type DealEntryOut = components['schemas']['DealEntryOut'];
+/**
+ * **Eine Zeile des Angebotsspiegels** – eine Gegenpartei, ein Preis.
+ *
+ * Eine Gegenpartei sieht nur ihre eigene: gefiltert wird beim Aufbau der Antwort.
+ */
+export type DealQuote = components['schemas']['DealQuote'];
+/** **Was gehandelt wird** – Artikel, Menge und die Spezifikation, die mitreist. */
+export type DealLine = components['schemas']['DealLine'];
 /** Eine wählbare Gegenpartei – dieselbe Form wie jede Referenz (`ObjectSelect`). */
 export type DealParty = components['schemas']['DealParty'];
 /**

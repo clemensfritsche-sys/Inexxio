@@ -2375,7 +2375,7 @@
           "orders"
         ],
         "summary": "Update Deal",
-        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, sechs Verben.\n\n``quote`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` · ``void``.\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe erlaubt ist, sagt\n``services/deal.ACTIONS``, und dieselbe Tabelle ist Auskunft (``can``) und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Personal-only.** Eine eigene Sicht für die Gegenpartei kommt mit ihrem Portal – und\ndie ist mehr als ein anderer ``Depends``: ohne Sichtbarkeitsfilter auf der Antwort\nwäre die offene Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.",
+        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, neun Verben.\n\n``ask`` · ``quote`` · ``decline`` · ``agree`` · ``note`` · ``revoke`` · ``charge`` ·\n``pay`` · ``void``.\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**\nerlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit\ndie Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``\nnur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**\ndarf, sagt ``can`` (``PARTY_ACTIONS``: offerieren oder absagen), und ``apply`` weist\nalles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.",
         "operationId": "update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post",
         "security": [
           {
@@ -3825,6 +3825,12 @@
             "title": "Buys",
             "description": "**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.\n\n``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau\ndarum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der\nEigenschaft und nie nach dem Modultyp.",
             "readOnly": true
+          },
+          "verifies": {
+            "type": "boolean",
+            "title": "Verifies",
+            "description": "**Muss die Instanz vor der Eingabe gescannt werden?**\n\nEin Scan beantwortet «habe ich das richtige physische Ding vor mir» – er gilt dem\nEtikett am Ding, bevor jemand etwas **damit** tut. Ein Modul ohne physischen\nBezug (ein reiner Rechenschritt, eine Freigabe am Schreibtisch) tut mit dem Stück\ngar nichts; dort wäre der Scan eine Geste ohne Aussage.\n\nDurchgesetzt wird es serverseitig (``process._verified_instance``) – diese Angabe\nist die **freundliche Hälfte**: sie sagt der Oberfläche, ob sie ein Scan-Tor oder\nschlicht eine Bestätigung zeigt. Sie reist **mit dem Schritt**, wie Farbe und\nBeschriftung: den Modul-Katalog lädt nur der Editor.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -3838,7 +3844,8 @@
           "tone",
           "terminal",
           "moves",
-          "buys"
+          "buys",
+          "verifies"
         ],
         "title": "ArticleProcessStepResponse",
         "description": "Ein Modul der Vorlage. Dieselbe Form wie im Auftrag – es ist derselbe Prozess,\nnur bevor er läuft.\n\nBeschriftung, Farbfamilie und «Ausgang?» kommen aus ``ModuleFacts`` – derselben\nAbleitung wie im Auftrag. Zwei Wege dorthin wären zwei Stände."
@@ -4758,6 +4765,16 @@
             "title": "Open Word",
             "default": "Offen"
           },
+          "ask_verb": {
+            "type": "string",
+            "title": "Ask Verb",
+            "default": ""
+          },
+          "money_label": {
+            "type": "string",
+            "title": "Money Label",
+            "default": "Rechnung & Zahlung"
+          },
           "undo": {
             "anyOf": [
               {
@@ -4773,6 +4790,11 @@
             "type": "string",
             "title": "Stage",
             "default": "offer"
+          },
+          "stage_label": {
+            "type": "string",
+            "title": "Stage Label",
+            "default": ""
           },
           "stages": {
             "items": {
@@ -4804,6 +4826,20 @@
             },
             "type": "array",
             "title": "Allowed"
+          },
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/DealQuote"
+            },
+            "type": "array",
+            "title": "Quotes"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DealLine"
+            },
+            "type": "array",
+            "title": "Lines"
           },
           "party_object_id": {
             "anyOf": [
@@ -4927,6 +4963,28 @@
             ],
             "title": "Uncharged"
           },
+          "next_charge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Charge"
+          },
+          "next_payment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Payment"
+          },
           "settled": {
             "type": "boolean",
             "title": "Settled",
@@ -5019,6 +5077,51 @@
         "title": "DealEntryOut",
         "description": "Eine Zeile Geld – eine Forderung oder eine Zahlung.\n\n``kind`` sagt, welche Achse. Ein **negativer** Betrag ist keine Ausnahme, sondern die\nGutschrift bzw. die Erstattung – dafür gibt es keine dritte Art."
       },
+      "DealLine": {
+        "properties": {
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "type": "string",
+            "title": "Article Name",
+            "default": ""
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "spec": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Spec"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_id",
+          "quantity"
+        ],
+        "title": "DealLine",
+        "description": "**Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.\n\nJe Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der\nNormalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.\n\nDie **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die\nSache, damit die Gegenpartei weiss, worum es geht. Was **daran** zu tun ist, steht im\nSatz daneben (``subject``)."
+      },
       "DealParty": {
         "properties": {
           "object_id": {
@@ -5037,6 +5140,63 @@
         ],
         "title": "DealParty",
         "description": "Eine wählbare Gegenpartei – **Objektnummer und Name**, sonst nichts.\n\nDieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die\nOberfläche kein zweites Auswahlfeld braucht."
+      },
+      "DealQuote": {
+        "properties": {
+          "party_object_id": {
+            "type": "integer",
+            "title": "Party Object Id"
+          },
+          "party_name": {
+            "type": "string",
+            "title": "Party Name",
+            "default": ""
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
+          "payment_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Days"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "default": "angefragt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "party_object_id"
+        ],
+        "title": "DealQuote",
+        "description": "**Eine Zeile des Angebotsspiegels** – eine Gegenpartei, ein Preis.\n\n``state``: ``angefragt`` · ``offeriert`` · ``abgelehnt`` · ``gewaehlt``. «gewählt»\nentsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt wurde –\nein Zustand ist eine Folge.\n\n**Eine Gegenpartei sieht nur ihre eigene Zeile.** Fremde Preise fallen beim Aufbau\nder Antwort weg, nicht in der Oberfläche."
       },
       "DealStage": {
         "properties": {
@@ -5095,6 +5255,35 @@
             ],
             "title": "Party"
           },
+          "parties": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Parties"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
+          "payment_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Days"
+          },
           "amount": {
             "anyOf": [
               {
@@ -5105,17 +5294,6 @@
               }
             ],
             "title": "Amount"
-          },
-          "due_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due Days"
           },
           "reference": {
             "anyOf": [
@@ -5180,7 +5358,7 @@
           "action"
         ],
         "title": "DealUpdate",
-        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, sechs Verben.\n\n``quote``   die Angaben erfassen (``party``, ``amount``, ``due_days``,\n            ``reference``, ``note``) – solange noch nichts zugesagt ist\n``agree``   zusagen bzw. beauftragen; ``party`` und ``amount`` sind dabei Pflicht\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe *zugesagt − berechnet*;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe der offene Betrag)\n``void``    eine Geld-Zeile zurücknehmen (``entry``)\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
+        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.\n\n``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten\n            (``parties`` – ohne Angabe **alle** zugelassenen)\n``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,\n            ``lead_days``, ``payment_days``) – auch von der Gegenpartei\n``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei\n``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)\n``note``    Referenz und Notiz nachtragen\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)\n``void``    eine Geld-Zeile zurücknehmen (``entry``)\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die\nRegel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
       },
       "DefinitionLine": {
         "properties": {
@@ -7498,6 +7676,12 @@
             "description": "**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.\n\n``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau\ndarum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der\nEigenschaft und nie nach dem Modultyp.",
             "readOnly": true
           },
+          "verifies": {
+            "type": "boolean",
+            "title": "Verifies",
+            "description": "**Muss die Instanz vor der Eingabe gescannt werden?**\n\nEin Scan beantwortet «habe ich das richtige physische Ding vor mir» – er gilt dem\nEtikett am Ding, bevor jemand etwas **damit** tut. Ein Modul ohne physischen\nBezug (ein reiner Rechenschritt, eine Freigabe am Schreibtisch) tut mit dem Stück\ngar nichts; dort wäre der Scan eine Geste ohne Aussage.\n\nDurchgesetzt wird es serverseitig (``process._verified_instance``) – diese Angabe\nist die **freundliche Hälfte**: sie sagt der Oberfläche, ob sie ein Scan-Tor oder\nschlicht eine Bestätigung zeigt. Sie reist **mit dem Schritt**, wie Farbe und\nBeschriftung: den Modul-Katalog lädt nur der Editor.",
+            "readOnly": true
+          },
           "action": {
             "type": "string",
             "title": "Action",
@@ -7529,6 +7713,7 @@
           "terminal",
           "moves",
           "buys",
+          "verifies",
           "action",
           "sample",
           "reason"

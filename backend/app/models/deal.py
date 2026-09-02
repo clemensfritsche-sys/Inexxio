@@ -14,7 +14,10 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
+from typing import Any
+
 from sqlalchemy import BigInteger, Date, Index, Integer, Numeric, String, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -84,6 +87,35 @@ class Deal(Base, TimestampMixin):
 
     #: Wann zugesagt wurde – der Anker, ab dem eine Zahlungsfrist läuft.
     agreed_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    #: ►►► **Der Angebotsspiegel** – je zugelassener Gegenpartei eine Zeile. ◄◄◄
+    #:
+    #: ``[{"party": <Objektnr>, "amount": "84.00", "lead_days": 5, "payment_days": 30,
+    #: "state": "offeriert"}]``
+    #:
+    #: Als **JSONB und nicht als Tabelle**, aus demselben Grund wie überall im Haus: es
+    #: ist eine Liste **an** diesem Vorgang, keine eigene Sache. Beträge stehen als
+    #: **String** – wo es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet.
+    #:
+    #: Er ist zugleich die Antwort auf «woran ist dieser Betrachter beteiligt?»
+    #: (``deal.mine``): eine Gegenpartei ist dort beteiligt, wo sie **angefragt** wurde.
+    #: Gefiltert wird in der Datenbank (JSONB-Containment), nicht im Python.
+    quotes: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]",
+    )
+
+    #: **Was gehandelt wird** – abgeleitet aus dem Prozess und mit der Zusage eingefroren.
+    #:
+    #: ``[{"article": <Objektnr>, "quantity": 6}]``. Davor gibt es sie gar nicht: die
+    #: Zeilen **sind** der Prozess und ziehen von selbst nach. Ab der Zusage ist eine
+    #: zweite Partei gebunden, und was zugesagt wurde, ändert sich nicht mehr dadurch,
+    #: dass der Auftrag später Stücke verliert.
+    #:
+    #: Ein ``article_id`` gibt es nicht: ein Vorgang kann zwei Artikel führen, und welche
+    #: es sind, sagen die Einzelinstanzen.
+    agreed_lines: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(
+        JSONB, nullable=True,
+    )
 
 
 class DealEntry(Base, TimestampMixin):

@@ -615,6 +615,9 @@ export function toDiagramSteps(steps: ProcessStepResponse[] | null | undefined):
     // das war der Grund, warum die Aussonderung nach dem Freigeben die Farbe der
     // Datenerfassung trug.
     tone: s.tone, terminal: s.terminal,
+    // **Und «wird gescannt?»** – aus derselben Registry: ein Modul ohne
+    // physischen Bezug bekommt eine Bestätigung statt eines Scan-Tors.
+    verifies: s.verifies,
     // **Und ebenso «bewegt es?» und «kauft es ein?»** – beides Eigenschaften des
     // Modultyps, beide aus derselben Registry. Die Ausführungsstelle liest sie und
     // fragt darum nie nach `moduleType === 'bewegen'`.

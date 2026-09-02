@@ -128,6 +128,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/erp/orders/party-options?role= | staff | **Gegenpartei** suchen – `supplier` beim Einkauf, `customer` beim Verkauf (Nummer **oder** Name, dieselbe Bedingung wie überall: `services/lookup`). Welche Rolle gemeint ist, sagt der Beleg (`PurchaseEmbed.party_role`) bzw. der Katalog (`ModuleTypeInfo.party_role`) – ein zweiter Endpunkt je Rolle wäre dieselbe Abfrage zweimal |
 | POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/confirm | staff | **Ein Modul bestätigen – für EINE Instanz.** `instance_object_id` + `verification` (`scan`\|`manual`) sind Pflicht (§4.4); ohne sie 400. `values` ist **zweistufig** – Nummer der Einzelinstanz → (Punkt → Wert), je gezogenem Stück ein Satz (§9.5). Die Art kommt aus dem **Scan-Dialog** (Kamera ↔ Tastatur), nicht von einem zweiten Knopf daneben. Bestanden → die Stücke rücken vor, nicht bestanden → sie bleiben stehen (§4.5). Antwort: der Auftrag; die Wirkung steht im Audit. |
 | POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/purchase | staff | **Den Beleg bewegen** – `action` ∈ `ask`·`quote`·`decline`·`order`·`note`·`revoke`·`clarified` (Stufen-Verben) plus `buy` und `pay` (**ohne** Stufe – der eine legt den Beleg an, der andere bucht Geld). Ein **Befehl**, kein Feld-Update, darum POST wie `confirm` (der Wächter `test_a_status_change_always_writes_the_log` verbietet `PATCH` in diesem Router). **Auch für den Lieferanten offen** (`get_current_user`): was er darf, sagt `purchase._can` (Stufe × Rolle, `SUPPLIER_ACTIONS` = `quote`·`decline`·`note`) – dieselbe Tabelle ist Auskunft **und** Tor, ein Anzeige-Hinweis allein liefe beim nächsten Verb auseinander. |
+| GET | /api/v1/erp/orders/deal-parties | user | **Gegenpartei eines Geldvorgangs suchen** (Nummer **oder** Name, `services/lookup`) – **ohne** Rollenfilter: wer bei uns kauft, ist damit Kunde, und wer liefert, Lieferant; die Rolle sagt, was jemand *für uns* tut, nicht ob er in einem Vorgang vorkommen darf. **Vor** `GET /{object_id}` deklariert, sonst verschluckt der Pfad-Platzhalter die Route |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/deal | user | **Den Geldvorgang bewegen** – `action` ∈ `ask`·`quote`·`decline`·`agree`·`note`·`revoke`·`charge`·`pay`·`void`. Ein **Befehl**, kein Feld-Update (POST wie `confirm`). **Auch für die Gegenpartei offen** (`get_current_user`): was sie darf, sagt `deal.can` (Stufe × Zugang, `PARTY_ACTIONS` = `quote`·`decline`) – dieselbe Tabelle ist Auskunft **und** Tor. Wer nicht beteiligt ist, bekommt **404**; ein **Mitarbeiter** ist immer beteiligt, auch wenn er selbst die Gegenpartei ist |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/record | staff | **Was ist an diesem Modul passiert?** Je Vorgang (= eine Einzelinstanz, ein Durchgang): Nummer · wer · wann · wie bestätigt · Nachher-Zustand · Urteil · gezogen? · verbaut in? · **jeder erfasste Wert mit seiner Frage**. Eine Ableitung über den Ereignis-Log (`services/record.py`) – **zentral, kein Protokoll je Modultyp**; ein neuer Modultyp erbt es ohne eine Zeile. Seitenweise (`limit`/`offset`, Gesamtzahl daneben) und **erst auf Klick**: bei einer 6000er-Charge wären es tausende Zeilen in jeder Auftrags-Antwort. |
 | GET | /api/v1/erp/orders/{object_id}/steps/{step_id}/hold?instance=&group= | staff | Die **Nummern** einer Gruppe dieser Instanz an diesem Modul: `sample` (die gezogenen – für jede ist ein Wertesatz zu erfassen, §9.5) \| `failed` \| `rest` (Vorauswahl der Entscheidung). **Erst auf Klick**: der «Rest» einer 6000er-Charge wären sechstausend Nummern in jeder Auftrags-Antwort. |
 | GET/PATCH | /api/v1/admin/settings | admin | Die **Plattform-Konfiguration** der einen Website (Plausible-Domain, Google-Maps-Schlüssel) – sie hängt am Betreiber. Entitäts-Felder laufen über `/admin/companies/{object_id}` |
@@ -396,8 +398,31 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Daraus folgt, dass **keine andere Regel im System von ihm wissen muss**: Robustheit
 > konstruktiv statt geprüft. Was physisch geschieht, sagen die Nachbarn.
 > **Vier Angaben** (`domain/modules.Zahlung`): `direction` (`in` ↔ `out` – daraus folgt
-> jedes Wort), `parties` (**leer heisst frei**), `subject` (Pflicht) und `prepaid`. Keine
-> Menge, kein Artikel, kein Termin, **kein Betrag** – der steht beim Modellieren nicht fest.
+> jedes Wort), `parties` (**leer heisst frei**), `subject` (**freiwillig**) und `prepaid`.
+> Keine Menge, kein Artikel, kein Termin, **kein Betrag** – der steht beim Modellieren nicht
+> fest. *Was* gehandelt wird, sagt der Prozess: `deal.process_lines`/`lines_of` gruppiert die
+> Artikel der Einzelinstanzen, die vor dem Modul stehen, und `services/article_fields` legt
+> die **Spezifikation** dazu – mit der Zusage frieren beide in `agreed_lines` ein. `subject`
+> sagt darum nur noch, was **daran** zu tun ist, und das gibt es nicht bei jedem Vorgang.
+> **Ein Vorgang hat zwei Parteien** (`deals.quotes`): `ask` → `quote`/`decline` → `agree`.
+> Eine **Liste**, auch wenn fast immer einer drinsteht – n statt 1, damit der Vergleich kein
+> zweiter Mechanismus ist. Geändert wird eine Zeile durch **Neubau** (`_write_quotes`), nie
+> an Ort: ein mutierter JSONB-Wert fällt aus dem `UPDATE`, und die Offerte ist still weg.
+> **Eine Gegenpartei sieht ihre Zeile und keine Zahl über Geld** – gefiltert in
+> `embed_data`, nicht in der Oberfläche; `_target` liest sie aus dem **angemeldeten
+> Benutzer**, nie aus der Nutzlast. **Und die Verengung hängt am ZUGANG, nicht an der
+> Beteiligung** (`STAFF_ROLES`): ein Mitarbeiter, der selbst Gegenpartei ist, behält die
+> volle Sicht – er arbeitet ohnehin im ERP, und zwei Ansichten desselben Datensatzes wären
+> zwei Wahrheiten.
+> **Kein Scan** (`requires_verification = False` → `ModuleFacts.verifies`): es bewegt keine
+> Stücke, also gibt es nichts zu verifizieren. Die Ausführungsstelle liest die **Eigenschaft**
+> und nennt keinen Modultyp.
+> **Zwei Stufen, nicht drei** (`STAGES`): nichts zugesagt · zugesagt. `done` und `cancelled`
+> sind **Ausgänge** – man kommt dort an, statt hindurchzugehen; `finish` setzt `done`, wenn
+> nichts mehr davorsteht. Das Geld ist eine **Zeile**, keine Stufe.
+> **Die naheliegende Handlung ist eine Ableitung** (`Balance.next_charge`/`next_payment`) –
+> und sie ist **nie negativ**: überberechnet ist eine gültige Aussage, aber kein Vorschlag in
+> einem Eingabefeld. Negative Beträge bleiben eingebbar (Gutschrift, Erstattung).
 > **Die Richtung ist eine Einstellung, kein zweiter Modul-Schlüssel** – und sie wird am
 > **Vorgang** eingefroren (`deals.direction`): läse er sie bei jeder Anzeige aus der
 > `config`, änderte ein Umbau rückwirkend die Bedeutung alter Vorgänge.
@@ -419,8 +444,9 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > `invoices`, `payments`, `money`, `stripe_pay`; ein Quelltext-Wächter hält es so. Die drei
 > Berührungspunkte im Rahmen sind je eine Zeile und no-op ohne dieses Modul:
 > `instantiate_for_order` (Freigabe) · `assert_completable` (vor `confirm_step`) ·
-> `finish` (danach). Personal-only, bis eine Gegenpartei-Sicht mit Filter gebaut ist.
-> Wächter: `tests/test_deal_module.py` (14 Prüfungen, elf Bug-Formen gegengeprüft).
+> `finish` (danach).
+> Wächter: `tests/test_deal_module.py` (24 Prüfungen, jede gegen ihre Bug-Form
+> gegengeprüft) + zwölf in `test_frontend_mirrors.py`.
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

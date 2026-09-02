@@ -2231,7 +2231,7 @@ Geld und Ware wieder einen eigenen Fall — genau die Lage, aus der es entstande
 |---|---|
 | `direction` | **Geld kommt** (`in`) ↔ **Geld geht** (`out`). Daraus folgt jedes Wort. |
 | `parties` | Die **zugelassenen** Gegenparteien. **Leer heisst frei** — dann wird beim Ausführen gesucht. |
-| `subject` | **Worum es geht** — ein Satz, Pflicht. Das, was auf dem Beleg steht. |
+| `subject` | **Was daran zu tun ist** — ein Satz, **freiwillig**. |
 | `prepaid` | **Erst weiter, wenn bezahlt.** Der einzige Schalter. |
 
 **Keine Menge** (sie ist die Zahl der Einzelinstanzen davor), **kein Artikel** (den tragen
@@ -2240,22 +2240,105 @@ fest — ein hier getippter wäre bei der zweiten Ausführung falsch, und zwar s
 und **keine Bestellangabe** (wer bei wem unter welcher Nummer bestellt, ist eine
 Eigenschaft der Gegenpartei bzw. des Artikels, nicht dieses Schritts).
 
+**`subject` war einmal Pflicht, und das war eine Verwechslung** (Testnotiz #796): *was*
+gehandelt wird, sagt der **Prozess** — die Einzelinstanzen tragen ihren Artikel, der
+Artikel seine Spezifikation, und beides reist mit dem Vorgang (`DealEmbed.lines`). Der Satz
+sagt, was **daran** zu tun ist («Härten auf 58 HRC»), und das gibt es nicht bei jedem
+Vorgang. Ein Pflichtfeld, das oft nichts aufzunehmen hat, lädt zu einer Eingabe ein, die
+niemand liest.
+
+**Der Entwurf beginnt als Einnahme** (#791) — die Frage bleibt, sie startet nur bei der
+häufigeren Antwort; ein Schalter, der auf nichts steht, ist keine Frage, sondern eine
+Lücke, die der Server still mit `out` füllt.
+
+#### Worum es geht — ABGELEITET, nie getippt
+
+Je Artikel, dessen Einzelinstanzen im Auftrag stehen, **eine Zeile** mit Menge, Nummer und
+Namen; **mehrere sind der Normalfall** — ein Vorgang mit zwei Positionen, wie im echten
+Leben. Es braucht dafür keine Regel, nur eine Gruppierung (`deal.process_lines`).
+
+Die **Spezifikation reist mit** (`services/article_fields`) — sie beschreibt die Sache,
+damit die Gegenpartei weiss, worum es geht, und sie wird **nicht ausgewählt**: eine
+Spezifikation, die je nach Empfänger anders lautet, ist keine. Sie steht **erst auf
+Klick**: im Normalfall interessiert die Zeile, nicht das Datenblatt.
+
+Mit der **Zusage frieren die Zeilen ein** (`deals.agreed_lines`) — ab dort ist eine zweite
+Partei gebunden, und was sie zugesagt hat, darf sich nicht mehr ändern, weil jemand ein
+Stück nachschiebt. Davor gibt es sie gar nicht: sie **sind** der Prozess und ziehen von
+selbst nach.
+
+#### Ein Vorgang hat zwei Parteien
+
+Der **Angebotsspiegel** (`deals.quotes`) ist der Kern der ersten Zeile: wir fragen an bzw.
+bieten an (`ask`), die Gegenpartei nennt ihren Preis (`quote`) oder sagt ab (`decline`),
+wir geben den Zuschlag (`agree`). **Eine Liste, auch wenn fast immer einer drinsteht** —
+n statt 1: wer vergleichen will, fragt drei, und der Vergleich ist damit kein zweiter
+Mechanismus.
+
+*«gewählt» entsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt
+wurde — ein Zustand ist eine Folge.*
+
+**Steht in der Definition genau eine Gegenpartei, gibt es nichts zu wählen** (#793): dann
+heisst der Knopf schlicht «Anfragen» bzw. «Anbieten». Nur wo die Definition **niemanden**
+nennt, ist die Wahl eine echte Frage — und dann wird gesucht (`ObjectSelect`, dieselbe
+Bauart wie jede Referenz im Haus), statt eine leere Liste zu zeigen.
+
+**Eine Angebotszeile wird durch NEUBAU geändert, nie an Ort** (`_write_quotes`): der
+geladene JSONB-Wert darf nicht mutiert werden — sonst sind geladener und aktueller Wert
+gleich, die Spalte fällt aus dem `UPDATE`, und die Offerte ist stillschweigend weg.
+
+#### Der Zugang der Gegenpartei — ein ZUGANG, keine Rolle im Vorgang
+
+Wer angefragt ist und **nicht** ins ERP darf, sieht eine sehr enge Sicht: **seine**
+Angebotszeile, keine fremde, und keine Zahl über Forderung und Geld. Gefiltert wird beim
+**Aufbau der Antwort** (`deal.embed_data`), nicht in der Oberfläche — wer den Filter dort
+formulierte, hätte ihn beim zweiten Aufrufer nicht. Was er **tun** darf, sagt dieselbe
+Tabelle wie bei allen anderen (`can` ∩ `PARTY_ACTIONS` = `quote`·`decline`), und `_target`
+liest die Zeile aus dem **angemeldeten Benutzer**, nie aus der Nutzlast.
+
+**Ein Mitarbeiter behält die volle Sicht — auch wenn er selbst die Gegenpartei ist.** Die
+Frage lautet «darf dieser Betrachter ins ERP?» (`STAFF_ROLES`), nicht «kommt seine Nummer
+im Vorgang vor»: er sieht dort ohnehin den ganzen Auftrag, und eine zweite, engere Ansicht
+desselben Datensatzes wäre eine zweite Wahrheit. Hinge die Verengung an der **Beteiligung**,
+verlöre ein Einkäufer, den man einmal selbst anfragt, an genau diesem Auftrag die Zahlen,
+die er zum Arbeiten braucht.
+
+#### Kein Scan — und das ist eine Eigenschaft des Moduls
+
+Ein Geldvorgang bewegt keine Stücke: es gibt **nichts zu verifizieren**, und ein Scan davor
+wäre ein erfundenes Hindernis. Die Frage steht am Modul (`Module.requires_verification`)
+und reist als `ModuleFacts.verifies` mit dem Schritt — die Ausführungsstelle nennt damit
+keinen Modultyp, und jedes künftige Modul ohne physisches Gegenstück erbt die Regel ohne
+eine Zeile.
+
 **Die Richtung ist eine Einstellung, kein zweiter Modul-Schlüssel.** Es ist EIN Modul, eine
 Kachel in der Palette; die `config` friert mit der Freigabe ein und reist mit dem Schritt,
 ist also genauso haltbar wie ein Schlüssel. Am **Vorgang** wird sie zusätzlich eingefroren
 (`deals.direction`): läse er sie bei jeder Anzeige neu, änderte ein späterer Umbau
 **rückwirkend**, was ein alter Vorgang bedeutet.
 
-#### Drei Stufen, weil drei Dinge unumkehrbar sind
+#### ZWEI Stufen — und die dritte Zeile ist keine
 
-`Angebot → Zusage → Abgeschlossen`, dazu `Storniert` als **Ausgang** (keine Stufe). Wie sie
-in einer Richtung *heissen*, sagt `domain/deal.DIRECTIONS` — als **Daten**, nicht als
-Verzweigung: die erste Verzweigung ist eine Beschriftung, die zweite eine Regel, und ab der
-dritten gibt es zwei Vorgänge, die nur so tun, als wären sie einer.
+Unumkehrbar sind **zwei** Dinge: nichts zugesagt (`Angebot` ↔ `Anfrage`) · zugesagt
+(`Auftrag`). `Erledigt` und `Storniert` sind **Ausgänge**: man kommt dort an, statt
+hindurchzugehen. Wie die Stufen in einer Richtung *heissen*, sagt `domain/deal.DIRECTIONS`
+— als **Daten**, nicht als Verzweigung: die erste Verzweigung ist eine Beschriftung, die
+zweite eine Regel, und ab der dritten gibt es zwei Vorgänge, die nur so tun, als wären sie
+einer.
 
-**Die dritte Stufe IST die Bestätigung des Moduls** (der Scan): steht nichts mehr davor,
-ist der Vorgang erledigt (`deal.finish`). Teilabschluss braucht dafür keine eigene Regel —
-`confirm_step` ist einer.
+*«Abgeschlossen» stand einmal als dritte Stufe da und war genau das Missverständnis — ein
+**Zustand** in einer Reihe von **Schritten**. Man tut nichts, um ihn zu erreichen; er tritt
+ein, wenn nichts mehr davorsteht (`deal.finish`).*
+
+**Die dritte Zeile der Karte ist das GELD**, und es ist bewusst keine Stufe: eine Zahlung
+macht aus einem Angebot keine Zusage, sie ist reversibel, und sie darf **vor** der Erfüllung
+stehen (Vorauszahlung) wie danach (Zahlungsziel). Wer sie als dritte Stufe führte, hätte für
+die Vorauszahlung ein `if`. Sie steht dort, wo man sie erwartet — dritte Position —, und ist
+ab der Zusage bedienbar; die Kette darüber sagt weiterhin nur, was **zugesagt** ist.
+
+**Das Verb der Schwelle heisst in beiden Richtungen «Auftrag bestätigen»**: was passiert,
+ist dasselbe — zwei Parteien sind ab hier gebunden. Ein eigenes Wort je Richtung wäre eine
+Unterscheidung, die es in der Sache nicht gibt.
 
 #### Zwei Achsen, und darum kein einziger Modus
 
@@ -2276,6 +2359,15 @@ und die eine vergessene Nachzieh-Stelle fällt erst auf, wenn jemand mahnt.
 **`prepaid` fragt nach der ZUSAGE, nicht nach dem offenen Betrag.** Direkt nach der Zusage
 ist *offen* null — weil noch **nichts gefordert** wurde. Dieselbe Zahl, eine ganz andere
 Aussage; wer sie liest, hielte den Vorgang für bezahlt (`Balance.settled`).
+
+**Eine naheliegende Handlung, und der Server sagt welche** (`next_charge` ↔ `next_payment`,
+`Balance`): erst fordern, dann kassieren. Beide Achsen bleiben frei — alles Übrige liegt
+unter «Weitere» —, aber sie standen als drei gleichwertige Knöpfe da, und drei gleich laute
+Angebote sind kein Vorschlag. **Und keine Vorgabe ist je negativ** (#795): dass mehr
+berechnet als zugesagt wurde, ist eine gültige Aussage — als Vorschlag in einem
+Eingabefeld ist sie es nicht; dort stand «−250.00», und niemand stellt eine Rechnung über
+minus 250. Negative Beträge bleiben **eingebbar**: das ist die Gutschrift bzw. die
+Erstattung.
 
 #### `can` ist Auskunft UND Tor
 

@@ -13,7 +13,7 @@
  */
 
 import {
-  ArrowDownLeft, ArrowUpRight, Banknote, Landmark,
+  Banknote, Landmark, CircleMinus, CirclePlus,
   Blocks, Camera, CircleHelp, ClipboardCheck, Hand, HandCoins, Handshake, MoveRight,
   PackageX, PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
@@ -144,13 +144,18 @@ export const DEAL_DIRECTION: Record<string, {
   icon: LucideIcon; label: string; hint: string; party: string; parties: string;
 }> = {
   in: {
-    icon: ArrowDownLeft, label: 'Einnahme',
-    hint: 'Wir stellen Rechnung – Geld kommt herein.',
+    // ►► **Plus und Minus** – das Bild, in dem man Geld ohnehin denkt (#797). ◄◄
+    //
+    // Vorher standen hier Diagonalpfeile: generisch, und zwei davon nebeneinander sind
+    // erst auf den zweiten Blick zu unterscheiden. Plus ↔ Minus ist die
+    // Buchhaltungssprache selbst und trägt schon in 14 px.
+    icon: CirclePlus, label: 'Einnahme',
+    hint: 'Einnahme – wir stellen Rechnung, Geld kommt herein.',
     party: 'Kunde', parties: 'Kunden',
   },
   out: {
-    icon: ArrowUpRight, label: 'Ausgabe',
-    hint: 'Wir bekommen Rechnung – Geld geht hinaus.',
+    icon: CircleMinus, label: 'Ausgabe',
+    hint: 'Ausgabe – wir bekommen Rechnung, Geld geht hinaus.',
     // **Der Plural als eigener Wert**, nicht als angehängtes «en»: «Kunde» + «en» ergäbe
     // «Kundeen» (#787). Deutsche Beugung ist keine Zeichenkettenoperation.
     party: 'Lieferant', parties: 'Lieferanten',
@@ -174,8 +179,22 @@ export function dealDirection(direction: string | undefined | null) {
 export const DEAL_STAGE = {
   offer: 'offer',
   agreed: 'agreed',
+  /** **Ausgänge, keine Stufen** – man kommt dort an, statt hindurchzugehen. */
   done: 'done',
   cancelled: 'cancelled',
+} as const;
+
+/**
+ * ►►► **Die Zustände einer Angebotszeile.** ◄◄◄
+ *
+ * `gewaehlt` entsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt
+ * wurde – ein Zustand ist eine Folge. Gespiegelt von `domain/deal.QUOTE_STATES`.
+ */
+export const QUOTE_STATE = {
+  asked: 'angefragt',
+  quoted: 'offeriert',
+  declined: 'abgelehnt',
+  chosen: 'gewaehlt',
 } as const;
 
 /**
@@ -619,7 +638,9 @@ export const MODULE_FORM: Record<string, {
     draft: (c) => ({
       // Tolerant gelesen: eine fehlende Richtung ist eine **Ausgabe**, wie im Backend
       // (`deal.of`) – ein freigegebener Prozess ist eingefroren, und eine alte Zeile
-      // darf keine Anzeige zerlegen.
+      // darf keine Anzeige zerlegen. (Die Vorgabe eines **neuen** Moduls ist dagegen die
+      // Einnahme, #791 – das ist eine andere Frage: was gilt, wenn nichts dasteht,
+      // gegenüber was vorgeschlagen wird, bevor jemand wählt.)
       direction: c.direction === 'in' ? 'in' : 'out',
       parties: (Array.isArray(c.parties) ? c.parties : [])
         .map((n) => Number(n)).filter((n) => Number.isFinite(n)),
@@ -689,10 +710,10 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
     lines: [], target: '', suppliers: [], instruction: '',
-    // **Die Richtung hat eine Vorgabe und ist trotzdem Pflicht**: der Server verlangt
-    // sie ausdrücklich (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt –
-    // hier steht sie, damit der Schieber von Anfang an einen Zustand hat.
-    direction: 'out', parties: [], subject: '', prepaid: false,
+    // **Die Vorgabe ist die EINNAHME** (#791): der häufigere Fall im Haus ist, dass wir
+    // etwas verkaufen. Die Richtung bleibt trotzdem eine ausdrückliche Angabe – der
+    // Server verlangt sie (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt.
+    direction: 'in', parties: [], subject: '', prepaid: false,
   };
 }
 

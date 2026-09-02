@@ -5774,13 +5774,20 @@ def test_the_money_stage_keys_are_mirrored_not_written_out():
     from app.domain import deal as dm
 
     block = _body(_read(FRONTEND / "lib" / "modules.ts"), "DEAL_STAGE", kind="const")
-    for key in (*dm.STAGES, dm.CANCELLED):
+    for key in (*dm.STAGES, dm.DONE, dm.CANCELLED):
         assert f"{key}: '{key}'" in block, f"Die Stufe «{key}» fehlt in der Zuordnung."
 
     work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    assert "DEAL_STAGE.offer" in work and "DEAL_STAGE.agreed" in work, (
-        "Die Karte liest die Stufen nicht aus der Zuordnung."
-    )
+    assert "DEAL_STAGE." in work, "Die Karte liest die Stufen nicht aus der Zuordnung."
+    # Geprüft wird die REGEL («kein Stufen-Wort im Rumpf»), nicht die Form der Lösung:
+    # WELCHE Stufen die Karte nennt, ist ihre Sache – `agreed` ist heute die Ableitung
+    # «nicht mehr Angebot», und ein Wächter, der eine bestimmte Zeile verlangt, verbietet
+    # die bessere Fassung.
+    for key in (*dm.STAGES, dm.DONE, dm.CANCELLED):
+        assert f"'{key}'" not in work, (
+            f"Die Karte vergleicht gegen '{key}' statt gegen DEAL_STAGE.{key} – ein "
+            f"zweiter Ort für denselben Schlüssel."
+        )
     for german in ("'angebot'", "'zusage'", "'abgeschlossen'", "'storniert'"):
         assert german not in work, (
             f"Die Karte vergleicht gegen {german} – das ist eine **Beschriftung**, und "
@@ -5836,3 +5843,163 @@ def test_the_money_module_is_a_pass_through_in_the_editor_too():
             f"Der Editor fragt nach «{forbidden}» – das steht beim Modellieren nicht "
             f"fest und wäre bei der zweiten Ausführung falsch."
         )
+
+
+def test_the_direction_is_a_symbol_not_a_permanent_word():
+    """►►► **Plus und Minus sind die Sprache selbst** (Testnotiz #797). ◄◄◄
+
+    «Einnahme»/«Ausgabe» stand als Dauertext im Kopf der Karte – neben einem Symbol, das
+    dasselbe sagt, und bei jedem Vorgang im Weg. Die Bedeutung gehört in den Hover,
+    dieselbe Regel wie bei jedem Symbol-Knopf im Haus.
+
+    Bug-Formen: (a) das Label wird wieder gerendert; (b) das Symbol trägt keinen Hover,
+    dann sagt die Karte gar nicht mehr, in welche Richtung das Geld fliesst.
+    """
+    head = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                 "Head", kind="function")
+    assert "{dir.label}" not in head and "dir.label}" not in head, (
+        "Die Richtung steht wieder als Dauertext im Kopf (#797) – das Symbol daneben "
+        "sagt dieselbe Sache."
+    )
+    assert "dir.hint" in head, (
+        "Das Symbol trägt keinen Hover – dann sagt nichts mehr, in welche Richtung das "
+        "Geld fliesst."
+    )
+    assert "<Icon" in head, "Das Symbol der Richtung fehlt im Kopf."
+
+
+def test_a_module_without_verification_confirms_without_a_scan():
+    """►►► **Ohne Scan-Regel kein Scan-Tor** — und das ist eine Eigenschaft des Moduls. ◄◄◄
+
+    Ein Geldvorgang bewegt keine Stücke: es gibt nichts zu verifizieren, und ein Scan
+    davor wäre ein erfundenes Hindernis. Die Frage steht am **Modul**
+    (`Module.requires_verification` → `ModuleFacts.verifies`) und reist mit dem Schritt –
+    den Modul-Katalog lädt nur der Editor.
+
+    Bug-Formen: (a) die Ausführungsstelle nennt wieder einen Modultyp; (b) die Eigenschaft
+    reist nicht mit, dann kann die Oberfläche gar nicht anders als raten.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules as dmod
+
+    assert dmod.get(dmod.ZAHLUNG).requires_verification is False, (
+        "Das Geldmodul verlangt wieder eine Verifikation – es bewegt keine Stücke, es "
+        "gibt nichts zu scannen."
+    )
+    facts = _read(BACKEND / "app" / "schemas" / "process.py")
+    assert "def verifies" in facts, (
+        "`ModuleFacts` trägt die Eigenschaft nicht – dann muss die Oberfläche raten."
+    )
+    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    assert "step.verifies" in detail, (
+        "Die Ausführungsstelle liest die mitgereiste Eigenschaft nicht."
+    )
+    for key in ("'zahlung'", '"zahlung"'):
+        assert key not in detail, (
+            f"Die Ausführungsstelle nennt wieder den Modultyp {key} statt seine "
+            f"Eigenschaft – beim nächsten Modul derselben Art fehlt die Zeile."
+        )
+
+
+def test_the_money_module_asks_what_to_do_but_does_not_demand_it():
+    """**«Was ist daran zu tun?» ist freiwillig** (Testnotiz #796).
+
+    *Was* gehandelt wird, sagt der Prozess – die Einzelinstanzen tragen ihren Artikel,
+    der Artikel seine Spezifikation, und beides reist mit dem Vorgang. Der Satz sagt, was
+    **daran** zu tun ist, und das gibt es nicht bei jedem Vorgang.
+
+    Bug-Formen: (a) das Feld ist wieder Pflicht in der Oberfläche; (b) der Dienst weist
+    einen leeren Satz ab – dann ist die freundliche Hälfte eine Lüge.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules as dmod
+
+    cfg = dmod.get(dmod.ZAHLUNG).clean_config({"direction": "in", "subject": ""})
+    assert cfg["subject"] == "", (
+        "Der Dienst besteht wieder auf dem Satz – dann darf die Oberfläche ihn nicht "
+        "als freiwillig anbieten."
+    )
+    fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                   "MoneyFields", kind="function")
+    line = [l for l in fields.splitlines() if "Was ist daran zu tun?" in l and "<Label" in l]
+    assert line, "Die Beschriftung des Satzes fehlt im Editor."
+    assert "required" not in line[0], (
+        "Der Satz ist wieder Pflicht (#796) – ein Pflichtfeld, das oft nichts "
+        "aufzunehmen hat, lädt zu einer Eingabe ein, die niemand liest."
+    )
+
+
+def test_a_new_money_module_starts_as_income():
+    """**Der Normalfall ist die Vorgabe** (Testnotiz #791).
+
+    Ein Vorgang ohne Richtung gibt es nicht; die Frage bleibt, aber sie beginnt mit der
+    häufigeren Antwort. Bug-Form: der Entwurf startet ohne Richtung – dann steht im
+    Editor ein Schalter, der auf nichts steht, und der Server setzt still `out`.
+    """
+    blank = _body(_read(FRONTEND / "lib" / "modules.ts"), "blankModule", kind="function")
+    assert "direction: 'in'" in blank, (
+        "Der Entwurf startet nicht als Einnahme (#791) – der Schalter stünde auf nichts "
+        "oder auf der selteneren Antwort."
+    )
+
+
+def test_the_editor_explains_nothing_it_already_shows():
+    """**Kein Erklärsatz unter einem Feld, das sich selbst erklärt** (Testnotiz #792).
+
+    Bug-Form: ein `<p>` unter den Feldern des Geldmoduls. Ein Satz, der sagt, was das
+    Feld darüber ohnehin zeigt, ist die Doppelung, aus der beim nächsten Umbau zwei
+    Aussagen werden.
+    """
+    fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                   "MoneyFields", kind="function")
+    assert "<p " not in fields and "<p>" not in fields, (
+        "Der Editor erklärt wieder in Prosa, was die Felder zeigen (#792)."
+    )
+
+
+def test_the_chosen_counterparty_keeps_its_number_and_name():
+    """**Wer gewählt wurde, steht da — mit Nummer und Namen** (Testnotiz #794).
+
+    Bug-Form: die frisch gewählte Option wird weggeworfen und nur die Nummer gehalten.
+    Dann zeigt das Feld nach dem Klick nichts, weil die Wahl noch nicht gespeichert ist –
+    und der Mensch weiss nicht, ob sein Klick angekommen ist.
+    """
+    offer = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                  "Offer", kind="function")
+    assert "selected={picked}" in offer, (
+        "Die gewählte Gegenpartei wird nicht gehalten (#794) – das Feld steht nach dem "
+        "Klick leer da."
+    )
+    agreed = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                   "Agreed", kind="function")
+    assert "d.party_object_id" in agreed and "d.party_name" in agreed, (
+        "Die zugesagte Gegenpartei steht nicht mit Nummer und Namen da."
+    )
+
+
+def test_the_money_row_offers_one_obvious_action_and_the_server_names_it():
+    """►►► **Eine naheliegende Handlung — und der Server sagt welche.** ◄◄◄
+
+    Forderung und Geld bleiben zwei Achsen (jede Reihenfolge ist möglich), aber sie
+    standen als drei gleichwertige Knöpfe da. Welche jetzt dran ist, ist eine
+    **Ableitung** (`next_charge` ↔ `next_payment`) – im Browser nachgerechnet wiche sie
+    ab, und ihre Zahl sähe trotzdem richtig aus.
+
+    Bug-Formen: (a) die Oberfläche rechnet die naheliegende Handlung selbst aus;
+    (b) alles steht wieder gleichwertig nebeneinander, dann ist «Weitere» verschwunden.
+    """
+    money = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                  "Money", kind="function")
+    assert "d.next_charge" in money and "d.next_payment" in money, (
+        "Die naheliegende Handlung kommt nicht vom Server – eine zweite Formel hier "
+        "wiche ab, und ihre Zahl sähe trotzdem richtig aus."
+    )
+    assert "Weitere" in money, (
+        "Die übrigen Handlungen stehen wieder gleichwertig daneben – die Freiheit bleibt, "
+        "aber sie ist nicht mehr der Vorschlag."
+    )
+    assert "d.amount) - Number(d.charged" not in money.replace(" ", ""), (
+        "Der offene Betrag wird im Browser gerechnet."
+    )

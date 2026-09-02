@@ -930,20 +930,23 @@ export interface paths {
         put?: never;
         /**
          * Update Deal
-         * @description **Eine Handlung am Geldvorgang** – ein Endpunkt, sechs Verben.
+         * @description **Eine Handlung am Geldvorgang** – ein Endpunkt, neun Verben.
          *
-         *     ``quote`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` · ``void``.
+         *     ``ask`` · ``quote`` · ``decline`` · ``agree`` · ``note`` · ``revoke`` · ``charge`` ·
+         *     ``pay`` · ``void``.
          *
          *     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
-         *     wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe erlaubt ist, sagt
-         *     ``services/deal.ACTIONS``, und dieselbe Tabelle ist Auskunft (``can``) und Tor.
+         *     wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**
+         *     erlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.
          *
          *     **Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll
          *     nicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.
          *
-         *     **Personal-only.** Eine eigene Sicht für die Gegenpartei kommt mit ihrem Portal – und
-         *     die ist mehr als ein anderer ``Depends``: ohne Sichtbarkeitsfilter auf der Antwort
-         *     wäre die offene Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
+         *     **Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit
+         *     die Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``
+         *     nur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**
+         *     darf, sagt ``can`` (``PARTY_ACTIONS``: offerieren oder absagen), und ``apply`` weist
+         *     alles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.
          */
         post: operations["update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post"];
         delete?: never;
@@ -1499,6 +1502,21 @@ export interface components {
              *     Eigenschaft und nie nach dem Modultyp.
              */
             readonly buys: string | null;
+            /**
+             * Verifies
+             * @description **Muss die Instanz vor der Eingabe gescannt werden?**
+             *
+             *     Ein Scan beantwortet «habe ich das richtige physische Ding vor mir» – er gilt dem
+             *     Etikett am Ding, bevor jemand etwas **damit** tut. Ein Modul ohne physischen
+             *     Bezug (ein reiner Rechenschritt, eine Freigabe am Schreibtisch) tut mit dem Stück
+             *     gar nichts; dort wäre der Scan eine Geste ohne Aussage.
+             *
+             *     Durchgesetzt wird es serverseitig (``process._verified_instance``) – diese Angabe
+             *     ist die **freundliche Hälfte**: sie sagt der Oberfläche, ob sie ein Scan-Tor oder
+             *     schlicht eine Bestätigung zeigt. Sie reist **mit dem Schritt**, wie Farbe und
+             *     Beschriftung: den Modul-Katalog lädt nur der Editor.
+             */
+            readonly verifies: boolean;
         };
         /** ArticleResponse */
         ArticleResponse: {
@@ -1816,6 +1834,16 @@ export interface components {
              * @default Offen
              */
             open_word: string;
+            /**
+             * Ask Verb
+             * @default
+             */
+            ask_verb: string;
+            /**
+             * Money Label
+             * @default Rechnung & Zahlung
+             */
+            money_label: string;
             /** Undo */
             undo?: string | null;
             /**
@@ -1823,6 +1851,11 @@ export interface components {
              * @default offer
              */
             stage: string;
+            /**
+             * Stage Label
+             * @default
+             */
+            stage_label: string;
             /** Stages */
             stages?: components["schemas"]["DealStage"][];
             /** Can */
@@ -1839,6 +1872,10 @@ export interface components {
             prepaid: boolean;
             /** Allowed */
             allowed?: components["schemas"]["DealParty"][];
+            /** Quotes */
+            quotes?: components["schemas"]["DealQuote"][];
+            /** Lines */
+            lines?: components["schemas"]["DealLine"][];
             /** Party Object Id */
             party_object_id?: number | null;
             /** Party Name */
@@ -1861,6 +1898,10 @@ export interface components {
             open?: string | null;
             /** Uncharged */
             uncharged?: string | null;
+            /** Next Charge */
+            next_charge?: string | null;
+            /** Next Payment */
+            next_payment?: string | null;
             /**
              * Settled
              * @default false
@@ -1898,6 +1939,34 @@ export interface components {
             overdue: boolean;
         };
         /**
+         * DealLine
+         * @description **Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.
+         *
+         *     Je Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der
+         *     Normalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.
+         *
+         *     Die **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die
+         *     Sache, damit die Gegenpartei weiss, worum es geht. Was **daran** zu tun ist, steht im
+         *     Satz daneben (``subject``).
+         */
+        DealLine: {
+            /** Article Id */
+            article_id: number;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /**
+             * Article Name
+             * @default
+             */
+            article_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Spec */
+            spec?: {
+                [key: string]: string;
+            }[];
+        };
+        /**
          * DealParty
          * @description Eine wählbare Gegenpartei – **Objektnummer und Name**, sonst nichts.
          *
@@ -1912,6 +1981,37 @@ export interface components {
              * @default
              */
             name: string;
+        };
+        /**
+         * DealQuote
+         * @description **Eine Zeile des Angebotsspiegels** – eine Gegenpartei, ein Preis.
+         *
+         *     ``state``: ``angefragt`` · ``offeriert`` · ``abgelehnt`` · ``gewaehlt``. «gewählt»
+         *     entsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt wurde –
+         *     ein Zustand ist eine Folge.
+         *
+         *     **Eine Gegenpartei sieht nur ihre eigene Zeile.** Fremde Preise fallen beim Aufbau
+         *     der Antwort weg, nicht in der Oberfläche.
+         */
+        DealQuote: {
+            /** Party Object Id */
+            party_object_id: number;
+            /**
+             * Party Name
+             * @default
+             */
+            party_name: string;
+            /** Amount */
+            amount?: string | null;
+            /** Lead Days */
+            lead_days?: number | null;
+            /** Payment Days */
+            payment_days?: number | null;
+            /**
+             * State
+             * @default angefragt
+             */
+            state: string;
         };
         /**
          * DealStage
@@ -1937,20 +2037,28 @@ export interface components {
         };
         /**
          * DealUpdate
-         * @description Eine Handlung am Geldvorgang – **ein** Endpunkt, sechs Verben.
+         * @description Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.
          *
-         *     ``quote``   die Angaben erfassen (``party``, ``amount``, ``due_days``,
-         *                 ``reference``, ``note``) – solange noch nichts zugesagt ist
-         *     ``agree``   zusagen bzw. beauftragen; ``party`` und ``amount`` sind dabei Pflicht
+         *     ``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten
+         *                 (``parties`` – ohne Angabe **alle** zugelassenen)
+         *     ``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,
+         *                 ``lead_days``, ``payment_days``) – auch von der Gegenpartei
+         *     ``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei
+         *     ``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)
+         *     ``note``    Referenz und Notiz nachtragen
          *     ``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle
-         *     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe *zugesagt − berechnet*;
+         *     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
          *                 ``booked_on``, ``due_on``, ``reference``, ``note``)
-         *     ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe der offene Betrag)
+         *     ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)
          *     ``void``    eine Geld-Zeile zurücknehmen (``entry``)
          *
          *     **``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und
          *     auch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen
          *     trotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.
+         *
+         *     **Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr
+         *     **verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die
+         *     Regel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.
          *
          *     **Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,
          *     bleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich
@@ -1961,10 +2069,14 @@ export interface components {
             action: string;
             /** Party */
             party?: number | null;
+            /** Parties */
+            parties?: number[];
+            /** Lead Days */
+            lead_days?: number | null;
+            /** Payment Days */
+            payment_days?: number | null;
             /** Amount */
             amount?: string | null;
-            /** Due Days */
-            due_days?: number | null;
             /** Reference */
             reference?: string | null;
             /** Note */
@@ -3061,6 +3173,21 @@ export interface components {
              *     Eigenschaft und nie nach dem Modultyp.
              */
             readonly buys: string | null;
+            /**
+             * Verifies
+             * @description **Muss die Instanz vor der Eingabe gescannt werden?**
+             *
+             *     Ein Scan beantwortet «habe ich das richtige physische Ding vor mir» – er gilt dem
+             *     Etikett am Ding, bevor jemand etwas **damit** tut. Ein Modul ohne physischen
+             *     Bezug (ein reiner Rechenschritt, eine Freigabe am Schreibtisch) tut mit dem Stück
+             *     gar nichts; dort wäre der Scan eine Geste ohne Aussage.
+             *
+             *     Durchgesetzt wird es serverseitig (``process._verified_instance``) – diese Angabe
+             *     ist die **freundliche Hälfte**: sie sagt der Oberfläche, ob sie ein Scan-Tor oder
+             *     schlicht eine Bestätigung zeigt. Sie reist **mit dem Schritt**, wie Farbe und
+             *     Beschriftung: den Modul-Katalog lädt nur der Editor.
+             */
+            readonly verifies: boolean;
             /**
              * Action
              * @description Wie die Ausführung dieses Moduls heisst – das Verb auf dem Knopf.

@@ -116,6 +116,13 @@ _COLUMN_SAFETY_NET = (
     ("purchases", "direction", "VARCHAR(10) NOT NULL DEFAULT 'buy'"),
     # Der Tag der Zusage (Migration 122) – aus ihm folgt die Fälligkeit.
     ("purchases", "committed_on", "DATE"),
+    # **Der Geldvorgang hat zwei Parteien** (Migration 125): der Angebotsspiegel steht an
+    # der BESTEHENDEN Tabelle ``deals``. Ohne ihn scheitert jeder Lesezugriff auf einen
+    # Vorgang – und damit jede Auftrags-Anzeige, in der ein «Zahlung»-Modul steht.
+    # ``create_all`` legt eine fehlende Tabelle an, **nie** eine fehlende Spalte.
+    ("deals", "quotes", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
+    # Was gehandelt wird, eingefroren mit der Zusage (Migration 125).
+    ("deals", "agreed_lines", "JSONB"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –

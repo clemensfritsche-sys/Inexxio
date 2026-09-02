@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Layers, MessageSquareText } from 'lucide-react';
+import { Check, ClipboardList, Layers, MessageSquareText } from 'lucide-react';
 import { api, type ApiError } from '@/lib/api';
 import type {
   ArticleOption, ArticleProcess, CapturePoint, Order, OrderSummary, PlaceRef,
@@ -199,7 +199,8 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     }
   }
 
-  const confirmStep = useCallback(async (stepId: number, instanceObjectId: number,
+  const confirmStep = useCallback(async (stepId: number,
+                                        instanceObjectId: number | null,
                                          verification: string,
                                          values: Record<string, Record<string, unknown>>,
                                          sources: number[] = [],
@@ -577,7 +578,7 @@ function ProcurementBlock({ purchase, children }: {
 
 function RunView({ order, busy, onConfirm, onPurchase, onDeal, onDeviate }: {
   order: Order; busy: boolean;
-  onConfirm: (stepId: number, instanceObjectId: number, verification: string,
+  onConfirm: (stepId: number, instanceObjectId: number | null, verification: string,
               values: Record<string, Record<string, unknown>>,
               sources: number[], place: number | null) => void;
   onPurchase: (stepId: number, body: { action: string } & Record<string, unknown>) => void;
@@ -632,7 +633,24 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeal, onDeviate }: {
   // verengten Antwort hat er nichts zu suchen. Was ein Lieferant im Modul **tun** darf,
   // entscheidet dagegen der Beleg selbst (`purchase.can`).
   const stepBody = (step: DiagramStep, isActive: boolean, internal: boolean) => {
-    const work = isActive ? (
+    // ►►► **Ein Modul ohne Scan bekommt eine Bestätigung, kein Scan-Tor.** ◄◄◄
+    //
+    // Gefragt wird die **Eigenschaft** (`step.verifies`), nie der Modultyp – sie reist
+    // mit dem Schritt wie Farbe und Beschriftung. Ein Scan beantwortet «habe ich das
+    // richtige physische Ding vor mir»; ein Modul, das mit dem Stück gar nichts tut (ein
+    // Geldvorgang stellt etwas in Rechnung), hätte darin eine Geste ohne Aussage.
+    //
+    // Es ist **ein** Vorgang und nicht einer je Instanz: ohne Instanz bewegt
+    // `confirm_step` alles, was davorsteht – ein Auftrag wird einmal erledigt, nicht je
+    // Kiste. Durchgesetzt wird beides serverseitig (`process._verified_instance`).
+    const plain = step.verifies === false;
+    const work = isActive && plain ? (
+      <button type="button" className="erp-actbtn w-full" disabled={busy}
+        style={{ height: 38 }}
+        onClick={() => onConfirm(step.id, null, 'manual', {}, [], null)}>
+        <Check size={15} /> {stepInfo(order, step.id)?.action ?? 'Bestätigen'}
+      </button>
+    ) : isActive ? (
       // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist
       // (Scan-Regel §3).
       <CaptureWork

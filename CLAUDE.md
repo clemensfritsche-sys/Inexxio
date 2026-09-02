@@ -1913,16 +1913,84 @@
 > 375 px Fenster, und **kein Element-Rahmen zeigte es, nur der Text selbst** – die
 > Messung musste dafür nachgeschärft werden). Jetzt nimmt die **Referenz** den Rest und wird
 > gekappt (voller Wert im Hover), das Datum nie.
-> Wächter: `tests/test_deal_module.py` (14 Prüfungen, **elf Bug-Formen gegengeprüft** – eine
-> war dabei stumpf und prüfte die *Spalte* statt der *Antwort*; nachgeschärft und erneut
-> gegengeprüft) + vier in `test_frontend_mirrors.py`; ein bestehender Wächter prüfte die
-> **Form** der alten Lösung (Position von `<Wrapped` gegen `{isActive ?` im ganzen Rumpf)
-> und schlug an, obwohl die Regel besser erfüllt war – er fragt jetzt den **gerenderten
-> Baum**. Suite grün gegen die gewachsene Datenbank **und** gegen ein Schema nur aus den
-> Migrationen; Migration `124` von null · idempotent · downgrade · über das Lifespan-Netz
-> verifiziert. Gemessen in Chromium an der **echten** Komponente: 1440 · 1280 · 1024 · 834 ·
-> 375 · 320 px, **0 px** waagrechter Überlauf über fünf Vorgangs-Zustände; der abgeschlossene
-> Vorgang zeigt alles und hat **0** bedienbare Elemente.
+> Wächter: `tests/test_deal_module.py` + `test_frontend_mirrors.py`; ein bestehender Wächter
+> prüfte die **Form** der alten Lösung (Position von `<Wrapped` gegen `{isActive ?` im ganzen
+> Rumpf) und schlug an, obwohl die Regel besser erfüllt war – er fragt jetzt den
+> **gerenderten Baum**. Migration `124` von null · idempotent · downgrade · über das
+> Lifespan-Netz verifiziert.
+> *Nachtrag: `subject` ist inzwischen **freiwillig**, es gibt **zwei** Stufen statt drei, und
+> die Gegenpartei hat einen eigenen Zugang – siehe die Runde unten.*
+
+> **Der Geldvorgang hat ZWEI PARTEIEN — und was gehandelt wird, sagt der Prozess**
+> (Testnotizen #791–#797, PROCESS_CORE §9.12, Migration `125`). Die Datenstruktur stimmte,
+> der **Vorgang** nicht: die Karte war ein Buchungsformular statt eines Geschäfts zwischen
+> zwei Parteien, sie sagte nicht, worum es geht, obwohl der Prozess es weiss, und sie zeigte
+> **Werkzeuge statt eines Weges**.
+> **Der Angebotsspiegel ist der Kern** (`deals.quotes`): wir fragen an bzw. bieten an, die
+> Gegenpartei nennt ihren Preis oder sagt ab, wir geben den Zuschlag. **Eine Liste, auch wenn
+> fast immer einer drinsteht** – n statt 1, damit der Vergleich kein zweiter Mechanismus ist;
+> «gewählt» entsteht nicht durch Tippen, sondern dadurch, dass bei dieser Zeile zugesagt
+> wurde. **Steht genau eine Gegenpartei in der Definition, gibt es nichts zu wählen** (#793):
+> dann heisst der Knopf schlicht «Anfragen». Geändert wird eine Zeile durch **Neubau**, nie
+> an Ort – ein mutierter JSONB-Wert fällt aus dem `UPDATE`, und die Offerte ist
+> stillschweigend weg.
+> **Worum es geht, ist ABGELEITET** (`lines`): je Artikel, dessen Einzelinstanzen im Auftrag
+> stehen, eine Zeile mit Menge und Nummer – mehrere sind der Normalfall, und es braucht dafür
+> keine Regel, nur eine Gruppierung. Die **Spezifikation reist mit** (erst auf Klick: im
+> Normalfall interessiert die Zeile, nicht das Datenblatt) und wird **nicht ausgewählt** –
+> eine Spezifikation, die je nach Empfänger anders lautet, ist keine. Mit der Zusage friert
+> sie ein (`agreed_lines`): ab dort ist eine zweite Partei gebunden.
+> **Damit wurde `subject` freiwillig** (#796): *was* gehandelt wird, sagt der Prozess; der
+> Satz sagt, was **daran** zu tun ist, und das gibt es nicht bei jedem Vorgang. Ein
+> Pflichtfeld, das oft nichts aufzunehmen hat, lädt zu einer Eingabe ein, die niemand liest.
+> **Es gibt ZWEI Stufen, nicht drei.** Unumkehrbar sind zwei Dinge – nichts zugesagt ·
+> zugesagt; «Abgeschlossen» stand als dritte da und war ein **Zustand** in einer Reihe von
+> **Schritten**: man tut nichts, um ihn zu erreichen. Die dritte Zeile ist das **Geld**, und
+> es ist bewusst keine Stufe (eine Zahlung macht aus einem Angebot keine Zusage, und sie darf
+> vor der Erfüllung stehen wie danach). Das Verb der Schwelle heisst in **beiden** Richtungen
+> «Auftrag bestätigen» – was passiert, ist dasselbe.
+> **Eine naheliegende Handlung, und der Server sagt welche** (`next_charge` ↔ `next_payment`):
+> erst fordern, dann kassieren; alles Übrige liegt unter «Weitere». Drei gleich laute Knöpfe
+> sind kein Vorschlag. **Und keine Vorgabe ist je negativ** (#795) – «−250.00» stand als
+> Rechnungsbetrag im Feld; eingebbar bleiben negative Beträge, das ist die Gutschrift.
+> **Der Zugang der Gegenpartei ist ein ZUGANG, keine Rolle im Vorgang**: wer angefragt ist
+> und nicht ins ERP darf, sieht **seine** Zeile und keine Zahl über Forderung und Geld –
+> gefiltert beim **Aufbau der Antwort**, nicht in der Oberfläche. **Ein Mitarbeiter behält
+> die volle Sicht, auch wenn er selbst die Gegenpartei ist**: die Frage lautet «darf dieser
+> Betrachter ins ERP?», nicht «kommt seine Nummer im Vorgang vor» – sonst verlöre ein
+> Einkäufer, den man einmal selbst anfragt, an genau diesem Auftrag die Zahlen, die er zum
+> Arbeiten braucht.
+> **Kein Scan** – ein Geldvorgang bewegt keine Stücke, es gibt nichts zu verifizieren, und
+> ein Scan davor wäre ein erfundenes Hindernis. Die Frage steht am Modul
+> (`Module.requires_verification`) und reist als `ModuleFacts.verifies` mit dem Schritt: die
+> Ausführungsstelle nennt keinen Modultyp, und jedes künftige Modul ohne physisches
+> Gegenstück erbt die Regel ohne eine Zeile.
+> **Kleineres, jedes an genau einer Stelle:** der Entwurf beginnt als **Einnahme** (#791 –
+> ein Schalter, der auf nichts steht, ist keine Frage, sondern eine Lücke, die der Server
+> still füllt); der **Erklärsatz** unter den Feldern ist gelöscht (#792 – er sagte, was das
+> Feld darüber zeigt); die **Richtung** steht als Symbol mit Hover statt als Dauertext (#797
+> – Plus und Minus sind die Buchhaltungssprache selbst); die **gewählte Gegenpartei** wird
+> gehalten und mit Nummer **und** Namen gezeigt (#794 – sonst stand das Feld nach dem Klick
+> leer da, weil die Wahl noch nicht gespeichert war).
+> **Und die MESSUNG musste nachgeschärft werden – in beide Richtungen.** Sie zählte
+> Textknoten, um den Fehler von #790 zu finden (eine Zeile, die sich über ihre eigene Box
+> hinaus malt, und **kein** Element-Rahmen zeigt es). Genau daran meldete sie jetzt 20,5 px
+> bei 375 px – an einem `truncate`-Text, der wirklich **abgeschnitten** wird: eine Textbreite
+> hinter `overflow: hidden` ist unsichtbar, kein Überlauf. Die Textbox wird darum an jedem
+> schneidenden Vorfahren gekappt; **gegengeprüft**, dass die Bug-Form von #790 danach
+> weiterhin meldet (45 px bei 320 px). Eine Messung, die die Lösung als Fehler meldet, ist so
+> falsch wie eine, die den Fehler übersieht.
+> Wächter: `tests/test_deal_module.py` (24 Prüfungen) + sieben neue in
+> `test_frontend_mirrors.py` (zwölf insgesamt zum Geldmodul) –
+> **jeder neue gegen seine Bug-Form gegengeprüft**; ein bestehender prüfte die **Form** der
+> alten Lösung (`DEAL_STAGE.agreed` musste wörtlich vorkommen) und verbot damit die bessere
+> Fassung – er fragt jetzt die **Regel**: kein Stufen-Wort im Rumpf. Suite grün gegen die
+> gewachsene Datenbank (540) **und** gegen ein Schema nur aus den Migrationen (540);
+> Migration `125` von null · idempotent · downgrade · über das Lifespan-Netz. Gemessen in
+> Chromium an der **echten** Komponente: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px**
+> waagrechter Überlauf über **sechs** Zustände (inkl. der Sicht der Gegenpartei); sie sieht
+> **0** fremde Preise und **0** Zahlen über Geld, der erledigte Vorgang zeigt alles und hat
+> **0** Handlungen.
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
