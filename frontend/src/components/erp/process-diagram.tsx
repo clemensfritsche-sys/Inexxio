@@ -105,6 +105,29 @@ export interface DiagramStep {
    * (`process.confirm_step`) – ein künftiges Modul erbt beides, ohne eine Zeile dafür.
    */
   waitingFor?: number[];
+  /**
+   * ►►► **Kann man an diesem Modul noch etwas tun?** (Testnotiz #821) ◄◄◄
+   *
+   * Ein Modul, das nicht dran ist, wird gedämpft – und das war genau dann falsch, wenn
+   * der Auftrag längst durch ist und trotzdem noch eine Rechnung oder eine Zahlung zu
+   * buchen ist. Die Karte sagte optisch «hier ist nichts mehr zu tun», während ihre
+   * Knöpfe funktionierten: dieselbe Fehlerform wie eine erfundene Sperre, nur in Farbe.
+   *
+   * **Der Schritt sagt es, nicht die Oberfläche** – abgeleitet aus derselben Tabelle,
+   * die auch das Tor ist (`purchase.can` / `deal.can`). Eine Heuristik hier wäre eine
+   * dritte Wahrheit. Optional wie `moves` und `buys`: der Editor rendert nie eine
+   * Ausführung.
+   */
+  openActions?: boolean;
+  /**
+   * **Hat dieses Modul mehr zu berichten als die blosse Passage?** (Testnotiz #825)
+   *
+   * Das Protokoll bleibt für jedes Modul der Nachweis – aber wo nichts erfasst, nichts
+   * verifiziert und kein Zustand geändert wird, blieben eine Nummer, ein Name und eine
+   * Uhrzeit übrig. Abgeleitet am Schritt (`ProcessStepResponse.records`), nie aus dem
+   * Modultyp.
+   */
+  records?: boolean;
 }
 
 export type DiagramMode = 'definition' | 'ausfuehrung';
@@ -549,7 +572,9 @@ export function FlowColumn({
             <StepCard
               step={step}
               active={isActive}
-              dimmed={running && !isActive}
+              // **Gedämpft wird nur, wo nichts mehr zu tun ist** (#821) – die Frage
+              // stellt der Schritt, nicht diese Zeile.
+              dimmed={running && !isActive && !step.openActions}
               history={historyTip(events, n, eventTotal)}
               defaultOpen={step.id === openId}
               onDelete={mode === 'definition' && onDelete ? () => onDelete(step.id) : undefined}

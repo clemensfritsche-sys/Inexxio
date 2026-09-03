@@ -97,6 +97,16 @@ class DealEntryOut(BaseModel):
     #: **Fällig UND noch etwas offen** – beides zusammen, sonst nicht. Eine Ableitung
     #: des Servers; eine zweite Formel im Browser wiche ab und sähe trotzdem richtig aus.
     overdue: bool = False
+    #: ►►► **Welche Zeile diese hier storniert** – ``None`` bei einer gewöhnlichen. ◄◄◄
+    #:
+    #: Eine Stornierung ist eine **Gegenbuchung** (#823/#824): dieselbe Art, der negative
+    #: Betrag. Ohne diesen Verweis stünde in der Liste eine zweite Zeile, die aussieht
+    #: wie eine Gutschrift – und eine Gutschrift ist etwas ganz anderes als ein Storno.
+    reverses: Optional[int] = None
+    #: **Ist diese Zeile storniert?** Die Gegenrichtung derselben Angabe. Sie steht hier,
+    #: weil die Oberfläche sie sonst über die ganze Liste selbst suchen müsste – und der
+    #: Server kennt sie ohnehin, er stellt die Frage bereits für ``can``.
+    reversed: bool = False
 
 
 class DealEmbed(BaseModel):
@@ -207,7 +217,9 @@ class DealUpdate(BaseModel):
     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
                 ``booked_on``, ``due_on``, ``reference``, ``note``)
     ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)
-    ``void``    eine Geld-Zeile zurücknehmen (``entry``)
+    ``reverse`` eine Geld-Zeile **stornieren** (``entry``) – als **Gegenbuchung**, nie
+                als Löschung: dieselbe Art, der negative Betrag, ``reverses_id`` auf die
+                stornierte Zeile. Beide bleiben stehen (Testnotizen #823/#824).
 
     **``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und
     auch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen
@@ -238,7 +250,7 @@ class DealUpdate(BaseModel):
     note: Optional[str] = None
     booked_on: Optional[date] = None
     due_on: Optional[date] = None
-    #: Welche Zeile zurückgenommen wird (``void``).
+    #: Welche Zeile storniert wird (``reverse``).
     entry: Optional[int] = None
 
     def changes(self) -> dict[str, Any]:

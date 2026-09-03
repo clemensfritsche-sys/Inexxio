@@ -714,8 +714,14 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeal, onDeviate }: {
           </DealWork>
         ) : work}
       </Wrapped>
-      {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp. */}
-      {internal && !isActive && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
+      {/* **Was in ihm passiert ist** (#717) – zentral, kein Protokoll je Modultyp.
+          ►►► **Und nur, wo es mehr zu berichten gibt als die blosse Passage** (#825):
+          bei einem Modul, das am Stück nichts ändert, nichts erfasst und nichts
+          verifiziert, blieben Nummer, Name und Uhrzeit übrig – und die Frage «warum steht
+          die hier?» war berechtigt. Gefragt wird die **Sache** (`step.records`), nie der
+          Modultyp; entfernt wird das Protokoll nicht, es ist der Nachweis. */}
+      {internal && !isActive && step.records !== false
+        && <StepRecord orderObjectId={order.object_id} stepId={step.id} />}
     </div>
     );
   };

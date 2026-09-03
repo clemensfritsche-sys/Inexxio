@@ -469,8 +469,32 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **`_quote` beachtet «nur gesendete Felder wirken»** – es überschrieb Liefer- und
 > Zahlungsfrist bei jedem Aufruf. Über die Tür fiel es nicht auf (`exclude_unset`), aber
 > die Regel gehört in den Dienst: die Tür ist nicht der einzige Aufrufer.
-> Wächter: `tests/test_deal_module.py` (26 Prüfungen, jede gegen ihre Bug-Form
-> gegengeprüft) + sechzehn in `test_frontend_mirrors.py`.
+> ►►► **Storniert wird durch eine GEGENBUCHUNG, nie durch Löschen** (Testnotizen
+> #823/#824, Migration `126`): eine Rechnungsnummer ist vergeben, ein Beleg ist draussen –
+> wer die Zeile verschwinden lässt, behauptet, sie sei nie passiert. `reverse` bucht eine
+> **zweite** Zeile (dieselbe Art, negativer Betrag, `reverses_id`); `balance` rechnet sie
+> **ohne Sonderfall**, weil eine Gutschrift längst eine negative Rechnung ist. Zwei
+> Sperren – eine Gegenbuchung und eine bereits stornierte Zeile –, und beide stehen in
+> `can` **und** in `_reverse`. **`HANDLERS` ist die Liste der Verben**, damit «gibt es
+> einen Löschweg?» eine Frage an den Code ist statt eine Behauptung.
+> **Ohne Rechnung keine Zahlung** (#822): `can` zieht `pay` ab, solange keine `charge`
+> gebucht ist – Auskunft und Tor in derselben Zeile. Die Vorauszahlung verliert nichts,
+> sie ist «erst fordern, dann zahlen».
+> **Die Nummer trägt immer ihr Suffix** (#827, `<Auftragsnummer>-<laufend>`) – das
+> weggelassene «-1» war eine Sonderregel für genau einen Fall.
+> **`Direction` trägt nur noch die vier echten Unterschiede** (`label`, `hint`,
+> `stage_labels`, `ask_verb`): das Verb der Schwelle (**«Angebot annehmen»**, #826), das
+> des Abschlusses, die Gegenhandlung und die beiden Geld-Wörter (**«Rechnung erfassen»** ·
+> **«Zahlung erfassen»**, #828) lauten in beiden Richtungen gleich und sind Konstanten –
+> als Feld wären es fünf Werte, die jemand einzeln falsch setzen kann.
+> **Zwei Ableitungen am Schritt, keine fragt den Modultyp** (`schemas/order`):
+> `open_actions` («steht hier noch etwas an?», aus `deal.can`/`purchase.can` – die
+> Zeichnung dämpft sonst eine Karte, deren Knöpfe funktionieren, #821) und `records`
+> («gibt es mehr zu berichten als die blosse Passage?» – erfasste Werte · Zustandswechsel
+> · Verifikation, #825). Beide aus Angaben, die am Schritt ohnehin stehen: keine Abfrage
+> auf den Log, keine je Modul in jeder Auftrags-Antwort.
+> Wächter: `tests/test_deal_module.py` (27 Prüfungen, jede gegen ihre Bug-Form
+> gegengeprüft) + zweiundzwanzig in `test_frontend_mirrors.py`.
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

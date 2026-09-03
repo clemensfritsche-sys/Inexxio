@@ -592,10 +592,11 @@ function MoneyFields({ module: m, onChange }: {
   return (
     <div className="flex flex-col gap-3">
       <div>
-        {/* **«Geschäft», nicht «Richtung»** (#804): «Richtung» beschreibt eine Achse in
-            der Buchhaltung – gefragt ist aber, was man tut. Und die Werte heissen wie beim
-            Handel (`FLOW`), damit ein Haus eine Sprache spricht. */}
-        <Label required>Geschäft</Label>
+        {/* ►►► **Kein Label darüber** (#816). ◄◄◄
+            Die beiden Werte heissen «Verkauf» und «Einkauf» und tragen ihre Symbole –
+            eine Zeile «Geschäft *» darüber sagt nichts, was der Schalter nicht selbst
+            sagt. Ein Bedienelement, das spricht, braucht keine Ansage; die Pflicht ist
+            ohnehin erfüllt, weil immer einer der beiden Werte steht. */}
         <IconSwitch
           value={m.direction === 'in' ? 'in' : 'out'}
           onChange={(v) => onChange({ direction: v })}
@@ -615,6 +616,13 @@ function MoneyFields({ module: m, onChange }: {
             **Ein Wort für beide Richtungen** (#802): «Kunde» ↔ «Lieferant» ist dieselbe
             Rolle – der andere im Geschäft. Und Singular = Plural, damit es keine Beugung
             gibt, die jemand rechnen könnte. */}
+        {/* **Ein Hinzufüger, kein Auswahlfeld**: `value`/`selected` sind immer `null`,
+            was man wählt, wandert in die Liste darunter – und das Feld ist danach leer
+            (gemessen in Chromium: nach zwei Klicks beide Male `""`). Genau darum steht
+            hier auch kein Zurücksetzen: `SearchSelect.pick` räumt seine Suche selbst auf.
+            Die Stelle, an der ein Name stehen blieb, ist die **Laufzeit** (#820) –
+            `deal-work.Offer`, wo die frische Wahl gehalten wird, bis der Server sie als
+            Zeile zurückgibt. */}
         <ObjectSelect<DealParty>
           label={`Zugelassene ${DEAL_PARTY}`}
           value={null}
@@ -655,10 +663,15 @@ function MoneyFields({ module: m, onChange }: {
                 Der frühere freiwillige Satz («Was ist daran zu tun?») war genau diese
                 Angabe ein zweites Mal, nur ohne Adressaten – und optional. Ein Feld, das
                 man ausfüllen *kann*, wird an der Hälfte der Stellen leer gelassen; dann
-                sagt seine Leere nichts. */}
+                sagt seine Leere nichts.
+
+                **Und ohne Label darüber** (#817): der Platzhalter sagt es genauer als das
+                Label es könnte («Artikelnummer, Link oder Beschreibung» ↔ «Was ist zu
+                tun?»), und die Zeile steht ohnehin unter der Nummer, zu der sie gehört.
+                Für den, der nicht sieht, bleibt sie über `aria-label` benannt – ein
+                weggelassenes Label ist eine Frage der Fläche, nicht der Zugänglichkeit. */}
             <div className="flex flex-col gap-1">
-              <Label required>{DEAL_TASK}</Label>
-              <input className={inputCls} value={row.ref} maxLength={200}
+              <input className={inputCls} value={row.ref} maxLength={200} required
                 aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
                 onChange={(e) => onChange({
                   parties: m.parties.map((x) => (x.party === row.party
@@ -669,18 +682,25 @@ function MoneyFields({ module: m, onChange }: {
         ))}
       </div>
       <div>
-        {/* **«Weiter, wenn» statt «Abschluss»** (#806/#807): die Beschriftung stellt die
-            Frage, die Werte antworten – zusammen ein Satz. «Abschluss · Jederzeit» war
-            zwei Wörter, aus denen man die Frage erst zurückrechnen musste. */}
-        <Label>Weiter, wenn</Label>
+        {/* ►►► **Die Werte tragen die Frage – das Label entfällt** (#818/#819). ◄◄◄
+
+            «Weiter, wenn» + «zugesagt» ↔ «bezahlt» war ein Satz über zwei Zeilen: das
+            Label stellte die Frage, die Werte antworteten, und einzeln gelesen war
+            «zugesagt» eine schlechte Beschreibung – es klang nach einem *Zustand* statt
+            nach einer *Bedingung*. Steht die Bedingung im Wert selbst («Nach Zusage» ↔
+            «Nach Zahlung»), braucht es die Frage darüber nicht mehr, und der Wert stimmt
+            auch dort, wo er allein steht.
+
+            Dieselbe Regel wie beim Schalter darüber: was ein Bedienelement selbst sagt,
+            sagt man nicht noch einmal daneben. */}
         <IconSwitch
           value={m.prepaid ? 'prepaid' : 'open'}
           onChange={(v) => onChange({ prepaid: v === 'prepaid' })}
           options={[
-            { value: 'open', icon: LockOpen, label: 'zugesagt',
+            { value: 'open', icon: LockOpen, label: 'Nach Zusage',
               hint: 'Das Modul schliesst ab, sobald zugesagt ist – gezahlt wird nach '
                 + 'Vereinbarung.' },
-            { value: 'prepaid', icon: Lock, label: 'bezahlt',
+            { value: 'prepaid', icon: Lock, label: 'Nach Zahlung',
               hint: 'Das Modul schliesst erst ab, wenn der zugesagte Betrag bezahlt ist '
                 + '(Vorauszahlung).' },
           ]}

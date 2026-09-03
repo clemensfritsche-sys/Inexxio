@@ -77,9 +77,21 @@ ACTIONS: dict[str, tuple[str, ...]] = {
 #: Tabellen wären zwei Massstäbe, und der zweite bekäme das nächste Verb nicht mit.
 PARTY_ACTIONS: tuple[str, ...] = ("quote", "decline")
 
-#: **Stornieren einer Geld-Zeile geht immer** – ein Tippfehler ist keine Stufe. Es steht
-#: getrennt, weil es keine Handlung am *Vorgang* ist, sondern an einer seiner Zeilen.
-VOID = "void"
+#: ►►► **Eine Geld-Zeile STORNIEREN — mit einer Gegenbuchung.** ◄◄◄
+#:
+#: Es steht getrennt von ``ACTIONS``, weil es keine Handlung am *Vorgang* ist, sondern an
+#: einer seiner Zeilen – und weil es in jeder Stufe geht: ein Irrtum kennt keinen Zeitpunkt.
+#:
+#: **Gelöscht wird nichts** (Testnotizen #823/#824). Eine Rechnungsnummer ist vergeben, ein
+#: Beleg ist draussen – wer die Zeile verschwinden lässt, behauptet, sie sei nie passiert.
+#: Storniert wird darum wie in jeder Buchhaltung: durch eine **Gegenzeile** mit dem
+#: negativen Betrag. Beide bleiben stehen, die Summe stimmt von selbst, und der Nachweis
+#: ist lückenlos.
+#:
+#: Das ist **keine neue Mechanik**: eine Gutschrift ist längst eine negative Rechnung und
+#: eine Erstattung eine negative Zahlung (§9.11). Eine Stornierung ist genau das, über den
+#: vollen Betrag – und darum rechnet ``balance`` sie ohne einen einzigen Sonderfall.
+REVERSE = "reverse"
 
 
 # ---------------------------------------------------------------------------
@@ -247,14 +259,33 @@ def can(db: Session, row: Deal, viewer: Optional[UserProfile]) -> list[str]:
     (``DealEmbed.can``) und weist in ``apply`` ab.
     """
     stage = list(ACTIONS.get(row.stage, ()))
+    rows = _entries(db, row.id)
+    # ►►► **Ohne Rechnung keine Zahlung** (Testnotiz #822). ◄◄◄
+    #
+    # Man kassiert nicht, was niemand gefordert hat – der Satz steht seit §9.11 im Haus,
+    # jetzt steht er auch in `can`. Damit gilt er in **beide** Richtungen: die Oberfläche
+    # bietet den Knopf nicht an, und `apply` weist ihn ab.
+    #
+    # Die **Vorauszahlung** verliert dadurch nichts: sie ist «erst fordern, dann zahlen»
+    # – die Rechnung kommt dort vor der Lieferung, nicht nach der Zahlung.
+    if "pay" in stage and not any(e.kind == dm.CHARGE for e in rows):
+        stage.remove("pay")
     if viewer is not None and viewer.role not in STAFF_ROLES:
         # Die Gegenpartei nennt ihren Preis oder sagt ab – und nur, solange sie
         # tatsächlich angefragt ist.
         if _quote_of(row, viewer.object_id) is None:
             return []
         return [a for a in stage if a in PARTY_ACTIONS]
-    if _entries(db, row.id):
-        stage.append(VOID)
+    # ►►► **Stornieren geht, solange es etwas zu stornieren GIBT.** ◄◄◄
+    #
+    # Nicht «es gibt Zeilen»: eine Gegenbuchung storniert man nicht, und eine bereits
+    # stornierte auch nicht – sonst entstünde eine Kette aus Vorzeichen, in der niemand
+    # mehr sagen kann, was gilt. Wären beide Fälle hier nicht abgezogen, stünde das Verb
+    # in ``can``, obwohl ``_reverse`` jede einzelne Zeile abweist: ein Knopf, der
+    # garantiert scheitert.
+    already = {e.reverses_id for e in rows if e.reverses_id is not None}
+    if any(e.reverses_id is None and e.id not in already for e in rows):
+        stage.append(REVERSE)
     return stage
 
 
@@ -283,12 +314,7 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
             detail="Zu diesem Modul gibt es keinen Geldvorgang.",
         )
     _assert_allowed(db, row, action, actor)
-    handler = {
-        "ask": _ask, "quote": _quote, "decline": _decline, "agree": _agree,
-        "revoke": _revoke,
-        "charge": _charge, "pay": _pay, VOID: _void,
-    }[action]
-    handler(db, order=order, step=step, row=row, data=payload, actor=actor)
+    HANDLERS[action](db, order=order, step=step, row=row, data=payload, actor=actor)
     db.flush()
     return row
 
@@ -441,12 +467,24 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     ))
 
 
-def _void(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """Eine Geld-Zeile zurücknehmen – **weich**, sie bleibt lesbar.
+def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+             data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **Eine Geld-Zeile stornieren — durch eine Gegenbuchung.** ◄◄◄
 
-    Ein Tippfehler ist keine Buchung und braucht keine Gegenbuchung; wer eine echte
-    Gegenbuchung will, erfasst eine negative Zeile. Beides ist möglich, beides ehrlich.
+    **Gelöscht wird nichts.** Eine Rechnungsnummer ist vergeben, ein Beleg ist draussen;
+    wer die Zeile verschwinden lässt, behauptet, sie sei nie passiert – und genau so sah
+    der frühere Papierkorb aus (Testnotizen #823/#824).
+
+    Gebucht wird stattdessen eine **Gegenzeile**: dieselbe Art, der negative Betrag, ein
+    Verweis auf die stornierte (``reverses_id``). Die Summe stimmt damit von selbst
+    (``balance`` rechnet beide) und braucht **keinen Sonderfall**.
+
+    **Zweimal stornieren geht nicht**, und eine Gegenzeile lässt sich nicht stornieren –
+    sonst entstünde eine Kette aus Vorzeichen, in der niemand mehr sagen kann, was gilt.
+
+    *Und es gibt keinen Löschweg mehr, auch nicht für einen Tippfehler: genau so
+    korrigiert jede Buchhaltung der Welt, und eine Frist («innerhalb fünf Minuten») wäre
+    eine erfundene Regel mit einer Uhr darin.*
     """
     entry = (
         db.query(DealEntry)
@@ -459,7 +497,31 @@ def _void(db: Session, *, order: Order, step: ProcessStep, row: Deal,
             status_code=404,
             detail="Diese Zeile gehört nicht zu diesem Vorgang.",
         )
-    entry.is_active = False
+    if entry.reverses_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Diese Zeile ist selbst eine Stornierung – sie storniert sich nicht.",
+        )
+    if _reversal_of(db, entry.id) is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Diese Zeile ist bereits storniert.",
+        )
+    db.add(DealEntry(
+        deal_id=row.id, kind=entry.kind, amount=-entry.amount,
+        booked_on=date.today(), due_on=None,
+        reference=entry.reference, note="Storno",
+        reverses_id=entry.id,
+    ))
+
+
+def _reversal_of(db: Session, entry_id: int) -> Optional[DealEntry]:
+    """Die Gegenzeile zu dieser Zeile – oder ``None``. **Die eine Lesestelle.**"""
+    return (
+        db.query(DealEntry)
+        .filter(DealEntry.reverses_id == entry_id, DealEntry.is_active.is_(True))
+        .first()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -729,16 +791,21 @@ def _days_or_none(value: Any) -> Optional[int]:
 
 
 def _our_number(db: Session, order: Order) -> str:
-    """``<Auftragsnummer>`` für die erste Rechnung, dann ``-2``, ``-3`` …
+    """``<Auftragsnummer>-<laufend>`` – **immer mit Suffix**, ab ``-1``.
 
-    Dieselbe Regel wie beim Suffix der Einzelinstanz: eine Rechnung braucht einen Namen,
-    aber keine eigene Objektidentität. Gezählt wird über den **Auftrag** (zwei Module in
-    einem Auftrag vergäben sonst dieselbe Nummer zweimal) und **nur, was WIR
-    nummerieren** – sonst verbraucht eine erfasste Lieferantenrechnung die Zählung, und
-    unsere erste eigene hiesse «…-2». Auch stornierte Zeilen zählen mit: eine einmal
-    vergebene Nummer wird nicht erneut vergeben.
+    ►►► Dieselbe Regel wie die Nummer einer Einzelinstanz (``<Instanznr>-<Suffix>``). ◄◄◄
 
-    *Die bewusste Grenze: es gibt dafür keinen Unique-Index. Bei einer **Ausgabe** steht
+    Die erste hiess einmal schlicht ``100000875``, und das Suffix kam erst ab der zweiten
+    dazu – eine Sonderregel für den häufigsten Fall, und man sah der ersten Nummer nicht
+    an, dass sie eine von mehreren sein kann (Testnotiz #827). Jetzt trägt jede Rechnung
+    ihre Position, und ein Beleg sagt ohne Nachschlagen, der wievielte er ist.
+
+    Gezählt wird über den **Auftrag** (zwei Module in einem Auftrag vergäben sonst
+    dieselbe Nummer zweimal) und **nur, was WIR nummerieren** – sonst verbraucht eine
+    erfasste Lieferantenrechnung die Zählung. Auch stornierte Zeilen zählen mit: eine
+    einmal vergebene Nummer wird nicht erneut vergeben.
+
+    *Die bewusste Grenze: es gibt dafür keinen Unique-Index. Bei einem **Einkauf** steht
     dort die Nummer der Gegenpartei, und zwei Lieferanten dürfen beide eine «2026-001»
     schicken – ein Index darüber wiese eine richtige Eingabe ab.*
     """
@@ -749,7 +816,7 @@ def _our_number(db: Session, order: Order) -> str:
                 DealEntry.kind == dm.CHARGE)
         .scalar()
     ) or 0
-    return str(order.object_id) if used == 0 else f"{order.object_id}-{used + 1}"
+    return f"{order.object_id}-{used + 1}"
 
 
 # ---------------------------------------------------------------------------
@@ -784,6 +851,8 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     flow = dm.of(row.direction)
     entries = _entries(db, row.id)
     money = balance_of(db, row)
+    #: Welche Zeilen bereits eine Gegenbuchung haben – aus derselben geladenen Liste.
+    reversed_ids = {e.reverses_id for e in entries if e.reverses_id is not None}
     today = date.today()
     internal = viewer is None or viewer.role in STAFF_ROLES
     # **Den Zuschlag hat, wer zugesagt bekam** – für das Personal ist das immer wahr.
@@ -853,6 +922,12 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                 # Tag vorbei ist, solange überhaupt noch etwas offen ist.
                 "overdue": bool(e.kind == dm.CHARGE and e.due_on and e.due_on < today
                                 and money.open > 0),
+                # **Die beiden Richtungen derselben Angabe** – gerechnet aus derselben
+                # Liste, die ohnehin geladen ist: welche Zeile diese hier storniert, und
+                # ob sie selbst storniert wurde. Im Browser müsste die zweite über die
+                # ganze Liste gesucht werden, und der Server weiss es längst.
+                "reverses": e.reverses_id,
+                "reversed": e.id in reversed_ids,
             }
             for e in (entries if internal else [])
         ],
@@ -932,3 +1007,18 @@ def _money(value: Optional[Decimal]) -> Optional[str]:
     """Beträge reisen als **String**. Wo es auf den Rappen ankommt, wird nicht durch
     ``float`` gerechnet – auch nicht auf dem Weg durch JSON."""
     return None if value is None else f"{value:.2f}"
+
+
+# ---------------------------------------------------------------------------
+# ►► DIE VERTEILUNG — eine Zuordnung, damit «gibt es dieses Verb?» eine Frage ist
+# ---------------------------------------------------------------------------
+#
+# Sie steht am Ende, weil sie die Funktionen darüber nennt, und als **Konstante**, weil
+# sie eine Aussage ist: das sind die Handlungen dieses Moduls, und es gibt keine weiteren.
+# Ein Löschweg (früher ``void``) ist damit nicht «nicht mehr aufgerufen», sondern schlicht
+# nicht vorhanden – und ein Wächter kann es lesen, statt es zu glauben.
+HANDLERS = {
+    "ask": _ask, "quote": _quote, "decline": _decline, "agree": _agree,
+    "revoke": _revoke,
+    "charge": _charge, "pay": _pay, REVERSE: _reverse,
+}

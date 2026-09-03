@@ -2375,7 +2375,7 @@
           "orders"
         ],
         "summary": "Update Deal",
-        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, neun Verben.\n\n``ask`` · ``quote`` · ``decline`` · ``agree`` · ``note`` · ``revoke`` · ``charge`` ·\n``pay`` · ``void``.\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**\nerlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit\ndie Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``\nnur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**\ndarf, sagt ``can`` (``PARTY_ACTIONS``: offerieren oder absagen), und ``apply`` weist\nalles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.",
+        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.\n\n``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·\n``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen\nLöschweg gibt es nicht (Testnotizen #823/#824).\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**\nerlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit\ndie Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``\nnur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**\ndarf, sagt ``can`` (``PARTY_ACTIONS``: offerieren oder absagen), und ``apply`` weist\nalles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.",
         "operationId": "update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post",
         "security": [
           {
@@ -5051,6 +5051,22 @@
             "type": "boolean",
             "title": "Overdue",
             "default": false
+          },
+          "reverses": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverses"
+          },
+          "reversed": {
+            "type": "boolean",
+            "title": "Reversed",
+            "default": false
           }
         },
         "type": "object",
@@ -5348,7 +5364,7 @@
           "action"
         ],
         "title": "DealUpdate",
-        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.\n\n``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten\n            (``parties`` – ohne Angabe **alle** zugelassenen)\n``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,\n            ``lead_days``, ``payment_days``) – auch von der Gegenpartei\n``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei\n``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)\n``void``    eine Geld-Zeile zurücknehmen (``entry``)\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die\nRegel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
+        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.\n\n``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten\n            (``parties`` – ohne Angabe **alle** zugelassenen)\n``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,\n            ``lead_days``, ``payment_days``) – auch von der Gegenpartei\n``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei\n``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)\n``reverse`` eine Geld-Zeile **stornieren** (``entry``) – als **Gegenbuchung**, nie\n            als Löschung: dieselbe Art, der negative Betrag, ``reverses_id`` auf die\n            stornierte Zeile. Beide bleiben stehen (Testnotizen #823/#824).\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die\nRegel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
       },
       "DefinitionLine": {
         "properties": {
@@ -7689,6 +7705,18 @@
             "title": "Reason",
             "description": "**Warum** hier ausgesondert wird – aus der Definition, nicht vom Band.\n\nDer Grund wird beim Modellieren gegeben (``domain/modules.Aussondern``) und\ngehört damit zum Modul, nicht zum einzelnen Vorgang. Er steht hier, damit die\nAusführungsstelle ihn zeigen kann, ohne in ``config`` zu greifen – und damit\njedes künftige Modul, das einen mitbringt, ihn ohne eine Zeile Oberfläche erbt.\nLeer heisst: dieses Modul kennt keinen.",
             "readOnly": true
+          },
+          "records": {
+            "type": "boolean",
+            "title": "Records",
+            "description": "►►► **Hat dieses Modul mehr zu berichten als die blosse Passage?** (#825) ◄◄◄\n\nDas Protokoll (``services/record``) bleibt für **jedes** Modul, was es ist: der\nNachweis. Aber bei einem Modul, das am Stück nichts ändert, nichts erfasst und\nnichts verifiziert, blieben genau drei Angaben übrig – eine Nummer, ein Name und\neine Uhrzeit –, und die Frage «warum steht die hier?» war berechtigt.\n\n**Gefragt wird die Sache, nicht der Modultyp.** Ein ``if module_type ==\n'zahlung'`` wäre beim nächsten Modul ohne physisches Gegenstück wieder falsch.\nEs gibt genau drei Dinge, die ein Eintrag über «wer, wann» hinaus tragen kann:\n\n* **erfasste Werte** – das Modul hat Erfassungspunkte (``config``),\n* **ein Zustandswechsel** – ``status_before`` ≠ ``status_after`` (ein Ausgang,\n  ein Verbrauch),\n* **eine Verifikation** – der Scan, der sagt, welches physische Ding es war.\n\nTrifft keines zu, ist das Protokoll leer im Wortsinn und wird nicht angeboten.\nAlle drei Angaben stehen **am Schritt**; es braucht dafür keine Abfrage auf den\nLog, und schon gar nicht eine je Modul in jeder Auftrags-Antwort.",
+            "readOnly": true
+          },
+          "open_actions": {
+            "type": "boolean",
+            "title": "Open Actions",
+            "description": "►►► **Kann man an diesem Modul noch etwas tun?** (Testnotiz #821) ◄◄◄\n\nDie Oberfläche graut ein Modul aus, an dem nichts mehr ansteht – und das war\ngenau dann falsch, wenn der Auftrag längst durch ist und trotzdem noch eine\nRechnung oder eine Zahlung zu buchen ist (ein Zahlungsziel läuft weiter, wenn\ndie Ware draussen ist). Die Karte sagte optisch «hier ist nichts mehr», während\nihre Knöpfe funktionierten.\n\n**Abgeleitet, nicht gespeichert – und aus derselben Tabelle, die auch das Tor\nist**: ``can`` am Beleg bzw. am Vorgang. Eine zweite Herleitung («ist der Typ\n``zahlung``?») liefe beim nächsten Modul auseinander, und eine Heuristik der\nOberfläche wäre eine dritte Wahrheit.\n\nDas aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -7706,7 +7734,9 @@
           "verifies",
           "action",
           "sample",
-          "reason"
+          "reason",
+          "records",
+          "open_actions"
         ],
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."

@@ -915,10 +915,11 @@ def update_deal(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """**Eine Handlung am Geldvorgang** – ein Endpunkt, neun Verben.
+    """**Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.
 
-    ``ask`` · ``quote`` · ``decline`` · ``agree`` · ``note`` · ``revoke`` · ``charge`` ·
-    ``pay`` · ``void``.
+    ``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·
+    ``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen
+    Löschweg gibt es nicht (Testnotizen #823/#824).
 
     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
     wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**

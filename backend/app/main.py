@@ -123,6 +123,11 @@ _COLUMN_SAFETY_NET = (
     ("deals", "quotes", "JSONB NOT NULL DEFAULT '[]'::jsonb"),
     # Was gehandelt wird, eingefroren mit der Zusage (Migration 125).
     ("deals", "agreed_lines", "JSONB"),
+    # **Eine Stornierung ist eine Gegenbuchung** (Migration 126) – der Verweis auf die
+    # stornierte Zeile. Der Fremdschlüssel ist hier bewusst nicht dabei: das Netz zieht
+    # eine **Spalte** nach, damit der Dienst startet; die Integrität stellt die Migration
+    # her, und sie ist die Wahrheit.
+    ("deal_entries", "reverses_id", "BIGINT"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –

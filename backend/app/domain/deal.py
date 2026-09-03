@@ -139,6 +139,27 @@ KINDS: tuple[str, ...] = (CHARGE, PAYMENT)
 #: Der andere im Geschäft – in beiden Richtungen und in beiden Numeri.
 PARTY = "Partner"
 
+#: **Was man an der Schwelle tut**: das *Angebot* annehmen – der Auftrag ist das Ergebnis
+#: (Testnotiz #826). «Auftrag bestätigen» benannte die Folge statt der Handlung.
+AGREE_VERB = "Angebot annehmen"
+#: Was man tut, wenn nichts mehr davorsteht.
+FINISH_VERB = "Auftrag erledigt"
+#: Die eine Gegenhandlung.
+UNDO = "Auftrag stornieren"
+
+#: ►►► **Die beiden Geld-Zeilen — in beiden Richtungen dasselbe Wort** (#828). ◄◄◄
+#:
+#: «Rechnung stellen» ↔ «Rechnung erfassen» und «Zahlungseingang» ↔ «Zahlung» waren vier
+#: Wörter für zwei Handlungen. **Erfasst** wird beides, egal in welche Richtung es fliesst –
+#: das System bucht eine Zeile, es überweist nichts. Zwei Wörter weniger, die auseinander
+#: laufen können.
+CHARGE_WORD = "Rechnung erfassen"
+PAYMENT_WORD = "Zahlung erfassen"
+#: Das Wort für den offenen Betrag – aus unserer Sicht in beiden Richtungen «Offen».
+OPEN_WORD = "Offen"
+#: Die Überschrift der dritten Zeile der Karte.
+MONEY_LABEL = "Rechnung & Zahlung"
+
 #: **Was bei ihm zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein Satz.
 #:
 #: Eine Eigenschaft der **Paarung** Modul × Partner (derselbe Lieferant führt je Teil eine
@@ -168,29 +189,41 @@ class Direction:
     label: str
     #: Ein Satz, der sagt, was passiert. Er steht im Editor neben der Wahl.
     hint: str
-    #: Die beiden Stufen, wie sie in dieser Richtung heissen.
+    #: **Die beiden Stufen, wie sie in dieser Richtung heissen** – «Angebot» ↔ «Anfrage».
+    #: Einer der vier echten Unterschiede: wer zuerst fragt, ist nicht derselbe.
     stage_labels: dict[str, str]
-    #: **Was man an der aktiven Stufe tut, um sie zu verlassen** – das Wort auf dem
-    #: Knopf. Getrennt von der Beschriftung, weil der Zustand daneben steht
-    #: («Auftrag bestätigen» ↔ «Auftrag»).
-    #:
-    #: **Beide Wörter gelten in beiden Richtungen**, und das ist Absicht: «Auftrag
-    #: bestätigen» passt auf den, der bestellt, wie auf den, der zusagt – zwei Wörter für
-    #: dieselbe Handlung wären eines zu viel, und das zweite ändert irgendwann jemand
-    #: allein. Verschieden ist, wen man **fragt** (``ask_verb``), nicht was man **tut**.
-    stage_verbs: dict[str, str]
-    #: **Wie man auf die Gegenpartei zugeht** – der eine Punkt, an dem die Richtung eine
-    #: echte Handlung unterscheidet: beim Einkauf fragt man an, beim Verkauf bietet man an.
+    #: **Wie man auf den Partner zugeht** – der eine Punkt, an dem die Richtung eine echte
+    #: Handlung unterscheidet: beim Einkauf fragt man an, beim Verkauf bietet man an.
     ask_verb: str
-    #: Wie der Storno heisst.
-    undo: str
-    #: Die beiden Geld-Zeilen, in der Sprache dieser Richtung.
-    charge_word: str
-    payment_word: str
-    #: Das Wort für den offenen Betrag aus **unserer** Sicht.
-    open_word: str
-    #: Die Überschrift des Geld-Bereichs – die dritte Zeile der Karte.
-    money_label: str = "Rechnung & Zahlung"
+
+    #: ►►► **Was man TUT, ist in beiden Richtungen dasselbe.** ◄◄◄
+    #:
+    #: Das Verb der Schwelle, das des Abschlusses, die Gegenhandlung, die beiden Geld-Wörter
+    #: und die Überschrift lauteten in beiden Richtungen gleich – als Feld waren sie fünf
+    #: Werte, die jemand einzeln hätte ändern können. Als Konstante sind sie eine Aussage.
+    @property
+    def stage_verbs(self) -> dict[str, str]:
+        return {OFFER: AGREE_VERB, AGREED: FINISH_VERB}
+
+    @property
+    def undo(self) -> str:
+        return UNDO
+
+    @property
+    def charge_word(self) -> str:
+        return CHARGE_WORD
+
+    @property
+    def payment_word(self) -> str:
+        return PAYMENT_WORD
+
+    @property
+    def open_word(self) -> str:
+        return OPEN_WORD
+
+    @property
+    def money_label(self) -> str:
+        return MONEY_LABEL
 
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst. Die beiden **Ausgänge** gehören beiden Richtungen
@@ -209,26 +242,16 @@ DIRECTIONS: dict[str, Direction] = {
         label="Verkauf",
         hint="Verkauf – wir liefern, wir stellen Rechnung, Geld kommt herein.",
         stage_labels={OFFER: "Angebot", AGREED: "Auftrag"},
-        stage_verbs={OFFER: "Auftrag bestätigen", AGREED: "Auftrag erledigt"},
         # Wir **bieten** dem Kunden an; er fragt nicht bei uns an.
         ask_verb="Anbieten",
-        undo="Auftrag stornieren",
-        charge_word="Rechnung stellen",
-        payment_word="Zahlungseingang",
-        open_word="Offen",
     ),
     OUT: Direction(
         key=OUT,
         label="Einkauf",
         hint="Einkauf – er liefert, wir bekommen Rechnung, Geld geht hinaus.",
         stage_labels={OFFER: "Anfrage", AGREED: "Auftrag"},
-        stage_verbs={OFFER: "Auftrag bestätigen", AGREED: "Auftrag erledigt"},
         # Wir **fragen** beim Lieferanten an; er bietet uns an.
         ask_verb="Anfragen",
-        undo="Auftrag stornieren",
-        charge_word="Rechnung erfassen",
-        payment_word="Zahlung",
-        open_word="Offen",
     ),
 }
 

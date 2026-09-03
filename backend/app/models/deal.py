@@ -16,7 +16,9 @@ from typing import Optional
 
 from typing import Any
 
-from sqlalchemy import BigInteger, Date, Index, Integer, Numeric, String, text
+from sqlalchemy import (
+    BigInteger, Date, ForeignKey, Index, Integer, Numeric, String, text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -132,9 +134,15 @@ class DealEntry(Base, TimestampMixin):
     eine**: ohne die Unterscheidung liesse sich «wie viel hat er wirklich gezahlt» nicht
     mehr beantworten, und eine Gutschrift sähe aus wie eine offene Rechnung.
 
-    **Korrigiert wird durch Stornieren der Zeile** (``is_active = False``), nicht durch
-    Überschreiben: was einmal gebucht war, bleibt lesbar. Wer eine echte Gegenbuchung
-    will, erfasst eine negative Zeile – beides ist möglich, und beides ist ehrlich.
+    ►►► **Storniert wird durch eine GEGENBUCHUNG, nie durch Löschen.** ◄◄◄
+
+    Eine Rechnungsnummer ist vergeben, ein Beleg ist draussen – wer die Zeile
+    verschwinden lässt, behauptet, sie sei nie passiert (Testnotizen #823/#824). Eine
+    Stornierung ist darum eine zweite Zeile: dieselbe Art, der negative Betrag,
+    ``reverses_id`` auf die stornierte. Beide bleiben stehen, die Summe stimmt von selbst.
+
+    Das ist **keine neue Mechanik**: eine Gutschrift ist längst eine negative Rechnung –
+    eine Stornierung ist genau das, über den vollen Betrag.
     """
 
     __tablename__ = "deal_entries"
@@ -162,3 +170,16 @@ class DealEntry(Base, TimestampMixin):
     reference: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
 
     note: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+    #: ►►► **Welche Zeile diese hier storniert** – oder ``None``. ◄◄◄
+    #:
+    #: Eine Stornierung ist eine **Gegenbuchung**, kein Löschen (Testnotizen #823/#824):
+    #: dieselbe Art, der negative Betrag, und hier der Verweis auf die stornierte Zeile.
+    #: Beide bleiben stehen, die Summe stimmt von selbst, und ein Beleg, der einmal
+    #: draussen war, verschwindet nicht rückwirkend aus dem Nachweis.
+    #:
+    #: Zugleich ist es die **Sperre**: eine Zeile mit ``reverses_id`` lässt sich nicht
+    #: stornieren, und eine, zu der es schon eine Gegenzeile gibt, ebenso wenig – sonst
+    #: entstünde eine Kette aus Vorzeichen, in der niemand mehr sagen kann, was gilt.
+    reverses_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("deal_entries.id", ondelete="SET NULL"), nullable=True, index=True)

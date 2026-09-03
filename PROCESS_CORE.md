@@ -2465,12 +2465,96 @@ nichts mehr kommt.
 
 #### Die Nummer
 
-`<Auftragsnummer>[-n]`, wo **wir** nummerieren (`direction = in`) — dieselbe Regel wie beim
-Suffix der Einzelinstanz. Bei einer **Ausgabe** steht dort die Nummer der Gegenpartei; eine
-erfundene wäre eine Behauptung über ein fremdes Dokument. *Gezählt wird nur, was wir selbst
-nummerieren: in einem Auftrag, der zuerst eine Lieferantenrechnung erfasst, hiess die erste
-eigene sonst «…-2» — eine Nummernserie mit Lücken ist buchhalterisch keine (gemessen beim
-Durchspielen der Szene, nicht gelesen).*
+`<Auftragsnummer>-<laufend>`, wo **wir** nummerieren (`direction = in`) — dieselbe Regel
+wie beim Suffix der Einzelinstanz, und **immer mit Suffix, auch die erste** (Testnotiz
+#827). Früher fiel das «-1» nach aussen weg; das war eine Sonderregel für genau einen
+Fall, und dieselbe Serie hiess danach «100000801», dann «100000801-2» — zwei Formen für
+eine Nummer, und wer sie sortiert oder sucht, muss beide kennen.
+
+Bei einer **Ausgabe** steht dort die Nummer der Gegenpartei; eine erfundene wäre eine
+Behauptung über ein fremdes Dokument. *Gezählt wird nur, was wir selbst nummerieren: in
+einem Auftrag, der zuerst eine Lieferantenrechnung erfasst, hiess die erste eigene sonst
+«…-2» — eine Nummernserie mit Lücken ist buchhalterisch keine (gemessen beim Durchspielen
+der Szene, nicht gelesen).*
+
+#### Storniert wird durch eine GEGENBUCHUNG, nie durch Löschen
+
+*«Soll man wirklich aktiv erfasste Rechnungen so löschen können? Ich denke eher in
+Richtung stornieren.»* (Testnotizen #823/#824) — Das ist zwingend: eine Rechnungsnummer
+ist vergeben, ein Beleg ist draussen. Wer die Zeile verschwinden lässt, behauptet, sie sei
+nie passiert; das ist keine Buchhaltung. Vorher machte `void` einen Soft-Delete — der
+Saldo stimmte, die Zeile war weg.
+
+**Und es braucht keine neue Mechanik.** Eine Gutschrift ist längst eine *negative
+Rechnung*, eine Erstattung eine *negative Zahlung* (§9.11) — eine Stornierung ist genau
+das, über den vollen Betrag. Also entsteht eine **zweite** Zeile: dieselbe Art, der
+negative Betrag, `reverses_id` auf die stornierte (Migration `126`). Beide bleiben stehen,
+`balance` rechnet sie ohne einen einzigen Sonderfall, und der Nachweis ist lückenlos.
+
+Zwei Sperren, und beide fallen aus derselben Frage: eine **Gegenbuchung** storniert man
+nicht, und eine bereits **stornierte** Zeile ebenso wenig — sonst entstünde eine Kette aus
+Vorzeichen, in der niemand mehr sagen kann, was gilt. Sie stehen in `can` (also fehlt der
+Knopf) **und** in `_reverse` (also weist die Tür ab). **Einen Löschweg gibt es nicht** —
+auch nicht für einen Tippfehler; eine Frist («innerhalb fünf Minuten») wäre eine erfundene
+Regel mit einer Uhr darin.
+
+#### Ohne Rechnung keine Zahlung
+
+Man kassiert nicht, was niemand gefordert hat (Testnotiz #822). Der Satz stand seit §9.11
+im Haus; jetzt steht er auch in `can`, also in **beiden** Formen — der Knopf fehlt, und
+`apply` weist ab. Die **Vorauszahlung** verliert dadurch nichts: sie ist «erst fordern,
+dann zahlen», die Rechnung kommt dort vor der Lieferung, nicht nach der Zahlung.
+
+#### Was ein Modul BERICHTET, und wann es noch etwas zu TUN gibt
+
+Zwei Ableitungen am Schritt, beide aus Angaben, die ohnehin dastehen — und keine fragt
+nach dem Modultyp:
+
+* **`open_actions`** (Testnotiz #821): steht an diesem Modul noch etwas an? Gelesen aus
+  `deal.can` bzw. `purchase.can`, also aus derselben Tabelle, die auch das Tor ist. Die
+  Zeichnung dämpft ein Modul nur, wenn es **nicht dran ist und nichts mehr zu tun hat** —
+  vorher lag ein abgeschlossener Auftrag bei 55 % Deckkraft da, während seine Geld-Knöpfe
+  funktionierten. Eine erfundene Sperre, nur in Farbe.
+* **`records`** (Testnotiz #825): hat dieses Modul mehr zu berichten als die blosse
+  Passage? Es gibt genau drei Dinge, die ein Eintrag über «wer, wann» hinaus tragen kann —
+  **erfasste Werte** (Erfassungspunkte in `config`), **ein Zustandswechsel**
+  (`status_before ≠ status_after`) und **eine Verifikation** (der Scan). Trifft keines zu,
+  ist das Protokoll leer im Wortsinn und wird nicht angeboten. Entfernt wird es nirgends —
+  es ist der Nachweis.
+
+#### Die Wörter, die keine Wahl mehr sind
+
+`Direction` trägt nur noch, was wirklich verschieden ist: `label`, `hint`, `stage_labels`
+und `ask_verb` — wer zuerst fragt, ist nicht derselbe. Alles Übrige lautet in beiden
+Richtungen gleich und steht als **Konstante**: das Verb der Schwelle (**«Angebot
+annehmen»**, #826 — man nimmt das *Angebot* an, der Auftrag ist das Ergebnis), das des
+Abschlusses, die Gegenhandlung und die beiden Geld-Wörter (**«Rechnung erfassen»** ·
+**«Zahlung erfassen»**, #828 — erfasst wird beides, egal wohin das Geld fliesst; das
+System bucht eine Zeile, es überweist nichts). Als Feld wären es fünf Werte, die jemand
+einzeln falsch setzen kann; als Konstante sind sie eine Aussage.
+
+Dieselbe Regel im Editor: **was ein Bedienelement selbst sagt, sagt man nicht daneben**
+(#816/#817/#819). Die Labels «Geschäft», «Was ist zu tun?» und «Weiter, wenn» sind
+entfallen — und die Werte des letzten Schalters heissen dafür **«Nach Zusage» ↔ «Nach
+Zahlung»** (#818): «zugesagt» klang nach einem *Zustand* statt nach einer *Bedingung* und
+war einzeln gelesen eine schlechte Beschreibung.
+
+#### Wo der Abschluss steht, und was das Feld hält
+
+Der Modul-Abschluss steht **am Ende der Karte** (#829), hinter der Geld-Zeile. Er stand in
+der Stufe «Auftrag», also mitten in der Kette, und darunter kam noch etwas: ein Knopf, der
+ein Modul abschliesst, sagt damit «hier ist Schluss», während sichtbar noch etwas folgt.
+Rechnung und Zahlung gehören zum Modul, auch wenn sie nachgelagert kommen. Die Sperre
+(`prepaid`) ersetzt an genau dieser Stelle den Knopf — der Grund steht dort, wo man
+weiterklicken würde.
+
+Und das Partner-Feld an der Ausführungsstelle hält die frische Wahl nur, **bis sie als
+Zeile dasteht** (#794 → #820): gehalten wird sie, weil sie im Moment des Klicks noch nicht
+gespeichert ist; sobald der Server sie als Angebotszeile zurückgibt, ist sie es, und dann
+stünde derselbe Partner zweimal da. Eine **Ableitung**, kein zweiter Zustand — ein
+Zurücksetzen an der Antwort wäre die Stelle, die der nächste Pfad vergisst. *Der Editor
+war es nicht: dort räumt `SearchSelect.pick` seine Suche selbst auf (gemessen in Chromium,
+zwei Adds hintereinander, beide Male leer).*
 
 
 ## 10. Darstellung

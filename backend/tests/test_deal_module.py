@@ -330,10 +330,24 @@ def test_one_module_two_directions_and_the_words_come_from_the_data():
         assert out["party_word"] == inn["party_word"] == dm.PARTY
         # **Wie man zugeht, unterscheidet sich – WAS man tut, nicht.**
         assert out["ask_verb"] == "Anfragen" and inn["ask_verb"] == "Anbieten"
+        # ►►► **Man nimmt das ANGEBOT an – der Auftrag ist das Ergebnis** (#826). ◄◄◄
+        #
+        # «Auftrag bestätigen» benannte die Folge statt der Handlung: bestätigt wird, was
+        # dasteht, und das ist ein Angebot bzw. eine Offerte. Und weiterhin in **beiden**
+        # Richtungen dasselbe Wort – zwei wären eines zu viel.
         assert (out["stages"][0]["verb"] == inn["stages"][0]["verb"]
-                == "Auftrag bestätigen"), (
-            "Der Zuschlag heisst in beiden Richtungen gleich – zwei Wörter für dieselbe "
-            "Handlung wären eines zu viel."
+                == dm.AGREE_VERB == "Angebot annehmen"), (
+            "Der Zuschlag heisst in beiden Richtungen gleich, und er benennt die "
+            "Handlung – nicht ihre Folge."
+        )
+        # ►►► **Rechnung und Zahlung heissen ebenfalls überall gleich** (#828). ◄◄◄
+        #
+        # «Rechnung stellen» ↔ «Rechnung erfassen» und «Zahlungseingang» ↔ «Zahlung»
+        # waren vier Wörter für zwei Handlungen. **Erfasst** wird beides – das System
+        # bucht eine Zeile, es überweist nichts.
+        assert (out["charge_word"] == inn["charge_word"] == "Rechnung erfassen"
+                and out["payment_word"] == inn["payment_word"] == "Zahlung erfassen"), (
+            "Die beiden Geld-Wörter hängen wieder an der Richtung."
         )
         assert [s["key"] for s in out["stages"]] == [s["key"] for s in inn["stages"]]
     finally:
@@ -826,12 +840,23 @@ def test_a_suggestion_is_never_negative():
         db.rollback(); db.close()
 
 
-def test_a_wrong_line_can_be_taken_back_and_stays_readable():
-    """**Ein Tippfehler ist keine Sackgasse** – und die Zeile bleibt lesbar.
+def test_a_wrong_line_is_reversed_by_a_counter_booking_never_deleted():
+    """►►► **Eine Rechnung löscht man nicht – man storniert sie** (#823/#824). ◄◄◄
 
-    Bug-Form: keine Gegenhandlung. Dann wäre eine versehentlich gebuchte 10 000er-Zahlung
-    für immer im offenen Betrag, und der einzige Ausweg hiesse «Datenbank anfassen».
+    Eine Rechnungsnummer ist vergeben, ein Beleg ist draussen: eine Zeile verschwinden zu
+    lassen behauptet, sie sei nie passiert. Das ist keine Buchhaltung.
+
+    **Und es braucht keine neue Mechanik**: eine Gutschrift ist längst eine *negative
+    Rechnung*, eine Erstattung eine *negative Zahlung* – eine Stornierung ist genau das,
+    über den vollen Betrag. Also entsteht eine **zweite** Zeile: dieselbe Art, der
+    negative Betrag, ``reverses_id`` auf die stornierte. Beide bleiben stehen, die Summe
+    stimmt von selbst, ohne einen einzigen Sonderfall in ``balance``.
+
+    Bug-Form: der Soft-Delete von früher (``is_active = False``). Dann ist der Saldo zwar
+    richtig, die Zeile aber weg – und wer den Nachweis liest, sieht nicht, dass es sie
+    gab.
     """
+    from fastapi import HTTPException
     from app.models import DealEntry
     from app.services import deal as svc
     db = _db()
@@ -841,18 +866,53 @@ def test_a_wrong_line_can_be_taken_back_and_stays_readable():
         order, rows = _make(db, quantity=1, article=art)
         step = rows[0]
         _agree(db, order=order, step=step, party=kunde, amount="100.00")
+        # **Ohne Rechnung keine Zahlung** (#822) – erst fordern, dann kassieren.
+        svc.apply(db, order=order, step=step, action="charge", payload={"amount": "100.00"})
         svc.apply(db, order=order, step=step, action="pay", payload={"amount": "10000.00"})
         row = svc.of_step(db, step.id)
-        entry = db.query(DealEntry).filter(DealEntry.deal_id == row.id).one()
+        wrong = (db.query(DealEntry)
+                 .filter(DealEntry.deal_id == row.id, DealEntry.kind == "payment").one())
 
-        svc.apply(db, order=order, step=step, action="void", payload={"entry": entry.id})
-        assert svc.balance_of(db, row).paid == Decimal("0.00")
-        db.refresh(entry)
-        assert entry.is_active is False and entry.amount == Decimal("10000.00"), (
-            "Die Zeile wurde hart gelöscht – was einmal gebucht war, muss lesbar bleiben."
+        svc.apply(db, order=order, step=step, action="reverse", payload={"entry": wrong.id})
+
+        assert svc.balance_of(db, row).paid == Decimal("0.00"), (
+            "Die Gegenbuchung hebt die Zahlung nicht auf – dann rechnet `balance` sie "
+            "nicht mit, und es ist doch ein Sonderfall."
         )
+        db.refresh(wrong)
+        assert wrong.is_active is True, (
+            "Die Zeile wurde weggeräumt statt storniert – ein Beleg, der einmal draussen "
+            "war, verschwindet nicht rückwirkend aus dem Nachweis."
+        )
+        counter = (db.query(DealEntry)
+                   .filter(DealEntry.reverses_id == wrong.id).one())
+        assert (counter.kind == wrong.kind and counter.amount == -wrong.amount), (
+            "Die Gegenbuchung hat nicht dieselbe Art und den negativen Betrag."
+        )
+
+        # **Zweimal stornieren gibt es nicht**, und eine Gegenbuchung storniert man
+        # ebenso wenig – sonst entstünde eine Kette aus Vorzeichen, in der niemand mehr
+        # sagen kann, was gilt.
+        for target in (wrong.id, counter.id):
+            with pytest.raises(HTTPException) as err:
+                svc.apply(db, order=order, step=step, action="reverse",
+                          payload={"entry": target})
+            assert err.value.status_code == 409
     finally:
         db.rollback(); db.close()
+
+
+def test_there_is_no_way_to_delete_a_line_at_all():
+    """**Kein Löschweg – auch nicht für einen Tippfehler.**
+
+    Bug-Form: ``void`` steht neben ``reverse`` weiter zur Verfügung. Dann gäbe es zwei
+    Wege für dieselbe Sache, und der bequemere ist der falsche. Genau so korrigiert jede
+    Buchhaltung der Welt; eine Frist («innerhalb fünf Minuten darf man noch löschen»)
+    wäre eine erfundene Regel mit einer Uhr darin.
+    """
+    from app.services import deal as svc
+    assert "void" not in svc.HANDLERS, "Der Löschweg ist wieder da."
+    assert svc.REVERSE in svc.HANDLERS
 
 
 # ---------------------------------------------------------------------------
@@ -886,8 +946,26 @@ def test_can_is_the_gate_not_only_a_hint():
 
         _agree(db, order=order, step=step, party=kunde, amount="100.00")
         facts = svc.embed_data(db, order=order, step=step)
-        assert {"charge", "pay", "revoke"} <= set(facts["can"])
+        assert {"charge", "revoke"} <= set(facts["can"])
         assert "agree" not in facts["can"], "Zweimal zusagen gibt es nicht."
+
+        # ►►► **Ohne Rechnung keine Zahlung** (Testnotiz #822). ◄◄◄
+        #
+        # Man kassiert nicht, was niemand gefordert hat – der Satz steht seit §9.11 im
+        # Haus, jetzt steht er auch in `can`, also in **beiden** Formen: der Knopf fehlt,
+        # und die Tür weist ab. Die **Vorauszahlung** verliert dadurch nichts: sie ist
+        # «erst fordern, dann zahlen».
+        assert "pay" not in facts["can"], (
+            "Zahlen geht, bevor irgendetwas gefordert wurde."
+        )
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=step, action="pay", payload={"amount": "1"})
+        assert e.value.status_code == 409
+        svc.apply(db, order=order, step=step, action="charge", payload={"amount": "100"})
+        assert "pay" in svc.embed_data(db, order=order, step=step)["can"], (
+            "Nach der Rechnung fehlt die Zahlung – dann ist die Sperre keine Bedingung, "
+            "sondern ein Verbot."
+        )
     finally:
         db.rollback(); db.close()
 
@@ -1020,7 +1098,13 @@ def test_we_number_our_own_invoices_and_never_theirs():
         ours = db.query(DealEntry).join(
             svc.Deal, DealEntry.deal_id == svc.Deal.id).filter(
             svc.Deal.step_id == rows[0].id).order_by(DealEntry.id).all()
-        assert [e.reference for e in ours] == [str(order.object_id),
+        # ►►► **Immer mit Suffix – auch die erste** (Testnotiz #827). ◄◄◄
+        #
+        # Früher fiel das «-1» der ersten nach aussen weg. Das war eine Sonderregel für
+        # genau einen Fall: dieselbe Serie hiess «100019251», dann «100019251-2» – zwei
+        # Formen für eine Nummer, und wer sie sortiert oder sucht, muss beide kennen.
+        # Dieselbe Regel wie beim Suffix der Einzelinstanz: die Zählung ist die Zählung.
+        assert [e.reference for e in ours] == [f"{order.object_id}-1",
                                                f"{order.object_id}-2"]
         theirs = db.query(DealEntry).join(
             svc.Deal, DealEntry.deal_id == svc.Deal.id).filter(

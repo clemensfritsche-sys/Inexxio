@@ -313,15 +313,16 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   geratener Abstände (#798, gemessen: Δy 0,0 px).
 - **Offerte und Absage sind Symbol-Knöpfe** wie im Beschaffungs-Beleg (#800): «Offerte»
   beschreibt einen *Zustand*, der Knopf löst eine *Handlung* aus.
-- **Die Bestellangabe steht an SEINER Zeile** (`quote.ref`) – seine Artikelnummer, sein
-  Shop-Link; sieht sie aus wie eine Adresse, ist sie ein Link. Ob es sie gibt, sagt
-  `d.party_ref` (leer beim Verkauf – dort liefern wir), nie ein `if` auf die Richtung.
+- **Die Angabe «Was ist zu tun?» steht an SEINER Zeile** (`quote.ref`) – seine
+  Artikelnummer, sein Shop-Link oder ein Satz; sieht sie aus wie eine Adresse, ist sie ein
+  Link. Sie gilt in **beiden** Richtungen (#803): beim Einkauf sagt sie, wie man bei ihm
+  bestellt, beim Verkauf, was er bekommt.
 - **Gerechnet wird nichts im Browser** – *berechnet · bezahlt · offen · noch nicht
   berechnet* kommen vom Server. «Bezahlt» heisst «gefordert UND beglichen»; ohne die
   Unterscheidung stünde direkt nach der Zusage «Bezahlt» da, weil *offen* null ist.
 - **EINE naheliegende Handlung, und der Server sagt welche** (`next_charge` ↔
-  `next_payment`): erst fordern, dann kassieren – alles Übrige liegt unter «Weitere». Die
-  Freiheit bleibt, aber sie steht nicht mehr als drei gleich laute Knöpfe da.
+  `next_payment`): erst fordern, dann kassieren. Die Rangfolge sagt die **Fläche** des
+  Knopfes (`-primary` ↔ `-neutral`), nicht ein Umweg – alle stehen da.
 - **Die Richtung ist ein SYMBOL mit Hover, kein Dauertext** (#797): Plus und Minus sind die
   Buchhaltungssprache selbst – ein Wort daneben sagt dieselbe Sache ein zweites Mal.
 - **Die Referenz nimmt den Rest und wird gekappt, das Datum nicht.** Umgekehrt war es
@@ -331,11 +332,14 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Überlauf misst, muss darum auch **Textknoten** messen – **und sie an jedem `overflow:
   hidden`-Vorfahren kappen**: ein `truncate`-Text ist wirklich abgeschnitten, und eine
   Messung, die die Lösung als Fehler meldet, ist so falsch wie eine, die ihn übersieht.
-- **Im Editor** (`MoneyFields`) drei Angaben: **Geschäft** (Schieber Verkauf ↔ Einkauf,
-  Vorgabe Verkauf, #791/#804), **zugelassene Partner** (`ObjectSelect`, leer =
-  `RUNTIME_CHOICE`) – je Zeile mit der **Pflichtangabe** «Was ist zu tun?» (#805/#808) –
-  und **«Weiter, wenn»** · zugesagt ↔ bezahlt (#806/#807). **Kein Betragsfeld** und kein
-  Satz am Vorgang: beides stünde beim Modellieren nicht fest bzw. doppelt.
+- **Im Editor** (`MoneyFields`) drei Angaben – und **kein einziges Label darüber**
+  (#816/#817/#819): der Schieber **Verkauf ↔ Einkauf** (Vorgabe Verkauf, #791/#804), die
+  **zugelassenen Partner** (`ObjectSelect`, leer = `RUNTIME_CHOICE`) je Zeile mit der
+  **Pflichtangabe** «Was ist zu tun?» (#805/#808 – benannt über `aria-label`, gesagt vom
+  Platzhalter) und der Schieber **«Nach Zusage» ↔ «Nach Zahlung»** (#818). Was ein
+  Bedienelement selbst sagt, sagt man nicht daneben – und die Bedingung gehört **in** den
+  Wert, sonst braucht sie eine Frage darüber. **Kein Betragsfeld** und kein Satz am
+  Vorgang: beides stünde beim Modellieren nicht fest bzw. doppelt.
 - ►►► **Ein Wort für beide Richtungen** (`DEAL_PARTY`, `DEAL_TASK`, #802). ◄◄◄ «Kunde» ↔
   «Lieferant» ist dieselbe Rolle; Singular = Plural, damit es keine Beugung gibt, die
   jemand rechnet. Ein Rollen-Wort als Literal in der Oberfläche ist ein Wächter-Fehler.
@@ -352,9 +356,37 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   erzeugt der Server selbst. Damit hatte `note` keinen Aufrufer mehr. **Kein Betragsfeld** – beim
   Modellieren steht er nicht fest. **Kein Erklärsatz darunter** (#792): er sagte, was das
   Feld darüber zeigt.
-- **Die Wörter der Richtung stehen in `lib/modules.DEAL_DIRECTION`** (Symbol, Label, Hinweis,
-  Singular **und** Plural als eigener Wert) – der Editor braucht sie, bevor es einen Vorgang
-  gibt. `test_frontend_mirrors` hält sie mit `domain/deal.DIRECTIONS` deckungsgleich.
+- ►►► **Storniert wird, nicht gelöscht** (#823/#824). Der Papierkorb verspricht, dass die
+  Zeile verschwindet – eine Rechnungsnummer ist aber vergeben. Das Zeichen ist darum
+  `CircleSlash` (dasselbe, mit dem das Haus überall «storniert» schreibt), und was
+  passiert, ist eine **Gegenbuchung**: die Zeile bleibt und heisst «storniert», die neue
+  heisst «Storno». Beide Richtungen der Angabe kommen vom Server (`reverses` ·
+  `reversed`) – im Browser müsste die zweite über die ganze Liste gesucht werden.
+- **Ohne Rechnung kein Zahlungs-Knopf** (#822) – nicht ausgegraut, sondern gar nicht da:
+  `can` führt `pay` erst, wenn etwas gefordert ist.
+- **Der Modul-Abschluss steht am ENDE der Karte** (#829), hinter der Geld-Zeile. Er stand
+  in der Stufe «Auftrag», also mitten in der Kette, und darunter kam noch etwas – ein
+  Knopf, der ein Modul abschliesst, sagt so «hier ist Schluss», während sichtbar noch
+  etwas folgt. Die Sperre (`prepaid`) ersetzt an genau dieser Stelle den Knopf.
+- **Das Partner-Feld hält die frische Wahl nur, bis sie als Zeile dasteht** (#794 → #820).
+  Gehalten wird sie, weil sie im Moment des Klicks noch nicht gespeichert ist; sobald der
+  Server sie als Angebotszeile zurückgibt, stünde derselbe Partner zweimal da. Eine
+  **Ableitung**, kein zweiter Zustand – ein Zurücksetzen an der Antwort wäre die Stelle,
+  die der nächste Pfad vergisst.
+- **Eine Karte, an der man noch handeln kann, wird nicht gedämpft** (#821,
+  `DiagramStep.openActions` ← `ProcessStepResponse.open_actions`). Gemessen war es der Fix
+  des letzten Fixes: die Geld-Knöpfe funktionierten an einem abgeschlossenen Auftrag, die
+  Karte lag trotzdem bei 55 % Deckkraft da – eine erfundene Sperre, nur in Farbe. **Und
+  die Angabe muss durchgereicht werden**: fehlt sie, ist sie `undefined`, `!undefined` ist
+  wahr, und die Karte wäre danach **nie** gedämpft.
+- **Das Modul-Protokoll erscheint nur, wo es etwas zu berichten hat** (#825,
+  `DiagramStep.records`): erfasste Werte · ein Zustandswechsel · eine Verifikation. Kein
+  `if module_type` – bei einem Modul ohne physisches Gegenstück blieben sonst Nummer, Name
+  und Uhrzeit übrig. Entfernt wird es nirgends; es ist der Nachweis.
+- **Die Wörter der Richtung stehen in `lib/modules.DEAL_DIRECTION`** (Symbol, Label,
+  Hinweis) – der Editor braucht sie, bevor es einen Vorgang gibt. Mehr trägt sie nicht:
+  «Partner» ist ein Wort für beide Richtungen und Singular = Plural (#787/#802).
+  `test_frontend_mirrors` hält sie mit `domain/deal.DIRECTIONS` deckungsgleich.
 - **Ohne Verifikation kein Scan-Tor** (`step.verifies`, aus `Module.requires_verification`):
   ein Modul, das keine Stücke bewegt, wird mit **einem** Knopf bestätigt. Die
   Ausführungsstelle fragt die **Eigenschaft**, nie den Modultyp – sonst fehlt beim nächsten

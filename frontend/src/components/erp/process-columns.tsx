@@ -625,5 +625,10 @@ export function toDiagramSteps(steps: ProcessStepResponse[] | null | undefined):
     // **Worauf das Modul wartet** – die Sperre wird eine Ebene tiefer gerendert
     // (`StepCard`), damit kein Modul sie selbst kennen muss (#698).
     waitingFor: s.waiting_for ?? [],
+    // **Und «steht hier noch etwas an?» und «gibt es etwas zu berichten?»** – zwei
+    // Ableitungen des Servers (#821/#825). Die Oberfläche rechnet keine davon nach: die
+    // erste kommt aus derselben Tabelle, die auch das Tor ist, die zweite aus den
+    // Angaben, die am Schritt ohnehin stehen.
+    openActions: s.open_actions, records: s.records,
   }));
 }

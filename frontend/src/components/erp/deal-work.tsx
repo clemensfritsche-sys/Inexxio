@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import {
   AlertTriangle, ArrowUpRight, CalendarClock, Check, ChevronDown, CircleSlash, FileText,
-  Lock, Send, Trash2, Undo2, Wallet,
+  Lock, Send, Undo2, Wallet,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DealEmbed, DealParty, DealQuote } from '@/types';
@@ -106,9 +106,7 @@ export function DealWork({ deal, busy, active = true, onAction, children }: {
 
       <Row label={d.stages[1]?.label ?? ''} done={agreed && !cancelled}
         active={!!d.stages[1]?.active && !cancelled}>
-        {agreed && <Agreed d={d} busy={busy} active={active} onAction={onAction}>
-          {children}
-        </Agreed>}
+        {agreed && <Agreed d={d} busy={busy} active={active} onAction={onAction} />}
       </Row>
 
       {/* **Das Geld – eine Zeile, keine Stufe.** Sie steht dort, wo man sie erwartet
@@ -136,6 +134,24 @@ export function DealWork({ deal, busy, active = true, onAction, children }: {
           <CircleSlash size={13} /> {d.stage_label}
         </div>
       )}
+
+      {/* ►►► **Der Modul-Abschluss steht AM ENDE der Karte** (Testnotiz #829). ◄◄◄
+
+          Er stand in der Stufe «Auftrag», also **mitten** in der Kette – und darunter kam
+          noch die Geld-Zeile. Ein Knopf, der ein Modul abschliesst, sagt damit «hier ist
+          Schluss», während sichtbar noch etwas folgt; man liest ihn als Abschluss *dieser
+          Stufe* statt des Moduls. Rechnung und Zahlung gehören zum Modul, auch wenn sie
+          nachgelagert kommen – also steht der Abschluss hinter ihnen.
+
+          **Warum es nicht weitergeht, steht da, wo man weiterklicken würde**: die Sperre
+          (`prepaid`) ersetzt an genau dieser Stelle den Knopf. Der Server weist ebenso ab
+          (`deal.assert_completable`) – dies ist die freundliche Hälfte. */}
+      {agreed && active && (d.prepaid && !d.settled ? (
+        <p className="text-[12.5px] mt-2" style={{ color: 'var(--warning)' }}>
+          Erst nach Zahlungseingang: {formatAmount(d.paid)} von {formatAmount(d.amount)}
+          {' '}bezahlt.
+        </p>
+      ) : <div className="mt-2">{children}</div>)}
     </div>
   );
 }
@@ -346,6 +362,18 @@ function Offer({ d, busy, active, onAction }: {
   d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
 }) {
   const [picked, setPicked] = useState<DealParty | null>(null);
+  // ►►► **Gehalten wird die Wahl nur, BIS sie als Zeile dasteht** (#794 → #820). ◄◄◄
+  //
+  // Sie wird gehalten, weil das Feld sonst im Moment des Klicks leer dasteht – die Wahl
+  // ist noch nicht gespeichert (#794). Sobald der Server sie als Angebotszeile
+  // zurückgibt, ist sie es aber, und dann steht derselbe Partner **zweimal** da: einmal
+  // als Zeile, einmal im Feld darunter. Das Feld ist ein **Hinzufüger**, kein
+  // Auswahlfeld – es zeigt, was man als Nächstes tun kann, nicht was getan ist.
+  //
+  // Eine **Ableitung**, kein zweiter Zustand: ein `setPicked(null)` an der Antwort wäre
+  // die Stelle, die man beim nächsten Pfad vergisst.
+  const held = picked && !d.quotes.some((q) => q.party_object_id === picked.object_id)
+    ? picked : null;
   const find = useCallback(
     (q: string) => api.searchDealParties(q).catch(() => []), []);
 
@@ -372,8 +400,8 @@ function Offer({ d, busy, active, onAction }: {
         // **Wo niemand zugelassen ist, wird gesucht** – dieselbe Bauart wie überall.
         <ObjectSelect<DealParty>
           label={d.party_word}
-          value={picked?.object_id ?? null}
-          selected={picked}
+          value={held?.object_id ?? null}
+          selected={held}
           find={find}
           scanLabel={d.party_word}
           placeholder="Nummer oder Name"
@@ -587,11 +615,9 @@ function PartyRef({ value }: { value: string }) {
  * **Der bestätigte Auftrag** – was feststeht, steht als **Wert** da, nicht in einem
  * gesperrten Feld. Und darin die Bestätigung, die das Modul abschliesst.
  */
-function Agreed({ d, busy, active, onAction, children }: {
+function Agreed({ d, busy, active, onAction }: {
   d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
-  children?: React.ReactNode;
 }) {
-  const waiting = d.prepaid && !d.settled;
   return (
     <div className="flex flex-col gap-2 mt-1.5">
       <div className="grid gap-2"
@@ -614,15 +640,6 @@ function Agreed({ d, busy, active, onAction, children }: {
           selbst (`<Auftragsnummer>[-n]`), und was bei diesem Partner zu tun ist, steht an
           seiner Angebotszeile. Damit hatte die Handlung `note` keinen Aufrufer mehr und ist
           mitgegangen. */}
-      {/* **Warum es nicht weitergeht, steht da, wo man weiterklicken würde.** Der Server
-          weist ebenso ab (`deal.assert_completable`) – dies ist die freundliche Hälfte. */}
-      {active && waiting && (
-        <p className="text-[12.5px]" style={{ color: 'var(--warning)' }}>
-          Erst nach Zahlungseingang: {formatAmount(d.paid)} von {formatAmount(d.amount)}
-          {' '}bezahlt.
-        </p>
-      )}
-      {active && !waiting && children}
     </div>
   );
 }
@@ -719,14 +736,31 @@ function Money({ d, busy, onAction }: {
                 {e.due_on && ` · ${e.overdue ? 'überfällig seit' : 'fällig'} `}
                 {e.due_on && localDate(e.due_on)}
               </span>
-              {may(d, active, 'void') && (
+              {/* ►►► **Storniert wird, nicht gelöscht** (#823/#824). ◄◄◄
+                  Eine Rechnungsnummer ist vergeben, ein Beleg ist draussen – das Symbol
+                  darf darum kein Papierkorb sein: er verspricht, dass die Zeile
+                  verschwindet. Was passiert, ist eine **Gegenbuchung**; beide Zeilen
+                  bleiben stehen, und `reverses` markiert die stornierte. Eine
+                  Gegenbuchung selbst lässt sich nicht stornieren – dann bietet der
+                  Server das Verb an dieser Zeile gar nicht erst an. */}
+              {e.reverses != null && (
+                <span className="text-[11.5px]" style={{ color: 'var(--fg-4)', flex: 'none' }}>
+                  Storno
+                </span>
+              )}
+              {e.reversed && (
+                <span className="text-[11.5px]" style={{ color: 'var(--fg-4)', flex: 'none' }}>
+                  storniert
+                </span>
+              )}
+              {may(d, active, 'reverse') && !e.reversed && e.reverses == null && (
                 <button type="button"
                   className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
                   style={{ height: 26 }}
-                  disabled={busy} aria-label="Zeile zurücknehmen"
-                  data-tip="Zeile zurücknehmen – sie bleibt im Nachweis lesbar."
-                  onClick={() => onAction({ action: 'void', entry: e.id })}>
-                  <Trash2 size={13} />
+                  disabled={busy} aria-label="Zeile stornieren"
+                  data-tip="Stornieren – es entsteht eine Gegenbuchung; beide Zeilen bleiben stehen."
+                  onClick={() => onAction({ action: 'reverse', entry: e.id })}>
+                  <CircleSlash size={13} />
                 </button>
               )}
             </div>

@@ -931,10 +931,11 @@ export interface paths {
         put?: never;
         /**
          * Update Deal
-         * @description **Eine Handlung am Geldvorgang** – ein Endpunkt, neun Verben.
+         * @description **Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.
          *
-         *     ``ask`` · ``quote`` · ``decline`` · ``agree`` · ``note`` · ``revoke`` · ``charge`` ·
-         *     ``pay`` · ``void``.
+         *     ``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·
+         *     ``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen
+         *     Löschweg gibt es nicht (Testnotizen #823/#824).
          *
          *     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
          *     wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**
@@ -1931,6 +1932,13 @@ export interface components {
              * @default false
              */
             overdue: boolean;
+            /** Reverses */
+            reverses?: number | null;
+            /**
+             * Reversed
+             * @default false
+             */
+            reversed: boolean;
         };
         /**
          * DealLine
@@ -2048,7 +2056,9 @@ export interface components {
          *     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
          *                 ``booked_on``, ``due_on``, ``reference``, ``note``)
          *     ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)
-         *     ``void``    eine Geld-Zeile zurücknehmen (``entry``)
+         *     ``reverse`` eine Geld-Zeile **stornieren** (``entry``) – als **Gegenbuchung**, nie
+         *                 als Löschung: dieselbe Art, der negative Betrag, ``reverses_id`` auf die
+         *                 stornierte Zeile. Beide bleiben stehen (Testnotizen #823/#824).
          *
          *     **``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und
          *     auch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen
@@ -3216,6 +3226,47 @@ export interface components {
              *     Leer heisst: dieses Modul kennt keinen.
              */
             readonly reason: string;
+            /**
+             * Records
+             * @description ►►► **Hat dieses Modul mehr zu berichten als die blosse Passage?** (#825) ◄◄◄
+             *
+             *     Das Protokoll (``services/record``) bleibt für **jedes** Modul, was es ist: der
+             *     Nachweis. Aber bei einem Modul, das am Stück nichts ändert, nichts erfasst und
+             *     nichts verifiziert, blieben genau drei Angaben übrig – eine Nummer, ein Name und
+             *     eine Uhrzeit –, und die Frage «warum steht die hier?» war berechtigt.
+             *
+             *     **Gefragt wird die Sache, nicht der Modultyp.** Ein ``if module_type ==
+             *     'zahlung'`` wäre beim nächsten Modul ohne physisches Gegenstück wieder falsch.
+             *     Es gibt genau drei Dinge, die ein Eintrag über «wer, wann» hinaus tragen kann:
+             *
+             *     * **erfasste Werte** – das Modul hat Erfassungspunkte (``config``),
+             *     * **ein Zustandswechsel** – ``status_before`` ≠ ``status_after`` (ein Ausgang,
+             *       ein Verbrauch),
+             *     * **eine Verifikation** – der Scan, der sagt, welches physische Ding es war.
+             *
+             *     Trifft keines zu, ist das Protokoll leer im Wortsinn und wird nicht angeboten.
+             *     Alle drei Angaben stehen **am Schritt**; es braucht dafür keine Abfrage auf den
+             *     Log, und schon gar nicht eine je Modul in jeder Auftrags-Antwort.
+             */
+            readonly records: boolean;
+            /**
+             * Open Actions
+             * @description ►►► **Kann man an diesem Modul noch etwas tun?** (Testnotiz #821) ◄◄◄
+             *
+             *     Die Oberfläche graut ein Modul aus, an dem nichts mehr ansteht – und das war
+             *     genau dann falsch, wenn der Auftrag längst durch ist und trotzdem noch eine
+             *     Rechnung oder eine Zahlung zu buchen ist (ein Zahlungsziel läuft weiter, wenn
+             *     die Ware draussen ist). Die Karte sagte optisch «hier ist nichts mehr», während
+             *     ihre Knöpfe funktionierten.
+             *
+             *     **Abgeleitet, nicht gespeichert – und aus derselben Tabelle, die auch das Tor
+             *     ist**: ``can`` am Beleg bzw. am Vorgang. Eine zweite Herleitung («ist der Typ
+             *     ``zahlung``?») liefe beim nächsten Modul auseinander, und eine Heuristik der
+             *     Oberfläche wäre eine dritte Wahrheit.
+             *
+             *     Das aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.
+             */
+            readonly open_actions: boolean;
         };
         /**
          * PurchaseEmbed

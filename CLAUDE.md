@@ -2101,6 +2101,73 @@
 > 320 px, **0 px** waagrechter Überlauf über sechs Zustände; der **erledigte** Vorgang
 > bietet jetzt 2 Handlungen an (Rechnung, Zahlung) statt keiner.
 
+> **Eine Rechnung löscht man nicht — man storniert sie** (Testnotizen #816–#829,
+> Migration `126`). Vierzehn Notizen, vier Themen — und der wichtigste Befund war
+> buchhalterisch: *«Soll man wirklich aktiv erfasste Rechnungen so löschen können? Ich
+> denke eher in Richtung stornieren.»*
+> **(1) Der Papierkorb war falsch, und die Lösung brauchte keine neue Mechanik** (#823/
+> #824). Eine Rechnungsnummer ist vergeben, ein Beleg ist draussen – wer die Zeile
+> verschwinden lässt, behauptet, sie sei nie passiert. `void` machte einen Soft-Delete:
+> der Saldo stimmte, die Zeile war weg. Eine Gutschrift ist aber längst eine **negative
+> Rechnung** und eine Erstattung eine **negative Zahlung** (§9.11) – eine **Stornierung
+> ist genau das, über den vollen Betrag**. Also `reverse` statt `void`: eine zweite Zeile,
+> dieselbe Art, der negative Betrag, `reverses_id` auf die stornierte. Beide bleiben
+> stehen, `balance` rechnet sie **ohne einen einzigen Sonderfall**. Zwei Sperren fallen
+> aus derselben Frage (eine Gegenbuchung storniert man nicht, eine stornierte Zeile
+> ebenso wenig) und stehen in **beiden** Formen: in `can`, also fehlt der Knopf, und in
+> `_reverse`, also weist die Tür ab. **Einen Löschweg gibt es nicht** – auch nicht für
+> einen Tippfehler; eine Frist («innerhalb fünf Minuten») wäre eine erfundene Regel mit
+> einer Uhr darin.
+> **(2) Ausgegraut, obwohl man handeln kann** (#821) – und das war der Fix meines eigenen
+> letzten Fixes. Gemessen: `dimmed={running && !isActive}` legte 55 % Deckkraft über die
+> **ganze** Karte, während die Geld-Knöpfe längst funktionierten (ein Zahlungsziel läuft
+> weiter, wenn die Ware draussen ist). Dieselbe Fehlerform wie eine erfundene Sperre, nur
+> in Farbe. **Ob man kann, sagt der Schritt** (`ProcessStepResponse.open_actions`),
+> abgeleitet aus derselben Tabelle, die auch das Tor ist – nicht ein Modultyp und keine
+> Heuristik der Oberfläche. *Und die Angabe muss ankommen: eine Ableitung, die niemand
+> durchreicht, ist im Browser `undefined`, und `!undefined` ist wahr – die Karte wäre
+> danach **nie** gedämpft. Genau diese Form fällt sonst niemandem auf, darum prüft der
+> Wächter sie mit.*
+> **(3) Weniger Labels, sprechendere Werte** (#816/#817/#818/#819/#826/#828). *«Die
+> Buttons sind selbsterklärend genug.»* Drei Labels standen über Bedienelementen, die für
+> sich sprechen; sie sind entfallen. Und die Werte werden dafür richtig: «zugesagt» ↔
+> «bezahlt» → **«Nach Zusage» ↔ «Nach Zahlung»** (einzeln gelesen klang «zugesagt» nach
+> einem *Zustand* statt nach einer *Bedingung*). «Auftrag bestätigen» → **«Angebot
+> annehmen»** (#826 – man nimmt das *Angebot* an, der Auftrag ist das Ergebnis).
+> «Rechnung stellen» ↔ «Rechnung erfassen» und «Zahlungseingang» ↔ «Zahlung» waren vier
+> Wörter für zwei Handlungen: **erfasst** wird beides (#828) – das System bucht eine
+> Zeile, es überweist nichts. **Damit trägt `Direction` fast nichts mehr**: `undo`,
+> `stage_verbs`, `money_label`, `charge_word` und `payment_word` sind Konstanten; übrig
+> bleiben `label`, `hint`, `stage_labels` und `ask_verb` – die vier echten Unterschiede.
+> **(4) Kleineres, jedes an einer Stelle.** Die **Rechnungsnummer** trägt immer ihr Suffix
+> (#827, `<Auftragsnummer>-<laufend>`) – das weggelassene «-1» war eine Sonderregel für
+> genau einen Fall, und dieselbe Serie hiess danach «100000801», dann «100000801-2».
+> **Ohne Rechnung keine Zahlung** (#822 – man kassiert nicht, was niemand gefordert hat;
+> die Vorauszahlung verliert nichts, sie ist «erst fordern, dann zahlen»). Der
+> **Modul-Abschluss steht am Ende der Karte** (#829), hinter der Geld-Zeile – er stand
+> mitten in der Kette und sagte «hier ist Schluss», während sichtbar noch etwas folgte.
+> Das **Modul-Protokoll erscheint nur, wo es mehr zu berichten hat als die blosse
+> Passage** (#825): erfasste Werte · ein Zustandswechsel · eine Verifikation – eine Frage
+> an die **Daten**, kein `if module_type`; entfernt wird es nirgends, es ist der Nachweis.
+> **Und der Fund beim Messen** (#820): das **Editor**-Feld war es nicht – dort räumt
+> `SearchSelect.pick` seine Suche selbst auf (Chromium, zwei Adds hintereinander, beide
+> Male leer). Stehen blieb der Name an der **Ausführungsstelle**, wo #794 die frische Wahl
+> bewusst hält; sie fällt jetzt, **sobald sie als Zeile dasteht** – eine Ableitung, kein
+> zweiter Zustand. Ein `key`-Zurücksetzen im Editor hätte nichts behoben und den Fund nur
+> zugedeckt.
+> Wächter: 6 neue in `test_frontend_mirrors.py`, 2 neue in `test_deal_module.py`, dazu 5
+> auf die neue Regel gezogene – **jede Bug-Form gegengeprüft**; *drei bestehende prüften
+> die **Form** der alten Lösung* (`<Label required>{DEAL_TASK}</Label>`, `selected=
+> {picked}`, die wörtliche `StepRecord`-Bedingung) und hätten damit die bessere Fassung
+> verboten – sie fragen jetzt die Regel. *Zwei neue lasen dabei ihren eigenen Docstring
+> mit* (er nennt den Modultyp, um zu begründen, warum er nicht gefragt wird) – in `_code`
+> gefasst. Suite grün gegen die gewachsene Datenbank (559) **und** gegen ein Schema nur
+> aus den Migrationen (559); Migration `126` von null · idempotent · downgrade ·
+> re-upgrade verifiziert. Gemessen in Chromium an der **echten** Komponente: 1440 · 1280 ·
+> 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über sechs Zustände (inkl.
+> stornierter und stornierender Zeile); der erledigte Vorgang bietet Rechnung, Zahlung und
+> zwei Stornos an, die Gegenpartei sieht **0** fremde Preise.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

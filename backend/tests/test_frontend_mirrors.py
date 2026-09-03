@@ -1433,8 +1433,13 @@ def test_the_module_looks_the_same_for_both_roles():
     # das niemand liest.
     assert "verbOf(p)" in panel, "Der Bestell-Knopf erfindet sein Wort wieder selbst."
 
-    src = _read(FRONTEND / "components" / "erp" / "order-detail.tsx")
-    assert "{internal && !isActive && <StepRecord" in src, (
+    # **Gefragt wird die REGEL, nicht der Wortlaut**: das Protokoll rendert nur unter
+    # `internal`. Die erste Fassung verlangte die Bedingung wörtlich – und schlug an, als
+    # eine dritte, richtige Bedingung dazukam (`step.records`, #825). Ein Wächter, der
+    # die **Form** der alten Lösung prüft, verbietet die bessere.
+    src = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    guard = src[src.index("<StepRecord") - 200:src.index("<StepRecord")]
+    assert "internal" in guard and "!isActive" in guard, (
         "Das Modul-Protokoll steht wieder in jeder Ansicht – sein Endpunkt ist "
         "Personal-only, ein Lieferant bekäme dort einen Fehler."
     )
@@ -5960,8 +5965,18 @@ def test_what_to_do_is_asked_once_per_party_and_is_mandatory():
     fields = _code(_body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
                          "MoneyFields", kind="function"))
     assert "Was ist daran zu tun?" not in fields, "Der Satz steht wieder im Editor."
-    assert "<Label required>{DEAL_TASK}</Label>" in fields, (
-        "Die Angabe ist im Editor nicht als Pflicht ausgezeichnet."
+    # ►►► **Pflicht ist eine Eigenschaft des FELDES, nicht eines Labels darüber** (#817).
+    #
+    # Die erste Fassung verlangte `<Label required>{DEAL_TASK}</Label>` – also die **Form**
+    # der damaligen Lösung. Als das Label entfiel (der Platzhalter sagt es genauer), schlug
+    # sie an, obwohl die Regel besser erfüllt ist: das Feld selbst ist `required`, und
+    # benannt bleibt es über `aria-label`. Gefragt wird jetzt beides.
+    assert "required" in fields and f"aria-label={{DEAL_TASK}}" in fields, (
+        "Die Angabe ist im Editor weder als Pflicht ausgezeichnet noch benannt."
+    )
+    assert "<Label required>{DEAL_TASK}</Label>" not in fields, (
+        "Das Label über dem Feld ist zurück – der Platzhalter sagt es genauer, und zwei "
+        "Beschriftungen für ein Feld sind eine zu viel (#817)."
     )
 
 
@@ -6000,11 +6015,19 @@ def test_the_chosen_counterparty_keeps_its_number_and_name():
     Dann zeigt das Feld nach dem Klick nichts, weil die Wahl noch nicht gespeichert ist –
     und der Mensch weiss nicht, ob sein Klick angekommen ist.
     """
-    offer = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
-                  "Offer", kind="function")
-    assert "selected={picked}" in offer, (
+    offer = _code(_body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                        "Offer", kind="function"))
+    # **Gefragt wird die REGEL, nicht der Wortlaut**: die frische Wahl reist als
+    # **Option** ins Feld (nicht bloss als Nummer). Die erste Fassung verlangte
+    # `selected={picked}` – also die Form der damaligen Lösung – und schlug an, als die
+    # Wahl zusätzlich fallen gelassen wurde, sobald sie als Zeile dasteht (#820). Ein
+    # Wächter, der die Form prüft, verbietet die bessere Lösung.
+    assert "setPicked(" in offer and "selected={" in offer, (
         "Die gewählte Gegenpartei wird nicht gehalten (#794) – das Feld steht nach dem "
         "Klick leer da."
+    )
+    assert "selected={null}" not in offer, (
+        "Die frische Wahl wird weggeworfen – das Feld zeigt nach dem Klick nichts."
     )
     agreed = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
                    "Agreed", kind="function")
@@ -6334,3 +6357,213 @@ def test_a_late_delivery_is_derived_never_stored():
             f"Ein Vorgang auf «{stage}» gilt als verspätet – ein Vorwurf an etwas, das "
             f"vorbei ist, ist keine Auskunft."
         )
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #816–#829 – der Geldvorgang: stornieren statt löschen, weniger
+# Labels, und eine Karte, die nicht ausgegraut ist, solange man handeln kann
+# ---------------------------------------------------------------------------
+
+def test_a_money_line_is_reversed_in_the_ui_never_binned():
+    """►►► **Der Papierkorb verspricht das Falsche** (Testnotizen #823/#824). ◄◄◄
+
+    *«Soll man wirklich aktiv erfasste Rechnungen so löschen können? Ich denke eher in
+    Richtung stornieren.»* – Eine Rechnungsnummer ist vergeben, ein Beleg ist draussen.
+    Das Symbol muss darum sagen, was passiert: eine **Gegenbuchung**, keine Löschung.
+    ``CircleSlash`` ist dasselbe Zeichen, mit dem das Haus überall «storniert» schreibt.
+
+    Bug-Formen: (a) der Papierkorb kommt zurück; (b) das Verb heisst wieder ``void``;
+    (c) die Zeile sagt nicht, dass sie storniert ist bzw. selbst ein Storno ist.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    assert "Trash2" not in src, (
+        "Der Papierkorb steht wieder an einer Geld-Zeile – er verspricht, dass sie "
+        "verschwindet, und genau das darf sie nicht."
+    )
+    assert "'void'" not in src and '"void"' not in src, "Das Lösch-Verb ist zurück."
+    assert "'reverse'" in src and "CircleSlash" in src, (
+        "Die Stornierung fehlt – oder sie trägt nicht das Zeichen des Hauses."
+    )
+    # (c) **Beide Richtungen der Angabe stehen in der Zeile**: was storniert wurde, und
+    # was selbst ein Storno ist. Ohne die zweite sähe die Gegenbuchung wie eine
+    # Gutschrift aus – und eine Gutschrift ist etwas ganz anderes.
+    assert "e.reversed" in src and "e.reverses" in src, (
+        "Die Zeile sagt nicht, ob sie storniert ist oder selbst ein Storno."
+    )
+
+
+def test_a_card_you_can_still_act_on_is_never_dimmed():
+    """►►► **Ausgegraut heisst «hier ist nichts zu tun»** (Testnotiz #821). ◄◄◄
+
+    Gemessen war es der Fix meines eigenen letzten Fixes: die Geld-Knöpfe funktionierten
+    an einem abgeschlossenen Auftrag (ein Zahlungsziel läuft weiter, wenn die Ware
+    draussen ist), und die Karte lag trotzdem bei 55 % Deckkraft da. Eine erfundene
+    Sperre, nur in Farbe.
+
+    **Und die Frage stellt der Schritt**, nicht die Zeichnung: ``open_actions`` kommt aus
+    derselben Tabelle, die auch das Tor ist (``deal.can`` / ``purchase.can``). Eine
+    Heuristik der Oberfläche wäre eine dritte Wahrheit.
+
+    Bug-Formen: (a) ``dimmed`` hängt wieder allein an «ist dieses Modul dran»; (b) die
+    Angabe erreicht den Schritt gar nicht erst; (c) die Oberfläche rechnet sie selbst aus
+    (etwa über den Modultyp).
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.schemas.order import ProcessStepResponse
+
+    diagram = _code(_read(FRONTEND / "components" / "erp" / "process-diagram.tsx"))
+    assert "dimmed={running && !isActive}" not in diagram, (
+        "Gedämpft wird wieder allein danach, ob das Modul dran ist."
+    )
+    assert "!step.openActions" in diagram, (
+        "Die Zeichnung fragt nicht, ob noch etwas ansteht."
+    )
+    # (b) **Die Angabe muss auch ankommen** – eine Ableitung, die niemand durchreicht,
+    # ist im Browser schlicht `undefined`, und `!undefined` ist wahr: die Karte wäre
+    # danach NIE gedämpft. Genau diese Form fällt sonst niemandem auf.
+    assert "openActions: s.open_actions" in _code(
+        _read(FRONTEND / "components" / "erp" / "process-columns.tsx")), (
+        "`open_actions` wird nicht an den Schritt durchgereicht."
+    )
+    # (c) **Abgeleitet aus `can`, nicht aus dem Modultyp.**
+    assert "open_actions" in ProcessStepResponse.model_fields \
+        or "open_actions" in ProcessStepResponse.model_computed_fields, (
+        "Der Schritt sagt gar nicht mehr, ob an ihm etwas ansteht."
+    )
+    # **Der Code, nicht die Prosa**: der Docstring der Ableitung *nennt* den Modultyp,
+    # um zu begründen, warum er nicht gefragt wird – ein Wächter, der ihn mitliest,
+    # schlägt an, weil jemand den Fehler erklärt.
+    body = _code(_body(_read(BACKEND / "app" / "schemas" / "order.py"), "open_actions"))
+    assert "module_type" not in body, (
+        "Die Ableitung fragt nach dem Modultyp – dann ist sie beim nächsten Modul falsch."
+    )
+    assert ".can" in body, "Sie liest nicht die Tabelle, die auch das Tor ist."
+
+
+def test_the_record_appears_only_where_there_is_something_to_report():
+    """►►► **Nummer, Name und Uhrzeit sind kein Nachweis** (Testnotiz #825). ◄◄◄
+
+    Das Protokoll bleibt für **jedes** Modul, was es ist – aber bei einem Modul, das am
+    Stück nichts ändert, nichts erfasst und nichts verifiziert, blieben genau drei
+    Angaben übrig, und die Frage «warum steht die hier?» war berechtigt.
+
+    **Gefragt wird die Sache, nicht der Modultyp**: erfasste Werte · ein Zustandswechsel
+    · eine Verifikation. Alle drei stehen am Schritt; es braucht keine Abfrage auf den
+    Log und schon gar nicht eine je Modul in jeder Auftrags-Antwort.
+
+    Bug-Formen: (a) ein ``if module_type ===`` in der Oberfläche; (b) die Ableitung fragt
+    den Modultyp; (c) ein Modul, das etwas zu berichten hat, verliert sein Protokoll.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.schemas.order import ProcessStepResponse
+
+    src = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    guard = src[src.index("<StepRecord") - 200:src.index("<StepRecord")]
+    assert "step.records" in guard, (
+        "Das Protokoll erscheint wieder überall – auch dort, wo es nichts zu berichten hat."
+    )
+    assert "zahlung" not in guard, (
+        "Die Bedingung nennt einen Modultyp – beim nächsten Modul ohne physisches "
+        "Gegenstück wäre sie wieder falsch."
+    )
+    body = _code(_body(_read(BACKEND / "app" / "schemas" / "order.py"), "records"))
+    assert "module_type" not in body, "Die Ableitung fragt nach dem Modultyp."
+    for part in ("points_of", "status_after", "verifies"):
+        assert part in body, f"Die Ableitung fragt «{part}» nicht."
+    assert "records" in ProcessStepResponse.model_computed_fields
+
+
+def test_the_money_module_says_it_with_its_values_not_with_labels():
+    """►►► **Was ein Bedienelement selbst sagt, sagt man nicht daneben** (#816/#817/#819).
+
+    Drei Labels standen über drei Bedienelementen, die alle für sich sprechen:
+    «Geschäft *» über «Verkauf ↔ Einkauf», «Was ist zu tun? *» über einem Platzhalter,
+    der es genauer sagt, und «Weiter, wenn» über zwei Werten, die die Bedingung schon
+    tragen. *«Die Buttons sind selbsterklärend genug.»*
+
+    **Und die Werte werden dafür richtig** (#818): «zugesagt» klang nach einem *Zustand*
+    statt nach einer *Bedingung* – einzeln gelesen war es eine schlechte Beschreibung.
+    «Nach Zusage» ↔ «Nach Zahlung» stimmt auch dort, wo es allein steht.
+
+    Bug-Formen: (a) ein Label kommt zurück; (b) die alten Werte kommen zurück.
+    """
+    fields = _code(_body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                         "MoneyFields", kind="function"))
+    for label in ("<Label required>Geschäft</Label>", "<Label>Weiter, wenn</Label>"):
+        assert label not in fields, f"«{label}» steht wieder über seinem Schalter."
+    assert "<Label" not in fields, (
+        "Im Geldmodul steht wieder ein Label über einem Bedienelement, das für sich spricht."
+    )
+    assert "label: 'Nach Zusage'" in fields and "label: 'Nach Zahlung'" in fields, (
+        "Die Bedingung steht nicht im Wert – dann braucht sie wieder eine Frage darüber."
+    )
+    for old in ("label: 'zugesagt'", "label: 'bezahlt'"):
+        assert old not in fields, f"«{old}» ist zurück – ein Zustand, wo eine Bedingung steht."
+
+
+def test_the_field_holds_the_pick_only_until_it_is_a_row():
+    """►►► **Ein Hinzufüger zeigt nicht, was schon dasteht** (Testnotizen #794 → #820).
+
+    Die frische Wahl wird gehalten, weil das Feld im Moment des Klicks sonst leer
+    dasteht – gespeichert ist sie noch nicht (#794). Sobald der Server sie als
+    Angebotszeile zurückgibt, ist sie es aber, und dann steht derselbe Partner
+    **zweimal** da: als Zeile und im Feld darunter (#820).
+
+    **Gemessen, nicht vermutet**: der Editor (`MoneyFields`) war es *nicht* – dort räumt
+    `SearchSelect.pick` seine Suche selbst auf, und das Feld ist nach dem Klick leer
+    (Chromium, zwei Adds hintereinander, beide Male ``""``). Ein `key`-Zurücksetzen dort
+    hätte nichts behoben und den Fund nur zugedeckt.
+
+    Bug-Formen: (a) die Wahl wird unbedingt gehalten; (b) sie wird gar nicht mehr
+    gehalten (dann ist #794 zurück); (c) sie wird über einen zweiten Zustand geräumt,
+    den irgendein Pfad vergisst.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    offer = _body(src, "Offer", kind="function")
+    assert "value={picked?.object_id ?? null}" not in offer, (
+        "Die Wahl wird unbedingt gehalten – der Partner steht dann zweimal da."
+    )
+    assert "useState<DealParty | null>(null)" in offer, (
+        "Die frische Wahl wird gar nicht mehr gehalten – dann steht das Feld im Moment "
+        "des Klicks leer da (#794)."
+    )
+    # (c) **Eine Ableitung, kein zweiter Zustand**: `setPicked(null)` an einer Antwort
+    # wäre die Stelle, die der nächste Pfad vergisst.
+    assert "d.quotes.some((q) => q.party_object_id === picked.object_id)" in offer, (
+        "Die Wahl fällt nicht, sobald sie als Zeile dasteht."
+    )
+    assert "setPicked(null)" not in offer.replace("setPicked(nr === null ? null", ""), (
+        "Die Wahl wird über einen zweiten Zustand geräumt statt abgeleitet."
+    )
+
+
+def test_the_closing_action_stands_at_the_end_of_the_card():
+    """►►► **Ein Abschluss steht am Ende** (Testnotiz #829). ◄◄◄
+
+    «Auftrag erledigt» stand in der Stufe «Auftrag», also **mitten** in der Kette – und
+    darunter kam noch die Geld-Zeile. Ein Knopf, der ein Modul abschliesst, sagt damit
+    «hier ist Schluss», während sichtbar noch etwas folgt; man liest ihn als Abschluss
+    *dieser Stufe* statt des Moduls. Rechnung und Zahlung gehören zum Modul, auch wenn
+    sie nachgelagert kommen.
+
+    Bug-Formen: (a) der Abschluss steht wieder in der Stufe; (b) die Sperre (`prepaid`)
+    steht nicht mehr dort, wo man weiterklicken würde.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    body = _body(src, "DealWork", kind="function")
+    assert "<Agreed" in body and "children" in body, "Die Karte hat ihre Teile verloren."
+    assert body.index("<Agreed") < body.index("<Money"), "Die Kette hat sich verdreht."
+    assert body.index("<Money") < body.rindex("{children}"), (
+        "Der Modul-Abschluss steht wieder vor der Geld-Zeile – dann sieht es aus, als sei "
+        "darunter nichts mehr."
+    )
+    # (b) **Die Sperre ersetzt an genau dieser Stelle den Knopf** – sonst steht der Grund
+    # anderswo als das, was er verhindert.
+    assert "d.prepaid && !d.settled" in body, (
+        "Die Sperre steht nicht mehr dort, wo man weiterklicken würde."
+    )
+    assert "children" not in _body(src, "Agreed", kind="function"), (
+        "Die Stufe «Auftrag» trägt den Abschluss wieder."
+    )
