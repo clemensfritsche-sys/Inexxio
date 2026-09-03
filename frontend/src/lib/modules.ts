@@ -13,7 +13,7 @@
  */
 
 import {
-  Banknote, Landmark, CircleMinus, CirclePlus,
+  Banknote, Landmark,
   Blocks, Camera, CircleHelp, ClipboardCheck, Hand, HandCoins, Handshake, MoveRight,
   PackageX, PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
@@ -137,28 +137,42 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
  * (`DealEmbed`); hier steht nur, was eine Antwort nicht transportieren kann. Gespiegelt
  * von `backend/app/domain/deal.py`, deckungsgleich gehalten von `test_frontend_mirrors`.
  *
- * **Zwei Pfeile und keine zwei Farben**: die Richtung ist eine Aussage über den Fluss,
- * kein Zustand – und Farbe ist im ERP für die Ampel reserviert.
+ * **Keine zwei Farben**: die Richtung ist eine Aussage über den Fluss, kein Zustand –
+ * und Farbe ist im ERP für die Ampel reserviert.
+ *
+ * ►►► **Das Symbol bildet ab, was man TUT — nicht, wie es gebucht wird** (#799). ◄◄◄
+ *
+ * Vorher standen hier Plus und Minus: die Buchhaltungssprache, aber nicht die Sprache
+ * dessen, der davorsteht – er verkauft oder er kauft ein. Und ein Kreis mit einem Strich
+ * darin ist von einem Kreis mit einem Kreuz darin auf 15 px kaum zu unterscheiden.
+ *
+ * Genommen wird darum **dasselbe Paar wie beim Beschaffungs-Beleg** (`FLOW`): Einkaufs-
+ * wagen ↔ Handschlag. Ein Haus, zwei Module, **eine** Bildsprache; ein drittes Paar für
+ * dieselbe Unterscheidung wäre die zweite Antwort auf eine beantwortete Frage.
  */
 export const DEAL_DIRECTION: Record<string, {
   icon: LucideIcon; label: string; hint: string; party: string; parties: string;
+  /** **Wie die Bestellangabe heisst** – leer heisst: es gibt sie hier nicht. */
+  ref: string;
 }> = {
   in: {
-    // ►► **Plus und Minus** – das Bild, in dem man Geld ohnehin denkt (#797). ◄◄
-    //
-    // Vorher standen hier Diagonalpfeile: generisch, und zwei davon nebeneinander sind
-    // erst auf den zweiten Blick zu unterscheiden. Plus ↔ Minus ist die
-    // Buchhaltungssprache selbst und trägt schon in 14 px.
-    icon: CirclePlus, label: 'Einnahme',
-    hint: 'Einnahme – wir stellen Rechnung, Geld kommt herein.',
+    // Ein Handschlag – wir **verkaufen**: was den Vorgang ausmacht, ist die Zusage
+    // zwischen zwei Parteien, nicht der Betrag. Dasselbe Symbol wie `FLOW.sell`.
+    icon: Handshake, label: 'Einnahme',
+    hint: 'Einnahme · wir verkaufen – wir stellen Rechnung, Geld kommt herein.',
     party: 'Kunde', parties: 'Kunden',
+    // **Beim Verkauf liefern wir** – «wie bestelle ich bei ihm» gibt es hier nicht
+    // (dieselbe Regel wie `Flow.party_ref`, #787).
+    ref: '',
   },
   out: {
-    icon: CircleMinus, label: 'Ausgabe',
-    hint: 'Ausgabe – wir bekommen Rechnung, Geld geht hinaus.',
+    // Ein Einkaufswagen – wir **kaufen ein**. Dasselbe Symbol wie `FLOW.buy`.
+    icon: ShoppingCart, label: 'Ausgabe',
+    hint: 'Ausgabe · wir kaufen ein – wir bekommen Rechnung, Geld geht hinaus.',
     // **Der Plural als eigener Wert**, nicht als angehängtes «en»: «Kunde» + «en» ergäbe
     // «Kundeen» (#787). Deutsche Beugung ist keine Zeichenkettenoperation.
     party: 'Lieferant', parties: 'Lieferanten',
+    ref: 'Bestellangabe',
   },
 };
 
@@ -485,13 +499,16 @@ export interface ModuleDraft {
    */
   direction: string;
   /**
-   * Nur «Zahlung»: die **zugelassenen Gegenparteien** – blosse Objektnummern.
+   * Nur «Zahlung»: die **zugelassenen Gegenparteien** – je Zeile Nummer und
+   * **Bestellangabe** (seine Artikelnummer, sein Shop-Link).
    *
-   * **Leer heisst frei**, nicht «niemand»: dann wird beim Ausführen gesucht. Keine
-   * Bestellangabe je Zeile – «wie bestelle ich bei ihm» ist eine Eigenschaft von *ihm*
-   * bzw. des Artikels und ändert sich nicht je Vorgang.
+   * **Leer heisst frei**, nicht «niemand»: dann wird beim Ausführen gesucht.
+   *
+   * Die Bestellangabe gehört der **Paarung** Modul × Gegenpartei – derselbe Lieferant
+   * führt je Teil eine andere Nummer –, und es gibt sie nur, wo **wir** bestellen
+   * (`DEAL_DIRECTION[…].ref`; beim Verkauf liefern wir).
    */
-  parties: number[];
+  parties: { party: number; ref: string }[];
   /**
    * Nur «Zahlung»: **worum es geht** – ein Satz, Pflicht. Er ist das, was auf dem Beleg
    * steht («Härten auf 58 HRC», «Fertigung nach Zeichnung», «Transport nach Werk Nord»).
@@ -642,15 +659,20 @@ export const MODULE_FORM: Record<string, {
       // Einnahme, #791 – das ist eine andere Frage: was gilt, wenn nichts dasteht,
       // gegenüber was vorgeschlagen wird, bevor jemand wählt.)
       direction: c.direction === 'in' ? 'in' : 'out',
-      parties: (Array.isArray(c.parties) ? c.parties : [])
-        .map((n) => Number(n)).filter((n) => Number.isFinite(n)),
+      // Tolerant gelesen wie im Backend (`modules.parties_of`): die alte Form war die
+      // blosse Objektnummer, und ein freigegebener Prozess ist eingefroren – sie steht
+      // also in laufenden Aufträgen und wird sie überleben.
+      parties: asRows(c.parties).map((r) => ({
+        party: Number(r.party ?? r), ref: String(r.ref ?? ''),
+      })).filter((r) => Number.isFinite(r.party)),
       subject: String(c.subject ?? ''),
       prepaid: Boolean(c.prepaid),
     }),
-    // Vier Angaben, eine davon Pflicht (`subject`). Keine Erfassungspunkte und keine
-    // Stichprobe: Geld ist keine Messung am Stück.
+    // Vier Angaben, keine davon Pflicht ausser der Richtung. Keine Erfassungspunkte und
+    // keine Stichprobe: Geld ist keine Messung am Stück.
     config: (m) => ({
-      direction: m.direction, parties: m.parties,
+      direction: m.direction,
+      parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
       subject: m.subject.trim(), prepaid: m.prepaid,
     }),
   },

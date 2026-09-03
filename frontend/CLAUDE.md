@@ -292,7 +292,25 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
 - **Die Knöpfe hängen an `can`** (`services/deal.ACTIONS`) – nie an der Rolle und nie an
   der Stufe: dieselbe Tabelle ist Auskunft **und** Tor. Eine **Gegenpartei** bekommt
   dieselbe Komponente; dass sie weniger sieht, entscheidet die **Antwort**, nicht die
-  Oberfläche (`open == null` → die Geld-Zeile rendert nichts).
+  Oberfläche (`open == null` → die Geld-Zeile rendert nichts; wer nicht den Zuschlag hat,
+  bekommt Name, Preis und Frist des Gewählten gar nicht erst geliefert).
+- ►►► **Jeder Knopf trägt eine Ausprägung.** ◄◄◄ Ein blosser `.erp-actbtn` hat
+  `border: 1px solid transparent` und keine Fläche – er **sieht aus wie Text**. Erst
+  `-primary` (der Vorschlag) / `-neutral` (die übrigen) / `-danger` (Storno) machen daraus
+  einen Knopf, `-icon` daraus ein Quadrat. Das war die Ursache von «die Buttons gefallen
+  mir nicht», nicht der Geschmack.
+- **Und «Weitere» gibt es nicht.** Ein Auswahlmenü ist die richtige Form für viele
+  gleichrangige Dinge; hier waren es drei, und eines davon (der Storno) ist die
+  Gegenhandlung des ganzen Vorgangs. **Was man jetzt tun kann, muss man sehen** – welches
+  das naheliegende ist, sagt die Fläche des Knopfes, kein Klick, der es erst hervorholt.
+- **Wo man steht, sagt die Zeile** – gefüllter Punkt in der Akzentfarbe, Beschriftung in
+  Versalien. Punkt und Wort teilen dafür **eine** Zeilenhöhe (`HEAD_H`) statt zweier
+  geratener Abstände (#798, gemessen: Δy 0,0 px).
+- **Offerte und Absage sind Symbol-Knöpfe** wie im Beschaffungs-Beleg (#800): «Offerte»
+  beschreibt einen *Zustand*, der Knopf löst eine *Handlung* aus.
+- **Die Bestellangabe steht an SEINER Zeile** (`quote.ref`) – seine Artikelnummer, sein
+  Shop-Link; sieht sie aus wie eine Adresse, ist sie ein Link. Ob es sie gibt, sagt
+  `d.party_ref` (leer beim Verkauf – dort liefern wir), nie ein `if` auf die Richtung.
 - **Gerechnet wird nichts im Browser** – *berechnet · bezahlt · offen · noch nicht
   berechnet* kommen vom Server. «Bezahlt» heisst «gefordert UND beglichen»; ohne die
   Unterscheidung stünde direkt nach der Zusage «Bezahlt» da, weil *offen* null ist.
@@ -310,7 +328,8 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Messung, die die Lösung als Fehler meldet, ist so falsch wie eine, die ihn übersieht.
 - **Im Editor** (`MoneyFields`) vier Angaben: Richtung (Schieber, Vorgabe **Einnahme**,
   #791), «Was ist daran zu tun?» (**freiwillig**, #796), zugelassene Gegenparteien
-  (`ObjectSelect`, leer = `RUNTIME_CHOICE`) und die Sperre. **Kein Betragsfeld** – beim
+  (`ObjectSelect`, leer = `RUNTIME_CHOICE`) – je Zeile mit ihrer **Bestellangabe**, wo
+  `dir.ref` sie nennt – und die Sperre. **Kein Betragsfeld** – beim
   Modellieren steht er nicht fest. **Kein Erklärsatz darunter** (#792): er sagte, was das
   Feld darüber zeigt.
 - **Die Wörter der Richtung stehen in `lib/modules.DEAL_DIRECTION`** (Symbol, Label, Hinweis,

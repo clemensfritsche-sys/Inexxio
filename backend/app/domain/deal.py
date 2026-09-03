@@ -170,6 +170,18 @@ class Direction:
     open_word: str
     #: Die Überschrift des Geld-Bereichs – die dritte Zeile der Karte.
     money_label: str = "Rechnung & Zahlung"
+    #: ►►► **Wie man bei IHM bestellt** – seine Artikelnummer oder sein Shop-Link. ◄◄◄
+    #:
+    #: Der **Name des Feldes**; leer heisst: **es gibt das Feld hier nicht**. Ein Wert
+    #: statt eines Booleans, weil dieselbe Angabe zwei Fragen beantwortet – *gibt es sie*
+    #: und *wie heisst sie*; zwei Felder daneben könnten sich widersprechen.
+    #:
+    #: **Nur wo WIR bestellen.** Beim Verkauf liefern wir – das Feld stünde dort als
+    #: Angabe da, die niemand ausfüllen kann (dieselbe Regel wie ``Flow.party_ref`` beim
+    #: Beschaffungs-Beleg, Testnotiz #787). Ein trotzdem gesendeter Wert wird **verworfen**:
+    #: ein Feld, das die Oberfläche nicht anbietet, der Dienst aber annimmt, wäre eine
+    #: Hintertür zu einer Angabe, die niemand liest.
+    party_ref: str = ""
 
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst. Die beiden **Ausgänge** gehören beiden Richtungen
@@ -212,6 +224,8 @@ DIRECTIONS: dict[str, Direction] = {
         charge_word="Rechnung erfassen",
         payment_word="Zahlung",
         open_word="Offen",
+        # **Hier bestellen wir** – also braucht es die Angabe, wie das bei ihm geht.
+        party_ref="Bestellangabe",
     ),
 }
 

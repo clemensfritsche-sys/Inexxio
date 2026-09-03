@@ -609,9 +609,10 @@ export interface paths {
          * List Orders
          * @description Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
          *
-         *     **Ein Lieferant sieht die Aufträge, in denen er angefragt ist** – dieselbe eine
-         *     Frage wie im Detail (``purchase.mine``), damit Liste und Datensatz nicht
-         *     auseinanderlaufen können.
+         *     **Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine
+         *     Frage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen
+         *     können. Genau das war einmal nicht so: der Feed fragte nur den Beschaffungs-Beleg,
+         *     also stand der Auftrag eines **Geldvorgangs** in keiner Liste.
          *
          *     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
          *     gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
@@ -1820,6 +1821,11 @@ export interface components {
              */
             party_plural: string;
             /**
+             * Party Ref
+             * @default
+             */
+            party_ref: string;
+            /**
              * Charge Word
              * @default
              */
@@ -2001,6 +2007,11 @@ export interface components {
              * @default
              */
             party_name: string;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
             /** Amount */
             amount?: string | null;
             /** Lead Days */

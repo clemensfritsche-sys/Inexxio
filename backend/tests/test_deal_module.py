@@ -1115,3 +1115,98 @@ def test_an_employee_who_is_also_the_counterparty_keeps_the_full_view():
         assert len(narrow["quotes"]) == 1 and narrow["open"] is None
     finally:
         db.rollback(); db.close()
+
+
+def test_whoever_did_not_win_does_not_see_the_award():
+    """►►► **Wer nicht den Zuschlag hat, sieht ihn auch nicht.** ◄◄◄
+
+    Die Angebotszeilen waren gefiltert, die **getroffene Wahl** nicht: ein angefragter,
+    unterlegener Lieferant las Namen, Preis, Zahlungsfrist und Datum seines Konkurrenten –
+    und dazu die **Freigabe-Liste**, also die Konkurrenzliste selbst.
+
+    Gemessen über die echten Dienstpfade, nicht gelesen. Der Beschaffungs-Beleg hat
+    dieselbe Regel längst (``purchase._embed``); zwei Formen einer Regel sind in Ordnung,
+    zwei Regeln nicht.
+
+    Bug-Formen: (a) die Zusage reist ungefiltert mit; (b) die Freigabe-Liste ebenso;
+    (c) das Wort der Gegenhandlung steht da, obwohl es die Handlung nie gibt.
+    """
+    from app.services import deal as svc
+    db = _db()
+    try:
+        a, b = _party(db, "Härterei A"), _party(db, "Härterei B")
+        staff = _staff(db)
+        art = _article(db, "Welle",
+                       steps=[_money_step(direction="out", parties=[a, b])])
+        order, rows = _make(db, quantity=2, article=art)
+        step = rows[0]
+        svc.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
+        svc.apply(db, order=order, step=step, action="quote",
+                  payload={"party": a.object_id, "amount": "100.00",
+                           "payment_days": 30}, actor=staff)
+        svc.apply(db, order=order, step=step, action="quote",
+                  payload={"party": b.object_id, "amount": "999.00"}, actor=staff)
+        svc.apply(db, order=order, step=step, action="agree",
+                  payload={"party": a.object_id}, actor=staff)
+
+        lost = svc.embed_data(db, order=order, step=step, viewer=b)
+        assert lost["party_object_id"] is None and lost["party_name"] is None, (
+            "Der Unterlegene sieht, wer den Zuschlag hat."
+        )
+        assert lost["amount"] is None and lost["due_days"] is None, (
+            "Der Unterlegene sieht den Preis des Konkurrenten."
+        )
+        assert lost["agreed_on"] is None and lost["reference"] is None
+        assert lost["allowed"] == [], (
+            "Die Freigabe-Liste ist die Konkurrenzliste – sie geht ihn nichts an."
+        )
+        assert "100.00" not in str(lost) and "Härterei A" not in str(lost), (
+            "Irgendwo in der Antwort steckt der Konkurrent noch."
+        )
+        # **Kein Wort für eine Handlung, die es nie gibt.**
+        assert lost["can"] == [] and lost["undo"] is None
+
+        # **Wer den Zuschlag HAT, sieht seine Zusage** – sonst prüfte der Wächter nur,
+        # dass gar nichts mehr durchkommt.
+        won = svc.embed_data(db, order=order, step=step, viewer=a)
+        assert won["party_object_id"] == a.object_id and won["amount"] == "100.00", (
+            "Der Gewählte sieht seine eigene Zusage nicht."
+        )
+        # **Geld bleibt trotzdem Personalsache** – was wir schulden, ist unsere Buchhaltung.
+        assert won["open"] is None and won["entries"] == []
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_feed_shows_a_counterparty_the_orders_it_is_involved_in():
+    """►►► **Eine Frage, zwei Leser** – Feed und Detail. ◄◄◄
+
+    Der Feed fragte nur den Beschaffungs-Beleg (``purchase.mine``). Die Gegenpartei eines
+    **Geldvorgangs** hatte damit ERP-Zugang, sah ihren Auftrag aber in **keiner Liste** –
+    erreichbar nur über die direkte Adresse. Zwei Ableitungen derselben Frage laufen genau
+    so auseinander.
+
+    Bug-Formen: (a) der Feed fragt wieder nur eine der beiden Quellen; (b) ein Mitarbeiter
+    bekommt plötzlich eine gefilterte Liste.
+    """
+    from app.routers.orders import _involved
+    from app.services import deal as svc
+    db = _db()
+    try:
+        p = _party(db, "Härterei A")
+        staff = _staff(db)
+        art = _article(db, "Welle", steps=[_money_step(direction="out", parties=[p])])
+        order, rows = _make(db, quantity=2, article=art)
+        step = rows[0]
+        svc.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
+
+        mine = _involved(db, p)
+        assert mine is not None, "Eine Gegenpartei bekäme die volle Liste."
+        assert (order.id, step.id) in mine, (
+            "Der Auftrag des Geldvorgangs fehlt in der Liste – die Gegenpartei erreicht "
+            "ihn nur noch über die direkte Adresse."
+        )
+        # **Personal bleibt Personal** – `None` heisst «sieht alles».
+        assert _involved(db, staff) is None
+    finally:
+        db.rollback(); db.close()

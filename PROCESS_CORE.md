@@ -2303,6 +2303,48 @@ desselben Datensatzes wäre eine zweite Wahrheit. Hinge die Verengung an der **B
 verlöre ein Einkäufer, den man einmal selbst anfragt, an genau diesem Auftrag die Zahlen,
 die er zum Arbeiten braucht.
 
+##### Wer nicht den Zuschlag hat, sieht ihn auch nicht
+
+Die erste Fassung schloss die Gegenpartei aus dem **Auftrag** aus und liess ihr **im Modul**
+alles. Gemessen an einem unterlegenen Lieferanten nach dem Zuschlag an einen anderen: er las
+dessen **Namen**, dessen **Preis**, die Zahlungsfrist, das Zusagedatum – und dazu die
+**Freigabe-Liste**, also die Konkurrenzliste selbst.
+
+Die Regel ist darum dieselbe wie beim Beschaffungs-Beleg (`won`): Name, Betrag, Frist,
+Referenz und Datum der Zusage fallen für jede Gegenpartei weg, die nicht selbst den Zuschlag
+hat; die Freigabe-Liste fällt für **jede** Nicht-Personal-Sicht ganz weg. *Zwei Formen einer
+Regel sind in Ordnung; zwei Regeln nicht* – auch wenn die beiden Module bewusst keine Zeile
+Code teilen.
+
+Und **das Wort der Gegenhandlung hängt an `can`**, nicht an der Stufe: sonst steht bei einer
+Gegenpartei «Auftrag stornieren» an einem Knopf, den es für sie nie gibt.
+
+##### Eine Frage, zwei Leser: Feed und Detail
+
+Beteiligt ist, wer an einem **der beiden** Module mit Aussenwirkung vorkommt
+(`orders._involved` = `purchase.mine` ∪ `deal.mine`). Der Feed fragte einmal nur den
+Beschaffungs-Beleg: die Gegenpartei eines Geldvorgangs hatte ERP-Zugang, sah ihren Auftrag
+aber in **keiner Liste** – erreichbar nur über die direkte Adresse. Zwei Ableitungen
+derselben Frage laufen genau so auseinander.
+
+**Und sie bestätigt kein Modul.** `confirm_step` ist Personal-only; der Bestätigungsweg
+hängt darum an derselben Naht wie das Modul-Protokoll (`internal` – die Aussage der
+Aufrufstelle über sich selbst), nicht an einer Rollenabfrage. Ein Knopf, der nie etwas tun
+kann, ist kein Angebot.
+
+#### Wie man bei IHM bestellt — die Bestellangabe
+
+Seine Artikelnummer, sein Shop-Link (`config.parties[].ref`). Sie ist eine Eigenschaft der
+**Paarung** Modul × Gegenpartei und nicht der Gegenpartei allein: derselbe Lieferant führt je
+Teil eine andere Nummer. Sie gehört darum dorthin, wo man festlegt, **wer in Frage kommt** –
+am Beleg wäre sie eine Angabe, die man bei jedem Vorgang neu abschreibt.
+
+**Nur wo wir bestellen** (`Direction.party_ref`): beim Verkauf liefern wir, dort gibt es das
+Feld nicht, und ein trotzdem gesendeter Wert wird **verworfen** – ein Feld, das keine
+Oberfläche zeigt, der Dienst aber annimmt, wäre die Hintertür zu einer Angabe, die niemand
+liest (dieselbe Regel wie #787). Zur Laufzeit steht sie an **seiner** Angebotszeile; sieht
+sie aus wie eine Adresse, ist sie ein Link.
+
 #### Kein Scan — und das ist eine Eigenschaft des Moduls
 
 Ein Geldvorgang bewegt keine Stücke: es gibt **nichts zu verifizieren**, und ein Scan davor

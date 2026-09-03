@@ -870,9 +870,15 @@ class Zahlung(Module):
     Unterscheidung fällt aus zwei Angaben heraus, die es ohnehin gibt. Ein Template wäre
     ein Konzept für eine Frage, die sich von selbst beantwortet.
 
-    Ebenso gibt es **keine Menge** (die Zahl der Einzelinstanzen), **keinen Termin**
-    (ableitbar) und **keine Bestellangabe** – wer bei wem unter welcher Nummer bestellt,
-    ist eine Eigenschaft der Gegenpartei bzw. des Artikels, nicht dieses Schritts.
+    Ebenso gibt es **keine Menge** (die Zahl der Einzelinstanzen) und **keinen Termin**
+    (ableitbar aus Bestelldatum und Lieferfrist).
+
+    **Die Bestellangabe gibt es dagegen sehr wohl** – je zugelassener Gegenpartei eine
+    (``parties[].ref``): seine Artikelnummer, sein Shop-Link. Sie ist eine Eigenschaft der
+    **Paarung** Modul × Gegenpartei und nicht der Gegenpartei allein – derselbe Lieferant
+    führt je Teil eine andere Nummer –, und sie gehört dorthin, wo man festlegt, wer in
+    Frage kommt. Am **Beleg** wäre sie eine Angabe, die man bei jedem Vorgang neu
+    abschreibt. **Nur wo wir bestellen**: beim Verkauf liefern wir (``Direction.party_ref``).
 
     ## Die eine Regel, die es robust macht: es bewegt keine Stücke
 
@@ -903,11 +909,16 @@ class Zahlung(Module):
     PARTIES = "parties"
     SUBJECT = "subject"
     PREPAID = "prepaid"
+    #: Die beiden Schlüssel **einer Zeile** der Freigabe-Liste.
+    PARTY = "party"
+    REF = "ref"
 
     #: Ein Satz, kein Pflichtenheft – wer mehr braucht, hängt ein Dokument an den Artikel.
     MAX_SUBJECT = 400
     #: Mehr ist keine Auswahl mehr, sondern eine Adressliste.
     MAX_PARTIES = 10
+    #: Eine Artikelnummer oder ein Link – kein Bestelltext.
+    MAX_REF = 200
 
     #: ►►► **Kein Scan.** ◄◄◄
     #:
@@ -968,12 +979,21 @@ class Zahlung(Module):
             "points": [], "sample": dict(sampling.DEFAULT),
         }
 
-    def _parties(self, value: Any, flow: "deal.Direction") -> list[int]:
+    def _parties(self, value: Any, flow: "deal.Direction") -> list[dict[str, Any]]:
         """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt und heisst **frei**.
 
-        Blosse Objektnummern, keine Zeilen mit Zusatzangaben: «wie bestelle ich bei ihm»
-        ist eine Eigenschaft der Gegenpartei bzw. des Artikels und ändert sich nicht je
-        Vorgang – am Schritt wäre sie eine Angabe, die man überall neu abschreibt.
+        Je Zeile die Objektnummer und – **nur wo wir bestellen** – die Bestellangabe
+        (``flow.party_ref``): seine Artikelnummer oder sein Shop-Link. Sie gehört der
+        **Paarung** Modul × Gegenpartei, nicht der Gegenpartei allein: derselbe Lieferant
+        führt je Teil eine andere Nummer.
+
+        **Beim Verkauf wird ein gesendeter Wert verworfen**, nicht abgewiesen: dort
+        liefern wir, es gibt das Feld nicht, und die Oberfläche bietet es gar nicht erst
+        an. Ein Dienst, der annimmt, was keine Oberfläche zeigt, wäre die Hintertür zu
+        einer Angabe, die niemand liest (dieselbe Regel wie #787).
+
+        Tolerant **gelesen** wird die alte Form (blosse Objektnummer): ein freigegebener
+        Prozess ist eingefroren, sie steht in laufenden Aufträgen und wird sie überleben.
         """
         if value in (None, ""):
             value = []
@@ -983,36 +1003,70 @@ class Zahlung(Module):
                 detail=f"«{flow.label}» erwartet eine Liste zugelassener "
                        f"{flow.party_plural}.",
             )
-        found: list[int] = []
+        rows: list[dict[str, Any]] = []
+        seen: set[int] = set()
         for entry in value:
-            number = self._object_id(entry)
+            raw = entry.get(self.PARTY) if isinstance(entry, dict) else entry
+            number = self._object_id(raw)
             if number is None:
                 raise HTTPException(
                     status_code=400,
                     detail=f"«{entry}» ist keine Objektnummer ({flow.party_word}).",
                 )
-            if number in found:
+            if number in seen:
                 raise HTTPException(
                     status_code=400,
                     detail=(f"{flow.party_word} {number} steht zweimal – zweimal "
                             f"derselbe ist keine zweite Wahl."),
                 )
-            found.append(number)
-        if len(found) > self.MAX_PARTIES:
+            seen.add(number)
+            ref = str((entry.get(self.REF) if isinstance(entry, dict) else "") or "").strip()
+            if not flow.party_ref:
+                ref = ""
+            if len(ref) > self.MAX_REF:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"Die {flow.party_ref} von {number} ist zu lang "
+                            f"(max. {self.MAX_REF} Zeichen)."),
+                )
+            rows.append({self.PARTY: number, self.REF: ref})
+        if len(rows) > self.MAX_PARTIES:
             raise HTTPException(
                 status_code=400,
                 detail=f"Höchstens {self.MAX_PARTIES} {flow.party_plural} je Modul.",
             )
-        return found
+        return rows
 
 
-def parties_allowed(config: Optional[dict[str, Any]]) -> list[int]:
-    """Die zugelassenen Gegenparteien eines «Zahlung»-Schritts – die eine Lesestelle.
+def parties_of(config: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Die zugelassenen Gegenparteien **mit ihrer Bestellangabe** – die eine Lesestelle.
 
     **Leer heisst frei, nicht «niemand».** Der Dienst schränkt nur ein, wenn hier etwas
     steht; sonst wäre ein Modul ohne Liste eines, bei dem man mit niemandem handeln kann.
+
+    Tolerant gegen die alte Form (blosse Objektnummer) – sie steht in jedem Auftrag, der
+    vor dieser Runde freigegeben wurde, und ein eingefrorener Prozess ändert sich nie.
     """
-    return [int(n) for n in (config or {}).get(Zahlung.PARTIES) or []]
+    rows: list[dict[str, Any]] = []
+    for entry in (config or {}).get(Zahlung.PARTIES) or []:
+        raw = entry.get(Zahlung.PARTY) if isinstance(entry, dict) else entry
+        try:
+            number = int(raw)
+        except (TypeError, ValueError):
+            continue
+        ref = str((entry.get(Zahlung.REF) if isinstance(entry, dict) else "") or "")
+        rows.append({Zahlung.PARTY: number, Zahlung.REF: ref})
+    return rows
+
+
+def parties_allowed(config: Optional[dict[str, Any]]) -> list[int]:
+    """Nur die Nummern – die Form, in der die **Freigabe-Prüfung** sie braucht.
+
+    Zwei Formen einer Regel, ein Namensstamm: ``parties_of`` nennt die ganze Zeile,
+    ``parties_allowed`` beantwortet «darf der hier mitspielen». Zwei Lesestellen wären
+    zwei Regeln.
+    """
+    return [int(r[Zahlung.PARTY]) for r in parties_of(config)]
 
 
 def subject_of(config: Optional[dict[str, Any]]) -> str:

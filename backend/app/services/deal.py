@@ -733,8 +733,19 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     Verben, Zahlen und was man tun darf. Sie fragt damit nie nach der Richtung und nie
     nach dem Modultyp.
 
-    **Und eine Gegenpartei sieht nur ihre eigene Zeile.** Fremde Preise sind kein
-    Nebeneffekt einer Ansicht: gefiltert wird hier, beim Aufbau der Antwort.
+    **Und eine Gegenpartei sieht nur ihren Teil.** Fremde Preise sind kein Nebeneffekt
+    einer Ansicht: gefiltert wird hier, beim Aufbau der Antwort.
+
+    ►►► **Wer nicht den Zuschlag hat, sieht ihn auch nicht.** ◄◄◄
+
+    Die Angebotszeilen waren gefiltert, die **getroffene Wahl** nicht – ein angefragter,
+    unterlegener Lieferant las damit Namen, Preis, Frist und Datum seines Konkurrenten
+    (gemessen über die echten Dienstpfade, nicht gelesen). Und die **Freigabe-Liste** ist
+    die Konkurrenzliste selbst: sie fällt für jede Nicht-Personal-Sicht ganz weg.
+
+    Dieselbe Regel hat der Beschaffungs-Beleg längst (``purchase._embed``). Zwei Formen
+    einer Regel sind in Ordnung; zwei Regeln nicht – darum steht sie hier wörtlich gleich,
+    obwohl die beiden Module bewusst keine Zeile Code teilen.
     """
     row = of_step(db, step.id)
     if row is None:
@@ -744,34 +755,44 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     money = balance_of(db, row)
     today = date.today()
     internal = viewer is None or viewer.role in STAFF_ROLES
+    # **Den Zuschlag hat, wer zugesagt bekam** – für das Personal ist das immer wahr.
+    won = internal or (row.party_id is not None and viewer is not None
+                       and row.party_id == viewer.object_id)
+    allowed = can(db, row, viewer)
     return {
         "direction": row.direction,
         "label": flow.label,
         "party_word": flow.party_word,
         "party_plural": flow.party_plural,
+        "party_ref": flow.party_ref,
         "ask_verb": flow.ask_verb,
         "charge_word": flow.charge_word,
         "payment_word": flow.payment_word,
         "open_word": flow.open_word,
         "money_label": flow.money_label,
-        "undo": flow.undo if "revoke" in ACTIONS.get(row.stage, ()) else None,
+        # **Das Wort der Gegenhandlung hängt an DEN HANDLUNGEN DIESES BETRACHTERS**, nicht
+        # an der Stufe: sonst liest eine Gegenpartei «Auftrag stornieren» an einem Knopf,
+        # den es für sie nie gibt.
+        "undo": flow.undo if "revoke" in allowed else None,
         "stage": row.stage,
         "stage_label": flow.label_of(row.stage),
         "stages": _stages(row, flow),
-        "can": can(db, row, viewer),
+        "can": allowed,
         "subject": modules.subject_of(step.config),
         "prepaid": modules.prepaid(step.config),
-        "allowed": _named(db, modules.parties_allowed(step.config)),
-        "quotes": _quotes(db, row, viewer=viewer, internal=internal),
+        # **Die Freigabe-Liste ist die Konkurrenzliste** – sie geht eine Gegenpartei
+        # nichts an, auch nicht die, die den Zuschlag hat.
+        "allowed": _named(db, modules.parties_allowed(step.config)) if internal else [],
+        "quotes": _quotes(db, row, step, viewer=viewer, internal=internal),
         "lines": embed_lines(db, order, row),
-        "party_object_id": row.party_id,
+        "party_object_id": row.party_id if won else None,
         "party_name": (_named(db, [row.party_id])[0]["name"]
-                       if row.party_id else None),
-        "amount": _money(row.amount),
-        "due_days": row.due_days,
-        "reference": row.reference,
-        "note": row.note,
-        "agreed_on": row.agreed_on,
+                       if row.party_id and won else None),
+        "amount": _money(row.amount) if won else None,
+        "due_days": row.due_days if won else None,
+        "reference": row.reference if won else None,
+        "note": row.note if won else None,
+        "agreed_on": row.agreed_on if won else None,
         # ►► **Forderung und Geld sieht nur das Personal.** Was ein Kunde uns schuldet,
         #    geht einen angefragten Dritten nichts an.
         "charged": _money(money.charged) if internal else None,
@@ -796,12 +817,16 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     }
 
 
-def _quotes(db: Session, row: Deal, *, viewer: Optional[UserProfile],
-            internal: bool) -> list[dict[str, Any]]:
+def _quotes(db: Session, row: Deal, step: ProcessStep, *,
+            viewer: Optional[UserProfile], internal: bool) -> list[dict[str, Any]]:
     """Der Angebotsspiegel – **für die Gegenpartei nur ihre eigene Zeile**.
 
     Wer nicht den Zuschlag hat, sieht weder Namen noch Preis der übrigen: gefiltert wird
     beim Aufbau der Antwort, nicht in der Oberfläche.
+
+    **Die Bestellangabe reist mit ihrer Zeile** (``config.parties[].ref``): sie sagt, wie
+    man bei genau diesem hier bestellt, und steht darum bei ihm – nicht als eine Angabe am
+    Beleg, die man bei jedem Vorgang neu abschreibt.
     """
     lines = [dict(q) for q in (row.quotes or [])]
     if not internal:
@@ -809,10 +834,13 @@ def _quotes(db: Session, row: Deal, *, viewer: Optional[UserProfile],
         lines = [q for q in lines if q.get("party") == own]
     names = {n["object_id"]: n["name"]
              for n in _named(db, [q.get("party") for q in lines])}
+    refs = {r[modules.Zahlung.PARTY]: r[modules.Zahlung.REF]
+            for r in modules.parties_of(step.config)}
     return [
         {
             "party_object_id": q.get("party"),
             "party_name": names.get(q.get("party"), ""),
+            "ref": refs.get(q.get("party"), ""),
             "amount": q.get("amount"),
             "lead_days": q.get("lead_days"),
             "payment_days": q.get("payment_days"),

@@ -2,7 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import {
-  Check, ChevronDown, CircleSlash, FileText, Lock, Send, Trash2, Undo2, Wallet,
+  ArrowUpRight, Check, ChevronDown, CircleSlash, FileText, Lock, Send, Trash2, Undo2,
+  Wallet,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DealEmbed, DealParty, DealQuote } from '@/types';
@@ -95,7 +96,7 @@ export function DealWork({ deal, busy, active = true, onAction, children }: {
       <Head d={d} />
       <Goods d={d} />
 
-      <Row first label={d.stages[0]?.label ?? ''} done={!!d.stages[0]?.done}
+      <Row label={d.stages[0]?.label ?? ''} done={!!d.stages[0]?.done}
         active={!!d.stages[0]?.active && !cancelled}>
         <Offer d={d} busy={busy} active={active && !!d.stages[0]?.active}
           onAction={onAction} />
@@ -132,32 +133,54 @@ export function DealWork({ deal, busy, active = true, onAction, children }: {
  * Dieselbe Regel wie die Hauptachse, eine Ebene tiefer: kräftige Linie bis zur offenen
  * Stelle, Haarlinie danach. Ein Bauteil statt dreimal derselbe Aufbau – sonst laufen die
  * drei Zeilen beim ersten Eingriff auseinander.
+ *
+ * ►►► **Die Beschriftung steht auf Höhe ihres Punktes** (Testnotiz #798). ◄◄◄
+ *
+ * Punkt und Wort standen beide mit einem geratenen `marginTop` da – der eine 3 px, das
+ * andere auf der Grundlinie seiner Zeilenhöhe. Zwei Ränder, die sich zufällig treffen
+ * müssen, treffen sich beim ersten anderen Schriftgrad nicht mehr. Jetzt teilen sie
+ * **eine** Zeilenhöhe (`HEAD_H`) und werden darin zentriert: die Ausrichtung ist eine
+ * Eigenschaft der Zeile, keine zweier Abstände.
+ *
+ * **Und die aktive Zeile ist die lauteste.** Wo man steht, sagt die Karte ohne ein Wort
+ * mehr: gefüllter Punkt in der Akzentfarbe, Beschriftung in Versalien und kräftig. Die
+ * übrigen bleiben Struktur – keine Fläche, keine zweite Farbe.
  */
-function Row({ label, done, active, first, last, children }: {
+const HEAD_H = 18;
+
+function Row({ label, done, active, last, children }: {
   label: string; done?: boolean; active?: boolean;
-  first?: boolean; last?: boolean; children?: React.ReactNode;
+  last?: boolean; children?: React.ReactNode;
 }) {
   return (
     <div className="flex gap-2.5">
       <div className="flex flex-col items-center" style={{ width: 14, flex: 'none' }}>
-        <span style={{
-          width: 10, height: 10, borderRadius: 999, flex: 'none', marginTop: 3,
-          background: done ? 'var(--fg-2)' : 'var(--bg-1)',
-          border: `${active ? 2 : 1}px solid ${
-            done || active ? 'var(--fg-2)' : 'var(--border-2)'}`,
-        }} />
+        {/* Der Punkt sitzt in einer Box der Zeilenhöhe und ist darin zentriert – genau
+            so wie die Beschriftung daneben. */}
+        <span className="flex items-center justify-center"
+          style={{ height: HEAD_H, flex: 'none' }}>
+          <span style={{
+            width: 10, height: 10, borderRadius: 999, display: 'block',
+            background: done ? 'var(--fg-2)' : active ? 'var(--accent)' : 'transparent',
+            border: done || active ? 'none' : '1px solid var(--border-2)',
+          }} />
+        </span>
         {!last && (
           <div style={{
-            flex: 1, width: done ? 2 : 1, minHeight: 14,
+            flex: 1, width: done ? 2 : 1, minHeight: 10,
             background: done ? 'var(--fg-2)' : 'var(--border-2)',
           }} />
         )}
       </div>
-      <div className="flex-1 min-w-0" style={{ paddingBottom: last ? 0 : 12, paddingTop: first ? 0 : 0 }}>
-        <span style={{
-          font: `${active ? 700 : 600} 12.5px var(--font-body)`,
-          color: active ? 'var(--fg-1)' : done ? 'var(--fg-2)' : 'var(--fg-4)',
-        }}>{label}</span>
+      <div className="flex-1 min-w-0" style={{ paddingBottom: last ? 0 : 14 }}>
+        <div className="flex items-center" style={{ height: HEAD_H }}>
+          <span style={{
+            font: `${active ? 800 : 600} ${active ? 11.5 : 12.5}px var(--font-body)`,
+            letterSpacing: active ? '.07em' : undefined,
+            textTransform: active ? 'uppercase' : undefined,
+            color: active ? 'var(--accent-ink)' : done ? 'var(--fg-2)' : 'var(--fg-4)',
+          }}>{label}</span>
+        </div>
         {children}
       </div>
     </div>
@@ -165,20 +188,29 @@ function Row({ label, done, active, first, last, children }: {
 }
 
 /**
- * **In welche Richtung — als SYMBOL, nicht als Dauertext** (#797).
+ * **In welche Richtung — als SYMBOL, nicht als Dauertext** (#797/#799).
  *
- * Plus und Minus sind die Buchhaltungssprache selbst; ein Wort daneben sagt dieselbe
- * Sache ein zweites Mal und ist bei jeder Karte im Weg. Die Bedeutung steht im Hover –
- * dieselbe Regel wie bei jedem Symbol-Knopf im Haus.
+ * Das Wort daneben sagte dieselbe Sache ein zweites Mal und war bei jeder Karte im Weg;
+ * die Bedeutung steht darum im Hover – dieselbe Regel wie bei jedem Symbol-Knopf im Haus.
+ *
+ * **Das Symbol bildet ab, was man TUT**: Einkaufswagen ↔ Handschlag, dasselbe Paar wie
+ * beim Beschaffungs-Beleg (#799). Plus und Minus waren die Buchhaltungssprache, aber
+ * nicht die dessen, der davorsteht – und auf 15 px kaum unterscheidbar. Es sitzt darum
+ * in einer getönten Marke wie jedes Modul-Symbol im Haus und ist gross genug, um es zu
+ * erkennen, ohne hinzuzeigen.
  */
 function Head({ d }: { d: Filled }) {
   const dir = dealDirection(d.direction);
   const Icon = dir.icon;
   return (
-    <div className="flex items-center gap-2 flex-wrap"
-      style={{ marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid var(--border-1)' }}>
-      <span data-tip={dir.hint} style={{ color: 'var(--fg-2)', display: 'flex' }}>
-        <Icon size={15} />
+    <div className="flex items-center gap-2.5 flex-wrap"
+      style={{ marginBottom: 10, paddingBottom: 9, borderBottom: '1px solid var(--border-1)' }}>
+      <span className="flex items-center justify-center rounded-ds-sm" data-tip={dir.hint}
+        style={{
+          width: 28, height: 28, flex: 'none', cursor: 'help',
+          background: 'var(--accent-soft)', color: 'var(--accent-ink)',
+        }}>
+        <Icon size={17} />
       </span>
       {d.subject && (
         <span className="text-[12.5px] min-w-0 flex-1" style={{ color: 'var(--fg-2)' }}>
@@ -303,7 +335,8 @@ function Offer({ d, busy, active, onAction }: {
         />
       ) : open.length > 0 && (
         <div>
-          <button type="button" className="erp-actbtn" disabled={busy}
+          <button type="button" className="erp-actbtn erp-actbtn-primary self-start"
+            style={{ height: 32 }} disabled={busy}
             data-tip={open.map((o) => `${o.object_id} ${o.name}`).join(' · ')}
             onClick={() => onAction({ action: 'ask' })}>
             <Send size={13} /> {d.ask_verb}
@@ -321,6 +354,11 @@ function Offer({ d, busy, active, onAction }: {
  * Zwei Zeilen statt einer Flexzeile: bei ~460 px Spurbreite drängten sich sonst Nummer,
  * Name, zwei Eingaben und zwei Symbol-Knöpfe nebeneinander. Oben **wer und wie viel**,
  * darunter – nur wo etwas zu tun ist – die Handlungen.
+ *
+ * ►►► **Offerte und Absage sind Symbol-Knöpfe** (Testnotiz #800) – wie im
+ * Beschaffungs-Beleg, und aus demselben Grund: das Wort «Offerte» beschreibt einen
+ * **Zustand**, während der Knopf eine **Handlung** auslöst. Ein Haken heisst «festhalten»,
+ * ein durchgestrichener Kreis «kommt nicht in Frage»; was sie bedeuten, steht im Hover.
  */
 function QuoteRow({ d, quote, busy, active, onAction }: {
   d: Filled; quote: DealQuote; busy?: boolean; active: boolean;
@@ -361,12 +399,20 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
           </span>
         )}
       </div>
+
+      {/* ►►► **Wie man bei IHM bestellt** – seine Artikelnummer, sein Shop-Link (#753).
+          Sie steht in der **Definition** und damit an seiner Zeile: eine Eigenschaft der
+          Paarung Modul × Gegenpartei, die sich nicht je Vorgang ändert. ◄◄◄ */}
+      {d.party_ref && quote.ref && <PartyRef value={quote.ref} label={d.party_ref} />}
+
       {active && !chosen && (may(d, active, 'quote') || may(d, active, 'agree')) && (
         <div className="flex items-end gap-2 flex-wrap" style={{ paddingBottom: 8 }}>
           {may(d, active, 'quote') && (
             <>
               <div style={{ width: 110 }}>
-                <Label>Betrag</Label>
+                {/* **Was muss ich eingeben?** – die Marke am Label sagt es, und der Knopf
+                    daneben bleibt zu, solange es fehlt. Zwei Formen einer Aussage. */}
+                <Label required>Betrag</Label>
                 <input className={`${inputCls} ix-tnum`} {...numericInputProps}
                   value={amount} aria-label="Betrag" placeholder="0.00"
                   onChange={(e) => setAmount(numericOnly(e.target.value))} />
@@ -383,27 +429,37 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
                   value={days} aria-label="Zahlungsfrist in Tagen" placeholder="Tage"
                   onChange={(e) => setDays(numericOnly(e.target.value, { decimals: false }))} />
               </div>
-              <button type="button" className="erp-actbtn" disabled={busy}
-                data-tip="Den genannten Preis festhalten"
+              <button type="button"
+                className="erp-actbtn erp-actbtn-primary erp-actbtn-icon"
+                style={{ height: 30 }} disabled={busy || amount.trim() === ''}
+                aria-label="Offerte erfassen"
+                data-tip={amount.trim() === ''
+                  ? 'Ohne Betrag gibt es keine Offerte'
+                  : 'Offerte erfassen – den genannten Preis festhalten'}
                 onClick={() => onAction({
                   action: 'quote', party, amount,
                   lead_days: lead === '' ? null : Number(lead),
                   payment_days: days === '' ? null : Number(days),
                 })}>
-                Offerte
+                <Check size={14} />
               </button>
             </>
           )}
           {may(d, active, 'decline') && !declined && (
-            <button type="button" className="erp-actbtn erp-actbtn-icon" disabled={busy}
+            <button type="button"
+              className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
+              style={{ height: 30 }} disabled={busy}
               aria-label="Absage" data-tip="Absage · kommt nicht in Frage"
               onClick={() => onAction({ action: 'decline', party })}>
-              <CircleSlash size={13} />
+              <CircleSlash size={14} />
             </button>
           )}
-          {/* **Der Zuschlag** – das eine Verb, das in beiden Richtungen gleich heisst. */}
+          {/* **Der Zuschlag** – das eine Verb, das in beiden Richtungen gleich heisst.
+              Er ist die **naheliegende Handlung** dieser Zeile und trägt darum die
+              Fläche; die beiden Symbol-Knöpfe daneben sind die Vorstufe. */}
           {may(d, active, 'agree') && !declined && (
-            <button type="button" className="erp-actbtn" disabled={busy || !quote.amount}
+            <button type="button" className="erp-actbtn erp-actbtn-primary"
+              style={{ height: 30 }} disabled={busy || !quote.amount}
               data-tip={quote.amount ? undefined : 'Ohne Preis gibt es keine Zusage'}
               onClick={() => onAction({ action: 'agree', party })}>
               <Check size={13} /> {d.stages[0]?.verb}
@@ -412,6 +468,33 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * **Wie man bei ihm bestellt** – seine Artikelnummer oder sein Shop-Link.
+ *
+ * Sieht sie aus wie eine Adresse, ist sie eine: die Heuristik steht an dieser **einen**
+ * Stelle, statt ein zweites Feld «ist Link» zu erfinden, das jemand falsch ankreuzt.
+ */
+function PartyRef({ value, label }: { value: string; label: string }) {
+  const link = /^https?:\/\//i.test(value);
+  if (!link) {
+    return (
+      <span className="flex items-baseline gap-1.5 text-[12px]" style={{ paddingBottom: 4 }}>
+        <span style={{ color: 'var(--fg-4)', flex: 'none' }}>{label}</span>
+        <span className="ix-tnum truncate" style={{ color: 'var(--fg-3)', minWidth: 0 }}
+          data-tip={value}>{value}</span>
+      </span>
+    );
+  }
+  return (
+    <a href={value} target="_blank" rel="noopener noreferrer" data-tip={value}
+      className="flex items-center gap-1 text-[12px] truncate self-start"
+      style={{ color: 'var(--accent)', paddingBottom: 4, minWidth: 0 }}>
+      <ArrowUpRight size={12} style={{ flex: 'none' }} />
+      <span className="truncate">{label} öffnen</span>
+    </a>
   );
 }
 
@@ -473,39 +556,32 @@ function Agreed({ d, busy, active, onAction, children }: {
  * **negative** Zahlung.
  *
  * **Welche Handlung jetzt dran ist, sagt der Server** (`next_charge` ↔ `next_payment`) –
- * die Oberfläche rechnet nichts nach. Alles Übrige liegt unter «Weitere»: die Freiheit
- * bleibt, aber sie steht nicht mehr als drei gleichwertige Knöpfe da.
+ * die Oberfläche rechnet nichts nach.
+ *
+ * ►►► **Und sie stehen ALLE da — die Rangfolge sagt die Fläche, kein Umweg.** ◄◄◄
+ *
+ * Sie lagen einmal unter «Weitere»: ein Auswahlmenü ist die richtige Form für viele
+ * gleichrangige Dinge, hier waren es drei – und eines davon (der Storno) ist die
+ * Gegenhandlung des ganzen Vorgangs. Was man jetzt tun kann, muss man **sehen**; welches
+ * davon das naheliegende ist, sagt die Ausprägung des Knopfes (`-primary` ↔ `-neutral`
+ * ↔ `-danger`), nicht ein Klick, der es erst hervorholt.
  */
 function Money({ d, busy, active, onAction }: {
   d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
 }) {
   const [form, setForm] = useState<'' | 'charge' | 'payment'>('');
-  const [more, setMore] = useState(false);
   // Ohne Zahlen gibt es nichts zu zeigen – so sieht es eine Gegenpartei.
   if (d.open == null) return null;
 
   const openAmount = Number(d.open);
   const nothingYet = !Number(d.charged ?? 0) && !Number(d.paid ?? 0);
   const overdue = d.entries.some((e) => e.overdue);
-  // **Die naheliegende Handlung**: erst fordern, dann kassieren. Beides bleibt möglich –
-  // nur steht das eine vorn und das andere unter «Weitere».
+  // **Die naheliegende Handlung**: erst fordern, dann kassieren.
   const primary = d.next_charge != null ? 'charge'
     : d.next_payment != null ? 'payment' : '';
-
-  const chargeBtn = (main: boolean) => may(d, active, 'charge') && (
-    <button type="button" className="erp-actbtn" disabled={busy} key="charge"
-      style={main ? { fontWeight: 600 } : undefined}
-      onClick={() => setForm(form === 'charge' ? '' : 'charge')}>
-      <FileText size={13} /> {d.charge_word}
-    </button>
-  );
-  const payBtn = (main: boolean) => may(d, active, 'pay') && (
-    <button type="button" className="erp-actbtn" disabled={busy} key="pay"
-      style={main ? { fontWeight: 600 } : undefined}
-      onClick={() => setForm(form === 'payment' ? '' : 'payment')}>
-      <Wallet size={13} /> {d.payment_word}
-    </button>
-  );
+  // Ein Knopf trägt Fläche, wenn er der Vorschlag ist – sonst bleibt er ein Umriss.
+  const tone = (mine: string) => (mine === primary
+    ? 'erp-actbtn erp-actbtn-primary' : 'erp-actbtn erp-actbtn-neutral');
 
   return (
     <div className="flex flex-col gap-2 mt-1.5">
@@ -562,7 +638,9 @@ function Money({ d, busy, active, onAction }: {
                 {e.due_on && localDate(e.due_on)}
               </span>
               {may(d, active, 'void') && (
-                <button type="button" className="erp-actbtn erp-actbtn-icon"
+                <button type="button"
+                  className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
+                  style={{ height: 26 }}
                   disabled={busy} aria-label="Zeile zurücknehmen"
                   data-tip="Zeile zurücknehmen – sie bleibt im Nachweis lesbar."
                   onClick={() => onAction({ action: 'void', entry: e.id })}>
@@ -575,20 +653,27 @@ function Money({ d, busy, active, onAction }: {
       )}
 
       <div className="flex items-center gap-2 flex-wrap">
-        {primary === 'charge' && chargeBtn(true)}
-        {primary === 'payment' && payBtn(true)}
-        {!more && (may(d, active, 'charge') || may(d, active, 'pay')
-          || may(d, active, 'revoke')) && (
-          <button type="button" className="erp-actbtn" onClick={() => setMore(true)}
-            data-tip="Gutschrift, Erstattung, Storno – jede Reihenfolge bleibt möglich">
-            Weitere <ChevronDown size={13} />
+        {may(d, active, 'charge') && (
+          <button type="button" className={tone('charge')} disabled={busy}
+            style={{ height: 30 }}
+            data-tip="Eine Forderung buchen – ein negativer Betrag ist die Gutschrift."
+            onClick={() => setForm(form === 'charge' ? '' : 'charge')}>
+            <FileText size={13} /> {d.charge_word}
           </button>
         )}
-        {more && primary !== 'charge' && chargeBtn(false)}
-        {more && primary !== 'payment' && payBtn(false)}
-        {/* **Die eine Gegenhandlung** – und ihr Wort kommt vom Server (`undo`). */}
-        {more && may(d, active, 'revoke') && d.undo && (
-          <button type="button" className="erp-actbtn" disabled={busy}
+        {may(d, active, 'pay') && (
+          <button type="button" className={tone('payment')} disabled={busy}
+            style={{ height: 30 }}
+            data-tip="Geld buchen – ein negativer Betrag ist die Erstattung."
+            onClick={() => setForm(form === 'payment' ? '' : 'payment')}>
+            <Wallet size={13} /> {d.payment_word}
+          </button>
+        )}
+        {/* **Die eine Gegenhandlung** – und ihr Wort kommt vom Server (`undo`). Sie
+            trägt die Warnfarbe, nicht die Fläche: sichtbar, aber nie der Vorschlag. */}
+        {may(d, active, 'revoke') && d.undo && (
+          <button type="button" className="erp-actbtn erp-actbtn-danger" disabled={busy}
+            style={{ height: 30 }}
             onClick={() => onAction({ action: 'revoke' })}>
             <Undo2 size={13} /> {d.undo}
           </button>
@@ -642,13 +727,15 @@ function Entry({ kind, d, busy, onCancel, onSubmit }: {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <button type="button" className="erp-actbtn" disabled={busy}
+        <button type="button" className="erp-actbtn erp-actbtn-primary"
+          style={{ height: 30 }} disabled={busy || amount.trim() === ''}
           onClick={() => onSubmit({
             action: kind === 'charge' ? 'charge' : 'pay', amount, reference: ref,
           })}>
-          {kind === 'charge' ? d.charge_word : d.payment_word}
+          <Check size={13} /> Buchen
         </button>
-        <button type="button" className="erp-actbtn" onClick={onCancel}>Abbrechen</button>
+        <button type="button" className="erp-actbtn erp-actbtn-neutral"
+          style={{ height: 30 }} onClick={onCancel}>Abbrechen</button>
       </div>
     </div>
   );

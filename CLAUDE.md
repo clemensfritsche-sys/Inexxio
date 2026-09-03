@@ -1992,6 +1992,62 @@
 > **0** fremde Preise und **0** Zahlen über Geld, der erledigte Vorgang zeigt alles und hat
 > **0** Handlungen.
 
+> **Der Zugang zum MODUL war nicht eingeschränkt — nur der zum Auftrag** (Testnotizen
+> #798–#801). Die Vorrunde hat die Gegenpartei aus dem *Auftrag* ausgeschlossen und ihr *im
+> Modul* alles gelassen. **Gemessen über die echten Dienstpfade**, nicht gelesen: ein
+> unterlegener Lieferant las nach dem Zuschlag an einen anderen dessen **Namen**, dessen
+> **Preis**, Zahlungsfrist und Zusagedatum – und dazu die **Freigabe-Liste**, also die
+> Konkurrenzliste selbst; das Wort «Auftrag stornieren» stand an einem Knopf, den es für
+> ihn nie gibt.
+> **Die Regel ist dieselbe wie beim Beschaffungs-Beleg** (`won`), und sie steht hier wörtlich
+> gleich, obwohl die beiden Module bewusst keine Zeile Code teilen: *zwei Formen einer Regel
+> sind in Ordnung; zwei Regeln nicht.* Die Freigabe-Liste fällt für **jede**
+> Nicht-Personal-Sicht ganz weg, die Zusage für jede, die sie nicht selbst bekommen hat, und
+> `undo` hängt an **`can`** statt an der Stufe.
+> **Und sie sah ihre Aufträge in KEINER Liste.** `list_orders` fragte nur `purchase.mine` –
+> das Detail fragte beide (`_visible`). Der Auftrag eines Geldvorgangs war damit nur über die
+> direkte Adresse erreichbar (gemessen: `deal.mine` fand ihn, der Feed-Filter war leer).
+> Beide lesen jetzt **eine** Ableitung (`orders._involved`); zwei Ableitungen derselben Frage
+> laufen genau so auseinander. **Die Bestätigung fällt für sie weg** (`confirm_step` ist
+> Personal-only): sie hängt an `internal` – der Aussage der Aufrufstelle über sich selbst –,
+> nicht an einer Rollenabfrage, und die Regel gilt damit für **jedes** Modul.
+> **Ein blosser `.erp-actbtn` ist kein Knopf** – das war die Ursache von «die Buttons sind
+> nur Text», nicht der Geschmack: die Basisklasse hat `border: 1px solid transparent` und
+> keine Fläche, erst `-primary`/`-neutral`/`-danger` machen daraus einen sichtbaren Knopf.
+> `purchase-work` vergibt an jedem Knopf eine Ausprägung, `deal-work` an keinem. Jetzt trägt
+> jeder eine – und **«Weitere» ist entfallen**: ein Auswahlmenü ist die richtige Form für
+> viele gleichrangige Dinge, hier waren es drei, und eines davon (der Storno) ist die
+> Gegenhandlung des ganzen Vorgangs. **Was man jetzt tun kann, muss man sehen**; welches das
+> naheliegende ist, sagt die **Fläche** des Knopfes, kein Klick, der es erst hervorholt.
+> **Die Bestellangabe gab es im Geldmodul gar nicht** – und die Begründung dafür war falsch:
+> «wie bestelle ich bei ihm» ist keine Eigenschaft *von ihm*, sondern der **Paarung** Modul ×
+> Gegenpartei (derselbe Lieferant führt je Teil eine andere Nummer). Sie steht jetzt wie beim
+> Beschaffen-Modul in der Definition (`config.parties[].ref`) und zur Laufzeit an **seiner**
+> Angebotszeile; **nur wo wir bestellen** (`Direction.party_ref` – beim Verkauf liefern wir),
+> und ein trotzdem gesendeter Wert wird **verworfen**.
+> **#799 Das Symbol bildet ab, was man TUT**: Einkaufswagen ↔ Handschlag – **dasselbe Paar
+> wie der Handel** (`FLOW`), ein Haus, eine Bildsprache. Plus und Minus waren die
+> Buchhaltungssprache, aber nicht die dessen, der davorsteht, und auf 15 px kaum
+> unterscheidbar. **#798 Punkt und Wort teilen EINE Zeilenhöhe** statt zweier geratener
+> Abstände (gemessen: Δy 0,0 px über alle sechs Zustände; die Bug-Form meldet 2 px).
+> **#800** Offerte und Absage sind Symbol-Knöpfe wie im Beschaffungs-Beleg – «Offerte»
+> beschreibt einen *Zustand*, der Knopf löst eine *Handlung* aus. **#801 Das Modul-Protokoll
+> sagt jetzt, was es ist**: ohne Überschrift stand dort eine Einzelinstanz mit einem Namen
+> und einer Uhrzeit, und die Frage «warum steht die hier?» war berechtigt. **Entfernt wird es
+> nicht** – es ist der Nachweis, und bei einem Modul, das am Stück nichts ändert, bleibt
+> genau das übrig: wer wann was bestätigt hat.
+> **Und die aktive Zeile ist die lauteste**: gefüllter Punkt in der Akzentfarbe, Beschriftung
+> in Versalien – wo man steht, sagt die Karte ohne ein Wort mehr.
+> Wächter: 12 neue (7 in `test_frontend_mirrors.py`, 2 in `test_deal_module.py`, dazu die
+> geschärften) – **jede Bug-Form gegengeprüft**; *einer war dabei stumpf und liess seine
+> eigene durch* (er fragte, ob beide Klassennamen im Rumpf vorkommen, und war schon durch den
+> Papierkorb-Knopf erfüllt) – er prüft jetzt die **Wahl** selbst. Ein bestehender verlangte
+> wörtlich «Weitere» und hätte damit die bessere Lösung verboten; er fragt jetzt die Regel.
+> Suite grün gegen die gewachsene Datenbank (548) **und** gegen ein Schema nur aus den
+> Migrationen (548). Gemessen in Chromium an der **echten** Komponente: 1440 · 1280 · 1024 ·
+> 834 · 375 · 320 px, **0 px** waagrechter Überlauf über sechs Zustände; der erledigte
+> Vorgang hat **0** Handlungen, die Gegenpartei sieht **0** fremde Preise.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

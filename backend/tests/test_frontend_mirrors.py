@@ -5987,8 +5987,17 @@ def test_the_money_row_offers_one_obvious_action_and_the_server_names_it():
     **Ableitung** (`next_charge` ↔ `next_payment`) – im Browser nachgerechnet wiche sie
     ab, und ihre Zahl sähe trotzdem richtig aus.
 
+    **Die Rangfolge sagt die FLÄCHE, kein Umweg.** Die erste Fassung legte die übrigen
+    Handlungen unter «Weitere» – ein Auswahlmenü ist die richtige Form für viele
+    gleichrangige Dinge, hier waren es drei, und eines davon (der Storno) ist die
+    Gegenhandlung des ganzen Vorgangs. Was man jetzt tun kann, muss man **sehen**.
+
+    *Dieser Wächter prüfte selbst einmal die Form der alten Lösung («Weitere» muss
+    vorkommen) und hätte damit die bessere verboten. Er fragt jetzt die Regel.*
+
     Bug-Formen: (a) die Oberfläche rechnet die naheliegende Handlung selbst aus;
-    (b) alles steht wieder gleichwertig nebeneinander, dann ist «Weitere» verschwunden.
+    (b) eine erlaubte Handlung steht wieder hinter einem zweiten Klick;
+    (c) alle Knöpfe sehen gleich aus – dann gibt es keinen Vorschlag mehr.
     """
     money = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
                   "Money", kind="function")
@@ -5996,10 +6005,204 @@ def test_the_money_row_offers_one_obvious_action_and_the_server_names_it():
         "Die naheliegende Handlung kommt nicht vom Server – eine zweite Formel hier "
         "wiche ab, und ihre Zahl sähe trotzdem richtig aus."
     )
-    assert "Weitere" in money, (
-        "Die übrigen Handlungen stehen wieder gleichwertig daneben – die Freiheit bleibt, "
-        "aber sie ist nicht mehr der Vorschlag."
+    # (b) **Jede erlaubte Handlung ist EINEN Klick entfernt.** Sie hängt an `can` und an
+    # nichts sonst – kein zweiter Zustand, der sie erst hervorholt.
+    for action in ("charge", "pay", "revoke"):
+        assert f"may(d, active, '{action}')" in money, (
+            f"«{action}» hängt nicht mehr allein an `can` – dann entscheidet etwas "
+            f"anderes mit, ob man es sieht."
+        )
+    for detour in ("Weitere", "setMore", "showMore"):
+        assert detour not in money, (
+            f"«{detour}»: eine erlaubte Handlung liegt wieder hinter einem zweiten "
+            f"Klick. Was jetzt möglich ist, muss man sehen."
+        )
+    # (c) **Die Rangfolge ist sichtbar** – der Vorschlag trägt Fläche, die übrigen nicht.
+    #
+    # *Die erste Fassung fragte nur, ob beide Klassennamen im Rumpf vorkommen – und war
+    # damit schon durch den Papierkorb-Knopf der Buchungszeile erfüllt: sie liess ihre
+    # eigene Bug-Form durch. Gefragt wird jetzt die **Wahl** selbst.*
+    choose = re.search(r"===\s*primary\s*\n?\s*\?\s*'([^']+)'\s*\n?\s*:\s*'([^']+)'", money)
+    assert choose, (
+        "Nichts unterscheidet den Vorschlag von den übrigen Handlungen – die Rangfolge "
+        "ist verschwunden."
+    )
+    loud, quiet = choose.group(1), choose.group(2)
+    assert "erp-actbtn-primary" in loud and "erp-actbtn-primary" not in quiet, (
+        f"Vorschlag und Rest sehen gleich aus («{loud}» ↔ «{quiet}») – dann ist keiner "
+        f"der Vorschlag."
     )
     assert "d.amount) - Number(d.charged" not in money.replace(" ", ""), (
         "Der offene Betrag wird im Browser gerechnet."
+    )
+
+
+def test_the_direction_icon_shows_selling_and_buying_not_bookkeeping_signs():
+    """►►► **Das Symbol bildet ab, was man TUT** (Testnotiz #799). ◄◄◄
+
+    Plus und Minus sind die Buchhaltungssprache – aber nicht die dessen, der davorsteht:
+    er verkauft oder er kauft ein. Und ein Kreis mit einem Strich darin ist von einem
+    Kreis mit einem Kreuz darin auf 15 px kaum zu unterscheiden.
+
+    **Und es ist DASSELBE Paar wie beim Beschaffungs-Beleg** (`FLOW`): ein Haus, zwei
+    Module, eine Bildsprache. Ein drittes Paar für dieselbe Unterscheidung wäre die zweite
+    Antwort auf eine beantwortete Frage.
+
+    Bug-Formen: (a) die Vorzeichen kommen zurück; (b) das Geldmodul erfindet ein eigenes
+    Symbolpaar neben dem, das der Handel längst hat.
+    """
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    block = _body(src, "DEAL_DIRECTION", kind="const")
+    for sign in ("CirclePlus", "CircleMinus"):
+        assert sign not in block, (
+            f"«{sign}» ist zurück – ein Vorzeichen sagt, wie gebucht wird, nicht was "
+            f"man tut (#799)."
+        )
+    flow = _body(src, "FLOW", kind="const")
+    for key, direction in (("sell", "in"), ("buy", "out")):
+        icon = flow.split(f"  {key}: {{", 1)[1].split("},", 1)[0]
+        icon = [ln for ln in icon.splitlines() if "icon:" in ln][0].split("icon:")[1]
+        icon = icon.strip().rstrip(",")
+        row = block.split(f"  {direction}: {{", 1)[1].split("\n  },", 1)[0]
+        assert f"icon: {icon}" in row, (
+            f"Die Richtung «{direction}» trägt ein anderes Symbol als der Handel in "
+            f"derselben Richtung ({icon}) – zwei Bildsprachen für eine Unterscheidung."
+        )
+
+
+def test_the_stage_label_sits_on_the_height_of_its_dot():
+    """**Punkt und Wort teilen EINE Zeilenhöhe** (Testnotiz #798).
+
+    Vorher standen beide mit einem geratenen Abstand da – der Punkt mit `marginTop`, das
+    Wort auf der Grundlinie seiner Zeile. Zwei Ränder, die sich zufällig treffen müssen,
+    treffen sich beim ersten anderen Schriftgrad nicht mehr.
+
+    Bug-Form: die Ausrichtung hängt wieder an einem Abstand statt an einer gemeinsamen
+    Höhe.
+    """
+    row = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                "Row", kind="function")
+    assert row.count("height: HEAD_H") >= 2, (
+        "Punkt und Beschriftung teilen keine gemeinsame Zeilenhöhe mehr – dann ist ihre "
+        "Ausrichtung wieder Zufall (#798)."
+    )
+    assert "marginTop" not in row, (
+        "Die Ausrichtung hängt wieder an einem Abstand – genau die Form, die beim "
+        "nächsten Schriftgrad auseinanderfällt."
+    )
+
+
+def test_every_button_of_the_money_card_looks_like_a_button():
+    """►►► **Ein blosser `.erp-actbtn` ist KEIN Knopf.** ◄◄◄
+
+    Die Basisklasse hat `border: 1px solid transparent` und keine Fläche – erst
+    `-primary` / `-neutral` / `-danger` machen daraus etwas, das man als Knopf erkennt.
+    `purchase-work.tsx` vergibt an jedem Knopf eine Ausprägung, `deal-work.tsx` an
+    keinem: daher «die Buttons sind nur Text». Das ist die Ursache, nicht der Geschmack.
+
+    Bug-Form: irgendwo steht wieder `className="erp-actbtn"` ohne Ausprägung.
+    """
+    css = _read(FRONTEND / "app" / "globals.css")
+    base = css.split(".erp-actbtn {", 1)[1].split("}", 1)[0]
+    assert "border: 1px solid transparent" in base, (
+        "Die Basisklasse trägt jetzt selbst eine Kontur – dann prüft dieser Wächter "
+        "eine Regel, die es nicht mehr gibt; er gehört überdacht, nicht gelöscht."
+    )
+    src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    bare = [ln.strip() for ln in src.splitlines()
+            if 'className="erp-actbtn"' in ln or "className={`erp-actbtn`}" in ln]
+    assert not bare, (
+        "Diese Knöpfe tragen keine Ausprägung und sehen darum aus wie Text: "
+        + " | ".join(bare)
+    )
+
+
+def test_a_counterparty_does_not_confirm_a_module():
+    """**Ein Knopf, der nie etwas tun kann, ist kein Angebot.**
+
+    `confirm_step` ist `require_employee` – jeder Bestätigungsweg endet für eine
+    Gegenpartei in einem 403. Gefragt wird `internal` (die Aussage der Aufrufstelle über
+    sich selbst), nicht die Rolle: dieselbe Naht, an der auch das Modul-Protokoll hängt.
+
+    Bug-Formen: (a) die Bestätigung hängt wieder nur an `isActive`; (b) die Ansicht
+    fragt stattdessen nach einer Rolle.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    body = src.split("const stepBody =", 1)[1].split("\n  };", 1)[0]
+    head = body.split("const work =", 1)[1].split(";", 1)[0]
+    assert "internal" in head, (
+        "Die Modul-Bestätigung hängt nicht an `internal` – eine Gegenpartei bekommt "
+        "damit einen Knopf, den der Server mit 403 abweist."
+    )
+    for role in ("'supplier'", "'customer'", "'employee'", "'admin'"):
+        assert role not in body, (
+            f"Die Ausführungsstelle fragt wieder nach einer Rolle ({role}) – was jemand "
+            f"darf, sagt der Vorgang (`can`), nicht sein Titel."
+        )
+
+
+def test_the_module_record_says_what_it_is():
+    """**Eine Liste von Einzelinstanzen ohne Überschrift ist eine Frage** (#801).
+
+    Bei einem Modul, das am Stück nichts ändert (ein Geldvorgang), bleibt im Protokoll
+    genau das übrig: wer wann was bestätigt hat. Das **ist** die Aussage – man muss sie
+    nur lesen können. Entfernt wird sie nicht: sie ist der Nachweis, und die Regel gilt
+    für jedes Modul (#717).
+
+    Bug-Form: die Überschrift fehlt, und es steht wieder eine Nummer ohne Erklärung da.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "step-record.tsx")
+    assert "Was hier passiert ist" in src, (
+        "Das Modul-Protokoll sagt nicht mehr, was es ist (#801)."
+    )
+
+
+def test_the_order_reference_of_a_deal_exists_only_where_we_order():
+    """**Wie man bei IHM bestellt — und nur, wo wir bestellen** (dieselbe Regel wie #787).
+
+    Seine Artikelnummer, sein Shop-Link: eine Eigenschaft der **Paarung** Modul ×
+    Gegenpartei (derselbe Lieferant führt je Teil eine andere Nummer), also gehört sie
+    dorthin, wo man festlegt, wer in Frage kommt. Beim **Verkauf** liefern wir – dort
+    stünde sie als Angabe da, die niemand ausfüllen kann.
+
+    Bug-Formen: (a) das Feld gibt es beim Verkauf; (b) der Dienst nimmt dort trotzdem
+    einen Wert an – eine Hintertür zu einer Angabe, die niemand liest; (c) die Oberfläche
+    entscheidet es mit einem `if` auf die Richtung statt mit der mitgereisten Angabe.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import deal as dm
+    from app.domain import modules as dmod
+
+    assert dm.DIRECTIONS[dm.OUT].party_ref, "Beim Einkauf fehlt die Bestellangabe."
+    assert not dm.DIRECTIONS[dm.IN].party_ref, (
+        "Beim Verkauf gibt es eine Bestellangabe – dort liefern wir."
+    )
+    module = dmod.get(dmod.ZAHLUNG)
+    sold = module.clean_config({"direction": "in",
+                                "parties": [{"party": 100000001, "ref": "ART-9"}]})
+    assert sold["parties"][0]["ref"] == "", (
+        "Der Dienst nimmt beim Verkauf eine Bestellangabe an – ein Feld, das keine "
+        "Oberfläche zeigt, wäre die Hintertür zu einer Angabe, die niemand liest."
+    )
+    bought = module.clean_config({"direction": "out",
+                                  "parties": [{"party": 100000001, "ref": "ART-9"}]})
+    assert bought["parties"][0]["ref"] == "ART-9"
+    # Und die alte Form (blosse Nummer) wird weiterhin gelesen – sie steht in jedem
+    # Auftrag, der vorher freigegeben wurde, und ein eingefrorener Prozess ändert sich nie.
+    assert dmod.parties_allowed({"parties": [100000002]}) == [100000002]
+
+    fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                   "MoneyFields", kind="function")
+    assert "{dir.ref && (" in fields, (
+        "Das Feld hängt nicht an der mitgereisten Angabe – dann entscheidet dort ein "
+        "`if` auf die Richtung, also die zweite Stelle für dieselbe Regel."
+    )
+    # Die einzige erlaubte Direktabfrage ist die **Normalisierung** des Schiebers selbst
+    # (`value={m.direction === 'in' ? …}`) – sie sagt, was gerade eingestellt ist, und
+    # trifft keine Aussage darüber, welche Felder es gibt.
+    branches = [ln.strip() for ln in fields.splitlines()
+                if "m.direction ===" in ln and "value=" not in ln]
+    assert not branches, (
+        "Der Editor verzweigt wieder auf die Richtung: " + " | ".join(branches)
     )

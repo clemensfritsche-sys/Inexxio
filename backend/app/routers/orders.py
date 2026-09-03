@@ -154,22 +154,38 @@ def _mine_only(resp: OrderResponse, steps: set[int]) -> OrderResponse:
     })
 
 
+def _involved(db: Session, viewer: UserProfile) -> Optional[set[tuple[int, int]]]:
+    """►►► **Woran ist dieser Betrachter beteiligt?** – (Auftrag, Modul) je Zeile. ◄◄◄
+
+    **Zwei Module mit Aussenwirkung, EINE Frage.** Beschaffungs-Beleg und Geldvorgang
+    beantworten sie getrennt (sie teilen bewusst keine Zeile Code); beteiligt ist, wer an
+    **einem** der beiden vorkommt – die Vereinigung. Gibt eines ``None`` zurück, ist der
+    Betrachter Personal und sieht alles.
+
+    Sie steht **hier** und wird von Feed **und** Detail gelesen. Vorher fragte der Feed
+    nur den Beschaffungs-Beleg: die Gegenpartei eines Geldvorgangs hatte ERP-Zugang, sah
+    ihren Auftrag aber in **keiner Liste** – erreichbar nur über die direkte Adresse
+    (gemessen: ``deal.mine`` fand ihn, der Feed-Filter war leer). Zwei Ableitungen
+    derselben Frage laufen genau so auseinander.
+    """
+    docs = purchase_svc.mine(db, viewer)
+    deals = deal_svc.mine(db, viewer)
+    if docs is None or deals is None:
+        return None
+    return ({(r.order_id, r.step_id) for r in docs}
+            | {(r.order_id, r.step_id) for r in deals})
+
+
 def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int]]:
     """Die Module dieses Auftrags, die der Betrachter sehen darf. ``None`` = alle.
 
     Ist er an diesem Auftrag gar nicht beteiligt, gibt es ihn für ihn nicht – **404**,
     nicht 403: ein «du darfst nicht» bestätigt, dass es ihn gibt.
     """
-    # **Zwei Module mit Aussenwirkung, EINE Frage.** Beschaffungs-Beleg und Geldvorgang
-    # beantworten sie getrennt (sie teilen bewusst keine Zeile Code); sichtbar ist die
-    # **Vereinigung** – wer an einem der beiden beteiligt ist, sieht dieses Modul.
-    # Gibt eines ``None`` zurück, ist der Betrachter Personal und sieht alles.
-    docs = purchase_svc.mine(db, viewer)
-    deals = deal_svc.mine(db, viewer)
-    if docs is None or deals is None:
+    rows = _involved(db, viewer)
+    if rows is None:
         return None
-    steps = {r.step_id for r in docs if r.order_id == order.id}
-    steps |= {r.step_id for r in deals if r.order_id == order.id}
+    steps = {step_id for order_id, step_id in rows if order_id == order.id}
     if not steps:
         raise HTTPException(status_code=404, detail=f"Auftrag {order.object_id} nicht gefunden.")
     return steps
@@ -344,17 +360,18 @@ def list_orders(
 ):
     """Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).
 
-    **Ein Lieferant sieht die Aufträge, in denen er angefragt ist** – dieselbe eine
-    Frage wie im Detail (``purchase.mine``), damit Liste und Datensatz nicht
-    auseinanderlaufen können.
+    **Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine
+    Frage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen
+    können. Genau das war einmal nicht so: der Feed fragte nur den Beschaffungs-Beleg,
+    also stand der Auftrag eines **Geldvorgangs** in keiner Liste.
 
     Der Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends
     gespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.
     """
     query = db.query(Order)
-    involved = purchase_svc.mine(db, user)
+    involved = _involved(db, user)
     if involved is not None:
-        query = query.filter(Order.id.in_({r.order_id for r in involved} or {0}))
+        query = query.filter(Order.id.in_({order_id for order_id, _ in involved} or {0}))
     rows = query.order_by(Order.object_id.desc()).limit(limit).offset(offset).all()
     states = process_svc.order_statuses(db, [o.id for o in rows])
     flags = process_svc.deviation_flags(db, [o.id for o in rows])

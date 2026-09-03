@@ -573,7 +573,7 @@ function MoneyFields({ module: m, onChange }: {
   // Die gewählten Gegenparteien benennen – sonst stünden dort nur Ziffern. Eine Abfrage
   // je fehlender Nummer, nicht je Rendern.
   useEffect(() => {
-    const missing = m.parties.filter((n) => !(n in known));
+    const missing = m.parties.map((r) => r.party).filter((n) => !(n in known));
     if (missing.length === 0) return;
     let stale = false;
     void Promise.all(missing.map((n) => api.searchDealParties(String(n), 1)))
@@ -636,23 +636,44 @@ function MoneyFields({ module: m, onChange }: {
           emptyOption={m.parties.length === 0 ? RUNTIME_CHOICE : undefined}
           placeholder="Nummer oder Name"
           onChange={(nr, opt) => {
-            if (nr === null || m.parties.includes(nr)) return;
+            if (nr === null || m.parties.some((r) => r.party === nr)) return;
             if (opt) setKnown((k) => ({ ...k, [nr]: opt.name }));
-            onChange({ parties: [...m.parties, nr] });
+            onChange({ parties: [...m.parties, { party: nr, ref: '' }] });
           }}
         />
-        {m.parties.map((nr) => (
-          <div key={nr} className="flex items-center gap-2 py-1"
+        {m.parties.map((row) => (
+          <div key={row.party} className="flex flex-col gap-1 py-1.5"
             style={{ borderTop: '1px solid var(--border-1)' }}>
-            <ObjId value={nr} />
-            <span className="flex-1 min-w-0 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
-              {known[nr] ?? ''}
-            </span>
-            <button type="button" className="erp-actbtn erp-actbtn-icon"
-              aria-label="Entfernen" data-tip="Aus der Freigabe nehmen"
-              onClick={() => onChange({ parties: m.parties.filter((x) => x !== nr) })}>
-              <Trash2 size={13} />
-            </button>
+            <div className="flex items-center gap-2">
+              <ObjId value={row.party} />
+              <span className="flex-1 min-w-0 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
+                {known[row.party] ?? ''}
+              </span>
+              <button type="button" className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
+                aria-label="Entfernen" data-tip="Aus der Freigabe nehmen"
+                onClick={() => onChange({
+                  parties: m.parties.filter((x) => x.party !== row.party),
+                })}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+            {/* ►►► **Wie man bei IHM bestellt** – seine Artikelnummer, sein Shop-Link.
+                Sie gehört der **Paarung** Modul × Gegenpartei (derselbe Lieferant führt je
+                Teil eine andere Nummer) und steht darum bei ihm, nicht am Beleg – dort
+                schriebe man sie bei jedem Vorgang neu ab.
+
+                **Nur wo wir bestellen**: `dir.ref` ist beim Verkauf leer, und dann gibt es
+                das Feld gar nicht – wir liefern dort. Kein `if` auf die Richtung: gefragt
+                wird die Angabe, die die Richtung mitbringt. ◄◄◄ */}
+            {dir.ref && (
+              <input className={inputCls} value={row.ref} maxLength={200}
+                aria-label={dir.ref}
+                placeholder={`${dir.ref} – seine Artikelnummer oder sein Shop-Link`}
+                onChange={(e) => onChange({
+                  parties: m.parties.map((x) => (x.party === row.party
+                    ? { ...x, ref: e.target.value } : x)),
+                })} />
+            )}
           </div>
         ))}
       </div>

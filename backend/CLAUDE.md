@@ -414,6 +414,19 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Beteiligung** (`STAFF_ROLES`): ein Mitarbeiter, der selbst Gegenpartei ist, behält die
 > volle Sicht – er arbeitet ohnehin im ERP, und zwei Ansichten desselben Datensatzes wären
 > zwei Wahrheiten.
+> **Wer nicht den Zuschlag hat, sieht ihn auch nicht** (`won`, dieselbe Regel wie
+> `purchase._embed`): Name, Betrag, Frist, Referenz und Datum der Zusage fallen für jede
+> Gegenpartei weg, die nicht selbst zugesagt bekam; die **Freigabe-Liste** ist die
+> Konkurrenzliste und fällt für jede Nicht-Personal-Sicht ganz weg. Und `undo` hängt an
+> **`can`**, nicht an der Stufe – sonst steht ein Wort für eine Handlung da, die es nie gibt.
+> **Beteiligt ist, wer an EINEM der beiden Module vorkommt** (`orders._involved` =
+> `purchase.mine` ∪ `deal.mine`), gelesen von Feed **und** Detail. Der Feed fragte einmal nur
+> den Beleg: der Auftrag eines Geldvorgangs stand in keiner Liste und war nur über die
+> direkte Adresse erreichbar.
+> **Die Bestellangabe** (`config.parties[].ref`) gehört der **Paarung** Modul × Gegenpartei –
+> derselbe Lieferant führt je Teil eine andere Nummer – und gibt es **nur, wo wir bestellen**
+> (`Direction.party_ref`); beim Verkauf wird ein gesendeter Wert **verworfen**. Die alte Form
+> (blosse Objektnummer) wird tolerant gelesen: sie steht in eingefrorenen Prozessen.
 > **Kein Scan** (`requires_verification = False` → `ModuleFacts.verifies`): es bewegt keine
 > Stücke, also gibt es nichts zu verifizieren. Die Ausführungsstelle liest die **Eigenschaft**
 > und nennt keinen Modultyp.

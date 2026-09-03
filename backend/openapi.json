@@ -1559,7 +1559,7 @@
           "orders"
         ],
         "summary": "List Orders",
-        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\n**Ein Lieferant sieht die Aufträge, in denen er angefragt ist** – dieselbe eine\nFrage wie im Detail (``purchase.mine``), damit Liste und Datensatz nicht\nauseinanderlaufen können.\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
+        "description": "Der Feed – **ohne** Schritte, Stücke und Historie (die kommen mit dem Detail).\n\n**Eine Gegenpartei sieht die Aufträge, an denen sie beteiligt ist** – dieselbe eine\nFrage wie im Detail (``_involved``), damit Liste und Datensatz nicht auseinanderlaufen\nkönnen. Genau das war einmal nicht so: der Feed fragte nur den Beschaffungs-Beleg,\nalso stand der Auftrag eines **Geldvorgangs** in keiner Liste.\n\nDer Status wird für alle Zeilen in **einer** Abfrage abgeleitet: er steht nirgends\ngespeichert, und ihn je Zeile einzeln zu holen wäre ein N+1 über den ganzen Feed.",
         "operationId": "list_orders_api_v1_erp_orders_get",
         "security": [
           {
@@ -4750,6 +4750,11 @@
             "title": "Party Plural",
             "default": ""
           },
+          "party_ref": {
+            "type": "string",
+            "title": "Party Ref",
+            "default": ""
+          },
           "charge_word": {
             "type": "string",
             "title": "Charge Word",
@@ -5150,6 +5155,11 @@
           "party_name": {
             "type": "string",
             "title": "Party Name",
+            "default": ""
+          },
+          "ref": {
+            "type": "string",
+            "title": "Ref",
             "default": ""
           },
           "amount": {

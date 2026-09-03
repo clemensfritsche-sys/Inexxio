@@ -55,6 +55,26 @@ export function StepRecord({ orderObjectId, stepId }: {
 
   return (
     <div className="flex flex-col">
+      {/* ►►► **Die Liste sagt, WAS sie ist** (Testnotiz #801). ◄◄◄
+          Ohne Überschrift stand hier eine Einzelinstanz mit einem Namen und einer
+          Uhrzeit – und die Frage «warum steht die hier?» war völlig berechtigt: sie ist
+          der **Nachweis** dieses Moduls, aber nichts sagte das. Bei einem Modul, das am
+          Stück nichts ändert (ein Geldvorgang), bleibt genau das übrig: wer wann was
+          bestätigt hat. Das ist die Aussage – man muss sie nur lesen können.
+
+          Sie steht als Versalien-Mikro-Label über der Liste, wie jede Abschnitts-Marke
+          im Haus, und nennt die Gesamtzahl statt sie zu verschweigen. */}
+      <div className="flex items-baseline gap-2" style={{ marginBottom: 4 }}>
+        <span style={{
+          font: '700 11px var(--font-body)', textTransform: 'uppercase',
+          letterSpacing: '.07em', color: 'var(--fg-4)',
+        }}>Was hier passiert ist</span>
+        <span className="ix-tnum text-[11px]" style={{ color: 'var(--fg-4)' }}
+          data-tip="Ein Eintrag ist ein Vorgang, kein Stück – ein Stück kann dasselbe
+                    Modul mehrfach passieren.">
+          {total} {total === 1 ? 'Vorgang' : 'Vorgänge'}
+        </span>
+      </div>
       {rows.map((e, i) => <Row key={`${e.number}-${e.at}-${i}`} entry={e} first={i === 0} />)}
       {rows.length < total && (
         <p className="mt-1.5 text-[11.5px]" style={{ color: 'var(--fg-4)' }}>

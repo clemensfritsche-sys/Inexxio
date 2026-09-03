@@ -643,8 +643,17 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeal, onDeviate }: {
     // Es ist **ein** Vorgang und nicht einer je Instanz: ohne Instanz bewegt
     // `confirm_step` alles, was davorsteht – ein Auftrag wird einmal erledigt, nicht je
     // Kiste. Durchgesetzt wird beides serverseitig (`process._verified_instance`).
+    // ►►► **Eine Gegenpartei bestätigt kein Modul.** ◄◄◄
+    //
+    // `confirm_step` ist `require_employee` – jeder Bestätigungsweg (Scan wie einfacher
+    // Knopf) endet für sie in einem 403. Ein Knopf, der nie etwas tun kann, ist kein
+    // Angebot; er stand hier trotzdem, weil `work` an `isActive` hing und sonst an nichts.
+    //
+    // Gefragt wird `internal` – die Aussage der Aufrufstelle über **sich selbst** –, nicht
+    // die Rolle: dieselbe Naht, an der auch das Modul-Protokoll hängt. Und die Regel gilt
+    // für **jedes** Modul, nicht für dieses eine.
     const plain = step.verifies === false;
-    const work = isActive && plain ? (
+    const work = !internal ? null : isActive && plain ? (
       <button type="button" className="erp-actbtn w-full" disabled={busy}
         style={{ height: 38 }}
         onClick={() => onConfirm(step.id, null, 'manual', {}, [], null)}>

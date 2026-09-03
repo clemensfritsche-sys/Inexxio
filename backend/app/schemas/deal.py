@@ -47,6 +47,10 @@ class DealQuote(BaseModel):
 
     party_object_id: int
     party_name: str = ""
+    #: **Wie man bei IHM bestellt** – seine Artikelnummer oder sein Shop-Link, aus der
+    #: Definition (``config.parties[].ref``). Sie gehört der Paarung Modul × Gegenpartei
+    #: und steht darum an seiner Zeile; leer, wo es die Angabe nicht gibt (Verkauf).
+    ref: str = ""
     #: Als **String** – wo es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet.
     amount: Optional[str] = None
     lead_days: Optional[int] = None
@@ -110,6 +114,10 @@ class DealEmbed(BaseModel):
     label: str = ""
     party_word: str = ""
     party_plural: str = ""
+    #: **Wie die Bestellangabe heisst** – leer heisst: es gibt sie in dieser Richtung
+    #: nicht. Ein Wert statt eines Booleans: dieselbe Angabe beantwortet «gibt es sie»
+    #: und «wie heisst sie», und zwei Felder daneben könnten sich widersprechen.
+    party_ref: str = ""
     charge_word: str = ""
     payment_word: str = ""
     open_word: str = "Offen"
