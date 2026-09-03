@@ -78,12 +78,15 @@ class Deal(Base, TimestampMixin):
     #: zwei Zeitpunkten fällig sind.
     due_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
-    #: **Ihre Nummer** – die Bestell- bzw. Auftragsnummer der Gegenpartei. Frei, weil es
-    #: bei jedem anders aussieht.
-    reference: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
-
-    #: Was nur ein Mensch weiss («Abholung ab 14 Uhr», «Rabatt telefonisch vereinbart»).
-    note: Mapped[Optional[str]] = mapped_column(String(400), nullable=True)
+    # ►►► **``reference`` und ``note`` sind entfallen** (Testnotiz #812). ◄◄◄
+    #
+    # «Ich checke nicht, warum hier dieses Referenz-Eingabefeld ist» – zu Recht: es
+    # beantwortete keine Frage, die jemand hat, und die Rechnungsnummer erzeugt der Dienst
+    # längst selbst (``<Auftragsnummer>[-n]``). Damit hatte auch die Handlung ``note``
+    # keinen Aufrufer mehr; beide sind mitgegangen.
+    #
+    # Die **Spalten** bleiben nach der Zwei-Deploy-Regel vorerst in der Datenbank stehen –
+    # hier haben sie kein Mapping mehr (``docs/backlog.md``).
 
     #: Wann zugesagt wurde – der Anker, ab dem eine Zahlungsfrist läuft.
     agreed_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

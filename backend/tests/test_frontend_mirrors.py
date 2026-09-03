@@ -5732,13 +5732,19 @@ def test_the_stock_bar_names_its_states_and_is_the_control():
 def test_the_money_directions_mirror_the_backend():
     """**Die beiden Richtungen und ihre Wörter decken sich mit `domain/deal`.**
 
-    Alles Übrige (Stufen-Beschriftungen, Verben, Zustände) **reist mit dem Vorgang**;
-    hier steht nur, was eine Antwort nicht transportieren kann – Symbol und die Wörter,
-    die schon der **Editor** braucht, bevor es einen Vorgang gibt.
+    Alles Übrige (Stufen-Beschriftungen, Verben, Zustände) **reist mit dem Vorgang**; hier
+    steht nur, was eine Antwort nicht transportieren kann – Symbol und das Wort, das schon
+    der **Editor** braucht, bevor es einen Vorgang gibt.
 
-    Bug-Form: der Plural wird aus dem Singular gerechnet («Kunde» + «en» = «Kundeen»,
-    #787) oder eine Richtung fehlt – dann steht im Editor ein Wort, das der Server nie
-    sagt.
+    ►►► **Und die Rollen-Wörter sind entfallen** (Testnotiz #802). ◄◄◄
+
+    «Kunde» ↔ «Lieferant» standen je Richtung da, und jede Aufrufstelle musste sich das
+    richtige holen. Es ist dieselbe Rolle – der andere im Geschäft –, also gibt es eine
+    Konstante (`DEAL_PARTY` ↔ `deal.PARTY`). Singular = Plural: damit ist das
+    «Kundeen»-Problem *strukturell* erledigt statt durch einen zweiten gepflegten Wert.
+
+    Bug-Formen: (a) eine Richtung fehlt; (b) ein Wort läuft auseinander; (c) die
+    Rollen-Wörter kommen je Richtung zurück – dann gibt es wieder die falsche Wahl.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -5753,13 +5759,18 @@ def test_the_money_directions_mirror_the_backend():
     )
     for key, flow in dm.DIRECTIONS.items():
         row = block.split(f"  {key}: {{", 1)[1].split("},", 1)[0]
-        for field, value in (("label", flow.label), ("party", flow.party_word),
-                             ("parties", flow.party_plural)):
-            assert f"{field}: '{value}'" in row, (
-                f"«{key}.{field}» heisst in der Oberfläche anders als im Backend "
-                f"(erwartet «{value}») – und der Editor zeigt es, bevor der Server "
-                f"überhaupt gefragt wurde."
-            )
+        assert f"label: '{flow.label}'" in row, (
+            f"«{key}» heisst in der Oberfläche anders als im Backend (erwartet "
+            f"«{flow.label}») – und der Editor zeigt es, bevor der Server gefragt wurde."
+        )
+    for gone in ("party:", "parties:", "ref:"):
+        assert gone not in block, (
+            f"«{gone}» steht wieder je Richtung – dieselbe Rolle in zwei Wörtern ist die "
+            f"Wahl, die man falsch treffen kann (#802)."
+        )
+    assert f"DEAL_PARTY = '{dm.PARTY}'" in src, (
+        "Das eine Wort für beide Richtungen fehlt oder lautet anders als im Backend."
+    )
 
 
 def test_the_money_stage_keys_are_mirrored_not_written_out():
@@ -5834,8 +5845,12 @@ def test_the_money_module_is_a_pass_through_in_the_editor_too():
     src = _read(FRONTEND / "lib" / "modules.ts")
     form = _body(src, "MODULE_FORM", kind="const")
     row = form.split("  zahlung: {", 1)[1].split("\n  },", 1)[0]
-    for field in ("direction", "parties", "subject", "prepaid"):
+    for field in ("direction", "parties", "prepaid"):
         assert field in row, f"«{field}» fehlt in der Entwurfsform des Geldmoduls."
+    assert "subject" not in row, (
+        "Der abgeschaffte Satz ist zurück (#805) – was zu tun ist, steht bei dem Partner, "
+        "den es betrifft."
+    )
     fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
                    "MoneyFields", kind="function")
     for forbidden in ("Betrag", "Menge", "Artikel"):
@@ -5902,32 +5917,51 @@ def test_a_module_without_verification_confirms_without_a_scan():
         )
 
 
-def test_the_money_module_asks_what_to_do_but_does_not_demand_it():
-    """**«Was ist daran zu tun?» ist freiwillig** (Testnotiz #796).
+def test_what_to_do_is_asked_once_per_party_and_is_mandatory():
+    """►►► **Ein Pflichtfeld statt zweier optionaler** (Testnotizen #805 · #808). ◄◄◄
 
-    *Was* gehandelt wird, sagt der Prozess – die Einzelinstanzen tragen ihren Artikel,
-    der Artikel seine Spezifikation, und beides reist mit dem Vorgang. Der Satz sagt, was
-    **daran** zu tun ist, und das gibt es nicht bei jedem Vorgang.
+    «Was ist daran zu tun?» stand als **freiwilliger** Satz am Vorgang, und daneben gab es
+    die **Bestellangabe** je Partner – nur beim Einkauf. Das ist dieselbe Aussage zweimal,
+    einmal ohne Adressaten. *«Ich bin sowieso kein Fan von optionalen Feldern»*: ein Feld,
+    das man ausfüllen **kann**, wird an der Hälfte der Stellen leer gelassen, und dann sagt
+    seine Leere nichts.
 
-    Bug-Formen: (a) das Feld ist wieder Pflicht in der Oberfläche; (b) der Dienst weist
-    einen leeren Satz ab – dann ist die freundliche Hälfte eine Lüge.
+    Übrig bleibt **eine** Angabe je Partner, **Pflicht**, in **beiden** Richtungen: seine
+    Artikelnummer, sein Shop-Link oder ein Satz.
+
+    Bug-Formen: (a) der Satz am Vorgang kommt zurück; (b) die Angabe wird wieder
+    freiwillig; (c) es gibt sie nur in einer Richtung.
     """
     import sys
     sys.path.insert(0, str(BACKEND))
+    from fastapi import HTTPException
     from app.domain import modules as dmod
 
-    cfg = dmod.get(dmod.ZAHLUNG).clean_config({"direction": "in", "subject": ""})
-    assert cfg["subject"] == "", (
-        "Der Dienst besteht wieder auf dem Satz – dann darf die Oberfläche ihn nicht "
-        "als freiwillig anbieten."
-    )
-    fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
-                   "MoneyFields", kind="function")
-    line = [l for l in fields.splitlines() if "Was ist daran zu tun?" in l and "<Label" in l]
-    assert line, "Die Beschriftung des Satzes fehlt im Editor."
-    assert "required" not in line[0], (
-        "Der Satz ist wieder Pflicht (#796) – ein Pflichtfeld, das oft nichts "
-        "aufzunehmen hat, lädt zu einer Eingabe ein, die niemand liest."
+    module = dmod.get(dmod.ZAHLUNG)
+    cfg = module.clean_config({"direction": "in",
+                               "parties": [{"party": 100000001, "ref": "Art. 4711"}]})
+    assert "subject" not in cfg, "Der abgeschaffte Satz ist zurück (#805)."
+    assert cfg["parties"][0]["ref"] == "Art. 4711"
+    # (b) **Pflicht** – und (c) in **beiden** Richtungen.
+    for direction in ("in", "out"):
+        try:
+            module.clean_config({"direction": direction,
+                                 "parties": [{"party": 100000001, "ref": "  "}]})
+        except HTTPException:
+            continue
+        raise AssertionError(
+            f"«{direction}»: die Angabe ist wieder freiwillig – ein Feld, das man "
+            f"ausfüllen kann, wird leer gelassen (#808)."
+        )
+
+    # **Der Code, nicht die Prosa**: der Erklärtext daneben *beschreibt* den
+    # abgeschafften Satz – ein Wächter, der ihn mitliest, schlägt an, weil jemand den
+    # Fehler erklärt. (Genau in diese Falle ist diese Datei schon einmal gelaufen.)
+    fields = _code(_body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                         "MoneyFields", kind="function"))
+    assert "Was ist daran zu tun?" not in fields, "Der Satz steht wieder im Editor."
+    assert "<Label required>{DEAL_TASK}</Label>" in fields, (
+        "Die Angabe ist im Editor nicht als Pflicht ausgezeichnet."
     )
 
 
@@ -6108,12 +6142,25 @@ def test_every_button_of_the_money_card_looks_like_a_button():
         "Die Basisklasse trägt jetzt selbst eine Kontur – dann prüft dieser Wächter "
         "eine Regel, die es nicht mehr gibt; er gehört überdacht, nicht gelöscht."
     )
-    src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
-    bare = [ln.strip() for ln in src.splitlines()
-            if 'className="erp-actbtn"' in ln or "className={`erp-actbtn`}" in ln]
-    assert not bare, (
-        "Diese Knöpfe tragen keine Ausprägung und sehen darum aus wie Text: "
-        + " | ".join(bare)
+    # *Diese Prüfung sah zuerst nur `deal-work.tsx` – und liess damit ausgerechnet den
+    # Knopf durch, der gemeldet wurde (#813): der Modul-Abschluss steht in
+    # `order-detail.tsx`. Gemessen an der Bug-Form, nachgeschärft.*
+    for name in ("deal-work.tsx", "order-detail.tsx"):
+        src = _read(FRONTEND / "components" / "erp" / name)
+        bare = [ln.strip() for ln in src.splitlines()
+                if re.search(r'className="erp-actbtn(?: w-full)?"', ln)
+                or "className={`erp-actbtn`}" in ln]
+        assert not bare, (
+            f"{name}: diese Knöpfe tragen keine Ausprägung und sehen darum aus wie Text – "
+            + " | ".join(bare)
+        )
+    # **Und der Modul-Abschluss ist der lauteste Knopf der Karte** (#813): er ist die eine
+    # Handlung, die das Modul beendet – er trägt Fläche und volle Breite, keine Kontur.
+    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
+    confirm = detail.split("const work =", 1)[1].split("</button>", 1)[0]
+    assert "erp-actbtn-primary" in confirm and "w-full" in confirm, (
+        "Der Knopf, der ein Modul abschliesst, ist nicht der lauteste – er sah damit aus "
+        "wie Text (#813)."
     )
 
 
@@ -6157,52 +6204,133 @@ def test_the_module_record_says_what_it_is():
     )
 
 
-def test_the_order_reference_of_a_deal_exists_only_where_we_order():
-    """**Wie man bei IHM bestellt — und nur, wo wir bestellen** (dieselbe Regel wie #787).
+def test_the_money_card_speaks_one_language_in_both_directions():
+    """►►► **Kein `if` auf die Richtung — auch nicht in den Wörtern** (#802/#804). ◄◄◄
 
-    Seine Artikelnummer, sein Shop-Link: eine Eigenschaft der **Paarung** Modul ×
-    Gegenpartei (derselbe Lieferant führt je Teil eine andere Nummer), also gehört sie
-    dorthin, wo man festlegt, wer in Frage kommt. Beim **Verkauf** liefern wir – dort
-    stünde sie als Angabe da, die niemand ausfüllen kann.
+    Die Karte bekam Wörter je Richtung geliefert und der Editor hielt eigene daneben. Was
+    für beide Seiten gilt, steht jetzt **einmal** da: der Partner, die Angabe bei ihm und
+    die Beschriftungen des Schiebers.
 
-    Bug-Formen: (a) das Feld gibt es beim Verkauf; (b) der Dienst nimmt dort trotzdem
-    einen Wert an – eine Hintertür zu einer Angabe, die niemand liest; (c) die Oberfläche
-    entscheidet es mit einem `if` auf die Richtung statt mit der mitgereisten Angabe.
+    Bug-Formen: (a) ein Rollen-Wort steht wieder als Literal in der Oberfläche; (b) der
+    Editor verzweigt auf die Richtung, um zu entscheiden, welche Felder es gibt.
     """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.domain import deal as dm
-    from app.domain import modules as dmod
-
-    assert dm.DIRECTIONS[dm.OUT].party_ref, "Beim Einkauf fehlt die Bestellangabe."
-    assert not dm.DIRECTIONS[dm.IN].party_ref, (
-        "Beim Verkauf gibt es eine Bestellangabe – dort liefern wir."
-    )
-    module = dmod.get(dmod.ZAHLUNG)
-    sold = module.clean_config({"direction": "in",
-                                "parties": [{"party": 100000001, "ref": "ART-9"}]})
-    assert sold["parties"][0]["ref"] == "", (
-        "Der Dienst nimmt beim Verkauf eine Bestellangabe an – ein Feld, das keine "
-        "Oberfläche zeigt, wäre die Hintertür zu einer Angabe, die niemand liest."
-    )
-    bought = module.clean_config({"direction": "out",
-                                  "parties": [{"party": 100000001, "ref": "ART-9"}]})
-    assert bought["parties"][0]["ref"] == "ART-9"
-    # Und die alte Form (blosse Nummer) wird weiterhin gelesen – sie steht in jedem
-    # Auftrag, der vorher freigegeben wurde, und ein eingefrorener Prozess ändert sich nie.
-    assert dmod.parties_allowed({"parties": [100000002]}) == [100000002]
-
     fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
                    "MoneyFields", kind="function")
-    assert "{dir.ref && (" in fields, (
-        "Das Feld hängt nicht an der mitgereisten Angabe – dann entscheidet dort ein "
-        "`if` auf die Richtung, also die zweite Stelle für dieselbe Regel."
-    )
+    work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    for word in ("'Kunde'", "'Lieferant'", "'Kunden'", "'Lieferanten'",
+                 "'Einnahme'", "'Ausgabe'", "'Bestellangabe'"):
+        for where, name in ((fields, "Editor"), (work, "Karte")):
+            assert word not in where, (
+                f"{name}: {word} steht wieder als Literal – es ist ein Wort der Richtung "
+                f"bzw. der Rolle und gehört in `domain/deal`."
+            )
     # Die einzige erlaubte Direktabfrage ist die **Normalisierung** des Schiebers selbst
-    # (`value={m.direction === 'in' ? …}`) – sie sagt, was gerade eingestellt ist, und
-    # trifft keine Aussage darüber, welche Felder es gibt.
+    # (`value={m.direction === 'in' ? …}`) – sie sagt, was eingestellt ist, und trifft
+    # keine Aussage darüber, welche Felder es gibt.
     branches = [ln.strip() for ln in fields.splitlines()
                 if "m.direction ===" in ln and "value=" not in ln]
     assert not branches, (
         "Der Editor verzweigt wieder auf die Richtung: " + " | ".join(branches)
     )
+
+
+def test_a_declined_line_shows_no_price_and_no_lead_time():
+    """**Abgesagt ist abgesagt** (Testnotiz #811).
+
+    Betrag und Lieferfrist standen weiter an einer abgelehnten Zeile – ein Angebot, das es
+    nicht mehr gibt, mit einem Termin, den niemand mehr zusagt. Die Zahlen bleiben in den
+    Daten (der Log ist die Historie); was in der Karte steht, ist der **heutige** Stand.
+
+    Bug-Form: die beiden Zahlen hängen wieder allein an ihrem Vorhandensein.
+    """
+    row = _body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                "QuoteRow", kind="function")
+    for value in ("quote.amount &&", "quote.lead_days != null &&"):
+        assert f"!declined && {value}" in row, (
+            f"«{value}» steht auch an einer abgesagten Zeile (#811) – abgesagt ist abgesagt."
+        )
+
+
+def test_the_buttons_of_a_quote_row_are_the_same_size():
+    """**Alle Knöpfe einer Angebotszeile sind exakt gleich hoch** (Testnotiz #810).
+
+    Zwei Symbol-Knöpfe nebeneinander, die sich um einen Pixel unterscheiden, lesen sich als
+    Rangfolge – gemeint ist «entweder das oder das». Die Höhe steht darum an **einer**
+    Stelle; die Breite gibt `.erp-actbtn-icon` vor.
+
+    Bug-Form: einer der beiden bekommt wieder eine eigene Zahl.
+    """
+    row = _code(_body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                      "QuoteRow", kind="function"))
+    icons = [ln for ln in row.splitlines() if "erp-actbtn-icon" in ln]
+    assert len(icons) >= 2, "Die beiden Symbol-Knöpfe sind nicht mehr da."
+    heights = re.findall(r"height:\s*([A-Za-z_0-9]+)", row)
+    assert heights and len(set(heights)) == 1, (
+        f"Die Symbol-Knöpfe tragen verschiedene Höhen ({sorted(set(heights))}) – zwei "
+        f"Zahlen für dieselbe Form treffen sich beim nächsten Eingriff nicht mehr."
+    )
+    assert heights[0] == "ACT_H", (
+        "Die Höhe steht wieder als Zahl an der Aufrufstelle statt an einer Stelle."
+    )
+
+
+def test_who_is_asked_is_a_choice_not_an_announcement():
+    """**Wen man anfragt, wählt man AUS** (Testnotiz #809).
+
+    «Anfragen (2)» war eine Ansage: wer nur einen von zweien fragen wollte, konnte es nicht
+    sagen. Dieselbe Geste wie im Beschaffen-Modul – die **Zeile ist der Schalter**, alle
+    sind vorgewählt, ein Klick nimmt einen heraus.
+
+    Bug-Form: die Anfrage geht wieder pauschal an alle Zugelassenen.
+    """
+    offer = _code(_body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                        "Offer", kind="function"))
+    assert "action: 'ask', parties: chosen.map" in offer.replace("\n", " ").replace(
+        "              ", "").replace("darf", "darf"), (
+        "Die Anfrage nennt keine Auswahl – dann geht sie an alle, und die Wahl ist eine "
+        "Ansage (#809)."
+    )
+    assert "setDropped" in offer, (
+        "Es gibt keinen Weg, jemanden von der Anfrage auszunehmen."
+    )
+
+
+def test_a_late_delivery_is_derived_never_stored():
+    """►►► **Ein Lieferverzug ist kein Zustand** (Testnotiz #814). ◄◄◄
+
+    Der Termin ist *Zusagedatum + Lieferfrist der gewählten Zeile*, «verspätet» heisst
+    *Termin vorbei und noch nicht erledigt* – **exakt dieselbe Form wie `overdue`** bei
+    einer Forderung. Ein gespeicherter Wert wäre einer, den jemand nachziehen müsste, und
+    er lügt beim ersten vergessenen Mal.
+
+    Bug-Formen: (a) es gibt eine Spalte dafür; (b) ohne vereinbarte Frist wird ein Termin
+    erfunden; (c) ein erledigter oder stornierter Vorgang gilt als verspätet.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from datetime import date, timedelta
+    from app.domain import deal as dm
+    from app.models import Deal
+    from app.services import deal as svc
+
+    assert not hasattr(Deal, "late") and not hasattr(Deal, "due_date"), (
+        "Der Verzug ist eine Spalte geworden – dann muss ihn jemand nachziehen."
+    )
+    row = Deal(direction=dm.OUT, stage=dm.AGREED, party_id=100000001,
+               agreed_on=date.today() - timedelta(days=10),
+               quotes=[{"party": 100000001, "lead_days": 3}])
+    assert svc._delivery(row) == row.agreed_on + timedelta(days=3)
+    assert svc._is_late(row) is True
+
+    # (b) **Ohne Frist kein Termin** – ein erfundener wäre schlimmer als keiner.
+    row.quotes = [{"party": 100000001}]
+    assert svc._delivery(row) is None and svc._is_late(row) is False
+
+    # (c) Erledigt und storniert sind nicht verspätet: dort kommt nichts mehr.
+    row.quotes = [{"party": 100000001, "lead_days": 3}]
+    for stage in (dm.DONE, dm.CANCELLED):
+        row.stage = stage
+        assert svc._is_late(row) is False, (
+            f"Ein Vorgang auf «{stage}» gilt als verspätet – ein Vorwurf an etwas, das "
+            f"vorbei ist, ist keine Auskunft."
+        )

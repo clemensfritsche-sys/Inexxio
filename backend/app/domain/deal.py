@@ -123,6 +123,32 @@ PAYMENT = "payment"
 
 KINDS: tuple[str, ...] = (CHARGE, PAYMENT)
 
+# ---------------------------------------------------------------------------
+# ►►► WAS IN BEIDEN RICHTUNGEN GLEICH HEISST — Konstanten, keine Tabelle ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# «Kunde» ↔ «Lieferant» standen einmal als zwei Werte in ``Direction``, und jede
+# Aufrufstelle musste sich die richtige holen. Es ist aber **dieselbe Rolle**: der andere
+# im Geschäft. Ein Wort dafür ist nicht nur kürzer, es nimmt eine ganze Klasse von Fehlern
+# weg – die Wahl des falschen Wortes gibt es dann gar nicht mehr.
+#
+# **Und Singular = Plural.** Damit ist das «Kundeen»-Problem (#787) *strukturell*
+# erledigt statt durch einen zweiten gepflegten Wert: es gibt keine Beugung, die jemand
+# rechnen könnte.
+
+#: Der andere im Geschäft – in beiden Richtungen und in beiden Numeri.
+PARTY = "Partner"
+
+#: **Was bei ihm zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein Satz.
+#:
+#: Eine Eigenschaft der **Paarung** Modul × Partner (derselbe Lieferant führt je Teil eine
+#: andere Nummer), und sie gilt in **beiden** Richtungen: beim Einkauf sagt sie, wie man
+#: bei ihm bestellt, beim Verkauf, was er bekommt. Ein Feld, das es nur auf einer Seite
+#: gibt, wäre wieder eine Verzweigung – und der frühere Satz «Was ist daran zu tun?» am
+#: Vorgang war ihre optionale Doppelung (Testnotiz #805).
+TASK = "Was ist zu tun?"
+TASK_HINT = "Artikelnummer, Link oder Beschreibung"
+
 
 @dataclass(frozen=True)
 class Direction:
@@ -142,11 +168,6 @@ class Direction:
     label: str
     #: Ein Satz, der sagt, was passiert. Er steht im Editor neben der Wahl.
     hint: str
-    #: Wie die Gegenpartei im Satz heisst («Kunde 100000001 ist nicht zugelassen»).
-    party_word: str
-    #: Der Plural – als **eigener Wert**, nicht als angehängtes «en». «Kunde» + «en»
-    #: ergäbe «Kundeen»; deutsche Plurale sind nicht ableitbar.
-    party_plural: str
     #: Die beiden Stufen, wie sie in dieser Richtung heissen.
     stage_labels: dict[str, str]
     #: **Was man an der aktiven Stufe tut, um sie zu verlassen** – das Wort auf dem
@@ -170,18 +191,6 @@ class Direction:
     open_word: str
     #: Die Überschrift des Geld-Bereichs – die dritte Zeile der Karte.
     money_label: str = "Rechnung & Zahlung"
-    #: ►►► **Wie man bei IHM bestellt** – seine Artikelnummer oder sein Shop-Link. ◄◄◄
-    #:
-    #: Der **Name des Feldes**; leer heisst: **es gibt das Feld hier nicht**. Ein Wert
-    #: statt eines Booleans, weil dieselbe Angabe zwei Fragen beantwortet – *gibt es sie*
-    #: und *wie heisst sie*; zwei Felder daneben könnten sich widersprechen.
-    #:
-    #: **Nur wo WIR bestellen.** Beim Verkauf liefern wir – das Feld stünde dort als
-    #: Angabe da, die niemand ausfüllen kann (dieselbe Regel wie ``Flow.party_ref`` beim
-    #: Beschaffungs-Beleg, Testnotiz #787). Ein trotzdem gesendeter Wert wird **verworfen**:
-    #: ein Feld, das die Oberfläche nicht anbietet, der Dienst aber annimmt, wäre eine
-    #: Hintertür zu einer Angabe, die niemand liest.
-    party_ref: str = ""
 
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst. Die beiden **Ausgänge** gehören beiden Richtungen
@@ -197,10 +206,8 @@ class Direction:
 DIRECTIONS: dict[str, Direction] = {
     IN: Direction(
         key=IN,
-        label="Einnahme",
-        hint="Wir stellen Rechnung – Geld kommt herein.",
-        party_word="Kunde",
-        party_plural="Kunden",
+        label="Verkauf",
+        hint="Verkauf – wir liefern, wir stellen Rechnung, Geld kommt herein.",
         stage_labels={OFFER: "Angebot", AGREED: "Auftrag"},
         stage_verbs={OFFER: "Auftrag bestätigen", AGREED: "Auftrag erledigt"},
         # Wir **bieten** dem Kunden an; er fragt nicht bei uns an.
@@ -212,10 +219,8 @@ DIRECTIONS: dict[str, Direction] = {
     ),
     OUT: Direction(
         key=OUT,
-        label="Ausgabe",
-        hint="Wir bekommen Rechnung – Geld geht hinaus.",
-        party_word="Lieferant",
-        party_plural="Lieferanten",
+        label="Einkauf",
+        hint="Einkauf – er liefert, wir bekommen Rechnung, Geld geht hinaus.",
         stage_labels={OFFER: "Anfrage", AGREED: "Auftrag"},
         stage_verbs={OFFER: "Auftrag bestätigen", AGREED: "Auftrag erledigt"},
         # Wir **fragen** beim Lieferanten an; er bietet uns an.
@@ -224,8 +229,6 @@ DIRECTIONS: dict[str, Direction] = {
         charge_word="Rechnung erfassen",
         payment_word="Zahlung",
         open_word="Offen",
-        # **Hier bestellen wir** – also braucht es die Angabe, wie das bei ihm geht.
-        party_ref="Bestellangabe",
     ),
 }
 

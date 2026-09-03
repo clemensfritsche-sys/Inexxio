@@ -56,7 +56,6 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 #: ``quote``   einen Preis an **einer** Angebotszeile eintragen
 #: ``decline`` eine Angebotszeile absagen
 #: ``agree``   den Zuschlag geben – ab hier ist eine zweite Partei gebunden
-#: ``note``    Referenz und Notiz nachtragen
 #: ``revoke``  stornieren. **Nur ab der Schwelle**: davor gibt es nichts zurückzunehmen.
 #: ``charge``  eine **Forderung** buchen (negativ = Gutschrift)
 #: ``pay``     eine **Zahlung** buchen (negativ = Erstattung)
@@ -65,9 +64,9 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 #: Anzahlung muss erstattet werden können, und eine Rechnung darf vor der Erfüllung
 #: stehen und danach. Wer das an die Stufe bände, hätte für jedes Szenario ein ``if``.
 ACTIONS: dict[str, tuple[str, ...]] = {
-    dm.OFFER: ("ask", "quote", "decline", "agree", "note"),
-    dm.AGREED: ("note", "revoke", "charge", "pay"),
-    dm.DONE: ("note", "charge", "pay"),
+    dm.OFFER: ("ask", "quote", "decline", "agree"),
+    dm.AGREED: ("revoke", "charge", "pay"),
+    dm.DONE: ("charge", "pay"),
     dm.CANCELLED: ("charge", "pay"),
 }
 
@@ -156,7 +155,8 @@ def embed_lines(db: Session, order: Order, row: Deal) -> list[dict[str, Any]]:
 
     Die Spezifikation **reist mit**, sie wird nicht ausgewählt (``article_fields``): eine
     Spezifikation, die je nach Empfänger anders lautet, ist keine. Sie beschreibt die
-    Sache; **was daran zu tun ist**, steht im Satz daneben (``config.subject``).
+    Sache; **was daran zu tun ist**, steht bei dem Partner, den es betrifft
+    (``config.parties[].ref``).
 
     Eine Abfrage für alle Zeilen, nicht eine je Zeile.
     """
@@ -285,7 +285,7 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
     _assert_allowed(db, row, action, actor)
     handler = {
         "ask": _ask, "quote": _quote, "decline": _decline, "agree": _agree,
-        "note": _note, "revoke": _revoke,
+        "revoke": _revoke,
         "charge": _charge, "pay": _pay, VOID: _void,
     }[action]
     handler(db, order=order, step=step, row=row, data=payload, actor=actor)
@@ -311,7 +311,7 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     if not wanted:
         raise HTTPException(
             status_code=400,
-            detail=(f"Ohne {flow.party_word} gibt es nichts anzufragen – dieses Modul "
+            detail=(f"Ohne {dm.PARTY} gibt es nichts anzufragen – dieses Modul "
                     f"lässt jeden zu, also muss hier stehen, wen es betrifft."),
         )
     lines = list(row.quotes or [])
@@ -337,12 +337,18 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     if amount is None:
         raise HTTPException(status_code=400,
                             detail="Ohne Betrag ist es keine Offerte.")
-    _patch_quote(row, party, {
-        "amount": f"{amount:.2f}",
-        "lead_days": _days(data.get("lead_days")),
-        "payment_days": _days(data.get("payment_days")),
-        "state": dm.QUOTED,
-    })
+    # ►►► **Nur gesendete Felder wirken.** ◄◄◄
+    #
+    # Sie standen hier fest im Satz und wurden damit bei jedem Aufruf überschrieben – wer
+    # nur den Betrag nachreicht, verlor beide Fristen. Über die Tür fällt es nicht auf
+    # (``DealUpdate.changes`` schickt ungesetzte Felder gar nicht mit), aber die Regel
+    # gehört in den **Dienst**: die Tür ist nicht der einzige Aufrufer, und ein Handler,
+    # der auf sie angewiesen ist, ist beim zweiten falsch.
+    changes: dict[str, Any] = {"amount": f"{amount:.2f}", "state": dm.QUOTED}
+    for field in ("lead_days", "payment_days"):
+        if field in data:
+            changes[field] = _days(data.get(field))
+    _patch_quote(row, party, changes)
 
 
 def _decline(db: Session, *, order: Order, step: ProcessStep, row: Deal,
@@ -370,7 +376,7 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     if amount is None:
         raise HTTPException(
             status_code=400,
-            detail=(f"{flow.party_word} {party} hat keinen Preis genannt – ohne Betrag "
+            detail=(f"{dm.PARTY} {party} hat keinen Preis genannt – ohne Betrag "
                     f"gibt es keine Zusage. (0.00 ist erlaubt und heisst «kostenlos».)"),
         )
     _patch_quote(row, party, {"state": dm.CHOSEN})
@@ -380,16 +386,6 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     row.stage = dm.AGREED
     row.agreed_on = date.today()
     row.agreed_lines = lines_of(db, order, row)
-    _note(db, order=order, step=step, row=row, data=data, actor=actor)
-
-
-def _note(db: Session, *, order: Order, step: ProcessStep, row: Deal,
-          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
-    """Referenz und Notiz – was **nur ein Mensch weiss**, und erst zur Laufzeit."""
-    if "reference" in data:
-        row.reference = _text(data.get("reference"), 120)
-    if "note" in data:
-        row.note = _text(data.get("note"), 400)
 
 
 def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Deal,
@@ -631,7 +627,7 @@ def _party(db: Session, *, step: ProcessStep, value: Any,
     if allowed and number not in allowed:
         raise HTTPException(
             status_code=400,
-            detail=(f"{flow.party_word} {number} ist an diesem Modul nicht zugelassen. "
+            detail=(f"{dm.PARTY} {number} ist an diesem Modul nicht zugelassen. "
                     f"Erlaubt: " + ", ".join(str(n) for n in allowed) + "."),
         )
     found = (
@@ -695,6 +691,41 @@ def _due(booked: date, days: Optional[int]) -> Optional[date]:
     """Fälligkeit = Rechnungsdatum + Frist. **Ohne Frist keine Fälligkeit** – ein
     erfundenes Datum wäre schlimmer als keines."""
     return None if days is None else booked + timedelta(days=days)
+
+
+def _delivery(row: Deal) -> Optional[date]:
+    """**Wann er liefern wollte** – Zusagedatum + Lieferfrist der gewählten Zeile.
+
+    Dieselbe Form wie die Fälligkeit einer Rechnung: eine Frist ist eine Vereinbarung, ein
+    Datum ihre Folge. **Ohne Lieferfrist kein Termin** – ein erfundener wäre schlimmer als
+    keiner, und genau daran erkennt man, dass niemand über die Zeit gesprochen hat.
+    """
+    if row.agreed_on is None or row.party_id is None:
+        return None
+    line = _quote_of(row, row.party_id) or {}
+    return _due(row.agreed_on, _days_or_none(line.get("lead_days")))
+
+
+def _is_late(row: Deal) -> bool:
+    """**Ist der Liefertermin vorbei, obwohl noch nichts geliefert ist?**
+
+    Kein Zustand, sondern die Frage an zwei Daten – wie ``overdue`` bei einer Forderung.
+    Erledigt und storniert sind **nicht** verspätet: dort kommt nichts mehr, und ein
+    Vorwurf an einen abgeschlossenen Vorgang ist keine Auskunft.
+    """
+    if row.stage != dm.AGREED:
+        return False
+    due = _delivery(row)
+    return due is not None and due < date.today()
+
+
+def _days_or_none(value: Any) -> Optional[int]:
+    """Eine gespeicherte Tageszahl – **tolerant**, denn hier wird gelesen, nicht geprüft.
+    Ein alter JSONB-Wert darf keine Anzeige zerlegen."""
+    try:
+        return None if value in (None, "") else int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _our_number(db: Session, order: Order) -> str:
@@ -762,9 +793,9 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
     return {
         "direction": row.direction,
         "label": flow.label,
-        "party_word": flow.party_word,
-        "party_plural": flow.party_plural,
-        "party_ref": flow.party_ref,
+        # **Ein Wort für beide Richtungen** – es reist trotzdem mit, damit die Karte
+        # keine eigene Konstante daneben hält.
+        "party_word": dm.PARTY,
         "ask_verb": flow.ask_verb,
         "charge_word": flow.charge_word,
         "payment_word": flow.payment_word,
@@ -778,7 +809,6 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "stage_label": flow.label_of(row.stage),
         "stages": _stages(row, flow),
         "can": allowed,
-        "subject": modules.subject_of(step.config),
         "prepaid": modules.prepaid(step.config),
         # **Die Freigabe-Liste ist die Konkurrenzliste** – sie geht eine Gegenpartei
         # nichts an, auch nicht die, die den Zuschlag hat.
@@ -790,9 +820,21 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                        if row.party_id and won else None),
         "amount": _money(row.amount) if won else None,
         "due_days": row.due_days if won else None,
-        "reference": row.reference if won else None,
-        "note": row.note if won else None,
         "agreed_on": row.agreed_on if won else None,
+        # ►►► **Der Liefertermin und der Verzug — zwei ABLEITUNGEN, null Spalten.** ◄◄◄
+        #
+        # Ein Lieferverzug ist kein Zustand: der Termin ist *Zusagedatum + Lieferfrist der
+        # gewählten Zeile*, und «verspätet» heisst *Termin vorbei und noch nicht erledigt*
+        # – **exakt dieselbe Form wie ``overdue``** bei einer Forderung. Ein eigener
+        # Status dafür wäre ein Wert, den jemand pflegen müsste, und der beim ersten
+        # vergessenen Nachziehen lügt.
+        #
+        # **Was man dann tun kann, gibt es alles schon**: warten · stornieren (die Stücke
+        # stehen still, ein ganz gewöhnlicher Abweichungsauftrag entscheidet über sie) ·
+        # und das Geld läuft unabhängig weiter – genau darum sind ``charge`` und ``pay``
+        # auch nach dem Storno erlaubt, damit eine Anzahlung erstattet werden kann.
+        "due_date": _delivery(row) if won else None,
+        "late": _is_late(row) if won else False,
         # ►► **Forderung und Geld sieht nur das Personal.** Was ein Kunde uns schuldet,
         #    geht einen angefragten Dritten nichts an.
         "charged": _money(money.charged) if internal else None,

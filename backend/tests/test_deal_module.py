@@ -70,12 +70,16 @@ def _article(db, name: str, *, steps: list[dict] | None = None):
     return art
 
 
-def _money_step(*, direction: str = "out", parties=(), subject: str = "Härten",
+def _money_step(*, direction: str = "out", parties=(), task: str = "Härten auf 58 HRC",
                 prepaid: bool = False) -> dict:
-    """Ein «Zahlung»-Modul – vier Angaben, mehr gibt es nicht."""
+    """Ein «Zahlung»-Modul – drei Angaben, mehr gibt es nicht.
+
+    Je zugelassenem Partner **eine Pflichtangabe**, was bei ihm zu tun ist: seine
+    Artikelnummer, sein Shop-Link oder ein Satz.
+    """
     return {"module_type": "zahlung",
-            "config": {"direction": direction, "subject": subject,
-                       "parties": [p.object_id for p in parties],
+            "config": {"direction": direction,
+                       "parties": [{"party": p.object_id, "ref": task} for p in parties],
                        "prepaid": prepaid}}
 
 
@@ -205,7 +209,7 @@ def test_the_module_never_touches_a_single_unit():
         kunde = _party(db, "Meier AG", role="customer")
         art = _article(db, "Welle (Verkauf)",
                        steps=[_money_step(direction="in", parties=[kunde],
-                                          subject="Fertigung nach Zeichnung")])
+                                          task="Fertigung nach Zeichnung")])
         before = db.query(InstanceUnit).count()
         order, rows = _make(db, quantity=4, article=art)
         assert db.query(InstanceUnit).count() - before == 4, "Die Freigabe erzeugt sie."
@@ -309,17 +313,21 @@ def test_one_module_two_directions_and_the_words_come_from_the_data():
         lieferant = _party(db, "Härterei AG")
         kunde = _party(db, "Meier AG", role="customer")
         art = _article(db, "Welle", steps=[
-            _money_step(direction="out", parties=[lieferant], subject="Härten"),
-            _money_step(direction="in", parties=[kunde], subject="Verkauf"),
+            _money_step(direction="out", parties=[lieferant], task="Härten"),
+            _money_step(direction="in", parties=[kunde], task="Art. 4711"),
         ])
         order, rows = _make(db, quantity=2, article=art)
 
         out = svc.embed_data(db, order=order, step=rows[0])
         inn = svc.embed_data(db, order=order, step=rows[1])
         assert out["direction"] == dm.OUT and inn["direction"] == dm.IN
-        assert out["party_word"] == "Lieferant" and inn["party_word"] == "Kunde"
-        # **Der Plural ist eine Angabe, keine Rechnung** – «Kunde» + «en» wäre «Kundeen».
-        assert inn["party_plural"] == "Kunden"
+        # ►►► **Ein Wort für BEIDE Richtungen** (Testnotiz #802). ◄◄◄
+        #
+        # «Kunde» ↔ «Lieferant» war dieselbe Rolle in zwei Wörtern, und jede Aufrufstelle
+        # musste sich das richtige holen. Ein Wort nimmt die falsche Wahl als Fehlerklasse
+        # weg – und weil Singular = Plural ist, gibt es auch keine Beugung mehr, die
+        # jemand rechnen könnte («Kundeen», #787).
+        assert out["party_word"] == inn["party_word"] == dm.PARTY
         # **Wie man zugeht, unterscheidet sich – WAS man tut, nicht.**
         assert out["ask_verb"] == "Anfragen" and inn["ask_verb"] == "Anbieten"
         assert (out["stages"][0]["verb"] == inn["stages"][0]["verb"]
@@ -373,8 +381,9 @@ def test_the_direction_is_frozen_on_the_deal_not_read_from_the_module():
 
     Bug-Form: der Vorgang liest die Richtung bei jeder Anzeige aus der Konfiguration des
     Schritts. Ein späterer Umbau änderte damit **rückwirkend** die Bedeutung alter
-    Vorgänge – aus einer Einnahme würde eine Ausgabe, ohne dass jemand etwas tut.
+    Vorgänge – aus einem Verkauf würde ein Einkauf, ohne dass jemand etwas tut.
     """
+    from app.domain import deal as dm
     from app.services import deal as svc
     db = _db()
     try:
@@ -394,7 +403,7 @@ def test_the_direction_is_frozen_on_the_deal_not_read_from_the_module():
             "Die Antwort hat die Richtung aus dem Schritt neu gelesen – damit ändert ein "
             "Umbau rückwirkend, was ein alter Vorgang bedeutet."
         )
-        assert facts["party_word"] == "Kunde"
+        assert facts["party_word"] == dm.PARTY
     finally:
         db.rollback(); db.close()
 
@@ -436,15 +445,21 @@ def test_what_is_traded_is_derived_and_the_specification_travels():
             "Die Spezifikation reist nicht mit – der Lieferant sieht einen Betrag und "
             "sonst nichts."
         )
-        # **Der Satz ist FREIWILLIG** (#796): was gehandelt wird, sagen die Zeilen.
+        # ►►► **Was bei einem Partner zu tun ist, steht BEI IHM** (#805/#808). ◄◄◄
+        #
+        # Der frühere freiwillige Satz am Vorgang war dieselbe Angabe ein zweites Mal, nur
+        # ohne Adressaten – und optional. Ein Feld, das man ausfüllen *kann*, wird an der
+        # Hälfte der Stellen leer gelassen; dann sagt seine Leere nichts.
         cfg = rows[0].config or {}
-        assert cfg.get("subject") == "Härten"
-        from app.domain import modules
-        assert modules.get("zahlung").clean_config(
-            {"direction": "in", "parties": []})["subject"] == "", (
-            "Ohne Satz muss das Modul anlegbar sein – ein Pflichtfeld, das oft nichts "
-            "aufzunehmen hat, lädt zu einer Eingabe ein, die niemand liest."
+        assert cfg["parties"][0]["ref"] == "Härten auf 58 HRC", (
+            "Was bei diesem Partner zu tun ist, steht nicht bei ihm."
         )
+        assert "subject" not in cfg, "Der abgeschaffte Satz ist zurück."
+        from fastapi import HTTPException
+        from app.domain import modules
+        with pytest.raises(HTTPException):
+            modules.get("zahlung").clean_config(
+                {"direction": "in", "parties": [{"party": 100000001, "ref": ""}]})
     finally:
         db.rollback(); db.close()
 
@@ -671,7 +686,7 @@ def test_an_allowed_list_is_a_rule_and_an_empty_one_means_free():
         staff = _staff(db)
         art = _article(db, "Welle", steps=[
             _money_step(direction="out", parties=[a]),
-            _money_step(direction="out", parties=[], subject="frei"),
+            _money_step(direction="out", parties=[]),
         ])
         order, rows = _make(db, quantity=1, article=art)
 
@@ -988,8 +1003,8 @@ def test_we_number_our_own_invoices_and_never_theirs():
         kunde = _party(db, "Meier AG", role="customer")
         lieferant = _party(db, "Härterei AG")
         art = _article(db, "Welle", steps=[
-            _money_step(direction="in", parties=[kunde], subject="Verkauf"),
-            _money_step(direction="out", parties=[lieferant], subject="Härten"),
+            _money_step(direction="in", parties=[kunde], task="Art. 4711"),
+            _money_step(direction="out", parties=[lieferant], task="Härten"),
         ])
         order, rows = _make(db, quantity=1, article=art)
         _agree(db, order=order, step=rows[0], party=kunde, amount="100.00")
@@ -1019,10 +1034,14 @@ def test_we_number_our_own_invoices_and_never_theirs():
 
 
 def test_only_sent_fields_change_anything():
-    """**Wer die Referenz ändert, verliert nicht die Notiz.**
+    """**Nur gesendete Felder wirken** (``exclude_unset``).
 
-    Bug-Form: der Dienst schreibt jedes Feld der Nutzlast, auch die nicht gesendeten.
-    Dann löschte jeder Aufruf alles, was er nicht ausdrücklich wiederholt.
+    Wer den Betrag ändert, verliert nicht die Zahlungsfrist. Sonst löschte jeder Aufruf
+    alles, was er nicht ausdrücklich wiederholt.
+
+    *Geprüft am Angebotsspiegel, seit die Handlung ``note`` entfallen ist (#812): dort
+    stehen mehrere Angaben nebeneinander, also ist es dieselbe Frage an einem Verb, das es
+    noch gibt.*
     """
     from app.services import deal as svc
     db = _db()
@@ -1033,13 +1052,18 @@ def test_only_sent_fields_change_anything():
                        steps=[_money_step(direction="out", parties=[lieferant])])
         order, rows = _make(db, quantity=1, article=art)
         step = rows[0]
-        svc.apply(db, order=order, step=step, action="note",
-                  payload={"note": "Hebebühne nötig"}, actor=staff)
-        svc.apply(db, order=order, step=step, action="note",
-                  payload={"reference": "BST-99"}, actor=staff)
-        row = svc.of_step(db, step.id)
-        assert row.reference == "BST-99"
-        assert row.note == "Hebebühne nötig", "Eine nicht gesendete Angabe wurde geleert."
+        svc.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
+        svc.apply(db, order=order, step=step, action="quote",
+                  payload={"party": lieferant.object_id, "amount": "100.00",
+                           "lead_days": 14, "payment_days": 30}, actor=staff)
+        # Nur den Betrag nachreichen – die beiden Fristen kommen nicht mit.
+        svc.apply(db, order=order, step=step, action="quote",
+                  payload={"party": lieferant.object_id, "amount": "120.00"}, actor=staff)
+        line = svc.of_step(db, step.id).quotes[0]
+        assert line["amount"] == "120.00"
+        assert line["lead_days"] == 14 and line["payment_days"] == 30, (
+            "Ein Aufruf hat gelöscht, was er nicht wiederholt hat."
+        )
     finally:
         db.rollback(); db.close()
 
@@ -1156,7 +1180,7 @@ def test_whoever_did_not_win_does_not_see_the_award():
         assert lost["amount"] is None and lost["due_days"] is None, (
             "Der Unterlegene sieht den Preis des Konkurrenten."
         )
-        assert lost["agreed_on"] is None and lost["reference"] is None
+        assert lost["agreed_on"] is None
         assert lost["allowed"] == [], (
             "Die Freigabe-Liste ist die Konkurrenzliste – sie geht ihn nichts an."
         )

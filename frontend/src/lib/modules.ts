@@ -151,30 +151,41 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
  * dieselbe Unterscheidung wäre die zweite Antwort auf eine beantwortete Frage.
  */
 export const DEAL_DIRECTION: Record<string, {
-  icon: LucideIcon; label: string; hint: string; party: string; parties: string;
-  /** **Wie die Bestellangabe heisst** – leer heisst: es gibt sie hier nicht. */
-  ref: string;
+  icon: LucideIcon; label: string; hint: string;
 }> = {
   in: {
-    // Ein Handschlag – wir **verkaufen**: was den Vorgang ausmacht, ist die Zusage
-    // zwischen zwei Parteien, nicht der Betrag. Dasselbe Symbol wie `FLOW.sell`.
-    icon: Handshake, label: 'Einnahme',
-    hint: 'Einnahme · wir verkaufen – wir stellen Rechnung, Geld kommt herein.',
-    party: 'Kunde', parties: 'Kunden',
-    // **Beim Verkauf liefern wir** – «wie bestelle ich bei ihm» gibt es hier nicht
-    // (dieselbe Regel wie `Flow.party_ref`, #787).
-    ref: '',
+    // Ein Handschlag – wir **verkaufen**. Dasselbe Symbol wie `FLOW.sell`.
+    icon: Handshake, label: 'Verkauf',
+    hint: 'Verkauf – wir liefern, wir stellen Rechnung, Geld kommt herein.',
   },
   out: {
     // Ein Einkaufswagen – wir **kaufen ein**. Dasselbe Symbol wie `FLOW.buy`.
-    icon: ShoppingCart, label: 'Ausgabe',
-    hint: 'Ausgabe · wir kaufen ein – wir bekommen Rechnung, Geld geht hinaus.',
-    // **Der Plural als eigener Wert**, nicht als angehängtes «en»: «Kunde» + «en» ergäbe
-    // «Kundeen» (#787). Deutsche Beugung ist keine Zeichenkettenoperation.
-    party: 'Lieferant', parties: 'Lieferanten',
-    ref: 'Bestellangabe',
+    icon: ShoppingCart, label: 'Einkauf',
+    hint: 'Einkauf – er liefert, wir bekommen Rechnung, Geld geht hinaus.',
   },
 };
+
+/**
+ * ►►► **Was in BEIDEN Richtungen gleich heisst.** ◄◄◄
+ *
+ * «Kunde» ↔ «Lieferant» standen einmal je Richtung da, und jede Aufrufstelle musste sich
+ * das richtige Wort holen. Es ist aber **dieselbe Rolle**: der andere im Geschäft. Ein
+ * Wort dafür nimmt eine ganze Fehlerklasse weg – die falsche Wahl gibt es dann nicht mehr.
+ *
+ * **Singular = Plural.** Damit ist das «Kundeen»-Problem (#787) *strukturell* erledigt
+ * statt durch einen zweiten gepflegten Wert. Gespiegelt von `domain/deal`.
+ */
+export const DEAL_PARTY = 'Partner';
+
+/**
+ * **Was bei einem Partner zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein Satz.
+ *
+ * Eine Eigenschaft der **Paarung** Modul × Partner, in beiden Richtungen und **Pflicht**.
+ * Der frühere freiwillige Satz am Vorgang war ihre optionale Doppelung (#805) – und ein
+ * Feld, das man ausfüllen *kann*, wird an der Hälfte der Stellen leer gelassen.
+ */
+export const DEAL_TASK = 'Was ist zu tun?';
+export const DEAL_TASK_HINT = 'Artikelnummer, Link oder Beschreibung';
 
 /** Die Richtung zu einem Schlüssel. Unbekannt → Ausgabe, wie im Backend (`deal.of`). */
 export function dealDirection(direction: string | undefined | null) {
@@ -510,11 +521,6 @@ export interface ModuleDraft {
    */
   parties: { party: number; ref: string }[];
   /**
-   * Nur «Zahlung»: **worum es geht** – ein Satz, Pflicht. Er ist das, was auf dem Beleg
-   * steht («Härten auf 58 HRC», «Fertigung nach Zeichnung», «Transport nach Werk Nord»).
-   */
-  subject: string;
-  /**
    * Nur «Zahlung»: **erst weiter, wenn bezahlt.** Der einzige Schalter dieses Moduls –
    * und er schreibt keine Reihenfolge vor, er hält nur an.
    */
@@ -665,7 +671,6 @@ export const MODULE_FORM: Record<string, {
       parties: asRows(c.parties).map((r) => ({
         party: Number(r.party ?? r), ref: String(r.ref ?? ''),
       })).filter((r) => Number.isFinite(r.party)),
-      subject: String(c.subject ?? ''),
       prepaid: Boolean(c.prepaid),
     }),
     // Vier Angaben, keine davon Pflicht ausser der Richtung. Keine Erfassungspunkte und
@@ -673,7 +678,7 @@ export const MODULE_FORM: Record<string, {
     config: (m) => ({
       direction: m.direction,
       parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
-      subject: m.subject.trim(), prepaid: m.prepaid,
+      prepaid: m.prepaid,
     }),
   },
   verbrauch: {
@@ -735,7 +740,7 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
     // **Die Vorgabe ist die EINNAHME** (#791): der häufigere Fall im Haus ist, dass wir
     // etwas verkaufen. Die Richtung bleibt trotzdem eine ausdrückliche Angabe – der
     // Server verlangt sie (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt.
-    direction: 'in', parties: [], subject: '', prepaid: false,
+    direction: 'in', parties: [], prepaid: false,
   };
 }
 

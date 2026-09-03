@@ -845,8 +845,6 @@ class Zahlung(Module):
     ``parties``    Die **zugelassenen** Gegenparteien. **Leer heisst frei** – dann wird
                    beim Ausführen gesucht. Eine Liste mit einem Eintrag ist der
                    Normalfall; wer vergleichen will, nennt drei.
-    ``subject``    **Was an den Teilen zu tun ist** – ein Satz, **freiwillig** («Härten
-                   auf 58 HRC», «Oberfläche veredeln», «zertifizieren»).
     ``prepaid``    **Erst weiter, wenn bezahlt.** Der einzige Schalter – und er schreibt
                    keine Reihenfolge vor, er hält nur an (``deal.Balance.settled``).
 
@@ -873,12 +871,12 @@ class Zahlung(Module):
     Ebenso gibt es **keine Menge** (die Zahl der Einzelinstanzen) und **keinen Termin**
     (ableitbar aus Bestelldatum und Lieferfrist).
 
-    **Die Bestellangabe gibt es dagegen sehr wohl** – je zugelassener Gegenpartei eine
-    (``parties[].ref``): seine Artikelnummer, sein Shop-Link. Sie ist eine Eigenschaft der
-    **Paarung** Modul × Gegenpartei und nicht der Gegenpartei allein – derselbe Lieferant
-    führt je Teil eine andere Nummer –, und sie gehört dorthin, wo man festlegt, wer in
-    Frage kommt. Am **Beleg** wäre sie eine Angabe, die man bei jedem Vorgang neu
-    abschreibt. **Nur wo wir bestellen**: beim Verkauf liefern wir (``Direction.party_ref``).
+    **Was bei einem Partner zu tun ist, steht dagegen bei IHM** – je zugelassenem Partner
+    eine Pflichtangabe (``parties[].ref``, ``deal.TASK``): seine Artikelnummer, sein
+    Shop-Link oder ein Satz. Sie ist eine Eigenschaft der **Paarung** Modul × Partner und
+    nicht des Partners allein – derselbe Lieferant führt je Teil eine andere Nummer –, und
+    sie gehört dorthin, wo man festlegt, wer in Frage kommt. Am **Vorgang** wäre sie eine
+    Angabe, die man bei jedem Mal neu abschreibt.
 
     ## Die eine Regel, die es robust macht: es bewegt keine Stücke
 
@@ -907,14 +905,11 @@ class Zahlung(Module):
     #: Die vier Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
     DIRECTION = "direction"
     PARTIES = "parties"
-    SUBJECT = "subject"
     PREPAID = "prepaid"
     #: Die beiden Schlüssel **einer Zeile** der Freigabe-Liste.
     PARTY = "party"
     REF = "ref"
 
-    #: Ein Satz, kein Pflichtenheft – wer mehr braucht, hängt ein Dokument an den Artikel.
-    MAX_SUBJECT = 400
     #: Mehr ist keine Auswahl mehr, sondern eine Adressliste.
     MAX_PARTIES = 10
     #: Eine Artikelnummer oder ein Link – kein Bestelltext.
@@ -959,22 +954,11 @@ class Zahlung(Module):
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         flow = deal.of(direction)
-        # **Freiwillig** (Testnotiz #796): *was* gehandelt wird, sagen die Zeilen, und die
-        # gibt es immer. Dieser Satz sagt, was **an** den Teilen zu tun ist – und das gibt
-        # es nicht bei jedem Vorgang. Ein Pflichtfeld, das oft nichts aufzunehmen hat,
-        # lädt zu einer Eingabe ein, die niemand liest.
-        subject = str(data.get(self.SUBJECT) or "").strip()
-        if len(subject) > self.MAX_SUBJECT:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Der Satz ist zu lang (max. {self.MAX_SUBJECT} Zeichen).",
-            )
         # **Keine Erfassungspunkte, keine Stichprobe.** Geld ist keine Messung am Stück;
         # die Felder stehen trotzdem, damit jede Lesestelle dieselbe Form vorfindet.
         return {
             self.DIRECTION: direction,
             self.PARTIES: self._parties(data.get(self.PARTIES), flow),
-            self.SUBJECT: subject,
             self.PREPAID: bool(data.get(self.PREPAID)),
             "points": [], "sample": dict(sampling.DEFAULT),
         }
@@ -982,15 +966,16 @@ class Zahlung(Module):
     def _parties(self, value: Any, flow: "deal.Direction") -> list[dict[str, Any]]:
         """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt und heisst **frei**.
 
-        Je Zeile die Objektnummer und – **nur wo wir bestellen** – die Bestellangabe
-        (``flow.party_ref``): seine Artikelnummer oder sein Shop-Link. Sie gehört der
-        **Paarung** Modul × Gegenpartei, nicht der Gegenpartei allein: derselbe Lieferant
-        führt je Teil eine andere Nummer.
+        Je Zeile die Objektnummer und die **Angabe, was bei ihm zu tun ist**
+        (``deal.TASK``): seine Artikelnummer, sein Shop-Link oder ein Satz. Sie gehört der
+        **Paarung** Modul × Partner, nicht dem Partner allein – derselbe Lieferant führt je
+        Teil eine andere Nummer –, und sie gilt in **beiden** Richtungen: beim Einkauf sagt
+        sie, wie man bei ihm bestellt, beim Verkauf, was er bekommt.
 
-        **Beim Verkauf wird ein gesendeter Wert verworfen**, nicht abgewiesen: dort
-        liefern wir, es gibt das Feld nicht, und die Oberfläche bietet es gar nicht erst
-        an. Ein Dienst, der annimmt, was keine Oberfläche zeigt, wäre die Hintertür zu
-        einer Angabe, die niemand liest (dieselbe Regel wie #787).
+        **Sie ist Pflicht** (Testnotizen #805/#808). Der frühere freiwillige Satz am
+        Vorgang («Was ist daran zu tun?») war ihre optionale Doppelung – und ein Feld, das
+        man ausfüllen *kann*, wird an der Hälfte der Stellen leer gelassen; dann sagt seine
+        Leere nichts.
 
         Tolerant **gelesen** wird die alte Form (blosse Objektnummer): ein freigegebener
         Prozess ist eingefroren, sie steht in laufenden Aufträgen und wird sie überleben.
@@ -1001,7 +986,7 @@ class Zahlung(Module):
             raise HTTPException(
                 status_code=400,
                 detail=f"«{flow.label}» erwartet eine Liste zugelassener "
-                       f"{flow.party_plural}.",
+                       f"{deal.PARTY}.",
             )
         rows: list[dict[str, Any]] = []
         seen: set[int] = set()
@@ -1011,29 +996,33 @@ class Zahlung(Module):
             if number is None:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"«{entry}» ist keine Objektnummer ({flow.party_word}).",
+                    detail=f"«{entry}» ist keine Objektnummer ({deal.PARTY}).",
                 )
             if number in seen:
                 raise HTTPException(
                     status_code=400,
-                    detail=(f"{flow.party_word} {number} steht zweimal – zweimal "
+                    detail=(f"{deal.PARTY} {number} steht zweimal – zweimal "
                             f"derselbe ist keine zweite Wahl."),
                 )
             seen.add(number)
             ref = str((entry.get(self.REF) if isinstance(entry, dict) else "") or "").strip()
-            if not flow.party_ref:
-                ref = ""
+            if not ref:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"{deal.PARTY} {number}: «{deal.TASK}» fehlt – ohne die "
+                            f"Angabe weiss er nicht, worum es geht ({deal.TASK_HINT})."),
+                )
             if len(ref) > self.MAX_REF:
                 raise HTTPException(
                     status_code=400,
-                    detail=(f"Die {flow.party_ref} von {number} ist zu lang "
+                    detail=(f"{deal.PARTY} {number}: «{deal.TASK}» ist zu lang "
                             f"(max. {self.MAX_REF} Zeichen)."),
                 )
             rows.append({self.PARTY: number, self.REF: ref})
         if len(rows) > self.MAX_PARTIES:
             raise HTTPException(
                 status_code=400,
-                detail=f"Höchstens {self.MAX_PARTIES} {flow.party_plural} je Modul.",
+                detail=f"Höchstens {self.MAX_PARTIES} {deal.PARTY} je Modul.",
             )
         return rows
 
@@ -1067,11 +1056,6 @@ def parties_allowed(config: Optional[dict[str, Any]]) -> list[int]:
     zwei Regeln.
     """
     return [int(r[Zahlung.PARTY]) for r in parties_of(config)]
-
-
-def subject_of(config: Optional[dict[str, Any]]) -> str:
-    """**Worum es bei diesem Geldvorgang geht** – die eine Lesestelle."""
-    return str((config or {}).get(Zahlung.SUBJECT) or "")
 
 
 def prepaid(config: Optional[dict[str, Any]]) -> bool:

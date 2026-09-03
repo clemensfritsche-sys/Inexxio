@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import {
-  ArrowUpRight, Check, ChevronDown, CircleSlash, FileText, Lock, Send, Trash2, Undo2,
-  Wallet,
+  AlertTriangle, ArrowUpRight, CalendarClock, Check, ChevronDown, CircleSlash, FileText,
+  Lock, Send, Trash2, Undo2, Wallet,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DealEmbed, DealParty, DealQuote } from '@/types';
@@ -12,7 +12,9 @@ import { ObjectSelect } from '@/components/erp/object-select';
 import {
   Label, ReadField, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
-import { DEAL_STAGE, QUOTE_STATE, dealDirection } from '@/lib/modules';
+import {
+  DEAL_PARTY, DEAL_STAGE, DEAL_TASK, QUOTE_STATE, dealDirection,
+} from '@/lib/modules';
 import { formatAmount, localDate } from '@/lib/utils';
 
 /**
@@ -112,9 +114,20 @@ export function DealWork({ deal, busy, active = true, onAction, children }: {
       {/* **Das Geld – eine Zeile, keine Stufe.** Sie steht dort, wo man sie erwartet
           (dritte Position), und ist ab der Zusage bedienbar; die Kette darüber sagt
           weiterhin nur, was **zugesagt** ist. */}
+      {/* ►►► **Die Geld-Zeile hängt an `can`, an sonst nichts.** ◄◄◄
+
+          Sie bekam `active` wie die beiden Stufen darüber – und `active` heisst «dieses
+          Modul ist gerade dran». Bei einem **Zahlungsziel** ist es das längst nicht mehr,
+          wenn das Geld kommt: gemessen erlaubte der Dienst Rechnung und Zahlung an einem
+          abgeschlossenen Auftrag, die Karte bot **null** Knöpfe an. Eine erfundene Sperre,
+          die der Dienst nicht kennt – und die erfundene hat keinen Schlüssel (dieselbe
+          Fehlerform wie damals bei «nicht bestanden», PROCESS_CORE §4.5).
+
+          Die beiden Stufen behalten `active`: dort ist es richtig – man verhandelt nicht
+          an einem Modul, das nicht dran ist. */}
       <Row last label={d.money_label} done={!!d.settled && !!Number(d.charged ?? 0)}
         active={agreed && !cancelled}>
-        {agreed && <Money d={d} busy={busy} active={active} onAction={onAction} />}
+        {agreed && <Money d={d} busy={busy} onAction={onAction} />}
       </Row>
 
       {cancelled && (
@@ -147,6 +160,15 @@ export function DealWork({ deal, busy, active = true, onAction, children }: {
  * übrigen bleiben Struktur – keine Fläche, keine zweite Farbe.
  */
 const HEAD_H = 18;
+
+/**
+ * **Alle Knöpfe einer Angebotszeile sind exakt gleich hoch** (#810).
+ *
+ * Zwei Knöpfe nebeneinander, die sich um einen Pixel unterscheiden, lesen sich als
+ * Rangfolge – gemeint ist aber «entweder das oder das». Die Höhe steht darum an **einer**
+ * Stelle; die Breite eines Symbol-Knopfes gibt `.erp-actbtn-icon` vor (32 px, quadratisch).
+ */
+const ACT_H = 30;
 
 function Row({ label, done, active, last, children }: {
   label: string; done?: boolean; active?: boolean;
@@ -203,20 +225,41 @@ function Head({ d }: { d: Filled }) {
   const dir = dealDirection(d.direction);
   const Icon = dir.icon;
   return (
-    <div className="flex items-center gap-2.5 flex-wrap"
-      style={{ marginBottom: 10, paddingBottom: 9, borderBottom: '1px solid var(--border-1)' }}>
-      <span className="flex items-center justify-center rounded-ds-sm" data-tip={dir.hint}
+    <div className="flex items-center gap-2 flex-wrap"
+      style={{ marginBottom: 8, paddingBottom: 7, borderBottom: '1px solid var(--border-1)' }}>
+      {/* **Symbol UND Wort** – zusammen eine Marke, nicht ein Symbol allein auf einer
+          eigenen Zeile. Solange der Satz «Was ist daran zu tun?» daneben stand, trug die
+          Zeile Inhalt; ohne ihn (#805) blieb ein 28-px-Quadrat auf voller Breite übrig,
+          und genau das war die Meldung: «nimmt zu viel Platz ein und ist nicht prominent
+          genug» (#815). Ein Wort, das dort steht, kostet keinen Platz mehr – es füllt den,
+          der ohnehin verbraucht wird. */}
+      <span className="flex items-center gap-1.5 rounded-ds-sm" data-tip={dir.hint}
         style={{
-          width: 28, height: 28, flex: 'none', cursor: 'help',
+          padding: '3px 8px 3px 6px', flex: 'none', cursor: 'help',
           background: 'var(--accent-soft)', color: 'var(--accent-ink)',
         }}>
-        <Icon size={17} />
+        <Icon size={16} />
+        <span style={{
+          font: '800 11px var(--font-body)', textTransform: 'uppercase',
+          letterSpacing: '.07em',
+        }}>{d.label}</span>
       </span>
-      {d.subject && (
-        <span className="text-[12.5px] min-w-0 flex-1" style={{ color: 'var(--fg-2)' }}>
-          {d.subject}
+      {/* ►►► **Der Liefertermin — und ob er vorbei ist** (#814). ◄◄◄
+          Ein Verzug ist kein Zustand, den jemand pflegt: er ist *Termin vorbei und noch
+          nicht erledigt*, dieselbe Ableitung wie «überfällig» bei einer Forderung. Was man
+          dann tun kann, gibt es alles schon – warten, stornieren, und das Geld läuft
+          davon unabhängig weiter. */}
+      {d.due_date && (
+        <span className="flex items-center gap-1 text-[12px]" style={{
+          color: d.late ? 'var(--danger)' : 'var(--fg-3)', flex: 'none',
+        }} data-tip={d.late
+          ? 'Der zugesagte Liefertermin ist vorbei und das Modul ist noch nicht erledigt.'
+          : 'Zugesagter Liefertermin – Zusagedatum plus Lieferfrist.'}>
+          {d.late ? <AlertTriangle size={12} /> : <CalendarClock size={12} />}
+          {d.late ? 'überfällig seit ' : 'Liefertermin '}{localDate(d.due_date)}
         </span>
       )}
+      <span className="flex-1" style={{ minWidth: 0 }} />
       {/* **Die Sperre ist eine Auskunft, keine Warnung.** Sie steht als Eigenschaft
           dieses Moduls da, nicht als Fehler. */}
       {d.prepaid && (
@@ -309,6 +352,14 @@ function Offer({ d, busy, active, onAction }: {
   const open = d.allowed.filter((a) => !d.quotes.some(
     (q) => q.party_object_id === a.object_id));
   const free = d.allowed.length === 0;
+  const mayAsk = may(d, active, 'ask');
+
+  // ►►► **Wen man anfragt, wählt man AUS** (#809) – dieselbe Geste wie im
+  // Beschaffen-Modul: alle sind vorgewählt, ein Klick nimmt einen heraus. Vorher war
+  // «Anfragen (2)» eine Ansage statt einer Wahl; wer nur einen von zweien fragen wollte,
+  // konnte es nicht sagen.
+  const [dropped, setDropped] = useState<number[]>([]);
+  const chosen = open.filter((o) => !dropped.includes(o.object_id));
 
   return (
     <div className="flex flex-col gap-2 mt-1.5">
@@ -317,7 +368,7 @@ function Offer({ d, busy, active, onAction }: {
           onAction={onAction} />
       ))}
 
-      {may(d, active, 'ask') && (free ? (
+      {mayAsk && (free ? (
         // **Wo niemand zugelassen ist, wird gesucht** – dieselbe Bauart wie überall.
         <ObjectSelect<DealParty>
           label={d.party_word}
@@ -334,13 +385,41 @@ function Offer({ d, busy, active, onAction }: {
           }}
         />
       ) : open.length > 0 && (
-        <div>
+        <div className="flex flex-col gap-1.5">
+          {open.map((o) => {
+            // **Die Zeile IST der Schalter** – kein Häkchen daneben. Gewählt heisst
+            // getönt mit Haken, abgewählt heisst blass; dieselbe Geste wie überall im
+            // Haus, wo ein Klick die Entscheidung ist.
+            const on = !dropped.includes(o.object_id);
+            return (
+              <button key={o.object_id} type="button" disabled={busy}
+                className="flex items-center gap-2 text-[13px] rounded-ds-sm w-full"
+                style={{
+                  padding: '5px 8px', textAlign: 'left',
+                  border: `1px solid ${on ? 'var(--border-2)' : 'transparent'}`,
+                  background: on ? 'var(--bg-1)' : 'transparent',
+                  opacity: on ? 1 : 0.5,
+                }}
+                onClick={() => setDropped((cur) => (on
+                  ? [...cur, o.object_id]
+                  : cur.filter((n) => n !== o.object_id)))}>
+                <Check size={13} style={{
+                  flex: 'none', color: on ? 'var(--success)' : 'var(--fg-4)',
+                  opacity: on ? 1 : 0.35,
+                }} />
+                <ObjId value={o.object_id} />
+                <span className="truncate" style={{ color: 'var(--fg-3)' }}>{o.name}</span>
+              </button>
+            );
+          })}
           <button type="button" className="erp-actbtn erp-actbtn-primary self-start"
-            style={{ height: 32 }} disabled={busy}
-            data-tip={open.map((o) => `${o.object_id} ${o.name}`).join(' · ')}
-            onClick={() => onAction({ action: 'ask' })}>
-            <Send size={13} /> {d.ask_verb}
-            {open.length > 1 ? ` (${open.length})` : ''}
+            style={{ height: 32 }} disabled={busy || chosen.length === 0}
+            data-tip={chosen.length === 0
+              ? 'Niemand gewählt – eine Zeile anklicken.' : undefined}
+            onClick={() => onAction({
+              action: 'ask', parties: chosen.map((o) => o.object_id),
+            })}>
+            <Send size={13} /> Bei {chosen.length} {d.ask_verb.toLowerCase()}
           </button>
         </div>
       ))}
@@ -382,20 +461,26 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
           minWidth: 0, color: declined ? 'var(--fg-4)' : 'var(--fg-2)',
           textDecoration: declined ? 'line-through' : undefined,
         }}>{quote.party_name}</span>
-        {quote.amount && (
+        {/* ►►► **Abgesagt ist abgesagt** (#811). ◄◄◄
+            Betrag und Lieferfrist standen weiter da, auch nachdem jemand abgelehnt hatte –
+            ein Angebot, das es nicht mehr gibt, mit einem Termin, den niemand mehr zusagt.
+            Die Zahlen bleiben in den Daten (der Log ist die Historie); was hier steht, ist
+            der **heutige** Stand, und der lautet: nichts. */}
+        {!declined && quote.amount && (
           <span className="ix-tnum text-[12.5px] font-semibold"
             style={{ color: 'var(--fg-1)', flex: 'none' }}>
             {formatAmount(quote.amount)}
           </span>
         )}
-        {quote.lead_days != null && (
+        {!declined && quote.lead_days != null && (
           <span className="text-[12px]" style={{ color: 'var(--fg-4)', flex: 'none' }}>
             {quote.lead_days} Tage
           </span>
         )}
         {declined && (
-          <span className="text-[12px]" style={{ color: 'var(--fg-4)', flex: 'none' }}>
-            abgesagt
+          <span className="flex items-center gap-1 text-[12px]"
+            style={{ color: 'var(--danger)', flex: 'none' }}>
+            <CircleSlash size={12} /> abgesagt
           </span>
         )}
       </div>
@@ -403,7 +488,7 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
       {/* ►►► **Wie man bei IHM bestellt** – seine Artikelnummer, sein Shop-Link (#753).
           Sie steht in der **Definition** und damit an seiner Zeile: eine Eigenschaft der
           Paarung Modul × Gegenpartei, die sich nicht je Vorgang ändert. ◄◄◄ */}
-      {d.party_ref && quote.ref && <PartyRef value={quote.ref} label={d.party_ref} />}
+      {quote.ref && <PartyRef value={quote.ref} />}
 
       {active && !chosen && (may(d, active, 'quote') || may(d, active, 'agree')) && (
         <div className="flex items-end gap-2 flex-wrap" style={{ paddingBottom: 8 }}>
@@ -431,7 +516,7 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
               </div>
               <button type="button"
                 className="erp-actbtn erp-actbtn-primary erp-actbtn-icon"
-                style={{ height: 30 }} disabled={busy || amount.trim() === ''}
+                style={{ height: ACT_H }} disabled={busy || amount.trim() === ''}
                 aria-label="Offerte erfassen"
                 data-tip={amount.trim() === ''
                   ? 'Ohne Betrag gibt es keine Offerte'
@@ -448,7 +533,7 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
           {may(d, active, 'decline') && !declined && (
             <button type="button"
               className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
-              style={{ height: 30 }} disabled={busy}
+              style={{ height: ACT_H }} disabled={busy}
               aria-label="Absage" data-tip="Absage · kommt nicht in Frage"
               onClick={() => onAction({ action: 'decline', party })}>
               <CircleSlash size={14} />
@@ -459,7 +544,7 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
               Fläche; die beiden Symbol-Knöpfe daneben sind die Vorstufe. */}
           {may(d, active, 'agree') && !declined && (
             <button type="button" className="erp-actbtn erp-actbtn-primary"
-              style={{ height: 30 }} disabled={busy || !quote.amount}
+              style={{ height: ACT_H }} disabled={busy || !quote.amount}
               data-tip={quote.amount ? undefined : 'Ohne Preis gibt es keine Zusage'}
               onClick={() => onAction({ action: 'agree', party })}>
               <Check size={13} /> {d.stages[0]?.verb}
@@ -477,12 +562,12 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
  * Sieht sie aus wie eine Adresse, ist sie eine: die Heuristik steht an dieser **einen**
  * Stelle, statt ein zweites Feld «ist Link» zu erfinden, das jemand falsch ankreuzt.
  */
-function PartyRef({ value, label }: { value: string; label: string }) {
+function PartyRef({ value }: { value: string }) {
   const link = /^https?:\/\//i.test(value);
   if (!link) {
     return (
       <span className="flex items-baseline gap-1.5 text-[12px]" style={{ paddingBottom: 4 }}>
-        <span style={{ color: 'var(--fg-4)', flex: 'none' }}>{label}</span>
+        <span style={{ color: 'var(--fg-4)', flex: 'none' }}>{DEAL_TASK}</span>
         <span className="ix-tnum truncate" style={{ color: 'var(--fg-3)', minWidth: 0 }}
           data-tip={value}>{value}</span>
       </span>
@@ -493,7 +578,7 @@ function PartyRef({ value, label }: { value: string; label: string }) {
       className="flex items-center gap-1 text-[12px] truncate self-start"
       style={{ color: 'var(--accent)', paddingBottom: 4, minWidth: 0 }}>
       <ArrowUpRight size={12} style={{ flex: 'none' }} />
-      <span className="truncate">{label} öffnen</span>
+      <span className="truncate">Beim {DEAL_PARTY} öffnen</span>
     </a>
   );
 }
@@ -506,7 +591,6 @@ function Agreed({ d, busy, active, onAction, children }: {
   d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
   children?: React.ReactNode;
 }) {
-  const [ref, setRef] = useState(d.reference ?? '');
   const waiting = d.prepaid && !d.settled;
   return (
     <div className="flex flex-col gap-2 mt-1.5">
@@ -524,16 +608,12 @@ function Agreed({ d, busy, active, onAction, children }: {
         )}
         {d.agreed_on && <ReadField label="Bestätigt" value={localDate(d.agreed_on)} />}
       </div>
-      {may(d, active, 'note') && (
-        <div style={{ maxWidth: 260 }}>
-          <Label>Referenz</Label>
-          <input className={inputCls} value={ref} aria-label="Referenz"
-            placeholder="ihre Nummer"
-            onChange={(e) => setRef(e.target.value)}
-            onBlur={() => ref !== (d.reference ?? '')
-              && onAction({ action: 'note', reference: ref })} />
-        </div>
-      )}
+      {/* ►►► **Kein Referenz-Feld mehr** (#812). ◄◄◄
+          «Ich checke nicht, warum hier dieses Eingabefeld ist» – zu Recht: es beantwortete
+          keine Frage, die jemand hat. Die **Rechnungsnummer** erzeugt der Dienst längst
+          selbst (`<Auftragsnummer>[-n]`), und was bei diesem Partner zu tun ist, steht an
+          seiner Angebotszeile. Damit hatte die Handlung `note` keinen Aufrufer mehr und ist
+          mitgegangen. */}
       {/* **Warum es nicht weitergeht, steht da, wo man weiterklicken würde.** Der Server
           weist ebenso ab (`deal.assert_completable`) – dies ist die freundliche Hälfte. */}
       {active && waiting && (
@@ -566,9 +646,11 @@ function Agreed({ d, busy, active, onAction, children }: {
  * davon das naheliegende ist, sagt die Ausprägung des Knopfes (`-primary` ↔ `-neutral`
  * ↔ `-danger`), nicht ein Klick, der es erst hervorholt.
  */
-function Money({ d, busy, active, onAction }: {
-  d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
+function Money({ d, busy, onAction }: {
+  d: Filled; busy?: boolean; onAction: (body: Action) => void;
 }) {
+  // **Hier gilt allein `can`** – siehe die Begründung an der Aufrufstelle.
+  const active = true;
   const [form, setForm] = useState<'' | 'charge' | 'payment'>('');
   // Ohne Zahlen gibt es nichts zu zeigen – so sieht es eine Gegenpartei.
   if (d.open == null) return null;

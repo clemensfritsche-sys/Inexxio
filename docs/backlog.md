@@ -138,6 +138,24 @@ Der Grund für den Wegfall steht in PROCESS_CORE §9.11: eine **Gutschrift ist e
 Rechnung**, keine Zahlung, bei der kein Geld fliesst. Migration `123` hat die bestehenden
 `credit`-Zeilen bereits umgezogen und deaktiviert.
 
+## Offen: `deals.reference` und `deals.note` (Zwei-Deploy-Regel)
+
+Beide haben ihr ORM-Mapping in dieser Runde verloren (Testnotiz #812): niemand wusste, was
+in das Referenz-Feld gehört, und die Rechnungsnummer erzeugt der Dienst längst selbst
+(`<Auftragsnummer>[-n]`). Damit hatte auch die Handlung `note` keinen Aufrufer mehr.
+
+**Erst im Folge-Deploy droppen** — nicht im selben: sonst liefe die während des
+Cloud-Run-Rollouts noch laufende Vorgänger-Revision gegen eine Tabelle ohne sie (die
+Ausfallklasse von Migration `090`).
+
+```sql
+ALTER TABLE deals DROP COLUMN IF EXISTS reference;
+ALTER TABLE deals DROP COLUMN IF EXISTS note;
+```
+
+*Nicht zu verwechseln mit `deal_entries.reference` / `.note`* — die tragen Rechnungsnummer
+bzw. Zahlungszweck einer Geld-Zeile und bleiben.
+
 ## Erledigt: die toten Spalten sind gedroppt (Migration `120`)
 
 Die **Zwei-Deploy-Regel** ist damit einmal komplett durchlaufen: im Aufräum-Deploy

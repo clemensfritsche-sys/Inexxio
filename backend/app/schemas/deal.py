@@ -47,9 +47,11 @@ class DealQuote(BaseModel):
 
     party_object_id: int
     party_name: str = ""
-    #: **Wie man bei IHM bestellt** – seine Artikelnummer oder sein Shop-Link, aus der
-    #: Definition (``config.parties[].ref``). Sie gehört der Paarung Modul × Gegenpartei
-    #: und steht darum an seiner Zeile; leer, wo es die Angabe nicht gibt (Verkauf).
+    #: ►►► **Was bei IHM zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein
+    #: Satz (``config.parties[].ref``, ``deal.TASK``). ◄◄◄
+    #:
+    #: Eine Eigenschaft der **Paarung** Modul × Partner – derselbe Lieferant führt je Teil
+    #: eine andere Nummer –, in **beiden** Richtungen und **Pflicht**.
     ref: str = ""
     #: Als **String** – wo es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet.
     amount: Optional[str] = None
@@ -65,8 +67,8 @@ class DealLine(BaseModel):
     Normalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.
 
     Die **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die
-    Sache, damit die Gegenpartei weiss, worum es geht. Was **daran** zu tun ist, steht im
-    Satz daneben (``subject``).
+    Sache, damit der Partner weiss, worum es geht. Was **daran** zu tun ist, steht bei
+    dem Partner, den es betrifft (``DealQuote.ref``).
     """
 
     article_id: int
@@ -110,14 +112,13 @@ class DealEmbed(BaseModel):
     # ─── Die Richtung, und was aus ihr folgt: lauter Wörter ──────────────────────
     #: ``in`` (Geld kommt) · ``out`` (Geld geht) – ``domain/deal``.
     direction: str = "out"
-    #: Wie der Vorgang heisst: «Einnahme» ↔ «Ausgabe».
+    #: Wie der Vorgang heisst: «Verkauf» ↔ «Einkauf» – dieselben Wörter wie beim
+    #: Handel, damit ein Haus eine Sprache spricht.
     label: str = ""
+    #: **Wie der andere im Geschäft heisst** – in beiden Richtungen dasselbe Wort und in
+    #: beiden Numeri (``deal.PARTY``). Es reist trotzdem mit, damit die Karte keine eigene
+    #: Konstante daneben hält.
     party_word: str = ""
-    party_plural: str = ""
-    #: **Wie die Bestellangabe heisst** – leer heisst: es gibt sie in dieser Richtung
-    #: nicht. Ein Wert statt eines Booleans: dieselbe Angabe beantwortet «gibt es sie»
-    #: und «wie heisst sie», und zwei Felder daneben könnten sich widersprechen.
-    party_ref: str = ""
     charge_word: str = ""
     payment_word: str = ""
     open_word: str = "Offen"
@@ -145,9 +146,6 @@ class DealEmbed(BaseModel):
     can: list[str] = Field(default_factory=list)
 
     # ─── Was in der Definition steht ─────────────────────────────────────────────
-    #: **Was an den Teilen zu tun ist** – der Satz aus der Definition, freiwillig.
-    #: *Was* gehandelt wird, sagen die ``lines``; die gibt es immer.
-    subject: str = ""
     #: **Erst weiter, wenn bezahlt?** Der einzige Schalter dieses Moduls.
     prepaid: bool = False
     #: Die **zugelassenen** Gegenparteien. Leer heisst frei – dann wird gesucht.
@@ -164,9 +162,13 @@ class DealEmbed(BaseModel):
     #: **Was vereinbart ist** – nicht was gefordert und nicht was gezahlt ist.
     amount: Optional[str] = None
     due_days: Optional[int] = None
-    reference: Optional[str] = None
-    note: Optional[str] = None
     agreed_on: Optional[date] = None
+    #: ►►► **Wann er liefern wollte** – Zusagedatum + Lieferfrist. Eine **Ableitung**,
+    #: keine Spalte; ohne vereinbarte Frist gibt es keinen Termin.
+    due_date: Optional[date] = None
+    #: **Termin vorbei und noch nicht erledigt** – dieselbe Form wie ``overdue`` bei einer
+    #: Forderung. Ein Lieferverzug ist kein Zustand, den jemand pflegt.
+    late: bool = False
 
     # ─── Forderung und Geld: lauter Ableitungen, keine Spalte ────────────────────
     charged: Optional[str] = None
@@ -201,7 +203,6 @@ class DealUpdate(BaseModel):
                 ``lead_days``, ``payment_days``) – auch von der Gegenpartei
     ``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei
     ``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)
-    ``note``    Referenz und Notiz nachtragen
     ``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle
     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
                 ``booked_on``, ``due_on``, ``reference``, ``note``)

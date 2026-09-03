@@ -1816,16 +1816,6 @@ export interface components {
              */
             party_word: string;
             /**
-             * Party Plural
-             * @default
-             */
-            party_plural: string;
-            /**
-             * Party Ref
-             * @default
-             */
-            party_ref: string;
-            /**
              * Charge Word
              * @default
              */
@@ -1867,11 +1857,6 @@ export interface components {
             /** Can */
             can?: string[];
             /**
-             * Subject
-             * @default
-             */
-            subject: string;
-            /**
              * Prepaid
              * @default false
              */
@@ -1890,12 +1875,15 @@ export interface components {
             amount?: string | null;
             /** Due Days */
             due_days?: number | null;
-            /** Reference */
-            reference?: string | null;
-            /** Note */
-            note?: string | null;
             /** Agreed On */
             agreed_on?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /**
+             * Late
+             * @default false
+             */
+            late: boolean;
             /** Charged */
             charged?: string | null;
             /** Paid */
@@ -1952,8 +1940,8 @@ export interface components {
          *     Normalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.
          *
          *     Die **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die
-         *     Sache, damit die Gegenpartei weiss, worum es geht. Was **daran** zu tun ist, steht im
-         *     Satz daneben (``subject``).
+         *     Sache, damit der Partner weiss, worum es geht. Was **daran** zu tun ist, steht bei
+         *     dem Partner, den es betrifft (``DealQuote.ref``).
          */
         DealLine: {
             /** Article Id */
@@ -2056,7 +2044,6 @@ export interface components {
          *                 ``lead_days``, ``payment_days``) – auch von der Gegenpartei
          *     ``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei
          *     ``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)
-         *     ``note``    Referenz und Notiz nachtragen
          *     ``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle
          *     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
          *                 ``booked_on``, ``due_on``, ``reference``, ``note``)

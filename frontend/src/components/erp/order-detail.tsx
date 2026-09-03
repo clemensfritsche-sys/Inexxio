@@ -654,10 +654,17 @@ function RunView({ order, busy, onConfirm, onPurchase, onDeal, onDeviate }: {
     // für **jedes** Modul, nicht für dieses eine.
     const plain = step.verifies === false;
     const work = !internal ? null : isActive && plain ? (
-      <button type="button" className="erp-actbtn w-full" disabled={busy}
-        style={{ height: 38 }}
+      // ►►► **Der Modul-Knopf IST ein Knopf** (Testnotiz #813). ◄◄◄
+      //
+      // Er trug den blossen `.erp-actbtn` – und die Basisklasse hat `border: 1px solid
+      // transparent` und keine Fläche: sie sah aus wie Text. Erst eine Ausprägung macht
+      // daraus etwas, das man als Knopf erkennt. Und dieser hier ist die **eine**
+      // Handlung, die das Modul abschliesst; er trägt darum die volle Breite und die
+      // Fläche, nicht bloss eine Kontur.
+      <button type="button" className="erp-actbtn erp-actbtn-primary w-full"
+        disabled={busy} style={{ height: 42, fontSize: 14 }}
         onClick={() => onConfirm(step.id, null, 'manual', {}, [], null)}>
-        <Check size={15} /> {stepInfo(order, step.id)?.action ?? 'Bestätigen'}
+        <Check size={16} /> {stepInfo(order, step.id)?.action ?? 'Bestätigen'}
       </button>
     ) : isActive ? (
       // **Die Arbeit steht je Instanz da** – weil ein Vorgang eine Instanz ist

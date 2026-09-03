@@ -294,6 +294,11 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   dieselbe Komponente; dass sie weniger sieht, entscheidet die **Antwort**, nicht die
   Oberfläche (`open == null` → die Geld-Zeile rendert nichts; wer nicht den Zuschlag hat,
   bekommt Name, Preis und Frist des Gewählten gar nicht erst geliefert).
+- ►►► **Die Geld-Zeile hängt an `can`, nicht an «ist dieses Modul dran».** ◄◄◄ Bei einem
+  **Zahlungsziel** ist es das längst nicht mehr, wenn das Geld kommt: gemessen erlaubte der
+  Dienst Rechnung und Zahlung an einem abgeschlossenen Auftrag, die Karte bot **null**
+  Knöpfe an – eine erfundene Sperre ohne Schlüssel. Die beiden **Stufen** behalten `active`:
+  dort ist es richtig, man verhandelt nicht an einem Modul, das nicht dran ist.
 - ►►► **Jeder Knopf trägt eine Ausprägung.** ◄◄◄ Ein blosser `.erp-actbtn` hat
   `border: 1px solid transparent` und keine Fläche – er **sieht aus wie Text**. Erst
   `-primary` (der Vorschlag) / `-neutral` (die übrigen) / `-danger` (Storno) machen daraus
@@ -326,10 +331,25 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Überlauf misst, muss darum auch **Textknoten** messen – **und sie an jedem `overflow:
   hidden`-Vorfahren kappen**: ein `truncate`-Text ist wirklich abgeschnitten, und eine
   Messung, die die Lösung als Fehler meldet, ist so falsch wie eine, die ihn übersieht.
-- **Im Editor** (`MoneyFields`) vier Angaben: Richtung (Schieber, Vorgabe **Einnahme**,
-  #791), «Was ist daran zu tun?» (**freiwillig**, #796), zugelassene Gegenparteien
-  (`ObjectSelect`, leer = `RUNTIME_CHOICE`) – je Zeile mit ihrer **Bestellangabe**, wo
-  `dir.ref` sie nennt – und die Sperre. **Kein Betragsfeld** – beim
+- **Im Editor** (`MoneyFields`) drei Angaben: **Geschäft** (Schieber Verkauf ↔ Einkauf,
+  Vorgabe Verkauf, #791/#804), **zugelassene Partner** (`ObjectSelect`, leer =
+  `RUNTIME_CHOICE`) – je Zeile mit der **Pflichtangabe** «Was ist zu tun?» (#805/#808) –
+  und **«Weiter, wenn»** · zugesagt ↔ bezahlt (#806/#807). **Kein Betragsfeld** und kein
+  Satz am Vorgang: beides stünde beim Modellieren nicht fest bzw. doppelt.
+- ►►► **Ein Wort für beide Richtungen** (`DEAL_PARTY`, `DEAL_TASK`, #802). ◄◄◄ «Kunde» ↔
+  «Lieferant» ist dieselbe Rolle; Singular = Plural, damit es keine Beugung gibt, die
+  jemand rechnet. Ein Rollen-Wort als Literal in der Oberfläche ist ein Wächter-Fehler.
+- **Der Kopf trägt Symbol UND Wort** (#815) – als kompakte Marke, nicht als Symbol allein
+  auf einer eigenen Reihe. Daneben der **Liefertermin** und, wenn er vorbei ist, «überfällig
+  seit …» (#814) – eine Ableitung des Servers, kein Zustand.
+- **Abgesagt ist abgesagt** (#811): an einer abgelehnten Zeile stehen weder Preis noch
+  Frist. Die Zahlen bleiben in den Daten – der Log ist die Historie.
+- **Alle Knöpfe einer Angebotszeile sind gleich hoch** (`ACT_H`, #810): zwei Knöpfe, die
+  sich um einen Pixel unterscheiden, lesen sich als Rangfolge.
+- **Wen man anfragt, wählt man aus** (#809): die **Zeile ist der Schalter**, wie im
+  Beschaffen-Modul – «Anfragen (2)» war eine Ansage, keine Wahl.
+- **Kein Referenz-Feld** (#812): niemand wusste, was hineingehört, und die Rechnungsnummer
+  erzeugt der Server selbst. Damit hatte `note` keinen Aufrufer mehr. **Kein Betragsfeld** – beim
   Modellieren steht er nicht fest. **Kein Erklärsatz darunter** (#792): er sagte, was das
   Feld darüber zeigt.
 - **Die Wörter der Richtung stehen in `lib/modules.DEAL_DIRECTION`** (Symbol, Label, Hinweis,

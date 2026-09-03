@@ -8,7 +8,8 @@ import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DealParty, ModuleCatalog, ModuleTypeInfo, SupplierOption } from '@/types';
 import {
-  CAPTURE_ICON, DEAL_DIRECTION, DISPOSAL_MODES, dealDirection, moduleIcon, NEEDS_TARGET,
+  CAPTURE_ICON, DEAL_DIRECTION, DEAL_PARTY, DEAL_TASK, DEAL_TASK_HINT,
+  DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
   SAMPLE_PRESETS, blankModule, moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
 } from '@/lib/modules';
@@ -568,7 +569,6 @@ function MoneyFields({ module: m, onChange }: {
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   const [known, setKnown] = useState<Record<number, string>>({});
-  const dir = dealDirection(m.direction);
 
   // Die gewählten Gegenparteien benennen – sonst stünden dort nur Ziffern. Eine Abfrage
   // je fehlender Nummer, nicht je Rendern.
@@ -592,7 +592,10 @@ function MoneyFields({ module: m, onChange }: {
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <Label required>Richtung</Label>
+        {/* **«Geschäft», nicht «Richtung»** (#804): «Richtung» beschreibt eine Achse in
+            der Buchhaltung – gefragt ist aber, was man tut. Und die Werte heissen wie beim
+            Handel (`FLOW`), damit ein Haus eine Sprache spricht. */}
+        <Label required>Geschäft</Label>
         <IconSwitch
           value={m.direction === 'in' ? 'in' : 'out'}
           onChange={(v) => onChange({ direction: v })}
@@ -604,35 +607,20 @@ function MoneyFields({ module: m, onChange }: {
           ]}
         />
       </div>
-      {/* ►►► **Was an den Teilen zu tun ist — freiwillig** (#796). ◄◄◄
-          *Was* gehandelt wird, sagt der Prozess: die Einzelinstanzen tragen ihren Artikel,
-          und der Artikel seine Spezifikation – beides reist mit dem Vorgang. Dieser Satz
-          sagt, was **daran** zu tun ist, und das gibt es nicht bei jedem Vorgang. Ein
-          Pflichtfeld, das oft nichts aufzunehmen hat, lädt zu einer Eingabe ein, die
-          niemand liest. */}
-      <div className="flex flex-col gap-1.5">
-        <Label>Was ist daran zu tun?</Label>
-        <textarea
-          className={inputCls}
-          rows={2}
-          maxLength={400}
-          value={m.subject}
-          aria-label="Was ist daran zu tun?"
-          placeholder="z. B. Härten auf 58 HRC · Oberfläche veredeln · zertifizieren"
-          onChange={(e) => onChange({ subject: e.target.value })}
-          style={{ resize: 'vertical', minHeight: 54 }}
-        />
-      </div>
       <div className="flex flex-col gap-1.5">
         {/* **«Leer heisst frei» steht in der LISTE, nicht als Satz darunter** (#786) –
             und nur, solange sie gilt: sobald jemand zugelassen ist, wäre «Beim Ausführen
-            definieren» eine Behauptung, die die Zeilen darunter widerlegen. */}
+            definieren» eine Behauptung, die die Zeilen darunter widerlegen.
+
+            **Ein Wort für beide Richtungen** (#802): «Kunde» ↔ «Lieferant» ist dieselbe
+            Rolle – der andere im Geschäft. Und Singular = Plural, damit es keine Beugung
+            gibt, die jemand rechnen könnte. */}
         <ObjectSelect<DealParty>
-          label={`Zugelassene ${dir.parties}`}
+          label={`Zugelassene ${DEAL_PARTY}`}
           value={null}
           selected={null}
           find={find}
-          scanLabel={dir.party}
+          scanLabel={DEAL_PARTY}
           emptyOption={m.parties.length === 0 ? RUNTIME_CHOICE : undefined}
           placeholder="Nummer oder Name"
           onChange={(nr, opt) => {
@@ -657,36 +645,42 @@ function MoneyFields({ module: m, onChange }: {
                 <Trash2 size={13} />
               </button>
             </div>
-            {/* ►►► **Wie man bei IHM bestellt** – seine Artikelnummer, sein Shop-Link.
-                Sie gehört der **Paarung** Modul × Gegenpartei (derselbe Lieferant führt je
-                Teil eine andere Nummer) und steht darum bei ihm, nicht am Beleg – dort
-                schriebe man sie bei jedem Vorgang neu ab.
+            {/* ►►► **Was bei IHM zu tun ist — PFLICHT** (#805/#808/#803). ◄◄◄
 
-                **Nur wo wir bestellen**: `dir.ref` ist beim Verkauf leer, und dann gibt es
-                das Feld gar nicht – wir liefern dort. Kein `if` auf die Richtung: gefragt
-                wird die Angabe, die die Richtung mitbringt. ◄◄◄ */}
-            {dir.ref && (
+                Ein Wert für drei Fälle: seine Artikelnummer, sein Shop-Link, oder ein Satz
+                («einmal härten»). Er gehört der **Paarung** Modul × Partner – derselbe
+                Lieferant führt je Teil eine andere Nummer –, gilt in **beiden** Richtungen
+                und steht darum bei ihm, nicht als zweites Feld am Vorgang.
+
+                Der frühere freiwillige Satz («Was ist daran zu tun?») war genau diese
+                Angabe ein zweites Mal, nur ohne Adressaten – und optional. Ein Feld, das
+                man ausfüllen *kann*, wird an der Hälfte der Stellen leer gelassen; dann
+                sagt seine Leere nichts. */}
+            <div className="flex flex-col gap-1">
+              <Label required>{DEAL_TASK}</Label>
               <input className={inputCls} value={row.ref} maxLength={200}
-                aria-label={dir.ref}
-                placeholder={`${dir.ref} – seine Artikelnummer oder sein Shop-Link`}
+                aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
                 onChange={(e) => onChange({
                   parties: m.parties.map((x) => (x.party === row.party
                     ? { ...x, ref: e.target.value } : x)),
                 })} />
-            )}
+            </div>
           </div>
         ))}
       </div>
       <div>
-        <Label>Abschluss</Label>
+        {/* **«Weiter, wenn» statt «Abschluss»** (#806/#807): die Beschriftung stellt die
+            Frage, die Werte antworten – zusammen ein Satz. «Abschluss · Jederzeit» war
+            zwei Wörter, aus denen man die Frage erst zurückrechnen musste. */}
+        <Label>Weiter, wenn</Label>
         <IconSwitch
           value={m.prepaid ? 'prepaid' : 'open'}
           onChange={(v) => onChange({ prepaid: v === 'prepaid' })}
           options={[
-            { value: 'open', icon: LockOpen, label: 'Jederzeit',
+            { value: 'open', icon: LockOpen, label: 'zugesagt',
               hint: 'Das Modul schliesst ab, sobald zugesagt ist – gezahlt wird nach '
                 + 'Vereinbarung.' },
-            { value: 'prepaid', icon: Lock, label: 'Erst zahlen',
+            { value: 'prepaid', icon: Lock, label: 'bezahlt',
               hint: 'Das Modul schliesst erst ab, wenn der zugesagte Betrag bezahlt ist '
                 + '(Vorauszahlung).' },
           ]}

@@ -397,8 +397,16 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > `terminal = False`, `moves = False`, `buys = None`, kein Ortswechsel, kein neuer Status.
 > Daraus folgt, dass **keine andere Regel im System von ihm wissen muss**: Robustheit
 > konstruktiv statt geprüft. Was physisch geschieht, sagen die Nachbarn.
-> **Vier Angaben** (`domain/modules.Zahlung`): `direction` (`in` ↔ `out` – daraus folgt
-> jedes Wort), `parties` (**leer heisst frei**), `subject` (**freiwillig**) und `prepaid`.
+> **Drei Angaben** (`domain/modules.Zahlung`): `direction` (`in` ↔ `out` – daraus folgt
+> jedes Wort), `parties` (**leer heisst frei**, je Zeile eine **Pflichtangabe** «Was ist zu
+> tun?») und `prepaid`. *Der frühere freiwillige `subject` ist entfallen – er war dieselbe
+> Aussage ein zweites Mal, nur ohne Adressaten (#805).*
+> **Was in beiden Richtungen gleich lautet, steht als Konstante** (`deal.PARTY` = «Partner»,
+> `deal.TASK`), nicht als Wert je Richtung: dort wäre es die Wahl, die man falsch treffen
+> kann. Singular = Plural, damit es keine Beugung gibt, die jemand rechnet (#787/#802).
+> **Der Lieferverzug ist eine Ableitung** (`_delivery`/`_is_late`): Zusagedatum + Frist,
+> und «vorbei **und** noch nicht erledigt» – dieselbe Form wie `overdue`. Null Spalten;
+> ohne vereinbarte Frist kein Termin (#814).
 > Keine Menge, kein Artikel, kein Termin, **kein Betrag** – der steht beim Modellieren nicht
 > fest. *Was* gehandelt wird, sagt der Prozess: `deal.process_lines`/`lines_of` gruppiert die
 > Artikel der Einzelinstanzen, die vor dem Modul stehen, und `services/article_fields` legt
@@ -458,8 +466,11 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Berührungspunkte im Rahmen sind je eine Zeile und no-op ohne dieses Modul:
 > `instantiate_for_order` (Freigabe) · `assert_completable` (vor `confirm_step`) ·
 > `finish` (danach).
-> Wächter: `tests/test_deal_module.py` (24 Prüfungen, jede gegen ihre Bug-Form
-> gegengeprüft) + zwölf in `test_frontend_mirrors.py`.
+> **`_quote` beachtet «nur gesendete Felder wirken»** – es überschrieb Liefer- und
+> Zahlungsfrist bei jedem Aufruf. Über die Tür fiel es nicht auf (`exclude_unset`), aber
+> die Regel gehört in den Dienst: die Tür ist nicht der einzige Aufrufer.
+> Wächter: `tests/test_deal_module.py` (26 Prüfungen, jede gegen ihre Bug-Form
+> gegengeprüft) + sechzehn in `test_frontend_mirrors.py`.
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

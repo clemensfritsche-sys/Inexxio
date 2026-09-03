@@ -4745,16 +4745,6 @@
             "title": "Party Word",
             "default": ""
           },
-          "party_plural": {
-            "type": "string",
-            "title": "Party Plural",
-            "default": ""
-          },
-          "party_ref": {
-            "type": "string",
-            "title": "Party Ref",
-            "default": ""
-          },
           "charge_word": {
             "type": "string",
             "title": "Charge Word",
@@ -4814,11 +4804,6 @@
             },
             "type": "array",
             "title": "Can"
-          },
-          "subject": {
-            "type": "string",
-            "title": "Subject",
-            "default": ""
           },
           "prepaid": {
             "type": "boolean",
@@ -4890,28 +4875,6 @@
             ],
             "title": "Due Days"
           },
-          "reference": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
           "agreed_on": {
             "anyOf": [
               {
@@ -4923,6 +4886,23 @@
               }
             ],
             "title": "Agreed On"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "late": {
+            "type": "boolean",
+            "title": "Late",
+            "default": false
           },
           "charged": {
             "anyOf": [
@@ -5125,7 +5105,7 @@
           "quantity"
         ],
         "title": "DealLine",
-        "description": "**Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.\n\nJe Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der\nNormalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.\n\nDie **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die\nSache, damit die Gegenpartei weiss, worum es geht. Was **daran** zu tun ist, steht im\nSatz daneben (``subject``)."
+        "description": "**Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.\n\nJe Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der\nNormalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.\n\nDie **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die\nSache, damit der Partner weiss, worum es geht. Was **daran** zu tun ist, steht bei\ndem Partner, den es betrifft (``DealQuote.ref``)."
       },
       "DealParty": {
         "properties": {
@@ -5368,7 +5348,7 @@
           "action"
         ],
         "title": "DealUpdate",
-        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.\n\n``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten\n            (``parties`` – ohne Angabe **alle** zugelassenen)\n``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,\n            ``lead_days``, ``payment_days``) – auch von der Gegenpartei\n``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei\n``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)\n``note``    Referenz und Notiz nachtragen\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)\n``void``    eine Geld-Zeile zurücknehmen (``entry``)\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die\nRegel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
+        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.\n\n``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten\n            (``parties`` – ohne Angabe **alle** zugelassenen)\n``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,\n            ``lead_days``, ``payment_days``) – auch von der Gegenpartei\n``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei\n``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)\n``void``    eine Geld-Zeile zurücknehmen (``entry``)\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die\nRegel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
       },
       "DefinitionLine": {
         "properties": {

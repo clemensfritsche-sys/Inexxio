@@ -2048,6 +2048,59 @@
 > 834 · 375 · 320 px, **0 px** waagrechter Überlauf über sechs Zustände; der erledigte
 > Vorgang hat **0** Handlungen, die Gegenpartei sieht **0** fremde Preise.
 
+> **Das Geldmodul spricht EINE Sprache — und ein Feld weniger ist besser als ein
+> optionales** (Testnotizen #802–#815). Fast alle vierzehn Notizen sagen dasselbe aus zwei
+> Richtungen: die **Wörter hingen an der Richtung**, obwohl die Sache dieselbe ist («ich
+> mag hier kein if else mehr»), und **optionale Felder sind schlimmer als keine** («ich bin
+> sowieso kein Fan von optionalen Feldern»).
+> **Ein Wort statt zweier:** «Kunde» ↔ «Lieferant» ist dieselbe Rolle – der andere im
+> Geschäft – und heisst jetzt **Partner** (`deal.PARTY`); **Singular = Plural**, womit
+> «Kundeen» (#787) *strukturell* erledigt ist statt durch einen zweiten gepflegten Wert.
+> «Einnahme» ↔ «Ausgabe» heisst **Verkauf** ↔ **Einkauf** – dieselben Wörter und Symbole
+> wie beim Handel (`FLOW`); im Editor «Geschäft» statt «Richtung» (#804) und **«Weiter,
+> wenn» · zugesagt ↔ bezahlt** statt «Abschluss · Jederzeit» (#806/#807 – Beschriftung und
+> Werte lesen sich als Satz). `Direction` trägt nur noch, was wirklich verschieden ist.
+> **Ein Pflichtfeld statt zweier optionaler** (#805/#808/#803): der freiwillige Satz am
+> Vorgang («Was ist daran zu tun?») und die Bestellangabe je Partner waren dieselbe Aussage
+> zweimal, einmal ohne Adressaten – und die zweite gab es nur beim Einkauf. Übrig bleibt
+> **eine** Angabe je Partner, **Pflicht**, in **beiden** Richtungen: *«Was ist zu tun?» –
+> Artikelnummer, Link oder Beschreibung*. Sie steht bei dem, den sie betrifft, denn *bei
+> ihm* bestellt man anders als bei dem anderen.
+> **Und die Geld-Zeile hängt an `can`, nicht an «ist dieses Modul dran»** – der Fund aus dem
+> Gespräch, gemessen über die echten Dienstpfade: der Dienst erlaubt Rechnung und Zahlung an
+> einem **abgeschlossenen** Auftrag (Zahlungsziel!), die Karte bot **null** Knöpfe an. Eine
+> erfundene Sperre, die der Dienst nicht kennt – und die erfundene hat keinen Schlüssel;
+> dieselbe Fehlerform wie damals bei «nicht bestanden». Die beiden Stufen behalten `active`:
+> dort ist es richtig.
+> **Lieferverzug ist eine ABLEITUNG, kein Zustand** (#814): Termin = *Zusagedatum +
+> Lieferfrist*, «verspätet» = *Termin vorbei und noch nicht erledigt* – **exakt dieselbe
+> Form wie `overdue`** bei einer Forderung; zwei Ableitungen, null Spalten. Ohne vereinbarte
+> Frist **kein** Termin (ein erfundener wäre schlimmer als keiner). Und was man dann tun
+> kann, gibt es alles schon: warten · stornieren · das Geld läuft unabhängig weiter.
+> **Die Karte:** der Kopf verschwendet keine Reihe mehr (#815 – Symbol **und** Wort als
+> kompakte Marke; ohne den Satz daneben stand dort ein Quadrat allein auf voller Breite);
+> der Modul-Knopf ist ein **Knopf** (#813 – wieder ein blosser `.erp-actbtn`, und die
+> Basisklasse hat keine Fläche); Bestätigen und Absage sind **exakt gleich gross** (#810,
+> gemessen 32 × 30 px, Δ 0,0); **abgesagt ist abgesagt** (#811 – kein Preis, keine Frist
+> mehr an einer abgelehnten Zeile); das **Referenz-Feld ist entfallen** (#812 – niemand
+> wusste, was hineingehört, und die Rechnungsnummer erzeugt der Server längst selbst; damit
+> hatte die Handlung `note` keinen Aufrufer mehr und ist samt ihrer beiden Spalten-Mappings
+> mitgegangen); und **wen man anfragt, wählt man aus** (#809 – die Zeile IST der Schalter,
+> wie im Beschaffen-Modul).
+> **Ein Fehler nebenbei, still:** `_quote` überschrieb Liefer- und Zahlungsfrist bei jedem
+> Aufruf – wer nur den Betrag nachreichte, verlor beide. Über die Tür fiel es nicht auf
+> (`DealUpdate.changes` schickt Ungesetztes gar nicht mit), aber die Regel «nur gesendete
+> Felder wirken» gehört in den **Dienst**: die Tür ist nicht der einzige Aufrufer.
+> Wächter: 4 neue in `test_frontend_mirrors.py`, 4 dort auf die neue Regel gezogen, dazu
+> die angepassten in `test_deal_module.py` – **jede Bug-Form gegengeprüft**; *einer war
+> dabei stumpf und liess seine eigene durch* (er sah nur `deal-work.tsx` und damit
+> ausgerechnet nicht den gemeldeten Knopf in `order-detail.tsx`), ein zweiter las seinen
+> **eigenen Erklärtext** mit und schlug an, weil jemand den Fehler beschreibt – beide
+> nachgeschärft. Suite grün gegen die gewachsene Datenbank (552) **und** gegen ein Schema
+> nur aus den Migrationen (552). Gemessen in Chromium: 1440 · 1280 · 1024 · 834 · 375 ·
+> 320 px, **0 px** waagrechter Überlauf über sechs Zustände; der **erledigte** Vorgang
+> bietet jetzt 2 Handlungen an (Rechnung, Zahlung) statt keiner.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

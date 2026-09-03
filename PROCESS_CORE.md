@@ -2230,9 +2230,11 @@ Geld und Ware wieder einen eigenen Fall — genau die Lage, aus der es entstande
 | | |
 |---|---|
 | `direction` | **Geld kommt** (`in`) ↔ **Geld geht** (`out`). Daraus folgt jedes Wort. |
-| `parties` | Die **zugelassenen** Gegenparteien. **Leer heisst frei** — dann wird beim Ausführen gesucht. |
-| `subject` | **Was daran zu tun ist** — ein Satz, **freiwillig**. |
-| `prepaid` | **Erst weiter, wenn bezahlt.** Der einzige Schalter. |
+| `parties` | Die **zugelassenen Partner**. **Leer heisst frei** — dann wird beim Ausführen gesucht. |
+| `prepaid` | **Weiter, wenn** zugesagt ↔ bezahlt. Der einzige Schalter. |
+
+Und **je zugelassenem Partner eine Pflichtangabe**: *«Was ist zu tun?»* — seine
+Artikelnummer, sein Shop-Link oder ein Satz.
 
 **Keine Menge** (sie ist die Zahl der Einzelinstanzen davor), **kein Artikel** (den tragen
 die Stücke), **kein Termin** (ableitbar), **kein Betrag** (beim Modellieren steht er nicht
@@ -2240,16 +2242,38 @@ fest — ein hier getippter wäre bei der zweiten Ausführung falsch, und zwar s
 und **keine Bestellangabe** (wer bei wem unter welcher Nummer bestellt, ist eine
 Eigenschaft der Gegenpartei bzw. des Artikels, nicht dieses Schritts).
 
-**`subject` war einmal Pflicht, und das war eine Verwechslung** (Testnotiz #796): *was*
-gehandelt wird, sagt der **Prozess** — die Einzelinstanzen tragen ihren Artikel, der
-Artikel seine Spezifikation, und beides reist mit dem Vorgang (`DealEmbed.lines`). Der Satz
-sagt, was **daran** zu tun ist («Härten auf 58 HRC»), und das gibt es nicht bei jedem
-Vorgang. Ein Pflichtfeld, das oft nichts aufzunehmen hat, lädt zu einer Eingabe ein, die
-niemand liest.
+►►► **Ein Pflichtfeld statt zweier optionaler.** ◄◄◄
+
+Es gab einmal beides: einen **freiwilligen** Satz am Vorgang («Was ist daran zu tun?») und
+daneben eine **Bestellangabe** je Partner — die nur beim Einkauf existierte. Das ist
+dieselbe Aussage zweimal, einmal ohne Adressaten.
+
+*«Ich bin sowieso kein Fan von optionalen Feldern»* — und das ist die richtige Haltung: ein
+Feld, das man ausfüllen **kann**, wird an der Hälfte der Stellen leer gelassen, und dann
+sagt seine Leere nichts. Übrig bleibt **eine** Angabe, **Pflicht**, in **beiden**
+Richtungen, und sie steht **bei dem Partner, den sie betrifft** — denn *bei ihm* bestellt
+man anders als bei dem anderen (derselbe Lieferant führt je Teil eine andere Nummer).
 
 **Der Entwurf beginnt als Einnahme** (#791) — die Frage bleibt, sie startet nur bei der
 häufigeren Antwort; ein Schalter, der auf nichts steht, ist keine Frage, sondern eine
 Lücke, die der Server still mit `out` füllt.
+
+#### Ein Wort statt zweier
+
+«Kunde» ↔ «Lieferant», «Einnahme» ↔ «Ausgabe», «Bestellangabe» nur beim Einkauf: das
+waren drei Verzweigungen für Dinge, die auf beiden Seiten dasselbe sind. Jede Aufrufstelle
+musste sich das richtige Wort holen — und die falsche Wahl war jederzeit möglich.
+
+| | |
+|---|---|
+| **Partner** (`deal.PARTY`) | der andere im Geschäft. **Singular = Plural** — damit ist «Kundeen» (#787) *strukturell* erledigt statt durch einen zweiten gepflegten Wert. |
+| **Verkauf** ↔ **Einkauf** | dieselben Wörter und dieselben Symbole wie beim Handel (`FLOW`). Ein Haus, eine Sprache. |
+| **«Was ist zu tun?»** (`deal.TASK`) | die Angabe am Partner — in beiden Richtungen. |
+
+Was für beide Richtungen gleich lautet, gehört **nicht** in eine Tabelle je Richtung: dort
+wäre es ein Wert, den man vergleichen und falsch auswählen kann. `Direction` trägt nur
+noch, was wirklich verschieden ist — die Stufen-Wörter, das Verb der Anfrage und die
+beiden Geld-Wörter.
 
 #### Worum es geht — ABGELEITET, nie getippt
 
@@ -2344,6 +2368,22 @@ Feld nicht, und ein trotzdem gesendeter Wert wird **verworfen** – ein Feld, da
 Oberfläche zeigt, der Dienst aber annimmt, wäre die Hintertür zu einer Angabe, die niemand
 liest (dieselbe Regel wie #787). Zur Laufzeit steht sie an **seiner** Angebotszeile; sieht
 sie aus wie eine Adresse, ist sie ein Link.
+
+#### Lieferverzug — eine ABLEITUNG, kein Zustand
+
+Der Liefertermin ist *Zusagedatum + Lieferfrist der gewählten Zeile*, und «verspätet»
+heisst *Termin vorbei und noch nicht erledigt* — **exakt dieselbe Form wie `overdue`** bei
+einer Forderung (`deal._delivery` / `_is_late`). Zwei Ableitungen, **null Spalten**: ein
+gespeicherter Verzug wäre ein Wert, den jemand nachziehen müsste, und er lügt beim ersten
+vergessenen Mal. **Ohne vereinbarte Frist gibt es keinen Termin** — ein erfundener wäre
+schlimmer als keiner, und genau daran erkennt man, dass niemand über die Zeit gesprochen
+hat.
+
+Was man dann tun kann, **gibt es alles schon**: warten · stornieren (die Stücke stehen
+still, ein ganz gewöhnlicher Abweichungsauftrag entscheidet über sie) · und das Geld läuft
+unabhängig weiter — genau darum sind `charge` und `pay` auch nach dem Storno erlaubt, damit
+eine Anzahlung erstattet werden kann. Ein «Verzug»-Status hätte keine dieser Handlungen
+hinzugefügt; er hätte nur eine vierte Sache zu pflegen gegeben.
 
 #### Kein Scan — und das ist eine Eigenschaft des Moduls
 
