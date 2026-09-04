@@ -128,6 +128,10 @@ _COLUMN_SAFETY_NET = (
     # eine **Spalte** nach, damit der Dienst startet; die Integrität stellt die Migration
     # her, und sie ist die Wahrheit.
     ("deal_entries", "reverses_id", "BIGINT"),
+    # **Die Steuer gehört zum Beleg** (Migration 127): ohne Satz und Steuerbetrag ist eine
+    # Rechnung keine, und das Leistungsdatum entscheidet bei einem Satzwechsel über beides.
+    ("deal_entries", "vat", "JSONB"),
+    ("deal_entries", "service_date", "DATE"),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –

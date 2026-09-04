@@ -58,6 +58,35 @@ class DealQuote(BaseModel):
     lead_days: Optional[int] = None
     payment_days: Optional[int] = None
     state: str = "angefragt"
+    #: **Die Positionen dieser Offerte** – nur, wo **wir** den Preis nennen. Dort ist der
+    #: Betrag ihre Brutto-Summe und keine zweite, getippte Zahl daneben.
+    lines: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class VatRate(BaseModel):
+    """Ein wählbarer Steuersatz – der Wert und wie er heisst.
+
+    Ein **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,
+    und er fällt erst bei der Abrechnung auf.
+    """
+
+    #: Als **String** mit zwei Nachkommastellen («8.10») – so, wie er auch gespeichert
+    #: und verglichen wird; ein `float` wäre an genau dieser Stelle die falsche Zahl.
+    rate: str
+    label: str
+
+
+class VatShare(BaseModel):
+    """**Ein Steuersatz auf einem Beleg** – Netto und Steuer dazu.
+
+    Gerundet **je Satz auf der Summe**, nie je Position aufsummiert (``domain/deal.
+    vat_split``): bei zwölf Zeilen weicht die Summe der gerundeten Einzelbeträge sonst um
+    Rappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz.
+    """
+
+    rate: str
+    net: str
+    tax: str
 
 
 class DealLine(BaseModel):
@@ -71,11 +100,38 @@ class DealLine(BaseModel):
     dem Partner, den es betrifft (``DealQuote.ref``).
     """
 
-    article_id: int
+    #: ``None`` bei einer Zeile **ohne Artikel** – dort, wo es gar keine Stücke gibt
+    #: (Miete, Lohn, Gebühr). Derselbe Mechanismus mit einer entarteten Zeile.
+    article_id: Optional[int] = None
     article_object_id: Optional[int] = None
     article_name: str = ""
     quantity: int
     spec: list[dict[str, str]] = Field(default_factory=list)
+    #: ►►► **Der Einzelpreis – NETTO** (so denkt und rechnet man einen Preis). ◄◄◄
+    #: ``None``, solange niemand ihn genannt hat. Als **String**: wo es auf den Rappen
+    #: ankommt, wird nicht durch ``float`` gerechnet.
+    price: Optional[str] = None
+    #: **Der Steuersatz dieser Position** («8.10»). Er hängt an der **Sache**: sechs Wellen
+    #: zu 8.1 % und eine Ausfuhr zu 0 % stehen auf demselben Papier.
+    vat: str = "8.10"
+
+
+class DealPrice(BaseModel):
+    """►►► **Eine Position, wie sie hereinkommt** – Artikel · Preis · Satz. ◄◄◄
+
+    Die **Menge steht nicht darin**: sie ist die Zahl der Einzelinstanzen, die vor dem
+    Modul stehen (``deal._priced`` liest sie aus dem Prozess). Eine getippte Menge wäre
+    die zweite Aussage über dieselbe Sache – und die getippte gewinnt, auch wenn sie
+    falsch ist.
+    """
+
+    #: ``None`` bei einer Zeile **ohne Artikel** – Miete, Lohn, Gebühr.
+    article: Optional[int] = None
+    #: **Netto**, als String: wo es auf den Rappen ankommt, wird nicht durch ``float``
+    #: gerechnet, auch nicht auf dem Weg durch JSON.
+    price: str = "0"
+    #: Der Steuersatz dieser Position – **streng** geprüft (``deal.assert_vat``).
+    vat: Optional[str] = None
 
 
 class DealEntryOut(BaseModel):
@@ -97,6 +153,13 @@ class DealEntryOut(BaseModel):
     #: **Fällig UND noch etwas offen** – beides zusammen, sonst nicht. Eine Ableitung
     #: des Servers; eine zweite Formel im Browser wiche ab und sähe trotzdem richtig aus.
     overdue: bool = False
+    #: ►►► **Die eingefrorene Steuer-Aufteilung** dieses Belegs – ``[{rate, net, tax}]``.
+    #:
+    #: Leer bei einer **Zahlung**: Geld trägt keine Steuer, es begleicht sie. Gespeichert
+    #: und nicht gerechnet, weil ein gebuchter Beleg seine Steuerangabe behält.
+    vat: list[VatShare] = Field(default_factory=list)
+    #: **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Bst. c) – ``None`` = wie gebucht.
+    service_date: Optional[date] = None
     #: ►►► **Welche Zeile diese hier storniert** – ``None`` bei einer gewöhnlichen. ◄◄◄
     #:
     #: Eine Stornierung ist eine **Gegenbuchung** (#823/#824): dieselbe Art, der negative
@@ -143,12 +206,34 @@ class DealEmbed(BaseModel):
     #: Zeile geht als Offerte hinaus; nennt ihn die Gegenpartei, geht sie leer hinaus und
     #: wir warten.
     we_quote: bool = False
-    #: **Wie das Nummernfeld einer Forderung heisst** – ``None`` heisst «wir nummerieren»,
-    #: und dann gibt es **kein Feld** (#840). Eine Nummer, die wir vergeben, tippt niemand.
-    charge_ref_label: Optional[str] = None
-    #: **Wie das Referenzfeld einer Zahlung heisst.** Sie kommt in beiden Richtungen von
-    #: aussen – QR-Referenz, Zahlungszweck, die Id des Zahlungsdienstes.
-    payment_ref_label: str = ""
+    #: ►►► **Wie das Nummernfeld heisst – EINES für Rechnung UND Zahlung** (#840/#850).
+    #:
+    #: ``None`` heisst «wir nummerieren», und dann gibt es **kein Feld** – an keiner der
+    #: beiden Zeilen-Arten. Bei einer Einnahme trägt auch die Zahlung unsere Nummer (sie
+    #: referenziert unsere Rechnung); zwei Regeln für dieselbe Frage liefen auseinander.
+    ref_label: Optional[str] = None
+    #: ►►► **Die Steuersätze, aus denen man wählt** – der Katalog, keine freie Zahl. ◄◄◄
+    #:
+    #: Ein getippter Satz ist ein Satz, den es nicht gibt, und er fällt erst bei der
+    #: Abrechnung auf. Er reist mit, damit die Oberfläche keine zweite Liste pflegt.
+    vat_rates: list[VatRate] = Field(default_factory=list)
+    #: **Der Satz, mit dem eine neue Position beginnt** – die Vorgabe dieses Moduls.
+    vat_rate: str = "8.10"
+    #: Wie das Feld heisst, und wie das Leistungsdatum heisst – ein Wort für beide
+    #: Richtungen, damit die Karte keine eigene Konstante daneben hält.
+    vat_label: str = "MWST"
+    service_date_label: str = "Leistungsdatum"
+    #: ►►► **Nennen WIR den Preis je Position?** ◄◄◄
+    #:
+    #: Es ist dieselbe Angabe wie ``we_quote`` – und genau darum steht sie nicht zweimal
+    #: da: wer den Preis nennt, nennt ihn als **Positionen** (dort hängt der Steuersatz).
+    #: Wo die Gegenpartei ihn nennt, steht die Steuer auf **ihrer** Rechnung.
+    #: ─ Die drei Zahlen unter dem Strich, aus den Positionen abgeleitet. ─
+    net: Optional[str] = None
+    tax: Optional[str] = None
+    #: Je vorkommendem Satz eine Zeile ``{rate, net, tax}`` – gerundet **je Satz auf der
+    #: Summe**, nie je Position aufsummiert.
+    vat_split: list[VatShare] = Field(default_factory=list)
     #: Die Überschrift des Geld-Bereichs – der dritten Zeile der Karte.
     money_label: str = "Rechnung & Zahlung"
     #: Das Wort für die eine Gegenhandlung – oder ``None``, wo sie nicht geht.
@@ -266,6 +351,17 @@ class DealUpdate(BaseModel):
     due_on: Optional[date] = None
     #: Welche Zeile storniert wird (``reverse``).
     entry: Optional[int] = None
+    #: ►►► **Die Positionen eines Angebots** (``ask``/``quote``, nur wo **wir** den Preis
+    #: nennen): je Zeile Preis und Steuersatz. Der Betrag ist ihre **Brutto-Summe** – eine
+    #: getippte Zahl daneben wäre die zweite Aussage über dieselbe Sache.
+    lines: Optional[list[DealPrice]] = None
+    #: **Der Steuersatz einer Forderung**, wo es keine Positionen gibt (eine *Ausgabe*:
+    #: die Steuer steht auf **seiner** Rechnung, und wir schreiben sie ab). Wo wir die
+    #: Positionen preisen, kommt die Aufteilung aus ihnen und dieses Feld ist nichts.
+    vat: Optional[str] = None
+    #: ►►► **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Bst. c). ◄◄◄ ``None``
+    #: heisst «wie gebucht» – das ist der Normalfall und keine fehlende Angabe.
+    service_date: Optional[date] = None
 
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""

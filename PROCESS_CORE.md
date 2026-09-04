@@ -2291,6 +2291,73 @@ Partei gebunden, und was sie zugesagt hat, darf sich nicht mehr ändern, weil je
 Stück nachschiebt. Davor gibt es sie gar nicht: sie **sind** der Prozess und ziehen von
 selbst nach.
 
+#### Die Steuer — der Satz gehört der POSITION, nicht dem Beleg
+
+> **MWSTG Art. 26** verlangt auf einer Rechnung Steuersatz **und** Steuerbetrag. Bis hier
+> trug der Vorgang **eine** Zahl (`deals.amount`), und `agreed_lines` hielt Artikel und
+> Menge — **keinen Preis**. Damit fehlte genau das, was einen Beleg zu einem Beleg macht.
+>
+> **Das Modul muss es selbst können.** Einen Verkaufsbereich am Artikel gibt es nicht, und
+> ein Modul, das auf eine Angabe von aussen wartet, kann seine eigene Rechnung nicht
+> stellen. Kommt sie später von dort, belegt **sie** vor — vorbelegen, nie erzwingen.
+
+**Die eine Regel, aus der alles folgt: ein Positionspreis ist NETTO, jeder Betrag ist
+BRUTTO.** Damit bleibt die ganze bestehende Rechnung unangetastet — *offen · bezahlt ·
+uncharged* (`domain/deal.balance`) rechnen weiter mit derselben Zahl, und **keine** der
+drei Achsen (Ware · Forderung · Geld) muss von der Steuer wissen. Netto und Steuer sind
+**Ableitungen**, null Spalten.
+
+**Der Satz hängt an der Sache, nicht am Papier.** Sechs Wellen zu 8.1 % und eine Ausfuhr
+zu 0 % stehen auf demselben Beleg; ein Satz je Beleg wäre bei jedem gemischten Geschäft
+falsch — und zwar stillschweigend, weil die Summe trotzdem aufgeht. Er steht darum an der
+**Position** (`DealLine.vat`), und was am Modul steht, ist nur die **Vorgabe**
+(`Zahlung.VAT_RATE`), mit der eine neue Position beginnt.
+
+**Gerundet wird je Satz auf der SUMME** (`vat_split`), nie je Position aufsummiert:
+
+```
+3 × 5.00 zu 8.1 %   je Position gerundet:  3 × 0.41 = 1.23
+                    je Satz auf der Summe: 15.00 × 8.1 % = 1.215 → 1.22
+```
+
+Bei zwölf Zeilen weicht es entsprechend weiter ab, und eine MWST-Abrechnung kennt keine
+Rappen-Toleranz.
+
+**Eine Teilrechnung verteilt sich anteilig über alle Sätze** (`split_for`). Eine Anzahlung
+ist zum Satz der zugrunde liegenden Leistung zu versteuern; dem höchsten Satz zugeschlagen
+wäre sie zu viel Steuer, dem niedrigsten zu wenig. **Der letzte Anteil bekommt den Rest** —
+sonst ist die Summe der Zeilen nicht der Betrag der Rechnung, und der Beleg widerspricht
+sich selbst. Wo es **keine** Positionen gibt (eine *Ausgabe*: die Steuer steht auf **ihrer**
+Rechnung), nennt der Erfassende den Satz, und `split_at` rechnet das Netto zurück.
+
+**Wer den Preis nennt, entscheidet die Form** — dieselbe Angabe wie überall
+(`Direction.quoted_by`, §9.12 «Ein Vorgang hat zwei Parteien»):
+
+===============  ==========================================================
+**Einnahme**     wir nennen ihn **als Positionen** (dort hängt der Satz);
+                 der Angebotsbetrag ist ihre **Brutto-Summe**
+**Ausgabe**      die Gegenpartei nennt eine **Summe**; den Satz erfassen wir
+                 mit ihrer Rechnung
+===============  ==========================================================
+
+Ein Betragsfeld neben gepreisten Positionen gibt es darum nicht: es wäre nicht nur die
+zweite Aussage über dieselbe Sache, sondern eine, die der Dienst abweist.
+
+**Die Menge kommt aus dem PROZESS**, nie aus der Nutzlast (`deal._priced`): sie ist die
+Zahl der Einzelinstanzen, die vor dem Modul stehen. Eine getippte Menge daneben gewinnt
+auch dann, wenn sie falsch ist.
+
+**Der gebuchte Beleg SPEICHERT seine Steuer** (`deal_entries.vat`, `service_date`), statt
+sie nachzurechnen: ein Beleg behält, was auf ihm stand — auch wenn der Vorgang später
+andere Positionen trägt oder der Gesetzgeber den Satz ändert. Nachgerechnet wäre die
+Vergangenheit eine Funktion der Gegenwart, und eine Abrechnung über ein abgeschlossenes
+Quartal ergäbe beim zweiten Lauf andere Zahlen. Der **Storno spiegelt sie** mit negativem
+Vorzeichen — sonst nähme er den Betrag zurück und die Steuer nicht.
+
+**Bewusst nicht gebaut und benannt:** Rabatt (er ist eine Position mit negativem Preis, und
+ob er das bleiben soll, ist eine fachliche Frage), Fremdwährung, QR-Rechnung und PDF. Der
+Beleg lebt **online**; ein Papierformat ist eine Darstellung, kein Datenmodell.
+
 #### Ein Vorgang hat zwei Parteien
 
 Der **Angebotsspiegel** (`deals.quotes`) ist der Kern der ersten Zeile: wir fragen an bzw.

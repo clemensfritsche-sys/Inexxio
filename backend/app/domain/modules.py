@@ -906,6 +906,15 @@ class Zahlung(Module):
     DIRECTION = "direction"
     PARTIES = "parties"
     PREPAID = "prepaid"
+    #: ►►► **Der Steuersatz, mit dem eine neue Position beginnt.** ◄◄◄
+    #:
+    #: Eine Rechnung ohne Steuersatz ist keine (MWSTG Art. 26) – und der Satz hängt an der
+    #: **Sache**, nicht am Beleg: sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen auf
+    #: demselben Papier. Er steht darum an der **Position** und ist dort überschreibbar.
+    #:
+    #: Was hier steht, ist die **Vorgabe dieses Moduls** – das Modul kann es selbst. Sobald
+    #: der Artikel einen Verkaufsbereich hat, belegt **der** vor; vorbelegen, nie erzwingen.
+    VAT_RATE = "vat_rate"
     #: Die beiden Schlüssel **einer Zeile** der Freigabe-Liste.
     PARTY = "party"
     REF = "ref"
@@ -960,8 +969,20 @@ class Zahlung(Module):
             self.DIRECTION: direction,
             self.PARTIES: self._parties(data.get(self.PARTIES), flow),
             self.PREPAID: bool(data.get(self.PREPAID)),
+            self.VAT_RATE: self._vat(data.get(self.VAT_RATE)),
             "points": [], "sample": dict(sampling.DEFAULT),
         }
+
+    def _vat(self, value: Any) -> str:
+        """Die Vorgabe **streng** prüfen – ein getippter Satz ist einer, den es nicht gibt.
+
+        Fehlt sie, gilt der Normalsatz: das ist der Normalfall und keine Annahme, die
+        jemand später sucht.
+        """
+        try:
+            return deal.assert_vat(value if value not in (None, "") else deal.DEFAULT_VAT)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     def _parties(self, value: Any, flow: "deal.Direction") -> list[dict[str, Any]]:
         """Die Freigabe-Liste **streng** prüfen. Leer ist erlaubt und heisst **frei**.
@@ -1061,6 +1082,11 @@ def parties_allowed(config: Optional[dict[str, Any]]) -> list[int]:
 def prepaid(config: Optional[dict[str, Any]]) -> bool:
     """**Erst weiter, wenn bezahlt?** – die eine Lesestelle."""
     return bool((config or {}).get(Zahlung.PREPAID))
+
+
+def vat_rate(config: Optional[dict[str, Any]]) -> str:
+    """**Der Steuersatz, mit dem eine neue Position beginnt** – die eine Lesestelle."""
+    return str((config or {}).get(Zahlung.VAT_RATE) or deal.DEFAULT_VAT)
 
 
 class Handel(Module):

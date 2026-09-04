@@ -4770,7 +4770,7 @@
             "title": "We Quote",
             "default": false
           },
-          "charge_ref_label": {
+          "ref_label": {
             "anyOf": [
               {
                 "type": "string"
@@ -4779,12 +4779,58 @@
                 "type": "null"
               }
             ],
-            "title": "Charge Ref Label"
+            "title": "Ref Label"
           },
-          "payment_ref_label": {
+          "vat_rates": {
+            "items": {
+              "$ref": "#/components/schemas/VatRate"
+            },
+            "type": "array",
+            "title": "Vat Rates"
+          },
+          "vat_rate": {
             "type": "string",
-            "title": "Payment Ref Label",
-            "default": ""
+            "title": "Vat Rate",
+            "default": "8.10"
+          },
+          "vat_label": {
+            "type": "string",
+            "title": "Vat Label",
+            "default": "MWST"
+          },
+          "service_date_label": {
+            "type": "string",
+            "title": "Service Date Label",
+            "default": "Leistungsdatum"
+          },
+          "net": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net"
+          },
+          "tax": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax"
+          },
+          "vat_split": {
+            "items": {
+              "$ref": "#/components/schemas/VatShare"
+            },
+            "type": "array",
+            "title": "Vat Split"
           },
           "money_label": {
             "type": "string",
@@ -5073,6 +5119,25 @@
             "title": "Overdue",
             "default": false
           },
+          "vat": {
+            "items": {
+              "$ref": "#/components/schemas/VatShare"
+            },
+            "type": "array",
+            "title": "Vat"
+          },
+          "service_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Date"
+          },
           "reverses": {
             "anyOf": [
               {
@@ -5102,7 +5167,14 @@
       "DealLine": {
         "properties": {
           "article_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Article Id"
           },
           "article_object_id": {
@@ -5134,11 +5206,26 @@
             },
             "type": "array",
             "title": "Spec"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "vat": {
+            "type": "string",
+            "title": "Vat",
+            "default": "8.10"
           }
         },
         "type": "object",
         "required": [
-          "article_id",
           "quantity"
         ],
         "title": "DealLine",
@@ -5162,6 +5249,40 @@
         ],
         "title": "DealParty",
         "description": "Eine wählbare Gegenpartei – **Objektnummer und Name**, sonst nichts.\n\nDieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die\nOberfläche kein zweites Auswahlfeld braucht."
+      },
+      "DealPrice": {
+        "properties": {
+          "article": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article"
+          },
+          "price": {
+            "type": "string",
+            "title": "Price",
+            "default": "0"
+          },
+          "vat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
+          }
+        },
+        "type": "object",
+        "title": "DealPrice",
+        "description": "►►► **Eine Position, wie sie hereinkommt** – Artikel · Preis · Satz. ◄◄◄\n\nDie **Menge steht nicht darin**: sie ist die Zahl der Einzelinstanzen, die vor dem\nModul stehen (``deal._priced`` liest sie aus dem Prozess). Eine getippte Menge wäre\ndie zweite Aussage über dieselbe Sache – und die getippte gewinnt, auch wenn sie\nfalsch ist."
       },
       "DealQuote": {
         "properties": {
@@ -5216,6 +5337,13 @@
             "type": "string",
             "title": "State",
             "default": "angefragt"
+          },
+          "lines": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Lines"
           }
         },
         "type": "object",
@@ -5378,6 +5506,43 @@
               }
             ],
             "title": "Entry"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DealPrice"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lines"
+          },
+          "vat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat"
+          },
+          "service_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Date"
           }
         },
         "type": "object",
@@ -6730,6 +6895,13 @@
             },
             "type": "array",
             "title": "Capture Types"
+          },
+          "vat_rates": {
+            "items": {
+              "$ref": "#/components/schemas/VatRate"
+            },
+            "type": "array",
+            "title": "Vat Rates"
           }
         },
         "type": "object",
@@ -10112,6 +10284,49 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VatRate": {
+        "properties": {
+          "rate": {
+            "type": "string",
+            "title": "Rate"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rate",
+          "label"
+        ],
+        "title": "VatRate",
+        "description": "Ein wählbarer Steuersatz – der Wert und wie er heisst.\n\nEin **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,\nund er fällt erst bei der Abrechnung auf."
+      },
+      "VatShare": {
+        "properties": {
+          "rate": {
+            "type": "string",
+            "title": "Rate"
+          },
+          "net": {
+            "type": "string",
+            "title": "Net"
+          },
+          "tax": {
+            "type": "string",
+            "title": "Tax"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rate",
+          "net",
+          "tax"
+        ],
+        "title": "VatShare",
+        "description": "**Ein Steuersatz auf einem Beleg** – Netto und Steuer dazu.\n\nGerundet **je Satz auf der Summe**, nie je Position aufsummiert (``domain/deal.\nvat_split``): bei zwölf Zeilen weicht die Summe der gerundeten Einzelbeträge sonst um\nRappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz."
       }
     },
     "securitySchemes": {

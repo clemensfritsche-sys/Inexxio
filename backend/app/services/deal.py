@@ -166,7 +166,8 @@ def lines_of(db: Session, order: Order, row: Deal) -> list[dict[str, Any]]:
     return [{"article": a, "quantity": n} for a, n in process_lines(db, order)]
 
 
-def embed_lines(db: Session, order: Order, row: Deal) -> list[dict[str, Any]]:
+def embed_lines(db: Session, order: Order, row: Deal,
+                *, step: Optional[ProcessStep] = None) -> list[dict[str, Any]]:
     """Die Zeilen **mit Namen und Spezifikation** – das, was die Gegenpartei liest.
 
     Die Spezifikation **reist mit**, sie wird nicht ausgewählt (``article_fields``): eine
@@ -177,20 +178,35 @@ def embed_lines(db: Session, order: Order, row: Deal) -> list[dict[str, Any]]:
     Eine Abfrage für alle Zeilen, nicht eine je Zeile.
     """
     lines = lines_of(db, order, row)
+    fallback = modules.vat_rate(step.config) if step is not None else dm.DEFAULT_VAT
     found = {
         a.id: a
         for a in db.query(Article).filter(
-            Article.id.in_([int(line["article"]) for line in lines])).all()
+            Article.id.in_([int(line["article"]) for line in lines
+                            if line.get("article") is not None])).all()
     } if lines else {}
     out: list[dict[str, Any]] = []
     for line in lines:
-        art = found.get(int(line["article"]))
+        # **Eine Zeile ohne Artikel ist der Normalfall dort, wo es keine Stücke gibt**
+        # (Miete, Lohn, Gebühr) – derselbe Mechanismus mit einer entarteten Zeile, kein
+        # zweiter Fall. Sie trägt keinen Namen und keine Spezifikation; ihren Sinn sagt
+        # die Angabe «Was ist zu tun?» beim Partner.
+        ref = line.get("article")
+        art = found.get(int(ref)) if ref is not None else None
         out.append({
-            "article_id": int(line["article"]),
+            "article_id": int(ref) if ref is not None else None,
             "article_object_id": art.object_id if art else None,
             "article_name": art.name if art else "",
             "quantity": int(line["quantity"]),
             "spec": article_fields.specification(art),
+            # ►►► **Preis und Satz gehören der Position** (MWSTG Art. 26). ◄◄◄
+            #
+            # Der **Preis ist netto** – so denkt und rechnet man –, und der **Satz hängt an
+            # der Sache**: sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen auf
+            # demselben Papier. Solange nichts zugesagt ist, steht kein Preis da und der
+            # Satz ist die **Vorgabe des Moduls**; vorbelegen, nie erfinden.
+            "price": line.get("price"),
+            "vat": str(line.get("vat") or fallback),
         })
     return out
 
@@ -326,6 +342,40 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
     return row
 
 
+def _priced(db: Session, *, order: Order, step: ProcessStep,
+            data: dict[str, Any]) -> list[dict[str, Any]]:
+    """►►► **Die Positionen mit Preis und Satz** – die Nutzlast nennt nur Preis und Satz.
+
+    **Die Menge kommt aus dem Prozess, nie aus der Nutzlast** (dieselbe Regel wie überall
+    im Haus): sie ist die Zahl der Einzelinstanzen, die vor dem Modul stehen. Eine
+    getippte Menge wäre die zweite Aussage über dieselbe Sache – und die getippte gewinnt,
+    auch wenn sie falsch ist.
+
+    Eine Zeile **ohne Artikel** ist der Normalfall dort, wo es gar keine Stücke gibt
+    (Miete, Lohn, Gebühr): Menge 1, Preis netto. Das ist derselbe Mechanismus mit einer
+    entarteten Zeile, kein zweiter Fall.
+    """
+    counts = dict(process_lines(db, order))
+    fallback = modules.vat_rate(step.config)
+    out: list[dict[str, Any]] = []
+    for raw in data.get("lines") or []:
+        article = raw.get("article")
+        price = _amount(raw.get("price"), allow_negative=True)
+        if price is None:
+            continue
+        try:
+            vat = dm.assert_vat(raw.get("vat") or fallback)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        out.append({
+            "article": int(article) if article is not None else None,
+            "quantity": counts.get(int(article), 0) if article is not None else 1,
+            "price": f"{price:.2f}",
+            "vat": vat,
+        })
+    return out
+
+
 def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
          data: dict[str, Any], actor: Optional[UserProfile]) -> None:
     """Die Gegenparteien **anfragen** bzw. ihnen **anbieten**.
@@ -356,15 +406,21 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     #
     # Der Betrag gilt für **alle** Zeilen dieser Anfrage – man bietet allen dasselbe an;
     # wer danach je Partner nachbessert, tut das über ``quote``.
-    offered = _amount(data.get("amount"))
-    if flow.quoted_by == dm.BY_US and offered is None:
+    # ►►► **Wo WIR den Preis nennen, sind die POSITIONEN der Preis** (MWSTG Art. 26). ◄◄◄
+    #
+    # Ein Betrag allein trägt keinen Steuersatz, und ohne Satz ist eine Rechnung keine.
+    # Der Angebotsbetrag ist darum die **Brutto-Summe der Positionen**, nicht mehr eine
+    # getippte Zahl daneben – zwei Zahlen über dieselbe Sache liefen auseinander.
+    priced = _priced(db, order=order, step=step, data=data) if flow.quoted_by == dm.BY_US \
+        else []
+    if flow.quoted_by == dm.BY_US and not priced:
         raise HTTPException(
             status_code=400,
-            detail=(f"Ohne Betrag gibt es nichts anzubieten – bei einer {flow.label} "
-                    f"nennen wir den Preis, nicht der {dm.PARTY}."),
+            detail=(f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
+                    f"nennen wir ihn, nicht der {dm.PARTY}."),
         )
-    fresh = ({"amount": f"{offered:.2f}", "state": dm.QUOTED}
-             if offered is not None else {"amount": None, "state": dm.ASKED})
+    fresh = ({"amount": f"{dm.gross_of(priced):.2f}", "lines": priced, "state": dm.QUOTED}
+             if priced else {"amount": None, "lines": [], "state": dm.ASKED})
     lines = list(row.quotes or [])
     for value in wanted:
         number = _party(db, step=step, value=value, flow=flow)
@@ -384,7 +440,25 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     erst an der Tür formulierte, hätte die Regel beim zweiten Aufrufer nicht.
     """
     party = _target(row, data, actor)
-    amount = _amount(data.get("amount"))
+    flow = dm.of(row.direction)
+    # ►►► **Wer den Preis nennt, nennt ihn in derselben Form wie beim Anfragen.** ◄◄◄
+    #
+    # Bei einer **Einnahme** sind das die Positionen (dort hängt der Steuersatz); bei einer
+    # **Ausgabe** nennt die Gegenpartei einen Gesamtbetrag – ihre Steuer steht auf ihrer
+    # Rechnung, nicht in unserem Angebotsspiegel. Ein Verb, zwei Nutzlasten, und welche
+    # gilt, sagt dieselbe Angabe wie überall (``quoted_by``).
+    priced = _priced(db, order=order, step=step, data=data) if flow.quoted_by == dm.BY_US \
+        else []
+    amount = dm.gross_of(priced) if priced else _amount(data.get("amount"))
+    # ►►► **Nur gesendete Felder wirken – auch für den Betrag.** ◄◄◄
+    #
+    # Wer nur eine **Frist** nachreicht, nennt keinen Preis: bei einer Einnahme steht er
+    # längst in den Positionen, bei einer Ausgabe in der Zeile, die die Gegenpartei
+    # gefüllt hat. Ohne diese Zeile war der Preis Pflicht bei **jedem** Aufruf – und die
+    # Frist damit an einer bereits offerierten Zeile nicht mehr änderbar, ohne den Preis
+    # noch einmal mitzuschicken (also ihn erneut zu behaupten).
+    if amount is None:
+        amount = _amount((_quote_of(row, party) or {}).get("amount"))
     if amount is None:
         raise HTTPException(status_code=400,
                             detail="Ohne Betrag ist es keine Offerte.")
@@ -396,6 +470,8 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # gehört in den **Dienst**: die Tür ist nicht der einzige Aufrufer, und ein Handler,
     # der auf sie angewiesen ist, ist beim zweiten falsch.
     changes: dict[str, Any] = {"amount": f"{amount:.2f}", "state": dm.QUOTED}
+    if priced:
+        changes["lines"] = priced
     for field in ("lead_days", "payment_days"):
         if field in data:
             changes[field] = _days(data.get(field))
@@ -436,7 +512,14 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     row.due_days = _days(data.get("payment_days")) or _days(line.get("payment_days"))
     row.stage = dm.AGREED
     row.agreed_on = date.today()
-    row.agreed_lines = lines_of(db, order, row)
+    # ►►► **Eingefroren wird, was die GEWÄHLTE Zeile sagt.** ◄◄◄
+    #
+    # Trägt sie Positionspreise (wir haben den Preis genannt), sind sie die Zusage – mit
+    # ihrem Steuersatz. Sonst bleiben es Artikel und Menge aus dem Prozess: bei einer
+    # **Ausgabe** steht die Steuer auf **seiner** Rechnung, und eine hier erfundene wäre
+    # eine Behauptung über ein fremdes Dokument.
+    row.agreed_lines = [dict(x) for x in (line.get("lines") or [])] \
+        or lines_of(db, order, row)
 
 
 def _revoke(db: Session, *, order: Order, step: ProcessStep, row: Deal,
@@ -473,12 +556,37 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     #
     # Wo die Gegenpartei die Rechnung stellt, ist es **ihre** Nummer – sie steht auf ihrem
     # Papier, und ohne sie liesse sich der Beleg nicht zuordnen.
-    number = (_our_number(db, order) if flow.charge_reference is None
+    number = (_our_number(db, order) if flow.reference is None
               else _text(data.get("reference"), 120))
+    # ►►► **Die Steuer-Aufteilung wird EINGEFROREN, nicht gerechnet.** ◄◄◄
+    #
+    # Ein gebuchter Beleg behält seine Steuerangabe. Aus den Positionen nachgerechnet
+    # änderte sich die Steuer einer längst gestellten Rechnung, sobald jemand eine
+    # Position anfasst – eine rückwirkend geänderte Steuerangabe, und genau das darf es
+    # nicht geben (MWSTG Art. 26).
+    #
+    # **Wo Positionen mit Preis stehen** (wir haben ihn genannt), verteilt ``split_for``
+    # den Betrag über ihre Sätze – bei einer **Teilrechnung** anteilig, denn eine
+    # Anzahlung ist zum Satz der zugrunde liegenden Leistung zu versteuern.
+    # **Sonst** (eine Ausgabe: die Steuer steht auf *seiner* Rechnung) nennt das Formular
+    # den Satz, und wir schreiben ab, was auf dem Beleg steht.
+    lines = [ln for ln in (row.agreed_lines or []) if ln.get("price") is not None]
+    if lines:
+        split = dm.split_for(value, lines)
+    else:
+        try:
+            split = dm.split_at(value, dm.assert_vat(
+                data.get("vat") or modules.vat_rate(step.config)))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     db.add(DealEntry(
         deal_id=row.id, kind=dm.CHARGE, amount=value, booked_on=booked,
         due_on=_day(data.get("due_on")) or _due(booked, row.due_days),
         reference=number, note=_text(data.get("note"), 200),
+        vat=split,
+        # **Das Leistungsdatum ist vorbelegt, nicht erfunden**: meistens fällt es mit dem
+        # Rechnungsdatum zusammen – bei einem Satzwechsel entscheidet es.
+        service_date=_day(data.get("service_date")) or booked,
     ))
 
 
@@ -493,10 +601,17 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     value = given if given is not None else balance_of(db, row).next_payment
     if value is None:
         raise HTTPException(status_code=400, detail="Ohne Betrag keine Zahlung.")
+    # ►►► **Wo WIR nummerieren, tippt niemand – auch nicht an der Zahlung** (#850). ◄◄◄
+    #
+    # Die Regel galt nur für die Rechnung, und an der Zahlung stand weiter ein Feld: bei
+    # einer **Einnahme** trägt aber auch sie unsere Nummer (sie referenziert unsere
+    # Rechnung). Zwei Regeln für dieselbe Frage laufen genau so auseinander.
+    flow = dm.of(row.direction)
     db.add(DealEntry(
         deal_id=row.id, kind=dm.PAYMENT, amount=value,
         booked_on=_day(data.get("booked_on")) or date.today(),
-        reference=_text(data.get("reference"), 120),
+        reference=(None if flow.reference is None
+                   else _text(data.get("reference"), 120)),
         note=_text(data.get("note"), 200),
     ))
 
@@ -570,9 +685,14 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     db.add(DealEntry(
         deal_id=row.id, kind=entry.kind, amount=-entry.amount,
         booked_on=date.today(), due_on=None,
-        reference=(_our_number(db, order) if flow.charge_reference is None else None),
+        reference=(_our_number(db, order) if flow.reference is None else None),
         note=f"Storno zu {entry.reference}" if entry.reference else "Storno",
         reverses_id=entry.id,
+        # **Die Gegenbuchung spiegelt die Steuer** – sonst hebt sie den Betrag auf, und
+        # die Steuer der stornierten Rechnung bliebe für immer in der Abrechnung stehen.
+        vat=[{"rate": r["rate"], "net": f"{-Decimal(r['net']):.2f}",
+              "tax": f"{-Decimal(r['tax']):.2f}"} for r in (entry.vat or [])],
+        service_date=entry.service_date,
     ))
 
 
@@ -930,8 +1050,22 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # **Wer den Preis nennt, und wie die beiden Nummernfelder heissen** – lauter
         # Angaben, damit die Oberfläche die Richtung nie selbst auswertet.
         "we_quote": flow.quoted_by == dm.BY_US,
-        "charge_ref_label": flow.charge_reference,
-        "payment_ref_label": dm.PAYMENT_REFERENCE,
+        "ref_label": flow.reference,
+        # **Die Steuer-Angaben** – Katalog, Vorgabe und Wörter reisen mit, damit die Karte
+        # keine zweite Liste pflegt und für kein `if` nach der Richtung fragt.
+        "vat_rates": [{"rate": r, "label": name} for r, name in dm.VAT_RATES],
+        "vat_rate": modules.vat_rate(step.config),
+        "vat_label": dm.VAT_LABEL,
+        "service_date_label": dm.SERVICE_DATE_LABEL,
+        # ►►► **Netto, Steuer und die Aufteilung – ABLEITUNGEN der Positionen.** ◄◄◄
+        #
+        # Der Brutto-Betrag steht längst als ``amount`` da; ihn hier zu wiederholen wäre
+        # eine zweite Zahl über dieselbe Sache. Gerechnet wird **je Satz auf der Summe**
+        # (``domain/deal``), damit zweimal Rechnen dasselbe ergibt – und nur für den, der
+        # die Zahlen ohnehin sehen darf.
+        "net": _sums(row)["net"] if won else None,
+        "tax": _sums(row)["tax"] if won else None,
+        "vat_split": dm.vat_split(_priced_lines(row)) if won else [],
         "charge_word": flow.charge_word,
         "payment_word": flow.payment_word,
         "open_word": flow.open_word,
@@ -949,7 +1083,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # nichts an, auch nicht die, die den Zuschlag hat.
         "allowed": _named(db, modules.parties_allowed(step.config)) if internal else [],
         "quotes": _quotes(db, row, step, viewer=viewer, internal=internal),
-        "lines": embed_lines(db, order, row),
+        "lines": embed_lines(db, order, row, step=step),
         "party_object_id": row.party_id if won else None,
         "party_name": (_named(db, [row.party_id])[0]["name"]
                        if row.party_id and won else None),
@@ -994,10 +1128,27 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                 # ganze Liste gesucht werden, und der Server weiss es längst.
                 "reverses": e.reverses_id,
                 "reversed": e.id in reversed_ids,
+                "vat": list(e.vat or []),
+                "service_date": e.service_date,
             }
             for e in (entries if internal else [])
         ],
     }
+
+
+def _priced_lines(row: Deal) -> list[dict[str, Any]]:
+    """Die zugesagten Positionen, **soweit sie einen Preis tragen** – die eine Lesestelle.
+
+    Ohne Preis gibt es nichts aufzuteilen: bei einer **Ausgabe** steht die Steuer auf
+    *seiner* Rechnung, und eine hier erfundene wäre eine Behauptung über ein fremdes
+    Dokument.
+    """
+    return [ln for ln in (row.agreed_lines or []) if ln.get("price") is not None]
+
+
+def _sums(row: Deal) -> dict[str, str]:
+    """Netto · Steuer · Brutto der Zusage – drei Zahlen aus einer Quelle."""
+    return dm.totals(dm.vat_split(_priced_lines(row)))
 
 
 def _quotes(db: Session, row: Deal, step: ProcessStep, *,
@@ -1028,6 +1179,9 @@ def _quotes(db: Session, row: Deal, step: ProcessStep, *,
             "lead_days": q.get("lead_days"),
             "payment_days": q.get("payment_days"),
             "state": q.get("state") or dm.ASKED,
+            # **Die Positionen dieser Offerte** – nur, wo wir den Preis genannt haben.
+            # Dort ist der Betrag ihre Brutto-Summe, keine zweite getippte Zahl.
+            "lines": [dict(x) for x in (q.get("lines") or [])],
         }
         for q in lines
     ]

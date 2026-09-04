@@ -176,9 +176,16 @@ def _agree(db, *, order, step, party, amount: str, days: int | None = None,
     from app.services import deal as svc
     actor = staff or _staff(db)
     ours = dm.of(svc.of_step(db, step.id).direction).quoted_by == dm.BY_US
+    # ►►► **Wo wir den Preis nennen, sind die POSITIONEN der Preis** (MWSTG Art. 26). ◄◄◄
+    #
+    # Der Helfer nennt **eine Zeile ohne Artikel zu 0 %**: damit ist brutto = netto, und
+    # die Zahlen der Prüfungen bleiben die Zahlen, um die es dort geht. Die **Steuer**
+    # prüfen die Wächter, die sie meinen – ein Helfer, der sie nebenbei aufschlägt, machte
+    # jede andere Prüfung zu einer über Rundung.
     svc.apply(db, order=order, step=step, action="ask",
               payload={"parties": [party.object_id],
-                       **({"amount": amount} if ours else {})}, actor=actor)
+                       **({"lines": [{"article": None, "price": amount, "vat": "0.00"}]}
+                          if ours else {})}, actor=actor)
     svc.apply(db, order=order, step=step, action="quote",
               payload={"party": party.object_id, "amount": amount,
                        "payment_days": days}, actor=actor)
@@ -687,7 +694,8 @@ def test_one_allowed_party_is_not_a_question():
         # das Angebot geht mit ihm hinaus (#837). Gemeint ist hier die **Partei**-Angabe –
         # und die bleibt weg.
         svc.apply(db, order=order, step=rows[0], action="ask",
-                  payload={"amount": "100.00"}, actor=staff)
+                  payload={"lines": [{"article": None, "price": "100.00",
+                                      "vat": "0.00"}]}, actor=staff)
         facts = svc.embed_data(db, order=order, step=rows[0], viewer=staff)
         assert [q["party_object_id"] for q in facts["quotes"]] == [kunde.object_id], (
             "Ohne Angabe wurden nicht die zugelassenen Gegenparteien angefragt."
@@ -1408,14 +1416,23 @@ def test_who_names_the_price_is_a_property_of_the_direction():
             svc.apply(db, order=order, step=rows[0], action="ask",
                       payload={"parties": [kunde.object_id]}, actor=staff)
         assert err.value.status_code == 400
+        # ►►► **Und der Preis sind die POSITIONEN** – dort hängt der Steuersatz. ◄◄◄
         svc.apply(db, order=order, step=rows[0], action="ask",
-                  payload={"parties": [kunde.object_id], "amount": "500.00",
-                           "lead_days": 5}, actor=staff)
+                  payload={"parties": [kunde.object_id], "lead_days": 5,
+                           "lines": [{"article": None, "price": "500.00",
+                                      "vat": "8.10"}]}, actor=staff)
         line = svc.embed_data(db, order=order, step=rows[0], viewer=staff)["quotes"][0]
-        assert line["state"] == dm.QUOTED and line["amount"] == "500.00", (
+        assert line["state"] == dm.QUOTED, (
             "Unser Angebot geht als leere Anfrage hinaus – dann sieht der Kunde ein "
             "Angebot ohne Preis."
         )
+        # **Der Betrag ist die BRUTTO-Summe der Positionen**, keine getippte Zahl daneben:
+        # 500.00 netto zu 8.1 % sind 540.50 brutto.
+        assert line["amount"] == "540.50", (
+            "Der Angebotsbetrag ist nicht die Brutto-Summe der Positionen – dann stehen "
+            "zwei Zahlen über dieselbe Sache da."
+        )
+        assert line["lines"][0]["price"] == "500.00" and line["lines"][0]["vat"] == "8.10"
         assert line["lead_days"] == 5
 
         # (b) **Ausgabe: leer hinaus ist der Sinn** – wir warten auf seine Offerte.
@@ -1536,5 +1553,262 @@ def test_a_payment_is_an_event_and_is_corrected_by_a_second_one():
         # **Und der Weg funktioniert.**
         svc.apply(db, order=order, step=step, action="pay", payload={"amount": "-100"})
         assert svc.balance_of(db, row).paid == Decimal("0.00")
+    finally:
+        db.rollback(); db.close()
+
+
+# ---------------------------------------------------------------------------
+# ►► DIE STEUER — die Position trägt ihren Satz (MWSTG Art. 26)
+# ---------------------------------------------------------------------------
+
+def test_the_rate_belongs_to_the_position_not_to_the_document():
+    """►►► **Der Steuersatz hängt an der SACHE, nicht am Beleg** (MWSTG Art. 26). ◄◄◄
+
+    Sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen auf **demselben** Papier. Ein
+    Satz je Beleg wäre bei jedem gemischten Geschäft falsch – und zwar stillschweigend,
+    weil die Summe trotzdem aufgeht.
+
+    **Gerundet wird je Satz auf der Summe**, nie je Position aufsummiert: bei zwölf
+    Zeilen weicht die Summe der gerundeten Einzelbeträge sonst um Rappen ab, und eine
+    MWST-Abrechnung kennt keine Rappen-Toleranz.
+
+    Bug-Formen: (a) ein Satz für den ganzen Beleg; (b) je Position gerundet und dann
+    summiert; (c) der Brutto-Betrag ist nicht die Summe der Positionen.
+    """
+    from app.domain import deal as dm
+
+    lines = [
+        {"article": 1, "quantity": 6, "price": "10.00", "vat": "8.10"},
+        {"article": 2, "quantity": 2, "price": "50.00", "vat": "0.00"},
+    ]
+    split = dm.vat_split(lines)
+    assert [(r["rate"], r["net"], r["tax"]) for r in split] == [
+        ("8.10", "60.00", "4.86"), ("0.00", "100.00", "0.00")
+    ], "Die Aufteilung je Satz stimmt nicht – (a) oder (b)."
+    assert dm.gross_of(lines) == Decimal("164.86"), (
+        "Der Brutto-Betrag ist nicht Netto + Steuer je Satz (c)."
+    )
+
+    # (b) **Je Satz auf der SUMME** – drei Zeilen, deren Einzelsteuern je 0.405 ergäben.
+    thirds = [{"article": i, "quantity": 1, "price": "5.00", "vat": "8.10"}
+              for i in range(3)]
+    assert dm.vat_split(thirds)[0]["tax"] == "1.22", (
+        "Gerundet wurde je Position und dann summiert – 3 × 0.41 = 1.23 statt 1.22."
+    )
+
+
+def test_a_partial_invoice_carries_every_rate_it_touches():
+    """►►► **Eine Anzahlung wird ANTEILIG über alle Sätze versteuert.** ◄◄◄
+
+    Sie ist zum Satz der zugrunde liegenden Leistung zu versteuern; bei gemischten Sätzen
+    also im Verhältnis der Positionen. Sie dem höchsten Satz zuzuschlagen wäre zu viel
+    Steuer, dem niedrigsten zu wenig – beides ist falsch, und beides fällt erst bei der
+    Abrechnung auf.
+
+    **Der letzte Anteil bekommt den Rest**: sonst fehlt oder überschiesst ein Rappen, und
+    die Summe der Zeilen wäre nicht der Betrag der Rechnung – ein Beleg, der sich selbst
+    widerspricht.
+
+    Bug-Formen: (a) alles auf einen Satz; (b) die Zeilen summieren nicht auf den Betrag.
+    """
+    from app.domain import deal as dm
+
+    lines = [
+        {"article": 1, "quantity": 6, "price": "10.00", "vat": "8.10"},
+        {"article": 2, "quantity": 2, "price": "50.00", "vat": "0.00"},
+    ]
+    rows = dm.split_for(Decimal("80.00"), lines)
+    assert len(rows) == 2, "Die Teilrechnung kennt nur einen Satz (a)."
+    total = sum(Decimal(r["net"]) + Decimal(r["tax"]) for r in rows)
+    assert total == Decimal("80.00"), (
+        f"Die Zeilen summieren auf {total}, die Rechnung lautet über 80.00 (b)."
+    )
+
+    # **Ohne Positionen nennt der Aufrufer den Satz** – eine *Ausgabe*: die Steuer steht
+    # auf seiner Rechnung, und wir schreiben sie ab.
+    at = dm.split_at(Decimal("108.10"), "8.10")
+    assert at == [{"rate": "8.10", "net": "100.00", "tax": "8.10"}], (
+        "Aus einem Brutto-Betrag wird der Netto-Anteil nicht zurückgerechnet."
+    )
+
+
+def test_an_unknown_rate_is_refused_when_written_and_tolerated_when_read():
+    """**Streng schreiben, tolerant lesen** – dieselbe Regel wie bei der Richtung.
+
+    Ein getippter Satz ist einer, den es nicht gibt, und er fällt erst bei der Abrechnung
+    auf: darum weist ``assert_vat`` ab. **Gelesen** wird tolerant – ein Wert, den es nicht
+    geben dürfte, darf keine Anzeige eines laufenden Auftrags zerlegen.
+    """
+    from app.domain import deal as dm
+
+    with pytest.raises(ValueError):
+        dm.assert_vat("7.70")          # der alte Normalsatz – es gibt ihn nicht mehr
+    with pytest.raises(ValueError):
+        dm.assert_vat("acht Prozent")
+    assert dm.assert_vat("8.10") == "8.10"
+    # Tolerant gelesen: unlesbar heisst **0 %**, nicht «Absturz».
+    assert dm.vat_of("7.70") == Decimal("7.70")
+    assert dm.vat_of(None) == Decimal("0")
+    assert dm.vat_of("was?") == Decimal("0")
+
+
+def test_the_door_lets_the_positions_through():
+    """►►► **Ein Feld, das die Tür nicht kennt, kommt NIE an.** ◄◄◄
+
+    Pydantic verwirft unbekannte Felder stillschweigend – dieselbe Falle wie damals bei
+    ``ModuleConfigInput`` (``mode`` und ``sample`` kamen nie an, ohne eine einzige
+    Fehlermeldung). Ein Dienst, der ``lines`` liest, und eine Tür, die sie wegwirft, sind
+    ein Fehler, den **kein** Dienst-Test findet: er ruft ``apply`` direkt.
+
+    Geprüft wird darum die **Tür** (``DealUpdate``), nicht der Dienst.
+
+    Bug-Form: eines der drei Felder fehlt im Schema.
+    """
+    from app.schemas.deal import DealUpdate
+
+    sent = DealUpdate.model_validate({
+        "action": "charge", "amount": "100.00", "vat": "2.60",
+        "service_date": "2026-08-20",
+        "lines": [{"article": None, "price": "10.00", "vat": "8.10"}],
+    })
+    changes = sent.changes()
+    assert changes["vat"] == "2.60", "Der Steuersatz kommt an der Tür nicht an."
+    assert str(changes["service_date"]) == "2026-08-20", (
+        "Das Leistungsdatum kommt an der Tür nicht an."
+    )
+    assert changes["lines"] == [{"article": None, "price": "10.00", "vat": "8.10"}], (
+        "Die Positionen kommen an der Tür nicht an – der Preis eines Angebots ginge "
+        "stillschweigend verloren."
+    )
+    # **Nur gesendete Felder wirken**: was nicht mitkommt, steht auch nicht in `changes`.
+    assert "lines" not in DealUpdate.model_validate({"action": "pay"}).changes()
+
+
+def test_a_booked_document_keeps_its_tax_statement():
+    """►►► **Die Steuer-Angabe wird GESPEICHERT, nicht nachgerechnet.** ◄◄◄
+
+    Ein gebuchter Beleg behält, was auf ihm stand – auch wenn der Vorgang später andere
+    Positionen trägt oder der Gesetzgeber den Satz ändert. Nachgerechnet wäre die
+    Vergangenheit eine Funktion der Gegenwart, und eine Abrechnung über ein
+    abgeschlossenes Quartal ergäbe beim zweiten Lauf andere Zahlen.
+
+    **Und der Storno spiegelt sie**: die Gegenbuchung trägt dieselben Sätze mit negativem
+    Vorzeichen – sonst nähme sie den Betrag zurück und die Steuer nicht.
+
+    Bug-Formen: (a) die Zeile trägt keine Steuer; (b) der Storno trägt keine oder eine
+    positive.
+    """
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+        _agree(db, order=order, step=step, party=kunde, amount="100.00")
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "108.10", "vat": "8.10",
+                           "service_date": "2026-08-20"})
+        row = svc.of_step(db, step.id)
+        bill = svc._entries(db, row.id)[0]
+        assert bill.vat, "Die gebuchte Forderung trägt keine Steuer-Angabe (a)."
+        assert str(bill.service_date) == "2026-08-20", "Das Leistungsdatum fehlt."
+
+        svc.apply(db, order=order, step=step, action="reverse", payload={"entry": bill.id})
+        storno = [e for e in svc._entries(db, row.id) if e.reverses_id == bill.id][0]
+        assert storno.vat, "Der Storno trägt keine Steuer-Angabe (b)."
+        assert all(Decimal(v["tax"]) <= 0 and Decimal(v["net"]) <= 0 for v in storno.vat), (
+            "Der Storno nimmt den Betrag zurück, die Steuer aber nicht (b)."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_amount_of_an_offer_is_the_sum_of_its_positions():
+    """►►► **Wo WIR den Preis nennen, ist der Betrag eine SUMME, keine Eingabe.** ◄◄◄
+
+    Ein getippter Betrag neben gepreisten Positionen wäre die zweite Aussage über
+    dieselbe Sache – und die getippte gewinnt, auch wenn sie falsch ist. Der Angebots-
+    betrag ist darum die **Brutto**-Summe der Positionen (Netto + Steuer je Satz).
+
+    **Die Menge kommt aus dem Prozess**, nicht aus der Nutzlast: sie ist die Zahl der
+    Einzelinstanzen, die vor dem Modul stehen.
+
+    Bug-Formen: (a) der Betrag ist netto; (b) die Menge wird aus der Nutzlast gelesen.
+    """
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=2, article=art)
+        step = rows[0]
+        svc.apply(db, order=order, step=step, action="ask", payload={
+            "parties": [kunde.object_id],
+            # **Keine Menge in der Nutzlast** – zwei Wellen stehen vor dem Modul.
+            "lines": [{"article": art.id, "price": "100.00", "vat": "8.10"}],
+        }, actor=_staff(db))
+        row = svc.of_step(db, step.id)
+        quote = row.quotes[0]
+        assert quote["amount"] == "216.20", (
+            f"Der Angebotsbetrag lautet {quote['amount']} – erwartet 2 × 100.00 netto "
+            f"plus 8.1 % = 216.20. (a) netto statt brutto, oder (b) die Menge kam nicht "
+            f"aus dem Prozess."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_term_only_change_keeps_the_price():
+    """►►► **Nur gesendete Felder wirken – auch für den Betrag.** ◄◄◄
+
+    Wer nur eine **Frist** nachreicht, nennt keinen Preis: bei einer Einnahme steht er in
+    den Positionen, bei einer Ausgabe in der Zeile, die die Gegenpartei gefüllt hat. War
+    der Preis bei jedem Aufruf Pflicht, liess sich die Frist an einer bereits offerierten
+    Zeile nicht mehr ändern, ohne den Preis erneut zu behaupten – und bei einer Einnahme
+    gar nicht, weil dort ein gesendeter Betrag **ignoriert** wird.
+
+    **Und ohne jeden Preis bleibt es ein Fehler**: das ist keine Aufweichung der Regel,
+    sondern ihre genaue Fassung.
+
+    Bug-Formen: (a) die Frist-Änderung wird abgewiesen; (b) sie löscht den Preis;
+    (c) eine Zeile ganz ohne Preis geht durch.
+    """
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+        staff = _staff(db)
+        svc.apply(db, order=order, step=step, action="ask", payload={
+            "parties": [kunde.object_id],
+            "lines": [{"article": art.id, "price": "100.00", "vat": "0.00"}],
+        }, actor=staff)
+        row = svc.of_step(db, step.id)
+        assert row.quotes[0]["amount"] == "100.00"
+
+        # (a)/(b) **Nur die Frist** – der Preis bleibt.
+        svc.apply(db, order=order, step=step, action="quote",
+                  payload={"party": kunde.object_id, "payment_days": 60}, actor=staff)
+        row = svc.of_step(db, step.id)
+        assert row.quotes[0]["amount"] == "100.00", (
+            "Die Frist-Änderung hat den Preis überschrieben (b)."
+        )
+        assert row.quotes[0]["payment_days"] == 60
+
+        # (c) **Ohne jeden Preis bleibt es ein Fehler.**
+        andere = _party(db, "Huber AG", role="customer")
+        art2 = _article(db, "Buchse",
+                        steps=[_money_step(direction="out", parties=[andere])])
+        order2, rows2 = _make(db, quantity=1, article=art2)
+        svc.apply(db, order=order2, step=rows2[0], action="ask",
+                  payload={"parties": [andere.object_id]}, actor=staff)
+        with pytest.raises(HTTPException) as err:
+            svc.apply(db, order=order2, step=rows2[0], action="quote",
+                      payload={"party": andere.object_id, "lead_days": 5}, actor=staff)
+        assert err.value.status_code == 400 and "Betrag" in err.value.detail
     finally:
         db.rollback(); db.close()

@@ -15,6 +15,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from ..domain import modules
+from .deal import VatRate
 
 
 class ModuleFacts(BaseModel):
@@ -192,6 +193,13 @@ class ModuleCatalog(BaseModel):
 
     modules: list[ModuleTypeInfo] = Field(default_factory=list)
     capture_types: list[CaptureTypeInfo] = Field(default_factory=list)
+    #: ►►► **Die Steuersätze – eine Eigenschaft des HAUSES, nicht eines Modultyps.** ◄◄◄
+    #:
+    #: 8.1 % · 2.6 % · 3.8 % · 0 % sind Schweizer Recht (MWSTG) und ändern sich, wenn der
+    #: Gesetzgeber sie ändert – nicht, wenn jemand ein Modul umbaut. Sie stehen darum
+    #: neben den Modultypen und nicht in jedem einzelnen, und die Oberfläche baut die
+    #: Liste nicht nach: eine zweite liefe beim ersten Satzwechsel auseinander.
+    vat_rates: list[VatRate] = Field(default_factory=list)
 
 
 class CapturePoint(BaseModel):

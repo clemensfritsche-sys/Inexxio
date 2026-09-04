@@ -1842,13 +1842,31 @@ export interface components {
              * @default false
              */
             we_quote: boolean;
-            /** Charge Ref Label */
-            charge_ref_label?: string | null;
+            /** Ref Label */
+            ref_label?: string | null;
+            /** Vat Rates */
+            vat_rates?: components["schemas"]["VatRate"][];
             /**
-             * Payment Ref Label
-             * @default
+             * Vat Rate
+             * @default 8.10
              */
-            payment_ref_label: string;
+            vat_rate: string;
+            /**
+             * Vat Label
+             * @default MWST
+             */
+            vat_label: string;
+            /**
+             * Service Date Label
+             * @default Leistungsdatum
+             */
+            service_date_label: string;
+            /** Net */
+            net?: string | null;
+            /** Tax */
+            tax?: string | null;
+            /** Vat Split */
+            vat_split?: components["schemas"]["VatShare"][];
             /**
              * Money Label
              * @default Rechnung & Zahlung
@@ -1945,6 +1963,10 @@ export interface components {
              * @default false
              */
             overdue: boolean;
+            /** Vat */
+            vat?: components["schemas"]["VatShare"][];
+            /** Service Date */
+            service_date?: string | null;
             /** Reverses */
             reverses?: number | null;
             /**
@@ -1966,7 +1988,7 @@ export interface components {
          */
         DealLine: {
             /** Article Id */
-            article_id: number;
+            article_id?: number | null;
             /** Article Object Id */
             article_object_id?: number | null;
             /**
@@ -1980,6 +2002,13 @@ export interface components {
             spec?: {
                 [key: string]: string;
             }[];
+            /** Price */
+            price?: string | null;
+            /**
+             * Vat
+             * @default 8.10
+             */
+            vat: string;
         };
         /**
          * DealParty
@@ -1996,6 +2025,26 @@ export interface components {
              * @default
              */
             name: string;
+        };
+        /**
+         * DealPrice
+         * @description ►►► **Eine Position, wie sie hereinkommt** – Artikel · Preis · Satz. ◄◄◄
+         *
+         *     Die **Menge steht nicht darin**: sie ist die Zahl der Einzelinstanzen, die vor dem
+         *     Modul stehen (``deal._priced`` liest sie aus dem Prozess). Eine getippte Menge wäre
+         *     die zweite Aussage über dieselbe Sache – und die getippte gewinnt, auch wenn sie
+         *     falsch ist.
+         */
+        DealPrice: {
+            /** Article */
+            article?: number | null;
+            /**
+             * Price
+             * @default 0
+             */
+            price: string;
+            /** Vat */
+            vat?: string | null;
         };
         /**
          * DealQuote
@@ -2032,6 +2081,8 @@ export interface components {
              * @default angefragt
              */
             state: string;
+            /** Lines */
+            lines?: Record<string, never>[];
         };
         /**
          * DealStage
@@ -2108,6 +2159,12 @@ export interface components {
             due_on?: string | null;
             /** Entry */
             entry?: number | null;
+            /** Lines */
+            lines?: components["schemas"]["DealPrice"][] | null;
+            /** Vat */
+            vat?: string | null;
+            /** Service Date */
+            service_date?: string | null;
         };
         /**
          * DefinitionLine
@@ -2690,6 +2747,8 @@ export interface components {
             modules?: components["schemas"]["ModuleTypeInfo"][];
             /** Capture Types */
             capture_types?: components["schemas"]["CaptureTypeInfo"][];
+            /** Vat Rates */
+            vat_rates?: components["schemas"]["VatRate"][];
         };
         /**
          * ModuleInput
@@ -4201,6 +4260,35 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VatRate
+         * @description Ein wählbarer Steuersatz – der Wert und wie er heisst.
+         *
+         *     Ein **Katalog**, keine freie Zahl: ein getippter Satz ist einer, den es nicht gibt,
+         *     und er fällt erst bei der Abrechnung auf.
+         */
+        VatRate: {
+            /** Rate */
+            rate: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * VatShare
+         * @description **Ein Steuersatz auf einem Beleg** – Netto und Steuer dazu.
+         *
+         *     Gerundet **je Satz auf der Summe**, nie je Position aufsummiert (``domain/deal.
+         *     vat_split``): bei zwölf Zeilen weicht die Summe der gerundeten Einzelbeträge sonst um
+         *     Rappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz.
+         */
+        VatShare: {
+            /** Rate */
+            rate: string;
+            /** Net */
+            net: string;
+            /** Tax */
+            tax: string;
         };
     };
     responses: never;

@@ -183,3 +183,24 @@ class DealEntry(Base, TimestampMixin):
     #: entstünde eine Kette aus Vorzeichen, in der niemand mehr sagen kann, was gilt.
     reverses_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("deal_entries.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    #: ►►► **Die Steuer-Aufteilung dieses Belegs – EINGEFROREN.** ◄◄◄
+    #:
+    #: ``[{"rate": "8.10", "net": "60.00", "tax": "4.86"}]`` – je vorkommendem Satz eine
+    #: Zeile, Beträge als **String** (wo es auf den Rappen ankommt, wird nicht durch
+    #: ``float`` gerechnet). Die Summe aus ``net`` und ``tax`` ist ``amount``.
+    #:
+    #: **Warum gespeichert und nicht gerechnet:** ein gebuchter Beleg behält seine
+    #: Steuerangabe. Aus den Positionen nachgerechnet änderte sich die Steuer einer
+    #: längst gestellten Rechnung, sobald jemand eine Position anfasst – eine rückwirkend
+    #: geänderte Steuerangabe, und genau das darf es nicht geben (MWSTG Art. 26).
+    #:
+    #: ``None`` bei einer **Zahlung**: Geld trägt keine Steuer, es begleicht sie.
+    vat: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(JSONB, nullable=True)
+
+    #: ►►► **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Abs. 2 Bst. c). ◄◄◄
+    #:
+    #: **Nicht** das Rechnungsdatum, und der Unterschied zählt: bei einem Satzwechsel oder
+    #: über den Jahreswechsel entscheidet **es**, welcher Satz gilt. Vorbelegt mit
+    #: ``booked_on``, weil beide meistens zusammenfallen – ``None`` heisst «wie gebucht».
+    service_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

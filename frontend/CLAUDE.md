@@ -417,10 +417,63 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Hinweis) – der Editor braucht sie, bevor es einen Vorgang gibt. Mehr trägt sie nicht:
   «Partner» ist ein Wort für beide Richtungen und Singular = Plural (#787/#802).
   `test_frontend_mirrors` hält sie mit `domain/deal.DIRECTIONS` deckungsgleich.
+  ►►► **Die Symbole kommen aus `FLOW`** (#845) – Handschlag ↔ Einkaufswagen, eine
+  Bildsprache im Haus. Zwei gespiegelte Pfeile waren auf 15 px dasselbe Zeichen mit
+  anderer Neigung: man musste hinsehen, statt zu erkennen. Die **Wörter** bleiben
+  «Einnahme» ↔ «Ausgabe» – der Einwand aus #831 galt ihnen, und ein Symbol behauptet
+  keinen Namen; es zeigt die häufigste Gestalt der Sache.
+- **«Partner» steht im PLATZHALTER, nicht darüber** (#843): die Beschriftung kostete eine
+  Zeile für ein Wort, und darunter erklärte «Nummer oder Name» dasselbe Feld ein zweites
+  Mal. Zusammengelegt sagt der Platzhalter beides. Im **Scan-Vollbild** bleibt die Sorte
+  eine Beschriftung (`scanLabel`) – dort liegt Text auf einem Foto.
+- **Der Löschen-Knopf einer Zeile sieht aus wie der am Modul** (#844, `RowDelete`): ein
+  26-px-Quadrat, kein Rahmen, keine Fläche, allein die Warnfarbe – nicht ein
+  `erp-actbtn`-Kasten mitten in einer Zeile aus Nummer, Name und Eingabefeld. **Ob er sich
+  einblendet, sagt der Aufrufer** (`reveal`), nicht das Bauteil: der Erfassungspunkt hatte
+  ihn immer sichtbar, und das bleibt so.
+- **Der Steuersatz ist eine VORGABE, kein fester Wert** (`ModuleDraft.vatRate`): das Modul
+  muss die Rechnung selbst können, aber der Satz hängt an der Sache – hier steht die
+  Vorbelegung jeder neuen Position, an der Position ist sie überschreibbar. Der Katalog
+  kommt vom Server (`ModuleCatalog.vat_rates`) und reist über die **gemeinsame** Prop-Form
+  aller Feldsätze (`vatRates`), wie `types`.
 - **Ohne Verifikation kein Scan-Tor** (`step.verifies`, aus `Module.requires_verification`):
   ein Modul, das keine Stücke bewegt, wird mit **einem** Knopf bestätigt. Die
   Ausführungsstelle fragt die **Eigenschaft**, nie den Modultyp – sonst fehlt beim nächsten
   Modul derselben Art die Zeile.
+- ►►► **Der Preis steht an SEINER Position, und der Steuersatz daneben** (MWSTG Art. 26).
+  ◄◄◄ Sie hängen an der **Sache**: sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen
+  auf demselben Papier. Wo **wir** den Preis nennen (`we_quote`), fragt `OurOffer` je Zeile
+  *Preis netto* und *Satz*, und der Angebotsbetrag ist ihre **Brutto-Summe** – ein
+  Betragsfeld daneben ist entfallen, es wäre nicht nur die zweite Aussage über dieselbe
+  Sache, sondern eine, die der Dienst abweist. Der **Katalog kommt vom Server**
+  (`d.vat_rates`); eine zweite Liste im Browser liefe beim ersten Satzwechsel auseinander.
+  Ein `<select>` ist hier richtig – die Sätze sind eine endliche **Aufzählung**, keine
+  Referenz auf einen Datensatz.
+- **Gerechnet wird nichts, ausser als Vorschau** (`Sums`): dieselbe Regel wie im Dienst –
+  **je Satz auf der Summe**, nie je Position aufsummiert. Gebucht wird dort.
+- **Der bestätigte Auftrag ist ein BELEG, kein Feldraster** (#847). Vier gleich laute
+  Lesefelder in einem `auto-fit`-Raster zerfielen je nach Breite in eine, zwei oder vier
+  Spalten, und der **Betrag** stand als drittes Kästchen von links. Jetzt: **wer** (eine
+  Zeile) · **was es kostet** (rechtsbündig Netto · Steuer je Satz · Total unter **einer**
+  Haarlinie über beide Spalten – an die zwei Zellen geschrieben hätte sie ein Loch in der
+  Mitte) · **zu welchen Bedingungen** (klein daneben). Die **Positionen stehen nicht noch
+  einmal darin**: sie stehen oben in `Goods`, seit die Zeile ihren Preis trägt.
+- **Die Steuer einer gebuchten Zeile steht im HOVER** (`taxTip`): bei zwei Sätzen wären es
+  fünf zusätzliche Zahlen neben Betrag, Referenz und Datum, und bei 320 px ist dort kein
+  Platz. Eine **Zahlung** trägt keinen Hinweis – Geld trägt keine Steuer, es begleicht sie.
+- **Was der Partner ändert, kommt an** (#846). Die drei Felder einer Angebotszeile sind
+  lokal, damit man tippen kann – aber ein `useState`-Startwert wird genau **einmal**
+  gelesen: ändert die Gegenpartei danach ihre Zahlungsfrist, zeigte das Feld weiter den
+  alten Wert, und wer etwas anderes korrigierte, **schrieb die alte Frist zurück**.
+  Nachgezogen wird beim **Wechsel des Server-Werts** (`[remote]`), nicht bei jedem
+  Rendern – dieselbe Bauart wie `defaultOpen` (#727). Und **beide** Fristen stehen in der
+  Zeile, jede mit ihrem Wort im Hover; zwei nackte Tageszahlen wären nicht unterscheidbar.
+- **Kein Erklärsatz über den fehlenden Abschluss-Knopf** (#849): die Sperre steht als
+  Auskunft im **Kopf**, die Zahlen in der **Geld-Zeile**, und dass der Knopf fehlt, sieht
+  man. Ein Hinweis, der nichts Neues sagt, liest sich wie eine Fehlermeldung.
+- **Das Mikro-Label ist ein Bauteil** (`fields.MICRO_LABEL`) – es stand als Inline-Stil an
+  jeder Stelle, mit leicht verschiedenen Werten (11 ↔ 11.5 px, 600 ↔ 700, .05 ↔ .07 em).
+  Genau die Form, in der eine Gestaltungsregel auseinanderläuft, ohne dass es auffällt.
 
 ## Bewegen: selbst gebracht oder eingekauft (`order-detail.Wrapped`)
 Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – also

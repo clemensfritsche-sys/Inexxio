@@ -14,7 +14,7 @@
 
 import {
   Banknote, Landmark,
-  ArrowDownLeft, ArrowUpRight, Blocks, Camera, CircleHelp, ClipboardCheck, Hand,
+  Blocks, Camera, CircleHelp, ClipboardCheck, Hand,
   HandCoins, Handshake, MoveRight, PackageX, PenLine, Ruler, ShoppingCart, ThumbsUp,
   Type, type LucideIcon,
 } from 'lucide-react';
@@ -150,23 +150,32 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
  * «die Werte heissen wie beim Handel») wird damit zurückgenommen: sie stimmte für die
  * beiden Fälle, die zufällig zuerst gebaut wurden.*
  *
- * **Und darum sind es Pfeile, kein Handschlag.** `FLOW` bleibt die Bildsprache des
- * *Handels* – Einkaufswagen ↔ Handschlag –, und genau das ist hier nicht gemeint. Ein
- * Pfeil sagt, wohin das Geld fliesst, und mehr behauptet dieses Modul nicht; zwei
- * diagonal entgegengesetzte sind auf 15 px sicher unterscheidbar (der Einwand aus #799
- * gegen Plus und Minus gilt für sie nicht).
+ * ►►► **Die Wörter bleiben — die SYMBOLE kommen vom Handel** (Testnotiz #845). ◄◄◄
+ *
+ * Zwei diagonal entgegengesetzte Pfeile standen hier, und die Begründung war «ein Pfeil
+ * sagt, wohin das Geld fliesst, und mehr behauptet dieses Modul nicht». Am Bildschirm
+ * gemessen war das zu wenig: zwei Pfeile derselben Familie, gespiegelt, sind auf 15 px
+ * das **gleiche** Zeichen mit anderer Neigung – man muss hinsehen, statt zu erkennen.
+ * Einkaufswagen und Handschlag sind **verschiedene Dinge**, und das Haus schreibt damit
+ * längst dieselbe Unterscheidung (`FLOW`): eine Bildsprache statt zweier.
+ *
+ * **Das Wort trägt die Weite, das Symbol die Wiedererkennung.** Der Einwand aus #831
+ * bleibt gültig und bleibt beantwortet – er galt den **Werten** («Verkauf» ist enger als
+ * ein Modul, das auch Miete und Lohn kann), und die heissen unverändert «Einnahme» ↔
+ * «Ausgabe». Ein Symbol behauptet keinen Namen; es zeigt die häufigste Gestalt der
+ * Sache, und Geld kommt herein, weil man etwas verkauft.
  */
 export const DEAL_DIRECTION: Record<string, {
   icon: LucideIcon; label: string; hint: string;
 }> = {
   in: {
-    // Ein Pfeil **herein** – Geld kommt zu uns.
-    icon: ArrowDownLeft, label: 'Einnahme',
+    // Der Handschlag – Geld kommt herein, weil eine Zusage nach aussen erfüllt wird.
+    icon: FLOW.sell.icon, label: 'Einnahme',
     hint: 'Einnahme – wir stellen Rechnung, Geld kommt herein.',
   },
   out: {
-    // Ein Pfeil **hinaus** – Geld geht von uns weg.
-    icon: ArrowUpRight, label: 'Ausgabe',
+    // Der Einkaufswagen – Geld geht hinaus, weil wir etwas beziehen.
+    icon: FLOW.buy.icon, label: 'Ausgabe',
     hint: 'Ausgabe – wir bekommen Rechnung, Geld geht hinaus.',
   },
 };
@@ -182,6 +191,25 @@ export const DEAL_DIRECTION: Record<string, {
  * statt durch einen zweiten gepflegten Wert. Gespiegelt von `domain/deal`.
  */
 export const DEAL_PARTY = 'Partner';
+
+/**
+ * **Der Normalsatz** – die Vorgabe eines neuen Zahlungs-Moduls.
+ *
+ * Der **Katalog** der Sätze kommt vom Server (`ModuleTypeInfo.vat_rates` bzw.
+ * `DealEmbed.vat_rates`); hier steht nur, womit ein *leerer Entwurf* beginnt – ein leeres
+ * Auswahlfeld wäre eine Frage, die der Server danach ohnehin mit dem Normalsatz
+ * beantwortet. Gespiegelt von `domain/deal.DEFAULT_VAT`.
+ */
+export const DEFAULT_VAT = '8.10';
+
+/**
+ * **Wie die Steuer heisst.** Gespiegelt von `domain/deal.VAT_LABEL`.
+ *
+ * Sie reist an der Ausführungsstelle mit dem Vorgang (`DealEmbed.vat_label`); im
+ * **Editor** gibt es noch keinen, also steht sie hier – dieselbe Bauart wie
+ * `DEAL_DIRECTION`: nur, was eine Antwort nicht transportieren kann.
+ */
+export const VAT_LABEL = 'MWST';
 
 /**
  * **Was bei einem Partner zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein Satz.
@@ -531,6 +559,19 @@ export interface ModuleDraft {
    * und er schreibt keine Reihenfolge vor, er hält nur an.
    */
   prepaid: boolean;
+  /**
+   * ►►► **Nur «Zahlung»: der Steuersatz, mit dem eine neue Position beginnt.** ◄◄◄
+   *
+   * Eine Rechnung ohne Steuersatz ist keine (MWSTG Art. 26) – und er hängt an der
+   * **Sache**, nicht am Beleg: sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen auf
+   * demselben Papier. Was hier steht, ist darum eine **Vorgabe**, kein fester Wert; an
+   * der Position ist er überschreibbar.
+   *
+   * Der Katalog steht im Backend (`domain/deal.VAT_RATES`) und kommt über den
+   * Modul-Katalog hierher – eine zweite Liste im Browser liefe beim ersten Satzwechsel
+   * auseinander, und der Bundesrat fragt nicht nach.
+   */
+  vatRate: string;
 }
 
 /** Ein zugelassener Lieferant und die Angabe, wie man bei ihm bestellt (#753). */
@@ -678,6 +719,9 @@ export const MODULE_FORM: Record<string, {
         party: Number(r.party ?? r), ref: String(r.ref ?? ''),
       })).filter((r) => Number.isFinite(r.party)),
       prepaid: Boolean(c.prepaid),
+      // Tolerant gelesen: ein fehlender Satz ist der Normalsatz – wie im Backend
+      // (`modules.vat_rate`). Ein leeres Feld wäre eine Auswahl ohne Wert.
+      vatRate: String(c.vat_rate ?? '') || DEFAULT_VAT,
     }),
     // Vier Angaben, keine davon Pflicht ausser der Richtung. Keine Erfassungspunkte und
     // keine Stichprobe: Geld ist keine Messung am Stück.
@@ -685,6 +729,7 @@ export const MODULE_FORM: Record<string, {
       direction: m.direction,
       parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
       prepaid: m.prepaid,
+      vat_rate: m.vatRate,
     }),
   },
   verbrauch: {
@@ -746,7 +791,7 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
     // **Die Vorgabe ist die EINNAHME** (#791): der häufigere Fall im Haus ist, dass wir
     // etwas verkaufen. Die Richtung bleibt trotzdem eine ausdrückliche Angabe – der
     // Server verlangt sie (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt.
-    direction: 'in', parties: [], prepaid: false,
+    direction: 'in', parties: [], prepaid: false, vatRate: DEFAULT_VAT,
   };
 }
 

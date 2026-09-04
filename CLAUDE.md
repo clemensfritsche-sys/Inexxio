@@ -2231,6 +2231,84 @@
 > durchgehend auf 1**; das Nummernfeld fehlt bei einer Einnahme und steht bei einer
 > Ausgabe; die Korrektur einer Zahlung ist mit «−1000.00» vorbelegt.
 
+> **Eine Rechnung ohne Steuersatz ist keine — und der Satz hängt an der SACHE**
+> (Testnotizen #843–#850, MWSTG Art. 26, Migration `127`). Der Geldvorgang trug **eine**
+> Zahl: `deals.amount`, und `agreed_lines` hielt Artikel und Menge – **keinen Preis**.
+> Damit fehlte genau das, was einen Beleg zu einem Beleg macht: Steuersatz und
+> Steuerbetrag. **Das Modul muss es selbst können** – einen Verkaufsbereich am Artikel
+> gibt es nicht, und ein Modul, das auf eine Angabe von aussen wartet, kann seine eigene
+> Rechnung nicht stellen.
+> **Die eine Regel, aus der alles folgt: der Positionspreis ist NETTO, jeder Betrag ist
+> BRUTTO.** Damit bleibt `balance` unangetastet – *offen · bezahlt · uncharged* rechnen
+> weiter mit derselben Zahl wie vorher, und keine der drei Achsen (Ware · Forderung ·
+> Geld) muss von der Steuer wissen. Netto und Steuer sind **Ableitungen**, null Spalten.
+> **Der Satz steht an der POSITION, nicht am Beleg** (`DealLine.vat`): sechs Wellen zu
+> 8.1 % und eine Ausfuhr zu 0 % stehen auf demselben Papier – ein Satz je Beleg wäre bei
+> jedem gemischten Geschäft falsch, und zwar stillschweigend, weil die Summe trotzdem
+> aufgeht. **Gerundet wird je Satz auf der SUMME** (`domain/deal.vat_split`), nie je
+> Position aufsummiert: bei zwölf Zeilen weicht die Summe der gerundeten Einzelbeträge
+> sonst um Rappen ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz (gemessen:
+> 3 × 5.00 zu 8.1 % ergibt 1.22, nicht 3 × 0.41 = 1.23).
+> **Eine Teilrechnung verteilt sich ANTEILIG über alle Sätze** (`split_for`) – eine
+> Anzahlung ist zum Satz der zugrunde liegenden Leistung zu versteuern; dem höchsten Satz
+> zugeschlagen wäre sie zu viel Steuer, dem niedrigsten zu wenig. **Der letzte Anteil
+> bekommt den Rest**, sonst ist die Summe der Zeilen nicht der Betrag der Rechnung.
+> **Wer den Preis nennt, entscheidet die FORM** (`quoted_by`, seit #837): bei einer
+> **Einnahme** nennen wir ihn als Positionen (dort hängt der Satz), und der Angebotsbetrag
+> ist ihre Brutto-Summe – ein Betragsfeld daneben ist darum entfallen, es wäre nicht nur
+> die zweite Aussage, sondern eine, die der Dienst abweist. Bei einer **Ausgabe** nennt
+> die Gegenpartei eine Summe, und die Steuer steht auf **ihrer** Rechnung: dort wird der
+> Satz bei der Erfassung gefragt, und nur dort.
+> **Die gebuchte Zeile SPEICHERT ihre Steuer** (`deal_entries.vat`, `service_date`) statt
+> sie nachzurechnen: ein Beleg behält, was auf ihm stand – nachgerechnet wäre die
+> Vergangenheit eine Funktion der Gegenwart, und eine Abrechnung über ein abgeschlossenes
+> Quartal ergäbe beim zweiten Lauf andere Zahlen. Der **Storno spiegelt sie** mit
+> negativem Vorzeichen; sonst nähme er den Betrag zurück und die Steuer nicht.
+> **Ein Fehler, der still gewesen wäre:** `DealUpdate` kannte `lines`, `vat` und
+> `service_date` nicht – Pydantic verwirft unbekannte Felder **stillschweigend**, also
+> wäre der Preis eines Angebots nie angekommen (dieselbe Falle wie damals bei
+> `ModuleConfigInput`). Kein Dienst-Test hätte es gefunden: die rufen `apply` direkt. Der
+> neue Wächter prüft darum die **Tür**. Und `assert_vat("acht Prozent")` warf ein
+> `InvalidOperation` aus der Tiefe der `decimal`-Bibliothek – ein 500 statt eines Satzes.
+> **Der bestätigte Auftrag ist jetzt ein BELEG** (#847 – «schaut total beschissen aus»):
+> vier gleich laute Lesefelder in einem `auto-fit`-Raster, das je nach Breite in eine,
+> zwei oder vier Spalten zerfiel, und der **Betrag** – die einzige Zahl, um die es geht –
+> als drittes Kästchen von links. Jetzt die Ordnung eines Belegs: **wer** (eine Zeile) ·
+> **was es kostet** (rechtsbündig Netto · Steuer je Satz · Total unter **einer**
+> Haarlinie über beide Spalten) · **zu welchen Bedingungen** (klein daneben). Die
+> **Positionen stehen nicht noch einmal darin** – sie stehen oben, seit die Zeile ihren
+> Preis und ihren Satz trägt.
+> **Kleineres, jedes an einer Stelle:** «Partner» steht im **Platzhalter** statt als
+> eigene Zeile darüber (#843 – im Scan-Vollbild bleibt es eine Beschriftung, dort liegt
+> Text auf einem Foto); der **Löschen-Knopf einer Zeile** sieht aus wie der am Modul
+> selbst (#844, `RowDelete` – gemessen 26 × 26 px, kein Rahmen, keine Fläche, allein die
+> Warnfarbe; die Hover-Einblendung bleibt eine Wahl des Aufrufers); die **Symbole** der
+> Richtung kommen aus `FLOW` (#845 – zwei gespiegelte Pfeile sind auf 15 px dasselbe
+> Zeichen mit anderer Neigung, Einkaufswagen und Handschlag sind verschiedene Dinge; die
+> **Wörter** bleiben «Einnahme» ↔ «Ausgabe», #831 ist damit nicht zurückgenommen); **was
+> der Partner ändert, kommt an** (#846 – ein `useState`-Startwert wird einmal gelesen, und
+> wer danach etwas anderes korrigierte, schrieb die alte Frist **zurück**; nachgezogen
+> wird beim Wechsel des Server-Werts, nicht bei jedem Rendern); der **Erklärsatz** unter
+> der Karte ist gelöscht (#849 – er sagte dreimal dasselbe: Kopf, Geld-Zeile und der
+> fehlende Knopf); das Verb heisst **«Vorgang abschliessen»** (#848 – «Auftrag erledigt»
+> meinte den falschen Auftrag); und es gibt **ein** Nummernfeld für Rechnung und Zahlung
+> (#850 – bei einer Einnahme trägt auch die Zahlung unsere Nummer).
+> **Nebenbei gefunden:** an einer bereits offerierten Zeile liess sich die **Frist** nicht
+> mehr ändern, ohne den Preis erneut zu behaupten – «nur gesendete Felder wirken» galt für
+> die Fristen, nicht für den Betrag.
+> Wächter: 7 neue in `tests/test_deal_module.py`, 6 neue in `test_frontend_mirrors.py`,
+> dazu 6 auf die neue Regel gezogene – **jede Bug-Form gegengeprüft**; *zwei neue waren
+> dabei stumpf und liessen ihre eigene durch* (einer fragte nach `value.rows.map`, das
+> auch im Zeilen-Helfer steht; einer prüfte `<Label` über einem Bedienelement mit einer
+> Fensterlogik, die an `</Label>` scheiterte). Und **`_body` war der Fehler selbst**: an
+> einer Komponente mit verschachtelter Hilfsfunktion lieferte es 249 statt 3623 Zeichen,
+> also von der Sache gar nichts – dafür gibt es jetzt `_component`. Suite grün gegen die
+> gewachsene Datenbank (573) **und** gegen ein Schema nur aus den Migrationen (581);
+> Migration `127` von null · idempotent · downgrade · über das Lifespan-Netz verifiziert.
+> Gemessen in Chromium an den **echten** Komponenten: 1440 · 1280 · 1024 · 834 · 375 ·
+> 320 px, **0 px** waagrechter Überlauf über sechs Zustände (inkl. zweier Steuersätze auf
+> einem Beleg) und im Editor.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

@@ -54,7 +54,7 @@ wird, solange nicht bezahlt ist.
 """
 
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any, Optional
 
 # ---------------------------------------------------------------------------
@@ -142,8 +142,12 @@ PARTY = "Partner"
 #: **Was man an der Schwelle tut**: das *Angebot* annehmen – der Auftrag ist das Ergebnis
 #: (Testnotiz #826). «Auftrag bestätigen» benannte die Folge statt der Handlung.
 AGREE_VERB = "Angebot annehmen"
-#: Was man tut, wenn nichts mehr davorsteht.
-FINISH_VERB = "Auftrag erledigt"
+#: ►►► **Was man tut, wenn nichts mehr davorsteht** (Testnotiz #848). ◄◄◄
+#:
+#: «Auftrag erledigt» meinte den falschen Auftrag: es klang nach dem ERP-Datensatz, gemeint
+#: ist **dieses Modul**. Ein *Vorgang* ist genau dieser Geldvorgang – das Wort steht seit
+#: jeher dafür im Haus, und es verwechselt sich mit nichts.
+FINISH_VERB = "Vorgang abschliessen"
 #: Die eine Gegenhandlung.
 UNDO = "Auftrag stornieren"
 
@@ -203,10 +207,15 @@ BY_PARTY = "party"
 # Lieferantenrechnung (sie steht auf seinem Papier) und an jeder Zahlung (QR-Referenz,
 # Zahlungszweck, die Id des Zahlungsdienstes).
 
-#: Die Nummer der Gegenpartei an ihrer Rechnung – nur, wo **sie** die Rechnung stellt.
-PARTY_CHARGE_REFERENCE = "Belegnummer des Partners"
-#: Die Referenz einer Zahlung – in **beiden** Richtungen von aussen.
-PAYMENT_REFERENCE = "Zahlungsreferenz"
+#: ►►► **Die Nummer der Gegenpartei – EIN Feld für BEIDE Zeilen-Arten** (#840/#850). ◄◄◄
+#:
+#: Die Regel galt zuerst nur für die Rechnung, und an der Zahlung stand weiter ein Feld –
+#: obwohl bei einer **Einnahme** auch die Zahlung unsere Nummer trägt (sie referenziert
+#: unsere Rechnung). Zwei Regeln für dieselbe Frage laufen genau so auseinander.
+#:
+#: Jetzt gilt einer für beide: **wo wir nummerieren, tippt niemand**, und wo die
+#: Gegenpartei nummeriert, ist es ihre Angabe – ihre Belegnummer, ihr Zahlungszweck.
+PARTY_REFERENCE = "Beleg-/Zahlungsreferenz des Partners"
 
 
 @dataclass(frozen=True)
@@ -240,9 +249,10 @@ class Direction:
     #: Angebot geht mit dem Betrag hinaus), und wer nicht nennt, ändert den fremden Preis
     #: nicht – er nimmt an oder lehnt ab.
     quoted_by: str
-    #: **Wie die Nummer einer Forderung entsteht.** ``None`` heisst «wir nummerieren» –
-    #: dann gibt es kein Eingabefeld (#840). Sonst der Name des Feldes.
-    charge_reference: Optional[str]
+    #: **Wie die Nummer einer Geld-Zeile entsteht.** ``None`` heisst «wir nummerieren» –
+    #: dann gibt es **kein** Eingabefeld, weder an der Rechnung noch an der Zahlung
+    #: (#840/#850). Sonst der Name des Feldes.
+    reference: Optional[str]
 
     #: ►►► **Was man TUT, ist in beiden Richtungen dasselbe.** ◄◄◄
     #:
@@ -310,7 +320,7 @@ DIRECTIONS: dict[str, Direction] = {
         # **Wir** nennen den Preis – das Angebot geht mit ihm hinaus.
         quoted_by=BY_US,
         # Und wir nummerieren: kein Eingabefeld.
-        charge_reference=None,
+        reference=None,
     ),
     OUT: Direction(
         key=OUT,
@@ -321,7 +331,7 @@ DIRECTIONS: dict[str, Direction] = {
         ask_verb="Anfragen",
         quoted_by=BY_PARTY,
         # Seine Rechnung trägt **seine** Nummer – sie steht auf seinem Papier.
-        charge_reference=PARTY_CHARGE_REFERENCE,
+        reference=PARTY_REFERENCE,
     ),
 }
 
@@ -389,6 +399,167 @@ def amount(value: Any, *, allow_negative: bool = False) -> Optional[Decimal]:
     if abs(found) > MAX_AMOUNT:
         raise ValueError(f"Der Betrag ist zu gross (max. {MAX_AMOUNT}).")
     return found
+
+
+# ---------------------------------------------------------------------------
+# ►►► DIE MEHRWERTSTEUER — der Satz gehört der POSITION ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Eine Rechnung ohne Steuersatz und Steuerbetrag ist keine (MWSTG Art. 26 Abs. 2 Bst. f).
+# Und der Satz hängt an der **Sache**, nicht am Beleg: sechs Wellen zu 8.1 % und eine
+# Lieferung ins Ausland zu 0 % stehen auf demselben Papier.
+#
+# ## Die eine Regel, aus der alles folgt
+#
+# ►►► **Ein Positionspreis ist NETTO. Jeder Betrag ist BRUTTO.** ◄◄◄
+#
+# So denkt und rechnet man einen Preis (netto je Stück), und so schuldet man Geld (brutto).
+# Damit bleibt ``balance`` unverändert: *offen*, *gefordert* und *gezahlt* sind weiterhin
+# dasselbe Mass, und Netto und Steuer sind **Ableitungen** – null Spalten.
+#
+# ## Gerundet wird je SATZ auf der SUMME
+#
+# Nicht je Position und dann addiert: bei zwölf Zeilen zu 8.1 % weicht die Summe der
+# gerundeten Einzelbeträge um Rappen von der gerundeten Summe ab, und eine MWST-Abrechnung
+# kennt keine Rappen-Toleranz. Das ist die Rundungsregel der ESTV und zugleich die einzige,
+# die zweimal gerechnet dasselbe ergibt.
+
+#: **Die Schweizer Sätze** – ein Katalog, keine freie Zahl: ein getippter Satz ist ein
+#: Satz, den es nicht gibt, und er fällt erst bei der Abrechnung auf. Ändert der
+#: Gesetzgeber sie, ist es **eine Zeile hier** – die eingefrorenen Belege behalten ihren.
+VAT_RATES: tuple[tuple[str, str], ...] = (
+    ("8.10", "Normalsatz"),
+    ("2.60", "Reduziert"),
+    ("3.80", "Beherbergung"),
+    ("0.00", "Ohne (Export · Reverse Charge)"),
+)
+
+#: Womit eine neue Position beginnt. Der Normalfall ist der Normalsatz.
+DEFAULT_VAT = "8.10"
+
+#: Wie das Feld heisst – ein Wort für beide Richtungen.
+VAT_LABEL = "MWST"
+#: Das Datum, an dem die Leistung erbracht wurde (MWSTG Art. 26 Abs. 2 Bst. c).
+#:
+#: Es ist **nicht** das Rechnungsdatum, und der Unterschied zählt: bei einem Satzwechsel
+#: oder über den Jahreswechsel entscheidet **es**, welcher Satz gilt. Vorbelegt mit dem
+#: Rechnungsdatum, weil beide meistens zusammenfallen.
+SERVICE_DATE_LABEL = "Leistungsdatum"
+
+
+def assert_vat(value: Any) -> str:
+    """Die Schreibprüfung für einen Steuersatz. Unbekannt ist ein **Fehler**, kein Default.
+
+    Beim **Lesen** ist das anders (``vat_of``): ein alter Beleg trägt einen Satz, den der
+    Katalog vielleicht nicht mehr führt, und eine Anzeige darf daran nicht zerbrechen.
+    """
+    # **Ein unlesbarer Wert ist derselbe Fehler wie ein unbekannter** – und er bekommt
+    # denselben Satz. Ohne das Auffangen kam aus «acht Prozent» ein `InvalidOperation`
+    # aus der Tiefe der `decimal`-Bibliothek: technisch eine Ablehnung, fachlich eine
+    # Sackgasse ohne Erklärung, und an der Tür ein 500 statt eines 400.
+    try:
+        text = f"{Decimal(str(value)):.2f}" if value not in (None, "") else DEFAULT_VAT
+    except InvalidOperation:
+        text = str(value)
+    if text not in dict(VAT_RATES):
+        raise ValueError(
+            f"«{value}» ist kein Steuersatz. Erlaubt: "
+            + ", ".join(f"{r} % ({name})" for r, name in VAT_RATES) + "."
+        )
+    return text
+
+
+def vat_of(value: Any) -> Decimal:
+    """Ein Satz als Zahl – tolerant gelesen. Unlesbar heisst **0 %**, nicht «kaputt»."""
+    try:
+        return Decimal(str(value or "0")).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return Decimal("0.00")
+
+
+def _rappen(value: Decimal) -> Decimal:
+    """Auf den Rappen, kaufmännisch. Die eine Rundungsstelle dieses Moduls."""
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def line_net(line: dict[str, Any]) -> Decimal:
+    """Der **Netto**-Betrag einer Position: Menge × Einzelpreis. Ohne Preis: null."""
+    price = amount(line.get("price"), allow_negative=True)
+    if price is None:
+        return Decimal("0.00")
+    return _rappen(price * Decimal(int(line.get("quantity") or 0)))
+
+
+def vat_split(lines: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """►►► **Die Aufteilung je Steuersatz** – gerundet auf der Summe, nicht je Zeile. ◄◄◄
+
+    Zurück kommt je vorkommendem Satz eine Zeile ``{rate, net, tax}`` als **String** – wo
+    es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet, auch nicht auf dem
+    Weg durch JSON. Sortiert nach Satz, damit zwei Läufe dieselbe Reihenfolge ergeben.
+    """
+    buckets: dict[str, Decimal] = {}
+    for line in lines or []:
+        rate = f"{vat_of(line.get('vat')):.2f}"
+        buckets[rate] = buckets.get(rate, Decimal("0.00")) + line_net(line)
+    return [
+        {"rate": rate, "net": f"{net:.2f}",
+         "tax": f"{_rappen(net * vat_of(rate) / Decimal(100)):.2f}"}
+        for rate, net in sorted(buckets.items(), key=lambda kv: Decimal(kv[0]), reverse=True)
+    ]
+
+
+def gross_of(lines: list[dict[str, Any]]) -> Decimal:
+    """Die **Brutto**-Summe der Positionen – Netto plus Steuer, je Satz gerundet."""
+    return sum((Decimal(row["net"]) + Decimal(row["tax"]) for row in vat_split(lines)),
+               Decimal("0.00"))
+
+
+def split_for(gross: Decimal, lines: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """►►► **Die Aufteilung EINER Rechnung** – auch wenn sie nur ein Teil ist. ◄◄◄
+
+    Eine **Anzahlung** ist zum Satz der zugrunde liegenden Leistung zu versteuern; bei
+    gemischten Sätzen also **anteilig** über alle. Genau das tut diese Funktion: sie
+    verteilt den geforderten Brutto-Betrag im Verhältnis der Positionen und rechnet die
+    Steuer je Satz zurück.
+
+    **Der letzte Anteil bekommt den Rest.** Sonst fehlt oder überschiesst ein Rappen, und
+    die Summe der Zeilen wäre nicht der Betrag der Rechnung – ein Beleg, der sich selbst
+    widerspricht.
+
+    Ohne Positionen (eine **Ausgabe**: die Steuer steht auf *seiner* Rechnung) gibt es
+    hier nichts zu verteilen; dann nennt der Aufrufer den Satz, und ``split_at`` rechnet.
+    """
+    rows = vat_split(lines)
+    total = sum((Decimal(r["net"]) + Decimal(r["tax"]) for r in rows), Decimal("0.00"))
+    if not rows or total == 0:
+        return []
+    out: list[dict[str, str]] = []
+    used = Decimal("0.00")
+    for i, row in enumerate(rows):
+        share = Decimal(row["net"]) + Decimal(row["tax"])
+        part = (gross - used if i == len(rows) - 1
+                else _rappen(gross * share / total))
+        used += part
+        out.append(_at(part, row["rate"]))
+    return out
+
+
+def split_at(gross: Decimal, rate: Any) -> list[dict[str, str]]:
+    """Die Aufteilung eines Brutto-Betrags zu **einem** Satz – die Ausgabe-Seite."""
+    return [_at(gross, f"{vat_of(rate):.2f}")]
+
+
+def _at(gross: Decimal, rate: str) -> dict[str, str]:
+    """Brutto **rückwärts** in Netto und Steuer: ``netto = brutto / (1 + satz)``."""
+    net = _rappen(gross / (Decimal(1) + vat_of(rate) / Decimal(100)))
+    return {"rate": rate, "net": f"{net:.2f}", "tax": f"{gross - net:.2f}"}
+
+
+def totals(rows: list[dict[str, str]]) -> dict[str, str]:
+    """Netto · Steuer · Brutto einer Aufteilung – die drei Zahlen unter dem Strich."""
+    net = sum((Decimal(r["net"]) for r in rows), Decimal("0.00"))
+    tax = sum((Decimal(r["tax"]) for r in rows), Decimal("0.00"))
+    return {"net": f"{net:.2f}", "tax": f"{tax:.2f}", "gross": f"{net + tax:.2f}"}
 
 
 @dataclass(frozen=True)

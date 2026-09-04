@@ -10,7 +10,7 @@ import type { DealParty, ModuleCatalog, ModuleTypeInfo, SupplierOption } from '@
 import {
   CAPTURE_ICON, DEAL_DIRECTION, DEAL_PARTY, DEAL_TASK, DEAL_TASK_HINT,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
-  SAMPLE_PRESETS, blankModule, moduleTone,
+  SAMPLE_PRESETS, VAT_LABEL, blankModule, moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
 } from '@/lib/modules';
 
@@ -169,6 +169,7 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
               <div className="flex flex-col gap-3">
                 {Fields && (
                   <Fields module={m} types={catalog?.capture_types ?? []}
+                    vatRates={catalog?.vat_rates ?? []}
                     onChange={(next) => patch(m.id, next)} />
                 )}
                 {/* ►► **Wer einkaufen kann, definiert seinen Beleg – hier, wie jeder
@@ -258,6 +259,7 @@ function Palette({ catalog, onPick }: {
 function DisposalFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
+  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   return (
@@ -297,6 +299,7 @@ function DisposalFields({ module: m, onChange }: {
 function MoveFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
+  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   const [place, setPlace] = useState<PlaceRef | null>(null);
@@ -529,6 +532,13 @@ function ProcurementFields({ module: m, info, onChange }: {
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
   types: { key: string; label: string }[];
+  /**
+   * **Die Steuersätze aus dem Katalog** – eine Eigenschaft des Hauses (MWSTG), nicht
+   * eines Modultyps. Sie steht in der gemeinsamen Prop-Form und nicht nur bei dem einen
+   * Feldsatz, der sie heute braucht: derselbe Weg wie `types`, und der nächste Feldsatz
+   * mit einem Preis erbt sie, ohne dass jemand die Signatur ändert.
+   */
+  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }> | null> = {
   datenerfassung: ModuleFields,
@@ -541,6 +551,39 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   bewegen: MoveFields,
   zahlung: MoneyFields,
 };
+
+/**
+ * ►►► **Eine Zeile entfernen — dasselbe Zeichen wie am Modul selbst** (Testnotiz #844). ◄◄◄
+ *
+ * Der Knopf an der Partner-Zeile trug `.erp-actbtn-neutral`: ein Kasten mit Rahmen und
+ * Fläche, mitten in einer Zeile aus Nummer, Name und Eingabefeld – und damit lauter als
+ * das Eingabefeld daneben, obwohl er die seltenere Handlung ist. Der Knopf, mit dem man
+ * ein **ganzes Modul** entfernt, sieht dagegen so aus: ein 26-px-Quadrat, kein Rahmen,
+ * keine Fläche, allein die Warnfarbe.
+ *
+ * Beides ist «diese Sache hier wegnehmen», also sieht beides gleich aus – und weil es
+ * schon **zwei** handgeschriebene Fassungen davon gab (Partner-Zeile, Erfassungspunkt),
+ * steht es jetzt einmal da statt dreimal. Was sie unterscheidet, ist der Satz im Hover.
+ */
+function RowDelete({ label, hint, reveal, onClick }: {
+  label: string; hint?: string;
+  /**
+   * **Erst beim Hovern** (#832) – für Zeilen, die man häufig liest und selten löscht.
+   * Die Regel steht in `globals.css` (`.erp-rowaction`, mit `@media (hover: none)` für
+   * Touch); hier wird sie nur **gewählt**, nicht formuliert. Ohne die Angabe steht der
+   * Knopf durchgehend da – so, wie der Erfassungspunkt ihn immer schon hatte.
+   */
+  reveal?: boolean; onClick: () => void;
+}) {
+  return (
+    <button type="button" aria-label={label} data-tip={hint}
+      className={`flex items-center justify-center rounded flex-none${reveal ? ' erp-rowaction' : ''}`}
+      style={{ width: 26, height: 26, color: 'var(--danger)' }}
+      onClick={onClick}>
+      <Trash2 size={14} />
+    </button>
+  );
+}
 
 /**
  * ►►► **Zahlung — vier Angaben, und die erste entscheidet alles.** ◄◄◄
@@ -563,9 +606,10 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
  * Vorauszahlung, Zahlungsziel, Anzahlung und Nachnahme sind dieselbe Mechanik in anderer
  * Folge. Er sagt nur, dass dieses Modul nicht abschliesst, bevor das Geld da ist.
  */
-function MoneyFields({ module: m, onChange }: {
+function MoneyFields({ module: m, vatRates, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
+  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   const [known, setKnown] = useState<Record<number, string>>({});
@@ -623,14 +667,25 @@ function MoneyFields({ module: m, onChange }: {
             Die Stelle, an der ein Name stehen blieb, ist die **Laufzeit** (#820) –
             `deal-work.Offer`, wo die frische Wahl gehalten wird, bis der Server sie als
             Zeile zurückgibt. */}
+        {/* ►►► **«Partner» steht IM Feld, nicht darüber** (Testnotiz #843). ◄◄◄
+
+            Die Beschriftung kostete eine eigene Zeile, um ein einziges Wort zu sagen –
+            und darunter stand ein Platzhalter «Nummer oder Name», der dasselbe Feld ein
+            zweites Mal erklärte. Zusammengelegt sagt der Platzhalter beides: **wen** man
+            sucht und **womit**. Er verschwindet beim ersten Zeichen, und das ist hier
+            genau richtig: dann steht die Liste der Treffer da, und die beantwortet die
+            Frage besser als jede Beschriftung.
+
+            Dieselbe Regel wie im Scan-Dialog (#758). Im **Vollbild** des Scanners bleibt
+            die Sorte als Beschriftung stehen (`scanLabel`) – dort liegt Text auf einem
+            Foto, und der Platzhalter allein trüge sie nicht. */}
         <ObjectSelect<DealParty>
-          label={DEAL_PARTY}
           value={null}
           selected={null}
           find={find}
           scanLabel={DEAL_PARTY}
           emptyOption={m.parties.length === 0 ? RUNTIME_CHOICE : undefined}
-          placeholder="Nummer oder Name"
+          placeholder={`${DEAL_PARTY} – Nummer oder Name`}
           onChange={(nr, opt) => {
             if (nr === null || m.parties.some((r) => r.party === nr)) return;
             if (opt) setKnown((k) => ({ ...k, [nr]: opt.name }));
@@ -663,14 +718,10 @@ function MoneyFields({ module: m, onChange }: {
                 parties: m.parties.map((x) => (x.party === row.party
                   ? { ...x, ref: e.target.value } : x)),
               })} />
-            <button type="button"
-              className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon erp-rowaction"
-              aria-label="Entfernen" data-tip="Aus der Freigabe nehmen"
+            <RowDelete label="Entfernen" hint="Aus der Freigabe nehmen" reveal
               onClick={() => onChange({
                 parties: m.parties.filter((x) => x.party !== row.party),
-              })}>
-              <Trash2 size={13} />
-            </button>
+              })} />
           </div>
         ))}
       </div>
@@ -699,6 +750,28 @@ function MoneyFields({ module: m, onChange }: {
                 + '(Vorauszahlung).' },
           ]}
         />
+      </div>
+      {/* ►►► **Der Steuersatz — eine VORGABE, kein fester Wert.** ◄◄◄
+
+          Eine Rechnung ohne Steuersatz ist keine (MWSTG Art. 26), und das Modul muss ihn
+          **selbst** können: einen Verkaufsbereich am Artikel gibt es heute nicht, und ein
+          Modul, das auf eine Angabe von aussen wartet, kann seine eigene Rechnung nicht
+          stellen. Er hängt aber an der **Sache** und nicht am Beleg – sechs Wellen zu
+          8.1 % und eine Ausfuhr zu 0 % stehen auf demselben Papier –, also ist er hier
+          die **Vorbelegung** jeder neuen Position und an der Position überschreibbar.
+
+          **Ein `<select>` ist hier richtig**: die Sätze sind eine endliche Aufzählung,
+          keine Referenz auf einen Datensatz (die Regel des Hauses erlaubt genau das). Der
+          Katalog kommt vom Server – eine zweite Liste im Browser liefe beim ersten
+          Satzwechsel auseinander, und der Gesetzgeber fragt nicht nach. */}
+      <div>
+        <Label>{VAT_LABEL}</Label>
+        <select className={inputCls} value={m.vatRate} aria-label={VAT_LABEL}
+          onChange={(e) => onChange({ vatRate: e.target.value })}>
+          {vatRates.map((r) => (
+            <option key={r.rate} value={r.rate}>{r.rate} % · {r.label}</option>
+          ))}
+        </select>
       </div>
       {/* **Kein Erklärtext** (#792). Was die Richtung bedeutet, sagt der Hover am
           Schieber; was hier nicht gefragt wird (Betrag, Artikel, Termin), muss niemand
@@ -729,6 +802,7 @@ function MoneyFields({ module: m, onChange }: {
 function ConsumptionFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
+  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   return (
@@ -815,6 +889,7 @@ function PointIcon({ type, types }: { type: string; types: { key: string; label:
 function ModuleFields({ module: m, types, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
+  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   const defaultType = types[0]?.key ?? 'text';
@@ -855,12 +930,8 @@ function ModuleFields({ module: m, types, onChange }: {
                   onChange={(e) => setPoint(i, { unit: e.target.value })} />
               </>
             )}
-            <button type="button" aria-label="Erfassungspunkt entfernen"
-              className="flex items-center justify-center rounded flex-none"
-              style={{ width: 26, height: 26, color: 'var(--danger)' }}
-              onClick={() => onChange({ points: m.points.filter((_, n) => n !== i) })}>
-              <Trash2 size={13} />
-            </button>
+            <RowDelete label="Erfassungspunkt entfernen"
+              onClick={() => onChange({ points: m.points.filter((_, n) => n !== i) })} />
           </div>
         ))}
       </div>

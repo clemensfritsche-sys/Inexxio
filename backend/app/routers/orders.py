@@ -18,7 +18,7 @@ from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
-from ..schemas.deal import DealEmbed, DealParty, DealUpdate
+from ..schemas.deal import DealEmbed, DealParty, DealUpdate, VatRate
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
 from ..schemas.order import (
@@ -32,7 +32,7 @@ from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentLink,
     PurchaseEmbed, PurchaseUpdate, RecordEntry, RecordValue, StepConfirm, StepRecord,
 )
-from ..domain import capture_types, modules, procurement
+from ..domain import capture_types, deal as deal_domain, modules, procurement
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
@@ -539,6 +539,9 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
             for m in modules.MODULES.values()
         ],
         capture_types=[CaptureTypeInfo(key=t.key, label=t.label) for t in capture_types.ALL],
+        # **Der Katalog der Steuersätze** – eine Eigenschaft des Hauses, nicht eines
+        # Modultyps; die Oberfläche baut ihn nicht nach.
+        vat_rates=[VatRate(rate=r, label=name) for r, name in deal_domain.VAT_RATES],
     )
 
 

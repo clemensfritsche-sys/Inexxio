@@ -59,6 +59,24 @@ def _body(source: str, name: str, *, kind: str = "def") -> str:
     return rest[: end.start()] if end else rest
 
 
+def _component(source: str, name: str) -> str:
+    """Der **ganze** Rumpf einer React-Komponente – verschachtelte Helfer inbegriffen.
+
+    ``_body`` bricht bewusst an einer eingerückten ``function`` ab: dort grenzt sie eine
+    verschachtelte Hilfsfunktion ab, und ein Wächter, der über sie hinausliest, prüfte
+    fremden Code. Für eine **Komponente** ist das genau falsch herum – ihr JSX steht
+    hinter solchen Helfern, und der Wächter sähe von der Sache, um die es geht, gar
+    nichts. Gemessen: an ``ModuleFields`` (eine verschachtelte ``setPoint``) lieferte
+    ``_body`` **249 Zeichen**, und die eigene Bug-Form ging durch.
+
+    Hier endet der Rumpf darum erst am nächsten Konstrukt **auf Spalte 0**.
+    """
+    start = source.index(f"function {name}")
+    rest = source[start + len(f"function {name}"):]
+    end = re.search(r"\n(?:export |function |interface |const |type |/\*\*)", rest)
+    return rest[: end.start()] if end else rest
+
+
 # ---------------------------------------------------------------------------
 # Das Datenmodell
 # ---------------------------------------------------------------------------
@@ -1860,7 +1878,16 @@ def test_the_capture_type_is_chosen_once():
     noch einmal über ein Auswahlfeld. Zwei Wege zur selben Entscheidung sind einer zu
     viel (#683); gezeigt wird sie als Symbol der Zeile."""
     src = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
-    assert "<select" not in src, "Der Erfassungstyp hat wieder ein Auswahlfeld."
+    # ►►► **Gefragt ist DIESER Feldsatz, nicht die ganze Datei.** ◄◄◄
+    #
+    # Die Regel lautet «die Art eines Erfassungspunktes wird über die Palette gewählt» –
+    # sie sagt nichts über Auswahlfelder anderswo. Ein Verbot über die **ganze Datei**
+    # prüfte die Form der damaligen Lösung und verbot damit jedes künftige `<select>`
+    # über einer echten Aufzählung; genau daran schlug er an, als der Steuersatz
+    # dazukam (eine endliche Liste, kein Datensatz – die Hausregel erlaubt sie
+    # ausdrücklich).
+    fields = _component(src, "ModuleFields")
+    assert "<select" not in _code(fields), "Der Erfassungstyp hat wieder ein Auswahlfeld."
     assert "PointIcon" in src, "Die Art der Zeile ist nicht mehr erkennbar."
     assert "ix-palette-sm" in src, "Die Palette, die die Art wählt, fehlt."
 
@@ -6104,13 +6131,18 @@ def test_the_money_module_is_not_named_after_a_trade():
     (#804) wird damit zurückgenommen: sie stimmte für die beiden Fälle, die zufällig
     zuerst gebaut wurden.*
 
-    **Und darum trägt es NICHT die Symbole des Handels.** `FLOW` ist die Bildsprache des
-    Handels (Einkaufswagen ↔ Handschlag) – genau das ist hier nicht gemeint; ein
-    Handschlag über einer Mietzahlung behauptet etwas. Ein Pfeil sagt, wohin das Geld
-    fliesst, und mehr behauptet dieses Modul nicht.
+    ►►► **Das gilt den WÖRTERN – die Symbole kommen vom Handel** (Testnotiz #845). ◄◄◄
+
+    Hier stand einmal das Gegenteil («darum trägt es nicht die Symbole des Handels»), und
+    das war eine Regel zu viel: ein Symbol behauptet keinen **Namen**, es zeigt die
+    häufigste Gestalt der Sache. Zwei gespiegelte Pfeile derselben Familie sind auf 15 px
+    das gleiche Zeichen mit anderer Neigung – Einkaufswagen und Handschlag sind
+    verschiedene Dinge, und das Haus schreibt damit längst dieselbe Unterscheidung
+    (`FLOW`). Der Einwand aus #831 bleibt beantwortet: er galt den Werten, und die heissen
+    unverändert «Einnahme» ↔ «Ausgabe».
 
     Bug-Formen: (a) die Handels-Wörter kommen zurück; (b) die Vorzeichen aus #799;
-    (c) das Modul leiht sich wieder die Symbole des Handels.
+    (c) die Symbole werden wieder nachgebaut, statt aus `FLOW` zu kommen.
     """
     src = _read(FRONTEND / "lib" / "modules.ts")
     block = _body(src, "DEAL_DIRECTION", kind="const")
@@ -6127,16 +6159,18 @@ def test_the_money_module_is_not_named_after_a_trade():
             f"«{sign}» ist zurück – ein Vorzeichen sagt, wie gebucht wird, nicht wohin "
             f"das Geld fliesst (#799)."
         )
-    # (c) **Die Symbole des Handels bleiben beim Handel.**
-    flow = _body(src, "FLOW", kind="const")
-    for key in ("sell", "buy"):
-        icon = flow.split(f"  {key}: {{", 1)[1].split("},", 1)[0]
-        icon = [ln for ln in icon.splitlines() if "icon:" in ln][0]
-        icon = icon.split("icon:")[1].strip().rstrip(",")
-        assert f"icon: {icon}" not in block, (
-            f"Das Geldmodul leiht sich «{icon}» beim Handel – ein Handschlag über einer "
-            f"Mietzahlung behauptet ein Geschäft, das es nicht gibt."
-        )
+    # (c) ►►► **EINE Bildsprache, EINE Quelle** (#845). ◄◄◄
+    #
+    # Das Symbol wird nicht nachgebaut, sondern aus `FLOW` gelesen – sonst stehen im
+    # selben Haus zwei Einkaufswagen, die eines Tages verschiedene sind. Geld **herein**
+    # ist der Handschlag (wir verkaufen), Geld **hinaus** der Einkaufswagen.
+    assert "icon: FLOW.sell.icon" in block and "icon: FLOW.buy.icon" in block, (
+        "Die Richtung baut ihre Symbole selbst – dann gibt es zwei Bildsprachen für "
+        "dieselbe Unterscheidung (#845)."
+    )
+    assert block.index("icon: FLOW.sell.icon") < block.index("icon: FLOW.buy.icon"), (
+        "Herein und hinaus sind vertauscht – Geld kommt herein, weil wir verkaufen."
+    )
     # **Und die Backend-Wörter sind dieselben** – der Spiegel darf nicht auseinanderlaufen.
     import sys
     sys.path.insert(0, str(BACKEND))
@@ -6520,13 +6554,23 @@ def test_the_money_module_says_it_with_its_values_not_with_labels():
 
     Bug-Formen: (a) ein Label kommt zurück; (b) die alten Werte kommen zurück.
     """
-    fields = _code(_body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
-                         "MoneyFields", kind="function"))
+    fields = _code(_component(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                              "MoneyFields"))
     for label in ("<Label required>Geschäft</Label>", "<Label>Weiter, wenn</Label>"):
         assert label not in fields, f"«{label}» steht wieder über seinem Schalter."
-    assert "<Label" not in fields, (
-        "Im Geldmodul steht wieder ein Label über einem Bedienelement, das für sich spricht."
-    )
+    # ►►► **Die Regel gilt den Bedienelementen, die für sich sprechen — nicht allen.** ◄◄◄
+    #
+    # «Kein Label im ganzen Feldsatz» war die **Form** der damaligen Lösung, nicht die
+    # Regel: sie lautet «was ein Bedienelement selbst sagt, sagt man nicht daneben». Ein
+    # Schieber mit zwei benannten Werten sagt es (Einnahme ↔ Ausgabe, Zahlung abwarten ↔
+    # nicht), ein Referenzfeld sagt es im Platzhalter (#843) – ein Auswahlfeld über
+    # «8.10 % · Normalsatz» sagt **nicht**, wozu der Satz gehört, und braucht sein Wort.
+    # Geprüft wird darum, dass über einem `IconSwitch` und über dem Partner-Feld keines
+    # steht; wo eines steht, muss es eine Frage beantworten, die der Wert nicht stellt.
+    for after in re.findall(r"</Label>\s*(<[A-Za-z]+)", fields):
+        assert after not in ("<IconSwitch", "<ObjectSelect"), (
+            f"Über «{after}» steht wieder ein Label – es spricht für sich."
+        )
     # ►►► **Der Wert benennt die ENTSCHEIDUNG, nicht ihren Bezugspunkt** (#834). ◄◄◄
     #
     # «Nach Zusage» ↔ «Nach Zahlung» war die zweite Fassung und immer noch zu knapp: der
@@ -6631,8 +6675,8 @@ def test_everything_about_one_party_stands_on_one_line():
     Bug-Formen: (a) das Feld steht wieder unter der Nummer; (b) der Knopf ist dauerhaft
     da; (c) er ist auf Touch unerreichbar; (d) «Zugelassene» ist zurück.
     """
-    fields = _code(_body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
-                         "MoneyFields", kind="function"))
+    src = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
+    fields = _code(_component(src, "MoneyFields"))
     # (a) **Eine Zeile**: der Container der Partner-Zeile trägt `items-center`, und das
     # Feld steht in ihm – nicht in einem zweiten Block darunter.
     assert "erp-partyrow" in fields, "Die Partner-Zeile gibt es nicht mehr."
@@ -6641,14 +6685,38 @@ def test_everything_about_one_party_stands_on_one_line():
     row = fields[fields.index("erp-partyrow"):]
     row = row[:row.index("))}")]
     flat = " ".join(row.split())
-    for part in ("<ObjId value={row.party}", "aria-label={DEAL_TASK}", "erp-rowaction"):
+    for part in ("<ObjId value={row.party}", "aria-label={DEAL_TASK}", "<RowDelete"):
         assert part in flat, f"«{part}» steht nicht in der Partner-Zeile (#833)."
-    assert "flex items-center" in flat, (
-        "Die Zeile ordnet nicht nebeneinander – dann steht das Feld wieder darunter."
+    # ►►► **Gefragt ist die WIRKUNG, nicht der Klassenname an dieser Stelle.** ◄◄◄
+    #
+    # Der Wächter verlangte `erp-rowaction` **wörtlich in der Zeile** – und verbot damit
+    # die bessere Lösung: der Knopf sieht seit #844 aus wie der am Modul selbst und steht
+    # als **ein** Bauteil da (`RowDelete`), statt an jeder Stelle neu geschrieben zu
+    # werden. Die Klasse ist dorthin gewandert; hier steht nur noch, dass die Zeile sie
+    # **anfordert** (`reveal`) – und dass das Bauteil sie daraufhin auch setzt.
+    assert "reveal" in flat, "Der Löschen-Knopf der Zeile blendet sich nicht mehr ein (#832)."
+    delete = _code(_component(src, "RowDelete"))
+    assert "erp-rowaction" in delete, (
+        "«RowDelete» kennt die Hover-Regel nicht mehr – dann wirkt `reveal` nicht."
     )
+    # **Und er sieht aus wie der am Modul selbst** (#844): 26 px, kein Rahmen, keine
+    # Fläche, allein die Warnfarbe – nicht als `erp-actbtn`-Kasten mitten in der Zeile.
+    assert "erp-actbtn" not in delete, (
+        "Der Löschen-Knopf trägt wieder einen Rahmen – am Modul selbst hat er keinen (#844)."
+    )
+    assert "var(--danger)" in delete and "width: 26" in delete
     # (d)
     assert "Zugelassene" not in fields, "«Zugelassene Partner» ist zurück (#830)."
-    assert "label={DEAL_PARTY}" in fields
+    # ►►► **«Partner» steht im PLATZHALTER, nicht als Beschriftung darüber** (#843). ◄◄◄
+    assert "label={DEAL_PARTY}" not in fields, (
+        "«Partner» steht wieder als eigene Zeile über dem Feld (#843)."
+    )
+    assert "placeholder={`${DEAL_PARTY}" in fields, (
+        "Der Platzhalter sagt nicht mehr, wen man sucht (#843)."
+    )
+    # Im **Vollbild** des Scanners bleibt die Sorte eine Beschriftung: dort liegt Text auf
+    # einem Foto, und ein Platzhalter verschwindet beim ersten Zeichen.
+    assert "scanLabel={DEAL_PARTY}" in fields
 
     # (b)/(c) **Die Regel wohnt im Blatt** – und sie hat eine Touch-Ausnahme.
     css = _read(FRONTEND / "app" / "globals.css")
@@ -6693,17 +6761,25 @@ def test_a_number_field_exists_only_where_the_number_comes_from_outside():
     ein Platzhalter «automatisch» war ein Feld, das nichts aufnimmt.
 
     **Und die Oberfläche fragt nie nach der Richtung**: wie es heisst, sagt der Server
-    (`charge_ref_label` ↔ `payment_ref_label`), und `null` heisst «gibt es hier nicht».
+    (`ref_label`), und `null` heisst «gibt es hier nicht».
+
+    ►►► **EIN Feld für beide Zeilen-Arten** (Testnotiz #850). ◄◄◄ Es waren zwei
+    Angaben – eine für die Rechnung, eine für die Zahlung –, und die zweite stand bei
+    einer **Einnahme** trotzdem da: dort trägt auch die Zahlung unsere Nummer, sie
+    referenziert ja unsere Rechnung. Zwei Regeln für dieselbe Frage laufen auseinander;
+    es ist **eine** Frage: kommt die Nummer von aussen?
 
     Bug-Formen: (a) das Feld steht wieder fest da; (b) die Oberfläche entscheidet es
-    selbst über `direction`.
+    selbst über `direction`; (c) die zweite Angabe ist zurück.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    entry = _body(src, "Entry", kind="function")
+    entry = _component(src, "Entry")
     flat = " ".join(entry.split())
-    assert "d.charge_ref_label" in flat and "d.payment_ref_label" in flat, (
-        "Die Beschriftung kommt nicht mehr vom Server."
-    )
+    assert "d.ref_label" in flat, "Die Beschriftung kommt nicht mehr vom Server."
+    for gone in ("charge_ref_label", "payment_ref_label"):
+        assert gone not in flat, (
+            f"«{gone}» ist zurück – zwei Angaben für eine Frage (#850)."
+        )
     assert "{refLabel && (" in flat, (
         "Das Nummernfeld steht immer da – auch dort, wo der Server nummeriert (#840)."
     )
@@ -6797,14 +6873,233 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
     Bug-Formen: (a) eine Zahl steht wieder in Fliesstext; (b) die Zeile bricht um.
     """
     src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
-    agreed = " ".join(_body(src, "Agreed", kind="function").split())
-    for label in ("Betrag", "Zahlungsfrist", "Bestätigt"):
-        block = agreed[agreed.index(f'label="{label}"'):]
-        assert "mono" in block[:block.index("/>")], (
-            f"«{label}» steht nicht tabellarisch – vier Werte in drei Schriftbildern (#839)."
+    agreed = " ".join(_component(src, "Agreed").split())
+    # ►►► **Gefragt ist, dass eine Zahl tabellarisch steht – nicht WIE sie gerahmt ist.**
+    #
+    # Der Wächter suchte `label="Betrag" … mono` und prüfte damit die Form der damaligen
+    # Lösung: vier gleich laute `ReadField`-Kästchen. Seit #847 ist der Block ein Beleg
+    # (Partner · Abrechnung · Bedingungen), und die Kästchen gibt es nicht mehr – die
+    # **Regel** gilt unverändert, also fragt er sie: jede ausgegebene Zahl steht in einem
+    # Behälter mit `ix-tnum`.
+    # Geprüft wird der **Behälter**, in dem eine Zahl steht – nicht jede einzelne Zeile:
+    # `ix-tnum` vererbt sich, und es an jede Zeile zu schreiben wäre die Doppelung, die
+    # bei der nächsten vergessen wird. Es sind zwei: die Abrechnung und die Bedingungen.
+    for what, marker in (("Abrechnung", "{formatAmount(d.net)}"),
+                         ("Zahlungsfrist", "{d.due_days} Tage"),
+                         ("Zusagedatum", "{localDate(d.agreed_on)}")):
+        assert marker in agreed, f"«{what}» steht nicht mehr im bestätigten Auftrag."
+        before = agreed[max(0, agreed.index(marker) - 240):agreed.index(marker)]
+        assert "ix-tnum" in before, (
+            f"«{what}» steht in Fliesstext statt tabellarisch (#839)."
         )
-    party = agreed[agreed.index("label={d.party_word}"):agreed.index('label="Betrag"')]
+    # **Nummer und Name auf EINER Zeile** (#838) – der Name wird gekappt, er bricht nicht um.
+    party = agreed[agreed.index("{d.party_word}"):agreed.index("Die Abrechnung")
+                   if "Die Abrechnung" in agreed else len(agreed)]
+    party = party[:party.index("</div>")]
     assert "flex-wrap" not in party, (
         "Nummer und Name brechen um – dann liest sich der Name wie eine zweite Angabe (#838)."
     )
     assert "truncate" in party, "Der Name wird nicht gekappt, sondern gedrängt."
+    # ►►► **Die Positionen stehen NICHT noch einmal hier** (#847): sie stehen oben in
+    # `Goods`, seit die Zeile ihren Preis trägt. Eine zweite Aufzählung wäre dieselbe
+    # Angabe an zwei Orten.
+    assert "d.lines.map" not in agreed, (
+        "Der bestätigte Auftrag zählt die Positionen ein zweites Mal auf (#847)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# ►► #843 – #850 · die Steuer, der Beleg und die Wörter
+# ---------------------------------------------------------------------------
+
+def test_the_price_stands_at_its_position_not_beside_it():
+    """►►► **Preis und Steuersatz gehören der POSITION** (MWSTG Art. 26). ◄◄◄
+
+    Der Satz hängt an der **Sache**: sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen
+    auf demselben Papier. Ein Betragsfeld daneben trüge gar keinen Satz, und ein Satz je
+    Beleg wäre bei jedem gemischten Geschäft still falsch.
+
+    **Und der Angebotsbetrag ist ihre Summe**, keine zweite Eingabe: eine getippte Zahl
+    neben gepreisten Positionen gewinnt auch dann, wenn sie falsch ist.
+
+    Bug-Formen: (a) ein einzelnes Betragsfeld statt Positionen; (b) der Satz kommt aus
+    einer Liste im Browser statt vom Server; (c) der Betrag wird mitgeschickt.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    offer = _code(_component(src, "OurOffer"))
+    # ►►► **Gemessen wird, was GERENDERT wird** – nicht, ob ein Name irgendwo vorkommt.
+    #
+    # Ein erster Anlauf fragte nach `value.rows.map`, und das steht auch im Helfer, der
+    # eine Zeile ändert: die eigene Bug-Form (die Schleife im JSX herausnehmen) ging
+    # durch. Geprüft wird darum der **Rumpf ab `return (`**.
+    drawn = offer[offer.index("return ("):]
+    assert "value.rows.map" in drawn, (
+        "Das eigene Angebot zeichnet keine Positionen mehr, sondern einen Betrag (a)."
+    )
+    assert "d.vat_rates" in drawn, (
+        "Die Steuersätze kommen nicht mehr vom Server – eine zweite Liste im Browser "
+        "läuft beim ersten Satzwechsel auseinander (b)."
+    )
+    assert "set(i, { price:" in drawn and "set(i, { vat:" in drawn, (
+        "Preis oder Satz gehören nicht mehr der Position (a)."
+    )
+    # (c) **Was hinausgeht, sind die Zeilen** – der Betrag ist ihre Summe, gerechnet dort,
+    # wo gebucht wird.
+    send = _code(_component(src, "Offer"))
+    sent = send[send.index("action: 'ask'"):]
+    sent = sent[:sent.index("});")]
+    assert "lines:" in sent, "Das Angebot schickt keine Positionen (a)."
+    assert "amount:" not in sent, (
+        "Das Angebot schickt einen getippten Betrag neben den Positionen – zwei "
+        "Aussagen über dieselbe Sache (c)."
+    )
+
+
+def test_the_tax_is_asked_only_where_we_do_not_price_the_positions():
+    """►►► **Zwei Fragen, und die Antwort steht jeweils nur EINMAL da.** ◄◄◄
+
+    Wo **wir** den Preis nennen, trägt die Position ihren Satz, und eine Teilrechnung
+    verteilt sich anteilig über alle Sätze (`domain/deal.split_for`) – ein Satzfeld an der
+    Rechnung wäre die zweite Aussage. Wo die **Gegenpartei** ihn nennt, steht die Steuer
+    auf *ihrer* Rechnung, und wir schreiben sie ab: dort ist das Feld die einzige Quelle.
+
+    Und eine **Zahlung** trägt keine Steuer – sie begleicht sie.
+
+    Bug-Formen: (a) das Satzfeld steht immer da; (b) es steht auch an einer Zahlung;
+    (c) die Oberfläche entscheidet es über die Richtung statt über `we_quote`.
+    """
+    entry = _code(_component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                             "Entry"))
+    flat = " ".join(entry.split())
+    assert "taxed && !d.we_quote" in flat, (
+        "Der Steuersatz wird gefragt, wo die Position ihn schon trägt (a) – oder die "
+        "Bedingung fehlt ganz."
+    )
+    assert "kind === 'charge'" in flat, (
+        "Eine Zahlung bekommt Steuer-Felder – Geld trägt keine Steuer, es begleicht sie (b)."
+    )
+    assert "d.direction" not in flat, (
+        "Die Erfassung fragt nach der Richtung statt nach der Angabe (c)."
+    )
+    # **Das Leistungsdatum ist leer vorbelegt** – «wie gebucht» ist der Normalfall, und ein
+    # vorgeschlagenes Datum wäre eine Behauptung, die man wegklicken müsste.
+    assert "useState('')" in flat.replace('useState("")', "useState('')"), (
+        "Das Leistungsdatum ist vorbelegt – dann steht dort ein Datum, das niemand meinte."
+    )
+
+
+def test_a_partners_change_reaches_the_row():
+    """►►► **Was der Partner ändert, kommt an** (Testnotiz #846). ◄◄◄
+
+    Die drei Felder einer Angebotszeile sind **lokal**, damit man tippen kann, ohne dass
+    jede Taste zum Server geht – aber ein `useState`-Startwert wird genau **einmal**
+    gelesen. Ändert die Gegenpartei danach ihre Zahlungsfrist, zeigt das Feld weiter den
+    alten Wert, und wer etwas anderes korrigierte, **schrieb die alte Frist zurück**. Ein
+    stiller Rückschritt.
+
+    Nachgezogen wird beim **Wechsel des Server-Werts**, nicht bei jedem Rendern – sonst
+    überschriebe es eine Eingabe, die gerade läuft (dieselbe Bauart wie `defaultOpen`,
+    #727).
+
+    Bug-Formen: (a) kein Nachziehen; (b) es hängt an der ganzen `quote` statt an ihren
+    Werten (dann läuft es bei jedem Rendern).
+    """
+    row = _code(_component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                           "QuoteRow"))
+    flat = " ".join(row.split())
+    assert "useEffect" in flat, "Eine Änderung des Partners erreicht die Zeile nie (a)."
+    assert "}, [remote]);" in flat, (
+        "Das Nachziehen hängt nicht am Server-Wert – dann läuft es bei jedem Rendern "
+        "und überschreibt, was gerade getippt wird (b)."
+    )
+    # **Und beide Fristen stehen da**: die Zahlungsfrist kann man eingeben, der Partner
+    # ändert sie – sie fehlte in der Zeile ganz.
+    assert "quote.payment_days != null" in flat, (
+        "Die Zahlungsfrist steht nicht in der Zeile – man gibt sie ein und sieht sie nie."
+    )
+
+
+def test_the_finish_button_is_absent_not_explained_away():
+    """►►► **Ein Hinweis, der nichts Neues sagt, ist eine Fehlermeldung** (#849). ◄◄◄
+
+    Unter der Karte stand «Erst nach Zahlungseingang: X von Y bezahlt.» – dreimal
+    dasselbe: die Sperre steht als Auskunft im **Kopf** («Erst zahlen», Grund im Hover),
+    die beiden Zahlen stehen in der **Geld-Zeile** direkt darüber, und dass der Knopf
+    fehlt, sieht man.
+
+    Der Knopf ist darum schlicht **nicht da**, solange die Sperre greift – die Regel des
+    Hauses: ein Knopf, der nie etwas tun kann, ist kein Angebot.
+
+    Bug-Formen: (a) der Satz ist zurück; (b) der Knopf steht trotz Sperre da.
+    """
+    work = _code(_component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                            "DealWork"))
+    flat = " ".join(work.split())
+    assert "Erst nach Zahlungseingang" not in flat, (
+        "Der Erklärsatz ist zurück – er sagt, was Kopf und Geld-Zeile schon sagen (a)."
+    )
+    assert "!(d.prepaid && !d.settled)" in flat, (
+        "Der Abschluss-Knopf steht auch dann da, wenn die Sperre greift (b)."
+    )
+    # **Die Sperre selbst bleibt sichtbar** – im Kopf, als Eigenschaft dieses Moduls.
+    head = _code(_component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                            "Head"))
+    assert "d.prepaid" in head, (
+        "Nichts sagt mehr, warum es nicht weitergeht – der Knopf fehlt kommentarlos."
+    )
+
+
+def test_the_finish_verb_names_this_module_not_the_erp_order():
+    """►►► **«Auftrag erledigt» meinte den falschen Auftrag** (Testnotiz #848). ◄◄◄
+
+    Es klang nach dem ERP-Datensatz «Auftrag» – gemeint ist **dieses Modul**. Ein
+    *Vorgang* ist genau dieser Geldvorgang, das Wort steht seit jeher dafür im Haus, und
+    es verwechselt sich mit nichts.
+
+    Geprüft wird die **Quelle**: das Verb kommt aus derselben Tabelle, aus der auch das
+    der Schwelle kommt – ein Literal im Modul wäre die Stelle, an der es beim nächsten
+    Umbenennen stehen bleibt.
+
+    Bug-Formen: (a) das alte Wort ist zurück; (b) das Modul schreibt sein Verb selbst.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import deal as dm, modules
+
+    assert "Auftrag erledigt" not in dm.FINISH_VERB, "Das alte Wort ist zurück (a)."
+    assert dm.FINISH_VERB == "Vorgang abschliessen"
+    zahlung = modules.get("zahlung")
+    assert zahlung.action_for({"direction": "in"}) == dm.FINISH_VERB, (
+        "Das Modul schreibt sein Verb selbst, statt es aus den Stufen-Verben zu "
+        "nehmen (b)."
+    )
+    src = _code(_read(BACKEND / "app" / "domain" / "modules.py"))
+    assert "Auftrag erledigt" not in src
+
+
+def test_a_quote_row_has_no_amount_field_where_the_positions_carry_the_price():
+    """►►► **Ein Knopf, der garantiert scheitert, ist kein Angebot.** ◄◄◄
+
+    Wo **wir** den Preis nennen, steht er in den Positionen – dort hängt der Steuersatz
+    (MWSTG Art. 26), und der Angebotsbetrag ist ihre Brutto-Summe. Der Dienst liest bei
+    einer Einnahme darum **ausschliesslich** die Zeilen (`deal._quote`); ein getipptes
+    Betragsfeld an der Angebotszeile wäre nicht nur die zweite Aussage über dieselbe
+    Sache, es wäre eine, die abgewiesen wird.
+
+    **Die beiden Fristen bleiben**: sie hängen nicht am Preis, und sie sind in beiden
+    Richtungen eine echte Angabe.
+
+    Bug-Formen: (a) das Betragsfeld steht wieder immer da; (b) der Betrag wird trotzdem
+    mitgeschickt; (c) die Fristen sind mit ihm verschwunden.
+    """
+    row = _code(_component(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
+                           "QuoteRow"))
+    flat = " ".join(row.split())
+    assert "{!d.we_quote && (" in flat, (
+        "Das Betragsfeld steht auch dort, wo die Positionen den Preis tragen (a)."
+    )
+    assert "...(d.we_quote ? {} : { amount })" in flat, (
+        "Der getippte Betrag wandert trotzdem mit – der Dienst weist ihn ab (b)."
+    )
+    for term in ('aria-label="Lieferfrist in Tagen"', 'aria-label="Zahlungsfrist in Tagen"'):
+        assert term in flat, f"«{term}» ist mit dem Betragsfeld verschwunden (c)."

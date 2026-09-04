@@ -173,6 +173,20 @@ function linkHost(href: string): string {
 
 /** Read-only-Feld: kleines Symbol + Versalien-Overline + kräftiger Wert. Optional
  *  Einheit/mono, Link (Host + Pfeil) oder ⓘ-Hinweis bei abgeleiteten Werten. */
+/**
+ * ►►► **Das Mikro-Label** – Versalien, klein, gedämpft: die eine Beschriftung, mit der
+ * das ERP eine Angabe benennt, ohne sie zu überschreien.
+ *
+ * Sie stand als Inline-Stil an jeder Stelle, an der jemand sie brauchte – mit leicht
+ * verschiedenen Werten (11 ↔ 11.5 px, 600 ↔ 700, .05 ↔ .07 em). Das ist genau die Form,
+ * in der eine Gestaltungsregel auseinanderläuft, ohne dass es jemandem auffällt: jede
+ * Fassung sieht für sich richtig aus. Eine Sache, eine Stelle.
+ */
+export const MICRO_LABEL: React.CSSProperties = {
+  font: '700 11px var(--font-body)', textTransform: 'uppercase',
+  letterSpacing: '.07em', color: 'var(--fg-4)',
+};
+
 export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, spread, link }: {
   icon?: ElementType; label: string; value?: ReactNode; unit?: string;
   mono?: boolean; full?: boolean; autoHint?: string; spread?: string; link?: string;
@@ -185,7 +199,7 @@ export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint
         </span>
       )}
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-4)', display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div style={{ ...MICRO_LABEL, display: 'flex', alignItems: 'center', gap: 5 }}>
           {label}
           {autoHint && <span style={{ display: 'inline-flex', color: 'var(--fg-4)', cursor: 'help' }} data-tip={autoHint}><Sparkles size={12} /></span>}
         </div>

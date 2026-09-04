@@ -513,8 +513,43 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > **«Einnahme» ↔ «Ausgabe»** (#831): der kleinste gemeinsame Nenner ist nicht die Ware –
 > Miete, Lohn und Gebühr sind keine Käufe, und ein Wert, der «Verkauf» heisst, ist enger
 > als das Modul. *Nimmt #804 zurück.*
-> Wächter: `tests/test_deal_module.py` (30 Prüfungen, jede gegen ihre Bug-Form
-> gegengeprüft) + achtundzwanzig in `test_frontend_mirrors.py`.
+> ►►► **Die POSITION trägt ihren Steuersatz** (MWSTG Art. 26, Migration `127`). ◄◄◄
+> Der Vorgang trug **eine** Zahl (`deals.amount`), und `agreed_lines` hielt Artikel und
+> Menge – **keinen Preis**. Damit fehlte, was einen Beleg zu einem Beleg macht: Satz und
+> Steuerbetrag. Die eine Regel, aus der alles folgt: **der Positionspreis ist NETTO, jeder
+> Betrag ist BRUTTO** – damit bleibt `balance` unangetastet, und keine der drei Achsen
+> (Ware · Forderung · Geld) muss von der Steuer wissen. *Netto und Steuer sind
+> **Ableitungen**, null Spalten.*
+> **Der Satz hängt an der SACHE, nicht am Beleg**: sechs Wellen zu 8.1 % und eine Ausfuhr
+> zu 0 % stehen auf demselben Papier. **Gerundet wird je Satz auf der SUMME**
+> (`domain/deal.vat_split`) – je Position gerundet und dann summiert weicht es um Rappen
+> ab, und eine MWST-Abrechnung kennt keine Toleranz. Eine **Teilrechnung** verteilt sich
+> **anteilig** über alle Sätze (`split_for`, der letzte Anteil bekommt den Rest); ohne
+> Positionen nennt der Aufrufer den Satz und `split_at` rechnet das Netto zurück.
+> **Wer den Preis nennt, entscheidet die Form** (`quoted_by`): bei einer **Einnahme** sind
+> es die Positionen und der Betrag ist ihre Brutto-Summe (`_priced` liest die **Menge aus
+> dem Prozess**, nie aus der Nutzlast); bei einer **Ausgabe** eine Summe, und der Satz wird
+> erst bei der Erfassung gefragt.
+> **Der gebuchte Beleg SPEICHERT seine Steuer** (`deal_entries.vat`, `service_date`) statt
+> sie nachzurechnen – sonst wäre die Vergangenheit eine Funktion der Gegenwart; der
+> **Storno spiegelt sie** mit negativem Vorzeichen.
+> **Nur gesendete Felder wirken – auch für den Betrag**: wer nur eine **Frist** nachreicht,
+> nennt keinen Preis. Ohne diese Zeile war der Preis bei jedem `quote` Pflicht, und bei
+> einer Einnahme ist ein gesendeter Betrag ohnehin wirkungslos – die Frist liess sich also
+> gar nicht mehr ändern.
+> ►►► **Und die TÜR muss die Felder kennen.** ◄◄◄ `DealUpdate` kannte `lines`, `vat` und
+> `service_date` nicht; Pydantic verwirft Unbekanntes **stillschweigend** (dieselbe Falle
+> wie `ModuleConfigInput`). Kein Dienst-Test findet das – die rufen `apply` direkt. Und
+> `assert_vat` warf bei unlesbarem Wert ein `InvalidOperation` statt eines Satzes: eine
+> Ablehnung ohne Erklärung, an der Tür ein 500 statt eines 400.
+> **Der Katalog der Sätze steht am `ModuleCatalog`**, nicht je Modultyp: 8.1 · 2.6 · 3.8 ·
+> 0 % sind Schweizer Recht und ändern sich, wenn der Gesetzgeber sie ändert – nicht, wenn
+> jemand ein Modul umbaut. Am **Modul** steht nur die **Vorgabe** (`Zahlung.VAT_RATE`),
+> streng geprüft; sie ist die Vorbelegung jeder neuen Position, kein fester Wert.
+> **Und «Vorgang abschliessen»** (#848): «Auftrag erledigt» meinte den falschen Auftrag –
+> es klang nach dem ERP-Datensatz, gemeint ist dieses Modul.
+> Wächter: `tests/test_deal_module.py` (37 Prüfungen, jede gegen ihre Bug-Form
+> gegengeprüft) + vierunddreissig in `test_frontend_mirrors.py`.
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,
