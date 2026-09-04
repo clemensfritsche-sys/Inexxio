@@ -124,7 +124,7 @@ zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand
 | T7 | `im_prozess` | `gesperrt` | **step** | Modul «Aussondern», Ausprägung *Sperren*. |
 | T7b | `im_prozess` | `verbaut` | **step** | Modul «Verbrauch», für die **genannten Artikel**. Der Rest passiert dasselbe Modul unverändert (T5) – der Ausgang gilt je Stück, nicht je Modul. |
 | T7c | `verbaut` | `im_prozess` | **start** | Auftragsfreigabe, verbautes Stück wird gegriffen → **Demontage**, ebenfalls eine Abweichung. |
-| T7d | `im_prozess` | `verkauft` | **step** | Modul «Verkauf». Ein **Ausgang**: was hier ankommt, verlässt den Auftrag und das Haus. Der Ort fällt dabei weg (`stock = historisch`). |
+| T7d | `im_prozess` | `verkauft` | **step** | Modul «Ausliefern». Ein **Ausgang**: was hier ankommt, verlässt den Auftrag und das Haus. Der Ort fällt dabei weg (`stock = historisch`). |
 | T7e | `verkauft` | `im_prozess` | **start** | Auftragsfreigabe, verkauftes Stück wird gegriffen → **Retoure**, ebenfalls eine Abweichung. |
 | T8 | `im_prozess` | `freigegeben` | **end** | Das Stück passiert das Ende-Objekt und kehrt **nirgends** zurück. Der Wert ist der `end_status` des Auftrags (heute immer `freigegeben`, an einer Stelle hinterlegt). |
 | T9 | `im_prozess` | `im_prozess` | **end** | Das Stück passiert das Ende-Objekt und **kehrt in seinen Quell-Auftrag zurück**. Es bleibt im Prozess — es ist ja in einem. |
@@ -396,7 +396,7 @@ Landkarte dünn ist und an denen darum getestet wird.
 | **R4 — Stichprobe und Rückkehr** | Kann ein Stück durch eine Abweichung der Prüfung entgehen? | **geprüft** (S26) — nein, das Modul ist gesperrt, solange etwas zurückkommt |
 | **R5 — Artikel inaktiv** | Lässt sich mit einem inaktiven Artikel noch etwas erzeugen? | **behoben** (S98 · S98b) — «Neu» gesperrt, «Lager» bleibt |
 | **R6 — leere Menge** | Stimmt die Mengenbilanz nach vollständiger Aussonderung? | **geprüft** (S81) — ja, die Zeilen bleiben, nur der Zustand wechselt |
-| **R7 — `units_may_leave`** | Ein künftiger Modultyp mit Aussenwirkung (Einkauf, Verkauf) darf `units_may_leave = False` setzen. Dann lässt sich ein Stück vor diesem Modul **nicht** herausnehmen — und weil der Abbruch genau darüber läuft (§4.4), wäre der Ausgang zu. | **latent, ungeprüft.** Heute gibt es keinen solchen Modultyp. Wer den ersten baut, muss den Ausgang mitbeantworten. |
+| **R7 — `units_may_leave`** | Ein künftiger Modultyp mit Aussenwirkung darf `units_may_leave = False` setzen. Dann lässt sich ein Stück vor diesem Modul **nicht** herausnehmen — und weil der Abbruch genau darüber läuft (§4.4), wäre der Ausgang zu. | **latent, ungeprüft.** Heute gibt es keinen solchen Modultyp. Wer den ersten baut, muss den Ausgang mitbeantworten. |
 | **R8 — Korrektur nach dem Vorrücken** | Eine Erfassung ist falsch und fällt erst auf, wenn das Stück das Modul verlassen hat. Gibt es einen Weg? | **nein** (`CONCEPT_REVIEW` §1.6). Solange das Stück davorsteht, ersetzt das nächste Urteil das letzte (U4); danach findet `_units_at` es dort nicht mehr, und eine Ereignisart für eine Korrektur gibt es nicht. Der Docstring von `ProcessEvent` verspricht sie bereits. **Ohne sie wandert die Korrektur auf Papier — und ab da ist das System nicht mehr die Quelle.** |
 | **R9 — gleichzeitiges Bestätigen** | Zwei Personen bestätigen dieselbe Instanz am selben Modul im selben Moment. | **ungeprüft, Vermutung.** `confirm_step` nimmt keine Sperre; beide lesen dieselbe Warteliste. Erwartet wird kein kaputter Zustand, aber ein **doppelter Nachweis** (zwei Erfassungszeilen, zwei Schritt-Ereignisse). S63 prüft Nebenläufigkeit nur bei der **Freigabe**. |
 | **R10 — wer darf** | Jeder Endpunkt hängt an `require_employee`; es gibt keine Rolle je Modultyp. Wer sich anmelden kann, kann 600 Stück verschrotten. | **bewusst offen.** Die **Attribution** ist lückenlos (`actor_id` an jedem Ereignis) — damit ist die Absicht «wer es zu verantworten hat» erfüllt. Was fehlt, ist **Prävention** bei den unumkehrbaren Vorgängen. Der Ort für die Regel existiert (`Module`, neben `terminal`/`requires_verification`). |
@@ -533,16 +533,17 @@ eine Aussage über einen Zustand, den niemand hält.
 **Mahnung** ist eine Mitteilung, und es gibt keinen Versandweg (kein E-Mail, `CLAUDE.md`).
 Was fehlt, ist der Kanal, nicht die Logik.
 
-**Rechnungs-PDF und -Positionen.** Die Rechnung trägt Betrag und Notiz. Positionen gehören
-zum **Ausdruck**, und den gibt es nicht (das Dokumentmodul ist entfernt); die Zeilen des
-Belegs stehen ohnehin in `purchases.ordered_lines`. Beides kommt zusammen oder gar nicht —
-Positionen ohne Ausdruck wären Daten ohne Leser.
+**Rechnungs-PDF.** Die Rechnung trägt Betrag, Steuer je Satz und Leistungsdatum; die
+**Positionen** stehen am Vorgang (`deals.agreed_lines`). Was fehlt, ist der **Ausdruck** –
+und den gibt es nicht (das Dokumentmodul ist entfernt). Der Beleg lebt online; ein
+Papierformat ist eine Darstellung, kein Datenmodell.
 
 **Übergabe an die Buchhaltung.** Es gibt keine. Der Standard-Schritt «automatische
 Weitergabe ans Finanzwesen» hat hier kein Gegenüber.
 
 *Nicht auf dieser Liste, weil es sie längst gibt:* **Kommissionierung** und **Versand**
-sind Bewegen-Module vor dem Verkauf-Modul (§9.8), die Spedition ist ein Einkauf (§9.9).
+sind Bewegen-Module vor dem Ausliefern-Modul (§9.8/§9.9), die Spedition ist ein
+Geldvorgang (§9.12).
 
 ---
 

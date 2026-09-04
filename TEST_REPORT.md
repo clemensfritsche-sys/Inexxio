@@ -190,7 +190,7 @@ Test kurz weicht, entsteht die Lage. Das ist der beste verfügbare Beweis, dass 
 | ~~**Abbruch eines Auftrags**~~ | **Jetzt geprüft** (Runde 2): es gibt keine Abbruch-*Funktion*, aber sehr wohl einen Weg — die Abweichung, die alle Stücke nimmt und die Rückführung kappt (S57 · S58 · S59, `SYSTEM_LOGIC.md` §4.4). |
 | **Sehr grosse Mengen (5000+)** | Gefahren wurde bis 600 Stück in einer Charge (S05). Die Grössenordnung darüber ist eine **Laufzeit**-Frage, keine Logikfrage — sie gehört in eine Lastmessung, nicht in diese Kampagne. |
 | **Mehrbenutzer über HTTP** | Die Nebenläufigkeit ist auf **Dienstebene** mit zwei echten Sitzungen und einer Barriere geprüft (S63). Zwei gleichzeitige HTTP-Anfragen durch den vollen Router-Stapel sind nicht gefahren. |
-| **Modultypen mit Aussenwirkung** | Es gibt keine (Einkauf/Verkauf sind nicht gebaut). `Module.units_may_leave` ist damit ungetestet — der Schalter steht, sein Fall existiert noch nicht. **Seit Runde 2 ist das ein benanntes Risiko** (R7): derselbe Schalter entscheidet auch, ob sich ein Auftrag noch abbrechen lässt. |
+| **Modultypen mit Aussenwirkung** | Es gibt keinen, der `units_may_leave = False` setzt. `Module.units_may_leave` ist damit ungetestet — der Schalter steht, sein Fall existiert noch nicht. **Seit Runde 2 ist das ein benanntes Risiko** (R7): derselbe Schalter entscheidet auch, ob sich ein Auftrag noch abbrechen lässt. |
 | **Migrationen von echtem Altbestand** | Das Schema wird aus den Migrationen aufgebaut (CI), aber es gibt keinen Produktions-Dump zum Nachfahren. |
 
 ## 4 · Zwischenergebnisse, ehrlich
