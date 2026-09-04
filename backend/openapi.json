@@ -2448,14 +2448,14 @@
         }
       }
     },
-    "/api/v1/erp/orders/{object_id}/steps/{step_id}/payment-link": {
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/payment": {
       "post": {
         "tags": [
           "orders"
         ],
-        "summary": "Payment Link",
-        "description": "**Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.\n\nKein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim\nZahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich\nda ist – und das meldet der Webhook, nicht der Browser des Kunden.\n\nOhne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in\nder Oberfläche gar nicht erst (``DealEmbed.can``), und ein 503 hier wäre die\nBehauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.",
-        "operationId": "payment_link_api_v1_erp_orders__object_id__steps__step_id__payment_link_post",
+        "summary": "Prepare Payment",
+        "description": "►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄\n\nKein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim\nZahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird\nerst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser\ndes Zahlenden.\n\n**Ein eigener Weg statt eines Verbs an ``…/deal``**: der gibt den Auftrag zurück, hier\nkommt ein Geheimnis für genau diese eine Zahlung. Zwei verschiedene Antworten sind\nzwei Endpunkte; das Verb steht trotzdem in ``can`` – «was darf ich hier tun» ist EINE\nFrage, und dieselbe Liste ist auch hier das **Tor**.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – das ist der Sinn: der\nKunde bezahlt bei uns, nicht auf einer fremden Seite. Was sie darf, sagt\n``deal.can`` (``Direction.party_actions``); wer den Auftrag nicht sieht, bekommt\n``404`` wie überall.\n\nOhne eingerichteten Dienst gibt es diesen Weg nicht (``404`` aus ``stripe_pay._api``)\n– und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.",
+        "operationId": "prepare_payment_api_v1_erp_orders__object_id__steps__step_id__deal_payment_post",
         "security": [
           {
             "HTTPBearer": []
@@ -2487,7 +2487,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentLink"
+                  "$ref": "#/components/schemas/PaymentSetup"
                 }
               }
             }
@@ -4612,6 +4612,11 @@
           "payment_word": {
             "type": "string",
             "title": "Payment Word",
+            "default": ""
+          },
+          "pay_online_word": {
+            "type": "string",
+            "title": "Pay Online Word",
             "default": ""
           },
           "open_word": {
@@ -7334,19 +7339,117 @@
         "title": "PasskeyResponse",
         "description": "Ein registrierter Passkey (Auflistung/Verwaltung im Konto). Ohne Krypto-Material."
       },
-      "PaymentLink": {
+      "PaymentAddress": {
         "properties": {
-          "url": {
+          "line1": {
             "type": "string",
-            "title": "Url"
+            "title": "Line1"
+          },
+          "line2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line2"
+          },
+          "postal_code": {
+            "type": "string",
+            "title": "Postal Code"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country"
           }
         },
         "type": "object",
         "required": [
-          "url"
+          "line1",
+          "postal_code",
+          "city",
+          "country"
         ],
-        "title": "PaymentLink",
-        "description": "**Die Adresse einer Zahlungsaufforderung** – und sonst nichts.\n\nKein Beleg-Zustand: der Link ändert am Beleg nichts. Gebucht wird erst, wenn das Geld\nwirklich da ist, und das meldet der Webhook – nicht der Browser des Kunden."
+        "title": "PaymentAddress",
+        "description": "Die Rechnungsadresse des Zahlenden, **wie der Zahlungsdienst sie erwartet**.\n\nSie kommt aus dem ERP und wird dort gepflegt – hier steht sie nur, damit niemand sie\nein zweites Mal abtippt. ``None`` an der Stelle, an der dieses Objekt steht, heisst\nehrlich «wir haben keine»; dann fragt das Formular sie."
+      },
+      "PaymentBilling": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentAddress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PaymentBilling",
+        "description": "**Was wir über den Zahlenden schon wissen.** Jedes Feld darf fehlen.\n\nEs sind bewusst nur die drei, die ein Zahlungsformular sonst erfragt. Alles Weitere\n(Telefon, Lieferadresse, Firma) braucht eine Zahlung nicht – und was eine Zahlung\nnicht braucht, geht einem Zahlungsdienst nichts an."
+      },
+      "PaymentSetup": {
+        "properties": {
+          "client_secret": {
+            "type": "string",
+            "title": "Client Secret"
+          },
+          "publishable_key": {
+            "type": "string",
+            "title": "Publishable Key"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "billing": {
+            "$ref": "#/components/schemas/PaymentBilling"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_secret",
+          "publishable_key",
+          "amount",
+          "currency",
+          "billing"
+        ],
+        "title": "PaymentSetup",
+        "description": "►►► **Alles, was UNSERE Bezahlkarte braucht** – und nichts, was ihr fehlt. ◄◄◄\n\nKein Zustand am Geldvorgang: das Vorbereiten ändert dort keine Zeile. Gebucht wird\nerst, wenn das Geld wirklich da ist, und das meldet der Webhook – nicht der Browser\ndes Zahlenden.\n\nDer **öffentliche Schlüssel reist mit**, statt zur Bauzeit im Frontend zu stehen: die\nWebsite ist ein statischer Export, eine Variable darin wäre beim Schlüsselwechsel eine\nzweite Stelle – und ein Aufruf, der das Geheimnis holt, holt den Schlüssel gleich mit."
       },
       "PlaceRef": {
         "properties": {

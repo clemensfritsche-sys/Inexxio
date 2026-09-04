@@ -3,12 +3,13 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle, ArrowUpRight, CalendarClock, Check, ChevronDown, CircleSlash,
-  ClipboardList, FileText, Lock, Send, Undo2, Wallet,
+  ClipboardList, CreditCard, FileText, Lock, Send, Undo2, Wallet,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DealEmbed, DealParty, DealQuote } from '@/types';
 import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
+import { PayOnline } from '@/components/erp/pay-online';
 import {
   Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
@@ -110,9 +111,22 @@ function may(d: Filled, active: boolean, action: string): boolean {
   return active && d.can.includes(action);
 }
 
-export function DealWork({ deal, busy, active = true, onAction, children }: {
+export function DealWork({
+  deal, busy, active = true, orderObjectId, stepId, onAction, onPaid, children,
+}: {
   deal: DealEmbed;
   busy?: boolean;
+  /** Die Adresse für den einen Weg, der **kein** Verb am Vorgang ist: `…/deal/payment`. */
+  orderObjectId: number;
+  stepId: number;
+  /**
+   * **Es ist bezahlt worden** – lade den Auftrag nach.
+   *
+   * Kein `onAction`: eine Online-Zahlung ist keine Handlung *am Vorgang* (sie bucht
+   * nichts, das tut der Webhook). Ein Verb dafür wäre eine Behauptung über eine Buchung,
+   * die es in diesem Moment noch gar nicht gibt.
+   */
+  onPaid?: () => void;
   /**
    * **Ist dieses Modul an der Reihe?**
    *
@@ -168,7 +182,8 @@ export function DealWork({ deal, busy, active = true, onAction, children }: {
           an einem Modul, das nicht dran ist. */}
       <Row last label={d.money_label} done={!!d.settled && !!Number(d.charged ?? 0)}
         active={agreed && !cancelled}>
-        {agreed && <Money d={d} busy={busy} onAction={onAction} />}
+        {agreed && <Money d={d} busy={busy} onAction={onAction}
+          orderObjectId={orderObjectId} stepId={stepId} onPaid={onPaid} />}
       </Row>
 
       {cancelled && (
@@ -1089,12 +1104,18 @@ function Agreed({ d }: { d: Filled }) {
  * davon das naheliegende ist, sagt die Ausprägung des Knopfes (`-primary` ↔ `-neutral`
  * ↔ `-danger`), nicht ein Klick, der es erst hervorholt.
  */
-function Money({ d, busy, onAction }: {
-  d: Filled; busy?: boolean; onAction: (body: Action) => void;
+function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
+  d: Filled; busy?: boolean;
+  orderObjectId: number; stepId: number;
+  onAction: (body: Action) => void;
+  onPaid?: () => void;
 }) {
   // **Hier gilt allein `can`** – siehe die Begründung an der Aufrufstelle.
   const active = true;
   const [form, setForm] = useState<'' | 'charge' | 'payment'>('');
+  /** Die Bezahlkarte ist offen. Ein eigener Zustand, weil sie kein `Entry` ist: sie
+   *  bucht nichts und schickt keine Handlung – sie führt eine Zahlung aus. */
+  const [paying, setPaying] = useState(false);
   /** Der vorbelegte Betrag einer **Korrektur** (#842) – leer heisst «Vorgabe des Servers». */
   const [correct, setCorrect] = useState('');
   // Ohne Zahlen gibt es nichts zu zeigen – so sieht es eine Gegenpartei.
@@ -1232,6 +1253,23 @@ function Money({ d, busy, onAction }: {
             <Wallet size={13} /> {d.payment_word}
           </button>
         )}
+        {/* ►►► **Bezahlen ist eine dritte Handlung, kein zweites «erfassen».** ◄◄◄
+            «Erfassen» schreibt auf, was schon geschehen ist (eine Überweisung liegt auf
+            dem Konto); dieser Knopf lässt es geschehen – und bucht selbst nichts.
+
+            **Ob es ihn gibt, sagt `can`** (`pay_online`): nur wo das Geld zu uns fliesst,
+            nur mit eingerichtetem Dienst, nur wenn etwas gefordert **und** offen ist.
+            Dieselbe Liste ist auch am Endpunkt das Tor – die Oberfläche prüft nichts
+            nach. Und **die Gegenpartei hat ihn ebenso**: dass der Kunde bei uns bezahlt
+            statt auf einer fremden Seite, ist der Sinn der Sache. */}
+        {may(d, active, 'pay_online') && (
+          <button type="button" className="erp-actbtn erp-actbtn-primary" disabled={busy}
+            style={{ height: 30 }}
+            data-tip="Jetzt online bezahlen – gebucht wird, sobald der Zahlungsdienst es bestätigt."
+            onClick={() => { setForm(''); setPaying((p) => !p); }}>
+            <CreditCard size={13} /> {d.pay_online_word}
+          </button>
+        )}
         {/* **Die eine Gegenhandlung** – und ihr Wort kommt vom Server (`undo`). Sie
             trägt die Warnfarbe, nicht die Fläche: sichtbar, aber nie der Vorschlag. */}
         {may(d, active, 'revoke') && d.undo && (
@@ -1247,6 +1285,12 @@ function Money({ d, busy, onAction }: {
         <Entry kind={form} d={d} busy={busy} preset={correct || undefined}
           onCancel={() => { setForm(''); setCorrect(''); }}
           onSubmit={(body) => { setForm(''); setCorrect(''); onAction(body); }} />
+      )}
+
+      {paying && (
+        <PayOnline orderObjectId={orderObjectId} stepId={stepId}
+          label={d.pay_online_word}
+          onDone={() => onPaid?.()} onClose={() => setPaying(false)} />
       )}
     </div>
   );

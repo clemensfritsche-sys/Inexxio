@@ -207,6 +207,10 @@ class DealEmbed(BaseModel):
     party_word: str = ""
     charge_word: str = ""
     payment_word: str = ""
+    #: **Das dritte Geld-Wort**: «erfassen» heisst aufschreiben, was geschehen ist – dieses
+    #: hier lässt es geschehen (``pay_online``). Ein Wort für beide wäre ein Knopf, dessen
+    #: Wirkung man ihm nicht ansieht.
+    pay_online_word: str = ""
     open_word: str = "Offen"
     #: **Wie man auf die Gegenpartei zugeht**: «Anfragen» ↔ «Anbieten» – der eine Punkt,
     #: an dem die Richtung eine echte Handlung unterscheidet.

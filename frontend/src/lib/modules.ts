@@ -14,7 +14,7 @@
 
 import {
   Blocks, Camera, CircleHelp, ClipboardCheck,
-  HandCoins, Handshake, MoveRight, PackageCheck, PackageX, PenLine, Ruler, ShoppingCart,
+  HandCoins, Handshake, MoveRight, PackageX, PenLine, Ruler, ShoppingCart,
   ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
 
@@ -37,11 +37,6 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // Von hier nach dort – bewusst **kein** Transportmittel (kein Lastwagen, kein
   // Gabelstapler): womit bewegt wird, entscheidet sich erst bei der Ausführung.
   bewegen: MoveRight,
-  // **Dieselbe Familie wie «Aussondern», das andere Urteil.** Dort verlässt das Stück
-  // uns, weil es nichts mehr taugt (`PackageX`); hier, weil es jemand anderem gehört.
-  // Bewusst **kein** Lastwagen: wie es hinkommt, sagt «Bewegen» – dieses Modul sagt nur,
-  // dass es uns nicht mehr gehört.
-  ausliefern: PackageCheck,
   // **Geld wechselt die Hand** – in beide Richtungen dasselbe Symbol, denn es ist
   // dasselbe Modul. Welche Richtung gilt, sagt das Zeichen **im** Vorgang
   // (`DEAL_DIRECTION`), nicht die Kachel: eine Palette mit zwei fast gleichen Symbolen
@@ -505,13 +500,6 @@ export const MODULE_FORM: Record<string, {
     // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
     config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
   },
-  // ►►► **Ein Modul ohne eine einzige Angabe** – und der Eintrag steht trotzdem da. ◄◄◄
-  //
-  // «Ausliefern» ist ein Scan und ein Statuswechsel; es gibt nichts zu konfigurieren.
-  // Ihn wegzulassen wäre die Versuchung – dann fiele `MODULE_FORM[typ]` auf `undefined`
-  // zurück, und der Editor unterschiede nicht mehr zwischen «hat nichts» und «kennt den
-  // Typ nicht». Ein Wächter hält die Schlüssel darum mit dem Backend deckungsgleich.
-  ausliefern: { draft: () => ({}), config: () => ({}) },
   zahlung: {
     draft: (c) => ({
       // Tolerant gelesen: eine fehlende Richtung ist eine **Ausgabe**, wie im Backend

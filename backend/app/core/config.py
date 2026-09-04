@@ -54,13 +54,23 @@ class Settings(BaseSettings):
 
     # ── Zahlungsdienst (``services/stripe_pay``) ─────────────────────────────────
     #: **Leer heisst: es gibt keinen.** Kein Schalter daneben, der ohne Schlüssel auf «an»
-    #: stünde – ``stripe_pay.available()`` ist eine Ableitung aus genau dieser Zeile. Ohne
-    #: sie erscheint der Zahllink-Knopf gar nicht erst, und alles andere läuft unverändert:
+    #: stünde – ``stripe_pay.available()`` ist eine Ableitung aus genau diesen Zeilen. Ohne
+    #: sie erscheint der Bezahlen-Knopf gar nicht erst, und alles andere läuft unverändert:
     #: eine Überweisung ist kein Fallback, sondern der B2B-Normalfall.
     #:
-    #: Beide Werte kommen aus dem Google Secret Manager (``docs/stripe-setup.md``), nie
-    #: aus dem Repo. Sandbox-Schlüssel beginnen mit ``sk_test_`` bzw. ``whsec_``.
+    #: ►►► **Bezahlen braucht ZWEI Schlüssel, und beide sind Pflicht.** ◄◄◄ Der geheime
+    #: erzeugt die Zahlungsabsicht auf dem Server, der **öffentliche** rendert das Formular
+    #: im Browser. Einer allein ist eine halbe Strasse: der Knopf erschiene, und der Dialog
+    #: bliebe leer. ``available()`` fragt darum nach beiden.
+    #:
+    #: Der **öffentliche** Schlüssel ist kein Geheimnis (er steht in jeder Bezahlseite der
+    #: Welt im Quelltext) – er kommt trotzdem denselben Weg wie die anderen, weil ein
+    #: zweiter Weg für dieselbe Sache die Stelle ist, die beim Wechsel jemand vergisst.
+    #:
+    #: Alle drei kommen aus dem Google Secret Manager (``docs/stripe-setup.md``), nie aus
+    #: dem Repo. Sandbox-Schlüssel beginnen mit ``sk_test_`` · ``pk_test_`` · ``whsec_``.
     stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
     stripe_webhook_secret: str = ""
 
     class Config:
@@ -71,3 +81,20 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def payment_service_ready() -> bool:
+    """►►► **Ist ein Zahlungsdienst eingerichtet?** – die EINE Antwort. ◄◄◄
+
+    Sie steht hier und nicht im Adapter, weil **zwei** Stellen sie brauchen und keine von
+    beiden den Anbieter kennen soll: der Geldvorgang fragt sie, um den Bezahlen-Knopf
+    anzubieten (``services/deal.can`` – und dieselbe Liste ist das Tor), und der Adapter
+    fragt sie, bevor er das SDK anfasst. Stünde sie im Adapter, müsste der Geldvorgang ihn
+    importieren – und damit wüsste er, dass es Stripe ist.
+
+    **Beide Schlüssel**: der geheime erzeugt die Zahlungsabsicht, der öffentliche rendert
+    das Formular. Mit nur einem erschiene ein Knopf, der garantiert in einem leeren Dialog
+    endet – und «ein Knopf, der nie etwas tun kann, ist kein Angebot».
+    """
+    s = get_settings()
+    return bool(s.stripe_secret_key and s.stripe_publishable_key)

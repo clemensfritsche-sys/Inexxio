@@ -336,11 +336,10 @@ function MoveFields({ module: m, onChange }: {
  * steht darin, auch der mit `null`: die Liste beantwortet «kennt die Oberfläche diesen
  * Typ?», und ein fehlender Schlüssel ist die Antwort «nein».
  *
- * **`null` heisst «kennt ihn, hat aber nichts zu fragen».** «Ausliefern» ist ein Scan
- * und ein Statuswechsel – es gibt dort nichts zu konfigurieren, und trotzdem steht der
- * Schlüssel da: ein **fehlender** wäre die Antwort «diesen Typ kenne ich nicht», und die
- * Karte sagte das dann auch. Ein Wächter hält die Schlüssel mit dem Backend
- * deckungsgleich.
+ * **`null` heisst «kennt ihn, hat aber nichts zu fragen».** Es gibt heute keinen solchen
+ * Typ mehr – der Wert bleibt trotzdem erlaubt: ein **fehlender** Schlüssel wäre die
+ * Antwort «diesen Typ kenne ich nicht», und die Karte sagte das dann auch. Ein Wächter
+ * hält die Schlüssel mit dem Backend deckungsgleich.
  */
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
@@ -348,8 +347,6 @@ const MODULE_FIELDS: Record<string, React.ComponentType<{
   onChange: (next: Partial<ModuleDraft>) => void;
 }> | null> = {
   datenerfassung: ModuleFields,
-  // **Nichts zu konfigurieren** – und genau darum steht er hier (siehe oben).
-  ausliefern: null,
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
   bewegen: MoveFields,

@@ -216,9 +216,31 @@ Mit ihnen entfallen aus `lib/modules.ts`: `FLOW`, `flowOf`, `STAGE`, `HAULAGE`,
 beiden Richtungen (Handschlag ↔ Einkaufswagen) leben in `DEAL_DIRECTION` weiter – eine
 Zuordnung mit genau einem Leser ist keine.
 
-An ihre Stelle tritt **«Ausliefern»**: ein Scan, ein Statuswechsel, **keine
-Konfiguration** – `MODULE_FIELDS.ausliefern` ist darum `null` und nicht abwesend (ein
-fehlender Schlüssel wäre die Antwort «diesen Typ kenne ich nicht»).
+*Eine Runde lang trat «Ausliefern» an ihre Stelle – ein Scan, ein Statuswechsel. Auch
+das ist entfernt: was physisch geschieht, sagen die Module, die es tun. `MODULE_FIELDS`
+und `MODULE_FORM` kennen den Schlüssel nicht mehr; `null` bleibt als Wert erlaubt (er
+heisst «kennt ihn, hat aber nichts zu fragen»), nur trägt ihn heute niemand.*
+
+## Bezahlen (`components/erp/pay-online.tsx`)
+**Die Bezahlkarte ist unsere** – kein Zahllink, keine fremde Seite. Vom Dienst kommen nur
+die **Eingabefelder** (ein *Payment Element* in einem iframe), und das ist ihr Sinn: so
+berührt keine Kartennummer unseren Server. Das **Aussehen kommt aus unseren Tokens**
+(`getComputedStyle` liest die CSS-Variablen), nicht aus einer geratenen Farbliste.
+
+- **Das SDK kommt erst auf Klick** (`await import('@stripe/stripe-js')`) – dieselbe Regel
+  wie beim Decoder des Scanners: was niemand öffnet, kostet niemanden etwas. Kein
+  React-Wrapper: das Element wird in ein `<div>` gemountet, das sind vier Zeilen.
+- **Was das ERP weiss, fragt die Karte nicht** (`fields: 'never'`) – **und liefert es
+  dann auch mit** (`payment_method_data.billing_details`). Die beiden Hälften gehören
+  zusammen: wer nur die eine schreibt, bekommt eine Ablehnung, und zwar erst beim
+  Bezahlen. Fehlt eine Angabe, fragt das Element sie.
+- **Sie sagt «ausgeführt», nie «gebucht»**: die Zeile entsteht, wenn der Webhook sie
+  meldet. Ein Satz, der eine Buchung behauptet, die noch nicht dasteht, ist beim nächsten
+  Blick eine Lüge. Danach wird der Auftrag **nachgeladen** (`onPaid` → `reload`) – das ist
+  der einzige Weg im Detail, der keine Antwort auf einen Befehl ist.
+- **Ob es den Knopf gibt, sagt `can`** (`pay_online`), nie eine Rollenabfrage – und die
+  **Gegenpartei hat ihn ebenso**: dass der Kunde bei uns bezahlt, ist der Sinn der Sache.
+  Sein **Wort** kommt vom Server (`pay_online_word`).
 
 ## Zahlung (`components/erp/deal-work.tsx`)
 Der Geldvorgang an der Ausführungsstelle: **drei Zeilen** – `Angebot → Auftrag →

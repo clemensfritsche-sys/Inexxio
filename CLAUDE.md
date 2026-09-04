@@ -2404,6 +2404,94 @@
 > vier Zustände (inkl. eines JPY-Belegs und der Sicht der Gegenpartei) – und die Messung
 > gegen ihre eigene Bug-Form gegengeprüft (+62,3 px bei einem unteilbaren Wort).
 
+> ►►► **Bezahlt wird BEI UNS — und «Ausliefern» ist mitgegangen** (PROCESS_CORE §9.13).
+> ◄◄◄
+> **(1) Das Modul «Ausliefern» ist ersatzlos gelöscht.** Es kam mit dem Ende des Handels
+> und war die letzte Zeile daraus: ein Scan und ein Statuswechsel auf `Verkauft`. Was
+> *physisch* geschieht, sagen die Module, die es tun (**Bewegen** bringt es hin,
+> **Zahlung** regelt das Geld) – und «das Stück gehört jetzt jemand anderem» ist kein
+> Vorgang, sondern die Folge davon. Ein Modul, dessen ganze Aussage eine Folge ist,
+> beschreibt nichts, was nicht schon dasteht.
+> **`Verkauft` bleibt im Statuskatalog** – und das ist die eine Stelle, an der «weg ist
+> weg» nicht gilt: der Katalog ist nicht nur die Liste dessen, was **entstehen** kann,
+> sondern das **Vokabular des append-only Ereignis-Logs**. Jedes je ausgelieferte Stück
+> trägt das Wort in seiner Zeile und in seiner Geschichte; ihn zu streichen machte
+> Vergangenes nicht ungeschehen, sondern **unlesbar** (`flow._left_with` liest es aus dem
+> Log, die Bestandsleiste gruppiert danach). Dieselbe Regel wie bei den Tabellen der
+> entfernten Bereiche: was niemand mehr schreibt, kostet nichts; was die Vergangenheit
+> trägt, wird nicht gelöscht.
+> **(2) Der Zahllink ist weg – die Bezahlkarte ist unsere.** Bisher erzeugte
+> `…/payment-link` eine **gehostete Kasse** beim Dienst: der Zahlende verliess das ERP und
+> stand auf einer fremden Seite mit fremdem Namen, fremder Schrift und fremder
+> Adresszeile. *Er hatte ausserdem seit dem Ende des Handels-Belegs **kein einziges
+> Bedienelement** – ein Endpunkt, den niemand rief.* Jetzt entsteht nur eine
+> **Zahlungsabsicht** (`stripe_pay.prepare`), und ihr Geheimnis geht an eine eigene Karte
+> im ERP (`components/erp/pay-online.tsx`): Fläche, Wörter, Betrag, Knopf und Rückmeldung
+> gehören uns. **Vom Dienst kommen nur die Eingabefelder** (ein *Payment Element* in einem
+> iframe) – und das ist ihr Sinn, nicht ein Kompromiss: so berührt **keine Kartennummer je
+> unseren Server**, und das ist der Unterschied zwischen «wir nehmen Karten an» und «wir
+> sind PCI-pflichtig». Damit man die Naht nicht sieht, kommt das **Aussehen aus unseren
+> Tokens** (`getComputedStyle` liest die CSS-Variablen des Hauses) statt aus einer
+> geratenen Farbliste, die beim nächsten Design-Wechsel stehen bleibt.
+> **(3) Was das ERP weiss, wird nicht gefragt.** Name, E-Mail und Rechnungsadresse der
+> Gegenpartei reisen mit der Vorbereitung mit und werden dem Element als **feste Angabe**
+> übergeben. **Die beiden Hälften gehören zusammen**: `fields: 'never'` heisst «wird
+> mitgeliefert» – wer nur die eine schreibt, bekommt eine Ablehnung, und zwar erst beim
+> Bezahlen. Und **nur, was wirklich dasteht**: fehlt die Adresse, fragt das Element sie;
+> eine halbe Vorbelegung wäre schlechter als die Frage (die Genauigkeit ist die der
+> Quelle). Bewusst **kein** Kunden-Datensatz beim Dienst (zwei Stammdaten für dieselbe
+> Person, die zweite ausserhalb des ERP) und **keine** Quittungs-Mail von dort (fremdes
+> Briefpapier für einen Vorgang, der bei uns steht).
+> **(4) Die Gegenpartei bezahlt selbst** – das ist der Zweck. `Direction.party_actions`
+> trägt `pay_online` in **beiden** Richtungen; *ob* es an diesem Vorgang überhaupt etwas
+> zu bezahlen gibt, beantwortet eine Ebene höher `Direction.collects` (ein Zahlungsdienst
+> **zieht ein**, er überweist nicht in unserem Namen). Zwei Stellen, die dieselbe Bedingung
+> prüfen, wären zwei Massstäbe.
+> **Und damit sieht sie die Zahlen** (`won` statt `internal` in `embed_data`): wer bezahlen
+> soll, muss sehen, was er schuldet – eine Aufforderung ohne Betrag ist keine. Ein **Leck
+> ist es nicht**: `won` heisst «dieser Betrachter *ist* die Gegenpartei dieses Vorgangs»,
+> die Rechnungen sind seine. Ein angefragter, unterlegener Dritter sieht weiterhin nichts.
+> **Buchen darf sie trotzdem nicht** – eine Buchung ist unsere Aussage über unser Konto.
+> **(5) Drei Bedingungen, nicht vier – und die vierte fiel beim MESSEN.** «Es muss eine
+> Rechnung geben» stand als eigene Bedingung da (die Regel von `pay`, #822) und liess sich
+> **nicht gegenprüfen**: *offen* ist `Forderungen − Zahlungen`, ohne Forderung also nie
+> positiv. Sie sagte nichts, was `open > 0` nicht schon sagt, und ist entfallen. Bei `pay`
+> bleibt sie richtig – dort nennt ein Mensch den Betrag; hier **ist** der offene Betrag die
+> Sache. *Ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu unterscheiden.*
+> **(6) `can` ist auch hier Auskunft UND Tor**, obwohl `pay_online` gar keine Handlung am
+> Vorgang ist: es bucht nichts (das tut der Webhook) und hat darum **keinen** Eintrag in
+> `HANDLERS`, sondern einen eigenen Endpunkt (`…/deal/payment`). Damit `apply` daran nicht
+> mit einem `KeyError` – an der Tür ein **500** – zerbricht, antwortet es mit einem **Satz**
+> (409). Und `_assert_allowed` heisst jetzt `assert_allowed`: es hat einen zweiten Aufrufer,
+> und beide fragen dieselbe Liste.
+> **(7) Der Anbieter steht NICHT im Geldvorgang.** «Ist ein Zahlungsdienst eingerichtet?»
+> wohnt in `core/config.payment_service_ready()` – der Geldvorgang fragt eine
+> **Eigenschaft**, keine Marke, und ein Quelltext-Wächter hält es so («stripe» kommt in
+> `services/deal.py` nicht vor). Sie fragt nach **beiden** Schlüsseln: der geheime erzeugt
+> die Absicht, der **öffentliche** rendert das Formular – einer allein wäre ein Knopf, der
+> garantiert in einem leeren Dialog endet.
+> **(8) Der Webhook hört jetzt `payment_intent.succeeded`** statt
+> `checkout.session.completed` (die gehostete Kasse gibt es nicht mehr) und bucht
+> `amount_received` – nicht `amount`: bei einer Teilautorisierung sind das zwei Zahlen, und
+> nur die zweite ist eine Zahlung. **Ein bestehender Endpoint im Dashboard muss umgestellt
+> werden** (`docs/stripe-setup.md` §3); sonst kassiert die Karte, und die Buchung bleibt
+> aus.
+> **Welche Zahlungsarten es gibt, entscheidet das Konto** (`automatic_payment_methods`) –
+> Karte, **TWINT**, was dort freigeschaltet ist. Eine Liste bei uns wäre die zweite Stelle,
+> an der beim nächsten Freischalten jemand nichts sieht.
+> **Ein Paket dazu, und nur eines**: `@stripe/stripe-js` (der offizielle Lader, **dynamisch**
+> importiert – was niemand öffnet, kostet niemanden etwas). Kein React-Wrapper: das Element
+> wird in ein `<div>` gemountet, das sind vier Zeilen.
+> Wächter: 4 neue in `tests/test_deal_module.py`, 3 neue in `test_frontend_mirrors.py` –
+> **zehn Bug-Formen gegengeprüft, jede meldet**; *einer war dabei stumpf* (er las den
+> Docstring des Adapters mit, der die bewusst fehlenden Dinge **aufzählt** – genau die
+> Form, in der ein Wächter anschlägt, weil jemand den Fehler beschreibt: `_code()` liest
+> jetzt den Code). Suite grün gegen ein Schema nur aus den Migrationen (509).
+> *Offen und ausdrücklich benannt: `STRIPE_PUBLISHABLE_KEY` gibt es im Secret Manager noch
+> nicht, und die Deploy-Zeile nennt ihn darum nicht – ein `--set-secrets` auf ein fehlendes
+> Secret risse den **ganzen** Deploy mit. Bis dahin ist der Dienst schlicht nicht
+> eingerichtet: kein Knopf, kein Fehler. Zwei Befehle in `docs/stripe-setup.md` §4/§5.*
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -2427,8 +2515,9 @@ Bilder:    in der Datenbank, ausgeliefert über einen unerratbaren Token
 Karten:    Google Places (Adress-Suche in jedem Adressfeld)
 Infra:     Google Cloud Run + Firebase Hosting
 Analytics: Plausible (DSGVO-konform, lädt erst mit Einwilligung)
-Zahlung:   Stripe (Checkout-Link + Webhook) – **optional**: ohne Schlüssel gibt es den
-           Dienst nicht, und bezahlt wird per Überweisung (`docs/stripe-setup.md`)
+Zahlung:   Stripe – **eigene Bezahlkarte im ERP** (Payment Element + Webhook), kein
+           Zahllink. **Optional**: ohne Schlüssel gibt es den Dienst nicht, und bezahlt
+           wird per Überweisung (`docs/stripe-setup.md`)
 ```
 
 **Geplant, aber NICHT verdrahtet** – hier steht heute keine Zeile Code:
@@ -2640,24 +2729,26 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   ohne KI), Bestand in drei Ebenen, Reihe (ersetzt/ersetzt durch) und die gemeldete
   Stückliste – ausser Betrieb nehmen ist ein Statuswechsel in beide Richtungen.
 - **Prozess**: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie; jeder
-  Statuswechsel schreibt in den append-only Ereignis-Log. **Sechs Module** (Datenerfassung ·
-  Aussondern · Verbrauch · Bewegen · **Zahlung** · **Ausliefern**), Abweichungen als
+  Statuswechsel schreibt in den append-only Ereignis-Log. **Fünf Module** (Datenerfassung ·
+  Aussondern · Verbrauch · Bewegen · **Zahlung**), Abweichungen als
   ganz gewöhnliche Aufträge, Prozessbild als serverseitig gerechneter Graph.
 - **Zahlung** (§9.12): Geld mit einer zweiten Partei, in beide Richtungen dasselbe Modul –
   und es bewegt **keine Stücke**. Angebotsspiegel → Zusage → Rechnungen und Zahlungen als
   Zeilen daneben; *offen*, *fällig* und *überfällig* als Ableitung, null Spalten. Steuer je
   Position (MWSTG Art. 26) und **eine Währung je Vorgang** (ISO 4217, mit den
-  Nachkommastellen der Währung). **Stripe** angebunden (Zahllink + Webhook), optional –
-  ohne Schlüssel bleibt die Überweisung, und die ist der B2B-Normalfall.
-- **Ausliefern** (§9.9): ein Scan, ein Statuswechsel auf `Verkauft` – **sonst nichts**.
-  Ein **Ausgang**; die Retoure ist ein ganz gewöhnlicher Auftrag.
+  Nachkommastellen der Währung).
+- **Online bezahlen – in der eigenen Karte** (§9.13): «Jetzt bezahlen» öffnet das
+  Zahlungsformular **im ERP**, nicht auf einer fremden Seite; die Gegenpartei bezahlt über
+  ihren eigenen, engen Zugang. Was das ERP weiss (Name · E-Mail · Rechnungsadresse), wird
+  nicht noch einmal gefragt. Gebucht wird nur vom **Webhook**.
 - **Unternehmen**: mehrere gleichrangige Gesellschaften mit eigener Rechtsidentität,
   Gebietskarte, ein gewählter Betreiber für die eine Website.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung), als Markdown kopierbar.
 
 **Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): der **Shop**,
-die Module **Beschaffen** und **Verkauf** samt ihrem Beleg (§9.9a – was sie konnten, kann
-der Geldvorgang), Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent,
+die Module **Beschaffen**, **Verkauf** und **Ausliefern** (§9.9a – was die ersten beiden
+konnten, kann der Geldvorgang; das dritte war ein Scan und ein Statuswechsel),
+Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent,
 Versand-Anbindung, der Ereignis-Strom als Outbox. Ebenfalls nie gebaut: E-Mail (Gmail
 API), Typesense-Suche, Buchhaltung, HR.
 

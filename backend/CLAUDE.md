@@ -140,7 +140,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/admin/users | staff | Benutzerliste. **Deaktivieren gibt es nicht** (Testnotiz #755): wer das Unternehmen verlässt, wechselt die **Rolle** (`PATCH /erp/records/{object_id}`) – ein Mensch hört nicht auf zu existieren, und einkaufen darf er weiterhin |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
 | POST | /api/v1/contact | – | Kontaktformular |
-| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/payment-link | staff | **Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts. Kein Verb am Beleg (sie ändert nichts): gebucht wird erst, wenn das Geld da ist, und das meldet der Webhook. Ohne eingerichteten Dienst **404** – der Knopf erscheint dann gar nicht (`can` führt `link` nicht) |
+| POST | /api/v1/erp/orders/{object_id}/steps/{step_id}/deal/payment | user | **Eine Zahlung über den offenen Betrag vorbereiten** – für **unsere** Bezahlkarte: Geheimnis der Zahlungsabsicht, öffentlicher Schlüssel, Betrag und die Angaben, die im ERP längst stehen (Name · E-Mail · Rechnungsadresse). Kein Verb am Vorgang (sie ändert nichts): gebucht wird erst, wenn das Geld da ist, und das meldet der Webhook. **Auch für die Gegenpartei offen** – das ist der Sinn; das Tor ist dieselbe Liste wie der Knopf (`deal.assert_allowed(…, 'pay_online')`). Ohne eingerichteten Dienst **404**, und der Knopf erscheint dann gar nicht |
 | POST | /api/v1/payments/webhook | – | **Die eine Tür des Zahlungsdienstes.** Signaturgeprüft über den **rohen** Rumpf, schreibt **eine Zeile Geld am Geldvorgang** und sonst nichts (kein Auftrag, keine Freigabe, keine Stufe). Idempotent über die Referenz; fremde Ereignisse werden mit `200 {"status":"ignored"}` quittiert – ein Fehlercode brächte den Dienst nur dazu, sie endlos erneut zuzustellen |
 | GET/POST | /api/v1/feedback | user | Testnotizen der Oberfläche (JEDE Rolle; eigene bzw. alle für Personal) – nur Testumgebung, sonst 404 |
 | PATCH | /api/v1/feedback/{id} | user | Notiz erledigt/verworfen setzen bzw. wieder öffnen |
@@ -209,32 +209,25 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > bewusst **neben** ihnen gebaut wurde («kein Import aus `procurement`/`purchase`»), hat
 > sich hier ausgezahlt: an ihm musste für die Löschung **keine Zeile** geändert werden.
 > **Was an ihre Stelle tritt:** ein Geldvorgang (Ausgabe ↔ Einnahme) plus die Module, die
-> das Material physisch bewegen – und für die Übergabe **«Ausliefern»**.
+> das Material physisch bewegen. *Ein drittes, «Ausliefern», stand hier eine Runde lang –
+> ein Scan und ein Statuswechsel auf `Verkauft` – und ist ebenfalls gelöscht (§9.13): was
+> physisch geschieht, sagen die Module, die es tun; «gehört jetzt jemand anderem» ist die
+> Folge davon, kein Vorgang.*
 > **Die Tabellen `purchases`/`invoices`/`payments` bleiben stehen** (Zwei-Deploy-Regel,
 > `docs/backlog.md`): eine Spalte, die niemand liest, kostet nichts; ein Tabellen-Drop
 > kostet die Vergangenheit und verlangt vorher eine Sicherung der produktiven Datenbank.
 
-> **Ausliefern – das Stück gehört jetzt jemand anderem** (PROCESS_CORE §9.9,
-> `domain/modules.Ausliefern`): ein Scan, ein Statuswechsel auf `Verkauft`, **sonst
-> nichts** – `clean_config` nimmt nichts an. An wen geliefert wird, steht im Geldvorgang
-> desselben Auftrags; was, sagen die Stücke davor; wann, sagt der Log.
-> **Es ist ein AUSGANG** (`terminal = True`), und die **Kettenregel lässt gar nichts
-> anderes zu**: beim Verbrauch bleiben die durchlaufenden Stücke auf `Im Prozess` – nur
-> die Komponenten wechseln, und die treten dort erst ein. Hier wechselt **jedes**
-> ankommende Stück; ein Modul dahinter erwartete `Im Prozess` und bekäme `Verkauft`, am
-> Schluss bräche die Kette am Ende-Objekt. *Ein nicht-terminales Modul, das den Zustand
-> ALLER Stücke ändert, kann es gar nicht geben.* Was danach kommen müsste, kommt davor –
-> auch fachlich: man prüft, bevor man liefert.
-> **`Verkauft` bleibt trotzdem umkehrbar**: `Module.terminal` und `Status.terminal` sind
-> zwei verschiedene Fragen. Die Retoure ist ein ganz gewöhnlicher Auftrag, **das Greifen
-> IST die Rücknahme**, und weil ihr Start vom Regelstart abweicht, ist sie **automatisch**
-> eine dokumentierte Abweichung – `deviation_flags` vergleicht mit `START_BEFORE` und
-> nennt weder Farbe noch Status. **Der Ort fällt weg ohne eine Zeile im Modul**:
-> `process._pass` räumt ihn für jeden Zustand mit `stock = HISTORY`.
-> **Ein Transport ist dieses Modul nicht**: ein Muster beim Kunden, ein Computer beim
-> Mitarbeiter, eine Konsignation – dort wechselt der **Ort**. Eine Ableitung «Ort
-> ausserhalb ⇒ verkauft» wäre in genau diesen Fällen still falsch; es sind zwei Module,
-> und der Modellierer wählt. Wächter: `tests/test_delivery_module.py`.
+> ►►► **«Ausliefern» ist ENTFERNT — und `Verkauft` bleibt** (PROCESS_CORE §9.13). ◄◄◄
+> Das Modul war ein Scan und ein Statuswechsel, sonst nichts. **Was physisch geschieht,
+> sagen die Module, die es tun** (Bewegen bringt es hin, Zahlung regelt das Geld) – «das
+> Stück gehört jetzt jemand anderem» ist die **Folge** davon. Ein Modul, dessen ganze
+> Aussage eine Folge ist, beschreibt nichts, was nicht schon dasteht.
+> **Der Status `Verkauft` bleibt im `CATALOG`**, obwohl ihn heute kein Modul mehr
+> schreibt – und das ist die eine Stelle, an der «weg ist weg» nicht gilt: der Katalog ist
+> nicht nur die Liste dessen, was **entstehen** kann, sondern das **Vokabular des
+> append-only Ereignis-Logs**. `flow._left_with` liest ihn von dort, die Bestandsleiste
+> gruppiert danach; ihn zu streichen machte Vergangenes nicht ungeschehen, sondern
+> **unlesbar**. Dieselbe Regel wie bei den Tabellen der entfernten Bereiche.
 
 > **Ware · Forderung · Geld – drei Achsen, keine Reihenfolge** (PROCESS_CORE §9.11):
 > **Das System schreibt keine Reihenfolge vor.** Jedes Zahlungs-Szenario ist eine andere
@@ -249,30 +242,48 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > `services/payments` am Handels-Beleg; sie leben heute unverändert im **Geldvorgang**
 > (`domain/deal.Balance`, `deal_entries`) – dieselbe Rechnung, eine Maschine weniger.*
 > **Und der Rest des Order-to-Cash steht längst da**: Kommissionierung und Versand sind
-> **Bewegen**-Module, die Übergabe ist **Ausliefern**, die Spedition ist ein Geldvorgang.
+> **Bewegen**-Module, die Spedition ist ein Geldvorgang.
 > **ATP** gibt es bewusst nicht – die Freigabe *ist* die Verfügbarkeitsprüfung, und
 > Reservierungen gibt es im System nirgends.
 
 
-> **Stripe – dünn, und in die richtige Richtung** (`services/stripe_pay.py`,
-> `docs/stripe-setup.md`): **Das ERP nennt Betrag und Währung, Stripe kassiert.** Im
-> Vorgängersystem stand es umgekehrt («Stripe ist Quelle der Wahrheit»), und daraus kam
-> fast die ganze Komplexität – Snapshot-Spalten an vier Tabellen, ein Webhook, der
-> Aufträge erzeugte, ein `CheckoutIntent` mit Reservierungen und ein Aufräumer für
-> verlassene Warenkörbe. Hier schreibt der Webhook **eine Zeile Geld**.
-> **Ohne Schlüssel gibt es den Dienst nicht** – kein Stub, kein 503, kein Knopf
-> (`available()` ist eine Ableitung aus `settings.stripe_secret_key`). Eine **Überweisung
-> ist kein Fallback**, sondern der B2B-Normalfall; der alte `manual`-Provider simulierte
-> einen Zahlungsdienstleister samt Bezahlseite und kommt nicht zurück.
+> **Der Zahlungsdienst – dünn, und die Oberfläche bleibt UNSERE**
+> (`services/stripe_pay.py`, `docs/stripe-setup.md`, PROCESS_CORE §9.13):
+> **Das ERP nennt Betrag und Währung, der Dienst kassiert.** Im Vorgängersystem stand es
+> umgekehrt («Stripe ist Quelle der Wahrheit»), und daraus kam fast die ganze Komplexität –
+> Snapshot-Spalten an vier Tabellen, ein Webhook, der Aufträge erzeugte, ein
+> `CheckoutIntent` mit Reservierungen und ein Aufräumer für verlassene Warenkörbe. Hier
+> schreibt der Webhook **eine Zeile Geld**.
+> ►►► **Bezahlt wird BEI UNS.** ◄◄◄ Es gibt keinen Zahllink mehr (die gehostete Kasse ist
+> weg, mitsamt `checkout_url` und `/payment-link`, das seit dem Ende des Handels-Belegs
+> ohnehin **keinen einzigen Aufrufer** hatte). `prepare()` legt eine **Zahlungsabsicht** an
+> und gibt zurück, was **unsere** Karte braucht; vom Dienst kommen nur die
+> **Eingabefelder** – und das ist ihr Sinn: so berührt **keine Kartennummer je unseren
+> Server**.
+> **Was wir wissen, fragen wir nicht** (`_billing`): Name, E-Mail und Rechnungsadresse der
+> **Gegenpartei dieses Vorgangs** (nicht des Betrachters – die Rechnung gehört dem Kunden,
+> auch wenn ein Mitarbeiter die Zahlung auslöst). Die Rechnungsadresse geht vor der
+> Wohnadresse, und geliefert wird nur eine **vollständige**: eine halbe wäre eine
+> Vorbelegung, die das Formular danach doch wieder erfragt – nur falsch.
+> **Ohne Schlüssel gibt es den Dienst nicht** – kein Stub, kein 503, kein Knopf. Die
+> Antwort steht in **`core/config.payment_service_ready()`**, nicht im Adapter: sonst
+> müsste der Geldvorgang ihn importieren, um zu wissen, ob er einen Knopf anbieten darf –
+> und damit wüsste er, dass es Stripe ist (Quelltext-Wächter: «stripe» kommt in
+> `services/deal.py` nicht vor). Sie fragt **beide** Schlüssel; einer allein ist eine halbe
+> Strasse.
+> **Der Webhook hört `payment_intent.succeeded`** (nicht mehr `checkout.session.completed`)
+> und bucht **`amount_received`** – nicht `amount`: bei einer Teilautorisierung sind das
+> zwei Zahlen, und nur die zweite ist eine Zahlung. Ein bestehender Endpoint im Dashboard
+> **muss umgestellt werden** (`docs/stripe-setup.md` §3).
 > **Adaptive Pricing bleibt aus** (die eine Lehre, die unverändert gilt): sonst rechnete
-> Stripe unseren Betrag mit seinem Kurs erneut um – angezeigt 11.80, belastet 11.82.
-> Bewusst **nicht**: Stripe Tax · Customer Portal · Subscriptions · `stripe_*`-Spalten
-> (die Id steht in `deal_entries.reference`, derselben Spalte wie ein Zahlungszweck).
+> der Dienst unseren Betrag mit seinem Kurs erneut um – angezeigt 11.80, belastet 11.82.
 > **Und der Betrag wird je Währung in die kleinste Einheit umgerechnet** (`_minor`), nie
 > mit `× 100`: bei **JPY** (null Nachkommastellen) wären 1000 Yen als 100 000 belastet.
-> *Heute ohne Bedienelement – der Zahllink-Knopf hing an der Beleg-Karte des Handels –,
-> aber vollständig verdrahtet: `/payment-link` liest den Geldvorgang, der Webhook schreibt
-> über `deal.record_payment`.*
+> Bewusst **nicht**: ein `Customer` beim Dienst (zwei Stammdaten für dieselbe Person, die
+> zweite ausserhalb des ERP) · `receipt_email` (fremdes Briefpapier) · eine eigene Liste
+> von Zahlungsarten (`automatic_payment_methods` – das Konto entscheidet) · Stripe Tax ·
+> Customer Portal · Subscriptions · `stripe_*`-Spalten (die Id steht in
+> `deal_entries.reference`, derselben Spalte wie ein Zahlungszweck).
 
 > **Zahlung – Geld mit einer zweiten Partei, und KOMPLETT eigenständig** (PROCESS_CORE
 > §9.12, `domain/deal.py` · `services/deal.py` · Tabellen `deals` + `deal_entries`,
@@ -484,6 +495,36 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > die nur in einer Migration steht, erreicht die dev-Datenbank nie. Geprüft wird vorher,
 > damit nicht bei jedem Start eine Tabelle umgeschrieben wird.
 > Wächter: `tests/test_deal_module.py` (jede der neun Bug-Formen gegengeprüft).
+
+> ►►► **Online bezahlen — `pay_online`, die dritte Handlung am Geld** (PROCESS_CORE
+> §9.13). ◄◄◄
+> **`pay` schreibt auf, was geschehen ist; `pay_online` lässt es geschehen.** Zwei
+> Handlungen, zwei Verben – dasselbe Wort für beide wäre ein Knopf, dessen Wirkung von
+> einer Einstellung abhängt. Es steht in denselben Stufen wie `pay` (ab der Zusage, auch
+> nach dem Storno) und **bucht nichts**: das tut der Webhook.
+> **Drei Bedingungen, alle in `can`** – weil dieselbe Liste **Auskunft und Tor** ist:
+> `Direction.collects` (ein Zahlungsdienst **zieht ein**, er überweist nicht in unserem
+> Namen – bei einer Ausgabe gibt es den Knopf nie) · `payment_service_ready()` · und es
+> muss etwas **offen** sein. *Eine vierte («es muss eine Rechnung geben») stand hier und
+> ist entfallen: ihre Bug-Form liess sich nicht herstellen, weil `open` = Forderungen −
+> Zahlungen ohne Forderung nie positiv ist. Ein Wächter, der nie anschlägt, ist von einem
+> kaputten nicht zu unterscheiden.*
+> **Es hat KEINEN Eintrag in `HANDLERS`** und einen eigenen Endpunkt – der `…/deal`-Weg
+> gibt den Auftrag zurück, hier kommt ein Geheimnis für genau diese eine Zahlung. Damit
+> `apply` an einem Verb ohne Handler nicht mit `KeyError` (an der Tür: **500**) zerbricht,
+> antwortet es mit einem **Satz** (409). Und `_assert_allowed` heisst darum jetzt
+> **`assert_allowed`**: es hat einen zweiten Aufrufer, und beide fragen dieselbe Liste.
+> **Die Gegenpartei darf es** (`Direction.party_actions` in **beiden** Richtungen) – das
+> ist der Zweck: der Kunde bezahlt bei uns, nicht auf einer fremden Seite. *Ob* es an
+> diesem Vorgang etwas zu bezahlen gibt, sagt eine Ebene höher `collects`; zwei Stellen
+> für dieselbe Bedingung wären zwei Massstäbe.
+> **Und sie sieht die Zahlen** (`won` statt `internal` in `embed_data` für *berechnet ·
+> bezahlt · offen · uncharged · entries*): wer bezahlen soll, muss sehen, was er schuldet –
+> eine Aufforderung ohne Betrag ist keine. **Kein Leck**: `won` heisst «dieser Betrachter
+> *ist* die Gegenpartei dieses Vorgangs», die Rechnungen sind seine; ein angefragter,
+> unterlegener Dritter sieht weiterhin nichts. **Buchen darf sie trotzdem nicht** – eine
+> Buchung ist unsere Aussage über unser Konto.
+> Wächter: `tests/test_deal_module.py` (4 neue) · `test_frontend_mirrors.py` (3 neue).
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

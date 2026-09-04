@@ -6431,11 +6431,16 @@ def test_a_quote_row_has_no_amount_field_where_the_positions_carry_the_price():
 # ---------------------------------------------------------------------------
 
 def test_the_trade_modules_are_gone_from_both_sides():
-    """►►► **«Beschaffen» und «Verkauf» sind entfernt, nicht abgeschaltet.** ◄◄◄
+    """►►► **«Beschaffen», «Verkauf» und «Ausliefern» sind entfernt.** ◄◄◄
 
-    Was sie konnten, kann der **Geldvorgang** (``domain/deal``) – einmal für beide
-    Richtungen. Was übrig blieb, ist die eine Aussage, die kein Geldvorgang machen kann:
-    *dieses Stück ist nicht mehr unseres* («Ausliefern»).
+    Was die beiden ersten konnten, kann der **Geldvorgang** (``domain/deal``) – einmal
+    für beide Richtungen. Das dritte kam mit ihnen und ging mit ihnen: es war ein Scan
+    und ein Statuswechsel, und was physisch geschieht, sagen die Module, die es tun.
+
+    *``Verkauft`` bleibt trotzdem im Statuskatalog.* Er ist nicht nur die Liste dessen,
+    was entstehen kann, sondern das **Vokabular des Ereignis-Logs**: jedes je ausgelieferte
+    Stück trägt das Wort. Ihn zu streichen machte Vergangenes nicht ungeschehen, sondern
+    unlesbar.
 
     Der Wächter fragt **beide Seiten**: ein Modultyp, den nur noch eine Hälfte kennt, ist
     genau die Form, in der eine Oberfläche einen Beleg rendert, den es nicht mehr gibt –
@@ -6449,15 +6454,16 @@ def test_the_trade_modules_are_gone_from_both_sides():
     from app.domain import modules
 
     assert set(modules.KEYS) == {
-        "datenerfassung", "aussondern", "bewegen", "zahlung", "ausliefern", "verbrauch",
-    }, f"Die Modultypen sind nicht mehr die sechs erwarteten: {sorted(modules.KEYS)} (a)."
+        "datenerfassung", "aussondern", "bewegen", "zahlung", "verbrauch",
+    }, f"Die Modultypen sind nicht mehr die fünf erwarteten: {sorted(modules.KEYS)} (a)."
 
     # (b) **Die Dateien sind weg** – ein toter Dienst neben einem lebenden ist die
     #     zweite Maschine für dieselbe Sache.
     for gone in ("app/domain/procurement.py", "app/domain/money.py",
                  "app/services/purchase.py", "app/services/invoices.py",
                  "app/services/payments.py", "app/models/purchase.py",
-                 "app/models/invoice.py", "app/models/payment.py"):
+                 "app/models/invoice.py", "app/models/payment.py",
+                 "tests/test_delivery_module.py"):
         assert not (BACKEND / gone).exists(), f"{gone} ist zurück (b)."
     assert not (FRONTEND / "components" / "erp" / "purchase-work.tsx").exists(), (
         "Die Beleg-Karte des Handels ist zurück (b) – der Geldvorgang hat seine eigene."
@@ -6473,30 +6479,12 @@ def test_the_trade_modules_are_gone_from_both_sides():
                         ("MODULE_FIELDS", fields)):
         for key in modules.KEYS:
             assert f"{key}:" in block, f"«{key}» fehlt in {what} (c)."
-        for gone in ("beschaffen:", "verkauf:"):
+        for gone in ("beschaffen:", "verkauf:", "ausliefern:"):
             assert gone not in block, f"«{gone}» steht wieder in {what} (a)."
     # Und die entfallene Zuordnung des Handels-Belegs kommt nicht zurück.
     for gone in ("export const FLOW", "export function flowOf", "export const HAULAGE",
                  "export const STAGE ", "export const MANUAL_METHODS"):
         assert gone not in src, f"«{gone}» ist zurück – der Handels-Beleg mit ihm."
-
-
-def test_delivering_has_nothing_to_configure_and_says_so():
-    """►►► **`null` heisst «kennt ihn, hat aber nichts zu fragen».** ◄◄◄
-
-    «Ausliefern» ist ein Scan und ein Statuswechsel. Der Eintrag steht trotzdem in
-    ``MODULE_FIELDS`` – ein **fehlender** wäre die Antwort «diesen Typ kenne ich nicht»,
-    und die Karte sagte das dann auch («Modultyp … ist dieser Oberfläche unbekannt»).
-
-    Bug-Form: der Schlüssel fehlt, weil «es gibt ja nichts zu zeigen» – dann sieht ein
-    vollständig unterstütztes Modul aus wie ein kaputtes.
-    """
-    fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
-                   "MODULE_FIELDS", kind="const")
-    assert "ausliefern: null" in fields, (
-        "«ausliefern» steht nicht als bekannt-ohne-Felder da – dann meldet die Karte "
-        "einen unbekannten Modultyp, obwohl sie ihn vollständig unterstützt."
-    )
 
 
 def test_the_currency_is_one_control_in_the_head_and_hangs_on_can():
@@ -6538,4 +6526,121 @@ def test_the_currency_is_one_control_in_the_head_and_hangs_on_can():
     assert "<Currency" in head, "Die Währung steht nicht im Kopf des Vorgangs."
     assert src.count("<Currency") == 1, (
         "Die Währung steht an mehr als einer Stelle – dann ist sie eine Spalte geworden."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► BEZAHLEN — die Karte gehört uns
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def test_the_payment_form_is_ours_and_never_a_link_to_somewhere_else():
+    """►►► **Bezahlt wird BEI UNS.** ◄◄◄
+
+    Vorher war es ein **Zahllink**: der Zahlende verliess das ERP und stand auf einer
+    fremden Seite mit fremdem Namen, fremder Schrift und fremder Adresszeile. Jetzt
+    entsteht nur eine **Zahlungsabsicht**, und das Formular ist unseres – die Fläche, die
+    Wörter, der Knopf und die Rückmeldung.
+
+    Die **Eingabefelder** kommen weiterhin vom Dienst (ein Element in einem iframe), und
+    das ist ihr Sinn: so berührt keine Kartennummer unseren Server.
+
+    Bug-Formen: (a) der Zahllink ist zurück – im Client oder als Endpunkt; (b) die Karte
+    schickt den Zahlenden weg (``window.open``/``location =``); (c) es gibt sie gar nicht.
+    """
+    api = _read(FRONTEND / "lib" / "api.ts")
+    assert "payment-link" not in api and "paymentLink" not in api, (
+        "Der Zahllink ist zurück (a) – dann steht der Kunde wieder auf einer fremden Seite."
+    )
+    assert "deal/payment" in api, "Der Weg zur eigenen Bezahlkarte fehlt (a)."
+
+    routers = _read(BACKEND / "app" / "routers" / "orders.py")
+    assert "payment-link" not in routers, "Der Endpunkt des Zahllinks ist zurück (a)."
+
+    card = _read(FRONTEND / "components" / "erp" / "pay-online.tsx")
+    code = _code(card)
+    assert "elements.create('payment'" in code and ".mount(" in code, (
+        "Die Karte mountet das Zahlungs-Element nicht selbst (c) – dann ist sie keine "
+        "eigene Oberfläche, sondern ein Umweg."
+    )
+    for gone in ("window.open", "window.location.href =", "location.assign"):
+        assert gone not in code, (
+            f"«{gone}» schickt den Zahlenden weg (b) – die Bezahlkarte bleibt hier."
+        )
+    # **Und der Rückweg ist der Webhook, nicht dieser Browser**: die Karte sagt
+    # «ausgeführt», nie «gebucht».
+    assert "ausgeführt" in card and "gebucht" not in _code(card), (
+        "Die Karte behauptet eine Buchung, die in diesem Moment noch niemand gemacht hat."
+    )
+
+
+def test_what_the_erp_already_knows_is_not_asked_again():
+    """►►► **Was wir wissen, fragen wir nicht** – und was wir sagen, liefern wir auch. ◄◄◄
+
+    Name, E-Mail und Rechnungsadresse stehen im ERP. Sie reisen mit der Vorbereitung mit
+    und werden dem Element als **feste Angabe** übergeben – der Zahlende tippt sie nicht
+    ein zweites Mal ab.
+
+    **Die beiden Hälften gehören zusammen**: ``fields: 'never'`` heisst «wird
+    mitgeliefert». Wer nur die eine schreibt, bekommt vom Dienst eine Ablehnung, und zwar
+    erst beim Bezahlen – die unangenehmste Form einer Regel.
+
+    Und **nur, was wirklich dasteht**: fehlt die Adresse, fragt das Element sie. Eine
+    halbe Vorbelegung wäre schlechter als die Frage.
+
+    Bug-Formen: (a) `never` steht fest da, ohne dass geprüft wird, ob es den Wert gibt;
+    (b) die Angabe wird nicht mitgeschickt; (c) das Backend liefert sie gar nicht.
+    """
+    code = _code(_read(FRONTEND / "components" / "erp" / "pay-online.tsx"))
+    for field in ("name", "email", "address"):
+        assert f"known?.{field} ? 'never' : 'auto'" in code, (
+            f"«{field}» wird immer oder nie gefragt (a) – gefragt wird, was wir *nicht* "
+            f"wissen."
+        )
+    assert "billing_details" in code and "payment_method_data" in code, (
+        "Die bekannten Angaben werden nicht mitgeschickt (b) – dann weist der Dienst die "
+        "Zahlung ab, und zwar erst beim Bezahlen."
+    )
+
+    # **Der CODE, nicht die Erklärung.** Der Docstring des Adapters *nennt* genau die
+    # Dinge, die es bewusst nicht gibt – ein Wächter, der ihn mitliest, schlägt an, weil
+    # jemand den Fehler beschreibt, den er verhindern soll. (Gemessen: erste Fassung
+    # scheiterte an ihrem eigenen «Kein ``receipt_email``».)
+    svc = _read(BACKEND / "app" / "services" / "stripe_pay.py")
+    assert "def _billing(" in svc and '"billing": _billing(' in svc, (
+        "Der Dienst liefert die bekannten Angaben nicht mit (c)."
+    )
+    svc = _code(svc)
+    assert "receipt_email" not in svc, (
+        "Der Zahlungsdienst verschickt eine Quittung – fremdes Briefpapier für einen "
+        "Vorgang, der bei uns steht."
+    )
+    for gone in ("Customer.create", "stripe_customer_id"):
+        assert gone not in svc, (
+            f"«{gone}»: ein Kunden-Datensatz beim Dienst wäre die zweite Stammdaten-Stelle "
+            f"für dieselbe Person, und die zweite ausserhalb des ERP."
+        )
+
+
+def test_the_pay_button_reads_its_word_from_the_server():
+    """**Das Wort kommt vom Server** (`pay_online_word`), nicht aus der Oberfläche.
+
+    Dieselbe Regel wie bei jedem anderen Wort des Geldvorgangs: es reist mit, damit die
+    Karte keine eigene Konstante daneben hält, die beim ersten Umbenennen stehen bleibt.
+
+    Bug-Formen: (a) das Wort steht als Literal in der Oberfläche; (b) der Server liefert
+    es gar nicht.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import deal as dm
+
+    work = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    assert "d.pay_online_word" in work, "Die Karte liest das Wort nicht vom Server (a)."
+    assert f"'{dm.PAY_ONLINE_WORD}'" not in _code(work), (
+        f"«{dm.PAY_ONLINE_WORD}» steht als Literal in der Oberfläche (a)."
+    )
+    svc = _read(BACKEND / "app" / "services" / "deal.py")
+    assert '"pay_online_word": flow.pay_online_word' in svc, (
+        "Der Server schickt das Wort nicht mit (b) – dann steht der Knopf ohne Beschriftung da."
     )

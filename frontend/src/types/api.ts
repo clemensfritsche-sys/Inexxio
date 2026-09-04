@@ -944,7 +944,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/steps/{step_id}/payment-link": {
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal/payment": {
         parameters: {
             query?: never;
             header?: never;
@@ -954,18 +954,28 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Payment Link
-         * @description **Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
+         * Prepare Payment
+         * @description ►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
          *
-         *     Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim
-         *     Zahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich
-         *     da ist – und das meldet der Webhook, nicht der Browser des Kunden.
+         *     Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim
+         *     Zahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird
+         *     erst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser
+         *     des Zahlenden.
          *
-         *     Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in
-         *     der Oberfläche gar nicht erst (``DealEmbed.can``), und ein 503 hier wäre die
-         *     Behauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.
+         *     **Ein eigener Weg statt eines Verbs an ``…/deal``**: der gibt den Auftrag zurück, hier
+         *     kommt ein Geheimnis für genau diese eine Zahlung. Zwei verschiedene Antworten sind
+         *     zwei Endpunkte; das Verb steht trotzdem in ``can`` – «was darf ich hier tun» ist EINE
+         *     Frage, und dieselbe Liste ist auch hier das **Tor**.
+         *
+         *     **Auch für die Gegenpartei offen** (``get_current_user``) – das ist der Sinn: der
+         *     Kunde bezahlt bei uns, nicht auf einer fremden Seite. Was sie darf, sagt
+         *     ``deal.can`` (``Direction.party_actions``); wer den Auftrag nicht sieht, bekommt
+         *     ``404`` wie überall.
+         *
+         *     Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404`` aus ``stripe_pay._api``)
+         *     – und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.
          */
-        post: operations["payment_link_api_v1_erp_orders__object_id__steps__step_id__payment_link_post"];
+        post: operations["prepare_payment_api_v1_erp_orders__object_id__steps__step_id__deal_payment_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1757,6 +1767,11 @@ export interface components {
              * @default
              */
             payment_word: string;
+            /**
+             * Pay Online Word
+             * @default
+             */
+            pay_online_word: string;
             /**
              * Open Word
              * @default Offen
@@ -2994,15 +3009,62 @@ export interface components {
             last_used_at?: string | null;
         };
         /**
-         * PaymentLink
-         * @description **Die Adresse einer Zahlungsaufforderung** – und sonst nichts.
+         * PaymentAddress
+         * @description Die Rechnungsadresse des Zahlenden, **wie der Zahlungsdienst sie erwartet**.
          *
-         *     Kein Beleg-Zustand: der Link ändert am Beleg nichts. Gebucht wird erst, wenn das Geld
-         *     wirklich da ist, und das meldet der Webhook – nicht der Browser des Kunden.
+         *     Sie kommt aus dem ERP und wird dort gepflegt – hier steht sie nur, damit niemand sie
+         *     ein zweites Mal abtippt. ``None`` an der Stelle, an der dieses Objekt steht, heisst
+         *     ehrlich «wir haben keine»; dann fragt das Formular sie.
          */
-        PaymentLink: {
-            /** Url */
-            url: string;
+        PaymentAddress: {
+            /** Line1 */
+            line1: string;
+            /** Line2 */
+            line2?: string | null;
+            /** Postal Code */
+            postal_code: string;
+            /** City */
+            city: string;
+            /** Country */
+            country: string;
+        };
+        /**
+         * PaymentBilling
+         * @description **Was wir über den Zahlenden schon wissen.** Jedes Feld darf fehlen.
+         *
+         *     Es sind bewusst nur die drei, die ein Zahlungsformular sonst erfragt. Alles Weitere
+         *     (Telefon, Lieferadresse, Firma) braucht eine Zahlung nicht – und was eine Zahlung
+         *     nicht braucht, geht einem Zahlungsdienst nichts an.
+         */
+        PaymentBilling: {
+            /** Name */
+            name?: string | null;
+            /** Email */
+            email?: string | null;
+            address?: components["schemas"]["PaymentAddress"] | null;
+        };
+        /**
+         * PaymentSetup
+         * @description ►►► **Alles, was UNSERE Bezahlkarte braucht** – und nichts, was ihr fehlt. ◄◄◄
+         *
+         *     Kein Zustand am Geldvorgang: das Vorbereiten ändert dort keine Zeile. Gebucht wird
+         *     erst, wenn das Geld wirklich da ist, und das meldet der Webhook – nicht der Browser
+         *     des Zahlenden.
+         *
+         *     Der **öffentliche Schlüssel reist mit**, statt zur Bauzeit im Frontend zu stehen: die
+         *     Website ist ein statischer Export, eine Variable darin wäre beim Schlüsselwechsel eine
+         *     zweite Stelle – und ein Aufruf, der das Geheimnis holt, holt den Schlüssel gleich mit.
+         */
+        PaymentSetup: {
+            /** Client Secret */
+            client_secret: string;
+            /** Publishable Key */
+            publishable_key: string;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            billing: components["schemas"]["PaymentBilling"];
         };
         /**
          * PlaceRef
@@ -5344,7 +5406,7 @@ export interface operations {
             };
         };
     };
-    payment_link_api_v1_erp_orders__object_id__steps__step_id__payment_link_post: {
+    prepare_payment_api_v1_erp_orders__object_id__steps__step_id__deal_payment_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5362,7 +5424,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaymentLink"];
+                    "application/json": components["schemas"]["PaymentSetup"];
                 };
             };
             /** @description Validation Error */

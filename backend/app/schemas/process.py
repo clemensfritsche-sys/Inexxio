@@ -162,14 +162,56 @@ class CapturePoint(BaseModel):
     unit: Optional[str] = None
 
 
-class PaymentLink(BaseModel):
-    """**Die Adresse einer Zahlungsaufforderung** – und sonst nichts.
+class PaymentAddress(BaseModel):
+    """Die Rechnungsadresse des Zahlenden, **wie der Zahlungsdienst sie erwartet**.
 
-    Kein Beleg-Zustand: der Link ändert am Beleg nichts. Gebucht wird erst, wenn das Geld
-    wirklich da ist, und das meldet der Webhook – nicht der Browser des Kunden.
+    Sie kommt aus dem ERP und wird dort gepflegt – hier steht sie nur, damit niemand sie
+    ein zweites Mal abtippt. ``None`` an der Stelle, an der dieses Objekt steht, heisst
+    ehrlich «wir haben keine»; dann fragt das Formular sie.
     """
 
-    url: str
+    line1: str
+    line2: Optional[str] = None
+    postal_code: str
+    city: str
+    #: ISO-3166-2, aus ``services/address.iso2`` – der Dienst kennt keine Ländernamen.
+    country: str
+
+
+class PaymentBilling(BaseModel):
+    """**Was wir über den Zahlenden schon wissen.** Jedes Feld darf fehlen.
+
+    Es sind bewusst nur die drei, die ein Zahlungsformular sonst erfragt. Alles Weitere
+    (Telefon, Lieferadresse, Firma) braucht eine Zahlung nicht – und was eine Zahlung
+    nicht braucht, geht einem Zahlungsdienst nichts an.
+    """
+
+    name: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[PaymentAddress] = None
+
+
+class PaymentSetup(BaseModel):
+    """►►► **Alles, was UNSERE Bezahlkarte braucht** – und nichts, was ihr fehlt. ◄◄◄
+
+    Kein Zustand am Geldvorgang: das Vorbereiten ändert dort keine Zeile. Gebucht wird
+    erst, wenn das Geld wirklich da ist, und das meldet der Webhook – nicht der Browser
+    des Zahlenden.
+
+    Der **öffentliche Schlüssel reist mit**, statt zur Bauzeit im Frontend zu stehen: die
+    Website ist ein statischer Export, eine Variable darin wäre beim Schlüsselwechsel eine
+    zweite Stelle – und ein Aufruf, der das Geheimnis holt, holt den Schlüssel gleich mit.
+    """
+
+    #: Der Faden zur Zahlungsabsicht. Er ist **kein** Geheimnis für den Zahlenden – aber
+    #: für jeden anderen: darum steht er in der Antwort und nirgends sonst.
+    client_secret: str
+    publishable_key: str
+    #: Der offene Betrag, **schon gerundet und formatiert** (``currency.money``) – damit
+    #: die Karte nicht rechnet und nicht rundet.
+    amount: str
+    currency: str
+    billing: PaymentBilling
 
 
 class SpecEntry(BaseModel):

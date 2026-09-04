@@ -1,33 +1,56 @@
-"""**Stripe — dünn, und in die richtige Richtung.**
+"""**Der Zahlungsdienst — dünn, und die Oberfläche bleibt unsere.**
 
-Zwei Funktionen: eine Zahlungsaufforderung erzeugen und eine Rückmeldung entgegennehmen.
-Mehr nicht – eine **Erstattung** löst man im Dashboard des Dienstes aus, und der Webhook
-bucht sie wie jede andere Rückmeldung.
+Zwei Funktionen: eine Zahlung **vorbereiten** und eine Rückmeldung **entgegennehmen**.
+Mehr nicht – eine Erstattung löst man im Dashboard des Dienstes aus, und der Webhook bucht
+sie wie jede andere Rückmeldung.
 
-## Das ERP nennt Betrag und Währung. Stripe kassiert.
+## Das ERP nennt Betrag und Währung. Der Dienst kassiert.
 
 Im Vorgängersystem war es umgekehrt – dort stand wörtlich «Stripe ist Quelle der
 Wahrheit», und daraus folgte fast die ganze Komplexität: ``stripe_*``-Snapshot-Spalten an
 vier Tabellen, ein Webhook, der **Aufträge erzeugte**, ein ``CheckoutIntent`` mit
-Reservierungen und ein Aufräumer für verlassene Warenkörbe. Hier gibt der Beleg Betrag und
-Währung vor, und der Webhook schreibt **eine Zeile Geld** (``deal.record_payment``).
+Reservierungen und ein Aufräumer für verlassene Warenkörbe. Hier gibt der Geldvorgang
+Betrag und Währung vor, und der Webhook schreibt **eine Zeile Geld**
+(``deal.record_payment``).
 
-**Adaptive Pricing bleibt darum aus** – das ist die eine Lehre, die unverändert gilt: mit
-ihm rechnete Stripe unseren Betrag mit *seinem* Kurs erneut um, und der Kunde sähe 11.80
-und würde mit 11.82 belastet. Wir setzen die Präsentationswährung selbst, also gibt es nur
-einen Kurs.
+## ►►► Bezahlt wird BEI UNS, nicht dort ◄◄◄
+
+Vorher war es eine **gehostete Kasse**: ein Link, und der Zahlende stand auf einer fremden
+Seite mit fremdem Namen, fremder Schrift und fremder Adresszeile. Jetzt entsteht hier nur
+eine **Zahlungsabsicht** (``PaymentIntent``), und ihr ``client_secret`` geht an unsere
+eigene Karte im ERP – das Formular ist unseres, die Wörter sind unsere, der Knopf ist
+unserer.
+
+**Was trotzdem vom Dienst kommt, sind die Eingabefelder selbst** (ein Element in einem
+iframe), und das ist ihr Sinn: so berührt **keine Kartennummer je unseren Server**. Und
+die 3-D-Secure-Abfrage gehört der Bank, nicht uns – sie liesse sich gar nicht nachbauen.
+
+## ►►► Was wir wissen, fragen wir nicht ◄◄◄
+
+Name, E-Mail und Rechnungsadresse der Gegenpartei stehen im ERP. Sie reisen darum **mit
+der Antwort** an unsere Karte, die sie dem Element als feste Werte übergibt – der Zahlende
+tippt sie nicht ein zweites Mal ab.
+
+**Nur was wir wirklich haben.** Fehlt die Adresse, sagt die Antwort das (``address:
+None``) und das Element fragt sie – eine erfundene halbe Adresse wäre schlimmer als die
+Frage. Dieselbe Regel wie überall im Haus: die Genauigkeit ist die der Quelle.
 
 ## Was es bewusst NICHT gibt
 
-* **Kein eigener Erstattungs-Knopf.** Der Dienst bietet ihn selbst an, und «erstattet wird
-  auf dem Weg, auf dem gezahlt wurde» ist dort ohnehin die einzige Möglichkeit. Der
-  Rückweg bleibt lückenlos: ``charge.refunded`` bucht eine **negative** Zahlung.
-* **Kein Provider-Rahmen mit zwei Implementierungen.** Der alte ``manual``-Provider war die
-  Simulation eines Zahlungsdienstes – mit eigener Bezahlseite und einem
-  ``/payments/simulate``-Endpunkt. Ohne Stripe zahlt man per **Überweisung**, und die
-  trägt ein Mensch ein; das ist kein Fallback, sondern der B2B-Normalfall.
-* **Kein Stripe Tax.** Es berechnete eine Zahl, die wir nicht kennen – genau die Umkehrung
-  oben. Die Steuer gehört an den Beleg, wenn die Rechnung kommt.
+* **Keinen Kunden-Datensatz beim Dienst** (``Customer``, ``stripe_customer_id``). Wer ihn
+  führte, hätte zwei Stammdaten für dieselbe Person – und die zweite ausserhalb des ERP.
+  Die Angaben reisen je Zahlung mit; sie stehen ohnehin schon bei uns.
+* **Keine Quittungs-Mail des Dienstes** (``receipt_email``). Sie trüge fremdes Briefpapier
+  für einen Vorgang, der bei uns steht; der Nachweis ist die Zeile im Geldvorgang, und die
+  sieht die Gegenpartei in ihrer eigenen Ansicht.
+* **Keinen eigenen Erstattungs-Knopf.** Der Dienst bietet ihn an, und «erstattet wird auf
+  dem Weg, auf dem gezahlt wurde» ist dort ohnehin die einzige Möglichkeit. Der Rückweg
+  bleibt lückenlos: ``charge.refunded`` bucht eine **negative** Zahlung.
+* **Keine Liste von Zahlungsarten bei uns.** Welche angeboten werden (Karte, TWINT, …),
+  entscheidet das Konto beim Dienst – ``automatic_payment_methods``. Eine zweite Liste
+  hier wäre die Stelle, an der beim nächsten Freischalten jemand nichts sieht.
+* **Kein Stripe Tax.** Es berechnete eine Zahl, die wir nicht kennen – die Umkehrung des
+  Grundsatzes oben. Die Steuer gehört an den Beleg, wenn die Rechnung kommt.
 * **Kein Customer Portal, keine Subscriptions.** Wiederkehrende Aufträge werden eine
   **Schlaufe im Prozess** (PROCESS_CORE §13), kein Abo-Objekt beim Zahlungsdienst.
 * **Keine ``stripe_*``-Spalten.** Die Id steht in ``deal_entries.reference`` – in derselben
@@ -35,9 +58,10 @@ einen Kurs.
 
 ## Ohne Schlüssel gibt es das alles nicht
 
-``available()`` ist ``False``, der Knopf erscheint gar nicht erst, und der Webhook
-antwortet mit 404. Ein 503-Stub wäre die Behauptung, hier sei etwas abgeschaltet – es ist
-schlicht nicht eingerichtet.
+``config.payment_service_ready()`` ist ``False``, der Knopf erscheint gar nicht erst
+(``deal.can`` führt ``pay_online`` dann nicht), und der Webhook antwortet mit 404. Ein
+503-Stub wäre die Behauptung, hier sei etwas abgeschaltet – es ist schlicht nicht
+eingerichtet.
 """
 
 from decimal import Decimal
@@ -46,43 +70,39 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..core.config import get_settings
+from ..core.config import get_settings, payment_service_ready
 from ..domain import currency as cur
-from ..models import Deal
-from . import deal as deal_svc, sites
+from ..models import Deal, Order, UserProfile
+from . import address, deal as deal_svc, people
 
 #: Was wir vom Zahlungsdienst hören wollen — und sonst nichts. Jede weitere Meldung wird
 #: **quittiert und ignoriert**: ein Ereignis, das niemand liest, ist kein Fehler, und ein
-#: 400 darauf brächte Stripe nur dazu, es endlos erneut zuzustellen.
-PAID = "checkout.session.completed"
+#: 400 darauf brächte den Dienst nur dazu, es endlos erneut zuzustellen.
+#:
+#: ``payment_intent.succeeded`` ist die Meldung der **eigenen** Kasse – die frühere
+#: ``checkout.session.completed`` gehörte der gehosteten und kommt nie mehr. Sie trägt
+#: ``amount_received`` und die ``pi_…``-Id, und genau die nennt später auch eine
+#: Erstattung: darum findet ``deal.of_reference`` den Vorgang ohne eine zweite Spalte.
+PAID = "payment_intent.succeeded"
 REFUNDED = "charge.refunded"
 EVENTS = (PAID, REFUNDED)
 
 
-def available() -> bool:
-    """**Ist ein Zahlungsdienst eingerichtet?** Genau dann, wenn ein Schlüssel da ist.
-
-    Eine abgeleitete Antwort, keine Einstellung daneben: ein Schalter «Stripe aktiv», der
-    ohne Schlüssel auf «an» stünde, wäre eine Behauptung.
-    """
-    return bool(get_settings().stripe_secret_key)
-
-
 def _api():
     """Das SDK mit gesetztem Schlüssel – oder ein klarer Fehler, kein Absturz."""
-    key = get_settings().stripe_secret_key
-    if not key:
+    if not payment_service_ready():
         raise HTTPException(
             status_code=404,
-            detail="Es ist kein Zahlungsdienst eingerichtet (STRIPE_SECRET_KEY fehlt).",
+            detail=("Es ist kein Zahlungsdienst eingerichtet "
+                    "(STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY fehlen)."),
         )
     import stripe
-    stripe.api_key = key
+    stripe.api_key = get_settings().stripe_secret_key
     return stripe
 
 
 def _minor(amount: Decimal, code: str) -> int:
-    """Stripe rechnet in der **kleinsten Einheit** – und die hängt an der Währung.
+    """Der Betrag in der **kleinsten Einheit** – und die hängt an der Währung.
 
     ►►► ``× 100`` ist die Falle, die man nie bemerkt. ◄◄◄ Sie stimmt für CHF, EUR und
     USD, also für alles, was man beim Bauen ausprobiert – und ist bei **JPY** um den
@@ -94,15 +114,24 @@ def _minor(amount: Decimal, code: str) -> int:
     return int((amount.scaleb(cur.minor_units(code))).quantize(Decimal("1")))
 
 
-def checkout_url(db: Session, *, deal: Deal, label: str) -> str:
-    """►►► **Eine Zahlungsaufforderung über den offenen Betrag.** ◄◄◄
+def prepare(db: Session, *, deal: Deal, order: Order) -> dict[str, Any]:
+    """►►► **Eine Zahlung über den offenen Betrag vorbereiten.** ◄◄◄
 
-    Betrag **und** Währung kommen aus dem Vorgang; Stripe rechnet nichts um. Bezahlt
-    wird genau das, was offen ist – nicht die Zusage: eine Anzahlung ist längst gebucht,
-    und wer den vollen Betrag verlangte, kassierte zweimal.
+    Zurück kommt, was **unsere** Karte zum Zeichnen braucht: das ``client_secret`` der
+    Zahlungsabsicht, der öffentliche Schlüssel, Betrag und Währung zum Anzeigen – und die
+    Angaben, die wir ohnehin haben, damit niemand sie ein zweites Mal tippt.
 
-    Die Rückmeldung kommt über den **Webhook**, nicht über die Rückkehr-URL: ein Browser,
-    der nach der Zahlung geschlossen wird, darf keine Buchung verschlucken.
+    **Der offene Betrag, nicht die Zusage**: eine Anzahlung ist längst gebucht, und wer
+    die volle Summe verlangte, kassierte zweimal.
+
+    **Gebucht wird hier nichts.** Diese Funktion ändert am Geldvorgang keine Zeile; die
+    Zahlung entsteht, wenn der Dienst sie meldet (``handle_webhook``). Der Browser des
+    Zahlenden ist keine Quelle – wer ihn nach der Zahlung schliesst, darf keine Buchung
+    verschlucken.
+
+    **Ohne Zustand bei uns**: jeder Aufruf erzeugt eine neue Absicht. Eine gespeicherte Id
+    wäre eine zweite Wahrheit über eine Sache, die dem Dienst gehört; eine unbenutzte
+    Absicht kostet nichts und verfällt dort von selbst.
     """
     stripe = _api()
     open_amount = deal_svc.open_amount(db, deal)
@@ -112,27 +141,64 @@ def checkout_url(db: Session, *, deal: Deal, label: str) -> str:
             detail="An diesem Vorgang ist nichts offen – es gibt nichts zu bezahlen.",
         )
     code = cur.assert_code(deal.currency)
-    base = sites.website_url()
-    session = stripe.checkout.Session.create(
-        mode="payment",
-        line_items=[{
-            "quantity": 1,
-            "price_data": {
-                "currency": code.lower(),
-                "unit_amount": _minor(open_amount, code),
-                "product_data": {"name": label},
-            },
-        }],
-        # **Wir setzen die Präsentationswährung.** Sonst rechnete Stripe unseren Betrag
-        # mit seinem eigenen Kurs erneut um – angezeigt 11.80, belastet 11.82.
-        adaptive_pricing={"enabled": False},
+    intent = stripe.PaymentIntent.create(
+        amount=_minor(open_amount, code),
+        currency=code.lower(),
+        # **Welche Arten angeboten werden, entscheidet das Konto** – Karte, TWINT, was
+        # dort freigeschaltet ist. Eine Liste hier wäre die zweite Stelle, an der beim
+        # nächsten Freischalten jemand nichts sieht.
+        automatic_payment_methods={"enabled": True},
         # Der Faden zurück zum Vorgang. Er steht in den Metadaten und nicht in einer
-        # eigenen Spalte: die Sitzung ist ein Vorgang bei Stripe, kein Datensatz bei uns.
+        # eigenen Spalte: die Absicht ist ein Vorgang beim Dienst, kein Datensatz bei uns.
         metadata={"deal_id": str(deal.id)},
-        success_url=f"{base}/erp",
-        cancel_url=f"{base}/erp",
+        description=f"{order.name or 'Auftrag'} {order.object_id}",
     )
-    return str(session.url)
+    return {
+        "client_secret": str(intent.client_secret),
+        "publishable_key": get_settings().stripe_publishable_key,
+        "amount": cur.money(open_amount, code),
+        "currency": code,
+        "billing": _billing(db, deal),
+    }
+
+
+def _billing(db: Session, deal: Deal) -> dict[str, Any]:
+    """**Was wir über den Zahlenden schon wissen** – Name, E-Mail, Rechnungsadresse.
+
+    Der Zahlende ist die Gegenpartei **dieses Vorgangs**, nicht der Betrachter: auch wenn
+    ein Mitarbeiter die Zahlung am Schalter auslöst, gehört die Rechnung dem Kunden.
+
+    **Die Rechnungsadresse geht vor der Wohnadresse** – dafür ist sie da; steht keine da,
+    gilt die Hauptadresse. Und geliefert wird nur eine **vollständige**: Strasse, Ort und
+    PLZ gehören zusammen, und eine halbe Adresse wäre eine Vorbelegung, die das Formular
+    danach doch wieder erfragt – nur falsch.
+    """
+    empty: dict[str, Any] = {"name": None, "email": None, "address": None}
+    if deal.party_id is None:
+        return empty
+    u = db.query(UserProfile).filter(UserProfile.object_id == deal.party_id).first()
+    if u is None:
+        return empty
+    # **Eine Rechnungsadresse gilt als hinterlegt, sobald irgendein Feld davon steht** –
+    # sonst mischte sich die eine Hälfte mit der anderen zu einer Adresse, die es nirgends
+    # gibt.
+    own = bool(u.invoice_first_name or u.invoice_last_name or u.invoice_address_line1
+               or u.invoice_company)
+    named = " ".join(x for x in (u.invoice_first_name, u.invoice_last_name) if x).strip()
+    line1 = (u.invoice_address_line1 if own else u.address_line1) or ""
+    line2 = (u.invoice_address_line2 if own else u.address_line2) or ""
+    city = (u.invoice_city if own else u.city) or ""
+    zip_code = (u.invoice_postal_code if own else u.postal_code) or ""
+    country = (u.invoice_country if own else u.country) or u.country
+    full = bool(line1.strip() and city.strip() and zip_code.strip())
+    return {
+        "name": (named or u.invoice_company if own else None) or people.name(u),
+        "email": (u.invoice_email if own else None) or u.email,
+        "address": {
+            "line1": line1, "line2": line2 or None, "city": city,
+            "postal_code": zip_code, "country": address.iso2(country),
+        } if full else None,
+    }
 
 
 # ►►► **Eine Erstattung wird im Dashboard des Dienstes ausgelöst, nicht hier.** ◄◄◄
@@ -150,7 +216,7 @@ def checkout_url(db: Session, *, deal: Deal, label: str) -> str:
 def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
     """**Eine Rückmeldung entgegennehmen — und genau eine Zeile schreiben.**
 
-    Signaturgeprüft: ohne gültige Signatur ist es keine Meldung von Stripe, sondern ein
+    Signaturgeprüft: ohne gültige Signatur ist es keine Meldung des Dienstes, sondern ein
     Fremder, der Zahlungen erfinden möchte.
 
     **Idempotent über die Referenz** (``deal.record_payment``): der Dienst stellt seine
@@ -179,14 +245,21 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
 
 
 def _note_payment(db: Session, data: dict[str, Any]) -> str:
-    """``checkout.session.completed`` → eine Zahlung über den bezahlten Betrag."""
+    """``payment_intent.succeeded`` → eine Zahlung über den **erhaltenen** Betrag.
+
+    ``amount_received`` und nicht ``amount``: gebucht wird, was wirklich angekommen ist –
+    bei einer Teilautorisierung sind das zwei verschiedene Zahlen, und nur die zweite ist
+    eine Zahlung.
+    """
     row = _deal_of(db, (data.get("metadata") or {}).get("deal_id"))
     if row is None:
         return "unknown"
-    amount = _amount_of(data.get("amount_total"), row.currency)
+    amount = _amount_of(data.get("amount_received"), row.currency)
+    if amount <= 0:
+        return "ignored"
     deal_svc.record_payment(
         db, row=row, amount=amount,
-        reference=str(data.get("payment_intent") or data.get("id") or "") or None,
+        reference=str(data.get("id") or "") or None,
         note="Zahlungsdienst",
     )
     db.commit()

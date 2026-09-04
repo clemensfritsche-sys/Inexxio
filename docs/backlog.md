@@ -210,3 +210,41 @@ unteilbares Wort von ~234 px – der Überlauf wäre nur vom Raster in den Text 
 Der Kopf steht jetzt unter 640 px **einspaltig** (dieselbe Grenze wie `.ix-wrap`), damit
 der Titel die vollen 280 px bekommt. Ab 640 px ist das Bild unverändert zweispaltig.
 
+
+## Offen und benannt: der öffentliche Stripe-Schlüssel
+
+`STRIPE_PUBLISHABLE_KEY` gibt es im Google Secret Manager **noch nicht**, und die
+Deploy-Zeile in `.github/workflows/deploy-dev.yml` nennt ihn darum bewusst nicht: ein
+`--set-secrets` auf ein Secret, das es nicht gibt, lässt den **ganzen** Cloud-Run-Deploy
+scheitern – nicht nur die Zahlung.
+
+**Bis dahin ist der Zahlungsdienst schlicht nicht eingerichtet**, und das System sagt es
+richtig: `config.payment_service_ready()` ist `False`, `deal.can` führt `pay_online`
+nicht, der Knopf «Jetzt bezahlen» erscheint gar nicht. Kein Fehler, kein Stub, kein 503.
+
+**Zwei Befehle, dann eine Zeile** (`docs/stripe-setup.md` §4/§5):
+
+```bash
+printf '%s' 'pk_test_…' | gcloud secrets create STRIPE_PUBLISHABLE_KEY \
+  --project=inexxio-dev --replication-policy=automatic --data-file=-
+gcloud secrets add-iam-policy-binding STRIPE_PUBLISHABLE_KEY --project=inexxio-dev \
+  --member="serviceAccount:cloudrun-backend@inexxio-dev.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+Danach `STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest` in die `--set-secrets`-Zeile
+aufnehmen. **Und im Stripe-Dashboard den Webhook umstellen**: er hört heute noch auf
+`checkout.session.completed` (die gehostete Kasse), gebraucht wird
+`payment_intent.succeeded` – sonst kassiert die Karte, und die Buchung bleibt aus.
+
+## Offen und benannt: der Status `Verkauft` ohne Schreiber
+
+Mit dem Modul «Ausliefern» ist der einzige Schreiber von `verkauft` entfallen. Der Status
+**bleibt** im `CATALOG`, und das ist kein Versehen: der Katalog ist zugleich das Vokabular
+des append-only Ereignis-Logs (`flow._left_with`, die Bestandsleiste). Ihn zu streichen
+machte Vergangenes unlesbar.
+
+Wer ihn eines Tages wirklich entfernen will, misst zuerst – `SELECT count(*) FROM
+instance_units WHERE status = 'verkauft'` **und** dasselbe über `process_events` – und
+entscheidet dann. Eine Migration, die bestehende Zeilen «heilt», ist genau die
+Fehlerklasse aus Migration 110.

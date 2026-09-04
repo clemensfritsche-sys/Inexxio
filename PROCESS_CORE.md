@@ -1731,65 +1731,36 @@ entscheidet der Tarif, nicht der Modellierer. Ein Roboter, der es fährt, ist «
 unser Gerät, keine Rechnung.
 
 
-### 9.9 Das Modul «Ausliefern» — das Stück gehört jetzt jemand anderem
+### 9.9 Das Modul «Ausliefern» ist ENTFERNT
 
-> **Es ist das, was vom Verkaufs-Modul übrig blieb, nachdem der BELEG herausgenommen war.**
-> Drei Stufen, Angebot, Zusage, Preise, Partnerliste, Storno — das alles war nicht falsch,
-> sondern **doppelt**: es ist der Geldvorgang (§9.12), und den gibt es einmal für beide
-> Richtungen. Was kein Geldvorgang sagen kann, ist die eine Aussage, die hier bleibt:
-> *dieses Stück ist nicht mehr unseres.*
+> **Status: gelöscht.** Es war das, was vom Verkaufs-Modul übrig blieb, nachdem der Beleg
+> herausgenommen war — ein Scan und ein Statuswechsel auf `Verkauft`, sonst nichts. Eine
+> Runde später ist auch das weg.
 
-Ein Scan, ein Statuswechsel auf `Verkauft`. **Sonst nichts** — keine Konfiguration, kein
-Feld, kein Partner. An wen geliefert wird, steht im Geldvorgang desselben Auftrags; was
-geliefert wird, sagen die Einzelinstanzen davor; wann, sagt der Log.
+**Der Grund ist derselbe wie beim Beleg: es sagte nichts, was nicht schon dasteht.** Was
+*physisch* geschieht, sagen die Module, die es tun — **«Bewegen»** bringt das Stück zum
+Kunden, **«Zahlung»** (§9.12) regelt das Geld. «Das Stück gehört jetzt jemand anderem»
+ist die **Folge** aus beidem, kein eigener Vorgang. Ein Modul, dessen ganze Aussage eine
+Folge ist, beschreibt nichts; es verlangt nur einen zusätzlichen Scan dafür, dass jemand
+sie aufschreibt.
 
-**Der Scan ist die Bestätigung.** Man liefert nicht blind aus: was hinausgeht, wird am
-Etikett verifiziert — dieselbe Regel wie beim Verschrotten
-(`Module.requires_verification`).
+#### Der Status `Verkauft` bleibt — und das ist kein Widerspruch
 
-#### Es ist ein AUSGANG — und die Kettenregel lässt gar nichts anderes zu
+Er hat heute **keinen Schreiber** mehr. Er steht trotzdem im `CATALOG`, und das ist die
+eine Stelle, an der «was nicht gebraucht wird, ist weg» nicht gilt:
 
-`Module.terminal` beantwortet genau eine Frage: *verlassen ALLE ankommenden Stücke den
-Auftrag hier?* Beim Ausliefern **ja**.
+> **Der Statuskatalog ist nicht nur die Liste dessen, was ENTSTEHEN kann — er ist das
+> Vokabular, in dem der append-only Ereignis-Log geschrieben ist.**
 
-*Die erste Fassung stand auf `terminal = False`, mit der Begründung «danach darf noch ein
-Zertifikat oder eine Zahlung kommen» und dem Verweis auf den Verbrauch (der `Verbaut`
-setzt und kein Ausgang ist). Beides war falsch, und die **Kettenregel** (§4.3) hat es
-sofort gemeldet: beim Verbrauch bleiben die durchlaufenden Stücke auf `Im Prozess` — nur
-die verbrauchten Komponenten wechseln, und die treten dort erst ein. Hier wechselt
-**jedes** ankommende Stück. Ein Modul dahinter erwartete `Im Prozess` und bekäme
-`Verkauft`; stünde die Auslieferung am Schluss, bräche die Kette am Ende-Objekt. **Ein
-nicht-terminales Modul, das den Zustand aller Stücke ändert, kann es gar nicht geben.***
+Jedes Stück, das je ausgeliefert wurde, trägt das Wort in seiner Zeile und in seiner
+Geschichte. `flow._left_with` liest es von dort (§8.1a), die Bestandsleiste gruppiert
+danach (§10.3). Ihn zu streichen machte Vergangenes nicht ungeschehen, sondern
+**unlesbar** — und eine Ansicht meldete einen Zustand, den sie nicht kennt. Dieselbe
+Regel wie bei den Tabellen der entfernten Bereiche.
 
-**Was danach kommen müsste, kommt davor**: das Zertifikat wird vor der Übergabe erfasst
-(auch fachlich — man prüft, bevor man liefert), und der Geldvorgang steht ebenfalls davor.
-Er verliert dadurch **nichts**: seine Rechnungs- und Zahlungszeilen hängen an `can` und
-nicht daran, ob das Modul gerade dran ist (§9.12) — ein Zahlungsziel läuft nach der
-Lieferung weiter.
+**Und die Retoure bleibt, was sie war**: ein ganz gewöhnlicher Auftrag, der das Stück
+greift — **das Greifen IST die Rücknahme**. Sie hing nie an diesem Modul.
 
-#### Und `Verkauft` bleibt trotzdem umkehrbar
-
-`Module.terminal` und `Status.terminal` sind **zwei verschiedene Fragen**. Eine Retoure ist
-real: ein ganz gewöhnlicher Auftrag greift das Stück, und **das Greifen IST die
-Rücknahme** — wie beim Sperren, dessen Modul ebenfalls ein Ausgang ist. Weil sein Start
-vom Regelstart abweicht, ist die Retoure **automatisch** eine dokumentierte Abweichung
-(§12.2), ohne eine Zeile dafür. Kein Retouren-Modul, kein «zurücknehmen»-Endpunkt.
-
-**Der Ort fällt weg** — ebenfalls ohne eine Zeile hier: `Verkauft` zählt zur Historie
-(`Status.stock`), und `process._pass` räumt den Ort für jeden solchen Zustand. Wo das
-Stück beim Kunden liegt, ist nicht unsere Auskunft.
-
-#### Und warum ein Transport dieses Modul NICHT ist
-
-Ein Muster an den Kunden, ein Computer beim Mitarbeiter, eine Konsignation: dort wechselt
-der **Ort**, und nichts ist verkauft. Dafür gibt es «Bewegen» (§9.8). Der Unterschied ist
-keine Regel und keine Automatik, die raten müsste — es sind zwei Module, und der
-Modellierer wählt beim Bauen des Prozesses. Eine Ableitung «Ort ausserhalb ⇒ verkauft»
-wäre in genau diesen drei Fällen still falsch.
-
-Wächter: `tests/test_delivery_module.py`.
-
----
 
 ### 9.9a Die Module «Beschaffen» und «Verkauf» sind ENTFERNT
 
@@ -1809,14 +1780,14 @@ für dasselbe Geschäft laufen beim ersten neuen Verb auseinander.
 | war | ist jetzt |
 |---|---|
 | «Beschaffen»: anfragen, bestellen, Wareneingang | ein **Geldvorgang** (Ausgabe) plus die Module, die das Material physisch bewegen |
-| «Verkauf»: anbieten, zusagen, liefern | ein **Geldvorgang** (Einnahme) plus **«Ausliefern»** (§9.9) |
+| «Verkauf»: anbieten, zusagen, liefern | ein **Geldvorgang** (Einnahme) plus die Module, die das Material physisch bewegen |
 | Einkauf **in** einem Bewegen-Modul (Spedition) | ein Geldvorgang neben dem Bewegen-Modul |
 | Rechnungen und Zahlungen am Beleg | die Geld-Zeilen des Vorgangs (§9.12) |
 
 **Stripe ist geblieben** (`services/stripe_pay`, `docs/stripe-setup.md`): der Webhook
-schreibt jetzt eine Geld-Zeile am **Vorgang** statt am Beleg. Heute ohne Bedienelement —
-der Zahllink-Knopf hing an der Beleg-Karte —, aber vollständig verdrahtet, damit die
-Anbindung nicht ein zweites Mal hergeleitet werden muss.
+schreibt eine Geld-Zeile am **Vorgang** statt am Beleg. Das Bedienelement, das mit der
+Beleg-Karte verschwunden war, ist inzwischen wieder da — und zwar als **eigene Bezahlkarte
+im ERP** statt als Zahllink (§9.13).
 
 Die Tabellen `purchases`, `invoices` und `payments` bleiben stehen (Zwei-Deploy-Regel,
 `docs/backlog.md`): eine Spalte, die niemand liest, kostet nichts; ein Tabellen-Drop
@@ -2406,6 +2377,103 @@ stünde derselbe Partner zweimal da. Eine **Ableitung**, kein zweiter Zustand �
 Zurücksetzen an der Antwort wäre die Stelle, die der nächste Pfad vergisst. *Der Editor
 war es nicht: dort räumt `SearchSelect.pick` seine Suche selbst auf (gemessen in Chromium,
 zwei Adds hintereinander, beide Male leer).*
+
+
+
+### 9.13 Online bezahlen — die Karte gehört UNS
+
+> **Status: gebaut.** Der Zahllink ist weg; bezahlt wird im ERP. Der Zahlungsdienst
+> liefert nur die Eingabefelder — und genau das ist sein Sinn.
+
+#### Die Umdeutung, aus der alles folgt
+
+Bisher erzeugte `…/payment-link` eine **gehostete Kasse** beim Dienst: der Zahlende
+verliess das ERP und stand auf einer fremden Seite mit fremdem Namen, fremder Schrift und
+fremder Adresszeile. *Er hatte ausserdem seit dem Ende des Handels-Belegs **kein einziges
+Bedienelement** — ein Endpunkt, den niemand rief.*
+
+Jetzt entsteht dort nur eine **Zahlungsabsicht** (`stripe_pay.prepare`), und ihr Geheimnis
+geht an eine eigene Karte im ERP. Fläche, Wörter, Betrag, Knopf und Rückmeldung gehören
+uns; vom Dienst kommen die **Eingabefelder** in einem iframe.
+
+> **Das ist kein Kompromiss, sondern der Grund.** So berührt **keine Kartennummer je
+> unseren Server** — der Unterschied zwischen «wir nehmen Karten an» und «wir sind
+> PCI-pflichtig». Und die 3-D-Secure-Abfrage gehört der Bank; sie liesse sich gar nicht
+> nachbauen.
+
+Damit man die Naht nicht sieht, kommt das **Aussehen aus unseren Tokens**
+(`getComputedStyle` liest die CSS-Variablen des Hauses) — nicht aus einer geratenen
+Farbliste, die beim nächsten Design-Wechsel stehen bleibt.
+
+#### Was wir wissen, fragen wir nicht
+
+Name, E-Mail und Rechnungsadresse der **Gegenpartei dieses Vorgangs** (nicht des
+Betrachters — die Rechnung gehört dem Kunden, auch wenn ein Mitarbeiter die Zahlung
+auslöst) reisen mit der Vorbereitung mit und werden dem Element als **feste Angabe**
+übergeben.
+
+**Die beiden Hälften gehören zusammen**: `fields: 'never'` heisst «wird mitgeliefert» —
+wer nur die eine schreibt, bekommt eine Ablehnung, und zwar erst beim Bezahlen, also in
+der unangenehmsten Form. Und **nur, was wirklich dasteht**: fehlt die Adresse, fragt das
+Element sie; eine halbe Vorbelegung wäre schlechter als die Frage.
+
+#### `pay_online` — die dritte Handlung am Geld
+
+`pay` schreibt auf, was geschehen ist (eine Überweisung liegt auf dem Konto);
+`pay_online` **lässt es geschehen** und bucht selbst nichts. Zwei Handlungen, zwei Verben.
+
+**Drei Bedingungen, alle in `can`** — dieselbe Liste ist Auskunft **und** Tor:
+
+| Bedingung | warum |
+|---|---|
+| `Direction.collects` | Ein Zahlungsdienst **zieht ein**; er überweist nicht in unserem Namen. Bei einer Ausgabe gibt es den Knopf nie. |
+| `payment_service_ready()` | Ohne Schlüssel endete er in einem leeren Dialog — «ein Knopf, der nie etwas tun kann, ist kein Angebot». |
+| `open > 0` | Über null lässt sich nichts einziehen. |
+
+*Eine vierte stand hier — «es muss eine Rechnung geben», die Regel von `pay` (§9.12). Beim
+Gegenprüfen war ihre Bug-Form **nicht herstellbar**: `open` ist `Forderungen − Zahlungen`,
+ohne Forderung also nie positiv. Sie sagte nichts, was `open > 0` nicht schon sagt, und
+ist entfallen. Bei `pay` bleibt sie richtig — dort nennt ein Mensch den Betrag; hier **ist**
+der offene Betrag die Sache.*
+
+**Es hat keinen Eintrag in `HANDLERS`** und einen eigenen Endpunkt (`…/deal/payment`): der
+`…/deal`-Weg gibt den Auftrag zurück, hier kommt ein Geheimnis für genau diese eine
+Zahlung. Damit `apply` an einem Verb ohne Handler nicht mit `KeyError` zerbricht — an der
+Tür ein **500** —, antwortet es mit einem **Satz**.
+
+#### Die Gegenpartei bezahlt selbst — und sieht dafür die Zahlen
+
+`Direction.party_actions` trägt `pay_online` in **beiden** Richtungen; *ob* es an diesem
+Vorgang etwas zu bezahlen gibt, beantwortet eine Ebene höher `collects`. Zwei Stellen für
+dieselbe Bedingung wären zwei Massstäbe.
+
+**Und damit sieht sie die Geld-Zahlen** (`won` statt `internal`): wer bezahlen soll, muss
+sehen, was er schuldet — eine Aufforderung ohne Betrag ist keine. **Ein Leck ist es
+nicht**: `won` heisst «dieser Betrachter *ist* die Gegenpartei dieses Vorgangs», die
+Rechnungen sind seine; ein angefragter, unterlegener Dritter sieht weiterhin nichts.
+**Buchen darf sie trotzdem nicht** — eine Buchung ist unsere Aussage über unser Konto.
+
+#### Gebucht wird nur vom Webhook
+
+`payment_intent.succeeded` (nicht mehr `checkout.session.completed` — die gehostete Kasse
+gibt es nicht mehr) schreibt **eine Zeile Geld**, idempotent über die `pi_…`-Referenz.
+Gebucht wird `amount_received`, nicht `amount`: bei einer Teilautorisierung sind das zwei
+Zahlen, und nur die zweite ist eine Zahlung.
+
+Die Karte sagt darum «**ausgeführt**», nie «gebucht»: dazwischen liegt eine Sekunde, die
+niemandem gehört. Der Browser ist keine Quelle — wer ihn nach der Zahlung schliesst, darf
+keine Buchung verschlucken.
+
+#### Der Anbieter steht nicht im Geldvorgang
+
+«Ist ein Zahlungsdienst eingerichtet?» wohnt in `core/config.payment_service_ready()`. Der
+Geldvorgang fragt eine **Eigenschaft**, keine Marke — ein Quelltext-Wächter hält es so.
+Sie fragt nach **beiden** Schlüsseln (geheim: Absicht anlegen · öffentlich: Formular
+rendern); einer allein ist eine halbe Strasse.
+
+**Welche Zahlungsarten es gibt, entscheidet das Konto beim Dienst**
+(`automatic_payment_methods`) — Karte, TWINT, was dort freigeschaltet ist. Eine Liste bei
+uns wäre die zweite Stelle, an der beim nächsten Freischalten jemand nichts sieht.
 
 
 ## 10. Darstellung

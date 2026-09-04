@@ -180,6 +180,13 @@ export type StepNeed = components['schemas']['StepNeed'];
 export type StepRecord = components['schemas']['StepRecord'];
 export type RecordEntry = components['schemas']['RecordEntry'];
 export type RecordValue = components['schemas']['RecordValue'];
+/**
+ * **Alles, was unsere Bezahlkarte braucht** (`services/stripe_pay.prepare`): das Geheimnis
+ * der Zahlungsabsicht, der öffentliche Schlüssel, der Betrag zum Anzeigen – und die
+ * Angaben, die im ERP längst stehen, damit sie niemand ein zweites Mal tippt.
+ */
+export type PaymentSetup = components['schemas']['PaymentSetup'];
+export type PaymentBilling = components['schemas']['PaymentBilling'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 /**
  * **Ein wählbarer Modultyp mit allem, was er deklariert** – Beschriftung, Farbfamilie

@@ -161,6 +161,13 @@ UNDO = "Auftrag stornieren"
 #: laufen können.
 CHARGE_WORD = "Rechnung erfassen"
 PAYMENT_WORD = "Zahlung erfassen"
+#: ►►► **Und die dritte Handlung am Geld: sie AUSFÜHREN.** ◄◄◄
+#:
+#: «Erfassen» heisst *aufschreiben, was schon geschehen ist* – eine Überweisung, die auf
+#: dem Konto liegt. **Hier geschieht es**: der Betrag wird jetzt eingezogen, und gebucht
+#: wird er erst, wenn der Zahlungsdienst das bestätigt. Zwei verschiedene Handlungen, zwei
+#: Wörter; dasselbe Wort für beide hiesse, dass niemand mehr sieht, welche gemeint ist.
+PAY_ONLINE_WORD = "Jetzt bezahlen"
 #: Das Wort für den offenen Betrag – aus unserer Sicht in beiden Richtungen «Offen».
 OPEN_WORD = "Offen"
 #: Die Überschrift der dritten Zeile der Karte.
@@ -255,6 +262,17 @@ class Direction:
     #: dann gibt es **kein** Eingabefeld, weder an der Rechnung noch an der Zahlung
     #: (#840/#850). Sonst der Name des Feldes.
     reference: Optional[str]
+    #: ►►► **Kassieren wir hier – oder zahlen wir?** ◄◄◄
+    #:
+    #: Ein Zahlungsdienst **zieht ein**; er überweist nicht in unserem Namen. Das Bezahlen
+    #: über die Karte gibt es darum nur, wo das Geld **zu uns** fliesst: bei einer Ausgabe
+    #: zahlen *wir*, und das tut ein Mensch am Konto der Bank.
+    #:
+    #: Es steht als **Angabe** hier und nicht als ``if direction == IN`` im Dienst – aus
+    #: demselben Grund wie ``quoted_by``: die erste Verzweigung ist eine Beschriftung, die
+    #: zweite eine Regel, und ab der dritten gibt es zwei Vorgänge, die nur so tun, als
+    #: wären sie einer.
+    collects: bool
 
     #: ►►► **Was man TUT, ist in beiden Richtungen dasselbe.** ◄◄◄
     #:
@@ -278,6 +296,10 @@ class Direction:
         return PAYMENT_WORD
 
     @property
+    def pay_online_word(self) -> str:
+        return PAY_ONLINE_WORD
+
+    @property
     def open_word(self) -> str:
         return OPEN_WORD
 
@@ -296,9 +318,15 @@ class Direction:
 
         Absagen darf sie immer: das ist die eine Antwort, die in beide Richtungen dieselbe
         Bedeutung hat.
+
+        ►►► **Und bezahlen darf sie – das ist der Sinn der Sache.** ◄◄◄ ``pay_online``
+        steht in **beiden** Tupeln, ohne eine Bedingung: *ob* es an diesem Vorgang
+        überhaupt eine Zahlung zu leisten gibt, beantwortet ``collects`` eine Ebene höher
+        (``ACTIONS`` führt das Verb bei einer Ausgabe gar nicht), und ``can`` bildet die
+        Schnittmenge. Zwei Stellen, die dieselbe Bedingung prüfen, sind zwei Massstäbe.
         """
-        return (("quote", "decline") if self.quoted_by == BY_PARTY
-                else ("agree", "decline"))
+        return (("quote", "decline", "pay_online") if self.quoted_by == BY_PARTY
+                else ("agree", "decline", "pay_online"))
 
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst. Die beiden **Ausgänge** gehören beiden Richtungen
@@ -323,6 +351,8 @@ DIRECTIONS: dict[str, Direction] = {
         quoted_by=BY_US,
         # Und wir nummerieren: kein Eingabefeld.
         reference=None,
+        # **Das Geld kommt zu uns** – hier kann ein Zahlungsdienst einziehen.
+        collects=True,
     ),
     OUT: Direction(
         key=OUT,
@@ -334,6 +364,8 @@ DIRECTIONS: dict[str, Direction] = {
         quoted_by=BY_PARTY,
         # Seine Rechnung trägt **seine** Nummer – sie steht auf seinem Papier.
         reference=PARTY_REFERENCE,
+        # **Wir zahlen** – das tut ein Mensch am Bankkonto, nicht ein Kartenformular.
+        collects=False,
     ),
 }
 

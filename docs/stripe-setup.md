@@ -2,7 +2,7 @@
 
 Der Zahlungsdienst ist **optional**. Ohne Schlüssel läuft alles unverändert: bezahlt wird
 per **Überweisung**, und die trägt ein Mensch ein. Das ist kein Fallback, sondern der
-B2B-Normalfall — der Knopf «Zahllink erzeugen» erscheint dann gar nicht erst.
+B2B-Normalfall — der Knopf «Jetzt bezahlen» erscheint dann gar nicht erst.
 
 > **Das ERP nennt Betrag und Währung. Stripe kassiert.**
 >
@@ -10,29 +10,50 @@ B2B-Normalfall — der Knopf «Zahllink erzeugen» erscheint dann gar nicht erst
 > Wahrheit»), und daraus kam fast die ganze Komplexität: `stripe_*`-Snapshot-Spalten an
 > vier Tabellen, ein Webhook, der **Aufträge erzeugte**, ein `CheckoutIntent` mit
 > Reservierungen und ein Aufräumer für verlassene Warenkörbe. Heute schreibt der Webhook
-> **eine Zeile Geld** (`services/payments.record`) und sonst nichts.
+> **eine Zeile Geld** (`services/deal.record_payment`) und sonst nichts.
+
+> ►►► **Bezahlt wird BEI UNS, nicht dort.** ◄◄◄
+>
+> Es gibt keinen Zahllink mehr. Der Zahlende — Kunde **oder** Personal — bleibt im ERP:
+> die Karte, die Wörter, der Betrag und der Knopf sind unsere. Vom Dienst kommen nur die
+> **Eingabefelder** (ein *Payment Element* in einem iframe), und das ist ihr Sinn: so
+> berührt **keine Kartennummer je unseren Server**. Die 3-D-Secure-Abfrage gehört der
+> Bank; sie liesse sich gar nicht nachbauen.
+>
+> **Was das ERP weiss, wird nicht gefragt**: Name, E-Mail und Rechnungsadresse der
+> Gegenpartei reisen mit und werden dem Element als feste Angabe übergeben. Fehlt die
+> Adresse, fragt es sie — eine halbe Vorbelegung wäre schlechter als die Frage.
 
 ## 1. Sandbox-Schlüssel
 
 Im Stripe-Dashboard oben das **Sandbox/Test**-Konto wählen. Unter
-**Developers → API keys** den **Secret key** (`sk_test_…`) kopieren.
+**Developers → API keys** beide kopieren:
 
-Ein *Publishable Key* wird **nicht** gebraucht: die Kasse läuft als gehostete
-Checkout-Session (Weiterleitung), nicht eingebettet — es gibt also keinen öffentlichen
-Schlüssel im Browser und keine Admin-Einstellung dafür.
+| Schlüssel | wofür |
+|---|---|
+| **Secret key** (`sk_test_…`) | Der Server legt die Zahlungsabsicht an und prüft den Webhook. |
+| **Publishable key** (`pk_test_…`) | Der Browser rendert damit das Formular. |
 
-## 2. Dashboard: Adaptive Pricing AUS
+**Beide sind Pflicht**, und das ist eine Ableitung, keine Einstellung: einer allein wäre
+eine halbe Strasse — der Knopf erschiene, und der Dialog bliebe leer
+(`config.payment_service_ready()`). Der *Publishable Key* ist kein Geheimnis (er steht in
+jeder Bezahlseite der Welt im Quelltext); er kommt trotzdem denselben Weg, weil ein
+zweiter Weg für dieselbe Sache die Stelle ist, die beim Wechsel jemand vergisst.
 
-**Settings → Payments → Checkout and Payment Links → Adaptive Pricing → Disabled**
-(das ist der Standard — **nicht** aktivieren).
+## 2. Dashboard: Zahlungsarten und Adaptive Pricing
 
-Wir geben Betrag **und** Währung je Position vor (`stripe_pay.checkout_url`, `adaptive_
-pricing: {enabled: false}`). Wäre Adaptive Pricing an, rechnete Stripe unsere Zahl mit
-**seinem** Kurs erneut um: angezeigt € 11.80, belastet € 11.82. Genau diese Divergenz
-vermeidet die eine Kursquelle.
+**Welche Arten angeboten werden, entscheidet das Konto**, nicht unser Code:
+**Settings → Payments → Payment methods**. Für die Schweiz sinnvoll: **Karte** und
+**TWINT** (≈ 1.3 % + 0.30 statt 1.5–2.9 % + 0.30 — die günstigere Sofortzahlung). Unser
+Code fragt `automatic_payment_methods` und führt **keine eigene Liste**: die wäre die
+zweite Stelle, an der beim nächsten Freischalten jemand nichts sieht.
+
+**Adaptive Pricing → Disabled** (das ist der Standard — **nicht** aktivieren). Wir geben
+Betrag **und** Währung vor (`stripe_pay.prepare`); wäre es an, rechnete Stripe unsere Zahl
+mit **seinem** Kurs erneut um: angezeigt € 11.80, belastet € 11.82.
 
 **Stripe Tax bleibt aus.** Es berechnete eine Steuer, die wir nicht kennen — die
-Umkehrung des Grundsatzes oben. Die Steuer gehört an den Beleg, wenn die Rechnung kommt.
+Umkehrung des Grundsatzes oben. Die Steuer steht am Beleg (`deal_entries.vat`).
 
 ## 3. Webhook-Endpoint
 
@@ -59,9 +80,13 @@ ebenso — sie ist nur nirgends aufgeschrieben, während diese hier stabil und b
 1. **Developers → Webhooks → Add endpoint**
 2. **Endpoint URL**: die Adresse oben
 3. **Events** — genau diese zwei, mehr liest der Code nicht:
-   - `checkout.session.completed`
+   - `payment_intent.succeeded`
    - `charge.refunded`
 4. Speichern → **Signing secret** (`whsec_…`) kopieren.
+
+> ⚠ **Wer den Endpoint aus der Zeit des Zahllinks hat, muss ihn umstellen**: dort steht
+> `checkout.session.completed`, und die Meldung gibt es nicht mehr — die gehostete Kasse
+> ist weg. Der Beleg bliebe auf «offen» stehen, obwohl das Geld da ist.
 
 **Oder in einem Aufruf** (dasselbe, nur ohne Klicks — die Antwort enthält das `secret`,
 und zwar **nur bei der Anlage**):
@@ -70,7 +95,7 @@ und zwar **nur bei der Anlage**):
 curl -sS https://api.stripe.com/v1/webhook_endpoints \
   -u "sk_test_DEIN_KEY:" \
   -d url="https://inexxio-dev.web.app/api/v1/payments/webhook" \
-  -d "enabled_events[]=checkout.session.completed" \
+  -d "enabled_events[]=payment_intent.succeeded" \
   -d "enabled_events[]=charge.refunded" \
   -d description="Inexxio dev" | python3 -m json.tool
 ```
@@ -78,11 +103,10 @@ curl -sS https://api.stripe.com/v1/webhook_endpoints \
 Jedes andere Ereignis wird mit `200 {"status":"ignored"}` quittiert. Ein Fehlercode darauf
 brächte Stripe nur dazu, es endlos erneut zuzustellen.
 
-> **Bis der Endpoint steht, ist der Zahllink eine Einbahnstrasse**: die Kasse öffnet und
-> kassiert, aber die Buchung entsteht erst mit der Rückmeldung — der Beleg bliebe auf
-> «offen» stehen. Der Rückweg läuft bewusst über den Webhook und nicht über die
-> Rückkehr-URL: ein Browser, den jemand nach der Zahlung schliesst, darf keine Buchung
-> verschlucken.
+> **Bis der Endpoint steht, ist die Zahlung eine Einbahnstrasse**: die Karte kassiert, aber
+> die Buchung entsteht erst mit der Rückmeldung — der Vorgang bliebe auf «offen» stehen.
+> Der Rückweg läuft bewusst über den Webhook und nicht über den Browser: wer ihn nach der
+> Zahlung schliesst, darf keine Buchung verschlucken.
 
 > **Das neue Signing Secret muss danach nach Secret Manager** (§4) — und der Dienst
 > **neu starten**, sonst prüft er gegen das alte. Ein Secret aus einer früheren
@@ -99,6 +123,9 @@ brächte Stripe nur dazu, es endlos erneut zuzustellen.
 printf '%s' 'sk_test_DEIN_KEY' | gcloud secrets create STRIPE_SECRET_KEY \
   --project=inexxio-dev --replication-policy=automatic --data-file=-
 
+printf '%s' 'pk_test_DEIN_KEY' | gcloud secrets create STRIPE_PUBLISHABLE_KEY \
+  --project=inexxio-dev --replication-policy=automatic --data-file=-
+
 printf '%s' 'whsec_DEIN_SECRET' | gcloud secrets create STRIPE_WEBHOOK_SECRET \
   --project=inexxio-dev --replication-policy=automatic --data-file=-
 ```
@@ -107,44 +134,53 @@ Existieren sie schon, eine neue Version anhängen:
 
 ```bash
 printf '%s' 'sk_test_…' | gcloud secrets versions add STRIPE_SECRET_KEY --project=inexxio-dev --data-file=-
+printf '%s' 'pk_test_…' | gcloud secrets versions add STRIPE_PUBLISHABLE_KEY --project=inexxio-dev --data-file=-
 printf '%s' 'whsec_…'   | gcloud secrets versions add STRIPE_WEBHOOK_SECRET --project=inexxio-dev --data-file=-
 ```
 
 **Zugriff** (einmalig) für den Cloud-Run-Service-Account:
 
 ```bash
-for S in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET; do
+for S in STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY STRIPE_WEBHOOK_SECRET; do
   gcloud secrets add-iam-policy-binding "$S" --project=inexxio-dev \
     --member="serviceAccount:cloudrun-backend@inexxio-dev.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
 done
 ```
 
-> **Reihenfolge:** erst die Secrets anlegen, dann das Deploy — `--set-secrets`
-> referenziert sonst etwas, das es nicht gibt, und der Start schlägt fehl.
+> **Reihenfolge:** erst die Secrets anlegen, dann §5 — `--set-secrets` referenziert sonst
+> etwas, das es nicht gibt, und der **ganze** Deploy schlägt fehl (nicht nur die Zahlung).
 
 ## 5. Deploy verdrahten
 
-In `.github/workflows/deploy-dev.yml` beim Cloud-Run-Deploy ergänzen:
+In `.github/workflows/deploy-dev.yml` beim Cloud-Run-Deploy die Zeile `--set-secrets`
+um **`STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest`** ergänzen, sodass sie lautet:
 
 ```
---set-secrets STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest
+--set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest" \
 ```
 
 **Ohne diese Zeile ist der Dienst schlicht nicht eingerichtet** — kein Fehler, kein Stub,
-kein 503: `stripe_pay.available()` ist `False`, und der Zahllink-Knopf erscheint nicht
-(`PurchaseEmbed.can` führt `link` dann gar nicht).
+kein 503: `payment_service_ready()` ist `False`, und der Knopf «Jetzt bezahlen» erscheint
+nicht (`DealEmbed.can` führt `pay_online` dann gar nicht).
 
 ## 6. Testen (Sandbox)
 
-1. Artikel mit einem **Verkauf**-Modul anlegen, Auftrag freigeben.
-2. Am Beleg: Kunde wählen → «Angebot senden» → Zusage mit Betrag erfassen.
-3. Unter den Stufen erscheint die Zahlungszeile: **offen · fällig**.
-4. «Zahllink erzeugen» → die Adresse öffnen → Testkarte `4242 4242 4242 4242`,
-   beliebiges künftiges Datum, beliebige CVC/PLZ.
-5. Nach der Zahlung meldet der **Webhook** – nicht der Browser: die Zeile springt auf
-   **Bezahlt**, mit der `pi_…`-Referenz in der Buchungsliste.
-6. Erstattung **im Stripe-Dashboard** auslösen → `charge.refunded` bucht eine **negative**
+1. Artikel mit einem **Zahlung**-Modul anlegen (Richtung **Einnahme**, ein Partner),
+   Auftrag freigeben.
+2. Am Vorgang: anbieten → Angebot annehmen → **Rechnung erfassen**.
+3. Unter den Stufen erscheint die Zahlungszeile: **offen · fällig** — und daneben
+   **«Jetzt bezahlen»**.
+4. Klicken → das Formular öffnet sich **in der Karte**: Testkarte
+   `4242 4242 4242 4242`, beliebiges künftiges Datum, beliebige CVC/PLZ. Name, E-Mail und
+   Adresse stehen schon da, wenn sie am Benutzer gepflegt sind.
+5. Nach der Zahlung meldet der **Webhook** – nicht der Browser: die Zeile erscheint mit
+   der `pi_…`-Referenz in der Buchungsliste. (Die Karte sagt darum «ausgeführt» und nicht
+   «gebucht»: dazwischen liegt eine Sekunde, die niemandem gehört.)
+6. **Als Gegenpartei prüfen**: mit dem Benutzer anmelden, der als Partner eingetragen ist
+   — er sieht den Auftrag, sein Modul, den offenen Betrag und denselben Knopf. Er sieht
+   **keine** Freigabe-Liste, keine fremden Preise und hat **keine** Buchungs-Knöpfe.
+7. Erstattung **im Stripe-Dashboard** auslösen → `charge.refunded` bucht eine **negative**
    Zahlung (eigene Referenz `pi_…:refund`). Einen eigenen Erstattungs-Knopf gibt es
    bewusst nicht: der Dienst bietet ihn an, und «erstattet wird auf dem Weg, auf dem
    gezahlt wurde» ist dort ohnehin die einzige Möglichkeit.
@@ -153,13 +189,16 @@ kein 503: `stripe_pay.available()` ist `False`, und der Zahllink-Knopf erscheint
 
 | | warum |
 |---|---|
+| Ein Zahllink / gehostete Kasse | Der Kunde stand auf einer fremden Seite mit fremdem Namen. Die Bezahlkarte ist unsere; nur die Eingabefelder gehören dem Dienst — und genau deshalb berührt keine Kartennummer unseren Server. |
+| Ein Kunden-Datensatz beim Dienst (`Customer`) | Zwei Stammdaten für dieselbe Person, und die zweite ausserhalb des ERP. Die Angaben reisen je Zahlung mit. |
+| Eine Quittungs-Mail des Dienstes | Fremdes Briefpapier für einen Vorgang, der bei uns steht. Der Nachweis ist die Zeile im Geldvorgang. |
+| Eine eigene Liste von Zahlungsarten | Was angeboten wird, entscheidet das Konto (`automatic_payment_methods`). Eine zweite Liste sähe beim nächsten Freischalten nichts. |
 | Ein `manual`-Provider | Er simulierte einen Zahlungsdienstleister samt eigener Bezahlseite. Eine Überweisung braucht keine Simulation — sie braucht ein Feld. |
-| Ein Provider-Rahmen mit zwei Implementierungen | Eine Abstraktion über einer Zeile. Der Weg ist ein **Feld** an der Zahlung. |
+| Ein Provider-Rahmen mit zwei Implementierungen | Eine Abstraktion über einer Zeile. |
 | Stripe Tax | Es berechnete eine Zahl, die wir nicht kennen. |
 | Customer Portal / Subscriptions | Wiederkehrende Aufträge werden eine **Schlaufe im Prozess** (PROCESS_CORE §13.7), kein Abo-Objekt beim Zahlungsdienst. |
-| `stripe_customer_id` & Co. | Die Id steht in `payments.reference` — in derselben Spalte, in der bei einer Überweisung der Zahlungszweck steht. Ein Feld, zwei Wege. |
+| `stripe_customer_id` & Co. | Die Id steht in `deal_entries.reference` — in derselben Spalte, in der bei einer Überweisung der Zahlungszweck steht. Ein Feld, zwei Wege. |
 | Ein eigener Erstattungs-Knopf | Der Dienst bietet ihn an. Ein zweiter Auslöser wäre ein zweiter Weg zu derselben Buchung — der Webhook fängt sie ohnehin. |
-| Eingebettete Kasse | Sie brauchte einen Publishable Key, eine Admin-Einstellung und ein React-Paket. Die gehostete Session ist eine URL. |
 
 ## Go-Live
 

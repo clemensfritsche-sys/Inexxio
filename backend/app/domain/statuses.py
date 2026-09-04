@@ -69,6 +69,19 @@ GESPERRT = "gesperrt"
 #: **An einen Kunden gegangen** (**Einzelinstanz**). Es hat seinen Zweck erreicht – darum
 #: grün, aus demselben Grund wie ``VERBAUT``.
 #:
+#: ►►► **Heute schreibt ihn kein Modul mehr – und er bleibt trotzdem.** ◄◄◄
+#:
+#: Sein einziger Schreiber war «Ausliefern», und das Modul ist ersatzlos entfernt. Der
+#: **Katalog ist aber nicht nur die Liste dessen, was entstehen kann, sondern das
+#: Vokabular, in dem der append-only Ereignis-Log geschrieben ist**: jedes Stück, das je
+#: ausgeliefert wurde, trägt dieses Wort in seiner Zeile und in seiner Geschichte. Ihn zu
+#: streichen machte nicht Vergangenes ungeschehen, sondern **unlesbar** – die
+#: Bestandsleiste meldete einen Zustand, den sie nicht kennt, und `flow._left_with` läse
+#: ihn aus dem Log ohne Beschriftung.
+#:
+#: Dieselbe Regel wie bei den Tabellen der entfernten Bereiche (`docs/backlog.md`): was
+#: niemand mehr schreibt, kostet nichts; was die Vergangenheit trägt, wird nicht gelöscht.
+#:
 #: **Nicht endgültig**, und das ist dieselbe Entscheidung wie dort: eine Retoure ist real.
 #: Ein Auftrag darf das Stück greifen – **das Greifen IST die Rücknahme**, es gibt keinen
 #: «Retoure annehmen»-Endpunkt. Und weil sein Start damit vom Regelstart abweicht, ist der

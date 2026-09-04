@@ -38,6 +38,7 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..core.config import payment_service_ready
 from ..domain import currency as cur
 from ..domain import deal as dm
 from ..domain import modules
@@ -72,11 +73,17 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 #: in *dieser* Währung, und sie nachträglich umzuschreiben hiesse, die Zahl stehen zu
 #: lassen und ihre Bedeutung zu ändern. Weil ``can`` das Tor ist, fehlt der Auswahl-Knopf
 #: danach von selbst und ``apply`` weist ihn ab – ohne ein zweites ``if``.
+#:
+#: ``pay_online`` steht **neben** ``pay`` und in denselben Stufen: es ist dieselbe Achse
+#: (Geld), nur die andere Hand. ``pay`` schreibt auf, was schon geschehen ist (eine
+#: Überweisung liegt auf dem Konto); ``pay_online`` **löst es aus** und bucht selbst gar
+#: nichts – gebucht wird, wenn der Dienst es meldet. Wer beide zu einem Verb machte,
+#: bekäme einen Knopf, dessen Wirkung von einer Einstellung abhängt.
 ACTIONS: dict[str, tuple[str, ...]] = {
     dm.OFFER: ("currency", "ask", "quote", "decline", "agree"),
-    dm.AGREED: ("revoke", "charge", "pay"),
-    dm.DONE: ("charge", "pay"),
-    dm.CANCELLED: ("charge", "pay"),
+    dm.AGREED: ("revoke", "charge", "pay", "pay_online"),
+    dm.DONE: ("charge", "pay", "pay_online"),
+    dm.CANCELLED: ("charge", "pay", "pay_online"),
 }
 
 #: ►►► **Was die GEGENPARTEI darf — es folgt aus der RICHTUNG.** ◄◄◄
@@ -321,6 +328,29 @@ def can(db: Session, row: Deal, viewer: Optional[UserProfile]) -> list[str]:
     # – die Rechnung kommt dort vor der Lieferung, nicht nach der Zahlung.
     if "pay" in stage and not any(e.kind == dm.CHARGE for e in rows):
         stage.remove("pay")
+    # ►►► **Online bezahlen: DREI Bedingungen, alle an EINER Stelle.** ◄◄◄
+    #
+    # Es gibt ihn (1) nur, wo das Geld **zu uns** fliesst – ein Zahlungsdienst zieht ein,
+    # er überweist nicht in unserem Namen (``Direction.collects``); (2) nur, wenn einer
+    # **eingerichtet** ist – sonst wäre es ein Knopf, der garantiert in einem leeren
+    # Dialog endet; und (3) nur, wenn wirklich etwas **offen** ist.
+    #
+    # *Hier stand eine vierte – «es muss eine Rechnung geben», die Regel von ``pay``
+    # (#822). Beim Gegenprüfen war ihre Bug-Form **nicht herstellbar**: ``open`` ist
+    # ``Forderungen − Zahlungen``, und ohne Forderung ist es null oder negativ. Sie sagte
+    # also nichts, was ``open > 0`` nicht schon sagt. Bei ``pay`` ist das anders – dort
+    # nennt ein Mensch den Betrag, und «ohne Rechnung keine Zahlung» ist eine echte
+    # zusätzliche Aussage; hier ist der offene Betrag die Sache selbst.*
+    #
+    # Alle drei stehen hier, weil ``can`` **Auskunft und Tor** ist: der Knopf erscheint
+    # genau dann, wenn der Endpunkt ihn auch bedient. Eine Bedingung, die nur dort stünde,
+    # wäre ein Angebot, das beim Klicken scheitert.
+    if "pay_online" in stage and not (
+        dm.of(row.direction).collects
+        and payment_service_ready()
+        and balance_of(db, row).open > 0
+    ):
+        stage.remove("pay_online")
     if viewer is not None and viewer.role not in STAFF_ROLES:
         # Die Gegenpartei nennt ihren Preis oder sagt ab – und nur, solange sie
         # tatsächlich angefragt ist.
@@ -343,8 +373,18 @@ def can(db: Session, row: Deal, viewer: Optional[UserProfile]) -> list[str]:
     return stage
 
 
-def _assert_allowed(db: Session, row: Deal, action: str,
-                    viewer: Optional[UserProfile]) -> None:
+def assert_allowed(db: Session, row: Deal, action: str,
+                   viewer: Optional[UserProfile]) -> None:
+    """►►► **Das Tor zu ``can`` – zwei Formen einer Regel, ein Namensstamm.** ◄◄◄
+
+    ``can`` nennt die erlaubten Verben (die Oberfläche rendert genau sie), ``assert_allowed``
+    weist alles andere ab. Sie liest **dieselbe** Liste – ein zweiter, milderer Massstab
+    wäre ein Knopf, der bereitsteht und dann scheitert, oder eine Tür, die etwas durchlässt,
+    das niemand anbietet.
+
+    Sie ist **öffentlich**, weil nicht jedes Verb durch ``apply`` läuft: ``pay_online``
+    hat seinen eigenen Endpunkt und muss trotzdem an derselben Tür vorbei.
+    """
     if action not in can(db, row, viewer):
         flow = dm.of(row.direction)
         raise HTTPException(
@@ -367,8 +407,22 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
             status_code=404,
             detail="Zu diesem Modul gibt es keinen Geldvorgang.",
         )
-    _assert_allowed(db, row, action, actor)
-    HANDLERS[action](db, order=order, step=step, row=row, data=payload, actor=actor)
+    assert_allowed(db, row, action, actor)
+    # ►►► **Nicht jedes Verb in ``can`` ändert den Vorgang.** ◄◄◄
+    #
+    # ``pay_online`` **löst** eine Zahlung aus und bucht nichts – es hat darum keinen
+    # Eintrag hier und seinen eigenen Weg (``…/deal/payment``); gebucht wird erst, wenn
+    # der Zahlungsdienst es meldet. Ohne diese Zeile wäre der Zugriff auf ``HANDLERS`` ein
+    # ``KeyError`` und an der Tür ein **500** – eine Ablehnung ohne Erklärung, obwohl die
+    # Antwort ein Satz ist.
+    run = HANDLERS.get(action)
+    if run is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(f"«{action}» ändert den Geldvorgang nicht – diese Handlung hat "
+                    f"ihren eigenen Weg."),
+        )
+    run(db, order=order, step=step, row=row, data=payload, actor=actor)
     db.flush()
     return row
 
@@ -937,19 +991,6 @@ def service_day(db: Session, step: ProcessStep) -> Optional[date]:
     return row[0].date() if row and row[0] else None
 
 
-def assert_payable(row: Deal) -> None:
-    """**Gibt es etwas zu bezahlen?** – sonst gibt es keine Zahlungsaufforderung.
-
-    Man kassiert nicht, was niemand gefordert hat (dieselbe Regel wie ``can``): ohne
-    Forderung ist *offen* null, und ein Link über 0.00 wäre eine Aufforderung ohne Inhalt.
-    """
-    if row.stage == dm.OFFER:
-        raise HTTPException(
-            status_code=409,
-            detail="Solange nichts zugesagt ist, gibt es nichts zu bezahlen.",
-        )
-
-
 def open_amount(db: Session, row: Deal) -> Decimal:
     """Der offene Betrag – die eine Zahl, über die kassiert wird.
 
@@ -1281,6 +1322,10 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "vat_split": dm.vat_split(_priced_lines(row), row.currency) if won else [],
         "charge_word": flow.charge_word,
         "payment_word": flow.payment_word,
+        # **Das dritte Geld-Wort** – «erfassen» heisst aufschreiben, was geschehen ist;
+        # dieses hier lässt es geschehen. Es reist mit, damit die Karte keine eigene
+        # Konstante daneben hält.
+        "pay_online_word": flow.pay_online_word,
         "open_word": flow.open_word,
         "money_label": flow.money_label,
         # **Das Wort der Gegenhandlung hängt an DEN HANDLUNGEN DIESES BETRACHTERS**, nicht
@@ -1317,15 +1362,23 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # auch nach dem Storno erlaubt, damit eine Anzahlung erstattet werden kann.
         "due_date": _delivery(row) if won else None,
         "late": _is_late(row) if won else False,
-        # ►► **Forderung und Geld sieht nur das Personal.** Was ein Kunde uns schuldet,
-        #    geht einen angefragten Dritten nichts an.
-        "charged": _money(money.charged, row.currency) if internal else None,
-        "paid": _money(money.paid, row.currency) if internal else None,
-        "open": _money(money.open, row.currency) if internal else None,
-        "uncharged": _money(money.uncharged, row.currency) if internal else None,
-        "next_charge": _money(money.next_charge, row.currency) if internal else None,
-        "next_payment": _money(money.next_payment, row.currency) if internal else None,
-        "settled": money.settled if internal else False,
+        # ►►► **Forderung und Geld sieht, wer den Zuschlag hat.** ◄◄◄
+        #
+        # Es war einmal ``internal`` – also nur das Personal –, und das war richtig,
+        # solange niemand ausser uns etwas mit diesen Zahlen tun konnte. **Wer bezahlen
+        # soll, muss sehen, was er schuldet**: eine Aufforderung ohne Betrag ist keine.
+        #
+        # Ein **Leck ist es nicht**, und die Regel ist dieselbe wie bei ``amount``,
+        # ``due_days`` und der Steueraufteilung: ``won`` heisst «dieser Betrachter *ist*
+        # die Gegenpartei dieses Vorgangs» – die Rechnungen sind **seine**, die Zahlungen
+        # sind **seine**. Ein angefragter, unterlegener Dritter sieht weiterhin nichts.
+        "charged": _money(money.charged, row.currency) if won else None,
+        "paid": _money(money.paid, row.currency) if won else None,
+        "open": _money(money.open, row.currency) if won else None,
+        "uncharged": _money(money.uncharged, row.currency) if won else None,
+        "next_charge": _money(money.next_charge, row.currency) if won else None,
+        "next_payment": _money(money.next_payment, row.currency) if won else None,
+        "settled": money.settled if won else False,
         "entries": [
             {
                 "id": e.id, "kind": e.kind, "amount": _money(e.amount, row.currency),
@@ -1344,7 +1397,10 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
                 "vat": list(e.vat or []),
                 "service_date": e.service_date,
             }
-            for e in (entries if internal else [])
+            # **Dieselbe Frage, dieselbe Antwort**: die Zeilen gehören dem, der den
+            # Zuschlag hat – seine Rechnungen, seine Zahlungen. Er sieht sie, ein
+            # unterlegener Dritter nicht.
+            for e in (entries if won else [])
         ],
     }
 

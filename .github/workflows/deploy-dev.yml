@@ -137,6 +137,15 @@ jobs:
           docker push "$IMAGE_LATEST"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
+      # ►►► **Bezahlen braucht einen dritten Schlüssel — und er fehlt hier bewusst.** ◄◄◄
+      #
+      # `STRIPE_PUBLISHABLE_KEY` rendert das Zahlungsformular im Browser; ohne ihn ist
+      # `payment_service_ready()` falsch, und der Bezahlen-Knopf erscheint gar nicht erst
+      # (`deal.can` führt `pay_online` dann nicht). Alles andere läuft unverändert.
+      #
+      # Er steht **nicht** in der Zeile unten, weil `--set-secrets` auf ein Secret zeigt,
+      # das es noch nicht gibt – und ein Deploy, der daran scheitert, nimmt alles andere
+      # mit. Anlegen und Zeile ergänzen: `docs/stripe-setup.md` §4/§5 (zwei Befehle).
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \

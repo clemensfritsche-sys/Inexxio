@@ -124,7 +124,7 @@ zwei Fragen, und eine Regel, die beide beantwortet, wäre beim nächsten Zustand
 | T7 | `im_prozess` | `gesperrt` | **step** | Modul «Aussondern», Ausprägung *Sperren*. |
 | T7b | `im_prozess` | `verbaut` | **step** | Modul «Verbrauch», für die **genannten Artikel**. Der Rest passiert dasselbe Modul unverändert (T5) – der Ausgang gilt je Stück, nicht je Modul. |
 | T7c | `verbaut` | `im_prozess` | **start** | Auftragsfreigabe, verbautes Stück wird gegriffen → **Demontage**, ebenfalls eine Abweichung. |
-| T7d | `im_prozess` | `verkauft` | **step** | Modul «Ausliefern». Ein **Ausgang**: was hier ankommt, verlässt den Auftrag und das Haus. Der Ort fällt dabei weg (`stock = historisch`). |
+| T7d | `im_prozess` | `verkauft` | **step** | *Kein Modul schreibt ihn mehr* – «Ausliefern» ist entfernt (§9.9). Der Übergang steht in der Vergangenheit: der Log ist append-only, und `verkauft` bleibt darum im Katalog. Er war ein **Ausgang**, und der Ort fiel dabei weg (`stock = historisch`). |
 | T7e | `verkauft` | `im_prozess` | **start** | Auftragsfreigabe, verkauftes Stück wird gegriffen → **Retoure**, ebenfalls eine Abweichung. |
 | T8 | `im_prozess` | `freigegeben` | **end** | Das Stück passiert das Ende-Objekt und kehrt **nirgends** zurück. Der Wert ist der `end_status` des Auftrags (heute immer `freigegeben`, an einer Stelle hinterlegt). |
 | T9 | `im_prozess` | `im_prozess` | **end** | Das Stück passiert das Ende-Objekt und **kehrt in seinen Quell-Auftrag zurück**. Es bleibt im Prozess — es ist ja in einem. |
@@ -542,8 +542,9 @@ Papierformat ist eine Darstellung, kein Datenmodell.
 Weitergabe ans Finanzwesen» hat hier kein Gegenüber.
 
 *Nicht auf dieser Liste, weil es sie längst gibt:* **Kommissionierung** und **Versand**
-sind Bewegen-Module vor dem Ausliefern-Modul (§9.8/§9.9), die Spedition ist ein
-Geldvorgang (§9.12).
+sind Bewegen-Module (§9.8), die Spedition ist ein Geldvorgang (§9.12). *Ein eigenes Modul
+für die Übergabe gab es eine Runde lang und ist entfernt: «gehört jetzt jemand anderem»
+ist die Folge aus Bewegen und Zahlung, kein eigener Vorgang (§9.9).*
 
 ---
 

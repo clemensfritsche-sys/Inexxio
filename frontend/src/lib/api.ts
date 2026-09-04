@@ -28,6 +28,7 @@ import type {
   FeedbackCreateInput,
   FeedbackUpdateInput,
   PlaceRef,
+  PaymentSetup,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -349,16 +350,17 @@ class ApiClient {
   /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
    *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
   /**
-   * **Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
-   * Sie ändert am Vorgang nichts; gebucht wird erst, wenn das Geld da ist (der Webhook
-   * schreibt **eine Zeile Geld** und sonst nichts, `services/stripe_pay`).
+   * ►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
    *
-   * *Heute ohne Bedienelement: der Zahllink hing an der Karte des Beschaffungs-Belegs,
-   * und die ist mit ihm entfallen. Der Weg bleibt verdrahtet – er zeigt jetzt auf den
-   * Geldvorgang –, damit die Anbindung nicht ein zweites Mal hergeleitet werden muss.*
+   * Zurück kommt, was das Formular braucht: das Geheimnis der Zahlungsabsicht, der
+   * öffentliche Schlüssel, der Betrag zum Anzeigen und die Angaben, die im ERP längst
+   * stehen (Name, E-Mail, Rechnungsadresse) – damit sie niemand ein zweites Mal tippt.
+   *
+   * Sie ändert am Vorgang **nichts**; gebucht wird erst, wenn das Geld da ist – und das
+   * meldet der Webhook, nicht dieser Browser (`services/stripe_pay`).
    */
-  paymentLink(objectId: number, stepId: number): Promise<{ url: string }> {
-    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/payment-link`, {});
+  preparePayment(objectId: number, stepId: number): Promise<PaymentSetup> {
+    return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/deal/payment`, {});
   }
 
   /**

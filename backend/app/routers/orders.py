@@ -28,7 +28,7 @@ from ..schemas.order import (
     RelatedOrder, StepNeed, StepWork, UnitOption, UnitChoices,
 )
 from ..schemas.process import (
-    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentLink,
+    CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentSetup,
     RecordEntry, RecordValue, StepConfirm, StepRecord,
 )
 from ..domain import capture_types, modules
@@ -903,35 +903,50 @@ def step_record(
     )
 
 
-@router.post("/{object_id}/steps/{step_id}/payment-link", response_model=PaymentLink)
-def payment_link(
+@router.post("/{object_id}/steps/{step_id}/deal/payment", response_model=PaymentSetup)
+def prepare_payment(
     object_id: int,
     step_id: int,
     db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
+    user: UserProfile = Depends(get_current_user),
 ):
-    """**Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
+    """►►► **Eine Zahlung über den offenen Betrag vorbereiten** – für UNSERE Karte. ◄◄◄
 
-    Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim
-    Zahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich
-    da ist – und das meldet der Webhook, nicht der Browser des Kunden.
+    Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Absicht beim
+    Zahlungsdienst und gibt zurück, was das Formular im Browser braucht. Gebucht wird
+    erst, wenn das Geld wirklich da ist – und das meldet der Webhook, nicht der Browser
+    des Zahlenden.
 
-    Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in
-    der Oberfläche gar nicht erst (``DealEmbed.can``), und ein 503 hier wäre die
-    Behauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.
+    **Ein eigener Weg statt eines Verbs an ``…/deal``**: der gibt den Auftrag zurück, hier
+    kommt ein Geheimnis für genau diese eine Zahlung. Zwei verschiedene Antworten sind
+    zwei Endpunkte; das Verb steht trotzdem in ``can`` – «was darf ich hier tun» ist EINE
+    Frage, und dieselbe Liste ist auch hier das **Tor**.
+
+    **Auch für die Gegenpartei offen** (``get_current_user``) – das ist der Sinn: der
+    Kunde bezahlt bei uns, nicht auf einer fremden Seite. Was sie darf, sagt
+    ``deal.can`` (``Direction.party_actions``); wer den Auftrag nicht sieht, bekommt
+    ``404`` wie überall.
+
+    Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404`` aus ``stripe_pay._api``)
+    – und der Knopf erscheint dann gar nicht erst, weil ``can`` das Verb nicht führt.
     """
     order = orders_svc.get(db, object_id)
+    # **Dieselbe eine Frage wie beim Lesen** (wie bei ``…/deal``): wer den Auftrag nicht
+    # sieht, zahlt auch nicht an ihm – und wer nur sein Modul sieht, nur an diesem.
+    mine = _visible(db, order, user)
     step = (
         db.query(ProcessStep)
         .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
         .first()
     )
-    if step is None:
+    if step is None or (mine is not None and step.id not in mine):
         raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
     row = deal_svc.of_step(db, step.id)
     if row is None:
         raise HTTPException(status_code=404,
                             detail="Dieses Modul hat keinen Geldvorgang.")
-    deal_svc.assert_payable(row)
-    return PaymentLink(url=stripe_pay.checkout_url(
-        db, deal=row, label=f"{order.name or 'Auftrag'} {order.object_id}"))
+    # ►►► **Dieselbe Tabelle, die den Knopf zeigt, lässt hier durch.** ◄◄◄ Eine eigene
+    # Prüfung daneben wäre ein zweiter Massstab – und der bekäme die nächste Bedingung
+    # nicht mit.
+    deal_svc.assert_allowed(db, row, "pay_online", user)
+    return PaymentSetup(**stripe_pay.prepare(db, deal=row, order=order))

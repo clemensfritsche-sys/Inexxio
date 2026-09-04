@@ -1341,8 +1341,23 @@ def test_whoever_did_not_win_does_not_see_the_award():
         assert won["party_object_id"] == a.object_id and won["amount"] == "100.00", (
             "Der Gewählte sieht seine eigene Zusage nicht."
         )
-        # **Geld bleibt trotzdem Personalsache** – was wir schulden, ist unsere Buchhaltung.
-        assert won["open"] is None and won["entries"] == []
+        # ►►► **Und er sieht die Rechnung dieses Vorgangs – es ist SEINE.** ◄◄◄
+        #
+        # Hier stand einmal das Gegenteil («Geld bleibt Personalsache»), und das war
+        # richtig, solange niemand ausser uns mit diesen Zahlen etwas tun konnte. Seit die
+        # Gegenpartei **bei uns bezahlt**, ist es falsch: eine Zahlungsaufforderung ohne
+        # Betrag ist keine.
+        #
+        # Die Regel ist dieselbe wie eine Zeile höher (``won``) und kein zweiter Massstab:
+        # der Unterlegene sieht weiterhin **nichts** – das prüft der Block darüber.
+        assert won["open"] == "0.00", (
+            "Wer den Zuschlag hat, sieht nicht, was offen ist – dann kann er es auch "
+            "nicht bezahlen."
+        )
+        assert won["entries"] == []
+        assert lost["open"] is None and lost["charged"] is None, (
+            "Ein unterlegener Dritter liest die Buchhaltung des Konkurrenten."
+        )
     finally:
         db.rollback(); db.close()
 
@@ -1450,10 +1465,20 @@ def test_who_names_the_price_is_a_property_of_the_direction():
         )
 
         # (c) **Was die Gegenpartei darf, folgt aus derselben Angabe.**
-        assert dm.of(dm.OUT).party_actions == ("quote", "decline")
-        assert dm.of(dm.IN).party_actions == ("agree", "decline"), (
+        #
+        # Gefragt wird nach den **Preis-Verben**, nicht nach der ganzen Liste: dass sie
+        # auch bezahlen darf (``pay_online``), ist eine andere Frage und hängt an
+        # ``Direction.collects`` – ein Wächter, der die Tupel wörtlich vergleicht, verbietet
+        # jede künftige Handlung, über die er gar nichts aussagt.
+        price = {"quote", "agree"}
+        assert set(dm.of(dm.OUT).party_actions) & price == {"quote"}
+        assert set(dm.of(dm.IN).party_actions) & price == {"agree"}, (
             "Der Kunde darf unseren Preis überschreiben – das ist keine Antwort auf ein "
             "Angebot, sondern eine Gegenofferte."
+        )
+        assert "decline" in dm.of(dm.OUT).party_actions, (
+            "Absagen darf sie immer – das ist die eine Antwort, die in beide Richtungen "
+            "dasselbe bedeutet."
         )
         assert "quote" not in svc.can(db, svc.of_step(db, rows[0].id), kunde)
     finally:
@@ -2085,3 +2110,212 @@ def test_the_module_no_longer_carries_a_tax_rate():
     finally:
         db.rollback()
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ►► ONLINE BEZAHLEN — die dritte Handlung am Geld
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _ready(monkeypatch, value: bool = True) -> None:
+    """**Tut, als wäre ein Zahlungsdienst eingerichtet** – ohne einen echten Schlüssel.
+
+    Gesetzt wird der Name, den ``services/deal`` wirklich liest; ein gepatchtes
+    ``core.config`` daneben prüfte eine Stelle, die der Dienst gar nicht fragt.
+    """
+    from app.services import deal as svc
+    monkeypatch.setattr(svc, "payment_service_ready", lambda: value)
+
+
+def test_paying_online_hangs_on_three_conditions_and_all_three_are_in_can(monkeypatch):
+    """►►► **Den Bezahlen-Knopf gibt es nur, wo er auch etwas tun kann.** ◄◄◄
+
+    Drei Bedingungen, und alle drei stehen in ``can`` – weil dieselbe Liste **Auskunft
+    und Tor** ist: der Knopf erscheint genau dann, wenn der Endpunkt ihn auch bedient.
+
+    1. **Das Geld muss zu uns fliessen** (``Direction.collects``): ein Zahlungsdienst
+       zieht ein, er überweist nicht in unserem Namen.
+    2. **Ein Dienst muss eingerichtet sein** – sonst endete der Knopf in einem leeren
+       Dialog.
+    3. **Es muss etwas offen sein** – über null lässt sich nichts einziehen.
+
+    *Eine vierte («es muss eine Rechnung geben») stand hier und ist entfallen: ihre
+    Bug-Form liess sich nicht herstellen, weil ``open`` ohne Forderung nie positiv ist.
+    Ein Wächter, der nie anschlägt, ist von einem kaputten nicht zu unterscheiden – und
+    eine Bedingung, deren Fehlen man nicht messen kann, sagt nichts.*
+
+    Bug-Formen, jede einzeln gegengeprüft: (a) bei einer **Ausgabe** angeboten; (b) ohne
+    Dienst angeboten; (c) an einem **bezahlten** Vorgang angeboten.
+    """
+    from app.services import deal as svc
+    db = _db()
+    try:
+        _ready(monkeypatch)
+        staff = _staff(db)
+        kunde, lieferant = _party(db, "Kundin AG"), _party(db, "Härterei A")
+        art = _article(db, "Welle", steps=[
+            _money_step(direction="in", parties=[kunde], task="Art. 1"),
+            _money_step(direction="out", parties=[lieferant], task="Härten"),
+        ])
+        order, rows = _make(db, quantity=1, article=art)
+        einnahme, ausgabe = rows[0], rows[1]
+
+        _agree(db, order=order, step=einnahme, party=kunde, amount="100.00", staff=staff)
+        _agree(db, order=order, step=ausgabe, party=lieferant, amount="40.00", staff=staff)
+
+        inn = svc.of_step(db, einnahme.id)
+        out = svc.of_step(db, ausgabe.id)
+
+        # **Solange nichts gefordert ist, ist auch nichts offen** – und damit gibt es den
+        # Knopf nicht. Das ist keine eigene Bedingung, sondern dieselbe: *offen* ist
+        # *Forderungen − Zahlungen*.
+        assert svc.balance_of(db, inn).open == Decimal("0.00")
+        assert "pay_online" not in svc.can(db, inn, staff)
+
+        svc.apply(db, order=order, step=einnahme, action="charge",
+                  payload={"amount": "100.00"}, actor=staff)
+        db.flush()
+
+        # **Jetzt gibt es ihn** – und nur bei der Einnahme.
+        assert "pay_online" in svc.can(db, inn, staff)
+        # (a) **Bei einer Ausgabe nie** – auch mit Rechnung nicht.
+        svc.apply(db, order=order, step=ausgabe, action="charge",
+                  payload={"amount": "40.00", "vat": "8.10"}, actor=staff)
+        db.flush()
+        assert "pay_online" not in svc.can(db, out, staff), (
+            "Bei einer Ausgabe wird online kassiert – ein Zahlungsdienst überweist aber "
+            "nicht in unserem Namen (a)."
+        )
+
+        # (b) **Ohne eingerichteten Dienst nicht.**
+        _ready(monkeypatch, False)
+        assert "pay_online" not in svc.can(db, inn, staff), (
+            "Der Knopf steht da, obwohl kein Zahlungsdienst eingerichtet ist (b)."
+        )
+        _ready(monkeypatch)
+
+        # (c) **Und nicht mehr, wenn nichts offen ist.**
+        svc.apply(db, order=order, step=einnahme, action="pay",
+                  payload={"amount": "100.00"}, actor=staff)
+        db.flush()
+        assert svc.balance_of(db, inn).open == Decimal("0.00")
+        assert "pay_online" not in svc.can(db, inn, staff), (
+            "An einem bezahlten Vorgang steht «Jetzt bezahlen» – über null lässt sich "
+            "nichts einziehen (c)."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_party_may_pay_but_never_book(monkeypatch):
+    """►►► **Wer bezahlt, bucht nicht.** ◄◄◄
+
+    Die Gegenpartei darf die Zahlung **auslösen** – genau dafür ist die eigene Bezahlkarte
+    da. Sie darf aber keine Geld-Zeile **schreiben**: eine Buchung ist unsere Aussage über
+    unser Konto, und der Beleg dafür kommt vom Dienst, nicht von einem Formular.
+
+    Und **was sie schuldet, sieht sie**: eine Zahlungsaufforderung ohne Betrag ist keine.
+
+    Bug-Formen: (a) ``charge``/``pay`` stehen in ihrer Liste; (b) die Tür lässt sie
+    trotzdem durch; (c) sie sieht den offenen Betrag nicht und könnte gar nicht wissen,
+    worüber sie zahlt.
+    """
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        _ready(monkeypatch)
+        staff = _staff(db)
+        kunde = _party(db, "Kundin AG", role="customer")
+        art = _article(db, "Welle",
+                       steps=[_money_step(direction="in", parties=[kunde], task="Art. 1")])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+        _agree(db, order=order, step=step, party=kunde, amount="100.00", staff=staff)
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "100.00"}, actor=staff)
+        db.flush()
+        row = svc.of_step(db, step.id)
+
+        mine = svc.can(db, row, kunde)
+        assert "pay_online" in mine, "Der Kunde kann nicht bezahlen – dann ist alles umsonst."
+        assert "charge" not in mine and "pay" not in mine, (
+            "Die Gegenpartei bucht Geld-Zeilen (a)."
+        )
+        with _pytest.raises(HTTPException) as e:
+            svc.assert_allowed(db, row, "charge", kunde)
+        assert e.value.status_code == 409, "Die Tür lässt sie trotzdem durch (b)."
+
+        seen = svc.embed_data(db, order=order, step=step, viewer=kunde)
+        assert seen["open"] == "100.00", (
+            "Sie soll bezahlen und sieht den offenen Betrag nicht (c)."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_a_verb_without_a_handler_is_a_sentence_not_a_crash(monkeypatch):
+    """►►► **Nicht jedes Verb in ``can`` ändert den Vorgang.** ◄◄◄
+
+    ``pay_online`` **löst** eine Zahlung aus und bucht nichts – es hat darum keinen
+    Eintrag in ``HANDLERS`` und seinen eigenen Endpunkt. Ohne die Prüfung in ``apply``
+    wäre der Zugriff ein ``KeyError`` und an der Tür ein **500**: eine Ablehnung ohne
+    Erklärung, obwohl die Antwort ein Satz ist.
+
+    Bug-Form: ``apply`` greift blind zu und stürzt ab.
+    """
+    import pytest as _pytest
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        _ready(monkeypatch)
+        staff = _staff(db)
+        kunde = _party(db, "Kundin AG", role="customer")
+        art = _article(db, "Welle",
+                       steps=[_money_step(direction="in", parties=[kunde], task="Art. 1")])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+        _agree(db, order=order, step=step, party=kunde, amount="100.00", staff=staff)
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "100.00"}, actor=staff)
+        db.flush()
+
+        assert "pay_online" not in svc.HANDLERS, (
+            "«pay_online» hat einen Handler – dann bucht es etwas, und das tut der "
+            "Webhook."
+        )
+        with _pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=step, action="pay_online",
+                      payload={}, actor=staff)
+        assert e.value.status_code == 409 and "eigenen Weg" in e.value.detail
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_payment_service_needs_both_keys():
+    """**Bezahlen braucht zwei Schlüssel** – der Server erzeugt, der Browser rendert.
+
+    Einer allein ist eine halbe Strasse: der Knopf erschiene, und der Dialog bliebe leer.
+    Und die Antwort steht in ``core/config``, nicht im Adapter – sonst müsste der
+    Geldvorgang den Anbieter importieren, um zu wissen, ob er einen Knopf anbieten darf.
+
+    Bug-Formen: (a) ein Schlüssel genügt; (b) die Frage wandert in den Adapter zurück.
+    """
+    import inspect
+    from app.core import config as cfg
+    from app.services import deal as svc
+
+    src = inspect.getsource(cfg.payment_service_ready)
+    assert "stripe_secret_key" in src and "stripe_publishable_key" in src, (
+        "Die Frage «ist ein Zahlungsdienst da?» prüft nicht beide Schlüssel (a)."
+    )
+    dealsrc = pathlib.Path(BACKEND / "app" / "services" / "deal.py").read_text()
+    assert "stripe" not in dealsrc.lower(), (
+        "Der Geldvorgang kennt den Anbieter (b) – er fragt eine Eigenschaft, nicht eine "
+        "Marke."
+    )

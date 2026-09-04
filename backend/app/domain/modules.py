@@ -32,7 +32,6 @@ DATENERFASSUNG = "datenerfassung"
 AUSSONDERN = "aussondern"
 VERBRAUCH = "verbrauch"
 BEWEGEN = "bewegen"
-AUSLIEFERN = "ausliefern"
 ZAHLUNG = "zahlung"
 
 
@@ -763,87 +762,6 @@ def prepaid(config: Optional[dict[str, Any]]) -> bool:
     return bool((config or {}).get(Zahlung.PREPAID))
 
 
-class Ausliefern(Module):
-    """►►► **Das Stück verlässt uns – es gehört jetzt jemand anderem.** ◄◄◄
-
-    Ein Scan, ein Statuswechsel auf ``Verkauft``. **Sonst nichts.**
-
-    ## Warum es so klein ist
-
-    Vorher stand hier ein ganzes Handelsmodul: drei Stufen, Angebot, Zusage, Preise,
-    Partnerliste, Storno. Das war nicht falsch, sondern **doppelt** – all das ist der
-    Geldvorgang (``domain/deal``), und den gibt es einmal für beide Richtungen.
-
-    Nimmt man den Beleg heraus, bleibt die eine Aussage übrig, die kein anderes Modul
-    machen kann: *dieses Stück ist nicht mehr unseres.*
-
-    ## Warum es ein AUSGANG ist
-
-    ``Module.terminal`` beantwortet genau eine Frage: *verlassen ALLE ankommenden Stücke
-    den Auftrag hier?* Beim Ausliefern **ja** – was übergeben ist, gehört uns nicht mehr,
-    und der Auftrag hat sein Ziel erreicht.
-
-    *Die erste Fassung stand auf ``terminal = False``, mit der Begründung «danach darf
-    noch ein Zertifikat oder eine Zahlung kommen» und dem Verweis auf den Verbrauch (der
-    ``Verbaut`` setzt und kein Ausgang ist). Beides war falsch, und die **Kettenregel**
-    hat es sofort gemeldet: beim Verbrauch bleiben die durchlaufenden Stücke auf
-    ``Im Prozess`` – nur die verbrauchten Komponenten wechseln, und die treten dort erst
-    ein. Hier wechselt **jedes** ankommende Stück. Ein Modul dahinter erwartete
-    ``Im Prozess`` und bekäme ``Verkauft``; stünde die Auslieferung am Schluss, bräche
-    die Kette am Ende-Objekt. Ein nicht-terminales Modul, das den Zustand aller Stücke
-    ändert, kann es gar nicht geben.*
-
-    **Was danach kommen müsste, kommt davor**: das Zertifikat wird vor der Übergabe
-    erfasst (auch fachlich – man prüft, bevor man liefert), und der Geldvorgang steht
-    ebenfalls davor. Er verliert dadurch **nichts**: seine Rechnungs- und Zahlungszeilen
-    hängen an ``can`` und nicht daran, ob das Modul gerade dran ist (Testnotiz #821) –
-    ein Zahlungsziel läuft nach der Lieferung weiter.
-
-    ## Und ``Verkauft`` bleibt trotzdem umkehrbar
-
-    ``Module.terminal`` und ``Status.terminal`` sind zwei verschiedene Fragen. Eine
-    Retoure ist real: ein ganz gewöhnlicher Auftrag greift das Stück, und **das Greifen
-    IST die Rücknahme** – wie beim Sperren, dessen Modul ebenfalls ein Ausgang ist. Und
-    weil sein Start vom Regelstart abweicht, ist die Retoure **automatisch** eine
-    dokumentierte Abweichung, ohne eine Zeile dafür.
-
-    ## Und warum ein Transport dieses Modul NICHT ist
-
-    Ein Muster an den Kunden, ein Computer beim Mitarbeiter, eine Konsignation: dort
-    wechselt der **Ort**, und nichts ist verkauft. Dafür gibt es «Bewegen».
-
-    Der Unterschied ist keine Regel und keine Automatik, die raten müsste – es sind zwei
-    Module, und der Modellierer wählt beim Bauen des Prozesses. Eine Ableitung «Ort
-    ausserhalb ⇒ verkauft» wäre in genau diesen drei Fällen still falsch.
-
-    ## Es hat keine Konfiguration
-
-    **An wen** geliefert wird, steht im Geldvorgang desselben Auftrags – ein Feld hier
-    wäre die zweite Stelle für dieselbe Angabe. **Was** geliefert wird, sagen die
-    Einzelinstanzen, die davorstehen. **Wann**, sagt der Log.
-    """
-
-    #: **Ein Ausgang** – siehe oben. Daraus folgen drei Wirkungen, ohne eine weitere
-    #: Zeile: der Editor bietet dahinter nichts an, die Freigabe weist ein Modul dahinter
-    #: ab, und das Bild endet hier.
-    terminal = True
-
-    #: **Der Scan ist die Bestätigung.** Man liefert nicht blind aus: was hinausgeht,
-    #: wird am Etikett verifiziert – dieselbe Regel wie beim Verschrotten.
-    requires_verification = True
-
-    #: Was der Knopf sagt. Nicht «verkaufen»: verkauft wurde im Geldvorgang; was hier
-    #: passiert, ist die **Übergabe**.
-    action: str = "Auslieferung bestätigen"
-
-    def clean_config(self, raw: Optional[dict[str, Any]]) -> dict[str, Any]:
-        """**Nichts.** Die Felder stehen trotzdem, damit jede Lesestelle dieselbe Form
-        vorfindet – und ein trotzdem gesendeter Wert wird **verworfen**, nicht ignoriert:
-        ein Feld, das die Oberfläche nicht anbietet, der Dienst aber annimmt, wäre eine
-        Hintertür zu einer Angabe, die niemand liest."""
-        return {"points": [], "sample": dict(sampling.DEFAULT)}
-
-
 MODULES: dict[str, Module] = {
     m.key: m for m in (
         Datenerfassung(
@@ -883,21 +801,6 @@ MODULES: dict[str, Module] = {
             # zu unterscheiden. Magenta/Rosa ist die einzige unbesetzte Familie – und sie
             # sitzt deutlich pinker als das orange-braune Clay.
             tone="rose",
-        ),
-        Ausliefern(
-            key=AUSLIEFERN,
-            label="Ausliefern",
-            status_before=st.IM_PROZESS,
-            # ►►► **Der eine Statuswechsel, um den es geht.** ◄◄◄ ``Verkauft`` zählt zur
-            # **Historie** – damit fällt das Stück aus Bestand, FIFO und Auswahl heraus,
-            # ohne dass eine dieser Regeln von diesem Modul wissen muss. Und es ist
-            # **nicht endgültig**: die Retoure greift es zurück (``Status.terminal`` ist
-            # eine andere Frage als ``Module.terminal``).
-            status_after=st.VERKAUFT,
-            # Blaugrün – die Familie des früheren Verkaufs. Sie ist sonst unbesetzt, und
-            # ein Modul, das sich eine teilt, ist im Fluss von seinem Nachbarn nicht zu
-            # unterscheiden.
-            tone="teal",
         ),
         Verbrauch(
             key=VERBRAUCH,

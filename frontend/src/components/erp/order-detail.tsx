@@ -232,6 +232,23 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
     }
   }, [live]);
 
+  /**
+   * **Den Auftrag noch einmal holen** – ohne eine Handlung an ihm.
+   *
+   * Jede andere Aktualisierung ist die **Antwort** auf einen Befehl (`confirm`, `deal`),
+   * und das ist die bessere Form: der Server sagt, was daraus wurde. Eine Online-Zahlung
+   * hat keine solche Antwort – gebucht wird sie vom Webhook –, also braucht genau sie
+   * diesen einen Weg.
+   */
+  const reload = useCallback(async () => {
+    if (objectId == null) return;
+    try {
+      setLive(await api.getOrder(objectId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [objectId]);
+
   const blocked = missing != null && missing.length > 0;
   const shown = live;
 
@@ -282,7 +299,7 @@ export function OrderDetail({ record, seed, onSaved, onDeviate, onBack }: {
             refreshKey={refreshKey} parents={preview} />
         ) : shown ? (
           <RunView order={shown} busy={busy} onConfirm={confirmStep}
-            onDeal={runDeal} onDeviate={onDeviate} />
+            onDeal={runDeal} onReload={reload} onDeviate={onDeviate} />
         ) : (
           <p className="text-sm text-center" style={{ color: 'var(--fg-4)' }}>
             {loading ? 'Lädt …' : null}
@@ -410,13 +427,21 @@ function DraftView({ lines, setLines, steps, setSteps, refreshKey, parents }: {
 // Freigegeben — Modus «ausfuehrung»
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RunView({ order, busy, onConfirm, onDeal, onDeviate }: {
+function RunView({ order, busy, onConfirm, onDeal, onReload, onDeviate }: {
   order: Order; busy: boolean;
   onConfirm: (stepId: number, instanceObjectId: number | null, verification: string,
               values: Record<string, Record<string, unknown>>,
               sources: number[], place: number | null) => void;
   /** Eine Handlung am Geldvorgang («Zahlung»). */
   onDeal: (stepId: number, body: { action: string } & Record<string, unknown>) => void;
+  /**
+   * **Den Auftrag neu laden.**
+   *
+   * Für das eine, was **keine** Handlung an ihm ist: eine Online-Zahlung. Sie bucht
+   * nichts – das tut der Webhook –, also gibt es auch keine Antwort, die den Auftrag
+   * mitbrächte; nachgeladen wird er trotzdem, damit die Zeile erscheint, sobald sie da ist.
+   */
+  onReload: () => void;
   onDeviate?: (seed: OrderSeed) => void;
 }) {
   const steps: DiagramStep[] = toDiagramSteps(order.steps);
@@ -535,7 +560,8 @@ function RunView({ order, busy, onConfirm, onDeal, onDeviate }: {
       <Reason text={stepInfo(order, step.id)?.reason} />
       {money ? (
         <DealWork deal={money} busy={busy} active={isActive}
-          onAction={(body) => onDeal(step.id, body)}>
+          orderObjectId={order.object_id} stepId={step.id}
+          onAction={(body) => onDeal(step.id, body)} onPaid={onReload}>
           {work}
         </DealWork>
       ) : work}
