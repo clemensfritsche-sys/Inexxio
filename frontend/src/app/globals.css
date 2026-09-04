@@ -1025,3 +1025,22 @@
 @media (prefers-reduced-motion: reduce) {
   .ix-live { animation: none; box-shadow: 0 0 0 3px var(--ix-live, transparent); }
 }
+
+
+/* ►►► **Eine Zeilen-Aktion erscheint beim Hovern** (Testnotiz #832). ◄◄◄
+
+   Ein Löschen-Knopf, der in jeder Zeile dauerhaft dasteht, ist die lauteste Angabe einer
+   Liste – und die gefährlichste. Er gehört zur Zeile, unter der der Zeiger steht.
+
+   **Und er verschwindet nie dort, wo es kein Hovern gibt**: `@media (hover: none)` hält
+   ihn auf Touch sichtbar. Eine Funktion, die nur ein Zeiger findet, gibt es am Telefon
+   gar nicht – das ist keine Feinheit, sondern der Unterschied zwischen «unauffällig» und
+   «unerreichbar». `:focus-within` deckt denselben Weg für die Tastatur ab.
+
+   Als **eine** Regel im Blatt und nicht als Zustand an der Aufrufstelle: wer sie dort
+   nachbaute, bräuchte einen `onMouseEnter`-Zustand je Zeile – und beim nächsten Bauteil
+   fehlte er. */
+.erp-rowaction { opacity: 0; transition: opacity .12s; }
+.erp-partyrow:hover .erp-rowaction,
+.erp-partyrow:focus-within .erp-rowaction { opacity: 1; }
+@media (hover: none) { .erp-rowaction { opacity: 1; } }

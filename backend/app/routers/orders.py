@@ -931,7 +931,8 @@ def update_deal(
     **Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit
     die Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``
     nur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**
-    darf, sagt ``can`` (``PARTY_ACTIONS``: offerieren oder absagen), und ``apply`` weist
+    darf, sagt ``can`` (``Direction.party_actions`` – wer den Preis nennt, offeriert;
+    wer ihn empfängt, nimmt an oder lehnt ab), und ``apply`` weist
     alles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.
     """
     order = orders_svc.get(db, object_id)

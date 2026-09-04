@@ -2498,6 +2498,81 @@ Knopf) **und** in `_reverse` (also weist die Tür ab). **Einen Löschweg gibt es
 auch nicht für einen Tippfehler; eine Frist («innerhalb fünf Minuten») wäre eine erfundene
 Regel mit einer Uhr darin.
 
+#### Man storniert einen BELEG, kein Ereignis
+
+*«wenn ich eine zahlung erfasst habe, dann habe ich sie ja erfasst, dann kann ich sie doch
+nicht mehr stornieren… dann muss ich sie durch eine weitere zahlung korrigieren oder???»*
+(Testnotiz #842) — Ja, und diese Antwort ist die richtige. Der Storno lag eine Runde lang
+auf **beiden** Achsen; das war ein Schritt zu weit.
+
+======================  ===============================  ==============================
+Zeile                   was sie ist                      wie man sie korrigiert
+======================  ===============================  ==============================
+**Forderung**           ein Beleg, den **wir** ausstellen **Storno** – eine
+                                                         Stornorechnung, eigener Beleg,
+                                                         eigene Nummer
+**Zahlung**             ein **Ereignis** der Aussenwelt   eine **zweite Zahlung**
+                        (Geld ist geflossen)             (negativ)
+======================  ===============================  ==============================
+
+`reverse` gilt darum **nur für eine Forderung** — durchgesetzt in `_reverse`, nicht nur am
+Knopf, und `can` führt das Verb gar nicht erst, wenn nur Zahlungen dastehen. An einer
+Zahlung steht stattdessen **«Korrigieren»**, und das ist **kein neues Verb**: es öffnet die
+gewöhnliche Zahlungs-Erfassung mit dem **negativen Betrag vorbelegt**. Ob es ein
+Erfassungsfehler war oder ob das Geld zurückkam, weiss nur ein Mensch — beides ist dieselbe
+Zeile, und die gibt es längst. *Das System bietet an, der Mensch entscheidet* — dieselbe
+Regel wie §4.5 bei «nicht bestanden».
+
+*Bewusst nicht gebaut und benannt: die **Zuordnung Zahlung → Rechnung** (Ausziffern offener
+Posten). Bei einem Vorgang mit meist einer Rechnung ist der Topf richtig; die Zuordnung wäre
+ein zweites Modell für dieselbe Zahl.*
+
+#### Jede Nummer wird genau EINMAL vergeben
+
+Die Storno-Zeile kopierte die Nummer der stornierten (Testnotiz #841): zwei Belege hiessen
+gleich, und in der Serie fehlte die nächste Zahl. Eine Stornorechnung ist aber ein **eigener
+Beleg** — MWST-pflichtig mit eigener Nummer und einem **Verweis** auf die stornierte. Sie
+zieht darum die nächste Nummer; der Bezug wohnt in `reverses_id` und im Vermerk, nie in der
+Nummer.
+
+Und daraus folgt die andere Hälfte (#840): **eine Nummer, die wir vergeben, tippt niemand
+ab.** Das Feld gibt es genau dort, wo die Nummer **von aussen** kommt — an einer
+Lieferantenrechnung (sie steht auf seinem Papier) und an jeder Zahlung (QR-Referenz,
+Zahlungszweck, die Id des Zahlungsdienstes). Wie es heisst, sagt `Direction.charge_reference`
+bzw. `PAYMENT_REFERENCE`; `None` heisst «gibt es hier nicht». Ein trotzdem gesendeter Wert
+wird **verworfen** — ein ausgegrautes Feld wäre eine Bitte.
+
+#### Wer den Preis nennt, ist eine Eigenschaft der Richtung
+
+*«Wenn ich einkaufe, sage ich was und von wem ich es offeriert haben möchte, die Gegenpartei
+trägt Preis ein und ich akzeptiere. Beim Verkaufen sage ich zuerst was ich zu welchem Preis
+an wen offeriere, Kunde bestätigt.»* (Testnotiz #837) — Exakt richtig, und vorher nicht
+abgebildet: `ask` schickte in **beiden** Richtungen eine leere Zeile hinaus, beim Verkauf
+sähe der Kunde also ein Angebot ohne Preis.
+
+Ein Angebot hat einen **Urheber** (`Direction.quoted_by`), und daraus folgt alles:
+
+* **Wir nennen** (Einnahme): der Betrag ist **Pflicht, bevor es hinausgeht**; die Zeile
+  entsteht sofort als *offeriert*. Die Gegenpartei ändert unseren Preis nicht — sie **nimmt
+  an oder lehnt ab**.
+* **Er nennt** (Ausgabe): leere Anfrage, er offeriert, wir wählen.
+
+`PARTY_ACTIONS` ist damit keine Konstante mehr, sondern `Direction.party_actions` — eine
+**Ableitung** aus `quoted_by`, keine zweite Angabe. Das ist die eine erlaubte Unterscheidung
+zwischen den Richtungen, und sie steht als **Daten** im Flow, nicht als `if direction ==`.
+
+#### «Einnahme» und «Ausgabe», nicht «Verkauf» und «Einkauf»
+
+Testnotiz #831, und sie nimmt meine Wahl aus #804 zurück. Dieses Modul entstand aus der
+Einsicht, dass der kleinste gemeinsame Nenner **nicht die Ware** ist: Miete, Lohn, Gebühr,
+Spesen und ein Transport sind keine Käufe. Ein Wert, der «Verkauf» heisst, ist damit **enger
+als das Modul**, und beim ersten Mietvertrag ist er schlicht falsch.
+
+Und darum trägt es auch **nicht die Symbole des Handels** (`FLOW`: Einkaufswagen ↔
+Handschlag) — ein Handschlag über einer Mietzahlung behauptet ein Geschäft, das es nicht
+gibt. Zwei diagonal entgegengesetzte Pfeile sagen, wohin das Geld fliesst, und mehr
+behauptet dieses Modul nicht.
+
 #### Ohne Rechnung keine Zahlung
 
 Man kassiert nicht, was niemand gefordert hat (Testnotiz #822). Der Satz stand seit §9.11

@@ -19,7 +19,7 @@ arbeitet weiter in der vollen Ansicht.
 ## Eine Handlung ist ein Befehl, kein Feld-Update
 
 Neun Verben, ein Endpunkt (``POST …/steps/{id}/deal``). Was an einer Stufe erlaubt ist,
-steht in **einer** Tabelle (``ACTIONS`` × ``PARTY_ACTIONS``) – und dieselbe Tabelle ist
+steht in **einer** Tabelle (``ACTIONS`` × ``Direction.party_actions``) – und dieselbe ist
 **Auskunft und Tor**: die Oberfläche rendert einen Knopf genau dann, wenn sein Verb in
 ``can`` steht, und ``apply`` weist ab, was nicht darin steht.
 
@@ -70,12 +70,16 @@ ACTIONS: dict[str, tuple[str, ...]] = {
     dm.CANCELLED: ("charge", "pay"),
 }
 
-#: ►►► **Was die GEGENPARTEI darf.** ◄◄◄
+#: ►►► **Was die GEGENPARTEI darf — es folgt aus der RICHTUNG.** ◄◄◄
 #:
-#: Sie nennt ihren Preis oder sagt ab – mehr nicht. Der Zuschlag, das Geld und der Storno
-#: gehören uns. Als **Schnittmenge** mit der Stufe und nicht als eigene Tabelle: zwei
+#: Es stand als Konstante da («sie nennt ihren Preis oder sagt ab») und war damit die
+#: Ausgabe-Sicht für beide Richtungen. **Wer den Preis nennt, offeriert; wer ihn empfängt,
+#: nimmt an oder lehnt ab** – bei einer Einnahme darf der Kunde unseren Preis also gar
+#: nicht überschreiben (Testnotiz #837). Die Liste wohnt darum in ``Direction``
+#: (``party_actions``), abgeleitet aus ``quoted_by``.
+#:
+#: Weiterhin als **Schnittmenge** mit der Stufe und nicht als eigene Tabelle: zwei
 #: Tabellen wären zwei Massstäbe, und der zweite bekäme das nächste Verb nicht mit.
-PARTY_ACTIONS: tuple[str, ...] = ("quote", "decline")
 
 #: ►►► **Eine Geld-Zeile STORNIEREN — mit einer Gegenbuchung.** ◄◄◄
 #:
@@ -275,16 +279,19 @@ def can(db: Session, row: Deal, viewer: Optional[UserProfile]) -> list[str]:
         # tatsächlich angefragt ist.
         if _quote_of(row, viewer.object_id) is None:
             return []
-        return [a for a in stage if a in PARTY_ACTIONS]
-    # ►►► **Stornieren geht, solange es etwas zu stornieren GIBT.** ◄◄◄
+        return [a for a in stage if a in dm.of(row.direction).party_actions]
+    # ►►► **Stornieren geht, solange es einen stornierbaren BELEG gibt.** ◄◄◄
     #
-    # Nicht «es gibt Zeilen»: eine Gegenbuchung storniert man nicht, und eine bereits
-    # stornierte auch nicht – sonst entstünde eine Kette aus Vorzeichen, in der niemand
-    # mehr sagen kann, was gilt. Wären beide Fälle hier nicht abgezogen, stünde das Verb
-    # in ``can``, obwohl ``_reverse`` jede einzelne Zeile abweist: ein Knopf, der
+    # Drei Dinge sind abgezogen, und jedes hat seinen eigenen Grund: eine **Zahlung** ist
+    # kein Beleg, sondern ein Ereignis (#842 – sie wird durch eine zweite Zahlung
+    # korrigiert); eine **Gegenbuchung** storniert man nicht; und eine bereits
+    # **stornierte** Zeile ebenso wenig – sonst entstünde eine Kette aus Vorzeichen, in
+    # der niemand mehr sagen kann, was gilt. Fehlte hier auch nur einer davon, stünde das
+    # Verb in ``can``, obwohl ``_reverse`` jede einzelne Zeile abweist: ein Knopf, der
     # garantiert scheitert.
     already = {e.reverses_id for e in rows if e.reverses_id is not None}
-    if any(e.reverses_id is None and e.id not in already for e in rows):
+    if any(e.kind == dm.CHARGE and e.reverses_id is None and e.id not in already
+           for e in rows):
         stage.append(REVERSE)
     return stage
 
@@ -340,13 +347,31 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
             detail=(f"Ohne {dm.PARTY} gibt es nichts anzufragen – dieses Modul "
                     f"lässt jeden zu, also muss hier stehen, wen es betrifft."),
         )
+    # ►►► **Wer den Preis nennt, füllt ihn VOR dem Hinausgehen** (Testnotiz #837). ◄◄◄
+    #
+    # Bei einer **Ausgabe** fragen wir an und warten auf seine Offerte – die Zeile geht
+    # leer hinaus, und das ist ihr Sinn. Bei einer **Einnahme** nennen **wir** den Preis:
+    # ein Angebot ohne Betrag ist keines, und ihn danach nachzutragen hiesse, dem Kunden
+    # zwischendurch eine leere Zeile zu zeigen.
+    #
+    # Der Betrag gilt für **alle** Zeilen dieser Anfrage – man bietet allen dasselbe an;
+    # wer danach je Partner nachbessert, tut das über ``quote``.
+    offered = _amount(data.get("amount"))
+    if flow.quoted_by == dm.BY_US and offered is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Ohne Betrag gibt es nichts anzubieten – bei einer {flow.label} "
+                    f"nennen wir den Preis, nicht der {dm.PARTY}."),
+        )
+    fresh = ({"amount": f"{offered:.2f}", "state": dm.QUOTED}
+             if offered is not None else {"amount": None, "state": dm.ASKED})
     lines = list(row.quotes or [])
     for value in wanted:
         number = _party(db, step=step, value=value, flow=flow)
         if number is None or any(q.get("party") == number for q in lines):
             continue
-        lines.append({"party": number, "amount": None, "lead_days": None,
-                      "payment_days": None, "state": dm.ASKED})
+        lines.append({"party": number, "lead_days": _days(data.get("lead_days")),
+                      "payment_days": _days(data.get("payment_days")), **fresh})
     _write_quotes(row, lines)
 
 
@@ -431,16 +456,25 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
 
     **Die Automatik steckt in den Vorgaben, nicht in einem Modus**: Betrag = *zugesagt −
     berechnet* (nie negativ, ``Balance.next_charge``), Fälligkeit = *heute + Frist*,
-    Nummer = ``<Auftragsnummer>[-n]``, wo wir nummerieren.
+    Nummer = ``<Auftragsnummer>-<laufend>``, wo wir nummerieren.
     """
+    flow = dm.of(row.direction)
     given = _amount(data.get("amount"), allow_negative=True)
     value = given if given is not None else balance_of(db, row).next_charge
     if value is None:
         raise HTTPException(status_code=400, detail="Ohne Betrag keine Rechnung.")
     booked = _day(data.get("booked_on")) or date.today()
-    number = _text(data.get("reference"), 120)
-    if row.direction == dm.IN and not number:
-        number = _our_number(db, order)
+    # ►►► **Eine Nummer, die WIR vergeben, tippt niemand ab** (Testnotiz #840). ◄◄◄
+    #
+    # Sie entsteht aus der Serie – lückenlos und ohne Doppelung. Ein gesendeter Wert wird
+    # darum **verworfen**, nicht bloss ignoriert: ein Feld, das die Oberfläche nicht
+    # anbietet, der Dienst aber annimmt, wäre eine Hintertür zu genau der zweiten
+    # Wahrheit, die es hier nicht geben darf.
+    #
+    # Wo die Gegenpartei die Rechnung stellt, ist es **ihre** Nummer – sie steht auf ihrem
+    # Papier, und ohne sie liesse sich der Beleg nicht zuordnen.
+    number = (_our_number(db, order) if flow.charge_reference is None
+              else _text(data.get("reference"), 120))
     db.add(DealEntry(
         deal_id=row.id, kind=dm.CHARGE, amount=value, booked_on=booked,
         due_on=_day(data.get("due_on")) or _due(booked, row.due_days),
@@ -497,6 +531,23 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Deal,
             status_code=404,
             detail="Diese Zeile gehört nicht zu diesem Vorgang.",
         )
+    # ►►► **Man storniert einen BELEG, kein Ereignis** (Testnotiz #842). ◄◄◄
+    #
+    # Eine **Forderung** ist ein Beleg, den wir ausstellen – den kann man zurücknehmen,
+    # und die Stornorechnung ist das übliche Mittel dafür. Eine **Zahlung** ist etwas
+    # anderes: sie ist die Aufzeichnung dessen, was auf dem Konto passiert ist. Ein
+    # Ereignis der Aussenwelt macht man nicht ungeschehen.
+    #
+    # Wer sich vertippt hat oder wem das Geld zurückkam, bucht eine **zweite Zahlung**
+    # (negativ) – und *welcher* der beiden Fälle es ist, weiss nur ein Mensch. Die
+    # Oberfläche bietet sie darum vorbelegt an; angelegt wird sie nicht von selbst.
+    if entry.kind != dm.CHARGE:
+        raise HTTPException(
+            status_code=409,
+            detail=("Eine Zahlung storniert man nicht – sie ist ein Ereignis, kein Beleg. "
+                    "Erfasse eine zweite Zahlung mit dem negativen Betrag: das ist die "
+                    "Korrektur eines Erfassungsfehlers ebenso wie eine Erstattung."),
+        )
     if entry.reverses_id is not None:
         raise HTTPException(
             status_code=409,
@@ -507,10 +558,20 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Deal,
             status_code=409,
             detail="Diese Zeile ist bereits storniert.",
         )
+    # ►►► **Eine Stornorechnung ist ein EIGENER Beleg** (Testnotiz #841). ◄◄◄
+    #
+    # Sie kopierte die Nummer der stornierten: zwei Belege hiessen gleich, und in der
+    # Serie fehlte die nächste Zahl. Eine Stornorechnung ist aber MWST-pflichtig ein
+    # eigenes Dokument mit **eigener** Nummer und einem **Verweis** auf die stornierte.
+    #
+    # Die Regel dahinter gilt für jede Zeile: **jede Nummer wird genau einmal vergeben.**
+    # Der Bezug wohnt in ``reverses_id`` (und im Vermerk), nie in der Nummer.
+    flow = dm.of(row.direction)
     db.add(DealEntry(
         deal_id=row.id, kind=entry.kind, amount=-entry.amount,
         booked_on=date.today(), due_on=None,
-        reference=entry.reference, note="Storno",
+        reference=(_our_number(db, order) if flow.charge_reference is None else None),
+        note=f"Storno zu {entry.reference}" if entry.reference else "Storno",
         reverses_id=entry.id,
     ))
 
@@ -866,6 +927,11 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # keine eigene Konstante daneben hält.
         "party_word": dm.PARTY,
         "ask_verb": flow.ask_verb,
+        # **Wer den Preis nennt, und wie die beiden Nummernfelder heissen** – lauter
+        # Angaben, damit die Oberfläche die Richtung nie selbst auswertet.
+        "we_quote": flow.quoted_by == dm.BY_US,
+        "charge_ref_label": flow.charge_reference,
+        "payment_ref_label": dm.PAYMENT_REFERENCE,
         "charge_word": flow.charge_word,
         "payment_word": flow.payment_word,
         "open_word": flow.open_word,

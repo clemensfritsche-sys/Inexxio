@@ -170,6 +170,44 @@ MONEY_LABEL = "Rechnung & Zahlung"
 TASK = "Was ist zu tun?"
 TASK_HINT = "Artikelnummer, Link oder Beschreibung"
 
+# ---------------------------------------------------------------------------
+# ►►► WER DEN PREIS NENNT — der Urheber eines Angebots ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Ein Angebot hat einen **Urheber**, und der ist in den beiden Richtungen ein anderer
+# (Testnotiz #837):
+#
+# * **Ausgabe**: wir fragen an, **er** nennt den Preis, wir wählen aus.
+# * **Einnahme**: **wir** nennen den Preis, er nimmt an oder lehnt ab.
+#
+# Das ist keine Formulierungsfrage, sondern eine andere **Abfolge**. Vorher schickte
+# ``ask`` in beiden Richtungen eine leere Zeile hinaus – beim Verkauf sähe der Kunde ein
+# Angebot ohne Preis, und wir müssten ihn danach nachtragen. Steht der Urheber als
+# **Angabe** da, folgt daraus beides ohne eine Verzweigung: wer nennt, füllt **vor** dem
+# Hinausgehen, und wer nicht nennt, darf den fremden Preis nicht ändern.
+
+#: **Wir** nennen den Preis (Einnahme) – das Angebot geht mit dem Betrag hinaus.
+BY_US = "us"
+#: **Die Gegenpartei** nennt ihn (Ausgabe) – wir fragen an und warten auf die Offerte.
+BY_PARTY = "party"
+
+# ---------------------------------------------------------------------------
+# ►►► DIE NUMMER EINER ZEILE — nur, wo sie von AUSSEN kommt ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Eine Nummer, die **wir** vergeben, tippt niemand ab (Testnotiz #840): sie entsteht aus
+# der Serie, lückenlos und ohne Doppelung. Ein Eingabefeld daneben ist die zweite Aussage
+# über dieselbe Sache – und die getippte gewinnt, auch wenn sie falsch ist.
+#
+# Das Feld gibt es darum genau dort, wo die Nummer **von aussen** kommt: an einer
+# Lieferantenrechnung (sie steht auf seinem Papier) und an jeder Zahlung (QR-Referenz,
+# Zahlungszweck, die Id des Zahlungsdienstes).
+
+#: Die Nummer der Gegenpartei an ihrer Rechnung – nur, wo **sie** die Rechnung stellt.
+PARTY_CHARGE_REFERENCE = "Belegnummer des Partners"
+#: Die Referenz einer Zahlung – in **beiden** Richtungen von aussen.
+PAYMENT_REFERENCE = "Zahlungsreferenz"
+
 
 @dataclass(frozen=True)
 class Direction:
@@ -193,8 +231,18 @@ class Direction:
     #: Einer der vier echten Unterschiede: wer zuerst fragt, ist nicht derselbe.
     stage_labels: dict[str, str]
     #: **Wie man auf den Partner zugeht** – der eine Punkt, an dem die Richtung eine echte
-    #: Handlung unterscheidet: beim Einkauf fragt man an, beim Verkauf bietet man an.
+    #: Handlung unterscheidet: bei einer Ausgabe fragt man an, bei einer Einnahme bietet
+    #: man an.
     ask_verb: str
+    #: ►►► **Wer den Preis nennt** – ``BY_US`` ↔ ``BY_PARTY`` (Testnotiz #837). ◄◄◄
+    #:
+    #: Daraus folgt die ganze Abfolge: wer nennt, füllt **vor** dem Hinausgehen (das
+    #: Angebot geht mit dem Betrag hinaus), und wer nicht nennt, ändert den fremden Preis
+    #: nicht – er nimmt an oder lehnt ab.
+    quoted_by: str
+    #: **Wie die Nummer einer Forderung entsteht.** ``None`` heisst «wir nummerieren» –
+    #: dann gibt es kein Eingabefeld (#840). Sonst der Name des Feldes.
+    charge_reference: Optional[str]
 
     #: ►►► **Was man TUT, ist in beiden Richtungen dasselbe.** ◄◄◄
     #:
@@ -225,6 +273,21 @@ class Direction:
     def money_label(self) -> str:
         return MONEY_LABEL
 
+    @property
+    def party_actions(self) -> tuple[str, ...]:
+        """►►► **Was die GEGENPARTEI an diesem Vorgang darf.** ◄◄◄
+
+        Es folgt aus ``quoted_by`` und ist keine zweite Angabe: **wer den Preis nennt,
+        offeriert; wer ihn empfängt, nimmt an oder lehnt ab.** Bei einer Ausgabe darf sie
+        darum ``quote``, bei einer Einnahme ``agree`` – unseren Preis zu überschreiben
+        wäre dort keine Antwort, sondern eine Gegenofferte, und die ist ein neuer Vorgang.
+
+        Absagen darf sie immer: das ist die eine Antwort, die in beide Richtungen dieselbe
+        Bedeutung hat.
+        """
+        return (("quote", "decline") if self.quoted_by == BY_PARTY
+                else ("agree", "decline"))
+
     def label_of(self, stage: str) -> str:
         """Wie diese Stufe heisst. Die beiden **Ausgänge** gehören beiden Richtungen
         gleich – sie sind keine Stufen, aber sie brauchen ein Wort."""
@@ -239,19 +302,26 @@ class Direction:
 DIRECTIONS: dict[str, Direction] = {
     IN: Direction(
         key=IN,
-        label="Verkauf",
-        hint="Verkauf – wir liefern, wir stellen Rechnung, Geld kommt herein.",
+        label="Einnahme",
+        hint="Einnahme – wir stellen Rechnung, Geld kommt herein.",
         stage_labels={OFFER: "Angebot", AGREED: "Auftrag"},
-        # Wir **bieten** dem Kunden an; er fragt nicht bei uns an.
+        # Wir **bieten** an; die Gegenpartei fragt nicht bei uns an.
         ask_verb="Anbieten",
+        # **Wir** nennen den Preis – das Angebot geht mit ihm hinaus.
+        quoted_by=BY_US,
+        # Und wir nummerieren: kein Eingabefeld.
+        charge_reference=None,
     ),
     OUT: Direction(
         key=OUT,
-        label="Einkauf",
-        hint="Einkauf – er liefert, wir bekommen Rechnung, Geld geht hinaus.",
+        label="Ausgabe",
+        hint="Ausgabe – wir bekommen Rechnung, Geld geht hinaus.",
         stage_labels={OFFER: "Anfrage", AGREED: "Auftrag"},
-        # Wir **fragen** beim Lieferanten an; er bietet uns an.
+        # Wir **fragen** an; die Gegenpartei bietet uns an.
         ask_verb="Anfragen",
+        quoted_by=BY_PARTY,
+        # Seine Rechnung trägt **seine** Nummer – sie steht auf seinem Papier.
+        charge_reference=PARTY_CHARGE_REFERENCE,
     ),
 }
 

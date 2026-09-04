@@ -14,8 +14,9 @@
 
 import {
   Banknote, Landmark,
-  Blocks, Camera, CircleHelp, ClipboardCheck, Hand, HandCoins, Handshake, MoveRight,
-  PackageX, PenLine, Ruler, ShoppingCart, ThumbsUp, Type, type LucideIcon,
+  ArrowDownLeft, ArrowUpRight, Blocks, Camera, CircleHelp, ClipboardCheck, Hand,
+  HandCoins, Handshake, MoveRight, PackageX, PenLine, Ruler, ShoppingCart, ThumbsUp,
+  Type, type LucideIcon,
 } from 'lucide-react';
 
 import { emptyLine, type DefinitionLine } from '@/components/erp/definition-lines';
@@ -140,28 +141,33 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
  * **Keine zwei Farben**: die Richtung ist eine Aussage über den Fluss, kein Zustand –
  * und Farbe ist im ERP für die Ampel reserviert.
  *
- * ►►► **Das Symbol bildet ab, was man TUT — nicht, wie es gebucht wird** (#799). ◄◄◄
+ * ►►► **«Einnahme» ↔ «Ausgabe», nicht «Verkauf» ↔ «Einkauf»** (Testnotiz #831). ◄◄◄
  *
- * Vorher standen hier Plus und Minus: die Buchhaltungssprache, aber nicht die Sprache
- * dessen, der davorsteht – er verkauft oder er kauft ein. Und ein Kreis mit einem Strich
- * darin ist von einem Kreis mit einem Kreuz darin auf 15 px kaum zu unterscheiden.
+ * Dieses Modul entstand aus der Einsicht, dass der kleinste gemeinsame Nenner **nicht die
+ * Ware** ist, sondern Geld mit einer zweiten Partei. Miete, Lohn, Gebühr, Spesen und ein
+ * Transport sind keine Käufe – ein Wert, der «Verkauf» heisst, ist damit **enger als das
+ * Modul**, und beim ersten Mietvertrag ist er schlicht falsch. *Meine frühere Wahl (#804,
+ * «die Werte heissen wie beim Handel») wird damit zurückgenommen: sie stimmte für die
+ * beiden Fälle, die zufällig zuerst gebaut wurden.*
  *
- * Genommen wird darum **dasselbe Paar wie beim Beschaffungs-Beleg** (`FLOW`): Einkaufs-
- * wagen ↔ Handschlag. Ein Haus, zwei Module, **eine** Bildsprache; ein drittes Paar für
- * dieselbe Unterscheidung wäre die zweite Antwort auf eine beantwortete Frage.
+ * **Und darum sind es Pfeile, kein Handschlag.** `FLOW` bleibt die Bildsprache des
+ * *Handels* – Einkaufswagen ↔ Handschlag –, und genau das ist hier nicht gemeint. Ein
+ * Pfeil sagt, wohin das Geld fliesst, und mehr behauptet dieses Modul nicht; zwei
+ * diagonal entgegengesetzte sind auf 15 px sicher unterscheidbar (der Einwand aus #799
+ * gegen Plus und Minus gilt für sie nicht).
  */
 export const DEAL_DIRECTION: Record<string, {
   icon: LucideIcon; label: string; hint: string;
 }> = {
   in: {
-    // Ein Handschlag – wir **verkaufen**. Dasselbe Symbol wie `FLOW.sell`.
-    icon: Handshake, label: 'Verkauf',
-    hint: 'Verkauf – wir liefern, wir stellen Rechnung, Geld kommt herein.',
+    // Ein Pfeil **herein** – Geld kommt zu uns.
+    icon: ArrowDownLeft, label: 'Einnahme',
+    hint: 'Einnahme – wir stellen Rechnung, Geld kommt herein.',
   },
   out: {
-    // Ein Einkaufswagen – wir **kaufen ein**. Dasselbe Symbol wie `FLOW.buy`.
-    icon: ShoppingCart, label: 'Einkauf',
-    hint: 'Einkauf – er liefert, wir bekommen Rechnung, Geld geht hinaus.',
+    // Ein Pfeil **hinaus** – Geld geht von uns weg.
+    icon: ArrowUpRight, label: 'Ausgabe',
+    hint: 'Ausgabe – wir bekommen Rechnung, Geld geht hinaus.',
   },
 };
 

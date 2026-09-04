@@ -2168,6 +2168,69 @@
 > stornierter und stornierender Zeile); der erledigte Vorgang bietet Rechnung, Zahlung und
 > zwei Stornos an, die Gegenpartei sieht **0** fremde Preise.
 
+> **Man storniert einen BELEG, kein Ereignis** (Testnotizen #830–#842). Dreizehn Notizen,
+> vier Themen — und der wichtigste ist wieder buchhalterisch, diesmal mit der richtigen
+> Antwort vom Nutzer selbst.
+> **(1) Der Storno lag auf der falschen Achse** (#842). *«wenn ich eine zahlung erfasst
+> habe, dann habe ich sie ja erfasst, dann kann ich sie doch nicht mehr stornieren… dann
+> muss ich sie durch eine weitere zahlung korrigieren oder???»* – Ja. Eine **Forderung**
+> ist ein Beleg, den *wir* ausstellen; den nimmt eine Stornorechnung zurück. Eine
+> **Zahlung** ist die Aufzeichnung dessen, was auf dem Konto passiert ist – ein Ereignis
+> der Aussenwelt macht man nicht ungeschehen. `reverse` gilt darum **nur für eine
+> Forderung** (im Dienst, nicht nur am Knopf; `can` führt das Verb gar nicht, wenn nur
+> Zahlungen dastehen), und an einer Zahlung steht **«Korrigieren»** – **kein neues Verb**,
+> sondern die gewöhnliche Erfassung mit dem **negativen Betrag vorbelegt**. Ob es ein
+> Erfassungsfehler war oder ob das Geld zurückkam, weiss nur ein Mensch: *das System
+> bietet an, der Mensch entscheidet* (dieselbe Regel wie §4.5). *Bewusst nicht gebaut und
+> benannt: das **Ausziffern** offener Posten – bei meist einer Rechnung je Vorgang ist der
+> Topf richtig, die Zuordnung wäre ein zweites Modell für dieselbe Zahl.*
+> **(2) Jede Nummer wird genau EINMAL vergeben** (#841/#840). Die Storno-Zeile kopierte
+> die Nummer der stornierten: zwei Belege hiessen gleich, und in der Serie fehlte die
+> nächste Zahl. Eine Stornorechnung ist aber ein **eigener** Beleg – eigene Nummer,
+> **Verweis** auf die stornierte (`reverses_id` und Vermerk, nie die Nummer). Und die
+> andere Hälfte derselben Regel: **eine Nummer, die wir vergeben, tippt niemand ab** –
+> das Feld gibt es genau dort, wo sie **von aussen** kommt (Lieferantenrechnung ·
+> Zahlungsreferenz), und ein trotzdem gesendeter Wert wird **verworfen**, nicht ignoriert.
+> **(3) Wer den Preis nennt, ist eine Eigenschaft der Richtung** (#837). *«Beim Verkaufen
+> sage ich zuerst, was ich zu welchem Preis an wen offeriere.»* – Vorher schickte `ask` in
+> **beiden** Richtungen eine leere Zeile hinaus; der Kunde sähe ein Angebot ohne Preis.
+> Ein Angebot hat einen **Urheber** (`Direction.quoted_by`), und daraus folgt beides ohne
+> Verzweigung: wer nennt, füllt **vor** dem Hinausgehen (die Zeile entsteht sofort als
+> *offeriert*), und wer empfängt, **nimmt an oder lehnt ab**. `PARTY_ACTIONS` ist damit
+> keine Konstante mehr, sondern eine **Ableitung** (`party_actions`) – die eine erlaubte
+> Unterscheidung, und sie steht als Daten im Flow.
+> **(4) «Einnahme» ↔ «Ausgabe» statt «Verkauf» ↔ «Einkauf»** (#831) – und das nimmt meine
+> Wahl aus #804 zurück. Das Modul entstand aus der Einsicht, dass der kleinste gemeinsame
+> Nenner **nicht die Ware** ist: Miete, Lohn, Gebühr, Spesen und ein Transport sind keine
+> Käufe. Ein Wert, der «Verkauf» heisst, ist **enger als das Modul**. Darum auch **nicht**
+> die Symbole des Handels – ein Handschlag über einer Mietzahlung behauptet ein Geschäft,
+> das es nicht gibt; zwei Pfeile sagen, wohin das Geld fliesst, und mehr behauptet es nicht.
+> **Kleineres, jedes an einer Stelle:** die **Abwahl gilt für die Anfrage, die man gerade
+> stellt** (#835 – sie überlebte sie, und wer erst einen von zweien fragte, hatte den
+> zweiten noch abgewählt: «Bei 0 anbieten», gesperrt, bis zum Refresh); **was eine Zahl
+> ist, steht tabellarisch** (#839 – Betrag, Frist und Datum; die Objektnummer bleibt
+> bewusst anders, sie ist eine **Kennung**, kein Messwert); **Nummer und Name brechen
+> nicht um** (#838 – der Name wird gekappt); im Editor steht alles zu **einem** Partner auf
+> **einer** Zeile (#833 – bei mehreren ist sie die einzige Stelle, an der die Zugehörigkeit
+> steht) und der **Löschen-Knopf erscheint beim Hovern** (#832 – aber `@media (hover: none)`
+> hält ihn auf Touch sichtbar: eine Funktion, die nur ein Zeiger findet, gibt es am Telefon
+> nicht); an der Angebotszeile ist «Was ist zu tun?» eine **Auskunft**, keine Frage (#836 –
+> Symbol + Wert, Erklärung im Hover); der Schalter heisst **«Zahlung abwarten» ↔ «Zahlung
+> nicht abwarten»** (#834 – der Wert benennt jetzt die *Entscheidung*, nicht ihren
+> Bezugspunkt); und die Liste heisst schlicht **«Partner»** (#830).
+> Wächter: 3 neue in `test_deal_module.py`, 6 neue in `test_frontend_mirrors.py`, dazu 5
+> auf die neue Regel gezogene – **jede Bug-Form gegengeprüft**; *einer war dabei stumpf und
+> liess seine eigene durch* (er fragte, ob `e.kind === 'charge'` irgendwo im Rumpf steht,
+> und war schon durch die Symbolwahl eine Zeile höher erfüllt) – er prüft jetzt das **Tor**.
+> Zwei bestehende prüften die **Form** der alten Lösung (der wörtliche `ask`-Aufruf, die
+> Handels-Symbole) und hätten die bessere verboten. Suite grün gegen die gewachsene
+> Datenbank (568) **und** gegen ein Schema nur aus den Migrationen (568). Gemessen in
+> Chromium an den **echten** Komponenten: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px**
+> waagrechter Überlauf; die Partner-Zeile ist ab 834 px **eine** Zeile, der Löschen-Knopf
+> steht im Ruhezustand auf Deckkraft 0 und beim Hovern auf 1 – **auf einem Touch-Gerät
+> durchgehend auf 1**; das Nummernfeld fehlt bei einer Einnahme und steht bei einer
+> Ausgabe; die Korrektur einer Zahlung ist mit «−1000.00» vorbelegt.
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

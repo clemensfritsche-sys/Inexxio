@@ -333,16 +333,31 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   hidden`-Vorfahren kappen**: ein `truncate`-Text ist wirklich abgeschnitten, und eine
   Messung, die die Lösung als Fehler meldet, ist so falsch wie eine, die ihn übersieht.
 - **Im Editor** (`MoneyFields`) drei Angaben – und **kein einziges Label darüber**
-  (#816/#817/#819): der Schieber **Verkauf ↔ Einkauf** (Vorgabe Verkauf, #791/#804), die
-  **zugelassenen Partner** (`ObjectSelect`, leer = `RUNTIME_CHOICE`) je Zeile mit der
-  **Pflichtangabe** «Was ist zu tun?» (#805/#808 – benannt über `aria-label`, gesagt vom
-  Platzhalter) und der Schieber **«Nach Zusage» ↔ «Nach Zahlung»** (#818). Was ein
-  Bedienelement selbst sagt, sagt man nicht daneben – und die Bedingung gehört **in** den
-  Wert, sonst braucht sie eine Frage darüber. **Kein Betragsfeld** und kein Satz am
-  Vorgang: beides stünde beim Modellieren nicht fest bzw. doppelt.
+  (#816/#817/#819): der Schieber **Einnahme ↔ Ausgabe** (Vorgabe Einnahme, #791/#831), die
+  **Partner** (`ObjectSelect`, leer = `RUNTIME_CHOICE`, Beschriftung schlicht «Partner»,
+  #830) und der Schieber **«Zahlung nicht abwarten» ↔ «Zahlung abwarten»** (#834). Was ein
+  Bedienelement selbst sagt, sagt man nicht daneben – **aber es muss es dann auch sagen**:
+  «Nach Zusage» nannte den Bezugspunkt, nicht die Entscheidung. **Kein Betragsfeld** und
+  kein Satz am Vorgang: beides stünde beim Modellieren nicht fest bzw. doppelt.
+- ►►► **Alles zu EINEM Partner steht auf EINER Zeile** (#833, `.erp-partyrow`). ◄◄◄
+  Nummer, Name und die Pflichtangabe «Was ist zu tun?» (#805/#808, benannt über
+  `aria-label`, gesagt vom Platzhalter) gehören zusammen – bei mehreren Partnern ist die
+  Zeile die **einzige** Stelle, an der die Zugehörigkeit steht. Gemessen: ab 834 px eine
+  Zeile, darunter bricht das Feld um (auf einem Telefon geht es nicht anders).
+- **Der Löschen-Knopf erscheint beim Hovern** (#832, `.erp-rowaction` in `globals.css`) –
+  **und bleibt auf Touch sichtbar** (`@media (hover: none)`): eine Funktion, die nur ein
+  Zeiger findet, gibt es am Telefon gar nicht. `:focus-within` deckt die Tastatur ab. Als
+  **eine** Regel im Blatt, nicht als `onMouseEnter`-Zustand je Zeile.
+- **Und «Was ist zu tun?» ist an der Angebotszeile eine AUSKUNFT** (#836): dort steht das
+  Ergebnis, also Symbol + Wert mit Erklärung im Hover – ein Fragezeichen über einer Antwort
+  liest sich schräg. Im Editor bleibt die Frage richtig, dort füllt man sie aus.
 - ►►► **Ein Wort für beide Richtungen** (`DEAL_PARTY`, `DEAL_TASK`, #802). ◄◄◄ «Kunde» ↔
   «Lieferant» ist dieselbe Rolle; Singular = Plural, damit es keine Beugung gibt, die
   jemand rechnet. Ein Rollen-Wort als Literal in der Oberfläche ist ein Wächter-Fehler.
+- **Nummer und Name brechen nicht um** (#838) – der Name wird gekappt; umgebrochen las er
+  sich wie eine zweite Angabe. Und **was eine Zahl ist, steht tabellarisch** (#839, `mono`):
+  Betrag, Zahlungsfrist und Datum. Die **Objektnummer** bleibt bewusst anders – sie ist eine
+  **Kennung**, kein Messwert (#282/#784).
 - **Der Kopf trägt Symbol UND Wort** (#815) – als kompakte Marke, nicht als Symbol allein
   auf einer eigenen Reihe. Daneben der **Liefertermin** und, wenn er vorbei ist, «überfällig
   seit …» (#814) – eine Ableitung des Servers, kein Zustand.
@@ -362,6 +377,21 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   passiert, ist eine **Gegenbuchung**: die Zeile bleibt und heisst «storniert», die neue
   heisst «Storno». Beide Richtungen der Angabe kommen vom Server (`reverses` ·
   `reversed`) – im Browser müsste die zweite über die ganze Liste gesucht werden.
+- ►►► **…aber nur eine RECHNUNG** (#842). Eine **Zahlung** ist ein Ereignis der
+  Aussenwelt; an ihr steht «Korrigieren», und das ist **kein neues Verb**: es öffnet die
+  gewöhnliche Erfassung mit dem **negativen Betrag vorbelegt** (`negate`, als Zeichenkette
+  gerechnet – Beträge reisen als String). Ob es ein Erfassungsfehler war oder ob das Geld
+  zurückkam, weiss nur ein Mensch: angeboten wird es, angelegt nicht. Die Sperre steht im
+  **Dienst**; dies ist die freundliche Hälfte.
+- **Ein Nummernfeld gibt es nur, wo die Nummer von aussen kommt** (#840,
+  `charge_ref_label` ↔ `payment_ref_label`). `null` heisst «wir nummerieren» – dann gibt es
+  **kein Feld**; ein Platzhalter «automatisch» war ein Feld, das nichts aufnimmt. Wie es
+  heisst, sagt der Server, nie ein `if` auf die Richtung.
+- **Was WIR anbieten, füllen wir vor dem Hinausgehen** (#837, `OurOffer` + `we_quote`):
+  bei einer Einnahme nennen wir den Preis, und ein Angebot ohne Betrag ist keines. Es sind
+  **dieselben drei Felder** wie an einer Angebotszeile, nur eine Ebene früher. Und die
+  **Abwahl gilt für die Anfrage, die man gerade stellt** (#835) – sie fällt mit dem
+  Absenden; sonst blieb der zweite Partner abgewählt, nachdem man den ersten gefragt hatte.
 - **Ohne Rechnung kein Zahlungs-Knopf** (#822) – nicht ausgegraut, sondern gar nicht da:
   `can` führt `pay` erst, wenn etwas gefordert ist.
 - **Der Modul-Abschluss steht am ENDE der Karte** (#829), hinter der Geld-Zeile. Er stand

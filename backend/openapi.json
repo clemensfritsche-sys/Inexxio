@@ -2375,7 +2375,7 @@
           "orders"
         ],
         "summary": "Update Deal",
-        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.\n\n``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·\n``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen\nLöschweg gibt es nicht (Testnotizen #823/#824).\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**\nerlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit\ndie Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``\nnur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**\ndarf, sagt ``can`` (``PARTY_ACTIONS``: offerieren oder absagen), und ``apply`` weist\nalles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.",
+        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.\n\n``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·\n``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen\nLöschweg gibt es nicht (Testnotizen #823/#824).\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**\nerlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit\ndie Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``\nnur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**\ndarf, sagt ``can`` (``Direction.party_actions`` – wer den Preis nennt, offeriert;\nwer ihn empfängt, nimmt an oder lehnt ab), und ``apply`` weist\nalles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.",
         "operationId": "update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post",
         "security": [
           {
@@ -4763,6 +4763,27 @@
           "ask_verb": {
             "type": "string",
             "title": "Ask Verb",
+            "default": ""
+          },
+          "we_quote": {
+            "type": "boolean",
+            "title": "We Quote",
+            "default": false
+          },
+          "charge_ref_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Ref Label"
+          },
+          "payment_ref_label": {
+            "type": "string",
+            "title": "Payment Ref Label",
             "default": ""
           },
           "money_label": {

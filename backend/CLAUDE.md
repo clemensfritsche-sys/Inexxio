@@ -493,8 +493,28 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > («gibt es mehr zu berichten als die blosse Passage?» – erfasste Werte · Zustandswechsel
 > · Verifikation, #825). Beide aus Angaben, die am Schritt ohnehin stehen: keine Abfrage
 > auf den Log, keine je Modul in jeder Auftrags-Antwort.
-> Wächter: `tests/test_deal_module.py` (27 Prüfungen, jede gegen ihre Bug-Form
-> gegengeprüft) + zweiundzwanzig in `test_frontend_mirrors.py`.
+> ►►► **Man storniert einen BELEG, kein Ereignis** (Testnotiz #842). ◄◄◄ `reverse` gilt
+> **nur für eine Forderung**: sie ist ein Beleg, den *wir* ausstellen. Eine **Zahlung** ist
+> die Aufzeichnung dessen, was auf dem Konto passiert ist – ein Ereignis macht man nicht
+> ungeschehen; korrigiert wird es durch eine **zweite, negative Zahlung**, und welcher der
+> beiden Fälle es ist (Erfassungsfehler ↔ Erstattung), weiss nur ein Mensch. Durchgesetzt
+> in `_reverse` (409 **mit dem Weg im Satz**), und `can` führt das Verb gar nicht erst,
+> wenn nur Zahlungen dastehen.
+> **Jede Nummer wird genau EINMAL vergeben** (#841/#840): die Storno-Zeile zieht die
+> **nächste** aus der Serie und nennt die stornierte im Vermerk – sie kopierte deren
+> Nummer, und damit hiessen zwei Belege gleich. Ein **Nummernfeld** gibt es nur, wo die
+> Nummer von aussen kommt (`Direction.charge_reference` – `None` = wir nummerieren;
+> `PAYMENT_REFERENCE` immer); ein trotzdem gesendeter Wert wird **verworfen**.
+> **Wer den Preis nennt, steht in der Richtung** (`quoted_by`, #837): bei einer **Einnahme**
+> nennen **wir** ihn, also verlangt `ask` einen Betrag und die Zeile entsteht sofort als
+> *offeriert* – ein Angebot ohne Preis ist keines. Bei einer **Ausgabe** geht sie leer
+> hinaus, und das ist ihr Sinn. Daraus folgt `party_actions` als **Ableitung**: wer den
+> Preis empfängt, **nimmt an oder lehnt ab** (`agree`/`decline`), er überschreibt ihn nicht.
+> **«Einnahme» ↔ «Ausgabe»** (#831): der kleinste gemeinsame Nenner ist nicht die Ware –
+> Miete, Lohn und Gebühr sind keine Käufe, und ein Wert, der «Verkauf» heisst, ist enger
+> als das Modul. *Nimmt #804 zurück.*
+> Wächter: `tests/test_deal_module.py` (30 Prüfungen, jede gegen ihre Bug-Form
+> gegengeprüft) + achtundzwanzig in `test_frontend_mirrors.py`.
 
 > **Aussondern – ein Modul, zwei Ausprägungen** (PROCESS_CORE §9.4/§4.6/§5.2):
 > **Verschrotten** (`Verschrottet`, rot, endgültig) und **Sperren** (`Gesperrt`, gelb,

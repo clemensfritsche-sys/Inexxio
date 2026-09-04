@@ -6094,38 +6094,57 @@ def test_the_money_row_offers_one_obvious_action_and_the_server_names_it():
     )
 
 
-def test_the_direction_icon_shows_selling_and_buying_not_bookkeeping_signs():
-    """►►► **Das Symbol bildet ab, was man TUT** (Testnotiz #799). ◄◄◄
+def test_the_money_module_is_not_named_after_a_trade():
+    """►►► **«Einnahme» ↔ «Ausgabe», nicht «Verkauf» ↔ «Einkauf»** (Testnotiz #831). ◄◄◄
 
-    Plus und Minus sind die Buchhaltungssprache – aber nicht die dessen, der davorsteht:
-    er verkauft oder er kauft ein. Und ein Kreis mit einem Strich darin ist von einem
-    Kreis mit einem Kreuz darin auf 15 px kaum zu unterscheiden.
+    Dieses Modul entstand aus der Einsicht, dass der kleinste gemeinsame Nenner **nicht
+    die Ware** ist, sondern Geld mit einer zweiten Partei. Miete, Lohn, Gebühr, Spesen und
+    ein Transport sind keine Käufe – ein Wert, der «Verkauf» heisst, ist damit **enger als
+    das Modul**, und beim ersten Mietvertrag ist er schlicht falsch. *Meine frühere Wahl
+    (#804) wird damit zurückgenommen: sie stimmte für die beiden Fälle, die zufällig
+    zuerst gebaut wurden.*
 
-    **Und es ist DASSELBE Paar wie beim Beschaffungs-Beleg** (`FLOW`): ein Haus, zwei
-    Module, eine Bildsprache. Ein drittes Paar für dieselbe Unterscheidung wäre die zweite
-    Antwort auf eine beantwortete Frage.
+    **Und darum trägt es NICHT die Symbole des Handels.** `FLOW` ist die Bildsprache des
+    Handels (Einkaufswagen ↔ Handschlag) – genau das ist hier nicht gemeint; ein
+    Handschlag über einer Mietzahlung behauptet etwas. Ein Pfeil sagt, wohin das Geld
+    fliesst, und mehr behauptet dieses Modul nicht.
 
-    Bug-Formen: (a) die Vorzeichen kommen zurück; (b) das Geldmodul erfindet ein eigenes
-    Symbolpaar neben dem, das der Handel längst hat.
+    Bug-Formen: (a) die Handels-Wörter kommen zurück; (b) die Vorzeichen aus #799;
+    (c) das Modul leiht sich wieder die Symbole des Handels.
     """
     src = _read(FRONTEND / "lib" / "modules.ts")
     block = _body(src, "DEAL_DIRECTION", kind="const")
+    assert "'Einnahme'" in block and "'Ausgabe'" in block, (
+        "Die Richtung heisst nicht mehr nach dem Geldfluss."
+    )
+    for word in ("'Verkauf'", "'Einkauf'"):
+        assert word not in block, (
+            f"{word} ist zurück – dieses Modul kann auch Miete, Lohn und Gebühr, und "
+            f"ein Wort, das einen Kauf behauptet, ist enger als das Modul (#831)."
+        )
     for sign in ("CirclePlus", "CircleMinus"):
         assert sign not in block, (
-            f"«{sign}» ist zurück – ein Vorzeichen sagt, wie gebucht wird, nicht was "
-            f"man tut (#799)."
+            f"«{sign}» ist zurück – ein Vorzeichen sagt, wie gebucht wird, nicht wohin "
+            f"das Geld fliesst (#799)."
         )
+    # (c) **Die Symbole des Handels bleiben beim Handel.**
     flow = _body(src, "FLOW", kind="const")
-    for key, direction in (("sell", "in"), ("buy", "out")):
+    for key in ("sell", "buy"):
         icon = flow.split(f"  {key}: {{", 1)[1].split("},", 1)[0]
-        icon = [ln for ln in icon.splitlines() if "icon:" in ln][0].split("icon:")[1]
-        icon = icon.strip().rstrip(",")
-        row = block.split(f"  {direction}: {{", 1)[1].split("\n  },", 1)[0]
-        assert f"icon: {icon}" in row, (
-            f"Die Richtung «{direction}» trägt ein anderes Symbol als der Handel in "
-            f"derselben Richtung ({icon}) – zwei Bildsprachen für eine Unterscheidung."
+        icon = [ln for ln in icon.splitlines() if "icon:" in ln][0]
+        icon = icon.split("icon:")[1].strip().rstrip(",")
+        assert f"icon: {icon}" not in block, (
+            f"Das Geldmodul leiht sich «{icon}» beim Handel – ein Handschlag über einer "
+            f"Mietzahlung behauptet ein Geschäft, das es nicht gibt."
         )
-
+    # **Und die Backend-Wörter sind dieselben** – der Spiegel darf nicht auseinanderlaufen.
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import deal as dm
+    for key, row in dm.DIRECTIONS.items():
+        assert f"'{row.label}'" in block, (
+            f"«{row.label}» ({key}) steht im Backend, aber nicht im Spiegel."
+        )
 
 def test_the_stage_label_sits_on_the_height_of_its_dot():
     """**Punkt und Wort teilen EINE Zeilenhöhe** (Testnotiz #798).
@@ -6308,13 +6327,25 @@ def test_who_is_asked_is_a_choice_not_an_announcement():
     """
     offer = _code(_body(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"),
                         "Offer", kind="function"))
-    assert "action: 'ask', parties: chosen.map" in offer.replace("\n", " ").replace(
-        "              ", "").replace("darf", "darf"), (
+    # **Gefragt wird die REGEL**: die Anfrage geht an die **Auswahl**, nicht an die
+    # ganze Freigabe-Liste. Die erste Fassung verlangte den Aufruf wörtlich und schlug
+    # an, als er in einen Helfer wanderte, der zusätzlich den Preis mitgibt (#837) –
+    # ein Wächter, der die Form prüft, verbietet die bessere Lösung.
+    flat = " ".join(offer.split())
+    assert "send(chosen.map((o) => o.object_id))" in flat, (
         "Die Anfrage nennt keine Auswahl – dann geht sie an alle, und die Wahl ist eine "
         "Ansage (#809)."
     )
+    assert "action: 'ask'" in flat and "parties" in flat
     assert "setDropped" in offer, (
         "Es gibt keinen Weg, jemanden von der Anfrage auszunehmen."
+    )
+    # ►►► **Und die Abwahl gilt nur für DIESE Anfrage** (Testnotiz #835). ◄◄◄
+    #
+    # Sie überlebte das Absenden: wer erst einen von zweien fragte, hatte den zweiten
+    # noch abgewählt – «Bei 0 anbieten», gesperrt, bis zum Refresh.
+    assert "setDropped([])" in flat, (
+        "Die Abwahl überlebt die Anfrage – der nächste Partner bleibt abgewählt (#835)."
     )
 
 
@@ -6496,11 +6527,21 @@ def test_the_money_module_says_it_with_its_values_not_with_labels():
     assert "<Label" not in fields, (
         "Im Geldmodul steht wieder ein Label über einem Bedienelement, das für sich spricht."
     )
-    assert "label: 'Nach Zusage'" in fields and "label: 'Nach Zahlung'" in fields, (
-        "Die Bedingung steht nicht im Wert – dann braucht sie wieder eine Frage darüber."
+    # ►►► **Der Wert benennt die ENTSCHEIDUNG, nicht ihren Bezugspunkt** (#834). ◄◄◄
+    #
+    # «Nach Zusage» ↔ «Nach Zahlung» war die zweite Fassung und immer noch zu knapp: der
+    # Satz sagt nicht, *worauf* er sich bezieht, und ohne das Label darüber (#819) fehlte
+    # der Bezug ganz. Jetzt steht die Frage im Wert – warte ich auf das Geld, ja oder nein.
+    assert ("label: 'Zahlung abwarten'" in fields
+            and "label: 'Zahlung nicht abwarten'" in fields), (
+        "Die Entscheidung steht nicht im Wert – dann braucht sie wieder eine Frage "
+        "darüber (#834)."
     )
-    for old in ("label: 'zugesagt'", "label: 'bezahlt'"):
-        assert old not in fields, f"«{old}» ist zurück – ein Zustand, wo eine Bedingung steht."
+    for old in ("label: 'zugesagt'", "label: 'bezahlt'",
+                "label: 'Nach Zusage'", "label: 'Nach Zahlung'"):
+        assert old not in fields, (
+            f"«{old}» ist zurück – der Wert sagt nicht für sich, was er bewirkt."
+        )
 
 
 def test_the_field_holds_the_pick_only_until_it_is_a_row():
@@ -6567,3 +6608,203 @@ def test_the_closing_action_stands_at_the_end_of_the_card():
     assert "children" not in _body(src, "Agreed", kind="function"), (
         "Die Stufe «Auftrag» trägt den Abschluss wieder."
     )
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #830–#842 – der Editor, die Zeile und was Buchhaltung verlangt
+# ---------------------------------------------------------------------------
+
+def test_everything_about_one_party_stands_on_one_line():
+    """►►► **Was zusammengehört, steht nebeneinander** (Testnotizen #833 · #830 · #832).
+
+    Nummer, Name und «Was ist zu tun?» gehören **einem** Partner – und bei mehreren ist
+    die Zeile die einzige Stelle, an der die Zugehörigkeit steht. Untereinander sah es aus
+    wie zwei Angaben, von denen die zweite zu keiner bestimmten gehört.
+
+    Der **Löschen-Knopf** erscheint dabei beim Hovern (#832) – aber die Regel wohnt im
+    Blatt, nicht als Zustand an der Aufrufstelle, und sie **nimmt Touch nichts weg**: eine
+    Funktion, die nur ein Zeiger findet, gibt es am Telefon gar nicht.
+
+    Und die Beschriftung heisst schlicht **«Partner»** (#830): «zugelassen» ist die
+    Bedeutung der Liste, nicht ihr Name.
+
+    Bug-Formen: (a) das Feld steht wieder unter der Nummer; (b) der Knopf ist dauerhaft
+    da; (c) er ist auf Touch unerreichbar; (d) «Zugelassene» ist zurück.
+    """
+    fields = _code(_body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                         "MoneyFields", kind="function"))
+    # (a) **Eine Zeile**: der Container der Partner-Zeile trägt `items-center`, und das
+    # Feld steht in ihm – nicht in einem zweiten Block darunter.
+    assert "erp-partyrow" in fields, "Die Partner-Zeile gibt es nicht mehr."
+    # Von der Zeile bis zum Ende der Schleife – ein fester Zeilenumbruch als Marke wäre
+    # die Form der heutigen Einrückung, nicht die Regel.
+    row = fields[fields.index("erp-partyrow"):]
+    row = row[:row.index("))}")]
+    flat = " ".join(row.split())
+    for part in ("<ObjId value={row.party}", "aria-label={DEAL_TASK}", "erp-rowaction"):
+        assert part in flat, f"«{part}» steht nicht in der Partner-Zeile (#833)."
+    assert "flex items-center" in flat, (
+        "Die Zeile ordnet nicht nebeneinander – dann steht das Feld wieder darunter."
+    )
+    # (d)
+    assert "Zugelassene" not in fields, "«Zugelassene Partner» ist zurück (#830)."
+    assert "label={DEAL_PARTY}" in fields
+
+    # (b)/(c) **Die Regel wohnt im Blatt** – und sie hat eine Touch-Ausnahme.
+    css = _read(FRONTEND / "app" / "globals.css")
+    assert ".erp-rowaction { opacity: 0;" in css, (
+        "Die Zeilen-Aktion steht wieder dauerhaft da (#832)."
+    )
+    assert ".erp-partyrow:hover .erp-rowaction" in css
+    assert ":focus-within .erp-rowaction" in css, "Der Tastaturweg fehlt."
+    assert "@media (hover: none) { .erp-rowaction { opacity: 1; } }" in css, (
+        "Auf Touch ist der Knopf unerreichbar – dort gibt es kein Hovern."
+    )
+
+
+def test_the_task_is_a_question_in_the_editor_and_an_answer_on_the_line():
+    """**Ein Fragezeichen über einer Antwort liest sich schräg** (Testnotiz #836).
+
+    Im **Editor** füllt man das Feld aus – dort ist «Was ist zu tun?» die richtige Frage
+    (als `aria-label`, gesagt vom Platzhalter). An der **Angebotszeile** steht das
+    Ergebnis; was es ist, sagt das Symbol, und die Erklärung steht im Hover. Das ist die
+    ERP-Regel des Hauses: Symbole statt Text, Infotexte im Hover.
+
+    Bug-Formen: (a) das Wort steht wieder als Beschriftung vor dem Wert; (b) es steht
+    nirgends mehr – dann rät man, was die Zeichenkette bedeutet.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    ref = _body(src, "PartyRef", kind="function")
+    flat = " ".join(ref.split())
+    assert ">{DEAL_TASK}</span>" not in flat, (
+        "«Was ist zu tun?» steht wieder als Beschriftung vor dem Wert (#836)."
+    )
+    assert "DEAL_TASK" in flat and "data-tip" in flat, (
+        "Die Bedeutung steht nirgends – dann rät man, was die Zeichenkette ist."
+    )
+    assert "ClipboardList" in flat, "Das Symbol fehlt, das die Auskunft benennt."
+
+
+def test_a_number_field_exists_only_where_the_number_comes_from_outside():
+    """►►► **Eine Nummer, die WIR vergeben, tippt niemand** (Testnotiz #840). ◄◄◄
+
+    Das Feld gibt es genau dort, wo die Nummer **von aussen** kommt: an einer
+    Lieferantenrechnung und an jeder Zahlung. Wo wir nummerieren, gibt es **kein Feld** –
+    ein Platzhalter «automatisch» war ein Feld, das nichts aufnimmt.
+
+    **Und die Oberfläche fragt nie nach der Richtung**: wie es heisst, sagt der Server
+    (`charge_ref_label` ↔ `payment_ref_label`), und `null` heisst «gibt es hier nicht».
+
+    Bug-Formen: (a) das Feld steht wieder fest da; (b) die Oberfläche entscheidet es
+    selbst über `direction`.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    entry = _body(src, "Entry", kind="function")
+    flat = " ".join(entry.split())
+    assert "d.charge_ref_label" in flat and "d.payment_ref_label" in flat, (
+        "Die Beschriftung kommt nicht mehr vom Server."
+    )
+    assert "{refLabel && (" in flat, (
+        "Das Nummernfeld steht immer da – auch dort, wo der Server nummeriert (#840)."
+    )
+    for bad in ("'Rechnungsnummer'", "d.direction ===", "'automatisch'"):
+        assert bad not in flat, (
+            f"«{bad}» ist zurück – die Oberfläche entscheidet wieder selbst, "
+            f"wer nummeriert."
+        )
+
+
+def test_a_payment_is_corrected_never_reversed_in_the_ui():
+    """►►► **Man storniert einen BELEG, kein Ereignis** (Testnotiz #842). ◄◄◄
+
+    An einer **Rechnung** steht «stornieren» (eine Gegenbuchung mit eigener Nummer), an
+    einer **Zahlung** «korrigieren» – und das ist kein neues Verb: es öffnet die ganz
+    gewöhnliche Zahlungs-Erfassung mit dem **negativen Betrag vorbelegt**. Ob es ein
+    Erfassungsfehler war oder ob das Geld zurückkam, weiss nur ein Mensch; angeboten wird
+    es darum, angelegt wird es nicht.
+
+    Bug-Formen: (a) der Storno-Knopf steht wieder an jeder Zeile; (b) die Korrektur legt
+    selbst etwas an, statt vorzubelegen; (c) die Vorbelegung ist nicht negativ.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    money = " ".join(_body(src, "Money", kind="function").split())
+    # ►►► **Gefragt wird das TOR, nicht das Vorkommen eines Wortes.** ◄◄◄
+    #
+    # Die erste Fassung prüfte, ob «e.kind === 'charge'» *irgendwo* im Rumpf steht – und
+    # war schon durch die Symbolwahl eine Zeile höher erfüllt (`e.kind === 'charge' ?
+    # <FileText…`). Sie liess damit ausgerechnet ihre eigene Bug-Form durch: gemessen,
+    # nachgeschärft, erneut gegengeprüft.
+    assert "action: 'reverse'" in money, "Der Storno gibt es nicht mehr."
+    gate = money[money.index("may(d, active, 'reverse')"):]
+    gate = gate[:gate.index("&& (")]
+    assert "e.kind === 'charge'" in gate, (
+        "Der Storno steht wieder an jeder Zeile – eine Zahlung ist ein Ereignis, kein "
+        "Beleg (#842)."
+    )
+    assert "e.kind === 'payment'" in money, "Die Zahlung hat keine eigene Handlung (#842)."
+    # (b) **Vorbelegen, nicht anlegen** – kein `onAction` an diesem Knopf.
+    button = money[money.index("e.kind === 'payment'"):]
+    button = button[:button.index("</button>")]
+    assert "setForm('payment')" in button and "onAction(" not in button, (
+        "Die Korrektur bucht selbst – der Mensch entscheidet, ob es ein Erfassungsfehler "
+        "oder eine Erstattung war."
+    )
+    # (c) **Negativ vorbelegt**, und als Zeichenkette gerechnet: Beträge reisen als String.
+    assert "negate(e.amount)" in button
+    negate = " ".join(_body(src, "negate", kind="function").split())
+    assert "`-${amount}`" in negate and "Number" not in negate, (
+        "Die Vorbelegung wird über eine Zahl gerechnet – wo es auf den Rappen ankommt, "
+        "wird nicht durch `float` gerechnet."
+    )
+
+
+def test_what_we_offer_is_filled_before_it_goes_out():
+    """►►► **Wer den Preis nennt, füllt ihn VOR dem Hinausgehen** (Testnotiz #837). ◄◄◄
+
+    Bei einer Ausgabe fragt man an und wartet – die Zeile geht leer hinaus, und das ist
+    ihr Sinn. Bei einer Einnahme nennen **wir** den Preis: ein Angebot ohne Betrag ist
+    keines. Gefragt wird die **Angabe** (`we_quote`), nie die Richtung.
+
+    Bug-Formen: (a) die Felder gibt es nicht; (b) der Knopf lässt ohne Betrag absenden;
+    (c) die Oberfläche wertet die Richtung selbst aus.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    offer = " ".join(_body(src, "Offer", kind="function").split())
+    assert "<OurOffer" in offer, "Die Felder für unser eigenes Angebot fehlen (#837)."
+    assert "d.we_quote" in offer, "Die Oberfläche liest die Angabe des Servers nicht."
+    assert "|| !ready" in offer, (
+        "Der Knopf lässt ohne Betrag absenden – dann sieht der Kunde ein leeres Angebot."
+    )
+    ours = " ".join(_body(src, "OurOffer", kind="function").split())
+    assert "if (!d.we_quote) return null;" in ours
+    for bad in ("direction === 'in'", "direction === 'out'", "'Einnahme'", "'Ausgabe'"):
+        assert bad not in offer and bad not in ours, (
+            f"«{bad}» – die Karte wertet wieder die Richtung aus statt der Angabe."
+        )
+
+
+def test_a_number_is_tabular_and_an_object_id_is_not():
+    """**Was eine Zahl ist, steht tabellarisch** (Testnotizen #839 · #838).
+
+    *«alles hat irgendwie ein anderes Format – ist das gewollt?»* – Teilweise. Betrag,
+    Frist und Datum sind **Zahlen** und tragen dieselbe Schrift; vorher waren es drei
+    Schriftbilder in vier Werten. Die **Objektnummer** bleibt bewusst anders: sie ist eine
+    **Kennung**, kein Messwert, und ihre Auszeichnung ist im Haus die eine, an der man sie
+    erkennt (#282/#784).
+
+    Und Nummer und Name brechen nicht um (#838) – der Name wird gekappt.
+
+    Bug-Formen: (a) eine Zahl steht wieder in Fliesstext; (b) die Zeile bricht um.
+    """
+    src = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    agreed = " ".join(_body(src, "Agreed", kind="function").split())
+    for label in ("Betrag", "Zahlungsfrist", "Bestätigt"):
+        block = agreed[agreed.index(f'label="{label}"'):]
+        assert "mono" in block[:block.index("/>")], (
+            f"«{label}» steht nicht tabellarisch – vier Werte in drei Schriftbildern (#839)."
+        )
+    party = agreed[agreed.index("label={d.party_word}"):agreed.index('label="Betrag"')]
+    assert "flex-wrap" not in party, (
+        "Nummer und Name brechen um – dann liest sich der Name wie eine zweite Angabe (#838)."
+    )
+    assert "truncate" in party, "Der Name wird nicht gekappt, sondern gedrängt."

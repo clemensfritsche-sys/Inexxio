@@ -624,7 +624,7 @@ function MoneyFields({ module: m, onChange }: {
             `deal-work.Offer`, wo die frische Wahl gehalten wird, bis der Server sie als
             Zeile zurückgibt. */}
         <ObjectSelect<DealParty>
-          label={`Zugelassene ${DEAL_PARTY}`}
+          label={DEAL_PARTY}
           value={null}
           selected={null}
           find={find}
@@ -638,69 +638,63 @@ function MoneyFields({ module: m, onChange }: {
           }}
         />
         {m.parties.map((row) => (
-          <div key={row.party} className="flex flex-col gap-1 py-1.5"
+          /* ►►► **Alles zu EINEM Partner steht auf EINER Zeile** (Testnotiz #833). ◄◄◄
+
+             Nummer, Name und «Was ist zu tun?» gehören zusammen – und bei mehreren
+             Partnern ist die Zeile die **einzige** Stelle, an der die Zugehörigkeit
+             steht. Untereinander sah es aus wie zwei Angaben, von denen die zweite zu
+             keiner bestimmten gehört.
+
+             ►►► **Und der Löschen-Knopf erscheint beim Hovern** (#832) – aber er
+             **verschwindet nie auf Touch**: `@media (hover: none)` hält ihn dort
+             sichtbar. Eine Funktion, die nur ein Zeiger findet, gibt es am Telefon
+             nicht. `focus-within` deckt den Tastaturweg. */
+          <div key={row.party}
+            className="erp-partyrow flex items-center gap-2 py-1.5 flex-wrap"
             style={{ borderTop: '1px solid var(--border-1)' }}>
-            <div className="flex items-center gap-2">
-              <ObjId value={row.party} />
-              <span className="flex-1 min-w-0 text-[12.5px]" style={{ color: 'var(--fg-3)' }}>
-                {known[row.party] ?? ''}
-              </span>
-              <button type="button" className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
-                aria-label="Entfernen" data-tip="Aus der Freigabe nehmen"
-                onClick={() => onChange({
-                  parties: m.parties.filter((x) => x.party !== row.party),
-                })}>
-                <Trash2 size={13} />
-              </button>
-            </div>
-            {/* ►►► **Was bei IHM zu tun ist — PFLICHT** (#805/#808/#803). ◄◄◄
-
-                Ein Wert für drei Fälle: seine Artikelnummer, sein Shop-Link, oder ein Satz
-                («einmal härten»). Er gehört der **Paarung** Modul × Partner – derselbe
-                Lieferant führt je Teil eine andere Nummer –, gilt in **beiden** Richtungen
-                und steht darum bei ihm, nicht als zweites Feld am Vorgang.
-
-                Der frühere freiwillige Satz («Was ist daran zu tun?») war genau diese
-                Angabe ein zweites Mal, nur ohne Adressaten – und optional. Ein Feld, das
-                man ausfüllen *kann*, wird an der Hälfte der Stellen leer gelassen; dann
-                sagt seine Leere nichts.
-
-                **Und ohne Label darüber** (#817): der Platzhalter sagt es genauer als das
-                Label es könnte («Artikelnummer, Link oder Beschreibung» ↔ «Was ist zu
-                tun?»), und die Zeile steht ohnehin unter der Nummer, zu der sie gehört.
-                Für den, der nicht sieht, bleibt sie über `aria-label` benannt – ein
-                weggelassenes Label ist eine Frage der Fläche, nicht der Zugänglichkeit. */}
-            <div className="flex flex-col gap-1">
-              <input className={inputCls} value={row.ref} maxLength={200} required
-                aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
-                onChange={(e) => onChange({
-                  parties: m.parties.map((x) => (x.party === row.party
-                    ? { ...x, ref: e.target.value } : x)),
-                })} />
-            </div>
+            <ObjId value={row.party} />
+            <span className="text-[12.5px] truncate" style={{
+              color: 'var(--fg-3)', maxWidth: 180, flex: 'none',
+            }}>{known[row.party] ?? ''}</span>
+            <input className={inputCls} value={row.ref} maxLength={200} required
+              aria-label={DEAL_TASK} placeholder={DEAL_TASK_HINT}
+              style={{ flex: '1 1 160px', minWidth: 0 }}
+              onChange={(e) => onChange({
+                parties: m.parties.map((x) => (x.party === row.party
+                  ? { ...x, ref: e.target.value } : x)),
+              })} />
+            <button type="button"
+              className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon erp-rowaction"
+              aria-label="Entfernen" data-tip="Aus der Freigabe nehmen"
+              onClick={() => onChange({
+                parties: m.parties.filter((x) => x.party !== row.party),
+              })}>
+              <Trash2 size={13} />
+            </button>
           </div>
         ))}
       </div>
       <div>
-        {/* ►►► **Die Werte tragen die Frage – das Label entfällt** (#818/#819). ◄◄◄
+        {/* ►►► **Die Werte benennen die ENTSCHEIDUNG** (#818/#819/#834). ◄◄◄
 
-            «Weiter, wenn» + «zugesagt» ↔ «bezahlt» war ein Satz über zwei Zeilen: das
-            Label stellte die Frage, die Werte antworteten, und einzeln gelesen war
-            «zugesagt» eine schlechte Beschreibung – es klang nach einem *Zustand* statt
-            nach einer *Bedingung*. Steht die Bedingung im Wert selbst («Nach Zusage» ↔
-            «Nach Zahlung»), braucht es die Frage darüber nicht mehr, und der Wert stimmt
-            auch dort, wo er allein steht.
+            Das Label darüber ist entfallen (#819) – richtig, aber die Werte trugen die
+            Frage danach nicht: «Nach Zusage» ↔ «Nach Zahlung» sagt nicht, worauf es sich
+            bezieht, und ohne die Zeile darüber fehlte der Bezug ganz (#834).
+
+            Jetzt steht die Entscheidung **im Wert**: warte ich auf das Geld, bevor das
+            Modul abschliesst – ja oder nein. Beide Sätze stehen für sich, ohne Kontext
+            und ohne Hover; das Schloss trägt die Metapher, der Hover das Detail.
 
             Dieselbe Regel wie beim Schalter darüber: was ein Bedienelement selbst sagt,
-            sagt man nicht noch einmal daneben. */}
+            sagt man nicht noch einmal daneben – **aber es muss es dann auch sagen.** */}
         <IconSwitch
           value={m.prepaid ? 'prepaid' : 'open'}
           onChange={(v) => onChange({ prepaid: v === 'prepaid' })}
           options={[
-            { value: 'open', icon: LockOpen, label: 'Nach Zusage',
+            { value: 'open', icon: LockOpen, label: 'Zahlung nicht abwarten',
               hint: 'Das Modul schliesst ab, sobald zugesagt ist – gezahlt wird nach '
                 + 'Vereinbarung.' },
-            { value: 'prepaid', icon: Lock, label: 'Nach Zahlung',
+            { value: 'prepaid', icon: Lock, label: 'Zahlung abwarten',
               hint: 'Das Modul schliesst erst ab, wenn der zugesagte Betrag bezahlt ist '
                 + '(Vorauszahlung).' },
           ]}

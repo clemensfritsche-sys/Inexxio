@@ -122,8 +122,9 @@ class DealEmbed(BaseModel):
     # ─── Die Richtung, und was aus ihr folgt: lauter Wörter ──────────────────────
     #: ``in`` (Geld kommt) · ``out`` (Geld geht) – ``domain/deal``.
     direction: str = "out"
-    #: Wie der Vorgang heisst: «Verkauf» ↔ «Einkauf» – dieselben Wörter wie beim
-    #: Handel, damit ein Haus eine Sprache spricht.
+    #: Wie der Vorgang heisst: «Einnahme» ↔ «Ausgabe» (Testnotiz #831). Nicht «Verkauf»/
+    #: «Einkauf»: dieses Modul kann auch Miete, Lohn, Gebühr und Spesen – ein Wort, das
+    #: einen Kauf behauptet, ist **enger als das Modul**.
     label: str = ""
     #: **Wie der andere im Geschäft heisst** – in beiden Richtungen dasselbe Wort und in
     #: beiden Numeri (``deal.PARTY``). Es reist trotzdem mit, damit die Karte keine eigene
@@ -135,6 +136,19 @@ class DealEmbed(BaseModel):
     #: **Wie man auf die Gegenpartei zugeht**: «Anfragen» ↔ «Anbieten» – der eine Punkt,
     #: an dem die Richtung eine echte Handlung unterscheidet.
     ask_verb: str = ""
+    #: ►►► **Nennen WIR den Preis?** (``Direction.quoted_by``, Testnotiz #837) ◄◄◄
+    #:
+    #: Daraus folgt die ganze Abfolge, und die Oberfläche braucht dafür kein `if` auf die
+    #: Richtung: nennen wir ihn, wird der Betrag **vor** dem Anbieten gefragt und die
+    #: Zeile geht als Offerte hinaus; nennt ihn die Gegenpartei, geht sie leer hinaus und
+    #: wir warten.
+    we_quote: bool = False
+    #: **Wie das Nummernfeld einer Forderung heisst** – ``None`` heisst «wir nummerieren»,
+    #: und dann gibt es **kein Feld** (#840). Eine Nummer, die wir vergeben, tippt niemand.
+    charge_ref_label: Optional[str] = None
+    #: **Wie das Referenzfeld einer Zahlung heisst.** Sie kommt in beiden Richtungen von
+    #: aussen – QR-Referenz, Zahlungszweck, die Id des Zahlungsdienstes.
+    payment_ref_label: str = ""
     #: Die Überschrift des Geld-Bereichs – der dritten Zeile der Karte.
     money_label: str = "Rechnung & Zahlung"
     #: Das Wort für die eine Gegenhandlung – oder ``None``, wo sie nicht geht.

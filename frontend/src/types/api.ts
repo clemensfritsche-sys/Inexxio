@@ -947,7 +947,8 @@ export interface paths {
          *     **Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit
          *     die Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``
          *     nur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**
-         *     darf, sagt ``can`` (``PARTY_ACTIONS``: offerieren oder absagen), und ``apply`` weist
+         *     darf, sagt ``can`` (``Direction.party_actions`` – wer den Preis nennt, offeriert;
+         *     wer ihn empfängt, nimmt an oder lehnt ab), und ``apply`` weist
          *     alles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.
          */
         post: operations["update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post"];
@@ -1836,6 +1837,18 @@ export interface components {
              * @default
              */
             ask_verb: string;
+            /**
+             * We Quote
+             * @default false
+             */
+            we_quote: boolean;
+            /** Charge Ref Label */
+            charge_ref_label?: string | null;
+            /**
+             * Payment Ref Label
+             * @default
+             */
+            payment_ref_label: string;
             /**
              * Money Label
              * @default Rechnung & Zahlung

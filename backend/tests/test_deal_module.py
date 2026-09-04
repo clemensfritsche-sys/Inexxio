@@ -166,11 +166,19 @@ def _agree(db, *, order, step, party, amount: str, days: int | None = None,
 
     Ein Geldvorgang ist kein Formular, das eine Seite ausfüllt – darum gibt es hier
     keine Abkürzung. Genau diese drei Schritte macht auch die Oberfläche.
+
+    **Und wer den Preis nennt, sagt die Richtung** (Testnotiz #837): bei einer *Einnahme*
+    geht das Angebot **mit** dem Betrag hinaus – ``ask`` weist ohne ihn ab. Der Helfer
+    fragt darum die Angabe (``Direction.quoted_by``) und nennt keinen Schlüssel: ein
+    ``if direction == "in"`` hier wäre die zweite Stelle für dieselbe Regel.
     """
+    from app.domain import deal as dm
     from app.services import deal as svc
     actor = staff or _staff(db)
+    ours = dm.of(svc.of_step(db, step.id).direction).quoted_by == dm.BY_US
     svc.apply(db, order=order, step=step, action="ask",
-              payload={"parties": [party.object_id]}, actor=actor)
+              payload={"parties": [party.object_id],
+                       **({"amount": amount} if ours else {})}, actor=actor)
     svc.apply(db, order=order, step=step, action="quote",
               payload={"party": party.object_id, "amount": amount,
                        "payment_days": days}, actor=actor)
@@ -675,11 +683,22 @@ def test_one_allowed_party_is_not_a_question():
         art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
         order, rows = _make(db, quantity=1, article=art)
 
-        svc.apply(db, order=order, step=rows[0], action="ask", payload={}, actor=staff)
+        # Der Betrag gehört bei einer **Einnahme** zur Anfrage: wir nennen den Preis,
+        # das Angebot geht mit ihm hinaus (#837). Gemeint ist hier die **Partei**-Angabe –
+        # und die bleibt weg.
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"amount": "100.00"}, actor=staff)
         facts = svc.embed_data(db, order=order, step=rows[0], viewer=staff)
         assert [q["party_object_id"] for q in facts["quotes"]] == [kunde.object_id], (
             "Ohne Angabe wurden nicht die zugelassenen Gegenparteien angefragt."
         )
+        # ►►► **Und sie steht sofort als OFFERTE da** (#837) – nicht als leere Anfrage:
+        # bei einer Einnahme ist das Angebot mit dem Preis hinausgegangen.
+        assert facts["quotes"][0]["state"] == "offeriert", (
+            "Unser eigenes Angebot steht als leere Anfrage da – dann sähe der Kunde ein "
+            "Angebot ohne Preis."
+        )
+        assert facts["quotes"][0]["amount"] == "100.00"
         assert facts["allowed"][0]["object_id"] == kunde.object_id
     finally:
         db.rollback(); db.close()
@@ -873,27 +892,55 @@ def test_a_wrong_line_is_reversed_by_a_counter_booking_never_deleted():
         wrong = (db.query(DealEntry)
                  .filter(DealEntry.deal_id == row.id, DealEntry.kind == "payment").one())
 
-        svc.apply(db, order=order, step=step, action="reverse", payload={"entry": wrong.id})
+        # ►►► **Eine Zahlung storniert man NICHT** (Testnotiz #842). ◄◄◄
+        #
+        # Sie ist ein **Ereignis** der Aussenwelt, kein Beleg, den wir ausstellen – man
+        # macht sie nicht ungeschehen. Wer sich vertippt hat oder wem das Geld zurückkam,
+        # bucht eine **zweite Zahlung**; welcher der beiden Fälle es ist, weiss nur ein
+        # Mensch.
+        with pytest.raises(HTTPException) as err:
+            svc.apply(db, order=order, step=step, action="reverse",
+                      payload={"entry": wrong.id})
+        assert err.value.status_code == 409
+        svc.apply(db, order=order, step=step, action="pay", payload={"amount": "-10000"})
+        assert svc.balance_of(db, row).paid == Decimal("0.00")
 
-        assert svc.balance_of(db, row).paid == Decimal("0.00"), (
-            "Die Gegenbuchung hebt die Zahlung nicht auf – dann rechnet `balance` sie "
+        # **Die FORDERUNG dagegen ist ein Beleg** – und die storniert eine Gegenbuchung.
+        bill = (db.query(DealEntry)
+                .filter(DealEntry.deal_id == row.id, DealEntry.kind == "charge").one())
+        svc.apply(db, order=order, step=step, action="reverse", payload={"entry": bill.id})
+        assert svc.balance_of(db, row).charged == Decimal("0.00"), (
+            "Die Gegenbuchung hebt die Forderung nicht auf – dann rechnet `balance` sie "
             "nicht mit, und es ist doch ein Sonderfall."
         )
-        db.refresh(wrong)
-        assert wrong.is_active is True, (
+        db.refresh(bill)
+        assert bill.is_active is True, (
             "Die Zeile wurde weggeräumt statt storniert – ein Beleg, der einmal draussen "
             "war, verschwindet nicht rückwirkend aus dem Nachweis."
         )
         counter = (db.query(DealEntry)
-                   .filter(DealEntry.reverses_id == wrong.id).one())
-        assert (counter.kind == wrong.kind and counter.amount == -wrong.amount), (
+                   .filter(DealEntry.reverses_id == bill.id).one())
+        assert (counter.kind == bill.kind and counter.amount == -bill.amount), (
             "Die Gegenbuchung hat nicht dieselbe Art und den negativen Betrag."
+        )
+        # ►►► **Eine Stornorechnung ist ein EIGENER Beleg** (Testnotiz #841). ◄◄◄
+        #
+        # Sie kopierte die Nummer der stornierten: zwei Belege hiessen gleich, und in der
+        # Serie fehlte die nächste Zahl. Jede Nummer wird genau **einmal** vergeben; der
+        # Bezug wohnt in ``reverses_id``, nie in der Nummer.
+        assert counter.reference and counter.reference != bill.reference, (
+            "Die Stornorechnung trägt die Nummer der stornierten – dann heissen zwei "
+            "Belege gleich, und die Serie hat eine Lücke."
+        )
+        assert counter.reference == f"{order.object_id}-2"
+        assert bill.reference in (counter.note or ""), (
+            "Der Verweis auf die stornierte Rechnung fehlt."
         )
 
         # **Zweimal stornieren gibt es nicht**, und eine Gegenbuchung storniert man
         # ebenso wenig – sonst entstünde eine Kette aus Vorzeichen, in der niemand mehr
         # sagen kann, was gilt.
-        for target in (wrong.id, counter.id):
+        for target in (bill.id, counter.id):
             with pytest.raises(HTTPException) as err:
                 svc.apply(db, order=order, step=step, action="reverse",
                           payload={"entry": target})
@@ -1316,5 +1363,178 @@ def test_the_feed_shows_a_counterparty_the_orders_it_is_involved_in():
         )
         # **Personal bleibt Personal** – `None` heisst «sieht alles».
         assert _involved(db, staff) is None
+    finally:
+        db.rollback(); db.close()
+
+
+# ---------------------------------------------------------------------------
+# Testnotizen #837 · #840 · #841 · #842 – wer den Preis nennt, und was
+# Buchhaltung wirklich verlangt
+# ---------------------------------------------------------------------------
+
+def test_who_names_the_price_is_a_property_of_the_direction():
+    """►►► **Ein Angebot hat einen Urheber** (Testnotiz #837). ◄◄◄
+
+    *«Wenn ich einkaufe, sage ich was und von wem ich es offeriert haben möchte, die
+    Gegenpartei trägt Preis ein und ich akzeptiere. Beim Verkaufen sage ich zuerst was ich
+    zu welchem Preis an wen offeriere, Kunde bestätigt.»* – Exakt richtig, und vorher
+    nicht abgebildet: ``ask`` schickte in **beiden** Richtungen eine leere Zeile hinaus,
+    beim Verkauf sähe der Kunde also ein Angebot ohne Preis.
+
+    Daraus folgt alles ohne eine Verzweigung: **wer nennt, füllt vor dem Hinausgehen**,
+    und **wer empfängt, nimmt an oder lehnt ab** – unseren Preis zu überschreiben wäre
+    keine Antwort, sondern eine Gegenofferte, und die ist ein neuer Vorgang.
+
+    Bug-Formen: (a) die Einnahme geht ohne Betrag hinaus; (b) die Ausgabe verlangt einen
+    (dann könnten wir seine Offerte gar nicht abwarten); (c) die Gegenpartei darf in der
+    falschen Richtung offerieren bzw. zusagen.
+    """
+    from fastapi import HTTPException
+    from app.domain import deal as dm
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        lieferant = _party(db, "Härterei AG")
+        art = _article(db, "Welle", steps=[
+            _money_step(direction="in", parties=[kunde]),
+            _money_step(direction="out", parties=[lieferant]),
+        ])
+        order, rows = _make(db, quantity=1, article=art)
+        staff = _staff(db)
+
+        # (a) **Einnahme: ohne Betrag geht nichts hinaus.**
+        with pytest.raises(HTTPException) as err:
+            svc.apply(db, order=order, step=rows[0], action="ask",
+                      payload={"parties": [kunde.object_id]}, actor=staff)
+        assert err.value.status_code == 400
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"parties": [kunde.object_id], "amount": "500.00",
+                           "lead_days": 5}, actor=staff)
+        line = svc.embed_data(db, order=order, step=rows[0], viewer=staff)["quotes"][0]
+        assert line["state"] == dm.QUOTED and line["amount"] == "500.00", (
+            "Unser Angebot geht als leere Anfrage hinaus – dann sieht der Kunde ein "
+            "Angebot ohne Preis."
+        )
+        assert line["lead_days"] == 5
+
+        # (b) **Ausgabe: leer hinaus ist der Sinn** – wir warten auf seine Offerte.
+        svc.apply(db, order=order, step=rows[1], action="ask",
+                  payload={"parties": [lieferant.object_id]}, actor=staff)
+        theirs = svc.embed_data(db, order=order, step=rows[1], viewer=staff)["quotes"][0]
+        assert theirs["state"] == dm.ASKED and theirs["amount"] is None, (
+            "Die Anfrage trägt schon einen Preis – dann haben wir ihn genannt, nicht er."
+        )
+
+        # (c) **Was die Gegenpartei darf, folgt aus derselben Angabe.**
+        assert dm.of(dm.OUT).party_actions == ("quote", "decline")
+        assert dm.of(dm.IN).party_actions == ("agree", "decline"), (
+            "Der Kunde darf unseren Preis überschreiben – das ist keine Antwort auf ein "
+            "Angebot, sondern eine Gegenofferte."
+        )
+        assert "quote" not in svc.can(db, svc.of_step(db, rows[0].id), kunde)
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_number_we_assign_is_never_typed():
+    """►►► **Eine Nummer, die WIR vergeben, tippt niemand ab** (Testnotiz #840). ◄◄◄
+
+    Sie entsteht aus der Serie – lückenlos und ohne Doppelung. Ein Eingabefeld daneben ist
+    die zweite Aussage über dieselbe Sache, und die getippte gewinnt, auch wenn sie falsch
+    ist. Wo die **Gegenpartei** die Rechnung stellt, ist es dagegen **ihre** Nummer: sie
+    steht auf ihrem Papier, und ohne sie liesse sich der Beleg nicht zuordnen.
+
+    Bug-Formen: (a) ein gesendeter Wert gewinnt gegen die Serie; (b) die
+    Lieferantenrechnung verliert ihre Nummer.
+    """
+    from app.models import DealEntry
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        lieferant = _party(db, "Härterei AG")
+        art = _article(db, "Welle", steps=[
+            _money_step(direction="in", parties=[kunde]),
+            _money_step(direction="out", parties=[lieferant]),
+        ])
+        order, rows = _make(db, quantity=1, article=art)
+        _agree(db, order=order, step=rows[0], party=kunde, amount="100.00")
+        _agree(db, order=order, step=rows[1], party=lieferant, amount="60.00")
+
+        # (a) **Verworfen, nicht ignoriert** – ein Feld, das der Dienst annimmt, obwohl
+        # die Oberfläche es nicht anbietet, wäre eine Hintertür zur zweiten Wahrheit.
+        svc.apply(db, order=order, step=rows[0], action="charge",
+                  payload={"amount": "100.00", "reference": "VON HAND"})
+        ours = (db.query(DealEntry).join(svc.Deal, DealEntry.deal_id == svc.Deal.id)
+                .filter(svc.Deal.step_id == rows[0].id).one())
+        assert ours.reference == f"{order.object_id}-1", (
+            "Eine getippte Rechnungsnummer hat die Serie überschrieben."
+        )
+        # (b) **Seine Rechnung trägt seine Nummer.**
+        svc.apply(db, order=order, step=rows[1], action="charge",
+                  payload={"amount": "60.00", "reference": "RE-2026-4711"})
+        theirs = (db.query(DealEntry).join(svc.Deal, DealEntry.deal_id == svc.Deal.id)
+                  .filter(svc.Deal.step_id == rows[1].id).one())
+        assert theirs.reference == "RE-2026-4711", (
+            "Die Nummer der Gegenpartei wurde verworfen – dann lässt sich ihr Beleg "
+            "nicht mehr zuordnen."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_a_payment_is_an_event_and_is_corrected_by_a_second_one():
+    """►►► **Man storniert einen BELEG, kein Ereignis** (Testnotiz #842). ◄◄◄
+
+    *«wenn ich eine zahlung erfasst habe, dann habe ich sie ja erfasst, dann kann ich sie
+    doch nicht mehr stornieren… dann muss ich sie durch eine weitere zahlung korrigieren
+    oder???»* – Ja, genau so, und seine eigene Antwort ist die richtige.
+
+    Eine **Forderung** ist ein Beleg, den *wir* ausstellen; ihn nimmt eine Stornorechnung
+    zurück. Eine **Zahlung** ist die Aufzeichnung dessen, was auf dem Konto passiert ist –
+    ein Ereignis der Aussenwelt macht man nicht ungeschehen. Ob es ein Erfassungsfehler
+    war oder ob das Geld zurückkam, weiss ohnehin nur ein Mensch; beides ist eine zweite,
+    negative Zahlung, und die gibt es längst.
+
+    Bug-Formen: (a) eine Zahlung lässt sich stornieren; (b) ``can`` bietet das Verb an,
+    obwohl nur Zahlungen dastehen (ein Knopf, der garantiert scheitert).
+    """
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        step = rows[0]
+        _agree(db, order=order, step=step, party=kunde, amount="100.00")
+        svc.apply(db, order=order, step=step, action="charge", payload={"amount": "100"})
+        row = svc.of_step(db, step.id)
+
+        # (b) **Die Forderung ist stornierbar** – solange es sie gibt.
+        assert svc.REVERSE in svc.can(db, row, None)
+        bill = svc._entries(db, row.id)[0]
+        svc.apply(db, order=order, step=step, action="reverse", payload={"entry": bill.id})
+        assert svc.REVERSE not in svc.can(db, row, None), (
+            "Das Verb steht noch da, obwohl keine stornierbare Forderung übrig ist – ein "
+            "Knopf, der garantiert scheitert."
+        )
+
+        # (a) **Eine Zahlung nicht** – und der Satz nennt den Weg.
+        svc.apply(db, order=order, step=step, action="charge", payload={"amount": "100"})
+        svc.apply(db, order=order, step=step, action="pay", payload={"amount": "100"})
+        money = [e for e in svc._entries(db, row.id) if e.kind == "payment"][0]
+        with pytest.raises(HTTPException) as err:
+            svc.apply(db, order=order, step=step, action="reverse",
+                      payload={"entry": money.id})
+        assert err.value.status_code == 409
+        assert "zweite Zahlung" in err.value.detail, (
+            "Die Ablehnung nennt den Weg nicht – eine Sperre ohne Ausweg ist eine "
+            "Sackgasse mit Ausrufezeichen."
+        )
+        # **Und der Weg funktioniert.**
+        svc.apply(db, order=order, step=step, action="pay", payload={"amount": "-100"})
+        assert svc.balance_of(db, row).paid == Decimal("0.00")
     finally:
         db.rollback(); db.close()

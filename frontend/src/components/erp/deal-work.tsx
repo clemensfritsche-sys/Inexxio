@@ -2,8 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import {
-  AlertTriangle, ArrowUpRight, CalendarClock, Check, ChevronDown, CircleSlash, FileText,
-  Lock, Send, Undo2, Wallet,
+  AlertTriangle, ArrowUpRight, CalendarClock, Check, ChevronDown, CircleSlash,
+  ClipboardList, FileText, Lock, Send, Undo2, Wallet,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DealEmbed, DealParty, DealQuote } from '@/types';
@@ -61,6 +61,28 @@ type Filled = Omit<DealEmbed, 'stages' | 'entries' | 'allowed' | 'can' | 'quotes
 };
 
 type Action = { action: string } & Record<string, unknown>;
+
+/**
+ * **Der negative Betrag zu einer Zeile** – die Vorbelegung einer Korrektur (#842).
+ *
+ * Als Zeichenkette gerechnet, weil Beträge als Zeichenkette reisen: wo es auf den Rappen
+ * ankommt, wird nicht durch `float` gerechnet, auch nicht für einen Vorschlag.
+ */
+function negate(amount: string): string {
+  return amount.startsWith('-') ? amount.slice(1) : `-${amount}`;
+}
+
+/**
+ * **Die Nummer der stornierten Zeile** – für den Hover an einer Gegenbuchung (#841).
+ *
+ * Eine **Ableitung** aus derselben Liste, die ohnehin dasteht: der Verweis ist eine Id,
+ * und die Nummer daneben steht eine Zeile höher. Ein zweites Feld vom Server wäre
+ * dieselbe Angabe ein zweites Mal.
+ */
+function reversedRef(d: Filled, entryId: number): string {
+  const src = d.entries.find((x) => x.id === entryId);
+  return src?.reference ? `Storno zu ${src.reference}` : 'Storno';
+}
 
 /** **Darf man das hier?** – die einzige Frage über Rechte, die diese Komponente stellt. */
 function may(d: Filled, active: boolean, action: string): boolean {
@@ -389,6 +411,34 @@ function Offer({ d, busy, active, onAction }: {
   const [dropped, setDropped] = useState<number[]>([]);
   const chosen = open.filter((o) => !dropped.includes(o.object_id));
 
+  // ►►► **Was WIR anbieten, füllen wir VOR dem Hinausgehen** (Testnotiz #837). ◄◄◄
+  //
+  // Bei einer **Ausgabe** fragen wir an und warten auf seine Offerte – die Zeile geht
+  // leer hinaus, und das ist ihr Sinn. Bei einer **Einnahme** nennen **wir** den Preis:
+  // ein Angebot ohne Betrag ist keines, und ihn danach nachzutragen hiesse, dem Kunden
+  // zwischendurch eine leere Zeile zu zeigen.
+  //
+  // Gefragt wird die **Angabe** (`we_quote`), nie die Richtung – der Server sagt sie,
+  // und der Dienst weist ohne Betrag ab. Dies ist die freundliche Hälfte.
+  const [offer, setOffer] = useState({ amount: '', lead: '', days: '' });
+  const ready = !d.we_quote || offer.amount.trim() !== '';
+
+  /** **Eine Abwahl gilt für die Anfrage, die man gerade stellt** (#835) – sie fällt mit
+   *  dem Absenden. Sonst blieb der zweite Partner abgewählt, nachdem man den ersten
+   *  gefragt hatte: «Bei 0 anbieten», gesperrt, bis zum Refresh. */
+  const send = (parties: number[]) => {
+    onAction({
+      action: 'ask', parties,
+      ...(d.we_quote ? {
+        amount: offer.amount,
+        lead_days: offer.lead === '' ? null : Number(offer.lead),
+        payment_days: offer.days === '' ? null : Number(offer.days),
+      } : {}),
+    });
+    setDropped([]);
+    setOffer({ amount: '', lead: '', days: '' });
+  };
+
   return (
     <div className="flex flex-col gap-2 mt-1.5">
       {d.quotes.map((q) => (
@@ -396,6 +446,9 @@ function Offer({ d, busy, active, onAction }: {
           onAction={onAction} />
       ))}
 
+      {mayAsk && d.we_quote && free && (
+        <OurOffer d={d} value={offer} onChange={setOffer} />
+      )}
       {mayAsk && (free ? (
         // **Wo niemand zugelassen ist, wird gesucht** – dieselbe Bauart wie überall.
         <ObjectSelect<DealParty>
@@ -409,7 +462,7 @@ function Offer({ d, busy, active, onAction }: {
             // **Die frisch gewählte Option wird gehalten** (#794): sonst zeigt das Feld
             // nach dem Klick nichts, weil die Wahl noch nicht gespeichert ist.
             setPicked(nr === null ? null : (opt ?? { object_id: nr, name: '' }));
-            if (nr !== null) onAction({ action: 'ask', parties: [nr] });
+            if (nr !== null) send([nr]);
           }}
         />
       ) : open.length > 0 && (
@@ -440,17 +493,60 @@ function Offer({ d, busy, active, onAction }: {
               </button>
             );
           })}
+          <OurOffer d={d} value={offer} onChange={setOffer} />
           <button type="button" className="erp-actbtn erp-actbtn-primary self-start"
-            style={{ height: 32 }} disabled={busy || chosen.length === 0}
-            data-tip={chosen.length === 0
-              ? 'Niemand gewählt – eine Zeile anklicken.' : undefined}
-            onClick={() => onAction({
-              action: 'ask', parties: chosen.map((o) => o.object_id),
-            })}>
+            style={{ height: 32 }} disabled={busy || chosen.length === 0 || !ready}
+            data-tip={chosen.length === 0 ? 'Niemand gewählt – eine Zeile anklicken.'
+              : !ready ? 'Ohne Betrag gibt es nichts anzubieten.' : undefined}
+            onClick={() => send(chosen.map((o) => o.object_id))}>
             <Send size={13} /> Bei {chosen.length} {d.ask_verb.toLowerCase()}
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * ►►► **Was WIR anbieten — die Felder stehen VOR dem Anbieten** (Testnotiz #837). ◄◄◄
+ *
+ * Bei einer **Ausgabe** fragt man an und wartet: die Zeile geht leer hinaus, der Partner
+ * füllt sie. Bei einer **Einnahme** ist es umgekehrt – wir nennen den Preis, und ein
+ * Angebot ohne Betrag ist keines.
+ *
+ * Es sind **dieselben drei Felder** wie an einer Angebotszeile, nur eine Ebene früher:
+ * dort füllt sie der andere, hier wir. Ein eigenes Formular daneben wäre dieselbe Frage
+ * ein zweites Mal – und die zweite Fassung fehlte beim nächsten Feld.
+ *
+ * Der Betrag gilt für **alle** Zeilen dieser Anfrage: man bietet allen dasselbe an. Wer
+ * danach je Partner nachbessert, tut das an seiner Zeile.
+ */
+function OurOffer({ d, value, onChange }: {
+  d: Filled;
+  value: { amount: string; lead: string; days: string };
+  onChange: (next: { amount: string; lead: string; days: string }) => void;
+}) {
+  if (!d.we_quote) return null;
+  return (
+    <div className="grid gap-2"
+      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
+      <div>
+        <Label required>Betrag</Label>
+        <input className={inputCls} {...numericInputProps} value={value.amount}
+          onChange={(e) => onChange({ ...value, amount: e.target.value })} />
+      </div>
+      <div>
+        <Label>Lieferfrist</Label>
+        <input className={inputCls} {...numericInputProps} value={value.lead}
+          placeholder="Tage"
+          onChange={(e) => onChange({ ...value, lead: numericOnly(e.target.value) })} />
+      </div>
+      <div>
+        <Label>Zahlungsfrist</Label>
+        <input className={inputCls} {...numericInputProps} value={value.days}
+          placeholder="Tage"
+          onChange={(e) => onChange({ ...value, days: numericOnly(e.target.value) })} />
+      </div>
     </div>
   );
 }
@@ -585,19 +681,27 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
 }
 
 /**
- * **Wie man bei ihm bestellt** – seine Artikelnummer oder sein Shop-Link.
+ * **Was bei diesem Partner zu tun ist** – seine Artikelnummer, sein Shop-Link, ein Satz.
  *
  * Sieht sie aus wie eine Adresse, ist sie eine: die Heuristik steht an dieser **einen**
  * Stelle, statt ein zweites Feld «ist Link» zu erfinden, das jemand falsch ankreuzt.
+ *
+ * ►►► **Hier ist es eine AUSKUNFT, keine Frage** (Testnotiz #836). ◄◄◄
+ *
+ * «Was ist zu tun?» stand als Beschriftung vor dem Wert – ein Fragezeichen über einer
+ * Antwort. Im **Editor** ist die Frage richtig, dort füllt man sie aus; an der
+ * Angebotszeile steht das Ergebnis, und was es ist, sagt das Symbol (ERP-Regel: Symbole
+ * statt Text, Erklärung im Hover). Ein Wort weniger in einer Zeile, die ohnehin eng ist.
  */
 function PartyRef({ value }: { value: string }) {
   const link = /^https?:\/\//i.test(value);
   if (!link) {
     return (
-      <span className="flex items-baseline gap-1.5 text-[12px]" style={{ paddingBottom: 4 }}>
-        <span style={{ color: 'var(--fg-4)', flex: 'none' }}>{DEAL_TASK}</span>
-        <span className="ix-tnum truncate" style={{ color: 'var(--fg-3)', minWidth: 0 }}
-          data-tip={value}>{value}</span>
+      <span className="flex items-center gap-1.5 text-[12px]" style={{ paddingBottom: 4 }}
+        data-tip={`${DEAL_TASK} ${value}`}>
+        <ClipboardList size={12} style={{ color: 'var(--fg-4)', flex: 'none' }} />
+        <span className="ix-tnum truncate" style={{ color: 'var(--fg-3)', minWidth: 0 }}>
+          {value}</span>
       </span>
     );
   }
@@ -622,17 +726,30 @@ function Agreed({ d, busy, active, onAction }: {
     <div className="flex flex-col gap-2 mt-1.5">
       <div className="grid gap-2"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+        {/* ►►► **Nummer und Name auf EINER Zeile** (Testnotiz #838). ◄◄◄
+            Sie gehören zusammen, also brechen sie nicht um – der **Name** wird gekappt.
+            `flex-wrap` schob ihn bei enger Spalte darunter, und dort las er sich wie eine
+            zweite Angabe. */}
         <ReadField label={d.party_word}
           value={d.party_object_id
-            ? <span className="flex items-center gap-1.5 flex-wrap">
-                <ObjId value={d.party_object_id} /> {d.party_name}
+            ? <span className="flex items-center gap-1.5" style={{ minWidth: 0 }}>
+                <ObjId value={d.party_object_id} />
+                <span className="truncate" data-tip={d.party_name || undefined}>
+                  {d.party_name}</span>
               </span>
             : '—'} />
+        {/* ►►► **Was eine Zahl ist, steht tabellarisch** (Testnotiz #839). ◄◄◄
+            Betrag, Frist und Datum sind Zahlen und tragen darum dieselbe Schrift – vorher
+            waren es drei Schriftbilder in vier Werten. Die **Objektnummer** bleibt
+            bewusst anders: sie ist eine **Kennung**, kein Messwert, und ihre Auszeichnung
+            ist im Haus die eine, an der man sie erkennt (#282/#784). */}
         <ReadField label="Betrag" mono value={formatAmount(d.amount)} />
         {d.due_days != null && (
-          <ReadField label="Zahlungsfrist" value={`${d.due_days} Tage`} />
+          <ReadField label="Zahlungsfrist" mono value={`${d.due_days} Tage`} />
         )}
-        {d.agreed_on && <ReadField label="Bestätigt" value={localDate(d.agreed_on)} />}
+        {d.agreed_on && (
+          <ReadField label="Bestätigt" mono value={localDate(d.agreed_on)} />
+        )}
       </div>
       {/* ►►► **Kein Referenz-Feld mehr** (#812). ◄◄◄
           «Ich checke nicht, warum hier dieses Eingabefeld ist» – zu Recht: es beantwortete
@@ -669,6 +786,8 @@ function Money({ d, busy, onAction }: {
   // **Hier gilt allein `can`** – siehe die Begründung an der Aufrufstelle.
   const active = true;
   const [form, setForm] = useState<'' | 'charge' | 'payment'>('');
+  /** Der vorbelegte Betrag einer **Korrektur** (#842) – leer heisst «Vorgabe des Servers». */
+  const [correct, setCorrect] = useState('');
   // Ohne Zahlen gibt es nichts zu zeigen – so sieht es eine Gegenpartei.
   if (d.open == null) return null;
 
@@ -736,31 +855,49 @@ function Money({ d, busy, onAction }: {
                 {e.due_on && ` · ${e.overdue ? 'überfällig seit' : 'fällig'} `}
                 {e.due_on && localDate(e.due_on)}
               </span>
-              {/* ►►► **Storniert wird, nicht gelöscht** (#823/#824). ◄◄◄
-                  Eine Rechnungsnummer ist vergeben, ein Beleg ist draussen – das Symbol
-                  darf darum kein Papierkorb sein: er verspricht, dass die Zeile
-                  verschwindet. Was passiert, ist eine **Gegenbuchung**; beide Zeilen
-                  bleiben stehen, und `reverses` markiert die stornierte. Eine
-                  Gegenbuchung selbst lässt sich nicht stornieren – dann bietet der
-                  Server das Verb an dieser Zeile gar nicht erst an. */}
+              {/* ►►► **Man storniert einen BELEG, kein Ereignis** (Testnotiz #842). ◄◄◄
+
+                  Eine **Rechnung** ist ein Beleg, den wir ausstellen – den nimmt eine
+                  Stornorechnung zurück (`reverse`, eine Gegenbuchung mit **eigener**
+                  Nummer, #841). Eine **Zahlung** ist etwas anderes: die Aufzeichnung
+                  dessen, was auf dem Konto passiert ist. Ein Ereignis der Aussenwelt
+                  macht man nicht ungeschehen.
+
+                  Wer sich vertippt hat oder wem das Geld zurückkam, bucht eine **zweite
+                  Zahlung** – und welcher der beiden Fälle es ist, weiss nur ein Mensch.
+                  Angeboten wird sie darum **vorbelegt**, angelegt wird sie nicht: die
+                  Regel des Hauses, dieselbe wie bei «nicht bestanden» (§4.5).
+
+                  Die Sperre steht im **Dienst** (`_reverse` weist eine Zahlung ab); dies
+                  ist die freundliche Hälfte. */}
               {e.reverses != null && (
-                <span className="text-[11.5px]" style={{ color: 'var(--fg-4)', flex: 'none' }}>
-                  Storno
-                </span>
+                <span className="text-[11.5px]" style={{ color: 'var(--fg-4)', flex: 'none' }}
+                  data-tip={reversedRef(d, e.reverses)}>Storno</span>
               )}
               {e.reversed && (
                 <span className="text-[11.5px]" style={{ color: 'var(--fg-4)', flex: 'none' }}>
                   storniert
                 </span>
               )}
-              {may(d, active, 'reverse') && !e.reversed && e.reverses == null && (
+              {may(d, active, 'reverse') && e.kind === 'charge'
+                && !e.reversed && e.reverses == null && (
                 <button type="button"
                   className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
                   style={{ height: 26 }}
-                  disabled={busy} aria-label="Zeile stornieren"
-                  data-tip="Stornieren – es entsteht eine Gegenbuchung; beide Zeilen bleiben stehen."
+                  disabled={busy} aria-label="Rechnung stornieren"
+                  data-tip="Stornieren – es entsteht eine Stornorechnung mit eigener Nummer; beide Zeilen bleiben stehen."
                   onClick={() => onAction({ action: 'reverse', entry: e.id })}>
                   <CircleSlash size={13} />
+                </button>
+              )}
+              {may(d, active, 'pay') && e.kind === 'payment' && (
+                <button type="button"
+                  className="erp-actbtn erp-actbtn-neutral erp-actbtn-icon"
+                  style={{ height: 26 }}
+                  disabled={busy} aria-label="Zahlung korrigieren"
+                  data-tip="Korrigieren – erfasst eine zweite Zahlung über den negativen Betrag. Das ist der Erfassungsfehler ebenso wie die Erstattung."
+                  onClick={() => { setCorrect(negate(e.amount)); setForm('payment'); }}>
+                  <Undo2 size={13} />
                 </button>
               )}
             </div>
@@ -773,7 +910,7 @@ function Money({ d, busy, onAction }: {
           <button type="button" className={tone('charge')} disabled={busy}
             style={{ height: 30 }}
             data-tip="Eine Forderung buchen – ein negativer Betrag ist die Gutschrift."
-            onClick={() => setForm(form === 'charge' ? '' : 'charge')}>
+            onClick={() => { setCorrect(''); setForm(form === 'charge' ? '' : 'charge'); }}>
             <FileText size={13} /> {d.charge_word}
           </button>
         )}
@@ -781,7 +918,7 @@ function Money({ d, busy, onAction }: {
           <button type="button" className={tone('payment')} disabled={busy}
             style={{ height: 30 }}
             data-tip="Geld buchen – ein negativer Betrag ist die Erstattung."
-            onClick={() => setForm(form === 'payment' ? '' : 'payment')}>
+            onClick={() => { setCorrect(''); setForm(form === 'payment' ? '' : 'payment'); }}>
             <Wallet size={13} /> {d.payment_word}
           </button>
         )}
@@ -797,9 +934,9 @@ function Money({ d, busy, onAction }: {
       </div>
 
       {form !== '' && (
-        <Entry kind={form} d={d} busy={busy}
-          onCancel={() => setForm('')}
-          onSubmit={(body) => { setForm(''); onAction(body); }} />
+        <Entry kind={form} d={d} busy={busy} preset={correct || undefined}
+          onCancel={() => { setForm(''); setCorrect(''); }}
+          onSubmit={(body) => { setForm(''); setCorrect(''); onAction(body); }} />
       )}
     </div>
   );
@@ -814,13 +951,26 @@ function Money({ d, busy, onAction }: {
  * Eingabefeld ist sie es nicht. Negative Beträge bleiben **eingebbar**: das ist die
  * Gutschrift bzw. die Erstattung.
  */
-function Entry({ kind, d, busy, onCancel, onSubmit }: {
+function Entry({ kind, d, busy, preset, onCancel, onSubmit }: {
   kind: 'charge' | 'payment'; d: Filled; busy?: boolean;
+  /** Ein vorbelegter Betrag – die **Korrektur** einer Zahlung (#842). */
+  preset?: string;
   onCancel: () => void; onSubmit: (body: Action) => void;
 }) {
   const [amount, setAmount] = useState(
-    (kind === 'charge' ? d.next_charge : d.next_payment) ?? '');
+    preset ?? (kind === 'charge' ? d.next_charge : d.next_payment) ?? '');
   const [ref, setRef] = useState('');
+  // ►►► **Eine Nummer, die WIR vergeben, tippt niemand** (Testnotiz #840). ◄◄◄
+  //
+  // Das Feld gibt es genau dort, wo die Nummer **von aussen** kommt: an einer
+  // Lieferantenrechnung (sie steht auf seinem Papier) und an jeder Zahlung (QR-Referenz,
+  // Zahlungszweck). Wo **wir** nummerieren, gibt es kein Feld – der Server erzeugt die
+  // Nummer aus der Serie, und ein Eingabefeld daneben wäre die zweite Aussage über
+  // dieselbe Sache; ein Platzhalter «automatisch» war ein Feld, das nichts aufnimmt.
+  //
+  // Wie es heisst, sagt der **Server** (`charge_ref_label` ↔ `payment_ref_label`) – die
+  // Oberfläche fragt nie nach der Richtung.
+  const refLabel = kind === 'charge' ? d.charge_ref_label : d.payment_ref_label;
   return (
     <div className="flex flex-col gap-2" style={{
       padding: 10, borderRadius: 8, border: '1px solid var(--border-1)',
@@ -833,14 +983,14 @@ function Entry({ kind, d, busy, onCancel, onSubmit }: {
             value={amount} aria-label="Betrag"
             onChange={(e) => setAmount(numericOnly(e.target.value, { signed: true }))} />
         </div>
-        <div>
-          <Label>{kind === 'charge' ? 'Rechnungsnummer' : 'Zahlungszweck'}</Label>
-          <input className={inputCls} value={ref}
-            aria-label={kind === 'charge' ? 'Rechnungsnummer' : 'Zahlungszweck'}
-            placeholder={kind === 'charge' && d.direction === 'in'
-              ? 'automatisch' : 'optional'}
-            onChange={(e) => setRef(e.target.value)} />
-        </div>
+        {refLabel && (
+          <div>
+            <Label>{refLabel}</Label>
+            <input className={inputCls} value={ref} aria-label={refLabel}
+              placeholder="optional"
+              onChange={(e) => setRef(e.target.value)} />
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <button type="button" className="erp-actbtn erp-actbtn-primary"
