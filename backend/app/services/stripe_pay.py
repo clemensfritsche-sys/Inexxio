@@ -10,7 +10,7 @@ Im Vorgängersystem war es umgekehrt – dort stand wörtlich «Stripe ist Quell
 Wahrheit», und daraus folgte fast die ganze Komplexität: ``stripe_*``-Snapshot-Spalten an
 vier Tabellen, ein Webhook, der **Aufträge erzeugte**, ein ``CheckoutIntent`` mit
 Reservierungen und ein Aufräumer für verlassene Warenkörbe. Hier gibt der Beleg Betrag und
-Währung vor, und der Webhook schreibt **eine Zeile Geld** (``payments.record``).
+Währung vor, und der Webhook schreibt **eine Zeile Geld** (``deal.record_payment``).
 
 **Adaptive Pricing bleibt darum aus** – das ist die eine Lehre, die unverändert gilt: mit
 ihm rechnete Stripe unseren Betrag mit *seinem* Kurs erneut um, und der Kunde sähe 11.80
@@ -30,7 +30,7 @@ einen Kurs.
   oben. Die Steuer gehört an den Beleg, wenn die Rechnung kommt.
 * **Kein Customer Portal, keine Subscriptions.** Wiederkehrende Aufträge werden eine
   **Schlaufe im Prozess** (PROCESS_CORE §13), kein Abo-Objekt beim Zahlungsdienst.
-* **Keine ``stripe_*``-Spalten.** Die Id steht in ``payments.reference`` – in derselben
+* **Keine ``stripe_*``-Spalten.** Die Id steht in ``deal_entries.reference`` – in derselben
   Spalte, in der bei einer Überweisung der Zahlungszweck steht. Ein Feld, zwei Wege.
 
 ## Ohne Schlüssel gibt es das alles nicht
@@ -47,9 +47,9 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
-from ..domain import money
-from ..models import Purchase
-from . import payments, sites
+from ..domain import currency as cur
+from ..models import Deal
+from . import deal as deal_svc, sites
 
 #: Was wir vom Zahlungsdienst hören wollen — und sonst nichts. Jede weitere Meldung wird
 #: **quittiert und ignoriert**: ein Ereignis, das niemand liest, ist kein Fehler, und ein
@@ -81,45 +81,54 @@ def _api():
     return stripe
 
 
-def _cents(amount: Decimal) -> int:
-    """Stripe rechnet in der kleinsten Einheit. **Auf dem Decimal**, nie über ``float``."""
-    return int((amount * 100).quantize(Decimal("1")))
+def _minor(amount: Decimal, code: str) -> int:
+    """Stripe rechnet in der **kleinsten Einheit** – und die hängt an der Währung.
+
+    ►►► ``× 100`` ist die Falle, die man nie bemerkt. ◄◄◄ Sie stimmt für CHF, EUR und
+    USD, also für alles, was man beim Bauen ausprobiert – und ist bei **JPY** um den
+    Faktor hundert falsch: 1000 Yen würden als 100 000 Yen belastet. Der Faktor kommt
+    darum aus ``domain/currency`` (ISO 4217), nicht aus einer Konstante.
+
+    Gerechnet auf dem ``Decimal``, nie über ``float``.
+    """
+    return int((amount.scaleb(cur.minor_units(code))).quantize(Decimal("1")))
 
 
-def checkout_url(db: Session, *, purchase: Purchase, label: str) -> str:
+def checkout_url(db: Session, *, deal: Deal, label: str) -> str:
     """►►► **Eine Zahlungsaufforderung über den offenen Betrag.** ◄◄◄
 
-    Betrag **und** Währung kommen aus dem Beleg; Stripe rechnet nichts um. Bezahlt wird
-    genau das, was offen ist – nicht die Belegsumme: eine Anzahlung ist längst gebucht,
+    Betrag **und** Währung kommen aus dem Vorgang; Stripe rechnet nichts um. Bezahlt
+    wird genau das, was offen ist – nicht die Zusage: eine Anzahlung ist längst gebucht,
     und wer den vollen Betrag verlangte, kassierte zweimal.
 
     Die Rückmeldung kommt über den **Webhook**, nicht über die Rückkehr-URL: ein Browser,
     der nach der Zahlung geschlossen wird, darf keine Buchung verschlucken.
     """
     stripe = _api()
-    open_amount = payments.balance(db, purchase).open
+    open_amount = deal_svc.open_amount(db, deal)
     if open_amount <= 0:
         raise HTTPException(
             status_code=409,
-            detail="An diesem Beleg ist nichts offen – es gibt nichts zu bezahlen.",
+            detail="An diesem Vorgang ist nichts offen – es gibt nichts zu bezahlen.",
         )
+    code = cur.assert_code(deal.currency)
     base = sites.website_url()
     session = stripe.checkout.Session.create(
         mode="payment",
         line_items=[{
             "quantity": 1,
             "price_data": {
-                "currency": (purchase.currency or "CHF").lower(),
-                "unit_amount": _cents(open_amount),
+                "currency": code.lower(),
+                "unit_amount": _minor(open_amount, code),
                 "product_data": {"name": label},
             },
         }],
         # **Wir setzen die Präsentationswährung.** Sonst rechnete Stripe unseren Betrag
         # mit seinem eigenen Kurs erneut um – angezeigt 11.80, belastet 11.82.
         adaptive_pricing={"enabled": False},
-        # Der Faden zurück zum Beleg. Er steht in den Metadaten und nicht in einer
+        # Der Faden zurück zum Vorgang. Er steht in den Metadaten und nicht in einer
         # eigenen Spalte: die Sitzung ist ein Vorgang bei Stripe, kein Datensatz bei uns.
-        metadata={"purchase_id": str(purchase.id)},
+        metadata={"deal_id": str(deal.id)},
         success_url=f"{base}/erp",
         cancel_url=f"{base}/erp",
     )
@@ -144,7 +153,7 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
     Signaturgeprüft: ohne gültige Signatur ist es keine Meldung von Stripe, sondern ein
     Fremder, der Zahlungen erfinden möchte.
 
-    **Idempotent über die Referenz** (``payments.record``): der Dienst stellt seine
+    **Idempotent über die Referenz** (``deal.record_payment``): der Dienst stellt seine
     Meldungen mehrfach zu – das ist zugesichert, nicht die Ausnahme. Ein zweiter Durchlauf
     bucht darum nichts, er findet die Zeile.
     """
@@ -171,12 +180,12 @@ def handle_webhook(db: Session, *, raw: bytes, signature: Optional[str]) -> str:
 
 def _note_payment(db: Session, data: dict[str, Any]) -> str:
     """``checkout.session.completed`` → eine Zahlung über den bezahlten Betrag."""
-    purchase = _purchase_of(db, (data.get("metadata") or {}).get("purchase_id"))
-    if purchase is None:
+    row = _deal_of(db, (data.get("metadata") or {}).get("deal_id"))
+    if row is None:
         return "unknown"
-    amount = Decimal(str(data.get("amount_total") or 0)) / 100
-    payments.record(
-        db, purchase=purchase, amount=amount, method=money.ONLINE,
+    amount = _amount_of(data.get("amount_total"), row.currency)
+    deal_svc.record_payment(
+        db, row=row, amount=amount,
         reference=str(data.get("payment_intent") or data.get("id") or "") or None,
         note="Zahlungsdienst",
     )
@@ -192,14 +201,14 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     Rechnung**) – genau darum sind Forderung und Geld zwei Achsen.
     """
     intent = str(data.get("payment_intent") or "")
-    purchase = _purchase_of_reference(db, intent)
-    if purchase is None:
+    row = deal_svc.of_reference(db, intent)
+    if row is None:
         return "unknown"
-    amount = Decimal(str(data.get("amount_refunded") or 0)) / 100
+    amount = _amount_of(data.get("amount_refunded"), row.currency)
     if amount <= 0:
         return "ignored"
-    payments.record(
-        db, purchase=purchase, amount=-amount, method=money.ONLINE,
+    deal_svc.record_payment(
+        db, row=row, amount=-amount,
         # **Eine eigene Referenz** – sonst fiele die Erstattung mit der Zahlung zusammen,
         # und die Idempotenz würfe sie weg.
         reference=f"{intent}:refund",
@@ -209,19 +218,17 @@ def _note_refund(db: Session, data: dict[str, Any]) -> str:
     return "refunded"
 
 
-def _purchase_of(db: Session, value: Any) -> Optional[Purchase]:
+def _amount_of(value: Any, code: Any) -> Decimal:
+    """Aus der kleinsten Einheit zurück – **in der Genauigkeit dieser Währung**.
+
+    Die Gegenrichtung von ``_minor``, und dieselbe Falle: ein festes ``/ 100`` machte aus
+    1000 Yen zehn.
+    """
+    return Decimal(str(value or 0)).scaleb(-cur.minor_units(code))
+
+
+def _deal_of(db: Session, value: Any) -> Optional[Deal]:
     try:
-        return db.query(Purchase).filter(Purchase.id == int(value)).first()
+        return db.query(Deal).filter(Deal.id == int(value)).first()
     except (TypeError, ValueError):
         return None
-
-
-def _purchase_of_reference(db: Session, reference: str) -> Optional[Purchase]:
-    """Den Beleg über die Referenz der ursprünglichen Zahlung finden."""
-    from ..models import Payment
-    row = (
-        db.query(Payment)
-        .filter(Payment.reference == reference, Payment.is_active.is_(True))
-        .first()
-    )
-    return _purchase_of(db, row.purchase_id) if row is not None else None

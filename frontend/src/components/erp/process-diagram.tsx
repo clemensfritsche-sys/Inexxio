@@ -76,26 +76,17 @@ export interface DiagramStep {
    * schlicht eine Bestätigung. Eine Eigenschaft des Modultyps
    * (`Module.requires_verification`), die mit dem Schritt reist wie Farbe und Ausgang.
    *
-   * Optional wie `moves` und `buys`: der **Editor** baut seine Schritte aus dem
-   * Modul-Katalog und rendert nie eine Ausführung – dort gibt es die Frage nicht.
+   * Optional wie `moves`: der **Editor** baut seine Schritte aus dem Modul-Katalog und
+   * rendert nie eine Ausführung – dort gibt es die Frage nicht.
    */
   verifies?: boolean;
   /**
    * **Bewegt dieses Modul die Stücke?** Daraus folgt der Ziel-Scan.
    *
    * Vorher beantwortete das die Transportart-Liste, indem sie bei jedem anderen Modultyp
-   * leer war – eine Liste als Bit. Seit «selbst oder eingekauft» aus dem Beleg folgt,
-   * gibt es die Liste nicht mehr, und die Frage steht als das da, was sie ist.
+   * leer war – eine Liste als Bit. Jetzt steht die Frage als das da, was sie ist.
    */
   moves?: boolean;
-  /**
-   * **Trägt dieses Modul einen Einkaufs-Beleg – und wann?** `null` = nie.
-   *
-   * `'if_chosen'` heisst: die Arbeit kann auch selbst erledigt werden, und genau darum
-   * darf die Ausführungsstelle hier die Wahl anbieten. Sie fragt damit nach der
-   * Eigenschaft und nie nach dem Modultyp.
-   */
-  buys?: string | null;
   /**
    * **Worauf dieses Modul wartet** (Testnotiz #698) – Objektnummern der Abweichungen,
    * deren Rückführung aussteht. Nicht leer heisst: gesperrt.
@@ -114,9 +105,8 @@ export interface DiagramStep {
    * Knöpfe funktionierten: dieselbe Fehlerform wie eine erfundene Sperre, nur in Farbe.
    *
    * **Der Schritt sagt es, nicht die Oberfläche** – abgeleitet aus derselben Tabelle,
-   * die auch das Tor ist (`purchase.can` / `deal.can`). Eine Heuristik hier wäre eine
-   * dritte Wahrheit. Optional wie `moves` und `buys`: der Editor rendert nie eine
-   * Ausführung.
+   * die auch das Tor ist (`deal.can`). Eine Heuristik hier wäre eine dritte Wahrheit.
+   * Optional wie `moves`: der Editor rendert nie eine Ausführung.
    */
   openActions?: boolean;
   /**
@@ -1066,18 +1056,16 @@ export function ModuleMark({ icon: Icon, tone, size = 32 }: {
 }
 
 /**
- * ►►► **Die Hülle einer Modul-Karte — EIN Bauteil, zwei Träger.** ◄◄◄
+ * ►►► **Die Hülle einer Modul-Karte — EIN Bauteil.** ◄◄◄
  *
  * Rahmen in der Modulfarbe, getönte Fläche, `rounded-ds-lg`, Kopf mit `ModuleMark` und
  * Beschriftung, Haarlinie vor dem Körper. Genau das ist die Anatomie, an der man eine
  * Modul-Karte erkennt – und sie steht **einmal**.
  *
- * Getragen wird sie von `StepCard` (dem Modul selbst) und vom `ProcurementBlock` (dem
- * Einkaufs-Beleg **in** einem Modul, Testnotiz #783): «container im container, und der
- * innere ist ein 1:1 Abbild eines regulären Moduls – ist ja auch nichts anderes».
- *
- * Ein Nachbau daneben sähe heute gleich aus und wiche beim ersten Karten-Detail ab; ein
- * Wächter verbietet darum jeden eigenen Rahmen im Beleg-Block.
+ * *Sie hatte einmal einen zweiten Träger: den Einkaufs-Beleg **in** einem Bewegen-Modul
+ * (#783, «container im container, und der innere ist ein 1:1 Abbild eines regulären
+ * Moduls»). Mit den Handels-Modulen ist er entfallen – die Hülle bleibt trotzdem ein
+ * eigenes Bauteil: das nächste, was in einer Karte steckt, baut sie nicht nach.*
  *
  * `lead` und `trail` sind die Stellen, an denen ein Träger Eigenes einhängt (Ziehgriff,
  * Schloss, Chevron, Löschen) – der Rahmen selbst kennt davon nichts.
@@ -1190,9 +1178,9 @@ export function StepCard({ step, active, dimmed, defaultOpen, onDelete, drag, hi
   // statt sie stillschweigend zur Datenerfassung zu machen.
   const c = moduleTone(step.tone);
   return (
-    // **Die Hülle ist geteilt** (`ModuleShell`) – dasselbe Bauteil trägt den Einkaufs-
-    // Beleg *in* einem Modul (#783). Was hier dazukommt, hängt in `lead`/`trail`: der
-    // Ziehgriff, das Schloss, der Chevron, das Löschen. Der Rahmen kennt davon nichts.
+    // **Die Hülle ist ein eigenes Bauteil** (`ModuleShell`). Was hier dazukommt, hängt
+    // in `lead`/`trail`: der Ziehgriff, das Schloss, der Chevron, das Löschen. Der
+    // Rahmen kennt davon nichts.
     <ModuleShell
       tone={c} icon={Icon} label={step.label} active={active}
       body={{

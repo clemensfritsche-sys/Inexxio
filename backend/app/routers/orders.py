@@ -18,21 +18,20 @@ from ..domain import statuses as st
 from ..models import (
     Article, Instance, InstanceUnit, Order, OrderUnit, ProcessStep, UserProfile,
 )
-from ..schemas.deal import DealEmbed, DealParty, DealUpdate, VatRate
+from ..schemas.deal import DealEmbed, DealParty, DealUpdate
 from ..schemas.instance import stock_states
 from ..schemas.place import PlaceRef
 from ..schemas.order import (
     ArticleOption, FlowGraph, JourneyNeighbour, OrderCreate, OrderLineResponse,
     OrderResponse, OrderSummary, OrderUnitPage, OrderUnitResponse, OrderValidation,
     DRAFT_OBJECT_ID, NeedSource, ProcessEventResponse, ProcessStepResponse,
-    SupplierOption,
     RelatedOrder, StepNeed, StepWork, UnitOption, UnitChoices,
 )
 from ..schemas.process import (
     CaptureTypeInfo, HoldNumbers, ModuleCatalog, ModuleTypeInfo, PaymentLink,
-    PurchaseEmbed, PurchaseUpdate, RecordEntry, RecordValue, StepConfirm, StepRecord,
+    RecordEntry, RecordValue, StepConfirm, StepRecord,
 )
-from ..domain import capture_types, deal as deal_domain, modules, procurement
+from ..domain import capture_types, modules
 from ..services import article_process as tpl_svc
 from ..services import articles as articles_svc
 from ..services import consumption as consumption_svc
@@ -44,8 +43,6 @@ from ..services import record as record_svc
 from ..services import journey as journey_svc
 from ..services import orders as orders_svc
 from ..services import process as process_svc
-from ..services import payments as payments_svc
-from ..services import purchase as purchase_svc
 from ..services import stripe_pay
 from ..services.admin import log_audit
 from ..services.instances import find_unit, unit_number, unit_number_matches
@@ -113,11 +110,6 @@ def _steps(db: Session, order: Order, *,
         # **Wohin es geht** – aufgelöst, nicht als nackte Zahl. Die Oberfläche zeigt den
         # Namen des Halters; ihn dort nachzuschlagen wäre eine Abfrage je Schritt.
         row.target = _place_ref(db, (s.config or {}).get("target"))
-        # **Der Beschaffungs-Beleg** – Stufe, Angebotszeilen, Bestellung. ``None`` bei
-        # jedem anderen Modultyp; ein Lieferant sieht nur seine eigene Zeile, und zwar
-        # weil sie hier gefiltert wird und nicht in der Oberfläche.
-        facts = purchase_svc.embed_data(db, order=order, step=s, viewer=viewer)
-        row.purchase = PurchaseEmbed(**facts) if facts else None
         # **Der Geldvorgang** – dieselbe Bauart, eigene Maschine (``services/deal``).
         # ``None`` bei jedem anderen Modultyp. Eine **Gegenpartei** sieht ihn, aber nur
         # ihre eigene Angebotszeile und keine Zahl über Forderung und Geld: gefiltert
@@ -142,7 +134,7 @@ _INTERNAL_FIELDS = (
 
 
 def _mine_only(resp: OrderResponse, steps: set[int]) -> OrderResponse:
-    """Derselbe Auftrag – **nur sein Teil davon** (``purchase.mine``)."""
+    """Derselbe Auftrag – **nur sein Teil davon** (``deal.mine``)."""
     blank = {
         name: OrderResponse.model_fields[name].get_default(call_default_factory=True)
         for name in _INTERNAL_FIELDS
@@ -157,23 +149,18 @@ def _mine_only(resp: OrderResponse, steps: set[int]) -> OrderResponse:
 def _involved(db: Session, viewer: UserProfile) -> Optional[set[tuple[int, int]]]:
     """►►► **Woran ist dieser Betrachter beteiligt?** – (Auftrag, Modul) je Zeile. ◄◄◄
 
-    **Zwei Module mit Aussenwirkung, EINE Frage.** Beschaffungs-Beleg und Geldvorgang
-    beantworten sie getrennt (sie teilen bewusst keine Zeile Code); beteiligt ist, wer an
-    **einem** der beiden vorkommt – die Vereinigung. Gibt eines ``None`` zurück, ist der
-    Betrachter Personal und sieht alles.
+    Ein Modul hat Aussenwirkung: der **Geldvorgang**. Beteiligt ist, wer in einem
+    vorkommt; ``None`` heisst «Personal, sieht alles».
 
     Sie steht **hier** und wird von Feed **und** Detail gelesen. Vorher fragte der Feed
-    nur den Beschaffungs-Beleg: die Gegenpartei eines Geldvorgangs hatte ERP-Zugang, sah
-    ihren Auftrag aber in **keiner Liste** – erreichbar nur über die direkte Adresse
-    (gemessen: ``deal.mine`` fand ihn, der Feed-Filter war leer). Zwei Ableitungen
-    derselben Frage laufen genau so auseinander.
+    eine andere Quelle als das Detail: die Gegenpartei eines Geldvorgangs hatte
+    ERP-Zugang, sah ihren Auftrag aber in **keiner Liste** – erreichbar nur über die
+    direkte Adresse. Zwei Ableitungen derselben Frage laufen genau so auseinander.
     """
-    docs = purchase_svc.mine(db, viewer)
     deals = deal_svc.mine(db, viewer)
-    if docs is None or deals is None:
+    if deals is None:
         return None
-    return ({(r.order_id, r.step_id) for r in docs}
-            | {(r.order_id, r.step_id) for r in deals})
+    return {(r.order_id, r.step_id) for r in deals}
 
 
 def _visible(db: Session, order: Order, viewer: UserProfile) -> Optional[set[int]]:
@@ -444,9 +431,6 @@ def deal_parties(
     Gegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort
     gilt sie dann auch beim Ausführen (``deal._party``).
 
-    Ein eigener Endpunkt und nicht ``/party-options``: der fragt nach einer Rolle aus
-    ``domain/procurement``, und dieses Modul soll bestehen, wenn es die nicht mehr gibt.
-
     **Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und
     die Suche endet als «100000xyz ist keine Zahl».
     """
@@ -454,60 +438,6 @@ def deal_parties(
         DealParty(object_id=u.object_id, name=u.display_name)
         for u in deal_svc.search_parties(db, search=search, limit=limit)
     ]
-
-
-@router.get("/party-options", response_model=list[SupplierOption])
-def party_options(
-    role: str = Query(procurement.FLOWS[procurement.BUY].party_role,
-                      description="supplier | customer"),
-    search: str = Query("", description="Objektnummer-Teilstring oder Name"),
-    limit: int = Query(20, ge=1, le=50),
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
-):
-    """**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als ganze Liste geladen.
-
-    Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
-    dieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach
-    auch annimmt (``purchase._assert_allowed``). Ein Kunde in der Lieferantenliste wäre
-    eine Wahl, die das Modul abweist – und umgekehrt.
-
-    **Welche Rolle gemeint ist, sagt der Beleg** (``PurchaseEmbed.party_role``), nicht die
-    Oberfläche: sie reicht durch, was sie bekommen hat. Ein zweiter Endpunkt je Rolle wäre
-    dieselbe Abfrage zweimal, und die zweite bekäme den nächsten Filter nicht mit.
-    """
-    known = {flow.party_role: flow for flow in procurement.FLOWS.values()}
-    if role not in known:
-        raise HTTPException(
-            status_code=400,
-            detail=f"«{role}» ist keine Gegenpartei-Rolle. Erlaubt: "
-                   + ", ".join(sorted(known)) + ".",
-        )
-    query = (
-        db.query(UserProfile)
-        .filter(
-            UserProfile.object_id.isnot(None),
-            UserProfile.is_active.is_(True),
-            lookup.matches(search, UserProfile.object_id, UserProfile.company_name,
-                           UserProfile.first_name, UserProfile.last_name,
-                           UserProfile.email),
-        )
-    )
-    # ►►► **Leer heisst frei** (Testnotiz #779). ◄◄◄
-    #
-    # Beim **Einkauf** ist «Lieferant» eine Beziehung, die wir vergeben – dort ist die
-    # Rolle eine echte Bedingung. Beim **Verkauf** nicht: die Rolle sagt, was jemand *für
-    # uns* tut, nicht ob er *bei uns* kaufen darf. Ein Mitarbeiter, der eine Schraube
-    # kauft, ist ein Kunde; es gibt keinen Grund, ihn auszuschliessen.
-    #
-    # Die Angabe steht im ``Flow`` und nicht als ``if role == 'customer'`` hier – dieselbe
-    # Liste liest ``purchase._assert_allowed``, damit die Auswahl nicht anbietet, was der
-    # Dienst danach abweist.
-    roles = known[role].party_roles
-    if roles:
-        query = query.filter(UserProfile.role.in_(roles))
-    rows = query.order_by(UserProfile.object_id.desc()).limit(limit).all()
-    return [SupplierOption(object_id=u.object_id, name=u.display_name) for u in rows]
 
 
 @router.get("/module-catalog", response_model=ModuleCatalog)
@@ -522,26 +452,17 @@ def module_catalog(_: UserProfile = Depends(require_employee)):
     return ModuleCatalog(
         modules=[
             ModuleTypeInfo(key=m.key, label=m.label, tone=m.tone, terminal=m.terminal,
-                           status_before=m.status_before, status_after=m.status_after,
-                           buys=m.buys,
-                           parties=m.parties,
-                           instruction=m.instruction,
-                           party_roles=list(m.flow.party_roles),
-                           party_role=m.flow.party_role,
-                           party_word=m.flow.party_word,
-                           party_plural=m.flow.party_plural,
-                           party_ref=m.flow.party_ref,
-                           # **Ohne Tatsachen** – hier gibt es noch keinen Auftrag und
-                           # keinen Halter. Der Satz zeigt die *Form* («Transport»),
-                           # damit im Editor sichtbar ist, dass daneben schon etwas
-                           # steht; die Herkunft füllt sich erst zur Laufzeit.
-                           derived_instruction=m.derived_instruction())
+                           status_before=m.status_before, status_after=m.status_after)
             for m in modules.MODULES.values()
         ],
+        # ►►► **Die Steuersätze stehen hier NICHT mehr** (Testnotiz #851). ◄◄◄
+        #
+        # Sie waren die Vorgabe eines Modul-Feldes, und das Feld ist entfallen: der Satz
+        # hängt an der **Sache**, nicht am Modul. Gefragt wird er je Position an der
+        # Ausführungsstelle, und dorthin reist der Katalog mit dem Vorgang
+        # (``DealEmbed.vat_rates``). Ein zweiter Weg zur selben Liste wäre die Stelle,
+        # die beim nächsten Satzwechsel jemand vergisst.
         capture_types=[CaptureTypeInfo(key=t.key, label=t.label) for t in capture_types.ALL],
-        # **Der Katalog der Steuersätze** – eine Eigenschaft des Hauses, nicht eines
-        # Modultyps; die Oberfläche baut ihn nicht nach.
-        vat_rates=[VatRate(rate=r, label=name) for r, name in deal_domain.VAT_RATES],
     )
 
 
@@ -855,61 +776,6 @@ def confirm_step(
     return _to_response(db, order)
 
 
-@router.post("/{object_id}/steps/{step_id}/purchase", response_model=OrderResponse)
-def update_purchase(
-    object_id: int,
-    step_id: int,
-    data: PurchaseUpdate,
-    db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
-):
-    """**Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sieben Verben.
-
-    **``POST``, nicht ``PATCH``**: das hier ist ein Befehl, kein Feld-Update. Im
-    Auftrags-Router gibt es keinen Änderungspfad – was passiert, passiert als Handlung
-    und hinterlässt einen Eintrag (derselbe Grund wie bei ``/confirm``).
-
-    Anfragen · Offerieren · Ablehnen · Bestellen · Zurücknehmen · Klären. Die
-    **Gegenhandlung steht am selben Ort wie die Handlung** (``revoke``): ein Modul räumt
-    selbst auf, es gibt keinen Storno-Endpunkt daneben. Was ``revoke`` bewirkt, sagt die
-    Stufe – vor der Bestellung nimmt es die Anfrage zurück, danach storniert es.
-
-    Was **Stücke** betrifft, entscheidet dagegen ein Mensch: dieses Modul legt keinen
-    Auftrag an und keine Abweichung.
-
-    **Die Tür steht heute nur dem Personal offen** (``require_employee``) – wie jeder
-    Endpunkt dieses Routers. Die Regel «ein Lieferant trifft nur seine eigene Zeile»
-    steht trotzdem im Dienst (``purchase.apply``/``_target``), denn sie gehört dorthin:
-    wer sie erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.
-    Ein **eigener Zugang für Lieferanten** kommt mit ihrer Sicht auf den Auftrag – und
-    die ist mehr als ein weiterer ``Depends``: ohne einen Sichtbarkeitsfilter auf der
-    Antwort (``_to_response`` gibt heute den **ganzen** Auftrag zurück) wäre die offene
-    Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
-    """
-    order = orders_svc.get(db, object_id)
-    # **Dieselbe eine Frage wie beim Lesen**: wer den Auftrag nicht sieht, handelt auch
-    # nicht an ihm – und wer nur sein Modul sieht, nur an diesem.
-    mine = _visible(db, order, user)
-    step = (
-        db.query(ProcessStep)
-        .filter(ProcessStep.order_id == order.id, ProcessStep.id == step_id)
-        .first()
-    )
-    if step is None or (mine is not None and step.id not in mine):
-        raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
-    row = purchase_svc.apply(
-        db, order=order, step=step, action=data.action,
-        payload=data.model_dump(exclude={"action"}), actor=user,
-    )
-    log_audit(db, "purchases", data.action,
-              f"Beleg zu Modul {step.id}: «{modules.label(step.module_type)}» "
-              f"→ {row.stage}",
-              user_id=user.id, object_id=order.object_id)
-    db.commit()
-    db.refresh(order)
-    return _to_response(db, order, viewer=user)
-
-
 @router.post("/{object_id}/steps/{step_id}/deal", response_model=OrderResponse)
 def update_deal(
     object_id: int,
@@ -925,7 +791,7 @@ def update_deal(
     Löschweg gibt es nicht (Testnotizen #823/#824).
 
     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
-    wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**
+    wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle**
     erlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.
 
     **Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll
@@ -1046,12 +912,12 @@ def payment_link(
 ):
     """**Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
 
-    Kein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim
+    Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim
     Zahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich
     da ist – und das meldet der Webhook, nicht der Browser des Kunden.
 
     Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in
-    der Oberfläche gar nicht erst (``PurchaseEmbed.can``), und ein 503 hier wäre die
+    der Oberfläche gar nicht erst (``DealEmbed.can``), und ein 503 hier wäre die
     Behauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.
     """
     order = orders_svc.get(db, object_id)
@@ -1062,9 +928,10 @@ def payment_link(
     )
     if step is None:
         raise HTTPException(status_code=404, detail="Diesen Prozessschritt gibt es nicht.")
-    row = purchase_svc.of_step(db, step.id)
+    row = deal_svc.of_step(db, step.id)
     if row is None:
-        raise HTTPException(status_code=404, detail="Dieses Modul hat keinen Beleg.")
-    payments_svc.assert_payable(row)
+        raise HTTPException(status_code=404,
+                            detail="Dieses Modul hat keinen Geldvorgang.")
+    deal_svc.assert_payable(row)
     return PaymentLink(url=stripe_pay.checkout_url(
-        db, purchase=row, label=f"{order.name or 'Auftrag'} {order.object_id}"))
+        db, deal=row, label=f"{order.name or 'Auftrag'} {order.object_id}"))

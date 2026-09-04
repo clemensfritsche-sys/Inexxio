@@ -38,13 +38,15 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..domain import currency as cur
 from ..domain import deal as dm
 from ..domain import modules
 from ..models import (
-    Article, Deal, DealEntry, Instance, InstanceUnit, Order, OrderUnit, ProcessStep,
-    UserProfile,
+    Article, Deal, DealEntry, Instance, InstanceUnit, Order, OrderUnit, ProcessEvent,
+    ProcessStep, UserProfile,
 )
-from . import article_fields, lookup
+from ..models.process_event import KIND_START, KIND_STEP
+from . import article_fields, lookup, sites
 
 #: **Wer ohnehin alles sieht.** Für sie gibt es keine verengte Sicht – sie arbeiten im
 #: ERP, und dort steht der ganze Auftrag.
@@ -52,6 +54,7 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 
 #: ►►► **Was an welcher Stufe erlaubt ist — Auskunft UND Tor.** ◄◄◄
 #:
+#: ``currency`` die Währung des Vorgangs setzen – **nur vor der Zusage**
 #: ``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten
 #: ``quote``   einen Preis an **einer** Angebotszeile eintragen
 #: ``decline`` eine Angebotszeile absagen
@@ -63,8 +66,14 @@ STAFF_ROLES: tuple[str, ...] = ("admin", "employee")
 #: **Geld darf in jeder Stufe ab der Zusage fliessen** – auch nach dem Storno: eine
 #: Anzahlung muss erstattet werden können, und eine Rechnung darf vor der Erfüllung
 #: stehen und danach. Wer das an die Stufe bände, hätte für jedes Szenario ein ``if``.
+#:
+#: **Die Währung steht in genau EINER Stufe** – und das ist keine zusätzliche Regel,
+#: sondern dieselbe Tabelle: ab der Zusage liegt draussen eine Zusage über *diese* Summe
+#: in *dieser* Währung, und sie nachträglich umzuschreiben hiesse, die Zahl stehen zu
+#: lassen und ihre Bedeutung zu ändern. Weil ``can`` das Tor ist, fehlt der Auswahl-Knopf
+#: danach von selbst und ``apply`` weist ihn ab – ohne ein zweites ``if``.
 ACTIONS: dict[str, tuple[str, ...]] = {
-    dm.OFFER: ("ask", "quote", "decline", "agree"),
+    dm.OFFER: ("currency", "ask", "quote", "decline", "agree"),
     dm.AGREED: ("revoke", "charge", "pay"),
     dm.DONE: ("charge", "pay"),
     dm.CANCELLED: ("charge", "pay"),
@@ -178,7 +187,7 @@ def embed_lines(db: Session, order: Order, row: Deal,
     Eine Abfrage für alle Zeilen, nicht eine je Zeile.
     """
     lines = lines_of(db, order, row)
-    fallback = modules.vat_rate(step.config) if step is not None else dm.DEFAULT_VAT
+    fallback = dm.DEFAULT_VAT
     found = {
         a.id: a
         for a in db.query(Article).filter(
@@ -215,6 +224,22 @@ def embed_lines(db: Session, order: Order, row: Deal,
 # ►► ANLAGE — mit der Freigabe, idempotent
 # ---------------------------------------------------------------------------
 
+def house_currency(db: Session) -> str:
+    """**Die Währung des Hauses** – die des Betreibers, tolerant gelesen.
+
+    Eine Lesestelle, damit die Vorgabe nicht an zwei Orten steht. Gibt es (noch) keinen
+    Betreiber, gilt ``domain/currency.DEFAULT``: ein Vorgang ohne Währung wäre ein Betrag
+    ohne Aussage, und ein harter Fehler beim Freigeben eines Auftrags wäre die falsche
+    Antwort auf eine fehlende Stammdatenzeile.
+    """
+    operator = sites.find_operator(db)
+    code = getattr(operator, "currency", None)
+    try:
+        return cur.assert_code(code)
+    except ValueError:
+        return cur.DEFAULT
+
+
 def instantiate_for_order(db: Session, order: Order) -> None:
     """Jedes «Zahlung»-Modul dieses Auftrags bekommt seinen Vorgang.
 
@@ -236,6 +261,12 @@ def instantiate_for_order(db: Session, order: Order) -> None:
                 order_id=order.id, step_id=step.id,
                 direction=dm.assert_direction(
                     modules.get(step.module_type).direction_of(step.config)),
+                # ►►► **Die Währung kommt vom Betreiber, nicht aus einem Feld.** ◄◄◄
+                #
+                # Der Normalfall ist die Hauswährung, und ihn zu tippen wäre eine Eingabe
+                # mit genau einer richtigen Antwort. Wer in einer anderen fakturiert,
+                # ändert sie am Vorgang – bis zur Zusage.
+                currency=house_currency(db),
                 stage=dm.OFFER, quotes=[],
             ))
     if rows:
@@ -342,7 +373,29 @@ def apply(db: Session, *, order: Order, step: ProcessStep, action: str,
     return row
 
 
-def _priced(db: Session, *, order: Order, step: ProcessStep,
+def _currency(db: Session, *, order: Order, step: ProcessStep, row: Deal,
+              data: dict[str, Any], actor: Optional[UserProfile]) -> None:
+    """►►► **In welcher Währung wird gehandelt?** ◄◄◄
+
+    Eine Angabe **je Vorgang**, nicht je Zeile: zwei Währungen auf einem Beleg gibt es
+    nicht, das wären zwei Belege. Vorbelegt ist die Hauswährung
+    (``house_currency``) – wer in einer anderen fakturiert, sagt es hier.
+
+    **Streng geschrieben** (``currency.assert_code`` nennt die erlaubten): ein Code, den
+    es nicht gibt, fällt sonst erst auf, wenn jemand eine Summe über zwei Währungen zieht.
+    Dass es **nach der Zusage** nicht mehr geht, sagt ``ACTIONS`` – nicht diese Funktion.
+
+    **Umgerechnet wird nichts.** Ein Kurs hat ein Datum und eine Quelle; wer ohne beides
+    umrechnet, erfindet Zahlen. Die bereits genannten Beträge bleiben darum stehen: sie
+    sind Angebote, und ein Angebot in einer anderen Währung ist ein neues Angebot.
+    """
+    try:
+        row.currency = cur.assert_code(data.get("currency"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+def _priced(db: Session, *, order: Order, step: ProcessStep, code: str,
             data: dict[str, Any]) -> list[dict[str, Any]]:
     """►►► **Die Positionen mit Preis und Satz** – die Nutzlast nennt nur Preis und Satz.
 
@@ -356,11 +409,11 @@ def _priced(db: Session, *, order: Order, step: ProcessStep,
     entarteten Zeile, kein zweiter Fall.
     """
     counts = dict(process_lines(db, order))
-    fallback = modules.vat_rate(step.config)
+    fallback = dm.DEFAULT_VAT
     out: list[dict[str, Any]] = []
     for raw in data.get("lines") or []:
         article = raw.get("article")
-        price = _amount(raw.get("price"), allow_negative=True)
+        price = _amount(raw.get("price"), code, allow_negative=True)
         if price is None:
             continue
         try:
@@ -370,7 +423,9 @@ def _priced(db: Session, *, order: Order, step: ProcessStep,
         out.append({
             "article": int(article) if article is not None else None,
             "quantity": counts.get(int(article), 0) if article is not None else 1,
-            "price": f"{price:.2f}",
+            # **Gerundet je Währung**, nie fest auf zwei Stellen: ein Yen-Betrag mit
+            # zwei Nachkommastellen behauptet eine Genauigkeit, die es nicht gibt.
+            "price": cur.money(price, code),
             "vat": vat,
         })
     return out
@@ -411,15 +466,16 @@ def _ask(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # Ein Betrag allein trägt keinen Steuersatz, und ohne Satz ist eine Rechnung keine.
     # Der Angebotsbetrag ist darum die **Brutto-Summe der Positionen**, nicht mehr eine
     # getippte Zahl daneben – zwei Zahlen über dieselbe Sache liefen auseinander.
-    priced = _priced(db, order=order, step=step, data=data) if flow.quoted_by == dm.BY_US \
-        else []
+    priced = _priced(db, order=order, step=step, code=row.currency,
+                     data=data) if flow.quoted_by == dm.BY_US else []
     if flow.quoted_by == dm.BY_US and not priced:
         raise HTTPException(
             status_code=400,
             detail=(f"Ohne Preis gibt es nichts anzubieten – bei einer {flow.label} "
                     f"nennen wir ihn, nicht der {dm.PARTY}."),
         )
-    fresh = ({"amount": f"{dm.gross_of(priced):.2f}", "lines": priced, "state": dm.QUOTED}
+    fresh = ({"amount": cur.money(dm.gross_of(priced, row.currency), row.currency),
+              "lines": priced, "state": dm.QUOTED}
              if priced else {"amount": None, "lines": [], "state": dm.ASKED})
     lines = list(row.quotes or [])
     for value in wanted:
@@ -447,9 +503,10 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # **Ausgabe** nennt die Gegenpartei einen Gesamtbetrag – ihre Steuer steht auf ihrer
     # Rechnung, nicht in unserem Angebotsspiegel. Ein Verb, zwei Nutzlasten, und welche
     # gilt, sagt dieselbe Angabe wie überall (``quoted_by``).
-    priced = _priced(db, order=order, step=step, data=data) if flow.quoted_by == dm.BY_US \
-        else []
-    amount = dm.gross_of(priced) if priced else _amount(data.get("amount"))
+    priced = _priced(db, order=order, step=step, code=row.currency,
+                     data=data) if flow.quoted_by == dm.BY_US else []
+    amount = dm.gross_of(priced, row.currency) if priced \
+        else _amount(data.get("amount"), row.currency)
     # ►►► **Nur gesendete Felder wirken – auch für den Betrag.** ◄◄◄
     #
     # Wer nur eine **Frist** nachreicht, nennt keinen Preis: bei einer Einnahme steht er
@@ -458,7 +515,7 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # Frist damit an einer bereits offerierten Zeile nicht mehr änderbar, ohne den Preis
     # noch einmal mitzuschicken (also ihn erneut zu behaupten).
     if amount is None:
-        amount = _amount((_quote_of(row, party) or {}).get("amount"))
+        amount = _amount((_quote_of(row, party) or {}).get("amount"), row.currency)
     if amount is None:
         raise HTTPException(status_code=400,
                             detail="Ohne Betrag ist es keine Offerte.")
@@ -469,7 +526,8 @@ def _quote(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # (``DealUpdate.changes`` schickt ungesetzte Felder gar nicht mit), aber die Regel
     # gehört in den **Dienst**: die Tür ist nicht der einzige Aufrufer, und ein Handler,
     # der auf sie angewiesen ist, ist beim zweiten falsch.
-    changes: dict[str, Any] = {"amount": f"{amount:.2f}", "state": dm.QUOTED}
+    changes: dict[str, Any] = {"amount": cur.money(amount, row.currency),
+                               "state": dm.QUOTED}
     if priced:
         changes["lines"] = priced
     for field in ("lead_days", "payment_days"):
@@ -498,8 +556,8 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     flow = dm.of(row.direction)
     party = _target(row, data, actor)
     line = _quote_of(row, party) or {}
-    amount = _amount(data.get("amount")) if data.get("amount") is not None \
-        else _amount(line.get("amount"))
+    amount = _amount(data.get("amount"), row.currency) \
+        if data.get("amount") is not None else _amount(line.get("amount"), row.currency)
     if amount is None:
         raise HTTPException(
             status_code=400,
@@ -512,6 +570,8 @@ def _agree(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     row.due_days = _days(data.get("payment_days")) or _days(line.get("payment_days"))
     row.stage = dm.AGREED
     row.agreed_on = date.today()
+    # **Und die Währung ist ab hier gebunden** – wie der Betrag und die Zeilen: draussen
+    # liegt eine Zusage über *diese* Summe in *dieser* Währung.
     # ►►► **Eingefroren wird, was die GEWÄHLTE Zeile sagt.** ◄◄◄
     #
     # Trägt sie Positionspreise (wir haben den Preis genannt), sind sie die Zusage – mit
@@ -542,7 +602,7 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     Nummer = ``<Auftragsnummer>-<laufend>``, wo wir nummerieren.
     """
     flow = dm.of(row.direction)
-    given = _amount(data.get("amount"), allow_negative=True)
+    given = _amount(data.get("amount"), row.currency, allow_negative=True)
     value = given if given is not None else balance_of(db, row).next_charge
     if value is None:
         raise HTTPException(status_code=400, detail="Ohne Betrag keine Rechnung.")
@@ -572,11 +632,11 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     # den Satz, und wir schreiben ab, was auf dem Beleg steht.
     lines = [ln for ln in (row.agreed_lines or []) if ln.get("price") is not None]
     if lines:
-        split = dm.split_for(value, lines)
+        split = dm.split_for(value, lines, row.currency)
     else:
         try:
             split = dm.split_at(value, dm.assert_vat(
-                data.get("vat") or modules.vat_rate(step.config)))
+                data.get("vat") or dm.DEFAULT_VAT), row.currency)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
     db.add(DealEntry(
@@ -584,9 +644,16 @@ def _charge(db: Session, *, order: Order, step: ProcessStep, row: Deal,
         due_on=_day(data.get("due_on")) or _due(booked, row.due_days),
         reference=number, note=_text(data.get("note"), 200),
         vat=split,
-        # **Das Leistungsdatum ist vorbelegt, nicht erfunden**: meistens fällt es mit dem
-        # Rechnungsdatum zusammen – bei einem Satzwechsel entscheidet es.
-        service_date=_day(data.get("service_date")) or booked,
+        # ►►► **Das Leistungsdatum kommt aus dem PROZESS** (Testnotiz #852). ◄◄◄
+        #
+        # «Wann wurde die Leistung erbracht?» weiss der Auftrag: es ist der Tag, an dem
+        # die Stücke dieses Modul erreicht haben. Das Rechnungsdatum ist es **nicht** –
+        # eine Rechnung, die zwei Wochen später geschrieben wird, verschöbe damit die
+        # Steuerperiode (MWSTG Art. 26 Bst. c).
+        #
+        # Vorbelegt, nicht erzwungen: ein Mensch darf es überschreiben, denn er weiss von
+        # Teilleistungen, von denen der Log nichts weiss.
+        service_date=_day(data.get("service_date")) or service_day(db, step) or booked,
     ))
 
 
@@ -597,7 +664,7 @@ def _pay(db: Session, *, order: Order, step: ProcessStep, row: Deal,
     Vorgabe ist der **offene** Betrag, und auch er nie negativ: ist mehr gezahlt als
     gefordert, gibt es nichts vorzuschlagen – die Erstattung tippt ein Mensch.
     """
-    given = _amount(data.get("amount"), allow_negative=True)
+    given = _amount(data.get("amount"), row.currency, allow_negative=True)
     value = given if given is not None else balance_of(db, row).next_payment
     if value is None:
         raise HTTPException(status_code=400, detail="Ohne Betrag keine Zahlung.")
@@ -690,8 +757,10 @@ def _reverse(db: Session, *, order: Order, step: ProcessStep, row: Deal,
         reverses_id=entry.id,
         # **Die Gegenbuchung spiegelt die Steuer** – sonst hebt sie den Betrag auf, und
         # die Steuer der stornierten Rechnung bliebe für immer in der Abrechnung stehen.
-        vat=[{"rate": r["rate"], "net": f"{-Decimal(r['net']):.2f}",
-              "tax": f"{-Decimal(r['tax']):.2f}"} for r in (entry.vat or [])],
+        vat=[{"rate": r["rate"],
+               "net": cur.money(-Decimal(r["net"]), row.currency),
+               "tax": cur.money(-Decimal(r["tax"]), row.currency)}
+             for r in (entry.vat or [])],
         service_date=entry.service_date,
     ))
 
@@ -823,6 +892,130 @@ def finish(db: Session, *, order: Order, step: ProcessStep) -> None:
 
 
 # ---------------------------------------------------------------------------
+# ►► DER ZAHLUNGSDIENST — eine Tür, und sie ist NICHT die des Menschen
+# ---------------------------------------------------------------------------
+#
+# Ein Zahlungsdienst ruft nicht ``apply``: er hat keinen angemeldeten Benutzer, keine
+# Stufe und keine Meinung darüber, was jemand tun darf. Er meldet **eine Tatsache** –
+# Geld ist geflossen –, und genau eine Zeile entsteht.
+#
+# Darum steht diese Naht hier und nicht in ``ACTIONS``: ``can`` ist das Tor für
+# **Menschen**, und ein Webhook, der sich durch dasselbe Tor zwängen müsste, bräuchte
+# einen erfundenen Akteur mit erfundenen Rechten.
+
+def service_day(db: Session, step: ProcessStep) -> Optional[date]:
+    """►►► **Wann wurde die Leistung erbracht?** – aus dem Prozess, nicht getippt. ◄◄◄
+
+    Es ist der Tag, an dem die Stücke **das Modul davor** verlassen haben, also bei diesem
+    hier angekommen sind. Genau das ist die Leistung, für die Rechnung gestellt wird.
+
+    **Das Rechnungsdatum ist es nicht.** Eine Rechnung, die zwei Wochen später geschrieben
+    wird, verschöbe damit die Steuerperiode – und bei einem Satzwechsel entscheidet das
+    Leistungsdatum, welcher Satz gilt (MWSTG Art. 26 Bst. c). Zwei Angaben, ein Datum
+    einzutippen wäre die dritte.
+
+    **Gelesen wird darum das Ereignis des VORGÄNGERS**, nicht das eigene: ein ``step``
+    an *diesem* Modul heisst «hier fertig», und das ist der Zeitpunkt, an dem die
+    Rechnung ohnehin schon geschrieben sein soll. Steht dieses Modul am Anfang, ist die
+    Ankunft der **Start** des Auftrags – dieselbe Frage, eine Stelle früher.
+
+    ``None`` heisst «hier ist noch nichts angekommen»; dann bleibt es beim Buchungstag –
+    ein Datum zu erfinden wäre schlimmer als keines.
+    """
+    before = (
+        db.query(ProcessStep.id)
+        .filter(ProcessStep.order_id == step.order_id,
+                ProcessStep.position < step.position)
+        .order_by(ProcessStep.position.desc())
+        .first()
+    )
+    q = db.query(ProcessEvent.created_at).filter(ProcessEvent.order_id == step.order_id)
+    q = (q.filter(ProcessEvent.step_id == before[0], ProcessEvent.kind == KIND_STEP)
+         if before else
+         q.filter(ProcessEvent.kind == KIND_START, ProcessEvent.step_id.is_(None)))
+    row = q.order_by(ProcessEvent.id.desc()).first()
+    return row[0].date() if row and row[0] else None
+
+
+def assert_payable(row: Deal) -> None:
+    """**Gibt es etwas zu bezahlen?** – sonst gibt es keine Zahlungsaufforderung.
+
+    Man kassiert nicht, was niemand gefordert hat (dieselbe Regel wie ``can``): ohne
+    Forderung ist *offen* null, und ein Link über 0.00 wäre eine Aufforderung ohne Inhalt.
+    """
+    if row.stage == dm.OFFER:
+        raise HTTPException(
+            status_code=409,
+            detail="Solange nichts zugesagt ist, gibt es nichts zu bezahlen.",
+        )
+
+
+def open_amount(db: Session, row: Deal) -> Decimal:
+    """Der offene Betrag – die eine Zahl, über die kassiert wird.
+
+    **Nicht die Zusage**: eine Anzahlung ist längst gebucht, und wer die volle Summe
+    verlangte, kassierte zweimal.
+    """
+    return balance_of(db, row).open
+
+
+def of_reference(db: Session, reference: str) -> Optional[Deal]:
+    """**Zu welchem Vorgang gehört diese Zahlungsreferenz?**
+
+    Der Rückweg einer Erstattung: sie nennt die Referenz der ursprünglichen Zahlung, und
+    die steht an genau einer Zeile im Haus (dieselbe Regel wie die Idempotenz unten).
+    """
+    row = (
+        db.query(DealEntry)
+        .filter(DealEntry.kind == dm.PAYMENT, DealEntry.reference == reference,
+                DealEntry.is_active.is_(True))
+        .first()
+    )
+    if row is None:
+        return None
+    return db.query(Deal).filter(Deal.id == row.deal_id).first()
+
+
+def record_payment(db: Session, *, row: Deal, amount: Decimal,
+                   reference: Optional[str] = None,
+                   note: Optional[str] = None) -> DealEntry:
+    """**Eine Zeile Geld** – die Tür des Zahlungsdienstes.
+
+    ►►► **Idempotent über die Referenz.** ◄◄◄ Ein Zahlungsdienst stellt dieselbe Meldung
+    mehrfach zu (das ist kein Fehler, das ist sein Auslieferungsversprechen). Dieselbe
+    Referenz ist dieselbe Zahlung – zurück kommt die **bereits gebuchte** Zeile, nicht
+    eine zweite.
+
+    **Und eine Referenz gehört zu genau EINER Zahlung im Haus**: taucht sie an einem
+    *anderen* Vorgang auf, ist das ein Irrtum und kein Duplikat. Er wird **genannt** – ein
+    stiller Nicht-Effekt (200, nichts gebucht, offener Betrag unverändert) ist schlimmer
+    als ein Fehler.
+    """
+    if reference:
+        seen = (
+            db.query(DealEntry)
+            .filter(DealEntry.kind == dm.PAYMENT, DealEntry.reference == reference,
+                    DealEntry.is_active.is_(True))
+            .first()
+        )
+        if seen is not None:
+            if seen.deal_id != row.id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(f"Die Referenz «{reference}» hängt bereits an einem anderen "
+                            f"Geldvorgang. Zweimal dieselbe Zahlung gibt es nicht."),
+                )
+            return seen
+    entry = DealEntry(
+        deal_id=row.id, kind=dm.PAYMENT, amount=amount,
+        booked_on=date.today(), reference=reference, note=note,
+    )
+    db.add(entry)
+    db.flush()
+    return entry
+
+
+# ---------------------------------------------------------------------------
 # ►► DIE GEGENPARTEI
 # ---------------------------------------------------------------------------
 
@@ -890,9 +1083,9 @@ def _party(db: Session, *, step: ProcessStep, value: Any,
 # ►► KLEINE HELFER — jeder mit genau einer Aufgabe
 # ---------------------------------------------------------------------------
 
-def _amount(value: Any, *, allow_negative: bool = False) -> Optional[Decimal]:
+def _amount(value: Any, code: str, *, allow_negative: bool = False) -> Optional[Decimal]:
     try:
-        return dm.amount(value, allow_negative=allow_negative)
+        return dm.amount(value, code, allow_negative=allow_negative)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -1054,9 +1247,29 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # **Die Steuer-Angaben** – Katalog, Vorgabe und Wörter reisen mit, damit die Karte
         # keine zweite Liste pflegt und für kein `if` nach der Richtung fragt.
         "vat_rates": [{"rate": r, "label": name} for r, name in dm.VAT_RATES],
-        "vat_rate": modules.vat_rate(step.config),
+        # ►►► **Die Vorgabe steht im Katalog, nicht am Modul** (Testnotiz #851). ◄◄◄
+        #
+        # Der Satz hängt an der **Sache** (was für eine Ware ist es?) und am **Empfänger**
+        # (Ausfuhr?) – beim Modellieren eines Moduls weiss man beides nicht. Ein Feld dort
+        # war eine Frage, die zu früh gestellt wird, und ihre Antwort galt danach für jede
+        # Position, die je durch dieses Modul lief.
+        "vat_rate": dm.DEFAULT_VAT,
         "vat_label": dm.VAT_LABEL,
         "service_date_label": dm.SERVICE_DATE_LABEL,
+        # ►►► **Das Leistungsdatum kommt aus dem PROZESS** (Testnotiz #852). ◄◄◄ Der
+        # Auftrag weiss, wann die Stücke hier angekommen sind; die Erfassung zeigt es
+        # vorbelegt und lässt es überschreiben (Teilleistungen kennt nur ein Mensch).
+        "service_date": service_day(db, step),
+        # ►►► **In welcher Währung?** ◄◄◄ Ein Betrag ohne sie ist keine Zahl. Sie reist
+        # **mit jedem Vorgang** mit, damit die Oberfläche nirgends «CHF» annimmt – und mit
+        # ihr die Nachkommastellen, denn ein Yen-Betrag mit zwei Stellen ist keiner.
+        "currency": row.currency,
+        "currency_label": cur.label(row.currency),
+        "currency_decimals": cur.minor_units(row.currency),
+        # **Änderbar, solange nichts zugesagt ist** – ab der Zusage ist eine zweite Partei
+        # gebunden, und der Betrag lautet auf *diese* Währung.
+        "currency_locked": row.stage != dm.OFFER,
+        "currencies": [{"code": c, "label": cur.label(c)} for c in cur.CURRENCIES],
         # ►►► **Netto, Steuer und die Aufteilung – ABLEITUNGEN der Positionen.** ◄◄◄
         #
         # Der Brutto-Betrag steht längst als ``amount`` da; ihn hier zu wiederholen wäre
@@ -1065,7 +1278,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         # die Zahlen ohnehin sehen darf.
         "net": _sums(row)["net"] if won else None,
         "tax": _sums(row)["tax"] if won else None,
-        "vat_split": dm.vat_split(_priced_lines(row)) if won else [],
+        "vat_split": dm.vat_split(_priced_lines(row), row.currency) if won else [],
         "charge_word": flow.charge_word,
         "payment_word": flow.payment_word,
         "open_word": flow.open_word,
@@ -1087,7 +1300,7 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "party_object_id": row.party_id if won else None,
         "party_name": (_named(db, [row.party_id])[0]["name"]
                        if row.party_id and won else None),
-        "amount": _money(row.amount) if won else None,
+        "amount": _money(row.amount, row.currency) if won else None,
         "due_days": row.due_days if won else None,
         "agreed_on": row.agreed_on if won else None,
         # ►►► **Der Liefertermin und der Verzug — zwei ABLEITUNGEN, null Spalten.** ◄◄◄
@@ -1106,16 +1319,16 @@ def embed_data(db: Session, *, order: Order, step: ProcessStep,
         "late": _is_late(row) if won else False,
         # ►► **Forderung und Geld sieht nur das Personal.** Was ein Kunde uns schuldet,
         #    geht einen angefragten Dritten nichts an.
-        "charged": _money(money.charged) if internal else None,
-        "paid": _money(money.paid) if internal else None,
-        "open": _money(money.open) if internal else None,
-        "uncharged": _money(money.uncharged) if internal else None,
-        "next_charge": _money(money.next_charge) if internal else None,
-        "next_payment": _money(money.next_payment) if internal else None,
+        "charged": _money(money.charged, row.currency) if internal else None,
+        "paid": _money(money.paid, row.currency) if internal else None,
+        "open": _money(money.open, row.currency) if internal else None,
+        "uncharged": _money(money.uncharged, row.currency) if internal else None,
+        "next_charge": _money(money.next_charge, row.currency) if internal else None,
+        "next_payment": _money(money.next_payment, row.currency) if internal else None,
         "settled": money.settled if internal else False,
         "entries": [
             {
-                "id": e.id, "kind": e.kind, "amount": _money(e.amount),
+                "id": e.id, "kind": e.kind, "amount": _money(e.amount, row.currency),
                 "booked_on": e.booked_on, "due_on": e.due_on,
                 "reference": e.reference, "note": e.note,
                 # **Überfällig ist eine Ableitung, kein Zustand**: eine Forderung, deren
@@ -1148,7 +1361,7 @@ def _priced_lines(row: Deal) -> list[dict[str, Any]]:
 
 def _sums(row: Deal) -> dict[str, str]:
     """Netto · Steuer · Brutto der Zusage – drei Zahlen aus einer Quelle."""
-    return dm.totals(dm.vat_split(_priced_lines(row)))
+    return dm.totals(dm.vat_split(_priced_lines(row), row.currency), row.currency)
 
 
 def _quotes(db: Session, row: Deal, step: ProcessStep, *,
@@ -1223,10 +1436,13 @@ def _named(db: Session, numbers: list[Optional[int]]) -> list[dict[str, Any]]:
     return [{"object_id": n, "name": rows.get(n, str(n))} for n in wanted]
 
 
-def _money(value: Optional[Decimal]) -> Optional[str]:
-    """Beträge reisen als **String**. Wo es auf den Rappen ankommt, wird nicht durch
-    ``float`` gerechnet – auch nicht auf dem Weg durch JSON."""
-    return None if value is None else f"{value:.2f}"
+def _money(value: Optional[Decimal], code: str) -> Optional[str]:
+    """Beträge reisen als **String**, in der Genauigkeit ihrer Währung.
+
+    Wo es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet – auch nicht auf
+    dem Weg durch JSON. Und die Stellenzahl gehört der Währung: ``1000.00`` in Yen
+    behauptet eine Genauigkeit, die es nicht gibt (``domain/currency.money``)."""
+    return None if value is None else cur.money(value, code)
 
 
 # ---------------------------------------------------------------------------
@@ -1238,6 +1454,7 @@ def _money(value: Optional[Decimal]) -> Optional[str]:
 # Ein Löschweg (früher ``void``) ist damit nicht «nicht mehr aufgerufen», sondern schlicht
 # nicht vorhanden – und ein Wächter kann es lesen, statt es zu glauben.
 HANDLERS = {
+    "currency": _currency,
     "ask": _ask, "quote": _quote, "decline": _decline, "agree": _agree,
     "revoke": _revoke,
     "charge": _charge, "pay": _pay, REVERSE: _reverse,

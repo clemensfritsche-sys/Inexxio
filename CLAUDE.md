@@ -2309,6 +2309,101 @@
 > 320 px, **0 px** waagrechter Überlauf über sechs Zustände (inkl. zweier Steuersätze auf
 > einem Beleg) und im Editor.
 
+> **Der Handel ist WEG — was blieb, ist ein Scan; und ein Betrag hat eine WÄHRUNG**
+> (Migration `128`, PROCESS_CORE §9.9/§9.9a/§9.12). Die Module **Beschaffen** und
+> **Verkauf** sind ersatzlos gelöscht – nicht abgeschaltet: mit ihrem Beleg, ihren
+> Tabellen-Mappings und ihren Diensten (`domain/procurement` · `domain/money` ·
+> `services/purchase` · `services/invoices` · `services/payments` · `models/purchase` ·
+> `models/invoice` · `models/payment` · `purchase-work.tsx`). Rund 4.400 Zeilen.
+> **Der Grund ist keine Geschmacksfrage, sondern eine Doppelung.** Ihr Beleg war
+> Angebot → Zusage → Erfüllung mit Angebotsspiegel, Rechnungen, Zahlungen und Storno –
+> **genau das ist der Geldvorgang** (§9.12), nur ohne die Bindung an Ware und damit auch
+> für Miete, Lohn, Gebühr, Spesen und eine eingekaufte Spedition brauchbar. Dass er
+> damals bewusst **neben** ihnen gebaut wurde («kein Import aus `procurement`/
+> `purchase`»), hat sich hier ausgezahlt: an ihm musste für die Löschung **keine Zeile**
+> geändert werden.
+> **Was übrig blieb, ist ein neues, sehr kleines Modul: «Ausliefern»** – ein Scan, ein Statuswechsel
+> auf `Verkauft`, **sonst nichts**. Keine Konfiguration: an wen geliefert wird, steht im
+> Geldvorgang desselben Auftrags; was, sagen die Stücke davor; wann, sagt der Log.
+> **Und es ist ein AUSGANG** – *das* war der Fund beim Bauen. Die erste Fassung stand auf
+> `terminal = False` mit dem Verweis auf den Verbrauch (der `Verbaut` setzt und ebenfalls
+> kein Ausgang ist), und die **Kettenregel hat es sofort gemeldet**: beim Verbrauch
+> bleiben die durchlaufenden Stücke auf `Im Prozess` – nur die Komponenten wechseln, und
+> die treten dort erst ein. Hier wechselt **jedes** ankommende Stück; ein Modul dahinter
+> erwartete `Im Prozess` und bekäme `Verkauft`, am Schluss bräche die Kette am
+> Ende-Objekt. **Ein nicht-terminales Modul, das den Zustand ALLER Stücke ändert, kann es
+> gar nicht geben.** Was danach kommen müsste, kommt davor – auch fachlich: man prüft,
+> bevor man liefert, und der Geldvorgang verliert nichts, weil seine Geld-Zeilen an `can`
+> hängen und nicht daran, ob das Modul dran ist (#821). **`Verkauft` bleibt trotzdem
+> umkehrbar**: `Module.terminal` und `Status.terminal` sind zwei verschiedene Fragen –
+> die Retoure ist ein ganz gewöhnlicher Auftrag, **das Greifen IST die Rücknahme**, und
+> weil ihr Start vom Regelstart abweicht, ist sie automatisch eine dokumentierte
+> Abweichung. Der **Ort** fällt ebenso ohne eine Zeile weg (`Verkauft` zählt zur
+> Historie). Und ein **Transport ist dieses Modul nicht**: ein Muster beim Kunden, ein
+> Computer beim Mitarbeiter, eine Konsignation – dort wechselt der Ort, und nichts ist
+> verkauft; eine Ableitung «Ort ausserhalb ⇒ verkauft» wäre in genau diesen Fällen still
+> falsch.
+> **Der Steuersatz ist aus dem MODUL verschwunden** (Testnotiz #851 – der Nutzer hatte
+> recht): er stand dort als «Vorgabe jeder neuen Position» und war damit eine Eigenschaft
+> des Moduls – eine Vorlage, die für jeden künftigen Auftrag denselben Satz behauptet,
+> obwohl er an der **Sache** hängt und die erst feststeht, wenn ein Auftrag läuft. Ein
+> Vorgabewert, der bei der Hälfte der Aufträge überschrieben werden muss, ist kein
+> Komfort, sondern die Zahl, die stehenbleibt, wenn es niemand tut. Mit ihm sind der
+> `vat_rates`-Weg über den **Modul-Katalog** und die ganze `vatRates`-Prop-Kette im
+> Editor entfallen: der Katalog reist mit dem **Vorgang**, und ein zweiter Weg zur selben
+> Liste ist die Stelle, die beim nächsten Satzwechsel jemand vergisst.
+> **Das Leistungsdatum kommt aus dem PROZESS** (#852 – ebenfalls richtig gesehen): es ist
+> der Tag, an dem die Stücke das Modul **erreicht** haben, und das Rechnungsdatum ist es
+> nicht (MWSTG Art. 26 Bst. c – eine zwei Wochen später geschriebene Rechnung verschöbe
+> die Steuerperiode). Gelesen wird darum das `step`-Ereignis des **Vorgängers**, nicht das
+> eigene: ein `step` an *diesem* Modul heisst «hier fertig». **Abgeleitet, nicht
+> gespeichert** – und **vorbelegt, nicht erzwungen**: ein Mensch weiss von Teilleistungen,
+> von denen der Log nichts weiss.
+> **Und die Währung, state of the art** (`domain/currency.py`, `deals.currency`): **eine
+> je Vorgang, nicht je Zeile** – zwei Währungen auf einem Beleg wären zwei Belege.
+> Vorbelegt ist die des Betreibers; **änderbar bis zur Zusage, danach nicht mehr**, und
+> das ist keine zusätzliche Regel, sondern dieselbe Tabelle: `currency` steht in
+> `ACTIONS[OFFER]`, also fehlt der Knopf danach von selbst und `apply` weist ihn ab.
+> ►►► **Die Nachkommastellen sind der Punkt, den man vergisst.** ◄◄◄ Fast alle Währungen
+> haben zwei – und darum schreibt man `f"{x:.2f}"` bzw. `NUMERIC(x, 2)` und merkt nie,
+> dass es falsch ist: **JPY und KRW haben null**, **KWD hat drei**. Ein Yen-Betrag mit
+> zwei Nachkommastellen ist kein Rundungsfehler, sondern ein Betrag, den es nicht gibt.
+> Die Stelligkeit hängt darum an **einer** Stelle und gilt auf **vier** Ebenen: Parsen ·
+> Rechnen · Ausgeben · **Spalte** (`NUMERIC(18, 4)`). Beim Rechnen fiel dabei ein zweiter
+> Fehler auf: `quantize` rundet ohne Angabe **statistisch** (banker's rounding) – 12.345
+> wäre 12.34 geworden, während die Buchung kaufmännisch 12.35 bucht; eine Anzeige, die
+> anders rundet als die Buchung, ist ein Rappen Differenz, den niemand erklären kann.
+> **Umgerechnet wird nichts und gemischt wird nichts**: ein Kurs hat ein Datum und eine
+> Quelle, und wer ohne beides umrechnet, erfindet Zahlen. In der Oberfläche steht sie
+> **im Kopf des Vorgangs**, nicht an jeder Zahl – genannt beim **Total** und beim
+> **offenen Betrag**, den Zahlen, die abgeschrieben und überwiesen werden.
+> **Eine vierte Lücke zwischen den Netzen, und sie war die stillste**
+> (`main._NUMERIC_SAFETY_NET`): eine fehlende Tabelle legt `create_all` an, eine fehlende
+> Spalte das Spalten-Netz, eine gelöste `NOT NULL` das Nullable-Netz – eine Spalte mit zu
+> **kleiner Skala** nimmt den Wert an und rundet ihn weg. Dieselbe Lehre wie bei den
+> Indizes (#778): eine Typänderung, die nur in einer Migration steht, erreicht die
+> dev-Datenbank nie. Gemessen: nach `downgrade 127` zieht der Start beides nach (Spalte
+> **und** Skala 2 → 4).
+> **Stripe ist bewusst geblieben** (`services/stripe_pay`, `docs/stripe-setup.md`): der
+> Webhook schreibt jetzt eine Geld-Zeile am **Vorgang** statt am Beleg, und `_cents` ist
+> `_minor(amount, code)` geworden – `× 100` wäre bei **JPY** um den Faktor hundert falsch
+> (1000 Yen als 100 000 belastet). Heute ohne Bedienelement (der Zahllink-Knopf hing an
+> der Beleg-Karte), aber vollständig verdrahtet.
+> **Kleineres, jedes an einer Stelle:** `Module._object_id` steht wieder in der Basis (das
+> Ziel des Bewegen-Moduls und der Partner des Zahlungs-Moduls stellen dieselbe Frage – was
+> ein **fehlender** Wert bedeutet, sagt der Aufrufer); `ModuleShell` bleibt ein eigenes
+> Bauteil, obwohl sein zweiter Träger entfallen ist; `formatAmount` nimmt die
+> Nachkommastellen als Parameter; `SupplierOption` ist gelöscht.
+> Wächter: `tests/test_delivery_module.py` (5 Prüfungen, **jede gegen ihre Bug-Form
+> gegengeprüft**), 4 neue in `test_deal_module.py` (9 Bug-Formen), 3 neue in
+> `test_frontend_mirrors.py` (8 Bug-Formen) – dazu **19 Wächter der gelöschten Module
+> entfernt** und 6 auf die neue Regel gezogen. Suite grün gegen die gewachsene Datenbank
+> **und** gegen ein Schema nur aus den Migrationen (je 508); Migration `128` von null ·
+> idempotent · downgrade · re-upgrade verifiziert. Gemessen in Chromium an der **echten**
+> Komponente: 1440 · 1280 · 1024 · 834 · 375 · 320 px, **0 px** waagrechter Überlauf über
+> vier Zustände (inkl. eines JPY-Belegs und der Sicht der Gegenpartei) – und die Messung
+> gegen ihre eigene Bug-Form gegengeprüft (+62,3 px bei einem unteilbaren Wort).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?
@@ -2545,30 +2640,32 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   ohne KI), Bestand in drei Ebenen, Reihe (ersetzt/ersetzt durch) und die gemeldete
   Stückliste – ausser Betrieb nehmen ist ein Statuswechsel in beide Richtungen.
 - **Prozess**: Auftrag → geordnete Modul-Liste → Einzelinstanzen passieren sie; jeder
-  Statuswechsel schreibt in den append-only Ereignis-Log. **Sieben Module** (Datenerfassung ·
-  Aussondern · Verbrauch · Bewegen · Beschaffen · Verkauf · **Zahlung**), Abweichungen als
+  Statuswechsel schreibt in den append-only Ereignis-Log. **Sechs Module** (Datenerfassung ·
+  Aussondern · Verbrauch · Bewegen · **Zahlung** · **Ausliefern**), Abweichungen als
   ganz gewöhnliche Aufträge, Prozessbild als serverseitig gerechneter Graph.
 - **Zahlung** (§9.12): Geld mit einer zweiten Partei, in beide Richtungen dasselbe Modul –
-  und es bewegt **keine Stücke**. Vollständig eigenständig neben Beschaffen/Verkauf, damit
-  die beiden eines Tages ersatzlos gelöscht werden können.
-- **Verkauf und Geld**: derselbe Beleg wie der Einkauf, nur in die andere Richtung
-  (Angebot → Zusage → Geliefert); Zahlungen und Gutschriften als Zeilen daneben, *offen*
-  und *fällig* als Ableitung. **Stripe** angebunden (Zahllink + Webhook), optional – ohne
-  Schlüssel bleibt die Überweisung, und die ist der B2B-Normalfall.
+  und es bewegt **keine Stücke**. Angebotsspiegel → Zusage → Rechnungen und Zahlungen als
+  Zeilen daneben; *offen*, *fällig* und *überfällig* als Ableitung, null Spalten. Steuer je
+  Position (MWSTG Art. 26) und **eine Währung je Vorgang** (ISO 4217, mit den
+  Nachkommastellen der Währung). **Stripe** angebunden (Zahllink + Webhook), optional –
+  ohne Schlüssel bleibt die Überweisung, und die ist der B2B-Normalfall.
+- **Ausliefern** (§9.9): ein Scan, ein Statuswechsel auf `Verkauft` – **sonst nichts**.
+  Ein **Ausgang**; die Retoure ist ein ganz gewöhnlicher Auftrag.
 - **Unternehmen**: mehrere gleichrangige Gesellschaften mit eigener Rechtsidentität,
   Gebietskarte, ein gewählter Betreiber für die eine Website.
 - **Testnotizen** in der laufenden Oberfläche (nur Testumgebung), als Markdown kopierbar.
 
-**Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): der **Shop**
-(die Verkaufs-*Logik* gibt es wieder, §9.10), Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent, Versand-
-Anbindung, der Ereignis-Strom als Outbox. Ebenfalls nie gebaut: E-Mail (Gmail API),
-Typesense-Suche, Buchhaltung, HR.
+**Nicht vorhanden** (entfernt, nicht abgeschaltet – `docs/attic.md`): der **Shop**,
+die Module **Beschaffen** und **Verkauf** samt ihrem Beleg (§9.9a – was sie konnten, kann
+der Geldvorgang), Dokumente/Belege, Rechtstexte aus dem Dokumentmodul, KI-Assistent,
+Versand-Anbindung, der Ereignis-Strom als Outbox. Ebenfalls nie gebaut: E-Mail (Gmail
+API), Typesense-Suche, Buchhaltung, HR.
 
 **Nächste Aufgabe**: Prozess-Module nach Bedarf. Der Wiederaufbau eines entfernten
 Bereichs beginnt bei der Modellfrage in `docs/attic.md`, nicht bei der alten Datei.
 Am Datenmodell ist **eines offen und es braucht einen Menschen**: die Tabellen der
-entfernten Bereiche (`events`, `document_*`, `article_prices`, `ai_actions` …) stehen
-noch. Kein Modell verweist auf sie, sie kosten nichts – aber ihr Drop ist unumkehrbar
+entfernten Bereiche (`events`, `document_*`, `article_prices`, `ai_actions`, und neu
+`purchases`, `invoices`, `payments` …) stehen noch. Kein Modell verweist auf sie, sie kosten nichts – aber ihr Drop ist unumkehrbar
 und verlangt vorher eine Sicherung der **produktiven** Datenbank (`docs/backlog.md`).
 
 ## Deployment

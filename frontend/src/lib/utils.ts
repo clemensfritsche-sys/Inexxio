@@ -6,8 +6,16 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Betrag im Schweizer Zahlenformat, 2 Nachkommastellen – OHNE Währung («12'345.60»).
+ * Betrag im Schweizer Zahlenformat – OHNE Währung («12'345.60»).
  * EINE Formatier-Wahrheit (vorher in 7 Komponenten je eine eigene Kopie).
+ *
+ * ►►► **Die Nachkommastellen kommen von der WÄHRUNG** (ISO 4217 «minor units»). ◄◄◄
+ *
+ * Fast alle haben zwei – und darum stand hier eine feste `2`, und niemand hätte je
+ * gemerkt, dass sie falsch ist: **JPY und KRW haben null**, **KWD hat drei**. Ein
+ * Yen-Betrag mit zwei Nachkommastellen ist kein Schönheitsfehler, sondern ein Betrag,
+ * den es nicht gibt. Der Wert reist mit den Daten (`DealEmbed.currency_decimals`, aus
+ * `domain/currency`); zwei ist die Vorgabe für alles, was keine Währung nennt.
  *
  * **Der Tausender-Trenner wird festgeschrieben.** `toLocaleString('de-CH')` liefert je
  * nach ICU-Fassung ein typografisches `’` (U+2019, so im Browser) oder ein gerades `'`
@@ -16,10 +24,13 @@ export function cn(...inputs: ClassValue[]) {
  * aussehen: server- und clientseitig gerendert ergäbe das zwei verschiedene Texte an
  * derselben Stelle (React meldet es als Hydrations-Fehler und wirft die Seite weg).
  */
-export function formatAmount(v: string | number | null | undefined): string {
+export function formatAmount(v: string | number | null | undefined,
+                             decimals = 2): string {
   if (v == null || v === '') return '—';
   return Number(v)
-    .toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .toLocaleString('de-CH', {
+      minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+    })
     .replace(/\u2019/g, "'");
 }
 

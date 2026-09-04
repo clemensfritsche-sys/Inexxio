@@ -76,6 +76,18 @@ class VatRate(BaseModel):
     label: str
 
 
+class CurrencyOption(BaseModel):
+    """Eine wählbare Währung – der Code und wie sie heisst.
+
+    Ein **Katalog**, keine freie Eingabe: «CHF» getippt ist noch keine Währung, und ein
+    Tippfehler fällt erst auf, wenn jemand eine Summe über zwei Währungen zieht. Die
+    Beschriftung trägt den Code selbst, kein Symbol – «$» ist nicht eindeutig.
+    """
+
+    code: str
+    label: str
+
+
 class VatShare(BaseModel):
     """**Ein Steuersatz auf einem Beleg** – Netto und Steuer dazu.
 
@@ -223,6 +235,14 @@ class DealEmbed(BaseModel):
     #: Richtungen, damit die Karte keine eigene Konstante daneben hält.
     vat_label: str = "MWST"
     service_date_label: str = "Leistungsdatum"
+    #: ►►► **Wann die Leistung erbracht wurde – aus dem PROZESS** (Testnotiz #852). ◄◄◄
+    #:
+    #: Der Tag, an dem die Stücke dieses Modul erreicht haben. Das Rechnungsdatum ist es
+    #: **nicht**: eine Rechnung, die zwei Wochen später geschrieben wird, verschöbe damit
+    #: die Steuerperiode (MWSTG Art. 26 Bst. c). Es ist die **Vorbelegung** des Feldes,
+    #: kein fester Wert – ein Mensch weiss von Teilleistungen, von denen der Log nichts
+    #: weiss. ``None`` heisst «noch nichts angekommen»; dann gilt der Buchungstag.
+    service_date: Optional[date] = None
     #: ►►► **Nennen WIR den Preis je Position?** ◄◄◄
     #:
     #: Es ist dieselbe Angabe wie ``we_quote`` – und genau darum steht sie nicht zweimal
@@ -234,6 +254,31 @@ class DealEmbed(BaseModel):
     #: Je vorkommendem Satz eine Zeile ``{rate, net, tax}`` – gerundet **je Satz auf der
     #: Summe**, nie je Position aufsummiert.
     vat_split: list[VatShare] = Field(default_factory=list)
+    # ─── Die Währung ────────────────────────────────────────────────────────────
+    #: ►►► **In welcher Währung?** – ISO 4217, drei Zeichen. ◄◄◄
+    #:
+    #: **Eine je Vorgang, nicht je Zeile**: zwei Währungen auf einem Beleg gibt es nicht,
+    #: das wären zwei Belege. Jeder Betrag dieser Antwort ist in ihr zu lesen – ohne sie
+    #: ist «1000» tausend Franken oder tausend Yen, und das sind zwei sehr verschiedene
+    #: Beträge.
+    currency: str = "CHF"
+    #: Wie sie heisst («CHF · Schweizer Franken») – die Oberfläche pflegt keine
+    #: zweite Liste.
+    currency_label: str = "CHF"
+    #: ►►► **Wie viele Nachkommastellen sie hat** (ISO 4217 «minor units»). ◄◄◄
+    #:
+    #: Fast alle haben zwei – und darum schreibt man `.toFixed(2)` und merkt nie, dass es
+    #: falsch ist: **JPY** und **KRW** haben null, **KWD** hat drei. Die Zahl reist mit,
+    #: damit die Anzeige nicht rät.
+    currency_decimals: int = 2
+    #: **Steht sie noch zur Wahl?** Ab der **Zusage** nicht mehr: draussen liegt eine
+    #: Zusage über *diese* Summe in *dieser* Währung. Es ist dieselbe Antwort wie
+    #: ``"currency" in can`` – hier als Wort, damit die Oberfläche das Feld **anzeigen**
+    #: und trotzdem sperren kann, statt es verschwinden zu lassen.
+    currency_locked: bool = True
+    #: Der Katalog, aus dem gewählt wird. Eine **Aufzählung**, kein Datensatz – ein
+    #: natives Auswahlfeld ist hier richtig.
+    currencies: list[CurrencyOption] = Field(default_factory=list)
     #: Die Überschrift des Geld-Bereichs – der dritten Zeile der Karte.
     money_label: str = "Rechnung & Zahlung"
     #: Das Wort für die eine Gegenhandlung – oder ``None``, wo sie nicht geht.
@@ -316,6 +361,7 @@ class DealUpdate(BaseModel):
     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
                 ``booked_on``, ``due_on``, ``reference``, ``note``)
     ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)
+    ``currency`` die **Währung** setzen (``currency``) – nur vor der Zusage
     ``reverse`` eine Geld-Zeile **stornieren** (``entry``) – als **Gegenbuchung**, nie
                 als Löschung: dieselbe Art, der negative Betrag, ``reverses_id`` auf die
                 stornierte Zeile. Beide bleiben stehen (Testnotizen #823/#824).
@@ -362,6 +408,10 @@ class DealUpdate(BaseModel):
     #: ►►► **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Bst. c). ◄◄◄ ``None``
     #: heisst «wie gebucht» – das ist der Normalfall und keine fehlende Angabe.
     service_date: Optional[date] = None
+    #: ►►► **Die Währung des Vorgangs** (``currency``) – ISO 4217, drei Zeichen. ◄◄◄
+    #: Nur **vor der Zusage**; danach führt ``can`` das Verb nicht mehr, und ``apply``
+    #: weist es ab.
+    currency: Optional[str] = None
 
     def changes(self) -> dict[str, Any]:
         """Was tatsächlich gesendet wurde – ohne ``action``."""

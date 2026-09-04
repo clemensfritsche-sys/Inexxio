@@ -27,7 +27,7 @@ from ..models.process_event import (
 from . import (
     article_process, articles as articles_svc, capture as capture_svc,
     consumption as consumption_svc, deal as deal_svc, materialize,
-    places as places_svc, purchase as purchase_svc, sampling,
+    places as places_svc, sampling,
 )
 from .instances import unit_number
 
@@ -745,13 +745,7 @@ def release(
     # fest). Gezogen wird über die **Gesamtmenge** des Auftrags, nicht je Instanz.
     sampling.ensure(db, order=order, step=rows[0], actor_id=actor_id)
 
-    # ── 7. Und jedes Beschaffungs-Modul bekommt seinen Beleg ────────────────
-    # **Hier und nicht beim Erreichen**: was bestellt wird, steht in der Definition, und
-    # der Einkauf beginnt, sobald der Auftrag läuft – wer erst beim Erreichen bestellt,
-    # wartet die Lieferfrist ab, nachdem alles andere schon fertig ist. Idempotent, ohne
-    # Beschaffungs-Modul ein No-op (``services/purchase``).
-    purchase_svc.instantiate_for_order(db, order)
-    # ── 8. Und jedes «Zahlung»-Modul bekommt seinen Geldvorgang ─────────────
+    # ── 7. Und jedes «Zahlung»-Modul bekommt seinen Geldvorgang ─────────────
     # Dieselbe Regel, andere Maschine (``services/deal``): mit wem und worüber gehandelt
     # wird, steht in der Definition, und ein Angebot einzuholen dauert. Idempotent, ohne
     # ein solches Modul ein No-op.
@@ -964,12 +958,7 @@ def confirm_step(
                     f"es gibt nichts mehr zu bestätigen."),
         )
     module = modules.get(step.module_type)
-    # ►► **Kann hier überhaupt etwas ankommen?** ◄◄
-    #
-    # Dieselbe Bauart wie ``consumption.plan``: wer nichts zu sagen hat, sagt nichts.
-    # Nur ein Beschaffungs-Modul hat einen Beleg – und nur bestellte Ware trifft ein.
-    purchase_svc.assert_receivable(db, step=step)
-    # ►► **Und ist der Geldvorgang so weit?** ◄◄
+    # ►► **Ist der Geldvorgang so weit?** ◄◄
     #
     # Dieselbe Bauart: wer nichts zu sagen hat, sagt nichts. Nur ein «Zahlung»-Modul hat
     # einen – und dort heisst «noch nicht zugesagt» bzw. «noch nicht bezahlt», dass es
@@ -1083,13 +1072,9 @@ def confirm_step(
     # Was dabei passiert ist, reist als Payload in den Log: Herkunft, Ziel, Transportart.
     # Damit steht die Bewegung dort, wo die Historie ohnehin steht (§7.2) – eine zweite
     # Tabelle daneben wäre eine zweite Wahrheit über denselben Vorgang.
-    # **Eingekauft oder selbst gebracht? Das sagt der Beleg.** Es gibt keine Eingabe
-    # dafür: eine Transportart im Formular wäre eine zweite Angabe neben der Tatsache,
-    # dass jemand eine Spedition beauftragt hat – und die getippte gewänne.
-    moved = places_svc.apply_for_step(
-        db, step=step, units=units, target=place,
-        bought=purchase_svc.of_step(db, step.id) is not None,
-    )
+    # **Wer den Transport fährt, steht nicht hier.** Eine Spedition zu beauftragen ist
+    # ein Geldvorgang (``domain/deal``) – dieses Modul sagt allein, wohin.
+    moved = places_svc.apply_for_step(db, step=step, units=units, target=place)
     marks = {u.id: {"verification": verification, **moved.get(u.id, {})} for u in units}
 
     # ►► **Was dieses Modul verbraucht, holt es sich JETZT.** ◄◄
@@ -1173,13 +1158,7 @@ def confirm_step(
     db.flush()
     # ►► **Das Modul räumt selbst auf.** ◄◄
     #
-    # Steht nichts mehr vor dem Beschaffungs-Modul, ist die Ware da (Teillieferung
-    # braucht keine eigene Regel – ``confirm_step`` ist ein Teilabschluss). Und hat der
-    # Auftrag Stücke verloren (ein Aussondern eine Zeile weiter oben), zieht der Beleg
-    # nach bzw. meldet, dass zu klären ist. Beides no-op ohne Beschaffungs-Modul.
-    purchase_svc.note_receipt(db, order=order, step=step)
-    purchase_svc.rebase(db, order)
-    # Und dasselbe für den Geldvorgang: steht nichts mehr davor, ist er erledigt. **Nur
+        # Steht nichts mehr davor, ist er erledigt. **Nur
     # er** – Forderungen und Zahlungen laufen weiter, denn ein Zahlungsziel endet nicht
     # mit der Ware.
     deal_svc.finish(db, order=order, step=step)

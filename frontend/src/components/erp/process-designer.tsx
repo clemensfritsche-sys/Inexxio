@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Columns2, Grid2x2, Layers, Lock, LockOpen, Percent, Trash2, X,
+  Columns2, Grid2x2, Layers, Lock, LockOpen, Percent, Trash2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { DealParty, ModuleCatalog, ModuleTypeInfo, SupplierOption } from '@/types';
+import type { DealParty, ModuleCatalog } from '@/types';
 import {
   CAPTURE_ICON, DEAL_DIRECTION, DEAL_PARTY, DEAL_TASK, DEAL_TASK_HINT,
   DISPOSAL_MODES, moduleIcon, NEEDS_TARGET,
-  SAMPLE_PRESETS, VAT_LABEL, blankModule, moduleTone,
+  SAMPLE_PRESETS, blankModule, moduleTone,
   type DisposalMode, type ModuleDraft, type PointDraft, type SampleDraft, type SampleMode,
 } from '@/lib/modules';
 
@@ -25,7 +25,7 @@ import { ProcessColumns } from '@/components/erp/process-columns';
 import { ObjId } from '@/components/erp/obj-id';
 import { END_BEFORE } from '@/lib/process-status';
 import type { RelatedOrder } from '@/types';
-import { IconSwitch, Label, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
+import { IconSwitch, inputCls, numericInputProps, numericOnly } from '@/components/erp/fields';
 import { DefinitionLines, emptyLine } from '@/components/erp/definition-lines';
 import { ObjectSelect } from '@/components/erp/object-select';
 import type { PlaceRef } from '@/types';
@@ -155,7 +155,6 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
           // nicht als Bedingung im Rumpf. Ein neuer Typ ist ein Eintrag, kein Eingriff.
           const known = m.moduleType in MODULE_FIELDS;
           const Fields = MODULE_FIELDS[m.moduleType];
-          const info = (catalog?.modules ?? []).find((x) => x.key === m.moduleType);
           if (!known) {
             return (
               <p className="text-xs" style={{ color: 'var(--danger)' }}>
@@ -169,18 +168,6 @@ export function ProcessDesigner({ modules, onChange, frozen, readOnlySteps, head
               <div className="flex flex-col gap-3">
                 {Fields && (
                   <Fields module={m} types={catalog?.capture_types ?? []}
-                    vatRates={catalog?.vat_rates ?? []}
-                    onChange={(next) => patch(m.id, next)} />
-                )}
-                {/* ►► **Wer einkaufen kann, definiert seinen Beleg – hier, wie jeder
-                    andere auch.** ◄◄
-                    Der Block hängt an `buys` und nicht an einer Liste von Modultypen in
-                    dieser Datei: ein neuer einkaufender Typ bekommt ihn, ohne dass
-                    jemand das Frontend anfasst. Ob die Angaben Pflicht sind und ob
-                    daneben etwas Abgeleitetes steht, sagt derselbe Eintrag – die
-                    Oberfläche fragt nie nach dem Modultyp (#777). */}
-                {info?.buys && (
-                  <ProcurementFields module={m} info={info}
                     onChange={(next) => patch(m.id, next)} />
                 )}
               </div>
@@ -259,7 +246,6 @@ function Palette({ catalog, onPick }: {
 function DisposalFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
-  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   return (
@@ -299,7 +285,6 @@ function DisposalFields({ module: m, onChange }: {
 function MoveFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
-  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   const [place, setPlace] = useState<PlaceRef | null>(null);
@@ -347,205 +332,24 @@ function MoveFields({ module: m, onChange }: {
 }
 
 /**
- * **Beschaffen: bei wem — und was zu tun ist.** Zwei Angaben, mehr braucht ein Einkauf nicht.
- *
- * **Kein Artikelfeld.** *Was* beschafft wird, sagt der Prozess: die Einzelinstanzen, die
- * vor dem Modul stehen, tragen ihren Artikel. Es daneben zu tippen wäre eine zweite
- * Aussage über dieselbe Sache – und die getippte gewinnt auch dann, wenn sie falsch ist.
- * Stehen Stücke zweier Artikel davor, hat der Beleg zwei Zeilen: EINE Bestellung mit
- * zwei Positionen, wie im echten Leben.
- *
- * **Dafür der Auftrag an den Lieferanten.** Die Artikel-Spezifikation beschreibt die
- * Sache und reist mit dem Beleg; was mit ihr geschehen soll, steht dort nicht – «Härten
- * auf 58 HRC» ist eine Eigenschaft *dieses* Schritts, und ein Artikel hat mehrere.
- *
- * Die Lieferanten sind eine **Liste**, auch wenn fast immer einer drinsteht: wer
- * vergleichen will, nennt drei, und der Angebotsvergleich ist damit kein zweiter
- * Mechanismus, sondern dieselbe Liste eine Zeile länger. Fachlich die Lieferantenfreigabe.
- *
- * **Keine Menge und kein «Webshop»-Modus**: die Menge ist die Zahl der Stücke vor dem
- * Modul, und wo jemand seinen Shop hat, ist eine Eigenschaft des Lieferanten – nicht
- * dieser Bestellung.
- */
-function ProcurementFields({ module: m, info, onChange }: {
-  module: ModuleDraft;
-  info: ModuleTypeInfo;
-  onChange: (next: Partial<ModuleDraft>) => void;
-}) {
-  const [known, setKnown] = useState<Record<number, string>>({});
-
-  // **Mit wem gehandelt wird, sagt der Katalog** (`party_role`) – ein Lieferant beim
-  // Einkauf, ein Kunde beim Verkauf. Die Oberfläche fragt nie nach dem Modultyp: ein
-  // `if` hier wäre die zweite Stelle für dieselbe Regel, und der Dienst wiese danach ab.
-  const role = info.party_role;
-  // **Und wie sie im Satz heisst, kommt aus derselben Quelle.** «Auftrag an den
-  // Lieferanten» wäre am Verkaufs-Modul falsch; ein zweiter Text daneben, gewählt über
-  // den Modultyp, wäre die dritte Stelle für dieselbe Angabe.
-  //
-  // **Die gebeugte Form ist eine ANGABE, keine Rechnung** (`party_plural`, #787). Sie
-  // wurde hier aus `party_word` gebaut – «Lieferant» + «en» = «Lieferanten» ✓, und beim
-  // Verkauf «Kundeen». Deutsche Beugung ist keine Zeichenkettenoperation; wer sie rechnet,
-  // hat den nächsten Fall schon falsch. Also steht sie im `Flow` und reist mit.
-  const orderLabel = info.derived_instruction
-    ? 'Ergänzung zum Auftrag' : `Auftrag an den ${info.party_plural}`;
-
-  // Die gewählten Gegenparteien benennen – sonst stünden dort nur Ziffern. Eine Abfrage
-  // je Modul, nicht je Zeile.
-  useEffect(() => {
-    const missing = m.suppliers.filter((r) => !(r.supplier in known));
-    if (missing.length === 0) return;
-    let stale = false;
-    void Promise.all(missing.map((r) => api.searchParties(role, String(r.supplier), 1)))
-      .then((groups) => {
-        if (stale) return;
-        const found: Record<number, string> = {};
-        groups.flat().forEach((o) => { found[o.object_id] = o.name; });
-        setKnown((k) => ({ ...k, ...found }));
-      })
-      .catch(() => {});
-    return () => { stale = true; };
-  }, [m.suppliers, known, role]);
-
-  const findSuppliers = useCallback(
-    (q: string) => api.searchParties(role, q).catch(() => []), [role]);
-
-  return (
-    <div className="flex flex-col gap-3">
-      {/* ►►► **Ein Feld gibt es genau dann, wenn das Modul es DEKLARIERT.** ◄◄◄
-          `off` · `optional` · `required` (`ModuleTypeInfo.parties` / `.instruction`).
-          Vorher waren es zwei Booleans, und der Zustand «gibt es hier gar nicht» fehlte
-          darin – daraus wurde ein Feld, das freiwillig dastand, weil man es *vielleicht*
-          braucht, mit einer Beschriftung, die nirgends passt («Auftrag an den Kundeen»,
-          #780/#781). Ein Feld als Vielleicht ist schlimmer als keines. */}
-      {info.instruction !== 'off' && (
-      <div className="flex flex-col gap-1.5">
-        <Label>{orderLabel}</Label>
-        {/* **Was abgeleitet ist, steht als Wert da – nicht als Vorschlag im Feld.**
-            «Transport von A nach B» kennt der Vorgang selbst; ihn hier eintippbar zu
-            machen wäre die zweite Aussage über dieselbe Sache, und die getippte gewänne
-            auch falsch. Die Eingabe daneben ist das, was NUR ein Mensch weiss
-            («Hebebühne nötig») – darum heisst sie dort «Ergänzung» (#777). */}
-        {info.derived_instruction && (
-          <p className="text-[12px]" style={{ color: 'var(--fg-3)' }}>
-            Steht bereits im Auftrag: «{info.derived_instruction} …» – abgeleitet aus
-            Herkunft und Ziel.
-          </p>
-        )}
-        <textarea
-          className={inputCls}
-          rows={2}
-          maxLength={400}
-          value={m.instruction}
-          required={info.instruction === 'required'}
-          placeholder={info.derived_instruction
-            ? 'z. B. Hebebühne nötig · nur werktags · Gefahrgut'
-            : 'z. B. Härten auf 58 HRC · gemäss Zeichnung fertigen · liefern'}
-          aria-label={orderLabel}
-          onChange={(e) => onChange({ instruction: e.target.value })}
-          style={{ resize: 'vertical', minHeight: 54 }}
-        />
-      </div>
-      )}
-      {info.parties !== 'off' && (
-      <div className="flex flex-col gap-1.5">
-        {/* **«Leer heisst frei» steht in der LISTE, nicht als Satz darunter** (#786).
-            Vorher stand unter dem Feld «Leer: freie Wahl beim Ausführen» – dieselbe
-            Aussage wie am Ziel des Bewegen-Moduls, nur in einem zweiten Wortlaut und in
-            der einen Form, in der man sie nicht wählen kann. Sie ist jetzt die erste
-            Zeile derselben Liste, mit demselben Satz (`RUNTIME_CHOICE`).
-
-            **Und sie steht nur da, solange sie gilt**: sobald jemand zugelassen ist,
-            wäre «Beim Ausführen definieren» im leeren Zufügen-Feld eine Behauptung, die
-            die Zeilen darunter widerlegen. Zurück führt der Mülleimer an der Zeile. */}
-        <ObjectSelect<SupplierOption>
-          label={`Zugelassene ${info.party_plural}`}
-          required={info.parties === 'required'}
-          value={null}
-          selected={null}
-          find={findSuppliers}
-          scanLabel={info.party_word}
-          emptyOption={info.parties !== 'required' && m.suppliers.length === 0
-            ? RUNTIME_CHOICE : undefined}
-          placeholder="Nummer oder Name"
-          onChange={(nr, opt) => {
-            if (nr === null || m.suppliers.some((r) => r.supplier === nr)) return;
-            if (opt) setKnown((k) => ({ ...k, [nr]: opt.name }));
-            onChange({ suppliers: [...m.suppliers, { supplier: nr, ref: '' }] });
-          }}
-        />
-        {/* **Wer liefern darf – und wie man bei ihm bestellt.** Die Bestellangabe steht
-            hier und nicht am Beleg: sie ist eine Eigenschaft der Paarung Modul ×
-            Lieferant («seine Artikelnummer», «sein Shop-Link») und ändert sich nicht je
-            Bestellung. Am Beleg wäre sie eine Angabe, die man jedes Mal neu abschreibt
-            – genau das war das alte Referenz-Feld (#753).
-
-            **Ob es sie überhaupt gibt, sagt der `Flow`** (`party_ref`, #787): sie
-            beantwortet «wie bestelle ich bei ihm» – eine Frage, die es nur beim Einkauf
-            gibt. Beim Verkauf bestellt der Kunde bei UNS; ein Feld dafür stünde dort als
-            Pflichtangabe da, die niemand ausfüllen kann. */}
-        {m.suppliers.map((row) => (
-          <div key={row.supplier} className="flex flex-col gap-1"
-            style={{ borderTop: '1px solid var(--border-1)', paddingTop: 5 }}>
-            <div className="flex items-center gap-2 text-[13px]">
-              <ObjId value={row.supplier} />
-              <span className="flex-1 truncate" style={{ color: 'var(--fg-3)' }}>
-                {known[row.supplier] ?? ''}
-              </span>
-              <button type="button" className="erp-fieldaction" aria-label="Entfernen"
-                data-tip="Nicht mehr zugelassen"
-                onClick={() => onChange({
-                  suppliers: m.suppliers.filter((x) => x.supplier !== row.supplier),
-                })}
-                style={{ position: 'static', transform: 'none' }}>
-                <X size={14} />
-              </button>
-            </div>
-            {info.party_ref && (
-              <input className={inputCls} value={row.ref} maxLength={200} required
-                placeholder={`Artikelnummer oder Link beim ${info.party_plural}`}
-                aria-label={`Bestellangabe für ${row.supplier}`}
-                onChange={(e) => onChange({
-                  suppliers: m.suppliers.map((x) => (
-                    x.supplier === row.supplier ? { ...x, ref: e.target.value } : x)),
-                })} />
-            )}
-          </div>
-        ))}
-      </div>
-      )}
-    </div>
-  );
-}
-
-
-/**
  * **Was ein Modultyp ZUSÄTZLICH hat.** Eine Zuordnung, keine Bedingung – und jeder Typ
  * steht darin, auch der mit `null`: die Liste beantwortet «kennt die Oberfläche diesen
  * Typ?», und ein fehlender Schlüssel ist die Antwort «nein».
  *
- * **Der Einkaufs-Block steht bewusst NICHT hier.** Er hängt an `ModuleTypeInfo.buys`
- * (siehe `renderStep`), denn er gehört dem **Beleg** und nicht einem Modultyp – seit
- * auch das Bewegen-Modul einen tragen kann, wäre ein Eintrag je Typ die Stelle, an der
- * man den nächsten vergisst. `beschaffen` trägt darum `null`: ausser seinem Beleg hat es
- * nichts zu konfigurieren.
+ * **`null` heisst «kennt ihn, hat aber nichts zu fragen».** «Ausliefern» ist ein Scan
+ * und ein Statuswechsel – es gibt dort nichts zu konfigurieren, und trotzdem steht der
+ * Schlüssel da: ein **fehlender** wäre die Antwort «diesen Typ kenne ich nicht», und die
+ * Karte sagte das dann auch. Ein Wächter hält die Schlüssel mit dem Backend
+ * deckungsgleich.
  */
 const MODULE_FIELDS: Record<string, React.ComponentType<{
   module: ModuleDraft;
   types: { key: string; label: string }[];
-  /**
-   * **Die Steuersätze aus dem Katalog** – eine Eigenschaft des Hauses (MWSTG), nicht
-   * eines Modultyps. Sie steht in der gemeinsamen Prop-Form und nicht nur bei dem einen
-   * Feldsatz, der sie heute braucht: derselbe Weg wie `types`, und der nächste Feldsatz
-   * mit einem Preis erbt sie, ohne dass jemand die Signatur ändert.
-   */
-  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }> | null> = {
   datenerfassung: ModuleFields,
-  // Beide handelnden Module tragen `null`: ausser ihrem Beleg haben sie nichts zu
-  // konfigurieren, und den rendert `renderStep` über `buys` – für jedes Modul gleich.
-  beschaffen: null,
-  verkauf: null,
+  // **Nichts zu konfigurieren** – und genau darum steht er hier (siehe oben).
+  ausliefern: null,
   aussondern: DisposalFields,
   verbrauch: ConsumptionFields,
   bewegen: MoveFields,
@@ -606,10 +410,9 @@ function RowDelete({ label, hint, reveal, onClick }: {
  * Vorauszahlung, Zahlungsziel, Anzahlung und Nachnahme sind dieselbe Mechanik in anderer
  * Folge. Er sagt nur, dass dieses Modul nicht abschliesst, bevor das Geld da ist.
  */
-function MoneyFields({ module: m, vatRates, onChange }: {
+function MoneyFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
-  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   const [known, setKnown] = useState<Record<number, string>>({});
@@ -751,28 +554,17 @@ function MoneyFields({ module: m, vatRates, onChange }: {
           ]}
         />
       </div>
-      {/* ►►► **Der Steuersatz — eine VORGABE, kein fester Wert.** ◄◄◄
+      {/* ►►► **Der Steuersatz steht hier NICHT** (Testnotiz #851). ◄◄◄
 
-          Eine Rechnung ohne Steuersatz ist keine (MWSTG Art. 26), und das Modul muss ihn
-          **selbst** können: einen Verkaufsbereich am Artikel gibt es heute nicht, und ein
-          Modul, das auf eine Angabe von aussen wartet, kann seine eigene Rechnung nicht
-          stellen. Er hängt aber an der **Sache** und nicht am Beleg – sechs Wellen zu
-          8.1 % und eine Ausfuhr zu 0 % stehen auf demselben Papier –, also ist er hier
-          die **Vorbelegung** jeder neuen Position und an der Position überschreibbar.
+          Er stand als «Vorgabe jeder neuen Position» in der Definition und war damit
+          eine Eigenschaft des **Moduls**: eine Vorlage, die für jeden künftigen Auftrag
+          denselben Satz behauptet. Er hängt aber an der **Sache** – sechs Wellen zu
+          8.1 % und eine Ausfuhr zu 0 % stehen auf demselben Papier –, und die steht erst
+          fest, wenn ein Auftrag läuft. Gefragt wird er darum **je Position an der
+          Ausführungsstelle** (`OurOffer`), wo der Katalog mit dem Vorgang mitreist.
 
-          **Ein `<select>` ist hier richtig**: die Sätze sind eine endliche Aufzählung,
-          keine Referenz auf einen Datensatz (die Regel des Hauses erlaubt genau das). Der
-          Katalog kommt vom Server – eine zweite Liste im Browser liefe beim ersten
-          Satzwechsel auseinander, und der Gesetzgeber fragt nicht nach. */}
-      <div>
-        <Label>{VAT_LABEL}</Label>
-        <select className={inputCls} value={m.vatRate} aria-label={VAT_LABEL}
-          onChange={(e) => onChange({ vatRate: e.target.value })}>
-          {vatRates.map((r) => (
-            <option key={r.rate} value={r.rate}>{r.rate} % · {r.label}</option>
-          ))}
-        </select>
-      </div>
+          Ein Vorgabewert, der bei der Hälfte der Aufträge überschrieben werden muss, ist
+          kein Komfort: er ist die Zahl, die stehenbleibt, wenn es niemand tut. */}
       {/* **Kein Erklärtext** (#792). Was die Richtung bedeutet, sagt der Hover am
           Schieber; was hier nicht gefragt wird (Betrag, Artikel, Termin), muss niemand
           erklärt bekommen – man vermisst kein Feld, das nie dastand. Ein Absatz, der
@@ -802,7 +594,6 @@ function MoneyFields({ module: m, vatRates, onChange }: {
 function ConsumptionFields({ module: m, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
-  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   return (
@@ -889,7 +680,6 @@ function PointIcon({ type, types }: { type: string; types: { key: string; label:
 function ModuleFields({ module: m, types, onChange }: {
   module: ModuleDraft;
   types: { key: string; label: string }[];
-  vatRates: { rate: string; label: string }[];
   onChange: (next: Partial<ModuleDraft>) => void;
 }) {
   const defaultType = types[0]?.key ?? 'text';

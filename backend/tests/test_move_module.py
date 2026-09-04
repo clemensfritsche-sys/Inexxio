@@ -1,7 +1,7 @@
 """**Bewegen: der Ort ist ein Zeiger, kein Zustand.**
 
-Sechs Regeln. Zwei davon gehören dem Modul, vier dem **Ort** – und die vier gelten für
-jeden künftigen Weg, der einen Ort setzt.
+Fünf Regeln. Eine gehört dem Modul, vier dem **Ort** – und die vier gelten für jeden
+künftigen Weg, der einen Ort setzt.
 
 1. **Der Ort hängt am Stück**, nicht an der Instanz: zwei Schrauben derselben Charge
    dürfen an zwei Orten liegen. Genau das konnte der Vorgänger nicht.
@@ -12,8 +12,10 @@ jeden künftigen Weg, der einen Ort setzt.
 4. **Keine Zyklen.** Die eine Regel des sonst dummen Feldes, zweifach: verhindert beim
    Schreiben, gekappt beim Lesen.
 5. **Ware zuerst, Ziel zuletzt** – und ohne Ziel passiert nichts.
-6. **Ein gesperrter Kanal ist serverseitig gesperrt.** Wäre er nur in der Oberfläche
-   gesperrt, wäre die Sperre eine Bitte.
+
+*Die sechste Regel («ein gesperrter Kanal ist serverseitig gesperrt») gehörte der Liste
+`manuell · paket · fracht` und danach dem Einkaufs-Beleg. Beide sind entfallen: eine
+Sendung zu buchen ist ein Geldvorgang, und dort ist `can` das Tor.*
 
 Geprüft über die **echten** Dienstpfade gegen echtes PostgreSQL.
 """
@@ -388,57 +390,6 @@ def test_without_a_target_nothing_moves():
         # **Selbst gebracht** – und das steht im Log als abgeleitete Tatsache, nicht
         # als getippte Transportart: es gibt keinen Beleg, also wurde nichts eingekauft.
         assert moved[0].payload["bought"] is False
-    finally:
-        db.rollback()
-        db.close()
-
-
-# ---------------------------------------------------------------------------
-# 6 – ein gesperrter Kanal ist SERVERSEITIG gesperrt
-# ---------------------------------------------------------------------------
-
-def test_a_module_that_may_not_buy_gets_no_document():
-    """**Der Server weist ab, nicht die Oberfläche.**
-
-    Die frühere Fassung prüfte gesperrte Transportarten («Paket», «Fracht» standen
-    sichtbar da und liefen nicht). Die Liste gibt es nicht mehr: *Paket* und *Fracht*
-    sind keine zwei Arten, sondern zwei **Angebote** desselben Einkaufs. Geblieben ist
-    die Aussage, um die es ging – **eine Sperre, die nur ausgegraut ist, ist eine
-    Bitte**: wer keinen Beleg tragen darf, bekommt auch über einen direkten Aufruf
-    keinen.
-
-    Bug-Form: ``ensure`` legt für jeden Schritt einen Beleg an. Dann hätte jedes Modul
-    eine Hintertür zu einem Einkauf, und ``Module.buys`` wäre eine Empfehlung.
-    """
-    from fastapi import HTTPException
-    from app.domain import modules
-    from app.services import purchase as purchase_svc
-
-    db = _db()
-    try:
-        shelf = _holder_instance(db)
-        _art, order, steps = _make(db, quantity=1, steps=[
-            _move_step(shelf.object_id),
-            {"module_type": "datenerfassung",
-             "config": {"points": [{"label": "OK", "type": "bool"}]}},
-        ])
-
-        # Das Bewegen-Modul darf – der Beleg entsteht mit der Wahl.
-        row = purchase_svc.ensure(db, order=order, step=steps[0])
-        assert row.stage == "offer" and row.step_id == steps[0].id
-        # …und zweimal wählen legt keinen zweiten an.
-        assert purchase_svc.ensure(db, order=order, step=steps[0]).id == row.id
-
-        # Die Datenerfassung darf nicht – und sie wird abgewiesen, nicht ausgegraut.
-        with pytest.raises(HTTPException) as refused:
-            purchase_svc.ensure(db, order=order, step=steps[1])
-        assert refused.value.status_code == 400
-        assert "einkaufen" in refused.value.detail
-
-        # Und die Deklaration ist die eine Quelle – kein Modultyp-Vergleich daneben.
-        assert modules.get("bewegen").buys == modules.BUY_IF_CHOSEN
-        assert modules.get("beschaffen").buys == modules.BUY_ALWAYS
-        assert modules.get("datenerfassung").buys is None
     finally:
         db.rollback()
         db.close()

@@ -54,8 +54,10 @@ wird, solange nicht bezahlt ist.
 """
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
+
+from . import currency as cur
 
 # ---------------------------------------------------------------------------
 # ►►► DIE RICHTUNG — das eine Feld, aus dem alles Übrige folgt ◄◄◄
@@ -373,7 +375,7 @@ def assert_kind(kind: Any) -> str:
 MAX_AMOUNT = Decimal("99999999.99")
 
 
-def amount(value: Any, *, allow_negative: bool = False) -> Optional[Decimal]:
+def amount(value: Any, code: str, *, allow_negative: bool = False) -> Optional[Decimal]:
     """Aus einer Eingabe ein Betrag – oder ``None``, wenn nichts dasteht.
 
     **Über ``Decimal`` und nie über ``float``**: wo es auf den Rappen ankommt, ist
@@ -392,7 +394,11 @@ def amount(value: Any, *, allow_negative: bool = False) -> Optional[Decimal]:
         found = Decimal(str(value).strip().replace("'", "").replace(",", "."))
     except (InvalidOperation, ValueError):
         raise ValueError(f"«{value}» ist kein Betrag.")
-    found = found.quantize(Decimal("0.01"))
+    # **Gerundet auf die kleinste Einheit DIESER Währung**, nicht fest auf zwei
+    # Stellen: ein fester Schnitt bei ``0.01`` verlöre bei einer dreistelligen
+    # Währung (KWD) still eine Stelle – und zwar in der Richtung, in der ein Betrag
+    # kleiner wird, ohne dass es jemand sieht.
+    found = _round(found, code)
     if not allow_negative and found < 0:
         raise ValueError("Ein zugesagter Betrag ist nicht negativ – "
                          "die Richtung sagt, wohin das Geld fliesst.")
@@ -477,44 +483,53 @@ def vat_of(value: Any) -> Decimal:
         return Decimal("0.00")
 
 
-def _rappen(value: Decimal) -> Decimal:
-    """Auf den Rappen, kaufmännisch. Die eine Rundungsstelle dieses Moduls."""
-    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+def _round(value: Decimal, code: str) -> Decimal:
+    """►►► **Auf die kleinste Einheit DIESER Währung**, kaufmännisch. ◄◄◄
+
+    Sie hiess einmal ``_rappen`` und rundete fest auf ``0.01`` – das ist bei fast jeder
+    Währung richtig und bei **JPY** (null Stellen) und **KWD** (drei) still falsch.
+    Gerundet wird darum in ``domain/currency`` (``round_to``, kaufmännisch); hier steht
+    nur der Name, unter dem dieses Modul danach fragt. Zwei Rundungen wären ein Rappen
+    Differenz zwischen Anzeige und Buchung, den niemand erklären kann.
+    """
+    return cur.round_to(value, code)
 
 
-def line_net(line: dict[str, Any]) -> Decimal:
+def line_net(line: dict[str, Any], code: str) -> Decimal:
     """Der **Netto**-Betrag einer Position: Menge × Einzelpreis. Ohne Preis: null."""
-    price = amount(line.get("price"), allow_negative=True)
+    price = amount(line.get("price"), code, allow_negative=True)
     if price is None:
-        return Decimal("0.00")
-    return _rappen(price * Decimal(int(line.get("quantity") or 0)))
+        return _round(Decimal(0), code)
+    return _round(price * Decimal(int(line.get("quantity") or 0)), code)
 
 
-def vat_split(lines: list[dict[str, Any]]) -> list[dict[str, str]]:
+def vat_split(lines: list[dict[str, Any]], code: str) -> list[dict[str, str]]:
     """►►► **Die Aufteilung je Steuersatz** – gerundet auf der Summe, nicht je Zeile. ◄◄◄
 
     Zurück kommt je vorkommendem Satz eine Zeile ``{rate, net, tax}`` als **String** – wo
     es auf den Rappen ankommt, wird nicht durch ``float`` gerechnet, auch nicht auf dem
     Weg durch JSON. Sortiert nach Satz, damit zwei Läufe dieselbe Reihenfolge ergeben.
     """
+    zero = _round(Decimal(0), code)
     buckets: dict[str, Decimal] = {}
     for line in lines or []:
         rate = f"{vat_of(line.get('vat')):.2f}"
-        buckets[rate] = buckets.get(rate, Decimal("0.00")) + line_net(line)
+        buckets[rate] = buckets.get(rate, zero) + line_net(line, code)
     return [
-        {"rate": rate, "net": f"{net:.2f}",
-         "tax": f"{_rappen(net * vat_of(rate) / Decimal(100)):.2f}"}
+        {"rate": rate, "net": cur.money(net, code),
+         "tax": cur.money(_round(net * vat_of(rate) / Decimal(100), code), code)}
         for rate, net in sorted(buckets.items(), key=lambda kv: Decimal(kv[0]), reverse=True)
     ]
 
 
-def gross_of(lines: list[dict[str, Any]]) -> Decimal:
+def gross_of(lines: list[dict[str, Any]], code: str) -> Decimal:
     """Die **Brutto**-Summe der Positionen – Netto plus Steuer, je Satz gerundet."""
-    return sum((Decimal(row["net"]) + Decimal(row["tax"]) for row in vat_split(lines)),
-               Decimal("0.00"))
+    return sum((Decimal(row["net"]) + Decimal(row["tax"])
+                for row in vat_split(lines, code)), _round(Decimal(0), code))
 
 
-def split_for(gross: Decimal, lines: list[dict[str, Any]]) -> list[dict[str, str]]:
+def split_for(gross: Decimal, lines: list[dict[str, Any]],
+              code: str) -> list[dict[str, str]]:
     """►►► **Die Aufteilung EINER Rechnung** – auch wenn sie nur ein Teil ist. ◄◄◄
 
     Eine **Anzahlung** ist zum Satz der zugrunde liegenden Leistung zu versteuern; bei
@@ -529,37 +544,41 @@ def split_for(gross: Decimal, lines: list[dict[str, Any]]) -> list[dict[str, str
     Ohne Positionen (eine **Ausgabe**: die Steuer steht auf *seiner* Rechnung) gibt es
     hier nichts zu verteilen; dann nennt der Aufrufer den Satz, und ``split_at`` rechnet.
     """
-    rows = vat_split(lines)
-    total = sum((Decimal(r["net"]) + Decimal(r["tax"]) for r in rows), Decimal("0.00"))
+    zero = _round(Decimal(0), code)
+    rows = vat_split(lines, code)
+    total = sum((Decimal(r["net"]) + Decimal(r["tax"]) for r in rows), zero)
     if not rows or total == 0:
         return []
     out: list[dict[str, str]] = []
-    used = Decimal("0.00")
+    used = zero
     for i, row in enumerate(rows):
         share = Decimal(row["net"]) + Decimal(row["tax"])
         part = (gross - used if i == len(rows) - 1
-                else _rappen(gross * share / total))
+                else _round(gross * share / total, code))
         used += part
-        out.append(_at(part, row["rate"]))
+        out.append(_at(part, row["rate"], code))
     return out
 
 
-def split_at(gross: Decimal, rate: Any) -> list[dict[str, str]]:
+def split_at(gross: Decimal, rate: Any, code: str) -> list[dict[str, str]]:
     """Die Aufteilung eines Brutto-Betrags zu **einem** Satz – die Ausgabe-Seite."""
-    return [_at(gross, f"{vat_of(rate):.2f}")]
+    return [_at(gross, f"{vat_of(rate):.2f}", code)]
 
 
-def _at(gross: Decimal, rate: str) -> dict[str, str]:
+def _at(gross: Decimal, rate: str, code: str) -> dict[str, str]:
     """Brutto **rückwärts** in Netto und Steuer: ``netto = brutto / (1 + satz)``."""
-    net = _rappen(gross / (Decimal(1) + vat_of(rate) / Decimal(100)))
-    return {"rate": rate, "net": f"{net:.2f}", "tax": f"{gross - net:.2f}"}
+    net = _round(gross / (Decimal(1) + vat_of(rate) / Decimal(100)), code)
+    return {"rate": rate, "net": cur.money(net, code),
+            "tax": cur.money(gross - net, code)}
 
 
-def totals(rows: list[dict[str, str]]) -> dict[str, str]:
+def totals(rows: list[dict[str, str]], code: str) -> dict[str, str]:
     """Netto · Steuer · Brutto einer Aufteilung – die drei Zahlen unter dem Strich."""
-    net = sum((Decimal(r["net"]) for r in rows), Decimal("0.00"))
-    tax = sum((Decimal(r["tax"]) for r in rows), Decimal("0.00"))
-    return {"net": f"{net:.2f}", "tax": f"{tax:.2f}", "gross": f"{net + tax:.2f}"}
+    zero = _round(Decimal(0), code)
+    net = sum((Decimal(r["net"]) for r in rows), zero)
+    tax = sum((Decimal(r["tax"]) for r in rows), zero)
+    return {"net": cur.money(net, code), "tax": cur.money(tax, code),
+            "gross": cur.money(net + tax, code)}
 
 
 @dataclass(frozen=True)

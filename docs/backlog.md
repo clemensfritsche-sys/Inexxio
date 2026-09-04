@@ -123,20 +123,22 @@ nicht unterscheiden**. Wer im Haus verteilen will, nutzt Behälter-Instanzen.
 **Offen:** ob die Regel als Guard erzwungen wird (klare Fehlermeldung statt stillem Fehlverhalten)
 – das war im zurückgerollten Anlauf enthalten und sollte beim nächsten Mal wieder mitkommen.
 
-## Folge-Deploy: `payments.kind` droppen
+## Offen: die Tabellen der gelöschten Handels-Module
 
-Migration `123` hat die Spalte nur von ihrer `NOT NULL`-Sperre befreit; das ORM-Mapping ist
-weg (`models/payment.py`), gelesen wird sie von niemandem mehr. Sie fällt im **nächsten**
-Deploy — jetzt liefe die während des Cloud-Run-Rollouts noch laufende Vorgänger-Revision
-gegen eine Tabelle ohne sie (die Ausfallklasse von Migration `090`).
+`purchases`, `invoices`, `payments` — die Module «Beschaffen» und «Verkauf» sind
+ersatzlos gelöscht (PROCESS_CORE §9.9a), samt Modellen, Diensten und Endpunkten. **Kein
+Modell verweist mehr auf sie**, also kann auch keine `NOT NULL` mehr ein Insert
+auflaufen lassen: es schreibt niemand hinein.
 
-```sql
-ALTER TABLE payments DROP COLUMN IF EXISTS kind;
-```
+**Bewusst nicht mitgedroppt** — dieselbe Regel wie bei den übrigen Alt-Tabellen (siehe
+unten): eine Tabelle, die niemand liest, kostet nichts; ihr Drop kostet die Vergangenheit
+(bezahlte Rechnungen und gebuchte Zahlungen aus der Zeit vor dem Geldvorgang), er ist
+unumkehrbar und verlangt vorher eine Sicherung der **produktiven** Datenbank
+(`scripts/dump-db.sh`) — die kann nur jemand mit Zugriff darauf ziehen, nicht eine
+Migration.
 
-Der Grund für den Wegfall steht in PROCESS_CORE §9.11: eine **Gutschrift ist eine negative
-Rechnung**, keine Zahlung, bei der kein Geld fliesst. Migration `123` hat die bestehenden
-`credit`-Zeilen bereits umgezogen und deaktiviert.
+*Der frühere Punkt «`payments.kind` droppen» geht darin auf: die Spalte fällt mit ihrer
+Tabelle, wenn es soweit ist.*
 
 ## Offen: `deals.reference` und `deals.note` (Zwei-Deploy-Regel)
 

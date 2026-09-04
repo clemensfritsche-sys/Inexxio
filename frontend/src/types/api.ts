@@ -678,42 +678,10 @@ export interface paths {
          *     Gegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort
          *     gilt sie dann auch beim Ausführen (``deal._party``).
          *
-         *     Ein eigener Endpunkt und nicht ``/party-options``: der fragt nach einer Rolle aus
-         *     ``domain/procurement``, und dieses Modul soll bestehen, wenn es die nicht mehr gibt.
-         *
          *     **Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und
          *     die Suche endet als «100000xyz ist keine Zahl».
          */
         get: operations["deal_parties_api_v1_erp_orders_deal_parties_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/orders/party-options": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Party Options
-         * @description **Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als ganze Liste geladen.
-         *
-         *     Dieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und
-         *     dieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach
-         *     auch annimmt (``purchase._assert_allowed``). Ein Kunde in der Lieferantenliste wäre
-         *     eine Wahl, die das Modul abweist – und umgekehrt.
-         *
-         *     **Welche Rolle gemeint ist, sagt der Beleg** (``PurchaseEmbed.party_role``), nicht die
-         *     Oberfläche: sie reicht durch, was sie bekommen hat. Ein zweiter Endpunkt je Rolle wäre
-         *     dieselbe Abfrage zweimal, und die zweite bekäme den nächsten Filter nicht mit.
-         */
-        get: operations["party_options_api_v1_erp_orders_party_options_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -879,47 +847,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/steps/{step_id}/purchase": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Update Purchase
-         * @description **Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sieben Verben.
-         *
-         *     **``POST``, nicht ``PATCH``**: das hier ist ein Befehl, kein Feld-Update. Im
-         *     Auftrags-Router gibt es keinen Änderungspfad – was passiert, passiert als Handlung
-         *     und hinterlässt einen Eintrag (derselbe Grund wie bei ``/confirm``).
-         *
-         *     Anfragen · Offerieren · Ablehnen · Bestellen · Zurücknehmen · Klären. Die
-         *     **Gegenhandlung steht am selben Ort wie die Handlung** (``revoke``): ein Modul räumt
-         *     selbst auf, es gibt keinen Storno-Endpunkt daneben. Was ``revoke`` bewirkt, sagt die
-         *     Stufe – vor der Bestellung nimmt es die Anfrage zurück, danach storniert es.
-         *
-         *     Was **Stücke** betrifft, entscheidet dagegen ein Mensch: dieses Modul legt keinen
-         *     Auftrag an und keine Abweichung.
-         *
-         *     **Die Tür steht heute nur dem Personal offen** (``require_employee``) – wie jeder
-         *     Endpunkt dieses Routers. Die Regel «ein Lieferant trifft nur seine eigene Zeile»
-         *     steht trotzdem im Dienst (``purchase.apply``/``_target``), denn sie gehört dorthin:
-         *     wer sie erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.
-         *     Ein **eigener Zugang für Lieferanten** kommt mit ihrer Sicht auf den Auftrag – und
-         *     die ist mehr als ein weiterer ``Depends``: ohne einen Sichtbarkeitsfilter auf der
-         *     Antwort (``_to_response`` gibt heute den **ganzen** Auftrag zurück) wäre die offene
-         *     Tür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.
-         */
-        post: operations["update_purchase_api_v1_erp_orders__object_id__steps__step_id__purchase_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal": {
         parameters: {
             query?: never;
@@ -938,7 +865,7 @@ export interface paths {
          *     Löschweg gibt es nicht (Testnotizen #823/#824).
          *
          *     **``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund
-         *     wie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**
+         *     wie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle**
          *     erlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.
          *
          *     **Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll
@@ -1030,12 +957,12 @@ export interface paths {
          * Payment Link
          * @description **Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
          *
-         *     Kein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim
+         *     Kein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim
          *     Zahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich
          *     da ist – und das meldet der Webhook, nicht der Browser des Kunden.
          *
          *     Ohne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in
-         *     der Oberfläche gar nicht erst (``PurchaseEmbed.can``), und ein 503 hier wäre die
+         *     der Oberfläche gar nicht erst (``DealEmbed.can``), und ein 503 hier wäre die
          *     Behauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.
          */
         post: operations["payment_link_api_v1_erp_orders__object_id__steps__step_id__payment_link_post"];
@@ -1490,21 +1417,10 @@ export interface components {
              * @description **Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
              *
              *     Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
-             *     anderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»
-             *     aus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht
-             *     als das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt
-             *     nur der Editor.
+             *     anderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,
+             *     was sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.
              */
             readonly moves: boolean;
-            /**
-             * Buys
-             * @description **Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.
-             *
-             *     ``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau
-             *     darum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der
-             *     Eigenschaft und nie nach dem Modultyp.
-             */
-            readonly buys: string | null;
             /**
              * Verifies
              * @description **Muss die Instanz vor der Eingabe gescannt werden?**
@@ -1792,6 +1708,20 @@ export interface components {
             message: string;
         };
         /**
+         * CurrencyOption
+         * @description Eine wählbare Währung – der Code und wie sie heisst.
+         *
+         *     Ein **Katalog**, keine freie Eingabe: «CHF» getippt ist noch keine Währung, und ein
+         *     Tippfehler fällt erst auf, wenn jemand eine Summe über zwei Währungen zieht. Die
+         *     Beschriftung trägt den Code selbst, kein Symbol – «$» ist nicht eindeutig.
+         */
+        CurrencyOption: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * DealEmbed
          * @description **Der Geldvorgang**, wie ihn die Ausführungsstelle braucht.
          *
@@ -1861,12 +1791,36 @@ export interface components {
              * @default Leistungsdatum
              */
             service_date_label: string;
+            /** Service Date */
+            service_date?: string | null;
             /** Net */
             net?: string | null;
             /** Tax */
             tax?: string | null;
             /** Vat Split */
             vat_split?: components["schemas"]["VatShare"][];
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /**
+             * Currency Label
+             * @default CHF
+             */
+            currency_label: string;
+            /**
+             * Currency Decimals
+             * @default 2
+             */
+            currency_decimals: number;
+            /**
+             * Currency Locked
+             * @default true
+             */
+            currency_locked: boolean;
+            /** Currencies */
+            currencies?: components["schemas"]["CurrencyOption"][];
             /**
              * Money Label
              * @default Rechnung & Zahlung
@@ -2120,6 +2074,7 @@ export interface components {
          *     ``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;
          *                 ``booked_on``, ``due_on``, ``reference``, ``note``)
          *     ``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)
+         *     ``currency`` die **Währung** setzen (``currency``) – nur vor der Zusage
          *     ``reverse`` eine Geld-Zeile **stornieren** (``entry``) – als **Gegenbuchung**, nie
          *                 als Löschung: dieselbe Art, der negative Betrag, ``reverses_id`` auf die
          *                 stornierte Zeile. Beide bleiben stehen (Testnotizen #823/#824).
@@ -2165,6 +2120,8 @@ export interface components {
             vat?: string | null;
             /** Service Date */
             service_date?: string | null;
+            /** Currency */
+            currency?: string | null;
         };
         /**
          * DefinitionLine
@@ -2697,32 +2654,6 @@ export interface components {
             created_at: string;
         };
         /**
-         * InvoiceEntry
-         * @description **Eine Forderung** an einem Beleg – die dritte Achse neben Ware und Geld.
-         *
-         *     Ein **negativer** Betrag ist eine Gutschrift. Eine eigene Art dafür gibt es nicht:
-         *     dieselbe Zeile, dasselbe Feld, ein anderes Vorzeichen (PROCESS_CORE §9.11).
-         */
-        InvoiceEntry: {
-            /** Id */
-            id: number;
-            /** Number */
-            number?: string | null;
-            /**
-             * Number Label
-             * @default
-             */
-            number_label: string;
-            /** Amount */
-            amount: number;
-            /** Issued On */
-            issued_on?: string | null;
-            /** Due On */
-            due_on?: string | null;
-            /** Note */
-            note?: string | null;
-        };
-        /**
          * JourneyNeighbour
          * @description Ein Nachbar-Auftrag in der Journey – **gruppiert**, nicht je Stück.
          *
@@ -2747,8 +2678,6 @@ export interface components {
             modules?: components["schemas"]["ModuleTypeInfo"][];
             /** Capture Types */
             capture_types?: components["schemas"]["CaptureTypeInfo"][];
-            /** Vat Rates */
-            vat_rates?: components["schemas"]["VatRate"][];
         };
         /**
          * ModuleInput
@@ -2807,45 +2736,6 @@ export interface components {
             status_before: string;
             /** Status After */
             status_after: string;
-            /** Buys */
-            buys?: string | null;
-            /**
-             * Parties
-             * @default optional
-             */
-            parties: string;
-            /**
-             * Instruction
-             * @default optional
-             */
-            instruction: string;
-            /** Party Roles */
-            party_roles?: string[];
-            /**
-             * Party Role
-             * @default supplier
-             */
-            party_role: string;
-            /**
-             * Party Word
-             * @default Lieferant
-             */
-            party_word: string;
-            /**
-             * Party Plural
-             * @default Lieferanten
-             */
-            party_plural: string;
-            /**
-             * Party Ref
-             * @default true
-             */
-            party_ref: boolean;
-            /**
-             * Derived Instruction
-             * @default
-             */
-            derived_instruction: string;
         };
         /**
          * NeedSource
@@ -3104,33 +2994,6 @@ export interface components {
             last_used_at?: string | null;
         };
         /**
-         * PaymentEntry
-         * @description **Eine Zeile Geld** an einem Beleg.
-         *
-         *     Überweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch
-         *     oder der Webhook), ändert nichts an dem, was er ist. Eine **Gutschrift** steht hier
-         *     nicht mehr – sie ist eine negative **Rechnung**, denn dabei fliesst kein Geld.
-         */
-        PaymentEntry: {
-            /** Id */
-            id: number;
-            /** Amount */
-            amount: number;
-            /** Method */
-            method?: string | null;
-            /**
-             * Method Label
-             * @default
-             */
-            method_label: string;
-            /** Reference */
-            reference?: string | null;
-            /** Paid At */
-            paid_at?: string | null;
-            /** Note */
-            note?: string | null;
-        };
-        /**
          * PaymentLink
          * @description **Die Adresse einer Zahlungsaufforderung** – und sonst nichts.
          *
@@ -3216,7 +3079,6 @@ export interface components {
             /** Needs */
             needs?: components["schemas"]["StepNeed"][];
             target?: components["schemas"]["PlaceRef"] | null;
-            purchase?: components["schemas"]["PurchaseEmbed"] | null;
             deal?: components["schemas"]["DealEmbed"] | null;
             /**
              * Label
@@ -3238,21 +3100,10 @@ export interface components {
              * @description **Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.
              *
              *     Vorher beantwortete das eine Liste von Transportarten, indem sie bei jedem
-             *     anderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»
-             *     aus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht
-             *     als das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt
-             *     nur der Editor.
+             *     anderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,
+             *     was sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.
              */
             readonly moves: boolean;
-            /**
-             * Buys
-             * @description **Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.
-             *
-             *     ``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau
-             *     darum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der
-             *     Eigenschaft und nie nach dem Modultyp.
-             */
-            readonly buys: string | null;
             /**
              * Verifies
              * @description **Muss die Instanz vor der Eingabe gescannt werden?**
@@ -3332,246 +3183,13 @@ export interface components {
              *     ihre Knöpfe funktionierten.
              *
              *     **Abgeleitet, nicht gespeichert – und aus derselben Tabelle, die auch das Tor
-             *     ist**: ``can`` am Beleg bzw. am Vorgang. Eine zweite Herleitung («ist der Typ
+             *     ist**: ``can`` am Geldvorgang. Eine zweite Herleitung («ist der Typ
              *     ``zahlung``?») liefe beim nächsten Modul auseinander, und eine Heuristik der
              *     Oberfläche wäre eine dritte Wahrheit.
              *
              *     Das aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.
              */
             readonly open_actions: boolean;
-        };
-        /**
-         * PurchaseEmbed
-         * @description **Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.
-         *
-         *     **Der Beleg gehört keinem Modul** (``domain/procurement``): er hängt am Schritt, und
-         *     welches Modul einen bekommt, sagt dessen ``buys``. Ein **Bewegen**-Modul, bei dem
-         *     jemand «eingekauft» gewählt hat, trägt darum buchstäblich denselben – dieselben
-         *     Stufen, dieselben Verben, dieselbe Komponente. Leer, wo keiner existiert; die
-         *     Oberfläche braucht damit keine Fallunterscheidung nach dem Modul (wie ``needs``).
-         *
-         *     **Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt
-         *     einer Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche.
-         */
-        PurchaseEmbed: {
-            /** Stage */
-            stage: string;
-            /**
-             * Label
-             * @default
-             */
-            label: string;
-            /**
-             * Tone
-             * @default
-             */
-            tone: string;
-            /** Undo */
-            undo?: string | null;
-            /** Stages */
-            stages?: components["schemas"]["PurchaseStage"][];
-            /** Can */
-            can?: string[];
-            /** Lines */
-            lines?: components["schemas"]["PurchaseLine"][];
-            /**
-             * Instruction
-             * @default
-             */
-            instruction: string;
-            /** Allowed */
-            allowed?: components["schemas"]["PurchaseQuote"][];
-            /** Quotes */
-            quotes?: components["schemas"]["PurchaseQuote"][];
-            /** Supplier Object Id */
-            supplier_object_id?: number | null;
-            /** Supplier Name */
-            supplier_name?: string | null;
-            /** Amount */
-            amount?: number | null;
-            /**
-             * Currency
-             * @default CHF
-             */
-            currency: string;
-            /** Tracking */
-            tracking?: string | null;
-            /** Clarify Quantity */
-            clarify_quantity?: number | null;
-            /**
-             * Direction
-             * @default buy
-             */
-            direction: string;
-            /**
-             * Party Role
-             * @default supplier
-             */
-            party_role: string;
-            /**
-             * Party Word
-             * @default Lieferant
-             */
-            party_word: string;
-            /** Paid */
-            paid?: number | null;
-            /** Charged */
-            charged?: number | null;
-            /** Uncharged */
-            uncharged?: number | null;
-            /** Open */
-            open?: number | null;
-            /** Due On */
-            due_on?: string | null;
-            /**
-             * Overdue
-             * @default false
-             */
-            overdue: boolean;
-            /** Entries */
-            entries?: components["schemas"]["PaymentEntry"][];
-            /** Invoices */
-            invoices?: components["schemas"]["InvoiceEntry"][];
-            /** Next Invoice Number */
-            next_invoice_number?: string | null;
-            /**
-             * Invoice Verb
-             * @default Rechnung stellen
-             */
-            invoice_verb: string;
-        };
-        /**
-         * PurchaseLine
-         * @description Eine Position des Belegs: **welcher Artikel, wie viele Stücke, und was er ist.**
-         *
-         *     Artikel und Menge sind **abgeleitet** – die Einzelinstanzen vor dem Modul tragen
-         *     ihren Artikel, und ihre Zahl ist die Menge (``purchase.process_lines``). Mit der
-         *     Bestellung frieren sie ein.
-         */
-        PurchaseLine: {
-            /** Article Object Id */
-            article_object_id: number;
-            /**
-             * Article Name
-             * @default
-             */
-            article_name: string;
-            /**
-             * Unit
-             * @default
-             */
-            unit: string;
-            /**
-             * Quantity
-             * @default 0
-             */
-            quantity: number;
-            /** Spec */
-            spec?: components["schemas"]["SpecEntry"][];
-        };
-        /**
-         * PurchaseQuote
-         * @description Eine Zeile der Anfrage: **eine Gegenpartei, ein Preis**.
-         *
-         *     Der Angebotsspiegel des Einkaufs – zugleich der Tarifvergleich, wenn das Modul einen
-         *     Transport einkauft, und das Angebot an den Kunden, wenn es verkauft. Es ist derselbe
-         *     Vorgang, also dieselbe Zeile.
-         */
-        PurchaseQuote: {
-            /** Supplier Object Id */
-            supplier_object_id: number;
-            /**
-             * Supplier Name
-             * @default
-             */
-            supplier_name: string;
-            /**
-             * Ref
-             * @default
-             */
-            ref: string;
-            /** Amount */
-            amount?: number | null;
-            /** Lead Days */
-            lead_days?: number | null;
-            /** Payment Days */
-            payment_days?: number | null;
-            /** State */
-            state: string;
-        };
-        /**
-         * PurchaseStage
-         * @description Eine Stufe des Belegs – Schlüssel, Beschriftung und das Verb, wenn sie dran ist.
-         */
-        PurchaseStage: {
-            /** Key */
-            key: string;
-            /** Label */
-            label: string;
-            /**
-             * Verb
-             * @default
-             */
-            verb: string;
-            /**
-             * Done
-             * @default false
-             */
-            done: boolean;
-            /**
-             * Active
-             * @default false
-             */
-            active: boolean;
-        };
-        /**
-         * PurchaseUpdate
-         * @description Eine Handlung am Beleg – **ein** Endpunkt, in beide Richtungen dieselben Verben.
-         *
-         *     ``ask``       mit wem gehandelt wird (``suppliers``) – anfragen bzw. anbieten
-         *     ``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – Pflicht;
-         *                   ``payment_days`` freiwillig)
-         *     ``decline``   die Gegenpartei sagt ab (``supplier``)
-         *     ``order``     zusagen (``supplier``, ``amount``)
-         *     ``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten
-         *     ``revoke``    **die** Gegenhandlung – vor der Zusage zurückziehen, danach stornieren
-         *     ``clarified`` die Gegenpartei hat der geänderten Menge zugestimmt
-         *     ``buy``       «das kaufe ich ein» – legt den Beleg an (nur wo er eine Wahl ist)
-         *     ``pay``       **eine Zeile Geld** (``amount``, ``kind``, ``method``, ``reference``,
-         *                   ``paid_at``, ``note_text``)
-         *
-         *     ``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine
-         *     Stufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld
-         *     fliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein
-         *     anderes (``Module.buys`` bzw. ``payments.assert_payable``), aber der **Weg** ist
-         *     derselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg
-         *     verwaltet.
-         */
-        PurchaseUpdate: {
-            /** Action */
-            action: string;
-            /** Suppliers */
-            suppliers?: number[];
-            /** Supplier */
-            supplier?: number | null;
-            /** Amount */
-            amount?: number | null;
-            /** Lead Days */
-            lead_days?: number | null;
-            /** Payment Days */
-            payment_days?: number | null;
-            /** Tracking */
-            tracking?: string | null;
-            /** Kind */
-            kind?: string | null;
-            /** Method */
-            method?: string | null;
-            /** Reference */
-            reference?: string | null;
-            /** Paid At */
-            paid_at?: string | null;
-            /** Note Text */
-            note_text?: string | null;
         };
         /**
          * RecordEntry
@@ -3668,19 +3286,6 @@ export interface components {
             /** Via */
             via?: components["schemas"]["ArticleLink"][];
             replaced_by?: components["schemas"]["ArticleLink"] | null;
-        };
-        /**
-         * SpecEntry
-         * @description Eine Zeile der Artikel-Spezifikation – Beschriftung und Wert, sonst nichts.
-         *
-         *     Sie **reist mit dem Beleg** (``services/article_fields``) und wird nicht ausgewählt:
-         *     eine Spezifikation, die je nach Empfänger anders lautet, ist keine.
-         */
-        SpecEntry: {
-            /** Label */
-            label: string;
-            /** Value */
-            value: string;
         };
         /**
          * StepConfirm
@@ -3824,25 +3429,6 @@ export interface components {
             quantity: number;
             /** Stock */
             stock: string;
-        };
-        /**
-         * SupplierOption
-         * @description Ein wählbarer Lieferant – **Objektnummer und Name**, sonst nichts.
-         *
-         *     Dieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die
-         *     Oberfläche kein zweites Auswahlfeld braucht.
-         *
-         *     **Angeboten wird nur, wer Lieferant ist** – dieselbe Haltung wie bei
-         *     ``places.search``: eine Auswahl, die der Dienst danach abweist, ist keine.
-         */
-        SupplierOption: {
-            /** Object Id */
-            object_id: number;
-            /**
-             * Name
-             * @default
-             */
-            name: string;
         };
         /**
          * TerritoryAssign
@@ -5454,41 +5040,6 @@ export interface operations {
             };
         };
     };
-    party_options_api_v1_erp_orders_party_options_get: {
-        parameters: {
-            query?: {
-                /** @description supplier | customer */
-                role?: string;
-                /** @description Objektnummer-Teilstring oder Name */
-                search?: string;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SupplierOption"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     module_catalog_api_v1_erp_orders_module_catalog_get: {
         parameters: {
             query?: never;
@@ -5662,42 +5213,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["StepConfirm"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_purchase_api_v1_erp_orders__object_id__steps__step_id__purchase_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                step_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PurchaseUpdate"];
             };
         };
         responses: {

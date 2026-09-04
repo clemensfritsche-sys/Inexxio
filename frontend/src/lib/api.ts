@@ -3,7 +3,6 @@ import type {
   OrderSummary,
   OrderDraft,
   OrderValidation,
-  SupplierOption,
   DealParty,
   UnitChoices,
   ArticleOption,
@@ -350,45 +349,20 @@ class ApiClient {
   /** Der Artikel-Feed. `search` sucht im Namen – dieselbe Regel wie im Feed selbst,
    *  damit ein Auswahlfeld nicht zweihundert Artikel laden muss, um acht zu zeigen. */
   /**
-   * **Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als ganze Liste geladen.
-   * Dieselbe Suchbedingung wie überall (Nummer **oder** Name), und angeboten wird nur,
-   * wen das Modul danach auch annimmt.
-   *
-   * **Welche Rolle gemeint ist, sagt der Beleg** (`PurchaseEmbed.party_role`) – beim
-   * Einkauf ein Lieferant, beim Verkauf ein Kunde. Die Oberfläche reicht durch, was sie
-   * bekommen hat; eine eigene Entscheidung hier wäre die zweite Stelle, an der dieselbe
-   * Regel steht.
-   */
-  searchParties(role: string, search?: string, limit = 20): Promise<SupplierOption[]> {
-    const params = new URLSearchParams({ role, limit: String(limit) });
-    if (search?.trim()) params.set('search', search.trim());
-    return this.get(`/api/v1/erp/orders/party-options?${params}`);
-  }
-
-  /**
    * **Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.
-   * Sie ändert am Beleg nichts; gebucht wird erst, wenn das Geld da ist.
+   * Sie ändert am Vorgang nichts; gebucht wird erst, wenn das Geld da ist (der Webhook
+   * schreibt **eine Zeile Geld** und sonst nichts, `services/stripe_pay`).
+   *
+   * *Heute ohne Bedienelement: der Zahllink hing an der Karte des Beschaffungs-Belegs,
+   * und die ist mit ihm entfallen. Der Weg bleibt verdrahtet – er zeigt jetzt auf den
+   * Geldvorgang –, damit die Anbindung nicht ein zweites Mal hergeleitet werden muss.*
    */
   paymentLink(objectId: number, stepId: number): Promise<{ url: string }> {
     return this.post(`/api/v1/erp/orders/${objectId}/steps/${stepId}/payment-link`, {});
   }
 
   /**
-   * **Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sechs Verben. Die
-   * Gegenhandlung (`revoke`) steht am selben Ort wie die Handlung: ein Modul räumt
-   * selbst auf.
-   */
-  updatePurchase(orderObjectId: number, stepId: number,
-                 body: { action: string } & Record<string, unknown>): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${orderObjectId}/steps/${stepId}/purchase`, body);
-  }
-
-  /**
-   * **Eine Handlung am Geldvorgang** (`zahlung`) – ein Endpunkt, sechs Verben.
-   *
-   * Bewusst neben `updatePurchase` und ohne Bezug zu ihm: das Modul «Zahlung» hat seine
-   * eigene Maschine, damit «Beschaffen» und «Verkauf» eines Tages ersatzlos gelöscht
-   * werden können.
+   * **Eine Handlung am Geldvorgang** (`zahlung`) – ein Endpunkt, neun Verben.
    */
   updateDeal(orderObjectId: number, stepId: number,
              body: { action: string } & Record<string, unknown>): Promise<Order> {

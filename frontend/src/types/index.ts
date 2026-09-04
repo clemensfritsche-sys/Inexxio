@@ -182,29 +182,14 @@ export type RecordEntry = components['schemas']['RecordEntry'];
 export type RecordValue = components['schemas']['RecordValue'];
 export type ModuleCatalog = components['schemas']['ModuleCatalog'];
 /**
- * **Ein wählbarer Modultyp mit allem, was er deklariert** – inkl. `buys` und der Frage,
- * ob die Beleg-Angaben dort Pflicht sind. Der Editor liest daraus, welche Felder ein
- * Modul mitbringt; er fragt nie nach dem Modultyp (#777).
+ * **Ein wählbarer Modultyp mit allem, was er deklariert** – Beschriftung, Farbfamilie
+ * und «Ausgang?». Der Editor liest daraus, was ein Modul mitbringt.
  */
 export type ModuleTypeInfo = components['schemas']['ModuleTypeInfo'];
 /**
- * **Der Beschaffungs-Beleg** eines Moduls – Stufe, Angebotszeilen, Bestellung
- * (`services/purchase`). `null` bei jedem anderen Modultyp: die Oberfläche braucht damit
- * keine Fallunterscheidung nach dem Modultyp, genau wie bei `transports` und `needs`.
- */
-export type PurchaseEmbed = components['schemas']['PurchaseEmbed'];
-/** Eine Stufe des Belegs – Anfrage · Bestellung · Wareneingang. */
-export type PurchaseStage = components['schemas']['PurchaseStage'];
-/** Eine Zeile der Anfrage: ein Lieferant, ein Preis. */
-export type PurchaseQuote = components['schemas']['PurchaseQuote'];
-/** Ein wählbarer Lieferant – dieselbe Form wie jede Referenz (`ObjectSelect`). */
-export type SupplierOption = components['schemas']['SupplierOption'];
-/**
  * **Der Geldvorgang** eines «Zahlung»-Moduls – Richtung, Stufen, Zusage, Geld-Zeilen
- * (`services/deal`). `null` bei jedem anderen Modultyp.
- *
- * Bewusst ohne Bezug zu `PurchaseEmbed`: das Modul hat seine eigene Maschine, damit
- * «Beschaffen» und «Verkauf» eines Tages ersatzlos gelöscht werden können.
+ * (`services/deal`). `null` bei jedem anderen Modultyp – die Oberfläche braucht damit
+ * keine Fallunterscheidung nach dem Modultyp, genau wie bei `needs`.
  */
 export type DealEmbed = components['schemas']['DealEmbed'];
 /** Eine Stufe des Geldvorgangs – Angebot · Zusage · Abgeschlossen. */

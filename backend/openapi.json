@@ -1759,7 +1759,7 @@
           "orders"
         ],
         "summary": "Deal Parties",
-        "description": "**Wer kommt als Gegenpartei eines Geldvorgangs in Frage?**\n\nDieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und\n**ohne Rollenfilter**: eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit\nihm Geld austauschen dürfen. Wer einschränken will, nennt die zugelassenen\nGegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort\ngilt sie dann auch beim Ausführen (``deal._party``).\n\nEin eigener Endpunkt und nicht ``/party-options``: der fragt nach einer Rolle aus\n``domain/procurement``, und dieses Modul soll bestehen, wenn es die nicht mehr gibt.\n\n**Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und\ndie Suche endet als «100000xyz ist keine Zahl».",
+        "description": "**Wer kommt als Gegenpartei eines Geldvorgangs in Frage?**\n\nDieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und\n**ohne Rollenfilter**: eine Rolle sagt, was jemand *für uns* tut, nicht ob wir mit\nihm Geld austauschen dürfen. Wer einschränken will, nennt die zugelassenen\nGegenparteien in der **Definition** – dort gehört eine solche Freigabe hin, und dort\ngilt sie dann auch beim Ausführen (``deal._party``).\n\n**Vor** ``/{object_id}`` deklariert – sonst schluckt der Pfad-Parameter den Namen und\ndie Suche endet als «100000xyz ist keine Zahl».",
         "operationId": "deal_parties_api_v1_erp_orders_deal_parties_get",
         "security": [
           {
@@ -1803,85 +1803,6 @@
                     "$ref": "#/components/schemas/DealParty"
                   },
                   "title": "Response Deal Parties Api V1 Erp Orders Deal Parties Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/orders/party-options": {
-      "get": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "Party Options",
-        "description": "**Wer kommt als Gegenpartei in Frage?** – gesucht, nicht als ganze Liste geladen.\n\nDieselbe Suchbedingung wie überall (``services/lookup``: Nummer **oder** Name) und\ndieselbe Haltung wie bei ``places.search``: angeboten wird nur, wen die Regel danach\nauch annimmt (``purchase._assert_allowed``). Ein Kunde in der Lieferantenliste wäre\neine Wahl, die das Modul abweist – und umgekehrt.\n\n**Welche Rolle gemeint ist, sagt der Beleg** (``PurchaseEmbed.party_role``), nicht die\nOberfläche: sie reicht durch, was sie bekommen hat. Ein zweiter Endpunkt je Rolle wäre\ndieselbe Abfrage zweimal, und die zweite bekäme den nächsten Filter nicht mit.",
-        "operationId": "party_options_api_v1_erp_orders_party_options_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "role",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "supplier | customer",
-              "default": "supplier",
-              "title": "Role"
-            },
-            "description": "supplier | customer"
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "Objektnummer-Teilstring oder Name",
-              "default": "",
-              "title": "Search"
-            },
-            "description": "Objektnummer-Teilstring oder Name"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 50,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SupplierOption"
-                  },
-                  "title": "Response Party Options Api V1 Erp Orders Party Options Get"
                 }
               }
             }
@@ -2302,80 +2223,13 @@
         }
       }
     },
-    "/api/v1/erp/orders/{object_id}/steps/{step_id}/purchase": {
-      "post": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "Update Purchase",
-        "description": "**Eine Handlung am Beschaffungs-Beleg** – ein Endpunkt, sieben Verben.\n\n**``POST``, nicht ``PATCH``**: das hier ist ein Befehl, kein Feld-Update. Im\nAuftrags-Router gibt es keinen Änderungspfad – was passiert, passiert als Handlung\nund hinterlässt einen Eintrag (derselbe Grund wie bei ``/confirm``).\n\nAnfragen · Offerieren · Ablehnen · Bestellen · Zurücknehmen · Klären. Die\n**Gegenhandlung steht am selben Ort wie die Handlung** (``revoke``): ein Modul räumt\nselbst auf, es gibt keinen Storno-Endpunkt daneben. Was ``revoke`` bewirkt, sagt die\nStufe – vor der Bestellung nimmt es die Anfrage zurück, danach storniert es.\n\nWas **Stücke** betrifft, entscheidet dagegen ein Mensch: dieses Modul legt keinen\nAuftrag an und keine Abweichung.\n\n**Die Tür steht heute nur dem Personal offen** (``require_employee``) – wie jeder\nEndpunkt dieses Routers. Die Regel «ein Lieferant trifft nur seine eigene Zeile»\nsteht trotzdem im Dienst (``purchase.apply``/``_target``), denn sie gehört dorthin:\nwer sie erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\nEin **eigener Zugang für Lieferanten** kommt mit ihrer Sicht auf den Auftrag – und\ndie ist mehr als ein weiterer ``Depends``: ohne einen Sichtbarkeitsfilter auf der\nAntwort (``_to_response`` gibt heute den **ganzen** Auftrag zurück) wäre die offene\nTür ein Datenleck. Wer sie öffnet, baut zuerst den Filter.",
-        "operationId": "update_purchase_api_v1_erp_orders__object_id__steps__step_id__purchase_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          },
-          {
-            "name": "step_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Step Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PurchaseUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrderResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/orders/{object_id}/steps/{step_id}/deal": {
       "post": {
         "tags": [
           "orders"
         ],
         "summary": "Update Deal",
-        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.\n\n``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·\n``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen\nLöschweg gibt es nicht (Testnotizen #823/#824).\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm`` und ``/purchase``. Was an welcher Stufe **und für welche Rolle**\nerlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit\ndie Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``\nnur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**\ndarf, sagt ``can`` (``Direction.party_actions`` – wer den Preis nennt, offeriert;\nwer ihn empfängt, nimmt an oder lehnt ab), und ``apply`` weist\nalles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.",
+        "description": "**Eine Handlung am Geldvorgang** – ein Endpunkt, acht Verben.\n\n``ask`` · ``quote`` · ``decline`` · ``agree`` · ``revoke`` · ``charge`` · ``pay`` ·\n``reverse``. Das letzte **storniert** eine Geld-Zeile durch eine Gegenbuchung; einen\nLöschweg gibt es nicht (Testnotizen #823/#824).\n\n**``POST``, nicht ``PATCH``**: das ist ein Befehl, kein Feld-Update – derselbe Grund\nwie bei ``/confirm``. Was an welcher Stufe **und für welche Rolle**\nerlaubt ist, sagt ``services/deal.can``, und dieselbe Tabelle ist Auskunft und Tor.\n\n**Nur gesendete Felder wirken** (``DealUpdate.changes``): wer den Betrag ändert, soll\nnicht die Notiz verlieren, weil er sie nicht mitgeschickt hat.\n\n**Auch für die Gegenpartei offen** (``get_current_user``) – und das geht erst, seit\ndie Antwort verengt wird: ``_visible`` zeigt ihr nur ihr Modul, ``deal.embed_data``\nnur ihre eigene Angebotszeile und keine Zahl über Forderung und Geld. Was sie **tun**\ndarf, sagt ``can`` (``Direction.party_actions`` – wer den Preis nennt, offeriert;\nwer ihn empfängt, nimmt an oder lehnt ab), und ``apply`` weist\nalles andere ab. Wer ohnehin ins ERP darf, sieht unverändert den ganzen Auftrag.",
         "operationId": "update_deal_api_v1_erp_orders__object_id__steps__step_id__deal_post",
         "security": [
           {
@@ -2600,7 +2454,7 @@
           "orders"
         ],
         "summary": "Payment Link",
-        "description": "**Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.\n\nKein Verb am Beleg, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim\nZahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich\nda ist – und das meldet der Webhook, nicht der Browser des Kunden.\n\nOhne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in\nder Oberfläche gar nicht erst (``PurchaseEmbed.can``), und ein 503 hier wäre die\nBehauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.",
+        "description": "**Eine Zahlungsaufforderung über den offenen Betrag** – die Adresse, sonst nichts.\n\nKein Verb am Vorgang, weil sie **nichts** an ihm ändert: sie erzeugt eine Sitzung beim\nZahlungsdienst und gibt deren Adresse zurück. Gebucht wird erst, wenn das Geld wirklich\nda ist – und das meldet der Webhook, nicht der Browser des Kunden.\n\nOhne eingerichteten Dienst gibt es diesen Weg nicht (``404``): der Knopf erscheint in\nder Oberfläche gar nicht erst (``DealEmbed.can``), und ein 503 hier wäre die\nBehauptung, etwas sei abgeschaltet – es ist schlicht nicht eingerichtet.",
         "operationId": "payment_link_api_v1_erp_orders__object_id__steps__step_id__payment_link_post",
         "security": [
           {
@@ -3810,20 +3664,7 @@
           "moves": {
             "type": "boolean",
             "title": "Moves",
-            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»\naus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht\nals das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt\nnur der Editor.",
-            "readOnly": true
-          },
-          "buys": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Buys",
-            "description": "**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.\n\n``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau\ndarum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der\nEigenschaft und nie nach dem Modultyp.",
+            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,\nwas sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.",
             "readOnly": true
           },
           "verifies": {
@@ -3844,7 +3685,6 @@
           "tone",
           "terminal",
           "moves",
-          "buys",
           "verifies"
         ],
         "title": "ArticleProcessStepResponse",
@@ -4728,6 +4568,25 @@
         ],
         "title": "ContactRequest"
       },
+      "CurrencyOption": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "CurrencyOption",
+        "description": "Eine wählbare Währung – der Code und wie sie heisst.\n\nEin **Katalog**, keine freie Eingabe: «CHF» getippt ist noch keine Währung, und ein\nTippfehler fällt erst auf, wenn jemand eine Summe über zwei Währungen zieht. Die\nBeschriftung trägt den Code selbst, kein Symbol – «$» ist nicht eindeutig."
+      },
       "DealEmbed": {
         "properties": {
           "direction": {
@@ -4803,6 +4662,18 @@
             "title": "Service Date Label",
             "default": "Leistungsdatum"
           },
+          "service_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Date"
+          },
           "net": {
             "anyOf": [
               {
@@ -4831,6 +4702,33 @@
             },
             "type": "array",
             "title": "Vat Split"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "currency_label": {
+            "type": "string",
+            "title": "Currency Label",
+            "default": "CHF"
+          },
+          "currency_decimals": {
+            "type": "integer",
+            "title": "Currency Decimals",
+            "default": 2
+          },
+          "currency_locked": {
+            "type": "boolean",
+            "title": "Currency Locked",
+            "default": true
+          },
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyOption"
+            },
+            "type": "array",
+            "title": "Currencies"
           },
           "money_label": {
             "type": "string",
@@ -5543,6 +5441,17 @@
               }
             ],
             "title": "Service Date"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           }
         },
         "type": "object",
@@ -5550,7 +5459,7 @@
           "action"
         ],
         "title": "DealUpdate",
-        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.\n\n``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten\n            (``parties`` – ohne Angabe **alle** zugelassenen)\n``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,\n            ``lead_days``, ``payment_days``) – auch von der Gegenpartei\n``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei\n``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)\n``reverse`` eine Geld-Zeile **stornieren** (``entry``) – als **Gegenbuchung**, nie\n            als Löschung: dieselbe Art, der negative Betrag, ``reverses_id`` auf die\n            stornierte Zeile. Beide bleiben stehen (Testnotizen #823/#824).\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die\nRegel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
+        "description": "Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.\n\n``ask``     die zugelassenen Gegenparteien anfragen bzw. ihnen anbieten\n            (``parties`` – ohne Angabe **alle** zugelassenen)\n``quote``   einen Preis an EINER Angebotszeile (``party``, ``amount``,\n            ``lead_days``, ``payment_days``) – auch von der Gegenpartei\n``decline`` eine Angebotszeile absagen (``party``) – auch von der Gegenpartei\n``agree``   den **Zuschlag** geben (``party``; ``amount`` übersteuert die Offerte)\n``revoke``  stornieren – **die** Gegenhandlung, ab der Schwelle\n``charge``  eine **Forderung** buchen (``amount`` – Vorgabe ``next_charge``;\n            ``booked_on``, ``due_on``, ``reference``, ``note``)\n``pay``     eine **Zahlung** buchen (``amount`` – Vorgabe ``next_payment``)\n``currency`` die **Währung** setzen (``currency``) – nur vor der Zusage\n``reverse`` eine Geld-Zeile **stornieren** (``entry``) – als **Gegenbuchung**, nie\n            als Löschung: dieselbe Art, der negative Betrag, ``reverses_id`` auf die\n            stornierte Zeile. Beide bleiben stehen (Testnotizen #823/#824).\n\n**``charge`` und ``pay`` haben keine Stufe** – Geld fliesst, sobald zugesagt ist, und\nauch noch nach einem Storno; eine Anzahlung muss erstattet werden können. Sie stehen\ntrotzdem in ``can``: «was darf ich hier tun» ist EINE Frage.\n\n**Eine Gegenpartei trifft ausschliesslich ihre eigene Zeile**: ``party`` wird bei ihr\n**verworfen** und aus dem angemeldeten Benutzer gelesen (``deal._target``). Wer die\nRegel erst an der Tür formulierte, hätte sie beim zweiten Aufrufer nicht.\n\n**Nur gesendete Felder wirken** (``exclude_unset``): ein Feld, das nicht mitkommt,\nbleibt, wie es war. Sonst löschte jeder Aufruf alles, was er nicht ausdrücklich\nwiederholt."
       },
       "DefinitionLine": {
         "properties": {
@@ -6788,74 +6697,6 @@
         "title": "InstanceUnitResponse",
         "description": "Eine Einzelinstanz – das Arbeitsobjekt."
       },
-      "InvoiceEntry": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Number"
-          },
-          "number_label": {
-            "type": "string",
-            "title": "Number Label",
-            "default": ""
-          },
-          "amount": {
-            "type": "number",
-            "title": "Amount"
-          },
-          "issued_on": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Issued On"
-          },
-          "due_on": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due On"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "amount"
-        ],
-        "title": "InvoiceEntry",
-        "description": "**Eine Forderung** an einem Beleg – die dritte Achse neben Ware und Geld.\n\nEin **negativer** Betrag ist eine Gutschrift. Eine eigene Art dafür gibt es nicht:\ndieselbe Zeile, dasselbe Feld, ein anderes Vorzeichen (PROCESS_CORE §9.11)."
-      },
       "JourneyNeighbour": {
         "properties": {
           "object_id": {
@@ -6895,13 +6736,6 @@
             },
             "type": "array",
             "title": "Capture Types"
-          },
-          "vat_rates": {
-            "items": {
-              "$ref": "#/components/schemas/VatRate"
-            },
-            "type": "array",
-            "title": "Vat Rates"
           }
         },
         "type": "object",
@@ -6959,59 +6793,6 @@
           "status_after": {
             "type": "string",
             "title": "Status After"
-          },
-          "buys": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Buys"
-          },
-          "parties": {
-            "type": "string",
-            "title": "Parties",
-            "default": "optional"
-          },
-          "instruction": {
-            "type": "string",
-            "title": "Instruction",
-            "default": "optional"
-          },
-          "party_roles": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Party Roles"
-          },
-          "party_role": {
-            "type": "string",
-            "title": "Party Role",
-            "default": "supplier"
-          },
-          "party_word": {
-            "type": "string",
-            "title": "Party Word",
-            "default": "Lieferant"
-          },
-          "party_plural": {
-            "type": "string",
-            "title": "Party Plural",
-            "default": "Lieferanten"
-          },
-          "party_ref": {
-            "type": "boolean",
-            "title": "Party Ref",
-            "default": true
-          },
-          "derived_instruction": {
-            "type": "string",
-            "title": "Derived Instruction",
-            "default": ""
           }
         },
         "type": "object",
@@ -7553,74 +7334,6 @@
         "title": "PasskeyResponse",
         "description": "Ein registrierter Passkey (Auflistung/Verwaltung im Konto). Ohne Krypto-Material."
       },
-      "PaymentEntry": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "amount": {
-            "type": "number",
-            "title": "Amount"
-          },
-          "method": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Method"
-          },
-          "method_label": {
-            "type": "string",
-            "title": "Method Label",
-            "default": ""
-          },
-          "reference": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference"
-          },
-          "paid_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Paid At"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "amount"
-        ],
-        "title": "PaymentEntry",
-        "description": "**Eine Zeile Geld** an einem Beleg.\n\nÜberweisung und Karte sind derselbe Datensatz; wer ihn geschrieben hat (ein Mensch\noder der Webhook), ändert nichts an dem, was er ist. Eine **Gutschrift** steht hier\nnicht mehr – sie ist eine negative **Rechnung**, denn dabei fliesst kein Geld."
-      },
       "PaymentLink": {
         "properties": {
           "url": {
@@ -7818,16 +7531,6 @@
               }
             ]
           },
-          "purchase": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PurchaseEmbed"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "deal": {
             "anyOf": [
               {
@@ -7859,20 +7562,7 @@
           "moves": {
             "type": "boolean",
             "title": "Moves",
-            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Seit «selbst oder eingekauft»\naus dem Beleg folgt (``buys``), gibt es die Liste nicht mehr, und die Frage steht\nals das da, was sie ist. Sie reist **mit dem Schritt**: den Modul-Katalog lädt\nnur der Editor.",
-            "readOnly": true
-          },
-          "buys": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Buys",
-            "description": "**Trägt dieses Modul einen Einkaufs-Beleg – und wann?** ``None`` = nie.\n\n``if_chosen`` heisst: die Arbeit kann auch selbst erledigt werden, und genau\ndarum darf die Oberfläche hier die Wahl anbieten. Sie fragt damit nach der\nEigenschaft und nie nach dem Modultyp.",
+            "description": "**Bringt dieses Modul die Stücke woandershin?** Daraus folgt der Ziel-Scan.\n\nVorher beantwortete das eine Liste von Transportarten, indem sie bei jedem\nanderen Modultyp leer war – eine Liste als Bit. Jetzt steht die Frage als das da,\nwas sie ist, und reist **mit dem Schritt**: den Modul-Katalog lädt nur der Editor.",
             "readOnly": true
           },
           "verifies": {
@@ -7908,7 +7598,7 @@
           "open_actions": {
             "type": "boolean",
             "title": "Open Actions",
-            "description": "►►► **Kann man an diesem Modul noch etwas tun?** (Testnotiz #821) ◄◄◄\n\nDie Oberfläche graut ein Modul aus, an dem nichts mehr ansteht – und das war\ngenau dann falsch, wenn der Auftrag längst durch ist und trotzdem noch eine\nRechnung oder eine Zahlung zu buchen ist (ein Zahlungsziel läuft weiter, wenn\ndie Ware draussen ist). Die Karte sagte optisch «hier ist nichts mehr», während\nihre Knöpfe funktionierten.\n\n**Abgeleitet, nicht gespeichert – und aus derselben Tabelle, die auch das Tor\nist**: ``can`` am Beleg bzw. am Vorgang. Eine zweite Herleitung («ist der Typ\n``zahlung``?») liefe beim nächsten Modul auseinander, und eine Heuristik der\nOberfläche wäre eine dritte Wahrheit.\n\nDas aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.",
+            "description": "►►► **Kann man an diesem Modul noch etwas tun?** (Testnotiz #821) ◄◄◄\n\nDie Oberfläche graut ein Modul aus, an dem nichts mehr ansteht – und das war\ngenau dann falsch, wenn der Auftrag längst durch ist und trotzdem noch eine\nRechnung oder eine Zahlung zu buchen ist (ein Zahlungsziel läuft weiter, wenn\ndie Ware draussen ist). Die Karte sagte optisch «hier ist nichts mehr», während\nihre Knöpfe funktionierten.\n\n**Abgeleitet, nicht gespeichert – und aus derselben Tabelle, die auch das Tor\nist**: ``can`` am Geldvorgang. Eine zweite Herleitung («ist der Typ\n``zahlung``?») liefe beim nächsten Modul auseinander, und eine Heuristik der\nOberfläche wäre eine dritte Wahrheit.\n\nDas aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.",
             "readOnly": true
           }
         },
@@ -7923,7 +7613,6 @@
           "tone",
           "terminal",
           "moves",
-          "buys",
           "verifies",
           "action",
           "sample",
@@ -7933,509 +7622,6 @@
         ],
         "title": "ProcessStepResponse",
         "description": "Ein Modul im laufenden Auftrag.\n\n**Die ``id`` ist seine Identität** (Testnotiz #687): der Ereignis-Log zeigt auf sie\nund auf nichts sonst. Beschriftung, Farbfamilie und «Ausgang?» kommen aus\n``ModuleFacts`` – abgeleitet aus dem Typ, nie gespeichert."
-      },
-      "PurchaseEmbed": {
-        "properties": {
-          "stage": {
-            "type": "string",
-            "title": "Stage"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "tone": {
-            "type": "string",
-            "title": "Tone",
-            "default": ""
-          },
-          "undo": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Undo"
-          },
-          "stages": {
-            "items": {
-              "$ref": "#/components/schemas/PurchaseStage"
-            },
-            "type": "array",
-            "title": "Stages"
-          },
-          "can": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Can"
-          },
-          "lines": {
-            "items": {
-              "$ref": "#/components/schemas/PurchaseLine"
-            },
-            "type": "array",
-            "title": "Lines"
-          },
-          "instruction": {
-            "type": "string",
-            "title": "Instruction",
-            "default": ""
-          },
-          "allowed": {
-            "items": {
-              "$ref": "#/components/schemas/PurchaseQuote"
-            },
-            "type": "array",
-            "title": "Allowed"
-          },
-          "quotes": {
-            "items": {
-              "$ref": "#/components/schemas/PurchaseQuote"
-            },
-            "type": "array",
-            "title": "Quotes"
-          },
-          "supplier_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Supplier Object Id"
-          },
-          "supplier_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Supplier Name"
-          },
-          "amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
-          },
-          "currency": {
-            "type": "string",
-            "title": "Currency",
-            "default": "CHF"
-          },
-          "tracking": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tracking"
-          },
-          "clarify_quantity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Clarify Quantity"
-          },
-          "direction": {
-            "type": "string",
-            "title": "Direction",
-            "default": "buy"
-          },
-          "party_role": {
-            "type": "string",
-            "title": "Party Role",
-            "default": "supplier"
-          },
-          "party_word": {
-            "type": "string",
-            "title": "Party Word",
-            "default": "Lieferant"
-          },
-          "paid": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Paid"
-          },
-          "charged": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charged"
-          },
-          "uncharged": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Uncharged"
-          },
-          "open": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Open"
-          },
-          "due_on": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due On"
-          },
-          "overdue": {
-            "type": "boolean",
-            "title": "Overdue",
-            "default": false
-          },
-          "entries": {
-            "items": {
-              "$ref": "#/components/schemas/PaymentEntry"
-            },
-            "type": "array",
-            "title": "Entries"
-          },
-          "invoices": {
-            "items": {
-              "$ref": "#/components/schemas/InvoiceEntry"
-            },
-            "type": "array",
-            "title": "Invoices"
-          },
-          "next_invoice_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Invoice Number"
-          },
-          "invoice_verb": {
-            "type": "string",
-            "title": "Invoice Verb",
-            "default": "Rechnung stellen"
-          }
-        },
-        "type": "object",
-        "required": [
-          "stage"
-        ],
-        "title": "PurchaseEmbed",
-        "description": "**Der Beschaffungs-Beleg**, wie ihn die Ausführungsstelle braucht.\n\n**Der Beleg gehört keinem Modul** (``domain/procurement``): er hängt am Schritt, und\nwelches Modul einen bekommt, sagt dessen ``buys``. Ein **Bewegen**-Modul, bei dem\njemand «eingekauft» gewählt hat, trägt darum buchstäblich denselben – dieselben\nStufen, dieselben Verben, dieselbe Komponente. Leer, wo keiner existiert; die\nOberfläche braucht damit keine Fallunterscheidung nach dem Modul (wie ``needs``).\n\n**Ein Lieferant sieht nur seine eigene Zeile.** Fremde Preise sind kein Nebeneffekt\neiner Ansicht; gefiltert wird beim Aufbau der Antwort, nicht in der Oberfläche."
-      },
-      "PurchaseLine": {
-        "properties": {
-          "article_object_id": {
-            "type": "integer",
-            "title": "Article Object Id"
-          },
-          "article_name": {
-            "type": "string",
-            "title": "Article Name",
-            "default": ""
-          },
-          "unit": {
-            "type": "string",
-            "title": "Unit",
-            "default": ""
-          },
-          "quantity": {
-            "type": "number",
-            "title": "Quantity",
-            "default": 0
-          },
-          "spec": {
-            "items": {
-              "$ref": "#/components/schemas/SpecEntry"
-            },
-            "type": "array",
-            "title": "Spec"
-          }
-        },
-        "type": "object",
-        "required": [
-          "article_object_id"
-        ],
-        "title": "PurchaseLine",
-        "description": "Eine Position des Belegs: **welcher Artikel, wie viele Stücke, und was er ist.**\n\nArtikel und Menge sind **abgeleitet** – die Einzelinstanzen vor dem Modul tragen\nihren Artikel, und ihre Zahl ist die Menge (``purchase.process_lines``). Mit der\nBestellung frieren sie ein."
-      },
-      "PurchaseQuote": {
-        "properties": {
-          "supplier_object_id": {
-            "type": "integer",
-            "title": "Supplier Object Id"
-          },
-          "supplier_name": {
-            "type": "string",
-            "title": "Supplier Name",
-            "default": ""
-          },
-          "ref": {
-            "type": "string",
-            "title": "Ref",
-            "default": ""
-          },
-          "amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
-          },
-          "lead_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lead Days"
-          },
-          "payment_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payment Days"
-          },
-          "state": {
-            "type": "string",
-            "title": "State"
-          }
-        },
-        "type": "object",
-        "required": [
-          "supplier_object_id",
-          "state"
-        ],
-        "title": "PurchaseQuote",
-        "description": "Eine Zeile der Anfrage: **eine Gegenpartei, ein Preis**.\n\nDer Angebotsspiegel des Einkaufs – zugleich der Tarifvergleich, wenn das Modul einen\nTransport einkauft, und das Angebot an den Kunden, wenn es verkauft. Es ist derselbe\nVorgang, also dieselbe Zeile."
-      },
-      "PurchaseStage": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "verb": {
-            "type": "string",
-            "title": "Verb",
-            "default": ""
-          },
-          "done": {
-            "type": "boolean",
-            "title": "Done",
-            "default": false
-          },
-          "active": {
-            "type": "boolean",
-            "title": "Active",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "label"
-        ],
-        "title": "PurchaseStage",
-        "description": "Eine Stufe des Belegs – Schlüssel, Beschriftung und das Verb, wenn sie dran ist."
-      },
-      "PurchaseUpdate": {
-        "properties": {
-          "action": {
-            "type": "string",
-            "title": "Action"
-          },
-          "suppliers": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Suppliers"
-          },
-          "supplier": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Supplier"
-          },
-          "amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Amount"
-          },
-          "lead_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lead Days"
-          },
-          "payment_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payment Days"
-          },
-          "tracking": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tracking"
-          },
-          "kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Kind"
-          },
-          "method": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Method"
-          },
-          "reference": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference"
-          },
-          "paid_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Paid At"
-          },
-          "note_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note Text"
-          }
-        },
-        "type": "object",
-        "required": [
-          "action"
-        ],
-        "title": "PurchaseUpdate",
-        "description": "Eine Handlung am Beleg – **ein** Endpunkt, in beide Richtungen dieselben Verben.\n\n``ask``       mit wem gehandelt wird (``suppliers``) – anfragen bzw. anbieten\n``quote``     ein Preis kommt herein (``supplier``, ``amount``, ``lead_days`` – Pflicht;\n              ``payment_days`` freiwillig)\n``decline``   die Gegenpartei sagt ab (``supplier``)\n``order``     zusagen (``supplier``, ``amount``)\n``note``      die **Sendungsnummer** nachtragen (``tracking``) – auch vom Lieferanten\n``revoke``    **die** Gegenhandlung – vor der Zusage zurückziehen, danach stornieren\n``clarified`` die Gegenpartei hat der geänderten Menge zugestimmt\n``buy``       «das kaufe ich ein» – legt den Beleg an (nur wo er eine Wahl ist)\n``pay``       **eine Zeile Geld** (``amount``, ``kind``, ``method``, ``reference``,\n              ``paid_at``, ``note_text``)\n\n``buy`` und ``pay`` stehen bewusst **nicht** in ``STAGE_ACTIONS``: sie haben keine\nStufe. Der eine kommt davor (er legt den Beleg an), der andere läuft daneben – Geld\nfliesst auch noch, wenn längst geliefert oder storniert ist. Ihr Tor ist darum ein\nanderes (``Module.buys`` bzw. ``payments.assert_payable``), aber der **Weg** ist\nderselbe: ein zweiter Endpunkt wäre ein zweiter Weg zu einer Sache, die dieser Beleg\nverwaltet."
       },
       "RecordEntry": {
         "properties": {
@@ -8663,25 +7849,6 @@
         "title": "RetiredInput",
         "description": "Ein **ausser Betrieb genommener** Artikel in der Stückliste dieses Artikels."
       },
-      "SpecEntry": {
-        "properties": {
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "value": {
-            "type": "string",
-            "title": "Value"
-          }
-        },
-        "type": "object",
-        "required": [
-          "label",
-          "value"
-        ],
-        "title": "SpecEntry",
-        "description": "Eine Zeile der Artikel-Spezifikation – Beschriftung und Wert, sonst nichts.\n\nSie **reist mit dem Beleg** (``services/article_fields``) und wird nicht ausgewählt:\neine Spezifikation, die je nach Empfänger anders lautet, ist keine."
-      },
       "StepConfirm": {
         "properties": {
           "values": {
@@ -8886,25 +8053,6 @@
         ],
         "title": "StockState",
         "description": "Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.\n\nDie Aufstellung ersetzt den Zustand, den eine Gruppe nicht haben kann: nicht «diese\nInstanz ist freigegeben», sondern «3 freigegeben, 1 im Prozess».\n\n``stock`` sagt, in welchen Block das Segment gehört – ``live`` (aktueller Bestand),\n``history`` (nur noch Datensatz) oder ``unknown``. **Die Zuordnung kommt vom\nServer**, weil sie eine Eigenschaft des Status ist (``domain/statuses.Status.stock``)\nund keine Liste, die eine Oberfläche pflegt. Ein neuer Status wird damit an genau\neiner Stelle ergänzt, und die Bestandsansicht folgt ohne Änderung."
-      },
-      "SupplierOption": {
-        "properties": {
-          "object_id": {
-            "type": "integer",
-            "title": "Object Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "required": [
-          "object_id"
-        ],
-        "title": "SupplierOption",
-        "description": "Ein wählbarer Lieferant – **Objektnummer und Name**, sonst nichts.\n\nDieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die\nOberfläche kein zweites Auswahlfeld braucht.\n\n**Angeboten wird nur, wer Lieferant ist** – dieselbe Haltung wie bei\n``places.search``: eine Auswahl, die der Dienst danach abweist, ist keine."
       },
       "TerritoryAssign": {
         "properties": {

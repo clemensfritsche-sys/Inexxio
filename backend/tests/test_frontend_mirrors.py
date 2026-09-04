@@ -1263,10 +1263,20 @@ def test_the_swiss_thousands_separator_is_pinned():
     assert "\\u2019" in utils and "formatAmount" in utils, (
         "Der Tausender-Trenner ist nicht festgeschrieben."
     )
-    for name in ("purchase-work.tsx",):
+    # **Und die Stellenzahl kommt von der WÄHRUNG**, nicht aus einer festen 2: JPY hat
+    # null, KWD drei (``domain/currency``). Ein fester Schnitt ist bei fast jeder Währung
+    # richtig und darum die Form, die niemand bemerkt.
+    assert "decimals = 2" in utils, (
+        "Die Nachkommastellen sind wieder fest – dann zeigt ein Yen-Betrag zwei Stellen, "
+        "die es nicht gibt."
+    )
+    for name in ("deal-work.tsx",):
         src = _read(FRONTEND / "components" / "erp" / name)
         assert "toLocaleString" not in src, (
             f"{name} formatiert selbst – dann gilt die Regel dort nicht."
+        )
+        assert "formatAmount(" in src and "d.currency_decimals" in src, (
+            f"{name} formatiert ohne die Nachkommastellen der Währung."
         )
 
 
@@ -1299,193 +1309,20 @@ def test_a_module_shows_its_own_matter_in_every_state():
     #    besser erfüllt ist als vorher. Gemessen, nachgeschärft, gegengeprüft.
     body = src[src.index("const stepBody ="):src.index("// **Ohne Prozessbild")]
     tree = body[body.index("return ("):]
-    assert "<Wrapped" in tree, "Der Beleg steht nicht mehr im gerenderten Baum."
-    ahead = tree[:tree.index("<Wrapped")]
+    assert "<DealWork" in tree, "Der Vorgang steht nicht mehr im gerenderten Baum."
+    ahead = tree[:tree.index("<DealWork")]
     assert "isActive ?" not in ahead and "isActive &&" not in ahead, (
-        "Der Beleg steht wieder innerhalb der Aktiv-Verzweigung – dann zeigt ein "
+        "Der Vorgang steht wieder innerhalb der Aktiv-Verzweigung – dann zeigt ein "
         "abgeschlossenes Modul von ihm nichts."
     )
 
-    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
-    assert "(stage.active || stage.done)" in panel, (
-        "Eine Stufe zeigt ihren Inhalt nur, solange sie dran ist – danach steht dort "
-        "nichts mehr, obwohl genau dort steht, was passiert ist."
-    )
-
-
-def test_the_purchase_panel_asks_for_nothing_the_process_already_knows():
-    """**Menge und Termin sind keine Eingaben** (Testnotizen #741/#745).
-
-    Die Menge sagen die Einzelinstanzen vor dem Modul; der Termin ist aus Bestelldatum
-    und Lieferfrist ableitbar. Beide zu tippen wären zweite Aussagen über dieselbe Sache.
-
-    Und **ohne Lieferfrist keine Offerte** (#743) – die Regel steht im Dienst, hier ist
-    sie die freundliche Hälfte: der Knopf bleibt zu.
-    """
-    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
-    for gone in ("<Label>Menge</Label>", "<Label>Termin</Label>", "type=\"date\"",
-                 "due_date", "quantity: Number("):
-        assert gone not in panel, f"«{gone}» ist wieder da – der Prozess weiss das schon."
-    assert "const ready = price.trim() !== '' && lead.trim() !== ''" in panel, (
-        "Eine Offerte lässt sich wieder ohne Lieferfrist abschicken."
-    )
-    # #748: Auto-Save wie überall im Haus – der Speichern-Knopf war die einzige Stelle
-    # im ERP mit einem, und er sah aus, als täte er nichts.
-    assert "useAutosave" in panel and "Übernehmen" not in panel, (
-        "Der Beleg hat wieder einen Speichern-Knopf statt Auto-Save."
-    )
-    # #742: die Zeile ist der Schalter, kein Häkchen daneben.
-    assert 'type="checkbox"' not in panel, (
-        "Die Lieferantenwahl ist wieder eine Häkchen-Liste."
-    )
-
-
-def test_the_purchase_module_has_no_article_field():
-    """**Was beschafft wird, sagt der Prozess; was zu tun ist, sagt das Modul.**
-
-    Das Artikelfeld am Beschaffungs-Modul war eine zweite Aussage über dieselbe Sache –
-    die Einzelinstanzen vor dem Modul tragen ihren Artikel. Was fehlte, war der
-    **Auftrag** an den Lieferanten: die Spezifikation beschreibt die Sache, nicht was mit
-    ihr geschehen soll.
-
-    Bug-Formen: (a) der Editor fragt wieder nach einem Artikel; (b) der Beleg zeigt einen
-    einzelnen Artikel statt seiner Zeilen; (c) der Auftrag ist optional.
-    """
-    designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
-    assert "Was bestellt wird" not in designer and "purchaseArticle" not in designer, (
-        "Der Editor fragt wieder nach einem Artikel – der steht im Prozess."
-    )
-    assert "Auftrag an den Lieferanten" in designer, (
-        "Der Auftrag an den Lieferanten fehlt – ohne ihn weiss er, WAS das Teil ist, "
-        "aber nicht, was er tun soll."
-    )
-
-    modules_ts = _read(FRONTEND / "lib" / "modules.ts")
-    assert "purchaseArticle" not in modules_ts, "Der Entwurf trägt wieder einen Artikel."
-
-    # **Dass der Auftrag Pflicht ist, prüft der Dienst** – nicht eine Zeichenkette in der
-    # Oberfläche. Der Entwurf fragt ``validate``, und was dort fehlt, steht am Knopf.
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.services import orders as orders_svc
-
-    def beschaffen(instruction: str) -> set[str]:
-        return set(orders_svc.validate_draft(None, {"lines": [], "steps": [{
-            "module_type": "beschaffen",
-            "config": {"suppliers": [{"supplier": 100000001, "ref": "X-1"}],
-                       "instruction": instruction},
-        }]}))
-
-    # **Die Differenz, nicht die Menge.** Ein leerer Entwurf bemängelt ohnehin die
-    # fehlende Einzelinstanz – ein blosses ``assert problems`` wäre davon schon erfüllt
-    # und liesse die Bug-Form durch (gemessen: tat es).
-    only_without = beschaffen("") - beschaffen("Härten auf 58 HRC")
-    assert only_without, (
-        "Ein Beschaffungs-Modul ohne Auftrag gilt wieder als vollständig – der "
-        "Lieferant wüsste, WAS das Teil ist, aber nicht, was er tun soll."
-    )
-
-    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
-    assert "p.article_name" not in panel and "p.quantity" not in panel, (
-        "Der Beleg zeigt wieder EINEN Artikel mit EINER Menge – zwei Artikel vor dem "
-        "Modul sind aber zwei Zeilen auf einem Beleg."
-    )
-    assert "p.lines.map" in panel and "p.instruction" in panel, (
-        "Der Beleg zeigt seine Zeilen oder seinen Auftrag nicht."
-    )
-    assert "l.spec" in panel, (
-        "Die Spezifikation steht nicht auf dem Beleg – sie ist die eine Auskunft, die "
-        "der Lieferant über die Sache bekommt."
-    )
-
-
-def test_the_module_looks_the_same_for_both_roles():
-    """►►► **Eine Ansicht, zwei Rollen – und keine Rollenabfrage.** ◄◄◄ (Testnotiz #751)
-
-    Personal und Lieferant sehen dieselbe Karte; was sie unterscheidet, ist einzig, **was
-    man hier tun darf** – und das sagt der Beleg (`purchase.can`). Die Oberfläche fragt
-    `may(...)`, nicht die Rolle: eine Rollenabfrage dort wäre die zweite Stelle für
-    dieselbe Regel, und sie würde beim nächsten Verb vergessen.
-
-    Bug-Formen: (a) `purchase-work` fragt nach der Rolle; (b) eine Aktion rendert wieder
-    ungeprüft, sobald die Stufe aktiv ist; (c) das interne Modul-Protokoll steht in der
-    verengten Ansicht.
-    """
-    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
-    # **Die Bug-Form ist ein Rollen-VERGLEICH**, nicht das Wort «Rolle» irgendwo:
-    # `q.supplier_object_id` ist eine Objektnummer, und `p.party_role` sagt, **wen man
-    # wählen darf** (Lieferant ↔ Kunde) – eine ganz andere Frage als «darf ich das».
-    # Sie wird durchgereicht, nicht ausgewertet; ein `=== 'supplier'` daneben wäre die
-    # zweite Stelle für dieselbe Regel.
-    #
-    # Vorher stand hier `"role" not in panel` und traf damit auch die durchgereichte
-    # Angabe. Ein Wächter, der die einzig richtige Lösung verbietet, drängt zur falschen.
-    for role in ("role ===", "role !==", "role ==", "'supplier'", '"supplier"',
-                 "'customer'", '"customer"', "isSupplier", "isStaff"):
-        assert role not in panel, (
-            f"«{role}» steht wieder im Beleg – was jemand darf, sagt `can`, nicht seine Rolle."
-        )
-    assert "function may(" in panel, "Die eine Rechte-Frage der Komponente fehlt."
-    for verb in ("'ask'", "'revoke'", "'order'", "'quote'", "'note'",
-                 "'clarified'", "'receive'"):
-        assert f"may(p, active, {verb})" in panel, (
-            f"Die Aktion {verb} wird nirgends geprüft – für einen Lieferanten wäre sie "
-            f"ein Knopf, der nie etwas tun kann."
-        )
-    # **Und `active` allein ist NIE das Tor.** Der erste Anlauf dieses Wächters prüfte
-    # bloss, ob jedes Verb *irgendwo* in der Datei geprüft wird – er liess damit genau
-    # die Bug-Form durch, gegen die er gebaut war (eine Aktion zurück auf `active`, das
-    # Verb steht ja noch anderswo). Gemessen und nachgeschärft: gefragt wird nach der
-    # **Form des Tors**, nicht nach dem Vorkommen eines Wortes.
-    for gate in ("&& active && (", "{active && ("):
-        assert gate not in panel, (
-            f"«{gate}» rendert eine Aktion nur danach, ob das Modul dran ist – ob man "
-            f"sie tun DARF, sagt `can`."
-        )
-    # #750: ein Wort, immer dasselbe – die Zahl fiel ausgerechnet dann weg, wenn sie am
-    # grössten ist.
-    assert "Bei {picked.length} anfragen" in panel and "? 'Anfragen'" not in panel, (
-        "Der Anfrage-Knopf hat wieder zwei Beschriftungen."
-    )
-    # Das Verb der Stufe kommt vom Server – `PurchaseStage.verb` war sonst ein Feld,
-    # das niemand liest.
-    assert "verbOf(p)" in panel, "Der Bestell-Knopf erfindet sein Wort wieder selbst."
-
-    # **Gefragt wird die REGEL, nicht der Wortlaut**: das Protokoll rendert nur unter
-    # `internal`. Die erste Fassung verlangte die Bedingung wörtlich – und schlug an, als
-    # eine dritte, richtige Bedingung dazukam (`step.records`, #825). Ein Wächter, der
-    # die **Form** der alten Lösung prüft, verbietet die bessere.
-    src = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
-    guard = src[src.index("<StepRecord") - 200:src.index("<StepRecord")]
-    assert "internal" in guard and "!isActive" in guard, (
-        "Das Modul-Protokoll steht wieder in jeder Ansicht – sein Endpunkt ist "
-        "Personal-only, ein Lieferant bekäme dort einen Fehler."
-    )
-
-
-def test_the_order_reference_moved_into_the_definition():
-    """**Zwei Fragen, zwei Orte** (Testnotiz #753).
-
-    Wie man bei einem Lieferanten bestellt, steht bei ihm in der **Definition**; die
-    Sendungsnummer entsteht erst nach der Bestellung.
-
-    Bug-Form: das alte Sammelfeld «Bestellnummer, Link, Sendungsnummer» ist zurück.
-    """
-    panel = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
-    assert "Bestellnummer, Link, Sendungsnummer" not in panel, (
-        "Das Sammelfeld ist zurück – es beantwortete zwei Fragen zu zwei Zeitpunkten."
-    )
-    assert "<Label>Sendungsnummer</Label>" in panel, "Die Sendungsnummer fehlt am Beleg."
-    assert "q.ref" in panel, (
-        "Die Bestellangabe erreicht die Angebotszeile nicht – dann steht nirgends, unter "
-        "welcher Nummer man bei ihm bestellt."
-    )
-    designer = _read(FRONTEND / "components" / "erp" / "process-designer.tsx")
-    # **Gefragt wird nach der REGEL, nicht nach dem Satz.** Die frühere Fassung suchte
-    # den Platzhalter wörtlich – und schlug an, als aus «Lieferanten» ein Wert aus dem
-    # Katalog wurde (Testnotiz #787), obwohl die Regel besser erfüllt war als vorher.
-    assert 'aria-label={`Bestellangabe für ${row.supplier}`}' in designer, (
-        "Die Bestellangabe lässt sich nicht mehr definieren."
+    # **Und eine Stufe zeigt ihren Inhalt, sobald sie dran ODER vorbei ist** – sonst
+    # steht am abgeschlossenen Modul nichts mehr, obwohl genau dort steht, was passiert
+    # ist. Die Karte selbst bekommt `active` durchgereicht und entscheidet damit allein
+    # über das **Handeln**.
+    panel = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    assert "function may(d: Filled, active: boolean, action: string)" in panel, (
+        "Die Karte fragt nicht mehr an EINER Stelle, ob gehandelt werden darf."
     )
 
 
@@ -4255,27 +4092,28 @@ def test_the_goods_are_scanned_before_the_destination():
     )
 
 
-def test_moving_and_buying_are_properties_not_module_type_checks():
-    """**«Bewegt es?» und «kauft es ein?» kommen vom Schritt, nicht aus einem Vergleich.**
+def test_moving_is_a_property_not_a_module_type_check():
+    """**«Bewegt es?» kommt vom Schritt, nicht aus einem Vergleich.**
 
     Die frühere Fassung prüfte, dass das Bit aus der **Transportliste** kommt (sie war
     bei jedem anderen Modultyp leer – eine Liste als Bit). Die Liste gibt es nicht mehr;
-    die Aussage bleibt und ist ehrlicher geworden: zwei Eigenschaften, `moves` und
-    `buys`, beide aus derselben Registry wie Beschriftung und Farbe.
+    die Aussage bleibt und ist ehrlicher geworden: eine Eigenschaft, `moves`, aus
+    derselben Registry wie Beschriftung und Farbe.
+
+    *Daneben stand einmal `buys` («trägt dieses Modul einen Einkaufs-Beleg?»). Mit den
+    Modulen «Beschaffen»/«Verkauf» ist der Beleg entfallen – und mit ihm die Frage.*
 
     Bug-Form: ein `moduleType === 'bewegen'` in der Oberfläche – die zweite Stelle, an
     der sie über Modultypen Bescheid wissen müsste, und die erste, die man beim nächsten
     Modul vergisst.
     """
     cols = _code(_read(FRONTEND / "components" / "erp" / "process-columns.tsx"))
-    assert "moves: s.moves" in cols and "buys: s.buys" in cols, (
-        "Der Schritt bringt «bewegt es?» / «kauft es ein?» nicht mehr mit – dann muss "
-        "die Oberfläche es wieder aus dem Modultyp erraten."
+    assert "moves: s.moves" in cols, (
+        "Der Schritt bringt «bewegt es?» nicht mehr mit – dann muss die Oberfläche es "
+        "wieder aus dem Modultyp erraten."
     )
     detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
-    assert "step.moves" in detail and "step.buys" in detail, (
-        "Die Ausführungsstelle liest die beiden Eigenschaften nicht."
-    )
+    assert "step.moves" in detail, "Die Ausführungsstelle liest die Eigenschaft nicht."
     assert "transports" not in detail, "Die Transportart-Liste ist zurück."
     for surface in ("capture-work.tsx", "order-detail.tsx"):
         code = _code(_read(FRONTEND / "components" / "erp" / surface))
@@ -4971,240 +4809,13 @@ def test_an_icon_button_is_centred_by_its_class():
     assert ".erp-actbtn-icon" in css, (
         "Die Symbol-Ausprägung fehlt – dann setzt sie jede Aufrufstelle wieder inline."
     )
-    work = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
+    work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
     assert "erp-actbtn-icon" in work, (
-        "Der Beleg baut seine Symbol-Knöpfe wieder selbst."
+        "Der Vorgang baut seine Symbol-Knöpfe wieder selbst."
     )
     assert not re.search(r"erp-actbtn[^\"]*\"[^>]*style=\{\{[^}]*width:", work), (
         "Eine Inline-Breite am Symbol-Knopf ist zurück – genau daran verschob sich das "
         "Symbol, statt zentriert zu sein."
-    )
-
-
-def test_the_order_reference_is_a_mandatory_field():
-    """**Ohne Bestellangabe weiss der Lieferant nicht, was zu bestellen ist** (#756).
-
-    Bug-Form: die Angabe ist optional, das Modul lässt sich freigeben, und beim Bestellen
-    steht eine leere Zeile. Geprüft wird **beides** – der Server weist sie ab (die Regel)
-    und der Mensch erfährt es vor der Freigabe (die freundliche Hälfte).
-
-    **Die freundliche Hälfte ist keine zweite Prüfung**, sondern dieselbe: der Entwurf
-    fragt ``POST …/validate``, und was dort fehlt, steht im Hinweis des Knopfes. Vorher
-    stand hier eine Zeichenketten-Suche in ``modules.ts`` – die prüfte die **Anwesenheit**
-    einer toten Kopie, nicht das Verhalten: sie schlug nicht an, obwohl die Kopie keinen
-    Aufrufer hatte, und sie hätte angeschlagen, wenn man sie entfernt.
-    """
-    import sys
-    sys.path.insert(0, str(BACKEND))
-    from app.services import orders as orders_svc
-
-    problems = orders_svc.validate_draft(None, {"lines": [], "steps": [{
-        "module_type": "beschaffen",
-        "config": {"suppliers": [{"supplier": 100000001, "ref": ""}],
-                   "instruction": "Härten auf 58 HRC"},
-    }]})
-    assert any("Bestellangabe" in p for p in problems), (
-        "Der Entwurf gilt ohne Bestellangabe als freigebbar – dann steht ein Knopf "
-        f"bereit, der beim Klick scheitert. Gemeldet wurde: {problems}"
-    )
-
-
-def test_a_bought_transport_is_the_ordinary_purchase_document():
-    """**1:1 derselbe Beleg – keine Kopie, auch nicht in der Oberfläche.**
-
-    Eine Sendung aufzugeben IST ein Einkauf: der Spediteur ist ein Lieferant, der
-    Tarifvergleich ist der Angebotsspiegel, die Sendungsnummer ist `tracking`. Wer dafür
-    ein zweites Bauteil baute, hätte den Einkauf ein zweites Mal gebaut – und das zweite
-    veraltet beim nächsten neuen Verb.
-
-    Bug-Form: eine eigene «Versand»-Komponente neben `PurchaseWork`, oder ein
-    Modultyp-Vergleich, der entscheidet, welche gerendert wird.
-    """
-    detail = _code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx"))
-    # (1) Es gibt genau EINE Beleg-Komponente, und sie hängt am Vorhandensein des Belegs
-    #     – nicht am Modultyp.
-    assert detail.count("<PurchaseWork") == 1, (
-        "Der Beleg wird an mehr als einer Stelle gerendert – dann gibt es ihn zweimal."
-    )
-    body = _body(detail, "Wrapped", kind="function")
-    # **Erkannt wird er allein daran, DASS es ihn gibt** – nie am Modultyp. Geprüft wird
-    # die Regel, nicht die Form: eine frühere Fassung suchte wörtlich nach `if (purchase)`
-    # und schlug an, sobald jemand denselben Gedanken anders schrieb.
-    for key in ("'bewegen'", '"bewegen"', "'beschaffen'", '"beschaffen"'):
-        assert key not in body, (
-            f"Die Oberfläche fragt wieder nach dem Modultyp ({key}) – sie liest zwei "
-            f"Eigenschaften (`buys`, `purchase`) und sonst nichts."
-        )
-    assert "purchase ?" in body, (
-        "Der Beleg wird nicht mehr allein daran erkannt, dass es ihn gibt."
-    )
-
-    # (2) Die Wahl «selbst ↔ beschaffen» steht dort, wo ihre Folge steht – und nur,
-    #     solange es keinen Beleg gibt. Danach ist sie beantwortet.
-    assert "buys === 'if_chosen'" in body, (
-        "Die Wahl hängt nicht an der Deklaration des Moduls."
-    )
-    assert "action: 'buy'" in body, "Die Wahl legt keinen Beleg an."
-
-    # (3) **Und man sieht, dass es ein Einkauf ist** (Testnotiz #775): wo er nicht der
-    #     Zweck des Moduls ist, trägt er seine eigene Überschrift – mit der Identität, die
-    #     **mit dem Beleg reist** (`label`/`tone`), nicht aus dem Modul-Katalog geholt.
-    #     Bug-Form: der Beleg entsteht nur im Hintergrund, und die Karte sieht aus wie
-    #     vorher.
-    assert "<ProcurementBlock" in body, (
-        "Der Einkaufs-Vorgang trägt keine Überschrift – dann sieht man ihm nicht an, "
-        "dass hier eine Leistung eingekauft wird."
-    )
-    head = _body(detail, "ProcurementBlock", kind="function")
-    assert "purchase.tone" in head and "purchase.label" in head, (
-        "Die Identität wird nicht vom Beleg gelesen – wer sie beim Modul-Katalog holt, "
-        "borgt sich die eines Moduls, das hier gar nicht steht (und den Katalog lädt nur "
-        "der Editor)."
-    )
-    # **Geteilt, nicht nachgebaut** – und zwar die ganze Hülle (`ModuleShell`), nicht nur
-    # das Zeichen: ein Einkauf **in** einem Modul ist nichts anderes als ein Modul, also
-    # sieht er auch so aus (#783, «container im container»). Ein eigener Nachbau daneben
-    # wiche beim ersten Karten-Detail ab.
-    assert "<ModuleShell" in head, (
-        "Der Beleg-Block baut die Modul-Karte nach, statt sie zu teilen – ein Einkauf "
-        "sieht dann nicht überall gleich aus."
-    )
-
-    # (4) Und es gibt keine zweite Versand-Oberfläche daneben.
-    for name in ("shipment", "versand-panel", "transport-panel"):
-        assert not (FRONTEND / "components" / "erp" / f"{name}.tsx").exists(), (
-            f"{name}.tsx ist ein zweites Bauteil für dieselbe Sache."
-        )
-
-
-def test_the_haulage_choice_is_one_bit_not_a_roadmap_list():
-    """**Ein Bit, kein Katalog** – und es ist abgeleitet.
-
-    Vorher stand eine Liste `manuell · paket · fracht` mit einem `available`-Flag da,
-    damit die Oberfläche die Roadmap zeigen konnte. *Paket* und *Fracht* sind aber keine
-    zwei Arten, sondern zwei **Angebote** desselben Einkaufs – das entscheidet der Tarif,
-    nicht der Modellierer.
-
-    Bug-Form: die Liste kommt zurück, oder «womit» wird wieder mitgeschickt – dann gibt
-    es zwei Angaben über dieselbe Sache, und die getippte gewinnt.
-    """
-    mods = _code(_read(FRONTEND / "lib" / "modules.ts"))
-    assert "TRANSPORT_ICON" not in mods, "Die Transportart-Liste ist zurück."
-    assert "export const HAULAGE" in mods, "Das eine Bit fehlt."
-
-    api = _code(_read(FRONTEND / "lib" / "api.ts"))
-    confirm = api[api.index("confirmStep("):]
-    confirm = confirm[: confirm.index("\n  }")]
-    assert "transport" not in confirm, (
-        "«Womit» wird wieder mitgeschickt – ob eingekauft wurde, sagt der Beleg."
-    )
-    # **Geprüft wird der Code, nicht die Prosa** (`_code` wirft Kommentare weg – dort
-    # steht «die Handlung ist ein Transport», und das ist eine Erklärung, keine Variable).
-    work = _code(_read(FRONTEND / "components" / "erp" / "capture-work.tsx"))
-    assert "transport" not in work.lower(), (
-        "Die Ausführungsstelle kennt wieder eine Transportart – die Frage ist eine "
-        "Ebene höher beantwortet (gibt es einen Beleg?)."
-    )
-
-
-# ---------------------------------------------------------------------------
-# Testnotizen #770–#775
-# ---------------------------------------------------------------------------
-
-def test_the_procurement_identity_is_mirrored_from_one_source():
-    """**Ein Handel heisst überall gleich** – in beide Richtungen, über die API-Grenze.
-
-    Name und Farbfamilie beschreiben den **Vorgang** (``domain/procurement.FLOWS``), nicht
-    den Modultyp, der ihn auslöst. Der Spiegel hier trägt zusätzlich das Symbol – das kann
-    eine Antwort nicht transportieren.
-
-    **Und jede Richtung wird geprüft, nicht nur die erste.** Ein dritter Vorgang (kommt er
-    je) fällt damit automatisch in diesen Wächter, statt in eine Zeile, die ihn nicht
-    kennt.
-
-    Bug-Form: die Oberfläche schreibt «Einkaufen» hin, während der Beleg «Beschaffen»
-    sagt; oder der Modul-Eintrag bekommt ein eigenes Symbol. Dann steht dasselbe an zwei
-    Stellen und wird beim ersten Umbenennen zu zweierlei.
-    """
-    from app.domain import procurement
-
-    src = _read(FRONTEND / "lib" / "modules.ts")
-    block = _body(src, "FLOW", kind="const")
-    for key, flow in procurement.FLOWS.items():
-        assert f"{key}: {{" in block, f"Die Oberfläche kennt die Richtung «{key}» nicht."
-        assert f"label: '{flow.label}'" in block, (
-            f"Die Oberfläche nennt «{key}» anders als das Backend ({flow.label})."
-        )
-        assert f"tone: '{flow.tone}'" in block, (
-            f"Die Farbfamilie von «{key}» weicht ab – erwartet «{flow.tone}»."
-        )
-    # Die Modul-Symbole kommen aus derselben Quelle – nicht je Modul ein zweites daneben.
-    icons = _body(src, "MODULE_ICON", kind="const")
-    for key, expected in (("beschaffen", "FLOW.buy.icon"), ("verkauf", "FLOW.sell.icon")):
-        assert f"{key}: {expected}" in icons, (
-            f"Das Modul «{key}» hat wieder ein eigenes Symbol – ein Handel sieht in "
-            f"seiner Richtung überall gleich aus."
-        )
-    haulage = _body(src, "HAULAGE", kind="const")
-    assert "FLOW.buy.label" in haulage and "FLOW.buy.icon" in haulage, (
-        "Die Wahl «selbst ↔ beschaffen» schreibt ihr Wort wieder selbst hin – «Einkaufen» "
-        "war genau dieser zweite Name (#775). Und sie ist **immer** ein Einkauf: eine "
-        "Spedition wird beauftragt, nie verkauft."
-    )
-
-
-def test_a_supplier_can_be_chosen_when_the_definition_names_none():
-    """►►► **Wo niemand zugelassen ist, wird gesucht — statt gar nichts anzubieten.** ◄◄◄
-
-    Gemeldet: «Ich konnte nicht einmal einen Lieferanten auswählen». Die Liste der
-    zugelassenen Lieferanten ist bei einem Transport **leer** (den Spediteur wählt man,
-    wenn man weiss, wohin) – und `Ask` rendete nur diese Liste. Es stand also nichts zum
-    Anklicken da, und der Knopf blieb für immer gesperrt.
-
-    Dieselbe Auflösung wie bei `SearchSelect` (#730): derselbe Knopf, dieselbe Aktion, nur
-    eine andere Quelle. Und es ist **dasselbe Referenzfeld wie überall** (`ObjectSelect`),
-    kein zweites Auswahlfeld daneben.
-
-    Bug-Form: die Suche fehlt (nichts zu wählen) oder es entsteht ein eigenes Bauteil.
-    """
-    src = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
-    body = _body(src, "Ask", kind="function")
-    assert "p.allowed.length === 0" in body, (
-        "Der freie Fall wird nicht unterschieden – dann bleibt die Auswahl leer."
-    )
-    # **Gesucht wird nach der Rolle, die der Vorgang nennt** (`party_role`) – ein
-    # Lieferant beim Einkauf, ein Kunde beim Verkauf. Der Name des Aufrufs sagt seither
-    # «Gegenpartei» statt «Lieferant»; die Regel ist dieselbe geblieben.
-    assert "api.searchParties" in body, (
-        "Es wird nicht gesucht – die Kandidaten müssen vom Server kommen."
-    )
-    assert "<ObjectSelect" in body, (
-        "Ein eigenes Auswahlfeld statt des einen Referenzfeldes (#738)."
-    )
-    # Und die Liste der Zugelassenen bleibt, wo es sie gibt – ein Fall, zwei Quellen.
-    assert "p.allowed" in body and "found" in body, (
-        "Die zugelassene Liste ist verschwunden – dann hätte die Lieferantenfreigabe "
-        "keine Wirkung mehr."
-    )
-
-
-def test_the_way_back_is_not_hidden_behind_asking():
-    """**«Zurück» steht nicht hinter «anfragen»** – und sein Wort kommt vom Server.
-
-    Bug-Form (die gemeldete): der Knopf hängt an ``asked`` – wer «Beschaffen» gewählt
-    hat, kommt erst wieder heraus, nachdem er angefragt hat. Zweite Bug-Form: die
-    Oberfläche schreibt «Anfrage zurückziehen» hin, obwohl es hier «doch selbst» heisst.
-    """
-    src = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
-    body = _body(src, "Ask", kind="function")
-    assert "asked && may(p, active, 'revoke')" not in body, (
-        "Der Weg zurück hängt wieder am Anfragen – dann gibt es ihn genau dann nicht, "
-        "wenn am wenigsten zugesagt ist."
-    )
-    assert "may(p, active, 'revoke')" in body, "Es gibt gar keinen Weg zurück mehr."
-    assert src.count("{p.undo}") == 2, (
-        "Das Wort für «zurück» wird wieder hingeschrieben statt gelesen – es hängt an "
-        "Stufe × Deklaration und gehört dorthin, wo die Wirkung entschieden wird."
     )
 
 
@@ -5299,238 +4910,6 @@ def test_the_user_has_no_empty_document_tab():
     )
 
 
-def test_the_haulage_switch_has_two_directions():
-    """►►► **Ein Schalter zeigt die Wahl UND nimmt sie zurück** (Testnotiz #775). ◄◄◄
-
-    Gemeldet: «wenn ich einmal auf beschaffen geklickt habe, dann kann ich nicht mehr
-    über das gleiche button UI hin und her wechseln». Genau so war es gebaut – der Wert
-    stand fest auf ``self``, und sobald ein Beleg entstand, wurde der ganze Schalter
-    durch den Beleg **ersetzt**. Das Bedienelement, mit dem man die Entscheidung
-    getroffen hat, war weg; der Weg zurück lag woanders (``revoke`` im Beleg). Zwei
-    Gesten für eine Sache.
-
-    Der Weg zurück existierte dabei im Dienst längst: ``buy → revoke → buy`` läuft über
-    die echten Pfade fehlerfrei durch (der partielle Unique-Index aus Migration 119
-    trägt). Es war ausschliesslich eine Frage der Oberfläche.
-
-    **Und ob es zurückgeht, sagt der Server** – ``revoke ∈ purchase.can``, dieselbe
-    Tabelle (Stufe × Rolle), die auch das Tor ist. Eine Frontend-Heuristik «hat hier
-    schon jemand etwas eingegeben?» wäre die zweite Antwort auf dieselbe Frage, und die
-    mildere von beiden.
-
-    Bug-Formen: (a) fester Wert statt abgeleitetem; (b) nur eine Richtung verdrahtet;
-    (c) die Umkehrbarkeit im Browser geraten statt vom Beleg gelesen.
-    """
-    body = _body(_code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx")),
-                 "Wrapped", kind="function")
-
-    assert "value=\"self\"" not in body and "value={'self'}" not in body, (
-        "Der Schalter steht auf einem festen Wert – dann zeigt er nicht, was gilt."
-    )
-    assert "purchase ? 'bought' : 'self'" in body, (
-        "Der Wert des Schalters ist nicht aus dem Beleg abgeleitet."
-    )
-    assert "action: 'buy'" in body and "action: 'revoke'" in body, (
-        "Der Schalter verdrahtet nur eine Richtung – zurück käme man nur woanders."
-    )
-    assert "can" in body and "revoke" in body, (
-        "Die Umkehrbarkeit wird nicht am Beleg gelesen (`purchase.can`) – im Browser "
-        "geraten wäre sie die zweite, mildere Antwort."
-    )
-
-
-def test_the_procurement_block_is_a_module_card_in_a_module_card():
-    """►►► **Der ganze Einkaufs-Bereich ist eine Modul-Karte** (Testnotizen #776/#783). ◄◄◄
-
-    Er trug seine Farbe zuerst nur in der Kopfzeile (#776), dann als Haarlinie an der
-    Kante – aus Sorge vor der «dritten Fläche» (#100/#104). Gemeldet wurde daraufhin das
-    Gegenteil: *«es sollte wirklich wie ein Container im Container sein, und der Container
-    ist ein 1:1 Abbild eines regulären Moduls – ist ja auch nichts anderes; auch der ganze
-    Container soll die entsprechende Farbe und das Design tragen.»* Das ist die Ansage,
-    und sie trägt: ein Einkauf **in** einem Bewegen-Modul ist ein Vorgang mit eigener
-    Identität, keine Fussnote am Rand.
-
-    **Die Regel ist «geteilt», nicht «so aussehen wie»**: dieselbe Hülle wie eine
-    Modul-Karte (`ModuleShell` in `process-diagram`), damit die beiden nicht beim ersten
-    Karten-Detail auseinanderlaufen. **Wie** eine Karte aussieht, entscheidet dann die
-    Hülle – hier steht dazu nichts mehr.
-
-    Bug-Formen: (a) der Block baut die Karte nach; (b) er bringt einen eigenen Rahmen,
-    eine eigene Fläche oder eine eigene Polsterung mit.
-    """
-    block = _body(_code(_read(FRONTEND / "components" / "erp" / "order-detail.tsx")),
-                  "ProcurementBlock", kind="function")
-    assert "<ModuleShell" in block, (
-        "Der Beleg-Block ist keine geteilte Modul-Karte – dann sieht ein Einkauf hier "
-        "anders aus als überall sonst."
-    )
-    for own in ("borderLeft", "border:", "background", "padding", "rounded-ds"):
-        assert own not in block, (
-            f"«{own}» steht im Beleg-Block – die Form gehört der Hülle. Wer sie hier "
-            f"noch einmal beschreibt, hat zwei Fassungen derselben Karte."
-        )
-
-
-def test_the_stage_keys_are_mirrored_not_written_out():
-    """**Die Stufen-Schlüssel stehen an EINER Stelle** – und decken das Backend genau ab.
-
-    Wie eine Stufe *heisst*, sagt der Server (`PurchaseEmbed.stages[].label`) – das hängt
-    an der Richtung. Was die Oberfläche braucht, ist ihre **Identität**: an welcher der
-    Angebotsspiegel steht, an welcher der Scan.
-
-    Bug-Form: die deutschen Einkaufs-Wörter im Rumpf (`stage.key === 'wareneingang'`).
-    Ein Verkaufs-Beleg hätte an **keiner** Stufe etwas gezeigt – alle Vergleiche falsch,
-    still und ohne Fehlermeldung.
-    """
-    from app.domain import procurement
-
-    src = _read(FRONTEND / "lib" / "modules.ts")
-    block = _body(src, "STAGE", kind="const")
-    for key in (*procurement.STAGES, procurement.CANCELLED):
-        assert f"{key}: '{key}'" in block, f"Die Stufe «{key}» fehlt in der Zuordnung."
-
-    work = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
-    for old in ("'anfrage'", "'bestellung'", "'wareneingang'", "'storniert'"):
-        assert old not in work, (
-            f"Die Karte vergleicht wieder gegen {old} – das ist der **Einkauf** in Worten, "
-            f"und an einem Verkaufs-Beleg schlicht falsch."
-        )
-    assert "STAGE.offer" in work and "STAGE.fulfilment" in work, (
-        "Die Karte liest die Stufen nicht aus der Zuordnung."
-    )
-
-
-def test_money_is_shown_beside_the_stages_not_as_a_fourth_one():
-    """**Das Geld ist keine vierte Stufe** – es steht daneben.
-
-    Eine Zahlung macht aus einem Angebot keine Zusage; und nach einem Storno ist eine
-    Erstattung der Normalfall. Bug-Form: eine vierte Zeile in der Stufen-Kette – dann
-    verschwände sie mit ihr, und «bezahlt» sähe aus wie ein Zustand des Materials.
-    """
-    work = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
-    money = _body(work, "Money", kind="function")
-    assert "p.open == null" in money, (
-        "Die Zahlungszeile erscheint auch ohne zugesagte Summe – dort gibt es nichts zu "
-        "rechnen, und «offen: 0.00» wäre eine erfundene Aussage."
-    )
-    # Sie liest die Ableitungen des Servers, sie rechnet sie nicht nach.
-    for field in ("p.open", "p.overdue", "p.due_on"):
-        assert field in money, f"«{field}» wird nicht gelesen – im Browser gerechnet?"
-    assert "p.amount -" not in money and "reduce(" not in money, (
-        "Die Oberfläche rechnet den offenen Betrag selbst – das wäre die zweite Formel, "
-        "und die zweite weicht ab."
-    )
-    # Und die Knöpfe hängen an `can`, nicht an einer Rollen- oder Stufenabfrage.
-    for verb in ("'pay'", "'link'"):
-        assert f"may(p, active, {verb})" in money, (
-            f"Der Knopf für {verb} hängt nicht an `can` – dann laufen Knopf und Tür "
-            f"beim nächsten Verb auseinander."
-        )
-
-
-def test_the_counterparty_role_comes_from_the_catalogue():
-    """**Wer als Gegenpartei in Frage kommt, sagt das Backend** – nicht der Modultyp.
-
-    Bug-Form: `moduleType === 'verkauf' ? 'customer' : 'supplier'` in der Oberfläche.
-    Das wäre die zweite Stelle für dieselbe Regel – und der Dienst wiese danach ab, was
-    die Liste angeboten hat.
-    """
-    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
-    assert "info.party_role" in designer, (
-        "Der Editor liest die Rolle nicht aus dem Katalog."
-    )
-    assert "'customer'" not in designer and "'supplier'" not in designer, (
-        "Die Oberfläche schreibt eine Gegenpartei-Rolle selbst hin."
-    )
-    work = _code(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"))
-    assert "p.party_role" in work, "Die Karte liest die Rolle nicht aus dem Beleg."
-    assert "'customer'" not in work and "'supplier'" not in work, (
-        "Die Karte kennt wieder Rollen – sie soll `can` und `party_role` fragen."
-    )
-
-
-def test_the_payment_methods_a_human_may_pick_mirror_the_service():
-    """►►► **Karte tippt niemand ab** (Testnotiz #782). ◄◄◄
-
-    Eine Kartenzahlung entsteht beim Zahlungsdienst und kommt über den Webhook. Sie im
-    Formular anzubieten wäre eine **zweite Quelle** für dieselbe Buchung – die eine aus
-    der Wirklichkeit, die andere aus einer Erinnerung.
-
-    **Zwei Formen einer Regel, ein Namensstamm**: ``METHODS`` sagt, was es *gibt* (der
-    Webhook schreibt dagegen durch), ``MANUAL_METHODS`` was man *eintragen* darf. Die
-    Oberfläche spiegelt die zweite – durchgesetzt wird sie im Dienst, hier steht die
-    freundliche Hälfte.
-
-    **Und zwei Werte sind ein Schieber, keine Auswahlliste**: dieselbe Form wie überall im
-    Haus (`IconSwitch`).
-
-    Bug-Formen: (a) die Karte ist wieder wählbar; (b) die Liste läuft vom Backend weg;
-    (c) es ist wieder ein `<select>`.
-    """
-    from app.domain import money
-
-    src = _read(FRONTEND / "lib" / "modules.ts")
-    # Am **Deklarations**-Kopf ansetzen, nicht am ersten Vorkommen: das steht im
-    # Erklärtext darüber, und die Liste danach wäre leer – ein Wächter, der versehentlich
-    # nichts prüft.
-    listed = re.findall(r"\{ value: '([a-z]+)', icon:",
-                        src.split("export const MANUAL_METHODS")[1])
-    assert listed, "Die Liste wurde nicht gefunden – der Wächter prüft nichts."
-    assert tuple(listed) == money.MANUAL_METHODS, (
-        f"Die wählbaren Zahlwege laufen auseinander: {listed} ≠ "
-        f"{list(money.MANUAL_METHODS)}"
-    )
-    assert money.CARD not in listed, (
-        "Die Karte ist wieder von Hand wählbar – dann gibt es zwei Quellen für dieselbe "
-        "Buchung."
-    )
-
-    form = _body(_read(FRONTEND / "components" / "erp" / "purchase-work.tsx"),
-                 "PayForm", kind="function")
-    assert "IconSwitch" in form and "MANUAL_METHODS" in form, (
-        "Der Zahlweg ist kein Schieber aus der einen Liste."
-    )
-    assert "<select" not in form, (
-        "Der Zahlweg ist wieder eine Auswahlliste – bei zwei Werten sind das drei Klicks "
-        "für einen."
-    )
-    # **Und keine «Art» mehr**: eine Gutschrift ist eine negative RECHNUNG.
-    assert "'credit'" not in form and "Gutschrift" not in form, (
-        "Die Art ist zurück im Zahlungsformular – eine Gutschrift gehört auf die "
-        "Forderungs-Achse, dort fliesst kein Geld."
-    )
-
-
-def test_the_invoice_is_offered_by_can_and_its_word_comes_from_the_server():
-    """**Die Forderung ist eine Handlung wie jede andere** – und ihr Wort gehört dem Flow.
-
-    «Rechnung stellen» ↔ «Rechnung erfassen»: wir stellen unsere, seine erfassen wir. Ein
-    Literal in der Oberfläche wäre die zweite Aussage darüber, in welche Richtung dieser
-    Beleg zeigt – genau der Fehler, den die Stufen-Schlüssel schon einmal hatten.
-
-    **Und die Nummer kommt vom Server** (`next_invoice_number`): eine im Browser gebaute
-    wäre die zweite Fassung desselben Formats.
-
-    Bug-Formen: (a) der Knopf hängt an einem Modultyp statt an `can`; (b) das Wort steht
-    fest im Rumpf; (c) die Nummer wird hier zusammengesetzt.
-    """
-    src = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
-    money_block = _body(src, "Money", kind="function")
-    assert "may(p, active, 'invoice')" in money_block, (
-        "Der Rechnungs-Knopf hängt nicht an `can` – dann steht er da, wo der Server "
-        "abweist."
-    )
-    form = _body(src, "InvoiceForm", kind="function")
-    assert "p.invoice_verb" in form, "Das Wort auf dem Knopf kommt nicht vom Server."
-    assert "Rechnung stellen" not in form and "Rechnung erfassen" not in form, (
-        "Das Verb steht fest im Rumpf – an einem Einkaufs-Beleg ist es damit falsch."
-    )
-    assert "p.next_invoice_number" in form, "Die Nummer kommt nicht vom Server."
-    assert "-1" not in form.split("next_invoice_number")[1][:400], (
-        "Die Nummer wird im Browser zusammengesetzt – zwei Fassungen desselben Formats."
-    )
-
-
 def test_the_deal_shows_all_three_axes_and_none_of_them_is_a_stage():
     """►►► **Ware · Forderung · Geld — drei Achsen, keine vierte Stufe.** ◄◄◄
 
@@ -5542,84 +4921,19 @@ def test_the_deal_shows_all_three_axes_and_none_of_them_is_a_stage():
     Reihenfolge Ware → Forderung → Geld vorgeschrieben, und Vorauszahlung braucht einen
     zweiten Weg.
     """
-    src = _read(FRONTEND / "components" / "erp" / "purchase-work.tsx")
-    stages = src.split("{p.stages.map(")[1].split("})}")[0]
-    for word in ("'invoice'", "'pay'", "'link'"):
+    src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    card = _component(src, "DealWork")
+    # Die beiden **Stufen** kennen kein Geld-Verb: sie sagen, was zugesagt ist.
+    stages = card[card.index("<Row label={d.stages[0]"):card.index("<Row last")]
+    for word in ("'charge'", "'pay'", "next_charge", "next_payment"):
         assert word not in stages, (
-            f"{word} steht in der Stufen-Schleife – dann hängt es an einer Stufe, und die "
-            f"Reihenfolge ist eine Regel geworden."
+            f"{word} steht in einer Stufe – dann hängt Geld an einer Stufe, und die "
+            f"Reihenfolge Ware → Forderung → Geld ist eine Regel geworden (die "
+            f"Vorauszahlung bräuchte dann einen zweiten Weg)."
         )
     money_block = _body(src, "Money", kind="function")
-    for word in ("'invoice'", "'pay'", "'link'"):
+    for word in ("'charge'", "'pay'"):
         assert word in money_block, f"{word} fehlt neben den Stufen."
-
-
-def test_the_plural_of_the_counterparty_is_a_value_not_a_calculation():
-    """►►► **«Kundeen» — der Plural ist eine ANGABE** (Testnotiz #787). ◄◄◄
-
-    Er wurde aus ``party_word`` gebaut: «Lieferant» + «en» = «Lieferanten» ✓, und beim
-    Verkauf «Kundeen». Eine Regel, die bei einem Wort zufällig stimmt, ist keine Regel –
-    deutsche Beugung ist keine Zeichenkettenoperation.
-
-    Bug-Formen: (a) irgendwo im Frontend wird wieder ein «en» angehängt; (b) der Wert
-    reist gar nicht mit, dann muss ihn die Oberfläche zwangsläufig rechnen.
-    """
-    from app.domain.procurement import FLOWS
-
-    for flow in FLOWS.values():
-        assert flow.party_plural, f"«{flow.direction}» nennt seinen Plural nicht."
-    # Der Verkauf ist der Beleg dafür, dass die Rechnung nicht geht.
-    assert FLOWS["sell"].party_plural != FLOWS["sell"].party_word + "en", (
-        "Der Plural ist wieder die angehängte Endung – genau die Form, die «Kundeen» ergab."
-    )
-    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
-    assert "party_word}en" not in designer, (
-        "Der Plural wird wieder gerechnet statt gelesen (#787)."
-    )
-    assert "info.party_plural" in designer, (
-        "Der mitgereiste Plural wird nicht benutzt – dann steht er umsonst in der Antwort."
-    )
-
-
-def test_the_order_reference_exists_only_where_we_order():
-    """**Beim Verkauf gibt es keine Bestellangabe** (Testnotiz #787).
-
-    Sie beantwortet «wie bestelle ich bei ihm» – seine Artikelnummer, sein Shop-Link.
-    Beim Verkauf liefern **wir**; das Feld stünde dort als Pflichtangabe da, die niemand
-    ausfüllen kann. Die Angabe hängt an der **Richtung** (``Flow.party_ref``), nicht am
-    Modultyp: jeder künftige Typ derselben Richtung erbt sie.
-
-    Bug-Formen: (a) der Dienst verlangt sie auch beim Verkauf; (b) er nimmt sie dort
-    still an und speichert eine Angabe, die niemand liest; (c) die Oberfläche rendet das
-    Feld unabhängig von der Deklaration.
-    """
-    from app.domain.modules import MODULES
-    from app.domain.procurement import BUY, SELL, FLOWS
-
-    assert FLOWS[BUY].party_ref is True and FLOWS[SELL].party_ref is False, (
-        "Die Richtung sagt nicht mehr, ob es eine Bestellangabe gibt."
-    )
-    sell = next(m for m in MODULES.values() if getattr(m, "flow", None)
-                and m.flow.direction == SELL)
-    # (a) Ohne Angabe muss es durchgehen …
-    cleaned = sell.clean_purchase_config({"suppliers": [{"supplier": 100000001}],
-                                          "instruction": ""})
-    assert cleaned["suppliers"] == [{"supplier": 100000001, "ref": ""}], (
-        "Der Verkauf verlangt eine Bestellangabe – dort gibt es nichts zu bestellen."
-    )
-    # (b) … und eine mitgeschickte darf nicht liegen bleiben.
-    smuggled = sell.clean_purchase_config(
-        {"suppliers": [{"supplier": 100000001, "ref": "ABC-1"}], "instruction": ""})
-    assert smuggled["suppliers"][0]["ref"] == "", (
-        "Eine Bestellangabe wird beim Verkauf gespeichert, obwohl es das Feld nicht gibt "
-        "– eine Hintertür zu einer Angabe, die niemand liest."
-    )
-    # (c) Die Oberfläche fragt die Deklaration, nicht den Modultyp.
-    designer = _code(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"))
-    assert "info.party_ref &&" in designer, (
-        "Das Feld hängt nicht an `party_ref` – dann steht es am Verkauf als "
-        "Pflichtangabe da, die niemand ausfüllen kann."
-    )
 
 
 def test_the_runtime_choice_is_one_sentence_in_one_place():
@@ -6137,12 +5451,16 @@ def test_the_money_module_is_not_named_after_a_trade():
     das war eine Regel zu viel: ein Symbol behauptet keinen **Namen**, es zeigt die
     häufigste Gestalt der Sache. Zwei gespiegelte Pfeile derselben Familie sind auf 15 px
     das gleiche Zeichen mit anderer Neigung – Einkaufswagen und Handschlag sind
-    verschiedene Dinge, und das Haus schreibt damit längst dieselbe Unterscheidung
-    (`FLOW`). Der Einwand aus #831 bleibt beantwortet: er galt den Werten, und die heissen
-    unverändert «Einnahme» ↔ «Ausgabe».
+    verschiedene Dinge. Der Einwand aus #831 bleibt beantwortet: er galt den Werten, und
+    die heissen unverändert «Einnahme» ↔ «Ausgabe».
+
+    *Die beiden Symbole standen einmal in einer eigenen Zuordnung (`FLOW`, gespiegelt vom
+    Handels-Beleg). Mit den Modulen «Beschaffen»/«Verkauf» ist sie entfallen – eine
+    Zuordnung mit genau einem Leser ist keine –, und sie stehen jetzt dort, wo sie
+    gebraucht werden. Die Regel bleibt: **zwei verschiedene Dinge, keine zwei Pfeile.**
 
     Bug-Formen: (a) die Handels-Wörter kommen zurück; (b) die Vorzeichen aus #799;
-    (c) die Symbole werden wieder nachgebaut, statt aus `FLOW` zu kommen.
+    (c) zwei gespiegelte Pfeile statt zweier verschiedener Zeichen.
     """
     src = _read(FRONTEND / "lib" / "modules.ts")
     block = _body(src, "DEAL_DIRECTION", kind="const")
@@ -6159,17 +5477,20 @@ def test_the_money_module_is_not_named_after_a_trade():
             f"«{sign}» ist zurück – ein Vorzeichen sagt, wie gebucht wird, nicht wohin "
             f"das Geld fliesst (#799)."
         )
-    # (c) ►►► **EINE Bildsprache, EINE Quelle** (#845). ◄◄◄
+    # (c) ►►► **Zwei verschiedene Dinge, keine zwei Pfeile** (#845). ◄◄◄
     #
-    # Das Symbol wird nicht nachgebaut, sondern aus `FLOW` gelesen – sonst stehen im
-    # selben Haus zwei Einkaufswagen, die eines Tages verschiedene sind. Geld **herein**
-    # ist der Handschlag (wir verkaufen), Geld **hinaus** der Einkaufswagen.
-    assert "icon: FLOW.sell.icon" in block and "icon: FLOW.buy.icon" in block, (
-        "Die Richtung baut ihre Symbole selbst – dann gibt es zwei Bildsprachen für "
-        "dieselbe Unterscheidung (#845)."
+    # Geld **herein** ist der Handschlag (wir verkaufen), Geld **hinaus** der
+    # Einkaufswagen. Zwei Zeichen derselben Familie, gespiegelt, wären auf 15 px dasselbe
+    # Zeichen mit anderer Neigung – man müsste hinsehen, statt zu erkennen.
+    assert "icon: Handshake" in block and "icon: ShoppingCart" in block, (
+        "Die Richtung trägt wieder zwei Zeichen derselben Familie – dann muss man "
+        "hinsehen, statt zu erkennen (#845)."
     )
-    assert block.index("icon: FLOW.sell.icon") < block.index("icon: FLOW.buy.icon"), (
+    assert block.index("icon: Handshake") < block.index("icon: ShoppingCart"), (
         "Herein und hinaus sind vertauscht – Geld kommt herein, weil wir verkaufen."
+    )
+    assert "Arrow" not in block, (
+        "Die Pfeile aus der ersten Fassung sind zurück."
     )
     # **Und die Backend-Wörter sind dieselben** – der Spiegel darf nicht auseinanderlaufen.
     import sys
@@ -6884,7 +6205,7 @@ def test_a_number_is_tabular_and_an_object_id_is_not():
     # Geprüft wird der **Behälter**, in dem eine Zahl steht – nicht jede einzelne Zeile:
     # `ix-tnum` vererbt sich, und es an jede Zeile zu schreiben wäre die Doppelung, die
     # bei der nächsten vergessen wird. Es sind zwei: die Abrechnung und die Bedingungen.
-    for what, marker in (("Abrechnung", "{formatAmount(d.net)}"),
+    for what, marker in (("Abrechnung", "{formatAmount(d.net, d.currency_decimals)}"),
                          ("Zahlungsfrist", "{d.due_days} Tage"),
                          ("Zusagedatum", "{localDate(d.agreed_on)}")):
         assert marker in agreed, f"«{what}» steht nicht mehr im bestätigten Auftrag."
@@ -7103,3 +6424,118 @@ def test_a_quote_row_has_no_amount_field_where_the_positions_carry_the_price():
     )
     for term in ('aria-label="Lieferfrist in Tagen"', 'aria-label="Zahlungsfrist in Tagen"'):
         assert term in flat, f"«{term}» ist mit dem Betragsfeld verschwunden (c)."
+
+
+# ---------------------------------------------------------------------------
+# Der Handel ist WEG — und die Währung ist da
+# ---------------------------------------------------------------------------
+
+def test_the_trade_modules_are_gone_from_both_sides():
+    """►►► **«Beschaffen» und «Verkauf» sind entfernt, nicht abgeschaltet.** ◄◄◄
+
+    Was sie konnten, kann der **Geldvorgang** (``domain/deal``) – einmal für beide
+    Richtungen. Was übrig blieb, ist die eine Aussage, die kein Geldvorgang machen kann:
+    *dieses Stück ist nicht mehr unseres* («Ausliefern»).
+
+    Der Wächter fragt **beide Seiten**: ein Modultyp, den nur noch eine Hälfte kennt, ist
+    genau die Form, in der eine Oberfläche einen Beleg rendert, den es nicht mehr gibt –
+    oder ein Dienst einen Schlüssel annimmt, den niemand mehr schickt.
+
+    Bug-Formen: (a) ein Schlüssel kommt zurück; (b) eine Datei des Belegs steht wieder da;
+    (c) die Oberfläche kennt einen Modultyp, den das Backend nicht führt.
+    """
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.domain import modules
+
+    assert set(modules.KEYS) == {
+        "datenerfassung", "aussondern", "bewegen", "zahlung", "ausliefern", "verbrauch",
+    }, f"Die Modultypen sind nicht mehr die sechs erwarteten: {sorted(modules.KEYS)} (a)."
+
+    # (b) **Die Dateien sind weg** – ein toter Dienst neben einem lebenden ist die
+    #     zweite Maschine für dieselbe Sache.
+    for gone in ("app/domain/procurement.py", "app/domain/money.py",
+                 "app/services/purchase.py", "app/services/invoices.py",
+                 "app/services/payments.py", "app/models/purchase.py",
+                 "app/models/invoice.py", "app/models/payment.py"):
+        assert not (BACKEND / gone).exists(), f"{gone} ist zurück (b)."
+    assert not (FRONTEND / "components" / "erp" / "purchase-work.tsx").exists(), (
+        "Die Beleg-Karte des Handels ist zurück (b) – der Geldvorgang hat seine eigene."
+    )
+
+    # (c) **Und die Oberfläche kennt genau dieselben Typen.**
+    src = _read(FRONTEND / "lib" / "modules.ts")
+    icons = _body(src, "MODULE_ICON", kind="const")
+    form = _body(src, "MODULE_FORM", kind="const")
+    fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                   "MODULE_FIELDS", kind="const")
+    for what, block in (("MODULE_ICON", icons), ("MODULE_FORM", form),
+                        ("MODULE_FIELDS", fields)):
+        for key in modules.KEYS:
+            assert f"{key}:" in block, f"«{key}» fehlt in {what} (c)."
+        for gone in ("beschaffen:", "verkauf:"):
+            assert gone not in block, f"«{gone}» steht wieder in {what} (a)."
+    # Und die entfallene Zuordnung des Handels-Belegs kommt nicht zurück.
+    for gone in ("export const FLOW", "export function flowOf", "export const HAULAGE",
+                 "export const STAGE ", "export const MANUAL_METHODS"):
+        assert gone not in src, f"«{gone}» ist zurück – der Handels-Beleg mit ihm."
+
+
+def test_delivering_has_nothing_to_configure_and_says_so():
+    """►►► **`null` heisst «kennt ihn, hat aber nichts zu fragen».** ◄◄◄
+
+    «Ausliefern» ist ein Scan und ein Statuswechsel. Der Eintrag steht trotzdem in
+    ``MODULE_FIELDS`` – ein **fehlender** wäre die Antwort «diesen Typ kenne ich nicht»,
+    und die Karte sagte das dann auch («Modultyp … ist dieser Oberfläche unbekannt»).
+
+    Bug-Form: der Schlüssel fehlt, weil «es gibt ja nichts zu zeigen» – dann sieht ein
+    vollständig unterstütztes Modul aus wie ein kaputtes.
+    """
+    fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
+                   "MODULE_FIELDS", kind="const")
+    assert "ausliefern: null" in fields, (
+        "«ausliefern» steht nicht als bekannt-ohne-Felder da – dann meldet die Karte "
+        "einen unbekannten Modultyp, obwohl sie ihn vollständig unterstützt."
+    )
+
+
+def test_the_currency_is_one_control_in_the_head_and_hangs_on_can():
+    """►►► **Eine Währung je Vorgang – im Kopf, nicht an jeder Zahl.** ◄◄◄
+
+    Ein Beleg hat *eine* Währung (zwei wären zwei Belege), also ist sie eine Eigenschaft
+    des Vorgangs und keine Spalte in der Tabelle: fünfzehnmal «CHF» neben fünfzehn Zahlen
+    wäre Fläche statt Struktur.
+
+    **Ob man sie noch wählen darf, sagt `can`** – dieselbe Tabelle, die auch das Tor ist.
+    Und sie **verschwindet nicht**, wenn sie gebunden ist: sie wird zur Auskunft mit dem
+    Grund im Hover, sonst beantwortet nichts mehr, worin dieser Beleg lautet.
+
+    Bug-Formen: (a) die Oberfläche fragt `stage` statt `can` – dann laufen Knopf und Tor
+    beim nächsten Verb auseinander; (b) sie baut den Währungs-Katalog selbst;
+    (c) der gebundene Zustand rendert nichts.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    block = _component(src, "Currency")
+    assert "may(d, active, 'currency')" in block, (
+        "Die Währung hängt nicht an `can` (a)."
+    )
+    assert "d.stage" not in block, (
+        "Die Währung fragt die Stufe (a) – dann ist es die zweite Regel neben `can`."
+    )
+    assert "d.currencies" in block, (
+        "Der Katalog kommt nicht mehr vom Server (b) – eine zweite Liste im Browser "
+        "liefe beim ersten neuen Code auseinander."
+    )
+    assert "'CHF'" not in block and '"CHF"' not in block, (
+        "Ein Währungs-Literal steht in der Oberfläche (b)."
+    )
+    assert "return null" not in block and "{d.currency}" in block, (
+        "Der gebundene Zustand rendert nichts (c) – dann sagt die Karte nicht mehr, "
+        "worin sie lautet. Sie verschwindet nicht, sie wird zur Auskunft."
+    )
+    # **Im Kopf, und nur dort** – nicht an jeder Zahl.
+    head = _component(src, "Head")
+    assert "<Currency" in head, "Die Währung steht nicht im Kopf des Vorgangs."
+    assert src.count("<Currency") == 1, (
+        "Die Währung steht an mehr als einer Stelle – dann ist sie eine Spalte geworden."
+    )

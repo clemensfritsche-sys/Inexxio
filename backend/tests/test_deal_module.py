@@ -232,7 +232,13 @@ def test_the_module_never_touches_a_single_unit():
         mod = modules.get("zahlung")
         assert mod.terminal is False, "Ein Geldvorgang ist kein Ausgang."
         assert mod.moves is False, "Ein Geldvorgang bewegt nichts."
-        assert mod.buys is None, "Es trägt keinen Beschaffungs-Beleg."
+        # **Und es gibt gar keinen Beschaffungs-Beleg mehr**, den es tragen könnte: die
+        # Module «Beschaffen» und «Verkauf» sind entfernt, und mit ihnen die Vokabel
+        # ``buys``. Ein Modul, das sie wieder kennt, hat den Handel ein zweites Mal.
+        assert not hasattr(mod, "buys"), (
+            "Ein Modul kennt wieder einen Beschaffungs-Beleg – der Geldvorgang ist "
+            "die eine Stelle, an der Geld mit einer zweiten Partei fliesst."
+        )
         assert mod.status_before == st.IM_PROZESS
         assert mod.status_after == st.IM_PROZESS
 
@@ -1581,18 +1587,18 @@ def test_the_rate_belongs_to_the_position_not_to_the_document():
         {"article": 1, "quantity": 6, "price": "10.00", "vat": "8.10"},
         {"article": 2, "quantity": 2, "price": "50.00", "vat": "0.00"},
     ]
-    split = dm.vat_split(lines)
+    split = dm.vat_split(lines, "CHF")
     assert [(r["rate"], r["net"], r["tax"]) for r in split] == [
         ("8.10", "60.00", "4.86"), ("0.00", "100.00", "0.00")
     ], "Die Aufteilung je Satz stimmt nicht – (a) oder (b)."
-    assert dm.gross_of(lines) == Decimal("164.86"), (
+    assert dm.gross_of(lines, "CHF") == Decimal("164.86"), (
         "Der Brutto-Betrag ist nicht Netto + Steuer je Satz (c)."
     )
 
     # (b) **Je Satz auf der SUMME** – drei Zeilen, deren Einzelsteuern je 0.405 ergäben.
     thirds = [{"article": i, "quantity": 1, "price": "5.00", "vat": "8.10"}
               for i in range(3)]
-    assert dm.vat_split(thirds)[0]["tax"] == "1.22", (
+    assert dm.vat_split(thirds, "CHF")[0]["tax"] == "1.22", (
         "Gerundet wurde je Position und dann summiert – 3 × 0.41 = 1.23 statt 1.22."
     )
 
@@ -1617,7 +1623,7 @@ def test_a_partial_invoice_carries_every_rate_it_touches():
         {"article": 1, "quantity": 6, "price": "10.00", "vat": "8.10"},
         {"article": 2, "quantity": 2, "price": "50.00", "vat": "0.00"},
     ]
-    rows = dm.split_for(Decimal("80.00"), lines)
+    rows = dm.split_for(Decimal("80.00"), lines, "CHF")
     assert len(rows) == 2, "Die Teilrechnung kennt nur einen Satz (a)."
     total = sum(Decimal(r["net"]) + Decimal(r["tax"]) for r in rows)
     assert total == Decimal("80.00"), (
@@ -1626,7 +1632,7 @@ def test_a_partial_invoice_carries_every_rate_it_touches():
 
     # **Ohne Positionen nennt der Aufrufer den Satz** – eine *Ausgabe*: die Steuer steht
     # auf seiner Rechnung, und wir schreiben sie ab.
-    at = dm.split_at(Decimal("108.10"), "8.10")
+    at = dm.split_at(Decimal("108.10"), "8.10", "CHF")
     assert at == [{"rate": "8.10", "net": "100.00", "tax": "8.10"}], (
         "Aus einem Brutto-Betrag wird der Netto-Anteil nicht zurückgerechnet."
     )
@@ -1812,3 +1818,270 @@ def test_a_term_only_change_keeps_the_price():
         assert err.value.status_code == 400 and "Betrag" in err.value.detail
     finally:
         db.rollback(); db.close()
+
+
+# ---------------------------------------------------------------------------
+# §9.12a – die WÄHRUNG: eine je Vorgang, gebunden mit der Zusage
+# ---------------------------------------------------------------------------
+
+def test_a_currency_is_one_per_deal_and_freezes_with_the_agreement():
+    """►►► **Ein Betrag ohne Währung ist keine Zahl.** ◄◄◄
+
+    «1000» ist tausend Franken oder tausend Yen, und das sind zwei sehr verschiedene
+    Beträge. Solange nur eine Währung vorkommt, fällt es nicht auf – und beim ersten
+    EU-Kunden ist es still falsch.
+
+    **Eine je Vorgang, nicht je Zeile**: zwei Währungen auf einem Beleg gibt es nicht,
+    das wären zwei Belege. Vorbelegt ist die Währung des **Betreibers**; änderbar bis zur
+    Zusage, danach nicht mehr – draussen liegt dann eine Zusage über *diese* Summe in
+    *dieser* Währung, und sie nachträglich umzuschreiben hiesse, die Zahl stehen zu
+    lassen und ihre Bedeutung zu ändern.
+
+    **Und ``can`` ist das Tor**, nicht nur die Auskunft: dieselbe Tabelle, aus der die
+    Oberfläche ihren Knopf nimmt, weist in ``apply`` ab.
+
+    Bug-Formen: (a) die Währung fehlt am Vorgang; (b) sie lässt sich nach der Zusage noch
+    ändern; (c) ``can`` führt das Verb, obwohl der Dienst es abweisen würde (oder
+    umgekehrt) – dann ist der Knopf eine Bitte.
+    """
+    from fastapi import HTTPException
+    from app.domain import currency as cur
+    from app.services import deal as svc
+
+    db = _db()
+    try:
+        lieferant = _party(db, "Härterei AG")
+        art = _article(db, "Welle", steps=[_money_step(parties=[lieferant])])
+        order, rows = _make(db, quantity=2, article=art)
+        step = rows[0]
+        row = svc.of_step(db, step.id)
+        staff = _staff(db)
+
+        # (a) **Sie ist da** – und sie ist die des Hauses, nicht eine erfundene.
+        assert row.currency == svc.house_currency(db), (
+            "Der Vorgang trägt nicht die Währung des Betreibers (a) – dann steht dort "
+            "eine Zahl, deren Bedeutung niemand kennt."
+        )
+        assert "currency" in svc.can(db, row, staff), (
+            "Vor der Zusage lässt sich die Währung nicht wählen."
+        )
+
+        svc.apply(db, order=order, step=step, action="currency",
+                  payload={"currency": "eur"}, actor=staff)
+        assert row.currency == "EUR", "Die Wahl kommt nicht an (Gross-/Kleinschreibung)."
+
+        # **Streng geschrieben** – ein Code, den es nicht gibt, fällt sonst erst auf,
+        # wenn jemand eine Summe über zwei Währungen zieht.
+        with pytest.raises(HTTPException) as unknown:
+            svc.apply(db, order=order, step=step, action="currency",
+                      payload={"currency": "XXX"}, actor=staff)
+        assert unknown.value.status_code == 400
+        assert "CHF" in unknown.value.detail, (
+            "Die Ablehnung nennt die erlaubten Währungen nicht – dann ist sie eine "
+            "Sackgasse mit Ausrufezeichen."
+        )
+
+        # (b) + (c) **Ab der Zusage ist sie gebunden** – in beiden Formen.
+        _agree(db, order=order, step=step, party=lieferant, amount="1200.00", staff=staff)
+        assert "currency" not in svc.can(db, row, staff), (
+            "Die Währung steht nach der Zusage noch zur Wahl (b/c)."
+        )
+        with pytest.raises(HTTPException) as locked:
+            svc.apply(db, order=order, step=step, action="currency",
+                      payload={"currency": "USD"}, actor=staff)
+        assert locked.value.status_code == 409, (
+            "Die Tür lässt die Änderung durch (b) – dann ist `can` nur ein Hinweis, und "
+            "der Knopf und das Tor laufen beim nächsten Verb auseinander."
+        )
+        assert row.currency == "EUR"
+
+        # **Und sie reist mit der Antwort** – die Oberfläche rechnet nichts aus.
+        embed = svc.embed_data(db, order=order, step=step, viewer=staff)
+        assert embed["currency"] == "EUR"
+        assert embed["currency_decimals"] == cur.minor_units("EUR") == 2
+        assert embed["currency_locked"] is True
+        assert {c["code"] for c in embed["currencies"]} == set(cur.CURRENCIES)
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_decimals_come_from_the_currency_never_from_a_fixed_two():
+    """►►► **JPY hat null Nachkommastellen, KWD hat drei** (ISO 4217). ◄◄◄
+
+    Fast alle haben zwei – und darum schreibt man ``f"{x:.2f}"`` und merkt nie, dass es
+    falsch ist. Ein Yen-Betrag mit zwei Nachkommastellen ist kein Rundungsfehler, sondern
+    ein Betrag, den es nicht gibt; ein dreistelliger, auf zwei geschnitten, verliert
+    still seine letzte Stelle – und zwar in der Richtung, in der die Zahl **kleiner**
+    wird.
+
+    Geprüft wird **die Rechnung**, nicht nur die Formatierung: die Steuer-Aufteilung
+    rundet je Währung (``domain/deal._round``), und der gebuchte Betrag kommt mit der
+    Genauigkeit seiner Währung an.
+
+    Bug-Formen: (a) ein festes ``.2f`` in der Formatierung; (b) ein festes ``0.01`` beim
+    Runden – dann stimmt die Anzeige und die Buchung nicht; (c) die Spalte schneidet ab
+    (``NUMERIC(x, 2)``) – dann ist der Wert schon in der Datenbank falsch.
+    """
+    from decimal import Decimal
+    from app.domain import currency as cur, deal as dm
+
+    # (a) **Die Formatierung** kennt die Währung.
+    assert cur.money(Decimal("1000.40"), "JPY") == "1000", (
+        "Ein Yen-Betrag trägt Nachkommastellen (a) – die es in dieser Währung nicht gibt."
+    )
+    assert cur.money(Decimal("1.2345"), "KWD") == "1.235", (
+        "Ein dreistelliger Betrag wird auf zwei geschnitten (a)."
+    )
+    assert cur.money(Decimal("12.345"), "CHF") == "12.35"
+
+    # (b) **Die Rechnung** ebenso – dieselbe Zahl, zwei Währungen, zwei Ergebnisse.
+    lines = [{"article": 1, "quantity": 3, "price": "1000", "vat": "8.10"}]
+    assert dm.vat_split(lines, "JPY") == [{"rate": "8.10", "net": "3000", "tax": "243"}], (
+        "Die Steuer wird nicht in der Genauigkeit der Währung gerechnet (b)."
+    )
+    assert dm.vat_split(lines, "CHF")[0]["tax"] == "243.00"
+
+    # (c) **Und die Spalte trägt es** – vier Stellen decken jede ISO-4217-Währung.
+    from app.models import Deal, DealEntry
+    for model in (Deal, DealEntry):
+        col = model.__table__.c["amount"]
+        assert col.type.scale >= 3, (
+            f"{model.__tablename__}.amount hat nur {col.type.scale} Nachkommastellen (c) "
+            f"– ein dreistelliger Betrag verlöre seine letzte, und zwar in der Datenbank."
+        )
+
+
+def test_the_service_date_comes_from_the_process_not_from_the_invoice_date():
+    """►►► **Wann wurde die Leistung erbracht?** – das weiss der Auftrag (Testnotiz #852).
+
+    Es ist der Tag, an dem die Stücke dieses Modul **erreicht** haben. Das
+    Rechnungsdatum ist es **nicht**: eine Rechnung, die zwei Wochen später geschrieben
+    wird, verschöbe damit die Steuerperiode (MWSTG Art. 26 Bst. c).
+
+    **Vorbelegt, nicht erzwungen** – ein Mensch weiss von Teilleistungen, von denen der
+    Log nichts weiss. Und **abgeleitet, nicht gespeichert**: eine Spalte daneben wäre die
+    zweite Wahrheit.
+
+    Bug-Formen: (a) die Antwort trägt das Datum nicht – dann muss die Oberfläche es
+    erfinden oder leer lassen; (b) eine gesendete Angabe wird überschrieben.
+    """
+    from datetime import date
+    from app.domain import deal as dm
+    from app.models import DealEntry
+    from app.services import deal as svc
+
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[
+            {"module_type": "datenerfassung",
+             "config": {"points": [{"label": "OK", "type": "bool"}]}},
+            _money_step(direction="in", parties=[kunde]),
+        ])
+        order, rows = _make(db, quantity=2, article=art)
+        staff = _staff(db)
+
+        # Noch steht nichts am Geld-Modul – dann gibt es auch nichts vorzubelegen.
+        assert svc.service_day(db, rows[1]) is None, (
+            "Ein Datum entsteht aus dem Nichts – dann behauptet die Vorbelegung etwas."
+        )
+
+        # Die Stücke erreichen das Geld-Modul – über den echten Weg, mit Werten je Stück.
+        from app.domain import modules as mods
+        from app.services import process as proc
+        from tests.support import per_unit
+        while True:
+            work = proc.step_work(db, order, rows[0])
+            if not work:
+                break
+            inst = work[0]["instance_object_id"]
+            proc.confirm_step(
+                db, order=order, step_id=rows[0].id, actor_id=None, verification="scan",
+                instance_object_id=inst,
+                values=per_unit(db, order=order, step=rows[0], instance_object_id=inst,
+                                values={p["key"]: True
+                                        for p in mods.points_of(rows[0].config)}),
+            )
+            db.flush()
+        arrived = svc.service_day(db, rows[1])
+        assert arrived == date.today(), (
+            "Das Leistungsdatum kommt nicht aus dem Prozess (a)."
+        )
+        embed = svc.embed_data(db, order=order, step=rows[1], viewer=staff)
+        assert embed["service_date"] == arrived, (
+            "Es reist nicht mit der Antwort (a) – dann erfindet es die Oberfläche."
+        )
+
+        _agree(db, order=order, step=rows[1], party=kunde, amount="500.00", staff=staff)
+        svc.apply(db, order=order, step=rows[1], action="charge",
+                  payload={"amount": "500.00"}, actor=staff)
+        db.flush()
+        booked = (db.query(DealEntry)
+                  .filter(DealEntry.deal_id == svc.of_step(db, rows[1].id).id,
+                          DealEntry.kind == dm.CHARGE).one())
+        assert booked.service_date == arrived
+
+        # (b) **Ein Mensch darf übersteuern** – er weiss von Teilleistungen.
+        svc.apply(db, order=order, step=rows[1], action="charge",
+                  payload={"amount": "1.00", "service_date": "2026-01-31"}, actor=staff)
+        db.flush()
+        rows_out = (db.query(DealEntry)
+                    .filter(DealEntry.deal_id == svc.of_step(db, rows[1].id).id,
+                            DealEntry.kind == dm.CHARGE)
+                    .order_by(DealEntry.id).all())
+        assert rows_out[-1].service_date == date(2026, 1, 31), (
+            "Die gesendete Angabe wird überschrieben (b) – dann ist die Vorbelegung "
+            "eine Vorschrift."
+        )
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_the_module_no_longer_carries_a_tax_rate():
+    """►►► **Der Steuersatz hängt an der SACHE, nicht am Modul** (Testnotiz #851). ◄◄◄
+
+    Er stand als «Vorgabe jeder neuen Position» in der Definition und war damit eine
+    Eigenschaft des **Moduls**: eine Vorlage, die für jeden künftigen Auftrag denselben
+    Satz behauptet. Sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen aber auf
+    demselben Papier, und *welche* Sache gehandelt wird, steht erst fest, wenn ein
+    Auftrag läuft.
+
+    Gefragt wird er darum **je Position an der Ausführungsstelle**; die Vorbelegung ist
+    der Normalsatz. Ein Wert, der trotzdem gesendet wird, wird **verworfen** – ein Feld,
+    das die Oberfläche nicht anbietet, der Dienst aber annimmt, wäre eine Hintertür zu
+    einer Angabe, die niemand liest.
+
+    Bug-Form: ``vat_rate`` steht wieder in der Konfiguration – dann gibt es die Angabe an
+    zwei Orten, und die im Modul gewinnt bei jedem neuen Auftrag.
+    """
+    from app.domain import deal as dm, modules
+    from app.services import deal as svc
+
+    clean = modules.get("zahlung").clean_config(
+        {"direction": "in", "parties": [], "prepaid": False, "vat_rate": "2.60"})
+    assert "vat_rate" not in clean, (
+        "Der Steuersatz ist als Modul-Angabe zurück – dann behauptet eine Vorlage einen "
+        "Satz für Sachen, die es beim Modellieren noch gar nicht gibt (#851)."
+    )
+    assert not hasattr(modules, "vat_rate"), (
+        "Es gibt wieder eine Lesestelle für einen Modul-Steuersatz."
+    )
+
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        embed = svc.embed_data(db, order=order, step=rows[0], viewer=_staff(db))
+        assert embed["vat_rate"] == dm.DEFAULT_VAT, (
+            "Die Vorbelegung an der Ausführungsstelle kommt nicht mehr aus dem Katalog."
+        )
+        assert [r["rate"] for r in embed["vat_rates"]] == [r for r, _ in dm.VAT_RATES], (
+            "Der Katalog reist nicht mehr mit dem Vorgang – dann pflegt die Oberfläche "
+            "eine zweite Liste."
+        )
+    finally:
+        db.rollback()
+        db.close()

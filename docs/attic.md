@@ -16,6 +16,48 @@ steckt – damit ein Wiederaufbau bei der Entscheidung anfängt und nicht bei de
 > **Entscheidungsprotokoll** wertvoll, nicht als Vorlage: die Fragen sind dieselben, die
 > Antworten müssen neu gegeben werden.
 
+## Die Handels-Module «Beschaffen» und «Verkauf» (September 2026)
+
+`domain/{procurement,money}.py` · `services/{purchase,invoices,payments}.py` ·
+`models/{purchase,invoice,payment}.py` · `frontend/components/erp/purchase-work.tsx`
+
+**Der Stand:** der Commit vor dieser Löschung auf `develop` (`git log -- backend/app/services/purchase.py`).
+Die Tabellen `purchases`, `invoices`, `payments` stehen unverändert in der Datenbank
+(`docs/backlog.md`) – die Daten sind also da, nur ohne Code.
+
+**Warum sie weg sind — es war eine Doppelung, kein Fehler.** Der Beleg war Angebot →
+Zusage → Erfüllung, mit Angebotsspiegel, Rechnungen, Zahlungen und Storno. Genau das ist
+der **Geldvorgang** (`domain/deal`, PROCESS_CORE §9.12), nur ohne die Bindung an Ware –
+und damit auch für Miete, Lohn, Gebühr, Spesen und eine eingekaufte Spedition brauchbar.
+Zwei Maschinen für dasselbe Geschäft laufen beim ersten neuen Verb auseinander.
+
+**Was die Löschung leicht machte:** der Geldvorgang war von Anfang an bewusst *neben*
+ihnen gebaut, ohne eine Zeile zu teilen («kein Import aus `procurement`/`purchase`», mit
+einem Quelltext-Wächter). An ihm war für die Löschung nichts zu tun.
+
+**Die Entscheidungen, die darin steckten und heute im Geldvorgang leben:**
+
+* *Drei Stufen, weil drei Dinge unumkehrbar sind* – nichts zugesagt · zugesagt · erfüllt.
+  Der Geldvorgang hat davon **zwei**: die Erfüllung ist ein **Zustand**, kein Schritt.
+* *Mehrere Gegenparteien sind eine Liste, kein zweiter Mechanismus* – der Angebotsspiegel
+  des Einkaufs und der Tarifvergleich des Transports sind dieselbe Zeile.
+* *Ein Modul räumt selbst auf* – **eine** Gegenhandlung (`revoke`), und was sie bewirkt,
+  sagt die Stufe.
+* *Eine Sendung zu buchen IST ein Einkauf* – ein Frachtführer ist ein Lieferant, ein
+  Tarifvergleich ein Angebotsspiegel. Darum gab es nie ein «Versand»-Modul.
+* *Die Richtung steht am Beleg, nicht am Modultyp* – ein laufender Auftrag trägt seinen
+  Prozess eingefroren.
+* *Was beschafft wird, sagt der Prozess* – die Einzelinstanzen davor tragen ihren Artikel;
+  ein Artikelfeld daneben wäre die zweite Aussage.
+
+**Was NICHT mitging:** `services/stripe_pay.py` und `docs/stripe-setup.md`. Die Anbindung
+hängt jetzt am Geldvorgang (`deal.record_payment`), und die eine teuer bezahlte Lehre gilt
+unverändert: **Adaptive Pricing bleibt aus**.
+
+**Der Weg zurück beginnt bei der Frage, nicht bei der Datei:** *was kann der Geldvorgang
+nicht, das ein eigenes Handels-Modul könnte?* Wenn die Antwort «nichts» ist, ist es kein
+Wiederaufbau, sondern ein Feld am Geldvorgang.
+
 ## Der Stand
 
 | | |

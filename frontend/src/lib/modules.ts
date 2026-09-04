@@ -13,10 +13,9 @@
  */
 
 import {
-  Banknote, Landmark,
-  Blocks, Camera, CircleHelp, ClipboardCheck, Hand,
-  HandCoins, Handshake, MoveRight, PackageX, PenLine, Ruler, ShoppingCart, ThumbsUp,
-  Type, type LucideIcon,
+  Blocks, Camera, CircleHelp, ClipboardCheck,
+  HandCoins, Handshake, MoveRight, PackageCheck, PackageX, PenLine, Ruler, ShoppingCart,
+  ThumbsUp, Type, type LucideIcon,
 } from 'lucide-react';
 
 import { emptyLine, type DefinitionLine } from '@/components/erp/definition-lines';
@@ -30,88 +29,6 @@ export const CAPTURE_ICON: Record<string, LucideIcon> = {
   measure: Ruler,
 };
 
-/**
- * ►►► **Die Handels-Vorgänge — Name, Farbe, Symbol, je Richtung.** ◄◄◄
- *
- * Ein Beleg gehört **keinem Modul** (`domain/procurement`): ein Einkauf sieht überall
- * gleich aus, ob ihn ein Beschaffen-Modul auslöst (dort ist er der Zweck) oder ein
- * Bewegen-Modul (dort war er eine Wahl). Darum steht die Identität hier und nicht als
- * Eintrag «des Moduls beschaffen» – die Karte des Moduls liest sie ebenso, und beide
- * können nicht auseinanderlaufen.
- *
- * **Und dieselbe Maschine trägt den Verkauf** – nur in die andere Richtung. Was sie
- * unterscheidet, sind Wörter, Farbe und Symbol; alles andere (Stufen, Verben, Zustände)
- * reist fertig mit dem Beleg (`PurchaseEmbed`), damit die Oberfläche für keine einzige
- * Zeile wissen muss, in welche Richtung sie gerade zeichnet.
- *
- * Gespiegelt von `backend/app/domain/procurement.py`; `test_frontend_mirrors` hält Wort
- * und Farbfamilie beider Richtungen deckungsgleich. Das **Symbol** kann eine Antwort
- * nicht transportieren – es steht wie bei den Modulen nur hier.
- */
-export const FLOW: Record<string, { label: string; tone: string; icon: LucideIcon }> = {
-  buy: {
-    label: 'Beschaffen',
-    tone: 'plum',
-    // Ein Einkaufswagen – bewusst **kein** Lastwagen und kein Paket: der Vorgang kauft,
-    // er liefert nicht. Womit die Ware kommt, entscheidet der Lieferant.
-    icon: ShoppingCart,
-  },
-  sell: {
-    label: 'Verkauf',
-    tone: 'teal',
-    // Ein Handschlag – **kein** Geldschein und kein Preisschild: was den Verkauf
-    // ausmacht, ist die Zusage zwischen zwei Parteien, nicht der Betrag. (Ein zweiter
-    // Einkaufswagen wäre ohnehin falsch herum.)
-    icon: Handshake,
-  },
-};
-
-/** Der Vorgang zu einer Richtung. Unbekannt → der Einkauf, wie im Backend (`of`). */
-export function flowOf(direction: string | undefined | null) {
-  return FLOW[direction ?? ''] ?? FLOW.buy;
-}
-
-/**
- * **Die Stufen eines Belegs — als Schlüssel, nicht als Wort.**
- *
- * Wie sie *heissen*, sagt der Server (`PurchaseEmbed.stages[].label`) – und das ist gut
- * so, denn es hängt an der Richtung. Was die Oberfläche trotzdem braucht, ist die
- * **Identität** einer Stufe: an welcher der Angebotsspiegel steht, an welcher der Scan.
- *
- * Sie stehen darum hier als Konstanten und nicht dreimal als Zeichenkette im Rumpf –
- * `test_frontend_mirrors` hält sie mit `domain/procurement.STAGES` deckungsgleich. Vorher
- * standen dort die deutschen Einkaufs-Wörter (`'anfrage'`, `'wareneingang'`), und ein
- * Verkaufs-Beleg hätte an **keiner** Stufe etwas gezeigt: die Vergleiche wären alle
- * falsch gewesen, still und ohne Fehlermeldung.
- */
-/**
- * ►►► **Was ein MENSCH als Zahlweg eintragen darf** – der Spiegel von
- * `money.MANUAL_METHODS`. ◄◄◄
- *
- * Die Karte fehlt mit Absicht (#782): eine Kartenzahlung entsteht beim Zahlungsdienst und
- * kommt über den Webhook. Sie hier anzubieten wäre eine zweite Quelle für dieselbe
- * Buchung – die eine aus der Wirklichkeit, die andere aus einer Erinnerung. Durchgesetzt
- * wird es im **Dienst** (`purchase._pay`), nicht hier; diese Liste ist die freundliche
- * Hälfte. Ein Wächter hält sie mit `domain/money` deckungsgleich.
- */
-export type Method = 'transfer' | 'cash';
-
-export const MANUAL_METHODS: {
-  value: Method; icon: LucideIcon; label: string; hint: string;
-}[] = [
-  { value: 'transfer', icon: Landmark, label: 'Überweisung',
-    hint: 'Der B2B-Normalfall – vom Kontoauszug erfasst.' },
-  { value: 'cash', icon: Banknote, label: 'Bar',
-    hint: 'Bar oder am Schalter.' },
-];
-
-export const STAGE = {
-  offer: 'offer',
-  commitment: 'commitment',
-  fulfilment: 'fulfilment',
-  cancelled: 'cancelled',
-} as const;
-
 /** Prozessschrittmodule (`domain/modules.py`). */
 export const MODULE_ICON: Record<string, LucideIcon> = {
   datenerfassung: ClipboardCheck,
@@ -120,10 +37,11 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
   // Von hier nach dort – bewusst **kein** Transportmittel (kein Lastwagen, kein
   // Gabelstapler): womit bewegt wird, entscheidet sich erst bei der Ausführung.
   bewegen: MoveRight,
-  // **Aus derselben Quelle wie der Vorgang** – ein Handel sieht überall gleich aus, und
-  // die beiden Module sind genau seine zwei Richtungen.
-  beschaffen: FLOW.buy.icon,
-  verkauf: FLOW.sell.icon,
+  // **Dieselbe Familie wie «Aussondern», das andere Urteil.** Dort verlässt das Stück
+  // uns, weil es nichts mehr taugt (`PackageX`); hier, weil es jemand anderem gehört.
+  // Bewusst **kein** Lastwagen: wie es hinkommt, sagt «Bewegen» – dieses Modul sagt nur,
+  // dass es uns nicht mehr gehört.
+  ausliefern: PackageCheck,
   // **Geld wechselt die Hand** – in beide Richtungen dasselbe Symbol, denn es ist
   // dasselbe Modul. Welche Richtung gilt, sagt das Zeichen **im** Vorgang
   // (`DEAL_DIRECTION`), nicht die Kachel: eine Palette mit zwei fast gleichen Symbolen
@@ -157,7 +75,10 @@ export const MODULE_ICON: Record<string, LucideIcon> = {
  * gemessen war das zu wenig: zwei Pfeile derselben Familie, gespiegelt, sind auf 15 px
  * das **gleiche** Zeichen mit anderer Neigung – man muss hinsehen, statt zu erkennen.
  * Einkaufswagen und Handschlag sind **verschiedene Dinge**, und das Haus schreibt damit
- * längst dieselbe Unterscheidung (`FLOW`): eine Bildsprache statt zweier.
+ * längst dieselbe Unterscheidung: eine Bildsprache statt zweier. *Sie standen einmal in
+ * einer eigenen Zuordnung (`FLOW`, gespiegelt vom Handels-Beleg); mit den Modulen
+ * «Beschaffen»/«Verkauf» ist sie entfallen, und die beiden Symbole stehen jetzt dort, wo
+ * sie gebraucht werden – eine Zuordnung mit einem Leser ist keine.*
  *
  * **Das Wort trägt die Weite, das Symbol die Wiedererkennung.** Der Einwand aus #831
  * bleibt gültig und bleibt beantwortet – er galt den **Werten** («Verkauf» ist enger als
@@ -170,12 +91,12 @@ export const DEAL_DIRECTION: Record<string, {
 }> = {
   in: {
     // Der Handschlag – Geld kommt herein, weil eine Zusage nach aussen erfüllt wird.
-    icon: FLOW.sell.icon, label: 'Einnahme',
+    icon: Handshake, label: 'Einnahme',
     hint: 'Einnahme – wir stellen Rechnung, Geld kommt herein.',
   },
   out: {
     // Der Einkaufswagen – Geld geht hinaus, weil wir etwas beziehen.
-    icon: FLOW.buy.icon, label: 'Ausgabe',
+    icon: ShoppingCart, label: 'Ausgabe',
     hint: 'Ausgabe – wir bekommen Rechnung, Geld geht hinaus.',
   },
 };
@@ -192,24 +113,17 @@ export const DEAL_DIRECTION: Record<string, {
  */
 export const DEAL_PARTY = 'Partner';
 
-/**
- * **Der Normalsatz** – die Vorgabe eines neuen Zahlungs-Moduls.
+/*
+ * ►►► **Der Steuersatz und sein Name stehen hier NICHT mehr** (Testnotiz #851). ◄◄◄
  *
- * Der **Katalog** der Sätze kommt vom Server (`ModuleTypeInfo.vat_rates` bzw.
- * `DealEmbed.vat_rates`); hier steht nur, womit ein *leerer Entwurf* beginnt – ein leeres
- * Auswahlfeld wäre eine Frage, die der Server danach ohnehin mit dem Normalsatz
- * beantwortet. Gespiegelt von `domain/deal.DEFAULT_VAT`.
- */
-export const DEFAULT_VAT = '8.10';
-
-/**
- * **Wie die Steuer heisst.** Gespiegelt von `domain/deal.VAT_LABEL`.
+ * `DEFAULT_VAT` war die Vorgabe eines Modul-Feldes, `VAT_LABEL` seine Beschriftung – und
+ * das Feld ist entfallen: der Satz hängt an der **Sache**, nicht am Modul. Gefragt wird
+ * er je Position an der Ausführungsstelle, und dorthin reisen Katalog, Vorgabe und Wort
+ * mit dem Vorgang (`DealEmbed.vat_rates` / `.vat_rate` / `.vat_label`).
  *
- * Sie reist an der Ausführungsstelle mit dem Vorgang (`DealEmbed.vat_label`); im
- * **Editor** gibt es noch keinen, also steht sie hier – dieselbe Bauart wie
- * `DEAL_DIRECTION`: nur, was eine Antwort nicht transportieren kann.
+ * Ein Spiegel ohne Leser ist kein Spiegel, sondern eine zweite Wahrheit, die niemand
+ * vergleicht.
  */
-export const VAT_LABEL = 'MWST';
 
 /**
  * **Was bei einem Partner zu tun ist** – seine Artikelnummer, sein Shop-Link oder ein Satz.
@@ -254,37 +168,6 @@ export const QUOTE_STATE = {
   quoted: 'offeriert',
   declined: 'abgelehnt',
   chosen: 'gewaehlt',
-} as const;
-
-/**
- * **Symbol je Transportart** (`Bewegen.TRANSPORTS`).
- *
- * Wie bei den Modulen steht die **Liste** im Backend – hier nur, was eine Antwort nicht
- * transportieren kann. Ein neuer Kanal ist damit ein Eintrag in der Registry plus ein
- * Symbol; `test_frontend_mirrors` hält beide Seiten deckungsgleich.
- */
-/**
- * **Selbst gebracht ↔ eingekauft** – das eine Bit einer Bewegung.
- *
- * Die frühere Liste `manuell · paket · fracht` (mit einem `available`-Flag als Roadmap)
- * ist entfallen: *Paket* und *Fracht* sind keine zwei Arten, sondern zwei **Angebote**
- * desselben Einkaufs – das entscheidet der Tarif, nicht der Modellierer. Ein Roboter,
- * der es fährt, ist «selbst»: unser Gerät, keine Rechnung.
- *
- * Und die Antwort ist **abgeleitet**: eingekauft wurde genau dann, wenn es einen Beleg
- * gibt. Zwei Angaben könnten sich widersprechen, eine abgeleitete kann es nicht.
- */
-export const HAULAGE = {
-  self: { icon: Hand, label: 'Selbst',
-          hint: 'Jemand von uns bringt es hin – kein Dienstleister, kein Beleg.' },
-  // **Der Name ist der des Vorgangs, nicht einer des Transports** (#775): «Einkaufen»
-  // war ein zweites Wort für dieselbe Sache, und im Haus heisst sie «Beschaffen». Symbol
-  // und Wort kommen darum aus `FLOW.buy` – dieselbe Quelle, aus der auch die Karte des
-  // Beschaffen-Moduls sie nimmt. Eine Spedition wird **gekauft**, nie verkauft; darum
-  // steht hier die Richtung fest und nicht `flowOf(…)`.
-  bought: { icon: FLOW.buy.icon, label: FLOW.buy.label,
-            hint: 'Eine Spedition beauftragen – daraus wird ein ganz gewöhnlicher '
-                + 'Beschaffungs-Vorgang: anfragen, vergleichen, bestellen.' },
 } as const;
 
 /**
@@ -509,31 +392,6 @@ export interface ModuleDraft {
    */
   target: string;
   /**
-   * Nur «Beschaffen»: die **zugelassenen Lieferanten**, mindestens einer – je Eintrag
-   * seine Objektnummer und die **Bestellangabe**.
-   *
-   * Eine Liste, auch wenn fast immer einer drinsteht: **n statt 1**. Wer nur bei Würth
-   * kauft, hat eine Liste mit Würth; wer vergleichen will, nennt drei – und der
-   * Angebotsvergleich ist damit kein zweiter Mechanismus, sondern dieselbe Liste, eine
-   * Zeile länger. Fachlich ist es die Lieferantenfreigabe.
-   *
-   * **`ref` ist «wie bestelle ich bei ihm»** – seine Artikelnummer oder der Shop-Link.
-   * Sie gehört der **Paarung** Modul × Lieferant: bekannt, wenn man festlegt, wer in
-   * Frage kommt, und unverändert über alle Bestellungen. Am Beleg wäre sie eine Angabe,
-   * die man bei jedem Vorgang neu abschreibt.
-   */
-  suppliers: SupplierRule[];
-  /**
-   * Nur «Beschaffen»: **was der Lieferant tun soll** – ein Satz, Pflicht.
-   *
-   * *Was* beschafft wird, steht hier bewusst nicht: das sagen die Einzelinstanzen, die
-   * vor dem Modul stehen (sie tragen ihren Artikel). Was fehlte, war der **Auftrag** –
-   * die Spezifikation beschreibt die Sache, nicht was mit ihr geschehen soll («Härten
-   * auf 58 HRC»). Er gehört an das Modul und nicht an den Artikel: ein Artikel hat
-   * mehrere Schritte, und jeder verlangt etwas anderes.
-   */
-  instruction: string;
-  /**
    * Nur «Zahlung»: **kommt Geld herein oder geht es hinaus?** (`in` ↔ `out`).
    *
    * Das eine Feld, aus dem jedes Wort dieses Moduls folgt – wie die Stufen heissen, wie
@@ -559,26 +417,6 @@ export interface ModuleDraft {
    * und er schreibt keine Reihenfolge vor, er hält nur an.
    */
   prepaid: boolean;
-  /**
-   * ►►► **Nur «Zahlung»: der Steuersatz, mit dem eine neue Position beginnt.** ◄◄◄
-   *
-   * Eine Rechnung ohne Steuersatz ist keine (MWSTG Art. 26) – und er hängt an der
-   * **Sache**, nicht am Beleg: sechs Wellen zu 8.1 % und eine Ausfuhr zu 0 % stehen auf
-   * demselben Papier. Was hier steht, ist darum eine **Vorgabe**, kein fester Wert; an
-   * der Position ist er überschreibbar.
-   *
-   * Der Katalog steht im Backend (`domain/deal.VAT_RATES`) und kommt über den
-   * Modul-Katalog hierher – eine zweite Liste im Browser liefe beim ersten Satzwechsel
-   * auseinander, und der Bundesrat fragt nicht nach.
-   */
-  vatRate: string;
-}
-
-/** Ein zugelassener Lieferant und die Angabe, wie man bei ihm bestellt (#753). */
-export interface SupplierRule {
-  supplier: number;
-  /** Seine Artikelnummer oder der Shop-Link – frei, weil es beides sein kann. */
-  ref: string;
 }
 
 /**
@@ -592,37 +430,6 @@ export const DISPOSAL_MODES: { value: DisposalMode; label: string; hint: string 
   { value: 'scrap', label: 'Verschrotten', hint: 'Physisch entsorgt – endgültig, kein Weg zurück' },
   { value: 'block', label: 'Sperren', hint: 'Bleibt vorhanden, ist aber nicht mehr einplanbar' },
 ];
-
-/**
- * ►►► **Die beiden Beleg-Angaben — für jedes Modul, das handelt.** ◄◄◄
- *
- * Bei wem und was zu tun ist. Sie gehören dem **Beleg**, nicht einem Modultyp – also
- * steht der Eintrag einmal da und wird von beiden Richtungen referenziert. Zwei Kopien
- * wären am ersten Tag gleich und beim ersten neuen Feld nicht mehr.
- *
- * Kein Artikel – den sagen die Einzelinstanzen vor dem Modul; keine Menge – die steht
- * beim Modellieren nicht fest (dieselbe Regel wie beim Verbrauch); kein Modus «Webshop» –
- * wo jemand seinen Shop hat, ist eine Eigenschaft von **ihm** und nicht dieses Belegs.
- *
- * Ob die Angaben **Pflicht** sind, steht hier bewusst nicht: das sagt der Katalog des
- * Backends (`suppliers_required` / `instruction_required`), und die Freigabe ist die
- * eine Regel dazu.
- */
-const TRADE_FORM = {
-  draft: (c: Record<string, unknown>) => ({
-    // Tolerant gelesen wie im Backend (`Module.parties_of`): die alte Form war die
-    // blosse Objektnummer, und ein freigegebener Prozess ist eingefroren – sie steht
-    // also in laufenden Aufträgen und wird sie überleben.
-    suppliers: asRows(c.suppliers).map((r) => ({
-      supplier: Number(r.supplier ?? r), ref: String(r.ref ?? ''),
-    })).filter((r) => Number.isFinite(r.supplier)),
-    instruction: String(c.instruction ?? ''),
-  }),
-  config: (m: ModuleDraft) => ({
-    suppliers: m.suppliers.map((r) => ({ supplier: r.supplier, ref: r.ref.trim() })),
-    instruction: m.instruction.trim(),
-  }),
-};
 
 /**
  * **Was ein Modultyp im Entwurf ausmacht — je Typ ein Eintrag, nicht je Stelle ein `if`.**
@@ -698,12 +505,13 @@ export const MODULE_FORM: Record<string, {
     // geschickt» nicht, aber die Absicht ist hier eindeutig, und sie soll es bleiben.
     config: (m) => ({ target: m.target.trim() === '' ? null : Number(m.target) }),
   },
-  // **Ein Eintrag, zwei Module** – kein zweiter daneben: Ein- und Verkauf tragen
-  // denselben Beleg, also dieselben zwei Angaben. Was sie unterscheidet, ist nicht ihre
-  // Form, sondern ob sie **Pflicht** sind – und das sagt der Katalog des Backends
-  // (`suppliers_required` / `instruction_required`), nicht diese Datei.
-  beschaffen: TRADE_FORM,
-  verkauf: TRADE_FORM,
+  // ►►► **Ein Modul ohne eine einzige Angabe** – und der Eintrag steht trotzdem da. ◄◄◄
+  //
+  // «Ausliefern» ist ein Scan und ein Statuswechsel; es gibt nichts zu konfigurieren.
+  // Ihn wegzulassen wäre die Versuchung – dann fiele `MODULE_FORM[typ]` auf `undefined`
+  // zurück, und der Editor unterschiede nicht mehr zwischen «hat nichts» und «kennt den
+  // Typ nicht». Ein Wächter hält die Schlüssel darum mit dem Backend deckungsgleich.
+  ausliefern: { draft: () => ({}), config: () => ({}) },
   zahlung: {
     draft: (c) => ({
       // Tolerant gelesen: eine fehlende Richtung ist eine **Ausgabe**, wie im Backend
@@ -719,17 +527,18 @@ export const MODULE_FORM: Record<string, {
         party: Number(r.party ?? r), ref: String(r.ref ?? ''),
       })).filter((r) => Number.isFinite(r.party)),
       prepaid: Boolean(c.prepaid),
-      // Tolerant gelesen: ein fehlender Satz ist der Normalsatz – wie im Backend
-      // (`modules.vat_rate`). Ein leeres Feld wäre eine Auswahl ohne Wert.
-      vatRate: String(c.vat_rate ?? '') || DEFAULT_VAT,
     }),
-    // Vier Angaben, keine davon Pflicht ausser der Richtung. Keine Erfassungspunkte und
-    // keine Stichprobe: Geld ist keine Messung am Stück.
+    // ►►► **Drei Angaben – und KEIN Steuersatz** (Testnotiz #851). ◄◄◄
+    //
+    // Er hing hier als Vorgabe und war damit eine Eigenschaft des **Moduls**: eine
+    // Vorlage, die für jeden Auftrag denselben Satz behauptet. Er hängt aber an der
+    // **Sache**, und die steht erst fest, wenn ein Auftrag läuft – dort wird er je
+    // Position gefragt (`OurOffer`), und der Katalog reist mit dem Vorgang.
+    // Keine Erfassungspunkte und keine Stichprobe: Geld ist keine Messung am Stück.
     config: (m) => ({
       direction: m.direction,
       parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
       prepaid: m.prepaid,
-      vat_rate: m.vatRate,
     }),
   },
   verbrauch: {
@@ -754,7 +563,7 @@ export const MODULE_FORM: Record<string, {
 /** Eine gespeicherte Liste als Zeilen lesen – tolerant, denn sie kommt aus JSONB. */
 function asRows(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value)) return [];
-  return value.map((v) => (v && typeof v === 'object' ? v as Record<string, unknown> : { supplier: v }));
+  return value.map((v) => (v && typeof v === 'object' ? v as Record<string, unknown> : { party: v }));
 }
 
 /**
@@ -787,11 +596,11 @@ export function moduleFromConfig(id: number, moduleType: string,
 export function blankModule(id: number, moduleType: string): ModuleDraft {
   return {
     id, moduleType, points: [], sample: { ...SAMPLE_ALL }, mode: 'scrap', reason: '',
-    lines: [], target: '', suppliers: [], instruction: '',
+    lines: [], target: '',
     // **Die Vorgabe ist die EINNAHME** (#791): der häufigere Fall im Haus ist, dass wir
     // etwas verkaufen. Die Richtung bleibt trotzdem eine ausdrückliche Angabe – der
     // Server verlangt sie (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt.
-    direction: 'in', parties: [], prepaid: false, vatRate: DEFAULT_VAT,
+    direction: 'in', parties: [], prepaid: false,
   };
 }
 

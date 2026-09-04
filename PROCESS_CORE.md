@@ -1711,490 +1711,125 @@ Kein neuer Mechanismus: die Scan-Sequenz ist genau dafür gebaut, und der Ziel-S
 einer mehr in derselben Liste. Der **Sammel-Scan** quittiert das Ziel **einmal** — eine
 Fuhre geht an einen Ort; wer verschiedene Ziele hat, bestätigt einzeln.
 
-#### Selbst gebracht oder eingekauft — EIN Bit, und es ist abgeleitet
-
-Beim Modellieren weiss niemand, ob das Stück nebenan liegt oder in Werk Nord — ein
-gespeicherter Modus wäre bei der zweiten Ausführung falsch (der Vorgänger brauchte zwei
-Migrationen, um solche Werte wieder loszuwerden). Die Frage gehört darum zur **Laufzeit**,
-und sie hat genau zwei Antworten: *selbst* ↔ *eingekauft*. Ein Roboter, der es fährt, ist
-«selbst» — unser Gerät, keine Rechnung.
-
-**Wer «eingekauft» wählt, bekommt einen ganz gewöhnlichen Einkaufs-Beleg**
-(`Module.buys = BUY_IF_CHOSEN`): dieselben drei Stufen, dieselben Verben, dieselbe
-Komponente wie beim Beschaffen (§9.9). Denn **eine Sendung aufzugeben IST ein Einkauf** —
-der Spediteur ist ein Lieferant, der Tarifvergleich ist der Angebotsspiegel, die
-Sendungsnummer ist `purchases.tracking`. Wer dafür ein eigenes Modul baute, hätte den
-Einkauf ein zweites Mal gebaut, und das zweite veraltet beim ersten neuen Verb.
-
-**Die frühere Liste `manuell · paket · fracht` ist ersatzlos entfallen** — samt ihres
-`available`-Flags, das die Roadmap zeigen sollte, und samt der Server-Sperre gegen
-gesperrte Kanäle. *Paket* und *Fracht* sind keine zwei Arten, sondern zwei **Angebote**
-desselben Einkaufs: das entscheidet der Tarif, nicht der Modellierer.
-
-**Und die Antwort ist abgeleitet, nicht eingegeben**: eingekauft wurde genau dann, wenn es
-einen Beleg gibt. Zwei Angaben könnten sich widersprechen — eine getippte Transportart
-gewönne auch dann, wenn niemand eine Spedition beauftragt hat; eine abgeleitete kann es
-nicht. Der Log hält sie als Tatsache fest (`payload.bought`), nicht als Wahl.
-
-**Der Ziel-Scan schliesst den Beleg.** Ankunft und Ablage sind ein Ereignis, also eine
-Bestätigung: `assert_receivable` lässt vorher nichts eintreffen, `note_receipt` setzt
-danach die letzte Stufe — beide fragen nur, ob es zu diesem Schritt einen Beleg gibt, und
-mussten dafür **nicht angefasst** werden.
-
-*Und die eine Falle, die still gewesen wäre:* der Preis eines Transport-Belegs ist **nicht**
-der Preis der Ware (`Module.landed_cost`). Derselbe Artikel, zweimal verschickt, hätte
-sonst den Frachttarif als Einstandspreis — und damit würde danach kalkuliert.
-
-**«Bewegt dieses Modul?» ist seither eine Zeile** (`Module.moves`) statt einer Liste, die
-bei jedem anderen Typ leer ist. Die Oberfläche braucht weiterhin keine Fallunterscheidung
-nach dem Modultyp — dieselbe Bauart wie `needs` bei der Stückliste.
-
-**Was der Spediteur zu tun hat, wird abgeleitet** («von A nach B», `Module.instruction_for`):
-beide Hälften stehen fest, und ein Eingabefeld daneben wäre eine zweite Aussage über
-dieselbe Sache. **Wer** fährt, entscheidet sich dagegen zur Laufzeit — genau wie das offene
-Ziel; die Lieferanten-Freigabe des Beschaffungs-Moduls bleibt dort, wo sie hingehört
-(`Module.suppliers_of`, leer = frei).
-
-*Kopffreiheit für einen Aggregator wie Shippo, heute bewusst nicht gebaut:* er wäre ein
-**Lieferant, dessen Angebotszeilen eine Anbindung füllt** statt eines Menschen. Das ist
-eine Eigenschaft von ihm, kein Modul und kein Konzept — es gibt hier nichts, was es
-ausschlösse.
-
-#### Und man sieht es: der Vorgang trägt seine eigene Identität
-
-«Man soll nicht nur im Hintergrund, sondern auch **visuell** sehen: das ist jetzt nicht
-wirklich eine Bewegung, sondern ich kaufe eine Leistung ein, die dann eine Bewegung
-vollzieht» (Testnotiz #775). Der Beleg war 1:1 derselbe — nur sah man es ihm nicht an.
-
-**Name und Farbfamilie gehören darum dem Vorgang** (`domain/procurement.LABEL`/`TONE`) und
-nicht dem Modul, das ihn auslöst: das Modul «Beschaffen» **liest** sie, und der Beleg
-trägt sie mit sich (`PurchaseEmbed.label`/`tone`). Damit können die beiden nicht
-auseinanderlaufen, und die Ausführungsstelle schlägt nichts im Modul-Katalog nach — den
-lädt nur der Editor. Ein Einkauf im Bewegen-Modul bekommt so **dieselbe** Überschrift wie
-eine Beschaffungs-Karte: getöntes Symbol, sein Name, eine Haarlinie.
-
-**Sie erscheint nur, wo der Einkauf nicht der Zweck ist** (`buys == BUY_IF_CHOSEN`). Wo er
-es ist, sagt die Modul-Karte den Namen schon; zweimal wäre dasselbe Wort zweimal. Das ist
-keine Abfrage nach dem Modultyp, sondern dieselbe Deklaration, aus der auch die Wahl
-folgt. **Kein zweiter Rahmen**: die Modul-Karte ist bereits eine Fläche in ihrer Farbe,
-eine Karte in der Karte wäre die dritte.
-
-#### Der Weg zurück — eine Gegenhandlung, und sie hat ein Wort
-
-«Sobald ich einmal eingekauft habe, kann ich nicht mehr zurück» (#775). Es gab die
-Gegenhandlung, sie wurde nur erst **nach** dem Anfragen angeboten — also ausgerechnet
-nicht dort, wo am wenigsten zugesagt ist. Sie steht jetzt ab der ersten Stufe da.
-
-Es bleibt bei **einer** (`revoke`); was sie bewirkt, sagt die Stufe, und **wie sie heisst**,
-sagt der Beleg (`PurchaseEmbed.undo`): «Doch selbst erledigen» · «Anfrage zurückziehen» ·
-«Bestellung stornieren». Ein Satz in der Oberfläche wäre die zweite Stelle für dieselbe
-Regel.
-
-**Dabei ist eine Sackgasse aufgefallen und geschlossen:** nach einem **Storno** hatte die
-Stufe `storniert` keine Handlung mehr, `assert_receivable` wies den Ziel-Scan mit 409 ab,
-und `ensure` fand die tote Zeile wieder — ein Transport, dessen Spedition abgesagt wurde,
-konnte damit **nie** mehr stattfinden, auch nicht zu Fuss. Wer auch **selbst** kann, ist
-mit einem Storno wieder bei «selbst»: die Absage bleibt als Zeile stehen (ein Storno macht
-die Bestellung nicht ungeschehen), sie ist nur nicht mehr *der* Beleg dieses Moduls
-(`is_active = False`, `of_step` liest nur den aktiven). Es ist **eine** Ableitung
-(`purchase._optional`) mit zwei Lesern, kein zweiter Pfad — und `assert_receivable` musste
-dafür nicht angefasst werden.
-
-#### Den Spediteur wählt man, wenn man weiss, wohin
-
-Die Lieferanten-Freigabe der Definition ist bei einem Transport **leer** — und «leer heisst
-frei» (`Module.suppliers_of`). Die Anfrage bot darum **nichts** zum Anklicken an: man
-konnte «Beschaffen» wählen und danach nichts tun. Wo niemand zugelassen ist, wird jetzt
-**gesucht** (`GET /erp/orders/supplier-options`, dieselbe Bedingung wie überall: Nummer
-oder Name) — derselbe Knopf, dieselbe Aktion, nur eine andere Quelle; dieselbe Auflösung
-wie bei `SearchSelect`. **Und frei heisst nicht «irgendwer»**: `purchase._assert_allowed`
-verlangt dort einen aktiven Lieferanten, sonst wäre die Auswahlliste eine Bitte.
-
-
-### 9.9 Das Modul «Beschaffen» — das Tor nach draussen
-
-> **Der Beleg gehört keinem Modul.** Er hängt am **Schritt** (`purchases.step_id`, kein
-> Modultyp), seine Vokabel steht in `domain/procurement` und der Dienst fragt die
-> Deklaration `Module.buys` statt einen Namen. Es waren genau **zwei Fäden**, die ihn
-> einmal an dieses Modul banden — `suppliers` und `instruction`; beide sind heute Fragen
-> **an das Modul** (`suppliers_of` / `instruction_for`). Darum trägt ein **Bewegen**-Modul
-> mit eingekauftem Transport buchstäblich denselben Beleg (§9.8), ohne dass hier eine
-> Zeile dafür steht. Was dieses Modul auszeichnet, ist nicht der Beleg, sondern dass der
-> Einkauf sein **Zweck** ist (`BUY_ALWAYS`: er entsteht mit der Freigabe) — und dass seine
-> Summe der **Preis der Ware** ist (`landed_cost`).
-
-
-Die Stelle, an der etwas von aussen in den Prozess kommt: gekaufte **Ware**, eine
-gekaufte **Leistung** («Härten» an einem Stück, das es schon gibt) und — sobald ein Kanal
-dazukommt — der **Transport**. Ein **Durchläufer**: `Im Prozess` → `Im Prozess`, nicht
-terminal. Ein Beschaffungsmodul darf mehrfach in einem Prozess stehen, auch am **Ende**
-(Fremdfertigung).
-
-**Paket und Fracht sind kein Systembegriff.** Eine Sendung zu buchen IST ein Einkauf: man
-holt Tarife ein, vergibt den Auftrag, bekommt eine Sendungsnummer, die Ware kommt an.
-Ein eigenes «Versand»-Modul hätte den Einkauf ein zweites Mal gebaut, nur mit anderen
-Wörtern; ein Anbieter (Shippo, EasyPost) ist damit ein **Offerten-Lieferant**, kein
-Konzept. Genau daran hing die Bindung an einen Anbieter: sie entsteht nicht durch die
-Integration, sondern durch ein Modell, das ohne sie nichts sagen kann.
-
-#### Das Modul erzeugt nichts
-
-Einzelinstanzen entstehen bei der **Freigabe eines Erzeugungsauftrags** (§4.1), sonst
-nirgends. Ein Beschaffungsmodul lässt sie passieren, wie jedes andere.
-
-Daraus fällt die Antwort auf «taucht eine gekaufte Leistung im Bestand auf?» von selbst
-heraus: **nein** — nicht weil ein Feld sie ausschliesst, sondern weil hier nichts
-entsteht. Ein Modul, das Stücke anlegte, wäre ein zweiter Erzeugungsweg — und der erste
-Ort, an dem Bestand ohne Herkunft entstünde.
-
-#### Was beschafft wird, sagt der PROZESS
-
-**Es gibt kein Artikelfeld am Modul.** Die Einzelinstanzen, die vor ihm stehen, tragen
-ihren Artikel — den daneben zu tippen wäre eine zweite Aussage über dieselbe Sache, und
-die getippte gewinnt auch dann, wenn sie falsch ist. Die Zeilen des Belegs sind darum
-eine **Ableitung**: offene Zugehörigkeit → Einzelinstanz → Instanz → Artikel, gruppiert
-und gezählt (`purchase.process_lines`).
-
-**Mehrere Artikel sind der Normalfall, kein Sonderfall.** Stehen Stücke zweier Artikel
-davor, hat der Beleg **zwei Zeilen** — EINE Bestellung mit zwei Positionen, wie im echten
-Leben. Es braucht dafür keine Regel, nur eine Gruppierung; die Alternative («ein Modul je
-Artikel») hätte den Menschen gezwungen, den Prozess nach der Beschaffung zu formen statt
-nach der Fertigung.
-
-**Mit der Bestellung frieren die Zeilen ein** (`purchases.ordered_lines`): dort ist eine
-zweite Partei gebunden. Davor gibt es sie gar nicht — sie *sind* der Prozess und ziehen
-damit von selbst nach.
-
-*Die eine Grenze, benannt statt versteckt:* zwei Artikel bei **verschiedenen** Lieferanten
-sind zwei Bestellungen, also zwei Module. Das Modell kann es nicht anders sagen, und das
-ist richtig so — ein Beleg hat einen Lieferanten.
-
-#### Woher der Lieferant weiss, was zu tun ist — drei Schichten, jede an ihrem Ort
-
-| Was | Woher | Warum dort |
-|-----|-------|------------|
-| **Die Sache** | Artikel-Spezifikation (eingefroren) | Sie beschreibt das Teil und gilt für jeden Lieferanten. |
-| **Der Auftrag** | `config.instruction` am Modul | «Härten auf 58 HRC» ist eine Eigenschaft *dieses* Schritts, nicht des Artikels — und ein Artikel hat mehrere Schritte. |
-| **Die Nummer** | `config.suppliers[].ref` bzw. `purchases.tracking` | Eine Bestellnummer gehört dem Lieferanten, nicht dem Teil — und die Sendungsnummer entsteht erst nach der Bestellung. |
-
-**Die Spezifikation reist mit dem Beleg, sie wird nicht ausgewählt**
-(`services/article_fields`). Eine Konfiguration «welche Felder sieht der Lieferant?» wäre
-eine vierte Stelle für dieselbe Frage — und bei zwei zugelassenen Lieferanten müsste sie
-zweimal beantwortet werden. Eine Spezifikation, die je nach Empfänger anders lautet, ist
-keine; wer etwas nicht zeigen will, schreibt es nicht hinein.
-
-**Der Auftrag ist Pflicht.** Ohne ihn ist das Modul nicht anlegbar: eine Bestellung, aus
-der niemand liest, was verlangt ist, ist keine. Und er löst zugleich das Problem, das den
-Vorgänger zum Artikelfeld gezwungen hatte — eine gekaufte **Leistung** braucht keinen
-eigenen Artikel «Härten» (einen Datensatz, der nie Material wird, in Bestand, Stückliste
-und Auswahl aber wie einer aussieht): auf dem Beleg steht die **Welle**, die davorsteht,
-und was mit ihr geschehen soll, steht als Satz daneben.
-
-**Der Einstandspreis braucht genau EINE Zeile.** Bei zwei Artikeln ist die Bestellsumme
-eine gemeinsame; sie durch die Gesamtmenge zu teilen ergäbe für beide denselben Preis, und
-er wäre für beide falsch. Eine Aufteilung müsste ein Mensch vornehmen — also wird nichts
-geschrieben, statt eine Zahl zu erfinden, mit der danach kalkuliert wird.
-
-#### Die Stufen gehören dem Beleg, nicht dem Stück
-
-`Anfrage → Bestellung → Wareneingang`. Die Einzelinstanz steht durchgehend auf
-`Im Prozess`: sie wartet, sie ändert sich nicht. «Angefragt» oder «Bestellt» an ihr wären
-Zustände, die **keine Aussage über das Material** sind — und die trotzdem die Statusliste,
-FIFO und die Bestandsanzeige beantworten müssten (§5).
-
-Der Beleg ist darum eine ganz gewöhnliche **Fachzeile ohne eigene Objektnummer**
-(`purchases`, eine je Modul), wie jede andere im Prozess.
-
-**Drei Stufen, weil drei Dinge unumkehrbar sind:** nichts zugesagt · zugesagt · erfüllt.
-«Preis steht» ist keine vierte — das ist der **Inhalt** der Anfrage, kein anderer Zustand
-der Welt.
-
-**Und sie erscheinen immer.** Ob im Webshop gekauft oder beim Lieferanten bestellt wird,
-ist kein Unterschied im Ablauf, sondern nur darin, **wer den Preis einträgt** (du, nachdem
-du im Shop nachgeschaut hast — oder er). Ein «Webshop-Modus» wäre derselbe Ablauf ein
-zweites Mal, und der zweite veraltet.
-
-#### Mehrere Lieferanten sind eine Liste
-
-Die **Definition** sagt, bei wem bestellt werden *darf* (`config.suppliers`); die
-**Ausführung**, bei wem bestellt *wurde*. Zwei verschiedene Fragen, also zwei Orte. Je
-angefragtem Lieferanten eine Zeile mit Preis und Lieferfrist (`purchases.quotes`) — der
-Angebotsspiegel des Einkaufs und der Tarifvergleich des Transports sind dieselbe Zeile.
-
-**Ein Lieferant füllt ausschliesslich seine eigene.** Wessen Zeile gemeint ist, liest die
-Ausführung aus dem **Handelnden**, nicht aus der Nutzlast; fremde Preise fallen beim
-Aufbau der Antwort weg, nicht in der Oberfläche. Eine Sichtbarkeitsregel, die erst in der
-Anzeige greift, ist eine Bitte. **Und wer nicht den Zuschlag hat, sieht ihn auch nicht** —
-Name, Bestellsumme und Sendungsnummer des Gewählten sind für die übrigen Angefragten leer.
-
-**Die Bestellangabe gehört der PAARUNG Modul × Lieferant** (`config.suppliers[].ref`):
-seine Artikelnummer oder der Shop-Link — «wie bestelle ich bei *ihm* dieses Teil». Sie ist
-bekannt, wenn man festlegt, wer in Frage kommt, und ändert sich nicht je Bestellung; am
-Beleg wäre sie eine Angabe, die man bei jedem Vorgang neu abschreibt. Am **Artikel** war
-sie ein einzelner Wert ohne Lieferanten — genau darum dort nie brauchbar.
-
-#### Eine Ansicht, zwei Rollen — und keine Rollenabfrage
-
-Personal und Lieferant sehen **dieselbe** Karte: dieselben Stufen, dieselbe Sache,
-dieselben Wörter. Was sie unterscheidet, ist einzig, **was man hier tun darf** — und das
-sagt der Beleg (`purchase._can` → `PurchaseEmbed.can`, Stufe × Rolle an der einen Stelle,
-an der die Regel wohnt). Die Oberfläche rendert eine Aktion genau dann, wenn ihr Verb dort
-steht; sie weiss nicht, was ein Lieferant ist.
-
-**`can` ist dabei nicht bloss eine Auskunft, sondern das Tor:** dieselbe Tabelle weist in
-`apply` ab. Wäre es nur ein Hinweis für die Anzeige, liefen die beiden beim nächsten Verb
-auseinander — der Knopf verschwände, die Tür bliebe offen.
-
-Der **Wareneingang** steht in derselben Liste, obwohl er über `confirm_step` läuft: aus
-Sicht des Belegs ist er das Verb seiner dritten Stufe, und zwei Listen für «was darf ich
-hier» wären zwei Massstäbe.
-
-**Die Wörter sind allgemein gehalten**, nicht je Rolle formuliert: «Offerte erfassen»
-stimmt für beide (er gibt seine ab, wir schreiben seine auf), «Absage · liefert nicht»
-ebenso. Eine Beschriftung je Rolle wäre ein `if` in Textform.
-
-*Was ein Lieferant NICHT sieht, ist keine Frage des Moduls, sondern der Ansicht:* das
-Modul-Protokoll (`GET …/record`, Personal-only) gehört zum internen Lauf und rendert nur
-in der vollen Ansicht.
-
-#### Ein Modul räumt selbst auf — die Rahmenregel
-
-**Jede Zusage nach aussen hat ihre Gegenhandlung an derselben Stelle.** Und es ist genau
-**eine**: was sie bewirkt, sagt die **Stufe** — vor der Bestellung nimmt sie die Anfrage
-zurück (es war nichts zugesagt), ab ihr storniert sie (dort liegt eine Bestellung beim
-Lieferanten, und «zurück» heisst, ihm abzusagen). Zwei Verben für dieselbe Sache hiessen,
-dass der Aufrufer entscheidet, welches gerade gilt — und irgendwann falsch.
-
-**Was aber Stücke betrifft, entscheidet ein Mensch.** Das Modul darf einen Auftrag
-**vorschlagen** — mit vorgewählten Stücken, wie §4.5 bei «nicht bestanden» —, es legt
-keinen an. Automatik an dieser Stelle war im Vorgängersystem gebaut und wieder
-abgeschaltet: ein Auftrag, den niemand erteilt hat, taucht im Prozess eines anderen auf
-und niemand weiss, warum.
-
-**Teillieferung ist Teilabschluss** — kein eigener Mechanismus: `confirm_step` ist seit
-§4.4 ein Teilabschluss. Solange etwas davorsteht, bleibt der Beleg in «Bestellung»; steht
-nichts mehr davor, rückt er von selbst weiter.
-
-**Vor der Bestellung ziehen die Zeilen still nach, ab ihr wird geklärt.** Ab «Bestellung»
-ist eine zweite Partei gebunden — eine stille Änderung wäre ein Beleg, der nicht mehr
-stimmt. Das System meldet dann die Abweichung («bestellt für 240, gebraucht 180») und
-wartet auf die Bestätigung des Menschen.
-
-**Der stornierte Beleg behält seinen Weg.** Die Kette steht still da, wo sie
-stehengeblieben ist: angefragt und bestellt **wurde**, und daran ändert ein Storno
-nichts — er sagt nur, dass nichts mehr ankommt. Dieselbe Regel wie «die Linie sagt die
-Vergangenheit» (§8.1a). Eine Kette, die beim Stornieren komplett auf grau fällt, macht
-einen stornierten Beleg ununterscheidbar von einem, bei dem nie etwas geschehen ist.
-
-
-### 9.10 Das Modul «Verkauf» — dasselbe Tor, andere Richtung
-
-**Verkauf ist kein neues Konzept.** Einkauf und Verkauf sind *dasselbe Geschäft aus zwei
-Blickwinkeln*: jemand fragt, jemand nennt einen Preis, jemand sagt zu, jemand erfüllt.
-Drei Stufen, eine Schwelle, ein Storno — Wort für Wort dieselbe Maschine
-(`services/purchase`, ein Dienst für beide Richtungen).
-
-Verschieden sind nur drei Dinge, und alle drei stehen als **Daten** im `Flow`
-(`domain/procurement.FLOWS`), nicht als Verzweigung im Dienst:
-
-| | Beschaffen (`buy`) | Verkauf (`sell`) |
-|---|---|---|
-| Stufen | Anfrage → Bestellung → Wareneingang | Angebot → Zusage → Geliefert |
-| Gegenpartei | Lieferant, **vorab freigegeben** | Kunde, **zur Laufzeit gewählt** |
-| Den Preis nennt | die Gegenpartei | **wir** |
-
-> Ein `if direction ==` im Dienst wäre die Stelle, an der die beiden auseinanderlaufen:
-> die erste Verzweigung ist eine Beschriftung, die zweite eine Regel, und ab der dritten
-> gibt es zwei Belege, die nur noch so tun, als wären sie einer.
-
-**Die Stufen sind darum neutral** (`offer` · `commitment` · `fulfilment` · `cancelled`).
-Sie hiessen einmal deutsch und einkaufsspezifisch; ein «Wareneingang», bei dem Ware das
-Haus verlässt, ist kein Name, sondern ein Irrtum mit Bestand.
-
-#### Der eine echte Unterschied: der Verkauf ist ein AUSGANG
-
-Der Einkauf endet mit dem Wareneingang und ist ein **Durchläufer** — das Stück läuft
-danach weiter. Der Verkauf endet mit der Lieferung, und was geliefert ist, ist weg:
-`Module.terminal`. Daraus folgt alles Weitere ohne eine Fallunterscheidung (§4.6) — der
-Editor bietet dahinter nichts an, die Freigabe weist ein Modul dahinter ab, das Bild endet
-dort.
-
-**Der Zustand ist `Verkauft`: grün, Historie, nicht endgültig.**
-
-* **Grün**, weil das Stück sein Ziel erreicht hat — derselbe Grund wie bei `Verbaut`.
-* **Historie**, weil es nicht mehr in unserem Regal liegt: FIFO schlägt es nicht vor,
-  der Bestand zählt es nicht mit. Wählbar bleibt es trotzdem — das sind zwei Fragen, und
-  der Katalog führt sie getrennt (`stock` ↔ `terminal`).
-* **Der Ort fällt weg**, ohne eine Zeile im Modul: `process._pass` räumt ihn für jeden
-  Zustand, der zur Historie zählt. Wo das Stück beim Kunden liegt, ist nicht unsere
-  Auskunft.
-
-#### Die Retoure ist ein ganz gewöhnlicher Auftrag
-
-Es gibt **keinen** «Retoure annehmen»-Endpunkt und kein Retouren-Modul. Ein Auftrag greift
-die verkauften Stücke — **das Greifen IST die Rücknahme**, genau wie beim Sperren und beim
-Verbauen. Und weil sein Start vom **Regelstart** abweicht (`Freigegeben`), ist er
-**automatisch** eine dokumentierte Abweichung (§12.2), ohne dass jemand ein Feld setzt.
-
-> **Farbe und Abweichung sind zwei Fragen.** `deviation_flags` vergleicht mit
-> `START_BEFORE` und nennt weder Farbe noch Status. `Verkauft` ist grün **und** löst eine
-> Abweichung aus — `Verbaut` beweist seit dem Verbrauchsmodul, dass das kein Widerspruch
-> ist. Eine Regel, die nach der Farbe fragt, liesse ausgerechnet die Retoure aus dem
-> Nachweis fallen.
-
-#### In der Definition steht nichts
-
-**Der Kunde steht zur Laufzeit fest.** Beim Einkauf ist die Liste eine
-Freigabeentscheidung, die vorab fällt («für dieses Teil kommen diese drei in Frage») —
-beim Verkauf weiss beim Modellieren eines Artikels niemand, wer ihn einmal kauft. Die
-Liste bleibt trotzdem *möglich* (leer heisst frei): «diese Charge geht ausschliesslich an
-Meier» ist eine echte Hausregel.
-
-**Und der Preis ist NICHT der Einstandspreis** (`landed_cost = False`): was ein Kunde
-zahlt, ist verhandelt und sagt nichts über unsere Kosten. Ihn an den Artikel zu schreiben
-hiesse, mit dem eigenen Verkaufspreis zu kalkulieren — derselbe stille Datenfehler wie
-beim Frachttarif (§9.8), nur teurer.
-
-### 9.11 Ware · Forderung · Geld — drei Achsen, keine Reihenfolge
-
-> **Die Regel, aus der alles Weitere folgt: das System schreibt keine Reihenfolge vor.**
-
-Ein Geschäft hat drei **unabhängige** Achsen:
-
-* **Ware** — die Einzelinstanzen im Prozess (§4)
-* **Forderung** — die Rechnung (`invoices`)
-* **Geld** — die Zahlung (`payments`)
-
-Jedes Zahlungs-Szenario ist eine andere **Folge** derselben drei Grundhandlungen:
-
-| Szenario | Folge | neuer Mechanismus |
-|---|---|---|
-| Rechnung mit Zahlungsziel | Ware → Forderung → Geld | keiner |
-| **Vorauszahlung** | Forderung → Geld → Ware | keiner |
-| **Anzahlung + Schlussrechnung** | Forderung → Geld → Ware → Forderung → Geld | keiner |
-| Nachnahme | Ware → Forderung + Geld | keiner |
-| **Shop, sofort bezahlt** | Forderung → Zahllink → Webhook bucht | keiner |
-| Retoure mit Gutschrift | Ware zurück → negative Forderung | keiner |
-| Garantie (Rücknahme ohne Geld) | nur Ware | keiner |
-| Kulanz (Geld ohne Rücknahme) | nur negative Forderung | keiner |
-
-**Wer eine Folge festschreibt, bekommt für jede Abweichung ein `if`.** Das System hält
-darum fest, was geschehen ist, und **bietet** den naheliegenden nächsten Schritt an. Es
-gibt keinen Modus «Vorkasse», keinen Schalter und keine Einstellung: wer zuerst Geld
-sehen will, stellt zuerst die Rechnung.
-
-**Die Automatik steckt in den Vorgaben, nicht in einem Modus** (`purchase._invoice`):
-Betrag = *zugesagt − bereits berechnet*, Fälligkeit = *heute + vereinbarte Zahlungsfrist*,
-Nummer = `<Auftragsnummer>-<laufend>`. Der Normalfall ist damit **ein Klick**, und jede
-Abweichung ist eine Eingabe statt eines zweiten Wegs.
-
-#### Die Forderung war die fehlende Achse
-
-Vorher las `balance` die **Zusage** (`purchases.amount`) als wäre sie die **Forderung**.
-Solange beides dasselbe ist, geht das gut. An drei Stellen bricht es, und zwar still:
-**Anzahlung** (zwei Forderungen zu einer Zusage) · **Teilrechnung** (3 von 10 geliefert,
-3 berechnet) · **zwei Fälligkeiten** (eine Zusage hat keine, eine Rechnung schon).
-
-#### Eine Gutschrift ist eine NEGATIVE Rechnung
-
-Sie war einmal eine Zahlung der Art `credit` — eine Zahlung, bei der kein Geld fliesst,
-zusammengehalten von einer eigenen Regel («eine Gutschrift hat keinen Zahlweg»). Als
-negative Rechnung ist sie schlicht richtig, und **zwei Regeln entfallen**: `payments.kind`
-und die Ausnahme im Zahlweg. Eine **Erstattung** bleibt dagegen eine negative **Zahlung** —
-dort fliesst Geld, nur rückwärts.
-
-#### Die Nummer
-
-Beim **Verkauf** vergeben wir sie, beim **Einkauf** erfassen wir seine
-(`Flow.invoice_number` — ein Wert, keine Verzweigung). Unsere lautet
-`<Auftragsnummer>-<laufend>`: dieselbe Regel wie beim Suffix der Einzelinstanz
-(kumulierend, **nicht** aus `object_id_seq`). Eine Rechnung ist zum Auftrag, was die
-Einzelinstanz zur Instanz ist — sie braucht einen Namen, aber keine eigene
-Objektidentität, und damit weder eine Feed-Zeile noch einen sechsten Datensatztyp. Das
-`-1` der ersten fällt **nach aussen** weg (`invoices.display`); gespeichert bleibt es,
-sonst wäre die zweite Rechnung eines Auftrags nicht von der ersten zu unterscheiden.
-
-#### Der Shop greift ohne einen einzigen neuen Endpunkt an
-
-Ein Kauf im Shop ist eine **Auftragsfreigabe** plus die Handlungen, die es schon gibt:
-`ask` → `order` → `invoice` → Zahllink → Webhook. Keine Reservierung, kein
-`CheckoutIntent`, kein Shop-eigener Pfad. Sind die Stücke im Moment der Freigabe weg,
-meldet sie es — wie bei jedem anderen Auftrag (§12.6a).
-
-#### Wo die übrigen Schritte des Order-to-Cash stehen
-
-**Kommissionierung und Versand sind Bewegen-Module** *vor* dem Verkauf-Modul (§9.8); eine
-Spedition ist ein **Einkauf** (§9.9). Das Verkauf-Modul bekommt dafür **keine** Stufe.
-**ATP** gibt es bewusst nicht: die Freigabe *ist* die Verfügbarkeitsprüfung, und
-Reservierungen gibt es im System nirgends.
-
-### 9.11a Das Geld — eine Zeile am Beleg, keine vierte Stufe
-
-**Es gibt keine Forderungs-Tabelle.** *Offen* ist eine Subtraktion, *fällig* eine Addition,
-*überfällig* beides zusammen (`services/payments`):
-
-```
-offen      = Belegsumme − Gutschriften − Zahlungen
-fällig     = Zusagedatum + Zahlungsfrist
-überfällig = fällig verstrichen  UND  offen > 0
-```
-
-Eine Spalte «offener Betrag» wäre die zweite Wahrheit: sie müsste bei jeder Zahlung, jeder
-Gutschrift und jeder Mengenklärung nachgezogen werden, und die eine vergessene Stelle
-fällt erst auf, wenn jemand mahnt.
-
-**Ein negativer offener Betrag ist kein Fehler, sondern eine Aussage**: dann schulden
-**wir**.
-
-**Zwei Arten, weil zwei Dinge Verschiedenes bedeuten:** eine `payment`-Zeile heisst «Geld
-ist geflossen» (negativ = zurück, also eine Erstattung), eine `credit`-Zeile «die Forderung
-wird gemindert, ohne dass Geld fliesst» (Gutschrift, Kulanz). Ohne die Unterscheidung
-liesse sich «wie viel hat der Kunde wirklich gezahlt» nicht mehr beantworten — und eine
-Retoure sähe aus wie eine offene Rechnung.
-
-**Ware und Geld bleiben entkoppelt**, und das ist keine Nachlässigkeit: eine Gutschrift
-ohne Rücknahme ist Kulanz, eine Rücknahme ohne Gutschrift ist Garantie. Gekoppelt wäre
-weder das eine noch das andere abbildbar.
-
-**Der Weg des Geldes ist ein Feld, kein Modell.** Überweisung und Karte schreiben denselben
-Datensatz über dieselbe Funktion (`payments.record`) — bei der einen ruft ein Mensch, bei
-der anderen der Webhook des Zahlungsdienstes. Ein Provider-Rahmen mit zwei
-Implementierungen wäre eine Abstraktion über einer Zeile.
-
-**Eine Referenz gehört zu genau EINER Zahlung im Haus.** Am selben Beleg ist sie darum
-**idempotent** — der Zahlungsdienst stellt seine Meldungen mehrfach zu, und ein Mensch
-erfasst denselben Kontoauszug auch schon mal zweimal; zurück kommt die bereits gebuchte
-Zeile, kein Fehler. An einem **anderen** Beleg ist sie dagegen ein Irrtum, und er wird
-**genannt** (409 mit der Auftragsnummer, an der sie schon hängt).
-
-Die Unterscheidung fehlte, und ohne sie fand die Prüfung die **fremde** Zeile und gab sie
-zurück: der Aufrufer bekam `200`, an *seinem* Beleg war nichts gebucht, der offene Betrag
-stand unverändert da — und nichts sagte, warum. Ein stiller Nicht-Effekt ist schlimmer als
-ein Fehler: die Zahl auf dem Bildschirm sieht aus wie eine Auskunft und ist keine. Wer
-wirklich zweimal buchen muss, unterscheidet die Referenzen oder lässt sie leer — dann
-greift die Idempotenz gar nicht.
-
-**`pay` hat darum keine Stufe** (wie `buy`, §9.9): Geld fliesst, sobald zugesagt ist — und
-auch noch, wenn längst geliefert **oder storniert** ist. Eine Anzahlung auf eine stornierte
-Bestellung muss erstattet werden können; wer das verbietet, baut eine Sackgasse.
-
-> **Und das ERP nennt Betrag und Währung, der Dienst kassiert.** Im Vorgängersystem stand
-> es umgekehrt («Stripe ist Quelle der Wahrheit»), und daraus kam fast die ganze
-> Komplexität: Snapshot-Spalten an vier Tabellen, ein Webhook, der Aufträge erzeugte, ein
-> `CheckoutIntent` mit Reservierungen und ein Aufräumer für verlassene Warenkörbe. Hier
-> schreibt der Webhook **eine Zeile Geld** und sonst nichts.
-
-**Keine Reservierung, nirgends.** Ein Shop-Kauf ist nichts anderes als eine
-**Auftragsfreigabe**: derselbe Aufruf, den der Vertrieb macht. Sind die Stücke im selben
-Moment weg, meldet die Freigabe es — wie immer.
+#### Selbst gebracht oder eingekauft — der Beleg ist ENTFALLEN
+
+Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft**. Das
+Bewegen-Modul trug dafür einmal denselben Einkaufs-Beleg wie das Beschaffen-Modul
+(`Module.buys = BUY_IF_CHOSEN`), samt Schalter «Selbst ↔ Beschaffen» an der
+Ausführungsstelle. Die Einsicht dahinter war richtig — *eine Sendung aufzugeben IST ein
+Einkauf*: der Spediteur ist ein Lieferant, der Tarifvergleich ist der Angebotsspiegel.
+
+**Mit den Handels-Modulen ist der Beleg gegangen** (§9.9a), und der Schalter mit ihm. Was
+bleibt, ist die richtigere Form derselben Aussage: wer eine Spedition beauftragt, legt
+einen **Geldvorgang** daneben (§9.12) — dieselbe Maschine, ohne die Bindung an Ware, und
+mit demselben Angebotsspiegel. Das Bewegen-Modul selbst weiss davon nichts mehr; es
+bewegt.
+
+**Die frühere Liste `manuell · paket · fracht` bleibt ebenso entfallen** — *Paket* und
+*Fracht* sind keine zwei Arten, sondern zwei **Angebote** desselben Einkaufs; das
+entscheidet der Tarif, nicht der Modellierer. Ein Roboter, der es fährt, ist «selbst»:
+unser Gerät, keine Rechnung.
+
+
+### 9.9 Das Modul «Ausliefern» — das Stück gehört jetzt jemand anderem
+
+> **Es ist das, was vom Verkaufs-Modul übrig blieb, nachdem der BELEG herausgenommen war.**
+> Drei Stufen, Angebot, Zusage, Preise, Partnerliste, Storno — das alles war nicht falsch,
+> sondern **doppelt**: es ist der Geldvorgang (§9.12), und den gibt es einmal für beide
+> Richtungen. Was kein Geldvorgang sagen kann, ist die eine Aussage, die hier bleibt:
+> *dieses Stück ist nicht mehr unseres.*
+
+Ein Scan, ein Statuswechsel auf `Verkauft`. **Sonst nichts** — keine Konfiguration, kein
+Feld, kein Partner. An wen geliefert wird, steht im Geldvorgang desselben Auftrags; was
+geliefert wird, sagen die Einzelinstanzen davor; wann, sagt der Log.
+
+**Der Scan ist die Bestätigung.** Man liefert nicht blind aus: was hinausgeht, wird am
+Etikett verifiziert — dieselbe Regel wie beim Verschrotten
+(`Module.requires_verification`).
+
+#### Es ist ein AUSGANG — und die Kettenregel lässt gar nichts anderes zu
+
+`Module.terminal` beantwortet genau eine Frage: *verlassen ALLE ankommenden Stücke den
+Auftrag hier?* Beim Ausliefern **ja**.
+
+*Die erste Fassung stand auf `terminal = False`, mit der Begründung «danach darf noch ein
+Zertifikat oder eine Zahlung kommen» und dem Verweis auf den Verbrauch (der `Verbaut`
+setzt und kein Ausgang ist). Beides war falsch, und die **Kettenregel** (§4.3) hat es
+sofort gemeldet: beim Verbrauch bleiben die durchlaufenden Stücke auf `Im Prozess` — nur
+die verbrauchten Komponenten wechseln, und die treten dort erst ein. Hier wechselt
+**jedes** ankommende Stück. Ein Modul dahinter erwartete `Im Prozess` und bekäme
+`Verkauft`; stünde die Auslieferung am Schluss, bräche die Kette am Ende-Objekt. **Ein
+nicht-terminales Modul, das den Zustand aller Stücke ändert, kann es gar nicht geben.***
+
+**Was danach kommen müsste, kommt davor**: das Zertifikat wird vor der Übergabe erfasst
+(auch fachlich — man prüft, bevor man liefert), und der Geldvorgang steht ebenfalls davor.
+Er verliert dadurch **nichts**: seine Rechnungs- und Zahlungszeilen hängen an `can` und
+nicht daran, ob das Modul gerade dran ist (§9.12) — ein Zahlungsziel läuft nach der
+Lieferung weiter.
+
+#### Und `Verkauft` bleibt trotzdem umkehrbar
+
+`Module.terminal` und `Status.terminal` sind **zwei verschiedene Fragen**. Eine Retoure ist
+real: ein ganz gewöhnlicher Auftrag greift das Stück, und **das Greifen IST die
+Rücknahme** — wie beim Sperren, dessen Modul ebenfalls ein Ausgang ist. Weil sein Start
+vom Regelstart abweicht, ist die Retoure **automatisch** eine dokumentierte Abweichung
+(§12.2), ohne eine Zeile dafür. Kein Retouren-Modul, kein «zurücknehmen»-Endpunkt.
+
+**Der Ort fällt weg** — ebenfalls ohne eine Zeile hier: `Verkauft` zählt zur Historie
+(`Status.stock`), und `process._pass` räumt den Ort für jeden solchen Zustand. Wo das
+Stück beim Kunden liegt, ist nicht unsere Auskunft.
+
+#### Und warum ein Transport dieses Modul NICHT ist
+
+Ein Muster an den Kunden, ein Computer beim Mitarbeiter, eine Konsignation: dort wechselt
+der **Ort**, und nichts ist verkauft. Dafür gibt es «Bewegen» (§9.8). Der Unterschied ist
+keine Regel und keine Automatik, die raten müsste — es sind zwei Module, und der
+Modellierer wählt beim Bauen des Prozesses. Eine Ableitung «Ort ausserhalb ⇒ verkauft»
+wäre in genau diesen drei Fällen still falsch.
+
+Wächter: `tests/test_delivery_module.py`.
+
+---
+
+### 9.9a Die Module «Beschaffen» und «Verkauf» sind ENTFERNT
+
+Sie sind nicht abgeschaltet, sondern gelöscht — mit ihrem Beleg, ihren Tabellen und ihren
+Diensten (`domain/procurement`, `domain/money`, `services/purchase`, `services/invoices`,
+`services/payments`, `models/purchase`, `models/invoice`, `models/payment`,
+`components/erp/purchase-work.tsx`).
+
+**Der Grund ist keine Geschmacksfrage, sondern eine Doppelung.** Der Beleg dieser Module
+war Angebot → Zusage → Erfüllung mit Angebotsspiegel, Rechnungen, Zahlungen und Storno.
+Genau das ist der **Geldvorgang** (§9.12) — nur ohne die Bindung an Ware, und damit auch
+für Miete, Lohn, Gebühr, Spesen und eine eingekaufte Spedition brauchbar. Zwei Maschinen
+für dasselbe Geschäft laufen beim ersten neuen Verb auseinander.
+
+**Was an ihre Stelle tritt:**
+
+| war | ist jetzt |
+|---|---|
+| «Beschaffen»: anfragen, bestellen, Wareneingang | ein **Geldvorgang** (Ausgabe) plus die Module, die das Material physisch bewegen |
+| «Verkauf»: anbieten, zusagen, liefern | ein **Geldvorgang** (Einnahme) plus **«Ausliefern»** (§9.9) |
+| Einkauf **in** einem Bewegen-Modul (Spedition) | ein Geldvorgang neben dem Bewegen-Modul |
+| Rechnungen und Zahlungen am Beleg | die Geld-Zeilen des Vorgangs (§9.12) |
+
+**Stripe ist geblieben** (`services/stripe_pay`, `docs/stripe-setup.md`): der Webhook
+schreibt jetzt eine Geld-Zeile am **Vorgang** statt am Beleg. Heute ohne Bedienelement —
+der Zahllink-Knopf hing an der Beleg-Karte —, aber vollständig verdrahtet, damit die
+Anbindung nicht ein zweites Mal hergeleitet werden muss.
+
+Die Tabellen `purchases`, `invoices` und `payments` bleiben stehen (Zwei-Deploy-Regel,
+`docs/backlog.md`): eine Spalte, die niemand liest, kostet nichts; ein Tabellen-Drop
+kostet die Vergangenheit.
 
 
 ### 9.12 Das Modul «Zahlung» — Geld mit einer zweiten Partei
 
-> **Status: gebaut, eigenständig, und bewusst NEBEN «Beschaffen»/«Verkauf».** Es teilt mit
-> ihnen keine Zeile Code — weder Tabelle noch Dienst noch Vokabel. Wer die beiden alten
-> Module eines Tages ersatzlos löscht, fasst hier nichts an; ein Quelltext-Wächter hält es
-> so (`test_deal_module.test_the_money_module_shares_no_line_with_the_purchase_document`).
+> **Status: gebaut — und heute die EINZIGE Maschine für Geld mit einer zweiten Partei.**
+> Es entstand bewusst **neben** «Beschaffen»/«Verkauf», ohne eine Zeile mit ihnen zu
+> teilen: weder Tabelle noch Dienst noch Vokabel. Genau das hat sich ausgezahlt — die
+> beiden Module sind inzwischen **ersatzlos gelöscht** (§9.9a), und hier musste dafür
+> nichts angefasst werden. Ein Quelltext-Wächter hält die Trennung weiterhin.
 
 #### Die Frage, aus der es entstand
 
@@ -2225,7 +1860,7 @@ und ausgeliefert wird mit «Bewegen», ausgesondert mit «Aussondern».
 der richtige: sobald dieses Modul auch Ware bewegte, bräuchte es für jede Kombination aus
 Geld und Ware wieder einen eigenen Fall — genau die Lage, aus der es entstanden ist.*
 
-#### Vier Angaben beim Definieren (`domain/modules.Zahlung`)
+#### Drei Angaben beim Definieren (`domain/modules.Zahlung`)
 
 | | |
 |---|---|
@@ -2239,8 +1874,7 @@ Artikelnummer, sein Shop-Link oder ein Satz.
 **Keine Menge** (sie ist die Zahl der Einzelinstanzen davor), **kein Artikel** (den tragen
 die Stücke), **kein Termin** (ableitbar), **kein Betrag** (beim Modellieren steht er nicht
 fest — ein hier getippter wäre bei der zweiten Ausführung falsch, und zwar stillschweigend)
-und **keine Bestellangabe** (wer bei wem unter welcher Nummer bestellt, ist eine
-Eigenschaft der Gegenpartei bzw. des Artikels, nicht dieses Schritts).
+und **kein Steuersatz** (Testnotiz #851 — siehe unten).
 
 ►►► **Ein Pflichtfeld statt zweier optionaler.** ◄◄◄
 
@@ -2310,8 +1944,21 @@ drei Achsen (Ware · Forderung · Geld) muss von der Steuer wissen. Netto und St
 **Der Satz hängt an der Sache, nicht am Papier.** Sechs Wellen zu 8.1 % und eine Ausfuhr
 zu 0 % stehen auf demselben Beleg; ein Satz je Beleg wäre bei jedem gemischten Geschäft
 falsch — und zwar stillschweigend, weil die Summe trotzdem aufgeht. Er steht darum an der
-**Position** (`DealLine.vat`), und was am Modul steht, ist nur die **Vorgabe**
-(`Zahlung.VAT_RATE`), mit der eine neue Position beginnt.
+**Position** (`DealLine.vat`).
+
+►►► **Und am MODUL steht er gar nicht** (Testnotiz #851). ◄◄◄
+
+Er stand dort einmal als «Vorgabe jeder neuen Position» (`Zahlung.VAT_RATE`) — und war
+damit eine Eigenschaft des **Moduls**: eine Vorlage, die für jeden künftigen Auftrag
+denselben Satz behauptet, obwohl er an der **Sache** hängt und die erst feststeht, wenn
+ein Auftrag läuft. Ein Vorgabewert, der bei der Hälfte der Aufträge überschrieben werden
+muss, ist kein Komfort, sondern die Zahl, die stehenbleibt, wenn es niemand tut.
+
+Gefragt wird er darum **je Position an der Ausführungsstelle**; vorbelegt ist der
+Normalsatz (`deal.DEFAULT_VAT`), und der Katalog reist mit dem Vorgang
+(`DealEmbed.vat_rates`) statt über den Modul-Katalog — ein zweiter Weg zur selben Liste
+wäre die Stelle, die beim nächsten Satzwechsel jemand vergisst. Ein Wert, der trotzdem
+in der Konfiguration ankommt, wird **verworfen**.
 
 **Gerundet wird je Satz auf der SUMME** (`vat_split`), nie je Position aufsummiert:
 
@@ -2355,8 +2002,69 @@ Quartal ergäbe beim zweiten Lauf andere Zahlen. Der **Storno spiegelt sie** mit
 Vorzeichen — sonst nähme er den Betrag zurück und die Steuer nicht.
 
 **Bewusst nicht gebaut und benannt:** Rabatt (er ist eine Position mit negativem Preis, und
-ob er das bleiben soll, ist eine fachliche Frage), Fremdwährung, QR-Rechnung und PDF. Der
-Beleg lebt **online**; ein Papierformat ist eine Darstellung, kein Datenmodell.
+ob er das bleiben soll, ist eine fachliche Frage), QR-Rechnung und PDF. Der Beleg lebt
+**online**; ein Papierformat ist eine Darstellung, kein Datenmodell.
+
+#### Das Leistungsdatum kommt aus dem PROZESS
+
+**MWSTG Art. 26 Bst. c** verlangt es auf der Rechnung, und bei einem Satzwechsel
+entscheidet es, welcher Satz gilt. Das **Rechnungsdatum ist es nicht**: eine Rechnung, die
+zwei Wochen später geschrieben wird, verschöbe damit die Steuerperiode.
+
+Der Auftrag weiss es (`deal.service_day`): es ist der Tag, an dem die Stücke dieses Modul
+**erreicht** haben — gelesen wird darum das `step`-Ereignis des **Vorgängers**, nicht das
+eigene (ein `step` an *diesem* Modul heisst «hier fertig»). Steht das Modul am Anfang, ist
+die Ankunft der **Start** des Auftrags.
+
+**Abgeleitet, nicht gespeichert** — eine Spalte daneben wäre die zweite Wahrheit. Und
+**vorbelegt, nicht erzwungen**: ein Mensch weiss von Teilleistungen, von denen der Log
+nichts weiss; eine gesendete Angabe gewinnt. `None` heisst «hier ist noch nichts
+angekommen» — dann gilt der Buchungstag; ein erfundenes Datum wäre schlimmer als keines.
+
+#### Die Währung — EINE je Vorgang, gebunden mit der Zusage
+
+**Ein Betrag ohne Währung ist keine Zahl.** «1000» ist tausend Franken oder tausend Yen,
+und das sind zwei sehr verschiedene Beträge. Solange nur eine Währung vorkommt, fällt es
+nicht auf — und beim ersten EU-Kunden ist es still falsch.
+
+**Eine je Vorgang, nicht je Zeile** (`deals.currency`, ISO 4217): zwei Währungen auf einem
+Beleg gibt es nicht, das wären zwei Belege. Vorbelegt ist die Währung des **Betreibers**
+(`company_settings.currency` → `deal.house_currency`) — der Normalfall, und ihn zu tippen
+wäre eine Eingabe mit genau einer richtigen Antwort.
+
+**Änderbar bis zur Zusage, danach nicht mehr** — und das ist keine zusätzliche Regel,
+sondern dieselbe Tabelle: `currency` steht in `ACTIONS[OFFER]`, also fehlt der Knopf
+danach von selbst und `apply` weist ihn ab (`can` ist Auskunft **und** Tor). Draussen liegt
+ab der Zusage eine Zusage über *diese* Summe in *dieser* Währung; sie nachträglich
+umzuschreiben hiesse, die Zahl stehen zu lassen und ihre Bedeutung zu ändern.
+
+►►► **Die Nachkommastellen sind der Punkt, den man vergisst** (`domain/currency`). ◄◄◄
+
+Fast alle Währungen haben zwei — und darum schreibt man `f"{x:.2f}"` bzw. `NUMERIC(x, 2)`
+und merkt nie, dass es falsch ist. **JPY und KRW haben null**, **KWD hat drei**. Ein
+Yen-Betrag mit zwei Nachkommastellen ist kein Rundungsfehler, sondern ein Betrag, den es
+nicht gibt; ein dreistelliger, auf zwei geschnitten, verliert still seine letzte Stelle —
+in der Richtung, in der die Zahl **kleiner** wird.
+
+Die Stelligkeit hängt darum an **einer** Stelle (`currency.minor_units` / `quantum`), und
+sie gilt auf **vier** Ebenen: beim Parsen (`deal.amount`), beim Rechnen (`_round`, das an
+`currency.round_to` delegiert — **kaufmännisch**, denn `quantize` rundet ohne Angabe
+statistisch und wiche damit von der Buchung ab), beim Ausgeben (`currency.money`) und in
+der **Spalte** (`NUMERIC(18, 4)`, Migration 128 — vier deckt jede ISO-4217-Währung ab).
+Zur Laufzeit reist sie mit den Daten (`DealEmbed.currency_decimals`), damit die Anzeige
+nicht rät.
+
+**Umgerechnet wird nichts, und gemischt wird nichts.** Ein Kurs ist eine Angabe mit einem
+Datum, einer Quelle und einer buchhalterischen Bedeutung (Stichtagskurs,
+Durchschnittskurs, Bewertung zum Bilanzstichtag) — das ist Buchhaltung, nicht ein Feld in
+einem Prozessmodul. Wer umrechnet, ohne zu sagen *wann* und *woher*, erfindet Zahlen.
+
+Der Katalog ist bewusst **kurz** (die Währungen, in denen ein Schweizer KMU wirklich
+fakturiert, plus die drei null- und dreistelligen als Beleg dafür, dass die Regel keine
+Behauptung ist); eine neue Währung ist **eine Zeile**. In der Oberfläche steht sie **im
+Kopf des Vorgangs**, nicht an jeder Zahl — fünfzehnmal «CHF» neben fünfzehn Beträgen wäre
+Fläche statt Struktur; genannt wird sie beim **Total** und beim **offenen Betrag**, den
+Zahlen, die abgeschrieben und überwiesen werden.
 
 #### Ein Vorgang hat zwei Parteien
 
@@ -2413,7 +2121,8 @@ Gegenpartei «Auftrag stornieren» an einem Knopf, den es für sie nie gibt.
 ##### Eine Frage, zwei Leser: Feed und Detail
 
 Beteiligt ist, wer an einem **der beiden** Module mit Aussenwirkung vorkommt
-(`orders._involved` = `purchase.mine` ∪ `deal.mine`). Der Feed fragte einmal nur den
+(`orders._involved` = `deal.mine`; es war einmal eine Vereinigung mit dem
+Beschaffungs-Beleg). Der Feed fragte einmal nur den
 Beschaffungs-Beleg: die Gegenpartei eines Geldvorgangs hatte ERP-Zugang, sah ihren Auftrag
 aber in **keiner Liste** – erreichbar nur über die direkte Adresse. Zwei Ableitungen
 derselben Frage laufen genau so auseinander.
@@ -2653,7 +2362,7 @@ Zwei Ableitungen am Schritt, beide aus Angaben, die ohnehin dastehen — und kei
 nach dem Modultyp:
 
 * **`open_actions`** (Testnotiz #821): steht an diesem Modul noch etwas an? Gelesen aus
-  `deal.can` bzw. `purchase.can`, also aus derselben Tabelle, die auch das Tor ist. Die
+  `deal.can`, also aus derselben Tabelle, die auch das Tor ist. Die
   Zeichnung dämpft ein Modul nur, wenn es **nicht dran ist und nichts mehr zu tun hat** —
   vorher lag ein abgeschlossener Auftrag bei 55 % Deckkraft da, während seine Geld-Knöpfe
   funktionierten. Eine erfundene Sperre, nur in Farbe.

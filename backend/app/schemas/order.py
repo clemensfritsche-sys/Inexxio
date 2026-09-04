@@ -16,7 +16,7 @@ from ..domain import modules, sampling
 from .deal import DealEmbed
 from .instance import StockState
 from .place import PlaceRef
-from .process import ModuleFacts, ModuleInput, PurchaseEmbed
+from .process import ModuleFacts, ModuleInput
 
 
 class UnitPick(BaseModel):
@@ -102,20 +102,6 @@ class OrderValidation(BaseModel):
     )
 
 
-class SupplierOption(BaseModel):
-    """Ein wählbarer Lieferant – **Objektnummer und Name**, sonst nichts.
-
-    Dieselbe Form wie jede andere Referenz im Haus (``ObjectSelect``), damit die
-    Oberfläche kein zweites Auswahlfeld braucht.
-
-    **Angeboten wird nur, wer Lieferant ist** – dieselbe Haltung wie bei
-    ``places.search``: eine Auswahl, die der Dienst danach abweist, ist keine.
-    """
-
-    object_id: int
-    name: str = ""
-
-
 class ProcessStepResponse(ModuleFacts):
     """Ein Modul im laufenden Auftrag.
 
@@ -152,16 +138,7 @@ class ProcessStepResponse(ModuleFacts):
     #: beiden Fälle auseinanderhalten, sonst sieht ein offenes Ziel aus wie ein Fehler.
     #: Bei jedem anderen Modultyp schlicht leer.
     target: Optional[PlaceRef] = None
-    #: **Der Beschaffungs-Beleg** – Stufe, Angebotszeilen, Bestellung
-    #: (``services/purchase``). ``None`` bei jedem anderen Modultyp; die Oberfläche
-    #: braucht damit keine Fallunterscheidung nach dem Modul, genau wie bei
-    #: ``transports`` und ``needs``.
-    purchase: Optional[PurchaseEmbed] = None
-    #: **Der Geldvorgang** – Richtung, Stufen, Zusage und die Geld-Zeilen
-    #: (``services/deal``). ``None`` bei jedem anderen Modultyp; die Oberfläche braucht
-    #: damit keine Fallunterscheidung nach dem Modul, genau wie bei ``needs``.
-    #:
-    #: **Bewusst neben ``purchase`` und ohne Bezug zu ihm**: das Modul «Zahlung» hat
+    #: **Der Geldvorgang** (``services/deal``): das Modul «Zahlung» hat
     #: seine eigene Maschine, damit «Beschaffen» und «Verkauf» eines Tages ersatzlos
     #: gelöscht werden können, ohne dass hier eine Zeile fällt.
     deal: Optional[DealEmbed] = None
@@ -243,16 +220,13 @@ class ProcessStepResponse(ModuleFacts):
         ihre Knöpfe funktionierten.
 
         **Abgeleitet, nicht gespeichert – und aus derselben Tabelle, die auch das Tor
-        ist**: ``can`` am Beleg bzw. am Vorgang. Eine zweite Herleitung («ist der Typ
+        ist**: ``can`` am Geldvorgang. Eine zweite Herleitung («ist der Typ
         ``zahlung``?») liefe beim nächsten Modul auseinander, und eine Heuristik der
         Oberfläche wäre eine dritte Wahrheit.
 
         Das aktive Modul fragt hier gar nicht – es ist ohnehin nie ausgegraut.
         """
-        return bool(
-            (self.purchase.can if self.purchase else [])
-            or (self.deal.can if self.deal else [])
-        )
+        return bool(self.deal.can if self.deal else [])
 
 
 class StepWork(BaseModel):

@@ -102,20 +102,12 @@ _COLUMN_SAFETY_NET = (
     ("instance_units", "place_object_id", "BIGINT"),
     # Der Träger (Migration 112) – dieselbe Tabelle, dieselbe Ausfallklasse.
     ("instance_units", "place_unit_id", "BIGINT"),
-    # Was beschafft wird, sagt der Prozess (Migration 116): die Zeilen des Belegs stehen
-    # an der BESTEHENDEN Tabelle ``purchases``. Das Modell kennt sie, also scheitert ohne
-    # sie **jeder** Lesezugriff auf einen Beschaffungs-Beleg – dieselbe Ausfallklasse wie
-    # ``purchases.is_active`` (Migration 114), nur eine Spalte weiter.
-    ("purchases", "ordered_lines", "JSONB"),
-    # Die Sendungsnummer (Migration 117) – dieselbe Tabelle, dieselbe Ausfallklasse.
-    ("purchases", "tracking", "VARCHAR(200)"),
-    # Die Richtung des Belegs (Migration 122): ``buy`` · ``sell``. Ohne sie scheitert
-    # jeder Lesezugriff auf einen Beleg, und damit jede Auftrags-Anzeige, die eines der
-    # handelnden Module enthält. Der Default macht aus jedem bestehenden einen Einkauf –
-    # was er ist.
-    ("purchases", "direction", "VARCHAR(10) NOT NULL DEFAULT 'buy'"),
-    # Der Tag der Zusage (Migration 122) – aus ihm folgt die Fälligkeit.
-    ("purchases", "committed_on", "DATE"),
+    # ►►► **Die Netze für ``purchases`` sind mitgegangen** (September 2026). ◄◄◄
+    #
+    # Sie schützten Lesezugriffe auf den Beschaffungs-Beleg – und den gibt es nicht mehr:
+    # Beschaffen und Verkauf sind ersatzlos entfernt, das Geld steht im «Zahlung»-Modul.
+    # Ein Netz für eine Spalte, die kein Modell mehr liest, schützt nichts; die **Tabelle**
+    # bleibt trotzdem stehen (Zwei-Deploy-Regel, ``docs/backlog.md``).
     # **Der Geldvorgang hat zwei Parteien** (Migration 125): der Angebotsspiegel steht an
     # der BESTEHENDEN Tabelle ``deals``. Ohne ihn scheitert jeder Lesezugriff auf einen
     # Vorgang – und damit jede Auftrags-Anzeige, in der ein «Zahlung»-Modul steht.
@@ -132,6 +124,27 @@ _COLUMN_SAFETY_NET = (
     # Rechnung keine, und das Leistungsdatum entscheidet bei einem Satzwechsel über beides.
     ("deal_entries", "vat", "JSONB"),
     ("deal_entries", "service_date", "DATE"),
+    # **Ein Betrag hat eine Währung** (Migration 128): ohne sie ist «1000» tausend Franken
+    # oder tausend Yen. Vorgabe ``CHF``; wer in einer anderen fakturiert, sagt es am
+    # Vorgang – bis zur Zusage.
+    ("deals", "currency", "VARCHAR(3) NOT NULL DEFAULT 'CHF'"),
+)
+
+#: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
+#:
+#: Die vierte Lücke zwischen den Netzen – und sie ist die unangenehmste, weil sie
+#: **nichts** meldet: eine fehlende Tabelle legt ``create_all`` an, eine fehlende Spalte
+#: das Netz darüber, eine gelöste ``NOT NULL`` das darunter. Eine Spalte mit zu kleiner
+#: Skala nimmt den Wert **an** und rundet ihn weg. Bei ``NUMERIC(14, 2)`` und einem
+#: dreistelligen Betrag (KWD) fehlt danach die letzte Stelle, und niemand sieht es.
+#:
+#: Dieselbe Lehre wie bei den Indizes (Testnotiz #778): **eine Typänderung, die nur in
+#: einer Migration steht, erreicht die dev-Datenbank nie** – dort läuft kein
+#: ``alembic upgrade``. Geprüft wird vorher, damit nicht bei jedem Start eine Tabelle
+#: umgeschrieben wird.
+_NUMERIC_SAFETY_NET: tuple[tuple[str, str, int, int], ...] = (
+    ("deals", "amount", 18, 4),
+    ("deal_entries", "amount", 18, 4),
 )
 # Für ``instances`` steht hier bewusst NICHTS mehr: die Tabelle wird von Migration 102
 # neu aufgebaut. Ein Netz-Eintrag würde eine gerade entfernte Spalte wieder anlegen –
@@ -157,11 +170,9 @@ _NULLABLE_SAFETY_NET: tuple[tuple[str, str], ...] = (
     # der Zustand eines Artikels ist die Projektion von ``replaced_by_id``. Die Spalte hat
     # ihr Mapping verloren; gedroppt wird sie im Folge-Deploy.
     ("articles", "status"),
-    # **Eine Gutschrift ist eine negative Rechnung** (Migration 123): ``payments.kind`` hat
-    # sein Mapping verloren, gedroppt wird es im Folge-Deploy. Solange die Spalte steht und
-    # ``NOT NULL`` ist, liefe **jedes** Insert auf – der Python-Default ist mit dem Feld
-    # gegangen. Dieselbe Falle wie bei ``purchases.quantity`` (Migration 115).
-    ("payments", "kind"),
+    # ``payments``/``invoices``/``purchases`` haben mit dem Handel ihr Mapping verloren –
+    # es schreibt niemand mehr hinein, also kann auch kein Insert an einer ``NOT NULL``
+    # auflaufen. Die Tabellen bleiben stehen (Zwei-Deploy-Regel).
 )
 
 _DROP_COLUMN_SAFETY_NET = (
@@ -215,11 +226,6 @@ _DROP_COLUMN_SAFETY_NET = (
     ("company_settings", "legal_documents"),
     ("company_settings", "default_receiving_location_id"),
     ("user_profiles", "stripe_customer_id"),
-    ("purchases", "reference"),
-    ("purchases", "quantity"),
-    ("purchases", "article_id"),
-    ("purchases", "due_date"),
-    ("purchases", "ordered_for"),
 )
 # Die Einträge für orders / order_lines / purchase_orders / sales / shipments / documents /
 # inspections / article_process_steps sind mit ihren Tabellen entfallen (Migration 102).
@@ -366,6 +372,16 @@ def _ensure_columns() -> None:
                     conn.execute(text(
                         f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}"
                     ))
+            for table, col, precision, scale in _NUMERIC_SAFETY_NET:
+                if table not in tables:
+                    continue
+                found = {c["name"]: c for c in insp.get_columns(table)}.get(col)
+                if found is None or getattr(found["type"], "scale", None) == scale:
+                    continue
+                conn.execute(text(
+                    f"ALTER TABLE {table} ALTER COLUMN {col} "
+                    f"TYPE NUMERIC({precision}, {scale})"
+                ))
             for table, col in _NULLABLE_SAFETY_NET:
                 if table in tables and col in {c["name"] for c in insp.get_columns(table)}:
                     conn.execute(text(

@@ -98,7 +98,7 @@ function reversedRef(d: Filled, entryId: number): string {
  */
 function taxTip(d: Filled, e: Filled['entries'][number]): string {
   const parts = (e.vat ?? []).map(
-    (v) => `${d.vat_label} ${v.rate} % ${formatAmount(v.tax)} (netto ${formatAmount(v.net)})`);
+    (v) => `${d.vat_label} ${v.rate} % ${formatAmount(v.tax, d.currency_decimals)} (netto ${formatAmount(v.net, d.currency_decimals)})`);
   if (e.service_date) {
     parts.push(`${d.service_date_label} ${localDate(e.service_date)}`);
   }
@@ -138,7 +138,7 @@ export function DealWork({ deal, busy, active = true, onAction, children }: {
 
   return (
     <div className="flex flex-col">
-      <Head d={d} />
+      <Head d={d} busy={busy} active={active} onAction={onAction} />
       <Goods d={d} />
 
       <Row label={d.stages[0]?.label ?? ''} done={!!d.stages[0]?.done}
@@ -285,7 +285,52 @@ function Row({ label, done, active, last, children }: {
  * in einer getönten Marke wie jedes Modul-Symbol im Haus und ist gross genug, um es zu
  * erkennen, ohne hinzuzeigen.
  */
-function Head({ d }: { d: Filled }) {
+/**
+ * ►►► **In welcher Währung wird gehandelt?** — EINE Angabe je Vorgang. ◄◄◄
+ *
+ * Sie steht im **Kopf** und nicht an jeder Zahl: ein Beleg hat *eine* Währung (zwei wären
+ * zwei Belege), also ist sie eine Eigenschaft des Vorgangs und keine Spalte in der
+ * Tabelle. Fünfzehnmal «CHF» neben fünfzehn Zahlen wäre Fläche statt Struktur.
+ *
+ * **Ob man sie noch wählen darf, sagt `can`** – dieselbe Tabelle, die auch das Tor ist:
+ * ab der Zusage liegt draussen eine Zusage über *diese* Summe in *dieser* Währung. Der
+ * Wert **verschwindet dann nicht**, er wird zur Auskunft mit dem Grund im Hover – sonst
+ * beantwortet nichts mehr die Frage, worin dieser Beleg lautet.
+ *
+ * **Ein `<select>` ist hier richtig**: Währungen sind eine endliche Aufzählung, keine
+ * Referenz auf einen Datensatz (die Regel des Hauses erlaubt genau das). Der Katalog
+ * kommt vom Server – eine zweite Liste im Browser liefe beim ersten neuen Code
+ * auseinander. **Umgerechnet wird nichts**: ein Kurs hat ein Datum und eine Quelle, und
+ * wer ohne beides umrechnet, erfindet Zahlen.
+ */
+function Currency({ d, busy, active, onAction }: {
+  d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
+}) {
+  if (!may(d, active, 'currency')) {
+    return (
+      <span className="text-[12px] ix-tnum" style={{ color: 'var(--fg-3)', flex: 'none' }}
+        data-tip={`${d.currency_label} – ab der Zusage gebunden: draussen liegt eine `
+          + 'Zusage über diesen Betrag in dieser Währung.'}>{d.currency}</span>
+    );
+  }
+  return (
+    <select className="text-[12px] ix-tnum" aria-label="Währung" disabled={busy}
+      value={d.currency} data-tip={d.currency_label}
+      style={{
+        flex: 'none', padding: '2px 4px', borderRadius: 6, background: 'transparent',
+        border: '1px solid var(--border-1)', color: 'var(--fg-2)',
+      }}
+      onChange={(e) => onAction({ action: 'currency', currency: e.target.value })}>
+      {(d.currencies ?? []).map((c) => (
+        <option key={c.code} value={c.code}>{c.code}</option>
+      ))}
+    </select>
+  );
+}
+
+function Head({ d, busy, active, onAction }: {
+  d: Filled; busy?: boolean; active: boolean; onAction: (body: Action) => void;
+}) {
   const dir = dealDirection(d.direction);
   const Icon = dir.icon;
   return (
@@ -324,6 +369,7 @@ function Head({ d }: { d: Filled }) {
         </span>
       )}
       <span className="flex-1" style={{ minWidth: 0 }} />
+      <Currency d={d} busy={busy} active={active} onAction={onAction} />
       {/* **Die Sperre ist eine Auskunft, keine Warnung.** Sie steht als Eigenschaft
           dieses Moduls da, nicht als Fehler. */}
       {d.prepaid && (
@@ -392,11 +438,12 @@ function Goods({ d }: { d: Filled }) {
                   <span className="text-[11.5px] ix-tnum" style={{ color: 'var(--fg-4)' }}
                     data-tip={`${line.vat} % ${d.vat_label}`}>{line.vat} %</span>
                   <span className="text-[12.5px] ix-tnum" style={{ color: 'var(--fg-3)' }}
-                    data-tip="Einzelpreis netto">{formatAmount(line.price)}</span>
+                    data-tip="Einzelpreis netto">{formatAmount(line.price, d.currency_decimals)}</span>
                   <span className="text-[12.5px] ix-tnum font-semibold"
                     style={{ color: 'var(--fg-1)', minWidth: 74, textAlign: 'right' }}
                     data-tip="Positionssumme netto">
-                    {formatAmount((Number(line.price) * line.quantity).toFixed(2))}
+                    {formatAmount(Number(line.price) * line.quantity,
+                      d.currency_decimals)}
                   </span>
                 </span>
               )}
@@ -647,7 +694,8 @@ function OurOffer({ d, value, onChange }: {
         </div>
         {/* **Was das Angebot kostet, rechnet niemand im Kopf**: dieselbe Regel wie beim
             Server (je Satz auf der Summe) – nur als Vorschau, gebucht wird dort. */}
-        <Sums rows={value.rows} lines={d.lines} label={d.vat_label ?? 'MWST'} />
+        <Sums rows={value.rows} lines={d.lines} label={d.vat_label ?? 'MWST'}
+          decimals={d.currency_decimals} />
       </div>
     </div>
   );
@@ -661,27 +709,36 @@ function OurOffer({ d, value, onChange }: {
  * Summe ab, und eine MWST-Abrechnung kennt keine Rappen-Toleranz. Dieselbe Regel wie im
  * Dienst (`domain/deal.vat_split`) – hier als **Vorschau**, gebucht wird dort.
  */
-function Sums({ rows, lines, label }: {
+function Sums({ rows, lines, label, decimals }: {
   rows: PriceRow[]; lines: Filled['lines']; label: string;
+  /**
+   * ►►► **Die kleinste Einheit DIESER Währung** (ISO 4217). ◄◄◄
+   *
+   * Auch die Vorschau rundet je Währung: ein fest auf zwei Stellen gerundeter
+   * Yen-Betrag wäre hier eine andere Zahl als die, die der Dienst danach bucht – und
+   * die Vorschau hätte genau den einen Zweck verfehlt, den sie hat.
+   */
+  decimals: number;
 }) {
+  const unit = 10 ** decimals;
   const buckets = new Map<string, number>();
   rows.forEach((r) => {
     const qty = lines.find((l) => l.article_id === r.article)?.quantity ?? 1;
-    const net = Math.round(Number(r.price || 0) * qty * 100) / 100;
+    const net = Math.round(Number(r.price || 0) * qty * unit) / unit;
     buckets.set(r.vat, (buckets.get(r.vat) ?? 0) + net);
   });
   let net = 0; let tax = 0;
   buckets.forEach((sum, rate) => {
-    net += sum; tax += Math.round(sum * Number(rate)) / 100;
+    net += sum; tax += Math.round(sum * Number(rate) * unit / 100) / unit;
   });
   if (net === 0 && tax === 0) return null;
   return (
     <div className="flex flex-col gap-0.5 text-[12px] ix-tnum"
       style={{ marginLeft: 'auto', textAlign: 'right', paddingBottom: 2 }}>
-      <span style={{ color: 'var(--fg-4)' }}>Netto {formatAmount(net.toFixed(2))}</span>
-      <span style={{ color: 'var(--fg-4)' }}>{label} {formatAmount(tax.toFixed(2))}</span>
+      <span style={{ color: 'var(--fg-4)' }}>Netto {formatAmount(net, decimals)}</span>
+      <span style={{ color: 'var(--fg-4)' }}>{label} {formatAmount(tax, decimals)}</span>
       <span className="font-semibold" style={{ color: 'var(--fg-1)' }}>
-        {formatAmount((net + tax).toFixed(2))}
+        {formatAmount(net + tax, decimals)}
       </span>
     </div>
   );
@@ -745,7 +802,7 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
         {!declined && quote.amount && (
           <span className="ix-tnum text-[12.5px] font-semibold"
             style={{ color: 'var(--fg-1)', flex: 'none' }}>
-            {formatAmount(quote.amount)}
+            {formatAmount(quote.amount, d.currency_decimals)}
           </span>
         )}
         {/* **Beide Fristen stehen da, und jede sagt, welche sie ist** (#846). Die
@@ -953,7 +1010,7 @@ function Agreed({ d }: { d: Filled }) {
             <>
               <span style={{ color: 'var(--fg-4)' }}>Netto</span>
               <span style={{ color: 'var(--fg-2)', textAlign: 'right' }}>
-                {formatAmount(d.net)}</span>
+                {formatAmount(d.net, d.currency_decimals)}</span>
             </>
           )}
           {/* **Je Satz eine Zeile** – zwei Sätze auf einem Beleg sind der Normalfall
@@ -963,7 +1020,7 @@ function Agreed({ d }: { d: Filled }) {
             <Fragment key={v.rate}>
               <span style={{ color: 'var(--fg-4)' }}>{d.vat_label} {v.rate} %</span>
               <span style={{ color: 'var(--fg-2)', textAlign: 'right' }}>
-                {formatAmount(v.tax)}</span>
+                {formatAmount(v.tax, d.currency_decimals)}</span>
             </Fragment>
           ))}
           {/* **Die Haarlinie geht über BEIDE Spalten** – als eigene Rasterzeile.
@@ -977,9 +1034,13 @@ function Agreed({ d }: { d: Filled }) {
             }} />
           )}
           <span className="font-semibold" style={{ color: 'var(--fg-1)' }}>Total</span>
+          {/* ►►► **Die eine Zahl, die ihre Währung MITSAGT.** ◄◄◄ Nicht jede Zeile –
+              der Beleg lautet auf eine Währung, und sie steht im Kopf. Aber der Total
+              ist die Zahl, die abgeschrieben, zitiert und überwiesen wird; sie ohne
+              ihren Code zu zeigen hiesse, sich auf einen Blick nach oben zu verlassen. */}
           <span className="font-semibold" style={{
             color: 'var(--fg-1)', textAlign: 'right',
-          }}>{formatAmount(d.amount)}</span>
+          }}>{formatAmount(d.amount, d.currency_decimals)} {d.currency}</span>
         </div>
       </div>
 
@@ -1070,12 +1131,12 @@ function Money({ d, busy, onAction }: {
         {!nothingYet && openAmount !== 0 && (
           <span className="ix-tnum text-[12.5px] font-semibold"
             style={{ color: overdue ? 'var(--danger)' : 'var(--fg-1)' }}>
-            {formatAmount(Math.abs(openAmount))}
+            {formatAmount(Math.abs(openAmount), d.currency_decimals)} {d.currency}
           </span>
         )}
         <span className="text-[12px] ix-tnum" style={{ color: 'var(--fg-4)' }}>
-          {formatAmount(d.charged)} berechnet · {formatAmount(d.paid)} bezahlt · von{' '}
-          {formatAmount(d.amount)}
+          {formatAmount(d.charged, d.currency_decimals)} berechnet · {formatAmount(d.paid, d.currency_decimals)} bezahlt · von{' '}
+          {formatAmount(d.amount, d.currency_decimals)}
         </span>
       </div>
 
@@ -1091,7 +1152,7 @@ function Money({ d, busy, onAction }: {
               <span className="ix-tnum font-semibold" style={{
                 color: e.overdue ? 'var(--danger)' : 'var(--fg-1)', flex: 'none',
                 cursor: taxTip(d, e) ? 'help' : undefined,
-              }} data-tip={taxTip(d, e) || undefined}>{formatAmount(e.amount)}</span>
+              }} data-tip={taxTip(d, e) || undefined}>{formatAmount(e.amount, d.currency_decimals)}</span>
               {/* **Die Referenz nimmt den Rest und wird gekappt, das Datum nicht.**
                   Umgekehrt lief der Datumstext über seine eigene Box hinaus – gemessen
                   380,1 px bei 375 px Fenster, und kein Element-Rahmen zeigte es. */}
@@ -1232,7 +1293,17 @@ function Entry({ kind, d, busy, preset, onCancel, onSubmit }: {
   // Gegenpartei, steht die Steuer auf **ihrer** Rechnung, und wir schreiben sie ab.
   const taxed = kind === 'charge';
   const [vat, setVat] = useState(d.vat_rate);
-  const [service, setService] = useState('');
+  // ►►► **Das Leistungsdatum kommt aus dem PROZESS** (Testnotiz #852). ◄◄◄
+  //
+  // «Wann wurde die Leistung erbracht?» weiss der Auftrag: es ist der Tag, an dem die
+  // Stücke dieses Modul erreicht haben (`DealEmbed.service_date`) – und das Rechnungs-
+  // datum ist es **nicht**: eine Rechnung, die zwei Wochen später geschrieben wird,
+  // verschöbe damit die Steuerperiode (MWSTG Art. 26 Bst. c).
+  //
+  // **Vorbelegt, nicht erzwungen**: ein Mensch weiss von Teilleistungen, von denen der
+  // Log nichts weiss. Gerechnet wird es **nicht hier** – der Server leitet es ab, und
+  // eine zweite Formel im Browser wiche ab, während ihre Zahl richtig aussähe.
+  const [service, setService] = useState(d.service_date ?? '');
   return (
     <div className="flex flex-col gap-2" style={{
       padding: 10, borderRadius: 8, border: '1px solid var(--border-1)',
@@ -1256,9 +1327,9 @@ function Entry({ kind, d, busy, preset, onCancel, onSubmit }: {
             </select>
           </div>
         )}
-        {/* **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Bst. c) – leer heisst
-            «wie gebucht», und das ist der Normalfall. Ein vorbelegtes Datum wäre eine
-            Behauptung, die man wegklicken müsste. */}
+        {/* **Wann die Leistung erbracht wurde** (MWSTG Art. 26 Bst. c) – vorbelegt aus
+            dem Prozess (#852). Leer heisst «wie gebucht»: das gilt, solange noch nichts
+            an diesem Modul angekommen ist. */}
         {taxed && (
           <div>
             <Label>{d.service_date_label}</Label>

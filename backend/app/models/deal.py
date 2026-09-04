@@ -63,6 +63,17 @@ class Deal(Base, TimestampMixin):
     #: Konfiguration des Schritts.
     direction: Mapped[str] = mapped_column(String(8), nullable=False, default="out")
 
+    #: ►►► **In welcher Währung?** – ISO 4217, drei Zeichen (``domain/currency``). ◄◄◄
+    #:
+    #: **Eine Währung je Vorgang, nicht je Zeile.** Zwei Positionen in verschiedenen
+    #: Währungen auf einem Papier gibt es nicht – das wären zwei Belege.
+    #:
+    #: Sie steht **am Vorgang** und nicht nur am Unternehmen: die Vorgabe kommt von dort,
+    #: aber ein laufender Vorgang muss auch dann noch sagen können, worin er lautet, wenn
+    #: die Gesellschaft ihre Hauswährung wechselt. Eingefroren mit der **Zusage** – ab
+    #: dort ist eine zweite Partei gebunden.
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="CHF")
+
     #: ``offer`` · ``agreed`` · ``done`` · ``cancelled`` (``domain/deal``).
     stage: Mapped[str] = mapped_column(String(16), nullable=False, default="offer")
 
@@ -73,7 +84,11 @@ class Deal(Base, TimestampMixin):
     #: **Was vereinbart ist.** Nicht «was gefordert» und nicht «was gezahlt» – das sind
     #: die Zeilen. Mit der Zusage ist dieser Wert gebunden: draussen liegt eine Zusage,
     #: die jemand gelesen hat.
-    amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 2), nullable=True)
+    #: ►►► **Vier Nachkommastellen, nicht zwei** (Migration 128). ◄◄◄ Nicht, weil hier
+    #: je so gerechnet würde – gerundet wird **je Währung** (``domain/currency.quantum``)
+    #: –, sondern weil eine Spalte mit zwei Stellen einem dreistelligen Betrag (KWD)
+    #: still die letzte abschneidet. Vier deckt jede ISO-4217-Währung ab.
+    amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 4), nullable=True)
 
     #: **Zahlungsfrist in Tagen.** Vorgabe für die Fälligkeit einer neuen Rechnung –
     #: eine Rechnung trägt ihre eigene (``DealEntry.due_on``), weil zwei Rechnungen zu
@@ -154,7 +169,7 @@ class DealEntry(Base, TimestampMixin):
     kind: Mapped[str] = mapped_column(String(10), nullable=False)
 
     #: **Darf negativ sein** – das ist die Gutschrift bzw. die Erstattung.
-    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
 
     #: Wann die Zeile gilt – Rechnungsdatum bzw. Valuta.
     booked_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

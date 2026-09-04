@@ -204,68 +204,21 @@ deckungsgleich. Ein Modul-Entwurf entsteht an **einer** Stelle (`blankModule`).
   Vorauswahl lässt es fallen (`o.available`). Dafür muss der Zustand **mitreisen**: ihn beim
   Einlesen wegzuwerfen war die Ursache, dass die Ansicht gar nicht prüfen konnte.
 
-## Beschaffen (`components/erp/purchase-work.tsx`)
-Der Beleg an der Ausführungsstelle: `Anfrage → Bestellung → Wareneingang` als **eine
-Kette**, immer dieselbe – ob im Webshop gekauft oder beim Lieferanten bestellt wird. Der
-Unterschied ist nur, **wer den Preis einträgt**; ein zweiter Ablauf wäre dieselbe Angabe
-ein zweites Mal.
+## Beschaffen und Verkauf — ENTFERNT
+Beide Module und ihre Beleg-Karte (`purchase-work.tsx`) sind gelöscht, nicht abgeschaltet.
+Was sie konnten, kann der **Geldvorgang** (`deal-work.tsx`) – nur ohne die Bindung an
+Ware, und damit auch für Miete, Lohn, Gebühr und eine eingekaufte Spedition. Zwei Karten
+für dasselbe Geschäft laufen beim ersten neuen Verb auseinander.
 
-- **Zeilen, keine Modul-Karten.** Eine Stufe ist kein Modul – sähe sie aus wie eines,
-  stünden im selben Bild zwei Massstäbe. Geteilt wird die **Regel**, nicht die Form:
-  kräftige Linie bis zur offenen Stelle, Haarlinie danach (wie die Hauptachse).
-- **Die Stufen kommen vom Server** (`PurchaseEmbed.stages` – Schlüssel · Beschriftung ·
-  `verb` · `done` · `active`). Die Oberfläche zeichnet sie, sie erfindet sie nicht; das
-  Verb auf dem Knopf («Bestellen», «Wareneingang buchen») gehört der aktiven Stufe.
-- **Storniert ist keine Stufe**: keine ist aktiv, kein Verb wird angeboten – die Kette
-  bleibt aber gegangen, wo sie war, und ein Satz daneben sagt, dass nichts mehr ankommt.
-- **Das Modul räumt selbst auf**: EINE Gegenhandlung (`revoke`), deren Wirkung die Stufe
-  bestimmt. Was **Stücke** betrifft, legt es nie selbst an – dafür gibt es den ganz
-  gewöhnlichen Auftragsentwurf mit vorgewählten Stücken.
-- **Der Wareneingang ist der Scan**, den jedes Modul kennt: `CaptureWork` steht als
-  `children` in der Stufe «Bestellung» – kein zweiter Bestätigungsweg daneben.
-- **Der Beleg steht in JEDEM Zustand da**, nur die Aktionen hängen an `active`
-  (Testnotiz #749). Eine Stufe zeigt, was sie trägt, sobald sie dran **oder** vorbei ist
-  (`stage.active || stage.done`) – ein abgeschlossenes Modul zeigte sonst von seinem
-  Beleg nichts. Ein **gesperrtes Eingabefeld ist keine Lese-Anzeige**: was feststeht,
-  steht als Wert da (`ReadField`).
-- **Gefragt wird nur, was der Prozess nicht schon weiss**: keine Menge (sie ist die Zahl
-  der Einzelinstanzen davor), kein Termin (ableitbar), kein Speichern-Knopf (Auto-Save).
-  Ohne **Lieferfrist** keine Offerte – die Regel steht im Dienst, der Knopf ist die
-  freundliche Hälfte.
-- **Beträge über `formatAmount`** (`lib/utils`), nicht mit einer eigenen `toLocaleString`-
-  Zeile: eine zweite Kopie weicht in den Nachkommastellen ab, und ihre Zahl sieht
-  trotzdem richtig aus.
+Mit ihnen entfallen aus `lib/modules.ts`: `FLOW`, `flowOf`, `STAGE`, `HAULAGE`,
+`MANUAL_METHODS`, `SupplierRule` und die Entwurfsfelder `suppliers`/`instruction`; aus
+`order-detail.tsx` die Bauteile `Wrapped` und `ProcurementBlock`. Die **Symbole** der
+beiden Richtungen (Handschlag ↔ Einkaufswagen) leben in `DEAL_DIRECTION` weiter – eine
+Zuordnung mit genau einem Leser ist keine.
 
-## Verkauf und Geld (`purchase-work.tsx`)
-**Dieselbe Karte, andere Richtung.** Ein Verkaufs-Beleg rendert buchstäblich dieselbe
-Komponente wie ein Einkauf: dieselben drei Zeilen, dieselben Knöpfe. Was sie
-unterscheidet, **reist fertig mit** – Wörter und Verben in `stages[]`, Name und Farbe in
-`label`/`tone`, das Wort für «zurück» in `undo`. Die Oberfläche braucht dafür **kein
-einziges `if`**; das Symbol kommt aus `FLOW` (`lib/modules`), weil eine Antwort es nicht
-transportieren kann.
-
-- **Die Stufen-Schlüssel stehen an EINER Stelle** (`lib/modules.STAGE`) und decken das
-  Backend genau ab. Vorher standen die deutschen Einkaufs-Wörter im Rumpf
-  (`stage.key === 'wareneingang'`) – ein Verkaufs-Beleg hätte an **keiner** Stufe etwas
-  gezeigt: alle Vergleiche falsch, still und ohne Fehlermeldung.
-- **Die Gegenpartei-Rolle kommt vom Server** (`party_role` am Beleg, `ModuleTypeInfo` im
-  Editor) und wird **durchgereicht, nicht ausgewertet**. `moduleType === 'verkauf' ?
-  'customer' : 'supplier'` wäre die zweite Stelle für dieselbe Regel – und der Dienst
-  wiese danach ab, was die Liste angeboten hat. Dasselbe gilt für das **Wort**
-  (`party_word`): «Auftrag an den Lieferanten» ist an einem Verkaufs-Modul falsch.
-- **Das Geld steht NEBEN den Stufen** (`Money`), nicht als vierte in der Kette: eine
-  Zahlung macht aus einem Angebot keine Zusage, und nach einem Storno ist eine Erstattung
-  der Normalfall. Ob es überhaupt etwas zu zeigen gibt, sagt der Beleg (`open` ist `null`,
-  solange nichts zugesagt ist) – «offen: 0.00» wäre eine erfundene Aussage.
-- **Gerechnet wird nichts im Browser.** *Offen*, *fällig* und *überfällig* sind
-  Ableitungen des Servers (`services/payments`); eine zweite Formel hier wiche ab, und
-  ihre Zahl sähe trotzdem richtig aus. **Punkt + Wort** wie jeder Zustand im Haus, Beträge
-  über `formatAmount` und `.ix-tnum`.
-- **Die Knöpfe hängen an `can`** – auch `pay` und `link`, obwohl sie keine Stufe haben.
-  Der Zahllink erscheint nur, wo es einen Dienst **und** einen offenen Betrag gibt: ein
-  Knopf, der nie etwas tun kann, ist kein Angebot, und ein ausgegrauter wäre eine Bitte.
-- **Die Route kennt der Aufrufer, nicht die Karte** (`onLink`): dieselbe Bauart wie
-  `onAction`. Fehlt der Rückruf, gibt es den Knopf nicht.
+An ihre Stelle tritt **«Ausliefern»**: ein Scan, ein Statuswechsel, **keine
+Konfiguration** – `MODULE_FIELDS.ausliefern` ist darum `null` und nicht abwesend (ein
+fehlender Schlüssel wäre die Antwort «diesen Typ kenne ich nicht»).
 
 ## Zahlung (`components/erp/deal-work.tsx`)
 Der Geldvorgang an der Ausführungsstelle: **drei Zeilen** – `Angebot → Auftrag →
@@ -280,9 +233,10 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   das **Geld**: eine Zahlung macht aus einem Angebot keine Zusage, sie ist reversibel, und
   sie darf **vor** der Erfüllung stehen (Vorauszahlung) wie danach. Sie steht dort, wo man
   sie erwartet, und ist ab der Zusage bedienbar.
-- **Dieselbe Bildsprache wie der Beschaffungs-Beleg**, aber **kein geteilter Code**: das
-  Modul soll bestehen, wenn «Beschaffen»/«Verkauf» gelöscht werden. Zeilen statt
-  Modul-Karten, kräftige Linie bis zur offenen Stelle, Haarlinie danach.
+- **Zeilen statt Modul-Karten**, kräftige Linie bis zur offenen Stelle, Haarlinie danach.
+  *Dieselbe Bildsprache trug einmal auch der Beschaffungs-Beleg – bewusst **ohne**
+  geteilten Code, «damit das Modul besteht, wenn Beschaffen/Verkauf gelöscht werden».
+  Genau das ist eingetreten, und hier musste dafür keine Zeile geändert werden.*
 - **Der Angebotsspiegel ist der Kern der ersten Zeile** (`quotes`): je angefragter
   Gegenpartei eine Zeile mit Preis, Lieferfrist und Zahlungsfrist. **Wo niemand zugelassen
   ist, wird gesucht** (`ObjectSelect` + `api.searchDealParties`); wo genau einer steht, gibt
@@ -365,8 +319,8 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Frist. Die Zahlen bleiben in den Daten – der Log ist die Historie.
 - **Alle Knöpfe einer Angebotszeile sind gleich hoch** (`ACT_H`, #810): zwei Knöpfe, die
   sich um einen Pixel unterscheiden, lesen sich als Rangfolge.
-- **Wen man anfragt, wählt man aus** (#809): die **Zeile ist der Schalter**, wie im
-  Beschaffen-Modul – «Anfragen (2)» war eine Ansage, keine Wahl.
+- **Wen man anfragt, wählt man aus** (#809): die **Zeile ist der Schalter** –
+  «Anfragen (2)» war eine Ansage, keine Wahl.
 - **Kein Referenz-Feld** (#812): niemand wusste, was hineingehört, und die Rechnungsnummer
   erzeugt der Server selbst. Damit hatte `note` keinen Aufrufer mehr. **Kein Betragsfeld** – beim
   Modellieren steht er nicht fest. **Kein Erklärsatz darunter** (#792): er sagte, was das
@@ -431,11 +385,28 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   `erp-actbtn`-Kasten mitten in einer Zeile aus Nummer, Name und Eingabefeld. **Ob er sich
   einblendet, sagt der Aufrufer** (`reveal`), nicht das Bauteil: der Erfassungspunkt hatte
   ihn immer sichtbar, und das bleibt so.
-- **Der Steuersatz ist eine VORGABE, kein fester Wert** (`ModuleDraft.vatRate`): das Modul
-  muss die Rechnung selbst können, aber der Satz hängt an der Sache – hier steht die
-  Vorbelegung jeder neuen Position, an der Position ist sie überschreibbar. Der Katalog
-  kommt vom Server (`ModuleCatalog.vat_rates`) und reist über die **gemeinsame** Prop-Form
-  aller Feldsätze (`vatRates`), wie `types`.
+- ►►► **Der Steuersatz steht NICHT im Editor** (Testnotiz #851). ◄◄◄ Er stand dort als
+  «Vorbelegung jeder neuen Position» (`ModuleDraft.vatRate`) und war damit eine
+  Eigenschaft des **Moduls** – eine Vorlage, die für jeden künftigen Auftrag denselben
+  Satz behauptet, obwohl er an der **Sache** hängt. Gefragt wird er je Position an der
+  Ausführungsstelle (`OurOffer`), und der Katalog reist mit dem **Vorgang**
+  (`DealEmbed.vat_rates`). Mit ihm sind `DEFAULT_VAT`, `VAT_LABEL`, der
+  `ModuleCatalog.vat_rates`-Weg und die ganze `vatRates`-Prop-Kette entfallen: ein
+  Spiegel ohne Leser ist kein Spiegel, sondern eine zweite Wahrheit, die niemand
+  vergleicht.
+- ►►► **Die Währung steht im KOPF, nicht an jeder Zahl** (`Currency`). ◄◄◄ Ein Beleg hat
+  *eine* (zwei wären zwei Belege) – fünfzehnmal «CHF» neben fünfzehn Beträgen wäre Fläche
+  statt Struktur. **Ob man sie noch wählen darf, sagt `can`**, nie die Stufe; ist sie
+  gebunden, **verschwindet sie nicht**, sondern wird zur Auskunft mit dem Grund im Hover.
+  Genannt wird sie beim **Total** und beim **offenen Betrag** – den Zahlen, die
+  abgeschrieben und überwiesen werden. Ein `<select>` ist hier richtig: Währungen sind
+  eine endliche Aufzählung, keine Referenz auf einen Datensatz.
+- ►►► **Die Nachkommastellen kommen von der Währung**, nie aus einer festen 2. ◄◄◄
+  `formatAmount(v, decimals)` mit `d.currency_decimals`; **JPY** hat null, **KWD** drei.
+  Auch die **Vorschau** (`Sums`) rechnet damit – sonst zeigte sie eine andere Zahl als
+  die, die der Dienst danach bucht, und hätte genau ihren einen Zweck verfehlt.
+- **Das Leistungsdatum ist vorbelegt** (#852, `d.service_date`) – aus dem Prozess, nicht
+  aus dem Rechnungsdatum. Überschreibbar: ein Mensch weiss von Teilleistungen.
 - **Ohne Verifikation kein Scan-Tor** (`step.verifies`, aus `Module.requires_verification`):
   ein Modul, das keine Stücke bewegt, wird mit **einem** Knopf bestätigt. Die
   Ausführungsstelle fragt die **Eigenschaft**, nie den Modultyp – sonst fehlt beim nächsten
@@ -475,44 +446,19 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   jeder Stelle, mit leicht verschiedenen Werten (11 ↔ 11.5 px, 600 ↔ 700, .05 ↔ .07 em).
   Genau die Form, in der eine Gestaltungsregel auseinanderläuft, ohne dass es auffällt.
 
-## Bewegen: selbst gebracht oder eingekauft (`order-detail.Wrapped`)
-Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – also
-trägt das Bewegen-Modul denselben Einkaufs-Beleg wie das Beschaffen-Modul: dieselben drei
-Stufen, dieselben Verben, **dieselbe Komponente** (`PurchaseWork` wird an genau einer
-Stelle gerendert). Ein zweites «Versand»-Bauteil daneben wäre der Einkauf ein zweites Mal,
-und das zweite veraltet beim ersten neuen Verb.
+## Bewegen (`components/erp/capture-work.tsx` in der Modul-Karte)
+Ein Transport, den eine Spedition fährt, ist eine **Leistung, die man einkauft** – das
+Bewegen-Modul trug dafür einmal den Einkaufs-Beleg samt Schalter «Selbst ↔ Beschaffen»
+(`order-detail.Wrapped`). Mit dem Beleg ist beides entfallen: wer eine Spedition
+beauftragt, legt einen **Geldvorgang** daneben. Das Bewegen-Modul weiss davon nichts
+mehr; es bewegt.
 
-- **Die Oberfläche fragt zwei Eigenschaften, nie den Modultyp**: `step.moves` (Ziel-Scan?)
-  und `step.buys` (`'if_chosen'` → die Wahl anbieten). Beide reisen mit dem Schritt, wie
-  Farbe und Beschriftung – den Modul-Katalog lädt nur der Editor.
-- **Die Wahl steht dort, wo ihre Folge steht** (`Wrapped`) – und **derselbe Schalter
-  nimmt sie zurück** (#775). Der Wert ist **abgeleitet** (`purchase ? 'bought' : 'self'`),
-  beide Richtungen sind verdrahtet (`buy` ↔ `revoke`), und **ob es zurückgeht, sagt der
-  Server** (`revoke ∈ purchase.can`). Vorher stand er fest auf `self` und verschwand,
-  sobald ein Beleg entstand: das Bedienelement, mit dem man gewählt hat, war weg, und der
-  Weg zurück lag im Beleg – zwei Gesten für eine Sache. Ist die Wahl nicht mehr umkehrbar,
-  bleibt der Schalter **stehen** (gesperrt, Grund im Hover): sonst beantwortet nichts mehr,
-  was gewählt war.
-- **Der ganze Einkaufs-Bereich trägt seinen Ton** (`ProcurementBlock`, #776) – als
-  Haarlinie an der Kante, nicht als Fläche: eine getönte Karte wäre die dritte
-  (Modul-Karte → Beleg-Karte → Stufen-Zeile). Sie heisst **«Selbst ↔ Beschaffen»** –
-  dasselbe Wort wie das Modul, das es sonst tut, aus **einer** Quelle (`FLOW.buy`,
-  gespiegelt von `domain/procurement`). Eine Spedition wird **gekauft**, nie verkauft –
-  darum steht dort die Richtung fest und nicht `flowOf(…)`.
-- **Und man sieht, dass es ein Einkauf ist** (#775): über dem Beleg steht seine eigene
-  Überschrift (`ProcurementHead` – getöntes Symbol · Name · Haarlinie, dieselbe Anatomie
-  wie eine Modul-Karte, `ModuleMark` aus einer Quelle). Nur wo der Einkauf **nicht** der
-  Zweck des Moduls ist: wo er es ist, sagt die Karte den Namen schon. Name und Farbe kommen
-  vom **Beleg** (`label`/`tone`) – der Modul-Katalog ist an der Ausführungsstelle nicht
-  geladen, und die Identität eines Moduls, das dort gar nicht steht, wäre geborgt.
-- **Der Weg zurück steht ab der ersten Stufe da** und trägt das Wort des Belegs (`undo`) –
-  er hing an «schon angefragt», also ausgerechnet nicht dort, wo am wenigsten zugesagt ist.
-- **Wo kein Lieferant zugelassen ist, wird gesucht** (`ObjectSelect` + `api.searchSuppliers`)
-  statt eine leere Liste zu zeigen; die zugelassene Liste bleibt, wo es sie gibt.
-- **Kein «womit» mehr.** Die Liste `manuell · paket · fracht` ist entfallen: *Paket* und
-  *Fracht* sind zwei **Angebote** desselben Einkaufs. Übrig bleibt ein Bit (`HAULAGE`),
-  und die Antwort ist abgeleitet – eingekauft wurde, wenn es einen Beleg gibt.
-  `confirmStep` schickt darum keine Transportart mehr mit.
+- **Die Oberfläche fragt eine Eigenschaft, nie den Modultyp**: `step.moves` (Ziel-Scan?).
+  Sie reist mit dem Schritt, wie Farbe und Beschriftung – den Modul-Katalog lädt nur der
+  Editor.
+- **Kein «womit».** Die Liste `manuell · paket · fracht` ist entfallen: *Paket* und
+  *Fracht* sind zwei **Angebote** desselben Einkaufs, und das entscheidet der Tarif.
+  `confirmStep` schickt keine Transportart mehr mit.
 
 ## Referenz-Eingabe (`components/erp/object-select.tsx`)
 **«Welchen Datensatz meinst du?» hat EINE Bauart** (#738). `ObjectSelect` ist **auf**
