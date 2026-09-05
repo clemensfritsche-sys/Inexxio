@@ -174,15 +174,16 @@ done
 
 ## 5. Der öffentliche Schlüssel: eine Zeile im Deploy
 
-In `.github/workflows/deploy-dev.yml` beim Cloud-Run-Deploy die Zeile `--set-env-vars`
-um **`STRIPE_PUBLISHABLE_KEY=pk_test_…`** ergänzen:
+**Für `inexxio-dev` steht sie** (05.09.2026) — in `.github/workflows/deploy-dev.yml` beim
+Cloud-Run-Deploy, als Teil von `--set-env-vars`:
 
 ```
 --set-env-vars "APP_ENV=development,FRONTEND_BASE_URL=https://inexxio-dev.web.app,STRIPE_PUBLISHABLE_KEY=pk_test_…" \
 ```
 
 Kein Secret Manager, kein `gcloud`, keine IAM-Bindung — der Wert steht ohnehin im Browser
-jedes Zahlenden, genau wie `NEXT_PUBLIC_FIREBASE_API_KEY` ein paar Zeilen tiefer.
+jedes Zahlenden, genau wie `NEXT_PUBLIC_FIREBASE_API_KEY` ein paar Zeilen tiefer. Für die
+Produktion tritt der `pk_live_…` an dieselbe Stelle.
 
 **Ohne diese Zeile ist der Dienst schlicht nicht eingerichtet** — kein Fehler, kein Stub,
 kein 503: `payment_service_ready()` ist `False`, und der Knopf «Jetzt bezahlen» erscheint

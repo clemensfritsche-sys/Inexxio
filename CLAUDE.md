@@ -2487,17 +2487,19 @@
 > Docstring des Adapters mit, der die bewusst fehlenden Dinge **aufzählt** – genau die
 > Form, in der ein Wächter anschlägt, weil jemand den Fehler beschreibt: `_code()` liest
 > jetzt den Code). Suite grün gegen ein Schema nur aus den Migrationen (509).
-> *Offen und ausdrücklich benannt – **ein Wert**, und es ist der einzige, den kein Werkzeug
-> lesen kann: der `STRIPE_PUBLISHABLE_KEY`. Stripe bietet dafür keine API, er steht nur im
-> Dashboard. Alles andere ist gemessen und steht: Secret Key und Webhook Secret liegen im
-> Secret Manager, der Endpoint zeigt richtig und hört seit dem 05.09.2026 auf
+> **(9) Eingerichtet, und zwar gemessen** (05.09.2026): Secret Key und Webhook Secret
+> liegen im Secret Manager, der Endpoint zeigt richtig und hört auf
 > `payment_intent.succeeded` + `charge.refunded` – **umgestellt, nicht neu angelegt**, das
-> Signing Secret ist also unverändert gültig. Bis der Schlüssel da ist, ist der Dienst
-> schlicht nicht eingerichtet: kein Knopf, kein Fehler.*
-> *Und der Weg ist kürzer geworden: er gehört in `--set-env-vars`, **nicht** in den Secret
-> Manager – er ist kein Geheimnis (er steht im Browser jedes Zahlenden, wie
-> `NEXT_PUBLIC_FIREBASE_API_KEY` in derselben Datei). Eine Zeile, kein `gcloud`
-> (`docs/stripe-setup.md` §5).*
+> Signing Secret bleibt damit gültig. Der `STRIPE_PUBLISHABLE_KEY` steht als **einfache
+> Variable** in `--set-env-vars`, **nicht** im Secret Manager: er ist kein Geheimnis (er
+> steht im Browser jedes Zahlenden, wie `NEXT_PUBLIC_FIREBASE_API_KEY` in derselben
+> Datei), also eine Zeile statt zweier `gcloud`-Befehle und einer IAM-Bindung. Er war
+> zugleich der einzige Wert, den kein Werkzeug lesen kann – Stripe bietet dafür keine API.
+> *Offen und ausdrücklich benannt, aber keine Code-Frage: **welche Zahlungsarten** das
+> Konto anbietet. Gemessen ist **TWINT aus** (`available: false`, kommt mit der
+> Konto-Aktivierung) und eine Reihe für ein Schweizer B2B-ERP unpassender Arten **an**
+> (Klarna, Link, Amazon Pay …) – ein Schalter im Dashboard, denn der Code fragt
+> `automatic_payment_methods` und führt bewusst keine eigene Liste (`docs/backlog.md`).*
 
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 

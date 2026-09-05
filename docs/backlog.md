@@ -211,35 +211,34 @@ Der Kopf steht jetzt unter 640 px **einspaltig** (dieselbe Grenze wie `.ix-wrap`
 der Titel die vollen 280 px bekommt. Ab 640 px ist das Bild unverändert zweispaltig.
 
 
-## Offen und benannt: der öffentliche Stripe-Schlüssel
+## Erledigt: der Zahlungsdienst ist eingerichtet (05.09.2026)
 
-**Es fehlt genau ein Wert**, und es ist der einzige, den kein Werkzeug lesen kann: der
-*Publishable Key* (`pk_test_…`). Stripe bietet dafür **keine API** an – er steht
-ausschliesslich im Dashboard unter **Developers → API keys**.
+Alles gemessen, nichts vermutet:
 
-Alles andere ist gemessen und steht: `STRIPE_SECRET_KEY` und `STRIPE_WEBHOOK_SECRET`
-liegen im Secret Manager (die Deploy-Zeile referenziert sie, und der Deploy läuft), der
-Webhook-Endpoint zeigt auf die richtige Adresse und hört seit dem 05.09.2026 auf
-`payment_intent.succeeded` + `charge.refunded` – **umgestellt, nicht neu angelegt**, das
-Signing Secret ist also unverändert gültig.
+| | |
+|---|---|
+| `STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET` | im Secret Manager (die Deploy-Zeile referenziert sie, der Deploy läuft) |
+| Webhook-Adresse | `https://inexxio-dev.web.app/api/v1/payments/webhook` |
+| Webhook-Ereignisse | `payment_intent.succeeded` + `charge.refunded` — **umgestellt, nicht neu angelegt**, das Signing Secret bleibt damit gültig |
+| `STRIPE_PUBLISHABLE_KEY` | als **einfache Variable** in `--set-env-vars` (`docs/stripe-setup.md` §5) |
 
-**Bis der Schlüssel da ist, ist der Zahlungsdienst schlicht nicht eingerichtet**, und das
-System sagt es richtig: `config.payment_service_ready()` ist `False`, `deal.can` führt
-`pay_online` nicht, der Knopf «Jetzt bezahlen» erscheint gar nicht. Kein Fehler, kein
-Stub, kein 503.
+Der letzte Punkt war der einzige, den kein Werkzeug lesen konnte — Stripe bietet für den
+*Publishable Key* keine API, er steht nur im Dashboard. Er ist **kein Geheimnis** (er
+steht im Browser jedes Zahlenden, wie `NEXT_PUBLIC_FIREBASE_API_KEY` in derselben Datei),
+also kostet er eine Zeile statt zweier `gcloud`-Befehle und einer IAM-Bindung.
 
-**Und der Weg ist kürzer geworden: eine Zeile, kein `gcloud`.** Er ist kein Geheimnis – er
-steht im Browser jedes Zahlenden –, also geht er als **einfache Variable** in den Deploy,
-genau wie `NEXT_PUBLIC_FIREBASE_API_KEY` in derselben Datei (`docs/stripe-setup.md` §5):
+## Offen und benannt: die Zahlungsarten sind eine Konto-Entscheidung
 
-```
---set-env-vars "APP_ENV=development,FRONTEND_BASE_URL=https://inexxio-dev.web.app,STRIPE_PUBLISHABLE_KEY=pk_test_…" \
-```
+Keine Code-Frage — unser Code fragt `automatic_payment_methods` und führt bewusst **keine
+eigene Liste**. Gemessen im Sandbox-Konto (`payment_method_configurations`, 05.09.2026):
 
-**Danach bleibt eine Konto-Entscheidung, keine Code-Frage:** im Sandbox-Konto ist
-**TWINT aus** und eine Reihe für ein Schweizer B2B-ERP unpassender Arten an (Klarna, Link,
-Amazon Pay …). Das ist ein Schalter im Dashboard – unser Code fragt
-`automatic_payment_methods` und führt bewusst keine eigene Liste.
+- **TWINT ist aus** (`available: false` — Stripe schaltet es frei, wenn das Konto
+  aktiviert ist). Karte ist an, bezahlen funktioniert also.
+- **An sind daneben** Klarna, Link, Amazon Pay, Bancontact, EPS, BLIK, MB Way, Pix,
+  Satispay, Apple Pay — für ein Schweizer B2B-ERP kaum passend, und sie stehen dem
+  Zahlenden alle im Formular.
+
+Beides ist ein Schalter unter **Settings → Payments → Payment methods**.
 
 ## Offen und benannt: der Status `Verkauft` ohne Schreiber
 
