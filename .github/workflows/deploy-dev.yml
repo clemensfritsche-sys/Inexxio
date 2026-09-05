@@ -137,15 +137,21 @@ jobs:
           docker push "$IMAGE_LATEST"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-      # ►►► **Bezahlen braucht einen dritten Schlüssel — und er fehlt hier bewusst.** ◄◄◄
+      # ►►► **Bezahlen braucht einen dritten Schlüssel — und er fehlt noch.** ◄◄◄
       #
       # `STRIPE_PUBLISHABLE_KEY` rendert das Zahlungsformular im Browser; ohne ihn ist
       # `payment_service_ready()` falsch, und der Bezahlen-Knopf erscheint gar nicht erst
       # (`deal.can` führt `pay_online` dann nicht). Alles andere läuft unverändert.
       #
-      # Er steht **nicht** in der Zeile unten, weil `--set-secrets` auf ein Secret zeigt,
-      # das es noch nicht gibt – und ein Deploy, der daran scheitert, nimmt alles andere
-      # mit. Anlegen und Zeile ergänzen: `docs/stripe-setup.md` §4/§5 (zwei Befehle).
+      # Er gehört in `--set-env-vars`, NICHT in `--set-secrets`: er ist kein Geheimnis –
+      # er steht im Browser jedes Zahlenden, wie `NEXT_PUBLIC_FIREBASE_API_KEY` weiter
+      # unten. Ihn wie eines zu behandeln kostet zwei `gcloud`-Befehle und eine
+      # IAM-Bindung und schützt nichts; ein `--set-secrets` auf ein Secret, das es nicht
+      # gibt, nimmt ausserdem den **ganzen** Deploy mit.
+      #
+      # Fehlt also nur der Wert (Dashboard → Developers → API keys, `pk_test_…`):
+      #   --set-env-vars "APP_ENV=…,FRONTEND_BASE_URL=…,STRIPE_PUBLISHABLE_KEY=pk_test_…"
+      # Details: `docs/stripe-setup.md` §5.
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \

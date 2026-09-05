@@ -213,29 +213,33 @@ der Titel die vollen 280 px bekommt. Ab 640 px ist das Bild unverändert zweispa
 
 ## Offen und benannt: der öffentliche Stripe-Schlüssel
 
-`STRIPE_PUBLISHABLE_KEY` gibt es im Google Secret Manager **noch nicht**, und die
-Deploy-Zeile in `.github/workflows/deploy-dev.yml` nennt ihn darum bewusst nicht: ein
-`--set-secrets` auf ein Secret, das es nicht gibt, lässt den **ganzen** Cloud-Run-Deploy
-scheitern – nicht nur die Zahlung.
+**Es fehlt genau ein Wert**, und es ist der einzige, den kein Werkzeug lesen kann: der
+*Publishable Key* (`pk_test_…`). Stripe bietet dafür **keine API** an – er steht
+ausschliesslich im Dashboard unter **Developers → API keys**.
 
-**Bis dahin ist der Zahlungsdienst schlicht nicht eingerichtet**, und das System sagt es
-richtig: `config.payment_service_ready()` ist `False`, `deal.can` führt `pay_online`
-nicht, der Knopf «Jetzt bezahlen» erscheint gar nicht. Kein Fehler, kein Stub, kein 503.
+Alles andere ist gemessen und steht: `STRIPE_SECRET_KEY` und `STRIPE_WEBHOOK_SECRET`
+liegen im Secret Manager (die Deploy-Zeile referenziert sie, und der Deploy läuft), der
+Webhook-Endpoint zeigt auf die richtige Adresse und hört seit dem 05.09.2026 auf
+`payment_intent.succeeded` + `charge.refunded` – **umgestellt, nicht neu angelegt**, das
+Signing Secret ist also unverändert gültig.
 
-**Zwei Befehle, dann eine Zeile** (`docs/stripe-setup.md` §4/§5):
+**Bis der Schlüssel da ist, ist der Zahlungsdienst schlicht nicht eingerichtet**, und das
+System sagt es richtig: `config.payment_service_ready()` ist `False`, `deal.can` führt
+`pay_online` nicht, der Knopf «Jetzt bezahlen» erscheint gar nicht. Kein Fehler, kein
+Stub, kein 503.
 
-```bash
-printf '%s' 'pk_test_…' | gcloud secrets create STRIPE_PUBLISHABLE_KEY \
-  --project=inexxio-dev --replication-policy=automatic --data-file=-
-gcloud secrets add-iam-policy-binding STRIPE_PUBLISHABLE_KEY --project=inexxio-dev \
-  --member="serviceAccount:cloudrun-backend@inexxio-dev.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+**Und der Weg ist kürzer geworden: eine Zeile, kein `gcloud`.** Er ist kein Geheimnis – er
+steht im Browser jedes Zahlenden –, also geht er als **einfache Variable** in den Deploy,
+genau wie `NEXT_PUBLIC_FIREBASE_API_KEY` in derselben Datei (`docs/stripe-setup.md` §5):
+
+```
+--set-env-vars "APP_ENV=development,FRONTEND_BASE_URL=https://inexxio-dev.web.app,STRIPE_PUBLISHABLE_KEY=pk_test_…" \
 ```
 
-Danach `STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest` in die `--set-secrets`-Zeile
-aufnehmen. **Und im Stripe-Dashboard den Webhook umstellen**: er hört heute noch auf
-`checkout.session.completed` (die gehostete Kasse), gebraucht wird
-`payment_intent.succeeded` – sonst kassiert die Karte, und die Buchung bleibt aus.
+**Danach bleibt eine Konto-Entscheidung, keine Code-Frage:** im Sandbox-Konto ist
+**TWINT aus** und eine Reihe für ein Schweizer B2B-ERP unpassender Arten an (Klarna, Link,
+Amazon Pay …). Das ist ein Schalter im Dashboard – unser Code fragt
+`automatic_payment_methods` und führt bewusst keine eigene Liste.
 
 ## Offen und benannt: der Status `Verkauft` ohne Schreiber
 

@@ -36,9 +36,15 @@ Im Stripe-Dashboard oben das **Sandbox/Test**-Konto wählen. Unter
 
 **Beide sind Pflicht**, und das ist eine Ableitung, keine Einstellung: einer allein wäre
 eine halbe Strasse — der Knopf erschiene, und der Dialog bliebe leer
-(`config.payment_service_ready()`). Der *Publishable Key* ist kein Geheimnis (er steht in
-jeder Bezahlseite der Welt im Quelltext); er kommt trotzdem denselben Weg, weil ein
-zweiter Weg für dieselbe Sache die Stelle ist, die beim Wechsel jemand vergisst.
+(`config.payment_service_ready()`).
+
+> **Zwei Schlüssel, zwei Wege — und das ist kein Widerspruch.** Der *Secret Key* ist ein
+> Geheimnis und gehört in den Secret Manager (§4). Der *Publishable Key* ist **keines**:
+> er steht in jeder Bezahlseite der Welt im Quelltext, und er steht auch bei uns im
+> Browser jedes Zahlenden. Ihn wie ein Geheimnis zu behandeln kostet zwei `gcloud`-Befehle
+> und eine IAM-Bindung und schützt **nichts**. Er steht darum als **einfache Variable** im
+> Deploy (§5) — genau dort, wo `NEXT_PUBLIC_FIREBASE_API_KEY` seit jeher steht, und aus
+> demselben Grund: gleiche Sache, gleicher Weg.
 
 ## 2. Dashboard: Zahlungsarten und Adaptive Pricing
 
@@ -47,6 +53,14 @@ zweiter Weg für dieselbe Sache die Stelle ist, die beim Wechsel jemand vergisst
 **TWINT** (≈ 1.3 % + 0.30 statt 1.5–2.9 % + 0.30 — die günstigere Sofortzahlung). Unser
 Code fragt `automatic_payment_methods` und führt **keine eigene Liste**: die wäre die
 zweite Stelle, an der beim nächsten Freischalten jemand nichts sieht.
+
+> **Stand im Sandbox-Konto** (gemessen am 05.09.2026, `payment_method_configurations`):
+> **Karte an**, **TWINT aus** (`available: false` — Stripe schaltet es erst frei, wenn das
+> Konto aktiviert ist). Bezahlen geht damit heute per Karte; TWINT ist **ein Schalter im
+> Dashboard**, keine Code-Änderung. An gibt es daneben eine ganze Reihe, die für ein
+> Schweizer B2B-ERP kaum passt (Klarna, Link, Amazon Pay, Bancontact, EPS, BLIK, MB Way,
+> Pix, Satispay) — sie stehen sonst alle im Formular. Was davon bleibt, ist eine
+> **Konto**-Entscheidung; der Code fragt sie nicht.
 
 **Adaptive Pricing → Disabled** (das ist der Standard — **nicht** aktivieren). Wir geben
 Betrag **und** Währung vor (`stripe_pay.prepare`); wäre es an, rechnete Stripe unsere Zahl
@@ -87,6 +101,13 @@ ebenso — sie ist nur nirgends aufgeschrieben, während diese hier stabil und b
 > ⚠ **Wer den Endpoint aus der Zeit des Zahllinks hat, muss ihn umstellen**: dort steht
 > `checkout.session.completed`, und die Meldung gibt es nicht mehr — die gehostete Kasse
 > ist weg. Der Beleg bliebe auf «offen» stehen, obwohl das Geld da ist.
+>
+> **Für `inexxio-dev` ist das erledigt** (05.09.2026): der bestehende Endpoint
+> `we_1TnvmEQr3aoUqi8iTHk0Ukj0` hört auf die beiden Ereignisse oben. **Umgestellt, nicht
+> neu angelegt** — und das ist der Punkt: das *Signing Secret* eines Endpoints ändert sich
+> beim Umstellen **nicht**, `STRIPE_WEBHOOK_SECRET` bleibt also gültig. Ein neuer Endpoint
+> hätte ein neues Secret gebraucht, und bis es im Secret Manager steht, liefe jede Meldung
+> in «Ungültige Signatur».
 
 **Oder in einem Aufruf** (dasselbe, nur ohne Klicks — die Antwort enthält das `secret`,
 und zwar **nur bei der Anlage**):
@@ -117,13 +138,12 @@ brächte Stripe nur dazu, es endlos erneut zuzustellen.
 > Bei der Gelegenheit: **alte Endpoints im Dashboard löschen**. Einer, der auf eine
 > Adresse des Vorgängersystems zeigt, stellt weiter zu und sammelt Fehlversuche.
 
-## 4. Secrets im Google Secret Manager (`inexxio-dev`)
+## 4. Die zwei Geheimnisse im Google Secret Manager (`inexxio-dev`)
+
+Nur diese beiden — der *Publishable Key* ist keines und geht den kürzeren Weg (§5).
 
 ```bash
 printf '%s' 'sk_test_DEIN_KEY' | gcloud secrets create STRIPE_SECRET_KEY \
-  --project=inexxio-dev --replication-policy=automatic --data-file=-
-
-printf '%s' 'pk_test_DEIN_KEY' | gcloud secrets create STRIPE_PUBLISHABLE_KEY \
   --project=inexxio-dev --replication-policy=automatic --data-file=-
 
 printf '%s' 'whsec_DEIN_SECRET' | gcloud secrets create STRIPE_WEBHOOK_SECRET \
@@ -134,31 +154,35 @@ Existieren sie schon, eine neue Version anhängen:
 
 ```bash
 printf '%s' 'sk_test_…' | gcloud secrets versions add STRIPE_SECRET_KEY --project=inexxio-dev --data-file=-
-printf '%s' 'pk_test_…' | gcloud secrets versions add STRIPE_PUBLISHABLE_KEY --project=inexxio-dev --data-file=-
 printf '%s' 'whsec_…'   | gcloud secrets versions add STRIPE_WEBHOOK_SECRET --project=inexxio-dev --data-file=-
 ```
 
 **Zugriff** (einmalig) für den Cloud-Run-Service-Account:
 
 ```bash
-for S in STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY STRIPE_WEBHOOK_SECRET; do
+for S in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET; do
   gcloud secrets add-iam-policy-binding "$S" --project=inexxio-dev \
     --member="serviceAccount:cloudrun-backend@inexxio-dev.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
 done
 ```
 
-> **Reihenfolge:** erst die Secrets anlegen, dann §5 — `--set-secrets` referenziert sonst
-> etwas, das es nicht gibt, und der **ganze** Deploy schlägt fehl (nicht nur die Zahlung).
+> **Reihenfolge:** erst die Secrets anlegen, dann deployen — `--set-secrets` referenziert
+> sonst etwas, das es nicht gibt, und der **ganze** Deploy schlägt fehl (nicht nur die
+> Zahlung). Beide stehen für `inexxio-dev` bereits dort; die Deploy-Zeile nennt sie, und
+> der Deploy läuft.
 
-## 5. Deploy verdrahten
+## 5. Der öffentliche Schlüssel: eine Zeile im Deploy
 
-In `.github/workflows/deploy-dev.yml` beim Cloud-Run-Deploy die Zeile `--set-secrets`
-um **`STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest`** ergänzen, sodass sie lautet:
+In `.github/workflows/deploy-dev.yml` beim Cloud-Run-Deploy die Zeile `--set-env-vars`
+um **`STRIPE_PUBLISHABLE_KEY=pk_test_…`** ergänzen:
 
 ```
---set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest" \
+--set-env-vars "APP_ENV=development,FRONTEND_BASE_URL=https://inexxio-dev.web.app,STRIPE_PUBLISHABLE_KEY=pk_test_…" \
 ```
+
+Kein Secret Manager, kein `gcloud`, keine IAM-Bindung — der Wert steht ohnehin im Browser
+jedes Zahlenden, genau wie `NEXT_PUBLIC_FIREBASE_API_KEY` ein paar Zeilen tiefer.
 
 **Ohne diese Zeile ist der Dienst schlicht nicht eingerichtet** — kein Fehler, kein Stub,
 kein 503: `payment_service_ready()` ist `False`, und der Knopf «Jetzt bezahlen» erscheint
