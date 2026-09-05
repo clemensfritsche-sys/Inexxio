@@ -173,6 +173,14 @@ export function PayOnline({ orderObjectId, stepId, label, onDone, onClose }: {
             {setup.amount} {setup.currency}
           </span>
         )}
+        {/* ►►► **Wofür bezahlt wird** (Testnotiz #858). ◄◄◄ Kassiert wird über **eine**
+            Rechnung, nicht über einen Saldo – also nennt die Karte sie auch. Dieselbe
+            Nummer steht danach beim Zahlungsdienst in der Beschreibung und in den
+            Metadaten: ein Beleg, drei Leser. */}
+        {setup?.invoice && (
+          <span className="ix-tnum text-[12px] truncate" style={{ color: 'var(--fg-4)' }}
+            data-tip={`Rechnung ${setup.invoice}`}>Rechnung {setup.invoice}</span>
+        )}
       </div>
 
       {/* Die Eingabefelder des Dienstes – in unserer Fläche, in unseren Farben. */}

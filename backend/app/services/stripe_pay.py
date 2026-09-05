@@ -134,30 +134,58 @@ def prepare(db: Session, *, deal: Deal, order: Order) -> dict[str, Any]:
     Absicht kostet nichts und verfällt dort von selbst.
     """
     stripe = _api()
-    open_amount = deal_svc.open_amount(db, deal)
-    if open_amount <= 0:
+    # ►►► **Bezahlt wird EINE Rechnung, nicht ein Saldo** (Testnotiz #858). ◄◄◄
+    #
+    # Vorher war es der offene Betrag des **ganzen Vorgangs** – bei zwei offenen
+    # Rechnungen also eine Zahlung, die auf zwei Belege zeigt, und genau die soll es nicht
+    # geben. Kassiert wird über die **älteste offene** (die Reihenfolge ist die der
+    # Buchung), und ihr Rest ist der Betrag; die zweite bezahlt man danach.
+    charges = deal_svc.open_charges(db, deal)
+    if not charges:
         raise HTTPException(
             status_code=409,
-            detail="An diesem Vorgang ist nichts offen – es gibt nichts zu bezahlen.",
+            detail=("An diesem Vorgang ist keine Rechnung offen – man kassiert nicht, "
+                    "was niemand gefordert hat."),
         )
+    charge = charges[0]
+    owed = deal_svc.open_of(db, deal, charge)
     code = cur.assert_code(deal.currency)
+    number = charge.reference or str(charge.id)
     intent = stripe.PaymentIntent.create(
-        amount=_minor(open_amount, code),
+        amount=_minor(owed, code),
         currency=code.lower(),
         # **Welche Arten angeboten werden, entscheidet das Konto** – Karte, TWINT, was
         # dort freigeschaltet ist. Eine Liste hier wäre die zweite Stelle, an der beim
         # nächsten Freischalten jemand nichts sieht.
         automatic_payment_methods={"enabled": True},
-        # Der Faden zurück zum Vorgang. Er steht in den Metadaten und nicht in einer
-        # eigenen Spalte: die Absicht ist ein Vorgang beim Dienst, kein Datensatz bei uns.
-        metadata={"deal_id": str(deal.id)},
-        description=f"{order.name or 'Auftrag'} {order.object_id}",
+        # ►►► **Der Faden zurück – und er nennt die RECHNUNG** (Testnotiz #858). ◄◄◄
+        #
+        # Metadaten sind der **maschinelle** Ort: hier sucht man beim Dienst, hierüber
+        # findet der Webhook den Vorgang, und hier steht, welche Rechnung gemeint war –
+        # ohne eine ``stripe_*``-Spalte bei uns.
+        metadata={"deal_id": str(deal.id), "charge_id": str(charge.id),
+                  "invoice": number, "order": str(order.object_id)},
+        # ►►► **Die Beschreibung ist der MENSCHLICHE Ort der Rechnungsnummer.** ◄◄◄
+        #
+        # Sie lautete ``f"{order.name} {order.object_id}"`` – und weil der Name des
+        # Auftrags seine Nummer bereits enthält, stand dort «Auftrag 100000884 100000884».
+        # Zusammengesetzt wird darum **selbst**, aus den Angaben, die eine Aussage haben:
+        # welche Rechnung, welcher Auftrag.
+        #
+        # *Nicht hier: die «Zahlungsbeschreibung in der Abrechnung»
+        # (``statement_descriptor``). Das ist der Name, den die **Bank** dem Karteninhaber
+        # zeigt – höchstens 22 Zeichen, und er gehört dem Konto, nicht der einzelnen
+        # Zahlung; er lautet «Stripe», solange das Konto nicht aktiviert ist
+        # (``docs/stripe-setup.md`` §2).*
+        description=f"Rechnung {number} · Auftrag {order.object_id}",
     )
     return {
         "client_secret": str(intent.client_secret),
         "publishable_key": get_settings().stripe_publishable_key,
-        "amount": cur.money(open_amount, code),
+        "amount": cur.money(owed, code),
         "currency": code,
+        # **Wofür bezahlt wird** – die Karte nennt den Beleg, nicht nur eine Zahl.
+        "invoice": number,
         "billing": _billing(db, deal),
     }
 
@@ -261,6 +289,10 @@ def _note_payment(db: Session, data: dict[str, Any]) -> str:
         db, row=row, amount=amount,
         reference=str(data.get("id") or "") or None,
         note="Zahlungsdienst",
+        # ►►► **Die Rechnung reist mit** (Testnotiz #858). ◄◄◄ Welche gemeint war, stand
+        # beim Vorbereiten fest – sie hier erneut zu suchen hiesse raten, denn zwischen
+        # der Zahlung und ihrer Meldung kann eine zweite Rechnung entstanden sein.
+        charge_id=_int_or_none((data.get("metadata") or {}).get("charge_id")),
     )
     db.commit()
     return "paid"
@@ -303,5 +335,17 @@ def _amount_of(value: Any, code: Any) -> Decimal:
 def _deal_of(db: Session, value: Any) -> Optional[Deal]:
     try:
         return db.query(Deal).filter(Deal.id == int(value)).first()
+    except (TypeError, ValueError):
+        return None
+
+
+def _int_or_none(value: Any) -> Optional[int]:
+    """Eine Zahl aus den Metadaten – **tolerant**: hier wird gelesen, nicht geprüft.
+
+    Metadaten sind Strings, und eine ältere Absicht (vor dieser Regel) trägt den Schlüssel
+    gar nicht. Eine fehlende Zuordnung ist ehrlicher als eine geratene.
+    """
+    try:
+        return None if value in (None, "") else int(value)
     except (TypeError, ValueError):
         return None

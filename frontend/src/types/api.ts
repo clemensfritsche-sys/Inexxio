@@ -1862,6 +1862,30 @@ export interface components {
              * @default false
              */
             prepaid: boolean;
+            /** Payment Terms */
+            payment_terms?: components["schemas"]["DealTerm"][];
+            /** Lead Terms */
+            lead_terms?: components["schemas"]["DealTerm"][];
+            /**
+             * Term Free Min
+             * @default 1
+             */
+            term_free_min: number;
+            /**
+             * Term Free Label
+             * @default
+             */
+            term_free_label: string;
+            /**
+             * Payment Term Label
+             * @default
+             */
+            payment_term_label: string;
+            /**
+             * Lead Term Label
+             * @default
+             */
+            lead_term_label: string;
             /** Allowed */
             allowed?: components["schemas"]["DealParty"][];
             /** Quotes */
@@ -1902,6 +1926,8 @@ export interface components {
              * @default false
              */
             settled: boolean;
+            /** Open Invoices */
+            open_invoices?: components["schemas"]["DealOpenInvoice"][];
             /** Entries */
             entries?: components["schemas"]["DealEntryOut"][];
         };
@@ -1943,6 +1969,8 @@ export interface components {
              * @default false
              */
             reversed: boolean;
+            /** Charge Id */
+            charge_id?: number | null;
         };
         /**
          * DealLine
@@ -1978,6 +2006,22 @@ export interface components {
              * @default 8.10
              */
             vat: string;
+        };
+        /**
+         * DealOpenInvoice
+         * @description Eine **offene Rechnung** – worauf eine Zahlung gehen kann (Testnotiz #858).
+         *
+         *     Gerechnet vom Server (``deal.open_charges``), nicht im Browser: es ist dieselbe
+         *     Ableitung, die ``_pay`` als Tor benutzt, und zwei Formeln für eine Frage wichen ab –
+         *     die im Browser sähe trotzdem richtig aus.
+         */
+        DealOpenInvoice: {
+            /** Id */
+            id: number;
+            /** Reference */
+            reference?: string | null;
+            /** Open */
+            open?: string | null;
         };
         /**
          * DealParty
@@ -2076,6 +2120,20 @@ export interface components {
             active: boolean;
         };
         /**
+         * DealTerm
+         * @description Eine **übliche Frist** – die Zahl und wie sie heisst.
+         *
+         *     «Vorauszahlung» ist ein Geschäftsbegriff, «0» eine Ziffer, die man erklären muss. Die
+         *     Liste reist mit dem Vorgang (dieselbe Bauart wie ``vat_rates``), damit die Karte keine
+         *     zweite pflegt.
+         */
+        DealTerm: {
+            /** Days */
+            days: number;
+            /** Label */
+            label: string;
+        };
+        /**
          * DealUpdate
          * @description Eine Handlung am Geldvorgang – **ein** Endpunkt, neun Verben.
          *
@@ -2129,6 +2187,8 @@ export interface components {
             due_on?: string | null;
             /** Entry */
             entry?: number | null;
+            /** Charge Id */
+            charge_id?: number | null;
             /** Lines */
             lines?: components["schemas"]["DealPrice"][] | null;
             /** Vat */
@@ -3064,6 +3124,11 @@ export interface components {
             amount: string;
             /** Currency */
             currency: string;
+            /**
+             * Invoice
+             * @default
+             */
+            invoice: string;
             billing: components["schemas"]["PaymentBilling"];
         };
         /**

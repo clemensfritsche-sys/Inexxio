@@ -5182,28 +5182,42 @@ def test_the_money_card_never_asks_for_the_direction():
 
 
 def test_the_money_module_is_a_pass_through_in_the_editor_too():
-    """**Vier Angaben, und keine davon ist eine Menge, ein Artikel oder ein Betrag.**
+    """**Zwei Angaben, und keine davon ist eine Menge, ein Artikel, ein Betrag – oder
+    eine Frist.**
 
-    Bug-Form: ein Betragsfeld in der Definition. Beim Modellieren steht der Preis nicht
-    fest – ein hier getippter wäre bei der zweiten Ausführung falsch, und zwar
-    stillschweigend (dieselbe Regel wie «keine Menge» beim Verbrauch).
+    ►►► **Und `prepaid` gehört nicht mehr dazu** (Testnotiz #854). ◄◄◄ Der Schalter
+    «Zahlung abwarten» war eine **zweite Aussage über dieselbe Sache**: ob vorausbezahlt
+    wird, sagt die vereinbarte **Zahlungsfrist** – null Tage *ist* Vorauszahlung. Zwei
+    Stellen, die dasselbe behaupten, widersprechen sich beim ersten Vorgang, in dem
+    jemand nur eine davon setzt; und die Frist gehört dorthin, wo das Angebot entsteht,
+    nicht in eine Vorlage, die für jeden künftigen Auftrag dasselbe behauptet.
+
+    Bug-Formen: (a) ein Betragsfeld in der Definition; (b) der Schalter ist zurück;
+    (c) eine Frist steht im Editor.
     """
     src = _read(FRONTEND / "lib" / "modules.ts")
     form = _body(src, "MODULE_FORM", kind="const")
     row = form.split("  zahlung: {", 1)[1].split("\n  },", 1)[0]
-    for field in ("direction", "parties", "prepaid"):
+    for field in ("direction", "parties"):
         assert field in row, f"«{field}» fehlt in der Entwurfsform des Geldmoduls."
+    assert "prepaid" not in row, (
+        "Der Schalter ist zurück (b) – ob vorausbezahlt wird, sagt die Zahlungsfrist "
+        "(#854); zwei Aussagen über dieselbe Sache können sich widersprechen."
+    )
     assert "subject" not in row, (
         "Der abgeschaffte Satz ist zurück (#805) – was zu tun ist, steht bei dem Partner, "
         "den es betrifft."
     )
     fields = _body(_read(FRONTEND / "components" / "erp" / "process-designer.tsx"),
                    "MoneyFields", kind="function")
-    for forbidden in ("Betrag", "Menge", "Artikel"):
+    for forbidden in ("Betrag", "Menge", "Artikel", "Zahlungsfrist", "Lieferfrist"):
         assert f">{forbidden}<" not in fields, (
             f"Der Editor fragt nach «{forbidden}» – das steht beim Modellieren nicht "
             f"fest und wäre bei der zweiten Ausführung falsch."
         )
+    assert "prepaid" not in _code(fields), (
+        "Der Vorauszahlungs-Schalter steht wieder im Editor (b)."
+    )
 
 
 def test_the_direction_is_a_symbol_not_a_permanent_word():
@@ -5897,15 +5911,20 @@ def test_the_money_module_says_it_with_its_values_not_with_labels():
     # «Nach Zusage» ↔ «Nach Zahlung» war die zweite Fassung und immer noch zu knapp: der
     # Satz sagt nicht, *worauf* er sich bezieht, und ohne das Label darüber (#819) fehlte
     # der Bezug ganz. Jetzt steht die Frage im Wert – warte ich auf das Geld, ja oder nein.
-    assert ("label: 'Zahlung abwarten'" in fields
-            and "label: 'Zahlung nicht abwarten'" in fields), (
-        "Die Entscheidung steht nicht im Wert – dann braucht sie wieder eine Frage "
-        "darüber (#834)."
-    )
-    for old in ("label: 'zugesagt'", "label: 'bezahlt'",
-                "label: 'Nach Zusage'", "label: 'Nach Zahlung'"):
-        assert old not in fields, (
-            f"«{old}» ist zurück – der Wert sagt nicht für sich, was er bewirkt."
+    # ►►► **Der Schalter, um den es in #834 ging, gibt es nicht mehr** (#854). ◄◄◄
+    #
+    # Die Runde #816–#819 hat an ihm die Regel gelernt, und #834 hat seine **Werte**
+    # nachgeschärft («Zahlung abwarten» statt «Nach Zusage»). Beides bleibt richtig – nur
+    # steht die Aussage inzwischen woanders: **die vereinbarte Zahlungsfrist IST sie**
+    # (null Tage = Vorauszahlung). Ein Wächter, der die alten Werte weiterhin **verlangt**,
+    # verböte damit die bessere Lösung; geprüft wird darum, dass die Frage im Editor gar
+    # nicht mehr gestellt wird – die Regel selbst hängt oben an `IconSwitch`/`ObjectSelect`.
+    for gone in ("label: 'Zahlung abwarten'", "label: 'Zahlung nicht abwarten'",
+                 "label: 'zugesagt'", "label: 'bezahlt'",
+                 "label: 'Nach Zusage'", "label: 'Nach Zahlung'"):
+        assert gone not in fields, (
+            f"«{gone}» ist zurück – die Vorauszahlung ist keine Angabe der Definition "
+            f"mehr, sondern die Zahlungsfrist des Angebots (#854)."
         )
 
 
@@ -6422,8 +6441,15 @@ def test_a_quote_row_has_no_amount_field_where_the_positions_carry_the_price():
     assert "...(d.we_quote ? {} : { amount })" in flat, (
         "Der getippte Betrag wandert trotzdem mit – der Dienst weist ihn ab (b)."
     )
-    for term in ('aria-label="Lieferfrist in Tagen"', 'aria-label="Zahlungsfrist in Tagen"'):
-        assert term in flat, f"«{term}» ist mit dem Betragsfeld verschwunden (c)."
+    # **Die beiden Fristen stehen als `TermField` da** (#854/#856) – dasselbe Bauteil wie
+    # im Angebot eine Ebene höher; ein nacktes «Tage»-Feld daneben wäre die zweite Bauart
+    # für dieselbe Frage und liefe beim nächsten üblichen Wert auseinander.
+    assert flat.count("<TermField") == 2, (
+        "Die beiden Fristen sind mit dem Betragsfeld verschwunden oder wieder nackte "
+        "Zahlenfelder (c)."
+    )
+    for term in ("d.lead_terms", "d.payment_terms"):
+        assert term in flat, f"«{term}» kommt nicht vom Server (c)."
 
 
 # ---------------------------------------------------------------------------
@@ -6643,4 +6669,132 @@ def test_the_pay_button_reads_its_word_from_the_server():
     svc = _read(BACKEND / "app" / "services" / "deal.py")
     assert '"pay_online_word": flow.pay_online_word' in svc, (
         "Der Server schickt das Wort nicht mit (b) – dann steht der Knopf ohne Beschriftung da."
+    )
+
+
+# ---------------------------------------------------------------------------
+# ►►► Testnotizen #853–#858 – Name+Nummer · die Frist · die Live-Meldung
+# ---------------------------------------------------------------------------
+
+def test_a_name_never_stands_without_its_object_number():
+    """►►► **«Der Objektname allein darf nie ohne die Objektnummer stehen.»** (#853) ◄◄◄
+
+    Gemeldet an der Preiszeile des Angebots: dort stand «1×Blech», und eine Zeile höher –
+    in derselben Karte – dieselbe Sache **mit** ihrer Nummer. Derselbe Datensatz in zwei
+    Schreibweisen, und die schlechtere ist die, an der man ihn nicht wiedererkennt: ein
+    Name ist nicht eindeutig (zwei Artikel dürfen «Blech» heissen), die Nummer ist die
+    Kennung.
+
+    Geprüft wird die **allgemeine** Regel, wie der Nutzer sie formuliert hat, nicht die
+    eine Stelle: **jede** Anzeige eines ``*_name`` in der Karte hat ihre Nummer in
+    Sichtweite. Ein Wächter für genau die gemeldete Zeile wäre bei der nächsten neuen
+    Zeile stumm.
+
+    Bug-Form: an einer Namens-Anzeige fehlt der ``<ObjId>`` daneben.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    lines = src.splitlines()
+    shown = [i for i, l in enumerate(lines)
+             if re.search(r"\{[^{}]*\b\w+_name\b", l) and "//" not in l.split("{")[0]]
+    assert shown, "Die Karte zeigt gar keinen Namen mehr – der Wächter prüft nichts."
+    for i in shown:
+        window = "\n".join(lines[max(0, i - 10):i + 10])
+        assert "<ObjId" in window, (
+            f"«{lines[i].strip()}» (Zeile {i + 1}) steht ohne seine Objektnummer – "
+            f"ein Name allein ist keine Kennung (#853)."
+        )
+
+
+def test_a_term_is_a_named_choice_never_a_slider():
+    """►►► **Eine Frist ist eine Aufzählung mit freiem Rest** (Testnotizen #854–#856).
+
+    *«Ich dachte hier eben so an einen Slider-Button. Oder etwas Besseres – schlage
+    selbst vor.»* – **Kein Regler.** Eine Zahlungsfrist ist keine stufenlose Grösse:
+    zwischen «Vorauszahlung» und «30 Tage» liegt nichts, was man durch Ziehen findet, und
+    ein Regler über 0–365 träfe die 30 nur mit Glück. Es sind zwei, drei übliche Werte –
+    und dafür gibt es die Segmentierung des Hauses (`Segmented`), dieselbe Form wie
+    überall.
+
+    **Die Null hat einen Namen** («Sofort» · «Vorauszahlung»), und die freie Eingabe
+    beginnt darum bei ``freeMin``: sonst gäbe es zwei Wege zu einem Wert und zwei
+    Bedeutungen, von denen eine niemand kennt.
+
+    **Und die Werte kommen vom Server** – zwei Listen, eine im Browser und eine im
+    Dienst, laufen beim ersten neuen Regelwert auseinander.
+
+    Bug-Formen: (a) ein Regler; (b) ein zweiter, eigener Satz üblicher Werte im Browser;
+    (c) die freie Eingabe lässt die Null wieder zu.
+    """
+    fields = _read(FRONTEND / "components" / "erp" / "fields.tsx")
+    term = _component(fields, "TermField")
+    assert 'type="range"' not in _code(fields), "Ein Schieberegler für eine Frist (a)."
+    assert "<Segmented" in term, (
+        "Die Frist hat eine eigene Bauart statt der Segmentierung des Hauses (a)."
+    )
+    assert "Math.max(freeMin" in term, (
+        "Die freie Eingabe klemmt nicht bei `freeMin` (c) – dann gibt es zwei Wege zur "
+        "Null und zwei Bedeutungen."
+    )
+    for word in ("Vorauszahlung", "30 Tage", "Sofort", "Individuell"):
+        assert word not in _code(fields), (
+            f"«{word}» steht als Literal im Browser (b) – die üblichen Werte gehören "
+            f"dem Dienst (`domain/deal.PAYMENT_TERMS`/`LEAD_TERMS`)."
+        )
+    work = _code(_read(FRONTEND / "components" / "erp" / "deal-work.tsx"))
+    for source in ("d.lead_terms", "d.payment_terms", "d.term_free_min"):
+        assert source in work, f"«{source}» kommt nicht vom Server (b)."
+
+
+def test_after_paying_the_card_asks_again_instead_of_waiting_for_a_refresh():
+    """►►► **Gebucht wird vom Webhook — angezeigt trotzdem sofort** (Testnotiz #857).
+
+    *«Nachdem ich als Partner mit Stripe bezahlt habe, wurde es erst nach einem Refresh
+    angezeigt. Ist das gewollt oder gibt es einen eleganten, einfachen Weg?»* – Gewollt
+    ist die **Quelle** (der Browser des Zahlenden bucht nichts; wer ihn schliesst, darf
+    keine Buchung verschlucken), nicht das Warten. Zwischen dem «bezahlt» der Karte und
+    der Meldung des Dienstes liegen ein bis drei Sekunden, und in denen lädt ein
+    einzelnes Nachladen zu früh.
+
+    **Der einfache Weg ist fragen**, nicht ein zweiter Kanal: kein WebSocket und kein SSE
+    für **ein** Ereignis, das einmal je Zahlung eintrifft. Nachgefragt wird, bis sich die
+    Summe der Zahlungen ändert – und **endlich**: bleibt die Meldung aus, steht die Karte
+    still da, statt sie zu behaupten.
+
+    Bug-Formen: (a) es wird nur einmal nachgeladen; (b) es wird endlos gefragt; (c) das
+    Ende hängt an einer Zeituhr statt an der Zeile, auf die man wartet.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "deal-work.tsx")
+    money = _code(_component(src, "Money"))
+    assert "setTimeout" in money and "onPaid?.()" in money, (
+        "Nach dem Bezahlen wird nur einmal nachgeladen (a)."
+    )
+    assert "WAIT_TRIES" in money, "Es wird endlos gefragt (b)."
+    assert "d.paid !== wait.paid" in money, (
+        "Das Ende hängt nicht an der Zeile, auf die gewartet wird (c)."
+    )
+    assert "EventSource" not in _code(src) and "WebSocket" not in _code(src), (
+        "Ein zweiter Kanal für ein Ereignis, das einmal je Zahlung eintrifft."
+    )
+
+
+def test_the_paying_card_names_the_invoice_it_settles():
+    """**Wofür bezahlt wird, steht auf der Karte** (Testnotiz #858).
+
+    Kassiert wird über **eine** Rechnung, nicht über einen Saldo – also nennt die Karte
+    sie auch: dieselbe Nummer steht danach beim Zahlungsdienst in der Beschreibung und in
+    den Metadaten. Ein Beleg, drei Leser.
+
+    Bug-Form: die Karte zeigt nur einen Betrag, und der Zahlende weiss nicht, was er
+    damit begleicht.
+    """
+    src = _read(FRONTEND / "components" / "erp" / "pay-online.tsx")
+    assert "setup.invoice" in _code(src), (
+        "Die Bezahlkarte nennt die Rechnung nicht – dann ist der Betrag eine Zahl ohne "
+        "Beleg."
+    )
+    import sys
+    sys.path.insert(0, str(BACKEND))
+    from app.schemas.process import PaymentSetup
+    assert "invoice" in PaymentSetup.model_fields, (
+        "Die Vorbereitung liefert die Rechnungsnummer nicht mit."
     )

@@ -531,8 +531,20 @@ class Zahlung(Module):
     ``parties``    Die **zugelassenen** Gegenparteien. **Leer heisst frei** – dann wird
                    beim Ausführen gesucht. Eine Liste mit einem Eintrag ist der
                    Normalfall; wer vergleichen will, nennt drei.
-    ``prepaid``    **Erst weiter, wenn bezahlt.** Der einzige Schalter – und er schreibt
-                   keine Reihenfolge vor, er hält nur an (``deal.Balance.settled``).
+
+    ►►► **Und es sind ZWEI, nicht drei** (Testnotiz #854). ◄◄◄
+
+    Hier stand ein dritter Schalter: ``prepaid`` – «erst weiter, wenn bezahlt». Er ist
+    ersatzlos entfallen, weil er dieselbe Sache ein zweites Mal sagte: **die vereinbarte
+    Zahlungsfrist ist die Aussage**, und «zahlbar in null Tagen ab Zusage» *ist* die
+    Vorauszahlung (``deal.prepaid``). Zwei Angaben über eine Sache, an zwei Orten und zu
+    zwei Zeitpunkten – und wer sie verschieden setzte, hatte einen Vorgang, der etwas
+    anderes sagt als er tut.
+
+    Beim **Modellieren** steht sie ohnehin nicht fest: derselbe Ablauf verkauft einmal
+    gegen Vorkasse und einmal auf Rechnung. Sie gehört dorthin, wo man das Angebot
+    **schreibt** – an die Ausführungsstelle. Ein trotzdem gesendeter Wert wird
+    **verworfen**.
 
     ## Was gehandelt wird, sagt der PROZESS – nicht ein Feld
 
@@ -588,10 +600,9 @@ class Zahlung(Module):
     löscht, soll dabei keine Zeile hier anfassen müssen.
     """
 
-    #: Die vier Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
+    #: Die **zwei** Schlüssel der Konfiguration – hier und nirgends sonst als Zeichenkette.
     DIRECTION = "direction"
     PARTIES = "parties"
-    PREPAID = "prepaid"
     #: ►►► **Der Steuersatz, mit dem eine neue Position beginnt.** ◄◄◄
     #:
     #: Eine Rechnung ohne Steuersatz ist keine (MWSTG Art. 26) – und der Satz hängt an der
@@ -649,7 +660,12 @@ class Zahlung(Module):
         return {
             self.DIRECTION: direction,
             self.PARTIES: self._parties(data.get(self.PARTIES), flow),
-            self.PREPAID: bool(data.get(self.PREPAID)),
+            # ►►► **Keine Sperre** (Testnotiz #854). ◄◄◄
+            #
+            # ``prepaid`` stand hier und sagte, was die **Zahlungsfrist** ohnehin sagt.
+            # Ein gesendeter Wert wird darum verworfen – ein Feld, das die Oberfläche
+            # nicht anbietet, der Dienst aber annimmt, wäre die Hintertür zu genau der
+            # zweiten Wahrheit, die es hier nicht geben darf.
             # ►►► **Kein Steuersatz** (Testnotiz #851). ◄◄◄
             #
             # Er stand hier als «Vorgabe jeder neuen Position» und war damit eine
@@ -757,9 +773,11 @@ def parties_allowed(config: Optional[dict[str, Any]]) -> list[int]:
     return [int(r[Zahlung.PARTY]) for r in parties_of(config)]
 
 
-def prepaid(config: Optional[dict[str, Any]]) -> bool:
-    """**Erst weiter, wenn bezahlt?** – die eine Lesestelle."""
-    return bool((config or {}).get(Zahlung.PREPAID))
+# ►►► **``prepaid(config)`` ist entfallen** (Testnotiz #854). ◄◄◄
+#
+# «Erst weiter, wenn bezahlt» war eine Angabe der **Definition** – und damit die zweite
+# Aussage neben der vereinbarten **Zahlungsfrist**. Gefragt wird jetzt der Vorgang:
+# ``deal.prepaid(row.due_days)`` – null Tage ab Zusage *ist* die Vorauszahlung.
 
 
 MODULES: dict[str, Module] = {

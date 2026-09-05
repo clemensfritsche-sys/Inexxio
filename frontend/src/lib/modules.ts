@@ -407,11 +407,19 @@ export interface ModuleDraft {
    * (`DEAL_DIRECTION[…].ref`; beim Verkauf liefern wir).
    */
   parties: { party: number; ref: string }[];
-  /**
-   * Nur «Zahlung»: **erst weiter, wenn bezahlt.** Der einzige Schalter dieses Moduls –
-   * und er schreibt keine Reihenfolge vor, er hält nur an.
+  /*
+   * ►►► **`prepaid` ist entfallen** (Testnotiz #854). ◄◄◄
+   *
+   * «Erst weiter, wenn bezahlt» stand hier als dritte Angabe und sagte, was die
+   * vereinbarte **Zahlungsfrist** ohnehin sagt: «zahlbar in null Tagen ab Zusage» *ist*
+   * die Vorauszahlung. Zwei Angaben über eine Sache, an zwei Orten und zu zwei
+   * Zeitpunkten – und beim Widerspruch gewann der Schalter, obwohl auf dem Angebot die
+   * Frist steht.
+   *
+   * Beim Modellieren steht sie ohnehin nicht fest: derselbe Ablauf verkauft einmal gegen
+   * Vorkasse und einmal auf Rechnung. Sie gehört dorthin, wo man das Angebot **schreibt**
+   * (`deal-work.OurOffer`), und die Sperre ist dort eine Ableitung (`DealEmbed.prepaid`).
    */
-  prepaid: boolean;
 }
 
 /**
@@ -514,9 +522,8 @@ export const MODULE_FORM: Record<string, {
       parties: asRows(c.parties).map((r) => ({
         party: Number(r.party ?? r), ref: String(r.ref ?? ''),
       })).filter((r) => Number.isFinite(r.party)),
-      prepaid: Boolean(c.prepaid),
     }),
-    // ►►► **Drei Angaben – und KEIN Steuersatz** (Testnotiz #851). ◄◄◄
+    // ►►► **ZWEI Angaben – kein Steuersatz (#851), keine Sperre (#854).** ◄◄◄
     //
     // Er hing hier als Vorgabe und war damit eine Eigenschaft des **Moduls**: eine
     // Vorlage, die für jeden Auftrag denselben Satz behauptet. Er hängt aber an der
@@ -526,7 +533,6 @@ export const MODULE_FORM: Record<string, {
     config: (m) => ({
       direction: m.direction,
       parties: m.parties.map((r) => ({ party: r.party, ref: r.ref.trim() })),
-      prepaid: m.prepaid,
     }),
   },
   verbrauch: {
@@ -588,7 +594,7 @@ export function blankModule(id: number, moduleType: string): ModuleDraft {
     // **Die Vorgabe ist die EINNAHME** (#791): der häufigere Fall im Haus ist, dass wir
     // etwas verkaufen. Die Richtung bleibt trotzdem eine ausdrückliche Angabe – der
     // Server verlangt sie (`Zahlung.clean_config`), damit kein Wert stillschweigend gilt.
-    direction: 'in', parties: [], prepaid: false,
+    direction: 'in', parties: [],
   };
 }
 

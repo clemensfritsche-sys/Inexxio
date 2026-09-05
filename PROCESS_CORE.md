@@ -1831,13 +1831,25 @@ und ausgeliefert wird mit «Bewegen», ausgesondert mit «Aussondern».
 der richtige: sobald dieses Modul auch Ware bewegte, bräuchte es für jede Kombination aus
 Geld und Ware wieder einen eigenen Fall — genau die Lage, aus der es entstanden ist.*
 
-#### Drei Angaben beim Definieren (`domain/modules.Zahlung`)
+#### Zwei Angaben beim Definieren (`domain/modules.Zahlung`)
 
 | | |
 |---|---|
 | `direction` | **Geld kommt** (`in`) ↔ **Geld geht** (`out`). Daraus folgt jedes Wort. |
 | `parties` | Die **zugelassenen Partner**. **Leer heisst frei** — dann wird beim Ausführen gesucht. |
-| `prepaid` | **Weiter, wenn** zugesagt ↔ bezahlt. Der einzige Schalter. |
+
+►►► **Es waren einmal drei — und der dritte war eine zweite Aussage** (Testnotiz #854).
+◄◄◄
+
+`prepaid` («Weiter, wenn zugesagt ↔ bezahlt») stand hier als Schalter und sagte, was die
+vereinbarte **Zahlungsfrist** ohnehin sagt: *zahlbar in null Tagen ab Zusage* **ist** die
+Vorauszahlung. Zwei Stellen, die dieselbe Sache behaupten, geraten beim ersten Vorgang in
+Widerspruch, in dem jemand nur eine davon setzt — «Klinsch» war das Wort dafür.
+
+**Und der Ort war ebenfalls falsch.** Eine Definition ist eine **Vorlage** für jeden
+künftigen Auftrag; ob vorausbezahlt wird, entscheidet sich aber dort, wo man das Angebot
+schreibt. Die Frist steht darum an der **Angebotszeile** (`quotes[].payment_days`), und
+`prepaid` ist ihre Lesart (`dm.prepaid(due_days)`, `Balance.settled` unverändert).
 
 Und **je zugelassenem Partner eine Pflichtangabe**: *«Was ist zu tun?»* — seine
 Artikelnummer, sein Shop-Link oder ein Satz.
@@ -2115,6 +2127,27 @@ Feld nicht, und ein trotzdem gesendeter Wert wird **verworfen** – ein Feld, da
 Oberfläche zeigt, der Dienst aber annimmt, wäre die Hintertür zu einer Angabe, die niemand
 liest (dieselbe Regel wie #787). Zur Laufzeit steht sie an **seiner** Angebotszeile; sieht
 sie aus wie eine Adresse, ist sie ein Link.
+
+#### Die beiden Fristen — Pflicht, und die Null hat einen Namen
+
+►►► **Ein Angebot nennt beide Fristen** (Testnotizen #854–#856). ◄◄◄ Sie sind kein
+Beiwerk: aus der **Lieferfrist** kommt der Termin, aus der **Zahlungsfrist** die
+Fälligkeit jeder Rechnung — und, wenn sie null ist, die Vorauszahlung. Fehlt eine, hat
+niemand über den Zeitpunkt gesprochen, und das System müsste einen erfinden. Durchgesetzt
+wird das im **Dienst** (`deal._assert_terms`, geprüft wird bei `quote` das **Ergebnis**,
+nicht die Nutzlast), nicht am Feld: die Tür ist nicht der einzige Aufrufer.
+
+**Die üblichen Werte tragen Namen** (`domain/deal.PAYMENT_TERMS` / `LEAD_TERMS`):
+*Vorauszahlung* (0) · *30 Tage* — und *Sofort* (0) für die Lieferfrist. *«Bei einer
+Software ist die Lieferfrist 0 — soll ich dann einfach 0 eintragen?»* Ja, und genau darum
+steht dort ein **Wort**: eine Null in einem Feld «Tage» ist von einer vergessenen Eingabe
+nicht zu unterscheiden, ein Name ist eine Angabe.
+
+**Kein Schieberegler.** Eine Frist ist keine stufenlose Grösse — zwischen «Vorauszahlung»
+und «30 Tage» liegt nichts, was man durch Ziehen findet, und ein Regler über 0–365 träfe
+die 30 nur mit Glück. Es ist eine **Aufzählung mit einem freien Rest**, und die freie
+Eingabe beginnt bei `FREE_MIN = 1`: sonst gäbe es zwei Wege zur Null und zwei Bedeutungen,
+von denen eine niemand kennt.
 
 #### Lieferverzug — eine ABLEITUNG, kein Zustand
 
@@ -2417,6 +2450,38 @@ wer nur die eine schreibt, bekommt eine Ablehnung, und zwar erst beim Bezahlen, 
 der unangenehmsten Form. Und **nur, was wirklich dasteht**: fehlt die Adresse, fragt das
 Element sie; eine halbe Vorbelegung wäre schlechter als die Frage.
 
+#### Eine Zahlung gehört zu genau EINER Rechnung
+
+►►► *«Wenn ich eine Rechnung ausstelle, dann wird eine Zahlung auf genau diese Rechnung
+referenziert. Ich soll nicht eine Zahlung für zwei verschiedene Rechnungen erfassen können
+— dann lieber die zwei Rechnungen stornieren und eine daraus machen.»* (Testnotiz #858)
+◄◄◄
+
+Richtig, und die einfachere Regel ist zugleich die buchhalterisch saubere: der Weg für
+«eine Überweisung über zwei Rechnungen» ist eine **Stornorechnung und eine gemeinsame
+neue** — beides gibt es längst, und am Ende steht ein Beleg, den man vorzeigen kann. Die
+Alternative wäre eine Aufteilungstabelle (das *Ausziffern* offener Posten) für eine Zahl,
+die daneben ohnehin als Summe steht.
+
+**Ein Feld je Frage** (`deal_entries.charge_id`, Migration `129`): die Zuordnung
+beantwortet **worauf**, `balance` weiterhin **wie viel** — es rechnet unverändert über die
+Summen aller Zeilen, und darum ändert sich an keiner bestehenden Zahl etwas. `NULL` ist
+regulär und heisst «nicht zugeordnet»; nachträglich zugeordnet wird **nichts** — eine
+geratene Zuordnung wäre eine Behauptung über einen Beleg.
+
+**Drei Fälle, und keiner ist eine Einstellung** (`deal._charge_for_payment`): genau **eine**
+offene Rechnung → sie ist gemeint (danach zu fragen wäre eine Frage mit genau einer
+richtigen Antwort) · **mehrere** → die Zahlung muss sagen, welche, und der Satz **nennt
+sie** · **keine** → offen (eine Erstattung gehört zu einer längst beglichenen).
+
+**Und die Bezahlkarte kassiert genau diese eine** (`stripe_pay.prepare` → `open_charges`,
+die älteste offene): ihr Rest ist der Betrag, ihre Nummer steht **menschenlesbar** in der
+Beschreibung und **maschinenlesbar** in den Metadaten. Vorher war es der offene Betrag des
+**ganzen Vorgangs** — also eine Zahlung, die auf zwei Belege zeigt.
+
+*Nicht hier: der «statement descriptor» — der Text, den die Bank dem Karteninhaber zeigt.
+Er gehört dem **Konto**, nicht der Zahlung (`docs/stripe-setup.md` §2).*
+
 #### `pay_online` — die dritte Handlung am Geld
 
 `pay` schreibt auf, was geschehen ist (eine Überweisung liegt auf dem Konto);
@@ -2463,6 +2528,18 @@ Zahlen, und nur die zweite ist eine Zahlung.
 Die Karte sagt darum «**ausgeführt**», nie «gebucht»: dazwischen liegt eine Sekunde, die
 niemandem gehört. Der Browser ist keine Quelle — wer ihn nach der Zahlung schliesst, darf
 keine Buchung verschlucken.
+
+►►► **Angezeigt wird sie trotzdem sofort** (Testnotiz #857). ◄◄◄ *«Nachdem ich als Partner
+bezahlt habe, wurde es erst nach einem Refresh angezeigt — gewollt, oder gibt es einen
+eleganten, einfachen Weg?»* Gewollt ist die **Quelle**, nicht das Warten: zwischen dem
+«bezahlt» der Karte und der Meldung des Dienstes liegen ein bis drei Sekunden, und in denen
+lädt ein einzelnes Nachladen zu früh.
+
+**Der einfache Weg ist fragen** — kein WebSocket und kein SSE für **ein** Ereignis, das
+einmal je Zahlung eintrifft: nachgefragt wird alle 1.5 Sekunden, bis sich die Summe der
+Zahlungen ändert, höchstens zehnmal. **Und es endet an der Zeile, nicht an einer Uhr**:
+bleibt die Meldung aus, steht die Karte still da, statt sie zu behaupten — der Nachweis ist
+die Zeile, und die entsteht dort, wo das Geld gemeldet wird.
 
 #### Der Anbieter steht nicht im Geldvorgang
 

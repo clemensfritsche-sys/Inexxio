@@ -294,10 +294,17 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > `terminal = False`, `moves = False`, `buys = None`, kein Ortswechsel, kein neuer Status.
 > Daraus folgt, dass **keine andere Regel im System von ihm wissen muss**: Robustheit
 > konstruktiv statt geprüft. Was physisch geschieht, sagen die Nachbarn.
-> **Drei Angaben** (`domain/modules.Zahlung`): `direction` (`in` ↔ `out` – daraus folgt
-> jedes Wort), `parties` (**leer heisst frei**, je Zeile eine **Pflichtangabe** «Was ist zu
-> tun?») und `prepaid`. *Der frühere freiwillige `subject` ist entfallen – er war dieselbe
-> Aussage ein zweites Mal, nur ohne Adressaten (#805).*
+> **Zwei Angaben** (`domain/modules.Zahlung`): `direction` (`in` ↔ `out` – daraus folgt
+> jedes Wort) und `parties` (**leer heisst frei**, je Zeile eine **Pflichtangabe** «Was ist
+> zu tun?»). *Der frühere freiwillige `subject` ist entfallen – er war dieselbe Aussage ein
+> zweites Mal, nur ohne Adressaten (#805).*
+> ►►► **Und `prepaid` ist mitgegangen** (Testnotiz #854). ◄◄◄ Der Schalter «Weiter, wenn
+> zugesagt ↔ bezahlt» sagte, was die vereinbarte **Zahlungsfrist** ohnehin sagt: *zahlbar
+> in null Tagen ab Zusage* **ist** die Vorauszahlung. Zwei Stellen, die dieselbe Sache
+> behaupten, geraten beim ersten Vorgang in Widerspruch, in dem jemand nur eine davon
+> setzt. Und der Ort war ebenso falsch: eine Definition ist eine **Vorlage** für jeden
+> künftigen Auftrag, entschieden wird es dort, wo man das Angebot schreibt. `dm.prepaid
+> (due_days)` ist jetzt die Lesart der Frist, ein gesendetes `prepaid` wird **verworfen**.
 > **Was in beiden Richtungen gleich lautet, steht als Konstante** (`deal.PARTY` = «Partner»,
 > `deal.TASK`), nicht als Wert je Richtung: dort wäre es die Wahl, die man falsch treffen
 > kann. Singular = Plural, damit es keine Beugung gibt, die jemand rechnet (#787/#802).
@@ -350,6 +357,23 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > *berechnet · bezahlt · offen · uncharged* sind Ableitungen (`domain/deal.balance`), null
 > Spalten. **`prepaid` fragt nach der ZUSAGE** (`Balance.settled`), nicht nach dem offenen
 > Betrag: direkt nach der Zusage ist *offen* null, weil noch nichts gefordert wurde.
+> ►►► **Eine Zahlung gehört zu genau EINER Rechnung** (Testnotiz #858, Migration `129`).
+> ◄◄◄ `deal_entries.charge_id` beantwortet **worauf**, `balance` weiterhin **wie viel** –
+> es rechnet unverändert über die Summen, also ändert sich an keiner bestehenden Zahl
+> etwas. `NULL` heisst «nicht zugeordnet»; nachträglich zugeordnet wird **nichts** (eine
+> geratene Zuordnung wäre eine Behauptung über einen Beleg). Drei Fälle in
+> `_charge_for_payment`, keiner eine Einstellung: **eine** offene → sie ist gemeint ·
+> **mehrere** → die Zahlung muss sagen welche, und der Satz **nennt sie** · **keine** →
+> offen. Der Weg für «eine Überweisung über zwei Rechnungen» ist die **Stornorechnung und
+> eine gemeinsame neue** – beides gibt es längst; eine Aufteilungstabelle (*Ausziffern*)
+> wäre ein zweites Modell für eine Zahl, die daneben als Summe steht.
+> ►►► **Beide Fristen sind Pflicht, und die Null hat einen Namen** (#854–#856). ◄◄◄
+> `_assert_terms` weist ein Angebot ohne Liefer- **oder** Zahlungsfrist ab (bei `quote`
+> geprüft am **Ergebnis**, nicht an der Nutzlast) – aus ihnen kommen Termin und
+> Fälligkeit. Die Prüfung steht auf `is None` und nicht auf `not value`: **die Null ist
+> eine Angabe** («Sofort» · «Vorauszahlung», `LEAD_TERMS`/`PAYMENT_TERMS`), und
+> `FREE_MIN = 1` hält sie eindeutig – über die freie Eingabe gäbe es sonst einen zweiten
+> Weg zu ihr und eine zweite Bedeutung.
 > **`can` ist Auskunft UND Tor** (`ACTIONS`, Stufe → Verben): dieselbe Tabelle rendert die
 > Knöpfe und weist in `apply` ab. Geld fliesst ab der Zusage in **jeder** Stufe, auch nach
 > dem Storno; der Storno **behält seinen Weg**.

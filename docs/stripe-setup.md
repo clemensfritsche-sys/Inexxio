@@ -69,6 +69,26 @@ mit **seinem** Kurs erneut um: angezeigt € 11.80, belastet € 11.82.
 **Stripe Tax bleibt aus.** Es berechnete eine Steuer, die wir nicht kennen — die
 Umkehrung des Grundsatzes oben. Die Steuer steht am Beleg (`deal_entries.vat`).
 
+### Wo die Rechnungsnummer steht — und warum «Stripe» auf der Karte steht
+
+Drei Texte, drei Orte, und nur zwei davon gehören uns (Testnotiz #858):
+
+| Text | wer setzt ihn | was er ist |
+|---|---|---|
+| **Description** | wir, je Zahlung | «Rechnung 100000884-1 · Auftrag 100000884» — der **menschliche** Ort, den man im Dashboard liest. |
+| **Metadata** | wir, je Zahlung | `deal_id` · `charge_id` · `invoice` · `order` — der **maschinelle**; hierüber findet der Webhook den Vorgang. |
+| **Statement descriptor** | das **Konto** | Der Text, den die **Bank** dem Karteninhaber auf der Abrechnung zeigt. Höchstens 22 Zeichen. |
+
+Der dritte lautet «Stripe», **solange das Konto nicht aktiviert ist** — er ist keine
+Eigenschaft der Zahlung und lässt sich darum auch nicht je Zahlung setzen: er steht unter
+**Settings → Business → Public details**. Eine Rechnungsnummer gehört ohnehin nicht
+hinein: 22 Zeichen sind für den **Namen** da, an dem jemand die Belastung wiedererkennt,
+und wer den Beleg sucht, findet ihn über die Beschreibung.
+
+**Bezahlt wird immer genau eine Rechnung** (`open_charges` → die älteste offene), nie ein
+Saldo — darum steht dort *eine* Nummer und nicht «Auftrag …». Wer eine Überweisung über
+zwei Rechnungen hat, storniert sie und stellt eine gemeinsame.
+
 ## 3. Webhook-Endpoint
 
 **Die Adresse für `inexxio-dev` lautet:**

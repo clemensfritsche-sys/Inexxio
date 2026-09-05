@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Columns2, Grid2x2, Layers, Lock, LockOpen, Percent, Trash2,
+  Columns2, Grid2x2, Layers, Lock, Percent, Trash2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -403,9 +403,11 @@ function RowDelete({ label, hint, reveal, onClick }: {
  * Betrag**: der steht beim Modellieren nicht fest – ein hier getippter wäre bei der
  * zweiten Ausführung falsch, und zwar stillschweigend.
  *
- * **Der einzige Schalter ist die Sperre** (`prepaid`). Er schreibt keine Reihenfolge vor:
- * Vorauszahlung, Zahlungsziel, Anzahlung und Nachnahme sind dieselbe Mechanik in anderer
- * Folge. Er sagt nur, dass dieses Modul nicht abschliesst, bevor das Geld da ist.
+ * ►►► **Und es gibt keinen Schalter mehr** (Testnotiz #854). ◄◄◄ «Zahlung abwarten» stand
+ * hier und sagte, was die vereinbarte **Zahlungsfrist** ohnehin sagt: null Tage ab Zusage
+ * *ist* die Vorauszahlung. Beim Modellieren steht sie nicht fest – derselbe Ablauf
+ * verkauft einmal gegen Vorkasse und einmal auf Rechnung –, also wird sie dort gefragt,
+ * wo man das Angebot **schreibt**.
  */
 function MoneyFields({ module: m, onChange }: {
   module: ModuleDraft;
@@ -525,32 +527,18 @@ function MoneyFields({ module: m, onChange }: {
           </div>
         ))}
       </div>
-      <div>
-        {/* ►►► **Die Werte benennen die ENTSCHEIDUNG** (#818/#819/#834). ◄◄◄
+      {/* ►►► **Die Sperre steht hier NICHT mehr** (Testnotiz #854). ◄◄◄
 
-            Das Label darüber ist entfallen (#819) – richtig, aber die Werte trugen die
-            Frage danach nicht: «Nach Zusage» ↔ «Nach Zahlung» sagt nicht, worauf es sich
-            bezieht, und ohne die Zeile darüber fehlte der Bezug ganz (#834).
+          Hier stand ein Schalter «Zahlung abwarten ↔ nicht abwarten» – und er sagte, was
+          die vereinbarte **Zahlungsfrist** ohnehin sagt: «zahlbar in null Tagen ab
+          Zusage» *ist* die Vorauszahlung. Zwei Angaben über eine Sache, an zwei Orten und
+          zu zwei Zeitpunkten; wer sie verschieden setzte, hatte einen Vorgang, der etwas
+          anderes sagt als er tut.
 
-            Jetzt steht die Entscheidung **im Wert**: warte ich auf das Geld, bevor das
-            Modul abschliesst – ja oder nein. Beide Sätze stehen für sich, ohne Kontext
-            und ohne Hover; das Schloss trägt die Metapher, der Hover das Detail.
-
-            Dieselbe Regel wie beim Schalter darüber: was ein Bedienelement selbst sagt,
-            sagt man nicht noch einmal daneben – **aber es muss es dann auch sagen.** */}
-        <IconSwitch
-          value={m.prepaid ? 'prepaid' : 'open'}
-          onChange={(v) => onChange({ prepaid: v === 'prepaid' })}
-          options={[
-            { value: 'open', icon: LockOpen, label: 'Zahlung nicht abwarten',
-              hint: 'Das Modul schliesst ab, sobald zugesagt ist – gezahlt wird nach '
-                + 'Vereinbarung.' },
-            { value: 'prepaid', icon: Lock, label: 'Zahlung abwarten',
-              hint: 'Das Modul schliesst erst ab, wenn der zugesagte Betrag bezahlt ist '
-                + '(Vorauszahlung).' },
-          ]}
-        />
-      </div>
+          Beim **Modellieren** steht sie ohnehin nicht fest: derselbe Ablauf verkauft
+          einmal gegen Vorkasse und einmal auf Rechnung. Gefragt wird sie darum dort, wo
+          man das Angebot **schreibt** (`deal-work.OurOffer`) – mit «Vorauszahlung» als
+          erster Vorgabe, und die Sperre ist dort eine Ableitung. */}
       {/* ►►► **Der Steuersatz steht hier NICHT** (Testnotiz #851). ◄◄◄
 
           Er stand als «Vorgabe jeder neuen Position» in der Definition und war damit

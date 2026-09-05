@@ -48,9 +48,9 @@ Gutschrift / Kulanz            negative Forderung, ohne Ware
 Erstattung                     negative Zahlung, auch nach dem Storno
 =============================  ==========================================
 
-Für **keines** davon gibt es hier einen Modus. Der einzige Schalter ist ``prepaid``, und
-der schreibt keine Reihenfolge vor – er verhindert nur, dass das Modul abgeschlossen
-wird, solange nicht bezahlt ist.
+Für **keines** davon gibt es hier einen Modus – und seit #854 auch keinen Schalter mehr:
+«erst weiter, wenn bezahlt» ist die **Bedeutung der vereinbarten Zahlungsfrist**
+(``prepaid``: null Tage ab Zusage), nicht eine Einstellung daneben.
 """
 
 from dataclasses import dataclass
@@ -225,6 +225,61 @@ BY_PARTY = "party"
 #: Jetzt gilt einer für beide: **wo wir nummerieren, tippt niemand**, und wo die
 #: Gegenpartei nummeriert, ist es ihre Angabe – ihre Belegnummer, ihr Zahlungszweck.
 PARTY_REFERENCE = "Beleg-/Zahlungsreferenz des Partners"
+
+# ---------------------------------------------------------------------------
+# ►►► DIE BEIDEN FRISTEN — eine Zahl, und die üblichen Werte haben Namen ◄◄◄
+# ---------------------------------------------------------------------------
+#
+# Eine Frist ist **eine Zahl in Tagen** (Testnotizen #854/#855). Sie hat aber zwei, drei
+# übliche Werte, und die trägt man nicht als Zahl im Kopf: «Vorauszahlung» ist ein
+# Geschäftsbegriff, «0» ist eine Ziffer, die man erklären muss.
+#
+# ►►► **Und «Vorauszahlung» ist der Wert 0 – kein zweites Feld daneben.** ◄◄◄
+#
+# Vorher stand die Sperre («erst weiter, wenn bezahlt») als eigener Schalter in der
+# **Modul-Definition**, und die Zahlungsfrist daneben in der Ausführung: zwei Angaben über
+# **eine** Sache, an zwei Orten, zu zwei Zeitpunkten – und wer sie verschieden setzte,
+# hatte einen Vorgang, der etwas anderes sagt als er tut. «Zahlbar in 0 Tagen ab Zusage»
+# **ist** die Vorauszahlung; die Sperre folgt daraus, statt daneben zu stehen.
+#
+# **Beim Modellieren steht sie ohnehin nicht fest**: derselbe Ablauf verkauft einmal gegen
+# Vorkasse und einmal auf Rechnung. Sie gehört dorthin, wo man das Angebot **schreibt**.
+#
+# Damit «0» genau eine Bedeutung hat, ist es **kein tippbarer Wert**: die freie Eingabe
+# beginnt bei 1, und die Null gibt es nur über ihren Namen (``FREE_MIN``).
+
+#: Zahlbar in null Tagen ab der Zusage – **das ist die Vorauszahlung**.
+PREPAID_DAYS = 0
+
+#: Die üblichen Zahlungsfristen. Alles andere tippt man – aber nicht die Null.
+PAYMENT_TERMS: tuple[tuple[int, str], ...] = ((PREPAID_DAYS, "Vorauszahlung"),
+                                              (30, "30 Tage"))
+#: Die übliche Lieferfrist, die keine ist: eine Software ist sofort da (Testnotiz #856).
+#: Sie steht als **Wort** da, damit niemand rät, ob «0» erlaubt ist oder ein Fehler.
+LEAD_TERMS: tuple[tuple[int, str], ...] = ((0, "Sofort"),)
+
+#: Ab hier beginnt die freie Eingabe. **Nicht bei 0** – die hat einen Namen, und zwei Wege
+#: zu einem Wert wären zwei Bedeutungen, von denen eine niemand kennt.
+FREE_MIN = 1
+
+PAYMENT_TERM_LABEL = "Zahlungsfrist"
+LEAD_TERM_LABEL = "Lieferfrist"
+FREE_TERM_LABEL = "Individuell"
+
+
+def prepaid(due_days: Optional[int]) -> bool:
+    """►►► **Wartet dieses Modul auf das Geld?** – die eine Lesestelle. ◄◄◄
+
+    Es ist **keine Einstellung**, sondern die Bedeutung der vereinbarten Zahlungsfrist:
+    wer in null Tagen zahlbar stellt, liefert nicht vorher. Ein Schalter daneben wäre die
+    zweite Aussage über dieselbe Sache – und beim ersten Widerspruch gewinnt der Schalter,
+    obwohl auf dem Angebot die Frist steht.
+
+    ``None`` heisst «keine Frist vereinbart» und damit **nicht** Vorauszahlung: ohne
+    Angabe hat niemand über den Zeitpunkt gesprochen, und eine erfundene Sperre wäre
+    schlimmer als keine.
+    """
+    return due_days == PREPAID_DAYS
 
 
 @dataclass(frozen=True)

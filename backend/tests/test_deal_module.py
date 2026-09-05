@@ -70,17 +70,19 @@ def _article(db, name: str, *, steps: list[dict] | None = None):
     return art
 
 
-def _money_step(*, direction: str = "out", parties=(), task: str = "Härten auf 58 HRC",
-                prepaid: bool = False) -> dict:
-    """Ein «Zahlung»-Modul – drei Angaben, mehr gibt es nicht.
+def _money_step(*, direction: str = "out", parties=(), task: str = "Härten auf 58 HRC") -> dict:
+    """Ein «Zahlung»-Modul – **zwei** Angaben, mehr gibt es nicht.
 
     Je zugelassenem Partner **eine Pflichtangabe**, was bei ihm zu tun ist: seine
     Artikelnummer, sein Shop-Link oder ein Satz.
+
+    ►►► **Und keine Sperre** (Testnotiz #854). ◄◄◄ ``prepaid`` stand hier als dritte
+    Angabe und sagte, was die vereinbarte **Zahlungsfrist** ohnehin sagt. Wer die
+    Vorauszahlung prüfen will, vereinbart sie: ``_agree(..., days=0)``.
     """
     return {"module_type": "zahlung",
             "config": {"direction": direction,
-                       "parties": [{"party": p.object_id, "ref": task} for p in parties],
-                       "prepaid": prepaid}}
+                       "parties": [{"party": p.object_id, "ref": task} for p in parties]}}
 
 
 def _make(db, *, quantity: int, article, steps=None):
@@ -160,7 +162,7 @@ def _staff(db):
     return _party(db, "Wir AG", role="employee")
 
 
-def _agree(db, *, order, step, party, amount: str, days: int | None = None,
+def _agree(db, *, order, step, party, amount: str, days: int = 30, lead: int = 5,
            staff=None):
     """Der Regelweg bis zur Zusage: **anfragen → offerieren → Zuschlag**.
 
@@ -182,13 +184,18 @@ def _agree(db, *, order, step, party, amount: str, days: int | None = None,
     # die Zahlen der Prüfungen bleiben die Zahlen, um die es dort geht. Die **Steuer**
     # prüfen die Wächter, die sie meinen – ein Helfer, der sie nebenbei aufschlägt, machte
     # jede andere Prüfung zu einer über Rundung.
+    #
+    # ►►► **Und beide Fristen gehören dazu** (Testnotizen #854/#856): aus der Lieferfrist
+    # kommt der Termin, aus der Zahlungsfrist die Fälligkeit – und ``days=0`` ist die
+    # **Vorauszahlung**. Der Dienst weist ein Angebot ohne sie ab.
     svc.apply(db, order=order, step=step, action="ask",
-              payload={"parties": [party.object_id],
+              payload={"parties": [party.object_id], "lead_days": lead,
+                       "payment_days": days,
                        **({"lines": [{"article": None, "price": amount, "vat": "0.00"}]}
                           if ours else {})}, actor=actor)
     svc.apply(db, order=order, step=step, action="quote",
               payload={"party": party.object_id, "amount": amount,
-                       "payment_days": days}, actor=actor)
+                       "lead_days": lead, "payment_days": days}, actor=actor)
     svc.apply(db, order=order, step=step, action="agree",
               payload={"party": party.object_id}, actor=actor)
     db.flush()
@@ -569,7 +576,7 @@ def test_a_deal_is_asked_quoted_and_awarded():
         assert all(q["state"] == dm.ASKED for q in facts["quotes"])
 
         svc.apply(db, order=order, step=step, action="quote",
-                  payload={"party": a.object_id, "amount": "180.00", "lead_days": 5},
+                  payload={"lead_days": 5, "payment_days": 30, "party": a.object_id, "amount": "180.00", "lead_days": 5},
                   actor=staff)
         svc.apply(db, order=order, step=step, action="decline",
                   payload={"party": b.object_id}, actor=staff)
@@ -616,7 +623,7 @@ def test_a_counterparty_sees_only_its_own_line_and_no_money():
         step = rows[0]
         svc.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
         svc.apply(db, order=order, step=step, action="quote",
-                  payload={"party": b.object_id, "amount": "999.00"}, actor=staff)
+                  payload={"lead_days": 5, "payment_days": 30, "party": b.object_id, "amount": "999.00"}, actor=staff)
 
         seen = svc.embed_data(db, order=order, step=step, viewer=a)
         assert [q["party_object_id"] for q in seen["quotes"]] == [a.object_id], (
@@ -662,7 +669,7 @@ def test_a_counterparty_may_only_touch_its_own_line():
 
         # a schickt die Nummer von b mit – gelesen wird trotzdem a.
         svc.apply(db, order=order, step=step, action="quote",
-                  payload={"party": b.object_id, "amount": "1.00"}, actor=a)
+                  payload={"lead_days": 5, "payment_days": 30, "party": b.object_id, "amount": "1.00"}, actor=a)
         got = {q["party_object_id"]: q
                for q in svc.embed_data(db, order=order, step=step, viewer=staff)["quotes"]}
         assert got[a.object_id]["amount"] == "1.00", "Die eigene Zeile wurde nicht getroffen."
@@ -700,7 +707,7 @@ def test_one_allowed_party_is_not_a_question():
         # das Angebot geht mit ihm hinaus (#837). Gemeint ist hier die **Partei**-Angabe –
         # und die bleibt weg.
         svc.apply(db, order=order, step=rows[0], action="ask",
-                  payload={"lines": [{"article": None, "price": "100.00",
+                  payload={"lead_days": 5, "payment_days": 30, "lines": [{"article": None, "price": "100.00",
                                       "vat": "0.00"}]}, actor=staff)
         facts = svc.embed_data(db, order=order, step=rows[0], viewer=staff)
         assert [q["party_object_id"] for q in facts["quotes"]] == [kunde.object_id], (
@@ -771,7 +778,7 @@ def test_a_quote_line_is_rebuilt_never_mutated():
         order, rows = _make(db, quantity=1, article=art)
         svc.apply(db, order=order, step=rows[0], action="ask", payload={}, actor=staff)
         svc.apply(db, order=order, step=rows[0], action="quote",
-                  payload={"party": a.object_id, "amount": "42.50"}, actor=staff)
+                  payload={"lead_days": 5, "payment_days": 30, "party": a.object_id, "amount": "42.50"}, actor=staff)
         db.commit()
         db.expire_all()
         row = svc.of_step(db, rows[0].id)
@@ -1092,9 +1099,15 @@ def test_nothing_closes_before_the_deal_is_agreed():
 def test_prepaid_holds_the_module_until_the_money_is_there():
     """**Vorauszahlung ist kein Modus, sondern eine Sperre am Abschluss.**
 
-    Bug-Form: ``prepaid`` ist nur eine Anzeige, oder es wird über den offenen Betrag
+    Bug-Form: die Sperre ist nur eine Anzeige, oder sie wird über den offenen Betrag
     geprüft. Der offene Betrag ist direkt nach der Zusage **null** – weil noch nichts
     gefordert wurde –, und das hiesse «bezahlt», obwohl kein Rappen geflossen ist.
+
+    ►►► **Und sie kommt aus der vereinbarten ZAHLUNGSFRIST** (Testnotiz #854). ◄◄◄ Sie
+    stand einmal als Schalter in der Modul-Definition und sagte, was die Frist ohnehin
+    sagt: «zahlbar in null Tagen ab Zusage» *ist* die Vorauszahlung. Zweite Bug-Form: ein
+    Vorgang **ohne** Vorauszahlung (30 Tage) wird trotzdem angehalten – dann hinge die
+    Sperre wieder an etwas anderem als an der Abmachung.
     """
     from fastapi import HTTPException
     from app.services import deal as svc, process as proc
@@ -1102,10 +1115,12 @@ def test_prepaid_holds_the_module_until_the_money_is_there():
     try:
         kunde = _party(db, "Meier AG", role="customer")
         art = _article(db, "Welle",
-                       steps=[_money_step(direction="in", parties=[kunde], prepaid=True)])
+                       steps=[_money_step(direction="in", parties=[kunde]),
+                              _money_step(direction="in", parties=[kunde])])
         order, rows = _make(db, quantity=2, article=art)
         step = rows[0]
-        _agree(db, order=order, step=step, party=kunde, amount="300.00")
+        # **Null Tage ab Zusage IST die Vorauszahlung** – mehr wird nicht eingestellt.
+        _agree(db, order=order, step=step, party=kunde, amount="300.00", days=0)
 
         money = svc.balance_of(db, svc.of_step(db, step.id))
         assert money.open == Decimal("0.00") and money.settled is False, (
@@ -1121,6 +1136,16 @@ def test_prepaid_holds_the_module_until_the_money_is_there():
         assert svc.balance_of(db, svc.of_step(db, step.id)).settled is True
         _confirm_money(db, order, step)
         assert svc.of_step(db, step.id).stage == "done"
+
+        # **Die Gegenprobe**: derselbe Vorgang mit 30 Tagen hält nicht an. Ohne sie wäre
+        # «hält immer an» von «hält bei Vorauszahlung an» nicht zu unterscheiden.
+        later = rows[1]
+        _agree(db, order=order, step=later, party=kunde, amount="300.00", days=30)
+        assert svc.embed_data(db, order=order, step=later)["prepaid"] is False
+        _confirm_money(db, order, later)
+        assert svc.of_step(db, later.id).stage == "done", (
+            "Ein Zahlungsziel hält das Modul an – die Sperre hängt nicht an der Frist."
+        )
     finally:
         db.rollback(); db.close()
 
@@ -1263,7 +1288,7 @@ def test_an_employee_who_is_also_the_counterparty_keeps_the_full_view():
         step = rows[0]
         svc.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
         svc.apply(db, order=order, step=step, action="quote",
-                  payload={"party": outside.object_id, "amount": "999.00"}, actor=staff)
+                  payload={"lead_days": 5, "payment_days": 30, "party": outside.object_id, "amount": "999.00"}, actor=staff)
 
         assert svc.mine(db, inside) is None, (
             "Der Mitarbeiter bekommt eine verengte Sicht, weil er im Vorgang vorkommt – "
@@ -1312,9 +1337,9 @@ def test_whoever_did_not_win_does_not_see_the_award():
         svc.apply(db, order=order, step=step, action="ask", payload={}, actor=staff)
         svc.apply(db, order=order, step=step, action="quote",
                   payload={"party": a.object_id, "amount": "100.00",
-                           "payment_days": 30}, actor=staff)
+                           "lead_days": 5, "payment_days": 30}, actor=staff)
         svc.apply(db, order=order, step=step, action="quote",
-                  payload={"party": b.object_id, "amount": "999.00"}, actor=staff)
+                  payload={"lead_days": 5, "payment_days": 30, "party": b.object_id, "amount": "999.00"}, actor=staff)
         svc.apply(db, order=order, step=step, action="agree",
                   payload={"party": a.object_id}, actor=staff)
 
@@ -1439,7 +1464,7 @@ def test_who_names_the_price_is_a_property_of_the_direction():
         assert err.value.status_code == 400
         # ►►► **Und der Preis sind die POSITIONEN** – dort hängt der Steuersatz. ◄◄◄
         svc.apply(db, order=order, step=rows[0], action="ask",
-                  payload={"parties": [kunde.object_id], "lead_days": 5,
+                  payload={"lead_days": 5, "payment_days": 30, "parties": [kunde.object_id], "lead_days": 5,
                            "lines": [{"article": None, "price": "500.00",
                                       "vat": "8.10"}]}, actor=staff)
         line = svc.embed_data(db, order=order, step=rows[0], viewer=staff)["quotes"][0]
@@ -1774,7 +1799,7 @@ def test_the_amount_of_an_offer_is_the_sum_of_its_positions():
         art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde])])
         order, rows = _make(db, quantity=2, article=art)
         step = rows[0]
-        svc.apply(db, order=order, step=step, action="ask", payload={
+        svc.apply(db, order=order, step=step, action="ask", payload={"lead_days": 5, "payment_days": 30, 
             "parties": [kunde.object_id],
             # **Keine Menge in der Nutzlast** – zwei Wellen stehen vor dem Modul.
             "lines": [{"article": art.id, "price": "100.00", "vat": "8.10"}],
@@ -1814,7 +1839,7 @@ def test_a_term_only_change_keeps_the_price():
         order, rows = _make(db, quantity=1, article=art)
         step = rows[0]
         staff = _staff(db)
-        svc.apply(db, order=order, step=step, action="ask", payload={
+        svc.apply(db, order=order, step=step, action="ask", payload={"lead_days": 5, "payment_days": 30, 
             "parties": [kunde.object_id],
             "lines": [{"article": art.id, "price": "100.00", "vat": "0.00"}],
         }, actor=staff)
@@ -1839,7 +1864,7 @@ def test_a_term_only_change_keeps_the_price():
                   payload={"parties": [andere.object_id]}, actor=staff)
         with pytest.raises(HTTPException) as err:
             svc.apply(db, order=order2, step=rows2[0], action="quote",
-                      payload={"party": andere.object_id, "lead_days": 5}, actor=staff)
+                      payload={"lead_days": 5, "payment_days": 30, "party": andere.object_id, "lead_days": 5}, actor=staff)
         assert err.value.status_code == 400 and "Betrag" in err.value.detail
     finally:
         db.rollback(); db.close()
@@ -2319,3 +2344,233 @@ def test_the_payment_service_needs_both_keys():
         "Der Geldvorgang kennt den Anbieter (b) – er fragt eine Eigenschaft, nicht eine "
         "Marke."
     )
+
+
+# ---------------------------------------------------------------------------
+# §9.12c – die FRISTEN: Pflicht, mit Namen für die Null (Testnotizen #854–#856)
+# ---------------------------------------------------------------------------
+
+def test_both_terms_are_required_and_zero_has_a_name():
+    """►►► **Ein Angebot ohne Fristen ist keines — durchgesetzt im DIENST.** ◄◄◄
+
+    Aus der **Lieferfrist** kommt der Termin, aus der **Zahlungsfrist** die Fälligkeit
+    jeder Rechnung – und, wenn sie null ist, die Vorauszahlung. Fehlt eine, müsste das
+    System einen Zeitpunkt erfinden. Die Regel gehört darum in den Dienst und nicht an
+    das Feld: die Tür ist nicht der einzige Aufrufer (dieselbe Lehre wie bei
+    ``_quote``/«nur gesendete Felder wirken»).
+
+    ►►► **Und die Null ist eine Angabe, keine Lücke** (#856). ◄◄◄ *«Bei Software ist die
+    Lieferfrist 0 – soll ich dann einfach 0 eintragen?»* Ja – und darum hat sie einen
+    **Namen**: «Sofort» bzw. «Vorauszahlung». Ein Wert, den man erklären muss, ist in
+    einem Feld «Tage» von einer vergessenen Eingabe nicht zu unterscheiden.
+
+    Bug-Formen: (a) ``ask`` nimmt ein Angebot ohne Frist an; (b) ``quote`` nimmt es an;
+    (c) die Null wird als «nicht angegeben» gelesen und mit abgewiesen; (d) die
+    Null-Werte tragen keinen Namen.
+    """
+    from fastapi import HTTPException
+    from app.domain import deal as dm
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde]),
+                                           _money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        line = [{"article": None, "price": "100.00", "vat": "0.00"}]
+
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=rows[0], action="ask",
+                      payload={"parties": [kunde.object_id], "lines": line,
+                               "lead_days": 5}, actor=_staff(db))
+        assert e.value.status_code == 400 and dm.PAYMENT_TERM_LABEL in str(e.value.detail)
+
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=rows[0], action="ask",
+                      payload={"parties": [kunde.object_id], "lines": line,
+                               "payment_days": 30}, actor=_staff(db))
+        assert e.value.status_code == 400 and dm.LEAD_TERM_LABEL in str(e.value.detail)
+
+        # **(c) Die Gegenprobe zur Null**: sie ist die Vorauszahlung bzw. «Sofort» und
+        # muss durchgehen. Ohne sie wäre «Pflicht» als `not value` geschrieben, und die
+        # eine Antwort, die die Notiz auslöste, wäre ausgerechnet abgewiesen.
+        svc.apply(db, order=order, step=rows[0], action="ask",
+                  payload={"parties": [kunde.object_id], "lines": line,
+                           "lead_days": 0, "payment_days": 0}, actor=_staff(db))
+        db.flush()
+        assert svc.of_step(db, rows[0].id).quotes[0]["payment_days"] == 0
+
+        # **(b) `quote` prüft das ERGEBNIS**, nicht die Nutzlast: wer eine bestehende
+        # Zeile so ändert, dass eine Frist verschwindet, hat dasselbe Loch gerissen.
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=rows[0], action="quote",
+                      payload={"party": kunde.object_id, "payment_days": None},
+                      actor=_staff(db))
+        assert e.value.status_code == 400
+
+        # **(d) Die Null hat einen Namen** – an genau einer Stelle, und der Dienst nennt
+        # ihn in seinem Satz.
+        assert dm.LEAD_TERMS[0] == (0, "Sofort")
+        assert dm.PAYMENT_TERMS[0] == (dm.PREPAID_DAYS, "Vorauszahlung")
+        assert dm.FREE_MIN >= 1, (
+            "Die freie Eingabe beginnt bei 0 – dann gäbe es zwei Wege zur Null und "
+            "zwei Bedeutungen, von denen eine niemand kennt."
+        )
+    finally:
+        db.rollback(); db.close()
+
+
+def test_prepaid_is_derived_from_the_term_and_is_no_module_setting():
+    """►►► **Zwei Aussagen über dieselbe Sache können sich widersprechen** (#854). ◄◄◄
+
+    ``prepaid`` stand als Schalter in der Modul-**Definition** und sagte, was die
+    vereinbarte Zahlungsfrist ohnehin sagt. Damit gab es den «Klinsch»: Schalter aus,
+    Frist null – und zwei richtige Antworten auf dieselbe Frage. Jetzt gibt es die Frist,
+    und ``prepaid`` ist ihre Lesart.
+
+    Bug-Formen: (a) das Modul nimmt den Schalter wieder entgegen; (b) die Ableitung
+    fragt etwas anderes als die Frist.
+    """
+    from app.domain import deal as dm, modules as mod
+    zahlung = mod.get("zahlung")
+    cleaned = zahlung.clean_config({"direction": "in", "parties": [], "prepaid": True})
+    assert "prepaid" not in cleaned, (
+        "Die Definition nimmt den Schalter wieder an (a) – ein Feld, das die Oberfläche "
+        "nicht anbietet und der Dienst annimmt, ist eine Hintertür."
+    )
+    assert not hasattr(zahlung, "PREPAID"), "Der Schlüssel lebt weiter (a)."
+    assert dm.prepaid(0) is True and dm.prepaid(30) is False and dm.prepaid(None) is False
+
+
+# ---------------------------------------------------------------------------
+# §9.12d – eine Zahlung gehört zu genau EINER Rechnung (Testnotiz #858)
+# ---------------------------------------------------------------------------
+
+def test_a_payment_belongs_to_exactly_one_invoice():
+    """►►► **«Ich soll nicht eine Zahlung für zwei Rechnungen erfassen können.»** ◄◄◄
+
+    Richtig – und die einfachere Regel ist zugleich die buchhalterisch saubere: wer eine
+    Überweisung über zwei Rechnungen hat, **storniert sie und stellt eine gemeinsame**
+    (beides gibt es längst). Die Alternative wäre eine Aufteilungstabelle für eine Zahl,
+    die daneben ohnehin als Summe steht.
+
+    Drei Fälle, und keiner ist eine Einstellung: **eine** offene Rechnung ist gemeint
+    (danach zu fragen wäre eine Frage mit genau einer richtigen Antwort) · bei
+    **mehreren** muss die Zahlung sagen, welche, und der Satz **nennt sie** · bei
+    **keiner** bleibt es offen (eine Erstattung gehört zu einer längst beglichenen).
+
+    Bug-Formen: (a) die Zuordnung wird gar nicht geschrieben; (b) bei zwei offenen
+    Rechnungen sucht sich das System eine aus; (c) eine fremde Rechnung wird
+    angenommen; (d) ``balance`` rechnet plötzlich je Rechnung statt über die Summen.
+    """
+    from decimal import Decimal
+    from fastapi import HTTPException
+    from app.services import deal as svc
+    db = _db()
+    try:
+        kunde = _party(db, "Meier AG", role="customer")
+        art = _article(db, "Welle", steps=[_money_step(direction="in", parties=[kunde]),
+                                           _money_step(direction="in", parties=[kunde])])
+        order, rows = _make(db, quantity=1, article=art)
+        step, other = rows[0], rows[1]
+        _agree(db, order=order, step=step, party=kunde, amount="300.00")
+        _agree(db, order=order, step=other, party=kunde, amount="100.00")
+
+        # **Eine offene Rechnung** – sie ist gemeint, ohne dass jemand sie nennt.
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "100.00"}, actor=_staff(db))
+        db.flush()
+        one = svc.open_charges(db, svc.of_step(db, step.id))
+        assert len(one) == 1
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "100.00"}, actor=_staff(db))
+        db.flush()
+        paid = [e for e in svc._entries(db, svc.of_step(db, step.id).id)
+                if e.kind == "payment"]
+        assert paid and paid[-1].charge_id == one[0].id, (
+            "Die Zahlung sagt nicht, worauf sie geht (a)."
+        )
+        assert svc.open_charges(db, svc.of_step(db, step.id)) == [], (
+            "Die beglichene Rechnung steht weiter als offen da."
+        )
+
+        # **Zwei offene** – jetzt muss die Zahlung es sagen, und der Satz nennt beide.
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "100.00"}, actor=_staff(db))
+        svc.apply(db, order=order, step=step, action="charge",
+                  payload={"amount": "100.00"}, actor=_staff(db))
+        db.flush()
+        two = svc.open_charges(db, svc.of_step(db, step.id))
+        assert len(two) == 2
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=step, action="pay",
+                      payload={"amount": "100.00"}, actor=_staff(db))
+        assert e.value.status_code == 400
+        for entry in two:
+            assert str(entry.reference) in str(e.value.detail), (
+                "Der Satz nennt nicht, was zur Auswahl steht (b)."
+            )
+
+        # **Genannt** – und eine fremde wird abgewiesen (c).
+        foreign = svc.apply(db, order=order, step=other, action="charge",
+                            payload={"amount": "50.00"}, actor=_staff(db))
+        db.flush()
+        alien = svc.open_charges(db, svc.of_step(db, other.id))[0]
+        assert foreign is not None or alien is not None
+        with pytest.raises(HTTPException) as e:
+            svc.apply(db, order=order, step=step, action="pay",
+                      payload={"amount": "50.00", "charge_id": alien.id},
+                      actor=_staff(db))
+        assert e.value.status_code == 400 and "nicht zu diesem" in str(e.value.detail)
+
+        svc.apply(db, order=order, step=step, action="pay",
+                  payload={"amount": "100.00", "charge_id": two[1].id}, actor=_staff(db))
+        db.flush()
+        left = svc.open_charges(db, svc.of_step(db, step.id))
+        assert [e.id for e in left] == [two[0].id], (
+            "Die genannte Rechnung wurde nicht beglichen (b)."
+        )
+
+        # **(d) `balance` bleibt eine Summenrechnung** – «worauf» ist eine andere Frage
+        # als «wie viel»; die Zuordnung darf die vier Zahlen nicht verändern.
+        money = svc.balance_of(db, svc.of_step(db, step.id))
+        assert money.charged == Decimal("300.00") and money.paid == Decimal("200.00")
+        assert money.open == Decimal("100.00")
+    finally:
+        db.rollback(); db.close()
+
+
+def test_the_online_payment_names_the_invoice_it_settles():
+    """►►► **Wofür bezahlt wird, steht beim Dienst — und es ist EINE Rechnung** (#858).
+
+    Gemeldet war «Auftrag 100000884 100000884» als Beschreibung und «Stripe» als
+    Buchungstext. Das zweite ist eine **Konto**-Einstellung (der Buchungstext gehört dem
+    Konto, nicht der Zahlung); das erste war unsere Zeile – und sie nannte die
+    Auftragsnummer zweimal und die Rechnung gar nicht.
+
+    **State of the art**: die Rechnungsnummer steht **menschenlesbar** in der
+    Beschreibung *und* **maschinenlesbar** in den Metadaten. Die erste liest ein Mensch
+    im Dashboard, die zweite die Rückbuchung – ein Beleg, drei Leser.
+
+    Bug-Formen: (a) die Absicht geht über den **Saldo** statt über eine Rechnung;
+    (b) die Nummer fehlt in Beschreibung oder Metadaten; (c) die Auftragsnummer steht
+    zweimal darin.
+    """
+    src = pathlib.Path(BACKEND / "app" / "services" / "stripe_pay.py").read_text()
+    assert "open_charges" in src, (
+        "Die Zahlungsabsicht geht über den Saldo (a) – dann bezahlt sie nichts Bestimmtes."
+    )
+    assert "open_of" in src, "Der Betrag ist der Saldo, nicht der offene Rest DIESER (a)."
+    # **Die Metadaten sind der maschinelle Ort** – geprüft wird der Block, nicht das
+    # Vorkommen der Zeichenkette irgendwo in der Datei: dieselbe Zeile steht auch in der
+    # Antwort an unsere Karte, und ein Wächter, den bereits die Anzeige erfüllt, sagt
+    # nichts über den Faden zurück.
+    meta = src.split("metadata={", 1)[1].split("}", 1)[0]
+    for key in ('"charge_id"', '"invoice"', '"deal_id"'):
+        assert key in meta, (
+            f"Die Metadaten nennen {key} nicht (b) – dann weiss die Rückbuchung nicht, "
+            f"worauf die Zahlung geht."
+        )
+    line = next(l for l in src.splitlines() if "description=" in l)
+    assert "Rechnung {number}" in line, "Die Beschreibung nennt die Rechnung nicht (b)."
+    assert line.count("order.object_id") == 1, "Die Auftragsnummer steht zweimal (c)."

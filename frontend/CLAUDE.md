@@ -308,13 +308,31 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
   Überlauf misst, muss darum auch **Textknoten** messen – **und sie an jedem `overflow:
   hidden`-Vorfahren kappen**: ein `truncate`-Text ist wirklich abgeschnitten, und eine
   Messung, die die Lösung als Fehler meldet, ist so falsch wie eine, die ihn übersieht.
-- **Im Editor** (`MoneyFields`) drei Angaben – und **kein einziges Label darüber**
-  (#816/#817/#819): der Schieber **Einnahme ↔ Ausgabe** (Vorgabe Einnahme, #791/#831), die
-  **Partner** (`ObjectSelect`, leer = `RUNTIME_CHOICE`, Beschriftung schlicht «Partner»,
-  #830) und der Schieber **«Zahlung nicht abwarten» ↔ «Zahlung abwarten»** (#834). Was ein
-  Bedienelement selbst sagt, sagt man nicht daneben – **aber es muss es dann auch sagen**:
-  «Nach Zusage» nannte den Bezugspunkt, nicht die Entscheidung. **Kein Betragsfeld** und
-  kein Satz am Vorgang: beides stünde beim Modellieren nicht fest bzw. doppelt.
+- **Im Editor** (`MoneyFields`) **zwei** Angaben – und **kein einziges Label darüber**
+  (#816/#817/#819): der Schieber **Einnahme ↔ Ausgabe** (Vorgabe Einnahme, #791/#831) und
+  die **Partner** (`ObjectSelect`, leer = `RUNTIME_CHOICE`, Beschriftung schlicht
+  «Partner», #830). Was ein Bedienelement selbst sagt, sagt man nicht daneben. **Kein
+  Betragsfeld** und kein Satz am Vorgang: beides stünde beim Modellieren nicht fest bzw.
+  doppelt.
+  ►►► **Der dritte Schalter ist weg** (#854): «Zahlung abwarten ↔ nicht abwarten» sagte,
+  was die vereinbarte **Zahlungsfrist** ohnehin sagt (null Tage = Vorauszahlung) – zwei
+  Aussagen über dieselbe Sache, und die zweite steht in einer **Vorlage**, während die
+  Entscheidung dort fällt, wo man das Angebot schreibt. `ModuleDraft.prepaid` ist damit
+  ebenfalls entfallen. *Die Regel aus #834 gilt weiter – nur gibt es den Wert nicht mehr,
+  an dem sie gelernt wurde.*
+- ►►► **Eine Frist ist ein `TermField`** (#854–#856, `fields.tsx`) – die üblichen Werte mit
+  **Namen**, der Rest getippt. «Vorauszahlung» ist ein Geschäftsbegriff, «0» eine Ziffer,
+  die man erklären muss; *«soll ich bei einer Software einfach 0 eintragen?»* beantwortet
+  darum **«Sofort»**. **Kein Schieberegler**: zwischen «Vorauszahlung» und «30 Tage» liegt
+  nichts, was man durch Ziehen findet – es ist eine Aufzählung mit freiem Rest, und dafür
+  gibt es `Segmented`. Die freie Eingabe beginnt bei `freeMin` (geklemmt beim **Verlassen**,
+  nicht beim Tippen – wer eine 3 vor die 0 setzen will, muss die 0 schreiben dürfen), und
+  **die Werte kommen vom Server** (`d.payment_terms`/`d.lead_terms`): eine zweite Liste im
+  Browser liefe beim ersten neuen Regelwert auseinander. Dasselbe Bauteil im Angebot
+  (`OurOffer`) wie an der Angebotszeile (`QuoteRow`) – zwei Bauarten für dieselbe Frage
+  liefen beim nächsten üblichen Wert auseinander. Gemessen in Chromium: 1440 · 1280 · 1024 ·
+  834 · 375 · 320 px, **0 px** waagrechter Überlauf (Bug-Form mit einem unteilbaren Wort:
+  +140 px bei 375, +195 px bei 320 – die Messung ist nicht blind).
 - ►►► **Alles zu EINEM Partner steht auf EINER Zeile** (#833, `.erp-partyrow`). ◄◄◄
   Nummer, Name und die Pflichtangabe «Was ist zu tun?» (#805/#808, benannt über
   `aria-label`, gesagt vom Platzhalter) gehören zusammen – bei mehreren Partnern ist die
@@ -373,7 +391,25 @@ unterscheidet, **reist fertig mit** (`DealEmbed.label`, `stages[].label/verb`, `
 - **Der Modul-Abschluss steht am ENDE der Karte** (#829), hinter der Geld-Zeile. Er stand
   in der Stufe «Auftrag», also mitten in der Kette, und darunter kam noch etwas – ein
   Knopf, der ein Modul abschliesst, sagt so «hier ist Schluss», während sichtbar noch
-  etwas folgt. Die Sperre (`prepaid`) ersetzt an genau dieser Stelle den Knopf.
+  etwas folgt. Die Sperre (`d.prepaid`, jetzt aus der vereinbarten Zahlungsfrist) ersetzt
+  an genau dieser Stelle den Knopf.
+- ►►► **Ein Name steht nie ohne seine Nummer** (#853). ◄◄◄ *«Der Objektname allein darf nie
+  ohne die Objektnummer stehen – immer beides in Kombination.»* Gemeldet an der Preiszeile
+  des Angebots («1×Blech»), während dieselbe Sache eine Zeile höher **mit** ihrer Nummer
+  stand: derselbe Datensatz in zwei Schreibweisen, und die schlechtere ist die, an der man
+  ihn nicht wiedererkennt – ein Name ist nicht eindeutig, die Nummer ist die Kennung. Der
+  Wächter prüft die **Regel** (jede `*_name`-Anzeige hat ihren `<ObjId>` in Sichtweite),
+  nicht die gemeldete Zeile.
+- ►►► **Nach dem Bezahlen wird kurz nachgefragt** (#857, `Money`). ◄◄◄ Gebucht wird vom
+  **Webhook** – das bleibt so (der Browser des Zahlenden ist keine Quelle). Zwischen dem
+  «bezahlt» der Karte und der Meldung liegen ein bis drei Sekunden, und in denen lädt ein
+  einzelnes Nachladen zu früh. Nachgefragt wird alle 1.5 s, bis sich `d.paid` ändert,
+  höchstens zehnmal: **kein zweiter Kanal** (WebSocket/SSE) für ein Ereignis, das einmal je
+  Zahlung eintrifft. Bleibt die Meldung aus, steht die Karte still da, statt sie zu
+  behaupten.
+- **Und die Bezahlkarte nennt die Rechnung** (#858, `pay-online.tsx`): kassiert wird über
+  **eine** Rechnung, nicht über einen Saldo – dieselbe Nummer steht danach beim
+  Zahlungsdienst in Beschreibung und Metadaten.
 - **Das Partner-Feld hält die frische Wahl nur, bis sie als Zeile dasteht** (#794 → #820).
   Gehalten wird sie, weil sie im Moment des Klicks noch nicht gespeichert ist; sobald der
   Server sie als Angebotszeile zurückgibt, stünde derselbe Partner zweimal da. Eine

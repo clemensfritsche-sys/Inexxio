@@ -4780,6 +4780,40 @@
             "title": "Prepaid",
             "default": false
           },
+          "payment_terms": {
+            "items": {
+              "$ref": "#/components/schemas/DealTerm"
+            },
+            "type": "array",
+            "title": "Payment Terms"
+          },
+          "lead_terms": {
+            "items": {
+              "$ref": "#/components/schemas/DealTerm"
+            },
+            "type": "array",
+            "title": "Lead Terms"
+          },
+          "term_free_min": {
+            "type": "integer",
+            "title": "Term Free Min",
+            "default": 1
+          },
+          "term_free_label": {
+            "type": "string",
+            "title": "Term Free Label",
+            "default": ""
+          },
+          "payment_term_label": {
+            "type": "string",
+            "title": "Payment Term Label",
+            "default": ""
+          },
+          "lead_term_label": {
+            "type": "string",
+            "title": "Lead Term Label",
+            "default": ""
+          },
           "allowed": {
             "items": {
               "$ref": "#/components/schemas/DealParty"
@@ -4945,6 +4979,13 @@
             "title": "Settled",
             "default": false
           },
+          "open_invoices": {
+            "items": {
+              "$ref": "#/components/schemas/DealOpenInvoice"
+            },
+            "type": "array",
+            "title": "Open Invoices"
+          },
           "entries": {
             "items": {
               "$ref": "#/components/schemas/DealEntryOut"
@@ -5056,6 +5097,17 @@
             "type": "boolean",
             "title": "Reversed",
             "default": false
+          },
+          "charge_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Id"
           }
         },
         "type": "object",
@@ -5133,6 +5185,42 @@
         ],
         "title": "DealLine",
         "description": "**Was gehandelt wird** – abgeleitet aus dem Prozess, nie getippt.\n\nJe Artikel, dessen Einzelinstanzen im Auftrag stehen, eine Zeile. Mehrere sind der\nNormalfall: EIN Vorgang mit zwei Positionen, wie im echten Leben.\n\nDie **Spezifikation reist mit** (``services/article_fields``) – sie beschreibt die\nSache, damit der Partner weiss, worum es geht. Was **daran** zu tun ist, steht bei\ndem Partner, den es betrifft (``DealQuote.ref``)."
+      },
+      "DealOpenInvoice": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "DealOpenInvoice",
+        "description": "Eine **offene Rechnung** – worauf eine Zahlung gehen kann (Testnotiz #858).\n\nGerechnet vom Server (``deal.open_charges``), nicht im Browser: es ist dieselbe\nAbleitung, die ``_pay`` als Tor benutzt, und zwei Formeln für eine Frage wichen ab –\ndie im Browser sähe trotzdem richtig aus."
       },
       "DealParty": {
         "properties": {
@@ -5296,6 +5384,25 @@
         "title": "DealStage",
         "description": "Eine Stufe – Schlüssel, Beschriftung und das Verb, wenn sie dran ist."
       },
+      "DealTerm": {
+        "properties": {
+          "days": {
+            "type": "integer",
+            "title": "Days"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "days",
+          "label"
+        ],
+        "title": "DealTerm",
+        "description": "Eine **übliche Frist** – die Zahl und wie sie heisst.\n\n«Vorauszahlung» ist ein Geschäftsbegriff, «0» eine Ziffer, die man erklären muss. Die\nListe reist mit dem Vorgang (dieselbe Bauart wie ``vat_rates``), damit die Karte keine\nzweite pflegt."
+      },
       "DealUpdate": {
         "properties": {
           "action": {
@@ -5409,6 +5516,17 @@
               }
             ],
             "title": "Entry"
+          },
+          "charge_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Id"
           },
           "lines": {
             "anyOf": [
@@ -7435,6 +7553,11 @@
           "currency": {
             "type": "string",
             "title": "Currency"
+          },
+          "invoice": {
+            "type": "string",
+            "title": "Invoice",
+            "default": ""
           },
           "billing": {
             "$ref": "#/components/schemas/PaymentBilling"

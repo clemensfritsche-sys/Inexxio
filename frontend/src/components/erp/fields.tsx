@@ -976,6 +976,65 @@ export function Segmented({ label, value, onChange, options, required }: {
   );
 }
 
+/** Der Wert der freien Eingabe – kein Tagesbetrag, sondern «ich tippe selbst». */
+const TERM_FREE = 'free';
+
+/**
+ * ►►► **Eine FRIST — die üblichen Werte mit Namen, der Rest getippt.** ◄◄◄
+ *
+ * Eine Frist ist **eine Zahl in Tagen**. Ihre zwei, drei üblichen Werte trägt aber niemand
+ * als Zahl im Kopf: «Vorauszahlung» ist ein Geschäftsbegriff, «0» eine Ziffer, die man
+ * erklären muss. Genau daraus kam die Meldung – ein nacktes Feld «Tage» beantwortet nicht,
+ * was man üblicherweise hineinschreibt (Testnotizen #854/#855/#856).
+ *
+ * **Und kein Schieberegler.** Eine Zahlungsfrist ist keine stufenlose Grösse: zwischen
+ * «Vorauszahlung» und «30 Tage» liegt nichts, was man durch Ziehen findet, und ein Regler
+ * über 0–365 träfe die 30 nur mit Glück. Es ist eine **Aufzählung mit einem freien Rest** –
+ * und dafür ist die Segmentierung des Hauses da (`Segmented`, dieselbe Form wie überall).
+ *
+ * **Die Null gibt es nur über ihren Namen.** Die freie Eingabe beginnt bei `freeMin`;
+ * sonst gäbe es zwei Wege zu einem Wert und damit zwei Bedeutungen, von denen eine niemand
+ * kennt («0 Tage» ↔ «Vorauszahlung»). Geklemmt wird beim Verlassen, nicht beim Tippen –
+ * wer eine 3 vor die 0 setzen will, muss die 0 erst schreiben dürfen.
+ */
+export function TermField({ label, value, onChange, terms, freeMin, freeLabel, required }: {
+  label: string;
+  /** Die Tageszahl als **String** – ein halb getipptes Feld hat keine Zahl. */
+  value: string;
+  onChange: (v: string) => void;
+  terms: { days: number; label: string }[];
+  freeMin: number;
+  freeLabel: string;
+  required?: boolean;
+}) {
+  const preset = terms.find((t) => String(t.days) === value);
+  // **Ein Zustand, keine zweite Wahrheit**: er sagt nur, dass jemand «Individuell»
+  // *gewählt* hat – ob die freie Eingabe steht, folgt aus dem Wert selbst.
+  const [manual, setManual] = useState(false);
+  const free = manual || (value !== '' && !preset);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Segmented label={label} required={required}
+        value={free ? TERM_FREE : (preset ? String(preset.days) : '')}
+        onChange={(v) => {
+          setManual(v === TERM_FREE);
+          onChange(v === TERM_FREE ? '' : v);
+        }}
+        options={[...terms.map((t) => ({ value: String(t.days), label: t.label })),
+          { value: TERM_FREE, label: freeLabel }]} />
+      {free && (
+        <input className={`${inputCls} ix-tnum`} {...numericInputProps} value={value}
+          aria-label={`${label} in Tagen`} placeholder={`ab ${freeMin} Tagen`}
+          onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
+          onBlur={() => {
+            if (value === '') return;
+            onChange(String(Math.max(freeMin, Number(value))));
+          }} />
+      )}
+    </div>
+  );
+}
+
 /**
  * Der Zustand als Pille: Symbol + Farbe + Wort – **eine** Form, überall dieselbe (Feed wie
  * Detail-Kopf). Eine zwischenzeitliche «Punkt + Wort»-Variante für den Feed ist wieder

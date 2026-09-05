@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle, ArrowUpRight, CalendarClock, Check, ChevronDown, CircleSlash,
-  ClipboardList, CreditCard, FileText, Lock, Send, Undo2, Wallet,
+  ClipboardList, CreditCard, FileText, Loader2, Lock, Send, Undo2, Wallet,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DealEmbed, DealParty, DealQuote } from '@/types';
@@ -11,7 +11,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { ObjectSelect } from '@/components/erp/object-select';
 import { PayOnline } from '@/components/erp/pay-online';
 import {
-  Label, MICRO_LABEL, inputCls, numericInputProps, numericOnly,
+  Label, MICRO_LABEL, TermField, inputCls, numericInputProps, numericOnly,
 } from '@/components/erp/fields';
 import {
   DEAL_PARTY, DEAL_STAGE, DEAL_TASK, QUOTE_STATE, dealDirection,
@@ -83,6 +83,22 @@ function negate(amount: string): string {
 function reversedRef(d: Filled, entryId: number): string {
   const src = d.entries.find((x) => x.id === entryId);
   return src?.reference ? `Storno zu ${src.reference}` : 'Storno';
+}
+
+/**
+ * ►►► **Auf welche Rechnung diese Zahlung geht** (Testnotiz #858). ◄◄◄
+ *
+ * Dieselbe Bauart wie `reversedRef`: der Server schickt die **Id**, die Nummer steht an
+ * der Rechnung, und die Liste ist ohnehin da. Sie ein zweites Mal mitzuschicken wäre
+ * dieselbe Angabe doppelt – und die zweite veraltet, sobald jemand storniert.
+ *
+ * `''` heisst «nicht zugeordnet»: so stehen die Zahlungen da, die es vor dieser Regel
+ * schon gab, und so eine Erstattung, die ihre Zahlung kennt und nicht die Rechnung.
+ */
+function chargeRef(d: Filled, chargeId: number | null | undefined): string {
+  if (chargeId == null) return '';
+  const src = d.entries.find((x) => x.id === chargeId);
+  return src?.reference ?? '';
 }
 
 /**
@@ -248,6 +264,18 @@ const HEAD_H = 18;
  * Stelle; die Breite eines Symbol-Knopfes gibt `.erp-actbtn-icon` vor (32 px, quadratisch).
  */
 const ACT_H = 30;
+
+/**
+ * ►►► **Wie lange nach einer Online-Zahlung nachgefragt wird** (Testnotiz #857). ◄◄◄
+ *
+ * Gebucht wird vom **Webhook**, nicht vom Browser des Zahlenden – zwischen dem «bezahlt»
+ * der Karte und der Meldung liegen ein bis drei Sekunden. Zehn Versuche im
+ * Anderthalb-Sekunden-Takt sind rund **15 Sekunden**: lang genug für den Normalfall, kurz
+ * genug, dass niemand einer Anzeige zusieht, die nichts mehr sagt. Bleibt die Meldung aus,
+ * hört die Karte auf zu fragen, statt eine Buchung zu behaupten.
+ */
+const WAIT_TRIES = 10;
+const WAIT_STEP = 1500;
 
 function Row({ label, done, active, last, children }: {
   label: string; done?: boolean; active?: boolean;
@@ -544,7 +572,14 @@ function Offer({ d, busy, active, onAction }: {
     : [{ article: null, price: '', vat: d.vat_rate }]), [d.lines, d.vat_rate]);
   const [offer, setOffer] = useState<{ rows: PriceRow[]; lead: string; days: string }>(
     () => ({ rows: blank(), lead: '', days: '' }));
-  const ready = !d.we_quote || offer.rows.some((r) => r.price.trim() !== '');
+  // ►►► **Wer den Preis nennt, nennt auch die beiden Fristen** (#854/#856). ◄◄◄
+  //
+  // Sie sind der Rest der Zusage: aus der Lieferfrist kommt der Termin, aus der
+  // Zahlungsfrist die Fälligkeit – und, wenn sie null ist, die Vorauszahlung. Der Dienst
+  // weist ein Angebot ohne sie ab (`_assert_terms`); dies ist die freundliche Hälfte.
+  // Bei einer **Ausgabe** geht die Zeile leer hinaus, dort füllt sie die Gegenpartei.
+  const ready = !d.we_quote || (offer.rows.some((r) => r.price.trim() !== '')
+    && offer.lead !== '' && offer.days !== '');
 
   /** **Eine Abwahl gilt für die Anfrage, die man gerade stellt** (#835) – sie fällt mit
    *  dem Absenden. Sonst blieb der zweite Partner abgewählt, nachdem man den ersten
@@ -664,6 +699,14 @@ function OurOffer({ d, value, onChange }: {
         const line = d.lines.find((l) => l.article_id === row.article);
         return (
           <div key={row.article ?? -1} className="flex items-end gap-2 flex-wrap">
+            {/* ►►► **Ein Name steht nie ohne seine Nummer** (Testnotiz #853). ◄◄◄
+
+                «Der Objektname allein darf nie alleine ohne die Objektnummer stehen –
+                immer beides in Kombination.» Hier stand «1×Blech», und daneben, in
+                `Goods`, dieselbe Zeile mit ihrer Nummer: **derselbe Datensatz, zwei
+                Schreibweisen**. Ein Name ist nicht eindeutig – zwei Artikel dürfen
+                «Blech» heissen –, und die Nummer ist die Kennung, an der man sie
+                unterscheidet. */}
             <div className="flex items-center gap-1.5 text-[12.5px]"
               style={{ flex: '1 1 140px', minWidth: 0, paddingBottom: 7 }}>
               {line && <span className="ix-tnum font-semibold" style={{ flex: 'none' }}>
@@ -671,6 +714,9 @@ function OurOffer({ d, value, onChange }: {
               <span className="truncate" style={{ color: 'var(--fg-2)' }}>
                 {line?.article_name || 'Ohne Artikel'}
               </span>
+              {line?.article_object_id != null && (
+                <ObjId value={line.article_object_id} />
+              )}
             </div>
             <div style={{ width: 104 }}>
               <Label required>Preis netto</Label>
@@ -692,23 +738,32 @@ function OurOffer({ d, value, onChange }: {
           </div>
         );
       })}
-      <div className="flex items-end gap-2 flex-wrap">
-        <div style={{ width: 104 }}>
-          <Label>Lieferfrist</Label>
-          <input className={`${inputCls} ix-tnum`} {...numericInputProps} value={value.lead}
-            aria-label="Lieferfrist in Tagen" placeholder="Tage"
-            onChange={(e) => onChange({
-              ...value, lead: numericOnly(e.target.value, { decimals: false }) })} />
-        </div>
-        <div style={{ width: 116 }}>
-          <Label>Zahlungsfrist</Label>
-          <input className={`${inputCls} ix-tnum`} {...numericInputProps} value={value.days}
-            aria-label="Zahlungsfrist in Tagen" placeholder="Tage"
-            onChange={(e) => onChange({
-              ...value, days: numericOnly(e.target.value, { decimals: false }) })} />
-        </div>
-        {/* **Was das Angebot kostet, rechnet niemand im Kopf**: dieselbe Regel wie beim
-            Server (je Satz auf der Summe) – nur als Vorschau, gebucht wird dort. */}
+      {/* ►►► **Die beiden Fristen sind PFLICHT — und ihre üblichen Werte haben Namen.**
+          ◄◄◄ (Testnotizen #854/#855/#856)
+
+          Sie standen als zwei nackte Felder «Tage» da, beide freiwillig. Das ist an drei
+          Stellen zu wenig: aus der **Lieferfrist** kommt der Termin, aus der
+          **Zahlungsfrist** die Fälligkeit jeder Rechnung – und, wenn sie null ist, die
+          **Vorauszahlung**. Ohne sie hat niemand über den Zeitpunkt gesprochen.
+
+          «Muss ich bei einer Software einfach 0 eintragen?» – ja, und genau darum steht
+          dort jetzt **«Sofort»**: eine 0 in einem Feld «Tage» sieht aus wie eine Lücke,
+          ein Wort ist eine Angabe. Dieselbe Frage beantwortet «Vorauszahlung» für die
+          Zahlungsfrist – und damit ist der frühere Schalter in der Modul-Definition
+          ersatzlos entfallen: **die Frist IST die Aussage.** */}
+      <div className="flex flex-col gap-2">
+        <TermField label={d.lead_term_label ?? 'Lieferfrist'} required
+          value={value.lead} onChange={(v) => onChange({ ...value, lead: v })}
+          terms={d.lead_terms ?? []} freeMin={d.term_free_min ?? 1}
+          freeLabel={d.term_free_label ?? 'Individuell'} />
+        <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
+          value={value.days} onChange={(v) => onChange({ ...value, days: v })}
+          terms={d.payment_terms ?? []} freeMin={d.term_free_min ?? 1}
+          freeLabel={d.term_free_label ?? 'Individuell'} />
+      </div>
+      {/* **Was das Angebot kostet, rechnet niemand im Kopf**: dieselbe Regel wie beim
+          Server (je Satz auf der Summe) – nur als Vorschau, gebucht wird dort. */}
+      <div className="flex items-end">
         <Sums rows={value.rows} lines={d.lines} label={d.vat_label ?? 'MWST'}
           decimals={d.currency_decimals} />
       </div>
@@ -877,26 +932,32 @@ function QuoteRow({ d, quote, busy, active, onAction }: {
                     onChange={(e) => setAmount(numericOnly(e.target.value))} />
                 </div>
               )}
-              <div style={{ width: 92 }}>
-                <Label>Lieferfrist</Label>
-                <input className={`${inputCls} ix-tnum`} {...numericInputProps}
-                  value={lead} aria-label="Lieferfrist in Tagen" placeholder="Tage"
-                  onChange={(e) => setLead(numericOnly(e.target.value, { decimals: false }))} />
-              </div>
-              <div style={{ width: 100 }}>
-                <Label>Zahlungsfrist</Label>
-                <input className={`${inputCls} ix-tnum`} {...numericInputProps}
-                  value={days} aria-label="Zahlungsfrist in Tagen" placeholder="Tage"
-                  onChange={(e) => setDays(numericOnly(e.target.value, { decimals: false }))} />
+              {/* **Dieselben beiden Fristen wie im Angebot** – eine Ebene später, und
+                  darum dasselbe Bauteil: sie sind hier seine Angabe statt unserer, aber
+                  es ist dieselbe Frage (#854/#856). Zwei Bauarten für ein Feld liefen
+                  beim nächsten üblichen Wert auseinander. */}
+              <div style={{ flex: '1 1 100%', minWidth: 0 }}
+                className="flex flex-col gap-2">
+                <TermField label={d.lead_term_label ?? 'Lieferfrist'} required
+                  value={lead} onChange={setLead}
+                  terms={d.lead_terms ?? []} freeMin={d.term_free_min ?? 1}
+                  freeLabel={d.term_free_label ?? 'Individuell'} />
+                <TermField label={d.payment_term_label ?? 'Zahlungsfrist'} required
+                  value={days} onChange={setDays}
+                  terms={d.payment_terms ?? []} freeMin={d.term_free_min ?? 1}
+                  freeLabel={d.term_free_label ?? 'Individuell'} />
               </div>
               <button type="button"
                 className="erp-actbtn erp-actbtn-primary erp-actbtn-icon"
                 style={{ height: ACT_H }}
-                disabled={busy || (!d.we_quote && amount.trim() === '')}
+                disabled={busy || (!d.we_quote && amount.trim() === '')
+                  || lead === '' || days === ''}
                 aria-label="Offerte erfassen"
                 data-tip={!d.we_quote && amount.trim() === ''
                   ? 'Ohne Betrag gibt es keine Offerte'
-                  : 'Offerte erfassen – Preis und Fristen festhalten'}
+                  : lead === '' || days === ''
+                    ? 'Ohne Liefer- und Zahlungsfrist gibt es keine Offerte'
+                    : 'Offerte erfassen – Preis und Fristen festhalten'}
                 onClick={() => onAction({
                   action: 'quote', party,
                   // **Nur senden, was man auch nennt** – wo die Positionen den Preis
@@ -1118,6 +1179,33 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
   const [paying, setPaying] = useState(false);
   /** Der vorbelegte Betrag einer **Korrektur** (#842) – leer heisst «Vorgabe des Servers». */
   const [correct, setCorrect] = useState('');
+  /**
+   * ►►► **Nach dem Bezahlen wird kurz nachgefragt** (Testnotiz #857). ◄◄◄
+   *
+   * «Es stand, dass es bestätigt wird, sobald der Zahlungsdienst es meldet – angezeigt
+   * hat er es dann auch, aber erst nach einem Refresh.» Genau so ist es gebaut, und der
+   * Grund ist richtig: **gebucht wird vom Webhook**, nicht vom Browser des Zahlenden
+   * (wer ihn schliesst, darf keine Buchung verschlucken). Zwischen dem «bezahlt» der
+   * Karte und der Meldung liegen ein bis drei Sekunden – und in denen lädt ein einziges
+   * Nachladen zu früh.
+   *
+   * Der einfache Weg dafür ist **fragen**, nicht ein zweiter Kanal: kein WebSocket, kein
+   * SSE für **ein** Ereignis, das einmal je Zahlung eintrifft. Nachgefragt wird, bis die
+   * Zeile da ist – erkennbar daran, dass sich die Summe der Zahlungen ändert –, längstens
+   * ein paar Sekunden. Bleibt sie aus, steht die Karte still da, statt es zu behaupten:
+   * der Nachweis ist die Zeile, und die entsteht dort, wo das Geld gemeldet wird.
+   */
+  const [wait, setWait] = useState<{ paid: string; tries: number } | null>(null);
+  useEffect(() => {
+    if (!wait) return;
+    // **Die Zeile ist da** – oder wir haben lange genug gefragt.
+    if (d.paid !== wait.paid || wait.tries >= WAIT_TRIES) { setWait(null); return; }
+    const t = setTimeout(() => {
+      setWait((w) => (w ? { ...w, tries: w.tries + 1 } : w));
+      onPaid?.();
+    }, WAIT_STEP);
+    return () => clearTimeout(t);
+  }, [wait, d.paid, onPaid]);
   // Ohne Zahlen gibt es nichts zu zeigen – so sieht es eine Gegenpartei.
   if (d.open == null) return null;
 
@@ -1180,6 +1268,16 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
               {e.reference && (
                 <span className="ix-tnum truncate flex-1" data-tip={e.reference}
                   style={{ color: 'var(--fg-3)', minWidth: 0 }}>{e.reference}</span>
+              )}
+              {/* ►►► **Worauf eine Zahlung geht** (Testnotiz #858). ◄◄◄ Sie gehört zu
+                  genau einer Rechnung – und ohne diese Zeile sähe man es der Liste nicht
+                  an, weil beide Arten dieselbe Form haben. */}
+              {chargeRef(d, e.charge_id) && (
+                <span className="ix-tnum text-[11.5px] truncate"
+                  style={{ color: 'var(--fg-4)', flex: 'none', maxWidth: 140 }}
+                  data-tip={`Zahlung auf Rechnung ${chargeRef(d, e.charge_id)}`}>
+                  auf {chargeRef(d, e.charge_id)}
+                </span>
               )}
               <span style={{ color: 'var(--fg-4)', flex: 'none' }}>
                 {localDate(e.booked_on)}
@@ -1287,10 +1385,22 @@ function Money({ d, busy, orderObjectId, stepId, onAction, onPaid }: {
           onSubmit={(body) => { setForm(''); setCorrect(''); onAction(body); }} />
       )}
 
+      {/* **Was gerade passiert, steht da – und es behauptet keine Buchung.** Die Zeile
+          entsteht, wenn der Dienst sie meldet; bis dahin ist «wird gebucht» die ehrliche
+          Auskunft und «gebucht» wäre beim nächsten Blick eine Lüge. */}
+      {wait && (
+        <span className="flex items-center gap-1.5 text-[12.5px]"
+          style={{ color: 'var(--fg-4)' }}>
+          <Loader2 size={13} className="animate-spin" />
+          Zahlung ausgeführt – sie wird gebucht, sobald der Zahlungsdienst sie meldet.
+        </span>
+      )}
+
       {paying && (
         <PayOnline orderObjectId={orderObjectId} stepId={stepId}
           label={d.pay_online_word}
-          onDone={() => onPaid?.()} onClose={() => setPaying(false)} />
+          onDone={() => { setWait({ paid: d.paid ?? '', tries: 0 }); onPaid?.(); }}
+          onClose={() => setPaying(false)} />
       )}
     </div>
   );
@@ -1348,6 +1458,19 @@ function Entry({ kind, d, busy, preset, onCancel, onSubmit }: {
   // Log nichts weiss. Gerechnet wird es **nicht hier** – der Server leitet es ab, und
   // eine zweite Formel im Browser wiche ab, während ihre Zahl richtig aussähe.
   const [service, setService] = useState(d.service_date ?? '');
+  // ►►► **Eine Zahlung gehört zu genau EINER Rechnung** (Testnotiz #858). ◄◄◄
+  //
+  // «Wenn ich eine Rechnung ausstelle, dann wird eine Zahlung auf genau diese Rechnung
+  // referenziert.» – Genau so. Steht **eine** offen, gibt es nichts zu fragen (eine Frage
+  // mit einer richtigen Antwort ist keine); stehen **mehrere**, ist die Wahl Pflicht, und
+  // der Dienst weist ohne sie ab. Wer eine Überweisung über zwei Rechnungen hat,
+  // storniert sie und stellt eine gemeinsame – ein Vorgang, den es längst gibt.
+  //
+  // Ein `<select>` ist hier richtig: die offenen Rechnungen sind eine **endliche
+  // Aufzählung** dieses Vorgangs, keine Referenz auf einen Datensatz im Haus.
+  const invoices = kind === 'payment' ? (d.open_invoices ?? []) : [];
+  const [charge, setCharge] = useState<string>(
+    invoices.length > 0 ? String(invoices[0].id) : '');
   return (
     <div className="flex flex-col gap-2" style={{
       padding: 10, borderRadius: 8, border: '1px solid var(--border-1)',
@@ -1382,6 +1505,21 @@ function Entry({ kind, d, busy, preset, onCancel, onSubmit }: {
               onChange={(e) => setService(e.target.value)} />
           </div>
         )}
+        {/* **Nur wo es etwas zu wählen gibt.** Bei einer Rechnung ist die Vorgabe
+            eindeutig, und eine Frage mit genau einer richtigen Antwort ist keine. */}
+        {invoices.length > 1 && (
+          <div>
+            <Label required>Rechnung</Label>
+            <select className={inputCls} value={charge} aria-label="Rechnung"
+              onChange={(e) => setCharge(e.target.value)}>
+              {invoices.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {inv.reference ?? inv.id} · {formatAmount(inv.open, d.currency_decimals)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {refLabel && (
           <div>
             <Label>{refLabel}</Label>
@@ -1396,6 +1534,9 @@ function Entry({ kind, d, busy, preset, onCancel, onSubmit }: {
           style={{ height: 30 }} disabled={busy || amount.trim() === ''}
           onClick={() => onSubmit({
             action: kind === 'charge' ? 'charge' : 'pay', amount, reference: ref,
+            // **Worauf sie geht** – auch bei genau einer: der Dienst leitete sie zwar
+            // selbst ab, aber was gebucht wird, soll die Karte gesagt haben.
+            ...(charge ? { charge_id: Number(charge) } : {}),
             ...(taxed ? {
               ...(d.we_quote ? {} : { vat }),
               ...(service ? { service_date: service } : {}),

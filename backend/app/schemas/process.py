@@ -211,6 +211,12 @@ class PaymentSetup(BaseModel):
     #: die Karte nicht rechnet und nicht rundet.
     amount: str
     currency: str
+    #: ►►► **Welche Rechnung bezahlt wird** (Testnotiz #858). ◄◄◄
+    #:
+    #: Kassiert wird über **eine** Rechnung, nicht über einen Saldo – sonst entstünde die
+    #: Zahlung, die auf zwei Belege zeigt. Ihre Nummer steht darum in der Karte, in der
+    #: Beschreibung beim Dienst und in den Metadaten: derselbe Beleg, drei Leser.
+    invoice: str = ""
     billing: PaymentBilling
 
 

@@ -128,6 +128,11 @@ _COLUMN_SAFETY_NET = (
     # oder tausend Yen. Vorgabe ``CHF``; wer in einer anderen fakturiert, sagt es am
     # Vorgang – bis zur Zusage.
     ("deals", "currency", "VARCHAR(3) NOT NULL DEFAULT 'CHF'"),
+    # **Eine Zahlung gehört zu genau einer Rechnung** (Migration 129, Testnotiz #858).
+    # Ohne die Spalte scheitert jeder Lesezugriff auf eine Geld-Zeile, weil das Modell sie
+    # kennt – dieselbe Ausfallklasse wie ``reverses_id`` darüber; der Fremdschlüssel bleibt
+    # der Migration, das Netz zieht die **Spalte** nach.
+    ("deal_entries", "charge_id", "BIGINT"),
 )
 
 #: ►►► **Spalten, die es GIBT, aber mit der falschen Genauigkeit.** ◄◄◄
@@ -271,6 +276,15 @@ _RAW_INDEX_SAFETY_NET: tuple[str, ...] = (
     "WHERE table_name='order_units' AND column_name='return_to_order_id') THEN "
     "CREATE INDEX IF NOT EXISTS ix_order_units_return_to_order_id "
     "ON order_units (return_to_order_id); END IF; END $$;",
+    # ►► **Worauf eine Zahlung geht** (Migration 129, Testnotiz #858): «was ist auf dieser
+    #    Rechnung noch offen» ist ein Sprung an ihre Zahlungen. Der Index steht hier, weil
+    #    eine Index-Änderung, die **nur** in einer Migration steht, die dev-Datenbank nie
+    #    erreicht – die Lehre aus #778, teuer bezahlt.
+    "DO $$ BEGIN IF to_regclass('public.deal_entries') IS NOT NULL "
+    "AND EXISTS (SELECT 1 FROM information_schema.columns "
+    "WHERE table_name='deal_entries' AND column_name='charge_id') THEN "
+    "CREATE INDEX IF NOT EXISTS ix_deal_entries_charge_id "
+    "ON deal_entries (charge_id); END IF; END $$;",
     # ►► **Die Vorauswahl der Stück-Auswahl** (Migration 113): «die ältesten Stücke
     #    dieser Instanz, die im Regal liegen» – genau die Form, für die ein
     #    zusammengesetzter Index gebaut ist. Gemessen bei 50 000 Stücken: 15,3 → 1,2 ms.

@@ -2501,6 +2501,68 @@
 > (Klarna, Link, Amazon Pay …) – ein Schalter im Dashboard, denn der Code fragt
 > `automatic_payment_methods` und führt bewusst keine eigene Liste (`docs/backlog.md`).*
 
+> ►►► **Die FRIST ist die Aussage — und eine Zahlung gehört zu EINER Rechnung**
+> (Testnotizen #853–#858, Migration `129`). ◄◄◄ Sechs Notizen, und zwei davon sind
+> **Modellfragen**, die der Nutzer selbst richtig gestellt hat.
+> **(1) Zwei Aussagen über dieselbe Sache geraten in Widerspruch** (#854 – «das ist ja im
+> Klinsch mit der Modul-Definition»). Der Schalter **«Zahlung abwarten»** stand in der
+> Definition und sagte, was die vereinbarte **Zahlungsfrist** ohnehin sagt: *zahlbar in
+> null Tagen ab Zusage* **ist** die Vorauszahlung. Er ist **ersatzlos entfallen** – auf
+> beiden Seiten, samt `ModuleDraft.prepaid`; ein trotzdem gesendeter Wert wird
+> **verworfen**. `prepaid` ist jetzt die **Lesart** der Frist (`dm.prepaid(due_days)`),
+> `Balance.settled` unverändert. **Der Ort war der zweite Fehler**: eine Definition ist
+> eine **Vorlage** für jeden künftigen Auftrag – entschieden wird es dort, wo man das
+> Angebot **schreibt** («denn hier schreibe ich das Angebot ja»).
+> **(2) Die Frist ist eine Aufzählung mit freiem Rest, kein Regler** (#855/#856,
+> `TermField` + `PAYMENT_TERMS`/`LEAD_TERMS`). Vorgeschlagen war ein Schieberegler –
+> **verworfen mit Grund**: zwischen «Vorauszahlung» und «30 Tage» liegt nichts, was man
+> durch Ziehen findet, und ein Regler über 0–365 träfe die 30 nur mit Glück. Die üblichen
+> Werte tragen darum **Namen** (*Vorauszahlung* · *30 Tage* · *Sofort*), und die Antwort
+> auf «soll ich bei einer Software einfach 0 eintragen?» ist ein **Wort**: eine Null in
+> einem Feld «Tage» ist von einer vergessenen Eingabe nicht zu unterscheiden. Die freie
+> Eingabe beginnt bei `FREE_MIN = 1` – sonst gäbe es zwei Wege zur Null und zwei
+> Bedeutungen. **Beide Fristen sind Pflicht, und zwar im DIENST** (`_assert_terms`, bei
+> `quote` geprüft am **Ergebnis** statt an der Nutzlast): aus ihnen kommen Termin und
+> Fälligkeit – ohne sie hat niemand über den Zeitpunkt gesprochen.
+> **(3) Eine Zahlung gehört zu genau EINER Rechnung** (#858 – «ansonsten ist es glaube ich
+> nicht sauber»). Richtig: der Weg für «eine Überweisung über zwei Rechnungen» ist eine
+> **Stornorechnung und eine gemeinsame neue** – beides gibt es längst, und am Ende steht
+> ein Beleg, den man vorzeigen kann; eine Aufteilungstabelle (*Ausziffern*) wäre ein
+> zweites Modell für eine Zahl, die daneben als Summe steht. **Ein Feld je Frage**
+> (`deal_entries.charge_id`): die Zuordnung sagt **worauf**, `balance` weiterhin **wie
+> viel** – es rechnet unverändert über die Summen, also ändert sich an keiner bestehenden
+> Zahl etwas. Drei Fälle, keiner eine Einstellung: eine offene Rechnung ist gemeint · bei
+> mehreren muss die Zahlung sagen welche (und der Satz **nennt sie**) · bei keiner bleibt
+> es offen. **Die Bezahlkarte kassiert dieselbe eine** (die älteste offene), und ihre
+> Nummer steht **menschenlesbar** in der Beschreibung und **maschinenlesbar** in den
+> Metadaten. *Der «Stripe»-Buchungstext ist kein Bug: der `statement_descriptor` gehört
+> dem **Konto**, nicht der Zahlung (22 Zeichen für den Namen, an dem jemand die Belastung
+> wiedererkennt) – `docs/stripe-setup.md` §2.*
+> **(4) Angezeigt wird sofort, gebucht weiterhin vom Webhook** (#857). Gewollt ist die
+> **Quelle**, nicht das Warten: nachgefragt wird alle 1.5 s, bis sich die Summe der
+> Zahlungen ändert, höchstens zehnmal – **kein zweiter Kanal** (WebSocket/SSE) für ein
+> Ereignis, das einmal je Zahlung eintrifft. Es endet an der **Zeile**, nicht an einer Uhr:
+> bleibt die Meldung aus, steht die Karte still da, statt sie zu behaupten.
+> **(5) Ein Name steht nie ohne seine Nummer** (#853 – «das mag ich nicht ganz
+> allgemein»). Gemeldet an der Preiszeile («1×Blech»), während dieselbe Sache eine Zeile
+> höher **mit** Nummer stand. Der Wächter prüft darum die **Regel** – jede
+> `*_name`-Anzeige der Karte hat ihren `<ObjId>` in Sichtweite –, nicht die gemeldete
+> Zeile: ein Wächter für genau sie wäre bei der nächsten neuen stumm.
+> **Ein Fund beim Gegenprüfen der Migration**: `129` hatte einen Wächter der Form «Spalte
+> da → fertig». Auf **dev** legt aber das Spalten-Netz die Spalte an und sonst nichts –
+> Index und Fremdschlüssel wären dort **nie** angekommen (dieselbe Lehre wie #778,
+> gemessen: die Migration lief «erfolgreich» durch und hinterliess die Tabelle ohne Index).
+> Sie ist jetzt **je Objekt** idempotent.
+> Wächter: 4 neue in `tests/test_deal_module.py`, 4 neue in `test_frontend_mirrors.py`,
+> dazu 3 auf die neue Regel gezogene – **elf Bug-Formen gegengeprüft, jede meldet**; einer
+> war dabei stumpf (er fragte nach dem Vorkommen von `"invoice": number` und war schon
+> durch die Anzeige erfüllt – er liest jetzt den **Metadaten-Block**). Suite grün gegen die
+> gewachsene Datenbank **und** gegen ein Schema nur aus den Migrationen (je 517);
+> Migration `129` von null · idempotent · downgrade · über das Lifespan-Netz verifiziert.
+> Gemessen in Chromium an der **echten** Komponente: 1440 · 1280 · 1024 · 834 · 375 ·
+> 320 px, **0 px** waagrechter Überlauf – und die Messung gegen ihre eigene Bug-Form
+> gegengeprüft (unteilbares Wort im Segment: +140 px bei 375, +195 px bei 320).
+
 > **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
 
 ## Was ist Inexxio?

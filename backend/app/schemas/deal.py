@@ -182,6 +182,41 @@ class DealEntryOut(BaseModel):
     #: weil die Oberfläche sie sonst über die ganze Liste selbst suchen müsste – und der
     #: Server kennt sie ohnehin, er stellt die Frage bereits für ``can``.
     reversed: bool = False
+    #: ►►► **Welche RECHNUNG diese Zahlung begleicht** (Testnotiz #858). ◄◄◄
+    #:
+    #: Eine Zahlung gehört zu genau einer Forderung – wer eine Überweisung über zwei
+    #: Rechnungen hat, storniert sie und stellt eine gemeinsame. Hier steht nur die **Id**:
+    #: die Nummer steht an der Rechnung, und die Karte hat die ganze Liste; sie ein zweites
+    #: Mal mitzuschicken wäre dieselbe Angabe doppelt (dieselbe Bauart wie ``reverses``).
+    #:
+    #: ``None`` bei einer Forderung – und bei den Zahlungen, die es vor dieser Regel gab.
+    charge_id: Optional[int] = None
+
+
+class DealOpenInvoice(BaseModel):
+    """Eine **offene Rechnung** – worauf eine Zahlung gehen kann (Testnotiz #858).
+
+    Gerechnet vom Server (``deal.open_charges``), nicht im Browser: es ist dieselbe
+    Ableitung, die ``_pay`` als Tor benutzt, und zwei Formeln für eine Frage wichen ab –
+    die im Browser sähe trotzdem richtig aus.
+    """
+
+    id: int
+    reference: Optional[str] = None
+    #: Was auf **dieser** Rechnung noch offen ist – die Vorgabe der Zahlung.
+    open: Optional[str] = None
+
+
+class DealTerm(BaseModel):
+    """Eine **übliche Frist** – die Zahl und wie sie heisst.
+
+    «Vorauszahlung» ist ein Geschäftsbegriff, «0» eine Ziffer, die man erklären muss. Die
+    Liste reist mit dem Vorgang (dieselbe Bauart wie ``vat_rates``), damit die Karte keine
+    zweite pflegt.
+    """
+
+    days: int
+    label: str
 
 
 class DealEmbed(BaseModel):
@@ -304,8 +339,27 @@ class DealEmbed(BaseModel):
     can: list[str] = Field(default_factory=list)
 
     # ─── Was in der Definition steht ─────────────────────────────────────────────
-    #: **Erst weiter, wenn bezahlt?** Der einzige Schalter dieses Moduls.
+    #: ►►► **Erst weiter, wenn bezahlt?** – eine ABLEITUNG, kein Schalter (#854). ◄◄◄
+    #:
+    #: Sie stand als dritte Angabe in der Modul-Definition und sagte, was die vereinbarte
+    #: **Zahlungsfrist** ohnehin sagt: «zahlbar in null Tagen ab Zusage» *ist* die
+    #: Vorauszahlung (``domain/deal.prepaid``). Zwei Angaben über eine Sache, an zwei Orten
+    #: und zu zwei Zeitpunkten – und beim Widerspruch gewann der Schalter, obwohl auf dem
+    #: Angebot die Frist steht.
     prepaid: bool = False
+    #: ►►► **Die üblichen Fristen mit ihren Namen** (#854/#855/#856). ◄◄◄
+    #:
+    #: Eine Frist ist **eine Zahl in Tagen** – aber ihre zwei, drei üblichen Werte trägt
+    #: niemand als Zahl im Kopf. Ein Schieberegler wäre hier falsch: eine Zahlungsfrist ist
+    #: keine stufenlose Grösse, sondern eine Aufzählung mit einem freien Rest.
+    payment_terms: list[DealTerm] = Field(default_factory=list)
+    lead_terms: list[DealTerm] = Field(default_factory=list)
+    #: Ab hier beginnt die freie Eingabe – **nicht bei 0**: die Null hat einen Namen, und
+    #: zwei Wege zu einem Wert wären zwei Bedeutungen, von denen eine niemand kennt.
+    term_free_min: int = 1
+    term_free_label: str = ""
+    payment_term_label: str = ""
+    lead_term_label: str = ""
     #: Die **zugelassenen** Gegenparteien. Leer heisst frei – dann wird gesucht.
     allowed: list[DealParty] = Field(default_factory=list)
     #: **Der Angebotsspiegel** – je angefragter Gegenpartei eine Zeile.
@@ -349,6 +403,9 @@ class DealEmbed(BaseModel):
     #: sie fragt nach der **Zusage**, nicht nach dem offenen Betrag: wer nichts
     #: berechnet hat, hat null offen, und das hiesse sonst «bezahlt».
     settled: bool = False
+    #: ►►► **Worauf eine Zahlung gehen kann** (Testnotiz #858). ◄◄◄ Steht genau eine da,
+    #: gibt es nichts zu wählen – die Karte fragt dann gar nicht.
+    open_invoices: list[DealOpenInvoice] = Field(default_factory=list)
     entries: list[DealEntryOut] = Field(default_factory=list)
 
 
@@ -401,6 +458,12 @@ class DealUpdate(BaseModel):
     due_on: Optional[date] = None
     #: Welche Zeile storniert wird (``reverse``).
     entry: Optional[int] = None
+    #: ►►► **Welche Rechnung eine Zahlung begleicht** (``pay``, Testnotiz #858). ◄◄◄
+    #:
+    #: Ohne Angabe: die **eine** offene Rechnung. Stehen mehrere offen, ist die Angabe
+    #: Pflicht – eine Zahlung gehört zu genau einer, und wer eine Überweisung über zwei
+    #: hat, storniert sie und stellt eine gemeinsame.
+    charge_id: Optional[int] = None
     #: ►►► **Die Positionen eines Angebots** (``ask``/``quote``, nur wo **wir** den Preis
     #: nennen): je Zeile Preis und Steuersatz. Der Betrag ist ihre **Brutto-Summe** – eine
     #: getippte Zahl daneben wäre die zweite Aussage über dieselbe Sache.

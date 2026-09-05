@@ -199,6 +199,26 @@ class DealEntry(Base, TimestampMixin):
     reverses_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("deal_entries.id", ondelete="SET NULL"), nullable=True, index=True)
 
+    #: ►►► **Welche RECHNUNG diese Zahlung begleicht** – nur bei ``kind = payment``. ◄◄◄
+    #:
+    #: «Wenn ich eine Rechnung ausstelle, dann wird eine Zahlung auf genau diese Rechnung
+    #: referenziert. Ich soll nicht eine Zahlung für zwei verschiedene Rechnungen erfassen
+    #: können – dann lieber die zwei stornieren und eine daraus machen» (Testnotiz #858).
+    #:
+    #: **Eine Zahlung gehört zu genau einer Forderung.** Das ist die einfachere Regel und
+    #: nicht die ärmere: der Weg für «eine Überweisung über zwei Rechnungen» ist eine
+    #: **Stornorechnung und eine gemeinsame neue** – ein Vorgang, den es längst gibt, mit
+    #: einem Beleg, den man vorzeigen kann. Die Alternative wäre eine Aufteilungstabelle
+    #: (Ausziffern) für eine Zahl, die daneben ohnehin als Summe steht.
+    #:
+    #: ``balance`` bleibt davon **unberührt**: es rechnet weiter über die Summen. Diese
+    #: Spalte beantwortet «worauf», nicht «wie viel» – zwei Fragen, ein Feld je Frage.
+    #:
+    #: ``None`` ist regulär und heisst «nicht zugeordnet»: so stehen die Zahlungen da, die
+    #: es vor dieser Regel schon gab. Gelesen wird tolerant, geschrieben streng.
+    charge_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("deal_entries.id", ondelete="SET NULL"), nullable=True, index=True)
+
     #: ►►► **Die Steuer-Aufteilung dieses Belegs – EINGEFROREN.** ◄◄◄
     #:
     #: ``[{"rate": "8.10", "net": "60.00", "tax": "4.86"}]`` – je vorkommendem Satz eine
