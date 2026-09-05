@@ -19,9 +19,96 @@ env:
   FIREBASE_PROJECT: inexxio-dev
 
 jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    # Postgres nur für den Schema-Aufbau: die Migrationen sind laut Leitbild die EINE
+    # Schema-Wahrheit – geprüft wird das erst, wenn sie auch wirklich von null durchlaufen.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript check
+        working-directory: frontend
+        run: npm run type-check
+
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install backend deps
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      # Baut das Schema von NULL aus den Migrationen auf. Klingt selbstverständlich, war es
+      # aber nicht: eine Datenreparatur (074) griff auf eine Spalte zu, die nie eine
+      # Migration angelegt hatte (sie stammte aus dem Lifespan-``create_all`` und wurde von
+      # 081 wieder entfernt) – auf einer frischen Datenbank brach der Aufbau dort ab. Die
+      # laufende Umgebung merkt davon nichts, ein neues Projekt oder eine Wiederherstellung
+      # aus dem Nichts scheitert. Dieselbe Ausfallklasse wie beim Deploy von Migration 090:
+      # es zeigt sich erst, wenn es zählt.
+      - name: Schema aus den Migrationen aufbauen (Alembic ist die Wahrheit)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+        run: alembic upgrade head
+
+      # ERST das Schema, DANN die Tests: die Invarianten des Prozessbildes
+      # (tests/test_flow_graph.py) brauchen echtes PostgreSQL – JSONB-Payloads und der
+      # partielle Unique-Index auf ``order_units`` sind genau das, was sie prüfen.
+      # Ohne DATABASE_URL überspringen sie sich lautlos, und ein Wächter, der nie
+      # anschlägt, ist von einem kaputten nicht zu unterscheiden.
+      #
+      # Mitgefahren werden dabei die **Szenariomatrix** (tests/test_scenarios.py, Soll je
+      # Fall in tests/matrix.py) und die **systemweiten Invarianten**
+      # (tests/test_invariants.py → app/services/invariants.py). Sie sind das Ergebnis
+      # der Testkampagne (TEST_REPORT.md) und ersetzen die mit dem Basis-Neuaufbau
+      # entfallene Regel-Tabelle – als geschriebene, überprüfbare Regel statt als Prosa.
+      - name: pytest (Matrix + Invarianten + Wächter)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+        run: python -m pytest tests/ -v --tb=short
+
+      # Der Schema-Aufbau von null darüber bleibt: er hat schon einmal einen Fehler
+      # gefunden, den die laufende Umgebung nicht zeigt.
+
+      - name: Check generated types are up to date
+        run: |
+          (cd backend && python -m scripts.dump_openapi)
+          (cd backend && python -m scripts.dump_statuses)
+          (cd frontend && npm run generate:types)
+          git diff --exit-code backend/openapi.json frontend/src/types/api.ts frontend/src/lib/status-catalog.ts || \
+            (echo "::error::Generierte Dateien sind veraltet — 'python -m scripts.dump_openapi', 'python -m scripts.dump_statuses' und 'npm run generate:types' ausführen und committen" && exit 1)
+
   deploy-backend:
     name: Backend → Cloud Run (dev)
     runs-on: ubuntu-latest
+    needs: quality
     permissions:
       contents: read
       id-token: write
@@ -50,6 +137,20 @@ jobs:
           docker push "$IMAGE_LATEST"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
+      # ►►► **Der dritte Stripe-Schlüssel steht offen in der Zeile — mit Absicht.** ◄◄◄
+      #
+      # `STRIPE_PUBLISHABLE_KEY` rendert das Zahlungsformular im Browser; ohne ihn ist
+      # `payment_service_ready()` falsch, und der Bezahlen-Knopf erscheint gar nicht erst
+      # (`deal.can` führt `pay_online` dann nicht).
+      #
+      # Er steht in `--set-env-vars`, NICHT in `--set-secrets`: er ist **kein Geheimnis**
+      # – er steht im Browser jedes Zahlenden, wie `NEXT_PUBLIC_FIREBASE_API_KEY` weiter
+      # unten. Ihn wie eines zu behandeln kostet zwei `gcloud`-Befehle und eine
+      # IAM-Bindung und schützt nichts. Der geheime Schlüssel und das Webhook-Secret
+      # bleiben im Secret Manager – dort gehören sie hin.
+      #
+      # Ein `pk_test_…` gilt nur für die Sandbox; für die Produktion tritt der
+      # `pk_live_…` derselben Zeile an seine Stelle (`docs/stripe-setup.md` §5).
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
@@ -60,13 +161,13 @@ jobs:
             --allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-dev-db" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,INITIAL_ADMIN_EMAIL=INITIAL_ADMIN_EMAIL:latest" \
-            --set-env-vars "APP_ENV=development" \
-            --min-instances 0 \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest" \
+            --set-env-vars "APP_ENV=development,FRONTEND_BASE_URL=https://inexxio-dev.web.app,STRIPE_PUBLISHABLE_KEY=pk_test_51TnjWgQr3aoUqi8iUdnZrLl9X5CvfjtUXwfKHQrXtnUEEYtMKnU74R5gGxGg0otY0GTSZZQLQLBZ1LYse95ICcO700e1hcSnsn" \
+            --min-instances 1 \
             --max-instances 3 \
             --memory 512Mi \
             --cpu 1 \
-            --timeout 60s \
+            --timeout 120s \
             --concurrency 80 \
             --quiet
 
@@ -109,6 +210,8 @@ jobs:
           NEXT_PUBLIC_API_URL: https://inexxio-dev.web.app
           NEXT_PUBLIC_APP_URL: https://inexxio-dev.web.app
           NEXT_PUBLIC_ENVIRONMENT: development
+          # Build-Commit: beantwortet bei einer Testnotiz «welchen Stand hast du gesehen?»
+          NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: npm run build
 
       - name: Deploy to Firebase Hosting (dev)

@@ -48,16 +48,16 @@ export default function UeberUnsPage() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-slate-900 pt-28 pb-16">
+      <section className="bg-bg-dark pt-28 pb-16">
         <div className="container">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold text-blue-400 uppercase tracking-widest mb-4">
+            <p className="text-sm font-semibold text-inexxio-bright uppercase tracking-widest mb-4">
               Über Inexxio
             </p>
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
               Schweizer Präzision seit über einem Jahrzehnt
             </h1>
-            <p className="text-xl text-slate-300 leading-relaxed">
+            <p className="text-xl text-fg-on-dark leading-relaxed">
               Inexxio AG ist ein führender Schweizer Spezialist für Präzisionsfertigung und
               Maschinenbau. Wir stehen für kompromisslose Qualität, Zuverlässigkeit und die
               Überzeugung, dass Schweizer Fertigung in einer globalisierten Welt seinen
@@ -72,18 +72,18 @@ export default function UeberUnsPage() {
         <div className="container">
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div>
-              <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest mb-4">
+              <p className="text-sm font-semibold text-accent uppercase tracking-widest mb-4">
                 Unsere Mission
               </p>
-              <h2 className="text-3xl font-bold text-slate-900 mb-6">
+              <h2 className="text-3xl font-bold text-fg-1 mb-6">
                 Präzision, die Vertrauen schafft
               </h2>
-              <p className="text-slate-600 leading-relaxed mb-6">
+              <p className="text-fg-3 leading-relaxed mb-6">
                 Unsere Mission ist es, Industrieunternehmen mit hochpräzisen
                 Maschinenkomponenten und Systemlösungen zu beliefern, die die Grundlage
                 für zuverlässige und langlebige Produkte bilden.
               </p>
-              <p className="text-slate-600 leading-relaxed mb-8">
+              <p className="text-fg-3 leading-relaxed mb-8">
                 Wir glauben, dass exzellente Fertigung mehr ist als das Einhalten von
                 Toleranzen. Sie umfasst Kommunikation, Verlässlichkeit, Expertise und den
                 unbedingten Willen, die beste Lösung für den Kunden zu finden.
@@ -97,26 +97,26 @@ export default function UeberUnsPage() {
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-                    <span className="text-slate-700">{item}</span>
+                    <span className="text-fg-2">{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="bg-slate-50 rounded-2xl p-8">
-              <h3 className="text-lg font-semibold text-slate-900 mb-6">
+            <div className="bg-bg-2 rounded-2xl p-8">
+              <h3 className="text-lg font-semibold text-fg-1 mb-6">
                 Meilensteine unserer Entwicklung
               </h3>
               <div className="relative">
-                <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-slate-200" />
+                <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border-1" />
                 <div className="space-y-6">
                   {milestones.map((m) => (
                     <div key={m.year} className="flex gap-4 relative">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white z-10 relative">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-inexxio text-xs font-bold text-white z-10 relative">
                         {m.year.slice(2)}
                       </div>
                       <div className="pt-1">
-                        <span className="text-xs font-semibold text-blue-600">{m.year}</span>
-                        <p className="text-sm text-slate-700 mt-0.5">{m.text}</p>
+                        <span className="text-xs font-semibold text-accent">{m.year}</span>
+                        <p className="text-sm text-fg-2 mt-0.5">{m.text}</p>
                       </div>
                     </div>
                   ))}
@@ -128,14 +128,14 @@ export default function UeberUnsPage() {
       </section>
 
       {/* Values */}
-      <section className="section bg-slate-50">
+      <section className="section bg-bg-2">
         <div className="container">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest mb-3">
+            <p className="text-sm font-semibold text-accent uppercase tracking-widest mb-3">
               Unsere Werte
             </p>
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Was uns antreibt</h2>
-            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold text-fg-1 mb-4">Was uns antreibt</h2>
+            <p className="text-lg text-fg-3 max-w-2xl mx-auto">
               Vier Grundsätze, die jeden Tag unser Handeln leiten und das Fundament
               unserer Unternehmenskultur bilden.
             </p>
@@ -144,13 +144,13 @@ export default function UeberUnsPage() {
             {values.map((v) => (
               <div
                 key={v.title}
-                className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-md transition-shadow"
+                className="bg-white rounded-2xl border border-border-1 p-6 hover:shadow-md transition-shadow"
               >
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 mb-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent mb-4">
                   {v.icon}
                 </div>
-                <h3 className="font-semibold text-slate-900 mb-2">{v.title}</h3>
-                <p className="text-sm text-slate-600 leading-relaxed">{v.description}</p>
+                <h3 className="font-semibold text-fg-1 mb-2">{v.title}</h3>
+                <p className="text-sm text-fg-3 leading-relaxed">{v.description}</p>
               </div>
             ))}
           </div>
@@ -162,10 +162,10 @@ export default function UeberUnsPage() {
         <div className="container">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-10">
-              <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest mb-3">
+              <p className="text-sm font-semibold text-accent uppercase tracking-widest mb-3">
                 Swiss Manufacturing Excellence
               </p>
-              <h2 className="text-3xl font-bold text-slate-900 mb-4">
+              <h2 className="text-3xl font-bold text-fg-1 mb-4">
                 Die Infrastruktur hinter der Präzision
               </h2>
             </div>
@@ -184,9 +184,9 @@ export default function UeberUnsPage() {
                   desc: 'Vollständige Rückverfolgbarkeit aller Prozessschritte. Digitale Fertigungsaufträge und Qualitätsdokumentation.',
                 },
               ].map((item) => (
-                <div key={item.title} className="bg-slate-50 rounded-xl p-5">
-                  <h4 className="font-semibold text-slate-900 mb-2">{item.title}</h4>
-                  <p className="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
+                <div key={item.title} className="bg-bg-2 rounded-xl p-5">
+                  <h4 className="font-semibold text-fg-1 mb-2">{item.title}</h4>
+                  <p className="text-sm text-fg-3 leading-relaxed">{item.desc}</p>
                 </div>
               ))}
             </div>
@@ -195,21 +195,21 @@ export default function UeberUnsPage() {
       </section>
 
       {/* Team section */}
-      <section className="section bg-slate-50">
+      <section className="section bg-bg-2">
         <div className="container">
           <div className="text-center mb-14">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 mx-auto mb-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-soft text-accent mx-auto mb-4">
               <Users className="h-8 w-8" />
             </div>
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">Unser Team</h2>
-            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold text-fg-1 mb-4">Unser Team</h2>
+            <p className="text-lg text-fg-3 max-w-2xl mx-auto">
               Hinter Inexxio steht ein erfahrenes Team aus Ingenieuren, Maschinisten und
               Qualitätsspezialisten, das jeden Tag mit Leidenschaft an der perfekten
               Lösung arbeitet.
             </p>
-            <p className="text-slate-500 mt-4">
+            <p className="text-fg-3 mt-4">
               Möchten Sie Teil unseres Teams werden?{' '}
-              <Link href="/kontakt" className="text-blue-600 hover:underline font-medium">
+              <Link href="/kontakt" className="text-accent hover:underline font-medium">
                 Wir freuen uns auf Ihre Bewerbung.
               </Link>
             </p>
@@ -218,18 +218,18 @@ export default function UeberUnsPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-blue-600 py-16">
+      <section className="bg-inexxio py-16">
         <div className="container text-center">
           <h2 className="text-2xl font-bold text-white mb-4">
             Lernen Sie uns persönlich kennen
           </h2>
-          <p className="text-blue-100 mb-6 max-w-lg mx-auto">
+          <p className="text-fg-on-red mb-6 max-w-lg mx-auto">
             Vereinbaren Sie einen Besuch in unserer Fertigungsstätte oder ein
             unverbindliches Beratungsgespräch.
           </p>
           <Link
             href="/kontakt"
-            className="inline-flex items-center gap-2 bg-white text-blue-600 hover:bg-blue-50 font-semibold px-6 py-3 rounded-xl transition-colors"
+            className="inline-flex items-center gap-2 bg-white text-accent hover:bg-accent-soft font-semibold px-6 py-3 rounded-xl transition-colors"
           >
             Kontakt aufnehmen
             <ArrowRight className="h-4 w-4" />

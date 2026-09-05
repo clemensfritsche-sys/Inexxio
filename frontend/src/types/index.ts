@@ -1,232 +1,246 @@
-// ─── Core domain types ────────────────────────────────────────────────────────
+// ─── API-abgeleitete Typen (Single Source of Truth) ──────────────────────────
+//
+// `api.ts` wird aus dem FastAPI-OpenAPI-Schema generiert:
+//   cd backend && python -m scripts.dump_openapi   # → backend/openapi.json
+//   cd frontend && npm run generate:types          # → src/types/api.ts
+// NICHT von Hand editieren — stattdessen Backend-Schema ändern und neu generieren.
 
-export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 'user';
+import type { components } from './api';
 
-export type ItemStatus = 'ENTWURF' | 'IN_FREIGABE' | 'FREIGEGEBEN' | 'ERSETZT' | 'UNGUELTIG';
-export type ItemUnit = 'Stk' | 'mm' | 'g' | 'mm²';
-export type VatRate = '8.1' | '2.6' | '3.8' | '0.0';
-export type SerializationType = 'none' | 'batch';
-export type CompanyRole = 'Kunde' | 'Lieferant' | 'Interessent' | 'Partner';
-export type WorkPlanStatus = 'Entwurf' | 'Aktiv' | 'Archiviert';
-export type BOMStatus = 'Entwurf' | 'Freigegeben' | 'Archiviert';
+// ─── User ─────────────────────────────────────────────────────────────────────
 
-export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: string }> = {
-  ENTWURF: { label: 'Entwurf', color: 'bg-slate-100 text-slate-600' },
-  IN_FREIGABE: { label: 'In Freigabe', color: 'bg-amber-50 text-amber-700' },
-  FREIGEGEBEN: { label: 'Freigegeben', color: 'bg-green-50 text-green-700' },
-  ERSETZT: { label: 'Ersetzt', color: 'bg-blue-50 text-blue-600' },
-  UNGUELTIG: { label: 'Ungültig', color: 'bg-red-50 text-red-600' },
+// Von Menschen belegbare Rollen (Rollen-Dropdown). Die System-KI (role='ai',
+// entferntes KI-Modul) ist bewusst NICHT wählbar – sie erscheint nur als Anzeige.
+export type UserPlatformRole = 'admin' | 'employee' | 'supplier' | 'customer';
+export type UserRole = UserPlatformRole | 'ai';
+
+type UserProfileApi = components['schemas']['UserProfileResponse'];
+
+// Aus dem Backend-Schema abgeleitet; nur `role` wird auf die bekannte Union verengt.
+export type UserProfile = Omit<UserProfileApi, 'role'> & {
+  role: UserRole;
 };
 
-export const SERIALIZATION_TYPE_LABELS: Record<SerializationType, string> = {
-  'none': 'Einzelteil',
-  'batch': 'Charge',
+// ─── Article ────────────────────────────────────────────────────────────────
+
+// Aus der EINEN Statusliste (`domain/statuses`) – einen Entwurf gibt es nicht: der Artikel
+// entsteht erst mit seiner Freigabe. **Gesetzt wird er von niemandem**: er ist die
+// Projektion von `replaced_by_id` (Testnotiz #773).
+export type ArticleStatus = 'freigegeben' | 'inaktiv';
+export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'm3' | 'kg' | 'l';
+export type ArticleSerialization = 'unit' | 'batch';
+
+type ArticleApi = components['schemas']['ArticleResponse'];
+
+// Aus dem Backend-Schema abgeleitet; Status/Einheit/Serialisierung auf Unions verengt.
+export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization'> & {
+  status: ArticleStatus;
+  unit: ArticleUnit;
+  serialization: ArticleSerialization;
 };
 
-export const VAT_RATE_LABELS: Record<VatRate, string> = {
-  '8.1': '8.1% (Standard)',
-  '2.6': '2.6% (Reduziert)',
-  '3.8': '3.8% (Beherbergung)',
-  '0.0': '0% (Export / Befreit)',
+// Eingaben für Anlage bzw. Teil-Update aus dem Detailfenster. Pflicht ist nur der Name;
+// Einheit/Serialisierung tragen einen Default, Grösse & Gewicht sind optional.
+export interface ArticleInput {
+  name: string;
+  unit?: ArticleUnit;
+  serialization?: ArticleSerialization;
+  size?: string | null;
+  weight_kg?: string | null;
+  // Optionale Stammdaten (dynamische Feldliste, nur bei Bedarf)
+  is_hazmat?: boolean | null;
+  material?: string | null;
+  cad_url?: string | null;
+  surface?: string | null;
+  supplier_article_number?: string | null;
+  min_order_qty?: string | null;
+  safety_stock?: string | null;
+  /**
+   * **Welchen Artikel löst dieser hier ab?** (Objektnummer) — nur bei der Anlage.
+   *
+   * Die Angabe steht am Nachfolger, weil sie genau einen Moment hat. Wirkung: der
+   * Vorgänger zeigt hierher UND geht ausser Betrieb – ein Vorgang, ein Aufruf.
+   */
+  replaces_object_id?: number | null;
+}
+
+// **Kein `status`, kein `is_active`.** Ausser Betrieb geht ein Artikel dadurch, dass ein
+// Nachfolger ihn ablöst (`replaces_object_id` an der Anlage) – der Zustand ist die
+// Projektion davon (Testnotiz #773); `is_active` ist der Soft-Delete des Datensatzes und
+// gehört keinem Formular.
+export type ArticleUpdateInput = Partial<ArticleInput> & {
+  expected_updated_at?: string | null;   // Optimistic Locking
 };
 
-// ─── Item config lookup types ─────────────────────────────────────────────────
+// Namensvorschlag beim Anlegen (freie Namensgebung + intelligente Dubletten-Vermeidung).
+export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
 
-export interface ItemName {
-  id: number;
+// Die **geplante** Stückliste in beide Richtungen (`services/bom.py`) – nur am Detail.
+// `Article.bom === null` heisst «nicht geladen», nicht «nichts gefunden».
+export type ArticleLink = components['schemas']['ArticleLink'];
+export type ArticleBom = components['schemas']['ArticleBom'];
+export type RetiredInput = components['schemas']['RetiredInput'];
+export type TerritoryMap = components['schemas']['TerritoryMapResponse'];
+export type TerritoryRegion = components['schemas']['TerritoryRegion'];
+export type TerritoryCompany = components['schemas']['TerritoryCompany'];
+export type TerritoryCountry = components['schemas']['TerritoryCountry'];
+// Maximale Länge eines Artikelnamens – muss zum Backend (`NAME_MAX_LENGTH`) passen.
+export const ARTICLE_NAME_MAX_LENGTH = 32;
+
+// ─── Order (Auftrag) ──────────────────────────────────────────────────────────
+//
+// Der Auftrag entsteht erst mit der Freigabe; das Detail trägt seine Schritte, seine
+// Stücke und die eingefrorene Historie (PROCESS_CORE.md §10).
+
+export type Order = components['schemas']['OrderResponse'];
+export type OrderSummary = components['schemas']['OrderSummary'];
+export type OrderValidation = components['schemas']['OrderValidation'];
+export type ProcessStepResponse = components['schemas']['ProcessStepResponse'];
+export type OrderUnitResponse = components['schemas']['OrderUnitResponse'];
+export type ProcessEventResponse = components['schemas']['ProcessEventResponse'];
+export type UnitOption = components['schemas']['UnitOption'];
+// Die **Auswahl**: eine Seite wählbarer Einzelinstanzen samt Aggregat und
+// FIFO-Vorauswahl (#740). Nicht zu verwechseln mit `UnitPage` – das ist eine Seite
+// blosser Nummern am Instanz-Datensatz.
+export type UnitChoices = components['schemas']['UnitChoices'];
+/** Ein Nachbar-Auftrag in der Journey einer Einzelinstanz – gruppiert, mit Stückzahl. */
+export type JourneyStop = components['schemas']['JourneyNeighbour'];
+/** Ein Nachbar-Auftrag mit seinem **vollständigen** Ablauf – links übergeordnet, rechts
+ *  eine Abweichung. Er wird mit derselben Komponente gerendert wie die Mitte. */
+export type RelatedOrder = components['schemas']['RelatedOrder'];
+export type ArticleOption = components['schemas']['ArticleOption'];
+export type OrderLineResponse = components['schemas']['OrderLineResponse'];
+/** **Das Prozessbild, wie der Server es sieht** – Knoten, Kanten, Positionen.
+ *  Das Frontend layoutet und zeichnet es; abgeleitet wird nichts mehr davon. */
+export type ProcessGraph = components['schemas']['FlowGraph'];
+export type GraphNode = components['schemas']['FlowNode'];
+export type GraphEdge = components['schemas']['FlowEdge'];
+export type GraphUnits = components['schemas']['FlowUnits'];
+export type OrderUnitPage = components['schemas']['OrderUnitPage'];
+
+/** Der Erzeugungsprozess eines Artikels – die Vorlage, die ein Erzeugungsauftrag kopiert. */
+export type ArticleProcess = components['schemas']['ArticleProcess'];
+export type ArticleProcessStep = components['schemas']['ArticleProcessStepResponse'];
+
+/** Ein Auftragsentwurf. Er lebt NUR im Browser – es gibt dafür keine Zeile in der
+ *  Datenbank, keine vorreservierte Objektnummer und kein Autosave. */
+export type OrderDraft = Record<string, unknown>;
+
+
+export type Passkey = components['schemas']['PasskeyResponse'];
+// Bestands-Instanz (Reiter «Bestand» am Artikel)
+type InstanceApi = components['schemas']['InstanceResponse'];
+export type Instance = InstanceApi;
+
+// Feed-Zeile: ohne die Einzelinstanzen, aber mit ihrer Anzahl.
+export type InstanceSummary = components['schemas']['InstanceSummary'];
+// Die Einzelinstanz – das einzige Arbeitsobjekt. Nummer = <Instanznr>-<suffix>.
+export type InstanceUnit = components['schemas']['InstanceUnitResponse'];
+// Ein Zustand mit seiner Menge – ein Segment der Bestandsleiste.
+export type StockState = components['schemas']['StockState'];
+// Der Bestand eines Artikels: Aufstellung über alles + eine Seite Instanzen.
+export type ArticleStock = components['schemas']['ArticleStock'];
+// Eine Seite Einzelinstanz-Nummern (Ebene 3, auf Klick).
+export type UnitPage = components['schemas']['UnitPage'];
+export type Genealogy = components['schemas']['Genealogy'];
+export type GenealogyPart = components['schemas']['GenealogyPart'];
+
+/**
+ * Ein Erfassungspunkt aus der Definition eines Moduls (`process_steps.config`).
+ *
+ * **Von Hand gespiegelt**, weil `config` am Prozessschritt ein freies Objekt ist: was
+ * darin steht, entscheidet der Modultyp (`domain/modules.Module.clean_config`), nicht
+ * ein festes Schema. Es fest zu typisieren hiesse, die Konfiguration aller künftigen
+ * Modultypen auf die des heutigen einen festzunageln.
+ *
+ * Der Abgleich mit `schemas/process.CapturePoint` ist getestet
+ * (`tests/test_frontend_mirrors.py`) – ein Spiegel darf existieren, aber nicht
+ * unbemerkt auseinanderlaufen. Die Typen selbst sind eine geschlossene Liste im Backend
+ * (`domain/capture_types/`) und kommen über den Modul-Katalog.
+ */
+export interface CapturePoint {
+  key: string;
   label: string;
-  is_active: boolean;
-  created_at: string;
+  type: string;
+  target?: number | null;
+  tolerance?: number | null;
+  /**
+   * **Worin wird gemessen?** (mm · kg · °C …) Ein freies, kurzes Wort – bewusst keine
+   * Liste. Die Mengeneinheiten des Artikels beantworten eine andere Frage («worin wird
+   * die Menge geführt»), und eine zweite Liste wäre endlos: jede Branche misst anders,
+   * und das System rechnet nie mit der Einheit, es zeigt sie an.
+   */
+  unit?: string | null;
 }
-
-export interface ItemSurface {
-  id: number;
-  label: string;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface ItemCategory {
-  id: number;
-  label: string;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface ItemSignature {
-  id: number;
-  item_id: number;
-  signed_by: number;
-  signed_at: string;
-  signed_by_name?: string | null;
-}
-
-// ─── Item ─────────────────────────────────────────────────────────────────────
-
-export interface Item {
-  id: number;
-  name: string;
-  name_id: number | null;
-  unit: string;
-  status: ItemStatus;
-  serialization_type: SerializationType;
-  order_number: string | null;
-  order_link: string | null;
-  onshape_link: string | null;
-  weight_g: string | null;
-  dim_1_mm: string | null;
-  dim_2_mm: string | null;
-  dim_3_mm: string | null;
-  surface_id: number | null;
-  purchase_price: string | null;
-  purchase_currency: string;
-  lead_time_days: number | null;
-  stock_total: string;
-  stock_reserved: string;
-  replaced_by_id: number | null;
-  replaces_id: number | null;
-  is_sales_product: boolean;
-  sales_price: string | null;
-  sales_currency: string;
-  category_id: number | null;
-  vat_rate: string | null;
-  shop_description_long: string | null;
-  seo_title: string | null;
-  seo_description: string | null;
-  hs_code: string | null;
-  bom_weight_g?: string | null;
-  bom_has_lines?: boolean;
-  submitted_at: string | null;
-  submitted_by: number | null;
-  approved_at: string | null;
-  approved_by: number | null;
-  submitted_by_name?: string | null;
-  approved_by_name?: string | null;
-  created_by_name?: string | null;
-  created_at: string;
-  updated_at: string;
-  is_active: boolean;
-  signatures: ItemSignature[];
-}
-
-// ─── BOM (Bill of Materials) ──────────────────────────────────────────────────
-
-export interface BOMLine {
-  id: number;
-  bom_id?: number;
-  position: number;
-  component_item_id: number;
-  component_item?: Item;
-  quantity: string; // Decimal as string
-  unit: string;
-  note: string | null;
-}
-
-export interface BOM {
-  id: number;
-  parent_item_id: number;
-  note: string | null;
-  lines: BOMLine[];
-  created_at: string;
-  updated_at: string;
-  is_active: boolean;
-}
-
-export interface WhereUsedEntry {
-  bom_id: number;
-  parent_item_id: number;
-  parent_item_name: string;
-  parent_item_status: ItemStatus;
-  position: number;
-  quantity: string;
-  unit: string;
-}
-
-// ─── Work Plan ────────────────────────────────────────────────────────────────
-
-export interface WorkPlanStep {
-  id: number;
-  work_plan_id: number;
-  step_number: number;
-  name: string;
-  description: string | null;
-  work_center: string | null;
-  machine: string | null;
-  setup_time_min: number | null;
-  run_time_min: number | null;
-  tools: string[];
-  notes: string | null;
-}
-
-export interface WorkPlan {
-  id: number;
-  number: string;
-  name: string;
-  description: string | null;
-  status: WorkPlanStatus;
-  item_id: number | null;
-  item?: Item;
-  steps: WorkPlanStep[];
-  version: number;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-}
-
-// ─── Company / Contact ────────────────────────────────────────────────────────
-
-export interface Address {
-  street: string;
-  street_number: string | null;
-  zip: string;
-  city: string;
-  country: string;
-  country_code: string;
-}
-
-export interface Company {
-  id: number;
-  number: string;
-  name: string;
-  legal_form: string | null;
-  role: CompanyRole;
-  is_active: boolean;
-  address: Address | null;
-  uid: string | null;
-  vat_number: string | null;
-  website: string | null;
-  email: string | null;
-  phone: string | null;
-  notes: string | null;
-  payment_terms_days: number | null;
-  discount_percent: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Contact {
-  id: number;
-  number: string;
-  first_name: string;
-  last_name: string;
-  email: string | null;
-  phone: string | null;
-  mobile: string | null;
-  title: string | null;
-  department: string | null;
-  position: string | null;
-  company_id: number | null;
-  company?: Company;
-  is_active: boolean;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// ─── Company Settings ─────────────────────────────────────────────────────────
+/** Was an einem Modul für **eine Instanz** ansteht (`process.step_work`). */
+export type StepWork = components['schemas']['StepWork'];
+/** Eine Zeile der Stückliste, gegen den Bestand gehalten (`services/consumption`). */
+export type StepNeed = components['schemas']['StepNeed'];
+/** **Was an einem Modul passiert ist** – lückenlos, je Einzelinstanz (`services/record`). */
+export type StepRecord = components['schemas']['StepRecord'];
+export type RecordEntry = components['schemas']['RecordEntry'];
+export type RecordValue = components['schemas']['RecordValue'];
+/**
+ * **Alles, was unsere Bezahlkarte braucht** (`services/stripe_pay.prepare`): das Geheimnis
+ * der Zahlungsabsicht, der öffentliche Schlüssel, der Betrag zum Anzeigen – und die
+ * Angaben, die im ERP längst stehen, damit sie niemand ein zweites Mal tippt.
+ */
+export type PaymentSetup = components['schemas']['PaymentSetup'];
+export type PaymentBilling = components['schemas']['PaymentBilling'];
+export type ModuleCatalog = components['schemas']['ModuleCatalog'];
+/**
+ * **Ein wählbarer Modultyp mit allem, was er deklariert** – Beschriftung, Farbfamilie
+ * und «Ausgang?». Der Editor liest daraus, was ein Modul mitbringt.
+ */
+export type ModuleTypeInfo = components['schemas']['ModuleTypeInfo'];
+/**
+ * **Der Geldvorgang** eines «Zahlung»-Moduls – Richtung, Stufen, Zusage, Geld-Zeilen
+ * (`services/deal`). `null` bei jedem anderen Modultyp – die Oberfläche braucht damit
+ * keine Fallunterscheidung nach dem Modultyp, genau wie bei `needs`.
+ */
+export type DealEmbed = components['schemas']['DealEmbed'];
+/** Eine Stufe des Geldvorgangs – Angebot · Zusage · Abgeschlossen. */
+export type DealStage = components['schemas']['DealStage'];
+/** Eine Zeile Geld – eine Forderung (`charge`) oder eine Zahlung (`payment`). */
+export type DealEntryOut = components['schemas']['DealEntryOut'];
+/**
+ * **Eine Zeile des Angebotsspiegels** – eine Gegenpartei, ein Preis.
+ *
+ * Eine Gegenpartei sieht nur ihre eigene: gefiltert wird beim Aufbau der Antwort.
+ */
+export type DealQuote = components['schemas']['DealQuote'];
+/** **Was gehandelt wird** – Artikel, Menge und die Spezifikation, die mitreist. */
+export type DealLine = components['schemas']['DealLine'];
+/** Eine wählbare Gegenpartei – dieselbe Form wie jede Referenz (`ObjectSelect`). */
+export type DealParty = components['schemas']['DealParty'];
+/**
+ * **Ein Halter** – Objektnummer, Typ, Name (`services/places`).
+ *
+ * Dieselbe Form für alle drei Fragen, die einen Ort nennen: das Ziel eines
+ * Bewegungsmoduls, der Halter einer Einzelinstanz und jede Station ihrer Kette.
+ */
+export type PlaceRef = components['schemas']['PlaceRef'];
+/**
+ * **Wo ein Stück liegt** – unmittelbarer Halter plus die Kette darüber.
+ *
+ * `chain` steht von innen nach aussen (Behälter › Regal › Werk Nord) und **enthält den
+ * Halter als erstes Element**; `holder` ist nur ihre erste Station, herausgezogen, weil
+ * die Liste sie meist verkürzt zeigt. Leer heisst **standortlos** – ein regulärer
+ * Zustand, kein fehlender Wert.
+ */
+export type UnitPlace = components['schemas']['UnitPlace'];
+export type ArticleValidation = components['schemas']['ArticleValidation'];
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization';
 
 export interface CompanySettings {
-  // General
+  object_id?: number | null;   // universelle ERP-Objektnummer des Unternehmens
+  // Abgeleitete Rollen (KEIN gespeichertes Flag, KEIN Rang): ältestes Unternehmen =
+  // Betreiber der Website (Impressum/Systemkonfiguration/Fallback); has_address = trägt
+  // echte Ortsangaben (sonst logistisch stumm – eine Bewegung dorthin bleibt intern).
+  is_operator?: boolean;
+  has_address?: boolean;
+  /** Aktiv? Eine geschlossene Gesellschaft bleibt lesbar, ist aber endgültig (keine Reaktivierung). */
+  is_active?: boolean;
   company_name: string;
   legal_form: string | null;
   street: string;
@@ -234,186 +248,84 @@ export interface CompanySettings {
   zip: string;
   city: string;
   country: string;
-  // Legal IDs
+  // Funktionswährung der Gesellschaft (ISO-3, auto aus dem Land vorbelegt).
+  currency: string;
+  // Rechtsidentität – das Minimum, das ein Beleg und das Impressum ausweisen müssen
+  // (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton, Aktienkapital,
+  // QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto sind entfallen.
   uid: string | null;
   vat_number: string | null;
-  trade_register_number: string | null;
-  trade_register_canton: string | null;
-  share_capital: string | null;
-  // Contact & web
   email: string;
   phone: string | null;
+  /** **Abgeleitet** (read-only): die Adresse, unter der diese Installation läuft (#309). */
   website: string;
-  logo_url: string | null;
-  // Banking (masked for non-admins)
   iban: string | null;
   iban_masked: string | null;
-  qr_iban: string | null;
-  qr_iban_masked: string | null;
-  bank_name: string | null;
-  bic: string | null;
-  // VAT
-  vat_method: 'effektiv' | 'saldosteuersatz' | null;
-  vat_period: 'quartal' | 'semester' | 'jahr' | null;
-  default_payment_days: number;
-  default_discount_percent: string | null;
-  default_discount_days: number | null;
-  // EU
-  oss_active: boolean;
-  oss_number: string | null;
-  vies_validation: boolean;
-  // Integrations
-  stripe_publishable_key: string | null;
+  // Plattform-Konfiguration: gilt der EINEN Website, steht darum nur am Betreiber – und
+  // nur, was auch einen Leser hat (Analytics-Skript bzw. die Adress-Suche).
   plausible_domain: string | null;
-  hcaptcha_site_key: string | null;
+  google_maps_api_key: string | null;
 }
 
-// ─── User ─────────────────────────────────────────────────────────────────────
+// Es gibt genau EINEN Datensatztyp für Unternehmen/Gesellschaften: `CompanySettings`
+// (oben). Der frühere separate `Site`-Typ (kastrierter «Standort») ist entfallen – jede
+// Gesellschaft ist vollständig und gleichrangig.
 
-export type UserPlatformRole = 'admin' | 'employee' | 'supplier' | 'customer';
 
-export interface UserProfile {
+// ─── Testnotizen (in-app Feedback, nur Testumgebung) ─────────────────────────
+// Eine angeheftete Notiz aus der laufenden Oberfläche. Bewusst OHNE Objektnummer –
+// ein Meta-Artefakt über dem System, kein Geschäftsobjekt (siehe docs/feedback.md).
+
+/** WO die Notiz hängt. `label` (sichtbarer Text) ist der greppbare Anker im Code. */
+export interface FeedbackAnchor {
+  label: string;
+  tag: string;
+  selector: string;
+  html: string;
+  /** Umgebender Abschnitt (Prozessschritt-Panel, Sektionstitel) – trägt bei dynamischen Listen mehr als der Selektor. */
+  section: string;
+  rx: number;   // relative Position im Element (0–1) – der Pin sitzt wieder gleich
+  ry: number;
+}
+
+/** WOMIT es passiert ist – Umgebung inkl. der letzten Laufzeitfehler. */
+export interface FeedbackContext {
+  viewport: string;
+  ua: string;
+  role: string;
+  version: string;
+  /** Offener Datensatz + aktiver Reiter, z. B. «Artikel · Prozess». */
+  view: string;
+  errors: string[];
+}
+
+export type FeedbackStatus = 'open' | 'done' | 'dismissed';
+
+export interface FeedbackNote {
   id: number;
-  object_id: number | null;
-  firebase_uid: string;
-  email: string;
-  display_name: string | null;
-  photo_url: string | null;
-  role: UserPlatformRole;
-  is_active: boolean;
+  status: FeedbackStatus;
+  body: string;
+  route: string;
+  target_object_id: number | null;
+  anchor: FeedbackAnchor | null;
+  context: FeedbackContext | null;
+  resolution: string | null;
+  resolved_at: string | null;
   created_at: string;
-  updated_at: string;
-
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-  phone_mobile: string | null;
-
-  address_line1: string | null;
-  address_line2: string | null;
-  city: string | null;
-  postal_code: string | null;
-  state_canton: string | null;
-  country: string;
-
-  ship_b2c_first_name: string | null;
-  ship_b2c_last_name: string | null;
-  ship_b2c_address_line1: string | null;
-  ship_b2c_address_line2: string | null;
-  ship_b2c_city: string | null;
-  ship_b2c_postal_code: string | null;
-  ship_b2c_country: string | null;
-
-  ship_b2b_company: string | null;
-  ship_b2b_contact: string | null;
-  ship_b2b_address_line1: string | null;
-  ship_b2b_address_line2: string | null;
-  ship_b2b_city: string | null;
-  ship_b2b_postal_code: string | null;
-  ship_b2b_country: string | null;
-
-  invoice_company: string | null;
-  invoice_first_name: string | null;
-  invoice_last_name: string | null;
-  invoice_address_line1: string | null;
-  invoice_address_line2: string | null;
-  invoice_city: string | null;
-  invoice_postal_code: string | null;
-  invoice_country: string | null;
-  invoice_vat_id: string | null;
-  invoice_email: string | null;
-  invoice_same_as_shipping: boolean;
-
-  salutation: string | null;
-  date_of_birth: string | null;
-
-  company_name: string | null;
-  company_legal_form: string | null;
-  uid_number: string | null;
-  vat_number: string | null;
-  vat_registered: boolean;
-  trade_register_nr: string | null;
-  trade_register_canton: string | null;
-  company_website: string | null;
-  company_billing_email: string | null;
-
-  is_business: boolean;
-  customer_group: string | null;
-  credit_limit: string | null;
-  accepts_marketing: boolean;
-
-  stripe_customer_id: string | null;
-
-  department: string | null;
-  job_title: string | null;
-  employment_start_date: string | null;
-  weekly_hours: string | null;
-
-  language: string;
-  timezone: string;
-  notification_email: boolean;
-  notification_inapp: boolean;
-  newsletter_opt_in: boolean;
-
-  last_login_at: string | null;
-  terms_accepted_at: string | null;
-  terms_version: string | null;
+  created_by: number | null;
+  author_name: string;
+  mine: boolean;
 }
 
-// ─── Universal ERP Object ─────────────────────────────────────────────────────
-
-export interface UniversalObject {
-  id: number;
-  object_type: ObjectType;
-  title: string;
-  subtitle: string | null;
-  status: string;
-  number: string;
-  created_at: string;
-  updated_at: string;
-  // Polymorphic payload
-  data?: Item | BOM | WorkPlan | Company | Contact | UserProfile;
+export interface FeedbackCreateInput {
+  body: string;
+  route: string;
+  target_object_id?: number | null;
+  anchor?: FeedbackAnchor | null;
+  context?: FeedbackContext | null;
 }
 
-// ─── API response wrappers ────────────────────────────────────────────────────
-
-export interface ApiResponse<T> {
-  data: T;
-  message?: string;
-}
-
-export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-  pages: number;
-}
-
-export interface ApiError {
-  error: string;
-  code: string;
-  detail?: string;
-}
-
-// ─── Audit log ────────────────────────────────────────────────────────────────
-
-export interface AuditEntry {
-  id: number;
-  object_type: ObjectType;
-  object_id: number;
-  action: 'created' | 'updated' | 'deleted' | 'status_changed';
-  user_email: string;
-  changes: Record<string, { from: unknown; to: unknown }> | null;
-  created_at: string;
-}
-
-// ─── Filter / query ───────────────────────────────────────────────────────────
-
-export interface ObjectFilter {
-  q?: string;
-  object_type?: ObjectType;
-  status?: string;
-  page?: number;
-  page_size?: number;
+export interface FeedbackUpdateInput {
+  status?: FeedbackStatus;
+  resolution?: string | null;
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Mail, Phone, MapPin } from 'lucide-react';
+import { CookieSettingsLink } from './cookie-settings-link';
 
 const currentYear = new Date().getFullYear();
 
@@ -82,6 +83,9 @@ export function Footer() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <CookieSettingsLink className="footer-link" />
+              </li>
             </ul>
           </div>
 

@@ -1,11 +1,22 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
 
 class CompanySettingsUpdate(BaseModel):
+    """Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).
+
+    **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton,
+    Aktienkapital, QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto
+    sind ersatzlos entfallen – sie trugen nirgends Logik und schrieben teils nur ab, was
+    UID bzw. IBAN ohnehin sagen. Zahlungsziel und Skonto gehören zur **Offerte** (dort ist
+    die Angabe verhandelbar), nicht in die Firmen-Stammdaten; MWST-Methode/-Periode kommen
+    mit der Buchhaltung (Phase 3), die sie tatsächlich auswertet.
+
+    ``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**
+    (``sites.website_url`` = die Deployment-Adresse), keine Eingabe."""
     company_name: Optional[str] = None
     legal_form: Optional[str] = None
     street: Optional[str] = None
@@ -13,35 +24,37 @@ class CompanySettingsUpdate(BaseModel):
     zip_code: Optional[str] = None
     city: Optional[str] = None
     country: Optional[str] = None
+    currency: Optional[str] = None
     uid_number: Optional[str] = None
     vat_number: Optional[str] = None
-    trade_register_nr: Optional[str] = None
-    trade_register_canton: Optional[str] = None
-    share_capital: Optional[str] = None
     iban: Optional[str] = None
-    qr_iban: Optional[str] = None
-    bank: Optional[str] = None
-    bic_swift: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    website: Optional[str] = None
-    vat_method: Optional[str] = None
-    vat_period: Optional[str] = None
-    default_payment_days: Optional[int] = None
-    default_skonto_pct: Optional[Decimal] = None
-    default_skonto_days: Optional[int] = None
-    oss_active: Optional[bool] = None
-    oss_reg_number: Optional[str] = None
-    vies_active: Optional[bool] = None
-    stripe_publishable_key: Optional[str] = None
     plausible_domain: Optional[str] = None
-    hcaptcha_site_key: Optional[str] = None
+    google_maps_api_key: Optional[str] = None
+
+
+class CompanyCreate(BaseModel):
+    """Neue **Gesellschaft** anlegen. Nur der Name ist Pflicht (zugleich das Halter-Label);
+    alle übrigen Entitäts-Felder sind optional und werden danach am Datensatz gepflegt –
+    wie jeder andere ERP-Datensatz auch (anlegen, dann ausfüllen)."""
+    company_name: str
 
 
 class CompanySettingsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    object_id: Optional[int] = None
+    # **Abgeleitete** Rolle (kein gespeichertes Flag, kein Rang): ist dies das älteste
+    # Unternehmen = der Betreiber der Website (Impressum/Systemkonfiguration/Fallback)?
+    is_operator: bool = False
+    # Trägt echte Ortsangaben? Ohne Anschrift ist eine Gesellschaft gültig, aber logistisch
+    # stumm (eine Bewegung dorthin bleibt innerbetrieblich statt Versand – ADR 005).
+    has_address: bool = False
+    # Aktiv? Eine geschlossene Gesellschaft bleibt als Datensatz lesbar (Halter historischer
+    # Instanzen, Absender alter Belege), ist aber nicht mehr verwendbar – und **endgültig**.
+    is_active: bool = True
     company_name: str
     legal_form: str
     street: Optional[str]
@@ -49,30 +62,59 @@ class CompanySettingsResponse(BaseModel):
     zip_code: Optional[str]
     city: Optional[str]
     country: str
+    currency: str = "CHF"
     uid_number: Optional[str]
     vat_number: Optional[str]
-    trade_register_nr: Optional[str]
-    trade_register_canton: Optional[str]
-    share_capital: Optional[str]
     iban_masked: Optional[str] = None
-    qr_iban_masked: Optional[str] = None
-    bank: Optional[str]
-    bic_swift: Optional[str]
     email: str
     phone: Optional[str]
-    website: str
-    vat_method: str
-    vat_period: str
-    default_payment_days: int
-    default_skonto_pct: Optional[Decimal]
-    default_skonto_days: Optional[int]
-    oss_active: bool
-    oss_reg_number: Optional[str]
-    vies_active: bool
-    logo_path: Optional[str]
-    stripe_publishable_key: Optional[str]
+    # **Abgeleitet, nicht gepflegt** (Testnotiz #309): die Adresse, unter der diese
+    # Installation läuft (``FRONTEND_BASE_URL``). Sie steht im Impressum und auf dem
+    # Beleg-Briefkopf – und wäre als Eingabefeld eine zweite Wahrheit neben dem Deployment.
+    website: str = ""
     plausible_domain: Optional[str]
-    hcaptcha_site_key: Optional[str]
+    google_maps_api_key: Optional[str]
+
+
+class TerritoryRegion(BaseModel):
+    """Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."""
+    code: str
+    label: str
+    pos: list[int]                            # grobe Kachel-Position [Spalte, Zeile]
+    company_object_id: Optional[int] = None   # Besitzer (Betreiber-Default eingefüllt)
+
+
+class TerritoryCompany(BaseModel):
+    """Schlanke Gesellschaft für die Weltkarte (Picker + Färbung)."""
+    object_id: int
+    company_name: str
+    is_operator: bool = False
+
+
+class TerritoryCountry(BaseModel):
+    """Ein Land mit seinem **effektiven** Besitzer (Land-Ausnahme ≻ Region ≻ Betreiber).
+
+    Ob ein Land eine **Ausnahme** ist, wird in der Oberfläche abgeleitet (sein Besitzer weicht
+    vom Besitzer seiner Region ab) – kein eigenes Flag, das auseinanderlaufen könnte. Der Name
+    kommt im Browser aus ``Intl.DisplayNames`` (keine zweite Länderliste im Frontend)."""
+    code: str                                 # ISO-2
+    region: str                               # Region, in der das Land liegt
+    company_object_id: Optional[int] = None
+
+
+class TerritoryMapResponse(BaseModel):
+    """Die vollständige Gebietskarte: jede Region **und jedes Land** hat genau einen Besitzer
+    (Betreiber-Default) – jeder Fleck der Erde gehört jemandem."""
+    regions: list[TerritoryRegion]
+    countries: list[TerritoryCountry] = []
+    companies: list[TerritoryCompany]
+    operator_object_id: Optional[int] = None
+
+
+class TerritoryAssign(BaseModel):
+    """Ein Gebiet (Region ODER einzelnes Land) einer Gesellschaft zuweisen. ``None`` (oder die
+    Gesellschaft, der es ohnehin zufiele) = Standard wiederherstellen."""
+    company_object_id: Optional[int] = None
 
 
 class UserProfileResponse(BaseModel):
@@ -82,9 +124,12 @@ class UserProfileResponse(BaseModel):
     object_id: Optional[int]
     firebase_uid: str
     email: str
-    display_name: Optional[str]
     photo_url: Optional[str]
     role: str
+    # Anmeldeweg + Passkeys: beantwortet am ERP-Datensatz «wie kommt die Person herein?»
+    # (google.com | password | emailLink | custom = Passkey). Rein deskriptiv.
+    last_sign_in_provider: Optional[str] = None
+    passkey_count: int = 0
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -93,33 +138,24 @@ class UserProfileResponse(BaseModel):
     first_name: Optional[str]
     last_name: Optional[str]
     phone: Optional[str]
-    phone_mobile: Optional[str]
 
     # Contact address
     address_line1: Optional[str]
     address_line2: Optional[str]
     city: Optional[str]
     postal_code: Optional[str]
-    state_canton: Optional[str]
+    state_region: Optional[str]
     country: str
 
-    # Shipping B2C
-    ship_b2c_first_name: Optional[str]
-    ship_b2c_last_name: Optional[str]
-    ship_b2c_address_line1: Optional[str]
-    ship_b2c_address_line2: Optional[str]
-    ship_b2c_city: Optional[str]
-    ship_b2c_postal_code: Optional[str]
-    ship_b2c_country: Optional[str]
-
-    # Shipping B2B
-    ship_b2b_company: Optional[str]
-    ship_b2b_contact: Optional[str]
-    ship_b2b_address_line1: Optional[str]
-    ship_b2b_address_line2: Optional[str]
-    ship_b2b_city: Optional[str]
-    ship_b2b_postal_code: Optional[str]
-    ship_b2b_country: Optional[str]
+    # Unified shipping address
+    ship_name: Optional[str]
+    ship_company: Optional[str]
+    ship_address_line1: Optional[str]
+    ship_address_line2: Optional[str]
+    ship_city: Optional[str]
+    ship_postal_code: Optional[str]
+    ship_state_region: Optional[str]
+    ship_country: Optional[str]
 
     # Invoice
     invoice_company: Optional[str]
@@ -130,17 +166,14 @@ class UserProfileResponse(BaseModel):
     invoice_city: Optional[str]
     invoice_postal_code: Optional[str]
     invoice_country: Optional[str]
-    invoice_vat_id: Optional[str]
     invoice_email: Optional[str]
     invoice_same_as_shipping: bool
 
     # Personal extras
-    salutation: Optional[str]
     date_of_birth: Optional[date]
 
     # Business / company info
     company_name: Optional[str]
-    company_legal_form: Optional[str]
     uid_number: Optional[str]
     vat_number: Optional[str]
     vat_registered: bool
@@ -149,14 +182,11 @@ class UserProfileResponse(BaseModel):
     company_website: Optional[str]
     company_billing_email: Optional[str]
 
-    # Online shop / CRM
-    is_business: bool
-    customer_group: Optional[str]
-    credit_limit: Optional[Decimal]
-    accepts_marketing: bool
-
-    # Payment
-    stripe_customer_id: Optional[str]
+    # Supplier bank details
+    bank_account_holder: Optional[str]
+    bank_iban: Optional[str]
+    bank_bic: Optional[str]
+    bank_name: Optional[str]
 
     # Employee
     department: Optional[str]
@@ -166,7 +196,6 @@ class UserProfileResponse(BaseModel):
 
     # Preferences
     language: str
-    timezone: str
     notification_email: bool
     notification_inapp: bool
     newsletter_opt_in: bool
@@ -178,39 +207,20 @@ class UserProfileResponse(BaseModel):
 
 
 class UserProfileUpdate(BaseModel):
-    display_name: Optional[str] = None
+    """Self-service update — only fields a user may edit themselves.
+    Employment/role fields are intentionally excluded; use ErpAdminUpdate for those."""
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    salutation: Optional[str] = None
     date_of_birth: Optional[date] = None
     phone: Optional[str] = None
-    phone_mobile: Optional[str] = None
 
     # Contact address
     address_line1: Optional[str] = None
     address_line2: Optional[str] = None
     city: Optional[str] = None
     postal_code: Optional[str] = None
-    state_canton: Optional[str] = None
+    state_region: Optional[str] = None
     country: Optional[str] = None
-
-    # Shipping B2C
-    ship_b2c_first_name: Optional[str] = None
-    ship_b2c_last_name: Optional[str] = None
-    ship_b2c_address_line1: Optional[str] = None
-    ship_b2c_address_line2: Optional[str] = None
-    ship_b2c_city: Optional[str] = None
-    ship_b2c_postal_code: Optional[str] = None
-    ship_b2c_country: Optional[str] = None
-
-    # Shipping B2B
-    ship_b2b_company: Optional[str] = None
-    ship_b2b_contact: Optional[str] = None
-    ship_b2b_address_line1: Optional[str] = None
-    ship_b2b_address_line2: Optional[str] = None
-    ship_b2b_city: Optional[str] = None
-    ship_b2b_postal_code: Optional[str] = None
-    ship_b2b_country: Optional[str] = None
 
     # Invoice / billing address
     invoice_company: Optional[str] = None
@@ -221,38 +231,45 @@ class UserProfileUpdate(BaseModel):
     invoice_city: Optional[str] = None
     invoice_postal_code: Optional[str] = None
     invoice_country: Optional[str] = None
-    invoice_vat_id: Optional[str] = None
     invoice_email: Optional[str] = None
     invoice_same_as_shipping: Optional[bool] = None
 
-    # Business / company info
+    # Business / company info (supplier-visible fields)
     company_name: Optional[str] = None
-    company_legal_form: Optional[str] = None
     uid_number: Optional[str] = None
-    vat_number: Optional[str] = None
-    vat_registered: Optional[bool] = None
-    trade_register_nr: Optional[str] = None
-    trade_register_canton: Optional[str] = None
-    company_website: Optional[str] = None
     company_billing_email: Optional[str] = None
-    is_business: Optional[bool] = None
-    customer_group: Optional[str] = None
-    credit_limit: Optional[Decimal] = None
-    accepts_marketing: Optional[bool] = None
+
+    # Supplier bank details
+    bank_account_holder: Optional[str] = None
+    bank_iban: Optional[str] = None
+    bank_bic: Optional[str] = None
+    bank_name: Optional[str] = None
+
+    # Preferences
+    notification_email: Optional[bool] = None
+    notification_inapp: Optional[bool] = None
     newsletter_opt_in: Optional[bool] = None
 
-    # Employee
+
+# Gültige Rollen – EINE Quelle der Wahrheit für beide Rollen-Endpunkte
+# (PATCH /admin/users/{id}/role und PATCH /erp/records/{id}).
+Role = Literal["admin", "employee", "supplier", "customer"]
+
+
+class ErpAdminUpdate(UserProfileUpdate):
+    """Was am **ERP-Benutzer-Datensatz** änderbar ist.
+
+    **ERP ist Master:** das sind ALLE Felder, die die Person selbst pflegen kann
+    (geerbt von ``UserProfileUpdate``) **plus** die Anstellungsdaten. Vorher war
+    dies eine schmale Extra-Liste – das ERP konnte Name, Adresse, Firmenangaben und
+    Bankverbindung nur ANZEIGEN, editieren konnte sie allein die Person in ihrem
+    Konto. Damit lag die Wahrheit ausserhalb des ERP, also genau verkehrt herum.
+    Durch die Vererbung kann die Liste auch nicht mehr auseinanderlaufen."""
+    # FIX: ``role`` war hier ein freier String (anders als beim Rollen-Endpoint) – ein
+    # Tippfehler wie "empoyee" hätte den Benutzer still aus allen Staff-Endpunkten
+    # ausgesperrt (Rollen werden exakt verglichen). Jetzt dieselbe Literal-Whitelist.
+    role: Optional[Role] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
     employment_start_date: Optional[date] = None
     weekly_hours: Optional[Decimal] = None
-
-    # Preferences
-    language: Optional[str] = None
-    timezone: Optional[str] = None
-    notification_email: Optional[bool] = None
-    notification_inapp: Optional[bool] = None
-
-
-class UserRoleUpdate(BaseModel):
-    role: str

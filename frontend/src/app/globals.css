@@ -3,136 +3,46 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Inexxio Design Tokens V2 ──────────────────────────── */
+/* ── Inexxio Design Tokens ────────────────────────────────────────────
+   The full token set (color, type, spacing, radii, shadows) is the
+   SINGLE SOURCE OF TRUTH in src/styles/design-system/colors_and_type.css
+   — the vendored export from Claude Design, loaded first in app/layout.tsx.
+   Never redefine those values here; edit the canonical file (or re-vendor a
+   fresh export) instead. Only app-local aliases live below: the legacy
+   `--ix-*` names used by the login / marketing / component CSS further down,
+   mapped onto the canonical `--inexxio-*` tokens so a value is defined once. */
 :root {
-  /* Brand core */
-  --ix-red:        #E51A14;
-  --ix-red-bright: #FA3030;
-  --ix-red-deep:   #B3120F;
-  --ix-black:      #0A0A0B;
-  --inexxio-red:        #E51A14;
-  --inexxio-red-bright: #FA3030;
-  --inexxio-red-deep:   #B3120F;
-  --inexxio-black:      #0A0A0B;
-  --inexxio-white:      #FFFFFF;
-
-  /* Foreground */
-  --fg-1: #0A0A0B;
-  --fg-2: #2D2D30;
-  --fg-3: #7A7A7F;
-  --fg-4: #A7A7AC;
-  --fg-on-red:  #FFFFFF;
-  --fg-on-dark: #F4F3F1;
-
-  /* Backgrounds */
-  --bg-1:    #FFFFFF;
-  --bg-2:    #FAFAF8;
-  --bg-3:    #F4F2EF;
-  --bg-4:    #E9E6DF;
-  --bg-dark: #0D0D0F;
-  --bg-dark-2: #16161A;
-
-  /* Warm neutrals */
-  --sand-50:  #FCFBF9;
-  --sand-100: #F7F4F0;
-  --sand-200: #EBE4DA;
-  --sand-300: #DACFC0;
-  --sand-400: #B9AB97;
-  --oak:  #C9A27A;
-  --stone: #9AA0A0;
-
-  /* Semantic */
-  --success: #16A34A;
-  --success-bg: #DCFCE7;
-  --warning: #B8860B;
-  --info:    #2563EB;
-  --danger:  var(--ix-red);
-
-  /* Borders */
-  --border-1: #E5E3DD;
-  --border-2: #D0CDCA;
-  --border-strong: #0A0A0B;
-  --border-on-dark: rgba(255,255,255,0.15);
-
-  /* Radii */
-  --r-xs: 4px;
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 24px;
-  --r-pill: 32px;
-
-  /* Shadows */
-  --shadow-xs:  0 1px 2px rgba(16,14,12,0.05);
-  --shadow-sm:  0 2px 4px rgba(16,14,12,0.08);
-  --shadow-md:  0 6px 16px rgba(16,14,12,0.10);
-  --shadow-lg:  0 12px 32px rgba(16,14,12,0.14);
-  --shadow-xl:  0 20px 48px rgba(16,14,12,0.18);
-  --shadow-red: 0 8px 24px rgba(229,26,20,0.26);
-  --glow-sm: 0 0 8px rgba(229,26,20,0.12);
-  --glow-md: 0 0 14px rgba(229,26,20,0.18);
-  --glow-lg: 0 0 24px rgba(229,26,20,0.24);
-
-  /* Spacing */
-  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
-  --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
-  --sp-9:96px; --sp-10:128px;
-
-  /* Typography */
-  --font-display: 'Inter Tight', 'Inter', 'Helvetica Neue', Arial, sans-serif;
-  --font-body:    'Inter', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-
-  --display-1: 800 clamp(52px,7.6vw,112px)/0.94 var(--font-display);
-  --display-2: 800 clamp(40px,5.4vw,76px)/0.98 var(--font-display);
-  --h1: 800 clamp(36px,4.4vw,60px)/1.0 var(--font-display);
-  --h2: 700 clamp(28px,3.2vw,44px)/1.04 var(--font-display);
-  --h3: 700 21px/1.18 var(--font-display);
-  --h4: 600 17px/1.3 var(--font-body);
-  --body-lg: 400 19px/1.6 var(--font-body);
-  --body:    400 16px/1.65 var(--font-body);
-  --body-sm: 400 14px/1.55 var(--font-body);
-  --caption: 500 13px/1.45 var(--font-body);
-  --overline: 600 12px/1.2 var(--font-body);
-  --label:   600 15px/1.2 var(--font-body);
-  --mono-sm: 500 12px/1.5 var(--font-mono);
-
-  --tracking-tight: -0.035em;
-  --tracking-snug:  -0.02em;
-  --tracking-wide: 0.04em;
-  --tracking-overline: 0.18em;
+  --ix-red:        var(--inexxio-red);
+  --ix-red-bright: var(--inexxio-red-bright);
+  --ix-red-deep:   var(--inexxio-red-deep);
+  --ix-black:      var(--inexxio-black);
 }
 
 /* ── Login Page ──────────────────────────────────────────── */
-.ix-login-bg {
+/* ── Anmeldung: ein Pop-up über dem, was man ansieht ──────────────────────────
+   Vorher lag hier ein deckender, animierter Farbverlauf über der ganzen Seite – man
+   verliess damit die Seite, auf der man war. Ein Scrim sagt das Richtige: darunter geht
+   es weiter, und ein Klick daneben bringt einen zurück. */
+.ix-login-scrim {
   position: fixed;
   inset: 0;
-  background: linear-gradient(135deg, #f5ede4 0%, #e8ddd2 50%, #f0ebe3 100%);
-  z-index: 40;
-}
-.ix-login-bg::before {
-  content: "";
-  position: absolute;
-  width: 200%; height: 200%;
-  background:
-    radial-gradient(circle at 20% 50%, rgba(229,26,20,0.04) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(201,162,122,0.03) 0%, transparent 50%);
-  animation: ix-drift 20s ease-in-out infinite;
-}
-@keyframes ix-drift {
-  0%,100% { transform: translate(0,0); }
-  50%      { transform: translate(20px,-20px); }
-}
-
-.ix-login-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
+  z-index: 60;
   display: flex;
-  align-items: center;
+  /* **Zentriert wird über `margin: auto` an der Karte, nicht über `align-items`.**
+     Gemessen in Chromium (375x420): mit `align-items: center` wird eine Karte, die
+     höher ist als das Fenster, oben **abgeschnitten** – und in einem Scroll-Container
+     ist der Teil vor der Startkante unerreichbar (`scrollTop = 0` liess ihren Kopf bei
+     −74 px stehen). Auf einem Telefon im Querformat wäre damit ausgerechnet das
+     E-Mail-Feld weg. `margin: auto` zentriert genauso und respektiert die Kante. */
   justify-content: center;
   padding: 16px;
+  background: rgba(24, 20, 17, 0.42);
+  backdrop-filter: blur(3px);
+  animation: ix-scrim-in 0.18s ease-out;
+  overflow-y: auto;
 }
+@keyframes ix-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ix-login-scrim { animation: none; } }
 
 .ix-login-card {
   background: var(--bg-1);
@@ -140,6 +50,7 @@
   box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0,0,0,0.06);
   width: 100%;
   max-width: 460px;
+  margin: auto;
   padding: 56px 48px;
   animation: ix-slide-up 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
   position: relative;
@@ -361,33 +272,109 @@
 .ix-login-footer a { color: var(--fg-3); text-underline-offset: 3px; }
 .ix-login-footer a:hover { color: var(--ix-red); }
 
-/* Variations */
-.ix-var-1 .ix-email-input:focus { transform: scale(1.015); }
-.ix-var-1 .ix-submit-btn:hover:not(:disabled) { animation: ix-bounce 0.55s cubic-bezier(0.34,1.56,0.64,1); }
-@keyframes ix-bounce {
-  0%,100% { transform: translateY(-2px); }
-  50%      { transform: translateY(-10px); }
+/* Passkey-Hinweis (dezent, unter dem E-Mail-Feld) */
+.ix-passkey-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font: 400 12px/1.45 var(--font-body);
+  color: var(--fg-3);
 }
-.ix-var-2 .ix-submit-btn::before {
-  content: "";
+.ix-passkey-hint svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--inexxio-red);
+}
+/* Passkey-Knopf: wie der Google-Knopf, aber mit dezent rot getönter Kontur (der schnelle Weg) */
+.ix-passkey-btn { border-color: rgba(229,26,20,0.28); }
+.ix-passkey-btn:hover:not(:disabled) {
+  border-color: var(--inexxio-red);
+  background: rgba(229,26,20,0.03);
+}
+
+/* ── Passkey-Nudge (nicht blockierender Post-Login-Anstoss) ─────────────── */
+.ix-passkey-nudge {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 9000;                    /* unter dem ConsentGate (10000), über dem Inhalt */
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
+  box-shadow: 0 16px 44px rgba(14,14,16,0.16);
+  animation: ix-nudge-in 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes ix-nudge-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 640px) {
+  /* Mobil: über dem KI-Widget (unten rechts) einschweben, volle Breite mit Rand. */
+  .ix-passkey-nudge { left: 12px; right: 12px; bottom: 84px; width: auto; max-width: none; }
+}
+.ix-nudge-close {
   position: absolute;
-  inset: 0;
-  background: rgba(255,255,255,0);
-  border-radius: var(--r-pill);
-  transition: background 0.4s;
+  top: 8px; right: 8px;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  border: none; background: none; border-radius: var(--r-sm);
+  color: var(--fg-4); cursor: pointer;
 }
-.ix-var-2 .ix-submit-btn:hover:not(:disabled)::before { background: rgba(255,255,255,0.18); }
-.ix-var-3 .ix-email-input:focus { transform: perspective(800px) rotateX(1.5deg); }
-.ix-var-3 .ix-submit-btn::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle, rgba(255,255,255,0.35), transparent);
-  border-radius: var(--r-pill);
-  transform: scale(0);
-  transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
+.ix-nudge-close:hover { background: var(--bg-3); color: var(--fg-2); }
+.ix-nudge-icon {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md);
+  background: rgba(229,26,20,0.08);
+  color: var(--inexxio-red);
 }
-.ix-var-3 .ix-submit-btn:hover:not(:disabled)::after { transform: scale(1); }
+.ix-nudge-body { min-width: 0; flex: 1; padding-right: 14px; }
+.ix-nudge-title {
+  font: 700 14px/1.3 var(--font-display);
+  letter-spacing: -0.01em;
+  color: var(--fg-1);
+}
+.ix-nudge-text {
+  margin: 4px 0 0;
+  font: 400 12.5px/1.5 var(--font-body);
+  color: var(--fg-3);
+}
+.ix-nudge-err {
+  margin: 8px 0 0;
+  font: 400 12px/1.45 var(--font-body);
+  color: var(--inexxio-red);
+}
+.ix-nudge-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.ix-nudge-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  border: none; border-radius: var(--r-pill);
+  background: var(--inexxio-red); color: #fff;
+  font: 600 13px var(--font-body); cursor: pointer;
+  transition: background 0.15s;
+}
+.ix-nudge-primary:hover:not(:disabled) { background: var(--ix-red-deep); }
+.ix-nudge-primary:disabled { opacity: 0.6; cursor: default; }
+.ix-nudge-later {
+  padding: 8px 12px;
+  border: none; background: none; border-radius: var(--r-sm);
+  color: var(--fg-3); font: 500 13px var(--font-body); cursor: pointer;
+}
+.ix-nudge-later:hover:not(:disabled) { color: var(--fg-1); }
 
 /* ── Public Site Utilities ───────────────────────────────── */
 .ix-wrap { max-width: 1240px; margin: 0 auto; padding: 0 40px; }
@@ -405,6 +392,18 @@
   border-top: 2px solid var(--inexxio-black);
   padding-top: 22px;
   margin-bottom: 56px;
+}
+/* **Auf schmalen Schirmen steht der Kopf untereinander.**
+   Zweispaltig blieben dem Titel 280 − 100 (Meta) − 28 (Lücke) = 152 px, und «Unsere
+   Kernkompetenzen» ist bei `--h2` (dort 28 px) ein unteilbares Wort von ~234 px:
+   die Seite scrollte seitwärts (gemessen 62 px bei 320, 7 px bei 375).
+   `minmax(0, 1fr)` allein hilft hier NICHT – es lässt die Spalte schrumpfen, aber das
+   Wort bleibt gleich breit; der Überlauf wandert nur vom Raster in den Text (gemessen:
+   wurde damit schlechter, 62 → 68 px). Einspaltig bekommt der Titel die vollen 280 px
+   und passt. Dieselbe Grenze wie `.ix-wrap` – ein zweiter Wert wäre ein zweiter
+   Umbruchpunkt, den man beim nächsten Abschnitt vergisst. */
+@media (max-width: 640px) {
+  .ix-section-head { grid-template-columns: 1fr; gap: 16px; }
 }
 .ix-section-head-meta {
   display: flex;
@@ -570,13 +569,26 @@
 }
 
 @layer base {
-  * { @apply border-slate-200; }
+  * { @apply border-border-1; }
   body {
     @apply bg-white antialiased;
     font-family: var(--font-body);
     color: var(--fg-1);
   }
   ::selection { background: var(--ix-red); color: #fff; }
+}
+
+/* iOS Safari zoomt beim Fokus automatisch auf Eingabefelder mit < 16px
+   Schriftgrösse – im kompakten ERP (13px-Felder) sehr störend (man muss danach
+   wieder herauszoomen). Nur auf iOS (Touch) die Schriftgrösse der Formularfelder
+   auf 16px anheben; das verhindert das Auto-Zoom, ohne Desktop/Android zu
+   verändern. Pinch-Zoom bleibt erhalten. `-webkit-touch-callout` matcht iOS. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 @layer components {
@@ -620,3 +632,415 @@
     box-shadow: var(--shadow-sm);
   }
 }
+
+/* ============================================================
+   ERP UI — geteilte Interaktions-Bausteine (Design System)
+   Hover-Zustände & Hover-Tooltips für ERP-Detail/Feed. Inline-
+   Styles blocken :hover (höhere Spezifität) – interaktive
+   Elemente daher als Klassen, nicht als style-Objekt.
+   ============================================================ */
+
+/* ── Hover-Tooltip: [data-tip="…"] – dunkel, erscheint oben ──────────────────
+   **Er existiert erst beim Hover** (`display: none`), und das ist keine Kosmetik:
+   ein absolut positioniertes Kind zählt zur *scrollable overflow area* seiner
+   Vorfahren – auch unsichtbar bei `opacity: 0`. Eine bis zu 240 px breite Blase an
+   einem 46-px-Symbol schob damit den nächsten `overflow-auto`-Container über seine
+   Breite hinaus, und der Browser bot **seitwärts scrollen** über leere Fläche an.
+
+   Seitwärts scrollen ist im Inexxio-UI verboten, ausser es ist ausdrücklich gewollt
+   (Testnotiz #703). Gescrollt wird senkrecht. Darum darf nichts, was man nicht sieht,
+   die Breite bestimmen – der Übergang entfällt dafür, und das passt: der Hover soll
+   ohnehin sofort kommen (#618). */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  background: var(--inexxio-black);
+  color: #fff;
+  font: 500 12px/1.35 var(--font-body);
+  width: max-content;
+  max-width: 240px;
+  white-space: normal;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  pointer-events: none;
+  z-index: 60;
+  box-shadow: var(--shadow-md);
+}
+[data-tip]:hover::after { display: block; transform: translateX(-50%) translateY(0); }
+/* **Ohne Zeigegerät ist der Fokus der Hover.** Ein Tipp auf ein fokussierbares Element
+   setzt den Fokus – dieselbe Blase, derselbe Weg, kein zweites Muster.
+
+   **Mit Maus gilt das nur für die Tastatur** (`:focus-visible`). Ein Klick setzt ebenfalls
+   Fokus, und die Blase blieb danach stehen, bis man woandershin klickte: beim Aufklappen
+   einer Stück-Pille hing ihr «Nummern anzeigen» über der Liste, während der Zeiger schon
+   auf einer Nummer stand – **zwei Blasen gleichzeitig**, die eine ohne Bezug zum Zeiger.
+   Getrennt nach Eingabeart, weil die Frage «wo zeige ich hin» genau daran hängt. */
+@media (hover: none) {
+  [data-tip]:focus::after,
+  [data-tip]:focus-within::after { display: block; transform: translateX(-50%) translateY(0); }
+}
+@media (hover: hover) {
+  [data-tip]:focus-visible::after { display: block; transform: translateX(-50%) translateY(0); }
+}
+/* **Mehrzeilig** (Historie am Prozessobjekt): Zeilenumbrüche aus `attr()` gelten nur
+   mit `pre-line`, und eine Liste liest sich linksbündig. Eigene Variante statt einer
+   Änderung an allen Blasen – ein einzeiliger Hinweis bleibt zentriert. */
+[data-tip][data-tip-list]::after {
+  white-space: pre-line; text-align: left; max-width: 340px; font-variant-numeric: tabular-nums;
+}
+/* **Die innere Blase gewinnt.** Liegt ein `[data-tip]` in einem anderen, ist beim Zeigen
+   auf das innere auch das äussere «hover» – und es erschienen **zwei** Blasen übereinander
+   (gemeldet an der Stück-Pille: «seit wann steht es hier» und «Datensatz öffnen»). Welche
+   gemeint ist, sagt der Cursor: die am genaueren Element. Als Regel hier statt als
+   Einzelfall dort – sonst wächst dieselbe Doppelung beim nächsten geschachtelten Hinweis
+   wieder nach. */
+[data-tip]:has([data-tip]:hover)::after,
+[data-tip]:has([data-tip]:focus)::after { display: none; }
+/* nach unten öffnen (für Elemente ganz oben) */
+[data-tip][data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 9px); transform: translateX(-50%) translateY(-3px); }
+[data-tip][data-tip-pos="bottom"]:hover::after { display: block; transform: translateX(-50%) translateY(0); }
+[data-tip][data-tip-hidden]::after { display: none; }
+
+/* ── Detail-Kopf: Icon-Knöpfe (QR, Abweichung, Werkzeuge) ── */
+/* Symbol-Aktionen neben der Objektnummer. Alle tragen eine dezente Tönung – ein Knopf ohne
+   Fläche sieht neben den getönten Nachbarn aus, als wäre er inaktiv (Notizen #113/#115). */
+.erp-idbtn {
+  width: 28px; height: 28px; border-radius: var(--r-sm); border: none; background: var(--bg-2);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-3);
+  cursor: pointer; padding: 0; transition: background .15s, color .15s;
+}
+.erp-idbtn:hover { background: var(--bg-3); color: var(--fg-1); }
+/* Abweichung-Knopf hebt sich dezent hervor: ruhend leicht amber hinterlegt, beim Hover satter. */
+.erp-idbtn-flag { background: var(--warning-bg); color: var(--warning); }
+.erp-idbtn-flag:hover { background: var(--warning); color: #fff; }
+/* Auftrag-Shortcut: dieselbe dezente Tönung wie der Abweichung-Knopf, aber in der
+   leisen Stimme (Slate) statt Amber – eine Handlung, keine Warnung. */
+.erp-idbtn-act { background: var(--accent-soft); color: var(--accent-ink); }
+.erp-idbtn-act:hover { background: var(--accent); color: #fff; }
+/* Deaktivieren/Ersetzen: dieselbe Mechanik in Rot – die Aktion ist eine Verwerfung. */
+.erp-idbtn-danger { background: var(--danger-bg); color: var(--danger); }
+.erp-idbtn-danger:hover { background: var(--danger); color: #fff; }
+.erp-idbtn-act:disabled, .erp-idbtn-act:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
+.erp-idbtn:disabled { opacity: .4; cursor: not-allowed; }
+.erp-idbtn:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
+.erp-idbtn-flag:disabled, .erp-idbtn-flag:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
+
+/* ── Aktion AM Referenzfeld (Kamera) ──
+   Sie sitzt am rechten Innenrand und ersetzt dort das Zierzeichen (Chevron/Lupe): ein
+   Bedienelement mit zwei Eingängen statt zweier nebeneinander. Ruhend flächenlos –
+   «Struktur vor Fläche» –, beim Hover eine dezente Tönung, damit sie sich als Knopf zu
+   erkennen gibt, ohne im Formular lauter zu sein als die Eingabe daneben. */
+.erp-fieldaction {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border-radius: var(--r-sm); border: none; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-3);
+  cursor: pointer; padding: 0; transition: background .15s, color .15s;
+}
+.erp-fieldaction:hover { background: var(--bg-3); color: var(--fg-1); }
+.erp-fieldaction:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.erp-fieldaction:disabled, .erp-fieldaction:disabled:hover { background: transparent; color: var(--fg-4); cursor: not-allowed; }
+
+
+/* ── «Auf einen Blick»-Kachel ── */
+.erp-tile { transition: background .15s; }
+.erp-tile-link { cursor: pointer; }
+.erp-tile-link:hover { background: var(--bg-2) !important; }
+
+/* ── Listenzeile (Aufträge/Referenzen) ── */
+.erp-orow { transition: background .12s; }
+.erp-orow:hover { background: var(--bg-2) !important; }
+
+/* ── Sortier-/Filter-Chip ── */
+.erp-chip { cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.erp-chip:hover { background: var(--bg-3); border-color: var(--border-2); color: var(--fg-1); }
+
+/* ── Reiter (Tabs) ── */
+.erp-tab {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px;
+  font: 600 13.5px var(--font-body); color: var(--fg-3); background: none; border: none;
+  border-bottom: 2px solid transparent; cursor: pointer; transition: color .15s, border-color .15s; white-space: nowrap;
+}
+.erp-tab:hover { color: var(--fg-1); }
+.erp-tab-active { color: var(--inexxio-red); border-bottom-color: var(--inexxio-red); }
+
+/* ── Dokument-Zeile (Reiter «Dokumente»): Aktionen erscheinen beim Hover ── */
+.erp-docrow { transition: border-color .15s, box-shadow .15s; }
+.erp-docrow:hover { border-color: var(--border-2); box-shadow: var(--shadow-sm); }
+.erp-docrow-actions { opacity: 0; transition: opacity .15s; }
+.erp-docrow:hover .erp-docrow-actions,
+.erp-docrow:focus-within .erp-docrow-actions { opacity: 1; }
+/* Touch-Geräte kennen kein Hover → Aktionen dauerhaft zeigen. */
+@media (hover: none) { .erp-docrow-actions { opacity: 1; } }
+
+/* ── Detail-Kopf: Status-Aktionsknöpfe (Freigeben/Deaktivieren …) ── */
+.erp-actbtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 38px; padding: 0 15px;
+  border-radius: var(--r-md); font: 700 13.5px var(--font-body); cursor: pointer; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s; border: 1px solid transparent;
+}
+/* **Der Symbol-Knopf besitzt seine Form hier, nicht an der Aufrufstelle** (Notiz #757).
+   Ohne `justify-content` zentrierte allein die Polsterung – und genau die nimmt ein
+   Symbol-Knopf weg (`padding: 0`), womit das Symbol links im Kasten klebte. Zentriert
+   wird jetzt in der Klasse; die quadratische Form ist eine eigene, und damit kann keine
+   Aufrufstelle mehr `width`/`padding` von Hand setzen und es erneut verschieben. */
+.erp-actbtn-icon { width: 32px; padding: 0; gap: 0; }
+.erp-actbtn:disabled { opacity: .5; cursor: not-allowed; }
+.erp-actbtn-primary { background: var(--inexxio-black); color: #fff; box-shadow: var(--shadow-sm); }
+.erp-actbtn-primary:not(:disabled):hover { background: #26262A; }
+.erp-actbtn-danger { background: #fff; border-color: #f3c9c6; color: var(--danger); }
+.erp-actbtn-danger:not(:disabled):hover { background: var(--danger-bg); }
+.erp-actbtn-neutral { background: #fff; border-color: var(--border-2); color: var(--fg-2); }
+.erp-actbtn-neutral:not(:disabled):hover { background: var(--bg-2); }
+
+/* ── Objektnummer: eine KENNUNG, die sich anfassen lässt ──────────────────────
+   Testnotiz #784. Sie stand als blauer, unterstrichener Text da – die drei Marker,
+   an denen man im Web einen Hyperlink erkennt. Im dichten ERP steht sie in fast jeder
+   Zeile: das ganze Raster las sich als Linkliste, und die Nummer wurde zur lautesten
+   Angabe der Zeile, obwohl sie eine Kennung ist und keine Aussage.
+
+   Die Regel dahinter ist die des Hauses – **Struktur vor Fläche**: im Ruhezustand ist
+   sie schlicht die Nummer (Tabellenziffern, gleiche Farbe wie ihr Text), und erst wenn
+   der Zeiger darauf steht, sagt sie, dass sie etwas tut. Das ist keine versteckte
+   Funktion: der Zeiger wechselt ohnehin (`cursor: pointer`), und der Tastaturweg
+   bekommt dieselbe Auszeichnung über `:focus-visible`.
+
+   Die Unterstreichung bleibt der **Hover-Marker** statt eines Farbwechsels allein –
+   Farbe allein ist kein zugängliches Signal (WCAG 1.4.1). `text-underline-offset`
+   hält sie von den Ziffern weg; ohne ihn schneidet sie die 4 und die 9. */
+.erp-objid {
+  border: none; background: none; padding: 0; cursor: pointer;
+  color: inherit; text-decoration: none; text-underline-offset: 2px;
+  transition: color .12s;
+}
+.erp-objid:hover, .erp-objid:focus-visible {
+  color: var(--accent); text-decoration: underline;
+}
+/* Touch kennt kein Hover – dort ist der Fingerdruck die Probe, und eine dauerhaft
+   unterstrichene Nummer wäre wieder die Linkliste von oben. */
+
+/* Google-Places-Autovervollständigung: Vorschlagsliste über Dialoge/Panels legen
+   (Google rendert .pac-container an document.body; Default-z-index reicht nicht in Modals). */
+.pac-container { z-index: 100000 !important; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 8px 24px rgba(16,14,12,0.12); font-family: inherit; }
+.pac-item { padding: 6px 10px; font-size: 13px; cursor: pointer; }
+
+/* ── Scan-Dialog: der ganze Container IST die Kamera ──────────────────────────
+   Ein ruhiger Suchstrahl, der den Rahmen abtastet – die einzige Bewegung im Bild,
+   dezent genug, um nicht vom Motiv abzulenken. */
+@keyframes ix-scanbeam {
+  0%   { transform: translateY(-46%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateY(46%); opacity: 0; }
+}
+.ix-scanbeam { animation: ix-scanbeam 2.4s cubic-bezier(.45,0,.55,1) infinite; }
+@media (prefers-reduced-motion: reduce) { .ix-scanbeam { animation: none; opacity: .7; } }
+
+/* ── Prozessschritt-Palette: Symbol, das beim Hover seinen Namen freigibt ──────
+   Symbol statt Text (Design-Leitsatz), Modulfarbe statt Neutral – und der Name
+   erscheint erst, wenn man hinzeigt. */
+/* ── Palette: ein Symbol, im Hover sein Name (Notizen #502/#503/#509/#510/#518) ─────
+   Drei Wege sind daran gescheitert: wuchs der Knopf SELBST, brach die Zeile um und er
+   wanderte unter dem Cursor weg (Hover an → aus → an: das «Springen und Hüpfen», #502);
+   wuchs die Pille aus ihm HERAUS, überdeckte sie die Nachbarn (#509/#510); eine Zeile
+   darunter schrieb den Namen zweimal hin (#518). Übrig bleibt das Einfachste: der Knopf
+   bewegt sich nie, und der Hover sagt seinen Namen. */
+/* ── Palettenknopf: der Name wächst im Hover DANEBEN heraus (Testnotiz #624) ───
+   Drei Anläufe sind an derselben Sache gescheitert: der Knopf wuchs IM FLUSS
+   (#502/#503), also brach die Zeile um, er wanderte unter dem Cursor weg, der Hover
+   endete, er schrumpfte – eine Rückkopplung, die als «Zucken» sichtbar war. Eine
+   Pille darüber (#509/#510) sah gelöst aus, und eine Namenszeile darunter (#518)
+   schrieb den Namen zweimal hin.
+
+   Die Lösung trennt die beiden Grössen: **im Fluss** belegt der Knopf eine feste
+   Zelle (44×44) – daran ändert der Hover NICHTS, also kann auch nichts umbrechen
+   oder springen. **Gezeichnet** wird er absolut in dieser Zelle und wächst nach
+   rechts über den Nachbarn, den er für die Dauer des Hovers verdeckt. Das Umbrechen
+   in eine zweite Reihe passiert damit rein statisch (feste Zellen) – genau das, was
+   «sauber und ohne Smashes» heisst.
+
+   Animiert wird über `max-width` – **gemessen, nicht vermutet**: die sonst übliche
+   `grid-template-columns: 0fr → 1fr`-Technik greift hier nicht, weil der Knopf seine
+   Breite aus dem Inhalt zieht (absolut positioniert = shrink-to-fit); in Chromium blieb
+   er dabei stehen (44 → 44 statt 44 → 169). */
+/* ── Palette: Symbol jetzt, Name im Hover DARÜBER (Testnotizen #518/#624/#630) ──
+   Vier Anläufe, dieselbe Wurzel: der Name braucht Platz, den die Reihe nicht hat.
+   Wuchs der KNOPF, brach die Zeile um und zog sich unter dem Cursor weg (#502/#503);
+   wuchs er in einer festen Zelle nach rechts heraus, verdeckte er den Nachbarn (#630) –
+   und eine Namenszeile darunter schrieb ihn zweimal hin (#509/#518).
+   Der Name gehört darum dorthin, wo im ganzen Haus jede Erklärung steht: in die
+   Hover-Blase über dem Element (`[data-tip]`). Sie schwebt über der Zeile statt neben
+   dem Nachbarn, kostet KEINEN Platz im Layout – und ist damit auch dann richtig, wenn
+   die Palette wegen der Responsiveness umbricht. */
+.erp-palette {
+  width: 44px; height: 44px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 1px solid; border-radius: var(--r-md); cursor: pointer;
+  transition: box-shadow .15s, transform .12s ease;
+}
+.erp-palette:hover, .erp-palette:focus-visible {
+  box-shadow: var(--shadow-sm); transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) { .erp-palette { transition: none; } }
+
+/* ── Segment-Umschalter: derselbe Hover wie an der Palette (Testnotiz #624) ────
+   Wo das Wort ohnehin steht (aktive Option), passiert nichts; sonst wächst der
+   Name im Hover neben dem Symbol heraus – gleiche Mechanik (`0fr → 1fr`), gleiche
+   Dauer. Hier darf er IM FLUSS wachsen: der Umschalter ist eine kurze Reihe, die
+   Optionen links vom Cursor bleiben stehen, und der gleitende Reiter wird gemessen,
+   folgt der neuen Breite also von selbst. */
+.ix-seg .ix-seg-label { display: flex; opacity: 0; transition: opacity .15s ease; }
+.ix-seg:hover .ix-seg-label, .ix-seg:focus-visible .ix-seg-label { opacity: 1; }
+.ix-seg .ix-seg-label > span {
+  max-width: 0; overflow: hidden; white-space: nowrap;
+  transition: max-width .2s cubic-bezier(.4,0,.2,1), padding-left .2s cubic-bezier(.4,0,.2,1);
+}
+.ix-seg:hover .ix-seg-label > span,
+.ix-seg:focus-visible .ix-seg-label > span { max-width: 220px; padding-left: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .ix-seg .ix-seg-label, .ix-seg .ix-seg-label > span { transition: none; }
+}
+
+/* ── Ruhige Flächen ohne Scrollbalken — GENERELL, an genau einer Stelle ───────
+   Gescrollt wird weiterhin (Rad, Trackpad, Touch, Tastatur) – nur der Balken
+   verschwindet.
+
+   **Warum global und nicht je Container.** Ein Balken kostet auf Windows und
+   Linux ~15 px echte Breite. Erscheint er, weil ein Aufklappen die Seite
+   verlängert, wird der Inhalt schmaler – und alles Zentrierte **springt
+   seitlich**. Das ist kein Schönheitsfehler, sondern ein Layoutsprung mitten in
+   einer Bedienung. Ein Klassenname dagegen ist eine Bitte: er hilft dort, wo
+   jemand daran gedacht hat, und der nächste `overflow: auto` fängt wieder an zu
+   springen. Ohne Balken gibt es keine Breite, die sich ändern kann – die Frage
+   ist damit gegenstandslos statt beantwortet.
+
+   `scrollbar-gutter: stable` wäre die Gegenrichtung (Platz dauerhaft
+   reservieren): kein Sprung, aber ein leerer Streifen auf jeder Seite.
+
+   Das ist bewusst eine **Design-Entscheidung mit Preis**: die Bildlaufleiste ist
+   auch eine Positionsanzeige. Sie fällt hier weg, weil das ERP flächig und dicht
+   ist und ein Balken je Container die Fläche zerlegt. Tastatur, Rad, Trackpad und
+   Touch bleiben unberührt, und `:focus-visible` scrollt weiterhin mit. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* ── Lieferung unterwegs: der Lastwagen fährt auf dem Fortschrittsbalken ──────
+   Eine kleine, schlichte Freude an einer Stelle, an der man ohnehin wartet
+   (Notiz #251). Er FÄHRT nicht von selbst – seine Position ist der echte
+   Fortschritt; nur das leichte Wippen und der laufende Strassenstrich sind
+   Animation. Bei `prefers-reduced-motion` steht beides still. */
+.ix-truck { animation: ix-truck-bob 1.6s ease-in-out infinite; }
+@keyframes ix-truck-bob {
+  0%, 100% { transform: translate(-50%, -50%); }
+  50%      { transform: translate(-50%, calc(-50% - 1.5px)); }
+}
+.ix-road { animation: ix-road-flow .9s linear infinite; }
+@keyframes ix-road-flow {
+  from { background-position: 0 0; }
+  to   { background-position: 12px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ix-truck, .ix-road { animation: none; }
+}
+
+/* ── Nachbar-Prozesse im Auftrags-Fluss (Testnotizen #453/#460) ───────────────────
+   Links der übergeordnete Auftrag, rechts der Abzweig: beide gehören zum Bild, aber
+   der Fokus liegt auf dem Prozess in der MITTE. Sie treten darum als Ganzes zurück und
+   blassen zusätzlich zur Aussenkante hin aus – die Einladung, sie anzuklicken. Beim
+   Hovern kommen sie ganz nach vorn, damit man sie lesen kann, ohne zu wechseln. */
+.ix-flow-aside {
+  opacity: .55;
+  transition: opacity .18s ease;
+  -webkit-mask-image: linear-gradient(to var(--ix-fade, right), #000 42%, rgba(0, 0, 0, .06) 100%);
+  mask-image: linear-gradient(to var(--ix-fade, right), #000 42%, rgba(0, 0, 0, .06) 100%);
+}
+.ix-flow-aside:hover { opacity: 1; }
+/* Gestapelt (schmale Fenster) liegt der Nachbar-Prozess IN der Achse – dann sagt eine
+   Maske zur Seite etwas Falsches: dort geht nichts seitwärts weiter. Das Zurücktreten
+   bleibt, das Ausblenden zur Kante entfällt. */
+.ix-flow-aside[data-flat="1"] { -webkit-mask-image: none; mask-image: none; }
+@media (prefers-reduced-motion: reduce) { .ix-flow-aside { transition: none; } }
+
+/* ── Modulauswahl im Prozess (PROCESS_CORE §9) ──────────────────────────────
+   Ein Symbol je Modultyp, in seiner Farbe; der Name klappt beim Hovern DANEBEN auf.
+   Dieselbe Geste wie die Mengeneinheit am Artikel – und derselbe Grund, warum er
+   daneben und nicht darunter wächst: eine feste Zelle hält das Layout still, der Name
+   legt sich darüber. Ein wachsender Knopf bräche die Zeile um und wanderte unter dem
+   Cursor weg (Testnotizen #502/#503/#624). */
+.ix-palette {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* **Kein Abstand, solange der Name eingeklappt ist** (Testnotiz #691). Der Name ist ein
+     Flex-Kind mit `max-width: 0` – aber ein `gap` gilt auch zu einem nullbreiten Kind,
+     und damit sass das Symbol um die halbe Lücke links der Mitte. Er entsteht erst beim
+     Aufklappen, dort wo er gebraucht wird. Zentral: es gibt genau einen Modul-Knopf. */
+  gap: 0;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: width 0.16s ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ix-palette-sm { width: 32px; height: 32px; }
+.ix-palette-name {
+  font: 600 12.5px var(--font-body);
+  max-width: 0;
+  opacity: 0;
+  transition: max-width 0.16s ease, opacity 0.12s ease;
+}
+.ix-palette:hover, .ix-palette:focus-visible { width: auto; padding-inline: 11px; gap: 7px; }
+.ix-palette:hover .ix-palette-name,
+.ix-palette:focus-visible .ix-palette-name { max-width: 180px; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .ix-palette, .ix-palette-name { transition: none; }
+}
+
+/* ── Die aktuelle Stelle im Prozess ──────────────────────────────────────────
+   Die wichtigste Frage an einem laufenden Auftrag ist «wo stehen die
+   Einzelinstanzen JETZT». Die kräftige Prozesslinie beantwortet sie schon – sie
+   endet dort –, aber ein Blick über ein langes Bild braucht einen Fixpunkt. Der
+   Ring ist genau das: ein leiser Puls in der **Statusfarbe** der Stelle, also
+   keine neue Farbe und keine zweite Aussage.
+
+   `box-shadow` statt eines zusätzlichen Elements: nichts wird umgebrochen,
+   nichts verschoben – die Pille bleibt exakt, wo sie ist. */
+@keyframes ix-live {
+  0%   { box-shadow: 0 0 0 0 var(--ix-live, transparent); }
+  70%  { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.ix-live { animation: ix-live 2.6s cubic-bezier(.3,.7,.4,1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .ix-live { animation: none; box-shadow: 0 0 0 3px var(--ix-live, transparent); }
+}
+
+
+/* ►►► **Eine Zeilen-Aktion erscheint beim Hovern** (Testnotiz #832). ◄◄◄
+
+   Ein Löschen-Knopf, der in jeder Zeile dauerhaft dasteht, ist die lauteste Angabe einer
+   Liste – und die gefährlichste. Er gehört zur Zeile, unter der der Zeiger steht.
+
+   **Und er verschwindet nie dort, wo es kein Hovern gibt**: `@media (hover: none)` hält
+   ihn auf Touch sichtbar. Eine Funktion, die nur ein Zeiger findet, gibt es am Telefon
+   gar nicht – das ist keine Feinheit, sondern der Unterschied zwischen «unauffällig» und
+   «unerreichbar». `:focus-within` deckt denselben Weg für die Tastatur ab.
+
+   Als **eine** Regel im Blatt und nicht als Zustand an der Aufrufstelle: wer sie dort
+   nachbaute, bräuchte einen `onMouseEnter`-Zustand je Zeile – und beim nächsten Bauteil
+   fehlte er. */
+.erp-rowaction { opacity: 0; transition: opacity .12s; }
+.erp-partyrow:hover .erp-rowaction,
+.erp-partyrow:focus-within .erp-rowaction { opacity: 1; }
+@media (hover: none) { .erp-rowaction { opacity: 1; } }

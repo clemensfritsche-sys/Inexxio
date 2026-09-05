@@ -1,380 +1,522 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Users, Shield, Mail, MapPin, Briefcase, Building2, ShoppingBag, Truck, FileText } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import {
+  User, MapPin, Building2, Briefcase, Bell, Check, CreditCard, Cog,
+} from 'lucide-react';
+import { userDisplayName, localDate } from '@/lib/utils';
+import { ROLE_CFG, userStatus } from '@/lib/record-status';
 import { api } from '@/lib/api';
-import type { UniversalObject, UserProfile, UserPlatformRole } from '@/types';
+import { Card, DetailBody, DetailHeader } from '@/components/erp/fields';
+// **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
+// und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
+// Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
+// «Rechnungsadresse = Lieferadresse»-Schalter mit Spiegelung, Google-Adress-Suche. Keine
+// zweite Optik, kein zweiter Feld-Satz – nur die ERP-Extras kommen dazu (Notiz #295:
+// Rolle, Bankverbindung, admin-pflegbare Anstellung, System). Reuse statt Nachbau.
+import { Field as AField, ToggleField, SelectField } from '@/components/account/field';
+import { AddressField, type Address } from '@/components/erp/address-field';
+import { useMapsApiKey } from '@/components/erp/use-maps-key';
+import { useAutosave } from '@/components/account/use-autosave';
+import { SaveStatusIndicator } from '@/components/account/save-status';
+import type {UserProfile, UserRole } from '@/types';
 
-const ROLE_LABELS: Record<UserPlatformRole, string> = {
-  admin: 'Administrator',
-  employee: 'Mitarbeiter',
-  supplier: 'Lieferant',
-  customer: 'Kunde',
+// **Der Benutzer hat keine Reiter mehr** – aus demselben Befund, zweimal.
+//
+// «Bestellungen» rendete **gar nichts**: seine Karte hing am Verkaufs-Modul, und das ist
+// mit dem Basis-Neuaufbau entfallen (docs/attic.md). «Dokumente» ebenso (Testnotiz #772):
+// zwei Überschriften über leeren Flächen, denn das Dokumentenmodul gibt es nicht mehr.
+// Übrig blieb genau ein Reiter, und der trägt das ganze Formular: es gibt hier nichts
+// mehr zu wählen. Dieselbe Auflösung wie am Artikel (Notiz #760/#761) – dort war es
+// dieselbe Ursache und nicht eine Regel über Reiter.
+//
+// Kommen die Bereiche zurück, kommen ihre Reiter mit ihnen.
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const COUNTRY_NAMES: Record<string, string> = {
+  CH: 'Schweiz', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich',
+  IT: 'Italien', LI: 'Liechtenstein', LU: 'Luxemburg', NL: 'Niederlande',
+  BE: 'Belgien', ES: 'Spanien', PT: 'Portugal', GB: 'Grossbritannien',
+  US: 'USA', PL: 'Polen', CZ: 'Tschechien', SK: 'Slowakei', HU: 'Ungarn',
+  HR: 'Kroatien', SI: 'Slowenien', RO: 'Rumänien', BG: 'Bulgarien',
+  SE: 'Schweden', NO: 'Norwegen', DK: 'Dänemark', FI: 'Finnland',
 };
 
-const ROLE_COLORS: Record<UserPlatformRole, { bg: string; color: string }> = {
-  admin: { bg: '#FEE2E2', color: '#B91C1C' },
-  employee: { bg: '#DBEAFE', color: '#1D4ED8' },
-  supplier: { bg: '#D1FAE5', color: '#065F46' },
-  customer: { bg: '#F3F4F6', color: '#374151' },
-};
-
-function Field({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div>
-      <dt style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-        {label}
-      </dt>
-      <dd style={{ fontSize: 14, color: value ? '#0F172A' : '#cbd5e1', fontStyle: value ? 'normal' : 'italic' }}>
-        {value || '—'}
-      </dd>
-    </div>
-  );
+function countryName(code: string | null | undefined): string {
+  if (!code) return '';
+  return COUNTRY_NAMES[code.toUpperCase()] ?? code;
 }
 
-function Section({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <Icon style={{ width: 14, height: 14, color: '#64748b' }} />
-        <h4 style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-          {title}
-        </h4>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px' }}>
-        {children}
-      </div>
-    </div>
-  );
-}
+// Auswahl für den manuellen Adress-Modus – **ISO-2-Werte** wie in den Profileinstellungen
+// (dort werden dieselben sechs Länder geführt). Das Land-Format bestimmt `AddressField`.
+const COUNTRIES: [string, string][] = [
+  ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['AT', 'Österreich'],
+  ['FR', 'Frankreich'], ['IT', 'Italien'], ['LI', 'Liechtenstein'],
+];
 
-interface UserDetailProps {
-  object: UniversalObject;
-  currentUserRole?: string;
-  onRoleChanged?: () => void;
-}
-
-export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetailProps) {
-  const [tab, setTab] = useState<'profil' | 'rolle'>('profil');
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [saved, setSaved] = useState(false);
-
-  const profile = object.data as UserProfile;
-  const isAdmin = currentUserRole === 'admin';
-
-  const [roleValue, setRoleValue] = useState<UserPlatformRole>(profile?.role ?? 'customer');
-
-  useEffect(() => {
-    setRoleValue(profile?.role ?? 'customer');
-    setSaveError('');
-    setSaved(false);
-  }, [profile?.id, profile?.role]);
-
-  const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || profile?.display_name || profile?.email || '—';
-  const roleColors = ROLE_COLORS[roleValue] ?? ROLE_COLORS.customer;
-
-  const role = profile?.role ?? 'customer';
-  const isBusiness = profile?.is_business || role === 'supplier';
-  const isEmployee = role === 'employee' || role === 'admin';
-  const isCustomerOrSupplier = role === 'customer' || role === 'supplier';
-
-  const hasAddress = !!(profile?.address_line1 || profile?.city);
-  const hasCompanyInfo = !!(profile?.company_name || profile?.uid_number || profile?.vat_number || profile?.trade_register_nr);
-  const hasB2cShipping = !!(profile?.ship_b2c_address_line1 || profile?.ship_b2c_city);
-  const hasB2bShipping = !!(profile?.ship_b2b_address_line1 || profile?.ship_b2b_city);
-  const hasInvoice = !!(profile?.invoice_address_line1 || profile?.invoice_city || profile?.invoice_email || profile?.invoice_vat_id);
-  const hasShopInfo = !!(profile?.customer_group || profile?.credit_limit != null || profile?.accepts_marketing != null);
-
-  async function handleRoleSave() {
-    if (!profile?.id) return;
-    setSaving(true);
-    setSaveError('');
-    setSaved(false);
-    try {
-      await api.updateUserRole(profile.id, roleValue);
-      setSaved(true);
-      onRoleChanged?.();
-      setTimeout(() => setSaved(false), 2000);
-    } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : 'Fehler beim Speichern');
-    } finally {
-      setSaving(false);
-    }
+export function userInitials(name: string, email: string): string {
+  if (name && name !== email) {
+    return name.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
+  return email[0]?.toUpperCase() ?? '?';
+}
+
+// ─── Karten-Bausteine (Spiegel der Profileinstellungen) ────────────────────────
+// Gleiche Anatomie wie `account/sections/profile-section.tsx`, damit «fast eine
+// Spiegelung» entsteht (Notiz #294) – Symbol + Titel + optionaler rechter Slot. Die
+// `Card` selbst wohnt im gemeinsamen Vokabular (`fields.tsx`), seit der Unternehmens-
+// Datensatz dieselbe Anatomie nutzt; die alten `Field`/`Sec` (slate/blue-Altpalette,
+// nur noch von dort genutzt) sind damit entfallen.
+
+function SubBlock({ icon: Icon, title, children }: {
+  icon: React.ElementType; title: string; children: React.ReactNode;
+}) {
+  return (
+    <div style={{ padding: 16, background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border-1)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+        <Icon style={{ width: 13, height: 13, color: 'var(--fg-3)' }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {title}
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Read-only-Adresse (Nicht-Admin sieht, ändert nicht). `AddressField` ist ein
+ *  Editier-Baustein (Suche + «Ändern») – für die reine Anzeige die kompakte
+ *  Zusammenfassung, die dieselbe Optik wie sein gefüllter Zustand trägt. */
+function AddrSummary({ label, a }: { label: string; a: Address }) {
+  const empty = !a.street?.trim() && !a.zip?.trim() && !a.city?.trim();
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
+        <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-2)' }}>{label}</span>
+      </div>
+      {empty ? (
+        <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Nicht erfasst</div>
+      ) : (
+        <div style={{ padding: '11px 13px', borderRadius: 'var(--r-md)', border: '1px solid var(--border-1)', background: 'var(--bg-2)', lineHeight: 1.5 }}>
+          <div style={{ font: '600 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{a.street || '—'}</div>
+          {a.street2 && <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{a.street2}</div>}
+          <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{[a.zip, a.city].filter(Boolean).join(' ')}</div>
+          {a.region && <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{a.region}</div>}
+          <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{countryName(a.country)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Formular (Spiegel des Profils + ERP-Extras) ───────────────────────────────
+
+interface ERPForm {
+  role: UserRole;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  phone: string;
+  company_name: string;
+  uid_number: string;
+  company_billing_email: string;
+  address_line1: string;
+  address_line2: string;
+  postal_code: string;
+  city: string;
+  state_region: string;
+  country: string;
+  invoice_same_as_shipping: boolean;
+  invoice_company: string;
+  invoice_first_name: string;
+  invoice_last_name: string;
+  invoice_address_line1: string;
+  invoice_address_line2: string;
+  invoice_postal_code: string;
+  invoice_city: string;
+  invoice_country: string;
+  invoice_email: string;
+  bank_account_holder: string;
+  bank_name: string;
+  bank_iban: string;
+  bank_bic: string;
+  department: string;
+  job_title: string;
+  employment_start_date: string;
+  weekly_hours: string;
+  newsletter_opt_in: boolean;
+}
+
+type StrKey = { [K in keyof ERPForm]: ERPForm[K] extends string ? K : never }[keyof ERPForm];
+
+function buildForm(p: UserProfile): ERPForm {
+  return {
+    role: p.role,
+    first_name: p.first_name ?? '',
+    last_name: p.last_name ?? '',
+    date_of_birth: p.date_of_birth ?? '',
+    phone: p.phone ?? '',
+    company_name: p.company_name ?? '',
+    uid_number: p.uid_number ?? '',
+    company_billing_email: p.company_billing_email ?? '',
+    address_line1: p.address_line1 ?? '',
+    address_line2: p.address_line2 ?? '',
+    postal_code: p.postal_code ?? '',
+    city: p.city ?? '',
+    state_region: p.state_region ?? '',
+    country: p.country ?? 'CH',
+    invoice_same_as_shipping: p.invoice_same_as_shipping ?? true,
+    invoice_company: p.invoice_company ?? '',
+    invoice_first_name: p.invoice_first_name ?? '',
+    invoice_last_name: p.invoice_last_name ?? '',
+    invoice_address_line1: p.invoice_address_line1 ?? '',
+    invoice_address_line2: p.invoice_address_line2 ?? '',
+    invoice_postal_code: p.invoice_postal_code ?? '',
+    invoice_city: p.invoice_city ?? '',
+    invoice_country: p.invoice_country ?? 'CH',
+    invoice_email: p.invoice_email ?? '',
+    bank_account_holder: p.bank_account_holder ?? '',
+    bank_name: p.bank_name ?? '',
+    bank_iban: p.bank_iban ?? '',
+    bank_bic: p.bank_bic ?? '',
+    department: p.department ?? '',
+    job_title: p.job_title ?? '',
+    employment_start_date: p.employment_start_date ?? '',
+    weekly_hours: p.weekly_hours != null ? String(p.weekly_hours) : '',
+    newsletter_opt_in: p.newsletter_opt_in ?? false,
+  };
+}
+
+const nn = (s: string): string | null => (s.trim() === '' ? null : s);
+
+/** Form → Update-Payload. **Dieselbe Spiegel-Logik wie im Profil:** «Rechnung =
+ *  Lieferung» kopiert die Rechnungsfelder aus der Adresse (EIN Datensatz, eine
+ *  Wahrheit); rollen-fremde Felder (Firma/Bank nur Lieferant, Anstellung nur Staff)
+ *  werden nicht mitgeschickt. */
+function mapUpdate(v: ERPForm): Partial<UserProfile> {
+  const isSupplier = v.role === 'supplier';
+  const isStaff = v.role === 'employee' || v.role === 'admin';
+  const data: Record<string, unknown> = {
+    role: v.role,
+    first_name: nn(v.first_name),
+    last_name: nn(v.last_name),
+    date_of_birth: nn(v.date_of_birth),
+    phone: nn(v.phone),
+    address_line1: nn(v.address_line1),
+    address_line2: nn(v.address_line2),
+    postal_code: nn(v.postal_code),
+    city: nn(v.city),
+    state_region: nn(v.state_region),
+    country: v.country || 'CH',
+    invoice_same_as_shipping: v.invoice_same_as_shipping,
+    invoice_email: nn(v.invoice_email),
+    newsletter_opt_in: v.newsletter_opt_in,
+  };
+  if (v.invoice_same_as_shipping) {
+    data.invoice_company = isSupplier ? nn(v.company_name) : null;
+    data.invoice_first_name = nn(v.first_name);
+    data.invoice_last_name = nn(v.last_name);
+    data.invoice_address_line1 = nn(v.address_line1);
+    data.invoice_address_line2 = nn(v.address_line2);
+    data.invoice_postal_code = nn(v.postal_code);
+    data.invoice_city = nn(v.city);
+    data.invoice_country = v.country || 'CH';
+  } else {
+    data.invoice_company = isSupplier ? nn(v.invoice_company) : null;
+    data.invoice_first_name = nn(v.invoice_first_name);
+    data.invoice_last_name = nn(v.invoice_last_name);
+    data.invoice_address_line1 = nn(v.invoice_address_line1);
+    data.invoice_address_line2 = nn(v.invoice_address_line2);
+    data.invoice_postal_code = nn(v.invoice_postal_code);
+    data.invoice_city = nn(v.invoice_city);
+    data.invoice_country = v.invoice_country || 'CH';
+  }
+  if (isSupplier) {
+    data.company_name = nn(v.company_name);
+    data.uid_number = nn(v.uid_number);
+    data.company_billing_email = nn(v.company_billing_email);
+    data.bank_account_holder = nn(v.bank_account_holder);
+    data.bank_name = nn(v.bank_name);
+    data.bank_iban = nn(v.bank_iban);
+    data.bank_bic = nn(v.bank_bic);
+  }
+  if (isStaff) {
+    data.department = nn(v.department);
+    data.job_title = nn(v.job_title);
+    data.employment_start_date = nn(v.employment_start_date);
+    data.weekly_hours = nn(v.weekly_hours);
+  }
+  return data as Partial<UserProfile>;
+}
+
+function ProfileForm({ record, isAdmin, onSaved }: {
+  record: UserProfile; isAdmin: boolean; onSaved: (u: UserProfile) => void;
+}) {
+  const canEdit = isAdmin;
+  const ro = !canEdit;
+  const mapsKey = useMapsApiKey();
+  const [form, setForm] = useState<ERPForm>(() => buildForm(record));
+  const [resetKey, setResetKey] = useState(0);
+  const prevId = useRef<number | null | undefined>(undefined);
+
+  // Nur bei Datensatz-Wechsel neu aufbauen (nicht bei jedem `record`-Prop) – sonst
+  // klobbert ein Auto-Save → onSaved → neuer Prop die gerade getippte Eingabe.
+  useEffect(() => {
+    if (record.object_id !== prevId.current) {
+      prevId.current = record.object_id;
+      setForm(buildForm(record));
+      setResetKey((k) => k + 1);
+    }
+  }, [record.object_id, record]);
+
+  const { status, errorMsg, saveNow } = useAutosave(
+    form,
+    async (v) => {
+      if (!canEdit || !record.object_id) return;
+      const updated = await api.updateErpRecord(record.object_id, mapUpdate(v));
+      onSaved(updated);
+    },
+    2500,
+    resetKey,
+  );
+
+  function set<K extends keyof ERPForm>(key: K, value: ERPForm[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+  const str = (k: StrKey) => (canEdit ? (val: string) => setForm((prev) => ({ ...prev, [k]: val })) : undefined);
+
+  const role = form.role;
+  const isSupplier = role === 'supplier';
+  const isStaff = role === 'employee' || role === 'admin';
+
+  const address: Address = {
+    street: form.address_line1, street2: form.address_line2, zip: form.postal_code,
+    city: form.city, region: form.state_region, country: form.country,
+  };
+  const applyAddress = (a: Address) => setForm((p) => ({
+    ...p, address_line1: a.street, address_line2: a.street2 ?? '', postal_code: a.zip,
+    city: a.city, state_region: a.region ?? '', country: a.country,
+  }));
+
+  const invoiceAddress: Address = {
+    street: form.invoice_address_line1, street2: form.invoice_address_line2,
+    zip: form.invoice_postal_code, city: form.invoice_city, country: form.invoice_country,
+  };
+  const applyInvoiceAddress = (a: Address) => setForm((p) => ({
+    ...p, invoice_address_line1: a.street, invoice_address_line2: a.street2 ?? '',
+    invoice_postal_code: a.zip, invoice_city: a.city, invoice_country: a.country,
+  }));
+
+  const termsDate = record.terms_accepted_at
+    ? new Date(record.terms_accepted_at).toLocaleDateString('de-CH') : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ padding: '20px 24px 0', borderBottom: '1px solid #E2E8F0', background: '#fff' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-            background: profile?.photo_url ? 'transparent' : '#E51A14',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, fontWeight: 700, color: '#fff', overflow: 'hidden',
-          }}>
-            {profile?.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.photo_url} alt={fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              (profile?.first_name?.[0] || profile?.email?.[0] || 'U').toUpperCase()
-            )}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#94a3b8' }}>
-                {object.number}
-              </span>
-            </div>
-            <h2 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: 0, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {fullName}
-            </h2>
-            <p style={{ fontSize: 13, color: '#64748b', margin: '2px 0 0' }}>{profile?.email}</p>
-          </div>
-          <div style={{
-            padding: '3px 10px',
-            borderRadius: 20,
-            fontSize: 12,
-            fontWeight: 600,
-            background: roleColors.bg,
-            color: roleColors.color,
-            flexShrink: 0,
-          }}>
-            {ROLE_LABELS[profile?.role ?? 'customer']}
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0 }}>
-          {(['profil', 'rolle'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{
-                padding: '8px 16px',
-                fontSize: 13,
-                fontWeight: 600,
-                background: 'none',
-                border: 'none',
-                borderBottom: tab === t ? '2px solid #E51A14' : '2px solid transparent',
-                color: tab === t ? '#E51A14' : '#64748b',
-                cursor: 'pointer',
-                transition: 'color 0.15s',
-                marginBottom: -1,
-              }}
-            >
-              {t === 'profil' ? 'Profil' : 'Rolle & Rechte'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-        {tab === 'profil' && (
-          <>
-            {/* Kontakt */}
-            <Section title="Kontakt" icon={Mail}>
-              <Field label="Vorname" value={profile?.first_name} />
-              <Field label="Nachname" value={profile?.last_name} />
-              <Field label="E-Mail" value={profile?.email} />
-              <Field label="Anrede" value={profile?.salutation} />
-              <Field label="Telefon" value={profile?.phone} />
-              <Field label="Sprache" value={profile?.language?.toUpperCase()} />
-              {role === 'customer' && (
-                <Field label="Kontotyp" value={isBusiness ? 'Geschäftskunde (B2B)' : 'Privatkunde (B2C)'} />
-              )}
-            </Section>
-
-            {/* Adresse */}
-            {hasAddress && (
-              <Section title="Adresse" icon={MapPin}>
-                <Field label="Strasse" value={[profile?.address_line1, profile?.address_line2].filter(Boolean).join(', ')} />
-                <Field label="Ort" value={[profile?.postal_code, profile?.city].filter(Boolean).join(' ')} />
-                <Field label="Kanton" value={profile?.state_canton} />
-                <Field label="Land" value={profile?.country} />
-              </Section>
-            )}
-
-            {/* Firmendaten (B2B customers & suppliers) */}
-            {(isBusiness || hasCompanyInfo) && (
-              <Section title="Firma / Geschäft" icon={Building2}>
-                <Field label="Firmenname" value={profile?.company_name} />
-                <Field label="Rechtsform" value={profile?.company_legal_form} />
-                <Field label="UID-Nummer" value={profile?.uid_number} />
-                <Field label="MWST-Nummer" value={profile?.vat_number} />
-                <Field label="Handelsregister-Nr." value={profile?.trade_register_nr} />
-                <Field label="Kanton HR" value={profile?.trade_register_canton} />
-                <Field label="Website" value={profile?.company_website} />
-                <Field label="Rechnungs-E-Mail Firma" value={profile?.company_billing_email} />
-              </Section>
-            )}
-
-            {/* Anstellung (employees & admins only) */}
-            {isEmployee && (
-              <Section title="Anstellung" icon={Briefcase}>
-                <Field label="Abteilung" value={profile?.department} />
-                <Field label="Funktion" value={profile?.job_title} />
-                <Field label="Eintrittsdatum" value={profile?.employment_start_date ? new Date(profile.employment_start_date).toLocaleDateString('de-CH') : null} />
-                <Field label="Pensum" value={profile?.weekly_hours ? `${profile.weekly_hours}h/Woche` : null} />
-              </Section>
-            )}
-
-            {/* Lieferadressen (customers & suppliers) */}
-            {isCustomerOrSupplier && (isBusiness ? hasB2bShipping : hasB2cShipping) && (
-              <Section title={isBusiness ? 'Lieferadresse (Firma)' : 'Lieferadresse (Privat)'} icon={Truck}>
-                {isBusiness ? (
-                  <>
-                    <Field label="Firmenname" value={profile?.ship_b2b_company} />
-                    <Field label="Ansprechperson" value={profile?.ship_b2b_contact} />
-                    <Field label="Strasse" value={[profile?.ship_b2b_address_line1, profile?.ship_b2b_address_line2].filter(Boolean).join(', ')} />
-                    <Field label="Ort" value={[profile?.ship_b2b_postal_code, profile?.ship_b2b_city].filter(Boolean).join(' ')} />
-                    <Field label="Land" value={profile?.ship_b2b_country} />
-                  </>
-                ) : (
-                  <>
-                    <Field label="Vorname" value={profile?.ship_b2c_first_name} />
-                    <Field label="Nachname" value={profile?.ship_b2c_last_name} />
-                    <Field label="Strasse" value={[profile?.ship_b2c_address_line1, profile?.ship_b2c_address_line2].filter(Boolean).join(', ')} />
-                    <Field label="Ort" value={[profile?.ship_b2c_postal_code, profile?.ship_b2c_city].filter(Boolean).join(' ')} />
-                    <Field label="Land" value={profile?.ship_b2c_country} />
-                  </>
-                )}
-              </Section>
-            )}
-
-            {/* Rechnungsadresse (customers & suppliers) */}
-            {isCustomerOrSupplier && hasInvoice && (
-              <Section title="Rechnungsadresse" icon={FileText}>
-                {isBusiness && <Field label="Firmenname" value={profile?.invoice_company} />}
-                <Field label="Name" value={[profile?.invoice_first_name, profile?.invoice_last_name].filter(Boolean).join(' ') || null} />
-                <Field label="Strasse" value={[profile?.invoice_address_line1, profile?.invoice_address_line2].filter(Boolean).join(', ')} />
-                <Field label="Ort" value={[profile?.invoice_postal_code, profile?.invoice_city].filter(Boolean).join(' ')} />
-                <Field label="Land" value={profile?.invoice_country} />
-                <Field label="Rechnungs-E-Mail" value={profile?.invoice_email} />
-                {isBusiness && <Field label="USt-ID / MWST-Nr." value={profile?.invoice_vat_id} />}
-              </Section>
-            )}
-
-            {/* Online Shop / CRM (customers) */}
-            {role === 'customer' && hasShopInfo && (
-              <Section title="Online Shop / CRM" icon={ShoppingBag}>
-                <Field label="Kundengruppe" value={profile?.customer_group} />
-                <Field label="Kreditlimit (CHF)" value={profile?.credit_limit != null ? String(profile.credit_limit) : null} />
-                <Field label="Marketing" value={profile?.accepts_marketing ? 'Einverstanden' : 'Nicht einverstanden'} />
-                <Field label="AGB akzeptiert" value={profile?.terms_accepted_at ? new Date(profile.terms_accepted_at).toLocaleDateString('de-CH') : 'Automatisch beim Login'} />
-              </Section>
-            )}
-
-          </>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
+      <Card icon={User} title="Persönliche Angaben" right={canEdit ? <SaveStatusIndicator status={status} errorMsg={errorMsg} /> : undefined}>
+        {/* Rolle – ERP-Extra (das Konto kennt sie nicht, die eigene Rolle ändert man nicht). */}
+        {canEdit ? (
+          <SelectField label="Rolle" value={role} onChange={(x) => set('role', x as UserRole)} options={[
+            { value: 'admin', label: 'Admin' }, { value: 'employee', label: 'Mitarbeiter' },
+            { value: 'supplier', label: 'Lieferant' }, { value: 'customer', label: 'Kunde' },
+          ]} />
+        ) : (
+          <AField label="Rolle" value={ROLE_CFG[role]?.label ?? role} readOnly />
         )}
 
-        {tab === 'rolle' && (
-          <div>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <Shield style={{ width: 14, height: 14, color: '#64748b' }} />
-                <h4 style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-                  Plattformrolle
-                </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <AField label="Vorname" value={form.first_name} onChange={str('first_name')} readOnly={ro} placeholder="Max" onEnter={saveNow} />
+          <AField label="Nachname" value={form.last_name} onChange={str('last_name')} readOnly={ro} placeholder="Muster" onEnter={saveNow} />
+          <AField label="Telefon" value={form.phone} onChange={str('phone')} readOnly={ro} type="tel" placeholder="+41 44 000 00 00" onEnter={saveNow} />
+          <AField label="Geburtsdatum" value={form.date_of_birth} onChange={str('date_of_birth')} readOnly={ro} type="date" onEnter={saveNow} />
+        </div>
+
+        {isSupplier && (
+          <SubBlock icon={Building2} title="Firmendaten">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AField label="Firmenname" value={form.company_name} onChange={str('company_name')} readOnly={ro} placeholder="Muster AG" onEnter={saveNow} />
+              <AField label="UID-Nummer" value={form.uid_number} onChange={str('uid_number')} readOnly={ro} placeholder="CHE-123.456.789" onEnter={saveNow} />
+              <div className="sm:col-span-2">
+                <AField label="Rechnungs-E-Mail (Firma)" value={form.company_billing_email} onChange={str('company_billing_email')} readOnly={ro} type="email" onEnter={saveNow} />
               </div>
+            </div>
+          </SubBlock>
+        )}
 
-              {isAdmin ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <select
-                    value={roleValue}
-                    onChange={(e) => setRoleValue(e.target.value as UserPlatformRole)}
-                    style={{
-                      padding: '9px 12px',
-                      borderRadius: 8,
-                      border: '1px solid #E2E8F0',
-                      fontSize: 14,
-                      color: '#0F172A',
-                      background: '#fff',
-                      cursor: 'pointer',
-                      outline: 'none',
-                    }}
-                  >
-                    <option value="customer">Kunde</option>
-                    <option value="supplier">Lieferant</option>
-                    <option value="employee">Mitarbeiter</option>
-                    <option value="admin">Administrator</option>
-                  </select>
+        {/* Anstellung: im Profil read-only, **im ERP admin-pflegbar** (Notiz #295 –
+            «das ERP muss ALLES können»; ``ErpAdminUpdate`` erbt + ergänzt genau das). */}
+        {isStaff && (
+          <SubBlock icon={Briefcase} title="Anstellung">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AField label="Abteilung" value={form.department} onChange={str('department')} readOnly={ro} onEnter={saveNow} />
+              <AField label="Funktion" value={form.job_title} onChange={str('job_title')} readOnly={ro} onEnter={saveNow} />
+              <AField label="Eintrittsdatum" value={form.employment_start_date} onChange={str('employment_start_date')} readOnly={ro} type="date" onEnter={saveNow} />
+              <AField label="Pensum (h/Woche)" value={form.weekly_hours} onChange={str('weekly_hours')} readOnly={ro} onEnter={saveNow} />
+            </div>
+          </SubBlock>
+        )}
 
-                  {saveError && (
-                    <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{saveError}</p>
-                  )}
+        {isSupplier && (
+          <SubBlock icon={CreditCard} title="Bankverbindung">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AField label="Kontoinhaber" value={form.bank_account_holder} onChange={str('bank_account_holder')} readOnly={ro} onEnter={saveNow} />
+              <AField label="Bank" value={form.bank_name} onChange={str('bank_name')} readOnly={ro} onEnter={saveNow} />
+              <AField label="IBAN" value={form.bank_iban} onChange={str('bank_iban')} readOnly={ro} onEnter={saveNow} />
+              <AField label="BIC/SWIFT" value={form.bank_bic} onChange={str('bank_bic')} readOnly={ro} onEnter={saveNow} />
+            </div>
+          </SubBlock>
+        )}
+      </Card>
 
-                  <button
-                    onClick={handleRoleSave}
-                    disabled={saving || roleValue === (profile?.role ?? 'customer')}
-                    style={{
-                      padding: '9px 18px',
-                      borderRadius: 8,
-                      border: 'none',
-                      background: '#E51A14',
-                      color: '#fff',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: saving || roleValue === (profile?.role ?? 'customer') ? 'not-allowed' : 'pointer',
-                      opacity: saving || roleValue === (profile?.role ?? 'customer') ? 0.5 : 1,
-                      alignSelf: 'flex-start',
-                    }}
-                  >
-                    {saving ? 'Speichert…' : saved ? 'Gespeichert ✓' : 'Rolle speichern'}
-                  </button>
-                </div>
-              ) : (
-                <div style={{ padding: '12px 16px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      padding: '3px 10px',
-                      borderRadius: 20,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      background: ROLE_COLORS[profile?.role ?? 'customer'].bg,
-                      color: ROLE_COLORS[profile?.role ?? 'customer'].color,
-                    }}>
-                      {ROLE_LABELS[profile?.role ?? 'customer']}
-                    </div>
-                    <span style={{ fontSize: 13, color: '#64748b' }}>
-                      Rollenänderungen sind nur Admins vorbehalten.
-                    </span>
-                  </div>
+      {/* ── 2. Adressen (Lieferung + Rechnung in EINEM Container) ───────────── */}
+      <Card icon={MapPin} title="Adressen">
+        {canEdit ? (
+          <AddressField value={address} onChange={applyAddress} apiKey={mapsKey}
+            countryOptions={COUNTRIES} showStreet2 showRegion label="Lieferadresse" />
+        ) : (
+          <AddrSummary label="Lieferadresse" a={address} />
+        )}
+
+        <div style={{ height: 1, background: 'var(--border-1)' }} />
+
+        {canEdit ? (
+          <ToggleField label="Rechnungsadresse = Lieferadresse" checked={form.invoice_same_as_shipping}
+            onChange={(x) => set('invoice_same_as_shipping', x)} />
+        ) : (
+          <AField label="Rechnungsadresse = Lieferadresse" value={form.invoice_same_as_shipping ? 'Ja' : 'Nein'} readOnly />
+        )}
+
+        {!form.invoice_same_as_shipping && (canEdit ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {isSupplier && (
+                <div className="sm:col-span-2">
+                  <AField label="Firmenname" value={form.invoice_company} onChange={str('invoice_company')} onEnter={saveNow} />
                 </div>
               )}
+              <AField label="Vorname" value={form.invoice_first_name} onChange={str('invoice_first_name')} onEnter={saveNow} />
+              <AField label="Nachname" value={form.invoice_last_name} onChange={str('invoice_last_name')} onEnter={saveNow} />
             </div>
+            <AddressField value={invoiceAddress} onChange={applyInvoiceAddress} apiKey={mapsKey}
+              countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
+          </>
+        ) : (
+          <>
+            {isSupplier && <AField label="Firmenname" value={form.invoice_company} readOnly />}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AField label="Vorname" value={form.invoice_first_name} readOnly />
+              <AField label="Nachname" value={form.invoice_last_name} readOnly />
+            </div>
+            <AddrSummary label="Rechnungsadresse" a={invoiceAddress} />
+          </>
+        ))}
 
-            <div style={{ padding: '12px 16px', borderRadius: 8, background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-              <p style={{ fontSize: 12, color: '#92400E', margin: 0, lineHeight: 1.5 }}>
-                <strong>Rollenübersicht:</strong> Kunden und Lieferanten haben keinen ERP-Zugang. Mitarbeiter und Admins können das ERP verwenden. Nur Admins können Rollen und Einstellungen verwalten.
-              </p>
-            </div>
-          </div>
+        {/* Rechnungs-E-Mail: leer = die Konto-Adresse (als Platzhalter sichtbar). */}
+        <AField label="Rechnungs-E-Mail" value={form.invoice_email} onChange={str('invoice_email')}
+          readOnly={ro} type="email" placeholder={record.email ?? 'rechnung@firma.ch'} onEnter={saveNow} />
+      </Card>
+
+      {/* ── 3. Kommunikation & Rechtliches ──────────────────────────────────── */}
+      <Card icon={Bell} title="Kommunikation">
+        {canEdit ? (
+          <ToggleField label="Newsletter" description="Produktneuigkeiten und Angebote per E-Mail"
+            checked={form.newsletter_opt_in} onChange={(x) => set('newsletter_opt_in', x)} />
+        ) : (
+          <AField label="Newsletter" value={form.newsletter_opt_in ? 'Abonniert' : 'Nicht abonniert'} readOnly />
         )}
-      </div>
-
-      {/* Footer */}
-      <div style={{ padding: '12px 24px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Users style={{ width: 13, height: 13, color: '#94a3b8' }} />
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>Benutzer</span>
-          </div>
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>·</span>
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>
-            Registriert: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('de-CH') : '—'}
+        {/* Kein Schalter, sondern eine Tatsache (wie im Profil): die Rechtstexte sind
+            akzeptiert. Die vollständige, versionierte Historie führt der Reiter «Dokumente». */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13, color: 'var(--fg-3)' }}>
+          {termsDate && <Check size={15} style={{ color: 'var(--success)', flexShrink: 0 }} />}
+          <span>
+            {termsDate
+              ? `AGB und Datenschutzerklärung akzeptiert am ${termsDate}${record.terms_version ? ` · v${record.terms_version}` : ''}`
+              : 'AGB und Datenschutzerklärung noch nicht akzeptiert'}
           </span>
-          {profile?.last_login_at && (
-            <>
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>·</span>
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                Letzte Anmeldung: {new Date(profile.last_login_at).toLocaleDateString('de-CH')}
-              </span>
-            </>
+        </div>
+      </Card>
+
+      {/* ── 4. System (ERP-Extra, read-only – Notiz #295) ───────────────────── */}
+      <Card icon={Cog} title="System">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <AField label="E-Mail" value={record.email} readOnly />
+          <AField label="Anmeldung" value={signInLabel(record.last_sign_in_provider)} readOnly />
+          <AField label="Passkeys" value={passkeyLabel(record.passkey_count)} readOnly />
+          <AField label="Letzter Login" value={localDate(record.last_login_at)} readOnly />
+          <AField label="Erstellt" value={localDate(record.created_at)} readOnly />
+          <AField label="Zuletzt geändert" value={localDate(record.updated_at)} readOnly />
+          {isAdmin && (
+            <div className="sm:col-span-2">
+              <AField label="Firebase UID" value={record.firebase_uid} readOnly />
+            </div>
           )}
         </div>
+      </Card>
+    </div>
+  );
+}
+
+/** Anmeldeweg aus dem Firebase-ID-Token, in Klartext. */
+function signInLabel(provider: string | null | undefined): string {
+  const map: Record<string, string> = {
+    'google.com': 'Google SSO',
+    custom: 'Passkey',          // Passkey-Login stellt ein Firebase Custom Token aus
+    emailLink: 'Anmeldelink',
+    password: 'Passwort',
+  };
+  return provider ? (map[provider] ?? provider) : '—';
+}
+
+function passkeyLabel(count: number | null | undefined): string {
+  const n = count ?? 0;
+  return n === 0 ? 'Keiner eingerichtet' : `${n} Gerät${n === 1 ? '' : 'e'}`;
+}
+
+// ─── Bestellungen (Reiter) ─────────────────────────────────────────────────────
+
+// Die Karte «Bestellungen» ist mit dem Verkaufs-Modul entfallen (docs/attic.md).
+
+export function UserDetail({ record, onSave, isAdmin, onBack }: {
+  record: UserProfile;
+  onSave: (u: UserProfile) => void;
+  isAdmin: boolean;
+  onBack: () => void;
+}) {
+  const rc       = userStatus(record);
+  const name     = userDisplayName(record);
+  const hasName  = !!name && name !== record.email;
+  const initials = userInitials(name, record.email);
+
+  // **Eine Person wird nicht deaktiviert – sie wechselt die Rolle** (Testnotiz #755).
+  //
+  // Wer das Unternehmen verlässt, hört nicht auf zu existieren: er wird vom Mitarbeiter
+  // zum Kunden und darf weiter einkaufen. Ein Knopf, der eine Identität stilllegt, auf
+  // die Aufträge, Instanzen und Belege zeigen, beantwortete eine Frage, die niemand
+  // stellt. Gepflegt wird die **Rolle**, und zwar im Formular darunter – an derselben
+  // Stelle wie jede andere Angabe der Person.
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242).
+          Das runde Foto als `avatar`; die Objektnummer trägt der Kopf (darum steht sie –
+          anders als im Profil – nicht noch einmal als Kachel im Formular). */}
+      <DetailHeader
+        type="user" title={hasName ? name : null} placeholder="Kein Name"
+        objectId={record.object_id} onBack={onBack}
+        status={rc}
+        photoUrl={record.photo_url} initials={initials}
+      />
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
+        {/* **Dieselbe Breite wie jeder andere Datensatz** (Notiz #763). Ohne sie lief das
+            Formular auf einem breiten Schirm über die volle Fensterbreite auseinander –
+            und eine Zeile wurde unlesbar lang. */}
+        <DetailBody>
+        <ProfileForm record={record} isAdmin={isAdmin} onSaved={onSave} />
+        </DetailBody>
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ env:
   ARTIFACT_REGISTRY: europe-west6-docker.pkg.dev
   ARTIFACT_REPO: inexxio-prod
   CLOUD_RUN_SERVICE: inexxio-backend-prod
+  CLOUD_SQL_INSTANCE: inexxio-prod-db
   FIREBASE_PROJECT: inexxio-prod
   WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.WIF_PROVIDER_PROD }}
   SERVICE_ACCOUNT: ${{ secrets.WIF_SA_PROD }}
@@ -45,6 +46,38 @@ jobs:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.SERVICE_ACCOUNT }}
 
+      # **Ein Deploy gegen eine stillgelegte Datenbank scheitert nicht, er täuscht.**
+      # Die Prod-Instanz ist im August 2026 gestoppt worden (~100 CHF/Monat für eine
+      # Umgebung, die niemand aufrief – infra/README.md, «Laufende Kosten»). Ein Deploy
+      # dagegen läuft grün durch: das Image baut, der Cloud-Run-Dienst entsteht neu, und
+      # erst der erste Request fällt um – ``start.sh`` kommt nicht an die Datenbank, das
+      # Lifespan-Netz auch nicht, und im Log steht ein Verbindungsfehler statt der
+      # Ursache. Der Wächter sagt es VORHER, vor dem Build, mit dem Befehl daneben.
+      #
+      # Er ist bewusst **fail-closed**: kann er den Zustand nicht lesen, bricht er ab,
+      # statt durchzuwinken – ein Wächter, der im Zweifel schweigt, ist von einem
+      # kaputten nicht zu unterscheiden. Der häufigste Grund dafür ist eine fehlende
+      # Berechtigung, und genau die nennt er dann.
+      - name: Läuft die Prod-Datenbank überhaupt?
+        run: |
+          if ! POLICY=$(gcloud sql instances describe "${{ env.CLOUD_SQL_INSTANCE }}" \
+                 --project="${{ env.GCP_PROJECT }}" \
+                 --format='value(settings.activationPolicy)' 2>/tmp/sql-describe.err); then
+            echo "::error::Zustand von '${{ env.CLOUD_SQL_INSTANCE }}' nicht lesbar – Deploy abgebrochen."
+            sed 's/^/::error::/' /tmp/sql-describe.err
+            echo "::error::Fehlt die Berechtigung, genügt einmalig:"
+            echo "::error::  gcloud projects add-iam-policy-binding ${{ env.GCP_PROJECT }} --member=serviceAccount:github-actions@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com --role=roles/cloudsql.viewer"
+            exit 1
+          fi
+          if [ "$POLICY" != "ALWAYS" ]; then
+            echo "::error::Cloud SQL '${{ env.CLOUD_SQL_INSTANCE }}' ist stillgelegt (activationPolicy=$POLICY)."
+            echo "::error::Ein Deploy dagegen ergäbe ein Backend ohne Datenbank."
+            echo "::error::Anfahren:"
+            echo "::error::  gcloud sql instances patch ${{ env.CLOUD_SQL_INSTANCE }} --project=${{ env.GCP_PROJECT }} --activation-policy=ALWAYS"
+            exit 1
+          fi
+          echo "Cloud SQL '${{ env.CLOUD_SQL_INSTANCE }}' läuft (activationPolicy=$POLICY)."
+
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
 
@@ -69,9 +102,9 @@ jobs:
             --platform managed \
             --no-allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
-            --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-prod-db" \
-            --set-env-vars "APP_ENV=production,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-prod" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest" \
+            --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:${{ env.CLOUD_SQL_INSTANCE }}" \
+            --set-env-vars "APP_ENV=production,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-prod,FRONTEND_BASE_URL=https://inexxio-prod.web.app" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest" \
             --min-instances 1 \
             --max-instances 10 \
             --memory 1Gi \
